@@ -1,0 +1,11 @@
+{
+  "combinations": {
+    "sunny_grass_dry":  { "surfaceModifier": 1.05, "weatherModifier": 1.00 },
+    "rainy_grass_wet":  { "surfaceModifier": 0.90, "weatherModifier": 0.92 },
+    "rainy_dirt_heavy": { "surfaceModifier": 0.85, "weatherModifier": 0.90 },
+    "sunny_dirt_dry":   { "surfaceModifier": 1.00, "weatherModifier": 1.00 },
+    "windy":            { "surfaceModifier": 1.00, "weatherModifier": 0.95 },
+    "cold":             { "surfaceModifier": 1.00, "weatherModifier": 0.97 },
+    "hot":               { "surfaceModifier": 1.00, "weatherModifier": 0.96 }
+  }
+}

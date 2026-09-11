@@ -1,0 +1,15 @@
+DROP INDEX IF EXISTS idx_breeding_pairs_stallion_id;
+DROP INDEX IF EXISTS idx_breeding_pairs_mare_id;
+DROP INDEX IF EXISTS idx_training_sessions_created_at;
+DROP INDEX IF EXISTS idx_training_sessions_horse_id;
+DROP INDEX IF EXISTS idx_market_listings_created_at;
+DROP INDEX IF EXISTS idx_market_listings_price;
+DROP INDEX IF EXISTS idx_market_listings_status;
+DROP INDEX IF EXISTS idx_race_entry_segments_race_entry_id;
+DROP INDEX IF EXISTS idx_race_entries_horse_id;
+DROP INDEX IF EXISTS idx_race_entries_race_id;
+DROP INDEX IF EXISTS idx_races_status;
+DROP INDEX IF EXISTS idx_races_start_time;
+DROP INDEX IF EXISTS idx_horses_status;
+DROP INDEX IF EXISTS idx_horses_level;
+DROP INDEX IF EXISTS idx_horses_owner_id;

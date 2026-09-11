@@ -1,0 +1,5 @@
+{
+  "inheritanceRange": [0.35, 0.65],
+  "mutationBounds": [-3, 3],
+  "maxPotentialGainOverParents": 1.05
+}

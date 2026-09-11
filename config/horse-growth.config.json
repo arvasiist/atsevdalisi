@@ -1,0 +1,9 @@
+{
+  "stages": [
+    { "name": "foal",        "minAgeMonths": 0,   "maxAgeMonths": 12,  "growthFactor": 0.5 },
+    { "name": "development", "minAgeMonths": 12,  "maxAgeMonths": 36,  "growthFactor": 0.8 },
+    { "name": "prime",       "minAgeMonths": 36,  "maxAgeMonths": 84,  "growthFactor": 1.0 },
+    { "name": "mature",      "minAgeMonths": 84,  "maxAgeMonths": 132, "growthFactor": 0.9 },
+    { "name": "aging",       "minAgeMonths": 132, "maxAgeMonths": null, "growthFactor": 0.75 }
+  ]
+}

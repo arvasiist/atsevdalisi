@@ -1,0 +1,2 @@
+DROP TABLE IF EXISTS horses;
+DROP TABLE IF EXISTS tracks;

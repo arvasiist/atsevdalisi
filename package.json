@@ -1,0 +1,35 @@
+{
+  "name": "at-sevdalisi",
+  "version": "0.1.0",
+  "private": true,
+  "description": "At Sevdalısı - 3D at yarışı, at sahibi/yönetici simülasyonu ve yetiştiricilik oyunu (web + mobil uyumlu monorepo)",
+  "license": "UNLICENSED",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "dev:web": "npm run dev --workspace=apps/web",
+    "dev:api": "npm run dev --workspace=apps/api",
+    "build": "npm run build --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "lint": "eslint . --ext .ts,.tsx",
+    "format": "prettier --write .",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "migrate": "npm run migrate --workspace=apps/api",
+    "migrate:undo": "npm run migrate:undo --workspace=apps/api",
+    "seed": "npm run seed --workspace=apps/api",
+    "prepare": "node -e \"try{require('husky')}catch(e){process.exit(0)}\" || true"
+  },
+  "devDependencies": {
+    "@typescript-eslint/eslint-plugin": "^7.0.0",
+    "@typescript-eslint/parser": "^7.0.0",
+    "eslint": "^8.57.0",
+    "eslint-config-prettier": "^9.1.0",
+    "prettier": "^3.3.0",
+    "typescript": "^5.5.0"
+  }
+}

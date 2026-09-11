@@ -1,0 +1,14 @@
+{
+  "diminishingExponent": 0.7,
+  "types": {
+    "speed":     { "baseGain": 1.0, "baseFatigue": 8,  "baseInjuryRisk": 0.5 },
+    "sprint":    { "baseGain": 1.2, "baseFatigue": 10, "baseInjuryRisk": 0.8 },
+    "stamina":   { "baseGain": 1.0, "baseFatigue": 9,  "baseInjuryRisk": 0.4 },
+    "start":     { "baseGain": 0.8, "baseFatigue": 6,  "baseInjuryRisk": 0.3 },
+    "cornering": { "baseGain": 0.8, "baseFatigue": 6,  "baseInjuryRisk": 0.4 },
+    "tempo":     { "baseGain": 0.9, "baseFatigue": 7,  "baseInjuryRisk": 0.3 },
+    "rest":      { "baseGain": 0.0, "baseFatigue": -20, "baseInjuryRisk": 0.0 }
+  },
+  "intensityMultipliers": { "low": 0.6, "medium": 1.0, "high": 1.5 },
+  "durationMultiplier": { "unitMinutes": 15, "perUnit": 0.2 }
+}

@@ -1,0 +1,18 @@
+{
+  "marketValueWeights": {
+    "quality": 0.30,
+    "potential": 0.25,
+    "ageFactor": 0.15,
+    "raceHistory": 0.15,
+    "pedigreeValue": 0.10,
+    "health": 0.05
+  },
+  "gemShopWhitelist": [
+    "cosmetic_avatar_frame",
+    "cosmetic_stable_skin",
+    "cosmetic_jockey_outfit",
+    "premium_season_pass"
+  ],
+  "dailyRewardMoney": 500,
+  "raceEntryFeeMultiplier": 1.0
+}
