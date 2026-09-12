@@ -13,7 +13,7 @@
 | 1 | Core | Player, Auth, Economy, Horse, Stable, Training, Care, Basic Race Engine, Race Result, Progression | 🟡 Domain katmanı tamam, wiring bekliyor |
 | 2 | Management | Horse Market, Buy/Sell, Vet, Farrier, Nutrition, Jockey, Staff, Stable capacity, Costs | 🟡 Domain katmanı tamam, wiring bekliyor |
 | 3 | Genetics | Pedigree, Mare/Stallion, Genetic traits, Inheritance, Mutation, Foal, Growth, Bloodline | 🟡 Domain katmanı tamam, wiring bekliyor |
-| 4 | Farm | Stable upgrade, Paddock, Training track, Vet center, Breeding center, Staff facilities | ⏳ |
+| 4 | Farm | Stable upgrade, Paddock, Training track, Vet center, Breeding center, Staff facilities | 🟡 Domain katmanı tamam, wiring bekliyor |
 | 5 | Advanced Race Engine | Continuous simulation, Pace, Position, Overtaking, Blocking, Turns, Lane changes, Sprint, Fatigue, Jockey decisions, Photo finish, Replay, Cameras | ⏳ |
 | 6 | Web 3D/Görsel Sunum | Race track, Horse models, Jockey models, Animations, Camera system, UI, VFX, Audio, Crowd, Weather | ⏳ |
 | 7 | Online | Matchmaking, PvP, Race rooms, Leaderboards, Clubs, Tournaments, Seasons, Anti-cheat, Server-authoritative simulation | ⏳ |
@@ -180,6 +180,37 @@ değiştirilemez"), FAZ 2 atlanmadan FAZ 3'e geçilmedi:
   kararı olarak bırakılmıştır (bkz. ilgili domain README'leri).
 - Açık artırma (auction) teklif mekanizması — şema (`listing_type`) hazır,
   teklif verme/kazanma mantığı uygulanmadı.
+
+## FAZ 4 tamamlanma durumu (bu oturum)
+
+Aynı yöntemle (framework'ten bağımsız domain katmanı, `tsc` ile mimari
+doğrulama + gerçek girdilerle runtime doğrulama + kalıcı Vitest testleri —
+bu oturumda ayrıca 148 testin (129 önceki FAZ + 19 yeni) TAMAMI, `vitest`
+paketinin yerini tutan özel bir minimal test çalıştırıcıyla tek tek
+gerçekten koşturularak doğrulandı) FAZ 4 (Çiftlik) domain katmanı
+tamamlandı — roadmap sırası korunarak (FAZ 1→2→3 tamamlanmadan FAZ 4'e
+geçilmedi):
+
+- [x] `domain/farm` (yeni) — brief §32 ÇİFTLİK'in ahır DIŞINDAKİ 7 tesisi:
+      Paddock, Antrenman pisti, Veteriner merkezi, Nalbant alanı, Üreme
+      merkezi, Depo, Personel binası. İnşa/yükseltme maliyeti
+      (`domain/stable`'daki `getNextStableUpgradeCost` ile birebir aynı
+      desen), her tesis için TEK bir kontrollü bonus çarpanı/değeri (brief
+      §32 "Bonuslar kontrollü olmalıdır"), personel binası için mutlak
+      personel kapasitesi (`getMaxStaffCapacity`/`assertCanHireMoreStaff`).
+- [x] `database/migrations/0013` — `facilities` tablosu (oyuncu başına
+      tesis tipi başına en fazla 1 kayıt, UNIQUE kısıtı).
+- [x] Ahır (`domain/stable`) TEKRARLANMADI — brief §32'nin "Stable upgrade"
+      maddesi zaten FAZ 2'de tamamlanmıştı, FAZ 4 bunun üzerine sadece EK
+      tesisleri ekledi.
+
+**Bilinçli olarak bu oturuma dahil edilmeyenler:**
+
+- Her tesisin `get*Multiplier` fonksiyonunun HANGİ Training/Care/Genetics
+  formülüne bağlanacağı — `domain/staff`'taki `calculateStaffBonusMultiplier`
+  ile aynı gerekçeyle (zaten test edilmiş modülleri riske atmadan) wiring
+  aşamasına bırakıldı (bkz. `domain/farm/README.md` "Kapsam dışı").
+- NestJS controller/use-case/module wiring'i (FAZ 1-3 ile aynı gerekçe).
 
 ## Açık kararlar (proje sahibinin onayı bekleniyor)
 

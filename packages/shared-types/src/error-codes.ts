@@ -28,6 +28,9 @@ export const ErrorCode = {
   MaxStableLevelReached: 'MAX_STABLE_LEVEL_REACHED',
   // Faz 3 — Yetiştiricilik (domain/breeding)
   NotEligibleForBreeding: 'NOT_ELIGIBLE_FOR_BREEDING',
+  // Faz 4 — Çiftlik / Tesisler (domain/farm)
+  MaxFacilityLevelReached: 'MAX_FACILITY_LEVEL_REACHED',
+  StaffCapacityExceeded: 'STAFF_CAPACITY_EXCEEDED',
 } as const;
 
 export type ErrorCodeValue = (typeof ErrorCode)[keyof typeof ErrorCode];

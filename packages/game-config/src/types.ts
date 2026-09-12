@@ -248,6 +248,44 @@ export interface JockeyConfig {
 }
 
 /**
+ * FAZ 4 — brief §32 ÇİFTLİK (Farm) tesisleri (bkz. `domain/farm/README.md`).
+ * Ahır (`stable`) burada YOKTUR — kendi `StableConfig`'i FAZ 1/2'den beri
+ * ayrıdır; bu config sadece EK tesisleri (paddock, antrenman pisti,
+ * veteriner merkezi, nalbant alanı, üreme merkezi, depo, personel binası)
+ * kapsar.
+ */
+export interface FacilityLevelDefinition {
+  cost: { currency: 'money' | 'gems'; amount: number };
+  /**
+   * Birim, tesis tipine göre değişir (brief §32 "Bonuslar kontrollü
+   * olmalıdır" — tek, basit bir sayı): `staff_building` DIŞINDAKİ 6
+   * tesiste [0,1] aralığında bir "azaltma/artış payı" (örn. 0.10 → %10);
+   * `staff_building`'de ise mutlak ek personel kapasitesi (tam sayı).
+   * Değer, o seviyeye özgü MUTLAK değerdir (bir önceki seviyeye eklenen
+   * fark değil) — `StableConfig.capacityByLevel` ile aynı desen.
+   */
+  bonusValue: number;
+}
+
+export interface FacilityDefinition {
+  maxLevel: number;
+  /** Anahtar = ULAŞILACAK seviye (string, JSON kısıtı). */
+  levels: Record<string, FacilityLevelDefinition>;
+}
+
+export interface FarmConfig {
+  /**
+   * Anahtar = tesis tipi (bkz. shared-types `FacilityType`). game-config
+   * paketi shared-types'a bağımlı olmadığı için (bkz. ARCHITECTURE.md paket
+   * ayrımı, aynı desen `StaffConfig.baseSalaryByRole`'da da kullanılmıştır)
+   * burada genel bir `Record<string, ...>` kullanılır.
+   */
+  facilities: Record<string, FacilityDefinition>;
+  /** `staff_building` hiç inşa edilmemişken (level 0) bile geçerli olan taban personel kapasitesi. */
+  baseStaffCapacityWithoutFacility: number;
+}
+
+/**
  * FAZ 2 — brief §33 Personel Sistemi (jokey hariç, bkz. `staff.ts` yorumu).
  */
 export interface StaffConfig {
