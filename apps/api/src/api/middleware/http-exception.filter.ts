@@ -1,13 +1,14 @@
 import { ArgumentsHost, Catch, ExceptionFilter, HttpException, HttpStatus } from '@nestjs/common';
 import type { Response } from 'express';
 import { ErrorCode } from '@at-sevdalisi/shared-types';
-import { HorseNotFoundError, InvalidHorseNameError } from '../../domain/horse/errors';
+import { HorseInjuredError, HorseNotFoundError, InvalidHorseNameError } from '../../domain/horse/errors';
 import {
   InvalidDisplayNameError,
   InvalidUsernameError,
   PlayerNotFoundError,
   UsernameAlreadyTakenError,
 } from '../../domain/player/errors';
+import { HorseNotReadyForTrainingError } from '../../domain/training/errors';
 
 /**
  * Bir hata sınıfının constructor'ı (`instanceof` ile karşılaştırılabilir).
@@ -32,6 +33,12 @@ const DOMAIN_ERROR_MAP = new Map<ErrorClassConstructor, { status: number; code: 
   [InvalidDisplayNameError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.ValidationError }],
   [HorseNotFoundError, { status: HttpStatus.NOT_FOUND, code: ErrorCode.HorseNotFound }],
   [InvalidHorseNameError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.ValidationError }],
+  // FAZ 1 wiring, dördüncü dilim — Antrenman (brief §10). "Çok yorgun"/
+  // "yetersiz enerji" durumları GEÇİCİDİR (biraz bekleyince tekrar
+  // denenebilir), sabit bir kaynak kısıtı DEĞİLDİR — bu yüzden 409
+  // Conflict, 400 Bad Request DEĞİL (`UsernameAlreadyTaken` ile AYNI
+  // gerekçe).
+  [HorseInjuredError, { status: HttpStatus.CONFLICT, code: ErrorCode.HorseInjured }],
 ]);
 
 /**
@@ -48,6 +55,16 @@ export class HttpExceptionFilter implements ExceptionFilter {
   catch(exception: unknown, host: ArgumentsHost): void {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
+
+    // FAZ 1 wiring, dördüncü dilim: `HorseNotReadyForTrainingError` TEK bir
+    // sınıf ama `reason` alanına göre İKİ FARKLI hata koduna eşlenir —
+    // `DOMAIN_ERROR_MAP`'in (sınıf → sabit kod) deseni buna uygun değildir,
+    // bu yüzden döngüden ÖNCE elle ele alınır.
+    if (exception instanceof HorseNotReadyForTrainingError) {
+      const code = exception.reason === 'INSUFFICIENT_ENERGY' ? ErrorCode.InsufficientEnergy : ErrorCode.HorseTooTired;
+      response.status(HttpStatus.CONFLICT).json({ success: false, error: { code, message: exception.message } });
+      return;
+    }
 
     for (const [ErrorClass, mapping] of DOMAIN_ERROR_MAP) {
       if (exception instanceof ErrorClass) {
