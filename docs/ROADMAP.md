@@ -120,11 +120,12 @@ bir doğrulama betiği ile (mantık doğruluğu) test edildi. Ayrıca ileride
   etmemek için bilerek ertelendi. Domain fonksiyonları hazır olduğundan bu
   adım, gerçek bir Node ortamında (`npm install` sonrası) hızlıca
   tamamlanabilir bir "bağlama" (wiring) işidir.
-- Auth sağlayıcısı seçimi netleşmeden `players` tablosuna e-posta/şifre
-  hash kolonları eklenmedi (bkz. aşağıdaki açık karar #1) — domain katmanı
-  sağlayıcıdan bağımsız kurallara (`checkPasswordStrength`,
-  `PasswordHasher` arayüzü) göre hazır, DB şeması karar netleşince bir
-  migration ile tamamlanır.
+- ✅ Auth sağlayıcısı kararı netleşti: **Google/Apple Sign-In** (bkz.
+  `ARCHITECTURE.md` §10 madde 1). `player_auth_providers` migration'ı
+  (`0011`) ve domain fonksiyonları (`domain/player/auth-provider.ts`)
+  bu oturumda eklendi. Kalan iş: NestJS `AuthModule`'ün gerçek Google/Apple
+  ID token doğrulamasını yapması (infrastructure detayı, `npm install`
+  gerektirir).
 - `apps/web` ekranlarının gerçek API'ye bağlanması (API henüz çalışır
   durumda değil, yukarıdaki maddeye bağlı).
 
@@ -132,7 +133,7 @@ bir doğrulama betiği ile (mantık doğruluğu) test edildi. Ayrıca ileride
 
 Bkz. `ARCHITECTURE.md` §10 için tam liste ve gerekçeler. Özet:
 
-1. Kimlik doğrulama sağlayıcısı (e-posta/sosyal/misafir)
+1. ✅ ~~Kimlik doğrulama sağlayıcısı~~ — **KARAR VERİLDİ: Google/Apple Sign-In.**
 2. Çevrimdışı/zayıf bağlantı davranışı
 3. Erişilebilirlik (a11y) hedefi
 4. Yerelleştirme (i18n) kapsamı

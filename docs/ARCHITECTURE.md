@@ -245,11 +245,13 @@ noktaların brief'te değinilmediğini veya netleştirilmesinin fayda
 sağlayacağını tespit ettik. Bunlar bu depoda **henüz karar bağlanmamış**
 açık maddeler olarak işaretlenmiştir; proje sahibinin onayına sunulmuştur:
 
-1. **Kimlik doğrulama sağlayıcısı**: Brief `/api/auth/register` ve
-   `/login` endpoint'lerini tanımlıyor ama e-posta/şifre mi, sosyal
-   giriş (Google/Apple) mi, yoksa misafir (guest) modu mu destekleneceği
-   belirtilmemiş. Mobil kullanıcı deneyimi için sosyal giriş + misafir modu
-   önerilir.
+1. ✅ **Kimlik doğrulama sağlayıcısı — KARAR VERİLDİ (proje sahibi):**
+   **Google/Apple Sign-In**. `players` tablosunda şifre/e-posta hash'i
+   TUTULMAZ; eşleme `player_auth_providers` tablosunda tutulur (bkz.
+   `database/migrations/0011_create_player_auth_providers`,
+   `apps/api/src/domain/player/auth-provider.ts`). Gerçek ID token
+   doğrulaması (Google/Apple SDK ile imza kontrolü) bir infrastructure
+   detayıdır, domain katmanına sızdırılmaz.
 2. **Çevrimdışı/zayıf bağlantı davranışı**: Mobil web için, oyuncu antrenman
    sonucu gönderirken bağlantı koparsa ne olacağı tanımlanmamış. Optimistic
    UI + yeniden deneme kuyruğu önerilir.

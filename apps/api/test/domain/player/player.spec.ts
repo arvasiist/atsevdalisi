@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { createNewPlayer } from '../../../src/domain/player/player';
+import { validateDisplayName, validateUsername } from '../../../src/domain/player/validation';
+import { createPlayerAuthProviderLink } from '../../../src/domain/player/auth-provider';
 import {
-  assertPasswordIsStrong,
-  checkPasswordStrength,
-  validateDisplayName,
-  validateUsername,
-} from '../../../src/domain/player/validation';
-import { InvalidDisplayNameError, InvalidUsernameError, WeakPasswordError } from '../../../src/domain/player/errors';
+  InvalidAuthProviderTokenError,
+  InvalidDisplayNameError,
+  InvalidUsernameError,
+} from '../../../src/domain/player/errors';
 import economyConfigJson from '../../../../../config/economy.config.json';
 import type { EconomyConfig } from '@at-sevdalisi/game-config';
 
@@ -49,14 +49,25 @@ describe('validateDisplayName', () => {
   });
 });
 
-describe('checkPasswordStrength / assertPasswordIsStrong', () => {
-  it('zayıf şifreler geçersiz sayılır', () => {
-    expect(checkPasswordStrength('abc').valid).toBe(false);
-    expect(() => assertPasswordIsStrong('short1')).toThrow(WeakPasswordError);
+/** Karar: Google/Apple Sign-In (docs/ARCHITECTURE.md §10 madde 1). */
+describe('createPlayerAuthProviderLink', () => {
+  it('geçerli bir Google kimliği için bağlantı kaydı oluşturur', () => {
+    const link = createPlayerAuthProviderLink('uuid-1', {
+      provider: 'google',
+      providerUserId: 'g-12345',
+      email: 'omer@example.com',
+    });
+    expect(link).toEqual({
+      playerId: 'uuid-1',
+      provider: 'google',
+      providerUserId: 'g-12345',
+      email: 'omer@example.com',
+    });
   });
 
-  it('harf + rakam + 8 karakter üstü şifreler geçerli sayılır', () => {
-    expect(checkPasswordStrength('gucluSifre123').valid).toBe(true);
-    expect(() => assertPasswordIsStrong('gucluSifre123')).not.toThrow();
+  it('boş providerUserId ile InvalidAuthProviderTokenError fırlatır', () => {
+    expect(() =>
+      createPlayerAuthProviderLink('uuid-1', { provider: 'apple', providerUserId: '   ', email: null }),
+    ).toThrow(InvalidAuthProviderTokenError);
   });
 });
