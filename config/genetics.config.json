@@ -1,5 +1,19 @@
 {
   "inheritanceRange": [0.35, 0.65],
   "mutationBounds": [-3, 3],
-  "maxPotentialGainOverParents": 1.05
+  "maxPotentialGainOverParents": 1.05,
+  "inbreedingRiskMultiplier": 1.8,
+  "parentAgeRiskMultipliers": {
+    "foal": 2.5,
+    "development": 1.3,
+    "prime": 1.0,
+    "mature": 1.1,
+    "aging": 1.7
+  },
+  "healthRiskWeight": 0.5,
+  "baseBirthHealthRisk": 0.05,
+  "minBreedingAgeMonths": 36,
+  "maxBreedingAgeMonths": 180,
+  "breedingCooldownDays": 180,
+  "studFeeMultiplier": 25
 }

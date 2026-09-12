@@ -1,10 +1,19 @@
 # domain/market
 
-Bu klasör **FAZ 1**'de (veya ilgili fazda) doldurulacaktır.
+At Pazarı (brief §30, docs/ALGORITHMS.md §11 MarketValue).
 
-Framework'ten bağımsız, saf TypeScript domain sınıfları/fonksiyonları burada
-yaşayacaktır (bkz. `docs/ARCHITECTURE.md` §4, `docs/CODING_CONVENTIONS.md`
-§4). Hiçbir NestJS dekoratörü, hiçbir ORM importu bu klasöre girmez.
+- `market.ts` — `calculateMarketValue` (ağırlıklı puan × `baseMarketValueMultiplier`
+  × isteğe bağlı `demandFactor`), `createListingDraft`, `isListingExpired`,
+  `purchaseListing` (wallet `transfer` ile authoritative para transferi),
+  `cancelListing`, `expireListingIfNeeded`.
+- `errors.ts` — `InvalidListingPriceError`, `ListingNotActiveError`,
+  `ListingExpiredError`, `CannotBuyOwnListingError`.
 
-İlgili dokümantasyon: `docs/PROJECT_BRIEF.md` §7 (Veri Modeli) ve
-`docs/DATABASE.md`.
+Config: `economy.config.json` → `marketValueWeights` + `baseMarketValueMultiplier`.
+
+**Kapsam dışı:** Açık artırma (`auction` listingType şemada var ama teklif
+verme/kazanma mantığı burada yok — sadece `fixed_price` akışı uygulanmıştır);
+gerçek arz/talep (`demandFactor`) hesaplaması bir application-layer/analytics
+sorumluluğudur, burada parametre olarak kabul edilir.
+
+Testler: `apps/api/test/domain/market/market.spec.ts`.

@@ -1,0 +1,18 @@
+{
+  "skillCompositeWeights": {
+    "startSkill": 0.15,
+    "tacticalSkill": 0.20,
+    "sprintSkill": 0.20,
+    "horseControl": 0.15,
+    "riskManagement": 0.15,
+    "trackKnowledge": 0.15
+  },
+  "compatibilityWeights": {
+    "temperament": 0.25,
+    "style": 0.25,
+    "experience": 0.25,
+    "history": 0.25
+  },
+  "experienceForMaxScore": 150,
+  "neutralHistoryScore": 50
+}

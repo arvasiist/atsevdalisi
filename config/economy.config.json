@@ -7,6 +7,7 @@
     "pedigreeValue": 0.10,
     "health": 0.05
   },
+  "baseMarketValueMultiplier": 150,
   "gemShopWhitelist": [
     "cosmetic_avatar_frame",
     "cosmetic_stable_skin",

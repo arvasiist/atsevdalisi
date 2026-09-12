@@ -83,6 +83,14 @@ export interface EconomyConfig {
     pedigreeValue: number;
     health: number;
   };
+  /**
+   * docs/ALGORITHMS.md §11'deki MarketValue formülü 0-100 ölçeğinde bir
+   * "değer puanı" üretir (ağırlıklar toplamı 1.0); bunu gerçek bir para
+   * miktarına çeviren proje-içi ölçek sabiti (brief bu dönüşüm için bir
+   * birim tanımlamaz — race.config.json'daki `referenceSpeedMps` ile aynı
+   * gerekçe: soyut 0-100 puanı somut oyun birimine çevirmek).
+   */
+  baseMarketValueMultiplier: number;
   gemShopWhitelist: string[];
   dailyRewardMoney: number;
   raceEntryFeeMultiplier: number;
@@ -97,6 +105,28 @@ export interface GeneticsConfig {
   inheritanceRange: [number, number];
   mutationBounds: [number, number];
   maxPotentialGainOverParents: number;
+  /**
+   * Ortak ata tespit edilirse (bkz. `docs/GENETICS.md` §6 inbreeding_factor)
+   * `birth_health_risk` formülüne uygulanan çarpan. 1.0 = etkisiz.
+   */
+  inbreedingRiskMultiplier: number;
+  /**
+   * `docs/GENETICS.md` §6 parent_age_factor — ebeveynin yaşam evresine
+   * (bkz. `HorseGrowthConfig.stages[].name`) göre doğum sağlık riski
+   * çarpanı. Prime döneminde en düşük risk beklenir.
+   */
+  parentAgeRiskMultipliers: Record<string, number>;
+  /** `docs/GENETICS.md` §6 parent_health_factor'ün ağırlığı. */
+  healthRiskWeight: number;
+  /** `docs/GENETICS.md` §6 base_risk — hiçbir risk faktörü yokken taban doğum sağlık riski [0,1]. */
+  baseBirthHealthRisk: number;
+  /** Üreme için minimum/maksimum yaş (ay). `docs/GENETICS.md`'de sayısal olarak belirtilmemiştir — proje-içi karar. */
+  minBreedingAgeMonths: number;
+  maxBreedingAgeMonths: number;
+  /** Bir kısrağın iki doğum arası beklemesi gereken gün sayısı. */
+  breedingCooldownDays: number;
+  /** Damızlık ücreti = aygırın (quality+potential)/2 ortalaması × bu çarpan (brief §31 "Yetiştiricilik" gider kalemi). */
+  studFeeMultiplier: number;
 }
 
 export interface WeatherCombinationEffect {
@@ -130,6 +160,13 @@ export interface StableConfig {
   capacityByLevel: Record<string, number>;
   /** Bu değerin altındaki health, "Ahır Özeti" ekranında uyarı olarak gösterilir (brief §38). */
   healthWarningThreshold: number;
+  /**
+   * FAZ 2 — brief §32 "Upgrade örneği" listesinin devamı. Anahtar = ULAŞILACAK
+   * seviye (örn. "2" → seviye 1'den 2'ye yükseltme maliyeti). En yüksek
+   * anahtarın üstünde tanım yoksa `getNextStableUpgradeCost`
+   * `MaxStableLevelReachedError` fırlatır.
+   */
+  upgradeCostByLevel: Record<string, { currency: 'money' | 'gems'; amount: number }>;
 }
 
 export interface ProgressionUnlock {
@@ -180,4 +217,47 @@ export type FeedType = 'standard' | 'energy' | 'protein' | 'recovery' | 'perform
 export interface CareConfig {
   actions: Record<CareActionType, CareActionEffect>;
   feedTypes: Record<FeedType, FeedTypeEffect>;
+}
+
+/**
+ * FAZ 2 — brief §13 jokey-at uyumu (docs/ALGORITHMS.md §12) ve jokeyin
+ * `RaceEntrantSnapshot.jockeySkillComposite` (bkz. domain/race/base-ability.ts)
+ * için tek bir "yetenek bileşimi" puanına indirgenmesi.
+ */
+export interface JockeyConfig {
+  /** Toplamı 1.0 olmalıdır — jockeys tablosundaki tekil yetenek alanlarının ağırlıkları. */
+  skillCompositeWeights: {
+    startSkill: number;
+    tacticalSkill: number;
+    sprintSkill: number;
+    horseControl: number;
+    riskManagement: number;
+    trackKnowledge: number;
+  };
+  /** Toplamı 1.0 olmalıdır — docs/ALGORITHMS.md §12 uyumluluk bileşenleri. */
+  compatibilityWeights: {
+    temperament: number;
+    style: number;
+    experience: number;
+    history: number;
+  };
+  /** Bu deneyim (yarış sayısı) değerine ulaşınca experience_component 100'e doyar. */
+  experienceForMaxScore: number;
+  /** at-jokey ikilisinin hiç ortak geçmişi yoksa previous_pair_history_component için nötr varsayılan. */
+  neutralHistoryScore: number;
+}
+
+/**
+ * FAZ 2 — brief §33 Personel Sistemi (jokey hariç, bkz. `staff.ts` yorumu).
+ */
+export interface StaffConfig {
+  /** Rol başına, skill=100 olduğunda uygulanan en yüksek bonus çarpanı payı (örn. 0.20 → en fazla ×1.20). */
+  maxBonusMultiplierByRole: Record<string, number>;
+  /** Rol başına taban aylık maaş; gerçek maaş = base + skill × salaryPerSkillPoint. */
+  baseSalaryByRole: Record<string, number>;
+  salaryPerSkillPoint: number;
+  /** morale bu eşiğin altındaysa personelin bonusu zayıflar (brief §32 "Bonuslar kontrollü olmalıdır"). */
+  moraleSalaryPenaltyThreshold: number;
+  /** Düşük moralde bonusun ne kadarının korunacağı (0-1). */
+  lowMoraleBonusPenaltyMultiplier: number;
 }

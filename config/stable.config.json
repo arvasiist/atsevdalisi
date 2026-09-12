@@ -2,7 +2,15 @@
   "capacityByLevel": {
     "1": 5,
     "2": 8,
-    "3": 12
+    "3": 12,
+    "4": 16,
+    "5": 20
   },
-  "healthWarningThreshold": 50
+  "healthWarningThreshold": 50,
+  "upgradeCostByLevel": {
+    "2": { "currency": "money", "amount": 8000 },
+    "3": { "currency": "money", "amount": 20000 },
+    "4": { "currency": "money", "amount": 45000 },
+    "5": { "currency": "money", "amount": 90000 }
+  }
 }

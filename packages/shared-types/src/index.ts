@@ -7,3 +7,4 @@ export * from './jockey';
 export * from './race';
 export * from './market';
 export * from './breeding';
+export * from './staff';

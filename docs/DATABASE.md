@@ -35,6 +35,7 @@
 | 0009 | `create_indexes` | brief §77'deki tüm indexler |
 | 0010 | `add_updated_at_triggers` | Otomatik `updated_at` trigger'ı |
 | 0011 | `create_player_auth_providers` | `player_auth_providers` (Google/Apple Sign-In eşlemesi — proje sahibinin kararı, bkz. `ARCHITECTURE.md` §10 madde 1) |
+| 0012 | `create_staff_and_stable_level` | `staff` (brief §33 Personel, jokey hariç) + `players.stable_level` (FAZ 1'de domain/stable'ın parametre olarak beklediği ama hiçbir migration'ın eklemediği sütun — FAZ 2 ahır yükseltmesi için burada tamamlandı) |
 
 Her migration'ın bir `.up.sql` (uygula) ve `.down.sql` (geri al) karşılığı
 vardır. Çalıştırma aracı olarak `node-pg-migrate` veya eşdeğeri önerilir
