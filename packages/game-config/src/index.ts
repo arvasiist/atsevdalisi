@@ -19,11 +19,14 @@
 import type {
   CareConfig,
   EconomyConfig,
+  FarmConfig,
   GeneticsConfig,
   HorseGrowthConfig,
+  JockeyConfig,
   ProgressionConfig,
   RaceBalanceConfig,
   StableConfig,
+  StaffConfig,
   TrainingConfig,
   WeatherConfig,
 } from './types';
@@ -37,6 +40,9 @@ import horseGrowthConfigJson from '../../../config/horse-growth.config.json';
 import progressionConfigJson from '../../../config/progression.config.json';
 import careConfigJson from '../../../config/care.config.json';
 import stableConfigJson from '../../../config/stable.config.json';
+import jockeyConfigJson from '../../../config/jockey.config.json';
+import staffConfigJson from '../../../config/staff.config.json';
+import farmConfigJson from '../../../config/farm.config.json';
 
 export function loadRaceConfig(): RaceBalanceConfig {
   return raceConfigJson as unknown as RaceBalanceConfig;
@@ -72,6 +78,18 @@ export function loadCareConfig(): CareConfig {
 
 export function loadStableConfig(): StableConfig {
   return stableConfigJson as unknown as StableConfig;
+}
+
+export function loadJockeyConfig(): JockeyConfig {
+  return jockeyConfigJson as unknown as JockeyConfig;
+}
+
+export function loadStaffConfig(): StaffConfig {
+  return staffConfigJson as unknown as StaffConfig;
+}
+
+export function loadFarmConfig(): FarmConfig {
+  return farmConfigJson as unknown as FarmConfig;
 }
 
 export * from './types';

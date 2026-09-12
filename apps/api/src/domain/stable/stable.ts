@@ -7,7 +7,7 @@
  */
 
 import type { StableConfig } from '@at-sevdalisi/game-config';
-import { StableCapacityExceededError } from './errors';
+import { MaxStableLevelReachedError, StableCapacityExceededError } from './errors';
 
 /**
  * Ahır seviyesine karşılık gelen at kapasitesini döner. Tanımsız bir
@@ -71,4 +71,32 @@ export function summarizeStable(
   const healthWarnings = horses.filter((horse) => horse.health < config.healthWarningThreshold).map((horse) => horse.name);
 
   return { horseCount, capacity, averageCondition, healthWarnings };
+}
+
+export interface StableUpgradeCost {
+  currency: 'money' | 'gems';
+  amount: number;
+  nextLevel: number;
+}
+
+/**
+ * FAZ 2 — brief §32 "Upgrade örneği" listesinin devamı. Bir sonraki ahır
+ * seviyesine geçmenin maliyetini döner. `config.upgradeCostByLevel`'de
+ * tanımlı en yüksek seviyeye zaten ulaşılmışsa `MaxStableLevelReachedError`
+ * fırlatır — application layer bu durumda "Yükselt" aksiyonunu hiç
+ * göstermemelidir.
+ */
+export function getNextStableUpgradeCost(currentLevel: number, config: StableConfig): StableUpgradeCost {
+  const nextLevel = currentLevel + 1;
+  const cost = config.upgradeCostByLevel[String(nextLevel)];
+  if (!cost) {
+    throw new MaxStableLevelReachedError(currentLevel);
+  }
+  return { currency: cost.currency, amount: cost.amount, nextLevel };
+}
+
+/** Tanımlı en yüksek ahır seviyesini döner (capacityByLevel anahtarlarının en büyüğü). */
+export function getMaxDefinedStableLevel(config: StableConfig): number {
+  const levels = Object.keys(config.capacityByLevel).map(Number);
+  return Math.max(...levels);
 }

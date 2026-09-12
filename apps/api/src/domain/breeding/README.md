@@ -1,10 +1,35 @@
 # domain/breeding
 
-Bu klasör **FAZ 1**'de (veya ilgili fazda) doldurulacaktır.
+Yetiştiricilik ve Kalıtım Sistemi (brief §28-29, §34, §86 — bkz.
+`docs/GENETICS.md` tam tasarım dokümanı, formüller `docs/ALGORITHMS.md`
+§10). Bu klasör GENETICS.md §1'deki "Genetic Engine" konumudur.
 
-Framework'ten bağımsız, saf TypeScript domain sınıfları/fonksiyonları burada
-yaşayacaktır (bkz. `docs/ARCHITECTURE.md` §4, `docs/CODING_CONVENTIONS.md`
-§4). Hiçbir NestJS dekoratörü, hiçbir ORM importu bu klasöre girmez.
+- `genetics.ts` — saf kalıtım matematiği: `generateInheritanceSplit`,
+  `calculateMutation`, `calculateChildStat`, `calculateChildPotential`.
+  At/pedigree kavramı bilmez, sadece sayı üretir.
+- `pedigree.ts` — `collectKnownAncestorIds`/`checkInbreeding` (2 nesil
+  derinliğinde ortak ata tespiti — brief'te açıkça yazılmamış ama
+  GENETICS.md §6'da gerekli görülen bir kontrol), `calculateParentAgeFactor`
+  (yaşam evresi bazlı, `domain/horse/age-curve.ts` ile entegre),
+  `calculateParentHealthFactor`, `calculateBirthHealthRisk`,
+  `createFoalPedigree`.
+- `breeding.ts` — orkestrasyon: `assertBreedingEligibility` (yaş/cooldown/
+  sağlık/cinsiyet kontrolü, `NotEligibleForBreedingError`),
+  `calculateStudFee`, `breedHorses` (tam akış: Mare+Stallion → kalıtım →
+  mutasyon → sağlık kontrolü → tay statları/potansiyeli/soy kaydı).
+- `errors.ts` — `NotEligibleForBreedingError`.
 
-İlgili dokümantasyon: `docs/PROJECT_BRIEF.md` §7 (Veri Modeli) ve
-`docs/DATABASE.md`.
+Config: `genetics.config.json` (inheritanceRange, mutationBounds,
+maxPotentialGainOverParents, inbreedingRiskMultiplier,
+parentAgeRiskMultipliers, healthRiskWeight, baseBirthHealthRisk,
+minBreedingAgeMonths, maxBreedingAgeMonths, breedingCooldownDays,
+studFeeMultiplier).
+
+Gizlilik prensibi (brief §29, GENETICS.md §2): oyuncuya tam DNA verisi
+gösterilmez; `breedHorses` sonucu (gerçek tay statları) doğrudan
+istemciye açılmamalı, kademeli keşif (scout/veteriner raporları, FAZ 3+)
+üzerinden gösterilmelidir — bu, application/DTO katmanının sorumluluğudur.
+
+Testler: `apps/api/test/domain/breeding/genetics.spec.ts`,
+`apps/api/test/domain/breeding/pedigree.spec.ts`,
+`apps/api/test/domain/breeding/breeding.spec.ts`.

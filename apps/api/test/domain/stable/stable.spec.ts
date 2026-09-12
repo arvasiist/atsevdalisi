@@ -2,10 +2,12 @@ import { describe, expect, it } from 'vitest';
 import {
   assertCanAddHorseToStable,
   canAddHorseToStable,
+  getMaxDefinedStableLevel,
+  getNextStableUpgradeCost,
   getStableCapacity,
   summarizeStable,
 } from '../../../src/domain/stable/stable';
-import { StableCapacityExceededError } from '../../../src/domain/stable/errors';
+import { MaxStableLevelReachedError, StableCapacityExceededError } from '../../../src/domain/stable/errors';
 import stableConfigJson from '../../../../../config/stable.config.json';
 import type { StableConfig } from '@at-sevdalisi/game-config';
 
@@ -17,10 +19,13 @@ describe('getStableCapacity', () => {
     expect(getStableCapacity(1, config)).toBe(5);
     expect(getStableCapacity(2, config)).toBe(8);
     expect(getStableCapacity(3, config)).toBe(12);
+    // FAZ 2: seviye 4-5 (ahır yükseltme) eklendi.
+    expect(getStableCapacity(4, config)).toBe(16);
+    expect(getStableCapacity(5, config)).toBe(20);
   });
 
   it('tanımsız üst seviye için en yüksek tanımlı seviyenin kapasitesine düşer', () => {
-    expect(getStableCapacity(5, config)).toBe(12);
+    expect(getStableCapacity(10, config)).toBe(20);
   });
 
   it('tanımsız alt seviye için en düşük tanımlı seviyenin kapasitesine düşer', () => {
@@ -59,5 +64,20 @@ describe('summarizeStable', () => {
     const summary = summarizeStable([], 5, config);
     expect(summary.averageCondition).toBe(0);
     expect(summary.healthWarnings).toEqual([]);
+  });
+});
+
+/** FAZ 2 — brief §32 "Upgrade örneği" (ahır yükseltme maliyeti). */
+describe('getNextStableUpgradeCost / getMaxDefinedStableLevel', () => {
+  it('bir sonraki seviyenin maliyetini config üzerinden döner', () => {
+    const cost = getNextStableUpgradeCost(1, config);
+    expect(cost.nextLevel).toBe(2);
+    expect(cost).toEqual({ currency: 'money', amount: 8000, nextLevel: 2 });
+  });
+
+  it('en yüksek tanımlı seviyeye ulaşılınca hata fırlatır', () => {
+    const maxLevel = getMaxDefinedStableLevel(config);
+    expect(maxLevel).toBe(5);
+    expect(() => getNextStableUpgradeCost(maxLevel, config)).toThrow(MaxStableLevelReachedError);
   });
 });

@@ -1,0 +1,59 @@
+{
+  "facilities": {
+    "paddock": {
+      "maxLevel": 3,
+      "levels": {
+        "1": { "cost": { "currency": "money", "amount": 6000 }, "bonusValue": 0.05 },
+        "2": { "cost": { "currency": "money", "amount": 15000 }, "bonusValue": 0.10 },
+        "3": { "cost": { "currency": "money", "amount": 30000 }, "bonusValue": 0.15 }
+      }
+    },
+    "training_track": {
+      "maxLevel": 3,
+      "levels": {
+        "1": { "cost": { "currency": "money", "amount": 8000 }, "bonusValue": 0.05 },
+        "2": { "cost": { "currency": "money", "amount": 18000 }, "bonusValue": 0.10 },
+        "3": { "cost": { "currency": "money", "amount": 35000 }, "bonusValue": 0.18 }
+      }
+    },
+    "vet_center": {
+      "maxLevel": 3,
+      "levels": {
+        "1": { "cost": { "currency": "money", "amount": 10000 }, "bonusValue": 0.08 },
+        "2": { "cost": { "currency": "money", "amount": 22000 }, "bonusValue": 0.15 },
+        "3": { "cost": { "currency": "money", "amount": 40000 }, "bonusValue": 0.25 }
+      }
+    },
+    "farrier_area": {
+      "maxLevel": 2,
+      "levels": {
+        "1": { "cost": { "currency": "money", "amount": 5000 }, "bonusValue": 0.07 },
+        "2": { "cost": { "currency": "money", "amount": 12000 }, "bonusValue": 0.14 }
+      }
+    },
+    "breeding_center": {
+      "maxLevel": 3,
+      "levels": {
+        "1": { "cost": { "currency": "money", "amount": 15000 }, "bonusValue": 0.05 },
+        "2": { "cost": { "currency": "money", "amount": 30000 }, "bonusValue": 0.10 },
+        "3": { "cost": { "currency": "money", "amount": 55000 }, "bonusValue": 0.15 }
+      }
+    },
+    "warehouse": {
+      "maxLevel": 2,
+      "levels": {
+        "1": { "cost": { "currency": "money", "amount": 4000 }, "bonusValue": 0.05 },
+        "2": { "cost": { "currency": "money", "amount": 10000 }, "bonusValue": 0.10 }
+      }
+    },
+    "staff_building": {
+      "maxLevel": 3,
+      "levels": {
+        "1": { "cost": { "currency": "money", "amount": 7000 }, "bonusValue": 2 },
+        "2": { "cost": { "currency": "money", "amount": 16000 }, "bonusValue": 5 },
+        "3": { "cost": { "currency": "money", "amount": 28000 }, "bonusValue": 9 }
+      }
+    }
+  },
+  "baseStaffCapacityWithoutFacility": 3
+}

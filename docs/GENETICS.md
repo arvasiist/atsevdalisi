@@ -1,9 +1,9 @@
 # GENETICS.md — Yetiştiricilik ve Kalıtım Sistemi
 
 > Kaynak: `docs/PROJECT_BRIEF.md` §28-29, §34, §86. Formüller için
-> `docs/ALGORITHMS.md` §10. Bu sistem **FAZ 3**'te uygulanacaktır; bu
-> doküman şimdiden tasarımı sabitler ki `pedigrees`/`breeding_pairs` şeması
-> (FAZ 0'da zaten oluşturuldu) doğru varsayımlarla kurulmuş olsun.
+> `docs/ALGORITHMS.md` §10. **FAZ 3'te uygulandı** — bkz.
+> `apps/api/src/domain/breeding/` (`genetics.ts`, `pedigree.ts`,
+> `breeding.ts`) ve §9 "Uygulama notları" (altta).
 
 ## 1. Akış
 
@@ -115,3 +115,26 @@ eklenmesi önerilir.
 - Soy bağlantısı (`pedigrees`) her yeni tay için doğru kaydedilmeli.
 - Aynı seed ile aynı ebeveyn çifti → aynı tay sonucu (determinism, brief
   §18 ile tutarlı).
+
+## 9. Uygulama notları (FAZ 3)
+
+- **Inbreeding derinliği**: `pedigrees` şeması yalnızca 2 nesil geriye
+  (sire/dam + grandSire/grandDam) kadar tutar; `checkInbreeding` bu
+  derinlikle sınırlıdır (kendisi + 4 bilinen ata = en fazla 5 ID'lik bir
+  küme, iki ebeveyn arasında kesişim aranır). Daha derin bir soy ağacı
+  ileride ayrı bir `ancestor_closure` tablosu gerektirebilir — bu FAZ 3
+  kapsamı dışında bırakılmıştır.
+- **Basitleştirilmiş grandparent eşlemesi**: Şema tek bir `grandSireId`/
+  `grandDamId` çifti tutar (dört büyük ebeveyn değil). Tasarım kararı:
+  `grandSireId` = aygırın babası (baba hattı büyükbaba), `grandDamId` =
+  kısrağın annesi (anne hattı büyükanne) — yarış atı pedigrilerinde en sık
+  referans verilen ikili budur. `bloodline` önce aygırdan (baba hattı
+  geleneği), yoksa kısraktan devralınır.
+- **Yaş bazlı risk**: `parent_age_factor`, `docs/ALGORITHMS.md` §9'daki
+  yaşam evreleri (`config/horse-growth.config.json`) ile eşleştirilmiştir
+  (`config/genetics.config.json` → `parentAgeRiskMultipliers`) — foal/aging
+  evrelerinde risk artar, prime'da en düşüktür.
+- **Üreme uygunluğu sınırları** (`minBreedingAgeMonths: 36`,
+  `maxBreedingAgeMonths: 180`, `breedingCooldownDays: 180`) brief'te
+  sayısal olarak belirtilmemiştir — proje-içi, dengelenebilir (config'ten)
+  kararlardır.

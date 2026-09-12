@@ -295,6 +295,30 @@ tüm `package.json` dosyaları `"typescript": "^5.5.0"` ile sabitlendiğinden
 gerçek CI ortamı ASLA TypeScript 6.x kurmaz, bu satır yalnızca yerel
 doğrulamaya özgü kozmetik bir gürültüdür.)*
 
+**Hata 4 — testi olmayan workspace'te `vitest` boş test setiyle
+başarısız oluyor:** Hata 3'ün düzeltmesinden sonra CI, lint/typecheck/
+build adımlarını geçti ama "Test" adımı sessizce `exit code 1` ile
+başarısız oldu — GitHub'ın annotation panelinde (yalnızca lint/tsc gibi
+araçların ürettiği uyarı/hata satırlarını yakalar) görünür bir hata
+yoktu, bu yüzden kök nedenin teşhisi iki ayrı CI log okuma denemesi
+gerektirdi. Kök neden: `apps/web` workspace'inin henüz hiç test dosyası
+yok (yalnızca iskelet `src/app` dosyaları var), ama `package.json`'ında
+`"test": "vitest run"` script'i tanımlı; kök `npm run test` script'i
+`--workspaces --if-present` ile HER workspace'te (packages/* ve apps/*)
+"test" script'i varsa çalıştırıyor. Vitest, eşleşen hiçbir test dosyası
+bulamadığında varsayılan olarak "No test files found" mesajıyla `exit
+code 1` ile çıkar — bu, gerçek bir test başarısızlığı değil, sadece
+"henüz test yok" durumudur, ama CI'ı aynı şekilde kırmıştı. Düzeltme:
+`apps/web`, `apps/api`, `packages/shared-types`, `packages/game-config`
+paketlerinin dördünün de `"test"` script'i `"vitest run
+--passWithNoTests"` olarak güncellendi (resmi, belgelenmiş Vitest CLI
+bayrağı — Jest'teki aynı isimli bayrağın karşılığı). `apps/api` ve her
+iki `packages/*` paketinin zaten gerçek testleri var; bu bayrak onlarda
+mevcut testleri ATLAMAZ veya zayıflatmaz — yalnızca "hiç test dosyası
+yok" durumunu başarısızlık saymaz. Bu, gelecekte FAZ 2+'da yeni bir
+workspace/paket geçici olarak testsiz eklenirse aynı hatanın tekrar
+CI'ı kırmasını da önler.
+
 ---
 
 ## 10. Ek öneriler — proje sahibine sunulan geliştirme fırsatları

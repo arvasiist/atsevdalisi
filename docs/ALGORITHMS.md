@@ -235,6 +235,16 @@ bir üst sınır (`config.genetics.maxPotentialGainOverParents`) ile
 sınırlandırılır — brief §29 "genetik tamamen deterministik değildir" ve
 §89 İlke 7 ile tutarlı.
 
+**Uygulama notu (FAZ 3, `domain/breeding/genetics.ts`):** config'te ayrı
+bir "mutationRange" alanı yoktur — yalnızca `mutationBounds` vardır; bu
+yüzden pseudocode'daki `random(-mutationRange, +mutationRange)` çekilişi
+doğrudan `mutationBounds` aralığında örneklenir, ardından aynı sınıra
+`clamp` uygulanır (savunma amaçlı, normalde no-op). `inheritance_A/B` ve
+`mutation`, HER stat için (ve ayrıca `potential` için) BAĞIMSIZ bir `rng`
+çekilişiyle üretilir (`breedHorses` orkestrasyonu, `domain/breeding/
+breeding.ts`) — GENETICS.md §3'teki "bir tay bazı özelliklerde anneye,
+bazılarında babaya daha yakın olabilir" davranışını sağlar.
+
 ## 11. Pazar değeri (brief §30)
 
 ```text
@@ -253,6 +263,17 @@ ve oyuncu pazarlığı (açık artırmalarda) ile dinamik olarak değişebilir
 (brief §30 son cümle). Ağırlıklar `config/economy.config.json` →
 `marketValueWeights` içindedir.
 
+**Uygulama notu (FAZ 2, `domain/market/market.ts`):** Yukarıdaki pseudocode
+bileşenleri "×" ile zincirlese de, `marketValueWeights` toplamı tam 1.0'dır
+(0.30+0.25+0.15+0.15+0.10+0.05) — bu, `BaseAbility` (§2) ile birebir aynı
+"ağırlıklı toplam" modelini işaret eder ve öyle uygulanmıştır: `MarketValue
+= Σ(bileşen × ağırlık) × baseMarketValueMultiplier × demandFactor`.
+`DemandFactor`, ağırlıklar nesnesinde YOKTUR (brief §30 son cümle) — statik
+puana sonradan çarpılan, verilmezse etkisiz (1.0) ayrı bir parametredir.
+`baseMarketValueMultiplier` (yeni config alanı), 0-100 ölçeğindeki soyut
+puanı somut bir para miktarına çeviren proje-içi ölçek sabitidir
+(`referenceSpeedMps` ile aynı gerekçe, bkz. §4 üstü).
+
 ## 12. Jokey-at uyumu (brief §13)
 
 ```text
@@ -267,6 +288,20 @@ compatibility =
 yarışlarındaki ortalama `performance_score`'undan türetilir (bkz.
 `race_entries` tablosu) — böylece zamanla "iyi anlaşan" ikililer oyuncuya
 görünür bir avantaj sağlar.
+
+**Uygulama notu (FAZ 2, `domain/jockey/jockey.ts`):**
+`horse_temperament_component` = (atın sakinliği [100-temperament] +
+jokeyin `horseControl`'ü) / 2 — ateşli bir at yüksek `horseControl`
+gerektirir. `jockey_style_component`, atın `racingStyle`'ına (bkz. §5 Pace)
+en çok katkı sağlayan tekil jokey becerisidir: front_runner→trackKnowledge,
+closer→sprintSkill, tracker/mid_pack→tacticalSkill. `experience_component`
+= `experience / config.experienceForMaxScore` (0-100'e clamp). Dört bileşen
+`compatibilityWeights` (toplamı 1.0) ile ağırlıklı toplanır. Ayrıca bu
+modül, FAZ 1'de `base-ability.ts`'in zaten beklediği ama üreticisi olmayan
+`RaceEntrantSnapshot.jockeySkillComposite` girdisini üreten
+`calculateJockeySkillComposite`'i de sağlar (`skillCompositeWeights` ile
+ağırlıklı toplam) — race-engine'e gerçek bağlama (wiring) bu teslimatın
+kapsamı dışındadır.
 
 ## 13. Tüm formüllerin ortak kuralı
 

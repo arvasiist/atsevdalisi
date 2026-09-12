@@ -1,0 +1,23 @@
+{
+  "maxBonusMultiplierByRole": {
+    "trainer": 0.20,
+    "vet": 0.25,
+    "farrier": 0.15,
+    "groom": 0.10,
+    "geneticist": 0.20,
+    "scout": 0.30,
+    "farm_manager": 0.15
+  },
+  "baseSalaryByRole": {
+    "trainer": 400,
+    "vet": 600,
+    "farrier": 350,
+    "groom": 200,
+    "geneticist": 700,
+    "scout": 500,
+    "farm_manager": 450
+  },
+  "salaryPerSkillPoint": 8,
+  "moraleSalaryPenaltyThreshold": 30,
+  "lowMoraleBonusPenaltyMultiplier": 0.5
+}

@@ -35,6 +35,8 @@
 | 0009 | `create_indexes` | brief §77'deki tüm indexler |
 | 0010 | `add_updated_at_triggers` | Otomatik `updated_at` trigger'ı |
 | 0011 | `create_player_auth_providers` | `player_auth_providers` (Google/Apple Sign-In eşlemesi — proje sahibinin kararı, bkz. `ARCHITECTURE.md` §10 madde 1) |
+| 0012 | `create_staff_and_stable_level` | `staff` (brief §33 Personel, jokey hariç) + `players.stable_level` (FAZ 1'de domain/stable'ın parametre olarak beklediği ama hiçbir migration'ın eklemediği sütun — FAZ 2 ahır yükseltmesi için burada tamamlandı) |
+| 0013 | `create_facilities` | `facilities` (brief §32 Çiftlik tesisleri — Paddock, Antrenman pisti, Veteriner merkezi, Nalbant alanı, Üreme merkezi, Depo, Personel binası; ahır hariç, bkz. `domain/farm/README.md`) |
 
 Her migration'ın bir `.up.sql` (uygula) ve `.down.sql` (geri al) karşılığı
 vardır. Çalıştırma aracı olarak `node-pg-migrate` veya eşdeğeri önerilir
@@ -52,6 +54,7 @@ players 1───∞ horses (owner_id)
 players 1───∞ market_listings (seller_id)
 players 1───∞ jockeys (owner_id, opsiyonel — NPC jokeyler owner_id=NULL)
 players 1───∞ player_auth_providers (Google/Apple ile birden fazla giriş yöntemi bağlanabilir)
+players 1───∞ facilities (owner_id — oyuncu başına tesis tipi başına en fazla 1 kayıt, UNIQUE(owner_id, type))
 
 horses 1───1 horse_stats
 horses 1───1 horse_surface_stats

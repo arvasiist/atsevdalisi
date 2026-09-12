@@ -14,6 +14,23 @@ export const ErrorCode = {
   ValidationError: 'VALIDATION_ERROR',
   Unauthorized: 'UNAUTHORIZED',
   NotFound: 'NOT_FOUND',
+  // Faz 2 — At Pazarı (domain/market)
+  ListingNotActive: 'LISTING_NOT_ACTIVE',
+  ListingExpired: 'LISTING_EXPIRED',
+  CannotBuyOwnListing: 'CANNOT_BUY_OWN_LISTING',
+  InvalidListingPrice: 'INVALID_LISTING_PRICE',
+  // Faz 2 — Jokey (domain/jockey)
+  JockeyAlreadyOwned: 'JOCKEY_ALREADY_OWNED',
+  // Faz 2 — Personel (domain/staff)
+  StaffAlreadyHired: 'STAFF_ALREADY_HIRED',
+  StaffContractExpired: 'STAFF_CONTRACT_EXPIRED',
+  // Faz 2 — Ahır yükseltme (domain/stable)
+  MaxStableLevelReached: 'MAX_STABLE_LEVEL_REACHED',
+  // Faz 3 — Yetiştiricilik (domain/breeding)
+  NotEligibleForBreeding: 'NOT_ELIGIBLE_FOR_BREEDING',
+  // Faz 4 — Çiftlik / Tesisler (domain/farm)
+  MaxFacilityLevelReached: 'MAX_FACILITY_LEVEL_REACHED',
+  StaffCapacityExceeded: 'STAFF_CAPACITY_EXCEEDED',
 } as const;
 
 export type ErrorCodeValue = (typeof ErrorCode)[keyof typeof ErrorCode];
