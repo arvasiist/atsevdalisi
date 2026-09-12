@@ -396,6 +396,15 @@ görevleri (içerik sistemi), gerçek zamanlı eşleştirme kuyruğu yönetimi
 (DB/Redis) — bunların TÜMÜ, FAZ 1-6'daki "domain hazır, wiring bekliyor"
 deseniyle birebir tutarlıdır.
 
+**Doğrulama (bu oturum, CI):** GitHub Actions CI run'ı (commit `f7c3846`,
+"FAZ 7: Online (eşleştirme, sıralama, kulüp, turnuva, sezon)") çalışma
+detay sayfasından **Success** olarak doğrulandı (1m 27s, tek uyarılar
+bilinen/engelleyici olmayan "no magic number" lint notları ve Node 20→24
+deprecation notu — İLK denemede, hiçbir düzeltme gerekmeden). Bu, yukarıdaki
+yerel 294/294 test sonucunu bağımsız olarak teyit eder ve yol haritasındaki
+8 fazın (Faz 0-7) TÜM domain/oyun kuralı katmanının tamamlandığını
+doğrular.
+
 ## Açık kararlar (proje sahibinin onayı bekleniyor)
 
 Bkz. `ARCHITECTURE.md` §10 için tam liste ve gerekçeler. Özet:
