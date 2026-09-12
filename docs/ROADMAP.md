@@ -550,8 +550,39 @@ seçildi). Bu, projenin kendi ARCHITECTURE.md §9 notunda zaten öngörülen
 "bir kez lock dosyası üretilip commit edilirse `npm ci`'ya geçilebilir"
 adımının küçük bir ön-versiyonu: tam sürüm sabitleme, lock dosyası kadar
 güçlü olmasa da, CI'ın HER seferinde AYNI paket sürümleriyle
-çalışmasını garanti eder. Üçüncü sürüm bu düzeltmeyle gönderilip sonucu
-doğrulanacaktır.
+çalışmasını garanti eder.
+
+**GERÇEK kök neden nihayet bulundu (üçüncü CI hatası, bu oturum):**
+Yukarıdaki sürüm sabitlemesi de CI'ı düzeltmedi — üçüncü deneme AYNI
+şekilde başarısız oldu. Bu, hem "magic number" hem "sürüm sabitleme"
+teorilerinin YANLIŞ olduğunu kanıtladı. Ham CI günlüğü bu ortamdan
+(kimlik doğrulama gerektirdiği için) okunamadığından, `.github/workflows/
+ci.yml`'e GEÇİCİ bir teşhis adımı eklendi (eslint çıktısının her satırını
+ayrı bir `::error::` iş akışı komutu olarak yazdırıp GitHub'ın annotation
+panelinde görünür kılan bir adım — bu panel bu oturumdan güvenilir
+şekilde okunabiliyordu, ham günlüğün aksine). Bu, gizli hatayı nihayet
+ortaya çıkardı: **`apps/api/src/api/middleware/http-exception.filter.ts`**
+içinde `DOMAIN_ERROR_MAP`'in tipi `Map<Function, {...}>` olarak
+yazılmıştı. ESLint'in `plugin:@typescript-eslint/recommended` seti,
+`Function` tipinin (herhangi bir çağrılabilir değeri kabul ettiği,
+`new` ile çağrılmadan çalışma zamanında hata fırlatabilecek sınıf
+bildirimlerini bile kabul ettiği ve hiçbir tip güvenliği sağlamadığı
+için) **HATA (error, uyarı değil)** olarak yasakladığı bir kuralı
+içeriyor — bu, projenin diğer tüm "no magic number" UYARILARINDAN
+tamamen farklı bir kural ve ciddiyet seviyesindeydi, bu yüzden
+annotation panelinde bir "Show more" katlanmış grubunun ARKASINA
+gizlenmişti ve önceki taramalarda hep kaçırıldı. Düzeltme: `Function`
+yerine dar, doğru bir tip — `type ErrorClassConstructor = new
+(...args: never[]) => Error` — tanımlanıp `DOMAIN_ERROR_MAP`'in tipi
+buna çevrildi (zaten dosyada `instanceof` kontrolü için kullanılan
+cast'le AYNI tip — artık ayrı bir cast'e de gerek kalmadı). Bu
+değişiklik izole bir `tsc --strict` kontrolüyle (aynı desen, gerçek
+hata sınıflarıyla) doğrulandı, domain katmanı `tsc`'si temiz kaldı ve
+framework'ten bağımsız test seti yine **296/296** geçti. Geçici teşhis
+adımı kaldırılıp `Lint` adımı normal `npm run lint` çağrısına
+döndürüldü. Sürüm sabitleme gerçek nedeni ÇÖZMEDİ ama zararsız, iyi bir
+hijyen adımı olduğu için korundu. Dördüncü sürüm bu düzeltmeyle
+gönderilip sonucu doğrulanacaktır.
 
 ## Açık kararlar (proje sahibinin onayı bekleniyor)
 

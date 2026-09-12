@@ -9,12 +9,22 @@ import {
 } from '../../domain/player/errors';
 
 /**
+ * Bir hata sınıfının constructor'ı (`instanceof` ile karşılaştırılabilir).
+ * `Function` (herhangi bir çağrılabilir değer) yerine bilinçli olarak bu
+ * dar tip kullanılır — ESLint'in `@typescript-eslint/recommended` seti
+ * `Function` tipini tip güvenliği sağlamadığı için HATA olarak yasaklar
+ * (bkz. docs/ROADMAP.md "FAZ 1 wiring" — bu, üç CI denemesinin GERÇEK
+ * kök nedeniydi, önceki teoriler yanlıştı).
+ */
+type ErrorClassConstructor = new (...args: never[]) => Error;
+
+/**
  * Domain hata sınıfı → (HTTP durumu, hata kodu) eşlemesi. Her yeni domain
  * modülü wiring'e bağlandığında (Horse, Race, Market, ...) buraya bir satır
  * eklenir — domain katmanının KENDİSİ hiçbir zaman HTTP bilmez (bkz.
  * docs/ARCHITECTURE.md §4), bu eşleme yalnızca API katmanında yaşar.
  */
-const DOMAIN_ERROR_MAP = new Map<Function, { status: number; code: string }>([
+const DOMAIN_ERROR_MAP = new Map<ErrorClassConstructor, { status: number; code: string }>([
   [UsernameAlreadyTakenError, { status: HttpStatus.CONFLICT, code: ErrorCode.UsernameAlreadyTaken }],
   [PlayerNotFoundError, { status: HttpStatus.NOT_FOUND, code: ErrorCode.PlayerNotFound }],
   [InvalidUsernameError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.ValidationError }],
@@ -37,7 +47,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
     const response = ctx.getResponse<Response>();
 
     for (const [ErrorClass, mapping] of DOMAIN_ERROR_MAP) {
-      if (exception instanceof (ErrorClass as new (...args: never[]) => Error)) {
+      if (exception instanceof ErrorClass) {
         response.status(mapping.status).json({
           success: false,
           error: { code: mapping.code, message: (exception as Error).message },
