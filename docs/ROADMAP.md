@@ -581,8 +581,22 @@ hata sınıflarıyla) doğrulandı, domain katmanı `tsc`'si temiz kaldı ve
 framework'ten bağımsız test seti yine **296/296** geçti. Geçici teşhis
 adımı kaldırılıp `Lint` adımı normal `npm run lint` çağrısına
 döndürüldü. Sürüm sabitleme gerçek nedeni ÇÖZMEDİ ama zararsız, iyi bir
-hijyen adımı olduğu için korundu. Dördüncü sürüm bu düzeltmeyle
-gönderilip sonucu doğrulanacaktır.
+hijyen adımı olduğu için korundu.
+
+**İkinci gizli hata (dördüncü CI hatası, bu oturum):** `Function` tipi
+düzeltmesi "Lint" adımını nihayet geçirdi — ama bu kez CI, "Test"
+adımında yeni bir hatayla durdu: `ReferenceError: describe is not
+defined`, hem `health.e2e-spec.ts`'te hem yeni `player.e2e-spec.ts`'te.
+Kök neden: bu iki dosya `describe`/`it`/`expect`/`beforeAll`/`afterAll`
+GLOBAL fonksiyonlarına güveniyordu, ama proje kök `vitest.config.ts`'i
+`globals: false` kullanıyor (projedeki TÜM diğer spec dosyaları bunları
+`vitest`'ten AÇIKÇA içe aktarıyor). `health.e2e-spec.ts` bu hatayı
+FAZ 0'dan beri taşıyordu ama bu oturumdaki glob-eşleşme düzeltmesinden
+ÖNCE hiç çalıştırılmadığı için fark edilmemişti — bu, aynı kök nedenin
+(hiç koşmamış bir dosya) ortaya çıkardığı İKİNCİ gizli hata. Düzeltme:
+her iki dosyaya da `import { afterAll, beforeAll, describe, expect, it }
+from 'vitest';` eklendi. Beşinci sürüm bu düzeltmeyle gönderilip sonucu
+doğrulanacaktır.
 
 ## Açık kararlar (proje sahibinin onayı bekleniyor)
 
