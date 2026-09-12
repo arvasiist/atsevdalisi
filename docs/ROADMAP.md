@@ -16,7 +16,7 @@
 | 4 | Farm | Stable upgrade, Paddock, Training track, Vet center, Breeding center, Staff facilities | 🟡 Domain katmanı tamam, wiring bekliyor |
 | 5 | Advanced Race Engine | Continuous simulation, Pace, Position, Overtaking, Blocking, Turns, Lane changes, Sprint, Fatigue, Jockey decisions, Photo finish, Replay, Cameras | 🟡 Domain katmanı tamam, wiring bekliyor |
 | 6 | Web 3D/Görsel Sunum | Race track, Horse models, Jockey models, Animations, Camera system, UI, VFX, Audio, Crowd, Weather | 🟡 Basit şekillerle iskelet tamam, gerçek 3D asset'ler bekliyor |
-| 7 | Online | Matchmaking, PvP, Race rooms, Leaderboards, Clubs, Tournaments, Seasons, Anti-cheat, Server-authoritative simulation | ⏳ |
+| 7 | Online | Matchmaking, PvP, Race rooms, Leaderboards, Clubs, Tournaments, Seasons, Anti-cheat, Server-authoritative simulation | 🟡 Domain katmanı tamam, wiring bekliyor |
 
 > **Not:** Orijinal brief'teki FAZ 6 "3D Presentation" Unity'ye özgüydü;
 > güncel karşılığı "Web 3D/Görsel Sunum" (Three.js tabanlı) olarak
@@ -45,10 +45,10 @@
 18. Farm                          ⏳ FAZ 4
 19. Web UI (Next.js)              ⏳ FAZ 1'den itibaren kademeli (Unity UI yerine)
 20. Web 3D/Görsel Sunum (Three.js) 🟡 FAZ 6 (Unity 3D yerine) — iskelet tamam
-21. Online                        ⏳ FAZ 7
-22. Leaderboard                   ⏳ FAZ 7
-23. Club                          ⏳ FAZ 7
-24. Tournament                    ⏳ FAZ 7
+21. Online                        🟡 FAZ 7 — domain katmanı (matchmaking, Elo, anti-cheat, race room) tamam
+22. Leaderboard                   🟡 FAZ 7 — domain katmanı (RankingScore, sıralama) tamam
+23. Club                          🟡 FAZ 7 — domain katmanı (üyelik, seviye/puan) tamam
+24. Tournament                    🟡 FAZ 7 — domain katmanı (uygunluk, kura, ödül dağıtımı) tamam
 ```
 
 ## FAZ 0 tamamlanma kriterleri (bu depo)
@@ -325,6 +325,76 @@ katmanı DOM'suz kalmaya devam eder). Önemli olan: bu HATA, tam olarak
 doğrulanamıyor) yüzünden CI'da ortaya çıktı — kodun geri kalanında
 (Three.js/`@react-three/fiber` API kullanımı dahil) başka HİÇBİR hata
 bulunmadı, sadece bu tek tsconfig eksikliği.
+
+**Doğrulama (bu oturum):** düzeltme gönderildikten sonra GitHub Actions CI
+run'ı (commit `c47e85c`, "fix(build): apps/web tsconfig.json'a DOM lib
+eklendi") çalışma detay sayfasından **Success** olarak doğrulandı (1m 47s,
+tek uyarılar bilinen/engelleyici olmayan "no magic number" lint notları ve
+Node 20→24 deprecation notu). Böylece FAZ 6'nın basit-şekillerle iskelet
+kapsamı (pist/kamera/oynatma mantığı + Three.js sahne + demo ekranı) uçtan
+uca yeşil olarak doğrulanmıştır; kalan kapsam dışı kalemler (gerçek 3D
+asset'ler, NestJS wiring) yukarıda listelenmiştir.
+
+## FAZ 7 tamamlanma durumu (bu oturum)
+
+FAZ 7 (Online), önceki tüm fazlarla (1-5) AYNI desende ele alınmıştır: brief
+§41-44 ve §68-69'daki kuralların TAMAMI, framework'ten bağımsız saf
+TypeScript domain fonksiyonları olarak yazılmış ve yerel `tsc` + gerçek
+testlerle doğrulanmıştır (bkz. FAZ 6'nın aksine — bu fazda üçüncü parti bir
+kütüphane/framework bağımlılığı YOKTUR, bu yüzden FAZ 6'daki "sadece CI'da
+doğrulanabilir" kısıtı bu fazda GEÇERLİ DEĞİLDİR; tüm kod bu oturumda tam
+olarak doğrulanmıştır).
+
+**Eklenen sistemler:**
+
+- **Matchmaking & PvP** (`domain/online/{elo,matchmaking}.ts`) — brief §43
+  "Elo benzeri sistem", bekleme süresine göre genişleyen reyting aralığı ile
+  adil eşleştirme.
+- **Anti-cheat & Race Room** (`domain/online/{anti-cheat,race-room}.ts`) —
+  brief §42 "backend kendi DB değerini kullanmalıdır" ilkesi (allowlist +
+  gözlemlenebilir ihlal sinyali), brief §41 "participant validation" ve
+  "seed" üretimi. **Yeni bir simülasyon motoru YAZILMADI** — FAZ 5'in
+  `simulateRace`'i aynen bir "oda" bağlamında kullanılır.
+- **Sıralama** (`domain/ranking/{ranking-score,leaderboard}.ts`) — brief
+  §43 RankingScore formülü, 7 sıralama türü (global/ülke/arkadaş/kulüp/
+  sezon/haftalık/aylık) için tek bir genel sıralama/rank atama motoru.
+- **Kulüp** (`domain/club/club.ts`) — brief §44: üyelik (katılma/ayrılma/
+  atma), rol hiyerarşisi (leader/officer/member), puan → seviye eşik
+  tablosu (`domain/stable`'daki kapasite eşik deseniyle aynı).
+- **Turnuva** (`domain/tournament/tournament.ts`) — brief §35/§68:
+  uygunluk kontrolü (seviye/giriş ücreti), reytinge göre deterministik kura
+  (`domain/online/matchmaking.ts`'teki reytingi yeniden kullanır), ödül
+  havuzu dağıtımı.
+- **Sezon** (`domain/season/season.ts`) — brief §69: sezon durumu
+  (upcoming/active/ended), "sadece sezon skorları resetlenir" kuralının
+  `PlayerSeasonState`'in `Player`den TAMAMEN ayrı bir tip olmasıyla TİP
+  SEVİYESİNDE garanti edilmesi.
+
+**Yeni config:** `config/online.config.json` (`OnlineConfig` — `elo`,
+`matchmaking`, `ranking`, `club`, `tournament`, `season` bölümleri).
+
+**Yeni shared-types:** `packages/shared-types/src/online.ts` (`Club`,
+`ClubMembership`, `LeaderboardEntry`/`RankedLeaderboardEntry`, `Season`,
+`PlayerSeasonState`, `Tournament`, `TournamentParticipant`,
+`MatchmakingTicket`, `PlayerRating`, `PvpMatch`).
+
+**Doğrulama (bu oturum):** `apps/api/tsconfig.domain.json` ile TÜM domain
+katmanı (FAZ 1-7 dahil) `tsc --noEmit` temiz derlendi;
+`packages/shared-types` ve `packages/game-config` paketleri kendi
+`tsconfig.json`'larıyla ayrıca temiz derlendi (yeni `online.ts`/
+`OnlineConfig` dahil). Geçici bir `vitest` shim'i + test runner ile (bkz.
+docs/ARCHITECTURE.md §9, bu araçlar commit edilmez) TÜM proje test seti
+(FAZ 1-7, 294 test) çalıştırıldı — **294/294 geçti**, hiçbir regresyon
+yok. Bu, FAZ 6'dan farklı olarak GitHub CI'ı beklemeye gerek kalmadan tam
+bir yerel doğrulama sinyalidir; CI yine de nihai/bağımsız doğrulama
+kaynağı olarak kalır.
+
+**Kapsam dışı (bilinçli):** gerçek WebSocket/oda yönetimi altyapısı,
+NestJS controller/route wiring'i (brief §41-44 ile tutarlı uç nokta
+taslakları `docs/API.md` §9'a eklenmiştir), kulüp sohbeti/yarışları/
+görevleri (içerik sistemi), gerçek zamanlı eşleştirme kuyruğu yönetimi
+(DB/Redis) — bunların TÜMÜ, FAZ 1-6'daki "domain hazır, wiring bekliyor"
+deseniyle birebir tutarlıdır.
 
 ## Açık kararlar (proje sahibinin onayı bekleniyor)
 

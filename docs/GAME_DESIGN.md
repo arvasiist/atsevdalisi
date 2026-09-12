@@ -162,3 +162,30 @@ En iyi derece: 1600m Çim — 1:34.82
 Bu ekran `apps/web/src/app/stable/[horseId]/page.tsx` → "Geçmiş" sekmesinde
 uygulanacak; tipografi ve görsel hiyerarşi bir "kupa dolabı" hissi
 vermelidir (tasarım detayları FAZ 1 UI çalışmasında netleştirilecektir).
+
+## 10. Online / Sıralama / Kulüp ekranları (brief §2 ekran haritası "Online",
+"Sıralama", "Kulüp"; §41-44)
+
+**FAZ 7'de uygulandı (domain katmanı):** brief §2 ekran haritasındaki üç
+bölümün ARKASINDAKİ tüm hesaplama mantığı hazır ve test edilmiştir (bkz.
+`apps/api/src/domain/{online,ranking,club,tournament,season}/`,
+`docs/ROADMAP.md` "FAZ 7 tamamlanma durumu"); gerçek ekranlar (`apps/web/
+src/app/{online,leaderboard,club}/page.tsx`) henüz bu oturumun kapsamında
+DEĞİLDİR — FAZ 1-5'teki tüm domain modülleriyle aynı "domain hazır, UI
+wiring bekliyor" deseni.
+
+- **Online** (PvP / Matchmaking / Turnuva / Sonuçlar): eşleştirme kuyruğu
+  ekranı reyting + tahmini bekleme süresi gösterebilir
+  (`domain/online/matchmaking.ts` `calculateRatingRangeAtWait` UI'da "aramaya
+  devam ediliyor..." mesajının genişleyen aralığını yansıtabilir).
+- **Sıralama** (Global / Türkiye / Sezon / Arkadaşlar): tek bir
+  `LeaderboardScope` seçici (brief §43'teki 7 tür) + `domain/ranking/
+  leaderboard.ts` `buildLeaderboard` çıktısını listeleyen tek bir bileşen
+  yeterlidir (7 ayrı ekran değil, tek ekran + filtre).
+  "Senin sıran" vurgusu `findPlayerRank` ile bulunur.
+- **Kulüp** (Kulüp / Üyeler / Görevler / Yarışlar / Sıralama): "Sıralama"
+  alt sekmesi yukarıdaki genel Sıralama bileşeninin `scope='club'` ile
+  yeniden kullanılmasıdır. "Üyeler" listesi rol rozetleri (leader/officer/
+  member, bkz. `domain/club/club.ts` `ClubRole`) gösterebilir. "Görevler"
+  ve "Yarışlar" sekmeleri bu oturumun kapsamı dışındadır (içerik sistemi,
+  bkz. `domain/club/README.md` "Kapsam dışı").

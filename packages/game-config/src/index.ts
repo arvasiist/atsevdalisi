@@ -23,6 +23,7 @@ import type {
   GeneticsConfig,
   HorseGrowthConfig,
   JockeyConfig,
+  OnlineConfig,
   ProgressionConfig,
   RaceBalanceConfig,
   StableConfig,
@@ -43,6 +44,7 @@ import stableConfigJson from '../../../config/stable.config.json';
 import jockeyConfigJson from '../../../config/jockey.config.json';
 import staffConfigJson from '../../../config/staff.config.json';
 import farmConfigJson from '../../../config/farm.config.json';
+import onlineConfigJson from '../../../config/online.config.json';
 
 export function loadRaceConfig(): RaceBalanceConfig {
   return raceConfigJson as unknown as RaceBalanceConfig;
@@ -90,6 +92,10 @@ export function loadStaffConfig(): StaffConfig {
 
 export function loadFarmConfig(): FarmConfig {
   return farmConfigJson as unknown as FarmConfig;
+}
+
+export function loadOnlineConfig(): OnlineConfig {
+  return onlineConfigJson as unknown as OnlineConfig;
 }
 
 export * from './types';

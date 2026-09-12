@@ -187,7 +187,15 @@ doğrulandı (`apps/web/tsconfig.logic.json`).
 ## 6. Backend mimarisi (NestJS)
 
 - Her domain alanı (`horse`, `player`, `race`, `jockey`, `economy`,
-  `training`, `breeding`, `market`) kendi NestJS modülüne sahiptir.
+  `training`, `breeding`, `market`, `farm`, `staff`, `progression`,
+  `online`, `ranking`, `club`, `tournament`, `season`) kendi NestJS
+  modülüne sahiptir. FAZ 7 (Online) eklentileri — `domain/online`
+  (matchmaking, Elo, anti-cheat, race room), `domain/ranking`
+  (RankingScore, leaderboard), `domain/club`, `domain/tournament`,
+  `domain/season` — brief §41-44/§68-69 ile birebir uyumludur; bkz. o
+  klasörlerin README.md'leri ve `docs/ROADMAP.md` "FAZ 7 tamamlanma
+  durumu". Online yarışlar YENİ bir simülasyon motoru GEREKTİRMEZ — mevcut
+  `domain/race/race-engine.ts` bir "oda" (room) bağlamında çağrılır.
 - Race Engine, **Domain** katmanında framework'ten bağımsız, saf bir
   hesaplama modülü olarak yaşar (`apps/api/src/domain/race/race-engine.ts`);
   böylece hem NestJS içinde hem de ayrı bir CLI/test aracında (`tools/`

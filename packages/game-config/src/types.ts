@@ -351,3 +351,58 @@ export interface StaffConfig {
   /** Düşük moralde bonusun ne kadarının korunacağı (0-1). */
   lowMoraleBonusPenaltyMultiplier: number;
 }
+
+/**
+ * FAZ 7 — brief §41-44 Online mimari (bkz. `domain/online/`, `domain/
+ * ranking/`, `domain/club/`, `domain/tournament/`, `domain/season/`).
+ */
+export interface OnlineConfig {
+  /** brief §43 "Elo benzeri sistem PvP için ayrıca uygulanabilir" (bkz. `domain/online/elo.ts`). */
+  elo: {
+    initialRating: number;
+    /** Bir maç sonucunun reytingi ne kadar değiştireceğini belirleyen katsayı (standart Elo K-faktörü). */
+    kFactor: number;
+    /** Reyting bu değerin altına düşemez (brief'te yok, proje-içi taban — çok kötü bir seri reytingi negatife düşürmemelidir). */
+    minRating: number;
+  };
+  /** brief §41 Online Mimari — eşleştirme kuyruğu genişleme kuralları (bkz. `domain/online/matchmaking.ts`). */
+  matchmaking: {
+    /** Kuyruğa girer girmez kabul edilen reyting farkı. */
+    initialRatingRangeWidth: number;
+    /** Her bekleme saniyesinde reyting aralığının ne kadar genişleyeceği (uzun bekleyen oyuncu için daha geniş eşleşme havuzu). */
+    rangeExpansionPerSecond: number;
+    /** Aralık bu değeri asla aşamaz (çok farklı seviyede eşleşmeyi önler). */
+    maxRatingRangeWidth: number;
+  };
+  /** brief §43 RankingScore = RacePerformance + WinBonus + PlacementBonus + TournamentBonus (bkz. `domain/ranking/ranking-score.ts`). */
+  ranking: {
+    racePerformanceWeight: number;
+    winBonus: number;
+    /** Anahtar = derece (1, 2, 3, ...), değer = o dereceye özgü bonus puan. Listede olmayan dereceler 0 bonus alır. */
+    placementBonusByPlacement: Record<string, number>;
+    tournamentBonusMultiplier: number;
+  };
+  /** brief §44 KULÜP (bkz. `domain/club/club.ts`). */
+  club: {
+    maxMembers: number;
+    /** Anahtar = ULAŞILACAK kulüp seviyesi, değer = o seviye için gereken TOPLAM (kümülatif) kulüp puanı. */
+    levelThresholds: Record<string, number>;
+  };
+  /** brief §35 YARIŞ TAKVİMİ "Özel kupalar/Büyük ödüllü yarışlar" turnuva karşılığı (bkz. `domain/tournament/tournament.ts`). */
+  tournament: {
+    tiers: Record<
+      string,
+      {
+        minPlayerLevel: number;
+        entryFee: number;
+        maxParticipants: number;
+      }
+    >;
+    /** Anahtar = final sırası (1, 2, 3, ...), değer = ödül havuzunun bu sıraya ayrılan payı (0-1). Toplamı 1.0'ı aşmamalıdır. */
+    prizeDistributionByPlacement: Record<string, number>;
+  };
+  /** brief §69 SEZON SİSTEMİ (bkz. `domain/season/season.ts`). */
+  season: {
+    durationDays: number;
+  };
+}

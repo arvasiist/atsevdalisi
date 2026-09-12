@@ -226,17 +226,37 @@ POST /api/v1/farm/staff/hire
 POST /api/v1/farm/staff/{id}/fire
 ```
 
-## 9. Online / Sıralama / Kulüp (FAZ 7 — şimdilik sadece tasarım)
+## 9. Online / Sıralama / Kulüp / Turnuva / Sezon (FAZ 7)
 
 ```http
-GET  /api/v1/leaderboard?scope=global|turkey|friends|club|season
+GET  /api/v1/leaderboard?scope=global|country|friends|club|season|weekly|monthly
 GET  /api/v1/clubs/{id}
 POST /api/v1/clubs
 POST /api/v1/clubs/{id}/join
+POST /api/v1/clubs/{id}/leave
+POST /api/v1/clubs/{id}/members/{playerId}/kick
 GET  /api/v1/tournaments
+POST /api/v1/tournaments/{id}/register    # Idempotency-Key zorunlu (brief §54)
+GET  /api/v1/tournaments/{id}/bracket
+POST /api/v1/matchmaking/queue            # PvP kuyruğuna gir (brief §41)
+DELETE /api/v1/matchmaking/queue          # kuyruktan çık
+GET  /api/v1/seasons/current
 ```
 
-Bu bölüm FAZ 7'de detaylandırılacaktır; brief §41-44 ile tutarlıdır.
+**Uygulama durumu (FAZ 7, bu oturum):** yukarıdaki uç noktaların ARKASINDAKİ
+tüm hesaplama mantığı `apps/api/src/domain/{online,ranking,club,tournament,
+season}/` altında saf TypeScript fonksiyonları olarak tamamlanmış ve test
+edilmiştir (bkz. o klasörlerin README.md'leri, docs/ROADMAP.md "FAZ 7
+tamamlanma durumu"). Bu tablo, önceki fazlardaki (FAZ 1-5) aynı desenle
+tutarlı olarak, gerçek NestJS controller/route wiring'i henüz YAPILMAMIŞ,
+domain katmanı hazır bir sözleşme/tasarımdır — brief §41-44, §68-69 ile
+tutarlıdır.
+
+Anti-cheat (brief §42): her uç nokta, client'tan gelen payload'ı
+`domain/online/anti-cheat.ts` `pickAllowedClientFields` ile ALLOWLIST'ten
+geçirmeli; `race.enter` gibi uç noktalarda client bir snapshot da
+gönderirse `assertSnapshotMatchesAuthoritative` ile server'ın kendi DB
+değerleriyle karşılaştırılıp uyuşmazlık reddedilmelidir.
 
 ## 10. WebSocket olayları (öneri)
 

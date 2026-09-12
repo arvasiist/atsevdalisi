@@ -1,0 +1,47 @@
+{
+  "elo": {
+    "initialRating": 1000,
+    "kFactor": 32,
+    "minRating": 100
+  },
+  "matchmaking": {
+    "initialRatingRangeWidth": 100,
+    "rangeExpansionPerSecond": 5,
+    "maxRatingRangeWidth": 600
+  },
+  "ranking": {
+    "racePerformanceWeight": 1,
+    "winBonus": 50,
+    "placementBonusByPlacement": {
+      "1": 100,
+      "2": 60,
+      "3": 30
+    },
+    "tournamentBonusMultiplier": 2
+  },
+  "club": {
+    "maxMembers": 30,
+    "levelThresholds": {
+      "1": 0,
+      "2": 5000,
+      "3": 15000,
+      "4": 40000,
+      "5": 100000
+    }
+  },
+  "tournament": {
+    "tiers": {
+      "bronze": { "minPlayerLevel": 1, "entryFee": 500, "maxParticipants": 8 },
+      "silver": { "minPlayerLevel": 15, "entryFee": 2000, "maxParticipants": 16 },
+      "gold": { "minPlayerLevel": 30, "entryFee": 8000, "maxParticipants": 32 }
+    },
+    "prizeDistributionByPlacement": {
+      "1": 0.5,
+      "2": 0.3,
+      "3": 0.2
+    }
+  },
+  "season": {
+    "durationDays": 30
+  }
+}
