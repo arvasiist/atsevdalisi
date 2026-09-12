@@ -14,7 +14,7 @@
 | 2 | Management | Horse Market, Buy/Sell, Vet, Farrier, Nutrition, Jockey, Staff, Stable capacity, Costs | 🟡 Domain katmanı tamam, wiring bekliyor |
 | 3 | Genetics | Pedigree, Mare/Stallion, Genetic traits, Inheritance, Mutation, Foal, Growth, Bloodline | 🟡 Domain katmanı tamam, wiring bekliyor |
 | 4 | Farm | Stable upgrade, Paddock, Training track, Vet center, Breeding center, Staff facilities | 🟡 Domain katmanı tamam, wiring bekliyor |
-| 5 | Advanced Race Engine | Continuous simulation, Pace, Position, Overtaking, Blocking, Turns, Lane changes, Sprint, Fatigue, Jockey decisions, Photo finish, Replay, Cameras | ⏳ |
+| 5 | Advanced Race Engine | Continuous simulation, Pace, Position, Overtaking, Blocking, Turns, Lane changes, Sprint, Fatigue, Jockey decisions, Photo finish, Replay, Cameras | 🟡 Domain katmanı tamam, wiring bekliyor |
 | 6 | Web 3D/Görsel Sunum | Race track, Horse models, Jockey models, Animations, Camera system, UI, VFX, Audio, Crowd, Weather | ⏳ |
 | 7 | Online | Matchmaking, PvP, Race rooms, Leaderboards, Clubs, Tournaments, Seasons, Anti-cheat, Server-authoritative simulation | ⏳ |
 
@@ -38,7 +38,7 @@
 11. Care                          ⏳ FAZ 1
 12. Jockey                        ⏳ FAZ 1/2
 13. Race domain                   ⏳ FAZ 1
-14. Race Engine                   ⏳ FAZ 1 (temel) → FAZ 5 (gelişmiş)
+14. Race Engine                   🟡 FAZ 1 (temel, tamam) → FAZ 5 (gelişmiş, domain katmanı tamam)
 15. Race Result                   ⏳ FAZ 1
 16. Market                        ⏳ FAZ 2
 17. Genetics                      ⏳ FAZ 3
@@ -211,6 +211,54 @@ geçilmedi):
   ile aynı gerekçeyle (zaten test edilmiş modülleri riske atmadan) wiring
   aşamasına bırakıldı (bkz. `domain/farm/README.md` "Kapsam dışı").
 - NestJS controller/use-case/module wiring'i (FAZ 1-3 ile aynı gerekçe).
+
+## FAZ 5 tamamlanma durumu (bu oturum)
+
+Aynı yöntemle (framework'ten bağımsız domain katmanı, `tsc` ile mimari
+doğrulama + gerçek girdilerle runtime doğrulama + kalıcı Vitest testleri —
+bu oturumda 202 testin (148 önceki FAZ + 54 yeni race-domain testi) TAMAMI
+gerçekten koşturularak doğrulandı, sıfır regresyon) FAZ 5 (Gelişmiş Yarış
+Motoru) domain katmanı tamamlandı — roadmap sırası korunarak (FAZ 1→2→3→4
+tamamlanmadan FAZ 5'e geçilmedi):
+
+- [x] `domain/race/race-engine.ts` — `simulateRace` brief §21'e uygun
+      3-geçişli segment-içi döngüyle yeniden yazıldı: (A) jokey kararı +
+      kulvar değişimi, (B) kulvar doluluğu + geçiş çözümü, (C) nihai
+      performans puanı. Tüm 7 önceki FAZ 1 testi değişmeden geçmeye devam
+      ediyor (geriye dönük uyumluluk korundu).
+- [x] `domain/race/overtaking.ts` (yeni) — gerçek `overtake_probability`
+      formülü, kulvar atama/değişimi (brief §21).
+- [x] `domain/race/jockey-decisions.ts` (yeni) — brief §60 jokey AI karar
+      ağacı, birebir öncelik sırasıyla.
+- [x] `domain/race/sprint.ts` (yeni) — final sprint mekaniği.
+- [x] `domain/race/fatigue.ts` (yeni) — segment-içi dinamik yorgunluk
+      birikimi ve performans cezası (FAZ 1'in statik `preRaceFatigueFactor`
+      ünden ayrı, brief §21).
+- [x] `domain/race/race-explanation.ts` (yeni) — brief §85 "neden
+      kazandım/kaybettim" açıklaması.
+- [x] `domain/race/race-interpolation.ts` (yeni) — segment checkpoint'leri
+      arası doğrusal interpolasyon; "Continuous simulation" ve Replay/Kamera
+      ihtiyaçlarını, deterministik segment modelini bozmadan karşılar.
+- [x] Foto-finiş (brief §25) için açık ikincil karşılaştırma (berabere
+      kalma durumunda son segment performansı, sonra `horseId`) eklendi —
+      determinism garantisi bu uç durumda da korunuyor.
+- [x] `database/migrations/0014` — `race_entry_segments.blocked`/
+      `jockey_decision` sütunları.
+- [x] `docs/RACE_ENGINE.md` §6, §8, §9, §10 güncellendi (uygulandı
+      notları); `docs/ALGORITHMS.md` §5-6'ya "Uygulama notu (FAZ 5)"
+      eklendi.
+
+**Bilinçli olarak bu oturuma dahil edilmeyenler:**
+
+- NestJS controller/use-case/module wiring'i (`SimulateRaceUseCase`) —
+  FAZ 1-4 ile aynı gerekçe.
+- Cameras (kamera sistemi) ve 3D/görsel render — brief'te FAZ 5 başlığı
+  altında listelense de bunlar `apps/web` + Three.js katmanına aittir;
+  FAZ 6 "Web 3D/Görsel Sunum" kapsamına bilinçli olarak ertelendi.
+- Replay için YENİ KOD YAZILMADI — mevcut determinism garantisi (§7)
+  FAZ 5'in tüm yeni alanlarını (`lane`, `blocked`, `decision`,
+  `explanations`) zaten otomatik olarak kapsıyor (bkz.
+  `docs/RACE_ENGINE.md` §10 "FAZ 5 notu").
 
 ## Açık kararlar (proje sahibinin onayı bekleniyor)
 

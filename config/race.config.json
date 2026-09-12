@@ -16,11 +16,39 @@
     "frontRunnerStaminaMultiplier": 1.15,
     "frontRunnerPositionBonus": 3,
     "closerStaminaMultiplier": 0.85,
-    "closerLateStageBonus": 4,
-    "closerTrafficRisk": 0.10
+    "closerLateStageBonus": 4
   },
   "overtaking": {
-    "blockPenalty": 15
+    "blockPenalty": 15,
+    "accelerationWeight": 0.3,
+    "speedDifferenceWeight": 0.8,
+    "courageWeight": 0.2,
+    "jockeySkillWeight": 0.25,
+    "availableSpaceWeight": 0.3,
+    "courageByRiskLevel": { "low": 30, "normal": 55, "high": 80 },
+    "spacePerOccupant": 25,
+    "defendPositionBonus": 12,
+    "closeGapMs": 400
+  },
+  "lanes": {
+    "count": 4,
+    "initialLaneByStyle": { "front_runner": 1, "tracker": 2, "mid_pack": 3, "closer": 4 }
+  },
+  "sprint": {
+    "staminaReserveThreshold": 25,
+    "bonusMultiplier": 12
+  },
+  "jockeyDecision": {
+    "staminaLowThreshold": 15,
+    "finalStraightPositionFraction": 0.85,
+    "opponentCloseGapMs": 400,
+    "riskAllowedRiskLevels": ["normal", "high"]
+  },
+  "fatigue": {
+    "accumulationPerSegment": 8,
+    "reducePaceAccumulationMultiplier": 0.5,
+    "performancePenaltyPerFatiguePoint": 0.15,
+    "maxRuntimeFatigue": 100
   },
   "distance": {
     "shortMaxMeters": 1200,
