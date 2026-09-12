@@ -15,7 +15,7 @@
 | 3 | Genetics | Pedigree, Mare/Stallion, Genetic traits, Inheritance, Mutation, Foal, Growth, Bloodline | 🟡 Domain katmanı tamam, wiring bekliyor |
 | 4 | Farm | Stable upgrade, Paddock, Training track, Vet center, Breeding center, Staff facilities | 🟡 Domain katmanı tamam, wiring bekliyor |
 | 5 | Advanced Race Engine | Continuous simulation, Pace, Position, Overtaking, Blocking, Turns, Lane changes, Sprint, Fatigue, Jockey decisions, Photo finish, Replay, Cameras | 🟡 Domain katmanı tamam, wiring bekliyor |
-| 6 | Web 3D/Görsel Sunum | Race track, Horse models, Jockey models, Animations, Camera system, UI, VFX, Audio, Crowd, Weather | ⏳ |
+| 6 | Web 3D/Görsel Sunum | Race track, Horse models, Jockey models, Animations, Camera system, UI, VFX, Audio, Crowd, Weather | 🟡 Basit şekillerle iskelet tamam, gerçek 3D asset'ler bekliyor |
 | 7 | Online | Matchmaking, PvP, Race rooms, Leaderboards, Clubs, Tournaments, Seasons, Anti-cheat, Server-authoritative simulation | ⏳ |
 
 > **Not:** Orijinal brief'teki FAZ 6 "3D Presentation" Unity'ye özgüydü;
@@ -44,7 +44,7 @@
 17. Genetics                      ⏳ FAZ 3
 18. Farm                          ⏳ FAZ 4
 19. Web UI (Next.js)              ⏳ FAZ 1'den itibaren kademeli (Unity UI yerine)
-20. Web 3D/Görsel Sunum (Three.js) ⏳ FAZ 6 (Unity 3D yerine)
+20. Web 3D/Görsel Sunum (Three.js) 🟡 FAZ 6 (Unity 3D yerine) — iskelet tamam
 21. Online                        ⏳ FAZ 7
 22. Leaderboard                   ⏳ FAZ 7
 23. Club                          ⏳ FAZ 7
@@ -259,6 +259,57 @@ tamamlanmadan FAZ 5'e geçilmedi):
   FAZ 5'in tüm yeni alanlarını (`lane`, `blocked`, `decision`,
   `explanations`) zaten otomatik olarak kapsıyor (bkz.
   `docs/RACE_ENGINE.md` §10 "FAZ 5 notu").
+
+## FAZ 6 tamamlanma durumu (bu oturum)
+
+FAZ 6 (Web 3D/Görsel Sunum), FAZ 1-5'ten temelde farklıdır: gerçek 3D at/
+jokey modelleri, animasyonlar, ses ve VFX kod değil sanat/asset dosyasıdır
+ve projede hiç yoktur. Proje sahibiyle görüşülüp **"basit şekillerle
+iskelet kur"** kapsamı kararlaştırıldı (bkz. `apps/web/src/features/
+race-viewer/README.md` "Kapsam kararı"):
+
+- [x] `features/race-viewer/track-path.ts` (yeni) — pist geometrisi (saf
+      matematik, "stadyum" şekli: iki düz kenar + iki viraj).
+- [x] `features/race-viewer/timeline-playback.ts` (yeni) — `RaceTimeline`
+      ara değerleme, canlı sıralama, oynatma saati ilerletme.
+- [x] `features/race-viewer/camera-presets.ts` (yeni) — brief FAZ 5
+      "Cameras" / `docs/GAME_DESIGN.md` §6'daki 4 kamera modu (Pist,
+      Jokey, Son Düzlük, Fotofiniş).
+- [x] `features/race-viewer/minimap-projection.ts` (yeni) — mini harita
+      izdüşümü.
+- [x] `features/race-viewer/RaceHud.tsx`, `RaceScene3D.tsx`,
+      `RaceViewer.tsx` (yeni) — HUD, Three.js sahnesi (basit şekiller),
+      oynatma orkestratörü; sahne `next/dynamic` + `ssr:false` ile lazy-load
+      edilir (`docs/ARCHITECTURE.md` §7).
+- [x] `apps/web/src/app/races/demo/page.tsx` (yeni) — Ana Sayfa'dan
+      erişilebilir demo yarış ekranı.
+- [x] `tools/generate-demo-race-timeline.ts` (yeni) — gerçek FAZ 5 Race
+      Engine'ini sabit bir seed ile çalıştırıp demo verisini üretir
+      (uydurma veri DEĞİL).
+- [x] `apps/web/package.json` — `three`, `@react-three/fiber`,
+      `@react-three/drei` bağımlılıkları eklendi (brief'in
+      `docs/ARCHITECTURE.md` §5'te zaten öngördüğü teknoloji seçimi).
+- [x] `apps/web/tsconfig.logic.json` (yeni) — `apps/api/tsconfig.
+      domain.json`'a paralel, framework'ten bağımsız saf mantığın yerel
+      `tsc` + gerçek testlerle (38 test) doğrulandığı dar kapsamlı
+      tsconfig.
+
+**Bilinçli olarak bu oturuma dahil edilmeyenler:**
+
+- Gerçek 3D at/jokey modelleri, animasyonlar, seyirci (crowd), hava
+  efektleri (VFX), ses/müzik — sanat varlığı gerektirir, kapsam dışı
+  (bkz. README.md).
+- NestJS wiring — `RaceViewer` şu an statik bir demo fixture'ından veri
+  okuyor, gerçek `/races/{id}` API'sine bağlı değil (FAZ 1-5'teki tüm
+  domain katmanlarıyla aynı, zaten bilinen kapsam dışı karar).
+- **Doğrulama kısıtı** (bkz. `docs/ARCHITECTURE.md` §9 ve README.md):
+  `three`/`@react-three/fiber`/`@react-three/drei` bu geliştirme
+  ortamında kurulamadığından, JSX/Three.js içeren dosyalar (`RaceHud.tsx`,
+  `RaceScene3D.tsx`, `RaceViewer.tsx`, demo sayfası) yerel olarak
+  derlenip doğrulanamamıştır — gerçek doğrulama GitHub Actions CI'da
+  olacaktır. Sadece framework'ten bağımsız 4 dosya (`track-path.ts`,
+  `timeline-playback.ts`, `camera-presets.ts`, `minimap-projection.ts`)
+  bu oturumda `tsc` + gerçek testlerle tam doğrulandı.
 
 ## Açık kararlar (proje sahibinin onayı bekleniyor)
 

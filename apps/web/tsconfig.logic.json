@@ -1,0 +1,15 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "paths": {
+      "@at-sevdalisi/shared-types": ["../../packages/shared-types/src/index.ts"]
+    }
+  },
+  "include": [
+    "src/features/race-viewer/track-path.ts",
+    "src/features/race-viewer/timeline-playback.ts",
+    "src/features/race-viewer/camera-presets.ts",
+    "src/features/race-viewer/minimap-projection.ts"
+  ]
+}

@@ -166,6 +166,22 @@ dışa bağımlı değildir.
   `RaceTimeline` verisini render eder, hiçbir simülasyon mantığı içermez
   (brief §22 kuralı).
 
+**Uygulama notu (FAZ 6, `apps/web/src/features/race-viewer/`):** bu izolasyon
+birebir uygulandı — `RaceScene3D.tsx` (Three.js Canvas) ve `RaceViewer.tsx`
+(orkestratör) SADECE zaten hesaplanmış `RaceTimeline`'ı (segment kontrol
+noktaları arasında saf lineer ara değerleme ile, `timeline-playback.ts`)
+render eder. Gerçek 3D asset'ler (model/animasyon/ses/VFX/crowd) henüz
+yoktur — "basit şekillerle iskelet" kapsamında kapsül/küre gibi temel
+geometrik şekiller kullanılır (proje sahibinin bu oturumdaki kapsam kararı,
+bkz. `features/race-viewer/README.md`). Kamera sistemi (Pist/Jokey/Son
+Düzlük/Fotofiniş) ve mini harita tamamlandı; `next/dynamic` + `ssr:false`
+ile lazy-load (§7 hedefiyle tutarlı) uygulandı. **Doğrulama notu:** bu
+fazda eklenen `three`/`@react-three/fiber`/`@react-three/drei`
+bağımlılıkları §9'daki kısıt nedeniyle bu ortamda kurulamadı; JSX/Three.js
+içeren dosyalar CI'da doğrulanacak, framework'ten bağımsız pist/kamera/
+oynatma/mini-harita matematiği ise yerel `tsc` + gerçek testlerle
+doğrulandı (`apps/web/tsconfig.logic.json`).
+
 ---
 
 ## 6. Backend mimarisi (NestJS)

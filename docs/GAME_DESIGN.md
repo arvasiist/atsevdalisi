@@ -109,6 +109,15 @@ Fotofiniş), mini harita, son düzlük/sprint bilgisi, finish/photo-finish.
 Bu ekran, `RaceTimeline` verisini (bkz. `docs/RACE_ENGINE.md` §5) Three.js
 ile oynatan izole bir modüldür; hiçbir simülasyon mantığı içermez.
 
+**FAZ 6'da uygulandı (basit şekillerle iskelet):** `apps/web/src/features/
+race-viewer/` — pist, atlar (basit geometrik şekiller), 4 kamera modu
+(Jokey, Pist, Son Düzlük, Fotofiniş), mini harita, sıralama paneli, hız/
+zaman göstergesi hepsi mevcut; gerçek 3D at/jokey modelleri, animasyonlar
+ve ses henüz eklenmedi (bkz. `features/race-viewer/README.md`). Demo:
+`apps/web/src/app/races/demo/page.tsx` (Ana Sayfa'dan erişilebilir),
+gerçek Race Engine çıktısıyla (`tools/generate-demo-race-timeline.ts`)
+beslenir — henüz gerçek bir `/races/{id}` API'sine bağlı değildir.
+
 ## 7. UI/UX prensipleri (brief §47)
 
 Modern, premium, okunabilir, hızlı, az tıklamalı, responsive, masaüstü ve

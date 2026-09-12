@@ -7,7 +7,14 @@
  * olduğunu ve bir sonraki adımın ne olduğunu göstermek için vardır.
  */
 
-const modules = [
+interface ModuleStatus {
+  name: string;
+  phase: string;
+  /** Faz 6 için: çalışan bir demo ekranına bağlantı (opsiyonel). */
+  href?: string;
+}
+
+const modules: ModuleStatus[] = [
   { name: 'Player / Authentication', phase: 'FAZ 1' },
   { name: 'Economy', phase: 'FAZ 1' },
   { name: 'Horse / Stable', phase: 'FAZ 1' },
@@ -17,7 +24,7 @@ const modules = [
   { name: 'Genetics / Breeding', phase: 'FAZ 3' },
   { name: 'Farm', phase: 'FAZ 4' },
   { name: 'Advanced Race Engine', phase: 'FAZ 5' },
-  { name: 'Web 3D Sunum (Three.js)', phase: 'FAZ 6' },
+  { name: 'Web 3D Sunum (Three.js)', phase: 'FAZ 6', href: '/races/demo' },
   { name: 'Online / Kulüp / Turnuva', phase: 'FAZ 7' },
 ];
 
@@ -68,7 +75,14 @@ export default function HomePage(): React.ReactElement {
                 borderRadius: 'var(--radius-md)',
               }}
             >
-              <span style={{ color: 'var(--color-text-primary)', fontSize: '14px' }}>{module.name}</span>
+              <span style={{ color: 'var(--color-text-primary)', fontSize: '14px' }}>
+                {module.name}
+                {module.href ? (
+                  <a href={module.href} style={{ marginLeft: 'var(--space-sm)', fontSize: '12px' }}>
+                    demo →
+                  </a>
+                ) : null}
+              </span>
               <span
                 style={{
                   color: 'var(--color-accent-gold)',
