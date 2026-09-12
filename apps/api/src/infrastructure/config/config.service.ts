@@ -5,6 +5,7 @@ import {
   loadHorseGrowthConfig,
   loadProgressionConfig,
   loadRaceConfig,
+  loadStableConfig,
   loadTrainingConfig,
   loadWeatherConfig,
 } from '@at-sevdalisi/game-config';
@@ -32,4 +33,5 @@ export class AppConfigService {
   readonly weather = loadWeatherConfig();
   readonly horseGrowth = loadHorseGrowthConfig();
   readonly progression = loadProgressionConfig();
+  readonly stable = loadStableConfig();
 }

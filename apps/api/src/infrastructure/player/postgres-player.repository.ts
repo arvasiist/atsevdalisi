@@ -23,6 +23,10 @@ interface PlayerRow {
   money: string;
   gems: string;
   reputation: number;
+  // FAZ 1 wiring, üçüncü dilim — `database/migrations/
+  // 0012_create_staff_and_stable_level.up.sql`. INTEGER olduğundan (BIGINT/
+  // NUMERIC'in aksine) `node-postgres` bunu doğrudan JS `number` döner.
+  stable_level: number;
   created_at: Date;
   updated_at: Date;
 }
@@ -38,6 +42,7 @@ function rowToPlayer(row: PlayerRow): Player {
     money: Number(row.money),
     gems: Number(row.gems),
     reputation: row.reputation,
+    stableLevel: row.stable_level,
     createdAt: row.created_at.toISOString(),
     updatedAt: row.updated_at.toISOString(),
   };
@@ -61,8 +66,8 @@ export class PostgresPlayerRepository implements PlayerRepository {
 
   async save(player: Player): Promise<void> {
     await this.pool.query(
-      `INSERT INTO players (id, username, display_name, avatar_id, level, xp, money, gems, reputation, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+      `INSERT INTO players (id, username, display_name, avatar_id, level, xp, money, gems, reputation, stable_level, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
       [
         player.id,
         player.username,
@@ -73,6 +78,7 @@ export class PostgresPlayerRepository implements PlayerRepository {
         player.money,
         player.gems,
         player.reputation,
+        player.stableLevel,
         new Date(player.createdAt),
         new Date(player.updatedAt),
       ],

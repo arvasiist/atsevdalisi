@@ -10,7 +10,7 @@
 | Faz | Adı | Kapsam | Durum |
 |---|---|---|---|
 | **0** | Teknik keşif ve planlama | Repo, mimari, dokümantasyon, DB migration altyapısı, test altyapısı | ✅ Tamamlandı |
-| 1 | Core | Player, Auth, Economy, Horse, Stable, Training, Care, Basic Race Engine, Race Result, Progression | 🟡 Domain katmanı tamam; **Player + Horse (yalnızca okuma) alt-modülleri gerçek veritabanına bağlandı** (bkz. "FAZ 1 wiring" bölümleri — Player: run 34721911139, tam yeşil; Horse: CI kontrolü sürüyor), geri kalanı (Economy'nin transfer akışı, Stable, Training, Care, Race Engine) wiring bekliyor |
+| 1 | Core | Player, Auth, Economy, Horse, Stable, Training, Care, Basic Race Engine, Race Result, Progression | 🟡 Domain katmanı tamam; **Player + Horse (yalnızca okuma) alt-modülleri gerçek veritabanına bağlandı ve CI'da DOĞRULANDI** (bkz. "FAZ 1 wiring" bölümleri — Player: run 34721911139; Horse: run 34723091484, İLK denemede yeşil), geri kalanı (Economy'nin transfer akışı, Stable, Training, Care, Race Engine) wiring bekliyor |
 | 2 | Management | Horse Market, Buy/Sell, Vet, Farrier, Nutrition, Jockey, Staff, Stable capacity, Costs | 🟡 Domain katmanı tamam, wiring bekliyor |
 | 3 | Genetics | Pedigree, Mare/Stallion, Genetic traits, Inheritance, Mutation, Foal, Growth, Bloodline | 🟡 Domain katmanı tamam, wiring bekliyor |
 | 4 | Farm | Stable upgrade, Paddock, Training track, Vet center, Breeding center, Staff facilities | 🟡 Domain katmanı tamam, wiring bekliyor |
@@ -749,6 +749,77 @@ adımdır); Economy'nin atomik `transfer` fonksiyonunun gerçek bir
 kullanım alanına (At Pazarı) bağlanması FAZ 2'ye bırakıldı; `horse_stats`
 vb. tablolar ve `train`/`feed`/`care` uç noktaları yukarıda açıklandığı
 gibi Antrenman/Bakım wiring'ine bırakıldı.
+
+**✅ DOĞRULANDI — CI İLK DENEMEDE baştan sona yeşil (GitHub Actions run
+[34723091484](https://github.com/arvasiist/atsevdalisi/actions/runs/34723091484),
+"Faz 1 wiring: At modülü eklendi" commit'i, 1dk 37sn):** Player
+wiring'in aksine (sekiz deneme), bu dilim **İLK CI denemesinde**
+`build-and-test` işinin tamamını (Lint → Typecheck → Run database
+migrations → Test → Build) hiçbir hata olmadan geçti — yalnızca
+önceden bilinen/zararsız "no magic number" uyarıları var, hiçbir
+`::error::` annotation'ı yok. Bu, `docs/ARCHITECTURE.md` §9.1 Hata 6'nın
+dersinin (her NestJS bağımlılığına baştan açık `@Inject()` token'ı
+vermek) gerçekten işe yaradığının kanıtıdır: Player wiring'de aynı
+hata sınıfı (örtük DI) bulunup düzeltilene kadar beş CI denemesi
+gerekmişken, bu sefer proaktif önlem sayesinde HİÇ yaşanmadı. `horse.
+e2e-spec.ts`'in 6 senaryosu (kayıtta otomatik başlangıç atı, id ile
+listeleme/getirme, olmayan id için 404, geçersiz UUID için 400, eksik
+`ownerId` için 400) gerçek PostgreSQL'e karşı doğrulandı. FAZ 1
+wiring'in Horse (okuma) dilimi tamamlanmıştır.
+
+## FAZ 1 wiring — Üçüncü dilim: Ahır Özeti (bu oturum)
+
+Player + Horse ikisi de onaylandıktan sonra, proje sahibinin "Devam"
+onayıyla üçüncü dilime geçildi. brief §38 Ana Sayfa "Ahır Özeti" kartı
+seçildi çünkü: (a) `domain/stable/stable.ts` (`getStableCapacity`,
+`summarizeStable`) FAZ 0'dan beri saf fonksiyonlar olarak hazır ve test
+edilmişti, hiç wiring edilmemişti; (b) bu, Player + Horse'un artık İKİSİNİN
+DE gerçek veritabanına bağlı olmasının doğal bir sonucu olarak, YENİ bir
+tablo/migration gerektirmeden, sadece bu iki mevcut repository'yi
+birleştirerek yapılabiliyordu — düşük riskli, salt okunur bir dilim.
+
+**Bulunan ve tamamlanan bir FAZ 1 eksiği:** İnceleme sırasında
+`database/migrations/0012_create_staff_and_stable_level.up.sql`'in
+zaten `players.stable_level` sütununu (DEFAULT 1) eklediği ama
+`Player` domain tipinin (`packages/shared-types/src/player.ts`) bu alanı
+hiç İÇERMEDİĞİ görüldü — yani sütun DB'de vardı ama hiçbir kod onu
+okuyup yazmıyordu. Bu oturumda tamamlandı: `Player.stableLevel` eklendi,
+`createNewPlayer` yeni oyunculara `stableLevel: 1` atıyor,
+`postgres-player.repository.ts` bu alanı hem `SELECT` hem `INSERT`
+tarafında okuyup yazıyor.
+
+**Yeni uç nokta:** `GET /api/v1/players/{id}/stable-summary` — brief
+§38 kartının birebir karşılığı (`stableLevel`, `horseCount`, `capacity`,
+`averageCondition`, `healthWarnings`). Bu use-case ("GetStableSummaryUseCase")
+hiçbir iş kuralı İÇERMEZ — yalnızca `PLAYER_REPOSITORY` + `HORSE_REPOSITORY`'den
+gelen gerçek verileri `domain/stable/stable.ts`'in ZATEN var olan saf
+fonksiyonlarına besler. Yeni `AppConfigService.stable` (`loadStableConfig`)
+eklendi (önceki dilimlerde unutulmuş bir config yükleyiciydi).
+
+**Mimari:** `StableModule`'ün kendi repository'si YOK — `PlayerModule` ve
+`HorseModule`'ü import edip ikisinin de `exports` ettiği repository
+token'larını (`PLAYER_REPOSITORY`, `HORSE_REPOSITORY`) kullanıyor.
+`PlayerModule` bu dilimde `PLAYER_REPOSITORY`'yi `exports` eder hale
+getirildi (önceki iki dilimde buna gerek yoktu, sadece `HorseModule`
+exports ediyordu). Hata 5/6'nın dersi burada da BAŞTAN uygulandı: yeni
+`GetStableSummaryUseCase`/`StableController` constructor'ları İSTİSNASIZ
+açık `@Inject()` kullanıyor.
+
+**Kapsam dışı (bilinçli, sonraki adımlar):** Ahır YÜKSELTME
+(`getNextStableUpgradeCost` zaten domain'de hazır, ama gerçek para
+düşme akışı Economy'nin `debit` fonksiyonuyla birlikte ayrı bir dilimi
+hak eder — bu, Economy'nin atomik transfer/harcama tarafının wiring'e
+bağlandığı İLK yer olacaktır); Personel (`staff` tablosu zaten migration
+0012'de var ama bu dilimde dokunulmadı).
+
+**Doğrulama (bu oturum, yerel):** `apps/api/tsconfig.domain.json` ile
+domain katmanı temiz derlendi; `packages/shared-types` (yeni `stable.ts`,
+genişletilmiş `Player` tipi dahil) ayrıca temiz derlendi. Framework'ten
+bağımsız test seti (`domain/player/player.spec.ts`'e eklenen
+`stableLevel` kontrolü dahil) yerel olarak koştu. Yeni `stable.
+e2e-spec.ts` (3 senaryo: yeni oyuncu için doğru özet, olmayan oyuncu
+için 404, geçersiz id için 400) yalnızca CI'da doğrulanabilir (kabul
+edilen risk, önceki iki dilimle AYNI desen).
 
 ## Açık kararlar (proje sahibinin onayı bekleniyor)
 

@@ -11,6 +11,13 @@ export interface Player {
   money: number;
   gems: number;
   reputation: number;
+  /**
+   * Ahır seviyesi (brief §32). `database/migrations/
+   * 0012_create_staff_and_stable_level.up.sql` — her oyuncunun TEK bir
+   * ahırı vardır (ayrı bir `stables` tablosu yok), bu yüzden seviye
+   * doğrudan `players` üzerinde tutulur (bkz. `domain/stable/stable.ts`).
+   */
+  stableLevel: number;
   createdAt: ISODateTimeString;
   updatedAt: ISODateTimeString;
 }

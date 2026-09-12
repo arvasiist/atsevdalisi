@@ -38,6 +38,9 @@ export function createNewPlayer(input: NewPlayerInput, economyConfig: EconomyCon
     money: economyConfig.newPlayerStartingBalance.money,
     gems: economyConfig.newPlayerStartingBalance.gems,
     reputation: 0,
+    // `database/migrations/0012_..._stable_level.up.sql`'deki DEFAULT 1 ile
+    // BİREBİR aynı (bkz. `domain/stable/stable.ts` — FAZ 1 wiring, üçüncü dilim).
+    stableLevel: 1,
     createdAt: now,
     updatedAt: now,
   };
