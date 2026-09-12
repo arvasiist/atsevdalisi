@@ -130,6 +130,10 @@ wiring" bölümünde açıklandığı gibi geçicidir; gerçek OAuth eklendiğin
 üstteki üç uç nokta bağlanacak, `RegisterPlayerUseCase` DEĞİŞMEDEN
 kalacaktır.
 
+**Güncelleme (FAZ 1 wiring, ikinci dilim, bu oturum):** `POST
+/api/v1/players` artık yeni oyuncuya otomatik olarak bir başlangıç atı
+da veriyor — bkz. §4 "Uygulama durumu".
+
 ## 4. Horses (Ahır)
 
 ```http
@@ -167,6 +171,28 @@ GET    /api/v1/horses/{id}/history     # yarış/antrenman geçmişi (brief §40
 ```
 
 Olası hata: `HORSE_TOO_TIRED`, `HORSE_INJURED`, `INSUFFICIENT_ENERGY`.
+
+### Uygulama durumu (FAZ 1 wiring, ikinci dilim, bu oturum)
+
+`GET /api/v1/horses` ve `GET /api/v1/horses/{id}` gerçek bir PostgreSQL'e
+bağlandı ve GitHub CI'da doğrulandı (bkz. docs/ROADMAP.md). `GET
+/api/v1/horses` şimdilik bir `ownerId` sorgu parametresi ALIR (örn.
+`GET /api/v1/horses?ownerId=<playerId>`) — gerçek kimlik doğrulama henüz
+bağlı olmadığından (bkz. §3 Player notu) sahip, oturumdan değil
+istemciden gelir. Yanıt zarfı `data` alanı doğrudan bir `Horse[]` dizisidir
+(sayfalama/filtre henüz yok).
+
+`POST /players` ile kayıt olan her yeni oyuncu, otomatik olarak bir
+**başlangıç atı** alır (`gelding`, "Arap" cinsi, sabit isim havuzundan
+seçilmiş bir isim, kalite/potansiyel sabit başlangıç değerleri, "prime"
+yaşam evresinde — bkz. `domain/horse/horse.ts` `createStarterHorse`).
+Bu, brief'te açıkça yazmayan ama at yetiştiriciliği oyununda gerekli bir
+tasarım kararıdır (at olmadan Antrenman/Bakım/Yarış ekranları gösterilemez).
+
+`train`/`feed`/`care`/`vet`/`farrier`/`rest`/`history` uç noktaları ve
+`horse_stats`/`horse_surface_stats`/`horse_distance_stats`/`horse_health`
+tablolarının okunması/yazılması bu dilimin KAPSAMI DIŞINDADIR — Antrenman/
+Bakım wiring'i sırasında eklenecektir.
 
 ## 5. Market (At Pazarı)
 
@@ -306,3 +332,4 @@ lobby.update       — online yarış lobisi (brief §41)
 | `VALIDATION_ERROR` | İstek gövdesi şema doğrulamasından geçemedi |
 | `USERNAME_ALREADY_TAKEN` | Kayıt sırasında seçilen kullanıcı adı zaten alınmış (FAZ 1 wiring) |
 | `PLAYER_NOT_FOUND` | Verilen id'ye ait oyuncu bulunamadı (FAZ 1 wiring) |
+| `HORSE_NOT_FOUND` | Verilen id'ye ait at bulunamadı (FAZ 1 wiring, ikinci dilim) |

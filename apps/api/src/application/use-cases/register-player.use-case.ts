@@ -2,7 +2,9 @@ import { randomUUID } from 'node:crypto';
 import { Inject, Injectable } from '@nestjs/common';
 import type { Player } from '@at-sevdalisi/shared-types';
 import { assertUsernameAvailable, createNewPlayer } from '../../domain/player/player';
+import { createStarterHorse, pickStarterHorseName } from '../../domain/horse/horse';
 import { AppConfigService } from '../../infrastructure/config/config.service';
+import { HORSE_REPOSITORY, type HorseRepository } from '../ports/horse.repository';
 import { PLAYER_REPOSITORY, type PlayerRepository } from '../ports/player.repository';
 
 export interface RegisterPlayerInput {
@@ -29,11 +31,23 @@ export interface RegisterPlayerInput {
  * dönüştürücüsü, tsc'nin aksine `design:paramtypes` üst verisini
  * yaymadığından örtük (yalnızca-tip) enjeksiyon gerçek e2e testlerinde
  * `undefined`'a çözülüyordu.
+ *
+ * FAZ 1 wiring, ikinci dilim (bu oturum): kayıt artık oyuncuya bir
+ * BAŞLANGIÇ ATI da veriyor (bkz. `domain/horse/horse.ts`
+ * `createStarterHorse`) — brief'te açık bir "yeni oyuncu bir atla
+ * başlar" cümlesi yoktur, ama bu, at yetiştiriciliği temalı bir oyunda
+ * (brief §1 "amaç") standart ve gerekli bir varsayımdır: at OLMADAN
+ * Antrenman/Bakım/Yarış ekranlarının hiçbiri anlamlı şekilde
+ * gösterilemez. At oluşturma ücretsizdir (Economy'den bir düşüş
+ * YAPILMAZ) — gerçek para/gem harcayan at edinme akışı (At Pazarı,
+ * FAZ 2 `domain/economy/wallet.ts` `transfer`) ayrı bir wiring
+ * dilimidir.
  */
 @Injectable()
 export class RegisterPlayerUseCase {
   constructor(
     @Inject(PLAYER_REPOSITORY) private readonly playerRepository: PlayerRepository,
+    @Inject(HORSE_REPOSITORY) private readonly horseRepository: HorseRepository,
     @Inject(AppConfigService) private readonly config: AppConfigService,
   ) {}
 
@@ -52,6 +66,14 @@ export class RegisterPlayerUseCase {
     );
 
     await this.playerRepository.save(player);
+
+    const starterHorse = createStarterHorse({
+      id: randomUUID(),
+      ownerId: player.id,
+      name: pickStarterHorseName(Math.random()),
+    });
+    await this.horseRepository.save(starterHorse);
+
     return player;
   }
 }
