@@ -14,9 +14,9 @@ export class InvalidDisplayNameError extends Error {
   }
 }
 
-export class WeakPasswordError extends Error {
-  constructor(public readonly reasons: string[]) {
-    super(`Şifre yeterince güçlü değil: ${reasons.join(', ')}`);
-    this.name = 'WeakPasswordError';
+export class InvalidAuthProviderTokenError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'InvalidAuthProviderTokenError';
   }
 }

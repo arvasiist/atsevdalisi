@@ -34,6 +34,7 @@
 | 0008 | `create_breeding_and_pedigree` | `breeding_pairs`, `pedigrees` |
 | 0009 | `create_indexes` | brief §77'deki tüm indexler |
 | 0010 | `add_updated_at_triggers` | Otomatik `updated_at` trigger'ı |
+| 0011 | `create_player_auth_providers` | `player_auth_providers` (Google/Apple Sign-In eşlemesi — proje sahibinin kararı, bkz. `ARCHITECTURE.md` §10 madde 1) |
 
 Her migration'ın bir `.up.sql` (uygula) ve `.down.sql` (geri al) karşılığı
 vardır. Çalıştırma aracı olarak `node-pg-migrate` veya eşdeğeri önerilir
@@ -50,6 +51,7 @@ Prisma/Knex gibi bir ORM'e de kolayca taşınabilir çünkü şema saf SQL'dir.
 players 1───∞ horses (owner_id)
 players 1───∞ market_listings (seller_id)
 players 1───∞ jockeys (owner_id, opsiyonel — NPC jokeyler owner_id=NULL)
+players 1───∞ player_auth_providers (Google/Apple ile birden fazla giriş yöntemi bağlanabilir)
 
 horses 1───1 horse_stats
 horses 1───1 horse_surface_stats
