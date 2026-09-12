@@ -30,5 +30,9 @@
     "short": { "acceleration": 0.05, "startSpeed": 0.05, "sprint": 0.05 },
     "middle": {},
     "long": { "stamina": 0.08, "endurance": 0.08 }
+  },
+  "referenceSpeedMps": 16,
+  "stamina": {
+    "depletionPenaltyMultiplier": 0.85
   }
 }

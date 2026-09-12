@@ -37,6 +37,21 @@ export interface RaceBalanceConfig {
     middle: Record<string, number>;
     long: Record<string, number>;
   };
+  /**
+   * BaseAbility'yi (0-100 ölçeğinde bir "performans puanı") gerçek bir
+   * segment hızına (m/s) çeviren referans değer — brief'in kendisi bu
+   * dönüşüm için bir birim tanımlamaz, bu proje-içi bir tasarım kararıdır
+   * (docs/RACE_ENGINE.md, tipik bir yarış atı ortalama hızına yakın).
+   */
+  referenceSpeedMps: number;
+  stamina: {
+    /**
+     * Bir atın segment içi (runtime) stamina'sı tükenince (brief §20 pace
+     * sistemi — "önde git" erken tükenme riski taşır) uygulanan performans
+     * ceza çarpanı.
+     */
+    depletionPenaltyMultiplier: number;
+  };
 }
 
 export interface TrainingTypeConfig {
@@ -53,6 +68,10 @@ export interface TrainingConfig {
     unitMinutes: number;
     perUnit: number;
   };
+  readinessThresholds: {
+    minEnergyToTrain: number;
+    maxFatigueToTrain: number;
+  };
 }
 
 export interface EconomyConfig {
@@ -67,6 +86,11 @@ export interface EconomyConfig {
   gemShopWhitelist: string[];
   dailyRewardMoney: number;
   raceEntryFeeMultiplier: number;
+  /** brief §31/§42 — yeni oyuncu hesabı oluşturulunca verilen başlangıç bakiyesi. */
+  newPlayerStartingBalance: {
+    money: number;
+    gems: number;
+  };
 }
 
 export interface GeneticsConfig {
@@ -103,4 +127,44 @@ export interface ProgressionUnlock {
 export interface ProgressionConfig {
   maxLevel: number;
   unlocks: ProgressionUnlock[];
+  /**
+   * brief §36 sadece level aralığını (1-50) ve unlock noktalarını tanımlar,
+   * XP eğrisinin şeklini belirtmez — bu proje-içi bir tasarım kararıdır:
+   * xpToReachLevel(level) = baseXpPerLevel × level ^ exponent (üstel artan
+   * bir eğri, üst seviyelere çıkmak orantısız şekilde zorlaşır).
+   */
+  xpCurve: {
+    baseXpPerLevel: number;
+    exponent: number;
+  };
+}
+
+/** brief §11 Bakım Sistemi — tımar/su/temizlik/veteriner/nalbant/dinlendir. */
+export interface CareActionEffect {
+  vitalDelta?: Partial<Record<'health' | 'fitness' | 'fatigue' | 'energy' | 'morale', number>>;
+  /** HorseHealth.injuryRisk üzerindeki etki (brief §11 Nalbant/Veteriner: "Injury risk azaltma"). */
+  injuryRiskDelta?: number;
+  /** HorseHealth.recoveryRate üzerindeki etki (brief §11 Su/Veteriner: "Recovery +"). */
+  recoveryRateDelta?: number;
+  /** HorseHealth.jointCondition üzerindeki etki (brief §11 Nalbant: "Hoof condition", "Running stability"). */
+  jointConditionDelta?: number;
+  cost: { currency: 'money' | 'gems'; amount: number };
+  cooldownMinutes: number;
+}
+
+export type CareActionType = 'groom' | 'water' | 'clean' | 'vet' | 'farrier' | 'rest';
+
+export interface FeedTypeEffect {
+  vitalDelta?: Partial<Record<'health' | 'fitness' | 'fatigue' | 'energy' | 'morale', number>>;
+  /** HorseHealth.weightCondition üzerindeki etki — brief §12: "her zaman daha pahalı yem = daha iyi olmayacaktır". */
+  weightConditionDelta?: number;
+  recoveryRateDelta?: number;
+  cost: { currency: 'money' | 'gems'; amount: number };
+}
+
+export type FeedType = 'standard' | 'energy' | 'protein' | 'recovery' | 'performance';
+
+export interface CareConfig {
+  actions: Record<CareActionType, CareActionEffect>;
+  feedTypes: Record<FeedType, FeedTypeEffect>;
 }

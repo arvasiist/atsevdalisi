@@ -8,6 +8,7 @@
     "build": "nest build",
     "start": "node dist/main.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
+    "typecheck:domain": "tsc -p tsconfig.domain.json",
     "test": "vitest run",
     "migrate": "tsx ../../tools/migrate.ts up",
     "migrate:undo": "tsx ../../tools/migrate.ts down",

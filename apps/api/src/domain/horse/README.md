@@ -1,10 +1,11 @@
 # domain/horse
 
-Bu klasör **FAZ 1**'de (veya ilgili fazda) doldurulacaktır.
+At durum değerleri ve yaş/gelişim eğrisi (brief §9, §26-27).
 
-Framework'ten bağımsız, saf TypeScript domain sınıfları/fonksiyonları burada
-yaşayacaktır (bkz. `docs/ARCHITECTURE.md` §4, `docs/CODING_CONVENTIONS.md`
-§4). Hiçbir NestJS dekoratörü, hiçbir ORM importu bu klasöre girmez.
+- `vital-signs.ts` — `VitalSigns` (health/fitness/fatigue/energy/morale),
+  `applyVitalDelta` (saf, [0,100] clamp), `checkTrainingReadiness`
+  (`config/training.config.json` → `readinessThresholds`).
+- `age-curve.ts` — `getLifeStage`/`getGrowthFactor`
+  (`config/horse-growth.config.json`), `calculateAgeInMonths`.
 
-İlgili dokümantasyon: `docs/PROJECT_BRIEF.md` §7 (Veri Modeli) ve
-`docs/DATABASE.md`.
+Testler: `apps/api/test/domain/horse/*.spec.ts`.

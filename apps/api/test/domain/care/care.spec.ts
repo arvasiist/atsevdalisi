@@ -1,0 +1,81 @@
+import { describe, expect, it } from 'vitest';
+import { applyCareAction, applyFeed, canPerformCareAction, getCareActionCost, getFeedCost } from '../../../src/domain/care/care';
+import { CareActionOnCooldownError } from '../../../src/domain/care/errors';
+import careConfig from '../../../../../config/care.config.json';
+import type { CareConfig } from '@at-sevdalisi/game-config';
+
+const config = careConfig as unknown as CareConfig;
+const vitals = { health: 80, fitness: 70, fatigue: 30, energy: 60, morale: 60 };
+const health = { injuryRisk: 20, recoveryRate: 40, jointCondition: 70, weightCondition: 50 };
+
+/** brief §11 Bakım Sistemi testleri. */
+describe('applyCareAction — groom (tımar)', () => {
+  it('moral ve health artırır', () => {
+    const result = applyCareAction(config, 'groom', vitals, health, null, new Date());
+    expect(result.vitals.morale).toBeGreaterThan(vitals.morale);
+    expect(result.vitals.health).toBeGreaterThan(vitals.health);
+  });
+});
+
+describe('cooldown kontrolü', () => {
+  it('cooldown dolmadan tekrar eylem CareActionOnCooldownError fırlatır', () => {
+    const now = new Date('2026-09-12T12:00:00Z');
+    expect(() => applyCareAction(config, 'groom', vitals, health, now, now)).toThrow(CareActionOnCooldownError);
+  });
+
+  it('cooldown dolunca tekrar izin verir', () => {
+    const now = new Date('2026-09-12T12:00:00Z');
+    const later = new Date(now.getTime() + config.actions.groom.cooldownMinutes * 60 * 1000 + 1000);
+    expect(canPerformCareAction(now, later, config.actions.groom.cooldownMinutes).allowed).toBe(true);
+    expect(() => applyCareAction(config, 'groom', vitals, health, now, later)).not.toThrow();
+  });
+});
+
+describe('applyCareAction — vet (veteriner) & farrier (nalbant)', () => {
+  it('veteriner injuryRisk azaltır, recoveryRate artırır', () => {
+    const result = applyCareAction(config, 'vet', vitals, health, null, new Date());
+    expect(result.health.injuryRisk).toBeLessThan(health.injuryRisk);
+    expect(result.health.recoveryRate).toBeGreaterThan(health.recoveryRate);
+  });
+
+  it('nalbant jointCondition artırır, injuryRisk azaltır', () => {
+    const result = applyCareAction(config, 'farrier', vitals, health, null, new Date());
+    expect(result.health.jointCondition).toBeGreaterThan(health.jointCondition);
+    expect(result.health.injuryRisk).toBeLessThan(health.injuryRisk);
+  });
+
+  it('değerler [0, 100] aralığını aşmaz', () => {
+    const nearMax = { injuryRisk: 2, recoveryRate: 99, jointCondition: 99, weightCondition: 50 };
+    const result = applyCareAction(config, 'vet', vitals, nearMax, null, new Date());
+    expect(result.health.recoveryRate).toBeLessThanOrEqual(100);
+    expect(result.health.injuryRisk).toBeGreaterThanOrEqual(0);
+  });
+});
+
+describe('applyCareAction — rest (dinlendir)', () => {
+  it('fatigue azaltır, energy artırır', () => {
+    const result = applyCareAction(config, 'rest', vitals, health, null, new Date());
+    expect(result.vitals.fatigue).toBeLessThan(vitals.fatigue);
+    expect(result.vitals.energy).toBeGreaterThan(vitals.energy);
+  });
+});
+
+describe('applyFeed (brief §12)', () => {
+  it('performans yemi enerjiyi çok artırır ama weightCondition düşürür ("pahalı = her zaman iyi değil")', () => {
+    const result = applyFeed(config, 'performance', vitals, health);
+    expect(result.vitals.energy).toBeGreaterThan(vitals.energy);
+    expect(result.health.weightCondition).toBeLessThan(health.weightCondition);
+  });
+
+  it('protein yemi weightCondition artırır', () => {
+    const result = applyFeed(config, 'protein', vitals, health);
+    expect(result.health.weightCondition).toBeGreaterThan(health.weightCondition);
+  });
+});
+
+describe('maliyet okuma', () => {
+  it('getCareActionCost ve getFeedCost doğru değerleri döner', () => {
+    expect(getCareActionCost(config, 'vet')).toEqual({ currency: 'money', amount: 250 });
+    expect(getFeedCost(config, 'performance')).toEqual({ currency: 'gems', amount: 5 });
+  });
+});

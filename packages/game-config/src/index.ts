@@ -17,6 +17,7 @@
  * etkilemeyen bir iç değişiklik olur.
  */
 import type {
+  CareConfig,
   EconomyConfig,
   GeneticsConfig,
   HorseGrowthConfig,
@@ -33,6 +34,7 @@ import geneticsConfigJson from '../../../config/genetics.config.json';
 import weatherConfigJson from '../../../config/weather.config.json';
 import horseGrowthConfigJson from '../../../config/horse-growth.config.json';
 import progressionConfigJson from '../../../config/progression.config.json';
+import careConfigJson from '../../../config/care.config.json';
 
 export function loadRaceConfig(): RaceBalanceConfig {
   return raceConfigJson as unknown as RaceBalanceConfig;
@@ -60,6 +62,10 @@ export function loadHorseGrowthConfig(): HorseGrowthConfig {
 
 export function loadProgressionConfig(): ProgressionConfig {
   return progressionConfigJson as unknown as ProgressionConfig;
+}
+
+export function loadCareConfig(): CareConfig {
+  return careConfigJson as unknown as CareConfig;
 }
 
 export * from './types';
