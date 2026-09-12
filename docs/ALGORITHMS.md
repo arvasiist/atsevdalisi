@@ -349,7 +349,45 @@ modül, FAZ 1'de `base-ability.ts`'in zaten beklediği ama üreticisi olmayan
 ağırlıklı toplam) — race-engine'e gerçek bağlama (wiring) bu teslimatın
 kapsamı dışındadır.
 
-## 13. Tüm formüllerin ortak kuralı
+## 14. Elo reyting sistemi (brief §43 "Elo benzeri sistem PvP için")
+
+```text
+expected_score(A, B) = 1 / (1 + 10^((rating_B - rating_A) / 400))
+
+new_rating = rating + K × (actual_score - expected_score)
+```
+
+`actual_score`: 1 = galibiyet, 0 = mağlubiyet, 0.5 = beraberlik. `K`
+(k-faktör) ve taban reyting `config/online.config.json` `elo` bölümünden
+okunur.
+
+**Uygulama notu (FAZ 7, `domain/online/elo.ts`):** standart Elo formülü
+birebir uygulanmıştır; ek olarak reytingin `config.elo.minRating`'in altına
+düşmesi engellenir (brief'te belirtilmemiş, negatif/anlamsız reytingi
+önleyen proje-içi bir taban).
+
+## 15. Sıralama puanı — RankingScore (brief §43)
+
+```text
+RankingScore =
+    RacePerformance
+    + WinBonus
+    + PlacementBonus
+    + TournamentBonus
+```
+
+**Uygulama notu (FAZ 7, `domain/ranking/ranking-score.ts`):**
+`RacePerformance` = `RaceFinishEntry.performanceScore` ×
+`config.ranking.racePerformanceWeight`; `WinBonus` sadece 1. olunduğunda
+eklenir; `PlacementBonus`, `config.ranking.placementBonusByPlacement`'te
+tanımlı dereceler (varsayılan: 1., 2., 3.) için sabit bir bonus verir,
+tanımsız dereceler (4. ve sonrası) 0 bonus alır; `TournamentBonus`, bir
+turnuvadan kazanılan ham bonus × `tournamentBonusMultiplier`. Bileşenlerin
+TOPLAMI brief'teki formülle birebir aynıdır; her bileşenin AĞIRLIĞI/eşik
+tablosu proje-içi bir tasarım kararıdır (brief bunları sayısal olarak
+belirtmez).
+
+## 16. Tüm formüllerin ortak kuralı
 
 Yukarıdaki formüllerin hiçbirinde sabit sayı kodda yazılmaz (brief Kural 6).
 Her ağırlık/çarpan/eşik `config/*.config.json` dosyalarından, tip güvenli
