@@ -5,8 +5,8 @@
   "description": "At Sevdalısı - 3D at yarışı, at sahibi/yönetici simülasyonu ve yetiştiricilik oyunu (web + mobil uyumlu monorepo)",
   "license": "UNLICENSED",
   "workspaces": [
-    "apps/*",
-    "packages/*"
+    "packages/*",
+    "apps/*"
   ],
   "engines": {
     "node": ">=20.0.0"
@@ -14,11 +14,12 @@
   "scripts": {
     "dev:web": "npm run dev --workspace=apps/web",
     "dev:api": "npm run dev --workspace=apps/api",
-    "build": "npm run build --workspaces --if-present",
-    "test": "npm run test --workspaces --if-present",
+    "build:packages": "npm run build --workspace=@at-sevdalisi/shared-types --workspace=@at-sevdalisi/game-config",
+    "build": "npm run build:packages && npm run build --workspaces --if-present",
+    "test": "npm run build:packages && npm run test --workspaces --if-present",
     "lint": "eslint . --ext .ts,.tsx",
     "format": "prettier --write .",
-    "typecheck": "npm run typecheck --workspaces --if-present",
+    "typecheck": "npm run build:packages && npm run typecheck --workspaces --if-present",
     "migrate": "npm run migrate --workspace=apps/api",
     "migrate:undo": "npm run migrate:undo --workspace=apps/api",
     "seed": "npm run seed --workspace=apps/api",
