@@ -10,7 +10,7 @@
 | Faz | Adı | Kapsam | Durum |
 |---|---|---|---|
 | **0** | Teknik keşif ve planlama | Repo, mimari, dokümantasyon, DB migration altyapısı, test altyapısı | ✅ Tamamlandı |
-| 1 | Core | Player, Auth, Economy, Horse, Stable, Training, Care, Basic Race Engine, Race Result, Progression | 🟡 Domain katmanı tamam; **Player + Horse (okuma) + Ahır Özeti alt-modülleri gerçek veritabanına bağlandı ve CI'da DOĞRULANDI** (bkz. "FAZ 1 wiring" bölümleri — Player: run 34721911139; Horse: run 34723091484; Ahır Özeti: run 34723845048, ikisi de İLK denemede yeşil), geri kalanı (Economy'nin transfer akışı, Ahır yükseltme, Training, Care, Race Engine) wiring bekliyor |
+| 1 | Core | Player, Auth, Economy, Horse, Stable, Training, Care, Basic Race Engine, Race Result, Progression | 🟡 Domain katmanı tamam; **Player + Horse (okuma) + Ahır Özeti + Antrenman alt-modülleri gerçek veritabanına bağlandı** (bkz. "FAZ 1 wiring" bölümleri — Player: run 34721911139 CI'da DOĞRULANDI; Horse: run 34723091484 CI'da DOĞRULANDI (ilk denemede); Ahır Özeti: run 34723845048 CI'da DOĞRULANDI (ilk denemede); **Antrenman: CI doğrulaması BEKLENİYOR**), geri kalanı (Economy'nin transfer akışı, Ahır yükseltme, Care, Race Engine) wiring bekliyor |
 | 2 | Management | Horse Market, Buy/Sell, Vet, Farrier, Nutrition, Jockey, Staff, Stable capacity, Costs | 🟡 Domain katmanı tamam, wiring bekliyor |
 | 3 | Genetics | Pedigree, Mare/Stallion, Genetic traits, Inheritance, Mutation, Foal, Growth, Bloodline | 🟡 Domain katmanı tamam, wiring bekliyor |
 | 4 | Farm | Stable upgrade, Paddock, Training track, Vet center, Breeding center, Staff facilities | 🟡 Domain katmanı tamam, wiring bekliyor |
@@ -833,6 +833,85 @@ id için 400) gerçek PostgreSQL'e karşı doğrulandı. Bu, art arda İKİNCİ
 "ilk denemede yeşil" dilim — Hata 5/6'nın derslerinin artık bu projenin
 standart pratiği haline geldiğinin bir göstergesi. FAZ 1 wiring'in Ahır
 Özeti dilimi tamamlanmıştır.
+
+## FAZ 1 wiring — Dördüncü dilim: Antrenman (bu oturum)
+
+Üç dilim de (Player, Horse, Ahır Özeti) onaylandıktan sonra, proje
+sahibinin "Devam edelim" onayıyla dördüncü dilime geçildi. brief §10 ve
+§75 MVP kriteri ("Antrenman stat/fatigue etkisi oluşturuyor") gereği
+Training seçildi — sıradaki modül (Player, Auth, Economy, Horse, Stable,
+**Training**, Care, ...). `domain/training/training.ts` (`applyTraining`,
+`calculateStatGain`/`calculateFatigueGain`/`calculateInjuryRisk`,
+`rollInjuryOccurred`) FAZ 0'dan beri saf fonksiyonlar olarak hazır ve
+test edilmişti, hiç wiring edilmemişti.
+
+**Bulunan ve bu dilimde KAPSAMA ALINAN bir eksik:** `horse_stats` tablosu
+(migration 0003) önceki İKİ dilimde de bilinçli olarak "kapsam dışı"
+bırakılmıştı (bkz. Horse dilimi notu) — ama Antrenman, o tablodaki
+görünen stat'ları (speed/sprint/stamina/vb.) okumadan/güncellemeden
+anlamsızdır. Bu yüzden bu dilimde: (a) yeni bir at oluşturulduğunda artık
+ona eşlik eden bir `horse_stats` satırı da (migration'daki DEFAULT
+değerlerle, hepsi 50) TEK bir veritabanı transaction'ında yaratılıyor
+(bkz. `docs/ARCHITECTURE.md` §9.2, yeni `withTransaction` yardımcı
+fonksiyonu — bu, projenin İLK transaction kullanımı); (b) yeni
+`PostgresHorseStatsRepository` bu tabloyu okuyup tek bir stat sütununu
+güncelleyebiliyor.
+
+**Yeni uç nokta:** `POST /api/v1/horses/{id}/train` — `{ type, intensity,
+durationMinutes? }` alır, `TrainHorseUseCase` üzerinden `domain/training/
+training.ts`'in saf fonksiyonlarını çağırıp sonucu `horses` (fatigue/
+status) + `horse_stats` (ilgili stat) tablolarına yazar, ayrıca
+`training_sessions`'a (migration 0005) bir geçmiş satırı ekler. Yanıt
+şekli ve tasarım kararları (birincil-stat eşlemesi, energy/morale'ın bu
+dilimde değişmemesi, para maliyetinin olmaması, sakatlıkta `status:
+'injured'` geçişi) `docs/API.md` §4 "Antrenman" bölümünde detaylıdır.
+
+**Yeni domain/port/infra dosyaları:** `domain/horse/errors.ts`
+(`HorseInjuredError`), `domain/training/validation.ts` (DTO sabitleri —
+`TRAINING_TYPES`/`TRAINING_INTENSITIES`/süre sınırları),
+`domain/training/training.ts`'e eklenen `getPrimaryStatKey`;
+`application/ports/horse-stats.repository.ts`,
+`application/ports/training-session.repository.ts`;
+`infrastructure/horse/postgres-horse-stats.repository.ts`,
+`infrastructure/training/postgres-training-session.repository.ts`; yeni
+`TrainingModule` (`HorseModule`'ü import eder, `HORSE_STATS_REPOSITORY`/
+`TRAINING_SESSION_REPOSITORY`'yi kendi sağlar). `HorseRepository`
+port'una genel amaçlı bir `update(horse)` metodu eklendi (Care/Race gibi
+gelecekteki dilimler de kullanacaktır). Hata 5/6'nın dersi burada da
+BAŞTAN uygulandı: yeni tüm constructor'lar İSTİSNASIZ açık `@Inject()`
+kullanıyor.
+
+**Hata kodu eşlemesi:** `HORSE_TOO_TIRED`/`INSUFFICIENT_ENERGY`
+(`HorseNotReadyForTrainingError`'ın `reason` alanına göre TEK sınıftan
+İKİ farklı koda) ve `HORSE_INJURED` (yeni `HorseInjuredError`) hepsi
+`409 Conflict` döner — `docs/API.md`'de zaten önceden tanımlı
+`ErrorCode.HorseTooTired`/`InsufficientEnergy`/`HorseInjured`
+kullanıldı, `error-codes.ts`'e yeni bir kod EKLEMEYE gerek kalmadı.
+`HttpExceptionFilter`'ın `DOMAIN_ERROR_MAP`'i (sınıf → sabit kod) TEK bir
+hata sınıfının BİRDEN FAZLA koda eşlenmesini desteklemediğinden,
+`HorseNotReadyForTrainingError` için döngüden ÖNCE elle bir özel durum
+eklendi.
+
+**Kapsam dışı (bilinçli, sonraki adımlar):** İkincil/sinerji stat
+etkileri; antrenmanın energy/morale'ı etkilemesi (domain fonksiyonları
+henüz bunu hesaplamıyor); antrenman maliyeti (Economy entegrasyonu);
+`GET /horses/{id}/history`; `feed`/`care`/`vet`/`farrier`/`rest` uç
+noktaları (brief §11-12, Care dilimi); `horse_surface_stats`/
+`horse_distance_stats`/`horse_health` tabloları.
+
+**Doğrulama (bu oturum, yerel):** `apps/api/tsconfig.domain.json` ile
+domain katmanı temiz derlendi; `packages/shared-types` (yeni
+`HorseStatField`/`NumericHorseStatField`/`TrainHorseResult` tipleri
+dahil) ayrıca temiz derlendi. Framework'ten bağımsız test seti (306 test,
+`training.spec.ts`'e eklenen `getPrimaryStatKey` testleri dahil) yerel
+olarak koştu — hepsi geçti. Ayrıca, `@nestjs`/`pg` paketleri olmadan
+mümkün olduğunca geniş bir yerel `tsc` taraması yapıldı (yalnızca eksik
+paket/`@types/node` gürültüsü filtrelendi) ve bu sırada gerçek İKİ tip
+hatası (`HorseStatField`'in `strideLength`/`strideFrequency` gibi
+`number | null` alanları da içermesi) yakalanıp `NumericHorseStatField`
+alt tipiyle düzeltildi — CI'a gitmeden önce yakalanan gerçek bir hata.
+Yeni `training.e2e-spec.ts` (6 senaryo) yalnızca CI'da doğrulanabilir
+(kabul edilen risk, önceki dilimlerle AYNI desen).
 
 ## Açık kararlar (proje sahibinin onayı bekleniyor)
 

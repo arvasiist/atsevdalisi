@@ -4,6 +4,7 @@ import {
   calculateFatigueGain,
   calculateInjuryRisk,
   calculateStatGain,
+  getPrimaryStatKey,
   rollInjuryOccurred,
 } from '../../../src/domain/training/training';
 import { HorseNotReadyForTrainingError } from '../../../src/domain/training/errors';
@@ -154,5 +155,21 @@ describe('rollInjuryOccurred', () => {
   it('risk 0 ise asla, risk 1 ise her zaman sakatlık oluşur', () => {
     expect(rollInjuryOccurred(0, 'session-123:injury')).toBe(false);
     expect(rollInjuryOccurred(1, 'session-123:injury')).toBe(true);
+  });
+});
+
+/** FAZ 1 wiring, dördüncü dilim — `POST /horses/{id}/train`'in `statChanges` eşlemesi. */
+describe('getPrimaryStatKey', () => {
+  it('her antrenman türünü doğru birincil stat alanına eşler', () => {
+    expect(getPrimaryStatKey('speed')).toBe('speed');
+    expect(getPrimaryStatKey('sprint')).toBe('sprint');
+    expect(getPrimaryStatKey('stamina')).toBe('stamina');
+    expect(getPrimaryStatKey('start')).toBe('startSpeed');
+    expect(getPrimaryStatKey('cornering')).toBe('cornering');
+    expect(getPrimaryStatKey('tempo')).toBe('midSpeed');
+  });
+
+  it('"rest" türü için null döner (hiçbir stat\'ı etkilemez)', () => {
+    expect(getPrimaryStatKey('rest')).toBeNull();
   });
 });

@@ -2,7 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import type { Pool } from 'pg';
 import type { Horse } from '@at-sevdalisi/shared-types';
 import type { HorseRepository } from '../../application/ports/horse.repository';
-import { PG_POOL } from '../database/database.module';
+import { PG_POOL, withTransaction } from '../database/database.module';
 
 /**
  * `horses` tablosunun satır şekli (snake_case, `database/migrations/
@@ -13,10 +13,13 @@ import { PG_POOL } from '../database/database.module';
  * üstündeki AYNI not); bu oyunun değerleri bu sınırı pratikte aşmayacağı
  * için `Number(...)`'a çevrilir.
  *
- * NOT — KAPSAM (bilinçli, bu dilim): `horse_stats`/`horse_surface_stats`/
- * `horse_distance_stats`/`horse_health` tabloları BURADA henüz
- * okunmuyor/yazılmıyor (bkz. `domain/horse/horse.ts` üstündeki kapsam
- * notu) — yalnızca `horses` tablosu.
+ * NOT — KAPSAM: `horse_surface_stats`/`horse_distance_stats`/`horse_health`
+ * tabloları BURADA henüz okunmuyor/yazılmıyor. `horse_stats` ise FAZ 1
+ * wiring'in DÖRDÜNCÜ diliminde (Antrenman, bu oturum) kapsama alındı —
+ * `save()` artık `horse_stats`'a da DB varsayılanlarıyla (migration
+ * 0003) bir satır ekliyor (bkz. `PostgresHorseStatsRepository` — okuma/
+ * güncelleme AYRI bir repository'dedir, çünkü `HorseStats` `Horse`'dan
+ * farklı bir domain kavramıdır).
  */
 interface HorseRow {
   id: string;
@@ -86,20 +89,58 @@ export class PostgresHorseRepository implements HorseRepository {
   }
 
   async save(horse: Horse): Promise<void> {
+    // Bir at, `horse_stats` satırı olmadan var olamamalıdır (Antrenman bu
+    // satırı okur/günceller) — bu yüzden iki INSERT tek bir transaction'da
+    // yapılır (bkz. `database.module.ts` `withTransaction`). `horse_stats`
+    // için sütun listesi verilmez: DEFAULT değerler (migration 0003) TEK
+    // doğruluk kaynağıdır, burada TEKRAR yazılmaz.
+    await withTransaction(this.pool, async (client) => {
+      await client.query(
+        `INSERT INTO horses (id, owner_id, name, gender, breed, birth_date, level, xp, quality, potential, health, fitness, fatigue, energy, morale, weight_kg, status, sire_id, dam_id, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)`,
+        [
+          horse.id,
+          horse.ownerId,
+          horse.name,
+          horse.gender,
+          horse.breed,
+          horse.birthDate.slice(0, 10),
+          horse.level,
+          horse.xp,
+          horse.quality,
+          horse.potential,
+          horse.health,
+          horse.fitness,
+          horse.fatigue,
+          horse.energy,
+          horse.morale,
+          horse.weightKg,
+          horse.status,
+          horse.sireId,
+          horse.damId,
+          new Date(horse.createdAt),
+          new Date(horse.updatedAt),
+        ],
+      );
+      await client.query('INSERT INTO horse_stats (horse_id) VALUES ($1)', [horse.id]);
+    });
+  }
+
+  /**
+   * FAZ 1 wiring, dördüncü dilim — `TrainHorseUseCase` sonrası fatigue/
+   * status günceller. Bilinçli olarak `Horse`'un TÜM değişken alanlarını
+   * yazar (tek genel amaçlı metod — ileride Care/Race gibi başka
+   * dilimler de kullanacaktır), yalnızca antrenmanın dokunduğu alanları
+   * değil.
+   */
+  async update(horse: Horse): Promise<void> {
     await this.pool.query(
-      `INSERT INTO horses (id, owner_id, name, gender, breed, birth_date, level, xp, quality, potential, health, fitness, fatigue, energy, morale, weight_kg, status, sire_id, dam_id, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)`,
+      `UPDATE horses
+       SET health = $2, fitness = $3, fatigue = $4, energy = $5, morale = $6,
+           weight_kg = $7, status = $8, level = $9, xp = $10, updated_at = $11
+       WHERE id = $1`,
       [
         horse.id,
-        horse.ownerId,
-        horse.name,
-        horse.gender,
-        horse.breed,
-        horse.birthDate.slice(0, 10),
-        horse.level,
-        horse.xp,
-        horse.quality,
-        horse.potential,
         horse.health,
         horse.fitness,
         horse.fatigue,
@@ -107,9 +148,8 @@ export class PostgresHorseRepository implements HorseRepository {
         horse.morale,
         horse.weightKg,
         horse.status,
-        horse.sireId,
-        horse.damId,
-        new Date(horse.createdAt),
+        horse.level,
+        horse.xp,
         new Date(horse.updatedAt),
       ],
     );

@@ -10,7 +10,7 @@
 
 import { clamp, createSeededRandom } from '@at-sevdalisi/shared-types';
 import type { TrainingConfig, TrainingTypeConfig } from '@at-sevdalisi/game-config';
-import type { TrainingIntensity, TrainingType } from '@at-sevdalisi/shared-types';
+import type { NumericHorseStatField, TrainingIntensity, TrainingType } from '@at-sevdalisi/shared-types';
 import { checkTrainingReadiness, type VitalSigns } from '../horse/vital-signs';
 import { HorseNotReadyForTrainingError } from './errors';
 
@@ -156,4 +156,31 @@ export function applyTraining(config: TrainingConfig, ctx: TrainingContext): Tra
 export function rollInjuryOccurred(injuryRisk: number, seed: string): boolean {
   const rng = createSeededRandom(seed);
   return rng() < injuryRisk;
+}
+
+/**
+ * FAZ 1 wiring, dördüncü dilim: antrenman türünün hangi GÖRÜNEN stat'ı
+ * (brief §7 `HorseStats`) birincil olarak etkilediğine dair eşleme —
+ * `POST /horses/{id}/train` yanıtındaki `statChanges`'in kaynağı
+ * (docs/API.md §4).
+ *
+ * KARAR (bu dilim, bilinçli kapsam — bkz. docs/ROADMAP.md "Dördüncü
+ * dilim: Antrenman"): yalnızca TEK bir birincil stat güncellenir; brief'in
+ * örneklediği ikincil/sinerji etkileri (örn. "sprint" antrenmanının
+ * `acceleration`'ı da bir miktar etkilemesi) bu dilimin KAPSAMI
+ * DIŞINDADIR. `rest` türünün karşılığı yoktur — zaten `baseGain: 0`
+ * (config/training.config.json), hiçbir stat'ı değiştirmez, yalnızca
+ * `fatigue`'u düşürür.
+ */
+export function getPrimaryStatKey(trainingType: TrainingType): NumericHorseStatField | null {
+  const map: Record<TrainingType, NumericHorseStatField | null> = {
+    speed: 'speed',
+    sprint: 'sprint',
+    stamina: 'stamina',
+    start: 'startSpeed',
+    cornering: 'cornering',
+    tempo: 'midSpeed',
+    rest: null,
+  };
+  return map[trainingType];
 }

@@ -8,8 +8,14 @@ import type { Horse } from '@at-sevdalisi/shared-types';
 export interface HorseRepository {
   findById(id: string): Promise<Horse | null>;
   findByOwnerId(ownerId: string): Promise<Horse[]>;
-  /** Yeni bir at kaydı ekler. Var olan bir `id`'yi GÜNCELLEMEZ (ilerideki fazlarda ayrı bir `update` metodu eklenecektir). */
+  /** Yeni bir at kaydı ekler (ve ona eşlik eden `horse_stats` satırını, bkz. postgres implementasyonu). */
   save(horse: Horse): Promise<void>;
+  /**
+   * FAZ 1 wiring, dördüncü dilim — var olan bir atın DEĞİŞKEN alanlarını
+   * (health/fitness/fatigue/energy/morale/weightKg/status/level/xp) günceller.
+   * İlk kullanım: `TrainHorseUseCase` (antrenman sonrası fatigue/status).
+   */
+  update(horse: Horse): Promise<void>;
 }
 
 /** NestJS DI için token (interface'ler runtime'da yok olduğundan bir Symbol gerekir). */

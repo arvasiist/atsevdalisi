@@ -153,7 +153,8 @@ POST   /api/v1/horses/{id}/rest        # dinlendirme (brief §11)
 GET    /api/v1/horses/{id}/history     # yarış/antrenman geçmişi (brief §40 Geçmiş)
 ```
 
-`POST /api/v1/horses/{id}/train` — örnek istek:
+`POST /api/v1/horses/{id}/train` — örnek istek (`durationMinutes` opsiyonel,
+verilmezse 30 dakika varsayılır):
 
 ```json
 { "type": "sprint", "intensity": "high" }
@@ -166,15 +167,18 @@ GET    /api/v1/horses/{id}/history     # yarış/antrenman geçmişi (brief §40
   "success": true,
   "data": {
     "horseId": "...",
-    "statChanges": { "sprint": 1.4, "acceleration": 0.3 },
+    "statChanges": { "sprint": 1.4 },
     "fatigueGain": 12.5,
     "injuryOccurred": false,
-    "newStatus": { "fatigue": 36.5, "energy": 63.5, "morale": 91 }
+    "newStatus": { "fatigue": 36.5, "energy": 100, "morale": 80 }
   }
 }
 ```
 
-Olası hata: `HORSE_TOO_TIRED`, `HORSE_INJURED`, `INSUFFICIENT_ENERGY`.
+Olası hata: `HORSE_TOO_TIRED`, `HORSE_INJURED`, `INSUFFICIENT_ENERGY`
+(üçü de `409 Conflict` — geçici bir durum engeli, kalıcı bir doğrulama
+hatası değil), veya `type`/`intensity`/`durationMinutes` formatı
+hatalıysa `400 VALIDATION_ERROR`.
 
 ### Uygulama durumu (FAZ 1 wiring, ikinci dilim, bu oturum)
 
@@ -193,10 +197,11 @@ yaşam evresinde — bkz. `domain/horse/horse.ts` `createStarterHorse`).
 Bu, brief'te açıkça yazmayan ama at yetiştiriciliği oyununda gerekli bir
 tasarım kararıdır (at olmadan Antrenman/Bakım/Yarış ekranları gösterilemez).
 
-`train`/`feed`/`care`/`vet`/`farrier`/`rest`/`history` uç noktaları ve
-`horse_stats`/`horse_surface_stats`/`horse_distance_stats`/`horse_health`
-tablolarının okunması/yazılması bu dilimin KAPSAMI DIŞINDADIR — Antrenman/
-Bakım wiring'i sırasında eklenecektir.
+`feed`/`care`/`vet`/`farrier`/`rest`/`history` uç noktaları ve
+`horse_surface_stats`/`horse_distance_stats`/`horse_health` tablolarının
+okunması/yazılması hâlâ KAPSAM DIŞINDADIR. `train` ve `horse_stats` ise
+FAZ 1 wiring'in DÖRDÜNCÜ diliminde bağlandı — bkz. aşağıdaki "Antrenman"
+bölümü.
 
 ### Ahır Özeti (FAZ 1 wiring, üçüncü dilim, bu oturum)
 
@@ -227,6 +232,45 @@ Oyuncu bulunamazsa `404 PLAYER_NOT_FOUND`, id UUID formatında değilse
 brief §32) bu dilimin KAPSAMI DIŞINDADIR — `getNextStableUpgradeCost`
 zaten domain katmanında hazır, gerçek para düşme akışı (Economy'nin
 `debit` fonksiyonu) ile birlikte ayrı bir wiring dilimini hak eder.
+
+### Antrenman (FAZ 1 wiring, dördüncü dilim, bu oturum)
+
+```http
+POST /api/v1/horses/{id}/train
+```
+
+brief §10 ve §75 MVP kriterinin ("Antrenman stat/fatigue etkisi
+oluşturuyor") karşılığıdır. `domain/training/training.ts`'teki saf
+`applyTraining`/`rollInjuryOccurred` fonksiyonlarını gerçek `horses` +
+(bu dilimde YENİ bağlanan) `horse_stats` tablolarına bağlar; her
+antrenman ayrıca `training_sessions`'a bir geçmiş satırı yazar (`GET
+.../history` henüz OKUMUYOR — KAPSAM DIŞI, aşağıya bakınız).
+
+Tasarım kararları (bkz. `domain/training/training.ts` `getPrimaryStatKey`
+ve `application/use-cases/train-horse.use-case.ts` üstündeki KAPSAM
+notları):
+
+- Her antrenman türü TEK bir "birincil" görünen stat'ı günceller:
+  `speed→speed`, `sprint→sprint`, `stamina→stamina`, `start→startSpeed`,
+  `cornering→cornering`, `tempo→midSpeed`, `rest→(yok)`. Brief'in
+  örneklediği ikincil/sinerji stat etkileri (örn. sprint antrenmanının
+  `acceleration`'ı da etkilemesi) bu dilimin KAPSAMI DIŞINDADIR.
+- `applyTraining`'in döndürdüğü sonuç yalnızca `statGain`/`fatigueGain`/
+  `injuryRisk` içerir — `energy`/`morale` HENÜZ modellenmemiştir, bu
+  yüzden `newStatus`'ta antrenmandan ÖNCEKİ değerleriyle döner.
+- Antrenmanın bu dilimde bir PARA maliyeti YOKTUR (Economy entegrasyonu,
+  Ahır yükseltme ile AYNI gerekçeyle, KAPSAM DIŞI).
+- Sakatlık oluşursa (`rollInjuryOccurred`, deterministik seed —
+  `Math.random()` KULLANILMAZ, brief §18) at `status: 'injured'`'a
+  geçer; sakat bir at tekrar antrenmana alınamaz (`409 HORSE_INJURED`).
+- Yeni oluşturulan her at artık kendisine ait bir `horse_stats` satırıyla
+  (tüm görünen/gizli stat'lar migration 0003'teki varsayılan `50` ile)
+  BİRLİKTE, tek bir veritabanı transaction'ında yaratılır (bkz.
+  docs/ARCHITECTURE.md §9.2 `withTransaction`) — önceki dilimde bu satır
+  hiç oluşturulmuyordu.
+
+`GET /horses/{id}/history`, `feed`/`care`/`vet`/`farrier`/`rest` uç
+noktaları bu dilimin KAPSAMI DIŞINDADIR.
 
 ## 5. Market (At Pazarı)
 

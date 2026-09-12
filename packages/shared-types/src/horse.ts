@@ -97,6 +97,19 @@ export interface HorseHealth {
   lastVetCheck: ISODateTimeString | null;
 }
 
+/** `HorseStats`'ın `horseId` DIŞINDAKİ alanları — tek bir stat'a atıfta bulunmak
+ * için (örn. antrenmanın hangi stat'ı güncellediği) kullanılır. */
+export type HorseStatField = Exclude<keyof HorseStats, 'horseId'>;
+
+/**
+ * `HorseStatField`'in HER ZAMAN sayısal (asla `null`) olan alt kümesi —
+ * `strideLength`/`strideFrequency` DIŞINDA tüm stat alanları (bkz.
+ * `HorseStats` — bu ikisi tek NULL olabilen alanlardır). Antrenmanın
+ * güncellediği alanlar HER ZAMAN bu kümededir (bkz.
+ * `domain/training/training.ts` `getPrimaryStatKey`).
+ */
+export type NumericHorseStatField = Exclude<HorseStatField, 'strideLength' | 'strideFrequency'>;
+
 /** brief §7 TrainingSession, tür/yoğunluk brief §10 */
 export type TrainingType = 'speed' | 'sprint' | 'stamina' | 'start' | 'cornering' | 'tempo' | 'rest';
 export type TrainingIntensity = 'low' | 'medium' | 'high';
@@ -107,11 +120,24 @@ export interface TrainingSession {
   type: TrainingType;
   intensity: TrainingIntensity;
   durationMinutes: number;
-  statGain: Partial<Record<keyof HorseStats, number>>;
+  statGain: Partial<Record<HorseStatField, number>>;
   fatigueGain: number;
   injuryRisk: number;
   injuryOccurred: boolean;
   createdAt: ISODateTimeString;
+}
+
+/**
+ * `POST /horses/{id}/train` yanıtı (docs/API.md §4). FAZ 1 wiring,
+ * dördüncü dilim — bkz. `application/use-cases/train-horse.use-case.ts`
+ * üstündeki KAPSAM notu (yalnızca birincil stat, energy/morale değişmez).
+ */
+export interface TrainHorseResult {
+  horseId: UUID;
+  statChanges: Partial<Record<HorseStatField, number>>;
+  fatigueGain: number;
+  injuryOccurred: boolean;
+  newStatus: Pick<Horse, 'fatigue' | 'energy' | 'morale'>;
 }
 
 /** brief §39 Ahır ekranı kartı için minimal görünüm. */

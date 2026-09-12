@@ -428,6 +428,33 @@ sessizce farklı davranabilir.
 
 ---
 
+### 9.2. `withTransaction` — çok tablolu aggregate persistence (FAZ 1 wiring, dördüncü dilim)
+
+Bu oturumdaki dördüncü wiring dilimi (Antrenman, `POST /horses/{id}/train`)
+ilk kez bir at oluşturulurken İKİ tabloya (`horses` + `horse_stats`) birlikte
+yazma ihtiyacı doğurdu — bir at, kendisine ait bir `horse_stats` satırı
+olmadan var olmamalıdır (Antrenman bu satırı okur/günceller). `§8`'de
+(Ortam/Deploy) ve `database.module.ts`'in eski bir yorumunda "kritik işlemler
+için `withTransaction()` FAZ 1'de eklenecektir" notu vardı — bu, o
+yardımcı fonksiyonun ilk gerçek kullanımıdır.
+
+`database.module.ts` → `withTransaction(pool, fn)`: `pool.connect()` ile
+TEK bir `PoolClient` alır, `BEGIN`/`COMMIT`/`ROLLBACK`'i bu AYNI bağlantı
+üzerinden yürütür (`pool.query(...)` kullanılsaydı her çağrı havuzdan
+FARKLI bir bağlantı alabilir ve transaction hiçbir şeyi kapsamazdı — bu,
+`pg` ile sık yapılan bir hatadır). `PostgresHorseRepository.save()` artık
+bunu kullanıyor; `horse_stats` INSERT'i sütun listesi VERMEDEN yapılır
+(`INSERT INTO horse_stats (horse_id) VALUES ($1)`) — DEFAULT değerler
+(migration 0003) TEK doğruluk kaynağıdır, domain katmanında TEKRAR
+tanımlanmaz.
+
+**Genel kural (gelecekteki tüm çok-tablolu yazma işlemleri için):** bir
+aggregate'in birden fazla tabloya yazması gerektiğinde (örn. ileride
+Race sonucu + ödül dağıtımı, brief §54), `withTransaction` kullanılmalı —
+ayrı `pool.query()` çağrıları YETERSİZDİR.
+
+---
+
 ## 10. Ek öneriler — proje sahibine sunulan geliştirme fırsatları
 
 Brief son derece kapsamlı ve tutarlı hazırlanmış. İncelemede aşağıdaki
