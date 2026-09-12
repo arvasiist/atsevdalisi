@@ -522,8 +522,36 @@ olan düzeltme uygulandı: bu dört sınır değeri (`3`, `20`, `2`, `30`)
 sabit sayı yazmak yerine oradan içe aktarıldı (tek doğruluk kaynağı,
 docs/CODING_CONVENTIONS.md #6/7 ile de tutarlı). Düzeltme sonrası yerel
 `tsc` (`apps/api/tsconfig.domain.json`) temiz derlendi ve framework'ten
-bağımsız tüm test seti yine **296/296** geçti; bu ikinci sürüm GitHub
-CI'a gönderilip sonucu ayrıca doğrulanacaktır.
+bağımsız tüm test seti yine **296/296** geçti.
+
+**Gerçek kök neden bulundu (ikinci CI hatası, bu oturum):** yukarıdaki
+düzeltme GitHub'a gönderildikten sonra CI **AYNI şekilde** "Lint"
+adımında başarısız oldu — bu sefer raporlanan uyarılar `market.ts`/
+`age-curve.ts`/`care.ts`/`breeding.ts` idi, yani FAZ 7'nin BAŞARILI
+çalışmasındakiyle BİREBİR AYNI uyarı kümesi; `register-player.dto.ts`'in
+artık hiçbir sabit sayı içermediği doğrudan pushlanan dosya içeriğinden
+teyit edildi. Bu, sorunun kod İÇERİĞİYLE alakasız olduğunu kanıtladı.
+Gerçek kök neden: bu depo hiçbir zaman bir `package-lock.json` dosyası
+üretmedi (bkz. §9 — npm registry kısıtı yüzünden bu ortamda `npm
+install` hiç çalıştırılamadı); `package.json`'daki
+`@typescript-eslint/eslint-plugin`/`parser` `^7.0.0` ile belirtilmişti,
+yani her CI çalıştırmasında `npm install` npm registry'den O ANDA
+mevcut olan EN YENİ uyumlu 7.x.x sürümünü çekiyordu. npm registry'de
+bu paketin en güncel sürümünün artık **8.70.0** olduğu (7.x hattının
+tamamen geride kaldığı) doğrulandı — 7.x hattı için farklı zamanlarda
+farklı yama sürümleri çekilmiş olması, aynı kodun bazen geçip bazen
+(uyarı içeriği aynı kalsa bile) `exit code 1` ile başarısız olmasını
+açıklıyor. **Düzeltme:** `package.json`'da
+`@typescript-eslint/eslint-plugin`, `@typescript-eslint/parser` ve
+`eslint` artık `^` olmadan, TAM sürüm numarasıyla sabitlendi
+(`7.18.0`, `7.18.0`, `8.57.0` — 7.x hattının bilinen son, kararlı
+sürümleri, npm registry'den peer-dependency uyumluluğu doğrulanarak
+seçildi). Bu, projenin kendi ARCHITECTURE.md §9 notunda zaten öngörülen
+"bir kez lock dosyası üretilip commit edilirse `npm ci`'ya geçilebilir"
+adımının küçük bir ön-versiyonu: tam sürüm sabitleme, lock dosyası kadar
+güçlü olmasa da, CI'ın HER seferinde AYNI paket sürümleriyle
+çalışmasını garanti eder. Üçüncü sürüm bu düzeltmeyle gönderilip sonucu
+doğrulanacaktır.
 
 ## Açık kararlar (proje sahibinin onayı bekleniyor)
 

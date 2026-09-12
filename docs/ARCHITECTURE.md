@@ -353,6 +353,20 @@ yok" durumunu başarısızlık saymaz. Bu, gelecekte FAZ 2+'da yeni bir
 workspace/paket geçici olarak testsiz eklenirse aynı hatanın tekrar
 CI'ı kırmasını da önler.
 
+**Hata 5 — kilit dosyası olmadan hareketli bağımlılık sürümleri (FAZ 1
+wiring, bu oturum):** `package.json`'da `@typescript-eslint/eslint-plugin`/
+`parser` `^7.0.0` ile belirtilmişti; kilit dosyası hiç olmadığı için her
+CI çalıştırması npm registry'den O ANKİ en yeni uyumlu 7.x.x sürümünü
+çekiyordu. Bu, aynı kodun bazen CI'da geçip bazen (kod hiç değişmemişken
+bile) "Lint" adımında `exit code 1` ile başarısız olmasına yol açtı —
+FAZ 1 wiring'in Player kaydı teslimatında iki kez yaşandı, ayrıntılı
+teşhis `docs/ROADMAP.md` "FAZ 1 wiring" bölümünde. Düzeltme:
+`@typescript-eslint/eslint-plugin`, `@typescript-eslint/parser` ve
+`eslint` `package.json`'da `^` olmadan TAM sürüm numarasıyla sabitlendi
+(`7.18.0`, `7.18.0`, `8.57.0`). Kalıcı çözüm hâlâ bir
+`package-lock.json` üretip commit etmektir (bkz. üstteki not); bu
+sabitleme o ana kadarki ara güvenlik önlemidir.
+
 ---
 
 ## 10. Ek öneriler — proje sahibine sunulan geliştirme fırsatları
