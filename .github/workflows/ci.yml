@@ -68,29 +68,8 @@ jobs:
       - name: Run database migrations
         run: npm run migrate
 
-      # GEÇİCİ TEŞHİS ADIMI (bu oturum): player.e2e-spec.ts, GERÇEK
-      # Postgres'e karşı çalıştığında beklenmedik şekilde HTTP 500 alıyor
-      # (400/404/409 bekleniyordu). `HttpExceptionFilter`'ın son catch-all
-      # dalı gerçek hatayı bilinçli olarak `console.error` ile loglayıp
-      # istemciye SIZDIRMIYOR (docs/SECURITY.md) — bu doğru davranış, ama
-      # bu ortamdan ham CI günlüğü okunamadığından o console.error çıktısı
-      # görünmüyor. Bu adım, "Lint" teşhisinde işe yarayan AYNI tekniği
-      # (çıktıyı satır satır ::error:: olarak yazdırmak) "Test" adımına
-      # uygular. Kök neden bulunduktan sonra normal `npm run test`
-      # çağrısına geri döndürülecektir.
       - name: Test
-        run: |
-          set +e
-          npm run test > /tmp/test-output.txt 2>&1
-          code=$?
-          cat /tmp/test-output.txt
-          if [ "$code" -ne 0 ]; then
-            grep -i -E "error|exception|beklenmedik|at /home/runner|fail" /tmp/test-output.txt | head -80 | while IFS= read -r line; do
-              escaped=$(echo "$line" | sed 's/%/%25/g; s/\r/%0D/g')
-              echo "::error::TESTDEBUG: $escaped"
-            done
-          fi
-          exit $code
+        run: npm run test
 
       - name: Build
         run: npm run build

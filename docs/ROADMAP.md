@@ -595,8 +595,60 @@ FAZ 0'dan beri taşıyordu ama bu oturumdaki glob-eşleşme düzeltmesinden
 ÖNCE hiç çalıştırılmadığı için fark edilmemişti — bu, aynı kök nedenin
 (hiç koşmamış bir dosya) ortaya çıkardığı İKİNCİ gizli hata. Düzeltme:
 her iki dosyaya da `import { afterAll, beforeAll, describe, expect, it }
-from 'vitest';` eklendi. Beşinci sürüm bu düzeltmeyle gönderilip sonucu
-doğrulanacaktır.
+from 'vitest';` eklendi.
+
+**Üçüncü gizli hata (beşinci CI hatası, bu oturum) — nihai kök neden:**
+`vitest` içe aktarma düzeltmesiyle CI ilk kez "Lint" → "Typecheck" →
+"Run database migrations" adımlarının HEPSİNİ geçti (bu projede bir ilk:
+gerçek bir PostgreSQL migration'ı CI'da başarıyla çalıştı) — ama "Test"
+adımında `player.e2e-spec.ts`'in TÜM istekleri beklenen 201/404/400/409
+yerine **HTTP 500** döndü. `HttpExceptionFilter`'ın son catch-all dalı,
+gerçek hatayı bilinçli olarak istemciye SIZDIRMIYOR (bkz.
+`docs/SECURITY.md`) — doğru davranış, ama bu yüzden test asserisyonları
+gerçek nedeni göstermedi. "Lint" teşhisinde işe yarayan AYNI teknik
+(`::error::` ile satır satır yeniden yazdırma, bu kez `TESTDEBUG:`
+öneki ve çıktıyı `error|exception|beklenmedik|at /home/runner|fail`
+ile filtreleyen bir `grep` ile — 296+ geçen test satırıyla paneli
+doldurmamak için) "Test" adımına uygulandı. Bu, gerçek hatayı ortaya
+çıkardı: **`TypeError: Cannot read properties of undefined (reading
+'execute')`**.
+
+Kök neden araştırması `apps/api/tsconfig.json`'da
+`experimentalDecorators`/`emitDecoratorMetadata`'ın İKİSİNİN de doğru
+şekilde `true` olduğunu doğruladı — bu, NestJS'in tip tabanlı (örtük)
+bağımlılık enjeksiyonunun `undefined` dönmesinin EN YAYGIN nedenini
+ekarte etti. Gerçek neden daha inceydi: bu ayarlar `npm run build`'in
+kullandığı GERÇEK `tsc` derleyicisi için doğrudur, ama `apps/api/test/
+api/player.e2e-spec.ts` `vitest` altında çalışır ve **Vitest,
+dosyaları TypeScript derleyicisi yerine `esbuild` ile dönüştürür**.
+`esbuild` hızlı, tip bilgisinden bağımsız (type-unaware) bir
+dönüştürücüdür — dekoratörleri (`experimentalDecorators`) destekler,
+ama `emitDecoratorMetadata`'nın gerektirdiği `design:paramtypes`
+üst verisini ASLA yaymaz, çünkü bu üst veri parametre TİPLERİNİN tam
+tip çözümlemesini (type-checking) gerektirir ve `esbuild` bunu bilinçli
+olarak yapmaz (performans için). Sonuç: `PlayerController`'ın
+kurucusundaki `RegisterPlayerUseCase`/`GetPlayerUseCase` parametreleri
+(ve `RegisterPlayerUseCase`'in kendi kurucusundaki `AppConfigService`
+parametresi) yalnızca TypeScript tipine göre — açık bir `@Inject()`
+token'ı OLMADAN — enjekte ediliyordu; bu ikisi gerçek `tsc` derlemesiyle
+çalışırken `vitest`/`esbuild` altında `undefined` kalıyor, `.execute(...)`
+çağrısı da bu yüzden patlıyordu.
+
+Düzeltme: projede zaten `PLAYER_REPOSITORY`/`PG_POOL` için yapıldığı gibi,
+her iki yerde de açık `@Inject()` token'ı eklendi
+(`@Inject(RegisterPlayerUseCase)`, `@Inject(GetPlayerUseCase)`,
+`@Inject(AppConfigService)`) — bu, hem `tsc` hem `esbuild` altında AYNI
+şekilde çalışır çünkü artık çalışma zamanı tipine değil, açıkça
+belirtilen token'a bağlıdır. Kod tabanının geri kalanı tarandı
+(`constructor(` içeren tüm dosyalar) — bu ikisi DIŞINDA hiçbir NestJS
+sağlayıcısı örtük tip tabanlı enjeksiyona güvenmiyordu, yani bu düzeltme
+kapsamlıydı. Geçici `TESTDEBUG:` teşhis adımı kaldırılıp "Test" adımı
+normal `npm run test` çağrısına döndürüldü. Yerel doğrulama: framework'ten
+bağımsız test seti (artık 334 test — bu oturumda başka domain testleri de
+eklenmiş) yine tam geçti; `@nestjs/*` paketleri bu ortamda kurulu
+olmadığından (`docs/ARCHITECTURE.md` §9) bu DI düzeltmesinin kendisi
+yalnızca CI'da (gerçek Postgres + gerçek `vitest`/`esbuild` ile) uçtan uca
+doğrulanabilir — proje için kabul edilen risktir.
 
 ## Açık kararlar (proje sahibinin onayı bekleniyor)
 

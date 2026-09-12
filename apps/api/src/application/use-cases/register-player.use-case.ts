@@ -23,12 +23,18 @@ export interface RegisterPlayerInput {
  * OAuth eklendiğinde bu use-case DEĞİŞMEZ — sadece onu çağıran controller,
  * `username`/`displayName`'i client'tan değil, doğrulanmış sağlayıcı
  * kimliğinden türetilen bir değerden alacak şekilde güncellenir.
+ *
+ * NOT — `AppConfigService` de (aşağıda) artık açık `@Inject()` ile enjekte
+ * ediliyor; bkz. `PlayerController` üstündeki not — Vitest'in esbuild
+ * dönüştürücüsü, tsc'nin aksine `design:paramtypes` üst verisini
+ * yaymadığından örtük (yalnızca-tip) enjeksiyon gerçek e2e testlerinde
+ * `undefined`'a çözülüyordu.
  */
 @Injectable()
 export class RegisterPlayerUseCase {
   constructor(
     @Inject(PLAYER_REPOSITORY) private readonly playerRepository: PlayerRepository,
-    private readonly config: AppConfigService,
+    @Inject(AppConfigService) private readonly config: AppConfigService,
   ) {}
 
   async execute(input: RegisterPlayerInput): Promise<Player> {
