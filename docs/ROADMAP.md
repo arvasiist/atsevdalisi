@@ -311,6 +311,21 @@ race-viewer/README.md` "Kapsam kararı"):
   `timeline-playback.ts`, `camera-presets.ts`, `minimap-projection.ts`)
   bu oturumda `tsc` + gerçek testlerle tam doğrulandı.
 
+**CI hatası #4 (bu oturum) ve düzeltmesi:** yukarıdaki doğrulama kısıtının
+öngördüğü gibi, ilk Faz 6 gönderiminde GitHub Actions CI gerçekten bir hata
+buldu: `apps/web/tsconfig.json`, `apps/api` ile paylaşılan
+`tsconfig.base.json`'dan sadece `"ES2022"` kütüphanesini miras alıyordu
+(backend'de DOM olmamalı) — ama `RaceViewer.tsx` (`requestAnimationFrame`/
+`cancelAnimationFrame`) ve `RaceHud.tsx` (`HTMLInputElement.value`) gibi
+tarayıcı API'leri kullanan FAZ 6 dosyaları için bu yetersizdi. Düzeltme:
+`apps/web/tsconfig.json`'a `"lib": ["ES2022", "DOM", "DOM.Iterable"]`
+override'ı eklendi (sadece `apps/web`'i etkiler, `apps/api`/domain
+katmanı DOM'suz kalmaya devam eder). Önemli olan: bu HATA, tam olarak
+öngörülen ve belgelenen kısıt (bu ortamda JSX/Three.js dosyaları yerel
+doğrulanamıyor) yüzünden CI'da ortaya çıktı — kodun geri kalanında
+(Three.js/`@react-three/fiber` API kullanımı dahil) başka HİÇBİR hata
+bulunmadı, sadece bu tek tsconfig eksikliği.
+
 ## Açık kararlar (proje sahibinin onayı bekleniyor)
 
 Bkz. `ARCHITECTURE.md` §10 için tam liste ve gerekçeler. Özet:
