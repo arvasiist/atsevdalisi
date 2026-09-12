@@ -376,6 +376,56 @@ gruplar, farklı ciddiyet/kural seviyesindeki gerçek hataları
 gizleyebilir; şüpheli durumda `::error::` iş akışı komutuyla açıkça
 yeniden yazdırmak güvenilir bir teşhis yöntemidir.
 
+**Hata 6 — Vitest/esbuild, NestJS'in örtük (tip tabanlı) bağımlılık
+enjeksiyonu için gereken üst veriyi yaymaz (FAZ 1 wiring, bu oturum,
+beşinci CI hatası):** "Lint"/"Typecheck"/"Run database migrations"
+adımları ilk kez geçtikten sonra "Test" adımı, `player.e2e-spec.ts`'in
+GERÇEK Postgres'e karşı yaptığı TÜM isteklerde beklenen 201/404/400/409
+yerine HTTP 500 ile başarısız oldu. `HttpExceptionFilter` gerçek hatayı
+bilinçli olarak istemciye sızdırmadığından (`docs/SECURITY.md`), Hata
+5'te işe yarayan AYNI `::error::` teşhis tekniği "Test" adımına da
+uygulandı (bu kez `grep -i -E "error|exception|beklenmedik|at /home/
+runner|fail"` filtresiyle, 296+ geçen test satırıyla paneli
+doldurmamak için) ve gerçek hatayı ortaya çıkardı: `TypeError: Cannot
+read properties of undefined (reading 'execute')`.
+
+`apps/api/tsconfig.json`'da `experimentalDecorators`/
+`emitDecoratorMetadata`'nın ikisinin de doğru ayarlandığı doğrulandı —
+bu, NestJS'in tip tabanlı enjeksiyonunun `undefined` dönmesinin en
+yaygın nedenini ekarte etti. Asıl neden: bu tsconfig ayarları yalnızca
+`npm run build`'in kullandığı GERÇEK `tsc` derleyicisi için geçerlidir;
+ama e2e testleri **Vitest** altında çalışır ve Vitest, dosyaları `tsc`
+yerine **`esbuild`** ile dönüştürür. `esbuild` tip bilgisinden bağımsız
+(type-unaware), dosya-bazlı bir dönüştürücüdür — `experimentalDecorators`
+dekoratör sözdizimini destekler, ama `emitDecoratorMetadata`'nın
+gerektirdiği `design:paramtypes` üst verisini (parametre tiplerinin tam
+tip çözümlemesini gerektirdiği için) HİÇBİR ZAMAN yaymaz. Sonuç:
+`PlayerController`'ın kurucusundaki `RegisterPlayerUseCase`/
+`GetPlayerUseCase` parametreleri ve `RegisterPlayerUseCase`'in kendi
+kurucusundaki `AppConfigService` parametresi — üçü de açık bir
+`@Inject()` token'ı OLMADAN, yalnızca TypeScript tipine göre enjekte
+ediliyordu — gerçek `tsc` derlemesiyle (production `main.ts` bootstrap'ı)
+çalışırken sorunsuzdu, ama `vitest`/`esbuild` altında `undefined` kalıp
+`.execute(...)` çağrısını patlatıyordu.
+
+Düzeltme: bu üç yerde de, projede zaten `PLAYER_REPOSITORY`/`PG_POOL`
+için yapılan desenle AYNI şekilde, açık `@Inject()` token'ı eklendi.
+Tüm kod tabanı (`constructor(` içeren her dosya) tarandı; bu üçü
+DIŞINDA örtük tip tabanlı enjeksiyona güvenen başka bir NestJS
+sağlayıcısı bulunmadı. **Genel kural (gelecekteki tüm NestJS
+kod için geçerli):** bu projede `tsc` ile derlenen kod hem gerçek build
+hem Vitest/esbuild altında çalıştığından, NestJS constructor
+enjeksiyonunda İSTİSNASIZ her zaman açık `@Inject(Token)` kullanılmalı —
+sınıfın kendisi token olsa bile (`@Inject(SomeClass)`) — asla yalnızca
+parametre tipine güvenilmemeli. Ders: Hata 5 ile aynı — ham günlük/
+`$GITHUB_STEP_SUMMARY` okunamadığında `::error::` yeniden yazdırma
+tekniği burada da tek güvenilir teşhis yolu oldu; ayrıca bu, "yerelde
+`tsc --strict` ile doğrulanan bir tip deseni CI'da mutlaka aynı şekilde
+çalışır" varsayımının YANLIŞ olabileceğini gösterdi — derleyici
+(`tsc`) ile test çalıştırıcısının dönüştürücüsü (`esbuild`) farklı
+araçlar olduğunda, birinin doğru kabul ettiği bir desen diğerinde
+sessizce farklı davranabilir.
+
 ---
 
 ## 10. Ek öneriler — proje sahibine sunulan geliştirme fırsatları
