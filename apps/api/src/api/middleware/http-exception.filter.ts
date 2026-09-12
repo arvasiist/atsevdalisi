@@ -8,7 +8,7 @@ import {
   PlayerNotFoundError,
   UsernameAlreadyTakenError,
 } from '../../domain/player/errors';
-import { HorseNotReadyForTrainingError } from '../../domain/training/errors';
+import { HorseNotReadyForTrainingError, InvalidTrainingInputError } from '../../domain/training/errors';
 
 /**
  * Bir hata sınıfının constructor'ı (`instanceof` ile karşılaştırılabilir).
@@ -39,6 +39,11 @@ const DOMAIN_ERROR_MAP = new Map<ErrorClassConstructor, { status: number; code: 
   // Conflict, 400 Bad Request DEĞİL (`UsernameAlreadyTaken` ile AYNI
   // gerekçe).
   [HorseInjuredError, { status: HttpStatus.CONFLICT, code: ErrorCode.HorseInjured }],
+  // CI Hata 7 (bkz. domain/training/errors.ts InvalidTrainingInputError) —
+  // DTO doğrulaması esbuild altında atlanabildiğinde domain katmanının
+  // kendi bağımsız kontrolünün fırlattığı hata; gerçek bir DOĞRULAMA
+  // hatasıdır, bu yüzden diğerleri gibi 400.
+  [InvalidTrainingInputError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.ValidationError }],
 ]);
 
 /**

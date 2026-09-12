@@ -426,6 +426,56 @@ tekniği burada da tek güvenilir teşhis yolu oldu; ayrıca bu, "yerelde
 araçlar olduğunda, birinin doğru kabul ettiği bir desen diğerinde
 sessizce farklı davranabilir.
 
+**Hata 7 — DTO doğrulaması (`ValidationPipe`), aynı esbuild kök nedeniyle
+sessizce ATLANABİLİR (FAZ 1 wiring, dördüncü dilim, bu oturum, Antrenman
+CI denemesi):** `training.e2e-spec.ts`'teki "geçersiz bir tür için 400
+döner" senaryosu, beklenen `400`yerine `500 INTERNAL_ERROR` ile
+başarısız oldu — `TrainHorseDto`'daki `@IsIn(TRAINING_TYPES)` kontrolü
+hiç çalışmamış gibi davrandı.
+
+Kök neden, Hata 6 ile TIPKI AYNI mekanizma, ama farklı bir NestJS
+özelliğine uygulanmış hâli: NestJS'in `ValidationPipe`'ı, bir `@Body()`
+parametresini HANGİ DTO sınıfına göre doğrulayacağını bilmek için
+controller metodunun PARAMETRE TİPİ üst verisine (`Reflect.getMetadata(
+'design:paramtypes', ...)`) bakar; bu üst veri de (Hata 6'daki
+`design:paramtypes` ile AYNI neden — `emitDecoratorMetadata` yalnızca
+gerçek `tsc` derlemesinde üretilir) Vitest/esbuild altında YAYINLANMAZ.
+Sonuç: `ValidationPipe` metatype'ı çözemediğinde doğrulamayı SESSİZCE
+ATLAR, DTO'daki hiçbir `class-validator` decorator'ı ÇALIŞMAZ, geçersiz
+`type: "not-a-real-type"` değeri doğrudan `TrainHorseUseCase`'e ve
+oradan `domain/training/training.ts`'e ulaşır — `config.types[trainingType]`
+`undefined` döner, `.baseGain` erişimi ham bir `TypeError` fırlatır,
+`HttpExceptionFilter`'ın hiçbir domain hata eşlemesine uymadığından
+istemciye `500` olarak yansır.
+
+**Neden Player'ın DTO'sunda bu hiç fark edilmedi?** `RegisterPlayerDto`
+için de AYNI risk teorik olarak vardır — ama `RegisterPlayerUseCase`,
+DTO'dan BAĞIMSIZ olarak `domain/player/validation.ts`'teki
+`validateUsername`/`validateDisplayName`'i YİNE çağırır (bilinçli bir
+tekrar, bkz. `register-player.dto.ts`'teki yorum) — bu yüzden DTO'nun
+kendi kontrolü esbuild altında sessizce atlansa bile, domain katmanının
+BAĞIMSIZ kontrolü `InvalidUsernameError` fırlatıp doğru `400`'ü üretiyordu.
+Antrenman dilimi ilk yazıldığında `type`/`intensity` için BÖYLE bir
+ikinci, domain-seviyesi kontrol YOKTU — yalnızca DTO'ya güvenilmişti.
+
+**Düzeltme ve GENEL KURAL (gelecekteki TÜM DTO'lar için geçerli):**
+`domain/training/training.ts`'teki `getTypeConfig`/`getIntensityMultiplier`
+artık `config`'de tanımsız bir `type`/`intensity` geldiğinde yeni
+`InvalidTrainingInputError`'ı (domain hatası, `HttpExceptionFilter`'da
+`400 VALIDATION_ERROR`'a eşlenir) fırlatıyor — DTO'nun `@IsIn(...)`
+kontrolü hâlâ İLK savunma hattı (gerçek `tsc` build'inde, yani PRODUCTION'da
+çalışır) ama artık TEK savunma hattı DEĞİL. **Kural:** bir DTO alanı,
+domain katmanında bir dizi/lookup erişimini GÜVENLİ hale getirmek için
+kullanılıyorsa (örn. `config.X[değer]`), domain katmanı o değeri KENDİSİ
+de doğrulamalı — `class-validator` decorator'larına TEK BAŞINA
+güvenilmemeli, `RegisterPlayerUseCase`'in zaten yaptığı gibi. Bu, hem
+Hata 6'nın (constructor enjeksiyonu) hem Hata 7'nin (metod parametresi
+doğrulaması) ORTAK dersidir: bu projede `esbuild` altında çalışan HİÇBİR
+NestJS "örtük tip üst verisine dayalı" özelliğine (implicit DI, otomatik
+DTO doğrulama, vb.) TEK BAŞINA güvenilemez — ya açık bir alternatif
+(`@Inject()`) kullanılmalı, ya da domain katmanında BAĞIMSIZ bir ikinci
+kontrol bulunmalıdır.
+
 ---
 
 ### 9.2. `withTransaction` — çok tablolu aggregate persistence (FAZ 1 wiring, dördüncü dilim)

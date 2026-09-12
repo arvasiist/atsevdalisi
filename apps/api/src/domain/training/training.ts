@@ -12,7 +12,7 @@ import { clamp, createSeededRandom } from '@at-sevdalisi/shared-types';
 import type { TrainingConfig, TrainingTypeConfig } from '@at-sevdalisi/game-config';
 import type { NumericHorseStatField, TrainingIntensity, TrainingType } from '@at-sevdalisi/shared-types';
 import { checkTrainingReadiness, type VitalSigns } from '../horse/vital-signs';
-import { HorseNotReadyForTrainingError } from './errors';
+import { HorseNotReadyForTrainingError, InvalidTrainingInputError } from './errors';
 
 export interface TrainingContext {
   trainingType: TrainingType;
@@ -46,18 +46,46 @@ export interface TrainingOutcome {
 const MAX_STAT = 100;
 const MAX_VITAL = 100;
 
-function getIntensityMultiplier(config: TrainingConfig, intensity: TrainingIntensity): number {
-  return config.intensityMultipliers[intensity];
-}
-
+/**
+ * KAPSAM NOTU (bu dilim, bilinçli): `durationMinutes` için burada bir
+ * ALT/ÜST sınır DOĞRULAMASI yapılmaz — DTO'daki (`domain/training/
+ * validation.ts` sabitleriyle) `@Min`/`@Max` kontrolü bunu karşılar ve
+ * yanlış bir değer burada bir İSTİSNA fırlatmaz (yalnızca beklenmedik
+ * bir çarpan üretir) — `type`/`intensity`'nin AKSİNE, kod burada
+ * ÇÖKMEZ. İleride gerekirse bu fonksiyona da AYNI desenle bir kontrol
+ * eklenebilir.
+ */
 function getDurationMultiplier(config: TrainingConfig, durationMinutes: number): number {
   const units = durationMinutes / config.durationMultiplier.unitMinutes;
   // Taban çarpan 1.0'dır; her ek "unit" perUnit kadar ekler (brief §10 - süre etkisi).
   return 1 + (units - 1) * config.durationMultiplier.perUnit;
 }
 
+/**
+ * FAZ 1 wiring, dördüncü dilim (CI Hata 7, bkz. `errors.ts`
+ * `InvalidTrainingInputError` üstündeki not): DTO'daki `@IsIn(...)`
+ * kontrolü esbuild altında atlanabildiğinden, `type`/`intensity`
+ * config'de TANIMLI OLMAYAN bir değer geldiğinde burada da (domain
+ * katmanında) `InvalidTrainingInputError` fırlatılır — aksi halde
+ * `config.types[trainingType]`/`config.intensityMultipliers[intensity]`
+ * `undefined` döner ve `.baseGain` gibi bir erişim ÇÖKER (ham
+ * `TypeError`, `HttpExceptionFilter`'ın hiçbir domain hata eşlemesine
+ * uymayan, istemciye `500 INTERNAL_ERROR` olarak yansıyan tipte bir hata).
+ */
+function getIntensityMultiplier(config: TrainingConfig, intensity: TrainingIntensity): number {
+  const multiplier = config.intensityMultipliers[intensity];
+  if (multiplier === undefined) {
+    throw new InvalidTrainingInputError(`Geçersiz antrenman yoğunluğu: "${String(intensity)}".`);
+  }
+  return multiplier;
+}
+
 function getTypeConfig(config: TrainingConfig, trainingType: TrainingType): TrainingTypeConfig {
-  return config.types[trainingType];
+  const typeConfig = config.types[trainingType];
+  if (typeConfig === undefined) {
+    throw new InvalidTrainingInputError(`Geçersiz antrenman türü: "${String(trainingType)}".`);
+  }
+  return typeConfig;
 }
 
 /**
