@@ -59,8 +59,31 @@ jobs:
       - name: Install dependencies
         run: npm install
 
+      # GEÇİCİ TEŞHİS ADIMI (bu oturum): "Lint" adımı üç kez üst üste,
+      # farklı kod değişiklikleriyle (hatta değişiklik OLMADAN, sadece
+      # sürüm sabitlemesiyle) AYNI şekilde exit code 1 verdi, ama
+      # annotation panelinde hiçbir gerçek hata görünmüyor — sadece bilinen
+      # ve zararsız "no magic number" uyarıları. Ham iş günlüğü bu ortamdan
+      # (kimlik doğrulama gerektirdiği için) okunamadı. Bu adım, eslint'in
+      # TAM çıktısını (varsa gizli bir çökme/hata mesajını) doğrudan
+      # çalıştırma özetine (Summary sekmesi) yazdırır — hem annotation
+      # panelinden hem ham günlükten daha erişilebilir bir kanal. Kök neden
+      # bulunduktan sonra bu adım normal `npm run lint` çağrısına geri
+      # döndürülecektir.
       - name: Lint
-        run: npm run lint
+        run: |
+          set +e
+          npm run lint > /tmp/lint-output.txt 2>&1
+          code=$?
+          echo "eslint exit code: $code"
+          cat /tmp/lint-output.txt
+          {
+            echo "## Lint çıktısı (exit code: $code)"
+            echo '```'
+            cat /tmp/lint-output.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit $code
 
       - name: Typecheck
         run: npm run typecheck
