@@ -5,9 +5,16 @@
   // "Unexpected token 'export'" hatası verirdi. apps/web (Next.js) CommonJS
   // paketleri sorunsuz tüketir, bu yüzden bu geçersiz kılma her iki tüketici
   // için de güvenlidir.
+  //
+  // "moduleResolution": "Node10" — bunu da geçersiz kılmak ZORUNLUDUR:
+  // tsconfig.base.json'daki "moduleResolution": "Bundler", yalnızca
+  // "module": "preserve"/"es2015"+ ile uyumludur; "CommonJS" ile birlikte
+  // TS5095 hatası verir ("Option 'bundler' can only be used when 'module'
+  // is set to..."). "Node10", CommonJS için doğru/klasik çözümleme modudur.
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "module": "CommonJS",
+    "moduleResolution": "Node10",
     "outDir": "dist",
     "rootDir": "src"
   },

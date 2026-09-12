@@ -276,6 +276,25 @@ game-config`'in `tsconfig.json`'larına `"module": "CommonJS"` geçersiz
 kılması eklendi (yerel `tsc` ile derlenip CommonJS çıktı ürettiği
 doğrulandı).
 
+**Hata 3 — `moduleResolution: Bundler` + `module: CommonJS` uyumsuzluğu:**
+Hata 2'nin düzeltmesi CI'da yeni bir hata açığa çıkardı: "Option 'bundler'
+can only be used when 'module' is set to 'preserve' or to 'es2015' or
+later." `tsconfig.base.json`'daki `"moduleResolution": "Bundler"`,
+`"module": "CommonJS"` ile uyumsuzdur (TypeScript bunu artık sert bir
+hata olarak işaretliyor). Düzeltme: her iki paketin `tsconfig.json`'ına
+`"moduleResolution": "Node10"` eklendi (CommonJS için doğru/klasik
+çözümleme modu). Simüle edilmiş `node_modules` symlink'leri ile uçtan uca
+doğrulandı (bir domain dosyasının hem `@at-sevdalisi/shared-types` hem
+`@at-sevdalisi/game-config`'i gerçek paket adlarıyla çözümleyebildiği
+test edildi) — bu üçüncü hatanın son olacağına dair yüksek güven var,
+ancak CI yine de nihai doğrulama kaynağıdır.
+
+*(Not: Bu ortamdaki yerel `tsc` sürümü — 6.0.3 — "Node10"u zaten
+kaldırılmaya aday gösterip zararsız bir uyarı/hata satırı basıyor; ancak
+tüm `package.json` dosyaları `"typescript": "^5.5.0"` ile sabitlendiğinden
+gerçek CI ortamı ASLA TypeScript 6.x kurmaz, bu satır yalnızca yerel
+doğrulamaya özgü kozmetik bir gürültüdür.)*
+
 ---
 
 ## 10. Ek öneriler — proje sahibine sunulan geliştirme fırsatları
