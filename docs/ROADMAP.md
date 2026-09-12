@@ -326,6 +326,15 @@ doğrulanamıyor) yüzünden CI'da ortaya çıktı — kodun geri kalanında
 (Three.js/`@react-three/fiber` API kullanımı dahil) başka HİÇBİR hata
 bulunmadı, sadece bu tek tsconfig eksikliği.
 
+**Doğrulama (bu oturum):** düzeltme gönderildikten sonra GitHub Actions CI
+run'ı (commit `c47e85c`, "fix(build): apps/web tsconfig.json'a DOM lib
+eklendi") çalışma detay sayfasından **Success** olarak doğrulandı (1m 47s,
+tek uyarılar bilinen/engelleyici olmayan "no magic number" lint notları ve
+Node 20→24 deprecation notu). Böylece FAZ 6'nın basit-şekillerle iskelet
+kapsamı (pist/kamera/oynatma mantığı + Three.js sahne + demo ekranı) uçtan
+uca yeşil olarak doğrulanmıştır; kalan kapsam dışı kalemler (gerçek 3D
+asset'ler, NestJS wiring) yukarıda listelenmiştir.
+
 ## Açık kararlar (proje sahibinin onayı bekleniyor)
 
 Bkz. `ARCHITECTURE.md` §10 için tam liste ve gerekçeler. Özet:
