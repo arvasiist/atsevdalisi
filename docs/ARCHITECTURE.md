@@ -268,6 +268,16 @@ edildiği, bu geliştirme ortamındaki kısıttan etkilenmediği anlamına gelir
 — CI sonucu bu nedenle NestJS/Next.js gibi framework koduna dair gerçek
 bir doğrulama sinyali olarak güvenle kullanılabilir (bkz. §9.1).
 
+**Yeni CI yeteneği (FAZ 1 wiring, bu oturum):** `.github/workflows/ci.yml`
+artık job süresince ayakta duran geçici bir `postgres:16-alpine` "service
+container" başlatıyor ve "Test" adımından önce `npm run migrate`
+çalıştırıyor. Bu, projede İLK KEZ gerçek bir veritabanına karşı e2e test
+çalıştırılabildiği anlamına gelir (`apps/api/test/api/player.e2e-spec.ts`,
+ayrıca daha önce bir glob-eşleşme kusuru yüzünden hiç koşmamış olan
+`health.e2e-spec.ts` — bkz. `docs/ROADMAP.md` "FAZ 1 wiring" bölümü).
+Service container job bitince otomatik silinir; kalıcı veri/maliyet
+oluşturmaz.
+
 ### 9.1. CI'da bulunan gerçek hatalar (düzeltildi)
 
 **Hata 1 — lock dosyası eksik:** İlk 4 push'ta (`f05e9f1`, `b4ec0cd`,

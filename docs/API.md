@@ -109,6 +109,27 @@ GET /api/v1/player/stats
 `GET /api/v1/player/me` yanıtı, brief §38 Ana Sayfa kartlarının doğrudan
 karşılığıdır: `level`, `xp`, `money`, `gems`, `reputation`.
 
+**Uygulama durumu (FAZ 1 wiring, bu oturum):** yukarıdaki üç uç nokta
+gelecekteki gerçek Google/Apple oturum akışına (brief §7) aittir ve henüz
+BAĞLANMAMIŞTIR. Bunun yerine, "en küçük uçtan uca dilim" olarak, GEÇİCİ
+bir doğrudan kayıt çifti gerçek PostgreSQL'e bağlanmıştır:
+
+```http
+POST /api/v1/players
+GET  /api/v1/players/{id}
+```
+
+`POST /api/v1/players` gövdesi `{ username, displayName, avatarId? }`
+alır (username: 3-20 karakter, `[a-z0-9_]`), yeni oyuncuyu oluşturur ve
+`{ id, displayName, avatarId, level, xp, money, gems }` (`PlayerSummary`)
+döner. Kullanıcı adı doluysa `409 USERNAME_ALREADY_TAKEN`, format
+hatalıysa `400 VALIDATION_ERROR` döner. `GET /api/v1/players/{id}`
+bulunamazsa `404 PLAYER_NOT_FOUND`, id UUID formatında değilse
+`400 VALIDATION_ERROR` döner. Bu uç noktalar `docs/ROADMAP.md` "FAZ 1
+wiring" bölümünde açıklandığı gibi geçicidir; gerçek OAuth eklendiğinde
+üstteki üç uç nokta bağlanacak, `RegisterPlayerUseCase` DEĞİŞMEDEN
+kalacaktır.
+
 ## 4. Horses (Ahır)
 
 ```http
@@ -283,3 +304,5 @@ lobby.update       — online yarış lobisi (brief §41)
 | `LISTING_NOT_FOUND` | Pazar ilanı bulunamadı veya süresi doldu |
 | `IDEMPOTENCY_KEY_REQUIRED` | Kritik işlemde `Idempotency-Key` header'ı eksik |
 | `VALIDATION_ERROR` | İstek gövdesi şema doğrulamasından geçemedi |
+| `USERNAME_ALREADY_TAKEN` | Kayıt sırasında seçilen kullanıcı adı zaten alınmış (FAZ 1 wiring) |
+| `PLAYER_NOT_FOUND` | Verilen id'ye ait oyuncu bulunamadı (FAZ 1 wiring) |

@@ -6,6 +6,7 @@
 
 import type { EconomyConfig } from '@at-sevdalisi/game-config';
 import type { Player } from '@at-sevdalisi/shared-types';
+import { UsernameAlreadyTakenError } from './errors';
 import { validateDisplayName, validateUsername } from './validation';
 
 export interface NewPlayerInput {
@@ -40,4 +41,18 @@ export function createNewPlayer(input: NewPlayerInput, economyConfig: EconomyCon
     createdAt: now,
     updatedAt: now,
   };
+}
+
+/**
+ * FAZ 1 wiring — brief §7 `players.username` UNIQUE. `isUsernameTaken`,
+ * infrastructure katmanının (repository) DB'de önceden yaptığı bir
+ * sorgunun SONUCUDUR — bu fonksiyon kendisi asla DB'ye erişmez (domain
+ * kuralı, bkz. docs/ARCHITECTURE.md §4); `domain/club/club.ts`'teki
+ * `joinClub`'ın `playerHasAnyClubMembership: boolean` parametresiyle aynı
+ * desen.
+ */
+export function assertUsernameAvailable(username: string, isUsernameTaken: boolean): void {
+  if (isUsernameTaken) {
+    throw new UsernameAlreadyTakenError(username);
+  }
 }

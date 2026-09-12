@@ -1,3 +1,5 @@
+import { PlayerDemoWidget } from '../features/player-demo/PlayerDemoWidget';
+
 /**
  * FAZ 0 durum sayfası.
  *
@@ -5,6 +7,10 @@
  * o ekran, gerçek API verisiyle FAZ 1'de `docs/GAME_DESIGN.md` §4'e göre
  * inşa edilecektir. Bu sayfa, FAZ 0 kapsamında sadece iskeletin ayakta
  * olduğunu ve bir sonraki adımın ne olduğunu göstermek için vardır.
+ *
+ * FAZ 1 wiring (bu oturum): sayfanın sonuna, gerçek API + veritabanı
+ * bağlantısını tarayıcıdan kanıtlayan küçük bir istemci widget'ı
+ * (`PlayerDemoWidget`) eklendi — bkz. o dosyanın doc-comment'i.
  */
 
 interface ModuleStatus {
@@ -99,6 +105,8 @@ export default function HomePage(): React.ReactElement {
           ))}
         </div>
       </section>
+
+      <PlayerDemoWidget />
 
       <footer style={{ marginTop: 'var(--space-xl)', color: 'var(--color-text-muted)', fontSize: '12px' }}>
         Kaynak: <code>docs/PROJECT_BRIEF.md</code> · Mimari:{' '}

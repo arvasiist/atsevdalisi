@@ -10,7 +10,7 @@
 | Faz | Adı | Kapsam | Durum |
 |---|---|---|---|
 | **0** | Teknik keşif ve planlama | Repo, mimari, dokümantasyon, DB migration altyapısı, test altyapısı | ✅ Tamamlandı |
-| 1 | Core | Player, Auth, Economy, Horse, Stable, Training, Care, Basic Race Engine, Race Result, Progression | 🟡 Domain katmanı tamam, wiring bekliyor |
+| 1 | Core | Player, Auth, Economy, Horse, Stable, Training, Care, Basic Race Engine, Race Result, Progression | 🟡 Domain katmanı tamam; **Player alt-modülü gerçek veritabanına bağlandı** (bkz. "FAZ 1 wiring" bölümü), geri kalanı wiring bekliyor |
 | 2 | Management | Horse Market, Buy/Sell, Vet, Farrier, Nutrition, Jockey, Staff, Stable capacity, Costs | 🟡 Domain katmanı tamam, wiring bekliyor |
 | 3 | Genetics | Pedigree, Mare/Stallion, Genetic traits, Inheritance, Mutation, Foal, Growth, Bloodline | 🟡 Domain katmanı tamam, wiring bekliyor |
 | 4 | Farm | Stable upgrade, Paddock, Training track, Vet center, Breeding center, Staff facilities | 🟡 Domain katmanı tamam, wiring bekliyor |
@@ -404,6 +404,103 @@ deprecation notu — İLK denemede, hiçbir düzeltme gerekmeden). Bu, yukarıda
 yerel 294/294 test sonucunu bağımsız olarak teyit eder ve yol haritasındaki
 8 fazın (Faz 0-7) TÜM domain/oyun kuralı katmanının tamamlandığını
 doğrular.
+
+## FAZ 1 wiring — İlk uçtan uca dilim (bu oturum)
+
+Faz 0-7'nin tümü "domain katmanı tamam, wiring bekliyor" seviyesine
+ulaştıktan sonra proje sahibine ("Sen ne önerirsin?") sorulmuş ve şu yol
+onaylanmıştır: canlıya alma (hosting hesapları, bkz. `ARCHITECTURE.md`
+§8) işini ERTELEYİP, önce en küçük "uçtan uca dilim"i — Player kaydı +
+Ana Sayfa'daki bir demo widget'ı — GERÇEK bir PostgreSQL'e bağlayıp bunu
+GitHub CI üzerinde bağımsız olarak doğrulamak. Bu bölüm o dilimi
+belgeler.
+
+**Neden Player ve neden bu kadar küçük:** Player, tüm diğer modüllerin
+(Economy, Horse, Race, ...) sahiplik ilişkisi kurduğu kök varlıktır; en
+az bağımlılığa sahip olduğu için "wiring deseni"nin (Controller →
+Use-Case → Repository → Postgres, artı domain hata → HTTP eşlemesi) ilk
+kez KANITLANMASI için en düşük riskli modüldür. Kapsam kasıtlı olarak
+dar tutulmuştur: gerçek Google/Apple OAuth (brief §7) DEĞİL, geçici bir
+doğrudan kayıt uç noktası (yalnızca kullanıcı adı + görünen ad);
+`RegisterPlayerUseCase`'in kendisi OAuth eklendiğinde DEĞİŞMEYECEK,
+yalnızca onu çağıran controller/DTO değişecektir (bkz. o dosyanın
+doc-comment'i). Redis de bilinçli olarak bağlanmadı — bu ilk dilimde
+cache/idempotency gerekmiyor.
+
+**Eklenen backend parçaları:**
+- `apps/api/src/application/ports/player.repository.ts` — `PlayerRepository`
+  arayüzü + `PLAYER_REPOSITORY` DI token'ı (port/adapter deseni).
+- `apps/api/src/application/use-cases/{register-player,get-player}.use-case.ts`
+  — application katmanı, domain'i (`createNewPlayer`,
+  `assertUsernameAvailable`) ve repository portunu birleştirir.
+- `apps/api/src/domain/player/player.ts` — yeni `assertUsernameAvailable`
+  saf fonksiyonu (FAZ 7'deki `joinClub`'ın `playerHasAnyClubMembership`
+  deseniyle birebir tutarlı: DB sorgusunu KENDİSİ yapmaz, çağıranın
+  önceden getirdiği bir boolean'ı değerlendirir).
+- `apps/api/src/domain/player/errors.ts` — `UsernameAlreadyTakenError`,
+  `PlayerNotFoundError`.
+- `apps/api/src/infrastructure/player/postgres-player.repository.ts` —
+  `PlayerRepository`'nin gerçek `pg` implementasyonu (`players` tablosu).
+  BIGINT (`xp`/`money`/`gems`) sütunları `pg`'den string olarak gelir;
+  satır eşleyicisi bunları bilinçli olarak `Number(...)`'a çevirir.
+- `apps/api/src/api/player/{player.controller.ts,player.module.ts,dto/register-player.dto.ts}`
+  — `POST /players`, `GET /players/:id`.
+- `apps/api/src/api/middleware/http-exception.filter.ts` — genişletilen
+  `DOMAIN_ERROR_MAP`: domain hata sınıfı → (HTTP durumu, hata kodu).
+  Yeni bir modül bağlandıkça buraya bir satır eklenir; domain katmanı
+  HTTP'yi hiçbir zaman bilmez (`ARCHITECTURE.md` §4).
+- `apps/api/src/app.module.ts` — `DatabaseModule` + `PlayerModule` bağlandı.
+- `packages/shared-types/src/error-codes.ts` — `USERNAME_ALREADY_TAKEN`,
+  `PLAYER_NOT_FOUND`.
+
+**Eklenen web parçası:** `apps/web/src/features/player-demo/PlayerDemoWidget.tsx`
+— Ana Sayfa'nın (`apps/web/src/app/page.tsx`) sonuna eklenen, bilinçli
+olarak İSTEMCİ (`'use client'`) bir widget. "Demo oyuncu oluştur"
+düğmesi tarayıcıdan gerçek `POST /players` isteği atar ve dönen
+seviye/XP/para/gem değerlerini gösterir. Gerçek Ana Sayfa TASARIMI
+(`GAME_DESIGN.md` §4) DEĞİLDİR — yalnızca zincirin uçtan uca çalıştığını
+kanıtlamak içindir. İstemci bileşeni seçilmesinin nedeni: bir sunucu
+bileşeni build/prerender sırasında veri çekmeye çalışsaydı, CI'daki
+`next build` adımı canlı bir API olmadığı için başarısız olurdu.
+
+**Yeni CI yeteneği:** `.github/workflows/ci.yml`'e bir `postgres:16-alpine`
+"service container" eklendi (job süresince ayakta durur, iş bitince
+otomatik silinir) ve "Typecheck" ile "Test" arasına `npm run migrate`
+adımı eklendi. Bu, projede İLK KEZ gerçek bir veritabanına karşı
+uçtan uca (e2e) test çalıştırma imkanı sağlar.
+
+**Yeni e2e test:** `apps/api/test/api/player.e2e-spec.ts` — gerçek
+PostgreSQL gerektirir, bu yüzden bu geliştirme ortamında ÇALIŞTIRILAMAZ
+(`ARCHITECTURE.md` §9); yalnızca CI'da doğrulanır.
+
+**Bu oturumda bulunan ve düzeltilen gerçek bir kusur:** Kök
+`vitest.config.ts`'in `include` deseni yalnızca `*.spec.ts` ile
+eşleşiyordu — `*.e2e-spec.ts` İLE DEĞİL (dosya adının "spec.ts"den hemen
+önceki karakteri bir nokta değil, tire). Bu, projenin FAZ 0'dan beri var
+olan tek e2e testinin (`health.e2e-spec.ts`) hiçbir CI çalıştırmasında
+GERÇEKTEN hiç koşmadığı anlamına geliyordu — sessiz, fark edilmemiş bir
+test-altyapısı boşluğu. `apps/*/test/**/*.e2e-spec.ts` deseni eklenerek
+düzeltildi; ayrıca `apps/api` kendi cwd-yerel `vitest.config.ts`'ine
+kavuşturuldu (npm workspace script'leri her paketi kendi dizininde
+çalıştırdığı için kök config otomatik bulunmuyordu).
+
+**Doğrulama (bu oturum, yerel):** `apps/api/tsconfig.domain.json` ile
+domain katmanı (yeni `assertUsernameAvailable`/`UsernameAlreadyTakenError`/
+`PlayerNotFoundError` dahil) `tsc --noEmit --ignoreDeprecations 6.0` ile
+temiz derlendi. Geçici bir `vitest` shim'i + test runner ile (bu araçlar
+commit edilmedi) framework'ten bağımsız TÜM test seti (296 test: önceki
+294 + yeni `assertUsernameAvailable` için 2 test) çalıştırıldı —
+**296/296 geçti**. NestJS/pg gerektiren dosyalar (controller, repository,
+`player.e2e-spec.ts`) bu ortamda kurulu olmayan paketleri import ettiği
+için yerel olarak doğrulanamaz (`ARCHITECTURE.md` §9, FAZ 6'daki
+Three.js/React dosyalarıyla AYNI kabul edilmiş risk deseni) — bunlar
+GitHub CI'ın yeni Postgres servisiyle doğrulanacaktır.
+
+**Kapsam dışı (bilinçli, sonraki adımlar):** gerçek Google/Apple OAuth,
+Redis wiring, Economy/Horse/Stable/Training/Care/Race Engine modüllerinin
+bağlanması (brief §73 sırasıyla devam edecek), canlı barındırma/deploy
+(Vercel/Railway/Supabase — proje sahibinin dış hesap açması gereken bir
+adım, ayrı ve daha sonraki bir onayla başlatılacaktır).
 
 ## Açık kararlar (proje sahibinin onayı bekleniyor)
 

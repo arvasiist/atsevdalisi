@@ -1,0 +1,51 @@
+import { randomUUID } from 'node:crypto';
+import { Inject, Injectable } from '@nestjs/common';
+import type { Player } from '@at-sevdalisi/shared-types';
+import { assertUsernameAvailable, createNewPlayer } from '../../domain/player/player';
+import { AppConfigService } from '../../infrastructure/config/config.service';
+import { PLAYER_REPOSITORY, type PlayerRepository } from '../ports/player.repository';
+
+export interface RegisterPlayerInput {
+  username: string;
+  displayName: string;
+  avatarId?: string | null;
+}
+
+/**
+ * FAZ 1 wiring — brief §7/§31 kayıt akışının kimlik doğrulama
+ * sağlayıcısından BAĞIMSIZ kısmı (bkz. `domain/player/player.ts` üstündeki
+ * not). Gerçek Google/Apple ID token doğrulaması (brief §41/§50) bu
+ * teslimatın kapsamı DIŞINDADIR — bu, proje sahibinin Google/Apple
+ * geliştirici konsolunda OAuth kimlik bilgileri (client id/secret)
+ * oluşturmasını gerektirir (canlıya alma/hosting hesaplarıyla aynı
+ * kategoride, dışarıdan bir kurulum adımı). Bu use-case, o adım
+ * tamamlanana kadar geliştirme/test amaçlı DOĞRUDAN kayıt sağlar; gerçek
+ * OAuth eklendiğinde bu use-case DEĞİŞMEZ — sadece onu çağıran controller,
+ * `username`/`displayName`'i client'tan değil, doğrulanmış sağlayıcı
+ * kimliğinden türetilen bir değerden alacak şekilde güncellenir.
+ */
+@Injectable()
+export class RegisterPlayerUseCase {
+  constructor(
+    @Inject(PLAYER_REPOSITORY) private readonly playerRepository: PlayerRepository,
+    private readonly config: AppConfigService,
+  ) {}
+
+  async execute(input: RegisterPlayerInput): Promise<Player> {
+    const existing = await this.playerRepository.findByUsername(input.username);
+    assertUsernameAvailable(input.username, existing !== null);
+
+    const player = createNewPlayer(
+      {
+        id: randomUUID(),
+        username: input.username,
+        displayName: input.displayName,
+        avatarId: input.avatarId ?? null,
+      },
+      this.config.economy,
+    );
+
+    await this.playerRepository.save(player);
+    return player;
+  }
+}

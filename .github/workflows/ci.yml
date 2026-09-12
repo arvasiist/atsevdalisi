@@ -24,6 +24,31 @@ on:
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
+
+    # FAZ 1 wiring (bu oturum): apps/api/test/api/player.e2e-spec.ts artık
+    # GERÇEK bir PostgreSQL'e karşı çalışıyor (domain/API/infra katmanlarının
+    # doğru bağlandığının kanıtı — sadece typecheck/build değil). GitHub
+    # Actions'ın "service container" özelliği, job boyunca ayakta duran
+    # geçici bir Postgres örneği sağlar; job bitince otomatik silinir,
+    # kalıcı bir veri/maliyet oluşturmaz.
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: at_sevdalisi
+          POSTGRES_PASSWORD: at_sevdalisi
+          POSTGRES_DB: at_sevdalisi
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U at_sevdalisi"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgres://at_sevdalisi:at_sevdalisi@localhost:5432/at_sevdalisi
+
     steps:
       - uses: actions/checkout@v4
 
@@ -39,6 +64,9 @@ jobs:
 
       - name: Typecheck
         run: npm run typecheck
+
+      - name: Run database migrations
+        run: npm run migrate
 
       - name: Test
         run: npm run test
