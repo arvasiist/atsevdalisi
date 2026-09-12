@@ -14,6 +14,11 @@ import { PlayerController } from './player.controller';
  * `HorseModule` import edilir çünkü `RegisterPlayerUseCase` artık yeni
  * oyuncuya bir başlangıç atı da veriyor (bkz. `HORSE_REPOSITORY`,
  * `domain/horse/horse.ts` — FAZ 1 wiring, ikinci dilim).
+ *
+ * `PLAYER_REPOSITORY` burada `exports` edilir çünkü `StableModule`
+ * (FAZ 1 wiring, üçüncü dilim — Ahır Özeti) bu modülü import edip AYNI
+ * repository sağlayıcısını kullanır — `HorseModule`'ün `HORSE_REPOSITORY`'yi
+ * exports etmesiyle AYNI desen.
  */
 @Module({
   imports: [HorseModule],
@@ -23,5 +28,6 @@ import { PlayerController } from './player.controller';
     GetPlayerUseCase,
     { provide: PLAYER_REPOSITORY, useClass: PostgresPlayerRepository },
   ],
+  exports: [PLAYER_REPOSITORY],
 })
 export class PlayerModule {}

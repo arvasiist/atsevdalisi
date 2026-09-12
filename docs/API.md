@@ -134,6 +134,10 @@ kalacaktır.
 /api/v1/players` artık yeni oyuncuya otomatik olarak bir başlangıç atı
 da veriyor — bkz. §4 "Uygulama durumu".
 
+**Güncelleme (FAZ 1 wiring, üçüncü dilim, bu oturum):** `Player` domain
+tipine `stableLevel` alanı eklendi (DB'de zaten `players.stable_level`
+olarak vardı, FAZ 1'den beri bağlı değildi — bkz. §4 "Ahır Özeti").
+
 ## 4. Horses (Ahır)
 
 ```http
@@ -193,6 +197,36 @@ tasarım kararıdır (at olmadan Antrenman/Bakım/Yarış ekranları gösterilem
 `horse_stats`/`horse_surface_stats`/`horse_distance_stats`/`horse_health`
 tablolarının okunması/yazılması bu dilimin KAPSAMI DIŞINDADIR — Antrenman/
 Bakım wiring'i sırasında eklenecektir.
+
+### Ahır Özeti (FAZ 1 wiring, üçüncü dilim, bu oturum)
+
+```http
+GET /api/v1/players/{id}/stable-summary
+```
+
+brief §38 Ana Sayfa "Ahır Özeti" kartının karşılığıdır. `Player.stableLevel`
+(§3, `database/migrations/0012_...`) ve o oyuncuya ait atları birleştirip
+`config/stable.config.json`'a göre kapasite/ortalama kondisyon/sağlık
+uyarılarını hesaplar. Örnek yanıt:
+
+```json
+{
+  "success": true,
+  "data": {
+    "stableLevel": 1,
+    "horseCount": 1,
+    "capacity": 5,
+    "averageCondition": 75,
+    "healthWarnings": []
+  }
+}
+```
+
+Oyuncu bulunamazsa `404 PLAYER_NOT_FOUND`, id UUID formatında değilse
+`400 VALIDATION_ERROR` döner. Ahır yükseltme (`POST .../stable/upgrade`,
+brief §32) bu dilimin KAPSAMI DIŞINDADIR — `getNextStableUpgradeCost`
+zaten domain katmanında hazır, gerçek para düşme akışı (Economy'nin
+`debit` fonksiyonu) ile birlikte ayrı bir wiring dilimini hak eder.
 
 ## 5. Market (At Pazarı)
 
