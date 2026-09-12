@@ -1,0 +1,657 @@
+{
+  "horseNamesById": {
+    "simsek": "Şimşek",
+    "karayel": "Kara Yel",
+    "firtina": "Fırtına",
+    "bulut": "Bulut",
+    "prens": "Prens"
+  },
+  "timeline": {
+    "raceId": "demo-race-faz6",
+    "simulationSeed": "at-sevdalisi-faz6-demo-v1",
+    "segments": [
+      {
+        "raceEntryId": "simsek",
+        "segmentDistanceMeters": 200,
+        "timestampMs": 15393,
+        "positionMeters": 200,
+        "speed": 12.993220712967922,
+        "stamina": 85.625,
+        "fatigue": 12,
+        "lane": 1,
+        "tacticalState": "front_runner",
+        "currentRank": 1,
+        "blocked": false,
+        "decision": "defend_position"
+      },
+      {
+        "raceEntryId": "karayel",
+        "segmentDistanceMeters": 200,
+        "timestampMs": 18507,
+        "positionMeters": 200,
+        "speed": 10.806799733937897,
+        "stamina": 87.5,
+        "fatigue": 12,
+        "lane": 3,
+        "tacticalState": "tracker",
+        "currentRank": 5,
+        "blocked": false,
+        "decision": "search_overtake_lane"
+      },
+      {
+        "raceEntryId": "firtina",
+        "segmentDistanceMeters": 200,
+        "timestampMs": 17472,
+        "positionMeters": 200,
+        "speed": 11.446849349253009,
+        "stamina": 87.5,
+        "fatigue": 12,
+        "lane": 2,
+        "tacticalState": "mid_pack",
+        "currentRank": 2,
+        "blocked": false,
+        "decision": "search_overtake_lane"
+      },
+      {
+        "raceEntryId": "bulut",
+        "segmentDistanceMeters": 200,
+        "timestampMs": 17986,
+        "positionMeters": 200,
+        "speed": 11.119567540453025,
+        "stamina": 87.5,
+        "fatigue": 12,
+        "lane": 2,
+        "tacticalState": "mid_pack",
+        "currentRank": 3,
+        "blocked": false,
+        "decision": "search_overtake_lane"
+      },
+      {
+        "raceEntryId": "prens",
+        "segmentDistanceMeters": 200,
+        "timestampMs": 18248,
+        "positionMeters": 200,
+        "speed": 10.960079981145368,
+        "stamina": 89.375,
+        "fatigue": 12,
+        "lane": 3,
+        "tacticalState": "closer",
+        "currentRank": 4,
+        "blocked": false,
+        "decision": "search_overtake_lane"
+      },
+      {
+        "raceEntryId": "simsek",
+        "segmentDistanceMeters": 200,
+        "timestampMs": 33106,
+        "positionMeters": 400,
+        "speed": 11.29077810079675,
+        "stamina": 71.25,
+        "fatigue": 12,
+        "lane": 1,
+        "tacticalState": "front_runner",
+        "currentRank": 1,
+        "blocked": false,
+        "decision": "hold"
+      },
+      {
+        "raceEntryId": "karayel",
+        "segmentDistanceMeters": 200,
+        "timestampMs": 35487,
+        "positionMeters": 400,
+        "speed": 11.778543118418373,
+        "stamina": 75,
+        "fatigue": 12,
+        "lane": 2,
+        "tacticalState": "tracker",
+        "currentRank": 3,
+        "blocked": false,
+        "decision": "search_overtake_lane"
+      },
+      {
+        "raceEntryId": "firtina",
+        "segmentDistanceMeters": 200,
+        "timestampMs": 34779,
+        "positionMeters": 400,
+        "speed": 11.556280033730099,
+        "stamina": 75,
+        "fatigue": 12,
+        "lane": 2,
+        "tacticalState": "mid_pack",
+        "currentRank": 2,
+        "blocked": false,
+        "decision": "hold"
+      },
+      {
+        "raceEntryId": "bulut",
+        "segmentDistanceMeters": 200,
+        "timestampMs": 35968,
+        "positionMeters": 400,
+        "speed": 11.122726877973623,
+        "stamina": 75,
+        "fatigue": 12,
+        "lane": 2,
+        "tacticalState": "mid_pack",
+        "currentRank": 4,
+        "blocked": false,
+        "decision": "defend_position"
+      },
+      {
+        "raceEntryId": "prens",
+        "segmentDistanceMeters": 200,
+        "timestampMs": 38327,
+        "positionMeters": 400,
+        "speed": 9.960441289332614,
+        "stamina": 78.75,
+        "fatigue": 12,
+        "lane": 2,
+        "tacticalState": "closer",
+        "currentRank": 5,
+        "blocked": false,
+        "decision": "search_overtake_lane"
+      },
+      {
+        "raceEntryId": "simsek",
+        "segmentDistanceMeters": 200,
+        "timestampMs": 49890,
+        "positionMeters": 600,
+        "speed": 11.916171168275884,
+        "stamina": 56.875,
+        "fatigue": 12,
+        "lane": 1,
+        "tacticalState": "front_runner",
+        "currentRank": 1,
+        "blocked": false,
+        "decision": "hold"
+      },
+      {
+        "raceEntryId": "karayel",
+        "segmentDistanceMeters": 200,
+        "timestampMs": 52809,
+        "positionMeters": 600,
+        "speed": 11.545695896805444,
+        "stamina": 62.5,
+        "fatigue": 12,
+        "lane": 2,
+        "tacticalState": "tracker",
+        "currentRank": 2,
+        "blocked": false,
+        "decision": "hold"
+      },
+      {
+        "raceEntryId": "firtina",
+        "segmentDistanceMeters": 200,
+        "timestampMs": 54016,
+        "positionMeters": 600,
+        "speed": 10.39644633474214,
+        "stamina": 62.5,
+        "fatigue": 12,
+        "lane": 2,
+        "tacticalState": "mid_pack",
+        "currentRank": 3,
+        "blocked": false,
+        "decision": "hold"
+      },
+      {
+        "raceEntryId": "bulut",
+        "segmentDistanceMeters": 200,
+        "timestampMs": 56917,
+        "positionMeters": 600,
+        "speed": 9.546670491473026,
+        "stamina": 62.5,
+        "fatigue": 12,
+        "lane": 2,
+        "tacticalState": "mid_pack",
+        "currentRank": 4,
+        "blocked": false,
+        "decision": "hold"
+      },
+      {
+        "raceEntryId": "prens",
+        "segmentDistanceMeters": 200,
+        "timestampMs": 57015,
+        "positionMeters": 600,
+        "speed": 10.702446105447518,
+        "stamina": 68.125,
+        "fatigue": 12,
+        "lane": 2,
+        "tacticalState": "closer",
+        "currentRank": 5,
+        "blocked": false,
+        "decision": "hold"
+      },
+      {
+        "raceEntryId": "simsek",
+        "segmentDistanceMeters": 200,
+        "timestampMs": 68003,
+        "positionMeters": 800,
+        "speed": 11.041718412258438,
+        "stamina": 42.5,
+        "fatigue": 12,
+        "lane": 1,
+        "tacticalState": "front_runner",
+        "currentRank": 1,
+        "blocked": false,
+        "decision": "hold"
+      },
+      {
+        "raceEntryId": "karayel",
+        "segmentDistanceMeters": 200,
+        "timestampMs": 72114,
+        "positionMeters": 800,
+        "speed": 10.36005255484692,
+        "stamina": 50,
+        "fatigue": 12,
+        "lane": 2,
+        "tacticalState": "tracker",
+        "currentRank": 2,
+        "blocked": false,
+        "decision": "hold"
+      },
+      {
+        "raceEntryId": "firtina",
+        "segmentDistanceMeters": 200,
+        "timestampMs": 73493,
+        "positionMeters": 800,
+        "speed": 10.268465260170531,
+        "stamina": 50,
+        "fatigue": 12,
+        "lane": 2,
+        "tacticalState": "mid_pack",
+        "currentRank": 3,
+        "blocked": false,
+        "decision": "hold"
+      },
+      {
+        "raceEntryId": "bulut",
+        "segmentDistanceMeters": 200,
+        "timestampMs": 75177,
+        "positionMeters": 800,
+        "speed": 10.953308769569942,
+        "stamina": 50,
+        "fatigue": 12,
+        "lane": 2,
+        "tacticalState": "mid_pack",
+        "currentRank": 5,
+        "blocked": false,
+        "decision": "defend_position"
+      },
+      {
+        "raceEntryId": "prens",
+        "segmentDistanceMeters": 200,
+        "timestampMs": 74737,
+        "positionMeters": 800,
+        "speed": 11.285130139288412,
+        "stamina": 57.5,
+        "fatigue": 12,
+        "lane": 3,
+        "tacticalState": "closer",
+        "currentRank": 4,
+        "blocked": false,
+        "decision": "search_overtake_lane"
+      },
+      {
+        "raceEntryId": "simsek",
+        "segmentDistanceMeters": 200,
+        "timestampMs": 86766,
+        "positionMeters": 1000,
+        "speed": 10.659641700335554,
+        "stamina": 28.125,
+        "fatigue": 12,
+        "lane": 1,
+        "tacticalState": "front_runner",
+        "currentRank": 1,
+        "blocked": false,
+        "decision": "hold"
+      },
+      {
+        "raceEntryId": "karayel",
+        "segmentDistanceMeters": 200,
+        "timestampMs": 91784,
+        "positionMeters": 1000,
+        "speed": 10.167668217540898,
+        "stamina": 37.5,
+        "fatigue": 12,
+        "lane": 2,
+        "tacticalState": "tracker",
+        "currentRank": 2,
+        "blocked": false,
+        "decision": "hold"
+      },
+      {
+        "raceEntryId": "firtina",
+        "segmentDistanceMeters": 200,
+        "timestampMs": 92329,
+        "positionMeters": 1000,
+        "speed": 10.618295719407628,
+        "stamina": 37.5,
+        "fatigue": 12,
+        "lane": 2,
+        "tacticalState": "mid_pack",
+        "currentRank": 3,
+        "blocked": false,
+        "decision": "hold"
+      },
+      {
+        "raceEntryId": "bulut",
+        "segmentDistanceMeters": 200,
+        "timestampMs": 94566,
+        "positionMeters": 1000,
+        "speed": 10.31469394980485,
+        "stamina": 37.5,
+        "fatigue": 12,
+        "lane": 2,
+        "tacticalState": "mid_pack",
+        "currentRank": 4,
+        "blocked": false,
+        "decision": "hold"
+      },
+      {
+        "raceEntryId": "prens",
+        "segmentDistanceMeters": 200,
+        "timestampMs": 96049,
+        "positionMeters": 1000,
+        "speed": 9.38453139903854,
+        "stamina": 46.875,
+        "fatigue": 12,
+        "lane": 3,
+        "tacticalState": "closer",
+        "currentRank": 5,
+        "blocked": false,
+        "decision": "hold"
+      },
+      {
+        "raceEntryId": "simsek",
+        "segmentDistanceMeters": 200,
+        "timestampMs": 105794,
+        "positionMeters": 1200,
+        "speed": 10.510511540034686,
+        "stamina": 13.750000000000002,
+        "fatigue": 12,
+        "lane": 1,
+        "tacticalState": "front_runner",
+        "currentRank": 1,
+        "blocked": false,
+        "decision": "hold"
+      },
+      {
+        "raceEntryId": "karayel",
+        "segmentDistanceMeters": 200,
+        "timestampMs": 110622,
+        "positionMeters": 1200,
+        "speed": 10.617201316208757,
+        "stamina": 25,
+        "fatigue": 12,
+        "lane": 2,
+        "tacticalState": "tracker",
+        "currentRank": 2,
+        "blocked": false,
+        "decision": "hold"
+      },
+      {
+        "raceEntryId": "firtina",
+        "segmentDistanceMeters": 200,
+        "timestampMs": 111586,
+        "positionMeters": 1200,
+        "speed": 10.385465246401857,
+        "stamina": 25,
+        "fatigue": 12,
+        "lane": 2,
+        "tacticalState": "mid_pack",
+        "currentRank": 3,
+        "blocked": false,
+        "decision": "hold"
+      },
+      {
+        "raceEntryId": "bulut",
+        "segmentDistanceMeters": 200,
+        "timestampMs": 115503,
+        "positionMeters": 1200,
+        "speed": 9.552508916721887,
+        "stamina": 25,
+        "fatigue": 12,
+        "lane": 2,
+        "tacticalState": "mid_pack",
+        "currentRank": 5,
+        "blocked": false,
+        "decision": "hold"
+      },
+      {
+        "raceEntryId": "prens",
+        "segmentDistanceMeters": 200,
+        "timestampMs": 114793,
+        "positionMeters": 1200,
+        "speed": 10.669873522088615,
+        "stamina": 36.25,
+        "fatigue": 12,
+        "lane": 3,
+        "tacticalState": "closer",
+        "currentRank": 4,
+        "blocked": false,
+        "decision": "hold"
+      },
+      {
+        "raceEntryId": "simsek",
+        "segmentDistanceMeters": 200,
+        "timestampMs": 124547,
+        "positionMeters": 1400,
+        "speed": 10.664834278920566,
+        "stamina": 0,
+        "fatigue": 12,
+        "lane": 1,
+        "tacticalState": "front_runner",
+        "currentRank": 1,
+        "blocked": false,
+        "decision": "reduce_pace"
+      },
+      {
+        "raceEntryId": "karayel",
+        "segmentDistanceMeters": 200,
+        "timestampMs": 131733,
+        "positionMeters": 1400,
+        "speed": 9.473536668748773,
+        "stamina": 12.5,
+        "fatigue": 12,
+        "lane": 2,
+        "tacticalState": "tracker",
+        "currentRank": 2,
+        "blocked": false,
+        "decision": "hold"
+      },
+      {
+        "raceEntryId": "firtina",
+        "segmentDistanceMeters": 200,
+        "timestampMs": 132754,
+        "positionMeters": 1400,
+        "speed": 9.448142498128247,
+        "stamina": 12.5,
+        "fatigue": 12,
+        "lane": 2,
+        "tacticalState": "mid_pack",
+        "currentRank": 4,
+        "blocked": false,
+        "decision": "hold"
+      },
+      {
+        "raceEntryId": "bulut",
+        "segmentDistanceMeters": 200,
+        "timestampMs": 134603,
+        "positionMeters": 1400,
+        "speed": 10.471187627361365,
+        "stamina": 12.5,
+        "fatigue": 12,
+        "lane": 2,
+        "tacticalState": "mid_pack",
+        "currentRank": 5,
+        "blocked": false,
+        "decision": "hold"
+      },
+      {
+        "raceEntryId": "prens",
+        "segmentDistanceMeters": 200,
+        "timestampMs": 132713,
+        "positionMeters": 1400,
+        "speed": 11.160803837251349,
+        "stamina": 25.625,
+        "fatigue": 12,
+        "lane": 3,
+        "tacticalState": "closer",
+        "currentRank": 3,
+        "blocked": false,
+        "decision": "push_for_finish"
+      },
+      {
+        "raceEntryId": "simsek",
+        "segmentDistanceMeters": 200,
+        "timestampMs": 149946,
+        "positionMeters": 1600,
+        "speed": 7.874597111453498,
+        "stamina": 0,
+        "fatigue": 12,
+        "lane": 1,
+        "tacticalState": "front_runner",
+        "currentRank": 1,
+        "blocked": false,
+        "decision": "reduce_pace"
+      },
+      {
+        "raceEntryId": "karayel",
+        "segmentDistanceMeters": 200,
+        "timestampMs": 151594,
+        "positionMeters": 1600,
+        "speed": 10.07001325827948,
+        "stamina": 0,
+        "fatigue": 12,
+        "lane": 2,
+        "tacticalState": "tracker",
+        "currentRank": 3,
+        "blocked": false,
+        "decision": "reduce_pace"
+      },
+      {
+        "raceEntryId": "firtina",
+        "segmentDistanceMeters": 200,
+        "timestampMs": 152399,
+        "positionMeters": 1600,
+        "speed": 10.180957530968021,
+        "stamina": 0,
+        "fatigue": 12,
+        "lane": 2,
+        "tacticalState": "mid_pack",
+        "currentRank": 4,
+        "blocked": false,
+        "decision": "reduce_pace"
+      },
+      {
+        "raceEntryId": "bulut",
+        "segmentDistanceMeters": 200,
+        "timestampMs": 156184,
+        "positionMeters": 1600,
+        "speed": 9.267352305934974,
+        "stamina": 0,
+        "fatigue": 12,
+        "lane": 2,
+        "tacticalState": "mid_pack",
+        "currentRank": 5,
+        "blocked": false,
+        "decision": "reduce_pace"
+      },
+      {
+        "raceEntryId": "prens",
+        "segmentDistanceMeters": 200,
+        "timestampMs": 150725,
+        "positionMeters": 1600,
+        "speed": 11.103633904763779,
+        "stamina": 15,
+        "fatigue": 12,
+        "lane": 3,
+        "tacticalState": "closer",
+        "currentRank": 2,
+        "blocked": false,
+        "decision": "push_for_finish"
+      }
+    ],
+    "finalResult": [
+      {
+        "horseId": "simsek",
+        "finishTimeMs": 149946,
+        "finishPosition": 1,
+        "performanceScore": 67.93083830081508
+      },
+      {
+        "horseId": "prens",
+        "finishTimeMs": 150725,
+        "finishPosition": 2,
+        "performanceScore": 66.58354701434078
+      },
+      {
+        "horseId": "karayel",
+        "finishTimeMs": 151594,
+        "finishPosition": 3,
+        "performanceScore": 66.2652427849895
+      },
+      {
+        "horseId": "firtina",
+        "finishTimeMs": 152399,
+        "finishPosition": 4,
+        "performanceScore": 65.8600796662512
+      },
+      {
+        "horseId": "bulut",
+        "finishTimeMs": 156184,
+        "finishPosition": 5,
+        "performanceScore": 64.33438787444743
+      }
+    ],
+    "explanations": [
+      {
+        "horseId": "simsek",
+        "positives": [
+          "Yarış boyunca hiç bloklanmadan temiz bir koşu çıkardı."
+        ],
+        "negatives": [
+          "Yarış sırasında enerjisi tamamen tükendi, son bölümde performansı düştü."
+        ]
+      },
+      {
+        "horseId": "prens",
+        "positives": [
+          "Yarışın başında 4. sıradayken, bitişte 2. sıraya yükseldi.",
+          "Yarış boyunca hiç bloklanmadan temiz bir koşu çıkardı.",
+          "Finiş çizgisine güçlü bir final sprintiyle geldi."
+        ],
+        "negatives": []
+      },
+      {
+        "horseId": "karayel",
+        "positives": [
+          "Yarışın başında 5. sıradayken, bitişte 3. sıraya yükseldi.",
+          "Yarış boyunca hiç bloklanmadan temiz bir koşu çıkardı."
+        ],
+        "negatives": [
+          "Yarış sırasında enerjisi tamamen tükendi, son bölümde performansı düştü."
+        ]
+      },
+      {
+        "horseId": "firtina",
+        "positives": [
+          "Yarış boyunca hiç bloklanmadan temiz bir koşu çıkardı."
+        ],
+        "negatives": [
+          "Yarışın başında 2. sıradayken, bitişte 4. sıraya düştü.",
+          "Yarış sırasında enerjisi tamamen tükendi, son bölümde performansı düştü."
+        ]
+      },
+      {
+        "horseId": "bulut",
+        "positives": [
+          "Yarış boyunca hiç bloklanmadan temiz bir koşu çıkardı."
+        ],
+        "negatives": [
+          "Yarışın başında 3. sıradayken, bitişte 5. sıraya düştü.",
+          "Yarış sırasında enerjisi tamamen tükendi, son bölümde performansı düştü."
+        ]
+      }
+    ]
+  }
+}

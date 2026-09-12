@@ -1,0 +1,140 @@
+/**
+ * `RaceTimeline`'ı (brief §22-25, `docs/RACE_ENGINE.md` §5) zaman ekseninde
+ * "oynatmak" için saf yardımcı fonksiyonlar. Bu dosya framework'ten
+ * bağımsızdır (React/Three.js importu yoktur) ve `apps/api/src/domain/
+ * race/race-interpolation.ts` ile AYNI lineer ara değerleme algoritmasını
+ * uygular — ancak KASITLI OLARAK ayrı bir kopyadır, çünkü `apps/web`
+ * `apps/api/src/domain/*`'a bağımlı OLAMAZ (bağımlılık yönü tersine döner,
+ * aynı gerekçe `packages/shared-types/src/race.ts`'teki
+ * `RaceJockeyDecision` tekrarı için de geçerlidir).
+ *
+ * `docs/RACE_ENGINE.md` §1 ilkesi burada da geçerlidir: bu modül YENİ bir
+ * simülasyon YAPMAZ, zaten hesaplanmış (ve deterministik) segment kontrol
+ * noktaları arasında saf bir ara değerleme sağlar; sonucu asla değiştirmez.
+ */
+
+import type { RaceSegmentSnapshot, RaceTimeline } from '@at-sevdalisi/shared-types';
+
+export interface InterpolatedHorseState {
+  positionMeters: number;
+  speedMps: number;
+}
+
+/**
+ * Belirli bir at için, verilen `timestampMs` anındaki pozisyon/hızı, en
+ * yakın iki segment kontrol noktası arasında lineer ara değerleyerek
+ * döner. `timestampMs` ilk kontrol noktasından ÖNCEYSE start çizgisinden;
+ * SONRAYSA son kontrol noktasında sabit kalır.
+ */
+export function interpolateHorseStateAtTime(
+  segments: RaceSegmentSnapshot[],
+  raceEntryId: string,
+  timestampMs: number,
+): InterpolatedHorseState {
+  const horseSegments = segments
+    .filter((segment) => segment.raceEntryId === raceEntryId)
+    .sort((a, b) => a.timestampMs - b.timestampMs);
+
+  if (horseSegments.length === 0) {
+    return { positionMeters: 0, speedMps: 0 };
+  }
+
+  const firstSegment = horseSegments[0]!;
+  if (timestampMs <= firstSegment.timestampMs) {
+    const fraction = firstSegment.timestampMs > 0 ? clampFraction(timestampMs / firstSegment.timestampMs) : 1;
+    return { positionMeters: firstSegment.positionMeters * fraction, speedMps: firstSegment.speed };
+  }
+
+  for (let i = 1; i < horseSegments.length; i += 1) {
+    const previous = horseSegments[i - 1]!;
+    const current = horseSegments[i]!;
+    if (timestampMs <= current.timestampMs) {
+      const span = current.timestampMs - previous.timestampMs;
+      const fraction = span > 0 ? clampFraction((timestampMs - previous.timestampMs) / span) : 1;
+      return {
+        positionMeters: previous.positionMeters + (current.positionMeters - previous.positionMeters) * fraction,
+        speedMps: previous.speed + (current.speed - previous.speed) * fraction,
+      };
+    }
+  }
+
+  const lastSegment = horseSegments[horseSegments.length - 1]!;
+  return { positionMeters: lastSegment.positionMeters, speedMps: lastSegment.speed };
+}
+
+function clampFraction(value: number): number {
+  return Math.max(0, Math.min(1, value));
+}
+
+/** Bir `RaceTimeline` içindeki tüm at kimliklerini (sırasız) döner. */
+export function getHorseIdsFromTimeline(timeline: RaceTimeline): string[] {
+  const ids = new Set<string>();
+  for (const entry of timeline.finalResult) {
+    ids.add(entry.horseId);
+  }
+  return [...ids];
+}
+
+/** Yarışın toplam süresi (ms) — en yavaş atın bitiş zamanı. */
+export function getRaceDurationMs(timeline: RaceTimeline): number {
+  let maxFinishMs = 0;
+  for (const entry of timeline.finalResult) {
+    if (entry.finishTimeMs > maxFinishMs) {
+      maxFinishMs = entry.finishTimeMs;
+    }
+  }
+  return maxFinishMs;
+}
+
+export interface LiveLeaderboardEntry {
+  horseId: string;
+  rank: number;
+  positionMeters: number;
+  speedMps: number;
+  /** Lider ata göre metre cinsinden fark (lider için her zaman 0). */
+  gapToLeaderMeters: number;
+}
+
+/**
+ * `timestampMs` anındaki canlı sıralamayı (mini harita ve sıralama
+ * paneli için) döner — pozisyona göre azalan sırada.
+ */
+export function getLiveLeaderboard(
+  segments: RaceSegmentSnapshot[],
+  horseIds: string[],
+  timestampMs: number,
+): LiveLeaderboardEntry[] {
+  const states = horseIds.map((horseId) => ({
+    horseId,
+    ...interpolateHorseStateAtTime(segments, horseId, timestampMs),
+  }));
+  const sorted = [...states].sort((a, b) => b.positionMeters - a.positionMeters);
+  const leaderPositionMeters = sorted[0]?.positionMeters ?? 0;
+
+  return sorted.map((state, index) => ({
+    horseId: state.horseId,
+    rank: index + 1,
+    positionMeters: state.positionMeters,
+    speedMps: state.speedMps,
+    gapToLeaderMeters: leaderPositionMeters - state.positionMeters,
+  }));
+}
+
+/**
+ * Oynatma saatini bir kare (frame) ileri alır — `deltaMs` gerçek geçen
+ * süre, `speedMultiplier` oynatma hızı (1x, 2x vb.). Sonuç her zaman
+ * `[0, durationMs]` aralığına kelepçelenir (clamp), böylece oynatma
+ * yarışın başından önce veya bitişinden sonra bir zamana gidemez.
+ */
+export function advancePlaybackTimeMs(
+  currentTimeMs: number,
+  deltaMs: number,
+  speedMultiplier: number,
+  durationMs: number,
+): number {
+  if (deltaMs <= 0) {
+    return currentTimeMs;
+  }
+  const next = currentTimeMs + deltaMs * speedMultiplier;
+  return Math.max(0, Math.min(durationMs, next));
+}
