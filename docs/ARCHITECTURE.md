@@ -244,17 +244,37 @@ edildiği, bu geliştirme ortamındaki kısıttan etkilenmediği anlamına gelir
 — CI sonucu bu nedenle NestJS/Next.js gibi framework koduna dair gerçek
 bir doğrulama sinyali olarak güvenle kullanılabilir (bkz. §9.1).
 
-### 9.1. CI'da bulunan ilk gerçek hata (düzeltildi)
+### 9.1. CI'da bulunan gerçek hatalar (düzeltildi)
 
-İlk 4 push'ta (`f05e9f1`, `b4ec0cd`, `a5677dc`, `f9703cd`) CI, saniyeler
-içinde "Dependencies lock file is not found" hatasıyla başarısız oldu —
-`npm ci` ve `actions/setup-node`'un `cache: 'npm'` seçeneği bir
-`package-lock.json` gerektirir, ama bu dosya hiç üretilememişti (yukarıdaki
-kısıt nedeniyle). Düzeltme: `npm ci` → `npm install`, `cache: 'npm'`
-kaldırıldı (bkz. `.github/workflows/ci.yml` yorumları). Bu, gerçek CI
-sinyalinin bu ortamdan WebFetch ile okunabilir olduğunun (dolayısıyla
-NestJS wiring gibi framework kodunun proje sahibine ekstra bir komut
-satırı işi çıkarmadan doğrulanabileceğinin) ilk kanıtıdır.
+**Hata 1 — lock dosyası eksik:** İlk 4 push'ta (`f05e9f1`, `b4ec0cd`,
+`a5677dc`, `f9703cd`) CI, saniyeler içinde "Dependencies lock file is not
+found" hatasıyla başarısız oldu — `npm ci` ve `actions/setup-node`'un
+`cache: 'npm'` seçeneği bir `package-lock.json` gerektirir, ama bu dosya
+hiç üretilememişti (yukarıdaki kısıt nedeniyle). Düzeltme: `npm ci` →
+`npm install`, `cache: 'npm'` kaldırıldı (bkz. `.github/workflows/ci.yml`
+yorumları). Bu, gerçek CI sinyalinin bu ortamdan WebFetch ile okunabilir
+olduğunun (dolayısıyla NestJS wiring gibi framework kodunun proje
+sahibine ekstra bir komut satırı işi çıkarmadan doğrulanabileceğinin) ilk
+kanıtıdır.
+
+**Hata 2 — paket derleme sırası:** Bir sonraki push'ta (`4712935`) CI,
+`npm install`'ı geçti ama typecheck adımında `@at-sevdalisi/shared-types`
+ve `@at-sevdalisi/game-config` modülleri bulunamadı hatası verdi. Kök
+neden: bu iki paketin `package.json`'ı `main`/`types` alanlarını
+`dist/index.js`/`dist/index.d.ts`'e işaret ediyor, ama `dist/` klasörü
+yalnızca o paketin kendi `build` script'i (`tsc -p tsconfig.json`)
+çalıştırılınca oluşuyor — ve kök `package.json`'daki `typecheck` script'i
+`build` script'inden ÖNCE çalışıyordu, dolayısıyla paketler henüz
+derlenmemişken apps/api'nin typecheck'i onları arıyordu. Ayrıca bu
+paketlerin `tsconfig.json`'ı temel konfigürasyondan `"module": "ESNext"`
+miras alıyordu — apps/api (NestJS) CommonJS derlendiğinden, ESM `dist/
+index.js`'i çalışma zamanında `require()` etmeye çalışsaydı hata verirdi.
+Düzeltme: kök `package.json`'a paketleri her zaman önce derleyen bir
+`build:packages` script'i eklendi ve `build`/`test`/`typecheck`
+script'lerinin başına eklendi; `packages/shared-types` ve `packages/
+game-config`'in `tsconfig.json`'larına `"module": "CommonJS"` geçersiz
+kılması eklendi (yerel `tsc` ile derlenip CommonJS çıktı ürettiği
+doğrulandı).
 
 ---
 

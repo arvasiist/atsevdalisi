@@ -1,6 +1,13 @@
 {
+  // "module": "CommonJS" — tsconfig.base.json'daki "ESNext" değerini bilerek
+  // geçersiz kılar. Bu paket apps/api (NestJS, CommonJS derlenir) tarafından
+  // tüketilir; ESNext (ESM) çıktısı `require()` ile çalışma zamanında
+  // "Unexpected token 'export'" hatası verirdi. apps/web (Next.js) CommonJS
+  // paketleri sorunsuz tüketir, bu yüzden bu geçersiz kılma her iki tüketici
+  // için de güvenlidir.
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
+    "module": "CommonJS",
     "outDir": "dist",
     "rootDir": "src"
   },
