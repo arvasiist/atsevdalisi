@@ -10,7 +10,7 @@
 | Faz | Adı | Kapsam | Durum |
 |---|---|---|---|
 | **0** | Teknik keşif ve planlama | Repo, mimari, dokümantasyon, DB migration altyapısı, test altyapısı | ✅ Tamamlandı |
-| 1 | Core | Player, Auth, Economy, Horse, Stable, Training, Care, Basic Race Engine, Race Result, Progression | 🟡 Domain katmanı tamam; **Player alt-modülü gerçek veritabanına bağlandı** (bkz. "FAZ 1 wiring" bölümü), geri kalanı wiring bekliyor |
+| 1 | Core | Player, Auth, Economy, Horse, Stable, Training, Care, Basic Race Engine, Race Result, Progression | 🟡 Domain katmanı tamam; **Player alt-modülü gerçek veritabanına bağlandı ve CI'da uçtan uca DOĞRULANDI** (bkz. "FAZ 1 wiring" bölümü — GitHub Actions run 34721911139, tam yeşil), geri kalanı wiring bekliyor |
 | 2 | Management | Horse Market, Buy/Sell, Vet, Farrier, Nutrition, Jockey, Staff, Stable capacity, Costs | 🟡 Domain katmanı tamam, wiring bekliyor |
 | 3 | Genetics | Pedigree, Mare/Stallion, Genetic traits, Inheritance, Mutation, Foal, Growth, Bloodline | 🟡 Domain katmanı tamam, wiring bekliyor |
 | 4 | Farm | Stable upgrade, Paddock, Training track, Vet center, Breeding center, Staff facilities | 🟡 Domain katmanı tamam, wiring bekliyor |
@@ -649,6 +649,21 @@ eklenmiş) yine tam geçti; `@nestjs/*` paketleri bu ortamda kurulu
 olmadığından (`docs/ARCHITECTURE.md` §9) bu DI düzeltmesinin kendisi
 yalnızca CI'da (gerçek Postgres + gerçek `vitest`/`esbuild` ile) uçtan uca
 doğrulanabilir — proje için kabul edilen risktir.
+
+**✅ DOĞRULANDI — CI baştan sona yeşil (GitHub Actions run
+[34721911139](https://github.com/arvasiist/atsevdalisi/actions/runs/34721911139),
+"Faz 1 wiring: gerçek kök neden düzeltildi" commit'i, 1dk 57sn):** Bu,
+projenin Player-wiring dilimi için SEKİZİNCİ CI denemesiydi ve İLK kez
+`build-and-test` işinin TAMAMI (Checkout → Install → Lint → Typecheck →
+Run database migrations → Test → Build) tek bir kesinti olmadan geçti.
+Annotation panelinde yalnızca daha önceden bilinen/zararsız uyarılar var
+(Node.js 20 kullanım dışı bırakma uyarısı, birkaç dosyada mevcut "no
+magic number" uyarıları) — hiçbir `::error::` yok. Bu, `player.e2e-spec.ts`'in
+GERÇEK bir PostgreSQL'e karşı (kayıt, aynı kullanıcı adıyla ikinci kayıt
+denemesi, geçersiz format, id ile getirme, olmayan id, geçersiz UUID —
+6 senaryo) başarıyla çalıştığını ve tüm katmanların (API → Application →
+Domain, Infrastructure → Domain) doğru bağlandığını kanıtlar. FAZ 1
+wiring'in "ilk uçtan uca dilim" hedefi tamamlanmıştır.
 
 ## Açık kararlar (proje sahibinin onayı bekleniyor)
 
