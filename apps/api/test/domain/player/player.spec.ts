@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { createNewPlayer } from '../../../src/domain/player/player';
+import { assertUsernameAvailable, createNewPlayer } from '../../../src/domain/player/player';
 import { validateDisplayName, validateUsername } from '../../../src/domain/player/validation';
 import { createPlayerAuthProviderLink } from '../../../src/domain/player/auth-provider';
 import {
   InvalidAuthProviderTokenError,
   InvalidDisplayNameError,
   InvalidUsernameError,
+  UsernameAlreadyTakenError,
 } from '../../../src/domain/player/errors';
 import economyConfigJson from '../../../../../config/economy.config.json';
 import type { EconomyConfig } from '@at-sevdalisi/game-config';
@@ -69,5 +70,15 @@ describe('createPlayerAuthProviderLink', () => {
     expect(() =>
       createPlayerAuthProviderLink('uuid-1', { provider: 'apple', providerUserId: '   ', email: null }),
     ).toThrow(InvalidAuthProviderTokenError);
+  });
+});
+
+describe('assertUsernameAvailable', () => {
+  it('kullanılmayan bir kullanıcı adı için hata fırlatmaz', () => {
+    expect(() => assertUsernameAvailable('omer_arvas', false)).not.toThrow();
+  });
+
+  it('zaten alınmış bir kullanıcı adı için UsernameAlreadyTakenError fırlatır', () => {
+    expect(() => assertUsernameAvailable('omer_arvas', true)).toThrow(UsernameAlreadyTakenError);
   });
 });

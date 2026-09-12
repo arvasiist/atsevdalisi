@@ -31,6 +31,9 @@ export const ErrorCode = {
   // Faz 4 — Çiftlik / Tesisler (domain/farm)
   MaxFacilityLevelReached: 'MAX_FACILITY_LEVEL_REACHED',
   StaffCapacityExceeded: 'STAFF_CAPACITY_EXCEEDED',
+  // FAZ 1 wiring — Player (domain/player)
+  UsernameAlreadyTaken: 'USERNAME_ALREADY_TAKEN',
+  PlayerNotFound: 'PLAYER_NOT_FOUND',
 } as const;
 
 export type ErrorCodeValue = (typeof ErrorCode)[keyof typeof ErrorCode];
