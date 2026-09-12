@@ -119,6 +119,19 @@ export interface HorseGrowthConfig {
   stages: HorseGrowthStage[];
 }
 
+/**
+ * Ahır (temel kapasite) — brief §32 "Stable Level 1→5, Level 2→8, Level 3→12"
+ * örneğinden alınan sayılar; FAZ 1 kapsamı yalnızca kapasite artışıdır.
+ * Paddock/veteriner merkezi/nalbant alanı/üreme merkezi gibi tam Çiftlik
+ * (Farm) bina sistemi FAZ 4'e bırakılmıştır (bkz. docs/ROADMAP.md).
+ */
+export interface StableConfig {
+  /** Anahtar = ahır seviyesi (string, JSON kısıtı), değer = at kapasitesi. */
+  capacityByLevel: Record<string, number>;
+  /** Bu değerin altındaki health, "Ahır Özeti" ekranında uyarı olarak gösterilir (brief §38). */
+  healthWarningThreshold: number;
+}
+
 export interface ProgressionUnlock {
   level: number;
   feature: string;

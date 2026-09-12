@@ -23,6 +23,7 @@ import type {
   HorseGrowthConfig,
   ProgressionConfig,
   RaceBalanceConfig,
+  StableConfig,
   TrainingConfig,
   WeatherConfig,
 } from './types';
@@ -35,6 +36,7 @@ import weatherConfigJson from '../../../config/weather.config.json';
 import horseGrowthConfigJson from '../../../config/horse-growth.config.json';
 import progressionConfigJson from '../../../config/progression.config.json';
 import careConfigJson from '../../../config/care.config.json';
+import stableConfigJson from '../../../config/stable.config.json';
 
 export function loadRaceConfig(): RaceBalanceConfig {
   return raceConfigJson as unknown as RaceBalanceConfig;
@@ -66,6 +68,10 @@ export function loadProgressionConfig(): ProgressionConfig {
 
 export function loadCareConfig(): CareConfig {
   return careConfigJson as unknown as CareConfig;
+}
+
+export function loadStableConfig(): StableConfig {
+  return stableConfigJson as unknown as StableConfig;
 }
 
 export * from './types';

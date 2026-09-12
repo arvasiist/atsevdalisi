@@ -109,7 +109,10 @@ bir doğrulama betiği ile (mantık doğruluğu) test edildi. Ayrıca ileride
       testleri geçti.
 - [x] `domain/progression` — XP/Level eğrisi ve unlock sistemi (brief §36).
 - [x] `domain/player` — yeni oyuncu oluşturma (başlangıç bakiyesi),
-      kullanıcı adı/görünen ad/şifre gücü doğrulama kuralları.
+      kullanıcı adı/görünen ad doğrulama kuralları, Google/Apple Sign-In
+      eşlemesi (`auth-provider.ts` — proje sahibinin kararı).
+- [x] `domain/stable` — temel ahır kapasitesi (brief §32), "Ahır Özeti"
+      (at sayısı/ortalama kondisyon/sağlık uyarıları, brief §38-39).
 
 **Bilinçli olarak bu oturuma dahil edilmeyenler** (bir sonraki adım):
 
