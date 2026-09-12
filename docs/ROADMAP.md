@@ -10,7 +10,7 @@
 | Faz | Adı | Kapsam | Durum |
 |---|---|---|---|
 | **0** | Teknik keşif ve planlama | Repo, mimari, dokümantasyon, DB migration altyapısı, test altyapısı | ✅ Tamamlandı |
-| 1 | Core | Player, Auth, Economy, Horse, Stable, Training, Care, Basic Race Engine, Race Result, Progression | 🟡 Domain katmanı tamam; **Player + Horse (yalnızca okuma) alt-modülleri gerçek veritabanına bağlandı ve CI'da DOĞRULANDI** (bkz. "FAZ 1 wiring" bölümleri — Player: run 34721911139; Horse: run 34723091484, İLK denemede yeşil), geri kalanı (Economy'nin transfer akışı, Stable, Training, Care, Race Engine) wiring bekliyor |
+| 1 | Core | Player, Auth, Economy, Horse, Stable, Training, Care, Basic Race Engine, Race Result, Progression | 🟡 Domain katmanı tamam; **Player + Horse (okuma) + Ahır Özeti alt-modülleri gerçek veritabanına bağlandı ve CI'da DOĞRULANDI** (bkz. "FAZ 1 wiring" bölümleri — Player: run 34721911139; Horse: run 34723091484; Ahır Özeti: run 34723845048, ikisi de İLK denemede yeşil), geri kalanı (Economy'nin transfer akışı, Ahır yükseltme, Training, Care, Race Engine) wiring bekliyor |
 | 2 | Management | Horse Market, Buy/Sell, Vet, Farrier, Nutrition, Jockey, Staff, Stable capacity, Costs | 🟡 Domain katmanı tamam, wiring bekliyor |
 | 3 | Genetics | Pedigree, Mare/Stallion, Genetic traits, Inheritance, Mutation, Foal, Growth, Bloodline | 🟡 Domain katmanı tamam, wiring bekliyor |
 | 4 | Farm | Stable upgrade, Paddock, Training track, Vet center, Breeding center, Staff facilities | 🟡 Domain katmanı tamam, wiring bekliyor |
@@ -820,6 +820,19 @@ bağımsız test seti (`domain/player/player.spec.ts`'e eklenen
 e2e-spec.ts` (3 senaryo: yeni oyuncu için doğru özet, olmayan oyuncu
 için 404, geçersiz id için 400) yalnızca CI'da doğrulanabilir (kabul
 edilen risk, önceki iki dilimle AYNI desen).
+
+**✅ DOĞRULANDI — CI İLK DENEMEDE baştan sona yeşil (GitHub Actions run
+[34723845048](https://github.com/arvasiist/atsevdalisi/actions/runs/34723845048),
+"Faz 1 wiring: Ahır Özeti eklendi" commit'i, 1dk 53sn):** Horse
+wiring'de olduğu gibi, bu dilim de İLK CI denemesinde hiçbir hata
+olmadan geçti — yalnızca önceden bilinen "no magic number" uyarıları
+var, hiçbir `::error::` yok. `stable.e2e-spec.ts`'in 3 senaryosu
+(yeni oyuncu için stableLevel:1/capacity:5/averageCondition:75/
+healthWarnings:[] doğru hesaplanması, olmayan oyuncu için 404, geçersiz
+id için 400) gerçek PostgreSQL'e karşı doğrulandı. Bu, art arda İKİNCİ
+"ilk denemede yeşil" dilim — Hata 5/6'nın derslerinin artık bu projenin
+standart pratiği haline geldiğinin bir göstergesi. FAZ 1 wiring'in Ahır
+Özeti dilimi tamamlanmıştır.
 
 ## Açık kararlar (proje sahibinin onayı bekleniyor)
 
