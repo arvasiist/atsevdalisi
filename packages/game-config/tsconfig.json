@@ -1,9 +1,11 @@
 {
-  // "module": "CommonJS" — bkz. packages/shared-types/tsconfig.json'daki
-  // aynı notu (apps/api CommonJS derlenir, ESM dist require() ile çalışmaz).
+  // "module": "CommonJS" + "moduleResolution": "Node10" — bkz.
+  // packages/shared-types/tsconfig.json'daki aynı notu (apps/api CommonJS
+  // derlenir; ayrıca base'in "Bundler" çözümlemesi CommonJS ile uyumsuzdur).
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "module": "CommonJS",
+    "moduleResolution": "Node10",
     "outDir": "dist",
     "rootDir": "src",
     "resolveJsonModule": true
