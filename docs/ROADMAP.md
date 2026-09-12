@@ -10,7 +10,7 @@
 | Faz | Adı | Kapsam | Durum |
 |---|---|---|---|
 | **0** | Teknik keşif ve planlama | Repo, mimari, dokümantasyon, DB migration altyapısı, test altyapısı | ✅ Tamamlandı |
-| 1 | Core | Player, Auth, Economy, Horse, Stable, Training, Care, Basic Race Engine, Race Result, Progression | 🟡 Domain katmanı tamam; **Player alt-modülü gerçek veritabanına bağlandı ve CI'da uçtan uca DOĞRULANDI** (bkz. "FAZ 1 wiring" bölümü — GitHub Actions run 34721911139, tam yeşil), geri kalanı wiring bekliyor |
+| 1 | Core | Player, Auth, Economy, Horse, Stable, Training, Care, Basic Race Engine, Race Result, Progression | 🟡 Domain katmanı tamam; **Player + Horse (yalnızca okuma) alt-modülleri gerçek veritabanına bağlandı** (bkz. "FAZ 1 wiring" bölümleri — Player: run 34721911139, tam yeşil; Horse: CI kontrolü sürüyor), geri kalanı (Economy'nin transfer akışı, Stable, Training, Care, Race Engine) wiring bekliyor |
 | 2 | Management | Horse Market, Buy/Sell, Vet, Farrier, Nutrition, Jockey, Staff, Stable capacity, Costs | 🟡 Domain katmanı tamam, wiring bekliyor |
 | 3 | Genetics | Pedigree, Mare/Stallion, Genetic traits, Inheritance, Mutation, Foal, Growth, Bloodline | 🟡 Domain katmanı tamam, wiring bekliyor |
 | 4 | Farm | Stable upgrade, Paddock, Training track, Vet center, Breeding center, Staff facilities | 🟡 Domain katmanı tamam, wiring bekliyor |
@@ -664,6 +664,91 @@ denemesi, geçersiz format, id ile getirme, olmayan id, geçersiz UUID —
 6 senaryo) başarıyla çalıştığını ve tüm katmanların (API → Application →
 Domain, Infrastructure → Domain) doğru bağlandığını kanıtlar. FAZ 1
 wiring'in "ilk uçtan uca dilim" hedefi tamamlanmıştır.
+
+## FAZ 1 wiring — İkinci dilim: Horse (yalnızca okuma) + başlangıç atı (bu oturum)
+
+Player alt-modülü CI'da doğrulandıktan sonra, proje sahibinin "Devam
+edelim" onayıyla ikinci dilime geçildi. Sıradaki hedef Economy'ydi, ama
+inceleme şunu gösterdi: `domain/economy/wallet.ts` (canAfford/debit/
+credit/transfer) bağımsız bir REST uç noktasına sahip değildir — brief'te
+de `docs/API.md`'de de Economy için ayrı bir endpoint YOKTUR; para/gem
+bakiyesi zaten Player kaynağının bir parçasıdır (`PlayerSummary.money/
+gems`) ve gerçek para HAREKETLERİ (satın alma, ödül) her zaman BAŞKA bir
+akışın (At Pazarı, Yarış ödülü) yan etkisidir. Economy'nin "başlangıç
+bakiyesi" kısmı zaten `RegisterPlayerUseCase` üzerinden (birinci dilimde)
+gerçek veritabanına yazılıyor (`this.config.economy.newPlayerStartingBalance`)
+— yani Economy'nin bu ilk parçası ZATEN wiring'e bağlı. Economy'nin
+kalan parçası (atomik transfer) FAZ 2 At Pazarı ile birlikte anlamlı
+olacaktır (bkz. "Kapsam dışı" altta).
+
+Bu nedenle ikinci dilim olarak **Horse** seçildi: at yetiştiriciliği
+oyununda bir sonraki en temel gereksinim, çünkü Antrenman/Bakım/Yarış
+ekranlarının hiçbiri bir at OLMADAN anlamlı şekilde gösterilemez.
+
+**Kapsam (bilinçli olarak dar tutuldu):**
+- `GET /api/v1/horses?ownerId=<playerId>` — bir oyuncunun atlarını listeler.
+- `GET /api/v1/horses/{id}` — at detayı.
+- `POST /api/v1/players` (kayıt) artık yeni oyuncuya otomatik, ÜCRETSİZ
+  bir başlangıç atı da veriyor (`domain/horse/horse.ts`
+  `createStarterHorse`): `gelding` (kısırlaştırılmış, üreme akışını
+  erken açığa çıkarmamak için bilinçli seçim), "Arap" cinsi, sabit 8
+  isimlik bir havuzdan rastgele seçilmiş isim, kalite 45/potansiyel 55
+  (ortalamanın biraz altı/üstü — "geliştirilebilir" bir başlangıç
+  hissi), 48 aylık ("prime" yaşam evresi — `config/horse-growth.config.json`
+  36-84 ay aralığı — hemen antrenmana/yarışa hazır, bir tayın aksine).
+- Yalnızca `horses` tablosu okunur/yazılır. `horse_stats`/
+  `horse_surface_stats`/`horse_distance_stats`/`horse_health` (görünen/
+  gizli performans özellikleri, zemin/mesafe uyumu, detaylı sağlık)
+  BİLİNÇLİ olarak bu dilimin dışında bırakıldı — bunlar henüz hiçbir
+  use-case tarafından okunmuyor/yazılmıyor, erken eklemek "ölü kod"
+  üretirdi. Antrenman/Bakım/Yarış Motoru wiring'i sırasında, o alanlar
+  gerçekten KULLANILDIĞINDA eklenecekler.
+- `train`/`feed`/`care`/`vet`/`farrier`/`rest`/`history` uç noktaları
+  (docs/API.md §4) bu dilimin KAPSAMI DIŞINDA — bunlar karmaşık iş
+  kuralları (yorgunluk/sakatlık riski/maliyet) içerir ve ayrı bir
+  wiring dilimini hak eder.
+
+**Mimari/DI kararı (Hata 5/6'nın dersleri BAŞTAN uygulandı):** yeni
+eklenen HER NestJS constructor'ında (`HorseController`, `GetHorseUseCase`,
+`ListHorsesByOwnerUseCase`, `PostgresHorseRepository`, güncellenen
+`RegisterPlayerUseCase`) İSTİSNASIZ açık `@Inject()` token'ı kullanıldı —
+sınıfın kendisi token olsa bile. Bu, Player wiring'in beşinci CI
+hatasının (Vitest/esbuild `design:paramtypes` üst verisini yaymadığı
+için örtük enjeksiyonun `undefined`'a çözülmesi) BİR DAHA yaşanmamasını
+sağlamak için proaktif bir önlemdir — bu sefer bir CI hatasıyla
+ÖĞRENİLMEDİ, baştan uygulandı. Ayrıca `GET /horses` uç noktasında
+`ownerId` sorgu parametresi eksik olduğunda `ParseUUIDPipe`'ın
+davranışı (belgelenmemiş bir kenar durum) yerine `class-validator`'ın
+`isUUID` fonksiyonuyla elle, açık bir kontrol tercih edildi — bu
+projede NestJS'e bağlı kod yalnızca CI'da doğrulanabildiğinden,
+belirsiz kenar durumlarından mümkün olduğunca kaçınmak bilinçli bir
+tercihtir.
+
+**Yeni hata kodu:** `HORSE_NOT_FOUND` (`packages/shared-types/src/
+error-codes.ts`, `docs/API.md` §11).
+
+**Doğrulama (bu oturum, yerel):** `apps/api/tsconfig.domain.json` ile
+domain katmanı (yeni `domain/horse/horse.ts`, `errors.ts`,
+`validation.ts` dahil) `tsc --noEmit --ignoreDeprecations 6.0` ile temiz
+derlendi; `packages/shared-types` (yeni `HorseNotFound` hata kodu dahil)
+ayrıca kendi `tsconfig.json`'ıyla temiz derlendi. Geçici `vitest` shim'i +
+test runner ile (bu araçlar commit edilmedi) framework'ten bağımsız TÜM
+test seti — artık **342 test** (önceki 334 + yeni `domain/horse/
+horse.spec.ts` için 8 test: `createStarterHorse`'ın alan değerleri,
+isim kırpma, geçersiz isim hatası, "prime" yaş evresi kontrolü,
+`pickStarterHorseName`'in sınır/clamp/saflık davranışı) — çalıştırıldı,
+**342/342 geçti**. NestJS/pg gerektiren dosyalar (controller, repository,
+`horse.e2e-spec.ts`) bu ortamda kurulu olmayan paketleri import ettiği
+için yerel olarak doğrulanamaz (kabul edilen risk, Player wiring'deki
+AYNI desen) — GitHub CI'ın Postgres servisiyle doğrulanacaktır.
+
+**Kapsam dışı (bilinçli, sonraki adımlar):** Ana Sayfa'daki
+`PlayerDemoWidget`'ın başlangıç atını da göstermesi (şimdilik yalnızca
+API doğrulaması hedeflendi — UI güncellemesi ayrı, düşük riskli bir
+adımdır); Economy'nin atomik `transfer` fonksiyonunun gerçek bir
+kullanım alanına (At Pazarı) bağlanması FAZ 2'ye bırakıldı; `horse_stats`
+vb. tablolar ve `train`/`feed`/`care` uç noktaları yukarıda açıklandığı
+gibi Antrenman/Bakım wiring'ine bırakıldı.
 
 ## Açık kararlar (proje sahibinin onayı bekleniyor)
 

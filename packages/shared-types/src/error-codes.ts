@@ -34,6 +34,8 @@ export const ErrorCode = {
   // FAZ 1 wiring — Player (domain/player)
   UsernameAlreadyTaken: 'USERNAME_ALREADY_TAKEN',
   PlayerNotFound: 'PLAYER_NOT_FOUND',
+  // FAZ 1 wiring, ikinci dilim — Horse (domain/horse)
+  HorseNotFound: 'HORSE_NOT_FOUND',
 } as const;
 
 export type ErrorCodeValue = (typeof ErrorCode)[keyof typeof ErrorCode];
