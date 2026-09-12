@@ -7,6 +7,16 @@
     "noEmit": true,
     "allowJs": true,
     "incremental": true,
+    /**
+     * tsconfig.base.json (apps/api ile paylaşılan) sadece "ES2022" içerir
+     * (Node.js backend'de DOM olmamalı). apps/web ise tarayıcıda çalışan
+     * kod içerir (FAZ 6: RaceViewer.tsx'teki requestAnimationFrame/
+     * cancelAnimationFrame, RaceHud.tsx'teki HTMLInputElement gibi DOM
+     * API'leri) — bu yüzden burada "DOM"/"DOM.Iterable" eklenerek base'in
+     * "lib" değeri override edilir (CI hatası #4 — bu oturum, bkz.
+     * docs/ROADMAP.md "FAZ 6 tamamlanma durumu").
+     */
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "plugins": [{ "name": "next" }],
     "paths": { "@/*": ["./src/*"] }
   },
