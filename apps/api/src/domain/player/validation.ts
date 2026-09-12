@@ -11,12 +11,16 @@
 
 import { InvalidDisplayNameError, InvalidUsernameError } from './errors';
 
-const USERNAME_MIN_LENGTH = 3;
-const USERNAME_MAX_LENGTH = 20;
+// FAZ 1 wiring: dışa aktarıldı — `api/player/dto/register-player.dto.ts`
+// (class-validator `@Length`) AYNI sınırları burada tekrar sabit sayı
+// olarak YAZMAK yerine buradan içe aktarır (tek doğruluk kaynağı,
+// docs/CODING_CONVENTIONS.md #6/7 "magic number yasak").
+export const USERNAME_MIN_LENGTH = 3;
+export const USERNAME_MAX_LENGTH = 20;
 const USERNAME_PATTERN = /^[a-z0-9_]+$/;
 
-const DISPLAY_NAME_MIN_LENGTH = 2;
-const DISPLAY_NAME_MAX_LENGTH = 30;
+export const DISPLAY_NAME_MIN_LENGTH = 2;
+export const DISPLAY_NAME_MAX_LENGTH = 30;
 
 /** `players.username` (brief §7: UNIQUE, DB'de). Küçük harf, rakam, alt çizgi. */
 export function validateUsername(username: string): void {
