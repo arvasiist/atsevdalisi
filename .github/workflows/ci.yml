@@ -3,10 +3,17 @@ name: CI
 # brief §53/§91: her modülden sonra test çalıştırılır, build kırılırsa yeni
 # özellik eklenmez. Bu pipeline, o kuralın CI karşılığıdır.
 #
-# NOT: Bu iskelet bu depoda çalıştırılıp doğrulanmamıştır çünkü bu
-# geliştirme ortamının npm registry erişimi kısıtlıdır (bkz.
-# docs/ARCHITECTURE.md §9). Gerçek bir GitHub Actions runner'ında (npm
-# registry erişimi açık) ilk push sonrası otomatik çalışacaktır.
+# NOT (düzeltme geçmişi): İlk sürüm `npm ci` + `actions/setup-node`'un
+# `cache: 'npm'` seçeneğini kullanıyordu — ikisi de bir `package-lock.json`
+# gerektirir. Bu geliştirme ortamının npm registry erişimi kısıtlı olduğu
+# için (bkz. docs/ARCHITECTURE.md §9) hiçbir zaman `npm install`
+# çalıştırılamadı ve lock dosyası hiç üretilmedi; bu yüzden ilk 4 CI
+# çalıştırması "Dependencies lock file is not found" hatasıyla saniyeler
+# içinde başarısız oldu (GitHub Actions'ın kendi runner'ının internet
+# erişimi bu ortamdan bağımsızdır — asıl engel yalnızca lock dosyasının
+# eksikliğiydi). Düzeltme: `npm install` kullan (lock dosyası gerektirmez,
+# eksikse üretir) ve `cache: 'npm'`'i kaldır. Lock dosyası bir kez CI'da
+# üretilip commit edildiğinde `npm ci` + cache'e geri dönülebilir.
 
 on:
   push:
@@ -23,10 +30,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
 
       - name: Install dependencies
-        run: npm ci
+        run: npm install
 
       - name: Lint
         run: npm run lint

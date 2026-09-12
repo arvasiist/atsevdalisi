@@ -236,6 +236,26 @@ güvenlik politikasıyla kısıtlı** olduğu bir ortamda hazırlanmıştır. Bu
   import bulunursa ilk `npm install && npm run typecheck` çalıştırmasında
   ortaya çıkacak ve bir sonraki oturumda hızlıca düzeltilecektir.
 
+**Önemli fark:** Bu kısıt yalnızca BU geliştirme ortamı içindir — GitHub
+Actions'ın kendi runner'ının (`.github/workflows/ci.yml`) internet erişimi
+bu ortamdan tamamen bağımsızdır ve `npm install`'ı sorunsuz çalıştırabilir.
+Bu, GitHub'a push edilen kodun her seferinde **gerçekten** derlenip test
+edildiği, bu geliştirme ortamındaki kısıttan etkilenmediği anlamına gelir
+— CI sonucu bu nedenle NestJS/Next.js gibi framework koduna dair gerçek
+bir doğrulama sinyali olarak güvenle kullanılabilir (bkz. §9.1).
+
+### 9.1. CI'da bulunan ilk gerçek hata (düzeltildi)
+
+İlk 4 push'ta (`f05e9f1`, `b4ec0cd`, `a5677dc`, `f9703cd`) CI, saniyeler
+içinde "Dependencies lock file is not found" hatasıyla başarısız oldu —
+`npm ci` ve `actions/setup-node`'un `cache: 'npm'` seçeneği bir
+`package-lock.json` gerektirir, ama bu dosya hiç üretilememişti (yukarıdaki
+kısıt nedeniyle). Düzeltme: `npm ci` → `npm install`, `cache: 'npm'`
+kaldırıldı (bkz. `.github/workflows/ci.yml` yorumları). Bu, gerçek CI
+sinyalinin bu ortamdan WebFetch ile okunabilir olduğunun (dolayısıyla
+NestJS wiring gibi framework kodunun proje sahibine ekstra bir komut
+satırı işi çıkarmadan doğrulanabileceğinin) ilk kanıtıdır.
+
 ---
 
 ## 10. Ek öneriler — proje sahibine sunulan geliştirme fırsatları
