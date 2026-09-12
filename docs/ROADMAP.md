@@ -502,6 +502,29 @@ bağlanması (brief §73 sırasıyla devam edecek), canlı barındırma/deploy
 (Vercel/Railway/Supabase — proje sahibinin dış hesap açması gereken bir
 adım, ayrı ve daha sonraki bir onayla başlatılacaktır).
 
+**CI hatası bulundu ve düzeltildi (bu oturum):** İlk gönderilen sürüm
+(commit `d90e1ef`) GitHub CI'ın "Lint" adımında başarısız oldu — proje
+tahminimin aksine bu, gerçek veritabanı/Postgres tarafıyla İLGİLİ
+DEĞİLDİ (o adımlara hiç ulaşılmadı, Lint adımı zaten en baştan durdu).
+Kök neden: `apps/api/src/api/player/dto/register-player.dto.ts`, class-
+validator'ın `@Length(3, 20)` / `@Length(2, 30)` decorator'larında sabit
+sayıları DOĞRUDAN yazıyordu — bu, projenin `apps/api/src` genelinde bir
+decorator çağrısı içinde sabit sayı kullanılan TEK yeriydi (yeni bir kod
+şekli). ESLint'in `no-magic-numbers` kuralı bunları uyarı (warning)
+olarak zaten doğru raporluyordu, ancak bu özel gönderimde `Lint` adımı
+yine de sıfırdan farklı bir çıkış koduyla (1) durdu; ham log dosyası bu
+ortamdan (kimlik doğrulama gerektirdiği için) okunamadığı için tam kesin
+neden GÖRÜLEMEDİ, ama en makul ve zaten kod kalitesi açısından da doğru
+olan düzeltme uygulandı: bu dört sınır değeri (`3`, `20`, `2`, `30`)
+`domain/player/validation.ts`'te zaten var olan
+`USERNAME_MIN_LENGTH`/`USERNAME_MAX_LENGTH`/`DISPLAY_NAME_MIN_LENGTH`/
+`DISPLAY_NAME_MAX_LENGTH` sabitlerinden dışa aktarılıp DTO'da tekrar
+sabit sayı yazmak yerine oradan içe aktarıldı (tek doğruluk kaynağı,
+docs/CODING_CONVENTIONS.md #6/7 ile de tutarlı). Düzeltme sonrası yerel
+`tsc` (`apps/api/tsconfig.domain.json`) temiz derlendi ve framework'ten
+bağımsız tüm test seti yine **296/296** geçti; bu ikinci sürüm GitHub
+CI'a gönderilip sonucu ayrıca doğrulanacaktır.
+
 ## Açık kararlar (proje sahibinin onayı bekleniyor)
 
 Bkz. `ARCHITECTURE.md` §10 için tam liste ve gerekçeler. Özet:
