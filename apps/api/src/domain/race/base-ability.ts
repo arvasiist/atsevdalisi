@@ -11,11 +11,17 @@ import type { RaceEntrantSnapshot } from '@at-sevdalisi/shared-types';
 /**
  * `tactic` bileşeni: brief'te BaseAbility'nin bir parçası olarak listelenir,
  * ancak dinamik taktik etkisi zaten Pace sistemi (ALGORITHMS.md §5) ve
- * Overtaking (§6) üzerinden ayrıca modellenir. Tam bir "taktik-uygunluk"
- * modeli (jokey deneyimi, pist/mesafe/rakip bağlamına göre) FAZ 5'e
- * bırakıldığından (bkz. docs/RACE_ENGINE.md §8 notu), burada nötr bir
- * taban değer kullanılır — ileride jockey domain'i eklenince gerçek bir
- * hesaplamayla değiştirilecektir.
+ * Overtaking (§6) üzerinden ayrıca modellenir. Burada nötr bir taban değer
+ * kullanılır.
+ *
+ * **FAZ 5 notu:** bu değer HALA nötrdür ve BİLİNÇLİ olarak öyle
+ * bırakılmıştır. FAZ 5, brief §60 jokey AI karar ağacını (`jockey-
+ * decisions.ts`) SEGMENT BAZINDA, dinamik bir mekanizma olarak ekledi —
+ * bu, BaseAbility'nin STATİK `tactic` bileşeninden ayrı bir katmandır.
+ * `jockeySkillComposite`'i tekrar buraya (bir de `tactic` ağırlığı altında)
+ * eklemek, aynı jokey yeteneğini iki farklı ağırlıkla iki kez saymak
+ * olurdu (zaten `w_jockey` ile ayrı bir bileşendir) — bu yüzden
+ * yapılmamıştır.
  */
 const NEUTRAL_TACTIC_SCORE = 50;
 

@@ -23,10 +23,62 @@ export interface RaceBalanceConfig {
     frontRunnerPositionBonus: number;
     closerStaminaMultiplier: number;
     closerLateStageBonus: number;
-    closerTrafficRisk: number;
   };
+  /**
+   * FAZ 5 — brief §21 overtake_probability formülü (bkz. `domain/race/
+   * overtaking.ts`). FAZ 1'deki basit `closerTrafficRisk` (stil bazlı, sabit
+   * olasılık) tamamen bu gerçek, pozisyon/kulvar farkındalıklı modelle
+   * DEĞİŞTİRİLMİŞTİR — bkz. ALGORITHMS.md §6 "Uygulama notu (FAZ 5)".
+   */
   overtaking: {
+    /** Bir geçiş denemesi BAŞARISIZ olursa uygulanan performans cezası. */
     blockPenalty: number;
+    accelerationWeight: number;
+    speedDifferenceWeight: number;
+    courageWeight: number;
+    jockeySkillWeight: number;
+    availableSpaceWeight: number;
+    /** `RiskLevel` → "cesaret" puanı eşlemesi (bkz. ALGORITHMS.md §6 notu). */
+    courageByRiskLevel: Record<string, number>;
+    /** Aynı kulvarı paylaşan HER ek at, `availableSpace`'ten bu kadar puan düşürür. */
+    spacePerOccupant: number;
+    /** `defend_position` kararı veren at, geçilme olasılığını bu kadar azaltır. */
+    defendPositionBonus: number;
+    /** Bu ms'den daha yakın bir zaman farkı "burun buruna" (bloklanma adayı) sayılır. */
+    closeGapMs: number;
+  };
+  /** FAZ 5 — brief §21 "iç/dış kulvar" (bkz. `domain/race/overtaking.ts`). */
+  lanes: {
+    count: number;
+    /** Anahtar = `RacingStyle`; game-config paketi shared-types'a bağımlı olmadığı için genel `Record`. */
+    initialLaneByStyle: Record<string, number>;
+  };
+  /** FAZ 5 — brief §16 Aşama 6 "Final sprint" (bkz. `domain/race/sprint.ts`). */
+  sprint: {
+    /** `runtimeStamina` bunun altındaysa sprint kararı hiç değerlendirilmez. */
+    staminaReserveThreshold: number;
+    bonusMultiplier: number;
+  };
+  /** FAZ 5 — brief §60 jokey AI karar ağacı (bkz. `docs/RACE_ENGINE.md` §8, `domain/race/jockey-decisions.ts`). */
+  jockeyDecision: {
+    staminaLowThreshold: number;
+    /** Pace.ts'teki genel "geç aşama" eşiğinden (0.75) daha dar bir "gerçek final düz yolu" penceresi. */
+    finalStraightPositionFraction: number;
+    opponentCloseGapMs: number;
+    /** Bu risk seviyelerinde `defend_position` kararı alınabilir (brief §60 "risk_allowed"). */
+    riskAllowedRiskLevels: string[];
+  };
+  /**
+   * FAZ 5 — brief'in ayrı bir madde olarak listelediği "Fatigue" (bkz.
+   * ALGORITHMS.md §6 notu): FAZ 1'deki statik `preRaceFatigueFactor`'dan
+   * FARKLI olarak, yarış SIRASINDA biriken dinamik bir yorgunluktur.
+   */
+  fatigue: {
+    accumulationPerSegment: number;
+    /** `reduce_pace` kararı verildiğinde birikim bu çarpanla YAVAŞLAR. */
+    reducePaceAccumulationMultiplier: number;
+    performancePenaltyPerFatiguePoint: number;
+    maxRuntimeFatigue: number;
   };
   distance: {
     shortMaxMeters: number;

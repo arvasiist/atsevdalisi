@@ -156,6 +156,13 @@ Bu sayede "önde git" taktiği erken avantaj + yüksek stamina maliyeti,
 "sadece en yüksek rating kazanır" karşıtı felsefesini (§20 sonu, §89 İlke 1)
 doğrudan uygular.
 
+**Uygulama notu (FAZ 5):** `config.pace.closerTrafficRisk` kaldırıldı —
+"geriden gel" taktiğinin trafik riski artık genel bir sabit çarpan değil,
+§6'daki gerçek `overtaking`/kulvar sistemi üzerinden organik olarak ortaya
+çıkıyor (geriden gelen at, öndeki kalabalık kulvarlara girmek zorunda
+kalır ve bu da `availableSpace` sinyalini düşürür). Bu, aynı fiziksel
+olgunun (trafik) iki ayrı yerde çift sayılmasını önler.
+
 ## 6. Overtaking / bloklanma (brief §21)
 
 ```text
@@ -173,6 +180,45 @@ if front_horse_blocks_lane:
 
 İleri sürümde (FAZ 5) iç/dış kulvar, önündeki at, boşluk, viraj ve pist
 genişliği ayrı ayrı modellenecektir (brief §21 sonu).
+
+**Uygulama notu (FAZ 5, `domain/race/overtaking.ts` + `jockey-decisions.ts`
++ `sprint.ts` + `fatigue.ts`):**
+
+- Brief'in formülünde `available_space` ve `traffic_penalty` ayrı ayrı
+  terimler olarak listelenir; ancak ikisi de fiziksel olarak aynı olguyu
+  (kulvardaki at yoğunluğu) ölçtüğü için çift sayımı önlemek amacıyla
+  bilinçli olarak TEK bir `availableSpace` sinyalinde birleştirildi
+  (`calculateAvailableSpace(occupantCount, config)` — kulvardaki at
+  sayısı arttıkça azalan bir değer). Bu, kod ve dokümantasyonda açıkça
+  belirtilmiştir.
+- `calculateOvertakeProbability(input, config)`, yukarıdaki formülü şu
+  ağırlıklarla uygular: `accelerationWeight`, `speedDifferenceWeight`,
+  `courageWeight` (risk seviyesine göre `courageByRiskLevel` tablosundan),
+  `jockeySkillWeight`, `availableSpaceWeight`; sonuç `[0, 1]` aralığına
+  clamp edilir. Savunma yapan at için `defendPositionBonus` olasılığı
+  düşürür (brief §60 `defend_position` kararıyla bağlantılı).
+- **Kulvarlar:** `assignInitialLane(racingStyle, config)`, yarış stiline
+  göre başlangıç kulvarını atar (`config.lanes.initialLaneByStyle`);
+  `deriveLaneChange(currentLane, wantsChange, config)` `search_overtake_lane`
+  kararı sırasında `[1, config.lanes.count]` sınırları içinde bir kulvar
+  değişimi üretir (deterministik `rng` ile).
+- **Jokey kararları:** `decideJockeyAction(input, config)`, brief §60'taki
+  öncelik sırasını (stamina_low > final_straight+sprint > blocked >
+  opponent_close+risk_allowed > hold) BİREBİR uygular; bkz.
+  `docs/RACE_ENGINE.md` §8.
+- **Sprint:** `deriveSprintBonus(runtimeStamina, decision, jockeySkillComposite,
+  config)`, kalan stamina `config.sprint.staminaReserveThreshold` üzerindeyse
+  ve karar `push_for_finish` ise `config.sprint.bonusMultiplier` ölçeğinde
+  ek performans puanı ekler (jokey skill ile ölçeklenir).
+- **Dinamik fatigue (FAZ5'e özgü, FAZ1'in statik `preRaceFatigueFactor`'ünden
+  FARKLI):** `accumulateRuntimeFatigue(currentFatigue, decision, config)`,
+  her segmentte `config.fatigue.accumulationPerSegment` kadar (karar
+  `reduce_pace` ise `reducePaceAccumulationMultiplier` ile azaltılmış)
+  yorgunluk biriktirir, `maxRuntimeFatigue` ile sınırlanır.
+  `deriveFatiguePerformancePenalty(runtimeFatigue, config)` bu birikimi bir
+  performans cezasına çevirir. FAZ1'deki `preRaceFatigueFactor`, atın
+  YARIŞ ÖNCESİ (veritabanındaki) yorgunluğunu temsil etmeye devam eder ve
+  değişmedi; bu ikisi ayrı ayrı, birbirini tekrarlamadan uygulanır.
 
 ## 7. Çevre uyumu (brief §61)
 

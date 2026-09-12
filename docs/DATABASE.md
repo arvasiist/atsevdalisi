@@ -37,6 +37,7 @@
 | 0011 | `create_player_auth_providers` | `player_auth_providers` (Google/Apple Sign-In eşlemesi — proje sahibinin kararı, bkz. `ARCHITECTURE.md` §10 madde 1) |
 | 0012 | `create_staff_and_stable_level` | `staff` (brief §33 Personel, jokey hariç) + `players.stable_level` (FAZ 1'de domain/stable'ın parametre olarak beklediği ama hiçbir migration'ın eklemediği sütun — FAZ 2 ahır yükseltmesi için burada tamamlandı) |
 | 0013 | `create_facilities` | `facilities` (brief §32 Çiftlik tesisleri — Paddock, Antrenman pisti, Veteriner merkezi, Nalbant alanı, Üreme merkezi, Depo, Personel binası; ahır hariç, bkz. `domain/farm/README.md`) |
+| 0014 | `add_race_segment_faz5_fields` | `race_entry_segments.blocked`/`jockey_decision` (brief §21 geçiş/bloklanma, §60 jokey AI kararları — bkz. `domain/race/overtaking.ts`, `domain/race/jockey-decisions.ts`) |
 
 Her migration'ın bir `.up.sql` (uygula) ve `.down.sql` (geri al) karşılığı
 vardır. Çalıştırma aracı olarak `node-pg-migrate` veya eşdeğeri önerilir

@@ -88,6 +88,16 @@ export interface RaceEntrantSnapshot {
   };
 }
 
+/**
+ * FAZ 5 — brief §60 jokey AI karar ağacı sonucu (bkz.
+ * `domain/race/jockey-decisions.ts`). Burada string literal union olarak
+ * TEKRARLANIR (domain katmanındaki `JockeyDecision` ile birebir aynı
+ * değerler) çünkü shared-types, `apps/api/src/domain/*`'a bağımlı OLAMAZ
+ * (bağımlılık yönü tersine döner) — aynı gerekçe `RacingStyle` gibi diğer
+ * union tipler için de geçerlidir.
+ */
+export type RaceJockeyDecision = 'reduce_pace' | 'push_for_finish' | 'search_overtake_lane' | 'defend_position' | 'hold';
+
 /** brief §24 Race Telemetry / §19 Segment sistemi */
 export interface RaceSegmentSnapshot {
   raceEntryId: UUID;
@@ -100,6 +110,10 @@ export interface RaceSegmentSnapshot {
   lane: number;
   tacticalState: string;
   currentRank: number;
+  /** FAZ 5 — bu segmentte bir geçiş denemesi başarısız olup bloklandı mı (bkz. `domain/race/overtaking.ts`). */
+  blocked: boolean;
+  /** FAZ 5 — bu segment için jokey AI kararı (bkz. `domain/race/jockey-decisions.ts`). */
+  decision: RaceJockeyDecision;
 }
 
 /** docs/RACE_ENGINE.md §5 */

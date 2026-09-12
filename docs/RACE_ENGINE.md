@@ -101,6 +101,14 @@ Sıralama **her zaman** `finishPositionMs` (gerçek simülasyon zamanı)
 vs 94.804s), sıralama zamana göre kesindir; 3D görüntü bu sıralamayı
 takip eder, belirlemez.
 
+**FAZ 5 notu:** tam bir berabere kalma (iki atın `cumulativeTimeMs`'i
+milisaniyeye yuvarlandığında BİREBİR eşitse) için `domain/race/
+race-engine.ts` açık bir ikincil karşılaştırma uygular: önce son segment
+performans puanı yüksek olan önde sayılır, o da eşitse `horseId`'nin
+sözlük sırasına göre — böylece "aynı seed + aynı girdi = bit bit aynı
+sonuç" garantisi (§7) bu nadir uç durumda da (JS'in sort kararlılığına
+GÜVENMEK yerine) açıkça korunur.
+
 ## 7. Determinism (brief §18, §53, §89)
 
 ```text
@@ -140,9 +148,15 @@ if opponent_close
    and risk_allowed:    defend_position()
 ```
 
-İlk sürümde bu kurallar basit `if/else` karar ağacı olarak uygulanır;
-FAZ 5'te Utility AI veya Behavior Tree'ye taşınması değerlendirilebilir
-(brief §60 notu).
+**FAZ 5'te uygulandı** — `domain/race/jockey-decisions.ts` içindeki
+`decideJockeyAction`, yukarıdaki pseudocode'u BİREBİR aynı öncelik
+sırasıyla uygular (aynı NPC ve oyuncu atları için, brief §84 ile tutarlı
+şekilde). İlk sürüm brief'in kendi notuyla uyumlu olarak basit bir if/else
+karar ağacıdır; Utility AI veya Behavior Tree'ye taşınması ileride
+değerlendirilebilir (brief §60 notu). `search_overtake_lane` gerçek bir
+kulvar değişimini tetikler (`domain/race/overtaking.ts` `deriveLaneChange`);
+`defend_position` ise kovalayan atın geçiş olasılığını azaltan bir savunma
+bonusu üretir.
 
 **AI dengesi (brief §84):** Zorluk, NPC'ye gizli bonus vererek değil, daha
 iyi at havuzu / taktik / jokey / hazırlıkla sağlanır. Race Engine formülü
@@ -157,6 +171,15 @@ faktörü segment verisinden türetir (örn. "ilk 400m'de fazla enerji harcadı"
 tetiklenir). Bu mantık `apps/api/src/domain/race/race-explanation.ts`
 içinde, Race Engine'den ayrı bir saf fonksiyon olarak tutulur.
 
+**FAZ 5'te uygulandı** — `explainRace(segments, finalResult)`, her at için
+`positives`/`negatives` listeleri üretir. Kullanılan somut sezgiler: sıra
+değişimi (start sırasına göre öne çıkma = pozitif, gerileme = negatif),
+stamina'nın tamamen tükenmesi (negatif), 2 veya daha fazla bloklanma
+denemesi (negatif) — hiç bloklanmama ise "temiz koşu" olarak pozitif — ve
+herhangi bir segmentte `push_for_finish` kararı alınmışsa "final sprint"
+pozitif notu. Bu fonksiyon `simulateRace`'in son adımında çağrılır ve
+`RaceTimeline.explanations` alanına yazılır (bkz. §5).
+
 ## 10. Replay (brief §58)
 
 İlk sürümde video kaydı yerine şu dörtlü saklanır:
@@ -170,3 +193,25 @@ Replay istendiğinde Race Engine aynı girdilerle yeniden çalıştırılır ve
 İleride tam telemetry cache (`race_entry_segments` tablosu zaten bunu
 karşılıyor) doğrudan okunarak yeniden hesaplama ihtiyacı ortadan
 kaldırılabilir.
+
+**FAZ 5 notu:** Replay için ayrıca yeni kod yazılmasına gerek **yoktu** —
+FAZ5'in eklediği tüm yeni alanlar (`lane`, `blocked`, `decision`,
+`explanations`) zaten §7'deki determinism garantisinin kapsamındadır (aynı
+seed + aynı girdi + aynı config ⇒ bunlar da dahil olmak üzere bit bit aynı
+`RaceTimeline`). Dolayısıyla mevcut replay mekanizması, hiçbir değişiklik
+gerektirmeden FAZ5 alanlarını da otomatik olarak doğru şekilde yeniden
+üretir; bu madde brief §58'in FAZ5 sonrası da hâlâ karşılandığını teyit
+eder.
+
+## 11. Uygulama durumu (FAZ 5, bu oturum)
+
+Bu doküman artık şunları yansıtır: `domain/race/race-engine.ts`,
+3 geçişli (jokey kararı + kulvar değişimi → kulvar doluluğu + geçiş çözümü
+→ nihai performans puanı) bir segment-içi döngüyle yeniden yazıldı (brief
+§21). Yeni saf modüller: `overtaking.ts`, `jockey-decisions.ts`,
+`sprint.ts`, `fatigue.ts`, `race-explanation.ts`, `race-interpolation.ts`
+(bkz. `docs/ALGORITHMS.md` "Uygulama notu (FAZ 5)" bölümü, formül
+detayları için). NestJS Application katmanına (`SimulateRaceUseCase`)
+kablolama ve 3D/görsel katmanın yeni `lane`/`blocked` alanlarını
+kullanması **kapsam dışıdır** — bu domain katmanı teslimatı sonraki bir
+oturumda ele alınacaktır.

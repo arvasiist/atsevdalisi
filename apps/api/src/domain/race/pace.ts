@@ -8,8 +8,6 @@ export interface PaceEffect {
   staminaConsumptionMultiplier: number;
   /** BaseAbility'ye eklenecek (segment performansı için) doğrudan puan bonusu. */
   performanceBonus: number;
-  /** [0, 1] — bu segmentte "bloklanma" (trafik) riski. */
-  trafficRisk: number;
 }
 
 /** Yarışın son %-kaçlık bölümü "geç aşama" (closer bonus, final sprint) sayılır. */
@@ -18,9 +16,15 @@ const LATE_STAGE_THRESHOLD = 0.75;
 /**
  * `racingStyle`'a ve segmentin yarış içindeki konumuna (0=start, 1=finish)
  * göre pace etkisini hesaplar. "Önde git" erken avantaj + yüksek stamina
- * maliyeti taşır; "geriden gel" stamina tasarrufu + trafik riski + geç
- * aşama bonusu taşır (brief §20, §89 İlke 1: "sadece en yüksek rating
- * kazanmaz").
+ * maliyeti taşır; "geriden gel" stamina tasarrufu + geç aşama bonusu taşır
+ * (brief §20, §89 İlke 1: "sadece en yüksek rating kazanmaz").
+ *
+ * **FAZ 5 notu:** bu fonksiyon eskiden stil bazlı sabit bir `trafficRisk`
+ * (bloklanma olasılığı) de döndürüyordu; bu, gerçek pozisyon/kulvar
+ * farkındalıklı bir modelle (`domain/race/overtaking.ts`) DEĞİŞTİRİLMİŞTİR
+ * — bkz. `docs/ALGORITHMS.md` §6 "Uygulama notu (FAZ 5)". Bloklanma artık
+ * atların BİRBİRİNE GÖRE gerçek zaman farkına bakılarak belirlenir, salt
+ * yarış stiline değil.
  */
 export function derivePaceEffect(
   racingStyle: RacingStyle,
@@ -33,7 +37,6 @@ export function derivePaceEffect(
     return {
       staminaConsumptionMultiplier: paceConfig.frontRunnerStaminaMultiplier,
       performanceBonus: isLateStage ? 0 : paceConfig.frontRunnerPositionBonus,
-      trafficRisk: 0,
     };
   }
 
@@ -41,7 +44,6 @@ export function derivePaceEffect(
     return {
       staminaConsumptionMultiplier: paceConfig.closerStaminaMultiplier,
       performanceBonus: isLateStage ? paceConfig.closerLateStageBonus : 0,
-      trafficRisk: paceConfig.closerTrafficRisk,
     };
   }
 
@@ -49,6 +51,5 @@ export function derivePaceEffect(
   return {
     staminaConsumptionMultiplier: 1,
     performanceBonus: 0,
-    trafficRisk: paceConfig.closerTrafficRisk / 2,
   };
 }

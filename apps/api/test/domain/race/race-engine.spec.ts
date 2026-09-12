@@ -120,3 +120,61 @@ describe('simulateRace — dengeleme (brief §17-18, §89 İlke 1)', () => {
     expect(frontResult!.finishTimeMs).not.toBe(closerResult!.finishTimeMs);
   });
 });
+
+/** FAZ 5 — brief §21 kulvar/geçiş, §60 jokey kararları, §85 açıklama. */
+describe('simulateRace — FAZ 5 (Advanced Race Engine)', () => {
+  it('her segment telemetrisinde kulvar [1, lanes.count] aralığındadır', () => {
+    const entries = [makeEntry('h1'), makeEntry('h2', { speed: 60 }), makeEntry('h3', { speed: 55 })];
+    const timeline = simulateRace({ ...baseInput, simulationSeed: 'lane-seed', entries });
+    for (const segment of timeline.segments) {
+      expect(segment.lane).toBeGreaterThanOrEqual(1);
+      expect(segment.lane).toBeLessThanOrEqual(raceConfig.lanes.count);
+    }
+  });
+
+  it('her segment telemetrisinde geçerli bir jokey kararı bulunur', () => {
+    const entries = [makeEntry('h1'), makeEntry('h2', { speed: 60 })];
+    const timeline = simulateRace({ ...baseInput, simulationSeed: 'decision-seed', entries });
+    const validDecisions = ['reduce_pace', 'push_for_finish', 'search_overtake_lane', 'defend_position', 'hold'];
+    for (const segment of timeline.segments) {
+      expect(validDecisions).toContain(segment.decision);
+    }
+  });
+
+  it('birbirine yakın statlarda atlar arasında en az bir bloklanma denemesi yaşanabilir (5 at, çoklu deneme)', () => {
+    let anyBlocked = false;
+    for (let i = 0; i < 20 && !anyBlocked; i += 1) {
+      const entries = Array.from({ length: 5 }, (_, idx) => makeEntry(`h${idx}`));
+      const timeline = simulateRace({ ...baseInput, simulationSeed: `block-seed-${i}`, entries });
+      anyBlocked = timeline.segments.some((s) => s.blocked);
+    }
+    expect(anyBlocked).toBe(true);
+  });
+
+  it('finalResult her zaman benzersiz ve ardışık pozisyonlar üretir (5 at)', () => {
+    const entries = Array.from({ length: 5 }, (_, idx) => makeEntry(`h${idx}`, { speed: 60 + idx * 5 }));
+    const timeline = simulateRace({ ...baseInput, simulationSeed: 'positions-seed', entries });
+    const positions = timeline.finalResult.map((r) => r.finishPosition).sort((a, b) => a - b);
+    expect(positions).toEqual([1, 2, 3, 4, 5]);
+    const uniqueHorseIds = new Set(timeline.finalResult.map((r) => r.horseId));
+    expect(uniqueHorseIds.size).toBe(5);
+  });
+
+  it('her at için bir açıklama (RaceExplanation) üretir (brief §85)', () => {
+    const entries = [makeEntry('h1'), makeEntry('h2', { speed: 60 })];
+    const timeline = simulateRace({ ...baseInput, simulationSeed: 'explain-seed', entries });
+    expect(timeline.explanations).toHaveLength(2);
+    for (const explanation of timeline.explanations) {
+      expect(Array.isArray(explanation.positives)).toBe(true);
+      expect(Array.isArray(explanation.negatives)).toBe(true);
+    }
+  });
+
+  it('aynı seed ile FAZ 5 alanları (lane, blocked, decision, explanations) da bit bit aynıdır', () => {
+    const entries = [makeEntry('h1'), makeEntry('h2', { speed: 60 }), makeEntry('h3', { speed: 55 })];
+    const t1 = simulateRace({ ...baseInput, simulationSeed: 'faz5-determinism', entries });
+    const t2 = simulateRace({ ...baseInput, simulationSeed: 'faz5-determinism', entries });
+    expect(t2.segments).toEqual(t1.segments);
+    expect(t2.explanations).toEqual(t1.explanations);
+  });
+});
