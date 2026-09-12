@@ -913,6 +913,19 @@ alt tipiyle düzeltildi — CI'a gitmeden önce yakalanan gerçek bir hata.
 Yeni `training.e2e-spec.ts` (6 senaryo) yalnızca CI'da doğrulanabilir
 (kabul edilen risk, önceki dilimlerle AYNI desen).
 
+**CI Hata 7 — bulundu ve düzeltildi (bkz. `docs/ARCHITECTURE.md` §9.1):**
+ilk gönderim, "geçersiz tür için 400 döner" senaryosunda beklenen `400`
+yerine `500` ile başarısız oldu — DTO'nun `@IsIn(...)` kontrolü, Hata
+6'nın (constructor enjeksiyonu) AYNI kök nedeniyle (`design:paramtypes`
+üst verisinin esbuild altında yayınlanmaması) bu kez NestJS'in
+`ValidationPipe`'ının hangi DTO'yu doğrulayacağını bilememesi yüzünden
+sessizce ATLANDI. Düzeltme: `domain/training/training.ts`'e, DTO'dan
+BAĞIMSIZ çalışan bir `type`/`intensity` doğrulaması eklendi (yeni
+`InvalidTrainingInputError`, `400 VALIDATION_ERROR`'a eşlenir) —
+`RegisterPlayerUseCase`'in zaten yaptığı "domain katmanı DTO'ya tek
+başına güvenmez" ilkesinin bu dilimde eksik olan parçasıydı. 3 yeni
+domain testiyle doğrulandı (309/309 yerel test geçti), tekrar gönderildi.
+
 ## Açık kararlar (proje sahibinin onayı bekleniyor)
 
 Bkz. `ARCHITECTURE.md` §10 için tam liste ve gerekçeler. Özet:

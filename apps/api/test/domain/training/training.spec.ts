@@ -7,7 +7,7 @@ import {
   getPrimaryStatKey,
   rollInjuryOccurred,
 } from '../../../src/domain/training/training';
-import { HorseNotReadyForTrainingError } from '../../../src/domain/training/errors';
+import { HorseNotReadyForTrainingError, InvalidTrainingInputError } from '../../../src/domain/training/errors';
 import trainingConfig from '../../../../../config/training.config.json';
 import type { TrainingConfig } from '@at-sevdalisi/game-config';
 
@@ -171,5 +171,55 @@ describe('getPrimaryStatKey', () => {
 
   it('"rest" türü için null döner (hiçbir stat\'ı etkilemez)', () => {
     expect(getPrimaryStatKey('rest')).toBeNull();
+  });
+});
+
+/**
+ * CI Hata 7 (bkz. `domain/training/errors.ts` `InvalidTrainingInputError`
+ * üstündeki not) — DTO doğrulaması esbuild altında atlanabildiğinden,
+ * domain katmanının `type`/`intensity`'yi BAĞIMSIZ olarak da doğrulaması
+ * gerekir; aksi halde geçersiz bir değer `500`'e çöken ham bir
+ * `TypeError`e yol açıyordu (gerçek CI'da yakalandı).
+ */
+describe('geçersiz antrenman girdisi (CI Hata 7)', () => {
+  it('tanımsız bir tür için InvalidTrainingInputError fırlatır', () => {
+    expect(() =>
+      calculateStatGain(config, {
+        // @ts-expect-error — kasıtlı olarak geçersiz bir değer test ediliyor.
+        trainingType: 'not-a-real-type',
+        intensity: 'medium',
+        durationMinutes: 30,
+        currentStatValue: 30,
+        potential: 90,
+        vitals: goodVitals,
+      }),
+    ).toThrow(InvalidTrainingInputError);
+  });
+
+  it('tanımsız bir yoğunluk için InvalidTrainingInputError fırlatır', () => {
+    expect(() =>
+      calculateFatigueGain(config, {
+        trainingType: 'speed',
+        // @ts-expect-error — kasıtlı olarak geçersiz bir değer test ediliyor.
+        intensity: 'extreme',
+        durationMinutes: 30,
+        vitals: goodVitals,
+      }),
+    ).toThrow(InvalidTrainingInputError);
+  });
+
+  it('applyTraining üzerinden de aynı hatayı fırlatır', () => {
+    expect(() =>
+      applyTraining(config, {
+        // @ts-expect-error — kasıtlı olarak geçersiz bir değer test ediliyor.
+        trainingType: 'not-a-real-type',
+        intensity: 'medium',
+        durationMinutes: 30,
+        currentStatValue: 30,
+        potential: 90,
+        vitals: goodVitals,
+        ageMonths: 50,
+      }),
+    ).toThrow(InvalidTrainingInputError);
   });
 });
