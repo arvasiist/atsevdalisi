@@ -85,6 +85,49 @@ Her adımdan sonra brief §72 protokolü (ANALYZE→PLAN→IMPLEMENT→TEST→
 VERIFY→DOCUMENT) uygulanır; büyük miktarda kod tek seferde üretilmez
 (brief §91).
 
+## FAZ 1 tamamlanma durumu (bu oturum)
+
+Bu oturumda **domain katmanı** (framework'ten bağımsız, saf TypeScript —
+NestJS/Node bağımlılığı olmayan iş mantığı) tamamlandı ve her biri hem
+`tsc` ile (mimari saflık + tip doğruluğu) hem de gerçek girdilerle çalışan
+bir doğrulama betiği ile (mantık doğruluğu) test edildi. Ayrıca ileride
+`npm install` çalıştığında otomatik koşacak gerçek Vitest test dosyaları
+(`apps/api/test/domain/**/*.spec.ts`) yazıldı:
+
+- [x] `domain/economy` — cüzdan işlemleri (borç/alacak/transfer, negatif
+      bakiye koruması).
+- [x] `domain/horse` — durum değerleri (health/fitness/fatigue/energy/
+      morale) ve yaş/gelişim eğrisi.
+- [x] `domain/training` — antrenman kazancı, yorgunluk, sakatlık riski
+      (docs/ALGORITHMS.md §1), hazır olma kontrolü.
+- [x] `domain/care` — tımar/su/temizlik/veteriner/nalbant/dinlendir +
+      beslenme (brief §11-12), cooldown kontrolü.
+- [x] `domain/race` — temel (segment bazlı) Race Engine: BaseAbility
+      (§2), controlled randomness (§3), pace sistemi (§5), overtaking/
+      bloklanma (§6), çevre uyumu (§7), mesafe kategorileri (§8);
+      determinism ve "genelde güçlü at kazanır ama sürpriz mümkündür"
+      testleri geçti.
+- [x] `domain/progression` — XP/Level eğrisi ve unlock sistemi (brief §36).
+- [x] `domain/player` — yeni oyuncu oluşturma (başlangıç bakiyesi),
+      kullanıcı adı/görünen ad/şifre gücü doğrulama kuralları.
+
+**Bilinçli olarak bu oturuma dahil edilmeyenler** (bir sonraki adım):
+
+- NestJS controller/use-case/module wiring'i (`api/`, `application/`
+  klasörleri) — bu kod `@nestjs/*` paketlerine bağımlıdır ve bu ortamda
+  `npm install` çalışmadığından (bkz. `ARCHITECTURE.md` §9) derleyici ile
+  doğrulanamaz; yanlışlıkla doğrulanmamış/hatalı framework kodu teslim
+  etmemek için bilerek ertelendi. Domain fonksiyonları hazır olduğundan bu
+  adım, gerçek bir Node ortamında (`npm install` sonrası) hızlıca
+  tamamlanabilir bir "bağlama" (wiring) işidir.
+- Auth sağlayıcısı seçimi netleşmeden `players` tablosuna e-posta/şifre
+  hash kolonları eklenmedi (bkz. aşağıdaki açık karar #1) — domain katmanı
+  sağlayıcıdan bağımsız kurallara (`checkPasswordStrength`,
+  `PasswordHasher` arayüzü) göre hazır, DB şeması karar netleşince bir
+  migration ile tamamlanır.
+- `apps/web` ekranlarının gerçek API'ye bağlanması (API henüz çalışır
+  durumda değil, yukarıdaki maddeye bağlı).
+
 ## Açık kararlar (proje sahibinin onayı bekleniyor)
 
 Bkz. `ARCHITECTURE.md` §10 için tam liste ve gerekçeler. Özet:
@@ -102,16 +145,9 @@ Bkz. `ARCHITECTURE.md` §10 için tam liste ve gerekçeler. Özet:
 11. Barındırma/deploy sağlayıcısı (`ARCHITECTURE.md` §8)
 12. GitHub deposu erişimi (bkz. altta)
 
-## GitHub deposu — bekleyen adım
+## GitHub deposu
 
-Bu geliştirme ortamının GitHub CLI'a bağlı bir kimlik doğrulaması yoktur.
-Proje sahibi tercih ettiği üzere:
-
-1. GitHub'da boş bir `at-sevdalisi` deposu oluşturulacak.
-2. Depo remote URL'i ve bir erişim yöntemi (Personal Access Token veya
-   deploy key) bu oturuma iletilecek.
-3. Bu depodaki commit geçmişi o remote'a push edilecek.
-
-Bu adım tamamlanana kadar kod bu oturumun çalışma alanında güvenle
-saklanmaktadır ve talep edildiğinde sıkıştırılmış dosya olarak da teslim
-edilebilir.
+✅ Tamamlandı — kod `github.com/arvasiist/atsevdalisi` deposuna proje
+sahibi tarafından GitHub Desktop üzerinden push edildi (FAZ 0 sonunda).
+Bundan sonraki her teslimat aynı yöntemle (yerel klasördeki dosyaların
+güncellenmesi → GitHub Desktop'ta Commit → Push) depoya yansıtılacaktır.

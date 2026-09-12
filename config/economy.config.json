@@ -14,5 +14,9 @@
     "premium_season_pass"
   ],
   "dailyRewardMoney": 500,
-  "raceEntryFeeMultiplier": 1.0
+  "raceEntryFeeMultiplier": 1.0,
+  "newPlayerStartingBalance": {
+    "money": 5000,
+    "gems": 50
+  }
 }

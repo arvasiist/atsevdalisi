@@ -10,5 +10,6 @@
     "rest":      { "baseGain": 0.0, "baseFatigue": -20, "baseInjuryRisk": 0.0 }
   },
   "intensityMultipliers": { "low": 0.6, "medium": 1.0, "high": 1.5 },
-  "durationMultiplier": { "unitMinutes": 15, "perUnit": 0.2 }
+  "durationMultiplier": { "unitMinutes": 15, "perUnit": 0.2 },
+  "readinessThresholds": { "minEnergyToTrain": 15, "maxFatigueToTrain": 90 }
 }

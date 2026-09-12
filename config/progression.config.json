@@ -1,5 +1,9 @@
 {
   "maxLevel": 50,
+  "xpCurve": {
+    "baseXpPerLevel": 100,
+    "exponent": 1.5
+  },
   "unlocks": [
     { "level": 1,  "feature": "basic_stable" },
     { "level": 5,  "feature": "horse_market" },

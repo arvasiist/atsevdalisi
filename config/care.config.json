@@ -1,0 +1,66 @@
+{
+  "actions": {
+    "groom": {
+      "vitalDelta": { "morale": 8, "health": 2 },
+      "cost": { "currency": "money", "amount": 15 },
+      "cooldownMinutes": 120
+    },
+    "water": {
+      "vitalDelta": { "energy": 5 },
+      "recoveryRateDelta": 2,
+      "cost": { "currency": "money", "amount": 5 },
+      "cooldownMinutes": 60
+    },
+    "clean": {
+      "vitalDelta": { "health": 2 },
+      "injuryRiskDelta": -3,
+      "cost": { "currency": "money", "amount": 10 },
+      "cooldownMinutes": 180
+    },
+    "vet": {
+      "injuryRiskDelta": -10,
+      "recoveryRateDelta": 5,
+      "cost": { "currency": "money", "amount": 250 },
+      "cooldownMinutes": 1440
+    },
+    "farrier": {
+      "jointConditionDelta": 5,
+      "injuryRiskDelta": -5,
+      "cost": { "currency": "money", "amount": 180 },
+      "cooldownMinutes": 4320
+    },
+    "rest": {
+      "vitalDelta": { "fatigue": -25, "energy": 10 },
+      "cost": { "currency": "money", "amount": 0 },
+      "cooldownMinutes": 240
+    }
+  },
+  "feedTypes": {
+    "standard": {
+      "vitalDelta": { "energy": 10 },
+      "weightConditionDelta": 0,
+      "cost": { "currency": "money", "amount": 20 }
+    },
+    "energy": {
+      "vitalDelta": { "energy": 20 },
+      "weightConditionDelta": -1,
+      "cost": { "currency": "money", "amount": 35 }
+    },
+    "protein": {
+      "vitalDelta": { "energy": 8, "fitness": 3 },
+      "weightConditionDelta": 1,
+      "cost": { "currency": "money", "amount": 40 }
+    },
+    "recovery": {
+      "vitalDelta": { "energy": 6 },
+      "recoveryRateDelta": 4,
+      "weightConditionDelta": 0,
+      "cost": { "currency": "money", "amount": 45 }
+    },
+    "performance": {
+      "vitalDelta": { "energy": 15, "fitness": 2 },
+      "weightConditionDelta": -2,
+      "cost": { "currency": "gems", "amount": 5 }
+    }
+  }
+}

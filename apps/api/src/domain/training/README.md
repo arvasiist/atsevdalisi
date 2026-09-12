@@ -1,10 +1,13 @@
 # domain/training
 
-Bu klasör **FAZ 1**'de (veya ilgili fazda) doldurulacaktır.
+Antrenman algoritmaları (docs/ALGORITHMS.md §1, brief §10).
 
-Framework'ten bağımsız, saf TypeScript domain sınıfları/fonksiyonları burada
-yaşayacaktır (bkz. `docs/ARCHITECTURE.md` §4, `docs/CODING_CONVENTIONS.md`
-§4). Hiçbir NestJS dekoratörü, hiçbir ORM importu bu klasöre girmez.
+- `training.ts` — `calculateStatGain` (diminishing returns), `calculateFatigueGain`,
+  `calculateInjuryRisk`, `applyTraining` (hazır olmayan atlar için
+  `HorseNotReadyForTrainingError` fırlatır), `rollInjuryOccurred` (seed'e
+  bağlı deterministik sakatlık zarı — `Math.random()` KULLANILMAZ).
+- `errors.ts` — `HorseNotReadyForTrainingError`.
 
-İlgili dokümantasyon: `docs/PROJECT_BRIEF.md` §7 (Veri Modeli) ve
-`docs/DATABASE.md`.
+Tüm sabitler `config/training.config.json`'dan gelir; kodda sihirli sayı yoktur.
+
+Testler: `apps/api/test/domain/training/training.spec.ts`.
