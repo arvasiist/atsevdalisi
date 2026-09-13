@@ -66,7 +66,26 @@ export class ClaimDailyRewardUseCase {
         nextClaimAvailableAt,
       };
 
-      return { player: updated, result: claimResult };
+      // AUDIT_AND_HARDENING Öncelik 2 (bu oturum) — para hareketi ledger'a
+      // yazılır, oyuncu satırının güncellenmesiyle AYNI transaction'da
+      // (bkz. `PlayerRepository.updateWithLock` doc yorumu).
+      return {
+        player: updated,
+        result: claimResult,
+        ledgerEntries: [
+          {
+            playerId,
+            type: 'daily_reward',
+            amount,
+            currency: 'money',
+            referenceType: null,
+            referenceId: null,
+            balanceBefore: player.money,
+            balanceAfter: newBalance.money,
+            idempotencyKey: null,
+          },
+        ],
+      };
     });
 
     if (result === null) {

@@ -1,12 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
-import type { MarketListing, Player } from '@at-sevdalisi/shared-types';
-import { purchaseListing } from '../../domain/market/market';
-import { ListingNotFoundError } from '../../domain/market/errors';
-import { HorseNotFoundError } from '../../domain/horse/errors';
-import { PlayerNotFoundError } from '../../domain/player/errors';
-import { HORSE_REPOSITORY, type HorseRepository } from '../ports/horse.repository';
-import { MARKET_LISTING_REPOSITORY, type MarketListingRepository } from '../ports/market-listing.repository';
-import { PLAYER_REPOSITORY, type PlayerRepository } from '../ports/player.repository';
+import type { MarketListing } from '@at-sevdalisi/shared-types';
+import { MARKET_PURCHASE_REPOSITORY, type MarketPurchaseRepository } from '../ports/market-purchase.repository';
 
 export interface BuyMarketListingResult {
   listing: MarketListing;
@@ -18,87 +12,35 @@ export interface BuyMarketListingResult {
  * `POST /market/listings/{id}/buy` (docs/API.md §5, brief §30/§31) —
  * `Idempotency-Key` ZORUNLU (bkz. `api/market/market.controller.ts`).
  *
- * FAZ 1 wiring, on birinci dilim — `domain/market/market.ts`'teki
- * `purchaseListing` (FAZ 0'dan beri hazır, `wallet.transfer`'i çağırır)
- * BURADA İLK KEZ gerçekten orkestre edilir. Bu, `transfer`'in ve
- * `PlayerRepository.updateTwoWithLock`'un İLK gerçek kullanıcısıdır —
- * Ahır Yükseltme/Günlük Ödül/Pratik Yarış'ın hepsi TEK oyuncunun kendi
- * bakiyesini değiştiriyordu, bu ise İKİ oyuncu arasında (bkz.
- * `updateTwoWithLock` doc yorumu, docs/SECURITY.md §5).
+ * AUDIT_AND_HARDENING Öncelik 1 (EN KRİTİK, bu oturum) — bu use-case
+ * yeniden yazıldı. ÖNCEKİ tasarım (on birinci dilim), para transferini
+ * (`PlayerRepository.updateTwoWithLock`, YALNIZCA iki `players` satırını
+ * kilitler) atın sahiplik değişikliğinden ve ilanın `sold` durumuna
+ * geçirilmesinden AYRI, kilitlenmemiş iki adımda yapıyordu — bu, iki farklı
+ * alıcının TAM OLARAK aynı anda `buy` çağırmasında (teorik olarak) ikisinin
+ * de parasının çekilebilmesine izin veren, docs/SECURITY.md §5'te BİLİNÇLİ
+ * kabul edilmiş bir risk olarak belgelenmişti.
  *
- * SIRALAMA — bilerek üç AYRI adımda, üç AYRI transaction'da:
- *  1. `updateTwoWithLock` İÇİNDE: `purchaseListing` çağrılır (self-satın
- *     alma/aktif-değil/süresi-dolmuş kontrolleri + `transfer` — hepsi
- *     satırlar kilitliyken); bu adım BAŞARISIZ olursa (`InsufficientFundsError`
- *     dahil TÜM domain hataları) transaction ROLLBACK olur, PARA HİÇ
- *     el değiştirmez, sonraki adımlar hiç ÇALIŞMAZ.
- *  2. `horseRepository.update(...)`: atın `ownerId`'si alıcıya geçer.
- *  3. `marketListingRepository.update(...)`: ilan `sold` durumuna geçer.
+ * YENİ tasarım: TÜM işlem (`market_listings` + `horses` + İKİ `players`
+ * satırının kilitlenmesi, doğrulama, para transferi, mülkiyet devri, ilanı
+ * `sold`'a geçirme, ledger kaydı) TEK bir Postgres transaction'ında,
+ * `MarketPurchaseRepository.executePurchase` içinde yürütülür (bkz. o
+ * port'un doc yorumu) — "ya hepsi ya hiçbiri" artık GERÇEKTEN garantidir,
+ * eşzamanlı iki satın alma isteğinden yalnızca BİRİ başarılı olur, diğeri
+ * `ListingNotActiveError` (409) alır (bkz. `market-purchase.repository.spec`
+ * kapsamındaki eşzamanlılık testi, `market.e2e-spec.ts`).
  *
- * BİLİNÇLİ KABUL EDİLMİŞ RİSK (bu dilim): 2. ve 3. adımlar 1. adımla AYNI
- * transaction'da DEĞİLDİR (`PlayerRepository`/`HorseRepository`/
- * `MarketListingRepository` üç AYRI port'tur, aralarında ortak bir
- * transaction sınırı YOKTUR) — `run-practice-race.use-case.ts`'in wallet
- * güncellemesini yarış kaydından AYRI yapmasıyla AYNI, önceden kabul
- * edilmiş mimari desen (bkz. o use-case'in doc yorumu). AYRICA: `listing`
- * kilitlenmeden (`SELECT ... FOR UPDATE` OLMADAN) okunur — bu yüzden
- * AYNI ilana iki FARKLI alıcının TAM OLARAK aynı anda `buy` çağırması
- * (bu projenin henüz gerçek eşzamanlı bir kullanıcı tabanı olmadığından
- * son derece nadir) teorik olarak ikisinin de parasını çekebilir; bu,
- * `IdempotencyInterceptor`'ın KENDİ "dağıtık kilit yok" sınırlamasıyla
- * AYNI kategori bir kabul edilmiş risktir — ayrı bir sertleştirme
- * dilimini hak eder (docs/ROADMAP.md).
- *
- * NOT — `docs/ARCHITECTURE.md` §9.1 Hata 6: her bağımlılık açık
- * `@Inject()` ile enjekte edilir.
+ * Domain hataları (`ListingNotFoundError`, `CannotBuyOwnListingError`,
+ * `ListingNotActiveError`, `ListingExpiredError`, `InsufficientFundsError`,
+ * `HorseNotFoundError`, `PlayerNotFoundError`) DEĞİŞMEDİ — yalnızca NEREDE
+ * fırlatıldıkları değişti (artık Infrastructure katmanında, transaction
+ * İÇİNDE); HTTP eşlemesi (`http-exception.filter.ts`) hiç DOKUNULMADI.
  */
 @Injectable()
 export class BuyMarketListingUseCase {
-  constructor(
-    @Inject(MARKET_LISTING_REPOSITORY) private readonly marketListingRepository: MarketListingRepository,
-    @Inject(PLAYER_REPOSITORY) private readonly playerRepository: PlayerRepository,
-    @Inject(HORSE_REPOSITORY) private readonly horseRepository: HorseRepository,
-  ) {}
+  constructor(@Inject(MARKET_PURCHASE_REPOSITORY) private readonly marketPurchaseRepository: MarketPurchaseRepository) {}
 
-  async execute(listingId: string, buyerId: string): Promise<BuyMarketListingResult> {
-    const listing = await this.marketListingRepository.findById(listingId);
-    if (listing === null) {
-      throw new ListingNotFoundError(listingId);
-    }
-
-    const walletResult = await this.playerRepository.updateTwoWithLock(buyerId, listing.sellerId, (buyer, seller) => {
-      const purchase = purchaseListing(
-        listing,
-        buyerId,
-        { money: buyer.money, gems: buyer.gems },
-        { money: seller.money, gems: seller.gems },
-      );
-
-      const now = new Date().toISOString();
-      const updatedBuyer: Player = { ...buyer, money: purchase.buyerBalance.money, gems: purchase.buyerBalance.gems, updatedAt: now };
-      const updatedSeller: Player = { ...seller, money: purchase.sellerBalance.money, gems: purchase.sellerBalance.gems, updatedAt: now };
-
-      return { buyer: updatedBuyer, seller: updatedSeller, result: purchase };
-    });
-
-    if (walletResult === null) {
-      throw new PlayerNotFoundError(buyerId);
-    }
-
-    const horse = await this.horseRepository.findById(listing.horseId);
-    if (horse === null) {
-      // Veri bütünlüğü varsayımı ihlali: `market_listings.horse_id` FK'i
-      // `horses(id)` üzerinde `ON DELETE CASCADE`'dir — at silinirse ilan
-      // da CASCADE ile silinir; bu dala normal koşullarda ULAŞILMAZ.
-      throw new HorseNotFoundError(listing.horseId);
-    }
-    await this.horseRepository.update({ ...horse, ownerId: buyerId, updatedAt: new Date().toISOString() });
-    await this.marketListingRepository.update(walletResult.listing);
-
-    return {
-      listing: walletResult.listing,
-      buyerBalance: walletResult.buyerBalance,
-      sellerBalance: walletResult.sellerBalance,
-    };
+  async execute(listingId: string, buyerId: string, idempotencyKey: string | null = null): Promise<BuyMarketListingResult> {
+    return this.marketPurchaseRepository.executePurchase({ listingId, buyerId, idempotencyKey });
   }
 }

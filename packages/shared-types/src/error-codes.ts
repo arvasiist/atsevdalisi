@@ -11,6 +11,8 @@ export const ErrorCode = {
   RaceAlreadyStarted: 'RACE_ALREADY_STARTED',
   ListingNotFound: 'LISTING_NOT_FOUND',
   IdempotencyKeyRequired: 'IDEMPOTENCY_KEY_REQUIRED',
+  /** AUDIT_AND_HARDENING Öncelik 3 (bu oturum) — bkz. `IdempotencyKeyInProgressError`. */
+  IdempotencyKeyInProgress: 'IDEMPOTENCY_KEY_IN_PROGRESS',
   ValidationError: 'VALIDATION_ERROR',
   Unauthorized: 'UNAUTHORIZED',
   NotFound: 'NOT_FOUND',

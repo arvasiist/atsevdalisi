@@ -148,6 +148,20 @@ export interface PurchaseListingResult {
  * fonksiyonu tek bir DB transaction'ı içinde çalıştırmalı, ardından atın
  * `ownerId`'sini de güncellemelidir (o adım bu domain'in kapsamı dışındadır
  * — bkz. `domain/horse`).
+ *
+ * AUDIT_AND_HARDENING Öncelik 1 (bu oturum) — BULUNAN HATA (audit
+ * sırasında, henüz CI'da GÖRÜLMEDİ çünkü hiçbir test/kullanım fiyatı
+ * SIFIR olan bir ilan satın almayı denemedi): `createListingDraft`
+ * `price === 0`'ı AÇIKÇA kabul eder (`input.price < 0` kontrolü yalnızca
+ * NEGATİFİ reddeder — bkz. o fonksiyon) ama `transfer` → `debit`/`credit`
+ * (`domain/economy/wallet.ts`), dokuzuncu dilimde CI'ın bulduğu AYNI kök
+ * nedenle (`assertValidAmount`'ın `amount <= 0` kontrolü) SIFIR miktarı
+ * REDDEDER — bu yüzden ücretsiz bir ilanı satın almaya çalışmak
+ * `InvalidAmountError` ile (bu hata `http-exception.filter.ts`de
+ * eşlenmediğinden) 500'e dönüşürdü. Düzeltme, `domain/race/prize.ts`
+ * `applyPracticeRaceStakes`'in KENDİSİNİN kurduğu AYNI kalıbı burada da
+ * uygular: miktar SIFIR olduğunda `transfer` HİÇ ÇAĞRILMAZ (mülkiyet yine
+ * de el değiştirir — para YOKTUR ki el değiştirsin).
  */
 export function purchaseListing(
   listing: MarketListing,
@@ -166,12 +180,10 @@ export function purchaseListing(
     throw new ListingExpiredError(listing.id);
   }
 
-  const { from: updatedBuyerBalance, to: updatedSellerBalance } = transfer(
-    buyerBalance,
-    sellerBalance,
-    listing.price,
-    'money',
-  );
+  const { from: updatedBuyerBalance, to: updatedSellerBalance } =
+    listing.price > 0
+      ? transfer(buyerBalance, sellerBalance, listing.price, 'money')
+      : { from: buyerBalance, to: sellerBalance };
 
   return {
     listing: { ...listing, status: 'sold' },

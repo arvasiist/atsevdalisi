@@ -544,6 +544,45 @@ describe('Market — At Pazarı (e2e)', () => {
       expect(Number(sellerRow.rows[0].money)).toBe(5000 + LISTING_PRICE);
     });
 
+    // AUDIT_AND_HARDENING Öncelik 3 (bu oturum) — `IdempotencyInterceptor`nin
+    // YENİ PostgreSQL rezervasyon adımının (bkz. o dosyanın doc yorumu,
+    // migration 0020) asıl amacını doğrular: dokuzuncu dilimde KABUL
+    // EDİLMİŞ "dağıtık kilit yok" riski artık KAPALI — AYNI anahtarla
+    // GERÇEKTEN eşzamanlı iki istekten yalnızca BİRİ işleyiciyi çalıştırır.
+    it('AYNI Idempotency-Key ile GERÇEKTEN eşzamanlı iki istekten yalnızca biri işlemi çalıştırır, diğeri 409 IDEMPOTENCY_KEY_IN_PROGRESS alır', async () => {
+      const { listingId, sellerId } = await createListing();
+      const buyerId = await registerPlayer();
+      const idempotencyKey = randomUUID();
+
+      const [responseA, responseB] = await Promise.all([
+        request(app.getHttpServer())
+          .post(`/api/v1/market/listings/${listingId}/buy`)
+          .set('Idempotency-Key', idempotencyKey)
+          .send({ buyerId }),
+        request(app.getHttpServer())
+          .post(`/api/v1/market/listings/${listingId}/buy`)
+          .set('Idempotency-Key', idempotencyKey)
+          .send({ buyerId }),
+      ]);
+
+      const statuses = [responseA.status, responseB.status].sort();
+      expect(statuses).toEqual([200, 409]);
+      const conflicting = responseA.status === 409 ? responseA : responseB;
+      expect(conflicting.body.error.code).toBe('IDEMPOTENCY_KEY_IN_PROGRESS');
+
+      // Para TAM OLARAK bir kez el değiştirdi — eşzamanlı çakışma yüzünden İKİ KEZ değil.
+      const sellerRow = await pool.query('SELECT money FROM players WHERE id = $1', [sellerId]);
+      expect(Number(sellerRow.rows[0].money)).toBe(5000 + LISTING_PRICE);
+
+      // Kalıcı kayıt PostgreSQL'de GERÇEKTEN `completed` durumuna geçti mi?
+      const keyRow = await pool.query(
+        'SELECT status FROM idempotency_keys WHERE scope_id = $1 AND idempotency_key = $2',
+        [listingId, idempotencyKey],
+      );
+      expect(keyRow.rows).toHaveLength(1);
+      expect(keyRow.rows[0].status).toBe('completed');
+    });
+
     it('kendi ilanını satın almaya çalışırsa 400 CANNOT_BUY_OWN_LISTING döner', async () => {
       const { listingId, sellerId } = await createListing();
 
@@ -642,6 +681,122 @@ describe('Market — At Pazarı (e2e)', () => {
       expect(Number(sellerRow.rows[0].money)).toBe(5000);
       const horseRow = await pool.query('SELECT owner_id FROM horses WHERE id = $1', [horseId]);
       expect(horseRow.rows[0].owner_id).toBe(sellerId);
+    });
+
+    // AUDIT_AND_HARDENING Öncelik 1 (EN KRİTİK, bu oturum) — bu test,
+    // `BuyMarketListingUseCase`'in YENİDEN yazılmasının (bkz. o dosyanın
+    // doc yorumu) asıl amacını doğrudan doğrular: eşzamanlı iki alıcının
+    // TAM OLARAK aynı ilanı satın almaya çalışması artık İKİSİNİN DE
+    // parasını çekemez — `market_listings` satırı `FOR UPDATE` ile
+    // kilitlendiğinden ikinci istek, birincisi COMMIT olana kadar
+    // BEKLER, sonra `status: 'sold'` görüp `409 LISTING_NOT_ACTIVE` alır.
+    it('eşzamanlı iki satın alma isteğinden yalnızca BİRİ başarılı olur, diğeri 409 alır (para İKİ KEZ el değiştirmez)', async () => {
+      const { listingId, horseId, sellerId } = await createListing();
+      const buyerAId = await registerPlayer();
+      const buyerBId = await registerPlayer();
+
+      const [responseA, responseB] = await Promise.all([
+        request(app.getHttpServer())
+          .post(`/api/v1/market/listings/${listingId}/buy`)
+          .set('Idempotency-Key', randomUUID())
+          .send({ buyerId: buyerAId }),
+        request(app.getHttpServer())
+          .post(`/api/v1/market/listings/${listingId}/buy`)
+          .set('Idempotency-Key', randomUUID())
+          .send({ buyerId: buyerBId }),
+      ]);
+
+      const statuses = [responseA.status, responseB.status].sort();
+      expect(statuses).toEqual([200, 409]);
+      const loser = responseA.status === 200 ? responseB : responseA;
+      expect(loser.body.error.code).toBe('LISTING_NOT_ACTIVE');
+
+      // At TAM OLARAK bir kez el değiştirdi — ya A'ya ya B'ye, ASLA ikisine de değil.
+      const horseRow = await pool.query('SELECT owner_id FROM horses WHERE id = $1', [horseId]);
+      const newOwnerId: string = horseRow.rows[0].owner_id;
+      expect([buyerAId, buyerBId]).toContain(newOwnerId);
+
+      // Satıcı parayı TAM OLARAK BİR KEZ aldı — İKİ KEZ değil (eski,
+      // kilitlenmemiş tasarımda teorik olarak mümkün olan çift ödeme).
+      const sellerRow = await pool.query('SELECT money FROM players WHERE id = $1', [sellerId]);
+      expect(Number(sellerRow.rows[0].money)).toBe(5000 + LISTING_PRICE);
+
+      // Kazanan alıcının parası düştü, kaybeden alıcının parası HİÇ değişmedi.
+      const loserBuyerId = newOwnerId === buyerAId ? buyerBId : buyerAId;
+      const winnerRow = await pool.query('SELECT money FROM players WHERE id = $1', [newOwnerId]);
+      expect(Number(winnerRow.rows[0].money)).toBe(5000 - LISTING_PRICE);
+      const loserRow = await pool.query('SELECT money FROM players WHERE id = $1', [loserBuyerId]);
+      expect(Number(loserRow.rows[0].money)).toBe(5000);
+
+      const listingRow = await pool.query('SELECT status FROM market_listings WHERE id = $1', [listingId]);
+      expect(listingRow.rows[0].status).toBe('sold');
+    });
+
+    // AUDIT_AND_HARDENING Öncelik 2 (bu oturum) — `economy_transactions`
+    // ledger'ının GERÇEKTEN yazıldığını doğrular: bir satın alma TAM
+    // OLARAK iki satır üretir (alıcı için debit, satıcı için credit),
+    // AYNI `reference_id` (ilan id'si) ile eşleşir, bakiye önce/sonra
+    // alanları GERÇEK bakiye değişikliğiyle birebir örtüşür.
+    it('satın alma economy_transactions ledger’ına TAM OLARAK iki satır (debit + credit) yazar', async () => {
+      const { listingId, sellerId } = await createListing();
+      const buyerId = await registerPlayer();
+
+      await request(app.getHttpServer())
+        .post(`/api/v1/market/listings/${listingId}/buy`)
+        .set('Idempotency-Key', randomUUID())
+        .send({ buyerId })
+        .expect(200);
+
+      const rows = await pool.query(
+        "SELECT * FROM economy_transactions WHERE reference_type = 'market_listing' AND reference_id = $1 ORDER BY type",
+        [listingId],
+      );
+      expect(rows.rows).toHaveLength(2);
+
+      const credit = rows.rows.find((r: { type: string }) => r.type === 'market_purchase_credit');
+      const debit = rows.rows.find((r: { type: string }) => r.type === 'market_purchase_debit');
+      expect(debit.player_id).toBe(buyerId);
+      expect(Number(debit.amount)).toBe(-LISTING_PRICE);
+      expect(Number(debit.balance_before)).toBe(5000);
+      expect(Number(debit.balance_after)).toBe(5000 - LISTING_PRICE);
+      expect(credit.player_id).toBe(sellerId);
+      expect(Number(credit.amount)).toBe(LISTING_PRICE);
+      expect(Number(credit.balance_before)).toBe(5000);
+      expect(Number(credit.balance_after)).toBe(5000 + LISTING_PRICE);
+    });
+
+    // AUDIT_AND_HARDENING Öncelik 1 (bu oturum) — BULUNAN HATA'nın e2e
+    // regresyon kilidi (bkz. `domain/market/market.spec.ts`'teki AYNI
+    // senaryonun domain-seviyesi testi): fiyatı sıfır olan bir ilanın
+    // satın alınması artık 500 DEĞİL 200 döner, mülkiyet devreder, HİÇBİR
+    // ledger satırı ÜRETİLMEZ (para hareketi hiç gerçekleşmediği için).
+    it('fiyatı sıfır olan bir ilanı satın alırken 500 dönmez, mülkiyeti devreder, ledger’a hiçbir satır eklenmez', async () => {
+      const { horseId } = await registerPlayerWithStarterHorse();
+      const created = await request(app.getHttpServer())
+        .post('/api/v1/market/listings')
+        .send({ horseId, price: 0 })
+        .expect(201);
+      const listingId = created.body.data.id;
+      const buyerId = await registerPlayer();
+
+      const response = await request(app.getHttpServer())
+        .post(`/api/v1/market/listings/${listingId}/buy`)
+        .set('Idempotency-Key', randomUUID())
+        .send({ buyerId });
+
+      expect(response.status).toBe(200);
+      expect(response.body.data.listing.status).toBe('sold');
+      expect(response.body.data.buyerBalance.money).toBe(5000);
+      expect(response.body.data.sellerBalance.money).toBe(5000);
+
+      const horseRow = await pool.query('SELECT owner_id FROM horses WHERE id = $1', [horseId]);
+      expect(horseRow.rows[0].owner_id).toBe(buyerId);
+
+      const ledgerRows = await pool.query(
+        "SELECT * FROM economy_transactions WHERE reference_type = 'market_listing' AND reference_id = $1",
+        [listingId],
+      );
+      expect(ledgerRows.rows).toHaveLength(0);
     });
   });
 

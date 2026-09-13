@@ -12,3 +12,22 @@ export class IdempotencyKeyRequiredError extends Error {
     this.name = 'IdempotencyKeyRequiredError';
   }
 }
+
+/**
+ * AUDIT_AND_HARDENING Öncelik 3 (bu oturum) — `IdempotencyInterceptor`nin
+ * PostgreSQL'e taşınan REZERVASYON adımının (bkz. o dosyanın doc yorumu,
+ * migration 0020) ürettiği YENİ bir hata: aynı `(scopeId, idempotencyKey)`
+ * çifti ile GERÇEKTEN eşzamanlı (milisaniyeler içinde çakışan) iki istek
+ * geldiğinde, `idempotency_keys` tablosunun `PRIMARY KEY`'i ikinciyi
+ * reddeder — bu istek işleyiciyi HİÇ ÇALIŞTIRMAZ (dokuzuncu dilimin kendi
+ * "dağıtık kilit yok" sınırlamasının kapatılmasıdır). İstemci kısa bir
+ * süre sonra AYNI anahtarla tekrar deneyebilir (birinci istek o zamana
+ * kadar tamamlanmış olacaktır ve normal "aynı anahtar → aynı sonuç"
+ * yoluna girer).
+ */
+export class IdempotencyKeyInProgressError extends Error {
+  constructor() {
+    super('Bu Idempotency-Key ile bir istek hâlâ işleniyor — kısa bir süre sonra tekrar deneyin.');
+    this.name = 'IdempotencyKeyInProgressError';
+  }
+}

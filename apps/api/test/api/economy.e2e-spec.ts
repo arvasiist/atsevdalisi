@@ -68,6 +68,17 @@ describe('Economy — Daily Reward (e2e)', () => {
     expect(response.body.data.currency).toBe('money');
     expect(response.body.data.newBalance.money).toBe(startingMoney + 500);
     expect(typeof response.body.data.nextClaimAvailableAt).toBe('string');
+
+    // AUDIT_AND_HARDENING Öncelik 2 (bu oturum) — `PlayerRepository.
+    // updateWithLock`'un YENİ `ledgerEntries` mekanizmasının GENEL amaçlı
+    // olduğunun kanıtı: yalnızca At Pazarı DEĞİL, TEK-oyunculu bir para
+    // hareketi (günlük ödül) de `economy_transactions`'a yazılır.
+    const ledgerRows = await pool.query('SELECT * FROM economy_transactions WHERE player_id = $1', [id]);
+    expect(ledgerRows.rows).toHaveLength(1);
+    expect(ledgerRows.rows[0].type).toBe('daily_reward');
+    expect(Number(ledgerRows.rows[0].amount)).toBe(500);
+    expect(Number(ledgerRows.rows[0].balance_before)).toBe(startingMoney);
+    expect(Number(ledgerRows.rows[0].balance_after)).toBe(startingMoney + 500);
   });
 
   it('/api/v1/players/:id/daily-reward (POST) — cooldown dolmadan aynı gün ikinci talep 409 döner ve bakiyeyi DEĞİŞTİRMEZ', async () => {

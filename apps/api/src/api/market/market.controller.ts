@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Delete, Get, HttpCode, HttpStatus, Inject, Param, ParseUUIDPipe, Post, Query, UseInterceptors } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, Headers, HttpCode, HttpStatus, Inject, Param, ParseUUIDPipe, Post, Query, UseInterceptors } from '@nestjs/common';
 import { isUUID } from 'class-validator';
 import type { ApiSuccess, ListingStatus, MarketListing } from '@at-sevdalisi/shared-types';
 import { BuyMarketListingUseCase, type BuyMarketListingResult } from '../../application/use-cases/buy-market-listing.use-case';
@@ -157,8 +157,14 @@ export class MarketController {
   async buyListing(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: BuyMarketListingDto,
+    @Headers('Idempotency-Key') idempotencyKey: string | undefined,
   ): Promise<ApiSuccess<BuyMarketListingResult>> {
-    const result = await this.buyMarketListingUseCase.execute(id, dto.buyerId);
+    // AUDIT_AND_HARDENING Öncelik 2 (bu oturum) — header burada zaten
+    // `IdempotencyInterceptor` tarafından ZORUNLU kılınmıştır (yoksa bu
+    // satıra hiç ULAŞILMAZ); değer yalnızca ledger satırına İZ olarak
+    // taşınır (bkz. `BuyMarketListingUseCase` doc yorumu), replay
+    // KONTROLÜ hâlâ interceptor'ın kendi sorumluluğudur.
+    const result = await this.buyMarketListingUseCase.execute(id, dto.buyerId, idempotencyKey ?? null);
     return { success: true, data: result };
   }
 

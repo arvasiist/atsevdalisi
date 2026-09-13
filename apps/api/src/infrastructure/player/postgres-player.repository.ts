@@ -2,6 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import type { Pool, PoolClient } from 'pg';
 import type { Player } from '@at-sevdalisi/shared-types';
 import type { PlayerRepository } from '../../application/ports/player.repository';
+import type { EconomyLedgerEntryInput } from '../../application/ports/economy-ledger';
 import { PG_POOL, withTransaction } from '../database/database.module';
 
 /**
@@ -104,7 +105,7 @@ export class PostgresPlayerRepository implements PlayerRepository {
    */
   async updateWithLock<T>(
     id: string,
-    mutate: (player: Player) => { player: Player; result: T },
+    mutate: (player: Player) => { player: Player; result: T; ledgerEntries?: EconomyLedgerEntryInput[] },
   ): Promise<T | null> {
     return withTransaction(this.pool, async (client) => {
       const result = await client.query<PlayerRow>('SELECT * FROM players WHERE id = $1 FOR UPDATE', [id]);
@@ -114,8 +115,9 @@ export class PostgresPlayerRepository implements PlayerRepository {
       }
 
       const current = rowToPlayer(row);
-      const { player: updated, result: mutateResult } = mutate(current);
+      const { player: updated, result: mutateResult, ledgerEntries } = mutate(current);
       await this.writePlayerRow(client, updated);
+      await this.writeLedgerEntries(client, ledgerEntries);
 
       return mutateResult;
     });
@@ -199,6 +201,40 @@ export class PostgresPlayerRepository implements PlayerRepository {
    * Elo reytingini TEK transaction'da yazar — `BuyMarketListingUseCase`'in
    * `money` alanı için yaptığıyla AYNI desen).
    */
+  /**
+   * AUDIT_AND_HARDENING Öncelik 2 (bu oturum) — `updateWithLock`'un
+   * (para hareketi üreten HER çağrısı) yazdığı `economy_transactions`
+   * satırları, oyuncu satırının YAZILMASIYLA AYNI transaction'ın (AYNI
+   * `client`) içinde eklenir — biri başarısız olursa (ör. bir sonraki
+   * `client.query` bir hata fırlatırsa) `withTransaction` İKİSİNİ DE
+   * ROLLBACK eder, ledger asla gerçek bakiye değişikliğinden BAĞIMSIZ
+   * bir duruma düşemez. `entries` boş/`undefined` ise (para hareketi
+   * üretmeyen bir `mutate`) hiçbir şey yazılmaz.
+   */
+  private async writeLedgerEntries(client: PoolClient, entries: EconomyLedgerEntryInput[] | undefined): Promise<void> {
+    if (!entries || entries.length === 0) {
+      return;
+    }
+    for (const entry of entries) {
+      await client.query(
+        `INSERT INTO economy_transactions
+           (player_id, type, amount, currency, reference_type, reference_id, balance_before, balance_after, idempotency_key)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+        [
+          entry.playerId,
+          entry.type,
+          entry.amount,
+          entry.currency,
+          entry.referenceType,
+          entry.referenceId,
+          entry.balanceBefore,
+          entry.balanceAfter,
+          entry.idempotencyKey,
+        ],
+      );
+    }
+  }
+
   private async writePlayerRow(client: PoolClient, updated: Player): Promise<void> {
     await client.query(
       `UPDATE players
