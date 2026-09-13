@@ -10,7 +10,7 @@
 | Faz | Adı | Kapsam | Durum |
 |---|---|---|---|
 | **0** | Teknik keşif ve planlama | Repo, mimari, dokümantasyon, DB migration altyapısı, test altyapısı | ✅ Tamamlandı |
-| 1 | Core | Player, Auth, Economy, Horse, Stable, Training, Care, Basic Race Engine, Race Result, Progression | 🟡 Domain katmanı tamam; **Player + Horse (okuma) + Ahır Özeti + Antrenman + Bakım + Ahır Yükseltme + Günlük Ödül (Economy'nin `debit`+`credit`'i ve satır kilitleme dahil) + Pratik Yarış (temel Race Engine'in İLK orkestrasyonu; dokuzuncu dilimde giriş ücreti + ödül + Idempotency-Key/Redis eklendi) alt-modülleri gerçek veritabanına bağlandı ve CI'da DOĞRULANDI** (bkz. "FAZ 1 wiring" bölümleri — Player: run 34721911139; Horse: run 34723091484 (ilk denemede); Ahır Özeti: run 34723845048 (ilk denemede); Antrenman: run 34726749521 (bir hata bulunup düzeltildikten sonra, ikinci denemede); Bakım: run 34727941441 (ilk denemede); Ahır Yükseltme: run 34731523302 (ilk denemede); Günlük Ödül: run 34732402754 (ilk denemede); Pratik Yarış: run 34733778323 (ilk denemede); Pratik Yarış giriş ücreti/ödül + Idempotency-Key/Redis: kontrol bekleniyor), geri kalanı (Economy'nin `transfer` akışı, gerçek çok oyunculu/programlı Race API, Ahır Yükseltme'nin KENDİ endpoint'inin Idempotency-Key ile sertleştirilmesi) wiring bekliyor |
+| 1 | Core | Player, Auth, Economy, Horse, Stable, Training, Care, Basic Race Engine, Race Result, Progression | 🟡 Domain katmanı tamam; **Player + Horse (okuma) + Ahır Özeti + Antrenman + Bakım + Ahır Yükseltme + Günlük Ödül (Economy'nin `debit`+`credit`'i ve satır kilitleme dahil) + Pratik Yarış (temel Race Engine'in İLK orkestrasyonu; dokuzuncu dilimde giriş ücreti + ödül + Idempotency-Key/Redis eklendi) alt-modülleri gerçek veritabanına bağlandı ve CI'da DOĞRULANDI** (bkz. "FAZ 1 wiring" bölümleri — Player: run 34721911139; Horse: run 34723091484 (ilk denemede); Ahır Özeti: run 34723845048 (ilk denemede); Antrenman: run 34726749521 (bir hata bulunup düzeltildikten sonra, ikinci denemede); Bakım: run 34727941441 (ilk denemede); Ahır Yükseltme: run 34731523302 (ilk denemede); Günlük Ödül: run 34732402754 (ilk denemede); Pratik Yarış: run 34733778323 (ilk denemede); Pratik Yarış giriş ücreti/ödül + Idempotency-Key/Redis: run 34737087519 (ilk deneme BAŞARISIZ oldu — run 34735597486 — gerçek bir hata bulunup düzeltildi, İKİNCİ denemede yeşil)), geri kalanı (Economy'nin `transfer` akışı, gerçek çok oyunculu/programlı Race API, Ahır Yükseltme'nin KENDİ endpoint'inin Idempotency-Key ile sertleştirilmesi) wiring bekliyor |
 | 2 | Management | Horse Market, Buy/Sell, Vet, Farrier, Nutrition, Jockey, Staff, Stable capacity, Costs | 🟡 Domain katmanı tamam, wiring bekliyor |
 | 3 | Genetics | Pedigree, Mare/Stallion, Genetic traits, Inheritance, Mutation, Foal, Growth, Bloodline | 🟡 Domain katmanı tamam, wiring bekliyor |
 | 4 | Farm | Stable upgrade, Paddock, Training track, Vet center, Breeding center, Staff facilities | 🟡 Domain katmanı tamam, wiring bekliyor |
@@ -1466,9 +1466,24 @@ commit `1d69903`). `build-and-test` işi test aşamasında başarısız oldu.
    verdi. **Düzeltme:** ilgili beş karşılaştırma `Number(...)` ile
    sarmalandı.
 
-**✅ İKİNCİ DENEME BEKLENİYOR** — düzeltmeler gönderildi, kendi test
-ortamımızda TAMAMEN doğrulandı (323/323 test — 317 + `applyPracticeRaceStakes`
-için 6 yeni test), geniş `tsc` taraması tertemiz. CI sonucu bekleniyor.
+**✅ DOĞRULANDI — CI İKİNCİ DENEMEDE (düzeltme sonrası) baştan sona yeşil.**
+Düzeltme commit `dae7124` olarak gönderildi, proje sahibi tarafından push
+edildi (uzaktaki commit SHA: `b86829f7b3be0017567961820bb7580ccf247ce3`).
+CI çalışması `34737087519`: `status: completed`, `conclusion: success`
+(GitHub REST API `check-runs` uç noktasından + zorunlu ikincil çapraz
+kontrol olarak çalışmanın kendi HTML detay sayfasından — 11 açıklama/uyarı
+var ama hepsi bilinen/zararsız: Node.js 20 kullanımdan kaldırma uyarısı ve
+`economy`/`care`/`breeding` alanlarındaki "sihirli sayı" (magic number)
+lint uyarıları; hiçbiri test/derleme başarısını etkilemiyor). Kendi test
+ortamımızdaki 323/323 test sonucuyla birebir örtüşüyor.
+
+Bu, bu projede CI'ın YAKALADIĞI ilk gerçek uygulama hatasıydı (bkz. yukarı) —
+süreç tam olarak amaçlandığı gibi çalıştı: yerel `tsc`/vitest taraması
+hatayı kaçırdı (rastgele yarış sonucuna bağlı olduğu için), ama CI'ın
+e2e testleri gerçek bir HTTP isteği zincirinde yakaladı, düzeltme hem
+hatayı giderdi hem de kalıcı, framework'ten bağımsız birim testleriyle
+(`prize.spec.ts`'deki `applyPracticeRaceStakes` testleri) güvence altına
+alındı.
 
 ## Açık kararlar (proje sahibinin onayı bekleniyor)
 
