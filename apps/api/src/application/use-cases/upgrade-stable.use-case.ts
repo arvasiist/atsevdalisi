@@ -23,6 +23,12 @@ import { PLAYER_REPOSITORY, type PlayerRepository } from '../ports/player.reposi
  * Kapsam dışı (bilinçli): yükseltmenin bir onay/geri alma akışı,
  * yükseltme geçmişi kaydı (`GET .../history` ile AYNI gerekçeyle KAPSAM
  * DIŞI).
+ *
+ * FAZ 1 wiring, onuncu dilim — bu use-case'in KENDİSİ değişmedi (para
+ * mantığı burada zaten AYNI); yalnızca `StableController`'a
+ * `IdempotencyInterceptor` eklendi. Dokuzuncu dilimde bilinçli olarak
+ * açık bırakılan tek güvenlik eksiği (bkz. docs/API.md, docs/ROADMAP.md)
+ * bu şekilde kapatıldı.
  */
 @Injectable()
 export class UpgradeStableUseCase {

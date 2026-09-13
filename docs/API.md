@@ -278,17 +278,26 @@ uyarılarını hesaplar. Örnek yanıt:
 Oyuncu bulunamazsa `404 PLAYER_NOT_FOUND`, id UUID formatında değilse
 `400 VALIDATION_ERROR` döner.
 
-### Ahır Yükseltme (FAZ 1 wiring, altıncı dilim, bu oturum)
+### Ahır Yükseltme (FAZ 1 wiring, altıncı dilim; onuncu dilimde Idempotency-Key eklendi, bu oturum)
 
 ```http
 POST /api/v1/players/{id}/stable/upgrade
+Idempotency-Key: 5f2e1c2a-...-b3d9
 ```
 
-brief §32 "Ahır yükseltme" — gövde/parametre ALMAZ, her zaman oyuncunun
-mevcut seviyesinden BİR SONRAKİ seviyeye yükseltmeyi dener.
-`domain/stable/stable.ts`'teki `getNextStableUpgradeCost`'u
-`domain/economy/wallet.ts`'teki `debit`'le birleştirir — Economy'nin
-`debit` fonksiyonunun İLK gerçek kullanımı. Örnek yanıt:
+**Onuncu dilimden itibaren `Idempotency-Key` header'ı ZORUNLUDUR** (bkz.
+§1.3) — bu, projenin PARA değiştiren İLK endpoint'iydi ama dokuzuncu
+dilimde bu koruma bilinçli olarak KAPSAM DIŞI bırakılmıştı; bu dilim tam
+olarak o geriye dönük sertleştirmedir. Eksikse `400
+IDEMPOTENCY_KEY_REQUIRED` döner. Aynı anahtarla ikinci istek işlemi
+TEKRAR ÇALIŞTIRMAZ, ilk sonucu aynen döner (bakiye tekrar DÜŞÜLMEZ).
+
+brief §32 "Ahır yükseltme" — gövde/parametre ALMAZ (Idempotency-Key
+DIŞINDA), her zaman oyuncunun mevcut seviyesinden BİR SONRAKİ seviyeye
+yükseltmeyi dener. `domain/stable/stable.ts`'teki
+`getNextStableUpgradeCost`'u `domain/economy/wallet.ts`'teki `debit`'le
+birleştirir — Economy'nin `debit` fonksiyonunun İLK gerçek kullanımı.
+Örnek yanıt:
 
 ```json
 {
@@ -312,7 +321,8 @@ Bu, projenin PARA/mülkiyet değiştiren İLK use-case'idir — bu yüzden
 docs/SECURITY.md §5'in satır kilitleme (`SELECT ... FOR UPDATE` + tek
 transaction) kuralı İLK KEZ burada gerçek anlamda uygulandı (bkz.
 docs/ARCHITECTURE.md §9.3). Yükseltme geçmişi kaydı ve bir onay/geri alma
-akışı bu dilimin KAPSAMI DIŞINDADIR.
+akışı bu dilimin KAPSAMI DIŞINDADIR (Idempotency-Key koruması artık
+DEĞİL — bkz. yukarıdaki "onuncu dilim" notu).
 
 ### Antrenman (FAZ 1 wiring, dördüncü dilim, bu oturum)
 
@@ -512,9 +522,9 @@ Tasarım kararları (bkz. `application/use-cases/run-practice-race.use-case.ts`
   Hata 7 ilkesinin BAŞTAN uygulanmış hali — `domain/race/entrant-snapshot.ts`
   `assertValidRaceTactic`). `Idempotency-Key` eksikse → `400
   IDEMPOTENCY_KEY_REQUIRED`.
-- **Bilinçli sınırlama:** Ahır Yükseltme'nin KENDİ endpoint'i hâlâ
-  Idempotency-Key koruması OLMADAN çalışıyor — bu dilimin kapsamı dışında
-  bırakıldı, ayrı bir sertleştirme dilimini hak ediyor (bkz.
+- ~~**Bilinçli sınırlama:** Ahır Yükseltme'nin KENDİ endpoint'i hâlâ
+  Idempotency-Key koruması OLMADAN çalışıyor~~ — **onuncu dilimde
+  KAPATILDI** (bkz. yukarıdaki "Ahır Yükseltme" bölümü ve
   docs/ROADMAP.md).
 
 ## 5. Market (At Pazarı)

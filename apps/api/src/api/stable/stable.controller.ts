@@ -1,7 +1,8 @@
-import { Controller, Get, HttpCode, HttpStatus, Inject, Param, ParseUUIDPipe, Post } from '@nestjs/common';
+import { Controller, Get, HttpCode, HttpStatus, Inject, Param, ParseUUIDPipe, Post, UseInterceptors } from '@nestjs/common';
 import type { ApiSuccess, StableSummaryView, StableUpgradeResult } from '@at-sevdalisi/shared-types';
 import { GetStableSummaryUseCase } from '../../application/use-cases/get-stable-summary.use-case';
 import { UpgradeStableUseCase } from '../../application/use-cases/upgrade-stable.use-case';
+import { IdempotencyInterceptor } from '../idempotency/idempotency.interceptor';
 
 /**
  * docs/API.md §4 "Ahır Özeti". İş kuralı İÇERMEZ — sadece Application
@@ -29,8 +30,19 @@ export class StableController {
   // Yeni bir KAYNAK yaratmaz (bir sonraki seviyeye geçer) —
   // `TrainingController.train`/`CareController.care` ile AYNI gerekçeyle
   // 200 OK döner (201 Created DEĞİL).
+  //
+  // FAZ 1 wiring, onuncu dilim — brief §54: bu, PARA değiştiren
+  // (bakiyeden düşen) bir endpoint olduğu için `Idempotency-Key` header'ı
+  // artık ZORUNLUDUR (bkz. `IdempotencyInterceptor` doc yorumu). Bu, dokuzuncu
+  // dilimde bilinçli olarak KAPSAM DIŞI bırakılan, projenin PARA değiştiren
+  // İLK endpoint'inin geriye dönük sertleştirilmesidir — rota `/players/:id/...`
+  // olduğundan `req.params.id` ZATEN `playerId`'nin kendisidir, yani
+  // docs/SECURITY.md §4'ün tam olarak belirttiği `idempotency:{playerId}:{key}`
+  // anahtar biçimiyle BİREBİR örtüşür (Pratik Yarış'taki `horseId` tabanlı
+  // genellemeye bile gerek yok).
   @Post(':id/stable/upgrade')
   @HttpCode(HttpStatus.OK)
+  @UseInterceptors(IdempotencyInterceptor)
   async upgradeStable(@Param('id', ParseUUIDPipe) id: string): Promise<ApiSuccess<StableUpgradeResult>> {
     const result = await this.upgradeStableUseCase.execute(id);
     return { success: true, data: result };

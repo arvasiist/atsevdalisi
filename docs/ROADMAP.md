@@ -10,7 +10,7 @@
 | Faz | Adı | Kapsam | Durum |
 |---|---|---|---|
 | **0** | Teknik keşif ve planlama | Repo, mimari, dokümantasyon, DB migration altyapısı, test altyapısı | ✅ Tamamlandı |
-| 1 | Core | Player, Auth, Economy, Horse, Stable, Training, Care, Basic Race Engine, Race Result, Progression | 🟡 Domain katmanı tamam; **Player + Horse (okuma) + Ahır Özeti + Antrenman + Bakım + Ahır Yükseltme + Günlük Ödül (Economy'nin `debit`+`credit`'i ve satır kilitleme dahil) + Pratik Yarış (temel Race Engine'in İLK orkestrasyonu; dokuzuncu dilimde giriş ücreti + ödül + Idempotency-Key/Redis eklendi) alt-modülleri gerçek veritabanına bağlandı ve CI'da DOĞRULANDI** (bkz. "FAZ 1 wiring" bölümleri — Player: run 34721911139; Horse: run 34723091484 (ilk denemede); Ahır Özeti: run 34723845048 (ilk denemede); Antrenman: run 34726749521 (bir hata bulunup düzeltildikten sonra, ikinci denemede); Bakım: run 34727941441 (ilk denemede); Ahır Yükseltme: run 34731523302 (ilk denemede); Günlük Ödül: run 34732402754 (ilk denemede); Pratik Yarış: run 34733778323 (ilk denemede); Pratik Yarış giriş ücreti/ödül + Idempotency-Key/Redis: run 34737087519 (ilk deneme BAŞARISIZ oldu — run 34735597486 — gerçek bir hata bulunup düzeltildi, İKİNCİ denemede yeşil)), geri kalanı (Economy'nin `transfer` akışı, gerçek çok oyunculu/programlı Race API, Ahır Yükseltme'nin KENDİ endpoint'inin Idempotency-Key ile sertleştirilmesi) wiring bekliyor |
+| 1 | Core | Player, Auth, Economy, Horse, Stable, Training, Care, Basic Race Engine, Race Result, Progression | 🟡 Domain katmanı tamam; **Player + Horse (okuma) + Ahır Özeti + Antrenman + Bakım + Ahır Yükseltme (onuncu dilimde Idempotency-Key eklendi) + Günlük Ödül (Economy'nin `debit`+`credit`'i ve satır kilitleme dahil) + Pratik Yarış (temel Race Engine'in İLK orkestrasyonu; dokuzuncu dilimde giriş ücreti + ödül + Idempotency-Key/Redis eklendi) alt-modülleri gerçek veritabanına bağlandı ve CI'da DOĞRULANDI** (bkz. "FAZ 1 wiring" bölümleri — Player: run 34721911139; Horse: run 34723091484 (ilk denemede); Ahır Özeti: run 34723845048 (ilk denemede); Antrenman: run 34726749521 (bir hata bulunup düzeltildikten sonra, ikinci denemede); Bakım: run 34727941441 (ilk denemede); Ahır Yükseltme: run 34731523302 (ilk denemede); Günlük Ödül: run 34732402754 (ilk denemede); Pratik Yarış: run 34733778323 (ilk denemede); Pratik Yarış giriş ücreti/ödül + Idempotency-Key/Redis: run 34737087519 (ilk deneme BAŞARISIZ oldu — run 34735597486 — gerçek bir hata bulunup düzeltildi, İKİNCİ denemede yeşil); Ahır Yükseltme Idempotency-Key sertleştirmesi: kontrol bekleniyor), geri kalanı (Economy'nin `transfer` akışı, gerçek çok oyunculu/programlı Race API) wiring bekliyor |
 | 2 | Management | Horse Market, Buy/Sell, Vet, Farrier, Nutrition, Jockey, Staff, Stable capacity, Costs | 🟡 Domain katmanı tamam, wiring bekliyor |
 | 3 | Genetics | Pedigree, Mare/Stallion, Genetic traits, Inheritance, Mutation, Foal, Growth, Bloodline | 🟡 Domain katmanı tamam, wiring bekliyor |
 | 4 | Farm | Stable upgrade, Paddock, Training track, Vet center, Breeding center, Staff facilities | 🟡 Domain katmanı tamam, wiring bekliyor |
@@ -1484,6 +1484,62 @@ e2e testleri gerçek bir HTTP isteği zincirinde yakaladı, düzeltme hem
 hatayı giderdi hem de kalıcı, framework'ten bağımsız birim testleriyle
 (`prize.spec.ts`'deki `applyPracticeRaceStakes` testleri) güvence altına
 alındı.
+
+## FAZ 1 wiring — Onuncu dilim: Ahır Yükseltme'nin Idempotency-Key ile sertleştirilmesi (bu oturum)
+
+Pratik Yarış'a giriş ücreti/ödül + Idempotency-Key/Redis dilimi (dokuzuncu
+dilim) onaylandıktan sonra, karar yine proje sahibi tarafından bana
+bırakıldı. Üç aday vardı: Ekonomi'nin `transfer` akışı (At Pazarı gibi
+henüz hiç bağlanmamış bir çok-taraflı bağlam gerektirdiği için kapsamı
+büyüktü), gerçek çok oyunculu/programlı Yarış API'si (eşleştirme gerektiren
+büyük bir parça), ve Ahır Yükseltme'nin kendi endpoint'ini Idempotency-Key
+ile sertleştirmek. Üçüncüsünü seçtim: hem dokuzuncu dilimde bilinçli
+olarak açık bırakılan, belgelenmiş bir güvenlik eksiğini kapatıyor, hem
+de dokuzuncu dilimde YENİ kurulan Idempotency-Key/Redis altyapısını
+İKİNCİ bir gerçek kullanım örneğiyle doğruluyor, hem de düşük risklidir
+(yeni bir domain kuralı YOK, sadece mevcut, test edilmiş bir interceptor'ın
+başka bir endpoint'e uygulanması).
+
+Değişiklik tamamen API katmanında: `StableController.upgradeStable`'a
+`@UseInterceptors(IdempotencyInterceptor)` eklendi, `StableModule`'ün
+`providers`'ına `IdempotencyInterceptor` eklendi (Redis/config DI'ının
+doğru çözülebilmesi için — `RaceModule` ile BİREBİR AYNI desen).
+`domain/stable/`'da veya `UpgradeStableUseCase`'in kendi mantığında HİÇBİR
+değişiklik yok.
+
+İlginç bir detay: bu rota `/players/:id/stable/upgrade` şeklinde olduğundan
+(Pratik Yarış'ın `/horses/:id/...`'inden FARKLI olarak), `IdempotencyInterceptor`'ın
+genel `req.params.id` kuralı burada docs/SECURITY.md §4'ün tam olarak
+belirttiği `idempotency:{playerId}:{key}` biçimiyle BİREBİR örtüşüyor —
+Pratik Yarış'taki `horseId`→`playerId` genellemesine bile gerek yok.
+
+Testler: `stable.e2e-spec.ts`'teki mevcut 5 yükseltme senaryosuna
+`Idempotency-Key` header'ı eklendi, artı 2 YENİ senaryo (header eksikse
+400 + hiçbir şey yazılmaz; aynı anahtarla ikinci istek aynı sonucu döner
+ve bakiye tekrar düşülmez) — `race.e2e-spec.ts`'teki AYNI desen. Domain
+katmanında hiçbir değişiklik olmadığından yeni bir birim testi
+GEREKMEDİ.
+
+Doğrulama şekli bu dilimde biraz FARKLI: bu oturumun sandbox ortamı bu
+kez `node_modules` içermeyen tamamen TEMİZ bir durumda başladı (önceki
+dilimlerin geçici doğrulama araçları — el yapımı `vitest` shim'i vb. —
+kalıcı olmadıkları için, beklendiği gibi, kalmamıştı). Gerçek bir
+PostgreSQL/Redis zaten HİÇBİR ZAMAN bu sandbox'ta mevcut olmadığından
+(bkz. docs/ARCHITECTURE.md §9), e2e senaryoları yine ÇALIŞTIRILAMADI —
+ama bu kez paket bağımlılıkları da (`@nestjs/*` vb.) kurulu olmadığından
+tam bir `tsc` taraması da tek başına güvenilir değildi (eksik paketler
+başka, ilgisiz dosyalarda da "gürültü" hatalar üretiyordu). Bunun yerine
+DAHA GÜVENİLİR bir yöntem kullanıldı: değişiklik öncesi ve sonrası ağacın
+`tsc` çıktıları (`src` + `test` dahil geniş bir tarama) birebir
+KARŞILAŞTIRILDI — tek fark, `stable.controller.ts`'nin değişen import
+satırının sütun numarasıydı (aynı "modül bulunamadı" gürültüsü, sadece
+kayan bir sütun); YENİ bir hata YOK, giden bir hata da YOK. Bu, bu
+dilimin `tsc` açısından tertemiz olduğunun, sandbox'ın eksik
+bağımlılıklarından bağımsız bir kanıtıdır. Asıl çalıştırma doğrulaması —
+gerçek Postgres/Redis ile — her zamanki gibi CI'da olacak.
+
+*(Bu bölüm, CI sonucu geldiğinde "✅ DOĞRULANDI" paragrafıyla
+güncellenecek.)*
 
 ## Açık kararlar (proje sahibinin onayı bekleniyor)
 
