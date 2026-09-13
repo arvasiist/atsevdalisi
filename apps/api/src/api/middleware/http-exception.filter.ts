@@ -13,6 +13,7 @@ import { CareActionOnCooldownError, InvalidCareInputError } from '../../domain/c
 import { MaxStableLevelReachedError } from '../../domain/stable/errors';
 import { DailyRewardAlreadyClaimedError, InsufficientFundsError } from '../../domain/economy/errors';
 import { InvalidRaceTacticError } from '../../domain/race/errors';
+import { AlreadyInMatchmakingQueueError, NotInMatchmakingQueueError } from '../../domain/online/errors';
 import {
   CannotBuyOwnListingError,
   HorseAlreadyListedError,
@@ -105,6 +106,13 @@ const DOMAIN_ERROR_MAP = new Map<ErrorClassConstructor, { status: number; code: 
   [ListingNotActiveError, { status: HttpStatus.CONFLICT, code: ErrorCode.ListingNotActive }],
   [ListingExpiredError, { status: HttpStatus.CONFLICT, code: ErrorCode.ListingExpired }],
   [HorseAlreadyListedError, { status: HttpStatus.CONFLICT, code: ErrorCode.HorseAlreadyListed }],
+  // FAZ 1 wiring, on dördüncü dilim — PvP Eşleştirme (brief §41).
+  // `HorseAlreadyListedError` ile AYNI gerekçeyle (duruma bağlı, geçici —
+  // önce kuyruktan çıkılırsa çözülür) 409 Conflict.
+  [AlreadyInMatchmakingQueueError, { status: HttpStatus.CONFLICT, code: ErrorCode.AlreadyInMatchmakingQueue }],
+  // `ListingNotFoundError` ile AYNI kategori (bulunamayan bir kaynak —
+  // burada "bilet"), 404.
+  [NotInMatchmakingQueueError, { status: HttpStatus.NOT_FOUND, code: ErrorCode.NotInMatchmakingQueue }],
 ]);
 
 /**

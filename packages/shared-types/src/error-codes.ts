@@ -47,6 +47,9 @@ export const ErrorCode = {
   CareActionOnCooldown: 'CARE_ACTION_ON_COOLDOWN',
   // FAZ 1 wiring, yedinci dilim — Günlük Ödül (domain/economy)
   DailyRewardAlreadyClaimed: 'DAILY_REWARD_ALREADY_CLAIMED',
+  // FAZ 1 wiring, on dördüncü dilim (bu oturum) — PvP Eşleştirme (domain/online)
+  AlreadyInMatchmakingQueue: 'ALREADY_IN_MATCHMAKING_QUEUE',
+  NotInMatchmakingQueue: 'NOT_IN_MATCHMAKING_QUEUE',
 } as const;
 
 export type ErrorCodeValue = (typeof ErrorCode)[keyof typeof ErrorCode];

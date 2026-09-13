@@ -57,3 +57,13 @@ Bakiye değişikliği (debit+credit) `PlayerRepository.updateWithLock` İÇİNDE
 doc yorumu. Bu, brief §54'ün Idempotency-Key + Redis altyapısının İLK
 gerçek kullanıcısıdır (bkz. `api/idempotency/idempotency.interceptor.ts`,
 `app.module.ts`'e artık bağlı olan `RedisModule`).
+
+## FAZ 1 wiring, on dördüncü dilim — PvP Eşleştirme'nin Race Engine kullanımı (bu oturum)
+
+`domain/online/`'daki (brief §41 ONLINE MİMARİ) yeni `JoinMatchmakingQueueUseCase`,
+İKİ GERÇEK oyuncunun atını `buildHorseEntrantSnapshot`'la (yukarıda) bir
+snapshot'a çevirip AYNI `simulateRace`'i çağırır — bu dosyanın kendisinde
+HİÇBİR değişiklik YOKTUR, `domain/online/README.md`'nin "YENİ bir
+simülasyon motoru YAZILMADI" notuyla BİREBİR tutarlıdır. Botların (bu
+diliminin `bot-generator.ts`'i) AKSİNE, PvP'de İKİ taraf da gerçek `horses`/
+`race_entries` satırlarına sahiptir (bkz. `RaceRepository.savePvpMatch`).

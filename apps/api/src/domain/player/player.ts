@@ -21,8 +21,18 @@ export interface NewPlayerInput {
  * Yeni bir oyuncu için başlangıç durumunu oluşturur. `id` (UUID) ve
  * benzersizlik kontrolü (username unique) application/infrastructure
  * katmanının sorumluluğundadır — bu fonksiyon saf bir fabrika (factory)'dir.
+ *
+ * FAZ 1 wiring, on dördüncü dilim (bu oturum) — üçüncü parametre olarak
+ * `initialRating` eklendi (brief §43 Elo, bkz. `Player.rating` doc
+ * yorumu). `EconomyConfig` gibi TÜM bir config nesnesi (`OnlineConfig`)
+ * yerine BİLEREK yalnızca çıkarılmış SAYI değeri alınır — `domain/player`
+ * hiçbir zaman `domain/online`'a (veya `@at-sevdalisi/game-config`'in
+ * `OnlineConfig` tipine) bağımlı OLMAMALIDIR (bu iki domain birbirinden
+ * habersiz kalmalı, brief'te de ayrı bölümlerdir); çağıran taraf
+ * (`RegisterPlayerUseCase`) `AppConfigService.online.elo.initialRating`'i
+ * okuyup buraya düz bir sayı olarak geçirir.
  */
-export function createNewPlayer(input: NewPlayerInput, economyConfig: EconomyConfig): Player {
+export function createNewPlayer(input: NewPlayerInput, economyConfig: EconomyConfig, initialRating: number): Player {
   validateUsername(input.username);
   validateDisplayName(input.displayName);
 
@@ -46,6 +56,7 @@ export function createNewPlayer(input: NewPlayerInput, economyConfig: EconomyCon
     // 0016_add_last_daily_reward_claimed_at.up.sql`'deki DEFAULT NULL ile
     // BİREBİR aynı).
     lastDailyRewardClaimedAt: null,
+    rating: initialRating,
     createdAt: now,
     updatedAt: now,
   };

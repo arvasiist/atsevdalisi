@@ -4,6 +4,7 @@ import { EconomyModule } from './api/economy/economy.module';
 import { HealthModule } from './api/health/health.module';
 import { HorseModule } from './api/horse/horse.module';
 import { MarketModule } from './api/market/market.module';
+import { MatchmakingModule } from './api/matchmaking/matchmaking.module';
 import { PlayerModule } from './api/player/player.module';
 import { RaceModule } from './api/race/race.module';
 import { StableModule } from './api/stable/stable.module';
@@ -41,8 +42,14 @@ import { RedisModule } from './infrastructure/redis/redis.module';
  * `purchaseListing`/`cancelListing`'i gerçek veritabanına bağlar; bu,
  * Economy'nin `transfer` fonksiyonunun VE `PlayerRepository.
  * updateTwoWithLock`'un İLK gerçek kullanıcısıdır — bkz. "FAZ 1 wiring —
- * On birinci dilim"). Geriye kalan tek büyük madde: gerçek çok oyunculu
- * yarış eşleştirmesi (FAZ 7 Matchmaking).
+ * On birinci dilim"). On dördüncü dilimde `MatchmakingModule` eklendi
+ * (brief §41 PvP Eşleştirme — `domain/online/{matchmaking,elo,race-room}.ts`'in
+ * FAZ 7'den beri hazır ama hiç wiring edilmemiş saf fonksiyonlarını
+ * gerçek veritabanına ve mevcut Race Engine'e (`simulateRace`) bağlar,
+ * TAMAMEN senkron bir tasarımla — bkz. "FAZ 1 wiring — On dördüncü
+ * dilim"). Geriye kalan büyük maddeler: gerçek zamanlı/WebSocket maç
+ * bildirimi, tam "yarış takvimi" (zamanlanmış çok-katılımcılı yarışlar),
+ * turnuva/kulüp/sıralama/sezon (FAZ 7'nin geri kalanı).
  */
 @Module({
   imports: [
@@ -58,6 +65,7 @@ import { RedisModule } from './infrastructure/redis/redis.module';
     EconomyModule,
     RaceModule,
     MarketModule,
+    MatchmakingModule,
   ],
 })
 export class AppModule {}

@@ -4,6 +4,7 @@ import {
   loadEconomyConfig,
   loadGeneticsConfig,
   loadHorseGrowthConfig,
+  loadOnlineConfig,
   loadProgressionConfig,
   loadRaceConfig,
   loadStableConfig,
@@ -36,4 +37,8 @@ export class AppConfigService {
   readonly progression = loadProgressionConfig();
   readonly stable = loadStableConfig();
   readonly care = loadCareConfig();
+  // FAZ 1 wiring, on dördüncü dilim (bu oturum) — PvP Eşleştirme (brief
+  // §41/§43). `loadOnlineConfig()` FAZ 7'den beri `@at-sevdalisi/game-config`'te
+  // hazırdı ama hiçbir yerde çağrılmıyordu (bkz. docs/ROADMAP.md).
+  readonly online = loadOnlineConfig();
 }
