@@ -10,7 +10,7 @@
 | Faz | Adı | Kapsam | Durum |
 |---|---|---|---|
 | **0** | Teknik keşif ve planlama | Repo, mimari, dokümantasyon, DB migration altyapısı, test altyapısı | ✅ Tamamlandı |
-| 1 | Core | Player, Auth, Economy, Horse, Stable, Training, Care, Basic Race Engine, Race Result, Progression | 🟡 Domain katmanı tamam; **Player + Horse (okuma) + Ahır Özeti + Antrenman + Bakım + Ahır Yükseltme + Günlük Ödül (Economy'nin `debit`+`credit`'i ve satır kilitleme dahil) alt-modülleri gerçek veritabanına bağlandı ve CI'da DOĞRULANDI** (bkz. "FAZ 1 wiring" bölümleri — Player: run 34721911139; Horse: run 34723091484 (ilk denemede); Ahır Özeti: run 34723845048 (ilk denemede); Antrenman: run 34726749521 (bir hata bulunup düzeltildikten sonra, ikinci denemede); Bakım: run 34727941441 (ilk denemede); Ahır Yükseltme: run 34731523302 (ilk denemede); Günlük Ödül: gönderildi, CI sonucu bekleniyor), geri kalanı (Economy'nin `transfer` akışı, temel Race Engine) wiring bekliyor |
+| 1 | Core | Player, Auth, Economy, Horse, Stable, Training, Care, Basic Race Engine, Race Result, Progression | 🟡 Domain katmanı tamam; **Player + Horse (okuma) + Ahır Özeti + Antrenman + Bakım + Ahır Yükseltme + Günlük Ödül (Economy'nin `debit`+`credit`'i ve satır kilitleme dahil) alt-modülleri gerçek veritabanına bağlandı ve CI'da DOĞRULANDI** (bkz. "FAZ 1 wiring" bölümleri — Player: run 34721911139; Horse: run 34723091484 (ilk denemede); Ahır Özeti: run 34723845048 (ilk denemede); Antrenman: run 34726749521 (bir hata bulunup düzeltildikten sonra, ikinci denemede); Bakım: run 34727941441 (ilk denemede); Ahır Yükseltme: run 34731523302 (ilk denemede); Günlük Ödül: run 34732402754 (ilk denemede)), geri kalanı (Economy'nin `transfer` akışı, temel Race Engine) wiring bekliyor |
 | 2 | Management | Horse Market, Buy/Sell, Vet, Farrier, Nutrition, Jockey, Staff, Stable capacity, Costs | 🟡 Domain katmanı tamam, wiring bekliyor |
 | 3 | Genetics | Pedigree, Mare/Stallion, Genetic traits, Inheritance, Mutation, Foal, Growth, Bloodline | 🟡 Domain katmanı tamam, wiring bekliyor |
 | 4 | Farm | Stable upgrade, Paddock, Training track, Vet center, Breeding center, Staff facilities | 🟡 Domain katmanı tamam, wiring bekliyor |
@@ -1224,6 +1224,18 @@ doğrulanabilir (kabul edilen risk, önceki dilimlerle AYNI desen) —
 cooldown sonrası senaryo, test kurulumunda uygulamanın kendi DB havuzu
 üzerinden `last_daily_reward_claimed_at`'ı DOĞRUDAN geçmişe taşımayı
 gerektirir (24 saat gerçekte beklenemez).
+
+**✅ DOĞRULANDI — CI İLK DENEMEDE baştan sona yeşil** (GitHub Actions run
+[34732402754](https://github.com/arvasiist/atsevdalisi/actions/runs/34732402754),
+commit `3131a07`, iş `build-and-test` 1 dakika 50 saniyede tamamlandı).
+Kurulum, kod stili, tip kontrolü, gerçek PostgreSQL kurulumu, TÜM testler
+(yeni `economy.e2e-spec.ts`'in 5 senaryosu dahil) ve derleme — hepsi tek
+seferde, hiçbir düzeltme gerekmeden geçti. Yalnızca bilinen 11 uyarı
+(Node 20 kullanımdan kaldırma notu + 10 "magic number" lint uyarısı) var,
+hiçbiri hata değil. Bu, Ahır Yükseltme'den sonra art arda BEŞİNCİ
+"ilk denemede yeşil" dilim — ve satır kilitleme deseninin (`updateWithLock`)
+İKİNCİ kullanımının da (harcama değil, para EKLEME akışında) sorunsuz
+çalıştığının kanıtlanmış onayıdır.
 
 ## Açık kararlar (proje sahibinin onayı bekleniyor)
 
