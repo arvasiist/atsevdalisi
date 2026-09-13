@@ -2153,7 +2153,18 @@ global süpürme sorgusuna göre DAHA temiz: satır zaten kilitli olduğundan
 süpürme atomik olarak aynı transaction'da olur, ekstra bir sorgu/round-trip
 gerekmez. `tsc` baseline-diff ile doğrulandı — yeni tip hatası yok.
 
-⏳ Düzeltme sonrası ikinci CI denemesi bekleniyor.
+### ✅ İKİNCİ CI DENEMESİ BAŞARILI — AUDIT_AND_HARDENING onaylandı
+
+Düzeltme push edildikten sonra (`ed402bd`, "CI düzeltmesi" commit mesajı)
+gerçek CI `build-and-test` işi **başarıyla** tamamlandı (2 dakika 6
+saniye). 11 bilinen/zararsız uyarı dışında (Node.js 20 deprecation notu +
+önceden var olan "no magic number" ESLint uyarıları — projenin önceki
+dilimlerinde de aynı sayıda görülen, aksiyon gerektirmeyen uyarılar)
+başka bir bulgu yok. `market.e2e-spec.ts#L676` testi artık geçiyor —
+Öncelik 1'in regresyonu tam olarak düzeltildi.
+
+Sekiz kritik risk artık gerçek CI'da (gerçek Postgres + Redis'e karşı)
+doğrulanmış durumda. AUDIT_AND_HARDENING görevi tamamlandı.
 
 ## Açık kararlar (proje sahibinin onayı bekleniyor)
 
