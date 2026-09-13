@@ -10,7 +10,7 @@
 | Faz | Adı | Kapsam | Durum |
 |---|---|---|---|
 | **0** | Teknik keşif ve planlama | Repo, mimari, dokümantasyon, DB migration altyapısı, test altyapısı | ✅ Tamamlandı |
-| 1 | Core | Player, Auth, Economy, Horse, Stable, Training, Care, Basic Race Engine, Race Result, Progression | 🟡 Domain katmanı tamam; **Player + Horse (okuma) + Ahır Özeti + Antrenman + Bakım + Ahır Yükseltme (onuncu dilimde Idempotency-Key eklendi) + Günlük Ödül (Economy'nin `debit`+`credit`'i ve satır kilitleme dahil) + Pratik Yarış (temel Race Engine'in İLK orkestrasyonu; dokuzuncu dilimde giriş ücreti + ödül + Idempotency-Key/Redis eklendi) + At Pazarı (Economy'nin `transfer`'i + YENİ `updateTwoWithLock` ile ilan oluşturma/satın alma/iptal, on birinci dilim; tarama + "İlanlarım", on ikinci dilim) alt-modülleri gerçek veritabanına bağlandı** (bkz. "FAZ 1 wiring" bölümleri — Player: run 34721911139; Horse: run 34723091484 (ilk denemede); Ahır Özeti: run 34723845048 (ilk denemede); Antrenman: run 34726749521 (bir hata bulunup düzeltildikten sonra, ikinci denemede); Bakım: run 34727941441 (ilk denemede); Ahır Yükseltme: run 34731523302 (ilk denemede); Günlük Ödül: run 34732402754 (ilk denemede); Pratik Yarış: run 34733778323 (ilk denemede); Pratik Yarış giriş ücreti/ödül + Idempotency-Key/Redis: run 34737087519 (ilk deneme BAŞARISIZ oldu — run 34735597486 — gerçek bir hata bulunup düzeltildi, İKİNCİ denemede yeşil); Ahır Yükseltme Idempotency-Key sertleştirmesi: run 34737922897 (ilk denemede); At Pazarı (on birinci dilim): run 34769577514 (ilk denemede); At Pazarı tarama/İlanlarım (on ikinci dilim): kontrol bekleniyor), geri kalanı (gerçek çok oyunculu/programlı Race API, At Pazarı'nın ata özgü tarama filtreleri) wiring bekliyor |
+| 1 | Core | Player, Auth, Economy, Horse, Stable, Training, Care, Basic Race Engine, Race Result, Progression | 🟡 Domain katmanı tamam; **Player + Horse (okuma) + Ahır Özeti + Antrenman + Bakım + Ahır Yükseltme (onuncu dilimde Idempotency-Key eklendi) + Günlük Ödül (Economy'nin `debit`+`credit`'i ve satır kilitleme dahil) + Pratik Yarış (temel Race Engine'in İLK orkestrasyonu; dokuzuncu dilimde giriş ücreti + ödül + Idempotency-Key/Redis eklendi) + At Pazarı (Economy'nin `transfer`'i + YENİ `updateTwoWithLock` ile ilan oluşturma/satın alma/iptal, on birinci dilim; tarama + "İlanlarım", on ikinci dilim) alt-modülleri gerçek veritabanına bağlandı** (bkz. "FAZ 1 wiring" bölümleri — Player: run 34721911139; Horse: run 34723091484 (ilk denemede); Ahır Özeti: run 34723845048 (ilk denemede); Antrenman: run 34726749521 (bir hata bulunup düzeltildikten sonra, ikinci denemede); Bakım: run 34727941441 (ilk denemede); Ahır Yükseltme: run 34731523302 (ilk denemede); Günlük Ödül: run 34732402754 (ilk denemede); Pratik Yarış: run 34733778323 (ilk denemede); Pratik Yarış giriş ücreti/ödül + Idempotency-Key/Redis: run 34737087519 (ilk deneme BAŞARISIZ oldu — run 34735597486 — gerçek bir hata bulunup düzeltildi, İKİNCİ denemede yeşil); Ahır Yükseltme Idempotency-Key sertleştirmesi: run 34737922897 (ilk denemede); At Pazarı (on birinci dilim): run 34769577514 (ilk denemede); At Pazarı tarama/İlanlarım (on ikinci dilim): run 34770923029 (ilk denemede)) — **on iki dilimin TÜMÜ CI'da DOĞRULANDI**, geri kalanı (gerçek çok oyunculu/programlı Race API, At Pazarı'nın ata özgü tarama filtreleri) wiring bekliyor |
 | 2 | Management | Horse Market, Buy/Sell, Vet, Farrier, Nutrition, Jockey, Staff, Stable capacity, Costs | 🟡 Domain katmanı tamam, wiring bekliyor |
 | 3 | Genetics | Pedigree, Mare/Stallion, Genetic traits, Inheritance, Mutation, Foal, Growth, Bloodline | 🟡 Domain katmanı tamam, wiring bekliyor |
 | 4 | Farm | Stable upgrade, Paddock, Training track, Vet center, Breeding center, Staff facilities | 🟡 Domain katmanı tamam, wiring bekliyor |
@@ -1723,8 +1723,19 @@ karşılaştırıldı. Bu kez YENİ bir hata BULUNMADI — kalan TÜM farklar
 sandbox'ın eksik bağımlılıklarından kaynaklanan, önceki dilimlerde de
 görülen AYNI gürültü kategorisiydi.
 
-*(Bu bölüm, CI sonucu geldiğinde "✅ DOĞRULANDI" paragrafıyla
-güncellenecek.)*
+**✅ DOĞRULANDI** — GitHub'ın robotu bu dilimi de İLK denemede, hiçbir
+düzeltme gerekmeden onayladı: kurulum, kod stili, tip kontrolü, gerçek
+PostgreSQL veritabanı kurulumu (YENİ `0017` migration'ı dahil), yeni 13
+senaryo dahil TÜM testler ve derleme — hepsi tek seferde geçti (run
+34770923029, `af68add`, 2 dakika 9 saniye, 11 bilinen/zararsız uyarı —
+Node 20 kullanımdan kaldırma notu + 10 "magic number" lint uyarısı,
+YENİ `market.controller.ts`'teki sayı sabitleri de dahil, önceki
+dilimlerle AYNI kategori). Sonuç hem commit'in kendi `checks` sayfasıyla
+hem de çalışmanın kendi iş (job) detay sayfasıyla (run 34770923029, job
+103760248177) çapraz kontrol edilerek doğrulandı. Bu, docs/API.md §1.4'te
+FAZ 0'dan beri belgelenmiş sayfalama zarfının gerçek veritabanına karşı
+sorunsuz çalıştığının kanıtlanmış onayıdır — Faz 1 wiring'in bu
+oturumdaki on ikinci ve son parçası tamamlandı.
 
 ## Açık kararlar (proje sahibinin onayı bekleniyor)
 
