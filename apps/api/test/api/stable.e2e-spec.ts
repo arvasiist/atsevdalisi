@@ -83,7 +83,7 @@ describe('Stable summary (e2e)', () => {
     expect(response.status).toBe(400);
   });
 
-  describe('POST /api/v1/players/:id/stable/upgrade (FAZ 1 wiring, altıncı dilim)', () => {
+  describe('POST /api/v1/players/:id/stable/upgrade (FAZ 1 wiring, altıncı dilim; onuncu dilimde Idempotency-Key eklendi)', () => {
     async function registerPlayer(): Promise<string> {
       const response = await request(app.getHttpServer())
         .post('/api/v1/players')
@@ -97,7 +97,9 @@ describe('Stable summary (e2e)', () => {
       // Test kurulumu: bakiyeyi 20000'e çıkar (bkz. beforeAll notu).
       await pool.query('UPDATE players SET money = 20000 WHERE id = $1', [playerId]);
 
-      const response = await request(app.getHttpServer()).post(`/api/v1/players/${playerId}/stable/upgrade`);
+      const response = await request(app.getHttpServer())
+        .post(`/api/v1/players/${playerId}/stable/upgrade`)
+        .set('Idempotency-Key', randomUUID());
 
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
@@ -117,7 +119,9 @@ describe('Stable summary (e2e)', () => {
       const playerId = await registerPlayer();
       // Yeni oyuncu yalnızca 5000 para ile başlar, seviye 2 8000 tutar.
 
-      const response = await request(app.getHttpServer()).post(`/api/v1/players/${playerId}/stable/upgrade`);
+      const response = await request(app.getHttpServer())
+        .post(`/api/v1/players/${playerId}/stable/upgrade`)
+        .set('Idempotency-Key', randomUUID());
 
       expect(response.status).toBe(409);
       expect(response.body.error.code).toBe('INSUFFICIENT_FUNDS');
@@ -135,21 +139,68 @@ describe('Stable summary (e2e)', () => {
       // ayarlamak (bkz. yukarıdaki DB notu) yeterlidir.
       await pool.query('UPDATE players SET money = 1000000, stable_level = 5 WHERE id = $1', [playerId]);
 
-      const response = await request(app.getHttpServer()).post(`/api/v1/players/${playerId}/stable/upgrade`);
+      const response = await request(app.getHttpServer())
+        .post(`/api/v1/players/${playerId}/stable/upgrade`)
+        .set('Idempotency-Key', randomUUID());
 
       expect(response.status).toBe(409);
       expect(response.body.error.code).toBe('MAX_STABLE_LEVEL_REACHED');
     });
 
     it('var olmayan bir oyuncu için 404 PLAYER_NOT_FOUND döner', async () => {
-      const response = await request(app.getHttpServer()).post(`/api/v1/players/${randomUUID()}/stable/upgrade`);
+      const response = await request(app.getHttpServer())
+        .post(`/api/v1/players/${randomUUID()}/stable/upgrade`)
+        .set('Idempotency-Key', randomUUID());
       expect(response.status).toBe(404);
       expect(response.body.error.code).toBe('PLAYER_NOT_FOUND');
     });
 
     it('geçersiz (UUID olmayan) bir id için 400 döner', async () => {
-      const response = await request(app.getHttpServer()).post('/api/v1/players/not-a-uuid/stable/upgrade');
+      const response = await request(app.getHttpServer())
+        .post('/api/v1/players/not-a-uuid/stable/upgrade')
+        .set('Idempotency-Key', randomUUID());
       expect(response.status).toBe(400);
+    });
+
+    it('Idempotency-Key header eksikse 400 IDEMPOTENCY_KEY_REQUIRED döner ve HİÇBİR ŞEY yazılmaz', async () => {
+      const playerId = await registerPlayer();
+      await pool.query('UPDATE players SET money = 20000 WHERE id = $1', [playerId]);
+
+      const response = await request(app.getHttpServer()).post(`/api/v1/players/${playerId}/stable/upgrade`);
+
+      expect(response.status).toBe(400);
+      expect(response.body.error.code).toBe('IDEMPOTENCY_KEY_REQUIRED');
+
+      const summary = await request(app.getHttpServer()).get(`/api/v1/players/${playerId}/stable-summary`);
+      expect(summary.body.data.stableLevel).toBe(1);
+    });
+
+    it('AYNI Idempotency-Key ile ikinci istek AYNI sonucu döner ve TEKRAR bakiyeden düşmez', async () => {
+      const playerId = await registerPlayer();
+      await pool.query('UPDATE players SET money = 20000 WHERE id = $1', [playerId]);
+      const idempotencyKey = randomUUID();
+
+      const first = await request(app.getHttpServer())
+        .post(`/api/v1/players/${playerId}/stable/upgrade`)
+        .set('Idempotency-Key', idempotencyKey)
+        .expect(200);
+
+      const second = await request(app.getHttpServer())
+        .post(`/api/v1/players/${playerId}/stable/upgrade`)
+        .set('Idempotency-Key', idempotencyKey)
+        .expect(200);
+
+      // AYNI sonuç — yükseltme GERÇEKTEN tekrar çalıştırılmadı (docs/SECURITY.md §4).
+      expect(second.body.data).toEqual(first.body.data);
+
+      // Seviye 2'de kalmalı (3'e YÜKSELMEMİŞ olmalı) ve bakiye SADECE BİR
+      // KEZ düşülmüş olmalı (BIGINT sütun — pg string döner, bkz.
+      // race.e2e-spec.ts'teki AYNI not).
+      const moneyRow = await pool.query('SELECT money FROM players WHERE id = $1', [playerId]);
+      expect(Number(moneyRow.rows[0].money)).toBe(first.body.data.newBalance.money);
+
+      const summary = await request(app.getHttpServer()).get(`/api/v1/players/${playerId}/stable-summary`);
+      expect(summary.body.data.stableLevel).toBe(2);
     });
   });
 });

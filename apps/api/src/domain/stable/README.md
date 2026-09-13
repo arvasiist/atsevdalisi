@@ -19,3 +19,14 @@ Wiring: `apps/api/src/application/use-cases/upgrade-stable.use-case.ts`
 (FAZ 1 wiring, altıncı dilim — `getNextStableUpgradeCost`'u
 `domain/economy/wallet.ts`'in `debit`'iyle birleştirir, bkz.
 `apps/api/src/api/stable/`).
+
+## FAZ 1 wiring, onuncu dilim — Idempotency-Key sertleştirmesi (bu oturum)
+
+Domain katmanında bir değişiklik YOK — bu tamamen bir API katmanı
+konusu: `StableController.upgradeStable`'a
+`@UseInterceptors(IdempotencyInterceptor)` eklendi (bkz.
+`api/idempotency/idempotency.interceptor.ts`), dokuzuncu dilimde
+Pratik Yarış için bağlanan Idempotency-Key/Redis altyapısının İKİNCİ
+kullanıcısı. Bu, Ahır Yükseltme'nin (projenin PARA değiştiren İLK
+use-case'i) dokuzuncu dilime kadar bilinçli olarak açık bırakılan tek
+güvenlik eksiğini kapatır.
