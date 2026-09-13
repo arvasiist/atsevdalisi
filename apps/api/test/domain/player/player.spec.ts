@@ -12,22 +12,31 @@ import economyConfigJson from '../../../../../config/economy.config.json';
 import type { EconomyConfig } from '@at-sevdalisi/game-config';
 
 const economyConfig = economyConfigJson as unknown as EconomyConfig;
+// FAZ 1 wiring, on dördüncü dilim (bu oturum) — `createNewPlayer` artık
+// üçüncü bir parametre (`initialRating`) alıyor (bkz. `domain/player/player.ts`
+// doc yorumu). Gerçek `config/online.config.json` değeriyle AYNI (1000).
+const INITIAL_RATING = 1000;
 
 describe('createNewPlayer', () => {
   it('config’teki başlangıç bakiyesiyle level 1 bir oyuncu oluşturur', () => {
-    const player = createNewPlayer({ id: 'uuid-1', username: 'omer_arvas', displayName: 'Ömer' }, economyConfig);
+    const player = createNewPlayer(
+      { id: 'uuid-1', username: 'omer_arvas', displayName: 'Ömer' },
+      economyConfig,
+      INITIAL_RATING,
+    );
     expect(player.level).toBe(1);
     expect(player.xp).toBe(0);
     expect(player.money).toBe(economyConfig.newPlayerStartingBalance.money);
     expect(player.gems).toBe(economyConfig.newPlayerStartingBalance.gems);
     expect(player.stableLevel).toBe(1);
     expect(player.lastDailyRewardClaimedAt).toBeNull();
+    expect(player.rating).toBe(INITIAL_RATING);
   });
 
   it('geçersiz username ile InvalidUsernameError fırlatır', () => {
-    expect(() => createNewPlayer({ id: 'uuid-1', username: 'AB', displayName: 'Ömer' }, economyConfig)).toThrow(
-      InvalidUsernameError,
-    );
+    expect(() =>
+      createNewPlayer({ id: 'uuid-1', username: 'AB', displayName: 'Ömer' }, economyConfig, INITIAL_RATING),
+    ).toThrow(InvalidUsernameError);
   });
 });
 

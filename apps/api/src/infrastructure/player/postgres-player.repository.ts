@@ -30,6 +30,10 @@ interface PlayerRow {
   // FAZ 1 wiring, yedinci dilim — `database/migrations/
   // 0016_add_last_daily_reward_claimed_at.up.sql`.
   last_daily_reward_claimed_at: Date | null;
+  // FAZ 1 wiring, on dördüncü dilim — `database/migrations/
+  // 0018_add_pvp_matchmaking.up.sql`. INTEGER olduğundan (BIGINT/NUMERIC'in
+  // AKSİNE, `stable_level` ile AYNI gerekçe) doğrudan JS `number` döner.
+  rating: number;
   created_at: Date;
   updated_at: Date;
 }
@@ -47,6 +51,7 @@ function rowToPlayer(row: PlayerRow): Player {
     reputation: row.reputation,
     stableLevel: row.stable_level,
     lastDailyRewardClaimedAt: row.last_daily_reward_claimed_at ? row.last_daily_reward_claimed_at.toISOString() : null,
+    rating: row.rating,
     createdAt: row.created_at.toISOString(),
     updatedAt: row.updated_at.toISOString(),
   };
@@ -70,8 +75,8 @@ export class PostgresPlayerRepository implements PlayerRepository {
 
   async save(player: Player): Promise<void> {
     await this.pool.query(
-      `INSERT INTO players (id, username, display_name, avatar_id, level, xp, money, gems, reputation, stable_level, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+      `INSERT INTO players (id, username, display_name, avatar_id, level, xp, money, gems, reputation, stable_level, rating, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
       [
         player.id,
         player.username,
@@ -83,6 +88,7 @@ export class PostgresPlayerRepository implements PlayerRepository {
         player.gems,
         player.reputation,
         player.stableLevel,
+        player.rating,
         new Date(player.createdAt),
         new Date(player.updatedAt),
       ],
@@ -186,13 +192,19 @@ export class PostgresPlayerRepository implements PlayerRepository {
     });
   }
 
-  /** `updateWithLock`/`updateTwoWithLock`'un PAYLAŞTIĞI yazma sorgusu (DRY). */
+  /**
+   * `updateWithLock`/`updateTwoWithLock`'un PAYLAŞTIĞI yazma sorgusu (DRY).
+   * FAZ 1 wiring, on dördüncü dilim — `rating` da BURADAN güncellenir
+   * (`JoinMatchmakingQueueUseCase`, `updateTwoWithLock` ile İKİ oyuncunun
+   * Elo reytingini TEK transaction'da yazar — `BuyMarketListingUseCase`'in
+   * `money` alanı için yaptığıyla AYNI desen).
+   */
   private async writePlayerRow(client: PoolClient, updated: Player): Promise<void> {
     await client.query(
       `UPDATE players
        SET display_name = $2, avatar_id = $3, level = $4, xp = $5,
            money = $6, gems = $7, reputation = $8, stable_level = $9,
-           last_daily_reward_claimed_at = $10, updated_at = $11
+           last_daily_reward_claimed_at = $10, rating = $11, updated_at = $12
        WHERE id = $1`,
       [
         updated.id,
@@ -205,6 +217,7 @@ export class PostgresPlayerRepository implements PlayerRepository {
         updated.reputation,
         updated.stableLevel,
         updated.lastDailyRewardClaimedAt ? new Date(updated.lastDailyRewardClaimedAt) : null,
+        updated.rating,
         new Date(updated.updatedAt),
       ],
     );

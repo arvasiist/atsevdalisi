@@ -176,3 +176,38 @@ export interface PvpMatch {
   winnerId: UUID | null;
   createdAt: ISODateTimeString;
 }
+
+/**
+ * FAZ 1 wiring, on dördüncü dilim (bu oturum) — `POST /matchmaking/queue`
+ * (docs/API.md §9) bir eşleşme BULUNDUĞUNDA döndürülen sonuç. Bu dilimin
+ * SENKRON tasarımı gereği (bkz. `JoinMatchmakingQueueUseCase` doc yorumu)
+ * `PvpMatch.status` burada HER ZAMAN `'finished'`tir — yarış, eşleşme
+ * ANINDA, aynı istek içinde simüle edilir (`'matched'`/`'in_progress'`
+ * değerleri şemada VAR ama bu dilimde hiç ÜRETİLMEZ, ileride gerçek
+ * zamanlı/WebSocket bir akışa geçilirse kullanılabilir).
+ */
+export interface PvpMatchResult {
+  matchId: UUID;
+  raceId: UUID;
+  opponentPlayerId: UUID;
+  opponentHorseId: UUID;
+  /** Berabere (`scoreA === 0.5`, bkz. `domain/online/elo.ts`) durumunda `null`. */
+  winnerId: UUID | null;
+  ownFinishPosition: number;
+  ownFinishTimeMs: number;
+  opponentFinishPosition: number;
+  opponentFinishTimeMs: number;
+  ownRatingBefore: number;
+  ownRatingAfter: number;
+  opponentRatingBefore: number;
+  opponentRatingAfter: number;
+}
+
+/**
+ * `POST /matchmaking/queue` yanıt şekli — bir ayırt edici birlik
+ * (discriminated union): eşleşme HEMEN bulunduysa `matched: true` +
+ * tam maç sonucu; bulunamadıysa `matched: false` + kuyruğa eklenen
+ * bilet (bkz. `domain/online/errors.ts` `NoOpponentFoundError` üstündeki
+ * not — "eşleşme yok" burada bir HATA değil, bu birliğin bir dalıdır).
+ */
+export type JoinMatchmakingQueueResult = { matched: false; ticket: MatchmakingTicket } | { matched: true; match: PvpMatchResult };

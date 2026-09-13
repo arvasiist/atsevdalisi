@@ -42,6 +42,12 @@ export interface RegisterPlayerInput {
  * YAPILMAZ) — gerçek para/gem harcayan at edinme akışı (At Pazarı,
  * FAZ 2 `domain/economy/wallet.ts` `transfer`) ayrı bir wiring
  * dilimidir.
+ *
+ * FAZ 1 wiring, on dördüncü dilim (bu oturum): `createNewPlayer`'a
+ * artık üçüncü parametre olarak `this.config.online.elo.initialRating`
+ * geçirilir (brief §43 Elo, bkz. `domain/player/player.ts` doc yorumu) —
+ * yeni oyuncu PvP Eşleştirme kuyruğuna hiç girmemiş olsa bile baştan
+ * itibaren bir reytinge sahiptir (`Player.rating`).
  */
 @Injectable()
 export class RegisterPlayerUseCase {
@@ -63,6 +69,7 @@ export class RegisterPlayerUseCase {
         avatarId: input.avatarId ?? null,
       },
       this.config.economy,
+      this.config.online.elo.initialRating,
     );
 
     await this.playerRepository.save(player);

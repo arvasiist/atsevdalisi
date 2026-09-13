@@ -10,6 +10,10 @@ yapılır. `players` tablosunda şifre/e-posta hash'i TUTULMAZ; eşleme
 
 - `player.ts` — `createNewPlayer`: yeni hesap için başlangıç durumu
   (level 1, xp 0, `config/economy.config.json` → `newPlayerStartingBalance`).
+  FAZ 1 wiring, on dördüncü dilim (bu oturum) — üçüncü parametre olarak
+  `initialRating` eklendi (brief §43 Elo, bkz. `Player.rating` doc yorumu,
+  `domain/online/README.md` "On dördüncü dilim"); `domain/player` BİLEREK
+  `domain/online`'a bağımlı DEĞİLDİR, çağıran taraf düz bir sayı geçirir.
 - `validation.ts` — `validateUsername`, `validateDisplayName` (oyun-içi
   profil alanları, sağlayıcıdan bağımsız).
 - `auth-provider.ts` — `createPlayerAuthProviderLink`: Google/Apple'dan

@@ -35,3 +35,33 @@ olarak hesaplanacağı (zaten mevcut `domain/race/base-ability.ts` + ilgili
 domain'lerin sorumluluğudur, bu dosya sadece SONUCUNU doğrular).
 
 Testler: `apps/api/test/domain/online/{elo,matchmaking,anti-cheat,race-room}.spec.ts`.
+
+## FAZ 1 wiring, on dördüncü dilim — Gerçek PvP Eşleştirme (bu oturum)
+
+`elo.ts`/`matchmaking.ts`/`race-room.ts` FAZ 7'den beri hazır ama hiç
+wiring edilmemiş saf fonksiyonlardı — bu dilim onları `POST`/`DELETE
+/matchmaking/queue`'ya bağlar (bkz. `application/use-cases/
+{join,leave}-matchmaking-queue.use-case.ts`, docs/API.md §9, docs/ROADMAP.md
+"FAZ 1 wiring — On dördüncü dilim"):
+
+- Yeni tablolar (`database/migrations/0018_add_pvp_matchmaking.up.sql`):
+  `players.rating` (brief §43 Elo), `matchmaking_tickets` (kuyruk),
+  `pvp_matches` (tamamlanmış maç kaydı — gerçek simülasyon, `races`/
+  `race_entries` üzerinden, `RaceRepository.savePvpMatch`'tir).
+- TASARIM KARARI: eşleştirme TAMAMEN SENKRONDUR — sandbox'ta bir
+  zamanlanmış görev/arka plan işçisi altyapısı kurulamadığından (bkz.
+  `domain/market`'in on üçüncü dilimindeki AYNI keşif), `join` isteğinin
+  KENDİSİ uygun bir rakip bulursa yarışı HEMEN simüle eder ve sonucu aynı
+  yanıtla döner.
+- `NoOpponentFoundError` BİLİNÇLİ olarak KULLANILMADAN bırakıldı — "rakip
+  yok" burada bir HATA değil, normal bir `{matched: false, ticket}`
+  yanıtıdır (bkz. o hatanın kendi doc yorumu).
+- Yeni hatalar: `AlreadyInMatchmakingQueueError`, `NotInMatchmakingQueueError`
+  (`domain/market/errors.ts`'teki `HorseAlreadyListedError`/
+  `ListingNotFoundError` ile AYNI kategori).
+- KAPSAM DIŞI (bilinçli): giriş ücreti/ödül YOK (Elo-only), oyuncu kendi
+  taktiğini seçemez (`DEFAULT_RACE_TACTIC` sabit), kuyruk biletlerinin
+  TTL'i/temizliği YOK, gerçek zamanlı/WebSocket maç bildirimi YOK — bkz.
+  `JoinMatchmakingQueueUseCase` doc yorumundaki tam liste.
+
+Testler: `apps/api/test/api/matchmaking.e2e-spec.ts`.

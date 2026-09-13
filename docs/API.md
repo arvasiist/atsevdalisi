@@ -167,6 +167,11 @@ da veriyor — bkz. §4 "Uygulama durumu".
 tipine `stableLevel` alanı eklendi (DB'de zaten `players.stable_level`
 olarak vardı, FAZ 1'den beri bağlı değildi — bkz. §4 "Ahır Özeti").
 
+**Güncelleme (FAZ 1 wiring, on dördüncü dilim, bu oturum):** `Player`
+domain tipine `rating` (brief §43 Elo) eklendi — yeni oyuncular
+`config/online.config.json` → `elo.initialRating` (1000) ile başlar,
+`GET /api/v1/players/{id}` yanıtında görünür. Bkz. §9 "PvP Eşleştirme".
+
 ### Günlük Ödül (FAZ 1 wiring, yedinci dilim, bu oturum)
 
 ```http
@@ -804,6 +809,69 @@ tutarlı olarak, gerçek NestJS controller/route wiring'i henüz YAPILMAMIŞ,
 domain katmanı hazır bir sözleşme/tasarımdır — brief §41-44, §68-69 ile
 tutarlıdır.
 
+**FAZ 1 wiring, on dördüncü dilim (bu oturum) — `POST`/`DELETE
+/matchmaking/queue` WIRING EDİLDİ**, yukarıdaki 8 uç noktadan yalnızca
+bu ikisi (bkz. `apps/api/src/api/matchmaking/`, `domain/online/README.md`
+"On dördüncü dilim"; `leaderboard`/`clubs`/`tournaments`/`seasons` HÂLÂ
+kapsam dışıdır):
+
+```http
+POST /api/v1/matchmaking/queue
+Content-Type: application/json
+
+{ "horseId": "<uuid>" }
+```
+
+Yanıt İKİ şekilden biridir (`playerId` gövdede YOKTUR — atın `ownerId`'sinden
+türetilir, `POST /market/listings` ile AYNI desen):
+
+```jsonc
+// Uygun bir rakip HEMEN bulunamadıysa (201 Created — kuyruğa yeni bir bilet eklendi):
+{ "success": true, "data": { "matched": false, "ticket": { "playerId": "...", "horseId": "...", "rating": 1000, "queuedAt": "..." } } }
+
+// Uygun bir rakip HEMEN bulunduysa (201 Created — yarış AYNI istek içinde simüle edildi):
+{
+  "success": true,
+  "data": {
+    "matched": true,
+    "match": {
+      "matchId": "...", "raceId": "...",
+      "opponentPlayerId": "...", "opponentHorseId": "...",
+      "winnerId": "...",
+      "ownFinishPosition": 1, "ownFinishTimeMs": 61234,
+      "opponentFinishPosition": 2, "opponentFinishTimeMs": 61890,
+      "ownRatingBefore": 1000, "ownRatingAfter": 1016,
+      "opponentRatingBefore": 1000, "opponentRatingAfter": 984
+    }
+  }
+}
+```
+
+Olası hatalar: `404 HORSE_NOT_FOUND`, `409 HORSE_INJURED`, `409
+ALREADY_IN_MATCHMAKING_QUEUE`, `400 VALIDATION_ERROR` (`horseId` UUID
+değilse).
+
+```http
+DELETE /api/v1/matchmaking/queue?horseId=<uuid>
+```
+
+Kuyruktaki bileti kaldırır, kaldırılan bileti döner. Olası hatalar: `404
+HORSE_NOT_FOUND`, `404 NOT_IN_MATCHMAKING_QUEUE`, `400 VALIDATION_ERROR`.
+
+**Tasarım kararı — TAMAMEN SENKRON eşleştirme:** bu dilimde bir
+zamanlanmış görev/arka plan işçisi altyapısı YOK (`domain/market`'in on
+üçüncü dilimindeki AYNI keşif — sandbox'ta npm registry erişimi yoktu) —
+bu yüzden `join`, uygun bir rakip bulursa yarışı KENDİ İSTEĞİ İÇİNDE
+HEMEN simüle eder; bulamazsa çağıranın bileti kuyruğa eklenir. Giriş
+ücreti/ödül YOK (yalnızca Elo, `config/online.config.json`'da `matchmaking`
+bölümü hiçbir entry fee tanımlamaz). Her iki taraf da SABİT taktik/zemin/
+hava kullanır (`RunPracticeRaceUseCase` ile AYNI KAPSAM DIŞI gerekçesi).
+BİLİNÇLİ SINIRLAMA: kuyrukta önce bekleyen oyuncu, eşleşme SONRADAN gelen
+bir oyuncunun isteği İÇİNDE gerçekleşse bile bunu KENDİ BAŞINA öğrenemez
+(bu dilimde bir status/polling/WebSocket uç noktası YOK — bkz. §10
+"lobby.update" önerisi) — bkz. `JoinMatchmakingQueueUseCase`'in tam doc
+yorumu.
+
 Anti-cheat (brief §42): her uç nokta, client'tan gelen payload'ı
 `domain/online/anti-cheat.ts` `pickAllowedClientFields` ile ALLOWLIST'ten
 geçirmeli; `race.enter` gibi uç noktalarda client bir snapshot da
@@ -847,3 +915,5 @@ lobby.update       — online yarış lobisi (brief §41)
 | `LISTING_EXPIRED` | Pazar ilanının süresi dolmuş (FAZ 1 wiring, on birinci dilim — pratikte artık dönmez, bkz. §5 "İlan süresi dolma" notu, on üçüncü dilim) |
 | `HORSE_ALREADY_LISTED` | Bu ata ait zaten aktif bir pazar ilanı var (FAZ 1 wiring, on birinci dilim) |
 | `INVALID_LISTING_EXPIRY` | Pazar ilanı süresi (`expiresInHours`) 1-720 saat aralığı dışında (FAZ 1 wiring, on üçüncü dilim) |
+| `ALREADY_IN_MATCHMAKING_QUEUE` | Oyuncunun zaten eşleştirme kuyruğunda bir bileti var (FAZ 1 wiring, on dördüncü dilim) |
+| `NOT_IN_MATCHMAKING_QUEUE` | Oyuncunun eşleştirme kuyruğunda bileti yok (kuyruktan çıkma denemesi) (FAZ 1 wiring, on dördüncü dilim) |

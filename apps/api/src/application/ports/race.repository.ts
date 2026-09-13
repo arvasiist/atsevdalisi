@@ -1,4 +1,4 @@
-import type { Race, RaceEntry, RaceSegmentSnapshot } from '@at-sevdalisi/shared-types';
+import type { PvpMatch, Race, RaceEntry, RaceSegmentSnapshot } from '@at-sevdalisi/shared-types';
 
 /**
  * `RaceRepository` — Application katmanının Infrastructure'a bağlandığı
@@ -22,6 +22,25 @@ export interface RaceRepository {
    * (bkz. use-case doc yorumu).
    */
   savePracticeRace(race: Race, entry: RaceEntry, segments: RaceSegmentSnapshot[]): Promise<void>;
+
+  /**
+   * FAZ 1 wiring, on dördüncü dilim (bu oturum) — PvP Eşleştirme (brief
+   * §41). `savePracticeRace` ile AYNI "ya hepsi ya hiçbiri" transaction
+   * gerekçesi (satır kilitleme YOK, TAMAMEN yeni satırlar eklenir) — TEK
+   * farkı, İKİ gerçek katılımcı olduğu için `race_entries`/segment
+   * satırlarının İKİ SETİ ve ayrıca bir `pvp_matches` satırı yazılır
+   * (bkz. `database/migrations/0018_add_pvp_matchmaking.up.sql`).
+   * Botların AKSİNE (`savePracticeRace` doc yorumu), BURADA iki taraf da
+   * gerçek `horses`/`players` satırlarına sahiptir — bu yüzden HER iki
+   * katılımcı için de `race_entries` VE `race_entry_segments` yazılır
+   * (pratik yarıştaki "yalnızca oyuncunun atı" kısıtlaması burada YOK).
+   */
+  savePvpMatch(
+    race: Race,
+    entries: [RaceEntry, RaceEntry],
+    segments: RaceSegmentSnapshot[],
+    match: PvpMatch,
+  ): Promise<void>;
 }
 
 /** NestJS DI için token (interface'ler runtime'da yok olduğundan bir Symbol gerekir). */

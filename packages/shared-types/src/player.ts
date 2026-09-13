@@ -25,6 +25,20 @@ export interface Player {
    * alanlarının AKSİNE, bu basit bir bookkeeping alanıdır).
    */
   lastDailyRewardClaimedAt: ISODateTimeString | null;
+  /**
+   * FAZ 1 wiring, on dördüncü dilim (bu oturum) — brief §43 "Elo benzeri
+   * sistem PvP için ayrıca uygulanabilir" (bkz. `domain/online/elo.ts`).
+   * `stableLevel`/`lastDailyRewardClaimedAt` ile AYNI gerekçeyle doğrudan
+   * `Player` üzerinde tutulur (ayrı bir `PlayerRating` tablosu/aggregate'i
+   * YOK — `packages/shared-types/src/online.ts`'teki `PlayerRating`
+   * arayüzü FAZ 7'den beri TASLAKTA duruyordu ama hiç kullanılmadı; bu
+   * dilim onun yerine `Player.rating`'i tercih etti, çünkü `matchesPlayed`
+   * alanı henüz hiçbir yerde tüketilmiyor ve tek-alanlı bir genişletme
+   * daha az mimari karmaşıklık taşıyor — bkz. `domain/online/README.md`).
+   * Yeni oyuncular `config/online.config.json` → `elo.initialRating` ile
+   * başlar (bkz. `domain/player/player.ts` `createNewPlayer`).
+   */
+  rating: number;
   createdAt: ISODateTimeString;
   updatedAt: ISODateTimeString;
 }

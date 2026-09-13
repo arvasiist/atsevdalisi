@@ -28,9 +28,51 @@ export class AntiCheatViolationError extends Error {
   }
 }
 
+/**
+ * FAZ 7 domain'inde TASLAKTA duruyordu — bkz. üstündeki JSDoc'un ima
+ * ettiği "eşleşme yoksa hata" tasarımı. FAZ 1 wiring, on dördüncü dilim
+ * (bu oturum) BİLİNÇLİ olarak BU HATAYI HİÇ FIRLATMAZ: `JoinMatchmakingQueueUseCase`'de
+ * "uygun rakip yok" NORMAL bir 200 yanıtıdır (`{matched: false, ticket}`
+ * — oyuncu kuyrukta bekletilir), gerçek bir hata durumu DEĞİLDİR (bkz. o
+ * use-case'in doc yorumu). Bu sınıf, `domain/market/errors.ts`
+ * `ListingExpiredError`'ın on üçüncü dilimde "tanımlı ama fiilen artık
+ * dönmüyor" hâline gelmesiyle AYNI kategoride, bilinçli olarak KULLANILMADAN
+ * bırakılmıştır — ileride SENKRON olmayan bir eşleştirme tasarımı
+ * (örn. bir arka plan işçisi) benimsenirse gerçek bir kullanıcı bulabilir.
+ */
 export class NoOpponentFoundError extends Error {
   constructor() {
     super('Eşleştirme kriterlerine uyan bir rakip bulunamadı.');
     this.name = 'NoOpponentFoundError';
+  }
+}
+
+/**
+ * FAZ 1 wiring, on dördüncü dilim (bu oturum) — `domain/market/errors.ts`
+ * `HorseAlreadyListedError` ile AYNI desen/gerekçe: bir oyuncunun aynı anda
+ * yalnızca TEK bir eşleştirme bileti olabilir (`matchmaking_tickets.player_id`
+ * PRIMARY KEY, bkz. migration `0018_add_pvp_matchmaking`). Application
+ * katmanında (`JoinMatchmakingQueueUseCase`), var olan bir bilet
+ * bulunduğunda fırlatılır — domain katmanının kendisi (bu dosyanın
+ * kalan hataları gibi) hiçbir DB sorgusu yapmaz.
+ */
+export class AlreadyInMatchmakingQueueError extends Error {
+  constructor(public readonly playerId: string) {
+    super(`Oyuncu (${playerId}) zaten eşleştirme kuyruğunda.`);
+    this.name = 'AlreadyInMatchmakingQueueError';
+  }
+}
+
+/**
+ * FAZ 1 wiring, on dördüncü dilim (bu oturum) — `DELETE
+ * /matchmaking/queue` (docs/API.md §9) için `domain/market/errors.ts`
+ * `ListingNotFoundError` ile AYNI kategori: application katmanı
+ * (`LeaveMatchmakingQueueUseCase`), `MatchmakingTicketRepository.
+ * findByPlayerId` `null` döndüğünde bu hatayı fırlatır.
+ */
+export class NotInMatchmakingQueueError extends Error {
+  constructor(public readonly playerId: string) {
+    super(`Oyuncu (${playerId}) eşleştirme kuyruğunda değil.`);
+    this.name = 'NotInMatchmakingQueueError';
   }
 }

@@ -10,7 +10,7 @@
 | Faz | Adı | Kapsam | Durum |
 |---|---|---|---|
 | **0** | Teknik keşif ve planlama | Repo, mimari, dokümantasyon, DB migration altyapısı, test altyapısı | ✅ Tamamlandı |
-| 1 | Core | Player, Auth, Economy, Horse, Stable, Training, Care, Basic Race Engine, Race Result, Progression | 🟡 Domain katmanı tamam; **Player + Horse (okuma) + Ahır Özeti + Antrenman + Bakım + Ahır Yükseltme (onuncu dilimde Idempotency-Key eklendi) + Günlük Ödül (Economy'nin `debit`+`credit`'i ve satır kilitleme dahil) + Pratik Yarış (temel Race Engine'in İLK orkestrasyonu; dokuzuncu dilimde giriş ücreti + ödül + Idempotency-Key/Redis eklendi) + At Pazarı (Economy'nin `transfer`'i + YENİ `updateTwoWithLock` ile ilan oluşturma/satın alma/iptal, on birinci dilim; tarama + "İlanlarım", on ikinci dilim; ilan süresi dolma/expiry + `expiresInHours`, on üçüncü dilim) alt-modülleri gerçek veritabanına bağlandı** (bkz. "FAZ 1 wiring" bölümleri — Player: run 34721911139; Horse: run 34723091484 (ilk denemede); Ahır Özeti: run 34723845048 (ilk denemede); Antrenman: run 34726749521 (bir hata bulunup düzeltildikten sonra, ikinci denemede); Bakım: run 34727941441 (ilk denemede); Ahır Yükseltme: run 34731523302 (ilk denemede); Günlük Ödül: run 34732402754 (ilk denemede); Pratik Yarış: run 34733778323 (ilk denemede); Pratik Yarış giriş ücreti/ödül + Idempotency-Key/Redis: run 34737087519 (ilk deneme BAŞARISIZ oldu — run 34735597486 — gerçek bir hata bulunup düzeltildi, İKİNCİ denemede yeşil); Ahır Yükseltme Idempotency-Key sertleştirmesi: run 34737922897 (ilk denemede); At Pazarı (on birinci dilim): run 34769577514 (ilk denemede); At Pazarı tarama/İlanlarım (on ikinci dilim): run 34770923029 (ilk denemede); At Pazarı ilan süresi dolma (on üçüncü dilim): run 34773100218 (ilk denemede)) — **on üç dilimin TÜMÜ CI'da DOĞRULANDI**, geri kalanı (gerçek çok oyunculu/programlı Race API, At Pazarı'nın ata özgü tarama filtreleri) wiring bekliyor |
+| 1 | Core | Player, Auth, Economy, Horse, Stable, Training, Care, Basic Race Engine, Race Result, Progression | 🟡 Domain katmanı tamam; **Player + Horse (okuma) + Ahır Özeti + Antrenman + Bakım + Ahır Yükseltme (onuncu dilimde Idempotency-Key eklendi) + Günlük Ödül (Economy'nin `debit`+`credit`'i ve satır kilitleme dahil) + Pratik Yarış (temel Race Engine'in İLK orkestrasyonu; dokuzuncu dilimde giriş ücreti + ödül + Idempotency-Key/Redis eklendi) + At Pazarı (Economy'nin `transfer`'i + YENİ `updateTwoWithLock` ile ilan oluşturma/satın alma/iptal, on birinci dilim; tarama + "İlanlarım", on ikinci dilim; ilan süresi dolma/expiry + `expiresInHours`, on üçüncü dilim) alt-modülleri gerçek veritabanına bağlandı** (bkz. "FAZ 1 wiring" bölümleri — Player: run 34721911139; Horse: run 34723091484 (ilk denemede); Ahır Özeti: run 34723845048 (ilk denemede); Antrenman: run 34726749521 (bir hata bulunup düzeltildikten sonra, ikinci denemede); Bakım: run 34727941441 (ilk denemede); Ahır Yükseltme: run 34731523302 (ilk denemede); Günlük Ödül: run 34732402754 (ilk denemede); Pratik Yarış: run 34733778323 (ilk denemede); Pratik Yarış giriş ücreti/ödül + Idempotency-Key/Redis: run 34737087519 (ilk deneme BAŞARISIZ oldu — run 34735597486 — gerçek bir hata bulunup düzeltildi, İKİNCİ denemede yeşil); Ahır Yükseltme Idempotency-Key sertleştirmesi: run 34737922897 (ilk denemede); At Pazarı (on birinci dilim): run 34769577514 (ilk denemede); At Pazarı tarama/İlanlarım (on ikinci dilim): run 34770923029 (ilk denemede); At Pazarı ilan süresi dolma (on üçüncü dilim): run 34773100218 (ilk denemede)) — **on üç dilimin TÜMÜ CI'da DOĞRULANDI**; on dördüncü dilim (PvP Eşleştirme, `POST`/`DELETE /matchmaking/queue` — bkz. "FAZ 1 wiring — On dördüncü dilim") gönderildi, CI onayı bekleniyor; geri kalanı (tam "yarış takvimi" — zamanlanmış çok katılımcılı yarışlar, At Pazarı'nın ata özgü tarama filtreleri, açık artırma) wiring bekliyor |
 | 2 | Management | Horse Market, Buy/Sell, Vet, Farrier, Nutrition, Jockey, Staff, Stable capacity, Costs | 🟡 Domain katmanı tamam, wiring bekliyor |
 | 3 | Genetics | Pedigree, Mare/Stallion, Genetic traits, Inheritance, Mutation, Foal, Growth, Bloodline | 🟡 Domain katmanı tamam, wiring bekliyor |
 | 4 | Farm | Stable upgrade, Paddock, Training track, Vet center, Breeding center, Staff facilities | 🟡 Domain katmanı tamam, wiring bekliyor |
@@ -1831,6 +1831,109 @@ projenin Faz 0'dan beri hazır ama hiç çağrılmayan
 `expireListingIfNeeded` kuralının gerçek veritabanına karşı sorunsuz
 çalıştığının kanıtlanmış onayıdır — Faz 1 wiring'in bu oturumdaki on
 üçüncü parçası tamamlandı.
+
+## FAZ 1 wiring — On dördüncü dilim: PvP Eşleştirme (gerçek zamanlı yarış eşleştirmesi) (bu oturum)
+
+On üçüncü dilim onaylandıktan sonra yine "Sana bırakıyorum" onayıyla
+kararı ben verdim. Kalan iki büyük parçadan (gerçek çok oyunculu/
+programlı Yarış API'si, At Pazarı'nın küçük geri kalan boşlukları — ata
+özgü tarama filtreleri, açık artırma) BÜYÜK olanı seçildi, ama onun da
+TAM "yarış takvimi" (zamanlanmış, çok katılımcılı, giriş ücretli/ödül
+havuzlu yarışlar — brief §35, `docs/API.md`'de HİÇBİR yerde "kim
+zamanlanmış bir yarış OLUŞTURUR" sorusuna bir cevap YOKTU) DEĞİL, ondan
+daha KÜÇÜK ve daha net tanımlı bir alt kümesi: FAZ 7'nin brief §41
+ONLINE MİMARİ'sindeki 1v1 PvP Eşleştirme (`POST`/`DELETE
+/matchmaking/queue`, docs/API.md §9'da FAZ 7'den beri belgeliydi).
+
+**Neden bu, "tam Yarış API'si" değil:** araştırma sırasında
+`domain/online/{matchmaking,elo,race-room,errors}.ts` (FAZ 7) dosyalarının
+FAZ 0'dan beri TAMAMEN hazır, test edilmiş, ama HİÇ wiring edilmemiş saf
+fonksiyonlar olduğu doğrulandı — tam olarak bu oturumun daha önceki 13
+diliminin kullandığı "hazır ama hiç kullanılmayan altyapıyı hayata
+geçirme" deseni. `config/online.config.json`'ın `matchmaking` bölümünde
+hiçbir giriş ücreti tanımlanmaması (turnuvaların AKSİNE) kapsamı önemli
+ölçüde daralttı: PvP maçları yalnızca Elo reytingini değiştirir, para/
+mülkiyet YOK. Buna karşılık `GET/POST /races/...` (zamanlanmış çok
+katılımcılı yarışlar) için "kim/ne zaman bir yarış oluşturur" sorusuna
+brief'te de docs'ta da bir cevap yoktu — sekizinci dilimin kendi doc
+yorumu bunu AÇIKÇA "TEK dilimde yapılamayacak kadar büyük" olarak
+işaretlemişti (bkz. yukarıdaki "Sekizinci dilim" bölümü) ve bu oturum da
+AYNI sonuca vardı; o BÜYÜK madde hâlâ ayrı, gelecekteki bir dilimi
+bekliyor.
+
+**Tasarım kararı — TAMAMEN SENKRON eşleştirme:** bu sandbox'ta (on üçüncü
+dilimde keşfedildiği gibi) npm registry erişimi yok, bu yüzden gerçek bir
+zamanlanmış görev/arka plan işçisi (`@nestjs/schedule` vb.) eklenemez.
+Bunun yerine `JoinMatchmakingQueueUseCase`, `POST /matchmaking/queue`
+isteğinin KENDİSİ İÇİNDE dener: `domain/online/matchmaking.ts`
+`findBestMatch` ile uygun bir rakip bulursa, YENİ bir simülasyon motoru
+YAZMADAN mevcut/doğrulanmış `domain/race/race-engine.ts` `simulateRace`'i
+(FAZ 5) bir "oda" bağlamında (iki GERÇEK oyuncunun snapshot'larıyla)
+çağırır ve sonucu AYNI yanıtla döner; bulamazsa çağıranın bileti kuyruğa
+eklenir. `domain/online/race-room.ts`'in "YENİ bir simülasyon motoru
+YAZILMADI" tasarım notu böylece İLK KEZ gerçek kullanıcısını buldu.
+
+**Bilinçli, açıkça belgelenmiş bir sınırlama:** kuyrukta ÖNCE bekleyen
+oyuncu, eşleşme SONRADAN gelen bir oyuncunun isteği İÇİNDE gerçekleşse
+bile bunu KENDİ BAŞINA öğrenemez — bu dilimde bir status/polling/
+WebSocket uç noktası YOK (docs/API.md §9'da yalnızca 2 endpoint
+belgelenmiştir). Bu, brief'in gerçek zamanlı bildirim gereksinimini TAM
+karşılamaz, ama iki oyuncu (neredeyse) eşzamanlı `join` çağırdığında tam
+çalışan, `RunPracticeRaceUseCase`'in "sabit sayıda bot" kararıyla AYNI
+ruhta kademeli bir ilk adımdır.
+
+**Eşzamanlılık güvenliği (tam bir DB kilidi OLMADAN):** en iyi rakip saf
+`findBestMatch` ile seçildikten sonra, o rakibin bileti `DELETE ...
+RETURNING` ile "claim edilmeye ÇALIŞILIR" — iki oyuncunun eşzamanlı
+olarak aynı üçüncü rakibi yakalamaya çalıştığı nadir durumda yalnızca
+biri kazanır, kaybeden kalan adaylar arasında yeniden dener (sınırlı
+döngü). Elo'nun kendisi ise `PlayerRepository.updateTwoWithLock` (on
+birinci dilimde At Pazarı satın alma için eklenmişti) İÇİNDE, satırlar
+KİLİTLİYKEN, en GÜNCEL reytinglerle yeniden hesaplanır —
+`UpgradeStableUseCase`/`BuyMarketListingUseCase` ile AYNI "hesaplama
+satır kilitliyken" kuralı.
+
+**Yeni kalıcı durum** (`database/migrations/0018_add_pvp_matchmaking.up.sql`):
+`players.rating` (INTEGER, DEFAULT 1000, `stable_level` ile AYNI "her
+zaman açıkça ayarla" kuralı — gerçek değer HER ZAMAN `createNewPlayer`'ın
+YENİ üçüncü parametresinden gelir), `matchmaking_tickets` (`player_id`
+PRIMARY KEY — `horse_stats.horse_id` ile AYNI "tek satır = tek varlık"
+deseni), `pvp_matches` (tamamlanmış maç kaydı, `races`/`race_entries`
+üzerinden gerçek simülasyona bağlanır).
+
+**Yeni hatalar** (`domain/online/errors.ts`): `AlreadyInMatchmakingQueueError`
+(409, `HorseAlreadyListedError` ile AYNI kategori), `NotInMatchmakingQueueError`
+(404, `ListingNotFoundError` ile AYNI kategori). `NoOpponentFoundError`
+(FAZ 7'den beri taslakta duran) BİLİNÇLİ olarak KULLANILMADAN bırakıldı —
+"rakip yok" burada bir hata değil, normal bir `{matched: false, ticket}`
+yanıtıdır (`domain/market`'in on üçüncü dilimde `ListingExpiredError`'ı
+"tanımlı ama fiilen artık dönmüyor" hâline getirmesiyle AYNI kategori).
+
+**KAPSAM DIŞI (bu dilim, bilinçli):** oyuncunun kendi taktiğini seçmesi
+(`DEFAULT_RACE_TACTIC` sabit kullanılıyor); gerçek zemin/hava/mesafe
+çeşitliliği (pratik yarışla AYNI sabitler); kuyruk biletlerinin TTL'i/
+temizliği (At Pazarı'nın on üçüncü dilimde kazandığı tembel süpürme
+deseni burada YOK); `IdempotencyInterceptor` (para/mülkiyet
+değiştirmediği için brief §54 kapsamına girmiyor — double-submit riski
+`matchmaking_tickets.player_id` PRIMARY KEY'i tarafından zaten sınırlanan
+KABUL EDİLMİŞ bir risk); tam "yarış takvimi" (zamanlanmış çok
+katılımcılı yarışlar, turnuva/kulüp/sıralama/sezon FAZ 7'nin geri kalanı)
+— hepsi ayrı dilimleri hak ediyor, bkz. `domain/online/README.md`.
+
+Testler: `apps/api/test/api/matchmaking.e2e-spec.ts` (YENİ dosya, 10
+senaryo — kuyruğa ekleme, hemen eşleşme + Elo/DB doğrulaması, zaten
+kuyrukta olma, sakat at, var olmayan at, geçersiz UUID [POST için 6];
+kuyruktan çıkma, kuyrukta olmama, var olmayan at, geçersiz UUID [DELETE
+için 4]).
+
+Doğrulama şekli önceki dilimlerle AYNI: sandbox `node_modules` içermiyor,
+bu yüzden değişiklik öncesi/sonrası `tsc` çıktıları (`src` + `test` dahil
+geniş bir tarama) karşılaştırıldı — YENİ bir hata BULUNMADI (yalnızca
+yeni dosyaların KENDİ `@nestjs/...`/`pg`/`vitest` içe aktarma satırları
+ve mevcut dosyalardaki satır numarası kaymaları, hepsi bilinen/zararsız
+kategorilerde).
+
+⏳ CI doğrulaması bekleniyor.
 
 ## Açık kararlar (proje sahibinin onayı bekleniyor)
 
