@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { CareModule } from './api/care/care.module';
 import { HealthModule } from './api/health/health.module';
 import { HorseModule } from './api/horse/horse.module';
 import { PlayerModule } from './api/player/player.module';
@@ -13,13 +14,23 @@ import { DatabaseModule } from './infrastructure/database/database.module';
  * ikinci dilimde `HorseModule` eklendi (yalnızca okuma uç noktaları +
  * kayıtta başlangıç atı verme); üçüncü dilimde `StableModule` eklendi
  * (Ahır Özeti); dördüncü dilimde `TrainingModule` eklendi (brief §10
- * Antrenman — `POST /horses/{id}/train`, bkz. "FAZ 1 wiring — Dördüncü
- * dilim"). `RaceModule` vb. bir sonraki adımlarda aynı desenle
+ * Antrenman); beşinci dilimde `CareModule` eklendi (brief §11-12
+ * Bakım/Besleme — `POST /horses/{id}/care`+`/feed`, bkz. "FAZ 1 wiring —
+ * Beşinci dilim"). `RaceModule` vb. bir sonraki adımlarda aynı desenle
  * eklenecektir (bkz. docs/ARCHITECTURE.md §6). `RedisModule` henüz
  * BAĞLANMADI — cache/idempotency gerektiren bir use-case eklendiğinde
  * bağlanacaktır (brief §54).
  */
 @Module({
-  imports: [AppConfigModule, DatabaseModule, HealthModule, PlayerModule, HorseModule, StableModule, TrainingModule],
+  imports: [
+    AppConfigModule,
+    DatabaseModule,
+    HealthModule,
+    PlayerModule,
+    HorseModule,
+    StableModule,
+    TrainingModule,
+    CareModule,
+  ],
 })
 export class AppModule {}

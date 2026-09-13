@@ -10,7 +10,7 @@
 | Faz | Adı | Kapsam | Durum |
 |---|---|---|---|
 | **0** | Teknik keşif ve planlama | Repo, mimari, dokümantasyon, DB migration altyapısı, test altyapısı | ✅ Tamamlandı |
-| 1 | Core | Player, Auth, Economy, Horse, Stable, Training, Care, Basic Race Engine, Race Result, Progression | 🟡 Domain katmanı tamam; **Player + Horse (okuma) + Ahır Özeti + Antrenman alt-modülleri gerçek veritabanına bağlandı ve CI'da DOĞRULANDI** (bkz. "FAZ 1 wiring" bölümleri — Player: run 34721911139; Horse: run 34723091484 (ilk denemede); Ahır Özeti: run 34723845048 (ilk denemede); Antrenman: run 34726749521 (bir hata bulunup düzeltildikten sonra, ikinci denemede)), geri kalanı (Economy'nin transfer akışı, Ahır yükseltme, Care, Race Engine) wiring bekliyor |
+| 1 | Core | Player, Auth, Economy, Horse, Stable, Training, Care, Basic Race Engine, Race Result, Progression | 🟡 Domain katmanı tamam; **Player + Horse (okuma) + Ahır Özeti + Antrenman + Bakım alt-modülleri gerçek veritabanına bağlandı ve CI'da DOĞRULANDI** (bkz. "FAZ 1 wiring" bölümleri — Player: run 34721911139; Horse: run 34723091484 (ilk denemede); Ahır Özeti: run 34723845048 (ilk denemede); Antrenman: run 34726749521 (bir hata bulunup düzeltildikten sonra, ikinci denemede); Bakım: gönderildi, CI sonucu bekleniyor), geri kalanı (Economy'nin transfer akışı, Ahır yükseltme, Race Engine) wiring bekliyor |
 | 2 | Management | Horse Market, Buy/Sell, Vet, Farrier, Nutrition, Jockey, Staff, Stable capacity, Costs | 🟡 Domain katmanı tamam, wiring bekliyor |
 | 3 | Genetics | Pedigree, Mare/Stallion, Genetic traits, Inheritance, Mutation, Foal, Growth, Bloodline | 🟡 Domain katmanı tamam, wiring bekliyor |
 | 4 | Farm | Stable upgrade, Paddock, Training track, Vet center, Breeding center, Staff facilities | 🟡 Domain katmanı tamam, wiring bekliyor |
@@ -938,6 +938,108 @@ varsayılan süre, olmayan at için 404, geçersiz tür için 400, çok yorgun
 at için 409) gerçek PostgreSQL'e karşı doğrulandı — `horse_stats`
 tablosunun ve `withTransaction`'ın İLK gerçek kullanımı da bu doğrulamaya
 dahildir. FAZ 1 wiring'in Antrenman dilimi tamamlanmıştır.
+
+## FAZ 1 wiring — Beşinci dilim: Bakım (bu oturum)
+
+Antrenman dilimi CI'da doğrulandıktan sonra, proje sahibinin "Evet devam
+edelim" onayıyla beşinci dilime geçildi. brief §11-12 ve §75 MVP kriteri
+("Bakım yapılabiliyor") gereği Care seçildi — sıradaki modül (Player,
+Auth, Economy, Horse, Stable, Training, **Care**, ...).
+`domain/care/care.ts` (`applyCareAction`, `applyFeed`,
+`canPerformCareAction`, `getCareActionCost`/`getFeedCost`) FAZ 0'dan beri
+saf fonksiyonlar olarak hazır ve test edilmişti, hiç wiring edilmemişti.
+
+**Hata 7'nin dersi bu dilimde PROAKTİF olarak uygulandı (CI'ı beklemeden):**
+Antrenman dilimindeki CI başarısızlığından (bkz. yukarıdaki "CI Hata 7")
+çıkarılan genel kural — "bir DTO alanı bir config sözlüğüne indeksleniyorsa,
+domain katmanı bu değeri BAĞIMSIZ olarak doğrulamalı, yalnızca
+`@IsIn()`'e güvenmemeli" — bu dilimde herhangi bir CI hatası oluşmadan
+BAŞTAN uygulandı: `domain/care/care.ts`'e `getCareActionEffect`/
+`getFeedTypeEffect` yardımcı fonksiyonları eklendi, `config.actions[...]`/
+`config.feedTypes[...]` `undefined` dönerse yeni `InvalidCareInputError`
+fırlatır (`400 VALIDATION_ERROR`'a eşlenir).
+
+**Bulunan ve bu dilimde KAPSAMA ALINAN bir eksik:** `horse_health` tablosu
+(migration 0004) önceki dört dilimde de hiç kullanılmamıştı — ama Bakım,
+o tablodaki `injuryRisk`/`recoveryRate`/`jointCondition`/`weightCondition`
+alanlarını okuyup güncellemeden anlamsızdır. Bu yüzden bu dilimde: (a)
+yeni bir at oluşturulduğunda artık ona eşlik eden bir `horse_health`
+satırı da (migration'daki DEFAULT değerlerle) `horse_stats` ile BİRLİKTE
+AYNI transaction'da yaratılıyor ("bir at asla stats/health satırları
+olmadan var olmamalı" ilkesi genişletildi); (b) yeni
+`HorseHealthRepository`/`PostgresHorseHealthRepository` KASITLI olarak
+tablonun yalnızca dar bir alt kümesini (`CareableHealthView`) okur/yazar
+— `health`/`muscleCondition`/`respiratoryCondition`/`lastVetCheck` gibi
+alanlar brief §29/§34'teki "veteriner kontrolü gizli sağlık verisini
+ortaya çıkarır" özelliği için bilinçli olarak DOKUNULMADAN bırakıldı.
+
+**Cooldown takibi için yeni bir tablo:** `database/migrations/
+0015_create_horse_care_log.up/down.sql` — `(horse_id, action_type)`
+birleşik birincil anahtarlı, yalnızca `last_performed_at` tutan bir
+tablo. `canPerformCareAction`'ın FAZ 0'dan beri hazır ama hiç gerçek
+kalıcılığa bağlanmamış olan saf fonksiyonunu besler. Beslemenin (`feed`)
+cooldown'u YOKTUR, bu yüzden bu tablo yalnızca altı bakım eylemini
+(`groom`/`water`/`clean`/`vet`/`farrier`/`rest`) kapsar.
+
+**Yeni uç noktalar:** `POST /api/v1/horses/{id}/care` (`{ actionType }`)
+ve `POST /api/v1/horses/{id}/feed` (`{ feedType }`) —
+`PerformCareActionUseCase`/`FeedHorseUseCase` üzerinden `domain/care/
+care.ts`'in saf fonksiyonlarını çağırıp sonucu `horses` (vital'lar) +
+`horse_health` (CareableHealthView alt kümesi) tablolarına yazar; `care`
+ayrıca `horse_care_log`'a bir upsert yapar. docs/API.md'nin önceki
+taslağındaki AYRI `vet`/`farrier`/`rest` uç noktaları — `TrainingController`'ın
+"tek endpoint + type alanı" kararıyla AYNI gerekçeyle — TEK `/care` uç
+noktasına birleştirildi. Yanıt şekli ve tasarım kararları `docs/API.md`
+§4 "Bakım ve Besleme" bölümünde detaylıdır.
+
+**Yeni domain/paylaşılan tip dosyaları:** `domain/care/errors.ts`'e
+eklenen `InvalidCareInputError`; yeni `domain/care/validation.ts`
+(`CARE_ACTION_TYPES`/`FEED_TYPES` — DTO'ların tek doğruluk kaynağı); yeni
+`packages/shared-types/src/care.ts` (`CareActionType`/`FeedType`/
+`CareableHealthView`/`PerformCareActionResult`/`FeedHorseResult`).
+`CareActionType`/`FeedType`, `@at-sevdalisi/game-config`'te de tanımlı
+olsa da, shared-types paketi KASITLI OLARAK bağımlılıksızdır (bkz.
+`packages/shared-types/package.json` açıklaması) — bu yüzden aynı literal
+değerlerle BAĞIMSIZ olarak yeniden bildirildi (TypeScript'in yapısal
+tipleme sistemi ikisi arasında serbest atamaya izin verir); bu,
+`TrainingType`/`TrainingIntensity` için zaten var olan AYNI önceki
+kararla tutarlıdır.
+
+**Yeni port/infra dosyaları:** `application/ports/horse-health.repository.ts`,
+`application/ports/care-log.repository.ts`;
+`infrastructure/horse/postgres-horse-health.repository.ts` (NUMERIC
+sütunlar için `Number(...)` dönüşümü — `training` dilimindeki AYNI
+node-postgres deseni), `infrastructure/care/postgres-care-log.repository.ts`
+(`recordPerformed`, `INSERT ... ON CONFLICT (horse_id, action_type) DO
+UPDATE` upsert'i kullanır); yeni `CareModule` (`HorseModule`'ü import
+eder, `HORSE_HEALTH_REPOSITORY`/`CARE_LOG_REPOSITORY`'yi kendi sağlar,
+dışa aktarmaz). Hata 6/7'nin dersi burada da BAŞTAN uygulandı: yeni tüm
+constructor'lar İSTİSNASIZ açık `@Inject()` kullanıyor.
+
+**Hata kodu eşlemesi:** yeni `CARE_ACTION_ON_COOLDOWN` kodu
+`packages/shared-types/src/error-codes.ts`'e eklendi (`CareActionOnCooldownError`
+→ `409 Conflict`, `HorseInjuredError`/`HorseNotReadyForTrainingError` ile
+AYNI gerekçe — geçici bir durum engeli); `InvalidCareInputError` mevcut
+`VALIDATION_ERROR` koduna eşlendi (`InvalidTrainingInputError` ile AYNI
+desen).
+
+**Kapsam dışı (bilinçli, sonraki adımlar):** Bakım/besleme maliyeti
+(Economy entegrasyonu — Antrenman/Ahır yükseltme ile AYNI gerekçeyle);
+`GET /horses/{id}/history`; `horse_health`'in geri kalan alanları
+(`health`/`muscleCondition`/`respiratoryCondition`/`lastVetCheck` —
+veteriner kontrolünün gizli veri açığa çıkarması, brief §29/§34);
+`horse_surface_stats`/`horse_distance_stats` tabloları.
+
+**Doğrulama (bu oturum, yerel):** `apps/api/tsconfig.domain.json` ile
+domain katmanı temiz derlendi; `packages/shared-types` (yeni `care.ts`
+tipleri dahil) ayrıca temiz derlendi. Framework'ten bağımsız test seti
+(312 test — 309 + `care.spec.ts`'e eklenen 3 yeni `InvalidCareInputError`
+testi) yerel olarak koştu, hepsi geçti. `@nestjs`/`pg` paketleri olmadan
+mümkün olduğunca geniş bir yerel `tsc` taraması yapıldı (yalnızca eksik
+paket gürültüsü ve önceden bilinen, bu dilimin DIŞINDA kalan bir
+`http-exception.filter.ts` `unknown` tipi uyarısı filtrelendi) — gerçek
+bir tip hatası bulunmadı. Yeni `care.e2e-spec.ts` (7 senaryo) yalnızca
+CI'da doğrulanabilir (kabul edilen risk, önceki dilimlerle AYNI desen).
 
 ## Açık kararlar (proje sahibinin onayı bekleniyor)
 

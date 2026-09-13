@@ -13,13 +13,13 @@ import { PG_POOL, withTransaction } from '../database/database.module';
  * üstündeki AYNI not); bu oyunun değerleri bu sınırı pratikte aşmayacağı
  * için `Number(...)`'a çevrilir.
  *
- * NOT — KAPSAM: `horse_surface_stats`/`horse_distance_stats`/`horse_health`
- * tabloları BURADA henüz okunmuyor/yazılmıyor. `horse_stats` ise FAZ 1
- * wiring'in DÖRDÜNCÜ diliminde (Antrenman, bu oturum) kapsama alındı —
- * `save()` artık `horse_stats`'a da DB varsayılanlarıyla (migration
- * 0003) bir satır ekliyor (bkz. `PostgresHorseStatsRepository` — okuma/
- * güncelleme AYRI bir repository'dedir, çünkü `HorseStats` `Horse`'dan
- * farklı bir domain kavramıdır).
+ * NOT — KAPSAM: `horse_surface_stats`/`horse_distance_stats` tabloları
+ * BURADA henüz okunmuyor/yazılmıyor. `horse_stats` (Antrenman, dördüncü
+ * dilim) ve `horse_health` (Bakım, beşinci dilim) ise kapsama alındı —
+ * `save()` artık ikisine de DB varsayılanlarıyla (migration 0003) birer
+ * satır ekliyor (bkz. `PostgresHorseStatsRepository`/
+ * `PostgresHorseHealthRepository` — okuma/güncelleme AYRI repository'lerde,
+ * çünkü `HorseStats`/`HorseHealth` `Horse`'dan farklı domain kavramlarıdır).
  */
 interface HorseRow {
   id: string;
@@ -89,11 +89,12 @@ export class PostgresHorseRepository implements HorseRepository {
   }
 
   async save(horse: Horse): Promise<void> {
-    // Bir at, `horse_stats` satırı olmadan var olamamalıdır (Antrenman bu
-    // satırı okur/günceller) — bu yüzden iki INSERT tek bir transaction'da
-    // yapılır (bkz. `database.module.ts` `withTransaction`). `horse_stats`
-    // için sütun listesi verilmez: DEFAULT değerler (migration 0003) TEK
-    // doğruluk kaynağıdır, burada TEKRAR yazılmaz.
+    // Bir at, `horse_stats`/`horse_health` satırları olmadan var
+    // olamamalıdır (Antrenman `horse_stats`'ı, Bakım `horse_health`'i
+    // okur/günceller) — bu yüzden ÜÇ INSERT tek bir transaction'da yapılır
+    // (bkz. `database.module.ts` `withTransaction`). İkisi için de sütun
+    // listesi VERİLMEZ: DEFAULT değerler (migration 0003) TEK doğruluk
+    // kaynağıdır, burada TEKRAR yazılmaz.
     await withTransaction(this.pool, async (client) => {
       await client.query(
         `INSERT INTO horses (id, owner_id, name, gender, breed, birth_date, level, xp, quality, potential, health, fitness, fatigue, energy, morale, weight_kg, status, sire_id, dam_id, created_at, updated_at)
@@ -123,6 +124,7 @@ export class PostgresHorseRepository implements HorseRepository {
         ],
       );
       await client.query('INSERT INTO horse_stats (horse_id) VALUES ($1)', [horse.id]);
+      await client.query('INSERT INTO horse_health (horse_id) VALUES ($1)', [horse.id]);
     });
   }
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { applyCareAction, applyFeed, canPerformCareAction, getCareActionCost, getFeedCost } from '../../../src/domain/care/care';
-import { CareActionOnCooldownError } from '../../../src/domain/care/errors';
+import { CareActionOnCooldownError, InvalidCareInputError } from '../../../src/domain/care/errors';
 import careConfig from '../../../../../config/care.config.json';
 import type { CareConfig } from '@at-sevdalisi/game-config';
 
@@ -77,5 +77,46 @@ describe('maliyet okuma', () => {
   it('getCareActionCost ve getFeedCost doğru değerleri döner', () => {
     expect(getCareActionCost(config, 'vet')).toEqual({ currency: 'money', amount: 250 });
     expect(getFeedCost(config, 'performance')).toEqual({ currency: 'gems', amount: 5 });
+  });
+});
+
+/**
+ * FAZ 1 wiring, beşinci dilim — Antrenman dilimindeki CI Hata 7'nin
+ * dersi (bkz. `domain/care/errors.ts` `InvalidCareInputError` üstündeki
+ * not): DTO doğrulaması esbuild altında atlanabildiği için domain
+ * katmanı BAĞIMSIZ olarak da doğrulamalı.
+ */
+describe('geçersiz bakım girdisi', () => {
+  it('tanımsız bir eylem türü için InvalidCareInputError fırlatır', () => {
+    expect(() =>
+      applyCareAction(
+        config,
+        // @ts-expect-error — kasıtlı olarak geçersiz bir değer test ediliyor.
+        'not-a-real-action',
+        vitals,
+        health,
+        null,
+        new Date(),
+      ),
+    ).toThrow(InvalidCareInputError);
+  });
+
+  it('tanımsız bir yem türü için InvalidCareInputError fırlatır', () => {
+    expect(() =>
+      applyFeed(
+        config,
+        // @ts-expect-error — kasıtlı olarak geçersiz bir değer test ediliyor.
+        'not-a-real-feed',
+        vitals,
+        health,
+      ),
+    ).toThrow(InvalidCareInputError);
+  });
+
+  it('getCareActionCost/getFeedCost tanımsız değerler için de aynı hatayı fırlatır', () => {
+    // @ts-expect-error — kasıtlı olarak geçersiz bir değer test ediliyor.
+    expect(() => getCareActionCost(config, 'not-a-real-action')).toThrow(InvalidCareInputError);
+    // @ts-expect-error — kasıtlı olarak geçersiz bir değer test ediliyor.
+    expect(() => getFeedCost(config, 'not-a-real-feed')).toThrow(InvalidCareInputError);
   });
 });

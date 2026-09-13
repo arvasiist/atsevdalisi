@@ -9,6 +9,7 @@ import {
   UsernameAlreadyTakenError,
 } from '../../domain/player/errors';
 import { HorseNotReadyForTrainingError, InvalidTrainingInputError } from '../../domain/training/errors';
+import { CareActionOnCooldownError, InvalidCareInputError } from '../../domain/care/errors';
 
 /**
  * Bir hata sınıfının constructor'ı (`instanceof` ile karşılaştırılabilir).
@@ -44,6 +45,13 @@ const DOMAIN_ERROR_MAP = new Map<ErrorClassConstructor, { status: number; code: 
   // kendi bağımsız kontrolünün fırlattığı hata; gerçek bir DOĞRULAMA
   // hatasıdır, bu yüzden diğerleri gibi 400.
   [InvalidTrainingInputError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.ValidationError }],
+  // FAZ 1 wiring, beşinci dilim — Bakım (brief §11). "Cooldown dolmadı"
+  // GEÇİCİDİR — `HorseInjuredError`/`HorseNotReadyForTrainingError` ile
+  // AYNI gerekçeyle 409 Conflict.
+  [CareActionOnCooldownError, { status: HttpStatus.CONFLICT, code: ErrorCode.CareActionOnCooldown }],
+  // Hata 7'nin (bkz. domain/care/errors.ts InvalidCareInputError) BAŞTAN
+  // uygulanmış hali — gerçek bir DOĞRULAMA hatasıdır, 400.
+  [InvalidCareInputError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.ValidationError }],
 ]);
 
 /**
