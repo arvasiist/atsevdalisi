@@ -64,11 +64,23 @@ export class PostgresRaceRepository implements RaceRepository {
     });
   }
 
-  /** `savePracticeRace`/`savePvpMatch`'in PAYLAŞTIĞI `races` satırı ekleme sorgusu (DRY). */
+  /**
+   * `savePracticeRace`/`savePvpMatch`'in PAYLAŞTIĞI `races` satırı ekleme
+   * sorgusu (DRY).
+   *
+   * AUDIT_AND_HARDENING Öncelik 4 (bu oturum) — `engine_version`/
+   * `ruleset_version`/`config_version` (migration 0021) burada YAZILIR.
+   * Bu üç değer `race` nesnesinin KENDİSİNDEN gelir (çağıran use-case'ler
+   * `RACE_ENGINE_VERSION`/`RACE_RULESET_VERSION`/`raceConfig.version`'ı
+   * `Race` nesnesini oluştururken doldurur) — bu repository'nin KENDİSİ
+   * hiçbir versiyon sabiti BİLMEZ/İMPORT ETMEZ, sadece kendisine verileni
+   * yazar (Infrastructure katmanının Domain sabitlerine değil, yalnızca
+   * Application'ın ürettiği DEĞERE bağımlı olması — docs/ARCHITECTURE.md §4).
+   */
   private async insertRaceRow(client: PoolClient, race: Race): Promise<void> {
     await client.query(
-      `INSERT INTO races (id, track_id, name, distance_m, surface, weather, temperature_c, wind_kmh, humidity_pct, participant_limit, entry_fee, prize_pool, start_time, status, simulation_seed, created_at, updated_at)
-       VALUES ($1, NULL, $2, $3, $4, $5, $6, NULL, NULL, $7, $8, $9, $10, $11, $12, $13, $13)`,
+      `INSERT INTO races (id, track_id, name, distance_m, surface, weather, temperature_c, wind_kmh, humidity_pct, participant_limit, entry_fee, prize_pool, start_time, status, simulation_seed, engine_version, ruleset_version, config_version, created_at, updated_at)
+       VALUES ($1, NULL, $2, $3, $4, $5, $6, NULL, NULL, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $16)`,
       [
         race.id,
         race.name,
@@ -82,6 +94,9 @@ export class PostgresRaceRepository implements RaceRepository {
         new Date(race.startTime),
         race.status,
         race.simulationSeed,
+        race.engineVersion,
+        race.rulesetVersion,
+        race.configVersion,
         new Date(race.createdAt),
       ],
     );

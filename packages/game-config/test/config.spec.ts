@@ -16,6 +16,17 @@ import {
  * 1'i aşması) erkenden yakalanmasını sağlar.
  */
 describe('loadRaceConfig', () => {
+  // AUDIT_AND_HARDENING Öncelik 4 (bu oturum) — `version` alanı sessizce
+  // silinir/boş bırakılırsa `races.config_version` sütunu (migration 0021)
+  // anlamsız bir değerle (boş string) doldurulur ve replay/audit için
+  // hangi denge sürümünün kullanıldığı takip edilemez hale gelir; bu test
+  // o regresyonu erkenden yakalar.
+  it('version alanı boş olmayan bir string olmalı', () => {
+    const config = loadRaceConfig();
+    expect(typeof config.version).toBe('string');
+    expect(config.version.length).toBeGreaterThan(0);
+  });
+
   it('baseAbilityWeights toplamı yaklaşık 1.0 olmalı', () => {
     const config = loadRaceConfig();
     const sum = Object.values(config.baseAbilityWeights).reduce((acc, v) => acc + v, 0);

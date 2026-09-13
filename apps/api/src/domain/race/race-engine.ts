@@ -41,6 +41,7 @@ import { decideJockeyAction, type JockeyDecision } from './jockey-decisions';
 import { deriveSprintBonus } from './sprint';
 import { accumulateRuntimeFatigue, deriveFatiguePerformancePenalty } from './fatigue';
 import { explainRace } from './race-explanation';
+import { combineConditionModifiers } from './modifier-combination';
 
 export interface RaceSimulationInput {
   raceId: string;
@@ -57,6 +58,49 @@ export interface RaceSimulationInput {
 
 /** Segment performans puanının altına düşemeyeceği taban (hız = 0/negatif olmasın diye). */
 const MIN_SEGMENT_PERFORMANCE_SCORE = 5;
+
+/**
+ * AUDIT_AND_HARDENING Öncelik 4 (bu oturum) — brief §58 / docs/RACE_ENGINE.md
+ * §10'daki "RaceConfig(o anki versiyon)" kavramının SOMUT karşılığı;
+ * `database/migrations/0021_add_race_versioning.up.sql`'in doc yorumuna bkz.
+ *
+ * `RACE_ENGINE_VERSION` bu dosyadaki (`simulateRace`) YAPISAL algoritmayı
+ * (segment döngüsünün geçiş sayısı/sırası, hangi alt-modüllerin hangi
+ * sırayla çağrıldığı) temsil eder — şu an FAZ5'in 3-geçişli modelidir
+ * (bkz. dosya başındaki doc yorumu: "Geçiş A/B/C"). BU DOSYADA (`simulateRace`
+ * içinde) segment döngüsünün YAPISI değişirse (yeni bir geçiş eklenir,
+ * geçişlerin sırası değişir, vb.) bu değer ARTIRILMALIDIR — aksi halde
+ * ESKİ yarışlar YENİ engine ile "replay" edilirken aynı seed+snapshot'tan
+ * farklı bir sonuç üretebilir ve bu sessizce fark edilmeyebilir.
+ *
+ * `RACE_RULESET_VERSION` ise `overtaking.ts`/`jockey-decisions.ts`/
+ * `sprint.ts`/`fatigue.ts`/`pace.ts`/`environment.ts`/`distance-category.ts`
+ * gibi bu dosyanın ÇAĞIRDIĞI kural modüllerinin toplu sürümüdür — engine'in
+ * 3-geçişli iskeleti AYNI kalsa bile bu modüllerden BİRİNİN iç formülü
+ * (ör. `overtaking.ts`teki bir ağırlık formülünün kendisi, config'teki bir
+ * SAYI değil) değişirse bu değer ARTIRILMALIDIR.
+ *
+ * İKİSİ DE `config/race.config.json`'ın kendi `version` alanından (bkz.
+ * `RaceBalanceConfig.version`) AYRIDIR: SADECE config'teki sayısal denge
+ * değerleri (ağırlık/çarpan) değişip kod DEĞİŞMEDEN kalırsa, engine/ruleset
+ * sürümleri SABİT kalır ama config sürümü artar (bkz. Öncelik 6 — race
+ * dengesi ayarları da bu mekanizmayı kullanacaktır).
+ */
+export const RACE_ENGINE_VERSION = '1.0.0';
+/**
+ * AUDIT_AND_HARDENING Öncelik 6 (bu oturum) — bu oturumda segment performans
+ * puanının hesaplanma BİÇİMİ değişti (bkz. `modifier-combination.ts` ve
+ * `pace.ts`teki `computeFinalStretchFraction`): çarpımsal modifikatör
+ * yığılması yerine sınırlı ceza-toplama, ve final düzlüğün oran yerine
+ * metre tabanlı hesaplanması. Segment döngüsünün 3-geçişli YAPISI (Geçiş
+ * A/B/C) DEĞİŞMEDİĞİ için `RACE_ENGINE_VERSION` SABİT kalır — ama SONUÇ
+ * formülü değiştiği için `RACE_RULESET_VERSION` `1.0.0` → `1.1.0`'a
+ * yükseltilir (bkz. bu sabitin üstündeki genel doc yorumu). Bu, TAM OLARAK
+ * Öncelik 4'ün var olma nedenidir: bu satır değişmeden önce üretilmiş
+ * yarışlar `ruleset_version: '1.0.0'` ile işaretli KALIR, replay/audit bu
+ * ikisini asla KARIŞTIRMAZ.
+ */
+export const RACE_RULESET_VERSION = '1.1.0';
 
 interface HorseRuntimeState {
   horseId: string;
@@ -208,7 +252,7 @@ export function simulateRace(input: RaceSimulationInput): RaceTimeline {
     // ---- Geçiş C: nihai segment performansı ----
     for (const state of runtimeStates) {
       const entry = entryByHorseId.get(state.horseId)!;
-      const pace = derivePaceEffect(state.racingStyle, positionFraction, raceConfig.pace);
+      const pace = derivePaceEffect(state.racingStyle, positionFraction, distanceMeters, raceConfig.pace);
       const decision = decisionByHorseId.get(state.horseId)!;
 
       const staminaBeforeSegment = state.runtimeStamina;
@@ -229,13 +273,21 @@ export function simulateRace(input: RaceSimulationInput): RaceTimeline {
       state.runtimeFatigue = accumulateRuntimeFatigue(state.runtimeFatigue, decision, raceConfig.fatigue);
       const fatiguePenalty = deriveFatiguePerformancePenalty(state.runtimeFatigue, raceConfig.fatigue);
 
+      // AUDIT_AND_HARDENING Öncelik 6 (bu oturum) — bkz. `modifier-
+      // combination.ts` doc yorumu: BEŞ çarpansal modifikatör artık ARKA
+      // ARKAYA ÇARPILMAZ (kontrolsüz yığılma), bunun yerine cezaları
+      // TOPLANIP ortak bir taban ile SINIRLANDIRILMIŞ tek bir katsayıya
+      // indirgenir.
+      const combinedConditionModifier = combineConditionModifiers([
+        conditionModifier,
+        environmentModifier.surfaceModifier,
+        environmentModifier.weatherModifier,
+        preRaceFatigueFactor,
+        staminaPenaltyFactor,
+      ]);
+
       const rawScore =
-        (state.baseAbility + pace.performanceBonus + sprintBonus) *
-          conditionModifier *
-          environmentModifier.surfaceModifier *
-          environmentModifier.weatherModifier *
-          preRaceFatigueFactor *
-          staminaPenaltyFactor +
+        (state.baseAbility + pace.performanceBonus + sprintBonus) * combinedConditionModifier +
         randomFactor -
         blockPenalty -
         fatiguePenalty;

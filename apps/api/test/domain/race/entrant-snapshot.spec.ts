@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import type { Horse, HorseStats } from '@at-sevdalisi/shared-types';
-import { assertValidRaceTactic, buildHorseEntrantSnapshot, NEUTRAL_UNMODELED_TRAIT_SCORE } from '../../../src/domain/race/entrant-snapshot';
+import {
+  assertValidRaceTactic,
+  buildHorseEntrantSnapshot,
+  NEUTRAL_UNMODELED_TRAIT_SCORE,
+  UNMODELED_SNAPSHOT_FIELDS,
+} from '../../../src/domain/race/entrant-snapshot';
 import { InvalidRaceTacticError } from '../../../src/domain/race/errors';
 
 function makeHorse(overrides: Partial<Horse> = {}): Horse {
@@ -113,6 +118,25 @@ describe('buildHorseEntrantSnapshot', () => {
     expect(snapshot.distanceCompatibility).toBe(NEUTRAL_UNMODELED_TRAIT_SCORE);
     expect(snapshot.jockeySkillComposite).toBe(NEUTRAL_UNMODELED_TRAIT_SCORE);
     expect(snapshot.form).toBe(NEUTRAL_UNMODELED_TRAIT_SCORE);
+  });
+
+  /**
+   * AUDIT_AND_HARDENING Öncelik 8 (bu oturum) — "tripwire" testi: bkz.
+   * `entrant-snapshot.ts` `UNMODELED_SNAPSHOT_FIELDS` doc yorumu. Bu test
+   * yukarıdaki testle AYNI şeyi, ama `UNMODELED_SNAPSHOT_FIELDS`
+   * LİSTESİNİN ÜZERİNDE DÖNGÜYLE doğrular — biri gelecekte bu alanlardan
+   * BİRİNİ gerçek veriyle (ör. `horse_surface_stats`) bağlayıp listeyi
+   * güncellemeyi UNUTURSA, bu test KIRILIR (artık nötr olmayan bir alan
+   * hâlâ "unmodeled" listesinde görünmeye devam eder ama üretilen snapshot
+   * artık 50 DÖNMEZ) — gap sessizce unutulamaz.
+   */
+  it('[TRIPWIRE] UNMODELED_SNAPSHOT_FIELDS listesindeki HER alan GERÇEKTEN nötr değer döner', () => {
+    const snapshot = buildHorseEntrantSnapshot(makeHorse(), makeStats(), validTactic);
+
+    expect(UNMODELED_SNAPSHOT_FIELDS.length).toBeGreaterThan(0);
+    for (const field of UNMODELED_SNAPSHOT_FIELDS) {
+      expect(snapshot[field]).toBe(NEUTRAL_UNMODELED_TRAIT_SCORE);
+    }
   });
 
   it('geçersiz bir taktikle çağrılırsa InvalidRaceTacticError fırlatır (DTO doğrulaması atlanırsa bile)', () => {

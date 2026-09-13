@@ -38,6 +38,18 @@ export interface Race {
   startTime: ISODateTimeString;
   status: RaceStatus;
   simulationSeed: string | null;
+  /**
+   * AUDIT_AND_HARDENING Öncelik 4 (bu oturum) — brief §58 deterministik
+   * replay garantisi: aynı `simulationSeed` + aynı `RaceEntrantSnapshot`ler
+   * + aynı bu ÜÇ sürüm ⇒ HER ZAMAN bit bit aynı `RaceTimeline` (bkz.
+   * `domain/race/race-engine.ts` `RACE_ENGINE_VERSION`/`RACE_RULESET_VERSION`
+   * doc yorumu, `database/migrations/0021_add_race_versioning.up.sql`).
+   * Bu üç alan olmadan, engine/config gelecekte değiştiğinde ESKİ bir
+   * yarışın hangi kod/config ile üretildiği bilinemez hale gelirdi.
+   */
+  engineVersion: string;
+  rulesetVersion: string;
+  configVersion: string;
   createdAt: ISODateTimeString;
   updatedAt: ISODateTimeString;
 }

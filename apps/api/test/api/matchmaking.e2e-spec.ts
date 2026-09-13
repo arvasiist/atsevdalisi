@@ -134,6 +134,11 @@ describe('Matchmaking — PvP Eşleştirme (e2e)', () => {
     // `races`/`race_entries`/`pvp_matches` GERÇEKTEN yazılmış olmalı.
     const raceRows = await pool.query('SELECT * FROM races WHERE id = $1', [match.raceId]);
     expect(raceRows.rows).toHaveLength(1);
+    // AUDIT_AND_HARDENING Öncelik 4 (bu oturum) — bkz. race.e2e-spec.ts'deki
+    // AYNI assertion, migration 0021.
+    expect(raceRows.rows[0].engine_version).toBe('1.0.0');
+    expect(raceRows.rows[0].ruleset_version).toBe('1.1.0');
+    expect(raceRows.rows[0].config_version).toBe('1.0.0');
     const entryRows = await pool.query('SELECT * FROM race_entries WHERE race_id = $1', [match.raceId]);
     expect(entryRows.rows).toHaveLength(2);
     const pvpMatchRows = await pool.query('SELECT * FROM pvp_matches WHERE id = $1', [match.matchId]);

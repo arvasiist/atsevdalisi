@@ -19,8 +19,41 @@ import { InvalidRaceTacticError } from './errors';
  * gerekçeyle nötr: Jockey sistemi (FAZ 2) henüz wiring edilmedi, bu
  * pratik yarışta oyuncunun kiralı bir jokeyi yok (`race_entries.jockey_id
  * = NULL`, tıpkı gerçek DB satırında olduğu gibi).
+ *
+ * AUDIT_AND_HARDENING Öncelik 8 (bu oturum) — denetim bu gapı "sessizce
+ * sonsuza kadar nötr 50 varsayma" riski olarak işaretledi (Mutlak Kural 4:
+ * bir risk asla sessizce kabul edilemez, ya düzeltilir ya da AÇIKÇA
+ * belgelenip bir telafi edici kontrol eklenir). Tam scout/keşif mekaniğini
+ * kurmak (brief §34) burada YENİ BİR ÖZELLİK olurdu — bu bir sertleştirme
+ * oturumu, KAPSAM DIŞI. Bunun yerine gap ÜÇ KATMANDA da AÇIKÇA GÖRÜNÜR
+ * kılınır (kod yorumu YETERLİ DEĞİLDİR, sadece kaynağı okuyan bir
+ * geliştiriciye görünür):
+ *  1. Kod: `UNMODELED_SNAPSHOT_FIELDS` — aşağıda, HANGİ alanların sahte
+ *     olduğunu PROGRAMATİK olarak listeler; `entrant-snapshot.spec.ts`
+ *     bu listenin ÜZERİNDE döngüyle test eder — biri gerçek veri
+ *     bağlarken bu listeyi güncellemeyi UNUTURSA test KIRILIR ("tripwire").
+ *  2. Veritabanı şeması: `database/migrations/0022_document_unwired_horse_
+ *     compatibility_stats.up.sql` — `horse_surface_stats`/`horse_distance_
+ *     stats` tablolarına `COMMENT ON TABLE` ile AÇIKÇA "hiçbir satır asla
+ *     yazılmaz" notu ekler; bir DBA/denetçi kaynak koduna hiç bakmadan,
+ *     doğrudan şemayı inceleyerek (`\d+ horse_surface_stats`) bunu görür.
+ *  3. Doküman: `docs/ROADMAP.md` (bkz. AUDIT_AND_HARDENING bölümü) —
+ *     proje durumu her incelendiğinde bu KAYITLI sınırlama yeniden
+ *     yüzeye çıkar, sessizce unutulmaz.
  */
 export const NEUTRAL_UNMODELED_TRAIT_SCORE = 50;
+
+/**
+ * `RaceEntrantSnapshot`'ın, bu oturum itibarıyla HALA gerçek veriyle
+ * BAĞLANMAMIŞ (`NEUTRAL_UNMODELED_TRAIT_SCORE` ile doldurulan) alanları.
+ * Bkz. bu dosyanın üstündeki AUDIT_AND_HARDENING Öncelik 8 doc yorumu.
+ */
+export const UNMODELED_SNAPSHOT_FIELDS: ReadonlyArray<keyof RaceEntrantSnapshot> = [
+  'surfaceCompatibility',
+  'distanceCompatibility',
+  'jockeySkillComposite',
+  'form',
+];
 
 /**
  * FAZ 1 wiring, sekizinci dilim — DTO'nun `@IsIn(...)` kontrolü atlanabilir

@@ -67,3 +67,24 @@ HİÇBİR değişiklik YOKTUR, `domain/online/README.md`'nin "YENİ bir
 simülasyon motoru YAZILMADI" notuyla BİREBİR tutarlıdır. Botların (bu
 diliminin `bot-generator.ts`'i) AKSİNE, PvP'de İKİ taraf da gerçek `horses`/
 `race_entries` satırlarına sahiptir (bkz. `RaceRepository.savePvpMatch`).
+
+## AUDIT_AND_HARDENING (bu oturum) — Öncelik 4/6/8
+
+Üç ayrı sertleştirme bu dizini etkiledi (tam detay için `docs/ROADMAP.md`
+AUDIT_AND_HARDENING bölümüne bakınız):
+
+- **Öncelik 4 (versioning):** `race-engine.ts`'e `RACE_ENGINE_VERSION`/
+  `RACE_RULESET_VERSION` sabitleri eklendi; her `Race` nesnesi artık
+  bunları + `config/race.config.json`'ın kendi `version`'ını taşır
+  (persist edilirken `races.engine_version`/`ruleset_version`/
+  `config_version`'a yazılır, migration 0021).
+- **Öncelik 6 (denge/gerçekçilik):** segment skoru artık `modifier-
+  combination.ts`'teki SINIRLI ceza-toplama ile hesaplanır (kontrolsüz
+  çarpımsal yığılma YOK); `pace.ts`'teki "final düzlük" artık
+  `computeFinalStretchFraction` ile pist mesafesine duyarlı (eskiden
+  sabit `0.75` oranıydı). Bu formül değişikliği yüzünden
+  `RACE_RULESET_VERSION` `1.0.0` → `1.1.0`.
+- **Öncelik 8 (surface/distance stats):** `entrant-snapshot.ts`'teki
+  `horse_surface_stats`/`horse_distance_stats` wiring eksikliği artık
+  `UNMODELED_SNAPSHOT_FIELDS` ile PROGRAMATİK olarak görünür (bir
+  "tripwire" testiyle korunur) — bkz. o dosyanın doc yorumu.
