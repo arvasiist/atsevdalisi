@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import {
+  loadCareConfig,
   loadEconomyConfig,
   loadGeneticsConfig,
   loadHorseGrowthConfig,
@@ -34,4 +35,5 @@ export class AppConfigService {
   readonly horseGrowth = loadHorseGrowthConfig();
   readonly progression = loadProgressionConfig();
   readonly stable = loadStableConfig();
+  readonly care = loadCareConfig();
 }

@@ -36,6 +36,8 @@ export const ErrorCode = {
   PlayerNotFound: 'PLAYER_NOT_FOUND',
   // FAZ 1 wiring, ikinci dilim — Horse (domain/horse)
   HorseNotFound: 'HORSE_NOT_FOUND',
+  // FAZ 1 wiring, beşinci dilim — Bakım (domain/care)
+  CareActionOnCooldown: 'CARE_ACTION_ON_COOLDOWN',
 } as const;
 
 export type ErrorCodeValue = (typeof ErrorCode)[keyof typeof ErrorCode];

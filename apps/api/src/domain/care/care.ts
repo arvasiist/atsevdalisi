@@ -12,9 +12,9 @@
  */
 
 import { clamp } from '@at-sevdalisi/shared-types';
-import type { CareActionType, CareConfig, FeedType } from '@at-sevdalisi/game-config';
+import type { CareActionEffect, CareActionType, CareConfig, FeedType, FeedTypeEffect } from '@at-sevdalisi/game-config';
 import { applyVitalDelta, type VitalSigns } from '../horse/vital-signs';
-import { CareActionOnCooldownError } from './errors';
+import { CareActionOnCooldownError, InvalidCareInputError } from './errors';
 
 /** `HorseHealth`'in bakım eylemlerinden etkilenen alt kümesi. */
 export interface CareableHealth {
@@ -46,12 +46,37 @@ export function canPerformCareAction(
   return remaining <= 0 ? { allowed: true, remainingMinutes: 0 } : { allowed: false, remainingMinutes: Math.ceil(remaining) };
 }
 
+/**
+ * FAZ 1 wiring, beşinci dilim (bkz. `errors.ts` `InvalidCareInputError`
+ * üstündeki not — Antrenman dilimindeki Hata 7'nin dersi BAŞTAN
+ * uygulanır): `config.actions[actionType]`/`config.feedTypes[feedType]`'a
+ * yapılan HER erişim bu iki yardımcı üzerinden geçer, böylece tanımsız
+ * bir değer sessizce `undefined` dönüp bir sonraki erişimde ham bir
+ * `TypeError`e (500) yol açmak yerine burada net bir domain hatasına
+ * dönüşür.
+ */
+function getCareActionEffect(config: CareConfig, actionType: CareActionType): CareActionEffect {
+  const effect = config.actions[actionType];
+  if (effect === undefined) {
+    throw new InvalidCareInputError(`Geçersiz bakım eylemi: "${String(actionType)}".`);
+  }
+  return effect;
+}
+
+function getFeedTypeEffect(config: CareConfig, feedType: FeedType): FeedTypeEffect {
+  const effect = config.feedTypes[feedType];
+  if (effect === undefined) {
+    throw new InvalidCareInputError(`Geçersiz yem türü: "${String(feedType)}".`);
+  }
+  return effect;
+}
+
 export function getCareActionCost(config: CareConfig, actionType: CareActionType) {
-  return config.actions[actionType].cost;
+  return getCareActionEffect(config, actionType).cost;
 }
 
 export function getFeedCost(config: CareConfig, feedType: FeedType) {
-  return config.feedTypes[feedType].cost;
+  return getFeedTypeEffect(config, feedType).cost;
 }
 
 /**
@@ -66,7 +91,7 @@ export function applyCareAction(
   lastPerformedAt: Date | null,
   now: Date = new Date(),
 ): CareActionResult {
-  const effect = config.actions[actionType];
+  const effect = getCareActionEffect(config, actionType);
   const readiness = canPerformCareAction(lastPerformedAt, now, effect.cooldownMinutes);
   if (!readiness.allowed) {
     throw new CareActionOnCooldownError(readiness.remainingMinutes);
@@ -94,7 +119,7 @@ export function applyFeed(
   vitals: VitalSigns,
   health: CareableHealth,
 ): CareActionResult {
-  const effect = config.feedTypes[feedType];
+  const effect = getFeedTypeEffect(config, feedType);
 
   return {
     vitals: applyVitalDelta(vitals, effect.vitalDelta ?? {}),

@@ -144,12 +144,10 @@ olarak vardı, FAZ 1'den beri bağlı değildi — bkz. §4 "Ahır Özeti").
 GET    /api/v1/horses                  # oyuncunun ahırındaki atlar
 GET    /api/v1/horses/{id}             # at detayı (brief §40)
 POST   /api/v1/horses/{id}/train       # antrenman (brief §10)
-POST   /api/v1/horses/{id}/feed        # besleme (brief §12)
-POST   /api/v1/horses/{id}/care        # tımar/temizlik (brief §11)
-POST   /api/v1/horses/{id}/vet         # veteriner kontrolü (brief §11)
-POST   /api/v1/horses/{id}/farrier     # nalbant (brief §11 — brief'in listesinde
-                                        # bakım altında ama ayrı endpoint önerilir)
-POST   /api/v1/horses/{id}/rest        # dinlendirme (brief §11)
+POST   /api/v1/horses/{id}/care        # tımar/su/temizlik/veteriner/nalbant/dinlendirme
+                                        # (brief §11 — tek uç nokta, `actionType` alanı,
+                                        # bkz. §4 "Bakım ve Besleme")
+POST   /api/v1/horses/{id}/feed        # besleme (brief §12, `feedType` alanı)
 GET    /api/v1/horses/{id}/history     # yarış/antrenman geçmişi (brief §40 Geçmiş)
 ```
 
@@ -197,11 +195,12 @@ yaşam evresinde — bkz. `domain/horse/horse.ts` `createStarterHorse`).
 Bu, brief'te açıkça yazmayan ama at yetiştiriciliği oyununda gerekli bir
 tasarım kararıdır (at olmadan Antrenman/Bakım/Yarış ekranları gösterilemez).
 
-`feed`/`care`/`vet`/`farrier`/`rest`/`history` uç noktaları ve
-`horse_surface_stats`/`horse_distance_stats`/`horse_health` tablolarının
-okunması/yazılması hâlâ KAPSAM DIŞINDADIR. `train` ve `horse_stats` ise
-FAZ 1 wiring'in DÖRDÜNCÜ diliminde bağlandı — bkz. aşağıdaki "Antrenman"
-bölümü.
+`history` uç noktası ve `horse_surface_stats`/`horse_distance_stats`
+tablolarının okunması/yazılması hâlâ KAPSAM DIŞINDADIR. `train` ve
+`horse_stats` FAZ 1 wiring'in DÖRDÜNCÜ diliminde bağlandı (bkz. aşağıdaki
+"Antrenman" bölümü); `care`/`feed` ve `horse_health`'in dar bir alt
+kümesi ise BEŞİNCİ dilimde bağlandı (bkz. aşağıdaki "Bakım ve Besleme"
+bölümü).
 
 ### Ahır Özeti (FAZ 1 wiring, üçüncü dilim, bu oturum)
 
@@ -269,8 +268,81 @@ notları):
   docs/ARCHITECTURE.md §9.2 `withTransaction`) — önceki dilimde bu satır
   hiç oluşturulmuyordu.
 
-`GET /horses/{id}/history`, `feed`/`care`/`vet`/`farrier`/`rest` uç
-noktaları bu dilimin KAPSAMI DIŞINDADIR.
+`GET /horses/{id}/history` bu dilimin KAPSAMI DIŞINDADIR.
+
+### Bakım ve Besleme (FAZ 1 wiring, beşinci dilim, bu oturum)
+
+```http
+POST /api/v1/horses/{id}/care
+POST /api/v1/horses/{id}/feed
+```
+
+brief §11-12 ve §75 MVP kriterinin ("Bakım yapılabiliyor") karşılığıdır.
+`domain/care/care.ts`'teki saf `applyCareAction`/`applyFeed`
+fonksiyonlarını gerçek `horses` tablosuna VE (bu dilimde YENİ bağlanan,
+önceden hiç kullanılmayan) `horse_health` tablosunun dar bir alt kümesine
+bağlar; her bakım eylemi ayrıca YENİ `horse_care_log` tablosuna
+cooldown takibi için bir satır yazar/günceller (migration 0015).
+
+`POST /horses/{id}/care` — örnek istek (`actionType`: `groom`|`water`|
+`clean`|`vet`|`farrier`|`rest`):
+
+```json
+{ "actionType": "groom" }
+```
+
+örnek yanıt:
+
+```json
+{
+  "success": true,
+  "data": {
+    "horseId": "...",
+    "actionType": "groom",
+    "newVitals": { "health": 92, "fitness": 70, "fatigue": 20, "energy": 85, "morale": 88 },
+    "newHealth": { "injuryRisk": 12, "recoveryRate": 60, "jointCondition": 75, "weightCondition": 70 }
+  }
+}
+```
+
+`POST /horses/{id}/feed` — örnek istek (`feedType`: `standard`|`energy`|
+`protein`|`recovery`|`performance` — brief §12: "daha pahalı yem = daha
+iyi" garantisi YOKTUR, örn. `performance` enerjiyi çok artırır ama
+`weightCondition`'ı düşürür):
+
+```json
+{ "feedType": "performance" }
+```
+
+Yanıt şekli `care` ile aynıdır (`feedType` alanı `actionType` yerine).
+
+Tasarım kararları (bkz. `application/use-cases/perform-care-action.use-case.ts`
+ve `feed-horse.use-case.ts` üstündeki KAPSAM notları):
+
+- docs/API.md'nin önceki taslağındaki AYRI `vet`/`farrier`/`rest` uç
+  noktaları TEK `/care` uç noktasına (`actionType` alanıyla) birleştirildi
+  — `train`'in "tek endpoint + type alanı" kararıyla AYNI gerekçe (domain
+  katmanında zaten TEK bir `applyCareAction` fonksiyonu var).
+- `HorseHealthRepository` KASITLI olarak `horse_health` tablosunun
+  yalnızca dar bir alt kümesini (`injuryRisk`/`recoveryRate`/
+  `jointCondition`/`weightCondition`) okur/yazar — `health`/
+  `muscleCondition`/`respiratoryCondition`/`lastVetCheck` gibi alanlar
+  bilinçli olarak DOKUNULMADAN bırakıldı (brief §29/§34'teki "veteriner
+  kontrolü gizli sağlık verisini ortaya çıkarır" özelliği için ayrılmıştır
+  — KAPSAM DIŞI).
+- Bakım/beslemenin bu dilimde bir PARA maliyeti YOKTUR (Economy
+  entegrasyonu, Antrenman/Ahır yükseltme ile AYNI gerekçeyle, KAPSAM DIŞI)
+  — `getCareActionCost`/`getFeedCost` domain katmanında zaten hazırdır.
+- Beslemenin (`feed`) bir cooldown'u YOKTUR (`care.config.json`
+  `feedTypes`'ta `cooldownMinutes` tanımlı değil); bakım eylemlerinin
+  (`groom`/`water`/`clean`/`vet`/`farrier`/`rest`) HER BİRİNİN kendi
+  cooldown'u vardır ve `horse_care_log`'da AT+EYLEM TÜRÜ çiftine göre ayrı
+  ayrı takip edilir (bir eylemin cooldown'u diğerlerini etkilemez).
+- Cooldown dolmadan aynı eylem tekrar istenirse `409
+  CARE_ACTION_ON_COOLDOWN` döner; geçersiz `actionType`/`feedType` için
+  `400 VALIDATION_ERROR` (bkz. docs/ARCHITECTURE.md §9.1 Hata 7 — bu
+  dilimde CI'ı beklemeden BAŞTAN uygulanan proaktif domain-katmanı
+  doğrulaması).
 
 ## 5. Market (At Pazarı)
 
@@ -411,3 +483,4 @@ lobby.update       — online yarış lobisi (brief §41)
 | `USERNAME_ALREADY_TAKEN` | Kayıt sırasında seçilen kullanıcı adı zaten alınmış (FAZ 1 wiring) |
 | `PLAYER_NOT_FOUND` | Verilen id'ye ait oyuncu bulunamadı (FAZ 1 wiring) |
 | `HORSE_NOT_FOUND` | Verilen id'ye ait at bulunamadı (FAZ 1 wiring, ikinci dilim) |
+| `CARE_ACTION_ON_COOLDOWN` | Bakım eylemi cooldown süresi dolmadan tekrar istendi (FAZ 1 wiring, beşinci dilim) |
