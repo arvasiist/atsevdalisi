@@ -10,7 +10,7 @@
 | Faz | Adı | Kapsam | Durum |
 |---|---|---|---|
 | **0** | Teknik keşif ve planlama | Repo, mimari, dokümantasyon, DB migration altyapısı, test altyapısı | ✅ Tamamlandı |
-| 1 | Core | Player, Auth, Economy, Horse, Stable, Training, Care, Basic Race Engine, Race Result, Progression | 🟡 Domain katmanı tamam; **Player + Horse (okuma) + Ahır Özeti + Antrenman + Bakım + Ahır Yükseltme + Günlük Ödül (Economy'nin `debit`+`credit`'i ve satır kilitleme dahil) alt-modülleri gerçek veritabanına bağlandı ve CI'da DOĞRULANDI** (bkz. "FAZ 1 wiring" bölümleri — Player: run 34721911139; Horse: run 34723091484 (ilk denemede); Ahır Özeti: run 34723845048 (ilk denemede); Antrenman: run 34726749521 (bir hata bulunup düzeltildikten sonra, ikinci denemede); Bakım: run 34727941441 (ilk denemede); Ahır Yükseltme: run 34731523302 (ilk denemede); Günlük Ödül: run 34732402754 (ilk denemede)), geri kalanı (Economy'nin `transfer` akışı, temel Race Engine) wiring bekliyor |
+| 1 | Core | Player, Auth, Economy, Horse, Stable, Training, Care, Basic Race Engine, Race Result, Progression | 🟡 Domain katmanı tamam; **Player + Horse (okuma) + Ahır Özeti + Antrenman + Bakım + Ahır Yükseltme + Günlük Ödül (Economy'nin `debit`+`credit`'i ve satır kilitleme dahil) + Pratik Yarış (temel Race Engine'in İLK orkestrasyonu) alt-modülleri gerçek veritabanına bağlandı ve CI'da DOĞRULANDI** (bkz. "FAZ 1 wiring" bölümleri — Player: run 34721911139; Horse: run 34723091484 (ilk denemede); Ahır Özeti: run 34723845048 (ilk denemede); Antrenman: run 34726749521 (bir hata bulunup düzeltildikten sonra, ikinci denemede); Bakım: run 34727941441 (ilk denemede); Ahır Yükseltme: run 34731523302 (ilk denemede); Günlük Ödül: run 34732402754 (ilk denemede); Pratik Yarış: gönderildi, CI sonucu bekleniyor), geri kalanı (Economy'nin `transfer` akışı, gerçek çok oyunculu/programlı Race API) wiring bekliyor |
 | 2 | Management | Horse Market, Buy/Sell, Vet, Farrier, Nutrition, Jockey, Staff, Stable capacity, Costs | 🟡 Domain katmanı tamam, wiring bekliyor |
 | 3 | Genetics | Pedigree, Mare/Stallion, Genetic traits, Inheritance, Mutation, Foal, Growth, Bloodline | 🟡 Domain katmanı tamam, wiring bekliyor |
 | 4 | Farm | Stable upgrade, Paddock, Training track, Vet center, Breeding center, Staff facilities | 🟡 Domain katmanı tamam, wiring bekliyor |
@@ -1236,6 +1236,87 @@ hiçbiri hata değil. Bu, Ahır Yükseltme'den sonra art arda BEŞİNCİ
 "ilk denemede yeşil" dilim — ve satır kilitleme deseninin (`updateWithLock`)
 İKİNCİ kullanımının da (harcama değil, para EKLEME akışında) sorunsuz
 çalıştığının kanıtlanmış onayıdır.
+
+## FAZ 1 wiring — Sekizinci dilim: Pratik Yarış (bu oturum)
+
+Günlük Ödül CI'da doğrulandıktan sonra, proje sahibi tekrar "devam
+edelim" diyerek kararı bana bıraktı. Kalan iki büyük maddeden (Economy'nin
+`transfer` akışı, temel Race Engine) **Race Engine**'i seçtim — çünkü
+`transfer` çok taraflı bir işlem gerektirir (At Pazarı satışı gibi başka
+bir dilimi bekliyor) ve Race Engine, brief §75 MVP kriterinin ("temel
+yarış motoru çalışıyor") hâlâ karşılanmamış tek büyük parçasıydı.
+
+**Bulunan durum:** `domain/race/*` (FAZ 5) `simulateRace`'i çoktan
+yazıp test etmişti (`race-engine.spec.ts`), ama onu ÇAĞIRACAK hiçbir
+orkestrasyon yoktu — önceki yedi dilimden FARKLI olarak, buradaki eksik
+"var olan saf fonksiyonu bağlamak" değil, bir `Horse`+`HorseStats`'ı
+`RaceEntrantSnapshot`'a çevirme + rakip üretme + sonucu DB'ye yazma
+KATMANIYDI (Günlük Ödül'ün "sıfırdan yeni domain kodu" durumuna benziyor,
+ama burada asıl motor zaten hazırdı).
+
+**Kapsam kararı (bilinçli, önemli):** Race Engine'in TÜM kapsamı (gerçek
+çok oyunculu eşleştirme, programlı yarışlar, giriş ücreti/ödül havuzu)
+TEK dilimde yapılamayacak kadar büyüktü. Bunun yerine, Ahır Özeti → Ahır
+Yükseltme'deki AYNI kademeli yaklaşım tekrarlandı: bu dilim yalnızca
+**"Pratik Yarış"** — `POST /horses/{id}/practice-race` — sağlıyor: oyuncunun
+atı, sabit sayıda (5) deterministik yapay zeka rakibe karşı SOLO,
+ÜCRETSİZ yarışır; sonuç `races`/`race_entries`/`race_entry_segments`
+tablolarına (migration 0006/0014, önceden hiç kullanılmamıştı) gerçekten
+kaydedilir. Para akışı (giriş ücreti/ödül) ve gerçek çok oyunculu
+eşleştirme (FAZ 7 Matchmaking) bilinçli olarak SONRAKİ bir dilime
+bırakıldı.
+
+**Yeni domain kodu:**
+- `domain/race/entrant-snapshot.ts` — `buildHorseEntrantSnapshot` +
+  `assertValidRaceTactic` (docs/ARCHITECTURE.md §9.1 Hata 6/7 ilkesinin
+  BAŞTAN uygulanmış hali, ama BURADA gerçek bir çökme riskini DEĞİL, veri
+  bütünlüğü garantisini çözüyor — `overtaking.ts`'in kendi lookup'ları
+  zaten güvenli varsayılanlarla düşüyor, bkz. dosya içi not).
+- `domain/race/bot-generator.ts` — `generateBotEntrants`, Race Engine'in
+  kendisiyle AYNI "asla `Math.random()` kullanma" ilkesiyle deterministik.
+- `domain/race/validation.ts`, `domain/race/errors.ts`.
+
+**BULUNAN ama bilinçli olarak KAPSAM DIŞI bırakılan bir eksik:**
+`horse_surface_stats`/`horse_distance_stats` tabloları (migration 0003)
+zaten VAR (brief §7 HorseSurfaceStats/HorseDistanceStats — zemin/mesafe
+uyumu, brief §8.2'nin "gizli özellik/keşif hissi" listesinde) ama
+`PostgresHorseRepository.save()` bunlara HİÇBİR ZAMAN varsayılan satır
+eklemedi (`horse_stats`/`horse_health`'in AKSİNE) — bu yüzden şu an
+hiçbir at için satırları yok. Bu dilimde `surfaceCompatibility`/
+`distanceCompatibility` nötr (50) bırakıldı; gerçek anlamda bağlamak
+(save()'i güncellemek + yeni repository + brief'in scout/keşif
+mekanizması) kendi başına bir dilimi hak ediyor.
+
+**Yeni shared type:** `packages/shared-types/src/race.ts` — adlandırılmış
+`RaceTacticInput` (mevcut `RaceEntrantSnapshot.tactic` şeklini tekrar
+kullanır) ve yeni `PracticeRaceResult` (yanıt şekli — `RaceTimeline`'ın
+TAMAMI değil, `segments` telemetrisi BİLEREK dışarıda, bkz. docs/API.md).
+
+**Hata kodu eşlemesi:** yeni `InvalidRaceTacticError` → `400
+VALIDATION_ERROR` (yeni bir hata KODU gerekmedi, `InvalidTrainingInputError`/
+`InvalidCareInputError` ile AYNI kod paylaşılıyor); sakatlanmış at için
+VAR OLAN `HorseInjuredError` → `409 HORSE_INJURED` yeniden kullanıldı
+(yeni sınıf GEREKMEDİ).
+
+**Satır kilitleme deseni (`updateWithLock`) BU DİLİMDE KULLANILMADI —
+bilinçli:** `RaceRepository.savePracticeRace` yeni satırlar EKLER (var
+olan paylaşılan bir satırı güncellemez), bu yüzden docs/SECURITY.md §5'in
+çözdüğü çift-harcama riski burada yok; `withTransaction` yalnızca "ya
+hepsi ya hiçbiri" garantisi için kullanıldı (bkz. `application/ports/
+race.repository.ts` doc yorumu — bu, Ahır Yükseltme/Günlük Ödül'deki
+`updateWithLock` kullanımıyla KARIŞTIRILMAMALI).
+
+**Doğrulama (bu oturum, yerel):** `packages/shared-types`, `apps/api/
+tsconfig.domain.json` temiz derlendi. Framework'ten bağımsız test seti
+YENİ `entrant-snapshot.spec.ts` (8 test) ve `bot-generator.spec.ts` (5
+test) ile birlikte TAMAMI (311/311) yerel olarak koştu, hepsi geçti.
+Geniş bir yerel `tsc` taraması yalnızca bilinen eksik-paket gürültüsünü
+ve önceden bilinen `http-exception.filter.ts` uyarısını buldu. Yeni
+`race.e2e-spec.ts` (7 senaryo — başarılı yarış, açık taktik, DB'ye
+gerçekten yazma, sakat at, olmayan at, geçersiz taktik, geçersiz id)
+AYRICA geçici bir `vitest`/`supertest` tip taslağıyla tek başına tip
+kontrolünden geçirildi; yalnızca CI'da gerçek PostgreSQL'e karşı
+doğrulanabilir (kabul edilen risk, önceki dilimlerle AYNI desen).
 
 ## Açık kararlar (proje sahibinin onayı bekleniyor)
 

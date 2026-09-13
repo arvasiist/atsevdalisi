@@ -4,6 +4,7 @@ import { EconomyModule } from './api/economy/economy.module';
 import { HealthModule } from './api/health/health.module';
 import { HorseModule } from './api/horse/horse.module';
 import { PlayerModule } from './api/player/player.module';
+import { RaceModule } from './api/race/race.module';
 import { StableModule } from './api/stable/stable.module';
 import { TrainingModule } from './api/training/training.module';
 import { AppConfigModule } from './infrastructure/config/config.module';
@@ -21,11 +22,14 @@ import { DatabaseModule } from './infrastructure/database/database.module';
  * `debit`'i + satır kilitleme, bkz. docs/ARCHITECTURE.md §9.3); yedinci
  * dilimde `EconomyModule` eklendi (brief §37 Günlük Ödül —
  * `POST /players/{id}/daily-reward`, Economy'nin `credit`'i, bkz. "FAZ 1
- * wiring — Yedinci dilim"). `RaceModule` vb. bir sonraki adımlarda aynı
- * desenle eklenecektir (bkz. docs/ARCHITECTURE.md §6). `RedisModule`
- * henüz BAĞLANMADI — brief §54'ün tam Idempotency-Key altyapısı
- * gerektiren bir use-case eklendiğinde bağlanacaktır (Günlük Ödül
- * KENDİ cooldown kontrolüyle finansal olarak zaten korumalıdır, bkz.
+ * wiring — Yedinci dilim"); sekizinci dilimde `RaceModule` eklendi (brief
+ * §6 Race Engine — `POST /horses/{id}/practice-race`, `simulateRace`'in
+ * İLK gerçek orkestrasyonu, bkz. "FAZ 1 wiring — Sekizinci dilim"). Para
+ * akışı YOK bu dilimde (giriş ücreti/ödül YOK) — Economy'nin `transfer`
+ * akışı ve gerçek çok oyunculu yarış eşleştirmesi geriye kalan iki büyük
+ * madde. `RedisModule` henüz BAĞLANMADI — brief §54'ün tam Idempotency-Key
+ * altyapısı gerektiren bir use-case eklendiğinde bağlanacaktır (Günlük
+ * Ödül KENDİ cooldown kontrolüyle finansal olarak zaten korumalıdır, bkz.
  * `claim-daily-reward.use-case.ts` üstündeki KAPSAM notu).
  */
 @Module({
@@ -39,6 +43,7 @@ import { DatabaseModule } from './infrastructure/database/database.module';
     TrainingModule,
     CareModule,
     EconomyModule,
+    RaceModule,
   ],
 })
 export class AppModule {}

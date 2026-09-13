@@ -16,5 +16,24 @@ Race Engine — brief §6, §15-25; bkz. `docs/RACE_ENGINE.md` ve
 modeli, 7 aşamalı ayrıntılı jokey AI karar ağacı, "neden kazandım/
 kaybettim" açıklaması (`docs/RACE_ENGINE.md` §8-9).
 
+## FAZ 1 wiring, sekizinci dilim — Pratik Yarış (bu oturum)
+
+`simulateRace`'i gerçek bir `Horse`/`HorseStats`'a bağlayan orkestrasyon
+(bkz. `application/use-cases/run-practice-race.use-case.ts`):
+
+- `entrant-snapshot.ts` — `buildHorseEntrantSnapshot`: bir oyuncu atını
+  `RaceEntrantSnapshot`'a çevirir; `assertValidRaceTactic` taktik
+  alanlarını BAĞIMSIZ doğrular (bkz. `errors.ts`). `NEUTRAL_UNMODELED_
+  TRAIT_SCORE` (50) — henüz wiring edilmemiş alanlar (surface/distance
+  uyumu, jokey) için; bkz. dosya içi "BULUNAN ama KAPSAM DIŞI" notu
+  (`horse_surface_stats`/`horse_distance_stats` tabloları VAR ama hiç
+  doldurulmuyor — ayrı bir dilimi hak ediyor).
+- `bot-generator.ts` — `generateBotEntrants`: gerçek çok oyunculu
+  eşleştirme (FAZ 7) henüz wiring edilmediğinden, deterministik (`createSeededRandom`)
+  yapay zeka rakipler üretir.
+- `validation.ts` — taktik alanları (`RACING_STYLES` vb.) ve
+  `PRACTICE_RACE_BOT_COUNT`/`PRACTICE_RACE_DISTANCE_METERS` sabitleri.
+- `errors.ts` — `InvalidRaceTacticError`.
+
 Testler: `apps/api/test/domain/race/race-engine.spec.ts` (determinism +
-denge testleri, brief §53).
+denge testleri, brief §53), `entrant-snapshot.spec.ts`, `bot-generator.spec.ts`.

@@ -58,6 +58,19 @@ export interface RaceEntry {
 }
 
 /**
+ * brief §14.2 — oyuncunun yarış öncesi taktik seçimleri.
+ * `RaceEntrantSnapshot.tactic` ile AYNI şekil — FAZ 1 wiring, sekizinci
+ * dilim (Pratik Yarış) burada ADLANDIRILMIŞ bir tip olarak çıkarıldı,
+ * çünkü `RunPracticeRaceUseCase`'in girdi tipi de AYNI şekli kullanır.
+ */
+export interface RaceTacticInput {
+  racingStyle: RacingStyle;
+  riskLevel: RiskLevel;
+  startApproach: StartApproach;
+  finalStretchPlan: FinalStretchPlan;
+}
+
+/**
  * brief §56 RaceSnapshot — yarış başladığında donmuş, değiştirilemez değerler.
  * Race Engine yalnızca bu veriyi kullanır (docs/RACE_ENGINE.md §3).
  */
@@ -80,12 +93,7 @@ export interface RaceEntrantSnapshot {
    * bilinmiyorsa nötr değer (50) kullanılır — bkz. docs/ALGORITHMS.md §2.
    */
   form: number;
-  tactic: {
-    racingStyle: RacingStyle;
-    riskLevel: RiskLevel;
-    startApproach: StartApproach;
-    finalStretchPlan: FinalStretchPlan;
-  };
+  tactic: RaceTacticInput;
 }
 
 /**
@@ -134,6 +142,26 @@ export interface RaceTimeline {
   raceId: UUID;
   simulationSeed: string;
   segments: RaceSegmentSnapshot[];
+  finalResult: RaceFinishEntry[];
+  explanations: RaceExplanation[];
+}
+
+/**
+ * FAZ 1 wiring, sekizinci dilim — `POST /horses/:id/practice-race`
+ * (docs/API.md §4, brief §6 Race Engine) yanıt şekli. `RaceTimeline`'ın
+ * TAMAMI değil: `segments` (ham telemetri) BİLEREK dışarıda bırakılır —
+ * `race_entry_segments` tablosunun kendi migration yorumu ("Debug/replay
+ * için segment telemetrisi; oyuncuya tam olarak gösterilmek zorunda
+ * değildir") bu kararın kaynağıdır. `finalResult`/`explanations` TÜM
+ * katılımcıları (oyuncunun atı + bot rakipler) içerir, böylece oyuncu
+ * kendi sıralamasını görebilir.
+ */
+export interface PracticeRaceResult {
+  raceId: UUID;
+  horseId: UUID;
+  distanceMeters: number;
+  surface: RaceSurface;
+  weather: RaceWeather;
   finalResult: RaceFinishEntry[];
   explanations: RaceExplanation[];
 }
