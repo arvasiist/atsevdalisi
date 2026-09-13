@@ -6,7 +6,7 @@ import type {
   ExecuteMarketPurchaseResult,
   MarketPurchaseRepository,
 } from '../../application/ports/market-purchase.repository';
-import { purchaseListing } from '../../domain/market/market';
+import { expireListingIfNeeded, purchaseListing } from '../../domain/market/market';
 import { HorseNotFoundError } from '../../domain/horse/errors';
 import { PlayerNotFoundError } from '../../domain/player/errors';
 import { ListingNotFoundError } from '../../domain/market/errors';
@@ -68,7 +68,30 @@ export class PostgresMarketPurchaseRepository implements MarketPurchaseRepositor
       if (!listingRow) {
         throw new ListingNotFoundError(input.listingId);
       }
-      const listing = rowToListing(listingRow);
+      const fetchedListing = rowToListing(listingRow);
+
+      // CI DÜZELTMESİ (bu oturum) — `PostgresMarketListingRepository`nin
+      // `findById`/`findActiveByHorseId`'in HER okumadan önce çalıştırdığı
+      // "süresi dolmuş ilanları süpür" (`sweepExpiredListings`) davranışı,
+      // eski `BuyMarketListingUseCase`'in o repository'yi ÇAĞIRMASI
+      // sayesinde satın alma akışına da DOLAYLI olarak uygulanıyordu — on
+      // üçüncü dilimin belgelediği/test ettiği sözleşme TAM OLARAK budur:
+      // süresi dolmuş bir ilan satın alınmaya çalışıldığında `409
+      // LISTING_EXPIRED` DEĞİL `409 LISTING_NOT_ACTIVE` döner (bkz.
+      // `market.e2e-spec.ts` "süresi dolmuş bir ilanı satın almaya
+      // çalışırsa" testi). Bu port `PostgresMarketListingRepository`'yi
+      // HİÇ KULLANMADIĞINDAN (AUDIT_AND_HARDENING Öncelik 1'in kendi
+      // gerekçesi — bağımsız, dedike bir transaction), bu süpürme
+      // davranışı BURADA YENİDEN uygulanmazsa sessizce KAYBOLUR — CI bunu
+      // GERÇEKTEN yakaladı (regresyon: `purchaseListing` doğrudan
+      // `ListingExpiredError` fırlatıyordu). Satır zaten `FOR UPDATE` ile
+      // kilitli olduğundan süpürme burada GÜVENLE ve AYNI transaction
+      // içinde atomik olarak persist edilebilir — eski koddaki AYRI,
+      // global sorguya bile gerek YOK.
+      const listing = expireListingIfNeeded(fetchedListing);
+      if (listing.status !== fetchedListing.status) {
+        await client.query('UPDATE market_listings SET status = $2 WHERE id = $1', [listing.id, listing.status]);
+      }
 
       // Veri bütünlüğü varsayımı: `market_listings.horse_id` FK'i
       // `horses(id)` üzerinde `ON DELETE CASCADE`'dir (at silinirse ilan
