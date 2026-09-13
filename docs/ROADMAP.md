@@ -10,7 +10,7 @@
 | Faz | Adı | Kapsam | Durum |
 |---|---|---|---|
 | **0** | Teknik keşif ve planlama | Repo, mimari, dokümantasyon, DB migration altyapısı, test altyapısı | ✅ Tamamlandı |
-| 1 | Core | Player, Auth, Economy, Horse, Stable, Training, Care, Basic Race Engine, Race Result, Progression | 🟡 Domain katmanı tamam; **Player + Horse (okuma) + Ahır Özeti + Antrenman alt-modülleri gerçek veritabanına bağlandı** (bkz. "FAZ 1 wiring" bölümleri — Player: run 34721911139 CI'da DOĞRULANDI; Horse: run 34723091484 CI'da DOĞRULANDI (ilk denemede); Ahır Özeti: run 34723845048 CI'da DOĞRULANDI (ilk denemede); **Antrenman: CI doğrulaması BEKLENİYOR**), geri kalanı (Economy'nin transfer akışı, Ahır yükseltme, Care, Race Engine) wiring bekliyor |
+| 1 | Core | Player, Auth, Economy, Horse, Stable, Training, Care, Basic Race Engine, Race Result, Progression | 🟡 Domain katmanı tamam; **Player + Horse (okuma) + Ahır Özeti + Antrenman alt-modülleri gerçek veritabanına bağlandı ve CI'da DOĞRULANDI** (bkz. "FAZ 1 wiring" bölümleri — Player: run 34721911139; Horse: run 34723091484 (ilk denemede); Ahır Özeti: run 34723845048 (ilk denemede); Antrenman: run 34726749521 (bir hata bulunup düzeltildikten sonra, ikinci denemede)), geri kalanı (Economy'nin transfer akışı, Ahır yükseltme, Care, Race Engine) wiring bekliyor |
 | 2 | Management | Horse Market, Buy/Sell, Vet, Farrier, Nutrition, Jockey, Staff, Stable capacity, Costs | 🟡 Domain katmanı tamam, wiring bekliyor |
 | 3 | Genetics | Pedigree, Mare/Stallion, Genetic traits, Inheritance, Mutation, Foal, Growth, Bloodline | 🟡 Domain katmanı tamam, wiring bekliyor |
 | 4 | Farm | Stable upgrade, Paddock, Training track, Vet center, Breeding center, Staff facilities | 🟡 Domain katmanı tamam, wiring bekliyor |
@@ -925,6 +925,19 @@ BAĞIMSIZ çalışan bir `type`/`intensity` doğrulaması eklendi (yeni
 `RegisterPlayerUseCase`'in zaten yaptığı "domain katmanı DTO'ya tek
 başına güvenmez" ilkesinin bu dilimde eksik olan parçasıydı. 3 yeni
 domain testiyle doğrulandı (309/309 yerel test geçti), tekrar gönderildi.
+
+**✅ DOĞRULANDI — CI baştan sona yeşil (GitHub Actions run
+[34726749521](https://github.com/arvasiist/atsevdalisi/actions/runs/34726749521),
+"fix: Antrenman doğrulama hatası düzeltildi" commit'i, 2dk 1sn, İKİNCİ
+denemede):** İlk deneme (run 34726353648) CI Hata 7'yi yakaladı; düzeltme
+gönderildikten sonra bu ikinci deneme hiçbir hata olmadan geçti — yalnızca
+önceden bilinen "no magic number" uyarıları ve Node.js sürüm bildirimi var,
+hiçbir `::error::` yok. `training.e2e-spec.ts`'in 6 senaryosu (geçerli
+antrenman stat/fatigue etkisi, "rest" türünün stat değiştirmemesi,
+varsayılan süre, olmayan at için 404, geçersiz tür için 400, çok yorgun
+at için 409) gerçek PostgreSQL'e karşı doğrulandı — `horse_stats`
+tablosunun ve `withTransaction`'ın İLK gerçek kullanımı da bu doğrulamaya
+dahildir. FAZ 1 wiring'in Antrenman dilimi tamamlanmıştır.
 
 ## Açık kararlar (proje sahibinin onayı bekleniyor)
 
