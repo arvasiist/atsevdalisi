@@ -10,7 +10,7 @@
 | Faz | Adı | Kapsam | Durum |
 |---|---|---|---|
 | **0** | Teknik keşif ve planlama | Repo, mimari, dokümantasyon, DB migration altyapısı, test altyapısı | ✅ Tamamlandı |
-| 1 | Core | Player, Auth, Economy, Horse, Stable, Training, Care, Basic Race Engine, Race Result, Progression | 🟡 Domain katmanı tamam; **Player + Horse (okuma) + Ahır Özeti + Antrenman + Bakım + Ahır Yükseltme (onuncu dilimde Idempotency-Key eklendi) + Günlük Ödül (Economy'nin `debit`+`credit`'i ve satır kilitleme dahil) + Pratik Yarış (temel Race Engine'in İLK orkestrasyonu; dokuzuncu dilimde giriş ücreti + ödül + Idempotency-Key/Redis eklendi) alt-modülleri gerçek veritabanına bağlandı ve CI'da DOĞRULANDI** (bkz. "FAZ 1 wiring" bölümleri — Player: run 34721911139; Horse: run 34723091484 (ilk denemede); Ahır Özeti: run 34723845048 (ilk denemede); Antrenman: run 34726749521 (bir hata bulunup düzeltildikten sonra, ikinci denemede); Bakım: run 34727941441 (ilk denemede); Ahır Yükseltme: run 34731523302 (ilk denemede); Günlük Ödül: run 34732402754 (ilk denemede); Pratik Yarış: run 34733778323 (ilk denemede); Pratik Yarış giriş ücreti/ödül + Idempotency-Key/Redis: run 34737087519 (ilk deneme BAŞARISIZ oldu — run 34735597486 — gerçek bir hata bulunup düzeltildi, İKİNCİ denemede yeşil); Ahır Yükseltme Idempotency-Key sertleştirmesi: kontrol bekleniyor), geri kalanı (Economy'nin `transfer` akışı, gerçek çok oyunculu/programlı Race API) wiring bekliyor |
+| 1 | Core | Player, Auth, Economy, Horse, Stable, Training, Care, Basic Race Engine, Race Result, Progression | 🟡 Domain katmanı tamam; **Player + Horse (okuma) + Ahır Özeti + Antrenman + Bakım + Ahır Yükseltme (onuncu dilimde Idempotency-Key eklendi) + Günlük Ödül (Economy'nin `debit`+`credit`'i ve satır kilitleme dahil) + Pratik Yarış (temel Race Engine'in İLK orkestrasyonu; dokuzuncu dilimde giriş ücreti + ödül + Idempotency-Key/Redis eklendi) alt-modülleri gerçek veritabanına bağlandı ve CI'da DOĞRULANDI** (bkz. "FAZ 1 wiring" bölümleri — Player: run 34721911139; Horse: run 34723091484 (ilk denemede); Ahır Özeti: run 34723845048 (ilk denemede); Antrenman: run 34726749521 (bir hata bulunup düzeltildikten sonra, ikinci denemede); Bakım: run 34727941441 (ilk denemede); Ahır Yükseltme: run 34731523302 (ilk denemede); Günlük Ödül: run 34732402754 (ilk denemede); Pratik Yarış: run 34733778323 (ilk denemede); Pratik Yarış giriş ücreti/ödül + Idempotency-Key/Redis: run 34737087519 (ilk deneme BAŞARISIZ oldu — run 34735597486 — gerçek bir hata bulunup düzeltildi, İKİNCİ denemede yeşil); Ahır Yükseltme Idempotency-Key sertleştirmesi: run 34737922897 (ilk denemede)), geri kalanı (Economy'nin `transfer` akışı, gerçek çok oyunculu/programlı Race API) wiring bekliyor |
 | 2 | Management | Horse Market, Buy/Sell, Vet, Farrier, Nutrition, Jockey, Staff, Stable capacity, Costs | 🟡 Domain katmanı tamam, wiring bekliyor |
 | 3 | Genetics | Pedigree, Mare/Stallion, Genetic traits, Inheritance, Mutation, Foal, Growth, Bloodline | 🟡 Domain katmanı tamam, wiring bekliyor |
 | 4 | Farm | Stable upgrade, Paddock, Training track, Vet center, Breeding center, Staff facilities | 🟡 Domain katmanı tamam, wiring bekliyor |
@@ -1538,8 +1538,22 @@ dilimin `tsc` açısından tertemiz olduğunun, sandbox'ın eksik
 bağımlılıklarından bağımsız bir kanıtıdır. Asıl çalıştırma doğrulaması —
 gerçek Postgres/Redis ile — her zamanki gibi CI'da olacak.
 
-*(Bu bölüm, CI sonucu geldiğinde "✅ DOĞRULANDI" paragrafıyla
-güncellenecek.)*
+**✅ DOĞRULANDI — CI İLK DENEMEDE baştan sona yeşil.** Commit
+`8c1aba0f476076d3de50ce9de685689ab42f66ed` ("Ahır Yükseltme'ye
+Idempotency-Key eklendi"), CI çalışması `34737922897`: `status:
+completed`, `conclusion: success` (2 dakika 10 saniye) — GitHub REST API
+`check-runs` uç noktasından + zorunlu ikincil çapraz kontrol olarak
+çalışmanın kendi HTML detay sayfasından. 11 açıklama/uyarı var, hepsi
+bilinen/zararsız (Node.js 20 kullanımdan kaldırma uyarısı + "sihirli
+sayı" lint uyarıları) — önceki dilimlerle AYNI kategori, sonucu
+etkilemiyor.
+
+Yedi dilimdir süren "ilk denemede yeşil" serisi (dokuzuncu dilim hariç,
+o da düzeltme sonrası ikinci denemede onaylanmıştı) burada devam etti —
+bu dilimin domain katmanında hiçbir değişiklik olmaması ve mevcut,
+CI'da zaten doğrulanmış bir deseni (RaceModule'deki AYNI
+IdempotencyInterceptor) yeniden kullanması, düşük risk beklentisini
+doğruladı.
 
 ## Açık kararlar (proje sahibinin onayı bekleniyor)
 
