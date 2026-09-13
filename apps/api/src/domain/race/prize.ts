@@ -1,4 +1,5 @@
 import type { EconomyConfig } from '@at-sevdalisi/game-config';
+import { credit, debit, type WalletBalance } from '../economy/wallet';
 
 /**
  * FAZ 1 wiring, dokuzuncu dilim — Pratik Yarış'a giriş ücreti + ödül
@@ -44,4 +45,36 @@ export function getPracticeRacePrize(finishPosition: number, config: EconomyConf
   // erişimi HEM DE (mantıken imkansız ama tip sisteminin bilemediği)
   // `undefined` durumunu AYNI güvenli varsayılana indirger.
   return prize ?? 0;
+}
+
+/**
+ * Giriş ücretini düşer, ödülü ekler — TEK bir SAF fonksiyonda (bu, gerçek
+ * CI'da bulunan bir hatanın düzeltilmiş halidir, bkz. altta). Gerçek
+ * satır kilitleme `run-practice-race.use-case.ts`de uygulanır; bu
+ * fonksiyon yalnızca "hangi sırayla, hangi korumalarla" sorusunu saf bir
+ * şekilde cevaplar.
+ *
+ * BULUNAN HATA (CI, bu oturum): `wallet.ts`deki `credit`/`debit`,
+ * `assertValidAmount` ile SIFIR miktarı reddeder (`amount <= 0` →
+ * `InvalidAmountError`) — önceki tüm kullanımlarda (Ahır Yükseltme'nin
+ * maliyeti, Günlük Ödül'ün sabit miktarı) miktar hep pozitif olduğu için
+ * bu HİÇ sorun çıkarmamıştı. `prizeByFinishPosition`'ın SON sırası
+ * BİLEREK 0'dır (son bitirene ödül yok) — bu yüzden yarışı son sırada
+ * bitiren HER oyuncu için `credit(..., 0, ...)` çağrılıyor ve
+ * `InvalidAmountError` fırlatıyordu; bu hata `http-exception.filter.ts`de
+ * eşlenmediği için istemciye `500 Internal Server Error` olarak
+ * dönüyordu. Yerel testler bunu YAKALAYAMADI çünkü yerel doğrulama
+ * yalnızca framework'ten bağımsız domain testleriydi (gerçek PostgreSQL
+ * gerektiren e2e senaryoları, önceki dilimlerdeki AYNI kısıtla, yalnızca
+ * CI'da çalışabiliyor) — GitHub'ın robotu, rastgele yarış sonucunun
+ * OYUNCUYU son sıraya düşürdüğü birkaç senaryoda bunu yakaladı.
+ *
+ * Düzeltme: miktar SIFIR olduğunda `debit`/`credit` HİÇ ÇAĞRILMAZ (işlem
+ * atlanır) — `wallet.ts`in "sıfır olmayan pozitif miktar" kuralı
+ * GEVŞETİLMEDİ, sadece "kazanılacak/harcanacak bir şey yoksa hiç
+ * çağırma" mantığı eklendi.
+ */
+export function applyPracticeRaceStakes(balance: WalletBalance, entryFee: number, prizeWon: number): WalletBalance {
+  const afterEntryFee = entryFee > 0 ? debit(balance, entryFee, 'money') : balance;
+  return prizeWon > 0 ? credit(afterEntryFee, prizeWon, 'money') : afterEntryFee;
 }

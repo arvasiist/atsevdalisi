@@ -46,7 +46,11 @@ Economy, docs/SECURITY.md §5):
 - `prize.ts` — `getPracticeRaceEntryFee`/`getPracticeRacePrize`: SAF
   fonksiyonlar, `config/economy.config.json`'daki YENİ `practiceRace`
   bloğunu (`baseEntryFee`, `prizeByFinishPosition`) ve önceden hazır ama
-  hiç kullanılmamış `raceEntryFeeMultiplier`'ı kullanır.
+  hiç kullanılmamış `raceEntryFeeMultiplier`'ı kullanır. AYRICA
+  `applyPracticeRaceStakes` — CI'da bulunan bir hatanın (son sırayı
+  bitiren oyuncu için `credit(..., 0, ...)`'ın `wallet.ts`'in sıfır
+  miktar kuralına takılıp 500 döndürmesi) düzeltilmiş hali; miktar SIFIR
+  olduğunda `debit`/`credit` hiç çağrılmaz.
 
 Bakiye değişikliği (debit+credit) `PlayerRepository.updateWithLock` İÇİNDE,
 `UpgradeStableUseCase` ile AYNI desende uygulanır — bkz. use-case'in kendi

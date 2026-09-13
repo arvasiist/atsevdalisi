@@ -118,8 +118,13 @@ describe('Race — Pratik Yarış (e2e)', () => {
     const raceRow = await pool.query('SELECT * FROM races WHERE id = $1', [raceId]);
     expect(raceRow.rows).toHaveLength(1);
     expect(raceRow.rows[0].status).toBe('finished');
-    expect(raceRow.rows[0].entry_fee).toBe(response.body.data.entryFee);
-    expect(raceRow.rows[0].prize_pool).toBe(response.body.data.prizeWon);
+    // `entry_fee`/`prize_pool` BIGINT'tir — `pg` bunu hassasiyet kaybı
+    // riskine karşı BİLEREK bir string olarak döner (JS number'ın güvenli
+    // tam sayı sınırını aşabileceği için), `Number()` ile karşılaştırma
+    // öncesi dönüştürülür (bkz. `PostgresPlayerRepository.rowToPlayer`'daki
+    // AYNI dönüşüm, uygulama kodunun kendisinde zaten yapılıyor).
+    expect(Number(raceRow.rows[0].entry_fee)).toBe(response.body.data.entryFee);
+    expect(Number(raceRow.rows[0].prize_pool)).toBe(response.body.data.prizeWon);
 
     const entryRow = await pool.query('SELECT * FROM race_entries WHERE race_id = $1 AND horse_id = $2', [raceId, horseId]);
     expect(entryRow.rows).toHaveLength(1);
@@ -133,7 +138,8 @@ describe('Race — Pratik Yarış (e2e)', () => {
     const { horseId, playerId } = await registerPlayerWithStarterHorse();
 
     const beforeRow = await pool.query('SELECT money FROM players WHERE id = $1', [playerId]);
-    const moneyBefore = beforeRow.rows[0].money;
+    // `players.money` da BIGINT — bkz. yukarıdaki `entry_fee`/`prize_pool` notu.
+    const moneyBefore = Number(beforeRow.rows[0].money);
 
     const response = await request(app.getHttpServer())
       .post(`/api/v1/horses/${horseId}/practice-race`)
@@ -146,7 +152,7 @@ describe('Race — Pratik Yarış (e2e)', () => {
     expect(newBalance.money).toBe(moneyBefore - entryFee + prizeWon);
 
     const afterRow = await pool.query('SELECT money FROM players WHERE id = $1', [playerId]);
-    expect(afterRow.rows[0].money).toBe(newBalance.money);
+    expect(Number(afterRow.rows[0].money)).toBe(newBalance.money);
   });
 
   it('/api/v1/horses/:id/practice-race (POST) — bakiye giriş ücretine yetmiyorsa 409 INSUFFICIENT_FUNDS döner ve HİÇBİR ŞEY yazmaz', async () => {
@@ -168,7 +174,7 @@ describe('Race — Pratik Yarış (e2e)', () => {
     // en son satırı aramak kırılgan olur).
     void raceRows;
     const moneyRow = await pool.query('SELECT money FROM players WHERE id = $1', [playerId]);
-    expect(moneyRow.rows[0].money).toBe(0);
+    expect(Number(moneyRow.rows[0].money)).toBe(0);
   });
 
   it('/api/v1/horses/:id/practice-race (POST) — Idempotency-Key header eksikse 400 IDEMPOTENCY_KEY_REQUIRED döner', async () => {
@@ -203,7 +209,7 @@ describe('Race — Pratik Yarış (e2e)', () => {
 
     const moneyRow = await pool.query('SELECT money FROM players WHERE id = $1', [playerId]);
     // Giriş ücreti/ödül YALNIZCA BİR KEZ uygulanmış olmalı.
-    expect(moneyRow.rows[0].money).toBe(first.body.data.newBalance.money);
+    expect(Number(moneyRow.rows[0].money)).toBe(first.body.data.newBalance.money);
 
     const raceRows = await pool.query('SELECT * FROM races WHERE id = $1', [first.body.data.raceId]);
     expect(raceRows.rows).toHaveLength(1);

@@ -3,12 +3,11 @@ import { Inject, Injectable } from '@nestjs/common';
 import type { Player, PracticeRaceResult, Race, RaceEntry, RaceSegmentSnapshot, RaceTacticInput } from '@at-sevdalisi/shared-types';
 import { generateBotEntrants } from '../../domain/race/bot-generator';
 import { buildHorseEntrantSnapshot } from '../../domain/race/entrant-snapshot';
-import { getPracticeRaceEntryFee, getPracticeRacePrize } from '../../domain/race/prize';
+import { applyPracticeRaceStakes, getPracticeRaceEntryFee, getPracticeRacePrize } from '../../domain/race/prize';
 import { simulateRace } from '../../domain/race/race-engine';
 import { PRACTICE_RACE_BOT_COUNT, PRACTICE_RACE_DISTANCE_METERS } from '../../domain/race/validation';
 import { HorseInjuredError, HorseNotFoundError } from '../../domain/horse/errors';
 import { PlayerNotFoundError } from '../../domain/player/errors';
-import { debit, credit } from '../../domain/economy/wallet';
 import { AppConfigService } from '../../infrastructure/config/config.service';
 import { HORSE_REPOSITORY, type HorseRepository } from '../ports/horse.repository';
 import { HORSE_STATS_REPOSITORY, type HorseStatsRepository } from '../ports/horse-stats.repository';
@@ -61,10 +60,17 @@ const PRACTICE_RACE_WEATHER = 'sunny' as const;
  * FAZ 1 wiring, DOKUZUNCU dilim — giriş ücreti + ödül eklendi (brief §31
  * Economy, docs/SECURITY.md §5). Sıralama BİLEREK şöyledir: ÖNCE
  * `simulateRace` (SAF, hiçbir yan etkisi yok) çalıştırılır, SONRA tek bir
- * `PlayerRepository.updateWithLock` çağrısı İÇİNDE hem giriş ücreti
- * `debit` edilir HEM DE sonuca göre ödül `credit` edilir (`UpgradeStableUseCase`
- * ile AYNI "hesaplama satır kilitliyken" kuralı — bkz. `PlayerRepository`
- * doc yorumundaki "stale değer" uyarısı). Bakiye güncellemesi
+ * `PlayerRepository.updateWithLock` çağrısı İÇİNDE `domain/race/prize.ts`
+ * `applyPracticeRaceStakes` ile hem giriş ücreti `debit` edilir HEM DE
+ * sonuca göre ödül `credit` edilir (`UpgradeStableUseCase` ile AYNI
+ * "hesaplama satır kilitliyken" kuralı — bkz. `PlayerRepository`
+ * doc yorumundaki "stale değer" uyarısı). BULUNAN HATA (CI, bu oturum):
+ * bu mantık başta doğrudan burada, `credit(afterEntryFee, prizeWon, ...)`
+ * olarak yazılmıştı — ödül tablosunun son sırası BİLEREK 0 olduğundan
+ * (`prize.ts`), son sırayı bitiren her oyuncu `wallet.ts`nin sıfır
+ * miktarı reddeden kuralına takılıp `500` alıyordu; `applyPracticeRaceStakes`e
+ * çıkarılıp sıfır miktarda `credit`/`debit`'in hiç ÇAĞRILMAMASI sağlanarak
+ * düzeltildi (bkz. o fonksiyonun doc yorumu). Bakiye güncellemesi
  * BAŞARISIZ olursa (`InsufficientFundsError`) transaction ROLLBACK olur
  * VE `raceRepository.savePracticeRace` hiç ÇAĞRILMAZ — yarış hiç
  * "olmamış" sayılır, ne para alınır ne de DB'ye yazılır. Bu, bu projenin
@@ -142,17 +148,16 @@ export class RunPracticeRaceUseCase {
     const entryFee = getPracticeRaceEntryFee(this.config.economy);
     const prizeWon = getPracticeRacePrize(playerFinish.finishPosition, this.config.economy);
     const walletResult = await this.playerRepository.updateWithLock(horse.ownerId, (player) => {
-      const afterEntryFee = debit({ money: player.money, gems: player.gems }, entryFee, 'money');
-      const afterPrize = credit(afterEntryFee, prizeWon, 'money');
+      const afterStakes = applyPracticeRaceStakes({ money: player.money, gems: player.gems }, entryFee, prizeWon);
 
       const updated: Player = {
         ...player,
-        money: afterPrize.money,
-        gems: afterPrize.gems,
+        money: afterStakes.money,
+        gems: afterStakes.gems,
         updatedAt: new Date().toISOString(),
       };
 
-      return { player: updated, result: afterPrize };
+      return { player: updated, result: afterStakes };
     });
 
     if (walletResult === null) {
