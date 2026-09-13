@@ -1416,6 +1416,60 @@ Idempotency-Key → 400, AYNI anahtarla ikinci istek → AYNI sonuç + paranın
 TEKRAR çekilmediğinin doğrulanması) — önceki dilimlerle AYNI kısıt:
 yalnızca CI'da gerçek PostgreSQL + Redis'e karşı doğrulanabilir.
 
+**❌ İLK DENEME BAŞARISIZ OLDU, GERÇEK BİR HATA BULUNDU VE DÜZELTİLDİ**
+(GitHub Actions run
+[34735597486](https://github.com/arvasiist/atsevdalisi/actions/runs/34735597486),
+commit `1d69903`). `build-and-test` işi test aşamasında başarısız oldu.
+İki AYRI sorun tespit edildi:
+
+1. **GERÇEK bir uygulama hatası:** `domain/economy/wallet.ts`'teki
+   `credit`/`debit`, `assertValidAmount` ile SIFIR miktarı reddeder
+   (`amount <= 0` → `InvalidAmountError`) — önceki tüm kullanımlarda
+   (Ahır Yükseltme'nin maliyeti, Günlük Ödül'ün sabit miktarı) miktar hep
+   pozitif olduğu için bu HİÇ sorun çıkarmamıştı. `prizeByFinishPosition`
+   dizisinin SON sırası BİLEREK `0`'dır (son bitirene ödül yok) — bu
+   yüzden yarışı son sırada bitiren HER oyuncu için `credit(..., 0, ...)`
+   çağrılıyor ve `InvalidAmountError` fırlatıyordu; bu hata
+   `http-exception.filter.ts`'de eşlenmediği için istemciye `500 Internal
+   Server Error` olarak dönüyordu. Yerel domain testleri bunu
+   YAKALAYAMADI çünkü sadece `getPracticeRacePrize`'ın DOĞRU değeri
+   (0) döndürdüğünü test ediyorlardı, o değerin CÜZDANA UYGULANMASINI
+   DEĞİL — GitHub'ın robotu, rastgele yarış sonucunun oyuncuyu son sıraya
+   düşürdüğü birkaç e2e senaryosunda bunu yakaladı (ilk testte oyuncu
+   1-5. sırada bitirdiği için sorun çıkmadı, sonraki birkaç testte son
+   sıraya düşüp 500 aldı — bu YARIŞ SONUCUNA bağlı olduğu için
+   deterministik değildi).
+
+   **Düzeltme:** `domain/race/prize.ts`'e YENİ, SAF bir
+   `applyPracticeRaceStakes(balance, entryFee, prizeWon)` fonksiyonu
+   eklendi — miktar SIFIR olduğunda `debit`/`credit` HİÇ ÇAĞRILMAZ
+   (`wallet.ts`'in "sıfır olmayan pozitif miktar" kuralı GEVŞETİLMEDİ,
+   sadece "kazanılacak/harcanacak bir şey yoksa hiç çağırma" mantığı
+   eklendi). Use-case, önceki inline debit+credit mantığını bu tek
+   fonksiyon çağrısıyla değiştirdi — hem hatayı düzeltti hem de kodu
+   sadeleştirdi. YENİ `prize.spec.ts` testleri (6 test) bu TAM senaryoyu
+   (sıfır ödül, sıfır giriş ücreti, ikisi birden sıfır, yetersiz bakiye)
+   artık DOĞRUDAN, framework'ten bağımsız olarak kapsıyor — bir daha
+   yalnızca CI'ın rastgele yarış sonucuna güvenmeye gerek yok.
+
+2. **Test-ONLY bir sorun (uygulama hatası DEĞİL):** `players.money` ve
+   `races.entry_fee`/`prize_pool` veritabanında `BIGINT`'tir —
+   `node-postgres` (`pg`) BIGINT'i hassasiyet kaybı riskine karşı
+   BİLEREK bir JS `string` olarak döner (`PostgresPlayerRepository.
+   rowToPlayer`'ın `Number(row.money)` ile bunu ZATEN düzelttiği,
+   uygulamanın kendi kodunda hiç sorun olmayan bir davranış). Yeni
+   `race.e2e-spec.ts` testleri BU tabloları `pool.query` ile DOĞRUDAN
+   okuyup (önceki `stable.e2e-spec.ts`/`economy.e2e-spec.ts`'in HİÇ
+   yapmadığı bir şey — onlar hep API yanıtını API yanıtıyla
+   karşılaştırıyordu) ham string sonucu bir sayıyla `toBe` ile
+   karşılaştırdığı için "expected '4980' to be 4980" gibi hatalar
+   verdi. **Düzeltme:** ilgili beş karşılaştırma `Number(...)` ile
+   sarmalandı.
+
+**✅ İKİNCİ DENEME BEKLENİYOR** — düzeltmeler gönderildi, kendi test
+ortamımızda TAMAMEN doğrulandı (323/323 test — 317 + `applyPracticeRaceStakes`
+için 6 yeni test), geniş `tsc` taraması tertemiz. CI sonucu bekleniyor.
+
 ## Açık kararlar (proje sahibinin onayı bekleniyor)
 
 Bkz. `ARCHITECTURE.md` §10 için tam liste ve gerekçeler. Özet:
