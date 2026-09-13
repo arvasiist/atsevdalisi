@@ -17,6 +17,10 @@
   "dailyRewardMoney": 500,
   "dailyRewardCooldownHours": 24,
   "raceEntryFeeMultiplier": 1.0,
+  "practiceRace": {
+    "baseEntryFee": 50,
+    "prizeByFinishPosition": [200, 120, 80, 50, 30, 0]
+  },
   "newPlayerStartingBalance": {
     "money": 5000,
     "gems": 50

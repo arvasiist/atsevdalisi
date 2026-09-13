@@ -12,6 +12,10 @@ import { PG_POOL, withTransaction } from '../database/database.module';
  * üstündeki not (transaction burada "ya hepsi ya hiçbiri" için, satır
  * kilitleme İÇİN DEĞİL — `PostgresPlayerRepository.updateWithLock` ile
  * KARIŞTIRILMASIN).
+ *
+ * FAZ 1 wiring, dokuzuncu dilim — `entry_fee`/`prize_pool` artık
+ * `race.entryFee`/`race.prizePool`'dan gelen GERÇEK değerlerdir (önceden
+ * her zaman sabit `0` yazılıyordu).
  */
 @Injectable()
 export class PostgresRaceRepository implements RaceRepository {
@@ -21,7 +25,7 @@ export class PostgresRaceRepository implements RaceRepository {
     await withTransaction(this.pool, async (client) => {
       await client.query(
         `INSERT INTO races (id, track_id, name, distance_m, surface, weather, temperature_c, wind_kmh, humidity_pct, participant_limit, entry_fee, prize_pool, start_time, status, simulation_seed, created_at, updated_at)
-         VALUES ($1, NULL, $2, $3, $4, $5, $6, NULL, NULL, $7, 0, 0, $8, $9, $10, $11, $11)`,
+         VALUES ($1, NULL, $2, $3, $4, $5, $6, NULL, NULL, $7, $8, $9, $10, $11, $12, $13, $13)`,
         [
           race.id,
           race.name,
@@ -30,6 +34,8 @@ export class PostgresRaceRepository implements RaceRepository {
           race.weather,
           race.temperatureC,
           race.participantLimit,
+          race.entryFee,
+          race.prizePool,
           new Date(race.startTime),
           race.status,
           race.simulationSeed,

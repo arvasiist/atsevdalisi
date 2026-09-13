@@ -1,14 +1,18 @@
 import { randomUUID } from 'node:crypto';
 import { Inject, Injectable } from '@nestjs/common';
-import type { PracticeRaceResult, Race, RaceEntry, RaceSegmentSnapshot, RaceTacticInput } from '@at-sevdalisi/shared-types';
+import type { Player, PracticeRaceResult, Race, RaceEntry, RaceSegmentSnapshot, RaceTacticInput } from '@at-sevdalisi/shared-types';
 import { generateBotEntrants } from '../../domain/race/bot-generator';
 import { buildHorseEntrantSnapshot } from '../../domain/race/entrant-snapshot';
+import { getPracticeRaceEntryFee, getPracticeRacePrize } from '../../domain/race/prize';
 import { simulateRace } from '../../domain/race/race-engine';
 import { PRACTICE_RACE_BOT_COUNT, PRACTICE_RACE_DISTANCE_METERS } from '../../domain/race/validation';
 import { HorseInjuredError, HorseNotFoundError } from '../../domain/horse/errors';
+import { PlayerNotFoundError } from '../../domain/player/errors';
+import { debit, credit } from '../../domain/economy/wallet';
 import { AppConfigService } from '../../infrastructure/config/config.service';
 import { HORSE_REPOSITORY, type HorseRepository } from '../ports/horse.repository';
 import { HORSE_STATS_REPOSITORY, type HorseStatsRepository } from '../ports/horse-stats.repository';
+import { PLAYER_REPOSITORY, type PlayerRepository } from '../ports/player.repository';
 import { RACE_REPOSITORY, type RaceRepository } from '../ports/race.repository';
 
 export interface RunPracticeRaceInput {
@@ -37,13 +41,6 @@ const PRACTICE_RACE_WEATHER = 'sunny' as const;
  *    deterministik yapay zeka rakibe karşı SOLO yarışır. Botlar gerçek
  *    `horses` satırları DEĞİLDİR, `race_entries`'e AYRI satır olarak
  *    YAZILMAZLAR (bkz. `RaceRepository.savePracticeRace` doc yorumu).
- *  - Giriş ücreti/ödül havuzu (para akışı) YOK — `races.entry_fee`/
- *    `prize_pool` her zaman 0. Bu, Ahır Özeti → Ahır Yükseltme'deki AYNI
- *    "önce oku/bağla, parayı SONRA ekle" sıralamasıdır — para akışı
- *    eklenecekse `PlayerRepository.updateWithLock` (debit giriş ücreti +
- *    credit ödül, TEK kilit altında) doğal bir sonraki adımdır ve brief
- *    §54'ün Idempotency-Key + Redis altyapısının GERÇEK ev sahibi de o
- *    zaman olabilir (Günlük Ödül/Ahır Yükseltme'de bilinçli ertelenmişti).
  *  - Sabit zemin (grass) + hava (sunny) + mesafe (1600m) kullanılır —
  *    gerçek pist/program seçimi (`tracks` tablosu, `Race.trackId`) henüz
  *    wiring edilmedi.
@@ -60,6 +57,33 @@ const PRACTICE_RACE_WEATHER = 'sunny' as const;
  *
  * NOT — `docs/ARCHITECTURE.md` §9.1 Hata 6: her bağımlılık açık
  * `@Inject()` ile enjekte edilir.
+ *
+ * FAZ 1 wiring, DOKUZUNCU dilim — giriş ücreti + ödül eklendi (brief §31
+ * Economy, docs/SECURITY.md §5). Sıralama BİLEREK şöyledir: ÖNCE
+ * `simulateRace` (SAF, hiçbir yan etkisi yok) çalıştırılır, SONRA tek bir
+ * `PlayerRepository.updateWithLock` çağrısı İÇİNDE hem giriş ücreti
+ * `debit` edilir HEM DE sonuca göre ödül `credit` edilir (`UpgradeStableUseCase`
+ * ile AYNI "hesaplama satır kilitliyken" kuralı — bkz. `PlayerRepository`
+ * doc yorumundaki "stale değer" uyarısı). Bakiye güncellemesi
+ * BAŞARISIZ olursa (`InsufficientFundsError`) transaction ROLLBACK olur
+ * VE `raceRepository.savePracticeRace` hiç ÇAĞRILMAZ — yarış hiç
+ * "olmamış" sayılır, ne para alınır ne de DB'ye yazılır. Bu, bu projenin
+ * PARA/mülkiyet değiştiren İKİNCİ use-case'idir (`UpgradeStableUseCase`den
+ * sonra) ve brief §54'ün Idempotency-Key + Redis altyapısının GERÇEK ev
+ * sahibidir (Günlük Ödül/Ahır Yükseltme'de bilinçli ertelenmişti) —
+ * BUNUNLA BİRLİKTE idempotency kontrolünün KENDİSİ burada DEĞİL, API
+ * katmanında (`api/idempotency/idempotency.interceptor.ts`) uygulanır;
+ * bu use-case'in tekrar (retry) güvenliği bilmesine GEREK YOKTUR — bkz.
+ * docs/ARCHITECTURE.md §4 katman ayrımı.
+ *
+ * KAPSAM (bilinçli, dokuzuncu dilim): giriş ücreti + ödül SADECE
+ * `money`'dir (gem YOK); ödül tablosu (`prizeByFinishPosition`) sabit ve
+ * önceden belirlenmiştir, GERÇEK bir çok-oyunculu ödül havuzu DEĞİLDİR
+ * (bkz. `domain/race/prize.ts` doc yorumu) — botlar para yatırmaz.
+ * Ahır Yükseltme'nin KENDİ endpoint'i hâlâ Idempotency-Key KORUMASI
+ * OLMADAN çalışıyor (bkz. docs/ROADMAP.md "FAZ 1 wiring — Dokuzuncu
+ * dilim" — bilinçli olarak bu dilimin kapsamı DIŞINDA bırakıldı, ayrı
+ * bir sertleştirme dilimini hak ediyor).
  */
 @Injectable()
 export class RunPracticeRaceUseCase {
@@ -67,6 +91,7 @@ export class RunPracticeRaceUseCase {
     @Inject(HORSE_REPOSITORY) private readonly horseRepository: HorseRepository,
     @Inject(HORSE_STATS_REPOSITORY) private readonly horseStatsRepository: HorseStatsRepository,
     @Inject(RACE_REPOSITORY) private readonly raceRepository: RaceRepository,
+    @Inject(PLAYER_REPOSITORY) private readonly playerRepository: PlayerRepository,
     @Inject(AppConfigService) private readonly config: AppConfigService,
   ) {}
 
@@ -110,6 +135,32 @@ export class RunPracticeRaceUseCase {
       throw new HorseNotFoundError(horseId);
     }
 
+    // BİLEREK satır kilitliyken (callback İÇİNDE) hesaplanır — bkz. bu
+    // sınıfın üstündeki doc yorumu ve `UpgradeStableUseCase`'deki AYNI
+    // desen. `simulateRace` (yukarıda) ZATEN çalıştı — burada sadece
+    // sonucuna göre bakiye güncellenir, yeniden simüle EDİLMEZ.
+    const entryFee = getPracticeRaceEntryFee(this.config.economy);
+    const prizeWon = getPracticeRacePrize(playerFinish.finishPosition, this.config.economy);
+    const walletResult = await this.playerRepository.updateWithLock(horse.ownerId, (player) => {
+      const afterEntryFee = debit({ money: player.money, gems: player.gems }, entryFee, 'money');
+      const afterPrize = credit(afterEntryFee, prizeWon, 'money');
+
+      const updated: Player = {
+        ...player,
+        money: afterPrize.money,
+        gems: afterPrize.gems,
+        updatedAt: new Date().toISOString(),
+      };
+
+      return { player: updated, result: afterPrize };
+    });
+
+    if (walletResult === null) {
+      // Veri bütünlüğü varsayımı: `horse.ownerId` her zaman var olan bir
+      // oyuncuya işaret eder (bkz. AYNI dal `GetStableSummaryUseCase`).
+      throw new PlayerNotFoundError(horse.ownerId);
+    }
+
     const now = new Date();
     const race: Race = {
       id: raceId,
@@ -122,8 +173,8 @@ export class RunPracticeRaceUseCase {
       windKmh: null,
       humidityPct: null,
       participantLimit: botEntrants.length + 1,
-      entryFee: 0,
-      prizePool: 0,
+      entryFee,
+      prizePool: prizeWon,
       startTime: now.toISOString(),
       status: 'finished',
       simulationSeed: timeline.simulationSeed,
@@ -160,6 +211,9 @@ export class RunPracticeRaceUseCase {
       weather: PRACTICE_RACE_WEATHER,
       finalResult: timeline.finalResult,
       explanations: timeline.explanations,
+      entryFee,
+      prizeWon,
+      newBalance: walletResult,
     };
   }
 }

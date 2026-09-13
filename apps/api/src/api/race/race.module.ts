@@ -5,6 +5,8 @@ import { RunPracticeRaceUseCase } from '../../application/use-cases/run-practice
 import { PostgresHorseStatsRepository } from '../../infrastructure/horse/postgres-horse-stats.repository';
 import { PostgresRaceRepository } from '../../infrastructure/race/postgres-race.repository';
 import { HorseModule } from '../horse/horse.module';
+import { IdempotencyInterceptor } from '../idempotency/idempotency.interceptor';
+import { PlayerModule } from '../player/player.module';
 import { RaceController } from './race.controller';
 
 /**
@@ -13,12 +15,22 @@ import { RaceController } from './race.controller';
  * ihtiyaç duyar (`TrainingModule`/`StableModule` ile AYNI desen). Kendi
  * `HORSE_STATS_REPOSITORY` bağlamasını `TrainingModule` ile AYNI
  * gerekçeyle KENDİSİ sağlar (hiçbir modül bunu `exports` etmiyor).
+ *
+ * FAZ 1 wiring, dokuzuncu dilim — `PlayerModule` eklendi (`StableModule`
+ * ile AYNI gerekçe: `RunPracticeRaceUseCase` artık `PLAYER_REPOSITORY`'ye
+ * ihtiyaç duyuyor, giriş ücreti/ödül için). `IdempotencyInterceptor`
+ * burada bir provider olarak listelenir — `REDIS_CLIENT`'ı enjekte
+ * edebilmesi için (bkz. `RedisModule`'ün `@Global()` olduğu, bu yüzden
+ * ayrıca `imports`'a eklenmesine GEREK OLMADIĞI `app.module.ts` doc
+ * yorumu); `RaceController`'da `@UseInterceptors(IdempotencyInterceptor)`
+ * ile sınıf referansı olarak kullanılır.
  */
 @Module({
-  imports: [HorseModule],
+  imports: [HorseModule, PlayerModule],
   controllers: [RaceController],
   providers: [
     RunPracticeRaceUseCase,
+    IdempotencyInterceptor,
     { provide: HORSE_STATS_REPOSITORY, useClass: PostgresHorseStatsRepository },
     { provide: RACE_REPOSITORY, useClass: PostgresRaceRepository },
   ],

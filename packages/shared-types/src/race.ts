@@ -1,4 +1,5 @@
 import type { ISODateTimeString, UUID } from './common';
+import type { Player } from './player';
 
 /** brief §14.1 Yarış parametreleri */
 export type RaceSurface = 'grass' | 'dirt' | 'synthetic';
@@ -155,6 +156,12 @@ export interface RaceTimeline {
  * değildir") bu kararın kaynağıdır. `finalResult`/`explanations` TÜM
  * katılımcıları (oyuncunun atı + bot rakipler) içerir, böylece oyuncu
  * kendi sıralamasını görebilir.
+ *
+ * FAZ 1 wiring, dokuzuncu dilim — `entryFee`/`prizeWon`/`newBalance`
+ * eklendi (brief §31 Economy, docs/SECURITY.md §5). Her ikisi de her
+ * zaman `'money'` cinsindendir (gem YOK bu akışta — `dailyRewardMoney`/
+ * `raceEntryFeeMultiplier` ile AYNI tek-para-birimi kapsamı). `newBalance`,
+ * `StableUpgradeResult`/`ClaimDailyRewardResult` ile AYNI `Pick` deseni.
  */
 export interface PracticeRaceResult {
   raceId: UUID;
@@ -164,4 +171,7 @@ export interface PracticeRaceResult {
   weather: RaceWeather;
   finalResult: RaceFinishEntry[];
   explanations: RaceExplanation[];
+  entryFee: number;
+  prizeWon: number;
+  newBalance: Pick<Player, 'money' | 'gems'>;
 }

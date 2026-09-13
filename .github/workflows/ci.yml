@@ -31,6 +31,12 @@ jobs:
     # Actions'ın "service container" özelliği, job boyunca ayakta duran
     # geçici bir Postgres örneği sağlar; job bitince otomatik silinir,
     # kalıcı bir veri/maliyet oluşturmaz.
+    # FAZ 1 wiring, dokuzuncu dilim: `RedisModule` `app.module.ts`'e
+    # bağlandı (brief §54 Idempotency-Key) — `AppModule`'ü bootstrap eden
+    # HER e2e testi (sadece Race/Idempotency ile ilgili olanlar DEĞİL,
+    # çünkü `RedisModule` `@Global()`) artık GERÇEK bir Redis bağlantısı
+    # gerektiriyor. `postgres` servisiyle AYNI desen: geçici, job bitince
+    # silinir.
     services:
       postgres:
         image: postgres:16-alpine
@@ -45,9 +51,19 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
 
     env:
       DATABASE_URL: postgres://at_sevdalisi:at_sevdalisi@localhost:5432/at_sevdalisi
+      REDIS_URL: redis://localhost:6379
 
     steps:
       - uses: actions/checkout@v4
