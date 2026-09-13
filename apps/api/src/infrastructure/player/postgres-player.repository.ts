@@ -2,7 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import type { Pool } from 'pg';
 import type { Player } from '@at-sevdalisi/shared-types';
 import type { PlayerRepository } from '../../application/ports/player.repository';
-import { PG_POOL } from '../database/database.module';
+import { PG_POOL, withTransaction } from '../database/database.module';
 
 /**
  * `players` tablosunun satır şekli (snake_case, `database/migrations/
@@ -83,5 +83,49 @@ export class PostgresPlayerRepository implements PlayerRepository {
         new Date(player.updatedAt),
       ],
     );
+  }
+
+  /**
+   * FAZ 1 wiring, altıncı dilim — bkz. `PlayerRepository.updateWithLock`
+   * doc yorumundaki tam gerekçe (docs/SECURITY.md §5). `withTransaction`
+   * ile AYNI `PoolClient` üzerinde önce `SELECT ... FOR UPDATE` (satırı
+   * kilitler), sonra callback (domain hesaplaması), sonra `UPDATE` —
+   * hepsi TEK transaction'da.
+   */
+  async updateWithLock<T>(
+    id: string,
+    mutate: (player: Player) => { player: Player; result: T },
+  ): Promise<T | null> {
+    return withTransaction(this.pool, async (client) => {
+      const result = await client.query<PlayerRow>('SELECT * FROM players WHERE id = $1 FOR UPDATE', [id]);
+      const row = result.rows[0];
+      if (!row) {
+        return null;
+      }
+
+      const current = rowToPlayer(row);
+      const { player: updated, result: mutateResult } = mutate(current);
+
+      await client.query(
+        `UPDATE players
+         SET display_name = $2, avatar_id = $3, level = $4, xp = $5,
+             money = $6, gems = $7, reputation = $8, stable_level = $9, updated_at = $10
+         WHERE id = $1`,
+        [
+          updated.id,
+          updated.displayName,
+          updated.avatarId,
+          updated.level,
+          updated.xp,
+          updated.money,
+          updated.gems,
+          updated.reputation,
+          updated.stableLevel,
+          new Date(updated.updatedAt),
+        ],
+      );
+
+      return mutateResult;
+    });
   }
 }

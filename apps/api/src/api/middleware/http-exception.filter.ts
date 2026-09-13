@@ -10,6 +10,8 @@ import {
 } from '../../domain/player/errors';
 import { HorseNotReadyForTrainingError, InvalidTrainingInputError } from '../../domain/training/errors';
 import { CareActionOnCooldownError, InvalidCareInputError } from '../../domain/care/errors';
+import { MaxStableLevelReachedError } from '../../domain/stable/errors';
+import { InsufficientFundsError } from '../../domain/economy/errors';
 
 /**
  * Bir hata sınıfının constructor'ı (`instanceof` ile karşılaştırılabilir).
@@ -52,6 +54,15 @@ const DOMAIN_ERROR_MAP = new Map<ErrorClassConstructor, { status: number; code: 
   // Hata 7'nin (bkz. domain/care/errors.ts InvalidCareInputError) BAŞTAN
   // uygulanmış hali — gerçek bir DOĞRULAMA hatasıdır, 400.
   [InvalidCareInputError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.ValidationError }],
+  // FAZ 1 wiring, altıncı dilim — Ahır Yükseltme (brief §32). "Zaten en
+  // yüksek seviyede" mevcut duruma bağlı bir engeldir (yeni bir seviye
+  // config'e eklenirse değişebilir) — kalıcı bir doğrulama hatası DEĞİL,
+  // `HorseInjuredError` ile AYNI gerekçeyle 409 Conflict.
+  [MaxStableLevelReachedError, { status: HttpStatus.CONFLICT, code: ErrorCode.MaxStableLevelReached }],
+  // "Yetersiz bakiye" de GEÇİCİDİR (oyuncu daha fazla para kazanınca
+  // çözülür) — `HorseNotReadyForTrainingError`'ın INSUFFICIENT_ENERGY
+  // dalıyla AYNI gerekçeyle 409 Conflict, 402/400 DEĞİL.
+  [InsufficientFundsError, { status: HttpStatus.CONFLICT, code: ErrorCode.InsufficientFunds }],
 ]);
 
 /**

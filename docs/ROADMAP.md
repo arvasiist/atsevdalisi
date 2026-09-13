@@ -10,7 +10,7 @@
 | Faz | Adı | Kapsam | Durum |
 |---|---|---|---|
 | **0** | Teknik keşif ve planlama | Repo, mimari, dokümantasyon, DB migration altyapısı, test altyapısı | ✅ Tamamlandı |
-| 1 | Core | Player, Auth, Economy, Horse, Stable, Training, Care, Basic Race Engine, Race Result, Progression | 🟡 Domain katmanı tamam; **Player + Horse (okuma) + Ahır Özeti + Antrenman + Bakım alt-modülleri gerçek veritabanına bağlandı ve CI'da DOĞRULANDI** (bkz. "FAZ 1 wiring" bölümleri — Player: run 34721911139; Horse: run 34723091484 (ilk denemede); Ahır Özeti: run 34723845048 (ilk denemede); Antrenman: run 34726749521 (bir hata bulunup düzeltildikten sonra, ikinci denemede); Bakım: run 34727941441 (ilk denemede)), geri kalanı (Economy'nin transfer akışı, Ahır yükseltme, Race Engine) wiring bekliyor |
+| 1 | Core | Player, Auth, Economy, Horse, Stable, Training, Care, Basic Race Engine, Race Result, Progression | 🟡 Domain katmanı tamam; **Player + Horse (okuma) + Ahır Özeti + Antrenman + Bakım + Ahır Yükseltme (Economy'nin `debit`'i dahil) alt-modülleri gerçek veritabanına bağlandı ve CI'da DOĞRULANDI** (bkz. "FAZ 1 wiring" bölümleri — Player: run 34721911139; Horse: run 34723091484 (ilk denemede); Ahır Özeti: run 34723845048 (ilk denemede); Antrenman: run 34726749521 (bir hata bulunup düzeltildikten sonra, ikinci denemede); Bakım: run 34727941441 (ilk denemede); Ahır Yükseltme: gönderildi, CI sonucu bekleniyor), geri kalanı (Economy'nin `credit`/`transfer` akışları, temel Race Engine) wiring bekliyor |
 | 2 | Management | Horse Market, Buy/Sell, Vet, Farrier, Nutrition, Jockey, Staff, Stable capacity, Costs | 🟡 Domain katmanı tamam, wiring bekliyor |
 | 3 | Genetics | Pedigree, Mare/Stallion, Genetic traits, Inheritance, Mutation, Foal, Growth, Bloodline | 🟡 Domain katmanı tamam, wiring bekliyor |
 | 4 | Farm | Stable upgrade, Paddock, Training track, Vet center, Breeding center, Staff facilities | 🟡 Domain katmanı tamam, wiring bekliyor |
@@ -1055,6 +1055,81 @@ cooldown'dan etkilenmemesi, beslemenin cooldown olmadan art arda
 gerçek PostgreSQL'e karşı doğrulandı — `horse_health` tablosunun ve yeni
 `horse_care_log` tablosunun İLK gerçek kullanımı da bu doğrulamaya
 dahildir. FAZ 1 wiring'in Bakım dilimi tamamlanmıştır.
+
+## FAZ 1 wiring — Altıncı dilim: Ahır Yükseltme + Economy (bu oturum)
+
+Bakım dilimi CI'da doğrulandıktan sonra, proje sahibi "önceliği sana
+bırakıyorum" diyerek kararı bana bıraktı. Kalan üç seçenek arasından
+(Economy'nin transfer akışı, Ahır yükseltme, temel Yarış Motoru) **Ahır
+Yükseltme**'yi seçtim — çünkü Ahır Özeti dilimi bunu bilinçli olarak
+"gerçek para düşme akışı (Economy'nin `debit` fonksiyonu) ile birlikte
+ayrı bir wiring dilimini hak eder" notuyla kapsam dışı bırakmıştı; bu
+dilim tam olarak o notun karşılığıdır ve TEK bir teslimatta iki kalan
+maddeyi (Economy + Ahır Yükseltme) birden kapatır. Ayrıca, brief §55'in
+zorunlu kıldığı ama şimdiye kadar hiç gerçek anlamda uygulanmamış olan
+satır kilitleme kuralının (docs/SECURITY.md §5) İLK gerçek uygulaması
+olma fırsatını taşıyordu — Race Engine gibi daha büyük/karmaşık bir
+sonraki dilimden önce bu deseni küçük, izole bir yerde kurmak daha
+güvenli bir sıralamaydı.
+
+**Bulunan ve bu dilimde KAPSAMA ALINAN bir eksik:** `domain/economy/
+wallet.ts`'teki `debit`/`canAfford`/`credit`/`transfer` fonksiyonları
+FAZ 0'dan beri saf fonksiyonlar olarak hazır ve test edilmişti (bkz.
+`wallet.spec.ts`), ama hiçbiri hiç wiring edilmemişti — projenin PARA
+harcayan İLK gerçek use-case'i bu dilimdir.
+
+**Yeni uç nokta:** `POST /api/v1/players/{id}/stable/upgrade` — gövde
+almaz, oyuncuyu mevcut ahır seviyesinden bir sonraki seviyeye yükseltmeyi
+dener. `domain/stable/stable.ts`'teki `getNextStableUpgradeCost` (FAZ
+2'den beri hazır) ile `domain/economy/wallet.ts`'teki `debit`
+birleştirilir. Yanıt şekli ve hata kodları `docs/API.md` §4 "Ahır
+Yükseltme" bölümünde detaylıdır.
+
+**Satır kilitleme (docs/SECURITY.md §5) İLK KEZ gerçek uygulandı:**
+`PlayerRepository`'ye yeni bir `updateWithLock(id, mutate)` metodu
+eklendi — oyuncu satırını `SELECT ... FOR UPDATE` ile kilitleyerek okur,
+`mutate` callback'ini (domain hesaplaması — maliyet + `debit`) satır HÂLÂ
+kilitliyken çağırır, sonucu AYNI transaction'da yazar. Bu, iki eşzamanlı
+yükseltme isteğinin (örn. çift tıklama) aynı bakiyeyi iki kez
+harcayabilmesini ÖNLER — tam gerekçe ve kod örneği
+`docs/ARCHITECTURE.md` §9.3'tedir. `mutate` içinde bir domain hatası
+(`InsufficientFundsError`/`MaxStableLevelReachedError`) fırlatılırsa
+transaction ROLLBACK olur, bakiye/seviye HİÇ değişmez.
+
+**Yeni paylaşılan tip dosyası:** `packages/shared-types/src/stable.ts`'e
+eklenen `StableUpgradeResult` (`newStableLevel`/`newCapacity`/
+`newBalance`/`cost`).
+
+**Hata kodu eşlemesi:** `MaxStableLevelReachedError` → `409
+MAX_STABLE_LEVEL_REACHED` (kod zaten `error-codes.ts`'te FAZ 2'den beri
+tanımlıydı, yalnızca eşleme eksikti); `InsufficientFundsError` → `409
+INSUFFICIENT_FUNDS` (AYNI şekilde, kod zaten tanımlıydı) — ikisi de
+`HorseInjuredError`/`InsufficientEnergy` ile AYNI gerekçeyle 409 Conflict
+(kalıcı bir doğrulama hatası değil, mevcut duruma bağlı geçici bir
+engel).
+
+**Kapsam dışı (bilinçli, sonraki adımlar):** Yükseltme geçmişi kaydı;
+`credit`/`transfer` (yarış ödülü, At Pazarı satışı gibi gelecekteki
+dilimleri bekliyor); Ahır Özeti'nin ÖTESİNDE tam Çiftlik/Farm bina
+sistemi (FAZ 4, ayrı bir dilim).
+
+**Doğrulama (bu oturum, yerel):** `apps/api/tsconfig.domain.json` ve
+`packages/shared-types` temiz derlendi. Framework'ten bağımsız test seti
+(312 test — bu dilimde yeni domain testi EKLENMEDİ, `wallet.spec.ts` ve
+`stable.spec.ts` zaten FAZ 0'dan beri `debit`/`getNextStableUpgradeCost`'u
+kapsıyordu) yerel olarak koştu, hepsi geçti. `@nestjs`/`pg` paketleri
+olmadan mümkün olduğunca geniş bir yerel `tsc` taraması yapıldı (yalnızca
+eksik paket gürültüsü ve önceden bilinen `http-exception.filter.ts`
+uyarısı filtrelendi) — gerçek bir tip hatası bulunmadı; yeni
+`stable.e2e-spec.ts` senaryoları AYRICA geçici bir `vitest`/`supertest`
+tip taslağıyla tek başına tip kontrolünden geçirildi. Yeni e2e
+senaryoları (yeterli bakiyeyle yükseltme, yetersiz bakiye → 409, zaten
+maksimum seviye → 409, olmayan oyuncu → 404, geçersiz id → 400) yalnızca
+CI'da doğrulanabilir (kabul edilen risk, önceki dilimlerle AYNI desen) —
+bunlardan ikisi (yeterli bakiye, maksimum seviye) test kurulumunda
+uygulamanın kendi DB havuzu üzerinden DOĞRUDAN bir bakiye/seviye
+artırımı gerektirir, çünkü bu dilimde bir "para kazanma" uç noktası
+(günlük ödül/yarış ödülü) henüz bağlı değildir.
 
 ## Açık kararlar (proje sahibinin onayı bekleniyor)
 

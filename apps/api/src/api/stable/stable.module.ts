@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { HorseModule } from '../horse/horse.module';
 import { PlayerModule } from '../player/player.module';
 import { GetStableSummaryUseCase } from '../../application/use-cases/get-stable-summary.use-case';
+import { UpgradeStableUseCase } from '../../application/use-cases/upgrade-stable.use-case';
 import { StableController } from './stable.controller';
 
 /**
@@ -11,10 +12,14 @@ import { StableController } from './stable.controller';
  * `GetStableSummaryUseCase` içinde birleştirir (bkz. `HorseModule`'ün
  * `HORSE_REPOSITORY`'yi zaten `exports` ettiği desenin AYNISI,
  * `PlayerModule`'e de uygulanmıştır).
+ *
+ * FAZ 1 wiring, altıncı dilim — `UpgradeStableUseCase` de burada sağlanır;
+ * yeni bir repository/modül import'u GEREKMEZ, zaten import edilen
+ * `PlayerModule`'ün `PLAYER_REPOSITORY`'sini kullanır.
  */
 @Module({
   imports: [PlayerModule, HorseModule],
   controllers: [StableController],
-  providers: [GetStableSummaryUseCase],
+  providers: [GetStableSummaryUseCase, UpgradeStableUseCase],
 })
 export class StableModule {}

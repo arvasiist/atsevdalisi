@@ -1,3 +1,5 @@
+import type { Player } from './player';
+
 /**
  * brief §38 "Ahır Özeti" (Ana Sayfa kartı), §39 Ahır Ekranı. Bu, API
  * yanıtının şeklidir — `domain/stable/stable.ts`'teki `StableSummary`
@@ -13,4 +15,17 @@ export interface StableSummaryView {
   averageCondition: number;
   /** health'i uyarı eşiğinin altında olan atların isimleri. */
   healthWarnings: string[];
+}
+
+/**
+ * FAZ 1 wiring, altıncı dilim — `POST /players/{id}/stable/upgrade` yanıtı
+ * (brief §32). `newBalance`, `Player`'ın yalnızca para alanlarının bir alt
+ * kümesidir (`Pick`) — bu, `care.ts`'teki `PerformCareActionResult`'ın
+ * `newVitals` alanı için kullanılan AYNI desendir.
+ */
+export interface StableUpgradeResult {
+  newStableLevel: number;
+  newCapacity: number;
+  newBalance: Pick<Player, 'money' | 'gems'>;
+  cost: { currency: 'money' | 'gems'; amount: number };
 }

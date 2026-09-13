@@ -1,6 +1,7 @@
-import { Controller, Get, Inject, Param, ParseUUIDPipe } from '@nestjs/common';
-import type { ApiSuccess, StableSummaryView } from '@at-sevdalisi/shared-types';
+import { Controller, Get, HttpCode, HttpStatus, Inject, Param, ParseUUIDPipe, Post } from '@nestjs/common';
+import type { ApiSuccess, StableSummaryView, StableUpgradeResult } from '@at-sevdalisi/shared-types';
 import { GetStableSummaryUseCase } from '../../application/use-cases/get-stable-summary.use-case';
+import { UpgradeStableUseCase } from '../../application/use-cases/upgrade-stable.use-case';
 
 /**
  * docs/API.md §4 "Ahır Özeti". İş kuralı İÇERMEZ — sadece Application
@@ -14,11 +15,24 @@ import { GetStableSummaryUseCase } from '../../application/use-cases/get-stable-
  */
 @Controller('players')
 export class StableController {
-  constructor(@Inject(GetStableSummaryUseCase) private readonly getStableSummaryUseCase: GetStableSummaryUseCase) {}
+  constructor(
+    @Inject(GetStableSummaryUseCase) private readonly getStableSummaryUseCase: GetStableSummaryUseCase,
+    @Inject(UpgradeStableUseCase) private readonly upgradeStableUseCase: UpgradeStableUseCase,
+  ) {}
 
   @Get(':id/stable-summary')
   async getStableSummary(@Param('id', ParseUUIDPipe) id: string): Promise<ApiSuccess<StableSummaryView>> {
     const summary = await this.getStableSummaryUseCase.execute(id);
     return { success: true, data: summary };
+  }
+
+  // Yeni bir KAYNAK yaratmaz (bir sonraki seviyeye geçer) —
+  // `TrainingController.train`/`CareController.care` ile AYNI gerekçeyle
+  // 200 OK döner (201 Created DEĞİL).
+  @Post(':id/stable/upgrade')
+  @HttpCode(HttpStatus.OK)
+  async upgradeStable(@Param('id', ParseUUIDPipe) id: string): Promise<ApiSuccess<StableUpgradeResult>> {
+    const result = await this.upgradeStableUseCase.execute(id);
+    return { success: true, data: result };
   }
 }

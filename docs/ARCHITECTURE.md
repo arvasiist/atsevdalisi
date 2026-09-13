@@ -503,6 +503,64 @@ aggregate'in birden fazla tabloya yazması gerektiğinde (örn. ileride
 Race sonucu + ödül dağıtımı, brief §54), `withTransaction` kullanılmalı —
 ayrı `pool.query()` çağrıları YETERSİZDİR.
 
+### 9.3. Satır kilitleme (`SELECT ... FOR UPDATE`) — para/mülkiyet değiştiren ilk use-case (FAZ 1 wiring, altıncı dilim)
+
+`docs/SECURITY.md` §5, para/mülkiyet değiştiren HER use-case'in bir
+transaction içinde `SELECT ... FOR UPDATE` ile satırı kilitlemesini
+zorunlu kılar — ama bu oturumdaki ilk beş wiring dilimi (Player, Horse,
+Ahır Özeti, Antrenman, Bakım) hiçbiri gerçek para harcamıyordu (hepsi
+bilinçli olarak "Economy entegrasyonu KAPSAM DIŞI" notuyla teslim edildi),
+bu yüzden bu kural şimdiye kadar hiç gerçek anlamda uygulanmamıştı. Ahır
+Yükseltme (`POST /players/{id}/stable/upgrade`), `domain/economy/
+wallet.ts`'teki `debit`'in İLK gerçek kullanımı olduğu için bu kuralın da
+İLK gerçek uygulamasıdır.
+
+**Neden salt `findById` + `update` YETERSİZ:** İki eşzamanlı istek (örn.
+kullanıcının "Yükselt" düğmesine çift tıklaması, veya iki farklı sekme)
+aynı anda `findById` ile AYNI bakiyeyi (örn. 8000 para) okursa, ikisi de
+"yeterli bakiye var" sonucuna ulaşır, ikisi de düşer ve YAZAR — sonuç:
+oyuncunun bakiyesi TEK bir yükseltme masrafı kadar düşmesi gerekirken İKİ
+kat düşer (ya da satın alınamayacak bir şey satın alınmış olur). Bu,
+`docs/SECURITY.md` §5'in "brief §55" referansıyla tam olarak önlemeye
+çalıştığı sınıf hatadır.
+
+**Uygulanan desen — `PlayerRepository.updateWithLock(id, mutate)`:**
+
+```ts
+// application/ports/player.repository.ts
+updateWithLock<T>(id: string, mutate: (player: Player) => { player: Player; result: T }): Promise<T | null>;
+```
+
+```ts
+// infrastructure/player/postgres-player.repository.ts (basitleştirilmiş)
+async updateWithLock(id, mutate) {
+  return withTransaction(this.pool, async (client) => {
+    const row = await client.query('SELECT * FROM players WHERE id = $1 FOR UPDATE', [id]);
+    if (!row.rows[0]) return null;
+    const current = rowToPlayer(row.rows[0]);
+    const { player: updated, result } = mutate(current); // ← domain hesaplaması BURADA, satır KİLİTLİYKEN
+    await client.query('UPDATE players SET ... WHERE id = $1', [...]);
+    return result;
+  });
+}
+```
+
+Kritik nokta: `mutate` callback'i (domain hesaplaması — `getNextStableUpgradeCost`
++ `debit`) BİLEREK satır `FOR UPDATE` ile kilitliyken, AYNI transaction
+içinde çalıştırılır. Callback'ten ÖNCE, ayrı bir `findById` çağrısıyla
+okunan bir değer STALE olabilir (başka bir transaction o sırada satırı
+değiştirmiş olabilir) — bu yüzden application katmanı `findById` +
+hesaplama + `update` şeklinde ÜÇ ayrı adım YAPMAZ, tek bir kilitli okuma
++ hesaplama + yazma yapar. `mutate` bir domain hatası fırlatırsa (örn.
+`InsufficientFundsError`, `MaxStableLevelReachedError`), `withTransaction`
+bunu yakalayıp `ROLLBACK` çalıştırır — hiçbir şey yazılmaz.
+
+**Genel kural (gelecekteki tüm para/mülkiyet değiştiren use-case'ler
+için — örn. At Pazarı satın alma, yarış ödülü dağıtımı):** `findById` +
+ayrı bir `update` YERİNE bu `updateWithLock` deseni (veya birden fazla
+satırı aynı anda kilitlemesi gerekiyorsa onun çok-satırlı bir türevi)
+kullanılmalıdır.
+
 ---
 
 ## 10. Ek öneriler — proje sahibine sunulan geliştirme fırsatları
