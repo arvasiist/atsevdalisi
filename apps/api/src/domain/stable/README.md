@@ -15,3 +15,7 @@ sistemi (brief §32 sonu) — bkz. `docs/ROADMAP.md`. FAZ 2 kapsamı yalnızca
 seviye/kapasite yükseltmedir.
 
 Testler: `apps/api/test/domain/stable/stable.spec.ts`.
+Wiring: `apps/api/src/application/use-cases/upgrade-stable.use-case.ts`
+(FAZ 1 wiring, altıncı dilim — `getNextStableUpgradeCost`'u
+`domain/economy/wallet.ts`'in `debit`'iyle birleştirir, bkz.
+`apps/api/src/api/stable/`).

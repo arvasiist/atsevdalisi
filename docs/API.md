@@ -227,10 +227,43 @@ uyarılarını hesaplar. Örnek yanıt:
 ```
 
 Oyuncu bulunamazsa `404 PLAYER_NOT_FOUND`, id UUID formatında değilse
-`400 VALIDATION_ERROR` döner. Ahır yükseltme (`POST .../stable/upgrade`,
-brief §32) bu dilimin KAPSAMI DIŞINDADIR — `getNextStableUpgradeCost`
-zaten domain katmanında hazır, gerçek para düşme akışı (Economy'nin
-`debit` fonksiyonu) ile birlikte ayrı bir wiring dilimini hak eder.
+`400 VALIDATION_ERROR` döner.
+
+### Ahır Yükseltme (FAZ 1 wiring, altıncı dilim, bu oturum)
+
+```http
+POST /api/v1/players/{id}/stable/upgrade
+```
+
+brief §32 "Ahır yükseltme" — gövde/parametre ALMAZ, her zaman oyuncunun
+mevcut seviyesinden BİR SONRAKİ seviyeye yükseltmeyi dener.
+`domain/stable/stable.ts`'teki `getNextStableUpgradeCost`'u
+`domain/economy/wallet.ts`'teki `debit`'le birleştirir — Economy'nin
+`debit` fonksiyonunun İLK gerçek kullanımı. Örnek yanıt:
+
+```json
+{
+  "success": true,
+  "data": {
+    "newStableLevel": 2,
+    "newCapacity": 8,
+    "newBalance": { "money": 12000, "gems": 50 },
+    "cost": { "currency": "money", "amount": 8000 }
+  }
+}
+```
+
+Olası hata: yetersiz bakiyede `409 INSUFFICIENT_FUNDS` (bakiye/seviye
+HİÇ değişmez — işlem tek bir veritabanı transaction'ında ATOMİKtir);
+zaten `config/stable.config.json`'da tanımlı en yüksek seviyedeyse `409
+MAX_STABLE_LEVEL_REACHED`; oyuncu bulunamazsa `404 PLAYER_NOT_FOUND`; id
+UUID formatında değilse `400 VALIDATION_ERROR`.
+
+Bu, projenin PARA/mülkiyet değiştiren İLK use-case'idir — bu yüzden
+docs/SECURITY.md §5'in satır kilitleme (`SELECT ... FOR UPDATE` + tek
+transaction) kuralı İLK KEZ burada gerçek anlamda uygulandı (bkz.
+docs/ARCHITECTURE.md §9.3). Yükseltme geçmişi kaydı ve bir onay/geri alma
+akışı bu dilimin KAPSAMI DIŞINDADIR.
 
 ### Antrenman (FAZ 1 wiring, dördüncü dilim, bu oturum)
 
@@ -484,3 +517,4 @@ lobby.update       — online yarış lobisi (brief §41)
 | `PLAYER_NOT_FOUND` | Verilen id'ye ait oyuncu bulunamadı (FAZ 1 wiring) |
 | `HORSE_NOT_FOUND` | Verilen id'ye ait at bulunamadı (FAZ 1 wiring, ikinci dilim) |
 | `CARE_ACTION_ON_COOLDOWN` | Bakım eylemi cooldown süresi dolmadan tekrar istendi (FAZ 1 wiring, beşinci dilim) |
+| `MAX_STABLE_LEVEL_REACHED` | Ahır zaten en yüksek seviyede, daha fazla yükseltilemez (FAZ 1 wiring, altıncı dilim) |
