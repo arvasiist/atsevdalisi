@@ -63,6 +63,19 @@ COMMIT
 
 Ödül/ödeme endpoint'leri `Idempotency-Key` zorunlu tutar (bkz.
 `docs/API.md` §1.3); aynı anahtarla ikinci istek ikinci kez ödül vermez.
+**AUDIT_AND_HARDENING (bu oturum):** bu artık Redis+PostgreSQL çift
+katmanlı, PostgreSQL'de KALICI bir kayıt/rezervasyon kilididir — bkz.
+`docs/SECURITY.md` §4.
+
+**AUDIT_AND_HARDENING Öncelik 2 (bu oturum) — Economy Ledger:** yukarıdaki
+`BEGIN/.../COMMIT` deseni artık İKİ satırlık bir uygulama DEĞİL, ÜÇ:
+bakiye güncellemesiyle AYNI transaction içinde kalıcı bir
+`economy_transactions` satırı da yazılır (`player_id`, işaretli `amount`,
+`balance_before`/`balance_after`, `reference_type`/`reference_id`) — bkz.
+`docs/SECURITY.md` §12 tam detay için. Bu, brief'in "denetlenebilir
+muhasebe defteri" gereksinimini karşılar: herhangi bir bakiye
+değişikliğinin kaynağı artık doğrudan SQL ile sorgulanabilir, uygulama
+kodunu okumaya gerek KALMAZ.
 
 ## 6. Pazar değeri modeli (brief §30)
 
