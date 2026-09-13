@@ -1,7 +1,8 @@
-import { Body, Controller, HttpCode, HttpStatus, Inject, Param, ParseUUIDPipe, Post } from '@nestjs/common';
+import { Body, Controller, HttpCode, HttpStatus, Inject, Param, ParseUUIDPipe, Post, UseInterceptors } from '@nestjs/common';
 import type { ApiSuccess, PracticeRaceResult } from '@at-sevdalisi/shared-types';
 import { RunPracticeRaceUseCase } from '../../application/use-cases/run-practice-race.use-case';
 import { DEFAULT_RACE_TACTIC } from '../../domain/race/validation';
+import { IdempotencyInterceptor } from '../idempotency/idempotency.interceptor';
 import { RunPracticeRaceDto } from './dto/run-practice-race.dto';
 
 /**
@@ -24,8 +25,13 @@ export class RaceController {
   // (yeni bir KAYNAK yaratılmış olsa da — `races` satırı — istemciye bunu
   // yönetmesi için bir URI verilmiyor, bu dilimde `GET /races/:id` yok;
   // bu "atın gerçekleştirdiği bir eylem" olarak modellendi).
+  //
+  // FAZ 1 wiring, dokuzuncu dilim — brief §54: bu artık PARA değiştiren
+  // bir endpoint (giriş ücreti + ödül), bu yüzden `Idempotency-Key`
+  // header'ı ZORUNLUDUR (bkz. `IdempotencyInterceptor` doc yorumu).
   @Post(':id/practice-race')
   @HttpCode(HttpStatus.OK)
+  @UseInterceptors(IdempotencyInterceptor)
   async runPracticeRace(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: RunPracticeRaceDto,

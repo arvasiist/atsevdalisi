@@ -37,3 +37,19 @@ kaybettim" açıklaması (`docs/RACE_ENGINE.md` §8-9).
 
 Testler: `apps/api/test/domain/race/race-engine.spec.ts` (determinism +
 denge testleri, brief §53), `entrant-snapshot.spec.ts`, `bot-generator.spec.ts`.
+
+## FAZ 1 wiring, dokuzuncu dilim — Giriş ücreti + ödül (bu oturum)
+
+`run-practice-race.use-case.ts`'e giriş ücreti + ödül eklendi (brief §31
+Economy, docs/SECURITY.md §5):
+
+- `prize.ts` — `getPracticeRaceEntryFee`/`getPracticeRacePrize`: SAF
+  fonksiyonlar, `config/economy.config.json`'daki YENİ `practiceRace`
+  bloğunu (`baseEntryFee`, `prizeByFinishPosition`) ve önceden hazır ama
+  hiç kullanılmamış `raceEntryFeeMultiplier`'ı kullanır.
+
+Bakiye değişikliği (debit+credit) `PlayerRepository.updateWithLock` İÇİNDE,
+`UpgradeStableUseCase` ile AYNI desende uygulanır — bkz. use-case'in kendi
+doc yorumu. Bu, brief §54'ün Idempotency-Key + Redis altyapısının İLK
+gerçek kullanıcısıdır (bkz. `api/idempotency/idempotency.interceptor.ts`,
+`app.module.ts`'e artık bağlı olan `RedisModule`).

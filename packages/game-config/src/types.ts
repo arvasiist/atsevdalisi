@@ -146,6 +146,21 @@ export interface EconomyConfig {
   gemShopWhitelist: string[];
   dailyRewardMoney: number;
   raceEntryFeeMultiplier: number;
+  /**
+   * FAZ 1 wiring, dokuzuncu dilim — `raceEntryFeeMultiplier` daha önce
+   * (altıncı/yedinci dilimlerden beri) taslakta duruyordu ama hiçbir temel
+   * ücret değeri yoktu (`ioredis`'in `package.json`'da hazır ama hiç
+   * wiring edilmemiş olmasıyla AYNI "önceden hazırlanmış iskelet" deseni).
+   * `POST /horses/{id}/practice-race` bu ikisini birlikte KULLANAN İLK
+   * use-case'tir (bkz. `domain/race/prize.ts`). `prizeByFinishPosition`
+   * dizisinin uzunluğu şu an sabit `PRACTICE_RACE_BOT_COUNT + 1` (6) ile
+   * eşleşir; aralık dışı bir sıralama (dizi kısa kalırsa) ödülsüz (0)
+   * kabul edilir — çökme YOK (bkz. `getPracticeRacePrize` doc yorumu).
+   */
+  practiceRace: {
+    baseEntryFee: number;
+    prizeByFinishPosition: number[];
+  };
   /** brief §31/§42 — yeni oyuncu hesabı oluşturulunca verilen başlangıç bakiyesi. */
   newPlayerStartingBalance: {
     money: number;

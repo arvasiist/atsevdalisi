@@ -54,6 +54,19 @@ Aynı anahtar ile ikinci istek geldiğinde, işlem tekrar çalıştırılmaz;
 ilk işlemin sonucu aynen döndürülür (Redis'te `idempotency:{key}` olarak
 kısa süreli, örn. 24 saat, saklanır).
 
+**Gerçek implementasyon (FAZ 1 wiring, dokuzuncu dilim, bu oturum):**
+`api/idempotency/idempotency.interceptor.ts` — `POST /horses/{id}/practice-race`
+İLK gerçek kullanıcısı. Anahtar formatı GERÇEKTE `idempotency:{scopeId}:{key}`
+şeklindedir; `{scopeId}` URL'deki birincil kaynak kimliğidir (`req.params.id`)
+— oyuncu kaynaklarında bu `playerId`'nin AYNISIDIR, at-sahipli kaynaklarda
+(Pratik Yarış gibi) `horseId`'dir (bir at yalnızca TEK bir oyuncuya ait
+olduğundan replay çakışmasını önlemek için yeterlidir). Yalnızca BAŞARILI
+(2xx) yanıtlar önbelleğe alınır; bir domain hatası önbelleğe ALINMAZ, bu
+yüzden istemci sorunu düzeltip AYNI anahtarla tekrar deneyebilir. Bilinçli
+sınırlama: aynı anahtarla GERÇEKTEN eşzamanlı (aynı milisaniyede çakışan)
+iki isteğe karşı tam bir dağıtık kilit YOK — bkz. interceptor'ın kendi doc
+yorumu.
+
 ### 1.4 Sayfalama
 
 Liste endpoint'leri `?page=1&pageSize=20` parametrelerini destekler,
@@ -413,11 +426,17 @@ ve `feed-horse.use-case.ts` üstündeki KAPSAM notları):
   dilimde CI'ı beklemeden BAŞTAN uygulanan proaktif domain-katmanı
   doğrulaması).
 
-### Pratik Yarış (FAZ 1 wiring, sekizinci dilim, bu oturum)
+### Pratik Yarış (FAZ 1 wiring, sekizinci dilim; dokuzuncu dilimde giriş ücreti + ödül eklendi, bu oturum)
 
 ```http
 POST /api/v1/horses/{id}/practice-race
+Idempotency-Key: 5f2e1c2a-...-b3d9
 ```
+
+**Dokuzuncu dilimden itibaren `Idempotency-Key` header'ı ZORUNLUDUR**
+(bkz. §1.3) — bu artık PARA değiştiren bir endpoint (giriş ücreti + ödül).
+Eksikse `400 IDEMPOTENCY_KEY_REQUIRED` döner. Aynı anahtarla ikinci istek
+işlemi TEKRAR ÇALIŞTIRMAZ, ilk sonucu aynen döner (para tekrar ÇEKİLMEZ).
 
 brief §6 Race Engine ve §75 MVP kriterinin ("temel yarış motoru
 çalışıyor") karşılığıdır. `domain/race/race-engine.ts`'teki `simulateRace`
@@ -459,7 +478,10 @@ gösterir):
     ],
     "explanations": [
       { "horseId": "...", "positives": ["İyi kondisyon", "Güçlü son sprint"], "negatives": ["İlk 400m'de fazla enerji harcadı"] }
-    ]
+    ],
+    "entryFee": 50,
+    "prizeWon": 200,
+    "newBalance": { "money": 5150, "gems": 50 }
   }
 }
 ```
@@ -469,13 +491,17 @@ Tasarım kararları (bkz. `application/use-cases/run-practice-race.use-case.ts`
 
 - Bu, §6'daki TAM (gerçek çok oyunculu, programlı, giriş ücretli/ödül
   havuzlu) Race API'sinin YERİNE GEÇMEZ — o API hâlâ wiring edilmedi. Bu
-  uç nokta, motoru ilk kez gerçek veriye bağlayan, PARA AKIŞI OLMAYAN,
-  solo/pratik bir ön adımdır.
-- Giriş ücreti/ödül YOK (`entry_fee`/`prize_pool` her zaman 0) — para
-  akışı eklendiğinde (gelecek bir dilim) `PlayerRepository.updateWithLock`
-  (Ahır Yükseltme/Günlük Ödül'deki AYNI desen) doğal bir sonraki adımdır;
-  brief §54'ün Idempotency-Key + Redis altyapısının GERÇEK ev sahibi de o
-  zaman olabilir.
+  uç nokta, motoru ilk kez gerçek veriye bağlayan, solo/pratik bir ön
+  adımdır.
+- **Dokuzuncu dilim (bu oturum):** Giriş ücreti (`config/economy.config.json`
+  `practiceRace.baseEntryFee` × `raceEntryFeeMultiplier`) yarış başlamadan
+  ÖNCE düşülür, ödül (`practiceRace.prizeByFinishPosition`, bitiş sırasına
+  göre) yarış SONUCUNA göre eklenir — ikisi de TEK bir `PlayerRepository.
+  updateWithLock` çağrısı içinde (Ahır Yükseltme'deki AYNI satır kilitleme
+  deseni). Bakiye yetersizse `409 INSUFFICIENT_FUNDS` döner ve HİÇBİR ŞEY
+  yazılmaz (ne para çekilir ne yarış kaydedilir). Bu, gerçek bir çok
+  oyunculu ödül havuzu DEĞİLDİR — sabit, önceden belirlenmiş bir tablodur
+  (botlar para yatırmaz).
 - Bot rakipler gerçek `horses` satırları DEĞİLDİR, `race_entries`'e ayrı
   satır olarak YAZILMAZLAR — yalnızca oyuncunun kendi girişi kalıcıdır.
 - Zemin (grass) + hava (sunny) + mesafe (1600m) SABİTTİR — gerçek pist
@@ -484,7 +510,12 @@ Tasarım kararları (bkz. `application/use-cases/run-practice-race.use-case.ts`
   AYNI hata sınıfı, `errors.ts`'te YENİ bir sınıf GEREKMEDİ). Geçersiz bir
   taktik alanı → `400 VALIDATION_ERROR` (bkz. docs/ARCHITECTURE.md §9.1
   Hata 7 ilkesinin BAŞTAN uygulanmış hali — `domain/race/entrant-snapshot.ts`
-  `assertValidRaceTactic`).
+  `assertValidRaceTactic`). `Idempotency-Key` eksikse → `400
+  IDEMPOTENCY_KEY_REQUIRED`.
+- **Bilinçli sınırlama:** Ahır Yükseltme'nin KENDİ endpoint'i hâlâ
+  Idempotency-Key koruması OLMADAN çalışıyor — bu dilimin kapsamı dışında
+  bırakıldı, ayrı bir sertleştirme dilimini hak ediyor (bkz.
+  docs/ROADMAP.md).
 
 ## 5. Market (At Pazarı)
 

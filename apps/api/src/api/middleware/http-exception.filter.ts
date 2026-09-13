@@ -13,6 +13,7 @@ import { CareActionOnCooldownError, InvalidCareInputError } from '../../domain/c
 import { MaxStableLevelReachedError } from '../../domain/stable/errors';
 import { DailyRewardAlreadyClaimedError, InsufficientFundsError } from '../../domain/economy/errors';
 import { InvalidRaceTacticError } from '../../domain/race/errors';
+import { IdempotencyKeyRequiredError } from '../idempotency/idempotency.errors';
 
 /**
  * Bir hata sınıfının constructor'ı (`instanceof` ile karşılaştırılabilir).
@@ -71,6 +72,11 @@ const DOMAIN_ERROR_MAP = new Map<ErrorClassConstructor, { status: number; code: 
   // taktik alanı `InvalidTrainingInputError`/`InvalidCareInputError` ile
   // AYNI gerekçeyle gerçek bir DOĞRULAMA hatasıdır, 400.
   [InvalidRaceTacticError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.ValidationError }],
+  // FAZ 1 wiring, dokuzuncu dilim — brief §54 Idempotency-Key. Eksik
+  // header GERÇEK bir doğrulama hatası DEĞİLDİR (DTO/gövde şeklini
+  // ilgilendirmez) — kendi özel `ErrorCode.IdempotencyKeyRequired`'ı
+  // FAZ 0'dan beri taslakta duruyordu, ilk kez burada kullanılıyor.
+  [IdempotencyKeyRequiredError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.IdempotencyKeyRequired }],
 ]);
 
 /**

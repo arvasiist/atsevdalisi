@@ -9,6 +9,7 @@ import { StableModule } from './api/stable/stable.module';
 import { TrainingModule } from './api/training/training.module';
 import { AppConfigModule } from './infrastructure/config/config.module';
 import { DatabaseModule } from './infrastructure/database/database.module';
+import { RedisModule } from './infrastructure/redis/redis.module';
 
 /**
  * Kök modül. FAZ 1 wiring (bu oturum) `PlayerModule` + `DatabaseModule`'ü
@@ -24,18 +25,25 @@ import { DatabaseModule } from './infrastructure/database/database.module';
  * `POST /players/{id}/daily-reward`, Economy'nin `credit`'i, bkz. "FAZ 1
  * wiring — Yedinci dilim"); sekizinci dilimde `RaceModule` eklendi (brief
  * §6 Race Engine — `POST /horses/{id}/practice-race`, `simulateRace`'in
- * İLK gerçek orkestrasyonu, bkz. "FAZ 1 wiring — Sekizinci dilim"). Para
- * akışı YOK bu dilimde (giriş ücreti/ödül YOK) — Economy'nin `transfer`
- * akışı ve gerçek çok oyunculu yarış eşleştirmesi geriye kalan iki büyük
- * madde. `RedisModule` henüz BAĞLANMADI — brief §54'ün tam Idempotency-Key
- * altyapısı gerektiren bir use-case eklendiğinde bağlanacaktır (Günlük
- * Ödül KENDİ cooldown kontrolüyle finansal olarak zaten korumalıdır, bkz.
+ * İLK gerçek orkestrasyonu, bkz. "FAZ 1 wiring — Sekizinci dilim");
+ * dokuzuncu dilimde `RedisModule` BAĞLANDI (`@Global()` olduğundan bir
+ * kez buraya eklenmesi yeterli — bkz. `infrastructure/redis/redis.module.ts`)
+ * ve Pratik Yarış'a giriş ücreti + ödül eklendi (Economy'nin `debit`+
+ * `credit`'i TEK bir `updateWithLock` altında, brief §54'ün Idempotency-Key
+ * altyapısının İLK gerçek kullanıcısı — bkz. "FAZ 1 wiring — Dokuzuncu
+ * dilim"). Economy'nin `transfer` akışı ve gerçek çok oyunculu yarış
+ * eşleştirmesi geriye kalan iki büyük madde. Ahır Yükseltme'nin KENDİ
+ * endpoint'i hâlâ Idempotency-Key KORUMASI OLMADAN çalışıyor — bilinçli
+ * olarak dokuzuncu dilimin kapsamı dışında bırakıldı, ayrı bir
+ * sertleştirme dilimini hak ediyor (Günlük Ödül KENDİ cooldown
+ * kontrolüyle finansal olarak zaten korumalıdır, bkz.
  * `claim-daily-reward.use-case.ts` üstündeki KAPSAM notu).
  */
 @Module({
   imports: [
     AppConfigModule,
     DatabaseModule,
+    RedisModule,
     HealthModule,
     PlayerModule,
     HorseModule,

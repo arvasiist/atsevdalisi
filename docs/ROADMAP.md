@@ -10,7 +10,7 @@
 | Faz | Adı | Kapsam | Durum |
 |---|---|---|---|
 | **0** | Teknik keşif ve planlama | Repo, mimari, dokümantasyon, DB migration altyapısı, test altyapısı | ✅ Tamamlandı |
-| 1 | Core | Player, Auth, Economy, Horse, Stable, Training, Care, Basic Race Engine, Race Result, Progression | 🟡 Domain katmanı tamam; **Player + Horse (okuma) + Ahır Özeti + Antrenman + Bakım + Ahır Yükseltme + Günlük Ödül (Economy'nin `debit`+`credit`'i ve satır kilitleme dahil) + Pratik Yarış (temel Race Engine'in İLK orkestrasyonu) alt-modülleri gerçek veritabanına bağlandı ve CI'da DOĞRULANDI** (bkz. "FAZ 1 wiring" bölümleri — Player: run 34721911139; Horse: run 34723091484 (ilk denemede); Ahır Özeti: run 34723845048 (ilk denemede); Antrenman: run 34726749521 (bir hata bulunup düzeltildikten sonra, ikinci denemede); Bakım: run 34727941441 (ilk denemede); Ahır Yükseltme: run 34731523302 (ilk denemede); Günlük Ödül: run 34732402754 (ilk denemede); Pratik Yarış: gönderildi, CI sonucu bekleniyor), geri kalanı (Economy'nin `transfer` akışı, gerçek çok oyunculu/programlı Race API) wiring bekliyor |
+| 1 | Core | Player, Auth, Economy, Horse, Stable, Training, Care, Basic Race Engine, Race Result, Progression | 🟡 Domain katmanı tamam; **Player + Horse (okuma) + Ahır Özeti + Antrenman + Bakım + Ahır Yükseltme + Günlük Ödül (Economy'nin `debit`+`credit`'i ve satır kilitleme dahil) + Pratik Yarış (temel Race Engine'in İLK orkestrasyonu; dokuzuncu dilimde giriş ücreti + ödül + Idempotency-Key/Redis eklendi) alt-modülleri gerçek veritabanına bağlandı ve CI'da DOĞRULANDI** (bkz. "FAZ 1 wiring" bölümleri — Player: run 34721911139; Horse: run 34723091484 (ilk denemede); Ahır Özeti: run 34723845048 (ilk denemede); Antrenman: run 34726749521 (bir hata bulunup düzeltildikten sonra, ikinci denemede); Bakım: run 34727941441 (ilk denemede); Ahır Yükseltme: run 34731523302 (ilk denemede); Günlük Ödül: run 34732402754 (ilk denemede); Pratik Yarış: run 34733778323 (ilk denemede); Pratik Yarış giriş ücreti/ödül + Idempotency-Key/Redis: kontrol bekleniyor), geri kalanı (Economy'nin `transfer` akışı, gerçek çok oyunculu/programlı Race API, Ahır Yükseltme'nin KENDİ endpoint'inin Idempotency-Key ile sertleştirilmesi) wiring bekliyor |
 | 2 | Management | Horse Market, Buy/Sell, Vet, Farrier, Nutrition, Jockey, Staff, Stable capacity, Costs | 🟡 Domain katmanı tamam, wiring bekliyor |
 | 3 | Genetics | Pedigree, Mare/Stallion, Genetic traits, Inheritance, Mutation, Foal, Growth, Bloodline | 🟡 Domain katmanı tamam, wiring bekliyor |
 | 4 | Farm | Stable upgrade, Paddock, Training track, Vet center, Breeding center, Staff facilities | 🟡 Domain katmanı tamam, wiring bekliyor |
@@ -1317,6 +1317,104 @@ gerçekten yazma, sakat at, olmayan at, geçersiz taktik, geçersiz id)
 AYRICA geçici bir `vitest`/`supertest` tip taslağıyla tek başına tip
 kontrolünden geçirildi; yalnızca CI'da gerçek PostgreSQL'e karşı
 doğrulanabilir (kabul edilen risk, önceki dilimlerle AYNI desen).
+
+**✅ DOĞRULANDI — CI İLK DENEMEDE baştan sona yeşil** (GitHub Actions run
+[34733778323](https://github.com/arvasiist/atsevdalisi/actions/runs/34733778323),
+commit `4c429ad`, iş `build-and-test` 1 dakika 39 saniyede tamamlandı).
+Kurulum, kod stili, tip kontrolü, gerçek PostgreSQL kurulumu, TÜM testler
+(yeni `race.e2e-spec.ts`'in 7 senaryosu dahil) ve derleme — hepsi tek
+seferde, hiçbir düzeltme gerekmeden geçti. Yalnızca bilinen 11 uyarı
+(Node 20 kullanımdan kaldırma notu + 10 "magic number" lint uyarısı) var,
+hiçbiri hata değil. Bu, art arda ALTINCI "ilk denemede yeşil" dilim — ve
+Faz 5'te yazılıp test edilmiş Yarış Motoru'nun gerçek veriyle ilk kez
+çalıştırıldığı, sonucun gerçek veritabanına yazıldığı ilk kanıtlanmış
+kanıttır.
+
+## FAZ 1 wiring — Dokuzuncu dilim: Pratik Yarış'a giriş ücreti + ödül + Idempotency-Key/Redis (bu oturum)
+
+Pratik Yarış CI'da doğrulandıktan sonra, proje sahibi tekrar "devam et"
+diyerek kararı bana bıraktı. Kalan büyük maddeleri (Economy'nin `transfer`
+akışı, gerçek çok oyunculu Race API) araştırırken, sekizinci dilimin
+KENDİ "KAPSAM DIŞI" notunun tam olarak işaret ettiği doğal bir sonraki
+adımı buldum: Pratik Yarış'a giriş ücreti + ödül eklemek, aynı zamanda
+brief §54'ün Idempotency-Key + Redis altyapısını (dört dilimdir taslakta
+bekleyen `RedisModule`) GERÇEK bir kullanım örneğiyle bağlamak için doğal
+bir vesileydi — Ahır Yükseltme/Günlük Ödül'de bilinçli olarak ertelenmişti
+çünkü ikisinin de kendi doğal korumaları vardı (Günlük Ödül'ün cooldown'u)
+ya da henüz bir Idempotency-Key gerektiren use-case yoktu.
+
+**Bulunan durum:** `ioredis` `apps/api/package.json`'da FAZ 0'dan beri
+taslakta duruyordu (hiç import edilmemiş); `RedisModule`
+(`infrastructure/redis/redis.module.ts`) TAMAMEN yazılmış ama
+`app.module.ts`'e hiç BAĞLANMAMIŞTI; `ErrorCode.IdempotencyKeyRequired`
+FAZ 0'dan beri katalogda duruyordu ama hiçbir hata sınıfı onu
+üretmiyordu; `config/economy.config.json`'daki `raceEntryFeeMultiplier`
+(altıncı dilimden beri taslakta) hiç kullanılmamıştı çünkü temel bir
+ücret değeri yoktu. Bu projede tekrar eden bir desen: önceki dilimler
+gelecekteki ihtiyaçları öngörüp iskelet bırakıyor, sonraki bir dilim
+onu gerçekten bağlıyor.
+
+**Bu dilimde yapılanlar:**
+- `config/economy.config.json`'a YENİ `practiceRace: { baseEntryFee: 50,
+  prizeByFinishPosition: [200, 120, 80, 50, 30, 0] }` eklendi
+  (`packages/game-config/src/types.ts`'te tip güncellendi).
+- `domain/race/prize.ts` (YENİ) — `getPracticeRaceEntryFee`/
+  `getPracticeRacePrize`: SAF fonksiyonlar (`domain/economy/wallet.ts`
+  ile AYNI desen), sınır dışı bir sıralama için çökme yerine güvenli
+  varsayılan (0) döner.
+- `run-practice-race.use-case.ts` güncellendi: `simulateRace` (SAF, yan
+  etkisiz) ÖNCE çalışır, SONRA TEK bir `PlayerRepository.updateWithLock`
+  çağrısı içinde hem giriş ücreti `debit` edilir hem sonuca göre ödül
+  `credit` edilir (`UpgradeStableUseCase` ile AYNI "hesaplama satır
+  kilitliyken" kuralı). Bakiye yetersizse transaction ROLLBACK olur ve
+  `raceRepository.savePracticeRace` hiç ÇAĞRILMAZ — yarış hiç "olmamış"
+  sayılır.
+- `postgres-race.repository.ts` güncellendi: `entry_fee`/`prize_pool`
+  artık GERÇEK değerler yazıyor (önceden her zaman sabit `0`'dı).
+- `api/idempotency/idempotency.interceptor.ts` + `idempotency.errors.ts`
+  (YENİ) — genel amaçlı `IdempotencyInterceptor`, `@UseInterceptors()`
+  ile route bazında uygulanır (global DEĞİL). Anahtar formatı
+  `idempotency:{scopeId}:{key}` — `{scopeId}`, docs/SECURITY.md §4'teki
+  `{playerId}`'nin GENELLEŞTİRİLMİŞ hali (`req.params.id`) — bkz.
+  interceptor'ın kendi doc yorumundaki tam gerekçe. Yalnızca BAŞARILI
+  (2xx) yanıtlar önbelleğe alınır; tam bir dağıtık kilit YOK (bilinçli
+  sınırlama, ayrı bir sertleştirme dilimini hak ediyor).
+- `RedisModule` `app.module.ts`'e BAĞLANDI (`@Global()`, tek satır yeterli).
+- `.github/workflows/ci.yml`'e `postgres` ile AYNI desende bir `redis`
+  servis konteyneri + `REDIS_URL` env değişkeni eklendi — `RedisModule`
+  `@Global()` olduğundan `AppModule`'ü bootstrap eden HER e2e testi
+  (yalnızca Race/Idempotency ile ilgili olanlar DEĞİL) artık gerçek bir
+  Redis bağlantısı gerektiriyor.
+
+**Bilinçli sınırlamalar (bu dilim):**
+- Giriş ücreti/ödül SADECE `money` (gem YOK).
+- Ödül tablosu sabit/önceden belirlenmiş — GERÇEK bir çok oyunculu ödül
+  havuzu DEĞİL (botlar para yatırmaz).
+- Ahır Yükseltme'nin KENDİ endpoint'i hâlâ Idempotency-Key koruması
+  OLMADAN çalışıyor — bilinçli olarak bu dilimin kapsamı DIŞINDA
+  bırakıldı (mevcut, CI'da zaten onaylanmış bir endpoint'i retrofit
+  etmek, bu dilimin "yeni bir akışı ilk kez doğru bağlama" odağının
+  dışına taşardı) — ayrı bir sertleştirme dilimini hak ediyor.
+- Idempotency-Key önbelleği için tam bir dağıtık kilit yok (yukarıda).
+
+**Doğrulama (bu oturum, yerel):** Vitest shim'i baştan yeniden kuruldu
+(önceki oturumda bulunan üç hata — `makeIt` sonsuz özyineleme, `it.each`
+argüman bozulması, üst düzey `expect.arrayContaining` eşleşmemesi —
+BAŞTAN düzeltilmiş haliyle). Framework'ten bağımsız TAM test seti,
+YENİ `prize.spec.ts` (6 test) ile birlikte 317/317 geçti (önceki
+311 + 6). Geniş bir yerel `tsc` taraması (`apps/api/src` + `apps/api/test`,
+`noUncheckedIndexedAccess` DAHİL) yalnızca bilinen eksik-paket gürültüsünü
+buldu; süreçte GERÇEK iki sorun bulunup düzeltildi: (1)
+`getPracticeRacePrize`'ın `table[index]`'i (dizinin `noUncheckedIndexedAccess`
+altında `number | undefined` olması) doğrudan `number` olarak döndürmesi
+— `?? 0` ile düzeltildi; (2) `IdempotencyInterceptor`'daki `tap` callback
+parametresinin (rxjs tipleri bu ortamda çözülemediği için) örtük `any`
+uyarısı — açık `: unknown` tip belirtilerek düzeltildi. `race.e2e-spec.ts`
+GENİŞLETİLDİ (artık 12 senaryo: yeni giriş ücreti/ödül/bakiye kontrolü,
+yetersiz bakiye → 409 + hiçbir şey yazılmadığının doğrulanması, eksik
+Idempotency-Key → 400, AYNI anahtarla ikinci istek → AYNI sonuç + paranın
+TEKRAR çekilmediğinin doğrulanması) — önceki dilimlerle AYNI kısıt:
+yalnızca CI'da gerçek PostgreSQL + Redis'e karşı doğrulanabilir.
 
 ## Açık kararlar (proje sahibinin onayı bekleniyor)
 
