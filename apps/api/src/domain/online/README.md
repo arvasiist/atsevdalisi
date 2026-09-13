@@ -65,3 +65,15 @@ wiring edilmemiş saf fonksiyonlardı — bu dilim onları `POST`/`DELETE
   `JoinMatchmakingQueueUseCase` doc yorumundaki tam liste.
 
 Testler: `apps/api/test/api/matchmaking.e2e-spec.ts`.
+
+**CI'ın ilk denemesi (run 34777510623) BAŞARISIZ oldu, iki ayrı sorun
+düzeltildi** (bkz. docs/ROADMAP.md "FAZ 1 wiring — On dördüncü dilim"
+bölümünün sonundaki tam analiz): (1) bu dosya, `findBestMatch`'in
+KASITLI olarak GLOBAL bir sorgu yaptığı (`matchmaking_tickets`'teki TÜM
+biletler) için, projedeki diğer tüm e2e dosyalarından FARKLI olarak
+testler arasında `matchmaking_tickets`'in temizlenmesini GEREKTİREN İLK
+dosyaydı (`beforeEach` eklendi); (2) `MatchmakingController.join`'de
+`docs/ARCHITECTURE.md` §9.1 Hata 7'nin (DTO doğrulamasının Vitest/esbuild
+altında sessizce atlanması) AYNI kök nedeni yeniden ortaya çıktı —
+`leave()`'in zaten kullandığı elle `isUUID()` kontrolü `join()`'e de
+bağımsız bir ikinci savunma hattı olarak eklendi.
