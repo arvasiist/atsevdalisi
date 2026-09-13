@@ -10,7 +10,7 @@
 | Faz | Adı | Kapsam | Durum |
 |---|---|---|---|
 | **0** | Teknik keşif ve planlama | Repo, mimari, dokümantasyon, DB migration altyapısı, test altyapısı | ✅ Tamamlandı |
-| 1 | Core | Player, Auth, Economy, Horse, Stable, Training, Care, Basic Race Engine, Race Result, Progression | 🟡 Domain katmanı tamam; **Player + Horse (okuma) + Ahır Özeti + Antrenman + Bakım + Ahır Yükseltme (onuncu dilimde Idempotency-Key eklendi) + Günlük Ödül (Economy'nin `debit`+`credit`'i ve satır kilitleme dahil) + Pratik Yarış (temel Race Engine'in İLK orkestrasyonu; dokuzuncu dilimde giriş ücreti + ödül + Idempotency-Key/Redis eklendi) + At Pazarı (Economy'nin `transfer`'i + YENİ `updateTwoWithLock` ile ilan oluşturma/satın alma/iptal, on birinci dilim) alt-modülleri gerçek veritabanına bağlandı ve CI'da DOĞRULANDI** (bkz. "FAZ 1 wiring" bölümleri — Player: run 34721911139; Horse: run 34723091484 (ilk denemede); Ahır Özeti: run 34723845048 (ilk denemede); Antrenman: run 34726749521 (bir hata bulunup düzeltildikten sonra, ikinci denemede); Bakım: run 34727941441 (ilk denemede); Ahır Yükseltme: run 34731523302 (ilk denemede); Günlük Ödül: run 34732402754 (ilk denemede); Pratik Yarış: run 34733778323 (ilk denemede); Pratik Yarış giriş ücreti/ödül + Idempotency-Key/Redis: run 34737087519 (ilk deneme BAŞARISIZ oldu — run 34735597486 — gerçek bir hata bulunup düzeltildi, İKİNCİ denemede yeşil); Ahır Yükseltme Idempotency-Key sertleştirmesi: run 34737922897 (ilk denemede); At Pazarı: kontrol bekleniyor), geri kalanı (gerçek çok oyunculu/programlı Race API, At Pazarı'nın filtrelenebilir tarama listesi/`my-listings`) wiring bekliyor |
+| 1 | Core | Player, Auth, Economy, Horse, Stable, Training, Care, Basic Race Engine, Race Result, Progression | 🟡 Domain katmanı tamam; **Player + Horse (okuma) + Ahır Özeti + Antrenman + Bakım + Ahır Yükseltme (onuncu dilimde Idempotency-Key eklendi) + Günlük Ödül (Economy'nin `debit`+`credit`'i ve satır kilitleme dahil) + Pratik Yarış (temel Race Engine'in İLK orkestrasyonu; dokuzuncu dilimde giriş ücreti + ödül + Idempotency-Key/Redis eklendi) + At Pazarı (Economy'nin `transfer`'i + YENİ `updateTwoWithLock` ile ilan oluşturma/satın alma/iptal, on birinci dilim) alt-modülleri gerçek veritabanına bağlandı ve CI'da DOĞRULANDI** (bkz. "FAZ 1 wiring" bölümleri — Player: run 34721911139; Horse: run 34723091484 (ilk denemede); Ahır Özeti: run 34723845048 (ilk denemede); Antrenman: run 34726749521 (bir hata bulunup düzeltildikten sonra, ikinci denemede); Bakım: run 34727941441 (ilk denemede); Ahır Yükseltme: run 34731523302 (ilk denemede); Günlük Ödül: run 34732402754 (ilk denemede); Pratik Yarış: run 34733778323 (ilk denemede); Pratik Yarış giriş ücreti/ödül + Idempotency-Key/Redis: run 34737087519 (ilk deneme BAŞARISIZ oldu — run 34735597486 — gerçek bir hata bulunup düzeltildi, İKİNCİ denemede yeşil); Ahır Yükseltme Idempotency-Key sertleştirmesi: run 34737922897 (ilk denemede); At Pazarı: run 34769577514 (ilk denemede)), geri kalanı (gerçek çok oyunculu/programlı Race API, At Pazarı'nın filtrelenebilir tarama listesi/`my-listings`) wiring bekliyor |
 | 2 | Management | Horse Market, Buy/Sell, Vet, Farrier, Nutrition, Jockey, Staff, Stable capacity, Costs | 🟡 Domain katmanı tamam, wiring bekliyor |
 | 3 | Genetics | Pedigree, Mare/Stallion, Genetic traits, Inheritance, Mutation, Foal, Growth, Bloodline | 🟡 Domain katmanı tamam, wiring bekliyor |
 | 4 | Farm | Stable upgrade, Paddock, Training track, Vet center, Breeding center, Staff facilities | 🟡 Domain katmanı tamam, wiring bekliyor |
@@ -1642,8 +1642,19 @@ sandbox'ın eksik bağımlılıklarından (missing `@nestjs/*`/`node:crypto`
 tipleri) kaynaklanan, önceki dilimlerde de görülen AYNI gürültü
 kategorisiydi — YENİ bir hata YOK.
 
-*(Bu bölüm, CI sonucu geldiğinde "✅ DOĞRULANDI" paragrafıyla
-güncellenecek.)*
+**✅ DOĞRULANDI** — GitHub'ın robotu bu dilimi de İLK denemede, hiçbir
+düzeltme gerekmeden onayladı: kurulum, kod stili, tip kontrolü, gerçek
+PostgreSQL veritabanı kurulumu, TÜM testler (yeni 17 senaryo dahil) ve
+derleme — hepsi tek seferde geçti (run 34769577514, `ec707bb`, "Faz 1
+wiring, on birinci dilim: At Pazarı", 1 dakika 55 saniye, 11 bilinen/
+zararsız uyarı — Node 20 kullanımdan kaldırma notu + 10 "magic number"
+lint uyarısı, önceki dilimlerle AYNI kategori). Sonuç hem commit'in kendi
+`checks` sayfasıyla hem de çalışmanın kendi detay sayfasıyla (run
+34769577514) çapraz kontrol edilerek doğrulandı. Bu, projenin İLK
+oyuncudan-oyuncuya para transferinin (`updateTwoWithLock`) ve At
+Pazarı'nın (`domain/market/market.ts`, FAZ 0'dan beri hazır) gerçek
+veritabanına karşı sorunsuz çalıştığının kanıtlanmış onayıdır — Faz 1
+wiring'in bu oturumdaki on birinci parçası tamamlandı.
 
 ## Açık kararlar (proje sahibinin onayı bekleniyor)
 
