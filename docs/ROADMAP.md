@@ -10,7 +10,7 @@
 | Faz | Adı | Kapsam | Durum |
 |---|---|---|---|
 | **0** | Teknik keşif ve planlama | Repo, mimari, dokümantasyon, DB migration altyapısı, test altyapısı | ✅ Tamamlandı |
-| 1 | Core | Player, Auth, Economy, Horse, Stable, Training, Care, Basic Race Engine, Race Result, Progression | 🟡 Domain katmanı tamam; **Player + Horse (okuma) + Ahır Özeti + Antrenman + Bakım alt-modülleri gerçek veritabanına bağlandı ve CI'da DOĞRULANDI** (bkz. "FAZ 1 wiring" bölümleri — Player: run 34721911139; Horse: run 34723091484 (ilk denemede); Ahır Özeti: run 34723845048 (ilk denemede); Antrenman: run 34726749521 (bir hata bulunup düzeltildikten sonra, ikinci denemede); Bakım: gönderildi, CI sonucu bekleniyor), geri kalanı (Economy'nin transfer akışı, Ahır yükseltme, Race Engine) wiring bekliyor |
+| 1 | Core | Player, Auth, Economy, Horse, Stable, Training, Care, Basic Race Engine, Race Result, Progression | 🟡 Domain katmanı tamam; **Player + Horse (okuma) + Ahır Özeti + Antrenman + Bakım alt-modülleri gerçek veritabanına bağlandı ve CI'da DOĞRULANDI** (bkz. "FAZ 1 wiring" bölümleri — Player: run 34721911139; Horse: run 34723091484 (ilk denemede); Ahır Özeti: run 34723845048 (ilk denemede); Antrenman: run 34726749521 (bir hata bulunup düzeltildikten sonra, ikinci denemede); Bakım: run 34727941441 (ilk denemede)), geri kalanı (Economy'nin transfer akışı, Ahır yükseltme, Race Engine) wiring bekliyor |
 | 2 | Management | Horse Market, Buy/Sell, Vet, Farrier, Nutrition, Jockey, Staff, Stable capacity, Costs | 🟡 Domain katmanı tamam, wiring bekliyor |
 | 3 | Genetics | Pedigree, Mare/Stallion, Genetic traits, Inheritance, Mutation, Foal, Growth, Bloodline | 🟡 Domain katmanı tamam, wiring bekliyor |
 | 4 | Farm | Stable upgrade, Paddock, Training track, Vet center, Breeding center, Staff facilities | 🟡 Domain katmanı tamam, wiring bekliyor |
@@ -1040,6 +1040,21 @@ paket gürültüsü ve önceden bilinen, bu dilimin DIŞINDA kalan bir
 `http-exception.filter.ts` `unknown` tipi uyarısı filtrelendi) — gerçek
 bir tip hatası bulunmadı. Yeni `care.e2e-spec.ts` (7 senaryo) yalnızca
 CI'da doğrulanabilir (kabul edilen risk, önceki dilimlerle AYNI desen).
+
+**✅ DOĞRULANDI — CI İLK DENEMEDE baştan sona yeşil (GitHub Actions run
+[34727941441](https://github.com/arvasiist/atsevdalisi/actions/runs/34727941441),
+"Faz 1 wiring, beşinci dilim: Bakım (POST /horses/:id/care, /feed)"
+commit'i, 2dk 6sn):** Hata 7'nin dersinin bu dilimde CI'ı hiç beklemeden
+BAŞTAN uygulanması karşılığını verdi — At/Ahır Özeti dilimleriyle AYNI
+şekilde, HİÇBİR düzeltmeye gerek kalmadan ilk denemede geçti. Yalnızca
+önceden bilinen "no magic number" uyarıları ve Node.js sürüm bildirimi
+var, hiçbir `::error::` yok. `care.e2e-spec.ts`'in 7 senaryosu (tımar
+moral/health artışı, cooldown çakışması → 409, farklı eylem türünün
+cooldown'dan etkilenmemesi, beslemenin cooldown olmadan art arda
+çağrılabilmesi, olmayan at için 404, geçersiz eylem/yem türü için 400)
+gerçek PostgreSQL'e karşı doğrulandı — `horse_health` tablosunun ve yeni
+`horse_care_log` tablosunun İLK gerçek kullanımı da bu doğrulamaya
+dahildir. FAZ 1 wiring'in Bakım dilimi tamamlanmıştır.
 
 ## Açık kararlar (proje sahibinin onayı bekleniyor)
 
