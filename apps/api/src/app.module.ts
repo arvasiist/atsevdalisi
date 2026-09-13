@@ -3,6 +3,7 @@ import { CareModule } from './api/care/care.module';
 import { EconomyModule } from './api/economy/economy.module';
 import { HealthModule } from './api/health/health.module';
 import { HorseModule } from './api/horse/horse.module';
+import { MarketModule } from './api/market/market.module';
 import { PlayerModule } from './api/player/player.module';
 import { RaceModule } from './api/race/race.module';
 import { StableModule } from './api/stable/stable.module';
@@ -31,13 +32,17 @@ import { RedisModule } from './infrastructure/redis/redis.module';
  * ve Pratik Yarış'a giriş ücreti + ödül eklendi (Economy'nin `debit`+
  * `credit`'i TEK bir `updateWithLock` altında, brief §54'ün Idempotency-Key
  * altyapısının İLK gerçek kullanıcısı — bkz. "FAZ 1 wiring — Dokuzuncu
- * dilim"). Economy'nin `transfer` akışı ve gerçek çok oyunculu yarış
- * eşleştirmesi geriye kalan iki büyük madde. Ahır Yükseltme'nin KENDİ
- * endpoint'i hâlâ Idempotency-Key KORUMASI OLMADAN çalışıyor — bilinçli
- * olarak dokuzuncu dilimin kapsamı dışında bırakıldı, ayrı bir
- * sertleştirme dilimini hak ediyor (Günlük Ödül KENDİ cooldown
- * kontrolüyle finansal olarak zaten korumalıdır, bkz.
- * `claim-daily-reward.use-case.ts` üstündeki KAPSAM notu).
+ * dilim"). Onuncu dilimde `StableModule`'ün KENDİ `stable/upgrade`
+ * endpoint'ine de `IdempotencyInterceptor` eklendi (dokuzuncu dilimde
+ * bilinçli olarak açık bırakılan tek güvenlik eksiği kapatıldı, bkz.
+ * "FAZ 1 wiring — Onuncu dilim"). On birinci dilimde `MarketModule`
+ * eklendi (brief §30 At Pazarı — `domain/market/market.ts`'in FAZ 0'dan
+ * beri hazır ama hiç wiring edilmemiş `createListingDraft`/
+ * `purchaseListing`/`cancelListing`'i gerçek veritabanına bağlar; bu,
+ * Economy'nin `transfer` fonksiyonunun VE `PlayerRepository.
+ * updateTwoWithLock`'un İLK gerçek kullanıcısıdır — bkz. "FAZ 1 wiring —
+ * On birinci dilim"). Geriye kalan tek büyük madde: gerçek çok oyunculu
+ * yarış eşleştirmesi (FAZ 7 Matchmaking).
  */
 @Module({
   imports: [
@@ -52,6 +57,7 @@ import { RedisModule } from './infrastructure/redis/redis.module';
     CareModule,
     EconomyModule,
     RaceModule,
+    MarketModule,
   ],
 })
 export class AppModule {}

@@ -42,6 +42,45 @@ export interface PlayerRepository {
    * bir değer STALE olabilir ve çift harcamaya açık kapı bırakır.
    */
   updateWithLock<T>(id: string, mutate: (player: Player) => { player: Player; result: T }): Promise<T | null>;
+
+  /**
+   * FAZ 1 wiring, on birinci dilim — At Pazarı satın alma (brief §30/§31).
+   * `updateWithLock` ile AYNI "kilitle → mutate çalıştır → AYNI transaction'da
+   * yaz" deseni, ama İKİ TARAF için (alıcı + satıcı arasında `wallet.transfer`,
+   * bu projenin PARA değiştiren İLK ÇOK-taraflı use-case'i — Ahır
+   * Yükseltme/Günlük Ödül/Pratik Yarış'ın hepsi TEK oyuncunun kendi
+   * bakiyesini değiştiriyordu).
+   *
+   * Deadlock'u önlemek için satırlar implementasyon içinde HER ZAMAN
+   * id'lerin sözlüksel sırasına göre kilitlenir (iki oyuncunun AYNI ANDA
+   * birbirinden bir şey satın almaya çalışması gibi nadir bir senaryoda
+   * bile iki transaction'ın birbirini karşılıklı beklememesi için) — ama
+   * `mutate` çağırana HER ZAMAN `buyerId` önce olacak şekilde çağrılır,
+   * böylece çağıran kilit sırasıyla hiç UĞRAŞMAZ.
+   *
+   * `buyerId` bulunamazsa `null` döner (`updateWithLock` ile AYNI
+   * sözleşme — geçersiz bir alıcı id'si gerçek/test edilebilir bir
+   * senaryodur). `sellerId` bulunamazsa (bu, `market_listings.seller_id`'nin
+   * `players(id)` üzerinde `ON DELETE CASCADE` FOREIGN KEY'i olduğu için
+   * PRATİKTE İMKANSIZDIR — satıcı silinirse ilanı da CASCADE ile silinir,
+   * `run-practice-race.use-case.ts`'teki "horse.ownerId her zaman var olan
+   * bir oyuncuya işaret eder" varsayımıyla AYNI kategori) düz bir `Error`
+   * fırlatılır — bu dala normal koşullarda ULAŞILMAZ.
+   *
+   * BİLİNÇLİ SINIRLAMA (bu dilim): bu metod yalnızca İKİ `players` satırını
+   * kilitler — `market_listings`/`horses` satırları AYRI, bu transaction'ın
+   * DIŞINDA güncellenir (bkz. `BuyMarketListingUseCase` doc yorumu). Bu,
+   * `run-practice-race.use-case.ts`'in wallet güncellemesini yarış
+   * kaydından AYRI bir transaction'da yapmasıyla AYNI, önceden kabul
+   * edilmiş mimari risktir (bkz. o use-case'in doc yorumu) — burada da
+   * AYNI gerekçeyle kabul edilmiştir, ayrı bir sertleştirme dilimini hak
+   * eder.
+   */
+  updateTwoWithLock<T>(
+    buyerId: string,
+    sellerId: string,
+    mutate: (buyer: Player, seller: Player) => { buyer: Player; seller: Player; result: T },
+  ): Promise<T | null>;
 }
 
 /** NestJS DI için token (interface'ler runtime'da yok olduğundan bir Symbol gerekir). */

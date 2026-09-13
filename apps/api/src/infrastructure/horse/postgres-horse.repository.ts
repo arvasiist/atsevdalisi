@@ -134,15 +134,24 @@ export class PostgresHorseRepository implements HorseRepository {
    * yazar (tek genel amaçlı metod — ileride Care/Race gibi başka
    * dilimler de kullanacaktır), yalnızca antrenmanın dokunduğu alanları
    * değil.
+   *
+   * FAZ 1 wiring, on birinci dilim — `owner_id` de bu genel metoda
+   * eklendi (`BuyMarketListingUseCase`'in İLK kullanıcısı; bkz. o
+   * use-case'in doc yorumu). Önceki çağıranların (Antrenman/Bakım/Pratik
+   * Yarış) HİÇBİRİ `horse.ownerId`'yi hiç DEĞİŞTİRMEDİĞİ için (her zaman
+   * okudukları AYNI değeri geri yazarlar) bu, onlar için davranışı
+   * DEĞİŞTİRMEZ — yalnızca YENİ bir alanı ZATEN var olan genel
+   * "değişken alanları yaz" sözleşmesine ekler.
    */
   async update(horse: Horse): Promise<void> {
     await this.pool.query(
       `UPDATE horses
-       SET health = $2, fitness = $3, fatigue = $4, energy = $5, morale = $6,
-           weight_kg = $7, status = $8, level = $9, xp = $10, updated_at = $11
+       SET owner_id = $2, health = $3, fitness = $4, fatigue = $5, energy = $6, morale = $7,
+           weight_kg = $8, status = $9, level = $10, xp = $11, updated_at = $12
        WHERE id = $1`,
       [
         horse.id,
+        horse.ownerId,
         horse.health,
         horse.fitness,
         horse.fatigue,

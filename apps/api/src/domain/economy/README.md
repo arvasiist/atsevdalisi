@@ -24,5 +24,14 @@ docs/SECURITY.md §5'in satır kilitleme (`SELECT ... FOR UPDATE`) kuralı
 **Wiring (FAZ 1 wiring, yedinci dilim):** `credit`'in İLK gerçek kullanımı
 `apps/api/src/application/use-cases/claim-daily-reward.use-case.ts`'tedir
 (Günlük Ödül, `POST /players/{id}/daily-reward`) — AYNI `updateWithLock`
-satır kilitleme deseni burada da kullanılır. `transfer` henüz WIRING
-EDİLMEDİ (at pazarı satışı gibi gelecekteki bir dilimi bekliyor).
+satır kilitleme deseni burada da kullanılır.
+
+**Wiring (FAZ 1 wiring, on birinci dilim):** `transfer`'in İLK gerçek
+kullanımı `apps/api/src/application/use-cases/buy-market-listing.use-case.ts`'tedir
+(At Pazarı satın alma, `POST /market/listings/{id}/buy`, bkz.
+`domain/market/market.ts` `purchaseListing`) — ama bu kez `updateWithLock`
+DEĞİL, YENİ bir `PlayerRepository.updateTwoWithLock` kullanılır: bu,
+projenin PARA değiştiren İLK ÇOK-taraflı (iki OYUNCU arasında) use-case'i,
+önceki altı para/mülkiyet-değiştiren use-case'in (Ahır Yükseltme, Günlük
+Ödül, Pratik Yarış, Ahır Yükseltme'nin Idempotency-Key sertleştirmesi)
+hepsi TEK oyuncunun kendi bakiyesini değiştiriyordu.

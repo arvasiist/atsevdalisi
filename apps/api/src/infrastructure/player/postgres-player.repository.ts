@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import type { Pool } from 'pg';
+import type { Pool, PoolClient } from 'pg';
 import type { Player } from '@at-sevdalisi/shared-types';
 import type { PlayerRepository } from '../../application/ports/player.repository';
 import { PG_POOL, withTransaction } from '../database/database.module';
@@ -109,29 +109,104 @@ export class PostgresPlayerRepository implements PlayerRepository {
 
       const current = rowToPlayer(row);
       const { player: updated, result: mutateResult } = mutate(current);
-
-      await client.query(
-        `UPDATE players
-         SET display_name = $2, avatar_id = $3, level = $4, xp = $5,
-             money = $6, gems = $7, reputation = $8, stable_level = $9,
-             last_daily_reward_claimed_at = $10, updated_at = $11
-         WHERE id = $1`,
-        [
-          updated.id,
-          updated.displayName,
-          updated.avatarId,
-          updated.level,
-          updated.xp,
-          updated.money,
-          updated.gems,
-          updated.reputation,
-          updated.stableLevel,
-          updated.lastDailyRewardClaimedAt ? new Date(updated.lastDailyRewardClaimedAt) : null,
-          new Date(updated.updatedAt),
-        ],
-      );
+      await this.writePlayerRow(client, updated);
 
       return mutateResult;
     });
+  }
+
+  /**
+   * FAZ 1 wiring, on birinci dilim — bkz. `PlayerRepository.updateTwoWithLock`
+   * doc yorumundaki tam gerekçe (At Pazarı satın alma). Deadlock'u önlemek
+   * için satırlar id'lerin SÖZLÜKSEL sırasına göre kilitlenir (`buyerId`/
+   * `sellerId` ARGÜMAN sırasından BAĞIMSIZ) — `mutate` ise ÇAĞIRANA her
+   * zaman `(buyer, seller)` sırasıyla verilir.
+   */
+  async updateTwoWithLock<T>(
+    buyerId: string,
+    sellerId: string,
+    mutate: (buyer: Player, seller: Player) => { buyer: Player; seller: Player; result: T },
+  ): Promise<T | null> {
+    return withTransaction(this.pool, async (client) => {
+      // `noUncheckedIndexedAccess` altında `[buyerId, sellerId].sort()`
+      // sonucunu ARRAY DESTRUCTURING ile almak `string | undefined` tipi
+      // verir (TypeScript sabit-2-elemanlı bir dizinin sıralandıktan
+      // sonra da HÂLÂ 2 eleman olduğunu STATİK olarak bilemez) — bu
+      // yüzden karşılaştırma DOĞRUDAN yapılır, dizi indeksleme HİÇ
+      // kullanılmaz.
+      const firstId = buyerId <= sellerId ? buyerId : sellerId;
+      const secondId = buyerId <= sellerId ? sellerId : buyerId;
+      const rowsById = new Map<string, PlayerRow>();
+
+      const firstResult = await client.query<PlayerRow>('SELECT * FROM players WHERE id = $1 FOR UPDATE', [
+        firstId,
+      ]);
+      if (firstResult.rows[0]) {
+        rowsById.set(firstId, firstResult.rows[0]);
+      }
+
+      // `buyerId === sellerId` durumunda (`purchaseListing`'in AYRICA
+      // kontrol edip `CannotBuyOwnListingError` fırlattığı bir durum)
+      // `firstId === secondId` olur — aynı satırı Postgres'te AYNI
+      // transaction içinde ikinci kez `FOR UPDATE` ile okumak GÜVENLİDİR
+      // (kendi kendini bloklamaz), sadece gereksizdir; bu yüzden burada
+      // özel bir dal GEREKMEZ.
+      if (secondId !== firstId || !rowsById.has(secondId)) {
+        const secondResult = await client.query<PlayerRow>('SELECT * FROM players WHERE id = $1 FOR UPDATE', [
+          secondId,
+        ]);
+        if (secondResult.rows[0]) {
+          rowsById.set(secondId, secondResult.rows[0]);
+        }
+      }
+
+      const buyerRow = rowsById.get(buyerId);
+      if (!buyerRow) {
+        return null;
+      }
+      const sellerRow = rowsById.get(sellerId);
+      if (!sellerRow) {
+        // bkz. `PlayerRepository.updateTwoWithLock` doc yorumu — FK
+        // CASCADE nedeniyle pratikte imkansız bir dal.
+        throw new Error(`Veri bütünlüğü ihlali: satıcı (${sellerId}) bulunamadı.`);
+      }
+
+      const buyer = rowToPlayer(buyerRow);
+      const seller = rowToPlayer(sellerRow);
+      const {
+        buyer: updatedBuyer,
+        seller: updatedSeller,
+        result: mutateResult,
+      } = mutate(buyer, seller);
+
+      await this.writePlayerRow(client, updatedBuyer);
+      await this.writePlayerRow(client, updatedSeller);
+
+      return mutateResult;
+    });
+  }
+
+  /** `updateWithLock`/`updateTwoWithLock`'un PAYLAŞTIĞI yazma sorgusu (DRY). */
+  private async writePlayerRow(client: PoolClient, updated: Player): Promise<void> {
+    await client.query(
+      `UPDATE players
+       SET display_name = $2, avatar_id = $3, level = $4, xp = $5,
+           money = $6, gems = $7, reputation = $8, stable_level = $9,
+           last_daily_reward_claimed_at = $10, updated_at = $11
+       WHERE id = $1`,
+      [
+        updated.id,
+        updated.displayName,
+        updated.avatarId,
+        updated.level,
+        updated.xp,
+        updated.money,
+        updated.gems,
+        updated.reputation,
+        updated.stableLevel,
+        updated.lastDailyRewardClaimedAt ? new Date(updated.lastDailyRewardClaimedAt) : null,
+        new Date(updated.updatedAt),
+      ],
+    );
   }
 }

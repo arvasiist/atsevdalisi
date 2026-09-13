@@ -59,6 +59,19 @@ Bu desen `apps/api/src/infrastructure/database` altında ortak bir
 `withTransaction()` yardımcı fonksiyonu ile standardize edilir; her
 use-case bunu tekrar tekrar elle yazmaz.
 
+**İki taraflı transfer (FAZ 1 wiring, on birinci dilim — At Pazarı):**
+para İKİ oyuncu arasında el değiştirdiğinde (`PlayerRepository.
+updateTwoWithLock`, bkz. o metodun doc yorumu) satırlar HER ZAMAN
+id'lerin sözlüksel sırasına göre kilitlenir — argüman sırasından
+BAĞIMSIZ. Bu, iki farklı işlemin (ör. A'nın B'den, B'nin AYNI ANDA
+A'dan bir şey satın almaya çalışması) birbirini karşılıklı bekleyip
+deadlock oluşturmasını önler. Bilinçli kabul edilmiş risk: bu iki-satır
+kilidi yalnızca `players` tablosunu kapsar — ilgili `market_listings`/
+`horses` satırları AYRI, daha sonraki bir transaction'da güncellenir
+(bkz. `BuyMarketListingUseCase` doc yorumu) — bu, brief §55'in "tek
+transaction" idealinden bilinçli bir sapmadır, `run-practice-race.
+use-case.ts`'in wallet+yarış kaydı deseniyle AYNI kategori.
+
 ## 6. Online güvenlik (brief §41-42)
 
 ```text

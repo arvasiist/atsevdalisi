@@ -13,6 +13,14 @@ import { CareActionOnCooldownError, InvalidCareInputError } from '../../domain/c
 import { MaxStableLevelReachedError } from '../../domain/stable/errors';
 import { DailyRewardAlreadyClaimedError, InsufficientFundsError } from '../../domain/economy/errors';
 import { InvalidRaceTacticError } from '../../domain/race/errors';
+import {
+  CannotBuyOwnListingError,
+  HorseAlreadyListedError,
+  InvalidListingPriceError,
+  ListingExpiredError,
+  ListingNotActiveError,
+  ListingNotFoundError,
+} from '../../domain/market/errors';
 import { IdempotencyKeyRequiredError } from '../idempotency/idempotency.errors';
 
 /**
@@ -77,6 +85,20 @@ const DOMAIN_ERROR_MAP = new Map<ErrorClassConstructor, { status: number; code: 
   // ilgilendirmez) — kendi özel `ErrorCode.IdempotencyKeyRequired`'ı
   // FAZ 0'dan beri taslakta duruyordu, ilk kez burada kullanılıyor.
   [IdempotencyKeyRequiredError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.IdempotencyKeyRequired }],
+  // FAZ 1 wiring, on birinci dilim — At Pazarı (brief §30). `errors.ts`'teki
+  // dört sınıf FAZ 0'dan beri TASLAKTA duruyordu, burada İLK KEZ gerçekten
+  // fırlatılabilir hale geliyor. `InvalidListingPriceError` gerçek bir
+  // DOĞRULAMA hatasıdır (Hata 7 ilkesiyle AYNI, 400); `CannotBuyOwnListingError`
+  // da yapısal bir istek hatasıdır (kalıcı, tekrar denemekle DÜZELMEZ), 400.
+  [InvalidListingPriceError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.InvalidListingPrice }],
+  [CannotBuyOwnListingError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.CannotBuyOwnListing }],
+  [ListingNotFoundError, { status: HttpStatus.NOT_FOUND, code: ErrorCode.ListingNotFound }],
+  // "Aktif değil"/"süresi dolmuş" GEÇİCİ/duruma-bağlı engellerdir —
+  // `MaxStableLevelReachedError`/`HorseInjuredError` ile AYNI gerekçeyle
+  // 409 Conflict, 400/404 DEĞİL.
+  [ListingNotActiveError, { status: HttpStatus.CONFLICT, code: ErrorCode.ListingNotActive }],
+  [ListingExpiredError, { status: HttpStatus.CONFLICT, code: ErrorCode.ListingExpired }],
+  [HorseAlreadyListedError, { status: HttpStatus.CONFLICT, code: ErrorCode.HorseAlreadyListed }],
 ]);
 
 /**
