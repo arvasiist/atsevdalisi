@@ -413,6 +413,79 @@ ve `feed-horse.use-case.ts` üstündeki KAPSAM notları):
   dilimde CI'ı beklemeden BAŞTAN uygulanan proaktif domain-katmanı
   doğrulaması).
 
+### Pratik Yarış (FAZ 1 wiring, sekizinci dilim, bu oturum)
+
+```http
+POST /api/v1/horses/{id}/practice-race
+```
+
+brief §6 Race Engine ve §75 MVP kriterinin ("temel yarış motoru
+çalışıyor") karşılığıdır. `domain/race/race-engine.ts`'teki `simulateRace`
+(FAZ 5'te yazılıp test edilmişti, ama hiç ÇAĞRILMIYORDU) burada İLK
+gerçek orkestrasyonuna kavuşuyor: oyuncunun atı, sabit sayıda (5)
+deterministik yapay zeka rakibe karşı SOLO yarışır; sonuç `races`/
+`race_entries`/`race_entry_segments` tablolarına (migration 0006/0014,
+önceden hiç yazılmıyordu) gerçekten kaydedilir.
+
+Gövde TAMAMEN opsiyoneldir — hiçbiri gönderilmezse `racingStyle: mid_pack`,
+`riskLevel: normal`, `startApproach: balanced`, `finalStretchPlan: normal`
+kullanılır:
+
+```json
+{
+  "racingStyle": "front_runner",
+  "riskLevel": "high",
+  "startApproach": "aggressive",
+  "finalStretchPlan": "early_sprint"
+}
+```
+
+örnek yanıt (`finalResult`/`explanations` TÜM katılımcıları — oyuncunun
+atı + 5 bot — içerir, `horseId` alanı oyuncunun hangi girişi olduğunu
+gösterir):
+
+```json
+{
+  "success": true,
+  "data": {
+    "raceId": "...",
+    "horseId": "...",
+    "distanceMeters": 1600,
+    "surface": "grass",
+    "weather": "sunny",
+    "finalResult": [
+      { "horseId": "...", "finishPosition": 1, "finishTimeMs": 94820, "performanceScore": 91.4 },
+      { "horseId": "bot-1", "finishPosition": 2, "finishTimeMs": 94990, "performanceScore": 89.7 }
+    ],
+    "explanations": [
+      { "horseId": "...", "positives": ["İyi kondisyon", "Güçlü son sprint"], "negatives": ["İlk 400m'de fazla enerji harcadı"] }
+    ]
+  }
+}
+```
+
+Tasarım kararları (bkz. `application/use-cases/run-practice-race.use-case.ts`
+üstündeki KAPSAM notu):
+
+- Bu, §6'daki TAM (gerçek çok oyunculu, programlı, giriş ücretli/ödül
+  havuzlu) Race API'sinin YERİNE GEÇMEZ — o API hâlâ wiring edilmedi. Bu
+  uç nokta, motoru ilk kez gerçek veriye bağlayan, PARA AKIŞI OLMAYAN,
+  solo/pratik bir ön adımdır.
+- Giriş ücreti/ödül YOK (`entry_fee`/`prize_pool` her zaman 0) — para
+  akışı eklendiğinde (gelecek bir dilim) `PlayerRepository.updateWithLock`
+  (Ahır Yükseltme/Günlük Ödül'deki AYNI desen) doğal bir sonraki adımdır;
+  brief §54'ün Idempotency-Key + Redis altyapısının GERÇEK ev sahibi de o
+  zaman olabilir.
+- Bot rakipler gerçek `horses` satırları DEĞİLDİR, `race_entries`'e ayrı
+  satır olarak YAZILMAZLAR — yalnızca oyuncunun kendi girişi kalıcıdır.
+- Zemin (grass) + hava (sunny) + mesafe (1600m) SABİTTİR — gerçek pist
+  seçimi (`tracks` tablosu) henüz wiring edilmedi.
+- Sakatlanmış bir at yarışamaz → `409 HORSE_INJURED` (`train`/`care` ile
+  AYNI hata sınıfı, `errors.ts`'te YENİ bir sınıf GEREKMEDİ). Geçersiz bir
+  taktik alanı → `400 VALIDATION_ERROR` (bkz. docs/ARCHITECTURE.md §9.1
+  Hata 7 ilkesinin BAŞTAN uygulanmış hali — `domain/race/entrant-snapshot.ts`
+  `assertValidRaceTactic`).
+
 ## 5. Market (At Pazarı)
 
 ```http
@@ -428,6 +501,12 @@ Filtre parametreleri (brief §30, §70): `?breed=&minAge=&maxAge=&surface=
 &distance=&listingType=&minPrice=&maxPrice=&sortBy=`.
 
 ## 6. Race (Yarışlar)
+
+> **Not (FAZ 1 wiring, sekizinci dilim):** Aşağıdaki TAM (çok oyunculu,
+> programlı, giriş ücretli/ödül havuzlu) Race API'si henüz wiring
+> edilmedi. Bunun yerine `simulateRace`'in ilk gerçek orkestrasyonu,
+> §4 Horses altındaki `POST /horses/{id}/practice-race` (solo, ücretsiz,
+> sabit rakip/pist) olarak eklendi — bkz. o bölümdeki not.
 
 ```http
 GET  /api/v1/races                    # yarış takvimi (brief §35)

@@ -12,6 +12,7 @@ import { HorseNotReadyForTrainingError, InvalidTrainingInputError } from '../../
 import { CareActionOnCooldownError, InvalidCareInputError } from '../../domain/care/errors';
 import { MaxStableLevelReachedError } from '../../domain/stable/errors';
 import { DailyRewardAlreadyClaimedError, InsufficientFundsError } from '../../domain/economy/errors';
+import { InvalidRaceTacticError } from '../../domain/race/errors';
 
 /**
  * Bir hata sınıfının constructor'ı (`instanceof` ile karşılaştırılabilir).
@@ -66,6 +67,10 @@ const DOMAIN_ERROR_MAP = new Map<ErrorClassConstructor, { status: number; code: 
   // FAZ 1 wiring, yedinci dilim — Günlük Ödül (brief §37).
   // `CareActionOnCooldownError` ile AYNI gerekçeyle 409 Conflict.
   [DailyRewardAlreadyClaimedError, { status: HttpStatus.CONFLICT, code: ErrorCode.DailyRewardAlreadyClaimed }],
+  // FAZ 1 wiring, sekizinci dilim — Pratik Yarış (brief §6). Geçersiz bir
+  // taktik alanı `InvalidTrainingInputError`/`InvalidCareInputError` ile
+  // AYNI gerekçeyle gerçek bir DOĞRULAMA hatasıdır, 400.
+  [InvalidRaceTacticError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.ValidationError }],
 ]);
 
 /**
