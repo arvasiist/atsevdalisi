@@ -1,8 +1,9 @@
 import { BadRequestException, Controller, Get, Inject, Param, ParseUUIDPipe, Query } from '@nestjs/common';
 import { isUUID } from 'class-validator';
-import type { ApiSuccess, Horse } from '@at-sevdalisi/shared-types';
+import type { ApiSuccess, PublicHorse } from '@at-sevdalisi/shared-types';
 import { GetHorseUseCase } from '../../application/use-cases/get-horse.use-case';
 import { ListHorsesByOwnerUseCase } from '../../application/use-cases/list-horses-by-owner.use-case';
+import { toPublicHorse } from '../dto/horse.mapper';
 
 /**
  * docs/API.md §4 Horses (Ahır). İş kuralı İÇERMEZ — sadece Application
@@ -18,6 +19,13 @@ import { ListHorsesByOwnerUseCase } from '../../application/use-cases/list-horse
  * uygulanmıştır: her bağımlılık, sınıfın kendisi token olsa bile açık
  * `@Inject()` ile enjekte edilir (Vitest/esbuild, `emitDecoratorMetadata`
  * gerektiren örtük tip tabanlı enjeksiyonu desteklemez).
+ *
+ * AUDIT_AND_HARDENING Öncelik 5 (bu oturum) — bu iki uç nokta daha önce
+ * Application katmanından dönen ham `Horse`'u (gerçek `potential` DAHİL)
+ * DOĞRUDAN JSON'a serialize ediyordu; docs/SECURITY.md §9'un gizlilik
+ * kuralı FİİLEN uygulanmıyordu. Şimdi `toPublicHorse` (bkz.
+ * `apps/api/src/api/dto/horse.mapper.ts`) ile dönüştürülür — bu, bir
+ * Application/Domain değişikliği DEĞİL, salt SUNUM katmanı düzeltmesidir.
  */
 @Controller('horses')
 export class HorseController {
@@ -27,7 +35,7 @@ export class HorseController {
   ) {}
 
   @Get()
-  async listByOwner(@Query('ownerId') ownerId: string | undefined): Promise<ApiSuccess<Horse[]>> {
+  async listByOwner(@Query('ownerId') ownerId: string | undefined): Promise<ApiSuccess<PublicHorse[]>> {
     // NOT — `ParseUUIDPipe` yerine burada elle kontrol edilir: sorgu
     // parametresi hiç GÖNDERİLMEDİĞİNDE (undefined) pipe'ın davranışı
     // belgelenmemiş bir kenar durumdur (bkz. docs/ARCHITECTURE.md §9.1
@@ -40,12 +48,12 @@ export class HorseController {
       throw new BadRequestException('ownerId geçerli bir UUID olmalıdır.');
     }
     const horses = await this.listHorsesByOwnerUseCase.execute(ownerId);
-    return { success: true, data: horses };
+    return { success: true, data: horses.map(toPublicHorse) };
   }
 
   @Get(':id')
-  async getById(@Param('id', ParseUUIDPipe) id: string): Promise<ApiSuccess<Horse>> {
+  async getById(@Param('id', ParseUUIDPipe) id: string): Promise<ApiSuccess<PublicHorse>> {
     const horse = await this.getHorseUseCase.execute(id);
-    return { success: true, data: horse };
+    return { success: true, data: toPublicHorse(horse) };
   }
 }
