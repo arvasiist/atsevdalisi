@@ -13,7 +13,13 @@ import { PG_POOL } from '../../src/infrastructure/database/database.module';
  * /market/listings/:id`, `POST /market/listings/:id/buy`, `DELETE
  * /market/listings/:id` (brief §30 At Pazarı, docs/API.md §5). On ikinci
  * dilim — `GET /market/listings` (tarama) ve `GET /market/my-listings`
- * (İlanlarım) salt-okunur uç noktaları eklendi. `stable.e2e-spec.ts`/
+ * (İlanlarım) salt-okunur uç noktaları eklendi. On üçüncü dilim —
+ * `POST /market/listings`'e opsiyonel `expiresInHours` eklendi ve süresi
+ * dolan ilanların TEMBEL süpürmeyle gerçekten `expired`'a çevrildiği
+ * doğrulandı (bkz. `PostgresMarketListingRepository.sweepExpiredListings`
+ * doc yorumu — testler DB'ye doğrudan `pool.query` ile geçmiş bir
+ * `expires_at` yazarak süreyi simüle eder, gerçek zaman geçmesini
+ * BEKLEMEZ). `stable.e2e-spec.ts`/
  * `race.e2e-spec.ts` ile AYNI bootstrap deseni ve AYNI kısıt (GERÇEK
  * PostgreSQL + Redis gerektirir, bu ortamda ÇALIŞTIRILAMAZ — bkz.
  * docs/ARCHITECTURE.md §9).
@@ -109,6 +115,61 @@ describe('Market — At Pazarı (e2e)', () => {
         .post('/api/v1/market/listings')
         .send({ horseId, price: -100 });
       expect(response.status).toBe(400);
+    });
+
+    // FAZ 1 wiring, on üçüncü dilim — `expiresInHours` (opsiyonel).
+    it('expiresInHours verilirse ilerideki bir expiresAt ile ilan oluşturur', async () => {
+      const { horseId } = await registerPlayerWithStarterHorse();
+      const before = Date.now();
+      const response = await request(app.getHttpServer())
+        .post('/api/v1/market/listings')
+        .send({ horseId, price: 1000, expiresInHours: 48 })
+        .expect(201);
+
+      expect(response.body.data.expiresAt).not.toBeNull();
+      const expiresAtMs = new Date(response.body.data.expiresAt).getTime();
+      // Tolerans: istek süresi + saat hassasiyeti farkları için birkaç saniye.
+      expect(expiresAtMs).toBeGreaterThan(before + 47 * 3600 * 1000);
+      expect(expiresAtMs).toBeLessThan(before + 49 * 3600 * 1000);
+    });
+
+    it('expiresInHours 0 veya negatifse 400 INVALID_LISTING_EXPIRY döner', async () => {
+      const { horseId } = await registerPlayerWithStarterHorse();
+      const response = await request(app.getHttpServer())
+        .post('/api/v1/market/listings')
+        .send({ horseId, price: 1000, expiresInHours: 0 });
+      expect(response.status).toBe(400);
+    });
+
+    it('expiresInHours üst sınırı (720) aşarsa 400 döner', async () => {
+      const { horseId } = await registerPlayerWithStarterHorse();
+      const response = await request(app.getHttpServer())
+        .post('/api/v1/market/listings')
+        .send({ horseId, price: 1000, expiresInHours: 721 });
+      expect(response.status).toBe(400);
+    });
+
+    // `findActiveByHorseId`'nin de süresi geçmiş ilanları süpürdüğünü
+    // doğrular (bkz. `PostgresMarketListingRepository.sweepExpiredListings`
+    // doc yorumu) — süpürme OLMASAYDI bu istek YANLIŞLIKLA 409
+    // HORSE_ALREADY_LISTED dönerdi.
+    it('süresi dolmuş eski bir ilan varken aynı at için YENİ bir ilan oluşturulabilir', async () => {
+      const { horseId } = await registerPlayerWithStarterHorse();
+      const old = await request(app.getHttpServer())
+        .post('/api/v1/market/listings')
+        .send({ horseId, price: 1000, expiresInHours: 1 })
+        .expect(201);
+      await pool.query("UPDATE market_listings SET expires_at = NOW() - INTERVAL '1 hour' WHERE id = $1", [
+        old.body.data.id,
+      ]);
+
+      const response = await request(app.getHttpServer())
+        .post('/api/v1/market/listings')
+        .send({ horseId, price: 2000 });
+
+      expect(response.status).toBe(201);
+      const oldRow = await pool.query('SELECT status FROM market_listings WHERE id = $1', [old.body.data.id]);
+      expect(oldRow.rows[0].status).toBe('expired');
     });
   });
 
@@ -237,6 +298,38 @@ describe('Market — At Pazarı (e2e)', () => {
       const response = await request(app.getHttpServer()).get('/api/v1/market/listings?page=0');
       expect(response.status).toBe(400);
     });
+
+    // FAZ 1 wiring, on üçüncü dilim — `search`'ün de süresi dolmuş ilanları
+    // süpürdüğünü doğrular (bkz. `sweepExpiredListings` doc yorumu).
+    it('süresi dolmuş bir ilan varsayılan (active) taramada görünmez, status=expired ile görünür', async () => {
+      const uniquePrice = 644004;
+      const { horseId } = await registerPlayerWithStarterHorse();
+      const created = await request(app.getHttpServer())
+        .post('/api/v1/market/listings')
+        .send({ horseId, price: uniquePrice, expiresInHours: 1 })
+        .expect(201);
+      await pool.query("UPDATE market_listings SET expires_at = NOW() - INTERVAL '1 hour' WHERE id = $1", [
+        created.body.data.id,
+      ]);
+
+      const activeView = await request(app.getHttpServer()).get(
+        `/api/v1/market/listings?minPrice=${uniquePrice}&maxPrice=${uniquePrice}`,
+      );
+      expect(activeView.status).toBe(200);
+      expect(activeView.body.data).toEqual([]);
+
+      const expiredView = await request(app.getHttpServer()).get(
+        `/api/v1/market/listings?status=expired&minPrice=${uniquePrice}&maxPrice=${uniquePrice}`,
+      );
+      expect(expiredView.status).toBe(200);
+      expect(expiredView.body.data).toHaveLength(1);
+      expect(expiredView.body.data[0].id).toBe(created.body.data.id);
+
+      // DB'de GERÇEKTEN güncellendi mi (yalnızca sorgu sonucunda hesaplanan
+      // bir değer DEĞİL)?
+      const row = await pool.query('SELECT status FROM market_listings WHERE id = $1', [created.body.data.id]);
+      expect(row.rows[0].status).toBe('expired');
+    });
   });
 
   describe('GET /api/v1/market/my-listings (İlanlarım)', () => {
@@ -300,6 +393,25 @@ describe('Market — At Pazarı (e2e)', () => {
       );
       expect(response.status).toBe(400);
     });
+
+    // FAZ 1 wiring, on üçüncü dilim — `findBySellerId`'nin de süpürdüğünü
+    // doğrular (`search`'ten AYRI bir SQL sorgu yolu — `sweepExpiredListings`
+    // doc yorumu).
+    it('süresi dolmuş bir ilan status verilmeden İlanlarım\'da expired durumunda görünür', async () => {
+      const { horseId, playerId: sellerId } = await registerPlayerWithStarterHorse();
+      const created = await request(app.getHttpServer())
+        .post('/api/v1/market/listings')
+        .send({ horseId, price: 1234, expiresInHours: 1 })
+        .expect(201);
+      await pool.query("UPDATE market_listings SET expires_at = NOW() - INTERVAL '1 hour' WHERE id = $1", [
+        created.body.data.id,
+      ]);
+
+      const response = await request(app.getHttpServer()).get(`/api/v1/market/my-listings?sellerId=${sellerId}`);
+      expect(response.status).toBe(200);
+      expect(response.body.data).toHaveLength(1);
+      expect(response.body.data[0].status).toBe('expired');
+    });
   });
 
   describe('GET /api/v1/market/listings/:id', () => {
@@ -324,6 +436,23 @@ describe('Market — At Pazarı (e2e)', () => {
     it('geçersiz (UUID olmayan) bir id için 400 döner', async () => {
       const response = await request(app.getHttpServer()).get('/api/v1/market/listings/not-a-uuid');
       expect(response.status).toBe(400);
+    });
+
+    // FAZ 1 wiring, on üçüncü dilim — `findById`'nin de süpürdüğünü
+    // doğrular.
+    it('süresi dolmuş bir ilanı id\'siyle getirince status expired döner', async () => {
+      const { horseId } = await registerPlayerWithStarterHorse();
+      const created = await request(app.getHttpServer())
+        .post('/api/v1/market/listings')
+        .send({ horseId, price: 1000, expiresInHours: 1 })
+        .expect(201);
+      await pool.query("UPDATE market_listings SET expires_at = NOW() - INTERVAL '1 hour' WHERE id = $1", [
+        created.body.data.id,
+      ]);
+
+      const response = await request(app.getHttpServer()).get(`/api/v1/market/listings/${created.body.data.id}`);
+      expect(response.status).toBe(200);
+      expect(response.body.data.status).toBe('expired');
     });
   });
 
@@ -480,6 +609,39 @@ describe('Market — At Pazarı (e2e)', () => {
         .send({ buyerId });
       expect(response.status).toBe(404);
       expect(response.body.error.code).toBe('LISTING_NOT_FOUND');
+    });
+
+    // FAZ 1 wiring, on üçüncü dilim — `findById`'nin süpürmesi, `buy`'ın
+    // GÖRDÜĞÜ listing'i de kapsar: `purchaseListing`'in KENDİ süre
+    // kontrolüne hiç ulaşılmaz (status ÖNCEDEN expired'a çevrilir), bu
+    // yüzden `409 LISTING_EXPIRED` DEĞİL `409 LISTING_NOT_ACTIVE` döner
+    // (bkz. `PostgresMarketListingRepository.sweepExpiredListings` doc
+    // yorumu, docs/API.md §5 "İlan süresi dolma" notu).
+    it('süresi dolmuş bir ilanı satın almaya çalışırsa 409 LISTING_NOT_ACTIVE döner, hiçbir şey değişmez', async () => {
+      const { horseId, playerId: sellerId } = await registerPlayerWithStarterHorse();
+      const created = await request(app.getHttpServer())
+        .post('/api/v1/market/listings')
+        .send({ horseId, price: LISTING_PRICE, expiresInHours: 1 })
+        .expect(201);
+      await pool.query("UPDATE market_listings SET expires_at = NOW() - INTERVAL '1 hour' WHERE id = $1", [
+        created.body.data.id,
+      ]);
+      const buyerId = await registerPlayer();
+
+      const response = await request(app.getHttpServer())
+        .post(`/api/v1/market/listings/${created.body.data.id}/buy`)
+        .set('Idempotency-Key', randomUUID())
+        .send({ buyerId });
+
+      expect(response.status).toBe(409);
+      expect(response.body.error.code).toBe('LISTING_NOT_ACTIVE');
+
+      const buyerRow = await pool.query('SELECT money FROM players WHERE id = $1', [buyerId]);
+      expect(Number(buyerRow.rows[0].money)).toBe(5000);
+      const sellerRow = await pool.query('SELECT money FROM players WHERE id = $1', [sellerId]);
+      expect(Number(sellerRow.rows[0].money)).toBe(5000);
+      const horseRow = await pool.query('SELECT owner_id FROM horses WHERE id = $1', [horseId]);
+      expect(horseRow.rows[0].owner_id).toBe(sellerId);
     });
   });
 

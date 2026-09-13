@@ -545,8 +545,11 @@ Tasarım kararları (bkz. `application/use-cases/run-practice-race.use-case.ts`
 
 ## 5. Market (At Pazarı)
 
-**Uygulama durumu (FAZ 1 wiring, on birinci + on ikinci dilim, bu
-oturum):** aşağıdaki ALTI uç nokta gerçek veritabanına bağlandı.
+**Uygulama durumu (FAZ 1 wiring, on birinci + on ikinci + on üçüncü
+dilim, bu oturum):** aşağıdaki ALTI uç nokta gerçek veritabanına
+bağlandı; on üçüncü dilim yeni bir uç nokta EKLEMEDİ, ilan oluşturmaya
+opsiyonel süre (`expiresInHours`) ve süresi dolan ilanların gerçekten
+`expired`'a çevrilmesini ekledi.
 
 ```http
 POST   /api/v1/market/listings            # ilan oluştur (oyuncu satışı)
@@ -570,11 +573,14 @@ gerçek kullanıcısıdır — projenin PARA değiştiren İLK ÇOK-taraflı
 
 ```json
 POST /api/v1/market/listings
-{ "horseId": "...", "price": 5000 }
+{ "horseId": "...", "price": 5000, "expiresInHours": 48 }
 ```
 
-`sellerId` GÖNDERİLMEZ — atın `ownerId`'sinden türetilir. Örnek yanıt
-(`201 Created`):
+`sellerId` GÖNDERİLMEZ — atın `ownerId`'sinden türetilir. `expiresInHours`
+OPSİYONELDİR (FAZ 1 wiring, on üçüncü dilim, bu oturum — YENİ);
+verilmezse ilan öncekiyle AYNI şekilde süresizdir (`expiresAt: null`);
+verilirse `1-720` (30 gün) aralığında bir tam sayı olmalıdır. Örnek yanıt
+(`201 Created`, `expiresInHours` verilmediğinde):
 
 ```json
 {
@@ -589,8 +595,10 @@ POST /api/v1/market/listings
 
 Olası hata: at bulunamazsa `404 HORSE_NOT_FOUND`; at zaten aktif bir
 ilana sahipse `409 HORSE_ALREADY_LISTED` (bir atın aynı anda yalnızca
-TEK aktif ilanı olabilir); fiyat negatif/tam sayı değilse `400
-INVALID_LISTING_PRICE`.
+TEK aktif ilanı olabilir — YENİ: süresi dolmuş ESKİ bir ilan artık aktif
+SAYILMAZ, bkz. aşağıdaki "İlan süresi dolma" notu); fiyat negatif/tam
+sayı değilse `400 INVALID_LISTING_PRICE`; `expiresInHours` `1-720`
+aralığı dışındaysa `400 INVALID_LISTING_EXPIRY`.
 
 **Tara (FAZ 1 wiring, on ikinci dilim):**
 
@@ -666,11 +674,13 @@ olursa AYRI iki adımda atın `ownerId`'si alıcıya geçer ve ilan `sold`
 olur (bkz. `BuyMarketListingUseCase` doc yorumundaki kabul edilmiş risk
 notu — `RunPracticeRaceUseCase`'in wallet+yarış kaydı deseniyle AYNI
 kategori). Olası hata: ilan bulunamazsa `404 LISTING_NOT_FOUND`; ilan
-`active` değilse (zaten satılmış/iptal edilmiş) `409 LISTING_NOT_ACTIVE`;
-süresi dolmuşsa `409 LISTING_EXPIRED`; kendi ilanını almaya çalışırsa
-`400 CANNOT_BUY_OWN_LISTING`; alıcının bakiyesi yetersizse `409
+`active` değilse (zaten satılmış/iptal edilmiş/**süresi dolmuş** — bkz.
+aşağıdaki not, bu ÜÇÜ de `409 LISTING_NOT_ACTIVE` döner) `409
+LISTING_NOT_ACTIVE`; kendi ilanını almaya çalışırsa `400
+CANNOT_BUY_OWN_LISTING`; alıcının bakiyesi yetersizse `409
 INSUFFICIENT_FUNDS` (hiçbir şey yazılmaz); `Idempotency-Key` eksikse
-`400 IDEMPOTENCY_KEY_REQUIRED`.
+`400 IDEMPOTENCY_KEY_REQUIRED`. (`409 LISTING_EXPIRED` kodu hâlâ VAR ama
+pratikte artık HİÇ dönmez — bkz. aşağıdaki not.)
 
 **İptal et:** `DELETE /market/listings/{id}` — ilanı `cancelled` yapar.
 Olası hata: `404 LISTING_NOT_FOUND`, zaten aktif değilse `409
@@ -679,11 +689,22 @@ ilanın sahibi iptal edebilmeli) YOK — bkz. `CancelMarketListingUseCase`
 doc yorumu (bu projede HİÇBİR uç noktada henüz gerçek bir oturum sistemi
 yok, bu dilime özgü bir boşluk değil).
 
+**İlan süresi dolma (FAZ 1 wiring, on üçüncü dilim, bu oturum):** projede
+henüz gerçek bir zamanlanmış görev (cron/scheduler) altyapısı yok — bu
+yüzden süresi dolan ilanlar bir arka plan işiyle DEĞİL, ilanları dışa
+açan HER okuma isteğinden (tara/İlanlarım/ilan detayı/satın alma) ÖNCE
+çalışan TEMBEL bir süpürmeyle `expired`'a çevrilir (bkz.
+`infrastructure/market/postgres-market-listing.repository.ts`
+`sweepExpiredListings` doc yorumu). Gözlemlenebilir sonuç: bir istemci
+süresi dolmuş bir ilanı ASLA `active` olarak görmez; ama satın alma
+isteği bu ilanı `409 LISTING_EXPIRED` yerine `409 LISTING_NOT_ACTIVE`
+ile reddeder (süpürme, `purchaseListing`'in kendi süre kontrolünden ÖNCE
+status'ü zaten `expired`'a çevirmiş olur) — hata mesajı yine de "durum:
+expired" der, bilgi kaybı yoktur.
+
 **KAPSAM (bu oturum, bilinçli):** `listingType` her zaman `fixed_price`'tır
 (`auction`'ın teklif verme/kazanma mantığı domain katmanında hiç yok,
-bkz. domain/market/README.md). İlan süresi (`expiresInHours`) YOK —
-ilanlar süresizdir (`expireListingIfNeeded` hazır ama tetikleyecek
-zamanlanmış bir job yok). Tarama ekranının ata özgü filtreleri (`?breed=&
+bkz. domain/market/README.md). Tarama ekranının ata özgü filtreleri (`?breed=&
 minAge=...`) YOK (bkz. "Tara" bölümündeki KAPSAM DIŞI notu).
 
 ## 6. Race (Yarışlar)
@@ -822,6 +843,7 @@ lobby.update       — online yarış lobisi (brief §41)
 | `DAILY_REWARD_ALREADY_CLAIMED` | Günlük ödül cooldown süresi dolmadan tekrar talep edildi (FAZ 1 wiring, yedinci dilim) |
 | `INVALID_LISTING_PRICE` | Pazar ilanı fiyatı negatif veya tam sayı değil (FAZ 1 wiring, on birinci dilim) |
 | `CANNOT_BUY_OWN_LISTING` | Oyuncu kendi pazar ilanını satın almaya çalıştı (FAZ 1 wiring, on birinci dilim) |
-| `LISTING_NOT_ACTIVE` | Pazar ilanı aktif değil — zaten satılmış/iptal edilmiş (FAZ 1 wiring, on birinci dilim) |
-| `LISTING_EXPIRED` | Pazar ilanının süresi dolmuş (FAZ 1 wiring, on birinci dilim) |
+| `LISTING_NOT_ACTIVE` | Pazar ilanı aktif değil — zaten satılmış/iptal edilmiş/süresi dolmuş (FAZ 1 wiring, on birinci dilim; üçüncü anlamı on üçüncü dilimde eklendi) |
+| `LISTING_EXPIRED` | Pazar ilanının süresi dolmuş (FAZ 1 wiring, on birinci dilim — pratikte artık dönmez, bkz. §5 "İlan süresi dolma" notu, on üçüncü dilim) |
 | `HORSE_ALREADY_LISTED` | Bu ata ait zaten aktif bir pazar ilanı var (FAZ 1 wiring, on birinci dilim) |
+| `INVALID_LISTING_EXPIRY` | Pazar ilanı süresi (`expiresInHours`) 1-720 saat aralığı dışında (FAZ 1 wiring, on üçüncü dilim) |

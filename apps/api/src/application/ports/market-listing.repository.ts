@@ -28,6 +28,16 @@ export interface MarketListingSearchFilter {
  * (`createListingDraft`/`purchaseListing`/`cancelListing`); bu port,
  * onu gerçek veritabanına bağlayan İLK parçadır.
  */
+/**
+ * SÖZLEŞME NOTU (FAZ 1 wiring, on üçüncü dilim, bu oturum): her okuma
+ * metodu (`findById`/`findActiveByHorseId`/`search`/`findBySellerId`),
+ * dönmeden ÖNCE süresi dolmuş `active` ilanları `expired`'a çevirmelidir
+ * (bkz. `domain/market/market.ts` `expireListingIfNeeded`) — projede
+ * henüz bir zamanlanmış görev (cron) altyapısı olmadığından, bu iş
+ * her implementasyonun (şu an TEK implementasyon: `PostgresMarketListing
+ * Repository`) kendi sorumluluğundadır. Bkz. o dosyanın `sweepExpiredListings`
+ * doc yorumu.
+ */
 export interface MarketListingRepository {
   findById(id: string): Promise<MarketListing | null>;
   /**

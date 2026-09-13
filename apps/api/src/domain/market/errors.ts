@@ -1,9 +1,26 @@
+import { MAX_LISTING_EXPIRY_HOURS, MIN_LISTING_EXPIRY_HOURS } from './validation';
+
 /** At Pazarı (market) domain'ine özgü hata tipleri (brief §30). */
 
 export class InvalidListingPriceError extends Error {
   constructor(public readonly price: number) {
     super(`Geçersiz ilan fiyatı: ${price}. Fiyat sıfır veya pozitif bir tam sayı olmalıdır.`);
     this.name = 'InvalidListingPriceError';
+  }
+}
+
+/**
+ * FAZ 1 wiring, on üçüncü dilim (bu oturum) — `InvalidListingPriceError`
+ * ile AYNI desen/gerekçe (Hata 7, docs/ARCHITECTURE.md §9.1): DTO'nun
+ * FORMAT ön-kontrolünden BAĞIMSIZ olarak `createListingDraft`'ın kendisi
+ * de `expiresInHours`'ı doğrular.
+ */
+export class InvalidListingExpiryError extends Error {
+  constructor(public readonly expiresInHours: number) {
+    super(
+      `Geçersiz ilan süresi: ${expiresInHours} saat. ${MIN_LISTING_EXPIRY_HOURS}-${MAX_LISTING_EXPIRY_HOURS} saat aralığında bir tam sayı olmalıdır.`,
+    );
+    this.name = 'InvalidListingExpiryError';
   }
 }
 

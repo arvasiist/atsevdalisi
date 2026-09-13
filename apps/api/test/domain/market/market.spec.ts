@@ -9,6 +9,7 @@ import {
 } from '../../../src/domain/market/market';
 import {
   CannotBuyOwnListingError,
+  InvalidListingExpiryError,
   InvalidListingPriceError,
   ListingExpiredError,
   ListingNotActiveError,
@@ -73,6 +74,31 @@ describe('createListingDraft', () => {
   it('expiresInHours verilmezse süresiz ilan oluşturur', () => {
     const listing = createListingDraft({ id: 'x', sellerId: 's', horseId: 'h', price: 100, listingType: 'fixed_price' });
     expect(listing.expiresAt).toBeNull();
+  });
+
+  // FAZ 1 wiring, on üçüncü dilim — `expiresInHours` FAZ 0'dan beri kabul
+  // ediliyordu ama hiç DOĞRULANMIYORDU (herhangi bir sayı, hatta negatif/
+  // ondalık kabul edilirdi). Bu dilim `InvalidListingPriceError` ile AYNI
+  // desende bir doğrulama ekledi.
+  it('expiresInHours sıfır veya negatifse hata fırlatır', () => {
+    expect(() =>
+      createListingDraft({ id: 'x', sellerId: 's', horseId: 'h', price: 100, listingType: 'fixed_price', expiresInHours: 0 }),
+    ).toThrow(InvalidListingExpiryError);
+    expect(() =>
+      createListingDraft({ id: 'x', sellerId: 's', horseId: 'h', price: 100, listingType: 'fixed_price', expiresInHours: -5 }),
+    ).toThrow(InvalidListingExpiryError);
+  });
+
+  it('expiresInHours üst sınırı (720 saat) aşarsa hata fırlatır', () => {
+    expect(() =>
+      createListingDraft({ id: 'x', sellerId: 's', horseId: 'h', price: 100, listingType: 'fixed_price', expiresInHours: 721 }),
+    ).toThrow(InvalidListingExpiryError);
+  });
+
+  it('expiresInHours tam sayı değilse hata fırlatır', () => {
+    expect(() =>
+      createListingDraft({ id: 'x', sellerId: 's', horseId: 'h', price: 100, listingType: 'fixed_price', expiresInHours: 1.5 }),
+    ).toThrow(InvalidListingExpiryError);
   });
 });
 

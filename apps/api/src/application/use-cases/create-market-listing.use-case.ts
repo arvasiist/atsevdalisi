@@ -10,6 +10,8 @@ import { MARKET_LISTING_REPOSITORY, type MarketListingRepository } from '../port
 export interface CreateMarketListingInput {
   horseId: string;
   price: number;
+  /** FAZ 1 wiring, on üçüncü dilim (bu oturum) — verilmezse ilan süresizdir. */
+  expiresInHours?: number;
 }
 
 /**
@@ -32,9 +34,6 @@ export interface CreateMarketListingInput {
  *    ama teklif verme/kazanma mantığı domain katmanında hiç YOK (bkz.
  *    `domain/market/README.md` "Kapsam dışı"), bu yüzden API'den hiç
  *    kabul EDİLMEZ (yanıltıcı olurdu).
- *  - `expiresInHours` YOK — ilanlar süresizdir (`expireListingIfNeeded`
- *    domain fonksiyonu hazır ama onu tetikleyecek zamanlanmış bir job
- *    henüz wiring EDİLMEDİ).
  *  - Bir atın aynı anda yalnızca TEK aktif ilanı olabilir — `HORSE_
  *    ALREADY_LISTED` (bkz. `domain/market/errors.ts`
  *    `HorseAlreadyListedError` doc yorumu — bu, `purchaseListing`'in
@@ -42,6 +41,16 @@ export interface CreateMarketListingInput {
  *    ÖNLER).
  *  - Sakat/çok genç/damızlıkta olan bir at satışa çıkarılabilir mi gibi
  *    ek iş kuralları YOK (brief bunu ayrıca belirtmiyor) — KAPSAM DIŞI.
+ *
+ * FAZ 1 wiring, on üçüncü dilim (bu oturum) — `expiresInHours` (opsiyonel)
+ * YENİ eklendi; verilmezse ilan öncekiyle AYNI şekilde süresizdir. Bir
+ * ilanın süresi dolduğunda gerçekten `expired`'a çevrilmesi BURADA değil,
+ * `PostgresMarketListingRepository`'nin okuma yollarındaki TEMBEL
+ * süpürmede olur (bkz. o dosyanın doc yorumu, `domain/market/market.ts`
+ * `expireListingIfNeeded` doc yorumu) — bu ÖNEMLİDİR: `findActiveByHorseId`
+ * BU KULLANIM DURUMUNUN (yeni ilan oluşturma) da içinden çağrıldığı için,
+ * süresi YENİ dolmuş eski bir ilan artık "aktif" sayılmaz ve aynı at için
+ * yeni bir ilan oluşturmayı YANLIŞLIKLA engellemez.
  */
 @Injectable()
 export class CreateMarketListingUseCase {
@@ -67,6 +76,7 @@ export class CreateMarketListingUseCase {
       horseId: input.horseId,
       price: input.price,
       listingType: 'fixed_price',
+      expiresInHours: input.expiresInHours,
     });
 
     await this.marketListingRepository.save(listing);

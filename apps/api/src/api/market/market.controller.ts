@@ -59,6 +59,10 @@ function parseBoundedInt(raw: string | undefined, paramName: string, defaultValu
  * "İlanlarım" (`listMyListings`) salt-okunur uç noktaları eklendi;
  * `listListings`, docs/API.md §1.4'te FAZ 0'dan beri belgelenmiş ama
  * HİÇBİR endpoint'te kullanılmamış sayfalama zarfının İLK kullanıcısıdır.
+ * On üçüncü dilim — ilan oluşturma artık opsiyonel `expiresInHours` kabul
+ * eder; süresi dolan ilanların gerçekten `expired`'a çevrilmesi
+ * `PostgresMarketListingRepository`'nin TEMBEL süpürmesiyle olur (bu
+ * controller'da GÖRÜNMEZ bir davranıştır — bkz. o dosyanın doc yorumu).
  *
  * NOT — `docs/ARCHITECTURE.md` §9.1 Hata 6: her bağımlılık açık
  * `@Inject()` ile enjekte edilir.
@@ -81,7 +85,11 @@ export class MarketController {
   @Post('listings')
   @HttpCode(HttpStatus.CREATED)
   async createListing(@Body() dto: CreateMarketListingDto): Promise<ApiSuccess<MarketListing>> {
-    const listing = await this.createMarketListingUseCase.execute({ horseId: dto.horseId, price: dto.price });
+    const listing = await this.createMarketListingUseCase.execute({
+      horseId: dto.horseId,
+      price: dto.price,
+      expiresInHours: dto.expiresInHours,
+    });
     return { success: true, data: listing };
   }
 
