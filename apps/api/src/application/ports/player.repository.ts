@@ -1,4 +1,5 @@
 import type { Player } from '@at-sevdalisi/shared-types';
+import type { EconomyLedgerEntryInput } from './economy-ledger';
 
 /**
  * `PlayerRepository` — Application katmanının Infrastructure'a bağlandığı
@@ -40,8 +41,20 @@ export interface PlayerRepository {
    * İÇİNDE çalışır — satır kilitliyken okunan `player` en güncel/authoritative
    * değerdir; callback'in DIŞINDA (örn. önce ayrı bir `findById` ile) okunan
    * bir değer STALE olabilir ve çift harcamaya açık kapı bırakır.
+   *
+   * AUDIT_AND_HARDENING Öncelik 2 (bu oturum) — `mutate` isteğe bağlı
+   * olarak `ledgerEntries` döndürebilir: bu girişler, oyuncu satırının
+   * YAZILMASIYLA AYNI transaction içinde `economy_transactions`'a
+   * eklenir (bkz. `PostgresPlayerRepository`'nin implementasyonu) — para
+   * hareketi ile onun defter kaydı ASLA birbirinden ayrı yazılmaz (biri
+   * başarısız olursa ikisi de geri alınır). Para HAREKETİ üretmeyen
+   * `mutate` çağrıları (örn. sadece `displayName` güncelleyen bir
+   * gelecekteki use-case) bu alanı hiç DÖNDÜRMEZ/boş bırakır.
    */
-  updateWithLock<T>(id: string, mutate: (player: Player) => { player: Player; result: T }): Promise<T | null>;
+  updateWithLock<T>(
+    id: string,
+    mutate: (player: Player) => { player: Player; result: T; ledgerEntries?: EconomyLedgerEntryInput[] },
+  ): Promise<T | null>;
 
   /**
    * FAZ 1 wiring, on birinci dilim — At Pazarı satın alma (brief §30/§31).

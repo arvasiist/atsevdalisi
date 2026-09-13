@@ -1992,6 +1992,131 @@ TAM OLARAK bu yüzden var olduğunun somut bir kanıtı).
 
 ⏳ Düzeltme sonrası CI doğrulaması bekleniyor.
 
+## AUDIT_AND_HARDENING — Kritik Risk Sertleştirme (bu oturum)
+
+Proje sahibinin talebiyle, 14. dilimin CI doğrulaması beklenirken AYRI
+bir kapsamlı denetim/sertleştirme görevi yürütüldü: brief'in "gerçek bir
+ekonomi/yarış simülasyonu" hedefine karşı 8 öncelikli kritik risk,
+öncelik sırasıyla incelendi ve kapatıldı. Bu YENİ ÖZELLİK EKLEME değil,
+MEVCUT sistemi sertleştirme çalışmasıdır (AUDIT_AND_HARDENING Mutlak
+Kural 1). Aşağıdaki özet protokolün istediği "ne bulundu / ne düzeltildi
+/ hangi testler eklendi / kalan riskler" yapısını izler; TAM teknik
+detay için ilgili dosyaların kendi doc yorumlarına ve `docs/SECURITY.md`
+§4-5, §9, §11-12'ye bakınız.
+
+**1. At Pazarı Transaction Bütünlüğü (EN KRİTİK) — ✅ KAPATILDI.**
+Bulgu: `BuyMarketListingUseCase` parayı/mülkiyeti/ilan durumunu AYRI,
+kilitsiz adımlarda güncelliyordu (`docs/SECURITY.md` §5'in eski "bilinçli
+kabul edilmiş risk" notu) — iki eşzamanlı alıcı aynı ilanı satın almaya
+çalışırsa çifte satış/çifte harcama MÜMKÜNDÜ. Düzeltme: yeni
+`MarketPurchaseRepository`/`PostgresMarketPurchaseRepository`,
+`market_listings` + `horses` + İKİ `players` satırını (sözlüksel id
+sırasıyla) TEK bir transaction'da `SELECT ... FOR UPDATE` ile kilitler.
+Test: `market.e2e-spec.ts` — iki eşzamanlı alıcı (`Promise.all`) → tam
+olarak bir 200 + bir 409, tam olarak bir mülkiyet değişimi.
+**Yan bulgu:** `price: 0` bir ilan satın alınırken `wallet.ts`'in
+sıfır-tutar reddi yüzünden 500 dönüyordu (dokuzuncu dilimin pratik yarış
+sıfır-ödül hatasıyla AYNI kategori) — `purchaseListing()` düzeltildi.
+
+**2. Economy Ledger + Atomik Para İşlemleri — ✅ KAPATILDI.** Kalıcı
+`economy_transactions` tablosu (migration 0019) eklendi; para hareketi
+üreten DÖRT akışın (günlük ödül, ahır yükseltme, pratik yarış giriş/ödül,
+at pazarı) TAMAMI, bakiye değişikliğiyle AYNI transaction'da bu tabloya
+yazar (`PlayerRepository.updateWithLock`'ın yeni `ledgerEntries` alanı).
+Negatif bakiye DB CHECK kısıtlarıyla (zaten mevcuttu) VE domain
+katmanında (zaten mevcuttu) imkansız kalır. Test: `economy.e2e-spec.ts`/
+`market.e2e-spec.ts` ledger satır sayısı/değer doğrulamaları.
+
+**3. Idempotency Güçlendirme — ✅ KAPATILDI.** Dokuzuncu dilimin kendi
+"sadece Redis, dağıtık kilit yok" sınırlaması kapatıldı. Yeni
+`idempotency_keys` Postgres tablosu (migration 0020), `INSERT ... ON
+CONFLICT DO NOTHING` ile GERÇEK bir rezervasyon kilidi sağlar; kaybeden
+istek işleyiciyi hiç ÇALIŞTIRMADAN 409 `IDEMPOTENCY_KEY_IN_PROGRESS`
+alır. Redis sadece hızlı ön-kontrol olarak KALIR (bkz. Öncelik 7).
+Kritik işlemler artık TTL'siz (kalıcı) kayıtlıdır. Test:
+`market.e2e-spec.ts` — iki eşzamanlı AYNI-anahtarlı istek → 200+409,
+para tam olarak bir kez hareket eder.
+
+**4. Race Snapshot Versioning + Deterministic Replay — ✅ KAPATILDI.**
+`docs/RACE_ENGINE.md` §10'ın "RaceConfig(o anki versiyon)" kavramı hiç
+somutlaşmamıştı. `races` tablosuna (migration 0021) `engine_version`/
+`ruleset_version`/`config_version` eklendi; eski satırlar açıkça
+`'unknown'` ile işaretlendi (icat edilmiş bir kesinlik YOK). Yeni
+`RACE_ENGINE_VERSION`/`RACE_RULESET_VERSION` sabitleri (`race-engine.ts`)
+ve `config/race.config.json`'ın kendi `version` alanı. Test:
+`race.e2e-spec.ts`/`matchmaking.e2e-spec.ts` — persist edilen satırda
+üç sürüm alanı da doğrulanır; `game-config` `config.spec.ts`.
+
+**5. Hidden Stat API Sızıntısı — ✅ KAPATILDI.** `docs/SECURITY.md` §9'un
+iddia ettiği `apps/api/src/api/dto` katmanı HİÇ YOKTU — `HorseController`
+ham `Horse.potential`'ı doğrudan JSON'a seriliyordu. Yeni `apps/api/src/
+api/dto/horse.mapper.ts` `toPublicHorse()`, `potential`'ı KALDIRIR,
+yerine (BİLEREK simetrik OLMAYAN, aritmetikle geri türetilemeyen) 10
+puanlık dilimli bir `potentialEstimate` aralığı koyar. `HorseStats`'ın
+gizli alanları/genetik veri şu an hiçbir endpoint tarafından
+dönülmüyor (breeding/jockey API'ye henüz bağlı değil) — bu FAZ'lar
+bağlanırken AYNI desen izlenmelidir. Test: `horse.mapper.spec.ts` +
+`horse.e2e-spec.ts` regresyonu (`"potential"` HTTP yanıtında hiç geçmez).
+
+**6. Race Engine Gerçekçilik ve Denge — ✅ KISMEN/ÖLÇÜLÜ KAPATILDI.**
+İki bulgu, iki bounded düzeltme: (a) segment skoru BEŞ çarpansal
+modifikatörü (condition/surface/weather/fatigue/stamina-tükenme) ARKA
+ARKAYA çarpıyordu — beş "orta derecede kötü" faktör bir araya geldiğinde
+performansın ~%69'unu SİLEBİLİYORDU. Yeni `modifier-combination.ts`
+(`combineConditionModifiers`) cezaları TOPLAR, `%50` tabanıyla SINIRLAR
+— artık kontrolsüz yığılma YOK, "her ekseni optimize eden" orantısız
+kazanmaz. (b) "final düzlük" (closer bonusu/front-runner bonusunun
+bittiği nokta) SABİT bir oran (0.75, koddaydı, config'te bile DEĞİLDİ)
+idi — pist mesafesinden TAMAMEN bağımsızdı. Yeni `computeFinalStretchFraction`
+(`pace.ts`) METRE cinsinden sabit bir hedefi (`finalStretchMeters: 400`)
+mesafeye göre bir orana çevirir — segment sistemi artık pist
+GEOMETRİSİNE duyarlıdır (kısa/uzun yarışlarda farklı davranır), MEVCUT
+1600m pratik yarışının sonucunu DEĞİŞTİRMEDEN (400/1600 = eski 0.75 ile
+AYNI). `RACE_RULESET_VERSION` bu yüzden `1.0.0` → `1.1.0`. Test: YENİ
+`pace.spec.ts` (bu modül daha önce HİÇ test edilmiyordu) + YENİ
+`modifier-combination.spec.ts`. **Kapsam dışı bırakılan (bilinçli):**
+ability-weight sisteminin veya jokey AI ağacının daha derin bir
+yeniden dengelemesi — bu, "hardening" sınırını aşıp dengeleme/tasarım
+kapsamına girerdi, ayrı bir dilimi hak eder.
+
+**7. Redis vs PostgreSQL Source of Truth — ✅ DOĞRULANDI (kod değişikliği
+gerekmedi).** `REDIS_CLIENT`'ı kullanan TÜM dosyalar tarandı: Redis TEK
+BİR yerde (`IdempotencyInterceptor`) kullanılıyor, o da SADECE hız
+önbelleği olarak — para/mülkiyet/sonuç/ledger'ın TAMAMI zaten doğrudan
+PostgreSQL'e yazılıyordu. Bkz. `docs/SECURITY.md` §11 (yeni,
+denetimin yazılı doğrulaması).
+
+**8. Horse Surface/Distance Stats — ✅ AÇIKÇA GÖRÜNÜR KILINDI (wiring
+KAPSAM DIŞI bırakıldı).** `horse_surface_stats`/`horse_distance_stats`
+tabloları (migration 0003) hiçbir zaman satır almadı; Race Engine sabit
+nötr (50) kullanıyordu — bu daha önce de bir kod yorumuyla
+belgeliydi, ama SADECE kaynağı okuyan bir geliştiriciye görünürdü. Tam
+scout mekaniğini kurmak YENİ BİR ÖZELLİK olurdu (kapsam dışı). Bunun
+yerine gap ÜÇ katmanda görünür kılındı: (a) `entrant-snapshot.ts`'te
+yeni `UNMODELED_SNAPSHOT_FIELDS` — hangi alanların sahte olduğunu
+PROGRAMATİK listeler, `entrant-snapshot.spec.ts`'teki [TRIPWIRE] testi
+biri gerçek veri bağlayıp listeyi güncellemeyi unutursa KIRILIR; (b)
+migration 0022 — iki tabloya `COMMENT ON TABLE` ile şema seviyesinde
+açık not; (c) bu doküman girdisi.
+
+**Doğrulama (TÜM öncelikler için ortak):** `tsc` baseline-diff (değişiklik
+öncesi/sonrası tip hatası sayısı BİREBİR aynı — gerçek Postgres/Redis
+CI'da doğrulanacaktır, bu ortamda tip düzeyinde bir regresyon YOK).
+Her kritik değişiklik için birim VE (mümkün olduğunda) e2e/eşzamanlılık
+testi eklendi (yukarıda listelendi).
+
+**Kalan/gelecek riskler ve nedenleri:** (a) `HorseStats`'ın gizli
+alanları/tam genetik veri, breeding/jockey API'ye bağlanırken AYNI
+`apps/api/src/api/dto` deseniyle korunmalıdır — şu an hiçbir endpoint
+onları dönmediği için ACİL değil, ama unutulmamalıdır (bkz. §5 notu);
+(b) Race Engine'in ability-weight/jokey-AI dengesi daha derin bir
+gözden geçirmeyi hak ediyor — bu oturumda BİLEREK kapsam dışı bırakıldı
+(hardening ≠ dengeleme tasarımı); (c) horse_surface_stats/distance_stats
+GERÇEK wiring'i (tam scout mekaniği) hâlâ ayrı bir dilimi bekliyor —
+artık en azından sessizce unutulamaz durumda.
+
+⏳ Bu çalışmanın CI doğrulaması bekleniyor.
+
 ## Açık kararlar (proje sahibinin onayı bekleniyor)
 
 Bkz. `ARCHITECTURE.md` §10 için tam liste ve gerekçeler. Özet:

@@ -5,6 +5,17 @@
  */
 
 export interface RaceBalanceConfig {
+  /**
+   * AUDIT_AND_HARDENING Öncelik 4 (bu oturum) — bu config dosyasının KENDİ
+   * sürümü (`domain/race/race-engine.ts`'teki `RACE_ENGINE_VERSION`/
+   * `RACE_RULESET_VERSION`'dan AYRI). Kod hiç değişmeden SADECE aşağıdaki
+   * sayısal denge değerleri (ağırlık/çarpan/eşik) güncellendiğinde bu alan
+   * artırılmalıdır — her `races` satırı hangi config sürümüyle üretildiğini
+   * kaydeder (bkz. `database/migrations/0021_add_race_versioning.up.sql`),
+   * böylece gelecekte config değişse bile ESKİ yarışların hangi denge
+   * değerleriyle simüle edildiği bilinir kalır (brief §58 replay/audit).
+   */
+  version: string;
   baseAbilityWeights: {
     speed: number;
     stamina: number;
@@ -23,6 +34,18 @@ export interface RaceBalanceConfig {
     frontRunnerPositionBonus: number;
     closerStaminaMultiplier: number;
     closerLateStageBonus: number;
+    /**
+     * AUDIT_AND_HARDENING Öncelik 6 (bu oturum) — "geç aşama" (closer bonus/
+     * front-runner bonusunun bittiği nokta) artık SABİT bir oran (eskiden
+     * kod içinde gömülü `LATE_STAGE_THRESHOLD = 0.75`) DEĞİL, gerçek
+     * yarışçılıktaki "son düzlük" kavramına daha yakın, METRE cinsinden
+     * SABİT bir mesafedir (bkz. `domain/race/pace.ts` doc yorumu). Pist
+     * uzunluğuna bölünüp bir orana çevrilir ve makul bir aralığa
+     * kırpılır — bu sayede kısa bir sprint'te final düzlüğü orantısız
+     * büyük, uzun bir yarışta orantısız küçük OLMAZ (brief §52 "segmentler
+     * pist geometrisine daha duyarlı olmalı").
+     */
+    finalStretchMeters: number;
   };
   /**
    * FAZ 5 — brief §21 overtake_probability formülü (bkz. `domain/race/

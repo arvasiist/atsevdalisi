@@ -4,7 +4,7 @@ import type { Player, PracticeRaceResult, Race, RaceEntry, RaceSegmentSnapshot, 
 import { generateBotEntrants } from '../../domain/race/bot-generator';
 import { buildHorseEntrantSnapshot } from '../../domain/race/entrant-snapshot';
 import { applyPracticeRaceStakes, getPracticeRaceEntryFee, getPracticeRacePrize } from '../../domain/race/prize';
-import { simulateRace } from '../../domain/race/race-engine';
+import { RACE_ENGINE_VERSION, RACE_RULESET_VERSION, simulateRace } from '../../domain/race/race-engine';
 import { PRACTICE_RACE_BOT_COUNT, PRACTICE_RACE_DISTANCE_METERS } from '../../domain/race/validation';
 import { HorseInjuredError, HorseNotFoundError } from '../../domain/horse/errors';
 import { PlayerNotFoundError } from '../../domain/player/errors';
@@ -157,7 +157,46 @@ export class RunPracticeRaceUseCase {
         updatedAt: new Date().toISOString(),
       };
 
-      return { player: updated, result: afterStakes };
+      // AUDIT_AND_HARDENING Öncelik 2 (bu oturum) — `applyPracticeRaceStakes`
+      // ile AYNI "sıfırsa hiç uygulama" kuralı burada da: giriş ücreti/ödül
+      // sıfırsa (bkz. `getPracticeRacePrize`'ın son sıra için 0 döndüğü dal)
+      // ledger'a HİÇ satır eklenmez — sıfır miktarlı bir "hareket" muhasebe
+      // anlamında hiç gerçekleşmemiştir (migration 0019'daki `CHECK (amount
+      // <> 0)` bunu veritabanı seviyesinde de zorunlu kılar).
+      const ledgerEntries = [
+        ...(entryFee > 0
+          ? [
+              {
+                playerId: horse.ownerId,
+                type: 'practice_race_entry_fee',
+                amount: -entryFee,
+                currency: 'money' as const,
+                referenceType: 'race',
+                referenceId: raceId,
+                balanceBefore: player.money,
+                balanceAfter: player.money - entryFee,
+                idempotencyKey: null,
+              },
+            ]
+          : []),
+        ...(prizeWon > 0
+          ? [
+              {
+                playerId: horse.ownerId,
+                type: 'practice_race_prize',
+                amount: prizeWon,
+                currency: 'money' as const,
+                referenceType: 'race',
+                referenceId: raceId,
+                balanceBefore: player.money - entryFee,
+                balanceAfter: afterStakes.money,
+                idempotencyKey: null,
+              },
+            ]
+          : []),
+      ];
+
+      return { player: updated, result: afterStakes, ledgerEntries };
     });
 
     if (walletResult === null) {
@@ -183,6 +222,12 @@ export class RunPracticeRaceUseCase {
       startTime: now.toISOString(),
       status: 'finished',
       simulationSeed: timeline.simulationSeed,
+      // AUDIT_AND_HARDENING Öncelik 4 (bu oturum) — bkz. `race-engine.ts`
+      // `RACE_ENGINE_VERSION`/`RACE_RULESET_VERSION` doc yorumu ve
+      // `Race.configVersion` doc yorumu (shared-types).
+      engineVersion: RACE_ENGINE_VERSION,
+      rulesetVersion: RACE_RULESET_VERSION,
+      configVersion: this.config.race.version,
       createdAt: now.toISOString(),
       updatedAt: now.toISOString(),
     };

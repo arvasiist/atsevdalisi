@@ -23,7 +23,7 @@ import {
   ListingNotActiveError,
   ListingNotFoundError,
 } from '../../domain/market/errors';
-import { IdempotencyKeyRequiredError } from '../idempotency/idempotency.errors';
+import { IdempotencyKeyInProgressError, IdempotencyKeyRequiredError } from '../idempotency/idempotency.errors';
 
 /**
  * Bir hata sınıfının constructor'ı (`instanceof` ile karşılaştırılabilir).
@@ -87,6 +87,10 @@ const DOMAIN_ERROR_MAP = new Map<ErrorClassConstructor, { status: number; code: 
   // ilgilendirmez) — kendi özel `ErrorCode.IdempotencyKeyRequired`'ı
   // FAZ 0'dan beri taslakta duruyordu, ilk kez burada kullanılıyor.
   [IdempotencyKeyRequiredError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.IdempotencyKeyRequired }],
+  // AUDIT_AND_HARDENING Öncelik 3 (bu oturum) — GEÇİCİ/duruma bağlı bir
+  // engeldir (kısa süre sonra tekrar denenebilir), `HorseInjuredError`
+  // ile AYNI gerekçeyle 409 Conflict, 400 DEĞİL.
+  [IdempotencyKeyInProgressError, { status: HttpStatus.CONFLICT, code: ErrorCode.IdempotencyKeyInProgress }],
   // FAZ 1 wiring, on birinci dilim — At Pazarı (brief §30). `errors.ts`'teki
   // dört sınıf FAZ 0'dan beri TASLAKTA duruyordu, burada İLK KEZ gerçekten
   // fırlatılabilir hale geliyor. `InvalidListingPriceError` gerçek bir

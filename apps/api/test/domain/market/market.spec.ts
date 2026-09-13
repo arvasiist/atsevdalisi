@@ -132,6 +132,25 @@ describe('purchaseListing', () => {
     const balance: WalletBalance = { money: 20000, gems: 0 };
     expect(() => purchaseListing(expiring, 'buyer-1', balance, balance, later)).toThrow(ListingExpiredError);
   });
+
+  // AUDIT_AND_HARDENING Öncelik 1 (bu oturum) — BULUNAN HATA: `price: 0`
+  // (`createListingDraft` bunu AÇIKÇA kabul eder, bkz. o describe bloğu)
+  // ile bir ilanı satın almak, düzeltmeden ÖNCE `transfer` → `debit`/
+  // `credit`'in sıfır miktarı reddetmesi (`InvalidAmountError`) yüzünden
+  // ÇÖKERDİ — dokuzuncu dilimin Pratik Yarış'ta bulduğu AYNI kök neden
+  // (bkz. `domain/race/prize.ts` `applyPracticeRaceStakes` doc yorumu).
+  // Bu test o regresyonu KALICI olarak kilitler.
+  it('fiyatı sıfır olan bir ilanı satın alırken hiçbir para hareketi üretmeden mülkiyeti devreder (çökme YOK)', () => {
+    const free = createListingDraft({ id: 'l3', sellerId: 'seller-1', horseId: 'h', price: 0, listingType: 'fixed_price', now });
+    const buyerBalance: WalletBalance = { money: 500, gems: 0 };
+    const sellerBalance: WalletBalance = { money: 0, gems: 0 };
+
+    const result = purchaseListing(free, 'buyer-1', buyerBalance, sellerBalance, now);
+
+    expect(result.listing.status).toBe('sold');
+    expect(result.buyerBalance).toEqual(buyerBalance);
+    expect(result.sellerBalance).toEqual(sellerBalance);
+  });
 });
 
 describe('isListingExpired / expireListingIfNeeded / cancelListing', () => {

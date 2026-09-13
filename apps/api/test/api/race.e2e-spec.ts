@@ -125,6 +125,14 @@ describe('Race — Pratik Yarış (e2e)', () => {
     // AYNI dönüşüm, uygulama kodunun kendisinde zaten yapılıyor).
     expect(Number(raceRow.rows[0].entry_fee)).toBe(response.body.data.entryFee);
     expect(Number(raceRow.rows[0].prize_pool)).toBe(response.body.data.prizeWon);
+    // AUDIT_AND_HARDENING Öncelik 4 (bu oturum) — deterministik replay için
+    // her yarış hangi engine/ruleset/config sürümüyle üretildiğini KAYDETMELİ
+    // (bkz. migration 0021, `domain/race/race-engine.ts` RACE_ENGINE_VERSION/
+    // RACE_RULESET_VERSION). 'unknown' DEĞİL — bu, migration'ın SADECE eski
+    // (migration öncesi) satırlar için kabul ettiği açık-eksik işaretidir.
+    expect(raceRow.rows[0].engine_version).toBe('1.0.0');
+    expect(raceRow.rows[0].ruleset_version).toBe('1.1.0');
+    expect(raceRow.rows[0].config_version).toBe('1.0.0');
 
     const entryRow = await pool.query('SELECT * FROM race_entries WHERE race_id = $1 AND horse_id = $2', [raceId, horseId]);
     expect(entryRow.rows).toHaveLength(1);

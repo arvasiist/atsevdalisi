@@ -63,7 +63,27 @@ export class UpgradeStableUseCase {
         cost: { currency: cost.currency, amount: cost.amount },
       };
 
-      return { player: updated, result: upgradeResult };
+      // AUDIT_AND_HARDENING Öncelik 2 (bu oturum) — bkz. `ClaimDailyRewardUseCase`
+      // ile AYNI desen; `cost.currency`'e göre önceki/sonraki bakiye ilgili
+      // para biriminden okunur (`money` veya `gems`, ahır yükseltme maliyeti
+      // ikisinden biri olabilir, bkz. `config/stable.config.json`).
+      return {
+        player: updated,
+        result: upgradeResult,
+        ledgerEntries: [
+          {
+            playerId,
+            type: 'stable_upgrade',
+            amount: -cost.amount,
+            currency: cost.currency,
+            referenceType: null,
+            referenceId: null,
+            balanceBefore: player[cost.currency],
+            balanceAfter: newBalance[cost.currency],
+            idempotencyKey: null,
+          },
+        ],
+      };
     });
 
     if (result === null) {

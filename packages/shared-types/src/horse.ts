@@ -97,6 +97,25 @@ export interface HorseHealth {
   lastVetCheck: ISODateTimeString | null;
 }
 
+/**
+ * AUDIT_AND_HARDENING Öncelik 5 (bu oturum) — docs/SECURITY.md §9: "gerçek
+ * potansiyel [...] API yanıtlarında asla ham değer olarak dönmez [...] ya
+ * da scout sisteminin ürettiği bir ARALIK olarak dönülür (brief §34)."
+ * Denetim, bu kuralın `apps/api/src/api/horse/horse.controller.ts`'te HİÇ
+ * uygulanmadığını (ham `Horse` — `potential` DAHİL — doğrudan JSON'a
+ * serialize ediliyordu) ve dokümanın işaret ettiği `apps/api/src/api/dto`
+ * katmanının hiç VAR OLMADIĞINI ortaya çıkardı. `PublicHorse`, `Horse`'un
+ * API'ye dönen görünümüdür: `potential` YERİNE sabit genişlikli (10 puanlık
+ * "dilim") bir `potentialEstimate` aralığı taşır — brief §34'ün tarif
+ * ettiği TAM scout mekaniği (personel kalitesine göre daralan aralık,
+ * zamanla "keşif") burada KURULMAZ (bu YENİ BİR ÖZELLİK olurdu, bkz.
+ * AUDIT_AND_HARDENING Mutlak Kural 1) — sadece ham değerin SIZMASI
+ * engellenir (bkz. `apps/api/src/api/dto/horse.mapper.ts`).
+ */
+export type PublicHorse = Omit<Horse, 'potential'> & {
+  potentialEstimate: { min: number; max: number };
+};
+
 /** `HorseStats`'ın `horseId` DIŞINDAKİ alanları — tek bir stat'a atıfta bulunmak
  * için (örn. antrenmanın hangi stat'ı güncellediği) kullanılır. */
 export type HorseStatField = Exclude<keyof HorseStats, 'horseId'>;

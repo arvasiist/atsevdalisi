@@ -64,6 +64,14 @@ describe('Horse (e2e)', () => {
     expect(horse.status).toBe('active');
     expect(horse.gender).toBe('gelding');
     expect(horse.health).toBe(100);
+    // AUDIT_AND_HARDENING Öncelik 5 (bu oturum) — docs/SECURITY.md §9,
+    // bkz. `apps/api/src/api/dto/horse.mapper.ts`. Ham `potential` HİÇBİR
+    // ZAMAN HTTP yanıtına sızmamalı, yerine bir `potentialEstimate` ARALIĞI
+    // dönmelidir.
+    expect(horse).not.toHaveProperty('potential');
+    expect(JSON.stringify(response.body)).not.toContain('"potential"');
+    expect(horse.potentialEstimate).toBeDefined();
+    expect(horse.potentialEstimate.min).toBeLessThanOrEqual(horse.potentialEstimate.max);
   });
 
   it('/api/v1/horses/:id (GET) az önce oluşturulan atı döner', async () => {
@@ -78,6 +86,11 @@ describe('Horse (e2e)', () => {
     expect(response.status).toBe(200);
     expect(response.body.data.id).toBe(horseId);
     expect(response.body.data.ownerId).toBe(player.id);
+    // AUDIT_AND_HARDENING Öncelik 5 (bu oturum) — `listByOwner` testindeki
+    // AYNI gizlilik kontrolü, TEK BİR at detayı uç noktası için de geçerli.
+    expect(response.body.data).not.toHaveProperty('potential');
+    expect(JSON.stringify(response.body)).not.toContain('"potential"');
+    expect(response.body.data.potentialEstimate).toBeDefined();
   });
 
   it('/api/v1/horses/:id (GET) var olmayan bir id için 404 döner', async () => {

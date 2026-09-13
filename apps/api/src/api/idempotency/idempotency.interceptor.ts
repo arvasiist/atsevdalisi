@@ -1,12 +1,14 @@
 import { CallHandler, ExecutionContext, Inject, Injectable, NestInterceptor } from '@nestjs/common';
 import type { Request } from 'express';
+import type { Pool } from 'pg';
 import type { Observable } from 'rxjs';
 import { of } from 'rxjs';
 import { tap } from 'rxjs/operators';
 import type Redis from 'ioredis';
 import { REDIS_CLIENT } from '../../infrastructure/redis/redis.module';
+import { PG_POOL } from '../../infrastructure/database/database.module';
 import { AppConfigService } from '../../infrastructure/config/config.service';
-import { IdempotencyKeyRequiredError } from './idempotency.errors';
+import { IdempotencyKeyInProgressError, IdempotencyKeyRequiredError } from './idempotency.errors';
 
 /**
  * FAZ 1 wiring, dokuzuncu dilim — brief §54, docs/SECURITY.md §4:
@@ -33,21 +35,44 @@ import { IdempotencyKeyRequiredError } from './idempotency.errors';
  * `req.params.id` yoksa (ör. ileride gövde tabanlı bir kaynak) `'global'`
  * kullanılır.
  *
- * BİLİNÇLİ SINIRLAMA (bu dilim): yalnızca BAŞARILI (2xx) yanıtlar
- * önbelleğe alınır — bir domain hatası (ör. `InsufficientFundsError`)
- * önbelleğe ALINMAZ, böylece istemci sorunu düzeltip AYNI anahtarla
- * tekrar deneyebilir (bu, tipik Idempotency-Key semantiğidir — ör.
- * Stripe'ın kendi API'si de aynı şekilde davranır). AYRICA: tam bir
- * dağıtık kilit (aynı anahtarla GERÇEKTEN eşzamanlı iki isteğin ikisinin
- * de handler'ı çalıştırmasını önleyen bir `SETNX`) YOKTUR — bu, nadir
- * görülen bir yarış durumudur (aynı anahtarla iki isteğin milisaniyeler
- * içinde çakışması) ve ayrı bir sertleştirme dilimini hak eder; bkz.
- * docs/ROADMAP.md "FAZ 1 wiring — Dokuzuncu dilim".
+ * AUDIT_AND_HARDENING Öncelik 3 (bu oturum) — "Sadece Redis'te 24 saat"
+ * yeterli DEĞİLDİR: proje sahibinin talebi PostgreSQL'de KALICI bir kayıt
+ * ve GERÇEK bir eşzamanlılık koruması (dokuzuncu dilimin kendi "dağıtık
+ * kilit yok" notunda kabul edilen riski KAPATMAK). Yeni akış — Redis
+ * HIZLI ön-kontrol, PostgreSQL (`idempotency_keys`, migration 0020)
+ * KALICI/authoritative kaynak (AUDIT_AND_HARDENING Öncelik 7'nin "Redis
+ * sadece cache, Postgres her zaman authoritative" ilkesiyle BİREBİR
+ * aynı):
+ *
+ *  1. Redis'te anahtar var mı? Varsa (sıcak/yakın zamanlı bir replay)
+ *     doğrudan onu dön — ekstra bir DB sorgusuna GEREK yok.
+ *  2. Yoksa PostgreSQL'de `INSERT ... ON CONFLICT DO NOTHING` ile
+ *     `status: 'pending'` bir satır REZERVE ETMEYE çalışılır. Bu, AYNI
+ *     anahtarla GERÇEKTEN eşzamanlı iki isteğin İKİSİNİN DE işleyiciyi
+ *     çalıştırmasını `(scope_id, idempotency_key)` PRIMARY KEY'i
+ *     üzerinden veritabanı seviyesinde ENGELLER.
+ *  3. Rezervasyon BAŞARISIZ olursa (satır zaten var): `status = 'completed'`
+ *     ise saklı yanıtı dön (ve Redis'i ısıt); `status = 'pending'` ise
+ *     (gerçekten eşzamanlı bir çakışma) `IdempotencyKeyInProgressError`
+ *     (409) fırlatılır — işleyici HİÇ ÇALIŞTIRILMAZ.
+ *  4. Rezervasyon BAŞARILI olursa işleyici çalışır; BAŞARILI (2xx) yanıt
+ *     hem PostgreSQL'e (`status: 'completed'`, kalıcı, TTL'siz) hem
+ *     Redis'e (hızlı ön-kontrol için, TTL'li) yazılır. BAŞARISIZ (domain
+ *     hatası) durumda PostgreSQL'deki `pending` satır SİLİNİR — önceki
+ *     davranışla AYNI: istemci sorunu düzeltip AYNI anahtarla tekrar
+ *     deneyebilir (bkz. altta "BİLİNÇLİ SINIRLAMA").
+ *
+ * BİLİNÇLİ SINIRLAMA (devam ediyor): yalnızca BAŞARILI (2xx) yanıtlar
+ * kalıcı olarak saklanır — bir domain hatası (ör. `InsufficientFundsError`)
+ * SAKLANMAZ, böylece istemci sorunu düzeltip AYNI anahtarla tekrar
+ * deneyebilir (tipik Idempotency-Key semantiği, ör. Stripe'ın kendi
+ * API'si de aynı şekilde davranır).
  */
 @Injectable()
 export class IdempotencyInterceptor implements NestInterceptor {
   constructor(
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
+    @Inject(PG_POOL) private readonly pool: Pool,
     @Inject(AppConfigService) private readonly config: AppConfigService,
   ) {}
 
@@ -67,15 +92,73 @@ export class IdempotencyInterceptor implements NestInterceptor {
       return of(JSON.parse(cached));
     }
 
+    // PostgreSQL: kalıcı kaynağa da bak (Redis TTL'i dolmuş ama kalıcı
+    // kayıt hâlâ duruyor olabilir) — ısıtılmış Redis önbelleği bir sonraki
+    // isteği hızlandırır.
+    const existing = await this.pool.query<{ status: string; response_body: unknown }>(
+      'SELECT status, response_body FROM idempotency_keys WHERE scope_id = $1 AND idempotency_key = $2',
+      [scopeId, idempotencyKey],
+    );
+    if (existing.rows[0]) {
+      const row = existing.rows[0];
+      if (row.status === 'completed') {
+        void this.redis
+          .set(redisKey, JSON.stringify(row.response_body), 'EX', this.config.env.idempotencyKeyTtlSeconds)
+          .catch(() => undefined);
+        return of(row.response_body);
+      }
+      // `status === 'pending'` — gerçekten eşzamanlı bir çakışma.
+      throw new IdempotencyKeyInProgressError();
+    }
+
+    // Rezervasyon — `(scope_id, idempotency_key)` PRIMARY KEY'i, AYNI
+    // anahtarla eşzamanlı bir başka isteğin bu INSERT'i "kazanmasını"
+    // engeller.
+    const reserved = await this.pool.query(
+      "INSERT INTO idempotency_keys (scope_id, idempotency_key, status) VALUES ($1, $2, 'pending') ON CONFLICT DO NOTHING RETURNING scope_id",
+      [scopeId, idempotencyKey],
+    );
+    if ((reserved.rowCount ?? 0) === 0) {
+      // Bu isteğin kendi `SELECT`'i (yukarıda) ile bu `INSERT` arasındaki
+      // dar aralıkta başka bir istek rezervasyonu kazandı — AYNI
+      // sonuçtur (409), tekrar okumaya gerek yok (o istek hâlâ işleniyor
+      // olmalı).
+      throw new IdempotencyKeyInProgressError();
+    }
+
     return next.handle().pipe(
       tap((responseBody: unknown) => {
-        // Ateşle-unut (fire-and-forget): önbelleğe yazma başarısız olsa
-        // bile GERÇEK işlem zaten tamamlanmıştır — kullanıcıya hata
-        // döndürmenin bir anlamı yok, sadece bir sonraki replay koruması
-        // eksik kalır (bkz. yukarıdaki BİLİNÇLİ SINIRLAMA notu).
+        // Ateşle-unut (fire-and-forget): önbelleğe/kalıcı kayda yazma
+        // başarısız olsa bile GERÇEK işlem zaten tamamlanmıştır —
+        // kullanıcıya hata döndürmenin bir anlamı yok, sadece bir sonraki
+        // replay koruması eksik kalır (bkz. yukarıdaki BİLİNÇLİ
+        // SINIRLAMA notu).
+        void this.pool
+          .query(
+            "UPDATE idempotency_keys SET status = 'completed', response_body = $3, completed_at = now() WHERE scope_id = $1 AND idempotency_key = $2",
+            [scopeId, idempotencyKey, JSON.stringify(responseBody)],
+          )
+          .catch(() => undefined);
         void this.redis
           .set(redisKey, JSON.stringify(responseBody), 'EX', this.config.env.idempotencyKeyTtlSeconds)
           .catch(() => undefined);
+      }),
+      // İşleyici bir domain hatasıyla REDDEDİLİRSE (`InsufficientFundsError`
+      // vb.), `tap`'in `next` dalı hiç ÇALIŞMAZ — bu yüzden ayrı bir
+      // rxjs operatörüyle (`catchError` yerine burada basitçe bir
+      // `finalize` benzeri temizlik) `pending` satır SİLİNİR, böylece
+      // istemci sorunu düzeltip AYNI anahtarla tekrar deneyebilir. rxjs
+      // `tap`'in `error` callback'i tam bunun için kullanılır.
+      tap({
+        error: () => {
+          void this.pool
+            .query('DELETE FROM idempotency_keys WHERE scope_id = $1 AND idempotency_key = $2 AND status = $3', [
+              scopeId,
+              idempotencyKey,
+              'pending',
+            ])
+            .catch(() => undefined);
+        },
       }),
     );
   }

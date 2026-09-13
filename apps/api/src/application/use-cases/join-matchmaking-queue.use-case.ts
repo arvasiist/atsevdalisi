@@ -14,7 +14,7 @@ import { buildHorseEntrantSnapshot } from '../../domain/race/entrant-snapshot';
 import { applyEloUpdate } from '../../domain/online/elo';
 import { findBestMatch } from '../../domain/online/matchmaking';
 import { createRaceRoomSeed, validateRaceRoomParticipants } from '../../domain/online/race-room';
-import { simulateRace } from '../../domain/race/race-engine';
+import { RACE_ENGINE_VERSION, RACE_RULESET_VERSION, simulateRace } from '../../domain/race/race-engine';
 import { DEFAULT_RACE_TACTIC, PRACTICE_RACE_DISTANCE_METERS } from '../../domain/race/validation';
 import { HorseInjuredError, HorseNotFoundError } from '../../domain/horse/errors';
 import { AlreadyInMatchmakingQueueError } from '../../domain/online/errors';
@@ -319,6 +319,11 @@ export class JoinMatchmakingQueueUseCase {
       startTime: nowIso,
       status: 'finished',
       simulationSeed: timeline.simulationSeed,
+      // AUDIT_AND_HARDENING Öncelik 4 (bu oturum) — bkz. `RunPracticeRaceUseCase`
+      // ile AYNI desen, `race-engine.ts` doc yorumu.
+      engineVersion: RACE_ENGINE_VERSION,
+      rulesetVersion: RACE_RULESET_VERSION,
+      configVersion: this.config.race.version,
       createdAt: nowIso,
       updatedAt: nowIso,
     };

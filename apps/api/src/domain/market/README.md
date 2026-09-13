@@ -57,3 +57,16 @@ repository.ts`'in TEMBEL süpürmesi tarafından (bkz. o dosyanın doc
 yorumu; projede henüz bir zamanlanmış görev/cron altyapısı olmadığından
 tercih edilen KARAR). Bu dosyadaki fonksiyonların KENDİSİ yine hiç
 değişmedi — sadece artık gerçekten kullanılıyorlar.
+
+## AUDIT_AND_HARDENING Öncelik 1 (bu oturum) — satın almanın transaction bütünlüğü
+
+`purchaseListing()` (bu dosya) SAF bir domain fonksiyonu olarak
+DEĞİŞMEDİ — değişen, onu ÇAĞIRAN altyapı katmanıdır: satın alma artık
+`market_listings`+`horses`+iki `players` satırını TEK bir Postgres
+transaction'da kilitleyen dedike bir `MarketPurchaseRepository`
+üzerinden yürütülür (eskiden AYRI, kilitsiz adımlardı — bkz.
+`docs/SECURITY.md` §5, `docs/ROADMAP.md` AUDIT_AND_HARDENING Öncelik 1).
+Ayrıca bu oturumda BULUNAN bir hata düzeltildi: `price: 0` bir ilan
+satın alınırken `purchaseListing()` `wallet.ts`'in sıfır-tutar reddi
+yüzünden çöküyordu (dokuzuncu dilimin pratik yarış sıfır-ödül hatasıyla
+AYNI kategori) — para transferi artık `listing.price > 0` iken KOŞULLU.
