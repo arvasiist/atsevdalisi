@@ -10,7 +10,7 @@
 | Faz | Adı | Kapsam | Durum |
 |---|---|---|---|
 | **0** | Teknik keşif ve planlama | Repo, mimari, dokümantasyon, DB migration altyapısı, test altyapısı | ✅ Tamamlandı |
-| 1 | Core | Player, Auth, Economy, Horse, Stable, Training, Care, Basic Race Engine, Race Result, Progression | 🟡 Domain katmanı tamam; **Player + Horse (okuma) + Ahır Özeti + Antrenman + Bakım + Ahır Yükseltme (onuncu dilimde Idempotency-Key eklendi) + Günlük Ödül (Economy'nin `debit`+`credit`'i ve satır kilitleme dahil) + Pratik Yarış (temel Race Engine'in İLK orkestrasyonu; dokuzuncu dilimde giriş ücreti + ödül + Idempotency-Key/Redis eklendi) + At Pazarı (Economy'nin `transfer`'i + YENİ `updateTwoWithLock` ile ilan oluşturma/satın alma/iptal, on birinci dilim; tarama + "İlanlarım", on ikinci dilim; ilan süresi dolma/expiry + `expiresInHours`, on üçüncü dilim) alt-modülleri gerçek veritabanına bağlandı** (bkz. "FAZ 1 wiring" bölümleri — Player: run 34721911139; Horse: run 34723091484 (ilk denemede); Ahır Özeti: run 34723845048 (ilk denemede); Antrenman: run 34726749521 (bir hata bulunup düzeltildikten sonra, ikinci denemede); Bakım: run 34727941441 (ilk denemede); Ahır Yükseltme: run 34731523302 (ilk denemede); Günlük Ödül: run 34732402754 (ilk denemede); Pratik Yarış: run 34733778323 (ilk denemede); Pratik Yarış giriş ücreti/ödül + Idempotency-Key/Redis: run 34737087519 (ilk deneme BAŞARISIZ oldu — run 34735597486 — gerçek bir hata bulunup düzeltildi, İKİNCİ denemede yeşil); Ahır Yükseltme Idempotency-Key sertleştirmesi: run 34737922897 (ilk denemede); At Pazarı (on birinci dilim): run 34769577514 (ilk denemede); At Pazarı tarama/İlanlarım (on ikinci dilim): run 34770923029 (ilk denemede); At Pazarı ilan süresi dolma (on üçüncü dilim): run 34773100218 (ilk denemede)) — **on üç dilimin TÜMÜ CI'da DOĞRULANDI**; on dördüncü dilim (PvP Eşleştirme, `POST`/`DELETE /matchmaking/queue` — bkz. "FAZ 1 wiring — On dördüncü dilim") gönderildi, CI onayı bekleniyor; geri kalanı (tam "yarış takvimi" — zamanlanmış çok katılımcılı yarışlar, At Pazarı'nın ata özgü tarama filtreleri, açık artırma) wiring bekliyor |
+| 1 | Core | Player, Auth, Economy, Horse, Stable, Training, Care, Basic Race Engine, Race Result, Progression | 🟡 Domain katmanı tamam; **Player + Horse (okuma) + Ahır Özeti + Antrenman + Bakım + Ahır Yükseltme (onuncu dilimde Idempotency-Key eklendi) + Günlük Ödül (Economy'nin `debit`+`credit`'i ve satır kilitleme dahil) + Pratik Yarış (temel Race Engine'in İLK orkestrasyonu; dokuzuncu dilimde giriş ücreti + ödül + Idempotency-Key/Redis eklendi) + At Pazarı (Economy'nin `transfer`'i + YENİ `updateTwoWithLock` ile ilan oluşturma/satın alma/iptal, on birinci dilim; tarama + "İlanlarım", on ikinci dilim; ilan süresi dolma/expiry + `expiresInHours`, on üçüncü dilim) alt-modülleri gerçek veritabanına bağlandı** (bkz. "FAZ 1 wiring" bölümleri — Player: run 34721911139; Horse: run 34723091484 (ilk denemede); Ahır Özeti: run 34723845048 (ilk denemede); Antrenman: run 34726749521 (bir hata bulunup düzeltildikten sonra, ikinci denemede); Bakım: run 34727941441 (ilk denemede); Ahır Yükseltme: run 34731523302 (ilk denemede); Günlük Ödül: run 34732402754 (ilk denemede); Pratik Yarış: run 34733778323 (ilk denemede); Pratik Yarış giriş ücreti/ödül + Idempotency-Key/Redis: run 34737087519 (ilk deneme BAŞARISIZ oldu — run 34735597486 — gerçek bir hata bulunup düzeltildi, İKİNCİ denemede yeşil); Ahır Yükseltme Idempotency-Key sertleştirmesi: run 34737922897 (ilk denemede); At Pazarı (on birinci dilim): run 34769577514 (ilk denemede); At Pazarı tarama/İlanlarım (on ikinci dilim): run 34770923029 (ilk denemede); At Pazarı ilan süresi dolma (on üçüncü dilim): run 34773100218 (ilk denemede)) — **on üç dilimin TÜMÜ CI'da DOĞRULANDI**; on dördüncü dilim (PvP Eşleştirme, `POST`/`DELETE /matchmaking/queue` — bkz. "FAZ 1 wiring — On dördüncü dilim") ilk denemede CI'da BAŞARISIZ oldu (run 34777510623 — test izolasyonu + Hata 7'nin bir tekrarı, ikisi de düzeltildi), düzeltme sonrası ikinci deneme CI onayı bekleniyor; geri kalanı (tam "yarış takvimi" — zamanlanmış çok katılımcılı yarışlar, At Pazarı'nın ata özgü tarama filtreleri, açık artırma) wiring bekliyor |
 | 2 | Management | Horse Market, Buy/Sell, Vet, Farrier, Nutrition, Jockey, Staff, Stable capacity, Costs | 🟡 Domain katmanı tamam, wiring bekliyor |
 | 3 | Genetics | Pedigree, Mare/Stallion, Genetic traits, Inheritance, Mutation, Foal, Growth, Bloodline | 🟡 Domain katmanı tamam, wiring bekliyor |
 | 4 | Farm | Stable upgrade, Paddock, Training track, Vet center, Breeding center, Staff facilities | 🟡 Domain katmanı tamam, wiring bekliyor |
@@ -1933,7 +1933,64 @@ yeni dosyaların KENDİ `@nestjs/...`/`pg`/`vitest` içe aktarma satırları
 ve mevcut dosyalardaki satır numarası kaymaları, hepsi bilinen/zararsız
 kategorilerde).
 
-⏳ CI doğrulaması bekleniyor.
+**❌ İLK DENEME BAŞARISIZ OLDU, İKİ AYRI GERÇEK SORUN BULUNDU VE DÜZELTİLDİ**
+(GitHub Actions run
+[34777510623](https://github.com/arvasiist/atsevdalisi/actions/runs/34777510623),
+commit `d4c0c19`). `build-and-test` işi test aşamasında 4 e2e senaryosunda
+başarısız oldu (`matchmaking.e2e-spec.ts` satır 83, 122, 147, 155). Kök
+neden analizi İKİ AYRI, birbirinden bağımsız sorun ortaya çıkardı:
+
+1. **Test-ONLY bir sorun (uygulama hatası DEĞİL, 3/4 başarısızlığın
+   nedeni):** bu dosya, projedeki DİĞER TÜM e2e dosyalarından FARKLI bir
+   izolasyon riski taşıyan İLK dosyaydı. Diğer tüm senaryolar her testte
+   YENİ/BENZERSİZ bir oyuncu+at yaratıp yalnızca O KAYDIN id'sini
+   sorguladığından, testler arasında paylaşılan bir tabloyu temizlemeye
+   hiç gerek yoktu. Ama `findBestMatch` (`domain/online/matchmaking.ts`)
+   KASITLI olarak GLOBAL bir sorgu yapar (`matchmaking_tickets`'teki TÜM
+   biletler — bu, gerçek bir matchmaking'in nasıl çalışması GEREKTİĞidir,
+   uygulama hatası değil) — bu yüzden "kuyrukta hiç rakip yokken..."
+   testinin KASITLI OLARAK kuyrukta BIRAKTIĞI bilet, SONRAKİ testlerin
+   "yeni oyuncu kuyruğa girsin" varsayımını BOZDU: bir sonraki testin
+   birinci oyuncusu kendi rakibini BEKLEMEK yerine bu ESKİ biletle HEMEN
+   eşleşti, kendi bileti hiç kuyruğa GİRMEDİ — bu da hem "ikinci oyuncu
+   katılınca hemen eşleşir" testinin (beklenen rakiple DEĞİL eski
+   biletle eşleştiği için `matched` yanlış görünmedi ama sonraki
+   `opponentPlayerId` beklenmeyen çıktı) hem "zaten kuyrukta" testinin
+   (409 beklenirken kendi bileti hiç kaydedilmediği için 201) hem de
+   "DELETE kuyruktaki bileti kaldırır" testinin (kendi bileti hiç
+   kaydedilmediği için DELETE 404 döndü) başarısız olmasına yol açtı.
+   **Düzeltme:** `matchmaking.e2e-spec.ts`'e `beforeEach(async () => {
+   await pool.query('DELETE FROM matchmaking_tickets'); })` eklendi —
+   diğer tüm tablolar (`players`/`horses`/`races`/`pvp_matches`) hâlâ
+   benzersiz id'lerle izole kaldığından bu tabloya DOKUNULMADI, yalnızca
+   GLOBAL sorgu yapılan tek tablo temizlendi.
+
+2. **GERÇEK bir uygulama hatası (1/4 başarısızlığın nedeni —
+   `docs/ARCHITECTURE.md` §9.1 Hata 7'nin AYNI kök nedeninin bu dilimde
+   YENİDEN ortaya çıkması):** "geçersiz (UUID olmayan) bir horseId için
+   400 döner" (POST) testi `500` aldı. `JoinMatchmakingQueueDto`'nun
+   `@IsUUID()` doğrulaması, `ValidationPipe`'ın hangi DTO sınıfına göre
+   doğrulama yapacağını bilmek için ihtiyaç duyduğu `design:paramtypes`
+   üst verisi Vitest/esbuild altında YAYINLANMADIĞINDAN sessizce
+   ATLANDI — geçersiz `horseId` doğrudan `horseRepository.findById(...)`'e
+   ulaşıp ham bir Postgres tip hatasıyla 500'e dönüştü. `DELETE` uç
+   noktası bu hatadan ETKİLENMEDİ çünkü `horseId` orada bir `@Query()`
+   string'i olduğundan zaten decorator metadata'sına DEĞİL, `class-validator`'ın
+   `isUUID()` fonksiyonunun ELLE çağrılmasına dayanıyordu (`horse.controller.ts`
+   `listByOwner` ile AYNI desen). **Düzeltme:** `MatchmakingController.join`'e
+   DTO'nun decorator'larına TEK BAŞINA güvenmek yerine AYNI elle
+   `isUUID()` kontrolü bağımsız bir ikinci savunma hattı olarak eklendi
+   (Hata 6/7'nin ortak dersi — DTO sınıfının kendisi PRODUCTION build'inde
+   [gerçek `tsc` ile] hâlâ çalışır ve yaşayan API dokümantasyonu olarak
+   kalır, sadece TEK başına güvenilir değildir).
+
+Doğrulama şekli önceki dilimlerle AYNI: değişiklik öncesi/sonrası `tsc`
+çıktıları (`src` + `test` dahil geniş bir tarama, 50 satır) BİREBİR
+karşılaştırıldı — fark YOK (`tsc` zaten yalnızca TİP hatalarını yakalar,
+bu ikisi de ÇALIŞMA ZAMANI/mantık hatalarıydı — CI'ın e2e testlerinin
+TAM OLARAK bu yüzden var olduğunun somut bir kanıtı).
+
+⏳ Düzeltme sonrası CI doğrulaması bekleniyor.
 
 ## Açık kararlar (proje sahibinin onayı bekleniyor)
 

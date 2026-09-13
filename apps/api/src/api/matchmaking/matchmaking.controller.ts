@@ -34,6 +34,22 @@ export class MatchmakingController {
   @Post('queue')
   @HttpCode(HttpStatus.CREATED)
   async join(@Body() dto: JoinMatchmakingQueueDto): Promise<ApiSuccess<JoinMatchmakingQueueResult>> {
+    // DÜZELTME (bu oturum, on dördüncü dilimin CI denemesi) — bkz.
+    // docs/ARCHITECTURE.md §9.1 Hata 7'nin AYNI kök nedeninin BURADA da
+    // yeniden ortaya çıkması: `@Body() dto: JoinMatchmakingQueueDto`'nun
+    // `@IsUUID()` doğrulaması, `ValidationPipe`'ın metatype'ı çözmek için
+    // ihtiyaç duyduğu `design:paramtypes` üst verisi Vitest/esbuild
+    // altında YAYINLANMADIĞINDAN sessizce ATLANIR — geçersiz bir
+    // `horseId` doğrudan `JoinMatchmakingQueueUseCase`'e ve oradan
+    // `horseRepository.findById(...)`'e ulaşıp ham bir Postgres tip
+    // hatasıyla 500'e dönüşüyordu (CI run'da gözlemlenen GERÇEK hata).
+    // `leave()`'in (aşağıda) ve `horse.controller.ts` `listByOwner`'ın
+    // ZATEN kullandığı elle `isUUID()` kontrolü, DTO'nun decorator'larına
+    // TEK BAŞINA güvenmek yerine burada da bağımsız bir ikinci savunma
+    // hattı olarak eklenir (Hata 6/7'nin ORTAK dersi, bkz. o dosya).
+    if (!dto.horseId || !isUUID(dto.horseId)) {
+      throw new BadRequestException('horseId geçerli bir UUID olmalıdır.');
+    }
     const result = await this.joinMatchmakingQueueUseCase.execute({ horseId: dto.horseId });
     return { success: true, data: result };
   }

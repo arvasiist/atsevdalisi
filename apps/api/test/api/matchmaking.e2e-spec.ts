@@ -3,7 +3,7 @@ import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import type { Pool } from 'pg';
 import request from 'supertest';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { AppModule } from '../../src/app.module';
 import { HttpExceptionFilter } from '../../src/api/middleware/http-exception.filter';
 import { PG_POOL } from '../../src/infrastructure/database/database.module';
@@ -38,6 +38,34 @@ describe('Matchmaking — PvP Eşleştirme (e2e)', () => {
 
   afterAll(async () => {
     await app.close();
+  });
+
+  // DÜZELTME (bu oturum, on dördüncü dilimin CI denemesi) — bu dosya,
+  // projedeki DİĞER TÜM e2e dosyalarından (`market.e2e-spec.ts` vb.)
+  // FARKLI bir izolasyon riski taşıyan İLK dosyadır: diğer tüm senaryolar
+  // her testte YENİ/BENZERSİZ bir oyuncu+at (`uniqueUsername()`) yaratıp
+  // yalnızca O KAYDIN id'sini sorguladığından, testler arasında hiçbir
+  // paylaşılan tabloyu TEMİZLEMEYE gerek yoktu. Ama `findBestMatch`
+  // (`domain/online/matchmaking.ts`) KASITLI olarak GLOBAL bir sorgu
+  // yapar (`matchmaking_tickets`'teki TÜM biletler, brief §41'in gerçek
+  // matchmaking tasarımı budur) — bu yüzden ÖNCEKİ bir testin (örn.
+  // "kuyrukta hiç rakip yokken..." testinin KASITLI OLARAK kuyrukta
+  // BIRAKTIĞI bilet) bir SONRAKİ testin "yeni oyuncu kuyruğa girsin"
+  // varsayımını BOZMASI mümkündür — GERÇEK CI koşusunda tam olarak BU
+  // OLDU (ikinci oyuncunun HEMEN eşleşmesi gereken test, ÖNCEKİ testin
+  // bekleyen biletiyle eşleşip KENDİ beklenen rakibiyle DEĞİL o eski
+  // biletle eşleşti; benzer şekilde "zaten kuyrukta" ve "DELETE" testleri
+  // de kendi biletlerinin BEKLENMEDİK şekilde önceden tüketilmesinden
+  // etkilendi). Bu, `matchmaking_tickets`'in KENDİSİNİN bir hatası DEĞİL
+  // (production'da "havuzdaki ANY uygun rakiple eşleş" tam olarak istenen
+  // davranıştır) — yalnızca bu TABLONUN, diğer tüm tablolardan farklı
+  // olarak, test senaryoları arasında PAYLAŞILAN/GLOBAL bir kaynak
+  // olmasının sonucu. Çözüm: her testten ÖNCE tabloyu boşalt, böylece her
+  // test yalnızca KENDİ yarattığı biletleri görür (diğer tablolar —
+  // `players`/`horses`/`races`/`pvp_matches` — hâlâ benzersiz id'lerle
+  // izole kalmaya devam eder, onlara dokunulmaz).
+  beforeEach(async () => {
+    await pool.query('DELETE FROM matchmaking_tickets');
   });
 
   function uniqueUsername(): string {
