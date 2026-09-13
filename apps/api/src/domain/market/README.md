@@ -34,3 +34,13 @@ fırlatılmaz — application katmanının repository `null` döndürdüğünde
 (veya "bu ata zaten aktif bir ilan var" iş kuralını uyguladığında)
 fırlattığı hatalardır (`PlayerNotFoundError`/`HorseNotFoundError` ile
 AYNI kategori).
+
+## FAZ 1 wiring, on ikinci dilim — tarama + "İlanlarım" (bu oturum)
+
+Bu dosyada YİNE hiçbir değişiklik yok — `GET /market/listings` (tarama)
+ve `GET /market/my-listings` salt-okunur uç noktaları, SAF domain
+fonksiyonu ÇAĞIRMAZ (girdi doğrulaması `MarketController`'da, sonuç
+doğrudan `MarketListingRepository.search`/`findBySellerId`'den gelir —
+bkz. `application/ports/market-listing.repository.ts`). `docs/API.md`
+§1.4'te FAZ 0'dan beri belgelenmiş sayfalama zarfının İLK gerçek
+kullanıcısı `search`'tür.

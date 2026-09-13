@@ -10,7 +10,7 @@
 | Faz | Adı | Kapsam | Durum |
 |---|---|---|---|
 | **0** | Teknik keşif ve planlama | Repo, mimari, dokümantasyon, DB migration altyapısı, test altyapısı | ✅ Tamamlandı |
-| 1 | Core | Player, Auth, Economy, Horse, Stable, Training, Care, Basic Race Engine, Race Result, Progression | 🟡 Domain katmanı tamam; **Player + Horse (okuma) + Ahır Özeti + Antrenman + Bakım + Ahır Yükseltme (onuncu dilimde Idempotency-Key eklendi) + Günlük Ödül (Economy'nin `debit`+`credit`'i ve satır kilitleme dahil) + Pratik Yarış (temel Race Engine'in İLK orkestrasyonu; dokuzuncu dilimde giriş ücreti + ödül + Idempotency-Key/Redis eklendi) + At Pazarı (Economy'nin `transfer`'i + YENİ `updateTwoWithLock` ile ilan oluşturma/satın alma/iptal, on birinci dilim) alt-modülleri gerçek veritabanına bağlandı ve CI'da DOĞRULANDI** (bkz. "FAZ 1 wiring" bölümleri — Player: run 34721911139; Horse: run 34723091484 (ilk denemede); Ahır Özeti: run 34723845048 (ilk denemede); Antrenman: run 34726749521 (bir hata bulunup düzeltildikten sonra, ikinci denemede); Bakım: run 34727941441 (ilk denemede); Ahır Yükseltme: run 34731523302 (ilk denemede); Günlük Ödül: run 34732402754 (ilk denemede); Pratik Yarış: run 34733778323 (ilk denemede); Pratik Yarış giriş ücreti/ödül + Idempotency-Key/Redis: run 34737087519 (ilk deneme BAŞARISIZ oldu — run 34735597486 — gerçek bir hata bulunup düzeltildi, İKİNCİ denemede yeşil); Ahır Yükseltme Idempotency-Key sertleştirmesi: run 34737922897 (ilk denemede); At Pazarı: kontrol bekleniyor), geri kalanı (gerçek çok oyunculu/programlı Race API, At Pazarı'nın filtrelenebilir tarama listesi/`my-listings`) wiring bekliyor |
+| 1 | Core | Player, Auth, Economy, Horse, Stable, Training, Care, Basic Race Engine, Race Result, Progression | 🟡 Domain katmanı tamam; **Player + Horse (okuma) + Ahır Özeti + Antrenman + Bakım + Ahır Yükseltme (onuncu dilimde Idempotency-Key eklendi) + Günlük Ödül (Economy'nin `debit`+`credit`'i ve satır kilitleme dahil) + Pratik Yarış (temel Race Engine'in İLK orkestrasyonu; dokuzuncu dilimde giriş ücreti + ödül + Idempotency-Key/Redis eklendi) + At Pazarı (Economy'nin `transfer`'i + YENİ `updateTwoWithLock` ile ilan oluşturma/satın alma/iptal, on birinci dilim; tarama + "İlanlarım", on ikinci dilim) alt-modülleri gerçek veritabanına bağlandı** (bkz. "FAZ 1 wiring" bölümleri — Player: run 34721911139; Horse: run 34723091484 (ilk denemede); Ahır Özeti: run 34723845048 (ilk denemede); Antrenman: run 34726749521 (bir hata bulunup düzeltildikten sonra, ikinci denemede); Bakım: run 34727941441 (ilk denemede); Ahır Yükseltme: run 34731523302 (ilk denemede); Günlük Ödül: run 34732402754 (ilk denemede); Pratik Yarış: run 34733778323 (ilk denemede); Pratik Yarış giriş ücreti/ödül + Idempotency-Key/Redis: run 34737087519 (ilk deneme BAŞARISIZ oldu — run 34735597486 — gerçek bir hata bulunup düzeltildi, İKİNCİ denemede yeşil); Ahır Yükseltme Idempotency-Key sertleştirmesi: run 34737922897 (ilk denemede); At Pazarı (on birinci dilim): run 34769577514 (ilk denemede); At Pazarı tarama/İlanlarım (on ikinci dilim): kontrol bekleniyor), geri kalanı (gerçek çok oyunculu/programlı Race API, At Pazarı'nın ata özgü tarama filtreleri) wiring bekliyor |
 | 2 | Management | Horse Market, Buy/Sell, Vet, Farrier, Nutrition, Jockey, Staff, Stable capacity, Costs | 🟡 Domain katmanı tamam, wiring bekliyor |
 | 3 | Genetics | Pedigree, Mare/Stallion, Genetic traits, Inheritance, Mutation, Foal, Growth, Bloodline | 🟡 Domain katmanı tamam, wiring bekliyor |
 | 4 | Farm | Stable upgrade, Paddock, Training track, Vet center, Breeding center, Staff facilities | 🟡 Domain katmanı tamam, wiring bekliyor |
@@ -1641,6 +1641,87 @@ indeksleme hiç kullanılmadan. Düzeltmeden SONRA, kalan TÜM farklar
 sandbox'ın eksik bağımlılıklarından (missing `@nestjs/*`/`node:crypto`
 tipleri) kaynaklanan, önceki dilimlerde de görülen AYNI gürültü
 kategorisiydi — YENİ bir hata YOK.
+
+**✅ DOĞRULANDI** — GitHub'ın robotu bu dilimi de İLK denemede, hiçbir
+düzeltme gerekmeden onayladı: kurulum, kod stili, tip kontrolü, gerçek
+PostgreSQL veritabanı kurulumu, TÜM testler (yeni 17 senaryo dahil) ve
+derleme — hepsi tek seferde geçti (run 34769577514, `ec707bb`, "Faz 1
+wiring, on birinci dilim: At Pazarı", 1 dakika 55 saniye, 11 bilinen/
+zararsız uyarı — Node 20 kullanımdan kaldırma notu + 10 "magic number"
+lint uyarısı, önceki dilimlerle AYNI kategori). Sonuç hem commit'in kendi
+`checks` sayfasıyla hem de çalışmanın kendi detay sayfasıyla (run
+34769577514) çapraz kontrol edilerek doğrulandı. Bu, projenin İLK
+oyuncudan-oyuncuya para transferinin (`updateTwoWithLock`) ve At
+Pazarı'nın (`domain/market/market.ts`, FAZ 0'dan beri hazır) gerçek
+veritabanına karşı sorunsuz çalıştığının kanıtlanmış onayıdır — Faz 1
+wiring'in bu oturumdaki on birinci parçası tamamlandı.
+
+## FAZ 1 wiring — On ikinci dilim: At Pazarı'nın tarama + "İlanlarım" ekranları (bu oturum)
+
+On birinci dilim onaylandıktan sonra "Sana bırakıyorum kararı" onayıyla
+kararı yine ben verdim. Kalan iki büyük parçadan (gerçek çok oyunculu/
+programlı Yarış API'si, At Pazarı'nın tarama/`my-listings` ekranları) İKİNCİSİNİ
+seçtim: Yarış API'si (eşleştirme, gerçek katılımcılardan ödül havuzu)
+kendi başına yeni bir mimari tasarım gerektiren BÜYÜK bir dilim, oysa At
+Pazarı'nın kendi son dilimi bunu zaten "salt-okunur, UI-ağırlıklı
+ekranlar, ayrı bir dilimi hak ediyor" diyerek bilinçli olarak açık
+bırakmıştı — düşük riskli, dar kapsamlı bir sonraki adım olarak doğal
+seçim buydu.
+
+**Eklenen İKİ salt-okunur uç nokta** (docs/API.md §5): `GET
+/market/listings` (tarama/browse — `status`/`minPrice`/`maxPrice`/`page`/
+`pageSize` sorgu parametreleri, `status` verilmezse `active` varsayılır)
+ve `GET /market/my-listings` (bir satıcının TÜM ilanları, `sellerId`
+zorunlu sorgu parametresi — `GET /horses?ownerId=` ile AYNI gerekçe,
+`status` verilmezse TÜM durumlar döner). İkisi de `ListHorsesByOwnerUseCase`
+ile AYNI desen: iş kuralı İÇERMEZ, girdi doğrulaması controller'da elle
+yapılır (`@Query()` + `class-validator`'ın `isUUID`'i, henüz hiçbir GET
+uç noktasında bir DTO sınıfı yok — bkz. `HorseController` doc yorumu).
+
+**Bu dilimde önceki on birinden FARKLI, YENİ bir "ilk kullanıcı":**
+`docs/API.md` §1.4'te FAZ 0'dan beri belgelenmiş ama HİÇBİR endpoint'te
+kullanılmamış sayfalama zarfı (`PaginationMeta`/`PaginatedResult`,
+`packages/shared-types/src/common.ts` — `ApiSuccess<T>.meta?` alanı FAZ
+0'dan beri VARDI) `GET /market/listings`'te İLK KEZ gerçek anlamda
+uygulandı. Bu, projenin "hazır ama hiç kullanılmamış altyapıyı hayata
+geçirme" desenine (Idempotency-Key, `updateTwoWithLock`'la AYNI kategori)
+bir örnek daha.
+
+**Bulunan ve bu dilimde KAPSAMA ALINAN bir performans eksiği:**
+`market_listings` tablosu (`0007_create_market_listings.up.sql`) PRIMARY
+KEY'den başka HİÇBİR indekse sahip değildi. Bu dilim onu İLK KEZ
+`WHERE seller_id = ?` ve `WHERE status = ? ORDER BY created_at DESC` ile
+sorguladığından, YENİ bir migration (`0017_add_market_listings_indexes.
+up/down.sql`) iki indeks ekledi: `idx_market_listings_seller_id` ve
+bileşik `idx_market_listings_status_created_at`. Tablo şu an küçük
+olduğundan bu bir DAVRANIŞ değişikliği değil, ama tablonun büyümesiyle
+önemli hale gelecek standart bir önlem.
+
+**Tasarım kararı — iki farklı varsayılan:** Tarama (`GET
+/market/listings`) `status` verilmezse yalnızca `active` ilanları
+gösterir (bir alıcının satın ALABİLECEĞİ ilanlar) — "İlanlarım" (`GET
+/market/my-listings`) ise `status` verilmezse TÜM durumları gösterir (bir
+satıcının kendi geçmişini de görmek isteyebileceği bir yönetim ekranı).
+Bu asimetri bilinçlidir, docs/API.md §5'te açıkça gerekçelendirilmiştir.
+
+**KAPSAM DIŞI (bilinçli, bu dilim):** brief §30/§70'in `?breed=&
+minAge=...` gibi ata özgü tarama filtreleri YOK — bunlar `horses`
+tablosuna JOIN gerektirir, domain katmanında hiç karşılığı olmayan yeni
+bir sorgu deseni olurdu; ayrı bir dilimi hak ediyor.
+
+Testler: `apps/api/test/api/market.e2e-spec.ts`'e 13 yeni senaryo eklendi
+(tarama: varsayılan active-only/status filtresi/fiyat aralığı/sayfalama
+meta/4 doğrulama hatası [7]; İlanlarım: sellerId eksik/geçersiz/bulunamayan
+satıcı/varsayılan tüm durumlar/status filtresi/geçersiz status [6]).
+Domain katmanında hiçbir değişiklik olmadığından yeni bir birim testi
+GEREKMEDİ.
+
+Doğrulama şekli önceki dilimlerle AYNI: sandbox `node_modules` içermiyor
+(bu segment de tamamen sıfırlanmış haldeydi), bu yüzden değişiklik
+öncesi/sonrası `tsc` çıktıları (`src` + `test` dahil geniş bir tarama)
+karşılaştırıldı. Bu kez YENİ bir hata BULUNMADI — kalan TÜM farklar
+sandbox'ın eksik bağımlılıklarından kaynaklanan, önceki dilimlerde de
+görülen AYNI gürültü kategorisiydi.
 
 *(Bu bölüm, CI sonucu geldiğinde "✅ DOĞRULANDI" paragrafıyla
 güncellenecek.)*
