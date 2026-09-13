@@ -21,6 +21,7 @@ describe('createNewPlayer', () => {
     expect(player.money).toBe(economyConfig.newPlayerStartingBalance.money);
     expect(player.gems).toBe(economyConfig.newPlayerStartingBalance.gems);
     expect(player.stableLevel).toBe(1);
+    expect(player.lastDailyRewardClaimedAt).toBeNull();
   });
 
   it('geçersiz username ile InvalidUsernameError fırlatır', () => {

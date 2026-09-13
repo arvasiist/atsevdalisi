@@ -41,6 +41,11 @@ export function createNewPlayer(input: NewPlayerInput, economyConfig: EconomyCon
     // `database/migrations/0012_..._stable_level.up.sql`'deki DEFAULT 1 ile
     // BİREBİR aynı (bkz. `domain/stable/stable.ts` — FAZ 1 wiring, üçüncü dilim).
     stableLevel: 1,
+    // Yeni bir oyuncu henüz hiç günlük ödül talep etmemiştir (FAZ 1
+    // wiring, yedinci dilim — `database/migrations/
+    // 0016_add_last_daily_reward_claimed_at.up.sql`'deki DEFAULT NULL ile
+    // BİREBİR aynı).
+    lastDailyRewardClaimedAt: null,
     createdAt: now,
     updatedAt: now,
   };

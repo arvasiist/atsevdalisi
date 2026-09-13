@@ -10,7 +10,7 @@
 | Faz | Adı | Kapsam | Durum |
 |---|---|---|---|
 | **0** | Teknik keşif ve planlama | Repo, mimari, dokümantasyon, DB migration altyapısı, test altyapısı | ✅ Tamamlandı |
-| 1 | Core | Player, Auth, Economy, Horse, Stable, Training, Care, Basic Race Engine, Race Result, Progression | 🟡 Domain katmanı tamam; **Player + Horse (okuma) + Ahır Özeti + Antrenman + Bakım + Ahır Yükseltme (Economy'nin `debit`'i dahil) alt-modülleri gerçek veritabanına bağlandı ve CI'da DOĞRULANDI** (bkz. "FAZ 1 wiring" bölümleri — Player: run 34721911139; Horse: run 34723091484 (ilk denemede); Ahır Özeti: run 34723845048 (ilk denemede); Antrenman: run 34726749521 (bir hata bulunup düzeltildikten sonra, ikinci denemede); Bakım: run 34727941441 (ilk denemede); Ahır Yükseltme: gönderildi, CI sonucu bekleniyor), geri kalanı (Economy'nin `credit`/`transfer` akışları, temel Race Engine) wiring bekliyor |
+| 1 | Core | Player, Auth, Economy, Horse, Stable, Training, Care, Basic Race Engine, Race Result, Progression | 🟡 Domain katmanı tamam; **Player + Horse (okuma) + Ahır Özeti + Antrenman + Bakım + Ahır Yükseltme + Günlük Ödül (Economy'nin `debit`+`credit`'i ve satır kilitleme dahil) alt-modülleri gerçek veritabanına bağlandı ve CI'da DOĞRULANDI** (bkz. "FAZ 1 wiring" bölümleri — Player: run 34721911139; Horse: run 34723091484 (ilk denemede); Ahır Özeti: run 34723845048 (ilk denemede); Antrenman: run 34726749521 (bir hata bulunup düzeltildikten sonra, ikinci denemede); Bakım: run 34727941441 (ilk denemede); Ahır Yükseltme: run 34731523302 (ilk denemede); Günlük Ödül: gönderildi, CI sonucu bekleniyor), geri kalanı (Economy'nin `transfer` akışı, temel Race Engine) wiring bekliyor |
 | 2 | Management | Horse Market, Buy/Sell, Vet, Farrier, Nutrition, Jockey, Staff, Stable capacity, Costs | 🟡 Domain katmanı tamam, wiring bekliyor |
 | 3 | Genetics | Pedigree, Mare/Stallion, Genetic traits, Inheritance, Mutation, Foal, Growth, Bloodline | 🟡 Domain katmanı tamam, wiring bekliyor |
 | 4 | Farm | Stable upgrade, Paddock, Training track, Vet center, Breeding center, Staff facilities | 🟡 Domain katmanı tamam, wiring bekliyor |
@@ -1130,6 +1130,100 @@ bunlardan ikisi (yeterli bakiye, maksimum seviye) test kurulumunda
 uygulamanın kendi DB havuzu üzerinden DOĞRUDAN bir bakiye/seviye
 artırımı gerektirir, çünkü bu dilimde bir "para kazanma" uç noktası
 (günlük ödül/yarış ödülü) henüz bağlı değildir.
+
+**✅ DOĞRULANDI — CI İLK DENEMEDE baştan sona yeşil (GitHub Actions run
+[34731523302](https://github.com/arvasiist/atsevdalisi/actions/runs/34731523302),
+"Faz 1 wiring, altıncı dilim: Ahır Yükseltme (POST /players/:id/stable/upgrade)"
+commit'i, 1dk 53sn):** Önceki üç dilimle (At, Ahır Özeti, Bakım) AYNI
+şekilde, HİÇBİR düzeltmeye gerek kalmadan ilk denemede geçti. Yalnızca
+önceden bilinen "no magic number" uyarıları ve Node.js sürüm bildirimi
+var, hiçbir `::error::` yok. `stable.e2e-spec.ts`'in yeni beş senaryosu
+(yeterli bakiyeyle yükseltme + bakiyeden düşme + Ahır Özeti'nin
+güncellenmiş seviyeyi yansıtması, yetersiz bakiye → 409 ve bakiyenin
+HİÇ değişmemesi, zaten maksimum seviye → 409, olmayan oyuncu → 404,
+geçersiz id → 400) gerçek PostgreSQL'e karşı doğrulandı — `SELECT ...
+FOR UPDATE` satır kilitlemesinin ve `debit`'in İLK gerçek kullanımı da
+bu doğrulamaya dahildir. FAZ 1 wiring'in Ahır Yükseltme dilimi
+tamamlanmıştır.
+
+## FAZ 1 wiring — Yedinci dilim: Günlük Ödül (bu oturum)
+
+Ahır Yükseltme dilimi CI'da doğrulandıktan sonra, proje sahibi tekrar
+"devam edelim" diyerek kararı bana bıraktı. Kalan iki maddeden
+(Economy'nin `credit`/`transfer` akışları, temel Yarış Motoru) **Günlük
+Ödül**'ü (brief §37 "GÜNLÜK OYUN DÖNGÜSÜ": Login → Daily Reward → ...)
+seçtim — çünkü Yarış Motoru'nun kendisi çok daha büyük/karmaşık bir dilim
+(yarış listeleme, kayıt, jokey seçimi, sonuç hesaplama, ödül dağıtımı —
+muhtemelen kendi içinde birden fazla alt dilime bölünmeyi hak eder) ve
+onu küçük/izole bir yerde önce `credit`'i (Economy'nin harcamayan tarafı)
+bağlamak, sonra o büyük dilime geçmek daha güvenli bir sıralamaydı. Bu
+aynı zamanda Economy modülünün her iki temel fonksiyonunu da (Ahır
+Yükseltme: `debit`, Günlük Ödül: `credit`) CI'da doğrulanmış hâle getirir
+— yalnızca `transfer` (At Pazarı satışı gibi çok taraflı bir işlemi
+bekliyor) geriye kalır.
+
+**Bulunan ve bu dilimde KAPSAMA ALINAN bir eksik:** Brief §37'nin günlük
+oyun döngüsünde AÇIKÇA yer alan "Daily Reward" özelliği için hiçbir
+domain kodu FAZ 0'da bile yazılmamıştı (Bakım/Antrenman'ın aksine, bu
+dilim salt "var olan saf fonksiyonu bağlama" değil, YENİ bir saf domain
+fonksiyonu yazmayı da içerdi) — `domain/economy/daily-reward.ts` bu
+oturumda `domain/care/care.ts`'teki `canPerformCareAction` ile AYNI
+kayan-pencere cooldown deseniyle yazıldı.
+
+**Yeni veritabanı alanı:** `database/migrations/
+0016_add_last_daily_reward_claimed_at.up/down.sql` — `horse_care_log`'un
+AKSİNE ayrı bir tablo DEĞİL, doğrudan `players` üzerinde tek bir nullable
+sütun (tek oyuncu → tek eylem türü, kompozit anahtara gerek yok). `Player`
+domain tipine `lastDailyRewardClaimedAt` eklendi (`stableLevel` ile AYNI
+gerekçeyle doğrudan `Player` üzerinde, `CareableHealthView` gibi dar bir
+görünüme GEREK YOK — bu gizli bir oyun verisi değil, basit bir
+bookkeeping alanı).
+
+**Yeni uç nokta:** `POST /api/v1/players/{id}/daily-reward` — gövde
+almaz. Yeni `EconomyModule`/`EconomyController` (`StableModule` ile AYNI
+desen — kendi repository'si yok, `PlayerModule`'ü import eder). Yanıt
+şekli ve tasarım kararları `docs/API.md` §3 "Günlük Ödül" bölümünde
+detaylıdır.
+
+**Satır kilitleme deseni İKİNCİ KEZ kullanıldı:** `PlayerRepository.
+updateWithLock` (Ahır Yükseltme'de kurulmuştu) burada `debit` yerine
+`credit`'le tekrar kullanıldı — desenin yalnızca "harcama" değil, genel
+bir "para/durum değiştiren use-case" deseni olduğunu doğruladı (bkz.
+docs/ARCHITECTURE.md §9.3 "İkinci kullanım" notu).
+
+**Hata kodu eşlemesi:** yeni `DailyRewardAlreadyClaimedError` →
+`409 DAILY_REWARD_ALREADY_CLAIMED` (`CareActionOnCooldownError` ile AYNI
+gerekçe — geçici bir durum engeli, kalıcı bir doğrulama hatası değil);
+yeni kod `error-codes.ts`'e eklendi.
+
+**Kapsam dışı (bilinçli, sonraki adımlar):** Takvim günü bazlı reset
+(sunucu saatiyle gece yarısı sıfırlama — brief bunu netleştirmiyor,
+kayan-pencere basitleştirmesi tercih edildi); art arda gün serisi
+(streak) bonusu; brief §54'ün tam `Idempotency-Key` + Redis "aynı yanıtı
+tekrar döndürme" altyapısı (bu eylem KENDİ cooldown kontrolüyle çifte
+ödüle karşı FİNANSAL olarak zaten korumalıdır — eksik olan yalnızca UX
+garantisidir, Redis'in zaten gerekli olacağı Race/Market gibi daha büyük
+bir dilime bırakıldı — bkz. `domain/economy/daily-reward.ts` ve
+`claim-daily-reward.use-case.ts` üstündeki KAPSAM notları); `transfer`
+(At Pazarı satışı).
+
+**Doğrulama (bu oturum, yerel):** `apps/api/tsconfig.domain.json`,
+`packages/shared-types` ve `packages/game-config` (yeni
+`dailyRewardCooldownHours` alanı dahil) temiz derlendi. Framework'ten
+bağımsız test seti (318 test — 312 + YENİ `daily-reward.spec.ts`'in 6
+testi + `player.spec.ts`'e eklenen 1 assertion) yerel olarak koştu,
+hepsi geçti. `@nestjs`/`pg` paketleri olmadan mümkün olduğunca geniş bir
+yerel `tsc` taraması yapıldı (yalnızca eksik paket gürültüsü ve önceden
+bilinen `http-exception.filter.ts` uyarısı filtrelendi) — gerçek bir tip
+hatası bulunmadı; yeni `economy.e2e-spec.ts` AYRICA geçici bir
+`vitest`/`supertest` tip taslağıyla tek başına tip kontrolünden geçirildi.
+Yeni e2e senaryoları (ilk talepte ödül kazanma, cooldown dolmadan ikinci
+talep → 409 ve bakiyenin değişmemesi, cooldown sonrası tekrar talep
+edilebilme, olmayan oyuncu → 404, geçersiz id → 400) yalnızca CI'da
+doğrulanabilir (kabul edilen risk, önceki dilimlerle AYNI desen) —
+cooldown sonrası senaryo, test kurulumunda uygulamanın kendi DB havuzu
+üzerinden `last_daily_reward_claimed_at`'ı DOĞRUDAN geçmişe taşımayı
+gerektirir (24 saat gerçekte beklenemez).
 
 ## Açık kararlar (proje sahibinin onayı bekleniyor)
 

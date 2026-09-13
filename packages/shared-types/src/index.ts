@@ -5,6 +5,7 @@ export * from './player';
 export * from './horse';
 export * from './stable';
 export * from './care';
+export * from './economy';
 export * from './jockey';
 export * from './race';
 export * from './market';

@@ -18,6 +18,13 @@ export interface Player {
    * doğrudan `players` üzerinde tutulur (bkz. `domain/stable/stable.ts`).
    */
   stableLevel: number;
+  /**
+   * FAZ 1 wiring, yedinci dilim — Günlük Ödül (brief §37). `null` = hiç
+   * talep edilmemiş. `stableLevel` ile AYNI gerekçeyle doğrudan `Player`
+   * üzerinde tutulur (gizli/dar bir görünüm gerektiren `horse_health`
+   * alanlarının AKSİNE, bu basit bir bookkeeping alanıdır).
+   */
+  lastDailyRewardClaimedAt: ISODateTimeString | null;
   createdAt: ISODateTimeString;
   updatedAt: ISODateTimeString;
 }

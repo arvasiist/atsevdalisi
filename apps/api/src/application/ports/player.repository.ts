@@ -19,7 +19,8 @@ export interface PlayerRepository {
   /** Yeni bir oyuncu kaydı ekler. Var olan bir `id`'yi GÜNCELLEMEZ. */
   save(player: Player): Promise<void>;
   /**
-   * FAZ 1 wiring, altıncı dilim — Ahır Yükseltme (brief §32) — para/mülkiyet
+   * FAZ 1 wiring, altıncı dilim — Ahır Yükseltme (brief §32) (ve yedinci
+   * dilimde Günlük Ödül, brief §37, AYNI deseni tekrar kullanır) — para/mülkiyet
    * değiştiren İLK use-case, bu yüzden docs/SECURITY.md §5'in ("SELECT ...
    * FOR UPDATE" + tek transaction) İLK gerçek uygulaması.
    *

@@ -27,6 +27,9 @@ interface PlayerRow {
   // 0012_create_staff_and_stable_level.up.sql`. INTEGER olduğundan (BIGINT/
   // NUMERIC'in aksine) `node-postgres` bunu doğrudan JS `number` döner.
   stable_level: number;
+  // FAZ 1 wiring, yedinci dilim — `database/migrations/
+  // 0016_add_last_daily_reward_claimed_at.up.sql`.
+  last_daily_reward_claimed_at: Date | null;
   created_at: Date;
   updated_at: Date;
 }
@@ -43,6 +46,7 @@ function rowToPlayer(row: PlayerRow): Player {
     gems: Number(row.gems),
     reputation: row.reputation,
     stableLevel: row.stable_level,
+    lastDailyRewardClaimedAt: row.last_daily_reward_claimed_at ? row.last_daily_reward_claimed_at.toISOString() : null,
     createdAt: row.created_at.toISOString(),
     updatedAt: row.updated_at.toISOString(),
   };
@@ -109,7 +113,8 @@ export class PostgresPlayerRepository implements PlayerRepository {
       await client.query(
         `UPDATE players
          SET display_name = $2, avatar_id = $3, level = $4, xp = $5,
-             money = $6, gems = $7, reputation = $8, stable_level = $9, updated_at = $10
+             money = $6, gems = $7, reputation = $8, stable_level = $9,
+             last_daily_reward_claimed_at = $10, updated_at = $11
          WHERE id = $1`,
         [
           updated.id,
@@ -121,6 +126,7 @@ export class PostgresPlayerRepository implements PlayerRepository {
           updated.gems,
           updated.reputation,
           updated.stableLevel,
+          updated.lastDailyRewardClaimedAt ? new Date(updated.lastDailyRewardClaimedAt) : null,
           new Date(updated.updatedAt),
         ],
       );

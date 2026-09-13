@@ -151,6 +151,14 @@ export interface EconomyConfig {
     money: number;
     gems: number;
   };
+  /**
+   * FAZ 1 wiring, yedinci dilim — brief §37 "GÜNLÜK OYUN DÖNGÜSÜ" (Login →
+   * Daily Reward → ...). `domain/economy/daily-reward.ts`'in
+   * `canClaimDailyReward`'ı bunu kullanır — `care.config.json`'daki
+   * `cooldownMinutes` alanlarıyla AYNI desen (kayan pencere, takvim günü
+   * DEĞİL — bkz. o dosyadaki doc yorumu).
+   */
+  dailyRewardCooldownHours: number;
 }
 
 export interface GeneticsConfig {
