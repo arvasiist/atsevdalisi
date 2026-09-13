@@ -561,6 +561,16 @@ ayrı bir `update` YERİNE bu `updateWithLock` deseni (veya birden fazla
 satırı aynı anda kilitlemesi gerekiyorsa onun çok-satırlı bir türevi)
 kullanılmalıdır.
 
+**İkinci kullanım (FAZ 1 wiring, yedinci dilim — Günlük Ödül):**
+`ClaimDailyRewardUseCase`, AYNI `updateWithLock` deseniyle `credit`'i
+kullanır (`debit` yerine) — bu, desenin genel (yalnızca "harcama" değil,
+her türlü para/durum değişimi için) olduğunu doğrular. Burada satır
+kilitlemenin engellediği spesifik hata: iki eşzamanlı "günlük ödülü
+talep et" isteği, ikisi de AYNI (henüz güncellenmemiş)
+`lastDailyRewardClaimedAt`'ı okuyup ikisi de ödülü verebilirdi —
+`updateWithLock` bunu, `assertCanClaimDailyReward` kontrolünü satır
+kilitliyken çalıştırarak önler.
+
 ---
 
 ## 10. Ek öneriler — proje sahibine sunulan geliştirme fırsatları

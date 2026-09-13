@@ -24,3 +24,16 @@ export class InvalidAmountError extends Error {
     this.name = 'InvalidAmountError';
   }
 }
+
+/**
+ * FAZ 1 wiring, yedinci dilim — Günlük Ödül (brief §37). `bkz.
+ * domain/economy/daily-reward.ts` `canClaimDailyReward` — cooldown
+ * penceresi dolmadan tekrar talep edilirse fırlatılır.
+ * `CareActionOnCooldownError` ile AYNI desen/gerekçe.
+ */
+export class DailyRewardAlreadyClaimedError extends Error {
+  constructor(public readonly remainingMinutes: number) {
+    super(`Günlük ödül zaten alındı — tekrar alınabilmesi için ${remainingMinutes} dakika kaldı.`);
+    this.name = 'DailyRewardAlreadyClaimedError';
+  }
+}

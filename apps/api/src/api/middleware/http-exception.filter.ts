@@ -11,7 +11,7 @@ import {
 import { HorseNotReadyForTrainingError, InvalidTrainingInputError } from '../../domain/training/errors';
 import { CareActionOnCooldownError, InvalidCareInputError } from '../../domain/care/errors';
 import { MaxStableLevelReachedError } from '../../domain/stable/errors';
-import { InsufficientFundsError } from '../../domain/economy/errors';
+import { DailyRewardAlreadyClaimedError, InsufficientFundsError } from '../../domain/economy/errors';
 
 /**
  * Bir hata sınıfının constructor'ı (`instanceof` ile karşılaştırılabilir).
@@ -63,6 +63,9 @@ const DOMAIN_ERROR_MAP = new Map<ErrorClassConstructor, { status: number; code: 
   // çözülür) — `HorseNotReadyForTrainingError`'ın INSUFFICIENT_ENERGY
   // dalıyla AYNI gerekçeyle 409 Conflict, 402/400 DEĞİL.
   [InsufficientFundsError, { status: HttpStatus.CONFLICT, code: ErrorCode.InsufficientFunds }],
+  // FAZ 1 wiring, yedinci dilim — Günlük Ödül (brief §37).
+  // `CareActionOnCooldownError` ile AYNI gerekçeyle 409 Conflict.
+  [DailyRewardAlreadyClaimedError, { status: HttpStatus.CONFLICT, code: ErrorCode.DailyRewardAlreadyClaimed }],
 ]);
 
 /**

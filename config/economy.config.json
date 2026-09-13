@@ -15,6 +15,7 @@
     "premium_season_pass"
   ],
   "dailyRewardMoney": 500,
+  "dailyRewardCooldownHours": 24,
   "raceEntryFeeMultiplier": 1.0,
   "newPlayerStartingBalance": {
     "money": 5000,

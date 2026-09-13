@@ -38,6 +38,8 @@ export const ErrorCode = {
   HorseNotFound: 'HORSE_NOT_FOUND',
   // FAZ 1 wiring, beşinci dilim — Bakım (domain/care)
   CareActionOnCooldown: 'CARE_ACTION_ON_COOLDOWN',
+  // FAZ 1 wiring, yedinci dilim — Günlük Ödül (domain/economy)
+  DailyRewardAlreadyClaimed: 'DAILY_REWARD_ALREADY_CLAIMED',
 } as const;
 
 export type ErrorCodeValue = (typeof ErrorCode)[keyof typeof ErrorCode];

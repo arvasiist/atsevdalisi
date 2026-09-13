@@ -138,6 +138,42 @@ da veriyor — bkz. §4 "Uygulama durumu".
 tipine `stableLevel` alanı eklendi (DB'de zaten `players.stable_level`
 olarak vardı, FAZ 1'den beri bağlı değildi — bkz. §4 "Ahır Özeti").
 
+### Günlük Ödül (FAZ 1 wiring, yedinci dilim, bu oturum)
+
+```http
+POST /api/v1/players/{id}/daily-reward
+```
+
+brief §37 "GÜNLÜK OYUN DÖNGÜSÜ" (Login → **Daily Reward** → ...) — gövde
+almaz. `Player`'a eklenen `lastDailyRewardClaimedAt` alanına göre bir
+kayan-pencere (rolling window) cooldown uygular (`config/
+economy.config.json` `dailyRewardCooldownHours`, varsayılan 24). Örnek
+yanıt:
+
+```json
+{
+  "success": true,
+  "data": {
+    "amount": 500,
+    "currency": "money",
+    "newBalance": { "money": 5500, "gems": 50 },
+    "nextClaimAvailableAt": "2026-09-14T01:50:00.000Z"
+  }
+}
+```
+
+Olası hata: cooldown dolmadan tekrar talep edilirse `409
+DAILY_REWARD_ALREADY_CLAIMED` (bakiye HİÇ değişmez); oyuncu bulunamazsa
+`404 PLAYER_NOT_FOUND`; id UUID formatında değilse `400
+VALIDATION_ERROR`.
+
+Economy'nin `credit` fonksiyonunun İLK gerçek kullanımı (`debit`, Ahır
+Yükseltme dilimiyle zaten bağlanmıştı) — AYNI satır kilitleme deseni
+(docs/ARCHITECTURE.md §9.3) burada da kullanılır. Takvim günü bazlı reset,
+streak bonusu ve brief §54'ün tam `Idempotency-Key` + Redis "aynı yanıtı
+tekrar döndürme" altyapısı bu dilimin KAPSAMI DIŞINDADIR (bu eylem kendi
+cooldown kontrolüyle çifte ödüle karşı zaten finansal olarak korumalıdır).
+
 ## 4. Horses (Ahır)
 
 ```http
@@ -518,3 +554,4 @@ lobby.update       — online yarış lobisi (brief §41)
 | `HORSE_NOT_FOUND` | Verilen id'ye ait at bulunamadı (FAZ 1 wiring, ikinci dilim) |
 | `CARE_ACTION_ON_COOLDOWN` | Bakım eylemi cooldown süresi dolmadan tekrar istendi (FAZ 1 wiring, beşinci dilim) |
 | `MAX_STABLE_LEVEL_REACHED` | Ahır zaten en yüksek seviyede, daha fazla yükseltilemez (FAZ 1 wiring, altıncı dilim) |
+| `DAILY_REWARD_ALREADY_CLAIMED` | Günlük ödül cooldown süresi dolmadan tekrar talep edildi (FAZ 1 wiring, yedinci dilim) |
