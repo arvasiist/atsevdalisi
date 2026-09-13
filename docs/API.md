@@ -85,6 +85,17 @@ yanıt zarfına `meta` eklenir:
 }
 ```
 
+**Gerçek implementasyon (FAZ 1 wiring, on ikinci dilim):** bu zarf FAZ
+0'dan beri belgeliydi ama HİÇBİR endpoint'te kullanılmamıştı — İLK gerçek
+kullanıcısı `GET /market/listings`'tir (bkz. §5). `page` 1-tabanlıdır,
+verilmezse `1` varsayılır; `pageSize` verilmezse `20`, en fazla `100`
+olabilir (aşırı büyük bir sayfa isteğiyle veritabanını yormamak için).
+Diğer TÜM liste endpoint'leri (`GET /horses?ownerId=`, `GET
+/market/my-listings?sellerId=`) BİLİNÇLİ olarak sayfalanmaz — döndürdükleri
+koleksiyon (tek bir oyuncunun atları/ilanları) doğası gereği sınırlıdır,
+`GET /market/listings`'in aksine dış dünyaya açık, büyüyebilen bir
+koleksiyon değildir.
+
 ---
 
 ## 2. Auth
@@ -534,13 +545,13 @@ Tasarım kararları (bkz. `application/use-cases/run-practice-race.use-case.ts`
 
 ## 5. Market (At Pazarı)
 
-**Uygulama durumu (FAZ 1 wiring, on birinci dilim, bu oturum):** aşağıdaki
-DÖRT uç nokta gerçek veritabanına bağlandı; filtrelenebilir tarama listesi
-(`GET /market/horses`) ve `GET /market/my-listings` henüz wiring
-EDİLMEDİ (bkz. bu bölümün sonundaki KAPSAM notu).
+**Uygulama durumu (FAZ 1 wiring, on birinci + on ikinci dilim, bu
+oturum):** aşağıdaki ALTI uç nokta gerçek veritabanına bağlandı.
 
 ```http
 POST   /api/v1/market/listings            # ilan oluştur (oyuncu satışı)
+GET    /api/v1/market/listings            # tara (filtrelenebilir, sayfalı)
+GET    /api/v1/market/my-listings         # "İlanlarım" (bir satıcının ilanları)
 GET    /api/v1/market/listings/{id}
 POST   /api/v1/market/listings/{id}/buy   # satın al — Idempotency-Key zorunlu
 DELETE /api/v1/market/listings/{id}       # ilanı iptal et
@@ -580,6 +591,51 @@ Olası hata: at bulunamazsa `404 HORSE_NOT_FOUND`; at zaten aktif bir
 ilana sahipse `409 HORSE_ALREADY_LISTED` (bir atın aynı anda yalnızca
 TEK aktif ilanı olabilir); fiyat negatif/tam sayı değilse `400
 INVALID_LISTING_PRICE`.
+
+**Tara (FAZ 1 wiring, on ikinci dilim):**
+
+```http
+GET /api/v1/market/listings?status=active&minPrice=1000&maxPrice=5000&page=1&pageSize=20
+```
+
+Tüm parametreler OPSİYONELDİR. `status` verilmezse `active` varsayılır
+(bir alıcının satın ALABİLECEĞİ ilanlar varsayılan görünümdür) — diğer
+değerler: `sold`/`expired`/`cancelled`. `minPrice`/`maxPrice` fiyat
+aralığına göre filtreler (ikisi de dahildir — `>=`/`<=`). §1.4'teki
+sayfalama zarfının İLK gerçek kullanıcısıdır (`page` varsayılan `1`,
+`pageSize` varsayılan `20`, en fazla `100`). Sonuçlar `createdAt DESC`
+sıralıdır (en yeni ilan önce). Örnek yanıt:
+
+```json
+{
+  "success": true,
+  "data": [ { "id": "...", "sellerId": "...", "horseId": "...", "price": 3000, "listingType": "fixed_price", "status": "active", "createdAt": "...", "expiresAt": null } ],
+  "meta": { "page": 1, "pageSize": 20, "totalItems": 1, "totalPages": 1 }
+}
+```
+
+Olası hata: `status` geçersiz bir değerse, `minPrice`/`maxPrice` negatif
+olmayan bir tam sayı değilse, `minPrice` > `maxPrice` ise, `page` 1'den
+küçükse veya `pageSize` 1-100 aralığı dışındaysa `400`. **KAPSAM DIŞI
+(bilinçli, bu dilim):** brief §30/§70'in `?breed=&minAge=...` gibi ata
+özgü filtreleri YOK — bunlar `horses` tablosuna JOIN gerektirir, ayrı bir
+dilimi hak ediyor.
+
+**İlanlarım (FAZ 1 wiring, on ikinci dilim):**
+
+```http
+GET /api/v1/market/my-listings?sellerId=...&status=active
+```
+
+`sellerId` ZORUNLUDUR (bu projede henüz gerçek bir kimlik doğrulama/
+oturum sistemi olmadığından — bkz. "Açık kararlar" madde 1 — `GET
+/horses?ownerId=` ile AYNI gerekçe). `status` OPSİYONELDİR; verilmezse
+satıcının TÜM durumlardaki ilanları döner (bir "ilanlarımı yönet"
+ekranı, varsayılan olarak satılmış/iptal edilmiş geçmişi de göstermek
+isteyebilir — `GET /market/listings`'in "yalnızca active" varsayılanının
+TERSİ, bilinçli bir tasarım kararı). Sayfalama YOK (bkz. §1.4). Olası
+hata: `sellerId` geçerli bir UUID değilse veya eksikse `400`; `status`
+geçersiz bir değerse `400`.
 
 **Satın al:**
 
@@ -623,14 +679,12 @@ ilanın sahibi iptal edebilmeli) YOK — bkz. `CancelMarketListingUseCase`
 doc yorumu (bu projede HİÇBİR uç noktada henüz gerçek bir oturum sistemi
 yok, bu dilime özgü bir boşluk değil).
 
-**KAPSAM (bu dilim, bilinçli):** `GET /market/horses` (filtrelenebilir
-tarama listesi, brief §30/§70'in `?breed=&minAge=...` parametreleri) ve
-`GET /market/my-listings` YOK — bunlar salt-okunur, UI-ağırlıklı ekranlar,
-ayrı bir dilimi hak ediyor. `listingType` her zaman `fixed_price`'tır
+**KAPSAM (bu oturum, bilinçli):** `listingType` her zaman `fixed_price`'tır
 (`auction`'ın teklif verme/kazanma mantığı domain katmanında hiç yok,
 bkz. domain/market/README.md). İlan süresi (`expiresInHours`) YOK —
 ilanlar süresizdir (`expireListingIfNeeded` hazır ama tetikleyecek
-zamanlanmış bir job yok).
+zamanlanmış bir job yok). Tarama ekranının ata özgü filtreleri (`?breed=&
+minAge=...`) YOK (bkz. "Tara" bölümündeki KAPSAM DIŞI notu).
 
 ## 6. Race (Yarışlar)
 

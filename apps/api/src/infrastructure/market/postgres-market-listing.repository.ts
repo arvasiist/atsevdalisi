@@ -1,7 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import type { Pool } from 'pg';
-import type { ListingStatus, ListingType, MarketListing } from '@at-sevdalisi/shared-types';
-import type { MarketListingRepository } from '../../application/ports/market-listing.repository';
+import type { ListingStatus, ListingType, MarketListing, PaginatedResult } from '@at-sevdalisi/shared-types';
+import type { MarketListingRepository, MarketListingSearchFilter } from '../../application/ports/market-listing.repository';
 import { PG_POOL } from '../database/database.module';
 
 /**
@@ -86,5 +86,61 @@ export class PostgresMarketListingRepository implements MarketListingRepository 
         listing.expiresAt ? new Date(listing.expiresAt) : null,
       ],
     );
+  }
+
+  async search(filter: MarketListingSearchFilter): Promise<PaginatedResult<MarketListing>> {
+    // `0017_add_market_listings_indexes.up.sql`'deki `(status, created_at
+    // DESC)` bileşik indeksi TAM OLARAK bu sorgu şeklini (status'e göre
+    // filtrele, created_at'e göre sırala) karşılamak için eklendi.
+    const conditions: string[] = ['status = $1'];
+    const params: unknown[] = [filter.status];
+    if (filter.minPrice !== undefined) {
+      params.push(filter.minPrice);
+      conditions.push(`price >= $${params.length}`);
+    }
+    if (filter.maxPrice !== undefined) {
+      params.push(filter.maxPrice);
+      conditions.push(`price <= $${params.length}`);
+    }
+    const whereClause = conditions.join(' AND ');
+
+    const countResult = await this.pool.query<{ count: string }>(
+      `SELECT COUNT(*) FROM market_listings WHERE ${whereClause}`,
+      params,
+    );
+    const totalItems = Number(countResult.rows[0]?.count ?? '0');
+
+    const offset = (filter.page - 1) * filter.pageSize;
+    const dataParams = [...params, filter.pageSize, offset];
+    const dataResult = await this.pool.query<MarketListingRow>(
+      `SELECT * FROM market_listings
+       WHERE ${whereClause}
+       ORDER BY created_at DESC
+       LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
+      dataParams,
+    );
+
+    return {
+      items: dataResult.rows.map(rowToListing),
+      meta: {
+        page: filter.page,
+        pageSize: filter.pageSize,
+        totalItems,
+        totalPages: Math.ceil(totalItems / filter.pageSize),
+      },
+    };
+  }
+
+  async findBySellerId(sellerId: string, status?: ListingStatus): Promise<MarketListing[]> {
+    const result = status
+      ? await this.pool.query<MarketListingRow>(
+          'SELECT * FROM market_listings WHERE seller_id = $1 AND status = $2 ORDER BY created_at DESC',
+          [sellerId, status],
+        )
+      : await this.pool.query<MarketListingRow>(
+          'SELECT * FROM market_listings WHERE seller_id = $1 ORDER BY created_at DESC',
+          [sellerId],
+        );
+    return result.rows.map(rowToListing);
   }
 }

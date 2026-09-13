@@ -1,12 +1,52 @@
-import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Inject, Param, ParseUUIDPipe, Post, UseInterceptors } from '@nestjs/common';
-import type { ApiSuccess, MarketListing } from '@at-sevdalisi/shared-types';
+import { BadRequestException, Body, Controller, Delete, Get, HttpCode, HttpStatus, Inject, Param, ParseUUIDPipe, Post, Query, UseInterceptors } from '@nestjs/common';
+import { isUUID } from 'class-validator';
+import type { ApiSuccess, ListingStatus, MarketListing } from '@at-sevdalisi/shared-types';
 import { BuyMarketListingUseCase, type BuyMarketListingResult } from '../../application/use-cases/buy-market-listing.use-case';
 import { CancelMarketListingUseCase } from '../../application/use-cases/cancel-market-listing.use-case';
 import { CreateMarketListingUseCase } from '../../application/use-cases/create-market-listing.use-case';
 import { GetMarketListingUseCase } from '../../application/use-cases/get-market-listing.use-case';
+import { ListMarketListingsBySellerUseCase } from '../../application/use-cases/list-market-listings-by-seller.use-case';
+import { ListMarketListingsUseCase } from '../../application/use-cases/list-market-listings.use-case';
 import { IdempotencyInterceptor } from '../idempotency/idempotency.interceptor';
 import { BuyMarketListingDto } from './dto/buy-market-listing.dto';
 import { CreateMarketListingDto } from './dto/create-market-listing.dto';
+
+const LISTING_STATUSES: readonly ListingStatus[] = ['active', 'sold', 'expired', 'cancelled'];
+
+/** `status` sorgu parametresini doğrular. Verilmemişse `undefined` döner — varsayılan, ÇAĞIRANA aittir (bkz. `listListings`/`listMyListings`). */
+function parseOptionalStatus(raw: string | undefined): ListingStatus | undefined {
+  if (raw === undefined) {
+    return undefined;
+  }
+  if (!LISTING_STATUSES.includes(raw as ListingStatus)) {
+    throw new BadRequestException(`status şunlardan biri olmalıdır: ${LISTING_STATUSES.join(', ')}`);
+  }
+  return raw as ListingStatus;
+}
+
+/** `minPrice`/`maxPrice` gibi negatif olmayan tam sayı sorgu parametrelerini doğrular. */
+function parseOptionalNonNegativeInt(raw: string | undefined, paramName: string): number | undefined {
+  if (raw === undefined) {
+    return undefined;
+  }
+  const value = Number(raw);
+  if (!Number.isInteger(value) || value < 0) {
+    throw new BadRequestException(`${paramName} negatif olmayan bir tam sayı olmalıdır.`);
+  }
+  return value;
+}
+
+/** `page`/`pageSize` gibi 1'den başlayan (opsiyonel üst sınırlı) tam sayı sorgu parametrelerini doğrular. */
+function parseBoundedInt(raw: string | undefined, paramName: string, defaultValue: number, max?: number): number {
+  if (raw === undefined) {
+    return defaultValue;
+  }
+  const value = Number(raw);
+  if (!Number.isInteger(value) || value < 1 || (max !== undefined && value > max)) {
+    throw new BadRequestException(`${paramName}, 1${max !== undefined ? `-${max}` : ''} aralığında bir tam sayı olmalıdır.`);
+  }
+  return value;
+}
 
 /**
  * docs/API.md §5 "Market (At Pazarı)" (brief §30). FAZ 1 wiring, on
@@ -15,7 +55,10 @@ import { CreateMarketListingDto } from './dto/create-market-listing.dto';
  * `purchaseListing`/`cancelListing`) gerçek veritabanına bağlayan İLK
  * dilim; ayrıca `wallet.transfer`'in ve `PlayerRepository.
  * updateTwoWithLock`'un İLK gerçek kullanıcısı (bkz. o use-case'lerin
- * doc yorumları).
+ * doc yorumları). On ikinci dilim — tarama (`listListings`) ve
+ * "İlanlarım" (`listMyListings`) salt-okunur uç noktaları eklendi;
+ * `listListings`, docs/API.md §1.4'te FAZ 0'dan beri belgelenmiş ama
+ * HİÇBİR endpoint'te kullanılmamış sayfalama zarfının İLK kullanıcısıdır.
  *
  * NOT — `docs/ARCHITECTURE.md` §9.1 Hata 6: her bağımlılık açık
  * `@Inject()` ile enjekte edilir.
@@ -27,6 +70,9 @@ export class MarketController {
     @Inject(GetMarketListingUseCase) private readonly getMarketListingUseCase: GetMarketListingUseCase,
     @Inject(BuyMarketListingUseCase) private readonly buyMarketListingUseCase: BuyMarketListingUseCase,
     @Inject(CancelMarketListingUseCase) private readonly cancelMarketListingUseCase: CancelMarketListingUseCase,
+    @Inject(ListMarketListingsUseCase) private readonly listMarketListingsUseCase: ListMarketListingsUseCase,
+    @Inject(ListMarketListingsBySellerUseCase)
+    private readonly listMarketListingsBySellerUseCase: ListMarketListingsBySellerUseCase,
   ) {}
 
   // `PlayerController.register` ile AYNI gerekçeyle 201 Created — bu,
@@ -37,6 +83,54 @@ export class MarketController {
   async createListing(@Body() dto: CreateMarketListingDto): Promise<ApiSuccess<MarketListing>> {
     const listing = await this.createMarketListingUseCase.execute({ horseId: dto.horseId, price: dto.price });
     return { success: true, data: listing };
+  }
+
+  // Tarama (browse) ekranı — `status` verilmezse yalnızca `active` ilanlar
+  // döner (bir alıcının satın ALABİLECEĞİ ilanlar varsayılan görünümdür;
+  // `HorseController.listByOwner` ile AYNI gerekçeyle `@Query()` +
+  // elle doğrulama kullanılır, henüz hiçbir GET uç noktasında bir DTO
+  // sınıfı yok). docs/API.md §1.4'teki sayfalama zarfının İLK kullanıcısı.
+  @Get('listings')
+  async listListings(
+    @Query('status') statusRaw: string | undefined,
+    @Query('minPrice') minPriceRaw: string | undefined,
+    @Query('maxPrice') maxPriceRaw: string | undefined,
+    @Query('page') pageRaw: string | undefined,
+    @Query('pageSize') pageSizeRaw: string | undefined,
+  ): Promise<ApiSuccess<MarketListing[]>> {
+    const status = parseOptionalStatus(statusRaw) ?? 'active';
+    const minPrice = parseOptionalNonNegativeInt(minPriceRaw, 'minPrice');
+    const maxPrice = parseOptionalNonNegativeInt(maxPriceRaw, 'maxPrice');
+    if (minPrice !== undefined && maxPrice !== undefined && minPrice > maxPrice) {
+      throw new BadRequestException('minPrice, maxPrice değerinden büyük olamaz.');
+    }
+    const page = parseBoundedInt(pageRaw, 'page', 1);
+    const pageSize = parseBoundedInt(pageSizeRaw, 'pageSize', 20, 100);
+
+    const result = await this.listMarketListingsUseCase.execute({ status, minPrice, maxPrice, page, pageSize });
+    return { success: true, data: result.items, meta: result.meta };
+  }
+
+  // "İlanlarım" ekranı — `sellerId` (bu projede henüz gerçek bir kimlik
+  // doğrulama/oturum sistemi olmadığından — "Açık kararlar" madde 1 —
+  // AÇIKÇA sorgu parametresi olarak alınır) ZORUNLUDUR. `status`
+  // verilmezse TÜM durumlardaki ilanlar döner (sayfalama YOK — bkz.
+  // `MarketListingRepository.findBySellerId` doc yorumu).
+  //
+  // NOT — bu route `GET /market/listings/:id` ile ÇAKIŞMAZ: NestJS,
+  // rotaları segment SAYISINA göre eşleştirir ("my-listings" tek segment,
+  // "listings/:id" iki segment), bu yüzden bildirim SIRASI önemsizdir.
+  @Get('my-listings')
+  async listMyListings(
+    @Query('sellerId') sellerId: string | undefined,
+    @Query('status') statusRaw: string | undefined,
+  ): Promise<ApiSuccess<MarketListing[]>> {
+    if (!sellerId || !isUUID(sellerId)) {
+      throw new BadRequestException('sellerId geçerli bir UUID olmalıdır.');
+    }
+    const status = parseOptionalStatus(statusRaw);
+    const listings = await this.listMarketListingsBySellerUseCase.execute(sellerId, status);
+    return { success: true, data: listings };
   }
 
   @Get('listings/:id')

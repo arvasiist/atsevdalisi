@@ -11,10 +11,12 @@ import { PG_POOL } from '../../src/infrastructure/database/database.module';
 /**
  * FAZ 1 wiring, on birinci dilim — `POST /market/listings`, `GET
  * /market/listings/:id`, `POST /market/listings/:id/buy`, `DELETE
- * /market/listings/:id` (brief §30 At Pazarı, docs/API.md §5).
- * `stable.e2e-spec.ts`/`race.e2e-spec.ts` ile AYNI bootstrap deseni ve
- * AYNI kısıt (GERÇEK PostgreSQL + Redis gerektirir, bu ortamda
- * ÇALIŞTIRILAMAZ — bkz. docs/ARCHITECTURE.md §9).
+ * /market/listings/:id` (brief §30 At Pazarı, docs/API.md §5). On ikinci
+ * dilim — `GET /market/listings` (tarama) ve `GET /market/my-listings`
+ * (İlanlarım) salt-okunur uç noktaları eklendi. `stable.e2e-spec.ts`/
+ * `race.e2e-spec.ts` ile AYNI bootstrap deseni ve AYNI kısıt (GERÇEK
+ * PostgreSQL + Redis gerektirir, bu ortamda ÇALIŞTIRILAMAZ — bkz.
+ * docs/ARCHITECTURE.md §9).
  *
  * ÖNEMLİ (bkz. docs/ARCHITECTURE.md §9.1 Hata 6): `describe`/`it`/`expect`/
  * `beforeAll`/`afterAll` burada AÇIKÇA `vitest`'ten içe aktarılıyor.
@@ -106,6 +108,196 @@ describe('Market — At Pazarı (e2e)', () => {
       const response = await request(app.getHttpServer())
         .post('/api/v1/market/listings')
         .send({ horseId, price: -100 });
+      expect(response.status).toBe(400);
+    });
+  });
+
+  describe('GET /api/v1/market/listings (tarama)', () => {
+    // NOT — bu describe bloğu tüm dosyanın PAYLAŞTIĞI tek bir veritabanına
+    // yazıyor (diğer test'lerin de ilan oluşturduğu AYNI `market_listings`
+    // tablosu); "tüm ilanları say" gibi TOPLU bir iddia diğer test'lerin
+    // verisiyle KİRLENİR. Bunun yerine her test kendine özgü, ÇOK
+    // OLASILIKSIZ bir fiyat (ör. 61xxxx) kullanır ve `minPrice`/`maxPrice`
+    // ile SADECE o fiyat aralığını sorgular — bu, `LISTING_PRICE = 1000`
+    // gibi diğer test'lerin paylaştığı fiyatlarla ASLA çakışmaz.
+
+    it('status verilmezse yalnızca active durumdaki ilanları döner', async () => {
+      const uniquePrice = 611001;
+      const active = await registerPlayerWithStarterHorse();
+      const activeListing = await request(app.getHttpServer())
+        .post('/api/v1/market/listings')
+        .send({ horseId: active.horseId, price: uniquePrice })
+        .expect(201);
+
+      const cancelled = await registerPlayerWithStarterHorse();
+      const cancelledListing = await request(app.getHttpServer())
+        .post('/api/v1/market/listings')
+        .send({ horseId: cancelled.horseId, price: uniquePrice })
+        .expect(201);
+      await request(app.getHttpServer())
+        .delete(`/api/v1/market/listings/${cancelledListing.body.data.id}`)
+        .expect(200);
+
+      const response = await request(app.getHttpServer()).get(
+        `/api/v1/market/listings?minPrice=${uniquePrice}&maxPrice=${uniquePrice}`,
+      );
+
+      expect(response.status).toBe(200);
+      const ids = response.body.data.map((listing: { id: string }) => listing.id);
+      expect(ids).toContain(activeListing.body.data.id);
+      expect(ids).not.toContain(cancelledListing.body.data.id);
+      expect(response.body.meta.totalItems).toBe(1);
+    });
+
+    it('status verilirse o duruma göre filtreler (ör. cancelled)', async () => {
+      const uniquePrice = 611002;
+      const { horseId } = await registerPlayerWithStarterHorse();
+      const created = await request(app.getHttpServer())
+        .post('/api/v1/market/listings')
+        .send({ horseId, price: uniquePrice })
+        .expect(201);
+      await request(app.getHttpServer()).delete(`/api/v1/market/listings/${created.body.data.id}`).expect(200);
+
+      const response = await request(app.getHttpServer()).get(
+        `/api/v1/market/listings?status=cancelled&minPrice=${uniquePrice}&maxPrice=${uniquePrice}`,
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.body.data).toHaveLength(1);
+      expect(response.body.data[0].id).toBe(created.body.data.id);
+      expect(response.body.data[0].status).toBe('cancelled');
+    });
+
+    it('minPrice/maxPrice fiyat aralığına göre filtreler', async () => {
+      const base = 620000;
+      const low = await registerPlayerWithStarterHorse();
+      const lowListing = await request(app.getHttpServer())
+        .post('/api/v1/market/listings')
+        .send({ horseId: low.horseId, price: base + 1 })
+        .expect(201);
+      const high = await registerPlayerWithStarterHorse();
+      const highListing = await request(app.getHttpServer())
+        .post('/api/v1/market/listings')
+        .send({ horseId: high.horseId, price: base + 100 })
+        .expect(201);
+
+      const response = await request(app.getHttpServer()).get(
+        `/api/v1/market/listings?minPrice=${base + 50}&maxPrice=${base + 200}`,
+      );
+
+      expect(response.status).toBe(200);
+      const ids = response.body.data.map((listing: { id: string }) => listing.id);
+      expect(ids).toContain(highListing.body.data.id);
+      expect(ids).not.toContain(lowListing.body.data.id);
+    });
+
+    it('page/pageSize sayfalama meta bilgisini doğru döner', async () => {
+      const uniquePrice = 633003;
+      await Promise.all(
+        Array.from({ length: 3 }, async () => {
+          const { horseId } = await registerPlayerWithStarterHorse();
+          await request(app.getHttpServer())
+            .post('/api/v1/market/listings')
+            .send({ horseId, price: uniquePrice })
+            .expect(201);
+        }),
+      );
+
+      const firstPage = await request(app.getHttpServer()).get(
+        `/api/v1/market/listings?minPrice=${uniquePrice}&maxPrice=${uniquePrice}&page=1&pageSize=2`,
+      );
+      expect(firstPage.status).toBe(200);
+      expect(firstPage.body.data).toHaveLength(2);
+      expect(firstPage.body.meta).toEqual({ page: 1, pageSize: 2, totalItems: 3, totalPages: 2 });
+
+      const secondPage = await request(app.getHttpServer()).get(
+        `/api/v1/market/listings?minPrice=${uniquePrice}&maxPrice=${uniquePrice}&page=2&pageSize=2`,
+      );
+      expect(secondPage.status).toBe(200);
+      expect(secondPage.body.data).toHaveLength(1);
+      expect(secondPage.body.meta).toEqual({ page: 2, pageSize: 2, totalItems: 3, totalPages: 2 });
+    });
+
+    it('geçersiz bir status için 400 döner', async () => {
+      const response = await request(app.getHttpServer()).get('/api/v1/market/listings?status=not-a-status');
+      expect(response.status).toBe(400);
+    });
+
+    it('minPrice, maxPrice değerinden büyükse 400 döner', async () => {
+      const response = await request(app.getHttpServer()).get('/api/v1/market/listings?minPrice=100&maxPrice=50');
+      expect(response.status).toBe(400);
+    });
+
+    it('pageSize aralık dışıysa (>100) 400 döner', async () => {
+      const response = await request(app.getHttpServer()).get('/api/v1/market/listings?pageSize=101');
+      expect(response.status).toBe(400);
+    });
+
+    it('page 1\'den küçükse 400 döner', async () => {
+      const response = await request(app.getHttpServer()).get('/api/v1/market/listings?page=0');
+      expect(response.status).toBe(400);
+    });
+  });
+
+  describe('GET /api/v1/market/my-listings (İlanlarım)', () => {
+    it('sellerId eksikse 400 döner', async () => {
+      const response = await request(app.getHttpServer()).get('/api/v1/market/my-listings');
+      expect(response.status).toBe(400);
+    });
+
+    it('sellerId geçerli bir UUID değilse 400 döner', async () => {
+      const response = await request(app.getHttpServer()).get('/api/v1/market/my-listings?sellerId=not-a-uuid');
+      expect(response.status).toBe(400);
+    });
+
+    it('hiç ilanı olmayan (var olmayan) bir satıcı için boş dizi döner', async () => {
+      const response = await request(app.getHttpServer()).get(`/api/v1/market/my-listings?sellerId=${randomUUID()}`);
+      expect(response.status).toBe(200);
+      expect(response.body.data).toEqual([]);
+    });
+
+    it('status verilmezse satıcının TÜM durumlardaki ilanlarını döner', async () => {
+      const { horseId, playerId: sellerId } = await registerPlayerWithStarterHorse();
+      const created = await request(app.getHttpServer())
+        .post('/api/v1/market/listings')
+        .send({ horseId, price: 1234 })
+        .expect(201);
+      await request(app.getHttpServer()).delete(`/api/v1/market/listings/${created.body.data.id}`).expect(200);
+
+      const response = await request(app.getHttpServer()).get(`/api/v1/market/my-listings?sellerId=${sellerId}`);
+      expect(response.status).toBe(200);
+      expect(response.body.data).toHaveLength(1);
+      expect(response.body.data[0].id).toBe(created.body.data.id);
+      expect(response.body.data[0].status).toBe('cancelled');
+    });
+
+    it('status verilirse yalnızca o durumdaki ilanları döner', async () => {
+      const { horseId, playerId: sellerId } = await registerPlayerWithStarterHorse();
+      const created = await request(app.getHttpServer())
+        .post('/api/v1/market/listings')
+        .send({ horseId, price: 1234 })
+        .expect(201);
+      await request(app.getHttpServer()).delete(`/api/v1/market/listings/${created.body.data.id}`).expect(200);
+
+      const activeOnly = await request(app.getHttpServer()).get(
+        `/api/v1/market/my-listings?sellerId=${sellerId}&status=active`,
+      );
+      expect(activeOnly.status).toBe(200);
+      expect(activeOnly.body.data).toEqual([]);
+
+      const cancelledOnly = await request(app.getHttpServer()).get(
+        `/api/v1/market/my-listings?sellerId=${sellerId}&status=cancelled`,
+      );
+      expect(cancelledOnly.status).toBe(200);
+      expect(cancelledOnly.body.data).toHaveLength(1);
+      expect(cancelledOnly.body.data[0].id).toBe(created.body.data.id);
+    });
+
+    it('geçersiz bir status için 400 döner', async () => {
+      const sellerId = await registerPlayer();
+      const response = await request(app.getHttpServer()).get(
+        `/api/v1/market/my-listings?sellerId=${sellerId}&status=not-a-status`,
+      );
       expect(response.status).toBe(400);
     });
   });
