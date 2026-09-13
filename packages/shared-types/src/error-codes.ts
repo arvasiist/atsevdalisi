@@ -19,6 +19,10 @@ export const ErrorCode = {
   ListingExpired: 'LISTING_EXPIRED',
   CannotBuyOwnListing: 'CANNOT_BUY_OWN_LISTING',
   InvalidListingPrice: 'INVALID_LISTING_PRICE',
+  // FAZ 1 wiring, on birinci dilim (bu oturum) — bir atın aynı anda
+  // yalnızca tek bir aktif ilanı olabilir (bkz. domain/market/errors.ts
+  // `HorseAlreadyListedError`).
+  HorseAlreadyListed: 'HORSE_ALREADY_LISTED',
   // Faz 2 — Jokey (domain/jockey)
   JockeyAlreadyOwned: 'JOCKEY_ALREADY_OWNED',
   // Faz 2 — Personel (domain/staff)

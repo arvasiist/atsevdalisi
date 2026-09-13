@@ -10,7 +10,7 @@
 | Faz | Adı | Kapsam | Durum |
 |---|---|---|---|
 | **0** | Teknik keşif ve planlama | Repo, mimari, dokümantasyon, DB migration altyapısı, test altyapısı | ✅ Tamamlandı |
-| 1 | Core | Player, Auth, Economy, Horse, Stable, Training, Care, Basic Race Engine, Race Result, Progression | 🟡 Domain katmanı tamam; **Player + Horse (okuma) + Ahır Özeti + Antrenman + Bakım + Ahır Yükseltme (onuncu dilimde Idempotency-Key eklendi) + Günlük Ödül (Economy'nin `debit`+`credit`'i ve satır kilitleme dahil) + Pratik Yarış (temel Race Engine'in İLK orkestrasyonu; dokuzuncu dilimde giriş ücreti + ödül + Idempotency-Key/Redis eklendi) alt-modülleri gerçek veritabanına bağlandı ve CI'da DOĞRULANDI** (bkz. "FAZ 1 wiring" bölümleri — Player: run 34721911139; Horse: run 34723091484 (ilk denemede); Ahır Özeti: run 34723845048 (ilk denemede); Antrenman: run 34726749521 (bir hata bulunup düzeltildikten sonra, ikinci denemede); Bakım: run 34727941441 (ilk denemede); Ahır Yükseltme: run 34731523302 (ilk denemede); Günlük Ödül: run 34732402754 (ilk denemede); Pratik Yarış: run 34733778323 (ilk denemede); Pratik Yarış giriş ücreti/ödül + Idempotency-Key/Redis: run 34737087519 (ilk deneme BAŞARISIZ oldu — run 34735597486 — gerçek bir hata bulunup düzeltildi, İKİNCİ denemede yeşil); Ahır Yükseltme Idempotency-Key sertleştirmesi: kontrol bekleniyor), geri kalanı (Economy'nin `transfer` akışı, gerçek çok oyunculu/programlı Race API) wiring bekliyor |
+| 1 | Core | Player, Auth, Economy, Horse, Stable, Training, Care, Basic Race Engine, Race Result, Progression | 🟡 Domain katmanı tamam; **Player + Horse (okuma) + Ahır Özeti + Antrenman + Bakım + Ahır Yükseltme (onuncu dilimde Idempotency-Key eklendi) + Günlük Ödül (Economy'nin `debit`+`credit`'i ve satır kilitleme dahil) + Pratik Yarış (temel Race Engine'in İLK orkestrasyonu; dokuzuncu dilimde giriş ücreti + ödül + Idempotency-Key/Redis eklendi) + At Pazarı (Economy'nin `transfer`'i + YENİ `updateTwoWithLock` ile ilan oluşturma/satın alma/iptal, on birinci dilim) alt-modülleri gerçek veritabanına bağlandı ve CI'da DOĞRULANDI** (bkz. "FAZ 1 wiring" bölümleri — Player: run 34721911139; Horse: run 34723091484 (ilk denemede); Ahır Özeti: run 34723845048 (ilk denemede); Antrenman: run 34726749521 (bir hata bulunup düzeltildikten sonra, ikinci denemede); Bakım: run 34727941441 (ilk denemede); Ahır Yükseltme: run 34731523302 (ilk denemede); Günlük Ödül: run 34732402754 (ilk denemede); Pratik Yarış: run 34733778323 (ilk denemede); Pratik Yarış giriş ücreti/ödül + Idempotency-Key/Redis: run 34737087519 (ilk deneme BAŞARISIZ oldu — run 34735597486 — gerçek bir hata bulunup düzeltildi, İKİNCİ denemede yeşil); Ahır Yükseltme Idempotency-Key sertleştirmesi: run 34737922897 (ilk denemede); At Pazarı: kontrol bekleniyor), geri kalanı (gerçek çok oyunculu/programlı Race API, At Pazarı'nın filtrelenebilir tarama listesi/`my-listings`) wiring bekliyor |
 | 2 | Management | Horse Market, Buy/Sell, Vet, Farrier, Nutrition, Jockey, Staff, Stable capacity, Costs | 🟡 Domain katmanı tamam, wiring bekliyor |
 | 3 | Genetics | Pedigree, Mare/Stallion, Genetic traits, Inheritance, Mutation, Foal, Growth, Bloodline | 🟡 Domain katmanı tamam, wiring bekliyor |
 | 4 | Farm | Stable upgrade, Paddock, Training track, Vet center, Breeding center, Staff facilities | 🟡 Domain katmanı tamam, wiring bekliyor |
@@ -1537,6 +1537,110 @@ kayan bir sütun); YENİ bir hata YOK, giden bir hata da YOK. Bu, bu
 dilimin `tsc` açısından tertemiz olduğunun, sandbox'ın eksik
 bağımlılıklarından bağımsız bir kanıtıdır. Asıl çalıştırma doğrulaması —
 gerçek Postgres/Redis ile — her zamanki gibi CI'da olacak.
+
+**✅ DOĞRULANDI — CI İLK DENEMEDE baştan sona yeşil.** Commit
+`8c1aba0f476076d3de50ce9de685689ab42f66ed` ("Ahır Yükseltme'ye
+Idempotency-Key eklendi"), CI çalışması `34737922897`: `status:
+completed`, `conclusion: success` (2 dakika 10 saniye) — GitHub REST API
+`check-runs` uç noktasından + zorunlu ikincil çapraz kontrol olarak
+çalışmanın kendi HTML detay sayfasından. 11 açıklama/uyarı var, hepsi
+bilinen/zararsız (Node.js 20 kullanımdan kaldırma uyarısı + "sihirli
+sayı" lint uyarıları) — önceki dilimlerle AYNI kategori, sonucu
+etkilemiyor.
+
+Yedi dilimdir süren "ilk denemede yeşil" serisi (dokuzuncu dilim hariç,
+o da düzeltme sonrası ikinci denemede onaylanmıştı) burada devam etti —
+bu dilimin domain katmanında hiçbir değişiklik olmaması ve mevcut,
+CI'da zaten doğrulanmış bir deseni (RaceModule'deki AYNI
+IdempotencyInterceptor) yeniden kullanması, düşük risk beklentisini
+doğruladı.
+
+## FAZ 1 wiring — On birinci dilim: At Pazarı (bu oturum)
+
+Onuncu dilim onaylandıktan sonra "Devam edelim" onayıyla kararı yine ben
+verdim. Kalan iki büyük madde (Ekonomi'nin `transfer` akışı, gerçek çok
+oyunculu Yarış API'si) arasından Ekonomi'nin `transfer`'ini seçtim —
+ama `transfer`'in doğal kullanım yeri, brief'in kendisinin de işaret
+ettiği gibi, At Pazarı'dır (bir oyuncunun parası doğrudan BAŞKA bir
+oyuncuya gitmesi gereken TEK yer). Bu yüzden dilim aslında "At Pazarı"
+olarak şekillendi: `domain/market/market.ts` FAZ 0'dan beri TAMAMEN
+hazırdı (`createListingDraft`/`purchaseListing`/`cancelListing`,
+`calculateMarketValue`) ama hiçbir application/API katmanı onu hiç
+ÇAĞIRMAMIŞTI — önceki sekiz dilimin (Player/Horse/Stable/Training/Care/
+Race gibi) "zaten hazır domain kuralını gerçek veritabanına bağlama"
+kalıbıyla AYNI kategori.
+
+**Bu dilimde önceki on dilimden FARKLI, YENİ bir zorluk:** önceki TÜM
+para/mülkiyet-değiştiren use-case'ler (Ahır Yükseltme, Günlük Ödül,
+Pratik Yarış) TEK bir oyuncunun KENDİ bakiyesini değiştiriyordu —
+`PlayerRepository.updateWithLock` bunun için yeterliydi. At Pazarı'nda
+satın alma parayı İKİ FARKLI oyuncu arasında (alıcı → satıcı) taşır; bu
+yüzden YENİ bir port metodu eklendi: `PlayerRepository.updateTwoWithLock`
+— `updateWithLock` ile AYNI "kilitle → mutate → aynı transaction'da yaz"
+felsefesi, ama iki satır için. Deadlock'u önlemek için satırlar HER ZAMAN
+id'lerin sözlüksel sırasına göre kilitlenir (argüman sırasından bağımsız,
+`mutate`'e her zaman `(buyer, seller)` sırasıyla verilir) — bkz.
+docs/SECURITY.md §5'e eklenen "İki taraflı transfer" notu.
+
+**Bilinçli kabul edilmiş mimari risk (dokuzuncu dilimdeki `run-practice-
+race.use-case.ts`'in wallet+yarış-kaydı deseniyle AYNI kategori):**
+`updateTwoWithLock`'un transaction'ı yalnızca `players` tablosunu kapsar
+— para transferi BAŞARILI olduktan SONRA, AYRI iki adımda (1) atın
+`ownerId`'si alıcıya geçer, (2) ilan `sold` yapılır. `market_listings`
+satırı da kilitlenmeden (`FOR UPDATE` OLMADAN) okunur — bu yüzden AYNI
+ilana iki FARKLI alıcının TAM olarak aynı anda `buy` çağırması (bu
+projenin henüz gerçek eşzamanlı bir kullanıcı tabanı olmadığından son
+derece nadir bir senaryo) teorik olarak bir yarış durumuna yol açabilir.
+Bu, `IdempotencyInterceptor`'ın KENDİ "dağıtık kilit yok" sınırlamasıyla
+AYNI kategori, bilinçli kabul edilmiş bir risktir — ayrı bir sertleştirme
+dilimini hak eder.
+
+**Bulunan ve bu dilimde KAPSAMA ALINAN bir eksik:** `HorseRepository.update`
+(Antrenman'dan beri var olan genel amaçlı metod) `owner_id`'yi HİÇ
+YAZMIYORDU (yalnızca health/fitness/fatigue/energy/morale/weight/status/
+level/xp) — at satışının çalışabilmesi için bu alan eklendi. Önceki ÜÇ
+çağıranın (Antrenman/Bakım/Besleme) hiçbiri `ownerId`'yi hiç DEĞİŞTİRMEDİĞİ
+için (hepsi `{ ...horse, ... }` ile aynı değeri geri yazar) bu, onlar için
+davranışı DEĞİŞTİRMEZ.
+
+**Sonuçta wiring edilen dört uç nokta** (docs/API.md §5): `POST
+/market/listings` (ilan oluştur — `sellerId` gövdeden ALINMAZ, atın
+`ownerId`'sinden türetilir), `GET /market/listings/{id}`, `POST
+/market/listings/{id}/buy` (Idempotency-Key ZORUNLU — `transfer`'in ve
+`updateTwoWithLock`'un İLK kullanıcısı), `DELETE /market/listings/{id}`
+(iptal).
+
+**KAPSAM DIŞI (bilinçli, bu dilim):** `GET /market/horses` (filtrelenebilir
+tarama listesi) ve `GET /market/my-listings` — salt-okunur, UI-ağırlıklı
+ekranlar, ayrı bir dilimi hak ediyor; `auction` listingType (teklif
+verme/kazanma mantığı domain katmanında hiç yok); ilan süresi
+(`expiresInHours`, `expireListingIfNeeded` hazır ama tetikleyecek job
+yok); `DELETE` için yetkilendirme (bu projede HİÇBİR uç noktada henüz
+gerçek bir oturum sistemi yok — bu dilime özgü bir boşluk değil, bkz.
+"Açık kararlar" madde 1).
+
+Testler: YENİ `apps/api/test/api/market.e2e-spec.ts` — 17 senaryo (ilan
+oluşturma: başarılı/at-bulunamadı/zaten-ilanlı/geçersiz-fiyat [4]; okuma:
+başarılı/bulunamadı/geçersiz-id [3]; satın alma: başarılı-ve-DB'de-doğrulanmış/
+header-eksik/tekrar-anahtarı/kendi-ilanını-alma/yetersiz-bakiye/zaten-
+satılmış/bulunamadı [7]; iptal: başarılı/bulunamadı/zaten-aktif-değil [3]).
+Domain katmanında hiçbir değişiklik olmadığından yeni bir birim testi
+GEREKMEDİ (`market.spec.ts`/`wallet.spec.ts` zaten `purchaseListing`/
+`transfer`'i FAZ 0'dan beri kapsıyor).
+
+Doğrulama şekli önceki (onuncu) dilimle AYNI: sandbox `node_modules`
+içermiyor, bu yüzden değişiklik öncesi/sonrası `tsc` çıktıları (`src`
++ `test` dahil geniş bir tarama) karşılaştırıldı. Bu kez GERÇEK bir fark
+da bulundu ve düzeltildi: `updateTwoWithLock`'taki `[buyerId,
+sellerId].sort()` sonucunu array destructuring ile almak
+`noUncheckedIndexedAccess` altında `string | undefined` tipi veriyordu
+(TypeScript sabit-2-elemanlı bir dizinin sıralandıktan sonra da HÂLÂ 2
+eleman olduğunu statik olarak bilemez) — doğrudan karşılaştırmaya
+(`buyerId <= sellerId ? ... : ...`) çevrilerek düzeltildi, array
+indeksleme hiç kullanılmadan. Düzeltmeden SONRA, kalan TÜM farklar
+sandbox'ın eksik bağımlılıklarından (missing `@nestjs/*`/`node:crypto`
+tipleri) kaynaklanan, önceki dilimlerde de görülen AYNI gürültü
+kategorisiydi — YENİ bir hata YOK.
 
 *(Bu bölüm, CI sonucu geldiğinde "✅ DOĞRULANDI" paragrafıyla
 güncellenecek.)*

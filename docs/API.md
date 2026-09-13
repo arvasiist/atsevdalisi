@@ -54,18 +54,23 @@ Aynı anahtar ile ikinci istek geldiğinde, işlem tekrar çalıştırılmaz;
 ilk işlemin sonucu aynen döndürülür (Redis'te `idempotency:{key}` olarak
 kısa süreli, örn. 24 saat, saklanır).
 
-**Gerçek implementasyon (FAZ 1 wiring, dokuzuncu dilim, bu oturum):**
+**Gerçek implementasyon (FAZ 1 wiring, dokuzuncu dilim):**
 `api/idempotency/idempotency.interceptor.ts` — `POST /horses/{id}/practice-race`
-İLK gerçek kullanıcısı. Anahtar formatı GERÇEKTE `idempotency:{scopeId}:{key}`
-şeklindedir; `{scopeId}` URL'deki birincil kaynak kimliğidir (`req.params.id`)
-— oyuncu kaynaklarında bu `playerId`'nin AYNISIDIR, at-sahipli kaynaklarda
-(Pratik Yarış gibi) `horseId`'dir (bir at yalnızca TEK bir oyuncuya ait
-olduğundan replay çakışmasını önlemek için yeterlidir). Yalnızca BAŞARILI
-(2xx) yanıtlar önbelleğe alınır; bir domain hatası önbelleğe ALINMAZ, bu
-yüzden istemci sorunu düzeltip AYNI anahtarla tekrar deneyebilir. Bilinçli
-sınırlama: aynı anahtarla GERÇEKTEN eşzamanlı (aynı milisaniyede çakışan)
-iki isteğe karşı tam bir dağıtık kilit YOK — bkz. interceptor'ın kendi doc
-yorumu.
+İLK gerçek kullanıcısı; onuncu dilimde `POST /players/{id}/stable/upgrade`,
+on birinci dilimde `POST /market/listings/{id}/buy` de eklendi. Anahtar
+formatı GERÇEKTE `idempotency:{scopeId}:{key}` şeklindedir; `{scopeId}`
+URL'deki birincil kaynak kimliğidir (`req.params.id`) — oyuncu
+kaynaklarında (Ahır Yükseltme) bu `playerId`'nin AYNISIDIR, at-sahipli
+kaynaklarda (Pratik Yarış) `horseId`'dir (bir at yalnızca TEK bir oyuncuya
+ait olduğundan replay çakışmasını önlemek için yeterlidir), ilan-sahipli
+kaynaklarda (At Pazarı satın alma) `listingId`'dir (bir ilanın satın
+alınması yalnızca BİR kez gerçekleşebileceğinden — `sold` olduktan sonra
+zaten `409 LISTING_NOT_ACTIVE` döner — bu da yeterlidir). Yalnızca
+BAŞARILI (2xx) yanıtlar önbelleğe alınır; bir domain hatası önbelleğe
+ALINMAZ, bu yüzden istemci sorunu düzeltip AYNI anahtarla tekrar
+deneyebilir. Bilinçli sınırlama: aynı anahtarla GERÇEKTEN eşzamanlı
+(aynı milisaniyede çakışan) iki isteğe karşı tam bir dağıtık kilit YOK —
+bkz. interceptor'ın kendi doc yorumu.
 
 ### 1.4 Sayfalama
 
@@ -529,17 +534,103 @@ Tasarım kararları (bkz. `application/use-cases/run-practice-race.use-case.ts`
 
 ## 5. Market (At Pazarı)
 
+**Uygulama durumu (FAZ 1 wiring, on birinci dilim, bu oturum):** aşağıdaki
+DÖRT uç nokta gerçek veritabanına bağlandı; filtrelenebilir tarama listesi
+(`GET /market/horses`) ve `GET /market/my-listings` henüz wiring
+EDİLMEDİ (bkz. bu bölümün sonundaki KAPSAM notu).
+
 ```http
-GET    /api/v1/market/horses              # filtrelenebilir liste (brief §30)
-GET    /api/v1/market/horses/{listingId}
 POST   /api/v1/market/listings            # ilan oluştur (oyuncu satışı)
+GET    /api/v1/market/listings/{id}
 POST   /api/v1/market/listings/{id}/buy   # satın al — Idempotency-Key zorunlu
-DELETE /api/v1/market/listings/{id}       # ilanı kaldır
-GET    /api/v1/market/my-listings         # kendi ilanlarım (brief §70 "Satışlarım")
+DELETE /api/v1/market/listings/{id}       # ilanı iptal et
 ```
 
-Filtre parametreleri (brief §30, §70): `?breed=&minAge=&maxAge=&surface=
-&distance=&listingType=&minPrice=&maxPrice=&sortBy=`.
+`domain/market/market.ts`'teki `createListingDraft`/`purchaseListing`/
+`cancelListing` FAZ 0'dan beri hazırdı (bkz. domain/market/README.md);
+bu dilim onları gerçek `HorseRepository`/`PlayerRepository`/YENİ
+`MarketListingRepository`'ye bağlayan İLK dilimdir. Bu AYRICA
+`domain/economy/wallet.ts`'teki `transfer`'in ve YENİ
+`PlayerRepository.updateTwoWithLock`'un (bkz. docs/SECURITY.md §5) İLK
+gerçek kullanıcısıdır — projenin PARA değiştiren İLK ÇOK-taraflı
+(iki OYUNCU arasında) use-case'i.
+
+**İlan oluştur:**
+
+```json
+POST /api/v1/market/listings
+{ "horseId": "...", "price": 5000 }
+```
+
+`sellerId` GÖNDERİLMEZ — atın `ownerId`'sinden türetilir. Örnek yanıt
+(`201 Created`):
+
+```json
+{
+  "success": true,
+  "data": {
+    "id": "...", "sellerId": "...", "horseId": "...", "price": 5000,
+    "listingType": "fixed_price", "status": "active",
+    "createdAt": "...", "expiresAt": null
+  }
+}
+```
+
+Olası hata: at bulunamazsa `404 HORSE_NOT_FOUND`; at zaten aktif bir
+ilana sahipse `409 HORSE_ALREADY_LISTED` (bir atın aynı anda yalnızca
+TEK aktif ilanı olabilir); fiyat negatif/tam sayı değilse `400
+INVALID_LISTING_PRICE`.
+
+**Satın al:**
+
+```http
+POST /api/v1/market/listings/{id}/buy
+Idempotency-Key: 5f2e1c2a-...-b3d9
+{ "buyerId": "..." }
+```
+
+`buyerId` AÇIKÇA gönderilir (bu projede henüz gerçek bir kimlik
+doğrulama/oturum sistemi olmadığından — bkz. "Açık kararlar" madde 1 —
+alıcı, satılan atın/ilanın URL'sinden TÜRETİLEMEZ). Örnek yanıt:
+
+```json
+{
+  "success": true,
+  "data": {
+    "listing": { "...": "...", "status": "sold" },
+    "buyerBalance": { "money": 4000, "gems": 50 },
+    "sellerBalance": { "money": 9500, "gems": 50 }
+  }
+}
+```
+
+Sıralama: para transferi (`transfer`) + iki oyuncunun satırlarının
+kilitlenmesi TEK bir `updateTwoWithLock` transaction'ında olur; BAŞARILI
+olursa AYRI iki adımda atın `ownerId`'si alıcıya geçer ve ilan `sold`
+olur (bkz. `BuyMarketListingUseCase` doc yorumundaki kabul edilmiş risk
+notu — `RunPracticeRaceUseCase`'in wallet+yarış kaydı deseniyle AYNI
+kategori). Olası hata: ilan bulunamazsa `404 LISTING_NOT_FOUND`; ilan
+`active` değilse (zaten satılmış/iptal edilmiş) `409 LISTING_NOT_ACTIVE`;
+süresi dolmuşsa `409 LISTING_EXPIRED`; kendi ilanını almaya çalışırsa
+`400 CANNOT_BUY_OWN_LISTING`; alıcının bakiyesi yetersizse `409
+INSUFFICIENT_FUNDS` (hiçbir şey yazılmaz); `Idempotency-Key` eksikse
+`400 IDEMPOTENCY_KEY_REQUIRED`.
+
+**İptal et:** `DELETE /market/listings/{id}` — ilanı `cancelled` yapar.
+Olası hata: `404 LISTING_NOT_FOUND`, zaten aktif değilse `409
+LISTING_NOT_ACTIVE`. **Bilinçli sınırlama:** yetkilendirme (yalnızca
+ilanın sahibi iptal edebilmeli) YOK — bkz. `CancelMarketListingUseCase`
+doc yorumu (bu projede HİÇBİR uç noktada henüz gerçek bir oturum sistemi
+yok, bu dilime özgü bir boşluk değil).
+
+**KAPSAM (bu dilim, bilinçli):** `GET /market/horses` (filtrelenebilir
+tarama listesi, brief §30/§70'in `?breed=&minAge=...` parametreleri) ve
+`GET /market/my-listings` YOK — bunlar salt-okunur, UI-ağırlıklı ekranlar,
+ayrı bir dilimi hak ediyor. `listingType` her zaman `fixed_price`'tır
+(`auction`'ın teklif verme/kazanma mantığı domain katmanında hiç yok,
+bkz. domain/market/README.md). İlan süresi (`expiresInHours`) YOK —
+ilanlar süresizdir (`expireListingIfNeeded` hazır ama tetikleyecek
+zamanlanmış bir job yok).
 
 ## 6. Race (Yarışlar)
 
@@ -675,3 +766,8 @@ lobby.update       — online yarış lobisi (brief §41)
 | `CARE_ACTION_ON_COOLDOWN` | Bakım eylemi cooldown süresi dolmadan tekrar istendi (FAZ 1 wiring, beşinci dilim) |
 | `MAX_STABLE_LEVEL_REACHED` | Ahır zaten en yüksek seviyede, daha fazla yükseltilemez (FAZ 1 wiring, altıncı dilim) |
 | `DAILY_REWARD_ALREADY_CLAIMED` | Günlük ödül cooldown süresi dolmadan tekrar talep edildi (FAZ 1 wiring, yedinci dilim) |
+| `INVALID_LISTING_PRICE` | Pazar ilanı fiyatı negatif veya tam sayı değil (FAZ 1 wiring, on birinci dilim) |
+| `CANNOT_BUY_OWN_LISTING` | Oyuncu kendi pazar ilanını satın almaya çalıştı (FAZ 1 wiring, on birinci dilim) |
+| `LISTING_NOT_ACTIVE` | Pazar ilanı aktif değil — zaten satılmış/iptal edilmiş (FAZ 1 wiring, on birinci dilim) |
+| `LISTING_EXPIRED` | Pazar ilanının süresi dolmuş (FAZ 1 wiring, on birinci dilim) |
+| `HORSE_ALREADY_LISTED` | Bu ata ait zaten aktif bir pazar ilanı var (FAZ 1 wiring, on birinci dilim) |
