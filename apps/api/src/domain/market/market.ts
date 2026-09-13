@@ -12,10 +12,12 @@ import type { EconomyConfig } from '@at-sevdalisi/game-config';
 import type { ListingType, MarketListing } from '@at-sevdalisi/shared-types';
 import {
   CannotBuyOwnListingError,
+  InvalidListingExpiryError,
   InvalidListingPriceError,
   ListingExpiredError,
   ListingNotActiveError,
 } from './errors';
+import { MAX_LISTING_EXPIRY_HOURS, MIN_LISTING_EXPIRY_HOURS } from './validation';
 
 /** Bir ilanın "değer puanı"nı (0-100 civarı) gerçek paraya çevirmeden önceki girdileri. */
 export interface MarketValueInput {
@@ -98,6 +100,14 @@ export function createListingDraft(input: CreateListingInput): MarketListing {
   if (!Number.isFinite(input.price) || input.price < 0 || !Number.isInteger(input.price)) {
     throw new InvalidListingPriceError(input.price);
   }
+  if (
+    input.expiresInHours !== undefined &&
+    (!Number.isInteger(input.expiresInHours) ||
+      input.expiresInHours < MIN_LISTING_EXPIRY_HOURS ||
+      input.expiresInHours > MAX_LISTING_EXPIRY_HOURS)
+  ) {
+    throw new InvalidListingExpiryError(input.expiresInHours);
+  }
 
   const now = input.now ?? new Date();
   const expiresAt =
@@ -178,7 +188,17 @@ export function cancelListing(listing: MarketListing): MarketListing {
   return { ...listing, status: 'cancelled' };
 }
 
-/** Süresi dolmuş ama hâlâ `active` görünen ilanları `expired`'a çevirir (zamanlanmış bir job tarafından çağrılması beklenir). */
+/**
+ * Süresi dolmuş ama hâlâ `active` görünen ilanları `expired`'a çevirir.
+ *
+ * FAZ 1 wiring, on üçüncü dilim (bu oturum) — bu SAF fonksiyon FAZ 0'dan
+ * beri hazırdı, bu dilimde İLK KEZ gerçekten çağrılıyor:
+ * `PostgresMarketListingRepository`'nin TEMBEL (lazy) süpürmesi tarafından
+ * (bkz. o dosyanın `sweepExpiredListings` doc yorumu) — projede henüz
+ * gerçek bir zamanlanmış görev (cron/scheduler) altyapısı YOK, bu yüzden
+ * "her okumadan önce süpür" deseni tercih edildi (KARAR, bkz.
+ * docs/ROADMAP.md).
+ */
 export function expireListingIfNeeded(listing: MarketListing, now: Date = new Date()): MarketListing {
   if (listing.status === 'active' && isListingExpired(listing, now)) {
     return { ...listing, status: 'expired' };

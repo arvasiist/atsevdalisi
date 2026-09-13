@@ -10,7 +10,7 @@
 | Faz | Adı | Kapsam | Durum |
 |---|---|---|---|
 | **0** | Teknik keşif ve planlama | Repo, mimari, dokümantasyon, DB migration altyapısı, test altyapısı | ✅ Tamamlandı |
-| 1 | Core | Player, Auth, Economy, Horse, Stable, Training, Care, Basic Race Engine, Race Result, Progression | 🟡 Domain katmanı tamam; **Player + Horse (okuma) + Ahır Özeti + Antrenman + Bakım + Ahır Yükseltme (onuncu dilimde Idempotency-Key eklendi) + Günlük Ödül (Economy'nin `debit`+`credit`'i ve satır kilitleme dahil) + Pratik Yarış (temel Race Engine'in İLK orkestrasyonu; dokuzuncu dilimde giriş ücreti + ödül + Idempotency-Key/Redis eklendi) + At Pazarı (Economy'nin `transfer`'i + YENİ `updateTwoWithLock` ile ilan oluşturma/satın alma/iptal, on birinci dilim; tarama + "İlanlarım", on ikinci dilim) alt-modülleri gerçek veritabanına bağlandı** (bkz. "FAZ 1 wiring" bölümleri — Player: run 34721911139; Horse: run 34723091484 (ilk denemede); Ahır Özeti: run 34723845048 (ilk denemede); Antrenman: run 34726749521 (bir hata bulunup düzeltildikten sonra, ikinci denemede); Bakım: run 34727941441 (ilk denemede); Ahır Yükseltme: run 34731523302 (ilk denemede); Günlük Ödül: run 34732402754 (ilk denemede); Pratik Yarış: run 34733778323 (ilk denemede); Pratik Yarış giriş ücreti/ödül + Idempotency-Key/Redis: run 34737087519 (ilk deneme BAŞARISIZ oldu — run 34735597486 — gerçek bir hata bulunup düzeltildi, İKİNCİ denemede yeşil); Ahır Yükseltme Idempotency-Key sertleştirmesi: run 34737922897 (ilk denemede); At Pazarı (on birinci dilim): run 34769577514 (ilk denemede); At Pazarı tarama/İlanlarım (on ikinci dilim): run 34770923029 (ilk denemede)) — **on iki dilimin TÜMÜ CI'da DOĞRULANDI**, geri kalanı (gerçek çok oyunculu/programlı Race API, At Pazarı'nın ata özgü tarama filtreleri) wiring bekliyor |
+| 1 | Core | Player, Auth, Economy, Horse, Stable, Training, Care, Basic Race Engine, Race Result, Progression | 🟡 Domain katmanı tamam; **Player + Horse (okuma) + Ahır Özeti + Antrenman + Bakım + Ahır Yükseltme (onuncu dilimde Idempotency-Key eklendi) + Günlük Ödül (Economy'nin `debit`+`credit`'i ve satır kilitleme dahil) + Pratik Yarış (temel Race Engine'in İLK orkestrasyonu; dokuzuncu dilimde giriş ücreti + ödül + Idempotency-Key/Redis eklendi) + At Pazarı (Economy'nin `transfer`'i + YENİ `updateTwoWithLock` ile ilan oluşturma/satın alma/iptal, on birinci dilim; tarama + "İlanlarım", on ikinci dilim; ilan süresi dolma/expiry + `expiresInHours`, on üçüncü dilim) alt-modülleri gerçek veritabanına bağlandı** (bkz. "FAZ 1 wiring" bölümleri — Player: run 34721911139; Horse: run 34723091484 (ilk denemede); Ahır Özeti: run 34723845048 (ilk denemede); Antrenman: run 34726749521 (bir hata bulunup düzeltildikten sonra, ikinci denemede); Bakım: run 34727941441 (ilk denemede); Ahır Yükseltme: run 34731523302 (ilk denemede); Günlük Ödül: run 34732402754 (ilk denemede); Pratik Yarış: run 34733778323 (ilk denemede); Pratik Yarış giriş ücreti/ödül + Idempotency-Key/Redis: run 34737087519 (ilk deneme BAŞARISIZ oldu — run 34735597486 — gerçek bir hata bulunup düzeltildi, İKİNCİ denemede yeşil); Ahır Yükseltme Idempotency-Key sertleştirmesi: run 34737922897 (ilk denemede); At Pazarı (on birinci dilim): run 34769577514 (ilk denemede); At Pazarı tarama/İlanlarım (on ikinci dilim): run 34770923029 (ilk denemede); At Pazarı ilan süresi dolma (on üçüncü dilim): kontrol bekleniyor) — **on iki dilim CI'da DOĞRULANDI, on üçüncü dilim gönderildi**, geri kalanı (gerçek çok oyunculu/programlı Race API, At Pazarı'nın ata özgü tarama filtreleri) wiring bekliyor |
 | 2 | Management | Horse Market, Buy/Sell, Vet, Farrier, Nutrition, Jockey, Staff, Stable capacity, Costs | 🟡 Domain katmanı tamam, wiring bekliyor |
 | 3 | Genetics | Pedigree, Mare/Stallion, Genetic traits, Inheritance, Mutation, Foal, Growth, Bloodline | 🟡 Domain katmanı tamam, wiring bekliyor |
 | 4 | Farm | Stable upgrade, Paddock, Training track, Vet center, Breeding center, Staff facilities | 🟡 Domain katmanı tamam, wiring bekliyor |
@@ -1735,7 +1735,88 @@ hem de çalışmanın kendi iş (job) detay sayfasıyla (run 34770923029, job
 103760248177) çapraz kontrol edilerek doğrulandı. Bu, docs/API.md §1.4'te
 FAZ 0'dan beri belgelenmiş sayfalama zarfının gerçek veritabanına karşı
 sorunsuz çalıştığının kanıtlanmış onayıdır — Faz 1 wiring'in bu
-oturumdaki on ikinci ve son parçası tamamlandı.
+oturumdaki on ikinci parçası tamamlandı.
+
+## FAZ 1 wiring — On üçüncü dilim: At Pazarı'nda ilan süresi dolma (expiry) (bu oturum)
+
+On ikinci dilim onaylandıktan sonra "Sana bırakıyorum" onayıyla kararı
+yine ben verdim. Kalan iki büyük parçadan (gerçek çok oyunculu/programlı
+Yarış API'si, At Pazarı'nın küçük geri kalan boşlukları) ikincisini,
+üstelik onun da EN küçük parçasını seçtim: Yarış API'si (eşleştirme,
+gerçek katılımcılardan ödül havuzu) kendi başına yeni bir mimari tasarım
+gerektiren BÜYÜK bir dilim, oysa `domain/market/market.ts`'teki
+`expireListingIfNeeded` FAZ 0'dan beri hazır ama HİÇBİR YER onu
+çağırmıyordu — hazır-ama-kullanılmayan altyapıyı hayata geçirme
+desenine (Idempotency-Key, sayfalama zarfıyla AYNI kategori) bir örnek
+daha, düşük riskli ve dar kapsamlı.
+
+**Sırada BEKLENMEYEN bir keşif:** `expireListingIfNeeded`'i wiring
+etmeye başlarken `CreateMarketListingUseCase`'in doc yorumunun açıkça
+"`expiresInHours` YOK — ilanlar süresizdir" dediği fark edildi — yani
+API'den HİÇBİR şekilde süreli bir ilan oluşturmanın yolu yoktu. Bu
+dilim bu yüzden İKİ parçaya ayrıldı: (1) `POST /market/listings`'e
+opsiyonel `expiresInHours` eklemek (`domain/market/market.ts`'teki
+`createListingDraft` bunu FAZ 0'dan beri KABUL EDİYORDU ama hiç
+DOĞRULAMIYORDU da — bu dilim `InvalidListingExpiryError` ile bunu da
+ekledi, `InvalidListingPriceError` ile AYNI desen); (2) süresi dolan
+ilanları gerçekten `expired`'a çevirmek.
+
+**Tasarım kararı — zamanlanmış görev (cron) yerine tembel (lazy)
+süpürme:** projede henüz `@nestjs/schedule` veya benzeri bir zamanlanmış
+görev altyapısı yok; bunu eklemek başlı başına ayrı bir altyapı kararı
+olurdu (AYRICA bu oturumun sandbox'ı `npm` registry'sine erişemiyor —
+yeni bir bağımlılığın `package-lock.json`'ını elle, güvenilir şekilde
+güncellemek mümkün değildi). Bunun yerine `PostgresMarketListingRepository`'ye
+`sweepExpiredListings` adında özel bir metod eklendi: ilanları dışa açan
+HER okuma yolundan (`findById`/`findActiveByHorseId`/`search`/
+`findBySellerId`) ÖNCE çalışır, süresi geçmiş `active` ilanları bulup
+SAF `expireListingIfNeeded` fonksiyonundan geçirip `expired`'a günceller.
+Gözlemlenebilir davranış bir arka plan işiyle AYNI (istemci süresi dolmuş
+bir ilanı asla `active` görmez) — yeni bağımlılık veya arka plan süreci
+YOK. `application/ports/market-listing.repository.ts`'e bu SÖZLEŞMEYİ
+(her implementasyonun süpürmesi gerektiğini) belgeleyen bir not eklendi.
+
+**Bilinçli, belgelenmiş bir yan etki:** `findById`'nin de süpürmesi,
+`BuyMarketListingUseCase`'in gördüğü listing'i de kapsar — süresi zaten
+dolmuş bir ilanı satın almaya çalışmak artık `purchaseListing`'in KENDİ
+`isListingExpired` kontrolüne hiç ulaşamaz (status süpürmeyle ÖNCEDEN
+`expired`'a çevrilmiş olur), bu yüzden `409 LISTING_EXPIRED` yerine `409
+LISTING_NOT_ACTIVE` döner (mesajda "durum: expired" hâlâ açıkça
+belirtilir — bilgi kaybı yok, yalnızca hata SINIFI değişti). `docs/API.md`
+§5'e bu davranış açıkça not edildi.
+
+**Ayrıca fark edilip düzeltilen bir gerçek hata potansiyeli:**
+`findActiveByHorseId`'nin de süpürmesi sayesinde, süresi YENİ dolmuş
+eski bir ilan artık `CreateMarketListingUseCase`'in "bu at zaten aktif
+bir ilana sahip" kontrolünü YANLIŞLIKLA tetiklemez — `expiresInHours`
+bu dilimden ÖNCE hiç var olmadığından bu hata daha önce hiç ORTAYA
+ÇIKAMAZDI, ama `expiresInHours`'ı eklerken bu boşluğu AYNI ANDA kapatmak
+gerekiyordu.
+
+**Sınır değeri:** `domain/market/validation.ts` (YENİ, `domain/training/
+validation.ts` ile AYNI desen) `MIN_LISTING_EXPIRY_HOURS = 1`,
+`MAX_LISTING_EXPIRY_HOURS = 720` (30 gün) tanımlar — DTO ve domain
+fonksiyonu bu TEK kaynaktan içe aktarır, sabit iki yerde YAZILMAZ.
+
+Testler: `apps/api/test/api/market.e2e-spec.ts`'e 8 yeni senaryo eklendi
+(ilan oluşturma: `expiresInHours` ile gelecekte bir `expiresAt`/aralık
+dışı değer için 400 [3]; tarama: süresi dolmuş ilan active'te
+görünmez + expired'da görünür + DB'de gerçekten güncellenir [1];
+İlanlarım: süresi dolmuş ilan status verilmeden expired görünür
+(`findBySellerId` yolu ayrıca test edildi) [1]; ilan detayı: süresi
+dolmuş ilan `expired` döner (`findById` yolu) [1]; satın alma: süresi
+dolmuş bir ilan `409 LISTING_NOT_ACTIVE` ile reddedilir, hiçbir şey
+değişmez [1]; ilan oluşturma: süresi dolmuş eski ilan varken aynı at
+için YENİ ilan oluşturulabilir (`findActiveByHorseId` yolu) [1]).
+`domain/market/market.spec.ts`'e de `InvalidListingExpiryError` için 3
+yeni birim testi eklendi (sıfır/negatif, üst sınırı aşan, tam sayı
+olmayan `expiresInHours`) — toplamda bu dilimde 11 yeni test (8 e2e + 3
+birim).
+
+Doğrulama şekli önceki dilimlerle AYNI: sandbox `node_modules` içermiyor
+(bu segment de tamamen sıfırlanmış haldeydi), bu yüzden değişiklik
+öncesi/sonrası `tsc` çıktıları (`src` + `test` dahil geniş bir tarama)
+karşılaştırıldı.
 
 ## Açık kararlar (proje sahibinin onayı bekleniyor)
 

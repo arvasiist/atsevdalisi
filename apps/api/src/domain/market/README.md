@@ -44,3 +44,16 @@ doğrudan `MarketListingRepository.search`/`findBySellerId`'den gelir —
 bkz. `application/ports/market-listing.repository.ts`). `docs/API.md`
 §1.4'te FAZ 0'dan beri belgelenmiş sayfalama zarfının İLK gerçek
 kullanıcısı `search`'tür.
+
+## FAZ 1 wiring, on üçüncü dilim — ilan süresi dolma (expiry) (bu oturum)
+
+İKİ değişiklik: (1) `createListingDraft` artık `expiresInHours`'ı
+gerçekten DOĞRULUYOR (`InvalidListingExpiryError`, YENİ — sınırlar
+`validation.ts`'te); FAZ 0'dan beri parametre kabul ediyordu ama hiçbir
+çağıran onu göndermiyordu, bu yüzden bu dal hiç ÇALIŞMAMIŞTI. (2)
+`expireListingIfNeeded` (FAZ 0'dan beri hazır SAF fonksiyon) BURADA İLK
+KEZ gerçekten ÇAĞRILIYOR — `infrastructure/market/postgres-market-listing.
+repository.ts`'in TEMBEL süpürmesi tarafından (bkz. o dosyanın doc
+yorumu; projede henüz bir zamanlanmış görev/cron altyapısı olmadığından
+tercih edilen KARAR). Bu dosyadaki fonksiyonların KENDİSİ yine hiç
+değişmedi — sadece artık gerçekten kullanılıyorlar.

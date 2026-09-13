@@ -16,6 +16,7 @@ import { InvalidRaceTacticError } from '../../domain/race/errors';
 import {
   CannotBuyOwnListingError,
   HorseAlreadyListedError,
+  InvalidListingExpiryError,
   InvalidListingPriceError,
   ListingExpiredError,
   ListingNotActiveError,
@@ -91,6 +92,11 @@ const DOMAIN_ERROR_MAP = new Map<ErrorClassConstructor, { status: number; code: 
   // DOĞRULAMA hatasıdır (Hata 7 ilkesiyle AYNI, 400); `CannotBuyOwnListingError`
   // da yapısal bir istek hatasıdır (kalıcı, tekrar denemekle DÜZELMEZ), 400.
   [InvalidListingPriceError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.InvalidListingPrice }],
+  // FAZ 1 wiring, on üçüncü dilim — `InvalidListingPriceError` ile AYNI
+  // gerekçe/desen (gerçek bir DOĞRULAMA hatası, 400), kendi bespoke
+  // `ErrorCode.InvalidListingExpiry`'siyle (sibling hata sınıfıyla AYNI
+  // dosyada, AYNI kategori).
+  [InvalidListingExpiryError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.InvalidListingExpiry }],
   [CannotBuyOwnListingError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.CannotBuyOwnListing }],
   [ListingNotFoundError, { status: HttpStatus.NOT_FOUND, code: ErrorCode.ListingNotFound }],
   // "Aktif değil"/"süresi dolmuş" GEÇİCİ/duruma-bağlı engellerdir —

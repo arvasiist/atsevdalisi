@@ -2,6 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import type { Pool } from 'pg';
 import type { ListingStatus, ListingType, MarketListing, PaginatedResult } from '@at-sevdalisi/shared-types';
 import type { MarketListingRepository, MarketListingSearchFilter } from '../../application/ports/market-listing.repository';
+import { expireListingIfNeeded } from '../../domain/market/market';
 import { PG_POOL } from '../database/database.module';
 
 /**
@@ -39,7 +40,56 @@ function rowToListing(row: MarketListingRow): MarketListing {
 export class PostgresMarketListingRepository implements MarketListingRepository {
   constructor(@Inject(PG_POOL) private readonly pool: Pool) {}
 
+  /**
+   * FAZ 1 wiring, on üçüncü dilim (bu oturum) — ilan süresi dolma (expiry)
+   * uygulaması. `domain/market/market.ts`'teki `expireListingIfNeeded`
+   * FAZ 0'dan beri hazırdı ama HİÇBİR YER onu çağırmıyordu (ilanlar
+   * fiilen hep süresizdi — `CreateMarketListingUseCase` `expiresInHours`
+   * hiç kabul etmiyordu). Bu dilim ikisini birden ekliyor.
+   *
+   * KARAR (bilinçli): projede henüz gerçek bir zamanlanmış görev (cron/
+   * `@nestjs/schedule` vb.) altyapısı YOK — yeni bir bağımlılık eklemek
+   * BAŞLI BAŞINA ayrı bir altyapı kararı olurdu. Bunun yerine TEMBEL
+   * (lazy) bir süpürme deseni seçildi: ilanları dışa açan HER okuma
+   * yolundan (`findById`/`findActiveByHorseId`/`search`/`findBySellerId`)
+   * ÖNCE, süresi geçmiş `active` ilanlar bulunup SAF `expireListingIfNeeded`
+   * fonksiyonundan geçirilerek `expired`'a güncellenir — gözlemlenebilir
+   * davranış AYNI (istemci süresi dolmuş bir ilanı asla `active` olarak
+   * görmez), yeni bağımlılık veya arka plan süreci YOK. Aday satır sayısı
+   * doğası gereği küçüktür (yalnızca o an YENİ süresi dolmuş ilanlar) —
+   * her çağrıda TÜM tabloyu taramaz.
+   *
+   * SONUÇ (bilinçli, dikkat): bu, `BuyMarketListingUseCase`'in `findById`
+   * ÜZERİNDEN gördüğü listing'i de kapsar — yani süresi zaten dolmuş bir
+   * ilanı satın almaya çalışmak artık `domain/market/market.ts`'teki
+   * `purchaseListing`'in KENDİ `isListingExpired` kontrolüne (→
+   * `ListingExpiredError`, `409 LISTING_EXPIRED`) hiç ULAŞAMAZ — status
+   * bu süpürmeyle ÖNCEDEN `expired`'a çevrildiği için `purchaseListing`'in
+   * İLK kontrolü (`status !== 'active'`) devreye girer (→
+   * `ListingNotActiveError`, `409 LISTING_NOT_ACTIVE`, mesajda "durum:
+   * expired" açıkça belirtilir). Bilgi kaybı YOKTUR (mesaj/`status` alanı
+   * hâlâ nedeni açıklar), yalnızca hangi hata SINIFININ fırlatıldığı
+   * değişir.
+   */
+  private async sweepExpiredListings(): Promise<void> {
+    const dueResult = await this.pool.query<MarketListingRow>(
+      "SELECT * FROM market_listings WHERE status = 'active' AND expires_at IS NOT NULL AND expires_at <= NOW()",
+    );
+    if (dueResult.rows.length === 0) {
+      return;
+    }
+    const now = new Date();
+    for (const row of dueResult.rows) {
+      const listing = rowToListing(row);
+      const expired = expireListingIfNeeded(listing, now);
+      if (expired.status !== listing.status) {
+        await this.update(expired);
+      }
+    }
+  }
+
   async findById(id: string): Promise<MarketListing | null> {
+    await this.sweepExpiredListings();
     const result = await this.pool.query<MarketListingRow>('SELECT * FROM market_listings WHERE id = $1 LIMIT 1', [
       id,
     ]);
@@ -47,6 +97,7 @@ export class PostgresMarketListingRepository implements MarketListingRepository 
   }
 
   async findActiveByHorseId(horseId: string): Promise<MarketListing | null> {
+    await this.sweepExpiredListings();
     const result = await this.pool.query<MarketListingRow>(
       "SELECT * FROM market_listings WHERE horse_id = $1 AND status = 'active' LIMIT 1",
       [horseId],
@@ -89,6 +140,7 @@ export class PostgresMarketListingRepository implements MarketListingRepository 
   }
 
   async search(filter: MarketListingSearchFilter): Promise<PaginatedResult<MarketListing>> {
+    await this.sweepExpiredListings();
     // `0017_add_market_listings_indexes.up.sql`'deki `(status, created_at
     // DESC)` bileşik indeksi TAM OLARAK bu sorgu şeklini (status'e göre
     // filtrele, created_at'e göre sırala) karşılamak için eklendi.
@@ -132,6 +184,7 @@ export class PostgresMarketListingRepository implements MarketListingRepository 
   }
 
   async findBySellerId(sellerId: string, status?: ListingStatus): Promise<MarketListing[]> {
+    await this.sweepExpiredListings();
     const result = status
       ? await this.pool.query<MarketListingRow>(
           'SELECT * FROM market_listings WHERE seller_id = $1 AND status = $2 ORDER BY created_at DESC',
