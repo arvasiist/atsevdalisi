@@ -2115,7 +2115,45 @@ gözden geçirmeyi hak ediyor — bu oturumda BİLEREK kapsam dışı bırakıld
 GERÇEK wiring'i (tam scout mekaniği) hâlâ ayrı bir dilimi bekliyor —
 artık en azından sessizce unutulamaz durumda.
 
-⏳ Bu çalışmanın CI doğrulaması bekleniyor.
+### ❌ İLK CI DENEMESİ BAŞARISIZ OLDU — bulgu ve düzeltme
+
+İlk push'tan sonra gerçek CI (`build-and-test`) `failure` sonucuyla
+döndü — `market.e2e-spec.ts#L676`, on üçüncü dilimden beri var olan
+`'süresi dolmuş bir ilanı satın almaya çalışırsa 409 LISTING_NOT_ACTIVE
+döner, hiçbir şey değişmez'` testi `expected 'LISTING_EXPIRED' to be
+'LISTING_NOT_ACTIVE'` hatasıyla kırıldı.
+
+**Kök neden (Öncelik 1'in kendi rewrite'ının GERÇEK bir regresyonu):**
+eski `BuyMarketListingUseCase`, `PostgresMarketListingRepository.findById()`
+üzerinden okuma yapıyordu ve o repository'nin HER okumadan önce çalışan
+tembel bir "süresi dolmuş ilanları süpür" (`sweepExpiredListings`)
+yan etkisi vardı — bu sayede süresi dolmuş ama satırda hâlâ
+`status='active'` yazan bir ilan, satın alma mantığına ulaşmadan ÖNCE
+`status='expired'`e çevriliyor ve kalıcı olarak yazılıyordu, bu da
+`purchaseListing()`'in status kontrolünün (expiry kontrolünden ÖNCE
+gelen) `ListingNotActiveError`'ı (409 `LISTING_NOT_ACTIVE`) doğru
+şekilde fırlatmasını sağlıyordu. AUDIT_AND_HARDENING Öncelik 1'in yeni
+`PostgresMarketPurchaseRepository`'si bilinçli olarak
+`PostgresMarketListingRepository`'yi HİÇ KULLANMIYOR (bağımsız, dedike
+bir transaction — bkz. Öncelik 1'in kendi bölümü) ve bu yüzden bu
+süpürme davranışını de facto kaybetti: satır ham/süpürülmemiş haliyle
+okunuyor, status hâlâ `'active'` görünüyor, status kontrolü GEÇİYOR,
+ardından expiry kontrolü `ListingExpiredError`'ı (409 `LISTING_EXPIRED`)
+fırlatıyordu — gözlemlenebilir sözleşmeyi sessizce DEĞİŞTİREN bir
+regresyon. CI TAM OLARAK var olduğu için bunu yakaladı.
+
+**Düzeltme (`postgres-market-purchase.repository.ts`):** ilan satırı
+zaten `SELECT ... FOR UPDATE` ile kilitliyken, `domain/market/market.ts`'in
+hazır SAF `expireListingIfNeeded` fonksiyonu burada da çağrılıyor; durum
+değiştiyse (`active` → `expired`) AYNI transaction içinde
+`UPDATE market_listings SET status = ...` ile kalıcı hale getiriliyor,
+ardından tüm alt akış (ownership/para kontrolü, `purchaseListing()`
+çağrısı) SÜPÜRÜLMÜŞ listing nesnesini kullanıyor. Bu, eski koddaki AYRI/
+global süpürme sorgusuna göre DAHA temiz: satır zaten kilitli olduğundan
+süpürme atomik olarak aynı transaction'da olur, ekstra bir sorgu/round-trip
+gerekmez. `tsc` baseline-diff ile doğrulandı — yeni tip hatası yok.
+
+⏳ Düzeltme sonrası ikinci CI denemesi bekleniyor.
 
 ## Açık kararlar (proje sahibinin onayı bekleniyor)
 
