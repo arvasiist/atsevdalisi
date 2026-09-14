@@ -606,7 +606,7 @@ describe('Market — At Pazarı (e2e)', () => {
       // Kalıcı kayıt PostgreSQL'de GERÇEKTEN `completed` durumuna geçti mi?
       const keyRow = await pool.query(
         'SELECT status FROM idempotency_keys WHERE scope_id = $1 AND idempotency_key = $2',
-        [listingId, idempotencyKey],
+        [buyerId, idempotencyKey],
       );
       expect(keyRow.rows).toHaveLength(1);
       expect(keyRow.rows[0].status).toBe('completed');
