@@ -28,6 +28,9 @@ export const ErrorCode = {
   // yalnızca tek bir aktif ilanı olabilir (bkz. domain/market/errors.ts
   // `HorseAlreadyListedError`).
   HorseAlreadyListed: 'HORSE_ALREADY_LISTED',
+  // AUDIT_REPORT.md Bulgu D2 (bu oturum) — bkz. domain/market/errors.ts
+  // `ListingStaleOwnerError`.
+  ListingStaleOwner: 'LISTING_STALE_OWNER',
   // Faz 2 — Jokey (domain/jockey)
   JockeyAlreadyOwned: 'JOCKEY_ALREADY_OWNED',
   // Faz 2 — Personel (domain/staff)
@@ -35,6 +38,11 @@ export const ErrorCode = {
   StaffContractExpired: 'STAFF_CONTRACT_EXPIRED',
   // Faz 2 — Ahır yükseltme (domain/stable)
   MaxStableLevelReached: 'MAX_STABLE_LEVEL_REACHED',
+  // AUDIT_REPORT.md Bulgu C1 (bu oturum) — `StableCapacityExceededError`
+  // FAZ 1'den beri domain katmanında hazırdı ama hiçbir yerde
+  // fırlatılmıyordu (kod HTTP durumuna hiç eşlenmemişti); bkz.
+  // `domain/stable/errors.ts` ve `postgres-market-purchase.repository.ts`.
+  StableCapacityExceeded: 'STABLE_CAPACITY_EXCEEDED',
   // Faz 3 — Yetiştiricilik (domain/breeding)
   NotEligibleForBreeding: 'NOT_ELIGIBLE_FOR_BREEDING',
   // Faz 4 — Çiftlik / Tesisler (domain/farm)

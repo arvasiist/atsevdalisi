@@ -10,7 +10,7 @@
 | Faz | Adı | Kapsam | Durum |
 |---|---|---|---|
 | **0** | Teknik keşif ve planlama | Repo, mimari, dokümantasyon, DB migration altyapısı, test altyapısı | ✅ Tamamlandı |
-| 1 | Core | Player, Auth, Economy, Horse, Stable, Training, Care, Basic Race Engine, Race Result, Progression | 🟡 Domain katmanı tamam; **Player + Horse (okuma) + Ahır Özeti + Antrenman + Bakım + Ahır Yükseltme (onuncu dilimde Idempotency-Key eklendi) + Günlük Ödül (Economy'nin `debit`+`credit`'i ve satır kilitleme dahil) + Pratik Yarış (temel Race Engine'in İLK orkestrasyonu; dokuzuncu dilimde giriş ücreti + ödül + Idempotency-Key/Redis eklendi) + At Pazarı (Economy'nin `transfer`'i + YENİ `updateTwoWithLock` ile ilan oluşturma/satın alma/iptal, on birinci dilim; tarama + "İlanlarım", on ikinci dilim; ilan süresi dolma/expiry + `expiresInHours`, on üçüncü dilim) alt-modülleri gerçek veritabanına bağlandı** (bkz. "FAZ 1 wiring" bölümleri — Player: run 34721911139; Horse: run 34723091484 (ilk denemede); Ahır Özeti: run 34723845048 (ilk denemede); Antrenman: run 34726749521 (bir hata bulunup düzeltildikten sonra, ikinci denemede); Bakım: run 34727941441 (ilk denemede); Ahır Yükseltme: run 34731523302 (ilk denemede); Günlük Ödül: run 34732402754 (ilk denemede); Pratik Yarış: run 34733778323 (ilk denemede); Pratik Yarış giriş ücreti/ödül + Idempotency-Key/Redis: run 34737087519 (ilk deneme BAŞARISIZ oldu — run 34735597486 — gerçek bir hata bulunup düzeltildi, İKİNCİ denemede yeşil); Ahır Yükseltme Idempotency-Key sertleştirmesi: run 34737922897 (ilk denemede); At Pazarı (on birinci dilim): run 34769577514 (ilk denemede); At Pazarı tarama/İlanlarım (on ikinci dilim): run 34770923029 (ilk denemede); At Pazarı ilan süresi dolma (on üçüncü dilim): run 34773100218 (ilk denemede)) — **on üç dilimin TÜMÜ CI'da DOĞRULANDI**; on dördüncü dilim (PvP Eşleştirme, `POST`/`DELETE /matchmaking/queue` — bkz. "FAZ 1 wiring — On dördüncü dilim") ilk denemede CI'da BAŞARISIZ oldu (run 34777510623 — test izolasyonu + Hata 7'nin bir tekrarı, ikisi de düzeltildi), düzeltme sonrası ikinci deneme CI onayı bekleniyor; geri kalanı (tam "yarış takvimi" — zamanlanmış çok katılımcılı yarışlar, At Pazarı'nın ata özgü tarama filtreleri, açık artırma) wiring bekliyor |
+| 1 | Core | Player, Auth, Economy, Horse, Stable, Training, Care, Basic Race Engine, Race Result, Progression | 🟡 Domain katmanı tamam; **Player + Horse (okuma) + Ahır Özeti + Antrenman + Bakım + Ahır Yükseltme (onuncu dilimde Idempotency-Key eklendi) + Günlük Ödül (Economy'nin `debit`+`credit`'i ve satır kilitleme dahil) + Pratik Yarış (temel Race Engine'in İLK orkestrasyonu; dokuzuncu dilimde giriş ücreti + ödül + Idempotency-Key/Redis eklendi) + At Pazarı (Economy'nin `transfer`'i + YENİ `updateTwoWithLock` ile ilan oluşturma/satın alma/iptal, on birinci dilim; tarama + "İlanlarım", on ikinci dilim; ilan süresi dolma/expiry + `expiresInHours`, on üçüncü dilim) alt-modülleri gerçek veritabanına bağlandı** (bkz. "FAZ 1 wiring" bölümleri — Player: run 34721911139; Horse: run 34723091484 (ilk denemede); Ahır Özeti: run 34723845048 (ilk denemede); Antrenman: run 34726749521 (bir hata bulunup düzeltildikten sonra, ikinci denemede); Bakım: run 34727941441 (ilk denemede); Ahır Yükseltme: run 34731523302 (ilk denemede); Günlük Ödül: run 34732402754 (ilk denemede); Pratik Yarış: run 34733778323 (ilk denemede); Pratik Yarış giriş ücreti/ödül + Idempotency-Key/Redis: run 34737087519 (ilk deneme BAŞARISIZ oldu — run 34735597486 — gerçek bir hata bulunup düzeltildi, İKİNCİ denemede yeşil); Ahır Yükseltme Idempotency-Key sertleştirmesi: run 34737922897 (ilk denemede); At Pazarı (on birinci dilim): run 34769577514 (ilk denemede); At Pazarı tarama/İlanlarım (on ikinci dilim): run 34770923029 (ilk denemede); At Pazarı ilan süresi dolma (on üçüncü dilim): run 34773100218 (ilk denemede)) — **on üç dilimin TÜMÜ CI'da DOĞRULANDI**; on dördüncü dilim (PvP Eşleştirme, `POST`/`DELETE /matchmaking/queue` — bkz. "FAZ 1 wiring — On dördüncü dilim") ilk denemede CI'da BAŞARISIZ oldu (run 34777510623 — test izolasyonu + Hata 7'nin bir tekrarı, ikisi de düzeltildi), düzeltme daha sonra AUDIT_AND_HARDENING commit zincirinin bir atası olarak aynı push'la gitti ve commit `ed402bd`'nin BAŞARILI CI çalıştırmasıyla (TÜM test paketi, matchmaking dahil) dolaylı olarak DOĞRULANDI — **on dört dilimin TÜMÜ artık CI'da doğrulanmış durumda**; geri kalanı (tam "yarış takvimi" — zamanlanmış çok katılımcılı yarışlar, At Pazarı'nın ata özgü tarama filtreleri, açık artırma) wiring bekliyor |
 | 2 | Management | Horse Market, Buy/Sell, Vet, Farrier, Nutrition, Jockey, Staff, Stable capacity, Costs | 🟡 Domain katmanı tamam, wiring bekliyor |
 | 3 | Genetics | Pedigree, Mare/Stallion, Genetic traits, Inheritance, Mutation, Foal, Growth, Bloodline | 🟡 Domain katmanı tamam, wiring bekliyor |
 | 4 | Farm | Stable upgrade, Paddock, Training track, Vet center, Breeding center, Staff facilities | 🟡 Domain katmanı tamam, wiring bekliyor |
@@ -1990,7 +1990,16 @@ karşılaştırıldı — fark YOK (`tsc` zaten yalnızca TİP hatalarını yaka
 bu ikisi de ÇALIŞMA ZAMANI/mantık hatalarıydı — CI'ın e2e testlerinin
 TAM OLARAK bu yüzden var olduğunun somut bir kanıtı).
 
-⏳ Düzeltme sonrası CI doğrulaması bekleniyor.
+### ✅ CI DOĞRULANDI (dolaylı yoldan)
+
+Bu düzeltme (`6121228`) daha sonra AUDIT_AND_HARDENING turunun commit
+zincirinin bir ATASI olarak aynı push'la GitHub'a gitti. GitHub'ın CI
+işi (`build-and-test`) TÜM test paketini (matchmaking dahil) her
+seferinde baştan çalıştırdığından, commit `ed402bd` için doğrulanan
+BAŞARILI CI sonucu (bkz. AUDIT_AND_HARDENING bölümü) bu düzeltmeyi de
+kapsıyor — matchmaking testleri o çalıştırmada da geçti. On dördüncü
+dilim artık **on üç dilimin geri kalanıyla AYNI şekilde CI'da
+doğrulanmış** sayılır; ayrı bir üçüncü push/CI turuna gerek kalmadı.
 
 ## AUDIT_AND_HARDENING — Kritik Risk Sertleştirme (bu oturum)
 
@@ -2153,7 +2162,18 @@ global süpürme sorgusuna göre DAHA temiz: satır zaten kilitli olduğundan
 süpürme atomik olarak aynı transaction'da olur, ekstra bir sorgu/round-trip
 gerekmez. `tsc` baseline-diff ile doğrulandı — yeni tip hatası yok.
 
-⏳ Düzeltme sonrası ikinci CI denemesi bekleniyor.
+### ✅ İKİNCİ CI DENEMESİ BAŞARILI — AUDIT_AND_HARDENING onaylandı
+
+Düzeltme push edildikten sonra (`ed402bd`, "CI düzeltmesi" commit mesajı)
+gerçek CI `build-and-test` işi **başarıyla** tamamlandı (2 dakika 6
+saniye). 11 bilinen/zararsız uyarı dışında (Node.js 20 deprecation notu +
+önceden var olan "no magic number" ESLint uyarıları — projenin önceki
+dilimlerinde de aynı sayıda görülen, aksiyon gerektirmeyen uyarılar)
+başka bir bulgu yok. `market.e2e-spec.ts#L676` testi artık geçiyor —
+Öncelik 1'in regresyonu tam olarak düzeltildi.
+
+Sekiz kritik risk artık gerçek CI'da (gerçek Postgres + Redis'e karşı)
+doğrulanmış durumda. AUDIT_AND_HARDENING görevi tamamlandı.
 
 ## Açık kararlar (proje sahibinin onayı bekleniyor)
 
@@ -2171,6 +2191,52 @@ Bkz. `ARCHITECTURE.md` §10 için tam liste ve gerekçeler. Özet:
 10. Asset üretim hattı (görsel/3D varlıklar)
 11. Barındırma/deploy sağlayıcısı (`ARCHITECTURE.md` §8)
 12. GitHub deposu erişimi (bkz. altta)
+
+## AUDIT_REPORT.md remediation — 1. dilim: D1 + D2 + C1 (bu oturum)
+
+Master Plan §1/§66'nın istediği tam repo denetimi (`AUDIT_REPORT.md`)
+tamamlandıktan sonra, auth kararına (S1-S4) BAĞIMLI OLMAYAN en kritik üç
+bulgu (D1, D2, C1) düzeltildi — hepsi `PostgresMarketPurchaseRepository.
+executePurchase`'ın zaten kilitlediği satırlar üzerinde ek kontrol,
+yeni bir kilit sırası GEREKMEDİ:
+
+- **D1 (CRITICAL):** `database/migrations/0023_add_market_listing_unique_active_index`
+  — `market_listings(horse_id) WHERE status='active'` üzerinde kısmi
+  UNIQUE index. `PostgresMarketListingRepository.save()` artık bu
+  index'in `unique_violation`'ını (`23505`) yakalayıp mevcut
+  `HorseAlreadyListedError`'a çeviriyor — API sözleşmesi (409
+  `HORSE_ALREADY_LISTED`) DEĞİŞMEDİ, artık DB seviyesinde de GERÇEKTEN
+  zorunlu.
+- **D2 (High):** `executePurchase`, at satırı `FOR UPDATE` ile
+  kilitliyken `horses.owner_id === listing.sellerId` doğruluyor;
+  uyuşmazsa yeni `ListingStaleOwnerError` (409 `LISTING_STALE_OWNER`).
+  D1'den ÖNCE (veya ondan bağımsız bir veri tutarsızlığıyla) oluşmuş
+  "stale" bir ilanın satın alınmasını da ayrıca kapatır.
+- **C1 (High):** Aynı metot, alıcının `players` satırı zaten kilitliyken
+  `getStableCapacity`/`assertCanAddHorseToStable` ile ahır kapasitesini
+  kontrol ediyor; doluysa yeni `StableCapacityExceededError` (409
+  `STABLE_CAPACITY_EXCEEDED`) — FAZ 1'den beri domain katmanında hazır
+  duran bu hata, İLK KEZ gerçekten fırlatılabilir hale geldi.
+
+**Testler (`market.e2e-spec.ts`):** (1) aynı at için eşzamanlı iki ilan
+oluşturma isteğinden yalnızca birinin 201 döndüğü, (2) ilanın satıcısı
+artık atın gerçek sahibi değilken satın alma denemesinin 409
+`LISTING_STALE_OWNER` ile reddedildiği ve hiçbir bakiye/mülkiyetin
+değişmediği, (3) ahırı dolu bir alıcının satın alma denemesinin 409
+`STABLE_CAPACITY_EXCEEDED` ile reddedildiği ve hiçbir bakiye/mülkiyetin
+değişmediği — üçü de `tsc` baseline-diff ile doğrulandı (yeni tip hatası
+yok), gerçek CI'da (Postgres + Redis) çalıştırılacak.
+
+**Önemli düzeltme:** `AUDIT_REPORT.md`'nin ilk taslağı, kimlik doğrulama
+sağlayıcısı (Google/Apple Sign-In) seçiminin HÂLÂ proje sahibinin
+onayını beklediğini yanlışlıkla varsaymıştı — `docs/ARCHITECTURE.md` §10
+madde 1 bunun ZATEN karara bağlandığını gösteriyor (`player_auth_providers`
+tablosu ve `domain/player/auth-provider.ts` bile scaffold edilmiş).
+Gerçekten eksik olan SEÇİM değil, (a) implementasyonun kendisi (hiçbir
+controller'a `AuthGuard` bağlı değil) ve (b) Google/Apple Developer
+konsollarından alınacak GERÇEK OAuth kimlik bilgileri — bunlar yalnızca
+proje sahibi tarafından temin edilebilir. Düzeltilmiş not `AUDIT_REPORT.md`
+S1 bölümüne eklendi.
 
 ## GitHub deposu
 

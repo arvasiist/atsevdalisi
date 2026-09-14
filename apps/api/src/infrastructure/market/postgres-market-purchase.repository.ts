@@ -9,7 +9,9 @@ import type {
 import { expireListingIfNeeded, purchaseListing } from '../../domain/market/market';
 import { HorseNotFoundError } from '../../domain/horse/errors';
 import { PlayerNotFoundError } from '../../domain/player/errors';
-import { ListingNotFoundError } from '../../domain/market/errors';
+import { ListingNotFoundError, ListingStaleOwnerError } from '../../domain/market/errors';
+import { assertCanAddHorseToStable, getStableCapacity } from '../../domain/stable/stable';
+import { AppConfigService } from '../config/config.service';
 import { PG_POOL, withTransaction } from '../database/database.module';
 
 /** `market_listings` satır şekli — `PostgresMarketListingRepository`'nin KENDİ (küçük, dosyaya-özel) mapper'ıyla AYNI desen. */
@@ -41,6 +43,10 @@ interface PlayerBalanceRow {
   id: string;
   money: string;
   gems: string;
+  // AUDIT_REPORT.md Bulgu C1 (bu oturum) — alıcının ahır kapasitesini
+  // KENDİ satırı ZATEN `FOR UPDATE` ile kilitliyken (aşağıdaki sorgu)
+  // tek bir ek sütun olarak okuyoruz; ayrı bir round-trip GEREKMEZ.
+  stable_level: number;
 }
 
 /**
@@ -53,10 +59,21 @@ interface PlayerBalanceRow {
  * SÖZLÜKSEL sırasına göre (`updateTwoWithLock` ile BİREBİR AYNI mantık,
  * BURADA ayrıca uygulanır çünkü bu port `PlayerRepository`'yi KULLANMAZ —
  * kendi transaction'ını yönetir).
+ *
+ * AUDIT_REPORT.md remediation (bu oturum) — bu metoda iki ek savunma
+ * eklendi: D2 (at satır kilitliyken `owner_id`'nin ilanın `sellerId`'siyle
+ * hâlâ eşleştiğini doğrulama — bkz. `ListingStaleOwnerError`) ve C1
+ * (alıcının ahır kapasitesi doluyken devri engelleme — bkz.
+ * `StableCapacityExceededError`, `domain/stable/stable.ts`). İkisi de
+ * ZATEN kilitli satırlar üzerinde ek sorgu ile yapılır, yeni bir kilit
+ * SIRASI eklemez.
  */
 @Injectable()
 export class PostgresMarketPurchaseRepository implements MarketPurchaseRepository {
-  constructor(@Inject(PG_POOL) private readonly pool: Pool) {}
+  constructor(
+    @Inject(PG_POOL) private readonly pool: Pool,
+    @Inject(AppConfigService) private readonly config: AppConfigService,
+  ) {}
 
   async executePurchase(input: ExecuteMarketPurchaseInput): Promise<ExecuteMarketPurchaseResult> {
     return withTransaction(this.pool, async (client) => {
@@ -97,11 +114,24 @@ export class PostgresMarketPurchaseRepository implements MarketPurchaseRepositor
       // `horses(id)` üzerinde `ON DELETE CASCADE`'dir (at silinirse ilan
       // da CASCADE ile silinir) — bu dala normal koşullarda ULAŞILMAZ
       // (eski `BuyMarketListingUseCase`'in AYNI notuyla BİREBİR aynı).
-      const horseResult = await client.query<{ id: string }>('SELECT id FROM horses WHERE id = $1 FOR UPDATE', [
-        listing.horseId,
-      ]);
-      if (!horseResult.rows[0]) {
+      const horseResult = await client.query<{ id: string; owner_id: string }>(
+        'SELECT id, owner_id FROM horses WHERE id = $1 FOR UPDATE',
+        [listing.horseId],
+      );
+      const horseRow = horseResult.rows[0];
+      if (!horseRow) {
         throw new HorseNotFoundError(listing.horseId);
+      }
+
+      // AUDIT_REPORT.md Bulgu D2 (High) — at satır KİLİTLİYKEN, atın
+      // GERÇEK `owner_id`'sinin hâlâ ilanın `sellerId`'siyle eşleştiğini
+      // doğrula. Bkz. `domain/market/errors.ts` `ListingStaleOwnerError`
+      // doc yorumundaki tam gerekçe — D1'in düzeltmesi (migration 0023)
+      // YENİ bir ikinci aktif ilanın oluşmasını engeller ama D1'DEN ÖNCE
+      // (veya ondan bağımsız bir veri tutarsızlığıyla) zaten var olabilecek
+      // "stale" bir ilanın satın alınmasını AYRI olarak bu kontrol engeller.
+      if (horseRow.owner_id !== listing.sellerId) {
+        throw new ListingStaleOwnerError(listing.id, listing.horseId);
       }
 
       const buyerId = input.buyerId;
@@ -111,24 +141,29 @@ export class PostgresMarketPurchaseRepository implements MarketPurchaseRepositor
       // doğrudan karşılaştırma deseni.
       const firstId = buyerId <= sellerId ? buyerId : sellerId;
       const secondId = buyerId <= sellerId ? sellerId : buyerId;
-      const balancesById = new Map<string, { money: number; gems: number }>();
+      const balancesById = new Map<string, { money: number; gems: number; stableLevel: number }>();
 
       const firstResult = await client.query<PlayerBalanceRow>(
-        'SELECT id, money, gems FROM players WHERE id = $1 FOR UPDATE',
+        'SELECT id, money, gems, stable_level FROM players WHERE id = $1 FOR UPDATE',
         [firstId],
       );
       if (firstResult.rows[0]) {
-        balancesById.set(firstId, { money: Number(firstResult.rows[0].money), gems: Number(firstResult.rows[0].gems) });
+        balancesById.set(firstId, {
+          money: Number(firstResult.rows[0].money),
+          gems: Number(firstResult.rows[0].gems),
+          stableLevel: firstResult.rows[0].stable_level,
+        });
       }
       if (secondId !== firstId) {
         const secondResult = await client.query<PlayerBalanceRow>(
-          'SELECT id, money, gems FROM players WHERE id = $1 FOR UPDATE',
+          'SELECT id, money, gems, stable_level FROM players WHERE id = $1 FOR UPDATE',
           [secondId],
         );
         if (secondResult.rows[0]) {
           balancesById.set(secondId, {
             money: Number(secondResult.rows[0].money),
             gems: Number(secondResult.rows[0].gems),
+            stableLevel: secondResult.rows[0].stable_level,
           });
         }
       }
@@ -144,6 +179,23 @@ export class PostgresMarketPurchaseRepository implements MarketPurchaseRepositor
         // silinir) — bu dala normal koşullarda ULAŞILMAZ.
         throw new PlayerNotFoundError(sellerId);
       }
+
+      // AUDIT_REPORT.md Bulgu C1 (High) — `StableCapacityExceededError`
+      // FAZ 1'den beri domain katmanında hazırdı ama alım-satım akışında
+      // HİÇ fırlatılmıyordu (alıcı ahırı doluyken bile at satın
+      // alabiliyordu). Alıcının `players` satırı YUKARIDA zaten `FOR
+      // UPDATE` ile kilitli olduğundan — ve at devrini yapan TEK yol bu
+      // metottur, o da HER ZAMAN önce alıcının players satırını kilitler —
+      // aynı alıcı için eşzamanlı iki satın alma bu kilit üzerinden
+      // SERİLEŞİR; aşağıdaki sayım bu nedenle güvenle tutarlıdır (ekstra
+      // bir "ahır" satırı kilitlemeye gerek yoktur).
+      const buyerHorseCountResult = await client.query<{ count: string }>(
+        'SELECT COUNT(*) FROM horses WHERE owner_id = $1',
+        [buyerId],
+      );
+      const buyerHorseCount = Number(buyerHorseCountResult.rows[0]?.count ?? '0');
+      const buyerCapacity = getStableCapacity(buyerBalance.stableLevel, this.config.stable);
+      assertCanAddHorseToStable(buyerHorseCount, buyerCapacity);
 
       // Domain doğrulaması + para hesaplaması — satırlar HÂLÂ kilitliyken,
       // EN GÜNCEL bakiyelerle (docs/SECURITY.md §5, `updateWithLock`'un
