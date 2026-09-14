@@ -3,7 +3,7 @@ import type { Request } from 'express';
 import type { Pool } from 'pg';
 import type { Observable } from 'rxjs';
 import { of } from 'rxjs';
-import { tap } from 'rxjs/operators';
+import { mergeMap, tap } from 'rxjs/operators';
 import type Redis from 'ioredis';
 import { REDIS_CLIENT } from '../../infrastructure/redis/redis.module';
 import { PG_POOL } from '../../infrastructure/database/database.module';
@@ -67,6 +67,23 @@ import { IdempotencyKeyInProgressError, IdempotencyKeyRequiredError } from './id
  * SAKLANMAZ, böylece istemci sorunu düzeltip AYNI anahtarla tekrar
  * deneyebilir (tipik Idempotency-Key semantiği, ör. Stripe'ın kendi
  * API'si de aynı şekilde davranır).
+ *
+ * DÜZELTME (bu oturum, AUDIT_REPORT.md remediation sırasında CI'ın
+ * yakaladığı ayrı bir regresyon) — kalıcı `completed` yazısı ÖNCEDEN
+ * `void this.pool.query(...)` ile GERÇEKTEN "ateşle-unut" (awaited
+ * DEĞİL) yapılıyordu: yanıt istemciye, bu yazma tamamlanmadan ÖNCE
+ * gönderiliyordu. Bu, TEK bir isteğin kendi replay'i için sorun
+ * DEĞİLDİR (Redis ısındıktan sonra okunur) — ama `market.e2e-spec.ts`
+ * "AYNI Idempotency-Key ile GERÇEKTEN eşzamanlı iki istekten..." testinin
+ * yaptığı gibi, yanıt alınır alınmaz `idempotency_keys` tablosunu
+ * DOĞRUDAN sorgulayan bir istemci için gerçek bir yarış durumuydu:
+ * satır bazen hâlâ `pending` görünüyordu. Düzeltme: yazma işlemleri artık
+ * `mergeMap` içinde AWAIT ediliyor — yanıt, kalıcı kayıt GERÇEKTEN
+ * `completed` olana kadar istemciye gönderilmiyor. Yazma başarısız
+ * olursa (`.catch(() => undefined)`), yukarıdaki BİLİNÇLİ SINIRLAMA
+ * ilkesiyle AYNI şekilde sessizce yutulur — GERÇEK işlem zaten
+ * tamamlandığından istemciye hata döndürülmez, yalnızca bir sonraki
+ * replay koruması eksik kalabilir.
  */
 @Injectable()
 export class IdempotencyInterceptor implements NestInterceptor {
@@ -127,21 +144,22 @@ export class IdempotencyInterceptor implements NestInterceptor {
     }
 
     return next.handle().pipe(
-      tap((responseBody: unknown) => {
-        // Ateşle-unut (fire-and-forget): önbelleğe/kalıcı kayda yazma
-        // başarısız olsa bile GERÇEK işlem zaten tamamlanmıştır —
-        // kullanıcıya hata döndürmenin bir anlamı yok, sadece bir sonraki
-        // replay koruması eksik kalır (bkz. yukarıdaki BİLİNÇLİ
-        // SINIRLAMA notu).
-        void this.pool
+      // Yazma başarısız olsa bile GERÇEK işlem zaten tamamlanmıştır —
+      // istemciye hata döndürmenin bir anlamı yok (`.catch(() => undefined)`,
+      // bkz. yukarıdaki BİLİNÇLİ SINIRLAMA notu). Ama yanıt istemciye
+      // gönderilmeden ÖNCE bu yazmanın GERÇEKTEN tamamlanmış olması
+      // gerekiyor — bkz. dosyanın üstündeki "DÜZELTME (bu oturum)" notu.
+      mergeMap(async (responseBody: unknown) => {
+        await this.pool
           .query(
             "UPDATE idempotency_keys SET status = 'completed', response_body = $3, completed_at = now() WHERE scope_id = $1 AND idempotency_key = $2",
             [scopeId, idempotencyKey, JSON.stringify(responseBody)],
           )
           .catch(() => undefined);
-        void this.redis
+        await this.redis
           .set(redisKey, JSON.stringify(responseBody), 'EX', this.config.env.idempotencyKeyTtlSeconds)
           .catch(() => undefined);
+        return responseBody;
       }),
       // İşleyici bir domain hatasıyla REDDEDİLİRSE (`InsufficientFundsError`
       // vb.), `tap`'in `next` dalı hiç ÇALIŞMAZ — bu yüzden ayrı bir

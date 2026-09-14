@@ -2266,6 +2266,44 @@ doğrulandı (yeni tip hatası yok) — yeni bir test EKLENMEDİ çünkü mevcut
 "zaten satılmış bir ilan için 409 LISTING_NOT_ACTIVE döner" testi zaten
 tam olarak bu regresyonu yakalayan/doğrulayan test.
 
+### ❌ İKİNCİ CI DENEMESİ BAŞARISIZ OLDU — Idempotency tamamlanma yazısı yarışı
+
+Yukarıdaki düzeltme push edildikten sonra CI yine başarısız oldu. Bu
+oturumda GitHub'ın API'sine erişim kapalı olduğundan (bkz. bu dosyanın
+"CI Doğrulama Yöntemi" notları) ve tarayıcı köprüsü de sinyal kaybı
+yaşadığından, proje sahibi CI sayfasının ekran görüntülerini elle
+paylaştı. Görülen: `apps/api`'nin `Test` adımı `exit code 1` ile
+başarısız oluyor, ama görünen log parçası yalnızca npm'in ÖZET hata
+mesajını gösteriyordu (asıl `vitest` çıktısı/hangi testin başarısız
+olduğu ekran görüntüsünde YOKTU).
+
+Kod tekrar satır satır incelendi. D1/D2/C1'in kendisinde başka bir
+mantık hatası BULUNAMADI, ama `apps/api/src/api/idempotency/
+idempotency.interceptor.ts`'de (AUDIT_AND_HARDENING Öncelik 3'ten beri
+var olan, bu oturumun D1/D2/C1 işiyle DOĞRUDAN ilgisiz) gerçek, bağımsız
+bir yarış durumu tespit edildi: başarılı bir isteğin `idempotency_keys`
+tablosundaki `status = 'completed'` yazısı `void this.pool.query(...)`
+ile GERÇEKTEN "ateşle-unut" (awaited DEĞİL) yapılıyordu — yanıt
+istemciye, bu yazma tamamlanmadan ÖNCE gönderiliyordu. İlk CI
+denemesinin özetinde geçen "bir test 'completed' bekliyordu ama
+'pending' aldı" bulgusu tam olarak bununla örtüşüyor:
+`market.e2e-spec.ts`'teki "AYNI Idempotency-Key ile GERÇEKTEN eşzamanlı
+iki istekten..." testi, yanıtı aldığı ANDA `idempotency_keys` tablosunu
+doğrudan sorguluyor — kalıcı yazı henüz tamamlanmamışsa satır hâlâ
+`pending` görünüyor.
+
+**Düzeltme:** `tap` yerine `mergeMap` kullanılarak PostgreSQL/Redis
+yazmaları artık AWAIT ediliyor — yanıt, kalıcı kayıt GERÇEKTEN
+`completed` olana kadar istemciye gönderilmiyor. Yazma başarısız olursa
+sessizce yutuluyor (`.catch(() => undefined)`, ÖNCEKİ "BİLİNÇLİ
+SINIRLAMA" ilkesiyle AYNI) — gerçek iş zaten tamamlandığından istemciye
+hata döndürülmez. `tsc` baseline-diff ile doğrulandı (yeni tip hatası
+yok). Bu, D1/D2/C1'in KENDİSİYLE ilgili bir bulgu değil — CI'ın ayrıca
+yakaladığı, önceki bir oturumdan kalan bağımsız bir yarış durumu
+düzeltmesidir. Kesin sebep ekran görüntüsünde doğrulanamadığından, bu
+düzeltmenin CI'da gerçekten işe yarayıp yaramadığı bir sonraki CI
+denemesiyle doğrulanacak.
+
 ## GitHub deposu
 
 ✅ Tamamlandı — kod `github.com/arvasiist/atsevdalisi` deposuna proje
