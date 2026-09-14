@@ -61,7 +61,8 @@ export class PostgresMarketListingRepository implements MarketListingRepository 
     const result = await this.pool.query<MarketListingRow>('SELECT * FROM market_listings WHERE id = $1 LIMIT 1', [
       id,
     ]);
-    return result.rows[0] ? rowToListing(result.rows[0]) : null;
+    const row = result.rows[0];
+    return row ? rowToListing(row) : null;
   }
 
   async findActiveByHorseId(horseId: string): Promise<MarketListing | null> {
@@ -70,7 +71,8 @@ export class PostgresMarketListingRepository implements MarketListingRepository 
       "SELECT * FROM market_listings WHERE horse_id = $1 AND status = 'active' LIMIT 1",
       [horseId],
     );
-    return result.rows[0] ? rowToListing(result.rows[0]) : null;
+    const row = result.rows[0];
+    return row ? rowToListing(row) : null;
   }
 
   async save(listing: MarketListing): Promise<void> {
@@ -135,7 +137,8 @@ export class PostgresMarketListingRepository implements MarketListingRepository 
       [id],
     );
 
-    if (result.rows.length === 0) {
+    const updatedRow = result.rows[0];
+    if (!updatedRow) {
       const current = await this.pool.query<MarketListingRow>(
         'SELECT * FROM market_listings WHERE id = $1 LIMIT 1',
         [id],
@@ -144,7 +147,7 @@ export class PostgresMarketListingRepository implements MarketListingRepository 
       throw new ListingNotActiveError(id, currentStatus);
     }
 
-    return rowToListing(result.rows[0]);
+    return rowToListing(updatedRow);
   }
 
   async search(filter: MarketListingSearchFilter): Promise<PaginatedResult<MarketListing>> {
