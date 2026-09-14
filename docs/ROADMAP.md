@@ -2192,6 +2192,52 @@ Bkz. `ARCHITECTURE.md` §10 için tam liste ve gerekçeler. Özet:
 11. Barındırma/deploy sağlayıcısı (`ARCHITECTURE.md` §8)
 12. GitHub deposu erişimi (bkz. altta)
 
+## AUDIT_REPORT.md remediation — 1. dilim: D1 + D2 + C1 (bu oturum)
+
+Master Plan §1/§66'nın istediği tam repo denetimi (`AUDIT_REPORT.md`)
+tamamlandıktan sonra, auth kararına (S1-S4) BAĞIMLI OLMAYAN en kritik üç
+bulgu (D1, D2, C1) düzeltildi — hepsi `PostgresMarketPurchaseRepository.
+executePurchase`'ın zaten kilitlediği satırlar üzerinde ek kontrol,
+yeni bir kilit sırası GEREKMEDİ:
+
+- **D1 (CRITICAL):** `database/migrations/0023_add_market_listing_unique_active_index`
+  — `market_listings(horse_id) WHERE status='active'` üzerinde kısmi
+  UNIQUE index. `PostgresMarketListingRepository.save()` artık bu
+  index'in `unique_violation`'ını (`23505`) yakalayıp mevcut
+  `HorseAlreadyListedError`'a çeviriyor — API sözleşmesi (409
+  `HORSE_ALREADY_LISTED`) DEĞİŞMEDİ, artık DB seviyesinde de GERÇEKTEN
+  zorunlu.
+- **D2 (High):** `executePurchase`, at satırı `FOR UPDATE` ile
+  kilitliyken `horses.owner_id === listing.sellerId` doğruluyor;
+  uyuşmazsa yeni `ListingStaleOwnerError` (409 `LISTING_STALE_OWNER`).
+  D1'den ÖNCE (veya ondan bağımsız bir veri tutarsızlığıyla) oluşmuş
+  "stale" bir ilanın satın alınmasını da ayrıca kapatır.
+- **C1 (High):** Aynı metot, alıcının `players` satırı zaten kilitliyken
+  `getStableCapacity`/`assertCanAddHorseToStable` ile ahır kapasitesini
+  kontrol ediyor; doluysa yeni `StableCapacityExceededError` (409
+  `STABLE_CAPACITY_EXCEEDED`) — FAZ 1'den beri domain katmanında hazır
+  duran bu hata, İLK KEZ gerçekten fırlatılabilir hale geldi.
+
+**Testler (`market.e2e-spec.ts`):** (1) aynı at için eşzamanlı iki ilan
+oluşturma isteğinden yalnızca birinin 201 döndüğü, (2) ilanın satıcısı
+artık atın gerçek sahibi değilken satın alma denemesinin 409
+`LISTING_STALE_OWNER` ile reddedildiği ve hiçbir bakiye/mülkiyetin
+değişmediği, (3) ahırı dolu bir alıcının satın alma denemesinin 409
+`STABLE_CAPACITY_EXCEEDED` ile reddedildiği ve hiçbir bakiye/mülkiyetin
+değişmediği — üçü de `tsc` baseline-diff ile doğrulandı (yeni tip hatası
+yok), gerçek CI'da (Postgres + Redis) çalıştırılacak.
+
+**Önemli düzeltme:** `AUDIT_REPORT.md`'nin ilk taslağı, kimlik doğrulama
+sağlayıcısı (Google/Apple Sign-In) seçiminin HÂLÂ proje sahibinin
+onayını beklediğini yanlışlıkla varsaymıştı — `docs/ARCHITECTURE.md` §10
+madde 1 bunun ZATEN karara bağlandığını gösteriyor (`player_auth_providers`
+tablosu ve `domain/player/auth-provider.ts` bile scaffold edilmiş).
+Gerçekten eksik olan SEÇİM değil, (a) implementasyonun kendisi (hiçbir
+controller'a `AuthGuard` bağlı değil) ve (b) Google/Apple Developer
+konsollarından alınacak GERÇEK OAuth kimlik bilgileri — bunlar yalnızca
+proje sahibi tarafından temin edilebilir. Düzeltilmiş not `AUDIT_REPORT.md`
+S1 bölümüne eklendi.
+
 ## GitHub deposu
 
 ✅ Tamamlandı — kod `github.com/arvasiist/atsevdalisi` deposuna proje

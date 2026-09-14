@@ -3,7 +3,13 @@ import type { Pool } from 'pg';
 import type { ListingStatus, ListingType, MarketListing, PaginatedResult } from '@at-sevdalisi/shared-types';
 import type { MarketListingRepository, MarketListingSearchFilter } from '../../application/ports/market-listing.repository';
 import { expireListingIfNeeded } from '../../domain/market/market';
+import { HorseAlreadyListedError } from '../../domain/market/errors';
 import { PG_POOL } from '../database/database.module';
+
+/** Postgres `unique_violation` hata kodu (bkz. PostgreSQL "Error Codes" §22.6 sınıf 23). */
+const POSTGRES_UNIQUE_VIOLATION = '23505';
+/** migration 0023'teki kısmi UNIQUE index'in adı — bkz. o migration'ın doc yorumu. */
+const ONE_ACTIVE_LISTING_PER_HORSE_INDEX = 'idx_market_listings_one_active_per_horse';
 
 /**
  * `market_listings` tablosunun satır şekli (snake_case, `database/migrations/
@@ -105,21 +111,46 @@ export class PostgresMarketListingRepository implements MarketListingRepository 
     return result.rows[0] ? rowToListing(result.rows[0]) : null;
   }
 
+  /**
+   * AUDIT_REPORT.md Bulgu D1 (CRITICAL) düzeltmesi — `CreateMarketListingUseCase`'in
+   * "önce oku, sonra yaz" kontrolü (kilitsiz/transaction'sız) tek başına iki
+   * eşzamanlı isteğin aynı ata iki aktif ilan yazmasını ENGELLEYEMEZ. Gerçek
+   * güvence artık migration 0023'teki kısmi (partial) UNIQUE index'tir —
+   * Postgres bu index'i ihlal eden bir INSERT'te `unique_violation` (23505)
+   * fırlatır; burada bu hata yakalanıp uygulamanın zaten bildiği/test ettiği
+   * `HorseAlreadyListedError`'a çevrilir, böylece API sözleşmesi (409
+   * `HORSE_ALREADY_LISTED`) DEĞİŞMEZ — yalnızca artık DB seviyesinde de
+   * gerçekten zorunlu kılınır.
+   */
   async save(listing: MarketListing): Promise<void> {
-    await this.pool.query(
-      `INSERT INTO market_listings (id, seller_id, horse_id, price, listing_type, status, created_at, expires_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-      [
-        listing.id,
-        listing.sellerId,
-        listing.horseId,
-        listing.price,
-        listing.listingType,
-        listing.status,
-        new Date(listing.createdAt),
-        listing.expiresAt ? new Date(listing.expiresAt) : null,
-      ],
-    );
+    try {
+      await this.pool.query(
+        `INSERT INTO market_listings (id, seller_id, horse_id, price, listing_type, status, created_at, expires_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+        [
+          listing.id,
+          listing.sellerId,
+          listing.horseId,
+          listing.price,
+          listing.listingType,
+          listing.status,
+          new Date(listing.createdAt),
+          listing.expiresAt ? new Date(listing.expiresAt) : null,
+        ],
+      );
+    } catch (error) {
+      if (
+        error &&
+        typeof error === 'object' &&
+        'code' in error &&
+        (error as { code?: string }).code === POSTGRES_UNIQUE_VIOLATION &&
+        'constraint' in error &&
+        (error as { constraint?: string }).constraint === ONE_ACTIVE_LISTING_PER_HORSE_INDEX
+      ) {
+        throw new HorseAlreadyListedError(listing.horseId);
+      }
+      throw error;
+    }
   }
 
   async update(listing: MarketListing): Promise<void> {

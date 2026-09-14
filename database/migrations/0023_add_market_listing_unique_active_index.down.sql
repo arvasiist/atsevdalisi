@@ -1,0 +1,1 @@
+DROP INDEX IF EXISTS idx_market_listings_one_active_per_horse;

@@ -109,6 +109,35 @@ describe('Market — At Pazarı (e2e)', () => {
       expect(response.body.error.code).toBe('HORSE_ALREADY_LISTED');
     });
 
+    // AUDIT_REPORT.md Bulgu D1 (CRITICAL, bu oturum) — yukarıdaki test
+    // SIRALI (sequential) iki istekle application-katmanı kontrolünü
+    // doğrular; bu test GERÇEKTEN eşzamanlı iki istekle veritabanı
+    // seviyesindeki güvenceyi (migration 0023'teki kısmi UNIQUE index)
+    // doğrular. Düzeltmeden ÖNCE, iki isteğin "önce oku sonra yaz"
+    // kontrolünün ARASINA girmesi durumunda İKİSİ DE 201 dönüp aynı ata
+    // iki aktif ilan yazabilirdi — bkz. `postgres-market-listing.
+    // repository.ts` `save()` doc yorumu.
+    it('eşzamanlı iki ilan oluşturma isteğinden (aynı at) yalnızca BİRİ 201 döner, diğeri 409 HORSE_ALREADY_LISTED alır', async () => {
+      const { horseId } = await registerPlayerWithStarterHorse();
+
+      const [responseA, responseB] = await Promise.all([
+        request(app.getHttpServer()).post('/api/v1/market/listings').send({ horseId, price: 1000 }),
+        request(app.getHttpServer()).post('/api/v1/market/listings').send({ horseId, price: 1500 }),
+      ]);
+
+      const statuses = [responseA.status, responseB.status].sort();
+      expect(statuses).toEqual([201, 409]);
+      const conflicting = responseA.status === 409 ? responseA : responseB;
+      expect(conflicting.body.error.code).toBe('HORSE_ALREADY_LISTED');
+
+      // At için DB'de TAM OLARAK bir tane 'active' ilan var.
+      const activeRows = await pool.query(
+        "SELECT id FROM market_listings WHERE horse_id = $1 AND status = 'active'",
+        [horseId],
+      );
+      expect(activeRows.rows).toHaveLength(1);
+    });
+
     it('negatif bir fiyat için 400 döner', async () => {
       const { horseId } = await registerPlayerWithStarterHorse();
       const response = await request(app.getHttpServer())
@@ -730,6 +759,82 @@ describe('Market — At Pazarı (e2e)', () => {
 
       const listingRow = await pool.query('SELECT status FROM market_listings WHERE id = $1', [listingId]);
       expect(listingRow.rows[0].status).toBe('sold');
+    });
+
+    // AUDIT_REPORT.md Bulgu D2 (High, bu oturum) — `PostgresMarketPurchaseRepository.
+    // executePurchase` artık atın GERÇEK `owner_id`'sinin, satır kilitliyken,
+    // hâlâ ilanın `sellerId`'siyle eşleştiğini doğrular. Bu testte at,
+    // ilan `active` görünmeye devam ederken DOĞRUDAN SQL ile "başka bir
+    // yolla" el değiştirmiş gibi simüle edilir (bkz. `ListingStaleOwnerError`
+    // doc yorumu — D1'den ÖNCE veya ondan bağımsız bir veri tutarsızlığı
+    // senaryosu). Düzeltmeden ÖNCE bu, ikinci bir "alıcının" parasını
+    // sessizce yanlış tarafa (artık atın gerçek sahibi OLMAYAN eski
+    // satıcıya) ödeyip atı GERÇEK sahibinden çalmasına yol açardı.
+    it('ilanın satıcısı artık atın gerçek sahibi değilse (stale ilan) 409 LISTING_STALE_OWNER döner, hiçbir şey değişmez', async () => {
+      const { listingId, horseId, sellerId } = await createListing();
+      // At, ilan HÂLÂ 'active' görünürken "başka bir yolla" el değiştirdi
+      // (örn. D1 öncesi bir veri tutarsızlığı) — gerçek sahibi artık
+      // ilanın sellerId'si DEĞİL.
+      const actualOwnerId = await registerPlayer();
+      await pool.query('UPDATE horses SET owner_id = $2 WHERE id = $1', [horseId, actualOwnerId]);
+      const buyerId = await registerPlayer();
+
+      const response = await request(app.getHttpServer())
+        .post(`/api/v1/market/listings/${listingId}/buy`)
+        .set('Idempotency-Key', randomUUID())
+        .send({ buyerId });
+
+      expect(response.status).toBe(409);
+      expect(response.body.error.code).toBe('LISTING_STALE_OWNER');
+
+      // Hiçbir bakiye/mülkiyet değişmedi — ne alıcının parası çekildi, ne
+      // eski satıcıya YANLIŞLIKLA ödendi, ne de at el değiştirdi.
+      const buyerRow = await pool.query('SELECT money FROM players WHERE id = $1', [buyerId]);
+      expect(Number(buyerRow.rows[0].money)).toBe(5000);
+      const sellerRow = await pool.query('SELECT money FROM players WHERE id = $1', [sellerId]);
+      expect(Number(sellerRow.rows[0].money)).toBe(5000);
+      const horseRow = await pool.query('SELECT owner_id FROM horses WHERE id = $1', [horseId]);
+      expect(horseRow.rows[0].owner_id).toBe(actualOwnerId);
+    });
+
+    // AUDIT_REPORT.md Bulgu C1 (High, bu oturum) — `StableCapacityExceededError`
+    // FAZ 1'den beri domain katmanında hazırdı ama alım-satım akışında HİÇ
+    // fırlatılmıyordu; alıcı ahırı doluyken bile at satın alabiliyordu.
+    // Bu test, alıcıyı config'deki seviye-1 kapasitesine (5, bkz.
+    // `stable.config.json`) doldurup (1 başlangıç atı + 4 ek at =
+    // doğrudan SQL ile eklenir — yalnızca `owner_id` sayımı ilgilendiği
+    // için `horse_stats`/`horse_health` satırlarına gerek YOK) satın
+    // almayı dener.
+    it('alıcının ahırı doluysa 409 STABLE_CAPACITY_EXCEEDED döner, hiçbir şey değişmez', async () => {
+      const { listingId, horseId, sellerId } = await createListing();
+      const buyerId = await registerPlayer();
+
+      // Alıcının zaten 1 başlangıç atı var (brief §5) — seviye 1
+      // kapasitesi (5) dolana kadar 4 tane daha ekle.
+      for (let i = 0; i < 4; i += 1) {
+        await pool.query(
+          `INSERT INTO horses (owner_id, name, gender, breed, birth_date, quality, potential)
+           VALUES ($1, $2, 'mare', 'Arap', '2023-01-01', 50, 50)`,
+          [buyerId, `Dolgu At ${i}`],
+        );
+      }
+
+      const response = await request(app.getHttpServer())
+        .post(`/api/v1/market/listings/${listingId}/buy`)
+        .set('Idempotency-Key', randomUUID())
+        .send({ buyerId });
+
+      expect(response.status).toBe(409);
+      expect(response.body.error.code).toBe('STABLE_CAPACITY_EXCEEDED');
+
+      const buyerRow = await pool.query('SELECT money FROM players WHERE id = $1', [buyerId]);
+      expect(Number(buyerRow.rows[0].money)).toBe(5000);
+      const sellerRow = await pool.query('SELECT money FROM players WHERE id = $1', [sellerId]);
+      expect(Number(sellerRow.rows[0].money)).toBe(5000);
+      const horseRow = await pool.query('SELECT owner_id FROM horses WHERE id = $1', [horseId]);
+      expect(horseRow.rows[0].owner_id).toBe(sellerId);
+      const listingRow = await pool.query('SELECT status FROM market_listings WHERE id = $1', [listingId]);
+      expect(listingRow.rows[0].status).toBe('active');
     });
 
     // AUDIT_AND_HARDENING Öncelik 2 (bu oturum) — `economy_transactions`

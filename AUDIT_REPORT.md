@@ -25,12 +25,12 @@ olarak veriliyor. Her alanın sonunda "Zaten sağlam / IMPLEMENTED" listesi var
 | S1 | Güvenlik | **CRITICAL** | Hiçbir authentication/authorization mekanizması yok — her endpoint `:id`/body alanındaki kimliğe kör güveniyor |
 | S2 | Güvenlik | **CRITICAL** | IDOR: herhangi bir client başka bir oyuncunun atını antrenman/bakım/yarış ile zorla kullanabilir, para/sağlık durumunu etkileyebilir |
 | S3 | Güvenlik | **CRITICAL** | At Pazarı: başkasının atını zorla listeleme, başkasının parasıyla zorla satın alma (hırsızlık), herkesin herkesin ilanını iptal edebilmesi |
-| D1 | Veritabanı | **CRITICAL** | Bir at için aynı anda birden fazla aktif ilan engellenmiyor → iki alıcı aynı atı "satın alabilir", biri parasını kaybeder |
+| D1 | Veritabanı | **CRITICAL** | ✅ **DÜZELTİLDİ** — Bir at için aynı anda birden fazla aktif ilan engellenmiyordu → iki alıcı aynı atı "satın alabiliyordu", biri parasını kaybediyordu |
 | S4 | Güvenlik | High | `GET /players/:id`, `GET /horses?ownerId=`, `GET /market/my-listings?sellerId=` — herhangi bir UUID biliniyorsa herkesin verisi okunabilir |
-| D2 | Veritabanı | High | Satın alma, `horses.owner_id`'nin hâlâ `listing.sellerId`'e eşit olduğunu kontrol etmiyor (D1 ile birleşince atın "geri alınması" mümkün) |
+| D2 | Veritabanı | High | ✅ **DÜZELTİLDİ** — Satın alma, `horses.owner_id`'nin hâlâ `listing.sellerId`'e eşit olduğunu kontrol etmiyordu (D1 ile birleşince atın "geri alınması" mümkündü) |
 | E1 | Ekonomi | High | Pratik yarış/PvP: cüzdan güncellemesi ile yarış kaydı iki AYRI transaction'da — arada hata olursa çift ödeme/kayıp riski |
 | H1 | At Durumu | High | `injured` durumundan `active`'e dönüş yolu YOK — sakatlanan at kalıcı olarak kullanılamaz hale geliyor |
-| C1 | Veritabanı | High | Ahır kapasitesi HİÇBİR YERDE zorunlu kılınmıyor — sınırsız at alınabilir |
+| C1 | Veritabanı | High | ✅ **DÜZELTİLDİ** (At Pazarı yolunda) — Ahır kapasitesi hiçbir yerde zorunlu kılınmıyordu — sınırsız at alınabiliyordu |
 | S5 | Güvenlik | High | Helmet/CSP yok, rate limiting yok |
 | C2 | Veritabanı | Medium | Antrenman/bakım/besleme `FOR UPDATE` kilidi kullanmıyor — eşzamanlı istekler "lost update" üretebilir |
 | H2 | At Durumu | Medium | Pazarda listelenmiş bir at yine de antrenman/yarış için kullanılabiliyor |
@@ -54,8 +54,9 @@ olarak veriliyor. Her alanın sonunda "Zaten sağlam / IMPLEMENTED" listesi var
 ### S1 — CRITICAL: Authentication mekanizması hiç yok
 **Evidence:** `apps/api` içinde `@UseGuards`/`CanActivate`/`AuthGuard`/Passport-JWT hiç yok (tam grep taraması). `AppConfigService.env.jwtSecret` okunuyor ama hiçbir yerde KULLANILMIYOR. `domain/player/auth-provider.ts` yalnızca zaten-doğrulanmış bir kimliği DB kaydına çeviren saf fonksiyon — hiçbir controller'dan çağrılmıyor.
 **Impact:** Sistemde "ben kimim" sorusunu doğrulayan HİÇBİR mekanizma yok — docs'un bahsettiği "FAZ-0 kullanıcı adı only" şeması bile controller seviyesinde uygulanmamış.
-**Fix:** Gerçek session/JWT auth (Google/Apple Sign-In, `docs/ARCHITECTURE.md` §10.6'da zaten karar bekleyen açık madde) + global `AuthGuard` + `@CurrentPlayer()` decorator. Her controller, kim olduğunu client'ın gönderdiği bir alandan DEĞİL, doğrulanmış oturumdan almalı.
+**Fix:** Gerçek session/JWT auth + global `AuthGuard` + `@CurrentPlayer()` decorator. Her controller, kim olduğunu client'ın gönderdiği bir alandan DEĞİL, doğrulanmış oturumdan almalı.
 **Test requirement:** Her mutasyon endpoint'inin geçerli oturum olmadan 401 dönmesi; Oyuncu A'nın geçerli kendi oturumuyla bile Oyuncu B'nin kaynağına erişemediği e2e testleri.
+**DÜZELTME NOTU (bu oturum):** Bu raporun ilk taslağı, sağlayıcı seçiminin (Google/Apple Sign-In) proje sahibinin onayını HÂLÂ beklediğini varsaymıştı — bu YANLIŞ. `docs/ARCHITECTURE.md` §10 madde 1 zaten "✅ KARAR VERİLDİ" olarak işaretli ve `player_auth_providers` tablosu (migration 0011) + `domain/player/auth-provider.ts` (saf dönüşüm fonksiyonu) zaten scaffold edilmiş durumda. Gerçekten eksik olan/proje sahibini bekleyen şey KARAR değil, ikisi: (1) gerçek implementasyon — hiçbir controller'a `AuthGuard` bağlanmamış, Google/Apple ID token doğrulaması yapan infrastructure kodu yazılmamış, oturum/JWT ihraç eden bir login endpoint'i yok; (2) Google/Apple Developer konsollarından alınacak GERÇEK OAuth client kimlik bilgileri (Google OAuth Client ID, Apple Sign-In Service ID/Key) — bunları yalnızca proje sahibi temin edebilir, uydurulamaz/test değeriyle production'a konulamaz. (1) hemen başlanabilir (test/staging'de sahte/mock bir sağlayıcıyla), (2) proje sahibinden gelmeden GERÇEK Google/Apple girişi uçtan uca test edilemez.
 
 ### S2 — CRITICAL: IDOR — herhangi biri başkasının atını kullanabilir
 **Evidence:** `apps/api/src/api/training/training.controller.ts:29-41`, `care.controller.ts:35-53`, `race.controller.ts:32-48` — hepsi yalnızca `@Param('id') horseId` alıyor, `horse.ownerId` karşılaştırması YOK. Aynı şekilde `train-horse.use-case.ts:59-64`, `perform-care-action.use-case.ts:35-39`, `run-practice-race.use-case.ts:75-84`.
@@ -98,17 +99,36 @@ olarak veriliyor. Her alanın sonunda "Zaten sağlam / IMPLEMENTED" listesi var
 ## 2. Veritabanı Bütünlüğü / Eşzamanlılık / At Durum Makinesi
 
 ### D1 — CRITICAL: Aynı at için birden fazla aktif ilan engellenmiyor
+> ✅ **DÜZELTİLDİ (bu oturum)** — `database/migrations/0023_add_market_listing_unique_active_index.{up,down}.sql`
+> (kısmi UNIQUE index) + `PostgresMarketListingRepository.save()`'in `unique_violation`'ı
+> yakalayıp `HorseAlreadyListedError`'a çevirmesi. Test: `market.e2e-spec.ts`
+> "eşzamanlı iki ilan oluşturma isteğinden (aynı at) yalnızca BİRİ 201 döner...".
+
 **Evidence:** `database/migrations/0007`, `0017` — `market_listings` tablosunda `horse_id` üzerinde `status='active' WHERE` şartlı UNIQUE index YOK. `CreateMarketListingUseCase` (`create-market-listing.use-case.ts:63-70`) yalnızca "önce oku, sonra yaz" yapıyor, kilit/transaction YOK.
 **Impact:** İki eşzamanlı `POST /market/listings` isteği aynı at için iki aktif ilan oluşturabilir. `PostgresMarketPurchaseRepository` (D2 ile birleşince) atın GERÇEK sahibini kontrol etmediğinden, iki farklı alıcı iki ayrı ilanı "satın alabilir" — ilk alıcı parasını verip atı gerçekten alır, ikinci alıcının satın alması da domain kontrollerinden geçer (o ilan hâlâ `active` görünür), atın sahipliğini KOŞULSUZCA ikinci alıcıya devreder ve parasını ORİJİNAL satıcıya öder (artık atın gerçek sahibi olmayan kişiye) — ilk alıcı parasını ödemiş ama atını sessizce kaybetmiş olur.
 **Fix:** `CREATE UNIQUE INDEX ... ON market_listings(horse_id) WHERE status = 'active';` (yeni migration) + `executePurchase`'ın kilitli transaction içinde `horses.owner_id = listing.seller_id` doğrulaması (uyuşmazsa yeni bir `ListingStaleOwnerError` / 409).
 **Test requirement:** Aynı `horseId` için paralel iki `CreateMarketListingUseCase` çağrısı → yalnızca biri başarılı olmalı; manuel olarak iki aktif ilan seed edilip paralel satın alınırsa ikincisi reddedilmeli.
 
 ### D2 — High: Satın alma, ilanın satıcısının hâlâ gerçek sahip olduğunu doğrulamıyor
+> ✅ **DÜZELTİLDİ (bu oturum)** — `PostgresMarketPurchaseRepository.executePurchase`
+> artık at satırı kilitliyken `horses.owner_id === listing.sellerId` doğruluyor,
+> uyuşmazsa yeni `ListingStaleOwnerError` (409 `LISTING_STALE_OWNER`) fırlatıyor.
+> Test: `market.e2e-spec.ts` "ilanın satıcısı artık atın gerçek sahibi değilse...".
+
 **Evidence:** `postgres-market-purchase.repository.ts:100-105`; `domain/market/market.ts:purchaseListing` hiçbir zaman `horse.ownerId` almıyor/kontrol etmiyor.
 **Fix:** Kilitli transaction içinde `horse.owner_id === listing.sellerId` doğrulaması eklenmeli (D1'in düzeltmesiyle aynı satır).
 **Test requirement:** `sellerId`'si atın gerçek `owner_id`'siyle uyuşmayan bir ilan üzerinde satın alma denemesi — hata fırlatmalı, transfer YAPILMAMALI.
 
 ### C1 — High: Ahır kapasitesi hiçbir yerde zorunlu kılınmıyor
+> ✅ **DÜZELTİLDİ (bu oturum)** — `PostgresMarketPurchaseRepository.executePurchase`
+> artık alıcının `players` satırı kilitliyken `getStableCapacity`/
+> `assertCanAddHorseToStable` ile kapasiteyi kontrol ediyor, doluysa
+> `StableCapacityExceededError` (409 `STABLE_CAPACITY_EXCEEDED`) fırlatıyor.
+> Test: `market.e2e-spec.ts` "alıcının ahırı doluysa...". (Not: bu yalnızca
+> At Pazarı satın alma yolunu kapatır — yetiştiricilik/FAZ 3 gibi at
+> ÜRETEN diğer yollar henüz bu kontrolden geçmiyor, ayrı bir bulgu değil
+> çünkü FAZ 3 kapsamı bu denetimin dışında.)
+
 **Evidence:** `assertCanAddHorseToStable`/`canAddHorseToStable` (`domain/stable/stable.ts:19-42`) tüm `apps/api/src` içinde HİÇBİR YERDE çağrılmıyor. `PostgresMarketPurchaseRepository.executePurchase`, alıcının `stable_level`/mevcut at sayısına hiç bakmadan mülkiyeti devrediyor.
 **Impact:** `GetStableSummaryUseCase` "5 kapasite, 47 at" gibi tutarsız bir durumu mutlu mutlu raporlayabilir — kapasite tamamen kozmetik.
 **Fix:** `executePurchase` içinde, alıcının `players` satırı zaten kilitliyken, aynı transaction'da `SELECT COUNT(*) FROM horses WHERE owner_id = $1` kontrolü eklenmeli.
@@ -242,9 +262,9 @@ Gerçek bir Three.js sahnesi var (basit geometrik şekillerle, kendi README'sind
 Master Plan §61 Phase A ("Security & Data Integrity") ile birebir uyumlu olarak:
 
 1. **S1+S2+S3+S4 (auth + ownership)** — en kritik küme, ama gerçek bir kimlik doğrulama sistemi (Google/Apple Sign-In) gerektirir; bu proje sahibinin onayını bekleyen açık bir mimari karardır (`docs/ARCHITECTURE.md` §10.6). **Bu rapor bu kararı proje sahibine bırakıyor** — aşağıdaki diğer tüm maddeler auth'tan BAĞIMSIZ olarak hemen düzeltilebilir.
-2. **D1+D2** — At Pazarı'nda tekil-aktif-ilan kısıtı + sahiplik doğrulaması. Küçük, izole, yeni özellik değil.
-3. **C1** — Ahır kapasitesi zorunluluğu.
-4. **H1** — Sakatlıktan iyileşme yolu.
+2. ✅ **D1+D2** — At Pazarı'nda tekil-aktif-ilan kısıtı + sahiplik doğrulaması. Küçük, izole, yeni özellik değil. **DÜZELTİLDİ (bu oturum)** — bkz. §2 D1/D2 durum notları.
+3. ✅ **C1** — Ahır kapasitesi zorunluluğu. **DÜZELTİLDİ (bu oturum)** — bkz. §2 C1 durum notu.
+4. **H1** — Sakatlıktan iyileşme yolu. *(sıradaki adım)*
 5. **E2+E3** — İptal/satın alma yarışı + idempotency kapsam düzeltmesi.
 6. **C2** — Antrenman/bakım/besleme için satır kilidi.
 7. **R1** — Hava durumu config versiyonlaması.

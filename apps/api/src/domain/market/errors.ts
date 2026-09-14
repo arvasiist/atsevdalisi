@@ -81,3 +81,25 @@ export class HorseAlreadyListedError extends Error {
     this.name = 'HorseAlreadyListedError';
   }
 }
+
+/**
+ * AUDIT_REPORT.md Bulgu D2 (High) — `PostgresMarketPurchaseRepository.
+ * executePurchase` artık, atın GERÇEK `owner_id`'sinin hâlâ ilanın
+ * `sellerId`'siyle eşleştiğini (satırlar kilitliyken) doğruluyor. Bu, D1
+ * ile birlikte ele alınması gereken bir riski kapatır: D1'in düzeltmesi
+ * (migration 0023'teki kısmi UNIQUE index) YENİ bir ikinci aktif ilanın
+ * OLUŞTURULMASINI engeller, ama D1'DEN ÖNCE (veya ondan bağımsız, örn.
+ * manuel bir veri düzeltmesiyle) zaten var olabilecek "stale" bir ilanın
+ * SATIN ALINMASINI ayrıca engellemek için bu ikinci, bağımsız savunma
+ * hattı gerekir — at zaten başka bir sahibe geçmişse (örn. D1 öncesi bir
+ * yarış koşulunda), bu ilan üzerinden yapılan bir satın alma artık
+ * sessizce yanlış tarafı ödeyip atı "geri almak" yerine açıkça reddedilir.
+ */
+export class ListingStaleOwnerError extends Error {
+  constructor(public readonly listingId: string, public readonly horseId: string) {
+    super(
+      `İlan (${listingId}) artık geçerli değil: at (${horseId}) ilanın satıcısına ait değil (muhtemelen at başka bir işlemle el değiştirdi).`,
+    );
+    this.name = 'ListingStaleOwnerError';
+  }
+}

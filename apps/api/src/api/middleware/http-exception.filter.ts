@@ -10,7 +10,7 @@ import {
 } from '../../domain/player/errors';
 import { HorseNotReadyForTrainingError, InvalidTrainingInputError } from '../../domain/training/errors';
 import { CareActionOnCooldownError, InvalidCareInputError } from '../../domain/care/errors';
-import { MaxStableLevelReachedError } from '../../domain/stable/errors';
+import { MaxStableLevelReachedError, StableCapacityExceededError } from '../../domain/stable/errors';
 import { DailyRewardAlreadyClaimedError, InsufficientFundsError } from '../../domain/economy/errors';
 import { InvalidRaceTacticError } from '../../domain/race/errors';
 import { AlreadyInMatchmakingQueueError, NotInMatchmakingQueueError } from '../../domain/online/errors';
@@ -22,6 +22,7 @@ import {
   ListingExpiredError,
   ListingNotActiveError,
   ListingNotFoundError,
+  ListingStaleOwnerError,
 } from '../../domain/market/errors';
 import { IdempotencyKeyInProgressError, IdempotencyKeyRequiredError } from '../idempotency/idempotency.errors';
 
@@ -110,6 +111,10 @@ const DOMAIN_ERROR_MAP = new Map<ErrorClassConstructor, { status: number; code: 
   [ListingNotActiveError, { status: HttpStatus.CONFLICT, code: ErrorCode.ListingNotActive }],
   [ListingExpiredError, { status: HttpStatus.CONFLICT, code: ErrorCode.ListingExpired }],
   [HorseAlreadyListedError, { status: HttpStatus.CONFLICT, code: ErrorCode.HorseAlreadyListed }],
+  // AUDIT_REPORT.md Bulgu D2 (bu oturum) — bkz. domain/market/errors.ts `ListingStaleOwnerError`.
+  [ListingStaleOwnerError, { status: HttpStatus.CONFLICT, code: ErrorCode.ListingStaleOwner }],
+  // AUDIT_REPORT.md Bulgu C1 (bu oturum) — bkz. domain/stable/errors.ts `StableCapacityExceededError`.
+  [StableCapacityExceededError, { status: HttpStatus.CONFLICT, code: ErrorCode.StableCapacityExceeded }],
   // FAZ 1 wiring, on dördüncü dilim — PvP Eşleştirme (brief §41).
   // `HorseAlreadyListedError` ile AYNI gerekçeyle (duruma bağlı, geçici —
   // önce kuyruktan çıkılırsa çözülür) 409 Conflict.
