@@ -130,7 +130,22 @@ export class PostgresMarketPurchaseRepository implements MarketPurchaseRepositor
       // YENİ bir ikinci aktif ilanın oluşmasını engeller ama D1'DEN ÖNCE
       // (veya ondan bağımsız bir veri tutarsızlığıyla) zaten var olabilecek
       // "stale" bir ilanın satın alınmasını AYRI olarak bu kontrol engeller.
-      if (horseRow.owner_id !== listing.sellerId) {
+      //
+      // CI REGRESYONU (bu oturum, ilk deneme) — bu kontrol İLK yazıldığında
+      // `listing.status`'a HİÇ bakmıyordu. Ama zaten `sold`/`cancelled`
+      // olmuş bir ilan için `owner_id !== sellerId` durumu GAYET NORMAL ve
+      // BEKLENEN bir durumdur (at meşru şekilde el değiştirdiği için) —
+      // "stale/tahrif edilmiş" bir durum DEĞİLDİR. Yalnızca `status`
+      // hâlâ `'active'` GÖRÜNÜRKEN sahiplik uyuşmazlığı VARSA gerçekten
+      // şüphelidir (D2'nin hedeflediği asıl senaryo). Bu yüzden kontrol
+      // `status === 'active'` ile SINIRLANDIRILDI — aksi halde zaten
+      // satılmış bir ilanı tekrar satın almaya çalışmak, aşağıdaki
+      // `purchaseListing()`'in doğru/beklenen `ListingNotActiveError`'ı
+      // (409 `LISTING_NOT_ACTIVE`) yerine yanlışlıkla `ListingStaleOwnerError`
+      // (409 `LISTING_STALE_OWNER`) fırlatıyordu — CI bunu GERÇEKTEN
+      // yakaladı (`market.e2e-spec.ts`'teki "zaten satılmış" ve "eşzamanlı
+      // satın alma" testleri).
+      if (listing.status === 'active' && horseRow.owner_id !== listing.sellerId) {
         throw new ListingStaleOwnerError(listing.id, listing.horseId);
       }
 
