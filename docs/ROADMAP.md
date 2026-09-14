@@ -2238,6 +2238,34 @@ konsollarından alınacak GERÇEK OAuth kimlik bilgileri — bunlar yalnızca
 proje sahibi tarafından temin edilebilir. Düzeltilmiş not `AUDIT_REPORT.md`
 S1 bölümüne eklendi.
 
+### ❌ İLK CI DENEMESİ BAŞARISIZ OLDU — D2 kontrolünün sıralama hatası
+
+Push sonrası gerçek CI, D2'nin kendi düzeltmesinin yol açtığı gerçek bir
+regresyonu yakaladı: `ListingStaleOwnerError` kontrolü `listing.status`'a
+HİÇ bakmadan, yalnızca `horses.owner_id !== listing.sellerId` ise
+fırlatılıyordu. Ama zaten `sold`/`cancelled` olmuş bir ilan için bu
+uyuşmazlık GAYET NORMAL/BEKLENEN bir durumdur (at meşru şekilde el
+değiştirdiği için) — "stale/tahrif edilmiş" bir durum DEĞİLDİR. Sonuç:
+zaten satılmış bir ilanı tekrar satın almaya çalışmak artık doğru/beklenen
+409 `LISTING_NOT_ACTIVE` yerine yanlışlıkla 409 `LISTING_STALE_OWNER`
+döndürüyordu — `market.e2e-spec.ts`'teki "zaten satılmış" ve "eşzamanlı
+satın alma" testleri bunu yakaladı (3 assertion hatası).
+
+Bu, oturumun bir önceki CI regresyonuyla (süresi dolmuş ilan süpürmesi)
+AYNI KATEGORİ bir ders: yeni bir kontrol eklerken, o kontrolün MEVCUT,
+zaten-doğru bir durumun (burada: meşru satış sonrası sahiplik değişimi)
+ÜSTÜNE binip onu YANLIŞ bir hatayla maskelemediğinden emin olmak gerekir.
+
+**Düzeltme:** kontrol `listing.status === 'active' && horseRow.owner_id
+!== listing.sellerId` olarak sınırlandırıldı — D2'nin hedeflediği asıl
+senaryo (ilan hâlâ `active` GÖRÜNÜRKEN sahiplik gizlice değişmiş) hâlâ
+yakalanıyor, ama zaten `sold`/`cancelled`/`expired` bir ilan için doğru
+sıradaki `purchaseListing()` kontrolüne (→ `ListingNotActiveError`/
+`ListingExpiredError`) müdahale edilmiyor. `tsc` baseline-diff ile
+doğrulandı (yeni tip hatası yok) — yeni bir test EKLENMEDİ çünkü mevcut
+"zaten satılmış bir ilan için 409 LISTING_NOT_ACTIVE döner" testi zaten
+tam olarak bu regresyonu yakalayan/doğrulayan test.
+
 ## GitHub deposu
 
 ✅ Tamamlandı — kod `github.com/arvasiist/atsevdalisi` deposuna proje
