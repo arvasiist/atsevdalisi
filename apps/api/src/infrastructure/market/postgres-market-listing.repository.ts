@@ -6,7 +6,9 @@ import { expireListingIfNeeded } from '../../domain/market/market';
 import { HorseAlreadyListedError, ListingNotActiveError } from '../../domain/market/errors';
 import { PG_POOL } from '../database/database.module';
 
+/** Postgres `unique_violation` hata kodu (bkz. PostgreSQL "Error Codes" §22.6 sınıf 23). */
 const POSTGRES_UNIQUE_VIOLATION = '23505';
+/** migration 0023'teki kısmi UNIQUE index'in adı — bkz. o migration'ın doc yorumu. */
 const ONE_ACTIVE_LISTING_PER_HORSE_INDEX = 'idx_market_listings_one_active_per_horse';
 
 interface MarketListingRow {
@@ -49,7 +51,12 @@ export class PostgresMarketListingRepository implements MarketListingRepository 
       const listing = rowToListing(row);
       const expired = expireListingIfNeeded(listing, now);
       if (expired.status !== listing.status) {
-        await this.update(expired);
+        await this.pool.query(
+          `UPDATE market_listings
+           SET status = $2, expires_at = $3
+           WHERE id = $1`,
+          [expired.id, expired.status, expired.expiresAt ? new Date(expired.expiresAt) : null],
+        );
       }
     }
   }
@@ -106,28 +113,19 @@ export class PostgresMarketListingRepository implements MarketListingRepository 
 
   /**
    * E2 DÜZELTMESİ:
-   * İptal veya satış güncellemelerinde race condition'ı önler.
-   * Eğer listing 'cancelled' yapılmak isteniyorsa, yalnızca durumu o anda 'active' olan satırı günceller.
-   * Satır güncellenemezse (0 satır) ilanın güncel durumunu kontrol edip ListingNotActiveError fırlatır.
+   * İptal durumunda (status === 'cancelled') WHERE status = 'active' koşulu aranır.
+   * Eğer satır etkilenmediyse (zaten sold veya expired olmuşsa) ListingNotActiveError fırlatılır.
    */
   async update(listing: MarketListing): Promise<void> {
     if (listing.status === 'cancelled') {
       const result = await this.pool.query(
         `UPDATE market_listings
-         SET seller_id = $2, horse_id = $3, price = $4, listing_type = $5, status = $6, expires_at = $7
+         SET status = 'cancelled'
          WHERE id = $1 AND status = 'active'`,
-        [
-          listing.id,
-          listing.sellerId,
-          listing.horseId,
-          listing.price,
-          listing.listingType,
-          listing.status,
-          listing.expiresAt ? new Date(listing.expiresAt) : null,
-        ],
+        [listing.id],
       );
 
-      if (result.rowCount === 0) {
+      if ((result.rowCount ?? 0) === 0) {
         const current = await this.pool.query<MarketListingRow>(
           'SELECT status FROM market_listings WHERE id = $1 LIMIT 1',
           [listing.id],
