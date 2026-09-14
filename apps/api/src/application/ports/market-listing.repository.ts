@@ -28,12 +28,6 @@ export interface MarketListingRepository {
   findActiveByHorseId(horseId: string): Promise<MarketListing | null>;
   save(listing: MarketListing): Promise<void>;
   update(listing: MarketListing): Promise<void>;
-  /**
-   * E2 DÜZELTMESİ: İlanı yalnızca veritabanında hâlâ 'active' durumundaysa 'cancelled' yapar.
-   * Eğer ilan o esnada satılmışsa (veya süresi dolmuşsa), 0 satır güncellenir ve
-   * ListingNotActiveError fırlatılır (race condition önlemi).
-   */
-  cancelIfActive(id: string): Promise<MarketListing>;
   search(filter: MarketListingSearchFilter): Promise<PaginatedResult<MarketListing>>;
   findBySellerId(sellerId: string, status?: ListingStatus): Promise<MarketListing[]>;
 }
