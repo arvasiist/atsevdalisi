@@ -3,7 +3,7 @@ import type { Pool } from 'pg';
 import type { ListingStatus, ListingType, MarketListing, PaginatedResult } from '@at-sevdalisi/shared-types';
 import type { MarketListingRepository, MarketListingSearchFilter } from '../../application/ports/market-listing.repository';
 import { expireListingIfNeeded } from '../../domain/market/market';
-import { HorseAlreadyListedError } from '../../domain/market/errors';
+import { HorseAlreadyListedError, ListingNotActiveError } from '../../domain/market/errors';
 import { PG_POOL } from '../database/database.module';
 
 /** Postgres `unique_violation` hata kodu (bkz. PostgreSQL "Error Codes" §22.6 sınıf 23). */
@@ -11,13 +11,6 @@ const POSTGRES_UNIQUE_VIOLATION = '23505';
 /** migration 0023'teki kısmi UNIQUE index'in adı — bkz. o migration'ın doc yorumu. */
 const ONE_ACTIVE_LISTING_PER_HORSE_INDEX = 'idx_market_listings_one_active_per_horse';
 
-/**
- * `market_listings` tablosunun satır şekli (snake_case, `database/migrations/
- * 0007_create_market_listings.up.sql`). `price` PostgreSQL'de BIGINT'tir —
- * `node-postgres` bunu (hassasiyet kaybını önlemek için) STRING döner
- * (bkz. `postgres-player.repository.ts` üstündeki AYNI not); `Number(...)`'a
- * çevrilir.
- */
 interface MarketListingRow {
   id: string;
   seller_id: string;
@@ -46,37 +39,6 @@ function rowToListing(row: MarketListingRow): MarketListing {
 export class PostgresMarketListingRepository implements MarketListingRepository {
   constructor(@Inject(PG_POOL) private readonly pool: Pool) {}
 
-  /**
-   * FAZ 1 wiring, on üçüncü dilim (bu oturum) — ilan süresi dolma (expiry)
-   * uygulaması. `domain/market/market.ts`'teki `expireListingIfNeeded`
-   * FAZ 0'dan beri hazırdı ama HİÇBİR YER onu çağırmıyordu (ilanlar
-   * fiilen hep süresizdi — `CreateMarketListingUseCase` `expiresInHours`
-   * hiç kabul etmiyordu). Bu dilim ikisini birden ekliyor.
-   *
-   * KARAR (bilinçli): projede henüz gerçek bir zamanlanmış görev (cron/
-   * `@nestjs/schedule` vb.) altyapısı YOK — yeni bir bağımlılık eklemek
-   * BAŞLI BAŞINA ayrı bir altyapı kararı olurdu. Bunun yerine TEMBEL
-   * (lazy) bir süpürme deseni seçildi: ilanları dışa açan HER okuma
-   * yolundan (`findById`/`findActiveByHorseId`/`search`/`findBySellerId`)
-   * ÖNCE, süresi geçmiş `active` ilanlar bulunup SAF `expireListingIfNeeded`
-   * fonksiyonundan geçirilerek `expired`'a güncellenir — gözlemlenebilir
-   * davranış AYNI (istemci süresi dolmuş bir ilanı asla `active` olarak
-   * görmez), yeni bağımlılık veya arka plan süreci YOK. Aday satır sayısı
-   * doğası gereği küçüktür (yalnızca o an YENİ süresi dolmuş ilanlar) —
-   * her çağrıda TÜM tabloyu taramaz.
-   *
-   * SONUÇ (bilinçli, dikkat): bu, `BuyMarketListingUseCase`'in `findById`
-   * ÜZERİNDEN gördüğü listing'i de kapsar — yani süresi zaten dolmuş bir
-   * ilanı satın almaya çalışmak artık `domain/market/market.ts`'teki
-   * `purchaseListing`'in KENDİ `isListingExpired` kontrolüne (→
-   * `ListingExpiredError`, `409 LISTING_EXPIRED`) hiç ULAŞAMAZ — status
-   * bu süpürmeyle ÖNCEDEN `expired`'a çevrildiği için `purchaseListing`'in
-   * İLK kontrolü (`status !== 'active'`) devreye girer (→
-   * `ListingNotActiveError`, `409 LISTING_NOT_ACTIVE`, mesajda "durum:
-   * expired" açıkça belirtilir). Bilgi kaybı YOKTUR (mesaj/`status` alanı
-   * hâlâ nedeni açıklar), yalnızca hangi hata SINIFININ fırlatıldığı
-   * değişir.
-   */
   private async sweepExpiredListings(): Promise<void> {
     const dueResult = await this.pool.query<MarketListingRow>(
       "SELECT * FROM market_listings WHERE status = 'active' AND expires_at IS NOT NULL AND expires_at <= NOW()",
@@ -111,17 +73,6 @@ export class PostgresMarketListingRepository implements MarketListingRepository 
     return result.rows[0] ? rowToListing(result.rows[0]) : null;
   }
 
-  /**
-   * AUDIT_REPORT.md Bulgu D1 (CRITICAL) düzeltmesi — `CreateMarketListingUseCase`'in
-   * "önce oku, sonra yaz" kontrolü (kilitsiz/transaction'sız) tek başına iki
-   * eşzamanlı isteğin aynı ata iki aktif ilan yazmasını ENGELLEYEMEZ. Gerçek
-   * güvence artık migration 0023'teki kısmi (partial) UNIQUE index'tir —
-   * Postgres bu index'i ihlal eden bir INSERT'te `unique_violation` (23505)
-   * fırlatır; burada bu hata yakalanıp uygulamanın zaten bildiği/test ettiği
-   * `HorseAlreadyListedError`'a çevrilir, böylece API sözleşmesi (409
-   * `HORSE_ALREADY_LISTED`) DEĞİŞMEZ — yalnızca artık DB seviyesinde de
-   * gerçekten zorunlu kılınır.
-   */
   async save(listing: MarketListing): Promise<void> {
     try {
       await this.pool.query(
@@ -170,11 +121,34 @@ export class PostgresMarketListingRepository implements MarketListingRepository 
     );
   }
 
+  /**
+   * E2 DÜZELTMESİ: Koşullu atomik güncelleme.
+   * İlan aynı anda satın alındıysa (status !== 'active') 0 satır güncellenir ve hata fırlatılır.
+   */
+  async cancelIfActive(id: string): Promise<MarketListing> {
+    await this.sweepExpiredListings();
+    const result = await this.pool.query<MarketListingRow>(
+      `UPDATE market_listings
+       SET status = 'cancelled'
+       WHERE id = $1 AND status = 'active'
+       RETURNING *`,
+      [id],
+    );
+
+    if (result.rows.length === 0) {
+      const current = await this.pool.query<MarketListingRow>(
+        'SELECT * FROM market_listings WHERE id = $1 LIMIT 1',
+        [id],
+      );
+      const currentStatus = current.rows[0]?.status ?? 'unknown';
+      throw new ListingNotActiveError(id, currentStatus);
+    }
+
+    return rowToListing(result.rows[0]);
+  }
+
   async search(filter: MarketListingSearchFilter): Promise<PaginatedResult<MarketListing>> {
     await this.sweepExpiredListings();
-    // `0017_add_market_listings_indexes.up.sql`'deki `(status, created_at
-    // DESC)` bileşik indeksi TAM OLARAK bu sorgu şeklini (status'e göre
-    // filtrele, created_at'e göre sırala) karşılamak için eklendi.
     const conditions: string[] = ['status = $1'];
     const params: unknown[] = [filter.status];
     if (filter.minPrice !== undefined) {
