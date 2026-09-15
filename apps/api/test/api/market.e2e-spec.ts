@@ -203,14 +203,6 @@ describe('Market — At Pazarı (e2e)', () => {
   });
 
   describe('GET /api/v1/market/listings (tarama)', () => {
-    // NOT — bu describe bloğu tüm dosyanın PAYLAŞTIĞI tek bir veritabanına
-    // yazıyor (diğer test'lerin de ilan oluşturduğu AYNI `market_listings`
-    // tablosu); "tüm ilanları say" gibi TOPLU bir iddia diğer test'lerin
-    // verisiyle KİRLENİR. Bunun yerine her test kendine özgü, ÇOK
-    // OLASILIKSIZ bir fiyat (ör. 61xxxx) kullanır ve `minPrice`/`maxPrice`
-    // ile SADECE o fiyat aralığını sorgular — bu, `LISTING_PRICE = 1000`
-    // gibi diğer test'lerin paylaştığı fiyatlarla ASLA çakışmaz.
-
     it('status verilmezse yalnızca active durumdaki ilanları döner', async () => {
       const uniquePrice = 611001;
       const active = await registerPlayerWithStarterHorse();
@@ -283,15 +275,13 @@ describe('Market — At Pazarı (e2e)', () => {
 
     it('page/pageSize sayfalama meta bilgisini doğru döner', async () => {
       const uniquePrice = 633003;
-      await Promise.all(
-        Array.from({ length: 3 }, async () => {
-          const { horseId } = await registerPlayerWithStarterHorse();
-          await request(app.getHttpServer())
-            .post('/api/v1/market/listings')
-            .send({ horseId, price: uniquePrice })
-            .expect(201);
-        }),
-      );
+      for (let i = 0; i < 3; i += 1) {
+        const { horseId } = await registerPlayerWithStarterHorse();
+        await request(app.getHttpServer())
+          .post('/api/v1/market/listings')
+          .send({ horseId, price: uniquePrice })
+          .expect(201);
+      }
 
       const firstPage = await request(app.getHttpServer()).get(
         `/api/v1/market/listings?minPrice=${uniquePrice}&maxPrice=${uniquePrice}&page=1&pageSize=2`,
@@ -772,9 +762,6 @@ describe('Market — At Pazarı (e2e)', () => {
     // satıcıya) ödeyip atı GERÇEK sahibinden çalmasına yol açardı.
     it('ilanın satıcısı artık atın gerçek sahibi değilse (stale ilan) 409 LISTING_STALE_OWNER döner, hiçbir şey değişmez', async () => {
       const { listingId, horseId, sellerId } = await createListing();
-      // At, ilan HÂLÂ 'active' görünürken "başka bir yolla" el değiştirdi
-      // (örn. D1 öncesi bir veri tutarsızlığı) — gerçek sahibi artık
-      // ilanın sellerId'si DEĞİL.
       const actualOwnerId = await registerPlayer();
       await pool.query('UPDATE horses SET owner_id = $2 WHERE id = $1', [horseId, actualOwnerId]);
       const buyerId = await registerPlayer();
@@ -800,17 +787,10 @@ describe('Market — At Pazarı (e2e)', () => {
     // AUDIT_REPORT.md Bulgu C1 (High, bu oturum) — `StableCapacityExceededError`
     // FAZ 1'den beri domain katmanında hazırdı ama alım-satım akışında HİÇ
     // fırlatılmıyordu; alıcı ahırı doluyken bile at satın alabiliyordu.
-    // Bu test, alıcıyı config'deki seviye-1 kapasitesine (5, bkz.
-    // `stable.config.json`) doldurup (1 başlangıç atı + 4 ek at =
-    // doğrudan SQL ile eklenir — yalnızca `owner_id` sayımı ilgilendiği
-    // için `horse_stats`/`horse_health` satırlarına gerek YOK) satın
-    // almayı dener.
     it('alıcının ahırı doluysa 409 STABLE_CAPACITY_EXCEEDED döner, hiçbir şey değişmez', async () => {
       const { listingId, horseId, sellerId } = await createListing();
       const buyerId = await registerPlayer();
 
-      // Alıcının zaten 1 başlangıç atı var (brief §5) — seviye 1
-      // kapasitesi (5) dolana kadar 4 tane daha ekle.
       for (let i = 0; i < 4; i += 1) {
         await pool.query(
           `INSERT INTO horses (owner_id, name, gender, breed, birth_date, quality, potential)
@@ -838,10 +818,7 @@ describe('Market — At Pazarı (e2e)', () => {
     });
 
     // AUDIT_AND_HARDENING Öncelik 2 (bu oturum) — `economy_transactions`
-    // ledger'ının GERÇEKTEN yazıldığını doğrular: bir satın alma TAM
-    // OLARAK iki satır üretir (alıcı için debit, satıcı için credit),
-    // AYNI `reference_id` (ilan id'si) ile eşleşir, bakiye önce/sonra
-    // alanları GERÇEK bakiye değişikliğiyle birebir örtüşür.
+    // ledger'ının GERÇEKTEN yazıldığını doğrular.
     it('satın alma economy_transactions ledger’ına TAM OLARAK iki satır (debit + credit) yazar', async () => {
       const { listingId, sellerId } = await createListing();
       const buyerId = await registerPlayer();
@@ -871,10 +848,7 @@ describe('Market — At Pazarı (e2e)', () => {
     });
 
     // AUDIT_AND_HARDENING Öncelik 1 (bu oturum) — BULUNAN HATA'nın e2e
-    // regresyon kilidi (bkz. `domain/market/market.spec.ts`'teki AYNI
-    // senaryonun domain-seviyesi testi): fiyatı sıfır olan bir ilanın
-    // satın alınması artık 500 DEĞİL 200 döner, mülkiyet devreder, HİÇBİR
-    // ledger satırı ÜRETİLMEZ (para hareketi hiç gerçekleşmediği için).
+    // regresyon kilidi.
     it('fiyatı sıfır olan bir ilanı satın alırken 500 dönmez, mülkiyeti devreder, ledger’a hiçbir satır eklenmez', async () => {
       const { horseId } = await registerPlayerWithStarterHorse();
       const created = await request(app.getHttpServer())
