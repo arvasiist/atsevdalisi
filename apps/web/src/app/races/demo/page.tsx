@@ -14,19 +14,17 @@ const MOCK_TRACK: RaceSceneProps['trackGeometry'] = {
   straightLengthMeters: 400,
   turnRadiusMeters: 63.66,
   lapLengthMeters: 1200,
-  laneWidthM: 2.5,
   laneCount: 4,
 };
 
 const MOCK_CAMERA: RaceSceneProps['cameraPose'] = {
-  position: [0, 40, 100],
-  lookAt: [0, 0, 0],
+  position: { x: 0, y: 40, z: 100 },
+  lookAt: { x: 0, y: 0, z: 0 },
 };
 
 const MOCK_HORSES: RaceSceneProps['horses'] = [
   {
     horseId: 'h1',
-    name: 'Rüzgar Gülü',
     laneIndex: 0,
     x: 10,
     z: 50,
@@ -37,7 +35,6 @@ const MOCK_HORSES: RaceSceneProps['horses'] = [
   },
   {
     horseId: 'h2',
-    name: 'Poyraz',
     laneIndex: 1,
     x: 15,
     z: 52,
