@@ -1,7 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { apiClient } from '../lib/api-client';
+
+const RANDOM_ID_MULTIPLIER = 10000;
 
 interface Horse {
   id: string;
@@ -32,24 +34,6 @@ export default function HomePage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Başlangıç için test oyuncusu oluşturma / getirme
-  const handleInitPlayer = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const newPlayer = await apiClient.registerPlayer(
-        `jokey_${Math.floor(Math.random() * 10000)}`,
-        'Harbi Seyis',
-      );
-      await loadPlayerData(newPlayer.id);
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Oyuncu başlatılamadı';
-      setError(msg);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const loadPlayerData = async (playerId: string) => {
     const playerData = await apiClient.getPlayer(playerId);
     setPlayer(playerData);
@@ -59,6 +43,24 @@ export default function HomePage() {
 
     const stableData = await apiClient.getStableSummary(playerId);
     setStable(stableData);
+  };
+
+  const handleInitPlayer = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const randomSuffix = Math.floor(Math.random() * RANDOM_ID_MULTIPLIER);
+      const newPlayer = await apiClient.registerPlayer(
+        `jokey_${randomSuffix}`,
+        'Harbi Seyis',
+      );
+      await loadPlayerData(newPlayer.id);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Oyuncu başlatılamadı';
+      setError(msg);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -85,7 +87,6 @@ export default function HomePage() {
         </div>
       ) : (
         <div>
-          {/* Oyuncu & Kasa Kartı */}
           <section style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem' }}>
             <div style={{ flex: 1, padding: '1rem', border: '1px solid #e4e4e7', borderRadius: '8px' }}>
               <h3>Oyuncu</h3>
@@ -102,7 +103,6 @@ export default function HomePage() {
             )}
           </section>
 
-          {/* Atlarım Listesi */}
           <section>
             <h2>Ahırdaki Safkanlar</h2>
             {horses.length === 0 ? (
