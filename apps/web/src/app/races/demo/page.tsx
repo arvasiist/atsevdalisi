@@ -14,7 +14,6 @@ const MOCK_TRACK: RaceSceneProps['trackGeometry'] = {
   straightLengthMeters: 400,
   turnRadiusMeters: 63.66,
   lapLengthMeters: 1200,
-  laneCount: 4,
 };
 
 const MOCK_CAMERA: RaceSceneProps['cameraPose'] = {
@@ -25,7 +24,6 @@ const MOCK_CAMERA: RaceSceneProps['cameraPose'] = {
 const MOCK_HORSES: RaceSceneProps['horses'] = [
   {
     horseId: 'h1',
-    laneIndex: 0,
     x: 10,
     z: 50,
     headingRadians: 0,
@@ -35,7 +33,6 @@ const MOCK_HORSES: RaceSceneProps['horses'] = [
   },
   {
     horseId: 'h2',
-    laneIndex: 1,
     x: 15,
     z: 52,
     headingRadians: 0,
