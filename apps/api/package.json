@@ -9,7 +9,7 @@
     "start": "node dist/main.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "typecheck:domain": "tsc -p tsconfig.domain.json",
-    "test": "vitest run --passWithNoTests",
+    "test": "vitest run --passWithNoTests --no-file-parallelism",
     "migrate": "tsx ../../tools/migrate.ts up",
     "migrate:undo": "tsx ../../tools/migrate.ts down",
     "seed": "tsx ../../tools/seed.ts"
