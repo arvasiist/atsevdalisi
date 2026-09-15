@@ -1,18 +1,16 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import type {
-  CameraPose,
-  HorseVisual,
-  StadiumTrackGeometry,
-} from '../../../features/race-viewer/race-viewer.types';
+import type { ComponentProps } from 'react';
 
 const RaceScene3D = dynamic(
   () => import('../../../features/race-viewer/RaceScene3D').then((mod) => mod.RaceScene3D),
   { ssr: false, loading: () => <p style={{ color: '#fff', padding: '2rem' }}>3D Hipodrom yükleniyor...</p> },
 );
 
-const MOCK_TRACK: StadiumTrackGeometry = {
+type RaceSceneProps = ComponentProps<typeof RaceScene3D>;
+
+const MOCK_TRACK: RaceSceneProps['trackGeometry'] = {
   straightLengthMeters: 400,
   turnRadiusMeters: 63.66,
   lapLengthMeters: 1200,
@@ -20,12 +18,12 @@ const MOCK_TRACK: StadiumTrackGeometry = {
   laneCount: 4,
 };
 
-const MOCK_CAMERA: CameraPose = {
+const MOCK_CAMERA: RaceSceneProps['cameraPose'] = {
   position: [0, 40, 100],
   lookAt: [0, 0, 0],
 };
 
-const MOCK_HORSES: HorseVisual[] = [
+const MOCK_HORSES: RaceSceneProps['horses'] = [
   {
     horseId: 'h1',
     name: 'Rüzgar Gülü',
