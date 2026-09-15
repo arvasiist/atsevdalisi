@@ -1,42 +1,49 @@
 'use client';
 
 import dynamic from 'next/dynamic';
+import type {
+  CameraPose,
+  HorseVisual,
+  StadiumTrackGeometry,
+} from '../../../features/race-viewer/race-viewer.types';
 
 const RaceScene3D = dynamic(
   () => import('../../../features/race-viewer/RaceScene3D').then((mod) => mod.RaceScene3D),
   { ssr: false, loading: () => <p style={{ color: '#fff', padding: '2rem' }}>3D Hipodrom yükleniyor...</p> },
 );
 
-const MOCK_TRACK_GEOMETRY = {
-  totalDistanceM: 1200,
-  straightLengthM: 400,
-  turnRadiusM: 63.66,
+const MOCK_TRACK: StadiumTrackGeometry = {
+  straightLengthMeters: 400,
+  turnRadiusMeters: 63.66,
+  lapLengthMeters: 1200,
   laneWidthM: 2.5,
   laneCount: 4,
 };
 
-const MOCK_CAMERA_POSE = {
-  position: [0, 40, 100] as [number, number, number],
-  target: [0, 0, 0] as [number, number, number],
+const MOCK_CAMERA: CameraPose = {
+  position: [0, 40, 100],
+  lookAt: [0, 0, 0],
 };
 
-const MOCK_HORSES = [
+const MOCK_HORSES: HorseVisual[] = [
   {
-    id: 'h1',
+    horseId: 'h1',
     name: 'Rüzgar Gülü',
     laneIndex: 0,
-    progressDistanceM: 350,
-    lateralOffsetM: 0,
+    x: 10,
+    z: 50,
+    headingRadians: 0,
     speedMps: 16.5,
     coatColor: '#4a2c11',
     silkPattern: 'stripes',
   },
   {
-    id: 'h2',
+    horseId: 'h2',
     name: 'Poyraz',
     laneIndex: 1,
-    progressDistanceM: 370,
-    lateralOffsetM: 0,
+    x: 15,
+    z: 52,
+    headingRadians: 0,
     speedMps: 17.0,
     coatColor: '#1a1a1a',
     silkPattern: 'solid',
@@ -48,8 +55,8 @@ export default function RaceDemoPage() {
     <main style={{ width: '100vw', height: 'calc(100vh - 65px)', background: '#0b1220', position: 'relative' }}>
       <RaceScene3D
         horses={MOCK_HORSES}
-        cameraPose={MOCK_CAMERA_POSE}
-        trackGeometry={MOCK_TRACK_GEOMETRY}
+        cameraPose={MOCK_CAMERA}
+        trackGeometry={MOCK_TRACK}
       />
     </main>
   );
