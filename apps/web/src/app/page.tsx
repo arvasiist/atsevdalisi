@@ -1,117 +1,140 @@
-import { PlayerDemoWidget } from '../features/player-demo/PlayerDemoWidget';
+'use client';
 
-/**
- * FAZ 0 durum sayfası.
- *
- * Bu, brief'teki referans Ana Sayfa tasarımı (§2, §38, §70) DEĞİLDİR —
- * o ekran, gerçek API verisiyle FAZ 1'de `docs/GAME_DESIGN.md` §4'e göre
- * inşa edilecektir. Bu sayfa, FAZ 0 kapsamında sadece iskeletin ayakta
- * olduğunu ve bir sonraki adımın ne olduğunu göstermek için vardır.
- *
- * FAZ 1 wiring (bu oturum): sayfanın sonuna, gerçek API + veritabanı
- * bağlantısını tarayıcıdan kanıtlayan küçük bir istemci widget'ı
- * (`PlayerDemoWidget`) eklendi — bkz. o dosyanın doc-comment'i.
- */
+import { useEffect, useState } from 'react';
+import { apiClient } from '../lib/api-client';
 
-interface ModuleStatus {
+interface Horse {
+  id: string;
   name: string;
-  phase: string;
-  /** Faz 6 için: çalışan bir demo ekranına bağlantı (opsiyonel). */
-  href?: string;
+  gender: string;
+  breed: string;
+  quality: number;
+  potential: number;
 }
 
-const modules: ModuleStatus[] = [
-  { name: 'Player / Authentication', phase: 'FAZ 1' },
-  { name: 'Economy', phase: 'FAZ 1' },
-  { name: 'Horse / Stable', phase: 'FAZ 1' },
-  { name: 'Training / Care', phase: 'FAZ 1' },
-  { name: 'Basic Race Engine', phase: 'FAZ 1' },
-  { name: 'Market', phase: 'FAZ 2' },
-  { name: 'Genetics / Breeding', phase: 'FAZ 3' },
-  { name: 'Farm', phase: 'FAZ 4' },
-  { name: 'Advanced Race Engine', phase: 'FAZ 5' },
-  { name: 'Web 3D Sunum (Three.js)', phase: 'FAZ 6', href: '/races/demo' },
-  { name: 'Online / Kulüp / Turnuva', phase: 'FAZ 7' },
-];
+interface Player {
+  id: string;
+  username: string;
+  displayName: string;
+  money: number;
+}
 
-export default function HomePage(): React.ReactElement {
+interface StableSummary {
+  totalHorses: number;
+  stableLevel: number;
+  capacity: number;
+}
+
+export default function HomePage() {
+  const [player, setPlayer] = useState<Player | null>(null);
+  const [horses, setHorses] = useState<Horse[]>([]);
+  const [stable, setStable] = useState<StableSummary | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Başlangıç için test oyuncusu oluşturma / getirme
+  const handleInitPlayer = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const newPlayer = await apiClient.registerPlayer(
+        `jokey_${Math.floor(Math.random() * 10000)}`,
+        'Harbi Seyis',
+      );
+      await loadPlayerData(newPlayer.id);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Oyuncu başlatılamadı';
+      setError(msg);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadPlayerData = async (playerId: string) => {
+    const playerData = await apiClient.getPlayer(playerId);
+    setPlayer(playerData);
+
+    const horsesData = await apiClient.getHorsesByOwner(playerId);
+    setHorses(horsesData);
+
+    const stableData = await apiClient.getStableSummary(playerId);
+    setStable(stableData);
+  };
+
   return (
-    <main className="page-container">
-      <section style={{ marginBottom: 'var(--space-xl)' }}>
-        <p
-          style={{
-            color: 'var(--color-accent-gold)',
-            fontSize: '14px',
-            letterSpacing: '0.08em',
-            textTransform: 'uppercase',
-            marginBottom: 'var(--space-sm)',
-          }}
-        >
-          FAZ 0 — Teknik Keşif ve Planlama
-        </p>
-        <h1 style={{ fontSize: '36px', margin: 0, marginBottom: 'var(--space-sm)' }}>🐎 AT Sevdalısı</h1>
-        <p style={{ color: 'var(--color-text-secondary)', maxWidth: '640px', lineHeight: 1.6 }}>
-          Repo iskeleti, mimari kararlar ve dokümantasyon hazır. Gerçek Ana Sayfa
-          (referans UI konseptindeki ahır özeti, son yarış sonuçları ve hızlı
-          erişim kartlarıyla) FAZ 1&apos;de bu sayfanın yerini alacaktır.
-        </p>
-      </section>
+    <main style={{ padding: '2rem', fontFamily: 'sans-serif', maxWidth: '800px', margin: '0 auto' }}>
+      <h1>Hipodrom — Ahır Yönetimi</h1>
 
-      <section
-        style={{
-          background: 'var(--color-bg-surface)',
-          border: '1px solid var(--color-border)',
-          borderRadius: 'var(--radius-lg)',
-          padding: 'var(--space-lg)',
-        }}
-      >
-        <h2 style={{ fontSize: '18px', marginTop: 0, marginBottom: 'var(--space-md)' }}>
-          Modül durumu
-        </h2>
-        <div style={{ display: 'grid', gap: 'var(--space-sm)' }}>
-          {modules.map((module) => (
-            <div
-              key={module.name}
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                padding: 'var(--space-sm) var(--space-md)',
-                background: 'var(--color-bg-surface-elevated)',
-                borderRadius: 'var(--radius-md)',
-              }}
-            >
-              <span style={{ color: 'var(--color-text-primary)', fontSize: '14px' }}>
-                {module.name}
-                {module.href ? (
-                  <a href={module.href} style={{ marginLeft: 'var(--space-sm)', fontSize: '12px' }}>
-                    demo →
-                  </a>
-                ) : null}
-              </span>
-              <span
-                style={{
-                  color: 'var(--color-accent-gold)',
-                  fontSize: '12px',
-                  fontWeight: 600,
-                  padding: '2px 10px',
-                  border: '1px solid var(--color-accent-gold)',
-                  borderRadius: '999px',
-                }}
-              >
-                {module.phase}
-              </span>
-            </div>
-          ))}
+      {!player ? (
+        <div style={{ padding: '1.5rem', background: '#f4f4f5', borderRadius: '8px' }}>
+          <p>Henüz giriş yapmış bir seyis/jokey hesabı bulunmuyor.</p>
+          <button
+            onClick={handleInitPlayer}
+            disabled={loading}
+            style={{
+              padding: '0.75rem 1.5rem',
+              background: '#2563eb',
+              color: '#fff',
+              border: 'none',
+              borderRadius: '6px',
+              cursor: 'pointer',
+            }}
+          >
+            {loading ? 'Yükleniyor...' : 'Başlangıç Paketiyle Oyuncu Oluştur'}
+          </button>
         </div>
-      </section>
+      ) : (
+        <div>
+          {/* Oyuncu & Kasa Kartı */}
+          <section style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem' }}>
+            <div style={{ flex: 1, padding: '1rem', border: '1px solid #e4e4e7', borderRadius: '8px' }}>
+              <h3>Oyuncu</h3>
+              <p><strong>{player.displayName}</strong> (@{player.username})</p>
+              <p>Bakiye: <strong>{player.money.toLocaleString()} ₺</strong></p>
+            </div>
 
-      <PlayerDemoWidget />
+            {stable && (
+              <div style={{ flex: 1, padding: '1rem', border: '1px solid #e4e4e7', borderRadius: '8px' }}>
+                <h3>Ahır Durumu</h3>
+                <p>Seviye: <strong>{stable.stableLevel}</strong></p>
+                <p>Kapasite: <strong>{stable.totalHorses} / {stable.capacity}</strong></p>
+              </div>
+            )}
+          </section>
 
-      <footer style={{ marginTop: 'var(--space-xl)', color: 'var(--color-text-muted)', fontSize: '12px' }}>
-        Kaynak: <code>docs/PROJECT_BRIEF.md</code> · Mimari:{' '}
-        <code>docs/ARCHITECTURE.md</code> · Yol haritası: <code>docs/ROADMAP.md</code>
-      </footer>
+          {/* Atlarım Listesi */}
+          <section>
+            <h2>Ahırdaki Safkanlar</h2>
+            {horses.length === 0 ? (
+              <p>Ahırda kayıtlı at bulunamadı.</p>
+            ) : (
+              <div style={{ display: 'grid', gap: '1rem' }}>
+                {horses.map((horse) => (
+                  <div
+                    key={horse.id}
+                    style={{
+                      padding: '1rem',
+                      border: '1px solid #cbd5e1',
+                      borderRadius: '8px',
+                      background: '#fff',
+                    }}
+                  >
+                    <h4 style={{ margin: '0 0 0.5rem 0' }}>{horse.name}</h4>
+                    <p style={{ margin: '0.25rem 0' }}>Irk: {horse.breed} | Cinsiyet: {horse.gender}</p>
+                    <p style={{ margin: '0.25rem 0' }}>Kalite: {horse.quality} / 100 | Potansiyel: {horse.potential} / 100</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+        </div>
+      )}
+
+      {error && (
+        <div style={{ marginTop: '1rem', padding: '1rem', background: '#fee2e2', color: '#991b1b', borderRadius: '6px' }}>
+          <strong>Hata:</strong> {error}
+        </div>
+      )}
     </main>
   );
 }
