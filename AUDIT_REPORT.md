@@ -99,7 +99,7 @@ olarak veriliyor. Her alanın sonunda "Zaten sağlam / IMPLEMENTED" listesi var
 ## 2. Veritabanı Bütünlüğü / Eşzamanlılık / At Durum Makinesi
 
 ### D1 — CRITICAL: Aynı at için birden fazla aktif ilan engellenmiyor
-> ✅ **DÜZELTİLDİ (bu oturum)** — `database/migrations/0023_add_market_listing_unique_active_index.{up,down}.sql`
+> ✅ **DÜZELTİLDİ VE GERÇEK CI'DA DOĞRULANDI** — `database/migrations/0023_add_market_listing_unique_active_index.{up,down}.sql`
 > (kısmi UNIQUE index) + `PostgresMarketListingRepository.save()`'in `unique_violation`'ı
 > yakalayıp `HorseAlreadyListedError`'a çevirmesi. Test: `market.e2e-spec.ts`
 > "eşzamanlı iki ilan oluşturma isteğinden (aynı at) yalnızca BİRİ 201 döner...".
@@ -110,7 +110,7 @@ olarak veriliyor. Her alanın sonunda "Zaten sağlam / IMPLEMENTED" listesi var
 **Test requirement:** Aynı `horseId` için paralel iki `CreateMarketListingUseCase` çağrısı → yalnızca biri başarılı olmalı; manuel olarak iki aktif ilan seed edilip paralel satın alınırsa ikincisi reddedilmeli.
 
 ### D2 — High: Satın alma, ilanın satıcısının hâlâ gerçek sahip olduğunu doğrulamıyor
-> ✅ **DÜZELTİLDİ (bu oturum)** — `PostgresMarketPurchaseRepository.executePurchase`
+> ✅ **DÜZELTİLDİ VE GERÇEK CI'DA DOĞRULANDI** — `PostgresMarketPurchaseRepository.executePurchase`
 > artık at satırı kilitliyken `horses.owner_id === listing.sellerId` doğruluyor,
 > uyuşmazsa yeni `ListingStaleOwnerError` (409 `LISTING_STALE_OWNER`) fırlatıyor.
 > Test: `market.e2e-spec.ts` "ilanın satıcısı artık atın gerçek sahibi değilse...".
@@ -120,7 +120,7 @@ olarak veriliyor. Her alanın sonunda "Zaten sağlam / IMPLEMENTED" listesi var
 **Test requirement:** `sellerId`'si atın gerçek `owner_id`'siyle uyuşmayan bir ilan üzerinde satın alma denemesi — hata fırlatmalı, transfer YAPILMAMALI.
 
 ### C1 — High: Ahır kapasitesi hiçbir yerde zorunlu kılınmıyor
-> ✅ **DÜZELTİLDİ (bu oturum)** — `PostgresMarketPurchaseRepository.executePurchase`
+> ✅ **DÜZELTİLDİ VE GERÇEK CI'DA DOĞRULANDI** — `PostgresMarketPurchaseRepository.executePurchase`
 > artık alıcının `players` satırı kilitliyken `getStableCapacity`/
 > `assertCanAddHorseToStable` ile kapasiteyi kontrol ediyor, doluysa
 > `StableCapacityExceededError` (409 `STABLE_CAPACITY_EXCEEDED`) fırlatıyor.
@@ -262,8 +262,8 @@ Gerçek bir Three.js sahnesi var (basit geometrik şekillerle, kendi README'sind
 Master Plan §61 Phase A ("Security & Data Integrity") ile birebir uyumlu olarak:
 
 1. **S1+S2+S3+S4 (auth + ownership)** — en kritik küme, ama gerçek bir kimlik doğrulama sistemi (Google/Apple Sign-In) gerektirir; bu proje sahibinin onayını bekleyen açık bir mimari karardır (`docs/ARCHITECTURE.md` §10.6). **Bu rapor bu kararı proje sahibine bırakıyor** — aşağıdaki diğer tüm maddeler auth'tan BAĞIMSIZ olarak hemen düzeltilebilir.
-2. ✅ **D1+D2** — At Pazarı'nda tekil-aktif-ilan kısıtı + sahiplik doğrulaması. Küçük, izole, yeni özellik değil. **DÜZELTİLDİ (bu oturum)** — bkz. §2 D1/D2 durum notları.
-3. ✅ **C1** — Ahır kapasitesi zorunluluğu. **DÜZELTİLDİ (bu oturum)** — bkz. §2 C1 durum notu.
+2. ✅ **D1+D2** — At Pazarı'nda tekil-aktif-ilan kısıtı + sahiplik doğrulaması. Küçük, izole, yeni özellik değil. **DÜZELTİLDİ VE GERÇEK CI'DA DOĞRULANDI** — bkz. §2 D1/D2 durum notları.
+3. ✅ **C1** — Ahır kapasitesi zorunluluğu. **DÜZELTİLDİ VE GERÇEK CI'DA DOĞRULANDI** — bkz. §2 C1 durum notu.
 4. **H1** — Sakatlıktan iyileşme yolu. *(sıradaki adım)*
 5. **E2+E3** — İptal/satın alma yarışı + idempotency kapsam düzeltmesi.
 6. **C2** — Antrenman/bakım/besleme için satır kilidi.

@@ -2304,6 +2304,23 @@ düzeltmesidir. Kesin sebep ekran görüntüsünde doğrulanamadığından, bu
 düzeltmenin CI'da gerçekten işe yarayıp yaramadığı bir sonraki CI
 denemesiyle doğrulanacak.
 
+### ✅ ÜÇÜNCÜ CI DENEMESİ BAŞARILI — D1+D2+C1 onaylandı
+
+Idempotency yarış durumu düzeltmesi push edildikten sonra (`9f2ce66`) CI
+**başarıyla** tamamlandı (1 dakika 52 saniye, yalnızca 11 bilinen/zararsız
+uyarı, hiç hata yok). AUDIT_REPORT.md'nin D1 (çift aktif ilan), D2
+(stale-owner satın alma) ve C1 (ahır kapasitesi) bulguları artık gerçek
+CI'da (Postgres + Redis) doğrulanmış durumda. Bu remediation dilimi
+tamamlandı.
+
+**Bu dilimin CI serüveninden çıkan ders:** üç deneme gerekti — ilki D2
+kontrolünün `listing.status`'a bakmaması (yeni yazılan kodun kendi
+hatası), ikincisi D1/D2/C1'le HİÇ ilgisi olmayan, önceki bir oturumdan
+kalan bağımsız bir idempotency yarış durumuydu. Bu, "CI'ın yakaladığı
+her regresyon yeni yazılan koddan kaynaklanmaz" kuralının somut bir
+örneği — sistemin geri kalanını da sertleştirmenin (AUDIT_AND_HARDENING
+ve bu remediation turunun asıl amacı) neden değerli olduğunu gösteriyor.
+
 ## GitHub deposu
 
 ✅ Tamamlandı — kod `github.com/arvasiist/atsevdalisi` deposuna proje
