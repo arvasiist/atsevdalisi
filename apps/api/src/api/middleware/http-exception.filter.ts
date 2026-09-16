@@ -1,7 +1,12 @@
 import { ArgumentsHost, Catch, ExceptionFilter, HttpException, HttpStatus } from '@nestjs/common';
 import type { Response } from 'express';
 import { ErrorCode } from '@at-sevdalisi/shared-types';
-import { HorseInjuredError, HorseNotFoundError, InvalidHorseNameError } from '../../domain/horse/errors';
+import {
+  HorseInjuredError,
+  HorseListedInMarketError,
+  HorseNotFoundError,
+  InvalidHorseNameError,
+} from '../../domain/horse/errors';
 import {
   InvalidDisplayNameError,
   InvalidUsernameError,
@@ -55,6 +60,8 @@ const DOMAIN_ERROR_MAP = new Map<ErrorClassConstructor, { status: number; code: 
   // Conflict, 400 Bad Request DEĞİL (`UsernameAlreadyTaken` ile AYNI
   // gerekçe).
   [HorseInjuredError, { status: HttpStatus.CONFLICT, code: ErrorCode.HorseInjured }],
+  // AUDIT_REPORT.md Bulgu H2 (Medium) — pazarda aktif ilanı olan bir at antrenmana veya yarışa sokulamaz.
+  [HorseListedInMarketError, { status: HttpStatus.CONFLICT, code: 'HORSE_LISTED_IN_MARKET' }],
   // CI Hata 7 (bkz. domain/training/errors.ts InvalidTrainingInputError) —
   // DTO doğrulaması esbuild altında atlanabildiğinde domain katmanının
   // kendi bağımsız kontrolünün fırlattığı hata; gerçek bir DOĞRULAMA
@@ -126,12 +133,7 @@ const DOMAIN_ERROR_MAP = new Map<ErrorClassConstructor, { status: number; code: 
 
 /**
  * Tüm hataları docs/API.md §1.2'deki tutarlı zarfa dönüştürür:
- *   { "success": false, "error": { "code": "...", "message": "..." } }
- *
- * Domain/Application katmanından fırlatılan özel hata sınıfları
- * `DOMAIN_ERROR_MAP`'te ilgili HTTP durum koduna ve hata koduna eşlenir
- * (FAZ 1 wiring, bu oturum); eşlemede olmayan (örn. class-validator'ın
- * fırlattığı `HttpException`) durumlar aşağıdaki genel akışla ele alınır.
+ *    { "success": false, "error": { "code": "...", "message": "..." } }
  */
 @Catch()
 export class HttpExceptionFilter implements ExceptionFilter {
@@ -139,10 +141,6 @@ export class HttpExceptionFilter implements ExceptionFilter {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
 
-    // FAZ 1 wiring, dördüncü dilim: `HorseNotReadyForTrainingError` TEK bir
-    // sınıf ama `reason` alanına göre İKİ FARKLI hata koduna eşlenir —
-    // `DOMAIN_ERROR_MAP`'in (sınıf → sabit kod) deseni buna uygun değildir,
-    // bu yüzden döngüden ÖNCE elle ele alınır.
     if (exception instanceof HorseNotReadyForTrainingError) {
       const code = exception.reason === 'INSUFFICIENT_ENERGY' ? ErrorCode.InsufficientEnergy : ErrorCode.HorseTooTired;
       response.status(HttpStatus.CONFLICT).json({ success: false, error: { code, message: exception.message } });
@@ -177,7 +175,6 @@ export class HttpExceptionFilter implements ExceptionFilter {
       return;
     }
 
-    // Beklenmeyen hata: detay istemciye sızdırılmaz (docs/SECURITY.md), sadece loglanır.
     // eslint-disable-next-line no-console
     console.error('Beklenmeyen hata:', exception);
     response.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
