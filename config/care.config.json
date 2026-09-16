@@ -35,6 +35,11 @@
       "cooldownMinutes": 240
     }
   },
+  "injuryRecovery": {
+    "action": "vet",
+    "minHealth": 50,
+    "maxInjuryRisk": 40
+  },
   "feedTypes": {
     "standard": {
       "vitalDelta": { "energy": 10 },

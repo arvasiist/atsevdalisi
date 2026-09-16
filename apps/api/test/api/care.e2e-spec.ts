@@ -1,10 +1,12 @@
 import { randomUUID } from 'node:crypto';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
+import type { Pool } from 'pg';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { AppModule } from '../../src/app.module';
 import { HttpExceptionFilter } from '../../src/api/middleware/http-exception.filter';
+import { PG_POOL } from '../../src/infrastructure/database/database.module';
 
 /**
  * FAZ 1 wiring — Beşinci dilim: `POST /horses/:id/care` ve `POST
@@ -17,6 +19,7 @@ import { HttpExceptionFilter } from '../../src/api/middleware/http-exception.fil
  */
 describe('Care (e2e)', () => {
   let app: INestApplication;
+  let pool: Pool;
 
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({
@@ -28,6 +31,7 @@ describe('Care (e2e)', () => {
     app.useGlobalFilters(new HttpExceptionFilter());
     app.useGlobalPipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }));
     await app.init();
+    pool = moduleRef.get<Pool>(PG_POOL);
   });
 
   afterAll(async () => {
@@ -130,5 +134,78 @@ describe('Care (e2e)', () => {
       .post(`/api/v1/horses/${horseId}/feed`)
       .send({ feedType: 'not-a-real-feed' });
     expect(response.status).toBe(400);
+  });
+
+  /**
+   * AUDIT_REPORT.md H1 (bu oturum) — `injured` durumundan çıkış yolu
+   * yoktu: `vet` eylemi bile `horse.status`'a hiç dokunmuyordu. Bu testler
+   * `PerformCareActionUseCase` + `canRecoverFromInjury`'nin gerçek
+   * veritabanına karşı doğru çalıştığını doğrular. İnjury olasılıksal
+   * olduğundan (antrenman sırasında rastgele oluşur), at doğrudan raw SQL
+   * ile `injured`'a alınır — `market.e2e-spec.ts`'in C1 testinde
+   * `INSERT INTO horses` için kullanılan AYNI "testin ihtiyacı olan durumu
+   * doğrudan veritabanında kur" deseni.
+   */
+  it('/api/v1/horses/:id/care (POST) — injured bir at, vet ile (eşikler karşılanınca) active\'e döner', async () => {
+    const { horseId } = await registerPlayerWithStarterHorse();
+
+    // Atı sakat durumuna al, injuryRisk'i eşiğin (maxInjuryRisk: 40)
+    // hemen üstüne ayarla — vet'in kendi injuryRiskDelta'sı (-10) bunu
+    // 35'e düşürecek, care.config.json'daki eşiği karşılayacak.
+    await pool.query("UPDATE horses SET status = 'injured' WHERE id = $1", [horseId]);
+    await pool.query('UPDATE horse_health SET injury_risk = 45 WHERE horse_id = $1', [horseId]);
+
+    // Sakatken bile antrenman reddedilmeli (mevcut korumanın hâlâ çalıştığını doğrular).
+    const trainWhileInjured = await request(app.getHttpServer())
+      .post(`/api/v1/horses/${horseId}/train`)
+      .send({ type: 'speed', intensity: 'low', durationMinutes: 30 });
+    expect(trainWhileInjured.status).toBe(409);
+    expect(trainWhileInjured.body.error.code).toBe('HORSE_INJURED');
+
+    const vetResponse = await request(app.getHttpServer())
+      .post(`/api/v1/horses/${horseId}/care`)
+      .send({ actionType: 'vet' });
+
+    expect(vetResponse.status).toBe(200);
+    expect(vetResponse.body.data.newHealth.injuryRisk).toBe(35);
+    expect(vetResponse.body.data.newStatus).toBe('active');
+
+    // Artık antrenman tekrar başarılı olmalı.
+    const trainAfterRecovery = await request(app.getHttpServer())
+      .post(`/api/v1/horses/${horseId}/train`)
+      .send({ type: 'speed', intensity: 'low', durationMinutes: 30 });
+    expect(trainAfterRecovery.status).toBe(200);
+  });
+
+  it('/api/v1/horses/:id/care (POST) — injured bir at, eşikler karşılanmazsa injured kalır', async () => {
+    const { horseId } = await registerPlayerWithStarterHorse();
+
+    // injuryRisk 80 → vet sonrası 70, eşik (maxInjuryRisk: 40) hâlâ aşılıyor.
+    await pool.query("UPDATE horses SET status = 'injured' WHERE id = $1", [horseId]);
+    await pool.query('UPDATE horse_health SET injury_risk = 80 WHERE horse_id = $1', [horseId]);
+
+    const vetResponse = await request(app.getHttpServer())
+      .post(`/api/v1/horses/${horseId}/care`)
+      .send({ actionType: 'vet' });
+
+    expect(vetResponse.status).toBe(200);
+    expect(vetResponse.body.data.newStatus).toBe('injured');
+
+    const trainStillInjured = await request(app.getHttpServer())
+      .post(`/api/v1/horses/${horseId}/train`)
+      .send({ type: 'speed', intensity: 'low', durationMinutes: 30 });
+    expect(trainStillInjured.status).toBe(409);
+    expect(trainStillInjured.body.error.code).toBe('HORSE_INJURED');
+  });
+
+  it('/api/v1/horses/:id/care (POST) — injured OLMAYAN bir atta vet eylemi status\'u DEĞİŞTİRMEZ', async () => {
+    const { horseId } = await registerPlayerWithStarterHorse();
+
+    const response = await request(app.getHttpServer())
+      .post(`/api/v1/horses/${horseId}/care`)
+      .send({ actionType: 'vet' });
+
+    expect(response.status).toBe(200);
+    expect(response.body.data.newStatus).toBe('active');
   });
 });

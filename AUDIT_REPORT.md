@@ -29,7 +29,7 @@ olarak veriliyor. Her alanın sonunda "Zaten sağlam / IMPLEMENTED" listesi var
 | S4 | Güvenlik | High | `GET /players/:id`, `GET /horses?ownerId=`, `GET /market/my-listings?sellerId=` — herhangi bir UUID biliniyorsa herkesin verisi okunabilir |
 | D2 | Veritabanı | High | ✅ **DÜZELTİLDİ** — Satın alma, `horses.owner_id`'nin hâlâ `listing.sellerId`'e eşit olduğunu kontrol etmiyordu (D1 ile birleşince atın "geri alınması" mümkündü) |
 | E1 | Ekonomi | High | Pratik yarış/PvP: cüzdan güncellemesi ile yarış kaydı iki AYRI transaction'da — arada hata olursa çift ödeme/kayıp riski |
-| H1 | At Durumu | High | `injured` durumundan `active`'e dönüş yolu YOK — sakatlanan at kalıcı olarak kullanılamaz hale geliyor |
+| H1 | At Durumu | High | ✅ **DÜZELTİLDİ** — `injured` durumundan `active`'e dönüş yolu YOK — sakatlanan at kalıcı olarak kullanılamaz hale geliyor |
 | C1 | Veritabanı | High | ✅ **DÜZELTİLDİ** (At Pazarı yolunda) — Ahır kapasitesi hiçbir yerde zorunlu kılınmıyordu — sınırsız at alınabiliyordu |
 | S5 | Güvenlik | High | Helmet/CSP yok, rate limiting yok |
 | C2 | Veritabanı | Medium | Antrenman/bakım/besleme `FOR UPDATE` kilidi kullanmıyor — eşzamanlı istekler "lost update" üretebilir |
@@ -135,10 +135,14 @@ olarak veriliyor. Her alanın sonunda "Zaten sağlam / IMPLEMENTED" listesi var
 **Test requirement:** Kapasite dolu bir alıcının satın alması reddedilmeli (para/mülkiyet DEĞİŞMEMELİ); kapasite-1'deki bir alıcının iki paralel satın alması → yalnızca biri başarılı olmalı.
 
 ### H1 — High: `injured` durumundan çıkış yok
+> ✅ **DÜZELTİLDİ (bu oturum)** — bkz. `config/care.config.json` `injuryRecovery`, `domain/care/care.ts` `canRecoverFromInjury`, `application/use-cases/perform-care-action.use-case.ts`.
+
 **Evidence:** `TrainHorseUseCase` (`train-horse.use-case.ts:108`) `status: 'injured'` yazıyor ama hiçbir kod yolu bunu geri `'active'`'e çevirmiyor — `PerformCareActionUseCase`'in `vet` eylemi bile `horse.status`'a hiç dokunmuyor.
 **Impact:** Antrenmanda sakatlanan bir at, antrenman/yarış için KALICI OLARAK kullanılamaz hale geliyor — normal oynanışta hemen ortaya çıkacak bir fonksiyonel çıkmaz.
 **Fix:** `vet` bakım eylemine (veya özel bir "tedavi et" eylemine) `injuryRisk`/`health` belirli bir eşiği geçtiğinde `status: 'active'`'e dönüş eklenmeli.
 **Test requirement:** `injured` bir at + yeterli `vet` bakımı → `status` `'active'`'e dönmeli, antrenman/yarış tekrar başarılı olmalı.
+
+**Uygulanan çözüm:** `CareConfig`'e yeni bir `injuryRecovery: { action, minHealth, maxInjuryRisk }` alanı eklendi (`care.config.json`: `{ action: 'vet', minHealth: 50, maxInjuryRisk: 40 }`). Yeni saf domain fonksiyonu `canRecoverFromInjury(config, actionType, postCareHealth, postCareInjuryRisk)`, bakım eyleminin delta'ları UYGULANDIKTAN SONRAKİ değerlere göre eşiği kontrol eder. `PerformCareActionUseCase`, at `injured` durumundaysa ve eşik karşılanıyorsa `status: 'active'` yazacak şekilde güncellendi; `PerformCareActionResult`'a yeni `newStatus` alanı eklendi (istemci geçişi doğrudan görebilsin diye). Dört yeni test: (1) domain seviyesinde `canRecoverFromInjury` eşik/eylem-türü kontrolleri, (2) e2e — `injured` bir at, eşikleri karşılayan `vet` sonrası `active`'e döner VE antrenman tekrar başarılı olur, (3) e2e — eşikleri karşılamayan `vet` sonrası `injured` kalır, (4) e2e — zaten `active` bir atta `vet`'in `status`'u değiştirmediği doğrulanır.
 
 ### C2 — Medium: Antrenman/bakım/besleme kilitsiz read-modify-write
 **Evidence:** `train-horse.use-case.ts`, `perform-care-action.use-case.ts`, `feed-horse.use-case.ts` — hepsi `findById` → JS'de hesapla → `update()`, `FOR UPDATE` YOK, transaction YOK.
@@ -264,8 +268,8 @@ Master Plan §61 Phase A ("Security & Data Integrity") ile birebir uyumlu olarak
 1. **S1+S2+S3+S4 (auth + ownership)** — en kritik küme, ama gerçek bir kimlik doğrulama sistemi (Google/Apple Sign-In) gerektirir; bu proje sahibinin onayını bekleyen açık bir mimari karardır (`docs/ARCHITECTURE.md` §10.6). **Bu rapor bu kararı proje sahibine bırakıyor** — aşağıdaki diğer tüm maddeler auth'tan BAĞIMSIZ olarak hemen düzeltilebilir.
 2. ✅ **D1+D2** — At Pazarı'nda tekil-aktif-ilan kısıtı + sahiplik doğrulaması. Küçük, izole, yeni özellik değil. **DÜZELTİLDİ VE GERÇEK CI'DA DOĞRULANDI** — bkz. §2 D1/D2 durum notları.
 3. ✅ **C1** — Ahır kapasitesi zorunluluğu. **DÜZELTİLDİ VE GERÇEK CI'DA DOĞRULANDI** — bkz. §2 C1 durum notu.
-4. **H1** — Sakatlıktan iyileşme yolu. *(sıradaki adım)*
-5. **E2+E3** — İptal/satın alma yarışı + idempotency kapsam düzeltmesi.
+4. ✅ **H1** — Sakatlıktan iyileşme yolu. **DÜZELTİLDİ** — bkz. §2 H1 durum notu (CI onayı bekleniyor).
+5. **E2+E3** — İptal/satın alma yarışı + idempotency kapsam düzeltmesi. *(sıradaki adım)*
 6. **C2** — Antrenman/bakım/besleme için satır kilidi.
 7. **R1** — Hava durumu config versiyonlaması.
 8. **T1+T3+T2** — Eşzamanlılık ve UI test kapsamının genişletilmesi.

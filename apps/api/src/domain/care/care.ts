@@ -80,6 +80,31 @@ export function getFeedCost(config: CareConfig, feedType: FeedType) {
 }
 
 /**
+ * AUDIT_REPORT.md H1 düzeltmesi (bu oturum) — bkz. `@at-sevdalisi/game-config`
+ * `InjuryRecoveryConfig` üstündeki not. `postCareHealth`/`postCareVitalsHealth`
+ * bakım eyleminin (delta'ları uygulanmış) SONUÇ değerleridir — kontrol,
+ * eylemden ÖNCEKİ değil SONRAKİ duruma göre yapılır (ör. `vet`'in kendi
+ * `injuryRiskDelta`'sı bu turda zaten düşürmüş olabilir).
+ *
+ * Yalnızca `config.injuryRecovery.action` ile eşleşen eylem türü için
+ * `true` dönebilir — application katmanı bunu YALNIZCA at zaten
+ * `injured` durumundaysa çağırmalıdır (aksi halde zaten `active`/`resting`
+ * bir at için anlamsızdır).
+ */
+export function canRecoverFromInjury(
+  config: CareConfig,
+  actionType: CareActionType,
+  postCareVitalsHealth: number,
+  postCareInjuryRisk: number,
+): boolean {
+  const { injuryRecovery } = config;
+  if (actionType !== injuryRecovery.action) {
+    return false;
+  }
+  return postCareVitalsHealth >= injuryRecovery.minHealth && postCareInjuryRisk <= injuryRecovery.maxInjuryRisk;
+}
+
+/**
  * Bir bakım eylemini uygular. Cooldown dolmamışsa `CareActionOnCooldownError`
  * fırlatır — application layer bu eylemi hiç oluşturmamalı/ücretlendirmemelidir.
  */
