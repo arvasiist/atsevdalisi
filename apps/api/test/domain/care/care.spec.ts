@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyCareAction, applyFeed, canPerformCareAction, getCareActionCost, getFeedCost } from '../../../src/domain/care/care';
+import { applyCareAction, applyFeed, canPerformCareAction, canRecoverFromInjury, getCareActionCost, getFeedCost } from '../../../src/domain/care/care';
 import { CareActionOnCooldownError, InvalidCareInputError } from '../../../src/domain/care/errors';
 import careConfig from '../../../../../config/care.config.json';
 import type { CareConfig } from '@at-sevdalisi/game-config';
@@ -70,6 +70,32 @@ describe('applyFeed (brief §12)', () => {
   it('protein yemi weightCondition artırır', () => {
     const result = applyFeed(config, 'protein', vitals, health);
     expect(result.health.weightCondition).toBeGreaterThan(health.weightCondition);
+  });
+});
+
+/**
+ * AUDIT_REPORT.md H1 düzeltmesi (bu oturum): `injured` bir atın `vet`
+ * bakımıyla `active`'e dönebilmesi için eşik kontrolü.
+ */
+describe('canRecoverFromInjury (AUDIT_REPORT.md H1)', () => {
+  it('yalnızca config.injuryRecovery.action ile eşleşen eylem türü için true dönebilir', () => {
+    // config.injuryRecovery.action === 'vet' (care.config.json).
+    expect(canRecoverFromInjury(config, 'groom', 100, 0)).toBe(false);
+    expect(canRecoverFromInjury(config, 'farrier', 100, 0)).toBe(false);
+  });
+
+  it('vet sonrası health ve injuryRisk eşikleri karşılanırsa true döner', () => {
+    // care.config.json: injuryRecovery = { minHealth: 50, maxInjuryRisk: 40 }.
+    expect(canRecoverFromInjury(config, 'vet', 50, 40)).toBe(true);
+    expect(canRecoverFromInjury(config, 'vet', 100, 0)).toBe(true);
+  });
+
+  it('health eşiğin altındaysa false döner', () => {
+    expect(canRecoverFromInjury(config, 'vet', 49, 0)).toBe(false);
+  });
+
+  it('injuryRisk eşiğin üstündeyse false döner', () => {
+    expect(canRecoverFromInjury(config, 'vet', 100, 41)).toBe(false);
   });
 });
 

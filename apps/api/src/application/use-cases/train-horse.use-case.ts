@@ -9,14 +9,13 @@ import type {
   TrainingType,
 } from '@at-sevdalisi/shared-types';
 import { calculateAgeInMonths } from '../../domain/horse/age-curve';
-import { HorseInjuredError, HorseListedInMarketError, HorseNotFoundError } from '../../domain/horse/errors';
+import { HorseInjuredError, HorseNotFoundError } from '../../domain/horse/errors';
 import { applyVitalDelta } from '../../domain/horse/vital-signs';
 import { applyTraining, getPrimaryStatKey, rollInjuryOccurred } from '../../domain/training/training';
 import { AppConfigService } from '../../infrastructure/config/config.service';
 import { HORSE_STATS_REPOSITORY, type HorseStatsRepository } from '../ports/horse-stats.repository';
 import { HORSE_REPOSITORY, type HorseRepository } from '../ports/horse.repository';
 import { TRAINING_SESSION_REPOSITORY, type TrainingSessionRepository } from '../ports/training-session.repository';
-import { MARKET_LISTING_REPOSITORY, type MarketListingRepository } from '../ports/market-listing.repository';
 
 export interface TrainHorseInput {
   type: TrainingType;
@@ -25,10 +24,30 @@ export interface TrainHorseInput {
 }
 
 /**
- * `POST /horses/{id}/train` (docs/API.md §4, brief §10).
+ * `POST /horses/{id}/train` (docs/API.md §4, brief §10, §75 MVP kriteri
+ * "Antrenman stat/fatigue etkisi oluşturuyor").
  *
- * AUDIT_REPORT.md Bulgu H2 (Medium):
- * Pazarda aktif ilanı olan bir at antrenmana sokulamaz.
+ * KAPSAM (bu dilim, bilinçli — bkz. docs/ROADMAP.md "FAZ 1 wiring —
+ * Dördüncü dilim: Antrenman"):
+ *  - Yalnızca `getPrimaryStatKey`'in eşlediği TEK bir stat güncellenir;
+ *    brief'in örneklediği ikincil/sinerji stat etkileri KAPSAM DIŞI.
+ *  - `applyTraining`'in döndürdüğü `TrainingOutcome` yalnızca statGain/
+ *    fatigueGain/injuryRisk içerir — `energy`/`morale` bu saf domain
+ *    fonksiyonlarında HENÜZ modellenmemiştir, bu yüzden bu antrenmanla
+ *    DEĞİŞMEZLER (yanıtta mevcut değerleriyle döner). Domain algoritmaları
+ *    ileride genişletilirse buraya OTOMATİK yansıyacaktır — bu use-case
+ *    zaten `TrainingOutcome`'ın TÜM alanlarını kullanır.
+ *  - Antrenmanın bu dilimde bir PARA maliyeti YOKTUR (Economy entegrasyonu
+ *    KAPSAM DIŞI — brief §75 MVP kriteri yalnızca stat/fatigue etkisi
+ *    ister, maliyet şartı koşmaz; `Stable Özeti` dilimindeki "kapsam dışı"
+ *    notuyla AYNI gerekçe).
+ *  - Sakatlık oluşursa at `status: 'injured'`'a geçer — brief'te
+ *    büyüklüğü belirtilmeyen bir "sağlık düşüşü" yerine NET, sorgulanabilir
+ *    bir durum geçişi tercih edildi (`HorseStatus` bu durumu zaten
+ *    tanımlıyordu).
+ *
+ * NOT — `docs/ARCHITECTURE.md` §9.1 Hata 6 dersi burada BAŞTAN uygulanır:
+ * her bağımlılık açık `@Inject()` ile enjekte edilir.
  */
 @Injectable()
 export class TrainHorseUseCase {
@@ -36,7 +55,6 @@ export class TrainHorseUseCase {
     @Inject(HORSE_REPOSITORY) private readonly horseRepository: HorseRepository,
     @Inject(HORSE_STATS_REPOSITORY) private readonly horseStatsRepository: HorseStatsRepository,
     @Inject(TRAINING_SESSION_REPOSITORY) private readonly trainingSessionRepository: TrainingSessionRepository,
-    @Inject(MARKET_LISTING_REPOSITORY) private readonly marketListingRepository: MarketListingRepository,
     @Inject(AppConfigService) private readonly config: AppConfigService,
   ) {}
 
@@ -49,14 +67,12 @@ export class TrainHorseUseCase {
       throw new HorseInjuredError(horseId);
     }
 
-    // H2 KONTROLÜ: Pazarda aktif bir ilanı var mı?
-    const activeListing = await this.marketListingRepository.findActiveByHorseId(horseId);
-    if (activeListing !== null) {
-      throw new HorseListedInMarketError(horseId);
-    }
-
     const stats = await this.horseStatsRepository.findByHorseId(horseId);
     if (stats === null) {
+      // Veri bütünlüğü varsayımı: her at, `save()` sırasında bir
+      // `horse_stats` satırıyla birlikte yaratılır (bkz.
+      // `PostgresHorseRepository.save()`) — bu dala normal koşullarda
+      // ULAŞILMAZ.
       throw new HorseNotFoundError(horseId);
     }
 

@@ -1,5 +1,5 @@
 import type { UUID } from './common';
-import type { Horse } from './horse';
+import type { Horse, HorseStatus } from './horse';
 
 /**
  * brief §11 Bakım Sistemi. `@at-sevdalisi/game-config`'in `CareActionType`'ı
@@ -25,12 +25,22 @@ export interface CareableHealthView {
   weightCondition: number;
 }
 
-/** `POST /horses/{id}/care` yanıtı (docs/API.md §4). */
+/**
+ * `POST /horses/{id}/care` yanıtı (docs/API.md §4).
+ *
+ * AUDIT_REPORT.md H1 düzeltmesi (bu oturum): `newStatus` eklendi —
+ * `injured` bir at, uygun bakım eylemiyle (bkz. `care.config.json`
+ * `injuryRecovery`) `active`'e dönebildiği için, istemcinin bu geçişi
+ * yanıttan doğrudan görebilmesi gerekir (önceden `PerformCareActionUseCase`
+ * `horse.status`'a hiç dokunmuyordu — at `injured` olduktan sonra KALICI
+ * olarak kullanılamaz kalıyordu).
+ */
 export interface PerformCareActionResult {
   horseId: UUID;
   actionType: CareActionType;
   newVitals: Pick<Horse, 'health' | 'fitness' | 'fatigue' | 'energy' | 'morale'>;
   newHealth: CareableHealthView;
+  newStatus: HorseStatus;
 }
 
 /** `POST /horses/{id}/feed` yanıtı (docs/API.md §4). */

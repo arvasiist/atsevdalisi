@@ -7,10 +7,18 @@ import { MARKET_LISTING_REPOSITORY, type MarketListingRepository } from '../port
 /**
  * `DELETE /market/listings/{id}` (docs/API.md §5, brief §30 "Satışlarım").
  *
- * E2 DÜZELTMESİ:
- * cancelListing(listing) saf domain fonksiyonu ile durum kontrol edilir;
- * PostgresMarketListingRepository.update ise WHERE status = 'active' güvencesiyle
- * satılmış ilanların durumunun ezilmesini engeller.
+ * FAZ 1 wiring, on birinci dilim — `domain/market/market.ts`'teki
+ * `cancelListing` (FAZ 0'dan beri hazır, saf) burada İLK KEZ gerçekten
+ * çağrılır. `ListingNotActiveError` fırlatırsa (zaten satılmış/süresi
+ * dolmuş/iptal edilmiş) `http-exception.filter.ts` bunu `409`'a eşler.
+ *
+ * BİLİNÇLİ SINIRLAMA (bu dilim): yetkilendirme (yalnızca ilanın SAHİBİ
+ * kendi ilanını iptal edebilmeli) YOK — bu projede HENÜZ hiçbir uç
+ * noktada gerçek bir kimlik doğrulama/oturum sistemi yok (bkz.
+ * docs/ROADMAP.md "Açık kararlar" madde 1 — Google/Apple Sign-In
+ * KARARI verildi ama canlıya alınana kadar UYGULANMADI); bu, projenin
+ * TÜMÜNDE zaten var olan bir boşluktur, bu dilime ÖZGÜ değildir — burada
+ * ayrıca bir kısmi/geçici yetkilendirme icat EDİLMEDİ.
  */
 @Injectable()
 export class CancelMarketListingUseCase {

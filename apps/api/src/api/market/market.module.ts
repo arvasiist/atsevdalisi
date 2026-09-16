@@ -13,6 +13,27 @@ import { HorseModule } from '../horse/horse.module';
 import { IdempotencyInterceptor } from '../idempotency/idempotency.interceptor';
 import { MarketController } from './market.controller';
 
+/**
+ * FAZ 1 wiring, on birinci dilim — brief §30 At Pazarı. `HorseModule`'ü
+ * (`HORSE_REPOSITORY`, yalnızca `CreateMarketListingUseCase` için) import
+ * eder — `RaceModule`/`StableModule` ile AYNI desen. Kendi
+ * `MARKET_LISTING_REPOSITORY` bağlamasını `RaceModule`'ün `RACE_REPOSITORY`
+ * ile AYNI gerekçeyle KENDİSİ sağlar. `IdempotencyInterceptor` burada bir
+ * provider olarak listelenir (`RaceModule`/`StableModule` ile AYNI
+ * gerekçe — `REDIS_CLIENT`'ı enjekte edebilmesi için; `RedisModule`
+ * `@Global()` olduğundan ayrıca `imports`'a eklenmesine GEREK YOKTUR).
+ * On ikinci dilim — tarama/"İlanlarım" salt-okunur use-case'leri eklendi;
+ * ikisi de AYNI `MARKET_LISTING_REPOSITORY` bağlamasını kullanır, yeni
+ * bir bağımlılık/import gerekmedi.
+ *
+ * AUDIT_AND_HARDENING Öncelik 1 (bu oturum) — `PlayerModule` importu
+ * KALDIRILDI: `BuyMarketListingUseCase` artık `PLAYER_REPOSITORY`'yi
+ * DOĞRUDAN kullanmıyor (bkz. o use-case'in doc yorumu), bunun yerine
+ * kendi `MARKET_PURCHASE_REPOSITORY` bağlamasını sağlıyor —
+ * `PostgresMarketPurchaseRepository` `PG_POOL`'u DOĞRUDAN enjekte eder
+ * (`DatabaseModule` `@Global()` olduğundan `imports`'a eklenmesi
+ * GEREKMEZ, `RedisModule` ile AYNI gerekçe).
+ */
 @Module({
   imports: [HorseModule],
   controllers: [MarketController],
@@ -27,6 +48,5 @@ import { MarketController } from './market.controller';
     { provide: MARKET_LISTING_REPOSITORY, useClass: PostgresMarketListingRepository },
     { provide: MARKET_PURCHASE_REPOSITORY, useClass: PostgresMarketPurchaseRepository },
   ],
-  exports: [MARKET_LISTING_REPOSITORY],
 })
 export class MarketModule {}

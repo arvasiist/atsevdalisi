@@ -302,6 +302,23 @@ export interface CareActionEffect {
 
 export type CareActionType = 'groom' | 'water' | 'clean' | 'vet' | 'farrier' | 'rest';
 
+/**
+ * AUDIT_REPORT.md H1 düzeltmesi (bu oturum) — brief'te büyüklüğü
+ * belirtilmeyen "sakatlıktan iyileşme" davranışı için NET bir kural:
+ * `action` türünde bir bakım eylemi UYGULANDIKTAN SONRA (yani deltalar
+ * zaten hesaba katılmış haldeyken) at `injured` durumundaysa ve
+ * `HorseHealth.injuryRisk` <= `maxInjuryRisk` VE `Horse.health` (vital) >=
+ * `minHealth` ise, at `active`'e döner. Öncesinde HİÇBİR yol bu geçişi
+ * sağlamıyordu (bkz. `domain/horse/errors.ts` `HorseInjuredError` — sakat
+ * bir at antrenman/pratik yarış/PvP eşleştirmenin HEPSİNDEN kalıcı olarak
+ * reddediliyordu).
+ */
+export interface InjuryRecoveryConfig {
+  action: CareActionType;
+  minHealth: number;
+  maxInjuryRisk: number;
+}
+
 export interface FeedTypeEffect {
   vitalDelta?: Partial<Record<'health' | 'fitness' | 'fatigue' | 'energy' | 'morale', number>>;
   /** HorseHealth.weightCondition üzerindeki etki — brief §12: "her zaman daha pahalı yem = daha iyi olmayacaktır". */
@@ -315,6 +332,8 @@ export type FeedType = 'standard' | 'energy' | 'protein' | 'recovery' | 'perform
 export interface CareConfig {
   actions: Record<CareActionType, CareActionEffect>;
   feedTypes: Record<FeedType, FeedTypeEffect>;
+  /** AUDIT_REPORT.md H1 — bkz. `InjuryRecoveryConfig` üstündeki not. */
+  injuryRecovery: InjuryRecoveryConfig;
 }
 
 /**

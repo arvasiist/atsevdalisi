@@ -2304,6 +2304,62 @@ düzeltmesidir. Kesin sebep ekran görüntüsünde doğrulanamadığından, bu
 düzeltmenin CI'da gerçekten işe yarayıp yaramadığı bir sonraki CI
 denemesiyle doğrulanacak.
 
+### ✅ ÜÇÜNCÜ CI DENEMESİ BAŞARILI — D1+D2+C1 onaylandı
+
+Idempotency yarış durumu düzeltmesi push edildikten sonra (`9f2ce66`) CI
+**başarıyla** tamamlandı (1 dakika 52 saniye, yalnızca 11 bilinen/zararsız
+uyarı, hiç hata yok). AUDIT_REPORT.md'nin D1 (çift aktif ilan), D2
+(stale-owner satın alma) ve C1 (ahır kapasitesi) bulguları artık gerçek
+CI'da (Postgres + Redis) doğrulanmış durumda. Bu remediation dilimi
+tamamlandı.
+
+**Bu dilimin CI serüveninden çıkan ders:** üç deneme gerekti — ilki D2
+kontrolünün `listing.status`'a bakmaması (yeni yazılan kodun kendi
+hatası), ikincisi D1/D2/C1'le HİÇ ilgisi olmayan, önceki bir oturumdan
+kalan bağımsız bir idempotency yarış durumuydu. Bu, "CI'ın yakaladığı
+her regresyon yeni yazılan koddan kaynaklanmaz" kuralının somut bir
+örneği — sistemin geri kalanını da sertleştirmenin (AUDIT_AND_HARDENING
+ve bu remediation turunun asıl amacı) neden değerli olduğunu gösteriyor.
+
+### Remediation 2. dilim — H1: sakatlıktan iyileşme yolu
+
+D1+D2+C1'in CI onayından sonra AUDIT_REPORT.md'nin öncelik sırasındaki
+bir sonraki madde: `TrainHorseUseCase` bir atı `status: 'injured'`'a
+geçirebiliyordu ama hiçbir kod yolu bunu geri `'active'`'e ÇEVİRMİYORDU
+— `PerformCareActionUseCase`'in `vet` eylemi bile `horse.status`'a hiç
+dokunmuyordu. Sakatlanan bir at antrenman (`TrainHorseUseCase`), pratik
+yarış (`RunPracticeRaceUseCase`) ve PvP eşleştirme
+(`JoinMatchmakingQueueUseCase`) için KALICI olarak reddediliyordu —
+normal oynanışta kaçınılmaz şekilde ortaya çıkacak bir fonksiyonel
+çıkmaz.
+
+**Çözüm:** `CareConfig`'e yeni `injuryRecovery: { action: 'vet',
+minHealth: 50, maxInjuryRisk: 40 }` alanı eklendi. Yeni saf domain
+fonksiyonu `canRecoverFromInjury` (`domain/care/care.ts`), bir bakım
+eyleminin delta'ları UYGULANDIKTAN SONRAKİ `health`/`injuryRisk`
+değerlerine göre eşiği kontrol eder — kontrolün eylem ÖNCESİ değil
+SONRASI duruma bakması, `vet`'in kendi `injuryRiskDelta`'sının (-10) o
+turda zaten işlemiş olmasını sağlar. `PerformCareActionUseCase`, at
+`injured` durumundaysa ve eşik karşılanıyorsa `horseRepository.update()`
+çağrısına `status: 'active'` ekleyecek şekilde güncellendi (önceden bu
+çağrı `status`'a hiç dokunmuyordu, örtük olarak `...horse` spread'i
+üzerinden mevcut durumu koruyordu). `PerformCareActionResult`'a yeni bir
+`newStatus` alanı eklendi — istemci geçişi doğrudan yanıttan görebilsin
+diye.
+
+Dört yeni test: domain seviyesinde `canRecoverFromInjury`'nin eylem
+türü/eşik kontrolleri (4 senaryo), ve üç e2e senaryosu —
+`market.e2e-spec.ts`'in C1 testinde kullanılan AYNI "testin ihtiyacı
+olan durumu doğrudan veritabanında (raw SQL) kur" deseniyle bir at
+`injured`'a alınıp: (1) eşikleri karşılayan `vet` sonrası `active`'e
+döndüğü VE antrenmanın tekrar başarılı olduğu, (2) eşikleri
+karşılamayan `vet` sonrası `injured` kaldığı, (3) zaten `active` bir
+atta `vet`'in `status`'u DEĞİŞTİRMEDİĞİ doğrulandı. Değişiklik
+öncesi/sonrası `tsc` baseline-diff karşılaştırıldı — tek fark,
+testin yeni eklediği `pg` import'unun (bu sandbox'ta `node_modules`
+kurulu olmadığı için beklenen) `TS2307` satırı; başka hiçbir yeni hata
+yok.
+
 ## GitHub deposu
 
 ✅ Tamamlandı — kod `github.com/arvasiist/atsevdalisi` deposuna proje
