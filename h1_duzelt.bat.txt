@@ -1,0 +1,4 @@
+@echo off
+powershell -Command "$p = Join-Path (Get-Location) 'apps\api\src\application\use-cases\perform-care-action.use-case.ts'; (Get-Content $p -Raw) -replace 'await this.horseRepository.update\(\{', ('$0' + [Environment]::NewLine + '      status: (horse.status === ''injured'' && actionType === ''vet'' ? ''active'' : horse.status),') | Set-Content $p"
+echo Guncelleme tamamlandi!
+pause
