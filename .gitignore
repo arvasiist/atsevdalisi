@@ -41,3 +41,20 @@ coverage/
 # Misc
 .cache/
 .turbo/
+
+# Cloud sandbox <-> Windows makinesi arasında push için kullanılan geçici
+# dosyalar (bkz. görsel kalite planı "Push mekanizması notu") — bunlar
+# tekrar üretilebilir scratch dosyalarıdır, repo geçmişine girmemeli.
+*.bundle
+push-*.bat
+push-*-log.txt
+finish-*.bat
+finish-*-log.txt
+check-dirty*.bat
+check-dirty*-log.txt
+check-orig-head.bat
+orig-head-check.txt
+recover-commit.bat
+recover-log.txt
+run-merge.bat
+merge-log.txt
