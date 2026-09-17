@@ -25,3 +25,15 @@ export class HorseInjuredError extends Error {
     this.name = 'HorseInjuredError';
   }
 }
+/**
+ * AUDIT_REPORT.md Bulgu H2 (Medium) — pazarda aktif ilanı olan bir at
+ * antrenmana veya yarışa sokulamaz.
+ */
+export class HorseListedInMarketError extends Error {
+  readonly code = 'HORSE_LISTED_IN_MARKET';
+
+  constructor(public readonly horseId: string) {
+    super(`At (${horseId}) pazarda satışta olduğu için bu işlem yapılamaz.`);
+    this.name = 'HorseListedInMarketError';
+  }
+}

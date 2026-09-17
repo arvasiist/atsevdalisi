@@ -2360,6 +2360,38 @@ testin yeni eklediği `pg` import'unun (bu sandbox'ta `node_modules`
 kurulu olmadığı için beklenen) `TS2307` satırı; başka hiçbir yeni hata
 yok.
 
+### ⚠️ Kaza sonucu regresyon ve düzeltmesi — H1 zip'i E2/E3/H2'yi geri aldı
+
+H1 dilimi için hazırlanan teslimat zip'i, bu oturumun sandbox'ındaki YEREL
+kopyadan (`git archive`) üretildi. O yerel kopya, GERÇEK GitHub deposunda
+o sırada ZATEN tamamlanmış olan üç düzeltmeden (E2 — iptal/satın alma
+yarışı koruması, E3 — idempotency anahtarının `buyerId` kapsamı, H2 —
+pazarda listelenmiş bir atın antrenman/yarışa girememesi) HABERSİZDİ —
+bu üçü muhtemelen bu sandbox oturumu dışında (doğrudan GitHub'da veya
+başka bir oturumda) yapılmıştı. Zip "tüm dosyaların üzerine yaz" şeklinde
+uygulanınca, bu üç düzeltme ve ayrıca `apps/api/package.json`'daki CI
+kararlılığı bayrağı (`--no-file-parallelism`) ile web ana sayfasının/
+`races/demo` sayfasının güncel hali YANLIŞLIKLA eski haline döndü —
+`9f2ce66` → `dbdd43a` commit'i bunu içeriyordu.
+
+**Düzeltme (bu oturum):** kullanıcının bilgisayarına doğrudan bağlanılıp
+(`Desktop/at-sevdalisi`), regresyona uğrayan 16 dosyanın TAMAMI
+`9f2ce66` (bozulmadan hemen önceki commit) içeriğiyle BİREBİR
+karşılaştırılıp aynı hale getirildi — H1'in kendi dosyaları (bu regresyon
+listesiyle ÇAKIŞMAYAN `perform-care-action.use-case.ts`, `domain/care/
+care.ts`, `care.config.json`, `packages/game-config/src/types.ts`,
+`packages/shared-types/src/care.ts`, `care.e2e-spec.ts`, `care.spec.ts`)
+DOKUNULMADAN bırakıldı.
+
+**Ders:** bir oturumun yerel sandbox kopyası, uzun bir oturumlar arası
+boşluktan sonra GERÇEK depodan gerisinde kalmış olabilir — özellikle
+depo üzerinde oturum DIŞI değişiklikler (kullanıcının kendisi veya başka
+bir oturum) yapılmışsa. Bundan sonra bir teslimat hazırlamadan ÖNCE
+gerçek `origin/main`'in güncel durumu (`git fetch` + `git log`)
+doğrulanmalı; mümkünse "tüm dosyaların üzerine yaz" zip yöntemi yerine
+kullanıcının bilgisayarına doğrudan bağlanıp yalnızca DEĞİŞEN dosyalar
+yazılmalı.
+
 ## GitHub deposu
 
 ✅ Tamamlandı — kod `github.com/arvasiist/atsevdalisi` deposuna proje
