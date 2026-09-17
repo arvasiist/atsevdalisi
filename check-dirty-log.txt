@@ -1,0 +1,35 @@
+=== Per 17.09.2026  4:59:19,08 === 
+--- git status --- 
+On branch main
+Your branch is up to date with 'origin/main'.
+
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   push-ssao-fix-log.txt
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	check-dirty-log.txt
+	check-dirty.bat
+
+no changes added to commit (use "git add" and/or "git commit -a")
+ 
+--- git diff --stat --- 
+ push-ssao-fix-log.txt | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+ 
+--- git diff (icerik, ilk 200 satir) --- 
+diff --git a/push-ssao-fix-log.txt b/push-ssao-fix-log.txt
+index 5f77522..ae7eddc 100644
+--- a/push-ssao-fix-log.txt
++++ b/push-ssao-fix-log.txt
+@@ -1,2 +1,2 @@
+-=== Per 17.09.2026  4:57:07,29 === 
++=== Per 17.09.2026  4:57:45,08 === 
+ UYARI: commit edilmemis degisiklikler var, islem durduruldu. 
+ 
+--- git log -3 --oneline --- 
+6985673 Update push-ssao-fix-log.txt
+7deeba0 as
+0292b5e İşlem başarılı!
