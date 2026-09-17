@@ -1,0 +1,117 @@
+=== Per 17.09.2026  5:02:58,89 === 
+--- son 6 commit (stat ile) --- 
+commit eabed93f9cc91f862505d121964271a0264855d4
+Author: Claude <claude@anthropic.com>
+Date:   Thu Sep 17 04:59:59 2026 +0300
+
+    Summay 1
+
+ check-dirty-log.txt   | 35 +++++++++++++++++++++++++++++++++++
+ check-dirty.bat       | 37 +++++++++++++++++++++++++++++++++++++
+ push-ssao-fix-log.txt |  2 +-
+ 3 files changed, 73 insertions(+), 1 deletion(-)
+
+commit 698567355ba2213a71e92d325a8a09655b6387ff
+Author: Claude <claude@anthropic.com>
+Date:   Thu Sep 17 04:57:32 2026 +0300
+
+    Update push-ssao-fix-log.txt
+
+ push-ssao-fix-log.txt | 23 ++---------------------
+ 1 file changed, 2 insertions(+), 21 deletions(-)
+
+commit 7deeba06cef90bb0f569208ca609cdcc92a22283
+Author: Claude <claude@anthropic.com>
+Date:   Thu Sep 17 04:56:41 2026 +0300
+
+    as
+
+ phase1-ssao-fix.bundle | Bin 0 -> 1904589 bytes
+ push-ssao-fix-log.txt  |  21 +++++++++++++++++
+ push-ssao-fix.bat      |  63 +++++++++++++++++++++++++++++++++++++++++++++++++
+ 3 files changed, 84 insertions(+)
+
+commit 0292b5e2c1e3874fcc5ec2430a51274415fd19cd
+Author: Claude <claude@anthropic.com>
+Date:   Thu Sep 17 04:50:08 2026 +0300
+
+    İşlem başarılı!
+
+ at-sevdalisi-final-merge.bundle | Bin 0 -> 1862463 bytes
+ finish-merge-log.txt            |  13 +++++++++
+ finish-merge.bat                |  60 ++++++++++++++++++++++++++++++++++++++
+ finish-recovery-log.txt         |  16 ++++++++++
+ finish-recovery.bat             |  40 +++++++++++++++++++++++++
+ phase1-visual-upgrade.bundle    | Bin 0 -> 1868196 bytes
+ push-phase1-log.txt             |  13 +++++++++
+ push-phase1.bat                 |  63 ++++++++++++++++++++++++++++++++++++++++
+ 8 files changed, 205 insertions(+)
+
+commit 100a7cfa3e3db61e7be317f30102cbd30a935ef1
+Author: Claude <noreply@anthropic.com>
+Date:   Thu Sep 17 01:23:57 2026 +0000
+
+    feat(race-viewer): Faz 1 görsel kalite yükseltmesi
+    
+    - RaceViewer'ı /races/demo sayfasına gerçek fixture (demo-race-timeline.json)
+      verisiyle mount et; önceki mockProps:any + çıplak RaceScene3D bug'ını
+      düzelt.
+    - RaceScene3D.tsx: ambientLight yerine drei Environment (preset="sunset")
+      IBL aydınlatması + korunan yönlü güneş ışığı; Ground/TrackSurface/
+      HorseMarker materyallerine PBR roughness/metalness/envMapIntensity;
+      96 ayrı mesh yerine tek THREE.InstancedMesh (pist için tek draw call);
+      @react-three/postprocessing ile Bloom + SSAO. HorseVisual/RaceScene3DProps
+      arayüzü değişmedi.
+    - timeline-playback.ts: InterpolatedHorseState'e opsiyonel
+      stamina/fatigue/lane/tacticalState/blocked/decision alanları eklendi
+      (Faz 3'te gerçek at/jokey animasyon durumunu besleyecek altyapı) +
+      ilgili testler.
+    - package.json: @react-three/postprocessing bağımlılığı eklendi.
+    
+    Bu değişiklikler three.js'e bağımlı olduğu için bu sandbox'ta yerel olarak
+    build edilemedi (npm registry erişimi yok) — gerçek doğrulama push
+    sonrası GitHub Actions CI'da (build-and-test) yapılacak.
+    
+    Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
+    Claude-Session: https://claude.ai/code/session_01TtPE4UdYW3Rtug7NXpya9g
+
+ apps/web/package.json                              |   1 +
+ apps/web/src/app/races/demo/page.tsx               |  45 ++++----
+ apps/web/src/features/race-viewer/RaceScene3D.tsx  | 121 ++++++++++++++++-----
+ .../src/features/race-viewer/timeline-playback.ts  |  50 ++++++++-
+ .../features/race-viewer/timeline-playback.spec.ts |  66 +++++++++++
+ 5 files changed, 229 insertions(+), 54 deletions(-)
+
+commit f118d9425e9e00d8babcc8aea3640a93803d4017
+Merge: ef61a6b bf6d400
+Author: Claude <noreply@anthropic.com>
+Date:   Thu Sep 17 00:45:35 2026 +0000
+
+    Merge recovered-e2-e3-h2-fix into main
+    
+    Restores a commit (originally bf6d400) that existed only in local reflog on
+    one machine and was never pushed before a hard-reset moved main past it.
+    Recovers E2/E3/H2 fixes and the homepage that had been accidentally reverted.
+    
+    Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
+    Claude-Session: https://claude.ai/code/session_01TtPE4UdYW3Rtug7NXpya9g
+ 
+--- 100a7cf bu dalda mi (main'in atasi mi) --- 
+exit_kodu: 0 
+ 
+--- reflog (son 15) --- 
+eabed93 HEAD@{0}: commit: Summay 1
+6985673 HEAD@{1}: commit: Update push-ssao-fix-log.txt
+7deeba0 HEAD@{2}: commit: as
+0292b5e HEAD@{3}: checkout: moving from main to main
+0292b5e HEAD@{4}: commit: İşlem başarılı!
+100a7cf HEAD@{5}: checkout: moving from main to main
+100a7cf HEAD@{6}: checkout: moving from main to main
+100a7cf HEAD@{7}: merge incoming-phase1: Fast-forward
+f118d94 HEAD@{8}: checkout: moving from main to main
+f118d94 HEAD@{9}: checkout: moving from main to main
+f118d94 HEAD@{10}: merge incoming-final: Fast-forward
+ef61a6b HEAD@{11}: checkout: moving from main to main
+ef61a6b HEAD@{12}: commit: recovered-e2-e3-h2-fix
+cc605e3 HEAD@{13}: commit: Create check-orig-head.bat
+4f93630 HEAD@{14}: commit: İZİN
