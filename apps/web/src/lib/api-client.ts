@@ -1,11 +1,16 @@
 import type {
   AuthSession,
+  FinalStretchPlan,
   JoinMatchmakingQueueResult,
   MatchmakingTicket,
   PlayerSummary,
+  PracticeRaceResult,
   PublicHorse,
+  RacingStyle,
   RecentRaceResultView,
+  RiskLevel,
   StableSummaryView,
+  StartApproach,
   TrainHorseResult,
   TrainingIntensity,
   TrainingType,
@@ -162,6 +167,27 @@ export const apiClient = {
   buyMarketListing: (listingId: string, idempotencyKey: string) =>
     request<{ listing: { id: string; status: string } }>(`/market/listings/${listingId}/buy`, {
       method: 'POST',
+      headers: { 'Idempotency-Key': idempotencyKey },
+    }),
+
+  /**
+   * Yarışlar ekranı (`apps/web/src/app/races/page.tsx`) — `POST
+   * /horses/:id/practice-race` (docs/API.md §4). `RunPracticeRaceDto`'nun
+   * dört taktik alanı da opsiyoneldir; gönderilmezse backend `DEFAULT_
+   * RACE_TACTIC`'i kullanır (bkz. `domain/race/validation.ts`). Bu artık
+   * PARA değiştiren bir uç nokta (giriş ücreti + ödül) — `market.
+   * buyMarketListing`/`training.trainHorse` ile AYNI gerekçeyle bir
+   * `Idempotency-Key` header'ı ZORUNLUDUR (bkz. `race.controller.ts` doc
+   * yorumu).
+   */
+  runPracticeRace: (
+    horseId: string,
+    tactic: { racingStyle?: RacingStyle; riskLevel?: RiskLevel; startApproach?: StartApproach; finalStretchPlan?: FinalStretchPlan },
+    idempotencyKey: string,
+  ) =>
+    request<PracticeRaceResult>(`/horses/${horseId}/practice-race`, {
+      method: 'POST',
+      body: JSON.stringify(tactic),
       headers: { 'Idempotency-Key': idempotencyKey },
     }),
 };
