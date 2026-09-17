@@ -38,8 +38,12 @@ export default function MarketPage(): React.ReactElement {
     }
     // `buyerId` bilinçli olarak bağımlılık dizisinde DEĞİL — bu yalnızca
     // oyuncu ilk yüklendiğinde bir kerelik varsayılan atamadır, kullanıcının
-    // elle girdiği değeri sonradan EZMEMELİDİR.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // elle girdiği değeri sonradan EZMEMELİDİR. NOT: bu repo'nun kök
+    // `.eslintrc.cjs`'inde `eslint-plugin-react-hooks` KURULU DEĞİL (bkz.
+    // CI hatası — "Definition for rule 'react-hooks/exhaustive-deps' was
+    // not found"), bu yüzden burada bir `eslint-disable` yorumu YAZILMAZ:
+    // tanımsız bir kural için disable-yorumu ESLint'in kendisinde varsayılan
+    // olarak bir HATA sayılıyor (uyarı değil) — tam olarak bu CI'ı kırdı.
   }, [player]);
 
   const fetchMarketListings = async () => {
