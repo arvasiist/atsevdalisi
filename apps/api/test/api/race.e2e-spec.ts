@@ -299,6 +299,12 @@ describe('Race — Pratik Yarış (e2e)', () => {
    *     yaptığı bakiye güncellemesinin, N eşzamanlı yazma altında "lost
    *     update" ÜRETMEDEN doğru toplama ulaşmasıdır.
    */
+  // CI #93 kırmızı (bu oturum) — bkz. `stable.e2e-spec.ts`'teki AYNI
+  // düzeltme: bu blokdaki her test artık Vitest'in varsayılan 5000ms'ini
+  // aşan AÇIK bir timeout taşıyor. Burası ÖZELLİKLE en pahalı senaryo:
+  // "farklı anahtar" testleri (n=50/100) dedupe OLMADAN GERÇEKTEN o kadar
+  // TAM yarış simülasyonu + segment satırı yazma tetikliyor — 60s'e kadar
+  // çıkan timeout'lar bunun için.
   describe('Eşzamanlılık (concurrency) — AUDIT_REPORT.md T1, Master Plan §42', () => {
     /** N istek + status/hata kodu doğrulaması — AYNI anahtar senaryosunun üç `n` değeri arasında paylaşılan yardımcı. */
     async function runSameKeyConcurrencyCheck(n: number): Promise<void> {
@@ -348,6 +354,7 @@ describe('Race — Pratik Yarış (e2e)', () => {
       async () => {
         await runSameKeyConcurrencyCheck(10);
       },
+      15000,
     );
 
     it(
@@ -355,6 +362,7 @@ describe('Race — Pratik Yarış (e2e)', () => {
       async () => {
         await runSameKeyConcurrencyCheck(100);
       },
+      30000,
     );
 
     it('n=50 GERÇEKTEN eşzamanlı istek FARKLI Idempotency-Key’lerle gönderilirse 50 AYRI yarış GERÇEKTEN koşar, ama bakiye "lost update" OLMADAN tutarlı kalır', async () => {
@@ -399,7 +407,7 @@ describe('Race — Pratik Yarış (e2e)', () => {
         [...raceIds],
       ]);
       expect(raceRows.rows[0].count).toBe(50);
-    });
+    }, 45000);
 
     it('n=100 GERÇEKTEN eşzamanlı istek FARKLI Idempotency-Key’lerle gönderilirse 100 AYRI yarış GERÇEKTEN koşar, bakiye yine tutarlı kalır', async () => {
       const { horseId, playerId, authHeader } = await registerTestPlayerWithStarterHorse(app, 'Yarışçı');
@@ -434,6 +442,6 @@ describe('Race — Pratik Yarış (e2e)', () => {
         [...raceIds],
       ]);
       expect(raceRows.rows[0].count).toBe(100);
-    });
+    }, 60000);
   });
 });

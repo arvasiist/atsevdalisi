@@ -168,6 +168,11 @@ describe('Economy — Daily Reward (e2e)', () => {
    * karşı güvenli") GERÇEK bir e2e testle DOĞRULAR — daha önce bu iddia
    * hiçbir teste dayanmıyordu.
    */
+  // CI #93 kırmızı (bu oturum) — bkz. `stable.e2e-spec.ts`'teki AYNI
+  // düzeltme: her test artık Vitest'in varsayılan 5000ms'ini aşan AÇIK bir
+  // timeout taşıyor (n=50/100 GERÇEK eşzamanlı istek + gerçek Postgres
+  // row-lock sıralaması CI runner'ında bunu aşabiliyordu — mantık hatası
+  // DEĞİL, zamanlama sınırıydı).
   describe('Eşzamanlılık (concurrency) — AUDIT_REPORT.md T1, Master Plan §42', () => {
     it('n=10 GERÇEKTEN eşzamanlı günlük ödül talebinden SADECE BİRİ başarılı olur, ödül YALNIZCA BİR KEZ verilir', async () => {
       const { id, startingMoney, authHeader } = await registerPlayer();
@@ -204,7 +209,7 @@ describe('Economy — Daily Reward (e2e)', () => {
       );
       expect(ledgerRows.rows).toHaveLength(1);
       expect(Number(ledgerRows.rows[0].amount)).toBe(500);
-    });
+    }, 15000);
 
     it('n=50 GERÇEKTEN eşzamanlı günlük ödül talebinden SADECE BİRİ başarılı olur', async () => {
       const { id, startingMoney, authHeader } = await registerPlayer();
@@ -226,7 +231,7 @@ describe('Economy — Daily Reward (e2e)', () => {
 
       const playerRow = await pool.query('SELECT money FROM players WHERE id = $1', [id]);
       expect(Number(playerRow.rows[0].money)).toBe(startingMoney + 500);
-    });
+    }, 30000);
 
     it('n=100 GERÇEKTEN eşzamanlı günlük ödül talebinden SADECE BİRİ başarılı olur, bakiye TAM OLARAK bir kez artar (50 kat DEĞİL, 100 kat DEĞİL)', async () => {
       const { id, startingMoney, authHeader } = await registerPlayer();
@@ -254,6 +259,6 @@ describe('Economy — Daily Reward (e2e)', () => {
         [id],
       );
       expect(ledgerRows.rows).toHaveLength(1);
-    });
+    }, 60000);
   });
 });

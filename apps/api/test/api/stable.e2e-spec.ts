@@ -265,6 +265,14 @@ describe('Stable summary (e2e)', () => {
      * anahtarlarla her istek use-case'e ayrı ayrı ulaşır, satır kilidi
      * TEK savunma hattı olarak gerçekten test edilmiş olur.
      */
+    // CI #93 kırmızı (bu oturum) — bu blokdaki her test artık ÜÇÜNCÜ bir
+    // argümanla AÇIK bir timeout taşıyor (Vitest'in varsayılan 5000ms'i
+    // n=50/100 GERÇEK eşzamanlı HTTP isteği + gerçek Postgres row-lock
+    // sıralaması için yetersizdi — CI runner'ında bu, gerçek bir mantık
+    // hatası DEĞİL, zamanlama sınırıydı). n arttıkça timeout da artırıldı
+    // (15s/30s/60s) — `race.e2e-spec.ts`'teki AYNI düzeltme, orada n=100
+    // için 60s (tam yarış simülasyonu + segment yazma İÇERDİĞİ için en
+    // pahalı senaryo).
     describe('Eşzamanlılık (concurrency) — AUDIT_REPORT.md T1, Master Plan §42', () => {
       it('n=10 GERÇEKTEN eşzamanlı yükseltme isteğinden (tam olarak BİR yükseltmeye yetecek bakiyeyle) SADECE BİRİ başarılı olur, para YALNIZCA BİR KEZ düşer', async () => {
         const { id: playerId, authHeader } = await registerPlayer();
@@ -299,7 +307,7 @@ describe('Stable summary (e2e)', () => {
         const finalRow = await pool.query('SELECT money, stable_level FROM players WHERE id = $1', [playerId]);
         expect(Number(finalRow.rows[0].money)).toBe(0);
         expect(finalRow.rows[0].stable_level).toBe(2);
-      });
+      }, 15000);
 
       it('n=50 GERÇEKTEN eşzamanlı yükseltme isteğinden (BOL bakiyeyle) TAM OLARAK 4 tanesi başarılı olur (seviye 1→5), toplam düşülen tutar GERÇEK maliyetler toplamına birebir eşittir', async () => {
         const { id: playerId, authHeader } = await registerPlayer();
@@ -343,7 +351,7 @@ describe('Stable summary (e2e)', () => {
         // nedeniyle FAZLA (aynı seviyenin ücretinin birden çok kez
         // düşmesi).
         expect(Number(finalRow.rows[0].money)).toBe(startingMoney - totalUpgradeCost);
-      });
+      }, 30000);
 
       it('n=100 GERÇEKTEN eşzamanlı yükseltme isteğinden (BOL bakiyeyle) yine TAM OLARAK 4 tanesi başarılı olur — yük artsa da tutarlılık BOZULMAZ', async () => {
         const { id: playerId, authHeader } = await registerPlayer();
@@ -377,7 +385,7 @@ describe('Stable summary (e2e)', () => {
         const finalRow = await pool.query('SELECT money, stable_level FROM players WHERE id = $1', [playerId]);
         expect(finalRow.rows[0].stable_level).toBe(5);
         expect(Number(finalRow.rows[0].money)).toBe(startingMoney - totalUpgradeCost);
-      });
+      }, 60000);
     });
   });
 });
