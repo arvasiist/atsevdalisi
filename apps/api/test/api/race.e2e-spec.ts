@@ -278,4 +278,160 @@ describe('Race — Pratik Yarış (e2e)', () => {
       .send({});
     expect(response.status).toBe(400);
   });
+
+  /**
+   * AUDIT_REPORT.md Bulgu T1 (Medium) / Master Plan §42 hardening (bu
+   * oturum) — `market.e2e-spec.ts`'teki AYNI GERÇEK-eşzamanlılık deseni
+   * (`Promise.all`). Pratik Yarış'ta iki AYRI risk test edilir (bkz. görev
+   * tanımı):
+   *  1) AYNI `Idempotency-Key` ile n eşzamanlı istek — `IdempotencyInterceptor`
+   *     (bu rotada kapsam `req.params.id` = `horseId`, bkz. o dosyanın doc
+   *     yorumu) yarışı/ücreti YALNIZCA BİR KEZ çalıştırmalı, geri kalanı
+   *     `market.e2e-spec.ts`'teki AYNI iki olası dalla (ya `IDEMPOTENCY_
+   *     KEY_IN_PROGRESS` 409, ya da ilk sonucun AYNEN tekrar oynatılması)
+   *     sonuçlanmalıdır.
+   *  2) FARKLI `Idempotency-Key`'lerle n eşzamanlı istek — bu meşru olarak
+   *     N AYRI yarışın hepsinin GERÇEKTEN koşmasına yol açar (dedupe
+   *     BEKLENMEZ); test edilen şey `RunPracticeRaceUseCase`'in
+   *     `playerRepository.updateWithLock` (`SELECT ... FOR UPDATE`) ile
+   *     yaptığı bakiye güncellemesinin, N eşzamanlı yazma altında "lost
+   *     update" ÜRETMEDEN doğru toplama ulaşmasıdır.
+   */
+  describe('Eşzamanlılık (concurrency) — AUDIT_REPORT.md T1, Master Plan §42', () => {
+    /** N istek + status/hata kodu doğrulaması — AYNI anahtar senaryosunun üç `n` değeri arasında paylaşılan yardımcı. */
+    async function runSameKeyConcurrencyCheck(n: number): Promise<void> {
+      const { horseId, playerId, authHeader } = await registerTestPlayerWithStarterHorse(app, 'Yarışçı');
+      const idempotencyKey = randomUUID();
+
+      const responses = await Promise.all(
+        Array.from({ length: n }, () =>
+          request(app.getHttpServer())
+            .post(`/api/v1/horses/${horseId}/practice-race`)
+            .set('Authorization', authHeader)
+            .set('Idempotency-Key', idempotencyKey)
+            .send({}),
+        ),
+      );
+
+      const successes = responses.filter((response) => response.status === 200);
+      const conflicts = responses.filter((response) => response.status === 409);
+      // `market.e2e-spec.ts`'teki AYNI GERÇEK zamanlama belirsizliği: birinci
+      // isteğin ne zaman TAMAMLANDIĞINA bağlı olarak geç kalan istekler ya
+      // rezervasyon çakışmasıyla (`IDEMPOTENCY_KEY_IN_PROGRESS`) ya da
+      // (birinci zaten bitmişse) AYNI tamamlanmış sonucun tekrar
+      // oynatılmasıyla (200, AYNI raceId) karşılanabilir — hangisi olursa
+      // olsun, TOPLAMDA yalnızca BİR GERÇEK yarış çalışmış olmalıdır.
+      expect(successes.length + conflicts.length).toBe(n);
+      expect(successes.length).toBeGreaterThanOrEqual(1);
+      for (const conflict of conflicts) {
+        expect(conflict.body.error.code).toBe('IDEMPOTENCY_KEY_IN_PROGRESS');
+      }
+
+      const raceIds = new Set(successes.map((response) => response.body.data.raceId as string));
+      expect(raceIds.size).toBe(1);
+      const balances = new Set(successes.map((response) => response.body.data.newBalance.money as number));
+      expect(balances.size).toBe(1);
+
+      const moneyRow = await pool.query('SELECT money FROM players WHERE id = $1', [playerId]);
+      expect(Number(moneyRow.rows[0].money)).toBe([...balances][0]);
+
+      const raceRows = await pool.query('SELECT COUNT(*)::int AS count FROM races WHERE id = $1', [
+        [...raceIds][0],
+      ]);
+      expect(raceRows.rows[0].count).toBe(1);
+    }
+
+    it(
+      'n=10 GERÇEKTEN eşzamanlı istek AYNI Idempotency-Key ile gönderilirse yarış YALNIZCA BİR KEZ çalışır, ücret YALNIZCA BİR KEZ düşer',
+      async () => {
+        await runSameKeyConcurrencyCheck(10);
+      },
+    );
+
+    it(
+      'n=100 GERÇEKTEN eşzamanlı istek AYNI Idempotency-Key ile gönderilirse yük artsa da yarış YALNIZCA BİR KEZ çalışır',
+      async () => {
+        await runSameKeyConcurrencyCheck(100);
+      },
+    );
+
+    it('n=50 GERÇEKTEN eşzamanlı istek FARKLI Idempotency-Key’lerle gönderilirse 50 AYRI yarış GERÇEKTEN koşar, ama bakiye "lost update" OLMADAN tutarlı kalır', async () => {
+      const { horseId, playerId, authHeader } = await registerTestPlayerWithStarterHorse(app, 'Yarışçı');
+      // Varsayılan 5000 para 50 × 50 giriş ücretine (2500) zaten yeter,
+      // ama olası `INSUFFICIENT_FUNDS` dalgalanmasını (yalnızca kilit
+      // doğruluğunu test etmek isteyen bu senaryo için ALAKASIZ bir
+      // değişken) tamamen elemek için bol bir bakiyeyle başlanır.
+      await pool.query('UPDATE players SET money = 500000 WHERE id = $1', [playerId]);
+
+      const responses = await Promise.all(
+        Array.from({ length: 50 }, () =>
+          request(app.getHttpServer())
+            .post(`/api/v1/horses/${horseId}/practice-race`)
+            .set('Authorization', authHeader)
+            .set('Idempotency-Key', randomUUID())
+            .send({}),
+        ),
+      );
+
+      for (const response of responses) {
+        expect(response.status).toBe(200);
+      }
+
+      const raceIds = new Set(responses.map((response) => response.body.data.raceId as string));
+      // Dedupe YOK — FARKLI anahtarlarla GERÇEKTEN 50 ayrı yarış koşmuş olmalı.
+      expect(raceIds.size).toBe(50);
+
+      const netChange = responses.reduce(
+        (sum, response) => sum + (response.body.data.prizeWon as number) - (response.body.data.entryFee as number),
+        0,
+      );
+
+      const finalRow = await pool.query('SELECT money FROM players WHERE id = $1', [playerId]);
+      // `updateWithLock`'un satır kilidi sayesinde N eşzamanlı yazma
+      // sıraya girer — GERÇEKLEŞEN toplam net değişim (yanıtların
+      // entryFee/prizeWon toplamı), GERÇEK son bakiye farkına BİREBİR eşit
+      // olmalıdır (lost update = bu iki değerin BİRBİRİNDEN SAPMASI).
+      expect(Number(finalRow.rows[0].money)).toBe(500000 + netChange);
+
+      const raceRows = await pool.query('SELECT COUNT(*)::int AS count FROM races WHERE id = ANY($1::uuid[])', [
+        [...raceIds],
+      ]);
+      expect(raceRows.rows[0].count).toBe(50);
+    });
+
+    it('n=100 GERÇEKTEN eşzamanlı istek FARKLI Idempotency-Key’lerle gönderilirse 100 AYRI yarış GERÇEKTEN koşar, bakiye yine tutarlı kalır', async () => {
+      const { horseId, playerId, authHeader } = await registerTestPlayerWithStarterHorse(app, 'Yarışçı');
+      await pool.query('UPDATE players SET money = 500000 WHERE id = $1', [playerId]);
+
+      const responses = await Promise.all(
+        Array.from({ length: 100 }, () =>
+          request(app.getHttpServer())
+            .post(`/api/v1/horses/${horseId}/practice-race`)
+            .set('Authorization', authHeader)
+            .set('Idempotency-Key', randomUUID())
+            .send({}),
+        ),
+      );
+
+      for (const response of responses) {
+        expect(response.status).toBe(200);
+      }
+
+      const raceIds = new Set(responses.map((response) => response.body.data.raceId as string));
+      expect(raceIds.size).toBe(100);
+
+      const netChange = responses.reduce(
+        (sum, response) => sum + (response.body.data.prizeWon as number) - (response.body.data.entryFee as number),
+        0,
+      );
+
+      const finalRow = await pool.query('SELECT money FROM players WHERE id = $1', [playerId]);
+      expect(Number(finalRow.rows[0].money)).toBe(500000 + netChange);
+
+      const raceRows = await pool.query('SELECT COUNT(*)::int AS count FROM races WHERE id = ANY($1::uuid[])', [
+        [...raceIds],
+      ]);
+      expect(raceRows.rows[0].count).toBe(100);
+    });
+  });
 });

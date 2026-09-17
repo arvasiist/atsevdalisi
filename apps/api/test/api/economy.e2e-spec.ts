@@ -153,4 +153,107 @@ describe('Economy — Daily Reward (e2e)', () => {
       .set('Authorization', someone.authHeader);
     expect(response.status).toBe(400);
   });
+
+  /**
+   * AUDIT_REPORT.md Bulgu T1 (Medium) / Master Plan §42 hardening (bu
+   * oturum) — `stable.e2e-spec.ts`'teki AYNI GERÇEK-eşzamanlılık deseni
+   * (`Promise.all`, sahte/sıralı `await` YOK). Günlük Ödül'ün, bu dosyanın
+   * üstündeki doc yorumunun da belirttiği gibi, `Idempotency-Key`
+   * ALTYAPISI YOKTUR (bilinçli tasarım, bkz. `claim-daily-reward.use-case.ts`
+   * üstündeki KAPSAM notu) — tek savunması `PlayerRepository.updateWithLock`'un
+   * (`SELECT ... FOR UPDATE`) satır kilidi ve `assertCanClaimDailyReward`'ın
+   * kilit ALTINDA okunan GÜNCEL `lastDailyRewardClaimedAt` kontrolüdür. Bu
+   * testler AUDIT_REPORT.md'nin "Zaten sağlam (IMPLEMENTED)" notunu ("Günlük
+   * ödül: Idempotency-Key olmasa bile satır kilidi sayesinde çift ödemeye
+   * karşı güvenli") GERÇEK bir e2e testle DOĞRULAR — daha önce bu iddia
+   * hiçbir teste dayanmıyordu.
+   */
+  describe('Eşzamanlılık (concurrency) — AUDIT_REPORT.md T1, Master Plan §42', () => {
+    it('n=10 GERÇEKTEN eşzamanlı günlük ödül talebinden SADECE BİRİ başarılı olur, ödül YALNIZCA BİR KEZ verilir', async () => {
+      const { id, startingMoney, authHeader } = await registerPlayer();
+
+      const responses = await Promise.all(
+        Array.from({ length: 10 }, () =>
+          request(app.getHttpServer()).post(`/api/v1/players/${id}/daily-reward`).set('Authorization', authHeader),
+        ),
+      );
+
+      const successes = responses.filter((response) => response.status === 200);
+      const failures = responses.filter((response) => response.status !== 200);
+      expect(successes).toHaveLength(1);
+      expect(failures).toHaveLength(9);
+      for (const failure of failures) {
+        expect(failure.status).toBe(409);
+        expect(failure.body.error.code).toBe('DAILY_REWARD_ALREADY_CLAIMED');
+      }
+      expect(successes[0]!.body.data.newBalance.money).toBe(startingMoney + 500);
+
+      const playerRow = await pool.query('SELECT money, last_daily_reward_claimed_at FROM players WHERE id = $1', [
+        id,
+      ]);
+      expect(Number(playerRow.rows[0].money)).toBe(startingMoney + 500);
+      expect(playerRow.rows[0].last_daily_reward_claimed_at).not.toBeNull();
+
+      // N istekten SADECE BİRİ gerçekten para hareketi ürettiyse, ledger'da
+      // da TAM OLARAK bir satır olmalıdır (10 DEĞİL) — `economy.e2e-spec.ts`
+      // üstündeki "AUDIT_AND_HARDENING Öncelik 2" ledger doğrulamasının
+      // eşzamanlılık altındaki hali.
+      const ledgerRows = await pool.query(
+        "SELECT * FROM economy_transactions WHERE player_id = $1 AND type = 'daily_reward'",
+        [id],
+      );
+      expect(ledgerRows.rows).toHaveLength(1);
+      expect(Number(ledgerRows.rows[0].amount)).toBe(500);
+    });
+
+    it('n=50 GERÇEKTEN eşzamanlı günlük ödül talebinden SADECE BİRİ başarılı olur', async () => {
+      const { id, startingMoney, authHeader } = await registerPlayer();
+
+      const responses = await Promise.all(
+        Array.from({ length: 50 }, () =>
+          request(app.getHttpServer()).post(`/api/v1/players/${id}/daily-reward`).set('Authorization', authHeader),
+        ),
+      );
+
+      const successes = responses.filter((response) => response.status === 200);
+      const failures = responses.filter((response) => response.status !== 200);
+      expect(successes).toHaveLength(1);
+      expect(failures).toHaveLength(49);
+      for (const failure of failures) {
+        expect(failure.status).toBe(409);
+        expect(failure.body.error.code).toBe('DAILY_REWARD_ALREADY_CLAIMED');
+      }
+
+      const playerRow = await pool.query('SELECT money FROM players WHERE id = $1', [id]);
+      expect(Number(playerRow.rows[0].money)).toBe(startingMoney + 500);
+    });
+
+    it('n=100 GERÇEKTEN eşzamanlı günlük ödül talebinden SADECE BİRİ başarılı olur, bakiye TAM OLARAK bir kez artar (50 kat DEĞİL, 100 kat DEĞİL)', async () => {
+      const { id, startingMoney, authHeader } = await registerPlayer();
+
+      const responses = await Promise.all(
+        Array.from({ length: 100 }, () =>
+          request(app.getHttpServer()).post(`/api/v1/players/${id}/daily-reward`).set('Authorization', authHeader),
+        ),
+      );
+
+      const successes = responses.filter((response) => response.status === 200);
+      const failures = responses.filter((response) => response.status !== 200);
+      expect(successes).toHaveLength(1);
+      expect(failures).toHaveLength(99);
+      for (const failure of failures) {
+        expect(failure.status).toBe(409);
+        expect(failure.body.error.code).toBe('DAILY_REWARD_ALREADY_CLAIMED');
+      }
+
+      const playerRow = await pool.query('SELECT money FROM players WHERE id = $1', [id]);
+      expect(Number(playerRow.rows[0].money)).toBe(startingMoney + 500);
+
+      const ledgerRows = await pool.query(
+        "SELECT * FROM economy_transactions WHERE player_id = $1 AND type = 'daily_reward'",
+        [id],
+      );
+      expect(ledgerRows.rows).toHaveLength(1);
+    });
+  });
 });
