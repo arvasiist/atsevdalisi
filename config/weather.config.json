@@ -1,4 +1,5 @@
 {
+  "version": "1.0.0",
   "combinations": {
     "sunny_grass_dry":  { "surfaceModifier": 1.05, "weatherModifier": 1.00 },
     "rainy_grass_wet":  { "surfaceModifier": 0.90, "weatherModifier": 0.92 },

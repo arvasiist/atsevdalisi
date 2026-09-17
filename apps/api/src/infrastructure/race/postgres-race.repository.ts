@@ -138,11 +138,16 @@ export class PostgresRaceRepository implements RaceRepository {
    * hiçbir versiyon sabiti BİLMEZ/İMPORT ETMEZ, sadece kendisine verileni
    * yazar (Infrastructure katmanının Domain sabitlerine değil, yalnızca
    * Application'ın ürettiği DEĞERE bağımlı olması — docs/ARCHITECTURE.md §4).
+   *
+   * AUDIT_REPORT.md R1 (bu oturum) — `weather_config_version` (migration
+   * 0024) da AYNI desenle burada yazılır: `race.weatherConfigVersion`,
+   * çağıran use-case'in `this.config.weather.version`'ı `Race` nesnesini
+   * oluştururken doldurmasından gelir.
    */
   private async insertRaceRow(client: PoolClient, race: Race): Promise<void> {
     await client.query(
-      `INSERT INTO races (id, track_id, name, distance_m, surface, weather, temperature_c, wind_kmh, humidity_pct, participant_limit, entry_fee, prize_pool, start_time, status, simulation_seed, engine_version, ruleset_version, config_version, created_at, updated_at)
-       VALUES ($1, NULL, $2, $3, $4, $5, $6, NULL, NULL, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $16)`,
+      `INSERT INTO races (id, track_id, name, distance_m, surface, weather, temperature_c, wind_kmh, humidity_pct, participant_limit, entry_fee, prize_pool, start_time, status, simulation_seed, engine_version, ruleset_version, config_version, weather_config_version, created_at, updated_at)
+       VALUES ($1, NULL, $2, $3, $4, $5, $6, NULL, NULL, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $17)`,
       [
         race.id,
         race.name,
@@ -159,6 +164,7 @@ export class PostgresRaceRepository implements RaceRepository {
         race.engineVersion,
         race.rulesetVersion,
         race.configVersion,
+        race.weatherConfigVersion,
         new Date(race.createdAt),
       ],
     );

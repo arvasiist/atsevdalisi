@@ -113,6 +113,8 @@ describe('Race — Pratik Yarış (e2e)', () => {
     expect(raceRow.rows[0].engine_version).toBe('1.0.0');
     expect(raceRow.rows[0].ruleset_version).toBe('1.1.0');
     expect(raceRow.rows[0].config_version).toBe('1.0.0');
+    // AUDIT_REPORT.md R1 (bu oturum) — bkz. migration 0024.
+    expect(raceRow.rows[0].weather_config_version).toBe('1.0.0');
 
     const entryRow = await pool.query('SELECT * FROM race_entries WHERE race_id = $1 AND horse_id = $2', [raceId, horseId]);
     expect(entryRow.rows).toHaveLength(1);

@@ -324,6 +324,8 @@ export class JoinMatchmakingQueueUseCase {
       engineVersion: RACE_ENGINE_VERSION,
       rulesetVersion: RACE_RULESET_VERSION,
       configVersion: this.config.race.version,
+      // AUDIT_REPORT.md R1 (bu oturum) — bkz. `Race.weatherConfigVersion` doc yorumu.
+      weatherConfigVersion: this.config.weather.version,
       createdAt: nowIso,
       updatedAt: nowIso,
     };

@@ -41,15 +41,24 @@ export interface Race {
   /**
    * AUDIT_AND_HARDENING Öncelik 4 (bu oturum) — brief §58 deterministik
    * replay garantisi: aynı `simulationSeed` + aynı `RaceEntrantSnapshot`ler
-   * + aynı bu ÜÇ sürüm ⇒ HER ZAMAN bit bit aynı `RaceTimeline` (bkz.
+   * + aynı bu DÖRT sürüm ⇒ HER ZAMAN bit bit aynı `RaceTimeline` (bkz.
    * `domain/race/race-engine.ts` `RACE_ENGINE_VERSION`/`RACE_RULESET_VERSION`
    * doc yorumu, `database/migrations/0021_add_race_versioning.up.sql`).
-   * Bu üç alan olmadan, engine/config gelecekte değiştiğinde ESKİ bir
+   * Bu dört alan olmadan, engine/config gelecekte değiştiğinde ESKİ bir
    * yarışın hangi kod/config ile üretildiği bilinemez hale gelirdi.
+   *
+   * AUDIT_REPORT.md R1 (bu oturum) — `weatherConfigVersion`, `config/
+   * weather.config.json`'ın KENDİ sürümüdür (`configVersion`'ın kapsadığı
+   * `race.config.json`'dan BAĞIMSIZ) — `getEnvironmentModifier`
+   * (`domain/race/environment.ts`) bu dosyayı AKTİF olarak kullanır ve
+   * sonucu doğrudan etkiler, bu yüzden AYNI replay/audit gerekçesi (bkz.
+   * `database/migrations/0024_add_weather_config_versioning.up.sql`) burada
+   * da geçerlidir.
    */
   engineVersion: string;
   rulesetVersion: string;
   configVersion: string;
+  weatherConfigVersion: string;
   createdAt: ISODateTimeString;
   updatedAt: ISODateTimeString;
 }

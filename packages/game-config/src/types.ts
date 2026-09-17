@@ -233,6 +233,22 @@ export interface WeatherCombinationEffect {
 }
 
 export interface WeatherConfig {
+  /**
+   * AUDIT_REPORT.md R1 (bu oturum) — bu config dosyasının KENDİ sürümü,
+   * `RaceBalanceConfig.version`'dan (yani `config/race.config.json`'ın
+   * kendi sürümünden) BAĞIMSIZDIR. Kod hiç değişmeden SADECE aşağıdaki
+   * `combinations` içindeki `surfaceModifier`/`weatherModifier` denge
+   * değerleri güncellendiğinde bu alan artırılmalıdır — her `races` satırı
+   * hangi hava durumu config sürümüyle üretildiğini kaydeder (bkz.
+   * `database/migrations/0024_add_weather_config_versioning.up.sql`),
+   * böylece gelecekte bu config değişse bile ESKİ yarışların hangi hava
+   * durumu denge değerleriyle simüle edildiği bilinir kalır (brief §58
+   * replay/audit). `getEnvironmentModifier` (`domain/race/environment.ts`)
+   * bu dosyayı AKTİF olarak kullandığından ve sonucu doğrudan etkilediğinden
+   * (`combinedConditionModifier`), `race.config.json`'ın üç sürüm sütunuyla
+   * (migration 0021) AYNI bütünlük gerekçesi burada da geçerlidir.
+   */
+  version: string;
   combinations: Record<string, WeatherCombinationEffect>;
 }
 

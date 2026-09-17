@@ -125,6 +125,8 @@ describe('Matchmaking — PvP Eşleştirme (e2e)', () => {
     expect(raceRows.rows[0].engine_version).toBe('1.0.0');
     expect(raceRows.rows[0].ruleset_version).toBe('1.1.0');
     expect(raceRows.rows[0].config_version).toBe('1.0.0');
+    // AUDIT_REPORT.md R1 (bu oturum) — bkz. migration 0024.
+    expect(raceRows.rows[0].weather_config_version).toBe('1.0.0');
     const entryRows = await pool.query('SELECT * FROM race_entries WHERE race_id = $1', [match.raceId]);
     expect(entryRows.rows).toHaveLength(2);
     const pvpMatchRows = await pool.query('SELECT * FROM pvp_matches WHERE id = $1', [match.matchId]);
