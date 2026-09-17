@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { AuthModule } from './api/auth/auth.module';
 import { CareModule } from './api/care/care.module';
 import { EconomyModule } from './api/economy/economy.module';
 import { HealthModule } from './api/health/health.module';
@@ -10,6 +11,7 @@ import { RaceModule } from './api/race/race.module';
 import { StableModule } from './api/stable/stable.module';
 import { TrainingModule } from './api/training/training.module';
 import { AppConfigModule } from './infrastructure/config/config.module';
+import { TokenModule } from './infrastructure/auth/token.module';
 import { DatabaseModule } from './infrastructure/database/database.module';
 import { RedisModule } from './infrastructure/redis/redis.module';
 
@@ -50,13 +52,24 @@ import { RedisModule } from './infrastructure/redis/redis.module';
  * dilim"). Geriye kalan büyük maddeler: gerçek zamanlı/WebSocket maç
  * bildirimi, tam "yarış takvimi" (zamanlanmış çok-katılımcılı yarışlar),
  * turnuva/kulüp/sıralama/sezon (FAZ 7'nin geri kalanı).
+ *
+ * AUDIT_REPORT.md Bulgu S1 (Critical) hardening (bu oturum) — brief §41/§50
+ * Google/Apple Sign-In. `TokenModule` (`@Global()`, `DatabaseModule`/
+ * `RedisModule` ile AYNI desen) burada BİR KEZ eklenir — `TOKEN_SERVICE`
+ * artık her yerde (kayıt, giriş, `AuthGuard`) ayrıca `imports`'a eklemeye
+ * GEREK OLMADAN enjekte edilebilir. `AuthModule` ise `AuthGuard`'ı
+ * `APP_GUARD` ile GLOBAL olarak kaydeder (bkz. o modülün doc yorumu) —
+ * bu, `@Public()` işaretli olmayan HER rotanın (health/register/login
+ * hariç TÜMÜ) artık geçerli bir JWT gerektirdiği anlamına gelir.
  */
 @Module({
   imports: [
     AppConfigModule,
     DatabaseModule,
     RedisModule,
+    TokenModule,
     HealthModule,
+    AuthModule,
     PlayerModule,
     HorseModule,
     StableModule,

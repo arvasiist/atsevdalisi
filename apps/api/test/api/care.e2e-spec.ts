@@ -1,12 +1,10 @@
 import { randomUUID } from 'node:crypto';
-import { INestApplication, ValidationPipe } from '@nestjs/common';
-import { Test } from '@nestjs/testing';
+import { INestApplication } from '@nestjs/common';
 import type { Pool } from 'pg';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { AppModule } from '../../src/app.module';
-import { HttpExceptionFilter } from '../../src/api/middleware/http-exception.filter';
 import { PG_POOL } from '../../src/infrastructure/database/database.module';
+import { bootstrapTestApp, registerTestPlayer, registerTestPlayerWithStarterHorse } from './test-helpers';
 
 /**
  * FAZ 1 wiring — Beşinci dilim: `POST /horses/:id/care` ve `POST
@@ -14,52 +12,32 @@ import { PG_POOL } from '../../src/infrastructure/database/database.module';
  * ile AYNI bootstrap deseni ve AYNI kısıt (GERÇEK PostgreSQL gerektirir,
  * bu ortamda ÇALIŞTIRILAMAZ — bkz. docs/ARCHITECTURE.md §9).
  *
- * ÖNEMLİ (bkz. docs/ARCHITECTURE.md §9.1 Hata 6): `describe`/`it`/`expect`/
- * `beforeAll`/`afterAll` burada AÇIKÇA `vitest`'ten içe aktarılıyor.
+ * AUDIT_REPORT.md Bulgu S2 hardening (bu oturum) — hem `:id/care` hem
+ * `:id/feed` artık `HorseOwnerGuardByParam` ile korunur (bkz.
+ * `care.controller.ts`) ve global `AuthGuard` her isteğin geçerli bir
+ * `Authorization: Bearer <token>` header'ı taşımasını zorunlu kılar — bu
+ * yüzden HER istek artık ilgili oyuncunun `authHeader`'ını taşır (bkz.
+ * `test-helpers.ts`).
  */
 describe('Care (e2e)', () => {
   let app: INestApplication;
   let pool: Pool;
 
   beforeAll(async () => {
-    const moduleRef = await Test.createTestingModule({
-      imports: [AppModule],
-    }).compile();
-
-    app = moduleRef.createNestApplication();
-    app.setGlobalPrefix('api/v1');
-    app.useGlobalFilters(new HttpExceptionFilter());
-    app.useGlobalPipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }));
-    await app.init();
-    pool = moduleRef.get<Pool>(PG_POOL);
+    app = await bootstrapTestApp();
+    pool = app.get<Pool>(PG_POOL);
   });
 
   afterAll(async () => {
     await app.close();
   });
 
-  function uniqueUsername(): string {
-    return `test_${randomUUID().replace(/-/g, '')}`.slice(0, 20);
-  }
-
-  async function registerPlayerWithStarterHorse(): Promise<{ horseId: string }> {
-    const registerResponse = await request(app.getHttpServer())
-      .post('/api/v1/players')
-      .send({ username: uniqueUsername(), displayName: 'Seyis' })
-      .expect(201);
-    const playerId = registerResponse.body.data.id;
-
-    const listResponse = await request(app.getHttpServer())
-      .get(`/api/v1/horses?ownerId=${playerId}`)
-      .expect(200);
-    return { horseId: listResponse.body.data[0].id };
-  }
-
   it('/api/v1/horses/:id/care (POST) — tımar (groom) moral ve health artırır', async () => {
-    const { horseId } = await registerPlayerWithStarterHorse();
+    const { horseId, authHeader } = await registerTestPlayerWithStarterHorse(app, 'Seyis');
 
     const response = await request(app.getHttpServer())
       .post(`/api/v1/horses/${horseId}/care`)
+      .set('Authorization', authHeader)
       .send({ actionType: 'groom' });
 
     expect(response.status).toBe(200);
@@ -72,35 +50,46 @@ describe('Care (e2e)', () => {
   });
 
   it('/api/v1/horses/:id/care (POST) — cooldown dolmadan aynı eylem 409 CARE_ACTION_ON_COOLDOWN döner', async () => {
-    const { horseId } = await registerPlayerWithStarterHorse();
+    const { horseId, authHeader } = await registerTestPlayerWithStarterHorse(app, 'Seyis');
 
-    await request(app.getHttpServer()).post(`/api/v1/horses/${horseId}/care`).send({ actionType: 'groom' }).expect(200);
+    await request(app.getHttpServer())
+      .post(`/api/v1/horses/${horseId}/care`)
+      .set('Authorization', authHeader)
+      .send({ actionType: 'groom' })
+      .expect(200);
 
     const response = await request(app.getHttpServer())
       .post(`/api/v1/horses/${horseId}/care`)
+      .set('Authorization', authHeader)
       .send({ actionType: 'groom' });
 
     expect(response.status).toBe(409);
     expect(response.body.error.code).toBe('CARE_ACTION_ON_COOLDOWN');
   });
 
-  it('/api/v1/horses/:id/care (POST) — farklı bir eylem türü AYNI atırdaki cooldown\'dan etkilenmez', async () => {
-    const { horseId } = await registerPlayerWithStarterHorse();
+  it("/api/v1/horses/:id/care (POST) — farklı bir eylem türü AYNI atırdaki cooldown'dan etkilenmez", async () => {
+    const { horseId, authHeader } = await registerTestPlayerWithStarterHorse(app, 'Seyis');
 
-    await request(app.getHttpServer()).post(`/api/v1/horses/${horseId}/care`).send({ actionType: 'groom' }).expect(200);
+    await request(app.getHttpServer())
+      .post(`/api/v1/horses/${horseId}/care`)
+      .set('Authorization', authHeader)
+      .send({ actionType: 'groom' })
+      .expect(200);
 
     const response = await request(app.getHttpServer())
       .post(`/api/v1/horses/${horseId}/care`)
+      .set('Authorization', authHeader)
       .send({ actionType: 'vet' });
 
     expect(response.status).toBe(200);
   });
 
   it('/api/v1/horses/:id/feed (POST) — cooldown olmadan art arda çağrılabilir', async () => {
-    const { horseId } = await registerPlayerWithStarterHorse();
+    const { horseId, authHeader } = await registerTestPlayerWithStarterHorse(app, 'Seyis');
 
     const first = await request(app.getHttpServer())
       .post(`/api/v1/horses/${horseId}/feed`)
+      .set('Authorization', authHeader)
       .send({ feedType: 'standard' });
     expect(first.status).toBe(200);
     expect(first.body.data.feedType).toBe('standard');
@@ -108,30 +97,78 @@ describe('Care (e2e)', () => {
 
     const second = await request(app.getHttpServer())
       .post(`/api/v1/horses/${horseId}/feed`)
+      .set('Authorization', authHeader)
       .send({ feedType: 'performance' });
     expect(second.status).toBe(200);
   });
 
+  it('/api/v1/horses/:id/care (POST) Authorization header olmadan 401 döner', async () => {
+    const { horseId } = await registerTestPlayerWithStarterHorse(app, 'Seyis');
+    const response = await request(app.getHttpServer())
+      .post(`/api/v1/horses/${horseId}/care`)
+      .send({ actionType: 'groom' });
+    expect(response.status).toBe(401);
+  });
+
+  it('/api/v1/horses/:id/care (POST) başkasının atına bakım uygulamaya çalışan istek 403 döner (AUDIT_REPORT.md S2)', async () => {
+    const owner = await registerTestPlayerWithStarterHorse(app, 'Gerçek Sahip');
+    const attacker = await registerTestPlayer(app, 'Saldırgan');
+
+    const response = await request(app.getHttpServer())
+      .post(`/api/v1/horses/${owner.horseId}/care`)
+      .set('Authorization', attacker.authHeader)
+      .send({ actionType: 'groom' });
+
+    expect(response.status).toBe(403);
+    expect(response.body.error.code).toBe('FORBIDDEN');
+  });
+
+  it('/api/v1/horses/:id/feed (POST) başkasının atını beslemeye çalışan istek 403 döner (AUDIT_REPORT.md S2)', async () => {
+    const owner = await registerTestPlayerWithStarterHorse(app, 'Gerçek Sahip İki');
+    const attacker = await registerTestPlayer(app, 'Saldırgan İki');
+
+    const response = await request(app.getHttpServer())
+      .post(`/api/v1/horses/${owner.horseId}/feed`)
+      .set('Authorization', attacker.authHeader)
+      .send({ feedType: 'standard' });
+
+    expect(response.status).toBe(403);
+    expect(response.body.error.code).toBe('FORBIDDEN');
+  });
+
   it('/api/v1/horses/:id/care (POST) var olmayan bir at için 404 döner', async () => {
+    const someone = await registerTestPlayer(app, 'Herhangi Biri');
     const response = await request(app.getHttpServer())
       .post(`/api/v1/horses/${randomUUID()}/care`)
+      .set('Authorization', someone.authHeader)
       .send({ actionType: 'groom' });
     expect(response.status).toBe(404);
     expect(response.body.error.code).toBe('HORSE_NOT_FOUND');
   });
 
+  it('/api/v1/horses/:id/care (POST) geçersiz (UUID olmayan) bir id için 400 döner', async () => {
+    const someone = await registerTestPlayer(app, 'Herhangi Biri İki');
+    const response = await request(app.getHttpServer())
+      .post('/api/v1/horses/not-a-uuid/care')
+      .set('Authorization', someone.authHeader)
+      .send({ actionType: 'groom' });
+    expect(response.status).toBe(400);
+  });
+
   it('/api/v1/horses/:id/care (POST) geçersiz bir eylem türü için 400 döner', async () => {
-    const { horseId } = await registerPlayerWithStarterHorse();
+    const { horseId, authHeader } = await registerTestPlayerWithStarterHorse(app, 'Seyis');
     const response = await request(app.getHttpServer())
       .post(`/api/v1/horses/${horseId}/care`)
+      .set('Authorization', authHeader)
       .send({ actionType: 'not-a-real-action' });
     expect(response.status).toBe(400);
   });
 
   it('/api/v1/horses/:id/feed (POST) geçersiz bir yem türü için 400 döner', async () => {
-    const { horseId } = await registerPlayerWithStarterHorse();
+    const { horseId, authHeader } = await registerTestPlayerWithStarterHorse(app, 'Seyis');
     const response = await request(app.getHttpServer())
       .post(`/api/v1/horses/${horseId}/feed`)
+      .set('Authorization', authHeader)
       .send({ feedType: 'not-a-real-feed' });
     expect(response.status).toBe(400);
   });
@@ -146,8 +183,8 @@ describe('Care (e2e)', () => {
    * `INSERT INTO horses` için kullanılan AYNI "testin ihtiyacı olan durumu
    * doğrudan veritabanında kur" deseni.
    */
-  it('/api/v1/horses/:id/care (POST) — injured bir at, vet ile (eşikler karşılanınca) active\'e döner', async () => {
-    const { horseId } = await registerPlayerWithStarterHorse();
+  it("/api/v1/horses/:id/care (POST) — injured bir at, vet ile (eşikler karşılanınca) active'e döner", async () => {
+    const { horseId, authHeader } = await registerTestPlayerWithStarterHorse(app, 'Seyis');
 
     // Atı sakat durumuna al, injuryRisk'i eşiğin (maxInjuryRisk: 40)
     // hemen üstüne ayarla — vet'in kendi injuryRiskDelta'sı (-10) bunu
@@ -158,12 +195,14 @@ describe('Care (e2e)', () => {
     // Sakatken bile antrenman reddedilmeli (mevcut korumanın hâlâ çalıştığını doğrular).
     const trainWhileInjured = await request(app.getHttpServer())
       .post(`/api/v1/horses/${horseId}/train`)
+      .set('Authorization', authHeader)
       .send({ type: 'speed', intensity: 'low', durationMinutes: 30 });
     expect(trainWhileInjured.status).toBe(409);
     expect(trainWhileInjured.body.error.code).toBe('HORSE_INJURED');
 
     const vetResponse = await request(app.getHttpServer())
       .post(`/api/v1/horses/${horseId}/care`)
+      .set('Authorization', authHeader)
       .send({ actionType: 'vet' });
 
     expect(vetResponse.status).toBe(200);
@@ -173,12 +212,13 @@ describe('Care (e2e)', () => {
     // Artık antrenman tekrar başarılı olmalı.
     const trainAfterRecovery = await request(app.getHttpServer())
       .post(`/api/v1/horses/${horseId}/train`)
+      .set('Authorization', authHeader)
       .send({ type: 'speed', intensity: 'low', durationMinutes: 30 });
     expect(trainAfterRecovery.status).toBe(200);
   });
 
   it('/api/v1/horses/:id/care (POST) — injured bir at, eşikler karşılanmazsa injured kalır', async () => {
-    const { horseId } = await registerPlayerWithStarterHorse();
+    const { horseId, authHeader } = await registerTestPlayerWithStarterHorse(app, 'Seyis');
 
     // injuryRisk 80 → vet sonrası 70, eşik (maxInjuryRisk: 40) hâlâ aşılıyor.
     await pool.query("UPDATE horses SET status = 'injured' WHERE id = $1", [horseId]);
@@ -186,6 +226,7 @@ describe('Care (e2e)', () => {
 
     const vetResponse = await request(app.getHttpServer())
       .post(`/api/v1/horses/${horseId}/care`)
+      .set('Authorization', authHeader)
       .send({ actionType: 'vet' });
 
     expect(vetResponse.status).toBe(200);
@@ -193,16 +234,18 @@ describe('Care (e2e)', () => {
 
     const trainStillInjured = await request(app.getHttpServer())
       .post(`/api/v1/horses/${horseId}/train`)
+      .set('Authorization', authHeader)
       .send({ type: 'speed', intensity: 'low', durationMinutes: 30 });
     expect(trainStillInjured.status).toBe(409);
     expect(trainStillInjured.body.error.code).toBe('HORSE_INJURED');
   });
 
-  it('/api/v1/horses/:id/care (POST) — injured OLMAYAN bir atta vet eylemi status\'u DEĞİŞTİRMEZ', async () => {
-    const { horseId } = await registerPlayerWithStarterHorse();
+  it("/api/v1/horses/:id/care (POST) — injured OLMAYAN bir atta vet eylemi status'u DEĞİŞTİRMEZ", async () => {
+    const { horseId, authHeader } = await registerTestPlayerWithStarterHorse(app, 'Seyis');
 
     const response = await request(app.getHttpServer())
       .post(`/api/v1/horses/${horseId}/care`)
+      .set('Authorization', authHeader)
       .send({ actionType: 'vet' });
 
     expect(response.status).toBe(200);

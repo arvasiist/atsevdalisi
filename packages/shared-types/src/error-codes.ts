@@ -16,6 +16,20 @@ export const ErrorCode = {
   ValidationError: 'VALIDATION_ERROR',
   Unauthorized: 'UNAUTHORIZED',
   NotFound: 'NOT_FOUND',
+  // AUDIT_REPORT.md Bulgu S1/S2/S4 hardening (bu oturum) — brief §41/§50
+  // Google/Apple Sign-In + IDOR sertleştirmesi. `Unauthorized` (401) daha
+  // önce taslakta duran ama hiç kullanılmayan bir kodtu — artık `AuthGuard`
+  // eksik/geçersiz token'da bunu fırlatır. `Forbidden` (403) YENİ bir
+  // koddur: token GEÇERLİDİR ama kimlik doğrulanmış oyuncu, istediği
+  // kaynağın (at/ilan/oyuncu profili) SAHİBİ DEĞİLDİR — `Unauthorized`'dan
+  // (kimlik hiç doğrulanamadı) kavramsal olarak FARKLIDIR, bu yüzden ayrı
+  // bir koddur (bkz. `domain/auth/errors.ts` `ForbiddenError`).
+  Forbidden: 'FORBIDDEN',
+  // Sağlayıcı (Google/Apple) ID token'ı süresi dolmuş/geçersiz imza/yanlış
+  // audience — `POST /auth/login`'e özgü, `Unauthorized`'dan (bizim KENDİ
+  // JWT'imiz) kasıtlı olarak AYRI bir koddur (bkz. `domain/auth/errors.ts`
+  // `InvalidProviderTokenError`).
+  InvalidProviderToken: 'INVALID_PROVIDER_TOKEN',
   // Faz 2 — At Pazarı (domain/market)
   ListingNotActive: 'LISTING_NOT_ACTIVE',
   ListingExpired: 'LISTING_EXPIRED',

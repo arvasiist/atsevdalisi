@@ -1,15 +1,13 @@
 import { randomUUID } from 'node:crypto';
-import { INestApplication, ValidationPipe } from '@nestjs/common';
-import { Test } from '@nestjs/testing';
+import { INestApplication } from '@nestjs/common';
 import type { Pool } from 'pg';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { EconomyConfig } from '@at-sevdalisi/game-config';
 import economyConfigJson from '../../../../config/economy.config.json';
-import { AppModule } from '../../src/app.module';
-import { HttpExceptionFilter } from '../../src/api/middleware/http-exception.filter';
 import { PG_POOL } from '../../src/infrastructure/database/database.module';
 import { getPracticeRaceEntryFee } from '../../src/domain/race/prize';
+import { bootstrapTestApp, registerTestPlayer, registerTestPlayerWithStarterHorse } from './test-helpers';
 
 const economyConfig = economyConfigJson as unknown as EconomyConfig;
 
@@ -24,55 +22,35 @@ const economyConfig = economyConfigJson as unknown as EconomyConfig;
  * spec ARTIK gerçek bir Redis bağlantısı da gerektiriyor (bkz.
  * `.github/workflows/ci.yml`'e eklenen `redis` servis konteyneri).
  *
- * ÖNEMLİ (bkz. docs/ARCHITECTURE.md §9.1 Hata 6): `describe`/`it`/`expect`/
- * `beforeAll`/`afterAll` burada AÇIKÇA `vitest`'ten içe aktarılıyor.
+ * AUDIT_REPORT.md Bulgu S2 hardening (bu oturum) — `POST /horses/:id/
+ * practice-race` artık `HorseOwnerGuardByParam` ile korunur (bkz.
+ * `race.controller.ts`, `@UseInterceptors(IdempotencyInterceptor)`'ın
+ * ÜSTÜNDE) — istek sahibinin at'ın GERÇEK sahibi olması gerekir.
  */
 describe('Race — Pratik Yarış (e2e)', () => {
   let app: INestApplication;
   let pool: Pool;
 
   beforeAll(async () => {
-    const moduleRef = await Test.createTestingModule({
-      imports: [AppModule],
-    }).compile();
-
-    app = moduleRef.createNestApplication();
-    app.setGlobalPrefix('api/v1');
-    app.useGlobalFilters(new HttpExceptionFilter());
-    app.useGlobalPipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }));
-    await app.init();
+    app = await bootstrapTestApp();
 
     // "Sakatlanmış at yarışamaz" senaryosu doğal yoldan tetiklenmesi zor
     // (antrenman sakatlık riski deterministik değil) — uygulamanın kendi
     // DB havuzu üzerinden DOĞRUDAN ayarlanır. `stable.e2e-spec.ts`'teki
     // AYNI teknik: gerçek bir kullanıcı akışı DEĞİL, yalnızca test kurulumu.
-    pool = moduleRef.get<Pool>(PG_POOL);
+    pool = app.get<Pool>(PG_POOL);
   });
 
   afterAll(async () => {
     await app.close();
   });
 
-  function uniqueUsername(): string {
-    return `test_${randomUUID().replace(/-/g, '')}`.slice(0, 20);
-  }
-
-  async function registerPlayerWithStarterHorse(): Promise<{ horseId: string; playerId: string }> {
-    const registerResponse = await request(app.getHttpServer())
-      .post('/api/v1/players')
-      .send({ username: uniqueUsername(), displayName: 'Yarışçı' })
-      .expect(201);
-    const playerId = registerResponse.body.data.id;
-
-    const listResponse = await request(app.getHttpServer()).get(`/api/v1/horses?ownerId=${playerId}`).expect(200);
-    return { horseId: listResponse.body.data[0].id, playerId };
-  }
-
   it('/api/v1/horses/:id/practice-race (POST) — varsayılan taktikle bir yarış çalıştırır ve TÜM katılımcılarla sonuç döner', async () => {
-    const { horseId } = await registerPlayerWithStarterHorse();
+    const { horseId, authHeader } = await registerTestPlayerWithStarterHorse(app, 'Yarışçı');
 
     const response = await request(app.getHttpServer())
       .post(`/api/v1/horses/${horseId}/practice-race`)
+      .set('Authorization', authHeader)
       .set('Idempotency-Key', randomUUID())
       .send({});
 
@@ -94,10 +72,11 @@ describe('Race — Pratik Yarış (e2e)', () => {
   });
 
   it('/api/v1/horses/:id/practice-race (POST) — açık bir taktik seçimini kabul eder', async () => {
-    const { horseId } = await registerPlayerWithStarterHorse();
+    const { horseId, authHeader } = await registerTestPlayerWithStarterHorse(app, 'Yarışçı');
 
     const response = await request(app.getHttpServer())
       .post(`/api/v1/horses/${horseId}/practice-race`)
+      .set('Authorization', authHeader)
       .set('Idempotency-Key', randomUUID())
       .send({ racingStyle: 'front_runner', riskLevel: 'high', startApproach: 'aggressive', finalStretchPlan: 'early_sprint' });
 
@@ -106,10 +85,11 @@ describe('Race — Pratik Yarış (e2e)', () => {
   });
 
   it('/api/v1/horses/:id/practice-race (POST) — sonucu races/race_entries tablolarına gerçekten yazar (entry_fee/prize_pool DAHİL)', async () => {
-    const { horseId } = await registerPlayerWithStarterHorse();
+    const { horseId, authHeader } = await registerTestPlayerWithStarterHorse(app, 'Yarışçı');
 
     const response = await request(app.getHttpServer())
       .post(`/api/v1/horses/${horseId}/practice-race`)
+      .set('Authorization', authHeader)
       .set('Idempotency-Key', randomUUID())
       .send({})
       .expect(200);
@@ -143,7 +123,7 @@ describe('Race — Pratik Yarış (e2e)', () => {
   });
 
   it('/api/v1/horses/:id/practice-race (POST) — giriş ücretini düşer + ödülü ekler, GERÇEK bakiyeye yansır', async () => {
-    const { horseId, playerId } = await registerPlayerWithStarterHorse();
+    const { horseId, playerId, authHeader } = await registerTestPlayerWithStarterHorse(app, 'Yarışçı');
 
     const beforeRow = await pool.query('SELECT money FROM players WHERE id = $1', [playerId]);
     // `players.money` da BIGINT — bkz. yukarıdaki `entry_fee`/`prize_pool` notu.
@@ -151,6 +131,7 @@ describe('Race — Pratik Yarış (e2e)', () => {
 
     const response = await request(app.getHttpServer())
       .post(`/api/v1/horses/${horseId}/practice-race`)
+      .set('Authorization', authHeader)
       .set('Idempotency-Key', randomUUID())
       .send({})
       .expect(200);
@@ -164,11 +145,12 @@ describe('Race — Pratik Yarış (e2e)', () => {
   });
 
   it('/api/v1/horses/:id/practice-race (POST) — bakiye giriş ücretine yetmiyorsa 409 INSUFFICIENT_FUNDS döner ve HİÇBİR ŞEY yazmaz', async () => {
-    const { horseId, playerId } = await registerPlayerWithStarterHorse();
+    const { horseId, playerId, authHeader } = await registerTestPlayerWithStarterHorse(app, 'Yarışçı');
     await pool.query('UPDATE players SET money = 0 WHERE id = $1', [playerId]);
 
     const response = await request(app.getHttpServer())
       .post(`/api/v1/horses/${horseId}/practice-race`)
+      .set('Authorization', authHeader)
       .set('Idempotency-Key', randomUUID())
       .send({});
 
@@ -185,27 +167,55 @@ describe('Race — Pratik Yarış (e2e)', () => {
     expect(Number(moneyRow.rows[0].money)).toBe(0);
   });
 
-  it('/api/v1/horses/:id/practice-race (POST) — Idempotency-Key header eksikse 400 IDEMPOTENCY_KEY_REQUIRED döner', async () => {
-    const { horseId } = await registerPlayerWithStarterHorse();
+  it('/api/v1/horses/:id/practice-race (POST) Authorization header olmadan 401 döner', async () => {
+    const { horseId } = await registerTestPlayerWithStarterHorse(app, 'Yarışçı');
+    const response = await request(app.getHttpServer())
+      .post(`/api/v1/horses/${horseId}/practice-race`)
+      .set('Idempotency-Key', randomUUID())
+      .send({});
+    expect(response.status).toBe(401);
+  });
 
-    const response = await request(app.getHttpServer()).post(`/api/v1/horses/${horseId}/practice-race`).send({});
+  it('/api/v1/horses/:id/practice-race (POST) başkasının atıyla yarıştırmaya çalışan istek 403 döner (AUDIT_REPORT.md S2)', async () => {
+    const owner = await registerTestPlayerWithStarterHorse(app, 'Gerçek Sahip');
+    const attacker = await registerTestPlayer(app, 'Saldırgan');
+
+    const response = await request(app.getHttpServer())
+      .post(`/api/v1/horses/${owner.horseId}/practice-race`)
+      .set('Authorization', attacker.authHeader)
+      .set('Idempotency-Key', randomUUID())
+      .send({});
+
+    expect(response.status).toBe(403);
+    expect(response.body.error.code).toBe('FORBIDDEN');
+  });
+
+  it('/api/v1/horses/:id/practice-race (POST) — Idempotency-Key header eksikse 400 IDEMPOTENCY_KEY_REQUIRED döner', async () => {
+    const { horseId, authHeader } = await registerTestPlayerWithStarterHorse(app, 'Yarışçı');
+
+    const response = await request(app.getHttpServer())
+      .post(`/api/v1/horses/${horseId}/practice-race`)
+      .set('Authorization', authHeader)
+      .send({});
 
     expect(response.status).toBe(400);
     expect(response.body.error.code).toBe('IDEMPOTENCY_KEY_REQUIRED');
   });
 
   it('/api/v1/horses/:id/practice-race (POST) — AYNI Idempotency-Key ile ikinci istek AYNI sonucu döner ve TEKRAR para çekmez', async () => {
-    const { horseId, playerId } = await registerPlayerWithStarterHorse();
+    const { horseId, playerId, authHeader } = await registerTestPlayerWithStarterHorse(app, 'Yarışçı');
     const idempotencyKey = randomUUID();
 
     const first = await request(app.getHttpServer())
       .post(`/api/v1/horses/${horseId}/practice-race`)
+      .set('Authorization', authHeader)
       .set('Idempotency-Key', idempotencyKey)
       .send({})
       .expect(200);
 
     const second = await request(app.getHttpServer())
       .post(`/api/v1/horses/${horseId}/practice-race`)
+      .set('Authorization', authHeader)
       .set('Idempotency-Key', idempotencyKey)
       .send({})
       .expect(200);
@@ -224,11 +234,12 @@ describe('Race — Pratik Yarış (e2e)', () => {
   });
 
   it('/api/v1/horses/:id/practice-race (POST) sakatlanmış bir at için 409 HORSE_INJURED döner', async () => {
-    const { horseId } = await registerPlayerWithStarterHorse();
+    const { horseId, authHeader } = await registerTestPlayerWithStarterHorse(app, 'Yarışçı');
     await pool.query("UPDATE horses SET status = 'injured' WHERE id = $1", [horseId]);
 
     const response = await request(app.getHttpServer())
       .post(`/api/v1/horses/${horseId}/practice-race`)
+      .set('Authorization', authHeader)
       .set('Idempotency-Key', randomUUID())
       .send({});
 
@@ -237,8 +248,10 @@ describe('Race — Pratik Yarış (e2e)', () => {
   });
 
   it('/api/v1/horses/:id/practice-race (POST) var olmayan bir at için 404 döner', async () => {
+    const someone = await registerTestPlayer(app, 'Herhangi Biri');
     const response = await request(app.getHttpServer())
       .post(`/api/v1/horses/${randomUUID()}/practice-race`)
+      .set('Authorization', someone.authHeader)
       .set('Idempotency-Key', randomUUID())
       .send({});
     expect(response.status).toBe(404);
@@ -246,9 +259,10 @@ describe('Race — Pratik Yarış (e2e)', () => {
   });
 
   it('/api/v1/horses/:id/practice-race (POST) geçersiz bir yarış stili için 400 döner', async () => {
-    const { horseId } = await registerPlayerWithStarterHorse();
+    const { horseId, authHeader } = await registerTestPlayerWithStarterHorse(app, 'Yarışçı');
     const response = await request(app.getHttpServer())
       .post(`/api/v1/horses/${horseId}/practice-race`)
+      .set('Authorization', authHeader)
       .set('Idempotency-Key', randomUUID())
       .send({ racingStyle: 'not-a-real-style' });
     expect(response.status).toBe(400);
@@ -256,8 +270,10 @@ describe('Race — Pratik Yarış (e2e)', () => {
   });
 
   it('/api/v1/horses/:id/practice-race (POST) geçersiz (UUID olmayan) bir id için 400 döner', async () => {
+    const someone = await registerTestPlayer(app, 'Herhangi Biri İki');
     const response = await request(app.getHttpServer())
       .post('/api/v1/horses/not-a-uuid/practice-race')
+      .set('Authorization', someone.authHeader)
       .set('Idempotency-Key', randomUUID())
       .send({});
     expect(response.status).toBe(400);

@@ -1,8 +1,9 @@
-import { BadRequestException, Body, Controller, Delete, HttpCode, HttpStatus, Inject, Post, Query } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, HttpCode, HttpStatus, Inject, Post, Query, UseGuards } from '@nestjs/common';
 import { isUUID } from 'class-validator';
 import type { ApiSuccess, JoinMatchmakingQueueResult, MatchmakingTicket } from '@at-sevdalisi/shared-types';
 import { JoinMatchmakingQueueUseCase } from '../../application/use-cases/join-matchmaking-queue.use-case';
 import { LeaveMatchmakingQueueUseCase } from '../../application/use-cases/leave-matchmaking-queue.use-case';
+import { HorseOwnerGuardByBodyField, HorseOwnerGuardByQueryField } from '../auth/horse-owner.guard';
 import { JoinMatchmakingQueueDto } from './dto/join-matchmaking-queue.dto';
 
 /**
@@ -31,6 +32,10 @@ export class MatchmakingController {
   // kuyruk bileti yaratılır — HER İKİ dal da 201 Created'ı hak eder
   // (`PlayerController.register`/`MarketController.createListing` ile
   // AYNI gerekçe).
+  // AUDIT_REPORT.md Bulgu S2 (Critical IDOR) hardening (bu oturum) — bkz.
+  // `training.controller.ts` `train`'deki AYNI desen (`HorseOwnerGuardByBodyField`,
+  // bkz. `horse-owner.guard.ts`).
+  @UseGuards(HorseOwnerGuardByBodyField)
   @Post('queue')
   @HttpCode(HttpStatus.CREATED)
   async join(@Body() dto: JoinMatchmakingQueueDto): Promise<ApiSuccess<JoinMatchmakingQueueResult>> {
@@ -59,6 +64,7 @@ export class MatchmakingController {
   // gerçek bir kimlik doğrulama/oturum sistemi YOK). Var olan bir
   // kaynağı SİLER — `MarketController.cancelListing` ile AYNI gerekçeyle
   // 200 OK (201 DEĞİL).
+  @UseGuards(HorseOwnerGuardByQueryField)
   @Delete('queue')
   @HttpCode(HttpStatus.OK)
   async leave(@Query('horseId') horseId: string | undefined): Promise<ApiSuccess<MatchmakingTicket>> {

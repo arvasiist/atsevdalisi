@@ -1,7 +1,8 @@
-import { Body, Controller, HttpCode, HttpStatus, Inject, Param, ParseUUIDPipe, Post } from '@nestjs/common';
+import { Body, Controller, HttpCode, HttpStatus, Inject, Param, ParseUUIDPipe, Post, UseGuards } from '@nestjs/common';
 import type { ApiSuccess, FeedHorseResult, PerformCareActionResult } from '@at-sevdalisi/shared-types';
 import { FeedHorseUseCase } from '../../application/use-cases/feed-horse.use-case';
 import { PerformCareActionUseCase } from '../../application/use-cases/perform-care-action.use-case';
+import { HorseOwnerGuardByParam } from '../auth/horse-owner.guard';
 import { FeedHorseDto } from './dto/feed-horse.dto';
 import { PerformCareActionDto } from './dto/perform-care-action.dto';
 
@@ -31,6 +32,9 @@ export class CareController {
 
   // Bakım/besleme, yeni bir KAYNAK yaratmaz — `TrainingController.train`
   // ile AYNI gerekçeyle 200 OK döner (201 Created DEĞİL).
+  // AUDIT_REPORT.md Bulgu S2 (Critical IDOR) hardening (bu oturum) — bkz.
+  // `training.controller.ts` `train`'deki AYNI desen.
+  @UseGuards(HorseOwnerGuardByParam)
   @Post(':id/care')
   @HttpCode(HttpStatus.OK)
   async care(
@@ -41,6 +45,7 @@ export class CareController {
     return { success: true, data: result };
   }
 
+  @UseGuards(HorseOwnerGuardByParam)
   @Post(':id/feed')
   @HttpCode(HttpStatus.OK)
   async feed(

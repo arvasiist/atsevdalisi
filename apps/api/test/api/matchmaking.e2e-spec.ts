@@ -1,12 +1,10 @@
 import { randomUUID } from 'node:crypto';
-import { INestApplication, ValidationPipe } from '@nestjs/common';
-import { Test } from '@nestjs/testing';
+import { INestApplication } from '@nestjs/common';
 import type { Pool } from 'pg';
 import request from 'supertest';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { AppModule } from '../../src/app.module';
-import { HttpExceptionFilter } from '../../src/api/middleware/http-exception.filter';
 import { PG_POOL } from '../../src/infrastructure/database/database.module';
+import { bootstrapTestApp, registerTestPlayer, registerTestPlayerWithStarterHorse } from './test-helpers';
 
 /**
  * FAZ 1 wiring, on dördüncü dilim (bu oturum) — `POST`/`DELETE
@@ -15,25 +13,19 @@ import { PG_POOL } from '../../src/infrastructure/database/database.module';
  * AYNI kısıt (GERÇEK PostgreSQL + Redis gerektirir, bu ortamda
  * ÇALIŞTIRILAMAZ — bkz. docs/ARCHITECTURE.md §9).
  *
- * ÖNEMLİ (bkz. docs/ARCHITECTURE.md §9.1 Hata 6): `describe`/`it`/`expect`/
- * `beforeAll`/`afterAll` burada AÇIKÇA `vitest`'ten içe aktarılıyor.
+ * AUDIT_REPORT.md Bulgu S2 hardening (bu oturum) — `POST /matchmaking/
+ * queue` artık `HorseOwnerGuardByBodyField`, `DELETE /matchmaking/queue`
+ * artık `HorseOwnerGuardByQueryField` ile korunur (bkz.
+ * `matchmaking.controller.ts`) — istek sahibinin at'ın GERÇEK sahibi
+ * olması gerekir.
  */
 describe('Matchmaking — PvP Eşleştirme (e2e)', () => {
   let app: INestApplication;
   let pool: Pool;
 
   beforeAll(async () => {
-    const moduleRef = await Test.createTestingModule({
-      imports: [AppModule],
-    }).compile();
-
-    app = moduleRef.createNestApplication();
-    app.setGlobalPrefix('api/v1');
-    app.useGlobalFilters(new HttpExceptionFilter());
-    app.useGlobalPipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }));
-    await app.init();
-
-    pool = moduleRef.get<Pool>(PG_POOL);
+    app = await bootstrapTestApp();
+    pool = app.get<Pool>(PG_POOL);
   });
 
   afterAll(async () => {
@@ -68,25 +60,14 @@ describe('Matchmaking — PvP Eşleştirme (e2e)', () => {
     await pool.query('DELETE FROM matchmaking_tickets');
   });
 
-  function uniqueUsername(): string {
-    return `test_${randomUUID().replace(/-/g, '')}`.slice(0, 20);
-  }
-
-  async function registerPlayerWithStarterHorse(): Promise<{ horseId: string; playerId: string }> {
-    const registerResponse = await request(app.getHttpServer())
-      .post('/api/v1/players')
-      .send({ username: uniqueUsername(), displayName: 'Yarışçı' })
-      .expect(201);
-    const playerId = registerResponse.body.data.id;
-
-    const listResponse = await request(app.getHttpServer()).get(`/api/v1/horses?ownerId=${playerId}`).expect(200);
-    return { horseId: listResponse.body.data[0].id, playerId };
-  }
-
   it('/api/v1/matchmaking/queue (POST) — kuyrukta hiç rakip yokken bileti kuyruğa ekler (matched: false)', async () => {
-    const { horseId, playerId } = await registerPlayerWithStarterHorse();
+    const { horseId, playerId, authHeader } = await registerTestPlayerWithStarterHorse(app, 'Yarışçı');
 
-    const response = await request(app.getHttpServer()).post('/api/v1/matchmaking/queue').send({ horseId }).expect(201);
+    const response = await request(app.getHttpServer())
+      .post('/api/v1/matchmaking/queue')
+      .set('Authorization', authHeader)
+      .send({ horseId })
+      .expect(201);
 
     expect(response.body.success).toBe(true);
     expect(response.body.data.matched).toBe(false);
@@ -98,13 +79,18 @@ describe('Matchmaking — PvP Eşleştirme (e2e)', () => {
   });
 
   it('/api/v1/matchmaking/queue (POST) — ikinci bir oyuncu katılınca kuyruktaki oyuncuyla HEMEN eşleşir ve yarış simüle edilir', async () => {
-    const playerA = await registerPlayerWithStarterHorse();
-    const playerB = await registerPlayerWithStarterHorse();
+    const playerA = await registerTestPlayerWithStarterHorse(app, 'Yarışçı A');
+    const playerB = await registerTestPlayerWithStarterHorse(app, 'Yarışçı B');
 
-    await request(app.getHttpServer()).post('/api/v1/matchmaking/queue').send({ horseId: playerA.horseId }).expect(201);
+    await request(app.getHttpServer())
+      .post('/api/v1/matchmaking/queue')
+      .set('Authorization', playerA.authHeader)
+      .send({ horseId: playerA.horseId })
+      .expect(201);
 
     const response = await request(app.getHttpServer())
       .post('/api/v1/matchmaking/queue')
+      .set('Authorization', playerB.authHeader)
       .send({ horseId: playerB.horseId })
       .expect(201);
 
@@ -147,28 +133,59 @@ describe('Matchmaking — PvP Eşleştirme (e2e)', () => {
   });
 
   it('/api/v1/matchmaking/queue (POST) — zaten kuyrukta olan bir oyuncu tekrar katılmaya çalışırsa 409 ALREADY_IN_MATCHMAKING_QUEUE döner', async () => {
-    const { horseId } = await registerPlayerWithStarterHorse();
-    await request(app.getHttpServer()).post('/api/v1/matchmaking/queue').send({ horseId }).expect(201);
+    const { horseId, authHeader } = await registerTestPlayerWithStarterHorse(app, 'Yarışçı');
+    await request(app.getHttpServer())
+      .post('/api/v1/matchmaking/queue')
+      .set('Authorization', authHeader)
+      .send({ horseId })
+      .expect(201);
 
-    const response = await request(app.getHttpServer()).post('/api/v1/matchmaking/queue').send({ horseId });
+    const response = await request(app.getHttpServer())
+      .post('/api/v1/matchmaking/queue')
+      .set('Authorization', authHeader)
+      .send({ horseId });
 
     expect(response.status).toBe(409);
     expect(response.body.error.code).toBe('ALREADY_IN_MATCHMAKING_QUEUE');
   });
 
   it('/api/v1/matchmaking/queue (POST) — sakatlanmış bir at için 409 HORSE_INJURED döner', async () => {
-    const { horseId } = await registerPlayerWithStarterHorse();
+    const { horseId, authHeader } = await registerTestPlayerWithStarterHorse(app, 'Yarışçı');
     await pool.query("UPDATE horses SET status = 'injured' WHERE id = $1", [horseId]);
 
-    const response = await request(app.getHttpServer()).post('/api/v1/matchmaking/queue').send({ horseId });
+    const response = await request(app.getHttpServer())
+      .post('/api/v1/matchmaking/queue')
+      .set('Authorization', authHeader)
+      .send({ horseId });
 
     expect(response.status).toBe(409);
     expect(response.body.error.code).toBe('HORSE_INJURED');
   });
 
-  it('/api/v1/matchmaking/queue (POST) — var olmayan bir at için 404 HORSE_NOT_FOUND döner', async () => {
+  it('/api/v1/matchmaking/queue (POST) Authorization header olmadan 401 döner', async () => {
+    const { horseId } = await registerTestPlayerWithStarterHorse(app, 'Yarışçı');
+    const response = await request(app.getHttpServer()).post('/api/v1/matchmaking/queue').send({ horseId });
+    expect(response.status).toBe(401);
+  });
+
+  it('/api/v1/matchmaking/queue (POST) başkasının atıyla kuyruğa girmeye çalışan istek 403 döner (AUDIT_REPORT.md S2)', async () => {
+    const owner = await registerTestPlayerWithStarterHorse(app, 'Gerçek Sahip');
+    const attacker = await registerTestPlayer(app, 'Saldırgan');
+
     const response = await request(app.getHttpServer())
       .post('/api/v1/matchmaking/queue')
+      .set('Authorization', attacker.authHeader)
+      .send({ horseId: owner.horseId });
+
+    expect(response.status).toBe(403);
+    expect(response.body.error.code).toBe('FORBIDDEN');
+  });
+
+  it('/api/v1/matchmaking/queue (POST) — var olmayan bir at için 404 HORSE_NOT_FOUND döner', async () => {
+    const someone = await registerTestPlayer(app, 'Herhangi Biri');
+    const response = await request(app.getHttpServer())
+      .post('/api/v1/matchmaking/queue')
+      .set('Authorization', someone.authHeader)
       .send({ horseId: randomUUID() });
 
     expect(response.status).toBe(404);
@@ -176,16 +193,27 @@ describe('Matchmaking — PvP Eşleştirme (e2e)', () => {
   });
 
   it('/api/v1/matchmaking/queue (POST) — geçersiz (UUID olmayan) bir horseId için 400 döner', async () => {
-    const response = await request(app.getHttpServer()).post('/api/v1/matchmaking/queue').send({ horseId: 'not-a-uuid' });
+    const someone = await registerTestPlayer(app, 'Herhangi Biri İki');
+    const response = await request(app.getHttpServer())
+      .post('/api/v1/matchmaking/queue')
+      .set('Authorization', someone.authHeader)
+      .send({ horseId: 'not-a-uuid' });
     expect(response.status).toBe(400);
     expect(response.body.error.code).toBe('VALIDATION_ERROR');
   });
 
   it('/api/v1/matchmaking/queue (DELETE) — kuyruktaki bileti kaldırır', async () => {
-    const { horseId, playerId } = await registerPlayerWithStarterHorse();
-    await request(app.getHttpServer()).post('/api/v1/matchmaking/queue').send({ horseId }).expect(201);
+    const { horseId, playerId, authHeader } = await registerTestPlayerWithStarterHorse(app, 'Yarışçı');
+    await request(app.getHttpServer())
+      .post('/api/v1/matchmaking/queue')
+      .set('Authorization', authHeader)
+      .send({ horseId })
+      .expect(201);
 
-    const response = await request(app.getHttpServer()).delete(`/api/v1/matchmaking/queue?horseId=${horseId}`).expect(200);
+    const response = await request(app.getHttpServer())
+      .delete(`/api/v1/matchmaking/queue?horseId=${horseId}`)
+      .set('Authorization', authHeader)
+      .expect(200);
 
     expect(response.body.data.playerId).toBe(playerId);
 
@@ -193,23 +221,54 @@ describe('Matchmaking — PvP Eşleştirme (e2e)', () => {
     expect(ticketRows.rows).toHaveLength(0);
   });
 
-  it('/api/v1/matchmaking/queue (DELETE) — kuyrukta olmayan bir oyuncu için 404 NOT_IN_MATCHMAKING_QUEUE döner', async () => {
-    const { horseId } = await registerPlayerWithStarterHorse();
-
+  it('/api/v1/matchmaking/queue (DELETE) Authorization header olmadan 401 döner', async () => {
+    const { horseId } = await registerTestPlayerWithStarterHorse(app, 'Yarışçı');
     const response = await request(app.getHttpServer()).delete(`/api/v1/matchmaking/queue?horseId=${horseId}`);
+    expect(response.status).toBe(401);
+  });
+
+  it('/api/v1/matchmaking/queue (DELETE) başkasının atının biletini kaldırmaya çalışan istek 403 döner (AUDIT_REPORT.md S2)', async () => {
+    const owner = await registerTestPlayerWithStarterHorse(app, 'Gerçek Sahip');
+    await request(app.getHttpServer())
+      .post('/api/v1/matchmaking/queue')
+      .set('Authorization', owner.authHeader)
+      .send({ horseId: owner.horseId })
+      .expect(201);
+    const attacker = await registerTestPlayer(app, 'Saldırgan');
+
+    const response = await request(app.getHttpServer())
+      .delete(`/api/v1/matchmaking/queue?horseId=${owner.horseId}`)
+      .set('Authorization', attacker.authHeader);
+
+    expect(response.status).toBe(403);
+    expect(response.body.error.code).toBe('FORBIDDEN');
+  });
+
+  it('/api/v1/matchmaking/queue (DELETE) — kuyrukta olmayan bir oyuncu için 404 NOT_IN_MATCHMAKING_QUEUE döner', async () => {
+    const { horseId, authHeader } = await registerTestPlayerWithStarterHorse(app, 'Yarışçı');
+
+    const response = await request(app.getHttpServer())
+      .delete(`/api/v1/matchmaking/queue?horseId=${horseId}`)
+      .set('Authorization', authHeader);
 
     expect(response.status).toBe(404);
     expect(response.body.error.code).toBe('NOT_IN_MATCHMAKING_QUEUE');
   });
 
   it('/api/v1/matchmaking/queue (DELETE) — var olmayan bir at için 404 HORSE_NOT_FOUND döner', async () => {
-    const response = await request(app.getHttpServer()).delete(`/api/v1/matchmaking/queue?horseId=${randomUUID()}`);
+    const someone = await registerTestPlayer(app, 'Herhangi Biri Üç');
+    const response = await request(app.getHttpServer())
+      .delete(`/api/v1/matchmaking/queue?horseId=${randomUUID()}`)
+      .set('Authorization', someone.authHeader);
     expect(response.status).toBe(404);
     expect(response.body.error.code).toBe('HORSE_NOT_FOUND');
   });
 
   it('/api/v1/matchmaking/queue (DELETE) — geçersiz (UUID olmayan) bir horseId için 400 döner', async () => {
-    const response = await request(app.getHttpServer()).delete('/api/v1/matchmaking/queue?horseId=not-a-uuid');
+    const someone = await registerTestPlayer(app, 'Herhangi Biri Dört');
+    const response = await request(app.getHttpServer())
+      .delete('/api/v1/matchmaking/queue?horseId=not-a-uuid')
+      .set('Authorization', someone.authHeader);
     expect(response.status).toBe(400);
   });
 });

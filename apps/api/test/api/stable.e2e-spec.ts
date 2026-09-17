@@ -1,12 +1,10 @@
 import { randomUUID } from 'node:crypto';
-import { INestApplication, ValidationPipe } from '@nestjs/common';
-import { Test } from '@nestjs/testing';
+import { INestApplication } from '@nestjs/common';
 import type { Pool } from 'pg';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { AppModule } from '../../src/app.module';
-import { HttpExceptionFilter } from '../../src/api/middleware/http-exception.filter';
 import { PG_POOL } from '../../src/infrastructure/database/database.module';
+import { bootstrapTestApp, registerTestPlayer } from './test-helpers';
 
 /**
  * FAZ 1 wiring — Üçüncü dilim: `GET /players/:id/stable-summary` (brief
@@ -15,23 +13,23 @@ import { PG_POOL } from '../../src/infrastructure/database/database.module';
  * bootstrap deseni ve AYNI kısıt (GERÇEK PostgreSQL gerektirir, bu
  * ortamda ÇALIŞTIRILAMAZ — bkz. docs/ARCHITECTURE.md §9).
  *
- * ÖNEMLİ (bkz. docs/ARCHITECTURE.md §9.1 Hata 6): `describe`/`it`/`expect`/
- * `beforeAll`/`afterAll` burada AÇIKÇA `vitest`'ten içe aktarılıyor.
+ * AUDIT_REPORT.md Bulgu S4 hardening (bu oturum) — hem `:id/stable-summary`
+ * hem `:id/stable/upgrade` artık `assertSelf` ile korunur (bkz.
+ * `stable.controller.ts`): yalnızca oturum sahibi KENDİ ahırını
+ * görüntüleyebilir/yükseltebilir. "var olmayan bir oyuncu için 404" eski
+ * test senaryoları ARTIK ULAŞILAMAZ (`assertSelf` use-case'den ÖNCE
+ * çalışır) — bkz. `player.e2e-spec.ts`/`economy.e2e-spec.ts`'teki AYNI
+ * değişiklik ve gerekçe; bunlar 403 testleriyle DEĞİŞTİRİLDİ.
+ * `Idempotency-Key` kapsamı `stable/upgrade` için DEĞİŞMEDİ (hâlâ
+ * `req.params.id` bazlı — bkz. `idempotency.interceptor.ts` doc yorumu,
+ * yalnızca `market/listings/:id/buy` `'player'` kapsamına geçti).
  */
 describe('Stable summary (e2e)', () => {
   let app: INestApplication;
   let pool: Pool;
 
   beforeAll(async () => {
-    const moduleRef = await Test.createTestingModule({
-      imports: [AppModule],
-    }).compile();
-
-    app = moduleRef.createNestApplication();
-    app.setGlobalPrefix('api/v1');
-    app.useGlobalFilters(new HttpExceptionFilter());
-    app.useGlobalPipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }));
-    await app.init();
+    app = await bootstrapTestApp();
 
     // Ahır Yükseltme testleri için: yeni bir oyuncu yalnızca 5000 para ile
     // başlar (config/economy.config.json `newPlayerStartingBalance`),
@@ -40,25 +38,24 @@ describe('Stable summary (e2e)', () => {
     // yüzden başarı senaryosunu test edebilmek için uygulamanın kendi
     // DB havuzu üzerinden DOĞRUDAN bir bakiye artırımı yapılır — gerçek
     // bir kullanıcı akışı DEĞİL, yalnızca test kurulumu.
-    pool = moduleRef.get<Pool>(PG_POOL);
+    pool = app.get<Pool>(PG_POOL);
   });
 
   afterAll(async () => {
     await app.close();
   });
 
-  function uniqueUsername(): string {
-    return `test_${randomUUID().replace(/-/g, '')}`.slice(0, 20);
+  async function registerPlayer(): Promise<{ id: string; authHeader: string }> {
+    const player = await registerTestPlayer(app, 'Ahır Sahibi');
+    return { id: player.playerId, authHeader: player.authHeader };
   }
 
   it('/api/v1/players/:id/stable-summary (GET) — yeni oyuncu için doğru başlangıç özetini döner', async () => {
-    const registerResponse = await request(app.getHttpServer())
-      .post('/api/v1/players')
-      .send({ username: uniqueUsername(), displayName: 'Ahır Sahibi' })
-      .expect(201);
-    const playerId = registerResponse.body.data.id;
+    const { id: playerId, authHeader } = await registerPlayer();
 
-    const response = await request(app.getHttpServer()).get(`/api/v1/players/${playerId}/stable-summary`);
+    const response = await request(app.getHttpServer())
+      .get(`/api/v1/players/${playerId}/stable-summary`)
+      .set('Authorization', authHeader);
 
     expect(response.status).toBe(200);
     expect(response.body.success).toBe(true);
@@ -72,33 +69,49 @@ describe('Stable summary (e2e)', () => {
     expect(response.body.data.healthWarnings).toEqual([]);
   });
 
-  it('/api/v1/players/:id/stable-summary (GET) var olmayan bir oyuncu için 404 döner', async () => {
-    const response = await request(app.getHttpServer()).get(`/api/v1/players/${randomUUID()}/stable-summary`);
-    expect(response.status).toBe(404);
-    expect(response.body.error.code).toBe('PLAYER_NOT_FOUND');
+  it('/api/v1/players/:id/stable-summary (GET) Authorization header olmadan 401 döner', async () => {
+    const { id: playerId } = await registerPlayer();
+    const response = await request(app.getHttpServer()).get(`/api/v1/players/${playerId}/stable-summary`);
+    expect(response.status).toBe(401);
+  });
+
+  it('/api/v1/players/:id/stable-summary (GET) başkasının ahır özetini isteyen istek 403 döner (AUDIT_REPORT.md S4)', async () => {
+    const target = await registerPlayer();
+    const attacker = await registerTestPlayer(app, 'Saldırgan');
+
+    const response = await request(app.getHttpServer())
+      .get(`/api/v1/players/${target.id}/stable-summary`)
+      .set('Authorization', attacker.authHeader);
+
+    expect(response.status).toBe(403);
+    expect(response.body.error.code).toBe('FORBIDDEN');
+  });
+
+  it('/api/v1/players/:id/stable-summary (GET) var olmayan (kendisi olmayan) bir oyuncu id si için 403 döner', async () => {
+    const { authHeader } = await registerPlayer();
+    const response = await request(app.getHttpServer())
+      .get(`/api/v1/players/${randomUUID()}/stable-summary`)
+      .set('Authorization', authHeader);
+    expect(response.status).toBe(403);
   });
 
   it('/api/v1/players/:id/stable-summary (GET) geçersiz (UUID olmayan) bir id için 400 döner', async () => {
-    const response = await request(app.getHttpServer()).get('/api/v1/players/not-a-uuid/stable-summary');
+    const { authHeader } = await registerPlayer();
+    const response = await request(app.getHttpServer())
+      .get('/api/v1/players/not-a-uuid/stable-summary')
+      .set('Authorization', authHeader);
     expect(response.status).toBe(400);
   });
 
   describe('POST /api/v1/players/:id/stable/upgrade (FAZ 1 wiring, altıncı dilim; onuncu dilimde Idempotency-Key eklendi)', () => {
-    async function registerPlayer(): Promise<string> {
-      const response = await request(app.getHttpServer())
-        .post('/api/v1/players')
-        .send({ username: uniqueUsername(), displayName: 'Ahır Sahibi' })
-        .expect(201);
-      return response.body.data.id;
-    }
-
     it('yeterli bakiyeyle seviye 1 → 2 yükseltir, bakiyeden düşer ve yeni kapasiteyi döner', async () => {
-      const playerId = await registerPlayer();
+      const { id: playerId, authHeader } = await registerPlayer();
       // Test kurulumu: bakiyeyi 20000'e çıkar (bkz. beforeAll notu).
       await pool.query('UPDATE players SET money = 20000 WHERE id = $1', [playerId]);
 
       const response = await request(app.getHttpServer())
         .post(`/api/v1/players/${playerId}/stable/upgrade`)
+        .set('Authorization', authHeader)
         .set('Idempotency-Key', randomUUID());
 
       expect(response.status).toBe(200);
@@ -110,29 +123,34 @@ describe('Stable summary (e2e)', () => {
       expect(response.body.data.newBalance.money).toBe(20000 - 8000);
 
       // Ahır Özeti de güncellenmiş seviyeyi/kapasiteyi yansıtmalı.
-      const summary = await request(app.getHttpServer()).get(`/api/v1/players/${playerId}/stable-summary`);
+      const summary = await request(app.getHttpServer())
+        .get(`/api/v1/players/${playerId}/stable-summary`)
+        .set('Authorization', authHeader);
       expect(summary.body.data.stableLevel).toBe(2);
       expect(summary.body.data.capacity).toBe(8);
     });
 
     it('yetersiz bakiyede 409 INSUFFICIENT_FUNDS döner ve bakiyeyi/seviyeyi DEĞİŞTİRMEZ', async () => {
-      const playerId = await registerPlayer();
+      const { id: playerId, authHeader } = await registerPlayer();
       // Yeni oyuncu yalnızca 5000 para ile başlar, seviye 2 8000 tutar.
 
       const response = await request(app.getHttpServer())
         .post(`/api/v1/players/${playerId}/stable/upgrade`)
+        .set('Authorization', authHeader)
         .set('Idempotency-Key', randomUUID());
 
       expect(response.status).toBe(409);
       expect(response.body.error.code).toBe('INSUFFICIENT_FUNDS');
 
       // Transaction ROLLBACK oldu mu? Bakiye/seviye HİÇ değişmemiş olmalı.
-      const summary = await request(app.getHttpServer()).get(`/api/v1/players/${playerId}/stable-summary`);
+      const summary = await request(app.getHttpServer())
+        .get(`/api/v1/players/${playerId}/stable-summary`)
+        .set('Authorization', authHeader);
       expect(summary.body.data.stableLevel).toBe(1);
     });
 
     it('zaten en yüksek seviyedeyken 409 MAX_STABLE_LEVEL_REACHED döner', async () => {
-      const playerId = await registerPlayer();
+      const { id: playerId, authHeader } = await registerPlayer();
       // config/stable.config.json: en yüksek tanımlı seviye 5. Testin
       // amacı yalnızca "zaten maksimumda" dalını doğrulamak olduğundan,
       // beş kez gerçek yükseltme çağırmak yerine seviyeyi doğrudan
@@ -141,52 +159,80 @@ describe('Stable summary (e2e)', () => {
 
       const response = await request(app.getHttpServer())
         .post(`/api/v1/players/${playerId}/stable/upgrade`)
+        .set('Authorization', authHeader)
         .set('Idempotency-Key', randomUUID());
 
       expect(response.status).toBe(409);
       expect(response.body.error.code).toBe('MAX_STABLE_LEVEL_REACHED');
     });
 
-    it('var olmayan bir oyuncu için 404 PLAYER_NOT_FOUND döner', async () => {
+    it('Authorization header olmadan 401 döner', async () => {
+      const { id: playerId } = await registerPlayer();
       const response = await request(app.getHttpServer())
-        .post(`/api/v1/players/${randomUUID()}/stable/upgrade`)
+        .post(`/api/v1/players/${playerId}/stable/upgrade`)
         .set('Idempotency-Key', randomUUID());
-      expect(response.status).toBe(404);
-      expect(response.body.error.code).toBe('PLAYER_NOT_FOUND');
+      expect(response.status).toBe(401);
+    });
+
+    it('başkası adına yükseltmeye çalışan istek 403 döner (AUDIT_REPORT.md S4)', async () => {
+      const target = await registerPlayer();
+      await pool.query('UPDATE players SET money = 20000 WHERE id = $1', [target.id]);
+      const attacker = await registerTestPlayer(app, 'Saldırgan');
+
+      const response = await request(app.getHttpServer())
+        .post(`/api/v1/players/${target.id}/stable/upgrade`)
+        .set('Authorization', attacker.authHeader)
+        .set('Idempotency-Key', randomUUID());
+
+      expect(response.status).toBe(403);
+      expect(response.body.error.code).toBe('FORBIDDEN');
+
+      const summary = await request(app.getHttpServer())
+        .get(`/api/v1/players/${target.id}/stable-summary`)
+        .set('Authorization', target.authHeader);
+      expect(summary.body.data.stableLevel).toBe(1);
     });
 
     it('geçersiz (UUID olmayan) bir id için 400 döner', async () => {
+      const { authHeader } = await registerPlayer();
       const response = await request(app.getHttpServer())
         .post('/api/v1/players/not-a-uuid/stable/upgrade')
+        .set('Authorization', authHeader)
         .set('Idempotency-Key', randomUUID());
       expect(response.status).toBe(400);
     });
 
     it('Idempotency-Key header eksikse 400 IDEMPOTENCY_KEY_REQUIRED döner ve HİÇBİR ŞEY yazılmaz', async () => {
-      const playerId = await registerPlayer();
+      const { id: playerId, authHeader } = await registerPlayer();
       await pool.query('UPDATE players SET money = 20000 WHERE id = $1', [playerId]);
 
-      const response = await request(app.getHttpServer()).post(`/api/v1/players/${playerId}/stable/upgrade`);
+      const response = await request(app.getHttpServer())
+        .post(`/api/v1/players/${playerId}/stable/upgrade`)
+        .set('Authorization', authHeader);
 
       expect(response.status).toBe(400);
       expect(response.body.error.code).toBe('IDEMPOTENCY_KEY_REQUIRED');
 
-      const summary = await request(app.getHttpServer()).get(`/api/v1/players/${playerId}/stable-summary`);
+      const summary = await request(app.getHttpServer())
+        .get(`/api/v1/players/${playerId}/stable-summary`)
+        .set('Authorization', authHeader);
       expect(summary.body.data.stableLevel).toBe(1);
     });
 
     it('AYNI Idempotency-Key ile ikinci istek AYNI sonucu döner ve TEKRAR bakiyeden düşmez', async () => {
-      const playerId = await registerPlayer();
+      const { id: playerId, authHeader } = await registerPlayer();
       await pool.query('UPDATE players SET money = 20000 WHERE id = $1', [playerId]);
       const idempotencyKey = randomUUID();
 
       const first = await request(app.getHttpServer())
         .post(`/api/v1/players/${playerId}/stable/upgrade`)
+        .set('Authorization', authHeader)
         .set('Idempotency-Key', idempotencyKey)
         .expect(200);
 
       const second = await request(app.getHttpServer())
         .post(`/api/v1/players/${playerId}/stable/upgrade`)
+        .set('Authorization', authHeader)
         .set('Idempotency-Key', idempotencyKey)
         .expect(200);
 
@@ -199,7 +245,9 @@ describe('Stable summary (e2e)', () => {
       const moneyRow = await pool.query('SELECT money FROM players WHERE id = $1', [playerId]);
       expect(Number(moneyRow.rows[0].money)).toBe(first.body.data.newBalance.money);
 
-      const summary = await request(app.getHttpServer()).get(`/api/v1/players/${playerId}/stable-summary`);
+      const summary = await request(app.getHttpServer())
+        .get(`/api/v1/players/${playerId}/stable-summary`)
+        .set('Authorization', authHeader);
       expect(summary.body.data.stableLevel).toBe(2);
     });
   });

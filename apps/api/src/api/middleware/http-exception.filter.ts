@@ -13,6 +13,12 @@ import {
   PlayerNotFoundError,
   UsernameAlreadyTakenError,
 } from '../../domain/player/errors';
+import {
+  ForbiddenError,
+  InvalidAuthTokenError,
+  InvalidProviderTokenError,
+  MissingAuthTokenError,
+} from '../../domain/auth/errors';
 import { HorseNotReadyForTrainingError, InvalidTrainingInputError } from '../../domain/training/errors';
 import { CareActionOnCooldownError, InvalidCareInputError } from '../../domain/care/errors';
 import { MaxStableLevelReachedError, StableCapacityExceededError } from '../../domain/stable/errors';
@@ -129,6 +135,17 @@ const DOMAIN_ERROR_MAP = new Map<ErrorClassConstructor, { status: number; code: 
   // `ListingNotFoundError` ile AYNI kategori (bulunamayan bir kaynak —
   // burada "bilet"), 404.
   [NotInMatchmakingQueueError, { status: HttpStatus.NOT_FOUND, code: ErrorCode.NotInMatchmakingQueue }],
+  // AUDIT_REPORT.md Bulgu S1/S2/S4 hardening (bu oturum) — bkz.
+  // `domain/auth/errors.ts` doc yorumu. İKİSİ de 401: token hiç YOK ya da
+  // GEÇERSİZ — istemci için pratik fark yoktur (ikisinde de yeniden
+  // giriş/kayıt gerekir), bu yüzden AYNI `ErrorCode.Unauthorized`'ı paylaşırlar.
+  [MissingAuthTokenError, { status: HttpStatus.UNAUTHORIZED, code: ErrorCode.Unauthorized }],
+  [InvalidAuthTokenError, { status: HttpStatus.UNAUTHORIZED, code: ErrorCode.Unauthorized }],
+  // Token GEÇERLİ ama sahiplik yok — kavramsal olarak 401'den FARKLI, bkz.
+  // `ForbiddenError` doc yorumu.
+  [ForbiddenError, { status: HttpStatus.FORBIDDEN, code: ErrorCode.Forbidden }],
+  // `POST /auth/login`'e özgü — bkz. `InvalidProviderTokenError` doc yorumu.
+  [InvalidProviderTokenError, { status: HttpStatus.UNAUTHORIZED, code: ErrorCode.InvalidProviderToken }],
 ]);
 
 /**

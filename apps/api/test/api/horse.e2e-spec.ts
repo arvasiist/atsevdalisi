@@ -1,10 +1,8 @@
 import { randomUUID } from 'node:crypto';
-import { INestApplication, ValidationPipe } from '@nestjs/common';
-import { Test } from '@nestjs/testing';
+import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { AppModule } from '../../src/app.module';
-import { HttpExceptionFilter } from '../../src/api/middleware/http-exception.filter';
+import { bootstrapTestApp, registerTestPlayer } from './test-helpers';
 
 /**
  * FAZ 1 wiring — İkinci dilim: `RegisterPlayerUseCase` artık yeni oyuncuya
@@ -14,46 +12,34 @@ import { HttpExceptionFilter } from '../../src/api/middleware/http-exception.fil
  * PostgreSQL bağlantısı gerektirir (bu ortamda ÇALIŞTIRILAMAZ, bkz.
  * docs/ARCHITECTURE.md §9 — yalnızca CI'da doğrulanır).
  *
- * ÖNEMLİ (bkz. docs/ARCHITECTURE.md §9.1 Hata 6): `describe`/`it`/`expect`/
- * `beforeAll`/`afterAll` burada AÇIKÇA `vitest`'ten içe aktarılıyor —
- * `health.e2e-spec.ts`/`player.e2e-spec.ts`'te bulunan gizli hatayı BAŞTAN
- * önlemek için.
+ * AUDIT_REPORT.md Bulgu S4 hardening (bu oturum) — `GET /horses?ownerId=`
+ * artık `assertSelf` ile korunur (bkz. `horse.controller.ts` doc yorumu):
+ * yalnızca oturum sahibi KENDİ atlarını listeleyebilir. `GET /horses/:id`
+ * ise BİLEREK `@Public()` kalır (At Pazarı tarama akışı gerektirir) — bu
+ * yüzden o çağrılar auth header GEREKTİRMEZ.
  */
 describe('Horse (e2e)', () => {
   let app: INestApplication;
 
   beforeAll(async () => {
-    const moduleRef = await Test.createTestingModule({
-      imports: [AppModule],
-    }).compile();
-
-    app = moduleRef.createNestApplication();
-    app.setGlobalPrefix('api/v1');
-    app.useGlobalFilters(new HttpExceptionFilter());
-    app.useGlobalPipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }));
-    await app.init();
+    app = await bootstrapTestApp();
   });
 
   afterAll(async () => {
     await app.close();
   });
 
-  function uniqueUsername(): string {
-    return `test_${randomUUID().replace(/-/g, '')}`.slice(0, 20);
-  }
-
-  async function registerPlayer(): Promise<{ id: string }> {
-    const response = await request(app.getHttpServer())
-      .post('/api/v1/players')
-      .send({ username: uniqueUsername(), displayName: 'At Sahibi' })
-      .expect(201);
-    return response.body.data;
+  async function registerPlayer(): Promise<{ id: string; authHeader: string }> {
+    const player = await registerTestPlayer(app, 'At Sahibi');
+    return { id: player.playerId, authHeader: player.authHeader };
   }
 
   it('/api/v1/players (POST) — yeni oyuncu otomatik olarak bir başlangıç atı alır', async () => {
     const player = await registerPlayer();
 
-    const response = await request(app.getHttpServer()).get(`/api/v1/horses?ownerId=${player.id}`);
+    const response = await request(app.getHttpServer())
+      .get(`/api/v1/horses?ownerId=${player.id}`)
+      .set('Authorization', player.authHeader);
 
     expect(response.status).toBe(200);
     expect(response.body.success).toBe(true);
@@ -74,10 +60,29 @@ describe('Horse (e2e)', () => {
     expect(horse.potentialEstimate.min).toBeLessThanOrEqual(horse.potentialEstimate.max);
   });
 
-  it('/api/v1/horses/:id (GET) az önce oluşturulan atı döner', async () => {
+  it('/api/v1/horses (GET) Authorization header olmadan 401 döner', async () => {
+    const player = await registerPlayer();
+    const response = await request(app.getHttpServer()).get(`/api/v1/horses?ownerId=${player.id}`);
+    expect(response.status).toBe(401);
+  });
+
+  it('/api/v1/horses (GET) başka bir oyuncunun atlarını listelemeye çalışan istek 403 döner (AUDIT_REPORT.md S4)', async () => {
+    const owner = await registerPlayer();
+    const attacker = await registerTestPlayer(app, 'Saldırgan');
+
+    const response = await request(app.getHttpServer())
+      .get(`/api/v1/horses?ownerId=${owner.id}`)
+      .set('Authorization', attacker.authHeader);
+
+    expect(response.status).toBe(403);
+    expect(response.body.error.code).toBe('FORBIDDEN');
+  });
+
+  it('/api/v1/horses/:id (GET) az önce oluşturulan atı döner (public, auth gerekmez)', async () => {
     const player = await registerPlayer();
     const listResponse = await request(app.getHttpServer())
       .get(`/api/v1/horses?ownerId=${player.id}`)
+      .set('Authorization', player.authHeader)
       .expect(200);
     const horseId = listResponse.body.data[0].id;
 
@@ -105,13 +110,18 @@ describe('Horse (e2e)', () => {
   });
 
   it('/api/v1/horses (GET) ownerId eksikse 400 döner', async () => {
-    const response = await request(app.getHttpServer()).get('/api/v1/horses');
+    const someone = await registerPlayer();
+    const response = await request(app.getHttpServer())
+      .get('/api/v1/horses')
+      .set('Authorization', someone.authHeader);
     expect(response.status).toBe(400);
   });
 
-  it('/api/v1/horses (GET) hiç atı olmayan (var olmayan) bir sahip için boş dizi döner', async () => {
-    const response = await request(app.getHttpServer()).get(`/api/v1/horses?ownerId=${randomUUID()}`);
-    expect(response.status).toBe(200);
-    expect(response.body.data).toEqual([]);
+  it('/api/v1/horses (GET) var olmayan (kendisi olmayan) bir sahip id si için 403 döner', async () => {
+    const someone = await registerPlayer();
+    const response = await request(app.getHttpServer())
+      .get(`/api/v1/horses?ownerId=${randomUUID()}`)
+      .set('Authorization', someone.authHeader);
+    expect(response.status).toBe(403);
   });
 });

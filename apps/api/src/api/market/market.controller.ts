@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Delete, Get, Headers, HttpCode, HttpStatus, Inject, Param, ParseUUIDPipe, Post, Query, UseInterceptors } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, Headers, HttpCode, HttpStatus, Inject, Param, ParseUUIDPipe, Post, Query, UseGuards, UseInterceptors } from '@nestjs/common';
 import { isUUID } from 'class-validator';
 import type { ApiSuccess, ListingStatus, MarketListing } from '@at-sevdalisi/shared-types';
 import { BuyMarketListingUseCase, type BuyMarketListingResult } from '../../application/use-cases/buy-market-listing.use-case';
@@ -7,8 +7,13 @@ import { CreateMarketListingUseCase } from '../../application/use-cases/create-m
 import { GetMarketListingUseCase } from '../../application/use-cases/get-market-listing.use-case';
 import { ListMarketListingsBySellerUseCase } from '../../application/use-cases/list-market-listings-by-seller.use-case';
 import { ListMarketListingsUseCase } from '../../application/use-cases/list-market-listings.use-case';
+import { assertSelf } from '../auth/assert-self';
+import { CurrentPlayer, type AuthenticatedPlayer } from '../auth/current-player.decorator';
+import { HorseOwnerGuardByBodyField } from '../auth/horse-owner.guard';
+import { ListingOwnerGuard } from '../auth/listing-owner.guard';
+import { Public } from '../auth/public.decorator';
 import { IdempotencyInterceptor } from '../idempotency/idempotency.interceptor';
-import { BuyMarketListingDto } from './dto/buy-market-listing.dto';
+import { IdempotencyScope } from '../idempotency/idempotency-scope.decorator';
 import { CreateMarketListingDto } from './dto/create-market-listing.dto';
 
 const LISTING_STATUSES: readonly ListingStatus[] = ['active', 'sold', 'expired', 'cancelled'];
@@ -82,6 +87,10 @@ export class MarketController {
   // `PlayerController.register` ile AYNI gerekçeyle 201 Created — bu,
   // train/care/upgrade'in aksine, kendi id'sine sahip YENİ bir kaynak
   // (bir ilan) yaratır.
+  //
+  // AUDIT_REPORT.md Bulgu S2/S4 hardening (bu oturum) — `HorseOwnerGuard('body')`:
+  // yalnızca KENDİ atını satışa çıkarabilir (bkz. o dosyanın doc yorumu).
+  @UseGuards(HorseOwnerGuardByBodyField)
   @Post('listings')
   @HttpCode(HttpStatus.CREATED)
   async createListing(@Body() dto: CreateMarketListingDto): Promise<ApiSuccess<MarketListing>> {
@@ -98,6 +107,7 @@ export class MarketController {
   // `HorseController.listByOwner` ile AYNI gerekçeyle `@Query()` +
   // elle doğrulama kullanılır, henüz hiçbir GET uç noktasında bir DTO
   // sınıfı yok). docs/API.md §1.4'teki sayfalama zarfının İLK kullanıcısı.
+  @Public()
   @Get('listings')
   async listListings(
     @Query('status') statusRaw: string | undefined,
@@ -119,11 +129,12 @@ export class MarketController {
     return { success: true, data: result.items, meta: result.meta };
   }
 
-  // "İlanlarım" ekranı — `sellerId` (bu projede henüz gerçek bir kimlik
-  // doğrulama/oturum sistemi olmadığından — "Açık kararlar" madde 1 —
-  // AÇIKÇA sorgu parametresi olarak alınır) ZORUNLUDUR. `status`
-  // verilmezse TÜM durumlardaki ilanlar döner (sayfalama YOK — bkz.
-  // `MarketListingRepository.findBySellerId` doc yorumu).
+  // "İlanlarım" ekranı — `sellerId` sorgu parametresi olarak AÇIKÇA alınır
+  // (geriye dönük uyumluluk için — istemci zaten kendi id'sini gönderir),
+  // ama artık AUDIT_REPORT.md Bulgu S4 hardening'i (bu oturum) gereği
+  // `assertSelf` ile kimlik doğrulanmış oyuncuya EŞİT olması ZORUNLUDUR.
+  // `status` verilmezse TÜM durumlardaki ilanlar döner (sayfalama YOK —
+  // bkz. `MarketListingRepository.findBySellerId` doc yorumu).
   //
   // NOT — bu route `GET /market/listings/:id` ile ÇAKIŞMAZ: NestJS,
   // rotaları segment SAYISINA göre eşleştirir ("my-listings" tek segment,
@@ -132,15 +143,18 @@ export class MarketController {
   async listMyListings(
     @Query('sellerId') sellerId: string | undefined,
     @Query('status') statusRaw: string | undefined,
+    @CurrentPlayer() currentPlayer: AuthenticatedPlayer,
   ): Promise<ApiSuccess<MarketListing[]>> {
     if (!sellerId || !isUUID(sellerId)) {
       throw new BadRequestException('sellerId geçerli bir UUID olmalıdır.');
     }
+    assertSelf(currentPlayer.id, sellerId);
     const status = parseOptionalStatus(statusRaw);
     const listings = await this.listMarketListingsBySellerUseCase.execute(sellerId, status);
     return { success: true, data: listings };
   }
 
+  @Public()
   @Get('listings/:id')
   async getListing(@Param('id', ParseUUIDPipe) id: string): Promise<ApiSuccess<MarketListing>> {
     const listing = await this.getMarketListingUseCase.execute(id);
@@ -151,23 +165,37 @@ export class MarketController {
   // ZORUNLUDUR (bkz. `IdempotencyInterceptor` doc yorumu). Yeni bir
   // KAYNAK yaratmaz (var olan ilanın durumunu değiştirir) — Pratik
   // Yarış/Ahır Yükseltme ile AYNI gerekçeyle 200 OK.
+  //
+  // AUDIT_REPORT.md Bulgu S2/S4 hardening (bu oturum) — `buyerId` artık
+  // gövdede GÖNDERİLMEZ (eskiden client'ın gönderdiği HERHANGİ bir
+  // `buyerId` doğrudan kullanılıyordu — başka bir oyuncu adına, o oyuncu
+  // HİÇ HABERSİZ, satın alma yapılabiliyordu). Alıcı kimliği artık
+  // YALNIZCA `AuthGuard`'ın doğruladığı `@CurrentPlayer()`'dan gelir.
+  // `@IdempotencyScope('player')`: kapsam artık `request.player.id`'dir
+  // (eski `body.buyerId` özel durumunun YERİNİ alır, bkz.
+  // `idempotency-scope.decorator.ts` doc yorumu — E3'ün "alıcıya göre
+  // kapsam" korumasını KAYBETMEDEN).
+  @IdempotencyScope('player')
   @Post('listings/:id/buy')
   @HttpCode(HttpStatus.OK)
   @UseInterceptors(IdempotencyInterceptor)
   async buyListing(
     @Param('id', ParseUUIDPipe) id: string,
-    @Body() dto: BuyMarketListingDto,
     @Headers('Idempotency-Key') idempotencyKey: string | undefined,
+    @CurrentPlayer() currentPlayer: AuthenticatedPlayer,
   ): Promise<ApiSuccess<BuyMarketListingResult>> {
     // AUDIT_AND_HARDENING Öncelik 2 (bu oturum) — header burada zaten
     // `IdempotencyInterceptor` tarafından ZORUNLU kılınmıştır (yoksa bu
     // satıra hiç ULAŞILMAZ); değer yalnızca ledger satırına İZ olarak
     // taşınır (bkz. `BuyMarketListingUseCase` doc yorumu), replay
     // KONTROLÜ hâlâ interceptor'ın kendi sorumluluğudur.
-    const result = await this.buyMarketListingUseCase.execute(id, dto.buyerId, idempotencyKey ?? null);
+    const result = await this.buyMarketListingUseCase.execute(id, currentPlayer.id, idempotencyKey ?? null);
     return { success: true, data: result };
   }
 
+  // AUDIT_REPORT.md Bulgu S4 hardening (bu oturum) — `ListingOwnerGuard`
+  // (bkz. o dosyanın doc yorumu): yalnızca KENDİ ilanını iptal edebilir.
+  @UseGuards(ListingOwnerGuard)
   @Delete('listings/:id')
   @HttpCode(HttpStatus.OK)
   async cancelListing(@Param('id', ParseUUIDPipe) id: string): Promise<ApiSuccess<MarketListing>> {

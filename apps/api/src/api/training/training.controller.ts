@@ -1,7 +1,8 @@
-import { Body, Controller, HttpCode, HttpStatus, Inject, Param, ParseUUIDPipe, Post } from '@nestjs/common';
+import { Body, Controller, HttpCode, HttpStatus, Inject, Param, ParseUUIDPipe, Post, UseGuards } from '@nestjs/common';
 import type { ApiSuccess, TrainHorseResult } from '@at-sevdalisi/shared-types';
 import { TrainHorseUseCase } from '../../application/use-cases/train-horse.use-case';
 import { DEFAULT_TRAINING_DURATION_MINUTES } from '../../domain/training/validation';
+import { HorseOwnerGuardByParam } from '../auth/horse-owner.guard';
 import { TrainHorseDto } from './dto/train-horse.dto';
 
 /**
@@ -26,6 +27,10 @@ export class TrainingController {
   // — NestJS'in POST için varsayılanı olan 201 Created yerine bilinçli
   // olarak 200 OK döner (`/players` KAYIT gibi gerçek "creation" uç
   // noktalarından FARKLI, bkz. `PlayerController`).
+  // AUDIT_REPORT.md Bulgu S2 (Critical IDOR) hardening (bu oturum) —
+  // `HorseOwnerGuard('param')` (bkz. o dosyanın doc yorumu): `:id`'nin
+  // GERÇEKTEN kimlik doğrulanmış oyuncuya ait olduğunu doğrular.
+  @UseGuards(HorseOwnerGuardByParam)
   @Post(':id/train')
   @HttpCode(HttpStatus.OK)
   async train(

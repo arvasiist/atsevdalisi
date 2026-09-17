@@ -2,6 +2,8 @@ import { Controller, Get, HttpCode, HttpStatus, Inject, Param, ParseUUIDPipe, Po
 import type { ApiSuccess, StableSummaryView, StableUpgradeResult } from '@at-sevdalisi/shared-types';
 import { GetStableSummaryUseCase } from '../../application/use-cases/get-stable-summary.use-case';
 import { UpgradeStableUseCase } from '../../application/use-cases/upgrade-stable.use-case';
+import { assertSelf } from '../auth/assert-self';
+import { CurrentPlayer, type AuthenticatedPlayer } from '../auth/current-player.decorator';
 import { IdempotencyInterceptor } from '../idempotency/idempotency.interceptor';
 
 /**
@@ -21,8 +23,15 @@ export class StableController {
     @Inject(UpgradeStableUseCase) private readonly upgradeStableUseCase: UpgradeStableUseCase,
   ) {}
 
+  // AUDIT_REPORT.md Bulgu S4 hardening (bu oturum) — `assertSelf` (bkz. o
+  // dosyanın doc yorumu): ahır özeti yalnızca oyuncunun KENDİSİNE
+  // gösterilir.
   @Get(':id/stable-summary')
-  async getStableSummary(@Param('id', ParseUUIDPipe) id: string): Promise<ApiSuccess<StableSummaryView>> {
+  async getStableSummary(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentPlayer() currentPlayer: AuthenticatedPlayer,
+  ): Promise<ApiSuccess<StableSummaryView>> {
+    assertSelf(currentPlayer.id, id);
     const summary = await this.getStableSummaryUseCase.execute(id);
     return { success: true, data: summary };
   }
@@ -43,7 +52,11 @@ export class StableController {
   @Post(':id/stable/upgrade')
   @HttpCode(HttpStatus.OK)
   @UseInterceptors(IdempotencyInterceptor)
-  async upgradeStable(@Param('id', ParseUUIDPipe) id: string): Promise<ApiSuccess<StableUpgradeResult>> {
+  async upgradeStable(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentPlayer() currentPlayer: AuthenticatedPlayer,
+  ): Promise<ApiSuccess<StableUpgradeResult>> {
+    assertSelf(currentPlayer.id, id);
     const result = await this.upgradeStableUseCase.execute(id);
     return { success: true, data: result };
   }

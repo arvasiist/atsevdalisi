@@ -1,61 +1,60 @@
-import { Body, Controller, Get, Inject, Param, ParseUUIDPipe, Post } from '@nestjs/common';
-import type { ApiSuccess, Player, PlayerSummary } from '@at-sevdalisi/shared-types';
+import { Body, Controller, Get, HttpCode, HttpStatus, Inject, Param, ParseUUIDPipe, Post } from '@nestjs/common';
+import type { ApiSuccess, AuthSession, PlayerSummary } from '@at-sevdalisi/shared-types';
 import { GetPlayerUseCase } from '../../application/use-cases/get-player.use-case';
 import { RegisterPlayerUseCase } from '../../application/use-cases/register-player.use-case';
+import { TOKEN_SERVICE, type TokenService } from '../../application/ports/token.service';
+import { assertSelf } from '../auth/assert-self';
+import { CurrentPlayer, type AuthenticatedPlayer } from '../auth/current-player.decorator';
+import { Public } from '../auth/public.decorator';
+import { toPlayerSummary } from '../dto/player.mapper';
 import { RegisterPlayerDto } from './dto/register-player.dto';
-
-function toSummary(player: Player): PlayerSummary {
-  return {
-    id: player.id,
-    displayName: player.displayName,
-    avatarId: player.avatarId,
-    level: player.level,
-    xp: player.xp,
-    money: player.money,
-    gems: player.gems,
-  };
-}
 
 /**
  * docs/API.md §3 Player. İş kuralı İÇERMEZ — sadece Application katmanını
  * çağırır ve sonucu docs/API.md §1.1 zarfına sarar (bkz.
  * docs/ARCHITECTURE.md §4 "API: ... İş kuralı içermez").
  *
- * NOT — gerçek kimlik doğrulama (brief §41/§50 Google/Apple Sign-In)
- * henüz bağlı DEĞİLDİR (bkz. `RegisterPlayerUseCase` üstündeki not); bu
- * yüzden `POST /players` şimdilik doğrudan (token gerektirmeden) kayıt
- * sağlayan bir geliştirme/demo uç noktasıdır.
+ * AUDIT_REPORT.md Bulgu S1 (Critical) hardening (bu oturum) — brief §41/§50
+ * Google/Apple Sign-In. `POST /players`, gerçek OAuth kimlik bilgileri
+ * proje sahibi tarafından sağlanana kadar (bkz. `AuthController`/
+ * `GoogleAppleIdentityProvider` doc yorumları) token'sız, doğrudan kayıt
+ * sağlayan bir geliştirme/demo uç noktası olmaya DEVAM eder — ama artık
+ * `@Public()` işaretlidir (global `AuthGuard`'dan MUAF, bkz. o guard'ın doc
+ * yorumu) VE kayıt sonrası HEMEN bir oturum JWT'si de döner (`AuthSession`),
+ * böylece istemci kayıt olduktan hemen sonra korunan HİÇBİR uç noktada
+ * tıkanmaz. `GET /players/:id` ise artık `@Public()` DEĞİLDİR ve yalnızca
+ * kendi profilini isteyen oyuncuya (bkz. `assertSelf`) 200 döner — başka
+ * bir oyuncunun id'sini deneyen istek 403 alır (eski davranış: HERKESİN
+ * HERKESİN profilini görebilmesiydi, bkz. AUDIT_REPORT.md Bulgu S4).
  *
- * NOT — kök neden (FAZ 1 wiring, beşinci CI hatası): buradaki iki
- * bağımlılık daha önce açık bir `@Inject()` token'ı OLMADAN, sadece
- * TypeScript tipine göre (örtük/implicit) enjekte ediliyordu. Bu, gerçek
- * `npm run build` (tsc) çıktısında çalışır çünkü tsc, `emitDecoratorMetadata`
- * ile `design:paramtypes` üst verisini yayınlar — ANCAK Vitest, dosyaları
- * esbuild ile dönüştürür ve esbuild tip bilgisine sahip olmadığından bu üst
- * veriyi HİÇBİR ZAMAN yaymaz (tsconfig'te `emitDecoratorMetadata: true`
- * olsa bile). Sonuç: `apps/api/test/api/player.e2e-spec.ts` gerçek Postgres'e
- * karşı çalışırken bu alanlar `undefined` kalıyor ve `.execute(...)`
- * çağrısı `TypeError: Cannot read properties of undefined (reading
- * 'execute')` ile patlıyor. Kalıcı çözüm: her yerde (bu projede zaten
- * `PLAYER_REPOSITORY`/`PG_POOL` için yapıldığı gibi) açık `@Inject()`
- * token'ı kullanmak — bu, hem tsc hem esbuild altında aynı şekilde çalışır.
+ * NOT — kök neden (FAZ 1 wiring, beşinci CI hatası, bkz. git geçmişi):
+ * her bağımlılık açık `@Inject()` token'ıyla enjekte edilir (Vitest/esbuild
+ * `design:paramtypes` üst verisini asla YAYMAZ — bkz. docs/ARCHITECTURE.md
+ * §9.1 Hata 6).
  */
 @Controller('players')
 export class PlayerController {
   constructor(
     @Inject(RegisterPlayerUseCase) private readonly registerPlayerUseCase: RegisterPlayerUseCase,
     @Inject(GetPlayerUseCase) private readonly getPlayerUseCase: GetPlayerUseCase,
+    @Inject(TOKEN_SERVICE) private readonly tokenService: TokenService,
   ) {}
 
+  @Public()
   @Post()
-  async register(@Body() dto: RegisterPlayerDto): Promise<ApiSuccess<PlayerSummary>> {
+  async register(@Body() dto: RegisterPlayerDto): Promise<ApiSuccess<AuthSession>> {
     const player = await this.registerPlayerUseCase.execute(dto);
-    return { success: true, data: toSummary(player) };
+    const token = this.tokenService.sign({ sub: player.id });
+    return { success: true, data: { token, player: toPlayerSummary(player) } };
   }
 
   @Get(':id')
-  async getById(@Param('id', ParseUUIDPipe) id: string): Promise<ApiSuccess<PlayerSummary>> {
+  async getById(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentPlayer() currentPlayer: AuthenticatedPlayer,
+  ): Promise<ApiSuccess<PlayerSummary>> {
+    assertSelf(currentPlayer.id, id);
     const player = await this.getPlayerUseCase.execute(id);
-    return { success: true, data: toSummary(player) };
+    return { success: true, data: toPlayerSummary(player) };
   }
 }

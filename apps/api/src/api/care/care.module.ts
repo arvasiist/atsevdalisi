@@ -5,6 +5,7 @@ import { FeedHorseUseCase } from '../../application/use-cases/feed-horse.use-cas
 import { PerformCareActionUseCase } from '../../application/use-cases/perform-care-action.use-case';
 import { PostgresCareLogRepository } from '../../infrastructure/care/postgres-care-log.repository';
 import { PostgresHorseHealthRepository } from '../../infrastructure/horse/postgres-horse-health.repository';
+import { HorseOwnerGuardByParam } from '../auth/horse-owner.guard';
 import { HorseModule } from '../horse/horse.module';
 import { CareController } from './care.controller';
 
@@ -22,6 +23,8 @@ import { CareController } from './care.controller';
     FeedHorseUseCase,
     { provide: HORSE_HEALTH_REPOSITORY, useClass: PostgresHorseHealthRepository },
     { provide: CARE_LOG_REPOSITORY, useClass: PostgresCareLogRepository },
+    // AUDIT_REPORT.md Bulgu S2 hardening (bu oturum) — bkz. `horse-owner.guard.ts` doc yorumu.
+    HorseOwnerGuardByParam,
   ],
 })
 export class CareModule {}

@@ -1,5 +1,5 @@
 import { CallHandler, ExecutionContext, Inject, Injectable, NestInterceptor } from '@nestjs/common';
-import type { Request } from 'express';
+import { Reflector } from '@nestjs/core';
 import type { Pool } from 'pg';
 import type { Observable } from 'rxjs';
 import { of } from 'rxjs';
@@ -8,15 +8,32 @@ import type Redis from 'ioredis';
 import { REDIS_CLIENT } from '../../infrastructure/redis/redis.module';
 import { PG_POOL } from '../../infrastructure/database/database.module';
 import { AppConfigService } from '../../infrastructure/config/config.service';
+import type { AuthenticatedRequest } from '../auth/current-player.decorator';
 import { IdempotencyKeyInProgressError, IdempotencyKeyRequiredError } from './idempotency.errors';
+import { IDEMPOTENCY_SCOPE_KEY, type IdempotencyScopeSource } from './idempotency-scope.decorator';
 
 /**
  * FAZ 1 wiring, dokuzuncu dilim — brief §54, docs/SECURITY.md §4:
  * Idempotency anahtarı ile yinelenen istekleri engeller.
  *
- * AUDIT_REPORT.md Bulgu E3 (bu oturum):
- * Satın alma işleminde alıcılar arası çapraz veri sızıntısını önlemek için
- * scopeId hesaplamasında buyerId öncelikli olarak değerlendirilir.
+ * AUDIT_REPORT.md Bulgu E3 (bu oturum, ORİJİNAL düzeltme): Satın alma
+ * işleminde alıcılar arası çapraz veri sızıntısını önlemek için scopeId
+ * hesaplaması `body.buyerId`'ye göre yapılıyordu.
+ *
+ * AUDIT_REPORT.md Bulgu S1/S2/S4 hardening (bu oturum, GÜNCELLEME):
+ * `buyerId` artık body'de HİÇ GÖNDERİLMEZ (client-supplied kimliğe
+ * güvenmenin KENDİSİ bir IDOR riskiydi, bkz. `market.controller.ts`
+ * `buyListing`) — bu yüzden E3'ün "alıcıya göre kapsam" gerekçesi
+ * `@IdempotencyScope('player')` ile `request.player.id`'ye (AuthGuard'ın
+ * doğruladığı kimlik) taşındı. DİĞER TÜM rotalar (train/care/feed/
+ * practice-race/stable-upgrade/daily-reward) `IdempotencyScope` hiç
+ * KULLANMADIĞINDAN varsayılan `'param'` davranışını (yani `req.params.id`)
+ * DEĞİŞMEDEN korur — bu BİLİNÇLİDİR: ör. `practice-race`'in kapsamı
+ * halihazırda horseId'dir (playerId DEĞİL), bunu playerId'ye çevirmek aynı
+ * oyuncunun İKİ FARKLI atı için aynı anda kullanılan bir Idempotency-Key
+ * değerini yanlışlıkla ÇAKIŞTIRIP yanlış atın yarış sonucunu döndürebilirdi
+ * — bu yüzden yalnızca GERÇEKTEN gerektiren tek rota (`buyListing`) için
+ * açıkça işaretlenir, global bir davranış değişikliği YAPILMAZ.
  */
 @Injectable()
 export class IdempotencyInterceptor implements NestInterceptor {
@@ -24,29 +41,29 @@ export class IdempotencyInterceptor implements NestInterceptor {
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
     @Inject(PG_POOL) private readonly pool: Pool,
     @Inject(AppConfigService) private readonly config: AppConfigService,
+    @Inject(Reflector) private readonly reflector: Reflector,
   ) {}
 
-  private resolveScopeId(request: Request): string {
-    // E3 DÜZELTMESİ: Eğer body'de buyerId varsa (market satın alma),
-    // kapsamı buyerId (veya buyerId:listingId) yaparak farklı alıcıların
-    // aynı anahtarla birbirlerinin verisine erişmesini engelle.
-    const body = request.body as { buyerId?: unknown } | undefined;
-    if (body && typeof body.buyerId === 'string' && body.buyerId.length > 0) {
-      return body.buyerId;
+  private resolveScopeId(context: ExecutionContext, request: AuthenticatedRequest): string {
+    const scopeSource = this.reflector.getAllAndOverride<IdempotencyScopeSource>(IDEMPOTENCY_SCOPE_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+    if (scopeSource === 'player' && request.player) {
+      return request.player.id;
     }
-
     return request.params?.id ?? 'global';
   }
 
   async intercept(context: ExecutionContext, next: CallHandler): Promise<Observable<unknown>> {
-    const request = context.switchToHttp().getRequest<Request>();
+    const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
     const idempotencyKey = request.header('Idempotency-Key');
 
     if (!idempotencyKey) {
       throw new IdempotencyKeyRequiredError();
     }
 
-    const scopeId = this.resolveScopeId(request);
+    const scopeId = this.resolveScopeId(context, request);
     const redisKey = `idempotency:${scopeId}:${idempotencyKey}`;
 
     const cached = await this.redis.get(redisKey);

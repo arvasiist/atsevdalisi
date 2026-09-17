@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import type { CareActionType, PerformCareActionResult } from '@at-sevdalisi/shared-types';
+import type { CareActionType, Horse, PerformCareActionResult } from '@at-sevdalisi/shared-types';
 import { HorseNotFoundError } from '../../domain/horse/errors';
 import { applyCareAction, canRecoverFromInjury } from '../../domain/care/care';
 import { AppConfigService } from '../../infrastructure/config/config.service';
@@ -38,6 +38,20 @@ import { HORSE_REPOSITORY, type HorseRepository } from '../ports/horse.repositor
  * uygulandıktan SONRAKİ (delta'lar dahil) `health`/`injuryRisk`
  * değerleriyle `canRecoverFromInjury` kontrol edilir; eşik karşılanırsa
  * (bkz. `care.config.json` `injuryRecovery`) at `active`'e döner.
+ *
+ * AUDIT_REPORT.md Bulgu C2 hardening (bu oturum) — `horseRepository.updateWithLock`
+ * (bkz. `TrainHorseUseCase`'deki AYNI desen, `HorseRepository.updateWithLock`
+ * doc yorumu): `horses` satırının vital alanları artık KİLİTLİ okunup
+ * yazılır — iki eşzamanlı bakım isteği (veya bir bakım + antrenman)
+ * birbirinin fatigue/health/status yazımını SESSİZCE EZEMEZ. KAPSAM NOTU:
+ * `horse_health` (CareableHealth) tablosu bu kilidin DIŞINDADIR (bkz.
+ * `HorseRepository.updateWithLock` doc yorumundaki dürüstlük notu) — aynı
+ * ata karşı GERÇEKTEN eşzamanlı iki bakım isteğinde `injuryRisk`/
+ * `recoveryRate` gibi alanlarda küçük, ayrı bir lost-update riski hâlâ
+ * TEORİK olarak vardır; bu, `horses` satırının (health/fatigue/status)
+ * KORUNMASINA kıyasla çok daha düşük etkili bir takip maddesi olarak
+ * bilinçli şekilde bırakılmıştır (`application` katmanının `pg`
+ * `PoolClient`'ı bilmemesi gereken mimari kuralı nedeniyle).
  */
 @Injectable()
 export class PerformCareActionUseCase {
@@ -65,44 +79,56 @@ export class PerformCareActionUseCase {
 
     const now = new Date();
     const lastPerformedAt = await this.careLogRepository.findLastPerformedAt(horseId, actionType);
-    const vitals = {
-      health: horse.health,
-      fitness: horse.fitness,
-      fatigue: horse.fatigue,
-      energy: horse.energy,
-      morale: horse.morale,
-    };
 
-    const result = applyCareAction(this.config.care, actionType, vitals, health, lastPerformedAt, now);
+    const lockResult = await this.horseRepository.updateWithLock(horseId, (lockedHorse) => {
+      const vitals = {
+        health: lockedHorse.health,
+        fitness: lockedHorse.fitness,
+        fatigue: lockedHorse.fatigue,
+        energy: lockedHorse.energy,
+        morale: lockedHorse.morale,
+      };
 
-    const recoversFromInjury =
-      horse.status === 'injured' && canRecoverFromInjury(this.config.care, actionType, result.vitals.health, result.health.injuryRisk);
-    const newStatus = recoversFromInjury ? 'active' : horse.status;
+      const result = applyCareAction(this.config.care, actionType, vitals, health, lastPerformedAt, now);
 
-    await this.horseRepository.update({
-      ...horse,
-      health: result.vitals.health,
-      fitness: result.vitals.fitness,
-      fatigue: result.vitals.fatigue,
-      energy: result.vitals.energy,
-      morale: result.vitals.morale,
-      status: newStatus,
-      updatedAt: now.toISOString(),
+      const recoversFromInjury =
+        lockedHorse.status === 'injured' &&
+        canRecoverFromInjury(this.config.care, actionType, result.vitals.health, result.health.injuryRisk);
+      const newStatus = recoversFromInjury ? 'active' : lockedHorse.status;
+
+      const updatedHorse: Horse = {
+        ...lockedHorse,
+        health: result.vitals.health,
+        fitness: result.vitals.fitness,
+        fatigue: result.vitals.fatigue,
+        energy: result.vitals.energy,
+        morale: result.vitals.morale,
+        status: newStatus,
+        updatedAt: now.toISOString(),
+      };
+
+      return { horse: updatedHorse, result: { careResult: result, newStatus } };
     });
-    await this.horseHealthRepository.updateCareableFields(horseId, result.health);
+
+    if (lockResult === null) {
+      throw new HorseNotFoundError(horseId);
+    }
+    const { careResult, newStatus } = lockResult;
+
+    await this.horseHealthRepository.updateCareableFields(horseId, careResult.health);
     await this.careLogRepository.recordPerformed(horseId, actionType, now);
 
     return {
       horseId,
       actionType,
       newVitals: {
-        health: result.vitals.health,
-        fitness: result.vitals.fitness,
-        fatigue: result.vitals.fatigue,
-        energy: result.vitals.energy,
-        morale: result.vitals.morale,
+        health: careResult.vitals.health,
+        fitness: careResult.vitals.fitness,
+        fatigue: careResult.vitals.fatigue,
+        energy: careResult.vitals.energy,
+        morale: careResult.vitals.morale,
       },
-      newHealth: result.health,
+      newHealth: careResult.health,
       newStatus,
     };
   }

@@ -1,6 +1,8 @@
 import { Controller, Get, Inject, Param, ParseUUIDPipe, Query } from '@nestjs/common';
 import type { ApiSuccess, RecentRaceResultView } from '@at-sevdalisi/shared-types';
 import { GetRecentRaceResultsUseCase } from '../../application/use-cases/get-recent-race-results.use-case';
+import { assertSelf } from '../auth/assert-self';
+import { CurrentPlayer, type AuthenticatedPlayer } from '../auth/current-player.decorator';
 
 /**
  * Faz 2 (görsel kalite planı) — Ana Sayfa "Son Yarış Sonuçları" paneli.
@@ -20,11 +22,14 @@ export class RecentRacesController {
     @Inject(GetRecentRaceResultsUseCase) private readonly getRecentRaceResultsUseCase: GetRecentRaceResultsUseCase,
   ) {}
 
+  // AUDIT_REPORT.md Bulgu S4 hardening (bu oturum) — bkz. `assertSelf` doc yorumu.
   @Get(':id/recent-races')
   async getRecentRaces(
     @Param('id', ParseUUIDPipe) id: string,
-    @Query('limit') limit?: string,
+    @Query('limit') limit: string | undefined,
+    @CurrentPlayer() currentPlayer: AuthenticatedPlayer,
   ): Promise<ApiSuccess<RecentRaceResultView[]>> {
+    assertSelf(currentPlayer.id, id);
     const parsedLimit = limit ? Number.parseInt(limit, 10) : undefined;
     const results = await this.getRecentRaceResultsUseCase.execute(
       id,

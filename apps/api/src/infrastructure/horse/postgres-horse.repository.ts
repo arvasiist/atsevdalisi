@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import type { Pool } from 'pg';
+import type { Pool, PoolClient } from 'pg';
 import type { Horse } from '@at-sevdalisi/shared-types';
 import type { HorseRepository } from '../../application/ports/horse.repository';
 import { PG_POOL, withTransaction } from '../database/database.module';
@@ -144,7 +144,27 @@ export class PostgresHorseRepository implements HorseRepository {
    * "değişken alanları yaz" sözleşmesine ekler.
    */
   async update(horse: Horse): Promise<void> {
-    await this.pool.query(
+    await this.writeHorseRow(this.pool, horse);
+  }
+
+  /** AUDIT_REPORT.md Bulgu C2 hardening (bu oturum) — bkz. `HorseRepository.updateWithLock` doc yorumu. */
+  async updateWithLock<T>(id: string, mutate: (horse: Horse) => { horse: Horse; result: T }): Promise<T | null> {
+    return withTransaction(this.pool, async (client) => {
+      const result = await client.query<HorseRow>('SELECT * FROM horses WHERE id = $1 FOR UPDATE', [id]);
+      const row = result.rows[0];
+      if (!row) {
+        return null;
+      }
+      const current = rowToHorse(row);
+      const { horse: updated, result: mutateResult } = mutate(current);
+      await this.writeHorseRow(client, updated);
+      return mutateResult;
+    });
+  }
+
+  /** `update()`/`updateWithLock()`'un PAYLAŞTIĞI yazma sorgusu (DRY) — `Pool`/`PoolClient` ikisi de `pg`'nin uyumlu `query()` imzasına sahiptir. */
+  private async writeHorseRow(executor: Pool | PoolClient, horse: Horse): Promise<void> {
+    await executor.query(
       `UPDATE horses
        SET owner_id = $2, health = $3, fitness = $4, fatigue = $5, energy = $6, morale = $7,
            weight_kg = $8, status = $9, level = $10, xp = $11, updated_at = $12

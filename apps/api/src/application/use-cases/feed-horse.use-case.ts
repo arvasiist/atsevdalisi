@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import type { FeedHorseResult, FeedType } from '@at-sevdalisi/shared-types';
+import type { FeedHorseResult, FeedType, Horse } from '@at-sevdalisi/shared-types';
 import { HorseNotFoundError } from '../../domain/horse/errors';
 import { applyFeed } from '../../domain/care/care';
 import { AppConfigService } from '../../infrastructure/config/config.service';
@@ -13,6 +13,10 @@ import { HORSE_REPOSITORY, type HorseRepository } from '../ports/horse.repositor
  * gerekçeler): besleme maliyeti (`getFeedCost`, Economy entegrasyonu)
  * bu dilimde YOKTUR; `applyFeed`'in bir cooldown'u OLMADIĞI için (bkz.
  * `domain/care/care.ts`) burada `CareLogRepository` KULLANILMAZ.
+ *
+ * AUDIT_REPORT.md Bulgu C2 hardening (bu oturum) — `horseRepository.updateWithLock`
+ * kullanır (bkz. `TrainHorseUseCase`/`PerformCareActionUseCase`'deki AYNI
+ * desen ve `HorseRepository.updateWithLock` doc yorumundaki kapsam notu).
  */
 @Injectable()
 export class FeedHorseUseCase {
@@ -34,38 +38,48 @@ export class FeedHorseUseCase {
     }
 
     const now = new Date();
-    const vitals = {
-      health: horse.health,
-      fitness: horse.fitness,
-      fatigue: horse.fatigue,
-      energy: horse.energy,
-      morale: horse.morale,
-    };
 
-    const result = applyFeed(this.config.care, feedType, vitals, health);
+    const lockResult = await this.horseRepository.updateWithLock(horseId, (lockedHorse) => {
+      const vitals = {
+        health: lockedHorse.health,
+        fitness: lockedHorse.fitness,
+        fatigue: lockedHorse.fatigue,
+        energy: lockedHorse.energy,
+        morale: lockedHorse.morale,
+      };
 
-    await this.horseRepository.update({
-      ...horse,
-      health: result.vitals.health,
-      fitness: result.vitals.fitness,
-      fatigue: result.vitals.fatigue,
-      energy: result.vitals.energy,
-      morale: result.vitals.morale,
-      updatedAt: now.toISOString(),
-    });
-    await this.horseHealthRepository.updateCareableFields(horseId, result.health);
+      const result = applyFeed(this.config.care, feedType, vitals, health);
 
-    return {
-      horseId,
-      feedType,
-      newVitals: {
+      const updatedHorse: Horse = {
+        ...lockedHorse,
         health: result.vitals.health,
         fitness: result.vitals.fitness,
         fatigue: result.vitals.fatigue,
         energy: result.vitals.energy,
         morale: result.vitals.morale,
+        updatedAt: now.toISOString(),
+      };
+
+      return { horse: updatedHorse, result };
+    });
+
+    if (lockResult === null) {
+      throw new HorseNotFoundError(horseId);
+    }
+
+    await this.horseHealthRepository.updateCareableFields(horseId, lockResult.health);
+
+    return {
+      horseId,
+      feedType,
+      newVitals: {
+        health: lockResult.vitals.health,
+        fitness: lockResult.vitals.fitness,
+        fatigue: lockResult.vitals.fatigue,
+        energy: lockResult.vitals.energy,
+        morale: lockResult.vitals.morale,
       },
-      newHealth: result.health,
+      newHealth: lockResult.health,
     };
   }
 }

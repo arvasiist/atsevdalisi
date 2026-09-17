@@ -1,7 +1,19 @@
-import { Body, Controller, HttpCode, HttpStatus, Inject, Param, ParseUUIDPipe, Post, UseInterceptors } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  HttpCode,
+  HttpStatus,
+  Inject,
+  Param,
+  ParseUUIDPipe,
+  Post,
+  UseGuards,
+  UseInterceptors,
+} from '@nestjs/common';
 import type { ApiSuccess, PracticeRaceResult } from '@at-sevdalisi/shared-types';
 import { RunPracticeRaceUseCase } from '../../application/use-cases/run-practice-race.use-case';
 import { DEFAULT_RACE_TACTIC } from '../../domain/race/validation';
+import { HorseOwnerGuardByParam } from '../auth/horse-owner.guard';
 import { IdempotencyInterceptor } from '../idempotency/idempotency.interceptor';
 import { RunPracticeRaceDto } from './dto/run-practice-race.dto';
 
@@ -29,6 +41,11 @@ export class RaceController {
   // FAZ 1 wiring, dokuzuncu dilim — brief §54: bu artık PARA değiştiren
   // bir endpoint (giriş ücreti + ödül), bu yüzden `Idempotency-Key`
   // header'ı ZORUNLUDUR (bkz. `IdempotencyInterceptor` doc yorumu).
+  // AUDIT_REPORT.md Bulgu S2 (Critical IDOR) hardening (bu oturum) — bkz.
+  // `training.controller.ts` `train`'deki AYNI desen. `IdempotencyInterceptor`'ın
+  // kapsamı (`req.params.id` = horseId) DEĞİŞMEDEN kalır (bkz. o dosyanın
+  // güncellenmiş doc yorumu) — bu guard yalnızca SAHİPLİK ekler.
+  @UseGuards(HorseOwnerGuardByParam)
   @Post(':id/practice-race')
   @HttpCode(HttpStatus.OK)
   @UseInterceptors(IdempotencyInterceptor)

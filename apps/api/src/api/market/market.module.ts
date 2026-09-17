@@ -9,6 +9,8 @@ import { ListMarketListingsBySellerUseCase } from '../../application/use-cases/l
 import { ListMarketListingsUseCase } from '../../application/use-cases/list-market-listings.use-case';
 import { PostgresMarketListingRepository } from '../../infrastructure/market/postgres-market-listing.repository';
 import { PostgresMarketPurchaseRepository } from '../../infrastructure/market/postgres-market-purchase.repository';
+import { HorseOwnerGuardByBodyField } from '../auth/horse-owner.guard';
+import { ListingOwnerGuard } from '../auth/listing-owner.guard';
 import { HorseModule } from '../horse/horse.module';
 import { IdempotencyInterceptor } from '../idempotency/idempotency.interceptor';
 import { MarketController } from './market.controller';
@@ -26,6 +28,10 @@ import { MarketController } from './market.controller';
     IdempotencyInterceptor,
     { provide: MARKET_LISTING_REPOSITORY, useClass: PostgresMarketListingRepository },
     { provide: MARKET_PURCHASE_REPOSITORY, useClass: PostgresMarketPurchaseRepository },
+    // AUDIT_REPORT.md Bulgu S2/S4 hardening (bu oturum) — bkz.
+    // `horse-owner.guard.ts`/`listing-owner.guard.ts` doc yorumları.
+    HorseOwnerGuardByBodyField,
+    ListingOwnerGuard,
   ],
   exports: [MARKET_LISTING_REPOSITORY],
 })

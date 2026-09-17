@@ -3,6 +3,7 @@ import { TRAINING_SESSION_REPOSITORY } from '../../application/ports/training-se
 import { TrainHorseUseCase } from '../../application/use-cases/train-horse.use-case';
 import { DatabaseModule } from '../../infrastructure/database/database.module';
 import { PostgresTrainingSessionRepository } from '../../infrastructure/training/postgres-training-session.repository';
+import { HorseOwnerGuardByParam } from '../auth/horse-owner.guard';
 import { HorseModule } from '../horse/horse.module';
 import { MarketModule } from '../market/market.module';
 import { TrainingController } from './training.controller';
@@ -16,6 +17,8 @@ import { TrainingController } from './training.controller';
       provide: TRAINING_SESSION_REPOSITORY,
       useClass: PostgresTrainingSessionRepository,
     },
+    // AUDIT_REPORT.md Bulgu S2 hardening (bu oturum) — bkz. `horse-owner.guard.ts` doc yorumu.
+    HorseOwnerGuardByParam,
   ],
   exports: [TrainHorseUseCase],
 })

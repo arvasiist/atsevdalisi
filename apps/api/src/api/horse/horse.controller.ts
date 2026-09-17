@@ -3,6 +3,9 @@ import { isUUID } from 'class-validator';
 import type { ApiSuccess, PublicHorse } from '@at-sevdalisi/shared-types';
 import { GetHorseUseCase } from '../../application/use-cases/get-horse.use-case';
 import { ListHorsesByOwnerUseCase } from '../../application/use-cases/list-horses-by-owner.use-case';
+import { assertSelf } from '../auth/assert-self';
+import { CurrentPlayer, type AuthenticatedPlayer } from '../auth/current-player.decorator';
+import { Public } from '../auth/public.decorator';
 import { toPublicHorse } from '../dto/horse.mapper';
 
 /**
@@ -26,6 +29,16 @@ import { toPublicHorse } from '../dto/horse.mapper';
  * kuralı FİİLEN uygulanmıyordu. Şimdi `toPublicHorse` (bkz.
  * `apps/api/src/api/dto/horse.mapper.ts`) ile dönüştürülür — bu, bir
  * Application/Domain değişikliği DEĞİL, salt SUNUM katmanı düzeltmesidir.
+ *
+ * AUDIT_REPORT.md Bulgu S4 hardening (bu oturum) — `listByOwner` artık
+ * yalnızca KENDİ atlarını isteyen oyuncuya (`assertSelf`) 200 döner.
+ * `getById` ise BİLEREK `@Public()` kalır: At Pazarı tarama akışı (`GET
+ * /market/listings` → her ilanın `horseId`'si) başka bir oyuncunun atının
+ * (zaten `toPublicHorse` ile gizli statlardan arındırılmış) PUBLIC
+ * profiline bakabilmeyi GEREKTİRİR — bu S4'ün belirttiği "geniş okuma"
+ * sorunuyla AYNI KATEGORİDE DEĞİLDİR (tek bir at, tek bir sahibi ifşa
+ * etmez; `ownerId` zaten `PublicHorse`'ta bulunur ve pazarda satılan bir
+ * atın kim tarafından satıldığını bilmek meşru bir kullanım örneğidir).
  */
 @Controller('horses')
 export class HorseController {
@@ -35,7 +48,10 @@ export class HorseController {
   ) {}
 
   @Get()
-  async listByOwner(@Query('ownerId') ownerId: string | undefined): Promise<ApiSuccess<PublicHorse[]>> {
+  async listByOwner(
+    @Query('ownerId') ownerId: string | undefined,
+    @CurrentPlayer() currentPlayer: AuthenticatedPlayer,
+  ): Promise<ApiSuccess<PublicHorse[]>> {
     // NOT — `ParseUUIDPipe` yerine burada elle kontrol edilir: sorgu
     // parametresi hiç GÖNDERİLMEDİĞİNDE (undefined) pipe'ın davranışı
     // belgelenmemiş bir kenar durumdur (bkz. docs/ARCHITECTURE.md §9.1
@@ -47,10 +63,12 @@ export class HorseController {
     if (!ownerId || !isUUID(ownerId)) {
       throw new BadRequestException('ownerId geçerli bir UUID olmalıdır.');
     }
+    assertSelf(currentPlayer.id, ownerId);
     const horses = await this.listHorsesByOwnerUseCase.execute(ownerId);
     return { success: true, data: horses.map(toPublicHorse) };
   }
 
+  @Public()
   @Get(':id')
   async getById(@Param('id', ParseUUIDPipe) id: string): Promise<ApiSuccess<PublicHorse>> {
     const horse = await this.getHorseUseCase.execute(id);

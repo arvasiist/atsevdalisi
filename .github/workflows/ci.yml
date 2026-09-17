@@ -64,6 +64,12 @@ jobs:
     env:
       DATABASE_URL: postgres://at_sevdalisi:at_sevdalisi@localhost:5432/at_sevdalisi
       REDIS_URL: redis://localhost:6379
+      # AUDIT_REPORT.md Bulgu S1 hardening (bu oturum) — `AuthGuard`/
+      # `TokenService` artık `AppConfigService.env.jwtSecret`'ı gerektirir
+      # (bkz. `infrastructure/config/config.service.ts`). Yalnızca CI'a
+      # özgü bir test sırrıdır, gerçek üretim değeri repo dışında (hosting
+      # ortam değişkeni olarak) ayrıca tanımlanmalıdır.
+      JWT_SECRET: ci-test-only-jwt-secret-never-use-in-production
 
     steps:
       - uses: actions/checkout@v4

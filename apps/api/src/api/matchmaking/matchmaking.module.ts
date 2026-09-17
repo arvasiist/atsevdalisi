@@ -7,6 +7,7 @@ import { LeaveMatchmakingQueueUseCase } from '../../application/use-cases/leave-
 import { PostgresHorseStatsRepository } from '../../infrastructure/horse/postgres-horse-stats.repository';
 import { PostgresMatchmakingTicketRepository } from '../../infrastructure/online/postgres-matchmaking-ticket.repository';
 import { PostgresRaceRepository } from '../../infrastructure/race/postgres-race.repository';
+import { HorseOwnerGuardByBodyField, HorseOwnerGuardByQueryField } from '../auth/horse-owner.guard';
 import { HorseModule } from '../horse/horse.module';
 import { PlayerModule } from '../player/player.module';
 import { MatchmakingController } from './matchmaking.controller';
@@ -28,6 +29,9 @@ import { MatchmakingController } from './matchmaking.controller';
     { provide: HORSE_STATS_REPOSITORY, useClass: PostgresHorseStatsRepository },
     { provide: RACE_REPOSITORY, useClass: PostgresRaceRepository },
     { provide: MATCHMAKING_TICKET_REPOSITORY, useClass: PostgresMatchmakingTicketRepository },
+    // AUDIT_REPORT.md Bulgu S2 hardening (bu oturum) — bkz. `horse-owner.guard.ts` doc yorumu.
+    HorseOwnerGuardByBodyField,
+    HorseOwnerGuardByQueryField,
   ],
 })
 export class MatchmakingModule {}

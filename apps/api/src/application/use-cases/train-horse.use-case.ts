@@ -63,36 +63,52 @@ export class TrainHorseUseCase {
     const statKey: NumericHorseStatField | null = getPrimaryStatKey(input.type);
     const currentStatValue: number = statKey === null ? 0 : stats[statKey];
     const now = new Date();
-    const ageMonths = calculateAgeInMonths(new Date(horse.birthDate), now);
-    const vitals = {
-      health: horse.health,
-      fitness: horse.fitness,
-      fatigue: horse.fatigue,
-      energy: horse.energy,
-      morale: horse.morale,
-    };
 
-    const outcome = applyTraining(this.config.training, {
-      trainingType: input.type,
-      intensity: input.intensity,
-      durationMinutes: input.durationMinutes,
-      currentStatValue,
-      potential: horse.potential,
-      vitals,
-      ageMonths,
+    // AUDIT_REPORT.md Bulgu C2 hardening (bu oturum) — `horseRepository.updateWithLock`
+    // (bkz. o metodun doc yorumu, `PlayerRepository.updateWithLock` ile AYNI
+    // desen): `horses` satırı KİLİTLENDİKTEN SONRA yeniden okunur (`lockedHorse`)
+    // ve TÜM vital hesaplamaları BUNUN ÜZERİNDEN yapılır — yukarıdaki `horse`
+    // (kilit ÖNCESİ okuma) yalnızca uygunluk kontrolleri (sakat mı, pazarda
+    // mı) için kullanıldı. İki eşzamanlı antrenman isteği artık birbirinin
+    // fatigue/status yazımını SESSİZCE EZEMEZ.
+    const lockResult = await this.horseRepository.updateWithLock(horseId, (lockedHorse) => {
+      const ageMonths = calculateAgeInMonths(new Date(lockedHorse.birthDate), now);
+      const vitals = {
+        health: lockedHorse.health,
+        fitness: lockedHorse.fitness,
+        fatigue: lockedHorse.fatigue,
+        energy: lockedHorse.energy,
+        morale: lockedHorse.morale,
+      };
+
+      const outcome = applyTraining(this.config.training, {
+        trainingType: input.type,
+        intensity: input.intensity,
+        durationMinutes: input.durationMinutes,
+        currentStatValue,
+        potential: lockedHorse.potential,
+        vitals,
+        ageMonths,
+      });
+
+      const sessionId = randomUUID();
+      const injuryOccurred = rollInjuryOccurred(outcome.injuryRisk, `${sessionId}:injury`);
+      const newVitals = applyVitalDelta(vitals, { fatigue: outcome.fatigueGain });
+
+      const updatedHorse: Horse = {
+        ...lockedHorse,
+        fatigue: newVitals.fatigue,
+        status: injuryOccurred ? 'injured' : lockedHorse.status,
+        updatedAt: now.toISOString(),
+      };
+
+      return { horse: updatedHorse, result: { sessionId, injuryOccurred, outcome, newVitals } };
     });
 
-    const sessionId = randomUUID();
-    const injuryOccurred = rollInjuryOccurred(outcome.injuryRisk, `${sessionId}:injury`);
-    const newVitals = applyVitalDelta(vitals, { fatigue: outcome.fatigueGain });
-
-    const updatedHorse: Horse = {
-      ...horse,
-      fatigue: newVitals.fatigue,
-      status: injuryOccurred ? 'injured' : horse.status,
-      updatedAt: now.toISOString(),
-    };
-    await this.horseRepository.update(updatedHorse);
+    if (lockResult === null) {
+      throw new HorseNotFoundError(horseId);
+    }
+    const { sessionId, injuryOccurred, outcome, newVitals } = lockResult;
 
     const statChanges: Partial<Record<HorseStatField, number>> = {};
     if (statKey !== null && outcome.statGain > 0) {

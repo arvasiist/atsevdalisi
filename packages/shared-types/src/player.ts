@@ -45,3 +45,18 @@ export interface Player {
 
 /** brief §38 Ana Sayfa "Oyuncu" kartı için minimal görünüm. */
 export type PlayerSummary = Pick<Player, 'id' | 'displayName' | 'avatarId' | 'level' | 'xp' | 'money' | 'gems'>;
+
+/**
+ * AUDIT_REPORT.md Bulgu S1 hardening (bu oturum) — brief §41/§50 Google/Apple
+ * Sign-In. `POST /players` (kayıt) VE `POST /auth/login` (mevcut hesapla
+ * giriş) artık İKİSİ de bunu döner: istemci, sonraki HER isteğe
+ * `Authorization: Bearer <token>` header'ı eklemek ZORUNDADIR (`AuthGuard`
+ * ile korunan rotalar için — bkz. `apps/api/src/api/auth/auth.guard.ts`).
+ * `token` bizim KENDİ imzaladığımız bir JWT'dir (Google/Apple'ın ID
+ * token'ı DEĞİL) — sağlayıcı token'ı yalnızca `/auth/login` isteğinde BİR
+ * KEZ kullanılır, saklanmaz.
+ */
+export interface AuthSession {
+  token: string;
+  player: PlayerSummary;
+}
