@@ -86,7 +86,25 @@ export function RaceScene3D({ horses, cameraPose, trackGeometry }: RaceScene3DPr
       ))}
       <CameraRig pose={cameraPose} />
       <EffectComposer>
-        <SSAO radius={0.35} intensity={20} luminanceInfluence={0.4} />
+        {/*
+         * NOT: `@react-three/postprocessing`'in kurulu sürümündeki SSAO
+         * bileşeninin TypeScript tipinde `worldDistanceThreshold` /
+         * `worldDistanceFalloff` / `worldProximityThreshold` /
+         * `worldProximityFalloff` alanları ZORUNLU görünüyor (üst akış
+         * kütüphanesinin dokümantasyonu bunları opsiyonel gösterse de) —
+         * bu, ilk CI çalıştırmasında `tsc` hatasıyla yakalandı. Değerler,
+         * benzer ölçekli (onlarca metre) bir sahne için bilinen çalışan bir
+         * örnekten alındı (pmndrs/postprocessing #441).
+         */}
+        <SSAO
+          radius={4}
+          intensity={1.5}
+          luminanceInfluence={0.6}
+          worldDistanceThreshold={20}
+          worldDistanceFalloff={5}
+          worldProximityThreshold={0.4}
+          worldProximityFalloff={0.1}
+        />
         <Bloom luminanceThreshold={0.5} luminanceSmoothing={0.9} intensity={0.4} mipmapBlur />
       </EffectComposer>
     </Canvas>
