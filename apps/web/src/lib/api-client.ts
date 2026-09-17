@@ -1,9 +1,14 @@
 import type {
   AuthSession,
+  JoinMatchmakingQueueResult,
+  MatchmakingTicket,
   PlayerSummary,
   PublicHorse,
   RecentRaceResultView,
   StableSummaryView,
+  TrainHorseResult,
+  TrainingIntensity,
+  TrainingType,
 } from '@at-sevdalisi/shared-types';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api/v1';
@@ -111,6 +116,41 @@ export const apiClient = {
     if (params.pageSize) query.set('pageSize', params.pageSize.toString());
     return request<Array<{ id: string; horseId: string; price: number; status: string }>>(`/market/listings?${query}`);
   },
+
+  /**
+   * Antrenman ekranı (`apps/web/src/app/training/page.tsx`) — `POST
+   * /horses/:id/train` (docs/API.md §4). `HorseOwnerGuardByParam` bu atın
+   * GERÇEKTEN giriş yapmış oyuncuya ait olmasını zorunlu kılar (bkz.
+   * `training.controller.ts` doc yorumu) — `setAuthToken` ile bir token
+   * ayarlanmış olması ZORUNLUDUR, aksi halde 401.
+   */
+  trainHorse: (horseId: string, input: { type: TrainingType; intensity: TrainingIntensity; durationMinutes?: number }) =>
+    request<TrainHorseResult>(`/horses/${horseId}/train`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+
+  /**
+   * Online (PvP) ekranı (`apps/web/src/app/online/page.tsx`) — `POST
+   * /matchmaking/queue` (docs/API.md §9). TAMAMEN SENKRON tasarım (bkz.
+   * `join-matchmaking-queue.use-case.ts` doc yorumu): uygun bir rakip
+   * ANINDA bulunursa yanıt tam maç sonucunu taşır (`matched: true`),
+   * bulunamazsa çağıran oyuncu kuyruğa eklenir (`matched: false`) — bu
+   * durumda ZATEN kuyrukta bekleyen bir oyuncu, sonradan biri onunla
+   * eşleştiğinde bunu KENDİLİĞİNDEN öğrenemez (backend'de polling/
+   * WebSocket bildirimi henüz yok, bilinçli kapsam dışı) — arayüz bunu
+   * gizlemez, açıkça belirtir.
+   */
+  joinMatchmakingQueue: (horseId: string) =>
+    request<JoinMatchmakingQueueResult>('/matchmaking/queue', {
+      method: 'POST',
+      body: JSON.stringify({ horseId }),
+    }),
+
+  leaveMatchmakingQueue: (horseId: string) =>
+    request<MatchmakingTicket>(`/matchmaking/queue?horseId=${horseId}`, {
+      method: 'DELETE',
+    }),
 
   /**
    * S3 hardening sonrası `buyerId` artık İSTEK GÖVDESİNDE YOK — alıcı
