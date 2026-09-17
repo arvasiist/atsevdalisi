@@ -31,7 +31,7 @@ olarak veriliyor. Her alanın sonunda "Zaten sağlam / IMPLEMENTED" listesi var
 | E1 | Ekonomi | High | Pratik yarış/PvP: cüzdan güncellemesi ile yarış kaydı iki AYRI transaction'da — arada hata olursa çift ödeme/kayıp riski |
 | H1 | At Durumu | High | ✅ **DÜZELTİLDİ** — `injured` durumundan `active`'e dönüş yolu YOK — sakatlanan at kalıcı olarak kullanılamaz hale geliyor |
 | C1 | Veritabanı | High | ✅ **DÜZELTİLDİ** (At Pazarı yolunda) — Ahır kapasitesi hiçbir yerde zorunlu kılınmıyordu — sınırsız at alınabiliyordu |
-| S5 | Güvenlik | High | Helmet/CSP yok, rate limiting yok |
+| S5 | Güvenlik | High | ✅ **KISMEN DÜZELTİLDİ** — Helmet/CSP eklendi; rate limiting hâlâ AÇIK |
 | C2 | Veritabanı | Medium | Antrenman/bakım/besleme `FOR UPDATE` kilidi kullanmıyor — eşzamanlı istekler "lost update" üretebilir |
 | H2 | At Durumu | Medium | Pazarda listelenmiş bir at yine de antrenman/yarış için kullanılabiliyor |
 | E2 | Ekonomi | Medium | At Pazarı satın alma ile iptal aynı anda çalışırsa, satılmış bir ilan "iptal edildi" olarak üzerine yazılabilir |
@@ -80,9 +80,18 @@ olarak veriliyor. Her alanın sonunda "Zaten sağlam / IMPLEMENTED" listesi var
 **Test requirement:** `GET /players/:otherId` doğrulanmış ama sahibi olmayan biri için 403 (veya sansürlü genel görünüm) dönmeli.
 
 ### S5 — High: Helmet/CSP yok, rate limiting yok
+> ✅ **HELMET KISMI DÜZELTİLDİ** — `main.ts`'e `app.use(helmet())` eklendi
+> (`apps/api/package.json`'a `helmet` bağımlılığı ile). Rate limiting
+> (`@nestjs/throttler`) BİLEREK bu turda YAPILMADI — e2e test paketinin
+> kendisi (özellikle T1'in istediği n=10/50/100 eşzamanlı istek testleri
+> ve mevcut market concurrency testleri) tek bir CI koşusunda kısa sürede
+> çok sayıda istek atıyor; global bir throttler, doğru per-route/
+> per-ortam istisnalar olmadan eklenirse gerçek trafiği DEĞİL, CI'ın
+> kendisini 429'a düşürme riski taşıyor. Bu, dikkatli/izole bir sonraki
+> adım olarak kalıyor (aşağıdaki Fix notu hâlâ geçerli).
 **Evidence:** `apps/api/package.json`'da `helmet` yok, `main.ts`'te CSP/güvenlik başlığı yok. `@nestjs/throttler` veya eşdeğeri hiç yok. `docs/SECURITY.md` §7 bunu "önerilen, sahip onayı bekleyen" madde olarak listeliyor ama uygulanmamış.
 **Impact:** S1/S2/S3 ile birleşince — auth yok + rate limit yok + ownership kontrolü yok kombinasyonu, tek bir scriptli client'ın sınırsız hızda rastgele oyuncuları mağdur edebilmesi anlamına geliyor.
-**Fix:** `@nestjs/throttler` ekle (register/login ve ekonomi uçlarına özel limit), `helmet` middleware ekle.
+**Fix:** `@nestjs/throttler` ekle (register/login ve ekonomi uçlarına özel limit, test/CI ortamında ya devre dışı ya da çok yüksek eşik), `helmet` middleware ekle (✅ yapıldı).
 **Test requirement:** Rate-limit aşıldığında 429 dönen entegrasyon testi.
 
 ### Zaten sağlam (IMPLEMENTED)

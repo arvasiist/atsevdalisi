@@ -1,6 +1,7 @@
 import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
+import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './api/middleware/http-exception.filter';
 
@@ -11,6 +12,15 @@ import { HttpExceptionFilter } from './api/middleware/http-exception.filter';
  */
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule);
+
+  // AUDIT_REPORT.md Bulgu S5 (High) hardening — güvenlik başlıkları
+  // (CSP/HSTS/X-Frame-Options/X-Content-Type-Options/Referrer-Policy vb.)
+  // daha önce HİÇ ayarlanmıyordu. Bu, saf bir JSON API'dir (`apps/web`
+  // ayrı bir origin'de, tarayıcıda `fetch()` ile tüketir) — Helmet'in
+  // varsayılan ayarları JSON response'ları hiçbir şekilde ETKİLEMEZ,
+  // yalnızca ek güvenlik header'ları ekler; CORS zaten ayrıca
+  // `enableCors` ile yönetiliyor (aşağıda), Helmet ile ÇAKIŞMAZ.
+  app.use(helmet());
 
   const apiPrefix = process.env.API_PREFIX ?? 'api/v1';
   app.setGlobalPrefix(apiPrefix);
