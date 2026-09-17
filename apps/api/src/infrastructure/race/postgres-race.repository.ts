@@ -1,8 +1,50 @@
 import { Inject, Injectable } from '@nestjs/common';
 import type { Pool, PoolClient } from 'pg';
-import type { PvpMatch, Race, RaceEntry, RaceSegmentSnapshot } from '@at-sevdalisi/shared-types';
+import type {
+  PvpMatch,
+  Race,
+  RaceEntry,
+  RaceSegmentSnapshot,
+  RaceSurface,
+  RecentRaceResultView,
+} from '@at-sevdalisi/shared-types';
 import type { RaceRepository } from '../../application/ports/race.repository';
 import { PG_POOL, withTransaction } from '../database/database.module';
+
+/**
+ * `findRecentResultsByOwnerId`'nin JOIN sonucu satır şekli (snake_case).
+ * `performance_score` NUMERIC(6,2) olduğundan `pg` bunu string döner
+ * (bkz. `postgres-horse.repository.ts`'teki AYNI not) — `Number(...)`'a
+ * çevrilir. `distance_m`/`final_time_ms`/`finish_position` INTEGER'dır,
+ * `pg` bunları zaten JS number olarak döner.
+ */
+interface RecentRaceRow {
+  race_id: string;
+  race_name: string;
+  distance_m: number;
+  surface: string;
+  horse_id: string;
+  horse_name: string;
+  final_time_ms: number;
+  finish_position: number;
+  performance_score: string;
+  created_at: Date;
+}
+
+function rowToRecentRaceResult(row: RecentRaceRow): RecentRaceResultView {
+  return {
+    raceId: row.race_id,
+    raceName: row.race_name,
+    horseId: row.horse_id,
+    horseName: row.horse_name,
+    distanceMeters: row.distance_m,
+    surface: row.surface as RaceSurface,
+    finishPosition: row.finish_position,
+    finalTimeMs: row.final_time_ms,
+    performanceScore: Number(row.performance_score),
+    finishedAt: row.created_at.toISOString(),
+  };
+}
 
 /**
  * `races`/`race_entries`/`race_entry_segments` tablolarına yazan
@@ -62,6 +104,26 @@ export class PostgresRaceRepository implements RaceRepository {
         [match.id, race.id, playerAId, playerBId, match.winnerId, match.status, new Date(match.createdAt)],
       );
     });
+  }
+
+  /**
+   * Faz 2 (görsel kalite planı) — bkz. `RaceRepository.
+   * findRecentResultsByOwnerId` doc yorumu. Salt okunur, hiçbir yazma
+   * içermez (diğer metodların AKSİNE `withTransaction` GEREKMEZ).
+   */
+  async findRecentResultsByOwnerId(ownerId: string, limit: number): Promise<RecentRaceResultView[]> {
+    const result = await this.pool.query<RecentRaceRow>(
+      `SELECT r.id AS race_id, r.name AS race_name, r.distance_m, r.surface, r.created_at,
+              re.horse_id, h.name AS horse_name, re.final_time_ms, re.finish_position, re.performance_score
+       FROM race_entries re
+       JOIN races r ON r.id = re.race_id
+       JOIN horses h ON h.id = re.horse_id
+       WHERE h.owner_id = $1 AND re.finish_position IS NOT NULL
+       ORDER BY r.created_at DESC
+       LIMIT $2`,
+      [ownerId, limit],
+    );
+    return result.rows.map(rowToRecentRaceResult);
   }
 
   /**

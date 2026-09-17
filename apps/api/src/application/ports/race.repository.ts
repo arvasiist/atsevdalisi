@@ -1,4 +1,4 @@
-import type { PvpMatch, Race, RaceEntry, RaceSegmentSnapshot } from '@at-sevdalisi/shared-types';
+import type { PvpMatch, Race, RaceEntry, RaceSegmentSnapshot, RecentRaceResultView } from '@at-sevdalisi/shared-types';
 
 /**
  * `RaceRepository` — Application katmanının Infrastructure'a bağlandığı
@@ -41,6 +41,16 @@ export interface RaceRepository {
     segments: RaceSegmentSnapshot[],
     match: PvpMatch,
   ): Promise<void>;
+
+  /**
+   * Faz 2 (görsel kalite planı) — Ana Sayfa "Son Yarış Sonuçları" paneli
+   * (brief §38'e komşu, `StableSummaryView` ile AYNI "Ana Sayfa kartı"
+   * kategorisi). `races`/`race_entries`/`horses` (owner_id ile) JOIN
+   * edilerek OYUNCUNUN KENDİ atlarının sonuçlanmış pratik yarışları en
+   * yeniden eskiye doğru okunur — bkz. `RecentRaceResultView` doc yorumu
+   * (bot rakipler dahil DEĞİLDİR, salt okunur bir sorgudur).
+   */
+  findRecentResultsByOwnerId(ownerId: string, limit: number): Promise<RecentRaceResultView[]>;
 }
 
 /** NestJS DI için token (interface'ler runtime'da yok olduğundan bir Symbol gerekir). */

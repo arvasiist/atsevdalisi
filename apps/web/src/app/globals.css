@@ -25,7 +25,14 @@
 
   --color-border: rgba(255, 255, 255, 0.08);
 
-  --font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  /*
+   * `--font-inter`, `app/layout.tsx`'te `next/font/google` ile self-host
+   * edilen değişken font ailesidir (build zamanında indirilir, harici
+   * çalışma zamanı isteği YOKTUR). Fallback zinciri (Segoe UI/system-ui)
+   * KORUNUR — `--font-inter` tanımsızsa (ör. bu dosya layout.tsx dışında
+   * bir bağlamda kullanılırsa) tarayıcı hâlâ makul bir yazı tipine düşer.
+   */
+  --font-family: var(--font-inter), 'Segoe UI', system-ui, -apple-system, sans-serif;
 
   --space-xs: 4px;
   --space-sm: 8px;
@@ -48,9 +55,30 @@ html,
 body {
   padding: 0;
   margin: 0;
+  height: 100%;
   background: var(--color-bg-base);
   color: var(--color-text-primary);
   font-family: var(--font-family);
+}
+
+/*
+ * Faz 2 (görsel kalite planı) — `TopBar` (sabit yükseklikte değil, içeriğe
+ * göre büyür) + sayfa içeriği için bir flex kabuğu. Önceden `/races/demo`
+ * `calc(100vh - 65px)` gibi TopBar'ın yüksekliğini SABİT bir "sihirli sayı"
+ * olarak varsayıyordu — TopBar'ın gerçek render yüksekliği bundan birkaç
+ * piksel farklıydı (küçük bir kozmetik sapma). Bu flex düzeniyle `.app-main`
+ * kalan TÜM dikey alanı gerçekten doldurur, hiçbir sayfa TopBar'ın tam
+ * piksel yüksekliğini TAHMİN ETMEK zorunda kalmaz.
+ */
+body {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.app-main {
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 a {

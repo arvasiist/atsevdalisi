@@ -1,7 +1,22 @@
 'use client';
 
+/**
+ * At Pazarı — daha önce açık/beyaz tema (sabit `#f4f4f5`/`#cbd5e1` hex
+ * renkleri) kullanıyordu, uygulamanın geri kalanının koyu tema
+ * token'larıyla (`globals.css`) TUTARSIZDI. Bu Faz 2'nin bir parçası
+ * olarak dark-theme token'larına ve `GlassPanel` diline taşındı — İŞ
+ * MANTIĞI (listeleme/satın alma akışı) DEĞİŞMEDİ.
+ *
+ * `buyerId` artık `PlayerContext`'ten (Faz 2) otomatik doldurulur — eskiden
+ * her satın alma için elle bir UUID YAPIŞTIRMAK gerekiyordu (kimlik hiçbir
+ * yerde hatırlanmıyordu). Alan yine de düzenlenebilir bırakıldı (ör. başka
+ * bir oyuncu adına test amaçlı satın alma senaryosu için).
+ */
+
 import { useEffect, useState } from 'react';
+import { GlassPanel } from '../../components/ui/GlassPanel';
 import { apiClient } from '../../lib/api-client';
+import { usePlayer } from '../../lib/player-context';
 
 interface Listing {
   id: string;
@@ -10,11 +25,22 @@ interface Listing {
   status: string;
 }
 
-export default function MarketPage() {
+export default function MarketPage(): React.ReactElement {
+  const { player } = usePlayer();
   const [listings, setListings] = useState<Listing[]>([]);
   const [loading, setLoading] = useState(true);
   const [buyerId, setBuyerId] = useState('');
   const [message, setMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (player && !buyerId) {
+      setBuyerId(player.id);
+    }
+    // `buyerId` bilinçli olarak bağımlılık dizisinde DEĞİL — bu yalnızca
+    // oyuncu ilk yüklendiğinde bir kerelik varsayılan atamadır, kullanıcının
+    // elle girdiği değeri sonradan EZMEMELİDİR.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [player]);
 
   const fetchMarketListings = async () => {
     try {
@@ -52,12 +78,12 @@ export default function MarketPage() {
   };
 
   return (
-    <main style={{ padding: '2rem', fontFamily: 'sans-serif', maxWidth: '800px', margin: '0 auto' }}>
-      <h1>At Pazarı</h1>
+    <main className="page-container">
+      <h1 style={{ fontSize: '24px', color: 'var(--color-text-primary)', marginBottom: 'var(--space-lg)' }}>At Pazarı</h1>
 
-      <div style={{ marginBottom: '1.5rem', padding: '1rem', background: '#f4f4f5', borderRadius: '8px' }}>
-        <label htmlFor="buyer-id-input" style={{ display: 'block', marginBottom: '0.5rem' }}>
-          <strong>Alıcı Oyuncu ID:</strong>
+      <GlassPanel style={{ marginBottom: 'var(--space-lg)' }}>
+        <label htmlFor="buyer-id-input" style={{ display: 'block', marginBottom: '8px', fontSize: '12px', color: 'var(--color-text-secondary)' }}>
+          Alıcı Oyuncu ID
         </label>
         <input
           id="buyer-id-input"
@@ -65,56 +91,74 @@ export default function MarketPage() {
           value={buyerId}
           onChange={(e) => setBuyerId(e.target.value)}
           placeholder="Oyuncu UUID girin"
-          style={{ width: '100%', padding: '0.5rem', boxSizing: 'border-box' }}
+          style={inputStyle()}
         />
-      </div>
+      </GlassPanel>
 
       {message && (
-        <div style={{ marginBottom: '1rem', padding: '0.75rem', background: '#e0f2fe', borderRadius: '6px' }}>
+        <div
+          style={{
+            marginBottom: 'var(--space-md)',
+            padding: '10px 14px',
+            borderRadius: 'var(--radius-sm)',
+            background: 'rgba(56, 189, 248, 0.12)',
+            border: '1px solid var(--color-accent-focus)',
+            color: 'var(--color-text-primary)',
+            fontSize: '13px',
+          }}
+        >
           {message}
         </div>
       )}
 
       {loading ? (
-        <p>İlanlar yükleniyor...</p>
+        <p style={{ color: 'var(--color-text-muted)' }}>İlanlar yükleniyor...</p>
       ) : listings.length === 0 ? (
-        <p>Pazarda aktif ilan bulunmuyor.</p>
+        <GlassPanel style={{ textAlign: 'center' }}>
+          <p style={{ color: 'var(--color-text-secondary)', margin: 0 }}>Pazarda aktif ilan bulunmuyor.</p>
+        </GlassPanel>
       ) : (
-        <div style={{ display: 'grid', gap: '1rem' }}>
+        <div style={{ display: 'grid', gap: 'var(--space-sm)' }}>
           {listings.map((item) => (
-            <div
-              key={item.id}
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                padding: '1rem',
-                border: '1px solid #cbd5e1',
-                borderRadius: '8px',
-              }}
-            >
+            <GlassPanel key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
-                <p style={{ margin: '0 0 0.25rem 0' }}><strong>At ID:</strong> {item.horseId}</p>
-                <p style={{ margin: 0 }}><strong>Fiyat:</strong> {item.price.toLocaleString()} ₺</p>
+                <p style={{ margin: '0 0 4px 0', fontSize: '12px', color: 'var(--color-text-muted)' }}>At ID: {item.horseId}</p>
+                <p style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: 'var(--color-accent-gold)' }}>
+                  {item.price.toLocaleString('tr-TR')} ₺
+                </p>
               </div>
-              <button
-                type="button"
-                onClick={() => void handleBuy(item.id)}
-                style={{
-                  padding: '0.5rem 1rem',
-                  background: '#16a34a',
-                  color: '#fff',
-                  border: 'none',
-                  borderRadius: '6px',
-                  cursor: 'pointer',
-                }}
-              >
+              <button type="button" onClick={() => void handleBuy(item.id)} style={buyButtonStyle()}>
                 Satın Al
               </button>
-            </div>
+            </GlassPanel>
           ))}
         </div>
       )}
     </main>
   );
+}
+
+function inputStyle(): React.CSSProperties {
+  return {
+    width: '100%',
+    padding: '10px 12px',
+    boxSizing: 'border-box',
+    background: 'var(--color-bg-surface-elevated)',
+    border: '1px solid var(--color-border)',
+    borderRadius: 'var(--radius-sm)',
+    color: 'var(--color-text-primary)',
+    fontSize: '14px',
+  };
+}
+
+function buyButtonStyle(): React.CSSProperties {
+  return {
+    padding: '10px 20px',
+    background: 'var(--color-status-positive)',
+    color: '#0b1a10',
+    border: 'none',
+    borderRadius: 'var(--radius-sm)',
+    fontWeight: 700,
+    cursor: 'pointer',
+  };
 }

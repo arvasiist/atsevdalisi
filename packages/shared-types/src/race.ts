@@ -187,3 +187,29 @@ export interface PracticeRaceResult {
   prizeWon: number;
   newBalance: Pick<Player, 'money' | 'gems'>;
 }
+
+/**
+ * Faz 2 (görsel kalite planı) — Ana Sayfa "Son Yarış Sonuçları" paneli,
+ * `GET /players/:id/recent-races` yanıt şekli (docs/API.md). `races` +
+ * `race_entries` tablolarından (migration 0006) OYUNCUNUN KENDİ atlarının
+ * sonuçlanmış (finish_position IS NOT NULL) pratik yarışlarını en yeniden
+ * eskiye doğru döner.
+ *
+ * ÖNEMLİ — KAPSAM: bu, "genel/çok oyunculu son kazananlar" akışı DEĞİLDİR.
+ * Bot rakipler `race_entries`'e hiç YAZILMAZ (bkz. `RaceRepository.
+ * savePracticeRace` doc yorumu — bir bota sahte `horses` satırı açmak
+ * kapsam dışı bırakıldı), bu yüzden yalnızca bu oyuncunun kendi pratik
+ * yarış geçmişi mevcuttur.
+ */
+export interface RecentRaceResultView {
+  raceId: UUID;
+  raceName: string;
+  horseId: UUID;
+  horseName: string;
+  distanceMeters: number;
+  surface: RaceSurface;
+  finishPosition: number;
+  finalTimeMs: number;
+  performanceScore: number;
+  finishedAt: ISODateTimeString;
+}

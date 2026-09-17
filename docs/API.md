@@ -299,6 +299,45 @@ uyarılarını hesaplar. Örnek yanıt:
 Oyuncu bulunamazsa `404 PLAYER_NOT_FOUND`, id UUID formatında değilse
 `400 VALIDATION_ERROR` döner.
 
+### Son Yarış Sonuçları (Faz 2, görsel kalite planı)
+
+```http
+GET /api/v1/players/{id}/recent-races?limit=5
+```
+
+Ana Sayfa "Son Yarış Sonuçları" paneli için — oyuncunun kendi atlarının
+sonuçlanmış pratik yarışlarını en yeniden eskiye doğru döner (`races` +
+`race_entries` + `horses` JOIN, `GetRecentRaceResultsUseCase`). `limit`
+opsiyoneldir, varsayılan 5, en fazla 20'ye kelepçelenir (clamp). **KAPSAM
+NOTU**: bot rakipler `race_entries`'e hiç yazılmadığı için (bkz.
+`RaceRepository.savePracticeRace` doc yorumu) bu bir "genel/çok oyunculu
+son kazananlar" akışı DEĞİLDİR — yalnızca bu oyuncunun kendi geçmişidir.
+Örnek yanıt:
+
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "raceId": "b1f2...",
+      "raceName": "Pratik Yarış",
+      "horseId": "a9e0...",
+      "horseName": "Şimşek",
+      "distanceMeters": 1200,
+      "surface": "grass",
+      "finishPosition": 2,
+      "finalTimeMs": 94820,
+      "performanceScore": 87.5,
+      "finishedAt": "2026-09-17T10:00:00.000Z"
+    }
+  ]
+}
+```
+
+Oyuncu bulunamazsa `404 PLAYER_NOT_FOUND`, id UUID formatında değilse
+`400 VALIDATION_ERROR` döner. Hiç yarış koşulmamışsa boş dizi döner (hata
+DEĞİL).
+
 ### Ahır Yükseltme (FAZ 1 wiring, altıncı dilim; onuncu dilimde Idempotency-Key eklendi, bu oturum)
 
 ```http
