@@ -1,27 +1,28 @@
 'use client';
 
 /**
- * Gerçek bir kimlik doğrulama sistemi (Google/Apple Sign-In, brief §41/§50)
- * HENÜZ BAĞLI DEĞİL (bkz. `player.controller.ts` doc yorumu) — `POST
- * /players` doğrudan, token'sız bir kayıt uç noktasıdır. Eski `page.tsx`
- * bu yüzden oyuncu kimliğini yalnızca React state'inde tutuyordu: sayfa
- * yenilendiğinde veya `/market`'e geçildiğinde kimlik TAMAMEN kayboluyordu
- * ve her sayfa kendi ayrı "oyuncu oluştur" akışını tekrarlıyordu.
- *
- * Bu, gerçek bir auth sistemi İCAT ETMEDEN (kapsam dışı, bkz. yukarıdaki
- * not) sayfalar arası GERÇEK bir oyuncu kimliğini (zaten var olan `POST
- * /players` ile oluşturulmuş gerçek bir kayıt) hatırlamanın minimal
- * köprüsüdür: `playerId` `localStorage`'da saklanır, tek bir React
- * Context ile TÜM sayfalar (Ana Sayfa, Ahırım, At Pazarı, ...) AYNI
- * oyuncu durumunu paylaşır (her biri kendi ayrı `fetch`/state kopyasını
- * TUTMAZ).
+ * AUDIT_REPORT.md Bulgu S1-S4 hardening SONRASI güncellendi. `POST
+ * /players` artık token'sız değil — bir `AuthSession` (`{ token, player }`)
+ * döner ve backend'deki HER korumalı rota (`@Public()` işaretli olmayan
+ * hepsi) geçerli bir `Authorization: Bearer <token>` header'ı zorunlu
+ * kılar (bkz. `api-client.ts` `setAuthToken` doc yorumu). Eski sürüm
+ * yalnızca `playerId`'yi saklıyordu — bu, hardening sonrası kırıldı
+ * (token hiç saklanmadığı/gönderilmediği için `getPlayer`/
+ * `getHorsesByOwner` gibi her korumalı çağrı 401 dönüyordu, TÜM ekranlar
+ * bozulmuştu). Şimdi hem `playerId` hem `token` `localStorage`'da
+ * saklanır, sayfa yüklendiğinde `apiClient.setAuthToken` HEMEN (ilk
+ * korumalı istekten ÖNCE) çağrılır. Token geçersizleşirse (ör. backend
+ * verisi sıfırlanmış, JWT süresi dolmuş) `getPlayer` 401/403 ile
+ * patlar — bu durumda ikisi de temizlenir, "oyuncu oluştur" akışı
+ * yeniden gösterilir.
  */
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import type { PlayerSummary } from '@at-sevdalisi/shared-types';
-import { apiClient } from './api-client';
+import { apiClient, setAuthToken } from './api-client';
 
 const STORAGE_KEY = 'atSevdalisi.playerId';
+const TOKEN_STORAGE_KEY = 'atSevdalisi.authToken';
 const RANDOM_ID_MULTIPLIER = 10000;
 
 export interface PlayerContextValue {
@@ -41,10 +42,15 @@ export function PlayerProvider({ children }: { children: React.ReactNode }): Rea
 
   useEffect(() => {
     const storedId = typeof window !== 'undefined' ? window.localStorage.getItem(STORAGE_KEY) : null;
-    if (!storedId) {
+    const storedToken = typeof window !== 'undefined' ? window.localStorage.getItem(TOKEN_STORAGE_KEY) : null;
+    if (!storedId || !storedToken) {
+      // Faz 2'den (token'sız) kalan yarım bir kayıt olabilir — ikisi de
+      // yoksa temiz bir "oyuncu oluştur" durumuna dön.
       setIsLoading(false);
       return;
     }
+
+    setAuthToken(storedToken);
 
     let cancelled = false;
     void apiClient
@@ -55,9 +61,12 @@ export function PlayerProvider({ children }: { children: React.ReactNode }): Rea
         }
       })
       .catch(() => {
-        // Kayıtlı id artık geçersiz (ör. backend verisi sıfırlanmış) —
-        // sessizce temizle, "oyuncu oluştur" akışı yeniden gösterilecek.
+        // Kayıtlı id/token artık geçersiz (ör. backend verisi sıfırlanmış,
+        // JWT süresi dolmuş) — sessizce temizle, "oyuncu oluştur" akışı
+        // yeniden gösterilecek.
         window.localStorage.removeItem(STORAGE_KEY);
+        window.localStorage.removeItem(TOKEN_STORAGE_KEY);
+        setAuthToken(null);
       })
       .finally(() => {
         if (!cancelled) {
@@ -75,9 +84,11 @@ export function PlayerProvider({ children }: { children: React.ReactNode }): Rea
       setIsLoading(true);
       setError(null);
       const randomSuffix = Math.floor(Math.random() * RANDOM_ID_MULTIPLIER);
-      const newPlayer = await apiClient.registerPlayer(`jokey_${randomSuffix}`, 'Harbi Seyis');
-      window.localStorage.setItem(STORAGE_KEY, newPlayer.id);
-      setPlayer(newPlayer);
+      const session = await apiClient.registerPlayer(`jokey_${randomSuffix}`, 'Harbi Seyis');
+      setAuthToken(session.token);
+      window.localStorage.setItem(STORAGE_KEY, session.player.id);
+      window.localStorage.setItem(TOKEN_STORAGE_KEY, session.token);
+      setPlayer(session.player);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Oyuncu oluşturulamadı');
     } finally {

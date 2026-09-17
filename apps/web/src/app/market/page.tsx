@@ -7,10 +7,14 @@
  * olarak dark-theme token'larına ve `GlassPanel` diline taşındı — İŞ
  * MANTIĞI (listeleme/satın alma akışı) DEĞİŞMEDİ.
  *
- * `buyerId` artık `PlayerContext`'ten (Faz 2) otomatik doldurulur — eskiden
- * her satın alma için elle bir UUID YAPIŞTIRMAK gerekiyordu (kimlik hiçbir
- * yerde hatırlanmıyordu). Alan yine de düzenlenebilir bırakıldı (ör. başka
- * bir oyuncu adına test amaçlı satın alma senaryosu için).
+ * AUDIT_REPORT.md Bulgu S3 hardening SONRASI güncellendi — `buyerId`
+ * artık backend'e HİÇ GÖNDERİLMEZ (`market.controller.ts` `buyListing`
+ * doc yorumu: alıcı kimliği yalnızca `Authorization` header'ındaki
+ * oturumdan gelir). Eski elle-UUID-yapıştırma input'u bu yüzden
+ * TAMAMEN kaldırıldı — o alan artık backend tarafından zaten
+ * YOK SAYILIRDI (DTO'da böyle bir alan tanımlı değil) ve kafa karıştırıcı
+ * bir ölü UI parçası olurdu. Satın alma artık yalnızca giriş yapmış
+ * oyuncunun kendi hesabıyla mümkündür.
  */
 
 import { useEffect, useState } from 'react';
@@ -26,25 +30,10 @@ interface Listing {
 }
 
 export default function MarketPage(): React.ReactElement {
-  const { player } = usePlayer();
+  const { player, isLoading: isPlayerLoading, error: playerError, createPlayer } = usePlayer();
   const [listings, setListings] = useState<Listing[]>([]);
   const [loading, setLoading] = useState(true);
-  const [buyerId, setBuyerId] = useState('');
   const [message, setMessage] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (player && !buyerId) {
-      setBuyerId(player.id);
-    }
-    // `buyerId` bilinçli olarak bağımlılık dizisinde DEĞİL — bu yalnızca
-    // oyuncu ilk yüklendiğinde bir kerelik varsayılan atamadır, kullanıcının
-    // elle girdiği değeri sonradan EZMEMELİDİR. NOT: bu repo'nun kök
-    // `.eslintrc.cjs`'inde `eslint-plugin-react-hooks` KURULU DEĞİL (bkz.
-    // CI hatası — "Definition for rule 'react-hooks/exhaustive-deps' was
-    // not found"), bu yüzden burada bir `eslint-disable` yorumu YAZILMAZ:
-    // tanımsız bir kural için disable-yorumu ESLint'in kendisinde varsayılan
-    // olarak bir HATA sayılıyor (uyarı değil) — tam olarak bu CI'ı kırdı.
-  }, [player]);
 
   const fetchMarketListings = async () => {
     try {
@@ -64,15 +53,15 @@ export default function MarketPage(): React.ReactElement {
   }, []);
 
   const handleBuy = async (listingId: string) => {
-    if (!buyerId.trim()) {
-      setMessage('Lütfen satın almak için bir Oyuncu ID girin.');
+    if (!player) {
+      setMessage('Satın almak için önce bir seyis/jokey hesabı oluşturmalısın.');
       return;
     }
 
     try {
       setMessage('Satın alınıyor...');
       const idempotencyKey = crypto.randomUUID();
-      await apiClient.buyMarketListing(listingId, buyerId.trim(), idempotencyKey);
+      await apiClient.buyMarketListing(listingId, idempotencyKey);
       setMessage('Satın alma başarılı!');
       await fetchMarketListings();
     } catch (err: unknown) {
@@ -85,19 +74,17 @@ export default function MarketPage(): React.ReactElement {
     <main className="page-container">
       <h1 style={{ fontSize: '24px', color: 'var(--color-text-primary)', marginBottom: 'var(--space-lg)' }}>At Pazarı</h1>
 
-      <GlassPanel style={{ marginBottom: 'var(--space-lg)' }}>
-        <label htmlFor="buyer-id-input" style={{ display: 'block', marginBottom: '8px', fontSize: '12px', color: 'var(--color-text-secondary)' }}>
-          Alıcı Oyuncu ID
-        </label>
-        <input
-          id="buyer-id-input"
-          type="text"
-          value={buyerId}
-          onChange={(e) => setBuyerId(e.target.value)}
-          placeholder="Oyuncu UUID girin"
-          style={inputStyle()}
-        />
-      </GlassPanel>
+      {!player && !isPlayerLoading ? (
+        <GlassPanel style={{ marginBottom: 'var(--space-lg)', textAlign: 'center', padding: 'var(--space-xl)' }}>
+          <p style={{ color: 'var(--color-text-secondary)', marginTop: 0 }}>
+            İlanları satın alabilmek için önce bir seyis/jokey hesabı oluştur.
+          </p>
+          <button type="button" onClick={() => void createPlayer()} style={buyButtonStyle()}>
+            Başlangıç Paketiyle Oyuncu Oluştur
+          </button>
+          {playerError ? <p style={{ color: 'var(--color-status-critical)', marginBottom: 0 }}>{playerError}</p> : null}
+        </GlassPanel>
+      ) : null}
 
       {message && (
         <div
@@ -142,18 +129,6 @@ export default function MarketPage(): React.ReactElement {
   );
 }
 
-function inputStyle(): React.CSSProperties {
-  return {
-    width: '100%',
-    padding: '10px 12px',
-    boxSizing: 'border-box',
-    background: 'var(--color-bg-surface-elevated)',
-    border: '1px solid var(--color-border)',
-    borderRadius: 'var(--radius-sm)',
-    color: 'var(--color-text-primary)',
-    fontSize: '14px',
-  };
-}
 
 function buyButtonStyle(): React.CSSProperties {
   return {

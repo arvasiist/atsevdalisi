@@ -1,4 +1,5 @@
 import type {
+  AuthSession,
   PlayerSummary,
   PublicHorse,
   RecentRaceResultView,
@@ -17,9 +18,30 @@ interface ApiResponse<T> {
   };
 }
 
+/**
+ * AUDIT_REPORT.md Bulgu S1-S4 hardening sonrası eklendi (bkz. `player.ts`
+ * `AuthSession` doc yorumu) — backend artık `@Public()` işaretli olmayan
+ * HER rotada geçerli bir `Authorization: Bearer <token>` header'ı bekliyor
+ * (`apps/api/src/api/auth/auth.guard.ts`, global `AuthGuard`). Token,
+ * yalnızca bu modülün içinde bellekte tutulur (React state/render
+ * döngüsüne KARIŞTIRILMAZ — `player-context.tsx` kalıcılığı
+ * `localStorage`'da sağlar ve sayfa yüklendiğinde `setAuthToken` ile
+ * burayı doldurur). Token yoksa header hiç eklenmez; `@Public()` rotalar
+ * (kayıt, market listeleme gibi) zaten bunsuz da çalışır, korumalı
+ * rotalar ise backend'den doğru şekilde 401 alır.
+ */
+let currentAuthToken: string | null = null;
+
+export function setAuthToken(token: string | null): void {
+  currentAuthToken = token;
+}
+
 async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
   const headers = new Headers(options.headers || {});
   headers.set('Content-Type', 'application/json');
+  if (currentAuthToken) {
+    headers.set('Authorization', `Bearer ${currentAuthToken}`);
+  }
 
   const config: RequestInit = {
     ...options,
@@ -42,8 +64,15 @@ export const apiClient = {
   // birebir eşleşen `@at-sevdalisi/shared-types`'tan gelir; sayfa/bileşen
   // seviyesinde elle kopyalanmış (ve gerçek şekilden sapabilen) arayüzler
   // KULLANILMAZ (Faz 1'in `mockProps:any` dersi burada da geçerli).
+  /**
+   * S1 hardening sonrası `POST /players` artık çıplak `PlayerSummary`
+   * değil, bir `AuthSession` (`{ token, player }`) döner (bkz.
+   * `player.controller.ts` doc yorumu) — çağıran (`player-context.tsx`)
+   * `token`'ı `setAuthToken` ile hemen etkinleştirmeli, aksi halde kayıt
+   * sonrası ilk korumalı istek (ör. `getHorsesByOwner`) 401 alır.
+   */
   registerPlayer: (username: string, displayName: string) =>
-    request<PlayerSummary>('/players', {
+    request<AuthSession>('/players', {
       method: 'POST',
       body: JSON.stringify({ username, displayName }),
     }),
@@ -83,10 +112,16 @@ export const apiClient = {
     return request<Array<{ id: string; horseId: string; price: number; status: string }>>(`/market/listings?${query}`);
   },
 
-  buyMarketListing: (listingId: string, buyerId: string, idempotencyKey: string) =>
+  /**
+   * S3 hardening sonrası `buyerId` artık İSTEK GÖVDESİNDE YOK — alıcı
+   * kimliği yalnızca `Authorization` header'ındaki oturumdan
+   * (`@CurrentPlayer()`) türetilir (bkz. `market.controller.ts`
+   * `buyListing` doc yorumu). Çağıranın önceden `setAuthToken` ile
+   * geçerli bir token ayarlamış olması ZORUNLUDUR, aksi halde 401.
+   */
+  buyMarketListing: (listingId: string, idempotencyKey: string) =>
     request<{ listing: { id: string; status: string } }>(`/market/listings/${listingId}/buy`, {
       method: 'POST',
       headers: { 'Idempotency-Key': idempotencyKey },
-      body: JSON.stringify({ buyerId }),
     }),
 };
