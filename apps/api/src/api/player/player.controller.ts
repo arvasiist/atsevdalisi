@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Inject, Param, ParseUUIDPipe, Post } from '@nestjs/common';
+import { Body, Controller, Get, Inject, Param, ParseUUIDPipe, Post } from '@nestjs/common';
 import type { ApiSuccess, AuthSession, PlayerSummary } from '@at-sevdalisi/shared-types';
 import { GetPlayerUseCase } from '../../application/use-cases/get-player.use-case';
 import { RegisterPlayerUseCase } from '../../application/use-cases/register-player.use-case';
