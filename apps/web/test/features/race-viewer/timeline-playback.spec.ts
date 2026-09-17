@@ -60,6 +60,72 @@ describe('interpolateHorseStateAtTime', () => {
   });
 });
 
+describe('interpolateHorseStateAtTime — kategorik/opsiyonel alanlar (animasyon durumu için)', () => {
+  const segments: RaceSegmentSnapshot[] = [
+    makeSegment({
+      raceEntryId: 'h1',
+      timestampMs: 1000,
+      positionMeters: 200,
+      speed: 15,
+      stamina: 80,
+      fatigue: 10,
+      lane: 2,
+      tacticalState: 'front_runner',
+      blocked: false,
+      decision: 'hold',
+    }),
+    makeSegment({
+      raceEntryId: 'h1',
+      timestampMs: 2000,
+      positionMeters: 400,
+      speed: 17,
+      stamina: 60,
+      fatigue: 30,
+      lane: 3,
+      tacticalState: 'closer',
+      blocked: true,
+      decision: 'push_for_finish',
+    }),
+  ];
+
+  it('ilk kontrol noktasından önce, ilk segmentin kategorik değerlerini kullanır (fraction uygulanmaz)', () => {
+    const state = interpolateHorseStateAtTime(segments, 'h1', 500);
+    expect(state.stamina).toBe(80);
+    expect(state.fatigue).toBe(10);
+    expect(state.lane).toBe(2);
+    expect(state.tacticalState).toBe('front_runner');
+    expect(state.blocked).toBe(false);
+    expect(state.decision).toBe('hold');
+  });
+
+  it('iki kontrol noktası arasında, stamina/fatigue lineer ara değerlenir, kategorik alanlar ÖNCEKİ segmentten alınır', () => {
+    const state = interpolateHorseStateAtTime(segments, 'h1', 1500);
+    expect(state.stamina).toBeCloseTo(70, 6);
+    expect(state.fatigue).toBeCloseTo(20, 6);
+    expect(state.lane).toBe(2);
+    expect(state.tacticalState).toBe('front_runner');
+    expect(state.blocked).toBe(false);
+    expect(state.decision).toBe('hold');
+  });
+
+  it('son kontrol noktasından sonra, son segmentin kategorik değerlerinde sabit kalır', () => {
+    const state = interpolateHorseStateAtTime(segments, 'h1', 5000);
+    expect(state.stamina).toBe(60);
+    expect(state.fatigue).toBe(30);
+    expect(state.lane).toBe(3);
+    expect(state.tacticalState).toBe('closer');
+    expect(state.blocked).toBe(true);
+    expect(state.decision).toBe('push_for_finish');
+  });
+
+  it('hiç segmenti olmayan at için kategorik alanlar tanımsızdır', () => {
+    const state = interpolateHorseStateAtTime(segments, 'unknown', 1500);
+    expect(state.stamina).toBeUndefined();
+    expect(state.lane).toBeUndefined();
+    expect(state.decision).toBeUndefined();
+  });
+});
+
 describe('getHorseIdsFromTimeline ve getRaceDurationMs', () => {
   const timeline: RaceTimeline = {
     raceId: 'race-1',

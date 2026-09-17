@@ -1,38 +1,33 @@
 'use client';
 
 import dynamic from 'next/dynamic';
+import demoRaceFixture from '../../../features/race-viewer/fixtures/demo-race-timeline.json';
+import type { RaceTimeline } from '@at-sevdalisi/shared-types';
 
-const RaceScene3D = dynamic(
-  () => import('../../../features/race-viewer/RaceScene3D').then((mod) => mod.RaceScene3D),
+const RaceViewer = dynamic(
+  () => import('../../../features/race-viewer/RaceViewer').then((mod) => mod.RaceViewer),
   { ssr: false, loading: () => <p style={{ color: '#fff', padding: '2rem' }}>3D Hipodrom yükleniyor...</p> },
 );
 
-export default function RaceDemoPage() {
-  const mockProps: any = {
-    trackGeometry: {
-      straightLengthMeters: 400,
-      turnRadiusMeters: 63.66,
-      lapLengthMeters: 1200,
-    },
-    cameraPose: {
-      position: { x: 0, y: 40, z: 100 },
-      lookAt: { x: 0, y: 0, z: 0 },
-    },
-    horses: [
-      {
-        horseId: 'h1',
-        x: 10,
-        z: 50,
-        headingRadians: 0,
-        coatColor: '#4a2c11',
-        silkPattern: 'stripes',
-      },
-    ],
+/**
+ * `/races/demo` — gerçek `RaceViewer` orkestratörünü, Race Engine'in
+ * ürettiği gerçek bir `RaceTimeline` sabit verisiyle (fixture) mount eder.
+ *
+ * Daha önce bu sayfa `mockProps: any` ile `RaceScene3D`'yi çıplak render
+ * ediyordu — bu hem `HorseVisual` arayüzüyle uyuşmayan sahte alanlar
+ * (`coatColor`/`silkPattern`) içeriyordu hem de `RaceViewer`'ın oynatma/HUD/
+ * skorbord/minimap mantığını tamamen atlıyordu. Bu, projede `RaceViewer`'ın
+ * hiçbir sayfada mount edilmediği anlamına geliyordu (bkz. Faz 1 planı).
+ */
+export default function RaceDemoPage(): React.ReactElement {
+  const { timeline, horseNamesById } = demoRaceFixture as unknown as {
+    timeline: RaceTimeline;
+    horseNamesById: Record<string, string>;
   };
 
   return (
     <main style={{ width: '100vw', height: 'calc(100vh - 65px)', background: '#0b1220', position: 'relative' }}>
-      <RaceScene3D {...mockProps} />
+      <RaceViewer timeline={timeline} horseNamesById={horseNamesById} />
     </main>
   );
 }

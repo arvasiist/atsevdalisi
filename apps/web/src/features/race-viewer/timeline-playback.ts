@@ -13,11 +13,40 @@
  * noktaları arasında saf bir ara değerleme sağlar; sonucu asla değiştirmez.
  */
 
-import type { RaceSegmentSnapshot, RaceTimeline } from '@at-sevdalisi/shared-types';
+import type { RaceJockeyDecision, RaceSegmentSnapshot, RaceTimeline } from '@at-sevdalisi/shared-types';
 
 export interface InterpolatedHorseState {
   positionMeters: number;
   speedMps: number;
+  /**
+   * Aşağıdaki alanlar OPSİYONELDİR ve `HorseVisual`/`RaceViewer`
+   * sözleşmesini genişletmez (bkz. `race-viewer/README.md` "Kapsam dışı" —
+   * `HorseMarker`'ın x/z/headingRadians/color/isLeader arayüzü sabit
+   * kalır). Bunlar İLERİDE (gerçek at/jokey modelleri geldiğinde) animasyon
+   * durumu seçimini (gait/duruş/tökezleme/sprint) beslemek için eklendi;
+   * bugün hiçbir tüketicisi yok. `stamina`/`fatigue` diğer sayısal alanlar
+   * gibi lineer ara değerlenir; `lane`/`tacticalState`/`blocked`/`decision`
+   * KATEGORİKTİR (ara değerlenemez) — bir sonraki kontrol noktasına kadar
+   * "yürürlükte olan" değeri döndürmek için en yakın ÖNCEKİ (veya ilk/son)
+   * segmentten alınır.
+   */
+  stamina?: number;
+  fatigue?: number;
+  lane?: number;
+  tacticalState?: string;
+  blocked?: boolean;
+  decision?: RaceJockeyDecision;
+}
+
+function categoricalFieldsOf(
+  segment: RaceSegmentSnapshot,
+): Pick<InterpolatedHorseState, 'lane' | 'tacticalState' | 'blocked' | 'decision'> {
+  return {
+    lane: segment.lane,
+    tacticalState: segment.tacticalState,
+    blocked: segment.blocked,
+    decision: segment.decision,
+  };
 }
 
 /**
@@ -42,7 +71,13 @@ export function interpolateHorseStateAtTime(
   const firstSegment = horseSegments[0]!;
   if (timestampMs <= firstSegment.timestampMs) {
     const fraction = firstSegment.timestampMs > 0 ? clampFraction(timestampMs / firstSegment.timestampMs) : 1;
-    return { positionMeters: firstSegment.positionMeters * fraction, speedMps: firstSegment.speed };
+    return {
+      positionMeters: firstSegment.positionMeters * fraction,
+      speedMps: firstSegment.speed,
+      stamina: firstSegment.stamina,
+      fatigue: firstSegment.fatigue,
+      ...categoricalFieldsOf(firstSegment),
+    };
   }
 
   for (let i = 1; i < horseSegments.length; i += 1) {
@@ -54,12 +89,21 @@ export function interpolateHorseStateAtTime(
       return {
         positionMeters: previous.positionMeters + (current.positionMeters - previous.positionMeters) * fraction,
         speedMps: previous.speed + (current.speed - previous.speed) * fraction,
+        stamina: previous.stamina + (current.stamina - previous.stamina) * fraction,
+        fatigue: previous.fatigue + (current.fatigue - previous.fatigue) * fraction,
+        ...categoricalFieldsOf(previous),
       };
     }
   }
 
   const lastSegment = horseSegments[horseSegments.length - 1]!;
-  return { positionMeters: lastSegment.positionMeters, speedMps: lastSegment.speed };
+  return {
+    positionMeters: lastSegment.positionMeters,
+    speedMps: lastSegment.speed,
+    stamina: lastSegment.stamina,
+    fatigue: lastSegment.fatigue,
+    ...categoricalFieldsOf(lastSegment),
+  };
 }
 
 function clampFraction(value: number): number {
