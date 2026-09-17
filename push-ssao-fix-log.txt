@@ -1,0 +1,21 @@
+=== Per 17.09.2026  4:56:09,74 === 
+=== Fetching ssao-fix bundle === 
+From phase1-ssao-fix.bundle
+ * [new branch]      main       -> incoming-ssao-fix
+=== Fetching origin (guncel durumu almak icin) === 
+From https://github.com/arvasiist/atsevdalisi
+ * branch            main       -> FETCH_HEAD
+=== Checking out main === 
+Already on 'main'
+Your branch is up to date with 'origin/main'.
+=== Fast-forward merge === 
+hint: Diverging branches can't be fast-forwarded, you need to either:
+hint:
+hint: 	git merge --no-ff
+hint:
+hint: or:
+hint:
+hint: 	git rebase
+hint:
+hint: Disable this message with "git config set advice.diverging false"
+fatal: Not possible to fast-forward, aborting.
