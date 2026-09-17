@@ -1,0 +1,38 @@
+=== Per 17.09.2026  3:33:05,38 === 
+--- ORIG_HEAD --- 
+commit bf6d400791daee9c8010c9824bb7909330d6f1c0
+Author: Claude <claude@anthropic.com>
+Date:   Thu Sep 17 02:42:13 2026 +0300
+
+    fix: kazara geri alınan E2/E3/H2 düzeltmeleri ve ana sayfa geri getirildi
+
+ apps/api/package.json                              |   4 +-
+ apps/api/src/api/horse/horse.module.ts             |  14 +-
+ .../src/api/idempotency/idempotency.interceptor.ts | 116 ++---------
+ apps/api/src/api/market/market.module.ts           |  24 +--
+ .../src/api/middleware/http-exception.filter.ts    |  23 +-
+ apps/api/src/api/race/race.module.ts               |  28 +--
+ apps/api/src/api/training/training.module.ts       |  24 +--
+ .../use-cases/cancel-market-listing.use-case.ts    |  18 +-
+ .../use-cases/run-practice-race.use-case.ts        | 102 ++-------
+ .../application/use-cases/train-horse.use-case.ts  |  42 ++--
+ apps/api/src/domain/horse/errors.ts                |  12 ++
+ .../market/postgres-market-listing.repository.ts   |  93 ++++-----
+ apps/api/test/api/market.e2e-spec.ts               | 128 ++----------
+ apps/web/src/app/layout.tsx                        |  12 +-
+ apps/web/src/app/page.tsx                          | 231 +++++++++++----------
+ apps/web/src/app/races/demo/page.tsx               |  53 +++--
+ docs/ROADMAP.md                                    |  32 +++
+ 17 files changed, 347 insertions(+), 609 deletions(-)
+ 
+--- REFLOG (son 10) --- 
+cc605e3 HEAD@{0}: commit: Create check-orig-head.bat
+4f93630 HEAD@{1}: commit: İZİN
+9b0c4e4 HEAD@{2}: reset: moving to incoming-merge
+bf6d400 HEAD@{3}: checkout: moving from main to main
+bf6d400 HEAD@{4}: commit: fix: kazara geri alınan E2/E3/H2 düzeltmeleri ve ana sayfa geri getirildi
+dbdd43a HEAD@{5}: commit: Show in Explorer/Finder
+9f2ce66 HEAD@{6}: commit: fix(web): remove accidental typescript text from demo page
+eabac29 HEAD@{7}: commit: fix(web): bypass strict mock types for race demo
+3d88418 HEAD@{8}: commit: fix(web): prune laneCount and laneIndex from mock race props
+a976a4a HEAD@{9}: commit: fix(web): match Vector3Like and remove invalid properties in demo page

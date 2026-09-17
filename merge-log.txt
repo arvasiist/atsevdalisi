@@ -33,3 +33,4 @@ fatal: Not possible to fast-forward, aborting.
 ff-only basarisiz oldu, reset --hard ile deneniyor 
 HEAD is now at 9b0c4e4 Merge origin/main into main: reconcile diverged backend/domain and web/frontend history
 === Pushing to origin/main === 
+^C

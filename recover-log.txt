@@ -1,0 +1,2 @@
+=== Per 17.09.2026  3:38:46,61 === 
+bf6d400 fix: kazara geri alınan E2/E3/H2 düzeltmeleri ve ana sayfa geri getirildi
