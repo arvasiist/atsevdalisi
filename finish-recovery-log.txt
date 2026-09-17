@@ -1,0 +1,16 @@
+=== Per 17.09.2026  3:41:34,23 === 
+--- Branch listesi --- 
+  incoming-merge         9b0c4e4 Merge origin/main into main: reconcile diverged backend/domain and web/frontend history
+* main                   ef61a6b recovered-e2-e3-h2-fix
+  recovered-e2-e3-h2-fix bf6d400 fix: kazara geri alınan E2/E3/H2 düzeltmeleri ve ana sayfa geri getirildi
+ 
+--- recovered-e2-e3-h2-fix branch'inin durumu --- 
+bf6d400 fix: kazara geri alınan E2/E3/H2 düzeltmeleri ve ana sayfa geri getirildi
+ 
+--- Push ediliyor --- 
+remote: 
+remote: Create a pull request for 'recovered-e2-e3-h2-fix' on GitHub by visiting:        
+remote:      https://github.com/arvasiist/atsevdalisi/pull/new/recovered-e2-e3-h2-fix        
+remote: 
+To https://github.com/arvasiist/atsevdalisi.git
+ * [new branch]      recovered-e2-e3-h2-fix -> recovered-e2-e3-h2-fix
