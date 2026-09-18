@@ -14,52 +14,112 @@ export const PG_POOL = Symbol('PG_POOL');
  * çağrısı havuzdan farklı bir bağlantı alabileceğinden `BEGIN`/`COMMIT`
  * ayrı bağlantılara gidebilir ve transaction hiçbir şeyi kapsamaz.
  */
-export async function withTransaction<T>(pool: Pool, fn: (client: PoolClient) => Promise<T>): Promise<T> {
-  const client = await pool.connect();
-  // CI #100 kırmızısının GERÇEK kök nedeni (bu oturum, izolasyon 3/3 sonrası
-  // bulundu) — `pool.on('error', ...)` (bkz. bu dosyanın altındaki
-  // `PG_POOL` factory yorumu) YALNIZCA havuzda BOŞTA bekleyen client'ların
-  // 'error' event'ini yutar (node-postgres README "Pool" — pool bunu
-  // SADECE idle client'lar için VEKALETEN dinler). `pool.connect()` ile
-  // ÇIKARILMIŞ (checked-out) bir client, kullanımda olduğu SÜRECE bu
-  // vekaletin KAPSAMI DIŞINDADIR — KENDİ 'error' dinleyicisi olmalıdır,
-  // yoksa Node'un EventEmitter kuralı (dinleyicisiz 'error' → fırlatılan
-  // exception) devreye girer ve backend bağlantıyı resetlediğinde (ör.
-  // n=50/100 GERÇEK eşzamanlı yük altında, n=10'da neredeyse hiç
-  // gözlenmeyen ama n arttıkça olasılığı artan bir ECONNRESET) TÜM
-  // worker thread'i çökertir — gözlemlenen "Error: read ECONNRESET" +
-  // ardından `afterAll`'daki `app.close()`'un (çöken client hiçbir zaman
-  // aşağıdaki `finally`'ye ulaşıp `release()` çağıramadığından `pool.end()`
-  // sonsuza dek bekler) 10000ms'de "Hook timed out" ile patlaması TAM
-  // OLARAK bu ikili belirtiyle örtüşür. Dinleyici eklemek, sorguyu
-  // BEKLEYEN promise'in (`client.query(...)`) yine de normal şekilde
-  // reddedilmesini ENGELLEMEZ — sadece EventEmitter'ın kendi başına
-  // sürecı çökertmesini önler; asıl hata aşağıdaki `catch`'e düzgünce
-  // düşer.
-  client.on('error', () => undefined);
-  try {
-    await client.query('BEGIN');
-    const result = await fn(client);
-    await client.query('COMMIT');
-    client.release();
-    return result;
-  } catch (error) {
-    try {
-      await client.query('ROLLBACK');
-    } catch {
-      // Bağlantı zaten kopmuşsa (ör. ECONNRESET) ROLLBACK'in KENDİSİ de
-      // başarısız olur — bu ikincil hata asıl hatayı MASKELEMEMELİDİR,
-      // bilerek yutulur (asıl hata aşağıda zaten fırlatılıyor).
-    }
-    // Bozuk olabilecek bir client'ı `release()`'e hata VERMEDEN
-    // çağırmak, onu havuzun BOŞTA bekleyen dizisine GERİ KOYAR — bir
-    // SONRAKİ tamamen alakasız isteğin ÖLÜ bir bağlantı almasına ve AYNI
-    // ECONNRESET'i zincirleme tetiklemesine yol açabilir (node-postgres
-    // README "Client#release" — `release(err)` çağrısı havuza bu
-    // client'ı ATMASINI, yeniden KULLANMAMASINI söyler).
-    client.release(error instanceof Error ? error : new Error(String(error)));
-    throw error;
+/**
+ * CI #101 kırmızısı (bu oturum, checked-out client 'error' dinleyicisi
+ * eklendikten SONRA) — o düzeltme süreç çökmesini gerçekten ÖNLEDİ (artık
+ * 508 testin TAMAMI çalışıp düzgün bir özetle bitiyor, önceki gibi
+ * yarıda KESİLMİYOR) ama ALTTAKİ "read ECONNRESET" GERÇEK bir bağlantı
+ * kopması olduğundan hâlâ o TEK isteği başarısız kılıyor. Dikkat çekici
+ * yeni veri: `economy.e2e-spec.ts`'in n=10'u BİLE etkilendi (`stable`'ın
+ * İZOLE n=10'u CI #99'da tertemiz geçmişti) — yani bu, "yalnızca ÇOK
+ * BÜYÜK n'de olur" DEĞİL, GitHub Actions'ın paylaşımlı/kısıtlı runner'ında
+ * (Postgres servis konteynerine `localhost` üzerinden bağlanan) HERHANGİ
+ * bir gerçek eşzamanlı bağlantı patlamasında ARA SIRA (ama tekrarlanabilir
+ * şekilde) oluşabilen GEÇİCİ bir ağ olayı. Üretim ortamında da (bulut
+ * sağlayıcılar arası bağlantılar, kısa kesintiler) AYNI sınıf hata
+ * gerçekleşebilir — bu yüzden doğru çözüm "neden hiç olmasın" değil,
+ * "geçici bir bağlantı hatasında GÜVENLE yeniden dene"dir: `fn` (SELECT
+ * FOR UPDATE + saf hesaplama + yazma) hiçbir şeyi COMMIT'ten ÖNCE kalıcı
+ * hale getirmez, bu yüzden TÜM transaction'ı yepyeni bir bağlantıyla
+ * baştan denemek güvenlidir (yarım kalan bir yazma RİSKİ YOKTUR).
+ */
+const TRANSIENT_CONNECTION_ERROR_CODES = new Set([
+  'ECONNRESET',
+  'ECONNREFUSED',
+  'EPIPE',
+  'ETIMEDOUT',
+  '57P01', // admin_shutdown
+  '57P02', // crash_shutdown
+  '57P03', // cannot_connect_now
+  '08000', // connection_exception
+  '08003', // connection_does_not_exist
+  '08006', // connection_failure
+]);
+
+function isTransientConnectionError(error: unknown): boolean {
+  if (!(error instanceof Error)) {
+    return false;
   }
+  const code = (error as NodeJS.ErrnoException).code;
+  if (code && TRANSIENT_CONNECTION_ERROR_CODES.has(code)) {
+    return true;
+  }
+  return /connection terminated|terminating connection|read ECONNRESET|write ECONNRESET/i.test(error.message);
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+const MAX_TRANSACTION_ATTEMPTS = 3;
+
+export async function withTransaction<T>(pool: Pool, fn: (client: PoolClient) => Promise<T>): Promise<T> {
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= MAX_TRANSACTION_ATTEMPTS; attempt++) {
+    const client = await pool.connect();
+    // CI #100 kırmızısının GERÇEK kök nedeni (bu oturum, izolasyon 3/3
+    // sonrası bulundu) — `pool.on('error', ...)` (bkz. bu dosyanın
+    // altındaki `PG_POOL` factory yorumu) YALNIZCA havuzda BOŞTA bekleyen
+    // client'ların 'error' event'ini yutar (node-postgres README "Pool" —
+    // pool bunu SADECE idle client'lar için VEKALETEN dinler).
+    // `pool.connect()` ile ÇIKARILMIŞ (checked-out) bir client, kullanımda
+    // olduğu SÜRECE bu vekaletin KAPSAMI DIŞINDADIR — KENDİ 'error'
+    // dinleyicisi olmalıdır, yoksa Node'un EventEmitter kuralı
+    // (dinleyicisiz 'error' → fırlatılan exception) devreye girer ve
+    // backend bağlantıyı resetlediğinde TÜM worker thread'i çökertir.
+    // Dinleyici eklemek, sorguyu BEKLEYEN promise'in (`client.query(...)`)
+    // yine de normal şekilde reddedilmesini ENGELLEMEZ — sadece
+    // EventEmitter'ın kendi başına süreci çökertmesini önler; asıl hata
+    // aşağıdaki `catch`'e düzgünce düşer.
+    client.on('error', () => undefined);
+    try {
+      await client.query('BEGIN');
+      const result = await fn(client);
+      await client.query('COMMIT');
+      client.release();
+      return result;
+    } catch (error) {
+      try {
+        await client.query('ROLLBACK');
+      } catch {
+        // Bağlantı zaten kopmuşsa (ör. ECONNRESET) ROLLBACK'in KENDİSİ de
+        // başarısız olur — bu ikincil hata asıl hatayı MASKELEMEMELİDİR,
+        // bilerek yutulur (asıl hata aşağıda zaten fırlatılıyor/denenıyor).
+      }
+      // Bozuk olabilecek bir client'ı `release()`'e hata VERMEDEN
+      // çağırmak, onu havuzun BOŞTA bekleyen dizisine GERİ KOYAR — bir
+      // SONRAKİ tamamen alakasız isteğin ÖLÜ bir bağlantı almasına ve AYNI
+      // ECONNRESET'i zincirleme tetiklemesine yol açabilir (node-postgres
+      // README "Client#release" — `release(err)` çağrısı havuza bu
+      // client'ı ATMASINI, yeniden KULLANMAMASINI söyler).
+      client.release(error instanceof Error ? error : new Error(String(error)));
+
+      if (isTransientConnectionError(error) && attempt < MAX_TRANSACTION_ATTEMPTS) {
+        lastError = error;
+        // Sabit küçük bir bekleme (havuzun yeni/temiz bir bağlantı
+        // hazırlaması ve anlık ağ dalgalanmasının geçmesi için) — n=50/100
+        // testlerinin AÇIK timeout'ları (15-60s) bu birkaç x10ms'lik
+        // bekleme(ler)i rahatlıkla karşılar.
+        await delay(25 * attempt);
+        continue;
+      }
+      throw error;
+    }
+  }
+  // Buraya asla ulaşılmaz (döngü ya `return` eder ya `throw` eder) —
+  // TypeScript'in "not all code paths return a value" uyarısını
+  // susturmak için, son denemenin hatasını fırlatır.
+  throw lastError;
 }
 
 /**
@@ -108,6 +168,19 @@ class PgPoolLifecycle implements OnModuleDestroy {
       useFactory: (config: AppConfigService) => {
         const pool = new Pool({
           connectionString: config.env.databaseUrl,
+          // AUDIT_AND_HARDENING (bu oturum, `withTransaction` retry
+          // düzeltmesiyle BİRLİKTE) — node-postgres'in varsayılanı
+          // `max: 10`'dur. n=50/100 GERÇEK eşzamanlı testlerde 10
+          // bağlantı, aynı satırın `FOR UPDATE` kilidini bekleyen
+          // istekler tarafından hızla DOLDURULUP geri kalan onlarca
+          // isteği havuzun KENDİ kuyruğunda beklemeye zorluyordu — bu
+          // TEK BAŞINA bir hataya yol açmaz, ama kuyruktaki bekleme
+          // süresini/gerçek eşzamanlı bağlantı sayısını gereksiz yere
+          // artırarak GEÇİCİ ağ hatalarına (bkz. `withTransaction`
+          // yorumu) maruz kalma PENCERESİNİ büyütür. 20, CI'daki
+          // `postgres:16-alpine`'ın varsayılan `max_connections`
+          // (100) sınırının hâlâ ÇOK altında.
+          max: 20,
         });
         // CI #95 kırmızı (bu oturum, devam eden araştırma) — `pg.Pool` bir
         // EventEmitter'dır ve havuzdaki BOŞTA bekleyen (idle) bir client'ın
