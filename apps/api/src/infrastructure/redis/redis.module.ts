@@ -30,7 +30,15 @@ class RedisClientLifecycle implements OnModuleDestroy {
     {
       provide: REDIS_CLIENT,
       inject: [AppConfigService],
-      useFactory: (config: AppConfigService) => new Redis(config.env.redisUrl),
+      useFactory: (config: AppConfigService) => {
+        const redis = new Redis(config.env.redisUrl);
+        // CI #95 kırmızı (bu oturum) — bkz. `database.module.ts`'teki
+        // `pool.on('error', ...)` doc yorumu, AYNI Node EventEmitter
+        // kuralı `ioredis` client'ı için de geçerlidir: dinleyicisiz bir
+        // 'error' event'i tüm süreci çökertir.
+        redis.on('error', () => undefined);
+        return redis;
+      },
     },
     RedisClientLifecycle,
   ],

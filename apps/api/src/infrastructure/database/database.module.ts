@@ -72,10 +72,27 @@ class PgPoolLifecycle implements OnModuleDestroy {
     {
       provide: PG_POOL,
       inject: [AppConfigService],
-      useFactory: (config: AppConfigService) =>
-        new Pool({
+      useFactory: (config: AppConfigService) => {
+        const pool = new Pool({
           connectionString: config.env.databaseUrl,
-        }),
+        });
+        // CI #95 kırmızı (bu oturum, devam eden araştırma) — `pg.Pool` bir
+        // EventEmitter'dır ve havuzdaki BOŞTA bekleyen (idle) bir client'ın
+        // bağlantısı backend tarafından KOPARSA (örn. yoğun n=50/100
+        // eşzamanlı yük altında Postgres'in bir bağlantıyı sonlandırması)
+        // `'error'` event'i yayınlar. Node'un KENDİ kuralı: bir
+        // EventEmitter'ın 'error' için HİÇBİR dinleyicisi yoksa, bu event
+        // fırlatılan bir exception'a dönüşür ve TÜM SÜRECİ (dolayısıyla
+        // tüm Vitest çalışmasını, henüz çalışmamış test dosyaları dahil)
+        // ÇÖKERTİR — bu da gözlemlenen "Test adımı hızlı ve istikrarlı
+        // şekilde exit code 1" belirtisiyle örtüşen, iyi belgelenmiş bir
+        // node-postgres tuzağıdır (bkz. node-postgres README "Pool" başlığı
+        // altındaki resmi uyarı). Dinleyici eklemek bu event'i sessizce
+        // yutar (havuz zaten arka planda o client'ı düşürüp gerektiğinde
+        // yenisini açar) — sürecin çökmesini ÖNLER.
+        pool.on('error', () => undefined);
+        return pool;
+      },
     },
     PgPoolLifecycle,
   ],
