@@ -35,6 +35,72 @@ export function uniqueUsername(prefix = 'test'): string {
   return `${prefix}_${randomUUID().replace(/-/g, '')}`.slice(0, 20);
 }
 
+/**
+ * CI #100-#103 kırmızı araştırması (bu oturum) — n=10/50/100 GERÇEKTEN
+ * eşzamanlı istek gönderen testlerde (`stable`/`economy`/`race`.e2e-spec.ts)
+ * tekrarlanan "Error: read ECONNRESET" hatası. Sırasıyla denenip GERÇEK
+ * kök neden OLMADIĞI doğrulanan teoriler: (1) `pg.Pool`'un checked-out
+ * client'ında eksik 'error' dinleyicisi (düzeltildi, gerçek bir sorundu
+ * ama SÜRECİN ÇÖKMESİNİ önledi — bu hatayı DEĞİL), (2) Postgres
+ * bağlantısında geçici hata (retry eklendi, YİNE aynı hata devam etti).
+ * (2)'nin YARARSIZ kalması, hatanın Postgres katmanına HİÇ ULAŞMADIĞINI
+ * kanıtlıyor: `HttpExceptionFilter`'ın catch-all dalı (`console.error
+ * ('Beklenmeyen hata:', ...)`, bkz. o dosya) sunucu İÇİNDE oluşan HİÇBİR
+ * beklenmeyen hatayı KAÇIRMAZ — CI loglarında bu satır HİÇ görünmedi. Yani
+ * "read ECONNRESET" sunucunun bir isteği İŞLERKEN attığı bir hata DEĞİL,
+ * supertest'in (test istemcisinin) sunucuya GERÇEK bir TCP bağlantısı
+ * kurup yanıtı OKURKEN karşılaştığı, GitHub Actions'ın paylaşımlı/kısıtlı
+ * runner'ında n=10 gibi KÜÇÜK ölçeklerde bile ARA SIRA (ama tekrarlanabilir
+ * şekilde) oluşan GEÇİCİ bir ağ/bağlantı olayı — `withTransaction`'daki
+ * AYNI mantık (COMMIT'ten önce hiçbir şey kalıcı olmadığından TÜM
+ * transaction'ı yeniden denemek güvenlidir) burada da geçerli: supertest'in
+ * KENDİSİ bir yanıt ALAMADIĞINDAN (bağlantı koptuğundan), sunucunun o
+ * isteği gerçekten işleyip işlemediği BELİRSİZDİR — ama her üç uç nokta da
+ * (stable-upgrade + Idempotency-Key, practice-race + Idempotency-Key,
+ * daily-reward + kendi cooldown kilidi) bu belirsizliğe karşı zaten
+ * KORUMALIDIR (aynı isteğin GÜVENLE tekrarlanmasına izin verir) — bu
+ * yüzden isteğin KENDİSİNİ (yeni bir TCP bağlantısıyla) yeniden denemek
+ * güvenlidir.
+ */
+async function sendWithRetry<T>(factory: () => PromiseLike<T>, maxAttempts = 4): Promise<T> {
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      return await factory();
+    } catch (error) {
+      const isTransientNetworkError =
+        error instanceof Error && /ECONNRESET|ECONNREFUSED|EPIPE|socket hang up/i.test(error.message);
+      if (isTransientNetworkError && attempt < maxAttempts) {
+        lastError = error;
+        await new Promise((resolve) => setTimeout(resolve, 20 * attempt));
+        continue;
+      }
+      throw error;
+    }
+  }
+  throw lastError;
+}
+
+/**
+ * `n` adet isteği GERÇEKTEN eşzamanlı olarak gönderir (`Promise.all` —
+ * hepsi AYNI anda tetiklenir), ama her birini `sendWithRetry` ile sarar.
+ * `factory(index)` HER ÇAĞRIDA (hem ilk deneme hem olası tekrar
+ * denemelerde) yepyeni bir supertest `Test` nesnesi ÜRETMELİDİR (ör.
+ * `(index) => request(app.getHttpServer()).post(...).set(...)`) —
+ * tamamlanmış bir `Test` nesnesi yeniden gönderilemez. `index` PARAMETRESİ
+ * BİLEREK verilir: bir Idempotency-Key kullanan çağıranlar, o anahtarı
+ * `factory` İÇİNDE HER SEFERİNDE YENİDEN ÜRETMEK (`randomUUID()`) YERİNE
+ * `index`'e göre ÖNCEDEN ÜRETİLMİŞ sabit bir diziden okumalıdır — aksi
+ * halde bir "slot" tekrar denendiğinde YENİ bir anahtar kullanılır, ki bu
+ * da (bağlantı koptuğunda sunucunun isteği aslında İŞLEMİŞ olma
+ * ihtimaline karşı) AYNI mantıksal denemenin İKİ FARKLI anahtarla iki kez
+ * sayılmasına (ör. stable/race testlerindeki "TAM OLARAK N" sayım
+ * doğrulamalarının BOZULMASINA) yol açabilir.
+ */
+export function sendConcurrentRequests<T>(count: number, factory: (index: number) => PromiseLike<T>): Promise<T[]> {
+  return Promise.all(Array.from({ length: count }, (_, index) => sendWithRetry(() => factory(index))));
+}
+
 export interface RegisteredTestPlayer {
   playerId: string;
   token: string;

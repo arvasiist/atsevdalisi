@@ -4,7 +4,7 @@ import type { Pool } from 'pg';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { PG_POOL } from '../../src/infrastructure/database/database.module';
-import { bootstrapTestApp, registerTestPlayer } from './test-helpers';
+import { bootstrapTestApp, registerTestPlayer, sendConcurrentRequests } from './test-helpers';
 
 /**
  * FAZ 1 wiring — Üçüncü dilim: `GET /players/:id/stable-summary` (brief
@@ -284,13 +284,17 @@ describe('Stable summary (e2e)', () => {
         // hepsi "yeterli bakiye" sanıp N kez 200 dönebilirdi).
         await pool.query('UPDATE players SET money = 8000 WHERE id = $1', [playerId]);
 
-        const responses = await Promise.all(
-          Array.from({ length: 10 }, () =>
-            request(app.getHttpServer())
-              .post(`/api/v1/players/${playerId}/stable/upgrade`)
-              .set('Authorization', authHeader)
-              .set('Idempotency-Key', randomUUID()),
-          ),
+        // Her "slot" için anahtar ÖNCEDEN (tek seferde) üretilir — bkz.
+        // `sendConcurrentRequests` doc yorumu: `factory` bir bağlantı
+        // kopması sonucu yeniden denendiğinde AYNI anahtarı kullanmalı,
+        // yoksa aynı mantıksal deneme yanlışlıkla iki farklı anahtarla
+        // iki kez sayılabilir.
+        const idempotencyKeys = Array.from({ length: 10 }, () => randomUUID());
+        const responses = await sendConcurrentRequests(10, (index) =>
+          request(app.getHttpServer())
+            .post(`/api/v1/players/${playerId}/stable/upgrade`)
+            .set('Authorization', authHeader)
+            .set('Idempotency-Key', idempotencyKeys[index]!),
         );
 
         const successes = responses.filter((response) => response.status === 200);
@@ -316,13 +320,12 @@ describe('Stable summary (e2e)', () => {
         const startingMoney = totalUpgradeCost + 1_000_000;
         await pool.query('UPDATE players SET money = $2 WHERE id = $1', [playerId, startingMoney]);
 
-        const responses = await Promise.all(
-          Array.from({ length: 50 }, () =>
-            request(app.getHttpServer())
-              .post(`/api/v1/players/${playerId}/stable/upgrade`)
-              .set('Authorization', authHeader)
-              .set('Idempotency-Key', randomUUID()),
-          ),
+        const idempotencyKeys = Array.from({ length: 50 }, () => randomUUID());
+        const responses = await sendConcurrentRequests(50, (index) =>
+          request(app.getHttpServer())
+            .post(`/api/v1/players/${playerId}/stable/upgrade`)
+            .set('Authorization', authHeader)
+            .set('Idempotency-Key', idempotencyKeys[index]!),
         );
 
         const successes = responses.filter((response) => response.status === 200);
@@ -359,13 +362,12 @@ describe('Stable summary (e2e)', () => {
         const startingMoney = totalUpgradeCost + 1_000_000;
         await pool.query('UPDATE players SET money = $2 WHERE id = $1', [playerId, startingMoney]);
 
-        const responses = await Promise.all(
-          Array.from({ length: 100 }, () =>
-            request(app.getHttpServer())
-              .post(`/api/v1/players/${playerId}/stable/upgrade`)
-              .set('Authorization', authHeader)
-              .set('Idempotency-Key', randomUUID()),
-          ),
+        const idempotencyKeys = Array.from({ length: 100 }, () => randomUUID());
+        const responses = await sendConcurrentRequests(100, (index) =>
+          request(app.getHttpServer())
+            .post(`/api/v1/players/${playerId}/stable/upgrade`)
+            .set('Authorization', authHeader)
+            .set('Idempotency-Key', idempotencyKeys[index]!),
         );
 
         const successes = responses.filter((response) => response.status === 200);

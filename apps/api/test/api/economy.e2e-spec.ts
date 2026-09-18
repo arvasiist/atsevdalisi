@@ -4,7 +4,7 @@ import type { Pool } from 'pg';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { PG_POOL } from '../../src/infrastructure/database/database.module';
-import { bootstrapTestApp, registerTestPlayer } from './test-helpers';
+import { bootstrapTestApp, registerTestPlayer, sendConcurrentRequests } from './test-helpers';
 
 /**
  * FAZ 1 wiring — Yedinci dilim: `POST /players/:id/daily-reward` (brief
@@ -177,10 +177,8 @@ describe('Economy — Daily Reward (e2e)', () => {
     it('n=10 GERÇEKTEN eşzamanlı günlük ödül talebinden SADECE BİRİ başarılı olur, ödül YALNIZCA BİR KEZ verilir', async () => {
       const { id, startingMoney, authHeader } = await registerPlayer();
 
-      const responses = await Promise.all(
-        Array.from({ length: 10 }, () =>
-          request(app.getHttpServer()).post(`/api/v1/players/${id}/daily-reward`).set('Authorization', authHeader),
-        ),
+      const responses = await sendConcurrentRequests(10, () =>
+        request(app.getHttpServer()).post(`/api/v1/players/${id}/daily-reward`).set('Authorization', authHeader),
       );
 
       const successes = responses.filter((response) => response.status === 200);
@@ -214,10 +212,8 @@ describe('Economy — Daily Reward (e2e)', () => {
     it('n=50 GERÇEKTEN eşzamanlı günlük ödül talebinden SADECE BİRİ başarılı olur', async () => {
       const { id, startingMoney, authHeader } = await registerPlayer();
 
-      const responses = await Promise.all(
-        Array.from({ length: 50 }, () =>
-          request(app.getHttpServer()).post(`/api/v1/players/${id}/daily-reward`).set('Authorization', authHeader),
-        ),
+      const responses = await sendConcurrentRequests(50, () =>
+        request(app.getHttpServer()).post(`/api/v1/players/${id}/daily-reward`).set('Authorization', authHeader),
       );
 
       const successes = responses.filter((response) => response.status === 200);
@@ -236,10 +232,8 @@ describe('Economy — Daily Reward (e2e)', () => {
     it('n=100 GERÇEKTEN eşzamanlı günlük ödül talebinden SADECE BİRİ başarılı olur, bakiye TAM OLARAK bir kez artar (50 kat DEĞİL, 100 kat DEĞİL)', async () => {
       const { id, startingMoney, authHeader } = await registerPlayer();
 
-      const responses = await Promise.all(
-        Array.from({ length: 100 }, () =>
-          request(app.getHttpServer()).post(`/api/v1/players/${id}/daily-reward`).set('Authorization', authHeader),
-        ),
+      const responses = await sendConcurrentRequests(100, () =>
+        request(app.getHttpServer()).post(`/api/v1/players/${id}/daily-reward`).set('Authorization', authHeader),
       );
 
       const successes = responses.filter((response) => response.status === 200);

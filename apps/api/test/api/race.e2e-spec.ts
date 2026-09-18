@@ -7,7 +7,12 @@ import type { EconomyConfig } from '@at-sevdalisi/game-config';
 import economyConfigJson from '../../../../config/economy.config.json';
 import { PG_POOL } from '../../src/infrastructure/database/database.module';
 import { getPracticeRaceEntryFee } from '../../src/domain/race/prize';
-import { bootstrapTestApp, registerTestPlayer, registerTestPlayerWithStarterHorse } from './test-helpers';
+import {
+  bootstrapTestApp,
+  registerTestPlayer,
+  registerTestPlayerWithStarterHorse,
+  sendConcurrentRequests,
+} from './test-helpers';
 
 const economyConfig = economyConfigJson as unknown as EconomyConfig;
 
@@ -311,14 +316,12 @@ describe('Race — Pratik Yarış (e2e)', () => {
       const { horseId, playerId, authHeader } = await registerTestPlayerWithStarterHorse(app, 'Yarışçı');
       const idempotencyKey = randomUUID();
 
-      const responses = await Promise.all(
-        Array.from({ length: n }, () =>
-          request(app.getHttpServer())
-            .post(`/api/v1/horses/${horseId}/practice-race`)
-            .set('Authorization', authHeader)
-            .set('Idempotency-Key', idempotencyKey)
-            .send({}),
-        ),
+      const responses = await sendConcurrentRequests(n, () =>
+        request(app.getHttpServer())
+          .post(`/api/v1/horses/${horseId}/practice-race`)
+          .set('Authorization', authHeader)
+          .set('Idempotency-Key', idempotencyKey)
+          .send({}),
       );
 
       const successes = responses.filter((response) => response.status === 200);
@@ -373,14 +376,13 @@ describe('Race — Pratik Yarış (e2e)', () => {
       // değişken) tamamen elemek için bol bir bakiyeyle başlanır.
       await pool.query('UPDATE players SET money = 500000 WHERE id = $1', [playerId]);
 
-      const responses = await Promise.all(
-        Array.from({ length: 50 }, () =>
-          request(app.getHttpServer())
-            .post(`/api/v1/horses/${horseId}/practice-race`)
-            .set('Authorization', authHeader)
-            .set('Idempotency-Key', randomUUID())
-            .send({}),
-        ),
+      const idempotencyKeys = Array.from({ length: 50 }, () => randomUUID());
+      const responses = await sendConcurrentRequests(50, (index) =>
+        request(app.getHttpServer())
+          .post(`/api/v1/horses/${horseId}/practice-race`)
+          .set('Authorization', authHeader)
+          .set('Idempotency-Key', idempotencyKeys[index]!)
+          .send({}),
       );
 
       for (const response of responses) {
@@ -413,14 +415,13 @@ describe('Race — Pratik Yarış (e2e)', () => {
       const { horseId, playerId, authHeader } = await registerTestPlayerWithStarterHorse(app, 'Yarışçı');
       await pool.query('UPDATE players SET money = 500000 WHERE id = $1', [playerId]);
 
-      const responses = await Promise.all(
-        Array.from({ length: 100 }, () =>
-          request(app.getHttpServer())
-            .post(`/api/v1/horses/${horseId}/practice-race`)
-            .set('Authorization', authHeader)
-            .set('Idempotency-Key', randomUUID())
-            .send({}),
-        ),
+      const idempotencyKeys = Array.from({ length: 100 }, () => randomUUID());
+      const responses = await sendConcurrentRequests(100, (index) =>
+        request(app.getHttpServer())
+          .post(`/api/v1/horses/${horseId}/practice-race`)
+          .set('Authorization', authHeader)
+          .set('Idempotency-Key', idempotencyKeys[index]!)
+          .send({}),
       );
 
       for (const response of responses) {
