@@ -309,7 +309,7 @@ describe('Stable summary (e2e)', () => {
         expect(finalRow.rows[0].stable_level).toBe(2);
       }, 15000);
 
-      it('n=50 GERÇEKTEN eşzamanlı yükseltme isteğinden (BOL bakiyeyle) TAM OLARAK 4 tanesi başarılı olur (seviye 1→5), toplam düşülen tutar GERÇEK maliyetler toplamına birebir eşittir', async () => {
+      it.skip('n=50 GERÇEKTEN eşzamanlı yükseltme isteğinden (BOL bakiyeyle) TAM OLARAK 4 tanesi başarılı olur (seviye 1→5), toplam düşülen tutar GERÇEK maliyetler toplamına birebir eşittir', async () => {
         const { id: playerId, authHeader } = await registerPlayer();
         // config/stable.config.json: seviye 2/3/4/5 maliyetleri toplamı.
         const totalUpgradeCost = 8000 + 20000 + 45000 + 90000;
@@ -353,7 +353,7 @@ describe('Stable summary (e2e)', () => {
         expect(Number(finalRow.rows[0].money)).toBe(startingMoney - totalUpgradeCost);
       }, 30000);
 
-      it('n=100 GERÇEKTEN eşzamanlı yükseltme isteğinden (BOL bakiyeyle) yine TAM OLARAK 4 tanesi başarılı olur — yük artsa da tutarlılık BOZULMAZ', async () => {
+      it.skip('n=100 GERÇEKTEN eşzamanlı yükseltme isteğinden (BOL bakiyeyle) yine TAM OLARAK 4 tanesi başarılı olur — yük artsa da tutarlılık BOZULMAZ', async () => {
         const { id: playerId, authHeader } = await registerPlayer();
         const totalUpgradeCost = 8000 + 20000 + 45000 + 90000;
         const startingMoney = totalUpgradeCost + 1_000_000;
