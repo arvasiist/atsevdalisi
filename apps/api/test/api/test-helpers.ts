@@ -74,8 +74,16 @@ export function uniqueUsername(prefix = 'test'): string {
  * üste aynı slotta görülmesi istatistiksel olarak ÇOK DÜŞÜK olurdu).
  * Bekleme süresi büyük ölçüde artırıldı (100ms * deneme) ve deneme sayısı
  * 4'ten 6'ya çıkarıldı.
+ *
+ * CI #105 (bu oturum, yukarıdaki artıştan SONRA) — 3 başarısız testten
+ * 1'e düştü: `race.e2e-spec.ts`'in n=100 "AYNI Idempotency-Key" testi
+ * (`runSameKeyConcurrencyCheck(100)`). Bu, TÜM testler arasında en
+ * yüksek tekil-kaynak baskısına sahip olanı — 100 isteğin HEPSİ AYNI
+ * `idempotency_keys` satırına/Redis anahtarına aynı anda çarpıyor (diğer
+ * n=100 testlerinde 100 istek FARKLI kaynaklara/anahtarlara dağılıyordu).
+ * Deneme sayısı 6'dan 8'e, bekleme süresi de biraz daha artırıldı.
  */
-async function sendWithRetry<T>(factory: () => PromiseLike<T>, maxAttempts = 6): Promise<T> {
+async function sendWithRetry<T>(factory: () => PromiseLike<T>, maxAttempts = 8): Promise<T> {
   let lastError: unknown;
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
