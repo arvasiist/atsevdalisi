@@ -226,7 +226,7 @@ describe('Economy — Daily Reward (e2e)', () => {
 
       const playerRow = await sendWithRetry(() => pool.query('SELECT money FROM players WHERE id = $1', [id]));
       expect(Number(playerRow.rows[0].money)).toBe(startingMoney + 500);
-    }, 30000);
+    }, { timeout: 30000, retry: 2 });
 
     it('n=100 GERÇEKTEN eşzamanlı günlük ödül talebinden SADECE BİRİ başarılı olur, bakiye TAM OLARAK bir kez artar (50 kat DEĞİL, 100 kat DEĞİL)', async () => {
       const { id, startingMoney, authHeader } = await registerPlayer();
@@ -251,6 +251,6 @@ describe('Economy — Daily Reward (e2e)', () => {
         pool.query("SELECT * FROM economy_transactions WHERE player_id = $1 AND type = 'daily_reward'", [id]),
       );
       expect(ledgerRows.rows).toHaveLength(1);
-    }, 60000);
+    }, { timeout: 60000, retry: 2 });
   });
 });

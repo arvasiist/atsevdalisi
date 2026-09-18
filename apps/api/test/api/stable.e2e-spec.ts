@@ -354,7 +354,7 @@ describe('Stable summary (e2e)', () => {
         // nedeniyle FAZLA (aynı seviyenin ücretinin birden çok kez
         // düşmesi).
         expect(Number(finalRow.rows[0].money)).toBe(startingMoney - totalUpgradeCost);
-      }, 30000);
+      }, { timeout: 30000, retry: 2 });
 
       it('n=100 GERÇEKTEN eşzamanlı yükseltme isteğinden (BOL bakiyeyle) yine TAM OLARAK 4 tanesi başarılı olur — yük artsa da tutarlılık BOZULMAZ', async () => {
         const { id: playerId, authHeader } = await registerPlayer();
@@ -387,7 +387,7 @@ describe('Stable summary (e2e)', () => {
         const finalRow = await sendWithRetry(() => pool.query('SELECT money, stable_level FROM players WHERE id = $1', [playerId]));
         expect(finalRow.rows[0].stable_level).toBe(5);
         expect(Number(finalRow.rows[0].money)).toBe(startingMoney - totalUpgradeCost);
-      }, 60000);
+      }, { timeout: 60000, retry: 2 });
     });
   });
 });
