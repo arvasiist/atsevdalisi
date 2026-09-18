@@ -12,6 +12,7 @@ import {
   registerTestPlayer,
   registerTestPlayerWithStarterHorse,
   sendConcurrentRequests,
+  sendWithRetry,
 } from './test-helpers';
 
 const economyConfig = economyConfigJson as unknown as EconomyConfig;
@@ -343,12 +344,16 @@ describe('Race — Pratik Yarış (e2e)', () => {
       const balances = new Set(successes.map((response) => response.body.data.newBalance.money as number));
       expect(balances.size).toBe(1);
 
-      const moneyRow = await pool.query('SELECT money FROM players WHERE id = $1', [playerId]);
+      // Eşzamanlı patlamadan HEMEN sonra yapılan bu doğrulama sorguları da
+      // (uygulama kodu DEĞİL, TESTİN KENDİ `pool.query()` çağrıları)
+      // aynı geçici ağ olayına maruz kalabilir — `sendConcurrentRequests`
+      // yalnızca YUKARIDAKİ HTTP isteklerini kapsar, bunları DEĞİL.
+      const moneyRow = await sendWithRetry(() => pool.query('SELECT money FROM players WHERE id = $1', [playerId]));
       expect(Number(moneyRow.rows[0].money)).toBe([...balances][0]);
 
-      const raceRows = await pool.query('SELECT COUNT(*)::int AS count FROM races WHERE id = $1', [
-        [...raceIds][0],
-      ]);
+      const raceRows = await sendWithRetry(() =>
+        pool.query('SELECT COUNT(*)::int AS count FROM races WHERE id = $1', [[...raceIds][0]]),
+      );
       expect(raceRows.rows[0].count).toBe(1);
     }
 

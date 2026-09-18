@@ -4,7 +4,7 @@ import type { Pool } from 'pg';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { PG_POOL } from '../../src/infrastructure/database/database.module';
-import { bootstrapTestApp, registerTestPlayer, sendConcurrentRequests } from './test-helpers';
+import { bootstrapTestApp, registerTestPlayer, sendConcurrentRequests, sendWithRetry } from './test-helpers';
 
 /**
  * FAZ 1 wiring — Yedinci dilim: `POST /players/:id/daily-reward` (brief
@@ -191,9 +191,9 @@ describe('Economy — Daily Reward (e2e)', () => {
       }
       expect(successes[0]!.body.data.newBalance.money).toBe(startingMoney + 500);
 
-      const playerRow = await pool.query('SELECT money, last_daily_reward_claimed_at FROM players WHERE id = $1', [
-        id,
-      ]);
+      const playerRow = await sendWithRetry(() =>
+        pool.query('SELECT money, last_daily_reward_claimed_at FROM players WHERE id = $1', [id]),
+      );
       expect(Number(playerRow.rows[0].money)).toBe(startingMoney + 500);
       expect(playerRow.rows[0].last_daily_reward_claimed_at).not.toBeNull();
 
@@ -201,9 +201,8 @@ describe('Economy — Daily Reward (e2e)', () => {
       // da TAM OLARAK bir satır olmalıdır (10 DEĞİL) — `economy.e2e-spec.ts`
       // üstündeki "AUDIT_AND_HARDENING Öncelik 2" ledger doğrulamasının
       // eşzamanlılık altındaki hali.
-      const ledgerRows = await pool.query(
-        "SELECT * FROM economy_transactions WHERE player_id = $1 AND type = 'daily_reward'",
-        [id],
+      const ledgerRows = await sendWithRetry(() =>
+        pool.query("SELECT * FROM economy_transactions WHERE player_id = $1 AND type = 'daily_reward'", [id]),
       );
       expect(ledgerRows.rows).toHaveLength(1);
       expect(Number(ledgerRows.rows[0].amount)).toBe(500);
@@ -225,7 +224,7 @@ describe('Economy — Daily Reward (e2e)', () => {
         expect(failure.body.error.code).toBe('DAILY_REWARD_ALREADY_CLAIMED');
       }
 
-      const playerRow = await pool.query('SELECT money FROM players WHERE id = $1', [id]);
+      const playerRow = await sendWithRetry(() => pool.query('SELECT money FROM players WHERE id = $1', [id]));
       expect(Number(playerRow.rows[0].money)).toBe(startingMoney + 500);
     }, 30000);
 
@@ -245,12 +244,11 @@ describe('Economy — Daily Reward (e2e)', () => {
         expect(failure.body.error.code).toBe('DAILY_REWARD_ALREADY_CLAIMED');
       }
 
-      const playerRow = await pool.query('SELECT money FROM players WHERE id = $1', [id]);
+      const playerRow = await sendWithRetry(() => pool.query('SELECT money FROM players WHERE id = $1', [id]));
       expect(Number(playerRow.rows[0].money)).toBe(startingMoney + 500);
 
-      const ledgerRows = await pool.query(
-        "SELECT * FROM economy_transactions WHERE player_id = $1 AND type = 'daily_reward'",
-        [id],
+      const ledgerRows = await sendWithRetry(() =>
+        pool.query("SELECT * FROM economy_transactions WHERE player_id = $1 AND type = 'daily_reward'", [id]),
       );
       expect(ledgerRows.rows).toHaveLength(1);
     }, 60000);

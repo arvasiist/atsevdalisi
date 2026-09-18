@@ -4,7 +4,7 @@ import type { Pool } from 'pg';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { PG_POOL } from '../../src/infrastructure/database/database.module';
-import { bootstrapTestApp, registerTestPlayer, sendConcurrentRequests } from './test-helpers';
+import { bootstrapTestApp, registerTestPlayer, sendConcurrentRequests, sendWithRetry } from './test-helpers';
 
 /**
  * FAZ 1 wiring — Üçüncü dilim: `GET /players/:id/stable-summary` (brief
@@ -308,7 +308,7 @@ describe('Stable summary (e2e)', () => {
         expect(successes[0]!.body.data.newStableLevel).toBe(2);
         expect(successes[0]!.body.data.newBalance.money).toBe(0);
 
-        const finalRow = await pool.query('SELECT money, stable_level FROM players WHERE id = $1', [playerId]);
+        const finalRow = await sendWithRetry(() => pool.query('SELECT money, stable_level FROM players WHERE id = $1', [playerId]));
         expect(Number(finalRow.rows[0].money)).toBe(0);
         expect(finalRow.rows[0].stable_level).toBe(2);
       }, 15000);
@@ -346,7 +346,7 @@ describe('Stable summary (e2e)', () => {
           .sort((a, b) => a - b);
         expect(reachedLevels).toEqual([2, 3, 4, 5]);
 
-        const finalRow = await pool.query('SELECT money, stable_level FROM players WHERE id = $1', [playerId]);
+        const finalRow = await sendWithRetry(() => pool.query('SELECT money, stable_level FROM players WHERE id = $1', [playerId]));
         expect(finalRow.rows[0].stable_level).toBe(5);
         // Kilit gerçekten çalışıyorsa toplam düşüş TAM OLARAK dört
         // maliyetin toplamıdır — ne "lost update" nedeniyle EKSİK (bir
@@ -384,7 +384,7 @@ describe('Stable summary (e2e)', () => {
           .sort((a, b) => a - b);
         expect(reachedLevels).toEqual([2, 3, 4, 5]);
 
-        const finalRow = await pool.query('SELECT money, stable_level FROM players WHERE id = $1', [playerId]);
+        const finalRow = await sendWithRetry(() => pool.query('SELECT money, stable_level FROM players WHERE id = $1', [playerId]));
         expect(finalRow.rows[0].stable_level).toBe(5);
         expect(Number(finalRow.rows[0].money)).toBe(startingMoney - totalUpgradeCost);
       }, 60000);

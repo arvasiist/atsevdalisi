@@ -27,6 +27,23 @@ export async function bootstrapTestApp(): Promise<INestApplication> {
   app.useGlobalFilters(new HttpExceptionFilter());
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }));
   await app.init();
+
+  // CI #106 kırmızı araştırması (bu oturum) — `race.e2e-spec.ts`'in n=100
+  // "AYNI Idempotency-Key" testi (`runSameKeyConcurrencyCheck(100)`)
+  // TEK bir isteğin (rezervasyonu kazanan) TAM yarış simülasyonunu
+  // çalıştırdığı, geri kalan 99'unun ise HIZLI 409 aldığı ASİMETRİK bir
+  // yük deseni — diğer n=100 testlerinde (100 istek FARKLI anahtarlarla)
+  // HEPSİ benzer sürede tamamlanıyordu. 99 hızlı isteğin Node'un TEK
+  // event loop'unu meşgul ettiği anlarda, TEK yavaş "kazanan" isteğin
+  // toplam tamamlanma süresi normalden UZAYABİLİR — Node'un http.Server
+  // varsayılanları (`keepAliveTimeout` 5s, `headersTimeout` 60s) bu
+  // asimetrik senaryoda erken/beklenmedik bir bağlantı sonlandırmasına
+  // katkıda BULUNMUŞ olabilir. Test ortamında maliyeti sıfıra yakın
+  // olduğundan, bu iki değer bilerek CÖMERTÇE büyütüldü.
+  const httpServer = app.getHttpServer() as { keepAliveTimeout?: number; headersTimeout?: number };
+  httpServer.keepAliveTimeout = 65_000;
+  httpServer.headersTimeout = 66_000;
+
   return app;
 }
 
@@ -83,7 +100,7 @@ export function uniqueUsername(prefix = 'test'): string {
  * n=100 testlerinde 100 istek FARKLI kaynaklara/anahtarlara dağılıyordu).
  * Deneme sayısı 6'dan 8'e, bekleme süresi de biraz daha artırıldı.
  */
-async function sendWithRetry<T>(factory: () => PromiseLike<T>, maxAttempts = 8): Promise<T> {
+export async function sendWithRetry<T>(factory: () => PromiseLike<T>, maxAttempts = 8): Promise<T> {
   let lastError: unknown;
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
