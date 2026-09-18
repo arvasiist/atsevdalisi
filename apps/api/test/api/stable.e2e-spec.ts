@@ -353,7 +353,7 @@ describe('Stable summary (e2e)', () => {
         expect(Number(finalRow.rows[0].money)).toBe(startingMoney - totalUpgradeCost);
       }, 30000);
 
-      it.skip('n=100 GERÇEKTEN eşzamanlı yükseltme isteğinden (BOL bakiyeyle) yine TAM OLARAK 4 tanesi başarılı olur — yük artsa da tutarlılık BOZULMAZ', async () => {
+      it('n=100 GERÇEKTEN eşzamanlı yükseltme isteğinden (BOL bakiyeyle) yine TAM OLARAK 4 tanesi başarılı olur — yük artsa da tutarlılık BOZULMAZ', async () => {
         const { id: playerId, authHeader } = await registerPlayer();
         const totalUpgradeCost = 8000 + 20000 + 45000 + 90000;
         const startingMoney = totalUpgradeCost + 1_000_000;

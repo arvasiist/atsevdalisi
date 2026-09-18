@@ -16,16 +16,49 @@ export const PG_POOL = Symbol('PG_POOL');
  */
 export async function withTransaction<T>(pool: Pool, fn: (client: PoolClient) => Promise<T>): Promise<T> {
   const client = await pool.connect();
+  // CI #100 kırmızısının GERÇEK kök nedeni (bu oturum, izolasyon 3/3 sonrası
+  // bulundu) — `pool.on('error', ...)` (bkz. bu dosyanın altındaki
+  // `PG_POOL` factory yorumu) YALNIZCA havuzda BOŞTA bekleyen client'ların
+  // 'error' event'ini yutar (node-postgres README "Pool" — pool bunu
+  // SADECE idle client'lar için VEKALETEN dinler). `pool.connect()` ile
+  // ÇIKARILMIŞ (checked-out) bir client, kullanımda olduğu SÜRECE bu
+  // vekaletin KAPSAMI DIŞINDADIR — KENDİ 'error' dinleyicisi olmalıdır,
+  // yoksa Node'un EventEmitter kuralı (dinleyicisiz 'error' → fırlatılan
+  // exception) devreye girer ve backend bağlantıyı resetlediğinde (ör.
+  // n=50/100 GERÇEK eşzamanlı yük altında, n=10'da neredeyse hiç
+  // gözlenmeyen ama n arttıkça olasılığı artan bir ECONNRESET) TÜM
+  // worker thread'i çökertir — gözlemlenen "Error: read ECONNRESET" +
+  // ardından `afterAll`'daki `app.close()`'un (çöken client hiçbir zaman
+  // aşağıdaki `finally`'ye ulaşıp `release()` çağıramadığından `pool.end()`
+  // sonsuza dek bekler) 10000ms'de "Hook timed out" ile patlaması TAM
+  // OLARAK bu ikili belirtiyle örtüşür. Dinleyici eklemek, sorguyu
+  // BEKLEYEN promise'in (`client.query(...)`) yine de normal şekilde
+  // reddedilmesini ENGELLEMEZ — sadece EventEmitter'ın kendi başına
+  // sürecı çökertmesini önler; asıl hata aşağıdaki `catch`'e düzgünce
+  // düşer.
+  client.on('error', () => undefined);
   try {
     await client.query('BEGIN');
     const result = await fn(client);
     await client.query('COMMIT');
+    client.release();
     return result;
   } catch (error) {
-    await client.query('ROLLBACK');
+    try {
+      await client.query('ROLLBACK');
+    } catch {
+      // Bağlantı zaten kopmuşsa (ör. ECONNRESET) ROLLBACK'in KENDİSİ de
+      // başarısız olur — bu ikincil hata asıl hatayı MASKELEMEMELİDİR,
+      // bilerek yutulur (asıl hata aşağıda zaten fırlatılıyor).
+    }
+    // Bozuk olabilecek bir client'ı `release()`'e hata VERMEDEN
+    // çağırmak, onu havuzun BOŞTA bekleyen dizisine GERİ KOYAR — bir
+    // SONRAKİ tamamen alakasız isteğin ÖLÜ bir bağlantı almasına ve AYNI
+    // ECONNRESET'i zincirleme tetiklemesine yol açabilir (node-postgres
+    // README "Client#release" — `release(err)` çağrısı havuza bu
+    // client'ı ATMASINI, yeniden KULLANMAMASINI söyler).
+    client.release(error instanceof Error ? error : new Error(String(error)));
     throw error;
-  } finally {
-    client.release();
   }
 }
 

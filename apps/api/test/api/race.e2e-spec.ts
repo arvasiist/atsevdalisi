@@ -305,7 +305,7 @@ describe('Race — Pratik Yarış (e2e)', () => {
   // "farklı anahtar" testleri (n=50/100) dedupe OLMADAN GERÇEKTEN o kadar
   // TAM yarış simülasyonu + segment satırı yazma tetikliyor — 60s'e kadar
   // çıkan timeout'lar bunun için.
-  describe.skip('TANI (bu commit sonrasi geri alinacak) — Eşzamanlılık (concurrency) — AUDIT_REPORT.md T1, Master Plan §42', () => {
+  describe('Eşzamanlılık (concurrency) — AUDIT_REPORT.md T1, Master Plan §42', () => {
     /** N istek + status/hata kodu doğrulaması — AYNI anahtar senaryosunun üç `n` değeri arasında paylaşılan yardımcı. */
     async function runSameKeyConcurrencyCheck(n: number): Promise<void> {
       const { horseId, playerId, authHeader } = await registerTestPlayerWithStarterHorse(app, 'Yarışçı');
