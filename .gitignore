@@ -58,3 +58,6 @@ recover-commit.bat
 recover-log.txt
 run-merge.bat
 merge-log.txt
+
+# Yerel push-bundle teslimat scratch alani (git bundle + .bat script'ler burada olusturulur, repo'nun parcasi degil)
+outputs/
