@@ -62,7 +62,20 @@ export function uniqueUsername(prefix = 'test'): string {
  * yüzden isteğin KENDİSİNİ (yeni bir TCP bağlantısıyla) yeniden denemek
  * güvenlidir.
  */
-async function sendWithRetry<T>(factory: () => PromiseLike<T>, maxAttempts = 4): Promise<T> {
+/**
+ * CI #104 (bu oturum, HTTP seviyesinde retry eklendikten SONRA) — 8
+ * başarısız testten 3'e düştü (hepsi SADECE n=100'de) — retry GERÇEKTEN
+ * işe yaradı ama n=100'de YETERSİZ kaldı. Muhtemel neden: eski
+ * `20ms * deneme` bekleme (20/40/60ms) çok KISAYDI — n=100'ün 100
+ * eşzamanlı YENİ TCP bağlantısının yarattığı GERÇEK yoğunluk anı
+ * muhtemelen bundan DAHA UZUN sürüyor, bu yüzden aynı "slot"un ardışık
+ * yeniden denemelerinin HEPSİ aynı yoğun pencereye denk gelip TÜKENIYOR
+ * olabilirdi (bağımsız, düşük olasılıklı bir ağ olayı olsaydı 4 kez üst
+ * üste aynı slotta görülmesi istatistiksel olarak ÇOK DÜŞÜK olurdu).
+ * Bekleme süresi büyük ölçüde artırıldı (100ms * deneme) ve deneme sayısı
+ * 4'ten 6'ya çıkarıldı.
+ */
+async function sendWithRetry<T>(factory: () => PromiseLike<T>, maxAttempts = 6): Promise<T> {
   let lastError: unknown;
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
@@ -72,7 +85,7 @@ async function sendWithRetry<T>(factory: () => PromiseLike<T>, maxAttempts = 4):
         error instanceof Error && /ECONNRESET|ECONNREFUSED|EPIPE|socket hang up/i.test(error.message);
       if (isTransientNetworkError && attempt < maxAttempts) {
         lastError = error;
-        await new Promise((resolve) => setTimeout(resolve, 20 * attempt));
+        await new Promise((resolve) => setTimeout(resolve, 100 * attempt));
         continue;
       }
       throw error;
