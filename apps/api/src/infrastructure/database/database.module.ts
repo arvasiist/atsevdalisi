@@ -66,7 +66,25 @@ const MAX_TRANSACTION_ATTEMPTS = 3;
 export async function withTransaction<T>(pool: Pool, fn: (client: PoolClient) => Promise<T>): Promise<T> {
   let lastError: unknown;
   for (let attempt = 1; attempt <= MAX_TRANSACTION_ATTEMPTS; attempt++) {
-    const client = await pool.connect();
+    let client: PoolClient;
+    try {
+      // CI #102 kırmızısı (bu oturum, retry eklendikten SONRA da devam
+      // etti) — bu satır ÖNCEKİ sürümde `try` bloğunun DIŞINDAYDI: eğer
+      // `pool.connect()`'in KENDİSİ (henüz bir client bile elde
+      // edilmeden, yeni bir fiziksel bağlantı KURULURKEN) geçici bir ağ
+      // hatasıyla reddederse, bu retry döngüsünün TAMAMINI atlayıp
+      // `withTransaction`'dan doğrudan fırlıyordu — retry mantığı SADECE
+      // client alındıktan SONRAKİ hatalar için çalışıyordu. Şimdi
+      // `pool.connect()` da retry kapsamına alındı.
+      client = await pool.connect();
+    } catch (error) {
+      if (isTransientConnectionError(error) && attempt < MAX_TRANSACTION_ATTEMPTS) {
+        lastError = error;
+        await delay(25 * attempt);
+        continue;
+      }
+      throw error;
+    }
     // CI #100 kırmızısının GERÇEK kök nedeni (bu oturum, izolasyon 3/3
     // sonrası bulundu) — `pool.on('error', ...)` (bkz. bu dosyanın
     // altındaki `PG_POOL` factory yorumu) YALNIZCA havuzda BOŞTA bekleyen
