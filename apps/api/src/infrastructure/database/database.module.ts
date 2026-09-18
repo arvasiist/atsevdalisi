@@ -1,4 +1,4 @@
-import { Global, Module } from '@nestjs/common';
+import { Global, Inject, Injectable, Module, type OnModuleDestroy } from '@nestjs/common';
 import { Pool, type PoolClient } from 'pg';
 import { AppConfigService } from '../config/config.service';
 
@@ -30,6 +30,35 @@ export async function withTransaction<T>(pool: Pool, fn: (client: PoolClient) =>
 }
 
 /**
+ * CI #93/#94 kırmızı araştırması (bu oturum) — ham `pg.Pool` nesnesinin
+ * KENDİ Nest yaşam döngüsü kancası (`onModuleDestroy`) YOKTUR. Bu yüzden
+ * her e2e test dosyasının `afterAll`'da çağırdığı `app.close()`, o
+ * dosyanın `bootstrapTestApp()` ile açtığı havuzun TCP bağlantılarını
+ * ASLA kapatmıyordu — 11 e2e dosyası `--no-file-parallelism` ile AYNI
+ * Vitest süreci içinde sırayla çalıştığından, her dosyanın sızan
+ * bağlantıları BİRİKİYORDU. T1 (bu oturum) n=50/100 GERÇEK eşzamanlı
+ * istek içeren yeni testler eklemeden önce her dosya en fazla birkaç
+ * bağlantı açıyordu (fark edilmeyecek kadar küçük bir sızıntı); T1
+ * testleri artık 3 dosyada `max: 10`'a kadar GERÇEKTEN dolduruyor —
+ * CI'daki `postgres:16-alpine` servis konteynerinin `max_connections`
+ * sınırına (varsayılan 100) toplam sızıntının yaklaşması/dayanması,
+ * sıradaki bir e2e dosyasının İLK sorgusunda "sorry, too many clients
+ * already" ile HIZLI ve tutarlı şekilde patlamasına yol açabilir — bu da
+ * gözlemlenen belirtiyle (Test adımı yavaş bir timeout DEĞİL, hızlı ve
+ * istikrarlı şekilde exit code 1 ile başarısız oluyor, iki koşuda da
+ * neredeyse AYNI kısa sürede) tam olarak örtüşüyor. `PgPoolLifecycle`
+ * bunu `onModuleDestroy`'da GERÇEKTEN kapatarak giderir.
+ */
+@Injectable()
+class PgPoolLifecycle implements OnModuleDestroy {
+  constructor(@Inject(PG_POOL) private readonly pool: Pool) {}
+
+  async onModuleDestroy(): Promise<void> {
+    await this.pool.end();
+  }
+}
+
+/**
  * PostgreSQL connection pool. Domain katmanı bu modülü asla doğrudan
  * import etmez (bkz. docs/ARCHITECTURE.md §4); sadece Infrastructure
  * katmanındaki repository implementasyonları kullanır.
@@ -48,6 +77,7 @@ export async function withTransaction<T>(pool: Pool, fn: (client: PoolClient) =>
           connectionString: config.env.databaseUrl,
         }),
     },
+    PgPoolLifecycle,
   ],
   exports: [PG_POOL],
 })
