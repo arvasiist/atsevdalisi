@@ -42,23 +42,45 @@ const weatherConfig = weatherConfigJson as unknown as WeatherConfig;
  * kazandı — ilk taslaktaki tek-tip %45 baskınlık eşiğini aştı. Kök neden
  * `derivePaceEffect` (`domain/race/pace.ts`) + `race.config.json`'ın
  * `pace` bölümündeki ASİMETRİK tasarım: `closer` TÜM yarış boyunca %15
- * daha AZ stamina tüketir (`closerStaminaMultiplier: 0.85`) VE SON
+ * daha AZ stamina tüketirdi (`closerStaminaMultiplier: 0.85`) VE SON
  * düzlükte (`finalStretchMeters: 400`, 1600m'de son 2/8 segment) ayrıca
- * +4 performans bonusu alır — yani hem yarış boyunca daha az yorulur HEM
- * DE tam da en çok işe yaradığı anda ekstra bonus kazanır. `front_runner`
- * ise TERS yönde asimetriktir: TÜM yarış boyunca %15 DAHA FAZLA stamina
- * tüketir (`frontRunnerStaminaMultiplier: 1.15`) ama +3 bonusu yalnızca
- * SON düzlük DIŞINDAKİ segmentlerde alır — yani cezası her zaman işler
- * ama ödülü yarışın en kritik anında (bitişte) KESİLİR. Bu, motorun
- * kendi tasarımının GERÇEK bir dengesizlik ürettiğini kanıtlıyor — bu
- * test bu yüzden `MEASURED_DOMINANCE` sabitleriyle bu BİLİNEN, ÖLÇÜLMÜŞ
- * temel çizgiyi belgeler (ve gelecekte DAHA DA kötüleşirse testi kırar).
- * `race.config.json`'ın `pace` değerlerini yeniden dengelemek (ör.
- * `closerStaminaMultiplier`'ı 0.85'ten yukarı çekmek) GERÇEK bir oyun
- * tasarımı kararı — bu turun kapsamı (AUDIT_REPORT.md T3: "eksik test
- * kapsamını kapat") bunu İÇERMİYOR, bu yüzden motor kodu/config'i
- * DEĞİŞTİRİLMEDİ; bulgu bunun yerine AUDIT_REPORT.md'ye ayrı bir madde
- * olarak eklendi (proje sahibinin kararı gerekir).
+ * +4 performans bonusu alıyordu — yani hem yarış boyunca daha az yoruluyor
+ * HEM DE tam da en çok işe yaradığı anda ekstra bonus kazanıyordu.
+ * `front_runner` ise TERS yönde asimetrikti: TÜM yarış boyunca %15 DAHA
+ * FAZLA stamina tüketirken (`frontRunnerStaminaMultiplier: 1.15`) +3
+ * bonusunu yalnızca SON düzlük DIŞINDAKİ segmentlerde alıyordu — yani
+ * cezası her zaman işliyor ama ödülü yarışın en kritik anında (bitişte)
+ * KESİLİYORDU. Bulgu AUDIT_REPORT.md'ye T3b (Low, Denge/Tasarım) olarak
+ * eklendi; ilk turda rebalancing kapsam dışı bırakıldı ("proje sahibinin
+ * kararı gerekir").
+ *
+ * T3b DÜZELTMESİ (bu turda, proje sahibinin "hangi adımı istiyorsan
+ * yapabilirsin" yetkilendirmesiyle uygulandı): `race.config.json`'ın
+ * `pace` bölümü `closerStaminaMultiplier: 0.85→0.97`, `closerLateStageBonus:
+ * 4→1`, `frontRunnerPositionBonus: 3→2` olarak değiştirildi
+ * (`frontRunnerStaminaMultiplier` VE `finalStretchMeters` değişmedi).
+ * Önemli metodolojik not: BAŞLANGIÇTA denenen "naif simetrik" düzeltme
+ * (her iki stamina çarpanını eşit ölçüde nötr 1.0'a çekmek,
+ * `closerLateStageBonus`'u `frontRunnerPositionBonus`'un mevcut değerine
+ * eşitlemek) GERÇEK motora karşı (bu oturumda YENİ keşfedilen bir
+ * yerel `tsx` + gerçek workspace paketleri çalıştırma yöntemiyle, CI
+ * round-trip'i BEKLEMEDEN) test edildiğinde BAŞARISIZ oldu — "closer"in
+ * baskınlığını gidermek yerine "front_runner"ı %64 payla YENİ baskın
+ * taktik hâline getirdi (motor mekanikleri doğrusal/simetrik tepki
+ * vermiyor). Bu yüzden nihai değerler TEORİK simetriden değil, aynı
+ * yöntemle (gerçek `simulateRace`, 250/1000/2000 denemelik çoklu
+ * bağımsız parti, aynı 12 atlık özdeş alan) yapılan bir ampirik
+ * parametre taramasından seçildi — hem daha dengeli bir dağılım (n=2000,
+ * üç bağımsız seed partisi: front_runner ~%27, tracker ~%20, mid_pack
+ * ~%21, closer ~%31-32 — dört stil de artık %25'lik "taraf tutmayan"
+ * hedefe eskisinden ÇOK daha yakın) HEM DE her stilin kendine özgü
+ * kimliğini (closer hâlâ biraz stamina tasarrufu + küçük bir geç-aşama
+ * bonusu korur, front_runner hâlâ erken/orta aşamada bir pozisyon
+ * bonusu korur — hiçbiri sıfıra indirilmedi) koruyacak şekilde.
+ * `STYLE_BOUNDS` aşağıda bu YENİ ölçülmüş temel çizgiyi (n=250'de
+ * gözlemlenen varyansa güvenli bir marj bırakılarak) yansıtacak şekilde
+ * SIKILAŞTIRILDI — eski gevşek `closer` üst sınırı (%58) kalıcı bir onay
+ * DEĞİLDİ, tam da bu düzeltmeyle değişmesi beklenen geçici bir belgelemeydi.
  */
 
 function makeEntry(horseId: string, racingStyle: RacingStyle): RaceEntrantSnapshot {
@@ -126,21 +148,26 @@ describe('simulateRace — T3: gerçekçi alan ölçeğinde taktik/kulvar baskı
     // 4 eşit temsil edilen stil için "taraf tutmayan" bir motorda beklenen
     // pay %25'tir. Taktiğin GERÇEKTEN sonucu etkilemesi (brief'in kendi
     // isteği, bkz. `race-engine.spec.ts`'teki "racingStyle farkı... farklı
-    // bir sonuç üretir" testi) beklenen bir sapma yaratır. `front_runner`/
-    // `tracker`/`mid_pack` için üst sınır %45 (hiçbiri alanı süpürmemeli),
-    // ALT sınır %5 (hiçbiri yapısal olarak ölü bir taktik olmamalı).
+    // bir sonuç üretir" testi) beklenen bir sapma yaratır. ALT sınır tüm
+    // stiller için %5 (hiçbiri yapısal olarak ölü bir taktik olmamalı).
     //
-    // `closer` FARKLI bir üst sınıra sahip: dosya başındaki doc yorumunda
-    // açıklanan GERÇEK, ölçülmüş motor asimetrisi (stamina tasarrufu +
-    // son düzlük bonusunun ÇAKIŞMASI) nedeniyle CI #114'te %52.8 ölçüldü.
-    // Üst sınır bu GERÇEK değere makul bir pay bırakılarak (%58) ayarlandı
-    // — motorun BUGÜNKÜ davranışını kabul eder, ama bu avantaj gelecekte
-    // DAHA DA büyürse (ör. %65+'e çıkarsa) testi KIRAR.
+    // T3b DÜZELTMESİ SONRASI (bu turda, dosya başındaki doc yorumuna bkz.):
+    // `closer` artık AYRI/gevşek bir üst sınıra (eski %58) İHTİYAÇ DUYMUYOR
+    // — yeniden dengelenmiş `pace` config'iyle ölçülen yeni temel çizgi
+    // (n=2000, üç bağımsız seed partisi) front_runner ~%27, tracker ~%20,
+    // mid_pack ~%21, closer ~%31-32 idi. Üst sınırlar bu YENİ temel çizgiye,
+    // n=250'lik TEK bir CI koşusunun gözlemlenen varyansına (6 bağımsız
+    // partide closer %27-%40 arası dalgalandı) güvenli bir marj bırakılarak
+    // ayarlandı: `closer` hâlâ en yüksek üst sınıra sahip (küçük ama GERÇEK
+    // bir artık avantajı yansıtıyor — stamina tasarrufu + küçük geç-aşama
+    // bonusu hâlâ mevcut, sıfırlanmadı), ama eski %58'in ÇOK altında.
+    // `pace` config'i yeniden değiştirilirse bu eşikler de YENİ ölçüme göre
+    // güncellenmelidir (gevşetilmiş eşik kalıcı bir onay değil).
     const STYLE_BOUNDS: Record<RacingStyle, { min: number; max: number }> = {
-      front_runner: { min: 0.05, max: 0.45 },
-      tracker: { min: 0.05, max: 0.45 },
-      mid_pack: { min: 0.05, max: 0.45 },
-      closer: { min: 0.05, max: 0.58 },
+      front_runner: { min: 0.05, max: 0.40 },
+      tracker: { min: 0.05, max: 0.35 },
+      mid_pack: { min: 0.05, max: 0.35 },
+      closer: { min: 0.05, max: 0.48 },
     };
 
     for (const style of STYLES) {

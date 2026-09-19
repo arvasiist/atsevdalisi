@@ -15,9 +15,9 @@
   "segmentLengthMeters": 200,
   "pace": {
     "frontRunnerStaminaMultiplier": 1.15,
-    "frontRunnerPositionBonus": 3,
-    "closerStaminaMultiplier": 0.85,
-    "closerLateStageBonus": 4,
+    "frontRunnerPositionBonus": 2,
+    "closerStaminaMultiplier": 0.97,
+    "closerLateStageBonus": 1,
     "finalStretchMeters": 400
   },
   "overtaking": {
