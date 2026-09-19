@@ -195,6 +195,7 @@ olarak veriliyor. Her alanın sonunda "Zaten sağlam / IMPLEMENTED" listesi var
 ### T3 — Low: 100+ yarış ölçekli denge/adalet testi yok
 **Evidence:** `race-engine.spec.ts` en fazla 60 deneme, yalnızca 2 at senaryosu — gerçekçi 8-12 atlı alan/taktik baskınlığı testi yok.
 **Fix:** 200+ denemeli, gerçekçi karma-taktik alan testi; stil/kulvar başına galibiyet oranını ölçüp baskınlık eşiğini aşmadığını doğrulayan yeni bir test dosyası.
+**⏳ CI DOĞRULAMASI BEKLİYOR (bu turda):** Yeni `test/domain/race/race-engine-field-balance.spec.ts` eklendi — 12 atlık, İSTATİSTİKSEL OLARAK ÖZDEŞ (tek değişken `racingStyle`) bir alanda 250 deneme, stil/kulvar başına galibiyet payının %5-%45 aralığında kaldığını (ne baskınlık ne yapısal ölü taktik) doğrular. Bu, bu ortamda gerçek Vitest ile ÇALIŞTIRILAMADIĞINDAN (node_modules yok) sadece syntax seviyesinde doğrulandı — gerçek pass/fail sonucu push sonrası CI'da görülecek. Eğer bir stil beklenenden fazla baskınsa bu YANLIŞ bir test DEĞİL, motorun kendisinde gerçek bir dengesizlik bulgusu olabilir — CI kırmızı çıkarsa önce motor davranışı incelenip eşikler mi yoksa dengeleme mi düzeltilmeli buna göre karar verilecek.
 
 ### R3 — Low: Davranış hattının yarısı hâlâ nötr placeholder
 **Evidence:** Track Fit, Draw/post-position, Carried Weight, Current Form, gerçek Jockey skill, Temperament — ya hiç yok ya da her zaman nötr 50 (`entrant-snapshot.ts`'in kendi `UNMODELED_SNAPSHOT_FIELDS` listesiyle DÜRÜSTÇE belgelenmiş).
