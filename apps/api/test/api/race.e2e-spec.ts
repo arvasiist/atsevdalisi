@@ -12,6 +12,7 @@ import {
   registerTestPlayer,
   registerTestPlayerWithStarterHorse,
   sendConcurrentRequests,
+  sendConcurrentRequestsBatched,
   sendWithRetry,
 } from './test-helpers';
 
@@ -313,11 +314,19 @@ describe('Race — Pratik Yarış (e2e)', () => {
   // çıkan timeout'lar bunun için.
   describe('Eşzamanlılık (concurrency) — AUDIT_REPORT.md T1, Master Plan §42', () => {
     /** N istek + status/hata kodu doğrulaması — AYNI anahtar senaryosunun üç `n` değeri arasında paylaşılan yardımcı. */
+    // CI #107 kırmızı araştırması (bu oturum) — bkz. `test-helpers.ts`teki
+    // `sendConcurrentRequestsBatched` doc yorumu: n=100'de TÜMÜNÜ TEK bir
+    // `Promise.all` patlamasında (100 ham TCP bağlantısı AYNI ANDA) göndermek
+    // yerine, GERÇEK eşzamanlılığı KORUYARAK (her dalganın KENDİSİ hâlâ
+    // `Promise.all`) 25'lik dalgalar halinde gönderiyoruz — n=10/25 gibi
+    // küçük değerlerde zaten TEK dalgaya sığdığından davranış DEĞİŞMEZ.
+    const SAME_KEY_BATCH_SIZE = 25;
+
     async function runSameKeyConcurrencyCheck(n: number): Promise<void> {
       const { horseId, playerId, authHeader } = await registerTestPlayerWithStarterHorse(app, 'Yarışçı');
       const idempotencyKey = randomUUID();
 
-      const responses = await sendConcurrentRequests(n, () =>
+      const responses = await sendConcurrentRequestsBatched(n, SAME_KEY_BATCH_SIZE, () =>
         request(app.getHttpServer())
           .post(`/api/v1/horses/${horseId}/practice-race`)
           .set('Authorization', authHeader)

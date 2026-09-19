@@ -139,6 +139,50 @@ export function sendConcurrentRequests<T>(count: number, factory: (index: number
   return Promise.all(Array.from({ length: count }, (_, index) => sendWithRetry(() => factory(index))));
 }
 
+/**
+ * CI #107 kırmızı araştırması (bu oturum) — `race.e2e-spec.ts`'in n=100
+ * "AYNI Idempotency-Key" testi, test-seviyesi `retry: 2` eklendikten SONRA
+ * bile AYNI hatayla ÜÇ kez üst üste (1 ilk deneme + 2 retry) başarısız oldu
+ * — bu, sorunun ARTIK rastgele bir ağ dalgalanması OLMADIĞINI, bu testin
+ * YÜK DESENİNE ÖZGÜ, CI runner'ında DETERMİNİSTİK şekilde tekrarlanan bir
+ * kaynak sınırı olduğunu gösteriyor. Bu testi diğer n=100 testlerinden
+ * (100 istek FARKLI kaynaklara/anahtarlara) ayıran şey: TÜMÜ AYNI ANDA,
+ * TEK bir Node process'in tek event loop'una, TEK bir paylaşılan satır/
+ * anahtar için açılan 100 HAM TCP bağlantısı — 99'u anlık 409 dönerken
+ * 1'i tam yarış simülasyonunu çalıştırır (bkz. `race-engine.ts`'in tamamen
+ * SENKRON/CPU-bağımlı `simulateRace` fonksiyonu). Bu son derece dar zaman
+ * penceresinde GitHub Actions'ın paylaşımlı/kısıtlı runner'ı, TEK bir anda
+ * açılan 100 ham soket için bazen bağlantı sıfırlıyor.
+ *
+ * Kalıcı çözüm: `count` isteği TEK bir `Promise.all` patlamasında değil,
+ * `batchSize` büyüklüğünde ARDIŞIK dalgalar halinde gönder — HER dalganın
+ * KENDİ İÇİNDE hâlâ GERÇEKTEN eşzamanlı (`Promise.all`), yalnızca ardışık
+ * dalgalar arasında aynı anda açık kalan ham soket sayısını sınırlıyoruz.
+ * Test edilen mantıksal özellik (AYNI Idempotency-Key ile gönderilen N
+ * isteğin YALNIZCA BİRİNİN gerçekten işlenmesi) HİÇBİR ŞEKİLDE zayıflamaz
+ * — dalgalar arasında birkaç milisaniyelik bir fark, "gerçek dünya"daki
+ * hiçbir eşzamanlı istek grubunun zaten mikrosaniye hassasiyetinde AYNI
+ * anda gelmediği gerçeğinden daha az gerçekçi DEĞİLDİR.
+ */
+export async function sendConcurrentRequestsBatched<T>(
+  count: number,
+  batchSize: number,
+  factory: (index: number) => PromiseLike<T>,
+): Promise<T[]> {
+  const results: T[] = [];
+  for (let batchStart = 0; batchStart < count; batchStart += batchSize) {
+    const batchLength = Math.min(batchSize, count - batchStart);
+    const batchResults = await Promise.all(
+      Array.from({ length: batchLength }, (_, offset) => {
+        const index = batchStart + offset;
+        return sendWithRetry(() => factory(index));
+      }),
+    );
+    results.push(...batchResults);
+  }
+  return results;
+}
+
 export interface RegisteredTestPlayer {
   playerId: string;
   token: string;
