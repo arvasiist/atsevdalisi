@@ -46,7 +46,16 @@ Brief §67 gereği: **gerçek para ile "garantili yarış galibiyeti" satılmaz*
 ve gerçek para bahis/kumar mekaniği oyunun çekirdeği olamaz. `gems` ile
 satın alınabilecek her item, `config/economy.config.json` →
 `gemShopWhitelist` içinde açıkça listelenmelidir; bu liste dışı hiçbir
-item gems karşılığı satılamaz (kod seviyesinde zorunlu kılınır).
+item gems karşılığı satılamaz.
+>
+> **AUDIT_REPORT.md Bulgu DOC1 (bu oturum) — durum düzeltmesi:**
+> `gemShopWhitelist` şu an yalnızca `config/economy.config.json` içinde
+> bir VERİ olarak var; `apps/api/src` içinde bunu okuyan/zorunlu kılan
+> HİÇBİR kod yoktur, çünkü henüz hiçbir gem shop endpoint'i (satın alma
+> akışı) uygulanmamıştır. Yukarıdaki kural bu yüzden şu an "kod
+> seviyesinde zorunlu kılınan" bir davranış DEĞİL, gem shop inşa
+> edildiğinde UYULMASI PLANLANAN bir tasarım kararıdır — gem shop
+> use-case'i yazılırken bu whitelist kontrolü GERÇEKTEN eklenmelidir.
 
 ## 5. Transaction ve idempotency kuralları
 

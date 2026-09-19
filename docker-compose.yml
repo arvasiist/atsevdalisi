@@ -3,6 +3,12 @@ version: '3.9'
 # Yerel geliştirme ortamı için PostgreSQL + Redis.
 # Kullanım: docker compose up -d postgres redis
 # Bağlantı bilgileri apps/api/.env.example ile eşleşir.
+#
+# AUDIT_REPORT.md Bulgu G1 (bu oturum) — aşağıdaki POSTGRES_PASSWORD
+# YALNIZCA yerel geliştirme içindir (bu servis yalnızca localhost'a
+# bağlanır, gerçek bir risk taşımaz) — ama üretim/staging ortamında ASLA
+# aynen yeniden KULLANILMAMALIDIR. O ortamlar için gerçek, gizli bir
+# şifre üretilip secret manager/ortam değişkeni üzerinden sağlanmalıdır.
 
 services:
   postgres:
