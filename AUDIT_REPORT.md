@@ -37,7 +37,7 @@ olarak veriliyor. Her alanın sonunda "Zaten sağlam / IMPLEMENTED" listesi var
 | E2 | Ekonomi | Medium | ✅ **DÜZELTİLDİ** — `cancelListing` + `WHERE status = 'active'` güvencesiyle satılmış bir ilanın iptal edilmiş gibi üzerine yazılması engellendi |
 | E3 | Ekonomi | Medium | ✅ **DÜZELTİLDİ** — Idempotency kapsamı `@IdempotencyScope('player')` ile `request.player.id`'ye taşındı |
 | R1 | Yarış Motoru | Medium | ✅ **DÜZELTİLDİ** — `weather.config.json`'a `version` alanı, migration 0024 ile `weather_config_version` sütunu, wiring ve e2e testler eklendi |
-| R2 | Yarış Motoru | Medium | ✅ **DÜZELTİLDİ** — botlar artık `race_entries`/`race_entry_segments`'e yazılır (migration 0025, `RaceEntry.botLabel`), `GET /races/:id/timeline` tam alanı DB'den doğrudan döner (commit push bekliyor) |
+| R2 | Yarış Motoru | Medium | ✅ **DÜZELTİLDİ VE GERÇEK CI'DA DOĞRULANDI** (commit `d62f6fc`, CI #118) — botlar artık `race_entries`/`race_entry_segments`'e yazılır (migration 0025, `RaceEntry.botLabel`), `GET /races/:id/timeline` tam alanı DB'den doğrudan döner |
 | T1 | Test | Medium | ✅ **DÜZELTİLDİ** — Ahır yükseltme/günlük ödül/pratik yarış girişi için n=10/50/100 eşzamanlılık testleri eklendi ve CI'da stabil şekilde geçiyor |
 | T2 | Frontend | Medium | ✅ **DÜZELTİLDİ VE GERÇEK CI'DA DOĞRULANDI** (CI #113) — `api-client.ts` kontrat testleri + `jsdom` eklendi, `RaceHud.tsx`/`player-context.tsx` için gerçek `@testing-library/react` component testleri yazıldı |
 | F1 | Frontend | Medium | ✅ **DÜZELTİLDİ VE GERÇEK CI'DA DOĞRULANDI** (commit `9c08982`, CI #116) — tablet (768px+) + dar telefon (≤430px) breakpoint'leri eklendi, `RaceHud` taşma bug'ı `min()`/`clamp()` ile giderildi, tüm etkileşimli düğmeler ≥44px'e çıkarıldı |
@@ -193,7 +193,7 @@ olarak veriliyor. Her alanın sonunda "Zaten sağlam / IMPLEMENTED" listesi var
 **Fix:** Gerçek replay gerekiyorsa: tüm katılımcıların (botlar dahil) segment verisini kalıcı hale getir, `GET /races/:id/timeline` uç noktası ekle, repository port'una okuma metodu ekle.
 **Test requirement:** Bir yarışı kaydet, tam alanı iki yoldan yeniden oluştur (DB okuma vs. yeniden simülasyon) → eşleşmeli.
 
-**✅ DÜZELTİLDİ (bu turda, henüz CI onayı bekliyor):** `race_entries.horse_id`
+**✅ DÜZELTİLDİ VE GERÇEK CI'DA DOĞRULANDI (commit `d62f6fc`, CI #118):** `race_entries.horse_id`
 NOT NULL kısıtı kaldırıldı, yeni `bot_label` sütunu + CHECK kısıtı
 eklendi (migration `0025_add_race_entry_bot_support`) — botlar için sahte
 bir `horses` satırı İCAT ETMEDEN (`generateBotEntrants`'ın ürettiği
@@ -329,6 +329,6 @@ Master Plan §61 Phase A ("Security & Data Integrity") ile birebir uyumlu olarak
 8. ✅ **T1+T2+T3** — T1 (eşzamanlılık) **TAMAMLANDI VE CI'DA DOĞRULANDI**; T2 **TAMAMLANDI VE CI'DA DOĞRULANDI** (CI #113 — `api-client.ts` kontrat testleri + `RaceHud`/`player-context` component testleri, `jsdom` eklendi); T3 **TAMAMLANDI VE CI'DA DOĞRULANDI** (12 atlık alan testi — bkz. T3b, bu testin keşfettiği yeni bir denge bulgusu).
 9. ✅ **E1** — Pratik yarış cüzdan+yarış kaydı atomikliği. **DÜZELTİLDİ VE GERÇEK CI'DA DOĞRULANDI** (commit `a010ec3`, CI #111).
 10. ✅ **F1** — Mobil responsive tasarım. **DÜZELTİLDİ VE GERÇEK CI'DA DOĞRULANDI** (tablet/dar telefon breakpoint'leri, `RaceHud` taşma düzeltmesi, ≥44px dokunma hedefleri; commit `9c08982`, CI #116).
-11. ✅ **R2** — Tam alan (full-field) replay. **DÜZELTİLDİ** (botlar artık `race_entries`/`race_entry_segments`'e yazılır, `GET /races/:id/timeline` DB'den okunan tam alanı döner; commit push bekliyor).
+11. ✅ **R2** — Tam alan (full-field) replay. **DÜZELTİLDİ VE GERÇEK CI'DA DOĞRULANDI** (botlar artık `race_entries`/`race_entry_segments`'e yazılır, `GET /races/:id/timeline` DB'den okunan tam alanı döner; commit `d62f6fc`, CI #118).
 
-**Durum özeti (2026-09-19 itibarıyla):** Madde 1-10'un TAMAMI (T1+T2+T3+F1 dahil) kapatıldı ve GERÇEK CI'DA DOĞRULANDI (bkz. `claude/hizli-bitirme-plani.md` proje dokümanındaki detaylı kronoloji). G1 ve DOC1 (Low severity, ayrı bölümlerde) de bu turda kapatıldı. T3 testi bir YAN ÜRÜN olarak yeni bir bulgu keşfetti (T3b — bkz. yukarısı). Madde 11 (R2 — tam alan replay) da bu turda kapatıldı, CI onayı bekleniyor. **Hâlâ AÇIK olan gerçek bulgular:** T3b ("closer" taktik dengesizliği — proje sahibinin tasarım kararını gerektirir), F2 (WebSocket, bilinçli PLANNED), R3 (davranış hattının yarısı hâlâ placeholder), ve PvP'nin E1 ile aynı yapısal desendeki (ama mali riski olmayan) transaction ayrımı.
+**Durum özeti (2026-09-19 itibarıyla):** Madde 1-10'un TAMAMI (T1+T2+T3+F1 dahil) kapatıldı ve GERÇEK CI'DA DOĞRULANDI (bkz. `claude/hizli-bitirme-plani.md` proje dokümanındaki detaylı kronoloji). G1 ve DOC1 (Low severity, ayrı bölümlerde) de bu turda kapatıldı. T3 testi bir YAN ÜRÜN olarak yeni bir bulgu keşfetti (T3b — bkz. yukarısı). Madde 11 (R2 — tam alan replay) da bu turda kapatıldı ve CI #118'de doğrulandı. **Hâlâ AÇIK olan gerçek bulgular:** T3b ("closer" taktik dengesizliği — proje sahibinin tasarım kararını gerektirir), F2 (WebSocket, bilinçli PLANNED), R3 (davranış hattının yarısı hâlâ placeholder), ve PvP'nin E1 ile aynı yapısal desendeki (ama mali riski olmayan) transaction ayrımı.
