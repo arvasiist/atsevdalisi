@@ -3,7 +3,11 @@ import { INestApplication } from '@nestjs/common';
 import type { Pool } from 'pg';
 import request from 'supertest';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { loadOnlineConfig } from '@at-sevdalisi/game-config';
+import type { PvpMatch, Race, RaceEntry } from '@at-sevdalisi/shared-types';
 import { PG_POOL } from '../../src/infrastructure/database/database.module';
+import { RACE_REPOSITORY, type RaceRepository } from '../../src/application/ports/race.repository';
+import { RACE_ENGINE_VERSION, RACE_RULESET_VERSION } from '../../src/domain/race/race-engine';
 import { bootstrapTestApp, registerTestPlayer, registerTestPlayerWithStarterHorse } from './test-helpers';
 
 /**
@@ -132,6 +136,134 @@ describe('Matchmaking — PvP Eşleştirme (e2e)', () => {
     const pvpMatchRows = await pool.query('SELECT * FROM pvp_matches WHERE id = $1', [match.matchId]);
     expect(pvpMatchRows.rows).toHaveLength(1);
     expect(pvpMatchRows.rows[0].winner_id).toBe(match.winnerId);
+  });
+
+  it("AUDIT_REPORT.md Bulgu E1'in PvP analogu (bu oturum) — savePvpMatchWithRatings yarış kaydı adımı BAŞARISIZ olursa Elo reytingi de GERİ ALINIR (atomiklik)", async () => {
+    // `race.e2e-spec.ts`teki E1 atomiklik testiyle AYNI teknik (bkz. o
+    // dosyadaki AYNI başlıklı test): HTTP endpoint'i ÜZERİNDEN değil,
+    // gerçek Nest DI konteynerinden alınan GERÇEK `PostgresRaceRepository`
+    // örneğiyle DOĞRUDAN çalışır — codebase'in "repository seviyesinde
+    // mock/spy YOK, hep gerçek Postgres'e karşı e2e" kuralına uyar.
+    //
+    // İki oyuncu kaydedilir, GERÇEK reytingleri (`beforeRatings`) okunur.
+    // `savePvpMatchWithRatings`e VAR OLMAYAN bir `horseId`ye sahip İKİNCİ
+    // bir `RaceEntry` verilerek, transaction'ın SON adımlarından birini
+    // (o girişin `race_entries` satırını ekleme) FK ihlaliyle BAŞARISIZ
+    // kılıyoruz — bu adım, HER İKİ oyuncunun `players.rating` satırının
+    // kilitlenip GÜNCELLENMESİ TAMAMLANDIKTAN SONRA, ama transaction hâlâ
+    // COMMIT OLMADAN önce çalışır (bkz. `PostgresRaceRepository.
+    // savePvpMatchWithRatings`in yazım sırası: ÖNCE reytingler, SONRA
+    // races/race_entries/pvp_matches). Düzeltmeden ÖNCE bunlar İKİ AYRI
+    // transaction'dı ve reytingler DEĞİŞİP maç kaydı hiç YAZILMAZDI;
+    // düzeltmeden SONRA `withTransaction` TÜMÜNÜ (reytingler dahil)
+    // ROLLBACK eder.
+    const raceRepository = app.get<RaceRepository>(RACE_REPOSITORY);
+    const playerA = await registerTestPlayerWithStarterHorse(app, 'Atomiklik Testi A');
+    const playerB = await registerTestPlayerWithStarterHorse(app, 'Atomiklik Testi B');
+
+    const beforeRatingRows = await pool.query<{ id: string; rating: number }>(
+      'SELECT id, rating FROM players WHERE id = ANY($1)',
+      [[playerA.playerId, playerB.playerId]],
+    );
+    const ratingBefore = new Map(beforeRatingRows.rows.map((row) => [row.id, row.rating]));
+
+    const raceId = randomUUID();
+    const matchId = randomUUID();
+    const nonExistentHorseId = randomUUID();
+    const now = new Date().toISOString();
+
+    const race: Race = {
+      id: raceId,
+      trackId: null,
+      name: 'PvP Eşleşmesi',
+      distanceMeters: 1600,
+      surface: 'grass',
+      weather: 'sunny',
+      temperatureC: null,
+      windKmh: null,
+      humidityPct: null,
+      participantLimit: 2,
+      entryFee: 0,
+      prizePool: 0,
+      startTime: now,
+      status: 'finished',
+      simulationSeed: raceId,
+      engineVersion: RACE_ENGINE_VERSION,
+      rulesetVersion: RACE_RULESET_VERSION,
+      configVersion: '1',
+      weatherConfigVersion: '1',
+      createdAt: now,
+      updatedAt: now,
+    };
+    const entryA: RaceEntry = {
+      id: randomUUID(),
+      raceId,
+      horseId: playerA.horseId,
+      botLabel: null,
+      jockeyId: null,
+      gatePosition: null,
+      tacticalStyle: null,
+      riskLevel: null,
+      horseSnapshot: null,
+      finalTimeMs: null,
+      finishPosition: null,
+      performanceScore: null,
+      createdAt: now,
+    };
+    const entryB: RaceEntry = {
+      id: randomUUID(),
+      raceId,
+      horseId: nonExistentHorseId, // <- FK ihlali burada gerçekleşecek
+      botLabel: null,
+      jockeyId: null,
+      gatePosition: null,
+      tacticalStyle: null,
+      riskLevel: null,
+      horseSnapshot: null,
+      finalTimeMs: null,
+      finishPosition: null,
+      performanceScore: null,
+      createdAt: now,
+    };
+    const match: PvpMatch = {
+      id: matchId,
+      playerIds: [playerA.playerId, playerB.playerId],
+      simulationSeed: raceId,
+      status: 'finished',
+      winnerId: playerA.playerId,
+      createdAt: now,
+    };
+
+    await expect(
+      raceRepository.savePvpMatchWithRatings({
+        race,
+        entries: [entryA, entryB],
+        segments: [],
+        match,
+        scoreA: 1,
+        onlineConfig: loadOnlineConfig(),
+      }),
+    ).rejects.toThrow();
+
+    // Transaction TÜMÜYLE geri alınmış olmalı: HER İKİ oyuncunun reytingi
+    // de çağrı ÖNCESİNDEKİ değerinde KALMALI (Elo hesaplaması/yazımı
+    // GERÇEKLEŞMİŞ ama sonradan ROLLBACK edilmiş olmalı — kalıcı bir
+    // yarı-güncelleme YOK).
+    const afterRatingRows = await pool.query<{ id: string; rating: number }>(
+      'SELECT id, rating FROM players WHERE id = ANY($1)',
+      [[playerA.playerId, playerB.playerId]],
+    );
+    for (const row of afterRatingRows.rows) {
+      expect(row.rating).toBe(ratingBefore.get(row.id));
+    }
+
+    // Yarış/maç kaydı da (kısmi dahil) hiç YAZILMAMIŞ olmalı.
+    const raceRows = await pool.query('SELECT * FROM races WHERE id = $1', [raceId]);
+    expect(raceRows.rows).toHaveLength(0);
+    const entryRows = await pool.query('SELECT * FROM race_entries WHERE race_id = $1', [raceId]);
+    expect(entryRows.rows).toHaveLength(0);
+    const pvpMatchRows = await pool.query('SELECT * FROM pvp_matches WHERE id = $1', [matchId]);
+    expect(pvpMatchRows.rows).toHaveLength(0);
   });
 
   it('/api/v1/matchmaking/queue (POST) — zaten kuyrukta olan bir oyuncu tekrar katılmaya çalışırsa 409 ALREADY_IN_MATCHMAKING_QUEUE döner', async () => {

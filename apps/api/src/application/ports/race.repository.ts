@@ -6,6 +6,7 @@ import type {
   RaceTimelineView,
   RecentRaceResultView,
 } from '@at-sevdalisi/shared-types';
+import type { OnlineConfig } from '@at-sevdalisi/game-config';
 
 /**
  * `RaceRepository` — Application katmanının Infrastructure'a bağlandığı
@@ -86,6 +87,20 @@ export interface RaceRepository {
    * gerçek `horses`/`players` satırlarına sahiptir — bu yüzden HER iki
    * katılımcı için de `race_entries` VE `race_entry_segments` yazılır
    * (pratik yarıştaki "yalnızca oyuncunun atı" kısıtlaması burada YOK).
+   *
+   * AUDIT_REPORT.md Bulgu E1'in PvP analogu (bu oturum, proje sahibinin
+   * "hangi adımı istiyorsan yapabilirsin" yetkilendirmesiyle) — bu metot
+   * ARTIK `JoinMatchmakingQueueUseCase` tarafından ÇAĞRILMIYOR (bkz.
+   * dosya sonundaki "Eski `savePracticeRace` metodu KALDIRILMADI" notuyla
+   * AYNI kategori: `insertRaceRow`/`insertEntryWithSegments` yardımcılarını
+   * hâlâ PAYLAŞTIĞINDAN silinmedi, ama kullanıcı yolunda DEĞİL). Sorun:
+   * `JoinMatchmakingQueueUseCase` Elo reyting güncellemesini
+   * (`PlayerRepository.updateTwoWithLock`) ile yarış/PvP kaydını (BU
+   * metot) İKİ AYRI transaction'da yapıyordu — E1 ile YAPISAL OLARAK AYNI
+   * risk (ikinci transaction başarısız olursa reyting değişmiş ama maç
+   * kaydı YOK kalır), ama `entryFee`/`prizePool` her zaman 0 olduğundan
+   * mali risk TAŞIMIYORDU (bu yüzden E1'in kendisi bu turun kapsamı
+   * dışında bırakılmıştı). Çözümü aşağıdaki `savePvpMatchWithRatings`'te.
    */
   savePvpMatch(
     race: Race,
@@ -93,6 +108,22 @@ export interface RaceRepository {
     segments: RaceSegmentSnapshot[],
     match: PvpMatch,
   ): Promise<void>;
+
+  /**
+   * AUDIT_REPORT.md Bulgu E1'in PvP analogu (bu oturum) — bkz. yukarıdaki
+   * `savePvpMatch` doc yorumundaki tam gerekçe. `savePracticeRaceWithStakes`
+   * ile AYNI desen: bu metot `PlayerRepository`'yi HİÇ KULLANMAZ, kendi
+   * transaction'ını yönetir — HER İKİ oyuncunun `players` satırını
+   * `PlayerRepository.updateTwoWithLock` ile AYNI deadlock-önleme
+   * mantığıyla (id'lerin SÖZLÜKSEL sırasına göre) KİLİTLER, `applyEloUpdate`
+   * (saf domain fonksiyonu) ile yeni reytingleri hesaplar, HER İKİ satırı
+   * günceller, SONRA (satırlar hâlâ AYNI transaction/client içindeyken)
+   * `races`/`race_entries`/`race_entry_segments`/`pvp_matches` satırlarını
+   * ekler. Herhangi bir adım başarısız olursa `withTransaction` TÜMÜNÜ
+   * (reytingler dahil) ROLLBACK eder — artık Elo'nun maç kaydından
+   * BAĞIMSIZ bir duruma düşmesi mümkün DEĞİL.
+   */
+  savePvpMatchWithRatings(input: SavePvpMatchWithRatingsInput): Promise<SavePvpMatchWithRatingsResult>;
 
   /**
    * Faz 2 (görsel kalite planı) — Ana Sayfa "Son Yarış Sonuçları" paneli
@@ -150,6 +181,37 @@ export interface SavePracticeRaceWithStakesInput {
 export interface SavePracticeRaceWithStakesResult {
   money: number;
   gems: number;
+}
+
+/**
+ * `RaceRepository.savePvpMatchWithRatings` (AUDIT_REPORT.md E1'in PvP
+ * analogu) girdi şekli. "A"/"B" adlandırması `PlayerRepository.
+ * updateTwoWithLock`'un `buyer`/`seller` adlandırmasıyla AYNI ruhta —
+ * parasal/hiyerarşik bir anlamları YOK, yalnızca `match.playerIds`
+ * dizisindeki sıraya karşılık gelirler (`match.playerIds[0]` = A,
+ * `match.playerIds[1]` = B). `JoinMatchmakingQueueUseCase` bu diziyi
+ * HER ZAMAN `[çağıranın playerId'si, rakibin playerId'si]` sırasıyla
+ * doldurur (bkz. o use-case'teki `match` nesnesi).
+ */
+export interface SavePvpMatchWithRatingsInput {
+  race: Race;
+  /** Sıra ÖNEMLİ DEĞİL burada (ikisi de gerçek at/oyuncu) — `insertEntryWithSegments` her ikisi için de aynı şekilde çağrılır. */
+  entries: [RaceEntry, RaceEntry];
+  /** İki katılımcının BİRLEŞTİRİLMİŞ segmentleri — her segment kendi `raceEntryId`'sine göre ilgili girişle eşleştirilir. */
+  segments: RaceSegmentSnapshot[];
+  match: PvpMatch;
+  /** `match.playerIds[0]` (A) için gerçek maç skoru — 1 = A kazandı, 0 = A kaybetti, 0.5 = berabere. `applyEloUpdate`'e AYNEN geçirilir. */
+  scoreA: 0 | 0.5 | 1;
+  /** `AppConfigService.online` — `applyEloUpdate`'in k-faktörü/taban reyting parametreleri için. */
+  onlineConfig: OnlineConfig;
+}
+
+/** `RaceRepository.savePvpMatchWithRatings` sonucu — "A"/"B" `SavePvpMatchWithRatingsInput` doc yorumundaki AYNI anlam. */
+export interface SavePvpMatchWithRatingsResult {
+  ratingABefore: number;
+  ratingAAfter: number;
+  ratingBBefore: number;
+  ratingBAfter: number;
 }
 
 /** NestJS DI için token (interface'ler runtime'da yok olduğundan bir Symbol gerekir). */

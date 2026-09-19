@@ -16,9 +16,12 @@ import type {
   RaceRepository,
   SavePracticeRaceWithStakesInput,
   SavePracticeRaceWithStakesResult,
+  SavePvpMatchWithRatingsInput,
+  SavePvpMatchWithRatingsResult,
 } from '../../application/ports/race.repository';
 import type { EconomyLedgerEntryInput } from '../../application/ports/economy-ledger';
 import { applyPracticeRaceStakes } from '../../domain/race/prize';
+import { applyEloUpdate } from '../../domain/online/elo';
 import { PlayerNotFoundError } from '../../domain/player/errors';
 import { PG_POOL, withTransaction } from '../database/database.module';
 
@@ -213,6 +216,96 @@ export class PostgresRaceRepository implements RaceRepository {
          VALUES ($1, $2, $3, $4, $5, $6, $7)`,
         [match.id, race.id, playerAId, playerBId, match.winnerId, match.status, new Date(match.createdAt)],
       );
+    });
+  }
+
+  /**
+   * AUDIT_REPORT.md Bulgu E1'in PvP analogu (bu oturum) — bkz.
+   * `RaceRepository.savePvpMatchWithRatings` port doc yorumundaki tam
+   * gerekçe. `savePracticeRaceWithStakes` ile AYNI desen (`PlayerRepository`
+   * KULLANILMAZ, satırlar doğrudan burada kilitlenir); tek fark burada İKİ
+   * `players` satırı kilitlenir — `PlayerRepository.updateTwoWithLock` ile
+   * AYNI deadlock-önleme sırası (id'lerin SÖZLÜKSEL sırası, ARGÜMAN/`A`-`B`
+   * sırasından BAĞIMSIZ).
+   */
+  async savePvpMatchWithRatings(input: SavePvpMatchWithRatingsInput): Promise<SavePvpMatchWithRatingsResult> {
+    return withTransaction(this.pool, async (client) => {
+      const [playerAId, playerBId] = input.match.playerIds;
+
+      const firstId = playerAId <= playerBId ? playerAId : playerBId;
+      const secondId = playerAId <= playerBId ? playerBId : playerAId;
+      const ratingById = new Map<string, number>();
+
+      const firstResult = await client.query<{ id: string; rating: number }>(
+        'SELECT id, rating FROM players WHERE id = $1 FOR UPDATE',
+        [firstId],
+      );
+      if (firstResult.rows[0]) {
+        ratingById.set(firstId, firstResult.rows[0].rating);
+      }
+      // `playerAId === playerBId` pratikte imkansızdır (`findBestMatch`
+      // kendi kendine eşleşmeyi engeller, `PlayerRepository.updateTwoWithLock`
+      // doc yorumundaki AYNI "kendi kendini bloklamaz" mantığı burada da
+      // geçerli olurdu) — yine de `secondId !== firstId` koruması AYNI
+      // desenle taşınır.
+      if (secondId !== firstId) {
+        const secondResult = await client.query<{ id: string; rating: number }>(
+          'SELECT id, rating FROM players WHERE id = $1 FOR UPDATE',
+          [secondId],
+        );
+        if (secondResult.rows[0]) {
+          ratingById.set(secondId, secondResult.rows[0].rating);
+        }
+      }
+
+      const ratingABefore = ratingById.get(playerAId);
+      if (ratingABefore === undefined) {
+        throw new PlayerNotFoundError(playerAId);
+      }
+      const ratingBBefore = ratingById.get(playerBId);
+      if (ratingBBefore === undefined) {
+        throw new PlayerNotFoundError(playerBId);
+      }
+
+      const eloResult = applyEloUpdate(ratingABefore, ratingBBefore, input.scoreA, input.onlineConfig);
+      const updatedAt = new Date();
+      await client.query('UPDATE players SET rating = $2, updated_at = $3 WHERE id = $1', [
+        playerAId,
+        eloResult.ratingA,
+        updatedAt,
+      ]);
+      await client.query('UPDATE players SET rating = $2, updated_at = $3 WHERE id = $1', [
+        playerBId,
+        eloResult.ratingB,
+        updatedAt,
+      ]);
+
+      await this.insertRaceRow(client, input.race);
+      for (const entry of input.entries) {
+        const entrySegments = input.segments.filter((segment) => segment.raceEntryId === entry.id);
+        await this.insertEntryWithSegments(client, entry, entrySegments);
+      }
+
+      await client.query(
+        `INSERT INTO pvp_matches (id, race_id, player_a_id, player_b_id, winner_id, status, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [
+          input.match.id,
+          input.race.id,
+          playerAId,
+          playerBId,
+          input.match.winnerId,
+          input.match.status,
+          new Date(input.match.createdAt),
+        ],
+      );
+
+      return {
+        ratingABefore,
+        ratingAAfter: eloResult.ratingA,
+        ratingBBefore,
+        ratingBAfter: eloResult.ratingB,
+      };
     });
   }
 

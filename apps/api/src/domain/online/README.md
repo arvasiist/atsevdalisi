@@ -47,7 +47,10 @@ wiring edilmemiş saf fonksiyonlardı — bu dilim onları `POST`/`DELETE
 - Yeni tablolar (`database/migrations/0018_add_pvp_matchmaking.up.sql`):
   `players.rating` (brief §43 Elo), `matchmaking_tickets` (kuyruk),
   `pvp_matches` (tamamlanmış maç kaydı — gerçek simülasyon, `races`/
-  `race_entries` üzerinden, `RaceRepository.savePvpMatch`'tir).
+  `race_entries` üzerinden, `RaceRepository.savePvpMatchWithRatings`'tir —
+  AUDIT_REPORT.md Bulgu E1'in PvP analogu, bu oturum: bu metot Elo
+  reyting güncellemesini de AYNI atomik transaction'a taşıdı, bkz.
+  `domain/race/README.md`'deki AYNI not).
 - TASARIM KARARI: eşleştirme TAMAMEN SENKRONDUR — sandbox'ta bir
   zamanlanmış görev/arka plan işçisi altyapısı kurulamadığından (bkz.
   `domain/market`'in on üçüncü dilimindeki AYNI keşif), `join` isteğinin

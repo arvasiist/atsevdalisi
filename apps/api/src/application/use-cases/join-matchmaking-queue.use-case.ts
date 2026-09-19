@@ -3,7 +3,6 @@ import { Inject, Injectable } from '@nestjs/common';
 import type {
   JoinMatchmakingQueueResult,
   MatchmakingTicket,
-  Player,
   PvpMatch,
   PvpMatchResult,
   Race,
@@ -11,7 +10,6 @@ import type {
   RaceSegmentSnapshot,
 } from '@at-sevdalisi/shared-types';
 import { buildHorseEntrantSnapshot } from '../../domain/race/entrant-snapshot';
-import { applyEloUpdate } from '../../domain/online/elo';
 import { findBestMatch } from '../../domain/online/matchmaking';
 import { createRaceRoomSeed, validateRaceRoomParticipants } from '../../domain/online/race-room';
 import { RACE_ENGINE_VERSION, RACE_RULESET_VERSION, simulateRace } from '../../domain/race/race-engine';
@@ -33,13 +31,6 @@ export interface JoinMatchmakingQueueInput {
 /** `RunPracticeRaceUseCase`'in KENDİ sabitleriyle AYNI — bkz. o dosyanın doc yorumu "KAPSAM DIŞI" maddesi; PvP maçları da AYNI gerekçeyle şimdilik sabit zemin/hava/mesafe kullanır. */
 const PVP_MATCH_SURFACE = 'grass' as const;
 const PVP_MATCH_WEATHER = 'sunny' as const;
-
-interface RatingUpdateResult {
-  ownRatingBefore: number;
-  ownRatingAfter: number;
-  opponentRatingBefore: number;
-  opponentRatingAfter: number;
-}
 
 /**
  * `POST /matchmaking/queue` (docs/API.md §9, brief §41 ONLINE MİMARİ).
@@ -99,18 +90,25 @@ interface RatingUpdateResult {
  *    hatası yüzeye çıkar, veri bütünlüğü BOZULMAZ.
  *
  * EŞZAMANLILIK GÜVENLİĞİ — tam bir DB transaction'ı/satır kilitleme
- * OLMADAN (bu, `PlayerRepository.updateTwoWithLock` gibi tam bir kilit
- * DEĞİLDİR, o yalnızca Elo YAZIMI için aşağıda AYRICA kullanılır): en
- * iyi rakip saf `findBestMatch` ile SEÇİLDİKTEN sonra, o rakibin bileti
+ * OLMADAN (bu, `RaceRepository.savePvpMatchWithRatings`'in KENDİ İÇİNDE
+ * yaptığı satır kilitlemesiyle KARIŞTIRILMASIN, bkz. aşağısı): en iyi
+ * rakip saf `findBestMatch` ile SEÇİLDİKTEN sonra, o rakibin bileti
  * `deleteByPlayerId` ile "CLAIM edilmeye ÇALIŞILIR" — `DELETE ...
  * RETURNING` atomik olduğundan, iki oyuncunun EŞZAMANLI olarak AYNI
  * üçüncü rakibi eşleştirmeye çalıştığı nadir durumda yalnızca BİRİ silme
  * işlemini "kazanır" (`true` döner); kaybeden, o rakibi ADAY LİSTESİNDEN
  * çıkarıp KALAN adaylar arasında YENİDEN dener (sınırlı sayıda döngü,
- * aşağıya bkz.). Elo'nun kendisi ise `updateTwoWithLock` İÇİNDE, satırlar
- * KİLİTLİYKEN, en GÜNCEL reytinglerle yeniden hesaplanır
+ * aşağıya bkz.). Elo'nun kendisi ise `savePvpMatchWithRatings` İÇİNDE,
+ * satırlar KİLİTLİYKEN, en GÜNCEL reytinglerle yeniden hesaplanır
  * (`UpgradeStableUseCase`/`BuyMarketListingUseCase` ile AYNI "hesaplama
- * satır kilitliyken" kuralı, bkz. `PlayerRepository` doc yorumu).
+ * satır kilitliyken" kuralı).
+ *
+ * AUDIT_REPORT.md Bulgu E1'in PvP analogu (bu oturum) — Elo reyting
+ * güncellemesi ile yarış/PvP maç kaydı ARTIK `RaceRepository.
+ * savePvpMatchWithRatings` içinde TEK atomik transaction'da yazılır
+ * (bkz. o metodun/portun doc yorumu) — `PlayerRepository.updateTwoWithLock`
+ * ARTIK bu use-case tarafından KULLANILMAZ (yalnızca `execute()`'taki
+ * oyuncu-var-mı kontrolü için `findById` KULLANILMAYA devam eder).
  *
  * NOT — `docs/ARCHITECTURE.md` §9.1 Hata 6: her bağımlılık açık
  * `@Inject()` ile enjekte edilir.
@@ -189,9 +187,12 @@ export class JoinMatchmakingQueueUseCase {
    * atın snapshot'ını oluşturur, mevcut/doğrulanmış Race Engine'i
    * (`simulateRace`) bir "oda" bağlamında çalıştırır, Elo'yu günceller ve
    * sonucu kalıcı hale getirir. `RunPracticeRaceUseCase`'in "ÖNCE saf
-   * simülasyon, SONRA satır-kilitli Elo/DB yazımı" sıralamasıyla AYNI
-   * felsefe: `updateTwoWithLock` BAŞARISIZ olursa (normal koşullarda
-   * ulaşılmaz) `raceRepository.savePvpMatch` hiç ÇAĞRILMAZ.
+   * simülasyon, SONRA satır-kilitli DB yazımı" sıralamasıyla AYNI felsefe
+   * — AUDIT_REPORT.md Bulgu E1'in PvP analogu (bu oturum) DÜZELTİLDİKTEN
+   * SONRA: Elo hesaplaması VE yazımı, yarış/PvP maç kaydıyla BİRLİKTE TEK
+   * `raceRepository.savePvpMatchWithRatings` çağrısında, TEK atomik
+   * transaction'da gerçekleşir (bkz. o metodun/portun doc yorumu) — bu
+   * çağrı başarısız olursa reytingler de DB'ye hiç YAZILMAZ.
    */
   private async playMatch(
     playerId: string,
@@ -270,38 +271,6 @@ export class JoinMatchmakingQueueUseCase {
           : 0;
     const winnerId = scoreA === 0.5 ? null : scoreA === 1 ? playerId : opponentPlayerId;
 
-    // Elo, satırlar KİLİTLİYKEN, EN GÜNCEL reytinglerle hesaplanır (bkz.
-    // sınıf üstündeki doc yorumu) — `buyer`/`seller` adları burada
-    // `updateTwoWithLock`'un GENEL sözleşmesinden gelir (bkz. o metodun
-    // port doc yorumu), parasal bir anlamları YOK.
-    const ratingUpdate = await this.playerRepository.updateTwoWithLock<RatingUpdateResult>(
-      playerId,
-      opponentPlayerId,
-      (me, opponent) => {
-        const eloResult = applyEloUpdate(me.rating, opponent.rating, scoreA, this.config.online);
-        const updatedAt = new Date().toISOString();
-        const updatedMe: Player = { ...me, rating: eloResult.ratingA, updatedAt };
-        const updatedOpponent: Player = { ...opponent, rating: eloResult.ratingB, updatedAt };
-        return {
-          buyer: updatedMe,
-          seller: updatedOpponent,
-          result: {
-            ownRatingBefore: me.rating,
-            ownRatingAfter: eloResult.ratingA,
-            opponentRatingBefore: opponent.rating,
-            opponentRatingAfter: eloResult.ratingB,
-          },
-        };
-      },
-    );
-
-    if (ratingUpdate === null) {
-      // Veri bütünlüğü varsayımı: her iki oyuncu da bu noktaya kadar
-      // zaten doğrulandı (bkz. `PlayerRepository.updateTwoWithLock` doc
-      // yorumundaki AYNI kategori "ulaşılamaz dal").
-      throw new PlayerNotFoundError(playerId);
-    }
-
     const nowIso = now.toISOString();
     const race: Race = {
       id: raceId,
@@ -335,8 +304,9 @@ export class JoinMatchmakingQueueUseCase {
       raceId,
       horseId,
       // AUDIT_REPORT.md R2 (bu oturum) — PvP'de HER İKİ taraf da gerçek
-      // `horses` satırlarına sahiptir (bkz. `RaceRepository.savePvpMatch`
-      // doc yorumu), bu yüzden `botLabel` burada HER ZAMAN null'dur.
+      // `horses` satırlarına sahiptir (bkz. `RaceRepository.
+      // savePvpMatchWithRatings` doc yorumu), bu yüzden `botLabel` burada
+      // HER ZAMAN null'dur.
       botLabel: null,
       jockeyId: null,
       gatePosition: null,
@@ -371,6 +341,10 @@ export class JoinMatchmakingQueueUseCase {
 
     const match: PvpMatch = {
       id: matchId,
+      // `match.playerIds[0]` HER ZAMAN çağıranın kendi playerId'sidir —
+      // `RaceRepository.savePvpMatchWithRatings`'in "A" tarafı (bkz. o
+      // portun doc yorumu) BU SIRAYA dayanır (`scoreA` da çağıranın
+      // skorudur, yukarıda hesaplandı).
       playerIds: [playerId, opponentPlayerId],
       simulationSeed: timeline.simulationSeed,
       status: 'finished',
@@ -378,7 +352,19 @@ export class JoinMatchmakingQueueUseCase {
       createdAt: nowIso,
     };
 
-    await this.raceRepository.savePvpMatch(race, [myEntry, opponentEntry], segments, match);
+    // AUDIT_REPORT.md Bulgu E1'in PvP analogu (bu oturum) — Elo reyting
+    // güncellemesi ile yarış/PvP maç kaydı ARTIK TEK atomik transaction'da
+    // (bkz. `RaceRepository.savePvpMatchWithRatings` doc yorumu) — biri
+    // başarısız olursa `withTransaction` İKİSİNİ DE (reytingler dahil)
+    // rollback eder.
+    const ratingUpdate = await this.raceRepository.savePvpMatchWithRatings({
+      race,
+      entries: [myEntry, opponentEntry],
+      segments,
+      match,
+      scoreA,
+      onlineConfig: this.config.online,
+    });
 
     return {
       matchId,
@@ -390,10 +376,10 @@ export class JoinMatchmakingQueueUseCase {
       ownFinishTimeMs: myFinish.finishTimeMs,
       opponentFinishPosition: opponentFinish.finishPosition,
       opponentFinishTimeMs: opponentFinish.finishTimeMs,
-      ownRatingBefore: ratingUpdate.ownRatingBefore,
-      ownRatingAfter: ratingUpdate.ownRatingAfter,
-      opponentRatingBefore: ratingUpdate.opponentRatingBefore,
-      opponentRatingAfter: ratingUpdate.opponentRatingAfter,
+      ownRatingBefore: ratingUpdate.ratingABefore,
+      ownRatingAfter: ratingUpdate.ratingAAfter,
+      opponentRatingBefore: ratingUpdate.ratingBBefore,
+      opponentRatingAfter: ratingUpdate.ratingBAfter,
     };
   }
 }

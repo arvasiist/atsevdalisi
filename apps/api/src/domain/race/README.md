@@ -66,7 +66,10 @@ snapshot'a çevirip AYNI `simulateRace`'i çağırır — bu dosyanın kendisind
 HİÇBİR değişiklik YOKTUR, `domain/online/README.md`'nin "YENİ bir
 simülasyon motoru YAZILMADI" notuyla BİREBİR tutarlıdır. Botların (bu
 diliminin `bot-generator.ts`'i) AKSİNE, PvP'de İKİ taraf da gerçek `horses`/
-`race_entries` satırlarına sahiptir (bkz. `RaceRepository.savePvpMatch`).
+`race_entries` satırlarına sahiptir (bkz. `RaceRepository.
+savePvpMatchWithRatings` — AUDIT_REPORT.md Bulgu E1'in PvP analogu, bu
+oturum: Elo reyting güncellemesi ile yarış/maç kaydı artık TEK atomik
+transaction'da yazılır; eski `savePvpMatch` bu yoldan ARTIK ÇAĞRILMIYOR).
 
 ## AUDIT_AND_HARDENING (bu oturum) — Öncelik 4/6/8
 
