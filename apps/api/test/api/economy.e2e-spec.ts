@@ -4,7 +4,13 @@ import type { Pool } from 'pg';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { PG_POOL } from '../../src/infrastructure/database/database.module';
-import { bootstrapTestApp, registerTestPlayer, sendConcurrentRequests, sendWithRetry } from './test-helpers';
+import {
+  bootstrapTestApp,
+  registerTestPlayer,
+  sendConcurrentRequests,
+  sendConcurrentRequestsBatched,
+  sendWithRetry,
+} from './test-helpers';
 
 /**
  * FAZ 1 wiring — Yedinci dilim: `POST /players/:id/daily-reward` (brief
@@ -231,7 +237,15 @@ describe('Economy — Daily Reward (e2e)', () => {
     it('n=100 GERÇEKTEN eşzamanlı günlük ödül talebinden SADECE BİRİ başarılı olur, bakiye TAM OLARAK bir kez artar (50 kat DEĞİL, 100 kat DEĞİL)', async () => {
       const { id, startingMoney, authHeader } = await registerPlayer();
 
-      const responses = await sendConcurrentRequests(100, () =>
+      // CI #108 kırmızı araştırması (bu oturum) — `stable.e2e-spec.ts`/
+      // `race.e2e-spec.ts`teki AYNI aile: 100 istek AYNI oyuncu satırına
+      // çarpıyor, yalnızca 1'i başarılı olurken 99'u ANINDA 409 dönüyor —
+      // bu asimetrik desen CI runner'ında 100 ham TCP bağlantısının AYNI
+      // ANDA açılmasıyla deterministik bir bağlantı sıfırlamasına yol
+      // açabiliyor (bkz. `sendConcurrentRequestsBatched` doc yorumu,
+      // `test-helpers.ts`). Aynı problem sınıfı için önleyici olarak
+      // burada da 25'lik dalgalara bölünüyor.
+      const responses = await sendConcurrentRequestsBatched(100, 25, () =>
         request(app.getHttpServer()).post(`/api/v1/players/${id}/daily-reward`).set('Authorization', authHeader),
       );
 

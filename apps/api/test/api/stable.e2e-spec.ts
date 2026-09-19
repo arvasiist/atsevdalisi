@@ -4,7 +4,13 @@ import type { Pool } from 'pg';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { PG_POOL } from '../../src/infrastructure/database/database.module';
-import { bootstrapTestApp, registerTestPlayer, sendConcurrentRequests, sendWithRetry } from './test-helpers';
+import {
+  bootstrapTestApp,
+  registerTestPlayer,
+  sendConcurrentRequests,
+  sendConcurrentRequestsBatched,
+  sendWithRetry,
+} from './test-helpers';
 
 /**
  * FAZ 1 wiring — Üçüncü dilim: `GET /players/:id/stable-summary` (brief
@@ -362,8 +368,21 @@ describe('Stable summary (e2e)', () => {
         const startingMoney = totalUpgradeCost + 1_000_000;
         await pool.query('UPDATE players SET money = $2 WHERE id = $1', [playerId, startingMoney]);
 
+        // CI #108 kırmızı araştırması (bu oturum) — bu test, tıpkı
+        // `race.e2e-spec.ts`'in n=100 "AYNI Idempotency-Key" testinin
+        // (bkz. `sendConcurrentRequestsBatched` doc yorumu, `test-helpers.
+        // ts`) daha önce ÇÖZÜLEN sorunuyla AYNI yapısal desene sahip: 100
+        // istek FARKLI anahtarlarla gönderilse de HEPSİ AYNI oyuncu
+        // satırına/kilidine çarpıyor — yalnızca 4'ü gerçekten başarılı
+        // olurken 96'sı ANINDA `MAX_STABLE_LEVEL_REACHED` 409'u dönüyor
+        // (race'in "99 hızlı + 1 yavaş" asimetrisiyle AYNI aile). Test-
+        // seviyesi `retry: 2` bile bu testte AYNI hatayla üç kez üst üste
+        // başarısız oldu — GERÇEKTEN rastgele değil, CI runner'ının 100 ham
+        // TCP bağlantısını AYNI ANDA karşılamasına özgü deterministik bir
+        // sınır. Race'teki AYNI çözüm burada da uygulanıyor: 25'lik
+        // dalgalar (her dalga hâlâ GERÇEKTEN eşzamanlı).
         const idempotencyKeys = Array.from({ length: 100 }, () => randomUUID());
-        const responses = await sendConcurrentRequests(100, (index) =>
+        const responses = await sendConcurrentRequestsBatched(100, 25, (index) =>
           request(app.getHttpServer())
             .post(`/api/v1/players/${playerId}/stable/upgrade`)
             .set('Authorization', authHeader)
