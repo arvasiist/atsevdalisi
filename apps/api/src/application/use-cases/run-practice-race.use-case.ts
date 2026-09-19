@@ -1,17 +1,15 @@
 import { randomUUID } from 'node:crypto';
 import { Inject, Injectable } from '@nestjs/common';
-import type { Player, PracticeRaceResult, Race, RaceEntry, RaceSegmentSnapshot, RaceTacticInput } from '@at-sevdalisi/shared-types';
+import type { PracticeRaceResult, Race, RaceEntry, RaceSegmentSnapshot, RaceTacticInput } from '@at-sevdalisi/shared-types';
 import { generateBotEntrants } from '../../domain/race/bot-generator';
 import { buildHorseEntrantSnapshot } from '../../domain/race/entrant-snapshot';
-import { applyPracticeRaceStakes, getPracticeRaceEntryFee, getPracticeRacePrize } from '../../domain/race/prize';
+import { getPracticeRaceEntryFee, getPracticeRacePrize } from '../../domain/race/prize';
 import { RACE_ENGINE_VERSION, RACE_RULESET_VERSION, simulateRace } from '../../domain/race/race-engine';
 import { PRACTICE_RACE_BOT_COUNT, PRACTICE_RACE_DISTANCE_METERS } from '../../domain/race/validation';
 import { HorseInjuredError, HorseListedInMarketError, HorseNotFoundError } from '../../domain/horse/errors';
-import { PlayerNotFoundError } from '../../domain/player/errors';
 import { AppConfigService } from '../../infrastructure/config/config.service';
 import { HORSE_REPOSITORY, type HorseRepository } from '../ports/horse.repository';
 import { HORSE_STATS_REPOSITORY, type HorseStatsRepository } from '../ports/horse-stats.repository';
-import { PLAYER_REPOSITORY, type PlayerRepository } from '../ports/player.repository';
 import { RACE_REPOSITORY, type RaceRepository } from '../ports/race.repository';
 import { MARKET_LISTING_REPOSITORY, type MarketListingRepository } from '../ports/market-listing.repository';
 
@@ -27,6 +25,13 @@ const PRACTICE_RACE_WEATHER = 'sunny' as const;
  *
  * AUDIT_REPORT.md Bulgu H2 (Medium):
  * Pazarda aktif ilanı olan bir at yarışa sokulamaz.
+ *
+ * AUDIT_REPORT.md Bulgu E1 (High, bu oturum) — bu use-case artık
+ * `PLAYER_REPOSITORY`'yi HİÇ enjekte ETMEZ: cüzdan mutasyonu +
+ * yarış/ledger kaydı `raceRepository.savePracticeRaceWithStakes` içinde
+ * TEK bir atomik transaction'da birleştirildi (bkz. o port metodunun doc
+ * yorumu) — önceden bunlar `playerRepository.updateWithLock` + `raceRepository.
+ * savePracticeRace` olarak İKİ AYRI transaction'dı.
  */
 @Injectable()
 export class RunPracticeRaceUseCase {
@@ -34,7 +39,6 @@ export class RunPracticeRaceUseCase {
     @Inject(HORSE_REPOSITORY) private readonly horseRepository: HorseRepository,
     @Inject(HORSE_STATS_REPOSITORY) private readonly horseStatsRepository: HorseStatsRepository,
     @Inject(RACE_REPOSITORY) private readonly raceRepository: RaceRepository,
-    @Inject(PLAYER_REPOSITORY) private readonly playerRepository: PlayerRepository,
     @Inject(MARKET_LISTING_REPOSITORY) private readonly marketListingRepository: MarketListingRepository,
     @Inject(AppConfigService) private readonly config: AppConfigService,
   ) {}
@@ -82,55 +86,6 @@ export class RunPracticeRaceUseCase {
 
     const entryFee = getPracticeRaceEntryFee(this.config.economy);
     const prizeWon = getPracticeRacePrize(playerFinish.finishPosition, this.config.economy);
-    const walletResult = await this.playerRepository.updateWithLock(horse.ownerId, (player) => {
-      const afterStakes = applyPracticeRaceStakes({ money: player.money, gems: player.gems }, entryFee, prizeWon);
-
-      const updated: Player = {
-        ...player,
-        money: afterStakes.money,
-        gems: afterStakes.gems,
-        updatedAt: new Date().toISOString(),
-      };
-
-      const ledgerEntries = [
-        ...(entryFee > 0
-          ? [
-              {
-                playerId: horse.ownerId,
-                type: 'practice_race_entry_fee',
-                amount: -entryFee,
-                currency: 'money' as const,
-                referenceType: 'race',
-                referenceId: raceId,
-                balanceBefore: player.money,
-                balanceAfter: player.money - entryFee,
-                idempotencyKey: null,
-              },
-            ]
-          : []),
-        ...(prizeWon > 0
-          ? [
-              {
-                playerId: horse.ownerId,
-                type: 'practice_race_prize',
-                amount: prizeWon,
-                currency: 'money' as const,
-                referenceType: 'race',
-                referenceId: raceId,
-                balanceBefore: player.money - entryFee,
-                balanceAfter: afterStakes.money,
-                idempotencyKey: null,
-              },
-            ]
-          : []),
-      ];
-
-      return { player: updated, result: afterStakes, ledgerEntries };
-    });
-
-    if (walletResult === null) {
-      throw new PlayerNotFoundError(horse.ownerId);
-    }
 
     const now = new Date();
     const race: Race = {
@@ -177,7 +132,20 @@ export class RunPracticeRaceUseCase {
       .filter((segment) => segment.raceEntryId === horseId)
       .map((segment) => ({ ...segment, raceEntryId: raceEntry.id }));
 
-    await this.raceRepository.savePracticeRace(race, raceEntry, playerSegments);
+    // AUDIT_REPORT.md Bulgu E1 (bu oturum) — bkz. `RaceRepository.
+    // savePracticeRaceWithStakes` doc yorumu: cüzdan mutasyonu ile yarış
+    // kaydı ARTIK TEK bir atomik transaction'da yazılıyor (önceden
+    // `playerRepository.updateWithLock` + `raceRepository.savePracticeRace`
+    // İKİ AYRI transaction'dı — biri commit olup diğeri başarısız olursa
+    // para hareket etmiş ama yarış kaydı yok kalabiliyordu).
+    const newBalance = await this.raceRepository.savePracticeRaceWithStakes({
+      race,
+      entry: raceEntry,
+      segments: playerSegments,
+      playerId: horse.ownerId,
+      entryFee,
+      prizeWon,
+    });
 
     return {
       raceId,
@@ -189,7 +157,7 @@ export class RunPracticeRaceUseCase {
       explanations: timeline.explanations,
       entryFee,
       prizeWon,
-      newBalance: walletResult,
+      newBalance,
     };
   }
 }

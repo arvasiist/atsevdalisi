@@ -4,9 +4,12 @@ import type { Pool } from 'pg';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { EconomyConfig } from '@at-sevdalisi/game-config';
+import type { Race, RaceEntry } from '@at-sevdalisi/shared-types';
 import economyConfigJson from '../../../../config/economy.config.json';
 import { PG_POOL } from '../../src/infrastructure/database/database.module';
 import { getPracticeRaceEntryFee } from '../../src/domain/race/prize';
+import { RACE_REPOSITORY, type RaceRepository } from '../../src/application/ports/race.repository';
+import { RACE_ENGINE_VERSION, RACE_RULESET_VERSION } from '../../src/domain/race/race-engine';
 import {
   bootstrapTestApp,
   registerTestPlayer,
@@ -174,6 +177,97 @@ describe('Race — Pratik Yarış (e2e)', () => {
     void raceRows;
     const moneyRow = await pool.query('SELECT money FROM players WHERE id = $1', [playerId]);
     expect(Number(moneyRow.rows[0].money)).toBe(0);
+  });
+
+  it('AUDIT_REPORT.md Bulgu E1 (High) — savePracticeRaceWithStakes yarış kaydı adımı BAŞARISIZ olursa bakiye de GERİ ALINIR (atomiklik)', async () => {
+    // Bu test HTTP endpoint'i ÜZERİNDEN değil, gerçek Nest DI konteynerinden
+    // alınan GERÇEK `PostgresRaceRepository` örneğiyle DOĞRUDAN çalışır —
+    // codebase'in "repository seviyesinde mock/spy YOK, hep gerçek Postgres'e
+    // karşı e2e" kuralına uyar (bu bir mock DEĞİL, gerçek DB'ye karşı gerçek
+    // bir çağrı — sadece HTTP katmanını atlıyoruz çünkü normal akıştan bu
+    // hata durumunu doğal yoldan tetiklemek mümkün değil).
+    //
+    // `race_entries.horse_id` GERÇEK bir `horses` satırına FOREIGN KEY'dir
+    // (bkz. `RaceRepository.savePracticeRace` doc yorumu). Kasıtlı olarak
+    // VAR OLMAYAN bir horseId vererek, transaction'ın SON adımını (yarış
+    // kaydı ekleme) FK ihlaliyle başarısız kılıyoruz — bu adım, cüzdan
+    // güncellemesi/ledger yazımı TAMAMLANDIKTAN SONRA, ama transaction hâlâ
+    // COMMIT OLMADAN önce çalışır. Düzeltmeden ÖNCE bu iki adım ayrı
+    // transaction'lardı ve para hareket edip yarış kaydı hiç yazılmıyordu;
+    // düzeltmeden SONRA `withTransaction` TÜMÜNÜ (para dahil) ROLLBACK eder.
+    const raceRepository = app.get<RaceRepository>(RACE_REPOSITORY);
+    const { playerId } = await registerTestPlayerWithStarterHorse(app, 'Atomiklik Testi');
+
+    const beforeRow = await pool.query('SELECT money, gems FROM players WHERE id = $1', [playerId]);
+    const moneyBefore = Number(beforeRow.rows[0].money);
+    const gemsBefore = Number(beforeRow.rows[0].gems);
+
+    const raceId = randomUUID();
+    const nonExistentHorseId = randomUUID();
+    const now = new Date().toISOString();
+    const race: Race = {
+      id: raceId,
+      trackId: null,
+      name: 'Pratik Yarış',
+      distanceMeters: 1600,
+      surface: 'grass',
+      weather: 'sunny',
+      temperatureC: null,
+      windKmh: null,
+      humidityPct: null,
+      participantLimit: 1,
+      entryFee: 100,
+      prizePool: 0,
+      startTime: now,
+      status: 'finished',
+      simulationSeed: raceId,
+      engineVersion: RACE_ENGINE_VERSION,
+      rulesetVersion: RACE_RULESET_VERSION,
+      configVersion: '1',
+      weatherConfigVersion: '1',
+      createdAt: now,
+      updatedAt: now,
+    };
+    const entry: RaceEntry = {
+      id: randomUUID(),
+      raceId,
+      horseId: nonExistentHorseId, // <- FK ihlali burada gerçekleşecek
+      jockeyId: null,
+      gatePosition: null,
+      tacticalStyle: null,
+      riskLevel: null,
+      horseSnapshot: null,
+      finalTimeMs: null,
+      finishPosition: null,
+      performanceScore: null,
+      createdAt: now,
+    };
+
+    await expect(
+      raceRepository.savePracticeRaceWithStakes({
+        race,
+        entry,
+        segments: [],
+        playerId,
+        entryFee: 100,
+        prizeWon: 0,
+      }),
+    ).rejects.toThrow();
+
+    // Transaction TÜMÜYLE geri alınmış olmalı: giriş ücreti düşümü de
+    // ledger girişi de GERÇEKLEŞMEMİŞ olmalı.
+    const afterRow = await pool.query('SELECT money, gems FROM players WHERE id = $1', [playerId]);
+    expect(Number(afterRow.rows[0].money)).toBe(moneyBefore);
+    expect(Number(afterRow.rows[0].gems)).toBe(gemsBefore);
+
+    const ledgerRows = await pool.query(
+      "SELECT * FROM economy_transactions WHERE player_id = $1 AND reference_type = 'race' AND reference_id = $2",
+      [playerId, raceId],
+    );
+    expect(ledgerRows.rows.length).toBe(0);
+
+    const raceRow = await pool.query('SELECT * FROM races WHERE id = $1', [raceId]);
+    expect(raceRow.rows.length).toBe(0);
   });
 
   it('/api/v1/horses/:id/practice-race (POST) Authorization header olmadan 401 döner', async () => {

@@ -8,7 +8,14 @@ import type {
   RaceSurface,
   RecentRaceResultView,
 } from '@at-sevdalisi/shared-types';
-import type { RaceRepository } from '../../application/ports/race.repository';
+import type {
+  RaceRepository,
+  SavePracticeRaceWithStakesInput,
+  SavePracticeRaceWithStakesResult,
+} from '../../application/ports/race.repository';
+import type { EconomyLedgerEntryInput } from '../../application/ports/economy-ledger';
+import { applyPracticeRaceStakes } from '../../domain/race/prize';
+import { PlayerNotFoundError } from '../../domain/player/errors';
 import { PG_POOL, withTransaction } from '../database/database.module';
 
 /**
@@ -75,6 +82,98 @@ export class PostgresRaceRepository implements RaceRepository {
       await this.insertRaceRow(client, race);
       await this.insertEntryWithSegments(client, entry, segments);
     });
+  }
+
+  /**
+   * AUDIT_REPORT.md Bulgu E1 (High, bu oturum) — bkz. `RaceRepository.
+   * savePracticeRaceWithStakes` port doc yorumundaki tam gerekçe.
+   * `PostgresMarketPurchaseRepository.executePurchase` ile AYNI desen: bu
+   * metot `PlayerRepository`'yi HİÇ KULLANMAZ, kendi transaction'ını
+   * yönetir — oyuncunun `players` satırını KİLİTLER, `applyPracticeRaceStakes`
+   * (saf domain fonksiyonu, `InsufficientFundsError` fırlatabilir) ile
+   * bakiyeyi hesaplar, güncellenmiş satırı + ledger girişlerini yazar, SONRA
+   * (satırlar hâlâ AYNI transaction/client içindeyken) `races`/
+   * `race_entries`/`race_entry_segments` satırlarını ekler. Herhangi bir
+   * adım (özellikle SON adım — yarış kaydı) başarısız olursa `withTransaction`
+   * TÜMÜNÜ (para dahil) ROLLBACK eder.
+   */
+  async savePracticeRaceWithStakes(input: SavePracticeRaceWithStakesInput): Promise<SavePracticeRaceWithStakesResult> {
+    return withTransaction(this.pool, async (client) => {
+      const playerResult = await client.query<{ money: string; gems: string }>(
+        'SELECT money, gems FROM players WHERE id = $1 FOR UPDATE',
+        [input.playerId],
+      );
+      const playerRow = playerResult.rows[0];
+      if (!playerRow) {
+        throw new PlayerNotFoundError(input.playerId);
+      }
+
+      const balanceBefore = { money: Number(playerRow.money), gems: Number(playerRow.gems) };
+      const balanceAfter = applyPracticeRaceStakes(balanceBefore, input.entryFee, input.prizeWon);
+
+      await client.query('UPDATE players SET money = $2, gems = $3, updated_at = $4 WHERE id = $1', [
+        input.playerId,
+        balanceAfter.money,
+        balanceAfter.gems,
+        new Date(),
+      ]);
+
+      const ledgerEntries: EconomyLedgerEntryInput[] = [];
+      if (input.entryFee > 0) {
+        ledgerEntries.push({
+          playerId: input.playerId,
+          type: 'practice_race_entry_fee',
+          amount: -input.entryFee,
+          currency: 'money',
+          referenceType: 'race',
+          referenceId: input.race.id,
+          balanceBefore: balanceBefore.money,
+          balanceAfter: balanceBefore.money - input.entryFee,
+          idempotencyKey: null,
+        });
+      }
+      if (input.prizeWon > 0) {
+        ledgerEntries.push({
+          playerId: input.playerId,
+          type: 'practice_race_prize',
+          amount: input.prizeWon,
+          currency: 'money',
+          referenceType: 'race',
+          referenceId: input.race.id,
+          balanceBefore: balanceBefore.money - input.entryFee,
+          balanceAfter: balanceAfter.money,
+          idempotencyKey: null,
+        });
+      }
+      await this.writeLedgerEntries(client, ledgerEntries);
+
+      await this.insertRaceRow(client, input.race);
+      await this.insertEntryWithSegments(client, input.entry, input.segments);
+
+      return balanceAfter;
+    });
+  }
+
+  /** `savePracticeRaceWithStakes`'in yazdığı `economy_transactions` satırları — `PostgresPlayerRepository.writeLedgerEntries` ile AYNI desen (bu port `PlayerRepository`'yi kullanmadığından kendi kopyasını taşır). */
+  private async writeLedgerEntries(client: PoolClient, entries: EconomyLedgerEntryInput[]): Promise<void> {
+    for (const entry of entries) {
+      await client.query(
+        `INSERT INTO economy_transactions
+           (player_id, type, amount, currency, reference_type, reference_id, balance_before, balance_after, idempotency_key)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+        [
+          entry.playerId,
+          entry.type,
+          entry.amount,
+          entry.currency,
+          entry.referenceType,
+          entry.referenceId,
+          entry.balanceBefore,
+          entry.balanceAfter,
+          entry.idempotencyKey,
+        ],
+      );
+    }
   }
 
   /**

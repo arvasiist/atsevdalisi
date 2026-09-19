@@ -24,6 +24,35 @@ export interface RaceRepository {
   savePracticeRace(race: Race, entry: RaceEntry, segments: RaceSegmentSnapshot[]): Promise<void>;
 
   /**
+   * AUDIT_REPORT.md Bulgu E1 (High, bu oturum) — `RunPracticeRaceUseCase`
+   * ÖNCEDEN cüzdan mutasyonunu (`PlayerRepository.updateWithLock`) ve yarış
+   * kaydını (`savePracticeRace`, yukarıdaki metot) İKİ AYRI transaction'da
+   * yapıyordu: para transaction'ı commit olduktan SONRA yarış kaydı
+   * BAŞARISIZ olursa (ör. bağlantı kopması), oyuncunun parası zaten
+   * hareket etmiş ama hiçbir yarış kaydı YOKTUR — ve `IdempotencyInterceptor`
+   * hata durumunda `pending` satırını SİLDİĞİNDEN, aynı Idempotency-Key
+   * ile bir SONRAKİ deneme işlemi BAŞTAN çalıştırır (ÇİFT giriş ücreti
+   * tahsilatı/ÇİFT ödül verme riski).
+   *
+   * Bu metot, `PostgresMarketPurchaseRepository.executePurchase` ile AYNI
+   * ilkeyle (bkz. o dosyanın doc yorumu — "kendi transaction'ını yönetir"),
+   * oyuncunun `players` satırını KİLİTLEMEYİ, `applyPracticeRaceStakes`
+   * (saf domain fonksiyonu) ile bakiyeyi hesaplamayı, güncellenmiş satırı +
+   * ledger girişlerini YAZMAYI, VE `races`/`race_entries`/
+   * `race_entry_segments` satırlarını eklemeyi TEK bir Postgres
+   * transaction'ında birleştirir — "ya hepsi ya hiçbiri" artık GERÇEKTEN
+   * garantidir (bkz. `postgres-race.repository.spec.ts`'teki gerçek
+   * Postgres'e karşı rollback testi: yarış kaydı taraf BAŞARISIZ olursa
+   * bakiye de GERİ ALINIR).
+   *
+   * Eski `savePracticeRace` metodu KALDIRILMADI (`insertRaceRow`/
+   * `insertEntryWithSegments` yardımcılarını PAYLAŞIR, `savePvpMatch`
+   * hâlâ onu kullanır) — yalnızca `RunPracticeRaceUseCase` artık BUNU
+   * çağırır.
+   */
+  savePracticeRaceWithStakes(input: SavePracticeRaceWithStakesInput): Promise<SavePracticeRaceWithStakesResult>;
+
+  /**
    * FAZ 1 wiring, on dördüncü dilim (bu oturum) — PvP Eşleştirme (brief
    * §41). `savePracticeRace` ile AYNI "ya hepsi ya hiçbiri" transaction
    * gerekçesi (satır kilitleme YOK, TAMAMEN yeni satırlar eklenir) — TEK
@@ -51,6 +80,25 @@ export interface RaceRepository {
    * (bot rakipler dahil DEĞİLDİR, salt okunur bir sorgudur).
    */
   findRecentResultsByOwnerId(ownerId: string, limit: number): Promise<RecentRaceResultView[]>;
+}
+
+/** `RaceRepository.savePracticeRaceWithStakes` (AUDIT_REPORT.md E1) girdi şekli. */
+export interface SavePracticeRaceWithStakesInput {
+  race: Race;
+  entry: RaceEntry;
+  segments: RaceSegmentSnapshot[];
+  /** Kilitlenecek/güncellenecek `players` satırı — `horse.ownerId` (bkz. `RunPracticeRaceUseCase`). */
+  playerId: string;
+  /** `getPracticeRaceEntryFee`'den — 0 ise düşüm/ledger girişi hiç yazılmaz. */
+  entryFee: number;
+  /** `getPracticeRacePrize`'dan — 0 ise ekleme/ledger girişi hiç yazılmaz. */
+  prizeWon: number;
+}
+
+/** `RaceRepository.savePracticeRaceWithStakes` sonucu — `WalletBalance` ile AYNI şekil (`domain/economy/wallet.ts`). */
+export interface SavePracticeRaceWithStakesResult {
+  money: number;
+  gems: number;
 }
 
 /** NestJS DI için token (interface'ler runtime'da yok olduğundan bir Symbol gerekir). */
