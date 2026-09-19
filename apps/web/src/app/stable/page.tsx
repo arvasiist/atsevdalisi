@@ -168,6 +168,8 @@ function breedGenderLabel(breed: string, gender: PublicHorse['gender']): string 
 
 function primaryButtonStyle(): React.CSSProperties {
   return {
+    // AUDIT_REPORT.md F1: minHeight eklendi - 44px dokunma hedefi kuralini garanti eder.
+    minHeight: '44px',
     padding: '12px 24px',
     background: 'var(--color-accent-gold)',
     color: '#1a1405',

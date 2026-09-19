@@ -238,6 +238,8 @@ function horseRowStyle(selected: boolean): React.CSSProperties {
 
 function primaryButtonStyle(disabled = false): React.CSSProperties {
   return {
+    // AUDIT_REPORT.md F1: minHeight eklendi - 44px dokunma hedefi kuralini garanti eder.
+    minHeight: '44px',
     padding: '12px 24px',
     background: disabled ? 'var(--color-bg-surface-elevated)' : 'var(--color-accent-gold)',
     color: disabled ? 'var(--color-text-muted)' : '#1a1405',
@@ -251,6 +253,8 @@ function primaryButtonStyle(disabled = false): React.CSSProperties {
 
 function secondaryButtonStyle(disabled = false): React.CSSProperties {
   return {
+    // AUDIT_REPORT.md F1: minHeight eklendi - 44px dokunma hedefi kuralini garanti eder.
+    minHeight: '44px',
     padding: '12px 24px',
     background: 'transparent',
     color: disabled ? 'var(--color-text-muted)' : 'var(--color-status-critical)',

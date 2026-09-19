@@ -11,6 +11,22 @@
  * `docs/ARCHITECTURE.md` §9), JSX içeren HİÇBİR dosya (three.js'e ihtiyacı
  * olsun olmasın) burada derlenerek doğrulanamaz — bu, projenin zaten var
  * olan, belgelenmiş kısıtıdır. Doğrulama GitHub Actions CI'da olur.
+ *
+ * AUDIT_REPORT.md Bulgu F1 (Medium) hardening (bu oturum): bu dosya üç
+ * somut mobil sorunla anılıyordu — (1) sıralama paneli (`minWidth: 200px`)
+ * + mini harita (`width: 160px`) yan yana sabit genişlikte, 360px'lik bir
+ * telefonda (gutter düşüldükten sonra ~328px kullanılabilir alan) ikisi
+ * TOPLAMDA 360px gerektirdiğinden GERÇEKTEN taşıyordu; (2) oynat/duraklat
+ * düğmesi 32×32px, kamera/hız düğmeleri ~28px yükseklik/12px font — hepsi
+ * 44px dokunma hedefi kuralının ALTINDA; (3) kamera seçim satırı (4 uzun
+ * Türkçe etiket) dar ekranda sarma DAVRANIŞI yoktu, taşabilirdi. Üçü de
+ * aşağıda düzeltildi: (1) `min()`/`clamp()` CSS fonksiyonlarıyla panel
+ * genişlikleri viewport'a göre KÜÇÜLÜR (media query'ye gerek YOK — bu
+ * ortamda gerçek bir tarayıcıda görsel doğrulama yapılamadığından, CSS'in
+ * kendi içinde matematiksel olarak DOĞRU olan bu yaklaşım tercih edildi);
+ * (2) TÜM etkileşimli düğmeler artık en az 44px yükseklik/genişlikte;
+ * (3) `flexWrap: 'wrap'` ile düğme satırları taşmak yerine ikinci satıra
+ * SARAR.
  */
 
 import type { CameraMode } from './camera-presets';
@@ -75,8 +91,10 @@ export function RaceHud(props: RaceHudProps): React.ReactElement {
         style={{
           gridColumn: '1 / -1',
           display: 'flex',
+          flexWrap: 'wrap',
           justifyContent: 'space-between',
           alignItems: 'center',
+          gap: 'var(--space-sm)',
           pointerEvents: 'auto',
         }}
       >
@@ -132,15 +150,16 @@ function CameraSwitcher({
   onChangeCameraMode: (mode: CameraMode) => void;
 }): React.ReactElement {
   return (
-    <div style={{ ...panelStyle(), display: 'flex', gap: 'var(--space-xs)' }}>
+    <div style={{ ...panelStyle(), display: 'flex', flexWrap: 'wrap', gap: 'var(--space-xs)' }}>
       {CAMERA_MODE_ORDER.map((mode) => (
         <button
           key={mode}
           type="button"
           onClick={() => onChangeCameraMode(mode)}
           style={{
-            padding: '6px 10px',
-            fontSize: '12px',
+            minHeight: '44px',
+            padding: '6px 12px',
+            fontSize: '13px',
             borderRadius: 'var(--radius-sm)',
             border: mode === cameraMode ? '1px solid var(--color-accent-gold)' : '1px solid transparent',
             background: mode === cameraMode ? 'rgba(227, 179, 65, 0.15)' : 'transparent',
@@ -163,7 +182,7 @@ function LeaderboardPanel({
   leaderboard: LiveLeaderboardEntry[];
 }): React.ReactElement {
   return (
-    <div style={{ ...panelStyle(), pointerEvents: 'auto', alignSelf: 'start', minWidth: '200px' }}>
+    <div style={{ ...panelStyle(), pointerEvents: 'auto', alignSelf: 'start', minWidth: 'min(200px, 42vw)', maxWidth: '260px' }}>
       <div
         style={{
           fontSize: '11px',
@@ -207,8 +226,13 @@ function MiniMap({ markers }: { markers: MiniMapMarker[] }): React.ReactElement 
         gridColumn: 2,
         alignSelf: 'end',
         justifySelf: 'end',
-        width: '160px',
-        height: '96px',
+        // AUDIT_REPORT.md F1: sabit 160px genişlik, dar telefonlarda
+        // sıralama paneliyle (bkz. `LeaderboardPanel`) toplamda taşıyordu.
+        // `min()` ile viewport'un %38'ini aşmayacak şekilde küçülür;
+        // `aspectRatio` sabit 96px yüksekliğin yerine oranı KORUR, böylece
+        // panel küçülse de orantısız/basık görünmez.
+        width: 'min(160px, 38vw)',
+        aspectRatio: '5 / 3',
         position: 'relative',
         padding: 0,
         overflow: 'hidden',
@@ -248,17 +272,19 @@ function PlaybackControls({
   onSeek: (timeMs: number) => void;
 }): React.ReactElement {
   return (
-    <div style={{ ...panelStyle(), display: 'flex', alignItems: 'center', gap: 'var(--space-sm)' }}>
+    <div style={{ ...panelStyle(), display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 'var(--space-sm)' }}>
       <button
         type="button"
         onClick={onTogglePlay}
         style={{
-          width: '32px',
-          height: '32px',
+          width: '44px',
+          height: '44px',
+          flexShrink: 0,
           borderRadius: '50%',
           border: '1px solid var(--color-border)',
           background: 'var(--color-bg-surface-elevated)',
           color: 'var(--color-text-primary)',
+          fontSize: '16px',
           cursor: 'pointer',
         }}
       >
@@ -271,18 +297,20 @@ function PlaybackControls({
         max={durationMs}
         value={currentTimeMs}
         onChange={(event) => onSeek(Number(event.target.value))}
-        style={{ flex: 1 }}
+        style={{ flex: '1 1 120px', minHeight: '44px' }}
       />
 
-      <div style={{ display: 'flex', gap: '4px' }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
         {SPEED_OPTIONS.map((option) => (
           <button
             key={option}
             type="button"
             onClick={() => onChangeSpeedMultiplier(option)}
             style={{
-              padding: '4px 8px',
-              fontSize: '12px',
+              minWidth: '44px',
+              minHeight: '44px',
+              padding: '4px 10px',
+              fontSize: '13px',
               borderRadius: 'var(--radius-sm)',
               border: option === speedMultiplier ? '1px solid var(--color-accent-gold)' : '1px solid var(--color-border)',
               background: option === speedMultiplier ? 'rgba(227, 179, 65, 0.15)' : 'transparent',

@@ -132,6 +132,8 @@ export default function MarketPage(): React.ReactElement {
 
 function buyButtonStyle(): React.CSSProperties {
   return {
+    // AUDIT_REPORT.md F1: minHeight eklendi - 44px dokunma hedefi kuralini garanti eder.
+    minHeight: '44px',
     padding: '10px 20px',
     background: 'var(--color-status-positive)',
     color: '#0b1a10',

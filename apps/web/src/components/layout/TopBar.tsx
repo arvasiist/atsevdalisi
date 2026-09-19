@@ -11,6 +11,13 @@
  * unsurlar (ör. sahte "hava durumu") EKLENMEDİ. Yalnızca gerçek veriye
  * sahip olanlar gösterilir: oyuncu adı/seviyesi/bakiyesi (`PlayerContext`,
  * gerçek `GET /players/:id` verisi).
+ *
+ * AUDIT_REPORT.md Bulgu F1 (Medium) hardening (bu oturum): logo + iki
+ * para birimi rozeti + avatar/isim/seviye grubu tek bir satırda sabit
+ * `justify-content: space-between` ile diziliyordu — HER sayfada görünen
+ * bu satır, dar bir telefonda (360px) taşma riski taşıyordu. `flexWrap:
+ * 'wrap'` eklendi: taşmak yerine gerekirse ikinci satıra sarar (sticky
+ * header'ın yüksekliği bu durumda büyür, ama içerik KIRPILMAZ/TAŞMAZ).
  */
 
 import Link from 'next/link';
@@ -24,9 +31,10 @@ export function TopBar(): React.ReactElement {
     <header
       style={{
         display: 'flex',
+        flexWrap: 'wrap',
         justifyContent: 'space-between',
         alignItems: 'center',
-        gap: 'var(--space-md)',
+        gap: 'var(--space-sm)',
         padding: '12px var(--space-md)',
         borderBottom: '1px solid var(--color-border)',
         background: 'var(--color-bg-surface-elevated)',
@@ -52,7 +60,7 @@ export function TopBar(): React.ReactElement {
       </Link>
 
       {player ? (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-md)' }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 'var(--space-sm)' }}>
           <CurrencyPill icon="💰" value={player.money} />
           <CurrencyPill icon="💎" value={player.gems} />
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>

@@ -307,13 +307,16 @@ function horseRowStyle(selected: boolean): React.CSSProperties {
 }
 
 function chipStyle(selected: boolean): React.CSSProperties {
+  // AUDIT_REPORT.md F1: minHeight eklendi - onceden ~28px, 44px dokunma
+  // hedefi kuralinin altindaydi.
   return {
-    padding: '6px 12px',
+    minHeight: '44px',
+    padding: '8px 14px',
     borderRadius: '999px',
     border: `1px solid ${selected ? 'var(--color-accent-gold)' : 'var(--color-border)'}`,
     background: selected ? 'var(--color-accent-gold)' : 'transparent',
     color: selected ? '#1a1405' : 'var(--color-text-secondary)',
-    fontSize: '12px',
+    fontSize: '13px',
     fontWeight: 600,
     cursor: 'pointer',
   };
@@ -321,6 +324,8 @@ function chipStyle(selected: boolean): React.CSSProperties {
 
 function primaryButtonStyle(disabled = false): React.CSSProperties {
   return {
+    // AUDIT_REPORT.md F1: minHeight eklendi - 44px dokunma hedefi kuralini garanti eder.
+    minHeight: '44px',
     padding: '12px 24px',
     background: disabled ? 'var(--color-bg-surface-elevated)' : 'var(--color-accent-gold)',
     color: disabled ? 'var(--color-text-muted)' : '#1a1405',

@@ -99,3 +99,43 @@ a {
     padding-inline: var(--space-xl);
   }
 }
+
+/*
+ * AUDIT_REPORT.md Bulgu F1 (Medium) hardening (bu oturum) — bu dosyada
+ * daha önce TEK bir media query vardı (yukarısı, yalnızca gutter için).
+ * `.dashboard-grid`/`.training-grid`/`.races-grid` sınıfları sayfalarında
+ * ZATEN vardı ama HİÇBİR yerde stillendirilmemişti — üç sayfa da tam
+ * olarak iki GlassPanel çocuğuyla (ör. "At Seç" listesi + detay paneli)
+ * DAİMA tek sütun (`minmax(0, 1fr)`) render ediyordu; bu, tabletin/
+ * masaüstünün geniş yatay alanını KULLANMAYAN, bilinçsizce bırakılmış bir
+ * boşluktu (className'ler açıkça bu genişleme için bir kanca bırakmıştı).
+ * ~768px (brief'in istediği tablet eşiği) ve üzeri için burada iki
+ * sütuna geçiliyor; 768px ALTINDA (telefon) hâlâ tek sütun — mobil-öncelikli
+ * varsayılan DEĞİŞMEDİ.
+ */
+@media (min-width: 768px) {
+  .dashboard-grid {
+    grid-template-columns: minmax(0, 1.4fr) minmax(280px, 1fr);
+    align-items: start;
+  }
+
+  .training-grid,
+  .races-grid {
+    grid-template-columns: minmax(260px, 320px) minmax(0, 1fr);
+    align-items: start;
+  }
+}
+
+/*
+ * AUDIT_REPORT.md Bulgu F1 — brief'in "en az 360-430px telefon"
+ * breakpoint isteğini karşılar: en dar telefonlarda (`page-container`'ın
+ * mobil-öncelikli varsayılan `--space-md` = 16px gutter'ı hâlâ makul,
+ * ama 430px altında biraz daha sıkıştırılarak içeriğe birkaç fazladan
+ * piksel kazandırılır — ör. `RaceHud`'daki panel genişlikleri bu ekstra
+ * alandan faydalanır).
+ */
+@media (max-width: 430px) {
+  .page-container {
+    padding-inline: var(--space-sm);
+  }
+}
