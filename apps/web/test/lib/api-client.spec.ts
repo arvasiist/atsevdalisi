@@ -21,14 +21,15 @@ import { apiClient, setAuthToken } from '../../src/lib/api-client';
  * body/headers üretmesi) bir daha sessizce kırılırsa `npm test`'i
  * KIRACAK şekilde yazıldı.
  *
- * jsdom/happy-dom bu depoda (henüz) devDependency değil (bkz.
- * `package-lock.json` — `vitest`'in `peerDependenciesMeta` üzerinden
- * OPSİYONEL olarak referans verdiği paketler, gerçekten kurulu değil).
- * `api-client.ts` React'a veya DOM'a hiç dokunmadığı (yalnızca global
- * `fetch`/`Headers` — Node 20'de tarayıcısız da mevcuttur) için bu test
- * dosyası kasıtlı olarak `environment: 'node'` varsayılanıyla (apps/web'de
- * özel bir vitest config'i yok, kök `vitest.config.ts`'in `environment:
- * 'node'`'u geçerli) çalışacak şekilde tasarlandı — jsdom GEREKMİYOR.
+ * GÜNCELLEME (AUDIT_REPORT.md T2 tamamlanışı, bu oturum): `jsdom` artık
+ * `apps/web`'de bir devDependency (`.tsx` component testleri için, bkz.
+ * `RaceHud.spec.tsx`/`player-context.spec.tsx`) ve `apps/web/vitest.
+ * config.ts` artık kendi config'ini taşıyor — ama bu dosya BİLİNÇLİ olarak
+ * hâlâ jsdom KULLANMIYOR: `api-client.ts` React'a veya DOM'a hiç dokunmaz
+ * (yalnızca global `fetch`/`Headers` — Node 20'de tarayıcısız da
+ * mevcuttur), bu yüzden `environment: 'node'` varsayılanı (hem kök hem
+ * `apps/web`'in kendi config'inde AYNI) bu test için hâlâ doğru ve daha
+ * hızlı seçimdir.
  */
 
 const API_BASE_URL = 'http://localhost:3000/api/v1';

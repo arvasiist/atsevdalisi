@@ -13,12 +13,28 @@ import { defineConfig } from 'vitest/config';
  * farklı glob eşleşmeleridir). `**\/*.e2e-spec.ts` eklenerek düzeltildi;
  * yeni `apps/api/test/api/player.e2e-spec.ts` (FAZ 1 wiring) bu düzeltme
  * SAYESİNDE gerçekten koşacaktır.
+ *
+ * DÜZELTME (AUDIT_REPORT.md T2, bu oturum): `include` deseni `.spec.tsx`
+ * dosyalarını KAPSAMIYORDU — `apps/web`'in İLK gerçek component testleri
+ * (`RaceHud.spec.tsx`, `player-context.spec.tsx`, `@testing-library/react`
+ * + jsdom kullanır) bu yüzden eklendi. `esbuild.jsx: 'automatic'` de
+ * ZORUNLU: `apps/web/tsconfig.json`'daki `"jsx": "preserve"` (Next.js/SWC
+ * için gerekli) esbuild tarafından desteklenmez ("preserve" modunu esbuild
+ * anlamaz, hata fırlatır) — bu yüzden Vite/Vitest'in esbuild dönüşümü için
+ * burada AÇIKÇA `'automatic'` (React 17+ otomatik JSX runtime) zorunlu
+ * kılınıyor; bu, tsconfig'in kendi "preserve" ayarını (Next.js build'i
+ * için hâlâ doğru olan ayar) DEĞİŞTİRMEZ, yalnızca Vitest'in kendi
+ * dönüşüm adımını etkiler.
  */
 export default defineConfig({
+  esbuild: {
+    jsx: 'automatic',
+  },
   test: {
     include: [
       'packages/*/test/**/*.spec.ts',
       'apps/*/test/**/*.spec.ts',
+      'apps/*/test/**/*.spec.tsx',
       'apps/*/test/**/*.e2e-spec.ts',
     ],
     environment: 'node',
