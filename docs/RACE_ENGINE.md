@@ -190,9 +190,18 @@ RaceSeed + RaceConfig(o anki versiyon) + HorseSnapshots + PlayerTactics
 
 Replay istendiğinde Race Engine aynı girdilerle yeniden çalıştırılır ve
 `RaceTimeline` yeniden üretilir (determinism sayesinde bit bit aynı çıkar).
-İleride tam telemetry cache (`race_entry_segments` tablosu zaten bunu
-karşılıyor) doğrudan okunarak yeniden hesaplama ihtiyacı ortadan
-kaldırılabilir.
+
+**AUDIT_REPORT.md Bulgu R2 güncellemesi (bu oturum):** Yukarıdaki "ileride
+tam telemetry cache doğrudan okunarak..." notu artık GERÇEKLEŞTİ —
+`GET /races/:id/timeline` (docs/API.md), botlar DAHİL tüm katılımcıların
+`race_entry_segments` telemetrisini DB'den DOĞRUDAN okuyup döner (bkz.
+`RaceEntry.botLabel`, migration `0025_add_race_entry_bot_support`).
+Öncesinde botlar `race_entries`'e hiç yazılmadığından (`horse_id` gerçek
+bir `horses` satırına FOREIGN KEY olduğu için) tam alan replay'i YALNIZCA
+bu bölümdeki "yeniden simülasyon" yoluyla mümkündü — artık İKİ yol da
+(DB okuma VE yeniden simülasyon) mevcut ve determinism garantisi sayesinde
+BİREBİR aynı sonucu üretir (bkz. `race-timeline.e2e-spec.ts`'teki test,
+her ikisini birden çalıştırıp karşılaştırır).
 
 **FAZ 5 notu:** Replay için ayrıca yeni kod yazılmasına gerek **yoktu** —
 FAZ5'in eklediği tüm yeni alanlar (`lane`, `blocked`, `decision`,

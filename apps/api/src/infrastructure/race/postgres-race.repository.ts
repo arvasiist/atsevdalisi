@@ -4,8 +4,12 @@ import type {
   PvpMatch,
   Race,
   RaceEntry,
+  RaceJockeyDecision,
   RaceSegmentSnapshot,
   RaceSurface,
+  RaceTimelineEntrantView,
+  RaceTimelineView,
+  RaceWeather,
   RecentRaceResultView,
 } from '@at-sevdalisi/shared-types';
 import type {
@@ -148,7 +152,14 @@ export class PostgresRaceRepository implements RaceRepository {
       await this.writeLedgerEntries(client, ledgerEntries);
 
       await this.insertRaceRow(client, input.race);
-      await this.insertEntryWithSegments(client, input.entry, input.segments);
+      // AUDIT_REPORT.md Bulgu R2 (Medium, bu oturum) — `input.entry`/
+      // `input.segments` (tekil) yerine `input.entries` (oyuncu + TÜM bot
+      // rakipler) — bkz. port doc yorumu, `savePvpMatch`'teki AYNI
+      // "her katılımcı için bir kez insertEntryWithSegments" deseni.
+      for (const entry of input.entries) {
+        const entrySegments = input.segments.filter((segment) => segment.raceEntryId === entry.id);
+        await this.insertEntryWithSegments(client, entry, entrySegments);
+      }
 
       return balanceAfter;
     });
@@ -226,6 +237,137 @@ export class PostgresRaceRepository implements RaceRepository {
   }
 
   /**
+   * AUDIT_REPORT.md Bulgu R2 (Medium, bu oturum) — bkz. `RaceRepository.
+   * findTimelineByRaceId` port doc yorumu. ÜÇ ayrı sorgu (races satırı,
+   * TÜM race_entries, TÜM race_entry_segments) BİLEREK tek bir dev JOIN
+   * yerine ayrı tutuldu — segment satırları katılımcı başına 8 (brief §19
+   * segment sayısı) olduğundan bir JOIN, race_entries sütunlarını
+   * gereksiz yere N kat tekrar eder; burada N küçük (≤12 katılımcı) olsa
+   * da `findRecentResultsByOwnerId`'nin AKSİNE (tek satır/katılımcı) bu
+   * sorgu segment-seviyesinde çalıştığından ayrım daha nettir. Salt okunur,
+   * `withTransaction` GEREKMEZ.
+   */
+  async findTimelineByRaceId(raceId: string): Promise<RaceTimelineView | null> {
+    const raceResult = await this.pool.query<{
+      distance_m: number;
+      surface: string;
+      weather: string;
+      simulation_seed: string | null;
+    }>('SELECT distance_m, surface, weather, simulation_seed FROM races WHERE id = $1', [raceId]);
+    const raceRow = raceResult.rows[0];
+    if (!raceRow) {
+      return null;
+    }
+
+    const entryResult = await this.pool.query<{
+      entry_id: string;
+      horse_id: string | null;
+      bot_label: string | null;
+      horse_name: string | null;
+      tactical_style: string | null;
+      risk_level: string | null;
+      final_time_ms: number | null;
+      finish_position: number | null;
+      performance_score: string | null;
+    }>(
+      `SELECT re.id AS entry_id, re.horse_id, re.bot_label, h.name AS horse_name,
+              re.tactical_style, re.risk_level, re.final_time_ms, re.finish_position, re.performance_score
+       FROM race_entries re
+       LEFT JOIN horses h ON h.id = re.horse_id
+       WHERE re.race_id = $1
+       ORDER BY (re.finish_position IS NULL), re.finish_position, re.created_at`,
+      [raceId],
+    );
+
+    const entryIds = entryResult.rows.map((row) => row.entry_id);
+    const segmentsByEntryId = new Map<string, RaceSegmentSnapshot[]>();
+    if (entryIds.length > 0) {
+      const segmentResult = await this.pool.query<{
+        race_entry_id: string;
+        segment_distance_m: number;
+        timestamp_ms: number;
+        position_m: string;
+        speed: string | null;
+        stamina: string | null;
+        fatigue: string | null;
+        lane: number | null;
+        tactical_state: string | null;
+        current_rank: number | null;
+        blocked: boolean;
+        jockey_decision: string | null;
+      }>(
+        `SELECT race_entry_id, segment_distance_m, timestamp_ms, position_m, speed, stamina, fatigue, lane, tactical_state, current_rank, blocked, jockey_decision
+         FROM race_entry_segments
+         WHERE race_entry_id = ANY($1::uuid[])
+         ORDER BY race_entry_id, timestamp_ms`,
+        [entryIds],
+      );
+
+      for (const row of segmentResult.rows) {
+        const segment: RaceSegmentSnapshot = {
+          raceEntryId: row.race_entry_id,
+          segmentDistanceMeters: row.segment_distance_m,
+          timestampMs: row.timestamp_ms,
+          positionMeters: Number(row.position_m),
+          speed: row.speed === null ? 0 : Number(row.speed),
+          stamina: row.stamina === null ? 0 : Number(row.stamina),
+          fatigue: row.fatigue === null ? 0 : Number(row.fatigue),
+          lane: row.lane ?? 0,
+          tacticalState: row.tactical_state ?? '',
+          currentRank: row.current_rank ?? 0,
+          blocked: row.blocked,
+          decision: (row.jockey_decision ?? 'hold') as RaceJockeyDecision,
+        };
+        const existing = segmentsByEntryId.get(row.race_entry_id) ?? [];
+        existing.push(segment);
+        segmentsByEntryId.set(row.race_entry_id, existing);
+      }
+    }
+
+    const entrants: RaceTimelineEntrantView[] = entryResult.rows.map((row) => ({
+      entryId: row.entry_id,
+      isBot: row.horse_id === null,
+      horseId: row.horse_id,
+      horseName: row.horse_name,
+      botLabel: row.bot_label,
+      tacticalStyle: row.tactical_style as RaceTimelineEntrantView['tacticalStyle'],
+      riskLevel: row.risk_level as RaceTimelineEntrantView['riskLevel'],
+      finalTimeMs: row.final_time_ms,
+      finishPosition: row.finish_position,
+      performanceScore: row.performance_score === null ? null : Number(row.performance_score),
+      segments: segmentsByEntryId.get(row.entry_id) ?? [],
+    }));
+
+    return {
+      raceId,
+      distanceMeters: raceRow.distance_m,
+      surface: raceRow.surface as RaceSurface,
+      weather: raceRow.weather as RaceWeather,
+      simulationSeed: raceRow.simulation_seed,
+      entrants,
+    };
+  }
+
+  /**
+   * AUDIT_REPORT.md Bulgu R2 (Medium, bu oturum) — bkz. `RaceRepository.
+   * isPlayerParticipant` port doc yorumu. `INNER JOIN horses` botları
+   * OTOMATİK dışarıda bırakır (`horse_id IS NULL` bir bot satırı hiçbir
+   * `horses` satırıyla eşleşemez) — bu yüzden yalnızca GERÇEK at
+   * katılımcıları sayılır, tam olarak istenen davranış.
+   */
+  async isPlayerParticipant(raceId: string, playerId: string): Promise<boolean> {
+    const result = await this.pool.query(
+      `SELECT 1
+       FROM race_entries re
+       JOIN horses h ON h.id = re.horse_id
+       WHERE re.race_id = $1 AND h.owner_id = $2
+       LIMIT 1`,
+      [raceId, playerId],
+    );
+    return result.rows.length > 0;
+  }
+
+  /**
    * `savePracticeRace`/`savePvpMatch`'in PAYLAŞTIĞI `races` satırı ekleme
    * sorgusu (DRY).
    *
@@ -269,15 +411,26 @@ export class PostgresRaceRepository implements RaceRepository {
     );
   }
 
-  /** `savePracticeRace`/`savePvpMatch`'in PAYLAŞTIĞI `race_entries` + `race_entry_segments` ekleme sorguları (DRY). */
+  /**
+   * `savePracticeRace`/`savePracticeRaceWithStakes`/`savePvpMatch`'in
+   * PAYLAŞTIĞI `race_entries` + `race_entry_segments` ekleme sorguları (DRY).
+   *
+   * AUDIT_REPORT.md Bulgu R2 (Medium, bu oturum) — `bot_label` sütunu
+   * eklendi (migration 0025): `entry.horseId` null İSE bu bir bot
+   * girişidir, `entry.botLabel` yazılır; aksi halde (gerçek at) `bot_label`
+   * NULL kalır. Veritabanının kendi CHECK kısıtı (`race_entries_horse_xor_
+   * bot_chk`) ikisinin BİRDEN dolu/boş olmasını zaten engeller — burada
+   * `entry.horseId`/`entry.botLabel`'in KENDİSİ olduğu gibi yazılır.
+   */
   private async insertEntryWithSegments(client: PoolClient, entry: RaceEntry, segments: RaceSegmentSnapshot[]): Promise<void> {
     await client.query(
-      `INSERT INTO race_entries (id, race_id, horse_id, jockey_id, gate_position, tactical_style, risk_level, horse_snapshot, final_time_ms, finish_position, performance_score, created_at)
-       VALUES ($1, $2, $3, NULL, NULL, $4, $5, $6, $7, $8, $9, $10)`,
+      `INSERT INTO race_entries (id, race_id, horse_id, bot_label, jockey_id, gate_position, tactical_style, risk_level, horse_snapshot, final_time_ms, finish_position, performance_score, created_at)
+       VALUES ($1, $2, $3, $4, NULL, NULL, $5, $6, $7, $8, $9, $10, $11)`,
       [
         entry.id,
         entry.raceId,
         entry.horseId,
+        entry.botLabel,
         entry.tacticalStyle,
         entry.riskLevel,
         JSON.stringify(entry.horseSnapshot),
@@ -288,25 +441,43 @@ export class PostgresRaceRepository implements RaceRepository {
       ],
     );
 
-    for (const segment of segments) {
-      await client.query(
-        `INSERT INTO race_entry_segments (race_entry_id, segment_distance_m, timestamp_ms, position_m, speed, stamina, fatigue, lane, tactical_state, current_rank, blocked, jockey_decision)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
-        [
-          entry.id,
-          segment.segmentDistanceMeters,
-          segment.timestampMs,
-          segment.positionMeters,
-          segment.speed,
-          segment.stamina,
-          segment.fatigue,
-          segment.lane,
-          segment.tacticalState,
-          segment.currentRank,
-          segment.blocked,
-          segment.decision,
-        ],
-      );
+    if (segments.length === 0) {
+      return;
     }
+
+    // AUDIT_REPORT.md Bulgu R2 (Medium, bu oturum) — botlar da artık
+    // segment yazdığından (önceden yalnızca 1 katılımcı × ~8 segment,
+    // şimdi TÜM katılımcılar × ~8 segment), segment BAŞINA ayrı bir
+    // `client.query()` round-trip'i (`race.e2e-spec.ts`'in n=100
+    // eşzamanlılık testlerinin CI #93-109'da onlarca turda stabilize
+    // edildiği, GERÇEK zamanlama hassasiyeti olan bir ortam) katılımcı
+    // sayısıyla ORANTILI olarak ÇOĞALIRDI. Bunun yerine TEK bir çoklu-satır
+    // INSERT — round-trip sayısı katılımcı/segment sayısından BAĞIMSIZ
+    // olarak sabit kalır (entry başına 1 sorgu).
+    const values: unknown[] = [];
+    const rowPlaceholders = segments.map((segment, index) => {
+      const base = index * 12;
+      values.push(
+        entry.id,
+        segment.segmentDistanceMeters,
+        segment.timestampMs,
+        segment.positionMeters,
+        segment.speed,
+        segment.stamina,
+        segment.fatigue,
+        segment.lane,
+        segment.tacticalState,
+        segment.currentRank,
+        segment.blocked,
+        segment.decision,
+      );
+      return `($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4}, $${base + 5}, $${base + 6}, $${base + 7}, $${base + 8}, $${base + 9}, $${base + 10}, $${base + 11}, $${base + 12})`;
+    });
+
+    await client.query(
+      `INSERT INTO race_entry_segments (race_entry_id, segment_distance_m, timestamp_ms, position_m, speed, stamina, fatigue, lane, tactical_state, current_rank, blocked, jockey_decision)
+       VALUES ${rowPlaceholders.join(', ')}`,
+      values,
+    );
   }
 }

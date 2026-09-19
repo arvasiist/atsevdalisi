@@ -338,6 +338,73 @@ Oyuncu bulunamazsa `404 PLAYER_NOT_FOUND`, id UUID formatında değilse
 `400 VALIDATION_ERROR` döner. Hiç yarış koşulmamışsa boş dizi döner (hata
 DEĞİL).
 
+### Tam Alan Replay / Yarış Zaman Çizelgesi (AUDIT_REPORT.md Bulgu R2, bu oturum)
+
+```http
+GET /api/v1/races/{id}/timeline
+```
+
+`PracticeRaceResult`'ın (yarış sonucu yanıtı) AKSİNE, bu uç nokta yarışın
+TÜM katılımcılarının (oyuncunun atı + tüm bot rakipler) ham segment
+telemetrisini DB'den DOĞRUDAN okuyarak döner — `simulationSeed` ile
+yeniden simülasyona bir ALTERNATİFTİR (brief §58 replay garantisi). Bot
+rakipler artık `race_entries`/`race_entry_segments`'e yazılır (bkz.
+migration `0025_add_race_entry_bot_support`, `RaceEntry.botLabel`) — bir
+katılımcının `horseId`'si `null` ise o katılımcı bottur, gerçek adı yerine
+`botLabel` (`"bot-1"` vb.) doludur.
+
+**Yetkilendirme:** İstek sahibinin bu yarışta EN AZ bir gerçek atının
+katılımcı olması gerekir (`GetRaceTimelineUseCase.isPlayerParticipant`) —
+aksi halde `403 FORBIDDEN`. Yarış hiç yoksa `404 RACE_NOT_FOUND`. Örnek
+yanıt:
+
+```json
+{
+  "success": true,
+  "data": {
+    "raceId": "b1f2...",
+    "distanceMeters": 1600,
+    "surface": "grass",
+    "weather": "sunny",
+    "simulationSeed": "b1f2...",
+    "entrants": [
+      {
+        "entryId": "c3d4...",
+        "isBot": false,
+        "horseId": "a9e0...",
+        "horseName": "Şimşek",
+        "botLabel": null,
+        "tacticalStyle": "closer",
+        "riskLevel": "normal",
+        "finalTimeMs": 94820,
+        "finishPosition": 2,
+        "performanceScore": 87.5,
+        "segments": [
+          { "raceEntryId": "c3d4...", "segmentDistanceMeters": 200, "timestampMs": 12500, "positionMeters": 198.4, "speed": 15.9, "stamina": 92.1, "fatigue": 7.9, "lane": 3, "tacticalState": "closer", "currentRank": 4, "blocked": false, "decision": "hold" }
+        ]
+      },
+      {
+        "entryId": "d5e6...",
+        "isBot": true,
+        "horseId": null,
+        "horseName": null,
+        "botLabel": "bot-1",
+        "tacticalStyle": "front_runner",
+        "riskLevel": "normal",
+        "finalTimeMs": 93110,
+        "finishPosition": 1,
+        "performanceScore": 91.2,
+        "segments": []
+      }
+    ]
+  }
+}
+```
+
+**Test requirement (AUDIT_REPORT.md):** bir yarışı kaydet, tam alanı iki
+yoldan yeniden oluştur (DB okuma vs. yeniden simülasyon) → eşleşmeli —
+bkz. `race-timeline.e2e-spec.ts`.
+
 ### Ahır Yükseltme (FAZ 1 wiring, altıncı dilim; onuncu dilimde Idempotency-Key eklendi, bu oturum)
 
 ```http
@@ -945,6 +1012,7 @@ lobby.update       — online yarış lobisi (brief §41)
 | `USERNAME_ALREADY_TAKEN` | Kayıt sırasında seçilen kullanıcı adı zaten alınmış (FAZ 1 wiring) |
 | `PLAYER_NOT_FOUND` | Verilen id'ye ait oyuncu bulunamadı (FAZ 1 wiring) |
 | `HORSE_NOT_FOUND` | Verilen id'ye ait at bulunamadı (FAZ 1 wiring, ikinci dilim) |
+| `RACE_NOT_FOUND` | Verilen id'ye ait yarış bulunamadı (AUDIT_REPORT.md R2, `GET /races/:id/timeline`) |
 | `CARE_ACTION_ON_COOLDOWN` | Bakım eylemi cooldown süresi dolmadan tekrar istendi (FAZ 1 wiring, beşinci dilim) |
 | `MAX_STABLE_LEVEL_REACHED` | Ahır zaten en yüksek seviyede, daha fazla yükseltilemez (FAZ 1 wiring, altıncı dilim) |
 | `DAILY_REWARD_ALREADY_CLAIMED` | Günlük ödül cooldown süresi dolmadan tekrar talep edildi (FAZ 1 wiring, yedinci dilim) |

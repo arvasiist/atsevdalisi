@@ -1,4 +1,11 @@
-import type { PvpMatch, Race, RaceEntry, RaceSegmentSnapshot, RecentRaceResultView } from '@at-sevdalisi/shared-types';
+import type {
+  PvpMatch,
+  Race,
+  RaceEntry,
+  RaceSegmentSnapshot,
+  RaceTimelineView,
+  RecentRaceResultView,
+} from '@at-sevdalisi/shared-types';
 
 /**
  * `RaceRepository` — Application katmanının Infrastructure'a bağlandığı
@@ -16,10 +23,12 @@ export interface RaceRepository {
    * burada YOK — transaction yalnızca "ya hepsi ya hiçbiri" garantisi
    * için kullanılıyor).
    *
-   * Bot rakipler (`generateBotEntrants`) burada YAZILMAZ — `race_entries.
-   * horse_id` gerçek bir `horses` satırına FOREIGN KEY'dir, botlar için
-   * sahte bir at/oyuncu kaydı oluşturmak yerine bu kapsam dışı bırakıldı
-   * (bkz. use-case doc yorumu).
+   * Bot rakipler (`generateBotEntrants`) burada YAZILMAZ — bu metot
+   * `RunPracticeRaceUseCase` tarafından ARTIK HİÇ ÇAĞRILMIYOR (bkz. dosya
+   * sonundaki "Eski `savePracticeRace` metodu KALDIRILMADI" notu), bu
+   * yüzden AUDIT_REPORT.md Bulgu R2 (bu oturum) düzeltmesi BURAYA
+   * uygulanmadı — R2'nin çözümü (`RaceEntry.botLabel`, `horse_id` artık
+   * nullable) yalnızca aşağıdaki `savePracticeRaceWithStakes`'te geçerlidir.
    */
   savePracticeRace(race: Race, entry: RaceEntry, segments: RaceSegmentSnapshot[]): Promise<void>;
 
@@ -49,6 +58,20 @@ export interface RaceRepository {
    * `insertEntryWithSegments` yardımcılarını PAYLAŞIR, `savePvpMatch`
    * hâlâ onu kullanır) — yalnızca `RunPracticeRaceUseCase` artık BUNU
    * çağırır.
+   *
+   * AUDIT_REPORT.md Bulgu R2 (Medium, bu oturum) — `input.entry`/
+   * `input.segments` (TEKİL, yalnızca oyuncunun atı) `input.entries`
+   * (DİZİ — oyuncunun atı + `savePvpMatch`'teki AYNI desenle TÜM bot
+   * rakipler) + `input.segments` (TÜM katılımcıların BİRLEŞTİRİLMİŞ
+   * segmentleri, her biri KENDİ `entry.id`'sine göre filtrelenir) olarak
+   * DEĞİŞTİ — tam alan (full-field) replay'in DB'den doğrudan okunabilmesi
+   * için botların da artık `race_entries`/`race_entry_segments`'e
+   * yazılması GEREKİYORDU (bkz. `RaceEntry.botLabel` doc yorumu,
+   * `database/migrations/0025_add_race_entry_bot_support.up.sql`).
+   * Dizideki İLK eleman HER ZAMAN oyuncunun kendi girişidir (`RunPracticeRaceUseCase`
+   * bu sırayı garanti eder) — repository'nin kendisi bu SIRAYA bağımlı
+   * DEĞİLDİR, yalnızca `RunPracticeRaceUseCase`'in dönüş değerini oluştururken
+   * kullanışlıdır.
    */
   savePracticeRaceWithStakes(input: SavePracticeRaceWithStakesInput): Promise<SavePracticeRaceWithStakesResult>;
 
@@ -80,12 +103,40 @@ export interface RaceRepository {
    * (bot rakipler dahil DEĞİLDİR, salt okunur bir sorgudur).
    */
   findRecentResultsByOwnerId(ownerId: string, limit: number): Promise<RecentRaceResultView[]>;
+
+  /**
+   * AUDIT_REPORT.md Bulgu R2 (Medium, bu oturum) — `GET /races/:id/timeline`.
+   * `races` + TÜM `race_entries` (gerçek at VE bot satırları) + TÜM
+   * `race_entry_segments`'i tek bir görünüme birleştirip döner; `race`
+   * satırı yoksa `null` döner (use-case bunu `RaceNotFoundError`'a çevirir —
+   * bu port'un kendisi HTTP/domain hatası BİLMEZ, docs/ARCHITECTURE.md §4).
+   * Salt okunur, `withTransaction` GEREKMEZ (`findRecentResultsByOwnerId`
+   * ile AYNI gerekçe).
+   */
+  findTimelineByRaceId(raceId: string): Promise<RaceTimelineView | null>;
+
+  /**
+   * AUDIT_REPORT.md Bulgu R2 (Medium, bu oturum) — `GET /races/:id/timeline`
+   * yetkilendirmesi: bu yarışta `playerId`'ye ait EN AZ bir gerçek at
+   * (bot DEĞİL) katılımcı olarak var mı? `HorseOwnerGuardByParam` ile AYNI
+   * "sahiplik" ilkesi ama farklı şekil — burada tekil bir at DEĞİL, bir
+   * YARIŞTA katılım sorgulanıyor, bu yüzden ayrı bir route guard yerine
+   * use-case seviyesinde bir port metodu olarak modellendi (`assertSelf`
+   * ile KARŞILAŞTIRILAMAZ: `playerId` her zaman `CurrentPlayer()`'dan gelir,
+   * URL'den gelen bir "iddia edilen kimlik" değil).
+   */
+  isPlayerParticipant(raceId: string, playerId: string): Promise<boolean>;
 }
 
 /** `RaceRepository.savePracticeRaceWithStakes` (AUDIT_REPORT.md E1) girdi şekli. */
 export interface SavePracticeRaceWithStakesInput {
   race: Race;
-  entry: RaceEntry;
+  /**
+   * AUDIT_REPORT.md Bulgu R2 (bu oturum) — bkz. `savePracticeRaceWithStakes`
+   * doc yorumundaki tam gerekçe. İLK eleman oyuncunun kendi girişidir.
+   */
+  entries: RaceEntry[];
+  /** TÜM `entries`'in BİRLEŞTİRİLMİŞ segmentleri — her segment kendi `raceEntryId`'sine göre ilgili girişle eşleştirilir. */
   segments: RaceSegmentSnapshot[];
   /** Kilitlenecek/güncellenecek `players` satırı — `horse.ownerId` (bkz. `RunPracticeRaceUseCase`). */
   playerId: string;

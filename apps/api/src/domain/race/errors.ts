@@ -24,3 +24,16 @@ export class InvalidRaceTacticError extends Error {
     this.name = 'InvalidRaceTacticError';
   }
 }
+
+/**
+ * AUDIT_REPORT.md Bulgu R2 (Medium, bu oturum) — `GET /races/:id/timeline`
+ * (tam alan replay) verilen `raceId` ile eşleşen bir `races` satırı yoksa
+ * fırlatılır. `HorseNotFoundError`/`PlayerNotFoundError` ile AYNI "bulunamayan
+ * kaynak" kategorisi, 404.
+ */
+export class RaceNotFoundError extends Error {
+  constructor(raceId: string) {
+    super(`Yarış bulunamadı: ${raceId}`);
+    this.name = 'RaceNotFoundError';
+  }
+}

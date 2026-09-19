@@ -117,6 +117,7 @@ export class RunPracticeRaceUseCase {
       id: randomUUID(),
       raceId,
       horseId,
+      botLabel: null,
       jockeyId: null,
       gatePosition: null,
       tacticalStyle: input.tactic.racingStyle,
@@ -128,9 +129,42 @@ export class RunPracticeRaceUseCase {
       createdAt: now.toISOString(),
     };
 
-    const playerSegments: RaceSegmentSnapshot[] = timeline.segments
-      .filter((segment) => segment.raceEntryId === horseId)
-      .map((segment) => ({ ...segment, raceEntryId: raceEntry.id }));
+    // AUDIT_REPORT.md Bulgu R2 (Medium, bu oturum) — botlar ARTIK oyuncunun
+    // atıyla AYNI şekilde `race_entries`/`race_entry_segments`'e yazılır
+    // (bkz. `RaceEntry.botLabel` doc yorumu, migration 0025). `botEntrants`
+    // listesindeki SIRA korunur; her bota `timeline`'daki KENDİ orijinal
+    // simülasyon-içi etiketiyle (`bot.horseId`, ör. "bot-1") eşleşen
+    // `finalResult`/`segments` verisi atanır, sonra kalıcı `race_entries.id`'ye
+    // YENİDEN eşlenir (`playerSegments`'teki AYNI `raceEntryId` yeniden
+    // eşleme deseni).
+    const botRaceEntries: RaceEntry[] = botEntrants.map((bot) => {
+      const botFinish = timeline.finalResult.find((finishEntry) => finishEntry.horseId === bot.horseId);
+      return {
+        id: randomUUID(),
+        raceId,
+        horseId: null,
+        botLabel: bot.horseId,
+        jockeyId: null,
+        gatePosition: null,
+        tacticalStyle: bot.tactic.racingStyle,
+        riskLevel: bot.tactic.riskLevel,
+        horseSnapshot: bot,
+        finalTimeMs: botFinish?.finishTimeMs ?? null,
+        finishPosition: botFinish?.finishPosition ?? null,
+        performanceScore: botFinish?.performanceScore ?? null,
+        createdAt: now.toISOString(),
+      };
+    });
+
+    const allEntries: RaceEntry[] = [raceEntry, ...botRaceEntries];
+    const entryIdBySimulationLabel = new Map<string, string>([
+      [horseId, raceEntry.id],
+      ...botRaceEntries.map((entry): [string, string] => [entry.botLabel as string, entry.id]),
+    ]);
+    const allSegments: RaceSegmentSnapshot[] = timeline.segments.map((segment) => ({
+      ...segment,
+      raceEntryId: entryIdBySimulationLabel.get(segment.raceEntryId) ?? segment.raceEntryId,
+    }));
 
     // AUDIT_REPORT.md Bulgu E1 (bu oturum) — bkz. `RaceRepository.
     // savePracticeRaceWithStakes` doc yorumu: cüzdan mutasyonu ile yarış
@@ -140,8 +174,8 @@ export class RunPracticeRaceUseCase {
     // para hareket etmiş ama yarış kaydı yok kalabiliyordu).
     const newBalance = await this.raceRepository.savePracticeRaceWithStakes({
       race,
-      entry: raceEntry,
-      segments: playerSegments,
+      entries: allEntries,
+      segments: allSegments,
       playerId: horse.ownerId,
       entryFee,
       prizeWon,

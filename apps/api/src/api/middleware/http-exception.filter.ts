@@ -23,7 +23,7 @@ import { HorseNotReadyForTrainingError, InvalidTrainingInputError } from '../../
 import { CareActionOnCooldownError, InvalidCareInputError } from '../../domain/care/errors';
 import { MaxStableLevelReachedError, StableCapacityExceededError } from '../../domain/stable/errors';
 import { DailyRewardAlreadyClaimedError, InsufficientFundsError } from '../../domain/economy/errors';
-import { InvalidRaceTacticError } from '../../domain/race/errors';
+import { InvalidRaceTacticError, RaceNotFoundError } from '../../domain/race/errors';
 import { AlreadyInMatchmakingQueueError, NotInMatchmakingQueueError } from '../../domain/online/errors';
 import {
   CannotBuyOwnListingError,
@@ -96,6 +96,9 @@ const DOMAIN_ERROR_MAP = new Map<ErrorClassConstructor, { status: number; code: 
   // taktik alanı `InvalidTrainingInputError`/`InvalidCareInputError` ile
   // AYNI gerekçeyle gerçek bir DOĞRULAMA hatasıdır, 400.
   [InvalidRaceTacticError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.ValidationError }],
+  // AUDIT_REPORT.md Bulgu R2 (Medium, bu oturum) — `HorseNotFoundError`/
+  // `ListingNotFoundError` ile AYNI kategori (bulunamayan kaynak), 404.
+  [RaceNotFoundError, { status: HttpStatus.NOT_FOUND, code: ErrorCode.RaceNotFound }],
   // FAZ 1 wiring, dokuzuncu dilim — brief §54 Idempotency-Key. Eksik
   // header GERÇEK bir doğrulama hatası DEĞİLDİR (DTO/gövde şeklini
   // ilgilendirmez) — kendi özel `ErrorCode.IdempotencyKeyRequired`'ı

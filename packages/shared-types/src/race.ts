@@ -63,11 +63,26 @@ export interface Race {
   updatedAt: ISODateTimeString;
 }
 
-/** brief §7 RaceEntry + §56 RaceSnapshot */
+/**
+ * brief §7 RaceEntry + §56 RaceSnapshot.
+ *
+ * AUDIT_REPORT.md Bulgu R2 (Medium, bu oturum) — `horseId` artık `UUID |
+ * null` ve yeni `botLabel` alanı eklendi: bir satır ya GERÇEK bir ata
+ * aittir (`horseId` dolu, `botLabel` null) ya da bir BOTA (`horseId` null,
+ * `botLabel` `generateBotEntrants`'ın ürettiği "bot-1" gibi bir etiket) —
+ * asla ikisi birden (bkz. `database/migrations/0025_add_race_entry_bot_
+ * support.up.sql`'daki CHECK kısıtı, veritabanı seviyesinde de zorunlu
+ * kılınır). Öncesinde `horseId` HER ZAMAN dolu bir UUID'ydi çünkü botlar
+ * hiç `race_entries`'e yazılmıyordu (bkz. eski `RaceRepository.
+ * savePracticeRace` doc yorumu) — tam alan (full-field) replay artık
+ * mümkün olduğundan bu ayrım GEREKLİDİR.
+ */
 export interface RaceEntry {
   id: UUID;
   raceId: UUID;
-  horseId: UUID;
+  horseId: UUID | null;
+  /** AUDIT_REPORT.md R2 — bkz. yukarıdaki arayüz doc yorumu. GERÇEK bir at satırı için her zaman null. */
+  botLabel: string | null;
   jockeyId: UUID | null;
   gatePosition: number | null;
   tacticalStyle: RacingStyle | null;
@@ -205,10 +220,12 @@ export interface PracticeRaceResult {
  * eskiye doğru döner.
  *
  * ÖNEMLİ — KAPSAM: bu, "genel/çok oyunculu son kazananlar" akışı DEĞİLDİR.
- * Bot rakipler `race_entries`'e hiç YAZILMAZ (bkz. `RaceRepository.
- * savePracticeRace` doc yorumu — bir bota sahte `horses` satırı açmak
- * kapsam dışı bırakıldı), bu yüzden yalnızca bu oyuncunun kendi pratik
- * yarış geçmişi mevcuttur.
+ * AUDIT_REPORT.md Bulgu R2 (bu oturum) ÖNCESİNDE bot rakipler `race_entries`'e
+ * hiç yazılmıyordu; R2 sonrasında botlar da yazılır (`RaceEntry.botLabel`,
+ * bkz. `RaceTimelineEntrantView`) AMA bu sorgunun kendisi `JOIN horses`
+ * kullandığından (`horse_id IS NULL` olan bot satırları bir INNER JOIN'de
+ * asla eşleşmez) botlar burada OTOMATİK olarak hariç kalmaya devam eder —
+ * bu yüzden yalnızca bu oyuncunun kendi pratik yarış geçmişi mevcuttur.
  */
 export interface RecentRaceResultView {
   raceId: UUID;
@@ -221,4 +238,38 @@ export interface RecentRaceResultView {
   finalTimeMs: number;
   performanceScore: number;
   finishedAt: ISODateTimeString;
+}
+
+/**
+ * AUDIT_REPORT.md Bulgu R2 (Medium, bu oturum) — `GET /races/:id/timeline`
+ * yanıt şekli (docs/API.md). `PracticeRaceResult`'ın AKSİNE (segment YOK,
+ * bkz. o tipin doc yorumu), bu uç nokta BİLEREK ham segment telemetrisini
+ * DE döner — amacı tam olarak "tam alan (full-field) replay"i DB'den
+ * DOĞRUDAN okuyarak sağlamaktır (`simulationSeed` ile yeniden simülasyona
+ * ALTERNATİF bir yol, bkz. R2 Fix notu). `horseName` YALNIZCA gerçek at
+ * satırları için doludur (`isBot` false); bot satırları için `botLabel`
+ * doludur, `horseName`/`horseId` null'dur.
+ */
+export interface RaceTimelineEntrantView {
+  entryId: UUID;
+  isBot: boolean;
+  horseId: UUID | null;
+  horseName: string | null;
+  botLabel: string | null;
+  tacticalStyle: RacingStyle | null;
+  riskLevel: RiskLevel | null;
+  finalTimeMs: number | null;
+  finishPosition: number | null;
+  performanceScore: number | null;
+  segments: RaceSegmentSnapshot[];
+}
+
+/** `RaceTimelineEntrantView`'i taşıyan üst seviye yanıt — bkz. o tipin doc yorumu. */
+export interface RaceTimelineView {
+  raceId: UUID;
+  distanceMeters: number;
+  surface: RaceSurface;
+  weather: RaceWeather;
+  simulationSeed: string | null;
+  entrants: RaceTimelineEntrantView[];
 }

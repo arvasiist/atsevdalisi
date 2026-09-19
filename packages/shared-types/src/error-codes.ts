@@ -9,6 +9,9 @@ export const ErrorCode = {
   InsufficientEnergy: 'INSUFFICIENT_ENERGY',
   RaceFull: 'RACE_FULL',
   RaceAlreadyStarted: 'RACE_ALREADY_STARTED',
+  // AUDIT_REPORT.md Bulgu R2 (Medium, bu oturum) — `GET /races/:id/timeline`
+  // uç noktası (bkz. `domain/race/errors.ts` `RaceNotFoundError`).
+  RaceNotFound: 'RACE_NOT_FOUND',
   ListingNotFound: 'LISTING_NOT_FOUND',
   IdempotencyKeyRequired: 'IDEMPOTENCY_KEY_REQUIRED',
   /** AUDIT_AND_HARDENING Öncelik 3 (bu oturum) — bkz. `IdempotencyKeyInProgressError`. */

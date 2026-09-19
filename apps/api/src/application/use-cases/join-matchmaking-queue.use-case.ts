@@ -334,6 +334,10 @@ export class JoinMatchmakingQueueUseCase {
       id: randomUUID(),
       raceId,
       horseId,
+      // AUDIT_REPORT.md R2 (bu oturum) — PvP'de HER İKİ taraf da gerçek
+      // `horses` satırlarına sahiptir (bkz. `RaceRepository.savePvpMatch`
+      // doc yorumu), bu yüzden `botLabel` burada HER ZAMAN null'dur.
+      botLabel: null,
       jockeyId: null,
       gatePosition: null,
       tacticalStyle: DEFAULT_RACE_TACTIC.racingStyle,
@@ -348,6 +352,7 @@ export class JoinMatchmakingQueueUseCase {
       id: randomUUID(),
       raceId,
       horseId: opponentHorseId,
+      botLabel: null,
       jockeyId: null,
       gatePosition: null,
       tacticalStyle: DEFAULT_RACE_TACTIC.racingStyle,

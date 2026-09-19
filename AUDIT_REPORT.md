@@ -37,7 +37,7 @@ olarak veriliyor. Her alanın sonunda "Zaten sağlam / IMPLEMENTED" listesi var
 | E2 | Ekonomi | Medium | ✅ **DÜZELTİLDİ** — `cancelListing` + `WHERE status = 'active'` güvencesiyle satılmış bir ilanın iptal edilmiş gibi üzerine yazılması engellendi |
 | E3 | Ekonomi | Medium | ✅ **DÜZELTİLDİ** — Idempotency kapsamı `@IdempotencyScope('player')` ile `request.player.id`'ye taşındı |
 | R1 | Yarış Motoru | Medium | ✅ **DÜZELTİLDİ** — `weather.config.json`'a `version` alanı, migration 0024 ile `weather_config_version` sütunu, wiring ve e2e testler eklendi |
-| R2 | Yarış Motoru | Medium | Yalnızca oyuncunun segmenti kalıcı — botların tam alan (full-field) replay'i mümkün değil, yalnızca yeniden simülasyonla |
+| R2 | Yarış Motoru | Medium | ✅ **DÜZELTİLDİ** — botlar artık `race_entries`/`race_entry_segments`'e yazılır (migration 0025, `RaceEntry.botLabel`), `GET /races/:id/timeline` tam alanı DB'den doğrudan döner (commit push bekliyor) |
 | T1 | Test | Medium | ✅ **DÜZELTİLDİ** — Ahır yükseltme/günlük ödül/pratik yarış girişi için n=10/50/100 eşzamanlılık testleri eklendi ve CI'da stabil şekilde geçiyor |
 | T2 | Frontend | Medium | ✅ **DÜZELTİLDİ VE GERÇEK CI'DA DOĞRULANDI** (CI #113) — `api-client.ts` kontrat testleri + `jsdom` eklendi, `RaceHud.tsx`/`player-context.tsx` için gerçek `@testing-library/react` component testleri yazıldı |
 | F1 | Frontend | Medium | ✅ **DÜZELTİLDİ VE GERÇEK CI'DA DOĞRULANDI** (commit `9c08982`, CI #116) — tablet (768px+) + dar telefon (≤430px) breakpoint'leri eklendi, `RaceHud` taşma bug'ı `min()`/`clamp()` ile giderildi, tüm etkileşimli düğmeler ≥44px'e çıkarıldı |
@@ -193,6 +193,31 @@ olarak veriliyor. Her alanın sonunda "Zaten sağlam / IMPLEMENTED" listesi var
 **Fix:** Gerçek replay gerekiyorsa: tüm katılımcıların (botlar dahil) segment verisini kalıcı hale getir, `GET /races/:id/timeline` uç noktası ekle, repository port'una okuma metodu ekle.
 **Test requirement:** Bir yarışı kaydet, tam alanı iki yoldan yeniden oluştur (DB okuma vs. yeniden simülasyon) → eşleşmeli.
 
+**✅ DÜZELTİLDİ (bu turda, henüz CI onayı bekliyor):** `race_entries.horse_id`
+NOT NULL kısıtı kaldırıldı, yeni `bot_label` sütunu + CHECK kısıtı
+eklendi (migration `0025_add_race_entry_bot_support`) — botlar için sahte
+bir `horses` satırı İCAT ETMEDEN (`generateBotEntrants`'ın ürettiği
+"bot-1" gibi etiketler zaten geçerli bir UUID bile değil), her satırın
+ya GERÇEK bir ata ya da bir BOTA ait olduğu veritabanı seviyesinde
+zorunlu kılındı. `RunPracticeRaceUseCase` artık botları da `RaceEntry`
+olarak inşa edip `savePracticeRaceWithStakes`'e gönderiyor (port imzası
+`entry`/`segments` tekilden `entries[]`/birleştirilmiş `segments[]`'e
+değişti — `savePvpMatch`'teki AYNI "her katılımcı için insertEntryWithSegments"
+deseni). Yeni `RaceRepository.findTimelineByRaceId`/`isPlayerParticipant`
++ `GET /races/:id/timeline` (`RaceTimelineController`,
+`GetRaceTimelineUseCase`) tam alanı (bot dahil) DB'den doğrudan döner;
+yetkilendirme "istek sahibinin bu yarışta en az bir gerçek atı var mı"
+kontrolüyle yapılır (yoksa 403, yarış hiç yoksa 404 `RACE_NOT_FOUND`).
+**Performans notu:** katılımcı başına segment sayısı artık 6 kat (1→6
+katılımcı) arttığından, `race_entry_segments` INSERT'i segment-başına
+ayrı sorgu yerine TEK bir çoklu-satır INSERT'e çevrildi — n=100
+eşzamanlılık testlerinin (CI #93-109'da zorlukla stabilize edilmiş)
+round-trip sayısını büyütmemesi için. **Test requirement karşılandı:**
+`race-timeline.e2e-spec.ts`, kayıtlı tam alanı `simulateRace` ile YENİDEN
+simüle edip DB'den okunan sonuçla (finishPosition/finalTimeMs/
+performanceScore) karşılaştırıyor — brief §58 deterministik replay
+garantisini iki bağımsız yoldan doğrular.
+
 ### T3 — Low: 100+ yarış ölçekli denge/adalet testi yok
 **Evidence:** `race-engine.spec.ts` en fazla 60 deneme, yalnızca 2 at senaryosu — gerçekçi 8-12 atlı alan/taktik baskınlığı testi yok.
 **Fix:** 200+ denemeli, gerçekçi karma-taktik alan testi; stil/kulvar başına galibiyet oranını ölçüp baskınlık eşiğini aşmadığını doğrulayan yeni bir test dosyası.
@@ -304,5 +329,6 @@ Master Plan §61 Phase A ("Security & Data Integrity") ile birebir uyumlu olarak
 8. ✅ **T1+T2+T3** — T1 (eşzamanlılık) **TAMAMLANDI VE CI'DA DOĞRULANDI**; T2 **TAMAMLANDI VE CI'DA DOĞRULANDI** (CI #113 — `api-client.ts` kontrat testleri + `RaceHud`/`player-context` component testleri, `jsdom` eklendi); T3 **TAMAMLANDI VE CI'DA DOĞRULANDI** (12 atlık alan testi — bkz. T3b, bu testin keşfettiği yeni bir denge bulgusu).
 9. ✅ **E1** — Pratik yarış cüzdan+yarış kaydı atomikliği. **DÜZELTİLDİ VE GERÇEK CI'DA DOĞRULANDI** (commit `a010ec3`, CI #111).
 10. ✅ **F1** — Mobil responsive tasarım. **DÜZELTİLDİ VE GERÇEK CI'DA DOĞRULANDI** (tablet/dar telefon breakpoint'leri, `RaceHud` taşma düzeltmesi, ≥44px dokunma hedefleri; commit `9c08982`, CI #116).
+11. ✅ **R2** — Tam alan (full-field) replay. **DÜZELTİLDİ** (botlar artık `race_entries`/`race_entry_segments`'e yazılır, `GET /races/:id/timeline` DB'den okunan tam alanı döner; commit push bekliyor).
 
-**Durum özeti (2026-09-19 itibarıyla):** Madde 1-10'un TAMAMI (T1+T2+T3+F1 dahil) kapatıldı ve GERÇEK CI'DA DOĞRULANDI (bkz. `claude/hizli-bitirme-plani.md` proje dokümanındaki detaylı kronoloji). G1 ve DOC1 (Low severity, ayrı bölümlerde) de bu turda kapatıldı. T3 testi bir YAN ÜRÜN olarak yeni bir bulgu keşfetti (T3b — bkz. yukarısı). **Hâlâ AÇIK olan gerçek bulgular:** T3b ("closer" taktik dengesizliği — proje sahibinin tasarım kararını gerektirir), F2 (WebSocket, bilinçli PLANNED), R2 (tam alan replay), R3 (davranış hattının yarısı hâlâ placeholder), ve PvP'nin E1 ile aynı yapısal desendeki (ama mali riski olmayan) transaction ayrımı.
+**Durum özeti (2026-09-19 itibarıyla):** Madde 1-10'un TAMAMI (T1+T2+T3+F1 dahil) kapatıldı ve GERÇEK CI'DA DOĞRULANDI (bkz. `claude/hizli-bitirme-plani.md` proje dokümanındaki detaylı kronoloji). G1 ve DOC1 (Low severity, ayrı bölümlerde) de bu turda kapatıldı. T3 testi bir YAN ÜRÜN olarak yeni bir bulgu keşfetti (T3b — bkz. yukarısı). Madde 11 (R2 — tam alan replay) da bu turda kapatıldı, CI onayı bekleniyor. **Hâlâ AÇIK olan gerçek bulgular:** T3b ("closer" taktik dengesizliği — proje sahibinin tasarım kararını gerektirir), F2 (WebSocket, bilinçli PLANNED), R3 (davranış hattının yarısı hâlâ placeholder), ve PvP'nin E1 ile aynı yapısal desendeki (ama mali riski olmayan) transaction ayrımı.

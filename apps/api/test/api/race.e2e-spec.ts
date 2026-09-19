@@ -232,6 +232,7 @@ describe('Race — Pratik Yarış (e2e)', () => {
       id: randomUUID(),
       raceId,
       horseId: nonExistentHorseId, // <- FK ihlali burada gerçekleşecek
+      botLabel: null,
       jockeyId: null,
       gatePosition: null,
       tacticalStyle: null,
@@ -246,7 +247,7 @@ describe('Race — Pratik Yarış (e2e)', () => {
     await expect(
       raceRepository.savePracticeRaceWithStakes({
         race,
-        entry,
+        entries: [entry],
         segments: [],
         playerId,
         entryFee: 100,
