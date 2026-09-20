@@ -54,9 +54,16 @@ import { RedisModule } from './infrastructure/redis/redis.module';
  * bildirimi, tam "yarış takvimi" (zamanlanmış çok-katılımcılı yarışlar),
  * turnuva/kulüp/sıralama/sezon (FAZ 7'nin geri kalanı).
  *
- * AUDIT_REPORT.md Bulgu S5 (High) hardening (bu oturum) — `RateLimitModule`
- * eklendi (kayıt/giriş rotalarına Redis tabanlı rate limiting, bkz.
- * `api/rate-limit/rate-limit.guard.ts` doc yorumu).
+ * AUDIT_REPORT.md Bulgu S5 (High) hardening (bu oturum, iki dilim) —
+ * `RateLimitModule` eklendi (kayıt/giriş + ekonomi uçlarına Redis tabanlı
+ * rate limiting, bkz. `api/rate-limit/rate-limit.guard.ts` doc yorumu).
+ * ÖNEMLİ — `imports` dizisinde `RateLimitModule` `AuthModule`'den SONRA
+ * gelir: `keyBy: 'player'` (satın alma/ödül talebi) `AuthGuard`'ın
+ * doldurduğu `request.player.id`'ye bağımlıdır, ve Nest birden fazla
+ * `APP_GUARD`'ı bu dizideki modül SIRASINA göre çalıştırır — bu sıra
+ * BOZULURSA `RateLimitGuard` `AuthGuard`'dan ÖNCE çalışır ve
+ * `request.player` henüz dolmamış olur (bkz. `rate-limit.guard.ts`'teki
+ * `keyBy: 'player'` doc yorumu).
  *
  * AUDIT_REPORT.md Bulgu S1 (Critical) hardening (bu oturum) — brief §41/§50
  * Google/Apple Sign-In. `TokenModule` (`@Global()`, `DatabaseModule`/

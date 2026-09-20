@@ -1,8 +1,8 @@
 import { CanActivate, ExecutionContext, Inject, Injectable } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import type { Request } from 'express';
 import type Redis from 'ioredis';
 import { REDIS_CLIENT } from '../../infrastructure/redis/redis.module';
+import type { AuthenticatedRequest } from '../auth/current-player.decorator';
 import { RATE_LIMIT_KEY, type RateLimitOptions } from './rate-limit.decorator';
 import { RateLimitExceededError } from './rate-limit.errors';
 
@@ -51,9 +51,21 @@ export class RateLimitGuard implements CanActivate {
       return true;
     }
 
-    const request = context.switchToHttp().getRequest<Request>();
-    const clientIp = request.ip ?? request.socket?.remoteAddress ?? 'unknown';
-    const redisKey = `ratelimit:${options.name}:${clientIp}`;
+    const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
+    const identity =
+      options.keyBy === 'player'
+        ? // `AuthGuard` (global APP_GUARD, `app.module.ts`'te RateLimitModule'den
+          // ÖNCE import edilir) bu noktada `request.player`'ı ZATEN doldurmuş
+          // OLMALIDIR — `CurrentPlayer()`'ın doc yorumuyla AYNI gerekçeyle,
+          // burada `undefined` çıkması bir programlama hatasıdır (ör.
+          // `keyBy: 'player'` yanlışlıkla bir `@Public()` rotaya eklenmiş),
+          // bu yüzden sessizce IP'ye DÜŞMEK yerine görünür kalması için
+          // `'unknown-player'` kullanılır (isteği YİNE DE reddetmez — bir
+          // guard hatası kullanıcıyı KİLİTLEMEMELİDİR, bkz. altta `count`
+          // mantığı).
+          (request.player?.id ?? 'unknown-player')
+        : (request.ip ?? request.socket?.remoteAddress ?? 'unknown-ip');
+    const redisKey = `ratelimit:${options.name}:${identity}`;
 
     const count = await this.redis.incr(redisKey);
     if (count === 1) {

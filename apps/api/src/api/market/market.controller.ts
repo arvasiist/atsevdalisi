@@ -14,6 +14,7 @@ import { ListingOwnerGuard } from '../auth/listing-owner.guard';
 import { Public } from '../auth/public.decorator';
 import { IdempotencyInterceptor } from '../idempotency/idempotency.interceptor';
 import { IdempotencyScope } from '../idempotency/idempotency-scope.decorator';
+import { RateLimit } from '../rate-limit/rate-limit.decorator';
 import { CreateMarketListingDto } from './dto/create-market-listing.dto';
 
 const LISTING_STATUSES: readonly ListingStatus[] = ['active', 'sold', 'expired', 'cancelled'];
@@ -175,6 +176,16 @@ export class MarketController {
   // (eski `body.buyerId` özel durumunun YERİNİ alır, bkz.
   // `idempotency-scope.decorator.ts` doc yorumu — E3'ün "alıcıya göre
   // kapsam" korumasını KAYBETMEDEN).
+  // AUDIT_REPORT.md Bulgu S5 (High) hardening, ikinci dilim (bu oturum) —
+  // docs/SECURITY.md §7'nin "kritik ekonomi endpoint'leri" örneği.
+  // `keyBy: 'player'` (IP DEĞİL) — bkz. `rate-limit.decorator.ts` doc
+  // yorumu. `RateLimitGuard` rota handler'ından ÖNCE çalıştığından, AYNI
+  // Idempotency-Key ile yapılan meşru bir yeniden-deneme de sayaca DAHİL
+  // olur — bu BİLİNÇLİDİR: limit (dakikada 20) gerçek kullanım için
+  // fazlasıyla geniştir, amacı tekil yeniden-denemeleri ayırt etmek değil,
+  // saniyeler içinde onlarca FARKLI ilana saldıran bir bot/scripti
+  // durdurmaktır.
+  @RateLimit({ name: 'market-buy', limit: 20, windowSeconds: 60, keyBy: 'player' })
   @IdempotencyScope('player')
   @Post('listings/:id/buy')
   @HttpCode(HttpStatus.OK)

@@ -45,7 +45,7 @@ export class PlayerController {
   // olduğundan (token gerektirmediğinden) bot/kaba-kuvvet kayıt
   // denemelerine karşı en savunmasız uç noktalardan biri, bkz.
   // `rate-limit.decorator.ts` doc yorumu.
-  @RateLimit({ name: 'register', limit: 10, windowSeconds: 300 })
+  @RateLimit({ name: 'register', limit: 10, windowSeconds: 300, keyBy: 'ip' })
   @Public()
   @Post()
   async register(@Body() dto: RegisterPlayerDto): Promise<ApiSuccess<AuthSession>> {

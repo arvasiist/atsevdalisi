@@ -136,19 +136,22 @@ tutarlı olarak eklenmiştir:
   gerektirir, proje sahibinin bir sağlayıcı seçmesi gerekir — bu turun
   kapsamı dışında bırakıldı).
 - **Kritik ekonomi endpoint'lerinde (satın alma, ödül talebi) kullanıcı
-  bazlı rate limiting: BİLİNÇLİ OLARAK HENÜZ UYGULANMADI.** Bu uçların
-  TAMAMI zaten CI'nın yoğun eşzamanlılık/idempotency testleriyle (bkz.
-  `apps/api/test/api/test-helpers.ts` `sendConcurrentRequestsBatched` —
-  AYNI oyuncunun/Idempotency-Key'in onlarca kez ÇAKIŞAN isteği) kaplı; bu,
-  gerçek bir istismar senaryosu DEĞİL, bilerek test edilen bir YARIŞ
-  DURUMU/yeniden-deneme senaryosudur. Bu iki yük türünü (meşru
-  idempotent yeniden-deneme fırtınası vs. gerçek kötüye kullanım) güvenle
-  ayırt eden bir tasarım (ör. rate limiti Idempotency-Key'e göre İSTİSNA
-  tutmak, ya da yalnızca BENZERSİZ/yeni istekleri saymak) ayrı, dikkatli
-  bir kapsam gerektiriyor — T1'in eşzamanlılık testlerinin stabilize
-  edilmesinin 10 CI turu sürdüğü (bkz. AUDIT_REPORT.md T1 bölümü) göz
-  önüne alınarak, aynı sınıftaki bir riski aceleye getirmemek için bu
-  turda BİLİNÇLİ olarak ertelendi.
+  bazlı rate limiting: ✅ UYGULANDI** (AUDIT_REPORT.md Bulgu S5, ikinci
+  dilim). `POST /market/listings/:id/buy` (satın alma) dakikada 20,
+  `POST /players/:id/daily-reward` (ödül talebi) dakikada 5 istekle
+  sınırlı — ikisi de `keyBy: 'player'` (`AuthGuard`'ın doldurduğu
+  `request.player.id`), IP DEĞİL, çünkü kimlik doğrulanmış bir rotada
+  doğru birim budur (aksi halde aynı NAT/ofis ağındaki farklı gerçek
+  oyuncular birbirini bloke ederdi). İlk turda bu ikisi "meşru idempotent
+  yeniden-deneme fırtınası vs. gerçek kötüye kullanım" ayrımının ayrı bir
+  tasarım gerektirdiği gerekçesiyle ertelenmişti — bu endişe gereksiz
+  çıktı: CI zaten TÜM rotalarda (yalnızca kayıt/giriş değil)
+  `DISABLE_RATE_LIMIT: 'true'` ile devre dışı bırakılıyordu (bkz. yukarısı),
+  bu yüzden `stable.e2e-spec.ts`'in n=100 FARKLI-Idempotency-Key testi
+  DAHİL hiçbir mevcut eşzamanlılık testi etkilenmedi — özel bir ayrım
+  algoritmasına hiç gerek kalmadan, birinci dilimde kurulan altyapı
+  (opt-in `@RateLimit(...)` + CI-genelinde bayrak + izole e2e testi)
+  doğrudan yeniden kullanıldı.
 - Anormal davranış tespiti (örn. saniyeler içinde onlarca antrenman
   isteği) loglanır ve incelemeye alınır — henüz uygulanmadı.
 

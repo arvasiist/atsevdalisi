@@ -33,7 +33,7 @@ export class AuthController {
   // AUDIT_REPORT.md Bulgu S5 (High) hardening (bu oturum) — `register`
   // ile AYNI gerekçe (`@Public()`, token'sız), bkz.
   // `rate-limit.decorator.ts` doc yorumu.
-  @RateLimit({ name: 'login', limit: 10, windowSeconds: 300 })
+  @RateLimit({ name: 'login', limit: 10, windowSeconds: 300, keyBy: 'ip' })
   @Public()
   @Post('login')
   @HttpCode(HttpStatus.OK)
