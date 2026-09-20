@@ -48,6 +48,12 @@ coverage/
 *.bundle
 push-*.bat
 push-*-log.txt
+# S5/R3/F2 döneminden itibaren kullanılan asıl teslimat script'i adlandırma
+# deseni (apply-<özellik>-push.bat, bkz. `claude/hizli-bitirme-plani.md`
+# "Çalışma deseni") — `push-*.bat` deseninden FARKLI, ayrıca eklenmezse
+# stop-hook her push turunda "untracked files" uyarısı veriyordu (bu turda
+# fark edildi).
+apply-*.bat
 finish-*.bat
 finish-*-log.txt
 check-dirty*.bat
