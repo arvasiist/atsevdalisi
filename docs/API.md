@@ -984,17 +984,48 @@ geçirmeli; `race.enter` gibi uç noktalarda client bir snapshot da
 gönderirse `assertSnapshotMatchesAuthoritative` ile server'ın kendi DB
 değerleriyle karşılaştırılıp uyuşmazlık reddedilmelidir.
 
-## 10. WebSocket olayları (öneri)
+## 10. WebSocket olayları
 
-Brief'te WebSocket "gerektiğinde" kullanılacağı belirtilmiş (§6). Önerilen
-kullanım alanları:
+Brief'te WebSocket "gerektiğinde" kullanılacağı belirtilmiş (§6).
+AUDIT_REPORT.md Bulgu F2 (bu turda proje sahibinin AskUserQuestion ile
+onayladığı seçim) `race.telemetry`/`race.finished`'i temel bir
+bağlantı+yayın iskeleti olarak UYGULADI; `notification.new`/`lobby.update`
+henüz PLANLI/uygulanmadı:
 
 ```text
-race.telemetry     — canlı yarış sırasında segment güncellemeleri
-race.finished      — yarış sonucu hazır olduğunda
-notification.new   — brief §46 bildirim sistemi
-lobby.update       — online yarış lobisi (brief §41)
+race.telemetry     — canlı yarış sırasında segment güncellemeleri            [UYGULANDI]
+race.finished      — yarış sonucu hazır olduğunda                           [UYGULANDI]
+notification.new   — brief §46 bildirim sistemi                             [PLANLI]
+lobby.update       — online yarış lobisi (brief §41)                        [PLANLI]
 ```
+
+**Uygulanan kısım (`apps/api/src/api/realtime/race.gateway.ts`, `/races`
+namespace'i):**
+
+- **Bağlantı/kimlik doğrulama:** İstemci `io(url + '/races', { auth: { token } })`
+  ile bağlanır — `token`, HTTP `Authorization: Bearer <token>` ile AYNI
+  oturum JWT'sidir. Token yoksa/geçersizse bağlantı ANINDA kesilir
+  (`disconnect`), HTTP'nin 401'iyle aynı ilke.
+- **`race.subscribe` (istemci → sunucu):** `{ raceId: string }` gönderir.
+  Sunucu `GetRaceTimelineUseCase` ile AYNI yetkilendirmeyi uygular (§6
+  `GET /races/:id/timeline` ile BİREBİR aynı mantık, tekrar kullanılır) —
+  yarış bulunamazsa veya istekte bulunan oyuncunun o yarışta bir atı yoksa
+  `race.error` (`{ message: string }`) döner, kaynağın var olup olmadığı
+  sızdırılmaz.
+- **`race.telemetry` (sunucu → istemci, ✅ yetkiliyse birden çok kez):**
+  `{ raceId, segments: RaceSegmentSnapshot[] }`. **ÖNEMLİ — bu GERÇEK
+  zamanlı bir simülasyon DEĞİLDİR:** yarış sunucuda zaten (senkron/anında)
+  tamamlanmış ve `race_entries`/`race_entry_segments`'e yazılmıştır; bu
+  olay o kayıtlı timeline'ın SABİT `PLAYBACK_DURATION_MS=4000` (4 saniye)
+  içine orantılı sıkıştırılmış bir "tempolu replay"idir.
+- **`race.finished` (sunucu → istemci, tam olarak bir kez):**
+  `{ raceId, entrants: [...] }` — final sıralama/süre/skor (`finishPosition`'a
+  göre sıralı).
+- **Bilinçli kapsam dışı (bu dilimde YOK):** aynı yarışı izleyen birden
+  çok istemcinin SENKRONİZE bir odada izlemesi (her istemci kendi abone
+  olma anına göre bağımsız bir replay alır), yeniden bağlanma/kaldığı
+  yerden devam etme (replay idempotent'tir, istemci `race.subscribe`'ı
+  baştan çağırabilir).
 
 ## 11. Hata kodu kataloğu (örnek, genişletilecek)
 

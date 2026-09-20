@@ -9,6 +9,7 @@ import { MatchmakingModule } from './api/matchmaking/matchmaking.module';
 import { PlayerModule } from './api/player/player.module';
 import { RateLimitModule } from './api/rate-limit/rate-limit.module';
 import { RaceModule } from './api/race/race.module';
+import { RealtimeModule } from './api/realtime/realtime.module';
 import { StableModule } from './api/stable/stable.module';
 import { TrainingModule } from './api/training/training.module';
 import { AppConfigModule } from './infrastructure/config/config.module';
@@ -92,6 +93,12 @@ import { RedisModule } from './infrastructure/redis/redis.module';
     MarketModule,
     MatchmakingModule,
     RateLimitModule,
+    // AUDIT_REPORT.md Bulgu F2 (bu oturum) — bkz. `api/realtime/race.gateway.ts`
+    // doc yorumu. `RaceModule`'DEN SONRA gelmesi ZORUNLU DEĞİL (WebSocket
+    // guard'ı `AuthGuard`'ın AKSİNE global `APP_GUARD` DEĞİL, kendi
+    // `handleConnection`'ında bağımsız doğrulama yapar) ama okunabilirlik
+    // için ilişkili olduğu `RaceModule`'e yakın, dizinin sonuna eklendi.
+    RealtimeModule,
   ],
 })
 export class AppModule {}

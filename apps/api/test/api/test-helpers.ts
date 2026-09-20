@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
+import { IoAdapter } from '@nestjs/platform-socket.io';
 import request from 'supertest';
 import { AppModule } from '../../src/app.module';
 import { HttpExceptionFilter } from '../../src/api/middleware/http-exception.filter';
@@ -26,6 +27,11 @@ export async function bootstrapTestApp(): Promise<INestApplication> {
   app.setGlobalPrefix('api/v1');
   app.useGlobalFilters(new HttpExceptionFilter());
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }));
+  // AUDIT_REPORT.md Bulgu F2 (bu oturum) — `main.ts`'teki AYNI adaptör
+  // kaydı burada da yapılır (bkz. o dosyanın doc yorumu) — yalnızca
+  // `realtime.e2e-spec.ts` bunu GERÇEKTEN kullanır (`app.listen(0)` ile),
+  // diğer e2e dosyaları için etkisizdir.
+  app.useWebSocketAdapter(new IoAdapter(app));
   await app.init();
 
   // CI #106 kırmızı araştırması (bu oturum) — `race.e2e-spec.ts`'in n=100

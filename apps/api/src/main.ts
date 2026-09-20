@@ -1,6 +1,7 @@
 import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
+import { IoAdapter } from '@nestjs/platform-socket.io';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './api/middleware/http-exception.filter';
@@ -12,6 +13,14 @@ import { HttpExceptionFilter } from './api/middleware/http-exception.filter';
  */
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule);
+
+  // AUDIT_REPORT.md Bulgu F2 (bu oturum) — `RaceGateway`'in (bkz. o
+  // dosyanın doc yorumu) kullandığı socket.io tabanlı WebSocket adaptörünü
+  // AÇIKÇA kaydeder — `@nestjs/platform-socket.io` kurulu olsa bile bunu
+  // ZIMNİ otomatik algılamaya BIRAKMAMAK için (bu sandbox'ta hiç
+  // kurulup/çalıştırılamayan bir paket seti olduğundan, belirsizliği en
+  // aza indirmek amacıyla).
+  app.useWebSocketAdapter(new IoAdapter(app));
 
   // AUDIT_REPORT.md Bulgu S5 (High) hardening — güvenlik başlıkları
   // (CSP/HSTS/X-Frame-Options/X-Content-Type-Options/Referrer-Policy vb.)

@@ -25,6 +25,12 @@ import { RecentRacesController } from './recent-races.controller';
     // AUDIT_REPORT.md Bulgu S2 hardening (bu oturum) — bkz. `horse-owner.guard.ts` doc yorumu.
     HorseOwnerGuardByParam,
   ],
-  exports: [RunPracticeRaceUseCase, RACE_REPOSITORY],
+  // AUDIT_REPORT.md Bulgu F2 (bu oturum) — `GetRaceTimelineUseCase` artık
+  // ayrıca `RealtimeModule`'ün `RaceGateway`'i tarafından da kullanılıyor
+  // (canlı yarış WebSocket yayını, bkz. `api/realtime/race.gateway.ts` doc
+  // yorumu) — aynı yetkilendirme mantığını (bkz. bu use-case'in kendi doc
+  // yorumu) HTTP dışında bir yol için TEKRAR KULLANMAK amacıyla export
+  // edildi, YENİDEN YAZILMADI.
+  exports: [RunPracticeRaceUseCase, GetRaceTimelineUseCase, RACE_REPOSITORY],
 })
 export class RaceModule {}
