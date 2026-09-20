@@ -76,6 +76,15 @@ describe('Race — Tam Alan Replay / Timeline (e2e, AUDIT_REPORT.md R2)', () => 
     const finishPositions = timeline.entrants.map((entrant: { finishPosition: number }) => entrant.finishPosition);
     expect(new Set(finishPositions).size).toBe(6);
     expect([...finishPositions].sort((a: number, b: number) => a - b)).toEqual([1, 2, 3, 4, 5, 6]);
+
+    // AUDIT_REPORT.md Bulgu R3 (bu oturum) — "Draw/post-position" artık
+    // gerçek bir çekilişten türetiliyor (bkz. `gate-assignment.ts` doc
+    // yorumu) — TÜM 6 katılımcı (oyuncu + botlar) [1,6] aralığında BENZERSİZ
+    // bir kapı numarası almalı, `null` KALMAMALI (önceden HER ZAMAN null'dı).
+    const gatePositions = timeline.entrants.map((entrant: { gatePosition: number | null }) => entrant.gatePosition);
+    expect(gatePositions.every((gp: number | null) => gp !== null)).toBe(true);
+    expect(new Set(gatePositions).size).toBe(6);
+    expect([...gatePositions].sort((a: number, b: number) => a - b)).toEqual([1, 2, 3, 4, 5, 6]);
   });
 
   it('/api/v1/races/:id/timeline (GET) — DB\'den okunan tam alan, simulationSeed ile YENİDEN SİMÜLE edilen alanla BİREBİR eşleşir (brief §58 deterministik replay)', async () => {

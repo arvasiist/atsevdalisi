@@ -10,6 +10,7 @@ import type {
   RaceSegmentSnapshot,
 } from '@at-sevdalisi/shared-types';
 import { buildHorseEntrantSnapshot, FORM_SAMPLE_SIZE } from '../../domain/race/entrant-snapshot';
+import { assignGatePositions } from '../../domain/race/gate-assignment';
 import { findBestMatch } from '../../domain/online/matchmaking';
 import { createRaceRoomSeed, validateRaceRoomParticipants } from '../../domain/online/race-room';
 import { RACE_ENGINE_VERSION, RACE_RULESET_VERSION, simulateRace } from '../../domain/race/race-engine';
@@ -277,6 +278,10 @@ export class JoinMatchmakingQueueUseCase {
           : 0;
     const winnerId = scoreA === 0.5 ? null : scoreA === 1 ? playerId : opponentPlayerId;
 
+    // AUDIT_REPORT.md Bulgu R3 (bu oturum) — bkz. `RunPracticeRaceUseCase`
+    // ile AYNI gerekçe (`gate-assignment.ts` doc yorumu).
+    const gatePositionByLabel = assignGatePositions([horseId, opponentHorseId], timeline.simulationSeed, raceId);
+
     const nowIso = now.toISOString();
     const race: Race = {
       id: raceId,
@@ -315,7 +320,7 @@ export class JoinMatchmakingQueueUseCase {
       // HER ZAMAN null'dur.
       botLabel: null,
       jockeyId: null,
-      gatePosition: null,
+      gatePosition: gatePositionByLabel.get(horseId) ?? null,
       tacticalStyle: DEFAULT_RACE_TACTIC.racingStyle,
       riskLevel: DEFAULT_RACE_TACTIC.riskLevel,
       horseSnapshot: mySnapshot,
@@ -330,7 +335,7 @@ export class JoinMatchmakingQueueUseCase {
       horseId: opponentHorseId,
       botLabel: null,
       jockeyId: null,
-      gatePosition: null,
+      gatePosition: gatePositionByLabel.get(opponentHorseId) ?? null,
       tacticalStyle: DEFAULT_RACE_TACTIC.racingStyle,
       riskLevel: DEFAULT_RACE_TACTIC.riskLevel,
       horseSnapshot: opponentSnapshot,

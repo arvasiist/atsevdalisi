@@ -99,3 +99,13 @@ AUDIT_AND_HARDENING bölümüne bakınız):
   `distanceCompatibility`/`jockeySkillComposite` HÂLÂ kapsam dışı
   (yukarıdaki Öncelik 8 notuyla AYNI gerekçe — form'un aksine bunlar
   BAŞKA tablolara/sistemlere (scout mekaniği, Jockey FAZ 2) bağımlı).
+- **AUDIT_REPORT.md Bulgu R3, ikinci alt-dilim (bu oturum):** yeni
+  `gate-assignment.ts` — `RaceEntry.gatePosition` artık `assignGatePositions`
+  ile gerçek bir çekilişten türetiliyor (`race_entries.gate_position`
+  sütunu migration 0006'dan beri vardı ama hiç doldurulmuyordu). BİLİNÇLİ
+  olarak `race-engine.ts`'in DIŞINDA, simülasyon TAMAMEN bittikten SONRA
+  çağrılır — `RACE_ENGINE_VERSION`/`RACE_RULESET_VERSION` DEĞİŞMEDİ, yarış
+  SONUCUNA hiçbir etkisi YOK (bkz. o dosyanın "Tasarım kararı" doc yorumu:
+  `config.lanes.count` yarış stili sayısına tam eşit olduğundan, Draw'ı
+  kulvar atamasına bağlamak T3b'nin öğrettiği risk sınıfında kapsamlı bir
+  Monte Carlo yeniden dengeleme gerektirirdi — bilinçli olarak ertelendi).

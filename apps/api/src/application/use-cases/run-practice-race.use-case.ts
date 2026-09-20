@@ -3,6 +3,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import type { PracticeRaceResult, Race, RaceEntry, RaceSegmentSnapshot, RaceTacticInput } from '@at-sevdalisi/shared-types';
 import { generateBotEntrants } from '../../domain/race/bot-generator';
 import { buildHorseEntrantSnapshot, FORM_SAMPLE_SIZE } from '../../domain/race/entrant-snapshot';
+import { assignGatePositions } from '../../domain/race/gate-assignment';
 import { getPracticeRaceEntryFee, getPracticeRacePrize } from '../../domain/race/prize';
 import { RACE_ENGINE_VERSION, RACE_RULESET_VERSION, simulateRace } from '../../domain/race/race-engine';
 import { PRACTICE_RACE_BOT_COUNT, PRACTICE_RACE_DISTANCE_METERS } from '../../domain/race/validation';
@@ -93,6 +94,16 @@ export class RunPracticeRaceUseCase {
     const entryFee = getPracticeRaceEntryFee(this.config.economy);
     const prizeWon = getPracticeRacePrize(playerFinish.finishPosition, this.config.economy);
 
+    // AUDIT_REPORT.md Bulgu R3 (bu oturum) — "Draw/post-position" artık
+    // gerçek bir çekilişten türetiliyor (bkz. `gate-assignment.ts` doc
+    // yorumu). Simülasyon ZATEN tamamlandıktan SONRA, tamamen AYRI bir
+    // isim uzayında (`:gate-draw`) çağrılır — motor/denge SIFIR etkilenir.
+    const gatePositionByLabel = assignGatePositions(
+      [horseId, ...botEntrants.map((bot) => bot.horseId)],
+      timeline.simulationSeed,
+      raceId,
+    );
+
     const now = new Date();
     const race: Race = {
       id: raceId,
@@ -125,7 +136,7 @@ export class RunPracticeRaceUseCase {
       horseId,
       botLabel: null,
       jockeyId: null,
-      gatePosition: null,
+      gatePosition: gatePositionByLabel.get(horseId) ?? null,
       tacticalStyle: input.tactic.racingStyle,
       riskLevel: input.tactic.riskLevel,
       horseSnapshot: playerEntrant,
@@ -151,7 +162,7 @@ export class RunPracticeRaceUseCase {
         horseId: null,
         botLabel: bot.horseId,
         jockeyId: null,
-        gatePosition: null,
+        gatePosition: gatePositionByLabel.get(bot.horseId) ?? null,
         tacticalStyle: bot.tactic.racingStyle,
         riskLevel: bot.tactic.riskLevel,
         horseSnapshot: bot,

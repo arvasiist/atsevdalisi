@@ -261,6 +261,17 @@ export interface RaceTimelineEntrantView {
   botLabel: string | null;
   tacticalStyle: RacingStyle | null;
   riskLevel: RiskLevel | null;
+  /**
+   * AUDIT_REPORT.md Bulgu R3 (bu oturum) — başlangıç/kapı numarası (gerçek
+   * at yarışlarındaki "gate draw"). `apps/api/src/domain/race/
+   * gate-assignment.ts`'in `assignGatePositions`'ı ile deterministik olarak
+   * (aynı yarış = aynı çekiliş) atanır — simülasyon TAMAMLANDIKTAN SONRA,
+   * motor/denge formüllerinden TAMAMEN BAĞIMSIZ bir isim uzayında. Bu
+   * dilimde YARIŞ SONUCUNU etkilemez, yalnızca gerçek/görünür bir "start
+   * numarası" sağlar — `race_entries.gate_position` sütunu projenin İLK
+   * yarış migration'ından (0006) beri VARDI ama hiç doldurulmuyordu.
+   */
+  gatePosition: number | null;
   finalTimeMs: number | null;
   finishPosition: number | null;
   performanceScore: number | null;

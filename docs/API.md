@@ -355,8 +355,16 @@ katılımcının `horseId`'si `null` ise o katılımcı bottur, gerçek adı yer
 
 **Yetkilendirme:** İstek sahibinin bu yarışta EN AZ bir gerçek atının
 katılımcı olması gerekir (`GetRaceTimelineUseCase.isPlayerParticipant`) —
-aksi halde `403 FORBIDDEN`. Yarış hiç yoksa `404 RACE_NOT_FOUND`. Örnek
-yanıt:
+aksi halde `403 FORBIDDEN`. Yarış hiç yoksa `404 RACE_NOT_FOUND`.
+
+**`gatePosition` (AUDIT_REPORT.md Bulgu R3, bu oturum):** [1, N] aralığında
+bir başlangıç/kapı numarası (gerçek at yarışlarındaki "gate draw") —
+`apps/api/src/domain/race/gate-assignment.ts`'in `assignGatePositions`'ı
+ile, simülasyon TAMAMEN bittikten SONRA, deterministik olarak (aynı yarış
+= aynı çekiliş) atanır. Yarış SONUCUNU etkilemez — yalnızca gerçek/görünür
+bir "start numarası" sağlar (`race_entries.gate_position` sütunu projenin
+İLK yarış migration'ından beri vardı ama ilk kez bu turda dolduruldu).
+Örnek yanıt:
 
 ```json
 {
@@ -376,6 +384,7 @@ yanıt:
         "botLabel": null,
         "tacticalStyle": "closer",
         "riskLevel": "normal",
+        "gatePosition": 4,
         "finalTimeMs": 94820,
         "finishPosition": 2,
         "performanceScore": 87.5,
@@ -391,6 +400,7 @@ yanıt:
         "botLabel": "bot-1",
         "tacticalStyle": "front_runner",
         "riskLevel": "normal",
+        "gatePosition": 1,
         "finalTimeMs": 93110,
         "finishPosition": 1,
         "performanceScore": 91.2,

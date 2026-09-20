@@ -380,12 +380,18 @@ export class PostgresRaceRepository implements RaceRepository {
       horse_name: string | null;
       tactical_style: string | null;
       risk_level: string | null;
+      // AUDIT_REPORT.md Bulgu R3 (bu oturum) — bkz. `gate-assignment.ts`
+      // doc yorumu: bu sütun artık gerçekten doldurulur, bu yüzden SEÇİLİP
+      // aşağıda `RaceTimelineEntrantView.gatePosition`'a eşlenir (öncesinde
+      // hiç SELECT edilmiyordu — sütun DB'de olsa bile hiçbir yanıt onu
+      // hiç göstermiyordu).
+      gate_position: number | null;
       final_time_ms: number | null;
       finish_position: number | null;
       performance_score: string | null;
     }>(
       `SELECT re.id AS entry_id, re.horse_id, re.bot_label, h.name AS horse_name,
-              re.tactical_style, re.risk_level, re.final_time_ms, re.finish_position, re.performance_score
+              re.tactical_style, re.risk_level, re.gate_position, re.final_time_ms, re.finish_position, re.performance_score
        FROM race_entries re
        LEFT JOIN horses h ON h.id = re.horse_id
        WHERE re.race_id = $1
@@ -446,6 +452,7 @@ export class PostgresRaceRepository implements RaceRepository {
       botLabel: row.bot_label,
       tacticalStyle: row.tactical_style as RaceTimelineEntrantView['tacticalStyle'],
       riskLevel: row.risk_level as RaceTimelineEntrantView['riskLevel'],
+      gatePosition: row.gate_position,
       finalTimeMs: row.final_time_ms,
       finishPosition: row.finish_position,
       performanceScore: row.performance_score === null ? null : Number(row.performance_score),
