@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import type { AddressInfo } from 'node:net';
 import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
@@ -31,13 +32,24 @@ describe('Race WebSocket yayını (e2e) — AUDIT_REPORT.md Bulgu F2', () => {
     await app.close();
   });
 
+  /**
+   * CI #126 kirmizi araştırması (bu oturum) — `race.e2e-spec.ts`'in
+   * KULLANDIĞI AYNI çağrı şeklini kopyalar: bu uç nokta `@HttpCode(HttpStatus.OK)`
+   * ile 200 döner (201 DEĞİL — yeni bir KAYNAK URI'si istemciye verilmez,
+   * bkz. `race.controller.ts` doc yorumu), VE brief §54 gereği
+   * `Idempotency-Key` header'ı ZORUNLUDUR (`IdempotencyInterceptor`, bkz.
+   * o dosyanın doc yorumu) — eksikse 400 `IDEMPOTENCY_KEY_REQUIRED` döner.
+   * İlk yazımda ikisi de kaçırılmıştı (yanlışlıkla 201 beklendi, header
+   * hiç eklenmedi) — CI #126 bunu GERÇEKTEN yakaladı.
+   */
   async function runFinishedPracticeRace(): Promise<{ raceId: string; token: string }> {
     const { horseId, authHeader, token } = await registerTestPlayerWithStarterHorse(app, 'WS Test Oyuncusu');
     const response = await request(app.getHttpServer())
       .post(`/api/v1/horses/${horseId}/practice-race`)
       .set('Authorization', authHeader)
+      .set('Idempotency-Key', randomUUID())
       .send({})
-      .expect(201);
+      .expect(200);
     return { raceId: response.body.data.raceId as string, token };
   }
 
@@ -49,12 +61,26 @@ describe('Race WebSocket yayını (e2e) — AUDIT_REPORT.md Bulgu F2', () => {
     });
   }
 
+  /**
+   * CI #126 kirmizi araştırması (bu oturum) — socket.io'nun kendi iç
+   * sırası (`Namespace._add`): CONNECT paketi istemciye YAZILIR, SONRA
+   * `'connection'` olayı emit edilir (bu, NestJS'in `handleConnection`'ını
+   * TETİKLEYEN olay). Yani `handleConnection` içinde ÇAĞRILAN
+   * `client.disconnect(true)` her zaman istemcinin kendi 'connect'
+   * olayını ZATEN görmüş olmasından SONRA (TCP sırası korunduğundan
+   * neredeyse anında) gerçekleşir — istemci kısa bir an "bağlandım" gibi
+   * görünüp HEMEN ardından koparılır. İlk yazımda test 'connect' olayında
+   * ERKEN `resolve(false)` çağırıyordu — bu, GERÇEK bir güvenlik açığı
+   * DEĞİL, testin kendi yarış koşuluydu (CI #126'da yakalandı). Doğru
+   * doğrulama: yalnızca 'disconnect' olayını (veya zaman aşımını) bekle,
+   * 'connect' olayının kendisi bir hata SAYILMAZ — asıl garanti "sonunda
+   * kesin olarak koparılır" olmalı.
+   */
   it('Authorization token olmadan bağlantı ANINDA reddedilir', async () => {
     const client = connect(undefined);
     try {
       const disconnected = await new Promise<boolean>((resolve) => {
         client.on('disconnect', () => resolve(true));
-        client.on('connect', () => resolve(false));
         setTimeout(() => resolve(false), 2000);
       });
       expect(disconnected).toBe(true);
@@ -68,7 +94,6 @@ describe('Race WebSocket yayını (e2e) — AUDIT_REPORT.md Bulgu F2', () => {
     try {
       const disconnected = await new Promise<boolean>((resolve) => {
         client.on('disconnect', () => resolve(true));
-        client.on('connect', () => resolve(false));
         setTimeout(() => resolve(false), 2000);
       });
       expect(disconnected).toBe(true);
