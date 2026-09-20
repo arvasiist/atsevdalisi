@@ -1,12 +1,15 @@
-import type { Horse, HorseStats, RaceEntrantSnapshot, RaceTacticInput } from '@at-sevdalisi/shared-types';
+import { clamp, type Horse, type HorseStats, type RaceEntrantSnapshot, type RaceTacticInput, type RecentRaceResultView } from '@at-sevdalisi/shared-types';
 import { FINAL_STRETCH_PLANS, RACING_STYLES, RISK_LEVELS, START_APPROACHES } from './validation';
 import { InvalidRaceTacticError } from './errors';
 
 /**
  * `RaceEntrantSnapshot`'ın `surfaceCompatibility`/`distanceCompatibility`/
- * `jockeySkillComposite`/`form` alanları için nötr değer — `form`'un
- * kendi tip yorumunda ZATEN tanımlanan "bilinmiyorsa 50 kullan" ilkesiyle
- * AYNI (bkz. `packages/shared-types/src/race.ts`).
+ * `jockeySkillComposite` alanları için nötr değer — `form`'un kendi tip
+ * yorumunda ZATEN tanımlanan "bilinmiyorsa 50 kullan" ilkesiyle AYNI
+ * (bkz. `packages/shared-types/src/race.ts`). `form` ARTIK bu listede
+ * DEĞİL — AUDIT_REPORT.md Bulgu R3 (bu oturum, proje sahibinin "R3 —
+ * davranış derinliği" seçimiyle) kapsamında gerçek `race_entries`
+ * geçmişinden türetilmeye başlandı, bkz. aşağıdaki `deriveFormFromRecentResults`.
  *
  * **BULUNAN ama bu dilimde KAPSAM DIŞI bırakılan bir eksik:**
  * `horse_surface_stats`/`horse_distance_stats` tabloları (migration 0003)
@@ -52,8 +55,43 @@ export const UNMODELED_SNAPSHOT_FIELDS: ReadonlyArray<keyof RaceEntrantSnapshot>
   'surfaceCompatibility',
   'distanceCompatibility',
   'jockeySkillComposite',
-  'form',
 ];
+
+/**
+ * AUDIT_REPORT.md Bulgu R3 (Low, bu oturum) — `form` alanı artık bir
+ * oyuncunun/botun atının SON `FORM_SAMPLE_SIZE` (5) sonuçlanmış
+ * pratik-yarış/PvP maçının (`race_entries.performance_score`, bkz.
+ * `RecentRaceResultView`) ORTALAMASI olarak hesaplanır — brief §17'nin
+ * `w_form` ağırlığının artık GERÇEK bir sinyal taşıması için.
+ *
+ * **Neden basit ortalama (recency-ağırlıklı DEĞİL):** `performance_score`
+ * zaten 0-100 ölçeğinde ve doğrudan karşılaştırılabilir (bkz.
+ * `race-engine.ts`'in `performanceScore` hesaplaması) — daha karmaşık bir
+ * üstel/recency-ağırlıklı ortalama, T3b'nin (bu oturum) öğrettiği "motor
+ * mekanikleri doğrusal/simetrik tepki vermeyebilir" dersine göre push
+ * ÖNCESİ ampirik doğrulama gerektirirdi; basit ortalama hem tahmin
+ * edilebilir hem de `docs/ALGORITHMS.md §2`'nin `w_form: 0.03` gibi zaten
+ * KÜÇÜK bir ağırlık verdiği bir sinyal için yeterli hassasiyette.
+ *
+ * **Neden `race_entries` GEÇMİŞİ yoksa nötr 50 (asla 0/boş DEĞİL):** Yeni
+ * doğan/hiç yarışmamış bir at "formsuz" (kötü) SAYILAMAZ — `NEUTRAL_
+ * UNMODELED_TRAIT_SCORE` ile AYNI "bilinmiyorsa tarafsız" ilkesi (bkz.
+ * `RaceEntrantSnapshot.form` tip yorumu) burada da korunur.
+ *
+ * Botlar (`bot-generator.ts`) bu fonksiyonu HİÇ ÇAĞIRMAZ — botların
+ * kalıcı bir `horses` satırı/geçmişi yok, `NEUTRAL_UNMODELED_TRAIT_SCORE`
+ * ile sabit kalmaya devam ederler (bilinçli, değişmedi).
+ */
+export const FORM_SAMPLE_SIZE = 5;
+
+export function deriveFormFromRecentResults(recentResults: readonly RecentRaceResultView[]): number {
+  if (recentResults.length === 0) {
+    return NEUTRAL_UNMODELED_TRAIT_SCORE;
+  }
+  const sample = recentResults.slice(0, FORM_SAMPLE_SIZE);
+  const average = sample.reduce((sum, result) => sum + result.performanceScore, 0) / sample.length;
+  return clamp(Math.round(average), 0, 100);
+}
 
 /**
  * FAZ 1 wiring, sekizinci dilim — DTO'nun `@IsIn(...)` kontrolü atlanabilir
@@ -82,8 +120,20 @@ export function assertValidRaceTactic(tactic: RaceTacticInput): void {
  * zaten gerçek veritabanına bağlı (At + Antrenman dilimleri) — burada
  * yeni olan yalnızca bu İKİ aggregate'i TEK bir snapshot'ta birleştirmek
  * ve henüz modellenmemiş alanları nötr değerle doldurmak.
+ *
+ * AUDIT_REPORT.md Bulgu R3 (bu oturum) — `recentResults` YENİ, OPSİYONEL
+ * bir parametredir (çağıran vermezse `[]`, yani `form` nötr 50 kalır —
+ * GERİYE DÖNÜK UYUMLU): çağıran use-case, bu saf/domain fonksiyonunu
+ * çağırmadan ÖNCE `raceRepository.findRecentResultsByHorseId`'den (async,
+ * DB) elde ettiği listeyi buraya iletir — bu fonksiyonun KENDİSİ hâlâ
+ * saf kalır, hiçbir I/O yapmaz (bkz. `deriveFormFromRecentResults`).
  */
-export function buildHorseEntrantSnapshot(horse: Horse, stats: HorseStats, tactic: RaceTacticInput): RaceEntrantSnapshot {
+export function buildHorseEntrantSnapshot(
+  horse: Horse,
+  stats: HorseStats,
+  tactic: RaceTacticInput,
+  recentResults: readonly RecentRaceResultView[] = [],
+): RaceEntrantSnapshot {
   assertValidRaceTactic(tactic);
 
   return {
@@ -98,7 +148,7 @@ export function buildHorseEntrantSnapshot(horse: Horse, stats: HorseStats, tacti
     surfaceCompatibility: NEUTRAL_UNMODELED_TRAIT_SCORE,
     distanceCompatibility: NEUTRAL_UNMODELED_TRAIT_SCORE,
     jockeySkillComposite: NEUTRAL_UNMODELED_TRAIT_SCORE,
-    form: NEUTRAL_UNMODELED_TRAIT_SCORE,
+    form: deriveFormFromRecentResults(recentResults),
     tactic,
   };
 }

@@ -91,3 +91,11 @@ AUDIT_AND_HARDENING bölümüne bakınız):
   `horse_surface_stats`/`horse_distance_stats` wiring eksikliği artık
   `UNMODELED_SNAPSHOT_FIELDS` ile PROGRAMATİK olarak görünür (bir
   "tripwire" testiyle korunur) — bkz. o dosyanın doc yorumu.
+- **AUDIT_REPORT.md Bulgu R3 (bu oturum):** `form` alanı `UNMODELED_
+  SNAPSHOT_FIELDS`'tan ÇIKARILDI — artık `deriveFormFromRecentResults`
+  ile atın kendi son `FORM_SAMPLE_SIZE` (5) sonuçlanmış yarışının
+  `performance_score` ortalamasından hesaplanıyor (`RaceRepository.
+  findRecentResultsByHorseId`, yeni). `surfaceCompatibility`/
+  `distanceCompatibility`/`jockeySkillComposite` HÂLÂ kapsam dışı
+  (yukarıdaki Öncelik 8 notuyla AYNI gerekçe — form'un aksine bunlar
+  BAŞKA tablolara/sistemlere (scout mekaniği, Jockey FAZ 2) bağımlı).

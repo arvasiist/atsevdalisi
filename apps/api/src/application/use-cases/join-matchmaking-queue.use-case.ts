@@ -9,7 +9,7 @@ import type {
   RaceEntry,
   RaceSegmentSnapshot,
 } from '@at-sevdalisi/shared-types';
-import { buildHorseEntrantSnapshot } from '../../domain/race/entrant-snapshot';
+import { buildHorseEntrantSnapshot, FORM_SAMPLE_SIZE } from '../../domain/race/entrant-snapshot';
 import { findBestMatch } from '../../domain/online/matchmaking';
 import { createRaceRoomSeed, validateRaceRoomParticipants } from '../../domain/online/race-room';
 import { RACE_ENGINE_VERSION, RACE_RULESET_VERSION, simulateRace } from '../../domain/race/race-engine';
@@ -203,11 +203,17 @@ export class JoinMatchmakingQueueUseCase {
     const opponentPlayerId = opponentTicket.playerId;
     const opponentHorseId = opponentTicket.horseId;
 
-    const [horse, stats, opponentHorse, opponentStats] = await Promise.all([
+    // AUDIT_REPORT.md Bulgu R3 (bu oturum) — `form` alanı artık HER İKİ
+    // atın da KENDİ son yarış geçmişinden türetiliyor (bkz.
+    // `RunPracticeRaceUseCase`'teki AYNI ekleme/gerekçe) — bu iki sorgu da
+    // salt okunur olduğundan mevcut `Promise.all`'a eklenmesi güvenli.
+    const [horse, stats, opponentHorse, opponentStats, recentResults, opponentRecentResults] = await Promise.all([
       this.horseRepository.findById(horseId),
       this.horseStatsRepository.findByHorseId(horseId),
       this.horseRepository.findById(opponentHorseId),
       this.horseStatsRepository.findByHorseId(opponentHorseId),
+      this.raceRepository.findRecentResultsByHorseId(horseId, FORM_SAMPLE_SIZE),
+      this.raceRepository.findRecentResultsByHorseId(opponentHorseId, FORM_SAMPLE_SIZE),
     ]);
 
     // Veri bütünlüğü varsayımı: çağıranın kendi atı/statı bu metoda
@@ -226,8 +232,8 @@ export class JoinMatchmakingQueueUseCase {
     const matchId = randomUUID();
     const seed = createRaceRoomSeed(matchId, now);
 
-    const mySnapshot = buildHorseEntrantSnapshot(horse, stats, DEFAULT_RACE_TACTIC);
-    const opponentSnapshot = buildHorseEntrantSnapshot(opponentHorse, opponentStats, DEFAULT_RACE_TACTIC);
+    const mySnapshot = buildHorseEntrantSnapshot(horse, stats, DEFAULT_RACE_TACTIC, recentResults);
+    const opponentSnapshot = buildHorseEntrantSnapshot(opponentHorse, opponentStats, DEFAULT_RACE_TACTIC, opponentRecentResults);
 
     // brief §41 "participant validation" — bkz. `domain/online/race-room.ts`
     // doc yorumu. İki farklı oyuncunun atları eşleştirildiğinden

@@ -330,6 +330,27 @@ export class PostgresRaceRepository implements RaceRepository {
   }
 
   /**
+   * AUDIT_REPORT.md Bulgu R3 (Low, bu oturum) — bkz. `RaceRepository.
+   * findRecentResultsByHorseId` port doc yorumu. `findRecentResultsByOwnerId`
+   * ile AYNI sorgu şekli, yalnızca `WHERE` koşulu `h.owner_id` yerine
+   * `re.horse_id`. `RecentRaceRow`/`rowToRecentRaceResult`'ı PAYLAŞIR.
+   */
+  async findRecentResultsByHorseId(horseId: string, limit: number): Promise<RecentRaceResultView[]> {
+    const result = await this.pool.query<RecentRaceRow>(
+      `SELECT r.id AS race_id, r.name AS race_name, r.distance_m, r.surface, r.created_at,
+              re.horse_id, h.name AS horse_name, re.final_time_ms, re.finish_position, re.performance_score
+       FROM race_entries re
+       JOIN races r ON r.id = re.race_id
+       JOIN horses h ON h.id = re.horse_id
+       WHERE re.horse_id = $1 AND re.finish_position IS NOT NULL
+       ORDER BY r.created_at DESC
+       LIMIT $2`,
+      [horseId, limit],
+    );
+    return result.rows.map(rowToRecentRaceResult);
+  }
+
+  /**
    * AUDIT_REPORT.md Bulgu R2 (Medium, bu oturum) — bkz. `RaceRepository.
    * findTimelineByRaceId` port doc yorumu. ÜÇ ayrı sorgu (races satırı,
    * TÜM race_entries, TÜM race_entry_segments) BİLEREK tek bir dev JOIN

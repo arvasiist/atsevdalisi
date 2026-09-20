@@ -136,6 +136,20 @@ export interface RaceRepository {
   findRecentResultsByOwnerId(ownerId: string, limit: number): Promise<RecentRaceResultView[]>;
 
   /**
+   * AUDIT_REPORT.md Bulgu R3 (Low, bu oturum) — `entrant-snapshot.ts`'in
+   * `deriveFormFromRecentResults`'ı (bkz. o fonksiyonun doc yorumu) için:
+   * `findRecentResultsByOwnerId` ile AYNI JOIN/şekil, ama OYUNCU değil TEK
+   * bir AT bazında filtrelenir (`WHERE re.horse_id = $1`) — bir oyuncunun
+   * BİRDEN FAZLA atı olabileceğinden, "formu" hesaplanan atın KENDİ
+   * geçmişi, sahibinin TÜM atlarının karışık geçmişinden AYRI tutulmalı.
+   * Salt okunur, `withTransaction` GEREKMEZ (`findRecentResultsByOwnerId`
+   * ile AYNI gerekçe). Sonuçlar en yeniden eskiye sıralı döner (`limit`
+   * uygulanan tarafta değil SQL'de) — çağıran `deriveFormFromRecentResults`
+   * bu sıralamaya GÜVENİR, kendi başına yeniden sıralamaz.
+   */
+  findRecentResultsByHorseId(horseId: string, limit: number): Promise<RecentRaceResultView[]>;
+
+  /**
    * AUDIT_REPORT.md Bulgu R2 (Medium, bu oturum) — `GET /races/:id/timeline`.
    * `races` + TÜM `race_entries` (gerçek at VE bot satırları) + TÜM
    * `race_entry_segments`'i tek bir görünüme birleştirip döner; `race`

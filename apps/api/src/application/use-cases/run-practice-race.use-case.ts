@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { Inject, Injectable } from '@nestjs/common';
 import type { PracticeRaceResult, Race, RaceEntry, RaceSegmentSnapshot, RaceTacticInput } from '@at-sevdalisi/shared-types';
 import { generateBotEntrants } from '../../domain/race/bot-generator';
-import { buildHorseEntrantSnapshot } from '../../domain/race/entrant-snapshot';
+import { buildHorseEntrantSnapshot, FORM_SAMPLE_SIZE } from '../../domain/race/entrant-snapshot';
 import { getPracticeRaceEntryFee, getPracticeRacePrize } from '../../domain/race/prize';
 import { RACE_ENGINE_VERSION, RACE_RULESET_VERSION, simulateRace } from '../../domain/race/race-engine';
 import { PRACTICE_RACE_BOT_COUNT, PRACTICE_RACE_DISTANCE_METERS } from '../../domain/race/validation';
@@ -63,8 +63,14 @@ export class RunPracticeRaceUseCase {
       throw new HorseNotFoundError(horseId);
     }
 
+    // AUDIT_REPORT.md Bulgu R3 (bu oturum) — `form` alanı artık bu atın
+    // KENDİ son `FORM_SAMPLE_SIZE` sonuçlanmış yarışından türetiliyor (bkz.
+    // `deriveFormFromRecentResults` doc yorumu). Botların bu sorguya
+    // ihtiyacı yok (`generateBotEntrants` her zaman nötr 50 kullanır).
+    const recentResults = await this.raceRepository.findRecentResultsByHorseId(horseId, FORM_SAMPLE_SIZE);
+
     const raceId = randomUUID();
-    const playerEntrant = buildHorseEntrantSnapshot(horse, stats, input.tactic);
+    const playerEntrant = buildHorseEntrantSnapshot(horse, stats, input.tactic, recentResults);
     const botEntrants = generateBotEntrants(PRACTICE_RACE_BOT_COUNT, raceId);
 
     const timeline = simulateRace({

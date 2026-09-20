@@ -125,9 +125,12 @@ export interface RaceEntrantSnapshot {
   jockeySkillComposite: number;
   /**
    * Son yarışlardaki performansa dayalı "form" değeri (0-100, brief §17
-   * `w_form`). Henüz bir form/momentum hesaplama sistemi kurulmadığından
-   * (ileride race_entries geçmişinden türetilecek), snapshot üretilirken
-   * bilinmiyorsa nötr değer (50) kullanılır — bkz. docs/ALGORITHMS.md §2.
+   * `w_form`). AUDIT_REPORT.md Bulgu R3 (bu oturum) — artık gerçekten
+   * `race_entries` geçmişinden türetiliyor (bkz. `apps/api/src/domain/
+   * race/entrant-snapshot.ts`'in `deriveFormFromRecentResults` fonksiyonu:
+   * son 5 sonuçlanmış yarışın `performanceScore` ortalaması). Bir atın
+   * (henüz hiç yarışmamış at, ya da bot) hiç geçmişi yoksa "bilinmiyorsa
+   * nötr" ilkesiyle 50 kullanılır — bkz. docs/ALGORITHMS.md §2.
    */
   form: number;
   tactic: RaceTacticInput;

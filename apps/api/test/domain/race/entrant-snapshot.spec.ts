@@ -1,12 +1,30 @@
 import { describe, expect, it } from 'vitest';
-import type { Horse, HorseStats } from '@at-sevdalisi/shared-types';
+import type { Horse, HorseStats, RecentRaceResultView } from '@at-sevdalisi/shared-types';
 import {
   assertValidRaceTactic,
   buildHorseEntrantSnapshot,
+  deriveFormFromRecentResults,
+  FORM_SAMPLE_SIZE,
   NEUTRAL_UNMODELED_TRAIT_SCORE,
   UNMODELED_SNAPSHOT_FIELDS,
 } from '../../../src/domain/race/entrant-snapshot';
 import { InvalidRaceTacticError } from '../../../src/domain/race/errors';
+
+function makeRecentResult(overrides: Partial<RecentRaceResultView> = {}): RecentRaceResultView {
+  return {
+    raceId: 'race-1',
+    raceName: 'Pratik Yarış',
+    horseId: 'horse-1',
+    horseName: 'Yıldırım',
+    distanceMeters: 1600,
+    surface: 'grass',
+    finishPosition: 1,
+    finalTimeMs: 100000,
+    performanceScore: 70,
+    finishedAt: '2026-09-01T00:00:00.000Z',
+    ...overrides,
+  };
+}
 
 function makeHorse(overrides: Partial<Horse> = {}): Horse {
   return {
@@ -111,13 +129,32 @@ describe('buildHorseEntrantSnapshot', () => {
     expect(snapshot.tactic).toEqual(validTactic);
   });
 
-  it('henüz modellenmeyen alanları (surfaceCompatibility/distanceCompatibility/jockeySkillComposite/form) nötr değere ayarlar', () => {
+  it('henüz modellenmeyen alanları (surfaceCompatibility/distanceCompatibility/jockeySkillComposite) nötr değere ayarlar', () => {
     const snapshot = buildHorseEntrantSnapshot(makeHorse(), makeStats(), validTactic);
 
     expect(snapshot.surfaceCompatibility).toBe(NEUTRAL_UNMODELED_TRAIT_SCORE);
     expect(snapshot.distanceCompatibility).toBe(NEUTRAL_UNMODELED_TRAIT_SCORE);
     expect(snapshot.jockeySkillComposite).toBe(NEUTRAL_UNMODELED_TRAIT_SCORE);
+  });
+
+  /**
+   * AUDIT_REPORT.md Bulgu R3 (bu oturum) — `form` artık `UNMODELED_
+   * SNAPSHOT_FIELDS` listesinde DEĞİL (yukarıdaki testten BİLEREK
+   * çıkarıldı); `recentResults` verilmeden çağrılırsa (eski çağıranlarla
+   * GERİYE DÖNÜK uyumluluk) hâlâ nötr 50 döner — bkz. aşağıdaki
+   * `deriveFormFromRecentResults` testleri gerçek geçmişle davranışı.
+   */
+  it('recentResults verilmeden çağrılırsa form nötr (50) kalır', () => {
+    const snapshot = buildHorseEntrantSnapshot(makeHorse(), makeStats(), validTactic);
     expect(snapshot.form).toBe(NEUTRAL_UNMODELED_TRAIT_SCORE);
+  });
+
+  it('recentResults verilirse form bu geçmişten türetilir', () => {
+    const snapshot = buildHorseEntrantSnapshot(makeHorse(), makeStats(), validTactic, [
+      makeRecentResult({ performanceScore: 80 }),
+      makeRecentResult({ performanceScore: 60 }),
+    ]);
+    expect(snapshot.form).toBe(70);
   });
 
   /**
@@ -143,5 +180,32 @@ describe('buildHorseEntrantSnapshot', () => {
     expect(() => buildHorseEntrantSnapshot(makeHorse(), makeStats(), { ...validTactic, riskLevel: 'extreme' as never })).toThrow(
       InvalidRaceTacticError,
     );
+  });
+});
+
+describe('deriveFormFromRecentResults (AUDIT_REPORT.md Bulgu R3, bu oturum)', () => {
+  it('hiç geçmiş yoksa nötr değer (50) döner — "formsuz" değil "bilinmiyor"', () => {
+    expect(deriveFormFromRecentResults([])).toBe(NEUTRAL_UNMODELED_TRAIT_SCORE);
+  });
+
+  it('tek bir sonuç varsa doğrudan onun performanceScore\'unu döner', () => {
+    expect(deriveFormFromRecentResults([makeRecentResult({ performanceScore: 83 })])).toBe(83);
+  });
+
+  it('birden fazla sonucun ortalamasını (yuvarlanmış) döner', () => {
+    const results = [makeRecentResult({ performanceScore: 90 }), makeRecentResult({ performanceScore: 91 }), makeRecentResult({ performanceScore: 89 })];
+    // (90+91+89)/3 = 90
+    expect(deriveFormFromRecentResults(results)).toBe(90);
+  });
+
+  it(`FORM_SAMPLE_SIZE'dan (${FORM_SAMPLE_SIZE}) FAZLA sonuç verilse bile yalnızca İLK ${FORM_SAMPLE_SIZE} tanesini kullanır (repository zaten en yeniden eskiye sıralı döner)`, () => {
+    const newest = Array.from({ length: FORM_SAMPLE_SIZE }, () => makeRecentResult({ performanceScore: 100 }));
+    const stale = [makeRecentResult({ performanceScore: 0 })];
+    expect(deriveFormFromRecentResults([...newest, ...stale])).toBe(100);
+  });
+
+  it('0-100 aralığında clamp eder (performanceScore teorik olarak aralık dışına taşsa bile)', () => {
+    expect(deriveFormFromRecentResults([makeRecentResult({ performanceScore: 150 })])).toBe(100);
+    expect(deriveFormFromRecentResults([makeRecentResult({ performanceScore: -20 })])).toBe(0);
   });
 });
