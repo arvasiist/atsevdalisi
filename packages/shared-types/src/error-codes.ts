@@ -77,6 +77,9 @@ export const ErrorCode = {
   // FAZ 1 wiring, on dördüncü dilim (bu oturum) — PvP Eşleştirme (domain/online)
   AlreadyInMatchmakingQueue: 'ALREADY_IN_MATCHMAKING_QUEUE',
   NotInMatchmakingQueue: 'NOT_IN_MATCHMAKING_QUEUE',
+  // AUDIT_REPORT.md Bulgu S5 (High) hardening (bu oturum) — bkz.
+  // apps/api/src/api/rate-limit/rate-limit.errors.ts `RateLimitExceededError`.
+  RateLimitExceeded: 'RATE_LIMIT_EXCEEDED',
 } as const;
 
 export type ErrorCodeValue = (typeof ErrorCode)[keyof typeof ErrorCode];

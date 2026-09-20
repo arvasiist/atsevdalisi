@@ -7,6 +7,7 @@ import { assertSelf } from '../auth/assert-self';
 import { CurrentPlayer, type AuthenticatedPlayer } from '../auth/current-player.decorator';
 import { Public } from '../auth/public.decorator';
 import { toPlayerSummary } from '../dto/player.mapper';
+import { RateLimit } from '../rate-limit/rate-limit.decorator';
 import { RegisterPlayerDto } from './dto/register-player.dto';
 
 /**
@@ -40,6 +41,11 @@ export class PlayerController {
     @Inject(TOKEN_SERVICE) private readonly tokenService: TokenService,
   ) {}
 
+  // AUDIT_REPORT.md Bulgu S5 (High) hardening (bu oturum) — `@Public()`
+  // olduğundan (token gerektirmediğinden) bot/kaba-kuvvet kayıt
+  // denemelerine karşı en savunmasız uç noktalardan biri, bkz.
+  // `rate-limit.decorator.ts` doc yorumu.
+  @RateLimit({ name: 'register', limit: 10, windowSeconds: 300 })
   @Public()
   @Post()
   async register(@Body() dto: RegisterPlayerDto): Promise<ApiSuccess<AuthSession>> {

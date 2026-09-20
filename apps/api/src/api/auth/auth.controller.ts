@@ -3,6 +3,7 @@ import type { ApiSuccess, AuthSession } from '@at-sevdalisi/shared-types';
 import { LoginWithProviderUseCase } from '../../application/use-cases/login-with-provider.use-case';
 import { TOKEN_SERVICE, type TokenService } from '../../application/ports/token.service';
 import { toPlayerSummary } from '../dto/player.mapper';
+import { RateLimit } from '../rate-limit/rate-limit.decorator';
 import { Public } from './public.decorator';
 import { LoginDto } from './dto/login.dto';
 
@@ -29,6 +30,10 @@ export class AuthController {
     @Inject(TOKEN_SERVICE) private readonly tokenService: TokenService,
   ) {}
 
+  // AUDIT_REPORT.md Bulgu S5 (High) hardening (bu oturum) — `register`
+  // ile AYNI gerekçe (`@Public()`, token'sız), bkz.
+  // `rate-limit.decorator.ts` doc yorumu.
+  @RateLimit({ name: 'login', limit: 10, windowSeconds: 300 })
   @Public()
   @Post('login')
   @HttpCode(HttpStatus.OK)

@@ -36,6 +36,7 @@ import {
   ListingStaleOwnerError,
 } from '../../domain/market/errors';
 import { IdempotencyKeyInProgressError, IdempotencyKeyRequiredError } from '../idempotency/idempotency.errors';
+import { RateLimitExceededError } from '../rate-limit/rate-limit.errors';
 
 /**
  * Bir hata sınıfının constructor'ı (`instanceof` ile karşılaştırılabilir).
@@ -164,6 +165,18 @@ export class HttpExceptionFilter implements ExceptionFilter {
     if (exception instanceof HorseNotReadyForTrainingError) {
       const code = exception.reason === 'INSUFFICIENT_ENERGY' ? ErrorCode.InsufficientEnergy : ErrorCode.HorseTooTired;
       response.status(HttpStatus.CONFLICT).json({ success: false, error: { code, message: exception.message } });
+      return;
+    }
+
+    // AUDIT_REPORT.md Bulgu S5 (High) hardening (bu oturum) — diğerleri
+    // gibi `DOMAIN_ERROR_MAP`'e EKLENMEDİ çünkü yalnızca bu hata özel bir
+    // `Retry-After` header'ı gerektiriyor (bkz. `RateLimitGuard` doc yorumu).
+    if (exception instanceof RateLimitExceededError) {
+      response.setHeader('Retry-After', String(exception.retryAfterSeconds));
+      response.status(HttpStatus.TOO_MANY_REQUESTS).json({
+        success: false,
+        error: { code: ErrorCode.RateLimitExceeded, message: exception.message },
+      });
       return;
     }
 

@@ -28,10 +28,10 @@ olarak veriliyor. Her alanın sonunda "Zaten sağlam / IMPLEMENTED" listesi var
 | D1 | Veritabanı | **CRITICAL** | ✅ **DÜZELTİLDİ** — Bir at için aynı anda birden fazla aktif ilan engellenmiyordu → iki alıcı aynı atı "satın alabiliyordu", biri parasını kaybediyordu |
 | S4 | Güvenlik | High | ✅ **DÜZELTİLDİ** — `assertSelf` ile (commit `24fafb1`) yalnızca oturum sahibi kendi verisini okuyabilir |
 | D2 | Veritabanı | High | ✅ **DÜZELTİLDİ** — Satın alma, `horses.owner_id`'nin hâlâ `listing.sellerId`'e eşit olduğunu kontrol etmiyordu (D1 ile birleşince atın "geri alınması" mümkündü) |
-| E1 | Ekonomi | High | ✅ **DÜZELTİLDİ** — Pratik yarış: cüzdan güncellemesi ile yarış kaydı artık `savePracticeRaceWithStakes` içinde TEK atomik transaction'da (commit `a010ec3`, CI #111 yeşil); PvP'nin aynı desendeki (mali riski olmayan) analogu da bu turda `savePvpMatchWithRatings` ile aynı şekilde DÜZELTİLDİ |
+| E1 | Ekonomi | High | ✅ **DÜZELTİLDİ** — Pratik yarış: cüzdan güncellemesi ile yarış kaydı artık `savePracticeRaceWithStakes` içinde TEK atomik transaction'da (commit `a010ec3`, CI #111 yeşil); PvP'nin aynı desendeki (mali riski olmayan) analogu da bu turda `savePvpMatchWithRatings` ile aynı şekilde DÜZELTİLDİ (commit `8bf8b1b`, CI #121 yeşil) |
 | H1 | At Durumu | High | ✅ **DÜZELTİLDİ** — `injured` durumundan `active`'e dönüş yolu YOK — sakatlanan at kalıcı olarak kullanılamaz hale geliyor |
 | C1 | Veritabanı | High | ✅ **DÜZELTİLDİ** (At Pazarı yolunda) — Ahır kapasitesi hiçbir yerde zorunlu kılınmıyordu — sınırsız at alınabiliyordu |
-| S5 | Güvenlik | High | ✅ **KISMEN DÜZELTİLDİ** — Helmet/CSP eklendi; rate limiting hâlâ AÇIK |
+| S5 | Güvenlik | High | ✅ **KISMEN DÜZELTİLDİ** — Helmet/CSP + kayıt/giriş için Redis tabanlı rate limiting eklendi; ekonomi uçlarına özel limit bilinçli olarak ayrı kapsam |
 | C2 | Veritabanı | Medium | ✅ **DÜZELTİLDİ** — Antrenman/bakım/besleme artık `updateWithLock` (`FOR UPDATE`) kullanıyor |
 | H2 | At Durumu | Medium | ✅ **DÜZELTİLDİ** — Pazarda aktif ilanı olan bir at antrenman/yarış için reddediliyor (`HorseListedInMarketError`) |
 | E2 | Ekonomi | Medium | ✅ **DÜZELTİLDİ** — `cancelListing` + `WHERE status = 'active'` güvencesiyle satılmış bir ilanın iptal edilmiş gibi üzerine yazılması engellendi |
@@ -82,19 +82,47 @@ olarak veriliyor. Her alanın sonunda "Zaten sağlam / IMPLEMENTED" listesi var
 **Test requirement:** `GET /players/:otherId` doğrulanmış ama sahibi olmayan biri için 403 (veya sansürlü genel görünüm) dönmeli.
 
 ### S5 — High: Helmet/CSP yok, rate limiting yok
-> ✅ **HELMET KISMI DÜZELTİLDİ** — `main.ts`'e `app.use(helmet())` eklendi
-> (`apps/api/package.json`'a `helmet` bağımlılığı ile). Rate limiting
-> (`@nestjs/throttler`) BİLEREK bu turda YAPILMADI — e2e test paketinin
-> kendisi (özellikle T1'in istediği n=10/50/100 eşzamanlı istek testleri
-> ve mevcut market concurrency testleri) tek bir CI koşusunda kısa sürede
-> çok sayıda istek atıyor; global bir throttler, doğru per-route/
-> per-ortam istisnalar olmadan eklenirse gerçek trafiği DEĞİL, CI'ın
-> kendisini 429'a düşürme riski taşıyor. Bu, dikkatli/izole bir sonraki
-> adım olarak kalıyor (aşağıdaki Fix notu hâlâ geçerli).
+> ✅ **DÜZELTİLDİ (bu turda, proje sahibinin genel yetkilendirmesiyle —
+> "Herşeyi sana bırakıyorum tamamıyla kendi kararlarınla devam
+> edebilirsin").** Helmet kısmı önceki bir turda zaten yapılmıştı
+> (`main.ts`'e `app.use(helmet())`). Rate limiting artık kayıt/giriş için
+> UYGULANDI: yeni `RateLimitGuard`
+> (`apps/api/src/api/rate-limit/rate-limit.guard.ts`), `@nestjs/throttler`
+> paketi EKLENMEDEN, mevcut `REDIS_CLIENT`'ı (`INCR`+`EXPIRE` sabit
+> pencere sayacı) kullanan hafif bir özel guard olarak yazıldı — bu,
+> `@nestjs/throttler`'ın sürüm/API belirsizliğini (bu sandbox'ta paket
+> kurulup çalıştırılamadığından doğrulanamaz) tamamen ORTADAN KALDIRDI.
+> `POST /players` (kayıt) ve `POST /auth/login`'e (`@RateLimit({ limit: 10,
+> windowSeconds: 300 })`) uygulandı — bunlar `@Public()` olduğundan
+> (token'sız çağrılabildiğinden) bot/kaba-kuvvet riskinin en yüksek
+> olduğu iki uç nokta. Global bir varsayılan limit BİLİNÇLİ olarak
+> EKLENMEDİ — guard varsayılan olarak "izin ver"dir, yalnızca AÇIKÇA
+> `@RateLimit(...)` ile işaretlenen rotalarda devreye girer (bkz. o
+> decorator'ın doc yorumu) — bu, T1'in (CI #100-109, 10 tur) öğrettiği
+> dersle TUTARLI: işaretlenmemiş HİÇBİR mevcut rota (dolayısıyla mevcut
+> concurrency testlerinin HİÇBİRİ) davranış değişikliğine MARUZ KALMADI.
+>
+> **Ekonomi uçları (satın alma, ödül talebi) BİLİNÇLİ olarak bu turun
+> kapsamı DIŞINDA bırakıldı** — bkz. `docs/SECURITY.md` §7'nin güncellenmiş
+> notu: bu uçların TAMAMI zaten CI'nın yoğun eşzamanlılık/idempotency
+> testleriyle (aynı oyuncunun/anahtarın onlarca kez ÇAKIŞAN isteği —
+> istismar DEĞİL, bilerek test edilen bir yarış durumu) kaplı; meşru
+> yeniden-deneme yükünü gerçek kötüye kullanımdan güvenle ayırt eden bir
+> tasarım ayrı, dikkatli bir kapsam gerektiriyor.
+>
+> `.github/workflows/ci.yml`'ye `DISABLE_RATE_LIMIT: 'true'` eklendi
+> (TÜM diğer e2e dosyalarının `registerTestPlayer`'ı tekrar tekrar
+> çağırmasının 429'a takılmaması için) — yeni, İZOLE
+> `rate-limit.e2e-spec.ts` bu bayrağı KENDİ İÇİNDE geçici olarak
+> `'false'`'e çevirip limit + 1 istek göndererek GERÇEK 429 (+
+> `Retry-After` header'ı) davranışını doğrular, sonra bayrağı geri açar.
+> Sadece syntax/transpile kontrolüyle doğrulanabildi (bu sandbox'ta
+> NestJS/Redis kurulu değil); gerçek doğrulama push sonrası CI'da
+> yapılacak.
 **Evidence:** `apps/api/package.json`'da `helmet` yok, `main.ts`'te CSP/güvenlik başlığı yok. `@nestjs/throttler` veya eşdeğeri hiç yok. `docs/SECURITY.md` §7 bunu "önerilen, sahip onayı bekleyen" madde olarak listeliyor ama uygulanmamış.
 **Impact:** S1/S2/S3 ile birleşince — auth yok + rate limit yok + ownership kontrolü yok kombinasyonu, tek bir scriptli client'ın sınırsız hızda rastgele oyuncuları mağdur edebilmesi anlamına geliyor.
-**Fix:** `@nestjs/throttler` ekle (register/login ve ekonomi uçlarına özel limit, test/CI ortamında ya devre dışı ya da çok yüksek eşik), `helmet` middleware ekle (✅ yapıldı).
-**Test requirement:** Rate-limit aşıldığında 429 dönen entegrasyon testi.
+**Fix:** ~~`@nestjs/throttler` ekle~~ → özel Redis tabanlı `RateLimitGuard` ile kayıt/giriş uçlarına limit eklendi (✅ yapıldı); ekonomi uçlarına özel limit ayrı bir kapsam olarak kalıyor (yukarıdaki not). `helmet` middleware eklendi (✅ yapıldı).
+**Test requirement:** ✅ Rate-limit aşıldığında 429 dönen entegrasyon testi eklendi (`rate-limit.e2e-spec.ts`).
 
 ### Zaten sağlam (IMPLEMENTED)
 - Gizli `potential` sızıntısı: `horse.mapper.ts`'in `toPublicHorse`'u her yerde doğru uygulanıyor.
@@ -250,7 +278,7 @@ garantisini iki bağımsız yoldan doğrular.
 **Test requirement:** `savePracticeRace`'i para transaction'ı commit olduktan SONRA hata fırlatacak şekilde mock'la → düzeltmeden sonra bakiyenin de geri alındığını doğrula.
 **✅ TAMAMLANDI (bu turda):** `RaceRepository.savePracticeRaceWithStakes` (yeni port metodu) `PostgresMarketPurchaseRepository.executePurchase` ile AYNI "kendi transaction'ını yöneten repository" deseniyle yazıldı — `players` satırı kilitlenir, `applyPracticeRaceStakes` ile bakiye hesaplanır, ledger + `races`/`race_entries`/`race_entry_segments` satırları TEK `withTransaction` bloğunda yazılır. `RunPracticeRaceUseCase` artık `PLAYER_REPOSITORY`'yi hiç enjekte etmiyor (commit `a010ec3`). Mock yerine (codebase kuralına uyarak) `race.e2e-spec.ts`'e gerçek Nest DI'dan alınan GERÇEK `PostgresRaceRepository` ile kasıtlı bir FK ihlali (var olmayan `horseId`) tetikleyip transaction'ın TÜMÜNÜN (cüzdan dahil) rollback edildiğini gerçek Postgres'e karşı doğrulayan bir e2e testi eklendi. CI #111'de tam yeşil doğrulandı (push+kontrol bağımsız yapıldı). PvP'nin (`join-matchmaking-queue.use-case.ts`) aynı yapısal desendeki riski `entryFee: 0, prizePool: 0` olduğundan mali risk taşımıyordu — bu yüzden ilk turda bilinçli olarak kapsam dışı bırakılmıştı.
 
-**✅ PvP analogu da DÜZELTİLDİ (bu turda, proje sahibinin "hangi adımı istiyorsan yapabilirsin" yetkilendirmesiyle):** `JoinMatchmakingQueueUseCase.playMatch`, Elo reyting güncellemesini (`PlayerRepository.updateTwoWithLock`) ile yarış/PvP maç kaydını (`RaceRepository.savePvpMatch`) İKİ AYRI transaction'da yapıyordu — mali risk yoktu ama E1 ile YAPISAL OLARAK AYNI risk geçerliydi (ikinci transaction başarısız olursa reyting değişmiş ama maç kaydı YOK kalırdı). Çözüm: yeni `RaceRepository.savePvpMatchWithRatings` metodu, `savePracticeRaceWithStakes` ile AYNI "kendi transaction'ını yöneten repository" deseniyle, HER İKİ oyuncunun `players` satırını (`PlayerRepository.updateTwoWithLock` ile AYNI deadlock-önleme sırasıyla) kilitler, `applyEloUpdate` ile yeni reytingleri hesaplar, SONRA `races`/`race_entries`/`race_entry_segments`/`pvp_matches` satırlarını AYNI transaction'da ekler. `matchmaking.e2e-spec.ts`'e, `race.e2e-spec.ts`'teki E1 testiyle AYNI teknikle (gerçek Nest DI'dan alınan GERÇEK `PostgresRaceRepository`, kasıtlı bir FK ihlali) transaction'ın TÜMÜNÜN (reytingler dahil) rollback edildiğini doğrulayan yeni bir e2e testi eklendi.
+**✅ PvP analogu da DÜZELTİLDİ (bu turda, proje sahibinin "hangi adımı istiyorsan yapabilirsin" yetkilendirmesiyle):** `JoinMatchmakingQueueUseCase.playMatch`, Elo reyting güncellemesini (`PlayerRepository.updateTwoWithLock`) ile yarış/PvP maç kaydını (`RaceRepository.savePvpMatch`) İKİ AYRI transaction'da yapıyordu — mali risk yoktu ama E1 ile YAPISAL OLARAK AYNI risk geçerliydi (ikinci transaction başarısız olursa reyting değişmiş ama maç kaydı YOK kalırdı). Çözüm: yeni `RaceRepository.savePvpMatchWithRatings` metodu, `savePracticeRaceWithStakes` ile AYNI "kendi transaction'ını yöneten repository" deseniyle, HER İKİ oyuncunun `players` satırını (`PlayerRepository.updateTwoWithLock` ile AYNI deadlock-önleme sırasıyla) kilitler, `applyEloUpdate` ile yeni reytingleri hesaplar, SONRA `races`/`race_entries`/`race_entry_segments`/`pvp_matches` satırlarını AYNI transaction'da ekler. `matchmaking.e2e-spec.ts`'e, `race.e2e-spec.ts`'teki E1 testiyle AYNI teknikle (gerçek Nest DI'dan alınan GERÇEK `PostgresRaceRepository`, kasıtlı bir FK ihlali) transaction'ın TÜMÜNÜN (reytingler dahil) rollback edildiğini doğrulayan yeni bir e2e testi eklendi. **Commit `8bf8b1b`, CI #121'de tam yeşil doğrulandı** (2m 23s, push+kontrol bağımsız yapıldı).
 
 ### E2 — Medium: Satın alma/iptal yarışı — satılmış ilan "iptal edildi" olarak üzerine yazılabilir
 **Evidence:** `cancel-market-listing.use-case.ts:27-37` kilitsiz `findById` + koşulsuz `UPDATE`.
@@ -333,4 +361,4 @@ Master Plan §61 Phase A ("Security & Data Integrity") ile birebir uyumlu olarak
 10. ✅ **F1** — Mobil responsive tasarım. **DÜZELTİLDİ VE GERÇEK CI'DA DOĞRULANDI** (tablet/dar telefon breakpoint'leri, `RaceHud` taşma düzeltmesi, ≥44px dokunma hedefleri; commit `9c08982`, CI #116).
 11. ✅ **R2** — Tam alan (full-field) replay. **DÜZELTİLDİ VE GERÇEK CI'DA DOĞRULANDI** (botlar artık `race_entries`/`race_entry_segments`'e yazılır, `GET /races/:id/timeline` DB'den okunan tam alanı döner; commit `d62f6fc`, CI #118).
 
-**Durum özeti (2026-09-19 itibarıyla):** Madde 1-10'un TAMAMI (T1+T2+T3+F1 dahil) kapatıldı ve GERÇEK CI'DA DOĞRULANDI (bkz. `claude/hizli-bitirme-plani.md` proje dokümanındaki detaylı kronoloji). G1 ve DOC1 (Low severity, ayrı bölümlerde) de bu turda kapatıldı. T3 testi bir YAN ÜRÜN olarak yeni bir bulgu keşfetti (T3b); T3b da bu turda proje sahibinin tam yetkilendirmesiyle DÜZELTİLDİ (bkz. yukarısı — `pace` config rebalancing, push öncesi gerçek motora karşı ampirik olarak doğrulandı). Madde 11 (R2 — tam alan replay) da bu turda kapatıldı ve CI #118'de doğrulandı. PvP'nin E1 ile aynı yapısal desendeki (mali riski olmayan) transaction ayrımı da bu turda `savePvpMatchWithRatings` ile DÜZELTİLDİ (bkz. E1 bölümü). **Hâlâ AÇIK olan gerçek bulgular:** F2 (WebSocket, bilinçli PLANNED), R3 (davranış hattının yarısı hâlâ placeholder, Master Plan Faz B/C'ye ertelendi).
+**Durum özeti (2026-09-19 itibarıyla):** Madde 1-10'un TAMAMI (T1+T2+T3+F1 dahil) kapatıldı ve GERÇEK CI'DA DOĞRULANDI (bkz. `claude/hizli-bitirme-plani.md` proje dokümanındaki detaylı kronoloji). G1 ve DOC1 (Low severity, ayrı bölümlerde) de bu turda kapatıldı. T3 testi bir YAN ÜRÜN olarak yeni bir bulgu keşfetti (T3b); T3b da bu turda proje sahibinin tam yetkilendirmesiyle DÜZELTİLDİ (bkz. yukarısı — `pace` config rebalancing, push öncesi gerçek motora karşı ampirik olarak doğrulandı). Madde 11 (R2 — tam alan replay) da bu turda kapatıldı ve CI #118'de doğrulandı. PvP'nin E1 ile aynı yapısal desendeki (mali riski olmayan) transaction ayrımı da bu turda `savePvpMatchWithRatings` ile DÜZELTİLDİ VE CI #121'DE DOĞRULANDI (bkz. E1 bölümü). S5'in kalan yarısı (rate limiting) da bu turda kayıt/giriş uçları için özel bir Redis tabanlı `RateLimitGuard` ile DÜZELTİLDİ (ekonomi uçları bilinçli olarak ayrı bir kapsam olarak kalıyor, bkz. S5 bölümü ve `docs/SECURITY.md` §7); gerçek CI doğrulaması push sonrası yapılacak. **Hâlâ AÇIK olan gerçek bulgular:** F2 (WebSocket, bilinçli PLANNED), R3 (davranış hattının yarısı hâlâ placeholder, Master Plan Faz B/C'ye ertelendi), S5'in ekonomi-uçları-özel-limit alt kapsamı (bilinçli olarak ertelendi).

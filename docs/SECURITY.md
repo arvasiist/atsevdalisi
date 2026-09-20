@@ -117,16 +117,40 @@ Server; katılımcı doğrulaması, at/jokey snapshot'ı, yarış konfigürasyon
 seed, simülasyon, sonuç ve ödülü **tek elden** üretir. Hiçbir client kendi
 local görünümünü diğerlerine authoritative olarak dayatamaz.
 
-## 7. Rate limiting ve bot koruması (brief'e ek — proje sahibinin onayına sunuldu)
+## 7. Rate limiting ve bot koruması (brief'e ek)
 
-Brief'te açıkça yer almasa da, brief'in server-authoritative felsefesiyle
-tutarlı olarak önerilir:
+Brief'te açıkça yer almaz, ama brief'in server-authoritative felsefesiyle
+tutarlı olarak eklenmiştir:
 
-- Kayıt/giriş endpoint'lerinde IP bazlı rate limiting + CAPTCHA.
-- Kritik ekonomi endpoint'lerinde (satın alma, ödül talebi) kullanıcı
-  bazlı rate limiting (örn. dakikada N istek).
+- **Kayıt/giriş endpoint'lerinde IP bazlı rate limiting: ✅ UYGULANDI**
+  (AUDIT_REPORT.md Bulgu S5, bu oturum). `POST /players` (kayıt) ve
+  `POST /auth/login` (giriş) — ikisi de `@Public()` olduğundan (token
+  gerektirmeden çağrılabildiğinden) bot/kaba-kuvvet denemelerine karşı en
+  savunmasız uç noktalar — artık `RateLimitGuard`
+  (`apps/api/src/api/rate-limit/rate-limit.guard.ts`) ile IP başına 300
+  saniyede 10 istekle sınırlı. Redis `INCR`/`EXPIRE` tabanlı klasik "sabit
+  pencere" sayacı; limit aşıldığında `429 Too Many Requests` +
+  `Retry-After` header'ı döner (`ErrorCode.RateLimitExceeded`). Yeni,
+  izole `rate-limit.e2e-spec.ts` bu davranışı gerçek bir e2e testiyle
+  doğrular. CAPTCHA henüz eklenmedi (ayrı bir üçüncü taraf entegrasyonu
+  gerektirir, proje sahibinin bir sağlayıcı seçmesi gerekir — bu turun
+  kapsamı dışında bırakıldı).
+- **Kritik ekonomi endpoint'lerinde (satın alma, ödül talebi) kullanıcı
+  bazlı rate limiting: BİLİNÇLİ OLARAK HENÜZ UYGULANMADI.** Bu uçların
+  TAMAMI zaten CI'nın yoğun eşzamanlılık/idempotency testleriyle (bkz.
+  `apps/api/test/api/test-helpers.ts` `sendConcurrentRequestsBatched` —
+  AYNI oyuncunun/Idempotency-Key'in onlarca kez ÇAKIŞAN isteği) kaplı; bu,
+  gerçek bir istismar senaryosu DEĞİL, bilerek test edilen bir YARIŞ
+  DURUMU/yeniden-deneme senaryosudur. Bu iki yük türünü (meşru
+  idempotent yeniden-deneme fırtınası vs. gerçek kötüye kullanım) güvenle
+  ayırt eden bir tasarım (ör. rate limiti Idempotency-Key'e göre İSTİSNA
+  tutmak, ya da yalnızca BENZERSİZ/yeni istekleri saymak) ayrı, dikkatli
+  bir kapsam gerektiriyor — T1'in eşzamanlılık testlerinin stabilize
+  edilmesinin 10 CI turu sürdüğü (bkz. AUDIT_REPORT.md T1 bölümü) göz
+  önüne alınarak, aynı sınıftaki bir riski aceleye getirmemek için bu
+  turda BİLİNÇLİ olarak ertelendi.
 - Anormal davranış tespiti (örn. saniyeler içinde onlarca antrenman
-  isteği) loglanır ve incelemeye alınır.
+  isteği) loglanır ve incelemeye alınır — henüz uygulanmadı.
 
 ## 8. Loglama / audit trail (brief §65)
 

@@ -7,6 +7,7 @@ import { HorseModule } from './api/horse/horse.module';
 import { MarketModule } from './api/market/market.module';
 import { MatchmakingModule } from './api/matchmaking/matchmaking.module';
 import { PlayerModule } from './api/player/player.module';
+import { RateLimitModule } from './api/rate-limit/rate-limit.module';
 import { RaceModule } from './api/race/race.module';
 import { StableModule } from './api/stable/stable.module';
 import { TrainingModule } from './api/training/training.module';
@@ -53,6 +54,10 @@ import { RedisModule } from './infrastructure/redis/redis.module';
  * bildirimi, tam "yarış takvimi" (zamanlanmış çok-katılımcılı yarışlar),
  * turnuva/kulüp/sıralama/sezon (FAZ 7'nin geri kalanı).
  *
+ * AUDIT_REPORT.md Bulgu S5 (High) hardening (bu oturum) — `RateLimitModule`
+ * eklendi (kayıt/giriş rotalarına Redis tabanlı rate limiting, bkz.
+ * `api/rate-limit/rate-limit.guard.ts` doc yorumu).
+ *
  * AUDIT_REPORT.md Bulgu S1 (Critical) hardening (bu oturum) — brief §41/§50
  * Google/Apple Sign-In. `TokenModule` (`@Global()`, `DatabaseModule`/
  * `RedisModule` ile AYNI desen) burada BİR KEZ eklenir — `TOKEN_SERVICE`
@@ -79,6 +84,7 @@ import { RedisModule } from './infrastructure/redis/redis.module';
     RaceModule,
     MarketModule,
     MatchmakingModule,
+    RateLimitModule,
   ],
 })
 export class AppModule {}

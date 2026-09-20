@@ -70,6 +70,19 @@ jobs:
       # özgü bir test sırrıdır, gerçek üretim değeri repo dışında (hosting
       # ortam değişkeni olarak) ayrıca tanımlanmalıdır.
       JWT_SECRET: ci-test-only-jwt-secret-never-use-in-production
+      # AUDIT_REPORT.md Bulgu S5 (High) hardening (bu oturum) — yeni
+      # `RateLimitGuard` (bkz. apps/api/src/api/rate-limit/rate-limit.guard.ts)
+      # `POST /players` (kayıt) ve `POST /auth/login`'i sınırlar. Her
+      # e2e test dosyası `registerTestPlayer`'ı (bkz. test-helpers.ts)
+      # tekrar tekrar, AYNI runner IP'sinden çağırdığından, gerçek limit
+      # AÇIK bırakılırsa test paketinin kendisi 429'a TAKILIR — T1
+      # eşzamanlılık testlerinin (CI #100-109) aynı sınıftaki yanlış
+      # pozitif riskiyle AYNI ders. Rate limiting'in KENDİSİ, izole
+      # `rate-limit.e2e-spec.ts` içinde bu bayrağı GEÇİCİ olarak
+      # `'false'`'e çevirerek ayrıca test edilir (bkz. o dosyanın doc
+      # yorumu) — bu yüzden burada devre dışı bırakılması davranışı
+      # DOĞRULANMADAN kapatmak DEĞİLDİR.
+      DISABLE_RATE_LIMIT: 'true'
 
     steps:
       - uses: actions/checkout@v4
