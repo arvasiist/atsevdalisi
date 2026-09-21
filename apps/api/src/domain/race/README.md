@@ -109,3 +109,9 @@ AUDIT_AND_HARDENING bölümüne bakınız):
   `config.lanes.count` yarış stili sayısına tam eşit olduğundan, Draw'ı
   kulvar atamasına bağlamak T3b'nin öğrettiği risk sınıfında kapsamlı bir
   Monte Carlo yeniden dengeleme gerektirirdi — bilinçli olarak ertelendi).
+  **CI #128 kırmızı çıktı (Fisher-Yates takas satırındaki `noUncheckedIndexedAccess`
+  kaynaklı `string | undefined` derleme hatası — bu sandbox'ta gerçek
+  `tsc`'nin hiç çalıştırılamamasından dolayı push ÖNCESİ `tsx`-tabanlı
+  doğrulamanın YAKALAYAMADIĞI bir tip hatasıydı), `readIndexOrThrow` ile
+  düzeltildi (bkz. `gate-assignment.ts`'in kendi doc yorumu — `!` tip
+  zorlaması DEĞİL, gerçek bir çalışma zamanı kontrolü).**

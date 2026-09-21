@@ -1,6 +1,23 @@
 import { createSeededRandom } from '@at-sevdalisi/shared-types';
 
 /**
+ * `noUncheckedIndexedAccess` altında bir dizinin `index` konumundaki
+ * elemanını GÜVENLİ şekilde okur — Fisher-Yates döngüsünün kendi sınır
+ * matematiği elemanın var olduğunu zaten garanti eder, ama TypeScript
+ * bunu STATİK olarak bilemez (bkz. `assignGatePositions` içindeki doc
+ * yorumu). `!` tip zorlaması yerine gerçek bir çalışma zamanı kontrolü —
+ * varsayım bir gün yanlış çıkarsa sessizce `undefined` sızdırmak yerine
+ * AÇIKÇA hata fırlatır.
+ */
+function readIndexOrThrow(values: readonly string[], index: number): string {
+  const value = values[index];
+  if (value === undefined) {
+    throw new Error(`gate-assignment: dizi indeksi [${index}] beklenenden boş (uzunluk=${values.length})`);
+  }
+  return value;
+}
+
+/**
  * AUDIT_REPORT.md Bulgu R3 (Low, bu oturum) — "Draw/post-position" alanı,
  * proje sahibinin R3'ün Current Form dilimi kapandıktan sonra seçtiği
  * ikinci alt-dilim (bkz. proje dokümanı "hizli-bitirme-plani.md"). R3'ün
@@ -52,10 +69,23 @@ export function assignGatePositions(
   // Fisher-Yates shuffle — `rng()` HER çağrıda [0,1) döner (bkz.
   // `deterministic-random.ts`), bu yüzden aynı seed AYNI permütasyonu
   // üretir.
+  //
+  // NOT (bu oturumda CI #128'in yakaladığı gerçek bir hata): projenin
+  // `tsconfig.base.json`'ı `noUncheckedIndexedAccess: true` kullanıyor —
+  // yani `shuffled[i]` okuması TypeScript'e göre `string | undefined`
+  // döner (döngü sınırları HER ZAMAN geçerli olsa bile). Doğrudan
+  // `[shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]` takas
+  // deseni bu yüzden derlenmiyordu. Çözüm `!` ile tip zorlaması DEĞİL —
+  // `readIndexOrThrow` gerçek bir ÇALIŞMA ZAMANI kontrolü yapıyor, döngü
+  // matematiği bir yerde bozulursa (ör. ileride biri sınırları değiştirirse)
+  // sessizce `undefined` yazmak yerine AÇIKÇA hata fırlatıyor.
   const shuffled = [...canonicalOrder];
   for (let i = shuffled.length - 1; i > 0; i -= 1) {
     const j = Math.floor(rng() * (i + 1));
-    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    const valueAtI = readIndexOrThrow(shuffled, i);
+    const valueAtJ = readIndexOrThrow(shuffled, j);
+    shuffled[i] = valueAtJ;
+    shuffled[j] = valueAtI;
   }
 
   const gatePositionByLabel = new Map<string, number>();

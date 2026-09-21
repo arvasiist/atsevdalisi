@@ -62,4 +62,21 @@ describe('assignGatePositions', () => {
     const result = assignGatePositions(['horse-a'], 'seed-solo', 'race-solo');
     expect(result.get('horse-a')).toBe(1);
   });
+
+  /**
+   * CI #128'in yakaladığı `noUncheckedIndexedAccess` hatasının (bkz.
+   * AUDIT_REPORT.md R3/Draw bölümü — Fisher-Yates takas satırındaki
+   * `string | undefined` derleme hatası ve `readIndexOrThrow` düzeltmesi)
+   * regresyon testi: döngü büyük bir N için de HİÇBİR sınır ihlali
+   * (dolayısıyla `readIndexOrThrow`'un fırlattığı hata) OLMADAN tamamlanmalı
+   * ve yine geçerli, benzersiz bir [1,N] permütasyonu üretmeli.
+   */
+  it('büyük bir katılımcı kümesinde (N=20) sınır matematiği bozulmadan geçerli bir permütasyon üretir', () => {
+    const labels = Array.from({ length: 20 }, (_, index) => `entrant-${index}`);
+    const result = assignGatePositions(labels, 'seed-large', 'race-large');
+
+    expect(result.size).toBe(20);
+    const positions = [...result.values()].sort((a, b) => a - b);
+    expect(positions).toEqual(Array.from({ length: 20 }, (_, index) => index + 1));
+  });
 });
