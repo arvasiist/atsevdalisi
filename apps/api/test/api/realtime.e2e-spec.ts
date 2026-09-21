@@ -171,4 +171,103 @@ describe('Race WebSocket yayını (e2e) — AUDIT_REPORT.md Bulgu F2', () => {
       client.disconnect();
     }
   });
+
+  /**
+   * Senkronize çoklu-izleyici testi (bu oturum — `race.gateway.ts`'in dosya
+   * başı doc yorumundaki "Senkronize çoklu-izleyici" bölümüne bkz.). Aynı
+   * yarışı GEÇ abone olan (`clientB`, `clientA`'dan `LATE_JOIN_DELAY_MS`
+   * SONRA abone olan) ikinci bir istemcinin İKİ ayrı garantisini doğrular:
+   * (1) "yakalama" — B'nin abone olmadan ÖNCE ZATEN fiilen ateşlenmiş
+   * segmentleri TEK bir toplu `race.telemetry` olayında alması (boş bir
+   * playback'ten baştan BAŞLAMAMASI), (2) senkronizasyon — B'nin
+   * `race.finished`'i A ile NEREDEYSE AYNI anda alması (kendi abone olma
+   * anından yeni/bağımsız bir `PLAYBACK_DURATION_MS` turu BEKLEMEDEN).
+   * Yalnızca ikinci garanti test edilseydi, ESKİ (senkronize OLMAYAN)
+   * tasarım da "sonunda ikisi de race.finished alır" testini GEÇERDİ — asıl
+   * ayırt edici doğrulama, aralarındaki GECİKME FARKININ küçük olmasıdır
+   * (bkz. aşağıdaki `finishSkewMs` toleransı ve yanındaki yorum).
+   */
+  it('senkronize çoklu-izleyici: GEÇ abone olan istemci "yakalama" alır ve HER İKİ istemci de race.finished\'i NEREDEYSE AYNI anda görür', async () => {
+    const { raceId, token } = await runFinishedPracticeRace();
+    const LATE_JOIN_DELAY_MS = 2_000;
+    const clientA = connect(token);
+    const clientB = connect(token);
+
+    try {
+      await new Promise<void>((resolve, reject) => {
+        clientA.on('connect_error', reject);
+        clientA.on('connect', () => resolve());
+      });
+
+      let finishedAtA: number | undefined;
+      const finishedAPromise = new Promise<void>((resolve, reject) => {
+        clientA.on('race.finished', () => {
+          finishedAtA = Date.now();
+          resolve();
+        });
+        clientA.on('race.error', (payload: { message: string }) => reject(new Error(payload.message)));
+        setTimeout(() => reject(new Error('clientA: race.finished zaman aşımına uğradı')), 8000);
+      });
+
+      clientA.emit('race.subscribe', { raceId });
+
+      // `clientA`'nın playback'i başladıktan (dolayısıyla bazı segmentler
+      // ZATEN ateşlendikten) BİR SÜRE SONRA, ama yarış BİTMEDEN ÖNCE
+      // (`PLAYBACK_DURATION_MS`=4000'in yarısında) `clientB` katılıyor —
+      // gerçek bir "geç izleyici" senaryosu.
+      await new Promise((resolve) => setTimeout(resolve, LATE_JOIN_DELAY_MS));
+
+      await new Promise<void>((resolve, reject) => {
+        clientB.on('connect_error', reject);
+        clientB.on('connect', () => resolve());
+      });
+
+      const bTelemetryBatches: RaceSegmentSnapshot[][] = [];
+      let finishedAtB: number | undefined;
+      const finishedBPromise = new Promise<void>((resolve, reject) => {
+        clientB.on('race.telemetry', (payload: { raceId: string; segments: RaceSegmentSnapshot[] }) => {
+          bTelemetryBatches.push(payload.segments);
+        });
+        clientB.on('race.finished', () => {
+          finishedAtB = Date.now();
+          resolve();
+        });
+        clientB.on('race.error', (payload: { message: string }) => reject(new Error(payload.message)));
+        setTimeout(() => reject(new Error('clientB: race.finished zaman aşımına uğradı')), 8000);
+      });
+
+      clientB.emit('race.subscribe', { raceId });
+
+      await Promise.all([finishedAPromise, finishedBPromise]);
+
+      // "Yakalama" — B'nin İLK aldığı `race.telemetry` olayı, tam olarak bu
+      // "yakalama" olayıdır (gateway `client.join(room)`'u catch-up
+      // emit'inden ÖNCE `await` eder — bkz. `joinSharedPlayback` doc
+      // yorumu — bu yüzden odaya asıl katılımdan ÖNCE başka bir yayın
+      // araya GİREMEZ). B, abone olmadan ÖNCEKİ `LATE_JOIN_DELAY_MS`
+      // boyunca ZATEN ateşlenmiş segmentleri almış olmalı; boş bir
+      // playback'ten BAŞLAMAMIŞ olmalı.
+      expect(bTelemetryBatches.length).toBeGreaterThan(0);
+      expect(bTelemetryBatches[0]?.length ?? 0).toBeGreaterThan(0);
+
+      // Senkronizasyon — A ve B AYNI paylaşılan oturuma/zamanlayıcıya
+      // bağlı olduğundan, `race.finished` ikisine de TEK bir
+      // `this.server.to(room).emit(...)` çağrısıyla (bkz. `createPlaybackSession`)
+      // aynı anda ulaşır. ESKİ (senkronize OLMAYAN, istemci-başına bağımsız
+      // `setTimeout` zinciri) tasarımda B kendi abone olma anından
+      // BAĞIMSIZ bir `PLAYBACK_DURATION_MS` turu bekleyip yaklaşık
+      // `LATE_JOIN_DELAY_MS` (2000 ms) KADAR GEÇ bitirirdi — bu yüzden
+      // tolerans, o farkı KESİN olarak ayırt edecek kadar (çok) küçük
+      // seçildi (gerçek fark neredeyse 0 olmalı: aynı event-loop tick'inde
+      // aynı senkron `emit` çağrısı, socket.io'nun İKİ soket'e yazım
+      // sırası dışında hiçbir gecikme YOK).
+      expect(finishedAtA).toBeDefined();
+      expect(finishedAtB).toBeDefined();
+      const finishSkewMs = Math.abs((finishedAtB as number) - (finishedAtA as number));
+      expect(finishSkewMs).toBeLessThan(500);
+    } finally {
+      clientA.disconnect();
+      clientB.disconnect();
+    }
+  });
 });

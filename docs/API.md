@@ -1031,11 +1031,21 @@ namespace'i):**
 - **`race.finished` (sunucu → istemci, tam olarak bir kez):**
   `{ raceId, entrants: [...] }` — final sıralama/süre/skor (`finishPosition`'a
   göre sıralı).
-- **Bilinçli kapsam dışı (bu dilimde YOK):** aynı yarışı izleyen birden
-  çok istemcinin SENKRONİZE bir odada izlemesi (her istemci kendi abone
-  olma anına göre bağımsız bir replay alır), yeniden bağlanma/kaldığı
-  yerden devam etme (replay idempotent'tir, istemci `race.subscribe`'ı
-  baştan çağırabilir).
+- **Senkronize çoklu-izleyici (bu turda EKLENDİ):** aynı `raceId`'yi
+  izleyen TÜM istemciler artık bir Socket.IO odasına (`race:${raceId}`)
+  katılır ve `race.telemetry`/`race.finished` odanın TAMAMINA aynı anda
+  yayınlanır — kendi abone olma anına göre bağımsız bir replay YOK, TEK
+  bir paylaşılan zamanlayıcı var. `race.subscribe` oturum ZATEN
+  başladıktan SONRA çağrılırsa (geç katılım), istemci önce o ana kadar
+  fiilen ateşlenmiş TÜM segmentleri TEK bir "yakalama" `race.telemetry`
+  olayında alır (yarış zaten bitmişse ANINDA `race.finished` alır),
+  SONRA odaya katılıp gelecekteki yayınları normal şekilde alır — yani
+  bir yeniden bağlanma artık "sıfırdan başlama" değil, bu yakalama
+  mekanizmasından FAYDALANIR (tam bir reconnection protokolü HÂLÂ YOK,
+  istemci `race.subscribe`'ı kendisi yeniden çağırmalıdır). Bir
+  playback oturumu, bitişten 60 saniye sonra bellekten temizlenir.
+- **Bilinçli kapsam dışı (hâlâ YOK):** `notification.new`/`lobby.update`
+  (yukarıdaki tablo), istemci tarafında otomatik yeniden abone olma.
 
 ## 11. Hata kodu kataloğu (örnek, genişletilecek)
 
