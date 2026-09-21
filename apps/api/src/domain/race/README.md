@@ -109,9 +109,19 @@ AUDIT_AND_HARDENING bölümüne bakınız):
   `config.lanes.count` yarış stili sayısına tam eşit olduğundan, Draw'ı
   kulvar atamasına bağlamak T3b'nin öğrettiği risk sınıfında kapsamlı bir
   Monte Carlo yeniden dengeleme gerektirirdi — bilinçli olarak ertelendi).
-  **CI #128 kırmızı çıktı (Fisher-Yates takas satırındaki `noUncheckedIndexedAccess`
+  **İki turlu bir CI serüveni sonunda CI #130'da tam yeşil doğrulandı:**
+  CI #128 kırmızı çıktı (Fisher-Yates takas satırındaki `noUncheckedIndexedAccess`
   kaynaklı `string | undefined` derleme hatası — bu sandbox'ta gerçek
   `tsc`'nin hiç çalıştırılamamasından dolayı push ÖNCESİ `tsx`-tabanlı
   doğrulamanın YAKALAYAMADIĞI bir tip hatasıydı), `readIndexOrThrow` ile
   düzeltildi (bkz. `gate-assignment.ts`'in kendi doc yorumu — `!` tip
-  zorlaması DEĞİL, gerçek bir çalışma zamanı kontrolü).**
+  zorlaması DEĞİL, gerçek bir çalışma zamanı kontrolü). Ardından CI #129
+  YİNE kırmızı çıktı — bu kez `gate-assignment.ts`'te DEĞİL,
+  `postgres-race.repository.ts`'in `insertEntryWithSegments`'inde
+  (pratik yarış + PvP'nin PAYLAŞTIĞI TEK ortak INSERT): `gate_position`
+  SQL'de `jockey_id` ile AYNI satırda hardcoded `NULL` yazılıyordu (Draw
+  eklenirken YANLIŞLIKLA güncellenmemiş eski bir yer tutucu) — yani
+  `entry.gatePosition` doğru hesaplanıyordu ama DB'ye hiç YAZILMIYORDU;
+  bu sandbox'ın Postgres'i hiç çalıştıramamasından kaynaklanan somut bir
+  push-öncesi doğrulama sınırı örneği. `gate_position` gerçek bir SQL
+  parametresine çevrilerek düzeltildi (commit `6e3cac3`).**
