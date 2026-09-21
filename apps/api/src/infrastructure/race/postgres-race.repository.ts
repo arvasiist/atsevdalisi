@@ -545,13 +545,26 @@ export class PostgresRaceRepository implements RaceRepository {
    */
   private async insertEntryWithSegments(client: PoolClient, entry: RaceEntry, segments: RaceSegmentSnapshot[]): Promise<void> {
     await client.query(
+      // AUDIT_REPORT.md Bulgu R3 (bu oturum) — bu INSERT'te DAHA ÖNCE
+      // `gate_position` sütunu `jockey_id` ile AYNI satırda hardcoded
+      // `NULL` yazıyordu (gerçek jokey sistemi henüz yokken kopyalanmış
+      // eski bir yer tutucu) — yani `entry.gatePosition` (bkz.
+      // `gate-assignment.ts`, `run-practice-race`/`join-matchmaking-queue`
+      // use-case'leri) DOĞRU hesaplanıyordu ama BURADA hiç parametre
+      // olarak geçilmediğinden DB'ye HER ZAMAN null yazılıyordu — bu,
+      // CI #129'un `race-timeline.e2e-spec.ts`'te GERÇEKTEN yakaladığı
+      // hataydı (`gatePositions.every(gp => gp !== null)` false döndü).
+      // `jockey_id` gerçek bir jokey sistemi olmadığından hâlâ BİLİNÇLİ
+      // olarak hardcoded `NULL` kalıyor — yalnızca `gate_position` artık
+      // gerçek bir parametre (`$5`).
       `INSERT INTO race_entries (id, race_id, horse_id, bot_label, jockey_id, gate_position, tactical_style, risk_level, horse_snapshot, final_time_ms, finish_position, performance_score, created_at)
-       VALUES ($1, $2, $3, $4, NULL, NULL, $5, $6, $7, $8, $9, $10, $11)`,
+       VALUES ($1, $2, $3, $4, NULL, $5, $6, $7, $8, $9, $10, $11, $12)`,
       [
         entry.id,
         entry.raceId,
         entry.horseId,
         entry.botLabel,
+        entry.gatePosition,
         entry.tacticalStyle,
         entry.riskLevel,
         JSON.stringify(entry.horseSnapshot),
