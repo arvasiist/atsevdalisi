@@ -253,7 +253,21 @@ export class RaceGateway implements OnGatewayConnection, OnGatewayDisconnect {
     // "bu benim atım mı" eşlemesine sahip olsun. Geç katılan bir istemci
     // için de TEKRAR gönderilir (idempotent — `session.roster` bir kez
     // hesaplanmıştır, burada yeniden hesaplanmaz, sadece okunur).
-    const rosterPayload: RaceRosterPayload = { raceId: timeline.raceId, entrants: session.roster };
+    //
+    // CI #134 kırmızı (bu turda düzeltildi): `session.roster`'ın tipi
+    // `readonly RaceRosterEntrant[]` (bkz. `RacePlaybackSession` arayüzü —
+    // BİLEREK salt-okunur, çünkü bir kez hesaplanıp asla mutasyona
+    // uğramamalı), ama `RaceRosterPayload.entrants` mutable `RaceRosterEntrant[]`
+    // bekliyor — TypeScript bunu (haklı olarak) reddeder: salt-okunur bir
+    // dizi mutable bir dizi tipine ATANAMAZ (tersi serbesttir). `ts.
+    // transpileModule` (bu sandbox'taki tek yerel doğrulama) sadece
+    // sözdizimi kontrolü yaptığından bu GERÇEK tip hatasını YAKALAYAMADI —
+    // gerçek `tsc` (CI) yakaladı. Düzeltme: `session.roster`'ı `as`/`!` ile
+    // ZORLAMAK yerine yayma (`...`) operatörüyle GERÇEKTEN yeni, mutable bir
+    // dizi kopyası oluştur — `session.roster`'ın kendisi hâlâ salt-okunur
+    // kalır (mutasyona uğramaz), yalnızca bu tek olay payload'ı için ayrı
+    // bir kopya üretilir.
+    const rosterPayload: RaceRosterPayload = { raceId: timeline.raceId, entrants: [...session.roster] };
     client.emit('race.roster', rosterPayload);
 
     // "Yakalama" — bu oturumda GERÇEKTEN ateşlenmiş (tahmini DEĞİL,
