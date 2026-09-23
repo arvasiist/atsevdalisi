@@ -186,12 +186,45 @@ describe('Race WebSocket yayını (e2e) — AUDIT_REPORT.md Bulgu F2', () => {
    * tasarım da "sonunda ikisi de race.finished alır" testini GEÇERDİ — asıl
    * ayırt edici doğrulama, aralarındaki GECİKME FARKININ küçük olmasıdır
    * (bkz. aşağıdaki `finishSkewMs` toleransı ve yanındaki yorum).
+   *
+   * Açık `10_000` ms test zaman aşımı (bkz. `it(...)` çağrısının son
+   * parametresi): bu test tek istemcili varsayılan testten (~4001ms +
+   * ek yük) daha uzun sürüyor (`LATE_JOIN_DELAY_MS`=2000ms + ikinci bir
+   * soket bağlantısı) — vitest'in varsayılan 5000ms test zaman aşımına
+   * çok yakın kalmak yerine, gerçek CI ortamının değişken yükü altında
+   * YANLIŞ bir zaman aşımı kırmızısı riskini önlemek için açıkça
+   * büyütüldü (bkz. bu dosyanın CI #132 kırmızı araştırması notu).
    */
   it('senkronize çoklu-izleyici: GEÇ abone olan istemci "yakalama" alır ve HER İKİ istemci de race.finished\'i NEREDEYSE AYNI anda görür', async () => {
     const { raceId, token } = await runFinishedPracticeRace();
     const LATE_JOIN_DELAY_MS = 2_000;
     const clientA = connect(token);
-    const clientB = connect(token);
+    // ÖNEMLİ (CI #132 kırmızı araştırması, bu oturum): `clientB` BİLİNÇLİ
+    // olarak burada DEĞİL, aşağıdaki `LATE_JOIN_DELAY_MS` gecikmesinden
+    // SONRA (`connect(token)` çağrısıyla) oluşturuluyor. İlk yazımda
+    // `clientB` da `clientA` ile AYNI anda (test başında) oluşturulmuştu —
+    // socket.io-client `io(...)` çağrıldığı anda bağlanmaya BAŞLAR, yani
+    // `clientB` muhtemelen 2 saniyelik bekleme bitmeden ÇOKTAN bağlanmış
+    // oluyordu; `'connect'` olayı YALNIZCA BİR KEZ ateşlenir ve sonradan
+    // eklenen bir dinleyiciye asla "geçmişe dönük" tekrar oynatılmaz. Bu
+    // yüzden bekleme SONRASINDA eklenen `clientB.on('connect', ...)`
+    // dinleyicisi HİÇBİR ZAMAN tetiklenmiyordu — test kendi bir zaman
+    // aşımı KOYMADIĞI için vitest'in varsayılan 5 saniyelik test
+    // zaman aşımına takılıp `exit code 1` ile kırmızı çıktı (CI #132).
+    // Doğru desen — bu dosyadaki DİĞER tüm testlerin ZATEN kullandığı
+    // desen — bir soketi ancak `'connect'` dinleyicisini eklemeye HAZIR
+    // olunduğu anda oluşturmaktır.
+    // `let` ile tutulan bu değişken YALNIZCA `finally` bloğundaki temizlik
+    // (`disconnect()`) içindir. Test gövdesinin geri kalanı, aşağıda
+    // oluşturulan `lateClient` (bir `const`) üzerinden ilerler — TypeScript
+    // bir `let` değişkenin kapatma (closure) içindeki daralmasını (narrowing)
+    // KORUMADIĞINDAN (değişken closure çalışana kadar teorik olarak
+    // yeniden atanabilir), `clientB.on(...)` gibi çağrılar closure'lar
+    // İÇİNDE hâlâ `Socket | undefined` olarak görünürdü — bu da (bu
+    // oturumun `gate-assignment.ts`'teki AYNI prensibi) `!` tip zorlamasına
+    // BAŞVURMADAN çözülmesi gereken bir durum. `const lateClient` bu
+    // sorunu YAPISAL olarak ortadan kaldırıyor.
+    let clientB: Socket | undefined;
 
     try {
       await new Promise<void>((resolve, reject) => {
@@ -216,27 +249,29 @@ describe('Race WebSocket yayını (e2e) — AUDIT_REPORT.md Bulgu F2', () => {
       // (`PLAYBACK_DURATION_MS`=4000'in yarısında) `clientB` katılıyor —
       // gerçek bir "geç izleyici" senaryosu.
       await new Promise((resolve) => setTimeout(resolve, LATE_JOIN_DELAY_MS));
+      const lateClient = connect(token);
+      clientB = lateClient;
 
       await new Promise<void>((resolve, reject) => {
-        clientB.on('connect_error', reject);
-        clientB.on('connect', () => resolve());
+        lateClient.on('connect_error', reject);
+        lateClient.on('connect', () => resolve());
       });
 
       const bTelemetryBatches: RaceSegmentSnapshot[][] = [];
       let finishedAtB: number | undefined;
       const finishedBPromise = new Promise<void>((resolve, reject) => {
-        clientB.on('race.telemetry', (payload: { raceId: string; segments: RaceSegmentSnapshot[] }) => {
+        lateClient.on('race.telemetry', (payload: { raceId: string; segments: RaceSegmentSnapshot[] }) => {
           bTelemetryBatches.push(payload.segments);
         });
-        clientB.on('race.finished', () => {
+        lateClient.on('race.finished', () => {
           finishedAtB = Date.now();
           resolve();
         });
-        clientB.on('race.error', (payload: { message: string }) => reject(new Error(payload.message)));
+        lateClient.on('race.error', (payload: { message: string }) => reject(new Error(payload.message)));
         setTimeout(() => reject(new Error('clientB: race.finished zaman aşımına uğradı')), 8000);
       });
 
-      clientB.emit('race.subscribe', { raceId });
+      lateClient.emit('race.subscribe', { raceId });
 
       await Promise.all([finishedAPromise, finishedBPromise]);
 
@@ -263,11 +298,21 @@ describe('Race WebSocket yayını (e2e) — AUDIT_REPORT.md Bulgu F2', () => {
       // sırası dışında hiçbir gecikme YOK).
       expect(finishedAtA).toBeDefined();
       expect(finishedAtB).toBeDefined();
-      const finishSkewMs = Math.abs((finishedAtB as number) - (finishedAtA as number));
+      // `!` tip zorlaması yerine (bu oturumun `gate-assignment.ts`'teki
+      // AYNI prensibi) gerçek bir çalışma zamanı kontrolü: yukarıdaki iki
+      // `toBeDefined()` ZATEN geçtiyse bu dal hiç ÇALIŞMAMALI — vitest'in
+      // `toBeDefined()`'ı TypeScript'e tip DARALTMASI (narrowing)
+      // sağlamadığından (opak bir fonksiyon çağrısı), asıl DARALTMA bu
+      // açık `if` kontrolüyle yapılıyor; çalışırsa (olmaması gereken bir
+      // durum) AÇIKÇA bir `Error` fırlatılır.
+      if (finishedAtA === undefined || finishedAtB === undefined) {
+        throw new Error('finishedAtA/finishedAtB tanımsız kalmamalıydı (yukarıdaki toBeDefined kontrolünden SONRA).');
+      }
+      const finishSkewMs = Math.abs(finishedAtB - finishedAtA);
       expect(finishSkewMs).toBeLessThan(500);
     } finally {
       clientA.disconnect();
-      clientB.disconnect();
+      clientB?.disconnect();
     }
-  });
+  }, 10_000);
 });
