@@ -9,7 +9,13 @@ import {
   WebSocketServer,
 } from '@nestjs/websockets';
 import type { Server, Socket } from 'socket.io';
-import type { RaceSegmentSnapshot, RaceTimelineView } from '@at-sevdalisi/shared-types';
+import type {
+  RaceFinishedPayload,
+  RaceRosterEntrant,
+  RaceRosterPayload,
+  RaceSegmentSnapshot,
+  RaceTimelineView,
+} from '@at-sevdalisi/shared-types';
 import { GetRaceTimelineUseCase } from '../../application/use-cases/get-race-timeline.use-case';
 import { TOKEN_SERVICE, type TokenService } from '../../application/ports/token.service';
 
@@ -82,21 +88,24 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{
  * `RaceNotFoundError`/`ForbiddenError` HTTP'deki AYNI 404/403 anlamına
  * gelen `race.error` olayına çevrilir (bkz. o use-case'in "bilgi
  * sızdırmama" doc yorumu — burada da AYNI davranış korunur).
+ *
+ * **`race.roster` (bu turda EKLENDİ — frontend'in F2'ye GERÇEK bir
+ * tüketici bağlanabilmesi için eksik olan parça):** `race.telemetry`
+ * segmentleri `raceEntryId`'ye göre gruplanır (`race_entries.id` — GERÇEK
+ * bir `horseId` DEĞİLDİR, bot satırlarında `horseId` zaten `null`dur),
+ * ama daha önce hiçbir olay istemciye `entryId → horseId/horseName/
+ * botLabel` eşlemesini GÖNDERMİYORDU — yani bir istemci segmentleri
+ * alabiliyordu ama "bu hangi at" ya da "bu benim atım mı" sorusunu
+ * CEVAPLAYAMIYORDU (`race.finished` bunu YARIŞ BİTİNCE `horseId` ile
+ * verir, ama yarış SÜRERKEN isim/HUD gösterilemezdi). Şimdi
+ * `joinSharedPlayback`, catch-up `race.telemetry`'den ÖNCE, TEK bir
+ * `race.roster` olayıyla (yalnızca bu istemciye — `RaceTimelineEntrantView`'in
+ * segment/final-sonuç alanları çıkarılmış bir alt kümesi) TÜM roster'ı
+ * gönderir — geç katılan bir istemci de dahil, HER `race.subscribe`
+ * çağrısında (idempotent, yeni bir state İCAT ETMEZ, `session.roster`
+ * zaten `createPlaybackSession`'da BİR KEZ hesaplanmıştır).
  */
 const PLAYBACK_DURATION_MS = 4_000;
-
-interface RaceFinishedPayload {
-  raceId: string;
-  entrants: Array<{
-    horseId: string | null;
-    horseName: string | null;
-    botLabel: string | null;
-    isBot: boolean;
-    finishPosition: number | null;
-    finalTimeMs: number | null;
-    performanceScore: number | null;
-  }>;
-}
 
 /**
  * Bir `raceId`'nin TÜM izleyicileri arasında PAYLAŞILAN tekil playback
@@ -112,6 +121,8 @@ interface RaceFinishedPayload {
 interface RacePlaybackSession {
   readonly raceId: string;
   readonly startedAtMs: number;
+  /** Bkz. dosya başı doc yorumu "`race.roster`" bölümü. */
+  readonly roster: readonly RaceRosterEntrant[];
   readonly segmentsByScaledDelay: ReadonlyMap<number, RaceSegmentSnapshot[]>;
   readonly firedScaledDelays: Set<number>;
   readonly finishedPayload: RaceFinishedPayload;
@@ -237,6 +248,14 @@ export class RaceGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
     await client.join(room);
 
+    // `race.roster` — bkz. dosya başı doc yorumu. Catch-up `race.telemetry`'den
+    // ÖNCE gönderilir ki istemci ilk segment görüntülenmeden ÖNCE isim/
+    // "bu benim atım mı" eşlemesine sahip olsun. Geç katılan bir istemci
+    // için de TEKRAR gönderilir (idempotent — `session.roster` bir kez
+    // hesaplanmıştır, burada yeniden hesaplanmaz, sadece okunur).
+    const rosterPayload: RaceRosterPayload = { raceId: timeline.raceId, entrants: session.roster };
+    client.emit('race.roster', rosterPayload);
+
     // "Yakalama" — bu oturumda GERÇEKTEN ateşlenmiş (tahmini DEĞİL,
     // `firedScaledDelays` ile takip edilen) tüm segmentleri TEK bir
     // `race.telemetry` olayında bu istemciye (yalnızca bu istemciye,
@@ -311,9 +330,23 @@ export class RaceGateway implements OnGatewayConnection, OnGatewayDisconnect {
         .sort((a, b) => (a.finishPosition ?? Number.MAX_SAFE_INTEGER) - (b.finishPosition ?? Number.MAX_SAFE_INTEGER)),
     };
 
+    // Bkz. dosya başı doc yorumu "`race.roster`" bölümü — `segments`/
+    // final-sonuç alanları BİLEREK dışarıda bırakılır (roster yarış
+    // BAŞLARKEN gönderilir, o alanlar henüz/asla roster'a ait değildir).
+    const roster: RaceRosterEntrant[] = timeline.entrants.map((entrant) => ({
+      entryId: entrant.entryId,
+      isBot: entrant.isBot,
+      horseId: entrant.horseId,
+      horseName: entrant.horseName,
+      botLabel: entrant.botLabel,
+      tacticalStyle: entrant.tacticalStyle,
+      gatePosition: entrant.gatePosition,
+    }));
+
     const session: RacePlaybackSession = {
       raceId: timeline.raceId,
       startedAtMs: Date.now(),
+      roster,
       segmentsByScaledDelay,
       firedScaledDelays: new Set<number>(),
       finishedPayload,

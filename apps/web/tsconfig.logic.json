@@ -10,6 +10,7 @@
     "src/features/race-viewer/track-path.ts",
     "src/features/race-viewer/timeline-playback.ts",
     "src/features/race-viewer/camera-presets.ts",
-    "src/features/race-viewer/minimap-projection.ts"
+    "src/features/race-viewer/minimap-projection.ts",
+    "src/features/race-viewer/live-race-url.ts"
   ]
 }

@@ -1003,6 +1003,7 @@ bağlantı+yayın iskeleti olarak UYGULADI; `notification.new`/`lobby.update`
 henüz PLANLI/uygulanmadı:
 
 ```text
+race.roster        — race.subscribe sonrası katılımcı isim/kimlik eşlemesi  [UYGULANDI]
 race.telemetry     — canlı yarış sırasında segment güncellemeleri            [UYGULANDI]
 race.finished      — yarış sonucu hazır olduğunda                           [UYGULANDI]
 notification.new   — brief §46 bildirim sistemi                             [PLANLI]
@@ -1022,6 +1023,19 @@ namespace'i):**
   yarış bulunamazsa veya istekte bulunan oyuncunun o yarışta bir atı yoksa
   `race.error` (`{ message: string }`) döner, kaynağın var olup olmadığı
   sızdırılmaz.
+- **`race.roster` (sunucu → istemci, `race.subscribe` sonrası TAM OLARAK
+  bir kez, `race.telemetry`'DEN ÖNCE — bu turda EKLENDİ):** `{ raceId,
+  entrants: RaceRosterEntrant[] }` — `entryId`/`isBot`/`horseId`/
+  `horseName`/`botLabel`/`tacticalStyle`/`gatePosition` (segment/final-
+  sonuç alanları OLMADAN). Bunun eklenme nedeni gerçek bir boşluktu:
+  `race.telemetry`'nin segmentleri `raceEntryId`'ye (`race_entries.id` —
+  GERÇEK bir `horseId` DEĞİL) göre gruplanır, ama daha önce hiçbir olay
+  istemciye `entryId → horseId/horseName` eşlemesini GÖNDERMİYORDU — yani
+  bir istemci segmentleri alabiliyordu ama yarış SÜRERKEN "bu hangi at"
+  sorusunu cevaplayamıyordu (`race.finished` bunu YALNIZCA yarış BİTİNCE
+  verir). Şimdi frontend'in canlı `RaceViewer` entegrasyonu (bu bölümün
+  sonundaki "Frontend entegrasyonu" notuna bkz.) bu olayı isim/"bu benim
+  atım mı" bilgisi için kullanır.
 - **`race.telemetry` (sunucu → istemci, ✅ yetkiliyse birden çok kez):**
   `{ raceId, segments: RaceSegmentSnapshot[] }`. **ÖNEMLİ — bu GERÇEK
   zamanlı bir simülasyon DEĞİLDİR:** yarış sunucuda zaten (senkron/anında)
@@ -1046,6 +1060,20 @@ namespace'i):**
   playback oturumu, bitişten 60 saniye sonra bellekten temizlenir.
 - **Bilinçli kapsam dışı (hâlâ YOK):** `notification.new`/`lobby.update`
   (yukarıdaki tablo), istemci tarafında otomatik yeniden abone olma.
+
+**Frontend entegrasyonu (bu turda EKLENDİ — daha önce F2'nin GERÇEK bir
+tüketicisi YOKTU):** `apps/web/src/features/race-viewer/live-race-socket.ts`
+bu namespace'e bağlanan ince bir sarmalayıcıdır; `apps/web/src/app/
+races/page.tsx`, gerçek `POST /horses/:id/practice-race` çağrısının
+döndürdüğü `raceId` ile `LiveRaceViewer` bileşenini mount ederek pratik
+yarış ekranını canlı 3D görüntüleyiciye bağlar (`apps/web/package.json`'a
+`socket.io-client` bağımlılığı eklendi). Bu, `RaceViewer`/`timeline-
+playback.ts`'in aksine SEEK/HIZ/DURAKLAT kontrolleri SUNMAZ (canlı bir
+yayında geçmişe gidilemez/hızlandırılamaz — bu dürüstçe bir "CANLI"
+rozetiyle gösterilir, bkz. `RaceHud.tsx`'in `liveStatus` prop'u); at
+kimliği `horseId` DEĞİL `entryId` (`race_entries.id`) üzerinden takip
+edilir (segmentlerin gerçek anahtarı budur), isim/"bu benim atım mı"
+eşlemesi `race.roster`'dan gelir.
 
 ## 11. Hata kodu kataloğu (örnek, genişletilecek)
 

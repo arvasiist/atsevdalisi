@@ -4,7 +4,7 @@ import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { io, type Socket } from 'socket.io-client';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { RaceSegmentSnapshot } from '@at-sevdalisi/shared-types';
+import type { RaceRosterEntrant, RaceSegmentSnapshot } from '@at-sevdalisi/shared-types';
 import { bootstrapTestApp, registerTestPlayerWithStarterHorse } from './test-helpers';
 
 /**
@@ -102,7 +102,7 @@ describe('Race WebSocket yayını (e2e) — AUDIT_REPORT.md Bulgu F2', () => {
     }
   });
 
-  it('race.subscribe: geçerli bir katılımcı için race.telemetry + race.finished olayları GERÇEK sırayla gelir', async () => {
+  it('race.subscribe: geçerli bir katılımcı için race.roster + race.telemetry + race.finished olayları GERÇEK sırayla gelir', async () => {
     const { raceId, token } = await runFinishedPracticeRace();
     const client = connect(token);
 
@@ -112,10 +112,19 @@ describe('Race WebSocket yayını (e2e) — AUDIT_REPORT.md Bulgu F2', () => {
         client.on('connect', () => resolve());
       });
 
+      let rosterPayload: { raceId: string; entrants: RaceRosterEntrant[] } | undefined;
       const telemetryBatches: RaceSegmentSnapshot[][] = [];
       let finishedPayload: { raceId: string; entrants: unknown[] } | undefined;
 
       const finishedPromise = new Promise<void>((resolve, reject) => {
+        // AUDIT_REPORT.md F2 devamı (bu turda EKLENDİ) — frontend'in canlı
+        // `RaceViewer`'ı isim/"bu benim atım mı" bilgisini `race.roster`'dan
+        // alır; bu, `race.telemetry`'DEN ÖNCE gelmelidir (aşağıdaki sıra
+        // kontrolü tam olarak bunu doğrular).
+        client.on('race.roster', (payload: { raceId: string; entrants: RaceRosterEntrant[] }) => {
+          rosterPayload = payload;
+          expect(telemetryBatches.length).toBe(0);
+        });
         client.on('race.telemetry', (payload: { raceId: string; segments: RaceSegmentSnapshot[] }) => {
           telemetryBatches.push(payload.segments);
         });
@@ -129,6 +138,37 @@ describe('Race WebSocket yayını (e2e) — AUDIT_REPORT.md Bulgu F2', () => {
 
       client.emit('race.subscribe', { raceId });
       await finishedPromise;
+
+      expect(rosterPayload).toBeDefined();
+      expect(rosterPayload?.raceId).toBe(raceId);
+      const entrants = rosterPayload?.entrants ?? [];
+      // Pratik yarış her zaman oyuncunun kendi atı + bot rakiplerden oluşur
+      // (bkz. `RunPracticeRaceUseCase`) — roster TÜM katılımcıları (segment/
+      // final-sonuç alanları OLMADAN) içermeli.
+      expect(entrants.length).toBeGreaterThan(1);
+      const ownEntrant = entrants.find((entrant) => !entrant.isBot);
+      expect(ownEntrant).toBeDefined();
+      if (ownEntrant === undefined) {
+        throw new Error('ownEntrant tanımsız kalmamalıydı (yukarıdaki toBeDefined kontrolünden SONRA).');
+      }
+      expect(typeof ownEntrant.entryId).toBe('string');
+      expect(ownEntrant.horseId).not.toBeNull();
+      expect(ownEntrant.horseName).not.toBeNull();
+      const botEntrant = entrants.find((entrant) => entrant.isBot);
+      expect(botEntrant).toBeDefined();
+      if (botEntrant === undefined) {
+        throw new Error('botEntrant tanımsız kalmamalıydı (yukarıdaki toBeDefined kontrolünden SONRA).');
+      }
+      expect(botEntrant.horseId).toBeNull();
+      expect(botEntrant.botLabel).not.toBeNull();
+      // `race.telemetry`'nin `raceEntryId`'si roster'daki `entryId` ile AYNI
+      // isim uzayında olmalı (`postgres-race.repository.ts`'te ikisi de
+      // `race_entries.id`'den gelir) — istemci bu ikisini eşleyebilmelidir.
+      const rosterEntryIds = new Set(entrants.map((entrant) => entrant.entryId));
+      const segmentEntryIds = new Set(telemetryBatches.flat().map((segment) => segment.raceEntryId));
+      for (const entryId of segmentEntryIds) {
+        expect(rosterEntryIds.has(entryId)).toBe(true);
+      }
 
       expect(telemetryBatches.length).toBeGreaterThan(0);
       // Yayınlanan TÜM segmentler, DB'de gerçekten yazılmış TÜM

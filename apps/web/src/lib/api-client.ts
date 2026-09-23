@@ -16,7 +16,14 @@ import type {
   TrainingType,
 } from '@at-sevdalisi/shared-types';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api/v1';
+/**
+ * F2 canlı yayın entegrasyonu (bu turda EKLENDİ) — `export` edildi çünkü
+ * `live-race-socket.ts`'in soket bağlantısı için bu AYNI backend origin'e
+ * ihtiyacı var (REST `/api/v1` önekinden ARINDIRILMIŞ hali için bkz. o
+ * dosyadaki `deriveSocketOrigin`). Daha önce bu modül-içi bir sabitti,
+ * yalnızca bu dosyanın kendi `request()` fonksiyonu tarafından kullanılıyordu.
+ */
+export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api/v1';
 
 interface ApiResponse<T> {
   success: boolean;
@@ -44,6 +51,17 @@ let currentAuthToken: string | null = null;
 
 export function setAuthToken(token: string | null): void {
   currentAuthToken = token;
+}
+
+/**
+ * F2 canlı yayın entegrasyonu (bu turda EKLENDİ) — `live-race-socket.ts`'in
+ * WebSocket el sıkışması (`auth: { token }`, `race.gateway.ts`'in HTTP
+ * `AuthGuard`'ıyla AYNI JWT'yi bekler) için AYNI oturum token'ına ihtiyacı
+ * var. Yeni bir token DEPOSU İCAT EDİLMEDİ — bu modülün ZATEN tuttuğu
+ * `currentAuthToken`'ın salt-okunur bir getter'ı.
+ */
+export function getAuthToken(): string | null {
+  return currentAuthToken;
 }
 
 async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {

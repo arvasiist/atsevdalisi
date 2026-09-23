@@ -27,7 +27,17 @@
  * (2) TÜM etkileşimli düğmeler artık en az 44px yükseklik/genişlikte;
  * (3) `flexWrap: 'wrap'` ile düğme satırları taşmak yerine ikinci satıra
  * SARAR.
+ *
+ * F2 canlı yayın entegrasyonu (bu turda EKLENDİ): opsiyonel `liveStatus`
+ * prop'u — CANLI bir WebSocket yayınında oynat/duraklat/hız/seek
+ * kontrolleri ANLAMSIZDIR (geçmişe gidilemez, hızlandırılamaz, "duraklat"
+ * yayını DURDURMAZ, yalnızca yerel görüntüyü dondurur ki bu YANILTICI
+ * olurdu) — bu yüzden `liveStatus` VERİLDİĞİNDE bu kontroller bir CANLI
+ * durum rozetiyle DEĞİŞTİRİLİR. `liveStatus` BELİRTİLMEZSE (mevcut TÜM
+ * çağrı yerleri — `RaceViewer.tsx`/demo sayfası) davranış birebir AYNI
+ * kalır, bu yüzden geriye dönük UYUMLUDUR.
  */
+export type RaceLiveStatus = 'connecting' | 'live' | 'finished';
 
 import type { CameraMode } from './camera-presets';
 import { CAMERA_MODE_LABELS, CAMERA_MODE_ORDER } from './camera-presets';
@@ -53,6 +63,8 @@ export interface RaceHudProps {
   onChangeSpeedMultiplier: (multiplier: number) => void;
   onChangeCameraMode: (mode: CameraMode) => void;
   onSeek: (timeMs: number) => void;
+  /** Bkz. dosya başı doc yorumu "F2 canlı yayın entegrasyonu". */
+  liveStatus?: RaceLiveStatus;
 }
 
 const SPEED_OPTIONS = [1, 2, 4] as const;
@@ -71,6 +83,7 @@ export function RaceHud(props: RaceHudProps): React.ReactElement {
     onChangeSpeedMultiplier,
     onChangeCameraMode,
     onSeek,
+    liveStatus,
   } = props;
 
   return (
@@ -98,7 +111,7 @@ export function RaceHud(props: RaceHudProps): React.ReactElement {
           pointerEvents: 'auto',
         }}
       >
-        <RaceTimeDisplay currentTimeMs={currentTimeMs} durationMs={durationMs} />
+        <RaceTimeDisplay currentTimeMs={currentTimeMs} durationMs={durationMs} liveStatus={liveStatus} />
         <CameraSwitcher cameraMode={cameraMode} onChangeCameraMode={onChangeCameraMode} />
       </div>
 
@@ -107,15 +120,19 @@ export function RaceHud(props: RaceHudProps): React.ReactElement {
       <MiniMap markers={miniMapMarkers} />
 
       <div style={{ gridColumn: '1 / -1', pointerEvents: 'auto' }}>
-        <PlaybackControls
-          currentTimeMs={currentTimeMs}
-          durationMs={durationMs}
-          isPlaying={isPlaying}
-          speedMultiplier={speedMultiplier}
-          onTogglePlay={onTogglePlay}
-          onChangeSpeedMultiplier={onChangeSpeedMultiplier}
-          onSeek={onSeek}
-        />
+        {liveStatus ? (
+          <LiveStatusBadge status={liveStatus} />
+        ) : (
+          <PlaybackControls
+            currentTimeMs={currentTimeMs}
+            durationMs={durationMs}
+            isPlaying={isPlaying}
+            speedMultiplier={speedMultiplier}
+            onTogglePlay={onTogglePlay}
+            onChangeSpeedMultiplier={onChangeSpeedMultiplier}
+            onSeek={onSeek}
+          />
+        )}
       </div>
     </div>
   );
@@ -131,13 +148,55 @@ function panelStyle(): React.CSSProperties {
   };
 }
 
-function RaceTimeDisplay({ currentTimeMs, durationMs }: { currentTimeMs: number; durationMs: number }): React.ReactElement {
+function RaceTimeDisplay({
+  currentTimeMs,
+  durationMs,
+  liveStatus,
+}: {
+  currentTimeMs: number;
+  durationMs: number;
+  liveStatus?: RaceLiveStatus;
+}): React.ReactElement {
   return (
     <div style={panelStyle()}>
       <span style={{ color: 'var(--color-accent-gold)', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
         {formatRaceClock(currentTimeMs)}
       </span>
-      <span style={{ color: 'var(--color-text-muted)' }}> / {formatRaceClock(durationMs)}</span>
+      {liveStatus ? null : <span style={{ color: 'var(--color-text-muted)' }}> / {formatRaceClock(durationMs)}</span>}
+    </div>
+  );
+}
+
+/**
+ * F2 canlı yayın entegrasyonu (bu turda EKLENDİ) — `PlaybackControls`'un
+ * (oynat/duraklat/hız/seek) CANLI bir yayında yerini alır (bkz. dosya
+ * başı doc yorumu). Yalnızca DURUM gösterir, hiçbir etkileşim SUNMAZ —
+ * canlı bir yayında "duraklat" gibi bir kavram YOKTUR.
+ */
+function LiveStatusBadge({ status }: { status: RaceLiveStatus }): React.ReactElement {
+  const LABELS: Record<RaceLiveStatus, string> = {
+    connecting: 'Bağlanıyor…',
+    live: 'CANLI',
+    finished: 'Yarış bitti',
+  };
+  const DOT_COLORS: Record<RaceLiveStatus, string> = {
+    connecting: 'var(--color-text-muted)',
+    live: 'var(--color-status-critical)',
+    finished: 'var(--color-status-positive)',
+  };
+  return (
+    <div style={{ ...panelStyle(), display: 'flex', alignItems: 'center', gap: '8px' }}>
+      <span
+        aria-hidden="true"
+        style={{
+          width: '10px',
+          height: '10px',
+          borderRadius: '50%',
+          background: DOT_COLORS[status],
+          flexShrink: 0,
+        }}
+      />
+      <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text-primary)' }}>{LABELS[status]}</span>
     </div>
   );
 }

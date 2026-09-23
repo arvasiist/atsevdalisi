@@ -287,3 +287,63 @@ export interface RaceTimelineView {
   simulationSeed: string | null;
   entrants: RaceTimelineEntrantView[];
 }
+
+/**
+ * `race.roster` WebSocket olayı (bu turda EKLENDİ — bkz.
+ * `apps/api/src/api/realtime/race.gateway.ts` doc yorumu "Roster" bölümü,
+ * `docs/API.md` §10). Frontend'in F2 WebSocket altyapısına GERÇEK bir
+ * tüketici (canlı `/races` akışı) bağlanabilmesi için eksik olan tek
+ * parça buydu: `race.telemetry`'nin segmentleri `raceEntryId`'ye göre
+ * gruplanır (`race_entries.id` — GERÇEK bir `horseId` DEĞİLDİR, bot
+ * satırlarında `horseId` zaten `null`dur), ama istemcinin at isimlerini/
+ * "bu benim atım mı" bilgisini gösterebilmesi için `entryId → horseId/
+ * horseName/botLabel` eşlemesine ihtiyacı vardır — bu eşleme daha önce
+ * hiçbir olayda GÖNDERİLMİYORDU. `RaceTimelineEntrantView`'in bir alt
+ * kümesidir (segment/final-sonuç alanları BİLEREK dışarıda bırakıldı —
+ * roster yarış BAŞLARKEN bir kez gönderilir, final alanları `race.
+ * finished`'te zaten var).
+ */
+export interface RaceRosterEntrant {
+  entryId: UUID;
+  isBot: boolean;
+  horseId: UUID | null;
+  horseName: string | null;
+  botLabel: string | null;
+  tacticalStyle: RacingStyle | null;
+  gatePosition: number | null;
+}
+
+/** `race.roster` (sunucu → istemci, `race.subscribe` sonrası TAM OLARAK bir kez) yanıt şekli. */
+export interface RaceRosterPayload {
+  raceId: UUID;
+  entrants: RaceRosterEntrant[];
+}
+
+/**
+ * `race.finished` WebSocket olayının bir katılımcı satırı — bkz.
+ * `apps/api/src/api/realtime/race.gateway.ts`'teki `RaceFinishedPayload`
+ * (gateway'in kendi iç arayüzü ile BİREBİR aynı alanlar, burada frontend'in
+ * `@at-sevdalisi/shared-types`'tan import edebilmesi için TEKRARLANIR —
+ * `RaceJockeyDecision`'daki AYNI gerekçe).
+ */
+export interface RaceFinishedEntrant {
+  horseId: UUID | null;
+  horseName: string | null;
+  botLabel: string | null;
+  isBot: boolean;
+  finishPosition: number | null;
+  finalTimeMs: number | null;
+  performanceScore: number | null;
+}
+
+/** `race.finished` (sunucu → istemci, tam olarak bir kez) yanıt şekli. */
+export interface RaceFinishedPayload {
+  raceId: UUID;
+  entrants: RaceFinishedEntrant[];
+}
+
+/** `race.telemetry` (sunucu → istemci, ✅ yetkiliyse birden çok kez) yanıt şekli. */
+export interface RaceTelemetryPayload {
+  raceId: UUID;
+  segments: RaceSegmentSnapshot[];
+}

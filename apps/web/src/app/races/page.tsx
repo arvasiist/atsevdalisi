@@ -11,6 +11,13 @@
  * bir ekran. Planlanmış turnuva takvimi (brief §7 `Race`/`RaceEntry`
  * tabloları, zamanlanmış `startTime` alanı) hâlâ dürüstçe "yakında" olarak
  * bırakılıyor — sahte bir takvim UYDURULMUYOR.
+ *
+ * F2 canlı yayın entegrasyonu (bu turda EKLENDİ) — AUDIT_REPORT.md'de
+ * belgelenen boşluğun kapatılması: `handleRace` sonucu artık yalnızca
+ * statik `RaceResultPanel` DEĞİL, `LiveRaceViewer` (canlı, WebSocket-
+ * beslemeli 3D görüntüleyici — bkz. o dosyanın doc yorumu) İLE BİRLİKTE
+ * gösterilir. `LiveRaceViewer` finansal sonucu TEKRARLAMAZ (`result`
+ * REST'ten ZATEN anında dönmüştür) — yalnızca EK bir görsel katmandır.
  */
 
 import { useEffect, useMemo, useState } from 'react';
@@ -26,7 +33,8 @@ import type {
 import { GlassPanel } from '../../components/ui/GlassPanel';
 import { HorseAvatar } from '../../components/ui/HorseAvatar';
 import { StatBar } from '../../components/ui/StatBar';
-import { apiClient } from '../../lib/api-client';
+import { LiveRaceViewer } from '../../features/race-viewer/LiveRaceViewer';
+import { API_BASE_URL, apiClient, getAuthToken } from '../../lib/api-client';
 import { usePlayer } from '../../lib/player-context';
 
 const RACING_STYLES: readonly RacingStyle[] = ['front_runner', 'tracker', 'mid_pack', 'closer'];
@@ -180,6 +188,38 @@ export default function RacesPage(): React.ReactElement {
       {player && horses && horses.length === 0 ? (
         <GlassPanel style={{ textAlign: 'center', padding: 'var(--space-xl)' }}>
           <p style={{ color: 'var(--color-text-secondary)', margin: 0 }}>Yarıştırabileceğin bir at bulunamıyor.</p>
+        </GlassPanel>
+      ) : null}
+
+      {result && selectedHorse ? (
+        <GlassPanel style={{ marginBottom: 'var(--space-lg)', padding: 0, overflow: 'hidden' }}>
+          <div style={{ width: '100%', height: '420px', position: 'relative' }}>
+            {(() => {
+              const authToken = getAuthToken();
+              // `authToken` normalde her zaman doludur (bu ekran zaten
+              // `player` girişi gerektirir) — ama `getAuthToken()`'ın
+              // GERÇEK bir sözleşmesi (null dönebilir) olduğundan bunu
+              // sessizce `!` ile ZORLAMAK yerine (bu oturumun genel
+              // ilkesi) açıkça kontrol edip dürüst bir "bağlanılamıyor"
+              // durumu gösteriyoruz.
+              if (!authToken) {
+                return (
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--color-text-muted)' }}>
+                    Canlı görüntüleyici için oturum token'ı bulunamadı.
+                  </div>
+                );
+              }
+              return (
+                <LiveRaceViewer
+                  key={result.raceId}
+                  apiBaseUrl={API_BASE_URL}
+                  token={authToken}
+                  raceId={result.raceId}
+                  ownHorseId={selectedHorse.id}
+                />
+              );
+            })()}
+          </div>
         </GlassPanel>
       ) : null}
 

@@ -44,8 +44,13 @@ export interface RaceViewerProps {
   turnCount?: number;
 }
 
-const HORSE_COLORS = ['#e3b341', '#38bdf8', '#4ade80', '#f87171', '#a78bfa', '#fb923c'];
-const HORSE_VISUAL_HEIGHT_METERS = 1;
+/**
+ * F2 canlı yayın entegrasyonu (bu turda EKLENDİ) — `export` edildi çünkü
+ * `LiveRaceViewer.tsx` AYNI paleti kullanır (iki ayrı renk listesi İCAT
+ * ETMEK yerine tek bir kaynak — bkz. o dosyanın importu).
+ */
+export const HORSE_COLORS = ['#e3b341', '#38bdf8', '#4ade80', '#f87171', '#a78bfa', '#fb923c'];
+export const HORSE_VISUAL_HEIGHT_METERS = 1;
 
 export function RaceViewer({ timeline, horseNamesById, turnCount = 2 }: RaceViewerProps): React.ReactElement {
   const horseIds = useMemo(() => getHorseIdsFromTimeline(timeline), [timeline]);
