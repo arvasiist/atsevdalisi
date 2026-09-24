@@ -53,6 +53,19 @@
  * AYNI kısıta tabidir: bu sandbox'ta yerel `tsc`/testle TAM doğrulanamaz,
  * yalnızca `ts.transpileModule` ile sözdizimi kontrolü yapılabilir —
  * gerçek doğrulama CI'dadır (bkz. `docs/ARCHITECTURE.md` §9).
+ *
+ * **Reconnection dilimi (bu turda EKLENDİ — bkz. `live-race-socket.ts`'in
+ * "Reconnection dilimi" doc yorumu):** İki ayrı gerçek boşluk kapatıldı:
+ * (1) `onDisconnected` handler'ı artık `liveStatus`'u `'reconnecting'`ye
+ * çeviriyor — bağlantı koparsa kullanıcı bunu GÖRÜR (önceki davranış:
+ * ekran donuk kalır, hiçbir geri bildirim YOKTU). (2) `onTelemetry`
+ * artık `mergeSegments` (bkz. `segment-merge.ts`) KULLANIYOR — ESKİDEN
+ * koşulsuz `[...segmentsRef.current, ...newSegments]` ile EKLİYORDU, bu
+ * da her yeniden bağlanmanın backend'den getirdiği "yakalama" segmentlerini
+ * (bkz. `race.gateway.ts`'in `joinSharedPlayback`'i) TEKRAR TEKRAR
+ * biriktiriyordu (yanlış SONUÇ üretmiyordu ama sınırsız bellek büyümesi
+ * GERÇEK bir hataydı). `mergeSegments`, `raceEntryId:timestampMs`
+ * anahtarına göre tekilleştirerek bunu yapısal olarak İMKANSIZ kılar.
  */
 
 import dynamic from 'next/dynamic';
@@ -71,6 +84,7 @@ import { RaceHud, type MiniMapMarker } from './RaceHud';
 import type { HorseVisual } from './RaceScene3D';
 import { HORSE_COLORS, HORSE_VISUAL_HEIGHT_METERS } from './RaceViewer';
 import { connectRaceSocket, type LiveRaceFinishedEntrant } from './live-race-socket';
+import { mergeSegments } from './segment-merge';
 
 const RaceScene3D = dynamic(() => import('./RaceScene3D').then((imported) => imported.RaceScene3D), {
   ssr: false,
@@ -122,6 +136,12 @@ export function LiveRaceViewer({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [currentTimeMs, setCurrentTimeMs] = useState(0);
   const [cameraMode, setCameraMode] = useState<CameraMode>('track');
+  // Bkz. dosya başı doc yorumu "Reconnection dilimi". `roster` `null`
+  // olduğunda (ilk bağlantı) ZATEN ayrı bir "Canlı yarışa bağlanılıyor…"
+  // placeholder'ı gösterildiğinden (bkz. aşağıdaki `!roster` dalı), bu
+  // bayrak yalnızca "DAHA ÖNCE bağlıydık ama bağlantı koptu" durumunu
+  // ayırt eder.
+  const [isDisconnected, setIsDisconnected] = useState(false);
 
   // Bkz. dosya başı doc yorumu madde 1 — "GERÇEK zaman = oynatma saati".
   const playbackStartedAtRef = useRef<number | null>(null);
@@ -142,22 +162,39 @@ export function LiveRaceViewer({
     setFinishedEntrants(null);
     setErrorMessage(null);
     setCurrentTimeMs(0);
+    setIsDisconnected(false);
 
     const socket = connectRaceSocket(apiBaseUrl, token, raceId, {
-      onRoster: (entrants) => setRoster(entrants),
+      onRoster: (entrants) => {
+        // Roster her (yeniden) bağlanmada TEKRAR gelir (bkz. `race.
+        // gateway.ts`'in `joinSharedPlayback`'i — idempotent) — bunun
+        // alınması bağlantının GERÇEKTEN kurulduğunun kanıtıdır, bu
+        // yüzden "yeniden bağlanılıyor" durumunu burada temizliyoruz.
+        setIsDisconnected(false);
+        setRoster(entrants);
+      },
       onTelemetry: (newSegments) => {
+        setIsDisconnected(false);
         if (playbackStartedAtRef.current === null) {
           playbackStartedAtRef.current = performance.now();
         }
-        segmentsRef.current = [...segmentsRef.current, ...newSegments];
+        // Bkz. dosya başı doc yorumu "Reconnection dilimi" — koşulsuz
+        // ekleme (`[...segmentsRef.current, ...newSegments]`) YERİNE
+        // `mergeSegments` ile TEKİLLEŞTİRİLMİŞ birleştirme: her yeniden
+        // bağlanmanın backend'den getirdiği "yakalama" segmentleri
+        // (bkz. `race.gateway.ts`'in `joinSharedPlayback`'i) burada
+        // YİNELENMEZ.
+        segmentsRef.current = mergeSegments(segmentsRef.current, newSegments);
         setSegments(segmentsRef.current);
       },
       onFinished: (entrants) => {
+        setIsDisconnected(false);
         finishedRef.current = true;
         setFinishedEntrants(entrants);
       },
       onError: (message) => setErrorMessage(message),
       onConnectError: (message) => setErrorMessage(`Bağlantı hatası: ${message}`),
+      onDisconnected: () => setIsDisconnected(true),
     });
 
     return () => {
@@ -313,7 +350,7 @@ export function LiveRaceViewer({
         onChangeSpeedMultiplier={() => undefined}
         onChangeCameraMode={setCameraMode}
         onSeek={() => undefined}
-        liveStatus={finishedEntrants ? 'finished' : 'live'}
+        liveStatus={finishedEntrants ? 'finished' : isDisconnected ? 'reconnecting' : 'live'}
       />
     </div>
   );

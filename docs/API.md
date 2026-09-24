@@ -1059,7 +1059,9 @@ namespace'i):**
   istemci `race.subscribe`'ı kendisi yeniden çağırmalıdır). Bir
   playback oturumu, bitişten 60 saniye sonra bellekten temizlenir.
 - **Bilinçli kapsam dışı (hâlâ YOK):** `notification.new`/`lobby.update`
-  (yukarıdaki tablo), istemci tarafında otomatik yeniden abone olma.
+  (yukarıdaki tablo). İstemci tarafında otomatik yeniden abone olma
+  ARTIK VAR — bkz. aşağıdaki "Frontend entegrasyonu" notunun reconnection
+  paragrafı.
 
 **Frontend entegrasyonu (bu turda EKLENDİ — daha önce F2'nin GERÇEK bir
 tüketicisi YOKTU):** `apps/web/src/features/race-viewer/live-race-socket.ts`
@@ -1074,6 +1076,21 @@ rozetiyle gösterilir, bkz. `RaceHud.tsx`'in `liveStatus` prop'u); at
 kimliği `horseId` DEĞİL `entryId` (`race_entries.id`) üzerinden takip
 edilir (segmentlerin gerçek anahtarı budur), isim/"bu benim atım mı"
 eşlemesi `race.roster`'dan gelir.
+
+**Reconnection (bu turda EKLENDİ):** `socket.io-client`'ın KENDİ otomatik
+yeniden bağlanması (varsayılan davranış) `race.subscribe`'ı her yeniden
+bağlanmada zaten otomatik tekrar gönderiyordu (backend'in paylaşılan
+`RacePlaybackSession`'ı sayesinde bu bir "yakalama" yayınından
+FAYDALANIR — bkz. yukarısı) — ama istemci tarafında iki gerçek boşluk
+vardı: (1) kullanıcı bağlantı koptuğunda hiçbir geri bildirim
+GÖRMÜYORDU, (2) her yeniden bağlanmanın getirdiği "yakalama" segmentleri
+koşulsuz olarak birikip sınırsız büyüyordu. `live-race-socket.ts`'e yeni
+`onDisconnected` handler'ı (`RaceHud`'un `liveStatus`'unu
+`'reconnecting'`ye çevirir) ve yeni `segment-merge.ts`'in `mergeSegments`
+fonksiyonu (`raceEntryId:timestampMs` anahtarına göre tekilleştirir)
+eklendi. `mergeSegments` framework-bağımsız saf bir fonksiyon olduğundan
+bu sandbox'ta GERÇEKTEN `tsc --noEmit` + `tsx` ile doğrulandı (bkz. o
+dosyanın doc yorumu).
 
 ## 11. Hata kodu kataloğu (örnek, genişletilecek)
 

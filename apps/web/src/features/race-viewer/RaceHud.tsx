@@ -36,8 +36,18 @@
  * durum rozetiyle DEĞİŞTİRİLİR. `liveStatus` BELİRTİLMEZSE (mevcut TÜM
  * çağrı yerleri — `RaceViewer.tsx`/demo sayfası) davranış birebir AYNI
  * kalır, bu yüzden geriye dönük UYUMLUDUR.
+ *
+ * F2 reconnection dilimi (bu turda EKLENDİ): `'reconnecting'` durumu —
+ * `live-race-socket.ts`'in yeni `onDisconnected` handler'ı tetiklendiğinde
+ * (bağlantı koptu, socket.io otomatik olarak yeniden bağlanmayı deniyor)
+ * kullanıcıya bunu GÖSTERMEK için. `'connecting'`'ten (ilk bağlantı, roster
+ * HENÜZ hiç alınmadı) KASITLI olarak AYRI bir durum — ikisi de "henüz
+ * canlı veri yok" anlamına gelse de, `'reconnecting'`de kullanıcı DAHA
+ * ÖNCE bir yarış görmüştü (ekranda son bilinen kare/HUD hâlâ görünür
+ * kalır, yalnızca rozet değişir), `'connecting'`de ekran TAMAMEN boş bir
+ * placeholder'dır (bkz. `LiveRaceViewer.tsx`'in `!roster` dalı).
  */
-export type RaceLiveStatus = 'connecting' | 'live' | 'finished';
+export type RaceLiveStatus = 'connecting' | 'live' | 'reconnecting' | 'finished';
 
 import type { CameraMode } from './camera-presets';
 import { CAMERA_MODE_LABELS, CAMERA_MODE_ORDER } from './camera-presets';
@@ -177,11 +187,13 @@ function LiveStatusBadge({ status }: { status: RaceLiveStatus }): React.ReactEle
   const LABELS: Record<RaceLiveStatus, string> = {
     connecting: 'Bağlanıyor…',
     live: 'CANLI',
+    reconnecting: 'Yeniden bağlanılıyor…',
     finished: 'Yarış bitti',
   };
   const DOT_COLORS: Record<RaceLiveStatus, string> = {
     connecting: 'var(--color-text-muted)',
     live: 'var(--color-status-critical)',
+    reconnecting: 'var(--color-status-warning)',
     finished: 'var(--color-status-positive)',
   };
   return (

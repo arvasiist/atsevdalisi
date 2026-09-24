@@ -73,10 +73,22 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{
  *
  * **Kapsam DIŞI (bilinçli, gelecek dilimler için docs/ROADMAP.md'ye not
  * düşülecek):** (1) `notification.new`/`lobby.update` (docs/API.md §10'un
- * diğer iki önerisi) bu dilimde YOK. (2) Yeniden bağlanma/kaldığı yerden
- * devam etme YOK — bağlantı koparsa istemci `race.subscribe`'ı BAŞTAN
- * çağırır (yukarıdaki paylaşılan oturum sayesinde bu artık "yakalama"
- * mekanizmasından FAYDALANIR — tamamen sıfırdan başlamaz).
+ * diğer iki önerisi) bu dilimde YOK.
+ *
+ * **Yeniden bağlanma (madde 2 — bu turda TAMAMLANDI):** Önceden burada
+ * "yeniden bağlanma/kaldığı yerden devam etme YOK" yazıyordu — bu artık
+ * DOĞRU DEĞİL. Backend TARAFI zaten hazırdı (bu paylaşılan oturum
+ * sayesinde, bağlantı koparsa istemci `race.subscribe`'ı BAŞTAN çağırdığında
+ * "yakalama" mekanizmasından FAYDALANIR, tamamen sıfırdan başlamaz) —
+ * eksik olan `apps/web`'in `live-race-socket.ts`/`LiveRaceViewer.tsx`
+ * tarafıydı: `socket.io-client`'ın kendi otomatik yeniden bağlanması
+ * `race.subscribe`'ı zaten otomatik tekrar gönderiyordu, ama (a) kullanıcı
+ * bunu hiç GÖRMÜYORDU (bağlantı koptuğunda ekran donuk kalıyordu, hiçbir
+ * geri bildirim yoktu) ve (b) her yeniden bağlanmanın getirdiği "yakalama"
+ * segmentleri istemci tarafında KOŞULSUZ olarak birikiyordu (yanlış sonuç
+ * üretmiyordu ama sınırsız bellek büyümesiydi). İkisi de `apps/web`
+ * tarafında (`onDisconnected` handler'ı + `segment-merge.ts`'in
+ * `mergeSegments`'i) düzeltildi — bkz. o dosyaların doc yorumları.
  *
  * **Kimlik doğrulama:** `AuthGuard`'ın HTTP için yaptığının WebSocket
  * el sıkışması (`handshake.auth.token`) karşılığı — AYNI `TOKEN_SERVICE`

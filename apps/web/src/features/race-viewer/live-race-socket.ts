@@ -15,6 +15,25 @@
  * (`deriveSocketOrigin`) BİLEREK ayrı bir dosyada (`live-race-url.ts`)
  * tutulur — o dosya bu sandbox'ta GERÇEKTEN `tsc --noEmit` + `tsx` ile
  * doğrulanabilir (bkz. o dosyanın doc yorumu).
+ *
+ * **Reconnection dilimi (bu turda EKLENDİ):** `race.gateway.ts`'in doc
+ * yorumu ("Kapsam DIŞI" bölümü) ŞÖYLE diyordu: bağlantı koparsa istemci
+ * `race.subscribe`'ı BAŞTAN çağırır, backend'in paylaşılan
+ * `RacePlaybackSession`'ı sayesinde bu bir "yakalama" yayınından
+ * FAYDALANIR. `socket.io-client`'ın KENDİ otomatik yeniden bağlanması
+ * (varsayılan: `reconnection: true`) zaten `'connect'` olayını HER
+ * yeniden bağlanmada TEKRAR ateşler — bu yüzden aşağıdaki `socket.
+ * on('connect', ...)` (BİR KEZ eklenen ama HER bağlanmada çalışan bir
+ * dinleyici) `race.subscribe`'ı otomatik olarak tekrar gönderir, YENİ bir
+ * kod GEREKTİRMEZ. Eksik olan tek şey, istemci tarafının bunu KULLANICIYA
+ * GÖSTERMESİYDİ — bağlantı koparsa `LiveRaceViewer` hiçbir görsel geri
+ * bildirim VERMİYORDU (ekranda son bilinen kare donuk kalıyordu, sanki
+ * her şey normalmiş gibi). Yeni `onDisconnected` handler'ı tam olarak bu
+ * boşluğu kapatır — `socket.io-client`'ın `'disconnect'` olayına bağlanır
+ * (bağlantı koptuğunda, otomatik yeniden bağlanma denemesi BAŞLAMADAN
+ * ÖNCE ateşlenir); `LiveRaceViewer.tsx` bunu `liveStatus`'u
+ * `'reconnecting'`ye çevirmek için kullanır (bkz. `RaceHud.tsx`'in
+ * güncellenmiş `RaceLiveStatus` tipi).
  */
 
 import { io, type Socket } from 'socket.io-client';
@@ -38,8 +57,18 @@ export interface LiveRaceSocketHandlers {
   onFinished: (entrants: LiveRaceFinishedEntrant[]) => void;
   /** `race.error` — yarış bulunamadı/yetkisiz (bkz. `race.gateway.ts` "bilgi sızdırmama" notu). */
   onError: (message: string) => void;
-  /** Bağlantının kendisi kurulamadı (auth reddi, ağ hatası) — `race.error`'DAN FARKLI bir hata sınıfı. */
+  /** Bağlantının kendisi HİÇ kurulamadı (auth reddi, ilk el sıkışma ağ hatası) — `race.error`'DAN FARKLI bir hata sınıfı. */
   onConnectError: (message: string) => void;
+  /**
+   * Kurulu bir bağlantı KOPTU (bkz. dosya başı doc yorumu "Reconnection
+   * dilimi") — `socket.io-client` otomatik olarak yeniden bağlanmayı
+   * DENEYECEK (varsayılan davranış) ve başarılı olursa `'connect'` (ve
+   * dolayısıyla `race.subscribe`) KENDİLİĞİNDEN tekrar tetiklenecek; bu
+   * handler yalnızca ARADAKİ süre için kullanıcıya "yeniden bağlanılıyor"
+   * geri bildirimi vermek İÇİNDİR, kendi başına bir yeniden bağlanma
+   * MANTIĞI YÖNETMEZ.
+   */
+  onDisconnected: (reason: string) => void;
 }
 
 /**
@@ -67,11 +96,30 @@ export function connectRaceSocket(
   });
 
   socket.on('connect', () => {
+    // Bu dinleyici BİR KEZ eklenir ama socket.io-client'ın kendi otomatik
+    // yeniden bağlanması SONUCU her (yeniden) bağlanmada TEKRAR ateşlenir
+    // (bkz. dosya başı doc yorumu "Reconnection dilimi") — yani bir ağ
+    // kopmasından sonra `race.subscribe` YENİ bir kod YAZILMADAN otomatik
+    // olarak tekrar gönderilir.
     socket.emit('race.subscribe', { raceId });
   });
 
   socket.on('connect_error', (error: Error) => {
     handlers.onConnectError(error.message);
+  });
+
+  socket.on('disconnect', (reason: string) => {
+    // `reason === 'io client disconnect'` YALNIZCA `socket.disconnect()`
+    // BİZİM TARAFIMIZDAN (bkz. `LiveRaceViewer.tsx`'in `useEffect`
+    // temizliği) çağrıldığında oluşur — bu durumda bileşen zaten
+    // unmount OLUYOR, kullanıcıya "yeniden bağlanılıyor" göstermenin
+    // ANLAMI YOK (ekran zaten kayboluyor). Diğer TÜM nedenlerde (ağ
+    // kopması, sunucu tarafı kapanma vb.) socket.io OTOMATİK olarak
+    // yeniden bağlanmaya ÇALIŞACAK, bu yüzden kullanıcıya bunu bildiriyoruz.
+    if (reason === 'io client disconnect') {
+      return;
+    }
+    handlers.onDisconnected(reason);
   });
 
   socket.on('race.roster', (payload: { raceId: string; entrants: RaceRosterEntrant[] }) => {
