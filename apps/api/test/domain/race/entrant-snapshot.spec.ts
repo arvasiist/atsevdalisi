@@ -1,14 +1,48 @@
 import { describe, expect, it } from 'vitest';
-import type { Horse, HorseStats, RecentRaceResultView } from '@at-sevdalisi/shared-types';
+import type { Horse, HorseDistanceStats, HorseStats, HorseSurfaceStats, RecentRaceResultView } from '@at-sevdalisi/shared-types';
 import {
   assertValidRaceTactic,
   buildHorseEntrantSnapshot,
   deriveFormFromRecentResults,
   FORM_SAMPLE_SIZE,
   NEUTRAL_UNMODELED_TRAIT_SCORE,
+  type TrackFitInput,
   UNMODELED_SNAPSHOT_FIELDS,
 } from '../../../src/domain/race/entrant-snapshot';
 import { InvalidRaceTacticError } from '../../../src/domain/race/errors';
+
+function makeSurfaceStats(overrides: Partial<HorseSurfaceStats> = {}): HorseSurfaceStats {
+  return {
+    horseId: 'horse-1',
+    grass: 70,
+    dirt: 30,
+    wet: 40,
+    heavy: 20,
+    dry: 60,
+    mud: 10,
+    ...overrides,
+  };
+}
+
+function makeDistanceStats(overrides: Partial<HorseDistanceStats> = {}): HorseDistanceStats {
+  return {
+    horseId: 'horse-1',
+    shortDistance: 80,
+    middleDistance: 55,
+    longDistance: 25,
+    ...overrides,
+  };
+}
+
+function makeTrackFit(overrides: Partial<TrackFitInput> = {}): TrackFitInput {
+  return {
+    surfaceStats: makeSurfaceStats(),
+    distanceStats: makeDistanceStats(),
+    surface: 'grass',
+    distanceMeters: 1600,
+    ...overrides,
+  };
+}
 
 function makeRecentResult(overrides: Partial<RecentRaceResultView> = {}): RecentRaceResultView {
   return {
@@ -129,12 +163,44 @@ describe('buildHorseEntrantSnapshot', () => {
     expect(snapshot.tactic).toEqual(validTactic);
   });
 
-  it('henüz modellenmeyen alanları (surfaceCompatibility/distanceCompatibility/jockeySkillComposite) nötr değere ayarlar', () => {
+  it('trackFit verilmeden çağrılırsa surfaceCompatibility/distanceCompatibility nötr kalır (GERİYE DÖNÜK UYUMLU)', () => {
     const snapshot = buildHorseEntrantSnapshot(makeHorse(), makeStats(), validTactic);
 
     expect(snapshot.surfaceCompatibility).toBe(NEUTRAL_UNMODELED_TRAIT_SCORE);
     expect(snapshot.distanceCompatibility).toBe(NEUTRAL_UNMODELED_TRAIT_SCORE);
+  });
+
+  it('henüz modellenmeyen jockeySkillComposite alanını nötr değere ayarlar', () => {
+    const snapshot = buildHorseEntrantSnapshot(makeHorse(), makeStats(), validTactic);
+
     expect(snapshot.jockeySkillComposite).toBe(NEUTRAL_UNMODELED_TRAIT_SCORE);
+  });
+
+  /**
+   * R3 — Track Fit (bu turda EKLENDİ). `trackFit` verilirse
+   * surfaceCompatibility/distanceCompatibility artık `track-fit.ts`'teki
+   * saf fonksiyonlardan (kendi spec'i `track-fit.spec.ts`'te ayrıca test
+   * edilir) türetilir — burada yalnızca `buildHorseEntrantSnapshot`'ın bu
+   * değeri doğru İLETTİĞİ doğrulanır.
+   */
+  it('trackFit verilirse surfaceCompatibility/distanceCompatibility bu veriden türetilir', () => {
+    const trackFit = makeTrackFit({
+      surfaceStats: makeSurfaceStats({ grass: 82 }),
+      distanceStats: makeDistanceStats({ middleDistance: 67 }),
+      surface: 'grass',
+      distanceMeters: 1600,
+    });
+    const snapshot = buildHorseEntrantSnapshot(makeHorse(), makeStats(), validTactic, [], trackFit);
+
+    expect(snapshot.surfaceCompatibility).toBe(82);
+    expect(snapshot.distanceCompatibility).toBe(67);
+  });
+
+  it('trackFit açıkça null verilirse (ör. henüz backfill edilmemiş bir at) nötr kalır', () => {
+    const snapshot = buildHorseEntrantSnapshot(makeHorse(), makeStats(), validTactic, [], null);
+
+    expect(snapshot.surfaceCompatibility).toBe(NEUTRAL_UNMODELED_TRAIT_SCORE);
+    expect(snapshot.distanceCompatibility).toBe(NEUTRAL_UNMODELED_TRAIT_SCORE);
   });
 
   /**
@@ -158,14 +224,17 @@ describe('buildHorseEntrantSnapshot', () => {
   });
 
   /**
-   * AUDIT_AND_HARDENING Öncelik 8 (bu oturum) — "tripwire" testi: bkz.
+   * AUDIT_AND_HARDENING Öncelik 8 (önceki oturum) — "tripwire" testi: bkz.
    * `entrant-snapshot.ts` `UNMODELED_SNAPSHOT_FIELDS` doc yorumu. Bu test
    * yukarıdaki testle AYNI şeyi, ama `UNMODELED_SNAPSHOT_FIELDS`
    * LİSTESİNİN ÜZERİNDE DÖNGÜYLE doğrular — biri gelecekte bu alanlardan
-   * BİRİNİ gerçek veriyle (ör. `horse_surface_stats`) bağlayıp listeyi
+   * BİRİNİ gerçek veriyle (ör. jokey ataması) bağlayıp listeyi
    * güncellemeyi UNUTURSA, bu test KIRILIR (artık nötr olmayan bir alan
    * hâlâ "unmodeled" listesinde görünmeye devam eder ama üretilen snapshot
-   * artık 50 DÖNMEZ) — gap sessizce unutulamaz.
+   * artık 50 DÖNMEZ) — gap sessizce unutulamaz. R3 — Track Fit (bu turda
+   * TAMAMLANDI) sayesinde liste ARTIK yalnızca `jockeySkillComposite`
+   * içeriyor (`surfaceCompatibility`/`distanceCompatibility` çıkarıldı,
+   * `form`'un daha önce çıkarılmasıyla AYNI desen).
    */
   it('[TRIPWIRE] UNMODELED_SNAPSHOT_FIELDS listesindeki HER alan GERÇEKTEN nötr değer döner', () => {
     const snapshot = buildHorseEntrantSnapshot(makeHorse(), makeStats(), validTactic);

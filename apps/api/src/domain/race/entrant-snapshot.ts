@@ -1,45 +1,54 @@
-import { clamp, type Horse, type HorseStats, type RaceEntrantSnapshot, type RaceTacticInput, type RecentRaceResultView } from '@at-sevdalisi/shared-types';
+import {
+  clamp,
+  type Horse,
+  type HorseDistanceStats,
+  type HorseStats,
+  type HorseSurfaceStats,
+  type RaceEntrantSnapshot,
+  type RaceSurface,
+  type RaceTacticInput,
+  type RecentRaceResultView,
+} from '@at-sevdalisi/shared-types';
+import { computeDistanceCompatibility, computeSurfaceCompatibility } from './track-fit';
 import { FINAL_STRETCH_PLANS, RACING_STYLES, RISK_LEVELS, START_APPROACHES } from './validation';
 import { InvalidRaceTacticError } from './errors';
 
 /**
- * `RaceEntrantSnapshot`'ın `surfaceCompatibility`/`distanceCompatibility`/
- * `jockeySkillComposite` alanları için nötr değer — `form`'un kendi tip
- * yorumunda ZATEN tanımlanan "bilinmiyorsa 50 kullan" ilkesiyle AYNI
- * (bkz. `packages/shared-types/src/race.ts`). `form` ARTIK bu listede
- * DEĞİL — AUDIT_REPORT.md Bulgu R3 (bu oturum, proje sahibinin "R3 —
- * davranış derinliği" seçimiyle) kapsamında gerçek `race_entries`
- * geçmişinden türetilmeye başlandı, bkz. aşağıdaki `deriveFormFromRecentResults`.
+ * `RaceEntrantSnapshot`'ın henüz gerçek veriyle bağlanmamış alanları için
+ * nötr değer — `form`'un kendi tip yorumunda ZATEN tanımlanan "bilinmiyorsa
+ * 50 kullan" ilkesiyle AYNI (bkz. `packages/shared-types/src/race.ts`).
+ * `form` ARTIK bu listede DEĞİL — AUDIT_REPORT.md Bulgu R3 (proje
+ * sahibinin "R3 — davranış derinliği" seçimiyle) kapsamında gerçek
+ * `race_entries` geçmişinden türetilmeye başlandı, bkz. aşağıdaki
+ * `deriveFormFromRecentResults`.
  *
- * **BULUNAN ama bu dilimde KAPSAM DIŞI bırakılan bir eksik:**
- * `horse_surface_stats`/`horse_distance_stats` tabloları (migration 0003)
- * TAM OLARAK bu iki alan için mevcut — ama `PostgresHorseRepository.save()`
- * bunlara HİÇBİR ZAMAN varsayılan satır eklemedi (`horse_stats`/`horse_health`'in
- * AKSİNE), bu yüzden hiçbir at için satırları yok. Bunları gerçek anlamda
- * bağlamak (save()'i güncellemek + yeni repository + brief §8.2'nin
- * "keşif hissi" gerektiren scout mekanizması) kendi başına bir dilimi hak
- * ediyor — burada aceleyle yapılmadı. `jockeySkillComposite` de aynı
- * gerekçeyle nötr: Jockey sistemi (FAZ 2) henüz wiring edilmedi, bu
- * pratik yarışta oyuncunun kiralı bir jokeyi yok (`race_entries.jockey_id
- * = NULL`, tıpkı gerçek DB satırında olduğu gibi).
+ * **R3 — Track Fit (bu turda TAMAMLANDI):** `surfaceCompatibility`/
+ * `distanceCompatibility` da ARTIK bu listede DEĞİL. `horse_surface_stats`/
+ * `horse_distance_stats` tabloları (migration 0003) ZATEN vardı ve
+ * `base-ability.ts`'in `trackCompatibility` formülü ZATEN bu iki alanı
+ * tüketiyordu (bkz. o dosyanın doc yorumu) — eksik olan tek şey (a)
+ * `PostgresHorseRepository.save()`'in bu iki tabloya da varsayılan satır
+ * eklemesi (bkz. o dosyanın doc yorumu + migration 0026 backfill), (b) bu
+ * satırları okuyup gerçek bir sayıya çeviren saf fonksiyonlardı
+ * (`domain/race/track-fit.ts`'teki `computeSurfaceCompatibility`/
+ * `computeDistanceCompatibility`). `jockeySkillComposite` HALA nötr:
+ * Jockey sistemi (FAZ 2) henüz wiring edilmedi, pratik yarışta oyuncunun
+ * kiralı bir jokeyi yok (`race_entries.jockey_id = NULL`, tıpkı gerçek DB
+ * satırında olduğu gibi) — bu, Carried Weight/Temperament ile AYNI
+ * kategoride, gerçek bir jokey-atama akışını gerektiren, ayrı ve daha
+ * büyük bir dilimi hak ediyor.
  *
- * AUDIT_AND_HARDENING Öncelik 8 (bu oturum) — denetim bu gapı "sessizce
- * sonsuza kadar nötr 50 varsayma" riski olarak işaretledi (Mutlak Kural 4:
- * bir risk asla sessizce kabul edilemez, ya düzeltilir ya da AÇIKÇA
- * belgelenip bir telafi edici kontrol eklenir). Tam scout/keşif mekaniğini
- * kurmak (brief §34) burada YENİ BİR ÖZELLİK olurdu — bu bir sertleştirme
- * oturumu, KAPSAM DIŞI. Bunun yerine gap ÜÇ KATMANDA da AÇIKÇA GÖRÜNÜR
- * kılınır (kod yorumu YETERLİ DEĞİLDİR, sadece kaynağı okuyan bir
- * geliştiriciye görünür):
+ * AUDIT_AND_HARDENING Öncelik 8'in (önceki oturum) "sessizce sonsuza kadar
+ * nötr 50 varsayma" riskine (Mutlak Kural 4) karşı kurduğu ÜÇ KATMANLI
+ * görünürlük hâlâ geçerli, `jockeySkillComposite` için:
  *  1. Kod: `UNMODELED_SNAPSHOT_FIELDS` — aşağıda, HANGİ alanların sahte
  *     olduğunu PROGRAMATİK olarak listeler; `entrant-snapshot.spec.ts`
  *     bu listenin ÜZERİNDE döngüyle test eder — biri gerçek veri
  *     bağlarken bu listeyi güncellemeyi UNUTURSA test KIRILIR ("tripwire").
  *  2. Veritabanı şeması: `database/migrations/0022_document_unwired_horse_
- *     compatibility_stats.up.sql` — `horse_surface_stats`/`horse_distance_
- *     stats` tablolarına `COMMENT ON TABLE` ile AÇIKÇA "hiçbir satır asla
- *     yazılmaz" notu ekler; bir DBA/denetçi kaynak koduna hiç bakmadan,
- *     doğrudan şemayı inceleyerek (`\d+ horse_surface_stats`) bunu görür.
+ *     compatibility_stats.up.sql` — migration 0026 ile `horse_surface_stats`/
+ *     `horse_distance_stats` için ARTIK GEÇERSİZ (bkz. o migration'ın
+ *     güncellenmiş `COMMENT ON TABLE` metni).
  *  3. Doküman: `docs/ROADMAP.md` (bkz. AUDIT_AND_HARDENING bölümü) —
  *     proje durumu her incelendiğinde bu KAYITLI sınırlama yeniden
  *     yüzeye çıkar, sessizce unutulmaz.
@@ -49,13 +58,29 @@ export const NEUTRAL_UNMODELED_TRAIT_SCORE = 50;
 /**
  * `RaceEntrantSnapshot`'ın, bu oturum itibarıyla HALA gerçek veriyle
  * BAĞLANMAMIŞ (`NEUTRAL_UNMODELED_TRAIT_SCORE` ile doldurulan) alanları.
- * Bkz. bu dosyanın üstündeki AUDIT_AND_HARDENING Öncelik 8 doc yorumu.
+ * `surfaceCompatibility`/`distanceCompatibility` ARTIK bu listede DEĞİL
+ * (R3 — Track Fit, bu turda TAMAMLANDI) — bkz. bu dosyanın üstündeki doc
+ * yorumu.
  */
-export const UNMODELED_SNAPSHOT_FIELDS: ReadonlyArray<keyof RaceEntrantSnapshot> = [
-  'surfaceCompatibility',
-  'distanceCompatibility',
-  'jockeySkillComposite',
-];
+export const UNMODELED_SNAPSHOT_FIELDS: ReadonlyArray<keyof RaceEntrantSnapshot> = ['jockeySkillComposite'];
+
+/**
+ * R3 — Track Fit (bu turda EKLENDİ). `buildHorseEntrantSnapshot`'a
+ * OPSİYONEL olarak verilir (bkz. o fonksiyonun doc yorumu) — `recentResults`
+ * parametresiyle AYNI "çağıran vermezse nötr kalır, GERİYE DÖNÜK UYUMLU"
+ * deseni. `surface`/`distanceMeters` burada AYRICA taşınır çünkü
+ * `HorseSurfaceStats`/`HorseDistanceStats`'ın KENDİSİ tek başına yeterli
+ * DEĞİLDİR — hangi zemin/mesafeye göre değerlendirileceğini bilmek için
+ * yarışın KENDİ `surface`/`distanceMeters`'ına da ihtiyaç vardır (bkz.
+ * `track-fit.ts`'teki `computeSurfaceCompatibility`/
+ * `computeDistanceCompatibility`).
+ */
+export interface TrackFitInput {
+  surfaceStats: HorseSurfaceStats;
+  distanceStats: HorseDistanceStats;
+  surface: RaceSurface;
+  distanceMeters: number;
+}
 
 /**
  * AUDIT_REPORT.md Bulgu R3 (Low, bu oturum) — `form` alanı artık bir
@@ -121,18 +146,29 @@ export function assertValidRaceTactic(tactic: RaceTacticInput): void {
  * yeni olan yalnızca bu İKİ aggregate'i TEK bir snapshot'ta birleştirmek
  * ve henüz modellenmemiş alanları nötr değerle doldurmak.
  *
- * AUDIT_REPORT.md Bulgu R3 (bu oturum) — `recentResults` YENİ, OPSİYONEL
- * bir parametredir (çağıran vermezse `[]`, yani `form` nötr 50 kalır —
- * GERİYE DÖNÜK UYUMLU): çağıran use-case, bu saf/domain fonksiyonunu
- * çağırmadan ÖNCE `raceRepository.findRecentResultsByHorseId`'den (async,
- * DB) elde ettiği listeyi buraya iletir — bu fonksiyonun KENDİSİ hâlâ
- * saf kalır, hiçbir I/O yapmaz (bkz. `deriveFormFromRecentResults`).
+ * AUDIT_REPORT.md Bulgu R3 (önceki oturum) — `recentResults` OPSİYONEL bir
+ * parametredir (çağıran vermezse `[]`, yani `form` nötr 50 kalır — GERİYE
+ * DÖNÜK UYUMLU): çağıran use-case, bu saf/domain fonksiyonunu çağırmadan
+ * ÖNCE `raceRepository.findRecentResultsByHorseId`'den (async, DB) elde
+ * ettiği listeyi buraya iletir — bu fonksiyonun KENDİSİ hâlâ saf kalır,
+ * hiçbir I/O yapmaz (bkz. `deriveFormFromRecentResults`).
+ *
+ * R3 — Track Fit (bu turda EKLENDİ) — `trackFit` de AYNI "OPSİYONEL,
+ * verilmezse nötr" desenini izler: `null`/verilmemişse (ör. `horse_
+ * surface_stats`/`horse_distance_stats` satırı henüz olmayan — migration
+ * 0026 ÖNCESİ oluşturulmuş, backfill'den KAÇAN teorik bir at, ya da bot)
+ * `surfaceCompatibility`/`distanceCompatibility` `NEUTRAL_UNMODELED_
+ * TRAIT_SCORE` (50) kalır — bu, TAM OLARAK bu alanın Track Fit'ten ÖNCEKİ
+ * davranışıdır, yani geriye dönük UYUMLUDUR. Botlar (`bot-generator.ts`)
+ * bu parametreyi HİÇ VERMEZ (`recentResults` ile AYNI gerekçe: botların
+ * kalıcı bir `horses` satırı yok).
  */
 export function buildHorseEntrantSnapshot(
   horse: Horse,
   stats: HorseStats,
   tactic: RaceTacticInput,
   recentResults: readonly RecentRaceResultView[] = [],
+  trackFit: TrackFitInput | null = null,
 ): RaceEntrantSnapshot {
   assertValidRaceTactic(tactic);
 
@@ -145,8 +181,10 @@ export function buildHorseEntrantSnapshot(
     fatigue: horse.fatigue,
     health: horse.health,
     morale: horse.morale,
-    surfaceCompatibility: NEUTRAL_UNMODELED_TRAIT_SCORE,
-    distanceCompatibility: NEUTRAL_UNMODELED_TRAIT_SCORE,
+    surfaceCompatibility:
+      trackFit === null ? NEUTRAL_UNMODELED_TRAIT_SCORE : computeSurfaceCompatibility(trackFit.surfaceStats, trackFit.surface),
+    distanceCompatibility:
+      trackFit === null ? NEUTRAL_UNMODELED_TRAIT_SCORE : computeDistanceCompatibility(trackFit.distanceStats, trackFit.distanceMeters),
     jockeySkillComposite: NEUTRAL_UNMODELED_TRAIT_SCORE,
     form: deriveFormFromRecentResults(recentResults),
     tactic,

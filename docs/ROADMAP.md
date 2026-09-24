@@ -1287,6 +1287,17 @@ hiçbir at için satırları yok. Bu dilimde `surfaceCompatibility`/
 (save()'i güncellemek + yeni repository + brief'in scout/keşif
 mekanizması) kendi başına bir dilimi hak ediyor.
 
+**GÜNCELLEME (R3 — Track Fit, bu turda TAMAMLANDI):** `save()`/yeni
+`PostgresHorseSurfaceStatsRepository`/`PostgresHorseDistanceStatsRepository`
++ `domain/race/track-fit.ts`'in saf `computeSurfaceCompatibility`/
+`computeDistanceCompatibility` fonksiyonları ile bu eksik kapatıldı —
+`surfaceCompatibility`/`distanceCompatibility` artık gerçek veriden
+türetiliyor. Tam scout/keşif mekaniği (brief §34, oyuncuya bu gizli
+değerleri bir tahmin ARALIĞI olarak GÖSTERME) HALA kapsam dışı — bkz.
+`docs/API.md` §4 notu. Bilinçli olarak KAPSAM DIŞI bırakılan tek şey:
+`wet`/`heavy`/`dry`/`mud` (pist koşulu) sütunları — bkz.
+`track-fit.ts`'teki `computeSurfaceCompatibility` doc yorumu.
+
 **Yeni shared type:** `packages/shared-types/src/race.ts` — adlandırılmış
 `RaceTacticInput` (mevcut `RaceEntrantSnapshot.tactic` şeklini tekrar
 kullanır) ve yeni `PracticeRaceResult` (yanıt şekli — `RaceTimeline`'ın
@@ -2107,6 +2118,18 @@ PROGRAMATİK listeler, `entrant-snapshot.spec.ts`'teki [TRIPWIRE] testi
 biri gerçek veri bağlayıp listeyi güncellemeyi unutursa KIRILIR; (b)
 migration 0022 — iki tabloya `COMMENT ON TABLE` ile şema seviyesinde
 açık not; (c) bu doküman girdisi.
+
+**GÜNCELLEME (R3 — Track Fit, proje sahibinin "sen karar ver" seçimiyle
+seçilen bir sonraki dilim):** Bu madde artık "wiring KAPSAM DIŞI" değil —
+`PostgresHorseRepository.save()` HER yeni at için bu iki tabloya da
+varsayılan satır ekliyor (migration 0026 mevcut atları backfill etti),
+yeni `PostgresHorseSurfaceStatsRepository`/`PostgresHorseDistanceStatsRepository`
+bunları okuyor, `domain/race/track-fit.ts`'in saf fonksiyonları gerçek bir
+uyum puanına çeviriyor. `UNMODELED_SNAPSHOT_FIELDS` artık yalnızca
+`jockeySkillComposite` içeriyor (tripwire testi bu yeni listeyle
+güncellendi). Scout/keşif mekaniği (brief §34) HALA kapsam dışı — bu
+madde, "gerçek wiring hâlâ ayrı bir dilimi bekliyor" notunu YERİNE
+GETİRDİ, scout'u DEĞİL.
 
 **Doğrulama (TÜM öncelikler için ortak):** `tsc` baseline-diff (değişiklik
 öncesi/sonrası tip hatası sayısı BİREBİR aynı — gerçek Postgres/Redis

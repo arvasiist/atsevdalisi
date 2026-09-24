@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { Inject, Injectable } from '@nestjs/common';
 import type { PracticeRaceResult, Race, RaceEntry, RaceSegmentSnapshot, RaceTacticInput } from '@at-sevdalisi/shared-types';
 import { generateBotEntrants } from '../../domain/race/bot-generator';
-import { buildHorseEntrantSnapshot, FORM_SAMPLE_SIZE } from '../../domain/race/entrant-snapshot';
+import { buildHorseEntrantSnapshot, FORM_SAMPLE_SIZE, type TrackFitInput } from '../../domain/race/entrant-snapshot';
 import { assignGatePositions } from '../../domain/race/gate-assignment';
 import { getPracticeRaceEntryFee, getPracticeRacePrize } from '../../domain/race/prize';
 import { RACE_ENGINE_VERSION, RACE_RULESET_VERSION, simulateRace } from '../../domain/race/race-engine';
@@ -11,6 +11,8 @@ import { HorseInjuredError, HorseListedInMarketError, HorseNotFoundError } from 
 import { AppConfigService } from '../../infrastructure/config/config.service';
 import { HORSE_REPOSITORY, type HorseRepository } from '../ports/horse.repository';
 import { HORSE_STATS_REPOSITORY, type HorseStatsRepository } from '../ports/horse-stats.repository';
+import { HORSE_SURFACE_STATS_REPOSITORY, type HorseSurfaceStatsRepository } from '../ports/horse-surface-stats.repository';
+import { HORSE_DISTANCE_STATS_REPOSITORY, type HorseDistanceStatsRepository } from '../ports/horse-distance-stats.repository';
 import { RACE_REPOSITORY, type RaceRepository } from '../ports/race.repository';
 import { MARKET_LISTING_REPOSITORY, type MarketListingRepository } from '../ports/market-listing.repository';
 
@@ -39,6 +41,8 @@ export class RunPracticeRaceUseCase {
   constructor(
     @Inject(HORSE_REPOSITORY) private readonly horseRepository: HorseRepository,
     @Inject(HORSE_STATS_REPOSITORY) private readonly horseStatsRepository: HorseStatsRepository,
+    @Inject(HORSE_SURFACE_STATS_REPOSITORY) private readonly horseSurfaceStatsRepository: HorseSurfaceStatsRepository,
+    @Inject(HORSE_DISTANCE_STATS_REPOSITORY) private readonly horseDistanceStatsRepository: HorseDistanceStatsRepository,
     @Inject(RACE_REPOSITORY) private readonly raceRepository: RaceRepository,
     @Inject(MARKET_LISTING_REPOSITORY) private readonly marketListingRepository: MarketListingRepository,
     @Inject(AppConfigService) private readonly config: AppConfigService,
@@ -64,14 +68,30 @@ export class RunPracticeRaceUseCase {
       throw new HorseNotFoundError(horseId);
     }
 
-    // AUDIT_REPORT.md Bulgu R3 (bu oturum) — `form` alanı artık bu atın
+    // AUDIT_REPORT.md Bulgu R3 (önceki oturum) — `form` alanı artık bu atın
     // KENDİ son `FORM_SAMPLE_SIZE` sonuçlanmış yarışından türetiliyor (bkz.
     // `deriveFormFromRecentResults` doc yorumu). Botların bu sorguya
     // ihtiyacı yok (`generateBotEntrants` her zaman nötr 50 kullanır).
     const recentResults = await this.raceRepository.findRecentResultsByHorseId(horseId, FORM_SAMPLE_SIZE);
 
+    // R3 — Track Fit (bu turda EKLENDİ) — `PostgresHorseRepository.save()`
+    // + migration 0026 backfill'i sayesinde HER atın bu iki satırı olması
+    // GEREKİR (`horse_stats` ile AYNI veri bütünlüğü varsayımı) — yine de
+    // `null` dönerse (`horse-owner.guard.ts` ile AYNI "ulaşılamaz dal"
+    // savunması) `buildHorseEntrantSnapshot`'a `trackFit: null` geçilir,
+    // yani surfaceCompatibility/distanceCompatibility nötr (50) kalır
+    // (ÇÖKMEZ) — bkz. o fonksiyonun `trackFit` parametresinin doc yorumu.
+    const [surfaceStats, distanceStats] = await Promise.all([
+      this.horseSurfaceStatsRepository.findByHorseId(horseId),
+      this.horseDistanceStatsRepository.findByHorseId(horseId),
+    ]);
+    const trackFit: TrackFitInput | null =
+      surfaceStats === null || distanceStats === null
+        ? null
+        : { surfaceStats, distanceStats, surface: PRACTICE_RACE_SURFACE, distanceMeters: PRACTICE_RACE_DISTANCE_METERS };
+
     const raceId = randomUUID();
-    const playerEntrant = buildHorseEntrantSnapshot(horse, stats, input.tactic, recentResults);
+    const playerEntrant = buildHorseEntrantSnapshot(horse, stats, input.tactic, recentResults, trackFit);
     const botEntrants = generateBotEntrants(PRACTICE_RACE_BOT_COUNT, raceId);
 
     const timeline = simulateRace({

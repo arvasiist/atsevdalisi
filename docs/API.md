@@ -265,12 +265,19 @@ yaşam evresinde — bkz. `domain/horse/horse.ts` `createStarterHorse`).
 Bu, brief'te açıkça yazmayan ama at yetiştiriciliği oyununda gerekli bir
 tasarım kararıdır (at olmadan Antrenman/Bakım/Yarış ekranları gösterilemez).
 
-`history` uç noktası ve `horse_surface_stats`/`horse_distance_stats`
-tablolarının okunması/yazılması hâlâ KAPSAM DIŞINDADIR. `train` ve
-`horse_stats` FAZ 1 wiring'in DÖRDÜNCÜ diliminde bağlandı (bkz. aşağıdaki
-"Antrenman" bölümü); `care`/`feed` ve `horse_health`'in dar bir alt
-kümesi ise BEŞİNCİ dilimde bağlandı (bkz. aşağıdaki "Bakım ve Besleme"
-bölümü).
+`history` uç noktası hâlâ KAPSAM DIŞINDADIR. `train` ve `horse_stats`
+FAZ 1 wiring'in DÖRDÜNCÜ diliminde bağlandı (bkz. aşağıdaki "Antrenman"
+bölümü); `care`/`feed` ve `horse_health`'in dar bir alt kümesi ise
+BEŞİNCİ dilimde bağlandı (bkz. aşağıdaki "Bakım ve Besleme" bölümü).
+
+`horse_surface_stats`/`horse_distance_stats` (R3 — Track Fit, bkz.
+"Pratik Yarış" bölümü) artık `PostgresHorseRepository.save()`
+tarafından YAZILIYOR ve Race Engine tarafından `RaceEntrantSnapshot.
+surfaceCompatibility`/`distanceCompatibility` için OKUNUYOR — ama bu iki
+tablonun brief §8.2'nin "gizli özellik/keşif hissi" listesindeki gibi bir
+oyuncuya doğrudan bir uç noktayla GÖSTERİLMESİ hâlâ KAPSAM DIŞINDADIR
+(tam scout/keşif mekaniği, brief §34, ayrı bir dilimi hak ediyor — bkz.
+`apps/api/src/domain/race/entrant-snapshot.ts` doc yorumu).
 
 ### Ahır Özeti (FAZ 1 wiring, üçüncü dilim, bu oturum)
 

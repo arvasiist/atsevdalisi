@@ -9,7 +9,7 @@ import type {
   RaceEntry,
   RaceSegmentSnapshot,
 } from '@at-sevdalisi/shared-types';
-import { buildHorseEntrantSnapshot, FORM_SAMPLE_SIZE } from '../../domain/race/entrant-snapshot';
+import { buildHorseEntrantSnapshot, FORM_SAMPLE_SIZE, type TrackFitInput } from '../../domain/race/entrant-snapshot';
 import { assignGatePositions } from '../../domain/race/gate-assignment';
 import { findBestMatch } from '../../domain/online/matchmaking';
 import { createRaceRoomSeed, validateRaceRoomParticipants } from '../../domain/online/race-room';
@@ -21,6 +21,8 @@ import { PlayerNotFoundError } from '../../domain/player/errors';
 import { AppConfigService } from '../../infrastructure/config/config.service';
 import { HORSE_REPOSITORY, type HorseRepository } from '../ports/horse.repository';
 import { HORSE_STATS_REPOSITORY, type HorseStatsRepository } from '../ports/horse-stats.repository';
+import { HORSE_SURFACE_STATS_REPOSITORY, type HorseSurfaceStatsRepository } from '../ports/horse-surface-stats.repository';
+import { HORSE_DISTANCE_STATS_REPOSITORY, type HorseDistanceStatsRepository } from '../ports/horse-distance-stats.repository';
 import { MATCHMAKING_TICKET_REPOSITORY, type MatchmakingTicketRepository } from '../ports/matchmaking-ticket.repository';
 import { PLAYER_REPOSITORY, type PlayerRepository } from '../ports/player.repository';
 import { RACE_REPOSITORY, type RaceRepository } from '../ports/race.repository';
@@ -119,6 +121,8 @@ export class JoinMatchmakingQueueUseCase {
   constructor(
     @Inject(HORSE_REPOSITORY) private readonly horseRepository: HorseRepository,
     @Inject(HORSE_STATS_REPOSITORY) private readonly horseStatsRepository: HorseStatsRepository,
+    @Inject(HORSE_SURFACE_STATS_REPOSITORY) private readonly horseSurfaceStatsRepository: HorseSurfaceStatsRepository,
+    @Inject(HORSE_DISTANCE_STATS_REPOSITORY) private readonly horseDistanceStatsRepository: HorseDistanceStatsRepository,
     @Inject(PLAYER_REPOSITORY) private readonly playerRepository: PlayerRepository,
     @Inject(RACE_REPOSITORY) private readonly raceRepository: RaceRepository,
     @Inject(MATCHMAKING_TICKET_REPOSITORY) private readonly ticketRepository: MatchmakingTicketRepository,
@@ -204,17 +208,36 @@ export class JoinMatchmakingQueueUseCase {
     const opponentPlayerId = opponentTicket.playerId;
     const opponentHorseId = opponentTicket.horseId;
 
-    // AUDIT_REPORT.md Bulgu R3 (bu oturum) — `form` alanı artık HER İKİ
+    // AUDIT_REPORT.md Bulgu R3 (önceki oturum) — `form` alanı artık HER İKİ
     // atın da KENDİ son yarış geçmişinden türetiliyor (bkz.
     // `RunPracticeRaceUseCase`'teki AYNI ekleme/gerekçe) — bu iki sorgu da
     // salt okunur olduğundan mevcut `Promise.all`'a eklenmesi güvenli.
-    const [horse, stats, opponentHorse, opponentStats, recentResults, opponentRecentResults] = await Promise.all([
+    //
+    // R3 — Track Fit (bu turda EKLENDİ) — AYNI gerekçeyle HER İKİ atın
+    // surface/distance stat'ları da bu `Promise.all`'a eklendi (bkz.
+    // `RunPracticeRaceUseCase`'teki AYNI ekleme).
+    const [
+      horse,
+      stats,
+      opponentHorse,
+      opponentStats,
+      recentResults,
+      opponentRecentResults,
+      surfaceStats,
+      distanceStats,
+      opponentSurfaceStats,
+      opponentDistanceStats,
+    ] = await Promise.all([
       this.horseRepository.findById(horseId),
       this.horseStatsRepository.findByHorseId(horseId),
       this.horseRepository.findById(opponentHorseId),
       this.horseStatsRepository.findByHorseId(opponentHorseId),
       this.raceRepository.findRecentResultsByHorseId(horseId, FORM_SAMPLE_SIZE),
       this.raceRepository.findRecentResultsByHorseId(opponentHorseId, FORM_SAMPLE_SIZE),
+      this.horseSurfaceStatsRepository.findByHorseId(horseId),
+      this.horseDistanceStatsRepository.findByHorseId(horseId),
+      this.horseSurfaceStatsRepository.findByHorseId(opponentHorseId),
+      this.horseDistanceStatsRepository.findByHorseId(opponentHorseId),
     ]);
 
     // Veri bütünlüğü varsayımı: çağıranın kendi atı/statı bu metoda
@@ -233,8 +256,30 @@ export class JoinMatchmakingQueueUseCase {
     const matchId = randomUUID();
     const seed = createRaceRoomSeed(matchId, now);
 
-    const mySnapshot = buildHorseEntrantSnapshot(horse, stats, DEFAULT_RACE_TACTIC, recentResults);
-    const opponentSnapshot = buildHorseEntrantSnapshot(opponentHorse, opponentStats, DEFAULT_RACE_TACTIC, opponentRecentResults);
+    // R3 — Track Fit (bu turda EKLENDİ) — bkz. `RunPracticeRaceUseCase`
+    // ile AYNI "null dönerse trackFit: null geçilir, ÇÖKMEZ" gerekçesi.
+    const myTrackFit: TrackFitInput | null =
+      surfaceStats === null || distanceStats === null
+        ? null
+        : { surfaceStats, distanceStats, surface: PVP_MATCH_SURFACE, distanceMeters: PRACTICE_RACE_DISTANCE_METERS };
+    const opponentTrackFit: TrackFitInput | null =
+      opponentSurfaceStats === null || opponentDistanceStats === null
+        ? null
+        : {
+            surfaceStats: opponentSurfaceStats,
+            distanceStats: opponentDistanceStats,
+            surface: PVP_MATCH_SURFACE,
+            distanceMeters: PRACTICE_RACE_DISTANCE_METERS,
+          };
+
+    const mySnapshot = buildHorseEntrantSnapshot(horse, stats, DEFAULT_RACE_TACTIC, recentResults, myTrackFit);
+    const opponentSnapshot = buildHorseEntrantSnapshot(
+      opponentHorse,
+      opponentStats,
+      DEFAULT_RACE_TACTIC,
+      opponentRecentResults,
+      opponentTrackFit,
+    );
 
     // brief §41 "participant validation" — bkz. `domain/online/race-room.ts`
     // doc yorumu. İki farklı oyuncunun atları eşleştirildiğinden

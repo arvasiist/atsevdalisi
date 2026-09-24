@@ -13,13 +13,17 @@ import { PG_POOL, withTransaction } from '../database/database.module';
  * üstündeki AYNI not); bu oyunun değerleri bu sınırı pratikte aşmayacağı
  * için `Number(...)`'a çevrilir.
  *
- * NOT — KAPSAM: `horse_surface_stats`/`horse_distance_stats` tabloları
- * BURADA henüz okunmuyor/yazılmıyor. `horse_stats` (Antrenman, dördüncü
- * dilim) ve `horse_health` (Bakım, beşinci dilim) ise kapsama alındı —
- * `save()` artık ikisine de DB varsayılanlarıyla (migration 0003) birer
- * satır ekliyor (bkz. `PostgresHorseStatsRepository`/
- * `PostgresHorseHealthRepository` — okuma/güncelleme AYRI repository'lerde,
- * çünkü `HorseStats`/`HorseHealth` `Horse`'dan farklı domain kavramlarıdır).
+ * NOT — KAPSAM: `horse_stats` (Antrenman, dördüncü dilim), `horse_health`
+ * (Bakım, beşinci dilim) ve `horse_surface_stats`/`horse_distance_stats`
+ * (R3 — Track Fit, bu turda EKLENDİ) kapsama alındı — `save()` artık
+ * DÖRDÜNE de DB varsayılanlarıyla (migration 0003) birer satır ekliyor
+ * (bkz. `PostgresHorseStatsRepository`/`PostgresHorseHealthRepository`/
+ * `PostgresHorseSurfaceStatsRepository`/`PostgresHorseDistanceStatsRepository`
+ * — okuma AYRI repository'lerde, çünkü bunlar `Horse`'dan farklı domain
+ * kavramlarıdır). Migration 0026, bu değişiklikten ÖNCE oluşturulmuş
+ * (`save()` henüz bu iki tabloya yazmazken yaratılmış) atlar için de
+ * varsayılan satırları GERİYE DÖNÜK olarak backfill eder — bkz. o
+ * migration'ın doc yorumu.
  */
 interface HorseRow {
   id: string;
@@ -89,10 +93,14 @@ export class PostgresHorseRepository implements HorseRepository {
   }
 
   async save(horse: Horse): Promise<void> {
-    // Bir at, `horse_stats`/`horse_health` satırları olmadan var
-    // olamamalıdır (Antrenman `horse_stats`'ı, Bakım `horse_health`'i
-    // okur/günceller) — bu yüzden ÜÇ INSERT tek bir transaction'da yapılır
-    // (bkz. `database.module.ts` `withTransaction`). İkisi için de sütun
+    // Bir at, `horse_stats`/`horse_health`/`horse_surface_stats`/
+    // `horse_distance_stats` satırları olmadan var olamamalıdır (Antrenman
+    // `horse_stats`'ı, Bakım `horse_health`'i okur/günceller; Race Engine'in
+    // Track Fit hesaplaması (`domain/race/track-fit.ts`) diğer ikisini
+    // yalnızca OKUR — güncelleme/scout mekaniği bilinçli olarak kapsam
+    // dışı, bkz. `HorseSurfaceStatsRepository` doc yorumu) — bu yüzden BEŞ
+    // INSERT tek bir transaction'da yapılır
+    // (bkz. `database.module.ts` `withTransaction`). Dördü için de sütun
     // listesi VERİLMEZ: DEFAULT değerler (migration 0003) TEK doğruluk
     // kaynağıdır, burada TEKRAR yazılmaz.
     await withTransaction(this.pool, async (client) => {
@@ -125,6 +133,9 @@ export class PostgresHorseRepository implements HorseRepository {
       );
       await client.query('INSERT INTO horse_stats (horse_id) VALUES ($1)', [horse.id]);
       await client.query('INSERT INTO horse_health (horse_id) VALUES ($1)', [horse.id]);
+      // R3 — Track Fit (bu turda EKLENDİ) — bkz. bu metodun üstündeki doc yorumu.
+      await client.query('INSERT INTO horse_surface_stats (horse_id) VALUES ($1)', [horse.id]);
+      await client.query('INSERT INTO horse_distance_stats (horse_id) VALUES ($1)', [horse.id]);
     });
   }
 
