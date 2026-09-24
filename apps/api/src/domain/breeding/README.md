@@ -16,7 +16,11 @@ Yetiştiricilik ve Kalıtım Sistemi (brief §28-29, §34, §86 — bkz.
 - `breeding.ts` — orkestrasyon: `assertBreedingEligibility` (yaş/cooldown/
   sağlık/cinsiyet kontrolü, `NotEligibleForBreedingError`),
   `calculateStudFee`, `breedHorses` (tam akış: Mare+Stallion → kalıtım →
-  mutasyon → sağlık kontrolü → tay statları/potansiyeli/soy kaydı).
+  mutasyon → sağlık kontrolü → tay statları/potansiyeli/ağırlığı/soy
+  kaydı — tay ağırlığı R4 Carried Weight'in kalıtım tarafı, bkz.
+  `foalWeightKg`/`FOAL_WEIGHT_STD_DEV_KG`, `../horse/weight.ts`'teki
+  `generateBellCurveWeightKg`'yi kullanır, GENETICS.md §3'ün 0-100 ölçekli
+  formülünü DEĞİL).
 - `errors.ts` — `NotEligibleForBreedingError`.
 
 Config: `genetics.config.json` (inheritanceRange, mutationBounds,

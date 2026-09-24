@@ -21,6 +21,7 @@ function makeEntry(horseId: string, overrides: Partial<RaceEntrantSnapshot> = {}
     surfaceCompatibility: 70,
     distanceCompatibility: 70,
     jockeySkillComposite: 65,
+    weightCompatibility: 100,
     form: 50,
     tactic: {
       racingStyle: 'mid_pack',

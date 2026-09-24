@@ -46,6 +46,11 @@ export function generateBotEntrants(count: number, seedBase: string): RaceEntran
       surfaceCompatibility: NEUTRAL_UNMODELED_TRAIT_SCORE,
       distanceCompatibility: NEUTRAL_UNMODELED_TRAIT_SCORE,
       jockeySkillComposite: NEUTRAL_UNMODELED_TRAIT_SCORE,
+      // R4 — Carried Weight (bu turda EKLENDİ). Botların `horses` tablosunda
+      // bir satırı (dolayısıyla bir `weightKg`'si) olmadığından, `computeWeightCompatibility(null)`
+      // ile AYNI sonucu veren nötr sabit doğrudan kullanılır (surface/
+      // distanceCompatibility ile AYNI desen).
+      weightCompatibility: NEUTRAL_UNMODELED_TRAIT_SCORE,
       form: NEUTRAL_UNMODELED_TRAIT_SCORE,
       tactic: {
         racingStyle: RACING_STYLES[styleIndex] ?? 'mid_pack',

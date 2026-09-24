@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { Inject, Injectable } from '@nestjs/common';
 import type { Player } from '@at-sevdalisi/shared-types';
 import { assertUsernameAvailable, createNewPlayer } from '../../domain/player/player';
-import { createStarterHorse, pickStarterHorseName } from '../../domain/horse/horse';
+import { createStarterHorse, generateStarterHorseWeightKg, pickStarterHorseName } from '../../domain/horse/horse';
 import { AppConfigService } from '../../infrastructure/config/config.service';
 import { HORSE_REPOSITORY, type HorseRepository } from '../ports/horse.repository';
 import { PLAYER_REPOSITORY, type PlayerRepository } from '../ports/player.repository';
@@ -78,6 +78,11 @@ export class RegisterPlayerUseCase {
       id: randomUUID(),
       ownerId: player.id,
       name: pickStarterHorseName(Math.random()),
+      // R4 — Carried Weight (bu turda EKLENDİ): domain katmanı `Math.random()`
+      // ÇAĞIRAMAYACAĞI için (bkz. `pickStarterHorseName` üstündeki AYNI
+      // kural), üç bağımsız rastgelelik değeri burada üretilip
+      // `generateStarterHorseWeightKg`'e parametre olarak geçirilir.
+      weightKg: generateStarterHorseWeightKg([Math.random(), Math.random(), Math.random()]),
     });
     await this.horseRepository.save(starterHorse);
 

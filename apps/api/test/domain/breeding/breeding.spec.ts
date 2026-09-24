@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { breedHorses, calculateStudFee, type BreedHorsesInput, type BreedingCandidate } from '../../../src/domain/breeding/breeding';
+import {
+  breedHorses,
+  calculateStudFee,
+  FOAL_WEIGHT_STD_DEV_KG,
+  type BreedHorsesInput,
+  type BreedingCandidate,
+} from '../../../src/domain/breeding/breeding';
+import { HORSE_WEIGHT_MAX_KG, HORSE_WEIGHT_MIN_KG, HORSE_WEIGHT_POPULATION_MEAN_KG } from '../../../src/domain/horse/weight';
 import { NotEligibleForBreedingError } from '../../../src/domain/breeding/errors';
 import geneticsConfigJson from '../../../../../config/genetics.config.json';
 import horseGrowthConfigJson from '../../../../../config/horse-growth.config.json';
@@ -19,6 +26,7 @@ const mare: BreedingCandidate = {
   quality: 70,
   potential: 75,
   stats: { speed: 70, stamina: 65, acceleration: 60 },
+  weightKg: 470,
 };
 
 const stallion: BreedingCandidate = {
@@ -30,6 +38,7 @@ const stallion: BreedingCandidate = {
   quality: 80,
   potential: 85,
   stats: { speed: 85, stamina: 75, acceleration: 70 },
+  weightKg: 530,
 };
 
 const baseInput: BreedHorsesInput = {
@@ -120,6 +129,49 @@ describe('breedHorses', () => {
   it('cooldown süresi geçtiyse tekrar üremeye izin verir', () => {
     const oldFoaling = new Date(now.getTime() - 200 * 24 * 60 * 60 * 1000); // 200 gün önce, cooldown 180 gün
     expect(() => breedHorses({ ...baseInput, mareLastFoaledAt: oldFoaling }, geneticsConfig, growthConfig)).not.toThrow();
+  });
+
+  /** R4 — Carried Weight, tay ağırlığı kalıtımı (bu turda EKLENDİ). */
+  describe('foalWeightKg', () => {
+    it('[430, 580] aralığının dışına ASLA çıkmaz (clamp)', () => {
+      const result = breedHorses(baseInput, geneticsConfig, growthConfig);
+      expect(result.foalWeightKg).toBeGreaterThanOrEqual(HORSE_WEIGHT_MIN_KG);
+      expect(result.foalWeightKg).toBeLessThanOrEqual(HORSE_WEIGHT_MAX_KG);
+    });
+
+    it('ebeveyn ortalamasının (500kg) makul bir std sapma aralığında kalır', () => {
+      const result = breedHorses(baseInput, geneticsConfig, growthConfig);
+      // `mare.weightKg`/`stallion.weightKg` yukarıdaki fixture'da sabit 470/530
+      // (bilinen, non-null literal test değerleri) — `!` non-null assertion
+      // GEREKMEDEN doğrudan bu bilinen değerler kullanılır.
+      const parentAverage = (470 + 530) / 2; // 500
+      // Bates(3) dağılımı [meanKg - stdDevKg*3, meanKg + stdDevKg*3] pratik aralığının DIŞINA neredeyse hiç çıkmaz.
+      expect(result.foalWeightKg).toBeGreaterThanOrEqual(parentAverage - FOAL_WEIGHT_STD_DEV_KG * 3);
+      expect(result.foalWeightKg).toBeLessThanOrEqual(parentAverage + FOAL_WEIGHT_STD_DEV_KG * 3);
+    });
+
+    it('bir ebeveynin weightKg değeri null ise (eski/legacy veri) nüfus ortalamasını (495kg) yedek değer olarak kullanır (! non-null assertion kullanılmadan gerçek bir guard ile)', () => {
+      const mareWithNullWeight: BreedingCandidate = { ...mare, weightKg: null };
+      const result = breedHorses({ ...baseInput, mare: mareWithNullWeight }, geneticsConfig, growthConfig);
+      const expectedParentAverage = (HORSE_WEIGHT_POPULATION_MEAN_KG + 530) / 2;
+      expect(result.foalWeightKg).toBeGreaterThanOrEqual(expectedParentAverage - FOAL_WEIGHT_STD_DEV_KG * 3);
+      expect(result.foalWeightKg).toBeLessThanOrEqual(expectedParentAverage + FOAL_WEIGHT_STD_DEV_KG * 3);
+    });
+
+    it('aynı seed + aynı ebeveyn çifti her zaman aynı foalWeightKg üretir (determinism)', () => {
+      const resultA = breedHorses(baseInput, geneticsConfig, growthConfig);
+      const resultB = breedHorses({ ...baseInput }, geneticsConfig, growthConfig);
+      expect(resultA.foalWeightKg).toBe(resultB.foalWeightKg);
+    });
+
+    it('farklı seed farklı bir foalWeightKg üretebilir (sabit/mock bir değer DEĞİL)', () => {
+      const results = new Set(
+        ['seed-a', 'seed-b', 'seed-c', 'seed-d', 'seed-e'].map(
+          (seed) => breedHorses({ ...baseInput, seed }, geneticsConfig, growthConfig).foalWeightKg,
+        ),
+      );
+      expect(results.size).toBeGreaterThan(1);
+    });
   });
 });
 

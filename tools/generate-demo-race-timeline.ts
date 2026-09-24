@@ -57,6 +57,7 @@ function buildEntry(index: number): RaceEntrantSnapshot {
     surfaceCompatibility: 72,
     distanceCompatibility: 75,
     jockeySkillComposite: horse.jockeySkillComposite ?? 65,
+    weightCompatibility: horse.weightCompatibility ?? 90,
     form: 55,
     tactic: {
       racingStyle: RACING_STYLES[index]!,

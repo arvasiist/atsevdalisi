@@ -17,6 +17,7 @@ import {
   createFoalPedigree,
 } from './pedigree';
 import { NotEligibleForBreedingError } from './errors';
+import { generateBellCurveWeightKg, HORSE_WEIGHT_POPULATION_MEAN_KG } from '../horse/weight';
 
 export interface BreedingCandidate {
   id: string;
@@ -28,6 +29,17 @@ export interface BreedingCandidate {
   potential: number;
   /** Kalıtsal statlar (HorseStats alanlarından oyuncunun seçtiği/tüm alt küme). Anahtar isimleri serbesttir. */
   stats: Record<string, number>;
+  /**
+   * `Horse.weightKg` (brief §7) — tayın ağırlığının kalıtım hesabında
+   * kullanılan ham girdi (bkz. `breedHorses`'un `foalWeightKg` hesabı).
+   * `null` OLABİLİR: bu değişiklikten ÖNCE oluşturulmuş, henüz `database/
+   * migrations/0027_backfill_horse_weight_kg`'ın backfill'inden geçmemiş
+   * teorik bir ebeveyn (ya da migration sırası nedeniyle) için gerçek bir
+   * runtime guard'la ele alınır — `!` non-null assertion KULLANILMAZ,
+   * yerine nüfus ortalaması (`HORSE_WEIGHT_POPULATION_MEAN_KG`) yedek
+   * değer olarak kullanılır.
+   */
+  weightKg: number | null;
 }
 
 /**
@@ -86,10 +98,20 @@ export interface BreedHorsesResult {
   foalStats: Record<string, number>;
   foalQuality: number;
   foalPotential: number;
+  foalWeightKg: number;
   foalPedigree: Pedigree;
   birthHealthRisk: number;
   inbreedingDetected: boolean;
 }
+
+/**
+ * Tay ağırlığı için kullanılan std sapma (kg) — nüfus genelinin std
+ * sapmasından (`STARTER_HORSE_WEIGHT_STD_DEV_KG`, `domain/horse/horse.ts`,
+ * ~25kg) BİLİNÇLİ olarak daha DAR: soy (pedigree), ebeveyn ortalamasının
+ * etrafındaki doğal varyansı gerçek atçılıkta olduğu gibi DARALTIR (tay,
+ * rastgele bir nüfus örneği değil, BELİRLİ iki ebeveynin çocuğudur).
+ */
+export const FOAL_WEIGHT_STD_DEV_KG = 15;
 
 /**
  * Tam üreme akışını çalıştırır (docs/GENETICS.md §1). `mare`/`stallion`
@@ -99,6 +121,14 @@ export interface BreedHorsesResult {
  * babaya daha yakın çıkabilir, GENETICS.md §3). `quality` de aynı şekilde
  * genel bir kalıtsal stat gibi işlenir; `potential` ise ayrı, üst sınırlı
  * bir formülle (GENETICS.md §5).
+ *
+ * `weightKg` (Carried Weight'in "at vücut ağırlığı" alt-faktörü, bkz.
+ * `domain/race/carried-weight.ts`) GENETICS.md §3'ün genel kalıtım
+ * formülünü KULLANMAZ (o formül 0-100 ölçekli statlar için `geneticsConfig`
+ * ile ayarlanmıştır, kg cinsinden bir ölçek için uygun DEĞİLDİR) — bunun
+ * yerine basit "ebeveyn ortalaması + dar bir varyans" yaklaşımı kullanılır
+ * (bkz. `domain/horse/weight.ts` `generateBellCurveWeightKg`,
+ * `FOAL_WEIGHT_STD_DEV_KG`).
  */
 export function breedHorses(input: BreedHorsesInput, geneticsConfig: GeneticsConfig, growthConfig: HorseGrowthConfig): BreedHorsesResult {
   assertBreedingEligibility(input.mare, input.stallion, input.mareLastFoaledAt, input.now, geneticsConfig);
@@ -121,6 +151,15 @@ export function breedHorses(input: BreedHorsesInput, geneticsConfig: GeneticsCon
   const potentialMutation = calculateMutation(rng, geneticsConfig);
   const foalPotential = calculateChildPotential(input.mare.potential, input.stallion.potential, potentialMutation, geneticsConfig);
 
+  // `weightKg` `null` olabilir (eski/legacy veri, backfill'den ÖNCEki
+  // teorik bir ebeveyn) — bkz. `BreedingCandidate.weightKg` doc yorumu.
+  // `!` KULLANILMAZ, GERÇEK bir runtime guard (`??`) ile nüfus ortalaması
+  // yedek değer olarak kullanılır.
+  const mareWeightKg = input.mare.weightKg ?? HORSE_WEIGHT_POPULATION_MEAN_KG;
+  const stallionWeightKg = input.stallion.weightKg ?? HORSE_WEIGHT_POPULATION_MEAN_KG;
+  const parentAverageWeightKg = (mareWeightKg + stallionWeightKg) / 2;
+  const foalWeightKg = generateBellCurveWeightKg([rng(), rng(), rng()], parentAverageWeightKg, FOAL_WEIGHT_STD_DEV_KG);
+
   const inbreeding = checkInbreeding(input.mare.id, input.marePedigree, input.stallion.id, input.stallionPedigree, geneticsConfig);
   const parentAgeFactor = calculateParentAgeFactor(input.mare.ageMonths, input.stallion.ageMonths, growthConfig, geneticsConfig);
   const parentHealthFactor = calculateParentHealthFactor(input.mare.health, input.stallion.health, geneticsConfig);
@@ -135,6 +174,7 @@ export function breedHorses(input: BreedHorsesInput, geneticsConfig: GeneticsCon
     foalStats,
     foalQuality,
     foalPotential,
+    foalWeightKg,
     foalPedigree,
     birthHealthRisk,
     inbreedingDetected: inbreeding.detected,

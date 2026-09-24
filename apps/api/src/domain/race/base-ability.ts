@@ -25,6 +25,16 @@ import type { RaceEntrantSnapshot } from '@at-sevdalisi/shared-types';
  */
 const NEUTRAL_TACTIC_SCORE = 50;
 
+/**
+ * `carriedWeight` bileşeni: R4 — Carried Weight, SADECE at vücut ağırlığı
+ * alt-faktörü (bkz. `domain/race/carried-weight.ts`'in doc yorumu — jokey/
+ * handikap/ekipman ağırlığı BİLİNÇLİ olarak kapsam dışı). `weights.tactic`
+ * `0.10`'dan `0.05`'e düşürülüp açılan `0.05`'lik bütçe buna verildi
+ * (bkz. `race.config.json` `baseAbilityWeights`, toplam HALA 1.00) —
+ * `tactic`'in kendisi zaten HER zaman sabit `NEUTRAL_TACTIC_SCORE` (50)
+ * döndüğü için (yukarıdaki doc yorumu) bu değişiklik BaseAbility'nin
+ * GERÇEK varyansını artırdı, önceki davranışı bozmadı.
+ */
 export function computeBaseAbility(
   snapshot: RaceEntrantSnapshot,
   weights: RaceBalanceConfig['baseAbilityWeights'],
@@ -42,6 +52,7 @@ export function computeBaseAbility(
     snapshot.jockeySkillComposite * weights.jockey +
     trackCompatibility * weights.trackCompatibility +
     snapshot.morale * weights.morale +
-    snapshot.form * weights.form
+    snapshot.form * weights.form +
+    snapshot.weightCompatibility * weights.carriedWeight
   );
 }

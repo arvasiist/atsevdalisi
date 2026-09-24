@@ -10,6 +10,7 @@ import {
   type RecentRaceResultView,
 } from '@at-sevdalisi/shared-types';
 import { computeDistanceCompatibility, computeSurfaceCompatibility } from './track-fit';
+import { computeWeightCompatibility } from './carried-weight';
 import { FINAL_STRETCH_PLANS, RACING_STYLES, RISK_LEVELS, START_APPROACHES } from './validation';
 import { InvalidRaceTacticError } from './errors';
 
@@ -34,9 +35,21 @@ import { InvalidRaceTacticError } from './errors';
  * `computeDistanceCompatibility`). `jockeySkillComposite` HALA nötr:
  * Jockey sistemi (FAZ 2) henüz wiring edilmedi, pratik yarışta oyuncunun
  * kiralı bir jokeyi yok (`race_entries.jockey_id = NULL`, tıpkı gerçek DB
- * satırında olduğu gibi) — bu, Carried Weight/Temperament ile AYNI
- * kategoride, gerçek bir jokey-atama akışını gerektiren, ayrı ve daha
- * büyük bir dilimi hak ediyor.
+ * satırında olduğu gibi) — bu, Carried Weight'in jokey/handikap/ekipman
+ * ağırlığı alt-faktörleriyle AYNI kategoride, gerçek bir jokey-atama
+ * akışını (ve bir yarış-sınıfı/handikap sistemini) gerektiren, ayrı ve
+ * daha büyük bir dilimi hak ediyor.
+ *
+ * **R4 — Carried Weight, SADECE at vücut ağırlığı alt-faktörü (bu turda
+ * EKLENDİ):** `weightCompatibility` ARTIK bu listede DEĞİL (hiç
+ * OLMADI — bkz. aşağıdaki `buildHorseEntrantSnapshot`). `Horse.weightKg`
+ * (migration 0002) `createStarterHorse`/`breedHorses` tarafından ARTIK
+ * gerçek, çeşitlilik gösteren bir değerle üretiliyor (bkz. `domain/horse/
+ * weight.ts`, `domain/breeding/breeding.ts`) ve `database/migrations/
+ * 0027_backfill_horse_weight_kg` mevcut atları da backfill etti — bu
+ * yüzden `weightCompatibility` HİÇBİR ZAMAN "sahte" bir nötr değer
+ * DEĞİLDİR (jokey/handikap/ekipman ağırlığı alt-faktörleri hâlâ kapsam
+ * dışıdır, bkz. `domain/race/carried-weight.ts`'in doc yorumu).
  *
  * AUDIT_AND_HARDENING Öncelik 8'in (önceki oturum) "sessizce sonsuza kadar
  * nötr 50 varsayma" riskine (Mutlak Kural 4) karşı kurduğu ÜÇ KATMANLI
@@ -187,6 +200,11 @@ export function buildHorseEntrantSnapshot(
       trackFit === null ? NEUTRAL_UNMODELED_TRAIT_SCORE : computeDistanceCompatibility(trackFit.distanceStats, trackFit.distanceMeters),
     jockeySkillComposite: NEUTRAL_UNMODELED_TRAIT_SCORE,
     form: deriveFormFromRecentResults(recentResults),
+    // R4 — Carried Weight (bu turda EKLENDİ). YENİ bir repository/DB
+    // sorgusu GEREKMEZ: `horse.weightKg` `Horse` aggregate'inde ZATEN
+    // mevcuttur (bkz. `carried-weight.ts`'in doc yorumu — jokey/handikap/
+    // ekipman ağırlığı BİLİNÇLİ olarak kapsam dışı).
+    weightCompatibility: computeWeightCompatibility(horse.weightKg),
     tactic,
   };
 }

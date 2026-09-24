@@ -5,7 +5,9 @@ Race Engine — brief §6, §15-25; bkz. `docs/RACE_ENGINE.md` ve
 
 - `base-ability.ts` — `computeBaseAbility` (BaseAbility formülü, §2);
   `trackCompatibility` terimi artık gerçek veriden besleniyor (bkz.
-  `track-fit.ts`, R3 — Track Fit).
+  `track-fit.ts`, R3 — Track Fit); `carriedWeight` terimi de artık gerçek
+  veriden besleniyor (bkz. `carried-weight.ts`, R4 — Carried Weight,
+  aşağıdaki "Carried Weight" bölümü).
 - `distance-category.ts` — `getDistanceCategory`, `applyDistanceWeightAdjustments` (§8).
 - `environment.ts` — `getEnvironmentModifier` (zemin/hava, §7).
 - `pace.ts` — `derivePaceEffect` (önde git/geriden gel, §5).
@@ -13,6 +15,10 @@ Race Engine — brief §6, §15-25; bkz. `docs/RACE_ENGINE.md` ve
   `computeSurfaceCompatibility`/`computeDistanceCompatibility`, `horse_
   surface_stats`/`horse_distance_stats`'ı (migration 0003/0026) bir
   yarışın zemin/mesafesine göre TEK bir uyum puanına indirger.
+- `carried-weight.ts` — R4 — Carried Weight, SADECE at vücut ağırlığı
+  alt-faktörü (bu turda EKLENDİ): `computeWeightCompatibility`, `horses.
+  weight_kg`'yi (migration 0002/0027) 0-100 arası bir uyumluluk puanına
+  indirger. Detay için aşağıdaki "Carried Weight" bölümüne bakınız.
 - `race-engine.ts` — `simulateRace`: segment bazlı simülasyon (§4),
   controlled randomness (§3, seed'e bağlı), overtaking/bloklanma (§6).
   Server-authoritative ve deterministiktir: aynı `simulationSeed` + aynı
@@ -134,3 +140,88 @@ AUDIT_AND_HARDENING bölümüne bakınız):
   bu sandbox'ın Postgres'i hiç çalıştıramamasından kaynaklanan somut bir
   push-öncesi doğrulama sınırı örneği. `gate_position` gerçek bir SQL
   parametresine çevrilerek düzeltildi (commit `6e3cac3`).**
+
+## Carried Weight (at vücut ağırlığı) — sadece body-weight alt-faktörü (bu turda EKLENDİ)
+
+Master Plan §26 (hardening-realism-master-plan.md), Carried Weight'i DÖRT
+alt-faktöre ayırır: "horse body weight, jockey weight, assigned weight,
+equipment weight [...] acceleration/stamina consumption/final speed
+üzerinden küçük ve kontrollü etki yapsın". Bu turda yalnızca BİRİNCİSİ
+(at vücut ağırlığı) uçtan uca, gerçek ve çalışan bir özelliğe dönüştürüldü:
+
+**Yapıldı:**
+- `horses.weight_kg` (migration 0002, nullable NUMERIC(6,2)) bu turdan
+  ÖNCE hiçbir gerçek kod yolu tarafından doldurulmuyordu (`createStarterHorse`
+  hep sabit `null` yazıyordu, breeding hiç dokunmuyordu).
+- `domain/horse/weight.ts` — `generateBellCurveWeightKg`: bağımsız üç
+  tekdüze ([0,1)) örnekten (Irwin-Hall/Bates n=3 yaklaşımı) gerçekçi,
+  çeşitlilik gösteren bir ağırlık (kg) üretir. Nüfus ortalaması 495kg,
+  gerçekçi sınırlar [430, 580]kg.
+- `domain/horse/horse.ts` — `createStarterHorse` artık `generateStarterHorseWeightKg`
+  ile üretilmiş GERÇEK bir `weightKg` alır (std sapma ~25kg, nüfus
+  genelinin doğal varyansı); `NewStarterHorseInput.weightKg` OPSİYONEL
+  DEĞİLDİR (domain katmanı `Math.random()` çağıramadığı için çağıran
+  taraf — `RegisterPlayerUseCase`/`LoginWithProviderUseCase` — bu değeri
+  açıkça üretip geçirir).
+- `domain/breeding/breeding.ts` — `breedHorses` artık `foalWeightKg`
+  döner: iki ebeveynin ağırlığının ortalaması + DAHA DAR bir varyans
+  (`FOAL_WEIGHT_STD_DEV_KG`, ~15kg — soy, doğal varyansı daraltır).
+  Ebeveynlerden birinin `weightKg`'si `null` ise (eski/legacy veri) nüfus
+  ortalaması (495kg) `!` non-null assertion KULLANILMADAN, gerçek bir
+  `??` guard'ıyla yedek değer olarak kullanılır.
+- `database/migrations/0027_backfill_horse_weight_kg` — bu değişiklikten
+  ÖNCE oluşturulmuş (`weight_kg IS NULL`) TÜM atları AYNI dağılım
+  yaklaşımının SQL'e çevrilmiş hâliyle (`random()` üç kez) geriye dönük
+  doldurur (migration 0026'nın `horse_surface_stats`/`horse_distance_stats`
+  backfill'iyle AYNI desen — down migration'ı da AYNI "geri alınamaz,
+  veri silinmez" konvansiyonunu izler).
+- `carried-weight.ts` — `computeWeightCompatibility(weightKg)`: ideal
+  aralık [470, 520]kg (merkez 495) içinde yüksek puan (95-100), dışına
+  çıkıldıkça SİMETRİK üstel sönümlemeyle düşen ama ASLA `FLOOR_SCORE`'a
+  (20) ULAŞMAYAN (yalnızca yaklaşan) bir puan — `track-fit.ts`'in "sert
+  bir eşiğe/0'a asla düşme" ilkesiyle AYNI. `weightKg === null` ise nötr
+  50 döner (`surfaceCompatibility`/`distanceCompatibility` ile AYNI
+  "bilinmiyorsa nötr" ilkesi).
+- `entrant-snapshot.ts` — `RaceEntrantSnapshot.weightCompatibility`,
+  `buildHorseEntrantSnapshot`'a YENİ bir parametre/DB sorgusu GEREKMEDEN
+  eklendi (`horse.weightKg` zaten `Horse` aggregate'inde mevcuttu).
+  `UNMODELED_SNAPSHOT_FIELDS`'ta HİÇ YER ALMADI (`jockeySkillComposite`'in
+  aksine, bu alan HİÇBİR ZAMAN "sahte" bir nötr değer değildi).
+- `race.config.json`'ın `baseAbilityWeights`'ine `carriedWeight: 0.05`
+  eklendi; `tactic` ağırlığı `0.10`'dan `0.05`'e düşürüldü (bkz. aşağıdaki
+  gerekçe) — toplam HÂLÂ tam `1.00`.
+- `base-ability.ts` — `computeBaseAbility`'ye `snapshot.weightCompatibility
+  * weights.carriedWeight` terimi eklendi.
+
+**`tactic` ağırlığının düşürülme gerekçesi:** `base-ability.ts`'teki
+`tactic` bileşeni (`NEUTRAL_TACTIC_SCORE`) HER at için HER ZAMAN sabit
+`50` döner — kodda hiçbir varyans yoktur (dinamik taktik etkisi zaten
+Pace/Overtaking sistemleri üzerinden AYRICA modellenir, bkz. `base-ability.ts`'in
+kendi doc yorumu). Bu doğrulandıktan SONRA `tactic`'in `0.10`'luk
+bütçesinin yarısı (`0.05`) `carriedWeight`'e aktarıldı — bu, BaseAbility'nin
+GERÇEK varyansını artırdı (sabit bir terimin ağırlığını azaltıp gerçek bir
+sinyalin ağırlığını artırdı), önceki davranışı BOZMADI.
+
+**BİLİNÇLİ olarak kapsam dışı (Master Plan §26'nın diğer ÜÇ alt-faktörü):**
+- **jockey weight (jokey ağırlığı):** projede gerçek bir jokey-ATAMA akışı
+  yok (pratik yarışta `race_entries.jockey_id` her zaman `NULL` —
+  `jockeySkillComposite` HÂLÂ nötr, bkz. yukarıdaki "AUDIT_AND_HARDENING"
+  bölümü). Bu, ayrı ve daha büyük bir dilimi hak eder.
+- **assigned/handikap weight (atanmış ağırlık):** projede bir yarış
+  SINIFI/handikap reytingi sistemi YOK — bu ağırlığın dayanacağı bir
+  mekanizma hiç var olmadığından, modellemesi YENİ BİR ÖZELLİK icat etmek
+  olurdu (kapsam dışı, proje sahibinin kararı gerektirir).
+- **equipment weight (ekipman ağırlığı):** projede ekipman/gear envanteri
+  kavramı YOK.
+
+Bu üçünü tek bir sayıda "tahmin ederek" birleştirmek YENİ bir denge kararı
+(ve sahte veri) olurdu — bu yüzden `computeWeightCompatibility` yalnızca
+gerçek, veritabanında var olan `weight_kg` girdisini kullanır (bkz.
+`carried-weight.ts`'in kendi doc yorumu, daha ayrıntılı gerekçe için).
+
+Testler: `apps/api/test/domain/race/carried-weight.spec.ts`,
+`apps/api/test/domain/race/entrant-snapshot.spec.ts` (wiring),
+`apps/api/test/domain/race/race-engine-field-balance.spec.ts` (uç
+ağırlıkların galibiyeti dejenere etmediğini doğrulayan R4 senaryosu),
+`apps/api/test/domain/horse/horse.spec.ts` (`generateStarterHorseWeightKg`),
+`apps/api/test/domain/breeding/breeding.spec.ts` (`foalWeightKg`).

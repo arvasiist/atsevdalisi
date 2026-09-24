@@ -17,6 +17,7 @@
 
 import type { Horse, HorseGender } from '@at-sevdalisi/shared-types';
 import { validateHorseName } from './validation';
+import { generateBellCurveWeightKg, HORSE_WEIGHT_POPULATION_MEAN_KG } from './weight';
 
 /**
  * Yeni oyuncuya verilen başlangıç atının yaşı (ay). `config/
@@ -69,11 +70,42 @@ export function pickStarterHorseName(randomValue: number): string {
   return STARTER_HORSE_NAMES[index]!;
 }
 
+/**
+ * Nüfus genelinde (kalıtım tarafından henüz daraltılmamış) kullanılan std
+ * sapma (kg) — `domain/breeding/breeding.ts`'in tay ağırlığı için kullandığı
+ * DAHA DAR std sapmadan (~15kg) BİLİNÇLİ olarak daha geniştir: bir
+ * başlangıç atı belirli bir soydan gelmez (ebeveyni yok), bu yüzden tüm
+ * popülasyonun doğal varyansını yansıtmalıdır.
+ */
+export const STARTER_HORSE_WEIGHT_STD_DEV_KG = 25;
+
+/**
+ * `weight_kg` (brief §7 Horse, `domain/race/carried-weight.ts`'in
+ * `computeWeightCompatibility`'sinin tükettiği ham veri) için gerçek,
+ * çeşitlilik gösteren bir başlangıç değeri üretir. `pickStarterHorseName`
+ * ile AYNI desen: domain katmanı `Math.random()` ÇAĞIRMAZ — Application
+ * katmanı (`RegisterPlayerUseCase`/`LoginWithProviderUseCase`) üç bağımsız
+ * `Math.random()` değeri üretip buraya parametre olarak geçirir.
+ */
+export function generateStarterHorseWeightKg(uniformSamples: readonly [number, number, number]): number {
+  return generateBellCurveWeightKg(uniformSamples, HORSE_WEIGHT_POPULATION_MEAN_KG, STARTER_HORSE_WEIGHT_STD_DEV_KG);
+}
+
 export interface NewStarterHorseInput {
   id: string;
   ownerId: string;
   name: string;
   now?: Date;
+  /**
+   * Gerçek, çeşitlilik gösteren bir vücut ağırlığı (kg) — bkz.
+   * `generateStarterHorseWeightKg`. Domain katmanı kendisi `Math.random()`
+   * ÇAĞIRAMAYACAĞI için OPSİYONEL DEĞİLDİR: çağıran taraf bu değeri
+   * `generateStarterHorseWeightKg([Math.random(), Math.random(), Math.random()])`
+   * ile üretip AÇIKÇA geçirmelidir (eskiden olduğu gibi sessizce `null`
+   * bırakan bir varsayılan YOKTUR — bu, "her yeni at gerçek bir ağırlıkla
+   * doğar" değişmezini derleme zamanında zorunlu kılar).
+   */
+  weightKg: number;
 }
 
 /**
@@ -106,7 +138,7 @@ export function createStarterHorse(input: NewStarterHorseInput): Horse {
     fatigue: 0,
     energy: 100,
     morale: 80,
-    weightKg: null,
+    weightKg: input.weightKg,
     status: 'active',
     sireId: null,
     damId: null,

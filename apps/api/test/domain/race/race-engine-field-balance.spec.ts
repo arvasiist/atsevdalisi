@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { simulateRace, type RaceSimulationInput } from '../../../src/domain/race/race-engine';
+import { computeWeightCompatibility } from '../../../src/domain/race/carried-weight';
 import raceConfigJson from '../../../../../config/race.config.json';
 import weatherConfigJson from '../../../../../config/weather.config.json';
 import type { RaceBalanceConfig, WeatherConfig } from '@at-sevdalisi/game-config';
@@ -96,6 +97,7 @@ function makeEntry(horseId: string, racingStyle: RacingStyle): RaceEntrantSnapsh
     surfaceCompatibility: 70,
     distanceCompatibility: 70,
     jockeySkillComposite: 65,
+    weightCompatibility: 100,
     form: 50,
     tactic: {
       racingStyle,
@@ -206,5 +208,139 @@ describe('simulateRace — T3: gerçekçi alan ölçeğinde taktik/kulvar baskı
 
     const uniqueHorseIds = new Set(timeline.finalResult.map((result) => result.horseId));
     expect(uniqueHorseIds.size).toBe(FIELD_SIZE);
+  });
+});
+
+/**
+ * R4 — Carried Weight, sadece at vücut ağırlığı alt-faktörü (bu turda
+ * EKLENDİ). Yukarıdaki T3 testiyle AYNI metodoloji ("alandaki HER at
+ * istatistiksel olarak ÖZDEŞ, TEK değişken hedeflenen bileşen") — burada
+ * TEK değişken `racingStyle` DEĞİL, `weightCompatibility`'dir (tümü AYNI
+ * `mid_pack` taktiğini kullanır, böylece taktik/kulvar mekaniği bu ölçümü
+ * KİRLETMEZ). `race.config.json`'ın `baseAbilityWeights.carriedWeight`'i
+ * (0.05) BİLİNÇLİ olarak KÜÇÜK olduğundan (brief'in "küçük ve kontrollü
+ * etki" isteği, hardening-realism-master-plan.md §26), beklenen sonuç
+ * `weightCompatibility`'nin GERÇEK bir etkisi olsa bile (T3'teki
+ * `racingStyle` gibi TAMAMEN nötr bir %25 payı GEREKMEZ) hiçbir grubun
+ * yapısal olarak ölü (~%0) ya da tamamen baskın (~%100) OLMAMASIDIR —
+ * tıpkı T3'ün "hiçbiri yapısal olarak ölü bir taktik olmamalı" ilkesi
+ * gibi.
+ *
+ * **GERÇEK BULGU (bu test İLK yazıldığında, push ÖNCESİ `tsx` ile GERÇEK
+ * motora karşı ölçüldü — T3b'nin "motor mekanikleri doğrusal/simetrik
+ * tepki vermeyebilir" dersiyle AYNI metodoloji):** `carried-weight.ts`'in
+ * İLK taslağındaki `FLOOR_SCORE: 20`/`FALLOFF_DECAY_KG: 40` ile 430/580kg
+ * uç ağırlıklarının `weightCompatibility`'si sırasıyla ~47.6/~36.7
+ * çıkıyordu — bu, `weights.carriedWeight` (0.05) İLE ÇARPILDIĞINDA TEK
+ * BAŞINA küçük bir fark gibi görünse de, `baseAbility`'ye HER segmentte
+ * (8 segment, `race.config.json`'ın `segmentLengthMeters`'ı) SABİT olarak
+ * tekrar eklendiğinden VE rastgele gürültü (§3) segment sayısı arttıkça
+ * ortalamada baskılandığından, 250 denemede uç ağırlıklı atların galibiyet
+ * payını yalnızca ~%3-4'e (yani PRATİKTE yapısal olarak ölü) düşürdüğü
+ * ÖLÇÜLDÜ — brief'in "küçük ve kontrollü etki" isteğine AÇIKÇA AYKIRIYDI.
+ * Kök neden `carried-weight.ts`'teki `FLOOR_SCORE`/`FALLOFF_DECAY_KG`'nin
+ * TEORİK bir varsayımla (`örn. 20`) seçilmiş olmasıydı — GERÇEK motora
+ * karşı hiç ÖLÇÜLMEMİŞTİ. Taban `90`'a, sönümleme `120`'ye YÜKSELTİLEREK
+ * (bkz. `carried-weight.ts`'in `FLOOR_SCORE` doc yorumu) yeniden ölçüldü:
+ * aynı 250 denemede uç ağırlıklı atların galibiyet payı ~%35-40'a
+ * (bağımsız partilerde gözlemlenen aralık) oturdu — GERÇEKTEN "küçük ve
+ * kontrollü". `WEIGHT_SHARE_BOUNDS` aşağıda bu YENİ ölçülmüş temel
+ * çizgiye GÜVENLİ bir marj bırakılarak ayarlandı (T3b'nin `STYLE_BOUNDS`'ı
+ * gevşetmesiyle AYNI yöntem).
+ */
+describe('simulateRace — R4: Carried Weight uç ağırlıklar galibiyeti dejenere etmiyor', () => {
+  function makeWeightVariantEntry(horseId: string, weightCompatibility: number): RaceEntrantSnapshot {
+    return {
+      horseId,
+      speed: 70,
+      stamina: 70,
+      acceleration: 70,
+      fitness: 80,
+      fatigue: 15,
+      health: 90,
+      morale: 75,
+      surfaceCompatibility: 70,
+      distanceCompatibility: 70,
+      jockeySkillComposite: 65,
+      weightCompatibility,
+      form: 50,
+      tactic: {
+        racingStyle: 'mid_pack',
+        riskLevel: 'normal',
+        startApproach: 'balanced',
+        finalStretchPlan: 'normal',
+      },
+    };
+  }
+
+  // `computeWeightCompatibility`'nin (carried-weight.ts) KENDİSİ çağrılır
+  // (hardcoded/eski bir değer YOK) — böylece `FLOOR_SCORE`/`FALLOFF_DECAY_KG`
+  // ileride yeniden kalibre edilirse bu test SESSİZCE eski değerlerle
+  // kalmaz, otomatik olarak GÜNCEL formülü ölçer.
+  const IDEAL_WEIGHT_COMPATIBILITY = computeWeightCompatibility(495); // 100 — ideal merkez
+  const LIGHT_EXTREME_WEIGHT_COMPATIBILITY = computeWeightCompatibility(430); // gerçekçi min
+  const HEAVY_EXTREME_WEIGHT_COMPATIBILITY = computeWeightCompatibility(580); // gerçekçi max
+
+  const WEIGHT_TRIALS = 250; // T3 ile AYNI ("200+ deneme").
+
+  function buildWeightVariantField(): { entries: RaceEntrantSnapshot[]; extremeHorseIds: Set<string> } {
+    const entries: RaceEntrantSnapshot[] = [];
+    const extremeHorseIds = new Set<string>();
+
+    for (let idx = 0; idx < FIELD_SIZE; idx += 1) {
+      const horseId = `weight-horse-${idx}`;
+      if (idx % 2 === 0) {
+        entries.push(makeWeightVariantEntry(horseId, IDEAL_WEIGHT_COMPATIBILITY));
+      } else {
+        // Hafif/ağır uç değerleri sırayla dağıt — tek bir uç yönün
+        // (ör. hep hafif) yanlılık yaratmadığından emin olmak için.
+        const weightCompatibility =
+          idx % 4 === 1 ? LIGHT_EXTREME_WEIGHT_COMPATIBILITY : HEAVY_EXTREME_WEIGHT_COMPATIBILITY;
+        entries.push(makeWeightVariantEntry(horseId, weightCompatibility));
+        extremeHorseIds.add(horseId);
+      }
+    }
+
+    return { entries, extremeHorseIds };
+  }
+
+  it('12 atlık, istatistiksel olarak özdeş (yalnızca weightCompatibility farklı) bir alanda 250 denemede uç ağırlıklı atların galibiyet payı dejenere (~%0 ya da ~%100) değildir', () => {
+    const { entries, extremeHorseIds } = buildWeightVariantField();
+
+    let extremeWins = 0;
+    let idealWins = 0;
+
+    for (let i = 0; i < WEIGHT_TRIALS; i += 1) {
+      const timeline = simulateRace({ ...baseInput, simulationSeed: `r4-weight-field-balance-${i}`, entries });
+      const winnerId = timeline.finalResult[0]!.horseId;
+      if (extremeHorseIds.has(winnerId)) {
+        extremeWins += 1;
+      } else {
+        idealWins += 1;
+      }
+    }
+
+    expect(extremeWins + idealWins).toBe(WEIGHT_TRIALS);
+
+    const extremeShare = extremeWins / WEIGHT_TRIALS;
+    // Alandaki atların yarısı "uç ağırlıklı" olduğundan tarafsız bir motorda
+    // beklenen pay %50'dir. `carriedWeight` ağırlığı (0.05) KÜÇÜK olduğundan
+    // GERÇEK bir sapma beklenir (bkz. dosya başındaki "GERÇEK BULGU" doc
+    // yorumu — kalibre edilmiş `carried-weight.ts` ile ÖLÇÜLEN temel çizgi
+    // ~%35-40) ama HİÇBİR grup yapısal olarak ölü (~%0) ya da tamamen
+    // baskın (~%100) OLMAMALIDIR. `WEIGHT_SHARE_BOUNDS` bu ÖLÇÜLEN temel
+    // çizgiye (bağımsız partilerde ~%35-40 arası gözlemlendi) güvenli bir
+    // marj bırakılarak ayarlandı — T3b'nin `STYLE_BOUNDS`'ı gevşetmesiyle
+    // AYNI yöntem; `carried-weight.ts`'in `FLOOR_SCORE`/`FALLOFF_DECAY_KG`'si
+    // yeniden kalibre edilirse bu eşikler de YENİ ölçüme göre güncellenmelidir.
+    const WEIGHT_SHARE_BOUNDS = { min: 0.15, max: 0.7 };
+    expect(
+      extremeShare,
+      `uç ağırlıklı atların galibiyet payı ${(extremeShare * 100).toFixed(1)}% — yapısal olarak ölü eşiği %${WEIGHT_SHARE_BOUNDS.min * 100}`,
+    ).toBeGreaterThan(WEIGHT_SHARE_BOUNDS.min);
+    expect(
+      extremeShare,
+      `uç ağırlıklı atların galibiyet payı ${(extremeShare * 100).toFixed(1)}% — baskınlık eşiği %${WEIGHT_SHARE_BOUNDS.max * 100}`,
+    ).toBeLessThan(WEIGHT_SHARE_BOUNDS.max);
   });
 });

@@ -25,6 +25,7 @@ function participant(playerId: string, horseId: string): RaceRoomParticipant {
       surfaceCompatibility: 80,
       distanceCompatibility: 75,
       jockeySkillComposite: 70,
+      weightCompatibility: 90,
       form: 50,
       tactic: { racingStyle: 'mid_pack', riskLevel: 'normal', startApproach: 'balanced', finalStretchPlan: 'normal' },
     } as RaceEntrantSnapshot,

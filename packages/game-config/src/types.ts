@@ -26,6 +26,13 @@ export interface RaceBalanceConfig {
     trackCompatibility: number;
     morale: number;
     form: number;
+    /**
+     * R4 — Carried Weight, SADECE at vücut ağırlığı alt-faktörü (bkz.
+     * `apps/api/src/domain/race/carried-weight.ts`'in doc yorumu; brief
+     * hardening-realism-master-plan.md §26). `tactic`'in `0.10`'dan
+     * `0.05`'e düşürülmesiyle açılan bütçeden karşılanır (toplam HALA 1.00).
+     */
+    carriedWeight: number;
   };
   randomFactorRange: [number, number];
   segmentLengthMeters: number;

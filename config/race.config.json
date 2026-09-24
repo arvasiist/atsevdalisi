@@ -1,15 +1,16 @@
 {
-  "version": "1.0.0",
+  "version": "1.1.0",
   "baseAbilityWeights": {
     "speed": 0.25,
     "stamina": 0.20,
     "acceleration": 0.15,
     "fitness": 0.10,
-    "tactic": 0.10,
+    "tactic": 0.05,
     "jockey": 0.08,
     "trackCompatibility": 0.05,
     "morale": 0.04,
-    "form": 0.03
+    "form": 0.03,
+    "carriedWeight": 0.05
   },
   "randomFactorRange": [-6, 6],
   "segmentLengthMeters": 200,

@@ -124,6 +124,20 @@ export interface RaceEntrantSnapshot {
   distanceCompatibility: number;
   jockeySkillComposite: number;
   /**
+   * R4 — Carried Weight (at vücut ağırlığı alt-faktörü, hardening-realism-
+   * master-plan.md §26; bkz. `apps/api/src/domain/race/carried-weight.ts`
+   * `computeWeightCompatibility`'nin doc yorumu — jokey/handikap/ekipman
+   * ağırlığı BİLİNÇLİ olarak kapsam dışıdır). `surfaceCompatibility`/
+   * `distanceCompatibility`'nin AKSİNE `UNMODELED_SNAPSHOT_FIELDS`'ta
+   * DEĞİLDİR: `Horse.weightKg` at oluşturulduğu ANDAN itibaren (ya da
+   * migration 0027 backfill'inden sonra) HER zaman gerçek bir sayıdır,
+   * `null` yalnızca teorik/geçiş durumlarında olur (o durumda dahi nötr 50
+   * döner, bkz. `computeWeightCompatibility`) — bu yüzden ayrı bir
+   * "opsiyonel, verilmezse nötr kal" parametresine (trackFit'in aksine)
+   * gerek yoktur.
+   */
+  weightCompatibility: number;
+  /**
    * Son yarışlardaki performansa dayalı "form" değeri (0-100, brief §17
    * `w_form`). AUDIT_REPORT.md Bulgu R3 (bu oturum) — artık gerçekten
    * `race_entries` geçmişinden türetiliyor (bkz. `apps/api/src/domain/

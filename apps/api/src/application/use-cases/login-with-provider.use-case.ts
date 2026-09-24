@@ -4,7 +4,7 @@ import type { Player } from '@at-sevdalisi/shared-types';
 import type { AuthProvider } from '../../domain/player/auth-provider';
 import { createPlayerAuthProviderLink } from '../../domain/player/auth-provider';
 import { createNewPlayer } from '../../domain/player/player';
-import { createStarterHorse, pickStarterHorseName } from '../../domain/horse/horse';
+import { createStarterHorse, generateStarterHorseWeightKg, pickStarterHorseName } from '../../domain/horse/horse';
 import { AppConfigService } from '../../infrastructure/config/config.service';
 import { HORSE_REPOSITORY, type HorseRepository } from '../ports/horse.repository';
 import { PLAYER_REPOSITORY, type PlayerRepository } from '../ports/player.repository';
@@ -102,6 +102,9 @@ export class LoginWithProviderUseCase {
       id: randomUUID(),
       ownerId: player.id,
       name: pickStarterHorseName(Math.random()),
+      // R4 — Carried Weight (bu turda EKLENDİ) — `RegisterPlayerUseCase`'in
+      // aynı diliminde eklenenle AYNI gerekçe (bkz. o dosyanın yorumu).
+      weightKg: generateStarterHorseWeightKg([Math.random(), Math.random(), Math.random()]),
     });
     await this.horseRepository.save(starterHorse);
 

@@ -163,6 +163,24 @@ describe('buildHorseEntrantSnapshot', () => {
     expect(snapshot.tactic).toEqual(validTactic);
   });
 
+  /**
+   * R4 — Carried Weight, SADECE at vücut ağırlığı alt-faktörü (bu turda
+   * EKLENDİ). `trackFit`'in AKSİNE opsiyonel bir parametre GEREKMEZ:
+   * `horse.weightKg` `Horse` aggregate'inde ZATEN mevcuttur (bkz.
+   * `carried-weight.ts`'in kendi spec'i `carried-weight.spec.ts`'te ayrı
+   * test edilir — burada yalnızca `buildHorseEntrantSnapshot`'ın bu
+   * değeri doğru İLETTİĞİ doğrulanır).
+   */
+  it("weightCompatibility, horse.weightKg'den computeWeightCompatibility ile türetilir", () => {
+    const snapshot = buildHorseEntrantSnapshot(makeHorse({ weightKg: 495 }), makeStats(), validTactic);
+    expect(snapshot.weightCompatibility).toBe(100);
+  });
+
+  it('horse.weightKg null ise (eski/legacy veri) weightCompatibility nötr (50) kalır', () => {
+    const snapshot = buildHorseEntrantSnapshot(makeHorse({ weightKg: null }), makeStats(), validTactic);
+    expect(snapshot.weightCompatibility).toBe(50);
+  });
+
   it('trackFit verilmeden çağrılırsa surfaceCompatibility/distanceCompatibility nötr kalır (GERİYE DÖNÜK UYUMLU)', () => {
     const snapshot = buildHorseEntrantSnapshot(makeHorse(), makeStats(), validTactic);
 

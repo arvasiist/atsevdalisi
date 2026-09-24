@@ -1,0 +1,13 @@
+-- Migration 0026'nın (`horse_surface_stats`/`horse_distance_stats`
+-- backfill) izlediği AYNI "geri alınamaz, no-op" konvansiyonu: backfill
+-- edilen `weight_kg` değerleri BİLEREK NULL'a geri DÖNDÜRÜLMEZ.
+--
+-- Bu migration'ı geri almak, hangi satırların bu backfill tarafından mı
+-- (rastgele üretilmiş) yoksa breeding/starter-horse akışı tarafından mı
+-- (aynı şekilde gerçek/rastgele) yazıldığı KAYIT ALTINDA OLMADIĞI için,
+-- YALNIZCA veri kaybı yaratırdı, hiçbir pratik fayda sağlamadan: nötr
+-- `NULL` da, gerçekçi bir ağırlık değeri de `computeWeightCompatibility`
+-- (bkz. apps/api/src/domain/race/carried-weight.ts) tarafından güvenle
+-- işlenir (`null` → nötr 50) — davranışsal bir regresyon riski yoktur,
+-- yalnızca oyuncuya gösterilecek ANLAMLI bir veri kaybedilirdi.
+COMMENT ON COLUMN horses.weight_kg IS 'At vucut agirligi (kg), migration 0002 NUMERIC(6,2), nullable. Migration 0027 ONCESI hicbir gercek kod yolu bu sutunu doldurmuyordu (createStarterHorse hep NULL yaziyordu).';
