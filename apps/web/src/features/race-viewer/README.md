@@ -54,7 +54,29 @@ sahnesi + temel UI.
 - **Demo sayfa** (`apps/web/src/app/races/demo/page.tsx`) — Ana Sayfa'daki
   "Web 3D Sunum" satırından erişilebilir.
 
-### Kapsam dışı (bilinçli olarak bırakılan)
+### FAZ 4 (kalite kademeleri) — ilk dilim (bu turda EKLENDİ)
+
+Master Plan §46 "3D PERFORMANCE": "Mobile: Low/Medium/High. Desktop:
+Medium/High/Ultra." Bu dilim, `quality-tier.ts`'in saf sınıflandırma/
+ayar mantığını (`classifyQualityTier`/`getQualityTierRenderSettings`,
+`apps/web/tsconfig.logic.json`'a dahil, bu sandbox'ta GERÇEKTEN `tsc`+
+`tsx` ile doğrulandı) ve `RaceScene3D.tsx`'teki (`detectQualityTier`)
+tarayıcıya-özgü algılamayı ekledi — Faz 1'de sabit kodlanmış Environment/
+Bloom/SSAO/2048px gölgeler artık cihaza göre kademelenir: 'low' hepsini
+kapatır, 'medium' yalnızca Environment+gölgeleri açar, 'high' Bloom'u da
+ekler, 'ultra' (yüksek çekirdekli masaüstü — bu değişiklikten ÖNCEKİ
+sabit davranışla BİREBİR aynı) hepsini açar. `RaceScene3DProps`'a
+opsiyonel `qualityTierOverride` eklendi (varsayılan: otomatik algılama).
+
+**Bu dilimde YAPILMAYAN** (§46'nın geri kalanı, bilinçli olarak):
+LOD ve texture compression (gerçek 3D model/doku YOK — Faz 3'ün asset
+kararını bekliyor), animation pooling (henüz bir animasyon sistemi YOK),
+gerçek 4/8/12/16 at FPS benchmark'ı (bu sandbox'ta gerçek tarayıcı/GPU
+YOK, ölçülemez — manuel QA proje sahibine bırakıldı), crowd/VFX (asset
+gerektirir, aşağıdaki "Kapsam dışı" listesiyle AYNI gerekçe). Detaylı
+gerekçe için bkz. `quality-tier.ts` dosya başı doc yorumu.
+
+## Kapsam dışı (bilinçli olarak bırakılan)
 
 - **Gerçek 3D at/jokey modelleri** (GLTF/GLB dosyaları) ve **gerçek
   animasyonlar** (koşu, dörtnala kalkış, viraj alma vb.) — bunlar sanat

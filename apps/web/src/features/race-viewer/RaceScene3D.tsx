@@ -30,6 +30,25 @@
  * kısıtlı) YEREL OLARAK derlenip doğrulanamamıştır. Yapısal olarak doğru
  * yazılmıştır; gerçek doğrulama GitHub Actions CI'da (`npm install` +
  * `npm run typecheck`/`build`, tam registry erişimiyle) gerçekleşir.
+ *
+ * FAZ 4 (kalite kademeleri), İLK DİLİM (bu turda EKLENDİ) — Master Plan
+ * §46: yukarıdaki Bloom/SSAO/Environment/2048px gölgeler HER cihazda AYNI
+ * ağırlıkta çalışıyordu; düşük donanımlı/mobil bir cihazda bu muhtemelen
+ * oynanamaz derecede yavaş olurdu (ölçülemedi, bkz. `quality-tier.ts`
+ * "4/8/12/16 at benchmark" kapsam dışı notu). Artık `detectQualityTier`
+ * (bu dosyada, AŞAĞIDA — `navigator.userAgent`/`hardwareConcurrency` okur,
+ * bu yüzden KASITLI OLARAK saf `quality-tier.ts`'in DIŞINDA, bkz. o
+ * dosyanın "saf mantığı ayır" doc yorumu) bir kademe belirler,
+ * `getQualityTierRenderSettings` o kademenin hangi özellikleri açacağını
+ * döner. Yüksek çekirdekli bir masaüstünde (varsayılan/en yaygın
+ * geliştirme/QA cihazı) sonuç 'ultra' kademesidir ve `QUALITY_TIER_RENDER_SETTINGS.ultra`
+ * BİLİNÇLİ OLARAK bu değişiklikten ÖNCEKİ sabit değerlerle BİREBİR
+ * aynıdır — yani bu dilim mevcut masaüstü görsel deneyimini DEĞİŞTİRMEZ,
+ * yalnızca düşük donanımlı cihazlar için bir kaçış yolu EKLER.
+ * `qualityTierOverride` prop'u opsiyoneldir (varsayılan: otomatik
+ * algılama) — ileride bir ayarlar UI'ı eklendiğinde kullanıcının
+ * kademeyi elle seçebilmesi için genişletme noktasıdır, bugün hiçbir
+ * çağıran taraf (`RaceViewer.tsx`) bunu VERMEZ.
  */
 
 import { useEffect, useMemo, useRef } from 'react';
@@ -39,6 +58,12 @@ import { Bloom, EffectComposer, SSAO } from '@react-three/postprocessing';
 import * as THREE from 'three';
 import { getHorseTrackPosition, type StadiumTrackGeometry } from './track-path';
 import type { CameraPose } from './camera-presets';
+import {
+  classifyQualityTier,
+  getQualityTierRenderSettings,
+  type QualityTier,
+  type QualityTierRenderSettings,
+} from './quality-tier';
 
 export interface HorseVisual {
   horseId: string;
@@ -53,6 +78,41 @@ export interface RaceScene3DProps {
   horses: HorseVisual[];
   cameraPose: CameraPose;
   trackGeometry: StadiumTrackGeometry;
+  /** Bkz. dosya başı doc yorumu "FAZ 4 (kalite kademeleri)". Verilmezse `detectQualityTier()` ile otomatik algılanır. */
+  qualityTierOverride?: QualityTier;
+}
+
+/**
+ * `navigator.userAgent`'ta yaygın mobil işletim sistemi/tarayıcı
+ * imzalarını arar (Android telefon/tablet, iOS'un TÜM cihazları —
+ * `iPhone`/`iPad`/`iPod`, ve daha az yaygın `Windows Phone`). Tablet/
+ * masaüstü ayrımı GEREKMİYOR — Master Plan §46 yalnızca "Mobile" ile
+ * "Desktop" ikilisini ayırıyor, `classifyQualityTier`'ın kendisi zaten
+ * çekirdek sayısına göre bir mobil cihazı 'low'dan 'high'a kadar
+ * kademeleyebiliyor (bkz. o dosyanın doc yorumu).
+ */
+const MOBILE_USER_AGENT_PATTERN = /Android|iPhone|iPad|iPod|Windows Phone/i;
+
+/**
+ * `quality-tier.ts`'in saf `classifyQualityTier`'ını GERÇEK tarayıcı
+ * sinyalleriyle besleyen ince, KASITLI OLARAK saf OLMAYAN sarmalayıcı —
+ * bu dosyanın zaten `docs/ARCHITECTURE.md` §9 gereği yalnızca CI'da
+ * doğrulanabildiğinden, `navigator` okuması buraya, `quality-tier.ts`'i
+ * (ve onun bu sandbox'taki GERÇEK `tsc`/`tsx` doğrulamasını) DOM'a
+ * bağımlı KILMADAN eklendi.
+ */
+function detectQualityTier(): QualityTier {
+  if (typeof navigator === 'undefined') {
+    // SSR sırasında teorik olarak çağrılabilir (pratikte çağrılmaz, bkz.
+    // `RaceViewer.tsx`'teki `next/dynamic({ssr:false})`) — güvenli bir
+    // orta-üst varsayım, tarayıcıda GERÇEK değer HER ZAMAN client-side
+    // mount sonrası hesaplanır.
+    return 'high';
+  }
+  const isMobileUserAgent = MOBILE_USER_AGENT_PATTERN.test(navigator.userAgent);
+  const hardwareConcurrencyCores =
+    typeof navigator.hardwareConcurrency === 'number' ? navigator.hardwareConcurrency : 0;
+  return classifyQualityTier({ isMobileUserAgent, hardwareConcurrencyCores });
 }
 
 const TRACK_TILE_COUNT = 96;
@@ -62,18 +122,44 @@ const TRACK_TURN_COUNT_FOR_VISUAL = 2;
 const CAMERA_LERP_FACTOR = 0.06;
 const GROUND_SIZE_METERS = 1200;
 
-export function RaceScene3D({ horses, cameraPose, trackGeometry }: RaceScene3DProps): React.ReactElement {
+export function RaceScene3D({
+  horses,
+  cameraPose,
+  trackGeometry,
+  qualityTierOverride,
+}: RaceScene3DProps): React.ReactElement {
+  // `detectQualityTier()` `navigator`'ı okur — mount başına BİR KEZ
+  // hesaplanır (bkz. boş bağımlılık dizisi), oturum ortasında cihaz
+  // değişmez varsayımıyla; `qualityTierOverride` verilmişse (bugün hiçbir
+  // çağıran taraf vermiyor, bkz. `RaceScene3DProps` doc yorumu) algılama
+  // hiç ÇALIŞTIRILMAZ.
+  const settings: QualityTierRenderSettings = useMemo(
+    () => getQualityTierRenderSettings(qualityTierOverride ?? detectQualityTier()),
+    [qualityTierOverride],
+  );
+  const hasPostProcessing = settings.bloomEnabled || settings.ssaoEnabled;
+
   return (
-    <Canvas shadows camera={{ fov: 50, near: 0.5, far: 2000 }}>
+    <Canvas shadows={settings.shadowsEnabled} dpr={[1, settings.pixelRatioCap]} camera={{ fov: 50, near: 0.5, far: 2000 }}>
       <color attach="background" args={['#0b1220']} />
-      {/* Gün batımı/hipodrom atmosferi için IBL — eski düz ambientLight'ın yerini alır */}
-      <Environment preset="sunset" background={false} />
+      {settings.environmentEnabled ? (
+        // Gün batımı/hipodrom atmosferi için IBL — eski düz ambientLight'ın yerini alır
+        <Environment preset="sunset" background={false} />
+      ) : (
+        // FAZ 4: `environmentEnabled=false` olan kademelerde ('low') IBL
+        // hiç hesaplanmaz — sahne aydınlatmasız KALMASIN diye Faz 1
+        // ÖNCESİNDEKİ (bkz. yukarıdaki eski yorum) düz ambient ışığa
+        // geri dönülür; bu, `envMapIntensity` içeren materyalleri
+        // BOZMAZ (ortam haritası yoksa bu alan sessizce etkisizdir),
+        // yalnızca yansıma/IBL katkısı olmaz.
+        <ambientLight intensity={0.7} color="#c9d6e8" />
+      )}
       <directionalLight
         position={[80, 120, 40]}
         intensity={1.4}
         color="#fff1d6"
-        castShadow
-        shadow-mapSize={[2048, 2048]}
+        castShadow={settings.shadowsEnabled}
+        shadow-mapSize={[settings.shadowMapSize, settings.shadowMapSize]}
         shadow-camera-left={-200}
         shadow-camera-right={200}
         shadow-camera-top={200}
@@ -85,28 +171,43 @@ export function RaceScene3D({ horses, cameraPose, trackGeometry }: RaceScene3DPr
         <HorseMarker key={horse.horseId} horse={horse} />
       ))}
       <CameraRig pose={cameraPose} />
-      <EffectComposer>
-        {/*
-         * NOT: `@react-three/postprocessing`'in kurulu sürümündeki SSAO
-         * bileşeninin TypeScript tipinde `worldDistanceThreshold` /
-         * `worldDistanceFalloff` / `worldProximityThreshold` /
-         * `worldProximityFalloff` alanları ZORUNLU görünüyor (üst akış
-         * kütüphanesinin dokümantasyonu bunları opsiyonel gösterse de) —
-         * bu, ilk CI çalıştırmasında `tsc` hatasıyla yakalandı. Değerler,
-         * benzer ölçekli (onlarca metre) bir sahne için bilinen çalışan bir
-         * örnekten alındı (pmndrs/postprocessing #441).
-         */}
-        <SSAO
-          radius={4}
-          intensity={1.5}
-          luminanceInfluence={0.6}
-          worldDistanceThreshold={20}
-          worldDistanceFalloff={5}
-          worldProximityThreshold={0.4}
-          worldProximityFalloff={0.1}
-        />
-        <Bloom luminanceThreshold={0.5} luminanceSmoothing={0.9} intensity={0.4} mipmapBlur />
-      </EffectComposer>
+      {hasPostProcessing ? (
+        <EffectComposer>
+          {/*
+           * NOT: `@react-three/postprocessing`'in kurulu sürümündeki SSAO
+           * bileşeninin TypeScript tipinde `worldDistanceThreshold` /
+           * `worldDistanceFalloff` / `worldProximityThreshold` /
+           * `worldProximityFalloff` alanları ZORUNLU görünüyor (üst akış
+           * kütüphanesinin dokümantasyonu bunları opsiyonel gösterse de) —
+           * bu, ilk CI çalıştırmasında `tsc` hatasıyla yakalandı. Değerler,
+           * benzer ölçekli (onlarca metre) bir sahne için bilinen çalışan bir
+           * örnekten alındı (pmndrs/postprocessing #441).
+           *
+           * FAZ 4: `<EffectComposer>`'ın KENDİSİ, hiçbir efekt açık
+           * değilken ('low'/'medium' kademeleri) hiç MOUNT EDİLMEZ (bkz.
+           * `hasPostProcessing`) — boş bir post-processing geçişinin bile
+           * bir maliyeti vardır (ekstra render-to-texture geçişi),
+           * `EffectComposer`'ı içi boş bırakmak yerine tamamen atlamak
+           * bunu da ORTADAN KALDIRIR. `<SSAO>`/`<Bloom>` de kendi
+           * içlerinde AYRI AYRI koşulludur (birbirinden bağımsız iki
+           * kademe eşiği, bkz. `quality-tier.ts` tablosu).
+           */}
+          {settings.ssaoEnabled ? (
+            <SSAO
+              radius={4}
+              intensity={1.5}
+              luminanceInfluence={0.6}
+              worldDistanceThreshold={20}
+              worldDistanceFalloff={5}
+              worldProximityThreshold={0.4}
+              worldProximityFalloff={0.1}
+            />
+          ) : null}
+          {settings.bloomEnabled ? (
+            <Bloom luminanceThreshold={0.5} luminanceSmoothing={0.9} intensity={0.4} mipmapBlur />
+          ) : null}
+        </EffectComposer>
+      ) : null}
     </Canvas>
   );
 }
