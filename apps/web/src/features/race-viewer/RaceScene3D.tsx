@@ -137,7 +137,37 @@ export function RaceScene3D({
     () => getQualityTierRenderSettings(qualityTierOverride ?? detectQualityTier()),
     [qualityTierOverride],
   );
-  const hasPostProcessing = settings.bloomEnabled || settings.ssaoEnabled;
+  // FAZ 4: `@react-three/postprocessing`'in `<EffectComposer>` bileşeni
+  // `children`'ı `Effect` elemanlarından oluşan bir DİZİ/tekil eleman
+  // olarak bekliyor — `{koşul ? <SSAO/> : null}` deseni (bu dosyanın
+  // başka yerlerinde, ör. `HorseMarker`'daki lider konisi, sorunsuz
+  // çalışan genel bir React deseni) BURADA `tsc`'nin GERÇEK bir tip
+  // hatası vermesine yol açtı (CI'da yakalandı: "Type 'Element | null'
+  // is not assignable to type 'Element'.") — `EffectComposer`'ın kendi
+  // tipi, SSAO/Bloom kütüphanesinin dokümantasyonunun aksine, `null`
+  // içeren bir children'ı KABUL ETMİYOR. Çözüm: `null` HİÇ üretmeyen,
+  // yalnızca gerçek `Effect` elemanlarından oluşan bir dizi önceden
+  // (JSX DIŞINDA) inşa edilir — `@react-three/postprocessing`'in kendi
+  // dokümantasyonunun önerdiği "dinamik efekt dizisi" deseni budur.
+  const effects: React.ReactElement[] = [];
+  if (settings.ssaoEnabled) {
+    effects.push(
+      <SSAO
+        key="ssao"
+        radius={4}
+        intensity={1.5}
+        luminanceInfluence={0.6}
+        worldDistanceThreshold={20}
+        worldDistanceFalloff={5}
+        worldProximityThreshold={0.4}
+        worldProximityFalloff={0.1}
+      />,
+    );
+  }
+  if (settings.bloomEnabled) {
+    effects.push(<Bloom key="bloom" luminanceThreshold={0.5} luminanceSmoothing={0.9} intensity={0.4} mipmapBlur />);
+  }
+  const hasPostProcessing = effects.length > 0;
 
   return (
     <Canvas shadows={settings.shadowsEnabled} dpr={[1, settings.pixelRatioCap]} camera={{ fov: 50, near: 0.5, far: 2000 }}>
@@ -171,43 +201,25 @@ export function RaceScene3D({
         <HorseMarker key={horse.horseId} horse={horse} />
       ))}
       <CameraRig pose={cameraPose} />
-      {hasPostProcessing ? (
-        <EffectComposer>
-          {/*
-           * NOT: `@react-three/postprocessing`'in kurulu sürümündeki SSAO
-           * bileşeninin TypeScript tipinde `worldDistanceThreshold` /
-           * `worldDistanceFalloff` / `worldProximityThreshold` /
-           * `worldProximityFalloff` alanları ZORUNLU görünüyor (üst akış
-           * kütüphanesinin dokümantasyonu bunları opsiyonel gösterse de) —
-           * bu, ilk CI çalıştırmasında `tsc` hatasıyla yakalandı. Değerler,
-           * benzer ölçekli (onlarca metre) bir sahne için bilinen çalışan bir
-           * örnekten alındı (pmndrs/postprocessing #441).
-           *
-           * FAZ 4: `<EffectComposer>`'ın KENDİSİ, hiçbir efekt açık
-           * değilken ('low'/'medium' kademeleri) hiç MOUNT EDİLMEZ (bkz.
-           * `hasPostProcessing`) — boş bir post-processing geçişinin bile
-           * bir maliyeti vardır (ekstra render-to-texture geçişi),
-           * `EffectComposer`'ı içi boş bırakmak yerine tamamen atlamak
-           * bunu da ORTADAN KALDIRIR. `<SSAO>`/`<Bloom>` de kendi
-           * içlerinde AYRI AYRI koşulludur (birbirinden bağımsız iki
-           * kademe eşiği, bkz. `quality-tier.ts` tablosu).
-           */}
-          {settings.ssaoEnabled ? (
-            <SSAO
-              radius={4}
-              intensity={1.5}
-              luminanceInfluence={0.6}
-              worldDistanceThreshold={20}
-              worldDistanceFalloff={5}
-              worldProximityThreshold={0.4}
-              worldProximityFalloff={0.1}
-            />
-          ) : null}
-          {settings.bloomEnabled ? (
-            <Bloom luminanceThreshold={0.5} luminanceSmoothing={0.9} intensity={0.4} mipmapBlur />
-          ) : null}
-        </EffectComposer>
-      ) : null}
+      {/*
+       * NOT: `@react-three/postprocessing`'in kurulu sürümündeki SSAO
+       * bileşeninin TypeScript tipinde `worldDistanceThreshold` /
+       * `worldDistanceFalloff` / `worldProximityThreshold` /
+       * `worldProximityFalloff` alanları ZORUNLU görünüyor (üst akış
+       * kütüphanesinin dokümantasyonu bunları opsiyonel gösterse de) —
+       * bu, ilk CI çalıştırmasında `tsc` hatasıyla yakalandı. Değerler,
+       * benzer ölçekli (onlarca metre) bir sahne için bilinen çalışan bir
+       * örnekten alındı (pmndrs/postprocessing #441).
+       *
+       * FAZ 4: `<EffectComposer>`'ın KENDİSİ, hiçbir efekt açık değilken
+       * ('low'/'medium' kademeleri) hiç MOUNT EDİLMEZ (bkz.
+       * `hasPostProcessing`) — boş bir post-processing geçişinin bile bir
+       * maliyeti vardır (ekstra render-to-texture geçişi). İçindeki
+       * `effects` dizisi (yukarıda, JSX DIŞINDA inşa edildi) HER ZAMAN
+       * yalnızca gerçek `Effect` elemanları içerir, asla `null` DEĞİL —
+       * bkz. `effects` değişkeninin doc yorumu.
+       */}
+      {hasPostProcessing ? <EffectComposer>{effects}</EffectComposer> : null}
     </Canvas>
   );
 }
