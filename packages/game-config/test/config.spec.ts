@@ -265,4 +265,11 @@ describe('loadAudioConfig', () => {
     expect(config.volumeChannels.environment).toBeGreaterThanOrEqual(0);
     expect(config.volumeChannels.environment).toBeLessThanOrEqual(1);
   });
+
+  /** İkinci öz-denetim turu (bu turda EKLENDİ) — `isCloseFinish()`e bağlı foto finiş sesi. */
+  it('photoFinishVolume [0, 1] aralığında olmalı', () => {
+    const config = loadAudioConfig();
+    expect(config.photoFinishVolume).toBeGreaterThanOrEqual(0);
+    expect(config.photoFinishVolume).toBeLessThanOrEqual(1);
+  });
 });

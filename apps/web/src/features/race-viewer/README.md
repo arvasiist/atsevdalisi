@@ -617,6 +617,45 @@ GEREKTİRMEDİĞİ HALDE, mevcut `ASSET_GUIDE.md` girdilerine YANSITILMAMIŞTI
 ile çalıştırılan `audio-manager.spec.ts`: 48/48 (4 yeni
 `playCommentaryForMoment` testi EKLENDİ, TÜMÜ geçti).
 
+**Üçüncü geçiş (aynı gün, proje sahibinin "başka notta eksik kalan ne
+var?" sorusu ÜZERİNE):** Kalan iki eksik, SPEKÜLATİF olmayan (kodda
+ZATEN VAR OLAN telemetriye dayanan) bulgular olduğundan bu turda
+KAPATILDI:
+
+- **`isOnTrackTurn()`** — `track-path.ts`e EKLENDİ, `getPointOnStadiumTrack`in
+  İÇSEL "hangi segmentteyim" mantığının dışa açılmış `boolean` özeti
+  (YENİ bir hesaplama İCAT EDİLMEDİ, AYNI geometri kullanılır). Brief
+  §18 "HOOF_TURN"a karşılık gelir — `RaceAudioManager.setHoofbeatTurning(onTurn)`
+  bu sinyale göre nal sesini viraj/düz kısım asset'leri ARASINDA
+  ÇAPRAZLAR (`switchToExcitedCrowd` ile AYNI crossfade deseni),
+  `HOOF_TURN_SFX_REQUIRED` YOKSA mevcut yüzey nal sesi KESİNTİYE
+  UĞRAMADAN çalmaya devam eder.
+- **`'photo_finish'` olay tipi** — `photo-finish.ts`teki ZATEN VAR OLAN
+  `isCloseFinish()` fonksiyonu `true` döndüğünde ÇAĞIRAN tarafından
+  tetiklenir (bu dosya `isCloseFinish`'i İÇE AKTARMAZ — framework/domain
+  bağımsızlığı korunur), `PHOTO_FINISH_SFX_REQUIRED`i `finish`ten AYRI,
+  bir seferlik çalar.
+
+Ayrıca `docs/ASSET_GUIDE.md`'ye YENİ bir "Bilinçli olarak HENÜZ ele
+alınmayan sesler/konular" bölümü EKLENDİ — brief'in `HORSE_GALLOP`/
+`HORSE_FAST_GALLOP`, tempo bazlı `HOOF_FAST`/`HOOF_SPRINT` ayrı
+örnekleri, `START_GATE` ambient/mekanik sesi, §26/§27/§28/§29 gibi
+GERÇEKTEN Tier 2/3 olan (ürün kararı VEYA Race Engine'in henüz
+yaymadığı bir sinyal VEYA gerçek para/test gerektiren) noktaları
+SESSİZCE ATLAMAK yerine AÇIKÇA belgeler — bu, "tamamlandı" ile
+"bilinçli olarak ertelendi"yi birbirinden AYIRT ETMEK içindir.
+
+**Doğrulama (üçüncü geçiş):** gerçek `tsc --noEmit` (0 hata, hem
+`apps/web/tsconfig.logic.json` hem `packages/game-config/tsconfig.json`)
++ gerçek `tsx` ile çalıştırılan: `audio-manager.spec.ts` 56/56 (8 yeni
+test: 2 `photo_finish`, 6 `setHoofbeatTurning`), `track-path.spec.ts`
+20/20 (8 yeni `isOnTrackTurn` testi), `config.spec.ts` 30/30 (1 yeni
+`photoFinishVolume` testi). Bu doğrulama SIRASINDA yazılan bir testin
+YANLIŞ girdisi (`createStadiumTrackGeometry(0, 1000)`in `lapLengthMeters`i
+GERÇEKTEN 0 ÜRETMEDİĞİ — `turnRadiusMeters=1000` TEK BAŞINA ~6283m'lik
+bir viraj çevresi üretir) yine gerçek çalıştırmayla YAKALANDI ve
+`createStadiumTrackGeometry(0, 0)` OLARAK düzeltildi.
+
 ## ÖNEMLİ — bu oturumdaki doğrulama kısıtı
 
 `docs/ARCHITECTURE.md` §9'da belgelenen kısıt burada da geçerlidir: bu

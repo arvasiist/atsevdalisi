@@ -190,6 +190,117 @@ describe('RaceAudioManager — gate_open / overtake / winner', () => {
   });
 });
 
+/**
+ * İkinci öz-denetim turu (bu turda EKLENDİ) — `photo-finish.ts`teki
+ * ZATEN VAR OLAN `isCloseFinish()` fonksiyonunun sonucuna bağlı,
+ * `finish`ten AYRI bir seferlik ses.
+ */
+describe('RaceAudioManager — photo_finish', () => {
+  it('bir seferlik (döngüsüz) foto finiş sesi çalar, RACE_FINISH_FANFARE_REQUIRED ÇALINMAZ', () => {
+    const { backend, calls } = createRecordingBackend();
+    const manager = new RaceAudioManager(config, backend);
+    manager.handleEvent({ type: 'photo_finish' });
+
+    const photoFinishPath = getAssetById('PHOTO_FINISH_SFX_REQUIRED')!.expectedPath;
+    const fanfarePath = getAssetById('RACE_FINISH_FANFARE_REQUIRED')!.expectedPath;
+    expect(calls.some((c) => c.method === 'play' && c.path === photoFinishPath && !c.options?.loop)).toBe(true);
+    expect(calls.some((c) => c.method === 'play' && c.path === fanfarePath)).toBe(false);
+  });
+
+  it('finish İLE BİRLİKTE çağrıldığında (kafa kafaya bitiş senaryosu) İKİSİ DE çalar', () => {
+    const { backend, calls } = createRecordingBackend();
+    const manager = new RaceAudioManager(config, backend);
+    manager.handleEvent({ type: 'finish' });
+    manager.handleEvent({ type: 'photo_finish' });
+
+    const photoFinishPath = getAssetById('PHOTO_FINISH_SFX_REQUIRED')!.expectedPath;
+    const fanfarePath = getAssetById('RACE_FINISH_FANFARE_REQUIRED')!.expectedPath;
+    expect(calls.some((c) => c.method === 'play' && c.path === photoFinishPath)).toBe(true);
+    expect(calls.some((c) => c.method === 'play' && c.path === fanfarePath)).toBe(true);
+  });
+});
+
+/**
+ * İkinci öz-denetim turu (bu turda EKLENDİ) — "REALISTIC 3D ASSET &
+ * AUDIO PRODUCTION BRIEF" §18 "HOOF_TURN": `track-path.ts`teki ZATEN
+ * VAR OLAN `isOnTrackTurn()` sinyaline dayanan viraj nal sesi.
+ */
+describe('RaceAudioManager.setHoofbeatTurning', () => {
+  it('nal sesi çalmıyorsa hiçbir şey yapmaz', () => {
+    const { backend, calls } = createRecordingBackend();
+    const manager = new RaceAudioManager(config, backend);
+    manager.setHoofbeatTurning(true);
+    expect(calls.length).toBe(0);
+  });
+
+  it('true çağrıldığında HOOF_TURN_SFX_REQUIRED\'ı başlatır, düz kısım (surface) nal sesini durdurur', () => {
+    const { backend, calls } = createRecordingBackend();
+    const manager = new RaceAudioManager(config, backend);
+    manager.handleEvent({ type: 'race_start', surface: 'grass' });
+    calls.length = 0;
+
+    manager.setHoofbeatTurning(true);
+
+    const turnPath = getAssetById('HOOF_TURN_SFX_REQUIRED')!.expectedPath;
+    const grassPath = getAssetById('HOOF_GRASS_SFX_REQUIRED')!.expectedPath;
+    expect(calls.some((c) => c.method === 'play' && c.path === turnPath && c.options?.loop === true)).toBe(true);
+    expect(calls.some((c) => c.method === 'stop' && c.path === grassPath)).toBe(true);
+  });
+
+  it('false çağrıldığında (viraj biter) DOĞRU yüzey asset\'ine geri döner', () => {
+    const { backend, calls } = createRecordingBackend();
+    const manager = new RaceAudioManager(config, backend);
+    manager.handleEvent({ type: 'race_start', surface: 'dirt' });
+    manager.setHoofbeatTurning(true);
+    calls.length = 0;
+
+    manager.setHoofbeatTurning(false);
+
+    const turnPath = getAssetById('HOOF_TURN_SFX_REQUIRED')!.expectedPath;
+    const dirtPath = getAssetById('HOOF_DIRT_SFX_REQUIRED')!.expectedPath;
+    expect(calls.some((c) => c.method === 'play' && c.path === dirtPath && c.options?.loop === true)).toBe(true);
+    expect(calls.some((c) => c.method === 'stop' && c.path === turnPath)).toBe(true);
+  });
+
+  it('AYNI durumla tekrar çağrıldığında (guard) hiçbir play/stop tekrarlanmaz', () => {
+    const { backend, calls } = createRecordingBackend();
+    const manager = new RaceAudioManager(config, backend);
+    manager.handleEvent({ type: 'race_start', surface: 'grass' });
+    manager.setHoofbeatTurning(true);
+    calls.length = 0;
+
+    manager.setHoofbeatTurning(true);
+    expect(calls.length).toBe(0);
+  });
+
+  it('finish çağrıldığında (nal sesi tamamen durur) viraj durumu da SIFIRLANIR — bir sonraki race_start temiz başlar', () => {
+    const { backend, calls } = createRecordingBackend();
+    const manager = new RaceAudioManager(config, backend);
+    manager.handleEvent({ type: 'race_start', surface: 'grass' });
+    manager.setHoofbeatTurning(true);
+    manager.handleEvent({ type: 'finish' });
+    calls.length = 0;
+
+    manager.handleEvent({ type: 'race_start', surface: 'dirt' });
+    const dirtPath = getAssetById('HOOF_DIRT_SFX_REQUIRED')!.expectedPath;
+    expect(calls.some((c) => c.method === 'play' && c.path === dirtPath && c.options?.loop === true)).toBe(true);
+  });
+
+  it('viraj sırasında updateHoofbeatIntensity DOĞRU (viraj) asset\'in hacmini günceller', () => {
+    const { backend, calls } = createRecordingBackend();
+    const manager = new RaceAudioManager(config, backend);
+    manager.handleEvent({ type: 'race_start', surface: 'grass' });
+    manager.setHoofbeatTurning(true);
+    calls.length = 0;
+
+    manager.updateHoofbeatIntensity(20, 20);
+    const turnPath = getAssetById('HOOF_TURN_SFX_REQUIRED')!.expectedPath;
+    const lastVolumeCall = calls.filter((c) => c.method === 'setVolume' && c.path === turnPath).pop();
+    expect(lastVolumeCall).toBeDefined();
+    expect(lastVolumeCall!.volume!).toBeCloseTo(config.hoofbeat.baseVolume + config.hoofbeat.maxExtraVolume, 6);
+  });
+});
+
 describe('RaceAudioManager.updateHorseBreathingIntensity', () => {
   it('at nefesi çalmıyorsa hiçbir şey yapmaz', () => {
     const { backend, calls } = createRecordingBackend();

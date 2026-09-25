@@ -124,6 +124,40 @@ export function getHorseTrackPosition(
   return getPointOnStadiumTrack(distanceMeters, geometry);
 }
 
+/**
+ * "REALISTIC 3D ASSET & AUDIO PRODUCTION BRIEF" §18 "HOOF_TURN" (bu
+ * turda EKLENDİ) — `getPointOnStadiumTrack`'in İÇİNDE ZATEN hesaplanan
+ * "hangi segmentteyim" mantığının (düz kenar / viraj) `boolean` bir
+ * ÖZETİ. Bu, at sesi katmanının viraj sırasında farklı bir nal sesi
+ * çalması için GEREKEN GERÇEK, spekülatif OLMAYAN bir sinyaldir —
+ * `getPointOnStadiumTrack`'İ ÇAĞIRAN taraf zaten `distanceMeters`e
+ * sahip olduğundan, aynı geometriyle AYNI segment sınırlarını (düz
+ * kenar uzunluğu + viraj yay uzunluğu) kullanır, YENİ bir hesaplama
+ * İCAT ETMEZ. `turnCount <= 0` (düz sprint pisti) için HER ZAMAN
+ * `false` döner — viraj YOKTUR.
+ */
+export function isOnTrackTurn(distanceMeters: number, turnCount: number, geometry: StadiumTrackGeometry): boolean {
+  if (turnCount <= 0 || geometry.lapLengthMeters <= 0) {
+    return false;
+  }
+  const { straightLengthMeters: straight, turnRadiusMeters: radius, lapLengthMeters } = geometry;
+  const distance = wrapDistance(distanceMeters, lapLengthMeters);
+  const turnArcLength = Math.PI * radius;
+
+  if (distance < straight) {
+    return false; // Alt düz kenar.
+  }
+  const afterBottomStraight = distance - straight;
+  if (afterBottomStraight < turnArcLength) {
+    return true; // Sağ viraj.
+  }
+  const afterRightTurn = afterBottomStraight - turnArcLength;
+  if (afterRightTurn < straight) {
+    return false; // Üst düz kenar.
+  }
+  return true; // Sol viraj (tur kapanışı).
+}
+
 function pointOnTurn(centerX: number, centerZ: number, radius: number, angleRadians: number): TrackPathPoint {
   const x = centerX + radius * Math.cos(angleRadians);
   const z = centerZ + radius * Math.sin(angleRadians);

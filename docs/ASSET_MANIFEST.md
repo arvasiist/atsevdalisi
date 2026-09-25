@@ -49,6 +49,8 @@ buraya da satır EKLENMELİDİR, aksi halde iki belge birbirinden SAPAR.
 | `HOOF_GRASS_SFX_REQUIRED` | Çim yüzey nal sesi (loop) | Ses efekti | — | — | mp3 | — | — | — | — | — | Beklemede |
 | `HOOF_DIRT_SFX_REQUIRED` | Toprak yüzey nal sesi (loop) | Ses efekti | — | — | mp3 | — | — | — | — | — | Beklemede |
 | `HOOF_SYNTHETIC_SFX_REQUIRED` | Sentetik yüzey nal sesi (loop) | Ses efekti | — | — | mp3 | — | — | — | — | — | Beklemede |
+| `HOOF_TURN_SFX_REQUIRED` | Viraj nal sesi (loop) | Ses efekti | — | — | mp3 | — | — | — | — | — | Beklemede |
+| `PHOTO_FINISH_SFX_REQUIRED` | Foto finiş (kafa kafaya bitiş) sesi | Ses efekti | — | — | mp3 | — | — | — | — | — | Beklemede |
 
 Her satırın "Kaynak"/"Lisans"/"Poligon"/"Doku Boyutu" sütunları bir
 GERÇEK varlık seçildiğinde doldurulur — `—` işareti "henüz bilinmiyor",

@@ -4,6 +4,7 @@ import {
   getHorseTrackPosition,
   getPointOnStadiumTrack,
   getPointOnStraightTrack,
+  isOnTrackTurn,
   DEFAULT_LAP_LENGTH_METERS,
   DEFAULT_TURN_RADIUS_METERS,
 } from '../../../src/features/race-viewer/track-path';
@@ -97,5 +98,69 @@ describe('getHorseTrackPosition', () => {
     const point = getHorseTrackPosition(300, 2, geometry);
     const direct = getPointOnStadiumTrack(300, geometry);
     expect(point).toEqual(direct);
+  });
+});
+
+/**
+ * "REALISTIC 3D ASSET & AUDIO PRODUCTION BRIEF" §18 "HOOF_TURN" (bu
+ * turda EKLENDİ) — `getPointOnStadiumTrack`'in İÇSEL segment mantığının
+ * dışarıya açılan `boolean` özeti, ses katmanının GERÇEK bir pist
+ * geometrisi sinyaline dayanabilmesi için.
+ */
+describe('isOnTrackTurn', () => {
+  const geometry = createStadiumTrackGeometry(DEFAULT_LAP_LENGTH_METERS, DEFAULT_TURN_RADIUS_METERS);
+
+  it('turnCount 0 ise (düz sprint pisti) HER ZAMAN false döner', () => {
+    expect(isOnTrackTurn(500, 0, geometry)).toBe(false);
+    expect(isOnTrackTurn(0, 0, geometry)).toBe(false);
+  });
+
+  it('alt düz kenardayken false döner', () => {
+    expect(isOnTrackTurn(0, 2, geometry)).toBe(false);
+    expect(isOnTrackTurn(geometry.straightLengthMeters - 1, 2, geometry)).toBe(false);
+  });
+
+  it('sağ virajdayken true döner', () => {
+    const midRightTurn = geometry.straightLengthMeters + (Math.PI * geometry.turnRadiusMeters) / 2;
+    expect(isOnTrackTurn(midRightTurn, 2, geometry)).toBe(true);
+  });
+
+  it('üst düz kenardayken false döner', () => {
+    const midTopStraight = geometry.straightLengthMeters + Math.PI * geometry.turnRadiusMeters + geometry.straightLengthMeters / 2;
+    expect(isOnTrackTurn(midTopStraight, 2, geometry)).toBe(false);
+  });
+
+  it('sol virajdayken (tur kapanışı) true döner', () => {
+    const midLeftTurn = 2 * geometry.straightLengthMeters + Math.PI * geometry.turnRadiusMeters * 1.5;
+    expect(isOnTrackTurn(midLeftTurn, 2, geometry)).toBe(true);
+  });
+
+  it('distanceMeters tur uzunluğunu aşarsa (ikinci tur) doğru sarılır (wrap)', () => {
+    const midRightTurn = geometry.straightLengthMeters + (Math.PI * geometry.turnRadiusMeters) / 2;
+    expect(isOnTrackTurn(midRightTurn + geometry.lapLengthMeters, 2, geometry)).toBe(true);
+  });
+
+  it('lapLengthMeters 0 ise false döner (bölme hatası oluşturmaz)', () => {
+    // NOT: turnRadiusMeters=1000 verilse bile lapLengthMeters SIFIR
+    // OLMAZ (viraj çevresi TEK BAŞINA ~6283m üretir, bkz.
+    // `createStadiumTrackGeometry`) — GERÇEKTEN dejenere (lapLengthMeters
+    // === 0) bir geometri için turnRadiusMeters'IN DA 0 olması gerekir.
+    const degenerate = createStadiumTrackGeometry(0, 0);
+    expect(degenerate.lapLengthMeters).toBe(0);
+    expect(isOnTrackTurn(50, 2, degenerate)).toBe(false);
+  });
+
+  it('getPointOnStadiumTrack ile AYNI segment sınırlarını kullanır (viraj noktasında yarıçap tutarlılığı üzerinden dolaylı doğrulama)', () => {
+    // isOnTrackTurn true dediği bir noktada, getPointOnStadiumTrack'in
+    // döndürdüğü konum GERÇEKTEN merkeze turnRadiusMeters uzaklıkta olmalı
+    // (düz kenarda bu KESİNLİKLE yanlış olurdu, viraj merkezine göre
+    // ölçüldüğünde) — iki fonksiyonun AYNI segment mantığını paylaştığının
+    // dolaylı kanıtı.
+    const midRightTurn = geometry.straightLengthMeters + (Math.PI * geometry.turnRadiusMeters) / 2;
+    expect(isOnTrackTurn(midRightTurn, 2, geometry)).toBe(true);
+    const point = getPointOnStadiumTrack(midRightTurn, geometry);
+    const centerX = geometry.straightLengthMeters / 2;
+    const distanceFromCenter = Math.sqrt((point.x - centerX) ** 2 + point.z ** 2);
+    expect(distanceFromCenter).toBeCloseTo(geometry.turnRadiusMeters, 6);
   });
 });

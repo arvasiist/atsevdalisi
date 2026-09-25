@@ -1,5 +1,5 @@
 {
-  "version": "1.2.0",
+  "version": "1.3.0",
   "volumeChannels": {
     "master": 1,
     "music": 1,
@@ -32,5 +32,6 @@
   "crowdExcitedVolume": 0.45,
   "horseSnortVolume": 0.3,
   "horseNeighVolume": 0.35,
-  "horseMovementVolume": 0.2
+  "horseMovementVolume": 0.2,
+  "photoFinishVolume": 0.7
 }

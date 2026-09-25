@@ -354,6 +354,130 @@ durumları (§19/§20).
   `RaceSurface` `"synthetic"` iken kullanılır.
 - **Fallback:** `AudioManager`'ın sessiz no-op modu.
 
+İkinci öz-denetim turu (proje sahibinin "başka notta eksik kalan ne var?"
+sorusu üzerine, bu turda EKLENDİ) — GERÇEK (spekülatif OLMAYAN)
+telemetriye dayanan iki eksik daha kapatıldı:
+
+### HOOF_TURN_SFX_REQUIRED
+
+- **Tür:** Ses efekti (`.mp3`)
+- **Yol:** `apps/web/public/audio/hoof-turn-loop.mp3`
+- **Gereksinim:** Brief §18 "HOOF_TURN" — pist virajındayken çalınan nal
+  sesi döngüsü, düz kısımlardaki yüzey bazlı nal sesinin (HOOF_GRASS/
+  DIRT/SYNTHETIC) YERİNİ GEÇİCİ OLARAK alır. `track-path.ts`teki ZATEN
+  VAR OLAN `isOnTrackTurn()` fonksiyonu (`getPointOnStadiumTrack`'in
+  İÇSEL segment mantığının dışa açılmış hali) BU sinyali sağlar —
+  spekülatif bir "viraj algılama" sistemi İCAT EDİLMEDİ.
+  `RaceAudioManager.setHoofbeatTurning(onTurn)` bu asset'i başlatıp/
+  durdurur.
+- **Fallback:** `AudioManager`'ın sessiz no-op modu; asset yoksa düz
+  kısım nal sesi (varsa) KESİNTİYE UĞRAMADAN çalmaya devam eder.
+
+### PHOTO_FINISH_SFX_REQUIRED
+
+- **Tür:** Ses efekti (`.mp3`)
+- **Yol:** `apps/web/public/audio/photo-finish.mp3`
+- **Gereksinim:** Brief'in "PHOTO_FINISH" ses kategorisi (`RACE_FINISH_
+  FANFARE_REQUIRED`den KASITLI OLARAK AYRI — fanfar HER yarışta çalar,
+  bu SADECE kafa kafaya bitişlerde). `photo-finish.ts`teki ZATEN VAR
+  OLAN `isCloseFinish()` fonksiyonu (ilk iki atın bitiş farkını
+  `config.photoFinish.closeFinishThresholdMs` ile karşılaştırır) `true`
+  döndüğünde ÇAĞIRAN tarafından `handleEvent({ type: 'photo_finish' })`
+  ile tetiklenir — YENİ bir yakınlık/skor hesaplaması İCAT EDİLMEDİ.
+- **Fallback:** `AudioManager`'ın sessiz no-op modu.
+
+## Ses prodüksiyon pipeline'ı (brief §16, bu turda EKLENDİ — 3D model
+Blender pipeline'ının ses karşılığı)
+
+Yukarıdaki HER ses varlığı (`asset-manifest.ts`teki `kind: 'audio_sfx'`
+veya `'audio_music'` girdileri), 3D modellerin Blender pipeline'ından
+(bkz. yukarıdaki "Model optimizasyon kontrol listesi" genel kuralı)
+geçmesi gibi, `apps/web/public/`e KONULMADAN ÖNCE şu adımlardan
+GEÇMİŞ OLMALIDIR:
+
+1. **AUDIO LIBRARY / RECORDING** — kaynak ses ya lisanslı bir ses
+   kütüphanesinden (bkz. `docs/ASSET_LICENSES.md`) alınır ya da özel
+   olarak KAYDEDİLİR (ör. gerçek at nal sesleri için saha kaydı).
+2. **EDIT** — istenmeyen bölümlerin kırpılması, gerekiyorsa loop
+   noktalarının (döngüsü sesler için) DİKİŞSİZ hale getirilmesi.
+3. **NOISE CLEANUP** — arka plan gürültüsü/hışırtı temizliği.
+4. **NORMALIZATION** — tüm klipler arasında TUTARLI bir ses seviyesi
+   (ör. -16 LUFS gibi bir hedef) — aksi halde `AudioConfig`teki taban
+   hacim değerleri (ör. `hoofbeat.baseVolume`) klipler arası KAYNAK
+   SES SEVİYESİ farkını TELAFİ ETMEK zorunda kalır, bu YANLIŞ bir
+   sorumluluk dağılımı olurdu.
+5. **FORMAT CONVERSION** — `.mp3` (bkz. her varlığın `format` alanı),
+   dosya boyutu/mobil bant genişliği için makul bir bit hızına
+   SIKIŞTIRILMIŞ.
+6. **GAME AUDIO** — dosya `asset-manifest.ts`teki `expectedPath`e TAM
+   olarak KONULUR.
+7. **AudioManager** — `RaceAudioManager` dosyayı OTOMATİK olarak bulur
+   (KOD DEĞİŞİKLİĞİ GEREKMEZ, brief'in "asset eklendiğinde kod değişmez"
+   kuralı burada da GEÇERLİDİR).
+
+Bu pipeline bir KOD KISITI DEĞİLDİR (kod, dosyanın bu adımlardan geçip
+geçmediğini DOĞRULAYAMAZ) — bir SES KALİTESİ disiplinidir, `docs/ASSET_LICENSES.md`'ye
+kaydedilen her varlık için TAKİP edilmelidir.
+
+## Bilinçli olarak HENÜZ ele alınmayan sesler/konular (dürüstlük için belgelendi)
+
+İki öz-denetim turundan sonra bile brief'te KOD/DOKÜMAN OLARAK henüz
+kapatılmayan bazı noktalar var — bunlar "unutuldu" değil, ya bir ÜRÜN
+KARARI gerektiriyor ya da Race Engine'in ŞU AN yaymadığı bir sinyale
+ihtiyaç duyuyor. Sessizce atlamak yerine burada AÇIKÇA listeleniyor:
+
+- **`HORSE_GALLOP`/`HORSE_FAST_GALLOP` (brief'in "Horse sounds"
+  kategorisi):** brief bunları `HORSE_BREATHING`den AYRI listeler, ama
+  TAM OLARAK ne temsil ettikleri (at gövdesi/kas sesi mi, yoksa
+  `HOOFBEAT_SFX_REQUIRED`in gallop temposundaki başka bir adı mı)
+  belirsiz — mevcut `HORSE_BREATHING_SFX_REQUIRED` (yorgunluğa göre) ve
+  `HOOFBEAT_SFX_REQUIRED`/`HOOF_*` (hıza göre) ZATEN gallop/fast-gallop
+  tempolarını YOĞUNLUK olarak kapsıyor. Bunları AYRI asset'ler olarak
+  eklemek, aradaki farkın NE olduğuna dair bir ÜRÜN KARARI (proje
+  sahibinden) olmadan SPEKÜLATİF olurdu — yanlış bir varsayımla
+  eklenirse gerçek asset geldiğinde YANLIŞ bir soyutlama düzeltilmek
+  zorunda kalınır.
+- **`HOOF_FAST`/`HOOF_SPRINT` (tempo bazlı ayrı örnekler):** mevcut
+  yaklaşım (`updateHoofbeatIntensity`) tempo/hızı SÜREKLİ bir hacim
+  interpolasyonuyla simüle eder (tek bir loop, hız arttıkça sadece
+  hacim artar). Brief'in AYRI `HOOF_FAST`/`HOOF_SPRINT` örnekleri
+  istemesi muhtemelen GERÇEKÇİLİK içindir — gerçek nal sesleri hızla
+  sadece YÜKSELMEZ, RİTMİ de değişir (dörtnala geçişte 4 vuruşlu ritim
+  farklılaşır), bu bir TEK loop'un hacmini değiştirerek TAKLİT
+  EDİLEMEZ. Bu, `HOOF_GRASS`/`DIRT`/`SYNTHETIC`/`TURN` ile AYNI desende
+  (ayrı, ÖNCEDEN KAYITLI örnekler) uygulanabilir — ama önce yüzey+viraj
+  denetimi kadar KENDİ İÇİNDE net bir gerekçeye (yukarıdaki gibi GERÇEK
+  bir telemetri sinyaline) ihtiyaç var; hız zaten `updateHoofbeatIntensity`
+  aracılığıyla SÜREKLİ bir sinyal, YENİ bir "hangi eşikte hangi asset"
+  kuralı İCAT ETMEK gerekir — proje sahibi isterse (ör. "sprint eşiği
+  neresi olsun") netleştiğinde eklenir.
+- **`START_GATE` (ambient/mekanik ses, `GATE_OPEN_SFX_REQUIRED`den
+  AYRI):** brief'in "Race sounds" listesinde İKİSİ DE var — `GATE_OPEN`
+  (açılma anı, MEVCUT) ve `START_GATE` (muhtemelen atların kapıya
+  girerken/kapı kapanırken duyulan mekanik gıcırtı/hum sesi). Bu, Race
+  Engine'in ŞU AN yaymadığı YENİ bir yarış-öncesi (`HORSES ENTER`/`GATE
+  ASSIGNMENT`/`GATES CLOSE`/`READY`, bkz. `START_GATE_MODEL_REQUIRED`
+  bölümündeki akış) lifecycle sinyaline ihtiyaç duyar — bu sandbox'ta
+  SPEKÜLATİF bir sinyal İCAT ETMEK yerine, gerçek Race Engine bu fazı
+  yayınladığında eklenmesi bekleniyor (Tier 2).
+- **§26 "ilk satın alma listesi" ve §31'in marketplace'lerde GERÇEK
+  ürün taraması:** gerçek para/araştırma gerektirir — `docs/ASSET_LICENSES.md`
+  bu süreç TAMAMLANDIĞINDA doldurulacak ŞABLONU sağlar, ama HANGİ
+  ürünlerin satın alınacağına dair gerçek bir tarama bu ortamda
+  YAPILAMAZ (Tier 3).
+- **§27 Vertical Slice, §28 Performans testi:** gerçek assetler VE
+  gerçek tarayıcı/WebGL gerektirir (Tier 3, bu sandbox'ta YAPILAMAZ).
+- **§29 "8 gerçekçi at + 8 jokey" hedefi:** bir İÇERİK HACMİ hedefidir
+  (kaç FARKLI model/varyasyon üretilecek), bir SİSTEM gereksinimi
+  DEĞİLDİR — mevcut kod zaten HERHANGİ bir sayıda at/jokey modelini
+  (`HORSE_MODEL_REQUIRED`/`JOCKEY_MODEL_REQUIRED` TEK bir dosya olsa
+  bile) DESTEKLER, bu sayı üretim/satın alma AŞAMASINDA bir hedeftir.
+- **§30 config-driven asset SEÇİMİ (`HorseConfig`/`JockeyConfig`/
+  `TrackConfig`):** yukarıda "Tier 2" olarak zaten belgelenmişti
+  (`packages/game-config/src/types.ts`teki MEVCUT `JockeyConfig` ile
+  isim çakışması NOT edildi) — burada TEKRAR belirtiliyor çünkü bu tam
+  liste artık TEK bir yerde toplanıyor.
+
 ## Bir varlık eklendiğinde yapılması gerekenler
 
 1. Dosyayı yukarıdaki TAM yola koy (`apps/web/public/...`).

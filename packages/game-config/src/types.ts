@@ -660,4 +660,10 @@ export interface AudioConfig {
   horseNeighVolume: number;
   /** Brief §17 "Horse Movement" — bir seferlik genel at hareket sesi (çağıranın kararıyla, `horse` kanalı). */
   horseMovementVolume: number;
+
+  // İkinci öz-denetim turu (bu turda EKLENDİ) — `isCloseFinish()`/
+  // `isOnTrackTurn()` gibi ZATEN VAR OLAN, gerçek telemetriye dayanan
+  // sinyallerin ses karşılığı.
+  /** Brief'in "PHOTO_FINISH" ses kategorisi — `photo-finish.ts`teki ZATEN VAR OLAN `isCloseFinish()` `true` döndüğünde, `finish`ten HEMEN SONRA çalınan bir seferlik gerilim vurgusu. */
+  photoFinishVolume: number;
 }

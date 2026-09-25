@@ -96,7 +96,7 @@ import type { RaceSurface } from '@at-sevdalisi/shared-types';
 import type { AudioConfig } from '@at-sevdalisi/game-config';
 import { getAssetById } from '../assets/asset-manifest';
 
-export type RaceAudioEventType = 'race_start' | 'gate_open' | 'start_signal' | 'overtake' | 'final_stretch' | 'finish' | 'winner';
+export type RaceAudioEventType = 'race_start' | 'gate_open' | 'start_signal' | 'overtake' | 'final_stretch' | 'finish' | 'photo_finish' | 'winner';
 
 export interface RaceAudioEvent {
   type: RaceAudioEventType;
@@ -244,8 +244,22 @@ export class RaceAudioManager {
   /** `setChannelVolume`'un o an çalan döngülü sesi ANINDA yeniden hesaplayabilmesi için son bilinen yoğunluk oranı (bkz. `reapplyActiveLoopVolumes`). */
   private lastHoofbeatRatio = 0;
   private lastHorseBreathingRatio = 0;
-  /** Brief §18 (bu turda EKLENDİ) — o an ÇALAN nal sesi asset'i, `stopHoofbeats`/`updateHoofbeatIntensity`/`reapplyActiveLoopVolumes`'un HANGİ asset'i hedefleyeceğini bilmesi için (`race_start`'ta hangi yüzeyle başlatıldıysa o). */
-  private activeHoofbeatAssetId: HoofbeatAssetId | null = null;
+  /**
+   * Brief §18 (bu turda EKLENDİ, İkinci öz-denetim turunda `'HOOF_TURN_
+   * SFX_REQUIRED'` ile GENİŞLETİLDİ) — o an ÇALAN nal sesi asset'i,
+   * `stopHoofbeats`/`updateHoofbeatIntensity`/`reapplyActiveLoopVolumes`'un
+   * HANGİ asset'i hedefleyeceğini bilmesi için. Yüzey asset'lerinden
+   * (`HoofbeatAssetId`) FARKLI olarak `'HOOF_TURN_SFX_REQUIRED'` da bu
+   * alana YAZILABİLİR (viraj sırasında GEÇİCİ OLARAK, bkz.
+   * `setHoofbeatTurning`) — bu yüzden tip BURADA genişletilir, ama
+   * `surfaceHoofbeatAssetId` (altta) hangi yüzeye DÖNÜLECEĞİNİ ayrı
+   * tutar.
+   */
+  private activeHoofbeatAssetId: HoofbeatAssetId | 'HOOF_TURN_SFX_REQUIRED' | null = null;
+  /** İkinci öz-denetim turu (bu turda EKLENDİ) — `setHoofbeatTurning(false)` çağrıldığında DÖNÜLECEK yüzey asset'i (`race_start`ta hangi yüzeyle başlatıldıysa o, viraj sırasında DEĞİŞMEZ). */
+  private surfaceHoofbeatAssetId: HoofbeatAssetId | null = null;
+  /** İkinci öz-denetim turu (bu turda EKLENDİ) — o an viraj nal sesinin mi yüzey nal sesinin mi ÇALDIĞI (bkz. `setHoofbeatTurning`'in guard'ı — gereksiz tekrar play/stop çağrısı ÖNLENİR). */
+  private hoofbeatTurning = false;
   /** Brief §20 (bu turda EKLENDİ) — o an ÇALAN kalabalık döngüsü (ambience veya final-düzlük "excited" varyantı), bkz. `switchToExcitedCrowd`. */
   private activeCrowdAssetId: CrowdAssetId | null = null;
 
@@ -363,6 +377,19 @@ export class RaceAudioManager {
         }
         return;
       }
+      case 'photo_finish': {
+        // İkinci öz-denetim turu (bu turda EKLENDİ) — `photo-finish.ts`teki
+        // ZATEN VAR OLAN `isCloseFinish()` fonksiyonu `true` döndüğünde
+        // ÇAĞIRAN tarafından tetiklenir (bu dosya `isCloseFinish`'i
+        // İÇE AKTARMAZ — framework/domain'den bağımsız kalma prensibi,
+        // `updateHoofbeatIntensity`'nin `speedMps`i HESAPLAMAMASIYLA AYNI
+        // desen). `finish`ten AYRI, KENDİ bir seferlik (döngüsüz) sesi.
+        const asset = getAssetById('PHOTO_FINISH_SFX_REQUIRED');
+        if (asset) {
+          this.backend.play(asset.expectedPath, { volume: this.resolveVolume('sfx', this.config.photoFinishVolume) });
+        }
+        return;
+      }
       case 'winner': {
         // Brief §31 "Winner" — "Finish" fanfarından KASITLI OLARAK AYRI
         // bir ses: `finish` yarış çizgisini geçme ANINI, `winner` ise
@@ -410,6 +437,8 @@ export class RaceAudioManager {
     this.backend.play(asset.expectedPath, { loop: true, volume: this.resolveVolume('horse', this.config.hoofbeat.baseVolume) });
     this.hoofbeatPlaying = true;
     this.activeHoofbeatAssetId = assetId;
+    this.surfaceHoofbeatAssetId = assetId;
+    this.hoofbeatTurning = false;
     this.lastHoofbeatRatio = 0;
   }
 
@@ -423,6 +452,49 @@ export class RaceAudioManager {
     }
     this.hoofbeatPlaying = false;
     this.activeHoofbeatAssetId = null;
+    this.surfaceHoofbeatAssetId = null;
+    this.hoofbeatTurning = false;
+  }
+
+  /**
+   * İkinci öz-denetim turu (bu turda EKLENDİ) — "REALISTIC 3D ASSET &
+   * AUDIO PRODUCTION BRIEF" §18 "HOOF_TURN": `track-path.ts`teki ZATEN
+   * VAR OLAN `isOnTrackTurn()` fonksiyonunun sonucunu (bu dosya o
+   * fonksiyonu İÇE AKTARMAZ — `updateHoofbeatIntensity`nin `speedMps`i
+   * NEREDEN geldiğini bilmemesiyle AYNI ayrıştırma disiplini, ÇAĞIRAN
+   * hesaplar) alıp nal sesini viraj/düz kısım asset'leri ARASINDA
+   * ÇAPRAZLAR (crossfade — `switchToExcitedCrowd` ile AYNI desen: yeniyi
+   * başlat, eskiyi durdur). `onTurn` mevcut durumla AYNIYSA (guard) veya
+   * nal sesi HİÇ çalmıyorsa (`hoofbeatPlaying === false`) hiçbir şey
+   * YAPMAZ. Viraj asset'i (`HOOF_TURN_SFX_REQUIRED`) YOKSA sessizce
+   * ATLANIR — mevcut yüzey nal sesi KESİNTİYE UĞRAMADAN çalmaya devam
+   * eder (`hoofbeatTurning` bu durumda `false` OLARAK KALIR, bir
+   * SONRAKİ viraja girişte asset TEKRAR denenir).
+   */
+  setHoofbeatTurning(onTurn: boolean): void {
+    if (!this.hoofbeatPlaying || onTurn === this.hoofbeatTurning) {
+      return;
+    }
+    const targetAssetId: HoofbeatAssetId | 'HOOF_TURN_SFX_REQUIRED' | null = onTurn
+      ? 'HOOF_TURN_SFX_REQUIRED'
+      : this.surfaceHoofbeatAssetId;
+    if (!targetAssetId) {
+      return;
+    }
+    const targetAsset = getAssetById(targetAssetId);
+    if (!targetAsset) {
+      return;
+    }
+    const previous = this.activeHoofbeatAssetId ? getAssetById(this.activeHoofbeatAssetId) : undefined;
+    this.backend.play(targetAsset.expectedPath, {
+      loop: true,
+      volume: this.resolveVolume('horse', this.config.hoofbeat.baseVolume + this.lastHoofbeatRatio * this.config.hoofbeat.maxExtraVolume),
+    });
+    if (previous) {
+      this.backend.stop(previous.expectedPath);
+    }
+    this.activeHoofbeatAssetId = targetAssetId;
+    this.hoofbeatTurning = onTurn;
   }
 
   updateHoofbeatIntensity(speedMps: number, maxSpeedMps: number): void {

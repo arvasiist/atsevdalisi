@@ -278,6 +278,29 @@ export const ASSET_MANIFEST: AssetRequirement[] = [
     description: 'Sentetik pist yüzeyine özel nal sesi döngüsü — `RaceSurface` `"synthetic"` iken kullanılır.',
     fallbackBehavior: "AudioManager'ın sessiz no-op modu.",
   },
+  // Proje sahibinin "başka notta eksik kalan ne var?" sorusu üzerine
+  // yapılan İKİNCİ öz-denetim turunda (bu turda EKLENDİ) bulunan, GERÇEK
+  // (spekülatif OLMAYAN) telemetriye dayanan iki eksik: pist virajı
+  // (`track-path.ts`'te ZATEN VAR OLAN geometri) ve foto finiş
+  // (`photo-finish.ts`'teki ZATEN VAR OLAN `isCloseFinish()`).
+  {
+    id: 'HOOF_TURN_SFX_REQUIRED',
+    kind: 'audio_sfx',
+    format: 'mp3',
+    expectedPath: 'audio/hoof-turn-loop.mp3',
+    description:
+      'Pist virajındayken (`track-path.ts`in `isOnTrackTurn()` ZATEN VAR OLAN pist geometrisinden hesapladığı GERÇEK bir durum) çalınan nal sesi döngüsü — düz kısımlardaki yüzey bazlı nal sesinin (HOOF_GRASS/DIRT/SYNTHETIC) YERİNİ GEÇİCİ OLARAK alır (bkz. `setHoofbeatTurning`).',
+    fallbackBehavior: "AudioManager'ın sessiz no-op modu; asset yoksa düz kısım nal sesi (varsa) KESİNTİYE UĞRAMADAN çalmaya devam eder.",
+  },
+  {
+    id: 'PHOTO_FINISH_SFX_REQUIRED',
+    kind: 'audio_sfx',
+    format: 'mp3',
+    expectedPath: 'audio/photo-finish.mp3',
+    description:
+      'İlk iki atın bitiş farkı çok küçükken (`photo-finish.ts`teki ZATEN VAR OLAN `isCloseFinish()` fonksiyonunun `true` dönmesiyle belirlenir, YENİ bir skor/simülasyon İCAT EDİLMEZ) `finish`ten HEMEN SONRA çalınan gerilim/"foto finiş" vurgusu sesi, bir seferlik (döngüsüz) — `RACE_FINISH_FANFARE_REQUIRED`den KASITLI OLARAK AYRI (fanfar HER yarışta çalar, bu SADECE kafa kafaya bitişlerde).',
+    fallbackBehavior: "AudioManager'ın sessiz no-op modu.",
+  },
 ];
 
 export function getAssetById(id: string): AssetRequirement | undefined {
