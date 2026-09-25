@@ -189,6 +189,32 @@ kontrolünden geçti (0 diagnostic); mevcut `RaceHud.spec.tsx` (gerçek
 `@testing-library/react`/jsdom testi) yeni `finishResult` prop'unu
 KULLANMADIĞI için etkilenmedi (opsiyonel prop, varsayılan `undefined`).
 
+### Master Development Brief §7/§51 "Asset Interface + Manifest" (bu turda EKLENDİ)
+
+`assets/asset-manifest.ts` (yeni, saf veri modülü) brief'in beklediği
+HER 3D model/doku/ses dosyasını (`ASSET_MANIFEST`) TEK bir yerde
+tanımlar — hiçbiri şu an repoda YOK (`apps/web/public/` boş), bu BİLİNÇLİ
+bir durum (kullanıcının "şimdilik erteleyelim" kararı, bkz. `docs/
+IMPLEMENTATION_PLAN_MASTER_BRIEF.md`). İnsan-okunabilir karşılığı
+`docs/ASSET_GUIDE.md` — brief §7'nin örnek formatını (`HORSE_MODEL_
+REQUIRED — ...`) takip eder.
+
+`assets/GltfAssetLoader.tsx` (yeni, React/Three.js bileşeni) drei'nin
+`useGLTF`'ini bir `Suspense` + class-based `GltfErrorBoundary` (React'ta
+hata sınırları SADECE class component'lerle yazılabilir) içine alır —
+dosya `public/` altında YOKSA veya bozuksa SESSİZCE `fallback`'e düşer,
+sahne ÇÖKMEZ. Bu turda `public/` altına HİÇBİR gerçek `.glb` KONULMADI
+(brief'in "sahte asset uydurma" kuralı) — bu yüzden yalnızca "dosya yok
+→ fallback" dalı dolaylı olarak doğrulanabildi, "gerçek dosya başarıyla
+yüklenir" dalı asset'ler eklendiğinde manuel QA gerektirir.
+
+`asset-manifest.ts`, `tsconfig.logic.json`'a eklendi; gerçek `tsc
+--noEmit` (0 hata) ve `tsx` ile çalıştırılan 9 test case'i (bkz.
+`asset-manifest.spec.ts`) PASS. `GltfAssetLoader.tsx`, `RaceScene3D.tsx`/
+`live-race-socket.ts` ile AYNI kısıta tabidir (`three`/`@react-three/drei`/
+`three-stdlib` bu sandbox'ta kurulu değil) — `ts.transpileModule` ile
+sözdizimi kontrolünden geçti (0 diagnostic), gerçek tip kontrolü CI'dadır.
+
 ## ÖNEMLİ — bu oturumdaki doğrulama kısıtı
 
 `docs/ARCHITECTURE.md` §9'da belgelenen kısıt burada da geçerlidir: bu
