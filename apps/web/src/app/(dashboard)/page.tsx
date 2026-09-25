@@ -45,6 +45,7 @@ const NAV_ITEMS: NavCardItem[] = [
   { href: '/market', icon: '🛒', label: 'At Pazarı', description: 'Al & sat' },
   { href: '/races', icon: '🏁', label: 'Yarışlar', description: 'Takvim & pratik yarış' },
   { href: '/training', icon: '🏋️', label: 'Antrenman', description: 'Statları geliştir' },
+  { href: '/care', icon: '🩺', label: 'Bakım', description: 'Sağlık & besleme' },
   { href: '/farm', icon: '🌾', label: 'Çiftlik', description: 'Üretim & kaynaklar' },
   { href: '/online', icon: '🌐', label: 'Online', description: 'PvP eşleşmeler' },
   { href: '/leaderboard', icon: '🏆', label: 'Sıralama', description: 'Küresel sıralama' },

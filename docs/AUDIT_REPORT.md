@@ -182,22 +182,34 @@ kategorisi olarak eklenmeli — ama altyapı (CI, test runner'lar) hazır.
   fatigue/mesafe gibi per-horse canlı değerler HUD'a YANSIMIYOR
   (race engine bu veriyi ÜRETİYOR ama WebSocket telemetrisi/HUD bunu
   TAŞIMIYOR).
-- **§21 Photo Finish sunumu:** Kamera modu STUB olarak var (bkz.
-  `camera-presets.ts`'in kendi "yer tutucudur" notu) ama slow-motion +
-  görsel "photo finish" kartı/sonuç sunumu YOK.
+- **§21 Photo Finish sunumu:** ✅ DÜZELTİLDİ (Grup 1, "Config ayrımı"
+  öncesi dilim) — slow-motion + görsel "photo finish" kartı/sonuç sunumu
+  artık VAR (bkz. `race-viewer/README.md` "Photo Finish" bölümü).
 - **§22 Replay (bağımsız gözatma):** Canlı yayın + temel oynatma VAR;
-  ayrı bir "geçmiş yarışları ara/izle" kütüphane ekranı YOK.
+  ayrı bir "geçmiş yarışları ara/izle" kütüphane ekranı HÂLÂ YOK.
   Kamera açısı seçenekleri (TV/HORSE/JOCKEY/FINISH/PHOTO FINISH) canlı
   izleyicide zaten VAR (aynı `camera-presets.ts`), replay'e taşınabilir.
+  Backend uçları da zaten hazır (`GET /players/:id/recent-races`,
+  `GET /races/:id/timeline`) — yalnızca bunları birleştiren bir liste/
+  detay ekranı eksik. (Sıradaki aday dilim.)
 - **§23-24 Behavior/Personality:** R3'ün Temperament alanı hâlâ nötr
   placeholder (zaten bilinen bir sonraki adım); brief'in istediği
   "personality" (CALM/AGGRESSIVE/NERVOUS/vb.) kategorik katmanı YOK.
 - **§25 Stable görsel yönetim ekranı:** Ahır VERİSİ (condition/
   training/feed/equipment/health) domain'de VAR (`horse_stats`/
-  `horse_health` vb.), ama brief'in istediği görsel stable environment
-  YOK.
-- **§26 Pedigree görselleştirme:** Genetics/breeding domain hesaplamaları
-  VAR ve ÇALIŞIYOR; ağaç şeklinde pedigree UI'ı YOK.
+  `horse_health` vb.). KISMEN DÜZELTİLDİ ("Devam et" turu) — `/care`
+  ekranı artık VAR: bakım (tımar/su/temizlik/veteriner/nalbant/dinlendir)
+  ve besleme (standart/enerji/protein/iyileşme/performans) eylemlerini
+  zaten tam çalışır durumdaki `POST /horses/:id/care` ve `/feed`
+  uçlarına bağlıyor (bkz. `apps/web/src/app/care/page.tsx` dosya başı
+  doc yorumu). Hâlâ eksik: antrenman geçmişi görünümü
+  (`TrainingSessionRepository`'de sadece `save()` var, okuma metodu
+  YOK — ayrı dilim), piyasa değeri tahmini (`calculateMarketValue()`
+  domain'de VAR ama hiçbir yerden ÇAĞRILMIYOR — ayrı dilim), Equipment
+  (domain kavramı olarak hiç YOK — yeni bir alt sistem gerektirir).
+- **§26 Pedigree görselleştirme:** ✅ DÜZELTİLDİ (Grup 1) — Genetics/
+  breeding domain hesaplamaları VAR ve ÇALIŞIYOR; ağaç şeklinde
+  pedigree UI paneli artık da VAR.
 - **§27 Career progression:** NOVICE→CHAMPIONSHIP seviyeleri,
   achievement sistemi — YOK.
 - **§35-36 Winner Ceremony / Shareable Result:** Kazanma sonrası

@@ -1,8 +1,12 @@
 import type {
   AuthSession,
+  CareActionType,
+  FeedHorseResult,
+  FeedType,
   FinalStretchPlan,
   JoinMatchmakingQueueResult,
   MatchmakingTicket,
+  PerformCareActionResult,
   PlayerSummary,
   PracticeRaceResult,
   PublicHorse,
@@ -151,6 +155,33 @@ export const apiClient = {
     request<TrainHorseResult>(`/horses/${horseId}/train`, {
       method: 'POST',
       body: JSON.stringify(input),
+    }),
+
+  /**
+   * Bakım ekranı (`apps/web/src/app/care/page.tsx`) — `POST /horses/:id/care`
+   * (docs/API.md §4, brief §11). Backend `trainHorse` ile AYNI şekilde
+   * Faz 1 wiring'den beri TAM ÇALIŞIR durumdaydı, yalnızca bir arayüzü
+   * yoktu (bkz. `care/page.tsx` dosya başı doc yorumu — `training/page.tsx`
+   * ile AYNI "en ucuz/en yüksek etkili sıradaki adım" gerekçesi). Cooldown
+   * dolmamışsa backend 409 döner (`CareActionOnCooldownError`, mesajında
+   * kalan dakika bilgisi VARDIR) — istemci burada AYRI bir cooldown
+   * hesaplaması YAPMAZ, backend'in mesajını olduğu gibi gösterir.
+   */
+  careHorse: (horseId: string, actionType: CareActionType) =>
+    request<PerformCareActionResult>(`/horses/${horseId}/care`, {
+      method: 'POST',
+      body: JSON.stringify({ actionType }),
+    }),
+
+  /**
+   * Bakım ekranı — `POST /horses/:id/feed` (docs/API.md §4, brief §12).
+   * `careHorse`'un aksine bir cooldown'u YOKTUR (bkz. `domain/care/care.ts`
+   * doc yorumu — "Besleme burada YOKTUR").
+   */
+  feedHorse: (horseId: string, feedType: FeedType) =>
+    request<FeedHorseResult>(`/horses/${horseId}/feed`, {
+      method: 'POST',
+      body: JSON.stringify({ feedType }),
     }),
 
   /**
