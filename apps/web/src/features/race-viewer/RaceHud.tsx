@@ -52,6 +52,7 @@ export type RaceLiveStatus = 'connecting' | 'live' | 'reconnecting' | 'finished'
 import type { CameraMode } from './camera-presets';
 import { CAMERA_MODE_LABELS, CAMERA_MODE_ORDER } from './camera-presets';
 import type { LiveLeaderboardEntry } from './timeline-playback';
+import { formatFinishGap, isCloseFinish, type PhotoFinishRow } from './photo-finish';
 
 export interface MiniMapMarker {
   horseId: string;
@@ -75,6 +76,14 @@ export interface RaceHudProps {
   onSeek: (timeMs: number) => void;
   /** Bkz. dosya başı doc yorumu "F2 canlı yayın entegrasyonu". */
   liveStatus?: RaceLiveStatus;
+  /**
+   * Master Development Brief §23 "Photo Finish" sunumu (bu turda EKLENDİ) —
+   * yarış bittiğinde çağıran (`RaceViewer.tsx`/`LiveRaceViewer.tsx`)
+   * tarafından doldurulur (bkz. `photo-finish.ts`). `undefined`/boş dizi
+   * iken hiçbir şey render EDİLMEZ — yarış devam ederken bu prop
+   * VERİLMEMELİDİR.
+   */
+  finishResult?: PhotoFinishRow[];
 }
 
 const SPEED_OPTIONS = [1, 2, 4] as const;
@@ -94,6 +103,7 @@ export function RaceHud(props: RaceHudProps): React.ReactElement {
     onChangeCameraMode,
     onSeek,
     liveStatus,
+    finishResult,
   } = props;
 
   return (
@@ -128,6 +138,8 @@ export function RaceHud(props: RaceHudProps): React.ReactElement {
       <LeaderboardPanel horseNamesById={horseNamesById} leaderboard={leaderboard} />
 
       <MiniMap markers={miniMapMarkers} />
+
+      {finishResult && finishResult.length > 0 ? <FinishResultOverlay rows={finishResult} /> : null}
 
       <div style={{ gridColumn: '1 / -1', pointerEvents: 'auto' }}>
         {liveStatus ? (
@@ -332,6 +344,88 @@ function LeaderboardPanel({
           </li>
         ))}
       </ol>
+    </div>
+  );
+}
+
+/**
+ * Master Development Brief §23 "Photo Finish" sunumu (bu turda EKLENDİ) —
+ * yarış bittiğinde HUD'un ÜZERİNE (ortalanmış, `pointerEvents: 'auto'`)
+ * bindirilen sonuç kartı. `RaceViewer.tsx`/`LiveRaceViewer.tsx` bu veriyi
+ * `photo-finish.ts`'in `buildPhotoFinishRows()`'undan üretir — burada
+ * SADECE zaten hesaplanmış `PhotoFinishRow[]`'u render eder, yeni bir
+ * hesaplama YAPMAZ (bileşenin kendisi framework'e bağımlı olduğundan bu
+ * dosya `tsconfig.logic.json` kapsamı DIŞINDA kalır, ama çağırdığı
+ * `formatFinishGap`/`isCloseFinish` saf fonksiyonları ORADA doğrulanmıştır).
+ */
+function FinishResultOverlay({ rows }: { rows: PhotoFinishRow[] }): React.ReactElement {
+  const closeFinish = isCloseFinish(rows);
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        inset: 0,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        pointerEvents: 'auto',
+        background: 'rgba(8, 12, 22, 0.55)',
+      }}
+    >
+      <div
+        style={{
+          ...panelStyle(),
+          minWidth: 'min(320px, 86vw)',
+          maxWidth: '420px',
+          padding: 'var(--space-lg, 20px) var(--space-md)',
+          background: 'rgba(14, 20, 34, 0.95)',
+        }}
+      >
+        <div
+          style={{
+            textAlign: 'center',
+            marginBottom: 'var(--space-sm)',
+          }}
+        >
+          {closeFinish ? (
+            <div
+              style={{
+                color: 'var(--color-accent-gold)',
+                fontWeight: 700,
+                fontSize: '13px',
+                letterSpacing: '0.08em',
+                textTransform: 'uppercase',
+                marginBottom: '4px',
+              }}
+            >
+              Foto Finiş!
+            </div>
+          ) : null}
+          <div style={{ color: 'var(--color-text-primary)', fontWeight: 700, fontSize: '18px' }}>Yarış Sonucu</div>
+        </div>
+        <ol style={{ listStyle: 'none', margin: 0, padding: 0, display: 'grid', gap: '6px' }}>
+          {rows.map((row) => (
+            <li
+              key={`${row.finishPosition}-${row.horseId ?? row.displayName}`}
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                gap: 'var(--space-sm)',
+                fontSize: '14px',
+                padding: '4px 0',
+                borderBottom: '1px solid rgba(255,255,255,0.06)',
+              }}
+            >
+              <span style={{ color: row.isWinner ? 'var(--color-accent-gold)' : 'var(--color-text-primary)', fontWeight: row.isWinner ? 700 : 400 }}>
+                {row.finishPosition}. {row.displayName}
+              </span>
+              <span style={{ color: 'var(--color-text-muted)', fontVariantNumeric: 'tabular-nums' }}>
+                {formatFinishGap(row.gapToWinnerMs)}
+              </span>
+            </li>
+          ))}
+        </ol>
+      </div>
     </div>
   );
 }

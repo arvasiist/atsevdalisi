@@ -151,6 +151,44 @@ değişiklikleri `ts.transpileModule` ile söz dizimi kontrolünden geçti
 (0 diagnostic) — gerçek tip kontrolü, bu dosyaların JSX kısıtı gereği,
 push sonrası CI'da olur.
 
+### Master Development Brief §23 "Photo Finish" sunumu (bu turda EKLENDİ)
+
+`photo-finish.ts` (yeni, saf fonksiyon dosyası) ZATEN VAR OLAN
+`RaceFinishEntry`/`RaceFinishedEntrant` verisinden (`finishPosition`,
+`finishTimeMs`/`finalTimeMs`, `performanceScore`) iki şey üretir:
+
+1. **Sonuç kartı** (`buildPhotoFinishRows`) — kazanana göre milisaniye
+   farkı (`gapToWinnerMs`) hesaplanmış, sıralı bir satır listesi.
+   `RaceHud.tsx`'in yeni `FinishResultOverlay` bileşeni bunu HUD'un
+   üzerine ortalanmış bir kart olarak render eder (`finishResult` prop'u
+   dolu VE boş olmayan bir dizi olduğunda).
+2. **"Foto finiş" rozeti** (`isCloseFinish`) — 1. ile 2. arasındaki fark
+   `CLOSE_FINISH_THRESHOLD_MS` (150ms, brief sayı vermediği için burada
+   seçilen makul bir eşik — Faz 6 "Config ayrımı" dilimine taşınacak)
+   altındaysa kart üzerinde ekstra bir vurgu gösterilir.
+
+**Ağır çekim (slow-motion):** `getFinishSlowMotionFactor()`, yarışın son
+`FINISH_SLOWMO_WINDOW_MS` (3 saniye) içinde oynatma hızını kademeli
+olarak `FINISH_SLOWMO_MIN_FACTOR`'a (0.25×) kadar düşüren bir ÇARPAN
+döner. `RaceViewer.tsx`'in `requestAnimationFrame` döngüsünde kullanıcının
+seçtiği `speedMultiplier` ile ÇARPILIR — yeni bir animasyon/asset/kamera
+GEREKMEZ, sadece ZATEN VAR OLAN interpolasyonlu oynatma (`advancePlaybackTimeMs`)
+bitiş çizgisine yaklaşırken doğal olarak YAVAŞLAR. Bu, YALNIZCA
+`RaceViewer.tsx`'e (replay/pratik yarış) wiring edildi — `LiveRaceViewer.tsx`
+sunucunun ZATEN gerçek zamanda gönderdiği telemetriyi oynattığından
+(dosya başı doc yorumu madde 1) geriye dönük bir "yavaşlatma" orada
+ANLAMSIZDIR; `LiveRaceViewer.tsx` yalnızca sonuç KARTINI alır (`race.
+finished` olayından gelen `finishedEntrants`, `finalTimeMs`/
+`finishPosition` `null` olanlar DNF güvenliği için filtrelenir).
+
+`photo-finish.ts`, `tsconfig.logic.json`'a eklendi; gerçek `tsc --noEmit`
+(0 hata) ve `tsx` ile çalıştırılan 14 test case'i (bkz.
+`photo-finish.spec.ts`) PASS. `RaceHud.tsx`/`RaceViewer.tsx`/
+`LiveRaceViewer.tsx` değişiklikleri `ts.transpileModule` ile söz dizimi
+kontrolünden geçti (0 diagnostic); mevcut `RaceHud.spec.tsx` (gerçek
+`@testing-library/react`/jsdom testi) yeni `finishResult` prop'unu
+KULLANMADIĞI için etkilenmedi (opsiyonel prop, varsayılan `undefined`).
+
 ## ÖNEMLİ — bu oturumdaki doğrulama kısıtı
 
 `docs/ARCHITECTURE.md` §9'da belgelenen kısıt burada da geçerlidir: bu

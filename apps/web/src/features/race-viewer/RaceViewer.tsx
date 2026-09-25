@@ -22,6 +22,7 @@ import {
 } from './track-path';
 import { computeCameraPose, type CameraMode } from './camera-presets';
 import { selectAutomaticCameraMode, type RaceCameraEvent, classifyRaceCameraEvent } from './camera-director';
+import { buildPhotoFinishRows, getFinishSlowMotionFactor } from './photo-finish';
 import { projectToMiniMap } from './minimap-projection';
 import {
   advancePlaybackTimeMs,
@@ -89,7 +90,13 @@ export function RaceViewer({ timeline, horseNamesById, turnCount = 2 }: RaceView
       const last = lastFrameTimestampRef.current;
       if (last !== null) {
         const deltaMs = now - last;
-        setCurrentTimeMs((previous) => advancePlaybackTimeMs(previous, deltaMs, speedMultiplier, durationMs));
+        setCurrentTimeMs((previous) => {
+          // Photo Finish sunumu (Master Brief §23, bkz. `photo-finish.ts`
+          // dosya başı doc yorumu) — bitişe yaklaşırken kullanıcının
+          // seçtiği hız kademeli olarak YAVAŞLAR, ani bir kesme OLMAZ.
+          const slowMotionFactor = getFinishSlowMotionFactor(previous, durationMs);
+          return advancePlaybackTimeMs(previous, deltaMs, speedMultiplier * slowMotionFactor, durationMs);
+        });
       }
       lastFrameTimestampRef.current = now;
       frameId = requestAnimationFrame(tick);
@@ -165,6 +172,26 @@ export function RaceViewer({ timeline, horseNamesById, turnCount = 2 }: RaceView
     }
   }, [leaderPositionMeters, raceDistanceMeters, anyHorseBlocked, isRaceFinished]);
 
+  // Photo Finish sunumu (Master Brief §23) — `timeline.finalResult` PEŞİNEN
+  // var (fixture/practice race verisi hazır yüklenir, `LiveRaceViewer.tsx`
+  // gibi sonradan gelen bir soket olayı BEKLEMEZ), bu yüzden burada
+  // `isRaceFinished` yerine `timeline.finalResult`'un kendisi kaynak alınır
+  // — satırlar HER ZAMAN hesaplanabilir, sadece `isRaceFinished` olduğunda
+  // HUD'a geçirilir (bkz. aşağıdaki `finishResult` prop'u).
+  const finishRows = useMemo(
+    () =>
+      buildPhotoFinishRows(
+        timeline.finalResult.map((entry) => ({
+          horseId: entry.horseId,
+          displayName: horseNamesById[entry.horseId] ?? entry.horseId,
+          finishPosition: entry.finishPosition,
+          finishTimeMs: entry.finishTimeMs,
+          performanceScore: entry.performanceScore,
+        })),
+      ),
+    [timeline.finalResult, horseNamesById],
+  );
+
   const miniMapMarkers: MiniMapMarker[] = useMemo(
     () =>
       horseVisuals.map((horse) => ({
@@ -211,6 +238,7 @@ export function RaceViewer({ timeline, horseNamesById, turnCount = 2 }: RaceView
         isPlaying={isPlaying}
         speedMultiplier={speedMultiplier}
         cameraMode={cameraMode}
+        finishResult={isRaceFinished ? finishRows : undefined}
         onTogglePlay={() => setIsPlaying((previous) => !previous)}
         onChangeSpeedMultiplier={setSpeedMultiplier}
         onChangeCameraMode={(mode) => {

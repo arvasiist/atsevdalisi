@@ -79,6 +79,7 @@ import {
 } from './track-path';
 import { computeCameraPose, type CameraMode } from './camera-presets';
 import { selectAutomaticCameraMode, classifyRaceCameraEvent, type RaceCameraEvent } from './camera-director';
+import { buildPhotoFinishRows } from './photo-finish';
 import { projectToMiniMap } from './minimap-projection';
 import { getLiveLeaderboard, interpolateHorseStateAtTime, isAnyHorseBlockedAtTime } from './timeline-playback';
 import { RaceHud, type MiniMapMarker } from './RaceHud';
@@ -289,6 +290,34 @@ export function LiveRaceViewer({
     [segments, entryIds, currentTimeMs],
   );
 
+  // Photo Finish sunumu (Master Brief §23, bkz. `photo-finish.ts` dosya
+  // başı doc yorumu) — CANLI yayında AĞIR ÇEKİM uygulanmaz (`RaceViewer.
+  // tsx`'in aksine, bu bileşen sunucunun ZATEN gerçek zamanda gönderdiği
+  // telemetriyi oynatır, bkz. dosya başı doc yorumu madde 1 — geriye
+  // dönük bir "yavaşlatma" burada ANLAMSIZ/uygulanamaz), yalnızca SONUÇ
+  // KARTI. `finalTimeMs`/`finishPosition` `null` olan katılımcılar (DNF —
+  // şu an motor bunu üretmiyor ama tip izin verdiği için burada güvenlik
+  // amaçlı FİLTRELENİR, UYDURULMAZ) atlanır.
+  const finishRows = useMemo(() => {
+    if (!finishedEntrants) {
+      return [];
+    }
+    return buildPhotoFinishRows(
+      finishedEntrants
+        .filter(
+          (entrant): entrant is LiveRaceFinishedEntrant & { finishPosition: number; finalTimeMs: number } =>
+            entrant.finishPosition !== null && entrant.finalTimeMs !== null,
+        )
+        .map((entrant) => ({
+          horseId: entrant.horseId,
+          displayName: entrant.isBot ? (entrant.botLabel ?? 'Rakip') : (entrant.horseName ?? 'At'),
+          finishPosition: entrant.finishPosition,
+          finishTimeMs: entrant.finalTimeMs,
+          performanceScore: entrant.performanceScore,
+        })),
+    );
+  }, [finishedEntrants]);
+
   const miniMapMarkers: MiniMapMarker[] = useMemo(
     () =>
       horseVisuals.map((horse) => ({
@@ -374,6 +403,7 @@ export function LiveRaceViewer({
         isPlaying
         speedMultiplier={1}
         cameraMode={cameraMode}
+        finishResult={isRaceFinished ? finishRows : undefined}
         onTogglePlay={() => undefined}
         onChangeSpeedMultiplier={() => undefined}
         onChangeCameraMode={(mode) => {
