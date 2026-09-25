@@ -497,6 +497,91 @@ duck/finish/updateHoofbeatIntensity/stopAll) DEĞİŞMEDEN BİREBİR AYNI
 sonuçları üretmeye devam ediyor. Gerçek `npm test`/`vitest` çalıştırması,
 her zamanki gibi, push sonrası CI'dadır.
 
+### "REALISTIC 3D ASSET & AUDIO PRODUCTION BRIEF" §17-21 denetimi (bu turda EKLENDİ)
+
+Proje sahibi 32 bölümlük yeni bir "REALISTIC 3D ASSET & AUDIO PRODUCTION
+BRIEF" paylaştı ve "incele, eksiklikleri tamamlayalım" dedi. Denetimde şu
+üç kademe ortaya çıktı — bu bölüm SADECE gerçekten tamamlanan Tier 1
+(kod/doküman) kısmını belgeler, Tier 2/3 için proje sahibine verilen
+rapora bkz. (bu README'nin kapsamı DIŞINDA, konuşma geçmişinde).
+
+**Tamamlanan (Tier 1 — asset/para/Blender/gerçek tarayıcı GEREKTİRMEYEN
+kod+doküman işi):**
+
+- **§18 "yüzeye göre nal sesi":** `RaceSurface` (`@at-sevdalisi/shared-types`
+  — `'grass' | 'dirt' | 'synthetic'`) ZATEN VAR OLAN, gerçek bir domain
+  alanı (`Race.surface`, races tablosunda GERÇEKTEN kullanılıyor) olduğundan
+  bu SPEKÜLATİF bir özellik DEĞİLDİR. `RaceAudioEvent.surface?: RaceSurface`
+  eklendi, `startHoofbeats(surface)` artık `resolveHoofbeatAssetId(surface)`
+  ile `HOOF_GRASS_SFX_REQUIRED`/`HOOF_DIRT_SFX_REQUIRED`/
+  `HOOF_SYNTHETIC_SFX_REQUIRED`/`HOOFBEAT_SFX_REQUIRED` (surface
+  verilmezse jenerik) arasında seçim yapar — `stopHoofbeats`/
+  `updateHoofbeatIntensity`/`reapplyActiveLoopVolumes` yeni
+  `activeHoofbeatAssetId` alanı üzerinden HANGİ asset'in o an çaldığını
+  takip eder. Yüzeye özel asset YOKSA jenerik asset'e DÜŞÜLMEZ (asset-manifest.ts'in
+  KENDİ belgelediği kural) — sessiz kalır, bu bir hata DEĞİLDİR.
+- **§19 "START SIGNAL":** `GATE_OPEN_SFX_REQUIRED`den (kapı MEKANİZMASI
+  sesi) KASITLI OLARAK AYRI yeni `'start_signal'` olay tipi + `START_SIGNAL_SFX_REQUIRED`.
+- **§20 "kademeli kalabalık":** `final_stretch`te `CROWD_AMBIENCE_SFX_REQUIRED`
+  loop'u `CROWD_EXCITED_SFX_REQUIRED`e ÇAPRAZLANIR (`switchToExcitedCrowd`
+  — yenisini başlat, eskisini durdur, `activeCrowdAssetId` ile takip),
+  `winner`de AYRICA `CROWD_CHEERING_SFX_REQUIRED` bir seferlik çalınır.
+  Ayrıca `STADIUM_AMBIENT_SFX_REQUIRED` (crowd'dan BAĞIMSIZ, yapısal
+  stadyum ortam sesi) `race_start`ta başlar, `stopAll`da durur.
+- **§21 "7 kanallı ses seviyeleri" (Master/Music/SFX/Horse/Crowd/
+  Environment/Commentary):** `AudioChannel`/`AudioConfig.volumeChannels`e
+  7. kanal olarak `environment` eklendi — `Wind` (daha önce YANLIŞLIKLA
+  `sfx` altındaydı) VE yeni `StadiumAmbient` bu kanala taşındı/bağlandı.
+- **§17 "Horse Snort/Neigh/Movement":** Race Engine bu vokalizasyonların
+  TETİKLENME ANINI HENÜZ yaymadığından (rastgele/anlatımsal bir
+  tetikleyici AYRI bir kapsam) bunlar `RaceAudioEventType`e EKLENMEDİ —
+  bunun yerine çağıranın doğrudan çağırabileceği bağımsız bir seferlik
+  `playHorseSnort()`/`playHorseNeigh()`/`playHorseMovement()` metotları
+  (horse kanalı) eklendi.
+- **Yeni config alanları** (`AudioConfig`, `config/audio.config.json`
+  `1.1.0` → `1.2.0`): `volumeChannels.environment`, `startSignalVolume`,
+  `stadiumAmbientVolume`, `crowdCheeringVolume`, `crowdExcitedVolume`,
+  `horseSnortVolume`, `horseNeighVolume`, `horseMovementVolume`. Yüzeye
+  göre nal sesi İÇİN AYRI config alanları EKLENMEDİ — ZATEN VAR OLAN
+  `hoofbeat: {baseVolume, maxExtraVolume}` şekli ÜÇ yüzey asset'i için de
+  KULLANILIYOR (hangi asset'in çaldığı bir SEÇİM meselesi, hacim FORMÜLÜ
+  DEĞİL) — config'i 3 katına çıkarmak gereksiz tekrar OLURDU.
+- **Yeni asset gereksinimleri** (`asset-manifest.ts` + `docs/ASSET_GUIDE.md`,
+  İKİSİ DE elle senkron güncellendi): `START_SIGNAL_SFX_REQUIRED`,
+  `STADIUM_AMBIENT_SFX_REQUIRED`, `CROWD_CHEERING_SFX_REQUIRED`,
+  `CROWD_EXCITED_SFX_REQUIRED`, `HORSE_SNORT_SFX_REQUIRED`,
+  `HORSE_NEIGH_SFX_REQUIRED`, `HORSE_MOVEMENT_SFX_REQUIRED`,
+  `HOOF_GRASS_SFX_REQUIRED`, `HOOF_DIRT_SFX_REQUIRED`,
+  `HOOF_SYNTHETIC_SFX_REQUIRED`.
+- **`docs/ASSET_GUIDE.md`**, brief §24/§25'in istediği ayrı bir
+  `docs/ASSET_MANIFEST.md` tablosu ve `docs/ASSET_LICENSES.md` şablonu
+  İLE `/assets` kaynak-materyal klasör iskeleti de bu turda eklendi
+  (bkz. bu dosyaların kendi doküman başlıkları) — brief §25'in tam
+  klasör yapısını YANSITIR, ama HİÇBİR gerçek 3D model/ses dosyası
+  İÇERMEZ (brief'in KENDİ kuralı).
+
+**Bilinçli olarak kapsam DIŞINDA bırakılan (Tier 2):** brief §30'un
+"HorseConfig/JockeyConfig/TrackConfig" asset-SEÇİM config katmanı —
+şu an her asset türünün TEK bir varyantı tanımlı olduğundan (ör. tek bir
+`HORSE_MODEL_REQUIRED`) bir SEÇİM sistemi PREMATÜR olurdu; ayrıca
+`packages/game-config/src/types.ts`'te ZATEN VAR OLAN `JockeyConfig`
+(race-balance config, `skillCompositeWeights` vb.) İLE İSİM ÇAKIŞMASI
+olduğu NOT edildi — ileride yapılırsa FARKLI isimler (ör.
+`JockeyAssetConfig`) GEREKECEKTİR.
+
+**Doğrulama:** `RaceSurface` importu DAHİL, GERÇEK `tsc --noEmit` (0 hata,
+hem `apps/web/tsconfig.logic.json` hem `packages/game-config/tsconfig.json`)
++ gerçek `tsx` ile ÇALIŞTIRILAN spec dosyaları: 44/44
+(`audio-manager.spec.ts`, 20 yeni test EKLENDİ) ve 29/29 (`config.spec.ts`,
+2 yeni test EKLENDİ) geçti. Bu doğrulama SIRASINDA yazılan bir testin
+YANLIŞ varsayımı (`environment` kanalı değiştiğinde `crowd`'a HİÇ
+`setVolume` çağrısı GİTMEZ sanılmıştı) gerçek çalıştırma İLE yakalandı —
+`reapplyActiveLoopVolumes` HER kanal değişikliğinde TÜM aktif loop'ları
+yeniden hesaplar (ÖNCEDEN de böyleydi, `master` testi zaten bunu
+doğruluyordu), bu yüzden test `crowd`'ın DEĞERİNİN değişmediğini
+doğrulayacak şekilde DÜZELTİLDİ — implementasyon DEĞİL, testin kendisi
+hatalıydı.
+
 ## ÖNEMLİ — bu oturumdaki doğrulama kısıtı
 
 `docs/ARCHITECTURE.md` §9'da belgelenen kısıt burada da geçerlidir: bu

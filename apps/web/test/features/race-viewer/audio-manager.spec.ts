@@ -329,7 +329,254 @@ describe('RaceAudioManager.stopAll', () => {
     const crowdPath = getAssetById('CROWD_AMBIENCE_SFX_REQUIRED')!.expectedPath;
     const windPath = getAssetById('WIND_AMBIENCE_SFX_REQUIRED')!.expectedPath;
     expect(calls.some((c) => c.method === 'stop' && c.path === breathingPath)).toBe(true);
-    expect(calls.some((c) => c.method === 'stop' && c.path === crowdPath)).toBe(true);
     expect(calls.some((c) => c.method === 'stop' && c.path === windPath)).toBe(true);
+    expect(calls.some((c) => c.method === 'stop' && c.path === crowdPath)).toBe(true);
+  });
+
+  /** "REALISTIC 3D ASSET & AUDIO PRODUCTION BRIEF" §20 (bu turda EKLENDİ) — yeni stadyum ambiyansı loop'unu da durdurur. */
+  it('stadyum ambiyansını da durdurur', () => {
+    const { backend, calls } = createRecordingBackend();
+    const manager = new RaceAudioManager(config, backend);
+    manager.handleEvent({ type: 'race_start' });
+    calls.length = 0;
+    manager.stopAll();
+
+    const stadiumPath = getAssetById('STADIUM_AMBIENT_SFX_REQUIRED')!.expectedPath;
+    expect(calls.some((c) => c.method === 'stop' && c.path === stadiumPath)).toBe(true);
+  });
+});
+
+/**
+ * "REALISTIC 3D ASSET & AUDIO PRODUCTION BRIEF" §18 (bu turda EKLENDİ) —
+ * `RaceSurface` (`@at-sevdalisi/shared-types`) ZATEN VAR OLAN, gerçek bir
+ * domain alanına (races.surface) göre nal sesi asset'i SEÇİMİ.
+ */
+describe('RaceAudioManager — yüzeye göre nal sesi (brief §18)', () => {
+  it('surface verilmezse jenerik HOOFBEAT_SFX_REQUIRED çalar', () => {
+    const { backend, calls } = createRecordingBackend();
+    const manager = new RaceAudioManager(config, backend);
+    manager.handleEvent({ type: 'race_start' });
+
+    const genericPath = getAssetById('HOOFBEAT_SFX_REQUIRED')!.expectedPath;
+    expect(calls.some((c) => c.method === 'play' && c.path === genericPath && c.options?.loop === true)).toBe(true);
+  });
+
+  it('surface "grass" iken HOOF_GRASS_SFX_REQUIRED çalar, jenerik HOOFBEAT_SFX_REQUIRED ÇALINMAZ', () => {
+    const { backend, calls } = createRecordingBackend();
+    const manager = new RaceAudioManager(config, backend);
+    manager.handleEvent({ type: 'race_start', surface: 'grass' });
+
+    const grassPath = getAssetById('HOOF_GRASS_SFX_REQUIRED')!.expectedPath;
+    const genericPath = getAssetById('HOOFBEAT_SFX_REQUIRED')!.expectedPath;
+    expect(calls.some((c) => c.method === 'play' && c.path === grassPath && c.options?.loop === true)).toBe(true);
+    expect(calls.some((c) => c.method === 'play' && c.path === genericPath)).toBe(false);
+  });
+
+  it('surface "dirt" iken HOOF_DIRT_SFX_REQUIRED çalar', () => {
+    const { backend, calls } = createRecordingBackend();
+    const manager = new RaceAudioManager(config, backend);
+    manager.handleEvent({ type: 'race_start', surface: 'dirt' });
+
+    const dirtPath = getAssetById('HOOF_DIRT_SFX_REQUIRED')!.expectedPath;
+    expect(calls.some((c) => c.method === 'play' && c.path === dirtPath && c.options?.loop === true)).toBe(true);
+  });
+
+  it('surface "synthetic" iken HOOF_SYNTHETIC_SFX_REQUIRED çalar', () => {
+    const { backend, calls } = createRecordingBackend();
+    const manager = new RaceAudioManager(config, backend);
+    manager.handleEvent({ type: 'race_start', surface: 'synthetic' });
+
+    const syntheticPath = getAssetById('HOOF_SYNTHETIC_SFX_REQUIRED')!.expectedPath;
+    expect(calls.some((c) => c.method === 'play' && c.path === syntheticPath && c.options?.loop === true)).toBe(true);
+  });
+
+  it('surface "grass" ile başlatılan nal sesi finish\'te DOĞRU (grass) asset\'i durdurur', () => {
+    const { backend, calls } = createRecordingBackend();
+    const manager = new RaceAudioManager(config, backend);
+    manager.handleEvent({ type: 'race_start', surface: 'grass' });
+    manager.handleEvent({ type: 'finish' });
+
+    const grassPath = getAssetById('HOOF_GRASS_SFX_REQUIRED')!.expectedPath;
+    expect(calls.some((c) => c.method === 'stop' && c.path === grassPath)).toBe(true);
+  });
+
+  it('surface "grass" ile başlatılan nal sesinin yoğunluğu DOĞRU (grass) asset üzerinde güncellenir', () => {
+    const { backend, calls } = createRecordingBackend();
+    const manager = new RaceAudioManager(config, backend);
+    manager.handleEvent({ type: 'race_start', surface: 'grass' });
+    calls.length = 0;
+
+    manager.updateHoofbeatIntensity(20, 20);
+    const grassPath = getAssetById('HOOF_GRASS_SFX_REQUIRED')!.expectedPath;
+    const lastVolumeCall = calls.filter((c) => c.method === 'setVolume' && c.path === grassPath).pop();
+    expect(lastVolumeCall).toBeDefined();
+    expect(lastVolumeCall!.volume!).toBeCloseTo(config.hoofbeat.baseVolume + config.hoofbeat.maxExtraVolume, 6);
+  });
+});
+
+/** "REALISTIC 3D ASSET & AUDIO PRODUCTION BRIEF" §19 (bu turda EKLENDİ). */
+describe('RaceAudioManager — start_signal (brief §19)', () => {
+  it('bir seferlik (döngüsüz) hazır-ol sinyali çalar, GATE_OPEN_SFX_REQUIRED ÇALINMAZ', () => {
+    const { backend, calls } = createRecordingBackend();
+    const manager = new RaceAudioManager(config, backend);
+    manager.handleEvent({ type: 'start_signal' });
+
+    const signalPath = getAssetById('START_SIGNAL_SFX_REQUIRED')!.expectedPath;
+    const gatePath = getAssetById('GATE_OPEN_SFX_REQUIRED')!.expectedPath;
+    expect(calls.some((c) => c.method === 'play' && c.path === signalPath && !c.options?.loop)).toBe(true);
+    expect(calls.some((c) => c.method === 'play' && c.path === gatePath)).toBe(false);
+  });
+});
+
+/** "REALISTIC 3D ASSET & AUDIO PRODUCTION BRIEF" §20 (bu turda EKLENDİ). */
+describe('RaceAudioManager — kademeli kalabalık (brief §20)', () => {
+  it('race_start ambience başlatır, stadyum ambiyansını da AYRICA başlatır', () => {
+    const { backend, calls } = createRecordingBackend();
+    const manager = new RaceAudioManager(config, backend);
+    manager.handleEvent({ type: 'race_start' });
+
+    const ambiencePath = getAssetById('CROWD_AMBIENCE_SFX_REQUIRED')!.expectedPath;
+    const stadiumPath = getAssetById('STADIUM_AMBIENT_SFX_REQUIRED')!.expectedPath;
+    expect(calls.some((c) => c.method === 'play' && c.path === ambiencePath && c.options?.loop === true)).toBe(true);
+    expect(calls.some((c) => c.method === 'play' && c.path === stadiumPath && c.options?.loop === true)).toBe(true);
+  });
+
+  it('final_stretch ambience\'i durdurup excited döngüsünü başlatır (crossfade)', () => {
+    const { backend, calls } = createRecordingBackend();
+    const manager = new RaceAudioManager(config, backend);
+    manager.handleEvent({ type: 'race_start' });
+    calls.length = 0;
+    manager.handleEvent({ type: 'final_stretch' });
+
+    const ambiencePath = getAssetById('CROWD_AMBIENCE_SFX_REQUIRED')!.expectedPath;
+    const excitedPath = getAssetById('CROWD_EXCITED_SFX_REQUIRED')!.expectedPath;
+    expect(calls.some((c) => c.method === 'play' && c.path === excitedPath && c.options?.loop === true)).toBe(true);
+    expect(calls.some((c) => c.method === 'stop' && c.path === ambiencePath)).toBe(true);
+  });
+
+  it('final_stretch yarış hiç başlamadıysa (crowd çalmıyorsa) excited döngüsünü BAŞLATMAZ', () => {
+    const { backend, calls } = createRecordingBackend();
+    const manager = new RaceAudioManager(config, backend);
+    manager.handleEvent({ type: 'final_stretch' });
+
+    const excitedPath = getAssetById('CROWD_EXCITED_SFX_REQUIRED')!.expectedPath;
+    expect(calls.some((c) => c.method === 'play' && c.path === excitedPath)).toBe(false);
+  });
+
+  it('final_stretch İKİ KEZ çağrılırsa excited döngüsü tekrar play EDİLMEZ (guard)', () => {
+    const { backend, calls } = createRecordingBackend();
+    const manager = new RaceAudioManager(config, backend);
+    manager.handleEvent({ type: 'race_start' });
+    manager.handleEvent({ type: 'final_stretch' });
+    calls.length = 0;
+    manager.handleEvent({ type: 'final_stretch' });
+
+    const excitedPath = getAssetById('CROWD_EXCITED_SFX_REQUIRED')!.expectedPath;
+    expect(calls.some((c) => c.method === 'play' && c.path === excitedPath)).toBe(false);
+  });
+
+  it('winner, WINNER_CELEBRATION_SFX_REQUIRED ile BİRLİKTE CROWD_CHEERING_SFX_REQUIRED\'ı da çalar', () => {
+    const { backend, calls } = createRecordingBackend();
+    const manager = new RaceAudioManager(config, backend);
+    manager.handleEvent({ type: 'winner' });
+
+    const cheeringPath = getAssetById('CROWD_CHEERING_SFX_REQUIRED')!.expectedPath;
+    expect(calls.some((c) => c.method === 'play' && c.path === cheeringPath)).toBe(true);
+  });
+
+  it('stopAll excited kalabalık döngüsünü de (DOĞRU asset\'i hedefleyerek) durdurur', () => {
+    const { backend, calls } = createRecordingBackend();
+    const manager = new RaceAudioManager(config, backend);
+    manager.handleEvent({ type: 'race_start' });
+    manager.handleEvent({ type: 'final_stretch' });
+    calls.length = 0;
+    manager.stopAll();
+
+    const excitedPath = getAssetById('CROWD_EXCITED_SFX_REQUIRED')!.expectedPath;
+    expect(calls.some((c) => c.method === 'stop' && c.path === excitedPath)).toBe(true);
+  });
+});
+
+/** "REALISTIC 3D ASSET & AUDIO PRODUCTION BRIEF" §17 (bu turda EKLENDİ) — bağımsız at vokalizasyonu bir seferlikleri. */
+describe('RaceAudioManager — at vokalizasyonları (brief §17)', () => {
+  it('playHorseSnort horse kanalında bir seferlik ses çalar', () => {
+    const { backend, calls } = createRecordingBackend();
+    const manager = new RaceAudioManager(config, backend);
+    manager.playHorseSnort();
+
+    const snortPath = getAssetById('HORSE_SNORT_SFX_REQUIRED')!.expectedPath;
+    expect(calls.some((c) => c.method === 'play' && c.path === snortPath && !c.options?.loop)).toBe(true);
+  });
+
+  it('playHorseNeigh horse kanalında bir seferlik ses çalar', () => {
+    const { backend, calls } = createRecordingBackend();
+    const manager = new RaceAudioManager(config, backend);
+    manager.playHorseNeigh();
+
+    const neighPath = getAssetById('HORSE_NEIGH_SFX_REQUIRED')!.expectedPath;
+    expect(calls.some((c) => c.method === 'play' && c.path === neighPath && !c.options?.loop)).toBe(true);
+  });
+
+  it('playHorseMovement horse kanalında bir seferlik ses çalar', () => {
+    const { backend, calls } = createRecordingBackend();
+    const manager = new RaceAudioManager(config, backend);
+    manager.playHorseMovement();
+
+    const movementPath = getAssetById('HORSE_MOVEMENT_SFX_REQUIRED')!.expectedPath;
+    expect(calls.some((c) => c.method === 'play' && c.path === movementPath && !c.options?.loop)).toBe(true);
+  });
+
+  it('hiçbir vokalizasyon metodu backend olmadan hata fırlatmaz', () => {
+    const manager = new RaceAudioManager(config);
+    expect(() => manager.playHorseSnort()).not.toThrow();
+    expect(() => manager.playHorseNeigh()).not.toThrow();
+    expect(() => manager.playHorseMovement()).not.toThrow();
+  });
+});
+
+/**
+ * "REALISTIC 3D ASSET & AUDIO PRODUCTION BRIEF" §21 (bu turda EKLENDİ) —
+ * 7. kanal (`environment`): rüzgar VE stadyum ambiyansı bu kanalı paylaşır,
+ * `crowd`/`sfx` kanallarından BAĞIMSIZ kısılabilmelidir.
+ */
+describe('RaceAudioManager — environment kanalı (brief §21)', () => {
+  /**
+   * `setChannelVolume` HER çağrıda `reapplyActiveLoopVolumes`'u çağırır —
+   * bu, o an çalan TÜM döngülerin hacmini yeniden hesaplayıp backend'e
+   * GÖNDERİR (ör. `master` kısıldığında AYRI bir kanala ait bir sesin de
+   * etkilenmesi gereken yukarıdaki test bu ÇAĞIRAN deseni zaten doğrular).
+   * Bu yüzden `environment` DIŞINDAKİ bir kanalın (`crowd`) setVolume
+   * ÇAĞRILMAMASI DEĞİL, ÇAĞRILSA BİLE DEĞERİNİN DEĞİŞMEMİŞ olması doğru
+   * doğrulamadır — `crowd`'ın hacim FORMÜLÜ `environment` kanalını
+   * hiç KULLANMAZ (bkz. `resolveVolume('crowd', ...)`), bu yüzden
+   * matematiksel SONUÇ aynı kalır.
+   */
+  it('environment kanalı kısıldığında rüzgar VE stadyum ambiyansı ANINDA etkilenir, kalabalığın hesaplanan hacmi DEĞİŞMEZ', () => {
+    const { backend, calls } = createRecordingBackend();
+    const manager = new RaceAudioManager(config, backend);
+    manager.handleEvent({ type: 'race_start' });
+    calls.length = 0;
+
+    manager.setChannelVolume('environment', 0.5);
+
+    const windPath = getAssetById('WIND_AMBIENCE_SFX_REQUIRED')!.expectedPath;
+    const stadiumPath = getAssetById('STADIUM_AMBIENT_SFX_REQUIRED')!.expectedPath;
+    const crowdPath = getAssetById('CROWD_AMBIENCE_SFX_REQUIRED')!.expectedPath;
+
+    const windCall = calls.filter((c) => c.method === 'setVolume' && c.path === windPath).pop();
+    const stadiumCall = calls.filter((c) => c.method === 'setVolume' && c.path === stadiumPath).pop();
+    const crowdCall = calls.filter((c) => c.method === 'setVolume' && c.path === crowdPath).pop();
+    expect(windCall).toBeDefined();
+    expect(windCall!.volume!).toBeCloseTo(config.windAmbienceVolume * 0.5 * config.volumeChannels.master, 6);
+    expect(stadiumCall).toBeDefined();
+    expect(stadiumCall!.volume!).toBeCloseTo(config.stadiumAmbientVolume * 0.5 * config.volumeChannels.master, 6);
+    if (crowdCall) {
+      expect(crowdCall.volume!).toBeCloseTo(config.crowdAmbienceVolume * config.volumeChannels.crowd * config.volumeChannels.master, 6);
+    }
+  });
+
+  it('getChannelVolume varsayılan olarak config.volumeChannels.environment değerini yansıtır', () => {
+    const manager = new RaceAudioManager(config);
+    expect(manager.getChannelVolume('environment')).toBe(config.volumeChannels.environment);
   });
 });

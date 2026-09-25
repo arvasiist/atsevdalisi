@@ -56,15 +56,60 @@
  * KENDİSİ de bu fazda "gerçek ses assetlerini ÜRETME, sadece altyapıyı
  * hazırla" der — bu yüzden BİLİNÇLİ olarak bu turun kapsamı DIŞINDA
  * bırakıldı.
+ *
+ * "REALISTIC 3D ASSET & AUDIO PRODUCTION BRIEF" §17-21 (bu turda
+ * GENİŞLETİLDİ) — yeni 32 bölümlük brief'in yeniden denetiminde şu
+ * eksiklikler bulundu ve bu turda kapatıldı:
+ * - §21 "Master/Music/SFX/Horse/Crowd/Environment/Commentary" 7 kanallı
+ *   liste, ama bu dosya sadece 6 kanal destekliyordu (Environment YOK,
+ *   Wind YANLIŞLIKLA `sfx` altında sınıflandırılmıştı) — `environment`
+ *   kanalı EKLENDİ, `startWindAmbience`/`startStadiumAmbience` bu kanala
+ *   TAŞINDI.
+ * - §18 "yüzeye göre nal sesi" (HOOF_GRASS/HOOF_DIRT/HOOF_FAST/vb.) —
+ *   `RaceSurface` (`@at-sevdalisi/shared-types`) ZATEN VAR OLAN, gerçek
+ *   bir domain alanı (races.surface) olduğundan, bu SPEKÜLATİF bir
+ *   özellik DEĞİL, mevcut bir veri alanının doğal ses karşılığıdır —
+ *   `startHoofbeats` artık opsiyonel bir `surface` parametresi alır,
+ *   yüzeye özel asset (`HOOF_GRASS_SFX_REQUIRED` vb.) yoksa jenerik
+ *   `HOOFBEAT_SFX_REQUIRED`e DÜŞÜLMEZ (asset-manifest.ts'in KENDİ
+ *   dokümante ettiği kural) — ne asset ne de fallback yoksa nal sesi
+ *   basitçe SESSİZ kalır, bu "hata" DEĞİLDİR.
+ * - §19 "START SIGNAL" (kapılar açılmadan HEMEN ÖNCE çalınan hazır-ol
+ *   sinyali) — `GATE_OPEN_SFX_REQUIRED`den (kapı MEKANİZMASI sesi)
+ *   KASITLI OLARAK AYRI yeni bir `'start_signal'` event tipi EKLENDİ.
+ * - §20 "kalabalık durumu yarışın gidişatına göre değişmeli" —
+ *   `final_stretch`te `CROWD_AMBIENCE_SFX_REQUIRED` loop'u artık
+ *   `CROWD_EXCITED_SFX_REQUIRED`e ÇAPRAZLANIR (crossfade), `winner`de
+ *   AYRICA `CROWD_CHEERING_SFX_REQUIRED` bir seferlik çalınır.
+ * - §17 "Horse Snort/Neigh/Movement" — Race Engine'in ŞU AN bu
+ *   vokalizasyonları HANGİ ANDA tetikleyeceğine dair bir sinyali
+ *   YAYINLAMADIĞI için (rastgele/anlatımsal bir tetikleyici AYRI bir
+ *   kapsam) bunlar bir `RaceAudioEventType` OLARAK EKLENMEDİ — bunun
+ *   yerine çağıranın (gelecekteki bir rastgele zamanlayıcı/anlatım
+ *   sistemi) doğrudan çağırabileceği basit, bağımsız bir seferlik
+ *   metotlar (`playHorseSnort`/`playHorseNeigh`/`playHorseMovement`)
+ *   olarak eklendi — brief'in KENDİSİ de bu fazda "gerçek tetikleme
+ *   mantığı DEĞİL, altyapı" ister.
  */
 
+import type { RaceSurface } from '@at-sevdalisi/shared-types';
 import type { AudioConfig } from '@at-sevdalisi/game-config';
 import { getAssetById } from '../assets/asset-manifest';
 
-export type RaceAudioEventType = 'race_start' | 'gate_open' | 'overtake' | 'final_stretch' | 'finish' | 'winner';
+export type RaceAudioEventType = 'race_start' | 'gate_open' | 'start_signal' | 'overtake' | 'final_stretch' | 'finish' | 'winner';
 
 export interface RaceAudioEvent {
   type: RaceAudioEventType;
+  /**
+   * "REALISTIC 3D ASSET & AUDIO PRODUCTION BRIEF" §18 (bu turda EKLENDİ) —
+   * `race_start`te GEÇİLİRSE nal sesi bu pist yüzeyine ÖZEL asset'i
+   * (bkz. `resolveHoofbeatAssetId`) kullanır; GEÇİLMEZSE (veya `handleEvent`
+   * ile İLGİSİZ bir event tipindeyse) jenerik `HOOFBEAT_SFX_REQUIRED`e
+   * düşülür — bu, `Race.surface`'ın (`@at-sevdalisi/shared-types`)
+   * ÇAĞIRAN tarafından İSTEĞE BAĞLI geçirilebilmesiyle geriye dönük
+   * UYUMLUDUR (mevcut hiçbir çağrı kırılmaz).
+   */
+  surface?: RaceSurface;
 }
 
 export interface AudioPlayOptions {
@@ -94,11 +139,12 @@ export const SILENT_AUDIO_BACKEND: AudioBackend = {
 
 /**
  * Brief §31 "Ses seviyeleri ayrı kontrol edilebilir olmalı: Master / Music
- * / SFX / Crowd / Commentary / Horse" (bu turda EKLENDİ) —
- * `AudioConfig.volumeChannels`'in (bkz. `@at-sevdalisi/game-config`'in o
- * alanının doc yorumu) çalışma zamanı karşılığı.
+ * / SFX / Crowd / Commentary / Horse" (bu turda EKLENDİ), "REALISTIC 3D
+ * ASSET & AUDIO PRODUCTION BRIEF" §21 (bu turda GENİŞLETİLDİ, 7. kanal:
+ * Environment) — `AudioConfig.volumeChannels`'in (bkz. `@at-sevdalisi/
+ * game-config`'in o alanının doc yorumu) çalışma zamanı karşılığı.
  */
-export type AudioChannel = 'master' | 'music' | 'sfx' | 'crowd' | 'commentary' | 'horse';
+export type AudioChannel = 'master' | 'music' | 'sfx' | 'crowd' | 'commentary' | 'horse' | 'environment';
 
 /**
  * `resolveVolume`'un kabul ettiği, `master`'IN KENDİSİ HARİÇ kanallar —
@@ -106,6 +152,33 @@ export type AudioChannel = 'master' | 'music' | 'sfx' | 'crowd' | 'commentary' |
  * ÜZERİNE AYRICA çarpılır (bkz. `resolveVolume`).
  */
 type PlayableAudioChannel = Exclude<AudioChannel, 'master'>;
+
+/**
+ * "REALISTIC 3D ASSET & AUDIO PRODUCTION BRIEF" §18 (bu turda EKLENDİ) —
+ * yüzeye göre nal sesi asset id'lerinin merkezi eşlemesi. `asset-manifest.ts`
+ * bu üç asset'in "yoksa jenerik HOOFBEAT'e DÜŞÜLMEZ" kuralını KENDİSİ
+ * dokümante eder (bkz. `HOOF_GRASS_SFX_REQUIRED` vb.'nin `fallbackBehavior`
+ * alanı) — bu yüzden burada bilinçli olarak `HOOFBEAT_SFX_REQUIRED`e bir
+ * "son çare" fallback'i YOKTUR, sadece surface VERİLMEDİĞİNDE (ör. eski
+ * çağıran kodlar, ya da yüzeyin henüz bilinmediği bir bağlam) jenerik
+ * asset'e düşülür.
+ */
+type HoofbeatAssetId = 'HOOFBEAT_SFX_REQUIRED' | 'HOOF_GRASS_SFX_REQUIRED' | 'HOOF_DIRT_SFX_REQUIRED' | 'HOOF_SYNTHETIC_SFX_REQUIRED';
+
+function resolveHoofbeatAssetId(surface: RaceSurface | undefined): HoofbeatAssetId {
+  switch (surface) {
+    case 'grass':
+      return 'HOOF_GRASS_SFX_REQUIRED';
+    case 'dirt':
+      return 'HOOF_DIRT_SFX_REQUIRED';
+    case 'synthetic':
+      return 'HOOF_SYNTHETIC_SFX_REQUIRED';
+    default:
+      return 'HOOFBEAT_SFX_REQUIRED';
+  }
+}
+
+type CrowdAssetId = 'CROWD_AMBIENCE_SFX_REQUIRED' | 'CROWD_EXCITED_SFX_REQUIRED';
 
 function clamp01(value: number): number {
   return Math.max(0, Math.min(1, value));
@@ -119,11 +192,16 @@ export class RaceAudioManager {
   private horseBreathingPlaying = false;
   private crowdPlaying = false;
   private windPlaying = false;
+  private stadiumAmbientPlaying = false;
   private musicPlaying = false;
   private musicDucked = false;
   /** `setChannelVolume`'un o an çalan döngülü sesi ANINDA yeniden hesaplayabilmesi için son bilinen yoğunluk oranı (bkz. `reapplyActiveLoopVolumes`). */
   private lastHoofbeatRatio = 0;
   private lastHorseBreathingRatio = 0;
+  /** Brief §18 (bu turda EKLENDİ) — o an ÇALAN nal sesi asset'i, `stopHoofbeats`/`updateHoofbeatIntensity`/`reapplyActiveLoopVolumes`'un HANGİ asset'i hedefleyeceğini bilmesi için (`race_start`'ta hangi yüzeyle başlatıldıysa o). */
+  private activeHoofbeatAssetId: HoofbeatAssetId | null = null;
+  /** Brief §20 (bu turda EKLENDİ) — o an ÇALAN kalabalık döngüsü (ambience veya final-düzlük "excited" varyantı), bkz. `switchToExcitedCrowd`. */
+  private activeCrowdAssetId: CrowdAssetId | null = null;
 
   constructor(config: AudioConfig, backend: AudioBackend = SILENT_AUDIO_BACKEND) {
     this.config = config;
@@ -135,6 +213,7 @@ export class RaceAudioManager {
       crowd: clamp01(config.volumeChannels.crowd),
       commentary: clamp01(config.volumeChannels.commentary),
       horse: clamp01(config.volumeChannels.horse),
+      environment: clamp01(config.volumeChannels.environment),
     };
   }
 
@@ -157,10 +236,15 @@ export class RaceAudioManager {
    * `AudioBackend`'in yapacağı gibi.
    *
    * Brief §31'in örnek eşleştirmesindeki ALTI ayrık (bir seferlik veya
-   * durum-değiştiren) olay burada işlenir — Hoof/HorseBreathing/Crowd/
-   * Wind SÜREKLİ (loop) sesler olduğundan burada DEĞİL, kendi başlat/
-   * durdur metotlarında (bkz. altları) yönetilir; Commentary ise TEK bir
-   * "olay" değil, ÇOK SAYIDA olası klipten biridir (bkz. `playCommentaryLine`).
+   * durum-değiştiren) olay VE "REALISTIC 3D ASSET & AUDIO PRODUCTION
+   * BRIEF" §19'un `start_signal`'ı burada işlenir — Hoof/HorseBreathing/
+   * Crowd/Wind/StadiumAmbient SÜREKLİ (loop/ambient) sesler olduğundan
+   * burada DEĞİL, kendi başlat/durdur metotlarında (bkz. altları)
+   * yönetilir; Commentary ise TEK bir "olay" değil, ÇOK SAYIDA olası
+   * klipten biridir (bkz. `playCommentaryLine`); Horse Snort/Neigh/
+   * Movement (§17) ise Race Engine'in HENÜZ yaymadığı bir sinyale bağlı
+   * OLMADIĞINDAN event DEĞİL, bağımsız bir seferlik metotlardır (bkz.
+   * `playHorseSnort` vb.).
    */
   handleEvent(event: RaceAudioEvent): void {
     switch (event.type) {
@@ -172,17 +256,28 @@ export class RaceAudioManager {
           this.musicDucked = false;
         }
         // Yarış başlangıcında TÜM süregelen (loop) ses katmanları
-        // birlikte başlar — nal, at nefesi, kalabalık, rüzgar.
-        this.startHoofbeats();
+        // birlikte başlar — nal (yüzeye göre), at nefesi, kalabalık,
+        // rüzgar, stadyum ortamı.
+        this.startHoofbeats(event.surface);
         this.startHorseBreathing();
         this.startCrowdAmbience();
         this.startWindAmbience();
+        this.startStadiumAmbience();
         return;
       }
       case 'gate_open': {
         const asset = getAssetById('GATE_OPEN_SFX_REQUIRED');
         if (asset) {
           this.backend.play(asset.expectedPath, { volume: this.resolveVolume('sfx', this.config.gateOpenVolume) });
+        }
+        return;
+      }
+      case 'start_signal': {
+        // Brief §19 — kapılar açılmadan HEMEN ÖNCE, `gate_open`'dan
+        // (kapı MEKANİZMASI sesi) KASITLI OLARAK AYRI hazır-ol sinyali.
+        const asset = getAssetById('START_SIGNAL_SFX_REQUIRED');
+        if (asset) {
+          this.backend.play(asset.expectedPath, { volume: this.resolveVolume('sfx', this.config.startSignalVolume) });
         }
         return;
       }
@@ -202,6 +297,10 @@ export class RaceAudioManager {
             this.resolveVolume('music', this.config.raceMusicVolume * this.config.finalStretchMusicDuckFactor),
           );
         }
+        // Brief §20 (bu turda EKLENDİ) — "kalabalık durumu yarışın
+        // gidişatına göre değişmeli": sakin ambience'tan yükselmiş
+        // "excited" kalabalık döngüsüne çapraz geçiş.
+        this.switchToExcitedCrowd();
         return;
       }
       case 'finish': {
@@ -219,42 +318,26 @@ export class RaceAudioManager {
         return;
       }
       case 'winner': {
-        // Brief §31 "Winner" — `finish`ten KASITLI OLARAK AYRI (bkz.
-        // `AudioConfig.winnerCelebrationVolume` doc yorumu): "finish"
-        // yarış çizgisini geçme ANINI, "winner" kazananın KESİNLEŞTİĞİ
-        // anı (Winner Ceremony sunumunun başlangıcı, AYRI bir özellik
-        // kapsamı) işaretler.
+        // Brief §31 "Winner" — "Finish" fanfarından KASITLI OLARAK AYRI
+        // bir ses: `finish` yarış çizgisini geçme ANINI, `winner` ise
+        // kazananın KESİNLEŞTİĞİ (Winner Ceremony sunumunun başlangıcı,
+        // AYRI ve gelecekteki bir özellik kapsamı) anı işaretler — brief
+        // bu ikisini AYRI kategoriler olarak listeler.
         const asset = getAssetById('WINNER_CELEBRATION_SFX_REQUIRED');
         if (asset) {
           this.backend.play(asset.expectedPath, { volume: this.resolveVolume('sfx', this.config.winnerCelebrationVolume) });
         }
+        // "REALISTIC 3D ASSET & AUDIO PRODUCTION BRIEF" §20 (bu turda
+        // EKLENDİ) — kazanan kesinleştiği andaki kalabalık tezahürat
+        // patlaması, `WINNER_CELEBRATION_SFX_REQUIRED` ile BİRLİKTE,
+        // bir seferlik (döngüsüz) çalar.
+        const cheering = getAssetById('CROWD_CHEERING_SFX_REQUIRED');
+        if (cheering) {
+          this.backend.play(cheering.expectedPath, { volume: this.resolveVolume('crowd', this.config.crowdCheeringVolume) });
+        }
         return;
       }
     }
-  }
-
-  private startHoofbeats(): void {
-    if (this.hoofbeatPlaying) {
-      return;
-    }
-    const asset = getAssetById('HOOFBEAT_SFX_REQUIRED');
-    if (!asset) {
-      return;
-    }
-    this.backend.play(asset.expectedPath, { loop: true, volume: this.resolveVolume('horse', this.config.hoofbeat.baseVolume) });
-    this.hoofbeatPlaying = true;
-    this.lastHoofbeatRatio = 0;
-  }
-
-  private stopHoofbeats(): void {
-    if (!this.hoofbeatPlaying) {
-      return;
-    }
-    const asset = getAssetById('HOOFBEAT_SFX_REQUIRED');
-    if (asset) {
-      this.backend.stop(asset.expectedPath);
-    }
-    this.hoofbeatPlaying = false;
   }
 
   /**
@@ -262,12 +345,45 @@ export class RaceAudioManager {
    * ZATEN VAR OLAN telemetriden (`InterpolatedHorseState.speedMps`, Race
    * Engine'in `RaceBalanceConfig`'indeki azami hız) gelir, burada yeni bir
    * fizik/skor HESAPLANMAZ, sadece [0,1] aralığına ORANLANIR.
+   *
+   * "REALISTIC 3D ASSET & AUDIO PRODUCTION BRIEF" §18 (bu turda
+   * GENİŞLETİLDİ) — opsiyonel `surface` parametresi, hangi yüzeye özel
+   * asset'in (bkz. `resolveHoofbeatAssetId`) çalınacağını belirler;
+   * verilmezse jenerik `HOOFBEAT_SFX_REQUIRED`e düşülür (geriye dönük
+   * UYUMLU — mevcut hiçbir çağrı kırılmaz).
    */
+  private startHoofbeats(surface?: RaceSurface): void {
+    if (this.hoofbeatPlaying) {
+      return;
+    }
+    const assetId = resolveHoofbeatAssetId(surface);
+    const asset = getAssetById(assetId);
+    if (!asset) {
+      return;
+    }
+    this.backend.play(asset.expectedPath, { loop: true, volume: this.resolveVolume('horse', this.config.hoofbeat.baseVolume) });
+    this.hoofbeatPlaying = true;
+    this.activeHoofbeatAssetId = assetId;
+    this.lastHoofbeatRatio = 0;
+  }
+
+  private stopHoofbeats(): void {
+    if (!this.hoofbeatPlaying) {
+      return;
+    }
+    const asset = this.activeHoofbeatAssetId ? getAssetById(this.activeHoofbeatAssetId) : undefined;
+    if (asset) {
+      this.backend.stop(asset.expectedPath);
+    }
+    this.hoofbeatPlaying = false;
+    this.activeHoofbeatAssetId = null;
+  }
+
   updateHoofbeatIntensity(speedMps: number, maxSpeedMps: number): void {
     if (!this.hoofbeatPlaying) {
       return;
     }
-    const asset = getAssetById('HOOFBEAT_SFX_REQUIRED');
+    const asset = this.activeHoofbeatAssetId ? getAssetById(this.activeHoofbeatAssetId) : undefined;
     if (!asset) {
       return;
     }
@@ -335,7 +451,7 @@ export class RaceAudioManager {
     );
   }
 
-  /** Brief §31 "Crowd" (bu turda EKLENDİ) — sabit hacimli, sürekli tribün kalabalığı arka plan sesi (loop). */
+  /** Brief §31 "Crowd" (bu turda EKLENDİ) — sabit hacimli, sürekli tribün kalabalığı arka plan sesi (loop, ambience varyantı). */
   private startCrowdAmbience(): void {
     if (this.crowdPlaying) {
       return;
@@ -346,24 +462,55 @@ export class RaceAudioManager {
     }
     this.backend.play(asset.expectedPath, { loop: true, volume: this.resolveVolume('crowd', this.config.crowdAmbienceVolume) });
     this.crowdPlaying = true;
+    this.activeCrowdAssetId = 'CROWD_AMBIENCE_SFX_REQUIRED';
   }
 
   private stopCrowdAmbience(): void {
     if (!this.crowdPlaying) {
       return;
     }
-    const asset = getAssetById('CROWD_AMBIENCE_SFX_REQUIRED');
+    const asset = this.activeCrowdAssetId ? getAssetById(this.activeCrowdAssetId) : undefined;
     if (asset) {
       this.backend.stop(asset.expectedPath);
     }
     this.crowdPlaying = false;
+    this.activeCrowdAssetId = null;
+  }
+
+  /**
+   * "REALISTIC 3D ASSET & AUDIO PRODUCTION BRIEF" §20 (bu turda EKLENDİ)
+   * — final düzlükte sakin `CROWD_AMBIENCE_SFX_REQUIRED` döngüsünü
+   * yükselmiş gerilim seviyesindeki `CROWD_EXCITED_SFX_REQUIRED` döngüsüne
+   * ÇAPRAZLAR (crossfade — önce yenisini başlat, sonra eskisini durdur,
+   * kısa bir an İKİSİ birden çalar). Kalabalık HİÇ başlamadıysa (`race_
+   * start` çağrılmadıysa, `crowdPlaying === false`) hiçbir şey YAPMAZ —
+   * `startHoofbeats`in guard deseniyle AYNI disiplin. "Excited" asset'i
+   * YOKSA sessizce ATLANIR, mevcut ambience döngüsü OLDUĞU GİBİ çalmaya
+   * devam eder (brief'in "asset yoksa çökmeden fallback" kuralı — burada
+   * "fallback", zaten çalan sesin KESİNTİYE UĞRAMAMASIdır).
+   */
+  private switchToExcitedCrowd(): void {
+    if (!this.crowdPlaying || this.activeCrowdAssetId === 'CROWD_EXCITED_SFX_REQUIRED') {
+      return;
+    }
+    const excited = getAssetById('CROWD_EXCITED_SFX_REQUIRED');
+    if (!excited) {
+      return;
+    }
+    const previous = this.activeCrowdAssetId ? getAssetById(this.activeCrowdAssetId) : undefined;
+    this.backend.play(excited.expectedPath, { loop: true, volume: this.resolveVolume('crowd', this.config.crowdExcitedVolume) });
+    if (previous) {
+      this.backend.stop(previous.expectedPath);
+    }
+    this.activeCrowdAssetId = 'CROWD_EXCITED_SFX_REQUIRED';
   }
 
   /**
    * Brief §31 "Wind" (bu turda EKLENDİ) — sabit hacimli, sürekli rüzgar
-   * arka plan sesi (loop). Brief'in 6 kanallı listesinde "Wind"in KENDİ
-   * bir kanalı YOK — ortam SFX'i olarak `sfx` kanalı altında sınıflandırılır
-   * (bkz. `AudioConfig.windAmbienceVolume` doc yorumu).
+   * arka plan sesi (loop). "REALISTIC 3D ASSET & AUDIO PRODUCTION BRIEF"
+   * §21 (bu turda DÜZELTİLDİ) — brief'in 7 kanallı listesinde "Wind" AYRI
+   * bir kanal DEĞİL, `environment` kanalı altında sınıflandırılır (daha
+   * önce YANLIŞLIKLA `sfx` kanalına bağlıydı).
    */
   private startWindAmbience(): void {
     if (this.windPlaying) {
@@ -373,7 +520,7 @@ export class RaceAudioManager {
     if (!asset) {
       return;
     }
-    this.backend.play(asset.expectedPath, { loop: true, volume: this.resolveVolume('sfx', this.config.windAmbienceVolume) });
+    this.backend.play(asset.expectedPath, { loop: true, volume: this.resolveVolume('environment', this.config.windAmbienceVolume) });
     this.windPlaying = true;
   }
 
@@ -386,6 +533,39 @@ export class RaceAudioManager {
       this.backend.stop(asset.expectedPath);
     }
     this.windPlaying = false;
+  }
+
+  /**
+   * "REALISTIC 3D ASSET & AUDIO PRODUCTION BRIEF" §20 (bu turda EKLENDİ)
+   * — genel stadyum atmosferi (loop), `CROWD_AMBIENCE_SFX_REQUIRED`den
+   * (kalabalık SESİ) KASITLI OLARAK AYRI: hoparlör hışırtısı/uzak mekanik
+   * gürültü gibi kalabalıktan BAĞIMSIZ yapısal ortam sesi, `wind` ile AYNI
+   * `environment` kanalını paylaşır.
+   */
+  private startStadiumAmbience(): void {
+    if (this.stadiumAmbientPlaying) {
+      return;
+    }
+    const asset = getAssetById('STADIUM_AMBIENT_SFX_REQUIRED');
+    if (!asset) {
+      return;
+    }
+    this.backend.play(asset.expectedPath, {
+      loop: true,
+      volume: this.resolveVolume('environment', this.config.stadiumAmbientVolume),
+    });
+    this.stadiumAmbientPlaying = true;
+  }
+
+  private stopStadiumAmbience(): void {
+    if (!this.stadiumAmbientPlaying) {
+      return;
+    }
+    const asset = getAssetById('STADIUM_AMBIENT_SFX_REQUIRED');
+    if (asset) {
+      this.backend.stop(asset.expectedPath);
+    }
+    this.stadiumAmbientPlaying = false;
   }
 
   /**
@@ -408,13 +588,45 @@ export class RaceAudioManager {
   }
 
   /**
+   * "REALISTIC 3D ASSET & AUDIO PRODUCTION BRIEF" §17 (bu turda EKLENDİ)
+   * — Race Engine'in bu vokalizasyonları HANGİ ANDA tetikleyeceğine dair
+   * bir sinyali HENÜZ yaymadığı için (rastgele/anlatımsal bir tetikleyici
+   * AYRI bir kapsam, brief'in KENDİSİ de bu fazda "gerçek tetikleme
+   * mantığı DEĞİL, altyapı" ister) bunlar `handleEvent`e BAĞLI DEĞİLDİR,
+   * çağıranın kendi kararıyla (ör. gelecekteki bir rastgele zamanlayıcı)
+   * çağırabileceği bağımsız bir seferlik metotlardır — üçü de `horse`
+   * kanalını paylaşır, `hoofbeat`/`horseBreathing`in aksine DÖNGÜSÜZ ve
+   * durum TUTMAZLAR (birden çok kez üst üste çağrılabilir).
+   */
+  playHorseSnort(): void {
+    const asset = getAssetById('HORSE_SNORT_SFX_REQUIRED');
+    if (asset) {
+      this.backend.play(asset.expectedPath, { volume: this.resolveVolume('horse', this.config.horseSnortVolume) });
+    }
+  }
+
+  playHorseNeigh(): void {
+    const asset = getAssetById('HORSE_NEIGH_SFX_REQUIRED');
+    if (asset) {
+      this.backend.play(asset.expectedPath, { volume: this.resolveVolume('horse', this.config.horseNeighVolume) });
+    }
+  }
+
+  playHorseMovement(): void {
+    const asset = getAssetById('HORSE_MOVEMENT_SFX_REQUIRED');
+    if (asset) {
+      this.backend.play(asset.expectedPath, { volume: this.resolveVolume('horse', this.config.horseMovementVolume) });
+    }
+  }
+
+  /**
    * Brief §31 "Ses seviyeleri ayrı kontrol edilebilir olmalı" — RUNTIME'da
    * (ör. bir ayarlar ekranından) bir kanalın hacmini değiştirir. O ANDA
-   * ÇALAN döngülü sesler (nal/nefes/kalabalık/rüzgar/müzik) varsa YENİ
-   * hacim HEMEN uygulanır (bkz. `reapplyActiveLoopVolumes`) — aksi halde
-   * bir "Kalabalık" kaydırıcısını yarış SIRASINDA hareket ettirmenin
-   * hiçbir GÖZLENEBİLİR etkisi olmazdı, bu da özelliği YARIM/anlamsız
-   * bırakırdı.
+   * ÇALAN döngülü sesler (nal/nefes/kalabalık/rüzgar/stadyum/müzik) varsa
+   * YENİ hacim HEMEN uygulanır (bkz. `reapplyActiveLoopVolumes`) — aksi
+   * halde bir "Kalabalık" kaydırıcısını yarış SIRASINDA hareket
+   * ettirmenin hiçbir GÖZLENEBİLİR etkisi olmazdı, bu da özelliği
+   * YARIM/anlamsız bırakırdı.
    */
   setChannelVolume(channel: AudioChannel, volume: number): void {
     this.channelVolumes[channel] = clamp01(volume);
@@ -435,8 +647,8 @@ export class RaceAudioManager {
         this.backend.setVolume(music.expectedPath, this.resolveVolume('music', base));
       }
     }
-    if (this.hoofbeatPlaying) {
-      const asset = getAssetById('HOOFBEAT_SFX_REQUIRED');
+    if (this.hoofbeatPlaying && this.activeHoofbeatAssetId) {
+      const asset = getAssetById(this.activeHoofbeatAssetId);
       if (asset) {
         this.backend.setVolume(
           asset.expectedPath,
@@ -456,16 +668,23 @@ export class RaceAudioManager {
         );
       }
     }
-    if (this.crowdPlaying) {
-      const asset = getAssetById('CROWD_AMBIENCE_SFX_REQUIRED');
+    if (this.crowdPlaying && this.activeCrowdAssetId) {
+      const asset = getAssetById(this.activeCrowdAssetId);
       if (asset) {
-        this.backend.setVolume(asset.expectedPath, this.resolveVolume('crowd', this.config.crowdAmbienceVolume));
+        const base = this.activeCrowdAssetId === 'CROWD_EXCITED_SFX_REQUIRED' ? this.config.crowdExcitedVolume : this.config.crowdAmbienceVolume;
+        this.backend.setVolume(asset.expectedPath, this.resolveVolume('crowd', base));
       }
     }
     if (this.windPlaying) {
       const asset = getAssetById('WIND_AMBIENCE_SFX_REQUIRED');
       if (asset) {
-        this.backend.setVolume(asset.expectedPath, this.resolveVolume('sfx', this.config.windAmbienceVolume));
+        this.backend.setVolume(asset.expectedPath, this.resolveVolume('environment', this.config.windAmbienceVolume));
+      }
+    }
+    if (this.stadiumAmbientPlaying) {
+      const asset = getAssetById('STADIUM_AMBIENT_SFX_REQUIRED');
+      if (asset) {
+        this.backend.setVolume(asset.expectedPath, this.resolveVolume('environment', this.config.stadiumAmbientVolume));
       }
     }
   }
@@ -476,6 +695,7 @@ export class RaceAudioManager {
     this.stopHorseBreathing();
     this.stopCrowdAmbience();
     this.stopWindAmbience();
+    this.stopStadiumAmbience();
     const music = getAssetById('RACE_BACKGROUND_MUSIC_REQUIRED');
     if (music) {
       this.backend.stop(music.expectedPath);

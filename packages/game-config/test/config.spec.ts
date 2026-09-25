@@ -212,6 +212,7 @@ describe('loadAudioConfig', () => {
       crowd: 1,
       commentary: 1,
       horse: 1,
+      environment: 1,
     });
   });
 
@@ -234,5 +235,34 @@ describe('loadAudioConfig', () => {
     expect(config.windAmbienceVolume).toBeLessThanOrEqual(1);
     expect(config.commentaryLineVolume).toBeGreaterThanOrEqual(0);
     expect(config.commentaryLineVolume).toBeLessThanOrEqual(1);
+  });
+
+  /**
+   * "REALISTIC 3D ASSET & AUDIO PRODUCTION BRIEF" §17-21 (bu turda EKLENDİ)
+   * — yeni granüler ses kategorilerinin (start signal/stadium ambient/
+   * crowd cheering-excited/at vokalizasyonları) taban hacimleri.
+   */
+  it('yeni ses kategorilerinin (startSignal/stadiumAmbient/crowdCheering/crowdExcited/horseSnort/horseNeigh/horseMovement) hacimleri [0, 1] aralığında olmalı', () => {
+    const config = loadAudioConfig();
+    expect(config.startSignalVolume).toBeGreaterThanOrEqual(0);
+    expect(config.startSignalVolume).toBeLessThanOrEqual(1);
+    expect(config.stadiumAmbientVolume).toBeGreaterThanOrEqual(0);
+    expect(config.stadiumAmbientVolume).toBeLessThanOrEqual(1);
+    expect(config.crowdCheeringVolume).toBeGreaterThanOrEqual(0);
+    expect(config.crowdCheeringVolume).toBeLessThanOrEqual(1);
+    expect(config.crowdExcitedVolume).toBeGreaterThanOrEqual(0);
+    expect(config.crowdExcitedVolume).toBeLessThanOrEqual(1);
+    expect(config.horseSnortVolume).toBeGreaterThanOrEqual(0);
+    expect(config.horseSnortVolume).toBeLessThanOrEqual(1);
+    expect(config.horseNeighVolume).toBeGreaterThanOrEqual(0);
+    expect(config.horseNeighVolume).toBeLessThanOrEqual(1);
+    expect(config.horseMovementVolume).toBeGreaterThanOrEqual(0);
+    expect(config.horseMovementVolume).toBeLessThanOrEqual(1);
+  });
+
+  it('volumeChannels.environment [0, 1] aralığında olmalı (brief §21 7. kanal)', () => {
+    const config = loadAudioConfig();
+    expect(config.volumeChannels.environment).toBeGreaterThanOrEqual(0);
+    expect(config.volumeChannels.environment).toBeLessThanOrEqual(1);
   });
 });

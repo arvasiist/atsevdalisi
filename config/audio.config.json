@@ -1,12 +1,13 @@
 {
-  "version": "1.1.0",
+  "version": "1.2.0",
   "volumeChannels": {
     "master": 1,
     "music": 1,
     "sfx": 1,
     "crowd": 1,
     "commentary": 1,
-    "horse": 1
+    "horse": 1,
+    "environment": 1
   },
   "hoofbeat": {
     "baseVolume": 0.35,
@@ -24,5 +25,12 @@
   "crowdAmbienceVolume": 0.3,
   "windAmbienceVolume": 0.2,
   "commentaryLineVolume": 0.9,
-  "finalStretchMusicDuckFactor": 0.5
+  "finalStretchMusicDuckFactor": 0.5,
+  "startSignalVolume": 0.65,
+  "stadiumAmbientVolume": 0.25,
+  "crowdCheeringVolume": 0.8,
+  "crowdExcitedVolume": 0.45,
+  "horseSnortVolume": 0.3,
+  "horseNeighVolume": 0.35,
+  "horseMovementVolume": 0.2
 }

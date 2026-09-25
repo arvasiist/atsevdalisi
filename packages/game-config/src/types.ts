@@ -587,6 +587,15 @@ export interface AudioConfig {
     crowd: number;
     commentary: number;
     horse: number;
+    /**
+     * "REALISTIC 3D ASSET & AUDIO PRODUCTION BRIEF" §21 (bu turda EKLENDİ) —
+     * brief'in 7 kanallı listesinde ("Master/Music/SFX/Horse/Crowd/
+     * Environment/Commentary") daha önce KARŞILIĞI olmayan 7. kanal.
+     * `windAmbienceVolume` ARTIK `sfx` DEĞİL bu kanal altında çalınır (bkz.
+     * `startWindAmbience`) — `stadiumAmbientVolume` da AYNI kanaldadır,
+     * ikisi de "ortam SFX'i değil, YAPISAL/atmosferik ortam sesi" niteliğinde.
+     */
+    environment: number;
   };
   hoofbeat: {
     /** Nal sesinin taban hacmi (at durgunken/minimum hızdayken), [0, 1]. */
@@ -628,4 +637,27 @@ export interface AudioConfig {
   commentaryLineVolume: number;
   /** Final düzlükte müzik hacmi bu ORANLA çarpılır (0-1, düşürme/"duck" etkisi). */
   finalStretchMusicDuckFactor: number;
+
+  // "REALISTIC 3D ASSET & AUDIO PRODUCTION BRIEF" §17-21 (bu turda EKLENDİ) —
+  // brief'in istediği daha GRANÜLER ses kategorileri için yeni taban
+  // hacimler. Yüzeye göre nal sesi (grass/dirt/synthetic) İÇİN AYRI bir
+  // hacim alanı EKLENMEZ — `hoofbeat: {baseVolume, maxExtraVolume}` ZATEN
+  // "hız oranına göre nal sesi hacmi" ŞEKLİNİ tanımlıyor, hangi YÜZEY
+  // asset'inin (`HOOF_GRASS_SFX_REQUIRED` vb.) o an ÇALDIĞI sadece bir asset
+  // SEÇİMİ meselesidir (bkz. `resolveHoofbeatAssetId`) — config'i 3 katına
+  // çıkarmak GEREKSİZ tekrar OLURDU.
+  /** Brief §19 "START SIGNAL" — kapılar açılmadan HEMEN ÖNCE çalınan hazır-ol sinyali, bir seferlik (döngüsüz). */
+  startSignalVolume: number;
+  /** Brief §20 "Stadium Ambient" — `crowdAmbienceVolume`den (kalabalık SESİ) BAĞIMSIZ, yapısal stadyum ortam sesi (loop, `environment` kanalı). */
+  stadiumAmbientVolume: number;
+  /** Brief §20 "Crowd Cheering" — kazanan kesinleştiği andaki kalabalık tezahürat patlaması, bir seferlik (döngüsüz), `winner` ile BİRLİKTE çalar. */
+  crowdCheeringVolume: number;
+  /** Brief §20 "Crowd Excited" — final düzlükte `crowdAmbienceVolume`nin YERİNİ alan, yükselmiş gerilim seviyesindeki kalabalık döngüsü (bkz. `handleEvent('final_stretch')`). */
+  crowdExcitedVolume: number;
+  /** Brief §17 "Horse Snort" — bir seferlik at burun sesi (çağıranın kararıyla, `horse` kanalı). */
+  horseSnortVolume: number;
+  /** Brief §17 "Horse Neigh" — bir seferlik at kişneme sesi (çağıranın kararıyla, `horse` kanalı). */
+  horseNeighVolume: number;
+  /** Brief §17 "Horse Movement" — bir seferlik genel at hareket sesi (çağıranın kararıyla, `horse` kanalı). */
+  horseMovementVolume: number;
 }

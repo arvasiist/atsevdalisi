@@ -173,6 +173,96 @@ karşılığı olmayan beşi:
   çizgisini geçme anı, "winner" kazananın kesinleşme anıdır).
 - **Fallback:** `AudioManager`'ın sessiz no-op modu.
 
+"REALISTIC 3D ASSET & AUDIO PRODUCTION BRIEF" §17-20 (bu turda EKLENDİ) —
+brief'in istediği DAHA GRANÜLER ses kategorileri: yüzeye göre nal sesi
+(§18, `RaceSurface` ZATEN VAR OLAN gerçek bir domain alanı — races.surface),
+ayrı at vokalizasyonları (§17), ayrık start sinyali + kademeli kalabalık
+durumları (§19/§20).
+
+### START_SIGNAL_SFX_REQUIRED
+
+- **Tür:** Ses efekti (`.mp3`)
+- **Yol:** `apps/web/public/audio/start-signal.mp3`
+- **Gereksinim:** Kapılar açılmadan HEMEN ÖNCE çalınan hazır-ol düdüğü/sinyali,
+  `GATE_OPEN_SFX_REQUIRED`den (kapı mekanizması sesi) KASITLI OLARAK AYRI,
+  bir seferlik (döngüsüz).
+- **Fallback:** `AudioManager`'ın sessiz no-op modu.
+
+### STADIUM_AMBIENT_SFX_REQUIRED
+
+- **Tür:** Ses efekti (`.mp3`)
+- **Yol:** `apps/web/public/audio/stadium-ambient-loop.mp3`
+- **Gereksinim:** Genel stadyum atmosferi (loop) — `CROWD_AMBIENCE_SFX_REQUIRED`den
+  (kalabalık SESİ) KASITLI OLARAK AYRI: hoparlör hışırtısı/uzak mekanik
+  gürültü gibi kalabalıktan BAĞIMSIZ yapısal ortam sesi.
+- **Fallback:** `AudioManager`'ın sessiz no-op modu.
+
+### CROWD_CHEERING_SFX_REQUIRED
+
+- **Tür:** Ses efekti (`.mp3`)
+- **Yol:** `apps/web/public/audio/crowd-cheering.mp3`
+- **Gereksinim:** Kazanan kesinleştiği andaki kalabalık tezahürat patlaması,
+  bir seferlik (döngüsüz) — `WINNER_CELEBRATION_SFX_REQUIRED` ile BİRLİKTE çalar.
+- **Fallback:** `AudioManager`'ın sessiz no-op modu.
+
+### CROWD_EXCITED_SFX_REQUIRED
+
+- **Tür:** Ses efekti (`.mp3`)
+- **Yol:** `apps/web/public/audio/crowd-excited-loop.mp3`
+- **Gereksinim:** Final düzlükte `CROWD_AMBIENCE_SFX_REQUIRED`in YERİNİ alan,
+  yükselmiş gerilim/heyecan seviyesindeki sürekli kalabalık sesi (loop).
+- **Fallback:** `AudioManager`'ın sessiz no-op modu (ambience mevcutsa OLDUĞU
+  GİBİ çalmaya devam eder, kesintiye uğramaz).
+
+### HORSE_SNORT_SFX_REQUIRED
+
+- **Tür:** Ses efekti (`.mp3`)
+- **Yol:** `apps/web/public/audio/horse-snort.mp3`
+- **Gereksinim:** At burun/horlama sesi, bir seferlik (döngüsüz) — çağıranın
+  (ör. gelecekteki rastgele/anlatımsal tetikleyici) kararıyla çalınır.
+- **Fallback:** `AudioManager`'ın sessiz no-op modu.
+
+### HORSE_NEIGH_SFX_REQUIRED
+
+- **Tür:** Ses efekti (`.mp3`)
+- **Yol:** `apps/web/public/audio/horse-neigh.mp3`
+- **Gereksinim:** At kişneme sesi, bir seferlik (döngüsüz) — çağıranın
+  kararıyla çalınır.
+- **Fallback:** `AudioManager`'ın sessiz no-op modu.
+
+### HORSE_MOVEMENT_SFX_REQUIRED
+
+- **Tür:** Ses efekti (`.mp3`)
+- **Yol:** `apps/web/public/audio/horse-movement.mp3`
+- **Gereksinim:** At vücudu/koşum takımı genel hareket sesi, bir seferlik
+  (döngüsüz) — çağıranın kararıyla çalınır.
+- **Fallback:** `AudioManager`'ın sessiz no-op modu.
+
+### HOOF_GRASS_SFX_REQUIRED
+
+- **Tür:** Ses efekti (`.mp3`)
+- **Yol:** `apps/web/public/audio/hoof-grass-loop.mp3`
+- **Gereksinim:** Çim (grass) pist yüzeyine özel nal sesi döngüsü —
+  `RaceSurface` `"grass"` iken `HOOFBEAT_SFX_REQUIRED` YERİNE kullanılır.
+- **Fallback:** `AudioManager`'ın sessiz no-op modu; asset yoksa jenerik
+  `HOOFBEAT_SFX_REQUIRED`e DÜŞÜLMEZ (o da eksik olabilir) — sessiz kalır.
+
+### HOOF_DIRT_SFX_REQUIRED
+
+- **Tür:** Ses efekti (`.mp3`)
+- **Yol:** `apps/web/public/audio/hoof-dirt-loop.mp3`
+- **Gereksinim:** Toprak (dirt) pist yüzeyine özel nal sesi döngüsü —
+  `RaceSurface` `"dirt"` iken kullanılır.
+- **Fallback:** `AudioManager`'ın sessiz no-op modu.
+
+### HOOF_SYNTHETIC_SFX_REQUIRED
+
+- **Tür:** Ses efekti (`.mp3`)
+- **Yol:** `apps/web/public/audio/hoof-synthetic-loop.mp3`
+- **Gereksinim:** Sentetik pist yüzeyine özel nal sesi döngüsü —
+  `RaceSurface` `"synthetic"` iken kullanılır.
+- **Fallback:** `AudioManager`'ın sessiz no-op modu.
+
 ## Bir varlık eklendiğinde yapılması gerekenler
 
 1. Dosyayı yukarıdaki TAM yola koy (`apps/web/public/...`).

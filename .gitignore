@@ -67,3 +67,16 @@ merge-log.txt
 
 # Yerel push-bundle teslimat scratch alani (git bundle + .bat script'ler burada olusturulur, repo'nun parcasi degil)
 outputs/
+
+# "REALISTIC 3D ASSET & AUDIO PRODUCTION BRIEF" §25 (bu turda EKLENDİ) —
+# /assets KÖK klasörü, satın alınan/Blender'da işlenen HAM kaynak
+# materyal (büyük .blend/.fbx/orijinal doku dosyaları) için bir
+# ÇALIŞMA ALANIDIR — `apps/web/public/`teki NİHAİ optimize edilmiş
+# GLB/ses dosyalarıyla KARIŞTIRILMAMALI (bkz. `assets/README.md`). Bu
+# ham dosyalar genellikle BÜYÜK BİNARY'lerdir ve git geçmişine
+# GİRMEMELİDİR — sadece klasör iskeletini (`.gitkeep`) ve bu README'yi
+# İZLE.
+assets/**/*
+!assets/**/
+!assets/**/.gitkeep
+!assets/README.md

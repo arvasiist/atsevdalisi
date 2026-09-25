@@ -187,6 +187,97 @@ export const ASSET_MANIFEST: AssetRequirement[] = [
       'Kazanan kesinleştiğinde çalınacak kutlama sesi — `RACE_FINISH_FANFARE_REQUIRED`den KASITLI OLARAK AYRI (bkz. `AudioConfig.winnerCelebrationVolume` doc yorumu, "finish" yarış çizgisini geçme anı, "winner" kazananın kesinleşme anıdır).',
     fallbackBehavior: "AudioManager'ın sessiz no-op modu.",
   },
+  // "REALISTIC 3D ASSET & AUDIO PRODUCTION BRIEF" §17-20 (bu turda EKLENDİ) —
+  // brief'in istediği DAHA GRANÜLER ses kategorileri: yüzeye göre nal sesi
+  // (§18), ayrı at vokalizasyonları (§17), ayrık start sinyali + kademeli
+  // kalabalık durumları (§19/§20). `RaceSurface` (`@at-sevdalisi/shared-types`)
+  // ZATEN VAR OLAN, gerçek bir domain tipi (races.surface — grass/dirt/
+  // synthetic, bkz. `horse-surface-stats.repository.ts`/`track-fit.ts`) —
+  // bu yüzden yüzeye göre nal sesi SPEKÜLATİF bir kavram DEĞİL, mevcut bir
+  // veri alanının doğal ses karşılığıdır.
+  {
+    id: 'START_SIGNAL_SFX_REQUIRED',
+    kind: 'audio_sfx',
+    format: 'mp3',
+    expectedPath: 'audio/start-signal.mp3',
+    description:
+      'Brief §11 akışındaki "START SIGNAL" — kapılar açılmadan HEMEN ÖNCE çalınan hazır-ol düdüğü/sinyali, `GATE_OPEN_SFX_REQUIRED`den (kapı mekanizması sesi) KASITLI OLARAK AYRI, bir seferlik (döngüsüz).',
+    fallbackBehavior: "AudioManager'ın sessiz no-op modu.",
+  },
+  {
+    id: 'STADIUM_AMBIENT_SFX_REQUIRED',
+    kind: 'audio_sfx',
+    format: 'mp3',
+    expectedPath: 'audio/stadium-ambient-loop.mp3',
+    description:
+      'Genel stadyum atmosferi (loop) — `CROWD_AMBIENCE_SFX_REQUIRED`den (kalabalık SESİ) KASITLI OLARAK AYRI: hoparlör hışırtısı/uzak mekanik gürültü gibi kalabalıktan BAĞIMSIZ yapısal ortam sesi.',
+    fallbackBehavior: "AudioManager'ın sessiz no-op modu.",
+  },
+  {
+    id: 'CROWD_CHEERING_SFX_REQUIRED',
+    kind: 'audio_sfx',
+    format: 'mp3',
+    expectedPath: 'audio/crowd-cheering.mp3',
+    description: 'Kazanan kesinleştiği andaki kalabalık tezahürat patlaması, bir seferlik (döngüsüz) — `WINNER_CELEBRATION_SFX_REQUIRED` ile BİRLİKTE çalar.',
+    fallbackBehavior: "AudioManager'ın sessiz no-op modu.",
+  },
+  {
+    id: 'CROWD_EXCITED_SFX_REQUIRED',
+    kind: 'audio_sfx',
+    format: 'mp3',
+    expectedPath: 'audio/crowd-excited-loop.mp3',
+    description:
+      'Final düzlükte `CROWD_AMBIENCE_SFX_REQUIRED`in YERİNİ alan, yükselmiş gerilim/heyecan seviyesindeki sürekli kalabalık sesi (loop) — brief §19 "yarışın durumuna göre ses yoğunluğu değişebilmeli".',
+    fallbackBehavior: "AudioManager'ın sessiz no-op modu.",
+  },
+  {
+    id: 'HORSE_SNORT_SFX_REQUIRED',
+    kind: 'audio_sfx',
+    format: 'mp3',
+    expectedPath: 'audio/horse-snort.mp3',
+    description: 'At burun/horlama sesi, bir seferlik (döngüsüz) — çağıranın (ör. gelecekteki rastgele/anlatımsal tetikleyici) kararıyla çalınır.',
+    fallbackBehavior: "AudioManager'ın sessiz no-op modu.",
+  },
+  {
+    id: 'HORSE_NEIGH_SFX_REQUIRED',
+    kind: 'audio_sfx',
+    format: 'mp3',
+    expectedPath: 'audio/horse-neigh.mp3',
+    description: 'At kişneme sesi, bir seferlik (döngüsüz) — çağıranın kararıyla çalınır.',
+    fallbackBehavior: "AudioManager'ın sessiz no-op modu.",
+  },
+  {
+    id: 'HORSE_MOVEMENT_SFX_REQUIRED',
+    kind: 'audio_sfx',
+    format: 'mp3',
+    expectedPath: 'audio/horse-movement.mp3',
+    description: 'At vücudu/koşum takımı genel hareket sesi, bir seferlik (döngüsüz) — çağıranın kararıyla çalınır.',
+    fallbackBehavior: "AudioManager'ın sessiz no-op modu.",
+  },
+  {
+    id: 'HOOF_GRASS_SFX_REQUIRED',
+    kind: 'audio_sfx',
+    format: 'mp3',
+    expectedPath: 'audio/hoof-grass-loop.mp3',
+    description: 'Çim (grass) pist yüzeyine özel nal sesi döngüsü — `RaceSurface` `"grass"` iken `HOOFBEAT_SFX_REQUIRED` YERİNE kullanılır (bkz. `startHoofbeats(surface)`).',
+    fallbackBehavior: "AudioManager'ın sessiz no-op modu; asset yoksa jenerik HOOFBEAT_SFX_REQUIRED'a DÜŞÜLMEZ (o da eksik) — sessiz kalır.",
+  },
+  {
+    id: 'HOOF_DIRT_SFX_REQUIRED',
+    kind: 'audio_sfx',
+    format: 'mp3',
+    expectedPath: 'audio/hoof-dirt-loop.mp3',
+    description: 'Toprak (dirt) pist yüzeyine özel nal sesi döngüsü — `RaceSurface` `"dirt"` iken kullanılır.',
+    fallbackBehavior: "AudioManager'ın sessiz no-op modu.",
+  },
+  {
+    id: 'HOOF_SYNTHETIC_SFX_REQUIRED',
+    kind: 'audio_sfx',
+    format: 'mp3',
+    expectedPath: 'audio/hoof-synthetic-loop.mp3',
+    description: 'Sentetik pist yüzeyine özel nal sesi döngüsü — `RaceSurface` `"synthetic"` iken kullanılır.',
+    fallbackBehavior: "AudioManager'ın sessiz no-op modu.",
+  },
 ];
 
 export function getAssetById(id: string): AssetRequirement | undefined {
