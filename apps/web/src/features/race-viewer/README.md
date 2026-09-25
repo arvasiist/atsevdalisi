@@ -215,6 +215,50 @@ yüklenir" dalı asset'ler eklendiğinde manuel QA gerektirir.
 `three-stdlib` bu sandbox'ta kurulu değil) — `ts.transpileModule` ile
 sözdizimi kontrolünden geçti (0 diagnostic), gerçek tip kontrolü CI'dadır.
 
+### Master Development Brief §31 "Audio/VFX Manager iskeleti" (bu turda EKLENDİ)
+
+`audio-vfx/audio-manager.ts` (yeni, saf mantık) — brief'in event-driven
+(`race_start`/`final_stretch`/`finish`) ses yöneticisi isteği. HANGİ
+sesin NE ZAMAN çalınacağına karar veren mantık, GERÇEK ses çalma işini
+`AudioBackend` arayüzüne DEVREDER (dependency injection — test'lerde
+"kaydedici" bir backend kullanılır, bu bir davranış MOCK'LAMASI DEĞİLDİR,
+sadece hangi metodun hangi argümanla çağrıldığını KAYDEDER). Backend
+verilmezse `SILENT_AUDIO_BACKEND` kullanılır — brief'in "dosya yoksa
+sessiz no-op" kuralının doğrudan kod karşılığı, ÜRETİMDE de asset'ler
+eklenene kadar TAM OLARAK bu davranış geçerli olacaktır.
+
+`audio-vfx/html-audio-backend.ts` (yeni, tarayıcı implementasyonu) —
+`AudioBackend`'in GERÇEK `HTMLAudioElement` üzerinden çalışan hali.
+`dom` lib'e bağımlı olduğundan `tsconfig.logic.json`'a EKLENMEDİ
+(`RaceScene3D.tsx` ile AYNI kısıt kategorisi) — `ts.transpileModule` ile
+sözdizimi kontrolünden geçti, gerçek doğrulama CI'dadır.
+
+`audio-vfx/dust-particle-sim.ts` (yeni, saf simülasyon matematiği) —
+brief'in "three.js'in kendi ilkel Points sistemi, DOKU GEREKTİRMEZ" VFX
+önerisi. Race Engine'in KENDİ determinizm kuralına uyarak (`docs/
+RACE_ENGINE.md` §7) `Math.random()` YERİNE `@at-sevdalisi/shared-types`'ın
+ZATEN VAR OLAN `createSeededRandom`'ı kullanılır — bu, saf görsel bir
+efekt için ZORUNLU değildir ama (a) bu sandbox'ta GERÇEKTEN test
+edilebilir kılar, (b) projenin TEK bir rastgelelik kaynağını KULLANIR.
+
+`audio-vfx/DustParticles.tsx` (yeni, render katmanı) — `dust-particle-sim.ts`'in
+saf fonksiyonlarını `<points>`'e bağlar. `PointsMaterial`'ın vertex-başına
+opaklığı DESTEKLEMEMESİ nedeniyle (SADECE tek bir global `opacity` kabul
+eder) özel bir `<shaderMaterial>` kullanıldı — three.js'in resmi
+`webgl_custom_attributes_points` örneğiyle AYNI standart teknik, her
+parçacığın kendi yaşına göre solması (`getDustParticleOpacity`) GERÇEKTEN
+uygulanır (uydurma bir kısayol DEĞİL).
+
+`audio-manager.ts`/`dust-particle-sim.ts`, `tsconfig.logic.json`'a
+eklendi; gerçek `tsc --noEmit` (0 hata) ve `tsx` ile çalıştırılan 26 test
+case'i (11 `audio-manager.spec.ts` + 15 `dust-particle-sim.spec.ts`)
+PASS. `html-audio-backend.ts`/`DustParticles.tsx`, `RaceScene3D.tsx` ile
+AYNI kısıta tabi — `ts.transpileModule` ile sözdizimi kontrolünden geçti
+(0 diagnostic), gerçek tip kontrolü CI'dadır. Bu turda `RaceScene3D.tsx`'e
+`DustParticles`/`AudioManager` WIRING EDİLMEDİ (kapsam: sadece iskelet
+sunan bağımsız modüller) — entegrasyon, gerçek asset'ler eklendiğinde (Grup 2)
+görsel/işitsel sonucun ANLAMLI olacağı bir sonraki adımdır.
+
 ## ÖNEMLİ — bu oturumdaki doğrulama kısıtı
 
 `docs/ARCHITECTURE.md` §9'da belgelenen kısıt burada da geçerlidir: bu
