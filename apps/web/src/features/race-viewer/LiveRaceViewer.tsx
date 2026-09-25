@@ -71,6 +71,7 @@
 import dynamic from 'next/dynamic';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { RaceRosterEntrant, RaceSegmentSnapshot } from '@at-sevdalisi/shared-types';
+import { loadCameraConfig } from '@at-sevdalisi/game-config';
 import {
   DEFAULT_LAP_LENGTH_METERS,
   DEFAULT_TURN_RADIUS_METERS,
@@ -92,6 +93,12 @@ const RaceScene3D = dynamic(() => import('./RaceScene3D').then((imported) => imp
   ssr: false,
   loading: () => <ScenePlaceholder text="Sahne yükleniyor…" />,
 });
+
+/**
+ * Faz 6 "Config ayrımı" (bu turda EKLENDİ) — `RaceViewer.tsx`'teki AYNI
+ * desen: modül kapsamında BİR KEZ yüklenir (bkz. o dosyanın doc yorumu).
+ */
+const cameraConfig = loadCameraConfig();
 
 /**
  * `HORSE_COLORS[index % HORSE_COLORS.length]` matematiksel olarak HER ZAMAN
@@ -357,13 +364,13 @@ export function LiveRaceViewer({
 
   useEffect(() => {
     const cameraDirectorInput = { leaderPositionMeters, raceDistanceMeters, anyHorseBlocked, isFinished: isRaceFinished };
-    const currentEvent = classifyRaceCameraEvent(cameraDirectorInput);
+    const currentEvent = classifyRaceCameraEvent(cameraDirectorInput, cameraConfig);
     if (currentEvent !== lastAutoCameraEventRef.current) {
       manualCameraOverrideRef.current = false;
       lastAutoCameraEventRef.current = currentEvent;
     }
     if (!manualCameraOverrideRef.current) {
-      setCameraMode(selectAutomaticCameraMode(cameraDirectorInput));
+      setCameraMode(selectAutomaticCameraMode(cameraDirectorInput, cameraConfig));
     }
   }, [leaderPositionMeters, raceDistanceMeters, anyHorseBlocked, isRaceFinished]);
 

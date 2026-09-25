@@ -14,6 +14,7 @@
 import dynamic from 'next/dynamic';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { RaceTimeline } from '@at-sevdalisi/shared-types';
+import { loadCameraConfig } from '@at-sevdalisi/game-config';
 import {
   DEFAULT_LAP_LENGTH_METERS,
   DEFAULT_TURN_RADIUS_METERS,
@@ -39,6 +40,16 @@ const RaceScene3D = dynamic(() => import('./RaceScene3D').then((imported) => imp
   ssr: false,
   loading: () => <ScenePlaceholder />,
 });
+
+/**
+ * Faz 6 "Config ayrımı" (bu turda EKLENDİ) — modül kapsamında BİR KEZ
+ * yüklenir (`apps/api`'nin `ConfigService`'inin `readonly race = loadRaceConfig()`
+ * deseniyle AYNI fikir — config, derleme zamanında bundle'a gömülü statik
+ * bir JSON olduğundan tekrar tekrar çağırmanın bir MALİYETİ yoktur, ama
+ * component her render'da YENİDEN YÜKLEMEK yerine tek bir modül-seviyesi
+ * sabit render döngüsünün DIŞINDA tutulur).
+ */
+const cameraConfig = loadCameraConfig();
 
 export interface RaceViewerProps {
   timeline: RaceTimeline;
@@ -94,7 +105,7 @@ export function RaceViewer({ timeline, horseNamesById, turnCount = 2 }: RaceView
           // Photo Finish sunumu (Master Brief §23, bkz. `photo-finish.ts`
           // dosya başı doc yorumu) — bitişe yaklaşırken kullanıcının
           // seçtiği hız kademeli olarak YAVAŞLAR, ani bir kesme OLMAZ.
-          const slowMotionFactor = getFinishSlowMotionFactor(previous, durationMs);
+          const slowMotionFactor = getFinishSlowMotionFactor(previous, durationMs, cameraConfig);
           return advancePlaybackTimeMs(previous, deltaMs, speedMultiplier * slowMotionFactor, durationMs);
         });
       }
@@ -159,7 +170,7 @@ export function RaceViewer({ timeline, horseNamesById, turnCount = 2 }: RaceView
 
   useEffect(() => {
     const cameraDirectorInput = { leaderPositionMeters, raceDistanceMeters, anyHorseBlocked, isFinished: isRaceFinished };
-    const currentEvent = classifyRaceCameraEvent(cameraDirectorInput);
+    const currentEvent = classifyRaceCameraEvent(cameraDirectorInput, cameraConfig);
     if (currentEvent !== lastAutoCameraEventRef.current) {
       // Yeni bir race event'ine geçildi (brief §17) — kullanıcının bir
       // önceki event boyunca yaptığı manuel seçim burada sona erer,
@@ -168,7 +179,7 @@ export function RaceViewer({ timeline, horseNamesById, turnCount = 2 }: RaceView
       lastAutoCameraEventRef.current = currentEvent;
     }
     if (!manualCameraOverrideRef.current) {
-      setCameraMode(selectAutomaticCameraMode(cameraDirectorInput));
+      setCameraMode(selectAutomaticCameraMode(cameraDirectorInput, cameraConfig));
     }
   }, [leaderPositionMeters, raceDistanceMeters, anyHorseBlocked, isRaceFinished]);
 

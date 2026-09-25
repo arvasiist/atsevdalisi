@@ -1,0 +1,15 @@
+{
+  "version": "1.0.0",
+  "dustParticles": {
+    "riseSpeedMps": 0.6,
+    "maxHorizontalDriftMeters": 0.4,
+    "minLifetimeMs": 400,
+    "maxLifetimeMs": 900,
+    "spawnRatePerSecond": 12,
+    "maxActiveParticles": 40,
+    "color": "#c9b28a",
+    "size": 0.15,
+    "sizeScale": 300,
+    "baseOpacity": 0.6
+  }
+}

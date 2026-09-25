@@ -25,11 +25,18 @@
  * Her at için AYRI bir `<DustParticles>` örneği mount edilmesi ÖNERİLİR
  * (`horseId`, parçacık seed'lerinin BENZERSİZLİĞİ için kullanılır) — bkz.
  * `emitterPosition` prop'unun doc yorumu.
+ *
+ * Faz 6 "Config ayrımı" (bu turda EKLENDİ) — spawn hızı/azami parçacık
+ * sayısı/renk/boyut ARTIK bu dosyada gömülü sabitler DEĞİL,
+ * `@at-sevdalisi/game-config`'in `VfxConfig`'i (bkz. `config/vfx.config.json`)
+ * üzerinden okunur — `dust-particle-sim.ts`'in kendi config-parametre
+ * deseniyle AYNI fikir.
  */
 
 import { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
+import { loadVfxConfig } from '@at-sevdalisi/game-config';
 import {
   advanceDustParticle,
   getDustParticleOpacity,
@@ -38,11 +45,13 @@ import {
   type DustParticle,
 } from './dust-particle-sim';
 
-/** Bir atın hızına göre saniyede kaç toz parçacığı DOĞACAĞI — sabit, brief'in bir sayı VERMEMESİ nedeniyle burada seçilen makul bir değer (Faz 6 "Config ayrımı"na taşınabilir). */
-const SPAWN_RATE_PER_SECOND = 12;
-/** Aynı anda ekranda tutulacak AZAMİ parçacık sayısı — sınırsız büyümeyi ÖNLER (bellek/performans güvencesi). */
-const MAX_ACTIVE_PARTICLES = 40;
-const PARTICLE_COLOR = new THREE.Color('#c9b28a'); // Toprak/toz rengi.
+/**
+ * Modül kapsamında BİR KEZ yüklenir — `RaceViewer.tsx`/`RaceHud.tsx` ile
+ * AYNI desen (bkz. o dosyaların doc yorumu).
+ */
+const vfxConfig = loadVfxConfig();
+const MAX_ACTIVE_PARTICLES = vfxConfig.dustParticles.maxActiveParticles;
+const PARTICLE_COLOR = new THREE.Color(vfxConfig.dustParticles.color);
 
 /**
  * Standart three.js "point sprite" boyutlandırma formülü (bkz. resmi
@@ -121,9 +130,9 @@ export function DustParticles({ horseId, emitterPosition, isMoving }: DustPartic
   const uniforms = useMemo(
     () => ({
       uColor: { value: PARTICLE_COLOR },
-      uSize: { value: 0.15 },
-      uSizeScale: { value: 300 },
-      uBaseOpacity: { value: 0.6 },
+      uSize: { value: vfxConfig.dustParticles.size },
+      uSizeScale: { value: vfxConfig.dustParticles.sizeScale },
+      uBaseOpacity: { value: vfxConfig.dustParticles.baseOpacity },
     }),
     [],
   );
@@ -140,19 +149,19 @@ export function DustParticles({ horseId, emitterPosition, isMoving }: DustPartic
     //    böylece `dust-particle-sim.ts`'in gerektirdiği "her zaman AYNI
     //    seed" kuralı (deterministik yatay sürüklenme yönü) sağlanır.
     const advanced: SeededDustParticle[] = alive.map((entry) => ({
-      particle: advanceDustParticle(entry.particle, deltaMs, entry.seed),
+      particle: advanceDustParticle(entry.particle, deltaMs, entry.seed, vfxConfig),
       seed: entry.seed,
     }));
 
     // 3) Yeni parçacık doğur (sadece at HAREKET EDİYORSA).
     if (isMoving) {
       accumulatedMsRef.current += deltaMs;
-      const spawnIntervalMs = 1000 / SPAWN_RATE_PER_SECOND;
+      const spawnIntervalMs = 1000 / vfxConfig.dustParticles.spawnRatePerSecond;
       while (accumulatedMsRef.current >= spawnIntervalMs && advanced.length < MAX_ACTIVE_PARTICLES) {
         accumulatedMsRef.current -= spawnIntervalMs;
         spawnCounterRef.current += 1;
         const seed = `${horseId}:${spawnCounterRef.current}`;
-        advanced.push({ particle: spawnDustParticle(emitterPosition.x, emitterPosition.z, seed), seed });
+        advanced.push({ particle: spawnDustParticle(emitterPosition.x, emitterPosition.z, seed, vfxConfig), seed });
       }
     }
 

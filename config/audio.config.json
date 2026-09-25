@@ -1,0 +1,10 @@
+{
+  "version": "1.0.0",
+  "hoofbeat": {
+    "baseVolume": 0.35,
+    "maxExtraVolume": 0.35
+  },
+  "raceMusicVolume": 0.4,
+  "finishFanfareVolume": 0.8,
+  "finalStretchMusicDuckFactor": 0.5
+}

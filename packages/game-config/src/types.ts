@@ -494,3 +494,78 @@ export interface OnlineConfig {
     durationDays: number;
   };
 }
+
+/**
+ * Master Development Brief §17 "Camera Director" + §23 "Photo Finish"
+ * (bu turda EKLENDİ) — `apps/web/src/features/race-viewer/camera-director.ts`
+ * ve `photo-finish.ts`'te DAHA ÖNCE modül-seviyesi sabit olarak gömülü
+ * olan değerler (`START_PHASE_METERS` vb.). İkisi AYNI dosyada toplanır
+ * çünkü ikisi de "yarış anlatımı/kamera" kararlarıdır (brief kendisi de
+ * bunları AYNI bölümlerde — §17/§23 — art arda ele alır) — brief'in
+ * istediği ÜÇ dosya (camera/vfx/audio) sayısını KORUMAK için `photoFinish`
+ * ayrı bir dosya yerine bu dosyanın bir ALT ANAHTARI olarak tutulur.
+ */
+export interface CameraConfig {
+  version: string;
+  /** Liderin bu mesafenin ALTINDA olduğu süre "start" event'i sayılır (metre). */
+  startPhaseMeters: number;
+  /** Bitişe bu mesafeden AZ kaldığında "final_stretch" event'i tetiklenir (metre). */
+  finalStretchRemainingMeters: number;
+  photoFinish: {
+    /** 1. ile 2. arasındaki fark bu eşiğin ALTINDAYSA "Foto Finiş!" rozeti gösterilir (milisaniye). */
+    closeFinishThresholdMs: number;
+    /** Bitişten bu kadar milisaniye ÖNCE ağır çekim (slow-motion) başlar. */
+    slowMotionWindowMs: number;
+    /** Ağır çekimin ULAŞTIĞI en düşük oynatma hızı çarpanı (1 = normal, bu değer = en yavaş). */
+    slowMotionMinFactor: number;
+  };
+}
+
+/**
+ * Master Development Brief §31 "VFX — toz efekti" (bu turda EKLENDİ) —
+ * `apps/web/src/features/race-viewer/audio-vfx/dust-particle-sim.ts` ve
+ * `DustParticles.tsx`'te DAHA ÖNCE modül-seviyesi sabit olarak gömülü
+ * olan parçacık simülasyonu/render değerleri.
+ */
+export interface VfxConfig {
+  version: string;
+  dustParticles: {
+    /** Parçacığın saniyede ne kadar YÜKSELDİĞİ (metre/saniye). */
+    riseSpeedMps: number;
+    /** Parçacığın origin'den yatayda ULAŞABİLECEĞİ azami mesafe (metre). */
+    maxHorizontalDriftMeters: number;
+    minLifetimeMs: number;
+    maxLifetimeMs: number;
+    /** Saniyede doğacak parçacık sayısı (at hareket ediyorken). */
+    spawnRatePerSecond: number;
+    /** Aynı anda ekranda tutulacak azami parçacık sayısı. */
+    maxActiveParticles: number;
+    /** Hex renk kodu (ör. `"#c9b28a"`). */
+    color: string;
+    /** `gl_PointSize` hesabındaki temel boyut. */
+    size: number;
+    /** `gl_PointSize` hesabındaki perspektif ölçek faktörü. */
+    sizeScale: number;
+    /** Materyalin temel (henüz solmamış) opaklığı, [0, 1]. */
+    baseOpacity: number;
+  };
+}
+
+/**
+ * Master Development Brief §31 "Audio Manager" (bu turda EKLENDİ) —
+ * `apps/web/src/features/race-viewer/audio-vfx/audio-manager.ts`'te DAHA
+ * ÖNCE modül-seviyesi sabit olarak gömülü olan hacim/eşik değerleri.
+ */
+export interface AudioConfig {
+  version: string;
+  hoofbeat: {
+    /** Nal sesinin taban hacmi (at durgunken/minimum hızdayken), [0, 1]. */
+    baseVolume: number;
+    /** Azami hızda taban hacme EKLENEN pay, [0, 1] (taban + bu ≤ 1 olmalı). */
+    maxExtraVolume: number;
+  };
+  raceMusicVolume: number;
+  finishFanfareVolume: number;
+  /** Final düzlükte müzik hacmi bu ORANLA çarpılır (0-1, düşürme/"duck" etkisi). */
+  finalStretchMusicDuckFactor: number;
+}

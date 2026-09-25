@@ -3,7 +3,8 @@
   "compilerOptions": {
     "noEmit": true,
     "paths": {
-      "@at-sevdalisi/shared-types": ["../../packages/shared-types/src/index.ts"]
+      "@at-sevdalisi/shared-types": ["../../packages/shared-types/src/index.ts"],
+      "@at-sevdalisi/game-config": ["../../packages/game-config/src/index.ts"]
     }
   },
   "include": [

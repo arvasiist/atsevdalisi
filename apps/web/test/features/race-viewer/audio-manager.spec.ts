@@ -6,6 +6,11 @@ import {
   type AudioPlayOptions,
 } from '../../../src/features/race-viewer/audio-vfx/audio-manager';
 import { getAssetById } from '../../../src/features/race-viewer/assets/asset-manifest';
+import audioConfigJson from '../../../../../config/audio.config.json';
+import type { AudioConfig } from '@at-sevdalisi/game-config';
+
+/** Faz 6 "Config ayrımı" — bkz. `camera-director.spec.ts`'in AYNI desen açıklaması. */
+const config = audioConfigJson as unknown as AudioConfig;
 
 interface RecordedCall {
   method: 'play' | 'stop' | 'setVolume';
@@ -34,7 +39,7 @@ describe('SILENT_AUDIO_BACKEND', () => {
 
 describe('RaceAudioManager — backend verilmezse SILENT_AUDIO_BACKEND kullanılır', () => {
   it('hiçbir backend verilmeden event işlemek hata fırlatmaz', () => {
-    const manager = new RaceAudioManager();
+    const manager = new RaceAudioManager(config);
     expect(() => manager.handleEvent({ type: 'race_start' })).not.toThrow();
     expect(() => manager.handleEvent({ type: 'final_stretch' })).not.toThrow();
     expect(() => manager.handleEvent({ type: 'finish' })).not.toThrow();
@@ -44,7 +49,7 @@ describe('RaceAudioManager — backend verilmezse SILENT_AUDIO_BACKEND kullanıl
 describe('RaceAudioManager — race_start', () => {
   it('yarış müziğini döngülü çalar ve nal seslerini başlatır', () => {
     const { backend, calls } = createRecordingBackend();
-    const manager = new RaceAudioManager(backend);
+    const manager = new RaceAudioManager(config, backend);
     manager.handleEvent({ type: 'race_start' });
 
     const musicPath = getAssetById('RACE_BACKGROUND_MUSIC_REQUIRED')!.expectedPath;
@@ -56,7 +61,7 @@ describe('RaceAudioManager — race_start', () => {
 
   it('nal sesleri zaten çalıyorsa race_start tekrar çağrıldığında İKİNCİ KEZ play çağrılmaz', () => {
     const { backend, calls } = createRecordingBackend();
-    const manager = new RaceAudioManager(backend);
+    const manager = new RaceAudioManager(config, backend);
     manager.handleEvent({ type: 'race_start' });
     const playCallsAfterFirst = calls.filter((c) => c.method === 'play').length;
     manager.handleEvent({ type: 'race_start' });
@@ -73,21 +78,21 @@ describe('RaceAudioManager — race_start', () => {
 describe('RaceAudioManager — final_stretch', () => {
   it('müzik hacmini düşürür (duck)', () => {
     const { backend, calls } = createRecordingBackend();
-    const manager = new RaceAudioManager(backend);
+    const manager = new RaceAudioManager(config, backend);
     manager.handleEvent({ type: 'race_start' });
     manager.handleEvent({ type: 'final_stretch' });
 
     const musicPath = getAssetById('RACE_BACKGROUND_MUSIC_REQUIRED')!.expectedPath;
     const volumeCalls = calls.filter((c) => c.method === 'setVolume' && c.path === musicPath);
     expect(volumeCalls.length).toBeGreaterThan(0);
-    expect(volumeCalls[volumeCalls.length - 1]!.volume!).toBeLessThan(0.4);
+    expect(volumeCalls[volumeCalls.length - 1]!.volume!).toBeLessThan(config.raceMusicVolume);
   });
 });
 
 describe('RaceAudioManager — finish', () => {
   it('nal seslerini durdurur, müziği durdurur, fanfar çalar', () => {
     const { backend, calls } = createRecordingBackend();
-    const manager = new RaceAudioManager(backend);
+    const manager = new RaceAudioManager(config, backend);
     manager.handleEvent({ type: 'race_start' });
     manager.handleEvent({ type: 'finish' });
 
@@ -102,7 +107,7 @@ describe('RaceAudioManager — finish', () => {
 
   it('yarış hiç başlamadıysa (race_start çağrılmadıysa) finish çağrıldığında nal sesi durdurma denemesi yapılmaz', () => {
     const { backend, calls } = createRecordingBackend();
-    const manager = new RaceAudioManager(backend);
+    const manager = new RaceAudioManager(config, backend);
     manager.handleEvent({ type: 'finish' });
 
     const hoofbeatPath = getAssetById('HOOFBEAT_SFX_REQUIRED')!.expectedPath;
@@ -113,14 +118,14 @@ describe('RaceAudioManager — finish', () => {
 describe('RaceAudioManager.updateHoofbeatIntensity', () => {
   it('nal sesleri çalmıyorsa hiçbir şey yapmaz', () => {
     const { backend, calls } = createRecordingBackend();
-    const manager = new RaceAudioManager(backend);
+    const manager = new RaceAudioManager(config, backend);
     manager.updateHoofbeatIntensity(10, 20);
     expect(calls.length).toBe(0);
   });
 
   it('hız oranına göre hacmi [taban, taban+ek] aralığında ayarlar', () => {
     const { backend, calls } = createRecordingBackend();
-    const manager = new RaceAudioManager(backend);
+    const manager = new RaceAudioManager(config, backend);
     manager.handleEvent({ type: 'race_start' });
     calls.length = 0; // race_start'ın kendi play çağrılarını temizle, sadece updateHoofbeatIntensity'i test et.
 
@@ -128,12 +133,12 @@ describe('RaceAudioManager.updateHoofbeatIntensity', () => {
     const hoofbeatPath = getAssetById('HOOFBEAT_SFX_REQUIRED')!.expectedPath;
     const lastVolumeCall = calls.filter((c) => c.method === 'setVolume' && c.path === hoofbeatPath).pop();
     expect(lastVolumeCall).toBeDefined();
-    expect(lastVolumeCall!.volume!).toBeCloseTo(0.7, 6);
+    expect(lastVolumeCall!.volume!).toBeCloseTo(config.hoofbeat.baseVolume + config.hoofbeat.maxExtraVolume, 6);
   });
 
   it('maxSpeedMps sıfırsa bölme hatası oluşturmaz (güvenli varsayılan)', () => {
     const { backend } = createRecordingBackend();
-    const manager = new RaceAudioManager(backend);
+    const manager = new RaceAudioManager(config, backend);
     manager.handleEvent({ type: 'race_start' });
     expect(() => manager.updateHoofbeatIntensity(5, 0)).not.toThrow();
   });
@@ -142,7 +147,7 @@ describe('RaceAudioManager.updateHoofbeatIntensity', () => {
 describe('RaceAudioManager.stopAll', () => {
   it('nal sesini ve müziği durdurur', () => {
     const { backend, calls } = createRecordingBackend();
-    const manager = new RaceAudioManager(backend);
+    const manager = new RaceAudioManager(config, backend);
     manager.handleEvent({ type: 'race_start' });
     calls.length = 0;
     manager.stopAll();

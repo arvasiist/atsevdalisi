@@ -21,8 +21,18 @@
  * "final düzlüğü" gerçekte KALAN MESAFEYE göre tanımlıdır, sabit bir
  * zaman yüzdesine göre DEĞİL (atların hızı segment segment değiştiği
  * için zaman bazlı bir eşik yanlış anda tetiklenebilir).
+ *
+ * Faz 6 "Config ayrımı" (bu turda EKLENDİ) — eşikler ARTIK bu dosyada
+ * gömülü sabitler DEĞİL, `@at-sevdalisi/game-config`'in `CameraConfig`'i
+ * (bkz. `config/camera.config.json`) üzerinden ÇAĞIRAN TARAFÇA geçirilir
+ * — `apps/api`'nin domain fonksiyonlarının (ör. `checkInbreeding(...,
+ * config: GeneticsConfig)`) KULLANDIĞI AYNI desen (config, fonksiyona
+ * PARAMETRE olarak akar, modül içinde GİZLİCE YÜKLENMEZ — bu, saf
+ * fonksiyonun test edilebilirliğini KORUR, `RaceViewer.tsx`/
+ * `LiveRaceViewer.tsx` config'i BİR KEZ yükleyip `useMemo` ile paylaşır).
  */
 
+import type { CameraConfig } from '@at-sevdalisi/game-config';
 import type { CameraMode } from './camera-presets';
 
 /** Brief §17'nin event isimlerine en yakın karşılık — dört kategoriye indirgendi (mevcut 4 kamera moduyla eşleştirilebilecek kadar). */
@@ -39,28 +49,23 @@ export interface CameraDirectorInput {
   isFinished: boolean;
 }
 
-/** Brief'in START event'i — yarışın ilk bu kadar metresi (start gate/ilk hamle vurgusu). */
-export const START_PHASE_METERS = 50;
-/** Brief'in FINAL_400/FINAL_200 event'lerine karşılık gelen tek eşik — "final düzlüğü" kamerasının devreye girdiği kalan mesafe. */
-export const FINAL_STRETCH_REMAINING_METERS = 400;
-
 /**
- * Saf sınıflandırma — aynı girdi her zaman aynı event'i döner
- * (`docs/RACE_ENGINE.md` §1 "sunum katmanı" determinizm ilkesiyle
+ * Saf sınıflandırma — aynı girdi + aynı config her zaman aynı event'i
+ * döner (`docs/RACE_ENGINE.md` §1 "sunum katmanı" determinizm ilkesiyle
  * tutarlı). Öncelik sırası: FINISH > START > FINAL_STRETCH > OVERTAKE >
  * NORMAL — bir yarışın aynı anda hem "start" hem "final düzlüğü" olması
  * (çok kısa mesafeli yarış) durumunda START önceliklidir, çünkü start
  * gerçekte daha erken gerçekleşen bir event'tir.
  */
-export function classifyRaceCameraEvent(input: CameraDirectorInput): RaceCameraEvent {
+export function classifyRaceCameraEvent(input: CameraDirectorInput, config: CameraConfig): RaceCameraEvent {
   if (input.isFinished) {
     return 'finish';
   }
-  if (input.leaderPositionMeters <= START_PHASE_METERS) {
+  if (input.leaderPositionMeters <= config.startPhaseMeters) {
     return 'start';
   }
   const remainingMeters = input.raceDistanceMeters - input.leaderPositionMeters;
-  if (remainingMeters <= FINAL_STRETCH_REMAINING_METERS) {
+  if (remainingMeters <= config.finalStretchRemainingMeters) {
     return 'final_stretch';
   }
   if (input.anyHorseBlocked) {
@@ -81,6 +86,6 @@ const EVENT_TO_CAMERA_MODE: Record<RaceCameraEvent, CameraMode> = {
 };
 
 /** `classifyRaceCameraEvent` + event→mod eşlemesi — Camera Director'ın tek genel amaçlı girişi. */
-export function selectAutomaticCameraMode(input: CameraDirectorInput): CameraMode {
-  return EVENT_TO_CAMERA_MODE[classifyRaceCameraEvent(input)];
+export function selectAutomaticCameraMode(input: CameraDirectorInput, config: CameraConfig): CameraMode {
+  return EVENT_TO_CAMERA_MODE[classifyRaceCameraEvent(input, config)];
 }

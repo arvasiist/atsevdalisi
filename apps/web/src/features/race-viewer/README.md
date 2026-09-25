@@ -259,6 +259,81 @@ AYNI kısıta tabi — `ts.transpileModule` ile sözdizimi kontrolünden geçti
 sunan bağımsız modüller) — entegrasyon, gerçek asset'ler eklendiğinde (Grup 2)
 görsel/işitsel sonucun ANLAMLI olacağı bir sonraki adımdır.
 
+### Faz 6 "Config ayrımı" (bu turda EKLENDİ)
+
+Camera Director/Photo Finish/VFX/Audio modüllerinin bu tura kadar dosya
+içine gömülü olan sabitleri (`START_PHASE_METERS`, `CLOSE_FINISH_
+THRESHOLD_MS`, `RISE_SPEED_MPS`, `HOOFBEAT_BASE_VOLUME` vb.) artık
+`@at-sevdalisi/game-config` paketinin (`packages/game-config`) tip
+güvenli yükleyicileri üzerinden okunuyor — bu, `apps/api`'nin domain
+fonksiyonlarının (`pedigree.ts`'in `checkInbreeding(..., config:
+GeneticsConfig)` deseni) ZATEN uyguladığı "config parametre olarak
+geçirilir, hiçbir fonksiyon kendi config'ini KENDİSİ yüklemez, varsayılan
+DEĞER yoktur" disipliniyle AYNI — `apps/web`'in `@at-sevdalisi/
+game-config`'i tüketen İLK kod yolu budur.
+
+Üç yeni config dosyası (`config/camera.config.json`, `config/vfx.config.json`,
+`config/audio.config.json`) ve karşılık gelen `CameraConfig`/`VfxConfig`/
+`AudioConfig` arayüzleri (`packages/game-config/src/types.ts`) eklendi.
+`CameraConfig`, Camera Director eşiklerini VE Photo Finish'in ağır çekim
+parametrelerini (`photoFinish` alt-nesnesi) TEK dosyada tutar — brief'in
+kendi §17/§23 komşu numaralandırması ikisini "yarış anlatımı/kamera"
+kararı olarak birlikte ele alır, bu yüzden planın vaat ettiği "3 config
+dosyası" (camera/vfx/audio) sayısı KORUNUR.
+
+Değişen imzalar: `classifyRaceCameraEvent`/`selectAutomaticCameraMode`
+(`camera-director.ts`), `isCloseFinish`/`getFinishSlowMotionFactor`
+(`photo-finish.ts`), `spawnDustParticle`/`advanceDustParticle`
+(`dust-particle-sim.ts`) artık son parametre olarak İLGİLİ config
+nesnesini ZORUNLU kılar; `RaceAudioManager`'ın kurucusu artık İLK
+parametre olarak `AudioConfig` alır (`backend` ikinci, opsiyonel
+parametre olarak KALDI — `AudioBackend`'in aksine config için "yok"
+anlamlı bir varsayılan DEĞİLDİR, GERÇEK oyun dengesi verisidir).
+
+Tüketen bileşenler (`RaceViewer.tsx`, `LiveRaceViewer.tsx`, `RaceHud.tsx`'in
+`FinishResultOverlay`'i, `DustParticles.tsx`) ilgili `loadXConfig()`'i
+MODÜL KAPSAMINDA bir kez çağırır (`apps/api`'nin `ConfigService`'inin
+`readonly race = loadRaceConfig()` deseniyle AYNI fikir — config,
+derleme zamanında bundle'a gömülü statik bir JSON olduğundan tekrar
+tekrar yüklemenin bir MALİYETİ yoktur, ama her render'da YENİDEN
+ÇAĞIRMAK yerine render döngüsünün DIŞINDA tek bir modül sabiti tutulur).
+`DustParticles.tsx`'in kendi `SPAWN_RATE_PER_SECOND`/`MAX_ACTIVE_
+PARTICLES`/`PARTICLE_COLOR`/shader `uniforms` varsayılanları da AYNI
+şekilde `vfxConfig.dustParticles.*`'tan okunacak şekilde güncellendi.
+
+`packages/game-config/src/index.ts`'e `loadCameraConfig()`/
+`loadVfxConfig()`/`loadAudioConfig()` eklendi (`apps/web`'in tükettiği
+İLK config'ler — bu yüzden `apps/web/package.json`'a `@at-sevdalisi/
+game-config` bağımlılığı VE `next.config.mjs`'in `transpilePackages`'ına
+paket adı EKLENDİ, `@at-sevdalisi/shared-types` ile AYNI monorepo paket
+paylaşım deseni). `apps/web/tsconfig.logic.json`'a `@at-sevdalisi/
+game-config` için bir `paths` girişi eklendi.
+
+Doğrulama: `packages/game-config/test/config.spec.ts`'e yeni config'ler
+için 10 test case'i eklendi (versiyon/eşik/aralık/renk-formatı/hacim
+toplamı sağlamaları) — mevcut 14 ile birlikte TOPLAM 24 test, gerçek
+`tsx` çalıştırmasıyla PASS (bu paketin kendi `tsconfig.json`'ı
+`moduleResolution: "Node10"` kullandığından bu sandbox'taki TS 6.0.3
+`tsc`'si ile DOĞRUDAN kontrol edilemiyor — bu, bu turda İNTRODUCE
+EDİLMEYEN, `apps/api` CommonJS uyumluluğu için ÖNCEDEN var olan bir
+kısıt, bkz. paketin kendi `tsconfig.json`'ı). `camera-director.ts`/
+`photo-finish.ts`/`dust-particle-sim.ts`/`audio-manager.ts`'in kendi
+`.spec.ts` dosyaları, `apps/api`'nin `genetics.spec.ts`/`pedigree.spec.ts`
+testlerinin AYNI deseniyle güncellendi: artık kendi uydurma test
+sabitlerini DEĞİL, GERÇEK `config/*.config.json` dosyasını doğrudan
+içeri aktarıp onun alanlarını referans alıyorlar (config değerleri
+değişirse testler otomatik GEÇERLİ kalır) — 41 test case'i (11+15+15
+mevcut + yeniden yazılan, tam liste: 7 `camera-director` + 4
+`selectAutomaticCameraMode` + 4+3+2+5 `photo-finish` + 4+5+2+4
+`dust-particle-sim` + 2+2+1+2+2+2+1 `audio-manager`), gerçek `tsx`
+çalıştırmasıyla PASS. `RaceViewer.tsx`/`LiveRaceViewer.tsx`/`RaceHud.tsx`/
+`DustParticles.tsx` — bu dosyaların JSX içermesi nedeniyle bu ortamda
+`tsc` ile TAM doğrulanamaz (bkz. aşağıdaki bölüm) — `ts.transpileModule`
+ile sözdizimi kontrolünden geçti (0 diagnostic), gerçek tip kontrolü
+CI'dadır. `npx tsc -p tsconfig.logic.json --noEmit` (tüm saf mantık
+dosyaları + `@at-sevdalisi/game-config` path alias'ı BİRLİKTE) 0 hata
+ile geçti.
+
 ## ÖNEMLİ — bu oturumdaki doğrulama kısıtı
 
 `docs/ARCHITECTURE.md` §9'da belgelenen kısıt burada da geçerlidir: bu

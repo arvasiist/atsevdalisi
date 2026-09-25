@@ -17,7 +17,17 @@
  * bu tabirin klasik anlamı (kafa kafaya bitiş, fotoğrafla karar). İkisi de
  * ZATEN VAR OLAN `RaceFinishEntry`/`LiveRaceFinishedEntrant` verisinden
  * hesaplanır — yeni bir simülasyon/skor İCAT EDİLMEZ.
+ *
+ * Faz 6 "Config ayrımı" (bu turda EKLENDİ) — eşikler (`closeFinishThresholdMs`/
+ * `slowMotionWindowMs`/`slowMotionMinFactor`) ARTIK bu dosyada gömülü
+ * sabitler DEĞİL, `@at-sevdalisi/game-config`'in `CameraConfig.photoFinish`'i
+ * (bkz. `config/camera.config.json`) üzerinden ÇAĞIRAN TARAFÇA geçirilir
+ * — `camera-director.ts` ile AYNI desen (ikisi de "yarış anlatımı/kamera"
+ * kararları olduğu için AYNI config dosyasını paylaşır, bkz. `CameraConfig`
+ * tipinin doc yorumu).
  */
+
+import type { CameraConfig } from '@at-sevdalisi/game-config';
 
 /**
  * `RaceViewer.tsx`'in `RaceFinishEntry`'si (fixture/practice race) ile
@@ -44,15 +54,6 @@ export interface PhotoFinishRow extends PhotoFinishSourceEntry {
 }
 
 /**
- * 1. ile 2. arasındaki fark bu eşiğin ALTINDAYSA "FOTO FİNİŞ!" rozeti
- * gösterilir. 150ms, gerçek hipodrom pratiğinde "burun farkı" (nose gap)
- * seviyesine yakın keyfi ama makul bir eşiktir — brief bir sayı VERMEDİĞİ
- * için burada seçildi, `config/` altındaki diğer sayısal dengelerle AYNI
- * ruhla (bkz. Faz 6 "Config ayrımı" dilimi, bu değer oraya taşınacak).
- */
-export const CLOSE_FINISH_THRESHOLD_MS = 150;
-
-/**
  * Giriş sırası ÖNEMLİ DEĞİLDİR — `finishPosition`'a göre YENİDEN sıralanır
  * (canlı yayında `finalResult`/`finishedEntrants` sırası sunucudan HANGİ
  * sırayla gelirse gelsin, brief'in her zaman "1.'den son'a" bir liste
@@ -72,7 +73,7 @@ export function buildPhotoFinishRows(entries: PhotoFinishSourceEntry[]): PhotoFi
 }
 
 /** Tek katılımcılı (ör. tek atlı pratik yarış — brief'in "bot rakipler yoksa" senaryosu) bir yarışta "foto finiş" ANLAMSIZDIR. */
-export function isCloseFinish(rows: PhotoFinishRow[]): boolean {
+export function isCloseFinish(rows: PhotoFinishRow[], config: CameraConfig): boolean {
   if (rows.length < 2) {
     return false;
   }
@@ -80,7 +81,7 @@ export function isCloseFinish(rows: PhotoFinishRow[]): boolean {
   if (!second) {
     return false;
   }
-  return second.gapToWinnerMs <= CLOSE_FINISH_THRESHOLD_MS;
+  return second.gapToWinnerMs <= config.photoFinish.closeFinishThresholdMs;
 }
 
 /**
@@ -97,32 +98,31 @@ export function formatFinishGap(gapMs: number): string {
 }
 
 /**
- * Yarışın son `FINISH_SLOWMO_WINDOW_MS` milisaniyesinde oynatma hızını
- * kademeli olarak `FINISH_SLOWMO_MIN_FACTOR`'a kadar düşüren ÇARPAN
- * (1 = normal hız, `FINISH_SLOWMO_MIN_FACTOR` = en yavaş). `RaceViewer.tsx`
- * bunu kullanıcının seçtiği `speedMultiplier` ile ÇARPAR — yeni bir
- * animasyon/asset GEREKMEZ, sadece ZATEN VAR OLAN interpolasyonlu oynatma
- * (`advancePlaybackTimeMs`) döngüsü final düzlükte YAVAŞLAR, tıpkı gerçek
- * yayınlardaki "bitiş çizgisi ağır çekimi" gibi bir izlenim VERİR.
+ * Yarışın son `config.photoFinish.slowMotionWindowMs` milisaniyesinde
+ * oynatma hızını kademeli olarak `slowMotionMinFactor`'a kadar düşüren
+ * ÇARPAN (1 = normal hız, `slowMotionMinFactor` = en yavaş).
+ * `RaceViewer.tsx` bunu kullanıcının seçtiği `speedMultiplier` ile
+ * ÇARPAR — yeni bir animasyon/asset GEREKMEZ, sadece ZATEN VAR OLAN
+ * interpolasyonlu oynatma (`advancePlaybackTimeMs`) döngüsü final
+ * düzlükte YAVAŞLAR, tıpkı gerçek yayınlardaki "bitiş çizgisi ağır
+ * çekimi" gibi bir izlenim VERİR.
  *
  * `durationMs <= 0` (henüz veri yok/geçersiz yarış) için her zaman 1
  * döner — bölme hatası veya anlamsız bir ağır çekim OLUŞMAZ.
  */
-export const FINISH_SLOWMO_WINDOW_MS = 3000;
-export const FINISH_SLOWMO_MIN_FACTOR = 0.25;
-
-export function getFinishSlowMotionFactor(currentTimeMs: number, durationMs: number): number {
+export function getFinishSlowMotionFactor(currentTimeMs: number, durationMs: number, config: CameraConfig): number {
   if (durationMs <= 0) {
     return 1;
   }
+  const { slowMotionWindowMs, slowMotionMinFactor } = config.photoFinish;
   const remainingMs = durationMs - currentTimeMs;
   if (remainingMs <= 0) {
     // Yarış bitti (veya bitiş anında) — en yavaş noktada sabit kal, ANİ bir sıçrama olmasın.
-    return FINISH_SLOWMO_MIN_FACTOR;
+    return slowMotionMinFactor;
   }
-  if (remainingMs >= FINISH_SLOWMO_WINDOW_MS) {
+  if (remainingMs >= slowMotionWindowMs) {
     return 1;
   }
-  const progress = 1 - remainingMs / FINISH_SLOWMO_WINDOW_MS; // 0 (pencere başı) → 1 (bitiş)
-  return 1 - progress * (1 - FINISH_SLOWMO_MIN_FACTOR);
+  const progress = 1 - remainingMs / slowMotionWindowMs; // 0 (pencere başı) → 1 (bitiş)
+  return 1 - progress * (1 - slowMotionMinFactor);
 }

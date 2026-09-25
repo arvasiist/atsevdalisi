@@ -17,9 +17,16 @@
  * olmasını sağlar (aynı seed → aynı parçacık dizisi → `toEqual` ile
  * doğrulanabilir), (b) projenin geri kalanıyla TUTARLI tek bir rastgelelik
  * kaynağı kullanır — yeni bir `Math.random()` kullanımı İCAT EDİLMEZ.
+ *
+ * Faz 6 "Config ayrımı" (bu turda EKLENDİ) — yükselme hızı/sürüklenme
+ * mesafesi/ömür sınırları ARTIK bu dosyada gömülü sabitler DEĞİL,
+ * `@at-sevdalisi/game-config`'in `VfxConfig.dustParticles`'ı (bkz.
+ * `config/vfx.config.json`) üzerinden ÇAĞIRAN TARAFÇA (`DustParticles.tsx`)
+ * geçirilir — `camera-director.ts`/`photo-finish.ts` ile AYNI desen.
  */
 
 import { createSeededRandom, seededRange } from '@at-sevdalisi/shared-types';
+import type { VfxConfig } from '@at-sevdalisi/game-config';
 
 export interface DustParticle {
   /** Doğduğu andaki dünya koordinatı (at o anda neredeyse orası) — parçacık zamanla bu noktadan UZAKLAŞIR (bkz. `advanceDustParticle`). */
@@ -33,27 +40,26 @@ export interface DustParticle {
   lifetimeMs: number;
 }
 
-/** Saniyede yükseklik artışı (m/s) — hafif bir "kalkıp havada asılı kalma" hissi, gerçek fizik simülasyonu DEĞİL (brief bunu istemiyor, sadece görsel bir ipucu). */
-const RISE_SPEED_MPS = 0.6;
-/** Parçacığın orijinden yatayda ne kadar UZAKLAŞABİLECEĞİ (metre) — atın arkasında dağılan bir toz bulutu izlenimi. */
-const MAX_HORIZONTAL_DRIFT_METERS = 0.4;
-const MIN_LIFETIME_MS = 400;
-const MAX_LIFETIME_MS = 900;
-
 /**
- * `seed` aynıysa dönen parçacık BİREBİR aynıdır (determinizm garantisi,
- * bkz. dosya başı doc yorumu). Çağıran taraf (bkz. `DustParticles.tsx`)
- * her yeni parçacık için `${horseId}:${spawnIndex}` gibi BENZERSİZ bir
- * seed üretir — aksi halde TÜM parçacıklar birbirinin AYNISI olurdu.
+ * `seed` VE `config` aynıysa dönen parçacık BİREBİR aynıdır (determinizm
+ * garantisi, bkz. dosya başı doc yorumu). Çağıran taraf (bkz.
+ * `DustParticles.tsx`) her yeni parçacık için `${horseId}:${spawnIndex}`
+ * gibi BENZERSİZ bir seed üretir — aksi halde TÜM parçacıklar birbirinin
+ * AYNISI olurdu.
  */
-export function spawnDustParticle(originX: number, originZ: number, seed: string): DustParticle {
+export function spawnDustParticle(
+  originX: number,
+  originZ: number,
+  seed: string,
+  config: VfxConfig,
+): DustParticle {
   // `angle`/`driftMeters` doğum anında HENÜZ hesaplanmaz — `advanceDustParticle`
   // AYNI `seed`'den KENDİ `rng` örneğini oluşturup bunları TÜRETİR (tek
   // kaynak: seed + yaş, iki ayrı yerde SAKLANAN/SENKRONİZE edilmesi
   // gereken bir açı/mesafe DEĞİL). Burada sadece ömür (`lifetimeMs`)
   // belirlenir — bu, parçacığın DOĞUŞUNDA sabitlenen tek gerçek durumdur.
   const rng = createSeededRandom(seed);
-  const lifetimeMs = seededRange(rng, MIN_LIFETIME_MS, MAX_LIFETIME_MS);
+  const lifetimeMs = seededRange(rng, config.dustParticles.minLifetimeMs, config.dustParticles.maxLifetimeMs);
   return {
     originX,
     originZ,
@@ -77,18 +83,23 @@ export function spawnDustParticle(originX: number, originZ: number, seed: string
  * parçacığın TÜM `advanceDustParticle` çağrılarında AYNI `seed`'i
  * geçirmelidir — aksi halde parçacık her karede FARKLI bir yöne sürüklenir.
  */
-export function advanceDustParticle(particle: DustParticle, deltaMs: number, seed: string): DustParticle {
+export function advanceDustParticle(
+  particle: DustParticle,
+  deltaMs: number,
+  seed: string,
+  config: VfxConfig,
+): DustParticle {
   const nextAgeMs = particle.ageMs + deltaMs;
   const rng = createSeededRandom(seed);
   const angle = seededRange(rng, 0, Math.PI * 2);
-  const driftMeters = seededRange(rng, 0, MAX_HORIZONTAL_DRIFT_METERS);
+  const driftMeters = seededRange(rng, 0, config.dustParticles.maxHorizontalDriftMeters);
   const progress = Math.min(1, nextAgeMs / particle.lifetimeMs);
   return {
     ...particle,
     ageMs: nextAgeMs,
     x: particle.originX + Math.cos(angle) * driftMeters * progress,
     z: particle.originZ + Math.sin(angle) * driftMeters * progress,
-    y: (nextAgeMs / 1000) * RISE_SPEED_MPS,
+    y: (nextAgeMs / 1000) * config.dustParticles.riseSpeedMps,
   };
 }
 

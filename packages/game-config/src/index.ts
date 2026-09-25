@@ -17,6 +17,8 @@
  * etkilemeyen bir iç değişiklik olur.
  */
 import type {
+  AudioConfig,
+  CameraConfig,
   CareConfig,
   EconomyConfig,
   FarmConfig,
@@ -29,6 +31,7 @@ import type {
   StableConfig,
   StaffConfig,
   TrainingConfig,
+  VfxConfig,
   WeatherConfig,
 } from './types';
 
@@ -45,6 +48,9 @@ import jockeyConfigJson from '../../../config/jockey.config.json';
 import staffConfigJson from '../../../config/staff.config.json';
 import farmConfigJson from '../../../config/farm.config.json';
 import onlineConfigJson from '../../../config/online.config.json';
+import cameraConfigJson from '../../../config/camera.config.json';
+import vfxConfigJson from '../../../config/vfx.config.json';
+import audioConfigJson from '../../../config/audio.config.json';
 
 export function loadRaceConfig(): RaceBalanceConfig {
   return raceConfigJson as unknown as RaceBalanceConfig;
@@ -96,6 +102,28 @@ export function loadFarmConfig(): FarmConfig {
 
 export function loadOnlineConfig(): OnlineConfig {
   return onlineConfigJson as unknown as OnlineConfig;
+}
+
+/**
+ * Faz 6 "Config ayrımı" (bu turda EKLENDİ) — `apps/web/src/features/
+ * race-viewer/camera-director.ts`/`photo-finish.ts`'in DAHA ÖNCE
+ * modül-seviyesi sabit olarak gömülü değerlerinin config karşılığı.
+ * Diğer `loadXConfig()` fonksiyonlarıyla AYNI desen: bu paket hem
+ * `apps/api` (Node.js) hem `apps/web` (tarayıcı/edge) tarafında
+ * sorunsuz çalışır (dosya başı doc yorumu) — bu üçü İLK KEZ `apps/web`
+ * tarafından tüketilen config'lerdir (`apps/web/package.json`'a bu
+ * turda `@at-sevdalisi/game-config` bağımlılığı EKLENDİ).
+ */
+export function loadCameraConfig(): CameraConfig {
+  return cameraConfigJson as unknown as CameraConfig;
+}
+
+export function loadVfxConfig(): VfxConfig {
+  return vfxConfigJson as unknown as VfxConfig;
+}
+
+export function loadAudioConfig(): AudioConfig {
+  return audioConfigJson as unknown as AudioConfig;
 }
 
 export * from './types';

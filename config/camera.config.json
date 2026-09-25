@@ -1,0 +1,10 @@
+{
+  "version": "1.0.0",
+  "startPhaseMeters": 50,
+  "finalStretchRemainingMeters": 400,
+  "photoFinish": {
+    "closeFinishThresholdMs": 150,
+    "slowMotionWindowMs": 3000,
+    "slowMotionMinFactor": 0.25
+  }
+}

@@ -1,11 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import {
+  loadAudioConfig,
+  loadCameraConfig,
   loadEconomyConfig,
   loadGeneticsConfig,
   loadHorseGrowthConfig,
   loadProgressionConfig,
   loadRaceConfig,
   loadTrainingConfig,
+  loadVfxConfig,
   loadWeatherConfig,
 } from '../src/index';
 
@@ -117,5 +120,73 @@ describe('loadProgressionConfig', () => {
     for (const unlock of config.unlocks) {
       expect(unlock.level).toBeLessThanOrEqual(config.maxLevel);
     }
+  });
+});
+
+/**
+ * Faz 6 "Config ayrımı" (bu turda EKLENDİ) — `apps/web`'in race-viewer
+ * özelliğinin (`camera-director.ts`/`photo-finish.ts`/`dust-particle-sim.ts`/
+ * `audio-manager.ts`) daha önce kod içinde gömülü olan sabitlerinin
+ * config karşılığı.
+ */
+describe('loadCameraConfig', () => {
+  it('version alanı boş olmayan bir string olmalı', () => {
+    const config = loadCameraConfig();
+    expect(typeof config.version).toBe('string');
+    expect(config.version.length).toBeGreaterThan(0);
+  });
+
+  it('startPhaseMeters, finalStretchRemainingMeters\'tan küçük olmalı (aksi halde start/final_stretch event\'leri çakışır)', () => {
+    const config = loadCameraConfig();
+    expect(config.startPhaseMeters).toBeLessThan(config.finalStretchRemainingMeters);
+  });
+
+  it('photoFinish.slowMotionMinFactor (0, 1] aralığında olmalı (0 = tamamen dur, brief bunu istemiyor)', () => {
+    const config = loadCameraConfig();
+    expect(config.photoFinish.slowMotionMinFactor).toBeGreaterThan(0);
+    expect(config.photoFinish.slowMotionMinFactor).toBeLessThanOrEqual(1);
+  });
+
+  it('photoFinish.closeFinishThresholdMs pozitif olmalı', () => {
+    const config = loadCameraConfig();
+    expect(config.photoFinish.closeFinishThresholdMs).toBeGreaterThan(0);
+  });
+});
+
+describe('loadVfxConfig', () => {
+  it('dustParticles.minLifetimeMs, maxLifetimeMs\'ten küçük olmalı', () => {
+    const config = loadVfxConfig();
+    expect(config.dustParticles.minLifetimeMs).toBeLessThan(config.dustParticles.maxLifetimeMs);
+  });
+
+  it('dustParticles.color geçerli bir hex renk formatında olmalı', () => {
+    const config = loadVfxConfig();
+    expect(config.dustParticles.color).toMatch(/^#[0-9a-fA-F]{6}$/);
+  });
+
+  it('dustParticles.maxActiveParticles pozitif bir tam sayı olmalı', () => {
+    const config = loadVfxConfig();
+    expect(config.dustParticles.maxActiveParticles).toBeGreaterThan(0);
+    expect(Number.isInteger(config.dustParticles.maxActiveParticles)).toBe(true);
+  });
+});
+
+describe('loadAudioConfig', () => {
+  it('hoofbeat.baseVolume + maxExtraVolume 1\'i aşmamalı (aksi halde hacim taşar)', () => {
+    const config = loadAudioConfig();
+    expect(config.hoofbeat.baseVolume + config.hoofbeat.maxExtraVolume).toBeLessThanOrEqual(1);
+  });
+
+  it('tüm hacim değerleri [0, 1] aralığında olmalı', () => {
+    const config = loadAudioConfig();
+    expect(config.raceMusicVolume).toBeGreaterThanOrEqual(0);
+    expect(config.raceMusicVolume).toBeLessThanOrEqual(1);
+    expect(config.finishFanfareVolume).toBeGreaterThanOrEqual(0);
+    expect(config.finishFanfareVolume).toBeLessThanOrEqual(1);
+  });
+
+  it('finalStretchMusicDuckFactor 1\'den küçük olmalı (aksi halde "düşürme" hiçbir şeyi düşürmez)', () => {
+    const config = loadAudioConfig();
+    expect(config.finalStretchMusicDuckFactor).toBeLessThan(1);
   });
 });

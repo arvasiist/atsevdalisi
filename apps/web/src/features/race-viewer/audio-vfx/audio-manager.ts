@@ -20,8 +20,19 @@
  *    sessizce hiçbir şey yapma" GERÇEK davranışının varsayılan
  *    uygulamasıdır (üretimde de, ses dosyaları HENÜZ repoda yokken,
  *    TAM OLARAK bu backend kullanılacaktır — bkz. `asset-manifest.ts`).
+ *
+ * Faz 6 "Config ayrımı" (bu turda EKLENDİ) — hacim/eşik değerleri ARTIK
+ * bu dosyada gömülü sabitler DEĞİL, `@at-sevdalisi/game-config`'in
+ * `AudioConfig`'i (bkz. `config/audio.config.json`) üzerinden ÇAĞIRAN
+ * TARAFÇA (`RaceAudioManager`'ın kurucusuna) geçirilir — `camera-director.ts`/
+ * `dust-particle-sim.ts` ile AYNI desen. `AudioBackend`'in aksine (o,
+ * "backend yok" anlamlı bir varsayılana — `SILENT_AUDIO_BACKEND`'e —
+ * sahiptir) `config` İÇİN bir varsayılan YOKTUR: config, GERÇEK oyun
+ * dengesi verisidir, `apps/api`'nin domain fonksiyonlarının hiçbirinin
+ * config parametresini "isteğe bağlı" YAPMAMASIYLA AYNI disiplin.
  */
 
+import type { AudioConfig } from '@at-sevdalisi/game-config';
 import { getAssetById } from '../assets/asset-manifest';
 
 export type RaceAudioEventType = 'race_start' | 'final_stretch' | 'finish';
@@ -55,18 +66,13 @@ export const SILENT_AUDIO_BACKEND: AudioBackend = {
   setVolume: () => undefined,
 };
 
-const HOOFBEAT_BASE_VOLUME = 0.35;
-const HOOFBEAT_MAX_EXTRA_VOLUME = 0.35;
-const RACE_MUSIC_VOLUME = 0.4;
-const FINISH_FANFARE_VOLUME = 0.8;
-/** Final düzlükte müzik hacmi bu ORANLA düşürülür (fanfar/anlatımın önüne geçmemesi için — brief §31'in "final anını vurgula" isteği). */
-const FINAL_STRETCH_MUSIC_DUCK_FACTOR = 0.5;
-
 export class RaceAudioManager {
   private backend: AudioBackend;
+  private config: AudioConfig;
   private hoofbeatPlaying = false;
 
-  constructor(backend: AudioBackend = SILENT_AUDIO_BACKEND) {
+  constructor(config: AudioConfig, backend: AudioBackend = SILENT_AUDIO_BACKEND) {
+    this.config = config;
     this.backend = backend;
   }
 
@@ -82,7 +88,7 @@ export class RaceAudioManager {
       case 'race_start': {
         const music = getAssetById('RACE_BACKGROUND_MUSIC_REQUIRED');
         if (music) {
-          this.backend.play(music.expectedPath, { loop: true, volume: RACE_MUSIC_VOLUME });
+          this.backend.play(music.expectedPath, { loop: true, volume: this.config.raceMusicVolume });
         }
         this.startHoofbeats();
         return;
@@ -90,7 +96,7 @@ export class RaceAudioManager {
       case 'final_stretch': {
         const music = getAssetById('RACE_BACKGROUND_MUSIC_REQUIRED');
         if (music) {
-          this.backend.setVolume(music.expectedPath, RACE_MUSIC_VOLUME * FINAL_STRETCH_MUSIC_DUCK_FACTOR);
+          this.backend.setVolume(music.expectedPath, this.config.raceMusicVolume * this.config.finalStretchMusicDuckFactor);
         }
         return;
       }
@@ -102,7 +108,7 @@ export class RaceAudioManager {
         }
         const fanfare = getAssetById('RACE_FINISH_FANFARE_REQUIRED');
         if (fanfare) {
-          this.backend.play(fanfare.expectedPath, { volume: FINISH_FANFARE_VOLUME });
+          this.backend.play(fanfare.expectedPath, { volume: this.config.finishFanfareVolume });
         }
         return;
       }
@@ -117,7 +123,7 @@ export class RaceAudioManager {
     if (!asset) {
       return;
     }
-    this.backend.play(asset.expectedPath, { loop: true, volume: HOOFBEAT_BASE_VOLUME });
+    this.backend.play(asset.expectedPath, { loop: true, volume: this.config.hoofbeat.baseVolume });
     this.hoofbeatPlaying = true;
   }
 
@@ -148,7 +154,10 @@ export class RaceAudioManager {
     }
     const safeMax = maxSpeedMps > 0 ? maxSpeedMps : 1;
     const ratio = Math.max(0, Math.min(1, speedMps / safeMax));
-    this.backend.setVolume(asset.expectedPath, HOOFBEAT_BASE_VOLUME + ratio * HOOFBEAT_MAX_EXTRA_VOLUME);
+    this.backend.setVolume(
+      asset.expectedPath,
+      this.config.hoofbeat.baseVolume + ratio * this.config.hoofbeat.maxExtraVolume,
+    );
   }
 
   /** Testler/temizlik için — bileşen unmount olduğunda (`useEffect` cleanup) çağrılır. */

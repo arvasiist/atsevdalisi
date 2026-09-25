@@ -53,6 +53,15 @@ import type { CameraMode } from './camera-presets';
 import { CAMERA_MODE_LABELS, CAMERA_MODE_ORDER } from './camera-presets';
 import type { LiveLeaderboardEntry } from './timeline-playback';
 import { formatFinishGap, isCloseFinish, type PhotoFinishRow } from './photo-finish';
+import { loadCameraConfig } from '@at-sevdalisi/game-config';
+
+/**
+ * Faz 6 "Config ayrımı" (bu turda EKLENDİ) — `isCloseFinish` artık
+ * `CameraConfig.photoFinish.closeFinishThresholdMs`'i PARAMETRE olarak
+ * ister (bkz. `photo-finish.ts` doc yorumu) — `RaceViewer.tsx`/
+ * `LiveRaceViewer.tsx` ile AYNI modül-seviyesi tek-yükleme deseni.
+ */
+const cameraConfig = loadCameraConfig();
 
 export interface MiniMapMarker {
   horseId: string;
@@ -359,7 +368,7 @@ function LeaderboardPanel({
  * `formatFinishGap`/`isCloseFinish` saf fonksiyonları ORADA doğrulanmıştır).
  */
 function FinishResultOverlay({ rows }: { rows: PhotoFinishRow[] }): React.ReactElement {
-  const closeFinish = isCloseFinish(rows);
+  const closeFinish = isCloseFinish(rows, cameraConfig);
   return (
     <div
       style={{
