@@ -989,11 +989,15 @@ HEMEN simüle eder; bulamazsa çağıranın bileti kuyruğa eklenir. Giriş
 ücreti/ödül YOK (yalnızca Elo, `config/online.config.json`'da `matchmaking`
 bölümü hiçbir entry fee tanımlamaz). Her iki taraf da SABİT taktik/zemin/
 hava kullanır (`RunPracticeRaceUseCase` ile AYNI KAPSAM DIŞI gerekçesi).
-BİLİNÇLİ SINIRLAMA: kuyrukta önce bekleyen oyuncu, eşleşme SONRADAN gelen
-bir oyuncunun isteği İÇİNDE gerçekleşse bile bunu KENDİ BAŞINA öğrenemez
-(bu dilimde bir status/polling/WebSocket uç noktası YOK — bkz. §10
-"lobby.update" önerisi) — bkz. `JoinMatchmakingQueueUseCase`'in tam doc
-yorumu.
+BİLİNÇLİ SINIRLAMA (bu turda `lobby.update` eklendikten SONRA GÜNCELLENDİ):
+kuyrukta önce bekleyen oyuncu, eşleşme SONRADAN gelen bir oyuncunun isteği
+İÇİNDE gerçekleştiğinde bunu ARTIK öğrenebilir — bkz. §10 `lobby.update`
+(ARTIK `[UYGULANDI]`). AMA bu BEST-EFFORT'tur, GARANTİ DEĞİL: yalnızca o
+oyuncunun istemcisi O AN `/races` namespace'ine bağlıyken çalışır;
+bağlantısı yoksa (sekme kapalı, ağ kopmuş, hiç bağlanmamış) bildirim
+SESSİZCE kaybolur ve oyuncu hâlâ kendi başına öğrenemez, yeniden
+`join`/`leave` çağırmak ZORUNDADIR — bkz. `JoinMatchmakingQueueUseCase`'in
+tam doc yorumu.
 
 Anti-cheat (brief §42): her uç nokta, client'tan gelen payload'ı
 `domain/online/anti-cheat.ts` `pickAllowedClientFields` ile ALLOWLIST'ten
@@ -1006,15 +1010,17 @@ değerleriyle karşılaştırılıp uyuşmazlık reddedilmelidir.
 Brief'te WebSocket "gerektiğinde" kullanılacağı belirtilmiş (§6).
 AUDIT_REPORT.md Bulgu F2 (bu turda proje sahibinin AskUserQuestion ile
 onayladığı seçim) `race.telemetry`/`race.finished`'i temel bir
-bağlantı+yayın iskeleti olarak UYGULADI; `notification.new`/`lobby.update`
-henüz PLANLI/uygulanmadı:
+bağlantı+yayın iskeleti olarak UYGULADI; sonraki bir turda `lobby.update`
+de bu ALTYAPI ÜZERİNE (YENİDEN İCAT EDİLMEDEN) eklendi. `notification.new`
+hâlâ PLANLI/uygulanmadı (daha belirsiz/büyük bir kapsam, bkz.
+docs/ROADMAP.md):
 
 ```text
 race.roster        — race.subscribe sonrası katılımcı isim/kimlik eşlemesi  [UYGULANDI]
 race.telemetry     — canlı yarış sırasında segment güncellemeleri            [UYGULANDI]
 race.finished      — yarış sonucu hazır olduğunda                           [UYGULANDI]
+lobby.update       — online yarış lobisi (brief §41)                        [UYGULANDI]
 notification.new   — brief §46 bildirim sistemi                             [PLANLI]
-lobby.update       — online yarış lobisi (brief §41)                        [PLANLI]
 ```
 
 **Uygulanan kısım (`apps/api/src/api/realtime/race.gateway.ts`, `/races`
@@ -1052,6 +1058,21 @@ namespace'i):**
 - **`race.finished` (sunucu → istemci, tam olarak bir kez):**
   `{ raceId, entrants: [...] }` — final sıralama/süre/skor (`finishPosition`'a
   göre sıralı).
+- **`lobby.update` (sunucu → istemci, BEST-EFFORT — bu turda UYGULANDI):**
+  `PvpMatchResult` (bkz. §9 `POST /matchmaking/queue`'nun `matched: true`
+  yanıt şekli, ALICININ KENDİ perspektifinden). HANGİ ODAYA: her istemci,
+  bağlantı KURULUR KURULMAZ (herhangi bir `race.subscribe`'tan BAĞIMSIZ,
+  `handleConnection` içinde) kendi `player:${playerId}` odasına otomatik
+  katılır — bu olay o odaya yayınlanır. NE ZAMAN: `JoinMatchmakingQueueUseCase.
+  playMatch`, bir rakip bulup DB yazımını (Elo dahil, tek transaction)
+  TAMAMLADIKTAN HEMEN SONRA. KİME: ÇAĞIRANA DEĞİL, ZATEN kuyrukta bekleyen
+  tarafa (ÇAĞIRANIN rakibi) — ÇAĞIRAN sonucu zaten senkron HTTP yanıtından
+  alır. BEST-EFFORT: alıcının o an `/races` namespace'ine bağlı bir soketi
+  YOKSA (`player:${playerId}` odası boşsa) yayın SESSİZCE kaybolur — garanti
+  teslim/kuyruk sistemi YOKTUR; bağlantısı olmayan oyuncu hâlâ kendi başına
+  öğrenemez ve yeniden `join`/`leave` çağırmak zorundadır (bkz. §9'un
+  güncellenmiş "BİLİNÇLİ SINIRLAMA" notu, `race.gateway.ts`'in
+  "`lobby.update`" doc bölümü).
 - **Senkronize çoklu-izleyici (bu turda EKLENDİ):** aynı `raceId`'yi
   izleyen TÜM istemciler artık bir Socket.IO odasına (`race:${raceId}`)
   katılır ve `race.telemetry`/`race.finished` odanın TAMAMINA aynı anda
@@ -1065,10 +1086,10 @@ namespace'i):**
   mekanizmasından FAYDALANIR (tam bir reconnection protokolü HÂLÂ YOK,
   istemci `race.subscribe`'ı kendisi yeniden çağırmalıdır). Bir
   playback oturumu, bitişten 60 saniye sonra bellekten temizlenir.
-- **Bilinçli kapsam dışı (hâlâ YOK):** `notification.new`/`lobby.update`
-  (yukarıdaki tablo). İstemci tarafında otomatik yeniden abone olma
-  ARTIK VAR — bkz. aşağıdaki "Frontend entegrasyonu" notunun reconnection
-  paragrafı.
+- **Bilinçli kapsam dışı (hâlâ YOK):** `notification.new` (yukarıdaki
+  tablo) — `lobby.update` ARTIK UYGULANDI (bkz. yukarıdaki madde).
+  İstemci tarafında otomatik yeniden abone olma ARTIK VAR — bkz. aşağıdaki
+  "Frontend entegrasyonu" notunun reconnection paragrafı.
 
 **Frontend entegrasyonu (bu turda EKLENDİ — daha önce F2'nin GERÇEK bir
 tüketicisi YOKTU):** `apps/web/src/features/race-viewer/live-race-socket.ts`

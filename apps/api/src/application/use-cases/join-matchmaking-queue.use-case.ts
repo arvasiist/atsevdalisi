@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import type {
   JoinMatchmakingQueueResult,
   MatchmakingTicket,
@@ -23,6 +23,7 @@ import { HORSE_REPOSITORY, type HorseRepository } from '../ports/horse.repositor
 import { HORSE_STATS_REPOSITORY, type HorseStatsRepository } from '../ports/horse-stats.repository';
 import { HORSE_SURFACE_STATS_REPOSITORY, type HorseSurfaceStatsRepository } from '../ports/horse-surface-stats.repository';
 import { HORSE_DISTANCE_STATS_REPOSITORY, type HorseDistanceStatsRepository } from '../ports/horse-distance-stats.repository';
+import { LOBBY_NOTIFIER, type LobbyNotifier } from '../ports/lobby-notifier';
 import { MATCHMAKING_TICKET_REPOSITORY, type MatchmakingTicketRepository } from '../ports/matchmaking-ticket.repository';
 import { PLAYER_REPOSITORY, type PlayerRepository } from '../ports/player.repository';
 import { RACE_REPOSITORY, type RaceRepository } from '../ports/race.repository';
@@ -54,19 +55,31 @@ const PVP_MATCH_WEATHER = 'sunny' as const;
  * edilir ve sonuç aynı yanıtla döner; yoksa çağıran oyuncunun kendi
  * bileti kuyruğa eklenir. brief §41'in "Client A/B/C → Race Server →
  * ... → All Clients" akışının GERÇEK ZAMANLI/WebSocket bildirim kısmı
- * BİLEREK KAPSAM DIŞI bırakılmıştır — bkz. docs/API.md §10 "lobby.update"
- * önerisi, docs/ROADMAP.md.
+ * ARTIK KISMEN kapsam İÇİNDE — bkz. hemen aşağıdaki "ÖNEMLİ, BİLİNÇLİ
+ * SINIRLAMA" notunun GÜNCEL hâli ve `lobby.update`'in kendisi için
+ * `api/realtime/race.gateway.ts`'in "`lobby.update`" doc bölümü
+ * (docs/API.md §10'da ARTIK `[UYGULANDI]`) — `notification.new` (docs/API.md
+ * §10'un diğer önerisi) ise HÂLÂ PLANLI, daha belirsiz/büyük bir kapsam
+ * olduğundan bilerek dışarıda bırakıldı (bkz. docs/ROADMAP.md).
  *
- * ÖNEMLİ, BİLİNÇLİ SINIRLAMA (bu dilim): kuyrukta ÖNCE bekleyen oyuncu,
- * eşleşme SONRADAN gelen bir oyuncunun `join` isteği İÇİNDE gerçekleşse
- * bile bunu KENDİ BAŞINA öğrenemez — bu dilimde bir status/polling/
- * WebSocket uç noktası YOK (docs/API.md §9'da yalnızca 2 endpoint
- * belgelenmiştir: `POST`/`DELETE /matchmaking/queue`). Rakibin bileti
- * eşleşme anında kuyruktan SİLİNİR, bu yüzden o oyuncu daha sonra tekrar
- * `join` çağırırsa (maçın kendisiyle ilgili hiçbir bilgi almadan) YENİ,
- * bağımsız bir kuyruk girişi başlatmış olur — bu, brief'in gerçek zamanlı
- * bildirim gereksinimini TAM karşılamayan, ama iki oyuncu (neredeyse)
- * eşzamanlı `join` çağırdığında tam çalışan, kademeli bir ilk adımdır
+ * ÖNEMLİ, BİLİNÇLİ SINIRLAMA (bu dilim, `lobby.update` eklendikten SONRA
+ * GÜNCELLENDİ): kuyrukta ÖNCE bekleyen oyuncu, eşleşme SONRADAN gelen bir
+ * oyuncunun `join` isteği İÇİNDE gerçekleştiğinde bunu ARTIK öğrenebilir —
+ * `playMatch`, DB yazımı TAMAMLANDIKTAN SONRA `LobbyNotifier.notifyMatchFound`
+ * ile o oyuncuya `lobby.update` yayınlar (bkz. `race.gateway.ts`). AMA bu
+ * BEST-EFFORT'tur, GARANTİ DEĞİL: yalnızca o oyuncunun istemcisi O AN
+ * `/races` namespace'ine BAĞLIYKEN çalışır (bkz. `RaceGateway.
+ * handleConnection`'ın her istemciyi kendi `player:${playerId}` odasına
+ * katması) — bağlantısı yoksa (tarayıcı sekmesi kapalı, ağ kopmuş, henüz
+ * hiç bağlanmamış) bildirim SESSİZCE kaybolur, yeni bir kuyruk/yeniden
+ * deneme mekanizması YOKTUR. Böyle bir durumda oyuncu HÂLÂ bunu kendi
+ * başına öğrenemez ve önceki davranışla AYNI şekilde yeniden `join`/
+ * `leave` çağırmak ZORUNDADIR. Rakibin bileti eşleşme anında kuyruktan
+ * SİLİNİR, bu yüzden bildirim ULAŞMAZSA o oyuncu daha sonra tekrar `join`
+ * çağırırsa (maçın kendisiyle ilgili hiçbir bilgi almadan) YENİ, bağımsız
+ * bir kuyruk girişi başlatmış olur — bu, brief'in gerçek zamanlı bildirim
+ * gereksinimini TAM garanti ALTINA ALMAYAN (bağlı olmayan istemciler için
+ * hâlâ eksik), ama bağlıyken GERÇEKTEN çalışan, kademeli bir adımdır
  * (`RunPracticeRaceUseCase`'in "sabit sayıda bot" kararıyla AYNI ruhta).
  *
  * KAPSAM (bu dilim, bilinçli, sonraki dilimler için bkz. docs/ROADMAP.md):
@@ -118,6 +131,8 @@ const PVP_MATCH_WEATHER = 'sunny' as const;
  */
 @Injectable()
 export class JoinMatchmakingQueueUseCase {
+  private readonly logger = new Logger(JoinMatchmakingQueueUseCase.name);
+
   constructor(
     @Inject(HORSE_REPOSITORY) private readonly horseRepository: HorseRepository,
     @Inject(HORSE_STATS_REPOSITORY) private readonly horseStatsRepository: HorseStatsRepository,
@@ -127,6 +142,9 @@ export class JoinMatchmakingQueueUseCase {
     @Inject(RACE_REPOSITORY) private readonly raceRepository: RaceRepository,
     @Inject(MATCHMAKING_TICKET_REPOSITORY) private readonly ticketRepository: MatchmakingTicketRepository,
     @Inject(AppConfigService) private readonly config: AppConfigService,
+    // `lobby.update` (bu turda EKLENDİ) — bkz. `race.gateway.ts`'in
+    // "`lobby.update`" doc bölümü ve `lobby-notifier.ts`'in doc yorumu.
+    @Inject(LOBBY_NOTIFIER) private readonly lobbyNotifier: LobbyNotifier,
   ) {}
 
   async execute(input: JoinMatchmakingQueueInput): Promise<JoinMatchmakingQueueResult> {
@@ -421,6 +439,59 @@ export class JoinMatchmakingQueueUseCase {
       scoreA,
       onlineConfig: this.config.online,
     });
+
+    // `lobby.update` (bu turda EKLENDİ) — bkz. `race.gateway.ts`'in
+    // "`lobby.update`" doc bölümü. DB yazımı YUKARIDA ZATEN TAMAMLANDI —
+    // bu bildirim, ZATEN kuyrukta bekleyen `opponentPlayerId`'ye (ÇAĞIRANIN
+    // rakibi) KENDİ perspektifinden bir `PvpMatchResult` gönderir, bu
+    // yüzden aşağıdaki `own`/`opponent` alanları, bu metodun EN ALTTA
+    // ÇAĞIRANA döndürdüğü objeye göre TERS çevrilmiştir: `ownFinishPosition`
+    // ↔ `opponentFinishPosition`, `ownRatingBefore/After` ↔
+    // `opponentRatingBefore/After`. Reyting tarafı için `RaceRepository.
+    // savePvpMatchWithRatings`'in "A"/"B" eşlemesi (bkz. o portun doc
+    // yorumu, `SavePvpMatchWithRatingsInput` üstündeki not): `match.playerIds`
+    // HER ZAMAN `[playerId (ÇAĞIRAN, A), opponentPlayerId (B)]` sırasıyla
+    // doldurulur (yukarıdaki `match` nesnesi) — yani `ratingUpdate.
+    // ratingABefore/AAfter` ÇAĞIRANIN (bu metodun `return`'ünde `own*`
+    // olarak kullanılan) reytingidir, `ratingUpdate.ratingBBefore/BAfter`
+    // İSE `opponentPlayerId`'nin (BURADA bildirim ALACAK tarafın)
+    // reytingidir — bu yüzden `opponentResult.ownRatingBefore/After`
+    // `ratingBBefore/BAfter`'DAN, `opponentResult.opponentRatingBefore/After`
+    // İSE `ratingABefore/AAfter`'DAN okunur (aşağıdaki gibi TAM TERSİ).
+    // `winnerId`/`matchId`/`raceId` MUTLAK (bir taraf değil, bir oyuncu
+    // id'sine/kayda işaret eder) — DEĞİŞMEZ. `opponentPlayerId`/
+    // `opponentHorseId` bu YENİ objede ÇAĞIRANIN kendi `playerId`/`horseId`'sidir
+    // (alıcının rakibi artık ÇAĞIRANDIR).
+    const opponentResult: PvpMatchResult = {
+      matchId,
+      raceId,
+      opponentPlayerId: playerId,
+      opponentHorseId: horseId,
+      winnerId,
+      ownFinishPosition: opponentFinish.finishPosition,
+      ownFinishTimeMs: opponentFinish.finishTimeMs,
+      opponentFinishPosition: myFinish.finishPosition,
+      opponentFinishTimeMs: myFinish.finishTimeMs,
+      ownRatingBefore: ratingUpdate.ratingBBefore,
+      ownRatingAfter: ratingUpdate.ratingBAfter,
+      opponentRatingBefore: ratingUpdate.ratingABefore,
+      opponentRatingAfter: ratingUpdate.ratingAAfter,
+    };
+    try {
+      this.lobbyNotifier.notifyMatchFound(opponentPlayerId, opponentResult);
+    } catch (error) {
+      // BEST-EFFORT bir yan kanal — bkz. `lobby-notifier.ts` doc yorumu.
+      // Burada oluşabilecek HERHANGİ bir hata (normal koşullarda
+      // `RaceGateway.notifyMatchFound`'un kendisi hiç fırlatmaz, ama
+      // savunmacı bir sınır) ASLA bu use-case'in ANA sonucunu (DB yazımı
+      // ZATEN TAMAMLANDI, aşağıda döndürülür) etkilememeli/yeniden
+      // fırlatılmamalıdır.
+      this.logger.error(
+        `notifyMatchFound başarısız oldu (playerId=${opponentPlayerId}, matchId=${matchId}) — ana akış ETKİLENMEDİ: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
 
     return {
       matchId,

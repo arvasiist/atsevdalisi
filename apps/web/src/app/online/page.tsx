@@ -10,18 +10,27 @@
  *
  * ÖNEMLİ, DÜRÜST SINIRLAMA (bkz. `join-matchmaking-queue.use-case.ts` doc
  * yorumu): eşleştirme TAMAMEN SENKRONDUR — bir rakip ANINDA bulunursa
- * maç sonucu hemen döner, bulunamazsa oyuncu kuyruğa girer VE ZATEN
- * kuyrukta bekleyen bir oyuncu, sonradan biri onunla eşleştiğinde bunu
- * KENDİLİĞİNDEN öğrenemez (backend'de henüz polling/WebSocket bildirimi
- * yok). Bu arayüz bunu GİZLEMEZ, açıkça belirtir — sahte bir "canlı"
- * bekleme animasyonu UYDURMAK yerine.
+ * maç sonucu hemen döner, bulunamazsa oyuncu kuyruğa girer.
+ *
+ * `lobby.update` frontend entegrasyonu (bu turda EKLENDİ — bkz.
+ * `race.gateway.ts`'in "`lobby.update`" doc bölümü, `lobby-socket.ts`):
+ * ÖNCEDEN, kuyrukta bekleyen bir oyuncu sonradan biri onunla eşleştiğinde
+ * bunu KENDİLİĞİNDEN HİÇ öğrenemiyordu. Şimdi `queuedHorseId` set
+ * edildiğinde (kuyruğa girildiğinde) bu sayfa `/races` namespace'ine
+ * bağlanır ve `lobby.update` olayını dinler — sayfa AÇIK/bağlıyken bir
+ * rakip bulunursa sonuç CANLI olarak görünür. AMA bu hâlâ BEST-EFFORT'tur
+ * (bkz. aşağıdaki `GlassPanel` uyarı metni ve `lobby-socket.ts` doc
+ * yorumu): sekme kapatılırsa/bağlantı yoksa oyuncu HÂLÂ öğrenemez, bu
+ * durumda hâlâ kuyruktan çıkıp tekrar denemesi gerekir — sahte bir
+ * "her koşulda çalışır" garantisi UYDURULMAZ.
  */
 
 import { useEffect, useState } from 'react';
 import type { JoinMatchmakingQueueResult, PublicHorse } from '@at-sevdalisi/shared-types';
 import { GlassPanel } from '../../components/ui/GlassPanel';
 import { HorseAvatar } from '../../components/ui/HorseAvatar';
-import { apiClient } from '../../lib/api-client';
+import { connectLobbySocket } from '../../features/matchmaking/lobby-socket';
+import { API_BASE_URL, apiClient, getAuthToken } from '../../lib/api-client';
 import { usePlayer } from '../../lib/player-context';
 
 type MatchResult = Extract<JoinMatchmakingQueueResult, { matched: true }>['match'];
@@ -59,6 +68,44 @@ export default function OnlinePage(): React.ReactElement {
     // KURULU DEĞİL (bkz. `market/page.tsx` doc yorumundaki AYNI ders) — bir
     // `eslint-disable` yorumu bilerek YAZILMAZ.
   }, [player?.id]);
+
+  // `lobby.update` (bu turda EKLENDİ) — bkz. dosya başı doc yorumu.
+  // `queuedHorseId` yalnızca `matched: false` döndüğünde set edilir (bkz.
+  // `handleJoin`) — yani bu efekt TAM OLARAK "kuyrukta bekliyoruz" durumunda
+  // çalışır. Token yoksa (oyuncu henüz yüklenmediyse) bağlanmaz.
+  // `LiveRaceViewer.tsx`'in `useEffect` temizlik deseniyle AYNI: `queuedHorseId`
+  // `null` olduğunda (eşleşme bulundu YA DA `handleLeave` çağrıldı) VEYA
+  // bileşen unmount olduğunda soket `disconnect()` edilir — bu ikisi de
+  // AYNI `return` temizliği ile kapsanır, ayrı bir kod YOLU GEREKMEZ.
+  useEffect(() => {
+    if (!queuedHorseId) {
+      return;
+    }
+    const token = getAuthToken();
+    if (!token) {
+      return;
+    }
+    const socket = connectLobbySocket(API_BASE_URL, token, {
+      onMatched: (result) => {
+        setMatchResult(result);
+        setQueuedHorseId(null);
+        setMessage(null);
+      },
+      onConnectError: (msg) => {
+        // Bağlantı kurulamazsa sessizce yutulmaz ama akışı da BLOKLAMAZ —
+        // oyuncu hâlâ normal şekilde `Kuyruktan Ayrıl`/tekrar `join`
+        // deneyebilir (bkz. dosya başı doc yorumu "BEST-EFFORT").
+        setMessage(`Canlı bildirim bağlantısı kurulamadı (${msg}) — kuyrukta bekliyorsun, ama eşleşme bulunursa bunu görmek için sayfayı yenilemen gerekebilir.`);
+      },
+    });
+
+    return () => {
+      socket.disconnect();
+    };
+    // NOT: bu repo'nun kök `.eslintrc.cjs`'inde `eslint-plugin-react-hooks`
+    // KURULU DEĞİL (bkz. yukarıdaki AYNI ders) — bir `eslint-disable`
+    // yorumu bilerek YAZILMAZ.
+  }, [queuedHorseId]);
 
   const selectedHorse = horses?.find((horse) => horse.id === selectedHorseId) ?? null;
 
@@ -110,8 +157,10 @@ export default function OnlinePage(): React.ReactElement {
       </p>
 
       <GlassPanel style={{ marginBottom: 'var(--space-lg)', fontSize: '12px', color: 'var(--color-text-muted)' }}>
-        Not: eşleştirme şu an tamamen senkron. Rakip bulunursa sonucu hemen görürsün; bulunamazsa kuyrukta beklersin ve
-        biri seninle sonradan eşleşirse bunu canlı bildirim olmadan (henüz) öğrenemezsin — bu, dürüstçe belirtilmiş bilinen bir sınırlama.
+        Not: eşleştirme şu an tamamen senkron. Rakip bulunursa sonucu hemen görürsün; bulunamazsa kuyrukta beklersin —
+        bu sayfa AÇIK kaldığı sürece biri seninle sonradan eşleşirse bunu artık canlı bildirimle görürsün. Ama bu
+        garanti değil: sekmeyi kapatırsan veya bağlantın koparsa hâlâ öğrenemezsin, bu durumda kuyruktan çıkıp tekrar
+        katılman gerekir — bu, dürüstçe belirtilmiş bilinen bir sınırlama.
       </GlassPanel>
 
       {!player && !isPlayerLoading ? (

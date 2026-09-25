@@ -10,6 +10,7 @@ import {
 } from '@nestjs/websockets';
 import type { Server, Socket } from 'socket.io';
 import type {
+  PvpMatchResult,
   RaceFinishedPayload,
   RaceRosterEntrant,
   RaceRosterPayload,
@@ -18,6 +19,7 @@ import type {
 } from '@at-sevdalisi/shared-types';
 import { GetRaceTimelineUseCase } from '../../application/use-cases/get-race-timeline.use-case';
 import { TOKEN_SERVICE, type TokenService } from '../../application/ports/token.service';
+import type { LobbyNotifier } from '../../application/ports/lobby-notifier';
 
 /** `race_entries.id` gibi bir UUID metni — gövdede gelen `raceId`'nin kabaca şekil kontrolü (bkz. bu dosyanın doc yorumu). */
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -72,8 +74,11 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{
  * ilke `docs/ROADMAP.md`'nin yeniden bağlanma notuyla tutarlı).
  *
  * **Kapsam DIŞI (bilinçli, gelecek dilimler için docs/ROADMAP.md'ye not
- * düşülecek):** (1) `notification.new`/`lobby.update` (docs/API.md §10'un
- * diğer iki önerisi) bu dilimde YOK.
+ * düşülecek):** `notification.new` (docs/API.md §10'un genel bildirim
+ * sistemi önerisi, brief §46) bu dilimde HÂLÂ YOK — daha belirsiz/büyük
+ * bir kapsam olduğundan BİLEREK ayrı bırakıldı. `lobby.update` ise ARTIK
+ * UYGULANDI (bkz. aşağıdaki "`lobby.update`" doc bölümü) — F2'nin ilk
+ * turda bıraktığı son kapsam dışı madde buydu.
  *
  * **Yeniden bağlanma (madde 2 — bu turda TAMAMLANDI):** Önceden burada
  * "yeniden bağlanma/kaldığı yerden devam etme YOK" yazıyordu — bu artık
@@ -116,6 +121,32 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{
  * gönderir — geç katılan bir istemci de dahil, HER `race.subscribe`
  * çağrısında (idempotent, yeni bir state İCAT ETMEZ, `session.roster`
  * zaten `createPlaybackSession`'da BİR KEZ hesaplanmıştır).
+ *
+ * **`lobby.update` (bu turda EKLENDİ — docs/API.md §10'un ÖNCEDEN
+ * `[PLANLI]` bıraktığı, F2'nin ilk turda BİLİNÇLİ kapsam dışı bıraktığı
+ * son madde):** `JoinMatchmakingQueueUseCase`'in kendi doc yorumunda
+ * belgelediği boşluk — kuyrukta ÖNCE bekleyen bir oyuncu, eşleşme
+ * SONRADAN gelen bir oyuncunun `join` isteği İÇİNDE gerçekleşse bile
+ * bunu HİÇBİR ŞEKİLDE öğrenemiyordu (eşleştirme TAMAMEN senkron, bkz. o
+ * use-case'in doc yorumu). Bu YENİ bir eşleştirme/bekleme mekanizması
+ * İCAT ETMEZ — yalnızca ZATEN var olan `/races` namespace'i bağlantı/
+ * kimlik doğrulama altyapısını TEKRAR KULLANIR: `handleConnection`, token
+ * doğrulandıktan HEMEN SONRA, HER istemciyi (yarışlara özel `race:
+ * ${raceId}` odalarına EK olarak) KENDİ oyuncu-bazlı bir odaya
+ * (`player:${playerId}`, bkz. `playerRoom`) da katar. `RaceGateway`,
+ * `LobbyNotifier` portunu (`application/ports/lobby-notifier.ts`)
+ * implemente eder: `notifyMatchFound(playerId, result)` bu odaya
+ * `lobby.update` yayınlar — `JoinMatchmakingQueueUseCase.playMatch`,
+ * eşleşme/DB yazımı TAMAMLANDIKTAN SONRA, ZATEN kuyrukta bekleyen tarafa
+ * (ÇAĞIRANIN rakibi) KENDİ perspektifinden inşa edilmiş (`own`/`opponent`
+ * alanları TERS çevrilmiş) bir `PvpMatchResult` ile bunu çağırır (bkz. o
+ * use-case'in `playMatch` metodu). **BEST-EFFORT'tur:** oyuncunun o an
+ * `/races` namespace'ine bağlı bir soketi YOKSA (`player:${playerId}`
+ * odası boşsa) `server.to(oda).emit(...)` Socket.IO'nun standart
+ * davranışı gereği SESSİZCE hiçbir şey YAPMAZ — garanti teslim/kuyruk
+ * sistemi İCAT EDİLMEDİ; bağlantısı olmayan oyuncu hâlâ yeniden
+ * `join`/`leave` çağırmak ZORUNDADIR (bkz. o use-case'in güncellenmiş
+ * "ÖNEMLİ, BİLİNÇLİ SINIRLAMA" notu).
  */
 const PLAYBACK_DURATION_MS = 4_000;
 
@@ -146,7 +177,7 @@ interface RacePlaybackSession {
   namespace: '/races',
   cors: { origin: process.env.CORS_ORIGIN ?? 'http://localhost:3000', credentials: true },
 })
-export class RaceGateway implements OnGatewayConnection, OnGatewayDisconnect {
+export class RaceGateway implements OnGatewayConnection, OnGatewayDisconnect, LobbyNotifier {
   private readonly logger = new Logger(RaceGateway.name);
 
   /**
@@ -167,7 +198,7 @@ export class RaceGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @Inject(GetRaceTimelineUseCase) private readonly getRaceTimelineUseCase: GetRaceTimelineUseCase,
   ) {}
 
-  handleConnection(client: Socket): void {
+  async handleConnection(client: Socket): Promise<void> {
     const token = client.handshake.auth?.token as string | undefined;
     if (!token) {
       client.disconnect(true);
@@ -176,6 +207,13 @@ export class RaceGateway implements OnGatewayConnection, OnGatewayDisconnect {
     try {
       const payload = this.tokenService.verify(token);
       client.data.playerId = payload.sub;
+      // `lobby.update` (bu turda EKLENDİ) — bkz. dosya başı doc yorumu
+      // "`lobby.update`" bölümü. HER istemci, kendi `race.subscribe`
+      // çağrısından BAĞIMSIZ olarak (yani bağlantı kurulur kurulmaz,
+      // hiçbir yarışa abone olmadan ÖNCE) kendi oyuncu-bazlı odasına
+      // katılır — `notifyMatchFound`'un bu istemciye ulaşabilmesi için
+      // TEK ön koşul budur.
+      await client.join(this.playerRoom(payload.sub));
     } catch {
       client.disconnect(true);
     }
@@ -232,6 +270,24 @@ export class RaceGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   private raceRoom(raceId: string): string {
     return `race:${raceId}`;
+  }
+
+  /** Bkz. dosya başı doc yorumu "`lobby.update`" bölümü — `raceRoom` ile AYNI desen. */
+  private playerRoom(playerId: string): string {
+    return `player:${playerId}`;
+  }
+
+  /**
+   * `LobbyNotifier.notifyMatchFound` (bu turda EKLENDİ) — bkz. dosya başı
+   * doc yorumu "`lobby.update`" bölümü ve `application/ports/lobby-notifier.ts`
+   * doc yorumu. BEST-EFFORT: `playerId`nin `player:${playerId}` odasında o
+   * an kimse (açık bir soket) YOKSA `server.to(...).emit(...)` Socket.IO'nun
+   * standart davranışı gereği SESSİZCE hiçbir şey YAPMAZ — bu bir HATA
+   * DEĞİL, İSTENEN davranıştır (garanti teslim/kuyruk sistemi İCAT
+   * EDİLMEDİ). Bu metodun kendisi normal koşullarda hiçbir zaman fırlatmaz.
+   */
+  notifyMatchFound(playerId: string, result: PvpMatchResult): void {
+    this.server.to(this.playerRoom(playerId)).emit('lobby.update', result);
   }
 
   /**

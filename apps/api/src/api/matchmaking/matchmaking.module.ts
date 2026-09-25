@@ -10,6 +10,7 @@ import { PostgresRaceRepository } from '../../infrastructure/race/postgres-race.
 import { HorseOwnerGuardByBodyField, HorseOwnerGuardByQueryField } from '../auth/horse-owner.guard';
 import { HorseModule } from '../horse/horse.module';
 import { PlayerModule } from '../player/player.module';
+import { RealtimeModule } from '../realtime/realtime.module';
 import { MatchmakingController } from './matchmaking.controller';
 
 /**
@@ -19,9 +20,15 @@ import { MatchmakingController } from './matchmaking.controller';
  * REPOSITORY`/`HORSE_STATS_REPOSITORY`/`RACE_REPOSITORY` bağlamalarını
  * `RaceModule` ile AYNI gerekçeyle KENDİSİ sağlar (hiçbir modül bunları
  * `exports` etmiyor).
+ *
+ * `lobby.update` (bu turda EKLENDİ) — `RealtimeModule`'ü SADECE onun
+ * `exports` ettiği `LOBBY_NOTIFIER`'ı (bkz. o modülün doc yorumu) almak
+ * için import eder; `RealtimeModule`'ün KENDİSİ `MatchmakingModule`'e
+ * bağımlı DEĞİLDİR (`RaceModule`'e bağımlıdır), bu yüzden döngüsel bir
+ * modül bağımlılığı OLUŞMAZ.
  */
 @Module({
-  imports: [HorseModule, PlayerModule],
+  imports: [HorseModule, PlayerModule, RealtimeModule],
   controllers: [MatchmakingController],
   providers: [
     JoinMatchmakingQueueUseCase,

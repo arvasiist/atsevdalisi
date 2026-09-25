@@ -1,10 +1,12 @@
 import { randomUUID } from 'node:crypto';
 import type { AddressInfo } from 'node:net';
 import { INestApplication } from '@nestjs/common';
+import type { Pool } from 'pg';
 import request from 'supertest';
 import { io, type Socket } from 'socket.io-client';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { RaceRosterEntrant, RaceSegmentSnapshot } from '@at-sevdalisi/shared-types';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import type { PvpMatchResult, RaceRosterEntrant, RaceSegmentSnapshot } from '@at-sevdalisi/shared-types';
+import { PG_POOL } from '../../src/infrastructure/database/database.module';
 import { bootstrapTestApp, registerTestPlayerWithStarterHorse } from './test-helpers';
 
 /**
@@ -355,4 +357,141 @@ describe('Race WebSocket yayını (e2e) — AUDIT_REPORT.md Bulgu F2', () => {
       clientB?.disconnect();
     }
   }, 10_000);
+});
+
+/**
+ * `lobby.update` e2e testi (bu turda EKLENDİ) — F2'nin ilk turda BİLİNÇLİ
+ * kapsam dışı bıraktığı son madde (bkz. `race.gateway.ts`'in "`lobby.update`"
+ * doc bölümü, `application/ports/lobby-notifier.ts`,
+ * `JoinMatchmakingQueueUseCase.playMatch`). `matchmaking.e2e-spec.ts` ile
+ * AYNI HTTP çağrı deseni (`POST /matchmaking/queue`), yukarıdaki
+ * `describe` ile AYNI `socket.io-client` bağlantı deseni (`app.listen(0)`
+ * + `connect()`/`baseUrl`) — bu dosyaya EKLENDİ (yeni bir dosya AÇILMADI)
+ * çünkü GERÇEK bir TCP soketi gerektiren TEK yer burası, `matchmaking.
+ * e2e-spec.ts`'in kendi `bootstrapTestApp()`'ı bunu YAPMAZ.
+ *
+ * `matchmaking.e2e-spec.ts`'teki AYNI izolasyon notu geçerli:
+ * `matchmaking_tickets` `findBestMatch`'in KASITLI olarak GLOBAL bir sorgu
+ * yaptığı (bkz. o dosyanın doc yorumu) tek paylaşılan tablo — bu yüzden
+ * her testten ÖNCE tabloyu boşaltıyoruz (`players`/`horses`/`races` gibi
+ * benzersiz id'lerle izole kalan diğer tablolara dokunulmaz).
+ */
+describe('Matchmaking lobby.update yayını (e2e) — AUDIT_REPORT.md F2 son madde', () => {
+  let app: INestApplication;
+  let pool: Pool;
+  let baseUrl: string;
+
+  beforeAll(async () => {
+    app = await bootstrapTestApp();
+    await app.listen(0);
+    const address = app.getHttpServer().address() as AddressInfo;
+    baseUrl = `http://127.0.0.1:${address.port}`;
+    pool = app.get<Pool>(PG_POOL);
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  beforeEach(async () => {
+    await pool.query('DELETE FROM matchmaking_tickets');
+  });
+
+  function connect(token: string): Socket {
+    return io(`${baseUrl}/races`, {
+      auth: { token },
+      transports: ['websocket'],
+      forceNew: true,
+    });
+  }
+
+  async function joinQueue(authHeader: string, horseId: string): Promise<{ status: number; body: { data: unknown } }> {
+    const response = await request(app.getHttpServer())
+      .post('/api/v1/matchmaking/queue')
+      .set('Authorization', authHeader)
+      .send({ horseId })
+      .expect(201);
+    return response;
+  }
+
+  it(
+    'kuyrukta bekleyen (soketi AÇIK) oyuncu, rakip SONRADAN HTTP ile katılınca lobby.update olayını KENDİ (TERS çevrilmiş) perspektifinden alır',
+    async () => {
+      const playerA = await registerTestPlayerWithStarterHorse(app, 'Lobi Testi A');
+      const playerB = await registerTestPlayerWithStarterHorse(app, 'Lobi Testi B');
+
+      const clientA = connect(playerA.token);
+      try {
+        await new Promise<void>((resolve, reject) => {
+          clientA.on('connect_error', reject);
+          clientA.on('connect', () => resolve());
+        });
+
+        // A ÖNCE kuyruğa girer — henüz hiç rakip yok, `matched: false`
+        // bekleniyor (bkz. `matchmaking.e2e-spec.ts`'teki AYNI ilk test).
+        const joinAResponse = await joinQueue(playerA.authHeader, playerA.horseId);
+        expect((joinAResponse.body.data as { matched: boolean }).matched).toBe(false);
+
+        const lobbyUpdatePromise = new Promise<PvpMatchResult>((resolve, reject) => {
+          clientA.on('lobby.update', (payload: PvpMatchResult) => resolve(payload));
+          setTimeout(() => reject(new Error('lobby.update zaman aşımına uğradı')), 8000);
+        });
+
+        // B SONRADAN katılır — A'nın bileti HEMEN "claim" edilir, yarış
+        // senkron olarak simüle edilir (bkz. `JoinMatchmakingQueueUseCase.
+        // playMatch`) ve HTTP yanıtı B'ye (ÇAĞIRANA) döner.
+        const joinBResponse = await joinQueue(playerB.authHeader, playerB.horseId);
+        const httpResult = (joinBResponse.body.data as { matched: true; match: PvpMatchResult }).match;
+        expect(httpResult.opponentPlayerId).toBe(playerA.playerId);
+        expect(httpResult.opponentHorseId).toBe(playerA.horseId);
+
+        const lobbyUpdate = await lobbyUpdatePromise;
+
+        // Mutlak alanlar (bir tarafa göre DEĞİL, kaydın/oyuncunun kendisine
+        // işaret eder) — AYNEN korunmalı.
+        expect(lobbyUpdate.matchId).toBe(httpResult.matchId);
+        expect(lobbyUpdate.raceId).toBe(httpResult.raceId);
+        expect(lobbyUpdate.winnerId).toBe(httpResult.winnerId);
+
+        // A'nın perspektifinden rakip ARTIK B'dir.
+        expect(lobbyUpdate.opponentPlayerId).toBe(playerB.playerId);
+        expect(lobbyUpdate.opponentHorseId).toBe(playerB.horseId);
+
+        // `own*`/`opponent*` TAM OLARAK TERS çevrilmiş olmalı: A'nın
+        // `own*`'ı, B'nin HTTP yanıtındaki `opponent*`'ına eşit; A'nın
+        // `opponent*`'ı B'nin `own*`'ına eşit (bkz.
+        // `JoinMatchmakingQueueUseCase.playMatch`'teki `opponentResult`
+        // inşa mantığı ve `RaceRepository.savePvpMatchWithRatings`'in
+        // A/B eşleme doc yorumu).
+        expect(lobbyUpdate.ownFinishPosition).toBe(httpResult.opponentFinishPosition);
+        expect(lobbyUpdate.ownFinishTimeMs).toBe(httpResult.opponentFinishTimeMs);
+        expect(lobbyUpdate.opponentFinishPosition).toBe(httpResult.ownFinishPosition);
+        expect(lobbyUpdate.opponentFinishTimeMs).toBe(httpResult.ownFinishTimeMs);
+        expect(lobbyUpdate.ownRatingBefore).toBe(httpResult.opponentRatingBefore);
+        expect(lobbyUpdate.ownRatingAfter).toBe(httpResult.opponentRatingAfter);
+        expect(lobbyUpdate.opponentRatingBefore).toBe(httpResult.ownRatingBefore);
+        expect(lobbyUpdate.opponentRatingAfter).toBe(httpResult.ownRatingAfter);
+      } finally {
+        clientA.disconnect();
+      }
+    },
+    10_000,
+  );
+
+  it('regresyon YOK: soketi HİÇ AÇMAYAN bir oyuncu (best-effort bildirim sessizce kaybolur) yine de normal HTTP eşleşme yanıtı alır', async () => {
+    // Oyuncu C bilerek HİÇ bir `/races` soketi açmaz — `notifyMatchFound`'un
+    // best-effort davranışının (bkz. `lobby-notifier.ts` doc yorumu) ana
+    // akışı BOZMADIĞININ doğrulaması.
+    const playerC = await registerTestPlayerWithStarterHorse(app, 'Lobi Testi C');
+    const playerD = await registerTestPlayerWithStarterHorse(app, 'Lobi Testi D');
+
+    const joinCResponse = await joinQueue(playerC.authHeader, playerC.horseId);
+    expect((joinCResponse.body.data as { matched: boolean }).matched).toBe(false);
+
+    const joinDResponse = await joinQueue(playerD.authHeader, playerD.horseId);
+    const data = joinDResponse.body.data as { matched: boolean; match?: PvpMatchResult };
+    expect(data.matched).toBe(true);
+    expect(data.match?.opponentPlayerId).toBe(playerC.playerId);
+    expect(typeof data.match?.ownFinishPosition).toBe('number');
+  });
 });
