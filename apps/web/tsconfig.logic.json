@@ -18,6 +18,7 @@
     "src/features/race-viewer/photo-finish.ts",
     "src/features/race-viewer/assets/asset-manifest.ts",
     "src/features/race-viewer/audio-vfx/audio-manager.ts",
-    "src/features/race-viewer/audio-vfx/dust-particle-sim.ts"
+    "src/features/race-viewer/audio-vfx/dust-particle-sim.ts",
+    "src/features/pedigree/pedigree-tree.ts"
   ]
 }
