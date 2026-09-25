@@ -180,6 +180,52 @@ function resolveHoofbeatAssetId(surface: RaceSurface | undefined): HoofbeatAsset
 
 type CrowdAssetId = 'CROWD_AMBIENCE_SFX_REQUIRED' | 'CROWD_EXCITED_SFX_REQUIRED';
 
+/**
+ * "REALISTIC 3D ASSET & AUDIO PRODUCTION BRIEF" §22 (bu turda EKLENDİ)
+ * — brief'in KENDİ "Commentary event listesi" (`RACE_START`/`OVERTAKE`/
+ * `LEADER_CHANGE`/`FINAL_400`/`FINAL_200`/`FINAL_100`/`SPRINT`/`FINISH`/
+ * `WINNER`) DAHA ÖNCE `COMMENTARY_VOICE_REQUIRED`'in doc yorumunda
+ * "tam liste ileride eşleştirilecektir" olarak ERTELENMİŞTİ — bu tip
+ * VE aşağıdaki `COMMENTARY_LINE_FILENAMES` o eşlemeyi TAMAMLAR. Not:
+ * `LEADER_CHANGE`/`FINAL_400`/`FINAL_100` Race Engine'in ŞU AN
+ * yaymadığı YENİ telemetri anları OLDUĞUNDAN (mevcut `RaceAudioEventType`
+ * `overtake`/`final_stretch`/`finish`/`winner`den DAHA GRANÜLERdir) bu
+ * moment'ler `handleEvent`e BAĞLANMADI — `Camera Director`ın konum
+ * eşiklerinden TÜRETİLMİŞ olay sınıflandırmasıyla AYNI şekilde, gerçek
+ * entegrasyon Race Engine'in bu anları YAYINLAMASINI gerektiren AYRI
+ * bir kapsamdır (brief'in KENDİSİ de bu fazda "gerçek tetikleme mantığı
+ * DEĞİL, altyapı" ister). `playCommentaryForMoment` bu yüzden
+ * `RaceAudioEvent`ten DEĞİL, ÇAĞIRANIN doğrudan kararından beslenir —
+ * `playHorseSnort` vb. ile AYNI "bağımsız bir seferlik metot" deseni.
+ */
+export type CommentaryMoment =
+  | 'race_start'
+  | 'overtake'
+  | 'leader_change'
+  | 'final_400'
+  | 'final_200'
+  | 'final_100'
+  | 'sprint'
+  | 'finish'
+  | 'winner';
+
+/**
+ * `COMMENTARY_VOICE_REQUIRED.expectedPath` KLASÖRÜ İÇİNDEKİ göreli dosya
+ * adları — `docs/ASSET_GUIDE.md`'nin `COMMENTARY_VOICE_REQUIRED` bölümündeki
+ * TABLO ile BİREBİR eşleşir, biri değişirse İKİSİ DE güncellenmelidir.
+ */
+export const COMMENTARY_LINE_FILENAMES: Record<CommentaryMoment, string> = {
+  race_start: 'race-start.mp3',
+  overtake: 'overtake.mp3',
+  leader_change: 'leader-change.mp3',
+  final_400: 'final-400.mp3',
+  final_200: 'final-200.mp3',
+  final_100: 'final-100.mp3',
+  sprint: 'sprint.mp3',
+  finish: 'finish.mp3',
+  winner: 'winner.mp3',
+};
+
 function clamp01(value: number): number {
   return Math.max(0, Math.min(1, value));
 }
@@ -585,6 +631,20 @@ export class RaceAudioManager {
     this.backend.play(`${asset.expectedPath}${fileName}`, {
       volume: this.resolveVolume('commentary', this.config.commentaryLineVolume),
     });
+  }
+
+  /**
+   * "REALISTIC 3D ASSET & AUDIO PRODUCTION BRIEF" §22 (bu turda EKLENDİ)
+   * — `playCommentaryLine`in ÜZERİNE inşa edilmiş, TİP-GÜVENLİ bir
+   * kısayol: çağıran keyfi bir dosya adı YAZMAK yerine `CommentaryMoment`
+   * union'ından SEÇİM yapar, dosya adı eşlemesi (`COMMENTARY_LINE_FILENAMES`)
+   * TEK bir yerden yönetilir — bir yazım hatası (ör. `"race-strat.mp3"`)
+   * artık DERLEME ZAMANINDA değil ÇALIŞMA ZAMANINDA bile mümkün DEĞİLDİR.
+   * `playCommentaryLine` geriye dönük UYUMLU olarak KALIR (serbest metin
+   * gerektiren gelecekteki bir kullanım için).
+   */
+  playCommentaryForMoment(moment: CommentaryMoment): void {
+    this.playCommentaryLine(COMMENTARY_LINE_FILENAMES[moment]);
   }
 
   /**

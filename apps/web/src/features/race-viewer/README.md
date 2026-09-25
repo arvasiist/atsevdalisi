@@ -582,6 +582,41 @@ doğruluyordu), bu yüzden test `crowd`'ın DEĞERİNİN değişmediğini
 doğrulayacak şekilde DÜZELTİLDİ — implementasyon DEĞİL, testin kendisi
 hatalıydı.
 
+**Ek düzeltme (aynı gün, proje sahibinin "notu komple inceledin mi?"
+sorusu ÜZERİNE):** İlk geçiş SADECE ses granülaritesini (§17-21) ve
+takip belgelerini (§23-25) kapsıyordu — brief'in DAHA ÖNCEKİ
+bölümlerindeki (§2/§3/§6/§7/§8/§10/§13/§15/§22) DAHA DETAYLI 3D
+model/animasyon/ortam SPESİFİKASYONLARI, gerçek asset/para/Blender
+GEREKTİRMEDİĞİ HALDE, mevcut `ASSET_GUIDE.md` girdilerine YANSITILMAMIŞTI
+— dürüstçe kabul edilip AYNI TURDA kapatıldı:
+
+- `HORSE_MODEL_REQUIRED`/`JOCKEY_MODEL_REQUIRED` artık brief'in TAM
+  animasyon klip listelerini (minimum + tercih edilen) İÇERİYOR, Mixamo
+  YASAĞI (§2) genel kurallara EKLENDİ, at renk varyasyonları (§6) GELECEK
+  bir uzantı noktası olarak (gerçek bir base model gerektirdiğinden
+  BİLİNÇLİ OLARAK ertelenmiş) BELGELENDİ.
+- `HIPPODROME_ENVIRONMENT_REQUIRED` artık brief'in TAM bölüm listesini
+  (MAIN_TRACK/GRANDSTAND/VIP_AREA/PADDOCK/JUDGE_TOWER/vb., §8) İÇERİYOR.
+- `START_GATE_MODEL_REQUIRED` artık brief'in fonksiyonel akışını
+  (HORSES ENTER→...→RACE, §10) BELGELİYOR.
+- Genel kurallara LOD0-LOD3 sistemi (§15) ve Blender optimizasyon
+  kontrol listesi (§13) EKLENDİ.
+- §22 "Commentary event listesi" — DAHA ÖNCE "tam liste ileride
+  eşleştirilecektir" olarak ERTELENMİŞTİ, bu artık GERÇEK kod
+  karşılığına kavuştu: yeni `CommentaryMoment` tipi + `COMMENTARY_LINE_FILENAMES`
+  sabiti (brief'in 9 moment'ini — `race_start`/`overtake`/`leader_change`/
+  `final_400`/`final_200`/`final_100`/`sprint`/`finish`/`winner` —
+  dosya adlarına eşler) + `playCommentaryForMoment(moment)` (mevcut
+  `playCommentaryLine(fileName)` ÜZERİNE inşa edilmiş, TİP-GÜVENLİ bir
+  kısayol, GERİYE DÖNÜK UYUMLU). `leader_change`/`final_400`/`final_100`
+  Race Engine'in ŞU AN yaymadığı DAHA GRANÜLER telemetri anları
+  OLDUĞUNDAN `handleEvent`e BAĞLANMADI — `playHorseSnort` vb. ile AYNI
+  "bağımsız, çağıranın kararıyla çalışan metot" deseni.
+
+**Doğrulama (ek geçiş):** gerçek `tsc --noEmit` (0 hata) + gerçek `tsx`
+ile çalıştırılan `audio-manager.spec.ts`: 48/48 (4 yeni
+`playCommentaryForMoment` testi EKLENDİ, TÜMÜ geçti).
+
 ## ÖNEMLİ — bu oturumdaki doğrulama kısıtı
 
 `docs/ARCHITECTURE.md` §9'da belgelenen kısıt burada da geçerlidir: bu

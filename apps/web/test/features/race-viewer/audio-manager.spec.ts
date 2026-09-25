@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   RaceAudioManager,
   SILENT_AUDIO_BACKEND,
+  COMMENTARY_LINE_FILENAMES,
   type AudioBackend,
   type AudioPlayOptions,
 } from '../../../src/features/race-viewer/audio-vfx/audio-manager';
@@ -224,6 +225,61 @@ describe('RaceAudioManager.playCommentaryLine', () => {
 
     const folder = getAssetById('COMMENTARY_VOICE_REQUIRED')!.expectedPath;
     expect(calls.some((c) => c.method === 'play' && c.path === `${folder}start.mp3`)).toBe(true);
+  });
+});
+
+/**
+ * "REALISTIC 3D ASSET & AUDIO PRODUCTION BRIEF" §22 (bu turda EKLENDİ)
+ * — brief'in KENDİ commentary event listesinin `playCommentaryForMoment`
+ * ile tip-güvenli dosya adı eşlemesi.
+ */
+describe('RaceAudioManager.playCommentaryForMoment', () => {
+  it('COMMENTARY_LINE_FILENAMES brief §22\'nin TÜM 9 moment\'ini içerir', () => {
+    const expectedMoments = [
+      'race_start',
+      'overtake',
+      'leader_change',
+      'final_400',
+      'final_200',
+      'final_100',
+      'sprint',
+      'finish',
+      'winner',
+    ];
+    for (const moment of expectedMoments) {
+      expect(COMMENTARY_LINE_FILENAMES).toHaveProperty(moment);
+    }
+  });
+
+  it('her moment için DOĞRU dosya adını playCommentaryLine\'a ileterek çalar', () => {
+    const { backend, calls } = createRecordingBackend();
+    const manager = new RaceAudioManager(config, backend);
+    const folder = getAssetById('COMMENTARY_VOICE_REQUIRED')!.expectedPath;
+
+    manager.playCommentaryForMoment('final_400');
+    expect(calls.some((c) => c.method === 'play' && c.path === `${folder}${COMMENTARY_LINE_FILENAMES.final_400}`)).toBe(true);
+
+    manager.playCommentaryForMoment('winner');
+    expect(calls.some((c) => c.method === 'play' && c.path === `${folder}${COMMENTARY_LINE_FILENAMES.winner}`)).toBe(true);
+  });
+
+  it('commentary kanalının hacminde çalar (playCommentaryLine ile AYNI hacim formülü)', () => {
+    const { backend, calls } = createRecordingBackend();
+    const manager = new RaceAudioManager(config, backend);
+    manager.playCommentaryForMoment('race_start');
+
+    const folder = getAssetById('COMMENTARY_VOICE_REQUIRED')!.expectedPath;
+    const call = calls.find((c) => c.method === 'play' && c.path === `${folder}${COMMENTARY_LINE_FILENAMES.race_start}`);
+    expect(call).toBeDefined();
+    expect(call!.options?.volume).toBeCloseTo(
+      config.commentaryLineVolume * config.volumeChannels.commentary * config.volumeChannels.master,
+      6,
+    );
+  });
+
+  it('backend olmadan hata fırlatmaz', () => {
+    const manager = new RaceAudioManager(config);
+    expect(() => manager.playCommentaryForMoment('sprint')).not.toThrow();
   });
 });
 

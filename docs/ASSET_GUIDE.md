@@ -32,7 +32,8 @@ fake GLB files or use unlicensed assets") burada mutlak bir çizgidir.
 - **Lisans zorunlu:** her varlığın ticari kullanıma uygun bir lisansı
   (satın alınmış, CC0, veya özel üretim/sözleşmeli) OLMALIDIR. Lisans
   belgesi/faturası `docs/licenses/` altında (bu klasör henüz yok, ilk
-  gerçek varlık eklendiğinde AÇILACAK) saklanmalıdır.
+  gerçek varlık eklendiğinde AÇILACAK) saklanmalıdır — tam takip süreci
+  için bkz. `docs/ASSET_LICENSES.md`.
 - **Dosya adı ve yol sabit:** aşağıdaki `expectedPath` değerleri
   `asset-manifest.ts` ile BİREBİR eşleşir. Farklı bir dosya adı
   kullanmak istenirse ÖNCE `asset-manifest.ts` güncellenmelidir.
@@ -42,6 +43,36 @@ fake GLB files or use unlicensed assets") burada mutlak bir çizgidir.
   formatta (KTX2/Basis) olmalıdır — bu rakam bir KOD KISITI DEĞİLDİR,
   bir ÖNERİDİR; gerçek bütçe Faz 6 "Config ayrımı"nda `vfx.config.json`
   benzeri bir dosyaya taşınabilir.
+- **Mixamo YASAK ("REALISTIC 3D ASSET & AUDIO PRODUCTION BRIEF" §2, bu
+  turda EKLENDİ):** at/jokey animasyon klipleri Mixamo'nun jenerik
+  insan/biped rig kütüphanesinden KULLANILAMAZ — brief'in KENDİ kuralı,
+  Mixamo'nun at gibi dört ayaklı bir iskelet için üretilmediği VE
+  jenerik insansı animasyonların bir jokeyin gerçekçi RACE_POSITION/
+  LEAN_FORWARD duruşunu YANSITMADIĞI gerekçesiyle. Animasyonlar ya
+  satın alınan modelle birlikte GELMELİ ya da özel olarak (rig'e özgü)
+  ÜRETİLMELİDİR.
+- **LOD sistemi (brief §15, bu turda EKLENDİ):** her 3D model (at,
+  jokey, hipodrom) 4 seviyeli bir Level-of-Detail zincirine sahip
+  OLMALIDIR — `LOD0` (tam detay, yakın kamera), `LOD1` (orta mesafe,
+  ~%50 poligon), `LOD2` (uzak, ~%20 poligon), `LOD3` (çok uzak/billboard
+  eşiği). Bu bir KOD KISITI DEĞİLDİR (henüz `asset-manifest.ts`'te LOD
+  seviyeleri için AYRI alan YOK — tek bir `expectedPath` her varlık için
+  yeterli, LOD geçişleri Three.js `LOD` nesnesiyle RUNTIME'da ele
+  alınacaktır) — bir varlık SEÇİM/ÜRETİM kriteridir: seçilen/üretilen
+  model paketi bu 4 seviyeyi (veya Blender'da bunlardan türetilebilecek
+  temiz bir topolojiyi) İÇERMELİDİR.
+- **Model optimizasyon kontrol listesi (brief §13, bu turda EKLENDİ):**
+  bir 3D model `apps/web/public/`e KONULMADAN ÖNCE şu Blender pipeline
+  adımlarından (brief §14) geçmiş OLMALIDIR — IMPORT → CLEAN (kullanılmayan
+  vertex/malzeme temizliği) → OPTIMIZE (poligon bütçesi kontrolü) →
+  MATERIAL CHECK (PBR malzeme doğruluğu) → TEXTURE CHECK (sıkıştırma/
+  çözünürlük) → RIG CHECK (iskelet bütünlüğü) → ANIMATION CHECK (klip
+  bütünlüğü, aşağıdaki minimum listeler) → LOD (yukarıdaki 4 seviye) →
+  SCALE CHECK (gerçek dünya birimleriyle tutarlılık) → ORIGIN/PIVOT
+  CHECK (doğru döndürme merkezi) → GLB EXPORT → THREE.JS TEST (gerçek
+  tarayıcıda render doğrulaması, bu sandbox'ta YAPILAMAZ — bkz. bu
+  belgenin sonundaki "Bir varlık eklendiğinde yapılması gerekenler").
+  Bu kontrol listesi `assets/README.md`'de de (KISA biçimde) tekrarlanır.
 
 ## Gerekli varlıklar
 
@@ -49,10 +80,26 @@ fake GLB files or use unlicensed assets") burada mutlak bir çizgidir.
 
 - **Tür:** 3D model (`.glb`)
 - **Yol:** `apps/web/public/models/horse.glb`
-- **Gereksinim:** Gerçekçi safkan (thoroughbred) at modeli. Gallop,
-  Trot, Idle animasyon klipleri İÇERMELİDİR. `JOCKEY_MODEL_REQUIRED`
-  ile UYUMLU bir iskelete (skeleton) sahip olmalı (jokeyin ata binmiş
-  görünmesi için).
+- **Gereksinim:** Gerçekçi safkan (thoroughbred) at modeli.
+  `JOCKEY_MODEL_REQUIRED` ile UYUMLU bir iskelete (skeleton) sahip
+  olmalı (jokeyin ata binmiş görünmesi için). **Mixamo KULLANILAMAZ**
+  (yukarıdaki genel kural). "REALISTIC 3D ASSET & AUDIO PRODUCTION
+  BRIEF" §2/§3 (bu turda GENİŞLETİLDİ) — animasyon klipleri:
+  - **Minimum (ZORUNLU):** `IDLE`, `WALK`, `TROT`, `CANTER`, `GALLOP`,
+    `FAST_GALLOP`, `SPRINT`, `ACCELERATE`, `DECELERATE`, `TURN_LEFT`,
+    `TURN_RIGHT`, `STOP`, `FINISH`.
+  - **Tercih edilen (varsa DAHA İYİ, ZORUNLU DEĞİL):`START_REACTION`,
+    `FATIGUE`, `BREATHING`, `COOLDOWN`, `CELEBRATION`.
+  - **Renk varyasyonları (brief §6, GELECEK bir uzantı noktası olarak
+    NOT EDİLDİ, bu turda İMPLEMENTE EDİLMEDİ):** `BAY`, `DARK_BAY`,
+    `CHESTNUT`, `BLACK`, `GRAY`, `ROAN`, `PALOMINO`. Bu, bir DOKU/
+    MALZEME varyant sistemi gerektirir (ör. tek bir base mesh + renk
+    başına ayrı bir albedo doku VEYA runtime'da malzeme rengi
+    değiştirme) — GERÇEK bir base model OLMADAN bu sistemin kod
+    tasarımı SPEKÜLATİF kalır, bu yüzden bilinçli olarak
+    ERTELENMİŞTİR; ilk gerçek at modeli seçildiğinde/satın alındığında
+    bu varyasyonların o modelin malzeme yapısına (tek doku mu, çoklu
+    materyal slotu mu) göre TASARLANMASI gerekir.
 - **Fallback (dosya yoksa):** `RaceScene3D.tsx`'teki mevcut kapsül+küre
   `HorseMarker` ilkel şekli.
 
@@ -60,16 +107,30 @@ fake GLB files or use unlicensed assets") burada mutlak bir çizgidir.
 
 - **Tür:** 3D model (`.glb`)
 - **Yol:** `apps/web/public/models/jockey.glb`
-- **Gereksinim:** At modeliyle uyumlu iskelete sahip jokey modeli,
-  oturma ve kamçı sallama animasyon klipleri.
+- **Gereksinim:** At modeliyle uyumlu iskelete sahip jokey modeli.
+  **Mixamo KULLANILAMAZ** (yukarıdaki genel kural). "REALISTIC 3D ASSET
+  & AUDIO PRODUCTION BRIEF" §7 (bu turda GENİŞLETİLDİ) — animasyon
+  klipleri: `RACE_POSITION`, `LEAN_FORWARD`, `REINS`, `GALLOP`,
+  `SPRINT`, `TURN_LEFT`, `TURN_RIGHT`, `FINISH`, `CELEBRATION`.
 - **Fallback:** Şu an ayrı bir jokey görseli yok (Grup 2 kapsamı).
 
 ### HIPPODROME_ENVIRONMENT_REQUIRED
 
 - **Tür:** 3D model (`.glb`)
 - **Yol:** `apps/web/public/models/hippodrome-environment.glb`
-- **Gereksinim:** Tribün, pist çevresi, paddock alanı içeren hipodrom
-  sahne modeli.
+- **Gereksinim:** "REALISTIC 3D ASSET & AUDIO PRODUCTION BRIEF" §8 (bu
+  turda GENİŞLETİLDİ) — brief'in tam hipodrom bölüm listesi:
+  `MAIN_TRACK`, `GRASS_TRACK`, `DIRT_TRACK`, `GRANDSTAND`, `VIP_AREA`,
+  `PADDOCK`, `JUDGE_TOWER`, `PHOTO_FINISH_AREA`, `ANNOUNCER_AREA`,
+  `LIGHTING`, `ADVERTISING_BOARDS`, `SERVICE_AREAS`. `START_GATE`
+  brief'in listesinde bu sahnenin BİR PARÇASI olarak geçse de, kodda
+  KASITLI OLARAK AYRI bir varlık (`START_GATE_MODEL_REQUIRED`, aşağı
+  bkz.) olarak tutulur — kendi AÇILMA animasyonu OLDUĞUNDAN ayrı
+  yönetilmesi Three.js entegrasyonu için daha PRATİKTİR. `GRANDSTAND`
+  bölümü brief §9'un "Binlerce seyirciyi tek tek yüksek polygon model
+  olarak KULLANMA" uyarısına tabidir — gerçek kalabalık render'ı
+  `CROWD_BILLBOARD_TEXTURE_REQUIRED` (instanced billboard, aşağı bkz.)
+  İLE sağlanır, bu modelin KENDİSİ sadece BOŞ tribün YAPISINI içerir.
 - **Fallback:** Mevcut instanced pist zemini + `@react-three/drei`
   `Environment preset="sunset"` arka planı.
 
@@ -78,7 +139,15 @@ fake GLB files or use unlicensed assets") burada mutlak bir çizgidir.
 - **Tür:** 3D model (`.glb`)
 - **Yol:** `apps/web/public/models/start-gate.glb`
 - **Gereksinim:** Yarış başlangıç kapıları (starting gate) modeli,
-  açılma animasyonu.
+  açılma animasyonu. "REALISTIC 3D ASSET & AUDIO PRODUCTION BRIEF" §10
+  (bu turda EKLENDİ) — modelin/animasyonun desteklemesi gereken
+  FONKSİYONEL akış: `HORSES ENTER` → `GATE ASSIGNMENT` → `GATES CLOSE`
+  → `READY` → `START SIGNAL` (bkz. `START_SIGNAL_SFX_REQUIRED` — kapı
+  MEKANİZMASINDAN AYRI bir ses) → `GATES OPEN` (bkz.
+  `GATE_OPEN_SFX_REQUIRED`) → `RACE`. Bu akış modelin KAÇ ayrı animasyon
+  klibi (ör. `CLOSE`/`OPEN`) İÇERMESİ gerektiğini belirler — minimum
+  bir `OPEN` klibi ZORUNLU, `CLOSE`/`READY` (bekleme titremesi vb.)
+  TERCİH EDİLİR.
 - **Fallback:** Başlangıç çizgisinde görsel bir kapı yok (Grup 2 kapsamı).
 
 ### CROWD_BILLBOARD_TEXTURE_REQUIRED
@@ -123,10 +192,32 @@ fake GLB files or use unlicensed assets") burada mutlak bir çizgidir.
 - **Tür:** Ses (`.mp3`, KLASÖR — tekil dosya değil)
 - **Yol:** `apps/web/public/audio/commentary/`
 - **Gereksinim:** Brief §31 "Commentary" soyutlaması için önceden
-  kaydedilmiş veya TTS ile üretilmiş anlatım klipleri (ör. "ve start
-  veriliyor", "kafa kafaya bir bitiş!", "kazanan X!"). Birden çok klip
-  beklenir, tam liste ileride `audio-manager.ts`'in event tipleriyle
-  eşleştirilecektir.
+  kaydedilmiş veya TTS ile üretilmiş anlatım klipleri. "REALISTIC 3D
+  ASSET & AUDIO PRODUCTION BRIEF" §22 (bu turda EKLENDİ — DAHA ÖNCE
+  "tam liste ileride eşleştirilecektir" olarak ERTELENMİŞTİ) TAM klip
+  listesini VE dosya adı eşlemesini artık `audio-manager.ts`'teki
+  `COMMENTARY_LINE_FILENAMES` sabiti BELİRLER (bkz. o dosyanın
+  `CommentaryMoment` tipi/`playCommentaryForMoment` metodu):
+
+  | Moment | Beklenen dosya adı |
+  |---|---|
+  | `race_start` | `race-start.mp3` |
+  | `overtake` | `overtake.mp3` |
+  | `leader_change` | `leader-change.mp3` |
+  | `final_400` | `final-400.mp3` |
+  | `final_200` | `final-200.mp3` |
+  | `final_100` | `final-100.mp3` |
+  | `sprint` | `sprint.mp3` |
+  | `finish` | `finish.mp3` |
+  | `winner` | `winner.mp3` |
+
+  Bu dosya adları `COMMENTARY_VOICE_REQUIRED.expectedPath` klasörü
+  İÇİNDE aranır (ör. tam yol `apps/web/public/audio/commentary/race-start.mp3`).
+  `playCommentaryLine(fileName)` (serbest metin dosya adı) HÂLÂ mevcuttur
+  ve geriye dönük UYUMLUDUR — `playCommentaryForMoment(moment)` bunun
+  ÜZERİNE inşa edilmiş, TİP-GÜVENLİ bir kısayoldur (çağıran keyfi bir
+  string yerine `CommentaryMoment` union'ından seçim yapar, yazım hatası
+  DERLEME ZAMANINDA yakalanır).
 - **Fallback:** `AudioManager`'ın sessiz no-op modu — anlatım yok, HUD
   metinsel açıklamalarla (`RaceExplanation`, zaten mevcut) yetinir.
 
