@@ -180,6 +180,17 @@ export function getLiveLeaderboard(
 }
 
 /**
+ * Camera Director'ın (`camera-director.ts`) OVERTAKE event'i için —
+ * `timestampMs` anında herhangi bir atın bir geçiş denemesinin bloklanmış
+ * olup olmadığını döner (`RaceSegmentSnapshot.blocked`, kategorik alan,
+ * `interpolateHorseStateAtTime`'ın zaten hesapladığı `blocked` alanının
+ * TÜM atlar üzerinde OR'lanmış hali).
+ */
+export function isAnyHorseBlockedAtTime(segments: RaceSegmentSnapshot[], horseIds: string[], timestampMs: number): boolean {
+  return horseIds.some((horseId) => interpolateHorseStateAtTime(segments, horseId, timestampMs).blocked === true);
+}
+
+/**
  * Oynatma saatini bir kare (frame) ileri alır — `deltaMs` gerçek geçen
  * süre, `speedMultiplier` oynatma hızı (1x, 2x vb.). Sonuç her zaman
  * `[0, durationMs]` aralığına kelepçelenir (clamp), böylece oynatma

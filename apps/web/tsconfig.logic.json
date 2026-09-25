@@ -13,6 +13,7 @@
     "src/features/race-viewer/minimap-projection.ts",
     "src/features/race-viewer/live-race-url.ts",
     "src/features/race-viewer/segment-merge.ts",
-    "src/features/race-viewer/quality-tier.ts"
+    "src/features/race-viewer/quality-tier.ts",
+    "src/features/race-viewer/camera-director.ts"
   ]
 }

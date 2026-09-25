@@ -111,6 +111,46 @@ taşındı — brief'in "PACE" alanına sayısal bir karşılık motorda yok
 İCAT EDİLMEDİ). `timeline-playback.spec.ts`'e yeni test case'leri
 eklendi, gerçek `tsc --noEmit` + `tsx` ile doğrulandı.
 
+### Master Development Brief §17 "Camera Director" (bu turda EKLENDİ)
+
+`camera-director.ts` (yeni, saf fonksiyon dosyası) yarış durumunu
+(`leaderPositionMeters`, `raceDistanceMeters`, `anyHorseBlocked`,
+`isFinished`) ayrık bir `RaceCameraEvent`'e (`start | final_stretch |
+overtake | finish | normal`) sınıflandırır, ardından bunu MEVCUT 4
+kamera moduna (`camera-presets.ts`'teki `CameraMode`) eşler. Öncelik
+sırası: `finish` > `start` > `final_stretch` > `overtake` > `normal`.
+Eşikler ZAMAN bazlı değil MESAFE bazlıdır (brief'in "start fazının ilk
+birkaç saniyesi" gibi zaman tanımları, değişken hız/gecikme altında
+tutarsız olurdu) — `START_PHASE_METERS = 50`, `FINAL_STRETCH_REMAINING_METERS
+= 400`. `anyHorseBlocked`, `timeline-playback.ts`'e eklenen yeni
+`isAnyHorseBlockedAtTime()` yardımcı fonksiyonuyla, motorun zaten
+ürettiği `RaceSegmentSnapshot.blocked` bayrağından (uydurulmadan) okunur.
+
+Brief'in istediği ek kamera tipleri (`START_CAMERA`, `GROUP_CAMERA`,
+drone/helicopter açıları vb.) BİLİNÇLİ OLARAK ertelendi — bunlar YENİ
+kamera pozisyonu matematiği (`camera-presets.ts`'e yeni `CameraMode`
+değerleri) gerektirir ve gerçek 3D varlıklar (Grup 2, kullanıcının
+"şimdilik erteleyelim" kararı) geldiğinde birlikte tasarlanması daha
+tutarlı olur; bu turda sadece MEVCUT 4 modun ne zaman otomatik
+seçileceği otomatikleştirildi.
+
+`RaceViewer.tsx` ve `LiveRaceViewer.tsx`'e wiring: `manualCameraOverrideRef`
+(kullanıcı HUD'dan manuel kamera seçtiğinde `true` olur) + `lastAutoCameraEventRef`
+(son sınıflandırılmış event) — event DEĞİŞTİĞİNDE override otomatik
+sıfırlanır ve yönetmen tekrar devreye girer; event değişmediği sürece
+kullanıcının manuel seçimi korunur. `LiveRaceViewer.tsx`'te `isFinished`
+zaman bazlı DEĞİL, `finishedEntrants !== null` ile belirlenir (o
+bileşende `durationMs` gerçek bir yarış süresi değil, JSX'te
+`currentTimeMs`'e eşitlenen önceden var olan bir tuhaflıktır — bu turda
+DOKUNULMADI, sadece not edildi).
+
+`camera-director.ts`, `tsconfig.logic.json`'a eklendi; gerçek `tsc
+--noEmit` (0 hata) ve `tsx` ile çalıştırılan 11 test case'i (bkz.
+`camera-director.spec.ts`) PASS. `RaceViewer.tsx`/`LiveRaceViewer.tsx`
+değişiklikleri `ts.transpileModule` ile söz dizimi kontrolünden geçti
+(0 diagnostic) — gerçek tip kontrolü, bu dosyaların JSX kısıtı gereği,
+push sonrası CI'da olur.
+
 ## ÖNEMLİ — bu oturumdaki doğrulama kısıtı
 
 `docs/ARCHITECTURE.md` §9'da belgelenen kısıt burada da geçerlidir: bu

@@ -78,8 +78,9 @@ import {
   getHorseTrackPosition,
 } from './track-path';
 import { computeCameraPose, type CameraMode } from './camera-presets';
+import { selectAutomaticCameraMode, classifyRaceCameraEvent, type RaceCameraEvent } from './camera-director';
 import { projectToMiniMap } from './minimap-projection';
-import { getLiveLeaderboard, interpolateHorseStateAtTime } from './timeline-playback';
+import { getLiveLeaderboard, interpolateHorseStateAtTime, isAnyHorseBlockedAtTime } from './timeline-playback';
 import { RaceHud, type MiniMapMarker } from './RaceHud';
 import type { HorseVisual } from './RaceScene3D';
 import { HORSE_COLORS, HORSE_VISUAL_HEIGHT_METERS } from './RaceViewer';
@@ -310,6 +311,33 @@ export function LiveRaceViewer({
   const leaderVisual = horseVisuals.find((horse) => horse.isLeader) ?? horseVisuals[0];
   const focusVisual = horseVisuals.find((horse) => horse.horseId === ownEntryId) ?? leaderVisual;
 
+  // Camera Director (Master Development Brief §17, bkz. `camera-director.ts`
+  // dosya başı doc yorumu) — `RaceViewer.tsx`'teki AYNI mantık, `isFinished`
+  // sinyali burada `finishedEntrants !== null` (canlı yayında `durationMs`
+  // gerçek bir yarış süresi DEĞİL, bkz. aşağıdaki `RaceHud`'a geçirilen
+  // `durationMs={currentTimeMs}` — bu yüzden zaman yerine gerçek
+  // `race.finished` olayı kullanılıyor).
+  const isRaceFinished = finishedEntrants !== null;
+  const leaderPositionMeters = leaderboard[0]?.positionMeters ?? 0;
+  const anyHorseBlocked = useMemo(
+    () => isAnyHorseBlockedAtTime(segments, entryIds, currentTimeMs),
+    [segments, entryIds, currentTimeMs],
+  );
+  const manualCameraOverrideRef = useRef(false);
+  const lastAutoCameraEventRef = useRef<RaceCameraEvent | null>(null);
+
+  useEffect(() => {
+    const cameraDirectorInput = { leaderPositionMeters, raceDistanceMeters, anyHorseBlocked, isFinished: isRaceFinished };
+    const currentEvent = classifyRaceCameraEvent(cameraDirectorInput);
+    if (currentEvent !== lastAutoCameraEventRef.current) {
+      manualCameraOverrideRef.current = false;
+      lastAutoCameraEventRef.current = currentEvent;
+    }
+    if (!manualCameraOverrideRef.current) {
+      setCameraMode(selectAutomaticCameraMode(cameraDirectorInput));
+    }
+  }, [leaderPositionMeters, raceDistanceMeters, anyHorseBlocked, isRaceFinished]);
+
   const cameraPose = useMemo(() => {
     const leaderPosition = leaderVisual
       ? { x: leaderVisual.x, y: HORSE_VISUAL_HEIGHT_METERS, z: leaderVisual.z }
@@ -348,7 +376,10 @@ export function LiveRaceViewer({
         cameraMode={cameraMode}
         onTogglePlay={() => undefined}
         onChangeSpeedMultiplier={() => undefined}
-        onChangeCameraMode={setCameraMode}
+        onChangeCameraMode={(mode) => {
+          manualCameraOverrideRef.current = true;
+          setCameraMode(mode);
+        }}
         onSeek={() => undefined}
         liveStatus={finishedEntrants ? 'finished' : isDisconnected ? 'reconnecting' : 'live'}
       />

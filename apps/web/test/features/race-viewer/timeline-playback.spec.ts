@@ -6,6 +6,7 @@ import {
   getLiveLeaderboard,
   getRaceDurationMs,
   interpolateHorseStateAtTime,
+  isAnyHorseBlockedAtTime,
 } from '../../../src/features/race-viewer/timeline-playback';
 
 function makeSegment(overrides: Partial<RaceSegmentSnapshot>): RaceSegmentSnapshot {
@@ -196,6 +197,24 @@ describe('getLiveLeaderboard', () => {
     expect(unknown).toBeDefined();
     expect(unknown!.stamina).toBeUndefined();
     expect(unknown!.fatigue).toBeUndefined();
+  });
+});
+
+describe('isAnyHorseBlockedAtTime', () => {
+  it('hiçbir at bloklanmadıysa false döner', () => {
+    const segs: RaceSegmentSnapshot[] = [
+      makeSegment({ raceEntryId: 'h1', timestampMs: 1000, blocked: false }),
+      makeSegment({ raceEntryId: 'h2', timestampMs: 1000, blocked: false }),
+    ];
+    expect(isAnyHorseBlockedAtTime(segs, ['h1', 'h2'], 1000)).toBe(false);
+  });
+
+  it('en az bir at bloklandıysa true döner (Camera Director OVERTAKE event\'i)', () => {
+    const segs: RaceSegmentSnapshot[] = [
+      makeSegment({ raceEntryId: 'h1', timestampMs: 1000, blocked: false }),
+      makeSegment({ raceEntryId: 'h2', timestampMs: 1000, blocked: true }),
+    ];
+    expect(isAnyHorseBlockedAtTime(segs, ['h1', 'h2'], 1000)).toBe(true);
   });
 });
 

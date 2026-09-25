@@ -21,6 +21,7 @@ import {
   getHorseTrackPosition,
 } from './track-path';
 import { computeCameraPose, type CameraMode } from './camera-presets';
+import { selectAutomaticCameraMode, type RaceCameraEvent, classifyRaceCameraEvent } from './camera-director';
 import { projectToMiniMap } from './minimap-projection';
 import {
   advancePlaybackTimeMs,
@@ -28,6 +29,7 @@ import {
   getLiveLeaderboard,
   getRaceDurationMs,
   interpolateHorseStateAtTime,
+  isAnyHorseBlockedAtTime,
 } from './timeline-playback';
 import { RaceHud, type MiniMapMarker } from './RaceHud';
 import type { HorseVisual } from './RaceScene3D';
@@ -135,6 +137,34 @@ export function RaceViewer({ timeline, horseNamesById, turnCount = 2 }: RaceView
     [timeline.segments, horseIds, currentTimeMs],
   );
 
+  // Camera Director (Master Development Brief §17, bkz. `camera-director.ts`
+  // dosya başı doc yorumu) — `leaderboard` zaten rank'e göre sıralı
+  // olduğundan `leaderboard[0]` her zaman lider attır, ayrı bir hesaplama
+  // GEREKMEZ.
+  const isRaceFinished = durationMs > 0 && currentTimeMs >= durationMs;
+  const leaderPositionMeters = leaderboard[0]?.positionMeters ?? 0;
+  const anyHorseBlocked = useMemo(
+    () => isAnyHorseBlockedAtTime(timeline.segments, horseIds, currentTimeMs),
+    [timeline.segments, horseIds, currentTimeMs],
+  );
+  const manualCameraOverrideRef = useRef(false);
+  const lastAutoCameraEventRef = useRef<RaceCameraEvent | null>(null);
+
+  useEffect(() => {
+    const cameraDirectorInput = { leaderPositionMeters, raceDistanceMeters, anyHorseBlocked, isFinished: isRaceFinished };
+    const currentEvent = classifyRaceCameraEvent(cameraDirectorInput);
+    if (currentEvent !== lastAutoCameraEventRef.current) {
+      // Yeni bir race event'ine geçildi (brief §17) — kullanıcının bir
+      // önceki event boyunca yaptığı manuel seçim burada sona erer,
+      // otomatik yönetmen tekrar devreye girer.
+      manualCameraOverrideRef.current = false;
+      lastAutoCameraEventRef.current = currentEvent;
+    }
+    if (!manualCameraOverrideRef.current) {
+      setCameraMode(selectAutomaticCameraMode(cameraDirectorInput));
+    }
+  }, [leaderPositionMeters, raceDistanceMeters, anyHorseBlocked, isRaceFinished]);
+
   const miniMapMarkers: MiniMapMarker[] = useMemo(
     () =>
       horseVisuals.map((horse) => ({
@@ -183,7 +213,12 @@ export function RaceViewer({ timeline, horseNamesById, turnCount = 2 }: RaceView
         cameraMode={cameraMode}
         onTogglePlay={() => setIsPlaying((previous) => !previous)}
         onChangeSpeedMultiplier={setSpeedMultiplier}
-        onChangeCameraMode={setCameraMode}
+        onChangeCameraMode={(mode) => {
+          // Kullanıcı manuel seçti — Camera Director bir sonraki race
+          // event'ine kadar bu seçime dokunmaz (bkz. yukarıdaki useEffect).
+          manualCameraOverrideRef.current = true;
+          setCameraMode(mode);
+        }}
         onSeek={(timeMs) => {
           setCurrentTimeMs(timeMs);
           setIsPlaying(false);
