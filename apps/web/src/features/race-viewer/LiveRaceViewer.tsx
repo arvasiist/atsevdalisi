@@ -69,7 +69,7 @@
  */
 
 import dynamic from 'next/dynamic';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { RaceRosterEntrant, RaceSegmentSnapshot } from '@at-sevdalisi/shared-types';
 import { loadCameraConfig } from '@at-sevdalisi/game-config';
 import {
@@ -82,10 +82,10 @@ import { computeCameraPose, type CameraMode } from './camera-presets';
 import { selectAutomaticCameraMode, classifyRaceCameraEvent, type RaceCameraEvent } from './camera-director';
 import { buildPhotoFinishRows } from './photo-finish';
 import { projectToMiniMap } from './minimap-projection';
-import { getLiveLeaderboard, interpolateHorseStateAtTime, isAnyHorseBlockedAtTime } from './timeline-playback';
+import { getLiveLeaderboard, isAnyHorseBlockedAtTime } from './timeline-playback';
 import { RaceHud, type MiniMapMarker } from './RaceHud';
 import type { HorseVisual } from './RaceScene3D';
-import { HORSE_COLORS, HORSE_VISUAL_HEIGHT_METERS } from './RaceViewer';
+import { HORSE_VISUAL_HEIGHT_METERS, HUD_SYNC_INTERVAL_MS, computeHorseVisualsAt } from './RaceViewer';
 import { connectRaceSocket, type LiveRaceFinishedEntrant } from './live-race-socket';
 import { mergeSegments } from './segment-merge';
 
@@ -101,19 +101,23 @@ const RaceScene3D = dynamic(() => import('./RaceScene3D').then((imported) => imp
 const cameraConfig = loadCameraConfig();
 
 /**
- * `HORSE_COLORS[index % HORSE_COLORS.length]` matematiksel olarak HER ZAMAN
- * dizinin sınırları içindedir (`%` operatörü bunu garanti eder), ama
- * `noUncheckedIndexedAccess` bunu `string | undefined` olarak tipler. `!`
- * tip zorlaması KULLANILMADAN (bu oturumun `gate-assignment.ts`'teki AYNI
- * prensibi — bkz. `readIndexOrThrow`), gerçek bir çalışma zamanı guard'ı.
+ * Faz 2 "HUD Telemetri" düzeltmesi (bu turda EKLENDİ) — bu dosyanın kendi
+ * `pickHorseColor`'ı BURADAN kaldırıldı: at-görseli hesaplaması artık
+ * `computeHorseVisualsAt` (bkz. `./RaceViewer` importu) üzerinden yapılıyor,
+ * o fonksiyon renk seçimini KENDİ İÇİNDE yapıyor — bu dosyanın ayrıca bir
+ * kopyasını tutmasına gerek YOK.
+ *
+ * Aşağıdaki üç no-op, canlı yayında ANLAMSIZ olan oynat/duraklat/hız/seek
+ * kontrollerinin `RaceHud`'a geçirilen karşılıklarıdır (bkz. dosya başı doc
+ * yorumu madde 2). Modül seviyesinde SABİT kimlikte tanımlanırlar — JSX
+ * içine inline `() => undefined` yazmak her render'da YENİ bir fonksiyon
+ * referansı üretir, bu da `RaceHud`'un `memo()` sarmalayıcısının (bkz.
+ * `RaceHud.tsx`) sığ prop karşılaştırmasını KIRAR ve Faz 2'nin throttle
+ * amacını boşa çıkarır.
  */
-function pickHorseColor(index: number): string {
-  const color = HORSE_COLORS[index % HORSE_COLORS.length];
-  if (color === undefined) {
-    throw new Error('pickHorseColor: HORSE_COLORS boş olmamalıydı.');
-  }
-  return color;
-}
+const NOOP_TOGGLE_PLAY = (): void => undefined;
+const NOOP_CHANGE_SPEED_MULTIPLIER = (): void => undefined;
+const NOOP_SEEK = (): void => undefined;
 
 export interface LiveRaceViewerProps {
   /** `api-client.ts`'in EXPORT edilen `API_BASE_URL`'i (bkz. `live-race-socket.ts`). */
@@ -144,6 +148,16 @@ export function LiveRaceViewer({
   const [finishedEntrants, setFinishedEntrants] = useState<LiveRaceFinishedEntrant[] | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [currentTimeMs, setCurrentTimeMs] = useState(0);
+  // Faz 2 "HUD Telemetri" düzeltmesi (bkz. `RaceViewer.tsx`'in
+  // `HUD_SYNC_INTERVAL_MS` doc yorumu) — HUD'un (DOM) tükettiği throttle'lı
+  // zaman ekseni; `currentTimeMs` 3D sahne için HER karede güncellenmeye
+  // devam eder.
+  const [hudTimeMs, setHudTimeMs] = useState(0);
+  // `tick()` içinde HEM 3D saatini HEM throttle kararını AYNI "bir sonraki
+  // değer"e göre almak için tek bir yetkili referans (bkz. `RaceViewer.tsx`'in
+  // AYNI deseni).
+  const currentTimeMsRef = useRef(0);
+  const lastHudSyncAtRef = useRef(0);
   const [cameraMode, setCameraMode] = useState<CameraMode>('track');
   // Bkz. dosya başı doc yorumu "Reconnection dilimi". `roster` `null`
   // olduğunda (ilk bağlantı) ZATEN ayrı bir "Canlı yarışa bağlanılıyor…"
@@ -171,6 +185,9 @@ export function LiveRaceViewer({
     setFinishedEntrants(null);
     setErrorMessage(null);
     setCurrentTimeMs(0);
+    currentTimeMsRef.current = 0;
+    setHudTimeMs(0);
+    lastHudSyncAtRef.current = 0;
     setIsDisconnected(false);
 
     const socket = connectRaceSocket(apiBaseUrl, token, raceId, {
@@ -224,15 +241,31 @@ export function LiveRaceViewer({
   // ihtiyaç duymaz).
   useEffect(() => {
     const tick = (): void => {
+      const now = performance.now();
       if (finishedRef.current) {
         const maxTimestampMs = segmentsRef.current.reduce((max, segment) => Math.max(max, segment.timestampMs), 0);
+        currentTimeMsRef.current = maxTimestampMs;
         setCurrentTimeMs(maxTimestampMs);
+        // Faz 2 düzeltmesi (bkz. `RaceViewer.tsx`'in AYNI deseni) — yarış
+        // bitince throttle penceresini BEKLEMEDEN HUD'u (son sıralama/foto
+        // finiş) ANINDA senkronize et.
+        lastHudSyncAtRef.current = now;
+        setHudTimeMs(maxTimestampMs);
         frameRef.current = null;
         return;
       }
       const startedAt = playbackStartedAtRef.current;
       if (startedAt !== null) {
-        setCurrentTimeMs(performance.now() - startedAt);
+        const next = now - startedAt;
+        currentTimeMsRef.current = next;
+        setCurrentTimeMs(next);
+        // Faz 2 düzeltmesi (bkz. `RaceViewer.tsx`'in `HUD_SYNC_INTERVAL_MS`
+        // doc yorumu) — AYNI throttle deseni burada da uygulanır: `RaceHud`
+        // (DOM) her karede DEĞİL, en fazla 10Hz'de bir yeniden render edilir.
+        if (now - lastHudSyncAtRef.current >= HUD_SYNC_INTERVAL_MS) {
+          lastHudSyncAtRef.current = now;
+          setHudTimeMs(next);
+        }
       }
       frameRef.current = requestAnimationFrame(tick);
     };
@@ -261,40 +294,27 @@ export function LiveRaceViewer({
     [roster, ownHorseId],
   );
 
-  const horseVisuals: HorseVisual[] = useMemo(() => {
-    if (entryIds.length === 0) {
-      return [];
-    }
-    const states = entryIds.map((entryId, index) => {
-      // `interpolateHorseStateAtTime`'ın ikinci parametresi ADI "raceEntryId"
-      // olsa da (bkz. `timeline-playback.ts` imzası) burada TAM OLARAK
-      // BEKLENEN kimlik türü geçiriliyor — bkz. dosya başı doc yorumu
-      // madde 3.
-      const state = interpolateHorseStateAtTime(segments, entryId, currentTimeMs);
-      const point = getHorseTrackPosition(state.positionMeters, turnCount, trackGeometry);
-      return {
-        entryId,
-        x: point.x,
-        z: point.z,
-        headingRadians: point.headingRadians,
-        color: pickHorseColor(index),
-        positionMeters: state.positionMeters,
-      };
-    });
-    const leaderId = [...states].sort((a, b) => b.positionMeters - a.positionMeters)[0]?.entryId;
-    return states.map((state) => ({
-      horseId: state.entryId,
-      x: state.x,
-      z: state.z,
-      headingRadians: state.headingRadians,
-      color: state.color,
-      isLeader: state.entryId === leaderId,
-    }));
-  }, [entryIds, segments, currentTimeMs, turnCount, trackGeometry]);
+  // 3D sahne — HER rAF karesinde (60Hz) günceli kalır (bkz. dosya başı doc
+  // yorumu ve `RaceViewer.tsx`'in `HUD_SYNC_INTERVAL_MS` doc yorumu). Bu
+  // dosyanın "entryId" kimliği `computeHorseVisualsAt`'in genel `ids`
+  // parametresine OPAK bir anahtar olarak geçirilir — bkz. dosya başı doc
+  // yorumu madde 3 (`RaceViewer.tsx`'in demo-fixture-özel `horseId ===
+  // raceEntryId` varsayımı burada TEKRARLANMAZ).
+  const horseVisuals: HorseVisual[] = useMemo(
+    () => computeHorseVisualsAt(entryIds, segments, currentTimeMs, turnCount, trackGeometry),
+    [entryIds, segments, currentTimeMs, turnCount, trackGeometry],
+  );
+
+  // HUD (DOM) — throttle'lı `hudTimeMs`'ten türetilir; minimap DAHİL,
+  // `RaceHud`'a giden HİÇBİR türetilmiş veri 60Hz'de YENİLENMEZ.
+  const hudHorseVisuals: HorseVisual[] = useMemo(
+    () => computeHorseVisualsAt(entryIds, segments, hudTimeMs, turnCount, trackGeometry),
+    [entryIds, segments, hudTimeMs, turnCount, trackGeometry],
+  );
 
   const leaderboard = useMemo(
-    () => getLiveLeaderboard(segments, entryIds, currentTimeMs),
-    [segments, entryIds, currentTimeMs],
+    () => getLiveLeaderboard(segments, entryIds, hudTimeMs),
+    [segments, entryIds, hudTimeMs],
   );
 
   // Photo Finish sunumu (Master Brief §23, bkz. `photo-finish.ts` dosya
@@ -327,12 +347,12 @@ export function LiveRaceViewer({
 
   const miniMapMarkers: MiniMapMarker[] = useMemo(
     () =>
-      horseVisuals.map((horse) => ({
+      hudHorseVisuals.map((horse) => ({
         horseId: horse.horseId,
         isLeader: horse.isLeader,
         ...projectToMiniMap({ x: horse.x, z: horse.z, headingRadians: horse.headingRadians }, trackGeometry),
       })),
-    [horseVisuals, trackGeometry],
+    [hudHorseVisuals, trackGeometry],
   );
 
   const raceDistanceMeters = useMemo(
@@ -351,13 +371,13 @@ export function LiveRaceViewer({
   // dosya başı doc yorumu) — `RaceViewer.tsx`'teki AYNI mantık, `isFinished`
   // sinyali burada `finishedEntrants !== null` (canlı yayında `durationMs`
   // gerçek bir yarış süresi DEĞİL, bkz. aşağıdaki `RaceHud`'a geçirilen
-  // `durationMs={currentTimeMs}` — bu yüzden zaman yerine gerçek
-  // `race.finished` olayı kullanılıyor).
+  // `durationMs={hudTimeMs}` — bu yüzden zaman yerine gerçek `race.finished`
+  // olayı kullanılıyor).
   const isRaceFinished = finishedEntrants !== null;
   const leaderPositionMeters = leaderboard[0]?.positionMeters ?? 0;
   const anyHorseBlocked = useMemo(
-    () => isAnyHorseBlockedAtTime(segments, entryIds, currentTimeMs),
-    [segments, entryIds, currentTimeMs],
+    () => isAnyHorseBlockedAtTime(segments, entryIds, hudTimeMs),
+    [segments, entryIds, hudTimeMs],
   );
   const manualCameraOverrideRef = useRef(false);
   const lastAutoCameraEventRef = useRef<RaceCameraEvent | null>(null);
@@ -390,6 +410,15 @@ export function LiveRaceViewer({
     });
   }, [cameraMode, leaderVisual, focusVisual, finishLinePoint]);
 
+  // Faz 2 düzeltmesi (bkz. `RaceViewer.tsx`'in AYNI deseni) — `useCallback`
+  // ile SABİT kimlikte, aksi halde her render'da YENİ bir fonksiyon
+  // referansı `RaceHud`'un (bkz. `memo()` sarmalayıcısı) sığ prop
+  // karşılaştırmasını KIRAR.
+  const handleChangeCameraMode = useCallback((mode: CameraMode) => {
+    manualCameraOverrideRef.current = true;
+    setCameraMode(mode);
+  }, []);
+
   if (errorMessage) {
     return <ScenePlaceholder text={errorMessage} isError />;
   }
@@ -405,19 +434,16 @@ export function LiveRaceViewer({
         horseNamesById={horseNamesById}
         leaderboard={leaderboard}
         miniMapMarkers={miniMapMarkers}
-        currentTimeMs={currentTimeMs}
-        durationMs={currentTimeMs}
+        currentTimeMs={hudTimeMs}
+        durationMs={hudTimeMs}
         isPlaying
         speedMultiplier={1}
         cameraMode={cameraMode}
         finishResult={isRaceFinished ? finishRows : undefined}
-        onTogglePlay={() => undefined}
-        onChangeSpeedMultiplier={() => undefined}
-        onChangeCameraMode={(mode) => {
-          manualCameraOverrideRef.current = true;
-          setCameraMode(mode);
-        }}
-        onSeek={() => undefined}
+        onTogglePlay={NOOP_TOGGLE_PLAY}
+        onChangeSpeedMultiplier={NOOP_CHANGE_SPEED_MULTIPLIER}
+        onChangeCameraMode={handleChangeCameraMode}
+        onSeek={NOOP_SEEK}
         liveStatus={finishedEntrants ? 'finished' : isDisconnected ? 'reconnecting' : 'live'}
       />
     </div>

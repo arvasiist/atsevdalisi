@@ -334,6 +334,81 @@ CI'dadır. `npx tsc -p tsconfig.logic.json --noEmit` (tüm saf mantık
 dosyaları + `@at-sevdalisi/game-config` path alias'ı BİRLİKTE) 0 hata
 ile geçti.
 
+### Faz 2 "HUD render mimarisi" düzeltmesi (bu turda EKLENDİ)
+
+Yeni 18 fazlık brief'in yeniden denetimi (proje sahibinin isteğiyle,
+"Burayı tekrar kontrol et") daha önce "Grup 1'de tamamlandı" denen İKİ
+kalemin ("§20 telemetri zenginleştirme" ve "§31 Audio Manager iskeleti")
+brief'in KENDİ katı kriterlerini TAM karşılamadığını ortaya çıkardı.
+Proje sahibi önce bunların düzeltilmesini seçti ("Önce mevcut hataları
+düzelt (Faz 2 + 4)"). Bu bölüm Faz 2'yi belgeler.
+
+**Bulunan gerçek ihlal:** brief'in KENDİ uyarısı — "HUD performansını
+bozacak şekilde React state'i her frame güncelleme. Render loop / uygun
+reactive architecture kullan." `RaceViewer.tsx` VE `LiveRaceViewer.tsx`
+TEK bir `currentTimeMs` state'ini HER rAF karesinde (60Hz) güncelliyordu
+ve bu TEK state HEM 3D sahneyi HEM DOM tabanlı `RaceHud`'u besliyordu.
+3D sahne tarafı ZARARSIZDIR (`RaceScene3D`, React-Three-Fiber'ın KENDİ
+reconciler'ı üzerinden akar, gerçek tarayıcı DOM'una DOKUNMAZ) ama
+`RaceHud` DÜZ DOM/CSS'tir — onu 60Hz'de yeniden render etmek GERÇEK bir
+DOM diff'i tetikler, brief'in tam olarak işaret ettiği ihlal budur.
+
+**Çözüm (bilinçli olarak DÜŞÜK riskli, `RaceScene3D.tsx`'e VEYA
+`HorseVisual` arayüzüne DOKUNMAYAN bir React performans deseni — tam bir
+Three.js/`useFrame`/ref tabanlı yeniden yazım DEĞERLENDİRİLDİ ve bu
+ortamın gerçek tarayıcı/WebGL çalıştıramaması nedeniyle BİLİNÇLİ olarak
+REDDEDİLDİ):**
+
+1. Tek `currentTimeMs` state'i İKİYE ayrıldı: `currentTimeMs` (HER
+   karede güncellenir, YALNIZCA 3D sahneyi — `horseVisuals`/`cameraPose`
+   — besler) ve yeni `hudTimeMs` (100ms/10Hz'de bir güncellenir,
+   `RaceHud`'un tükettiği TÜM türetilmiş veriyi — `leaderboard`,
+   `hudHorseVisuals` → `miniMapMarkers`, kamera yönetmeni girdisi —
+   besler). 100ms brief §2'nin "gerçek zamanlı" isteğini karşılarken DOM
+   güncelleme sıklığını 60Hz'e göre 6 kat azaltır. Seek anında (kullanıcı
+   sürükleme çubuğunu bıraktığında) VE yarış bitişinde throttle
+   penceresi BEKLENMEDEN her iki state ANINDA senkronize edilir — HUD
+   asla bayat bir seek-öncesi konum veya gecikmeli bir foto finiş
+   göstermez.
+2. `RaceHud.tsx` `memo()` ile sarıldı (`RaceHudComponent` iç isim,
+   `export const RaceHud = memo(RaceHudComponent)` dışa açılan isim —
+   TÜM çağrı yerleri `import { RaceHud } from './RaceHud'` birebir AYNI
+   kaldığından SIFIR çağrı-yeri değişikliği). `hudTimeMs`'ten türeyen
+   prop'lar DEĞİŞMEDİĞİ sürece `RaceHud`'un fonksiyon gövdesi artık HİÇ
+   ÇALIŞMAZ — ebeveyn 60Hz'de render olsa bile.
+3. `RaceHud`'a geçirilen TÜM event-handler prop'ları (`onTogglePlay`,
+   `onChangeCameraMode`, `onSeek`; `LiveRaceViewer.tsx`'te ayrıca ANLAMSIZ
+   olan `onChangeSpeedMultiplier` — bkz. o dosyanın "Seek/hız/duraklat
+   ANLAMSIZ" doc yorumu) `useCallback` (`RaceViewer.tsx`) veya modül
+   seviyesinde SABİT no-op sabitleri (`LiveRaceViewer.tsx`) ile SABİT
+   kimlikte tutulur — aksi halde her render'da YENİ bir fonksiyon
+   referansı `memo()`'nun sığ prop karşılaştırmasını KIRARDI.
+4. Kod tekrarı YAN ÜRÜN olarak temizlendi: `RaceViewer.tsx`'in at-görseli
+   hesaplama mantığı (renk seçimi × ara değerlenmiş konum × lider tespiti)
+   ile `LiveRaceViewer.tsx`'in NEREDEYSE BİREBİR AYNI kopyası artık TEK
+   bir paylaşılan `computeHorseVisualsAt()` (+ `pickHorseColor()`)
+   fonksiyonunda birleşti (`RaceViewer.tsx`'ten `export` edilir,
+   `LiveRaceViewer.tsx` import eder). Bu arada `RaceViewer.tsx`'in eski
+   `HORSE_COLORS[index % HORSE_COLORS.length]!` (`!` tip zorlaması —
+   projenin "kodda `!` yok" kuralına aykırı, daha önce fark edilmemiş bir
+   kalıntı) `LiveRaceViewer.tsx`'in ZATEN sahip olduğu gerçek çalışma
+   zamanı guard'ıyla DEĞİŞTİRİLDİ.
+
+`HorseVisual` arayüzü (x/z/headingRadians/color/isLeader) VE
+`RaceScene3DProps` (`horses`/`cameraPose`/`trackGeometry`) bu düzeltme
+boyunca TAMAMEN DEĞİŞMEDİ — belgelenmiş genişletme noktası (gerçek
+at/jokey modelleri geldiğinde) korunuyor.
+
+**Doğrulama:** `RaceViewer.tsx`/`LiveRaceViewer.tsx`/`RaceHud.tsx`
+üçü de `ts.transpileModule` ile sözdizimi kontrolünden geçti (0
+diagnostic — bkz. aşağıdaki "doğrulama kısıtı" bölümü, bu üçü zaten JSX
+içerdiğinden bu ortamda gerçek `tsc`/tip kontrolü YAPILAMAZ). Ayrıca
+`grep` ile her iki dosyada da kaldırılan sembollerin (`HORSE_COLORS`,
+yerel `pickHorseColor`, `interpolateHorseStateAtTime` doğrudan çağrısı)
+KALINTI bırakmadığı ve `RaceHud`'un iki çağrı yerinde de import
+imzasının DEĞİŞMEDİĞİ doğrulandı. Gerçek derleme/tip kontrolü, her
+zamanki gibi, push sonrası CI'dadır.
+
 ## ÖNEMLİ — bu oturumdaki doğrulama kısıtı
 
 `docs/ARCHITECTURE.md` §9'da belgelenen kısıt burada da geçerlidir: bu

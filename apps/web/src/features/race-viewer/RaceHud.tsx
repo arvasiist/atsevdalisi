@@ -49,6 +49,7 @@
  */
 export type RaceLiveStatus = 'connecting' | 'live' | 'reconnecting' | 'finished';
 
+import { memo } from 'react';
 import type { CameraMode } from './camera-presets';
 import { CAMERA_MODE_LABELS, CAMERA_MODE_ORDER } from './camera-presets';
 import type { LiveLeaderboardEntry } from './timeline-playback';
@@ -97,7 +98,7 @@ export interface RaceHudProps {
 
 const SPEED_OPTIONS = [1, 2, 4] as const;
 
-export function RaceHud(props: RaceHudProps): React.ReactElement {
+function RaceHudComponent(props: RaceHudProps): React.ReactElement {
   const {
     horseNamesById,
     leaderboard,
@@ -168,6 +169,25 @@ export function RaceHud(props: RaceHudProps): React.ReactElement {
     </div>
   );
 }
+
+/**
+ * Faz 2 "HUD Telemetri" düzeltmesi (bu turda EKLENDİ) — brief'in "HUD
+ * performansını bozacak şekilde React state'i her frame güncelleme"
+ * uyarısına karşı ikinci (ve asıl KALICI) savunma: `memo()`. `RaceViewer.tsx`
+ * VE `LiveRaceViewer.tsx` artık `RaceHud`'a geçirdikleri TÜM türetilmiş veri
+ * ve callback'leri throttle'lı bir zaman ekseninden (`hudTimeMs`) ve
+ * `useCallback` ile SABİT kimlikte üretiyor (bkz. o dosyaların doc
+ * yorumları) — ama üst bileşen (`RaceViewer`/`LiveRaceViewer`) YİNE DE her
+ * rAF karesinde (60Hz) yeniden render OLUYOR (3D sahnenin `currentTimeMs`'i
+ * yüzünden). `memo()` OLMADAN, React `RaceHud`'u YİNE DE her ebeveyn
+ * render'ında ÇAĞIRIRDI ve JSX ağacını yeniden hesaplardı (gerçek DOM'a
+ * commit ETMESE bile, bu hesaplama kendisi ZATEN gereksiz iştir). `memo()`
+ * ile, prop'lar (sığ karşılaştırmayla) DEĞİŞMEDİĞİ sürece `RaceHud`'un
+ * fonksiyon gövdesi HİÇ ÇALIŞMAZ — 60Hz'lik ebeveyn render'ı ile 10Hz'lik
+ * (`HUD_SYNC_INTERVAL_MS`) HUD güncellemesi arasındaki AYRIM burada
+ * TAMAMLANIR.
+ */
+export const RaceHud = memo(RaceHudComponent);
 
 function panelStyle(): React.CSSProperties {
   return {
