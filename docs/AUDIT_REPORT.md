@@ -202,7 +202,9 @@ kategorisi olarak eklenmeli — ama altyapı (CI, test runner'lar) hazır.
   ve besleme (standart/enerji/protein/iyileşme/performans) eylemlerini
   zaten tam çalışır durumdaki `POST /horses/:id/care` ve `/feed`
   uçlarına bağlıyor (bkz. `apps/web/src/app/care/page.tsx` dosya başı
-  doc yorumu). Hâlâ eksik: antrenman geçmişi görünümü
+  doc yorumu) — **commit `f3b9850`, CI #154, 2m 44s, TAM YEŞİL
+  doğrulandı** (`git fetch` + built-in tarayıcı ile bağımsız
+  doğrulama). Hâlâ eksik: antrenman geçmişi görünümü
   (`TrainingSessionRepository`'de sadece `save()` var, okuma metodu
   YOK — ayrı dilim), piyasa değeri tahmini (`calculateMarketValue()`
   domain'de VAR ama hiçbir yerden ÇAĞRILMIYOR — ayrı dilim), Equipment
