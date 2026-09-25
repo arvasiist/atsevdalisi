@@ -49,6 +49,29 @@
  * algılama) — ileride bir ayarlar UI'ı eklendiğinde kullanıcının
  * kademeyi elle seçebilmesi için genişletme noktasıdır, bugün hiçbir
  * çağıran taraf (`RaceViewer.tsx`) bunu VERMEZ.
+ *
+ * "REALISTIC 3D ASSET & AUDIO PRODUCTION BRIEF" §9 "Tribün/kalabalık" (bu
+ * turda EKLENDİ, proje sahibinin "notta eksik bişi kalmasın" talebi
+ * üzerine — bu bileşen daha önce `CROWD_BILLBOARD_TEXTURE_REQUIRED`
+ * (bkz. `asset-manifest.ts`) için SIFIR render kodu içeriyordu, bu bir
+ * ÖZ-DENETİM turunda bulunup açıkça bekletilmiş bir eksikti) — `Crowd
+ * Billboards` bileşeni, `TrackSurface` ile AYNI desende (tek `THREE.
+ * InstancedMesh`, `track-path.ts`teki YENİ SAF fonksiyon `getOutwardBoundaryPoint`
+ * ile hesaplanmış pozisyonlar) pistin ÇEVRESİNE bir tribün billboard
+ * halkası yerleştirir. ÖNEMLİ SINIRLAMA: `CROWD_BILLBOARD_TEXTURE_REQUIRED`
+ * `ktx2` formatındadır (bkz. o girişin `format` alanı) — GERÇEK bir KTX2
+ * yüklemesi `THREE.KTX2Loader` + Basis transcoder dosyaları (normalde
+ * `node_modules/three/examples/jsm/libs/basis/`den `public/`e
+ * KOPYALANIR) gerektirir; bu sandbox'ta `three` paketi KURULU
+ * OLMADIĞINDAN (npm registry erişimi yok) bu transcoder kurulumu NE
+ * yazılabilir NE doğrulanabilir — bu yüzden GERÇEK doku yükleme
+ * pipeline'ı BİLİNÇLİ OLARAK bu turun kapsamı DIŞINDA bırakıldı (bkz.
+ * `docs/ASSET_GUIDE.md`'nin "Bilinçli olarak HENÜZ ele alınmayan"
+ * bölümü). Bunun yerine `HorseMarker`in kapsül+küre ilkel şekliyle AYNI
+ * disiplin uygulanır: doku OLMADAN, düz renkli (silüet tonlarında) bir
+ * malzeme — "tribünde HİÇBİR ŞEY yok" yerine "tribünde KALABALIK VAR ama
+ * dokusuz" durumu; gerçek doku/pipeline kararı verildiğinde SADECE bu
+ * bileşenin materyali değişir, `RaceScene3DProps` arayüzü DEĞİŞMEZ.
  */
 
 import { useEffect, useMemo, useRef } from 'react';
@@ -56,7 +79,7 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { Environment } from '@react-three/drei';
 import { Bloom, EffectComposer, SSAO } from '@react-three/postprocessing';
 import * as THREE from 'three';
-import { getHorseTrackPosition, type StadiumTrackGeometry } from './track-path';
+import { getHorseTrackPosition, getOutwardBoundaryPoint, type StadiumTrackGeometry } from './track-path';
 import type { CameraPose } from './camera-presets';
 import {
   classifyQualityTier,
@@ -121,6 +144,19 @@ const TRACK_TILE_LENGTH_METERS = 6;
 const TRACK_TURN_COUNT_FOR_VISUAL = 2;
 const CAMERA_LERP_FACTOR = 0.06;
 const GROUND_SIZE_METERS = 1200;
+
+// "REALISTIC 3D ASSET & AUDIO PRODUCTION BRIEF" §9 (bu turda EKLENDİ) —
+// bkz. `CrowdBillboards`in doc yorumu. Sayılar `TrackSurface`inkilerle
+// (yukarıda) AYNI ÖLÇEK mantığıyla seçildi: `TRACK_TILE_WIDTH_METERS`
+// (18m, pist genişliği) + makul bir "pist kenarı boşluğu" ile
+// `CROWD_BILLBOARD_OFFSET_METERS` belirlendi, `TRACK_TILE_COUNT` (96)
+// ile AYNI yoğunlukta (48, çünkü billboard'lar tile'lardan İKİ KAT
+// GENİŞ) tam bir halka oluşturulur.
+const CROWD_BILLBOARD_COUNT = 48;
+const CROWD_BILLBOARD_OFFSET_METERS = 30;
+const CROWD_BILLBOARD_WIDTH_METERS = 12;
+const CROWD_BILLBOARD_HEIGHT_METERS = 14;
+const CROWD_BILLBOARD_ELEVATION_METERS = 7;
 
 export function RaceScene3D({
   horses,
@@ -197,6 +233,7 @@ export function RaceScene3D({
       />
       <Ground />
       <TrackSurface geometry={trackGeometry} />
+      <CrowdBillboards geometry={trackGeometry} />
       {horses.map((horse) => (
         <HorseMarker key={horse.horseId} horse={horse} />
       ))}
@@ -291,6 +328,68 @@ function TrackSurface({ geometry }: { geometry: StadiumTrackGeometry }): React.R
     >
       <boxGeometry args={[TRACK_TILE_LENGTH_METERS, 0.05, TRACK_TILE_WIDTH_METERS]} />
       <meshStandardMaterial color="#8a6b45" roughness={0.9} metalness={0.05} envMapIntensity={0.5} />
+    </instancedMesh>
+  );
+}
+
+/**
+ * Bkz. dosya başı doc yorumu "REALISTIC 3D ASSET & AUDIO PRODUCTION
+ * BRIEF §9". `TrackSurface`in AYNISI desen (tek `InstancedMesh`, `useMemo`
+ * ile hesaplanan pozisyonlar + `useEffect` ile matris güncellemesi) —
+ * TEK fark, konum kaynağının `getHorseTrackPosition` DEĞİL, pistin
+ * DIŞINA offsetli `getOutwardBoundaryPoint` olması ve billboard'ların
+ * `rotationY`sinin at'ların KOŞU yönüne DEĞİL, pist eğrisine TEĞET
+ * (billboard'lar YAN YANA bir "tribün duvarı" oluşturacak şekilde)
+ * hizalanmasıdır. `side={THREE.DoubleSide}` ile malzeme HER İKİ
+ * yüzeyden de görünür kılınır — bu, gerçek doku eklenene KADAR tam
+ * hangi yönün "pist tarafı" olduğunun ÖNEMSİZ kalmasını sağlar (yanlış
+ * yönde bir billboard'un GÖRÜNMEZ olması gibi bir hataya karşı savunma).
+ */
+function CrowdBillboards({ geometry }: { geometry: StadiumTrackGeometry }): React.ReactElement | null {
+  const meshRef = useRef<THREE.InstancedMesh>(null);
+
+  const tiles = useMemo(() => {
+    const result: Array<{ x: number; z: number; rotationY: number }> = [];
+    if (geometry.lapLengthMeters <= 0) {
+      return result;
+    }
+    for (let i = 0; i < CROWD_BILLBOARD_COUNT; i += 1) {
+      const distance = (i / CROWD_BILLBOARD_COUNT) * geometry.lapLengthMeters;
+      const point = getOutwardBoundaryPoint(distance, TRACK_TURN_COUNT_FOR_VISUAL, geometry, CROWD_BILLBOARD_OFFSET_METERS);
+      result.push({ x: point.x, z: point.z, rotationY: -point.headingRadians + Math.PI / 2 });
+    }
+    return result;
+  }, [geometry]);
+
+  useEffect(() => {
+    const mesh = meshRef.current;
+    if (!mesh || tiles.length === 0) {
+      return;
+    }
+    const matrix = new THREE.Matrix4();
+    const quaternion = new THREE.Quaternion();
+    const euler = new THREE.Euler();
+    const position = new THREE.Vector3();
+    const scale = new THREE.Vector3(1, 1, 1);
+    tiles.forEach((tile, index) => {
+      position.set(tile.x, CROWD_BILLBOARD_ELEVATION_METERS, tile.z);
+      euler.set(0, tile.rotationY, 0);
+      quaternion.setFromEuler(euler);
+      matrix.compose(position, quaternion, scale);
+      mesh.setMatrixAt(index, matrix);
+    });
+    mesh.instanceMatrix.needsUpdate = true;
+    mesh.computeBoundingSphere();
+  }, [tiles]);
+
+  if (tiles.length === 0) {
+    return null;
+  }
+
+  return (
+    <instancedMesh key={tiles.length} ref={meshRef} args={[undefined, undefined, tiles.length]}>
+      <planeGeometry args={[CROWD_BILLBOARD_WIDTH_METERS, CROWD_BILLBOARD_HEIGHT_METERS]} />
+      <meshStandardMaterial color="#4a3f38" roughness={0.95} metalness={0} envMapIntensity={0.3} side={THREE.DoubleSide} />
     </instancedMesh>
   );
 }

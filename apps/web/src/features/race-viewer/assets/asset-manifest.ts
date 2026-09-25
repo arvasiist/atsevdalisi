@@ -301,6 +301,41 @@ export const ASSET_MANIFEST: AssetRequirement[] = [
       'İlk iki atın bitiş farkı çok küçükken (`photo-finish.ts`teki ZATEN VAR OLAN `isCloseFinish()` fonksiyonunun `true` dönmesiyle belirlenir, YENİ bir skor/simülasyon İCAT EDİLMEZ) `finish`ten HEMEN SONRA çalınan gerilim/"foto finiş" vurgusu sesi, bir seferlik (döngüsüz) — `RACE_FINISH_FANFARE_REQUIRED`den KASITLI OLARAK AYRI (fanfar HER yarışta çalar, bu SADECE kafa kafaya bitişlerde).',
     fallbackBehavior: "AudioManager'ın sessiz no-op modu.",
   },
+  // Üçüncü öz-denetim turu (proje sahibinin "notta eksik bişi kalmasın"
+  // talebiyle, bu turda EKLENDİ) — brief §15/§18/§9'un, YENİ bir Race
+  // Engine sinyali VEYA ürün kararı GEREKTİRMEDEN kapatılabilen üç
+  // gereksinimi: start kapısı ortam sesi, hız-katmanlı nal sesi
+  // (fast/sprint) ve tribün kalabalığı billboard'ları için (bkz.
+  // `RaceScene3D.tsx`teki `CrowdBillboards`) AYNI görsel iskeletin ses
+  // TARAFINDA bir karşılığı OLMASA da doku gereksinimi zaten YUKARIDA
+  // `CROWD_BILLBOARD_TEXTURE_REQUIRED` olarak TANIMLIydı (bkz. o giriş).
+  {
+    id: 'START_GATE_AMBIENT_SFX_REQUIRED',
+    kind: 'audio_sfx',
+    format: 'mp3',
+    expectedPath: 'audio/start-gate-ambient-loop.mp3',
+    description:
+      'Atlar start kapısına yerleştirilirken (yarış BAŞLAMADAN önceki bekleme penceresi) çalınan mekanik gıcırtı/metal takırtısı gibi kapı-atmosferi sesi (loop) — `GATE_OPEN_SFX_REQUIRED`den (kapıların AÇILMA anı, bir seferlik) KASITLI OLARAK AYRI, `START_SIGNAL_SFX_REQUIRED`den (hazır-ol düdüğü) de AYRI.',
+    fallbackBehavior: "AudioManager'ın sessiz no-op modu.",
+  },
+  {
+    id: 'HOOF_FAST_SFX_REQUIRED',
+    kind: 'audio_sfx',
+    format: 'mp3',
+    expectedPath: 'audio/hoof-fast-layer-loop.mp3',
+    description:
+      'Hız oranı `AudioConfig.hoofFast.speedRatioThreshold`i aştığında, o an çalan yüzey/viraj nal sesinin (HOOF_GRASS/DIRT/SYNTHETIC/TURN) ÜZERİNE (onu durdurmadan) eklenen ek "dörtnala geçiş" doku katmanı (loop) — bkz. `updateHoofTempoLayer`.',
+    fallbackBehavior: "AudioManager'ın sessiz no-op modu; asset yoksa taban yüzey nal sesi KESİNTİYE UĞRAMADAN çalmaya devam eder (sadece ek katman duyulmaz).",
+  },
+  {
+    id: 'HOOF_SPRINT_SFX_REQUIRED',
+    kind: 'audio_sfx',
+    format: 'mp3',
+    expectedPath: 'audio/hoof-sprint-layer-loop.mp3',
+    description:
+      'Hız oranı `AudioConfig.hoofSprint.speedRatioThreshold`i aştığında `HOOF_FAST_SFX_REQUIRED`in YERİNİ alan, daha yoğun "azami çaba" doku katmanı (loop) — `hoofFast`/`hoofSprint` katmanları AYNI ANDA ÇALMAZ (bkz. `updateHoofTempoLayer`).',
+    fallbackBehavior: "AudioManager'ın sessiz no-op modu; asset yoksa taban yüzey nal sesi KESİNTİYE UĞRAMADAN çalmaya devam eder.",
+  },
 ];
 
 export function getAssetById(id: string): AssetRequirement | undefined {

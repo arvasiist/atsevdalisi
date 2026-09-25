@@ -666,4 +666,65 @@ export interface AudioConfig {
   // sinyallerin ses karşılığı.
   /** Brief'in "PHOTO_FINISH" ses kategorisi — `photo-finish.ts`teki ZATEN VAR OLAN `isCloseFinish()` `true` döndüğünde, `finish`ten HEMEN SONRA çalınan bir seferlik gerilim vurgusu. */
   photoFinishVolume: number;
+
+  // Üçüncü öz-denetim turu (proje sahibinin "notta eksik bişi kalmasın"
+  // talebiyle, bu turda EKLENDİ) — brief'in "START GATE" ön-yarış akışı
+  // (§15/§19) ve "HOOF_FAST"/"HOOF_SPRINT" hız-katmanlı nal sesi (§18)
+  // kategorileri için GERÇEK config alanları. İkisi de YENİ bir Race
+  // Engine sinyali GEREKTİRMEZ (bkz. `audio-manager.ts`teki
+  // `startGateAmbience`/`updateHoofTempoLayer`nin doc yorumları) — bu
+  // yüzden `HORSE_GALLOP`/`HORSE_FAST_GALLOP` VE toplam start-kapısı
+  // AÇILMA MEKANİĞİ (bunlar GERÇEKTEN bir ürün kararı VEYA yeni bir
+  // motor sinyali gerektirir) gibi hâlâ BEKLEYEN maddelerden FARKLI
+  // olarak burada KAPATILABİLDİLER (bkz. `docs/ASSET_GUIDE.md`nin
+  // "Bilinçli olarak HENÜZ ele alınmayan" bölümündeki güncel liste).
+  /**
+   * Brief §15 "Start Gate" — atlar kapıya YERLEŞTİRİLİRKEN (yarış
+   * BAŞLAMADAN önceki bekleme/hazırlık penceresi) çalınan mekanik/
+   * atmosferik kapı sesi (loop, `environment` kanalı — `stadiumAmbient
+   * Volume`/`windAmbienceVolume` ile AYNI kanal, çünkü bu da kalabalıktan
+   * BAĞIMSIZ yapısal bir ortam sesidir). `race_start`/`gate_open`
+   * event'lerinden KASITLI OLARAK AYRI TUTULUR: bu, `RaceAudioManager`ın
+   * `handleEvent`ine BAĞLI DEĞİLDİR (Race Engine'in "atlar kapıya
+   * yerleşiyor" ANINI işaretleyen bir sinyali HENÜZ YOK — bu bir simülasyon
+   * OLAYI değil, yarış BAŞLAMADAN ÖNCEKİ bir UI/sunum durumudur), bu yüzden
+   * `startStadiumAmbience` ile AYNI "çağıranın kararıyla başlat/durdur"
+   * deseniyle bağımsız bir metot çifti (`startGateAmbience`/
+   * `stopGateAmbience`) olarak modellenir.
+   */
+  startGateAmbientVolume: number;
+  /**
+   * Brief §18 "HOOF_FAST"/"HOOF_SPRINT" (bu turda EKLENDİ) — nal sesi
+   * `hoofbeat.baseVolume`/`maxExtraVolume` üzerinden ZATEN sürekli hızla
+   * ORANTILI şekilde hacim değiştiriyordu (bkz. `updateHoofbeatIntensity`),
+   * ama brief AYRICA "hız arttıkça FARKLI/EK bir doku (tempo/ritim
+   * hissi)" ister — bu, TEK bir sesin hacmini değiştirmekle
+   * KARŞILANAMAZ. Çözüm: hız oranı (`speedMps / maxSpeedMps`, ZATEN VAR
+   * OLAN telemetri, YENİ bir hesaplama İCAT EDİLMEZ) bu eşiği AŞTIĞINDA,
+   * yüzey/viraj nal sesinin ÜZERİNE (onu DURDURMADAN) EK bir katman
+   * (`HOOF_FAST_SFX_REQUIRED`) sabit hacimde ÇALINMAYA başlanır — gerçek
+   * at koşularında dörtnala geçişte nalın hem daha sık HEM daha "dolgun"
+   * duyulmasının ses tasarımındaki karşılığı budur.
+   */
+  hoofFast: {
+    /** [0, 1] — bu ORANIN üstünde EK "fast" katmanı başlar (bkz. `hoofSprint.speedRatioThreshold`, bundan HER ZAMAN küçük olmalı). */
+    speedRatioThreshold: number;
+    /** EK katmanın SABİT hacmi (yüzey/viraj katmanının hacmine EKLENMEZ, kendi başına ayrı bir ses kaynağı olarak çalar). */
+    layerVolume: number;
+  };
+  /**
+   * `hoofFast` ile AYNI desen, ama DAHA YÜKSEK bir hız eşiğinde — brief'in
+   * "sprint" (yarışın son düzlüğündeki azami çaba) için AYRI, DAHA YOĞUN
+   * bir doku isteğinin karşılığı. `hoofFast` VE `hoofSprint` KATMANLARI
+   * AYNI ANDA ÇALMAZ (bkz. `updateHoofTempoLayer`'ın "sprint eşiğini
+   * aşınca fast katmanı DURDURULUP sprint katmanına GEÇİLİR" mantığı) —
+   * ikisini AYNI ANDA duymak, brief'in "kademeli" (tiered) isteğiyle
+   * ÇELİŞİRDİ (sürekli katmanlanan sesler karman çorman/gürültülü bir
+   * karışıma yol açardı).
+   */
+  hoofSprint: {
+    /** [0, 1] — bu ORANIN üstünde "fast" katmanı DURUP "sprint" katmanı başlar; `hoofFast.speedRatioThreshold`den HER ZAMAN büyük olmalıdır. */
+    speedRatioThreshold: number;
+    layerVolume: number;
+  };
 }

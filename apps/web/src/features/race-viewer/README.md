@@ -679,3 +679,75 @@ Yapısal olarak doğru yazılmıştır (gerçek Three.js/`@react-three/fiber`
 API'lerine göre); daha önceki fazlarda (`fix(build)`, `fix(ci)` commit'leri)
 olduğu gibi, CI ilk çalıştırmada bir hata bulursa bir sonraki oturumda
 hızlıca düzeltilecektir.
+
+## Dördüncü öz-denetim turu (proje sahibinin "notta eksik bişi kalmasın" talebiyle)
+
+Üçüncü turun ("Başka notta neler var" sorusuna verilen envanterde)
+AÇIKÇA "isterseniz şimdi yapayım" diye SORULMUŞ tek somut madde
+(§9 tribün/crowd-billboard instancing) VE İKİ tane, hiç sorulmadan
+YENİDEN değerlendirilip GERÇEK bir telemetri/tasarım gerekçesiyle
+kapatılabilen madde (§15 Start Gate ambient sesi, §18 HOOF_FAST/
+HOOF_SPRINT) bu turda ele alındı — proje sahibinin isteği genel bir
+"devam et" talimatı olduğundan, önceki turda "isterseniz" diye
+SORULMUŞ olan §9 maddesi de bu YEŞİL IŞIK kapsamında sayılıp yapıldı:
+
+1. **`track-path.ts`**'e YENİ, SAF bir fonksiyon eklendi:
+   `getOutwardBoundaryPoint(distanceMeters, turnCount, geometry,
+   offsetMeters)` — pist orta hattından pistin DIŞINA doğru (nümerik
+   teğet türevinden 90° döndürülmüş normal ile) offsetli bir nokta
+   hesaplar. Düz kenarlarda VE virajlarda AYNI kod yoluyla çalışır,
+   virajın kendi merkez noktasını AYRICA bilmeye GEREK DUYMAZ — yönü
+   (dışa mı içe mi baktığı) pistin dört farklı segmentinde (alt düz
+   kenar, sağ viraj, üst düz kenar, sol viraj) ELLE doğrulandı (bkz.
+   `track-path.spec.ts`teki `getOutwardBoundaryPoint` describe bloğu, 8
+   test). Bu fonksiyon `RaceScene3D.tsx`teki YENİ `CrowdBillboards`
+   bileşeninin (aşağıya bkz.) pozisyon kaynağıdır — render kodunun
+   KENDİSİ CI-only doğrulanabilir OLSA da, billboard'ların pist üzerinde
+   DOĞRU yerde durup durmadığının GERÇEK matematiği bu sandbox'ta
+   %100 test edildi.
+2. **`RaceScene3D.tsx`**'e `CrowdBillboards` bileşeni eklendi —
+   `TrackSurface` ile AYNI desende (tek `InstancedMesh`) pistin
+   çevresine 48 billboard yerleştirir. `CROWD_BILLBOARD_TEXTURE_
+   REQUIRED` HÂLÂ dokusuz (KTX2 transcoder pipeline'ı bu sandbox'ta
+   kurulamaz — bkz. `docs/ASSET_GUIDE.md`teki güncellenmiş girişi VE
+   "Bilinçli olarak HENÜZ ele alınmayan" bölümündeki YENİ madde), bu
+   yüzden düz renkli bir placeholder materyal kullanıldı — "tribünde
+   hiçbir şey yok" durumundan "tribünde kalabalık VAR ama dokusuz"
+   durumuna geçildi, `HorseMarker`in kapsül+küre ilkel şekliyle AYNI
+   disiplin.
+3. **`audio-manager.ts`**'e iki YENİ, YENİ bir Race Engine sinyali
+   GEREKTİRMEYEN eksik kapatıldı: `startGateAmbience()`/
+   `stopGateAmbience()` (brief §15, `startStadiumAmbience` ile AYNI
+   desen) ve `updateHoofTempoLayer` (brief §18 HOOF_FAST/HOOF_SPRINT,
+   `updateHoofbeatIntensity`nin ZATEN hesapladığı hız oranını iki
+   eşikle karşılaştırıp kademeli bir ek doku katmanı yönetir). Üçüncü
+   asset (`asset-manifest.ts`'e 3 yeni giriş: `START_GATE_AMBIENT_SFX_
+   REQUIRED`, `HOOF_FAST_SFX_REQUIRED`, `HOOF_SPRINT_SFX_REQUIRED`) ve
+   `AudioConfig`e (`packages/game-config/src/types.ts`) karşılık gelen
+   alanlar (`startGateAmbientVolume`, `hoofFast`, `hoofSprint`) eklendi.
+   **NEDEN bunlar Tier 2 DEĞİL, Tier 1 oldu:** önceki turda "Race
+   Engine'in yaymadığı bir sinyale ihtiyaç duyar" denilen `START_GATE`
+   YANLIŞ bir varsayımdı — bu bir SİMÜLASYON olayı değil, çağıranın
+   kendi kararıyla tetikleyebileceği bir UI/sunum durumu; `HOOF_FAST`/
+   `HOOF_SPRINT` ise ZATEN VAR OLAN hız oranı telemetrisinin sadece
+   İKİ eşikle karşılaştırılmasıydı, YENİ bir hesaplama İCAT EDİLMEDİ.
+4. **`HORSE_GALLOP`/`HORSE_FAST_GALLOP`** İSE KASITLI OLARAK
+   KAPATILMADI — bu ikisi için `HOOF_FAST`/`HOOF_SPRINT`teki gibi net
+   bir telemetri AYRIMI yok, sadece brief'in kendi kategorizasyonu var;
+   burada bir varsayımla asset EKLEMEK yerine `docs/ASSET_GUIDE.md`de
+   AÇIKÇA "hâlâ bir ürün kararı bekliyor" olarak GÜNCELLENDİ.
+
+**Doğrulama (dördüncü geçiş):** gerçek `tsc --noEmit` (0 hata, hem
+`apps/web/tsconfig.logic.json` hem `packages/game-config/tsconfig.json`)
++ gerçek `tsx` ile çalıştırılan: `track-path.spec.ts` 28/28 (8 yeni
+`getOutwardBoundaryPoint` testi), `audio-manager.spec.ts` 71/71 (15 yeni
+test: 7 `startGateAmbience`/`stopGateAmbience`, 8 hız-katmanlı nal
+sesi), `config.spec.ts` 33/33 (3 yeni test). `RaceScene3D.tsx`teki YENİ
+`CrowdBillboards` bileşeni, dosyanın GERİ KALANIYLA AYNI kısıta tabidir
+(bu sandbox'ta `three`/`@react-three/fiber` kurulu olmadığından SADECE
+`ts.transpileModule` ile sözdizimi kontrolü yapılabildi, hata YOK) —
+gerçek tip/davranış doğrulaması CI'dadır. Bir test hassasiyeti sorunu
+(`getOutwardBoundaryPoint`in viraj testlerinde nümerik teğet türevinin
+BEKLENEN küçük yaklaşıklık hatası, `toBeCloseTo` hassasiyeti 4'ten 3'e
+gevşetilerek — YANLIŞ implementasyon DEĞİL, ayrık örneklemenin doğal
+sonucu) yine gerçek çalıştırmayla YAKALANIP düzeltildi.

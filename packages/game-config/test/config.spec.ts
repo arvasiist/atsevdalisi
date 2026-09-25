@@ -272,4 +272,39 @@ describe('loadAudioConfig', () => {
     expect(config.photoFinishVolume).toBeGreaterThanOrEqual(0);
     expect(config.photoFinishVolume).toBeLessThanOrEqual(1);
   });
+
+  /**
+   * Üçüncü öz-denetim turu (bu turda EKLENDİ) — brief §15 "Start Gate"
+   * ortam sesi (bkz. `RaceAudioManager.startGateAmbience`).
+   */
+  it('startGateAmbientVolume [0, 1] aralığında olmalı', () => {
+    const config = loadAudioConfig();
+    expect(config.startGateAmbientVolume).toBeGreaterThanOrEqual(0);
+    expect(config.startGateAmbientVolume).toBeLessThanOrEqual(1);
+  });
+
+  /**
+   * Üçüncü öz-denetim turu (bu turda EKLENDİ) — brief §18 "HOOF_FAST"/
+   * "HOOF_SPRINT" hız-katmanlı nal sesi (bkz. `updateHoofTempoLayer`).
+   * `hoofFast.speedRatioThreshold`in `hoofSprint.speedRatioThreshold`den
+   * KESİNLİKLE küçük olması gerekir — aksi halde `updateHoofTempoLayer`in
+   * "kademeli" (tiered) durum makinesi ASLA "fast" durumuna GİRMEZDİ
+   * (sprint eşiği her zaman ÖNCE tetiklenirdi).
+   */
+  it('hoofFast/hoofSprint hacimleri [0, 1] aralığında olmalı', () => {
+    const config = loadAudioConfig();
+    expect(config.hoofFast.layerVolume).toBeGreaterThanOrEqual(0);
+    expect(config.hoofFast.layerVolume).toBeLessThanOrEqual(1);
+    expect(config.hoofSprint.layerVolume).toBeGreaterThanOrEqual(0);
+    expect(config.hoofSprint.layerVolume).toBeLessThanOrEqual(1);
+  });
+
+  it('hoofFast.speedRatioThreshold [0, 1] aralığında ve hoofSprint.speedRatioThresholdden KESİNLİKLE küçük olmalı', () => {
+    const config = loadAudioConfig();
+    expect(config.hoofFast.speedRatioThreshold).toBeGreaterThanOrEqual(0);
+    expect(config.hoofFast.speedRatioThreshold).toBeLessThanOrEqual(1);
+    expect(config.hoofSprint.speedRatioThreshold).toBeGreaterThanOrEqual(0);
+    expect(config.hoofSprint.speedRatioThreshold).toBeLessThanOrEqual(1);
+    expect(config.hoofFast.speedRatioThreshold).toBeLessThan(config.hoofSprint.speedRatioThreshold);
+  });
 });

@@ -90,6 +90,21 @@
  *   metotlar (`playHorseSnort`/`playHorseNeigh`/`playHorseMovement`)
  *   olarak eklendi — brief'in KENDİSİ de bu fazda "gerçek tetikleme
  *   mantığı DEĞİL, altyapı" ister.
+ *
+ * Üçüncü öz-denetim turu (proje sahibinin "notta eksik bişi kalmasın"
+ * talebiyle, bu turda EKLENDİ) — iki YENİ eksik kapatıldı, ikisi de YENİ
+ * bir Race Engine sinyali VEYA ürün kararı GEREKTİRMEDEN:
+ * - §15 "Start Gate" ortam sesi — `startStadiumAmbience` ile BİREBİR AYNI
+ *   "çağıranın kararıyla başlat/durdur" deseninde `startGateAmbience`/
+ *   `stopGateAmbience` eklendi (bkz. o metotların doc yorumu, HANGİ ANDA
+ *   çağrılacağı bir UI/sunum kararıdır, bu dosyanın KENDİSİ bunu
+ *   VARSAYMAZ).
+ * - §18 "HOOF_FAST"/"HOOF_SPRINT" — `updateHoofbeatIntensity`nin ZATEN
+ *   aldığı `speedMps`/`maxSpeedMps` oranı, artık SADECE mevcut nal
+ *   sesinin hacmini DEĞİL, `updateHoofTempoLayer` üzerinden EK bir
+ *   "dörtnala/sprint" doku katmanının başlayıp/durmasını da yönetir —
+ *   YENİ bir telemetri alanı İCAT EDİLMEDİ, ZATEN VAR OLAN hız oranı
+ *   İKİ FARKLI eşikle karşılaştırılıyor.
  */
 
 import type { RaceSurface } from '@at-sevdalisi/shared-types';
@@ -239,6 +254,11 @@ export class RaceAudioManager {
   private crowdPlaying = false;
   private windPlaying = false;
   private stadiumAmbientPlaying = false;
+  /** Üçüncü öz-denetim turu (bu turda EKLENDİ) — bkz. `startGateAmbience`. */
+  private gateAmbientPlaying = false;
+  /** Üçüncü öz-denetim turu (bu turda EKLENDİ) — bkz. `updateHoofTempoLayer`. `hoofFastPlaying`/`hoofSprintPlaying` AYNI ANDA `true` OLAMAZ (bkz. o metodun doc yorumu). */
+  private hoofFastPlaying = false;
+  private hoofSprintPlaying = false;
   private musicPlaying = false;
   private musicDucked = false;
   /** `setChannelVolume`'un o an çalan döngülü sesi ANINDA yeniden hesaplayabilmesi için son bilinen yoğunluk oranı (bkz. `reapplyActiveLoopVolumes`). */
@@ -454,6 +474,27 @@ export class RaceAudioManager {
     this.activeHoofbeatAssetId = null;
     this.surfaceHoofbeatAssetId = null;
     this.hoofbeatTurning = false;
+    // Üçüncü öz-denetim turu (bu turda EKLENDİ) — taban nal sesi
+    // DURDUĞUNDA, ÜZERİNE eklenmiş hız-katmanı (fast/sprint) da MUTLAKA
+    // durdurulmalıdır; aksi halde yarış bittikten SONRA bile duyulmaya
+    // devam ederdi (`updateHoofTempoLayer`'ın kendisi SADECE `hoofbeat
+    // Playing === true` iken ÇAĞRILDIĞINDAN bu iki bayrağı normal akışta
+    // KENDİSİ sıfırlamaz — bu yüzden `finish`/başka bir `stopHoofbeats`
+    // çağrısında AÇIKÇA temizlenmesi GEREKİR).
+    if (this.hoofFastPlaying) {
+      const fastAsset = getAssetById('HOOF_FAST_SFX_REQUIRED');
+      if (fastAsset) {
+        this.backend.stop(fastAsset.expectedPath);
+      }
+      this.hoofFastPlaying = false;
+    }
+    if (this.hoofSprintPlaying) {
+      const sprintAsset = getAssetById('HOOF_SPRINT_SFX_REQUIRED');
+      if (sprintAsset) {
+        this.backend.stop(sprintAsset.expectedPath);
+      }
+      this.hoofSprintPlaying = false;
+    }
   }
 
   /**
@@ -512,6 +553,79 @@ export class RaceAudioManager {
       asset.expectedPath,
       this.resolveVolume('horse', this.config.hoofbeat.baseVolume + ratio * this.config.hoofbeat.maxExtraVolume),
     );
+    this.updateHoofTempoLayer(ratio);
+  }
+
+  /**
+   * "REALISTIC 3D ASSET & AUDIO PRODUCTION BRIEF" §18 "HOOF_FAST"/
+   * "HOOF_SPRINT" (bu turda EKLENDİ) — `updateHoofbeatIntensity`nin ZATEN
+   * hesapladığı hız oranını (`ratio`, YENİ bir telemetri İCAT EDİLMEDİ)
+   * iki eşikle karşılaştırıp KADEMELİ (tiered) bir ek doku katmanı
+   * yönetir: `ratio < hoofFast eşiği` → SADECE taban yüzey/viraj nal
+   * sesi; eşik AŞILIRSA `HOOF_FAST_SFX_REQUIRED` katmanı EK olarak (taban
+   * sesi DURDURMADAN) başlar; `hoofSprint` eşiği de AŞILIRSA `fast`
+   * katmanı DURUP `HOOF_SPRINT_SFX_REQUIRED` katmanı başlar. Bu ÜÇ
+   * durumun (yok/fast/sprint) AYNI ANDA en fazla BİRİ aktif olabilir —
+   * `switchToExcitedCrowd`teki "yeniyi başlat, eskiyi durdur" çapraz geçiş
+   * deseninden FARKLI olarak burada crossfade YOK (kısa bir çakışma
+   * SORUN DEĞİL, ama gereksiz), sadece durum makinesi guard'ları.
+   * Katman asset'i YOKSA (ikisi de HENÜZ repoda yok, bkz. `asset-manifest.
+   * ts`) sessizce ATLANIR — taban nal sesi ETKİLENMEZ.
+   */
+  private updateHoofTempoLayer(ratio: number): void {
+    const wantsSprint = ratio >= this.config.hoofSprint.speedRatioThreshold;
+    const wantsFast = !wantsSprint && ratio >= this.config.hoofFast.speedRatioThreshold;
+
+    if (wantsSprint) {
+      if (this.hoofFastPlaying) {
+        const fastAsset = getAssetById('HOOF_FAST_SFX_REQUIRED');
+        if (fastAsset) {
+          this.backend.stop(fastAsset.expectedPath);
+        }
+        this.hoofFastPlaying = false;
+      }
+      if (!this.hoofSprintPlaying) {
+        const sprintAsset = getAssetById('HOOF_SPRINT_SFX_REQUIRED');
+        if (sprintAsset) {
+          this.backend.play(sprintAsset.expectedPath, {
+            loop: true,
+            volume: this.resolveVolume('horse', this.config.hoofSprint.layerVolume),
+          });
+          this.hoofSprintPlaying = true;
+        }
+      }
+      return;
+    }
+
+    if (this.hoofSprintPlaying) {
+      const sprintAsset = getAssetById('HOOF_SPRINT_SFX_REQUIRED');
+      if (sprintAsset) {
+        this.backend.stop(sprintAsset.expectedPath);
+      }
+      this.hoofSprintPlaying = false;
+    }
+
+    if (wantsFast) {
+      if (!this.hoofFastPlaying) {
+        const fastAsset = getAssetById('HOOF_FAST_SFX_REQUIRED');
+        if (fastAsset) {
+          this.backend.play(fastAsset.expectedPath, {
+            loop: true,
+            volume: this.resolveVolume('horse', this.config.hoofFast.layerVolume),
+          });
+          this.hoofFastPlaying = true;
+        }
+      }
+      return;
+    }
+
+    if (this.hoofFastPlaying) {
+      const fastAsset = getAssetById('HOOF_FAST_SFX_REQUIRED');
+      if (fastAsset) {
+        this.backend.stop(fastAsset.expectedPath);
+      }
+      this.hoofFastPlaying = false;
+    }
   }
 
   /**
@@ -687,6 +801,48 @@ export class RaceAudioManager {
   }
 
   /**
+   * "REALISTIC 3D ASSET & AUDIO PRODUCTION BRIEF" §15 "Start Gate" (bu
+   * turda EKLENDİ) — atlar kapıya YERLEŞTİRİLİRKEN (yarış BAŞLAMADAN
+   * önceki bekleme penceresi) çalınan mekanik/atmosferik kapı sesi
+   * (loop, `environment` kanalı). `startStadiumAmbience` ile BİREBİR AYNI
+   * "çağıranın kararıyla başlat/durdur" deseni — bu metot `handleEvent`e
+   * BAĞLI DEĞİLDİR, çünkü "atlar kapıya yerleşiyor" Race Engine'in
+   * yaydığı bir SİMÜLASYON olayı DEĞİL, yarış BAŞLAMADAN ÖNCEKİ bir UI/
+   * sunum durumudur (`race_start`, kapılar AÇILDIKTAN SONRAKİ ANI işaret
+   * eder, yani bu sesin DURMASI GEREKEN an zaten `race_start`tan ÖNCEDİR)
+   * — bu yüzden ÇAĞIRANIN (gelecekteki bir "yarış öncesi hazırlık" ekranı)
+   * kendi zamanlamasıyla `startGateAmbience()`/`stopGateAmbience()`
+   * çağırması BEKLENİR, `handleEvent('race_start')` içine GÖMÜLMEZ (aksi
+   * halde kapı sesi yarış BAŞLADIKTAN SONRA da çalmaya devam ederdi, ki
+   * bu YANLIŞ olurdu).
+   */
+  startGateAmbience(): void {
+    if (this.gateAmbientPlaying) {
+      return;
+    }
+    const asset = getAssetById('START_GATE_AMBIENT_SFX_REQUIRED');
+    if (!asset) {
+      return;
+    }
+    this.backend.play(asset.expectedPath, {
+      loop: true,
+      volume: this.resolveVolume('environment', this.config.startGateAmbientVolume),
+    });
+    this.gateAmbientPlaying = true;
+  }
+
+  stopGateAmbience(): void {
+    if (!this.gateAmbientPlaying) {
+      return;
+    }
+    const asset = getAssetById('START_GATE_AMBIENT_SFX_REQUIRED');
+    if (asset) {
+      this.backend.stop(asset.expectedPath);
+    }
+    this.gateAmbientPlaying = false;
+  }
+
+  /**
    * Brief §31 "Commentary" (bu turda EKLENDİ) — `COMMENTARY_VOICE_REQUIRED`
    * TEK bir dosya DEĞİL, bir KLASÖRdür (bkz. o asset'in doc yorumu) —
    * HANGİ klibin çalınacağına ÇAĞIRAN karar verir (ör. "start veriliyor"
@@ -819,6 +975,24 @@ export class RaceAudioManager {
         this.backend.setVolume(asset.expectedPath, this.resolveVolume('environment', this.config.stadiumAmbientVolume));
       }
     }
+    if (this.gateAmbientPlaying) {
+      const asset = getAssetById('START_GATE_AMBIENT_SFX_REQUIRED');
+      if (asset) {
+        this.backend.setVolume(asset.expectedPath, this.resolveVolume('environment', this.config.startGateAmbientVolume));
+      }
+    }
+    if (this.hoofFastPlaying) {
+      const asset = getAssetById('HOOF_FAST_SFX_REQUIRED');
+      if (asset) {
+        this.backend.setVolume(asset.expectedPath, this.resolveVolume('horse', this.config.hoofFast.layerVolume));
+      }
+    }
+    if (this.hoofSprintPlaying) {
+      const asset = getAssetById('HOOF_SPRINT_SFX_REQUIRED');
+      if (asset) {
+        this.backend.setVolume(asset.expectedPath, this.resolveVolume('horse', this.config.hoofSprint.layerVolume));
+      }
+    }
   }
 
   /** Testler/temizlik için — bileşen unmount olduğunda (`useEffect` cleanup) çağrılır. */
@@ -828,6 +1002,7 @@ export class RaceAudioManager {
     this.stopCrowdAmbience();
     this.stopWindAmbience();
     this.stopStadiumAmbience();
+    this.stopGateAmbience();
     const music = getAssetById('RACE_BACKGROUND_MUSIC_REQUIRED');
     if (music) {
       this.backend.stop(music.expectedPath);

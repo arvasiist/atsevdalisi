@@ -158,6 +158,60 @@ export function isOnTrackTurn(distanceMeters: number, turnCount: number, geometr
   return true; // Sol viraj (tur kapanışı).
 }
 
+/**
+ * "REALISTIC 3D ASSET & AUDIO PRODUCTION BRIEF" §9 "Tribün/kalabalık"
+ * (bu turda EKLENDİ) — pist ORTA HATTINDAN (`getHorseTrackPosition`in
+ * döndürdüğü nokta) `offsetMeters` kadar PİSTİN DIŞINA doğru kaydırılmış
+ * bir nokta. Tribün billboard'larının (`RaceScene3D.tsx`teki
+ * `CrowdBillboards`, bu turda EKLENDİ) pist boyunca, pistin İÇİNE
+ * TAŞMADAN yerleştirilebilmesi için gerekli GERÇEK bir geometri
+ * hesabıdır — `TrackSurface`'ın tile'ları GİBİ SAF ve bu ortamda `tsc`/
+ * `tsx` ile GERÇEKTEN doğrulanabilir (üç.js'e bağımlı DEĞİLDİR).
+ *
+ * Yöntem: `distanceMeters` ve `distanceMeters + epsilon`'daki iki merkez
+ * hattı noktası arasındaki teğet (tangent) vektör çıkarılır, bu vektör
+ * 90° döndürülerek pistin dışına bakan normal ELDE EDİLİR — bu, düz
+ * kenarlarda VE virajlarda AYNI kod yoluyla çalışır, virajın merkez
+ * noktasını (`pointOnTurn`in `centerX`/`centerZ`si) AYRICA BİLMEYE
+ * GEREK DUYMAZ. Döndürme yönü (teğeti SAAT YÖNÜNDE 90° çevirmek —
+ * `(dx,dz) → (dz,-dx)`), bu pistin KENDİ traversal yönüyle (bkz.
+ * `getPointOnStadiumTrack`in sağ viraj → üst düz → sol viraj sıralaması)
+ * TUTARLI olacak şekilde alt düz kenar (z=-radius, dışı DAHA NEGATİF z),
+ * üst düz kenar (z=+radius, dışı DAHA POZİTİF z) VE her iki viraj için
+ * elle DOĞRULANMIŞTIR (bkz. `track-path.spec.ts`teki test'ler — dört
+ * segmentin HER BİRİNDE beklenen yöne göre bir nokta üretir).
+ *
+ * Dejenere geometri (`lapLengthMeters <= 0`) veya teğet sıfır çıkarsa
+ * (teorik olarak imkansız ama savunmacı programlama) OFFSET UYGULANMADAN
+ * orijinal nokta döner — `isOnTrackTurn`in "bölme hatası oluşturmaz"
+ * disipliniyle AYNI.
+ */
+export function getOutwardBoundaryPoint(
+  distanceMeters: number,
+  turnCount: number,
+  geometry: StadiumTrackGeometry,
+  offsetMeters: number,
+): TrackPathPoint {
+  const TANGENT_EPSILON_METERS = 0.5;
+  const point = getHorseTrackPosition(distanceMeters, turnCount, geometry);
+  const ahead = getHorseTrackPosition(distanceMeters + TANGENT_EPSILON_METERS, turnCount, geometry);
+  const tangentX = ahead.x - point.x;
+  const tangentZ = ahead.z - point.z;
+  const tangentLength = Math.sqrt(tangentX * tangentX + tangentZ * tangentZ);
+  if (tangentLength === 0) {
+    return point;
+  }
+  const normalizedTangentX = tangentX / tangentLength;
+  const normalizedTangentZ = tangentZ / tangentLength;
+  const outwardX = normalizedTangentZ;
+  const outwardZ = -normalizedTangentX;
+  return {
+    x: point.x + outwardX * offsetMeters,
+    z: point.z + outwardZ * offsetMeters,
+    headingRadians: point.headingRadians,
+  };
+}
+
 function pointOnTurn(centerX: number, centerZ: number, radius: number, angleRadians: number): TrackPathPoint {
   const x = centerX + radius * Math.cos(angleRadians);
   const z = centerZ + radius * Math.sin(angleRadians);

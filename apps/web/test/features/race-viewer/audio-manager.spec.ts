@@ -747,3 +747,198 @@ describe('RaceAudioManager — environment kanalı (brief §21)', () => {
     expect(manager.getChannelVolume('environment')).toBe(config.volumeChannels.environment);
   });
 });
+
+/**
+ * Üçüncü öz-denetim turu (bu turda EKLENDİ) — "REALISTIC 3D ASSET & AUDIO
+ * PRODUCTION BRIEF" §15 "Start Gate": `startStadiumAmbience` ile AYNI
+ * "çağıranın kararıyla başlat/durdur" deseni, `handleEvent`e BAĞLI DEĞİL.
+ */
+describe('RaceAudioManager.startGateAmbience / stopGateAmbience (brief §15)', () => {
+  it('environment kanalında, döngülü olarak çalar', () => {
+    const { backend, calls } = createRecordingBackend();
+    const manager = new RaceAudioManager(config, backend);
+    manager.startGateAmbience();
+
+    const gatePath = getAssetById('START_GATE_AMBIENT_SFX_REQUIRED')!.expectedPath;
+    const call = calls.find((c) => c.method === 'play' && c.path === gatePath);
+    expect(call).toBeDefined();
+    expect(call!.options?.loop).toBe(true);
+    expect(call!.options?.volume).toBeCloseTo(config.startGateAmbientVolume * config.volumeChannels.master, 6);
+  });
+
+  it('zaten çalıyorken tekrar çağrılırsa YENİDEN başlatmaz (guard)', () => {
+    const { backend, calls } = createRecordingBackend();
+    const manager = new RaceAudioManager(config, backend);
+    manager.startGateAmbience();
+    calls.length = 0;
+    manager.startGateAmbience();
+
+    expect(calls.length).toBe(0);
+  });
+
+  it('stopGateAmbience çalan sesi durdurur', () => {
+    const { backend, calls } = createRecordingBackend();
+    const manager = new RaceAudioManager(config, backend);
+    manager.startGateAmbience();
+    calls.length = 0;
+    manager.stopGateAmbience();
+
+    const gatePath = getAssetById('START_GATE_AMBIENT_SFX_REQUIRED')!.expectedPath;
+    expect(calls.some((c) => c.method === 'stop' && c.path === gatePath)).toBe(true);
+  });
+
+  it('hiç başlamamışken stopGateAmbience çağrılırsa hiçbir şey yapmaz', () => {
+    const { backend, calls } = createRecordingBackend();
+    const manager = new RaceAudioManager(config, backend);
+    manager.stopGateAmbience();
+
+    expect(calls.length).toBe(0);
+  });
+
+  it('race_start/handleEvent BUNU tetiklemez — çağıranın kendi kararıyla başlatılması BEKLENİR', () => {
+    const { backend, calls } = createRecordingBackend();
+    const manager = new RaceAudioManager(config, backend);
+    manager.handleEvent({ type: 'race_start' });
+
+    const gatePath = getAssetById('START_GATE_AMBIENT_SFX_REQUIRED')!.expectedPath;
+    expect(calls.some((c) => c.path === gatePath)).toBe(false);
+  });
+
+  it('stopAll gate ambiyansını da durdurur', () => {
+    const { backend, calls } = createRecordingBackend();
+    const manager = new RaceAudioManager(config, backend);
+    manager.startGateAmbience();
+    calls.length = 0;
+    manager.stopAll();
+
+    const gatePath = getAssetById('START_GATE_AMBIENT_SFX_REQUIRED')!.expectedPath;
+    expect(calls.some((c) => c.method === 'stop' && c.path === gatePath)).toBe(true);
+  });
+
+  it('backend olmadan hata fırlatmaz', () => {
+    const manager = new RaceAudioManager(config);
+    expect(() => manager.startGateAmbience()).not.toThrow();
+    expect(() => manager.stopGateAmbience()).not.toThrow();
+  });
+});
+
+/**
+ * Üçüncü öz-denetim turu (bu turda EKLENDİ) — "REALISTIC 3D ASSET & AUDIO
+ * PRODUCTION BRIEF" §18 "HOOF_FAST"/"HOOF_SPRINT": hız oranına göre
+ * KADEMELİ ek doku katmanı (bkz. `updateHoofTempoLayer`'ın doc yorumu).
+ */
+describe('RaceAudioManager — hız-katmanlı nal sesi (HOOF_FAST/HOOF_SPRINT, brief §18)', () => {
+  it('hız oranı fast eşiğinin ALTINDAYKEN hiçbir katman çalmaz', () => {
+    const { backend, calls } = createRecordingBackend();
+    const manager = new RaceAudioManager(config, backend);
+    manager.handleEvent({ type: 'race_start' });
+    calls.length = 0;
+
+    const belowFastSpeed = (config.hoofFast.speedRatioThreshold - 0.1) * 10;
+    manager.updateHoofbeatIntensity(belowFastSpeed, 10);
+
+    const fastPath = getAssetById('HOOF_FAST_SFX_REQUIRED')!.expectedPath;
+    const sprintPath = getAssetById('HOOF_SPRINT_SFX_REQUIRED')!.expectedPath;
+    expect(calls.some((c) => c.path === fastPath)).toBe(false);
+    expect(calls.some((c) => c.path === sprintPath)).toBe(false);
+  });
+
+  it('hız oranı fast eşiğini AŞINCA taban sesi durdurmadan HOOF_FAST katmanını EKLER', () => {
+    const { backend, calls } = createRecordingBackend();
+    const manager = new RaceAudioManager(config, backend);
+    manager.handleEvent({ type: 'race_start' });
+    calls.length = 0;
+
+    const fastSpeed = (config.hoofFast.speedRatioThreshold + 0.05) * 10;
+    manager.updateHoofbeatIntensity(fastSpeed, 10);
+
+    const fastPath = getAssetById('HOOF_FAST_SFX_REQUIRED')!.expectedPath;
+    const genericHoofPath = getAssetById('HOOFBEAT_SFX_REQUIRED')!.expectedPath;
+    const fastCall = calls.find((c) => c.method === 'play' && c.path === fastPath);
+    expect(fastCall).toBeDefined();
+    expect(fastCall!.options?.loop).toBe(true);
+    expect(fastCall!.options?.volume).toBeCloseTo(config.hoofFast.layerVolume * config.volumeChannels.master, 6);
+    expect(calls.some((c) => c.method === 'stop' && c.path === genericHoofPath)).toBe(false);
+  });
+
+  it('hız oranı sprint eşiğini AŞINCA fast katmanı DURUR, sprint katmanı BAŞLAR', () => {
+    const { backend, calls } = createRecordingBackend();
+    const manager = new RaceAudioManager(config, backend);
+    manager.handleEvent({ type: 'race_start' });
+
+    const fastSpeed = (config.hoofFast.speedRatioThreshold + 0.05) * 10;
+    manager.updateHoofbeatIntensity(fastSpeed, 10);
+    calls.length = 0;
+
+    const sprintSpeed = (config.hoofSprint.speedRatioThreshold + 0.05) * 10;
+    manager.updateHoofbeatIntensity(sprintSpeed, 10);
+
+    const fastPath = getAssetById('HOOF_FAST_SFX_REQUIRED')!.expectedPath;
+    const sprintPath = getAssetById('HOOF_SPRINT_SFX_REQUIRED')!.expectedPath;
+    expect(calls.some((c) => c.method === 'stop' && c.path === fastPath)).toBe(true);
+    const sprintCall = calls.find((c) => c.method === 'play' && c.path === sprintPath);
+    expect(sprintCall).toBeDefined();
+    expect(sprintCall!.options?.loop).toBe(true);
+    expect(sprintCall!.options?.volume).toBeCloseTo(config.hoofSprint.layerVolume * config.volumeChannels.master, 6);
+  });
+
+  it('hız DÜŞÜP fast eşiğinin ALTINA inince sprint/fast katmanları DURUR', () => {
+    const { backend, calls } = createRecordingBackend();
+    const manager = new RaceAudioManager(config, backend);
+    manager.handleEvent({ type: 'race_start' });
+
+    const sprintSpeed = (config.hoofSprint.speedRatioThreshold + 0.05) * 10;
+    manager.updateHoofbeatIntensity(sprintSpeed, 10);
+    calls.length = 0;
+
+    const belowFastSpeed = (config.hoofFast.speedRatioThreshold - 0.1) * 10;
+    manager.updateHoofbeatIntensity(belowFastSpeed, 10);
+
+    const sprintPath = getAssetById('HOOF_SPRINT_SFX_REQUIRED')!.expectedPath;
+    expect(calls.some((c) => c.method === 'stop' && c.path === sprintPath)).toBe(true);
+  });
+
+  it('stopHoofbeats (finish) çalan fast/sprint katmanlarını da durdurur', () => {
+    const { backend, calls } = createRecordingBackend();
+    const manager = new RaceAudioManager(config, backend);
+    manager.handleEvent({ type: 'race_start' });
+    const sprintSpeed = (config.hoofSprint.speedRatioThreshold + 0.05) * 10;
+    manager.updateHoofbeatIntensity(sprintSpeed, 10);
+    calls.length = 0;
+
+    manager.handleEvent({ type: 'finish' });
+
+    const sprintPath = getAssetById('HOOF_SPRINT_SFX_REQUIRED')!.expectedPath;
+    expect(calls.some((c) => c.method === 'stop' && c.path === sprintPath)).toBe(true);
+  });
+
+  it('nal sesi hiç başlamamışken (race_start çağrılmadan) updateHoofbeatIntensity hiçbir katman başlatmaz', () => {
+    const { backend, calls } = createRecordingBackend();
+    const manager = new RaceAudioManager(config, backend);
+    manager.updateHoofbeatIntensity(100, 10);
+
+    expect(calls.length).toBe(0);
+  });
+
+  it('setChannelVolume çağrıldığında çalan fast katmanının hacmi ANINDA yeniden uygulanır', () => {
+    const { backend, calls } = createRecordingBackend();
+    const manager = new RaceAudioManager(config, backend);
+    manager.handleEvent({ type: 'race_start' });
+    const fastSpeed = (config.hoofFast.speedRatioThreshold + 0.05) * 10;
+    manager.updateHoofbeatIntensity(fastSpeed, 10);
+    calls.length = 0;
+
+    manager.setChannelVolume('horse', 0.4);
+
+    const fastPath = getAssetById('HOOF_FAST_SFX_REQUIRED')!.expectedPath;
+    const call = calls.find((c) => c.method === 'setVolume' && c.path === fastPath);
+    expect(call).toBeDefined();
+    expect(call!.volume!).toBeCloseTo(config.hoofFast.layerVolume * 0.4 * config.volumeChannels.master, 6);
+  });
+
+  it('backend olmadan hata fırlatmaz', () => {
+    const manager = new RaceAudioManager(config);
+    manager.handleEvent({ type: 'race_start' });
+    expect(() => manager.updateHoofbeatIntensity(100, 10)).not.toThrow();
+  });
+});

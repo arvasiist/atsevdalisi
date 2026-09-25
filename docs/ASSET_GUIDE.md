@@ -156,7 +156,23 @@ fake GLB files or use unlicensed assets") burada mutlak bir çizgidir.
 - **Yol:** `apps/web/public/textures/crowd-billboard.ktx2`
 - **Gereksinim:** Tribün kalabalığı için instanced billboard dokusu
   (sıkıştırılmış KTX2/Basis formatı, mobil kademe uyumlu).
-- **Fallback:** Tribünde görsel bir kalabalık yok (Grup 2 kapsamı).
+- **Fallback (GÜNCELLENDİ, üçüncü öz-denetim turu):** `RaceScene3D.tsx`teki
+  `CrowdBillboards` bileşeni ARTIK pistin çevresinde `TrackSurface` ile
+  AYNI desende (tek `InstancedMesh`, `track-path.ts`teki YENİ
+  `getOutwardBoundaryPoint` fonksiyonuyla hesaplanmış pozisyonlar) bir
+  billboard HALKASI render EDER — yani "tribünde HİÇBİR ŞEY yok" durumu
+  ARTIK GEÇERLİ DEĞİLDİR. Ancak doku YOK: billboard'lar düz renkli
+  (silüet tonunda) bir malzemeyle çizilir. Bunun nedeni bu asset'in
+  eksik OLMASI değil (o zaten biliniyordu) — GERÇEK bir `.ktx2` yüklemesi
+  `THREE.KTX2Loader` + Basis transcoder dosyaları (normalde
+  `node_modules/three/examples/jsm/libs/basis/`den `public/`e
+  KOPYALANIR) gerektirir, ve geliştirme sandbox'ında `three` paketi
+  KURULU OLMADIĞI (npm registry erişimi yok) için bu transcoder kurulumu
+  NE yazılıp NE doğrulanabilir. **Bu yüzden doku YÜKLEME PİPELİNE'I
+  (KTX2Loader + transcoder dosyalarının nereye/nasıl konulacağı) hâlâ
+  bekleyen bir karardır** — gerçek `.ktx2` dosyası VE transcoder kurulumu
+  birlikte eklendiğinde, SADECE `CrowdBillboards`in materyali (doku
+  destekli) değişir, `RaceScene3DProps` arayüzü DEĞİŞMEZ.
 
 ### HOOFBEAT_SFX_REQUIRED
 
@@ -386,6 +402,50 @@ telemetriye dayanan iki eksik daha kapatıldı:
   ile tetiklenir — YENİ bir yakınlık/skor hesaplaması İCAT EDİLMEDİ.
 - **Fallback:** `AudioManager`'ın sessiz no-op modu.
 
+### START_GATE_AMBIENT_SFX_REQUIRED
+
+- **Tür:** Ses efekti (`.mp3`, loop)
+- **Yol:** `apps/web/public/audio/start-gate-ambient-loop.mp3`
+- **Gereksinim:** Brief §15 "Start Gate" — atlar kapıya YERLEŞTİRİLİRKEN
+  (yarış BAŞLAMADAN önceki bekleme penceresi) çalınan mekanik gıcırtı/
+  metal takırtısı gibi kapı-atmosferi sesi. `GATE_OPEN_SFX_REQUIRED`den
+  (kapıların AÇILMA anı, bir seferlik) VE `START_SIGNAL_SFX_REQUIRED`den
+  (hazır-ol düdüğü) KASITLI OLARAK AYRI. `RaceAudioManager.
+  startGateAmbience()`/`stopGateAmbience()` (üçüncü öz-denetim turu, bu
+  turda EKLENDİ) `startStadiumAmbience` ile AYNI "çağıranın kararıyla
+  başlat/durdur" desenindedir — Race Engine'in "atlar kapıya yerleşiyor"
+  ANINI işaretleyen bir sinyali OLMADIĞI için `handleEvent`e BAĞLI
+  DEĞİLDİR, bir yarış-öncesi hazırlık ekranı EKLENDİĞİNDE o ekran
+  tarafından çağrılması BEKLENİR.
+- **Fallback:** `AudioManager`'ın sessiz no-op modu.
+
+### HOOF_FAST_SFX_REQUIRED
+
+- **Tür:** Ses efekti (`.mp3`, loop)
+- **Yol:** `apps/web/public/audio/hoof-fast-layer-loop.mp3`
+- **Gereksinim:** Brief §18 "HOOF_FAST" — hız oranı (`speedMps /
+  maxSpeedMps`, ZATEN VAR OLAN telemetri) `AudioConfig.hoofFast.
+  speedRatioThreshold`i (varsayılan 0.7) AŞTIĞINDA, o an çalan yüzey/
+  viraj nal sesinin (HOOF_GRASS/DIRT/SYNTHETIC/TURN) ÜZERİNE, onu
+  DURDURMADAN eklenen bir "dörtnala geçiş" doku katmanı. `RaceAudioManager.
+  updateHoofTempoLayer` (üçüncü öz-denetim turu, bu turda EKLENDİ, private
+  metot — `updateHoofbeatIntensity` tarafından ÇAĞRILIR) bu katmanı
+  yönetir.
+- **Fallback:** `AudioManager`'ın sessiz no-op modu; asset yoksa taban
+  yüzey nal sesi KESİNTİYE UĞRAMADAN çalmaya devam eder.
+
+### HOOF_SPRINT_SFX_REQUIRED
+
+- **Tür:** Ses efekti (`.mp3`, loop)
+- **Yol:** `apps/web/public/audio/hoof-sprint-layer-loop.mp3`
+- **Gereksinim:** Brief §18 "HOOF_SPRINT" — `HOOF_FAST_SFX_REQUIRED` ile
+  AYNI mekanizma, ama DAHA YÜKSEK bir hız eşiğinde (`AudioConfig.
+  hoofSprint.speedRatioThreshold`, varsayılan 0.9): bu eşik aşıldığında
+  `fast` katmanı DURUP `sprint` katmanı başlar — ikisi AYNI ANDA ÇALMAZ
+  (kademeli/tiered tasarım, bkz. `updateHoofTempoLayer`nin doc yorumu).
+- **Fallback:** `AudioManager`'ın sessiz no-op modu; asset yoksa taban
+  yüzey nal sesi KESİNTİYE UĞRAMADAN çalmaya devam eder.
+
 ## Ses prodüksiyon pipeline'ı (brief §16, bu turda EKLENDİ — 3D model
 Blender pipeline'ının ses karşılığı)
 
@@ -421,7 +481,7 @@ kaydedilen her varlık için TAKİP edilmelidir.
 
 ## Bilinçli olarak HENÜZ ele alınmayan sesler/konular (dürüstlük için belgelendi)
 
-İki öz-denetim turundan sonra bile brief'te KOD/DOKÜMAN OLARAK henüz
+Üç öz-denetim turundan sonra bile brief'te KOD/DOKÜMAN OLARAK henüz
 kapatılmayan bazı noktalar var — bunlar "unutuldu" değil, ya bir ÜRÜN
 KARARI gerektiriyor ya da Race Engine'in ŞU AN yaymadığı bir sinyale
 ihtiyaç duyuyor. Sessizce atlamak yerine burada AÇIKÇA listeleniyor:
@@ -431,35 +491,50 @@ ihtiyaç duyuyor. Sessizce atlamak yerine burada AÇIKÇA listeleniyor:
   TAM OLARAK ne temsil ettikleri (at gövdesi/kas sesi mi, yoksa
   `HOOFBEAT_SFX_REQUIRED`in gallop temposundaki başka bir adı mı)
   belirsiz — mevcut `HORSE_BREATHING_SFX_REQUIRED` (yorgunluğa göre) ve
-  `HOOFBEAT_SFX_REQUIRED`/`HOOF_*` (hıza göre) ZATEN gallop/fast-gallop
-  tempolarını YOĞUNLUK olarak kapsıyor. Bunları AYRI asset'ler olarak
-  eklemek, aradaki farkın NE olduğuna dair bir ÜRÜN KARARI (proje
+  `HOOFBEAT_SFX_REQUIRED`/`HOOF_*` (hıza göre, ÜÇÜNCÜ öz-denetim
+  turunda `HOOF_FAST`/`HOOF_SPRINT` katmanlarıyla DAHA DA
+  GRANÜLERLEŞTİRİLDİ — bkz. aşağıdaki not) ZATEN gallop/fast-gallop
+  tempolarını YOĞUNLUK/doku olarak kapsıyor. Bunları AYRI asset'ler
+  olarak eklemek, aradaki farkın NE olduğuna dair bir ÜRÜN KARARI (proje
   sahibinden) olmadan SPEKÜLATİF olurdu — yanlış bir varsayımla
   eklenirse gerçek asset geldiğinde YANLIŞ bir soyutlama düzeltilmek
-  zorunda kalınır.
-- **`HOOF_FAST`/`HOOF_SPRINT` (tempo bazlı ayrı örnekler):** mevcut
-  yaklaşım (`updateHoofbeatIntensity`) tempo/hızı SÜREKLİ bir hacim
-  interpolasyonuyla simüle eder (tek bir loop, hız arttıkça sadece
-  hacim artar). Brief'in AYRI `HOOF_FAST`/`HOOF_SPRINT` örnekleri
-  istemesi muhtemelen GERÇEKÇİLİK içindir — gerçek nal sesleri hızla
-  sadece YÜKSELMEZ, RİTMİ de değişir (dörtnala geçişte 4 vuruşlu ritim
-  farklılaşır), bu bir TEK loop'un hacmini değiştirerek TAKLİT
-  EDİLEMEZ. Bu, `HOOF_GRASS`/`DIRT`/`SYNTHETIC`/`TURN` ile AYNI desende
-  (ayrı, ÖNCEDEN KAYITLI örnekler) uygulanabilir — ama önce yüzey+viraj
-  denetimi kadar KENDİ İÇİNDE net bir gerekçeye (yukarıdaki gibi GERÇEK
-  bir telemetri sinyaline) ihtiyaç var; hız zaten `updateHoofbeatIntensity`
-  aracılığıyla SÜREKLİ bir sinyal, YENİ bir "hangi eşikte hangi asset"
-  kuralı İCAT ETMEK gerekir — proje sahibi isterse (ör. "sprint eşiği
-  neresi olsun") netleştiğinde eklenir.
-- **`START_GATE` (ambient/mekanik ses, `GATE_OPEN_SFX_REQUIRED`den
-  AYRI):** brief'in "Race sounds" listesinde İKİSİ DE var — `GATE_OPEN`
-  (açılma anı, MEVCUT) ve `START_GATE` (muhtemelen atların kapıya
-  girerken/kapı kapanırken duyulan mekanik gıcırtı/hum sesi). Bu, Race
-  Engine'in ŞU AN yaymadığı YENİ bir yarış-öncesi (`HORSES ENTER`/`GATE
-  ASSIGNMENT`/`GATES CLOSE`/`READY`, bkz. `START_GATE_MODEL_REQUIRED`
-  bölümündeki akış) lifecycle sinyaline ihtiyaç duyar — bu sandbox'ta
-  SPEKÜLATİF bir sinyal İCAT ETMEK yerine, gerçek Race Engine bu fazı
-  yayınladığında eklenmesi bekleniyor (Tier 2).
+  zorunda kalınır. **BİLİNÇLİ KARAR (üçüncü öz-denetim turu):** `HOOF_FAST`/
+  `HOOF_SPRINT`in AKSİNE (aşağıya bkz., orada net bir telemetri sinyali —
+  hız oranı — vardı), bu madde için böyle bir ayrım YOKTUR, bu yüzden
+  KAPATILMADI, sadece netleştirildi.
+- ~~`HOOF_FAST`/`HOOF_SPRINT` (tempo bazlı ayrı örnekler)~~ — **ÜÇÜNCÜ
+  öz-denetim turunda KAPATILDI.** `updateHoofbeatIntensity`nin ZATEN
+  hesapladığı hız oranı (`speedMps / maxSpeedMps`, YENİ bir telemetri
+  İCAT EDİLMEDİ) artık İKİ eşikle (`AudioConfig.hoofFast`/`hoofSprint`.
+  `speedRatioThreshold`) karşılaştırılıp, taban yüzey/viraj nal sesinin
+  ÜZERİNE (onu durdurmadan) KADEMELİ bir ek doku katmanı (`HOOF_FAST_
+  SFX_REQUIRED`/`HOOF_SPRINT_SFX_REQUIRED`) ekliyor — bkz. `Race
+  AudioManager.updateHoofTempoLayer` ve `docs/ASSET_GUIDE.md`teki
+  `HOOF_FAST_SFX_REQUIRED`/`HOOF_SPRINT_SFX_REQUIRED` girişleri. Eşik
+  DEĞERLERİ (0.7/0.9) makul VARSAYILAN'lardır, proje sahibi isterse
+  `config/audio.config.json`tan (kod değişikliği GEREKMEDEN) ayarlanabilir.
+- ~~`START_GATE` (ambient/mekanik ses, `GATE_OPEN_SFX_REQUIRED`den
+  AYRI)~~ — **ÜÇÜNCÜ öz-denetim turunda KAPATILDI.** Önceki turda "Race
+  Engine'in yaymadığı bir lifecycle sinyaline ihtiyaç duyar" denilmişti,
+  ama bu YANLIŞ bir varsayımdı: "atlar kapıya yerleşiyor" bir SİMÜLASYON
+  olayı DEĞİL, yarış BAŞLAMADAN ÖNCEKİ bir UI/sunum durumudur — bu yüzden
+  Race Engine'den bir sinyal BEKLEMEK yerine, `startStadiumAmbience` ile
+  AYNI "çağıranın kararıyla başlat/durdur" deseninde `RaceAudioManager.
+  startGateAmbience()`/`stopGateAmbience()` eklendi (bkz. `START_GATE_
+  AMBIENT_SFX_REQUIRED` girişi) — bir yarış-öncesi hazırlık ekranı
+  EKLENDİĞİNDE bu ekran tarafından çağrılması BEKLENİR.
+- **`CROWD_BILLBOARD_TEXTURE_REQUIRED`'in KTX2 doku yükleme pipeline'ı
+  (YENİ bulundu, üçüncü öz-denetim turu):** `RaceScene3D.tsx`teki
+  `CrowdBillboards` bileşeni ARTIK gerçek instanced render kodu içeriyor
+  (bkz. o girişin GÜNCELLENMİŞ fallback açıklaması), ama billboard'lar
+  DOKUSUZ (düz renk). GERÇEK bir `.ktx2` yüklemesi `THREE.KTX2Loader` +
+  Basis transcoder dosyaları gerektirir; bu dosyalar `node_modules/three/
+  examples/jsm/libs/basis/`den `public/`e KOPYALANIR — bu bir ÜRÜN/
+  teknik KARAR değil, SAF bir kurulum ADIMIdır, ama bu geliştirme
+  sandbox'ında `three` paketi KURULU OLMADIĞI için (npm registry erişimi
+  yok) NE yazılabilir NE doğrulanabilir (Tier 2/3 sınırında — gerçek
+  `npm install` çalışan bir ortamda, proje sahibi veya CI tarafından
+  yapılması gerekir).
 - **§26 "ilk satın alma listesi" ve §31'in marketplace'lerde GERÇEK
   ürün taraması:** gerçek para/araştırma gerektirir — `docs/ASSET_LICENSES.md`
   bu süreç TAMAMLANDIĞINDA doldurulacak ŞABLONU sağlar, ama HANGİ
