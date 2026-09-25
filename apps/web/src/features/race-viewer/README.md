@@ -94,6 +94,23 @@ gerekçe için bkz. `quality-tier.ts` dosya başı doc yorumu.
   alması (şu an statik fixture) — FAZ 1-5 domain katmanlarının hiçbirinin
   NestJS'e bağlanmamış olmasıyla aynı, zaten bilinen kapsam dışı karar.
 
+### Master Development Brief §20 "RACE HUD" — telemetri zenginleştirme (bu turda EKLENDİ)
+
+Race Engine zaten `stamina`/`fatigue`/`tacticalState`'i her segment için
+hesaplıyordu (`RaceSegmentSnapshot`, `timeline-playback.ts`'in
+`InterpolatedHorseState`'i bunları ZATEN ara değerliyordu) ama HİÇBİR
+tüketicisi yoktu (`InterpolatedHorseState`'in kendi eski doc yorumu:
+"bugün hiçbir tüketicisi yok"). `LiveLeaderboardEntry`'ye bu üç alan
+(opsiyonel — segmenti olmayan bir at için `undefined` kalır, UYDURULMAZ)
+eklendi, `RaceHud.tsx`'in `LeaderboardPanel`'i her at satırının altına
+ince bir "Kon" (kondisyon/stamina) ve "Yor" (yorgunluk/fatigue) çubuğu +
+taktik stilinin Türkçe kısa etiketini (Öncü/Takipçi/Orta/Bitirici) ekledi.
+Yeni veri ÜRETİLMEDİ, YALNIZCA zaten var olan motor çıktısı HUD'a
+taşındı — brief'in "PACE" alanına sayısal bir karşılık motorda yok
+(taktik stil kategorisi en yakın karşılık, uydurma bir "pace score"
+İCAT EDİLMEDİ). `timeline-playback.spec.ts`'e yeni test case'leri
+eklendi, gerçek `tsc --noEmit` + `tsx` ile doğrulandı.
+
 ## ÖNEMLİ — bu oturumdaki doğrulama kısıtı
 
 `docs/ARCHITECTURE.md` §9'da belgelenen kısıt burada da geçerlidir: bu

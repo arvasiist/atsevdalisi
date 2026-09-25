@@ -137,6 +137,18 @@ export interface LiveLeaderboardEntry {
   speedMps: number;
   /** Lider ata göre metre cinsinden fark (lider için her zaman 0). */
   gapToLeaderMeters: number;
+  /**
+   * Master Development Brief §20 "RACE HUD" — Race Engine'in zaten ürettiği
+   * (bkz. `InterpolatedHorseState` doc yorumu) ama daha önce HUD'a hiç
+   * TAŞINMAMIŞ olan alanlar. `stamina`/`fatigue` `interpolateHorseStateAtTime`
+   * boş segment listesinde (`{ positionMeters: 0, speedMps: 0 }`) `undefined`
+   * dönebildiğinden opsiyoneldir — YENİ bir veri ÜRETİLMEDİ, yalnızca
+   * ZATEN VAR OLAN alanlar `LiveLeaderboardEntry`'ye kopyalandı.
+   */
+  stamina?: number;
+  fatigue?: number;
+  /** Brief'in "PACE" alanına en yakın karşılığı — motorun ürettiği taktik/stil kategorisi (bkz. `domain/race/pace.ts`). Sayısal bir "pace score" motorda YOK, uydurulmadı. */
+  tacticalState?: string;
 }
 
 /**
@@ -161,6 +173,9 @@ export function getLiveLeaderboard(
     positionMeters: state.positionMeters,
     speedMps: state.speedMps,
     gapToLeaderMeters: leaderPositionMeters - state.positionMeters,
+    stamina: state.stamina,
+    fatigue: state.fatigue,
+    tacticalState: state.tacticalState,
   }));
 }
 

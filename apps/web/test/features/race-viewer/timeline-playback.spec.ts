@@ -175,6 +175,28 @@ describe('getLiveLeaderboard', () => {
     const leaderboard = getLiveLeaderboard(segments, ['h1', 'h2'], 1000);
     expect(leaderboard[1]!.gapToLeaderMeters).toBeCloseTo(50, 6);
   });
+
+  it('Master Development Brief SS20 - stamina/fatigue/tacticalState alanlarını taşır (motor zaten üretiyor, burada yalnızca kopyalanıyor)', () => {
+    const withStats: RaceSegmentSnapshot[] = [
+      makeSegment({ raceEntryId: 'h1', timestampMs: 1000, positionMeters: 300, speed: 15, stamina: 82, fatigue: 12, tacticalState: 'front_runner' }),
+      makeSegment({ raceEntryId: 'h2', timestampMs: 1000, positionMeters: 250, speed: 14, stamina: 44, fatigue: 55, tacticalState: 'closer' }),
+    ];
+    const leaderboard = getLiveLeaderboard(withStats, ['h1', 'h2'], 1000);
+    expect(leaderboard[0]!.stamina).toBeCloseTo(82, 6);
+    expect(leaderboard[0]!.fatigue).toBeCloseTo(12, 6);
+    expect(leaderboard[0]!.tacticalState).toBe('front_runner');
+    expect(leaderboard[1]!.stamina).toBeCloseTo(44, 6);
+    expect(leaderboard[1]!.fatigue).toBeCloseTo(55, 6);
+    expect(leaderboard[1]!.tacticalState).toBe('closer');
+  });
+
+  it('hiç segmenti olmayan bir at için stamina/fatigue undefined kalır (uydurulmaz)', () => {
+    const leaderboard = getLiveLeaderboard(segments, ['h1', 'unknown-horse'], 1000);
+    const unknown = leaderboard.find((entry) => entry.horseId === 'unknown-horse');
+    expect(unknown).toBeDefined();
+    expect(unknown!.stamina).toBeUndefined();
+    expect(unknown!.fatigue).toBeUndefined();
+  });
 });
 
 describe('advancePlaybackTimeMs', () => {

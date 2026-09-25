@@ -245,6 +245,40 @@ function CameraSwitcher({
   );
 }
 
+/** Brief §20 "RACE HUD" — `RacingStyle` değerlerinin Türkçe kısa etiketleri (bkz. `packages/shared-types/src/race.ts`). */
+const TACTICAL_STATE_LABELS: Record<string, string> = {
+  front_runner: 'Öncü',
+  tracker: 'Takipçi',
+  mid_pack: 'Orta',
+  closer: 'Bitirici',
+};
+
+/**
+ * Stamina/fatigue çubuğu — brief §20'nin istediği STAMINA/FATIGUE
+ * göstergesi. Veri Race Engine'den zaten geliyor (bkz.
+ * `LiveLeaderboardEntry` doc yorumu); burada yalnızca GÖRSEL bir
+ * ilerleme çubuğu olarak render ediliyor, yeni bir hesaplama YOK.
+ */
+function StatBar({ label, value, color }: { label: string; value: number; color: string }): React.ReactElement {
+  const clamped = Math.max(0, Math.min(100, value));
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '10px' }}>
+      <span style={{ color: 'var(--color-text-muted)', width: '24px', flexShrink: 0 }}>{label}</span>
+      <div
+        style={{
+          flex: 1,
+          height: '4px',
+          borderRadius: '2px',
+          background: 'rgba(255, 255, 255, 0.12)',
+          overflow: 'hidden',
+        }}
+      >
+        <div style={{ width: `${clamped}%`, height: '100%', background: color }} />
+      </div>
+    </div>
+  );
+}
+
 function LeaderboardPanel({
   horseNamesById,
   leaderboard,
@@ -265,23 +299,36 @@ function LeaderboardPanel({
       >
         Sıralama
       </div>
-      <ol style={{ listStyle: 'none', margin: 0, padding: 0, display: 'grid', gap: '4px' }}>
+      <ol style={{ listStyle: 'none', margin: 0, padding: 0, display: 'grid', gap: '6px' }}>
         {leaderboard.map((entry) => (
-          <li
-            key={entry.horseId}
-            style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              gap: 'var(--space-sm)',
-              fontSize: '13px',
-            }}
-          >
-            <span style={{ color: 'var(--color-text-primary)' }}>
-              {entry.rank}. {horseNamesById[entry.horseId] ?? entry.horseId}
-            </span>
-            <span style={{ color: 'var(--color-text-muted)', fontVariantNumeric: 'tabular-nums' }}>
-              {entry.rank === 1 ? '—' : `-${entry.gapToLeaderMeters.toFixed(1)}m`}
-            </span>
+          <li key={entry.horseId} style={{ display: 'grid', gap: '2px' }}>
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                gap: 'var(--space-sm)',
+                fontSize: '13px',
+              }}
+            >
+              <span style={{ color: 'var(--color-text-primary)' }}>
+                {entry.rank}. {horseNamesById[entry.horseId] ?? entry.horseId}
+                {entry.tacticalState ? (
+                  <span style={{ color: 'var(--color-text-muted)', fontSize: '10px' }}>
+                    {' '}
+                    ({TACTICAL_STATE_LABELS[entry.tacticalState] ?? entry.tacticalState})
+                  </span>
+                ) : null}
+              </span>
+              <span style={{ color: 'var(--color-text-muted)', fontVariantNumeric: 'tabular-nums' }}>
+                {entry.rank === 1 ? '—' : `-${entry.gapToLeaderMeters.toFixed(1)}m`}
+              </span>
+            </div>
+            {entry.stamina !== undefined ? (
+              <StatBar label="Kon" value={entry.stamina} color="var(--color-status-positive)" />
+            ) : null}
+            {entry.fatigue !== undefined ? (
+              <StatBar label="Yor" value={entry.fatigue} color="var(--color-status-warning)" />
+            ) : null}
           </li>
         ))}
       </ol>
