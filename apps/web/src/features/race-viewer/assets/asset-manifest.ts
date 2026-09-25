@@ -141,6 +141,52 @@ export const ASSET_MANIFEST: AssetRequirement[] = [
       'Brief §31 "Commentary" soyutlaması için önceden kaydedilmiş/TTS anlatım klipleri (ör. "ve start veriliyor", "kafa kafaya bir bitiş!") — klasör, tekil dosya DEĞİL (birden çok klip beklenir).',
     fallbackBehavior: "AudioManager'ın sessiz no-op modu — anlatım YOK, HUD metinsel açıklamalarla (`RaceExplanation`) yetinir.",
   },
+  // Faz 2/4 hata düzeltmesi (bu turda EKLENDİ) — brief §31'in "Architecture"
+  // listesindeki 11 ses kategorisinden `audio-manager.ts`'in daha önce
+  // KARŞILIĞI OLMAYAN beşi (GateOpen/HorseBreathing/Wind/Overtake/Winner)
+  // için asset gereksinimleri. HERHANGİ biri gerçek bir asset İCAT ETMEZ —
+  // dosya başı doc yorumundaki AYNI kural (`status: 'missing'`, TÜMÜ).
+  {
+    id: 'GATE_OPEN_SFX_REQUIRED',
+    kind: 'audio_sfx',
+    format: 'mp3',
+    expectedPath: 'audio/gate-open.mp3',
+    description: 'Start kapılarının açılma anı sesi, bir seferlik (döngüsüz).',
+    fallbackBehavior: "AudioManager'ın sessiz no-op modu.",
+  },
+  {
+    id: 'HORSE_BREATHING_SFX_REQUIRED',
+    kind: 'audio_sfx',
+    format: 'mp3',
+    expectedPath: 'audio/horse-breathing-loop.mp3',
+    description: 'At nefesi döngüsü (loop), yorgunluğa (fatigue) göre hacim ayarlanabilir.',
+    fallbackBehavior: "AudioManager'ın sessiz no-op modu.",
+  },
+  {
+    id: 'WIND_AMBIENCE_SFX_REQUIRED',
+    kind: 'audio_sfx',
+    format: 'mp3',
+    expectedPath: 'audio/wind-ambience-loop.mp3',
+    description: 'Sürekli rüzgar arka plan sesi (loop).',
+    fallbackBehavior: "AudioManager'ın sessiz no-op modu.",
+  },
+  {
+    id: 'OVERTAKE_SFX_REQUIRED',
+    kind: 'audio_sfx',
+    format: 'mp3',
+    expectedPath: 'audio/overtake.mp3',
+    description: 'Bir atın diğerini geçtiği anda çalınacak kısa SFX, bir seferlik (döngüsüz).',
+    fallbackBehavior: "AudioManager'ın sessiz no-op modu.",
+  },
+  {
+    id: 'WINNER_CELEBRATION_SFX_REQUIRED',
+    kind: 'audio_sfx',
+    format: 'mp3',
+    expectedPath: 'audio/winner-celebration.mp3',
+    description:
+      'Kazanan kesinleştiğinde çalınacak kutlama sesi — `RACE_FINISH_FANFARE_REQUIRED`den KASITLI OLARAK AYRI (bkz. `AudioConfig.winnerCelebrationVolume` doc yorumu, "finish" yarış çizgisini geçme anı, "winner" kazananın kesinleşme anıdır).',
+    fallbackBehavior: "AudioManager'ın sessiz no-op modu.",
+  },
 ];
 
 export function getAssetById(id: string): AssetRequirement | undefined {

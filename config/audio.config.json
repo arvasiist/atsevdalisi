@@ -1,10 +1,28 @@
 {
-  "version": "1.0.0",
+  "version": "1.1.0",
+  "volumeChannels": {
+    "master": 1,
+    "music": 1,
+    "sfx": 1,
+    "crowd": 1,
+    "commentary": 1,
+    "horse": 1
+  },
   "hoofbeat": {
     "baseVolume": 0.35,
     "maxExtraVolume": 0.35
   },
+  "horseBreathing": {
+    "baseVolume": 0.15,
+    "maxExtraVolume": 0.25
+  },
   "raceMusicVolume": 0.4,
   "finishFanfareVolume": 0.8,
+  "winnerCelebrationVolume": 0.75,
+  "gateOpenVolume": 0.6,
+  "overtakeVolume": 0.5,
+  "crowdAmbienceVolume": 0.3,
+  "windAmbienceVolume": 0.2,
+  "commentaryLineVolume": 0.9,
   "finalStretchMusicDuckFactor": 0.5
 }

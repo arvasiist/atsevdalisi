@@ -130,6 +130,49 @@ fake GLB files or use unlicensed assets") burada mutlak bir çizgidir.
 - **Fallback:** `AudioManager`'ın sessiz no-op modu — anlatım yok, HUD
   metinsel açıklamalarla (`RaceExplanation`, zaten mevcut) yetinir.
 
+Faz 2/4 hata düzeltmesi (bu turda EKLENDİ) — brief §31'in "Architecture"
+listesindeki 11 ses kategorisinden `audio-manager.ts`'in daha önce
+karşılığı olmayan beşi:
+
+### GATE_OPEN_SFX_REQUIRED
+
+- **Tür:** Ses efekti (`.mp3`)
+- **Yol:** `apps/web/public/audio/gate-open.mp3`
+- **Gereksinim:** Start kapılarının açılma anı sesi, bir seferlik (döngüsüz).
+- **Fallback:** `AudioManager`'ın sessiz no-op modu.
+
+### HORSE_BREATHING_SFX_REQUIRED
+
+- **Tür:** Ses efekti (`.mp3`)
+- **Yol:** `apps/web/public/audio/horse-breathing-loop.mp3`
+- **Gereksinim:** At nefesi döngüsü (seamless loop), yorgunluğa (fatigue)
+  göre hacim ayarlanabilir olacak şekilde kısa ve temiz.
+- **Fallback:** `AudioManager`'ın sessiz no-op modu.
+
+### WIND_AMBIENCE_SFX_REQUIRED
+
+- **Tür:** Ses efekti (`.mp3`)
+- **Yol:** `apps/web/public/audio/wind-ambience-loop.mp3`
+- **Gereksinim:** Sürekli rüzgar arka plan sesi (loop).
+- **Fallback:** `AudioManager`'ın sessiz no-op modu.
+
+### OVERTAKE_SFX_REQUIRED
+
+- **Tür:** Ses efekti (`.mp3`)
+- **Yol:** `apps/web/public/audio/overtake.mp3`
+- **Gereksinim:** Bir atın diğerini geçtiği anda çalınacak kısa SFX, bir
+  seferlik (döngüsüz).
+- **Fallback:** `AudioManager`'ın sessiz no-op modu.
+
+### WINNER_CELEBRATION_SFX_REQUIRED
+
+- **Tür:** Ses efekti (`.mp3`)
+- **Yol:** `apps/web/public/audio/winner-celebration.mp3`
+- **Gereksinim:** Kazanan kesinleştiğinde çalınacak kutlama sesi —
+  `RACE_FINISH_FANFARE_REQUIRED`den KASITLI OLARAK AYRI ("finish" yarış
+  çizgisini geçme anı, "winner" kazananın kesinleşme anıdır).
+- **Fallback:** `AudioManager`'ın sessiz no-op modu.
+
 ## Bir varlık eklendiğinde yapılması gerekenler
 
 1. Dosyayı yukarıdaki TAM yola koy (`apps/web/public/...`).

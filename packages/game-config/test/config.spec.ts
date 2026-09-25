@@ -189,4 +189,50 @@ describe('loadAudioConfig', () => {
     const config = loadAudioConfig();
     expect(config.finalStretchMusicDuckFactor).toBeLessThan(1);
   });
+
+  /**
+   * Faz 2/4 hata düzeltmesi (bu turda EKLENDİ) — brief §31'in "Master /
+   * Music / SFX / Crowd / Commentary / Horse" ayrı ses kanalları
+   * gereksinimi (bkz. `AudioConfig.volumeChannels` doc yorumu).
+   */
+  it('volumeChannels TÜM kanallar için [0, 1] aralığında olmalı', () => {
+    const config = loadAudioConfig();
+    for (const value of Object.values(config.volumeChannels)) {
+      expect(value).toBeGreaterThanOrEqual(0);
+      expect(value).toBeLessThanOrEqual(1);
+    }
+  });
+
+  it('volumeChannels varsayılan olarak TÜMÜ 1 olmalı (geriye dönük uyumluluk — hiçbir kanal kısılmamış)', () => {
+    const config = loadAudioConfig();
+    expect(config.volumeChannels).toEqual({
+      master: 1,
+      music: 1,
+      sfx: 1,
+      crowd: 1,
+      commentary: 1,
+      horse: 1,
+    });
+  });
+
+  it('horseBreathing.baseVolume + maxExtraVolume 1\'i aşmamalı', () => {
+    const config = loadAudioConfig();
+    expect(config.horseBreathing.baseVolume + config.horseBreathing.maxExtraVolume).toBeLessThanOrEqual(1);
+  });
+
+  it('yeni ses kategorilerinin (winner/gateOpen/overtake/crowd/wind/commentary) hacimleri [0, 1] aralığında olmalı', () => {
+    const config = loadAudioConfig();
+    expect(config.winnerCelebrationVolume).toBeGreaterThanOrEqual(0);
+    expect(config.winnerCelebrationVolume).toBeLessThanOrEqual(1);
+    expect(config.gateOpenVolume).toBeGreaterThanOrEqual(0);
+    expect(config.gateOpenVolume).toBeLessThanOrEqual(1);
+    expect(config.overtakeVolume).toBeGreaterThanOrEqual(0);
+    expect(config.overtakeVolume).toBeLessThanOrEqual(1);
+    expect(config.crowdAmbienceVolume).toBeGreaterThanOrEqual(0);
+    expect(config.crowdAmbienceVolume).toBeLessThanOrEqual(1);
+    expect(config.windAmbienceVolume).toBeGreaterThanOrEqual(0);
+    expect(config.windAmbienceVolume).toBeLessThanOrEqual(1);
+    expect(config.commentaryLineVolume).toBeGreaterThanOrEqual(0);
+    expect(config.commentaryLineVolume).toBeLessThanOrEqual(1);
+  });
 });

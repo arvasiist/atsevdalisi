@@ -409,6 +409,94 @@ KALINTI bırakmadığı ve `RaceHud`'un iki çağrı yerinde de import
 imzasının DEĞİŞMEDİĞİ doğrulandı. Gerçek derleme/tip kontrolü, her
 zamanki gibi, push sonrası CI'dadır.
 
+### Faz 4 "Audio Manager" düzeltmesi (bu turda EKLENDİ)
+
+Aynı yeniden denetimin ikinci bulgusu: `audio-manager.ts` brief §31'in
+KENDİ "Architecture" listesindeki 11 ses kategorisinden (RaceStart/
+GateOpen/Hoof/HorseBreathing/Crowd/Wind/Overtake/FinalStretch/Finish/
+Commentary/Winner) yalnızca ÜÇÜNÜ (`race_start`/`final_stretch`/`finish`)
+uyguluyordu VE brief'in istediği "Ses seviyeleri ayrı kontrol edilebilir
+olmalı: Master/Music/SFX/Crowd/Commentary/Horse" kanal sistemi HİÇ
+YOKTU. Bu bölüm o eksikliği kapatır.
+
+**Eklenen olay tipleri:** brief'in KENDİ örnek eşleştirmesi ("RACE_START
+→ RaceStart", "GATES_OPEN → GateOpen", "OVERTAKE → Overtake", "FINAL_200
+→ FinalStretch", "FINISH → Finish", "WINNER → Winner") altı AYRIK
+(bir seferlik/durum-değiştiren) olayı TEK bir Race Engine sinyaline
+bağlar — `RaceAudioEventType` artık bu altısını (`race_start`/`gate_open`/
+`overtake`/`final_stretch`/`finish`/`winner`) kapsıyor. Kalan beş
+kategori (Hoof/HorseBreathing/Crowd/Wind/Commentary) doğası gereği
+SÜREKLİ (loop/ambient) veya ÇOK SAYIDA olası klipten biri (Commentary)
+olduğundan brief'in ÖRNEK listesinde TEK bir olaya bağlanmamıştır — bu
+yüzden AYRI metotlarla modellendi:
+
+- `HorseBreathing`: `startHoofbeats`/`stopHoofbeats`/`updateHoofbeatIntensity`
+  ile BİREBİR AYNI desende `startHorseBreathing`/`stopHorseBreathing`/
+  `updateHorseBreathingIntensity` — ama girdi hıza DEĞİL, yorgunluğa
+  (fatigue, ZATEN VAR OLAN telemetriden, `[0,100]`) dayanır. `race_start`
+  ile birlikte başlar, `finish`te durur (hoofbeat ile AYNI yaşam döngüsü
+  — koşan at durunca hem nal sesi hem nefesi kesilir).
+- `Crowd`/`Wind`: `startCrowdAmbience`/`stopCrowdAmbience` ve
+  `startWindAmbience`/`stopWindAmbience` — sabit hacimli, sürekli ortam
+  sesleri, `race_start`ta başlar, `stopAll()`ta durur (yarış bitince de
+  DEVAM ederler — tribün/rüzgar sesi çizgiyi geçme anında KESİLMEZ,
+  bu GERÇEKÇİ değildi).
+- `GateOpen`/`Overtake`/`Winner`: bir seferlik (döngüsüz) SFX'ler,
+  yalnızca YENİ asset gereksinimleri (aşağıya bkz.) eklenerek `handleEvent`e
+  dahil edildi. `Winner`, `Finish`ten KASITLI OLARAK AYRI tutuldu ("finish"
+  çizgiyi geçme anı, "winner" kazananın kesinleşme anı — ileride AYRI bir
+  Winner Ceremony sunumunun başlangıcı olacaktır).
+- `Commentary`: `COMMENTARY_VOICE_REQUIRED` TEK bir dosya DEĞİL bir
+  KLASÖR olduğundan (ZATEN böyle belgelenmişti) TEK bir "olay" olarak
+  modellenemez — yeni `playCommentaryLine(fileName)` metodu klasör
+  yolunu ÇAĞIRANIN belirlediği dosya adıyla birleştirip çalar.
+
+**Eklenen ses kanalları:** `AudioConfig.volumeChannels` (`master`/
+`music`/`sfx`/`crowd`/`commentary`/`horse`, `@at-sevdalisi/game-config`)
++ `RaceAudioManager.setChannelVolume()`/`getChannelVolume()`. Her çalınan
+sesin NİHAİ hacmi `resolveVolume(channel, taban) = taban × kanal ×
+master` olarak hesaplanır (`resolveVolume` private metodu) — TÜM
+varsayılan kanal değerleri `1` olduğundan bu değişiklik ÖNCEKİ
+davranışla (hiçbir kanal kısılmamışken TÜM sesler kendi taban hacminde
+çalar) BİREBİR AYNI sonucu üretir, geriye dönük UYUMLUDUR (bkz. aşağıdaki
+doğrulama). `setChannelVolume` çağrıldığında O AN çalan döngülü sesler
+(nal/nefes/kalabalık/rüzgar/müzik) `reapplyActiveLoopVolumes()` ile
+ANINDA yeniden hacimlendirilir — aksi halde bir ses ayarları
+kaydırıcısını yarış SIRASINDA hareket ettirmenin GÖZLENEBİLİR hiçbir
+etkisi olmazdı.
+
+**Yeni asset gereksinimleri** (`asset-manifest.ts` + `docs/ASSET_GUIDE.md`,
+İKİSİ DE elle senkron güncellendi, hiçbiri gerçek bir dosya İCAT ETMEZ):
+`GATE_OPEN_SFX_REQUIRED`, `HORSE_BREATHING_SFX_REQUIRED`,
+`WIND_AMBIENCE_SFX_REQUIRED`, `OVERTAKE_SFX_REQUIRED`,
+`WINNER_CELEBRATION_SFX_REQUIRED`.
+
+**Bilinçli olarak kapsam DIŞINDA bırakılan:** `RaceAudioManager`'ın
+`RaceViewer.tsx`/`LiveRaceViewer.tsx`'e WIRING edilmesi. Bu sınıf DAHA
+ÖNCE de hiçbir yerden instantiate edilmiyordu (framework-agnostik,
+bağımsız bir modül olarak tasarlanmıştı) — brief'in KENDİSİ bu fazda
+"gerçek ses assetlerini ÜRETME, sadece profesyonel altyapıyı hazırla"
+der, ayrıca `gate_open`/`overtake`/`winner` gibi ayrık sinyaller Race
+Engine tarafından ŞU AN yayınlanmıyor (Camera Director'ın kendi olay
+sınıflandırması BİLE pozisyon eşiklerinden TÜRETİLİR, gerçek bir pub/sub
+event sistemi DEĞİLDİR) — bu yüzden gerçek entegrasyon AYRI ve daha
+büyük bir kapsam olarak bırakıldı.
+
+**Doğrulama:** `audio-manager.ts`/`asset-manifest.ts`, `tsconfig.logic.json`
+kapsamında olduğundan bu değişiklik GERÇEK `tsc --noEmit` (0 hata) ile
+doğrulandı (`RaceScene3D.tsx`/`RaceViewer.tsx`'in aksine bu dosyalar
+framework'ten bağımsızdır). Bu sandbox'ta npm registry erişimi
+`vitest`'i KURAMADIĞINDAN (403 — bkz. genel doğrulama kısıtı), gerçek
+`audio-manager.spec.ts`/`config.spec.ts` dosyaları `tsx` ile ÇALIŞTIRILAN
+minimal bir `describe`/`it`/`expect` shim'i ÜZERİNDEN (gerçek vitest
+matcher semantiğini birebir taklit eden, davranışı DEĞİL sadece test
+KOŞUCUSUNU ikame eden bir araç) gerçekten YÜRÜTÜLEREK doğrulandı: 24/24
+(`audio-manager.spec.ts`, 9 yeni test EKLENDİ) ve 27/27 (`config.spec.ts`,
+5 yeni test EKLENDİ) geçti — eski senaryolar (race_start/final_stretch
+duck/finish/updateHoofbeatIntensity/stopAll) DEĞİŞMEDEN BİREBİR AYNI
+sonuçları üretmeye devam ediyor. Gerçek `npm test`/`vitest` çalıştırması,
+her zamanki gibi, push sonrası CI'dadır.
+
 ## ÖNEMLİ — bu oturumdaki doğrulama kısıtı
 
 `docs/ARCHITECTURE.md` §9'da belgelenen kısıt burada da geçerlidir: bu

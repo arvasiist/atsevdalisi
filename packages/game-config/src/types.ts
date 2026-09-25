@@ -555,17 +555,77 @@ export interface VfxConfig {
  * Master Development Brief §31 "Audio Manager" (bu turda EKLENDİ) —
  * `apps/web/src/features/race-viewer/audio-vfx/audio-manager.ts`'te DAHA
  * ÖNCE modül-seviyesi sabit olarak gömülü olan hacim/eşik değerleri.
+ *
+ * Faz 2/4 hata düzeltmesi (bu turda GENİŞLETİLDİ) — yeni 18 fazlık
+ * brief'in yeniden denetiminde `RaceAudioManager`'ın brief §31'in KENDİ
+ * "Architecture" listesindeki 11 ses kategorisinden (RaceStart/GateOpen/
+ * Hoof/HorseBreathing/Crowd/Wind/Overtake/FinalStretch/Finish/
+ * Commentary/Winner) yalnızca ÜÇÜNÜ (race_start/final_stretch/finish)
+ * VE brief'in istediği "Master/Music/SFX/Crowd/Commentary/Horse" AYRI
+ * ses kanallarının HİÇBİRİNİ uygulamadığı bulundu. Bu arayüz o eksikliği
+ * kapatır — `volumeChannels` ve yeni ses kategorilerinin taban hacimleri
+ * eklendi (bkz. her alanın kendi doc yorumu).
  */
 export interface AudioConfig {
   version: string;
+  /**
+   * Brief §31 "Ses seviyeleri ayrı kontrol edilebilir olmalı: Master /
+   * Music / SFX / Crowd / Commentary / Horse". HER çalınan sesin NİHAİ
+   * hacmi kendi taban hacmi (ör. `hoofbeat.baseVolume`) İLE bu kanalın
+   * VE `master` kanalının ÇARPIMIDIR (bkz. `audio-manager.ts`'in
+   * `resolveVolume` metodu) — bir kanalın hacmi RUNTIME'da
+   * `RaceAudioManager.setChannelVolume()` ile değiştirilebilir (bkz. o
+   * metodun doc yorumu, o an ÇALAN döngülü sesler ANINDA etkilenir).
+   * Varsayılan TÜMÜ `1` (hiçbir kanal kısılmamış) — bu şekilde
+   * `volumeChannels` eklenmeden ÖNCEKİ davranışla (tüm sesler kendi
+   * taban hacminde çalar) BİREBİR AYNI kalır, geriye dönük UYUMLUDUR.
+   */
+  volumeChannels: {
+    master: number;
+    music: number;
+    sfx: number;
+    crowd: number;
+    commentary: number;
+    horse: number;
+  };
   hoofbeat: {
     /** Nal sesinin taban hacmi (at durgunken/minimum hızdayken), [0, 1]. */
     baseVolume: number;
     /** Azami hızda taban hacme EKLENEN pay, [0, 1] (taban + bu ≤ 1 olmalı). */
     maxExtraVolume: number;
   };
+  /**
+   * Brief §31 "HorseBreathing" (bu turda EKLENDİ) — `hoofbeat` ile AYNI
+   * [taban, taban+ek] deseni, ama hıza DEĞİL yorgunluğa (fatigue, [0,100])
+   * göre ölçeklenir (bkz. `updateHorseBreathingIntensity`) — yorgun bir
+   * at daha SERT nefes alır, bu GERÇEK bir telemetri alanından (`race
+   * Engine`'in ZATEN ürettiği `fatigue`) türetilir, yeni bir hesaplama
+   * İCAT EDİLMEZ.
+   */
+  horseBreathing: {
+    baseVolume: number;
+    maxExtraVolume: number;
+  };
   raceMusicVolume: number;
   finishFanfareVolume: number;
+  /**
+   * Brief §31 "Winner" (bu turda EKLENDİ) — "Finish" fanfarından KASITLI
+   * OLARAK AYRI bir ses: `finish` yarış çizgisini geçme ANININI, `winner`
+   * ise kazananın KESİNLEŞTİĞİ (Winner Ceremony sunumunun başlangıcı,
+   * AYRI ve gelecekteki bir özellik kapsamı) anı işaretler — brief bu
+   * ikisini AYRI kategoriler olarak listeler.
+   */
+  winnerCelebrationVolume: number;
+  /** Brief §31 "GateOpen" (bu turda EKLENDİ) — start kapılarının açılma anı sesi, bir seferlik (döngüsüz). */
+  gateOpenVolume: number;
+  /** Brief §31 "Overtake" (bu turda EKLENDİ) — geçiş anı SFX'i, bir seferlik (döngüsüz). */
+  overtakeVolume: number;
+  /** Brief §31 "Crowd" (bu turda EKLENDİ) — sürekli tribün kalabalığı arka plan sesi (loop, `race_start`'ta başlar). */
+  crowdAmbienceVolume: number;
+  /** Brief §31 "Wind" (bu turda EKLENDİ) — sürekli rüzgar arka plan sesi (loop, `race_start`'ta başlar). Brief'in 6 kanal listesinde "Wind"in KENDİ bir kanalı YOK — `sfx` kanalı altında sınıflandırılır (ortam SFX'i). */
+  windAmbienceVolume: number;
+  /** Brief §31 "Commentary" (bu turda EKLENDİ) — spiker anlatım klipleri (bkz. `COMMENTARY_VOICE_REQUIRED`, klasör — tekil dosya DEĞİL); klipler arası hacim farkı GEREKMEDİĞİNDEN tek bir sabit hacim yeterlidir. */
+  commentaryLineVolume: number;
   /** Final düzlükte müzik hacmi bu ORANLA çarpılır (0-1, düşürme/"duck" etkisi). */
   finalStretchMusicDuckFactor: number;
 }
