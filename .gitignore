@@ -61,6 +61,14 @@ check-dirty*-log.txt
 check-orig-head.bat
 orig-head-check.txt
 recover-commit.bat
+# Bu turda fark edildi: aşağıdaki scratch dosyalar kökte BİRİKMİŞ ama
+# hiçbir desene uymadıkları için `git status`'ta "untracked" görünüyorlardı —
+# yani bir sonraki teslimatta yanlışlıkla commit edilebilirlerdi. Hepsi
+# tekrar üretilebilir yerel çıktıdır (kontrol script'i + test/push logu).
+check-remote-truth.bat
+check-remote-truth*-log.txt
+push-log.txt
+vitest-*.txt
 recover-log.txt
 run-merge.bat
 merge-log.txt

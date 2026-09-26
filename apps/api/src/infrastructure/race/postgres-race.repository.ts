@@ -410,13 +410,15 @@ export class PostgresRaceRepository implements RaceRepository {
         speed: string | null;
         stamina: string | null;
         fatigue: string | null;
+        fatigue_level: string | null;
+        pace_score: string | null;
         lane: number | null;
         tactical_state: string | null;
         current_rank: number | null;
         blocked: boolean;
         jockey_decision: string | null;
       }>(
-        `SELECT race_entry_id, segment_distance_m, timestamp_ms, position_m, speed, stamina, fatigue, lane, tactical_state, current_rank, blocked, jockey_decision
+        `SELECT race_entry_id, segment_distance_m, timestamp_ms, position_m, speed, stamina, fatigue, fatigue_level, pace_score, lane, tactical_state, current_rank, blocked, jockey_decision
          FROM race_entry_segments
          WHERE race_entry_id = ANY($1::uuid[])
          ORDER BY race_entry_id, timestamp_ms`,
@@ -432,6 +434,14 @@ export class PostgresRaceRepository implements RaceRepository {
           speed: row.speed === null ? 0 : Number(row.speed),
           stamina: row.stamina === null ? 0 : Number(row.stamina),
           fatigue: row.fatigue === null ? 0 : Number(row.fatigue),
+          // NULL → `undefined` (0 DEĞİL): bu alanlar `RaceSegmentSnapshot`'ta
+          // opsiyoneldir ve tüketiciler "bu kayıt bu alan eklenmeden önce
+          // yazılmış" durumunu `fatigueLevel ?? fatigue` ile ayırt eder
+          // (bkz. `apps/web/.../timeline-playback.ts`). `0` yazmak, gerçek
+          // bir "yorgunluk sıfır" ölçümü ile "ölçüm yok"u AYIRT EDİLEMEZ
+          // hale getirirdi.
+          fatigueLevel: row.fatigue_level === null ? undefined : Number(row.fatigue_level),
+          paceScore: row.pace_score === null ? undefined : Number(row.pace_score),
           lane: row.lane ?? 0,
           tacticalState: row.tactical_state ?? '',
           currentRank: row.current_rank ?? 0,
@@ -590,7 +600,12 @@ export class PostgresRaceRepository implements RaceRepository {
     // olarak sabit kalır (entry başına 1 sorgu).
     const values: unknown[] = [];
     const rowPlaceholders = segments.map((segment, index) => {
-      const base = index * 12;
+      // 14 sütun (migration 0029 iki tane daha ekledi) — `base` çarpanı ve
+      // aşağıdaki `values.push` sırası ile `$${base + n}` numaralandırması
+      // ÜÇÜ BİRLİKTE değişmelidir; biri güncellenip diğeri unutulursa
+      // Postgres ya "bind message supplies N parameters" ya da SESSİZCE
+      // KAYMIŞ değerler döndürür.
+      const base = index * 14;
       values.push(
         entry.id,
         segment.segmentDistanceMeters,
@@ -599,17 +614,23 @@ export class PostgresRaceRepository implements RaceRepository {
         segment.speed,
         segment.stamina,
         segment.fatigue,
+        // `?? null` — bu iki alan `RaceSegmentSnapshot`'ta opsiyoneldir
+        // (bkz. o arayüzün doc yorumu). `undefined` Postgres sürücüsüne
+        // gönderilirse sütun NULL yerine hata verebilir; açıkça NULL'a
+        // çevrilir.
+        segment.fatigueLevel ?? null,
+        segment.paceScore ?? null,
         segment.lane,
         segment.tacticalState,
         segment.currentRank,
         segment.blocked,
         segment.decision,
       );
-      return `($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4}, $${base + 5}, $${base + 6}, $${base + 7}, $${base + 8}, $${base + 9}, $${base + 10}, $${base + 11}, $${base + 12})`;
+      return `($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4}, $${base + 5}, $${base + 6}, $${base + 7}, $${base + 8}, $${base + 9}, $${base + 10}, $${base + 11}, $${base + 12}, $${base + 13}, $${base + 14})`;
     });
 
     await client.query(
-      `INSERT INTO race_entry_segments (race_entry_id, segment_distance_m, timestamp_ms, position_m, speed, stamina, fatigue, lane, tactical_state, current_rank, blocked, jockey_decision)
+      `INSERT INTO race_entry_segments (race_entry_id, segment_distance_m, timestamp_ms, position_m, speed, stamina, fatigue, fatigue_level, pace_score, lane, tactical_state, current_rank, blocked, jockey_decision)
        VALUES ${rowPlaceholders.join(', ')}`,
       values,
     );

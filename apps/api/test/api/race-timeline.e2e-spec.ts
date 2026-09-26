@@ -156,6 +156,37 @@ describe('Race — Tam Alan Replay / Timeline (e2e, AUDIT_REPORT.md R2)', () => 
       // kaynaklanan beklenen sapımı karşılar.
       expect(resimulatedFinish!.performanceScore).toBeCloseTo(dbEntrant.performanceScore, 1);
     }
+
+    // Telemetri zenginleştirme (bu turda eklendi) — `race_entry_segments.
+    // fatigue_level`/`pace_score` sütunları (migration 0029) DB'ye gerçekten
+    // yazılıyor mu? Yukarıdaki döngü yalnızca BİTİŞ alanlarını karşılaştırır;
+    // segment sütunlarının INSERT'te doğru SIRAYLA eşleştiğini doğrulayan
+    // TEK test budur. Bu kontrolün değeri somut: `fatigue_level` ve
+    // `pace_score` İKİSİ DE NUMERIC(5,2)'dir ve INSERT'te yanlış sıraya
+    // konulsalar Postgres HİÇBİR hata vermez — değerler sessizce yer
+    // değiştirir ve bunu başka hiçbir test yakalayamaz.
+    for (const dbEntrant of timeline.entrants) {
+      const simulationLabel: string = dbEntrant.isBot ? dbEntrant.botLabel : dbEntrant.horseId;
+      const resimulatedSegments = resimulated.segments
+        .filter((segment) => segment.raceEntryId === simulationLabel)
+        .sort((a, b) => a.timestampMs - b.timestampMs);
+      const dbSegments = [...dbEntrant.segments].sort(
+        (a: { timestampMs: number }, b: { timestampMs: number }) => a.timestampMs - b.timestampMs,
+      );
+      expect(dbSegments.length).toBe(resimulatedSegments.length);
+      for (let i = 0; i < dbSegments.length; i += 1) {
+        // `toBeCloseTo(..., 1)` — yukarıdaki `performanceScore` ile AYNI
+        // gerekçe: DB sütunu NUMERIC(5,2) olduğundan Postgres 2 ondalığa
+        // yuvarlar, bu yüzden ham simülasyon değeriyle birebir değil
+        // DB'nin kendi yuvarlama adımını karşılayan bir toleransla
+        // karşılaştırılır.
+        expect(dbSegments[i].fatigueLevel).toBeCloseTo(resimulatedSegments[i]!.fatigueLevel!, 1);
+        expect(dbSegments[i].paceScore).toBeCloseTo(resimulatedSegments[i]!.paceScore!, 1);
+        // Statik `fatigue` alanı KORUNUR — canlı `fatigueLevel`'dan FARKLI
+        // olabilir (ikisi ayrı mekanizmadır, bkz. `domain/race/fatigue.ts`).
+        expect(dbSegments[i].fatigue).toBeCloseTo(resimulatedSegments[i]!.fatigue, 1);
+      }
+    }
   });
 
   it('/api/v1/races/:id/timeline (GET) — bu yarışta hiçbir atı olmayan bir oyuncu için 403 FORBIDDEN döner', async () => {

@@ -500,7 +500,7 @@ bir "start numarası" sağlar (`race_entries.gate_position` sütunu projenin
         "finishPosition": 2,
         "performanceScore": 87.5,
         "segments": [
-          { "raceEntryId": "c3d4...", "segmentDistanceMeters": 200, "timestampMs": 12500, "positionMeters": 198.4, "speed": 15.9, "stamina": 92.1, "fatigue": 7.9, "lane": 3, "tacticalState": "closer", "currentRank": 4, "blocked": false, "decision": "hold" }
+          { "raceEntryId": "c3d4...", "segmentDistanceMeters": 200, "timestampMs": 12500, "positionMeters": 198.4, "speed": 15.9, "stamina": 92.1, "fatigue": 7.9, "fatigueLevel": 16, "paceScore": 47, "lane": 3, "tacticalState": "closer", "currentRank": 4, "blocked": false, "decision": "hold" }
         ]
       },
       {
@@ -521,6 +521,15 @@ bir "start numarası" sağlar (`race_entries.gate_position` sütunu projenin
   }
 }
 ```
+
+**Telemetri notu (bu turda eklendi):** `segments[]` içinde iki YENİ
+OPSİYONEL alan bulunur — `fatigueLevel` (yarış İÇİNDE segment segment
+biriken CANLI yorgunluk) ve `paceScore` (0-100 tempo göstergesi, 50 =
+nötr). Mevcut `fatigue` alanı yarış ÖNCESİ statik değeri taşımaya devam
+eder; ikisi AYRI mekanizmalardır. Bu alanlar eklenmeden önce persist
+edilmiş yarışlarda `null` döner ve istemci geriye dönük olarak statik
+`fatigue`'a düşer. Ayrıntı için bkz. `docs/RACE_ENGINE.md` §5 "Uygulama
+notu" ve `packages/shared-types/src/race.ts`.
 
 **Test requirement (AUDIT_REPORT.md):** bir yarışı kaydet, tam alanı iki
 yoldan yeniden oluştur (DB okuma vs. yeniden simülasyon) → eşleşmeli —

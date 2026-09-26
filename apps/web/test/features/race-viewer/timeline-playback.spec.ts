@@ -200,6 +200,89 @@ describe('getLiveLeaderboard', () => {
   });
 });
 
+/**
+ * `RaceSegmentSnapshot.fatigueLevel` + `.paceScore` (bu turda EKLENDİ) —
+ * alanların kendi doc yorumları için bkz. `packages/shared-types/src/
+ * race.ts` ve `timeline-playback.ts`'teki `fatigueLevelOf`.
+ *
+ * Bu bloğun varlık nedeni SOMUT bir hataydı: HUD'un "Yor" çubuğu, statik
+ * `fatigue` alanını (yarış ÖNCESİ değer) gösterdiği için yarış boyunca DÜZ
+ * bir çizgiydi. Aşağıdaki testler hem canlı değerin AKTIĞINI hem de eski
+ * kayıtlar için geriye dönük düşüşün ÇALIŞTIĞINI doğrular.
+ */
+describe('interpolateHorseStateAtTime — fatigueLevel / paceScore', () => {
+  it('fatigueLevel taşıyan segmentlerde CANLI değer ara değerlenir ve statik `fatigue` YOK SAYILIR', () => {
+    const segments: RaceSegmentSnapshot[] = [
+      makeSegment({ raceEntryId: 'h1', timestampMs: 1000, positionMeters: 200, fatigue: 15, fatigueLevel: 8 }),
+      makeSegment({ raceEntryId: 'h1', timestampMs: 2000, positionMeters: 400, fatigue: 15, fatigueLevel: 24 }),
+    ];
+    const state = interpolateHorseStateAtTime(segments, 'h1', 1500);
+    expect(state.fatigueLevel).toBeCloseTo(16, 6); // 8 + (24-8)*0.5
+    // Statik alan hâlâ taşınır (geriye dönük uyumluluk) ama HUD'un
+    // gösterdiği değer DEĞİLDİR.
+    expect(state.fatigue).toBeCloseTo(15, 6);
+  });
+
+  it('GERİYE DÖNÜK UYUMLULUK: fatigueLevel taşımayan (eski) kayıtta canlı değer statik `fatigue`a düşer — çubuk KAYBOLMAZ', () => {
+    const segments: RaceSegmentSnapshot[] = [
+      makeSegment({ raceEntryId: 'h1', timestampMs: 1000, positionMeters: 200, fatigue: 30, fatigueLevel: undefined }),
+      makeSegment({ raceEntryId: 'h1', timestampMs: 2000, positionMeters: 400, fatigue: 30, fatigueLevel: undefined }),
+    ];
+    const state = interpolateHorseStateAtTime(segments, 'h1', 1500);
+    expect(state.fatigueLevel).toBeCloseTo(30, 6);
+  });
+
+  it('paceScore iki kontrol noktası arasında ara değerlenir', () => {
+    const segments: RaceSegmentSnapshot[] = [
+      makeSegment({ raceEntryId: 'h1', timestampMs: 1000, positionMeters: 200, paceScore: 40 }),
+      makeSegment({ raceEntryId: 'h1', timestampMs: 2000, positionMeters: 400, paceScore: 60 }),
+    ];
+    expect(interpolateHorseStateAtTime(segments, 'h1', 1500).paceScore).toBeCloseTo(50, 6);
+  });
+
+  it('paceScore uçlardan biri taşımıyorsa `undefined` kalır — NaN ÜRETİLMEZ', () => {
+    const segments: RaceSegmentSnapshot[] = [
+      makeSegment({ raceEntryId: 'h1', timestampMs: 1000, positionMeters: 200, paceScore: undefined }),
+      makeSegment({ raceEntryId: 'h1', timestampMs: 2000, positionMeters: 400, paceScore: 60 }),
+    ];
+    const state = interpolateHorseStateAtTime(segments, 'h1', 1500);
+    expect(state.paceScore).toBeUndefined();
+    expect(Number.isNaN(state.paceScore as number)).toBe(false);
+  });
+
+  it('paceScore hiçbir segmentte yoksa (eski kayıt) undefined kalır — uydurulmaz', () => {
+    const segments: RaceSegmentSnapshot[] = [
+      makeSegment({ raceEntryId: 'h1', timestampMs: 1000, positionMeters: 200, paceScore: undefined }),
+      makeSegment({ raceEntryId: 'h1', timestampMs: 2000, positionMeters: 400, paceScore: undefined }),
+    ];
+    expect(interpolateHorseStateAtTime(segments, 'h1', 1500).paceScore).toBeUndefined();
+  });
+});
+
+describe('getLiveLeaderboard — fatigueLevel / paceScore', () => {
+  it('canlı yorgunluk ve tempo puanını sıralama satırına taşır', () => {
+    const segments: RaceSegmentSnapshot[] = [
+      makeSegment({ raceEntryId: 'h1', timestampMs: 1000, positionMeters: 300, speed: 15, fatigue: 12, fatigueLevel: 33, paceScore: 65 }),
+      makeSegment({ raceEntryId: 'h2', timestampMs: 1000, positionMeters: 250, speed: 14, fatigue: 40, fatigueLevel: 51, paceScore: 47 }),
+    ];
+    const leaderboard = getLiveLeaderboard(segments, ['h1', 'h2'], 1000);
+    expect(leaderboard[0]!.fatigueLevel).toBeCloseTo(33, 6);
+    expect(leaderboard[0]!.paceScore).toBeCloseTo(65, 6);
+    // Statik alan KORUNUR ama canlıdan FARKLIDIR — ikisinin ayrı mekanizma
+    // olduğunun somut kanıtı.
+    expect(leaderboard[0]!.fatigue).toBeCloseTo(12, 6);
+    expect(leaderboard[1]!.fatigueLevel).toBeCloseTo(51, 6);
+    expect(leaderboard[1]!.paceScore).toBeCloseTo(47, 6);
+  });
+
+  it('hiç segmenti olmayan at için fatigueLevel/paceScore da undefined kalır (uydurulmaz)', () => {
+    const segments: RaceSegmentSnapshot[] = [makeSegment({ raceEntryId: 'h1', timestampMs: 1000, positionMeters: 300 })];
+    const unknown = getLiveLeaderboard(segments, ['h1', 'unknown-horse'], 1000).find((e) => e.horseId === 'unknown-horse');
+    expect(unknown!.fatigueLevel).toBeUndefined();
+    expect(unknown!.paceScore).toBeUndefined();
+  });
+});
+
 describe('isAnyHorseBlockedAtTime', () => {
   it('hiçbir at bloklanmadıysa false döner', () => {
     const segs: RaceSegmentSnapshot[] = [

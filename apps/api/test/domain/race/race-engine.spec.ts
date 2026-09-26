@@ -3,7 +3,7 @@ import { simulateRace, type RaceSimulationInput } from '../../../src/domain/race
 import raceConfigJson from '../../../../../config/race.config.json';
 import weatherConfigJson from '../../../../../config/weather.config.json';
 import type { RaceBalanceConfig, WeatherConfig } from '@at-sevdalisi/game-config';
-import type { RaceEntrantSnapshot } from '@at-sevdalisi/shared-types';
+import type { RaceEntrantSnapshot, RaceTacticInput } from '@at-sevdalisi/shared-types';
 
 const raceConfig = raceConfigJson as unknown as RaceBalanceConfig;
 const weatherConfig = weatherConfigJson as unknown as WeatherConfig;
@@ -177,5 +177,81 @@ describe('simulateRace — FAZ 5 (Advanced Race Engine)', () => {
     const t2 = simulateRace({ ...baseInput, simulationSeed: 'faz5-determinism', entries });
     expect(t2.segments).toEqual(t1.segments);
     expect(t2.explanations).toEqual(t1.explanations);
+  });
+});
+
+/**
+ * `RaceSegmentSnapshot.fatigueLevel` + `.paceScore` (bu turda EKLENDİ) —
+ * alanların kendi doc yorumları için bkz. `packages/shared-types/src/race.ts`.
+ *
+ * Bu bloğun varlık nedeni SOMUT bir hataydı: motor `state.runtimeFatigue`'i
+ * zaten her segmentte hesaplayıp performans cezasına çeviriyordu
+ * (`deriveFatiguePerformancePenalty`), ama telemetriye HİÇ yazmıyordu.
+ * Segmentteki `fatigue` alanı ise `horses.fatigue` STATİK (yarış öncesi)
+ * değerini taşıdığı için, istemcideki yorgunluk göstergesi (`RaceHud`'un
+ * "Yor" çubuğu) yarış boyunca SABİT kalıyordu. Aşağıdaki testler canlı
+ * değerin gerçekten AKTIĞINI ve statik değerden FARKLI olduğunu kanıtlar.
+ */
+describe('simulateRace — telemetri zenginleştirme (fatigueLevel, paceScore)', () => {
+  const frontRunnerTactic: RaceTacticInput = {
+    racingStyle: 'front_runner',
+    riskLevel: 'normal',
+    startApproach: 'balanced',
+    finalStretchPlan: 'normal',
+  };
+  const closerTactic: RaceTacticInput = { ...frontRunnerTactic, racingStyle: 'closer' };
+
+  it('her segmentte fatigueLevel ve paceScore TANIMLIDIR', () => {
+    const entries = [makeEntry('h1'), makeEntry('h2', { speed: 60 })];
+    const timeline = simulateRace({ ...baseInput, simulationSeed: 'telemetry-seed', entries });
+    expect(timeline.segments.length).toBeGreaterThan(0);
+    for (const segment of timeline.segments) {
+      expect(typeof segment.fatigueLevel).toBe('number');
+      expect(typeof segment.paceScore).toBe('number');
+    }
+  });
+
+  it('fatigueLevel yarış boyunca BİRİKİR (her segmentte artar) — statik `fatigue` alanının AKSİNE', () => {
+    const entries = [makeEntry('h1', { fatigue: 15 })];
+    const timeline = simulateRace({ ...baseInput, simulationSeed: 'telemetry-seed', entries });
+    const levels = timeline.segments.map((segment) => segment.fatigueLevel!);
+    expect(levels).toHaveLength(8); // 1600m / 200m
+    for (let i = 1; i < levels.length; i += 1) {
+      expect(levels[i]!).toBeGreaterThan(levels[i - 1]!);
+    }
+    // Statik alan yarış boyunca SABİT kalır — ikisinin AYRI mekanizmalar
+    // olduğunun (bkz. `domain/race/fatigue.ts` doc yorumu) somut kanıtı.
+    expect(timeline.segments.every((segment) => segment.fatigue === 15)).toBe(true);
+    expect(levels[0]).not.toBe(15);
+  });
+
+  it('paceScore atın yarış stilini yansıtır: mid_pack nötr (50), front_runner nötrün ÜSTÜNDE, closer ALTINDA', () => {
+    const midPack = simulateRace({ ...baseInput, simulationSeed: 'pace-seed', entries: [makeEntry('h1')] });
+    const frontRunner = simulateRace({
+      ...baseInput,
+      simulationSeed: 'pace-seed',
+      entries: [makeEntry('h1', { tactic: frontRunnerTactic })],
+    });
+    const closer = simulateRace({
+      ...baseInput,
+      simulationSeed: 'pace-seed',
+      entries: [makeEntry('h1', { tactic: closerTactic })],
+    });
+
+    expect(midPack.segments[0]!.paceScore).toBeCloseTo(50, 6);
+    expect(frontRunner.segments[0]!.paceScore).toBeCloseTo(65, 6);
+    expect(closer.segments[0]!.paceScore).toBeCloseTo(47, 6);
+
+    // Çarpan yarış boyunca stil bazlı SABİT olduğundan (yalnızca
+    // `performanceBonus` aşamaya göre değişir), puan da sabit kalmalıdır.
+    expect(new Set(midPack.segments.map((segment) => segment.paceScore)).size).toBe(1);
+    expect(new Set(frontRunner.segments.map((segment) => segment.paceScore)).size).toBe(1);
+  });
+
+  it('yeni alanlar determinizmi BOZMAZ (aynı seed ⇒ bit bit aynı segmentler)', () => {
+    const entries = [makeEntry('h1'), makeEntry('h2', { speed: 60 })];
+    const t1 = simulateRace({ ...baseInput, simulationSeed: 'telemetry-determinism', entries });
+    const t2 = simulateRace({ ...baseInput, simulationSeed: 'telemetry-determinism', entries });
+    expect(t2.segments).toEqual(t1.segments);
   });
 });

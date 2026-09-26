@@ -356,37 +356,48 @@ function LeaderboardPanel({
         Sıralama
       </div>
       <ol style={{ listStyle: 'none', margin: 0, padding: 0, display: 'grid', gap: '6px' }}>
-        {leaderboard.map((entry) => (
-          <li key={entry.horseId} style={{ display: 'grid', gap: '2px' }}>
-            <div
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                gap: 'var(--space-sm)',
-                fontSize: '13px',
-              }}
-            >
-              <span style={{ color: 'var(--color-text-primary)' }}>
-                {entry.rank}. {horseNamesById[entry.horseId] ?? entry.horseId}
-                {entry.tacticalState ? (
-                  <span style={{ color: 'var(--color-text-muted)', fontSize: '10px' }}>
-                    {' '}
-                    ({TACTICAL_STATE_LABELS[entry.tacticalState] ?? entry.tacticalState})
-                  </span>
-                ) : null}
-              </span>
-              <span style={{ color: 'var(--color-text-muted)', fontVariantNumeric: 'tabular-nums' }}>
-                {entry.rank === 1 ? '—' : `-${entry.gapToLeaderMeters.toFixed(1)}m`}
-              </span>
-            </div>
-            {entry.stamina !== undefined ? (
-              <StatBar label="Kon" value={entry.stamina} color="var(--color-status-positive)" />
-            ) : null}
-            {entry.fatigue !== undefined ? (
-              <StatBar label="Yor" value={entry.fatigue} color="var(--color-status-warning)" />
-            ) : null}
-          </li>
-        ))}
+        {leaderboard.map((entry) => {
+          // `Yor` çubuğunun gösterdiği değer: CANLI (yarış içinde biriken)
+          // yorgunluk. `fatigueLevel` bu alan eklenmeden önce persist
+          // edilmiş kayıtlarda `undefined` olduğundan geriye dönük olarak
+          // statik `fatigue`'a düşülür (bkz. `timeline-playback.ts`
+          // `fatigueLevelOf`) — eski bir replay'de çubuk kaybolmasın diye.
+          const liveFatigue = entry.fatigueLevel ?? entry.fatigue;
+          return (
+            <li key={entry.horseId} style={{ display: 'grid', gap: '2px' }}>
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  gap: 'var(--space-sm)',
+                  fontSize: '13px',
+                }}
+              >
+                <span style={{ color: 'var(--color-text-primary)' }}>
+                  {entry.rank}. {horseNamesById[entry.horseId] ?? entry.horseId}
+                  {entry.tacticalState || entry.paceScore !== undefined ? (
+                    <span style={{ color: 'var(--color-text-muted)', fontSize: '10px' }}>
+                      {' ('}
+                      {entry.tacticalState ? (TACTICAL_STATE_LABELS[entry.tacticalState] ?? entry.tacticalState) : null}
+                      {entry.tacticalState && entry.paceScore !== undefined ? ' · ' : null}
+                      {entry.paceScore !== undefined ? `Tempo ${Math.round(entry.paceScore)}` : null}
+                      {')'}
+                    </span>
+                  ) : null}
+                </span>
+                <span style={{ color: 'var(--color-text-muted)', fontVariantNumeric: 'tabular-nums' }}>
+                  {entry.rank === 1 ? '—' : `-${entry.gapToLeaderMeters.toFixed(1)}m`}
+                </span>
+              </div>
+              {entry.stamina !== undefined ? (
+                <StatBar label="Kon" value={entry.stamina} color="var(--color-status-positive)" />
+              ) : null}
+              {liveFatigue !== undefined ? (
+                <StatBar label="Yor" value={liveFatigue} color="var(--color-status-warning)" />
+              ) : null}
+            </li>
+          );
+        })}
       </ol>
     </div>
   );

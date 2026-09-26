@@ -93,6 +93,31 @@ interface RaceFinishEntry {
 API üzerinden istemciye gönderilir; istemci bunu Three.js sahnesinde
 zaman bazlı olarak oynatır (brief §22-23).
 
+**Uygulama notu — telemetri zenginleştirme (bu turda eklendi):**
+`RaceSegmentSnapshot` iki YENİ opsiyonel alan taşır:
+
+- `fatigueLevel` — motorun yarış İÇİNDE segment segment biriktirdiği CANLI
+  yorgunluk (`domain/race/fatigue.ts` `accumulateRuntimeFatigue`). Bu alan
+  eklenmeden önce segmentteki `fatigue` alanı yalnızca `horses.fatigue`'tan
+  gelen YARIŞ ÖNCESİ statik değeri taşıdığı için istemcideki yorgunluk
+  göstergesi yarış boyunca düz bir çizgiydi; motor canlı değeri zaten
+  hesaplayıp performans cezasına çeviriyordu (`deriveFatiguePerformancePenalty`)
+  ama telemetriye hiç yazmıyordu. Statik `fatigue` alanı geriye dönük
+  uyumluluk için KORUNUR (ikisi `fatigue.ts`'in doc yorumunda açıkça
+  "KARIŞTIRILMAMALIDIR" denen AYRI mekanizmalardır).
+- `paceScore` — `domain/race/pace.ts` `derivePaceScore`'un,
+  `PaceEffect.staminaConsumptionMultiplier`'ı 0-100'e (50 = nötr) çevirdiği
+  gösterim değeri. YENİ bir denge sabiti değildir: yalnızca var olan config
+  çarpanının (1.15 / 1.0 / 0.97) yüzdeye çevrilmiş halidir, bu yüzden
+  `RACE_RULESET_VERSION` DEĞİL yalnızca `config/race.config.json` sürümü
+  ilgilendirir.
+
+Her ikisi de BİLEREK OPSİYONELDİR: bu alanlar eklenmeden önce persist
+edilmiş yarış kayıtlarında `NULL` kalır ve tüketiciler geriye dönük olarak
+statik `fatigue`'a düşer (bkz. `apps/web/src/features/race-viewer/
+timeline-playback.ts` `fatigueLevelOf`). Migration: `0029_add_race_segment_
+telemetry_fields`.
+
 ## 6. Foto-finiş (brief §25)
 
 Sıralama **her zaman** `finishPositionMs` (gerçek simülasyon zamanı)

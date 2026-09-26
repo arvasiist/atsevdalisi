@@ -22,20 +22,76 @@ export interface InterpolatedHorseState {
    * Aşağıdaki alanlar OPSİYONELDİR ve `HorseVisual`/`RaceViewer`
    * sözleşmesini genişletmez (bkz. `race-viewer/README.md` "Kapsam dışı" —
    * `HorseMarker`'ın x/z/headingRadians/color/isLeader arayüzü sabit
-   * kalır). Bunlar İLERİDE (gerçek at/jokey modelleri geldiğinde) animasyon
-   * durumu seçimini (gait/duruş/tökezleme/sprint) beslemek için eklendi;
-   * bugün hiçbir tüketicisi yok. `stamina`/`fatigue` diğer sayısal alanlar
+   * kalır). `stamina`/`fatigue`/`lane`/`tacticalState` bugün `RaceHud`'un
+   * sıralama paneli tarafından TÜKETİLİR; `blocked`'ın tüketicisi
+   * `isAnyHorseBlockedAtTime` (→ Camera Director); `decision` ise İLERİDE
+   * (gerçek at/jokey modelleri geldiğinde) animasyon durumu seçimini
+   * (gait/duruş/tökezleme/sprint) beslemek için duruyor. Sayısal alanlar
+   * (`stamina`/`fatigue`/`fatigueLevel`/`paceScore`) diğer sayısal alanlar
    * gibi lineer ara değerlenir; `lane`/`tacticalState`/`blocked`/`decision`
    * KATEGORİKTİR (ara değerlenemez) — bir sonraki kontrol noktasına kadar
    * "yürürlükte olan" değeri döndürmek için en yakın ÖNCEKİ (veya ilk/son)
    * segmentten alınır.
    */
   stamina?: number;
+  /**
+   * Yarış ÖNCESİ statik yorgunluk (`RaceSegmentSnapshot.fatigue` — bkz. o
+   * alanın doc yorumu). Bu alan yarış boyunca SABİT kalır; HUD'da GÖSTERİLEN
+   * değer `fatigueLevel`'dadır.
+   */
   fatigue?: number;
+  /**
+   * Yarış İÇİNDE biriken CANLI yorgunluk — `RaceSegmentSnapshot.
+   * fatigueLevel`'ın ara değerlenmiş hali. Segment `fatigueLevel`
+   * taşımıyorsa (bu alan eklenmeden önce persist edilmiş kayıtlar) geriye
+   * dönük olarak statik `fatigue`'a düşülür (bkz. `fatigueLevelOf`).
+   *
+   * Bu yüzden, atın EN AZ bir segmenti varsa burası her zaman bir sayıdır.
+   * Opsiyonel olmasının tek nedeni `paceScore` ile AYNI: atın hiç segmenti
+   * yoksa (bkz. `interpolateHorseStateAtTime`'ın boş dizi erken dönüşü)
+   * alan hiç bulunmaz — "ölçüm yok" ile "ölçüm sıfır" karıştırılmasın diye
+   * orada `0` UYDURULMAZ.
+   */
+  fatigueLevel?: number;
+  /** Bu andaki tempo göstergesi (0-100, 50 = nötr) — `RaceSegmentSnapshot.paceScore`. Eski kayıtlarda `undefined` kalır (uydurulmaz). */
+  paceScore?: number;
   lane?: number;
   tacticalState?: string;
   blocked?: boolean;
   decision?: RaceJockeyDecision;
+}
+
+/**
+ * Bir segmentin CANLI yorgunluk değeri. Yeni kayıtlarda `fatigueLevel`
+ * (motorun yarış içinde segment segment biriktirdiği dinamik değer), bu
+ * alan eklenmeden ÖNCE persist edilmiş kayıtlarda ise geriye dönük uyumluluk
+ * için statik `fatigue` döner.
+ *
+ * Bu geri düşüş, eski bir yarışın replay'inde yorgunluk çubuğunun
+ * KAYBOLMASINI engeller — eski kayıtta canlı veri YOKTUR, ama düz bir
+ * çizgi de olsa statik değer göstermek, çubuğu tamamen gizlemekten daha
+ * dürüsttür (tek bir ölçüm göstermektedir, uydurma bir eğri değil).
+ */
+function fatigueLevelOf(segment: RaceSegmentSnapshot): number {
+  return segment.fatigueLevel ?? segment.fatigue;
+}
+
+/**
+ * İki uç arasında OPSİYONEL bir sayısal alanı ara değerler. Uçlardan biri
+ * `undefined` ise sonuç da `undefined`'dur — `undefined` ile aritmetik
+ * `NaN` üretir ve `NaN` sessizce yayılır (`StatBar`'ın `width: 'NaN%'`
+ * üretmesi gibi). `paceScore` gibi "eski kayıtta hiç yok" alanlar için
+ * doğru davranış budur: veri yoksa değer de yoktur, uydurulmaz.
+ */
+function interpolateOptional(
+  previous: number | undefined,
+  current: number | undefined,
+  fraction: number,
+): number | undefined {
+  if (previous === undefined || current === undefined) {
+    return undefined;
+  }
+  return previous + (current - previous) * fraction;
 }
 
 function categoricalFieldsOf(
@@ -76,6 +132,8 @@ export function interpolateHorseStateAtTime(
       speedMps: firstSegment.speed,
       stamina: firstSegment.stamina,
       fatigue: firstSegment.fatigue,
+      fatigueLevel: fatigueLevelOf(firstSegment),
+      paceScore: firstSegment.paceScore,
       ...categoricalFieldsOf(firstSegment),
     };
   }
@@ -91,6 +149,8 @@ export function interpolateHorseStateAtTime(
         speedMps: previous.speed + (current.speed - previous.speed) * fraction,
         stamina: previous.stamina + (current.stamina - previous.stamina) * fraction,
         fatigue: previous.fatigue + (current.fatigue - previous.fatigue) * fraction,
+        fatigueLevel: fatigueLevelOf(previous) + (fatigueLevelOf(current) - fatigueLevelOf(previous)) * fraction,
+        paceScore: interpolateOptional(previous.paceScore, current.paceScore, fraction),
         ...categoricalFieldsOf(previous),
       };
     }
@@ -102,6 +162,8 @@ export function interpolateHorseStateAtTime(
     speedMps: lastSegment.speed,
     stamina: lastSegment.stamina,
     fatigue: lastSegment.fatigue,
+    fatigueLevel: fatigueLevelOf(lastSegment),
+    paceScore: lastSegment.paceScore,
     ...categoricalFieldsOf(lastSegment),
   };
 }
@@ -146,8 +208,27 @@ export interface LiveLeaderboardEntry {
    * ZATEN VAR OLAN alanlar `LiveLeaderboardEntry`'ye kopyalandı.
    */
   stamina?: number;
+  /**
+   * Yarış ÖNCESİ statik yorgunluk — `RaceSegmentSnapshot.fatigue`'ın
+   * kopyası (bkz. `InterpolatedHorseState.fatigue`). Yarış boyunca sabit
+   * kalır, bu yüzden HUD'da GÖSTERİLMEZ; canlı gösterge `fatigueLevel`'dır.
+   * Geriye dönük uyumluluk için KORUNUR.
+   */
   fatigue?: number;
-  /** Brief'in "PACE" alanına en yakın karşılığı — motorun ürettiği taktik/stil kategorisi (bkz. `domain/race/pace.ts`). Sayısal bir "pace score" motorda YOK, uydurulmadı. */
+  /** Yarış İÇİNDE biriken CANLI yorgunluk — HUD'da gösterilen değer budur. */
+  fatigueLevel?: number;
+  /**
+   * Bu andaki tempo göstergesi (0-100, 50 = nötr) —
+   * `RaceSegmentSnapshot.paceScore`. Daha önce burada "Sayısal bir 'pace
+   * score' motorda YOK, uydurulmadı" yazıyordu; bu, alan eklendiğinde
+   * YANLIŞ hale geldi: motor artık `derivePaceScore` ile
+   * `pace.staminaConsumptionMultiplier`'ı (config: 1.15 / 1.0 / 0.97)
+   * yüzdeye çevirip `paceScore` olarak yayıyor. Değer uydurulmuş bir denge
+   * sabiti DEĞİL, var olan bir çarpanın gösterimidir. Yine de eski
+   * kayıtlarda `undefined` kalır — o durumda HUD bu satırı hiç render etmez.
+   */
+  paceScore?: number;
+  /** Brief'in "PACE" alanına en yakın KATEGORİK karşılığı — motorun ürettiği taktik/stil kategorisi (bkz. `domain/race/pace.ts`). Sayısal karşılığı için `paceScore`'a bakın. */
   tacticalState?: string;
 }
 
@@ -175,6 +256,8 @@ export function getLiveLeaderboard(
     gapToLeaderMeters: leaderPositionMeters - state.positionMeters,
     stamina: state.stamina,
     fatigue: state.fatigue,
+    fatigueLevel: state.fatigueLevel,
+    paceScore: state.paceScore,
     tacticalState: state.tacticalState,
   }));
 }

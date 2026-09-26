@@ -38,6 +38,21 @@
 | 0012 | `create_staff_and_stable_level` | `staff` (brief §33 Personel, jokey hariç) + `players.stable_level` (FAZ 1'de domain/stable'ın parametre olarak beklediği ama hiçbir migration'ın eklemediği sütun — FAZ 2 ahır yükseltmesi için burada tamamlandı) |
 | 0013 | `create_facilities` | `facilities` (brief §32 Çiftlik tesisleri — Paddock, Antrenman pisti, Veteriner merkezi, Nalbant alanı, Üreme merkezi, Depo, Personel binası; ahır hariç, bkz. `domain/farm/README.md`) |
 | 0014 | `add_race_segment_faz5_fields` | `race_entry_segments.blocked`/`jockey_decision` (brief §21 geçiş/bloklanma, §60 jokey AI kararları — bkz. `domain/race/overtaking.ts`, `domain/race/jockey-decisions.ts`) |
+| 0015 | `create_horse_care_log` | `horse_care_log` — bakım eylemi soğuma (cooldown) takibi (brief §11, `domain/care/care.ts`) |
+| 0016 | `add_last_daily_reward_claimed_at` | `players.last_daily_reward_claimed_at` — günlük ödül cooldown'u (brief §37) |
+| 0017 | `add_market_listings_indexes` | `market_listings` tarama (`WHERE`/`ORDER BY`) index'leri — At Pazarı listeleme endpoint'leri için |
+| 0018 | `add_pvp_matchmaking` | `players.rating` + `matchmaking_tickets` + `pvp_matches` (brief §41 online mimari, §43 Elo) |
+| 0019 | `add_economy_ledger` | `economy_transactions` — kalıcı para hareketleri defteri; cüzdan mutasyonuyla AYNI transaction'da yazılır (brief §65) |
+| 0020 | `add_idempotency_keys` | `idempotency_keys` — Redis TTL'inin ötesinde KALICI idempotency rezervasyonu (`INSERT ... ON CONFLICT DO NOTHING`) |
+| 0021 | `add_race_versioning` | `races`'a `engine_version`/`ruleset_version`/`config_version` — brief §58'in dörtlüsünün (seed + config + snapshot + taktik) config ayağı |
+| 0022 | `document_unwired_horse_compatibility_stats` | `horse_surface_stats`/`horse_distance_stats`'ın o an BAĞLANMAMIŞ olduğunu belgeleyen `COMMENT`'ler (bkz. `entrant-snapshot.ts` `UNMODELED_SNAPSHOT_FIELDS`) |
+| 0023 | `add_market_listing_unique_active_index` | "Bir atın en fazla bir AKTİF ilanı olabilir" kısmi tekil index'i (Bulgu D1 — yalnızca application katmanında uygulanıyordu) |
+| 0024 | `add_weather_config_versioning` | `config/weather.config.json` için sürüm bütünlüğü — 0021'in `race.config.json` için kapattığı riskin AYNISI (Bulgu R1) |
+| 0025 | `add_race_entry_bot_support` | `race_entries.bot_label` + `horse_id`/`bot_label` XOR CHECK kısıtı — botların tam alan (full-field) replay'i (Bulgu R2) |
+| 0026 | `wire_horse_surface_and_distance_stats` | `horse_surface_stats`/`horse_distance_stats`'ın Track Fit hesabına bağlanması (R3 — `domain/race/track-fit.ts`) |
+| 0027 | `backfill_horse_weight_kg` | `horses.weight_kg` backfill'i (R4 — Carried Weight, `domain/horse/weight.ts`) |
+| 0028 | `create_horse_equipment` | `horse_equipment` — at ekipman envanteri (brief §14 PHASE 14, §17 PHASE 17) |
+| 0029 | `add_race_segment_telemetry_fields` | `race_entry_segments.fatigue_level`/`pace_score` — yarış İÇİ canlı yorgunluk ve tempo telemetrisi (mevcut `fatigue` sütunu statik/yarış öncesi değeri taşımaya DEVAM eder) |
 
 Her migration'ın bir `.up.sql` (uygula) ve `.down.sql` (geri al) karşılığı
 vardır. Çalıştırma aracı olarak `node-pg-migrate` veya eşdeğeri önerilir

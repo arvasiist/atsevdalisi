@@ -35,7 +35,7 @@ import type {
 import { computeBaseAbility } from './base-ability';
 import { applyDistanceWeightAdjustments, getDistanceCategory } from './distance-category';
 import { getEnvironmentModifier } from './environment';
-import { derivePaceEffect } from './pace';
+import { derivePaceEffect, derivePaceScore } from './pace';
 import { assignInitialLane, calculateAvailableSpace, calculateOvertakeProbability, deriveLaneChange } from './overtaking';
 import { decideJockeyAction, type JockeyDecision } from './jockey-decisions';
 import { deriveSprintBonus } from './sprint';
@@ -319,7 +319,17 @@ export function simulateRace(input: RaceSimulationInput): RaceTimeline {
         positionMeters: state.positionMeters,
         speed: segmentSpeedMps,
         stamina: state.runtimeStamina,
+        // DİKKAT — bu, `horses.fatigue`'tan gelen STATİK (yarış ÖNCESİ)
+        // değerdir; `domain/race/fatigue.ts`'in kendi doc yorumunun
+        // "KARIŞTIRILMAMALIDIR" dediği ayrımın statik tarafı. Yarış
+        // İÇİNDE segment segment BİRİKEN dinamik yorgunluk ise hemen
+        // aşağıdaki `fatigueLevel`'dadır. Bu alan, kendisini tüketen
+        // mevcut fixture/test'leri ve bu alan eklenmeden önce persist
+        // edilmiş yarış kayıtlarını KIRMAMAK için geriye dönük uyumluluk
+        // amacıyla KORUNUR (bkz. `RaceSegmentSnapshot.fatigueLevel`).
         fatigue: entry.fatigue,
+        fatigueLevel: state.runtimeFatigue,
+        paceScore: derivePaceScore(pace.staminaConsumptionMultiplier),
         lane: state.lane,
         tacticalState: state.racingStyle,
         currentRank: 0, // aşağıda bu segment için toplu olarak hesaplanır

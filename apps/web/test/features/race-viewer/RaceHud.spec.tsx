@@ -49,6 +49,18 @@ function buildProps(overrides: Partial<RaceHudProps> = {}): RaceHudProps {
   };
 }
 
+/**
+ * `StatBar`'ın DOLDURULMUŞ kısmının genişliği (ör. `'58%'`). `label`
+ * metnini taşıyan `<span>`'in kardeşi olan iz (track) `<div>`'inin ilk
+ * `<div>` çocuğu. Değeri okumanın başka yolu yok — çubuk bir metin değil,
+ * bir `width` yüzdesi.
+ */
+function barWidthFor(container: HTMLElement, label: string): string | undefined {
+  const labelSpan = [...container.querySelectorAll('span')].find((span) => span.textContent === label);
+  const inner = labelSpan?.parentElement?.querySelector('div')?.querySelector('div');
+  return (inner as HTMLElement | undefined)?.style.width;
+}
+
 describe('RaceHud', () => {
   it('sıralama panelinde at isimlerini ve lidere farkı gösterir', () => {
     render(<RaceHud {...buildProps()} />);
@@ -119,5 +131,43 @@ describe('RaceHud', () => {
 
     expect(screen.getByText('1:05.00')).toBeTruthy();
     expect(screen.getByText(/2:05\.00/)).toBeTruthy();
+  });
+
+  /**
+   * Bu iki test, HUD'un "Yor" çubuğunun yarış boyunca DÜZ bir çizgi olması
+   * hatasını (bkz. `RaceSegmentSnapshot.fatigueLevel` doc yorumu) kilitler.
+   */
+  it('"Yor" çubuğu CANLI yorgunluğu (fatigueLevel) gösterir — statik `fatigue`ı DEĞİL', () => {
+    const leaderboard: LiveLeaderboardEntry[] = [
+      { horseId: 'h1', rank: 1, positionMeters: 800, speedMps: 16, gapToLeaderMeters: 0, stamina: 70, fatigue: 12, fatigueLevel: 58 },
+    ];
+    const { container } = render(<RaceHud {...buildProps({ leaderboard, horseNamesById: { h1: 'Yıldırım' } })} />);
+
+    expect(screen.getByText('Yor')).toBeTruthy();
+    expect(barWidthFor(container, 'Yor')).toBe('58%'); // statik 12 DEĞİL
+  });
+
+  it('fatigueLevel taşımayan ESKİ kayıtta "Yor" çubuğu statik `fatigue`a düşer — çubuk kaybolmaz', () => {
+    const leaderboard: LiveLeaderboardEntry[] = [
+      { horseId: 'h1', rank: 1, positionMeters: 800, speedMps: 16, gapToLeaderMeters: 0, stamina: 70, fatigue: 12 },
+    ];
+    const { container } = render(<RaceHud {...buildProps({ leaderboard, horseNamesById: { h1: 'Yıldırım' } })} />);
+
+    expect(barWidthFor(container, 'Yor')).toBe('12%');
+  });
+
+  it('paceScore varsa "Tempo N" etiketi gösterilir, yoksa (eski kayıt) hiç gösterilmez', () => {
+    const withPace: LiveLeaderboardEntry[] = [
+      { horseId: 'h1', rank: 1, positionMeters: 800, speedMps: 16, gapToLeaderMeters: 0, tacticalState: 'front_runner', paceScore: 65 },
+    ];
+    const first = render(<RaceHud {...buildProps({ leaderboard: withPace, horseNamesById: { h1: 'Yıldırım' } })} />);
+    expect(screen.getByText(/Tempo 65/)).toBeTruthy();
+    first.unmount();
+
+    const withoutPace: LiveLeaderboardEntry[] = [
+      { horseId: 'h1', rank: 1, positionMeters: 800, speedMps: 16, gapToLeaderMeters: 0, tacticalState: 'front_runner' },
+    ];
+    render(<RaceHud {...buildProps({ leaderboard: withoutPace, horseNamesById: { h1: 'Yıldırım' } })} />);
+    expect(screen.queryByText(/Tempo/)).toBeNull();
   });
 });

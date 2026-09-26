@@ -2415,6 +2415,66 @@ doğrulanmalı; mümkünse "tüm dosyaların üzerine yaz" zip yöntemi yerine
 kullanıcının bilgisayarına doğrudan bağlanıp yalnızca DEĞİŞEN dosyalar
 yazılmalı.
 
+## Telemetri zenginleştirme + canlı yorgunluk düzeltmesi (bu oturum)
+
+**Durum: yerelde tamamlandı ve doğrulandı — commit/push HENÜZ YAPILMADI,
+CI doğrulaması BEKLİYOR.** `docs/IMPLEMENTATION_PLAN_MASTER_BRIEF.md`
+"Grup 1" madde 1. Race Engine'in DÖNGÜSÜNE dokunulmadı; yalnızca motorun
+ZATEN hesapladığı iki değer telemetriye yazıldı.
+
+**Kapatılan GERÇEK hata:** `RaceSegmentSnapshot.fatigue` alanı,
+`horses.fatigue`'tan gelen YARIŞ ÖNCESİ statik değerin kopyasıydı. Motor
+`state.runtimeFatigue`'i zaten her segmentte hesaplayıp performans cezasına
+çeviriyordu (`deriveFatiguePerformancePenalty`) ama telemetriye HİÇ
+yazmıyordu — bu yüzden `RaceHud`'un "Yor" çubuğu yarış boyunca DÜZ bir
+çizgiydi (demo fixture'ında `simsek` için sabit `12`).
+
+- `packages/shared-types/src/race.ts` — `RaceSegmentSnapshot`'a opsiyonel
+  `fatigueLevel` (canlı yorgunluk) ve `paceScore` (0-100 tempo, 50 = nötr).
+- `apps/api/src/domain/race/pace.ts` — yeni `derivePaceScore`: var olan
+  `staminaConsumptionMultiplier`'ı yüzdeye çevirir (**YENİ denge sabiti
+  DEĞİL**; 1.15 → 65, 1.0 → 50, 0.97 → 47). Kayan nokta gürültüsünü
+  temizlemek için 2 ondalığa yuvarlanır (DB sütunu `NUMERIC(5,2)` ile
+  AYNI ölçek — yuvarlamasız `64.99999999999999` çıkıyordu).
+- `apps/api/src/domain/race/race-engine.ts` — segment çıktısına iki alan
+  eklendi; statik `fatigue` geriye dönük uyumluluk için KORUNDU.
+- `database/migrations/0029_add_race_segment_telemetry_fields` — iki
+  NULLABLE `NUMERIC(5,2)` sütun (mevcut satırlar `NULL` kalır).
+- `postgres-race.repository.ts` — INSERT 12→14 sütun, SELECT eşlemesi
+  `NULL → undefined` (0 DEĞİL: "ölçüm yok" ile "sıfır" ayırt edilebilsin).
+- `apps/web/.../timeline-playback.ts` — `fatigueLevelOf` geri dönüşü
+  (`fatigueLevel ?? fatigue`, eski kayıtta çubuk kaybolmasın) ve
+  `interpolateOptional` (`undefined` ile aritmetiğin `NaN` üretmesini
+  önler). `LiveLeaderboardEntry`'nin artık YANLIŞ olan "sayısal bir pace
+  score motorda YOK" yorumu düzeltildi.
+- `apps/web/.../RaceHud.tsx` — "Yor" çubuğu canlı değere bağlandı;
+  sıralama satırında "Tempo N" etiketi (`paceScore` yoksa gösterilmez).
+- `tools/generate-demo-race-timeline.ts` çıktısı yeniden üretildi.
+
+**Kapsam dışı bırakılan:** plandaki `staminaRemaining` — zaten canlı olan
+`stamina` alanının saf kopyası olurdu.
+
+**Doğrulama (yerel):** `npm run typecheck` 0 hata. `npx vitest run
+apps/api/test/domain apps/web/test` → **61 dosya / 704 test geçti**. Tam
+`npm test`'te düşen 185 testin TAMAMI e2e'dir ve hepsi `ECONNREFUSED
+::1:5432` (Postgres yok) — **regresyon DEĞİL**. Yeni testler: `pace.spec.ts` 8→15, `race-engine.spec.ts`
+13→17, `timeline-playback.spec.ts` 24→30, `RaceHud.spec.tsx` 9→12. Ayrıca
+`race-timeline.e2e-spec.ts`'e segment sütunlarının DB turunu doğrulayan bir
+blok eklendi (INSERT sütun sırası hatası — tip uyumlu iki `NUMERIC(5,2)`
+sessizce yer değiştirirdi — başka hiçbir testle yakalanamazdı) — **bu e2e
+bu ortamda KOŞULAMADI** (Postgres yok, `ECONNREFUSED ::1:5432`), CI'da
+koşacak.
+
+**Yeniden üretilen fixture'ın farkı SADECE ekleme:** yeni alanlar
+çıkarıldığında dosya eskisiyle BİREBİR aynı (aynı kazanan, aynı süreler) —
+yani değişiklik hiçbir yarış sonucunu değiştirmiyor.
+
+**Ek olarak düzeltilen bayat bilgi:** `docs/DATABASE.md`'nin migration
+tablosu 0014'te duruyordu; 0015–0029 tamamlandı. `CLAUDE.md`'nin "`npm
+install` çalışmaz" notu ve "sıradaki iş: Camera Director / Photo Finish"
+maddesi YANLIŞTI — ikisi de düzeltildi (Camera Director + Photo Finish
+`LiveRaceViewer`/`RaceViewer`/`RaceHud`'a ZATEN bağlı).
+
 ## GitHub deposu
 
 ✅ Tamamlandı — kod `github.com/arvasiist/atsevdalisi` deposuna proje

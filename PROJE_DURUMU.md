@@ -1,0 +1,529 @@
+# PROJE_DURUMU.md — At Sevdalısı: Kendi Kullanımım İçin Proje Kavrayışı
+
+> **Bu dosya kimin için?** Bu, proje sahibi için bir tanıtım belgesi DEĞİL.
+> Bu, **benim** (Claude'un) her yeni oturumun başında okuyup "biz ne yapıyoruz,
+> nerede kaldık, neye dokunmam yasak" diye hatırlaması için yazdığım
+> yönelim/orientation dosyasıdır. Proje sahibinin belgeleri `docs/` altındadır;
+> burası onların yerine geçmez, üstüne bir "işletim kılavuzu"dur.
+>
+> **Yazım tarihi:** 2026-09-27 · **Analiz edilen HEAD:** yerel `main`, temiz çalışma alanı
+> **Son güncelleme notu:** Bu dosya oluşturulduğunda repoda commit YAPILMAMIŞTIR
+> (bilinçli — sahibi istemeden commit atmam; bkz. §9 "Teslimat mekanizması").
+
+---
+
+## 1. Proje nedir — tek paragrafta
+
+**AT SEVDALISI**, tarayıcıda çalışan bir **3D at yarışı + at sahipliği/yetiştiricilik
+simülasyonu + ekonomi yönetimi oyunudur.** Oyuncu bir "seyis" (ahır sahibi) olarak
+başlar; at yetiştirir, antrenman yaptırır, bakar, yarışlara sokar, pazar yerinde
+alım-satım yapar, yavru üretir (genetik), ahırını geliştirir, çevrimiçi rakiplerle
+eşleşip yarışır ve sıralamada yükselmeye çalışır.
+
+**Duygusal fantezi:** "Benim atım, benim emeğim, benim ahırım." Yani sadece yarış
+kazanma değil; **bir canlıya bakma, onu geliştirme, soyunu sürdürme ve bunun
+ekonomik karşılığını yönetme** hissi. Yarış, bu emeğin sınav anıdır.
+
+**Oyun döngüsü (kısa):** Giriş → Günlük ödül → Atın durumunu kontrol (enerji/
+yorgunluk/sağlık) → Antrenman → Besleme/Bakım → Yarış seç → Jokey seç → Taktik seç →
+**YARIŞ** → Sonuç → Ödül → At gelişimi → Pazar → Görevler → Online → Çıkış.
+
+---
+
+## 2. Köken ve pivot — neden mimari böyle
+
+Proje ilk olarak **Unity + C# istemci + ASP.NET Core backend** olarak brief edilmişti.
+Proje sahibi sonradan **web tabanlı, responsive, mobil dostu** bir yapıya pivot etti.
+`docs/PROJECT_BRIEF.md` içindeki Unity/C# referansları **tarihsel** olarak korunmuştur;
+güncel karşılıkları `docs/ARCHITECTURE.md` §2'deki eşleme tablosundadır:
+
+| Brief'teki (eski) | Bugünkü karşılığı |
+|---|---|
+| Unity (istemci) | Next.js 14 (React + TypeScript) |
+| Unity 3D render | Three.js (`@react-three/fiber` + `drei`) |
+| ASP.NET Core | NestJS 10 |
+| PostgreSQL | PostgreSQL (aynı) |
+| Redis | Redis (aynı) |
+| REST + WebSocket | REST + Socket.IO (`@nestjs/platform-socket.io`) |
+| C# | TypeScript (her yerde) |
+
+**Bu tabloyu bilmek önemli:** `PROJECT_BRIEF.md`'de "Unity'de şöyle yapılacak" yazan
+bir cümle gördüğümde onu harfiyen uygulamaya kalkmamalıyım — ARCHITECTURE.md'deki
+karşılığına bakmalıyım.
+
+---
+
+## 3. Depo yapısı (monorepo)
+
+```
+at-sevdalisi/
+├── apps/
+│   ├── api/          NestJS backend (213 .ts src + 61 test)
+│   └── web/          Next.js 14 frontend (App Router, 55 src dosyası)
+├── packages/
+│   ├── shared-types/ Bağımlılıksız saf TS tipleri + tipli hata kodları
+│   └── game-config/  config/*.config.json dosyalarını yükleyen 16 load*Config()
+├── config/           16 adet JSON oyun dengesi dosyası (race, economy, ...)
+├── database/
+│   ├── migrations/   28 çift (0001–0028) .up.sql / .down.sql
+│   └── seeds/        dev seed SQL
+├── docs/             19 belge (aşağıda §11'de haritası)
+├── tools/            migrate.ts, seed.ts, generate-demo-race-timeline.ts
+├── assets/           HAM 3D/ses kaynak çalışma alanı (git'e girmez, §8.3)
+├── .github/workflows/ci.yml
+└── (kök) *.bat, *.bundle, outputs/  → gitignore'lu teslimat scratch dosyaları
+```
+
+**npm workspaces** (`packages/*`, `apps/*`), **Node >= 20**, kök `package.json` tüm
+komutları (`dev:api`, `dev:web`, `migrate`, `seed`, `test`, `lint`, `typecheck`, `build`)
+tek yerden sürer.
+
+---
+
+## 4. Mimari — değişmez kurallar
+
+### 4.1 Katman yönü (TEK YÖNLÜ, ihlal edilemez)
+
+```
+Domain  →  Application  →  Infrastructure  →  API
+(saf TS)   (use-case+port)   (Postgres/Redis)   (controller/DTO)
+```
+
+- **`domain/`**: Framework'süz saf TypeScript. **NestJS importu YOK, ORM importu YOK,
+  I/O YOK.** Sadece fonksiyonlar + hata sınıfları. Buraya `@Injectable()` koymam.
+- **`application/`**: Use-case'ler (`*.use-case.ts`) + port arayüzleri
+  (`application/ports/*.repository.ts`, her biri bir `Symbol` DI token'ı ile).
+  Use-case yalnızca **port'lara** ve `AppConfigService`'e bağımlıdır; **asla doğrudan
+  I/O yapmaz**.
+- **`infrastructure/`**: `pg` (ham SQL, **ORM yok**) ve `ioredis` implementasyonları,
+  config servisi, JWT servisi, Google/Apple doğrulayıcı.
+- **`api/`**: Controller'lar, DTO'lar, guard'lar, interceptor'lar, exception filter,
+  Socket.IO gateway.
+
+### 4.2 SUNUCU OTORİTESİ (en tepedeki kural)
+
+> **İstemci asla yarış sonucunu, parayı, istatistiği, ödülü veya envanteri BELİRLEMEZ.**
+
+`docs/SECURITY.md` §1 bunu "tek mutlak kural" olarak tanımlar. Yarış simülasyonu
+**yalnızca sunucuda**, `domain/race/race-engine.ts` içinde koşar. İstemci sonucu
+sadece **render eder**. `docs/ARCHITECTURE.md` §3'teki kritik kural budur — Race
+Engine'e dokunan hiçbir değişiklikte bu çizgiyi geçmem.
+
+### 4.3 Determinizm (Race Engine'in kalbi)
+
+> **Aynı seed + aynı snapshot + aynı config = BİT BİT AYNI sonuç.**
+
+- Seeded PRNG: `packages/shared-types` içindeki `createSeededRandom`.
+- **`Math.random()` Race Engine'de ASLA kullanılmaz.** (Grep ile doğrulanabilir.)
+- İsim-uzaylı türetim: `deriveRandom(seed, horseId, segmentIndex, purpose)` — örneğin
+  `:gate-draw` ayrı bir isim uzayıdır ki start kapısı çekilişi motor dengesini
+  etkilemesin.
+- Sürüm sabitleri: `RACE_ENGINE_VERSION`, `RACE_RULESET_VERSION`.
+- Determinizm, **replay**'in temelidir: `RaceSeed + RaceConfig(version) +
+  HorseSnapshots + PlayerTactics` → yarış yeniden üretilebilir.
+
+### 4.4 Sihirli sayı yok
+
+Tüm denge parametreleri `config/*.config.json` içindedir ve
+`packages/game-config` üzerinden `load*Config()` ile okunur. ESLint
+`@typescript-eslint/no-magic-numbers` kuralı (warn) bunu zorlar. Yeni bir sabit
+eklerken **önce config dosyasına** koyarım.
+
+### 4.5 Katmanlı doğrulama (3 savunma hattı)
+
+1. **DTO** (`class-validator`) — `ValidationPipe({ whitelist: true,
+   forbidNonWhitelisted: true, transform: true })`.
+2. **Application** — use-case içinde iş kuralı kontrolleri.
+3. **Veritabanı** — `CHECK` constraint'leri (ör. `economy_transactions`:
+   `balance_after = balance_before + amount`).
+
+### 4.6 İşlem (transaction) ve satır kilidi
+
+- `withTransaction(pool, fn)` — `infrastructure/database/database.module.ts`;
+  `MAX_TRANSACTION_ATTEMPTS = 3`, geçici hata (ECONNRESET/57P01 vb.) yeniden deneme.
+- `SELECT ... FOR UPDATE` — para/mutasyon yollarının **tamamında**:
+  `PlayerRepository.updateWithLock`, `updateTwoWithLock` (lexicographic id sırası →
+  deadlock önleme), `HorseRepository.updateWithLock`.
+- **Ekonomi defteri** (`economy_transactions`, migration 0019) cüzdan mutasyonuyla
+  **aynı transaction'da** yazılır. Tek başına bakiye güncelleyen kod yazmam.
+
+### 4.7 Idempotency — iki katman
+
+`Idempotency-Key` header'ı zorunlu (interceptor `IdempotencyKeyRequiredError` fırlatır):
+
+1. **Redis ön kontrolü** (hızlı yol) — `idempotency:{scopeId}:{key}`.
+2. **PostgreSQL `idempotency_keys`** — `INSERT ... ON CONFLICT DO NOTHING` ile
+   **gerçek rezervasyon kilidi**. Yarışı kaybeden `409 IDEMPOTENCY_KEY_IN_PROGRESS`
+   alır. Başarıda `completed` + Redis'e cache; hatada `pending` satır silinir.
+
+Kapsam `@IdempotencyScope('player')` ile belirlenir.
+
+### 4.8 Kimlik doğrulama ve sahiplik
+
+- Global `AuthGuard` (`APP_GUARD`) — `@Public()` işaretli olmayan **her** rota JWT ister.
+- `request.player = { id: payload.sub }`.
+- Sahiplik guard'ları: `HorseOwnerGuardByParam/ByBodyField/ByQueryField`,
+  `ListingOwnerGuard`, `assertSelf()` → **IDOR koruması** (denetim bulgusu S2/S3/S4).
+- `RateLimitGuard` (APP_GUARD, `@RateLimit(...)` varsa devreye girer; Redis sabit
+  pencere `INCR`+`EXPIRE`; `DISABLE_RATE_LIMIT='true'` bypass).
+  ⚠️ **Modül sırası yük taşır:** `RateLimitModule`, `AuthModule`'den SONRA gelmeli —
+  çünkü `keyBy: 'player'` `request.player.id`'yi okur ve Nest `APP_GUARD`'ları modül
+  dizisi sırasına göre çalıştırır.
+
+---
+
+## 5. Gerçek durum — nerede kaldık (belgelerin söylediğinden farklı!)
+
+> ⚠️ **`README.md` ve `docs/ROADMAP.md`'nin en üstündeki faz tablosu BAYAT.**
+> Orada "FAZ 1-7 Planlandı" yazar; gerçek çok daha ileride. Gerçeği
+> `docs/ROADMAP.md`'nin **wiring slice günlüğü** ve kök `AUDIT_REPORT.md`'nin
+> **düzeltme özet tablosu** verir. Aşağısı o ikisinden çıkarılmıştır.
+
+### 5.1 Domain katmanı: FAZ 0–7 için TAMAM
+
+19 domain modülü, 68 dosya, saf fonksiyon + config tabanlı, hepsinin spec'i var.
+Şu modüllerin **domain mantığı yazılmış ve test edilmiş**: horse, race, training,
+care, economy, market, breeding/genetics, online (elo/matchmaking/anti-cheat),
+farm, jockey, club, equipment, stable, staff, tournament, ranking, season,
+progression, player, auth.
+
+### 5.2 API wiring: 14 dilim, hepsi CI ile doğrulanmış
+
+`docs/ROADMAP.md` "FAZ 1 wiring" bölümü — küçük dilim → commit → bundle → push → CI:
+
+| # | Dilim | # | Dilim |
+|---|---|---|---|
+| 1 | Player | 8 | Practice Race |
+| 2 | Horse okuma + başlangıç atı | 9 | Practice Race giriş ücreti + ödül + Idempotency/Redis |
+| 3 | Stable Summary | 10 | Stable Upgrade idempotency sertleştirme |
+| 4 | Training | 11 | Market (ilan oluştur) |
+| 5 | Care | 12 | Market listeleme + Kendi ilanlarım |
+| 6 | Stable Upgrade + ekonomi borçlandırma | 13 | Market ilan süresi dolması |
+| 7 | Daily Reward | 14 | PvP Matchmaking |
+
+### 5.3 Denetim düzeltmeleri
+
+**`docs/ROADMAP.md` AUDIT_AND_HARDENING** — 8 öncelik kapatıldı.
+
+**Kök `AUDIT_REPORT.md`** (2026-09-14 tarihli tam depo denetimi) özet tablosu —
+neredeyse hepsi ✅ DÜZELTİLDİ:
+
+| Bulgu | Konu | Durum |
+|---|---|---|
+| S1 | Auth + global AuthGuard | ✅ `24fafb1` |
+| S2/S3/S4 | IDOR / sahiplik kontrolleri | ✅ `24fafb1` |
+| D1 | Aynı ata birden fazla aktif ilan | ✅ |
+| D2 | Bayat sahip (stale owner) | ✅ |
+| C1 | Ahır kapasitesi | ✅ |
+| C2 | Kilitli oku-değiştir-yaz | ✅ |
+| H1 | Sakatlık iyileşmesi | ✅ |
+| H2 | Pazarda listelenmiş at engeli | ✅ |
+| E1 | `savePracticeRaceWithStakes` (cüzdan+yarış+defter tek tx) | ✅ `a010ec3`, CI #111 |
+| E1' | PvP analoğu `savePvpMatchWithRatings` | ✅ `8bf8b1b`, CI #121 |
+| E2/E3 | Ekonomi/atomiklik | ✅ |
+| R1 | Hava durumu config sürümü | ✅ |
+| R2 | Bot kalıcılığı (migration 0025 `bot_label`) | ✅ `d62f6fc`, CI #118 |
+| R3 | Current Form, Draw, Track Fit, Carried Weight bağlandı | 🟡 **Kısmi** — Temperament ve jokey yeteneği hâlâ nötr placeholder |
+| T1 | Eşzamanlılık testleri (n=10/50/100) | ✅ |
+| T2 | Frontend sözleşme + bileşen testleri | ✅ CI #113 |
+| T3 | 12 atlı 250 denemeli denge testi | ✅ CI #115 |
+| T3b | Tempo yeniden dengeleme (closer payı ~%53 → ~%31-32) | ✅ |
+| F1 | Responsive | ✅ `9c08982`, CI #116 |
+| F2 | WebSocket `race.telemetry`/`race.finished`/`lobby.update` | 🟡 **Kısmi** — `notification.new` ertelendi |
+| G1 / DOC1 | — | ✅ |
+
+### 5.4 Frontend
+
+App Router sayfaları: `(dashboard)`, `stable`, `market`, `races`, `races/demo`,
+`replays`, `replays/[raceId]`, `training`, `care`, `equipment`, `online`, `club`,
+`farm`, `leaderboard`.
+Feature'lar: `race-viewer/` (15 dosya + assets/ + audio-vfx/ + fixtures/),
+`matchmaking/lobby-socket.ts`, `career/career-tier.ts`, `pedigree/`,
+`player-demo/PlayerDemoWidget.tsx`.
+Lib: `api-client.ts`, `player-context.tsx`. Bileşenler: `layout/TopBar.tsx`,
+`ui/{ComingSoon,GlassPanel,HorseAvatar,StarRating,StatBar}.tsx`. Tema: `theme.ts`.
+
+### 5.5 Veritabanı: 28 migration, 24 tablo
+
+`players`, `tracks`, `horses`, `horse_stats`, `horse_surface_stats`,
+`horse_distance_stats`, `horse_health`, `jockeys`, `training_sessions`, `races`,
+`race_entries`, `race_entry_segments`, `market_listings`, `breeding_pairs`,
+`pedigrees`, `player_auth_providers`, `staff`, `facilities`, `horse_care_log`,
+`matchmaking_tickets`, `pvp_matches`, `economy_transactions`, `idempotency_keys`,
+`horse_equipment` (+ `schema_migrations`).
+
+Öne çıkan kısıtlar:
+- `players.level` 1–50, `players.rating >= 100`
+- `economy_transactions`: `balance_after = balance_before + amount`
+- **Kısmi UNIQUE** `market_listings(horse_id) WHERE status='active'` (D1 düzeltmesi)
+- **Kısmi UNIQUE** `horse_equipment(horse_id, equipment_type) WHERE equipped` (0028)
+- `race_entries`: `horse_id XOR bot_label` (bot satırları gerçek satır olarak yazılır)
+
+---
+
+## 6. Test ve CI
+
+- **Vitest** (Jest değil). ⚠️ `globals: false` — her spec `describe`/`it`/`expect`'i
+  **açıkça import eder**. `vitest.config.ts`'te `esbuild.jsx: 'automatic'`
+  (web tsconfig'i `jsx: "preserve"` kullandığı için zorunlu).
+- **78 spec dosyası**: `apps/api/test/` 61 (17 e2e + 44 domain), `apps/web/test/` 18,
+  `packages/` 2.
+- e2e: `supertest` (HTTP seviyesi) + `socket.io-client` (`realtime.e2e-spec.ts`).
+  `test-helpers.ts`: `bootstrapTestApp()`, `sendWithRetry()` (ECONNRESET/EPIPE
+  yeniden deneme), `sendConcurrentRequests()`, `registerTestPlayerWithStarterHorse()`.
+- Bileşen testleri: `@testing-library/react` + jsdom.
+- **CI** (`.github/workflows/ci.yml`): push + PR → `main`. Tek iş `build-and-test`,
+  `ubuntu-latest`, **gerçek `postgres:16-alpine` + `redis:7-alpine` servis
+  konteynerleri** (mock yok). Adımlar: checkout → setup-node 20 → `npm install` →
+  `lint` → `typecheck` → `migrate` → `test` → `build`.
+  `npm ci` + cache **bilinçli olarak yok** (registry kısıtı yüzünden lockfile yok).
+
+---
+
+## 7. Yazılı olmayan ama kritik iki teknik tuzak
+
+### 7.1 `@Inject()` HER ZAMAN açık olmalı (esbuild/Vitest tuzağı)
+
+Vitest/esbuild **`design:paramtypes` metadata'sını ÜRETMEZ**. Dolayısıyla
+`constructor(private readonly repo: PlayerRepository)` gibi **tipe dayalı örtük DI
+`undefined` çözer** ve çalışma anında patlar — üstelik yerelde fark edilmez, CI'da
+patlar.
+
+**Kural:** Her bağımlılık `@Inject(PORT_TOKEN)` ile açıkça işaretlenir.
+(Bkz. `docs/ARCHITECTURE.md` §9.1 "Hata 6".)
+
+**Aynı tuzağın kardeşi:** esbuild altında DTO `@IsIn`/`@IsUUID` doğrulaması sessizce
+atlanabilir. Bu yüzden **domain katmanında bağımsız doğrulama** şart
+(`domain/*/validation.ts`).
+
+### 7.2 "Hayalet regresyon" dersi
+
+Yerel sandbox kopyası gerçek depodan **geride kalabilir**. Bir teslimat hazırlamadan
+önce mutlaka `git fetch` + `origin/main` doğrulaması yapılır; "her şeyi üzerine yaz"
+zip'i yerine **yalnızca değişen dosyalar** yazılır. `docs/ROADMAP.md` bunu yaşanmış
+bir ders olarak kaydeder.
+
+---
+
+## 8. Kısıtlar — bu ortamda NE yapamam
+
+### 8.1 npm registry erişimi YOK
+
+`npm install` bu sandbox'ta **hiç çalıştırılamadı**. Sonuç: framework kodu
+(Next.js, NestJS, Three.js) yerelde **çalıştırılarak doğrulanamaz**. Doğrulama
+mekanizması ikilidir:
+1. **`tsc` baseline-diff** (yerelde tip kontrolü),
+2. **CI** (gerçek Postgres/Redis ile gerçek çalıştırma).
+
+Yeni bir bağımlılık eklemek **risklidir** — yerelde doğrulanamaz, sadece CI'da
+kendini gösterir. Mümkünse yeni bağımlılık eklemem.
+
+### 8.2 Tarayıcı/GPU YOK
+
+3D render, animasyon, gerçek görsel doğrulama bu ortamda yapılamaz. Web tarafındaki
+görsel değişiklikler "kod doğru ama gözle görülmedi" statüsündedir; bunu proje
+sahibine **açıkça söylerim**.
+
+### 8.3 Gerçek 3D/ses varlığı YOK — ve bu BİLİNÇLİ bir karar
+
+`apps/web/public/` **boştur** (yalnızca `manifest.json`). `asset-manifest.ts`'teki
+26 girdinin **hepsi `status: missing`**. Ne GLB, ne PNG, ne ses dosyası var.
+
+- Bu, "unutulmuş" değil; proje sahibi **"asset kaynağını şimdilik erteleyelim"**
+  demiştir (bkz. `docs/IMPLEMENTATION_PLAN_MASTER_BRIEF.md` "Grup 2").
+- **MUTLAK ÇİZGİ:** brief'in kendi kuralı — **"asla sahte/placeholder GLB dosyası
+  uydurma, lisanssız asset kullanma."** Ben de finansal işlem yapamam. Bu yüzden
+  görsel/ses sistemleri **"dosya yoksa çökmeden ilkel bir fallback'e düş"** diye
+  tasarlandı: asset'ler geldiğinde **kod değişikliği GEREKMEZ**, sadece dosyalar
+  doğru yollara konur.
+- `assets/` kök klasörü (git'e girmez, sadece `.gitkeep` + README izlenir) **HAM
+  kaynak** çalışma alanıdır (`.blend`/`.fbx`/yüksek çözünürlüklü doku). Nihai
+  optimize edilmiş `.glb`/`.ktx2`/`.mp3` ise `apps/web/public/`'e gider. İkisi
+  karıştırılmamalı.
+- Ek kural: **Mixamo YASAK** (at dört ayaklı iskelet için üretilmemiş; jenerik
+  insansı animasyonlar jokeyin gerçekçi duruşunu yansıtmıyor). LOD zinciri (LOD0-3)
+  ve Blender pipeline kontrol listesi (IMPORT→CLEAN→OPTIMIZE→...→GLB EXPORT→
+  THREE.JS TEST) varlık seçim kriteridir.
+
+### 8.4 git PATH'te YOK
+
+`git` komutu bu kabukta bulunamaz. Git şurada:
+`C:\Users\adema\AppData\Local\GitHubDesktop\app-3.6.5\resources\app\git\cmd\git.exe`
+Proje konvansiyonu: git çıktısını log dosyasına yazan `.bat` script'leri
+(`check-dirty.bat` → `check-dirty-log.txt`) çalıştırıp logu okumak.
+
+---
+
+## 9. Teslimat mekanizması — işler NASIL yürüyor
+
+Bu projenin kendine özgü, oturmuş bir ritüeli var. **Bunu bozmam.**
+
+```
+küçük dilim yaz
+  → yerel tsc baseline-diff ile doğrula
+  → commit
+  → git bundle üret (*.bundle)
+  → apply-<özellik>-push.bat yaz
+  → proje sahibi .bat'ı çalıştırır
+      (bundle verify → fetch origin/main → taban commit doğrula
+       → fetch bundle → checkout main → merge --ff-only → push origin main)
+  → GitHub Actions CI yeşil mi kontrol
+```
+
+`apply-*.bat` script'leri `*.bundle`, `outputs/`, `push-*.bat`, `check-dirty*.bat`
+ile birlikte **gitignore'ludur** — tekrar üretilebilir scratch dosyalarıdır, repo
+geçmişine girmez.
+
+**Neden böyle:** sandbox'ta npm registry yok ve git yok → doğrudan push mümkün değil;
+doğrulama ancak GitHub Actions'ta gerçek Postgres/Redis ile yapılabiliyor.
+
+**Sonuç olarak benim davranışım:**
+- Proje sahibi istemeden **commit atmam**, dosyaları olduğu gibi bırakırım.
+- Her teslimatta `git fetch` + `origin/main` taban doğrulaması **şart**.
+- "Her şeyi üzerine yaz" yerine **yalnızca değişen dosyaları** yazarım.
+- Değişikliğin **CI'da doğrulanması gerektiğini** açıkça söylerim; "çalışıyor" demem.
+
+---
+
+## 10. Bilinen boşluklar — dürüst liste
+
+### 10.1 Ürün tarafı
+
+| Boşluk | Detay |
+|---|---|
+| **Gerçek 3D/ses varlığı yok** | §8.3 — en büyük görsel engel; sahibinin kararını bekliyor |
+| **OAuth canlı değil** | `GoogleAppleIdentityProvider`, `GOOGLE_OAUTH_CLIENT_ID`/`APPLE_OAUTH_CLIENT_ID` boş olduğu için **her zaman** `InvalidProviderTokenError` fırlatır → `POST /auth/login` pratikte çalışmaz |
+| **Frontend'de gerçek giriş yok** | `player-context.tsx` sadece localStorage (`atSevdalisi.playerId`, `atSevdalisi.authToken`) + `jokey_${random}` isimli sahte oyuncu üretir. Login formu, logout, OAuth akışı YOK |
+| **Yarış takvimi yok** | Planlı, çok katılımcılı `GET /races` takvimi yok; yalnızca practice race + PvP |
+| **Matchmaking senkron** | `JoinMatchmakingQueueUseCase.playMatch` eşleşmeyi **HTTP isteği içinde** yapar. `@nestjs/schedule`/cron/worker YOK → arka plan işi yok |
+| **Pazar süresi dolması tembel** | `PostgresMarketListingRepository.sweepExpiredListings` — lazy sweep, zamanlanmış iş değil |
+| **Müzayede ilanı yok** | Yalnızca `fixed_price` |
+| **Jokey bağlanmamış** | `calculateJockeySkillComposite` race engine'den **hiç çağrılmıyor**; `jockeySkillComposite` nötr 50, `RaceEntry.jockeyId` hep `null` |
+| **Çiftlik/personel çarpanları bağlanmamış** | `domain/farm/farm.ts`'teki tüm `get*Multiplier` fonksiyonlarının çağıranı yok; `domain/staff/` tamamen bağlanmamış |
+| **Bağlanmamış domain modülleri** | tournament, club, ranking, season, progression, breeding/genetics — mantık + spec var, controller/use-case/repository yok |
+| **Placeholder sayfalar** | `/club`, `/farm`, `/leaderboard` yalnızca `<ComingSoon>` render eder |
+| **Bağlanmamış iskeletler** | `DustParticles`, `RaceAudioManager`/`html-audio-backend`, `GltfAssetLoader` — hiçbir yerden import edilmiyor; `PedigreeTree.tsx` ve `PlayerDemoWidget.tsx` hiçbir sayfada mount edilmiyor |
+| **PWA nominal** | `public/manifest.json` → `icons: []`, `layout.tsx`'ten link'lenmiyor, `next-pwa` yok |
+| **`notification.new`** | WebSocket olayı planlandı, uygulanmadı |
+
+### 10.2 Yapılandırma tutarsızlıkları (küçük ama gerçek)
+
+- `apps/web/.env.example`: `NEXT_PUBLIC_API_BASE_URL` + `NEXT_PUBLIC_WS_URL` yazar.
+  Ama `api-client.ts` **`NEXT_PUBLIC_API_URL`** okur; `NEXT_PUBLIC_WS_URL` **hiçbir
+  yerde okunmaz** (socket origin'i `live-race-url.ts`'te regex ile türetilir).
+- `api-client.ts` varsayılanı `http://localhost:3000/api/v1` — gerçek API portu
+  **4000**. Varsayılana düşülürse yanlış adrese gider.
+- `database/seeds/001_dev_seed.sql` **geçersiz UUID literalleri** kullanır
+  (`...0000t1`, `...000h01` — `t`/`h`/`j` hex değil) → Postgres seed insert'leri
+  reddeder. **Bu düzeltilmemiş bir hatadır.**
+- `src/application/use-cases/README.md` **bayat**: var olmayan use-case adlarından
+  (`BuyHorseUseCase`, `EnterRaceUseCase`, `SimulateRaceUseCase`) söz eder.
+
+---
+
+## 11. Belge haritası — hangi soruda nereye bakarım
+
+| Soru | Belge |
+|---|---|
+| Projenin değişmez "anayasası" (vizyon, ekranlar, oyun döngüsü) | `docs/PROJECT_BRIEF.md` |
+| Katman kuralları, teknoloji eşlemesi, performans hedefleri, deploy | `docs/ARCHITECTURE.md` |
+| **Gerçek durum / ne yapıldı ne kaldı (en zengin kaynak)** | `docs/ROADMAP.md` |
+| Yarış motorunun felsefesi, girdi/çıktı sözleşmesi, determinizm | `docs/RACE_ENGINE.md` |
+| Kodlama kuralları, 6 adımlı protokol, isimlendirme, commit formatı | `docs/CODING_CONVENTIONS.md` |
+| Güvenlik: sunucu otoritesi, doğrulama katmanları, idempotency, kilitleme | `docs/SECURITY.md` |
+| Ekonomi modeli, pazar değeri formülü, monetizasyon sınırları | `docs/ECONOMY.md` |
+| Ekran haritası, üst bar, responsive/mobil ilkeler | `docs/GAME_DESIGN.md` |
+| Ana döngü, günlük döngü, bildirim tetikleyicileri | `docs/GAME_FLOW.md` |
+| API sözleşmeleri (envelope, uçlar, hata kodları) | `docs/API.md` |
+| Test stratejisi, MVP kabul kriterleri, CI boru hattı | `docs/TESTING.md` |
+| 3D/ses brief'ine karşı boşluk analizi | `docs/AUDIT_REPORT.md` |
+| O boşluğun uygulama planı (Grup 1 / Grup 2) | `docs/IMPLEMENTATION_PLAN_MASTER_BRIEF.md` |
+| Varlıkların insan-okunur listesi + kabul kriterleri | `docs/ASSET_GUIDE.md` |
+| Tam depo denetimi + düzeltme durumu tablosu | kök `AUDIT_REPORT.md` |
+| Ham varlık çalışma alanı kuralları | `assets/README.md` |
+| **Benim yönelim dosyam (bu dosya)** | kök `PROJE_DURUMU.md` |
+
+---
+
+## 12. Proje sahibinin kararını bekleyen açık konular
+
+`docs/ROADMAP.md` "Açık kararlar" (12 madde) — **1. madde çözüldü:**
+kimlik sağlayıcı = Google/Apple Sign-In (`player_auth_providers` tablosu,
+migration 0011, `domain/player/auth-provider.ts`).
+
+**Bekleyenler:** çevrimdışı davranışı, erişilebilirlik (a11y), i18n, bildirim
+kanalı, ödeme sağlayıcı, KVKK/GDPR, hız sınırlama politikası, gözlemlenebilirlik
+(observability), **asset tedarik yolu**, barındırma (hosting), GitHub erişimi.
+
+**En kritik tek soru:** **3D/ses varlıkları nereden geliyor?**
+Seçenekler (a) sahibi lisanslı paket satın alır, (b) CC0 model sağlar,
+(c) görsel/ses hedefleri ertelenir ve Grup 1'in kod-only iyileştirmeleriyle
+yetinilir, (d) başka tedarik yolu. Bu cevap gelmeden görsel/ses fazları ilerleyemez.
+
+---
+
+## 13. Sıradaki iş — hazır olan ama yapılmamış (asset GEREKTİRMEZ)
+
+`docs/IMPLEMENTATION_PLAN_MASTER_BRIEF.md` "Grup 1" — Race Engine'e dokunmadan,
+gerçek asset gerektirmeden, her biri bağımsız commit+CI ile doğrulanabilir:
+
+1. **Telemetri zenginleştirme** — *YAPILDI (bu turda)*: `RaceSegmentSnapshot`'a
+   opsiyonel `fatigueLevel` (yarış İÇİNDE biriken CANLI yorgunluk) ve
+   `paceScore` (0-100 tempo, 50 = nötr) eklendi. `fatigueLevel` gerçek bir
+   hatayı kapattı: `RaceHud`'un "Yor" çubuğu statik `horses.fatigue` değerini
+   gösterdiği için yarış boyunca DÜZ bir çizgiydi. Migration `0029` +
+   repository INSERT/SELECT + `timeline-playback.ts` + `RaceHud` paneli.
+   Plandaki `staminaRemaining` **bilerek atlandı** — zaten canlı olan `stamina`
+   alanının saf kopyası olurdu.
+2. **Camera Director** — *YAPILDI ve BAĞLI*: `camera-director.ts`
+   (`selectAutomaticCameraMode`, `classifyRaceCameraEvent`),
+   `LiveRaceViewer.tsx` + `RaceViewer.tsx` tarafından gerçekten tüketiliyor
+   (11 test).
+3. **Photo Finish sunumu** — *YAPILDI ve BAĞLI*: `photo-finish.ts`
+   (`buildPhotoFinishRows`, `isCloseFinish`, `getFinishSlowMotionFactor`),
+   `RaceViewer.tsx` + `RaceHud.tsx` sonuç kartında kullanılıyor (14 test).
+4. **Asset Interface + Manifest + ASSET_GUIDE** — manifest ve kılavuz
+   *yapıldı*; `GltfAssetLoader.tsx` fallback'iyle hazır ama **hiçbir yerden
+   import edilmiyor** (sahneye bağlı değil).
+5. **Audio/VFX Manager iskeleti** — *kod var, BAĞLI DEĞİL*:
+   `audio-manager.ts` yalnızca `html-audio-backend.ts` tarafından import
+   ediliyor, o da hiçbir yerden import edilmiyor; `DustParticles.tsx` de
+   öyle (`race-viewer/README.md` §"WIRING EDİLMEDİ" bunu zaten yazıyor).
+6. **Pedigree görselleştirme** — *kod var* (`PedigreeTree.tsx`), sayfaya bağlı
+   değil (kendi README'si "4. Ahırım (/stable) sayfasına eklenmeli" diyor).
+7. **Config ayrımı** — *yapıldı* (`camera.config.json`, `vfx.config.json`,
+   `audio.config.json`).
+
+→ Yani Grup 1'in **1, 2, 3, 7** maddeleri bitti. Geriye kalan GERÇEK iş,
+"yazılmış + test edilmiş ama hiçbir yerden import EDİLMEMİŞ" iskeletlerin
+bağlanmasıdır: **`GltfAssetLoader.tsx`, `DustParticles.tsx`,
+`createHtmlAudioBackend()`, `PedigreeTree.tsx`, `PlayerDemoWidget.tsx`**
+(§10.1'deki liste).
+
+**Grup 2** (§12'deki asset sorusuna bağlı): gerçek Horse/Jockey GLB + animasyon
+state machine, hipodrom çevresi, kalabalık sistemi, gerçek ses dosyaları,
+winner ceremony / paylaşılabilir sonuç.
+
+---
+
+## 14. Kendime hatırlatmalar (kısa liste)
+
+1. **Race Engine'e dokunmadan önce iki kez düşün.** Denetim onu "KEEP, dokunma"
+   diye işaretledi. Değişiklik şartsa determinizm testini kırmadığımı kanıtlarım.
+2. **`Math.random()` yazmam.** Seed'li PRNG + isim-uzaylı `deriveRandom`.
+3. **Sihirli sayı yazmam.** Önce `config/*.config.json`.
+4. **`@Inject()` yazmadan constructor'a bağımlılık koymam.** (esbuild tuzağı, §7.1)
+5. **Domain'e NestJS/ORM importu sokmam.** Katman yönü tek yönlü.
+6. **Para/mutasyon yolunda `FOR UPDATE` + aynı tx'te defter kaydı** olmadan kod
+   yazmam.
+7. **Sahte GLB/ses dosyası uydurmam.** Bu mutlak bir çizgi.
+8. **`README.md`/`ROADMAP.md` faz tablosuna güvenmem** — bayat. Gerçek durum §5'te.
+9. **"Çalışıyor" demem** — npm install ve tarayıcı yok; doğrulama CI'da olur.
+10. **Commit atmam / push etmem** — teslimat `bundle + .bat` ile sahibine gider.
+11. **Bayat belgeleri not ederim** (§10.2) ama istemeden "düzeltme" adına büyük
+    refactor başlatmam.
+
+---
+
+*Bu dosya bir kavrayış aracıdır, sözleşme değil. Proje ilerledikçe güncellenmelidir —
+özellikle §5 (gerçek durum), §10 (boşluklar) ve §13 (sıradaki iş).*

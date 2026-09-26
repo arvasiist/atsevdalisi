@@ -201,6 +201,44 @@ export interface RaceSegmentSnapshot {
   blocked: boolean;
   /** FAZ 5 — bu segment için jokey AI kararı (bkz. `domain/race/jockey-decisions.ts`). */
   decision: RaceJockeyDecision;
+  /**
+   * Yarış-içi (runtime) yorgunluk — `domain/race/fatigue.ts`'in
+   * `accumulateRuntimeFatigue`'i ile segment segment BİRİKEN dinamik değer
+   * (0..`raceConfig.fatigue.maxRuntimeFatigue`).
+   *
+   * **NEDEN AYRI BİR ALAN (`fatigue`'ı DEĞİŞTİRMEK YERİNE):** bu arayüzün
+   * bir üstündeki `fatigue` alanı, `RaceEntrantSnapshot.fatigue`'ın — yani
+   * `horses.fatigue` sütunundan gelen YARIŞ ÖNCESİ STATİK değerin — bir
+   * kopyasıdır. Bu tam olarak `domain/race/fatigue.ts`'in kendi doc
+   * yorumunun "STATİK ... ile KARIŞTIRILMAMALIDIR" dediği ayrımdır: motor
+   * bu İKİNCİ, dinamik değeri (`state.runtimeFatigue`) zaten her segmentte
+   * hesaplayıp performans cezasına çeviriyordu
+   * (`deriveFatiguePerformancePenalty`) ama telemetriye HİÇ yazmıyordu —
+   * sonuç olarak istemci tarafındaki yorgunluk göstergesi (`RaceHud`'un
+   * "Yor" çubuğu) yarış boyunca SABİT kalıyordu.
+   *
+   * BİLEREK OPSİYONEL: `equipmentModifier` ile AYNI gerekçe — bu alanı
+   * doldurmayan mevcut fixture/test nesneleri ve bu alan eklenmeden ÖNCE
+   * persist edilmiş (`race_entry_segments.fatigue_level` sütunu `NULL`
+   * olan) yarış kayıtları için tüketiciler `fatigue`'a geri düşer (bkz.
+   * `apps/web/src/features/race-viewer/timeline-playback.ts`).
+   */
+  fatigueLevel?: number;
+  /**
+   * Tempo göstergesi (0-100) — bu segmentte atın ne kadar "sıkı" koştuğu.
+   *
+   * `domain/race/pace.ts`'in `derivePaceEffect`'inin döndürdüğü
+   * `staminaConsumptionMultiplier`'ın (config: `frontRunnerStaminaMultiplier`
+   * 1.15 / `closerStaminaMultiplier` 0.97 / nötr 1.0) `derivePaceScore`
+   * ile yapılan doğrusal 0-100 eşlemesidir: **50 = nötr**, >50 = normalden
+   * sert, <50 = enerji tasarrufu. Bu, YENİ bir denge sabiti
+   * GEREKTİRMEZ (yalnızca var olan config değerinin yüzdeye çevrilmesidir),
+   * bu yüzden `race.config.json`'ın kendi `version` alanını ETKİLEMEZ.
+   *
+   * BİLEREK OPSİYONEL — `fatigueLevel` ile AYNI geriye dönük uyumluluk
+   * gerekçesi.
+   */
+  paceScore?: number;
 }
 
 /** docs/RACE_ENGINE.md §5 */

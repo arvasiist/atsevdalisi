@@ -83,3 +83,40 @@ export function derivePaceEffect(
     performanceBonus: 0,
   };
 }
+
+/** Tempo göstergesinin NÖTR karşılığı (çarpan tam olarak 1.0 iken). */
+const NEUTRAL_PACE_SCORE = 50;
+/** Çarpan sapmasının puana çevrim oranı: 0.01'lik sapma = 1 puan. */
+const PACE_SCORE_SCALE = 100;
+const MIN_PACE_SCORE = 0;
+const MAX_PACE_SCORE = 100;
+
+/**
+ * `PaceEffect.staminaConsumptionMultiplier`'ı istemciye gösterilebilir
+ * 0-100'lük bir "tempo" puanına çevirir (bkz. `RaceSegmentSnapshot.
+ * paceScore` doc yorumu — bu alanın NEDEN var olduğu ve neden opsiyonel
+ * olduğu orada açıklanır).
+ *
+ * Eşleme, YENİ bir denge parametresi İCAT ETMEZ: yalnızca `derivePaceEffect`
+ * tarafından zaten üretilen çarpanı, config'ten bağımsız sabit bir ölçekle
+ * (0.01 sapma = 1 puan) yüzdeye çevirir — böylece `race.config.json`'daki
+ * denge sayıları değişse bile bu fonksiyonun KENDİSİ değişmez, yalnızca
+ * çıktısı yeni config'e göre kayar (config sürümü artışı yeterlidir,
+ * `RACE_RULESET_VERSION` DEĞİL).
+ *
+ * Nötr (1.0) → 50; `frontRunnerStaminaMultiplier` (1.15) → 65;
+ * `closerStaminaMultiplier` (0.97) → 47.
+ */
+export function derivePaceScore(staminaConsumptionMultiplier: number): number {
+  const raw = NEUTRAL_PACE_SCORE + (staminaConsumptionMultiplier - 1) * PACE_SCORE_SCALE;
+  const clamped = clamp(raw, MIN_PACE_SCORE, MAX_PACE_SCORE);
+  // İKİ ONDALIĞA yuvarlanır — bu, `race_entry_segments.pace_score` sütununun
+  // NUMERIC(5,2) ölçeğiyle BİREBİR aynıdır, yani kalıcılık turu artık
+  // kayıpsızdır. Gerekçe somut: `1.15 - 1` kayan noktada
+  // `0.14999999999999991`'dir, dolayısıyla yuvarlamasız sonuç
+  // `64.99999999999999` çıkıyordu (demo fixture'ında görüldü) — DB bunu
+  // zaten `65.00`e çevirir, ama bellekte/JSON'da taşınan değer çirkindi ve
+  // `Math.round`'a güvenen tüketiciler için gereksiz bir belirsizlikti.
+  // Ölçek (0.01 sapma = 1 puan) zaten 2 ondalığın altında anlam taşımaz.
+  return Math.round(clamped * 100) / 100;
+}
