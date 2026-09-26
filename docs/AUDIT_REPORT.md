@@ -231,6 +231,17 @@ kategorisi olarak eklenmeli — ama altyapı (CI, test runner'lar) hazır.
   geçmişi görünümü (`TrainingSessionRepository`'de sadece `save()` var,
   okuma metodu YOK — ayrı dilim), Equipment (domain kavramı olarak hiç
   YOK — yeni bir alt sistem gerektirir).
+  **Not (kırmızı→yeşil döngüsü):** ilk push (`e31070a`) **CI #163'te
+  KIRMIZI** çıktı — `horse-market-value.e2e-spec.ts`'in 3 testi
+  "expected 200, got 500" ile başarısız oldu (yalnızca 404 testi
+  geçti). Annotations panelinden teşhis edildi: `GetHorseMarketValueUseCase`
+  constructor'ında `AppConfigService` açık bir `@Inject()` OLMADAN
+  (örtük tip-tabanlı enjeksiyonla) bırakılmıştı — tam olarak
+  `docs/ARCHITECTURE.md` §9.1 Hata 6'nın uyardığı hata (Vitest/esbuild
+  `emitDecoratorMetadata` gerektiren örtük çözümlemeyi desteklemiyor).
+  Grep ile projenin 13 use-case'inin HEPSİNİN `@Inject(AppConfigService)`
+  desenini kullandığı doğrulandı; aynı desen uygulanarak düzeltildi
+  (**commit `fb76ec2`**). Push+CI sonucu bu notta güncellenecek.
 - **§26 Pedigree görselleştirme:** ✅ DÜZELTİLDİ (Grup 1) — Genetics/
   breeding domain hesaplamaları VAR ve ÇALIŞIYOR; ağaç şeklinde
   pedigree UI paneli artık da VAR.
