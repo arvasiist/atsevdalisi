@@ -185,13 +185,26 @@ kategorisi olarak eklenmeli — ama altyapı (CI, test runner'lar) hazır.
 - **§21 Photo Finish sunumu:** ✅ DÜZELTİLDİ (Grup 1, "Config ayrımı"
   öncesi dilim) — slow-motion + görsel "photo finish" kartı/sonuç sunumu
   artık VAR (bkz. `race-viewer/README.md` "Photo Finish" bölümü).
-- **§22 Replay (bağımsız gözatma):** Canlı yayın + temel oynatma VAR;
-  ayrı bir "geçmiş yarışları ara/izle" kütüphane ekranı HÂLÂ YOK.
-  Kamera açısı seçenekleri (TV/HORSE/JOCKEY/FINISH/PHOTO FINISH) canlı
-  izleyicide zaten VAR (aynı `camera-presets.ts`), replay'e taşınabilir.
-  Backend uçları da zaten hazır (`GET /players/:id/recent-races`,
-  `GET /races/:id/timeline`) — yalnızca bunları birleştiren bir liste/
-  detay ekranı eksik. (Sıradaki aday dilim.)
+- **§22 Replay (bağımsız gözatma):** ✅ DÜZELTİLDİ ("Devam et" turu,
+  beşinci öz-denetim dilimi) — `apps/web/src/app/replays/page.tsx`
+  (kütüphane listesi, `GET /players/:id/recent-races?limit=20`) ve
+  `apps/web/src/app/replays/[raceId]/page.tsx` (tekrar/detay ekranı,
+  `GET /races/:id/timeline`) artık VAR. Backend uçları zaten HAZIRDI
+  (bu bulgunun kendisinin işaret ettiği gibi) — eksik olan yalnızca
+  frontend wiring'iydi: `RaceTimelineView` (per-entrant, `entryId`
+  anahtarlı) ile `RaceViewer`'ın beklediği `RaceTimeline` (düz
+  `segments`/`finalResult`, opak anahtarlı) arasındaki şekil
+  uyuşmazlığını çözen saf bir dönüştürücü (`race-viewer/replay-adapter.ts`,
+  10/10 gerçek test) eklendi; `RaceViewer`/`RaceHud`'un KENDİSİ
+  DEĞİŞTİRİLMEDİ. Kamera açısı seçenekleri (TV/HORSE/JOCKEY/FINISH/
+  PHOTO FINISH) canlı izleyiciyle AYNI `RaceHud`'u paylaştığı için ek
+  bir taşıma işi OLMADAN otomatik olarak replay'de de çalışır. Brief'in
+  açıkça istediği `0.5X` oynatma hızı da bu turda `RaceHud.tsx`
+  `SPEED_OPTIONS`'a eklendi (önceden yalnızca `[1, 2, 4]` vardı).
+  Dashboard'un "Son Yarış Sonuçları" paneli artık her satırı
+  `/replays/[raceId]`'e bağlıyor ve "Tüm yarış geçmişini gör →" linki
+  içeriyor; ana navigasyon kartlarına da "Yarış Tekrarları" girişi
+  eklendi.
 - **§23-24 Behavior/Personality:** R3'ün Temperament alanı hâlâ nötr
   placeholder (zaten bilinen bir sonraki adım); brief'in istediği
   "personality" (CALM/AGGRESSIVE/NERVOUS/vb.) kategorik katmanı YOK.

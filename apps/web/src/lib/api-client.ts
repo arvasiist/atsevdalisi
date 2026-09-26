@@ -11,6 +11,7 @@ import type {
   PracticeRaceResult,
   PublicHorse,
   RacingStyle,
+  RaceTimelineView,
   RecentRaceResultView,
   RiskLevel,
   StableSummaryView,
@@ -133,6 +134,19 @@ export const apiClient = {
    */
   getRecentRaces: (playerId: string, limit = 5) =>
     request<RecentRaceResultView[]>(`/players/${playerId}/recent-races?limit=${limit}`),
+
+  /**
+   * "AT SEVDALISI — Master Development Brief" §22 "PHASE 12 — REPLAY" (bu
+   * turda EKLENDİ) — `docs/AUDIT_REPORT.md`'nin "Replay (bağımsız gözatma)"
+   * bulgusunu kapatan `/replays/[raceId]` ekranı için. Backend ucu
+   * (`GET /races/:id/timeline`, `RaceTimelineController`) DAHA ÖNCEDEN
+   * (AUDIT_REPORT.md Bulgu R2) HAZIRDI — burada eksik olan yalnızca
+   * frontend'in bunu ÇAĞIRACAK bir yol bulmamasıydı. `RaceTimelineView`
+   * `RaceViewer.tsx`'in beklediği `RaceTimeline` ile AYNI ŞEKİL DEĞİLDİR
+   * (bkz. `replay-adapter.ts`'in dosya başı doc yorumu) — çağıran taraf
+   * dönen veriyi `adaptRaceTimelineViewToReplayData` ile dönüştürmelidir.
+   */
+  getRaceTimeline: (raceId: string) => request<RaceTimelineView>(`/races/${raceId}/timeline`),
 
   // Pazar (Market) İşlemleri
   getMarketListings: (params: { minPrice?: number; maxPrice?: number; page?: number; pageSize?: number } = {}) => {

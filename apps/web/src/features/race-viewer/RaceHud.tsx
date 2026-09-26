@@ -96,7 +96,22 @@ export interface RaceHudProps {
   finishResult?: PhotoFinishRow[];
 }
 
-const SPEED_OPTIONS = [1, 2, 4] as const;
+/**
+ * "AT SEVDALISI — Master Development Brief" §22 "PHASE 12 — REPLAY" (bu
+ * turda GENİŞLETİLDİ, AUDIT_REPORT.md'nin "Replay (bağımsız gözatma)"
+ * bulgusuna karşı yapılan denetimde bulundu) — brief AÇIKÇA
+ * `PLAY/PAUSE/0.5X/1X/2X/4X` ister, ama bu dizi daha önce yalnızca
+ * `[1, 2, 4]` içeriyordu (canlı yayın/pratik yarış ekranlarının
+ * KULLANIM ŞEKLİYLE hiç ÇAKIŞMADIĞI için `0.5×` fark edilmemişti).
+ * `advancePlaybackTimeMs` (bkz. `timeline-playback.ts`) çarpanı SAF bir
+ * çarpım olarak kullandığından (`deltaMs * speedMultiplier`) 1'den küçük
+ * bir değer YENİ bir davranış İCAT ETMEZ, sadece MEVCUT matematiği
+ * genişletir — hem yeni `/replays/[raceId]` ekranında (replay
+ * senaryosunda ağır çekim GERÇEKTEN faydalıdır) HEM canlı/pratik yarış
+ * ekranlarında (aynı `RaceHud`'u paylaştıkları için) kullanılabilir hale
+ * gelir.
+ */
+const SPEED_OPTIONS = [0.5, 1, 2, 4] as const;
 
 function RaceHudComponent(props: RaceHudProps): React.ReactElement {
   const {

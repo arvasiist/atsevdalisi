@@ -44,6 +44,11 @@ const NAV_ITEMS: NavCardItem[] = [
   { href: '/stable', icon: '🐴', label: 'Ahırım', description: 'Atlarını yönet' },
   { href: '/market', icon: '🛒', label: 'At Pazarı', description: 'Al & sat' },
   { href: '/races', icon: '🏁', label: 'Yarışlar', description: 'Takvim & pratik yarış' },
+  // "AT SEVDALISI — Master Development Brief" §22 "PHASE 12 — REPLAY" (bu
+  // turda EKLENDİ) — `docs/AUDIT_REPORT.md`'nin "Replay (bağımsız gözatma)"
+  // bulgusunu kapatan `/replays` kütüphane ekranına giden ana navigasyon
+  // girişi (bkz. `apps/web/src/app/replays/page.tsx` doc yorumu).
+  { href: '/replays', icon: '🎬', label: 'Yarış Tekrarları', description: 'Geçmiş yarışları izle' },
   { href: '/training', icon: '🏋️', label: 'Antrenman', description: 'Statları geliştir' },
   { href: '/care', icon: '🩺', label: 'Bakım', description: 'Sağlık & besleme' },
   { href: '/farm', icon: '🌾', label: 'Çiftlik', description: 'Üretim & kaynaklar' },
@@ -311,7 +316,14 @@ function RecentRacesPanel({ playerId }: { playerId: string }): React.ReactElemen
 
   return (
     <GlassPanel>
-      <SectionLabel>Son Yarış Sonuçları</SectionLabel>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <SectionLabel>Son Yarış Sonuçları</SectionLabel>
+        {/* §22 Replay — bkz. `apps/web/src/app/replays/page.tsx` doc yorumu.
+            `StableSummaryCard`'daki "Ahırıma git →" kalıbıyla TUTARLI. */}
+        <Link href="/replays" style={{ fontSize: '12px', color: 'var(--color-accent-focus)' }}>
+          Tüm yarış geçmişini gör →
+        </Link>
+      </div>
       {error ? (
         <p style={{ color: 'var(--color-status-critical)', fontSize: '13px' }}>{error}</p>
       ) : races === null ? (
@@ -323,38 +335,47 @@ function RecentRacesPanel({ playerId }: { playerId: string }): React.ReactElemen
       ) : (
         <ol style={{ listStyle: 'none', margin: '8px 0 0 0', padding: 0, display: 'grid', gap: '10px' }}>
           {races.map((race) => (
-            <li
-              key={race.raceId}
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                gap: 'var(--space-sm)',
-                padding: '10px 12px',
-                borderRadius: 'var(--radius-sm)',
-                background: race.finishPosition === 1 ? 'rgba(227, 179, 65, 0.1)' : 'rgba(255, 255, 255, 0.03)',
-                border: race.finishPosition === 1 ? '1px solid var(--color-accent-gold)' : '1px solid transparent',
-              }}
-            >
-              <div>
-                <div style={{ fontSize: '14px', color: 'var(--color-text-primary)', fontWeight: 600 }}>
-                  {race.horseName}
-                  <span style={{ color: 'var(--color-text-muted)', fontWeight: 400 }}> · {race.raceName}</span>
+            // §22 Replay — bu turda `<li>` içeriği `/replays/[raceId]`'e
+            // bağlayan bir `Link`'e SARILDI (bkz. `replay-adapter.ts`/
+            // `app/replays/[raceId]/page.tsx` doc yorumları). `race.raceId`
+            // ZATEN var olan bir alan (`RecentRaceResultView`), yeni bir
+            // kimlik İCAT EDİLMEDİ.
+            <li key={race.raceId}>
+              <Link href={`/replays/${race.raceId}`} style={{ textDecoration: 'none' }}>
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    gap: 'var(--space-sm)',
+                    padding: '10px 12px',
+                    borderRadius: 'var(--radius-sm)',
+                    background: race.finishPosition === 1 ? 'rgba(227, 179, 65, 0.1)' : 'rgba(255, 255, 255, 0.03)',
+                    border: race.finishPosition === 1 ? '1px solid var(--color-accent-gold)' : '1px solid transparent',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <div>
+                    <div style={{ fontSize: '14px', color: 'var(--color-text-primary)', fontWeight: 600 }}>
+                      {race.horseName}
+                      <span style={{ color: 'var(--color-text-muted)', fontWeight: 400 }}> · {race.raceName}</span>
+                    </div>
+                    <div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
+                      {race.distanceMeters}m · {surfaceLabel(race.surface)} · {formatRelativeDate(race.finishedAt)}
+                    </div>
+                  </div>
+                  <div
+                    style={{
+                      fontSize: '15px',
+                      fontWeight: 700,
+                      color: race.finishPosition === 1 ? 'var(--color-accent-gold)' : 'var(--color-text-secondary)',
+                      fontVariantNumeric: 'tabular-nums',
+                    }}
+                  >
+                    {race.finishPosition}.
+                  </div>
                 </div>
-                <div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
-                  {race.distanceMeters}m · {surfaceLabel(race.surface)} · {formatRelativeDate(race.finishedAt)}
-                </div>
-              </div>
-              <div
-                style={{
-                  fontSize: '15px',
-                  fontWeight: 700,
-                  color: race.finishPosition === 1 ? 'var(--color-accent-gold)' : 'var(--color-text-secondary)',
-                  fontVariantNumeric: 'tabular-nums',
-                }}
-              >
-                {race.finishPosition}.
-              </div>
+              </Link>
             </li>
           ))}
         </ol>
