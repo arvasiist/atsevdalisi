@@ -227,10 +227,13 @@ kategorisi olarak eklenmeli — ama altyapı (CI, test runner'lar) hazır.
   gerekçesi) ile gerçekten çağrılıyor; `/stable` sayfasındaki her at
   kartı artık "Değer: X ₺" gösteriyor. Gerçek e2e test eklendi
   (`horse-market-value.e2e-spec.ts`, GERÇEK PostgreSQL gerektirir — bu
-  sandbox'ta çalıştırılamaz, yalnızca CI'da). Hâlâ eksik: antrenman
-  geçmişi görünümü (`TrainingSessionRepository`'de sadece `save()` var,
-  okuma metodu YOK — ayrı dilim), Equipment (domain kavramı olarak hiç
-  YOK — yeni bir alt sistem gerektirir).
+  sandbox'ta çalıştırılamaz, yalnızca CI'da). Antrenman geçmişi görünümü
+  de bu turda kapandı: `TrainingSessionRepository.findByHorseId` (yeni
+  okuma metodu) + `GET /horses/:id/training-history`
+  (`HorseOwnerGuardByParam` korumalı, `TrainingModule` içinde barınır) +
+  `/training` sayfasındaki yeni "Antrenman Geçmişi" paneli (her at
+  seçiminde ve her antrenman sonrası tazelenir). Hâlâ eksik: Equipment
+  (domain kavramı olarak hiç YOK — yeni bir alt sistem gerektirir).
   **Not (kırmızı→yeşil döngüsü):** ilk push (`e31070a`) **CI #163'te
   KIRMIZI** çıktı — `horse-market-value.e2e-spec.ts`'in 3 testi
   "expected 200, got 500" ile başarısız oldu (yalnızca 404 testi

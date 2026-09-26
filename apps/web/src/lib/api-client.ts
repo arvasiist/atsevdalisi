@@ -19,6 +19,7 @@ import type {
   StartApproach,
   TrainHorseResult,
   TrainingIntensity,
+  TrainingSession,
   TrainingType,
 } from '@at-sevdalisi/shared-types';
 
@@ -180,6 +181,15 @@ export const apiClient = {
       method: 'POST',
       body: JSON.stringify(input),
     }),
+
+  /**
+   * Antrenman geçmişi (`apps/web/src/app/training/page.tsx`, bu turda
+   * EKLENDİ — docs/AUDIT_REPORT.md "Antrenman geçmişi gösterimi" bulgusu)
+   * — `GET /horses/:id/training-history` (docs/API.md §4). `trainHorse`
+   * ile AYNI `HorseOwnerGuardByParam` koruması altındadır, bu yüzden bu
+   * çağrının da geçerli bir `Authorization` header'ı gerekir.
+   */
+  getTrainingHistory: (horseId: string) => request<TrainingSession[]>(`/horses/${horseId}/training-history`),
 
   /**
    * Bakım ekranı (`apps/web/src/app/care/page.tsx`) — `POST /horses/:id/care`

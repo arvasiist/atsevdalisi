@@ -1,5 +1,6 @@
-import { Body, Controller, HttpCode, HttpStatus, Inject, Param, ParseUUIDPipe, Post, UseGuards } from '@nestjs/common';
-import type { ApiSuccess, TrainHorseResult } from '@at-sevdalisi/shared-types';
+import { Body, Controller, Get, HttpCode, HttpStatus, Inject, Param, ParseUUIDPipe, Post, UseGuards } from '@nestjs/common';
+import type { ApiSuccess, TrainHorseResult, TrainingSession } from '@at-sevdalisi/shared-types';
+import { GetTrainingHistoryUseCase } from '../../application/use-cases/get-training-history.use-case';
 import { TrainHorseUseCase } from '../../application/use-cases/train-horse.use-case';
 import { DEFAULT_TRAINING_DURATION_MINUTES } from '../../domain/training/validation';
 import { HorseOwnerGuardByParam } from '../auth/horse-owner.guard';
@@ -21,7 +22,10 @@ import { TrainHorseDto } from './dto/train-horse.dto';
  */
 @Controller('horses')
 export class TrainingController {
-  constructor(@Inject(TrainHorseUseCase) private readonly trainHorseUseCase: TrainHorseUseCase) {}
+  constructor(
+    @Inject(TrainHorseUseCase) private readonly trainHorseUseCase: TrainHorseUseCase,
+    @Inject(GetTrainingHistoryUseCase) private readonly getTrainingHistoryUseCase: GetTrainingHistoryUseCase,
+  ) {}
 
   // Antrenman, yeni bir KAYNAK yaratmaz (yalnızca var olan atı günceller)
   // — NestJS'in POST için varsayılanı olan 201 Created yerine bilinçli
@@ -43,5 +47,23 @@ export class TrainingController {
       durationMinutes: dto.durationMinutes ?? DEFAULT_TRAINING_DURATION_MINUTES,
     });
     return { success: true, data: result };
+  }
+
+  // docs/AUDIT_REPORT.md "Antrenman geçmişi gösterimi" bulgusunun
+  // kapatılması (bu turda EKLENDİ). NOT — rota BİLEREK `/history` DEĞİL
+  // `/training-history`dir: `docs/API.md`'nin daha önce taslak olarak
+  // yazdığı `GET /horses/{id}/history` yarış+antrenman geçmişini
+  // BİRLEŞTİRİLMİŞ tek bir uç noktada döndürmeyi öngörüyordu (brief §40)
+  // — ama yarış geçmişi zaten AYRI, çalışan bir uç noktadan
+  // (`GET /players/:id/recent-races`, §22 Replay dilimi) sunuluyor; ikisini
+  // TEK bir yanıtta birleştirmek burada YENİ bir DTO/şekil icat etmeyi
+  // gerektirirdi. Bu dilim yalnızca antrenman geçmişini kapatır, "gerçek
+  // /history birleşimi" AYRI (ve daha büyük) bir karara bırakılmıştır —
+  // bkz. docs/API.md güncellemesi.
+  @UseGuards(HorseOwnerGuardByParam)
+  @Get(':id/training-history')
+  async getTrainingHistory(@Param('id', ParseUUIDPipe) id: string): Promise<ApiSuccess<TrainingSession[]>> {
+    const sessions = await this.getTrainingHistoryUseCase.execute(id);
+    return { success: true, data: sessions };
   }
 }

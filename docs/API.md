@@ -218,7 +218,7 @@ POST   /api/v1/horses/{id}/care        # tımar/su/temizlik/veteriner/nalbant/di
                                         # (brief §11 — tek uç nokta, `actionType` alanı,
                                         # bkz. §4 "Bakım ve Besleme")
 POST   /api/v1/horses/{id}/feed        # besleme (brief §12, `feedType` alanı)
-GET    /api/v1/horses/{id}/history     # yarış/antrenman geçmişi (brief §40 Geçmiş)
+GET    /api/v1/horses/{id}/training-history  # antrenman geçmişi (bu turda EKLENDİ, aşağıya bkz.)
 ```
 
 `POST /api/v1/horses/{id}/train` — örnek istek (`durationMinutes` opsiyonel,
@@ -265,7 +265,43 @@ yaşam evresinde — bkz. `domain/horse/horse.ts` `createStarterHorse`).
 Bu, brief'te açıkça yazmayan ama at yetiştiriciliği oyununda gerekli bir
 tasarım kararıdır (at olmadan Antrenman/Bakım/Yarış ekranları gösterilemez).
 
-`history` uç noktası hâlâ KAPSAM DIŞINDADIR. `train` ve `horse_stats`
+`GET /api/v1/horses/{id}/training-history` (bu turda EKLENDİ —
+docs/AUDIT_REPORT.md "Antrenman geçmişi gösterimi" bulgusunun kapatılması):
+`training_sessions` tablosundan (`train` çağrıldığında zaten yazılıyordu,
+FAZ 1'den beri) en yeniden en eskiye sıralı, en fazla 20 kayıt döner.
+`HorseOwnerGuardByParam` ile korunur (`train` ile AYNI yetkilendirme) —
+bu yüzden `@Public()` DEĞİLDİR, yalnızca atın sahibi kendi antrenman
+geçmişini görebilir (fatigue/injury-risk gibi ayrıntılar `PublicHorse`'a
+göre daha "içeriden" bir bilgidir). NOT: brief §40'ın orijinal taslağı
+(`GET /horses/{id}/history`) yarış+antrenman geçmişini TEK bir uç noktada
+birleştirmeyi öngörüyordu — bu isim BİLEREK `training-history`dir, çünkü
+yarış geçmişi zaten AYRI ve çalışan bir uç noktadan (`GET
+/players/{id}/recent-races`, §22 Replay dilimi) sunuluyor; ikisini TEK
+bir yanıtta birleştirmek yeni bir DTO icat etmeyi gerektirirdi — bu KARAR
+bilinçli olarak ERTELENDİ, gerçek `/history` birleşimi AYRI bir dilimin
+kapsamındadır. Örnek yanıt (`data`, doğrudan bir `TrainingSession[]`):
+
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": "...",
+      "horseId": "...",
+      "type": "speed",
+      "intensity": "medium",
+      "durationMinutes": 30,
+      "statGain": { "speed": 1.2 },
+      "fatigueGain": 8.4,
+      "injuryRisk": 2.1,
+      "injuryOccurred": false,
+      "createdAt": "2026-09-26T18:00:00.000Z"
+    }
+  ]
+}
+```
+
+`train` ve `horse_stats`
 FAZ 1 wiring'in DÖRDÜNCÜ diliminde bağlandı (bkz. aşağıdaki "Antrenman"
 bölümü); `care`/`feed` ve `horse_health`'in dar bir alt kümesi ise
 BEŞİNCİ dilimde bağlandı (bkz. aşağıdaki "Bakım ve Besleme" bölümü).

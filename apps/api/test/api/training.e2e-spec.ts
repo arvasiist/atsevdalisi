@@ -151,4 +151,84 @@ describe('Training (e2e)', () => {
     }
     throw new Error('Beklenen 409 yanıtı hiç alınmadı — fatigue eşiği aşılamadı.');
   });
+
+  // docs/AUDIT_REPORT.md "Antrenman geçmişi gösterimi" bulgusunun kapatılması
+  // (bu turda EKLENDİ) — `GET /horses/:id/training-history`. Güvenlik
+  // testleri (401/403/404) `train` uç noktasıyla AYNI `HorseOwnerGuardByParam`
+  // kullandığından yukarıdaki testlerle BİREBİR aynı desendedir.
+  describe('/api/v1/horses/:id/training-history (GET)', () => {
+    it('hiç antrenman yapılmamış bir at için boş dizi döner', async () => {
+      const { horseId, authHeader } = await registerTestPlayerWithStarterHorse(app, 'Geçmişi Boş');
+
+      const response = await request(app.getHttpServer())
+        .get(`/api/v1/horses/${horseId}/training-history`)
+        .set('Authorization', authHeader)
+        .expect(200);
+
+      expect(response.body.data).toEqual([]);
+    });
+
+    it('yapılan antrenmanları en yeniden en eskiye sıralı şekilde gerçek alanlarla döner', async () => {
+      const { horseId, authHeader } = await registerTestPlayerWithStarterHorse(app, 'Geçmişi Dolu');
+
+      const first = await request(app.getHttpServer())
+        .post(`/api/v1/horses/${horseId}/train`)
+        .set('Authorization', authHeader)
+        .send({ type: 'stamina', intensity: 'low' })
+        .expect(200);
+
+      const second = await request(app.getHttpServer())
+        .post(`/api/v1/horses/${horseId}/train`)
+        .set('Authorization', authHeader)
+        .send({ type: 'speed', intensity: 'medium' })
+        .expect(200);
+
+      const response = await request(app.getHttpServer())
+        .get(`/api/v1/horses/${horseId}/training-history`)
+        .set('Authorization', authHeader)
+        .expect(200);
+
+      expect(response.body.data).toHaveLength(2);
+      // En son yapılan ('speed') listenin BAŞINDA olmalı (created_at DESC).
+      expect(response.body.data[0].type).toBe('speed');
+      expect(response.body.data[0].horseId).toBe(horseId);
+      expect(response.body.data[0].fatigueGain).toBeCloseTo(second.body.data.fatigueGain, 1);
+      expect(response.body.data[0].statGain).toEqual(second.body.data.statChanges);
+      expect(typeof response.body.data[0].injuryOccurred).toBe('boolean');
+      expect(typeof response.body.data[0].createdAt).toBe('string');
+      expect(response.body.data[1].type).toBe('stamina');
+      expect(response.body.data[1].fatigueGain).toBeCloseTo(first.body.data.fatigueGain, 1);
+    });
+
+    it('Authorization header olmadan 401 döner', async () => {
+      const { horseId } = await registerTestPlayerWithStarterHorse(app, 'Yetkisiz Geçmiş');
+
+      const response = await request(app.getHttpServer()).get(`/api/v1/horses/${horseId}/training-history`);
+
+      expect(response.status).toBe(401);
+    });
+
+    it('başkasının atının geçmişini görmeye çalışan istek 403 döner', async () => {
+      const owner = await registerTestPlayerWithStarterHorse(app, 'Geçmiş Sahibi');
+      const attacker = await registerTestPlayer(app, 'Geçmiş Saldırganı');
+
+      const response = await request(app.getHttpServer())
+        .get(`/api/v1/horses/${owner.horseId}/training-history`)
+        .set('Authorization', attacker.authHeader);
+
+      expect(response.status).toBe(403);
+      expect(response.body.error.code).toBe('FORBIDDEN');
+    });
+
+    it('var olmayan bir at için 404 döner', async () => {
+      const someone = await registerTestPlayer(app, 'Geçmiş İçin Herhangi Biri');
+
+      const response = await request(app.getHttpServer())
+        .get(`/api/v1/horses/${randomUUID()}/training-history`)
+        .set('Authorization', someone.authHeader);
+
+      expect(response.status).toBe(404);
+      expect(response.body.error.code).toBe('HORSE_NOT_FOUND');
+    });
+  });
 });

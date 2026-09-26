@@ -16,10 +16,17 @@
  * docs/ARCHITECTURE.md §4 katman ayrımı) — burada KASITLI olarak
  * kopyalanmıştır, backend'in kendi bağımsız domain doğrulaması zaten
  * nihai otoritedir (istemci burada YALNIZCA doğru seçenekleri sunar).
+ *
+ * "Antrenman Geçmişi" paneli (bu turda EKLENDİ — docs/AUDIT_REPORT.md
+ * "Antrenman geçmişi gösterimi" bulgusu): `GET /horses/:id/training-history`
+ * (bu turda backend'e eklendi, bkz. `training.controller.ts`) seçili atın
+ * son 20 antrenmanını döner; her at seçiminde YENİDEN çekilir, her başarılı
+ * antrenman sonrası da TAZELENİR (`handleTrain`'in sonundaki `loadHistory`
+ * çağrısı).
  */
 
 import { useEffect, useMemo, useState } from 'react';
-import type { PublicHorse, TrainHorseResult, TrainingIntensity, TrainingType } from '@at-sevdalisi/shared-types';
+import type { PublicHorse, TrainHorseResult, TrainingIntensity, TrainingSession, TrainingType } from '@at-sevdalisi/shared-types';
 import { GlassPanel } from '../../components/ui/GlassPanel';
 import { HorseAvatar } from '../../components/ui/HorseAvatar';
 import { StatBar } from '../../components/ui/StatBar';
@@ -46,6 +53,9 @@ const INTENSITY_LABELS: Record<TrainingIntensity, string> = {
   high: 'Yüksek',
 };
 
+/** `TRAINING_HISTORY_LIMIT` (`apps/api/src/domain/training/validation.ts`) ile BİREBİR aynı tutulmalıdır — apps/web apps/api'nin domain koduna import edemez (bkz. dosya başı doc yorumu). */
+const TRAINING_HISTORY_DISPLAY_NOTE = '20 antrenman';
+
 const STAT_FIELD_LABELS: Record<string, string> = {
   speed: 'Hız',
   sprint: 'Sprint',
@@ -66,6 +76,11 @@ export default function TrainingPage(): React.ReactElement {
   const [isTraining, setIsTraining] = useState(false);
   const [result, setResult] = useState<TrainHorseResult | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  // Antrenman geçmişi (bu turda EKLENDİ — docs/AUDIT_REPORT.md "Antrenman
+  // geçmişi gösterimi" bulgusu). `null` = henüz yüklenmedi, `[]` = at hiç
+  // antrenman yapmamış (ikisi ayrı state, "yükleniyor" ile "boş" karışmasın).
+  const [history, setHistory] = useState<TrainingSession[] | null>(null);
+  const [historyError, setHistoryError] = useState<string | null>(null);
 
   const loadHorses = async (ownerId: string) => {
     setHorsesError(null);
@@ -97,6 +112,25 @@ export default function TrainingPage(): React.ReactElement {
 
   const canTrain = selectedHorse !== null && selectedHorse.status === 'active' && !isTraining;
 
+  const loadHistory = async (horseId: string) => {
+    setHistoryError(null);
+    try {
+      const data = await apiClient.getTrainingHistory(horseId);
+      setHistory(data);
+    } catch (err: unknown) {
+      setHistoryError(err instanceof Error ? err.message : 'Antrenman geçmişi yüklenemedi');
+    }
+  };
+
+  useEffect(() => {
+    if (!selectedHorseId) {
+      setHistory(null);
+      return;
+    }
+    setHistory(null);
+    void loadHistory(selectedHorseId);
+  }, [selectedHorseId]);
+
   const handleTrain = async () => {
     if (!selectedHorse || !player) {
       return;
@@ -113,6 +147,7 @@ export default function TrainingPage(): React.ReactElement {
           : 'Antrenman tamamlandı!',
       );
       await loadHorses(player.id);
+      await loadHistory(selectedHorse.id);
     } catch (err: unknown) {
       setMessage(err instanceof Error ? err.message : 'Antrenman başarısız oldu');
     } finally {
@@ -260,6 +295,57 @@ export default function TrainingPage(): React.ReactElement {
               </div>
             ) : null}
           </GlassPanel>
+
+          <GlassPanel style={{ gridColumn: '1 / -1' }}>
+            <h2 style={sectionTitleStyle()}>Antrenman Geçmişi</h2>
+            {selectedHorse ? (
+              <p style={{ color: 'var(--color-text-muted)', fontSize: '12px', marginTop: 0, marginBottom: 'var(--space-md)' }}>
+                {selectedHorse.name} için son {TRAINING_HISTORY_DISPLAY_NOTE}
+              </p>
+            ) : null}
+
+            {historyError ? <p style={{ color: 'var(--color-status-critical)' }}>{historyError}</p> : null}
+
+            {selectedHorse && history === null && !historyError ? (
+              <p style={{ color: 'var(--color-text-muted)' }}>Geçmiş yükleniyor…</p>
+            ) : null}
+
+            {selectedHorse && history && history.length === 0 ? (
+              <p style={{ color: 'var(--color-text-secondary)', margin: 0 }}>Bu at henüz hiç antrenman yapmadı.</p>
+            ) : null}
+
+            {selectedHorse && history && history.length > 0 ? (
+              <div style={{ display: 'grid', gap: '8px' }}>
+                {history.map((session) => (
+                  <div key={session.id} style={historyRowStyle()}>
+                    <div style={{ display: 'grid', gap: '2px' }}>
+                      <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text-primary)' }}>
+                        {TRAINING_TYPE_LABELS[session.type]} · {INTENSITY_LABELS[session.intensity]}
+                      </span>
+                      <span style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>
+                        {formatRelativeDate(session.createdAt)} · {session.durationMinutes} dk
+                      </span>
+                    </div>
+                    <div style={{ display: 'grid', gap: '2px', textAlign: 'right', fontSize: '12px' }}>
+                      {Object.entries(session.statGain).length > 0 ? (
+                        <span style={{ color: 'var(--color-status-positive)' }}>
+                          {Object.entries(session.statGain)
+                            .map(([field, delta]) => `${STAT_FIELD_LABELS[field] ?? field} +${delta}`)
+                            .join(', ')}
+                        </span>
+                      ) : (
+                        <span style={{ color: 'var(--color-text-muted)' }}>Stat etkisi yok</span>
+                      )}
+                      <span style={{ color: 'var(--color-status-warning)' }}>Yorgunluk: {session.fatigueGain >= 0 ? '+' : ''}{session.fatigueGain}</span>
+                      {session.injuryOccurred ? (
+                        <span style={{ color: 'var(--color-status-critical)', fontWeight: 600 }}>Sakatlandı</span>
+                      ) : null}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+          </GlassPanel>
         </div>
       ) : null}
 
@@ -320,6 +406,32 @@ function chipStyle(selected: boolean): React.CSSProperties {
     fontWeight: 600,
     cursor: 'pointer',
   };
+}
+
+function historyRowStyle(): React.CSSProperties {
+  return {
+    display: 'flex',
+    justifyContent: 'space-between',
+    gap: 'var(--space-sm)',
+    padding: '8px 10px',
+    borderRadius: 'var(--radius-md)',
+    border: '1px solid var(--color-border)',
+  };
+}
+
+// `apps/web/src/app/replays/page.tsx`'teki AYNI yardımcı fonksiyonun
+// kopyası (o dosyanın doc yorumundaki AYNI gerekçeyle: küçük, tek-kullanımlık
+// bir format yardımcısı için ortak bir modül İCAT EDİLMEDİ).
+const MS_PER_MINUTE = 60_000;
+const MS_PER_HOUR = 3_600_000;
+const MS_PER_DAY = 86_400_000;
+
+function formatRelativeDate(iso: string): string {
+  const diffMs = Date.now() - new Date(iso).getTime();
+  if (diffMs < MS_PER_MINUTE) return 'az önce';
+  if (diffMs < MS_PER_HOUR) return `${Math.floor(diffMs / MS_PER_MINUTE)} dk önce`;
+  if (diffMs < MS_PER_DAY) return `${Math.floor(diffMs / MS_PER_HOUR)} sa önce`;
+  return `${Math.floor(diffMs / MS_PER_DAY)} gün önce`;
 }
 
 function primaryButtonStyle(disabled = false): React.CSSProperties {

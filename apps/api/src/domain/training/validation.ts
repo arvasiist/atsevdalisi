@@ -32,3 +32,13 @@ export const MAX_TRAINING_DURATION_MINUTES = 120;
 
 /** docs/API.md §4 örnek isteği `durationMinutes` GÖNDERMEZ — bu, o durumda kullanılan varsayılandır. */
 export const DEFAULT_TRAINING_DURATION_MINUTES = 30;
+
+/**
+ * `GET /horses/:id/training-history` (bu turda EKLENDİ — docs/AUDIT_REPORT.md
+ * "Antrenman geçmişi gösterimi" bulgusu) için sayfa boyutu. `replays/page.tsx`'in
+ * `REPLAY_LIBRARY_LIMIT`'i (20) ile AYNI değer — burada da "son N kayıt,
+ * sayfalama YOK" kararı bilinçli olarak KÜÇÜK bir liste ekranı için yeterli
+ * kabul edildi, gerçek sayfalama (cursor/offset) İLERİDE gerekirse ayrı bir
+ * dilim olarak eklenebilir.
+ */
+export const TRAINING_HISTORY_LIMIT = 20;
