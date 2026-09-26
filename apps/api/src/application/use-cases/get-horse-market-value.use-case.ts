@@ -44,7 +44,16 @@ export class GetHorseMarketValueUseCase {
   constructor(
     @Inject(HORSE_REPOSITORY) private readonly horseRepository: HorseRepository,
     @Inject(RACE_REPOSITORY) private readonly raceRepository: RaceRepository,
-    private readonly appConfig: AppConfigService,
+    // CI #163 kırmızı (bu turda BULUNDU VE DÜZELTİLDİ) — `docs/ARCHITECTURE.md`
+    // §9.1 Hata 6'nın TAM OLARAK uyardığı hata: bu parametre açık bir
+    // `@Inject()` OLMADAN (örtük tip-tabanlı enjeksiyonla) bırakılmıştı —
+    // Vitest/esbuild `emitDecoratorMetadata` gerektiren bu örtük çözümlemeyi
+    // DESTEKLEMEDİĞİNDEN `appConfig` çalışma zamanında `undefined` kalıyordu,
+    // bu da `this.appConfig.horseGrowth` erişiminde 500'e neden oluyordu
+    // (e2e testler bunu YAKALADI — CI #163'ün 3 test hatası). Düzeltme:
+    // `run-practice-race.use-case.ts`'in KENDİSİNİN uyguladığı AYNI desen
+    // (`@Inject(AppConfigService)`).
+    @Inject(AppConfigService) private readonly appConfig: AppConfigService,
   ) {}
 
   async execute(horseId: string): Promise<HorseMarketValueView> {
