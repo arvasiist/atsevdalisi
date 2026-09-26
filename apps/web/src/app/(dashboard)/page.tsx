@@ -29,6 +29,7 @@ import { useEffect, useState } from 'react';
 import type { RecentRaceResultView, StableSummaryView } from '@at-sevdalisi/shared-types';
 import { GlassPanel } from '../../components/ui/GlassPanel';
 import { StatBar } from '../../components/ui/StatBar';
+import { getCareerProgress } from '../../features/career/career-tier';
 import { apiClient } from '../../lib/api-client';
 import { usePlayer } from '../../lib/player-context';
 
@@ -222,18 +223,50 @@ function PlayerCard({
   money: number;
   gems: number;
 }): React.ReactElement {
+  // "AT SEVDALISI — Master Development Brief" §27 "PHASE 16 — CAREER" (bu
+  // turda EKLENDİ) — bkz. `features/career/career-tier.ts` dosya başı doc
+  // yorumu: kademe sınırları `progression.config.json`'ın ZATEN VAR OLAN
+  // unlock seviyeleriyle hizalanır, yeni bir denge kararı İCAT EDİLMEZ.
+  const careerProgress = getCareerProgress(level);
+
   return (
     <GlassPanel>
       <SectionLabel>Oyuncu</SectionLabel>
       <p style={{ margin: '4px 0 12px 0', fontSize: '18px', fontWeight: 700, color: 'var(--color-text-primary)' }}>
         {displayName}
       </p>
-      <div style={{ display: 'flex', gap: 'var(--space-lg)', flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', gap: 'var(--space-lg)', flexWrap: 'wrap', marginBottom: 'var(--space-md)' }}>
         <StatLine label="Seviye" value={level} />
         <StatLine label="XP" value={xp.toLocaleString('tr-TR')} />
         <StatLine label="Bakiye" value={`${money.toLocaleString('tr-TR')} ₺`} accent="gold" />
         <StatLine label="Elmas" value={gems.toLocaleString('tr-TR')} accent="gem" />
       </div>
+      <div
+        style={{
+          display: 'inline-block',
+          fontSize: '11px',
+          fontWeight: 700,
+          letterSpacing: '0.06em',
+          textTransform: 'uppercase',
+          color: 'var(--color-accent-gold)',
+          border: '1px solid var(--color-accent-gold)',
+          borderRadius: '999px',
+          padding: '3px 10px',
+          marginBottom: '8px',
+        }}
+      >
+        🏆 {careerProgress.tier.label}
+      </div>
+      {careerProgress.nextTier ? (
+        <StatBar
+          label={`Sonraki kademe: ${careerProgress.nextTier.label} (Sv. ${careerProgress.nextTier.minLevel})`}
+          value={careerProgress.progressToNextTier * 100}
+        />
+      ) : (
+        <p style={{ fontSize: '12px', color: 'var(--color-text-muted)', margin: 0 }}>
+          En üst kariyer kademesine ulaştın.
+        </p>
+      )}
     </GlassPanel>
   );
 }

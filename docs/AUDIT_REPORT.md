@@ -204,7 +204,8 @@ kategorisi olarak eklenmeli — ama altyapı (CI, test runner'lar) hazır.
   Dashboard'un "Son Yarış Sonuçları" paneli artık her satırı
   `/replays/[raceId]`'e bağlıyor ve "Tüm yarış geçmişini gör →" linki
   içeriyor; ana navigasyon kartlarına da "Yarış Tekrarları" girişi
-  eklendi.
+  eklendi. **Commit `2f14f65`, CI #161, 2m 43s, TAM YEŞİL** (`git fetch`
+  + built-in tarayıcı ile bağımsız doğrulandı).
 - **§23-24 Behavior/Personality:** R3'ün Temperament alanı hâlâ nötr
   placeholder (zaten bilinen bir sonraki adım); brief'in istediği
   "personality" (CALM/AGGRESSIVE/NERVOUS/vb.) kategorik katmanı YOK.
@@ -225,8 +226,18 @@ kategorisi olarak eklenmeli — ama altyapı (CI, test runner'lar) hazır.
 - **§26 Pedigree görselleştirme:** ✅ DÜZELTİLDİ (Grup 1) — Genetics/
   breeding domain hesaplamaları VAR ve ÇALIŞIYOR; ağaç şeklinde
   pedigree UI paneli artık da VAR.
-- **§27 Career progression:** NOVICE→CHAMPIONSHIP seviyeleri,
-  achievement sistemi — YOK.
+- **§27 Career progression:** KISMEN DÜZELTİLDİ ("Devam et" turu,
+  altıncı öz-denetim dilimi) — NOVICE→LOCAL OWNER→RISING STABLE→
+  PRO STABLE→CHAMPIONSHIP STABLE tier-mapping artık VAR: yeni saf
+  `apps/web/src/features/career/career-tier.ts` (`getCareerProgress`,
+  13/13 gerçek test), `Player.level`'i (zaten `GET /players/:id` ile
+  gelen bir alan) beş kademeye eşler — kademe sınırları UYDURULMADI,
+  `config/progression.config.json`'ın ZATEN VAR OLAN `unlocks`
+  seviyeleriyle (1/10/20/30/40) hizalandı. Dashboard'un `PlayerCard`'ına
+  bir kademe rozeti + bir sonraki kademeye ilerleme çubuğu eklendi. Brief
+  achievement sistemini "eklenebilir" (opsiyonel) olarak işaretlediğinden
+  VE kalıcı bir veri modeli + yeni backend gerektirdiğinden, achievement
+  kısmı bilinçli olarak bu dilimin DIŞINDA bırakıldı — ayrı bir dilim.
 - **§35-36 Winner Ceremony / Shareable Result:** Kazanma sonrası
   sunum akışı, paylaşılabilir sonuç görseli — YOK.
 - **§45 Asset raporlama sistemi:** Her aşamada AVAILABLE/MISSING/

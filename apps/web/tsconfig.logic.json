@@ -8,6 +8,7 @@
     }
   },
   "include": [
+    "src/features/career/career-tier.ts",
     "src/features/race-viewer/track-path.ts",
     "src/features/race-viewer/replay-adapter.ts",
     "src/features/race-viewer/timeline-playback.ts",
