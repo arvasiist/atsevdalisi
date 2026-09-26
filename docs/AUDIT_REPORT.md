@@ -232,7 +232,9 @@ kategorisi olarak eklenmeli — ama altyapı (CI, test runner'lar) hazır.
   okuma metodu) + `GET /horses/:id/training-history`
   (`HorseOwnerGuardByParam` korumalı, `TrainingModule` içinde barınır) +
   `/training` sayfasındaki yeni "Antrenman Geçmişi" paneli (her at
-  seçiminde ve her antrenman sonrası tazelenir). Hâlâ eksik: Equipment
+  seçiminde ve her antrenman sonrası tazelenir). **Commit `c495f37` +
+  doküman notu `7bece3b`, CI #165, 2m 47s, TAM YEŞİL** (`git fetch` +
+  built-in tarayıcı ile bağımsız doğrulandı). Hâlâ eksik: Equipment
   (domain kavramı olarak hiç YOK — yeni bir alt sistem gerektirir).
   **Not (kırmızı→yeşil döngüsü):** ilk push (`e31070a`) **CI #163'te
   KIRMIZI** çıktı — `horse-market-value.e2e-spec.ts`'in 3 testi
