@@ -244,7 +244,8 @@ kategorisi olarak eklenmeli — ama altyapı (CI, test runner'lar) hazır.
   `emitDecoratorMetadata` gerektiren örtük çözümlemeyi desteklemiyor).
   Grep ile projenin 13 use-case'inin HEPSİNİN `@Inject(AppConfigService)`
   desenini kullandığı doğrulandı; aynı desen uygulanarak düzeltildi
-  (**commit `fb76ec2`**). Push+CI sonucu bu notta güncellenecek.
+  (**commit `fb76ec2` + doküman notu `aeb3080`, CI #164, 2m 42s, TAM
+  YEŞİL** — `git fetch` + built-in tarayıcı ile bağımsız doğrulandı).
 - **§26 Pedigree görselleştirme:** ✅ DÜZELTİLDİ (Grup 1) — Genetics/
   breeding domain hesaplamaları VAR ve ÇALIŞIYOR; ağaç şeklinde
   pedigree UI paneli artık da VAR.
