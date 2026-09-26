@@ -171,3 +171,53 @@ export interface HorseCardView {
   morale: number;
   raceForm: number; // brief §39 "Race form" — docs/ALGORITHMS.md'deki Form değerine karşılık gelir
 }
+
+/**
+ * Ekipman (brief §14 PHASE 14 — STABLE, §17 PHASE 17 — ECONOMY gider
+ * kalemi olarak "Equipment"; `claude/hizli-bitirme-plani.md`'nin proje
+ * sahibi tarafından önceliklendirilen "düşük riskli, karar gerektirmeyen"
+ * dilimlerinden biri). Beş tip desteklenir — brief'in kendisi somut bir
+ * liste VERMEZ, bu proje için `domain/equipment/validation.ts`'te
+ * `EQUIPMENT_TYPES` olarak SABİTLENMİŞTİR (gerçek at yarışçılığında
+ * yaygın ekipman kategorileri): eyer, dizgin, nal, göz siperi, bacak
+ * bandajı.
+ *
+ * KASITLI OLARAK BASİT TUTULDU — `carried-weight.ts`'in "ekipman ağırlığı
+ * BİLİNÇLİ olarak kapsam dışı" kararıyla ÇELİŞMEZ: o karar, ekipmanın
+ * Carried Weight'in bir ALT-FAKTÖRÜ olarak (at/jokey/handikap ağırlığıyla
+ * BİRLİKTE tek bir sayıda tahmin edilerek) modellenmesini reddediyordu
+ * ("projede ekipman/gear envanteri kavramı YOK" gerekçesiyle). Bu envanter
+ * ARTIK var — ekipmanın performans etkisi Carried Weight'in DIŞINDA,
+ * kendi bağımsız, küçük ve KONTROLLÜ modifikatörü olarak modellenir (bkz.
+ * `domain/equipment/performance.ts` `computeEquipmentPerformanceModifier`
+ * doc yorumu) — bu, `carried-weight.ts`'in reddettiği "tahmin ederek
+ * BİRLEŞTİRME" DEĞİL, YENİ ve AYRI bir sistemdir.
+ *
+ * Serbest biçimli bir `effects: Record<string, number>` JSONB alanı
+ * BİLEREK EKLENMEDİ (spekülatif/"belki ileride lazım olur" bir alan,
+ * `UNMODELED_SNAPSHOT_FIELDS`'ın karşı çıktığı "sessizce sahte veri"
+ * riskiyle AYNI kategori) — tek somut sayısal girdi `quality`dir (diğer
+ * kalite alanlarıyla, ör. `Horse.quality`, AYNI 0-100 ölçek).
+ */
+export type EquipmentType = 'saddle' | 'bridle' | 'horseshoe' | 'blinkers' | 'leg_wraps';
+
+export interface HorseEquipment {
+  id: UUID;
+  horseId: UUID;
+  equipmentType: EquipmentType;
+  name: string;
+  /** 0-100 — `Horse.quality` ile AYNI ölçek (bkz. `domain/equipment/validation.ts`). */
+  quality: number;
+  /**
+   * Bir at, AYNI ANDA her `equipmentType`'tan EN FAZLA bir tane kuşanabilir
+   * (veritabanı seviyesinde `idx_horse_equipment_one_equipped_per_type`
+   * kısmi tekil index'i ile ZORUNLU kılınır — `market_listings`'in
+   * "bir atın en fazla bir aktif ilanı olabilir" kısıtıyla AYNI desen,
+   * bkz. migration 0028 doc yorumu). Kuşanılmamış (satın alınmış ama
+   * envanterde bekleyen) ekipmanın yarış performansına HİÇBİR etkisi
+   * yoktur (bkz. `computeEquipmentPerformanceModifier`'ın `equipped`
+   * filtresi).
+   */
+  equipped: boolean;
+  createdAt: ISODateTimeString;
+}

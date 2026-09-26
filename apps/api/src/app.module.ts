@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { AuthModule } from './api/auth/auth.module';
 import { CareModule } from './api/care/care.module';
 import { EconomyModule } from './api/economy/economy.module';
+import { EquipmentModule } from './api/equipment/equipment.module';
 import { HealthModule } from './api/health/health.module';
 import { HorseModule } from './api/horse/horse.module';
 import { MarketModule } from './api/market/market.module';
@@ -93,6 +94,10 @@ import { RedisModule } from './infrastructure/redis/redis.module';
     MarketModule,
     MatchmakingModule,
     RateLimitModule,
+    // claude/hizli-bitirme-plani.md'nin proje sahibi tarafından
+    // önceliklendirdiği "düşük riskli, karar gerektirmeyen" dilim (bu
+    // turda EKLENDİ) — bkz. `api/equipment/equipment.module.ts` doc yorumu.
+    EquipmentModule,
     // AUDIT_REPORT.md Bulgu F2 (bu oturum) — bkz. `api/realtime/race.gateway.ts`
     // doc yorumu. `RaceModule`'DEN SONRA gelmesi ZORUNLU DEĞİL (WebSocket
     // guard'ı `AuthGuard`'ın AKSİNE global `APP_GUARD` DEĞİL, kendi

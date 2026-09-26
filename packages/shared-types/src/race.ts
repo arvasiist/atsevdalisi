@@ -148,6 +148,31 @@ export interface RaceEntrantSnapshot {
    */
   form: number;
   tactic: RaceTacticInput;
+  /**
+   * Ekipman (bu turda EKLENDİ — `claude/hizli-bitirme-plani.md`'nin proje
+   * sahibi tarafından önceliklendirdiği dilim, bkz. `packages/shared-types/
+   * src/horse.ts` `HorseEquipment` doc yorumu). BİLEREK OPSİYONEL (diğer
+   * TÜM alanların AKSİNE, `weightCompatibility`/`form` gibi ZORUNLU-ama-
+   * nötr-varsayılan DEĞİL) — bu tipi doğrudan literal olarak inşa eden
+   * ÇOK sayıda test fixture'ı (`race-engine.spec.ts`, `race-engine-field-
+   * balance.spec.ts`, `entrant-snapshot.spec.ts`, `jockey.spec.ts`,
+   * `anti-cheat.spec.ts`, `race-room.spec.ts`, `race-timeline.e2e-spec.ts`)
+   * VAR; bunların HİÇBİRİNİ değiştirmeye gerek KALMASIN diye
+   * `apps/web/src/features/race-viewer/timeline-playback.ts`'teki
+   * `InterpolatedHorseState`'in opsiyonel alanlarıyla AYNI desen izlenir.
+   * Tüketim noktası (`race-engine.ts`) `entry.equipmentModifier ?? 1`
+   * kullanır — `undefined` HER ZAMAN "ekipman etkisi yok" (nötr 1.0)
+   * anlamına gelir, `bot-generator.ts`'in ürettiği botlar bu alanı HİÇ
+   * DOLDURMAZ (botların envanteri yok, `jockeySkillComposite`/`trackFit`
+   * ile AYNI "bot = her zaman nötr" ilkesi).
+   *
+   * `weightCompatibility` gibi 0-100 bir "uyumluluk" skoru DEĞİL, `domain/
+   * race/modifier-combination.ts`'in beklediği "1.0 = nötr" çarpansal
+   * ölçektedir (bkz. `computeEquipmentPerformanceModifier`'ın doc yorumu) —
+   * bu yüzden `base-ability.ts`'in ağırlıklı toplamına DEĞİL, `race-
+   * engine.ts`'in `combineConditionModifiers([...])` dizisine eklenir.
+   */
+  equipmentModifier?: number;
 }
 
 /**

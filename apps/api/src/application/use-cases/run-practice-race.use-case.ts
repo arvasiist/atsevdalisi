@@ -13,6 +13,7 @@ import { HORSE_REPOSITORY, type HorseRepository } from '../ports/horse.repositor
 import { HORSE_STATS_REPOSITORY, type HorseStatsRepository } from '../ports/horse-stats.repository';
 import { HORSE_SURFACE_STATS_REPOSITORY, type HorseSurfaceStatsRepository } from '../ports/horse-surface-stats.repository';
 import { HORSE_DISTANCE_STATS_REPOSITORY, type HorseDistanceStatsRepository } from '../ports/horse-distance-stats.repository';
+import { HORSE_EQUIPMENT_REPOSITORY, type HorseEquipmentRepository } from '../ports/horse-equipment.repository';
 import { RACE_REPOSITORY, type RaceRepository } from '../ports/race.repository';
 import { MARKET_LISTING_REPOSITORY, type MarketListingRepository } from '../ports/market-listing.repository';
 
@@ -45,6 +46,7 @@ export class RunPracticeRaceUseCase {
     @Inject(HORSE_DISTANCE_STATS_REPOSITORY) private readonly horseDistanceStatsRepository: HorseDistanceStatsRepository,
     @Inject(RACE_REPOSITORY) private readonly raceRepository: RaceRepository,
     @Inject(MARKET_LISTING_REPOSITORY) private readonly marketListingRepository: MarketListingRepository,
+    @Inject(HORSE_EQUIPMENT_REPOSITORY) private readonly horseEquipmentRepository: HorseEquipmentRepository,
     @Inject(AppConfigService) private readonly config: AppConfigService,
   ) {}
 
@@ -81,9 +83,12 @@ export class RunPracticeRaceUseCase {
     // savunması) `buildHorseEntrantSnapshot`'a `trackFit: null` geçilir,
     // yani surfaceCompatibility/distanceCompatibility nötr (50) kalır
     // (ÇÖKMEZ) — bkz. o fonksiyonun `trackFit` parametresinin doc yorumu.
-    const [surfaceStats, distanceStats] = await Promise.all([
+    // Ekipman (bu turda EKLENDİ) — mevcut Promise.all'a EKLENDİ (salt
+    // okunur, `surfaceStats`/`distanceStats` sorgularıyla AYNI kategori).
+    const [surfaceStats, distanceStats, equippedItems] = await Promise.all([
       this.horseSurfaceStatsRepository.findByHorseId(horseId),
       this.horseDistanceStatsRepository.findByHorseId(horseId),
+      this.horseEquipmentRepository.findEquippedByHorseId(horseId),
     ]);
     const trackFit: TrackFitInput | null =
       surfaceStats === null || distanceStats === null
@@ -91,7 +96,7 @@ export class RunPracticeRaceUseCase {
         : { surfaceStats, distanceStats, surface: PRACTICE_RACE_SURFACE, distanceMeters: PRACTICE_RACE_DISTANCE_METERS };
 
     const raceId = randomUUID();
-    const playerEntrant = buildHorseEntrantSnapshot(horse, stats, input.tactic, recentResults, trackFit);
+    const playerEntrant = buildHorseEntrantSnapshot(horse, stats, input.tactic, recentResults, trackFit, equippedItems);
     const botEntrants = generateBotEntrants(PRACTICE_RACE_BOT_COUNT, raceId);
 
     const timeline = simulateRace({

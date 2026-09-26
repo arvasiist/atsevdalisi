@@ -23,6 +23,7 @@ import { HORSE_REPOSITORY, type HorseRepository } from '../ports/horse.repositor
 import { HORSE_STATS_REPOSITORY, type HorseStatsRepository } from '../ports/horse-stats.repository';
 import { HORSE_SURFACE_STATS_REPOSITORY, type HorseSurfaceStatsRepository } from '../ports/horse-surface-stats.repository';
 import { HORSE_DISTANCE_STATS_REPOSITORY, type HorseDistanceStatsRepository } from '../ports/horse-distance-stats.repository';
+import { HORSE_EQUIPMENT_REPOSITORY, type HorseEquipmentRepository } from '../ports/horse-equipment.repository';
 import { LOBBY_NOTIFIER, type LobbyNotifier } from '../ports/lobby-notifier';
 import { MATCHMAKING_TICKET_REPOSITORY, type MatchmakingTicketRepository } from '../ports/matchmaking-ticket.repository';
 import { PLAYER_REPOSITORY, type PlayerRepository } from '../ports/player.repository';
@@ -141,6 +142,7 @@ export class JoinMatchmakingQueueUseCase {
     @Inject(PLAYER_REPOSITORY) private readonly playerRepository: PlayerRepository,
     @Inject(RACE_REPOSITORY) private readonly raceRepository: RaceRepository,
     @Inject(MATCHMAKING_TICKET_REPOSITORY) private readonly ticketRepository: MatchmakingTicketRepository,
+    @Inject(HORSE_EQUIPMENT_REPOSITORY) private readonly horseEquipmentRepository: HorseEquipmentRepository,
     @Inject(AppConfigService) private readonly config: AppConfigService,
     // `lobby.update` (bu turda EKLENDİ) — bkz. `race.gateway.ts`'in
     // "`lobby.update`" doc bölümü ve `lobby-notifier.ts`'in doc yorumu.
@@ -245,6 +247,8 @@ export class JoinMatchmakingQueueUseCase {
       distanceStats,
       opponentSurfaceStats,
       opponentDistanceStats,
+      equippedItems,
+      opponentEquippedItems,
     ] = await Promise.all([
       this.horseRepository.findById(horseId),
       this.horseStatsRepository.findByHorseId(horseId),
@@ -256,6 +260,9 @@ export class JoinMatchmakingQueueUseCase {
       this.horseDistanceStatsRepository.findByHorseId(horseId),
       this.horseSurfaceStatsRepository.findByHorseId(opponentHorseId),
       this.horseDistanceStatsRepository.findByHorseId(opponentHorseId),
+      // Ekipman (bu turda EKLENDİ) — `RunPracticeRaceUseCase`'teki AYNI ekleme.
+      this.horseEquipmentRepository.findEquippedByHorseId(horseId),
+      this.horseEquipmentRepository.findEquippedByHorseId(opponentHorseId),
     ]);
 
     // Veri bütünlüğü varsayımı: çağıranın kendi atı/statı bu metoda
@@ -290,13 +297,14 @@ export class JoinMatchmakingQueueUseCase {
             distanceMeters: PRACTICE_RACE_DISTANCE_METERS,
           };
 
-    const mySnapshot = buildHorseEntrantSnapshot(horse, stats, DEFAULT_RACE_TACTIC, recentResults, myTrackFit);
+    const mySnapshot = buildHorseEntrantSnapshot(horse, stats, DEFAULT_RACE_TACTIC, recentResults, myTrackFit, equippedItems);
     const opponentSnapshot = buildHorseEntrantSnapshot(
       opponentHorse,
       opponentStats,
       DEFAULT_RACE_TACTIC,
       opponentRecentResults,
       opponentTrackFit,
+      opponentEquippedItems,
     );
 
     // brief §41 "participant validation" — bkz. `domain/online/race-room.ts`

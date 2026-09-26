@@ -2,11 +2,13 @@ import { Module } from '@nestjs/common';
 import { MATCHMAKING_TICKET_REPOSITORY } from '../../application/ports/matchmaking-ticket.repository';
 import { HORSE_STATS_REPOSITORY } from '../../application/ports/horse-stats.repository';
 import { RACE_REPOSITORY } from '../../application/ports/race.repository';
+import { HORSE_EQUIPMENT_REPOSITORY } from '../../application/ports/horse-equipment.repository';
 import { JoinMatchmakingQueueUseCase } from '../../application/use-cases/join-matchmaking-queue.use-case';
 import { LeaveMatchmakingQueueUseCase } from '../../application/use-cases/leave-matchmaking-queue.use-case';
 import { PostgresHorseStatsRepository } from '../../infrastructure/horse/postgres-horse-stats.repository';
 import { PostgresMatchmakingTicketRepository } from '../../infrastructure/online/postgres-matchmaking-ticket.repository';
 import { PostgresRaceRepository } from '../../infrastructure/race/postgres-race.repository';
+import { PostgresHorseEquipmentRepository } from '../../infrastructure/equipment/postgres-horse-equipment.repository';
 import { HorseOwnerGuardByBodyField, HorseOwnerGuardByQueryField } from '../auth/horse-owner.guard';
 import { HorseModule } from '../horse/horse.module';
 import { PlayerModule } from '../player/player.module';
@@ -36,6 +38,9 @@ import { MatchmakingController } from './matchmaking.controller';
     { provide: HORSE_STATS_REPOSITORY, useClass: PostgresHorseStatsRepository },
     { provide: RACE_REPOSITORY, useClass: PostgresRaceRepository },
     { provide: MATCHMAKING_TICKET_REPOSITORY, useClass: PostgresMatchmakingTicketRepository },
+    // Ekipman (bu turda EKLENDİ) — `JoinMatchmakingQueueUseCase`'in yeni
+    // bağımlılığı, `RACE_REPOSITORY` ile AYNI "token tekrarı" gerekçesi.
+    { provide: HORSE_EQUIPMENT_REPOSITORY, useClass: PostgresHorseEquipmentRepository },
     // AUDIT_REPORT.md Bulgu S2 hardening (bu oturum) — bkz. `horse-owner.guard.ts` doc yorumu.
     HorseOwnerGuardByBodyField,
     HorseOwnerGuardByQueryField,

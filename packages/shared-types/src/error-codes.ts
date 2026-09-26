@@ -80,6 +80,10 @@ export const ErrorCode = {
   // AUDIT_REPORT.md Bulgu S5 (High) hardening (bu oturum) — bkz.
   // apps/api/src/api/rate-limit/rate-limit.errors.ts `RateLimitExceededError`.
   RateLimitExceeded: 'RATE_LIMIT_EXCEEDED',
+  // claude/hizli-bitirme-plani.md'nin proje sahibi tarafından
+  // önceliklendirdiği Ekipman dilimi (bu turda EKLENDİ) — bkz.
+  // domain/equipment/errors.ts.
+  HorseEquipmentNotFound: 'HORSE_EQUIPMENT_NOT_FOUND',
 } as const;
 
 export type ErrorCodeValue = (typeof ErrorCode)[keyof typeof ErrorCode];

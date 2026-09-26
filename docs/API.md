@@ -219,6 +219,10 @@ POST   /api/v1/horses/{id}/care        # tımar/su/temizlik/veteriner/nalbant/di
                                         # bkz. §4 "Bakım ve Besleme")
 POST   /api/v1/horses/{id}/feed        # besleme (brief §12, `feedType` alanı)
 GET    /api/v1/horses/{id}/training-history  # antrenman geçmişi (bu turda EKLENDİ, aşağıya bkz.)
+GET    /api/v1/horses/{id}/equipment                     # ekipman envanteri (bu turda EKLENDİ, aşağıya bkz.)
+POST   /api/v1/horses/{id}/equipment                     # yeni bir ekipman parçası oluştur
+POST   /api/v1/horses/{id}/equipment/{equipmentId}/equip    # kuşandır
+POST   /api/v1/horses/{id}/equipment/{equipmentId}/unequip  # çıkar
 ```
 
 `POST /api/v1/horses/{id}/train` — örnek istek (`durationMinutes` opsiyonel,
@@ -300,6 +304,70 @@ kapsamındadır. Örnek yanıt (`data`, doğrudan bir `TrainingSession[]`):
   ]
 }
 ```
+
+### Ekipman (bu turda EKLENDİ — `claude/hizli-bitirme-plani.md`'nin proje sahibi tarafından önceliklendirdiği dilim)
+
+`horse_equipment` tablosunda (migration 0028) bir atın ekipman envanterini
+tutar (bkz. `packages/shared-types/src/horse.ts` `HorseEquipment` doc
+yorumu). Beş sabit `equipmentType` desteklenir: `saddle`, `bridle`,
+`horseshoe`, `blinkers`, `leg_wraps`. Dört rota da `HorseOwnerGuardByParam`
+ile korunur (`train`/`training-history` ile AYNI yetkilendirme).
+
+`POST /api/v1/horses/{id}/equipment` — yeni bir parça oluşturur (HER ZAMAN
+`equipped: false` başlar — oluşturma ≠ kuşanma, iki AYRI adımdır), örnek
+istek:
+
+```json
+{ "equipmentType": "saddle", "name": "Deri Eyer", "quality": 80 }
+```
+
+`quality` 0-100 ölçeğindedir (`Horse.quality` ile AYNI). Örnek yanıt (201
+Created — yeni bir KAYNAK yaratır):
+
+```json
+{
+  "success": true,
+  "data": {
+    "id": "...",
+    "horseId": "...",
+    "equipmentType": "saddle",
+    "name": "Deri Eyer",
+    "quality": 80,
+    "equipped": false,
+    "createdAt": "2026-09-26T18:00:00.000Z"
+  }
+}
+```
+
+`GET /api/v1/horses/{id}/equipment` — atın TÜM envanterini döner (`data`,
+doğrudan bir `HorseEquipment[]`, en yeniden en eskiye sıralı).
+
+`POST /api/v1/horses/{id}/equipment/{equipmentId}/equip` —
+`{equipmentId}`'yi kuşandırır (200 OK — yeni bir kaynak YARATMAZ). AYNI
+`equipmentType`'tan ÖNCEDEN kuşanılmış başka bir parça varsa, o parça
+OTOMATİK olarak çıkarılır (`idx_horse_equipment_one_equipped_per_type`
+kısmi tekil index'i, migration 0028, VERİTABANI seviyesinde bunu
+GARANTİ eder — bir at, AYNI ANDA her tipten en fazla BİR parça kuşanabilir).
+
+`POST /api/v1/horses/{id}/equipment/{equipmentId}/unequip` —
+`{equipmentId}`'yi çıkarır (200 OK).
+
+Her iki kuşanma rotası da `{equipmentId}` GERÇEKTEN `{id}`'ye (ata) ait
+DEĞİLSE (başka bir ata ait ya da hiç var olmayan bir id) `404
+HORSE_EQUIPMENT_NOT_FOUND` döner — `HorseOwnerGuardByParam` yalnızca
+`{id}`'nin (atın) çağırana ait olduğunu doğrular, `{equipmentId}`'nin o
+ata aitliği repository katmanında ayrıca kontrol edilir (bkz.
+`equip-horse-equipment.use-case.ts` doc yorumu).
+
+**Race Engine'e etkisi:** kuşanılmış (yalnızca `equipped: true`) parçalar
+`RunPracticeRaceUseCase`/`JoinMatchmakingQueueUseCase` tarafından okunup
+`RaceEntrantSnapshot.equipmentModifier`e (`domain/equipment/performance.ts`
+`computeEquipmentPerformanceModifier`) dönüştürülür — her parça, kalitesiyle
+ORANTILI olarak en fazla `%1` performans bonusu verir (beş parçanın hepsi
+en yüksek kalitede olsa bile toplam en fazla `%5`, `config/weather.
+config.json`'daki `sunny_grass_dry → 1.05` ile AYNI büyüklükte, bkz. o
+fonksiyonun kalibrasyon notu) — ASLA bir ceza YOKTUR, kuşanılmamış/hiç
+ekipmanı olmayan bir at nötr sayılır.
 
 `train` ve `horse_stats`
 FAZ 1 wiring'in DÖRDÜNCÜ diliminde bağlandı (bkz. aşağıdaki "Antrenman"
@@ -1184,3 +1252,4 @@ dosyanın doc yorumu).
 | `INVALID_LISTING_EXPIRY` | Pazar ilanı süresi (`expiresInHours`) 1-720 saat aralığı dışında (FAZ 1 wiring, on üçüncü dilim) |
 | `ALREADY_IN_MATCHMAKING_QUEUE` | Oyuncunun zaten eşleştirme kuyruğunda bir bileti var (FAZ 1 wiring, on dördüncü dilim) |
 | `NOT_IN_MATCHMAKING_QUEUE` | Oyuncunun eşleştirme kuyruğunda bileti yok (kuyruktan çıkma denemesi) (FAZ 1 wiring, on dördüncü dilim) |
+| `HORSE_EQUIPMENT_NOT_FOUND` | Verilen `equipmentId` bulunamadı ya da başka bir ata ait (Ekipman dilimi, bu turda EKLENDİ) |

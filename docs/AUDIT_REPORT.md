@@ -234,8 +234,27 @@ kategorisi olarak eklenmeli — ama altyapı (CI, test runner'lar) hazır.
   `/training` sayfasındaki yeni "Antrenman Geçmişi" paneli (her at
   seçiminde ve her antrenman sonrası tazelenir). **Commit `c495f37` +
   doküman notu `7bece3b`, CI #165, 2m 47s, TAM YEŞİL** (`git fetch` +
-  built-in tarayıcı ile bağımsız doğrulandı). Hâlâ eksik: Equipment
-  (domain kavramı olarak hiç YOK — yeni bir alt sistem gerektirir).
+  built-in tarayıcı ile bağımsız doğrulandı). Equipment de bu turda
+  kapandı (proje sahibinin `claude/hizli-bitirme-plani.md`'deki 20 fazlık
+  gap-analizinden sonra önceliklendirdiği dilim, bkz. o dosyanın
+  güncellemesi): `horse_equipment` tablosu (migration 0028, `idx_horse_
+  equipment_one_equipped_per_type` kısmi tekil index'i — `market_listings`'in
+  "bir atın en fazla bir aktif ilanı olabilir" kısıtıyla AYNI desen) +
+  `domain/equipment/` (validation/errors/`computeEquipmentPerformanceModifier`,
+  gerçek `tsx` ile doğrulandı) + `EquipmentModule` (`GET`/`POST /horses/:id/
+  equipment`, `POST .../equip`, `POST .../unequip`, `HorseOwnerGuardByParam`
+  korumalı) + `apps/web/src/app/equipment/page.tsx`. Kuşanılmış ekipman,
+  `buildHorseEntrantSnapshot`'ın YENİ opsiyonel `equippedItems` parametresi
+  üzerinden `RaceEntrantSnapshot.equipmentModifier`e (opsiyonel alan —
+  mevcut 7 test fixture'ını DEĞİŞTİRMEDEN) dönüşür ve `race-engine.ts`'in
+  `combineConditionModifiers` dizisine `entry.equipmentModifier ?? 1`
+  olarak eklenir — nötr (`1`) değerin sonucu DEĞİŞTİRMEDİĞİ (Race Engine
+  determinizmi/mevcut davranış KORUNDU) hem matematiksel olarak hem gerçek
+  `tsx` çalıştırmasıyla doğrulandı. Ölçek (%1/parça, en fazla %5 — beş
+  yuvanın hepsi en yüksek kalitede) YENİ bir Monte Carlo kalibrasyonu
+  DEĞİL, projenin KENDİSİNİN zaten güvenli kabul ettiği `sunny_grass_dry
+  → 1.05` büyüklüğüne BİLEREK eşitlendi (bkz. `domain/equipment/
+  performance.ts` doc yorumu) — ASLA ceza yok, yalnızca bonus.
   **Not (kırmızı→yeşil döngüsü):** ilk push (`e31070a`) **CI #163'te
   KIRMIZI** çıktı — `horse-market-value.e2e-spec.ts`'in 3 testi
   "expected 200, got 500" ile başarısız oldu (yalnızca 404 testi

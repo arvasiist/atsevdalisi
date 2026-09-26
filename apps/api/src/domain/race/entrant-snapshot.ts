@@ -2,6 +2,7 @@ import {
   clamp,
   type Horse,
   type HorseDistanceStats,
+  type HorseEquipment,
   type HorseStats,
   type HorseSurfaceStats,
   type RaceEntrantSnapshot,
@@ -11,6 +12,7 @@ import {
 } from '@at-sevdalisi/shared-types';
 import { computeDistanceCompatibility, computeSurfaceCompatibility } from './track-fit';
 import { computeWeightCompatibility } from './carried-weight';
+import { computeEquipmentPerformanceModifier } from '../equipment/performance';
 import { FINAL_STRETCH_PLANS, RACING_STYLES, RISK_LEVELS, START_APPROACHES } from './validation';
 import { InvalidRaceTacticError } from './errors';
 
@@ -182,6 +184,11 @@ export function buildHorseEntrantSnapshot(
   tactic: RaceTacticInput,
   recentResults: readonly RecentRaceResultView[] = [],
   trackFit: TrackFitInput | null = null,
+  // Ekipman (bu turda EKLENDİ) — AYNI "opsiyonel, verilmezse nötr" deseni
+  // (recentResults/trackFit ile aynı gerekçe): verilmezse
+  // computeEquipmentPerformanceModifier([]) NEUTRAL_EQUIPMENT_MODIFIER (1)
+  // doner. Botlar bu parametreyi HIC VERMEZ (envanterleri yok).
+  equippedItems: readonly HorseEquipment[] = [],
 ): RaceEntrantSnapshot {
   assertValidRaceTactic(tactic);
 
@@ -206,5 +213,8 @@ export function buildHorseEntrantSnapshot(
     // ekipman ağırlığı BİLİNÇLİ olarak kapsam dışı).
     weightCompatibility: computeWeightCompatibility(horse.weightKg),
     tactic,
+    // Ekipman (bu turda EKLENDİ) — bkz. bu fonksiyonun ustundeki doc yorumu
+    // ve `packages/shared-types/src/race.ts` `equipmentModifier` doc yorumu.
+    equipmentModifier: computeEquipmentPerformanceModifier(equippedItems),
   };
 }

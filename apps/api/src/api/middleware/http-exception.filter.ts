@@ -20,6 +20,7 @@ import {
   MissingAuthTokenError,
 } from '../../domain/auth/errors';
 import { HorseNotReadyForTrainingError, InvalidTrainingInputError } from '../../domain/training/errors';
+import { HorseEquipmentNotFoundError, InvalidEquipmentInputError } from '../../domain/equipment/errors';
 import { CareActionOnCooldownError, InvalidCareInputError } from '../../domain/care/errors';
 import { MaxStableLevelReachedError, StableCapacityExceededError } from '../../domain/stable/errors';
 import { DailyRewardAlreadyClaimedError, InsufficientFundsError } from '../../domain/economy/errors';
@@ -150,6 +151,13 @@ const DOMAIN_ERROR_MAP = new Map<ErrorClassConstructor, { status: number; code: 
   [ForbiddenError, { status: HttpStatus.FORBIDDEN, code: ErrorCode.Forbidden }],
   // `POST /auth/login`'e özgü — bkz. `InvalidProviderTokenError` doc yorumu.
   [InvalidProviderTokenError, { status: HttpStatus.UNAUTHORIZED, code: ErrorCode.InvalidProviderToken }],
+  // claude/hizli-bitirme-plani.md'nin proje sahibi tarafından
+  // önceliklendirdiği Ekipman dilimi (bu turda EKLENDİ) — `InvalidTraining
+  // InputError` ile AYNI gerekçe (Hata 7 savunması, gerçek bir DOĞRULAMA
+  // hatası), 400.
+  [InvalidEquipmentInputError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.ValidationError }],
+  // `HorseNotFoundError`/`ListingNotFoundError` ile AYNI kategori (bulunamayan bir kaynak), 404.
+  [HorseEquipmentNotFoundError, { status: HttpStatus.NOT_FOUND, code: ErrorCode.HorseEquipmentNotFound }],
 ]);
 
 /**

@@ -1,11 +1,13 @@
 import { Module } from '@nestjs/common';
 import { RACE_REPOSITORY } from '../../application/ports/race.repository';
+import { HORSE_EQUIPMENT_REPOSITORY } from '../../application/ports/horse-equipment.repository';
 import { GetHorseMarketValueUseCase } from '../../application/use-cases/get-horse-market-value.use-case';
 import { GetRaceTimelineUseCase } from '../../application/use-cases/get-race-timeline.use-case';
 import { GetRecentRaceResultsUseCase } from '../../application/use-cases/get-recent-race-results.use-case';
 import { RunPracticeRaceUseCase } from '../../application/use-cases/run-practice-race.use-case';
 import { DatabaseModule } from '../../infrastructure/database/database.module';
 import { PostgresRaceRepository } from '../../infrastructure/race/postgres-race.repository';
+import { PostgresHorseEquipmentRepository } from '../../infrastructure/equipment/postgres-horse-equipment.repository';
 import { HorseOwnerGuardByParam } from '../auth/horse-owner.guard';
 import { HorseModule } from '../horse/horse.module';
 import { MarketModule } from '../market/market.module';
@@ -29,6 +31,9 @@ import { RecentRacesController } from './recent-races.controller';
     // yaşadığının döngüsel-bağımlılık gerekçesi).
     GetHorseMarketValueUseCase,
     { provide: RACE_REPOSITORY, useClass: PostgresRaceRepository },
+    // Ekipman (bu turda EKLENDİ) — `RunPracticeRaceUseCase`'in yeni bağımlılığı,
+    // bkz. `equipment.module.ts` doc yorumundaki "token tekrarı" gerekçesi.
+    { provide: HORSE_EQUIPMENT_REPOSITORY, useClass: PostgresHorseEquipmentRepository },
     // AUDIT_REPORT.md Bulgu S2 hardening (bu oturum) — bkz. `horse-owner.guard.ts` doc yorumu.
     HorseOwnerGuardByParam,
   ],

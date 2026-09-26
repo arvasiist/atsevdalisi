@@ -278,12 +278,20 @@ export function simulateRace(input: RaceSimulationInput): RaceTimeline {
       // ARKAYA ÇARPILMAZ (kontrolsüz yığılma), bunun yerine cezaları
       // TOPLANIP ortak bir taban ile SINIRLANDIRILMIŞ tek bir katsayıya
       // indirgenir.
+      // Ekipman (bu turda EKLENDİ) — `entry.equipmentModifier` OPSİYONELDİR
+      // (bkz. `RaceEntrantSnapshot.equipmentModifier` doc yorumu); `?? 1`
+      // (nötr) varsayılanı, bu alanı HİÇ doldurmayan ESKİ fixture/test
+      // nesnelerinin (bkz. o alanın doc yorumundaki dosya listesi)
+      // davranışını DEĞİŞTİRMEZ — `combineConditionModifiers`'ın "TEK bir
+      // modifikatör nötr değilken davranış AYNIDIR" ilkesiyle (bkz.
+      // `modifier-combination.ts`) TUTARLI.
       const combinedConditionModifier = combineConditionModifiers([
         conditionModifier,
         environmentModifier.surfaceModifier,
         environmentModifier.weatherModifier,
         preRaceFatigueFactor,
         staminaPenaltyFactor,
+        entry.equipmentModifier ?? 1,
       ]);
 
       const rawScore =

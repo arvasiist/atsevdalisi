@@ -51,6 +51,9 @@ const NAV_ITEMS: NavCardItem[] = [
   // girişi (bkz. `apps/web/src/app/replays/page.tsx` doc yorumu).
   { href: '/replays', icon: '🎬', label: 'Yarış Tekrarları', description: 'Geçmiş yarışları izle' },
   { href: '/training', icon: '🏋️', label: 'Antrenman', description: 'Statları geliştir' },
+  // claude/hizli-bitirme-plani.md'nin proje sahibi tarafından önceliklendirdiği
+  // dilim (bu turda EKLENDİ) — bkz. `apps/web/src/app/equipment/page.tsx` doc yorumu.
+  { href: '/equipment', icon: '🧰', label: 'Ekipman', description: 'Eyer, dizgin, nal kuşandır' },
   { href: '/care', icon: '🩺', label: 'Bakım', description: 'Sağlık & besleme' },
   { href: '/farm', icon: '🌾', label: 'Çiftlik', description: 'Üretim & kaynaklar' },
   { href: '/online', icon: '🌐', label: 'Online', description: 'PvP eşleşmeler' },

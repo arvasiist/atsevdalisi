@@ -1,9 +1,11 @@
 import type {
   AuthSession,
   CareActionType,
+  EquipmentType,
   FeedHorseResult,
   FeedType,
   FinalStretchPlan,
+  HorseEquipment,
   HorseMarketValueView,
   JoinMatchmakingQueueResult,
   MatchmakingTicket,
@@ -273,4 +275,24 @@ export const apiClient = {
       body: JSON.stringify(tactic),
       headers: { 'Idempotency-Key': idempotencyKey },
     }),
+
+  /**
+   * Ekipman (`apps/web/src/app/equipment/page.tsx`, bu turda EKLENDİ —
+   * `claude/hizli-bitirme-plani.md`'nin proje sahibi tarafından
+   * önceliklendirdiği dilim) — `getTrainingHistory` ile AYNI
+   * `HorseOwnerGuardByParam` koruması altındadır.
+   */
+  getHorseEquipment: (horseId: string) => request<HorseEquipment[]>(`/horses/${horseId}/equipment`),
+
+  createHorseEquipment: (horseId: string, input: { equipmentType: EquipmentType; name: string; quality: number }) =>
+    request<HorseEquipment>(`/horses/${horseId}/equipment`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+
+  equipHorseEquipment: (horseId: string, equipmentId: string) =>
+    request<HorseEquipment>(`/horses/${horseId}/equipment/${equipmentId}/equip`, { method: 'POST' }),
+
+  unequipHorseEquipment: (horseId: string, equipmentId: string) =>
+    request<HorseEquipment>(`/horses/${horseId}/equipment/${equipmentId}/unequip`, { method: 'POST' }),
 };
