@@ -402,7 +402,7 @@ doğrulama ancak GitHub Actions'ta gerçek Postgres/Redis ile yapılabiliyor.
 | **Çiftlik/personel çarpanları bağlanmamış** | `domain/farm/farm.ts`'teki tüm `get*Multiplier` fonksiyonlarının çağıranı yok; `domain/staff/` tamamen bağlanmamış |
 | **Bağlanmamış domain modülleri** | tournament, club, ranking, season, progression, breeding/genetics — mantık + spec var, controller/use-case/repository yok |
 | **Placeholder sayfalar** | `/club`, `/farm`, `/leaderboard` yalnızca `<ComingSoon>` render eder |
-| **Bağlanmamış iskeletler** | `DustParticles`, `RaceAudioManager`/`html-audio-backend`, `GltfAssetLoader` — hiçbir yerden import edilmiyor; `PedigreeTree.tsx` ve `PlayerDemoWidget.tsx` hiçbir sayfada mount edilmiyor |
+| **Bağlanmamış iskeletler** | `RaceAudioManager`/`html-audio-backend`, `GltfAssetLoader` — hiçbir yerden import edilmiyor; `PedigreeTree.tsx` ve `PlayerDemoWidget.tsx` hiçbir sayfada mount edilmiyor. (**`DustParticles` artık BAĞLI** — 27.09.2026, bkz. §13) |
 | **PWA nominal** | `public/manifest.json` → `icons: []`, `layout.tsx`'ten link'lenmiyor, `next-pwa` yok |
 | **`notification.new`** | WebSocket olayı planlandı, uygulanmadı |
 
@@ -485,20 +485,45 @@ gerçek asset gerektirmeden, her biri bağımsız commit+CI ile doğrulanabilir:
 4. **Asset Interface + Manifest + ASSET_GUIDE** — manifest ve kılavuz
    *yapıldı*; `GltfAssetLoader.tsx` fallback'iyle hazır ama **hiçbir yerden
    import edilmiyor** (sahneye bağlı değil).
-5. **Audio/VFX Manager iskeleti** — *kod var, BAĞLI DEĞİL*:
-   `audio-manager.ts` yalnızca `html-audio-backend.ts` tarafından import
-   ediliyor, o da hiçbir yerden import edilmiyor; `DustParticles.tsx` de
-   öyle (`race-viewer/README.md` §"WIRING EDİLMEDİ" bunu zaten yazıyor).
+5. **Audio/VFX Manager iskeleti** — *toz VFX'i YAPILDI, ses BAĞLI DEĞİL*:
+   `DustParticles.tsx` **artık `RaceScene3D.tsx`'e bağlı** (27.09.2026): her at
+   için `HorseMarker`'ın *kardeşi* olarak render ediliyor (`Fragment` ile —
+   `HorseMarker` her karede `<group>` transform'unu atın konumuna çektiği için
+   iç içe konulsaydı parçacıklara transform İKİNCİ kez uygulanırdı), ve
+   `isPlaying` opsiyonel prop'u (varsayılan `true`) ile `RaceViewer`'dan besleniyor
+   → duraklatınca toz da duruyor. **Asset gerekmedi** (parçacık dokusu
+   `BufferGeometry` + shader ile üretiliyor). Buna karşılık `audio-manager.ts`
+   hâlâ yalnızca `html-audio-backend.ts` tarafından import ediliyor, o da
+   hiçbir yerden import edilmiyor — çünkü `.mp3` dosyası YOK ve motor ses
+   olaylarını (GATES_OPEN/OVERTAKE/WINNER) hiçbir yer YAYMIYOR; bağlanırsa
+   sessiz bir no-op olurdu.
 6. **Pedigree görselleştirme** — *kod var* (`PedigreeTree.tsx`), sayfaya bağlı
    değil (kendi README'si "4. Ahırım (/stable) sayfasına eklenmeli" diyor).
 7. **Config ayrımı** — *yapıldı* (`camera.config.json`, `vfx.config.json`,
    `audio.config.json`).
 
-→ Yani Grup 1'in **1, 2, 3, 7** maddeleri bitti. Geriye kalan GERÇEK iş,
-"yazılmış + test edilmiş ama hiçbir yerden import EDİLMEMİŞ" iskeletlerin
-bağlanmasıdır: **`GltfAssetLoader.tsx`, `DustParticles.tsx`,
-`createHtmlAudioBackend()`, `PedigreeTree.tsx`, `PlayerDemoWidget.tsx`**
-(§10.1'deki liste).
+→ Yani Grup 1'in **1, 2, 3, 5 (kısmen), 7** maddeleri bitti.
+
+**DÜZELTME (27.09.2026) — buradaki eski 5'li liste YANILTICIYDI.** O listeyi
+"asset gerektirmez, hepsi bağlanabilir" diye okumak yanlıştı; tek tek
+incelendiğinde yalnızca **ikisi** gerçekten bugün bağlanabilir durumda:
+
+- **`PedigreeTree.tsx` — YAPILABİLİR, ama büyük iş.** Asset gerekmiyor (saf
+  React + CSS) ama **veri zinciri hiç yok**: pedigri okuyan repository,
+  `GET /horses/:id/pedigree` uç noktası ve foal doğumunda kayıt — üçü de
+  mevcut değil. Önce backend, sonra UI. **Sıradaki anlamlı iş budur.**
+- `GltfAssetLoader.tsx` — **asset olmadan ANLAMSIZ.** `.glb` yokken her zaman
+  yedek görünüme düşer, yani bugünkü kapsül+küre görüntüsünün tıpatıp aynısı
+  çıkar. Bağlamak sıfır görsel etki üretir.
+- `createHtmlAudioBackend()` — **asset olmadan ANLAMSIZ.** `.mp3` yok + ses
+  olayı yayılmıyor (yukarıda madde 5).
+- `PlayerDemoWidget.tsx` — **gereksiz.** İşlevi ana sayfa (`usePlayer` /
+  `apiClient`) tarafından zaten yapılıyor; bağlamak ikinci bir base-url
+  kaynağı doğurur, yani bugünkü tutarsızlığı (§10.2) büyütür.
+
+**DustParticles — bağlandı** (yukarıda madde 5): tek "küçük ve gerçek" işti,
+tamamlandı. Kalan iş `PedigreeTree`'dir ve o da tek başına bir backend dilimi
+gerektirir.
 
 **Grup 2** (§12'deki asset sorusuna bağlı): gerçek Horse/Jockey GLB + animasyon
 state machine, hipodrom çevresi, kalabalık sistemi, gerçek ses dosyaları,

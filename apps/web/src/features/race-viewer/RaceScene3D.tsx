@@ -7,13 +7,22 @@
  * (`docs/RACE_ENGINE.md` §1 ilkesi).
  *
  * FAZ 6 kapsamı — "basit şekillerle iskelet" (bkz. proje sahibinin FAZ 6
- * kapsam kararı, bu oturum): gerçek 3D at/jokey modelleri, animasyonlar,
- * seyirci (crowd), hava efektleri (VFX) ve ses BİLİNÇLİ OLARAK bu
- * dosyanın kapsamı DIŞINDADIR (bkz. README.md "Kapsam dışı"). Bunun
- * yerine basit geometrik şekiller (kapsül gövde + küre "jokey" başı)
- * kullanılır; ileride gerçek modeller eklendiğinde (Faz 3, asset kaynağı
- * kararı bekliyor) sadece `HorseMarker` bileşeninin içeriği değişir,
- * `RaceViewer`/`RaceHud` arayüzü aynı kalır.
+ * kapsam kararı, bu oturum): gerçek 3D at/jokey modelleri, animasyonlar
+ * ve ses BİLİNÇLİ OLARAK bu dosyanın kapsamı DIŞINDADIR (bkz. README.md
+ * "Kapsam dışı"). Bunun yerine basit geometrik şekiller (kapsül gövde +
+ * küre "jokey" başı) kullanılır; ileride gerçek modeller eklendiğinde
+ * (Faz 3, asset kaynağı kararı bekliyor) sadece `HorseMarker` bileşeninin
+ * içeriği değişir, `RaceViewer`/`RaceHud` arayüzü aynı kalır.
+ *
+ * GÜNCELLEME (bu turda) — yukarıdaki kapsam listesinden İKİ madde artık
+ * KAPANDI, çünkü ikisi de GERÇEK bir varlık dosyası GEREKTİRMİYOR:
+ *   - "seyirci (crowd)" → `CrowdBillboards` (aşağıda, dokusuz düz renkli
+ *     billboard halkası — bkz. o bileşenin doc yorumu),
+ *   - "hava efektleri (VFX)" → `DustParticles` (`audio-vfx/DustParticles.tsx`,
+ *     tamamen prosedürel parçacıklar; brief §31'in KENDİ önerisi olan
+ *     "doku GEREKTİRMEZ" ilkesiyle yazılmış).
+ * Yani bu ikisi Faz 3'ün asset kararını BEKLEMEDEN bağlanabildi; gerçek
+ * modeller/animasyonlar/ses ise hâlâ o karara bağlı.
  *
  * FAZ 1 görsel kalite yükseltmesi (proje sahibinin paylaştığı UI mockup'taki
  * "stilize-gerçekçi" yarış ekranı hedefine yönelik, bkz. görsel kalite
@@ -74,11 +83,12 @@
  * bileşenin materyali değişir, `RaceScene3DProps` arayüzü DEĞİŞMEZ.
  */
 
-import { useEffect, useMemo, useRef } from 'react';
+import { Fragment, useEffect, useMemo, useRef } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { Environment } from '@react-three/drei';
 import { Bloom, EffectComposer, SSAO } from '@react-three/postprocessing';
 import * as THREE from 'three';
+import { DustParticles } from './audio-vfx/DustParticles';
 import { getHorseTrackPosition, getOutwardBoundaryPoint, type StadiumTrackGeometry } from './track-path';
 import type { CameraPose } from './camera-presets';
 import {
@@ -103,6 +113,19 @@ export interface RaceScene3DProps {
   trackGeometry: StadiumTrackGeometry;
   /** Bkz. dosya başı doc yorumu "FAZ 4 (kalite kademeleri)". Verilmezse `detectQualityTier()` ile otomatik algılanır. */
   qualityTierOverride?: QualityTier;
+  /**
+   * Oynatma sürüyor mu — `DustParticles`'ın `isMoving` prop'unu besler
+   * (bkz. o bileşenin doc yorumu: "at hareket ETMİYORSA toz da
+   * DOĞMAMALIDIR"). Yarıçap duraklatıldığında veya yarış bittiğinde
+   * `RaceViewer` bunu `false` yapar (`isPlaying` state'i), böylece toz
+   * akışı da durur.
+   *
+   * OPSİYONEL ve varsayılanı `true`'dur: `LiveRaceViewer` (canlı yayın)
+   * bu prop'u HİÇ VERMEZ çünkü canlı bir yarışta duraklatma kavramı
+   * yoktur — `RaceHud`'a da `isPlaying` sabit `true` geçer. Böylece
+   * mevcut çağıran tarafların hiçbiri kırılmaz.
+   */
+  isPlaying?: boolean;
 }
 
 /**
@@ -163,6 +186,7 @@ export function RaceScene3D({
   cameraPose,
   trackGeometry,
   qualityTierOverride,
+  isPlaying = true,
 }: RaceScene3DProps): React.ReactElement {
   // `detectQualityTier()` `navigator`'ı okur — mount başına BİR KEZ
   // hesaplanır (bkz. boş bağımlılık dizisi), oturum ortasında cihaz
@@ -234,8 +258,28 @@ export function RaceScene3D({
       <Ground />
       <TrackSurface geometry={trackGeometry} />
       <CrowdBillboards geometry={trackGeometry} />
+      {/*
+       * `DustParticles` KASITLI OLARAK `HorseMarker`'ın İÇİNE DEĞİL,
+       * onun YANINA (kardeş düğüm) konur. Sebep somut: `DustParticles`
+       * parçacık konumlarını `BufferGeometry`'ye DÜNYA koordinatında
+       * yazar (`emitterPosition` prop'u da dünya koordinatıdır), ama
+       * `HorseMarker` kendi `<group>`'unun transform'unu her karede
+       * `group.position.set(...)` ile atın konumuna çeker. İç içe
+       * konulsaydı atın grup transform'u parçacıklara İKİNCİ KEZ
+       * uygulanır ve toz atın tam İKİ KATI uzaklıkta (koordinat
+       * merkezine göre simetrik) görünürdü. `Fragment` sarmalayıcısı
+       * (bir `<group>` DEĞİL) araya transform sokmadan ikisini
+       * kardeş tutar — `key` de böylece tek yerde kalır.
+       */}
       {horses.map((horse) => (
-        <HorseMarker key={horse.horseId} horse={horse} />
+        <Fragment key={horse.horseId}>
+          <HorseMarker horse={horse} />
+          <DustParticles
+            horseId={horse.horseId}
+            emitterPosition={{ x: horse.x, z: horse.z }}
+            isMoving={isPlaying}
+          />
+        </Fragment>
       ))}
       <CameraRig pose={cameraPose} />
       {/*

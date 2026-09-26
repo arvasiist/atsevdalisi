@@ -2417,8 +2417,8 @@ yazılmalı.
 
 ## Telemetri zenginleştirme + canlı yorgunluk düzeltmesi (bu oturum)
 
-**Durum: yerelde tamamlandı ve doğrulandı — commit/push HENÜZ YAPILMADI,
-CI doğrulaması BEKLİYOR.** `docs/IMPLEMENTATION_PLAN_MASTER_BRIEF.md`
+**Durum: TAMAMLANDI VE GERÇEK CI'DA DOĞRULANDI — commit `de18736`,
+CI #167'de TAM YEŞİL (3 dk 0 sn).** `docs/IMPLEMENTATION_PLAN_MASTER_BRIEF.md`
 "Grup 1" madde 1. Race Engine'in DÖNGÜSÜNE dokunulmadı; yalnızca motorun
 ZATEN hesapladığı iki değer telemetriye yazıldı.
 

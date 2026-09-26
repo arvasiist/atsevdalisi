@@ -73,17 +73,32 @@ Gerçek 3D/ses varlığı yok · OAuth kimlik bilgileri yok (`POST /auth/login` 
 matchmaking senkron (cron/worker yok) · jokey + çiftlik/personel çarpanları
 bağlanmamış · tournament/club/ranking/season/progression/breeding bağlanmamış ·
 `/club` `/farm` `/leaderboard` placeholder · `PedigreeTree`/`PlayerDemoWidget`/
-`GltfAssetLoader`/`DustParticles` hiçbir yere bağlı değil.
+`GltfAssetLoader` hiçbir yere bağlı değil (`DustParticles` artık BAĞLI — §13).
 
 **Sahibinin cevabını bekleyen tek kritik soru:** 3D/ses varlıkları nereden geliyor?
 
-## Sıradaki iş (asset gerektirmez)
+## Sıradaki iş
 
-Yazılmış + test edilmiş ama **hiçbir yerden import EDİLMEMİŞ** iskeletleri
-gerçekten bağlamak: `GltfAssetLoader.tsx`, `DustParticles.tsx`,
-`createHtmlAudioBackend()`, `PedigreeTree.tsx`, `PlayerDemoWidget.tsx`.
+**DİKKAT — 27.09.2026'da yapılan bir tarama, eskiden burada yazan 5'li listenin
+YANILTICI olduğunu gösterdi.** O iskeletlerden yalnızca İKİSİ bugün gerçekten
+bağlanabilir durumda:
+
+- **`PedigreeTree.tsx` — YAPILABİLİR, ama büyük iş.** Asset gerekmiyor (saf
+  React + CSS) ama **veri zinciri hiç yok**: pedigri okuyan repository,
+  `GET /horses/:id/pedigree` uç noktası ve foal doğumunda kayıt — üçü de
+  mevcut değil. Önce backend, sonra UI. **Sıradaki anlamlı iş budur.**
+- `GltfAssetLoader.tsx` — **asset olmadan ANLAMSIZ.** `.glb` yokken her zaman
+  yedek görünüme düşer = bugünkü kapsül+küre görüntüsünün tıpatıp aynısı.
+  Bağlamak sıfır görsel etki üretir.
+- `createHtmlAudioBackend()` — **asset olmadan ANLAMSIZ.** `.mp3` dosyası yok,
+  üstelik motor ses olaylarını (GATES_OPEN/OVERTAKE/WINNER) hiç yaymıyor.
+  Bağlanırsa sessiz bir no-op olur.
+- `PlayerDemoWidget.tsx` — **gereksiz.** İşlevi ana sayfa (`usePlayer`/
+  `apiClient`) tarafından zaten yapılıyor; bağlamak ikinci bir base-url
+  kaynağı doğurur.
 
 **Bitmiş sayılacaklar (yeniden yapma):** telemetri zenginleştirme
 (`fatigueLevel`/`paceScore`, migration 0029) · Camera Director · Photo Finish
-sunumu — son ikisi `LiveRaceViewer`/`RaceViewer`/`RaceHud`'a BAĞLI.
+sunumu · **toz VFX'i (`DustParticles` → `RaceScene3D`, 27.09.2026)** — son üçü
+`LiveRaceViewer`/`RaceViewer`/`RaceHud`'a BAĞLI.
 Ayrıntı: `PROJE_DURUMU.md` §13.

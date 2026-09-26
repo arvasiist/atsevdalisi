@@ -373,7 +373,12 @@ export function RaceViewer({ timeline, horseNamesById, turnCount = 2 }: RaceView
 
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%', minHeight: '480px' }}>
-      <RaceScene3D horses={horseVisuals} cameraPose={cameraPose} trackGeometry={trackGeometry} />
+      <RaceScene3D
+        horses={horseVisuals}
+        cameraPose={cameraPose}
+        trackGeometry={trackGeometry}
+        isPlaying={isPlaying}
+      />
       <RaceHud
         horseNamesById={horseNamesById}
         leaderboard={leaderboard}

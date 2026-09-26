@@ -72,8 +72,7 @@ opsiyonel `qualityTierOverride` eklendi (varsayılan: otomatik algılama).
 LOD ve texture compression (gerçek 3D model/doku YOK — Faz 3'ün asset
 kararını bekliyor), animation pooling (henüz bir animasyon sistemi YOK),
 gerçek 4/8/12/16 at FPS benchmark'ı (bu sandbox'ta gerçek tarayıcı/GPU
-YOK, ölçülemez — manuel QA proje sahibine bırakıldı), crowd/VFX (asset
-gerektirir, aşağıdaki "Kapsam dışı" listesiyle AYNI gerekçe). Detaylı
+YOK, ölçülemez — manuel QA proje sahibine bırakıldı). Detaylı
 gerekçe için bkz. `quality-tier.ts` dosya başı doc yorumu.
 
 ## Kapsam dışı (bilinçli olarak bırakılan)
@@ -83,9 +82,10 @@ gerekçe için bkz. `quality-tier.ts` dosya başı doc yorumu.
   varlığı gerektirir; `HorseMarker` bileşeni ileride bu modelleri
   yükleyecek şekilde (aynı `x`/`z`/`headingRadians` arayüzüyle)
   değiştirilebilir, HUD/oynatma mantığı etkilenmez.
-- **Seyirci (crowd)**, **hava efektleri (VFX — yağmur, toz vb.)**, **ses/
-  müzik** — brief FAZ 6 listesinde var ama görsel/işitsel varlık
+- **Ses/müzik** — brief FAZ 6 listesinde var ama işitsel varlık (`.mp3`)
   gerektirdiği için bu oturumun kapsamı dışındadır.
+  (**Seyirci** ve **toz VFX'i** bu listeden ÇIKARILDI — ikisi de bir
+  varlık dosyası GEREKTİRMEDEN bağlandı; bkz. aşağıdaki §31 notu.)
 - **Gerçek pist boyutları** (`Track.lengthMeters`, `trackWidthMeters`)
   sahneye tam ölçekli yansıtılmadı — sabit bir varsayılan tur uzunluğu
   (`DEFAULT_LAP_LENGTH_METERS`) kullanıldı (bkz. `track-path.ts` başlık
@@ -254,10 +254,29 @@ eklendi; gerçek `tsc --noEmit` (0 hata) ve `tsx` ile çalıştırılan 26 test
 case'i (11 `audio-manager.spec.ts` + 15 `dust-particle-sim.spec.ts`)
 PASS. `html-audio-backend.ts`/`DustParticles.tsx`, `RaceScene3D.tsx` ile
 AYNI kısıta tabi — `ts.transpileModule` ile sözdizimi kontrolünden geçti
-(0 diagnostic), gerçek tip kontrolü CI'dadır. Bu turda `RaceScene3D.tsx`'e
-`DustParticles`/`AudioManager` WIRING EDİLMEDİ (kapsam: sadece iskelet
-sunan bağımsız modüller) — entegrasyon, gerçek asset'ler eklendiğinde (Grup 2)
-görsel/işitsel sonucun ANLAMLI olacağı bir sonraki adımdır.
+(0 diagnostic).
+
+**GÜNCELLEME (bu turda) — `DustParticles` ARTIK WIRING EDİLDİ.**
+`RaceScene3D.tsx` her at için bir `<DustParticles>` mount eder ve `isMoving`
+prop'unu yeni opsiyonel `RaceScene3DProps.isPlaying`'den alır (`RaceViewer`
+gerçek `isPlaying` state'ini geçirir — duraklatma ve yarış bitişinde toz
+durur; `LiveRaceViewer` bu prop'u VERMEZ, varsayılan `true` kullanılır).
+Toz tamamen prosedürel olduğundan ve hiçbir varlık dosyası GEREKTİRMEDİĞİNDEN
+bu bağlama, Faz 3'ün asset kararını BEKLEMEDEN yapılabildi.
+
+İki teknik ayrıntı kayda değer:
+1. `<DustParticles>`, `HorseMarker`'ın İÇİNE değil KARDEŞİ olarak konur
+   (React `Fragment` ile). `DustParticles` parçacık konumlarını DÜNYA
+   koordinatında yazar; `HorseMarker` ise kendi `<group>` transform'unu her
+   karede atın konumuna çeker. İç içe konulsaydı atın transform'u
+   parçacıklara İKİNCİ kez uygulanır ve toz yanlış yerde görünürdü.
+2. `isPlaying` OPSİYONEL ve varsayılanı `true` — böylece `RaceScene3DProps`'u
+   kullanan mevcut çağıran tarafların hiçbiri kırılmaz.
+
+`AudioManager`/`createHtmlAudioBackend` ise HÂLÂ WIRING EDİLMEDİ — sesin
+anlamlı olması hem gerçek `.mp3` dosyalarına hem de motorun ayrık ses
+sinyallerini (GATES_OPEN/OVERTAKE/WINNER) yaymasına bağlı; ikisi de henüz
+YOK. Bu yüzden bağlanması görsel/işitsel olarak SIFIR sonuç verirdi.
 
 ### Faz 6 "Config ayrımı" (bu turda EKLENDİ)
 
