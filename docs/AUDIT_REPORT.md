@@ -218,11 +218,19 @@ kategorisi olarak eklenmeli — ama altyapı (CI, test runner'lar) hazır.
   uçlarına bağlıyor (bkz. `apps/web/src/app/care/page.tsx` dosya başı
   doc yorumu) — **commit `f3b9850`, CI #154, 2m 44s, TAM YEŞİL
   doğrulandı** (`git fetch` + built-in tarayıcı ile bağımsız
-  doğrulama). Hâlâ eksik: antrenman geçmişi görünümü
-  (`TrainingSessionRepository`'de sadece `save()` var, okuma metodu
-  YOK — ayrı dilim), piyasa değeri tahmini (`calculateMarketValue()`
-  domain'de VAR ama hiçbir yerden ÇAĞRILMIYOR — ayrı dilim), Equipment
-  (domain kavramı olarak hiç YOK — yeni bir alt sistem gerektirir).
+  doğrulama). Piyasa değeri tahmini de bu turda kapandı (yedinci öz-denetim
+  dilimi): `calculateMarketValue()` (`domain/market/market.ts`, brief
+  §30'dan beri VARDI ama HİÇBİR yerden ÇAĞRILMIYORDU) artık yeni
+  `GetHorseMarketValueUseCase` + `GET /horses/:id/market-value`
+  (`HorseMarketValueController`, `RaceModule` içinde barındırılır — bkz.
+  o use-case'in doc yorumu, döngüsel modül bağımlılığından kaçınma
+  gerekçesi) ile gerçekten çağrılıyor; `/stable` sayfasındaki her at
+  kartı artık "Değer: X ₺" gösteriyor. Gerçek e2e test eklendi
+  (`horse-market-value.e2e-spec.ts`, GERÇEK PostgreSQL gerektirir — bu
+  sandbox'ta çalıştırılamaz, yalnızca CI'da). Hâlâ eksik: antrenman
+  geçmişi görünümü (`TrainingSessionRepository`'de sadece `save()` var,
+  okuma metodu YOK — ayrı dilim), Equipment (domain kavramı olarak hiç
+  YOK — yeni bir alt sistem gerektirir).
 - **§26 Pedigree görselleştirme:** ✅ DÜZELTİLDİ (Grup 1) — Genetics/
   breeding domain hesaplamaları VAR ve ÇALIŞIYOR; ağaç şeklinde
   pedigree UI paneli artık da VAR.

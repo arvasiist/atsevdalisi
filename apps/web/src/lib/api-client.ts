@@ -4,6 +4,7 @@ import type {
   FeedHorseResult,
   FeedType,
   FinalStretchPlan,
+  HorseMarketValueView,
   JoinMatchmakingQueueResult,
   MatchmakingTicket,
   PerformCareActionResult,
@@ -116,6 +117,15 @@ export const apiClient = {
   getHorsesByOwner: (ownerId: string) => request<PublicHorse[]>(`/horses?ownerId=${ownerId}`),
 
   getHorseDetails: (horseId: string) => request<PublicHorse>(`/horses/${horseId}`),
+
+  /**
+   * `docs/AUDIT_REPORT.md`'nin "§25 Stable görsel yönetim ekranı" bulgusunun
+   * "piyasa değeri tahmini ... ayrı dilim" notunu kapatan uç nokta (bu
+   * turda EKLENDİ) — `GetHorseMarketValueUseCase`, brief §30'dan beri VAR
+   * olan ama HİÇBİR yerden çağrılmayan `calculateMarketValue`'yu artık
+   * gerçekten kullanır. `@Public()` — `getHorseDetails` ile AYNI gerekçe.
+   */
+  getHorseMarketValue: (horseId: string) => request<HorseMarketValueView>(`/horses/${horseId}/market-value`),
 
   /**
    * DÜZELTME (Faz 2, görsel kalite planı) — önceden `GET /stable/summary

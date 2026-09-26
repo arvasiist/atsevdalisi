@@ -91,6 +91,32 @@ export default function StablePage(): React.ReactElement {
 }
 
 function HorseCard({ horse }: { horse: PublicHorse }): React.ReactElement {
+  // docs/AUDIT_REPORT.md "§25 Stable görsel yönetim ekranı" bulgusunun
+  // "piyasa değeri tahmini ... ayrı dilim" notu (bu turda EKLENDİ) —
+  // `calculateMarketValue()` brief §30'dan beri VARDI ama hiçbir yerden
+  // ÇAĞRILMIYORDU. Her at kartı KENDİ değerini bağımsız çeker (liste
+  // uç noktası `PublicHorse[]` bu türetilmiş alanı TAŞIMAZ, bkz.
+  // `get-horse-market-value.use-case.ts` doc yorumu) — `StableSummaryCard`
+  // ile AYNI "bağımsız fetch" deseni.
+  const [marketValue, setMarketValue] = useState<number | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setMarketValue(null);
+    void apiClient
+      .getHorseMarketValue(horse.id)
+      .then((data) => {
+        if (!cancelled) setMarketValue(data.estimatedValue);
+      })
+      .catch(() => {
+        // Sessizce yut — değer tahmini ikincil bir bilgidir, kartın geri
+        // kalanının (sağlık/kondisyon/statü) gösterimini ENGELLEMEMELİDİR.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [horse.id]);
+
   return (
     <GlassPanel>
       <div style={{ display: 'flex', gap: 'var(--space-md)', alignItems: 'center', marginBottom: 'var(--space-md)' }}>
@@ -125,6 +151,11 @@ function HorseCard({ horse }: { horse: PublicHorse }): React.ReactElement {
         }}
       >
         <span>Potansiyel tahmini: {horse.potentialEstimate.min}–{horse.potentialEstimate.max}</span>
+        {marketValue !== null ? (
+          <span style={{ color: 'var(--color-accent-gold)', fontWeight: 600 }}>
+            Değer: {marketValue.toLocaleString('tr-TR')} ₺
+          </span>
+        ) : null}
       </div>
     </GlassPanel>
   );

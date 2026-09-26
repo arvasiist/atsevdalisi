@@ -14,3 +14,18 @@ export interface MarketListing {
   createdAt: ISODateTimeString;
   expiresAt: ISODateTimeString | null;
 }
+
+/**
+ * `GET /horses/:id/market-value` (bu turda EKLENDİ) — brief §30'un
+ * `MarketValue` formülü (`domain/market/market.ts` `calculateMarketValue`,
+ * ZATEN yazılmıştı ama HİÇBİR yerden ÇAĞRILMIYORDU — bkz.
+ * `docs/AUDIT_REPORT.md`'nin "§25 Stable görsel yönetim ekranı" bulgusunun
+ * "piyasa değeri tahmini ... ayrı dilim" notu) artık burada gerçek bir
+ * uç noktaya bağlanır. Yalnızca TÜRETİLMİŞ tek bir sayı taşır — atın
+ * gizli `potential` alanı (bkz. `PublicHorse.potentialEstimate`'in doc
+ * yorumu) veya `quality` gibi ham girdiler BURADAN SIZDIRILMAZ.
+ */
+export interface HorseMarketValueView {
+  horseId: UUID;
+  estimatedValue: number;
+}
