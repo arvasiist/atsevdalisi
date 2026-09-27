@@ -8,6 +8,7 @@ import type {
   HorseEquipment,
   HorseMarketValueView,
   JoinMatchmakingQueueResult,
+  LeaderboardRowView,
   MatchmakingTicket,
   PerformCareActionResult,
   PlayerSummary,
@@ -193,6 +194,18 @@ export const apiClient = {
    * dönen veriyi `adaptRaceTimelineViewToReplayData` ile dönüştürmelidir.
    */
   getRaceTimeline: (raceId: string) => request<RaceTimelineView>(`/races/${raceId}/timeline`),
+
+  /**
+   * brief §43 "Sıralamalar" (bu turda EKLENDİ) — `/leaderboard` ekranı.
+   * Uç nokta `@Public()`'tir (kişiye özel veri taşımaz, bkz.
+   * `leaderboard.controller.ts` doc yorumu), bu yüzden token GEREKTİRMEZ.
+   *
+   * Sıralama sunucuda CANLI hesaplanır; kalıcı `leaderboards` tablosu
+   * bilinçli olarak FAZ 7'ye bırakılmıştır (bkz. `get-leaderboard.use-case.ts`).
+   * Sunucu en fazla 50 satır döner — istemci kırpma YAPMAZ, gelen listeyi
+   * olduğu gibi gösterir.
+   */
+  getLeaderboard: () => request<LeaderboardRowView[]>('/leaderboard'),
 
   // Pazar (Market) İşlemleri
   getMarketListings: (params: { minPrice?: number; maxPrice?: number; page?: number; pageSize?: number } = {}) => {

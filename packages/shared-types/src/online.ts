@@ -39,6 +39,31 @@ export interface RankedLeaderboardEntry extends LeaderboardEntry {
   rank: number;
 }
 
+/**
+ * `GET /api/v1/leaderboard` yanıtının TEK bir satırı (brief §43 "Global"
+ * sıralama). `RankedLeaderboardEntry`'den iki farkı vardır:
+ *
+ * 1. `displayName` taşır — `LeaderboardEntry` yalnızca `playerId` bilir, ama
+ *    bir sıralama tablosunda oyuncu ADI olmadan hiçbir şey gösterilemez.
+ *    Ad, `players.display_name`'den gelir (uydurulmaz).
+ * 2. `raceCount` taşır — puan birikimli bir TOPLAM olduğu için, 1 yarış koşmuş
+ *    bir oyuncu ile 40 yarış koşmuş bir oyuncunun aynı puanda görünmesi
+ *    yanıltıcı olurdu. Sayı gösterilerek puan okunabilir hâle gelir.
+ *
+ * `scope`/`scopeKey` BİLEREK yoktur: bu uç nokta yalnızca `global` kapsamı
+ * döner (diğer 6 kapsam — country/friends/club/season/weekly/monthly —
+ * bağlı değildir; bkz. PROJE_DURUMU.md §13). Sabit bir alanı her satırda
+ * tekrarlamak yerine kapsam uç noktanın kendisiyle bellidir.
+ */
+export interface LeaderboardRowView {
+  /** 1 = zirve. Eşit puanda olanlar AYNI rank'i paylaşır (bkz. `buildLeaderboard`). */
+  rank: number;
+  playerId: UUID;
+  displayName: string;
+  score: number;
+  raceCount: number;
+}
+
 /** brief §43 RankingScore bileşenleri (hesaplama: `domain/ranking/ranking-score.ts`). */
 export interface RankingScoreInput {
   /** Bir yarıştaki ham performans puanı (bkz. `RaceFinishEntry.performanceScore`, docs/RACE_ENGINE.md §5). */

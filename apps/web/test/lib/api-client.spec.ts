@@ -376,6 +376,29 @@ describe('apiClient.runPracticeRace', () => {
   });
 });
 
+describe('apiClient.getLeaderboard', () => {
+  const rows = [
+    { rank: 1, playerId: 'player-1', displayName: 'Ayşe', score: 230, raceCount: 1 },
+    { rank: 2, playerId: 'player-2', displayName: 'Mehmet', score: 60, raceCount: 3 },
+  ];
+
+  it('GET /leaderboard çağırır ve sorgu parametresi EKLEMEZ', async () => {
+    const fetchMock = stubFetchOnce({ success: true, data: rows });
+    await apiClient.getLeaderboard();
+    const [url, config] = requestArgs(fetchMock);
+    expect(url).toBe(`${API_BASE_URL}/leaderboard`);
+    // Sorgu string'i OLMAMALI: uç nokta `limit` parametresi kabul etmez
+    // (sunucu sabit 50 satır döner, bkz. `get-leaderboard.use-case.ts`).
+    expect(url).not.toContain('?');
+    expect(config.method ?? 'GET').toBe('GET');
+  });
+
+  it('sunucudan gelen satırları AYNEN döner — istemci sıralamayı yeniden hesaplamaz', async () => {
+    stubFetchOnce({ success: true, data: rows });
+    await expect(apiClient.getLeaderboard()).resolves.toEqual(rows);
+  });
+});
+
 describe('API taban adresi', () => {
   it('varsayılan port, API sunucusunun dinlediği portla aynı olmalı (4000)', () => {
     // Bu iddia, yukarıda anlatılan hatanın SINIFINI hedefler. Kritik nokta

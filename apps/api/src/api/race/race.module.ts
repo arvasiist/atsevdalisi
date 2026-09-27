@@ -1,15 +1,19 @@
 import { Module } from '@nestjs/common';
+import { LEADERBOARD_REPOSITORY } from '../../application/ports/leaderboard.repository';
 import { RACE_REPOSITORY } from '../../application/ports/race.repository';
 import { HORSE_EQUIPMENT_REPOSITORY } from '../../application/ports/horse-equipment.repository';
 import { GetHorseMarketValueUseCase } from '../../application/use-cases/get-horse-market-value.use-case';
+import { GetLeaderboardUseCase } from '../../application/use-cases/get-leaderboard.use-case';
 import { GetRaceTimelineUseCase } from '../../application/use-cases/get-race-timeline.use-case';
 import { GetRecentRaceResultsUseCase } from '../../application/use-cases/get-recent-race-results.use-case';
 import { RunPracticeRaceUseCase } from '../../application/use-cases/run-practice-race.use-case';
 import { DatabaseModule } from '../../infrastructure/database/database.module';
+import { PostgresLeaderboardRepository } from '../../infrastructure/leaderboard/postgres-leaderboard.repository';
 import { PostgresRaceRepository } from '../../infrastructure/race/postgres-race.repository';
 import { PostgresHorseEquipmentRepository } from '../../infrastructure/equipment/postgres-horse-equipment.repository';
 import { HorseOwnerGuardByParam } from '../auth/horse-owner.guard';
 import { HorseModule } from '../horse/horse.module';
+import { LeaderboardController } from '../leaderboard/leaderboard.controller';
 import { MarketModule } from '../market/market.module';
 import { PlayerModule } from '../player/player.module';
 import { HorseMarketValueController } from './horse-market-value.controller';
@@ -19,7 +23,13 @@ import { RecentRacesController } from './recent-races.controller';
 
 @Module({
   imports: [DatabaseModule, HorseModule, PlayerModule, MarketModule],
-  controllers: [RaceController, RecentRacesController, RaceTimelineController, HorseMarketValueController],
+  controllers: [
+    RaceController,
+    RecentRacesController,
+    RaceTimelineController,
+    HorseMarketValueController,
+    LeaderboardController,
+  ],
   providers: [
     RunPracticeRaceUseCase,
     GetRecentRaceResultsUseCase,
@@ -30,7 +40,12 @@ import { RecentRacesController } from './recent-races.controller';
     // use-case'in neden burada, `HorseModule`/`MarketModule`'de DEĞİL,
     // yaşadığının döngüsel-bağımlılık gerekçesi).
     GetHorseMarketValueUseCase,
+    // brief §43 "Global sıralama" (bu turda EKLENDİ) — sıralama CANLI
+    // hesaplanır; kalıcı `leaderboards` tablosu bilinçli olarak FAZ 7'ye
+    // bırakılmıştır (bkz. `get-leaderboard.use-case.ts` doc yorumu).
+    GetLeaderboardUseCase,
     { provide: RACE_REPOSITORY, useClass: PostgresRaceRepository },
+    { provide: LEADERBOARD_REPOSITORY, useClass: PostgresLeaderboardRepository },
     // Ekipman (bu turda EKLENDİ) — `RunPracticeRaceUseCase`'in yeni bağımlılığı,
     // bkz. `equipment.module.ts` doc yorumundaki "token tekrarı" gerekçesi.
     { provide: HORSE_EQUIPMENT_REPOSITORY, useClass: PostgresHorseEquipmentRepository },
