@@ -55,6 +55,10 @@ const migrationsDir = join(repoRoot, 'database', 'migrations');
 
 const LOBBY_MIGRATION = readdirSync(migrationsDir).find((name) => name.endsWith('add_race_lobby_fields.up.sql'));
 const RACES_MIGRATION = readdirSync(migrationsDir).find((name) => name.endsWith('create_races_and_entries.up.sql'));
+/** §42 PHASE 1b — `race_entries.player_id`/`status` sütunlarını ekleyen migrasyon. */
+const ENTRY_JOIN_MIGRATION = readdirSync(migrationsDir).find((name) =>
+  name.endsWith('add_race_entry_join_fields.up.sql'),
+);
 
 function readMigration(fileName: string | undefined): string {
   // `chat-config.spec.ts`'teki AYNI savunma: dosya yeniden adlandırılırsa
@@ -242,5 +246,52 @@ describe('race-lobby.config.json — tavan ve migrasyon varsayılanları', () =>
   it('migrasyon `max_players <= participant_limit` kısıtını içerir (brief §6)', () => {
     const sql = readMigration(LOBBY_MIGRATION);
     expect(/max_players\s*<=\s*participant_limit/.test(sql)).toBe(true);
+  });
+});
+
+describe('race-lobby.config.json — katılım durumları migrasyonla AYNI (brief §6, §42 PHASE 1b)', () => {
+  it('entryStatuses, `race_entries.status` CHECK kümesiyle AYNI', () => {
+    // `allowedSurfaces`/`allowedWeather` iddialarıyla AYNI gerekçe:
+    // config'e eklenip CHECK'e eklenmeyen bir değer, katılım yolunda
+    // `23514 check_violation` ile 500 üretir — kullanıcıya ulaşan gerçek
+    // bir üretim hatası. İki listeyi elle senkron tutmak yerine burada
+    // karşılaştırılır.
+    const sql = readMigration(ENTRY_JOIN_MIGRATION);
+    const dbSet = quotedListAfter(sql, /status\s+IN\s*\([^)]*\)/i);
+    expect([...config.entryStatuses].sort()).toEqual([...dbSet].sort());
+  });
+
+  it("entryStatuses 'waiting' İÇERİR — katılım yolu bu değeri yazar", () => {
+    // `joinLobbyRace` yeni satırı `status = 'waiting'` ile açar (brief §6:
+    // oyuncu READY düğmesine basana kadar bekler). Bu değer config'ten
+    // çıkarılırsa CHECK ile çelişir.
+    expect(config.entryStatuses).toContain('waiting');
+  });
+
+  it('migrasyon kısmi tekil indeksi içerir: bir oyuncu bir yarışa BİR KEZ', () => {
+    // Brief §2 — giriş ücreti KİŞİ BAŞINA alınır. Bu indeks olmadan bir
+    // oyuncu aynı yarışa iki atla girip havuzu kendi lehine şişirebilirdi;
+    // üstelik uygulama katmanındaki ön kontrol TOCTOU'ya açıktır, yani
+    // kuralın ASIL garantisi bu indekstir.
+    const sql = readMigration(ENTRY_JOIN_MIGRATION);
+    expect(/CREATE UNIQUE INDEX\s+race_entries_race_player_uq/i.test(sql)).toBe(true);
+    // KISMİ olmalıdır: bot satırlarında `player_id` NULL'dır ve tam
+    // indeks olsaydı aynı yarışa ikinci bir bot giremezdi.
+    expect(/WHERE\s+player_id\s+IS\s+NOT\s+NULL/i.test(sql)).toBe(true);
+  });
+
+  it('migrasyon "bot satırının oyuncusu olamaz" kısıtını içerir', () => {
+    const sql = readMigration(ENTRY_JOIN_MIGRATION);
+    expect(/CHECK\s*\(\s*player_id\s+IS\s+NULL\s+OR\s+horse_id\s+IS\s+NOT\s+NULL\s*\)/i.test(sql)).toBe(true);
+  });
+
+  it('migrasyon `status` sütununu VARSAYILANSIZ ekler', () => {
+    // Varsayılan verilseydi, geçmişte koşmuş pratik/PvP girişleri (bu
+    // sütun eklenmeden önce yazılmış satırlar) yanlışlıkla "bekliyor"
+    // sayılırdı. NULL "bu satır katılım akışından geçmedi" demektir.
+    const sql = readMigration(ENTRY_JOIN_MIGRATION);
+    const addColumn = /ADD COLUMN\s+status\s+TEXT([^;]*);/i.exec(sql);
+    expect(addColumn).not.toBeNull();
+    expect(/DEFAULT/i.test(addColumn?.[1] as string)).toBe(false);
   });
 });

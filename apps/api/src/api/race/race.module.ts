@@ -3,6 +3,7 @@ import { LEADERBOARD_REPOSITORY } from '../../application/ports/leaderboard.repo
 import { RACE_REPOSITORY } from '../../application/ports/race.repository';
 import { HORSE_EQUIPMENT_REPOSITORY } from '../../application/ports/horse-equipment.repository';
 import { CreateRaceUseCase } from '../../application/use-cases/create-race.use-case';
+import { JoinRaceUseCase } from '../../application/use-cases/join-race.use-case';
 import { GetHorseMarketValueUseCase } from '../../application/use-cases/get-horse-market-value.use-case';
 import { GetLeaderboardUseCase } from '../../application/use-cases/get-leaderboard.use-case';
 import { GetRaceTimelineUseCase } from '../../application/use-cases/get-race-timeline.use-case';
@@ -50,6 +51,13 @@ import { RecentRacesController } from './recent-races.controller';
     // dışında hiçbir bağımlılık taşımaz; bu yüzden ek modül importu
     // GEREKMEZ.
     CreateRaceUseCase,
+    // brief §42 PHASE 1b — ücretli yarışa KATILMA. `CreateRaceUseCase` ile
+    // AYNI bağımlılık profili (`RACE_REPOSITORY`), ek modül importu
+    // GEREKMEZ. `IdempotencyInterceptor` de ek bir provider değildir:
+    // `@UseInterceptors` sınıfı doğrudan verir ve interceptor'ın kendi
+    // bağımlılıkları (`REDIS_CLIENT`, `PG_POOL`, `AppConfigService`) kök
+    // modülden çözülür (`grandstand.controller.ts` ile AYNI desen).
+    JoinRaceUseCase,
     GetRecentRaceResultsUseCase,
     // AUDIT_REPORT.md Bulgu R2 (Medium, bu oturum) — bkz. `get-race-timeline.use-case.ts` doc yorumu.
     GetRaceTimelineUseCase,

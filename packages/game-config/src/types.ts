@@ -1184,4 +1184,15 @@ export interface RaceLobbyConfig {
   allowedSurfaces: string[];
   /** Seçilebilecek hava durumları — `races.weather` CHECK'i (migration 0006) ile AYNI küme. */
   allowedWeather: string[];
+  /**
+   * Bir lobi katılımının (`race_entries.status`) alabileceği durumlar
+   * (brief §6: "WAITING / READY / NOT_READY / CANCELLED").
+   *
+   * Katılım ANINDA yazılan değer `waiting`'tir; `ready`/`not_ready` PHASE 3'ün
+   * READY düğmesiyle, `cancelled` ise katılım iptaliyle gelir. Bu dizi
+   * migration 0037'nin CHECK kısıtıyla BİREBİR aynı olmak zorundadır —
+   * ikisi ayrışırsa config'te geçerli bir durum veritabanında reddedilir
+   * (bkz. `race-lobby-config.spec.ts`, migration dosyası OKUNARAK).
+   */
+  entryStatuses: string[];
 }

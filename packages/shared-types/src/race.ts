@@ -77,6 +77,18 @@ export interface Race {
  * savePracticeRace` doc yorumu) — tam alan (full-field) replay artık
  * mümkün olduğundan bu ayrım GEREKLİDİR.
  */
+/**
+ * brief §6 — bir LOBİ katılımının hazır-olma durumu.
+ *
+ * Katılım anında `waiting` yazılır; `ready`/`not_ready` oyuncunun READY
+ * düğmesiyle (PHASE 3), `cancelled` ise katılım iptaliyle gelir.
+ *
+ * **NEDEN ayrı bir tip:** `RaceLobbyConfig.entryStatuses` (config) ve
+ * migration 0037'nin CHECK kısıtı AYNI kümeyi taşımak zorundadır; bu tip
+ * üçünün ortak dili olur.
+ */
+export type RaceEntryStatus = 'waiting' | 'ready' | 'not_ready' | 'cancelled';
+
 export interface RaceEntry {
   id: UUID;
   raceId: UUID;

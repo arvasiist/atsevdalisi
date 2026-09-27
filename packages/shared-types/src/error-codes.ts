@@ -196,6 +196,36 @@ export const ErrorCode = {
    * ortadan kalkar.
    */
   RaceLimitReached: 'RACE_LIMIT_REACHED',
+  /**
+   * Katılım gövdesi geçersiz: `horseId` yok, UUID değil ya da yanlış tipte;
+   * `tacticalStyle`/`riskLevel` bilinen bir değer değil (400).
+   *
+   * `InvalidRaceDefinition` ile AYNI gerekçeyle TEK kod: istemcinin ayırt
+   * etmesi gereken bir şey yoktur, mesaj hangi alanın neden reddedildiğini
+   * söyler. Bu kodun varlık sebebi ayrıca CLAUDE.md kural 5'tir — esbuild
+   * altında DTO dekoratörleri atlanır, yani gövde çalışma anında gerçekten
+   * bozuk olabilir ve bunu `domain/race/lobby.ts` bağımsız yakalar.
+   */
+  InvalidRaceJoinInput: 'INVALID_RACE_JOIN_INPUT',
+  /**
+   * Yarışa KATILINAMAZ — durumu `scheduled` değil ya da başlangıç zamanı
+   * geçmiş (409). brief §2: katılım, yarış başlayana kadar açıktır.
+   */
+  RaceNotJoinable: 'RACE_NOT_JOINABLE',
+  /**
+   * NOT: `RACE_FULL` bu dosyanın BAŞINDA (yukarıda, `RaceFull`) zaten
+   * tanımlıdır — PHASE 1b'de ikinci kez eklenmiş ve `TS1117` (aynı adlı
+   * çift anahtar) üretmişti. Katılım yolundaki anlamı: yarışın oyuncu
+   * kontenjanı doldu (409), bkz. `races.max_players` (brief §6
+   * "MAX_PLAYERS"). Kalan at koltukları yapay zekâyla doldurulur, ama
+   * GERÇEK oyuncu sayısı `max_players`'ı aşamaz.
+   */
+  /**
+   * Oyuncu bu yarışa zaten katılmış (409). Kural veritabanında ZORLANIR:
+   * `race_entries_race_player_uq` kısmi tekil indeksi (migration 0037) bir
+   * oyuncunun aynı yarışa İKİ atla girmesini engeller.
+   */
+  AlreadyJoinedRace: 'ALREADY_JOINED_RACE',
 } as const;
 
 export type ErrorCodeValue = (typeof ErrorCode)[keyof typeof ErrorCode];

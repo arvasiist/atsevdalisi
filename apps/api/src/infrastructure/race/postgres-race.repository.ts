@@ -17,6 +17,7 @@ import type {
 import type {
   CreateLobbyRaceInput,
   CreateLobbyRaceResult,
+  JoinLobbyRaceInput,
   RaceRepository,
   SavePracticeRaceWithStakesInput,
   SavePracticeRaceWithStakesResult,
@@ -25,9 +26,43 @@ import type {
 } from '../../application/ports/race.repository';
 import type { EconomyLedgerEntryInput } from '../../application/ports/economy-ledger';
 import { applyPracticeRaceStakes } from '../../domain/race/prize';
+import { checkRaceJoinable, nextGatePosition } from '../../domain/race/lobby';
+import {
+  AlreadyJoinedRaceError,
+  HorseNotOwnedError,
+  RaceFullError,
+  RaceNotJoinableError,
+  RaceNotFoundError,
+} from '../../domain/race/errors';
+import { HorseNotFoundError, HorseInjuredError } from '../../domain/horse/errors';
+import { debit } from '../../domain/economy/wallet';
 import { applyEloUpdate } from '../../domain/online/elo';
 import { PlayerNotFoundError } from '../../domain/player/errors';
 import { PG_POOL, withTransaction } from '../database/database.module';
+
+/** Postgres `unique_violation` hata kodu (bkz. PostgreSQL "Error Codes" §22.6 sınıf 23). */
+const POSTGRES_UNIQUE_VIOLATION = '23505';
+/** migration 0037'deki kısmi UNIQUE index — "bir oyuncu bir yarışa bir atla". */
+const ONE_ENTRY_PER_PLAYER_INDEX = 'race_entries_race_player_uq';
+
+/**
+ * Bir Postgres hatasının BELİRLİ bir tekil indeks ihlali olup olmadığı.
+ * `postgres-market-listing.repository.ts`'teki AYNI desen (o dosya da bu
+ * kontrolü satır içi yapar); ortak bir yardımcıya çıkarmak iki
+ * infrastructure dosyası arasında yeni bir bağımlılık yaratırdı ve
+ * `Infrastructure` katmanı içinde paylaşılan bir "pg hata" modülü
+ * henüz yok.
+ */
+function isUniqueViolation(error: unknown, constraint: string): boolean {
+  return (
+    error !== null &&
+    typeof error === 'object' &&
+    'code' in error &&
+    (error as { code?: string }).code === POSTGRES_UNIQUE_VIOLATION &&
+    'constraint' in error &&
+    (error as { constraint?: string }).constraint === constraint
+  );
+}
 
 /**
  * `findRecentResultsByOwnerId`'nin JOIN sonucu satır şekli (snake_case).
@@ -666,6 +701,223 @@ export class PostgresRaceRepository implements RaceRepository {
       // SAYILMAZ — saysaydı, ücretsiz bir "önce katıl sonra ödemeyi
       // düşün" yolu doğardı.
       return { ok: true, race: rowToLobbyRaceView(insertedRow, 0) };
+    });
+  }
+
+  /**
+   * Oyuncuyu bir lobi yarışına KATAR (brief §2/§3/§6, §42 PHASE 1b) —
+   * `RaceRepository.joinLobbyRace` port doc yorumu okunmalıdır.
+   *
+   * **PARA YOLU (CLAUDE.md kural 7).** Ücret alınıyorsa `players` satırı
+   * `FOR UPDATE` ile kilitlenir, bakiye düşülür ve AYNI transaction'da
+   * `economy_transactions` defter kaydı yazılır. Üçü birlikte değilse
+   * bakiye ile defter ayrışır — denetlenemez hâle gelir.
+   *
+   * **KİLİT SIRASI: önce `races`, sonra `players`.** Bu sıra SABİTTİR.
+   * Aynı yarışa eşzamanlı katılımlar yarış satırında sıraya girer, bu da
+   * hem kontenjan kontrolünü hem "zaten katıldı mı" kontrolünü yarışsız
+   * kılar; ayrıca iki farklı yarışa katılan aynı oyuncunun istekleri
+   * çapraz kilitlenme (deadlock) üretmez.
+   *
+   * **KONTENJAN `max_players`'DIR, `participant_limit` DEĞİL** (brief §6:
+   * "at sayısı ile oyuncu sayısını birbirinden ayır"): 12 atlık bir yarışa
+   * 8 gerçek oyuncu + 4 yapay zekâ atı girebilir. `participant_limit`
+   * kontrolü `races_max_players_within_field` kısıtı (migration 0036)
+   * sayesinde ZATEN gereksizdir — `max_players <= participant_limit`
+   * olduğundan oyuncu tavanı dolduğunda at tavanı da dolmuş olur.
+   */
+  async joinLobbyRace(input: JoinLobbyRaceInput): Promise<RaceLobbyView> {
+    return withTransaction(this.pool, async (client) => {
+      // 1) Yarış satırını kilitle. Kilit alındıktan SONRA okunan hiçbir şey
+      //    yarışın eşzamanlı bir katılımla değişmesinden etkilenmez.
+      const raceResult = await client.query<LobbyRaceRow>(
+        `SELECT id, name, participant_limit, max_players, entry_fee, prize_pool, start_time, status,
+                race_type, surface, weather, distance_m, tribune_fee, spectator_capacity, created_by, created_at
+         FROM races
+         WHERE id = $1
+         FOR UPDATE`,
+        [input.raceId],
+      );
+      const raceRow = raceResult.rows[0];
+      if (raceRow === undefined) {
+        throw new RaceNotFoundError(input.raceId);
+      }
+
+      // 2) GERÇEK oyuncu sayısı — `player_id` dolu satırlar. Botlar
+      //    (`player_id IS NULL`) sayılmaz; brief §6 at/oyuncu ayrımı.
+      const joinedResult = await client.query<{ count: string }>(
+        'SELECT COUNT(*) AS count FROM race_entries WHERE race_id = $1 AND player_id IS NOT NULL',
+        [input.raceId],
+      );
+      const joinedPlayers = Number(joinedResult.rows[0]?.count ?? '0');
+
+      // 3) Durum denetimi — SAF fonksiyon (`domain/race/lobby.ts`).
+      const rejection = checkRaceJoinable(
+        {
+          status: raceRow.status,
+          startTime: raceRow.start_time,
+          maxPlayers: raceRow.max_players,
+          joinedPlayers,
+        },
+        input.now,
+      );
+      if (rejection === 'FULL') {
+        throw new RaceFullError(raceRow.max_players);
+      }
+      if (rejection !== null) {
+        throw new RaceNotJoinableError(rejection);
+      }
+
+      // 4) At: var mı, bu oyuncunun mu, sağlıklı mı. ÜÇÜ TEK SORGUDA —
+      //    ayrı sorgular arasında atın satılması gibi bir yarış olmaz ve
+      //    `horses` satırı burada KİLİTLENMEZ (kilit yalnızca para ve
+      //    kontenjan içindir; atın satılması katılımı geçersiz kılmaz,
+      //    çünkü `player_id` katılım anında DONAR).
+      const horseResult = await client.query<{ owner_id: string; status: string }>(
+        'SELECT owner_id, status FROM horses WHERE id = $1',
+        [input.horseId],
+      );
+      const horse = horseResult.rows[0];
+      if (horse === undefined) {
+        throw new HorseNotFoundError(input.horseId);
+      }
+      if (horse.owner_id !== input.playerId) {
+        throw new HorseNotOwnedError(input.horseId);
+      }
+      // `horses.status` METİNDİR, boolean bir `injured` sütunu YOKTUR —
+      // `join-matchmaking-queue.use-case.ts` ile AYNI kontrol.
+      if (horse.status === 'injured') {
+        throw new HorseInjuredError(input.horseId);
+      }
+
+      // 5) Aynı oyuncu aynı yarışa iki kez giremez (brief §2 — ücret kişi
+      //    başına). Kuralın ASIL garantisi `race_entries_race_player_uq`
+      //    kısmi tekil indeksidir (migration 0037); bu ön kontrol yalnızca
+      //    kullanıcıya 500 yerine anlamlı bir 409 vermek içindir.
+      const duplicate = await client.query(
+        'SELECT 1 FROM race_entries WHERE race_id = $1 AND player_id = $2 LIMIT 1',
+        [input.raceId, input.playerId],
+      );
+      if (duplicate.rows.length > 0) {
+        throw new AlreadyJoinedRaceError(input.raceId);
+      }
+
+      // 6) Kulvar (brief §7): kullanılmış kulvarların EN KÜÇÜĞÜ boş olanı.
+      const gatesResult = await client.query<{ gate_position: number | null }>(
+        'SELECT gate_position FROM race_entries WHERE race_id = $1',
+        [input.raceId],
+      );
+      const usedGates = gatesResult.rows
+        .map((row) => row.gate_position)
+        .filter((gate): gate is number => gate !== null);
+      const gatePosition = nextGatePosition(usedGates);
+
+      // 7) ÜCRET — yalnızca ücretli yarışta ve yalnızca sıfırdan büyükse.
+      //    `economy_transactions.amount <> 0` kısıtı sıfır tutarlı bir
+      //    defter satırını reddeder; bu yüzden ücretsiz yarışta `players`
+      //    satırına HİÇ dokunulmaz (gereksiz kilit de alınmaz).
+      const entryFee = Number(raceRow.entry_fee);
+      let balanceBefore = 0;
+      let balanceAfter = 0;
+      if (entryFee > 0) {
+        const balanceResult = await client.query<{ money: string; gems: string }>(
+          'SELECT money, gems FROM players WHERE id = $1 FOR UPDATE',
+          [input.playerId],
+        );
+        const balanceRow = balanceResult.rows[0];
+        if (balanceRow === undefined) {
+          throw new PlayerNotFoundError(input.playerId);
+        }
+        balanceBefore = Number(balanceRow.money);
+        // `debit` yetersiz bakiyede `InsufficientFundsError` fırlatır —
+        // brief §2: "Oyuncu yeterli bakiyeye sahip değilse yarışa katılamaz."
+        const wallet = debit({ money: balanceBefore, gems: Number(balanceRow.gems) }, entryFee, 'money');
+        balanceAfter = wallet.money;
+
+        await client.query('UPDATE players SET money = $2, updated_at = $3 WHERE id = $1', [
+          input.playerId,
+          balanceAfter,
+          input.now,
+        ]);
+
+        // brief §3 — havuz `entryFee × katılımcı sayısı` mantığıyla BÜYÜR.
+        // Havuzu katılım anında artırmak, yarış açılırken hesaplanan bir
+        // "beklenen havuz"dan DAHA dürüsttür: oyuncu lobide gördüğü sayıyı
+        // gerçekten kazanır.
+        await client.query('UPDATE races SET prize_pool = prize_pool + $2, updated_at = $3 WHERE id = $1', [
+          input.raceId,
+          entryFee,
+          input.now,
+        ]);
+      }
+
+      // 8) Katılım satırı. `status = 'waiting'` (brief §6): oyuncu READY
+      //    düğmesine basana kadar bekler. `player_id` BURADA DONDURULUR.
+      //    `horse_snapshot`/segmentler YAZILMAZ — snapshot yarış KOŞARKEN
+      //    alınır, katılım anında değil (aynı gerekçe: erken snapshot
+      //    donmuş formu dondurur ve oyuncu yarışa kadar antrenman yapamaz).
+      try {
+        await client.query(
+          `INSERT INTO race_entries
+             (id, race_id, horse_id, bot_label, jockey_id, player_id, gate_position, tactical_style, risk_level, status, created_at)
+           VALUES ($1, $2, $3, NULL, NULL, $4, $5, $6, $7, 'waiting', $8)`,
+          [
+            input.entryId,
+            input.raceId,
+            input.horseId,
+            input.playerId,
+            gatePosition,
+            input.tacticalStyle,
+            input.riskLevel,
+            input.now,
+          ],
+        );
+      } catch (err) {
+        // Kısmi tekil indeks (`race_entries_race_player_uq`) ihlali: ön
+        // kontrolü geçen ama indekse takılan bir durum. Ham Postgres
+        // hatasını 500 olarak sızdırmak yerine anlamlı bir 409'a çevrilir.
+        if (isUniqueViolation(err, ONE_ENTRY_PER_PLAYER_INDEX)) {
+          throw new AlreadyJoinedRaceError(input.raceId);
+        }
+        throw err;
+      }
+
+      // 9) Defter kaydı — bakiye güncellemesiyle AYNI transaction'da.
+      if (entryFee > 0) {
+        await this.writeLedgerEntries(client, [
+          {
+            playerId: input.playerId,
+            // `savePracticeRaceWithStakes`'in `practice_race_entry_fee`
+            // değeriyle AYNI ailede; tip serbest metindir (bkz.
+            // `economy-ledger.ts`) ve yeni bir değer migration GEREKTİRMEZ.
+            type: 'lobby_race_entry_fee',
+            amount: -entryFee,
+            currency: 'money',
+            referenceType: 'race',
+            referenceId: input.raceId,
+            balanceBefore,
+            balanceAfter,
+            idempotencyKey: input.idempotencyKey,
+          },
+        ]);
+      }
+
+      // 10) Güncel görünüm — havuz ve doluluk bu transaction'ın içinde
+      //     yeniden okunur (yukarıdaki `raceRow` ücret artışından ÖNCE
+      //     okunmuştu; istemciye BAYAT bir havuz dönmemelidir).
+      const finalResult = await client.query<LobbyRaceRow>(
+        `SELECT id, name, participant_limit, max_players, entry_fee, prize_pool, start_time, status,
+                race_type, surface, weather, distance_m, tribune_fee, spectator_capacity, created_by, created_at
+         FROM races
+         WHERE id = $1`,
+        [input.raceId],
+      );
+      const finalRow = finalResult.rows[0];
+      if (finalRow === undefined) {
+        throw new Error('Yarış satırı katılım transaction\'ı içinde okunamadı.');
+      }
+
+      return rowToLobbyRaceView(finalRow, joinedPlayers + 1);
     });
   }
 

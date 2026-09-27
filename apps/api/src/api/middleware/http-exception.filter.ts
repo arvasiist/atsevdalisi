@@ -39,11 +39,16 @@ import { MaxStableLevelReachedError, StableCapacityExceededError } from '../../d
 import { InvalidFacilityTypeError, MaxFacilityLevelReachedError } from '../../domain/farm/errors';
 import { DailyRewardAlreadyClaimedError, InsufficientFundsError } from '../../domain/economy/errors';
 import {
+  AlreadyJoinedRaceError,
+  HorseNotOwnedError,
   HorseNotReadyToRaceError,
   InvalidRaceDefinitionError,
+  InvalidRaceJoinInputError,
   InvalidRaceTacticError,
   InvalidRaceTierError,
+  RaceFullError,
   RaceLimitReachedError,
+  RaceNotJoinableError,
   RaceNotFoundError,
 } from '../../domain/race/errors';
 import { AlreadyInMatchmakingQueueError, NotInMatchmakingQueueError } from '../../domain/online/errors';
@@ -323,6 +328,24 @@ const DOMAIN_ERROR_MAP = new Map<ErrorClassConstructor, { status: number; code: 
   // olan bir atın soy kaydını değiştirmek alıcıya sürpriz bir tay/soy
   // devreder.
   [BreedingHorseListedError, { status: HttpStatus.CONFLICT, code: ErrorCode.HorseListedInMarket }],
+  // YARIŞA KATILMA (brief §2/§3/§6, §42 PHASE 1b) — beşi de
+  // `POST /races/:id/join` yolundan gelir. Sınıflandırma, projedeki AYNI
+  // kategorilerin tekrarıdır (hepsi `domain/race/errors.ts`'te uzun uzun
+  // gerekçelendirilmiştir):
+  //
+  // 400 — `InvalidRaceDefinitionError` ile AYNI kategori: istek KALICI
+  // olarak bozuk (aynı isteği tekrarlamak düzeltmez).
+  [InvalidRaceJoinInputError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.InvalidRaceJoinInput }],
+  // 403 — `ForbiddenError`/`MareNotOwnedError` ile AYNI kategori: istek
+  // kusursuz, at VAR, ama oyuncunun değil. At kimliği bu uçta URL'de
+  // DEĞİL gövdede olduğu için `HorseOwnerGuardByParam` devrede DEĞİLDİR;
+  // kontrol transaction içinde açıkça yapılır ve sonucu BURAYA döner.
+  [HorseNotOwnedError, { status: HttpStatus.FORBIDDEN, code: ErrorCode.Forbidden }],
+  // 409 — üçü de `RaceLimitReachedError` ile AYNI gerekçe: istek biçimsel
+  // olarak kusursuz, engelleyen şey yarışın/oyuncunun DURUMUdur (geçici).
+  [RaceNotJoinableError, { status: HttpStatus.CONFLICT, code: ErrorCode.RaceNotJoinable }],
+  [RaceFullError, { status: HttpStatus.CONFLICT, code: ErrorCode.RaceFull }],
+  [AlreadyJoinedRaceError, { status: HttpStatus.CONFLICT, code: ErrorCode.AlreadyJoinedRace }],
 ]);
 
 /**

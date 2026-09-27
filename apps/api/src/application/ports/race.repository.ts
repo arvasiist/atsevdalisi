@@ -5,7 +5,9 @@ import type {
   RaceLobbyView,
   RaceSegmentSnapshot,
   RaceTimelineView,
+  RacingStyle,
   RecentRaceResultView,
+  RiskLevel,
 } from '@at-sevdalisi/shared-types';
 import type { OnlineConfig } from '@at-sevdalisi/game-config';
 
@@ -188,6 +190,55 @@ export interface RaceRepository {
    * zorundadır, aksi hâlde eşzamanlı iki istek tavanı aşabilir.
    */
   createLobbyRace(input: CreateLobbyRaceInput): Promise<CreateLobbyRaceResult>;
+
+  /**
+   * Oyuncuyu bir lobi yarışına KATAR (brief §2/§3/§6, §42 PHASE 1b).
+   *
+   * **TEK ATOMİK İŞLEM — ve bu BİLİNÇLİDİR.** Katılımın tüm durum
+   * kontrolleri (yarış katılabilir mi, kontenjan doldu mu, at oyuncunun mu,
+   * at sağlıklı mı, zaten katılmış mı) yarış satırı `FOR UPDATE` ile
+   * KİLİTLİYKEN AYNI transaction'da yapılır. Kontroller use-case'e
+   * taşınsaydı, kontrol ile yazma arasında geçen sürede yarış dolabilir ya
+   * da başlayabilirdi (TOCTOU) — ve burada söz konusu olan PARA.
+   *
+   * Kilit sırası HER ZAMAN önce `races`, sonra `players`'dır. Aynı yarışa
+   * eşzamanlı katılımlar yarış satırında sıraya girer; bu, kilit
+   * çevrimdışılığı (deadlock) riskini de ortadan kaldırır.
+   *
+   * Ücret yalnızca `races.entry_fee > 0` iken alınır; 0 ise `players`
+   * satırına HİÇ dokunulmaz (`economy_transactions.amount <> 0` kısıtı
+   * sıfır tutarlı bir defter satırını zaten reddederdi).
+   *
+   * Hata FIRLATIR (`CreateLobbyRaceResult`'ın aksine): buradaki her ret
+   * nedeni, çağıranın doğrudan bir domain hatasına çevirdiği bir durumdur
+   * ve `savePracticeRaceWithStakes` de aynı deseni kullanır
+   * (`PlayerNotFoundError`, `InsufficientFundsError`).
+   */
+  joinLobbyRace(input: JoinLobbyRaceInput): Promise<RaceLobbyView>;
+}
+
+/**
+ * `RaceRepository.joinLobbyRace` (brief §2/§3/§6, §42 PHASE 1b) girdi şekli.
+ *
+ * `playerId` **`CurrentPlayer()`'dan gelir, gövdeden ASLA** (CLAUDE.md kural
+ * 1). `idempotencyKey` başlıktan geçirilir ve defter satırına yazılır:
+ * aynı anahtarla tekrarlanan istek yeni bir düşüm yaratmaz (interceptor
+ * yanıtı önbellekten döner, ama defter satırındaki anahtar denetim
+ * izini kalıcı kılar).
+ */
+export interface JoinLobbyRaceInput {
+  raceId: string;
+  /** Katılan oyuncu — `CurrentPlayer()`. */
+  playerId: string;
+  /** Katılınacak at; oyuncunun KENDİ atı olmalı (`HorseNotOwnedError`). */
+  horseId: string;
+  /** `race_entries.id` — çağıran üretir (`createLobbyRace`'deki `id` deseniyle AYNI). */
+  entryId: string;
+  tacticalStyle: RacingStyle;
+  riskLevel: RiskLevel;
+  /** Şu an — `checkRaceJoinable`'a geçirilir; test edilebilirlik için parametredir. */
+  now: Date;
+  idempotencyKey: string | null;
 }
 
 /**

@@ -1,9 +1,24 @@
-import { Body, Controller, HttpCode, HttpStatus, Inject, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Headers,
+  HttpCode,
+  HttpStatus,
+  Inject,
+  Param,
+  ParseUUIDPipe,
+  Post,
+  UseInterceptors,
+} from '@nestjs/common';
 import type { ApiSuccess, RaceLobbyView } from '@at-sevdalisi/shared-types';
 import { CreateRaceUseCase } from '../../application/use-cases/create-race.use-case';
+import { JoinRaceUseCase } from '../../application/use-cases/join-race.use-case';
 import { CurrentPlayer, type AuthenticatedPlayer } from '../auth/current-player.decorator';
+import { IdempotencyInterceptor } from '../idempotency/idempotency.interceptor';
+import { IdempotencyScope } from '../idempotency/idempotency-scope.decorator';
 import { RateLimit } from '../rate-limit/rate-limit.decorator';
 import { CreateRaceDto } from './dto/create-race.dto';
+import { JoinRaceDto } from './dto/join-race.dto';
 
 /**
  * Yarış lobisi — oyuncunun KENDİ yarışını açması (brief §1-§7, §42 PHASE 1).
@@ -21,7 +36,10 @@ import { CreateRaceDto } from './dto/create-race.dto';
  */
 @Controller('races')
 export class RaceLobbyController {
-  constructor(@Inject(CreateRaceUseCase) private readonly createRaceUseCase: CreateRaceUseCase) {}
+  constructor(
+    @Inject(CreateRaceUseCase) private readonly createRaceUseCase: CreateRaceUseCase,
+    @Inject(JoinRaceUseCase) private readonly joinRaceUseCase: JoinRaceUseCase,
+  ) {}
 
   /**
    * Yeni bir yarış tanımı açar. Varsayılan **201 Created** döner — bu,
@@ -59,6 +77,55 @@ export class RaceLobbyController {
     // tip daraltmak, CLAUDE.md'nin uyardığı "DTO dekoratörüne güven"
     // tuzağını büyütürdü. Daraltmayı `validateRaceCreation` yapar.
     const race = await this.createRaceUseCase.execute(currentPlayer.id, dto);
+    return { success: true, data: race };
+  }
+
+  /**
+   * Yarışa KATILMA — **PARA YOLU.** Brief §2 gereği giriş ücreti burada
+   * tahsil edilir ve `races.prize_pool`'a eklenir.
+   *
+   * **`Idempotency-Key` ZORUNLUDUR** — `grandstand.controller.ts`'teki
+   * `purchaseTicket` ile AYNI desen ve AYNI gerekçe: istemci zaman
+   * aşımından sonra aynı isteği tekrarlarsa İKİNCİ kez ücret
+   * alınmamalıdır. `@IdempotencyScope('player')` — kapsam `:id` DEĞİL,
+   * kimliği doğrulanmış oyuncudur; `:id` burada yarışın id'sidir ve
+   * anahtarın kapsamı OLMAMALIDIR (aksi hâlde aynı oyuncunun FARKLI
+   * yarışlara aynı anahtarla yapacağı katılımlar yanlışlıkla "aynı istek"
+   * sayılırdı).
+   *
+   * **200 OK, 201 DEĞİL** — `purchaseTicket` ile AYNI sınıflandırma:
+   * yeni bir satır (`race_entries`) doğar ama yanıt gövdesi o satırın
+   * kendisi değil, GÜNCELLENMİŞ lobi görünümüdür (`RaceLobbyView`) ve
+   * katılımın kendi adresi yoktur (`GET /race-entries/:id` diye bir uç
+   * yoktur). İstemcinin bir sonraki adımı zaten lobidir.
+   *
+   * `RateLimit` — `docs/SECURITY.md` §7'nin "kritik ekonomi
+   * endpoint'leri" kategorisi; `keyBy: 'player'` (IP değil), çünkü limitin
+   * amacı paylaşılan bir IP'yi cezalandırmak değil, tek bir hesabın
+   * saniyeler içinde onlarca yarışa katılıp havuzları kirletmesini
+   * durdurmaktır. Tavan `purchaseTicket`'ın 20'sinden YÜKSEK (30) çünkü
+   * katılım gerçek bir yarış seçimi akışının parçasıdır: oyuncu birkaç
+   * yarış arasında gidip gelip karar verebilir ve lobi listesi
+   * yenilendikçe aynı yarışa dönmesi meşrudur.
+   */
+  @RateLimit({ name: 'race-join', limit: 30, windowSeconds: 60, keyBy: 'player' })
+  @IdempotencyScope('player')
+  @Post(':id/join')
+  @HttpCode(HttpStatus.OK)
+  @UseInterceptors(IdempotencyInterceptor)
+  async join(
+    // `raceId` YOLdan gelir ve `ParseUUIDPipe` ile elenir — gövde
+    // alanlarının aksine pipe'lar esbuild altında da çalışır.
+    @Param('id', ParseUUIDPipe) id: string,
+    // `dto` HAM geçirilir (alanları `unknown` olan bir imzaya) — `create`
+    // ile AYNI desen; daraltmayı `validateRaceJoin` yapar.
+    @Body() dto: JoinRaceDto,
+    @Headers('Idempotency-Key') idempotencyKey: string | undefined,
+    // Katılan oyuncu **TOKEN'DAN** gelir, gövdeden ASLA (CLAUDE.md
+    // "SUNUCU OTORİTESİ").
+    @CurrentPlayer() currentPlayer: AuthenticatedPlayer,
+  ): Promise<ApiSuccess<RaceLobbyView>> {
+    const race = await this.joinRaceUseCase.execute(id, currentPlayer.id, dto, idempotencyKey ?? null);
     return { success: true, data: race };
   }
 }

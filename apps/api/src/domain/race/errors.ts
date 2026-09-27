@@ -115,3 +115,86 @@ export class RaceLimitReachedError extends Error {
     this.name = 'RaceLimitReachedError';
   }
 }
+
+/**
+ * Katılım isteğinin gövdesi geçersiz (PHASE 1b) — `horseId` UUID değil,
+ * taktik/risk bilinen bir değer değil. 400 (kalıcı doğrulama hatası,
+ * `InvalidRaceDefinitionError` ile AYNI kategori).
+ *
+ * `problems` dizisi `InvalidRaceDefinitionError` ile AYNI gerekçeyle
+ * taşınır: katılım formu da birden fazla alanı aynı anda hatalı
+ * gönderebilir ve kullanıcı hepsini TEK yanıtta görmelidir.
+ *
+ * NEDEN AYRI BİR TİP: `InvalidRaceDefinitionError`'ın mesajı "Geçersiz
+ * yarış tanımı" diye başlar ve `POST /races`'e aittir; katılımda aynı
+ * metni görmek yanıltıcı olurdu.
+ */
+export class InvalidRaceJoinInputError extends Error {
+  constructor(public readonly problems: string[]) {
+    super(`Geçersiz katılım isteği: ${problems.join(' ')}`);
+    this.name = 'InvalidRaceJoinInputError';
+  }
+}
+
+/**
+ * At, isteği yapan oyuncuya ait değil (403). `MareNotOwnedError`
+ * (`domain/breeding/errors.ts`) ile AYNI sınıf: bu bir YETKİ sorunudur,
+ * isteğin biçimi kusursuzdur — 400 değil 403.
+ *
+ * NEDEN GEREKLİ: at kimliği bu uçta URL parametresi DEĞİL, GÖVDEDEDİR.
+ * `HorseOwnerGuardByParam` yalnızca `:id` parametresini korur, dolayısıyla
+ * sahiplik kontrolü burada AÇIKÇA yapılmak zorundadır — aksi hâlde bir
+ * oyuncu başkasının atını ücretli bir yarışa sokup sahibini borçlandırabilir.
+ */
+export class HorseNotOwnedError extends Error {
+  constructor(public readonly horseId: string) {
+    super(`Bu at size ait değil: ${horseId}`);
+    this.name = 'HorseNotOwnedError';
+  }
+}
+
+/**
+ * Yarışa katılma penceresi kapalı (409) — yarış `scheduled` değil ya da
+ * başlangıç zamanı geçmiş. Ret nedeni `RaceJoinRejection`'dan gelir
+ * (`domain/race/lobby.ts` → `checkRaceJoinable`).
+ *
+ * `RaceLimitReachedError` ile AYNI gerekçeyle 409: istek biçimsel olarak
+ * kusursuz, engelleyen şey yarışın DURUMUDUR.
+ */
+export class RaceNotJoinableError extends Error {
+  constructor(public readonly reason: 'NOT_SCHEDULED' | 'ALREADY_STARTED') {
+    super(reason === 'ALREADY_STARTED' ? 'Yarış başladı, artık katılınamaz.' : 'Bu yarış katılıma açık değil.');
+    this.name = 'RaceNotJoinableError';
+  }
+}
+
+/**
+ * Yarışın GERÇEK OYUNCU kontenjanı doldu (409) — brief §6 "MAX_PLAYERS".
+ * Kalan at koltukları yapay zekâyla doldurulduğu için (brief §6: "12 atlık
+ * yarış = 8 oyuncu + 4 AI horse") bu, yarışın dolduğu anlamına GELMEZ;
+ * dolan şey oyuncu kontenjanıdır ve `races.max_players` ile sınırlıdır.
+ */
+export class RaceFullError extends Error {
+  constructor(public readonly maxPlayers: number) {
+    super(`Yarışın oyuncu kontenjanı doldu (en fazla ${maxPlayers} oyuncu).`);
+    this.name = 'RaceFullError';
+  }
+}
+
+/**
+ * Oyuncu bu yarışa zaten katılmış (409) — brief §2 gereği katılım ücreti
+ * KİŞİ BAŞINA alınır, at başına değil; bir oyuncunun iki atla girip
+ * havuzu kendi lehine şişirmesi engellenir.
+ *
+ * Kuralın ASIL garantisi veritabanındadır: `race_entries_race_player_uq`
+ * kısmi tekil indeksi (migration 0037). Bu hata, indeksin fırlatacağı
+ * `23505`'i kullanıcıya 500 yerine anlamlı bir 409 olarak göstermek için
+ * vardır — uygulama katmanındaki ön kontrol tek başına yeterli DEĞİLDİR
+ * (iki eşzamanlı istek arasında TOCTOU penceresi kalır).
+ */
+export class AlreadyJoinedRaceError extends Error {
+  constructor(public readonly raceId: string) {
+    super('Bu yarışa zaten katıldınız.');
+    this.name = 'AlreadyJoinedRaceError';
+  }
+}

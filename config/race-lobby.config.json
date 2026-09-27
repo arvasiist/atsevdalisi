@@ -11,5 +11,6 @@
   "startDelaySeconds": { "min": 60, "max": 604800 },
   "maxOpenRacesPerPlayer": 3,
   "allowedSurfaces": ["grass", "dirt", "synthetic"],
-  "allowedWeather": ["sunny", "rainy", "windy", "cloudy", "hot", "cold"]
+  "allowedWeather": ["sunny", "rainy", "windy", "cloudy", "hot", "cold"],
+  "entryStatuses": ["waiting", "ready", "not_ready", "cancelled"]
 }

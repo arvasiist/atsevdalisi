@@ -1,4 +1,7 @@
 import type { RaceLobbyConfig } from '@at-sevdalisi/game-config';
+// Katılım (PHASE 1b) taktik/risk alanları — `RacingStyle`/`RiskLevel`
+// `race_entries` CHECK kısıtlarının (migration 0006) TS karşılığıdır.
+import type { RacingStyle, RiskLevel } from '@at-sevdalisi/shared-types';
 
 /**
  * Oyuncunun OLUŞTURDUĞU yarışın tanımı (brief §1-§7, §9-§11, §42 PHASE 1).
@@ -345,4 +348,169 @@ function describeType(value: unknown): string {
     return 'dizi';
   }
   return typeof value;
+}
+
+/**
+ * Lobi yarışına KATILMA isteğinin ham gövdesi (brief §2/§3/§6, PHASE 1b).
+ *
+ * `RaceCreationInput` ile AYNI gerekçeyle TÜM alanlar `unknown`'dır: gövde
+ * esbuild altında doğrulanmadan gelir (CLAUDE.md kural 5), `horseId` gerçekten
+ * bir dizi olabilir ve `.trim()`/`String(...)` çağrıları 500 fırlatırdı.
+ *
+ * **`playerId` BİLİNÇLİ OLARAK YOKTUR.** Katılımcı, isteğin GÖVDESİNDEN değil
+ * `CurrentPlayer()`'dan (JWT) alınır — CLAUDE.md kural 1 "SUNUCU OTORİTESİ".
+ * Gövdede böyle bir alan bulunsa bile yok sayılır.
+ */
+export interface RaceJoinInput {
+  /** Katılınacak at — oyuncunun KENDİ atı olmak zorundadır (aksi hâlde 403). */
+  horseId: unknown;
+  /** brief §14.2 taktik — verilmezse `mid_pack` kullanılır. */
+  tacticalStyle: unknown;
+  /** brief §14.2 risk — verilmezse `normal` kullanılır. */
+  riskLevel: unknown;
+}
+
+/** Doğrulanmış + DARALTILMIŞ katılım girdisi — bkz. `validateRaceJoin`. */
+export interface ValidatedRaceJoin {
+  horseId: string;
+  tacticalStyle: RacingStyle;
+  riskLevel: RiskLevel;
+}
+
+export interface RaceJoinValidation {
+  problems: string[];
+  value: ValidatedRaceJoin | null;
+}
+
+/**
+ * `race_entries.tactical_style` CHECK kısıtı (migration 0006) ile BİREBİR
+ * aynı küme. `RacingStyle` tipinden TÜRETİLMEZ: `domain/` katmanı DB
+ * kısıtını YANSITMAK zorundadır, tersi değil — tip genişleyip kısıt
+ * genişlemezse `23514` ile 500 alınırdı.
+ */
+const ALLOWED_TACTICAL_STYLES: readonly RacingStyle[] = ['front_runner', 'tracker', 'mid_pack', 'closer'];
+/** `race_entries.risk_level` CHECK kısıtı (migration 0006) ile BİREBİR aynı küme. */
+const ALLOWED_RISK_LEVELS: readonly RiskLevel[] = ['low', 'normal', 'high'];
+
+/** Taktik verilmediğinde kullanılan varsayılan — "dengeli" karşılığı. */
+export const DEFAULT_TACTICAL_STYLE: RacingStyle = 'mid_pack';
+/** Risk verilmediğinde kullanılan varsayılan. */
+export const DEFAULT_RISK_LEVEL: RiskLevel = 'normal';
+
+/**
+ * UUID biçim denetimi. `@IsUUID()` DTO dekoratörü esbuild altında atlanır
+ * (CLAUDE.md kural 5), bu yüzden biçim burada BAĞIMSIZ olarak doğrulanır:
+ * geçersiz bir UUID veritabanına ulaşırsa `22P02` (invalid input syntax for
+ * type uuid) ile 500 dönerdi, oysa doğru cevap 400'dür.
+ */
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Katılım isteğini doğrular VE daraltır (tek geçiş) — `validateRaceCreation`
+ * ile aynı desen, aynı gerekçe.
+ *
+ * Taktik/risk **isteğe bağlıdır**: brief §14.2 bunları yarış ÖNCESİ seçim
+ * olarak tanımlar, §6 ise katılımdan SONRA ayrı bir READY adımı öngörür.
+ * Zorunlu tutmak, istemciyi katılım anında henüz karar vermediği bir seçime
+ * mecbur bırakırdı; verilmezse güvenli varsayılan yazılır.
+ *
+ * `horseId` için **yalnızca biçim** doğrulanır. Atın var olup olmadığı,
+ * oyuncuya ait olup olmadığı ve sağlığı DB işleminde, yarış satırı
+ * KİLİTLİYKEN kontrol edilir — burada yapılsaydı kontrol ile yazma arasında
+ * yarışın durumu değişebilirdi (TOCTOU).
+ */
+export function validateRaceJoin(input: RaceJoinInput): RaceJoinValidation {
+  const problems: string[] = [];
+
+  let horseId: string | null = null;
+  if (typeof input.horseId !== 'string') {
+    problems.push(`At kimliği bir metin olmalıdır (verilen tip: ${describeType(input.horseId)}).`);
+  } else if (!UUID_PATTERN.test(input.horseId)) {
+    problems.push(`At kimliği geçerli bir UUID olmalıdır (verilen: ${describe(input.horseId)}).`);
+  } else {
+    horseId = input.horseId;
+  }
+
+  let tacticalStyle: RacingStyle | null = null;
+  if (input.tacticalStyle === undefined) {
+    tacticalStyle = DEFAULT_TACTICAL_STYLE;
+  } else if (
+    typeof input.tacticalStyle !== 'string' ||
+    !ALLOWED_TACTICAL_STYLES.includes(input.tacticalStyle as RacingStyle)
+  ) {
+    problems.push(
+      `Taktik şunlardan biri olmalıdır: ${ALLOWED_TACTICAL_STYLES.join(', ')} (verilen: ${describe(input.tacticalStyle)}).`,
+    );
+  } else {
+    tacticalStyle = input.tacticalStyle as RacingStyle;
+  }
+
+  let riskLevel: RiskLevel | null = null;
+  if (input.riskLevel === undefined) {
+    riskLevel = DEFAULT_RISK_LEVEL;
+  } else if (typeof input.riskLevel !== 'string' || !ALLOWED_RISK_LEVELS.includes(input.riskLevel as RiskLevel)) {
+    problems.push(
+      `Risk seviyesi şunlardan biri olmalıdır: ${ALLOWED_RISK_LEVELS.join(', ')} (verilen: ${describe(input.riskLevel)}).`,
+    );
+  } else {
+    riskLevel = input.riskLevel as RiskLevel;
+  }
+
+  if (problems.length > 0) {
+    return { problems, value: null };
+  }
+
+  // `problems` boşsa üç alan da yukarıdaki dallarda ATANMIŞTIR; `!` yalnızca
+  // derleyiciyi ikna eder (bkz. `validateRaceCreation`'daki aynı not).
+  return { problems: [], value: { horseId: horseId!, tacticalStyle: tacticalStyle!, riskLevel: riskLevel! } };
+}
+
+/**
+ * Katılımın DURUM denetimi (brief §2/§6) — saf fonksiyon, hata FIRLATMAZ,
+ * ret nedenini döndürür. Fırlatmak yerine sonuç döndürmek, kuralın DB
+ * transaction'ı olmadan da tek başına test edilebilmesini sağlar; nedeni
+ * domain hatasına çevirmek `join-race.use-case`'in işidir.
+ *
+ * `joinedPlayers` **GERÇEK oyuncu** sayısıdır (`player_id` dolu satırlar) —
+ * bot girişleri sayılmaz, çünkü brief §6 at sayısı ile oyuncu sayısını
+ * AÇIKÇA ayırır.
+ */
+export function checkRaceJoinable(
+  race: { status: string; startTime: Date; maxPlayers: number; joinedPlayers: number },
+  now: Date,
+): RaceJoinRejection | null {
+  if (race.status !== 'scheduled') {
+    return 'NOT_SCHEDULED';
+  }
+  // brief §2 — katılım yarış BAŞLAYANA kadar açıktır. Sınırda
+  // (`now === startTime`) katılım KAPALIDIR: motorun snapshot'ı tam o anda
+  // alınır, sonradan gelen katılım koşulmuş bir yarışa girmek olurdu.
+  if (race.startTime.getTime() <= now.getTime()) {
+    return 'ALREADY_STARTED';
+  }
+  if (race.joinedPlayers >= race.maxPlayers) {
+    return 'FULL';
+  }
+  return null;
+}
+
+/** `checkRaceJoinable`'ın ret nedenleri. */
+export type RaceJoinRejection = 'NOT_SCHEDULED' | 'ALREADY_STARTED' | 'FULL';
+
+/**
+ * Katılıma atanacak start-gate (kulvar) numarası (brief §7: "start gate …
+ * sayısına göre otomatik oluşturulmalı").
+ *
+ * Kulvarlar 1'den başlar ve EN KÜÇÜK BOŞ numara verilir: sıralı eklemede
+ * `used.length + 1` ile aynı sonucu verir, ama aradan bir katılım İPTAL
+ * edilirse (PHASE 3) boşluğu yeniden kullanır — `length + 1` bu durumda
+ * kulvar atlar ve `participant_limit`'e gereksiz yer harcardı.
+ */
+export function nextGatePosition(used: readonly number[]): number {
+  const taken = new Set(used);
+  let candidate = 1;
+  while (taken.has(candidate)) {
+    candidate += 1;
+  }
+  return candidate;
 }
