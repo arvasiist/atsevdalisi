@@ -41,6 +41,16 @@ import {
   RaceTicketRequiredError,
 } from '../../domain/grandstand/errors';
 import {
+  CannotFriendSelfError,
+  CannotMessageSelfError,
+  FriendshipAlreadyExistsError,
+  FriendshipNotFoundError,
+  InvalidFriendshipActionError,
+  InvalidMessageBodyError,
+  NotFriendsError,
+  SocialLimitReachedError,
+} from '../../domain/social/errors';
+import {
   CannotBuyOwnListingError,
   HorseAlreadyListedError,
   InvalidListingExpiryError,
@@ -178,6 +188,24 @@ const DOMAIN_ERROR_MAP = new Map<ErrorClassConstructor, { status: number; code: 
   // 403 — `ForbiddenError` ile AYNI durum, FARKLI kod: istemci "Bilet Al"
   // akışına yönlendirebilsin diye (bkz. `RaceTicketRequiredError` doc yorumu).
   [RaceTicketRequiredError, { status: HttpStatus.FORBIDDEN, code: ErrorCode.RaceTicketRequired }],
+  // ARKADAŞLIK + MESAJLAŞMA (proje sahibinin açık talebi, 27.09.2026) —
+  // sekiz hata da `DOMAIN_ERROR_MAP`'e girebilir çünkü kodları hatanın
+  // `reason`/`status` alanına BAĞLI DEĞİLDİR (aynı gerekçe: yukarıdaki
+  // tribün notu). Durum kodları `domain/social/errors.ts`'teki doc
+  // yorumlarında tek tek gerekçelendirilmiştir.
+  [CannotFriendSelfError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.CannotFriendSelf }],
+  [CannotMessageSelfError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.CannotMessageSelf }],
+  [InvalidMessageBodyError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.InvalidMessageBody }],
+  [InvalidFriendshipActionError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.InvalidFriendshipAction }],
+  // 404 — "yok" ile "senin değil" ile "bana gelmemiş" TEK kodda birleşir
+  // (bilgi sızıntısını önlemek için, bkz. `FriendshipNotFoundError` doc yorumu).
+  [FriendshipNotFoundError, { status: HttpStatus.NOT_FOUND, code: ErrorCode.FriendshipNotFound }],
+  // 403 — `ForbiddenError` ile AYNI kategori (yetki yok), FARKLI kod:
+  // istemci "arkadaş ekle" akışına yönlendirebilsin diye.
+  [NotFriendsError, { status: HttpStatus.FORBIDDEN, code: ErrorCode.NotFriends }],
+  // 409 — duruma bağlı, GEÇİCİ engeller (biri kalıcı durum, diğeri sayım).
+  [FriendshipAlreadyExistsError, { status: HttpStatus.CONFLICT, code: ErrorCode.FriendshipAlreadyExists }],
+  [SocialLimitReachedError, { status: HttpStatus.CONFLICT, code: ErrorCode.SocialLimitReached }],
   // `POST /auth/login`'e özgü — bkz. `InvalidProviderTokenError` doc yorumu.
   [InvalidProviderTokenError, { status: HttpStatus.UNAUTHORIZED, code: ErrorCode.InvalidProviderToken }],
   // claude/hizli-bitirme-plani.md'nin proje sahibi tarafından

@@ -29,6 +29,7 @@ import type {
   OnlineConfig,
   ProgressionConfig,
   RaceBalanceConfig,
+  SocialConfig,
   StableConfig,
   StaffConfig,
   TrainingConfig,
@@ -53,6 +54,7 @@ import cameraConfigJson from '../../../config/camera.config.json';
 import vfxConfigJson from '../../../config/vfx.config.json';
 import audioConfigJson from '../../../config/audio.config.json';
 import grandstandConfigJson from '../../../config/grandstand.config.json';
+import socialConfigJson from '../../../config/social.config.json';
 
 export function loadRaceConfig(): RaceBalanceConfig {
   return raceConfigJson as unknown as RaceBalanceConfig;
@@ -135,6 +137,22 @@ export function loadAudioConfig(): AudioConfig {
  */
 export function loadGrandstandConfig(): GrandstandConfig {
   return grandstandConfigJson as unknown as GrandstandConfig;
+}
+
+/**
+ * Arkadaşlık + mesajlaşma (proje sahibinin açık talebi, 27.09.2026).
+ *
+ * **`maxMessageLength` DB KISITIYLA EŞLEŞMEK ZORUNDADIR** —
+ * `direct_messages.body` üzerindeki `CHECK (char_length(body) BETWEEN 1 AND
+ * 500)` (migration 0033) bu değeri sabitler. İkisi ayrı yerlerde
+ * yaşadığından, uyuşmazlık sessiz bir çalışma zamanı hatası olurdu (domain
+ * 1000 karakteri kabul eder, INSERT patlar). Bunu yakalayan şey
+ * `apps/api/test/domain/social/social-config.spec.ts`'tir: o test
+ * `maxMessageLength`'i 500'e sabitler, böylece config'i değiştiren kişi
+ * migration'ı da güncellemesi gerektiğini ANINDA görür.
+ */
+export function loadSocialConfig(): SocialConfig {
+  return socialConfigJson as unknown as SocialConfig;
 }
 
 export * from './types';

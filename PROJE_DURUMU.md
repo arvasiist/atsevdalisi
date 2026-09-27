@@ -597,9 +597,26 @@ en sona bırakıldı.
    seyirci izleyicisi icat edilmedi — yetki kapısı `GetRaceTimelineUseCase`'in
    kendisidir, "katılımcı VEYA bilet sahibi"). Bilet geliri bir **SINK**'tir
    (yarış sahibine ödeme İKİ `players` satırı kilitlemeyi gerektirir → ayrı dilim).
-2. **Arkadaşlık + mesajlaşma — YAPILMADI.** Plan: migration `0033`
-   (`friendships` + `direct_messages`), istek/kabul/red/liste + mesaj gönder/
-   sohbet/gelen kutusu uçları, `/friends` sayfası.
+2. **ARKADAŞLIK + MESAJLAŞMA — YAPILDI** (bu dilim). Migration `0033`
+   (`friendships` + `direct_messages`), `config/social.config.json`,
+   `SocialModule` (7 uç nokta), `/friends` sayfası.
+   - **Kanonik çift:** A→B ve B→A AYNI satırdır (`player_low_id <
+     player_high_id` CHECK + `UNIQUE`); yarış koşulları SQL'de kapatılır
+     (`ON CONFLICT ... WHERE status = 'rejected'`, `UPDATE ... WHERE status =
+     'pending' AND requested_by_id <> $2`) — uygulama ön-kontrolüne ek ikinci
+     hat.
+   - **`Idempotency-Key` YOK** (para yolu değil); spam savunması `@RateLimit`
+     + bekleyen istek tavanı (`409 SOCIAL_LIMIT_REACHED`).
+   - **`DELETE .../friends/:friendId` 200 + gövde döner, 204 DEĞİL** —
+     istemcinin `request()` yardımcısı her yanıtta `response.json()` çağırır.
+   - **Yeni arkadaş keşfi `/leaderboard` üzerinden:** oradaki satıra "Arkadaş
+     Ekle" düğmesi eklendi (sıralama tablosu başka oyuncunun `playerId`'sini
+     gören tek mevcut yüzeydir). Ayrı bir "oyuncu ara" uç noktası bilinçli
+     olarak İCAT EDİLMEDİ — görünen ad numaralandırmasına açık yeni bir yüzey
+     olurdu.
+   - **Bilinçli olarak YAPILMAYANLAR:** engelleme (block), arkadaşlık tavanı
+     (karşılıklı onay gerektiği için spam vektörü yok), grup sohbeti,
+     bildirim (`notification.new` hâlâ yok — okunmamış rozeti sayfada).
 3. **Hediye gönderimi — YAPILMADI.** Plan: migration `0034` (`gift_sends`),
    `config/gift.config.json` (min/max/günlük limit/izinli birimler), İKİ satırlı
    para yolu (lexical-id sırasıyla kilitleme + İKİ defter satırı + idempotency),

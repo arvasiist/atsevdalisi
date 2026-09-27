@@ -887,3 +887,50 @@ export interface GrandstandConfig {
   /** `GET /players/:id/tickets` yanıtındaki azami bilet sayısı. */
   myTicketsLimit: number;
 }
+
+/**
+ * Arkadaşlık + mesajlaşma ayarları (proje sahibinin açık talebi, 27.09.2026:
+ * "arkadaşlık + mesajlaşma").
+ *
+ * `loadSocialConfig()` ile okunur. `maxMessageLength`'in DB CHECK kısıtıyla
+ * (`direct_messages.body`, migration 0033) EŞLEŞMESİ ZORUNLUDUR — bu
+ * yüzden değer bir test tarafından sabitlenir (bkz. `loadSocialConfig` doc
+ * yorumu).
+ */
+export interface SocialConfig {
+  /**
+   * Bir mesajın azami KARAKTER sayısı (byte değil — `char_length`
+   * kullanılır, bkz. migration 0033'ün gerekçesi: Türkçe karakterler
+   * UTF-8'de 2 byte'tır ama kullanıcı için 1 karakterdir).
+   *
+   * **DB CHECK'i ile eşleşmek zorundadır.**
+   */
+  maxMessageLength: number;
+  /**
+   * `GET /players/:id/social` yanıtındaki azami arkadaş sayısı — bir
+   * LİSTE sınırıdır, üyelik tavanı DEĞİLDİR. Arkadaşlık karşılıklı onay
+   * gerektirdiği için "arkadaş sayısı tavanı" diye bir spam vektörü YOKTUR;
+   * bu değer yalnızca yanıtın boyutunu sınırlar.
+   */
+  overviewFriendsLimit: number;
+  /**
+   * Aynı yanıttaki azami bekleyen istek sayısı (gelen ve giden AYRI AYRI)
+   * — bu da bir LİSTE sınırıdır.
+   */
+  overviewRequestsLimit: number;
+  /**
+   * Bir oyuncunun AYNI ANDA gönderebileceği azami bekleyen arkadaşlık
+   * isteği — bu bir LİSTE sınırı DEĞİL, **zorunlu bir TAVANDIR**
+   * (`assertUnderSocialLimit`, 409 `SOCIAL_LIMIT_REACHED`).
+   *
+   * NEDEN VAR: arkadaşlık isteği, karşı tarafa bildirim üreten tek sosyal
+   * uç noktadır. Tavansız bırakılırsa tek bir hesap tüm sunucuya istek
+   * yağdırabilir. İstek geri çekilebildiği için (`DELETE
+   * /players/:id/friends/:friendId`) bu tavan bir çıkmaz SOKAK DEĞİLDİR.
+   */
+  pendingRequestsLimit: number;
+  /** `GET /players/:id/inbox` yanıtındaki azami mesaj sayısı. */
+  inboxLimit: number;
+  /** `GET /players/:id/messages/:otherPlayerId` yanıtındaki azami mesaj sayısı. */
+  conversationLimit: number;
+}

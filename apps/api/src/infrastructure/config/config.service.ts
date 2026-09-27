@@ -9,6 +9,7 @@ import {
   loadOnlineConfig,
   loadProgressionConfig,
   loadRaceConfig,
+  loadSocialConfig,
   loadStableConfig,
   loadTrainingConfig,
   loadWeatherConfig,
@@ -69,4 +70,10 @@ export class AppConfigService {
   // bu dilimde OLUŞTURULDU; bilet fiyatı/izleme penceresi/liste limitleri
   // use-case'lerde hard-code EDİLMEZ (CLAUDE.md "SİHİRLİ SAYI YOK").
   readonly grandstand = loadGrandstandConfig();
+  // ARKADAŞLIK + MESAJLAŞMA (proje sahibinin açık talebi, 27.09.2026) —
+  // `config/social.config.json` bu dilimde OLUŞTURULDU. `maxMessageLength`
+  // DB CHECK'iyle (`direct_messages.body`) EŞLEŞMEK ZORUNDADIR; liste
+  // limitleri ve bekleyen istek tavanı da use-case'lerde hard-code
+  // EDİLMEZ (CLAUDE.md "SİHİRLİ SAYI YOK").
+  readonly social = loadSocialConfig();
 }

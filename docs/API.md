@@ -589,6 +589,92 @@ satırı + imzalı defter satırı; idempotency; yetersiz bakiye; OWN_RACE;
 kapının biletle açılması) · `domain/grandstand/ticket.spec.ts` ·
 `grandstand-config.spec.ts`.
 
+### Arkadaşlık + Mesajlaşma (proje sahibinin açık talebi, 27.09.2026)
+
+Proje sahibinin talebi: *"arkadaşlık + mesajlaşma"*. Yedi uç nokta,
+`SocialController` (`apps/api/src/api/social/social.controller.ts`).
+
+```http
+GET    /api/v1/players/{id}/social
+POST   /api/v1/players/{id}/friend-requests                    # 201
+POST   /api/v1/players/{id}/friend-requests/{requestId}/respond # 200
+DELETE /api/v1/players/{id}/friends/{friendId}                  # 200
+POST   /api/v1/players/{id}/messages                            # 201
+GET    /api/v1/players/{id}/messages/{otherPlayerId}
+GET    /api/v1/players/{id}/inbox
+```
+
+**Yedi uç noktanın TAMAMI `assertSelf` ile korunur** — yoldaki `:id` her
+zaman İŞLEMİ YAPAN oyuncudur, hedef DEĞİLDİR (hedef gövdede ya da ikinci
+yol parametresinde gelir). Bu, IDOR'a karşı ilk kapıdır: başkasının
+sosyal listesini okumak veya onun adına istek göndermek bu satır olmadan
+mümkün olurdu.
+
+**`Idempotency-Key` KULLANILMAZ (bilinçli).** Bu uç noktaların hiçbiri
+para/mülkiyet değiştirmez; interceptor'ın çözdüğü sorun ("zaman
+aşımından sonra tekrarlanan istek iki kez tahsil etmesin") burada
+YOKTUR. Spam savunması iki katmanlıdır: `@RateLimit`
+(`friend-request` 20/dk, `direct-message` 30/dk, `keyBy: 'player'`) ve
+**bekleyen istek tavanı** (`config/social.config.json →
+pendingRequestsLimit`, aşılırsa `409 SOCIAL_LIMIT_REACHED`).
+
+**`DELETE .../friends/{friendId}` İKİ ANLAM taşır (bilinçli):** kabul
+edilmiş bir arkadaşlığı siler VEYA bekleyen bir isteği (gönderdiğim ya da
+bana gelmiş) geri çeker. Repository durum filtresi UYGULAMAZ — yalnızca
+`accepted`'a izin verilseydi, yanlışlıkla gönderilen istekler tavanı
+doldurup yeni istek göndermeyi kilitlerdi. Yanıt **200 + gövde**'dir
+(`{ friendId }`), **204 DEĞİL**: istemcinin `request()` yardımcısı her
+yanıtta `response.json()` çağırır ve gövdesiz bir 204 orada "Unexpected
+end of JSON input" ile patlardı.
+
+**`friendships` çift yönlü tek satırdır (kanonik çift).** A→B ve B→A
+AYNI satırdır: `player_low_id < player_high_id` CHECK'i + `UNIQUE
+(player_low_id, player_high_id)`. Karşılaştırma metin (uuid) sırasıdır ve
+JS'in `<` operatörü PostgreSQL'in `memcmp` bayt sırasıyla aynı sonucu
+verir (bkz. `domain/social/friendship.ts`). Bu desen, mevcut
+`PostgresMarketPurchaseRepository`/`updateTwoWithLock`'un sözlüksel-id
+kilit sırası geleneğiyle aynıdır.
+
+**Yarış koşulları SQL'de kapatılır** (uygulama ön-kontrolüne ek ikinci
+hat): istek `INSERT ... ON CONFLICT (player_low_id, player_high_id) DO
+UPDATE ... WHERE friendships.status = 'rejected'` ile yazılır — satır
+`pending`/`accepted` ise 0 satır döner ve `409
+FRIENDSHIP_ALREADY_EXISTS`. Yanıt `UPDATE ... WHERE status = 'pending'
+AND requested_by_id <> $2` ile yapılır — kendi isteğini yanıtlamak veya
+iki kez kabul etmek 0 satır döner ve `404 FRIENDSHIP_NOT_FOUND`.
+
+**Okuma yan etkisi:** `GET .../messages/{otherPlayerId}` bana gelen
+okunmamış mesajları OKUNDU işaretler (`read_at IS NULL` koşuluyla, yani
+ikinci okuma damgayı EZMEZ). `GET .../inbox` bunu YAPMAZ — listeyi
+görmek okumak sayılmaz. Arkadaşlıktan çıkıldığında GEÇMİŞ yazışma
+okunabilir kalır ama YENİ mesaj `403 NOT_FRIENDS` döner (mesaj geçmişi
+ayrı tablodadır, silinmez).
+
+**Gizlilik:** `SocialPlayerView` yalnızca `playerId`/`displayName`/
+`level` taşır — `money`/`gems` başka bir oyuncu için GİZLİDİR
+(AUDIT_REPORT.md Bulgu S4).
+
+**Yeni hata kodları:** `CANNOT_FRIEND_SELF` (400) ·
+`CANNOT_MESSAGE_SELF` (400) · `INVALID_FRIENDSHIP_ACTION` (400) ·
+`INVALID_MESSAGE_BODY` (400) · `NOT_FRIENDS` (403) ·
+`FRIENDSHIP_NOT_FOUND` (404) · `FRIENDSHIP_ALREADY_EXISTS` (409) ·
+`SOCIAL_LIMIT_REACHED` (409).
+
+`config/social.config.json` değerleri **doğrudan** okunur; `game-config`
+yükleyicisi saf bir cast olduğundan (çalışma zamanı doğrulaması YOK),
+`maxMessageLength`'in `direct_messages` CHECK kısıtıyla AYNI sayıyı
+söylediği **migrasyon dosyası okunarak** kanıtlanır
+(`social-config.spec.ts`) — sayıyı testte elle yazmak yalnızca config'i
+sabitlerdi, migrasyonu okumak ise "config ile veritabanı ayrıştı" hatasını
+CI'da yakalar.
+
+**Testler:** `social.e2e-spec.ts` (IDOR 403'ler; kanonik çiftin TEK satır
+ürettiği; reddet→yeniden istek aynı `requestId`'yi döner; kendi isteğini
+yanıtlama 404; çift kabul 404; arkadaş olmayana mesaj 403; okundu
+işaretlemenin damgayı ezmediği; gizlilik) ·
+`domain/social/friendship.spec.ts` · `domain/social/validation.spec.ts` ·
+`domain/social/social-config.spec.ts`.
+
 ### Ahır Yükseltme (FAZ 1 wiring, altıncı dilim; onuncu dilimde Idempotency-Key eklendi, bu oturum)
 
 ```http
@@ -1381,3 +1467,11 @@ dosyanın doc yorumu).
 | `RACE_TICKET_ALREADY_OWNED` | Bu yarış için zaten bir tribün bileti var (Tribün, 27.09.2026) |
 | `RACE_NOT_WATCHABLE` | Yarış tribünden izlenemez — kendi yarışın / henüz bitmemiş / izleme penceresi dolmuş (Tribün, 27.09.2026) |
 | `RACE_TICKET_REQUIRED` | Yarışın katılımcısı değilsin ve tribün biletin yok — `GET /races/:id/timeline` (Tribün, 27.09.2026; eskiden düz `FORBIDDEN` idi) |
+| `CANNOT_FRIEND_SELF` | Kendine arkadaşlık isteği gönderilemez (Arkadaşlık, 27.09.2026) |
+| `CANNOT_MESSAGE_SELF` | Kendine mesaj gönderilemez (Arkadaşlık, 27.09.2026) |
+| `INVALID_FRIENDSHIP_ACTION` | `action` alanı `accept`/`reject` dışında (Arkadaşlık, 27.09.2026) |
+| `INVALID_MESSAGE_BODY` | Mesaj gövdesi boş ya da `config/social.config.json → maxMessageLength` üstünde (Arkadaşlık, 27.09.2026) |
+| `NOT_FRIENDS` | Alıcıyla kabul edilmiş bir arkadaşlık yok — mesaj gönderilemez (Arkadaşlık, 27.09.2026) |
+| `FRIENDSHIP_NOT_FOUND` | Böyle bir arkadaşlık/istek yok, ya da bu oyuncuya ait değil (Arkadaşlık, 27.09.2026; üç durum TEK kodda toplanır — varlık sızdırmamak için) |
+| `FRIENDSHIP_ALREADY_EXISTS` | Bu çiftte zaten bekleyen veya kabul edilmiş bir arkadaşlık var (Arkadaşlık, 27.09.2026) |
+| `SOCIAL_LIMIT_REACHED` | Bekleyen arkadaşlık isteği tavanı aşıldı — `config/social.config.json → pendingRequestsLimit` (Arkadaşlık, 27.09.2026) |

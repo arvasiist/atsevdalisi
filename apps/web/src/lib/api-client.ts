@@ -2,6 +2,7 @@ import type {
   AuthSession,
   BuyFeedResult,
   CareActionType,
+  DirectMessageView,
   EquipmentType,
   FacilityType,
   FacilityUpgradeResult,
@@ -11,6 +12,7 @@ import type {
   FeedStatusView,
   FeedType,
   FinalStretchPlan,
+  FriendRequestView,
   HorseEquipment,
   HorseMarketValueView,
   JoinMatchmakingQueueResult,
@@ -25,7 +27,10 @@ import type {
   RaceTicketView,
   RaceTimelineView,
   RecentRaceResultView,
+  RemoveFriendResult,
+  RespondFriendRequestResult,
   RiskLevel,
+  SocialOverviewView,
   StableSummaryView,
   StableUpgradeResult,
   StartApproach,
@@ -452,4 +457,72 @@ export const apiClient = {
 
   /** "Biletlerim" — `GET /players/:id/tickets` (`assertSelf`: yalnızca kendi listem). */
   getMyTickets: (playerId: string) => request<RaceTicketView[]>(`/players/${playerId}/tickets`),
+
+  /**
+   * Arkadaşlık + mesajlaşma (proje sahibinin açık talebi, 27.09.2026).
+   *
+   * **Yedi uç noktanın TAMAMI `assertSelf` ile korunur** — yoldaki `:id`
+   * her zaman İŞLEMİ YAPAN oyuncudur, hedef değildir (hedef gövdede ya da
+   * ikinci yol parametresinde gelir). Bu yüzden aşağıdaki metodların
+   * hiçbiri "başkası adına" çağrılamaz; `playerId` daima
+   * `usePlayer()`'dan gelen KENDİ kimliğimizdir.
+   *
+   * **`Idempotency-Key` YOKTUR (bilinçli):** bu uç noktaların hiçbiri
+   * para/mülkiyet değiştirmez — interceptor'ın çözdüğü sorun burada
+   * yoktur. Spam savunması sunucudaki `@RateLimit`'tir (istek: 20/dk,
+   * mesaj: 30/dk).
+   */
+  getSocialOverview: (playerId: string) =>
+    request<SocialOverviewView>(`/players/${playerId}/social`, { method: 'GET' }),
+
+  /** Arkadaşlık isteği gönderir (`POST`, 201). Karşı taraf kabul edene kadar `pending`. */
+  sendFriendRequest: (playerId: string, addresseeId: string) =>
+    request<FriendRequestView>(`/players/${playerId}/friend-requests`, {
+      method: 'POST',
+      body: JSON.stringify({ addresseeId }),
+    }),
+
+  /**
+   * Gelen isteği yanıtlar. Yeni kaynak YARATMAZ (mevcut satırın durumunu
+   * değiştirir) — bu yüzden 200 döner.
+   *
+   * `action` bilerek `string` tipinde: sunucudaki doğrulama
+   * `domain/social/validation.ts`'tedir ve istemcide tip daraltmak,
+   * CLAUDE.md'nin uyardığı "DTO dekoratörüne güven" tuzağını büyütürdü.
+   */
+  respondFriendRequest: (playerId: string, requestId: string, action: 'accept' | 'reject') =>
+    request<RespondFriendRequestResult>(`/players/${playerId}/friend-requests/${requestId}/respond`, {
+      method: 'POST',
+      body: JSON.stringify({ action }),
+    }),
+
+  /**
+   * Arkadaşlıktan çıkar VEYA bekleyen isteği geri çeker (iki anlam,
+   * bilinçli — sunucudaki `RemoveFriendUseCase` ile AYNI).
+   *
+   * **Gövde döner (204 DEĞİL):** `request()` her yanıtta `response.json()`
+   * çağırır; gövdesiz bir 204 "Unexpected end of JSON input" ile patlardı
+   * (gerekçe `RemoveFriendResult` doc yorumunda).
+   */
+  removeFriend: (playerId: string, friendId: string) =>
+    request<RemoveFriendResult>(`/players/${playerId}/friends/${friendId}`, { method: 'DELETE' }),
+
+  /** Mesaj gönderir (`POST`, 201). Arkadaşlık kapısı sunucudadır (`NOT_FRIENDS`, 403). */
+  sendMessage: (playerId: string, recipientId: string, body: string) =>
+    request<DirectMessageView>(`/players/${playerId}/messages`, {
+      method: 'POST',
+      body: JSON.stringify({ recipientId, body }),
+    }),
+
+  /**
+   * İki oyuncu arasındaki yazışma (en yeniden eskiye). **Yan etkisi
+   * vardır:** sunucu, bana gelen okunmamış mesajları okundu işaretler
+   * (bkz. `GetConversationUseCase`). Gelen kutusu (`getInbox`) bunu
+   * YAPMAZ.
+   */
+  getConversation: (playerId: string, otherPlayerId: string) =>
+    request<DirectMessageView[]>(`/players/${playerId}/messages/${otherPlayerId}`, { method: 'GET' }),
+
+  /** Gelen kutusu — bana gelen son mesajlar (gönderen adıyla). Okundu işaretlemez. */
+  getInbox: (playerId: string) => request<DirectMessageView[]>(`/players/${playerId}/inbox`, { method: 'GET' }),
 };

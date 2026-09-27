@@ -121,6 +121,29 @@ export const ErrorCode = {
    * "Bilet Al" ekranına yönlendirebilsin diye AYRI bir kod gerekir.
    */
   RaceTicketRequired: 'RACE_TICKET_REQUIRED',
+  /**
+   * Arkadaşlık + mesajlaşma (proje sahibinin açık talebi, 27.09.2026) —
+   * aşağıdaki altı kod `domain/social/errors.ts`'in ürettikleridir.
+   */
+  /** Kendine arkadaşlık isteği gönderilemez (400). */
+  CannotFriendSelf: 'CANNOT_FRIEND_SELF',
+  /** Kendine mesaj gönderilemez (400). */
+  CannotMessageSelf: 'CANNOT_MESSAGE_SELF',
+  /** Bu oyuncuyla zaten bir arkadaşlık kaydı var — bekleyen ya da kabul edilmiş (409). */
+  FriendshipAlreadyExists: 'FRIENDSHIP_ALREADY_EXISTS',
+  /** İstenen arkadaşlık kaydı bulunamadı ya da bu oyuncuya ait değil (404). */
+  FriendshipNotFound: 'FRIENDSHIP_NOT_FOUND',
+  /** Mesaj göndermek için arkadaş olmak gerekir (403). */
+  NotFriends: 'NOT_FRIENDS',
+  /** Mesaj gövdesi boş, yalnızca boşluk ya da azami uzunluğu aşıyor (400). */
+  InvalidMessageBody: 'INVALID_MESSAGE_BODY',
+  /** Arkadaşlık isteği yanıtı `accept`/`reject` dışında bir değer (400). */
+  InvalidFriendshipAction: 'INVALID_FRIENDSHIP_ACTION',
+  /**
+   * Arkadaş listesi ya da bekleyen istek tavanı aşıldı (409) — spam
+   * savunması, bkz. `domain/social/errors.ts` `SocialLimitReachedError`.
+   */
+  SocialLimitReached: 'SOCIAL_LIMIT_REACHED',
 } as const;
 
 export type ErrorCodeValue = (typeof ErrorCode)[keyof typeof ErrorCode];

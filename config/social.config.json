@@ -1,0 +1,8 @@
+{
+  "maxMessageLength": 500,
+  "overviewFriendsLimit": 100,
+  "overviewRequestsLimit": 50,
+  "pendingRequestsLimit": 25,
+  "inboxLimit": 50,
+  "conversationLimit": 100
+}

@@ -20,7 +20,7 @@
  * KENDİ SATIRINI vurgulamak için kullanılır; oyuncu yokken de tablo dolar.
  */
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import type { LeaderboardRowView } from '@at-sevdalisi/shared-types';
 import { GlassPanel } from '../../components/ui/GlassPanel';
 import { apiClient } from '../../lib/api-client';
@@ -37,6 +37,44 @@ export default function LeaderboardPage(): React.ReactElement {
   const { player } = usePlayer();
   const [rows, setRows] = useState<LeaderboardRowView[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  /** Satır bazlı "istek gönderiliyor" durumu — tek bir satır TÜM tabloyu kilitlemez. */
+  const [pendingPlayerId, setPendingPlayerId] = useState<string | null>(null);
+  /** Bu oturumda istek gönderilen oyuncular (`Arkadaş Ekle` → `İstek Gönderildi`). */
+  const [requested, setRequested] = useState<readonly string[]>([]);
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  /**
+   * Arkadaşlık isteği gönderir (proje sahibinin talebi, 27.09.2026).
+   *
+   * **NEDEN BURADA:** sıralama tablosu, başka oyuncuların kimliğini
+   * (`playerId`) GÖREN tek mevcut yüzeydir — `LeaderboardRowView` hem
+   * `playerId` hem `displayName` taşır (bkz. `packages/shared-types/src/
+   * online.ts`). Ayrı bir "oyuncu ara" uç noktası İCAT EDİLMEDİ: öyle bir
+   * uç nokta, tüm görünen adları numaralandırmaya (enumeration) açık yeni
+   * bir yüzey olurdu. Mevcut `@Public()` sıralama tablosu zaten herkese
+   * açık olan veriyi kullanır.
+   *
+   * `Idempotency-Key` YOKTUR — bu uç nokta para/mülkiyet değiştirmez
+   * (bkz. `SocialController` doc yorumu). Spam savunması sunucudaki
+   * `@RateLimit`'tir (20 istek/dk) ve bekleyen istek tavanıdır
+   * (`SOCIAL_LIMIT_REACHED`).
+   */
+  const addFriend = useCallback(
+    async (targetId: string): Promise<void> => {
+      if (!player) return;
+      setPendingPlayerId(targetId);
+      setActionError(null);
+      try {
+        await apiClient.sendFriendRequest(player.id, targetId);
+        setRequested((prev) => (prev.includes(targetId) ? prev : [...prev, targetId]));
+      } catch (err: unknown) {
+        setActionError(err instanceof Error ? err.message : 'İstek gönderilemedi');
+      } finally {
+        setPendingPlayerId(null);
+      }
+    },
+    [player],
+  );
 
   useEffect(() => {
     // `player` bağımlılık DEĞİL: uç nokta herkese aynı küresel tabloyu
@@ -64,6 +102,7 @@ export default function LeaderboardPage(): React.ReactElement {
       </p>
 
       {error ? <p style={{ color: 'var(--color-status-critical)' }}>{error}</p> : null}
+      {actionError ? <p style={{ color: 'var(--color-status-critical)' }}>{actionError}</p> : null}
 
       {rows === null && !error ? <p style={{ color: 'var(--color-text-muted)' }}>Sıralama yükleniyor…</p> : null}
 
@@ -84,11 +123,20 @@ export default function LeaderboardPage(): React.ReactElement {
                 <th style={headerCellStyle(undefined, 'left')}>Sporcu</th>
                 <th style={headerCellStyle('96px', 'right')}>Puan</th>
                 <th style={headerCellStyle('96px', 'right')}>Yarış</th>
+                <th style={headerCellStyle('128px', 'right')}>Arkadaş</th>
               </tr>
             </thead>
             <tbody>
               {rows.map((row) => (
-                <LeaderboardRow key={row.playerId} row={row} isCurrentPlayer={player?.id === row.playerId} />
+                <LeaderboardRow
+                  key={row.playerId}
+                  row={row}
+                  isCurrentPlayer={player?.id === row.playerId}
+                  canAddFriend={player !== null && player.id !== row.playerId}
+                  isRequested={requested.includes(row.playerId)}
+                  isPending={pendingPlayerId === row.playerId}
+                  onAddFriend={addFriend}
+                />
               ))}
             </tbody>
           </table>
@@ -108,7 +156,21 @@ export default function LeaderboardPage(): React.ReactElement {
  * Tek satır. `isCurrentPlayer` YALNIZCA görsel vurgudur — sunucudan gelen
  * hiçbir sayıyı değiştirmez, sıralamayı yeniden hesaplamaz.
  */
-function LeaderboardRow({ row, isCurrentPlayer }: { row: LeaderboardRowView; isCurrentPlayer: boolean }): React.ReactElement {
+function LeaderboardRow({
+  row,
+  isCurrentPlayer,
+  canAddFriend,
+  isRequested,
+  isPending,
+  onAddFriend,
+}: {
+  row: LeaderboardRowView;
+  isCurrentPlayer: boolean;
+  canAddFriend: boolean;
+  isRequested: boolean;
+  isPending: boolean;
+  onAddFriend: (playerId: string) => void;
+}): React.ReactElement {
   return (
     <tr
       style={{
@@ -131,8 +193,40 @@ function LeaderboardRow({ row, isCurrentPlayer }: { row: LeaderboardRowView; isC
       <td style={{ ...bodyCellStyle('96px', 'right'), color: 'var(--color-text-secondary)' }}>
         {row.raceCount.toLocaleString('tr-TR')}
       </td>
+      <td style={bodyCellStyle('128px', 'right')}>
+        {canAddFriend ? (
+          <button
+            type="button"
+            onClick={() => onAddFriend(row.playerId)}
+            disabled={isPending || isRequested}
+            style={addFriendButtonStyle(isPending || isRequested)}
+          >
+            {isRequested ? 'İstek Gönderildi' : isPending ? 'Gönderiliyor…' : 'Arkadaş Ekle'}
+          </button>
+        ) : null}
+      </td>
     </tr>
   );
+}
+
+/**
+ * "Arkadaş Ekle" düğmesi — tribündeki `Bilet Al` ile AYNI desen: istek
+ * sürerken ve gönderildikten sonra devre dışı kalır (çift tıklama
+ * `FRIENDSHIP_ALREADY_EXISTS` 409'u üretmesin).
+ */
+function addFriendButtonStyle(disabled: boolean): React.CSSProperties {
+  return {
+    padding: '6px 12px',
+    background: 'transparent',
+    color: 'var(--color-accent-gold)',
+    border: '1px solid var(--color-accent-gold)',
+    borderRadius: 'var(--radius-md)',
+    fontSize: '12px',
+    fontWeight: 600,
+    opacity: disabled ? 0.55 : 1,
+    cursor: disabled ? 'not-allowed' : 'pointer',
+    whiteSpace: 'nowrap',
+  };
 }
 
 /** Kendi satırı vurgulanırken sporcu adı kalınlaşır (bkz. `LeaderboardRow`). */

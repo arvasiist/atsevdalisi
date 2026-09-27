@@ -14,6 +14,7 @@ import { PlayerModule } from './api/player/player.module';
 import { RateLimitModule } from './api/rate-limit/rate-limit.module';
 import { RaceModule } from './api/race/race.module';
 import { RealtimeModule } from './api/realtime/realtime.module';
+import { SocialModule } from './api/social/social.module';
 import { StableModule } from './api/stable/stable.module';
 import { TrainingModule } from './api/training/training.module';
 import { AppConfigModule } from './infrastructure/config/config.module';
@@ -109,6 +110,12 @@ import { RedisModule } from './infrastructure/redis/redis.module';
     // alır ve Nest modül grafiğini sıraya bakmadan çözer) ama okunabilirlik
     // için ilişkili olduğu `RaceModule`'ün hemen yanına konuldu.
     GrandstandModule,
+    // ARKADAŞLIK + MESAJLAŞMA (proje sahibinin açık talebi, 27.09.2026 —
+    // "arkadaşlık + mesajlaşma") — bkz. `api/social/social.module.ts` doc
+    // yorumu. `GrandstandModule`'e komşu durmasının tek gerekçesi
+    // okunabilirliktir: ikisi de aynı turda eklenen, birbirinden BAĞIMSIZ
+    // dilimlerdir (Nest modül grafiğini sıraya bakmadan çözer).
+    SocialModule,
     MarketModule,
     MatchmakingModule,
     RateLimitModule,
