@@ -87,18 +87,28 @@ describe('Care (e2e)', () => {
   it('/api/v1/horses/:id/feed (POST) — cooldown olmadan art arda çağrılabilir', async () => {
     const { horseId, authHeader } = await registerTestPlayerWithStarterHorse(app, 'Seyis');
 
+    // DÜZELTME (27.09.2026 — CI): yem dilimi soyut besin türlerini
+    // (`standard`/`performance`) SOMUT kalemlerle değiştirdi (bkz.
+    // `domain/care/validation.ts` `FEED_TYPES`). Bu test eski değerleri
+    // göndermeye devam ettiği için `parseFeedType` reddediyor ve uç nokta
+    // 400 dönüyordu — hata yalnızca CI'da göründü, çünkü öncesinde tüm e2e
+    // paketi DI arızasıyla bootstrap bile olamıyordu.
+    //
+    // `saman` seçildi çünkü stoklanmayan TEK kalemdir (`stocked: false` →
+    // envanter/bakiye gerektirmez) ve günlük sınırı 3'tür
+    // (`config/care.config.json`), yani iki ardışık çağrı sınırı aşmaz.
     const first = await request(app.getHttpServer())
       .post(`/api/v1/horses/${horseId}/feed`)
       .set('Authorization', authHeader)
-      .send({ feedType: 'standard' });
+      .send({ feedType: 'saman' });
     expect(first.status).toBe(200);
-    expect(first.body.data.feedType).toBe('standard');
+    expect(first.body.data.feedType).toBe('saman');
     expect(first.body.data.newVitals.energy).toBeGreaterThan(100 > first.body.data.newVitals.energy ? 0 : -1);
 
     const second = await request(app.getHttpServer())
       .post(`/api/v1/horses/${horseId}/feed`)
       .set('Authorization', authHeader)
-      .send({ feedType: 'performance' });
+      .send({ feedType: 'saman' });
     expect(second.status).toBe(200);
   });
 
@@ -130,7 +140,10 @@ describe('Care (e2e)', () => {
     const response = await request(app.getHttpServer())
       .post(`/api/v1/horses/${owner.horseId}/feed`)
       .set('Authorization', attacker.authHeader)
-      .send({ feedType: 'standard' });
+      // Geçerli bir kalem (`FEED_TYPES`): bu testte ölçülen şey 403'tür —
+      // sahiplik guard'ı DTO doğrulamasından ÖNCE çalışır, ama gövdenin
+      // geçerli olması testin niyetini (yetki reddi) bulanıklaştırmaz.
+      .send({ feedType: 'saman' });
 
     expect(response.status).toBe(403);
     expect(response.body.error.code).toBe('FORBIDDEN');

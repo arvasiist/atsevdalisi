@@ -654,16 +654,36 @@ cooldown takibi için bir satır yazar/günceller (migration 0015).
 }
 ```
 
-`POST /horses/{id}/feed` — örnek istek (`feedType`: `standard`|`energy`|
-`protein`|`recovery`|`performance` — brief §12: "daha pahalı yem = daha
-iyi" garantisi YOKTUR, örn. `performance` enerjiyi çok artırır ama
-`weightCondition`'ı düşürür):
+`POST /horses/{id}/feed` — örnek istek (`feedType`: `saman`|`arpa`|`mama`|
+`havuc`|`vitamin`):
 
 ```json
-{ "feedType": "performance" }
+{ "feedType": "saman" }
 ```
 
-Yanıt şekli `care` ile aynıdır (`feedType` alanı `actionType` yerine).
+> **DEĞİŞTİ (27.09.2026 — yem dilimi).** `feedType` artık SOYUT besin
+> türleri (`standard`/`energy`/`protein`/`recovery`/`performance`) DEĞİL,
+> somut yem KALEMLERİDİR. Tek doğruluk kaynağı
+> `apps/api/src/domain/care/validation.ts` → `FEED_TYPES`'tır; ayrıntı
+> `config/care.config.json` → `feedTypes`.
+>
+> - `saman` — **BEDAVA**, stoklanmaz (`stocked: false`), at başına günde
+>   3 kez (`dailyLimit: 3`).
+> - `arpa` / `mama` / `havuc` / `vitamin` — **Elmasla** satın alınır
+>   (`POST /players/{id}/feed-inventory/{type}/buy`; envanteri okumak için
+>   `GET /players/{id}/feed-inventory`, atın bugünkü hakkı/durumu için
+>   `GET /horses/{id}/feed-status`). Stoktan düşer; stok yoksa besleme
+>   reddedilir (`409 INSUFFICIENT_FEED_STOCK`), günlük sınır dolduysa
+>   `409 DAILY_FEED_LIMIT_REACHED`.
+>
+> brief §12'nin "daha pahalı yem = daha iyi garantisi YOKTUR" kuralı
+> korunur: kalemler farklı vital alanlarına farklı ağırlıkta etki eder
+> (`weightConditionDelta`/`recoveryRateDelta` dahil), düz bir güç sırası
+> değildir.
+
+Yanıt şekli `care` ile aynıdır (`feedType` alanı `actionType` yerine) ve
+`remainingToday` (bugün kalan hak) ile `stockAfter` (stoklanan kalemde
+kalan adet, `saman` için `null`) alanlarını ekler.
 
 Tasarım kararları (bkz. `application/use-cases/perform-care-action.use-case.ts`
 ve `feed-horse.use-case.ts` üstündeki KAPSAM notları):
