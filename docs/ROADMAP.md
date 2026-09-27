@@ -2093,6 +2093,66 @@ doğrulanacaktır.
 
 ---
 
+## CI kırmızı — kök neden: eksik provider kaydı (27.09.2026)
+
+Proje sahibi GitHub Actions ekran görüntüsünü paylaşıp "Bu ne böyle neler
+yapıyorsun" diye sordu: **üst üste 4 CI çalıştırması kırmızıydı** (#173
+`39f4c7b` "Yem sistemi", #174 `3cab5df`, #175 `3706f10`, #176 `342d4eb`).
+Dikkat: kırılma **#173'te, yani bu oturumun kendi commit'lerinden ÖNCE**
+başlamıştı — sonraki üç commit kırık durumu devraldı (bu yüzden docs-only
+`3706f10` bile kırmızıydı; bu tek başına "sebep commit'in içeriği değil"
+kanıtıydı).
+
+**Adım adım kök neden.** `gh` bu ortamda YOK ve job log uç noktası kimlik
+doğrulaması istiyor (403). Ama GitHub'ın **annotations** uç noktası public
+repoda açıktı ve orada belirti vardı: **10 e2e dosyasının hepsi** `afterAll`
+içinde `TypeError: Cannot read properties of undefined (reading 'close')`
+veriyordu. Bu, hatanın bir "teardown" sorunu gibi görünmesine yol açan
+yanıltıcı bir imzaydı; gerçek nedeni `beforeAll`'daki DI çözümlemesiydi
+(`app` hiç oluşmadığı için `afterAll` ikincil bir hataya düşüyordu).
+
+**Yerelde yeniden üretildi** (altyapı gerekmedi — hata `init()`'ten ÖNCE,
+DI grafiği kurulurken oluşuyor):
+
+```
+Nest can't resolve dependencies of the FeedHorseUseCase
+  (Symbol(HORSE_REPOSITORY), Symbol(HORSE_HEALTH_REPOSITORY), ?, AppConfigService).
+  Symbol(FEED_INVENTORY_REPOSITORY) at index [2] is not available
+  in the CareModule context.
+```
+
+Sonra sırayla ikincisi çıktı: `ClaimDailyRewardUseCase` → `EconomyModule`.
+İkisi de AYNI hata sınıfı: "Yem sistemi" dilimi bu iki use-case'e
+`FEED_INVENTORY_REPOSITORY` bağımlılığını ekledi, ama provider kayıtları
+eski modüllerde kaldı.
+
+**Düzeltme.** `CareModule` ve `EconomyModule` artık `FEED_INVENTORY_REPOSITORY`
+token'ını kendileri sağlıyor (`{ provide, useClass: PostgresFeedInventoryRepository }`).
+`CareModule`'ü `FeedModule`'e bağımlamak yerine bunun seçilme nedeni:
+`FeedModule` kendi controller'ını taşır, import etmek care→feed yönünde
+gereksiz bir modül bağımlılığı doğururdu. Repository durumsuzdur (yalnızca
+`PG_POOL`), yani aynı sınıfın birden çok modülde sağlanması zararsızdır —
+`FeedModule`'ün `HORSE_HEALTH_REPOSITORY` için zaten yazdığı gerekçenin
+aynısı. `EconomyModule`'ün artık kullanılmayan `PlayerModule` import'u da
+kaldırıldı (günlük ödülün cüzdan mutasyonu `grantWithLock`'a taşınmıştı).
+
+**Tekrarlamasını engelleyen test: `apps/api/test/api/module-graph.spec.ts`.**
+`AppModule`'ün DI grafiğini yalnızca `.compile()` ile kurar (`.init()` YOK →
+Postgres/Redis'e bağlanmaz), sonra arızanın gerçekleştiği iki use-case'i
+`moduleRef.get(..., { strict: false })` ile çözer. Yani **yerelde koşan**,
+altyapı gerektirmeyen, ama tam olarak e2e'yi düşüren hatayı yakalayan bir
+testtir. Kapsam sınırı dürüstçe yazıldı: çalışma zamanı davranışını, SQL'i
+veya iş mantığını doğrulamaz.
+
+**Yerel doğrulama:** kök `typecheck` 0 hata · `lint` 0 hata (yeni/değişen
+dosyalar) · `test/domain`+`database`+`module-graph` **556 test ✔** (47 dosya)
+· `test/api` dizini yeniden koşulduğunda "Nest can't resolve" satırı
+KALMADI (kalan başarısızlıklar Postgres yokluğundan kaynaklanan
+`ECONNREFUSED`/500'dür — regresyon değil). **e2e'nin gerçekten yeşile
+döndüğünün kanıtı yine CI'dır.**
+
+---
+
 ## AUDIT_AND_HARDENING — Kritik Risk Sertleştirme (bu oturum)
 
 Proje sahibinin talebiyle, 14. dilimin CI doğrulaması beklenirken AYRI

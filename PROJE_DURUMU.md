@@ -277,13 +277,17 @@ Lib: `api-client.ts`, `player-context.tsx`. Bileşenler: `layout/TopBar.tsx`,
 - **Vitest** (Jest değil). ⚠️ `globals: false` — her spec `describe`/`it`/`expect`'i
   **açıkça import eder**. `vitest.config.ts`'te `esbuild.jsx: 'automatic'`
   (web tsconfig'i `jsx: "preserve"` kullandığı için zorunlu).
-- **85 spec dosyası** (27.09.2026): `apps/api/test/` 63 (17 e2e + 44 domain +
-  2 database), `apps/web/test/` 20, `packages/` 2. (Sayım `*.spec.ts` +
-  `*.spec.tsx` + `*.e2e-spec.ts` desenlerinin üçünü birlikte kapsar; yalnızca
-  `*.spec.ts` sayılırsa e2e'ler kaçar ve toplam yanlış çıkar.) Yerelde
-  doğrulanan sayılar:
-  `test/domain`+`features`+`lib`+`database` 555 ✔, web 329 ✔ (e2e yerelde
+- **86 spec dosyası** (27.09.2026): `apps/api/test/` 64 (17 e2e + 1 DI grafiği +
+  44 domain + 2 database), `apps/web/test/` 20, `packages/` 2. (Sayım
+  `*.spec.ts` + `*.spec.tsx` + `*.e2e-spec.ts` desenlerinin üçünü birlikte
+  kapsar; yalnızca `*.spec.ts` sayılırsa e2e'ler kaçar ve toplam yanlış
+  çıkar.) Yerelde doğrulanan sayılar:
+  `test/domain`+`database`+`module-graph` **556** ✔, web 329 ✔ (e2e yerelde
   koşamaz — Postgres yok, §8).
+- ⚠️ **`test/api/module-graph.spec.ts`** — altyapı GEREKTİRMEYEN tek API
+  testidir: `AppModule`'ün DI grafiğini yalnızca `.compile()` ile kurar
+  (`.init()` yok → Postgres/Redis'e bağlanmaz). 27.09.2026'da CI'ı düşüren
+  "eksik provider kaydı" arızasının sınıfını yerelde yakalayan testtir.
 - e2e: `supertest` (HTTP seviyesi) + `socket.io-client` (`realtime.e2e-spec.ts`).
   `test-helpers.ts`: `bootstrapTestApp()`, `sendWithRetry()` (ECONNRESET/EPIPE
   yeniden deneme), `sendConcurrentRequests()`, `registerTestPlayerWithStarterHorse()`.
