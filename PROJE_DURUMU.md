@@ -406,18 +406,57 @@ doğrulama ancak GitHub Actions'ta gerçek Postgres/Redis ile yapılabiliyor.
 | **PWA nominal** | `public/manifest.json` → `icons: []`, `layout.tsx`'ten link'lenmiyor, `next-pwa` yok |
 | **`notification.new`** | WebSocket olayı planlandı, uygulanmadı |
 
-### 10.2 Yapılandırma tutarsızlıkları (küçük ama gerçek)
+### 10.2 Yapılandırma tutarsızlıkları
 
-- `apps/web/.env.example`: `NEXT_PUBLIC_API_BASE_URL` + `NEXT_PUBLIC_WS_URL` yazar.
-  Ama `api-client.ts` **`NEXT_PUBLIC_API_URL`** okur; `NEXT_PUBLIC_WS_URL` **hiçbir
-  yerde okunmaz** (socket origin'i `live-race-url.ts`'te regex ile türetilir).
-- `api-client.ts` varsayılanı `http://localhost:3000/api/v1` — gerçek API portu
-  **4000**. Varsayılana düşülürse yanlış adrese gider.
-- `database/seeds/001_dev_seed.sql` **geçersiz UUID literalleri** kullanır
-  (`...0000t1`, `...000h01` — `t`/`h`/`j` hex değil) → Postgres seed insert'leri
-  reddeder. **Bu düzeltilmemiş bir hatadır.**
-- `src/application/use-cases/README.md` **bayat**: var olmayan use-case adlarından
-  (`BuyHorseUseCase`, `EnterRaceUseCase`, `SimulateRaceUseCase`) söz eder.
+**ÜÇÜ DE 27.09.2026'DA DÜZELTİLDİ** (aşağıda ne olduğu yazılı — tekrar
+"açık uç" sanıp yeniden kovalanmasın):
+
+- ~~`apps/web/.env.example`: `NEXT_PUBLIC_API_BASE_URL` + `NEXT_PUBLIC_WS_URL` yazar.~~
+  **DÜZELTİLDİ.** Üç ayrı ad vardı ve canlı kodun okuduğu ad bunlardan
+  HİÇBİRİ değildi: `api-client.ts` `NEXT_PUBLIC_API_URL` okur, `.env.example`
+  ise `NEXT_PUBLIC_API_BASE_URL` bildiriyordu → dosyayı kopyalayan biri
+  okunmayan bir değişken tanımlıyordu. Artık `.env.example` doğru adı yazıyor;
+  hiç okunmayan `NEXT_PUBLIC_WS_URL` kaldırıldı (soket adresi ayrı bir
+  değişken değil, API adresinden `deriveSocketOrigin` ile türetilir).
+- ~~`api-client.ts` varsayılanı `http://localhost:3000/api/v1` — gerçek API portu 4000.~~
+  **DÜZELTİLDİ.** Bu, yukarıdakiyle BİRLEŞİNCE uygulamayı fiilen kırıyordu:
+  değişken hiç tanımlı olmadığı için her çağrı bu yedeğe düşüyor, o da
+  Next.js'in KENDİ portuna (3000) gidiyordu. Varsayılan artık 4000.
+  (`live-race-url.ts`/`live-race-socket.ts` yorumlarındaki `:3000` örnekleri de
+  aynı yanlış izlenimi sürdürdüğü için 4000'e çekildi.)
+
+  **Bu hatanın neden bu kadar uzun yaşadığı — asıl ders burada:**
+  `apps/web/test/lib/api-client.spec.ts` taban adresi modülden IMPORT etmek
+  yerine kendi içinde KOPYALIYORDU (`const API_BASE_URL = '...:3000/api/v1'`).
+  Sonuç: 25 testin 15'i YANLIŞ portu "beklenen davranış" olarak doğruluyordu.
+  Yani hata testlerin içine gömülmüştü ve yeşil bir test paketi onu gizliyordu.
+  Port düzeltilince o 15 test kırmızıya döndü (bu, hatanın gerçek olduğunun
+  KANITI oldu). Test artık modülün export ettiği `API_BASE_URL`'i kullanıyor +
+  portun KENDİSİNİ ayrıca sabitleyen bir iddia eklendi (çünkü port yanlış olsa
+  bile diğer testler yine geçerdi — yanlış bir değer kendi kendini doğrular).
+  **Genel kural:** bir test, üretim değerinin KOPYASINI tutuyorsa, o test
+  değeri değil kopyayı korur.
+- ~~`database/seeds/001_dev_seed.sql` geçersiz UUID literalleri kullanır.~~
+  **DÜZELTİLDİ.** `...0000t1`, `...000h01`, `...000j01` — `t`/`h`/`j` hex
+  değil. `tools/seed.ts` bu dosyayı doğrudan çalıştırdığı için `npm run seed`
+  **her zaman** patlıyordu; CI seed çalıştırmadığı için hata hiç görünmüyordu.
+  Kimlikler geçerli hex'e çevrildi (a1 / b01-b05 / c01-c02). Aynı hata sınıfı
+  sessizce geri gelmesin diye `apps/api/test/database/sql-literals.spec.ts`
+  artık `seeds/` **ve** `migrations/` altındaki her UUID şekilli literali
+  CI'da denetliyor (boş küme üzerinde sessizce geçmemesi için ayrıca
+  "en az bir .sql dosyası bulunmalı" iddiası var).
+- `PlayerDemoWidget.tsx` hâlâ ÜÇÜNCÜ bir ad okuyor
+  (`NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:4000/api/v1'`). **Bilerek
+  dokunulmadı:** o dosya zaten hiçbir yere bağlı değil ve §13'e göre
+  gereksiz sayılıyor; adını düzeltmek, kullanılmayan bir dosyayı
+  "kullanılıyormuş gibi tutarlı" göstermekten başka bir şey yapmazdı.
+- ~~`src/application/use-cases/README.md` **bayat**~~ **DÜZELTİLDİ.** Dosya
+  "bu klasör FAZ 1'den itibaren doldurulacaktır" diyordu (oysa içinde 28
+  gerçek use-case vardı) ve listelediği 9 addan **6'sı bu depoda hiç var
+  olmamıştı**. Artık dosya sisteminden üretilmiş gerçek liste + "brief adı →
+  gerçek ad" çeviri tablosu + henüz yazılmamış olanların dürüst listesi var.
+
+**§10.2'nin tamamı kapatıldı (27.09.2026).** Bu bölümde açık madde kalmadı.
 
 ---
 

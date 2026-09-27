@@ -31,8 +31,16 @@ import type {
  * ihtiyacı var (REST `/api/v1` önekinden ARINDIRILMIŞ hali için bkz. o
  * dosyadaki `deriveSocketOrigin`). Daha önce bu modül-içi bir sabitti,
  * yalnızca bu dosyanın kendi `request()` fonksiyonu tarafından kullanılıyordu.
+ *
+ * DÜZELTME (27.09.2026) — varsayılan port 3000'den 4000'e çekildi. API
+ * `PORT ?? 4000` portunda dinler (bkz. `apps/api/src/main.ts`); 3000 ise
+ * Next.js'in KENDİ portudur. Yani değişken tanımlı değilken bu sabit
+ * uygulamayı Next.js sunucusuna işaret ediyordu ve TÜM API çağrıları
+ * başarısız oluyordu. Değişken adı (`NEXT_PUBLIC_API_URL`) DOĞRUYDU —
+ * yanlış olan yalnızca bu yedek değerdi; `apps/web/.env.example`'ın
+ * bildirdiği ad ise yanlıştı ve o da aynı turda düzeltildi.
  */
-export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api/v1';
+export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1';
 
 interface ApiResponse<T> {
   success: boolean;

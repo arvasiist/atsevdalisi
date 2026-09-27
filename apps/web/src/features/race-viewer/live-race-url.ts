@@ -10,7 +10,7 @@
  */
 
 /**
- * `NEXT_PUBLIC_API_URL` (ör. `http://localhost:3000/api/v1`) REST için
+ * `NEXT_PUBLIC_API_URL` (ör. `http://localhost:4000/api/v1`) REST için
  * bir `/api/v1` önekine sahiptir, ama `race.gateway.ts`
  * (`@WebSocketGateway({ namespace: '/races' })`) kök origin'de dinleyen,
  * HTTP REST önekinden TAMAMEN bağımsız bir NestJS/socket.io kavramıdır —

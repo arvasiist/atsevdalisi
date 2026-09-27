@@ -9,7 +9,7 @@ import type {
   TrainingIntensity,
   TrainingType,
 } from '@at-sevdalisi/shared-types';
-import { apiClient, setAuthToken } from '../../src/lib/api-client';
+import { apiClient, API_BASE_URL, setAuthToken } from '../../src/lib/api-client';
 
 /**
  * AUDIT_REPORT.md T2 — `apps/web`'in tek gerçek kontrat testi. Bu oturumun
@@ -32,7 +32,24 @@ import { apiClient, setAuthToken } from '../../src/lib/api-client';
  * hızlı seçimdir.
  */
 
-const API_BASE_URL = 'http://localhost:3000/api/v1';
+/**
+ * DÜZELTME (27.09.2026) — burada ÖNCEDEN yerel bir sabit vardı:
+ * `const API_BASE_URL = 'http://localhost:3000/api/v1'`. Yani test, modülün
+ * GERÇEK taban adresini import etmek yerine onun bir KOPYASINI tutuyordu —
+ * ve o kopya YANLIŞ portu (3000; API ise 4000'de dinler) doğru kabul
+ * ediyordu. Sonuç: 25 testin 15'i hatayı "beklenen davranış" olarak
+ * doğruluyordu ve gerçek hata yıllarca görünmez kaldı (test yeşildi).
+ *
+ * Artık modülün KENDİ export ettiği `API_BASE_URL` kullanılıyor, kopya
+ * YOK. Böylece test ile kaynak BİR DAHA ayrışamaz: taban adres değişirse
+ * bu dosya kendiliğinden onu izler, sessizce eski değeri savunmaya devam
+ * etmez. (Bu, "testi kaynağa bağla, kopyasını tutma" düzeltmesidir;
+ * asıl hata `src/lib/api-client.ts`'teydi ve orada düzeltildi.)
+ */
+// (Burada ÖNCEDEN `const API_BASE_URL = 'http://localhost:3000/api/v1'` vardı
+//  — kaldırıldı; gerekçesi yukarıdaki DÜZELTME notunda. Taban adresin
+//  kendisine dair iddia, dosyanın SONUNDAKİ `describe('API taban adresi')`
+//  bloğundadır.)
 
 function jsonResponse(body: unknown, init: { ok?: boolean; status?: number } = {}): Response {
   return {
@@ -327,5 +344,20 @@ describe('apiClient.runPracticeRace', () => {
 
     const [, config] = requestArgs(fetchMock);
     expect(JSON.parse(config.body as string)).toEqual({});
+  });
+});
+
+describe('API taban adresi', () => {
+  it('varsayılan port, API sunucusunun dinlediği portla aynı olmalı (4000)', () => {
+    // Bu iddia, yukarıda anlatılan hatanın SINIFINI hedefler. Kritik nokta
+    // şu: port yanlış olsa bile DİĞER tüm testler yine geçer, çünkü hepsi
+    // aynı `API_BASE_URL` sabitine göre yazılmıştır — yani yanlış bir port
+    // kendi kendini doğrular. Bu yüzden portun KENDİSİ ayrıca sabitlenir.
+    // Ortam değişkeni tanımlıysa atlanır: o durumda adres bilerek
+    // dışarıdan verilmiştir ve varsayılanla ilgili bir iddia anlamsız olur.
+    if (process.env.NEXT_PUBLIC_API_URL) {
+      return;
+    }
+    expect(API_BASE_URL).toBe('http://localhost:4000/api/v1');
   });
 });

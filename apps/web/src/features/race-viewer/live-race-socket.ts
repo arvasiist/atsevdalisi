@@ -72,7 +72,7 @@ export interface LiveRaceSocketHandlers {
 }
 
 /**
- * `apiBaseUrl` — `NEXT_PUBLIC_API_URL` (ör. `http://localhost:3000/api/v1`,
+ * `apiBaseUrl` — `NEXT_PUBLIC_API_URL` (ör. `http://localhost:4000/api/v1`,
  * bkz. `api-client.ts`'in EXPORT edilen `API_BASE_URL`'i). `race.subscribe`,
  * `race.gateway.ts`'in `handleConnection`'ı `client.data.playerId`'yi
  * DOLDURDUKTAN SONRA (yani `'connect'` olayında) gönderilir — bağlantı
