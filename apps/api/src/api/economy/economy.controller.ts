@@ -1,6 +1,7 @@
-import { Controller, HttpCode, HttpStatus, Inject, Param, ParseUUIDPipe, Post } from '@nestjs/common';
-import type { ApiSuccess, ClaimDailyRewardResult } from '@at-sevdalisi/shared-types';
+import { Controller, Get, HttpCode, HttpStatus, Inject, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
+import type { ApiSuccess, ClaimDailyRewardResult, WalletView } from '@at-sevdalisi/shared-types';
 import { ClaimDailyRewardUseCase } from '../../application/use-cases/claim-daily-reward.use-case';
+import { GetWalletUseCase } from '../../application/use-cases/get-wallet.use-case';
 import { assertSelf } from '../auth/assert-self';
 import { CurrentPlayer, type AuthenticatedPlayer } from '../auth/current-player.decorator';
 import { RateLimit } from '../rate-limit/rate-limit.decorator';
@@ -13,7 +14,37 @@ import { RateLimit } from '../rate-limit/rate-limit.decorator';
  */
 @Controller('players')
 export class EconomyController {
-  constructor(@Inject(ClaimDailyRewardUseCase) private readonly claimDailyRewardUseCase: ClaimDailyRewardUseCase) {}
+  constructor(
+    @Inject(ClaimDailyRewardUseCase) private readonly claimDailyRewardUseCase: ClaimDailyRewardUseCase,
+    @Inject(GetWalletUseCase) private readonly getWalletUseCase: GetWalletUseCase,
+  ) {}
+
+  /**
+   * Cüzdan + işlem geçmişi — brief §20 "WALLET SYSTEM", §42 PHASE 4.
+   *
+   * `@Get(':id/wallet')` `PlayerController`'ın `@Get(':id')`'siyle
+   * ÇAKIŞMAZ: tam yollar farklıdır (`/players/:id` ile
+   * `/players/:id/wallet`) — `StableController`'ın aynı prefix'i paylaşma
+   * gerekçesinin AYNISI.
+   *
+   * `@RateLimit` `keyBy: 'player'` — bu uç nokta kişiye özeldir
+   * (`assertSelf` başkasınınkini reddeder), yani limit oyuncu başına
+   * sayılmalıdır; IP başına saymak aynı NAT arkasındaki oyuncuları
+   * birbirine bağlardı. Limit `daily-reward`'dan (5/60 sn) YÜKSEKTİR çünkü
+   * bu bir OKUMA ucudur ve cüzdan ekranı açılışta birkaç kez çağırabilir.
+   */
+  @RateLimit({ name: 'wallet-read', limit: 60, windowSeconds: 60, keyBy: 'player' })
+  @Get(':id/wallet')
+  @HttpCode(HttpStatus.OK)
+  async getWallet(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Query('limit') limit: string | undefined,
+    @CurrentPlayer() currentPlayer: AuthenticatedPlayer,
+  ): Promise<ApiSuccess<WalletView>> {
+    assertSelf(currentPlayer.id, id);
+    const wallet = await this.getWalletUseCase.execute(id, limit);
+    return { success: true, data: wallet };
+  }
 
   // Yeni bir KAYNAK yaratmaz — `TrainingController.train`/`CareController.care`/
   // `StableController.upgradeStable` ile AYNI gerekçeyle 200 OK döner

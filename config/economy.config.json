@@ -16,6 +16,8 @@
   ],
   "dailyRewardMoney": 500,
   "dailyRewardCooldownHours": 24,
+  "walletHistoryDefaultLimit": 20,
+  "walletHistoryMaxLimit": 100,
   "raceRake": 0.1,
   "raceTiers": [
     {

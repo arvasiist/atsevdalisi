@@ -1,7 +1,10 @@
 import { Module } from '@nestjs/common';
 import { FEED_INVENTORY_REPOSITORY } from '../../application/ports/feed-inventory.repository';
+import { WALLET_REPOSITORY } from '../../application/ports/wallet.repository';
 import { ClaimDailyRewardUseCase } from '../../application/use-cases/claim-daily-reward.use-case';
+import { GetWalletUseCase } from '../../application/use-cases/get-wallet.use-case';
 import { PostgresFeedInventoryRepository } from '../../infrastructure/feed/postgres-feed-inventory.repository';
+import { PostgresWalletRepository } from '../../infrastructure/wallet/postgres-wallet.repository';
 import { EconomyController } from './economy.controller';
 
 /**
@@ -38,6 +41,11 @@ import { EconomyController } from './economy.controller';
   providers: [
     ClaimDailyRewardUseCase,
     { provide: FEED_INVENTORY_REPOSITORY, useClass: PostgresFeedInventoryRepository },
+    // brief §20 "WALLET SYSTEM", §42 PHASE 4 — cüzdan + işlem geçmişi
+    // OKUMA yolu. `PostgresWalletRepository` de durumsuzdur (yalnızca
+    // `PG_POOL` tutar), yukarıdaki AYNI gerekçe.
+    GetWalletUseCase,
+    { provide: WALLET_REPOSITORY, useClass: PostgresWalletRepository },
   ],
 })
 export class EconomyModule {}

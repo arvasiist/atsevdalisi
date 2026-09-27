@@ -258,6 +258,17 @@ export interface EconomyConfig {
    * DEĞİL — bkz. o dosyadaki doc yorumu).
    */
   dailyRewardCooldownHours: number;
+  /**
+   * brief §20 "WALLET SYSTEM", §42 PHASE 4 — cüzdan ekranının işlem
+   * geçmişi sayfası. `?limit` verilmediğinde kaç satır döner.
+   *
+   * `race-lobby.config.json`'daki `lobbyListDefaultLimit`/
+   * `lobbyListMaxLimit` ile AYNI desen ve AYNI gerekçe: `LIMIT $n` doğrudan
+   * SQL'e gittiği için tavan bir güvenlik sınırıdır, tercih değil.
+   */
+  walletHistoryDefaultLimit: number;
+  /** `?limit` bu değerin üzerindeyse kırpılır (sessizce — istek 400 ALMAZ). */
+  walletHistoryMaxLimit: number;
 }
 
 export interface GeneticsConfig {
