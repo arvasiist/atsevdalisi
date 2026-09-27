@@ -188,7 +188,14 @@ describe('Race WebSocket yayını (e2e) — AUDIT_REPORT.md Bulgu F2', () => {
     }
   });
 
-  it("race.subscribe: katılımcısı OLMADIĞIM bir yarış için race.error döner (bilgi sızdırmaz)", async () => {
+  // TRIBÜN (27.09.2026) NOTU: bu test hâlâ geçerlidir çünkü yalnızca
+  // "hata mesajı geldi mi" sorusunu sorar, koda bakmaz. Kapıya bilet
+  // gerekçesi eklendiğinden bu oyuncu artık `RaceTicketRequiredError`
+  // alır — yine boş olmayan bir mesajla. HTTP tarafındaki bilet akışı
+  // `grandstand.e2e-spec.ts`'te ayrıca kanıtlanır; burada TEKRAR
+  // EDİLMEZ çünkü `race.subscribe` ile HTTP AYNI use-case'i çağırır
+  // (tek yetki kaynağı — bkz. `get-race-timeline.use-case.ts`).
+  it("race.subscribe: katılımcısı VE bileti OLMADIĞIM bir yarış için race.error döner (bilgi sızdırmaz)", async () => {
     const { raceId } = await runFinishedPracticeRace();
     const { token: strangerToken } = await registerTestPlayerWithStarterHorse(app, 'Yabancı Oyuncu');
     const client = connect(strangerToken);

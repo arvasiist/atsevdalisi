@@ -14,3 +14,4 @@ export * from './breeding';
 export * from './staff';
 export * from './facility';
 export * from './online';
+export * from './grandstand';

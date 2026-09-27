@@ -5,6 +5,7 @@ import { EconomyModule } from './api/economy/economy.module';
 import { EquipmentModule } from './api/equipment/equipment.module';
 import { FarmModule } from './api/farm/farm.module';
 import { FeedModule } from './api/feed/feed.module';
+import { GrandstandModule } from './api/grandstand/grandstand.module';
 import { HealthModule } from './api/health/health.module';
 import { HorseModule } from './api/horse/horse.module';
 import { MarketModule } from './api/market/market.module';
@@ -101,6 +102,13 @@ import { RedisModule } from './infrastructure/redis/redis.module';
     FeedModule,
     EconomyModule,
     RaceModule,
+    // TRIBÜN (proje sahibinin açık talebi, 27.09.2026 — "tribüne ücretli
+    // girişler olsun, insanlar yarışları izleyebilsin") — bkz.
+    // `api/grandstand/grandstand.module.ts` doc yorumu. `RaceModule`'den
+    // SONRA durması ZORUNLU DEĞİL (`RaceModule` bu modülü kendi `imports`'una
+    // alır ve Nest modül grafiğini sıraya bakmadan çözer) ama okunabilirlik
+    // için ilişkili olduğu `RaceModule`'ün hemen yanına konuldu.
+    GrandstandModule,
     MarketModule,
     MatchmakingModule,
     RateLimitModule,

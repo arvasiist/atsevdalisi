@@ -845,3 +845,45 @@ export interface AudioConfig {
     layerVolume: number;
   };
 }
+
+/**
+ * Tribün (grandstand) — proje sahibinin açık talebi (27.09.2026):
+ * "yarış yapılan yerlerde tribüne ücretli girişler olsun insanlar yarışları
+ * izleyebilsin". `config/grandstand.config.json`'un tip karşılığı.
+ *
+ * **Bu bir SINK'tir (para kaynağı değil):** bilet bedeli oyuncunun
+ * bakiyesinden düşülür ve HİÇ KİMSEYE aktarılmaz — `stable.config.json`'un
+ * yükseltme maliyetleri, `care.config.json`'un bakım ücretleriyle AYNI
+ * kategori. Alternatif (bilet gelirini yarış sahibine aktarmak) İKİ
+ * oyuncunun `players` satırını kilitleyen bir transfer yolu gerektirirdi;
+ * bu, dilimin riskini para transferi seviyesine çıkarırdı. Bilet gelirinin
+ * yarış sahibine dağıtılması İSTENİRSE bu, AYRI bir dilimdir ve
+ * `PostgresMarketPurchaseRepository.executePurchase`'ın "iki satırı
+ * sözlüksel sırada kilitle" desenini kullanmalıdır.
+ *
+ * **Neden config'te:** `CLAUDE.md` "SİHİRLİ SAYI YOK" — fiyat, izleme
+ * penceresi ve liste limitleri denge parametreleridir; `game-config`
+ * yükleyicisi saf bir cast yaptığından (çalışma zamanı doğrulaması YOK)
+ * bu değerlerin tutarlılığı bir TESTLE garanti edilir (bkz.
+ * `apps/api/test/domain/grandstand/grandstand-config.spec.ts`).
+ */
+export interface GrandstandConfig {
+  /**
+   * Bilet fiyatı. `money` (Çip) VEYA `gems` (Elmas) olabilir —
+   * `CurrencyAmount` ile AYNI şekil, ama game-config shared-types'a bağımlı
+   * olmadığından (bkz. `FarmConfig.facilities` doc yorumundaki AYNI gerekçe)
+   * burada satır içi yazılır.
+   */
+  ticketPrice: { currency: 'money' | 'gems'; amount: number };
+  /**
+   * Bir yarışın BİTMESİNDEN sonra kaç saat boyunca bilet satın alınıp
+   * izlenebileceği. Pencere kapanınca yarış artık "izlenebilir" listesinde
+   * GÖRÜNMEZ ve yeni bilet satılamaz (mevcut biletler ETKİLENMEZ —
+   * `domain/grandstand/ticket.ts`'in "bilet bir kez alınır" ilkesi).
+   */
+  watchWindowHours: number;
+  /** `GET /races/watchable` yanıtındaki azami yarış sayısı. */
+  watchableRacesLimit: number;
+  /** `GET /players/:id/tickets` yanıtındaki azami bilet sayısı. */
+  myTicketsLimit: number;
+}

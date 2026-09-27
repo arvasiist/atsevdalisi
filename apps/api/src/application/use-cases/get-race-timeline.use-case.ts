@@ -1,7 +1,8 @@
 import { Inject, Injectable } from '@nestjs/common';
 import type { RaceTimelineView } from '@at-sevdalisi/shared-types';
-import { ForbiddenError } from '../../domain/auth/errors';
 import { RaceNotFoundError } from '../../domain/race/errors';
+import { RaceTicketRequiredError } from '../../domain/grandstand/errors';
+import { GRANDSTAND_REPOSITORY, type GrandstandRepository } from '../ports/grandstand.repository';
 import { RACE_REPOSITORY, type RaceRepository } from '../ports/race.repository';
 
 /**
@@ -23,10 +24,31 @@ import { RACE_REPOSITORY, type RaceRepository } from '../ports/race.repository';
  * (yalnızca kendi yarış sonucundan öğrenilir), `HorseNotFoundError`'ın
  * `horses.id` için aldığı ÖNLEMLE (bkz. o hatanın 404 davranışı) AYNI
  * kategoridedir.
+ *
+ * **TRIBÜN (proje sahibinin açık talebi, 27.09.2026 — "insanlar yarışları
+ * izleyebilsin"):** Kapıya İKİNCİ bir meşru gerekçe eklendi. Artık
+ * yetkilendirme "katılımcı **VEYA** bilet sahibi"dir. Bu TEK değişiklik
+ * hem HTTP yolunu (`GET /races/:id/timeline`) hem de WebSocket yolunu
+ * (`race.gateway.ts`'in `race.subscribe`'ı — AYNI use-case'i çağırır)
+ * BİRLİKTE açar; yetkinin TEK bir kaynağı olması bu tasarımın asıl
+ * kazancıdır (ikinci bir kontrol noktası İCAT EDİLMEDİ).
+ *
+ * **Neden `ForbiddenError` yerine `RaceTicketRequiredError`:** ikisi de
+ * 403'tür, ama istemcinin "Bilet Al" akışına yönlendirebilmesi için AYRI
+ * bir koda ihtiyacı vardır (bkz. `error-codes.ts`'teki aynı gerekçe).
+ * Mesaj da değişti: eskiden "yetkiniz yok" idi, şimdi kullanıcıya NE
+ * YAPMASI gerektiğini söylüyor.
+ *
+ * **Bilgi sızdırmama KORUNUR:** sıra değişmedi — önce "yarış var mı"
+ * (404), sonra "izleyebilir miyim" (403). Bilet sorgusu YALNIZCA yarışın
+ * var olduğu doğrulandıktan SONRA çalışır.
  */
 @Injectable()
 export class GetRaceTimelineUseCase {
-  constructor(@Inject(RACE_REPOSITORY) private readonly raceRepository: RaceRepository) {}
+  constructor(
+    @Inject(RACE_REPOSITORY) private readonly raceRepository: RaceRepository,
+    @Inject(GRANDSTAND_REPOSITORY) private readonly grandstandRepository: GrandstandRepository,
+  ) {}
 
   async execute(raceId: string, requestingPlayerId: string): Promise<RaceTimelineView> {
     const timeline = await this.raceRepository.findTimelineByRaceId(raceId);
@@ -36,7 +58,12 @@ export class GetRaceTimelineUseCase {
 
     const isParticipant = await this.raceRepository.isPlayerParticipant(raceId, requestingPlayerId);
     if (!isParticipant) {
-      throw new ForbiddenError('Bu yarışın tam alan replay verisini görüntüleme yetkiniz yok.');
+      // Bilet kontrolü YALNIZCA katılımcı DEĞİLSE yapılır — katılımcı için
+      // gereksiz bir sorgu atılmaz (kısa devre).
+      const hasTicket = await this.grandstandRepository.hasTicket(raceId, requestingPlayerId);
+      if (!hasTicket) {
+        throw new RaceTicketRequiredError(raceId);
+      }
     }
 
     return timeline;

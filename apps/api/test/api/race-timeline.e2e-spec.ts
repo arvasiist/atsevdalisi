@@ -200,7 +200,13 @@ describe('Race — Tam Alan Replay / Timeline (e2e, AUDIT_REPORT.md R2)', () => 
     }
   });
 
-  it('/api/v1/races/:id/timeline (GET) — bu yarışta hiçbir atı olmayan bir oyuncu için 403 FORBIDDEN döner', async () => {
+  // TRIBÜN (proje sahibinin açık talebi, 27.09.2026) — BU TEST DEĞİŞTİ.
+  // Eskiden burada `403 FORBIDDEN` beklenirdi; kapıya "katılımcı VEYA bilet
+  // sahibi" kuralı eklendiğinden kod artık `RACE_TICKET_REQUIRED`'dır (durum
+  // yine 403). Kodun değişmesi BİLİNÇLİDİR: istemci bu kodu görünce
+  // kullanıcıyı "Bilet Al" akışına yönlendirir, düz bir 403'te ise
+  // yönlendirecek hiçbir şey bilemez (bkz. `error-codes.ts`).
+  it('/api/v1/races/:id/timeline (GET) — bu yarışta hiçbir atı VE bileti olmayan bir oyuncu için 403 RACE_TICKET_REQUIRED döner', async () => {
     const owner = await registerTestPlayerWithStarterHorse(app, 'Yarış Sahibi');
     const outsider = await registerTestPlayer(app, 'Yabancı');
 
@@ -217,7 +223,23 @@ describe('Race — Tam Alan Replay / Timeline (e2e, AUDIT_REPORT.md R2)', () => 
       .set('Authorization', outsider.authHeader);
 
     expect(response.status).toBe(403);
-    expect(response.body.error.code).toBe('FORBIDDEN');
+    expect(response.body.error.code).toBe('RACE_TICKET_REQUIRED');
+  });
+
+  // TRIBÜN — bilgi sızdırmama sırası KORUNUYOR mu? Bilet kontrolü YALNIZCA
+  // yarışın var olduğu doğrulandıktan SONRA çalışır; yani var olmayan bir
+  // yarış, bilet sahibi OLMAYAN bir oyuncu için bile 403 değil 404 döner
+  // (bkz. `get-race-timeline.use-case.ts` doc yorumu). Bu, yukarıdaki
+  // 404 testinin bilet kapısı eklendikten SONRA da geçerli olduğunu
+  // kanıtlar.
+  it('/api/v1/races/:id/timeline (GET) — var olmayan yarış, bileti olmayan oyuncuya 403 değil 404 döner (sızıntı yok)', async () => {
+    const outsider = await registerTestPlayer(app, 'Biletsiz Yabancı');
+    const response = await request(app.getHttpServer())
+      .get(`/api/v1/races/${randomUUID()}/timeline`)
+      .set('Authorization', outsider.authHeader);
+
+    expect(response.status).toBe(404);
+    expect(response.body.error.code).toBe('RACE_NOT_FOUND');
   });
 
   it('/api/v1/races/:id/timeline (GET) var olmayan bir yarış için 404 RACE_NOT_FOUND döner', async () => {

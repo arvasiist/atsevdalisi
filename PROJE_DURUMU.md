@@ -585,6 +585,26 @@ incelendiğinde yalnızca **ikisi** gerçekten bugün bağlanabilir durumda:
 tamamlandı. Kalan iş `PedigreeTree`'dir ve o da tek başına bir backend dilimi
 gerektirir.
 
+### 13.1 Sosyal/ekonomi dilimleri (proje sahibinin talebi, 27.09.2026)
+
+Sahibi üç parça istedi: **tribün**, **arkadaşlık + mesajlaşma**, **hediye
+gönderimi**. Sıra bilinçli: hediye bir para yoludur (defter + idempotency),
+en sona bırakıldı.
+
+1. **TRIBÜN — YAPILDI** (bu dilim). Ücretli seyirci girişi + izleme.
+   `GET /races/watchable`, `POST /races/:id/tickets`, `GET /players/:id/tickets`;
+   `/grandstand` sayfası; izleme mevcut `/replays/[raceId]`'e bağlanır (AYRI
+   seyirci izleyicisi icat edilmedi — yetki kapısı `GetRaceTimelineUseCase`'in
+   kendisidir, "katılımcı VEYA bilet sahibi"). Bilet geliri bir **SINK**'tir
+   (yarış sahibine ödeme İKİ `players` satırı kilitlemeyi gerektirir → ayrı dilim).
+2. **Arkadaşlık + mesajlaşma — YAPILMADI.** Plan: migration `0033`
+   (`friendships` + `direct_messages`), istek/kabul/red/liste + mesaj gönder/
+   sohbet/gelen kutusu uçları, `/friends` sayfası.
+3. **Hediye gönderimi — YAPILMADI.** Plan: migration `0034` (`gift_sends`),
+   `config/gift.config.json` (min/max/günlük limit/izinli birimler), İKİ satırlı
+   para yolu (lexical-id sırasıyla kilitleme + İKİ defter satırı + idempotency),
+   arkadaşlık şartı. Varsayılan kapsam: yalnızca Çip/Elmas.
+
 **Grup 2** (§12'deki asset sorusuna bağlı): gerçek Horse/Jockey GLB + animasyon
 state machine, hipodrom çevresi, kalabalık sistemi, gerçek ses dosyaları,
 winner ceremony / paylaşılabilir sonuç.

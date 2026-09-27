@@ -21,6 +21,8 @@ import type {
   PracticeRaceResult,
   PublicHorse,
   RacingStyle,
+  RaceTicketPurchaseResult,
+  RaceTicketView,
   RaceTimelineView,
   RecentRaceResultView,
   RiskLevel,
@@ -31,6 +33,7 @@ import type {
   TrainingIntensity,
   TrainingSession,
   TrainingType,
+  WatchableRaceView,
 } from '@at-sevdalisi/shared-types';
 
 /**
@@ -421,4 +424,32 @@ export const apiClient = {
 
   unequipHorseEquipment: (horseId: string, equipmentId: string) =>
     request<HorseEquipment>(`/horses/${horseId}/equipment/${equipmentId}/unequip`, { method: 'POST' }),
+
+  /**
+   * Tribün (proje sahibinin açık talebi, 27.09.2026 — "tribüne ücretli
+   * girişler olsun insanlar yarışları izleyebilsin").
+   *
+   * `getWatchableRaces` — kendi yarışlarım HARİÇ, son `watchWindowHours`
+   * saat içinde bitmiş yarışlar. Her satır `hasTicket` taşır: liste
+   * ekranı "Bilet Al" ile "İzle" arasında seçim yapmak için ikinci bir
+   * istek ATMAZ (bkz. `WatchableRaceView` doc yorumu).
+   */
+  getWatchableRaces: () => request<WatchableRaceView[]>('/races/watchable'),
+
+  /**
+   * `buyRaceTicket` — PARA YOLU. `runPracticeRace`/`buyMarketListing` ile
+   * AYNI gerekçeyle `Idempotency-Key` ZORUNLUDUR ve çağıran tarafından
+   * ÜRETİLİR (`crypto.randomUUID()`): anahtar istek BAŞINA bir kez
+   * üretilip yeniden denemelerde AYNEN tekrarlanmalıdır — burada üretmek
+   * her çağrıyı YENİ bir anahtar yapar ve idempotency'yi işe yaramaz hale
+   * getirirdi (bkz. `market.buyMarketListing` doc yorumundaki AYNI uyarı).
+   */
+  buyRaceTicket: (raceId: string, idempotencyKey: string) =>
+    request<RaceTicketPurchaseResult>(`/races/${raceId}/tickets`, {
+      method: 'POST',
+      headers: { 'Idempotency-Key': idempotencyKey },
+    }),
+
+  /** "Biletlerim" — `GET /players/:id/tickets` (`assertSelf`: yalnızca kendi listem). */
+  getMyTickets: (playerId: string) => request<RaceTicketView[]>(`/players/${playerId}/tickets`),
 };

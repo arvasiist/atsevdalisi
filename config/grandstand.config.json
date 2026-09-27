@@ -1,0 +1,6 @@
+{
+  "ticketPrice": { "currency": "money", "amount": 25 },
+  "watchWindowHours": 48,
+  "watchableRacesLimit": 50,
+  "myTicketsLimit": 50
+}

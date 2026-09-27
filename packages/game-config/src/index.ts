@@ -23,6 +23,7 @@ import type {
   EconomyConfig,
   FarmConfig,
   GeneticsConfig,
+  GrandstandConfig,
   HorseGrowthConfig,
   JockeyConfig,
   OnlineConfig,
@@ -51,6 +52,7 @@ import onlineConfigJson from '../../../config/online.config.json';
 import cameraConfigJson from '../../../config/camera.config.json';
 import vfxConfigJson from '../../../config/vfx.config.json';
 import audioConfigJson from '../../../config/audio.config.json';
+import grandstandConfigJson from '../../../config/grandstand.config.json';
 
 export function loadRaceConfig(): RaceBalanceConfig {
   return raceConfigJson as unknown as RaceBalanceConfig;
@@ -124,6 +126,15 @@ export function loadVfxConfig(): VfxConfig {
 
 export function loadAudioConfig(): AudioConfig {
   return audioConfigJson as unknown as AudioConfig;
+}
+
+/**
+ * Tribün (proje sahibinin açık talebi, 27.09.2026) — ücretli seyirci
+ * girişi. Diğer `loadXConfig()` fonksiyonlarıyla AYNI desen; tipin tam
+ * gerekçesi (ve neden bir SINK olduğu) `GrandstandConfig` doc yorumunda.
+ */
+export function loadGrandstandConfig(): GrandstandConfig {
+  return grandstandConfigJson as unknown as GrandstandConfig;
 }
 
 export * from './types';

@@ -4,6 +4,7 @@ import {
   loadEconomyConfig,
   loadFarmConfig,
   loadGeneticsConfig,
+  loadGrandstandConfig,
   loadHorseGrowthConfig,
   loadOnlineConfig,
   loadProgressionConfig,
@@ -64,4 +65,8 @@ export class AppConfigService {
   // besleniyordu ve `facilities` tablosu ölü şemaydı. Bu satır, o zincirin
   // ilk halkasıdır.
   readonly farm = loadFarmConfig();
+  // TRIBÜN (proje sahibinin açık talebi, 27.09.2026) — `config/grandstand.config.json`
+  // bu dilimde OLUŞTURULDU; bilet fiyatı/izleme penceresi/liste limitleri
+  // use-case'lerde hard-code EDİLMEZ (CLAUDE.md "SİHİRLİ SAYI YOK").
+  readonly grandstand = loadGrandstandConfig();
 }

@@ -464,9 +464,14 @@ migration `0025_add_race_entry_bot_support`, `RaceEntry.botLabel`) — bir
 katılımcının `horseId`'si `null` ise o katılımcı bottur, gerçek adı yerine
 `botLabel` (`"bot-1"` vb.) doludur.
 
-**Yetkilendirme:** İstek sahibinin bu yarışta EN AZ bir gerçek atının
-katılımcı olması gerekir (`GetRaceTimelineUseCase.isPlayerParticipant`) —
-aksi halde `403 FORBIDDEN`. Yarış hiç yoksa `404 RACE_NOT_FOUND`.
+**Yetkilendirme (27.09.2026'da GENİŞLETİLDİ — Tribün):** İstek sahibi ya
+bu yarışta EN AZ bir gerçek atı olan bir KATILIMCI (`GetRaceTimelineUseCase.
+isPlayerParticipant`) ya da o yarış için **tribün bileti almış** bir
+SEYİRCİ olmalıdır. İkisi de değilse `403 RACE_TICKET_REQUIRED` (eskiden
+düz `403 FORBIDDEN` idi — ayrı kod, istemcinin kullanıcıyı bilet alma
+akışına yönlendirebilmesi içindir). Yarış hiç yoksa `404 RACE_NOT_FOUND`
+— bu kontrol bilet kontrolünden ÖNCE gelir, yani yarışın VARLIĞI biletsiz
+bir oyuncuya sızmaz.
 
 **`gatePosition` (AUDIT_REPORT.md Bulgu R3, bu oturum):** [1, N] aralığında
 bir başlangıç/kapı numarası (gerçek at yarışlarındaki "gate draw") —
@@ -534,6 +539,55 @@ notu" ve `packages/shared-types/src/race.ts`.
 **Test requirement (AUDIT_REPORT.md):** bir yarışı kaydet, tam alanı iki
 yoldan yeniden oluştur (DB okuma vs. yeniden simülasyon) → eşleşmeli —
 bkz. `race-timeline.e2e-spec.ts`.
+
+### Tribün — Ücretli Seyirci Girişi (proje sahibinin açık talebi, 27.09.2026)
+
+Proje sahibinin talebi: *"yarış yapılan yerlerde tribüne ücretli girişler
+olsun insanlar yarışları izleyebilsin"*. Tribün, bir yarışın **tam alan
+replay'ini** (`GET /races/:id/timeline`) izleme yetkisi satar. Bilet
+**KATILIM DEĞİLDİR** — yarış sonucunu, istatistiği veya ödülü ETKİLEMEZ.
+
+```http
+GET  /api/v1/races/watchable
+POST /api/v1/races/{id}/tickets        # Idempotency-Key ZORUNLU
+GET  /api/v1/players/{id}/tickets      # yalnızca kendi listesi (assertSelf)
+```
+
+**`GET /races/watchable`** — tribünden izlenebilecek yarışlar. Filtreler:
+`status = 'finished'` · son `config/grandstand.config.json →
+watchWindowHours` saat içinde oluşturulmuş · istek sahibinin o yarışta bir
+atı OLMAMASI (kendi yarışına bilet alması anlamsızdır — zaten
+katılımcıdır). Her satır `hasTicket` taşır, böylece istemci "Bilet Al" ile
+"İzle" arasında seçim yapmak için ikinci bir istek atmaz. `ticketPrice`
+satırda döner ama **repository'den değil** `ListWatchableRacesUseCase`'ten
+gelir (fiyat bir config değeridir; `WatchableRaceFacts = Omit<
+WatchableRaceView, 'ticketPrice'>` bu yüzden vardır — fiyatı eklemeyi
+unutmak DERLEME hatasıdır, sessiz "ücretsiz bilet" değil).
+
+**`POST /races/{id}/tickets`** — **PARA YOLU.** `SELECT ... FOR UPDATE` ile
+`players` satırı kilitlenir, `debit` ile bakiyeden düşülür, `race_tickets`
+satırı eklenir ve AYNI transaction'da `economy_transactions`'a İMZALI
+(NEGATİF) bir defter satırı yazılır (`type: 'grandstand_ticket'`). Bilet
+geliri bir **SINK**'tir: kimseye kredi geçmez (mevcut sink'lerle — bakım,
+yem, ahır yükseltmesi — aynı kategori). Yarış sahibine ödeme yapmak İKİ
+`players` satırının kilitlenmesini gerektirirdi; bu ayrı bir dilimdir.
+
+Yarış "izlenebilir" değilse `409 RACE_NOT_WATCHABLE` — üç neden tek kod
+altında döner (kendi yarışın · yarış henüz bitmemiş · izleme penceresi
+dolmuş). Aynı yarışa ikinci bilet `409 RACE_TICKET_ALREADY_OWNED` (ikinci
+savunma hattı `race_tickets_unique_per_player` kısıtıdır: eşzamanlı ikinci
+istek `23505` ile düşer ve TÜM transaction'ı — düşülen para dahil — geri
+alır). `Idempotency-Key` yoksa `400 IDEMPOTENCY_KEY_REQUIRED`.
+
+`config/grandstand.config.json` değerleri **doğrudan** okunur; `game-config`
+yükleyicisi saf bir cast olduğundan (çalışma zamanı doğrulaması YOK),
+değişmezler hem `assertTicketPriceIsValid` (çalışma zamanı) hem de
+`grandstand-config.spec.ts` (CI) ile korunur.
+
+**Testler:** `grandstand.e2e-spec.ts` (para yolu: kilit + bakiye + bilet
+satırı + imzalı defter satırı; idempotency; yetersiz bakiye; OWN_RACE;
+kapının biletle açılması) · `domain/grandstand/ticket.spec.ts` ·
+`grandstand-config.spec.ts`.
 
 ### Ahır Yükseltme (FAZ 1 wiring, altıncı dilim; onuncu dilimde Idempotency-Key eklendi, bu oturum)
 
@@ -1324,3 +1378,6 @@ dosyanın doc yorumu).
 | `ALREADY_IN_MATCHMAKING_QUEUE` | Oyuncunun zaten eşleştirme kuyruğunda bir bileti var (FAZ 1 wiring, on dördüncü dilim) |
 | `NOT_IN_MATCHMAKING_QUEUE` | Oyuncunun eşleştirme kuyruğunda bileti yok (kuyruktan çıkma denemesi) (FAZ 1 wiring, on dördüncü dilim) |
 | `HORSE_EQUIPMENT_NOT_FOUND` | Verilen `equipmentId` bulunamadı ya da başka bir ata ait (Ekipman dilimi, bu turda EKLENDİ) |
+| `RACE_TICKET_ALREADY_OWNED` | Bu yarış için zaten bir tribün bileti var (Tribün, 27.09.2026) |
+| `RACE_NOT_WATCHABLE` | Yarış tribünden izlenemez — kendi yarışın / henüz bitmemiş / izleme penceresi dolmuş (Tribün, 27.09.2026) |
+| `RACE_TICKET_REQUIRED` | Yarışın katılımcısı değilsin ve tribün biletin yok — `GET /races/:id/timeline` (Tribün, 27.09.2026; eskiden düz `FORBIDDEN` idi) |

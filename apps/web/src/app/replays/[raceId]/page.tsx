@@ -16,10 +16,22 @@
  * `RaceTimeline` + `horseNamesById` → `RaceViewer` (AYNI orkestratör,
  * `/races/demo`'nun ZATEN kullandığı — burada YENİDEN İCAT EDİLMEZ).
  *
+ * **TRIBÜN (proje sahibinin açık talebi, 27.09.2026):** bu sayfa artık
+ * İKİ ayrı kullanıcı için çalışır — (1) yarışın KATILIMCISI (kendi
+ * tekrarı) ve (2) `/grandstand`'tan BİLET ALMIŞ seyirci. İkisi de AYNI
+ * uç noktadan beslenir; yetki kapısı `GetRaceTimelineUseCase`'in
+ * KENDİSİDİR ("katılımcı VEYA bilet sahibi") ve bu sayfa o ayrımı
+ * BİLMEZ — bilmesi de GEREKMEZ, çünkü ikisi de aynı tam-alan replay'ini
+ * görür. AYRI bir seyirci sayfası İCAT EDİLMEDİ (bkz.
+ * `app/grandstand/page.tsx` doc yorumu).
+ *
  * Hata durumları GERÇEK backend davranışlarına karşılık gelir
  * (`GetRaceTimelineUseCase`): yarış yoksa 404 (`RaceNotFoundError`),
- * istek sahibi bu yarışa katılmadıysa 403 (`ForbiddenError`) —
- * `request()` (bkz. `api-client.ts`) ikisini de `Error(message)` olarak
+ * istek sahibi ne katılımcı ne bilet sahibiyse 403 —
+ * **TRIBÜN'den SONRA kodu `RACE_TICKET_REQUIRED`'dır** (eskiden düz
+ * `FORBIDDEN` idi; ayrı kod, istemcinin kullanıcıyı `/grandstand`'a
+ * yönlendirebilmesi içindir — bkz. `error-codes.ts`). `request()` (bkz.
+ * `api-client.ts`) bunların hepsini `Error(message)` olarak
  * fırlatır, burada `err.message` DOĞRUDAN gösterilir (backend zaten
  * Türkçe insan-okunur mesajlar döner, bkz. `docs/API.md`). Ayrıca
  * `adaptRaceTimelineViewToReplayData`'nın döndürebileceği "hiçbir

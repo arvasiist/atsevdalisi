@@ -36,6 +36,11 @@ import { DailyRewardAlreadyClaimedError, InsufficientFundsError } from '../../do
 import { HorseNotReadyToRaceError, InvalidRaceTacticError, InvalidRaceTierError, RaceNotFoundError } from '../../domain/race/errors';
 import { AlreadyInMatchmakingQueueError, NotInMatchmakingQueueError } from '../../domain/online/errors';
 import {
+  RaceNotWatchableError,
+  RaceTicketAlreadyOwnedError,
+  RaceTicketRequiredError,
+} from '../../domain/grandstand/errors';
+import {
   CannotBuyOwnListingError,
   HorseAlreadyListedError,
   InvalidListingExpiryError,
@@ -164,6 +169,15 @@ const DOMAIN_ERROR_MAP = new Map<ErrorClassConstructor, { status: number; code: 
   // Token GEÇERLİ ama sahiplik yok — kavramsal olarak 401'den FARKLI, bkz.
   // `ForbiddenError` doc yorumu.
   [ForbiddenError, { status: HttpStatus.FORBIDDEN, code: ErrorCode.Forbidden }],
+  // TRIBÜN (proje sahibinin açık talebi, 27.09.2026) — üç hata da
+  // `DOMAIN_ERROR_MAP`'e girebilir çünkü kodları hatanın `reason` alanına
+  // BAĞLI DEĞİLDİR (`RaceNotWatchableError`'ın üç nedeni de tek kod
+  // `RACE_NOT_WATCHABLE` altında döner — gerekçe `domain/grandstand/errors.ts`).
+  [RaceTicketAlreadyOwnedError, { status: HttpStatus.CONFLICT, code: ErrorCode.RaceTicketAlreadyOwned }],
+  [RaceNotWatchableError, { status: HttpStatus.CONFLICT, code: ErrorCode.RaceNotWatchable }],
+  // 403 — `ForbiddenError` ile AYNI durum, FARKLI kod: istemci "Bilet Al"
+  // akışına yönlendirebilsin diye (bkz. `RaceTicketRequiredError` doc yorumu).
+  [RaceTicketRequiredError, { status: HttpStatus.FORBIDDEN, code: ErrorCode.RaceTicketRequired }],
   // `POST /auth/login`'e özgü — bkz. `InvalidProviderTokenError` doc yorumu.
   [InvalidProviderTokenError, { status: HttpStatus.UNAUTHORIZED, code: ErrorCode.InvalidProviderToken }],
   // claude/hizli-bitirme-plani.md'nin proje sahibi tarafından

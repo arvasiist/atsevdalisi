@@ -12,6 +12,7 @@ import { PostgresLeaderboardRepository } from '../../infrastructure/leaderboard/
 import { PostgresRaceRepository } from '../../infrastructure/race/postgres-race.repository';
 import { PostgresHorseEquipmentRepository } from '../../infrastructure/equipment/postgres-horse-equipment.repository';
 import { HorseOwnerGuardByParam } from '../auth/horse-owner.guard';
+import { GrandstandModule } from '../grandstand/grandstand.module';
 import { HorseModule } from '../horse/horse.module';
 import { LeaderboardController } from '../leaderboard/leaderboard.controller';
 import { MarketModule } from '../market/market.module';
@@ -22,7 +23,13 @@ import { RaceTimelineController } from './race-timeline.controller';
 import { RecentRacesController } from './recent-races.controller';
 
 @Module({
-  imports: [DatabaseModule, HorseModule, PlayerModule, MarketModule],
+  // TRIBÜN (proje sahibinin açık talebi, 27.09.2026) — `GrandstandModule`
+  // import edilir çünkü `GetRaceTimelineUseCase` artık `GRANDSTAND_REPOSITORY`
+  // bağımlılığı taşıyor ("katılımcı VEYA bilet sahibi", bkz. o use-case'in
+  // doc yorumu). `GrandstandModule` `RaceModule`'ü import ETMEZ → döngü YOK
+  // (token'ı burada İKİNCİ kez kaydetmek yerine tek örneği paylaşmanın
+  // gerekçesi `grandstand.module.ts` doc yorumunda).
+  imports: [DatabaseModule, HorseModule, PlayerModule, MarketModule, GrandstandModule],
   controllers: [
     RaceController,
     RecentRacesController,

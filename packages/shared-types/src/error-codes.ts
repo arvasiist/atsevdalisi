@@ -109,6 +109,18 @@ export const ErrorCode = {
   InsufficientHealth: 'INSUFFICIENT_HEALTH',
   /** `tierId` config'deki hiçbir yarış kademesiyle eşleşmiyor (400). */
   InvalidRaceTier: 'INVALID_RACE_TIER',
+  // Tribün (proje sahibinin açık talebi, 27.09.2026) — bkz.
+  // domain/grandstand/errors.ts ve packages/shared-types/src/grandstand.ts.
+  /** Bu yarışa zaten bilet alınmış (409). */
+  RaceTicketAlreadyOwned: 'RACE_TICKET_ALREADY_OWNED',
+  /** Yarış izlenebilir değil — henüz bitmedi, pencere kapandı ya da kendi yarışın (409). */
+  RaceNotWatchable: 'RACE_NOT_WATCHABLE',
+  /**
+   * Yarışın tam alan replay verisini görme yetkisi yok: ne katılımcı ne
+   * bilet sahibi (403). `GetRaceTimelineUseCase`'in 403'ünü EZER — istemci
+   * "Bilet Al" ekranına yönlendirebilsin diye AYRI bir kod gerekir.
+   */
+  RaceTicketRequired: 'RACE_TICKET_REQUIRED',
 } as const;
 
 export type ErrorCodeValue = (typeof ErrorCode)[keyof typeof ErrorCode];

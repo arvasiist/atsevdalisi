@@ -51,6 +51,12 @@ const NAV_ITEMS: NavCardItem[] = [
   // bulgusunu kapatan `/replays` kütüphane ekranına giden ana navigasyon
   // girişi (bkz. `apps/web/src/app/replays/page.tsx` doc yorumu).
   { href: '/replays', icon: '🎬', label: 'Yarış Tekrarları', description: 'Geçmiş yarışları izle' },
+  // TRIBÜN (proje sahibinin açık talebi, 27.09.2026 — "tribüne ücretli
+  // girişler olsun insanlar yarışları izleyebilsin") — bkz.
+  // `apps/web/src/app/grandstand/page.tsx` doc yorumu. `/replays`'ten
+  // AYRI bir giriş: orası KENDİ yarışlarını gösterir (katılımcı olduğun
+  // yarışlar), burası BAŞKALARININ yarışlarını ücretle izleme yeridir.
+  { href: '/grandstand', icon: '🎟️', label: 'Tribün', description: 'Yarışları yerinden izle' },
   { href: '/training', icon: '🏋️', label: 'Antrenman', description: 'Statları geliştir' },
   // claude/hizli-bitirme-plani.md'nin proje sahibi tarafından önceliklendirdiği
   // dilim (bu turda EKLENDİ) — bkz. `apps/web/src/app/equipment/page.tsx` doc yorumu.
