@@ -1,4 +1,5 @@
 import type { FeedType } from './care';
+import type { Currency } from './currency';
 import type { Player } from './player';
 
 /**
@@ -8,7 +9,7 @@ import type { Player } from './player';
  */
 export interface ClaimDailyRewardResult {
   amount: number;
-  currency: 'money' | 'gems';
+  currency: Currency;
   newBalance: Pick<Player, 'money' | 'gems'>;
   /** Bir sonraki talebin uygun olacağı zaman (ISO 8601) — UI'ın geri sayım gösterebilmesi için. */
   nextClaimAvailableAt: string;

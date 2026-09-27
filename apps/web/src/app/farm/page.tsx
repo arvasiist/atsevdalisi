@@ -28,6 +28,7 @@ import { useCallback, useEffect, useState } from 'react';
 import type { FacilitySummaryView, FacilityType, FarmSummaryView } from '@at-sevdalisi/shared-types';
 import { GlassPanel } from '../../components/ui/GlassPanel';
 import { apiClient } from '../../lib/api-client';
+import { formatCost, hasEnoughFunds } from '../../lib/currency';
 import { usePlayer } from '../../lib/player-context';
 
 /**
@@ -210,20 +211,6 @@ function formatBonus(facility: FacilitySummaryView, direction: 'increase' | 'red
   }
   const percent = Math.round(facility.bonusValue * PERCENT).toLocaleString('tr-TR');
   return direction === 'increase' ? `+%${percent}` : `−%${percent}`;
-}
-
-function formatCost(cost: { currency: 'money' | 'gems'; amount: number }): string {
-  const formatted = cost.amount.toLocaleString('tr-TR');
-  return cost.currency === 'money' ? `${formatted} ₺` : `${formatted} elmas`;
-}
-
-/**
- * AYNI yardımcı `app/stable/page.tsx`'te de bulunur (ahır yükseltmesi için).
- * Üçüncü bir sayfa daha buna ihtiyaç duyarsa ortak bir modüle taşınmalıdır —
- * şimdilik iki kullanım için yeni bir soyutlama erken olurdu.
- */
-function hasEnoughFunds(player: { money: number; gems: number }, cost: { currency: 'money' | 'gems'; amount: number }): boolean {
-  return cost.currency === 'money' ? player.money >= cost.amount : player.gems >= cost.amount;
 }
 
 function upgradeButtonStyle(enabled: boolean): React.CSSProperties {

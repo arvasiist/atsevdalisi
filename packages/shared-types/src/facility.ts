@@ -1,4 +1,5 @@
 import type { ISODateTimeString, UUID } from './common';
+import type { CurrencyAmount } from './currency';
 
 /**
  * Çiftlik (Farm) tesisleri — brief §32 "ÇİFTLİK". `stable`/ahır BU listede
@@ -65,7 +66,7 @@ export interface FacilitySummaryView {
 /** Bir sonraki seviyeye geçmenin sunucuda hesaplanmış maliyeti. */
 export interface FacilityUpgradeOfferView {
   nextLevel: number;
-  cost: { currency: 'money' | 'gems'; amount: number };
+  cost: CurrencyAmount;
 }
 
 /** `GET /players/:id/farm` yanıtı — oyuncunun çiftliğinin tamamı. */
@@ -91,5 +92,5 @@ export interface FacilityUpgradeResult {
   /** Yükseltme SONRASI tesisin tam özeti (yeni `nextUpgrade` dahil). */
   facility: FacilitySummaryView;
   newBalance: { money: number; gems: number };
-  cost: { currency: 'money' | 'gems'; amount: number };
+  cost: CurrencyAmount;
 }

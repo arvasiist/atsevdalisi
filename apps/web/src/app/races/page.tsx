@@ -35,6 +35,7 @@ import { HorseAvatar } from '../../components/ui/HorseAvatar';
 import { StatBar } from '../../components/ui/StatBar';
 import { LiveRaceViewer } from '../../features/race-viewer/LiveRaceViewer';
 import { API_BASE_URL, apiClient, getAuthToken } from '../../lib/api-client';
+import { formatCurrency } from '../../lib/currency';
 import { usePlayer } from '../../lib/player-context';
 
 const RACING_STYLES: readonly RacingStyle[] = ['front_runner', 'tracker', 'mid_pack', 'closer'];
@@ -360,11 +361,13 @@ function RaceResultPanel({
       </p>
 
       <div style={{ display: 'grid', gap: '4px', fontSize: '13px', color: 'var(--color-text-secondary)', marginBottom: 'var(--space-md)' }}>
-        <span>Giriş ücreti: {result.entryFee}₺</span>
+        <span>Giriş ücreti: {formatCurrency('money', result.entryFee)}</span>
         <span style={{ color: result.prizeWon > 0 ? 'var(--color-status-positive)' : 'var(--color-text-secondary)' }}>
-          Kazanılan ödül: {result.prizeWon}₺
+          Kazanılan ödül: {formatCurrency('money', result.prizeWon)}
         </span>
-        <span style={{ color: 'var(--color-text-primary)' }}>Yeni bakiye: {result.newBalance.money}₺ / {result.newBalance.gems} elmas</span>
+        <span style={{ color: 'var(--color-text-primary)' }}>
+          Yeni bakiye: {formatCurrency('money', result.newBalance.money)} / {formatCurrency('gems', result.newBalance.gems)}
+        </span>
       </div>
 
       <div style={{ display: 'grid', gap: '4px', marginBottom: 'var(--space-md)' }}>

@@ -31,6 +31,7 @@ import { GlassPanel } from '../../components/ui/GlassPanel';
 import { StatBar } from '../../components/ui/StatBar';
 import { getCareerProgress } from '../../features/career/career-tier';
 import { apiClient } from '../../lib/api-client';
+import { CURRENCY_LABELS } from '../../lib/currency';
 import { usePlayer } from '../../lib/player-context';
 
 interface NavCardItem {
@@ -241,8 +242,8 @@ function PlayerCard({
       <div style={{ display: 'flex', gap: 'var(--space-lg)', flexWrap: 'wrap', marginBottom: 'var(--space-md)' }}>
         <StatLine label="Seviye" value={level} />
         <StatLine label="XP" value={xp.toLocaleString('tr-TR')} />
-        <StatLine label="Bakiye" value={`${money.toLocaleString('tr-TR')} ₺`} accent="gold" />
-        <StatLine label="Elmas" value={gems.toLocaleString('tr-TR')} accent="gem" />
+        <StatLine label={CURRENCY_LABELS.money} value={money.toLocaleString('tr-TR')} accent="gold" />
+        <StatLine label={CURRENCY_LABELS.gems} value={gems.toLocaleString('tr-TR')} accent="gem" />
       </div>
       <div
         style={{

@@ -3,11 +3,18 @@
  * yakalanıp docs/API.md §11'deki ErrorCode değerlerine eşlenir (bkz.
  * apps/api/src/api/middleware/http-exception.filter.ts, FAZ 1'de
  * genişletilecek).
+ *
+ * `Currency` `./wallet`'tan YALNIZCA TİP olarak alınır (`import type`):
+ * `wallet.ts` bu dosyadan değer (`InsufficientFundsError`) import ettiği
+ * için, tip importu derlemede silinmezse döngüsel bir runtime import
+ * oluşurdu. `import type` bunu yapısal olarak imkânsız kılar.
  */
+
+import type { Currency } from './wallet';
 
 export class InsufficientFundsError extends Error {
   constructor(
-    public readonly currency: 'money' | 'gems',
+    public readonly currency: Currency,
     public readonly required: number,
     public readonly available: number,
   ) {

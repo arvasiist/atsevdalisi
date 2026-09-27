@@ -1,4 +1,5 @@
 import type { UUID } from './common';
+import type { CurrencyAmount } from './currency';
 import type { Horse, HorseStatus } from './horse';
 
 /**
@@ -87,7 +88,7 @@ export interface FeedHorseResult {
 export interface FeedItemView {
   type: FeedType;
   /** Satın alma fiyatı. `null` ise kalem satın ALINAMAZ (yalnızca bedava). */
-  price: { currency: 'money' | 'gems'; amount: number } | null;
+  price: CurrencyAmount | null;
   /** `false` ise kalem stoklanmaz (her zaman verilebilir, `saman` gibi). */
   stocked: boolean;
   /** At başına günlük sınır; `null` ise sınırsız. */
@@ -121,6 +122,6 @@ export interface BuyFeedResult {
   /** Satın alma SONRASI oyuncu bakiyesi (istemci bakiyeyi kendisi düşmez). */
   newBalance: { money: number; gems: number };
   /** Ödenen birim fiyat ve adet — makbuz niteliğinde. */
-  price: { currency: 'money' | 'gems'; amount: number };
+  price: CurrencyAmount;
   purchasedCount: number;
 }

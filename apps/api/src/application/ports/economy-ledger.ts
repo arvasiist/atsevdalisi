@@ -16,6 +16,9 @@
  * giriş üretebilir — bkz. `PostgresPlayerRepository`'nin ledger yazma
  * mantığı.
  */
+
+import type { Currency } from '../../domain/economy/wallet';
+
 export interface EconomyLedgerEntryInput {
   playerId: string;
   /**
@@ -27,7 +30,14 @@ export interface EconomyLedgerEntryInput {
   type: string;
   /** İMZALI: negatif = düşüm (debit), pozitif = ekleme (credit). Asla sıfır olamaz (bkz. çağıranların "amount > 0 ise yaz" kontrolü). */
   amount: number;
-  currency: 'money' | 'gems';
+  /**
+   * Para birimi. Tip `domain/economy/wallet.ts`'teki `CURRENCIES`'ten
+   * TÜRETİLİR (brief §14) — burada elle `'money' | 'gems'` yazmak,
+   * ikinci bir doğruluk kaynağı üretiyordu. Migration'daki
+   * `CHECK (currency IN ('money','gems'))` ile eşleşmesi
+   * `apps/api/test/database/economy-currency.spec.ts` tarafından korunur.
+   */
+  currency: Currency;
   referenceType: string | null;
   referenceId: string | null;
   balanceBefore: number;

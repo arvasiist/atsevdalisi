@@ -1,3 +1,4 @@
+import type { CurrencyAmount } from './currency';
 import type { Player } from './player';
 
 /**
@@ -43,7 +44,7 @@ export interface StableSummaryView {
  */
 export interface StableUpgradeOfferView {
   nextLevel: number;
-  cost: { currency: 'money' | 'gems'; amount: number };
+  cost: CurrencyAmount;
   /** `nextLevel`'a geçildiğinde ahırın yeni at kapasitesi. */
   nextCapacity: number;
 }
@@ -58,5 +59,5 @@ export interface StableUpgradeResult {
   newStableLevel: number;
   newCapacity: number;
   newBalance: Pick<Player, 'money' | 'gems'>;
-  cost: { currency: 'money' | 'gems'; amount: number };
+  cost: CurrencyAmount;
 }

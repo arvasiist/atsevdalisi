@@ -10,7 +10,25 @@ import { InsufficientFundsError, InvalidAmountError } from './errors';
  * fonksiyonların etrafına sarılarak uygulanır.
  */
 
-export type Currency = 'money' | 'gems';
+/**
+ * Para birimi modeli TEK bir yerde tanımlıdır: `@at-sevdalisi/shared-types`
+ * (`packages/shared-types/src/currency.ts`) — çünkü aynı birleşimi
+ * `apps/web` de kullanır. Burada YENİDEN TANIMLANMAZ, yalnızca domain'in
+ * geri kalanının (ve `application/ports/economy-ledger.ts`,
+ * `domain/economy/errors.ts`'in) kullandığı içe aktarma yolundan dışa
+ * aktarılır — böylece tek bir doğruluk kaynağı kalır (brief §14, §29
+ * "duplicate economy implementation oluşturma").
+ *
+ * Oyuncuya görünen adlar (Çip / Elmas) UI katmanında yaşar:
+ * `apps/web/src/lib/currency.ts` + `docs/ECONOMY.md` §4.
+ *
+ * `CURRENCIES` ile `economy_transactions.currency` üzerindeki
+ * `CHECK (currency IN (...))` arasındaki kaymayı
+ * `apps/api/test/database/economy-currency.spec.ts` yakalar.
+ */
+import type { Currency } from '@at-sevdalisi/shared-types';
+
+export { CURRENCIES, type Currency } from '@at-sevdalisi/shared-types';
 
 export interface WalletBalance {
   money: number;

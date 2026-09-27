@@ -21,6 +21,7 @@ import { HorseAvatar } from '../../components/ui/HorseAvatar';
 import { StarRating } from '../../components/ui/StarRating';
 import { StatBar } from '../../components/ui/StatBar';
 import { apiClient } from '../../lib/api-client';
+import { formatCurrency, hasEnoughFunds } from '../../lib/currency';
 import { usePlayer } from '../../lib/player-context';
 
 export default function StablePage(): React.ReactElement {
@@ -231,18 +232,6 @@ function StableUpgradeCard({ ownerId, onUpgraded }: { ownerId: string; onUpgrade
  * DEĞİŞTİRMEZ: bu fonksiyon yanlış cevap verse bile harcama kararını
  * `POST .../stable/upgrade` içindeki `SELECT ... FOR UPDATE` verir.
  */
-function hasEnoughFunds(
-  player: { money: number; gems: number },
-  cost: { currency: 'money' | 'gems'; amount: number },
-): boolean {
-  return cost.currency === 'money' ? player.money >= cost.amount : player.gems >= cost.amount;
-}
-
-function formatCurrency(currency: 'money' | 'gems', amount: number): string {
-  const formatted = amount.toLocaleString('tr-TR');
-  return currency === 'money' ? `${formatted} ₺` : `${formatted} elmas`;
-}
-
 function upgradeButtonStyle(enabled: boolean): React.CSSProperties {
   return {
     // AUDIT_REPORT.md F1 ile AYNI kural: 44px dokunma hedefi.
@@ -321,7 +310,7 @@ function HorseCard({ horse }: { horse: PublicHorse }): React.ReactElement {
         <span>Potansiyel tahmini: {horse.potentialEstimate.min}–{horse.potentialEstimate.max}</span>
         {marketValue !== null ? (
           <span style={{ color: 'var(--color-accent-gold)', fontWeight: 600 }}>
-            Değer: {marketValue.toLocaleString('tr-TR')} ₺
+            Değer: {formatCurrency('money', marketValue)}
           </span>
         ) : null}
       </div>

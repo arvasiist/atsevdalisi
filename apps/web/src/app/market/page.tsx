@@ -20,6 +20,7 @@
 import { useEffect, useState } from 'react';
 import { GlassPanel } from '../../components/ui/GlassPanel';
 import { apiClient } from '../../lib/api-client';
+import { formatCurrency } from '../../lib/currency';
 import { usePlayer } from '../../lib/player-context';
 
 interface Listing {
@@ -115,7 +116,7 @@ export default function MarketPage(): React.ReactElement {
               <div>
                 <p style={{ margin: '0 0 4px 0', fontSize: '12px', color: 'var(--color-text-muted)' }}>At ID: {item.horseId}</p>
                 <p style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: 'var(--color-accent-gold)' }}>
-                  {item.price.toLocaleString('tr-TR')} ₺
+                  {formatCurrency('money', item.price)}
                 </p>
               </div>
               <button type="button" onClick={() => void handleBuy(item.id)} style={buyButtonStyle()}>

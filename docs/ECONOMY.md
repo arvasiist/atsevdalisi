@@ -35,20 +35,76 @@ jokey (maaş), personel (maaş), ahır/çiftlik geliştirme, yetiştiricilik
 ücreti. Her gider, ilgili use-case içinde **önce bakiye kontrolü, sonra
 düşüm** sırasıyla, tek bir transaction içinde yapılır (bkz. §5).
 
+> **Bu liste HEDEFTİR, bugünkü durum değildir.** Hangilerinin gerçekten
+> bağlı olduğu ve hangilerinin hâlâ bedava olduğu §4.2'de yazılıdır.
+
 ## 4. Para birimleri
 
-| Birim | Kaynak | Kullanım alanı |
-|---|---|---|
-| `money` (yumuşak para) | Oyun içi kazanım | Antrenman, bakım, düşük/orta segment at alım-satımı, giriş ücretleri |
-| `gems` (premium para) | Satın alma veya nadiren ödül | Kozmetik, convenience item, bazı premium hızlandırmalar |
+İki para birimi vardır ve **birbirine çevrilemez** — brief §14: "premium
+currency gerekiyorsa AYRI tutulmalı". Kimlikler ve tip TEK bir yerde
+tanımlıdır: `packages/shared-types/src/currency.ts` (`CURRENCIES` /
+`Currency`). `apps/api` domain'i (`domain/economy/wallet.ts`) bunu yeniden
+dışa aktarır; `apps/web` oyuncuya görünen adları oradan türetir
+(`apps/web/src/lib/currency.ts`).
 
-Brief §67 gereği: **gerçek para ile "garantili yarış galibiyeti" satılmaz**
-ve gerçek para bahis/kumar mekaniği oyunun çekirdeği olamaz. `gems` ile
-satın alınabilecek her item, `config/economy.config.json` →
-`gemShopWhitelist` içinde açıkça listelenmelidir; bu liste dışı hiçbir
-item gems karşılığı satılamaz.
->
-> **AUDIT_REPORT.md Bulgu DOC1 (bu oturum) — durum düzeltmesi:**
+| Kimlik (depolama) | Oyuncuya görünen ad | Tür | Oyuncu kolonu | Defter |
+|---|---|---|---|---|
+| `money` | **Çip** | Ana (yumuşak) para | `players.money` | `economy_transactions.currency = 'money'` |
+| `gems` | **Elmas** | Premium para | `players.gems` | `economy_transactions.currency = 'gems'` |
+
+> **Depolama kimliği neden hâlâ `money`?** Brief §1 "yeni currency
+> oluşturmak yerine mevcut sistem uygunsa onu genişlet" der. Kolonu
+> yeniden adlandırmak her para yolunu, migration'ı ve mevcut defter
+> kayıtlarını riske atardı; değişen şey oyuncunun GÖRDÜĞÜ addır ve o ad
+> UI katmanında yaşar.
+
+`economy_transactions.currency` üzerindeki `CHECK (currency IN (...))` ile
+`CURRENCIES` arasındaki kayma `apps/api/test/database/economy-currency.spec.ts`
+tarafından denetlenir — yeni bir birim eklenip migration yazılmazsa test kırmızı olur.
+
+### 4.1 Source / sink tablosu (brief §14)
+
+Brief §14 "bütün currency'lerin source/sink tablosunu oluştur" der. Aşağıdaki
+tablo **bugün kodda gerçekten var olan** yolları gösterir; brief'in öngördüğü
+ama henüz uygulanmamış kalemler ayrıca işaretlenmiştir.
+
+| Birim | Source (gelir) | Sink (gider) |
+|---|---|---|
+| **Çip** (`money`) | Yeni oyuncu başlangıç bakiyesi (5.000) · günlük ödül (500) · pratik yarış ödülü · pazar satışı (satıcı payı) | Yarış giriş ücreti (pratik: 50) · ahır yükseltmesi · tesis yükseltmesi · pazar alımı (alıcı) |
+| **Elmas** (`gems`) | Yeni oyuncu başlangıç bakiyesi (50) — **başka kaynak YOK** | Yem satın alma (`arpa`/`mama`/`havuc`/`vitamin`) — **tek sink** |
+
+**Henüz uygulanmamış (brief'te var, kodda yok):** gerçek yarış ödülü
+(`ClaimRaceRewardUseCase` YOKTUR — bugün tek ödül yolu pratik yarıştır) ·
+görev ödülü · başarı (achievement) ödülü · turnuva/sezon ödülü · jokey ve
+personel maaşları · yetiştiricilik ücreti · bakım/antrenman/ekipman
+giderleri (bugün **bedavadır**, bkz. §4.2) · Elmas kazandıran yollar
+(ödüllü reklam, satın alma).
+
+> **⚠️ Bilinen dengesizlik (CRITICAL, audit bulgusu):** pratik yarış bugün
+> bir **sınırsız Çip musluğudur** — giriş ücreti 50, ödül tablosu
+> `[200,120,80,50,30,0]` (toplam 480), botlar hiç ödeme yapmaz; beklenen
+> değer yarış başına ≈ +30. Uç noktada `@RateLimit`, bekleme süresi veya
+> enerji maliyeti YOKTUR. Bu, oyun dengesi kararı olduğu için proje
+> sahibinin onayıyla ayrı bir dilimde kapatılacaktır.
+
+### 4.2 Bugün bedava olan giderler
+
+`config/economy.config.json` ve `config/care.config.json` bakım/antrenman
+maliyetlerini **tanımlar** ama bunları okuyup uygulayan çağrı yoktur
+(`getCareActionCost`'un hiç çağıranı yoktur; antrenmanın maliyet kavramı
+yoktur; ekipman oluşturma ücretsizdir). Yani brief'in öngördüğü sink'lerin
+bir kısmı **henüz bağlanmamıştır** — bu, "para birimini uyarlama" işinin
+kapsamı dışında bırakılmıştır çünkü bedava olan bir yere ücret koymak
+oyun dengesi kararıdır, proje sahibinin onayını gerektirir.
+
+### 4.3 Monetization sınırı (brief §67)
+
+**Gerçek para ile "garantili yarış galibiyeti" satılmaz** ve gerçek para
+bahis/kumar mekaniği oyunun çekirdeği olamaz. `gems` ile satın alınabilecek
+her item, `config/economy.config.json` → `gemShopWhitelist` içinde açıkça
+listelenmelidir; bu liste dışı hiçbir item gems karşılığı satılamaz.
+
+> **AUDIT_REPORT.md Bulgu DOC1 — durum düzeltmesi:**
 > `gemShopWhitelist` şu an yalnızca `config/economy.config.json` içinde
 > bir VERİ olarak var; `apps/api/src` içinde bunu okuyan/zorunlu kılan
 > HİÇBİR kod yoktur, çünkü henüz hiçbir gem shop endpoint'i (satın alma

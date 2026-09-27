@@ -21,6 +21,7 @@
  */
 
 import Link from 'next/link';
+import { CURRENCY_LABELS } from '../../lib/currency';
 import { usePlayer } from '../../lib/player-context';
 import { HorseAvatar } from '../ui/HorseAvatar';
 
@@ -61,8 +62,8 @@ export function TopBar(): React.ReactElement {
 
       {player ? (
         <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 'var(--space-sm)' }}>
-          <CurrencyPill icon="💰" value={player.money} />
-          <CurrencyPill icon="💎" value={player.gems} />
+          <CurrencyPill icon="💰" label={CURRENCY_LABELS.money} value={player.money} />
+          <CurrencyPill icon="💎" label={CURRENCY_LABELS.gems} value={player.gems} />
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <HorseAvatar horseId={player.id} size={32} />
             <div style={{ display: 'grid', lineHeight: 1.25 }}>
@@ -80,9 +81,17 @@ export function TopBar(): React.ReactElement {
   );
 }
 
-function CurrencyPill({ icon, value }: { icon: string; value: number }): React.ReactElement {
+/**
+ * Rozet dar olduğu için birim adı GÖRÜNMEZ metin olarak verilir
+ * (`aria-label` + `title`): ekran okuyucu "Çip bakiyesi: 5.000" der, fare
+ * üzerine gelince ipucu çıkar. Adlar `lib/currency.ts`'ten gelir — burada
+ * satır içi 'Çip'/'Elmas' yazmak, adı iki yerde tutmak olurdu.
+ */
+function CurrencyPill({ icon, label, value }: { icon: string; label: string; value: number }): React.ReactElement {
   return (
     <div
+      title={`${label} bakiyesi`}
+      aria-label={`${label} bakiyesi: ${value.toLocaleString('tr-TR')}`}
       style={{
         display: 'flex',
         alignItems: 'center',

@@ -1,4 +1,5 @@
 export * from './common';
+export * from './currency';
 export * from './error-codes';
 export * from './deterministic-random';
 export * from './player';
