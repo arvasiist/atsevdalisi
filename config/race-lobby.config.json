@@ -1,0 +1,15 @@
+{
+  "fieldSizes": [8, 10, 12, 14, 16],
+  "minPlayers": 8,
+  "maxPlayers": 16,
+  "aiFillEnabled": true,
+  "paidEntryFeeOptions": [50, 100, 250, 500, 1000],
+  "tribuneFeeOptions": [0, 10, 25, 50],
+  "spectatorCapacityOptions": [500, 1000, 5000],
+  "distanceMeters": { "min": 800, "max": 3200 },
+  "nameLength": { "min": 3, "max": 60 },
+  "startDelaySeconds": { "min": 60, "max": 604800 },
+  "maxOpenRacesPerPlayer": 3,
+  "allowedSurfaces": ["grass", "dirt", "synthetic"],
+  "allowedWeather": ["sunny", "rainy", "windy", "cloudy", "hot", "cold"]
+}

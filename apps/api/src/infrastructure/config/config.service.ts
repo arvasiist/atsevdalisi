@@ -11,6 +11,7 @@ import {
   loadOnlineConfig,
   loadProgressionConfig,
   loadRaceConfig,
+  loadRaceLobbyConfig,
   loadSocialConfig,
   loadStableConfig,
   loadTrainingConfig,
@@ -93,4 +94,11 @@ export class AppConfigService {
   // geçmiş limiti ve hız sınırı da gateway/use-case'lerde hard-code
   // EDİLMEZ (CLAUDE.md "SİHİRLİ SAYI YOK").
   readonly chat = loadChatConfig();
+  // OYUNCUNUN OLUŞTURDUĞU ÜCRETLİ YARIŞ (brief §1-§7, §42 PHASE 1, proje
+  // sahibinin "brieften kontrol edelim sırayla" talimatı, 27.09.2026) —
+  // `config/race-lobby.config.json` bu dilimde OLUŞTURULDU. At sayısı
+  // seçenekleri (8/10/12/14/16), MIN/MAX_PLAYERS, giriş ücreti ve tribün
+  // seçenekleri ile mesafe/başlangıç sınırları use-case ve domain
+  // katmanında hard-code EDİLMEZ (CLAUDE.md "SİHİRLİ SAYI YOK").
+  readonly raceLobby = loadRaceLobbyConfig();
 }

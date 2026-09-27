@@ -171,6 +171,31 @@ export const ErrorCode = {
   GiftRequiresFriendship: 'GIFT_REQUIRES_FRIENDSHIP',
   /** Son 24 saatteki hediye SAYISI tavanı aşıldı (409) — bkz. `GiftConfig.dailyLimit`. */
   DailyGiftLimitReached: 'DAILY_GIFT_LIMIT_REACHED',
+  /**
+   * Oyuncunun oluşturduğu ücretli yarış (brief §1-§7, §42 PHASE 1) —
+   * aşağıdaki iki kod `domain/race/lobby.ts`'in ürettikleridir.
+   */
+  /**
+   * Yarış tanımı geçersiz: ad uzunluğu, at sayısı (8/10/12/14/16 dışında),
+   * giriş ücreti, mesafe, başlangıç zamanı, tribün ücreti/kapasitesi ya da
+   * `raceType`–`entryFee` çelişkisi (400).
+   *
+   * **TEK KOD, ÇOK NEDEN** — bilinçlidir: `InvalidRaceTier`'ın aksine
+   * burada istemcinin ayırt etmesi gereken bir şey yoktur, çünkü hata
+   * mesajı hangi alanın neden reddedildiğini zaten söyler ve istemci
+   * formu tümüyle yeniden doğrular. Her neden için ayrı bir kod eklemek,
+   * `error-codes.ts`'i bir form doğrulama şemasına çevirirdi.
+   */
+  InvalidRaceDefinition: 'INVALID_RACE_DEFINITION',
+  /**
+   * Oyuncunun AÇIK yarış sayısı tavanı aşıldı (409) — bkz.
+   * `RaceLobbyConfig.maxOpenRacesPerPlayer`. `SocialLimitReached`/
+   * `DailyGiftLimitReached` ile AYNI gerekçeyle 400 DEĞİL 409: istek
+   * biçimsel olarak kusursuzdur, engelleyen şey DURUMDUR (mevcut açık
+   * yarışlar) ve o yarışlar bitince ya da iptal edilince kendiliğinden
+   * ortadan kalkar.
+   */
+  RaceLimitReached: 'RACE_LIMIT_REACHED',
 } as const;
 
 export type ErrorCodeValue = (typeof ErrorCode)[keyof typeof ErrorCode];

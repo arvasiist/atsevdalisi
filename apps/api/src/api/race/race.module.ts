@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { LEADERBOARD_REPOSITORY } from '../../application/ports/leaderboard.repository';
 import { RACE_REPOSITORY } from '../../application/ports/race.repository';
 import { HORSE_EQUIPMENT_REPOSITORY } from '../../application/ports/horse-equipment.repository';
+import { CreateRaceUseCase } from '../../application/use-cases/create-race.use-case';
 import { GetHorseMarketValueUseCase } from '../../application/use-cases/get-horse-market-value.use-case';
 import { GetLeaderboardUseCase } from '../../application/use-cases/get-leaderboard.use-case';
 import { GetRaceTimelineUseCase } from '../../application/use-cases/get-race-timeline.use-case';
@@ -19,6 +20,7 @@ import { MarketModule } from '../market/market.module';
 import { PlayerModule } from '../player/player.module';
 import { HorseMarketValueController } from './horse-market-value.controller';
 import { RaceController } from './race.controller';
+import { RaceLobbyController } from './race-lobby.controller';
 import { RaceTimelineController } from './race-timeline.controller';
 import { RecentRacesController } from './recent-races.controller';
 
@@ -34,11 +36,20 @@ import { RecentRacesController } from './recent-races.controller';
     RaceController,
     RecentRacesController,
     RaceTimelineController,
+    // brief §1-§7, §42 PHASE 1 — oyuncunun kendi yarışını açması
+    // (`POST /races`). `RaceTimelineController` ile AYNI `races` prefix'ini
+    // paylaşır; tam yollar çakışmaz.
+    RaceLobbyController,
     HorseMarketValueController,
     LeaderboardController,
   ],
   providers: [
     RunPracticeRaceUseCase,
+    // brief §42 PHASE 1 — `CreateRaceUseCase` `RACE_REPOSITORY` (bu modülde
+    // zaten kayıtlı) ve `AppConfigService` (`@Global()` `AppConfigModule`)
+    // dışında hiçbir bağımlılık taşımaz; bu yüzden ek modül importu
+    // GEREKMEZ.
+    CreateRaceUseCase,
     GetRecentRaceResultsUseCase,
     // AUDIT_REPORT.md Bulgu R2 (Medium, bu oturum) — bkz. `get-race-timeline.use-case.ts` doc yorumu.
     GetRaceTimelineUseCase,

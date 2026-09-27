@@ -38,7 +38,14 @@ import {
 import { MaxStableLevelReachedError, StableCapacityExceededError } from '../../domain/stable/errors';
 import { InvalidFacilityTypeError, MaxFacilityLevelReachedError } from '../../domain/farm/errors';
 import { DailyRewardAlreadyClaimedError, InsufficientFundsError } from '../../domain/economy/errors';
-import { HorseNotReadyToRaceError, InvalidRaceTacticError, InvalidRaceTierError, RaceNotFoundError } from '../../domain/race/errors';
+import {
+  HorseNotReadyToRaceError,
+  InvalidRaceDefinitionError,
+  InvalidRaceTacticError,
+  InvalidRaceTierError,
+  RaceLimitReachedError,
+  RaceNotFoundError,
+} from '../../domain/race/errors';
 import { AlreadyInMatchmakingQueueError, NotInMatchmakingQueueError } from '../../domain/online/errors';
 import {
   RaceNotWatchableError,
@@ -143,6 +150,29 @@ const DOMAIN_ERROR_MAP = new Map<ErrorClassConstructor, { status: number; code: 
   // AUDIT_REPORT.md Bulgu R2 (Medium, bu oturum) — `HorseNotFoundError`/
   // `ListingNotFoundError` ile AYNI kategori (bulunamayan kaynak), 404.
   [RaceNotFoundError, { status: HttpStatus.NOT_FOUND, code: ErrorCode.RaceNotFound }],
+  // brief §42 PHASE 1 — oyuncunun oluşturduğu yarışın tanımı geçersiz.
+  // `InvalidRaceTacticError`/`InvalidRaceTierError` ile AYNI gerekçe
+  // (gerçek, KALICI bir doğrulama hatası), ama KENDİ koduyla: istemci
+  // "geçersiz taktik"/"geçersiz kademe" ile "geçersiz yarış tanımı"nı
+  // ayırt edebilmelidir — bu üçü tamamen farklı ekranlardan gelir.
+  //
+  // Hatanın taşıdığı `problems` dizisi, `InvalidRaceDefinitionError`
+  // kurucusunda TEK bir mesaja birleştirilir ve istemciye `message`
+  // alanında EKSİKSİZ gider — yani "hangi alanlar hatalı" bilgisi
+  // kaybolmaz. Zarfa AYRI bir `details: string[]` alanı EKLEMEK
+  // bilinçli olarak tercih EDİLMEDİ: docs/API.md §1.2'nin zarfı tüm
+  // uçlarda `{ code, message }`tir ve tek bir uç için onu genişletmek,
+  // istemcinin her hata için "acaba details var mı" diye sormasına yol
+  // açardı. Bir form alan-alan vurgulama gerektirirse doğru adım bu
+  // satırı değiştirmek DEĞİL, zarfı sürümlemektir (ayrı bir iş).
+  [InvalidRaceDefinitionError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.InvalidRaceDefinition }],
+  // brief §42 PHASE 1 — `maxOpenRacesPerPlayer` tavanı aşıldı.
+  // `SocialLimitReachedError`/`DailyGiftLimitReachedError` ile AYNI
+  // gerekçeyle 409 Conflict, 400 DEĞİL: engelleyen şey isteğin BİÇİMİ
+  // değil, oyuncunun MEVCUT açık yarışlarının sayısıdır — yani istek
+  // kusursuz biçimde geçerlidir, yalnızca şu an yapılamaz (bir yarışı
+  // iptal etmek ya da koşturmak tavanı kendiliğinden boşaltır).
+  [RaceLimitReachedError, { status: HttpStatus.CONFLICT, code: ErrorCode.RaceLimitReached }],
   // FAZ 1 wiring, dokuzuncu dilim — brief §54 Idempotency-Key. Eksik
   // header GERÇEK bir doğrulama hatası DEĞİLDİR (DTO/gövde şeklini
   // ilgilendirmez) — kendi özel `ErrorCode.IdempotencyKeyRequired`'ı

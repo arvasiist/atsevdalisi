@@ -2,6 +2,7 @@ import type {
   PvpMatch,
   Race,
   RaceEntry,
+  RaceLobbyView,
   RaceSegmentSnapshot,
   RaceTimelineView,
   RecentRaceResultView,
@@ -171,7 +172,123 @@ export interface RaceRepository {
    * URL'den gelen bir "iddia edilen kimlik" değil).
    */
   isPlayerParticipant(raceId: string, playerId: string): Promise<boolean>;
+
+  /**
+   * Oyuncunun oluşturduğu ücretli yarışı (brief §1-§7, §42 PHASE 1)
+   * `races` tablosuna yazar ve lobi görünümünü döner.
+   *
+   * **PARA HAREKETİ ÜRETMEZ** — giriş ücreti yarışa KATILIRKEN alınır
+   * (PHASE 1b), yarış açılırken değil. Bu yüzden `savePracticeRaceWithStakes`
+   * gibi bir ledger yazımı veya bakiye kilidi YOKTUR; tek kilit
+   * `maxOpenRacesPerPlayer` tavanının atomik olması içindir (bkz.
+   * `CreateLobbyRaceResult` doc yorumu).
+   *
+   * `races` satırı TEK bir `INSERT`tir, ama yine de bir transaction
+   * içindedir: tavan kontrolü ile yazma AYNI transaction'da olmak
+   * zorundadır, aksi hâlde eşzamanlı iki istek tavanı aşabilir.
+   */
+  createLobbyRace(input: CreateLobbyRaceInput): Promise<CreateLobbyRaceResult>;
 }
+
+/**
+ * `RaceRepository.createLobbyRace` (brief §1-§7, §42 PHASE 1) girdi şekli.
+ *
+ * **`id` ÇAĞIRAN TARAFINDAN ÜRETİLİR** — `run-practice-race` use-case'inin
+ * `randomUUID()` ile `raceId` üretmesiyle AYNI desen (bkz. o dosya).
+ * Repository'nin kendisi kimlik üretmez: id tek bir yerde doğar.
+ *
+ * **`simulationSeed` İSE BURADA `null`'dır** — bu, pratik yarıştan
+ * BİLİNÇLİ bir sapmadır; gerekçesi `CreateLobbyRaceInput.simulationSeed`
+ * üstündeki doc yorumunda tam olarak açıklanmıştır (özet: erken üretilen
+ * bir seed'i yarışı açan kişi okuyup sonucu önceden hesaplayabilir, bu da
+ * ücretli bir yarışta doğrudan para kazanma yoludur).
+ *
+ * `engineVersion`/`rulesetVersion`/`configVersion`/`weatherConfigVersion`
+ * BURADA ZORUNLUDUR çünkü `races`'in bu dört sütunu `NOT NULL`dır ve
+ * migration 0021/0024 bilerek `DEFAULT`'u KALDIRMIŞTIR ("yeni satırlar HER
+ * ZAMAN uygulama kodundan gelen GERÇEK bir değerle yazılsın"). Henüz
+ * KOŞMAMIŞ bir yarış için bunlar "bu yarışın koşacağı BEKLENEN sürüm"dür;
+ * yarış gerçekten simüle edildiğinde (PHASE 3) kullanılan GERÇEK
+ * sürümlerle ÜZERİNE YAZILIR — bu yüzden arada bir engine sürümü artışı
+ * olsa bile replay/audit kaydı sonunda doğru kalır.
+ */
+export interface CreateLobbyRaceInput {
+  id: string;
+  /** Yarışı açan oyuncu — `CurrentPlayer()`'dan gelir, gövdeden ASLA (CLAUDE.md "SUNUCU OTORİTESİ"). */
+  createdBy: string;
+  name: string;
+  /** brief §1/§7 "at sayısı" → `races.participant_limit`. */
+  fieldSize: number;
+  /** brief §1/§6 "maksimum oyuncu" → `races.max_players`. */
+  maxPlayers: number;
+  entryFee: number;
+  raceType: 'free' | 'paid';
+  startTime: Date;
+  surface: string;
+  weather: string;
+  distanceMeters: number;
+  tribuneFee: number;
+  spectatorCapacity: number;
+  /** brief §3 — yarış açıldığı anda 0'dır; katılımcılarla BÜYÜR (PHASE 1b). */
+  prizePool: number;
+  /**
+   * **BİLİNÇLİ OLARAK `null`'dır — lobi yarışı seed'siz doğar.**
+   *
+   * Pratik yarışta (`run-practice-race`) seed, yarışla AYNI anda
+   * üretilir çünkü yarış oracıkta koşar. Lobi yarışında ise arada
+   * SAATLER, hatta günler vardır ve seed'in ERKEN üretilmesi gerçek bir
+   * adalet sorunu doğurur:
+   *
+   *  1. Seed, `GET /races/:id/timeline` yanıtında istemciye GİDER (bkz.
+   *     `get-race-timeline.use-case.ts` → `simulationSeed`). Yarış
+   *     açıldığı anda seed sabitlenseydi, yarışı açan kişi kendi
+   *     yarışının seed'ini okuyabilir, snapshot'ı yerel olarak kurup
+   *     sonucu ÖNCEDEN hesaplayabilir ve "kazanacağımı biliyorum" diye
+   *     katılırdı. Ücretli bir yarışta bu, doğrudan para kazanma yoludur.
+   *  2. Daha sinsi olanı: seed erken sabitlenirse, katılımcı listesi
+   *     seed'e GİRMEZ — yani bir oyuncu "hangi atlar katılırsa kazanırım"
+   *     sorusunu deneyerek lobiyi yönlendirebilir.
+   *
+   * Seed'i YARIŞ KOŞARKEN üretmek iki sorunu birden kapatır: o anda
+   * katılımcı listesi ZATEN kilitlidir (kayıt kapanmıştır) ve seed
+   * kimseye — yarışı açana bile — önceden görünmez. Bu yüzden
+   * `races.simulation_seed` sütunu `NULL` kabul eder (migration 0006,
+   * `DEFAULT` yok) ve bu alan `null` geçilir.
+   */
+  simulationSeed: string | null;
+  engineVersion: string;
+  rulesetVersion: string;
+  configVersion: string;
+  weatherConfigVersion: string;
+  /**
+   * `RaceLobbyConfig.maxOpenRacesPerPlayer` — bu değer PORT'tan geçer
+   * çünkü kontrolün `INSERT` ile AYNI transaction'da yapılması gerekir
+   * (aşağıdaki `CreateLobbyRaceResult`'ın doc yorumu).
+   */
+  maxOpenRaces: number;
+}
+
+/**
+ * `RaceRepository.createLobbyRace` sonucu.
+ *
+ * **NEDEN `null`/istisna DEĞİL, AYRIK BİR SONUÇ:** "tavan aşıldı" bir
+ * HATA değil bir DURUMDUR ve `races` satırı YAZILMAMIŞTIR — bunu bir
+ * istisnayla ifade etmek, repository'yi (Infrastructure katmanını) domain
+ * hatası (`RaceLimitReachedError`) bilmeye zorlardı; oysa bu port
+ * (docs/ARCHITECTURE.md §4) HTTP/domain hatası BİLMEZ, yalnızca olguları
+ * döner. Hatayı fırlatmak `CreateRaceUseCase`'in işidir.
+ *
+ * **NEDEN SAYIM REPOSITORY'NİN İÇİNDE:** tavan kontrolü ile `INSERT`
+ * ARASINDA bir boşluk olursa, aynı oyuncunun eşzamanlı iki isteği
+ * ikisi de "2 açık yarışım var" görüp ikisi de yazabilir (tavan 3 iken 4
+ * açık yarış). Bu yüzden sayım, `players` satırı `FOR UPDATE` ile
+ * KİLİTLENEREK aynı transaction içinde yapılır — aynı oyuncunun eşzamanlı
+ * oluşturma istekleri bu noktada SIRAYA girer.
+ */
+export type CreateLobbyRaceResult =
+  | { ok: true; race: RaceLobbyView }
+  | { ok: false; reason: 'RACE_LIMIT_REACHED'; openRaces: number };
+
 
 /** `RaceRepository.savePracticeRaceWithStakes` (AUDIT_REPORT.md E1) girdi şekli. */
 export interface SavePracticeRaceWithStakesInput {

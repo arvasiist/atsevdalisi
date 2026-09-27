@@ -71,3 +71,47 @@ export class InvalidRaceTierError extends Error {
     this.name = 'InvalidRaceTierError';
   }
 }
+
+/**
+ * Oyuncunun oluşturduğu yarış (brief §1-§7, §42 PHASE 1) — gövdedeki
+ * alanlardan en az biri `config/race-lobby.config.json` sınırlarının
+ * dışındaysa fırlatılır. 400 (kalıcı doğrulama hatası —
+ * `InvalidRaceTacticError`/`InvalidRaceTierError` ile AYNI kategori).
+ *
+ * **NEDEN BİR DİZİ TAŞIR, TEK MESAJ DEĞİL:** yarış oluşturma bir FORM
+ * işlemidir ve dokuz alanın birden fazla olanı aynı anda hatalı olabilir.
+ * İlk hatada durmak, kullanıcıyı "düzelt, gönder, ikinci hatayı gör,
+ * düzelt, gönder…" döngüsüne sokardı. Bu yüzden `validateRaceCreation`
+ * (bkz. `lobby.ts`) TÜM sorunları toplar — `validateRaceTiers`'ın (bkz.
+ * `prize.ts`) "fırlatma, sonuç döndür" deseniyle AYNI.
+ *
+ * **NEDEN DOMAIN'DE, DTO'DA DEĞİL:** DTO dekoratörleri (`@IsIn`, `@Min`,
+ * `@Max`) Vitest/esbuild altında SESSİZCE atlanır — `design:paramtypes`
+ * üretilmediği için `ValidationPipe` gövdeyi hiç doğrulamaz (CLAUDE.md
+ * kural 5). Yani DTO TEK BAŞINA bir kapı DEĞİLDİR; asıl kapı burasıdır,
+ * dekoratörler yalnızca gerçek bir HTTP sunucusunda çalışan ikinci
+ * katmandır.
+ */
+export class InvalidRaceDefinitionError extends Error {
+  constructor(public readonly problems: string[]) {
+    super(`Geçersiz yarış tanımı: ${problems.join(' ')}`);
+    this.name = 'InvalidRaceDefinitionError';
+  }
+}
+
+/**
+ * `RaceLobbyConfig.maxOpenRacesPerPlayer` tavanı aşıldı — 409 (bkz.
+ * `ErrorCode.RaceLimitReached`'in doc yorumu: engelleyen şey isteğin
+ * biçimi değil, oyuncunun MEVCUT açık yarışlarının sayısıdır).
+ *
+ * `SocialLimitReachedError`/`DailyGiftLimitReachedError` ile AYNI sınıf
+ * savunma: bu tavan olmadan tek bir hesap saniyeler içinde binlerce yarış
+ * kaydı açabilir — hem depolama hem de "keşif listesini çöple doldurma"
+ * (brief §26) vektörü.
+ */
+export class RaceLimitReachedError extends Error {
+  constructor(public readonly limit: number) {
+    super(`Aynı anda en fazla ${limit} açık yarış oluşturabilirsiniz.`);
+    this.name = 'RaceLimitReachedError';
+  }
+}

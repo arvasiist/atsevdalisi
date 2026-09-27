@@ -442,3 +442,52 @@ export interface RaceTelemetryPayload {
   raceId: UUID;
   segments: RaceSegmentSnapshot[];
 }
+
+/**
+ * Oyuncunun OLUŞTURDUĞU yarışın lobi görünümü (brief §1-§7, §42 PHASE 1) —
+ * `POST /races` yanıtı. `Race` (yukarıda) ile AYNI tablodan gelir ama
+ * AYRI bir tiptir ve bu bilinçlidir:
+ *
+ *  - `Race`, `race_entries`/`race_entry_segments` ile birlikte SİMÜLASYON
+ *    tarafından üretilen yarışların şeklidir (motor sürümü, seed, snapshot
+ *    sözleşmesi). Oyuncunun açtığı bir yarış HENÜZ KOŞMAMIŞTIR — motor
+ *    sürümü/seed alanlarının orada bir anlamı yoktur.
+ *  - `Race`'e beş alan eklemek, onu okuyan/yazan TÜM mevcut yollara
+ *    (`insertRaceRow`, satır eşleyicileri, replay, pratik yarış) dokunmak
+ *    demekti. Brief §29 "mevcut yapıya entegre et" der ama "mevcut
+ *    sözleşmeleri gereksiz yere genişlet" demez.
+ *
+ * `joinedPlayers` BURADA 0'DIR: yarış OLUŞTURMAK ile yarışa KATILMAK ayrı
+ * işlemlerdir (brief §5 lobisinde [JOIN RACE] ayrı bir düğmedir) ve
+ * katılmak PARA HAREKETİ üretir (giriş ücreti, §2) — o akış PHASE 1b'dedir.
+ * Dolayısıyla bu alan yanıtta "şu an kaç oyuncu var" sorusunun DOĞRU
+ * cevabıdır, bir yer tutucu değil.
+ */
+export interface RaceLobbyView {
+  id: UUID;
+  name: string;
+  /** brief §1/§7 "at sayısı" — motorun koşturacağı at sayısı (`races.participant_limit`). */
+  fieldSize: number;
+  /** brief §1/§6 "maksimum oyuncu" — kaç GERÇEK oyuncunun katılabileceği. `fieldSize`'ı aşamaz. */
+  maxPlayers: number;
+  /** Kaç oyuncunun şu an katılmış olduğu (brief §5 "doluluk"). */
+  joinedPlayers: number;
+  /** brief §2 giriş ücreti. `raceType = 'free'` ise her zaman 0'dır. */
+  entryFee: number;
+  /** brief §3 ödül havuzu — `entryFee × katılımcı sayısı`; yarış açıldığı anda 0'dır ve katılımcılarla BÜYÜR. */
+  prizePool: number;
+  startTime: ISODateTimeString;
+  status: RaceStatus;
+  /** brief §1 "yarış tipi" — `free` ise giriş ücreti alınmaz. */
+  raceType: 'free' | 'paid';
+  surface: RaceSurface;
+  weather: RaceWeather;
+  distanceMeters: number;
+  /** brief §10 tribün ücreti. **0 = FREE** — ayrı bir `tribuneType` alanı yoktur. */
+  tribuneFee: number;
+  /** brief §11 izleyici kapasitesi. */
+  spectatorCapacity: number;
+  /** Yarışı açan oyuncu (brief §1). `null` yalnızca sunucu üretimi yarışlarda olur. */
+  createdBy: UUID | null;
+  createdAt: ISODateTimeString;
+}

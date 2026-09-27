@@ -31,6 +31,7 @@ import type {
   OnlineConfig,
   ProgressionConfig,
   RaceBalanceConfig,
+  RaceLobbyConfig,
   SocialConfig,
   StableConfig,
   StaffConfig,
@@ -59,6 +60,7 @@ import grandstandConfigJson from '../../../config/grandstand.config.json';
 import socialConfigJson from '../../../config/social.config.json';
 import giftConfigJson from '../../../config/gift.config.json';
 import chatConfigJson from '../../../config/chat.config.json';
+import raceLobbyConfigJson from '../../../config/race-lobby.config.json';
 
 export function loadRaceConfig(): RaceBalanceConfig {
   return raceConfigJson as unknown as RaceBalanceConfig;
@@ -188,6 +190,23 @@ export function loadGiftConfig(): GiftConfig {
  */
 export function loadChatConfig(): ChatConfig {
   return chatConfigJson as unknown as ChatConfig;
+}
+
+/**
+ * Oyuncunun oluşturduğu ücretli yarış (brief §1-§7, §42 PHASE 1).
+ * Diğer `loadXConfig()` fonksiyonlarıyla AYNI desen — saf bir CAST, çalışma
+ * zamanı doğrulaması YOKTUR. Bu yüzden sınırların iç tutarlılığı
+ * (`minPlayers <= maxPlayers`, `minPlayers <= min(fieldSizes)`,
+ * `fieldSizes`'ın tamamı `maxPlayers`'tan küçük ya da eşit) bir testle
+ * sabitlenir: `apps/api/test/domain/race/race-lobby-config.spec.ts`.
+ *
+ * **NEDEN `loadRaceConfig()`'e EKLENMEDİ:** bkz. `RaceLobbyConfig` doc
+ * yorumu — o dosya Race Engine'in fizik sabitleridir ve `configVersion`
+ * üzerinden TÜM eski replay'lerin determinizm sözleşmesine bağlıdır;
+ * buradaki değerler simülasyona hiç girmez.
+ */
+export function loadRaceLobbyConfig(): RaceLobbyConfig {
+  return raceLobbyConfigJson as unknown as RaceLobbyConfig;
 }
 
 export * from './types';

@@ -5,7 +5,9 @@ import type {
   Race,
   RaceEntry,
   RaceJockeyDecision,
+  RaceLobbyView,
   RaceSegmentSnapshot,
+  RaceStatus,
   RaceSurface,
   RaceTimelineEntrantView,
   RaceTimelineView,
@@ -13,6 +15,8 @@ import type {
   RecentRaceResultView,
 } from '@at-sevdalisi/shared-types';
 import type {
+  CreateLobbyRaceInput,
+  CreateLobbyRaceResult,
   RaceRepository,
   SavePracticeRaceWithStakesInput,
   SavePracticeRaceWithStakesResult,
@@ -57,6 +61,72 @@ function rowToRecentRaceResult(row: RecentRaceRow): RecentRaceResultView {
     finalTimeMs: row.final_time_ms,
     performanceScore: Number(row.performance_score),
     finishedAt: row.created_at.toISOString(),
+  };
+}
+
+/**
+ * `createLobbyRace`'in `RETURNING` satır şekli (snake_case).
+ *
+ * **NEDEN AYRI BİR ŞEKİL:** mevcut `insertRaceRow` bir `Race` (simülasyon
+ * çıktısı) yazar ve hiçbir şey döndürmez; bu metot ise lobi görünümü
+ * (`RaceLobbyView`) döndürmek zorundadır. `Race` şeklini yeniden
+ * kullanmak, simülasyona özgü alanları (`simulationSeed`, motor
+ * versiyonları) yanıtta sızdırırdı — bunlar istemcinin işine yaramaz,
+ * üstelik seed'in istemciye verilmesi ileride "seed'i bilen sonucu
+ * önceden hesaplar" tartışmasını doğurur. Bu yüzden `RETURNING` listesi
+ * bilinçli olarak DARDIR: yalnızca lobinin gösterdiği alanlar.
+ *
+ * `entry_fee`/`prize_pool`/`tribune_fee` BIGINT'tir ve `pg` bunları
+ * JS number değil **string** döner (2^53 güvenliği için) — bkz.
+ * `RecentRaceRow.performance_score` üstündeki AYNI not. Bu yüzden
+ * dönüştürücüde `Number(...)` şarttır; unutulursa istemci `"500"` görür.
+ */
+interface LobbyRaceRow {
+  id: string;
+  name: string;
+  participant_limit: number;
+  max_players: number;
+  entry_fee: string;
+  prize_pool: string;
+  start_time: Date;
+  status: string;
+  race_type: string;
+  surface: string;
+  weather: string;
+  distance_m: number;
+  tribune_fee: string;
+  spectator_capacity: number;
+  created_by: string | null;
+  created_at: Date;
+}
+
+/**
+ * `LobbyRaceRow` → `RaceLobbyView`. `joinedPlayers` PARAMETRE olarak
+ * alınır, satırdan okunmaz: `races` tablosunda böyle bir sütun YOKTUR ve
+ * olmamalıdır da — katılımcı sayısı `race_entries`'ten TÜRETİLİR (tek
+ * doğruluk kaynağı), denormalize bir sayaç ise iki kaynağın ayrışması
+ * demek olurdu. Bu metot yalnızca `races` satırını gördüğü için sayıyı
+ * çağırandan alır.
+ */
+function rowToLobbyRaceView(row: LobbyRaceRow, joinedPlayers: number): RaceLobbyView {
+  return {
+    id: row.id,
+    name: row.name,
+    fieldSize: row.participant_limit,
+    maxPlayers: row.max_players,
+    joinedPlayers,
+    entryFee: Number(row.entry_fee),
+    prizePool: Number(row.prize_pool),
+    startTime: row.start_time.toISOString(),
+    status: row.status as RaceStatus,
+    raceType: row.race_type as 'free' | 'paid',
+    surface: row.surface as RaceSurface,
+    weather: row.weather as RaceWeather,
+    distanceMeters: row.distance_m,
+    tribuneFee: Number(row.tribune_fee),
+    spectatorCapacity: row.spectator_capacity,
+    createdBy: row.created_by,
+    createdAt: row.created_at.toISOString(),
   };
 }
 
@@ -499,6 +569,107 @@ export class PostgresRaceRepository implements RaceRepository {
   }
 
   /**
+   * Oyuncunun oluşturduğu ücretli yarışı yazar (brief §1-§7, §42 PHASE 1).
+   *
+   * **PARA HAREKETİ YOK** — giriş ücreti yarışa KATILIRKEN alınır (PHASE
+   * 1b). Bu yüzden burada `economy_transactions` yazımı, bakiye kilidi
+   * veya `applyPracticeRaceStakes` çağrısı YOKTUR; CLAUDE.md kural 7
+   * ("PARA/MUTASYON YOLU") bu metoda UYGULANMAZ, çünkü ortada taşınan bir
+   * para yoktur.
+   *
+   * **YİNE DE TRANSACTION ŞARTTIR, İKİ SEBEPTEN:**
+   *  1. `maxOpenRacesPerPlayer` tavanı ile `INSERT` arasında boşluk
+   *     olmamalı. Sayım tek başına yapılıp sonra yazılsaydı, aynı oyuncunun
+   *     eşzamanlı iki isteği ikisi de "2 açık yarışım var" görüp ikisi de
+   *     yazardı (tavan 3 iken 4 açık yarış) — `SELECT ... FOR UPDATE`
+   *     oyuncunun `players` satırını kilitler ve bu iki isteği SIRAYA
+   *     sokar. `PlayerRepository.updateWithLock`'un kullandığı ilkenin
+   *     AYNISI, ama burada korunan şey bakiye değil bir SAYI.
+   *  2. `SELECT ... FOR UPDATE` aynı zamanda "bu oyuncu gerçekten var mı"
+   *     sorusunu da cevaplar: satır yoksa `PlayerNotFoundError` fırlatılır
+   *     (`postgres-breeding.repository.ts`'teki AYNI desen). Bu kontrol
+   *     olmasaydı `created_by` yabancı anahtarı ham bir Postgres hatası
+   *     (`23503 foreign key violation`) verir ve istemci 404/400 yerine
+   *     500 görürdü.
+   */
+  async createLobbyRace(input: CreateLobbyRaceInput): Promise<CreateLobbyRaceResult> {
+    return withTransaction(this.pool, async (client) => {
+      const owner = await client.query('SELECT id FROM players WHERE id = $1 FOR UPDATE', [input.createdBy]);
+      if (owner.rows.length === 0) {
+        throw new PlayerNotFoundError(input.createdBy);
+      }
+
+      // `status = 'scheduled'` = "açık yarış". `in_progress` bir yarış artık
+      // koşuyor, `finished`/`cancelled` ise kapanmıştır — hiçbiri tavanı
+      // işgal ETMEZ (oyuncu yarışı iptal ederek ya da yarışı koşturarak
+      // hakkını geri kazanır; bu, tavanı bir çıkmaz sokak olmaktan çıkarır).
+      const open = await client.query<{ count: string }>(
+        "SELECT COUNT(*) AS count FROM races WHERE created_by = $1 AND status = 'scheduled'",
+        [input.createdBy],
+      );
+      // `COUNT(*)` HER ZAMAN tek satır döndürür (gruplama yok, satır
+      // olmasa bile `0` gelir), bu yüzden `rows[0]` garantidir — `?.` ve
+      // `?? '0'` yalnızca `noUncheckedIndexedAccess` için, davranışı
+      // değiştirmez.
+      const openRaces = Number(open.rows[0]?.count ?? '0');
+      if (openRaces >= input.maxOpenRaces) {
+        return { ok: false, reason: 'RACE_LIMIT_REACHED', openRaces };
+      }
+
+      const inserted = await client.query<LobbyRaceRow>(
+        `INSERT INTO races (
+           id, created_by, name, distance_m, surface, weather,
+           participant_limit, max_players, entry_fee, prize_pool, race_type,
+           tribune_fee, spectator_capacity, start_time, status, simulation_seed,
+           engine_version, ruleset_version, config_version, weather_config_version
+         )
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, 'scheduled', $15, $16, $17, $18, $19)
+         RETURNING id, name, participant_limit, max_players, entry_fee, prize_pool, start_time, status,
+                   race_type, surface, weather, distance_m, tribune_fee, spectator_capacity, created_by, created_at`,
+        [
+          input.id,
+          input.createdBy,
+          input.name,
+          input.distanceMeters,
+          input.surface,
+          input.weather,
+          input.fieldSize,
+          input.maxPlayers,
+          input.entryFee,
+          input.prizePool,
+          input.raceType,
+          input.tribuneFee,
+          input.spectatorCapacity,
+          input.startTime,
+          input.simulationSeed,
+          input.engineVersion,
+          input.rulesetVersion,
+          input.configVersion,
+          input.weatherConfigVersion,
+        ],
+      );
+
+      // `INSERT … VALUES (…) RETURNING` ya TAM OLARAK BİR satır döndürür
+      // ya da sorgu hata fırlatır; `rows[0]` bu yüzden garantidir. Yine de
+      // açıkça kontrol edilir: bu kontrol olmadan, ileride sorguya bir
+      // `ON CONFLICT DO NOTHING` eklenirse `rows` boş kalır ve hata
+      // sessizce `undefined` bir yarış gövdesine dönüşürdü.
+      const insertedRow = inserted.rows[0];
+      if (insertedRow === undefined) {
+        throw new Error('Yarış INSERT edildi ama RETURNING satırı dönmedi.');
+      }
+
+      // `joinedPlayers` BURADA 0'dır ve bu DOĞRUDUR, bir yer tutucu değil:
+      // yarış OLUŞTURMAK ile yarışa KATILMAK ayrı işlemlerdir (brief §5
+      // lobisinde [JOIN RACE] ayrı bir düğmedir) ve katılmak para hareketi
+      // üretir (PHASE 1b). Yarışı açan kişi otomatik olarak katılmış
+      // SAYILMAZ — saysaydı, ücretsiz bir "önce katıl sonra ödemeyi
+      // düşün" yolu doğardı.
+      return { ok: true, race: rowToLobbyRaceView(insertedRow, 0) };
+    });
+  }
+
+  /**
    * `savePracticeRace`/`savePvpMatch`'in PAYLAŞTIĞI `races` satırı ekleme
    * sorgusu (DRY).
    *
@@ -518,8 +689,35 @@ export class PostgresRaceRepository implements RaceRepository {
    */
   private async insertRaceRow(client: PoolClient, race: Race): Promise<void> {
     await client.query(
-      `INSERT INTO races (id, track_id, name, distance_m, surface, weather, temperature_c, wind_kmh, humidity_pct, participant_limit, entry_fee, prize_pool, start_time, status, simulation_seed, engine_version, ruleset_version, config_version, weather_config_version, created_at, updated_at)
-       VALUES ($1, NULL, $2, $3, $4, $5, $6, NULL, NULL, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $17)`,
+      // Migration 0036 (brief §42 PHASE 1) — `max_players` ve `race_type`
+      // BU SORGUYA EKLENDİ ve ikisi de ZORUNLUDUR, isteğe bağlı değil:
+      //
+      //  - `max_players`: 0036 sütunu önce NULL ekleyip mevcut satırları
+      //    `participant_limit` ile DOLDURDU, sonra `SET NOT NULL` yaptı ve
+      //    bilinçli olarak `DEFAULT` VERMEDİ. Yani bu satır eklenmeseydi
+      //    pratik yarış/PvP INSERT'i `23502 not-null violation` ile
+      //    düşerdi — üstelik yalnızca ÜRETİMDE, çünkü testler eski şemada
+      //    geçmiş olurdu. Değer `participant_limit`'in AYNISIDIR ve bu
+      //    DOĞRUDUR: sunucu üretimi bir yarışta "oyuncu tavanı" diye ayrı
+      //    bir kavram yoktur, tüm koltuklar at içindir (brief §6'nın
+      //    `max_players < participant_limit` durumu yalnızca OYUNCUNUN
+      //    açtığı yarışlarda anlamlıdır — kalan koltuklar AI ile dolar).
+      //
+      //  - `race_type`: sütunun `DEFAULT 'free'` değeri VAR ama bu değere
+      //    GÜVENİLEMEZ. `races_race_type_matches_fee` kısıtı
+      //    `(race_type = 'paid') = (entry_fee > 0)` der; pratik yarışların
+      //    giriş ücreti 100/250/500/1000/2000'dir, yani varsayılana
+      //    bırakılsaydı `free` + `entry_fee > 0` çelişkisi kısıtı ihlal
+      //    eder ve HER pratik yarış düşerdi. Bu yüzden tip, ücretten
+      //    TÜRETİLİR — migration 0036'nın backfill'inde kullanılan
+      //    `CASE`in BİREBİR AYNISI (tek doğruluk kaynağı: `entry_fee`).
+      //
+      // `tribune_fee`/`spectator_capacity` BİLİNÇLİ olarak yazılmaz:
+      // varsayılanları (0 ve 500) sunucu üretimi yarışlar için doğrudur —
+      // böyle bir yarışın tribünü ücretsizdir ve config'teki en küçük
+      // kapasiteyi alır.
+      `INSERT INTO races (id, track_id, name, distance_m, surface, weather, temperature_c, wind_kmh, humidity_pct, participant_limit, max_players, race_type, entry_fee, prize_pool, start_time, status, simulation_seed, engine_version, ruleset_version, config_version, weather_config_version, created_at, updated_at)
+       VALUES ($1, NULL, $2, $3, $4, $5, $6, NULL, NULL, $7, $7, CASE WHEN $8::bigint > 0 THEN 'paid' ELSE 'free' END, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $17)`,
       [
         race.id,
         race.name,

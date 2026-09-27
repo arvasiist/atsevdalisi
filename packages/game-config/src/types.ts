@@ -1065,3 +1065,123 @@ export interface ChatConfig {
     windowSeconds: number;
   };
 }
+
+/**
+ * Oyuncunun KENDİ oluşturduğu ücretli yarış (brief §1-§7, §9-§11, §42 PHASE 1)
+ * — `loadRaceLobbyConfig()` ile okunur.
+ *
+ * **NEDEN AYRI BİR CONFIG DOSYASI (`race.config.json` DEĞİL):** oradaki
+ * değerler Race Engine'in FİZİĞİDİR (hız, stamina, geçiş, yorgunluk) ve
+ * CLAUDE.md'nin "RACE ENGINE'E DOKUNMA" kuralı kapsamındadır — o dosyaya
+ * bir alan eklemek, `configVersion`'ı ve dolayısıyla TÜM eski replay'lerin
+ * determinizm sözleşmesini ilgilendirir. Buradaki değerler ise simülasyona
+ * HİÇ girmez; yalnızca "bir yarış kaydı nasıl doğrulanır" sorusunu
+ * cevaplar (bkz. `domain/race/lobby.ts`). İki farklı yaşam döngüsünü aynı
+ * dosyaya bağlamak, bir lobi kuralını değiştirmenin engine sürümünü
+ * gereksiz yere artırmasına yol açardı.
+ *
+ * **BURADAKİ HER SINIR İKİ KEZ UYGULANIR VE BU BİLİNÇLİDİR:** DTO
+ * dekoratörleri (`@IsIn`, `@Min`) Vitest/esbuild altında SESSİZCE atlanır
+ * (CLAUDE.md kural 5 — `design:paramtypes` üretilmez, `ValidationPipe`
+ * gövdeyi hiç doğrulamaz). Bu yüzden asıl kapı `validateRaceCreation`'dır
+ * ve dekoratörler yalnızca gerçek bir HTTP sunucusunda (tsc/`nest build`)
+ * çalışan ikinci bir katmandır. İkisi AYNI config'i okur ki ayrışmasınlar.
+ *
+ * `game-config` yükleyicisi saf bir cast yaptığından (çalışma zamanı
+ * doğrulaması YOK) bu değerlerin iç tutarlılığı bir TESTLE garanti edilir
+ * (bkz. `apps/api/test/domain/race/race-lobby-config.spec.ts`).
+ */
+export interface RaceLobbyConfig {
+  /**
+   * Bir yarışta KOŞABİLECEK at sayısı (brief §1/§7: "At sayısı sadece 8 10
+   * 12 14 16 olabilir").
+   *
+   * **NEDEN bir DİZİ, `min`/`max` ÇİFTİ DEĞİL:** brief serbest bir aralık
+   * değil, SAYILMIŞ beş seçenek verir. `min`/`max` olsaydı 9 atlık bir yarış
+   * da geçerli olurdu — brief'e aykırı. Ayrıca §7 "start gate, horse slots
+   * sayısına göre otomatik oluşturulmalı" dediğinden bu beş değerin HER
+   * BİRİ ayrı ayrı desteklenmek zorundadır; bir dizi bunu ifade eder.
+   */
+  fieldSizes: number[];
+  /**
+   * Bir yarışın BAŞLAYABİLMESİ için gereken en az GERÇEK OYUNCU sayısı
+   * (brief §6: "MIN_PLAYERS = 8"). Kalan koltuklar `aiFillEnabled` ise
+   * yapay zekâ atlarıyla doldurulur — §6'nın "12 atlık yarış = 8 oyuncu +
+   * 4 AI horse" örneği TAM OLARAK budur.
+   *
+   * DİKKAT — bu değer `fieldSizes`'ın en küçüğüne (8) EŞİT olduğundan,
+   * 8 atlık bir yarışta yapay zekâya yer KALMAZ (8 oyuncunun hepsi gerçek
+   * olmalıdır). Bu bir hata değil, §6'nın doğrudan sonucudur; yapay zekâ
+   * yalnızca 10/12/14/16 atlık yarışlarda devreye girer.
+   */
+  minPlayers: number;
+  /**
+   * Bir yarışa KATILABİLECEK azami gerçek oyuncu sayısı (brief §6:
+   * "MAX_PLAYERS = 16"). `fieldSize`'ı AŞAMAZ — 12 atlık bir yarışa 13
+   * oyuncu alınamaz (bkz. `maxPlayers <= fieldSize` değişmezi,
+   * `validateRaceCreation`).
+   */
+  maxPlayers: number;
+  /**
+   * Boş koltukların yapay zekâ atlarıyla doldurulup doldurulmayacağı
+   * (brief §6). `false` yapılırsa bir yarış ANCAK `fieldSize` kadar GERÇEK
+   * oyuncu bulduğunda başlayabilir — bu, 16 atlık bir yarışta 16 gerçek
+   * oyuncu beklemek demektir ve lobilerin asla dolmamasına yol açar.
+   * Varsayılan `true`'dur; alan bir KAÇIŞ KAPISI olarak bırakılmıştır.
+   */
+  aiFillEnabled: boolean;
+  /**
+   * `raceType = 'paid'` bir yarış için seçilebilecek giriş ücretleri
+   * (brief §2: "50 coin, 100 coin, 250 coin, 500 coin, 1000 coin").
+   *
+   * **NEDEN SERBEST BİR SAYI DEĞİL:** serbest bırakılsaydı bir oyuncu
+   * 1 Çip'lik yarışlar açıp `maxOpenRacesPerPlayer` tavanını anlamsız
+   * kılabilir, ya da ödül havuzunu öngörülemez biçimde şişirebilirdi.
+   * Liste, §2'nin verdiği örnekleri birebir uygular.
+   */
+  paidEntryFeeOptions: number[];
+  /**
+   * Tribün girişi için seçilebilecek ücretler (brief §10: "FREE / 10 Coin /
+   * 25 Coin / 50 Coin"). **0 = FREE** — §9'un "Tribün: FREE PAID olabilir"
+   * ayrımı tam olarak bu sıfır/non-sıfır sınırıdır, bu yüzden ayrı bir
+   * `tribuneType` alanı YOKTUR; tip `tribuneFee > 0`'dan TÜRETİLİR (iki
+   * alanı ayrı tutmak, "FREE ama 25 Çip" gibi çelişkili bir satırı
+   * mümkün kılardı).
+   */
+  tribuneFeeOptions: number[];
+  /**
+   * Tribün kapasitesi seçenekleri (brief §11: "500 spectators, 1000
+   * spectators, 5000 spectators"). Kapasite dolduğunda istemci "TRIBUNE
+   * FULL" gösterir (§11) — bu uç nokta PHASE 6'nın işidir, ama sütun
+   * §1'in açık talebi olduğu için yarış OLUŞTURULURKEN yazılır.
+   */
+  spectatorCapacityOptions: number[];
+  /** Yarış mesafesi sınırları (metre). `race.config.json`daki `distance` eşiklerinden BAĞIMSIZDIR — o, motorun kısa/orta/uzun sınıflandırmasıdır, bu ise kayıt doğrulamasıdır. */
+  distanceMeters: { min: number; max: number };
+  /**
+   * Yarış adı uzunluğu (karakter). Üst sınır aynı zamanda DB CHECK'idir
+   * (migration 0036) — ikisi AYNI değeri taşımak zorundadır, bkz.
+   * `race-lobby-config.spec.ts` (migrasyon dosyasını okuyarak doğrular).
+   */
+  nameLength: { min: number; max: number };
+  /**
+   * `startTime`'ın "şimdi"ye göre alt/üst sınırı (saniye). Alt sınır
+   * olmadan geçmişte bir yarış açılabilir (kimse katılamadan biterdi);
+   * üst sınır olmadan 10 yıl sonrasına bir yarış açılıp `maxOpenRacesPerPlayer`
+   * tavanı süresiz işgal edilebilirdi.
+   */
+  startDelaySeconds: { min: number; max: number };
+  /**
+   * Bir oyuncunun AYNI ANDA açık tutabileceği azami yarış sayısı.
+   *
+   * **NEDEN VAR (güvenlik, denge değil):** bu tavan olmadan tek bir hesap
+   * saniyeler içinde binlerce yarış kaydı açabilirdi — bu hem bir depolama
+   * hem de bir "keşif listesini çöple doldurma" (brief §26) vektörüdür.
+   * Aşılırsa 409 `RACE_LIMIT_REACHED`.
+   */
+  maxOpenRacesPerPlayer: number;
+  /** Seçilebilecek pist yüzeyleri — `races.surface` CHECK'i (migration 0006) ile AYNI küme. */
+  allowedSurfaces: string[];
+  /** Seçilebilecek hava durumları — `races.weather` CHECK'i (migration 0006) ile AYNI küme. */
+  allowedWeather: string[];
+}
