@@ -18,6 +18,7 @@ import type {
   RecentRaceResultView,
   RiskLevel,
   StableSummaryView,
+  StableUpgradeResult,
   StartApproach,
   TrainHorseResult,
   TrainingIntensity,
@@ -147,6 +148,30 @@ export const apiClient = {
    * `StableSummaryView` şeklini kullanıyor.
    */
   getStableSummary: (ownerId: string) => request<StableSummaryView>(`/players/${ownerId}/stable-summary`),
+
+  /**
+   * Ahırı bir sonraki seviyeye yükseltir (brief §32). Bu uç nokta
+   * `apps/api` tarafında FAZ 1'den beri VARDI ve e2e testleriyle
+   * korunuyordu, ama bu istemcide KARŞILIĞI YOKTU — yani oyuncunun parayı
+   * harcayıp ilerleyebileceği ana yol arayüzden ULAŞILAMAZ durumdaydı.
+   *
+   * PARA değiştirdiği için (bakiyeden düşer, `economy_transactions`'a
+   * defter kaydı yazar) `Idempotency-Key` header'ı ZORUNLUDUR —
+   * `buyMarketListing`/`runPracticeRace` ile AYNI desen (bkz.
+   * `stable.controller.ts` doc yorumu ve docs/SECURITY.md §4). Çağıran
+   * taraf her YENİ deneme için taze bir anahtar üretmelidir; aynı anahtarın
+   * tekrarı bilinçli olarak AYNI sonucu döner ve bakiyeden İKİNCİ kez
+   * düşmez.
+   *
+   * Fiyat ve yeni kapasite ÖNCEDEN gösterileceği için `getStableSummary`
+   * ile gelen `nextUpgrade` alanı kullanılmalıdır — istemci kendi fiyat
+   * hesabını YAPMAZ (bkz. CLAUDE.md "SUNUCU OTORİTESİ").
+   */
+  upgradeStable: (playerId: string, idempotencyKey: string) =>
+    request<StableUpgradeResult>(`/players/${playerId}/stable/upgrade`, {
+      method: 'POST',
+      headers: { 'Idempotency-Key': idempotencyKey },
+    }),
 
   /**
    * Faz 2 (görsel kalite planı) — Ana Sayfa "Son Yarış Sonuçları" paneli.

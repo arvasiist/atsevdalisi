@@ -4,6 +4,7 @@ import {
   canAddHorseToStable,
   getMaxDefinedStableLevel,
   getNextStableUpgradeCost,
+  getNextStableUpgradeOffer,
   getStableCapacity,
   summarizeStable,
 } from '../../../src/domain/stable/stable';
@@ -79,5 +80,40 @@ describe('getNextStableUpgradeCost / getMaxDefinedStableLevel', () => {
     const maxLevel = getMaxDefinedStableLevel(config);
     expect(maxLevel).toBe(5);
     expect(() => getNextStableUpgradeCost(maxLevel, config)).toThrow(MaxStableLevelReachedError);
+  });
+});
+
+/**
+ * Ahır Özeti ekranındaki "Yükselt" düğmesinin fiyat/kapasite önizlemesi.
+ * `getNextStableUpgradeCost`'tan tek farkı: tavan durumunda HATA FIRLATMAZ,
+ * `null` döner (bkz. fonksiyonun doc yorumu).
+ */
+describe('getNextStableUpgradeOffer', () => {
+  it('bir sonraki seviyenin maliyetini VE o seviyedeki yeni kapasiteyi birlikte döner', () => {
+    expect(getNextStableUpgradeOffer(1, config)).toEqual({
+      nextLevel: 2,
+      cost: { currency: 'money', amount: 8000 },
+      nextCapacity: 8,
+    });
+  });
+
+  it('en yüksek tanımlı seviyede hata fırlatmak yerine null döner', () => {
+    // Bu, `getNextStableUpgradeCost` ile AYNI girdide AYRI davranıştır —
+    // okuma yolu hata yakalamak zorunda kalmasın diye bilinçli.
+    const maxLevel = getMaxDefinedStableLevel(config);
+    expect(getNextStableUpgradeOffer(maxLevel, config)).toBeNull();
+    expect(() => getNextStableUpgradeCost(maxLevel, config)).toThrow(MaxStableLevelReachedError);
+  });
+
+  it('tüm seviyelerde teklifin kapasitesi getStableCapacity ile TUTARLI olmalı', () => {
+    // İki fonksiyon ayrı ayrı doğru olup birbirleriyle çelişebilirdi;
+    // arayüzün gösterdiği "yeni kapasite" ile yükseltme SONRASI gerçek
+    // kapasite aynı kaynaktan gelmeli.
+    const maxLevel = getMaxDefinedStableLevel(config);
+    for (let level = 1; level < maxLevel; level += 1) {
+      const offer = getNextStableUpgradeOffer(level, config);
+      expect(offer).not.toBeNull();
+      expect(offer!.nextCapacity).toBe(getStableCapacity(offer!.nextLevel, config));
+    }
   });
 });

@@ -222,6 +222,35 @@ describe('apiClient.getStableSummary', () => {
   });
 });
 
+describe('apiClient.upgradeStable', () => {
+  const upgradeResult = {
+    newStableLevel: 2,
+    newCapacity: 8,
+    newBalance: { money: 12000, gems: 10 },
+    cost: { currency: 'money' as const, amount: 8000 },
+  };
+
+  it('gerçek backend rotasına (/players/:id/stable/upgrade) POST atar', async () => {
+    const fetchMock = stubFetchOnce({ success: true, data: upgradeResult });
+    await apiClient.upgradeStable('player-3', 'key-1');
+    const [url, config] = requestArgs(fetchMock);
+    expect(url).toBe(`${API_BASE_URL}/players/player-3/stable/upgrade`);
+    expect(config.method).toBe('POST');
+  });
+
+  it('Idempotency-Key header\'ını gönderir (bu uç nokta PARA harcar — header ZORUNLUDUR)', async () => {
+    const fetchMock = stubFetchOnce({ success: true, data: upgradeResult });
+    await apiClient.upgradeStable('player-3', 'key-42');
+    const [, config] = requestArgs(fetchMock);
+    expect((config.headers as Headers).get('Idempotency-Key')).toBe('key-42');
+  });
+
+  it('sunucunun döndürdüğü sonucu (yeni seviye/kapasite/bakiye/maliyet) AYNEN döner', async () => {
+    stubFetchOnce({ success: true, data: upgradeResult });
+    await expect(apiClient.upgradeStable('player-3', 'key-1')).resolves.toEqual(upgradeResult);
+  });
+});
+
 describe('apiClient.getRecentRaces', () => {
   it('limit verilmezse varsayılan olarak 5 kullanır', async () => {
     const fetchMock = stubFetchOnce({ success: true, data: [] });

@@ -1,6 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import type { StableSummaryView } from '@at-sevdalisi/shared-types';
-import { getStableCapacity, summarizeStable } from '../../domain/stable/stable';
+import { getNextStableUpgradeOffer, getStableCapacity, summarizeStable } from '../../domain/stable/stable';
 import { PlayerNotFoundError } from '../../domain/player/errors';
 import { AppConfigService } from '../../infrastructure/config/config.service';
 import { HORSE_REPOSITORY, type HorseRepository } from '../ports/horse.repository';
@@ -36,6 +36,15 @@ export class GetStableSummaryUseCase {
       this.config.stable,
     );
 
-    return { stableLevel: player.stableLevel, ...summary };
+    // `nextUpgrade`: Ahır ekranındaki "Yükselt" düğmesinin fiyatını ve
+    // kazanılacak kapasiteyi ÖNCEDEN gösterebilmesi için (bkz.
+    // `StableSummaryView.nextUpgrade` doc yorumu). Kural İÇERMEZ — yalnızca
+    // `domain/stable/stable.ts`'teki saf fonksiyona delege eder; en yüksek
+    // seviyede `null` döner, bu yüzden burada bir hata yakalama YOKTUR.
+    return {
+      stableLevel: player.stableLevel,
+      ...summary,
+      nextUpgrade: getNextStableUpgradeOffer(player.stableLevel, this.config.stable),
+    };
   }
 }

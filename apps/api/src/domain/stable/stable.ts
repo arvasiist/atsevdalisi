@@ -80,6 +80,20 @@ export interface StableUpgradeCost {
 }
 
 /**
+ * UI'a gösterilmeye hazır "sıradaki yükseltme" teklifi. `StableUpgradeCost`'tan
+ * iki farkı var: (1) maliyet iç içe bir nesnede durur (JSON'da `cost.amount`
+ * okunur), (2) `nextCapacity` de taşınır — oyuncunun "bu parayı verirsem
+ * kapasitem kaç olacak" sorusunu, yükseltmeyi YAPMADAN önce cevaplayabilmesi
+ * için. Bu alan olmadan arayüz, para harcayan bir düğmenin fiyatını
+ * gösteremezdi.
+ */
+export interface StableUpgradeOffer {
+  nextLevel: number;
+  cost: { currency: 'money' | 'gems'; amount: number };
+  nextCapacity: number;
+}
+
+/**
  * FAZ 2 — brief §32 "Upgrade örneği" listesinin devamı. Bir sonraki ahır
  * seviyesine geçmenin maliyetini döner. `config.upgradeCostByLevel`'de
  * tanımlı en yüksek seviyeye zaten ulaşılmışsa `MaxStableLevelReachedError`
@@ -93,6 +107,39 @@ export function getNextStableUpgradeCost(currentLevel: number, config: StableCon
     throw new MaxStableLevelReachedError(currentLevel);
   }
   return { currency: cost.currency, amount: cost.amount, nextLevel };
+}
+
+/**
+ * Ahır Özeti ekranının ("Yükselt" düğmesini gösterebilmek için) ihtiyaç
+ * duyduğu teklif. `getNextStableUpgradeCost`'un aksine **hata FIRLATMAZ**:
+ * en yüksek seviyede `null` döner. Sebep: bu fonksiyon bir OKUMA yolundan
+ * (`GetStableSummaryUseCase`) çağrılır ve "zaten en yüksek seviyedesin"
+ * durumu bir HATA değil, tamamen normal bir son durumdur. Fırlatan sürümü
+ * kullanmak, her okuma isteğinde `MaxStableLevelReachedError`'ı yakalayıp
+ * yutmaya zorlardı; `null` bu durumu tip sistemi üzerinden açıkça taşır.
+ *
+ * Not: `getNextStableUpgradeCost` burada YENİDEN YAZILMADI, çağrıldı —
+ * maliyet kuralının tek bir kaynağı olmalı (bkz. CLAUDE.md "SİHİRLİ SAYI
+ * YOK" ve `config/stable.config.json`).
+ */
+export function getNextStableUpgradeOffer(currentLevel: number, config: StableConfig): StableUpgradeOffer | null {
+  let upgradeCost: StableUpgradeCost;
+  try {
+    upgradeCost = getNextStableUpgradeCost(currentLevel, config);
+  } catch (error) {
+    if (error instanceof MaxStableLevelReachedError) {
+      return null;
+    }
+    // Beklenmeyen bir hata (örn. bozuk config) YUTULMAZ — çağıranın görmesi
+    // gerekir. Yalnızca "tavan" durumu `null`'a çevrilir.
+    throw error;
+  }
+
+  return {
+    nextLevel: upgradeCost.nextLevel,
+    cost: { currency: upgradeCost.currency, amount: upgradeCost.amount },
+    nextCapacity: getStableCapacity(upgradeCost.nextLevel, config),
+  };
 }
 
 /** Tanımlı en yüksek ahır seviyesini döner (capacityByLevel anahtarlarının en büyüğü). */
