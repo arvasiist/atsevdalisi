@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
@@ -11,6 +12,7 @@ import {
   Post,
   UseInterceptors,
 } from '@nestjs/common';
+import { isUUID } from 'class-validator';
 import type { ApiSuccess, GiftView, SendGiftResult } from '@at-sevdalisi/shared-types';
 import { ListMyGiftsUseCase } from '../../application/use-cases/list-my-gifts.use-case';
 import { SendGiftUseCase } from '../../application/use-cases/send-gift.use-case';
@@ -72,6 +74,24 @@ export class GiftController {
     @CurrentPlayer() currentPlayer: AuthenticatedPlayer,
   ): Promise<ApiSuccess<SendGiftResult>> {
     assertSelf(currentPlayer.id, id);
+
+    // İKİNCİ SAVUNMA HATTI — `@IsUUID()` dekoratörüne TEK BAŞINA güvenilmez.
+    // Kök neden `MatchmakingController.join`'in doc yorumunda ayrıntılı
+    // yazılıdır (docs/ARCHITECTURE.md §9.1 Hata 7): Vitest/esbuild
+    // `design:paramtypes` üretmediği için `ValidationPipe` gövde
+    // doğrulamasını SESSİZCE atlar. Bu kontrol olmadan geçersiz bir
+    // `recipientId` repository'ye ulaşır, `WHERE p.id = $1` ham bir Postgres
+    // tip hatası (`22P02 invalid input syntax for type uuid`) atar ve istemci
+    // 400 yerine **500** görür. `BreedingController.breed`'in `mareId`/
+    // `stallionId` kontrolüyle AYNI sınıf hata ve AYNI desen.
+    //
+    // NOT: `recipientId` bir YOL PARAMETRESİ DEĞİL, GÖVDE alanıdır — bu
+    // yüzden `@Param('id', ParseUUIDPipe)` koruması buraya UZANMAZ; gönderen
+    // (`:id`) korunurken ALICI korumasız kalırdı.
+    if (!dto.recipientId || !isUUID(dto.recipientId)) {
+      throw new BadRequestException('recipientId geçerli bir UUID olmalıdır.');
+    }
+
     // `dto.amount`/`dto.currency` HAM geçirilir (`unknown` bekleyen bir
     // imzaya): doğrulama domain'dedir ve burada tip daraltmak,
     // CLAUDE.md'nin uyardığı "DTO dekoratörüne güven" tuzağını büyütürdü

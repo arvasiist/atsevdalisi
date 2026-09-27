@@ -88,7 +88,7 @@ describe('Hediye gönderimi (e2e) — PARA YOLU', () => {
    */
   async function sendGift(
     sender: RegisteredTestPlayer,
-    recipientId: string,
+    recipientId: unknown,
     amount: unknown,
     currency: string,
     expectedStatus: number,
@@ -320,6 +320,35 @@ describe('Hediye gönderimi (e2e) — PARA YOLU', () => {
 
       const response = await sendGift(sender, recipient.playerId, 100, 'chip', 400);
       expect(response.body.error.code).toBe('GIFT_CURRENCY_NOT_ALLOWED');
+    });
+
+    /**
+     * ALICI (`recipientId`) BİR **GÖVDE** ALANIDIR — `:id` yol parametresi
+     * DEĞİLDİR. Bu ayrım bu testin varlık sebebidir: dosyanın aşağısındaki
+     * `geçersiz uuid 400` testi `GET /players/gecersiz-uuid/gifts` çağırır,
+     * yani yalnızca `@Param('id', ParseUUIDPipe)` korumasını kanıtlar. Aynı
+     * koruma `recipientId`'ye UZANMAZ; o kapıyı `GiftController.sendGift`
+     * içindeki `isUUID` kontrolü tutar (breeding'de `mareId`/`stallionId` için
+     * düzeltilen hatanın AYNISI — bkz. CLAUDE.md "bilinen açık hata").
+     *
+     * Bu satırlar olmadan istek repository'ye ulaşır, `WHERE p.id = $1` ham
+     * Postgres hatası (`22P02 invalid input syntax for type uuid`) atar ve
+     * istemci **500** görür. Bu yüzden iddia yalnızca "400 döndü" değil,
+     * aynı zamanda "**hiçbir satır yazılmadı**"dır — 400'ün kaynağı
+     * doğrulama kapısıdır, veritabanı hatasının maskelenmesi değil.
+     */
+    it.each([
+      ['UUID olmayan metin', 'gecerli-degil'],
+      ['sayı (metin bile değil)', 42],
+      ['boş dize', ''],
+    ])('gövdedeki recipientId %s ise 400 döner ve hiçbir satır yazılmaz', async (_name, recipientId) => {
+      const sender = await registerTestPlayer(app, 'Geçersiz Alıcı Gönderen');
+      await setBalance(sender.playerId, 5_000);
+
+      await sendGift(sender, recipientId, 100, 'money', 400);
+
+      const giftRows = await pool.query('SELECT COUNT(*) FROM gift_sends WHERE sender_id = $1', [sender.playerId]);
+      expect(Number(giftRows.rows[0].count)).toBe(0);
     });
 
     it('YETERSİZ BAKİYE 409 INSUFFICIENT_FUNDS döner ve hiçbir satır yazılmaz', async () => {
