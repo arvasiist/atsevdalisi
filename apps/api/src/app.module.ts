@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { AuthModule } from './api/auth/auth.module';
+import { BreedingModule } from './api/breeding/breeding.module';
 import { CareModule } from './api/care/care.module';
 import { EconomyModule } from './api/economy/economy.module';
 import { EquipmentModule } from './api/equipment/equipment.module';
@@ -124,6 +125,13 @@ import { RedisModule } from './infrastructure/redis/redis.module';
     // Nest modül grafiğini sıraya bakmadan çözer, bu komşuluk yalnızca
     // okunabilirlik içindir.
     GiftModule,
+    // ÇİFTLEŞTİRME (proje sahibinin talebi — soy ağacı veri zincirinin
+    // ÜÇÜNCÜ parçası; okuma yolu `HorseModule`'deki
+    // `GET /horses/:id/pedigree`). `HorseModule`'ün HEMEN ardında durması
+    // okunabilirlik içindir (aynı veri zinciri); Nest modül grafiğini
+    // sıraya bakmadan çözer ve bu modül `HorseModule`'ü import ETMEZ
+    // (bkz. `api/breeding/breeding.module.ts` doc yorumu).
+    BreedingModule,
     MarketModule,
     MatchmakingModule,
     RateLimitModule,

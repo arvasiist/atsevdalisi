@@ -672,18 +672,15 @@ Sahibinin "Başla" dediği iş. Üç parçadan **ikisi** yapıldı:
    repository zengin olanı tercih eder, satır yoksa sütunlara düşer ve
    büyükebeveyn alanlarını **uydurmaz** (`null` bırakır).
 
-**ÜÇÜNCÜ PARÇA YAPILMADI:** `pedigrees` satırını YAZAN yol (çiftleştirme →
-tay doğumu, docs/API.md §7 `POST /breeding`) hâlâ yok. Ama **yolu tıkayan
-engel kaldırıldı** — aşağıya bkz. §13.3: `createStarterHorse` artık her
-zaman `gelding` üretmez, üç cinsiyetten rastgele üretir. Yani yazma yolu
-yazıldığında ULAŞILABİLİR olacaktır; engel artık oyunda değil, yazılmamış
-kodda.
+**ÜÇÜNCÜ PARÇA BİTTİ** (27.09.2026) — bkz. §13.4: `pedigrees` satırını
+YAZAN yol artık var (`POST /players/:id/breeding`, tay doğumu + damızlık
+ücreti + kısrak cooldown'ı). §13.3'teki cinsiyet rastgeleleştirmesi bu
+yazma yolunu ULAŞILABİLİR kılan ön koşuldu.
 
-**Bilinçli olarak YAPILMAYANLAR:** `breeding_pairs` yazımı, `POST /breeding`,
-`GET /breeding/options` (eş adayları + tahmin), damızlık ücreti (bu bir PARA
-YOLU olurdu — `studFeeMultiplier` config'te hazır ama çağıranı yok), tay
-doğumunda kısrak cooldown'ı, `PedigreeTree`'nin Pazar/at detay sayfasına da
-eklenmesi.
+**Bilinçli olarak YAPILMAYANLAR:** `GET /breeding/options` (eş adayları +
+tahmin), gebelik süresi modellemesi (tay ANINDA doğar — bkz. §13.4),
+`breeding_pairs.prediction` sütununun doldurulması, iğdişleme (gelding
+yapma) akışı, `PedigreeTree`'nin Pazar/at detay sayfasına da eklenmesi.
 
 ### 13.3 Başlangıç atının cinsiyeti artık rastgele (27.09.2026)
 
@@ -712,8 +709,55 @@ seçeneğini seçti:** cinsiyet rastgeleleştirilsin.
 - `Math.random()` burada **meşrudur**: at yaratma simülasyonun parçası değil,
   yarış sonucunu etkilemez ve seed'i yoktur (§1/§3 yarış determinizmi içindir).
 
-**Hâlâ yapılmayan:** yazma yolu (§13.2 sonu) — çiftleştirme uç noktası,
-`breeding_pairs`/`pedigrees` yazımı, damızlık ücreti (para yolu).
+**Hâlâ yapılmayan:** §13.4'te not edilenler dışında bir şey kalmadı — yazma
+yolu yazıldı.
+
+### 13.4 Soy ağacı veri zinciri — YAZMA YOLU (27.09.2026)
+
+Soy ağacı veri zincirinin **üçüncü ve son parçası**. `POST /players/:id/breeding`
+ile çiftleştirme yapılır ve **tay ANINDA doğar** (gebelik süresi modellenmez;
+`breedingCooldownDays` kısrağın BİR SONRAKİ çiftleştirmesine kadar geçen
+süredir). `domain/breeding/breeding.ts`'teki `breedHorses` bugüne kadar
+yalnızca testlerden çağrılıyordu; artık gerçek bir çağıranı var.
+
+**Yazılan katmanlar:** `BreedingRepository` portu +
+`PostgresBreedingRepository` (tek transaction), `BreedHorsesUseCase`,
+`BreedingController`/`BreedingModule`/`BreedHorsesDto`,
+`BreedingResultView` (shared-types), `MareNotOwnedError` +
+`BreedingHorseListedError`, `pickFoalGender` + `assertBreedingConfigIsValid`.
+
+**Dört tasarım kararı:**
+
+1. **Seed = `pairId`.** `breedHorses`'a `seed: pairId` geçilir ve `pairId`
+   `breeding_pairs.id` olarak SAKLANIR — yani tayın statları, elde yalnızca
+   kayıt satırı varken bile yeniden üretilebilir. Seed için ayrı sütun
+   açılmadı (şema değişikliği YOK).
+2. **Kilit sırası global kuralla aynı:** iki `horses` satırı (sözlüksel id)
+   → iki `players` satırı (sözlüksel id). `PostgresMarketPurchaseRepository`
+   zaten horses→players; `PostgresGiftRepository` yalnızca players'a
+   dokunur — yani bu yeni yol hiçbir mevcut yolla döngü kuramaz. Domain
+   kararı (`breedHorses`) transaction İÇİNDE, KİLİTLİ satırlardan okunan
+   değerlerle verilir.
+3. **Damızlık ücreti yalnızca AYGIR BAŞKASININSA** alınır (kendi atlarını
+   çiftleştiren kendine ödeme yapmaz) ve `if (fee > 0)` ile korunur —
+   migration 0019'un `CHECK (amount <> 0)`'ı sıfır tutarlı defter satırını
+   yasaklar (pazar alımındaki AYNI desen). Ücret bir TRANSFER'dir, bu
+   yüzden deftere İKİ satır (debit + credit) yazılır.
+4. **`birthHealthRisk` gerçek bir sütuna yazılır:** domain'in hesapladığı
+   [0,1] değeri `horse_health.injury_risk`'e ×100 olarak girer. Aksi halde
+   hesaplanıp hiçbir yere yazılmayan bir değer olurdu.
+
+**Yan düzeltmeler:** `ErrorCode.HorseListedInMarket` eklendi (kod daha önce
+`DOMAIN_ERROR_MAP`'te HAM metin olarak duruyordu ve `domain/horse/errors.ts`'te
+ikinci bir kopyası vardı; yeni hata sınıfıyla üçe çıkacaktı).
+`validateHorseName` artık `unknown` kabul eder ve doğrulanmış+`trim()`'lenmiş
+ismi DÖNER — ham gövde değeri sayı geldiğinde 500 (`TypeError`) yerine 400.
+
+**Bilinçli olarak YAPILMAYAN:** e2e testi (`apps/api/test/api/breeding.e2e-spec.ts`)
+bu dilimde YAZILMADI — yerelde Postgres yok (§2), yani dosya CI'ya kadar
+doğrulanamazdı. Domain birim testleri (`pickFoalGender`,
+`assertBreedingConfigIsValid`, `validateHorseName`) yazıldı ve yerelde
+koştu. **E2E EKSİKTİR** — para yolu olduğu için eklenmesi gerekir.
 
 ---
 

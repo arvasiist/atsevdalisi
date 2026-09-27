@@ -13,6 +13,7 @@ import {
 } from '../../../src/domain/horse/horse';
 import { HORSE_WEIGHT_MAX_KG, HORSE_WEIGHT_MIN_KG, HORSE_WEIGHT_POPULATION_MEAN_KG } from '../../../src/domain/horse/weight';
 import { InvalidHorseNameError } from '../../../src/domain/horse/errors';
+import { validateHorseName } from '../../../src/domain/horse/validation';
 import { getLifeStage } from '../../../src/domain/horse/age-curve';
 import { loadHorseGrowthConfig } from '@at-sevdalisi/game-config';
 
@@ -72,6 +73,24 @@ describe('createStarterHorse', () => {
         gender: 'gelding',
       }),
     ).toThrow(InvalidHorseNameError);
+  });
+
+  /**
+   * Çiftleştirme dilimi (27.09.2026) — `validateHorseName` artık `unknown`
+   * kabul eder (CLAUDE.md "Kardeş tuzak": Vitest/esbuild altında DTO
+   * dekoratörleri atlanır, ham gövde değeri buraya sayı/nesne olarak
+   * ulaşabilir). Bu testler, o durumda 500 (`TypeError`) DEĞİL, anlaşılır
+   * bir 400 (`InvalidHorseNameError`) üretildiğini kanıtlar.
+   */
+  it.each([[123], [null], [undefined], [{}], [['Rüzgar']]])(
+    'metin OLMAYAN isim (%s) için 500 değil, InvalidHorseNameError fırlatır',
+    (badName) => {
+      expect(() => validateHorseName(badName)).toThrow(InvalidHorseNameError);
+    },
+  );
+
+  it('geçerli bir ismi DOĞRULANMIŞ ve trim edilmiş olarak DÖNER (çağıran `as string` yazmak zorunda kalmaz)', () => {
+    expect(validateHorseName('  Rüzgar  ')).toBe('Rüzgar');
   });
 
   it('doğum tarihi, atın "prime" evresinde (antrenmana/yarışa hazır) olacak şekilde ayarlanır', () => {

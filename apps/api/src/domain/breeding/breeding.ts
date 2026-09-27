@@ -7,7 +7,7 @@
 
 import { createSeededRandom } from '@at-sevdalisi/shared-types';
 import type { GeneticsConfig, HorseGrowthConfig } from '@at-sevdalisi/game-config';
-import type { HorseStatus, Pedigree } from '@at-sevdalisi/shared-types';
+import type { HorseGender, HorseStatus, Pedigree } from '@at-sevdalisi/shared-types';
 import { calculateChildPotential, calculateChildStat, calculateMutation, generateInheritanceSplit } from './genetics';
 import {
   calculateBirthHealthRisk,
@@ -112,6 +112,67 @@ export interface BreedHorsesResult {
  * rastgele bir nüfus örneği değil, BELİRLİ iki ebeveynin çocuğudur).
  */
 export const FOAL_WEIGHT_STD_DEV_KG = 15;
+
+/**
+ * Yeni doğan bir tayın cinsiyet havuzu — `gelding` BİLİNÇLİ OLARAK YOKTUR:
+ * iğdişlik bir DOĞUM sonucu değil, sonradan yapılan bir müdahaledir
+ * (`STARTER_HORSE_GENDERS`'tan farkı budur; o havuzda `gelding` meşrudur
+ * çünkü başlangıç atı "yetişkin, hazır" bir attır).
+ */
+export const FOAL_GENDERS = ['mare', 'stallion'] as const;
+
+/**
+ * `[0, 1)` aralığındaki bir rastgelelik değerini tay cinsiyetine çevirir.
+ * `pickStarterHorseName`/`pickStarterHorseGender` ile AYNI desen: SAF
+ * fonksiyon, domain `Math.random()` ÇAĞIRMAZ (çağıran Application katmanı
+ * üretip geçirir).
+ */
+export function pickFoalGender(randomValue: number): HorseGender {
+  const index = Math.min(FOAL_GENDERS.length - 1, Math.max(0, Math.floor(randomValue * FOAL_GENDERS.length)));
+  return FOAL_GENDERS[index]!;
+}
+
+/**
+ * `config/genetics.config.json`'ın çiftleştirmeyi SESSİZCE imkânsız hale
+ * getirmediğini doğrular. `assertGiftConfigIsValid`/`assertTicketPriceIsValid`
+ * ile AYNI ilke ve AYNI gerekçe: bu bir OPERATÖR hatasıdır, düz bir `Error`
+ * ile yüzeye çıkar (400 değil) ve CI'da `breeding-config.spec.ts` ile de
+ * yakalanır.
+ *
+ * NEDEN GEREKLİ: aşağıdaki bozuklukların hiçbiri bir istisna üretmez, hepsi
+ * oyunu SESSİZCE kilitler:
+ *  - `minBreedingAgeMonths > maxBreedingAgeMonths` → hiçbir at yaş aralığına
+ *    giremez, `assertBreedingEligibility` her çifti `TOO_YOUNG` ya da
+ *    `TOO_OLD` ile reddeder ve **çiftleştirme hiç çalışmaz**.
+ *  - `breedingCooldownDays <= 0` → cooldown hiç uygulanmaz (tek bir kısrak
+ *    aynı gün sınırsız tay doğurabilir; ekonomi ve genetik denge çöker).
+ *  - `studFeeMultiplier` sonlu değilse → `calculateStudFee` `NaN` üretir,
+ *    `NaN` `economy_transactions.amount`'a yazılamaz (`CHECK (amount <> 0)`
+ *    ve `BIGINT` sütunu) ve para yolu ANLAŞILMAZ bir DB hatasıyla patlar.
+ */
+export function assertBreedingConfigIsValid(config: GeneticsConfig): void {
+  const ages = [config.minBreedingAgeMonths, config.maxBreedingAgeMonths];
+  if (ages.some((value) => !Number.isInteger(value) || value <= 0)) {
+    throw new Error(
+      `Üreme config'i geçersiz (config/genetics.config.json): minBreedingAgeMonths/maxBreedingAgeMonths pozitif tam sayı olmalıdır.`,
+    );
+  }
+  if (config.minBreedingAgeMonths > config.maxBreedingAgeMonths) {
+    throw new Error(
+      `Üreme config'i geçersiz (config/genetics.config.json): minBreedingAgeMonths (${config.minBreedingAgeMonths}) maxBreedingAgeMonths (${config.maxBreedingAgeMonths}) değerinden büyük olamaz (hiçbir at üreyemez).`,
+    );
+  }
+  if (!Number.isInteger(config.breedingCooldownDays) || config.breedingCooldownDays <= 0) {
+    throw new Error(
+      `Üreme config'i geçersiz (config/genetics.config.json): breedingCooldownDays pozitif tam sayı olmalıdır (aksi halde kısrak cooldown'ı hiç uygulanmaz).`,
+    );
+  }
+  if (!Number.isFinite(config.studFeeMultiplier) || config.studFeeMultiplier < 0) {
+    throw new Error(
+      `Üreme config'i geçersiz (config/genetics.config.json): studFeeMultiplier negatif olmayan sonlu bir sayı olmalıdır (aksi halde damızlık ücreti NaN olur ve defter satırı yazılamaz).`,
+    );
+  }
+}
 
 /**
  * Tam üreme akışını çalıştırır (docs/GENETICS.md §1). `mare`/`stallion`

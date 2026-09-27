@@ -8,6 +8,11 @@ import {
   InvalidHorseNameError,
 } from '../../domain/horse/errors';
 import {
+  BreedingHorseListedError,
+  MareNotOwnedError,
+  NotEligibleForBreedingError,
+} from '../../domain/breeding/errors';
+import {
   InvalidDisplayNameError,
   InvalidUsernameError,
   PlayerNotFoundError,
@@ -100,7 +105,7 @@ const DOMAIN_ERROR_MAP = new Map<ErrorClassConstructor, { status: number; code: 
   // gerekçe).
   [HorseInjuredError, { status: HttpStatus.CONFLICT, code: ErrorCode.HorseInjured }],
   // AUDIT_REPORT.md Bulgu H2 (Medium) — pazarda aktif ilanı olan bir at antrenmana veya yarışa sokulamaz.
-  [HorseListedInMarketError, { status: HttpStatus.CONFLICT, code: 'HORSE_LISTED_IN_MARKET' }],
+  [HorseListedInMarketError, { status: HttpStatus.CONFLICT, code: ErrorCode.HorseListedInMarket }],
   // CI Hata 7 (bkz. domain/training/errors.ts InvalidTrainingInputError) —
   // DTO doğrulaması esbuild altında atlanabildiğinde domain katmanının
   // kendi bağımsız kontrolünün fırlattığı hata; gerçek bir DOĞRULAMA
@@ -265,6 +270,29 @@ const DOMAIN_ERROR_MAP = new Map<ErrorClassConstructor, { status: number; code: 
   // gövde alanı) — 400.
   [FeedNotPurchasableError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.FeedNotPurchasable }],
   [InvalidFeedPurchaseCountError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.InvalidFeedPurchaseCount }],
+  // ÇİFTLEŞTİRME (proje sahibinin talebi, 27.09.2026 — soy ağacı veri
+  // zincirinin ÜÇÜNCÜ parçası). `NotEligibleForBreeding` kodu
+  // `packages/shared-types`'ta FAZ 3'ten beri taslakta duruyordu, ilk kez
+  // burada gerçekten kullanılıyor.
+  //
+  // `NotEligibleForBreedingError`'ın ALTI nedeni de TEK kod döner
+  // (`RaceNotWatchableError`/`InvalidGiftAmountError` ile AYNI desen; ayrım
+  // yalnızca mesajdadır) ve altısı da GEÇİCİ/duruma bağlı engellerdir:
+  // `SAME_HORSE` ve `INVALID_GENDER` dışındakiler yaş/cooldown/durum ile
+  // kendiliğinden ya da atın durumu değişince kalkar. Bu yüzden 409
+  // Conflict, 400 DEĞİL (`HorseInjuredError`/`CareActionOnCooldownError`
+  // ile AYNI gerekçe).
+  [NotEligibleForBreedingError, { status: HttpStatus.CONFLICT, code: ErrorCode.NotEligibleForBreeding }],
+  // 403 — `ForbiddenError` ile AYNI kategori (kimlik doğrulandı, yetki
+  // yok): istek GEÇERLİ, at VAR, ama kısrak çağıranın değil. `MareNotOwnedError`
+  // doc yorumu bu durumun neden YALNIZCA kısrak için geçerli olduğunu
+  // (aygır başkasının olabilir) açıklar.
+  [MareNotOwnedError, { status: HttpStatus.FORBIDDEN, code: ErrorCode.Forbidden }],
+  // 409 — `HorseListedInMarketError` ile AYNI kod ve AYNI gerekçe (aynı
+  // kuralın ikinci fırlatıcısı; bkz. `domain/breeding/errors.ts`): satışta
+  // olan bir atın soy kaydını değiştirmek alıcıya sürpriz bir tay/soy
+  // devreder.
+  [BreedingHorseListedError, { status: HttpStatus.CONFLICT, code: ErrorCode.HorseListedInMarket }],
 ]);
 
 /**

@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
+  assertBreedingConfigIsValid,
   breedHorses,
   calculateStudFee,
+  FOAL_GENDERS,
   FOAL_WEIGHT_STD_DEV_KG,
+  pickFoalGender,
   type BreedHorsesInput,
   type BreedingCandidate,
 } from '../../../src/domain/breeding/breeding';
@@ -181,4 +184,61 @@ describe('calculateStudFee', () => {
     expect(fee).toBe(Math.round(((stallion.quality + stallion.potential) / 2) * geneticsConfig.studFeeMultiplier));
     expect(fee).toBeGreaterThan(0);
   });
+});
+
+/**
+ * `pickFoalGender` — çiftleştirme diliminde EKLENDİ. `pickStarterHorseGender`
+ * ile AYNI desen: saf fonksiyon, rastgelelik Application katmanından gelir.
+ */
+describe('pickFoalGender', () => {
+  it('havuzda YALNIZCA mare ve stallion vardır — gelding bir DOĞUM sonucu DEĞİLDİR', () => {
+    expect(FOAL_GENDERS).toEqual(['mare', 'stallion']);
+    const produced = new Set(Array.from({ length: 200 }, (_, i) => pickFoalGender(i / 200)));
+    expect(produced).toEqual(new Set(['mare', 'stallion']));
+  });
+
+  it('[0, 0.5) → mare, [0.5, 1) → stallion', () => {
+    expect(pickFoalGender(0)).toBe('mare');
+    expect(pickFoalGender(0.499)).toBe('mare');
+    expect(pickFoalGender(0.5)).toBe('stallion');
+    expect(pickFoalGender(0.999)).toBe('stallion');
+  });
+
+  it('aralık dışı değerler TAŞMAZ (Math.random() sözleşmesi [0,1) ama savunma amaçlı)', () => {
+    expect(pickFoalGender(1)).toBe('stallion');
+    expect(pickFoalGender(99)).toBe('stallion');
+    expect(pickFoalGender(-1)).toBe('mare');
+  });
+});
+
+/**
+ * `assertBreedingConfigIsValid` — bu dilimde EKLENDİ. `assertGiftConfigIsValid`
+ * ile AYNI amaç: bozuk bir config'in oyunu SESSİZCE kilitlemesini (ya da
+ * cooldown'ı sessizce kapatmasını) bir OPERATÖR hatasına çevirmek.
+ */
+describe('assertBreedingConfigIsValid', () => {
+  it('config/genetics.config.json geçerlidir (gerçek config sessizce kilitli değil)', () => {
+    expect(() => assertBreedingConfigIsValid(geneticsConfig)).not.toThrow();
+  });
+
+  it('minBreedingAgeMonths > maxBreedingAgeMonths ise fırlatır (hiçbir at üreyemezdi)', () => {
+    expect(() =>
+      assertBreedingConfigIsValid({ ...geneticsConfig, minBreedingAgeMonths: 200, maxBreedingAgeMonths: 100 }),
+    ).toThrow(/minBreedingAgeMonths/);
+  });
+
+  it.each([0, -1, 1.5])('breedingCooldownDays = %s ise fırlatır (cooldown sessizce kapanırdı)', (value) => {
+    expect(() => assertBreedingConfigIsValid({ ...geneticsConfig, breedingCooldownDays: value })).toThrow(
+      /breedingCooldownDays/,
+    );
+  });
+
+  it.each([Number.NaN, Number.POSITIVE_INFINITY, -1])(
+    'studFeeMultiplier = %s ise fırlatır (damızlık ücreti NaN olur, defter satırı yazılamazdı)',
+    (value) => {
+      expect(() => assertBreedingConfigIsValid({ ...geneticsConfig, studFeeMultiplier: value })).toThrow(
+        /studFeeMultiplier/,
+      );
+    },
+  );
 });

@@ -60,6 +60,13 @@ export const ErrorCode = {
   // fırlatılmıyordu (kod HTTP durumuna hiç eşlenmemişti); bkz.
   // `domain/stable/errors.ts` ve `postgres-market-purchase.repository.ts`.
   StableCapacityExceeded: 'STABLE_CAPACITY_EXCEEDED',
+  // AUDIT_REPORT.md Bulgu H2 — `HorseListedInMarketError` (antrenman/yarış
+  // yolu) FAZ 1'den beri fırlatılıyordu ama kodu `DOMAIN_ERROR_MAP`'e HAM
+  // bir metin olarak yazılmıştı (`domain/horse/errors.ts`'te de ikinci bir
+  // kopyası vardı). Çiftleştirme dilimi (27.09.2026) AYNI kodu PAYLAŞAN
+  // ikinci bir hata (`BreedingHorseListedError`) eklediği için kopya
+  // sayısı üçe çıkacaktı — bu yüzden kod artık TEK yerde, burada tanımlı.
+  HorseListedInMarket: 'HORSE_LISTED_IN_MARKET',
   // Faz 3 — Yetiştiricilik (domain/breeding)
   NotEligibleForBreeding: 'NOT_ELIGIBLE_FOR_BREEDING',
   // Faz 4 — Çiftlik / Tesisler (domain/farm)

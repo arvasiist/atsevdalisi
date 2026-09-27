@@ -1,5 +1,10 @@
 /** Horse domain'ine özgü hata tipleri (bkz. `domain/player/errors.ts` ile aynı desen). */
 
+// `ErrorCode` `@at-sevdalisi/shared-types`'tadır — framework'süz saf TS
+// olduğundan domain katmanına girmesi KATMAN YÖNÜNÜ bozmaz (CLAUDE.md
+// kural 4 yalnızca NestJS/ORM importunu yasaklar).
+import { ErrorCode } from '@at-sevdalisi/shared-types';
+
 export class InvalidHorseNameError extends Error {
   constructor(message: string) {
     super(message);
@@ -30,7 +35,7 @@ export class HorseInjuredError extends Error {
  * antrenmana veya yarışa sokulamaz.
  */
 export class HorseListedInMarketError extends Error {
-  readonly code = 'HORSE_LISTED_IN_MARKET';
+  readonly code = ErrorCode.HorseListedInMarket;
 
   constructor(public readonly horseId: string) {
     super(`At (${horseId}) pazarda satışta olduğu için bu işlem yapılamaz.`);

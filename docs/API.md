@@ -214,6 +214,7 @@ cooldown kontrolüyle çifte ödüle karşı zaten finansal olarak korumalıdır
 GET    /api/v1/horses                  # oyuncunun ahırındaki atlar
 GET    /api/v1/horses/{id}             # at detayı (brief §40)
 GET    /api/v1/horses/{id}/pedigree    # soy ağacı + ataların adları (bu dilimde EKLENDİ, aşağıya bkz.)
+POST   /api/v1/players/{id}/breeding   # çiftleştirme + tay doğumu (27.09.2026 EKLENDİ, aşağıya bkz.)
 POST   /api/v1/horses/{id}/train       # antrenman (brief §10)
 POST   /api/v1/horses/{id}/care        # tımar/su/temizlik/veteriner/nalbant/dinlendirme
                                         # (brief §11 — tek uç nokta, `actionType` alanı,
@@ -832,7 +833,7 @@ bilgisi İKİ yerde durur ve ikisi de bu uç noktadan okunur:
 
 | Kaynak | Kapsam | Nereden yazılır |
 |---|---|---|
-| `pedigrees` (migration 0008) | 2 nesil + `bloodline`; `Pedigree` tipiyle 1:1 | `createFoalPedigree` (henüz bağlanmadı) |
+| `pedigrees` (migration 0008) | 2 nesil + `bloodline`; `Pedigree` tipiyle 1:1 | `createFoalPedigree` (çiftleştirme yazma yolu — bkz. aşağıda §"Çiftleştirme") |
 | `horses.sire_id`/`dam_id` (migration 0002) | yalnızca düz ebeveynler | `PostgresHorseRepository.save` |
 
 Repository `pedigrees` satırı varsa **onu** kullanır (zengin olan ve
@@ -852,9 +853,10 @@ TUTMAZ: yalnızca `grandSireId` (aygırın babası — baba hattı büyükbaba) 
 ID'yi gösterir.
 
 **Hâlâ YAPILMAYAN (bu dilimin bilinçli sınırı):** `pedigrees` satırlarını
-YAZAN yol (çiftleştirme → tay doğumu) yoktur. Bu yüzden bugün hiçbir atın
-soy kaydı ÜRETİLEMEZ ve ekranda görülen ağaç çoğu at için BOŞTUR. Yazma
-yolu (docs/API.md §7 `POST /breeding`) AYRI bir dilimdir.
+YAZAN yol bu dilimde YOKTU. **27.09.2026'da yazıldı** — bkz. aşağıdaki
+"Çiftleştirme" bölümü. Yani artık soy kaydı ÜRETİLEBİLİR ve ağaç, yalnızca
+çiftleştirilmiş atlar için dolar (başlangıç atlarında boş kalması hâlâ
+NORMALDİR).
 
 **Testler:** `pedigree.e2e-spec.ts` (2 nesil + kan hattının tam eşleşmesi;
 `@Public` doğrulaması — header'sız 200; soy kaydı olmayan başlangıç atı için
@@ -862,6 +864,93 @@ yolu (docs/API.md §7 `POST /breeding`) AYRI bir dilimdir.
 büyükebeveynlerin `null` kalması; **çelişkide `pedigrees`'in kazanması** ve
 kaybeden sütunların ad haritasına hiç girmemesi; var olmayan at 404
 `HORSE_NOT_FOUND`; UUID olmayan id 400).
+
+### Çiftleştirme (soy ağacı veri zincirinin YAZMA parçası, 27.09.2026)
+
+```http
+POST /api/v1/players/{id}/breeding
+Idempotency-Key: <zorunlu>
+Content-Type: application/json
+
+{ "mareId": "…", "stallionId": "…", "foalName": "Rüzgar" }
+```
+
+örnek yanıt (`201 Created`):
+
+```json
+{
+  "success": true,
+  "data": {
+    "pairId": "…",
+    "foalId": "…",
+    "foalName": "Rüzgar",
+    "foalGender": "mare",
+    "mareId": "…",
+    "stallionId": "…",
+    "fee": 1250,
+    "inbreedingDetected": false,
+    "birthHealthRisk": 0.08,
+    "payerBalance": { "money": 8750, "gems": 0 }
+  }
+}
+```
+
+**`:id` KISRAĞIN sahibidir** — `assertSelf` ile korunur, yani başkasının
+bakiyesinden damızlık ücreti ödenemez ve tay başkasının ahırına doğamaz.
+**Aygır başkasının olabilir**; o durumda sahibine damızlık ücreti ödenir
+(`fee`, `calculateStudFee` = aygırın `(quality+potential)/2` ortalaması ×
+`studFeeMultiplier`). Aynı sahip kendi atlarını çiftleştirirse `fee = 0` ve
+`payerBalance = null` olur — kendine ödeme yapılmaz ve sıfır tutarlı bir
+defter satırı YAZILMAZ (migration 0019 `CHECK (amount <> 0)`).
+
+**Tay ANINDA doğar.** Bu projede gebelik süresi modellenmez;
+`breedingCooldownDays` kısrağın BİR SONRAKİ çiftleştirmesine kadar geçen
+süredir. Tay `horses` + `horse_stats` + `horse_health` +
+`horse_surface_stats` + `horse_distance_stats` + `pedigrees` satırlarıyla
+birlikte, AYNI transaction'da doğar; `breeding_pairs` satırı da (ücret +
+`foal_id` ile) aynı transaction'da yazılır.
+
+**`seed` BİLİNÇLİ OLARAK DÖNMEZ:** tayın statları deterministiktir ve seed
+`pairId`'ye EŞİTTİR; `pairId` zaten yanıttadır ve `breeding_pairs.id` olarak
+saklanır — yani sonuç, kayıt satırından bağımsız olarak yeniden üretilebilir.
+Ayrıca dönmek ikinci bir doğruluk kaynağı yaratırdı.
+
+**Doğum sağlık riski gerçek bir sütuna yazılır:** domain'in hesapladığı
+`birthHealthRisk` ([0,1]) tayın `horse_health.injury_risk` sütununa ×100
+olarak girer.
+
+**Tayın cinsiyeti `mare`/`stallion`'dur — `gelding` ASLA.** İğdişlik bir
+doğum sonucu değildir (başlangıç atı havuzundan farkı budur).
+
+**Olası hatalar:**
+
+| Durum | HTTP | Kod |
+|---|---|---|
+| Kısrak çağıranın değil | 403 | `FORBIDDEN` |
+| Kısrak/aygır pazarda aktif ilanda | 409 | `HORSE_LISTED_IN_MARKET` |
+| Yaş/cinsiyet/durum/cooldown uygun değil | 409 | `NOT_ELIGIBLE_FOR_BREEDING` |
+| At yok | 404 | `HORSE_NOT_FOUND` |
+| Ahır kapasitesi dolu | 409 | `STABLE_CAPACITY_EXCEEDED` |
+| Bakiye yetersiz | 409 | `INSUFFICIENT_FUNDS` |
+| Tay adı geçersiz | 400 | `VALIDATION_ERROR` |
+| `Idempotency-Key` yok | 400 | `IDEMPOTENCY_KEY_REQUIRED` |
+
+`@RateLimit` (dakikada 10) + `IdempotencyInterceptor` birlikte uygulanır —
+`POST /players/:id/gifts` ile AYNI gerekçe (biri "aynı istek iki kez
+yürütülmesin", diğeri "ne kadar sık").
+
+**KİLİT SIRASI (deadlock'tan kaçınmak için — global kuralla aynı):** iki
+`horses` satırı (sözlüksel id sırası) → iki `players` satırı (sözlüksel id
+sırası). `PostgresMarketPurchaseRepository` zaten horses→players sırasını
+kullanır; `PostgresGiftRepository` yalnızca players'a dokunur. Domain
+kararı (`breedHorses`) transaction İÇİNDE, KİLİTLİ satırlardan okunan
+değerlerle verilir — yaş/cooldown/sahiplik yarış durumuna düşemez.
+
+**Testler:** `domain/breeding/breeding.spec.ts` (`pickFoalGender`,
+`assertBreedingConfigIsValid`) · `domain/horse/horse.spec.ts`
+(`validateHorseName`'in `unknown` kabulü). **E2E TESTİ YOKTUR** — bu bir
+PARA YOLUDUR ve e2e eklenmesi gerekir (yerelde Postgres olmadığı için
+dosya CI'ya kadar doğrulanamazdı).
 
 ### Ahır Yükseltme (FAZ 1 wiring, altıncı dilim; onuncu dilimde Idempotency-Key eklendi, bu oturum)
 
