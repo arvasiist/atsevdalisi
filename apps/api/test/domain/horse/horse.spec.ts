@@ -1,12 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import {
   STARTER_HORSE_AGE_MONTHS,
+  STARTER_HORSE_GENDERS,
   STARTER_HORSE_NAMES,
   STARTER_HORSE_POTENTIAL,
   STARTER_HORSE_QUALITY,
   STARTER_HORSE_WEIGHT_STD_DEV_KG,
   createStarterHorse,
   generateStarterHorseWeightKg,
+  pickStarterHorseGender,
   pickStarterHorseName,
 } from '../../../src/domain/horse/horse';
 import { HORSE_WEIGHT_MAX_KG, HORSE_WEIGHT_MIN_KG, HORSE_WEIGHT_POPULATION_MEAN_KG } from '../../../src/domain/horse/weight';
@@ -22,12 +24,16 @@ describe('createStarterHorse', () => {
 
   it('brief §7/§9 alanlarını doğru başlangıç değerleriyle doldurur', () => {
     const weightKg = generateStarterHorseWeightKg(NEUTRAL_WEIGHT_SAMPLE);
-    const horse = createStarterHorse({ id: 'horse-1', ownerId: 'player-1', name: 'Yıldız', now, weightKg });
+    const horse = createStarterHorse({ id: 'horse-1', ownerId: 'player-1', name: 'Yıldız', now, weightKg, gender: 'mare' });
 
     expect(horse.id).toBe('horse-1');
     expect(horse.ownerId).toBe('player-1');
     expect(horse.name).toBe('Yıldız');
-    expect(horse.gender).toBe('gelding');
+    // 27.09.2026 — cinsiyet artık SABİT `gelding` DEĞİL, çağıranın verdiği
+    // değerdir (bkz. `STARTER_HORSE_GENDERS` doc yorumu). Bu test onu
+    // AYNEN geçirdiğini kanıtlar; dağılımın kendisi `pickStarterHorseGender`
+    // testindedir.
+    expect(horse.gender).toBe('mare');
     expect(horse.level).toBe(1);
     expect(horse.xp).toBe(0);
     expect(horse.quality).toBe(STARTER_HORSE_QUALITY);
@@ -50,6 +56,7 @@ describe('createStarterHorse', () => {
       name: '  Rüzgar  ',
       now,
       weightKg: generateStarterHorseWeightKg(NEUTRAL_WEIGHT_SAMPLE),
+      gender: 'stallion',
     });
     expect(horse.name).toBe('Rüzgar');
   });
@@ -62,6 +69,7 @@ describe('createStarterHorse', () => {
         name: 'A',
         now,
         weightKg: generateStarterHorseWeightKg(NEUTRAL_WEIGHT_SAMPLE),
+        gender: 'gelding',
       }),
     ).toThrow(InvalidHorseNameError);
   });
@@ -73,6 +81,7 @@ describe('createStarterHorse', () => {
       name: 'Yıldız',
       now,
       weightKg: generateStarterHorseWeightKg(NEUTRAL_WEIGHT_SAMPLE),
+      gender: 'gelding',
     });
     const config = loadHorseGrowthConfig();
     const stage = getLifeStage(STARTER_HORSE_AGE_MONTHS, config);
@@ -125,5 +134,47 @@ describe('pickStarterHorseName', () => {
 
   it('aynı girdi için her zaman aynı ismi döner (saf fonksiyon)', () => {
     expect(pickStarterHorseName(0.42)).toBe(pickStarterHorseName(0.42));
+  });
+});
+
+/**
+ * 27.09.2026 — başlangıç atı artık HER ZAMAN `gelding` DEĞİL (bkz.
+ * `STARTER_HORSE_GENDERS` doc yorumu). Bu blok yalnızca fonksiyonun
+ * mekaniğini değil, **kilidin geri gelmemesini** de korur: havuzda
+ * `mare`/`stallion` bulunmalı ve ikisi de GERÇEKTEN üretilebilmelidir —
+ * aksi halde oyunda üreyebilen at bulunamaz ve yetiştiricilik yine
+ * ulaşılamaz hale gelir.
+ */
+describe('pickStarterHorseGender', () => {
+  it('0 için havuzun ilk cinsiyetini döner', () => {
+    expect(pickStarterHorseGender(0)).toBe(STARTER_HORSE_GENDERS[0]);
+  });
+
+  it("0.999... (1'e en yakın değer) için havuzun son cinsiyetini döner", () => {
+    expect(pickStarterHorseGender(0.9999999)).toBe(STARTER_HORSE_GENDERS[STARTER_HORSE_GENDERS.length - 1]);
+  });
+
+  it('geçerli aralık dışındaki değerlerde bile havuzdaki bir cinsiyete sınırlanır (clamp)', () => {
+    expect(STARTER_HORSE_GENDERS).toContain(pickStarterHorseGender(-1));
+    expect(STARTER_HORSE_GENDERS).toContain(pickStarterHorseGender(2));
+  });
+
+  it('aynı girdi için her zaman aynı cinsiyeti döner (saf fonksiyon)', () => {
+    expect(pickStarterHorseGender(0.42)).toBe(pickStarterHorseGender(0.42));
+  });
+
+  it('havuz ÜREYEBİLEN cinsiyetleri İÇERİR — mare ve stallion üretilebilir OLMALI', () => {
+    // Bu iddia, "başlangıç atı hep gelding" kararının sessizce geri
+    // dönmesini engelleyen asıl testtir (bkz. describe üstü yorum).
+    expect(STARTER_HORSE_GENDERS).toContain('mare');
+    expect(STARTER_HORSE_GENDERS).toContain('stallion');
+
+    const produced = new Set(
+      Array.from({ length: 300 }, (_, index) => pickStarterHorseGender(index / 300)),
+    );
+    expect(produced).toContain('mare');
+    expect(produced).toContain('stallion');
+    // Ve hiçbiri TEK BAŞINA tüm sonuç değildir (sabit değer regresyonu).
+    expect(produced.size).toBeGreaterThan(1);
   });
 });

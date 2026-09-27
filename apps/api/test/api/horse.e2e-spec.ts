@@ -48,7 +48,11 @@ describe('Horse (e2e)', () => {
     expect(horse.ownerId).toBe(player.id);
     expect(horse.level).toBe(1);
     expect(horse.status).toBe('active');
-    expect(horse.gender).toBe('gelding');
+    // 27.09.2026 — başlangıç atının cinsiyeti artık SABİT DEĞİL, üç
+    // cinsiyetten rastgele biridir (bkz. `STARTER_HORSE_GENDERS` doc
+    // yorumu). Burada belirli bir değer İDDİA EDİLMEZ; yalnızca geçerli
+    // kümeden biri olduğu doğrulanır.
+    expect(['mare', 'stallion', 'gelding']).toContain(horse.gender);
     expect(horse.health).toBe(100);
     // AUDIT_AND_HARDENING Öncelik 5 (bu oturum) — docs/SECURITY.md §9,
     // bkz. `apps/api/src/api/dto/horse.mapper.ts`. Ham `potential` HİÇBİR

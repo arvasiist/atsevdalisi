@@ -33,13 +33,39 @@ export const STARTER_HORSE_QUALITY = 45;
 export const STARTER_HORSE_POTENTIAL = 55;
 
 /**
- * Başlangıç atı bilinçli olarak `gelding` (kısırlaştırılmış erkek) olarak
- * verilir — `mare`/`stallion` verilseydi, henüz wiring edilmemiş bir FAZ 3
- * (Yetiştiricilik) özelliğini (üreme uygunluğu) erken açığa çıkarmış
- * olurduk. `gelding` yarışabilir ama üreyemez — bu dilimin kapsamıyla
- * (sadece görüntüleme) tam uyumlu, kafa karıştırıcı olmayan bir seçim.
+ * Başlangıç atının cinsiyet havuzu — **27.09.2026'da DEĞİŞTİ.**
+ *
+ * ÖNCEDEN başlangıç atı HER ZAMAN `gelding` idi. Gerekçesi şuydu: "henüz
+ * wiring edilmemiş bir FAZ 3 (Yetiştiricilik) özelliğini erken açığa
+ * çıkarmamak". **O gerekçe artık geçersiz** — ve daha kötüsü, o karar
+ * kendi kendini kilitliyordu: `createStarterHorse` tek at üretme yoludur,
+ * Pazar yalnızca VAR OLAN atları el değiştirir, dolayısıyla HER at
+ * `gelding` olduğu sürece oyunda **tek bir `mare`/`stallion` bile var
+ * olamaz** ve yetiştiricilik (çiftleştirme → tay) hiçbir oyuncu için
+ * ULAŞILAMAZ kalır. Proje sahibi bu kilidi açmayı onayladı (27.09.2026).
+ *
+ * `gelding` havuzdan ÇIKARILMADI: yarışabilen ama üreyemeyen bir at da
+ * meşru bir başlangıçtır ve üç cinsiyet de gerçek atçılıkta görülür.
  */
-const STARTER_HORSE_GENDER: HorseGender = 'gelding';
+export const STARTER_HORSE_GENDERS = ['mare', 'stallion', 'gelding'] as const;
+
+/**
+ * `[0, 1)` aralığında bir rastgelelik değerini (Application katmanının
+ * `Math.random()` ile ürettiği) cinsiyet havuzundan bir cinsiyete çevirir.
+ * `pickStarterHorseName` ile AYNI desen: saf fonksiyon, aynı `randomValue`
+ * için her zaman aynı sonucu üretir; domain `Math.random()` ÇAĞIRMAZ.
+ *
+ * Dağılım DÜZGÜNDÜR (üçte bir) — ağırlıklandırma bilinçli olarak
+ * YAPILMADI: `gelding`'i daha olası kılmak, yukarıda açıklanan "üreyebilen
+ * at bulunamaz" kilidini kısmen geri getirirdi.
+ */
+export function pickStarterHorseGender(randomValue: number): HorseGender {
+  const index = Math.min(
+    STARTER_HORSE_GENDERS.length - 1,
+    Math.max(0, Math.floor(randomValue * STARTER_HORSE_GENDERS.length)),
+  );
+  return STARTER_HORSE_GENDERS[index]!;
+}
 
 const STARTER_HORSE_BREED = 'Arap';
 
@@ -106,6 +132,14 @@ export interface NewStarterHorseInput {
    * doğar" değişmezini derleme zamanında zorunlu kılar).
    */
   weightKg: number;
+  /**
+   * Atın cinsiyeti — `weightKg` ile AYNI gerekçeyle ZORUNLUDUR: çağıran
+   * taraf `pickStarterHorseGender(Math.random())` ile üretip AÇIKÇA
+   * geçirir. Sessiz bir varsayılan (`gelding`) BIRAKILMAMIŞTIR, çünkü
+   * böyle bir varsayılan yukarıda açıklanan "oyunda hiç mare/stallion
+   * olamaz" kilidini fark edilmeden geri getirirdi.
+   */
+  gender: HorseGender;
 }
 
 /**
@@ -126,7 +160,7 @@ export function createStarterHorse(input: NewStarterHorseInput): Horse {
     id: input.id,
     ownerId: input.ownerId,
     name: input.name.trim(),
-    gender: STARTER_HORSE_GENDER,
+    gender: input.gender,
     breed: STARTER_HORSE_BREED,
     birthDate: birthDate.toISOString(),
     level: 1,

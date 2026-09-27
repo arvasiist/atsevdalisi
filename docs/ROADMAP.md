@@ -691,7 +691,10 @@ ekranlarının hiçbiri bir at OLMADAN anlamlı şekilde gösterilemez.
 - `POST /api/v1/players` (kayıt) artık yeni oyuncuya otomatik, ÜCRETSİZ
   bir başlangıç atı da veriyor (`domain/horse/horse.ts`
   `createStarterHorse`): `gelding` (kısırlaştırılmış, üreme akışını
-  erken açığa çıkarmamak için bilinçli seçim), "Arap" cinsi, sabit 8
+  erken açığa çıkarmamak için bilinçli seçim — **DÜZELTME 27.09.2026: bu
+  karar GERİ ALINDI, cinsiyet artık `mare`/`stallion`/`gelding` arasından
+  rastgele; gerekçe için bkz. docs/API.md §4 "DÜZELTME (27.09.2026)" ve
+  `STARTER_HORSE_GENDERS` doc yorumu**), "Arap" cinsi, sabit 8
   isimlik bir havuzdan rastgele seçilmiş isim, kalite 45/potansiyel 55
   (ortalamanın biraz altı/üstü — "geliştirilebilir" bir başlangıç
   hissi), 48 aylık ("prime" yaşam evresi — `config/horse-growth.config.json`
