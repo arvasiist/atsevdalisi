@@ -29,6 +29,13 @@
 **Bir CRITICAL bu oturumda düzeltildi:** E1 (bkz. aşağıda) — migration 0031
 ile `economy_transactions.reference_id` UUID → TEXT.
 
+**İkinci CRITICAL kapatıldı (27.09.2026):** E7 (pratik yarış sınırsız Çip
+musluğu) — ödül artık giriş ücretlerinden oluşan bir **havuzdan** dağıtılır
+(`Σ payoutShares = 1 − raceRake`, `raceRake = %10`) ve yarışa girmek
+**hazır olma kapısına** bağlıdır. Musluk `@RateLimit` ile değil, para
+akışının YAPISIYLA kapatıldı; E30 (EV testi) de aynı dilimde yazıldı.
+Ayrıntı: §5 E7/E30 notları ve `docs/ECONOMY.md` §4.1.1.
+
 ---
 
 ## 1. Mevcut economy sistemi
@@ -153,6 +160,30 @@ kazandıran yollar (ödüllü reklam, satın alma).
   (3) enerji/yorgunluk maliyeti bağla. **Bu bir oyun dengesi kararıdır,
   proje sahibinin onayı gerekir.**
 
+> **✅ KAPATILDI (27.09.2026) — öneri (2) + (3) uygulandı, (1) GEREKMEDİ.**
+> Proje sahibinin kararı: *"1 evet ödesin yarışlar ücretli olsun verilen
+> ücret kadarıyla giriş yapan kişiler çarpan olsun ve bir yarışta 8 / 10 /
+> 12 / 14 / 16 at koşabilsin hazır olan kişiler yarışabilsinler"* +
+> *"Kesinti olsun (~%10)"*.
+>
+> - Ödül artık **havuzdan** dağıtılır: `havuz = entryFee × fieldSize`
+>   (botlar da ödemiş sayılır). Sabit `practiceRace.prizeByFinishPosition`
+>   tablosu ve `raceEntryFeeMultiplier` **SİLİNDİ**.
+> - `Σ payoutShares = 1 − raceRake` (`raceRake = 0.1`) olduğundan
+>   `Σ ödül < havuz` **yapısal** bir değişmezdir — hangi kademe/alan
+>   büyüklüğü seçilirse seçilsin yarış Çip BASAMAZ. Musluk oranla değil
+>   YAPIYLA kapatıldı: **`@RateLimit` veya bekleme süresi EKLENMEDİ**
+>   (öneri 1 gereksiz kaldı, çünkü tekrarlanan bir yarış artık para
+>   üretmiyor).
+> - Öneri (3) uygulandı: `domain/race/readiness.ts` — sağlık ≥ 50,
+>   yorgunluk ≤ 70, enerji ≥ 30 (antrenmanın 15/90'ından BİLİNÇLİ olarak
+>   daha sıkı). Ret `409` döner, HİÇBİR para hareketi olmaz.
+> - Değişmezler testle korunur (config elle düzenlenebilir bir JSON ve
+>   `game-config` loader'ı saf bir cast olduğu için başka koruma yok):
+>   `apps/api/test/domain/race/prize.spec.ts`,
+>   `apps/api/test/domain/race/readiness.spec.ts`, uçtan uca
+>   `apps/api/test/api/race.e2e-spec.ts`.
+
 **Bulgu E8 — [HIGH] — Gerçek yarış ödülü use-case'i yok** ○
 
 - **Dosya:** `apps/api/src/application/use-cases/` — `claim-race-reward.use-case.ts` **yoktur** ✔ (klasör listelendi).
@@ -174,6 +205,13 @@ Bkz. E7 (pratik yarış) ve E8 (gerçek yarış). Ek olarak:
   ücreti diye bir yol zaten yok).
 - **Risk:** Düşük (bugün ikinci yol olmadığı için). **Önerilen çözüm:**
   gerçek yarış giriş ücreti yazılırken aynı fonksiyon kullanılsın.
+
+> **✅ KAPATILDI (27.09.2026) — bulgu MOOT oldu: `raceEntryFeeMultiplier`
+> tamamen SİLİNDİ.** Giriş ücreti artık kademeden doğrudan gelir
+> (`raceTiers[].entryFee`), ayrı bir çarpan katmanı yoktur. Oyuncunun
+> gördüğü çarpan ise `payoutShares[i] × fieldSize` olarak TÜRETİLİR —
+> saklanan ikinci bir tablo olmadığı için "gerçek yarışta uygulanmadı"
+> diye bir tutarsızlık sınıfı artık var olamaz.
 
 ---
 
@@ -434,6 +472,25 @@ yakalanmamış olmasının sebebi: pratik yarışın **beklenen değerini** öl�
 bir test yok. **Çözüm:** config'teki ödül tablosu ile giriş ücretini
 karşılaştırıp "EV ≤ 0" olduğunu iddia eden bir domain testi.
 
+> **✅ KAPATILDI (27.09.2026) — önerilen test YAZILDI, üstelik daha
+> güçlüsü.** `apps/api/test/domain/race/prize.spec.ts` artık:
+> 1. **EV ≤ 0** iddia eder (`EV(net) = −raceRake × entryFee`, tüm
+>    kademeler için) — önerinin birebir karşılığı;
+> 2. bundan DAHA GÜÇLÜ olan **yapısal** değişmezi test eder:
+>    `Σ ödül < havuz` (yani hiçbir ödül tablosu para basamaz) ve
+>    `Σ payoutShares = 1 − raceRake`;
+> 3. `validateRaceTiers` ile config'in kendisini "lint"ler — pay toplamı,
+>    azalanlık, `fieldSize` sınırı, tekrarlanan kimlik. Bu son madde
+>    somut olarak işe yaradı: ilk koşuda `championship` kademesinin son iki
+>    payı `[..., 0.02, 0.01, 0.01]` olduğu için test KIRMIZI çıktı (iki
+>    eşit ödül → azalanlık ihlali) ve config düzeltildi. Yani E30'un
+>    "yakalanmamış olmasının sebebi" ortadan kalktı: test yazıldığı anda
+>    gerçek bir config hatası yakaladı.
+>
+> E7/E30 için e2e tarafı da eklendi: `apps/api/test/api/race.e2e-spec.ts`
+> beş kademenin hepsini uçtan uca koşar ve hazır olma reddinde **bakiyenin
+> değişmediğini + defter satırı yazılmadığını** doğrular.
+
 ---
 
 ## 16. Önerilen uygulama sırası (brief §30 ile eşleşir)
@@ -442,7 +499,7 @@ karşılaştırıp "EV ≤ 0" olduğunu iddia eden bir domain testi.
 |---|---|---|---|
 | 1 | E19 düzeltmesi (reference_id) | PHASE 2 | **YAPILDI** ✔ |
 | 2 | E2 para birimi tek kaynak + Çip/Elmas | PHASE 2 | **YAPILDI** ✔ |
-| 3 | E7 musluk: `@RateLimit` + bekleme + ödül havuzu | PHASE 3/4 | **Sahibin onayı** (denge) |
+| 3 | E7 musluk: ödül havuzu + hazır olma kapısı (**`@RateLimit` gerekmedi**) | PHASE 3/4 | **YAPILDI** ✔ (27.09.2026) |
 | 4 | E20 ekipman `quality` sunucuya alınsın | PHASE 4 | Hayır — **en acil ikinci iş** |
 | 5 | E23 idempotency anahtarı şemada zorunlu | PHASE 5 | Hayır |
 | 6 | E6 + E5 başlangıç bakiyesi defteri + mutabakat testi | PHASE 2/5 | Hayır |

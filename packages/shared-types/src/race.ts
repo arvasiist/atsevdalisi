@@ -275,19 +275,37 @@ export interface RaceTimeline {
  *
  * FAZ 1 wiring, dokuzuncu dilim — `entryFee`/`prizeWon`/`newBalance`
  * eklendi (brief §31 Economy, docs/SECURITY.md §5). Her ikisi de her
- * zaman `'money'` cinsindendir (gem YOK bu akışta — `dailyRewardMoney`/
- * `raceEntryFeeMultiplier` ile AYNI tek-para-birimi kapsamı). `newBalance`,
+ * zaman `'money'` cinsindendir (gem YOK bu akışta — `dailyRewardMoney`
+ * ile AYNI tek-para-birimi kapsamı). `newBalance`,
  * `StableUpgradeResult`/`ClaimDailyRewardResult` ile AYNI `Pick` deseni.
+ *
+ * Proje sahibinin açık talebi (27.09.2026) — "yarışlar ücretli olsun,
+ * verilen ücret kadarıyla giriş yapan kişiler çarpan olsun ve bir
+ * yarışta 8/10/12/14/16 at koşabilsin". `tierId`/`tierLabel`/`fieldSize`/
+ * `prizePool` eklendi. KRİTİK AYRIM: `prizePool` artık havuzun TAMAMI
+ * (`entryFee × fieldSize`, botların "ödediği" pay dahil), `prizeWon` ise
+ * oyuncunun bu havuzdan ALDIĞI paydır — bu ikisi ÖNCEDEN eşitti
+ * (`prizePool` yanlışlıkla `prizeWon`a yazılıyordu, çünkü ödül sabit bir
+ * tablodan geliyordu ve havuz kavramı yoktu). İstemci "kazandığım / oynanan
+ * havuz" oranını artık gösterebilir.
  */
 export interface PracticeRaceResult {
   raceId: UUID;
   horseId: UUID;
+  /** Seçilen yarış kademesinin kimliği (`config/economy.config.json` → `raceTiers[].id`). */
+  tierId: string;
+  /** Kademenin oyuncuya gösterilen adı (ör. "Mahalli Koşu"). */
+  tierLabel: string;
+  /** Bu yarıştaki toplam katılımcı sayısı (oyuncunun atı + bot rakipler). */
+  fieldSize: number;
   distanceMeters: number;
   surface: RaceSurface;
   weather: RaceWeather;
   finalResult: RaceFinishEntry[];
   explanations: RaceExplanation[];
   entryFee: number;
+  /** Tüm katılımcıların giriş ücretlerinin toplamı — ödüller buradan dağıtılır. */
+  prizePool: number;
   prizeWon: number;
   newBalance: Pick<Player, 'money' | 'gems'>;
 }

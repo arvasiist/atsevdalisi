@@ -46,32 +46,76 @@ kaybettim" açıklaması (`docs/RACE_ENGINE.md` §8-9).
   eşleştirme (FAZ 7) henüz wiring edilmediğinden, deterministik (`createSeededRandom`)
   yapay zeka rakipler üretir.
 - `validation.ts` — taktik alanları (`RACING_STYLES` vb.) ve
-  `PRACTICE_RACE_BOT_COUNT`/`PRACTICE_RACE_DISTANCE_METERS` sabitleri.
-- `errors.ts` — `InvalidRaceTacticError`.
+  `PRACTICE_RACE_DISTANCE_METERS`. (Eski `PRACTICE_RACE_BOT_COUNT` sabiti
+  27.09.2026'da SİLİNDİ: katılımcı sayısı artık seçilen kademenin
+  `fieldSize`'ından gelir, `fieldSize − 1` bot üretilir — sabit tutmak
+  kayacak ikinci bir kaynak olurdu.)
+- `errors.ts` — `InvalidRaceTacticError`, `HorseNotReadyToRaceError`,
+  `InvalidRaceTierError`.
 
 Testler: `apps/api/test/domain/race/race-engine.spec.ts` (determinism +
 denge testleri, brief §53), `entrant-snapshot.spec.ts`, `bot-generator.spec.ts`,
-`track-fit.spec.ts` (R3 — Track Fit, bu turda EKLENDİ).
+`track-fit.spec.ts` (R3 — Track Fit), `prize.spec.ts` (ödül havuzu
+değişmezleri + EV), `readiness.spec.ts` (yarışa hazır olma kapısı).
 
-## FAZ 1 wiring, dokuzuncu dilim — Giriş ücreti + ödül (bu oturum)
+## FAZ 1 wiring, dokuzuncu dilim — Giriş ücreti + ödül
 
 `run-practice-race.use-case.ts`'e giriş ücreti + ödül eklendi (brief §31
 Economy, docs/SECURITY.md §5):
 
-- `prize.ts` — `getPracticeRaceEntryFee`/`getPracticeRacePrize`: SAF
-  fonksiyonlar, `config/economy.config.json`'daki YENİ `practiceRace`
-  bloğunu (`baseEntryFee`, `prizeByFinishPosition`) ve önceden hazır ama
-  hiç kullanılmamış `raceEntryFeeMultiplier`'ı kullanır. AYRICA
-  `applyPracticeRaceStakes` — CI'da bulunan bir hatanın (son sırayı
+- `applyPracticeRaceStakes` — CI'da bulunan bir hatanın (son sırayı
   bitiren oyuncu için `credit(..., 0, ...)`'ın `wallet.ts`'in sıfır
   miktar kuralına takılıp 500 döndürmesi) düzeltilmiş hali; miktar SIFIR
-  olduğunda `debit`/`credit` hiç çağrılmaz.
+  olduğunda `debit`/`credit` hiç çağrılmaz. Yeni modelde ödülsüz bitirmek
+  İSTİSNA DEĞİL OLAĞAN yoldur (ödül alan sıra sayısı her zaman alan
+  büyüklüğünden küçüktür), yani bu koruma artık çok daha sık devreye girer.
 
 Bakiye değişikliği (debit+credit) `PlayerRepository.updateWithLock` İÇİNDE,
 `UpgradeStableUseCase` ile AYNI desende uygulanır — bkz. use-case'in kendi
 doc yorumu. Bu, brief §54'ün Idempotency-Key + Redis altyapısının İLK
 gerçek kullanıcısıdır (bkz. `api/idempotency/idempotency.interceptor.ts`,
 `app.module.ts`'e artık bağlı olan `RedisModule`).
+
+## Gerçek ödül havuzu + yarış kademeleri + hazır olma kapısı (27.09.2026 — proje sahibinin talebi)
+
+Proje sahibi: *"yarışlar ücretli olsun, verilen ücret kadarıyla giriş yapan
+kişiler çarpan olsun ve bir yarışta 8 / 10 / 12 / 14 / 16 at koşabilsin,
+hazır olan kişiler yarışabilsinler"* + *"kesinti olsun (~%10)"*. Bu, denetimin
+**CRITICAL E7** (sınırsız para musluğu) ve **E30** (EV testi yok) bulgularının
+yapısal çözümüdür.
+
+- `prize.ts` — YENİDEN YAZILDI. Eski model (sabit `practiceRace.
+  prizeByFinishPosition` tablosu + `raceEntryFeeMultiplier`) SİLİNDİ;
+  yerine:
+  - `computeRacePool(tier)` = `entryFee × fieldSize` (botlar da ödemiş
+    sayılır → havuz gerçek),
+  - `getRacePrize(tier, position)` = `round(havuz × payoutShares[position-1])`,
+  - `computeRacePayoutTotal` / `computeRaceRakeAmount`,
+  - `getRaceTierById` / `getDefaultRaceTier` (listenin İLKİ),
+  - `validateRaceTiers(config)` — config değişmezlerini SORUN listesi olarak
+    döner (ASLA fırlatmaz): pay toplamı `1 − raceRake` olmalı, paylar
+    azalan/pozitif olmalı, ödül sırası sayısı `fieldSize`'ı aşmamalı ve
+    **dağıtılan toplam havuzdan KÜÇÜK olmalı**.
+  - `applyPracticeRaceStakes` — değişmedi (yukarıdaki dokuzuncu dilim).
+- `readiness.ts` — YENİ: `checkRaceReadiness(status, vitals, thresholds)`.
+  At `active` olmalı, sağlık ≥ 50, yorgunluk ≤ 70, enerji ≥ 30
+  (`config/race.config.json` `readiness`). Eşikler antrenmanınkinden
+  (15/90) BİLİNÇLİ olarak daha sıkıdır ve kontrol sırası DETERMİNİSTİKTİR
+  (en kalıcıdan en geçiciye) — istemci tek bir neden gösterir.
+
+**Neden pay toplamı `1 − raceRake`:** `Σ payoutShares = 1` olsaydı dağıtılan
+ödül havuza EŞİT olurdu ve botlar para ödemediği için yarış Çip basardı
+(E7'nin ta kendisi). Pay toplamını `1 − raceRake`'e bağlamak, "yarış para
+basmaz" değişmezini sayı ayarına değil YAPIYA bağlar: hangi alan büyüklüğü ve
+hangi ödül tablosu seçilirse seçilsin `Σ ödül < havuz` kalır. Değişmez bir
+TESTLE korunur, çünkü `game-config` loader'ı saf bir cast'tir (çalışma
+zamanı doğrulaması YOK) ve config elle düzenlenebilir bir JSON'dur.
+
+**EV (denetim E30):** eşit güçte bir alanda `P(sıra i) ≈ 1/fieldSize`
+varsayımıyla `EV(ödül) = Σ ödül / fieldSize`, yani `EV(net) = −raceRake ×
+entryFee` — ALAN BÜYÜKLÜĞÜNDEN BAĞIMSIZ olarak negatif. Bu, oyuncunun gördüğü
+çarpana da yansır: `payoutShares[i] × fieldSize` (mahalli 1. sıra 3.00×,
+şampiyona 1. sıra 4.80×) — çarpan TÜRETİLİR, ayrı bir tablo tutulmaz.
 
 ## FAZ 1 wiring, on dördüncü dilim — PvP Eşleştirme'nin Race Engine kullanımı (bu oturum)
 

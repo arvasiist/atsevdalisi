@@ -693,7 +693,7 @@ ve `feed-horse.use-case.ts` üstündeki KAPSAM notları):
   dilimde CI'ı beklemeden BAŞTAN uygulanan proaktif domain-katmanı
   doğrulaması).
 
-### Pratik Yarış (FAZ 1 wiring, sekizinci dilim; dokuzuncu dilimde giriş ücreti + ödül eklendi, bu oturum)
+### Pratik Yarış (FAZ 1 wiring, sekizinci dilim; dokuzuncu dilimde giriş ücreti + ödül eklendi; **27.09.2026'da GERÇEK ÖDÜL HAVUZU + kademeler eklendi**)
 
 ```http
 POST /api/v1/horses/{id}/practice-race
@@ -708,27 +708,34 @@ işlemi TEKRAR ÇALIŞTIRMAZ, ilk sonucu aynen döner (para tekrar ÇEKİLMEZ).
 brief §6 Race Engine ve §75 MVP kriterinin ("temel yarış motoru
 çalışıyor") karşılığıdır. `domain/race/race-engine.ts`'teki `simulateRace`
 (FAZ 5'te yazılıp test edilmişti, ama hiç ÇAĞRILMIYORDU) burada İLK
-gerçek orkestrasyonuna kavuşuyor: oyuncunun atı, sabit sayıda (5)
-deterministik yapay zeka rakibe karşı SOLO yarışır; sonuç `races`/
-`race_entries`/`race_entry_segments` tablolarına (migration 0006/0014,
-önceden hiç yazılmıyordu) gerçekten kaydedilir.
+gerçek orkestrasyonuna kavuşuyor: oyuncunun atı, seçilen KADEMENİN alan
+büyüklüğü kadar (`fieldSize − 1`) deterministik yapay zeka rakibe karşı
+SOLO yarışır; sonuç `races`/`race_entries`/`race_entry_segments`
+tablolarına (migration 0006/0014, önceden hiç yazılmıyordu) gerçekten
+kaydedilir.
 
 Gövde TAMAMEN opsiyoneldir — hiçbiri gönderilmezse `racingStyle: mid_pack`,
 `riskLevel: normal`, `startApproach: balanced`, `finalStretchPlan: normal`
-kullanılır:
+ve `tierId` için İLK kademe kullanılır:
 
 ```json
 {
   "racingStyle": "front_runner",
   "riskLevel": "high",
   "startApproach": "aggressive",
-  "finalStretchPlan": "early_sprint"
+  "finalStretchPlan": "early_sprint",
+  "tierId": "regional"
 }
 ```
 
+`tierId` bilinmeyen bir kademeyse `400 INVALID_RACE_TIER` döner (kademe
+kimlikleri config'ten geldiği için derleme zamanında `@IsIn` ile
+doğrulanamaz — otoritatif kontrol use-case içindedir, bkz.
+`api/race/dto/run-practice-race.dto.ts`).
+
 örnek yanıt (`finalResult`/`explanations` TÜM katılımcıları — oyuncunun
-atı + 5 bot — içerir, `horseId` alanı oyuncunun hangi girişi olduğunu
-gösterir):
+atı + `fieldSize − 1` bot — içerir, `horseId` alanı oyuncunun hangi girişi
+olduğunu gösterir):
 
 ```json
 {
@@ -736,6 +743,9 @@ gösterir):
   "data": {
     "raceId": "...",
     "horseId": "...",
+    "tierId": "regional",
+    "tierLabel": "Bölgesel Koşu",
+    "fieldSize": 10,
     "distanceMeters": 1600,
     "surface": "grass",
     "weather": "sunny",
@@ -746,29 +756,56 @@ gösterir):
     "explanations": [
       { "horseId": "...", "positives": ["İyi kondisyon", "Güçlü son sprint"], "negatives": ["İlk 400m'de fazla enerji harcadı"] }
     ],
-    "entryFee": 50,
-    "prizeWon": 200,
-    "newBalance": { "money": 5150, "gems": 50 }
+    "entryFee": 250,
+    "prizePool": 2500,
+    "prizeWon": 900,
+    "newBalance": { "money": 5650, "gems": 50 }
   }
 }
 ```
 
+`prizePool` HAVUZUN TAMAMIDIR (`entryFee × fieldSize`), `prizeWon` ise
+oyuncunun bitiş sırasına düşen PAYIDIR. Dokuzuncu dilimde bu iki alan
+yanlışlıkla aynı değerden (`prizeWon`) dolduruluyordu; 27.09.2026'da
+ayrıştırıldı.
+
 Tasarım kararları (bkz. `application/use-cases/run-practice-race.use-case.ts`
 üstündeki KAPSAM notu):
 
-- Bu, §6'daki TAM (gerçek çok oyunculu, programlı, giriş ücretli/ödül
-  havuzlu) Race API'sinin YERİNE GEÇMEZ — o API hâlâ wiring edilmedi. Bu
-  uç nokta, motoru ilk kez gerçek veriye bağlayan, solo/pratik bir ön
-  adımdır.
-- **Dokuzuncu dilim (bu oturum):** Giriş ücreti (`config/economy.config.json`
-  `practiceRace.baseEntryFee` × `raceEntryFeeMultiplier`) yarış başlamadan
-  ÖNCE düşülür, ödül (`practiceRace.prizeByFinishPosition`, bitiş sırasına
-  göre) yarış SONUCUNA göre eklenir — ikisi de TEK bir `PlayerRepository.
-  updateWithLock` çağrısı içinde (Ahır Yükseltme'deki AYNI satır kilitleme
-  deseni). Bakiye yetersizse `409 INSUFFICIENT_FUNDS` döner ve HİÇBİR ŞEY
-  yazılmaz (ne para çekilir ne yarış kaydedilir). Bu, gerçek bir çok
-  oyunculu ödül havuzu DEĞİLDİR — sabit, önceden belirlenmiş bir tablodur
-  (botlar para yatırmaz).
+- Bu, §6'daki TAM (gerçek çok oyunculu, programlı, zamanlanmış) Race
+  API'sinin YERİNE GEÇMEZ — takvim/`GET /races` hâlâ wiring edilmedi. Bu
+  uç nokta, motoru gerçek veriye bağlayan, anında koşulan bir adımdır.
+- **Giriş ücreti + ödül (dokuzuncu dilim):** ikisi de TEK bir
+  `PlayerRepository.updateWithLock` çağrısı içinde uygulanır (Ahır
+  Yükseltme'deki AYNI satır kilitleme deseni). Bakiye yetersizse `409
+  INSUFFICIENT_FUNDS` döner ve HİÇBİR ŞEY yazılmaz (ne para çekilir ne
+  yarış kaydedilir).
+- **ÖDÜL HAVUZU (27.09.2026 — proje sahibinin talebi: "yarışlar ücretli
+  olsun, verilen ücret kadarıyla giriş yapan kişiler çarpan olsun ve bir
+  yarışta 8 / 10 / 12 / 14 / 16 at koşabilsin"):** ödül artık sabit bir
+  tablodan DEĞİL, `havuz = entryFee × fieldSize` havuzundan dağıtılır
+  (botlar da giriş ücretini ödemiş sayılır). Bitiş sırasına düşen pay
+  `config/economy.config.json` `raceTiers[].payoutShares`'ten gelir ve
+  `Σ payoutShares = 1 − raceRake` olduğundan dağıtılan toplam ödül havuzdan
+  YAPISAL OLARAK küçüktür — yarış hiçbir alan büyüklüğünde para BASAMAZ
+  (denetim bulgusu E7'nin çözümü; değişmez `apps/api/test/domain/race/
+  prize.spec.ts` ile korunur, çünkü config elle düzenlenebilir bir JSON'dur
+  ve `game-config` loader'ı çalışma zamanı doğrulaması YAPMAZ).
+  Oyuncunun gördüğü çarpan türetilir: `payoutShares[i] × fieldSize`.
+  Kesinti `raceRake` = %10 (proje sahibinin kararı) — eşit güçte bir alanda
+  oyuncunun beklenen NET sonucu tam olarak `−raceRake × entryFee`'dir, yani
+  yarış bir Çip KAYNAĞI değil HAVUZUDUR (denetim bulgusu E30'un çözümü).
+- **Kademeler:** `local` (8 at, 100), `regional` (10 at, 250), `national`
+  (12 at, 500), `elite` (14 at, 1000), `championship` (16 at, 2000).
+  `fieldSize` hem katılımcı sayısını hem havuzu belirler.
+- **HAZIR OLMA KAPISI (aynı talep: "hazır olan kişiler yarışabilsinler"):**
+  `domain/race/readiness.ts` `checkRaceReadiness` ile at `active` olmalı,
+  sağlığı ≥ 50, yorgunluğu ≤ 70 ve enerjisi ≥ 30 olmalıdır
+  (`config/race.config.json` `readiness`). Ret → `409` ve nedene göre
+  `HORSE_NOT_ACTIVE` / `INSUFFICIENT_HEALTH` / `HORSE_TOO_TIRED` /
+  `INSUFFICIENT_ENERGY`; HİÇBİR para hareketi ve HİÇBİR yarış kaydı olmaz.
+  Eşikler antrenmanınkinden (enerji ≥ 15, yorgunluk ≤ 90) BİLEREK daha
+  sıkıdır: yorgun bir at antrenmana girebilir ama yarışa giremez.
 - Bot rakipler gerçek `horses` satırları DEĞİLDİR, `race_entries`'e ayrı
   satır olarak YAZILMAZLAR — yalnızca oyuncunun kendi girişi kalıcıdır.
 - Zemin (grass) + hava (sunny) + mesafe (1600m) SABİTTİR — gerçek pist
@@ -950,11 +987,16 @@ minAge=...`) YOK (bkz. "Tara" bölümündeki KAPSAM DIŞI notu).
 
 ## 6. Race (Yarışlar)
 
-> **Not (FAZ 1 wiring, sekizinci dilim):** Aşağıdaki TAM (çok oyunculu,
-> programlı, giriş ücretli/ödül havuzlu) Race API'si henüz wiring
-> edilmedi. Bunun yerine `simulateRace`'in ilk gerçek orkestrasyonu,
-> §4 Horses altındaki `POST /horses/{id}/practice-race` (solo, ücretsiz,
-> sabit rakip/pist) olarak eklendi — bkz. o bölümdeki not.
+> **Not (FAZ 1 wiring, sekizinci dilim; 27.09.2026'da güncellendi):**
+> Aşağıdaki TAM (çok oyunculu, programlı, zamanlanmış) Race API'si — özellikle
+> `GET /races` takvimi ve `claim-reward` — henüz wiring edilmedi. Bunun
+> yerine `simulateRace`'in ilk gerçek orkestrasyonu, §4 Horses altındaki
+> `POST /horses/{id}/practice-race` olarak eklendi: **artık ÜCRETLİ ve ödül
+> havuzlu** (giriş ücreti kademeye göre 100–2000 Çip, havuz = giriş × alan
+> büyüklüğü, kesinti %10), rakip sayısı seçilen kademenin alan büyüklüğü
+> kadardır (8/10/12/14/16) ve yalnızca HAZIR atlar koşabilir — bkz. o
+> bölümdeki not. Kalan fark: botlar gerçek oyuncu değil, pist/mesafe sabit,
+> yarış önceden zamanlanmıyor (anında koşuluyor).
 
 ```http
 GET  /api/v1/races                    # yarış takvimi (brief §35)

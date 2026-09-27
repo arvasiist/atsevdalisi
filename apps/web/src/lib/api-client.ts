@@ -377,10 +377,23 @@ export const apiClient = {
    * buyMarketListing`/`training.trainHorse` ile AYNI gerekçeyle bir
    * `Idempotency-Key` header'ı ZORUNLUDUR (bkz. `race.controller.ts` doc
    * yorumu).
+   *
+   * `tierId` (proje sahibinin talebi, 27.09.2026) — yarışın KADEMESİ; alan
+   * büyüklüğünü (8/10/12/14/16), giriş ücretini ve ödül tablosunu belirler
+   * (bkz. `config/economy.config.json` `raceTiers`). Opsiyoneldir:
+   * gönderilmezse sunucu İLK kademeyi (en küçük alan) kullanır. Geçersiz bir
+   * kimlik `400 INVALID_RACE_TIER` döner — doğrulama istemcide YAPILMAZ
+   * (bkz. `run-practice-race.dto.ts` doc yorumu).
    */
   runPracticeRace: (
     horseId: string,
-    tactic: { racingStyle?: RacingStyle; riskLevel?: RiskLevel; startApproach?: StartApproach; finalStretchPlan?: FinalStretchPlan },
+    tactic: {
+      racingStyle?: RacingStyle;
+      riskLevel?: RiskLevel;
+      startApproach?: StartApproach;
+      finalStretchPlan?: FinalStretchPlan;
+      tierId?: string;
+    },
     idempotencyKey: string,
   ) =>
     request<PracticeRaceResult>(`/horses/${horseId}/practice-race`, {

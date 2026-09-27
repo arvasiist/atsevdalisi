@@ -60,6 +60,12 @@ export class RaceController {
         startApproach: dto.startApproach ?? DEFAULT_RACE_TACTIC.startApproach,
         finalStretchPlan: dto.finalStretchPlan ?? DEFAULT_RACE_TACTIC.finalStretchPlan,
       },
+      // Proje sahibinin açık talebi (27.09.2026) — kademe seçimi
+      // (`tierId`). `undefined` geçilirse use-case varsayılan kademeyi
+      // kullanır; `null` ile `undefined` arasındaki ayrım BURADA
+      // KORUNUR (DTO `@IsString` olduğundan zaten yalnızca string ya da
+      // hiç gelmez) — bkz. `RunPracticeRaceInput.tierId` doc yorumu.
+      tierId: dto.tierId ?? null,
     });
     return { success: true, data: result };
   }

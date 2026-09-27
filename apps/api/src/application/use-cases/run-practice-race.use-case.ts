@@ -1,12 +1,15 @@
 import { randomUUID } from 'node:crypto';
 import { Inject, Injectable } from '@nestjs/common';
 import type { PracticeRaceResult, Race, RaceEntry, RaceSegmentSnapshot, RaceTacticInput } from '@at-sevdalisi/shared-types';
+import type { RaceTierConfig } from '@at-sevdalisi/game-config';
 import { generateBotEntrants } from '../../domain/race/bot-generator';
 import { buildHorseEntrantSnapshot, FORM_SAMPLE_SIZE, type TrackFitInput } from '../../domain/race/entrant-snapshot';
 import { assignGatePositions } from '../../domain/race/gate-assignment';
-import { getPracticeRaceEntryFee, getPracticeRacePrize } from '../../domain/race/prize';
+import { computeRacePool, getDefaultRaceTier, getRacePrize, getRaceTierById } from '../../domain/race/prize';
+import { checkRaceReadiness } from '../../domain/race/readiness';
 import { RACE_ENGINE_VERSION, RACE_RULESET_VERSION, simulateRace } from '../../domain/race/race-engine';
-import { PRACTICE_RACE_BOT_COUNT, PRACTICE_RACE_DISTANCE_METERS } from '../../domain/race/validation';
+import { PRACTICE_RACE_DISTANCE_METERS } from '../../domain/race/validation';
+import { HorseNotReadyToRaceError, InvalidRaceTierError } from '../../domain/race/errors';
 import { HorseInjuredError, HorseListedInMarketError, HorseNotFoundError } from '../../domain/horse/errors';
 import { AppConfigService } from '../../infrastructure/config/config.service';
 import { HORSE_REPOSITORY, type HorseRepository } from '../ports/horse.repository';
@@ -19,6 +22,13 @@ import { MARKET_LISTING_REPOSITORY, type MarketListingRepository } from '../port
 
 export interface RunPracticeRaceInput {
   tactic: RaceTacticInput;
+  /**
+   * Seçilen yarış kademesi (`config/economy.config.json` → `raceTiers[].id`).
+   * `null`/verilmezse `getDefaultRaceTier` (listenin ilk elemanı) kullanılır
+   * — `docs/API.md` §4 örnek isteği gibi kademe göndermeyen çağrılar
+   * çalışmaya devam eder.
+   */
+  tierId?: string | null;
 }
 
 const PRACTICE_RACE_SURFACE = 'grass' as const;
@@ -51,12 +61,55 @@ export class RunPracticeRaceUseCase {
   ) {}
 
   async execute(horseId: string, input: RunPracticeRaceInput): Promise<PracticeRaceResult> {
+    // KADEME ÇÖZÜMÜ ÖNCE (proje sahibinin açık talebi, 27.09.2026) —
+    // gövdeden gelen `tierId` yalnızca config'e karşı doğrulanır, hiç DB
+    // okumaz. En başta yapılmasının nedeni: geçersiz bir kademe isteği,
+    // aşağıdaki PAHALI yarış simülasyonu (yüzlerce segment) hiç
+    // çalıştırılmadan reddedilmelidir. DTO'da `@IsIn` KULLANILAMAZ çünkü
+    // kademe kimlikleri statik değil, config'ten gelir — ve esbuild
+    // altında DTO doğrulaması zaten atlanabilir (bkz. CLAUDE.md), yani
+    // gerçek kontrolün yeri her hâlükârda burasıdır.
+    const tier: RaceTierConfig | null =
+      input.tierId === undefined || input.tierId === null
+        ? getDefaultRaceTier(this.config.economy)
+        : getRaceTierById(this.config.economy, input.tierId);
+    if (tier === null) {
+      throw new InvalidRaceTierError(input.tierId ?? '(varsayılan)');
+    }
+
     const horse = await this.horseRepository.findById(horseId);
     if (horse === null) {
       throw new HorseNotFoundError(horseId);
     }
     if (horse.status === 'injured') {
       throw new HorseInjuredError(horseId);
+    }
+
+    // "HAZIR OLAN KİŞİLER YARIŞABİLSİNLER" (proje sahibinin açık talebi,
+    // 27.09.2026) — bkz. `domain/race/readiness.ts` doc yorumu: bu,
+    // `HorseInjuredError`'ın YERİNE GEÇMEZ (o, `docs/API.md`de
+    // `HORSE_INJURED` olarak sabitlenmiş ayrı bir sözleşmedir), onu
+    // TAMAMLAR — sakatlık dışındaki `resting`/`retired` durumları, yetersiz
+    // sağlık, aşırı yorgunluk ve yetersiz enerji de engeldir. Bu kontrol
+    // para hareketinden ÖNCE çalışır, yani hazır olmayan bir at için
+    // HİÇBİR Çip hareket etmez.
+    const readiness = checkRaceReadiness(
+      horse.status,
+      // `train-horse.use-case.ts` ile AYNI açık kurulum: `Horse` yapısal
+      // olarak `VitalSigns`'a uyar ama burada ALANLAR TEK TEK yazılır ki
+      // `Horse`a yeni bir vital alanı eklenip `VitalSigns`'a eklenmezse
+      // sessizce eksik bir kontrol doğmasın (derleyici burada uyarır).
+      {
+        health: horse.health,
+        fitness: horse.fitness,
+        fatigue: horse.fatigue,
+        energy: horse.energy,
+        morale: horse.morale,
+      },
+      this.config.race.readiness,
+    );
+    if (!readiness.ready && readiness.reason !== null) {
+      throw new HorseNotReadyToRaceError(readiness.reason);
     }
 
     // H2 KONTROLÜ: Pazarda aktif bir ilanı var mı?
@@ -97,7 +150,13 @@ export class RunPracticeRaceUseCase {
 
     const raceId = randomUUID();
     const playerEntrant = buildHorseEntrantSnapshot(horse, stats, input.tactic, recentResults, trackFit, equippedItems);
-    const botEntrants = generateBotEntrants(PRACTICE_RACE_BOT_COUNT, raceId);
+    // ALAN DOLDURMA (proje sahibinin açık talebi, 27.09.2026): bot sayısı
+    // artık sabit değil, kademenin `fieldSize`'ından türer — oyuncunun
+    // kendi atı alanın BİR üyesi olduğundan `fieldSize − 1` rakip üretilir
+    // (8/10/12/14/16 at → 7/9/11/13/15 bot). `generateBotEntrants` sayıyı
+    // ZATEN parametre olarak alıyordu (eski sabit çağıran taraftaydı), yani
+    // bu değişiklik motor/bot üretim mantığına DOKUNMAZ.
+    const botEntrants = generateBotEntrants(tier.fieldSize - 1, raceId);
 
     const timeline = simulateRace({
       raceId,
@@ -116,8 +175,17 @@ export class RunPracticeRaceUseCase {
       throw new HorseNotFoundError(horseId);
     }
 
-    const entryFee = getPracticeRaceEntryFee(this.config.economy);
-    const prizeWon = getPracticeRacePrize(playerFinish.finishPosition, this.config.economy);
+    // EKONOMİ (proje sahibinin açık talebi, 27.09.2026) — bkz.
+    // `domain/race/prize.ts` doc yorumundaki tam model. Oyuncunun ödediği
+    // ücret kademeden gelir; havuz TÜM katılımcıların ücretidir (botlar da
+    // "ödedi" sayılır) ve ödül bu havuzun bir PAYIDIR. `prizeWon`, ödül
+    // almayan bir sırada 0 olur — bu olağan bir durumdur (her kademede
+    // yalnızca `payoutShares.length` kadar sıra ödül alır) ve
+    // `applyPracticeRaceStakes` sıfır miktarda `credit` ÇAĞIRMADIĞI için
+    // 500 hatası üretmez (bkz. o fonksiyonun doc yorumundaki CI hatası).
+    const entryFee = tier.entryFee;
+    const prizePool = computeRacePool(tier);
+    const prizeWon = getRacePrize(tier, playerFinish.finishPosition);
 
     // AUDIT_REPORT.md Bulgu R3 (bu oturum) — "Draw/post-position" artık
     // gerçek bir çekilişten türetiliyor (bkz. `gate-assignment.ts` doc
@@ -133,16 +201,26 @@ export class RunPracticeRaceUseCase {
     const race: Race = {
       id: raceId,
       trackId: null,
-      name: 'Pratik Yarış',
+      // Kademenin adı ("Mahalli Koşu" vb.) — önceden her pratik yarış
+      // "Pratik Yarış" adını taşıyordu ve kademe kavramı yoktu. Bu ad
+      // `GET /players/:id/recent-races` ("Son Yarış Sonuçları" paneli)
+      // üzerinden oyuncuya AYNEN gösterilir, yani artık hangi kademede
+      // koştuğunu geçmişinde görebilir.
+      name: tier.label,
       distanceMeters: PRACTICE_RACE_DISTANCE_METERS,
       surface: PRACTICE_RACE_SURFACE,
       weather: PRACTICE_RACE_WEATHER,
       temperatureC: null,
       windKmh: null,
       humidityPct: null,
-      participantLimit: botEntrants.length + 1,
+      participantLimit: tier.fieldSize,
       entryFee,
-      prizePool: prizeWon,
+      // DÜZELTME (proje sahibinin açık talebi, 27.09.2026) — bu alan
+      // ÖNCEDEN `prizeWon`a yazılıyordu, yani "havuz" aslında oyuncunun
+      // KENDİ kazancıydı (havuz kavramı yoktu). Artık gerçek havuzdur
+      // (`entryFee × fieldSize`); `prizeWon` ayrı bir alan olarak yanıtta
+      // döner. Bkz. `PracticeRaceResult` doc yorumu.
+      prizePool,
       startTime: now.toISOString(),
       status: 'finished',
       simulationSeed: timeline.simulationSeed,
@@ -226,12 +304,16 @@ export class RunPracticeRaceUseCase {
     return {
       raceId,
       horseId,
+      tierId: tier.id,
+      tierLabel: tier.label,
+      fieldSize: tier.fieldSize,
       distanceMeters: PRACTICE_RACE_DISTANCE_METERS,
       surface: PRACTICE_RACE_SURFACE,
       weather: PRACTICE_RACE_WEATHER,
       finalResult: timeline.finalResult,
       explanations: timeline.explanations,
       entryFee,
+      prizePool,
       prizeWon,
       newBalance,
     };

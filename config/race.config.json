@@ -65,5 +65,10 @@
   "referenceSpeedMps": 16,
   "stamina": {
     "depletionPenaltyMultiplier": 0.85
+  },
+  "readiness": {
+    "minEnergy": 30,
+    "maxFatigue": 70,
+    "minHealth": 50
   }
 }

@@ -71,6 +71,12 @@ push-log.txt
 vitest-*.txt
 recover-log.txt
 run-merge.bat
+# PowerShell 5.1'de here-string'ler güvenilmez olduğu için commit mesajı
+# geçici bir dosyaya yazılıp `git commit -F` ile kullanılır (bkz. CLAUDE.md
+# "Teslimat mekanizması"). Bu dosya `git add -A` ile YANLIŞLIKLA commit
+# edildi (27.09.2026) — deseni eklenmezse aynı hata tekrar eder.
+.git-commit-msg.txt
+commit-msg-*.txt
 merge-log.txt
 
 # Yerel push-bundle teslimat scratch alani (git bundle + .bat script'ler burada olusturulur, repo'nun parcasi degil)

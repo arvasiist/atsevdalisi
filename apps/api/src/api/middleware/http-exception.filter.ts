@@ -33,7 +33,7 @@ import {
 import { MaxStableLevelReachedError, StableCapacityExceededError } from '../../domain/stable/errors';
 import { InvalidFacilityTypeError, MaxFacilityLevelReachedError } from '../../domain/farm/errors';
 import { DailyRewardAlreadyClaimedError, InsufficientFundsError } from '../../domain/economy/errors';
-import { InvalidRaceTacticError, RaceNotFoundError } from '../../domain/race/errors';
+import { HorseNotReadyToRaceError, InvalidRaceTacticError, InvalidRaceTierError, RaceNotFoundError } from '../../domain/race/errors';
 import { AlreadyInMatchmakingQueueError, NotInMatchmakingQueueError } from '../../domain/online/errors';
 import {
   CannotBuyOwnListingError,
@@ -107,6 +107,12 @@ const DOMAIN_ERROR_MAP = new Map<ErrorClassConstructor, { status: number; code: 
   // taktik alanı `InvalidTrainingInputError`/`InvalidCareInputError` ile
   // AYNI gerekçeyle gerçek bir DOĞRULAMA hatasıdır, 400.
   [InvalidRaceTacticError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.ValidationError }],
+  // Proje sahibinin açık talebi (27.09.2026) — `tierId` config'deki
+  // hiçbir kademeyle eşleşmiyor. `InvalidRaceTacticError` ile AYNI gerekçe
+  // (gerçek, KALICI bir doğrulama hatası), ama kendi bespoke koduyla:
+  // istemci "geçersiz taktik" ile "geçersiz kademe"yi ayırt edebilmelidir
+  // (biri gövdedeki 4 alandan, diğeri kademe seçicisinden gelir).
+  [InvalidRaceTierError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.InvalidRaceTier }],
   // AUDIT_REPORT.md Bulgu R2 (Medium, bu oturum) — `HorseNotFoundError`/
   // `ListingNotFoundError` ile AYNI kategori (bulunamayan kaynak), 404.
   [RaceNotFoundError, { status: HttpStatus.NOT_FOUND, code: ErrorCode.RaceNotFound }],
@@ -205,6 +211,27 @@ export class HttpExceptionFilter implements ExceptionFilter {
     if (exception instanceof HorseNotReadyForTrainingError) {
       const code = exception.reason === 'INSUFFICIENT_ENERGY' ? ErrorCode.InsufficientEnergy : ErrorCode.HorseTooTired;
       response.status(HttpStatus.CONFLICT).json({ success: false, error: { code, message: exception.message } });
+      return;
+    }
+
+    // Proje sahibinin açık talebi (27.09.2026) — "hazır olan kişiler
+    // yarışabilsinler". `HorseNotReadyForTrainingError` ile YAPISAL OLARAK
+    // AYNI desen (dört neden → dört kod, hepsi 409) — ama `DOMAIN_ERROR_MAP`'e
+    // EKLENEMEZ, çünkü oradaki eşleme sınıf→(durum, kod) tekilidir ve
+    // BURADA kod, hatanın `reason` alanına BAĞLIDIR. İki neden
+    // (`HORSE_TOO_TIRED`/`INSUFFICIENT_ENERGY`) antrenmanla AYNI kodları
+    // PAYLAŞIR (istemci için kavram aynıdır); diğer ikisi yeni koddur.
+    if (exception instanceof HorseNotReadyToRaceError) {
+      const codeByReason = {
+        HORSE_NOT_ACTIVE: ErrorCode.HorseNotActive,
+        INSUFFICIENT_HEALTH: ErrorCode.InsufficientHealth,
+        HORSE_TOO_TIRED: ErrorCode.HorseTooTired,
+        INSUFFICIENT_ENERGY: ErrorCode.InsufficientEnergy,
+      } as const;
+      response.status(HttpStatus.CONFLICT).json({
+        success: false,
+        error: { code: codeByReason[exception.reason], message: exception.message },
+      });
       return;
     }
 

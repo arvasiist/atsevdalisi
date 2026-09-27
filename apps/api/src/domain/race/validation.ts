@@ -20,12 +20,14 @@ export const DEFAULT_RACE_TACTIC: RaceTacticInput = {
 };
 
 /**
- * KARAR (bu dilim, bilinçli): brief'te bir "pratik yarış" katılımcı sayısı
- * belirtilmez — gerçek çok oyunculu eşleştirme (FAZ 7 Matchmaking) henüz
- * bu dilimin kapsamında değildir (bkz. `docs/ROADMAP.md`). Sabit sayıda
- * yapay zeka (bot) rakip kullanılır.
+ * `PRACTICE_RACE_BOT_COUNT` KALDIRILDI (proje sahibinin açık talebi,
+ * 27.09.2026). Eskiden sabit 5'ti (oyuncunun atıyla birlikte 6
+ * katılımcı); artık katılımcı sayısı SEÇİLEN KADEMEDEN gelir —
+ * `config/economy.config.json` → `raceTiers[].fieldSize` (8/10/12/14/16).
+ * Bot sayısı bu değerden türetilir: `fieldSize − 1` (oyuncunun kendi atı).
+ * Sabit burada KALSIN denmedi çünkü iki kaynak (sabit + kademe) sessizce
+ * ayrışırdı; SİHİRLİ SAYI YOK kuralı gereği tek kaynak config'tir.
  */
-export const PRACTICE_RACE_BOT_COUNT = 5;
 
 /** Orta mesafe (`config/race.config.json` → `distance.middleMaxMeters: 1800`'in altında). */
 export const PRACTICE_RACE_DISTANCE_METERS = 1600;

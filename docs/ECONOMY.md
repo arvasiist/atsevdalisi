@@ -70,22 +70,58 @@ ama henüz uygulanmamış kalemler ayrıca işaretlenmiştir.
 
 | Birim | Source (gelir) | Sink (gider) |
 |---|---|---|
-| **Çip** (`money`) | Yeni oyuncu başlangıç bakiyesi (5.000) · günlük ödül (500) · pratik yarış ödülü · pazar satışı (satıcı payı) | Yarış giriş ücreti (pratik: 50) · ahır yükseltmesi · tesis yükseltmesi · pazar alımı (alıcı) |
+| **Çip** (`money`) | Yeni oyuncu başlangıç bakiyesi (5.000) · günlük ödül (500) · yarış ödülü (havuzdan pay) · pazar satışı (satıcı payı) | Yarış giriş ücreti (kademeye göre 100–2000) · ahır yükseltmesi · tesis yükseltmesi · pazar alımı (alıcı) |
 | **Elmas** (`gems`) | Yeni oyuncu başlangıç bakiyesi (50) — **başka kaynak YOK** | Yem satın alma (`arpa`/`mama`/`havuc`/`vitamin`) — **tek sink** |
 
 **Henüz uygulanmamış (brief'te var, kodda yok):** gerçek yarış ödülü
-(`ClaimRaceRewardUseCase` YOKTUR — bugün tek ödül yolu pratik yarıştır) ·
-görev ödülü · başarı (achievement) ödülü · turnuva/sezon ödülü · jokey ve
-personel maaşları · yetiştiricilik ücreti · bakım/antrenman/ekipman
+(`ClaimRaceRewardUseCase` YOKTUR — bugün tek ödül yolu anında koşulan
+yarıştır) · görev ödülü · başarı (achievement) ödülü · turnuva/sezon ödülü ·
+jokey ve personel maaşları · yetiştiricilik ücreti · bakım/antrenman/ekipman
 giderleri (bugün **bedavadır**, bkz. §4.2) · Elmas kazandıran yollar
 (ödüllü reklam, satın alma).
 
-> **⚠️ Bilinen dengesizlik (CRITICAL, audit bulgusu):** pratik yarış bugün
-> bir **sınırsız Çip musluğudur** — giriş ücreti 50, ödül tablosu
-> `[200,120,80,50,30,0]` (toplam 480), botlar hiç ödeme yapmaz; beklenen
-> değer yarış başına ≈ +30. Uç noktada `@RateLimit`, bekleme süresi veya
-> enerji maliyeti YOKTUR. Bu, oyun dengesi kararı olduğu için proje
-> sahibinin onayıyla ayrı bir dilimde kapatılacaktır.
+### 4.1.1 Yarış ekonomisi — havuz + kesinti (27.09.2026)
+
+Proje sahibinin kararıyla yarış artık **ücretli** ve ödül **sabit bir
+tablodan değil, bir havuzdan** dağıtılır. Kaynak
+`config/economy.config.json` → `raceRake` + `raceTiers`:
+
+| Kademe | Alan | Giriş ücreti | Havuz | Ödül alan sıra | 1. sıra çarpanı |
+|---|---|---|---|---|---|
+| `local` Mahalli | 8 at | 100 | 800 | 5 | 3.00× |
+| `regional` Bölgesel | 10 at | 250 | 2.500 | 6 | 3.60× |
+| `national` Ulusal | 12 at | 500 | 6.000 | 7 | 4.08× |
+| `elite` Elit | 14 at | 1.000 | 14.000 | 8 | 4.62× |
+| `championship` Şampiyona | 16 at | 2.000 | 32.000 | 9 | 4.80× |
+
+- **Havuz** = `entryFee × fieldSize`. Botlar da giriş ücretini ödemiş
+  sayılır, yani havuz gerçek bir havuzdur (eski modelde botlar hiçbir şey
+  ödemiyordu ve ödül sabit bir tablodan geliyordu — E7 musluğunun kaynağı).
+- **Pay** = `payoutShares[finishPosition-1]`, `Σ payoutShares = 1 − raceRake`.
+  Dağıtılan toplam ödül havuza **yapısal olarak** eşit olamaz, yani yarış
+  HİÇBİR kademede Çip basamaz. Bu değişmez bir testle korunur
+  (`apps/api/test/domain/race/prize.spec.ts`), çünkü `game-config` loader'ı
+  saf bir cast'tir (çalışma zamanı doğrulaması yok) ve config elle
+  düzenlenebilir.
+- **Kesinti** = `raceRake` = **%10** (proje sahibinin kararı, 27.09.2026).
+  Bu, sistemin tek "sink"idir: kesilen kısım hiçbir oyuncuya ödenmez.
+- **Oyuncunun gördüğü çarpan** türetilir: `payoutShares[i] × fieldSize`
+  (ör. mahalli 1. sıra 3.00×). Ayrı bir çarpan tablosu TUTULMAZ, böylece
+  alan büyüklüğü arttığında çarpan kendiliğinden büyür ve kayacak ikinci
+  bir tablo oluşmaz.
+- **EV:** eşit güçte bir alanda `EV(net) = −raceRake × entryFee`, yani
+  alan büyüklüğünden bağımsız olarak **negatif**. Yarış bir Çip kaynağı
+  değil, Çip havuzudur (denetim bulgusu E30'un doğrudan testi).
+
+> **✅ Kapatıldı — audit bulgusu E7 (CRITICAL) ve E30 (MEDIUM).** Eskiden
+> pratik yarış bir **sınırsız Çip musluğuydu**: giriş 50, sabit ödül tablosu
+> `[200,120,80,50,30,0]` (toplam 480), botlar hiç ödemiyordu → beklenen
+> değer yarış başına ≈ **+30**. Artık ödül havuzun `1 − raceRake`'i kadardır
+> ve EV yapısal olarak negatiftir. Musluğu kapatmak için `@RateLimit` veya
+> bekleme süresi EKLENMEDİ — sorun oranla değil, para akışının YAPISIYLA
+> çözüldü (bir yarış ne kadar tekrarlanırsa tekrarlansın Çip üretmez).
+> Değişmezler: `apps/api/test/domain/race/prize.spec.ts` (33 test) ve
+> uçtan uca `apps/api/test/api/race.e2e-spec.ts`.
 
 ### 4.2 Bugün bedava olan giderler
 

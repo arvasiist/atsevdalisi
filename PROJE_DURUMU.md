@@ -187,9 +187,9 @@ care, economy, market, breeding/genetics, online (elo/matchmaking/anti-cheat),
 farm, jockey, club, equipment, stable, staff, tournament, ranking, season,
 progression, player, auth.
 
-### 5.2 API wiring: 14 dilim, hepsi CI ile doğrulanmış
+### 5.2 API wiring: 15 dilim, hepsi CI ile doğrulanmış
 
-`docs/ROADMAP.md` "FAZ 1 wiring" bölümü — küçük dilim → commit → bundle → push → CI:
+`docs/ROADMAP.md` "FAZ 1 wiring" bölümü — küçük dilim → commit → push → CI:
 
 | # | Dilim | # | Dilim |
 |---|---|---|---|
@@ -200,6 +200,17 @@ progression, player, auth.
 | 5 | Care | 12 | Market listeleme + Kendi ilanlarım |
 | 6 | Stable Upgrade + ekonomi borçlandırma | 13 | Market ilan süresi dolması |
 | 7 | Daily Reward | 14 | PvP Matchmaking |
+| — | — | 15 | **Yarış ödül HAVUZU + kademeler (8/10/12/14/16) + hazır olma kapısı** (27.09.2026) |
+
+**15. dilim (27.09.2026) — proje sahibinin talebi:** *"yarışlar ücretli olsun,
+verilen ücret kadarıyla giriş yapan kişiler çarpan olsun ve bir yarışta 8 /
+10 / 12 / 14 / 16 at koşabilsin, hazır olan kişiler yarışabilsinler"* +
+*"kesinti olsun (~%10)"*. Ödül sabit tablodan değil `havuz = entryFee ×
+fieldSize` havuzundan dağıtılır; `Σ payoutShares = 1 − raceRake` olduğundan
+yarış **hiçbir kademede Çip basamaz** (denetim CRITICAL E7 + MEDIUM E30
+kapandı). Yarışa girmek `domain/race/readiness.ts` kapısına bağlı (sağlık ≥
+50, yorgunluk ≤ 70, enerji ≥ 30). Web ekranına kademe seçici eklendi.
+Ayrıntı: `docs/ECONOMY.md` §4.1.1, `docs/ECONOMY_AUDIT.md` E7/E9/E30.
 
 ### 5.3 Denetim düzeltmeleri
 
@@ -266,8 +277,10 @@ Lib: `api-client.ts`, `player-context.tsx`. Bileşenler: `layout/TopBar.tsx`,
 - **Vitest** (Jest değil). ⚠️ `globals: false` — her spec `describe`/`it`/`expect`'i
   **açıkça import eder**. `vitest.config.ts`'te `esbuild.jsx: 'automatic'`
   (web tsconfig'i `jsx: "preserve"` kullandığı için zorunlu).
-- **78 spec dosyası**: `apps/api/test/` 61 (17 e2e + 44 domain), `apps/web/test/` 18,
-  `packages/` 2.
+- **81 spec dosyası** (27.09.2026): `apps/api/test/` 63 (17 e2e + 44 domain +
+  2 database), `apps/web/test/` 20, `packages/` 2. Yerelde doğrulanan sayılar:
+  `test/domain`+`features`+`lib`+`database` 555 ✔, web 329 ✔ (e2e yerelde
+  koşamaz — Postgres yok, §8).
 - e2e: `supertest` (HTTP seviyesi) + `socket.io-client` (`realtime.e2e-spec.ts`).
   `test-helpers.ts`: `bootstrapTestApp()`, `sendWithRetry()` (ECONNRESET/EPIPE
   yeniden deneme), `sendConcurrentRequests()`, `registerTestPlayerWithStarterHorse()`.

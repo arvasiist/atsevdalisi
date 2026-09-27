@@ -185,9 +185,9 @@ export interface SavePracticeRaceWithStakesInput {
   segments: RaceSegmentSnapshot[];
   /** Kilitlenecek/güncellenecek `players` satırı — `horse.ownerId` (bkz. `RunPracticeRaceUseCase`). */
   playerId: string;
-  /** `getPracticeRaceEntryFee`'den — 0 ise düşüm/ledger girişi hiç yazılmaz. */
+  /** Seçilen kademenin `entryFee`'si (`config/economy.config.json` → `raceTiers[]`) — 0 ise düşüm/ledger girişi hiç yazılmaz. */
   entryFee: number;
-  /** `getPracticeRacePrize`'dan — 0 ise ekleme/ledger girişi hiç yazılmaz. */
+  /** `getRacePrize`'dan — 0 ise ekleme/ledger girişi hiç yazılmaz. */
   prizeWon: number;
 }
 

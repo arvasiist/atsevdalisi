@@ -134,6 +134,23 @@ export interface RaceBalanceConfig {
      */
     depletionPenaltyMultiplier: number;
   };
+  /**
+   * Proje sahibinin açık talebi (27.09.2026) — "hazır olan kişiler
+   * yarışabilsinler". Yarışa giriş, antrenmandan DAHA SIKI bir eşik ister:
+   * yorgun bir at hafif bir antrenmana sokulabilir ama yarışa sokulamaz
+   * (`training.config.json`daki `readinessThresholds` ile KARŞILAŞTIR:
+   * orada `minEnergyToTrain` 15, burada `minEnergy` 30). Bu yüzden AYRI bir
+   * config bloğudur, antrenmanınkiyle paylaşılmaz — bkz.
+   * `domain/race/readiness.ts` `checkRaceReadiness`.
+   */
+  readiness: {
+    /** Yarışa girmek için gereken en düşük enerji (0-100). */
+    minEnergy: number;
+    /** Yarışa girmek için izin verilen en yüksek yorgunluk (0-100). */
+    maxFatigue: number;
+    /** Yarışa girmek için gereken en düşük sağlık (0-100). */
+    minHealth: number;
+  };
 }
 
 export interface TrainingTypeConfig {
@@ -156,6 +173,31 @@ export interface TrainingConfig {
   };
 }
 
+/**
+ * Tek bir yarış kademesi (bkz. `EconomyConfig.raceTiers` doc yorumundaki
+ * tam ekonomik model). `id` istemcinin gönderdiği seçicidir
+ * (`POST /horses/:id/practice-race` gövdesindeki `tierId`) ve
+ * `domain/race/validation.ts`'teki diğer çalışma-zamanı birleşim
+ * listeleriyle AYNI deseni izler: DTO `@IsIn` doğrulaması esbuild altında
+ * atlanabildiğinden (bkz. CLAUDE.md) gerçek kontrol HER ZAMAN domain
+ * katmanında, config'e karşı yapılır.
+ */
+export interface RaceTierConfig {
+  /** Kararlı seçici kimlik (ör. `local`). Oyuncuya gösterilmez. */
+  id: string;
+  /** Oyuncuya gösterilen ad (ör. "Mahalli Koşu"). */
+  label: string;
+  /** Bu kademedeki toplam katılımcı sayısı (oyuncunun atı + bot rakipler). */
+  fieldSize: number;
+  /** Bir katılımcının yatırdığı Çip — havuzun tamamı bunun katıdır. */
+  entryFee: number;
+  /**
+   * Ödül havuzunun sıraya göre dağıtım oranları (1. sıra ilk eleman).
+   * Toplamı `1 - raceRake` olmalıdır; kalan pay evin kesintisidir.
+   */
+  payoutShares: number[];
+}
+
 export interface EconomyConfig {
   marketValueWeights: {
     quality: number;
@@ -175,22 +217,34 @@ export interface EconomyConfig {
   baseMarketValueMultiplier: number;
   gemShopWhitelist: string[];
   dailyRewardMoney: number;
-  raceEntryFeeMultiplier: number;
   /**
-   * FAZ 1 wiring, dokuzuncu dilim — `raceEntryFeeMultiplier` daha önce
-   * (altıncı/yedinci dilimlerden beri) taslakta duruyordu ama hiçbir temel
-   * ücret değeri yoktu (`ioredis`'in `package.json`'da hazır ama hiç
-   * wiring edilmemiş olmasıyla AYNI "önceden hazırlanmış iskelet" deseni).
-   * `POST /horses/{id}/practice-race` bu ikisini birlikte KULLANAN İLK
-   * use-case'tir (bkz. `domain/race/prize.ts`). `prizeByFinishPosition`
-   * dizisinin uzunluğu şu an sabit `PRACTICE_RACE_BOT_COUNT + 1` (6) ile
-   * eşleşir; aralık dışı bir sıralama (dizi kısa kalırsa) ödülsüz (0)
-   * kabul edilir — çökme YOK (bkz. `getPracticeRacePrize` doc yorumu).
+   * Proje sahibinin kararı (27.09.2026): "Kesinti olsun (~%10)". Ödül
+   * havuzundan dağıtılmayan payın oranı — evin (oyunun) geliri. Her
+   * `RaceTierConfig.payoutShares` dizisinin toplamı `1 - raceRake` ETMEK
+   * ZORUNDADIR; bu, `raceRake`'in İKİNCİ bir doğruluk kaynağı olmadığı
+   * anlamına gelir: dağıtımı belirleyen TEK şey `payoutShares`'tir,
+   * `raceRake` ise (a) test edilen AÇIK bir değişmez (bkz.
+   * `validateRaceTiers`) ve (b) oyuncuya "ev payı" olarak gösterilebilen
+   * okunabilir bir sayıdır. İkisi ayrışırsa test kırılır, para sessizce
+   * akmaz.
    */
-  practiceRace: {
-    baseEntryFee: number;
-    prizeByFinishPosition: number[];
-  };
+  raceRake: number;
+  /**
+   * Yarış kademeleri — proje sahibinin açık talebi (27.09.2026): "yarışlar
+   * ücretli olsun, verilen ücret kadarıyla giriş yapan kişiler çarpan
+   * olsun ve bir yarışta 8 / 10 / 12 / 14 / 16 at koşabilsin".
+   *
+   * Ekonomik model (bkz. `domain/race/prize.ts`): havuz = `entryFee ×
+   * fieldSize` — bot rakipler de "giriş ücreti ödemiş" sayılır, yani havuz
+   * gerçekten doludur. Ödül = `entryFee × payoutShares[sıra] × fieldSize`,
+   * yani oyuncunun gördüğü ÇARPAN = `payoutShares[sıra] × fieldSize`'tır
+   * (ör. mahalli 1. = 0.375 × 8 = 3.0x giriş ücreti). `payoutShares`
+   * toplamı `1 - raceRake` olduğundan yarış YAPISAL OLARAK para basamaz:
+   * dağıtılan < toplanan her zaman. Dizinin uzunluğu ödül alan sıra
+   * sayısıdır; `fieldSize`'ı AŞAMAZ (aşarsa kazanan olmayan sıraya ödül
+   * tanımlanmış olur — `validateRaceTiers` bunu hata sayar).
+   */
+  raceTiers: RaceTierConfig[];
   /** brief §31/§42 — yeni oyuncu hesabı oluşturulunca verilen başlangıç bakiyesi. */
   newPlayerStartingBalance: {
     money: number;

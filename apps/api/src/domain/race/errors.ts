@@ -37,3 +37,37 @@ export class RaceNotFoundError extends Error {
     this.name = 'RaceNotFoundError';
   }
 }
+
+/**
+ * Proje sahibinin açık talebi (27.09.2026) — "hazır olan kişiler
+ * yarışabilsinler". `domain/race/readiness.ts`'teki `checkRaceReadiness`
+ * `ready: false` döndüğünde fırlatılır.
+ *
+ * `HorseNotReadyForTrainingError` ile AYNI gerekçeyle 409 Conflict
+ * (`http-exception.filter.ts`): bu GEÇİCİ bir engeldir — dinlenme/bakım
+ * ile düzelir, kalıcı bir doğrulama hatası DEĞİLDİR (400 olmaz).
+ */
+export class HorseNotReadyToRaceError extends Error {
+  constructor(public readonly reason: 'HORSE_NOT_ACTIVE' | 'INSUFFICIENT_HEALTH' | 'HORSE_TOO_TIRED' | 'INSUFFICIENT_ENERGY') {
+    super(`At yarışa hazır değil: ${reason}`);
+    this.name = 'HorseNotReadyToRaceError';
+  }
+}
+
+/**
+ * `POST /horses/:id/practice-race` gövdesindeki `tierId` config'deki
+ * hiçbir kademeyle eşleşmiyorsa fırlatılır. `InvalidRaceTacticError` ile
+ * AYNI kategori: gerçek bir DOĞRULAMA hatasıdır (kalıcı — aynı isteği
+ * tekrarlamak düzeltmez), bu yüzden 400.
+ *
+ * NEDEN DOMAIN'DE: DTO'nun `@IsIn(...)` kontrolü statik bir liste ister,
+ * oysa kademe kimlikleri `config/economy.config.json`'dan gelir. Ayrıca
+ * esbuild altında DTO doğrulaması atlanabildiğinden (bkz. CLAUDE.md) bu
+ * kontrol ZATEN domain katmanında olmak zorundadır.
+ */
+export class InvalidRaceTierError extends Error {
+  constructor(public readonly tierId: string) {
+    super(`Geçersiz yarış kademesi: ${tierId}`);
+    this.name = 'InvalidRaceTierError';
+  }
+}

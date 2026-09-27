@@ -16,11 +16,44 @@
   ],
   "dailyRewardMoney": 500,
   "dailyRewardCooldownHours": 24,
-  "raceEntryFeeMultiplier": 1.0,
-  "practiceRace": {
-    "baseEntryFee": 50,
-    "prizeByFinishPosition": [200, 120, 80, 50, 30, 0]
-  },
+  "raceRake": 0.1,
+  "raceTiers": [
+    {
+      "id": "local",
+      "label": "Mahalli Koşu",
+      "fieldSize": 8,
+      "entryFee": 100,
+      "payoutShares": [0.375, 0.225, 0.15, 0.1, 0.05]
+    },
+    {
+      "id": "regional",
+      "label": "Bölgesel Koşu",
+      "fieldSize": 10,
+      "entryFee": 250,
+      "payoutShares": [0.36, 0.22, 0.14, 0.1, 0.05, 0.03]
+    },
+    {
+      "id": "national",
+      "label": "Ulusal Koşu",
+      "fieldSize": 12,
+      "entryFee": 500,
+      "payoutShares": [0.34, 0.21, 0.14, 0.1, 0.06, 0.03, 0.02]
+    },
+    {
+      "id": "elite",
+      "label": "Elit Koşu",
+      "fieldSize": 14,
+      "entryFee": 1000,
+      "payoutShares": [0.33, 0.2, 0.14, 0.1, 0.06, 0.04, 0.02, 0.01]
+    },
+    {
+      "id": "championship",
+      "label": "Şampiyona Koşusu",
+      "fieldSize": 16,
+      "entryFee": 2000,
+      "payoutShares": [0.3, 0.2, 0.13, 0.1, 0.07, 0.04, 0.03, 0.02, 0.01]
+    }
+  ],
   "newPlayerStartingBalance": {
     "money": 5000,
     "gems": 50

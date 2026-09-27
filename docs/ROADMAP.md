@@ -2012,6 +2012,87 @@ kapsıyor — matchmaking testleri o çalıştırmada da geçti. On dördüncü
 dilim artık **on üç dilimin geri kalanıyla AYNI şekilde CI'da
 doğrulanmış** sayılır; ayrı bir üçüncü push/CI turuna gerek kalmadı.
 
+## FAZ 1 wiring — On beşinci dilim: Yarış ödül HAVUZU + kademeler + hazır olma kapısı (27.09.2026)
+
+**Proje sahibinin talebi (birebir):** *"1 evet ödesin yarışlar ücretli olsun
+verilen ücret kadarıyla giriş yapan kişiler çarpan olsun ve bir yarışta 8 /
+10 / 12 / 14 / 16 at koşabilsin hazır olan kişiler yarışabilsinler yarış
+yapılan yerlerde tribine ücretli girişler olsun insanlar yarışları
+izleyebilsin arkadaş edindikleri kişilerle mesajlaşabilsinler ve birbirlerine
+hediye gönderimi yapılabilsin"* + *"Kesinti olsun (~%10)"*.
+
+Bu dilim o talebin **YALNIZCA yarış ekonomisi** kısmını kapsar: (1) ücretli
+giriş, (2) "verilen ücret kadar çarpan", (3) 8/10/12/14/16 atlık alanlar,
+(4) "hazır olan kişiler yarışabilsinler". **Tribün (ücretli seyirci girişi),
+arkadaşlık/mesajlaşma ve hediye gönderimi AYRI dilimlerdir** — hiçbiri bu
+dilimde başlatılmadı (hediye bir para yoludur: defter + idempotency şart).
+
+**Bulunan ve bu dilimde KAPSAMA ALINAN eksik (denetim CRITICAL E7 + MEDIUM
+E30):** pratik yarış sınırsız bir Çip musluğuydu — giriş 50, SABİT ödül
+tablosu (toplam 480), botlar hiç ödemiyor → beklenen değer **+30 Çip/yarış**,
+üstelik `@RateLimit`/bekleme/enerji maliyeti yoktu. Denetim bunu "oyun
+dengesi kararı, proje sahibinin onayı gerekir" diye işaretlemişti; onay bu
+dilimde geldi.
+
+**Yapılanlar:**
+
+- `config/economy.config.json`: `practiceRace` bloğu ve ölü
+  `raceEntryFeeMultiplier` **SİLİNDİ**; yerine `raceRake: 0.1` + beş kademe
+  (`raceTiers`) geldi. Her kademenin `payoutShares` toplamı **tam olarak
+  1 − raceRake = 0.9**'dur.
+- `config/race.config.json` + `RaceBalanceConfig`: yeni `readiness` bloğu
+  (sağlık ≥ 50, yorgunluk ≤ 70, enerji ≥ 30). Antrenmanın eşiklerinden
+  (15/90) BİLİNÇLİ olarak daha sıkı: yorgun bir at antrenmana girebilir ama
+  yarışa giremez.
+- `domain/race/prize.ts`: YENİDEN YAZILDI — `computeRacePool` /
+  `getRacePrize` / `computeRacePayoutTotal` / `computeRaceRakeAmount` /
+  `getRaceTierById` / `getDefaultRaceTier` / `validateRaceTiers`.
+- `domain/race/readiness.ts`: YENİ — `checkRaceReadiness`; kontrol sırası
+  deterministiktir (en kalıcıdan en geçiciye), istemci tek bir neden görür.
+- `domain/race/validation.ts`: `PRACTICE_RACE_BOT_COUNT` **SİLİNDİ** —
+  katılımcı sayısı artık `tier.fieldSize − 1` bottur.
+- `run-practice-race.use-case.ts`: kademe çözümü EN BAŞTA (geçersiz kademe
+  için pahalı simülasyon hiç koşmaz) → hazır olma kapısı → `fieldSize − 1`
+  bot → havuz/ödül.
+- Hata yolları: `HorseNotReadyToRaceError` (nedene göre 4 ayrı hata koduyla
+  `409`), `InvalidRaceTierError` (`400 INVALID_RACE_TIER`).
+- `PracticeRaceResult`: `tierId` / `tierLabel` / `fieldSize` / `prizePool`
+  eklendi. `prizePool` artık HAVUZUN TAMAMI, `prizeWon` oyuncunun payı —
+  eskiden ikisi de `prizeWon`'dan dolduruluyordu (yanlıştı).
+- Web: `features/race/race-entry.ts` (YENİ) + `races/page.tsx` kademe
+  seçici, giriş ücreti/alan/çarpan ön gösterimi ve hazır olma gerekçesi.
+
+**Neden `@RateLimit` EKLENMEDİ:** musluk oranla değil YAPIYLA kapatıldı.
+`Σ payoutShares = 1 − raceRake` olduğu sürece `Σ ödül < havuz` — hangi
+kademe, hangi alan büyüklüğü, hangi ödül tablosu seçilirse seçilsin yarış
+Çip BASAMAZ. Yani tekrarlanan istek artık para üretmiyor; hız sınırı
+koymak semptomu tedavi ederdi.
+
+**Değişmez nasıl korunuyor:** `game-config` loader'ı saf bir cast'tir
+(çalışma zamanı doğrulaması YOK) ve config elle düzenlenebilir bir JSON'dur
+→ `apps/api/test/domain/race/prize.spec.ts` (33 test) `validateRaceTiers`
+ile config'i "lint"ler, `Σ ödül < havuz` ve `EV ≤ 0` iddia eder.
+`readiness.spec.ts` (10 test) eşiklerin antrenmandan sıkı kaldığını korur.
+Web tarafında `apps/web/test/features/race/race-entry.spec.ts` (22 test)
+ekranın config'ten kaysa kırılır.
+
+**Bu dilimin somut kanıtı — test kendi yazıldığı anda gerçek bir hata
+yakaladı:** `prize.spec.ts` ilk koşuda KIRMIZI çıktı; `championship`
+kademesinin son iki payı `[..., 0.02, 0.01, 0.01]` yazıldığı için iki sıra
+AYNI ödülü alıyordu (azalanlık ihlali + `Σ` hesabı bozuk). Config
+`[0.3, 0.2, 0.13, 0.1, 0.07, 0.04, 0.03, 0.02, 0.01]` olarak düzeltildi
+(yine tam 0.9, artık kesin azalan). Denetimin E30'da "bu yüzden E7
+yakalanmadı" dediği boşluk tam olarak buydu.
+
+**Yerel doğrulama:** kök `typecheck` 0 hata · `test/domain`+`features`+
+`lib`+`database` 555 test ✔ · web 329 test ✔ · `lint` 0 hata (uyarılar
+`no-magic-numbers`, warn-only) · `build` başarılı. e2e yerelde koşamaz
+(Postgres yok) — o yüzden yeni e2e senaryoları (5 kademe uçtan uca + 4 hazır
+olma reddi + "reddedilen yarışta para/defter hareketi YOK") CI'da
+doğrulanacaktır.
+
+---
+
 ## AUDIT_AND_HARDENING — Kritik Risk Sertleştirme (bu oturum)
 
 Proje sahibinin talebiyle, 14. dilimin CI doğrulaması beklenirken AYRI

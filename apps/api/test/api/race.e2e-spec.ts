@@ -3,11 +3,11 @@ import { INestApplication } from '@nestjs/common';
 import type { Pool } from 'pg';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { EconomyConfig } from '@at-sevdalisi/game-config';
+import type { EconomyConfig, RaceTierConfig } from '@at-sevdalisi/game-config';
 import type { Race, RaceEntry } from '@at-sevdalisi/shared-types';
 import economyConfigJson from '../../../../config/economy.config.json';
 import { PG_POOL } from '../../src/infrastructure/database/database.module';
-import { getPracticeRaceEntryFee } from '../../src/domain/race/prize';
+import { getDefaultRaceTier, getRacePrize } from '../../src/domain/race/prize';
 import { RACE_REPOSITORY, type RaceRepository } from '../../src/application/ports/race.repository';
 import { RACE_ENGINE_VERSION, RACE_RULESET_VERSION } from '../../src/domain/race/race-engine';
 import {
@@ -20,6 +20,14 @@ import {
 } from './test-helpers';
 
 const economyConfig = economyConfigJson as unknown as EconomyConfig;
+
+/**
+ * Proje sahibinin açık talebi (27.09.2026) — kademe seçilmeyen istekler
+ * VARSAYILAN kademede (listenin ilki) koşar. Beklenen katılımcı sayısı,
+ * giriş ücreti ve ödül bu yüzden config'ten TÜRETİLİR, elle yazılmaz
+ * (config değişirse testler de doğru kalır).
+ */
+const defaultTier = getDefaultRaceTier(economyConfig) as RaceTierConfig;
 
 /**
  * FAZ 1 wiring — Sekizinci dilim: `POST /horses/:id/practice-race`
@@ -70,14 +78,18 @@ describe('Race — Pratik Yarış (e2e)', () => {
     expect(typeof response.body.data.raceId).toBe('string');
     expect(response.body.data.surface).toBe('grass');
     expect(response.body.data.weather).toBe('sunny');
-    // config/race.config.json PRACTICE_RACE_BOT_COUNT (5) + oyuncunun atı = 6.
-    expect(response.body.data.finalResult).toHaveLength(6);
-    expect(response.body.data.explanations).toHaveLength(6);
+    // Proje sahibinin açık talebi (27.09.2026) — kademe seçilmeyen istek
+    // VARSAYILAN kademede koşar ve alan büyüklüğü artık config'ten gelir
+    // (önceden sabit `PRACTICE_RACE_BOT_COUNT` + 1 = 6'ydı).
+    expect(response.body.data.tierId).toBe(defaultTier.id);
+    expect(response.body.data.fieldSize).toBe(defaultTier.fieldSize);
+    expect(response.body.data.finalResult).toHaveLength(defaultTier.fieldSize);
+    expect(response.body.data.explanations).toHaveLength(defaultTier.fieldSize);
 
     const playerFinish = response.body.data.finalResult.find((entry: { horseId: string }) => entry.horseId === horseId);
     expect(playerFinish).toBeDefined();
     expect(playerFinish.finishPosition).toBeGreaterThanOrEqual(1);
-    expect(playerFinish.finishPosition).toBeLessThanOrEqual(6);
+    expect(playerFinish.finishPosition).toBeLessThanOrEqual(defaultTier.fieldSize);
     expect(typeof playerFinish.finishTimeMs).toBe('number');
   });
 
@@ -114,7 +126,11 @@ describe('Race — Pratik Yarış (e2e)', () => {
     // öncesi dönüştürülür (bkz. `PostgresPlayerRepository.rowToPlayer`'daki
     // AYNI dönüşüm, uygulama kodunun kendisinde zaten yapılıyor).
     expect(Number(raceRow.rows[0].entry_fee)).toBe(response.body.data.entryFee);
-    expect(Number(raceRow.rows[0].prize_pool)).toBe(response.body.data.prizeWon);
+    // Proje sahibinin açık talebi (27.09.2026) — `prize_pool` artık
+    // HAVUZUN TAMAMI (`entryFee × fieldSize`), oyuncunun kazancı DEĞİL.
+    // Önceden yanlışlıkla `prizeWon` yazılıyordu (havuz kavramı yoktu).
+    expect(Number(raceRow.rows[0].prize_pool)).toBe(response.body.data.prizePool);
+    expect(response.body.data.prizePool).toBe(defaultTier.entryFee * defaultTier.fieldSize);
     // AUDIT_AND_HARDENING Öncelik 4 (bu oturum) — deterministik replay için
     // her yarış hangi engine/ruleset/config sürümüyle üretildiğini KAYDETMELİ
     // (bkz. migration 0021, `domain/race/race-engine.ts` RACE_ENGINE_VERSION/
@@ -149,7 +165,16 @@ describe('Race — Pratik Yarış (e2e)', () => {
       .expect(200);
 
     const { entryFee, prizeWon, newBalance } = response.body.data;
-    expect(entryFee).toBe(getPracticeRaceEntryFee(economyConfig));
+    // Giriş ücreti artık kademeden gelir (sabit `baseEntryFee × çarpan`
+    // yerine) — bkz. `domain/race/prize.ts`.
+    expect(entryFee).toBe(defaultTier.entryFee);
+    // Ödül, oyuncunun bitiş sırasına göre havuzun bir payıdır — ödül
+    // almayan bir sırada 0 olabilir (bu olağandır, hata DEĞİLDİR; bkz.
+    // `applyPracticeRaceStakes`'in sıfır koruması).
+    const playerFinish = response.body.data.finalResult.find(
+      (entry: { horseId: string }) => entry.horseId === horseId,
+    );
+    expect(prizeWon).toBe(getRacePrize(defaultTier, playerFinish.finishPosition));
     expect(newBalance.money).toBe(moneyBefore - entryFee + prizeWon);
 
     const afterRow = await pool.query('SELECT money FROM players WHERE id = $1', [playerId]);
@@ -169,12 +194,10 @@ describe('Race — Pratik Yarış (e2e)', () => {
     expect(response.status).toBe(409);
     expect(response.body.error.code).toBe('INSUFFICIENT_FUNDS');
 
-    const raceRows = await pool.query('SELECT * FROM races WHERE track_id IS NULL AND name = $1 ORDER BY created_at DESC LIMIT 1', ['Pratik Yarış']);
     // Bu oyuncu için hiçbir yarış YAZILMAMIŞ olmalı (transaction rollback) —
     // burada sadece bakiyenin hâlâ 0 olduğunu doğrulamak yeterli ve daha
-    // sağlam (başka testlerin de "Pratik Yarış" yazdığı paralel bir DB'de
-    // en son satırı aramak kırılgan olur).
-    void raceRows;
+    // sağlam (paralel bir DB'de "en son yarışı" aramak kırılgan olurdu;
+    // üstelik yarış adı artık kademeye göre değişiyor, bkz. use-case).
     const moneyRow = await pool.query('SELECT money FROM players WHERE id = $1', [playerId]);
     expect(Number(moneyRow.rows[0].money)).toBe(0);
   });
@@ -351,6 +374,119 @@ describe('Race — Pratik Yarış (e2e)', () => {
     expect(response.body.error.code).toBe('HORSE_INJURED');
   });
 
+  /**
+   * Proje sahibinin açık talebi (27.09.2026) — "bir yarışta 8/10/12/14/16
+   * at koşabilsin". Kademe seçimi (giriş ücreti + alan büyüklüğü) ve
+   * "hazır olan kişiler yarışabilsinler" kuralı.
+   */
+  describe('Yarış kademeleri ve hazır olma (27.09.2026)', () => {
+    it('geçersiz bir tierId 400 INVALID_RACE_TIER döner', async () => {
+      const { horseId, authHeader } = await registerTestPlayerWithStarterHorse(app, 'Yarışçı');
+
+      const response = await request(app.getHttpServer())
+        .post(`/api/v1/horses/${horseId}/practice-race`)
+        .set('Authorization', authHeader)
+        .set('Idempotency-Key', randomUUID())
+        .send({ tierId: 'boyle-bir-kademe-yok' });
+
+      expect(response.status).toBe(400);
+      expect(response.body.error.code).toBe('INVALID_RACE_TIER');
+    });
+
+    it('her kademe kendi alan büyüklüğü, giriş ücreti ve havuzuyla koşar (8/10/12/14/16)', async () => {
+      for (const tier of economyConfig.raceTiers) {
+        const { horseId, playerId, authHeader } = await registerTestPlayerWithStarterHorse(app, 'Yarışçı');
+        // Kademeler 100-2000 Çip arasıdır; başlangıç bakiyesi 5000
+        // yetmeyebileceğinden bol bir bakiye verilir (testin konusu para
+        // DEĞİL, alan büyüklüğü/ücret eşleşmesidir).
+        await pool.query('UPDATE players SET money = 500000 WHERE id = $1', [playerId]);
+
+        const response = await request(app.getHttpServer())
+          .post(`/api/v1/horses/${horseId}/practice-race`)
+          .set('Authorization', authHeader)
+          .set('Idempotency-Key', randomUUID())
+          .send({ tierId: tier.id })
+          .expect(200);
+
+        expect(response.body.data.tierId).toBe(tier.id);
+        expect(response.body.data.tierLabel).toBe(tier.label);
+        expect(response.body.data.fieldSize).toBe(tier.fieldSize);
+        expect(response.body.data.finalResult).toHaveLength(tier.fieldSize);
+        expect(response.body.data.entryFee).toBe(tier.entryFee);
+        expect(response.body.data.prizePool).toBe(tier.entryFee * tier.fieldSize);
+        // Ödül havuzun bir payıdır ve havuzun TAMAMINI asla aşmaz.
+        expect(response.body.data.prizeWon).toBeLessThanOrEqual(response.body.data.prizePool);
+      }
+      // 5 kademe × TAM yarış simülasyonu (en büyüğü 16 katılımcı) —
+      // `race.e2e-spec.ts`teki eşzamanlılık testleriyle AYNI gerekçeyle
+      // varsayılan 5000ms'in ÇOK üstünde bir süre gerekir.
+    }, 90000);
+
+    it('enerjisi bitmiş bir at yarışa sokulamaz (409 INSUFFICIENT_ENERGY) ve HİÇBİR Çip hareket etmez', async () => {
+      const { horseId, playerId, authHeader } = await registerTestPlayerWithStarterHorse(app, 'Yarışçı');
+      const before = await pool.query('SELECT money FROM players WHERE id = $1', [playerId]);
+      await pool.query('UPDATE horses SET energy = 0 WHERE id = $1', [horseId]);
+
+      const response = await request(app.getHttpServer())
+        .post(`/api/v1/horses/${horseId}/practice-race`)
+        .set('Authorization', authHeader)
+        .set('Idempotency-Key', randomUUID())
+        .send({});
+
+      expect(response.status).toBe(409);
+      expect(response.body.error.code).toBe('INSUFFICIENT_ENERGY');
+
+      const after = await pool.query('SELECT money FROM players WHERE id = $1', [playerId]);
+      expect(Number(after.rows[0].money)).toBe(Number(before.rows[0].money));
+      const ledger = await pool.query("SELECT * FROM economy_transactions WHERE player_id = $1 AND reference_type = 'race'", [
+        playerId,
+      ]);
+      expect(ledger.rows.length).toBe(0);
+    });
+
+    it('aşırı yorgun bir at yarışa sokulamaz (409 HORSE_TOO_TIRED)', async () => {
+      const { horseId, authHeader } = await registerTestPlayerWithStarterHorse(app, 'Yarışçı');
+      await pool.query('UPDATE horses SET fatigue = 100 WHERE id = $1', [horseId]);
+
+      const response = await request(app.getHttpServer())
+        .post(`/api/v1/horses/${horseId}/practice-race`)
+        .set('Authorization', authHeader)
+        .set('Idempotency-Key', randomUUID())
+        .send({});
+
+      expect(response.status).toBe(409);
+      expect(response.body.error.code).toBe('HORSE_TOO_TIRED');
+    });
+
+    it('active olmayan (dinlenmede) bir at yarışa sokulamaz (409 HORSE_NOT_ACTIVE)', async () => {
+      const { horseId, authHeader } = await registerTestPlayerWithStarterHorse(app, 'Yarışçı');
+      await pool.query("UPDATE horses SET status = 'resting' WHERE id = $1", [horseId]);
+
+      const response = await request(app.getHttpServer())
+        .post(`/api/v1/horses/${horseId}/practice-race`)
+        .set('Authorization', authHeader)
+        .set('Idempotency-Key', randomUUID())
+        .send({});
+
+      expect(response.status).toBe(409);
+      expect(response.body.error.code).toBe('HORSE_NOT_ACTIVE');
+    });
+
+    it('sağlığı yetersiz bir at yarışa sokulamaz (409 INSUFFICIENT_HEALTH)', async () => {
+      const { horseId, authHeader } = await registerTestPlayerWithStarterHorse(app, 'Yarışçı');
+      await pool.query('UPDATE horses SET health = 0 WHERE id = $1', [horseId]);
+
+      const response = await request(app.getHttpServer())
+        .post(`/api/v1/horses/${horseId}/practice-race`)
+        .set('Authorization', authHeader)
+        .set('Idempotency-Key', randomUUID())
+        .send({});
+
+      expect(response.status).toBe(409);
+      expect(response.body.error.code).toBe('INSUFFICIENT_HEALTH');
+    });
+  });
+
   it('/api/v1/horses/:id/practice-race (POST) var olmayan bir at için 404 döner', async () => {
     const someone = await registerTestPlayer(app, 'Herhangi Biri');
     const response = await request(app.getHttpServer())
@@ -491,10 +627,11 @@ describe('Race — Pratik Yarış (e2e)', () => {
 
     it('n=50 GERÇEKTEN eşzamanlı istek FARKLI Idempotency-Key’lerle gönderilirse 50 AYRI yarış GERÇEKTEN koşar, ama bakiye "lost update" OLMADAN tutarlı kalır', async () => {
       const { horseId, playerId, authHeader } = await registerTestPlayerWithStarterHorse(app, 'Yarışçı');
-      // Varsayılan 5000 para 50 × 50 giriş ücretine (2500) zaten yeter,
-      // ama olası `INSUFFICIENT_FUNDS` dalgalanmasını (yalnızca kilit
-      // doğruluğunu test etmek isteyen bu senaryo için ALAKASIZ bir
-      // değişken) tamamen elemek için bol bir bakiyeyle başlanır.
+      // Varsayılan 5000 para, 50 yarışlık varsayılan kademe giriş ücretine
+      // (50 × `defaultTier.entryFee`) yetmeyebilir — olası
+      // `INSUFFICIENT_FUNDS` dalgalanmasını (yalnızca kilit doğruluğunu
+      // test etmek isteyen bu senaryo için ALAKASIZ bir değişken) tamamen
+      // elemek için bol bir bakiyeyle başlanır.
       await pool.query('UPDATE players SET money = 500000 WHERE id = $1', [playerId]);
 
       const idempotencyKeys = Array.from({ length: 50 }, () => randomUUID());

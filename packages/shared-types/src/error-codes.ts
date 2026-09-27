@@ -98,6 +98,17 @@ export const ErrorCode = {
   FeedNotPurchasable: 'FEED_NOT_PURCHASABLE',
   /** Satın alma adedi geçersiz (400). */
   InvalidFeedPurchaseCount: 'INVALID_FEED_PURCHASE_COUNT',
+  // Proje sahibinin açık talebi (27.09.2026) — "hazır olan kişiler
+  // yarışabilsinler". `HorseTooTired`/`InsufficientEnergy` YENİDEN
+  // KULLANILIR (antrenmandaki ile AYNI kavramlar); yalnızca yarışta
+  // KARŞILIĞI OLMAYAN iki durum yeni kod alır: atın `active` olmaması ve
+  // sağlığının yetersizliği. Hepsi 409 Conflict'tir (GEÇİCİ engeller).
+  /** At `active` durumda değil (sakat değil ama dinlenmede/emekli) — 409. */
+  HorseNotActive: 'HORSE_NOT_ACTIVE',
+  /** Yarışa girmek için sağlık çok düşük (409). */
+  InsufficientHealth: 'INSUFFICIENT_HEALTH',
+  /** `tierId` config'deki hiçbir yarış kademesiyle eşleşmiyor (400). */
+  InvalidRaceTier: 'INVALID_RACE_TIER',
 } as const;
 
 export type ErrorCodeValue = (typeof ErrorCode)[keyof typeof ErrorCode];

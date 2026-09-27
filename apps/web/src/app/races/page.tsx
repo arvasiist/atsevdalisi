@@ -18,6 +18,23 @@
  * beslemeli 3D görüntüleyici — bkz. o dosyanın doc yorumu) İLE BİRLİKTE
  * gösterilir. `LiveRaceViewer` finansal sonucu TEKRARLAMAZ (`result`
  * REST'ten ZATEN anında dönmüştür) — yalnızca EK bir görsel katmandır.
+ *
+ * YARIŞ EKONOMİSİ (proje sahibinin açık talebi, 27.09.2026 — bu turda
+ * EKLENDİ): "yarışlar ücretli olsun, verilen ücret kadarıyla giriş yapan
+ * kişiler çarpan olsun ve bir yarışta 8 / 10 / 12 / 14 / 16 at koşabilsin,
+ * HAZIR OLAN kişiler yarışabilsinler". Bu ekran artık:
+ *  - KADEME seçtirir (mahalli → şampiyona; alan 8→16, giriş 100→2000 Çip),
+ *  - seçili kademenin giriş ücretini, alan büyüklüğünü ve 1. sıra çarpanını
+ *    yarıştan ÖNCE gösterir (kaynak `config/economy.config.json`, bkz.
+ *    `features/race/race-entry.ts` — istemci kendi fiyatını UYDURMAZ),
+ *  - at HAZIR değilse (sağlık/enerji/yorgunluk/durum) düğmeyi kilitler ve
+ *    TEK bir gerekçe yazar.
+ *
+ * DİKKAT — bu ekrandaki hiçbir sayı OTORİTE DEĞİLDİR: giriş ücreti, havuz ve
+ * ödül her zaman sunucunun yarış yanıtından okunur (`entryFee`/`prizePool`/
+ * `prizeWon`). Kademe listesi ve hazır olma eşikleri sunucuyla AYNI config
+ * dosyalarından geldiği için kaymaz; yine de sunucu reddederse (ör. `409
+ * INSUFFICIENT_ENERGY`) yarış BAŞLAMAZ.
  */
 
 import { useEffect, useMemo, useState } from 'react';
@@ -34,6 +51,17 @@ import { GlassPanel } from '../../components/ui/GlassPanel';
 import { HorseAvatar } from '../../components/ui/HorseAvatar';
 import { StatBar } from '../../components/ui/StatBar';
 import { LiveRaceViewer } from '../../features/race-viewer/LiveRaceViewer';
+import {
+  DEFAULT_RACE_TIER_ID,
+  findRaceTier,
+  formatMultiplier,
+  formatRakePercent,
+  getRaceEntryBlocker,
+  getTopPayoutMultipliers,
+  RACE_ENTRY_BLOCKER_LABELS,
+  RACE_RAKE,
+  RACE_TIERS,
+} from '../../features/race/race-entry';
 import { API_BASE_URL, apiClient, getAuthToken } from '../../lib/api-client';
 import { formatCurrency } from '../../lib/currency';
 import { usePlayer } from '../../lib/player-context';
@@ -88,6 +116,7 @@ export default function RacesPage(): React.ReactElement {
   const [horses, setHorses] = useState<PublicHorse[] | null>(null);
   const [horsesError, setHorsesError] = useState<string | null>(null);
   const [selectedHorseId, setSelectedHorseId] = useState<string | null>(null);
+  const [tierId, setTierId] = useState<string | null>(DEFAULT_RACE_TIER_ID);
   const [racingStyle, setRacingStyle] = useState<RacingStyle>('mid_pack');
   const [riskLevel, setRiskLevel] = useState<RiskLevel>('normal');
   const [startApproach, setStartApproach] = useState<StartApproach>('balanced');
@@ -123,10 +152,19 @@ export default function RacesPage(): React.ReactElement {
     [horses, selectedHorseId],
   );
 
-  const canRace = selectedHorse !== null && selectedHorse.status === 'active' && !isRacing;
+  const selectedTier = useMemo(() => findRaceTier(tierId), [tierId]);
+
+  /**
+   * Düğmeyi kilitleyen TEK gerekçe. `null` ise at yarışa hazırdır. Sunucu
+   * yine de son sözü söyler (bkz. dosya başı doc yorumu) — bu kontrol
+   * yalnızca oyuncunun boşuna para/idempotency anahtarı harcamasını ve
+   * anlamsız bir hata mesajı görmesini engeller.
+   */
+  const entryBlocker = selectedHorse === null ? null : getRaceEntryBlocker(selectedHorse);
+  const canRace = selectedHorse !== null && entryBlocker === null && selectedTier !== null && !isRacing;
 
   const handleRace = async () => {
-    if (!selectedHorse || !player) {
+    if (!selectedHorse || !player || !selectedTier) {
       return;
     }
     setIsRacing(true);
@@ -136,7 +174,7 @@ export default function RacesPage(): React.ReactElement {
       const idempotencyKey = crypto.randomUUID();
       const raceResult = await apiClient.runPracticeRace(
         selectedHorse.id,
-        { racingStyle, riskLevel, startApproach, finalStretchPlan },
+        { racingStyle, riskLevel, startApproach, finalStretchPlan, tierId: selectedTier.id },
         idempotencyKey,
       );
       setResult(raceResult);
@@ -155,7 +193,8 @@ export default function RacesPage(): React.ReactElement {
     <main className="page-container">
       <h1 style={{ fontSize: '24px', color: 'var(--color-text-primary)', marginBottom: '4px' }}>Yarışlar</h1>
       <p style={{ color: 'var(--color-text-secondary)', marginTop: 0, marginBottom: 'var(--space-md)' }}>
-        Bir at seç, bir yarış taktiği belirle — 5 yapay zeka rakibe karşı gerçek Race Engine ile anında koş.
+        Bir kademe ve at seç, yarış taktiğini belirle — kademenin alanı kadar at (8–16) gerçek Race Engine ile
+        anında koşar. Giriş ücreti bakiyeden düşer, ödül havuzdan kazanıldığın sıraya göre dağıtılır.
       </p>
 
       <GlassPanel style={{ marginBottom: 'var(--space-lg)', fontSize: '12px', color: 'var(--color-text-muted)' }}>
@@ -247,19 +286,53 @@ export default function RacesPage(): React.ReactElement {
           </GlassPanel>
 
           <GlassPanel>
-            <h2 style={sectionTitleStyle()}>Yarış Taktiği</h2>
+            <h2 style={sectionTitleStyle()}>Yarış Kurulumu</h2>
 
             {selectedHorse ? (
               <div style={{ display: 'grid', gap: '6px', marginBottom: 'var(--space-md)' }}>
+                <StatBar label="Sağlık" value={selectedHorse.health} />
                 <StatBar label="Enerji" value={selectedHorse.energy} />
                 <StatBar label="Yorgunluk" value={selectedHorse.fatigue} higherIsBetter={false} />
                 <StatBar label="Moral" value={selectedHorse.morale} />
               </div>
             ) : null}
 
-            {selectedHorse && selectedHorse.status !== 'active' ? (
+            <div style={{ display: 'grid', gap: 'var(--space-sm)', marginBottom: 'var(--space-md)' }}>
+              <label style={labelStyle()}>Yarış Kademesi</label>
+              <div style={{ display: 'grid', gap: '6px' }}>
+                {RACE_TIERS.map((tier) => (
+                  <button
+                    key={tier.id}
+                    type="button"
+                    onClick={() => setTierId(tier.id)}
+                    style={tierRowStyle(tier.id === tierId)}
+                  >
+                    <div style={{ display: 'grid', gap: '2px', textAlign: 'left', flex: 1 }}>
+                      <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text-primary)' }}>
+                        {tier.label}
+                      </span>
+                      <span style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>
+                        {tier.fieldSize} at — giriş {formatCurrency('money', tier.entryFee)}
+                      </span>
+                    </div>
+                    <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-accent-gold)' }}>
+                      1. sıra {formatMultiplier(getTopPayoutMultipliers(tier, 1)[0] ?? 0)}
+                    </span>
+                  </button>
+                ))}
+              </div>
+              <p style={{ margin: 0, fontSize: '11px', color: 'var(--color-text-muted)' }}>
+                Havuz, koşan her atın giriş ücretinden oluşur (botlar dahil); dağıtılmayan{' '}
+                {formatRakePercent(RACE_RAKE)} kadarı kesinti olarak alınır. Ödül, ödediğin giriş ücretinin
+                yukarıdaki katıdır.
+              </p>
+            </div>
+
+            {selectedHorse && entryBlocker ? (
               <p style={{ color: 'var(--color-status-warning)', fontSize: '13px' }}>
-                {horseStatusLabel(selectedHorse.status)} durumundaki bir at yarışamaz.
+                {entryBlocker === 'HORSE_NOT_ACTIVE'
+                  ? `${horseStatusLabel(selectedHorse.status)} durumundaki bir at yarışamaz.`
+                  : `${RACE_ENTRY_BLOCKER_LABELS[entryBlocker]} — bu at yarışa hazır değil.`}
               </p>
             ) : null}
 
@@ -282,7 +355,11 @@ export default function RacesPage(): React.ReactElement {
             />
 
             <button type="button" disabled={!canRace} onClick={() => void handleRace()} style={primaryButtonStyle(!canRace)}>
-              {isRacing ? 'Yarışılıyor…' : 'Pratik Yarışa Başla'}
+              {isRacing
+                ? 'Yarışılıyor…'
+                : selectedTier
+                  ? `${formatCurrency('money', selectedTier.entryFee)} Öde ve Yarışa Başla`
+                  : 'Yarışa Başla'}
             </button>
 
             {message ? <p style={{ marginTop: 'var(--space-md)', color: 'var(--color-status-critical)' }}>{message}</p> : null}
@@ -357,11 +434,13 @@ function RaceResultPanel({
         {ownFinishPosition ? `${ownFinishPosition}. sırada bitirdin` : 'Yarış tamamlandı'}
       </h3>
       <p style={{ margin: '0 0 8px 0', fontSize: '12px', color: 'var(--color-text-muted)' }}>
-        {result.distanceMeters}m — {SURFACE_LABELS[result.surface]} — {WEATHER_LABELS[result.weather]}
+        {result.tierLabel} ({result.fieldSize} at) — {result.distanceMeters}m — {SURFACE_LABELS[result.surface]} —{' '}
+        {WEATHER_LABELS[result.weather]}
       </p>
 
       <div style={{ display: 'grid', gap: '4px', fontSize: '13px', color: 'var(--color-text-secondary)', marginBottom: 'var(--space-md)' }}>
         <span>Giriş ücreti: {formatCurrency('money', result.entryFee)}</span>
+        <span>Ödül havuzu: {formatCurrency('money', result.prizePool)}</span>
         <span style={{ color: result.prizeWon > 0 ? 'var(--color-status-positive)' : 'var(--color-text-secondary)' }}>
           Kazanılan ödül: {formatCurrency('money', result.prizeWon)}
         </span>
@@ -426,6 +505,24 @@ function horseRowStyle(selected: boolean): React.CSSProperties {
     display: 'flex',
     alignItems: 'center',
     gap: '10px',
+    padding: '8px 10px',
+    borderRadius: 'var(--radius-md)',
+    border: `1px solid ${selected ? 'var(--color-accent-gold)' : 'var(--color-border)'}`,
+    background: selected ? 'rgba(227, 179, 65, 0.1)' : 'transparent',
+    cursor: 'pointer',
+    textAlign: 'left',
+  };
+}
+
+function tierRowStyle(selected: boolean): React.CSSProperties {
+  // `horseRowStyle` ile AYNI görsel dil (seçili öğe altın çerçeve) — ama
+  // `minHeight: 44px` EKLENDİ: `chipStyle`in AUDIT_REPORT.md F1 gerekçesiyle
+  // aynı 44px dokunma hedefi kuralı, bu satırlar da dokunmatik hedeftir.
+  return {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '10px',
+    minHeight: '44px',
     padding: '8px 10px',
     borderRadius: 'var(--radius-md)',
     border: `1px solid ${selected ? 'var(--color-accent-gold)' : 'var(--color-border)'}`,

@@ -40,8 +40,13 @@ describe('Race — Tam Alan Replay / Timeline (e2e, AUDIT_REPORT.md R2)', () => 
       .send({})
       .expect(200);
     const { raceId } = raceResponse.body.data;
-    // config/race.config.json PRACTICE_RACE_BOT_COUNT (5) + oyuncunun atı = 6 (bkz. race.e2e-spec.ts).
-    expect(raceResponse.body.data.finalResult).toHaveLength(6);
+    // Proje sahibinin açık talebi (27.09.2026) — katılımcı sayısı artık
+    // sabit bir bot sayısı DEĞİL, seçilen kademenin `fieldSize`'ıdır
+    // (varsayılan kademede 8; bkz. race.e2e-spec.ts). Elle yazmak yerine
+    // yanıttaki `fieldSize` ile karşılaştırılır.
+    const fieldSize = raceResponse.body.data.fieldSize;
+    expect(fieldSize).toBeGreaterThan(1);
+    expect(raceResponse.body.data.finalResult).toHaveLength(fieldSize);
 
     const timelineResponse = await request(app.getHttpServer())
       .get(`/api/v1/races/${raceId}/timeline`)
@@ -50,7 +55,7 @@ describe('Race — Tam Alan Replay / Timeline (e2e, AUDIT_REPORT.md R2)', () => 
 
     const timeline = timelineResponse.body.data;
     expect(timeline.raceId).toBe(raceId);
-    expect(timeline.entrants).toHaveLength(6);
+    expect(timeline.entrants).toHaveLength(fieldSize);
 
     const playerEntrant = timeline.entrants.find((entrant: { horseId: string | null }) => entrant.horseId === horseId);
     expect(playerEntrant).toBeDefined();
@@ -60,7 +65,7 @@ describe('Race — Tam Alan Replay / Timeline (e2e, AUDIT_REPORT.md R2)', () => 
     expect(playerEntrant.segments.length).toBeGreaterThan(0);
 
     const botEntrants = timeline.entrants.filter((entrant: { isBot: boolean }) => entrant.isBot);
-    expect(botEntrants).toHaveLength(5);
+    expect(botEntrants).toHaveLength(fieldSize - 1);
     for (const bot of botEntrants) {
       expect(bot.horseId).toBeNull();
       expect(bot.horseName).toBeNull();
@@ -70,21 +75,27 @@ describe('Race — Tam Alan Replay / Timeline (e2e, AUDIT_REPORT.md R2)', () => 
       // boştu çünkü botlar hiç `race_entries`'e yazılmıyordu.
       expect(bot.segments.length).toBeGreaterThan(0);
       expect(bot.finishPosition).toBeGreaterThanOrEqual(1);
-      expect(bot.finishPosition).toBeLessThanOrEqual(6);
+      expect(bot.finishPosition).toBeLessThanOrEqual(fieldSize);
     }
 
     const finishPositions = timeline.entrants.map((entrant: { finishPosition: number }) => entrant.finishPosition);
-    expect(new Set(finishPositions).size).toBe(6);
-    expect([...finishPositions].sort((a: number, b: number) => a - b)).toEqual([1, 2, 3, 4, 5, 6]);
+    expect(new Set(finishPositions).size).toBe(fieldSize);
+    expect([...finishPositions].sort((a: number, b: number) => a - b)).toEqual(
+      Array.from({ length: fieldSize }, (_, index) => index + 1),
+    );
 
     // AUDIT_REPORT.md Bulgu R3 (bu oturum) — "Draw/post-position" artık
     // gerçek bir çekilişten türetiliyor (bkz. `gate-assignment.ts` doc
-    // yorumu) — TÜM 6 katılımcı (oyuncu + botlar) [1,6] aralığında BENZERSİZ
-    // bir kapı numarası almalı, `null` KALMAMALI (önceden HER ZAMAN null'dı).
+    // yorumu) — TÜM katılımcılar (oyuncu + botlar) [1, fieldSize] aralığında
+    // BENZERSİZ bir kapı numarası almalı, `null` KALMAMALI (önceden HER
+    // ZAMAN null'dı). Sınır artık sabit 6 DEĞİL, yanıttaki `fieldSize`'dır
+    // (kademe seçimi eklendiğinden katılımcı sayısı değişkendir).
     const gatePositions = timeline.entrants.map((entrant: { gatePosition: number | null }) => entrant.gatePosition);
     expect(gatePositions.every((gp: number | null) => gp !== null)).toBe(true);
-    expect(new Set(gatePositions).size).toBe(6);
-    expect([...gatePositions].sort((a: number, b: number) => a - b)).toEqual([1, 2, 3, 4, 5, 6]);
+    expect(new Set(gatePositions).size).toBe(fieldSize);
+    expect([...gatePositions].sort((a: number, b: number) => a - b)).toEqual(
+      Array.from({ length: fieldSize }, (_, index) => index + 1),
+    );
   });
 
   it('/api/v1/races/:id/timeline (GET) — DB\'den okunan tam alan, simulationSeed ile YENİDEN SİMÜLE edilen alanla BİREBİR eşleşir (brief §58 deterministik replay)', async () => {
