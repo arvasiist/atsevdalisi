@@ -51,20 +51,31 @@ Kullanıcı Türkçe konuşur, Türkçe yanıt veririm. Kod yorumları ve hata m
   Birim testler (`test/domain`, `test/features`, `test/lib`) tamamen geçer.
 - **Asla "çalışıyor" deme** — kanıt CI'dır, ben değilim.
 
-## Teslimat mekanizması (bozma)
+## Teslimat mekanizması
 
 ```
-küçük dilim → yerel tsc doğrula → commit → git bundle → apply-<özellik>-push.bat
-  → proje sahibi .bat'ı çalıştırır (bundle verify → fetch → ff-only merge → push)
+küçük dilim → yerel doğrula (kök `npm run typecheck` + hedefli vitest + lint)
+  → commit → git fetch + origin/main atalık kontrolü → git push origin main
   → GitHub Actions CI
 ```
 
-- **Commit atmam / push etmem.** Proje sahibi istemeden dosyaları bırakırım.
-- Teslimat öncesi `git fetch` + `origin/main` taban doğrulaması **şart** (yerel kopya
-  geride kalmış olabilir — yaşanmış bir ders).
+- **DEĞİŞTİ (27.09.2026, proje sahibinin açık talebi).** Eskiden commit yerelde
+  kalır, kökte bir `apply-<özellik>-push.bat` üretilir ve proje sahibi ona çift
+  tıklardı. Bu artık **geçersiz**: sahibi "sen direkt olarak geri planda
+  çalıştırıp atabilirsin" dedi. Bundan sonra commit'i ben atar ve **doğrudan
+  push ederim**; `.bat` üretmem. `git` PATH'te yok, tam yolu yukarıda.
+- Push'tan ÖNCE `git fetch` + `git merge-base --is-ancestor origin/main HEAD`
+  **şart** (yerel kopya geride kalmış olabilir — yaşanmış bir ders). Atalık
+  sağlanmazsa push ETMEM, sahibine bildiririm.
+- Kökteki eski `*.bundle`, `apply-*.bat`, `check-dirty*.bat`, `outputs/`,
+  `*-log.txt` dosyaları gitignore'lu **scratch**'tir; artık üretilmez ama
+  silinmeleri de gerekmez (~200 tanesi birikmiş durumda).
 - "Her şeyi üzerine yaz" yerine **yalnızca değişen dosyaları** yazarım.
-- Kökteki `*.bundle`, `apply-*.bat`, `check-dirty*.bat`, `outputs/`, `*-log.txt`
-  gitignore'lu **scratch** dosyalarıdır — ~200 tane birikmiş, normaldir.
+- Sohbette uzun rapor YAZMAM — sahibi token harcanmasını istemiyor; sonucu
+  kısa bildiririm (ne değişti, hangi kanıt, sıradaki adım).
+- **Kök `npm run typecheck`** kullanılır, `--workspace` DEĞİL: kök sürüm önce
+  `build:packages` çalıştırır. `dist/` gitignore'lu olduğu için workspace'i
+  doğrudan çağırmak bayat `dist` yüzünden sahte tip hatası verir.
 
 ## Bilinen açık uçlar (kısa)
 
