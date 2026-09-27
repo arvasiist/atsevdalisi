@@ -322,14 +322,20 @@ describe('Hediye gönderimi (e2e) — PARA YOLU', () => {
       expect(response.body.error.code).toBe('GIFT_CURRENCY_NOT_ALLOWED');
     });
 
-    it('YETERSİZ BAKİYE 400 INSUFFICIENT_FUNDS döner ve hiçbir satır yazılmaz', async () => {
+    it('YETERSİZ BAKİYE 409 INSUFFICIENT_FUNDS döner ve hiçbir satır yazılmaz', async () => {
       const sender = await registerTestPlayer(app, 'Yoksul Gönderen');
       const recipient = await registerTestPlayer(app, 'Yoksul Alan');
       await makeFriends(sender, recipient);
       await setBalance(sender.playerId, 50);
       await setBalance(recipient.playerId, 0);
 
-      const response = await sendGift(sender, recipient.playerId, 100, 'money', 400);
+      // **409, 400 DEĞİL** — `InsufficientFundsError` projede ZATEN
+      // `HttpStatus.CONFLICT`'e eşlenmiştir (`http-exception.filter.ts`,
+      // "yetersiz bakiye GEÇİCİDİR: oyuncu para kazanınca çözülür" gerekçesi
+      // `HorseNotReadyForTrainingError`/`InsufficientFeedStockError` ile
+      // AYNI). Hediye yolu bu sınıfı YENİDEN KULLANIR (brief §29 "duplicate
+      // economy implementation oluşturma"), yani durum kodu da AYNIDIR.
+      const response = await sendGift(sender, recipient.playerId, 100, 'money', 409);
       expect(response.body.error.code).toBe('INSUFFICIENT_FUNDS');
 
       // ROLLBACK gerçekten çalıştı mı? Bakiye NE düştü ne arttı, defter BOŞ.

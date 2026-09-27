@@ -754,9 +754,13 @@ korunur (yalnızca kendi geçmişin). Arkadaşlık bittikten sonra da okunabilir
 **Yeni hata kodları:** `CANNOT_GIFT_SELF` (400) ·
 `INVALID_GIFT_AMOUNT` (400) · `GIFT_CURRENCY_NOT_ALLOWED` (400) ·
 `GIFT_REQUIRES_FRIENDSHIP` (403) · `DAILY_GIFT_LIMIT_REACHED` (409).
-Yetersiz bakiye MEVCUT `INSUFFICIENT_FUNDS` (400) kodunu kullanır — brief
-§29 "duplicate economy implementation oluşturma" gereği yeni bir sınıf
-TANIMLANMADI.
+Yetersiz bakiye MEVCUT `INSUFFICIENT_FUNDS` kodunu kullanır ve **409**
+döner — brief §29 "duplicate economy implementation oluşturma" gereği yeni
+bir sınıf TANIMLANMADI, yani `InsufficientFundsError`'ın projedeki mevcut
+eşlemesi (`http-exception.filter.ts`: "yetersiz bakiye GEÇİCİDİR, oyuncu
+para kazanınca çözülür" → 409, 400/402 DEĞİL) hediye yolunda da AYNEN
+geçerlidir. Bu, `HorseNotReadyForTrainingError` (INSUFFICIENT_ENERGY) ve
+`InsufficientFeedStockError` ile AYNI kategoridir.
 
 `config/gift.config.json → allowedCurrencies`'in `gift_sends.currency`
 CHECK kısıtıyla AYNI kümeyi söylediği **migrasyon dosyası okunarak**
