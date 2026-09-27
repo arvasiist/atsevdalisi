@@ -1,3 +1,4 @@
+import type { FeedType } from './care';
 import type { Player } from './player';
 
 /**
@@ -11,4 +12,11 @@ export interface ClaimDailyRewardResult {
   newBalance: Pick<Player, 'money' | 'gems'>;
   /** Bir sonraki talebin uygun olacağı zaman (ISO 8601) — UI'ın geri sayım gösterebilmesi için. */
   nextClaimAvailableAt: string;
+  /**
+   * Günlük ödülle BİRLİKTE verilen bedava yem kalemleri (bu turda EKLENDİ).
+   * Kaynak `config/care.config.json` → `feedDailyGift`; içerik boşsa boş
+   * dizidir. Her satır, hediyeden SONRA envanterdeki toplam adedi taşır —
+   * istemci stoğu kendisi toplamaz.
+   */
+  grantedFeed: { type: FeedType; count: number; quantityAfter: number }[];
 }

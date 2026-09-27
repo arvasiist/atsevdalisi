@@ -399,6 +399,71 @@ describe('apiClient.getLeaderboard', () => {
   });
 });
 
+describe('apiClient.getFarm', () => {
+  const summary = {
+    ownerId: 'player-1',
+    staffCapacity: 3,
+    facilities: [
+      {
+        type: 'warehouse' as const,
+        level: 0,
+        maxLevel: 2,
+        bonusValue: 0,
+        nextUpgrade: { nextLevel: 1, cost: { currency: 'money' as const, amount: 4000 } },
+      },
+    ],
+  };
+
+  it('GET /players/:id/farm çağırır (sorgu parametresi EKLEMEZ)', async () => {
+    const fetchMock = stubFetchOnce({ success: true, data: summary });
+    await apiClient.getFarm('player-1');
+    const [url, config] = requestArgs(fetchMock);
+    expect(url).toBe(`${API_BASE_URL}/players/player-1/farm`);
+    expect(url).not.toContain('?');
+    expect(config.method ?? 'GET').toBe('GET');
+  });
+
+  it('seviye/tavan/bonus/maliyet alanlarını AYNEN döner — istemci hiçbir sayıyı hesaplamaz', async () => {
+    stubFetchOnce({ success: true, data: summary });
+    await expect(apiClient.getFarm('player-1')).resolves.toEqual(summary);
+  });
+});
+
+describe('apiClient.upgradeFacility', () => {
+  const result = {
+    facility: {
+      type: 'warehouse' as const,
+      level: 1,
+      maxLevel: 2,
+      bonusValue: 0.05,
+      nextUpgrade: { nextLevel: 2, cost: { currency: 'money' as const, amount: 10000 } },
+    },
+    newBalance: { money: 1000, gems: 10 },
+    cost: { currency: 'money' as const, amount: 4000 },
+  };
+
+  it('gerçek backend rotasına (/players/:id/farm/facilities/:type/upgrade) POST atar — tip URL\'e gömülür, body GÖNDERİLMEZ', async () => {
+    const fetchMock = stubFetchOnce({ success: true, data: result });
+    await apiClient.upgradeFacility('player-1', 'warehouse', 'key-1');
+    const [url, config] = requestArgs(fetchMock);
+    expect(url).toBe(`${API_BASE_URL}/players/player-1/farm/facilities/warehouse/upgrade`);
+    expect(config.method).toBe('POST');
+    expect(config.body).toBeUndefined();
+  });
+
+  it('Idempotency-Key header\'ını gönderir (bu uç nokta PARA harcar — header ZORUNLUDUR)', async () => {
+    const fetchMock = stubFetchOnce({ success: true, data: result });
+    await apiClient.upgradeFacility('player-1', 'warehouse', 'key-77');
+    const [, config] = requestArgs(fetchMock);
+    expect((config.headers as Headers).get('Idempotency-Key')).toBe('key-77');
+  });
+
+  it('sunucunun döndürdüğü sonucu (tesis/yeni bakiye/maliyet) AYNEN döner', async () => {
+    stubFetchOnce({ success: true, data: result });
+    await expect(apiClient.upgradeFacility('player-1', 'warehouse', 'key-1')).resolves.toEqual(result);
+  });
+});
+
 describe('API taban adresi', () => {
   it('varsayılan port, API sunucusunun dinlediği portla aynı olmalı (4000)', () => {
     // Bu iddia, yukarıda anlatılan hatanın SINIFINI hedefler. Kritik nokta

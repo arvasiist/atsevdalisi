@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import {
   loadCareConfig,
   loadEconomyConfig,
+  loadFarmConfig,
   loadGeneticsConfig,
   loadHorseGrowthConfig,
   loadOnlineConfig,
@@ -57,4 +58,10 @@ export class AppConfigService {
   // §41/§43). `loadOnlineConfig()` FAZ 7'den beri `@at-sevdalisi/game-config`'te
   // hazırdı ama hiçbir yerde çağrılmıyordu (bkz. docs/ROADMAP.md).
   readonly online = loadOnlineConfig();
+  // brief §32 "Çiftlik" (bu turda EKLENDİ) — `loadFarmConfig()` FAZ 2'den
+  // beri `@at-sevdalisi/game-config`'te hazırdı ama HİÇBİR YERDE
+  // çağrılmıyordu: `domain/farm/farm.ts` yalnızca birim testinden
+  // besleniyordu ve `facilities` tablosu ölü şemaydı. Bu satır, o zincirin
+  // ilk halkasıdır.
+  readonly farm = loadFarmConfig();
 }

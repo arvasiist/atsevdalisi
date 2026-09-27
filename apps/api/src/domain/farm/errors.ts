@@ -17,3 +17,21 @@ export class StaffCapacityExceededError extends Error {
     this.name = 'StaffCapacityExceededError';
   }
 }
+
+/**
+ * Çiftlik uç noktalarına geçersiz bir tesis tipi geldiğinde fırlatılır
+ * (bu turda EKLENDİ — bkz. `validation.ts` `parseFacilityType`).
+ *
+ * `InvalidTrainingInputError`/`InvalidCareInputError`/`InvalidEquipmentInputError`
+ * ile AYNI kategori: GERÇEK bir doğrulama hatasıdır (kalıcı — aynı isteği
+ * tekrar denemek düzeltmez), bu yüzden HTTP katmanında 400'e eşlenir.
+ * Mesajda geçerli tipler BİLEREK listelenmez: liste `validation.ts`'te
+ * yaşar ve buraya kopyalanırsa sessizce eskir (bu projede yaşanmış bir hata
+ * sınıfı) — istemci geçerli tipleri `GET .../farm` yanıtından zaten görür.
+ */
+export class InvalidFacilityTypeError extends Error {
+  constructor(public readonly value: unknown) {
+    super(`Geçersiz tesis tipi: "${String(value)}".`);
+    this.name = 'InvalidFacilityTypeError';
+  }
+}

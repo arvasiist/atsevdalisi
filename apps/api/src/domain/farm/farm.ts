@@ -13,6 +13,7 @@ import { clamp } from '@at-sevdalisi/shared-types';
 import type { FarmConfig } from '@at-sevdalisi/game-config';
 import type { Facility, FacilityType } from '@at-sevdalisi/shared-types';
 import { MaxFacilityLevelReachedError, StaffCapacityExceededError } from './errors';
+import { FACILITY_TYPES } from './validation';
 
 /**
  * Tesis tanımının config'te olmasını doğrular. `FacilityType` union'ı
@@ -81,6 +82,72 @@ export function getFacilityBonusValue(type: FacilityType, level: number, config:
     return 0;
   }
   return facility.levels[String(applicableLevel)]!.bonusValue;
+}
+
+export interface FacilityUpgradeOffer {
+  nextLevel: number;
+  cost: { currency: 'money' | 'gems'; amount: number };
+}
+
+/**
+ * `getNextFacilityUpgradeCost`'un "hata fırlatmayan" kardeşi: tesis zaten en
+ * yüksek seviyedeyse `null` döner, aksi halde sıradaki seviyeyi ve maliyetini
+ * verir. `domain/stable/stable.ts`'teki `getNextStableUpgradeOffer` ile AYNI
+ * desen ve AYNI gerekçe: "daha fazla yükseltilemez" bir HATA değil, ekranın
+ * göstermesi gereken NORMAL bir durumdur — arayüzün bunu gösterebilmek için
+ * `try/catch` yazması gerekmesin diye bu ayrım domain'de yapılır.
+ */
+export function getNextFacilityUpgradeOffer(type: FacilityType, currentLevel: number, config: FarmConfig): FacilityUpgradeOffer | null {
+  let upgradeCost: FacilityUpgradeCost;
+  try {
+    upgradeCost = getNextFacilityUpgradeCost(type, currentLevel, config);
+  } catch (error) {
+    if (error instanceof MaxFacilityLevelReachedError) {
+      return null;
+    }
+    throw error;
+  }
+  return { nextLevel: upgradeCost.nextLevel, cost: { currency: upgradeCost.currency, amount: upgradeCost.amount } };
+}
+
+/**
+ * Tek bir tesisin ekranda gösterilecek hâli. TÜM alanlar `farm.config.json`'dan
+ * TÜRETİLİR; hiçbiri burada İCAT EDİLMEZ. `level: 0` = "henüz inşa edilmedi"
+ * (bkz. `Facility.level` doc yorumu — bu durum `facilities` tablosunda AYRI
+ * bir satır olarak tutulmaz).
+ */
+export interface FacilitySummary {
+  type: FacilityType;
+  level: number;
+  maxLevel: number;
+  bonusValue: number;
+  nextUpgrade: FacilityUpgradeOffer | null;
+}
+
+/** `summarizeFacilities`'in tek tesislik hâli — `facility.ts`'teki `getStableCapacity`/`summarizeStable` ayrımıyla AYNI desen. */
+export function summarizeFacility(type: FacilityType, level: number, config: FarmConfig): FacilitySummary {
+  return {
+    type,
+    level,
+    maxLevel: getMaxDefinedFacilityLevel(type, config),
+    bonusValue: getFacilityBonusValue(type, level, config),
+    nextUpgrade: getNextFacilityUpgradeOffer(type, level, config),
+  };
+}
+
+/**
+ * Bir oyuncunun TÜM tesislerinin özeti. `levelsByType`'ta KAYDI OLMAYAN her
+ * tesis `level: 0` (inşa edilmedi) sayılır — böylece ekran, oyuncunun hiç
+ * tesis inşa etmemiş olması durumunda bile YEDİ satırı da (maliyetleriyle
+ * birlikte) gösterebilir. Sıra `FACILITY_TYPES`'tan gelir.
+ *
+ * Bu fonksiyon BİLEREK application katmanında DEĞİL burada yaşar: saf
+ * (DB'siz, zamansız) olduğu için yerel olarak test edilebilir — proje
+ * `apps/api/test/application/` altında use-case testi TUTMAZ (bkz.
+ * `get-leaderboard.use-case.ts` doc yorumundaki AYNI gerekçe).
+ */
+export function summarizeFacilities(levelsByType: ReadonlyMap<FacilityType, number>, config: FarmConfig): FacilitySummary[] {
+  return FACILITY_TYPES.map((type) => summarizeFacility(type, levelsByType.get(type) ?? 0, config));
 }
 
 export interface BuildFacilityInput {

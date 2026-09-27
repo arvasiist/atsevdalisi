@@ -38,6 +38,7 @@ import { useEffect, useMemo, useState } from 'react';
 import type {
   CareActionType,
   FeedHorseResult,
+  FeedStatusView,
   FeedType,
   PerformCareActionResult,
   PublicHorse,
@@ -49,7 +50,12 @@ import { apiClient } from '../../lib/api-client';
 import { usePlayer } from '../../lib/player-context';
 
 const CARE_ACTION_TYPES: readonly CareActionType[] = ['groom', 'water', 'clean', 'vet', 'farrier', 'rest'];
-const FEED_TYPES: readonly FeedType[] = ['standard', 'energy', 'protein', 'recovery', 'performance'];
+/**
+ * Somut yem kalemleri (bu turda DEĞİŞTİ — önceden soyut besin türleriydi).
+ * `apps/api/src/domain/care/validation.ts` `FEED_TYPES` ile BİREBİR aynı
+ * sırada tutulmalıdır (apps/web, apps/api'nin domain koduna import edemez).
+ */
+const FEED_TYPES: readonly FeedType[] = ['saman', 'arpa', 'mama', 'havuc', 'vitamin'];
 
 const CARE_ACTION_LABELS: Record<CareActionType, string> = {
   groom: 'Tımar',
@@ -70,19 +76,19 @@ const CARE_ACTION_DESCRIPTIONS: Record<CareActionType, string> = {
 };
 
 const FEED_TYPE_LABELS: Record<FeedType, string> = {
-  standard: 'Standart',
-  energy: 'Enerji',
-  protein: 'Protein',
-  recovery: 'İyileşme',
-  performance: 'Performans',
+  saman: 'Saman',
+  arpa: 'Arpa',
+  mama: 'Mama',
+  havuc: 'Havuç',
+  vitamin: 'Vitamin',
 };
 
 const FEED_TYPE_DESCRIPTIONS: Record<FeedType, string> = {
-  standard: 'Dengeli, temel bir öğün.',
-  energy: 'Enerjiyi belirgin şekilde artırır.',
-  protein: 'Enerji ile birlikte kondisyonu de destekler.',
-  recovery: 'Toparlanmaya odaklı, hafif bir öğün.',
-  performance: 'En güçlü etkili öğün — daha yüksek bir bedeli vardır.',
+  saman: 'Bedava, enerji verir. At başına günde en fazla 3 kez.',
+  arpa: 'Enerjiyi en çok artıran kalem, kilo durumunu da destekler.',
+  mama: 'Arpa’dan az enerji ama daha çok kondisyon verir.',
+  havuc: 'Enerji vermez; moral ve toparlanma sağlar.',
+  vitamin: 'Sağlık ve toparlanma için takviye.',
 };
 
 const HEALTH_FIELD_LABELS: Record<keyof PerformCareActionResult['newHealth'], string> = {
@@ -100,6 +106,9 @@ export default function CarePage(): React.ReactElement {
   const [isBusy, setIsBusy] = useState(false);
   const [careResult, setCareResult] = useState<PerformCareActionResult | null>(null);
   const [feedResult, setFeedResult] = useState<FeedHorseResult | null>(null);
+  // Kalem başına stok + bu atın kalan günlük hakkı — SUNUCUDAN gelir
+  // (`GET /horses/:id/feed-status`), istemci hiçbir sayı türetmez.
+  const [feedStatus, setFeedStatus] = useState<FeedStatusView | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [messageIsError, setMessageIsError] = useState(false);
 
@@ -129,6 +138,36 @@ export default function CarePage(): React.ReactElement {
     () => horses?.find((horse) => horse.id === selectedHorseId) ?? null,
     [horses, selectedHorseId],
   );
+
+  /**
+   * Seçilen at değiştiğinde yem durumunu YENİDEN çek. Hata bilinçli olarak
+   * yutulur: bu yalnızca bir BİLGİ panelidir — alınamazsa düğmeler yine
+   * çalışır (sunucu kendi kurallarını uygular ve gerekirse 409 döner).
+   * Burada hata gösterip beslemeyi engellemek, olmayan bir bağımlılık
+   * yaratırdı.
+   */
+  useEffect(() => {
+    if (selectedHorseId === null) {
+      setFeedStatus(null);
+      return;
+    }
+    let isCurrent = true;
+    void (async () => {
+      try {
+        const status = await apiClient.getHorseFeedStatus(selectedHorseId);
+        if (isCurrent) {
+          setFeedStatus(status);
+        }
+      } catch {
+        if (isCurrent) {
+          setFeedStatus(null);
+        }
+      }
+    })();
+    return () => {
+      isCurrent = false;
+    };
+  }, [selectedHorseId]);
 
   const canAct = selectedHorse !== null && !isBusy;
 
@@ -170,8 +209,16 @@ export default function CarePage(): React.ReactElement {
     try {
       const result = await apiClient.feedHorse(selectedHorse.id, feedType);
       setFeedResult(result);
-      setMessage(`${FEED_TYPE_LABELS[feedType]} öğünü verildi.`);
+      setMessage(`${FEED_TYPE_LABELS[feedType]} verildi.`);
       await loadHorses(player.id);
+      // Kalan hak/stok SUNUCUDAN tazelenir — istemci kendi sayacını
+      // yürütmez (aynı anda başka bir sekmede yapılan besleme de görünür).
+      try {
+        setFeedStatus(await apiClient.getHorseFeedStatus(selectedHorse.id));
+      } catch {
+        // Bilgi paneli; başarısızlığı beslemeyi etkilemez (yukarıdaki
+        // `useEffect` ile AYNI gerekçe).
+      }
     } catch (err: unknown) {
       setMessage(err instanceof Error ? err.message : 'Besleme başarısız oldu');
       setMessageIsError(true);
@@ -273,18 +320,29 @@ export default function CarePage(): React.ReactElement {
             <div style={{ display: 'grid', gap: 'var(--space-sm)', marginBottom: 'var(--space-lg)' }}>
               <label style={labelStyle()}>Besleme</label>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                {FEED_TYPES.map((option) => (
-                  <button
-                    key={option}
-                    type="button"
-                    disabled={!canAct}
-                    title={FEED_TYPE_DESCRIPTIONS[option]}
-                    onClick={() => void handleFeed(option)}
-                    style={chipStyle(false, !canAct)}
-                  >
-                    {FEED_TYPE_LABELS[option]}
-                  </button>
-                ))}
+                {FEED_TYPES.map((option) => {
+                  const item = feedStatus?.items.find((entry) => entry.type === option) ?? null;
+                  // Stoklanan bir kalemde stok 0 ise düğme kapatılır — sunucu
+                  // zaten 409 dönerdi ama oyuncuya nedenini ÖNCEDEN göstermek
+                  // daha dürüsttür. Günlük sınırda da aynı mantık.
+                  const isOutOfStock = item !== null && item.stocked && (item.quantity ?? 0) <= 0;
+                  const isLimitReached =
+                    item !== null && item.dailyLimit !== null && (item.fedInWindow ?? 0) >= item.dailyLimit;
+                  const isDisabled = !canAct || isOutOfStock || isLimitReached;
+                  return (
+                    <button
+                      key={option}
+                      type="button"
+                      disabled={isDisabled}
+                      title={FEED_TYPE_DESCRIPTIONS[option]}
+                      onClick={() => void handleFeed(option)}
+                      style={chipStyle(false, isDisabled)}
+                    >
+                      {FEED_TYPE_LABELS[option]}
+                      {item ? <span style={chipDetailStyle()}>{feedItemDetail(item)}</span> : null}
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
@@ -309,6 +367,16 @@ export default function CarePage(): React.ReactElement {
             {feedResult ? (
               <div style={{ marginTop: 'var(--space-md)', display: 'grid', gap: '4px', fontSize: '13px' }}>
                 <span style={{ color: 'var(--color-status-positive)' }}>Enerji: {Math.round(feedResult.newVitals.energy)}</span>
+                {feedResult.remainingToday !== null ? (
+                  <span style={{ color: 'var(--color-text-secondary)' }}>
+                    Bugün kalan {FEED_TYPE_LABELS[feedResult.feedType]} hakkı: {feedResult.remainingToday}
+                  </span>
+                ) : null}
+                {feedResult.stockAfter !== null ? (
+                  <span style={{ color: 'var(--color-text-secondary)' }}>
+                    Stokta kalan {FEED_TYPE_LABELS[feedResult.feedType]}: {feedResult.stockAfter}
+                  </span>
+                ) : null}
               </div>
             ) : null}
           </GlassPanel>
@@ -324,6 +392,21 @@ export default function CarePage(): React.ReactElement {
       `}</style>
     </main>
   );
+}
+
+/**
+ * Bir kalemin düğme üstündeki kısa durumu. TÜM sayılar sunucudan gelir
+ * (`FeedItemView`) — burada hiçbir oran/tutar hesaplanmaz.
+ */
+function feedItemDetail(item: FeedStatusView['items'][number]): string {
+  const parts: string[] = [];
+  if (item.stocked) {
+    parts.push(`stok ${item.quantity ?? 0}`);
+  }
+  if (item.dailyLimit !== null) {
+    parts.push(`bugün ${item.fedInWindow ?? 0}/${item.dailyLimit}`);
+  }
+  return parts.join(' · ');
 }
 
 function horseStatusLabel(status: PublicHorse['status']): string {
@@ -342,6 +425,10 @@ function sectionTitleStyle(): React.CSSProperties {
 
 function labelStyle(): React.CSSProperties {
   return { fontSize: '12px', color: 'var(--color-text-secondary)' };
+}
+
+function chipDetailStyle(): React.CSSProperties {
+  return { display: 'block', fontSize: '10px', fontWeight: 400, opacity: 0.75 };
 }
 
 function horseRowStyle(selected: boolean): React.CSSProperties {

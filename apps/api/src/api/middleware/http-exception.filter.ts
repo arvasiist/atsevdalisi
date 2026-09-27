@@ -21,8 +21,17 @@ import {
 } from '../../domain/auth/errors';
 import { HorseNotReadyForTrainingError, InvalidTrainingInputError } from '../../domain/training/errors';
 import { HorseEquipmentNotFoundError, InvalidEquipmentInputError } from '../../domain/equipment/errors';
-import { CareActionOnCooldownError, InvalidCareInputError } from '../../domain/care/errors';
+import {
+  CareActionOnCooldownError,
+  DailyFeedLimitReachedError,
+  FeedNotPurchasableError,
+  InsufficientFeedStockError,
+  InvalidCareInputError,
+  InvalidFeedPurchaseCountError,
+  InvalidFeedTypeError,
+} from '../../domain/care/errors';
 import { MaxStableLevelReachedError, StableCapacityExceededError } from '../../domain/stable/errors';
+import { InvalidFacilityTypeError, MaxFacilityLevelReachedError } from '../../domain/farm/errors';
 import { DailyRewardAlreadyClaimedError, InsufficientFundsError } from '../../domain/economy/errors';
 import { InvalidRaceTacticError, RaceNotFoundError } from '../../domain/race/errors';
 import { AlreadyInMatchmakingQueueError, NotInMatchmakingQueueError } from '../../domain/online/errors';
@@ -158,6 +167,29 @@ const DOMAIN_ERROR_MAP = new Map<ErrorClassConstructor, { status: number; code: 
   [InvalidEquipmentInputError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.ValidationError }],
   // `HorseNotFoundError`/`ListingNotFoundError` ile AYNI kategori (bulunamayan bir kaynak), 404.
   [HorseEquipmentNotFoundError, { status: HttpStatus.NOT_FOUND, code: ErrorCode.HorseEquipmentNotFound }],
+  // brief §32 "Çiftlik" (bu turda EKLENDİ) — bkz. `domain/farm/errors.ts`.
+  // `MaxStableLevelReachedError` ile AYNI gerekçe: "zaten en yüksek
+  // seviyede" mevcut duruma bağlı, GEÇİCİ bir engeldir (config'e yeni bir
+  // seviye eklenirse ortadan kalkar) — kalıcı bir doğrulama hatası DEĞİL,
+  // 409 Conflict. `ErrorCode.MaxFacilityLevelReached` FAZ 0'dan beri
+  // taslakta duruyordu, ilk kez burada gerçekten kullanılıyor.
+  [MaxFacilityLevelReachedError, { status: HttpStatus.CONFLICT, code: ErrorCode.MaxFacilityLevelReached }],
+  // `InvalidTrainingInputError`/`InvalidCareInputError`/`InvalidEquipmentInputError`
+  // ile AYNI kategori — gerçek bir DOĞRULAMA hatası (Hata 7 ilkesi), 400.
+  [InvalidFacilityTypeError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.ValidationError }],
+  // brief §12 Beslenme / yem dükkânı (bu turda EKLENDİ) — bkz.
+  // `domain/care/errors.ts`. Geçersiz kalem adı `InvalidFacilityTypeError`
+  // ile AYNI kategori: yol parametresinin kendisi geçersiz → 400.
+  [InvalidFeedTypeError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.InvalidFeedType }],
+  // "Stok bitti" ve "günlük sınır doldu" GEÇİCİDİR (satın alarak / pencere
+  // kayarak çözülür) — `InsufficientFundsError`/`CareActionOnCooldownError`
+  // ile AYNI gerekçeyle 409 Conflict, 400 DEĞİL.
+  [InsufficientFeedStockError, { status: HttpStatus.CONFLICT, code: ErrorCode.InsufficientFeedStock }],
+  [DailyFeedLimitReachedError, { status: HttpStatus.CONFLICT, code: ErrorCode.DailyFeedLimitReached }],
+  // Bunlar ise KALICI istemci hatalarıdır (var olmayan bir işlem / bozuk
+  // gövde alanı) — 400.
+  [FeedNotPurchasableError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.FeedNotPurchasable }],
+  [InvalidFeedPurchaseCountError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.InvalidFeedPurchaseCount }],
 ]);
 
 /**

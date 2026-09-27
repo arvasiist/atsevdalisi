@@ -1,8 +1,14 @@
 import type {
   AuthSession,
+  BuyFeedResult,
   CareActionType,
   EquipmentType,
+  FacilityType,
+  FacilityUpgradeResult,
+  FarmSummaryView,
   FeedHorseResult,
+  FeedInventoryView,
+  FeedStatusView,
   FeedType,
   FinalStretchPlan,
   HorseEquipment,
@@ -207,6 +213,30 @@ export const apiClient = {
    */
   getLeaderboard: () => request<LeaderboardRowView[]>('/leaderboard'),
 
+  /**
+   * brief §32 "Çiftlik" (bu turda EKLENDİ) — `/farm` ekranı.
+   * `GET /players/:id/farm` (bkz. `farm.controller.ts`). Yedi tesisin
+   * TAMAMINI döner; inşa edilmemişler `level: 0` ile gelir. Maliyetler,
+   * tavan seviyeler ve bonuslar SUNUCUDA `config/farm.config.json`'dan
+   * hesaplanır — istemci hiçbir sayı türetmez (CLAUDE.md "SUNUCU OTORİTESİ").
+   */
+  getFarm: (ownerId: string) => request<FarmSummaryView>(`/players/${ownerId}/farm`),
+
+  /**
+   * Tesis yükseltme — İLK İNŞA da bu çağrıdan geçer (`facility === null`
+   * iken sunucu level 0 → 1 yapar; ayrı bir "inşa et" ucu YOKTUR, bkz.
+   * `upgrade-facility.use-case.ts`).
+   *
+   * PARA harcadığı için `Idempotency-Key` ZORUNLUDUR — `upgradeStable`/
+   * `buyMarketListing` ile AYNI desen. Anahtar istemcide üretilir ve her
+   * YENİ deneme için tazelenir (bkz. `/farm` sayfası).
+   */
+  upgradeFacility: (ownerId: string, type: FacilityType, idempotencyKey: string) =>
+    request<FacilityUpgradeResult>(`/players/${ownerId}/farm/facilities/${type}/upgrade`, {
+      method: 'POST',
+      headers: { 'Idempotency-Key': idempotencyKey },
+    }),
+
   // Pazar (Market) İşlemleri
   getMarketListings: (params: { minPrice?: number; maxPrice?: number; page?: number; pageSize?: number } = {}) => {
     const query = new URLSearchParams();
@@ -257,14 +287,51 @@ export const apiClient = {
 
   /**
    * Bakım ekranı — `POST /horses/:id/feed` (docs/API.md §4, brief §12).
-   * `careHorse`'un aksine bir cooldown'u YOKTUR (bkz. `domain/care/care.ts`
-   * doc yorumu — "Besleme burada YOKTUR").
+   * `careHorse`'un aksine bir cooldown'u YOKTUR, ama DEĞİŞTİ (bu turda):
+   * kalem artık gerçek bir kaynaktır — `saman` at başına günde 3, diğerleri
+   * elmasla alınıp stoktan düşer. Sunucu 409 (`INSUFFICIENT_FEED_STOCK` /
+   * `DAILY_FEED_LIMIT_REACHED`) dönebilir; istemci bu durumları önceden
+   * `getHorseFeedStatus` ile gösterebilir.
    */
   feedHorse: (horseId: string, feedType: FeedType) =>
     request<FeedHorseResult>(`/horses/${horseId}/feed`, {
       method: 'POST',
       body: JSON.stringify({ feedType }),
     }),
+
+  /**
+   * Yem dükkânı (`apps/web/src/app/farm/page.tsx`) — `GET
+   * /players/:id/feed-inventory` (bu turda EKLENDİ). Oyuncunun stoğu + kalem
+   * kataloğu (fiyat/günlük sınır). Fiyatlar SUNUCUDAN gelir; istemci
+   * `config/*.config.json`'u BİLMEZ.
+   */
+  getFeedInventory: (playerId: string) =>
+    request<FeedInventoryView>(`/players/${playerId}/feed-inventory`, { method: 'GET' }),
+
+  /**
+   * Yem satın alma — `POST /players/:id/feed-inventory/:type/buy` (bu turda
+   * EKLENDİ). PARA harcadığı için `Idempotency-Key` ZORUNLUDUR —
+   * `upgradeFacility`/`upgradeStable` ile AYNI desen: anahtar ÇAĞIRAN
+   * tarafından üretilir ve her YENİ deneme için tazelenir.
+   *
+   * `count` SUNUCUDA doğrulanır (`care.config.json` `feedPurchaseMaxCount`
+   * üst sınırı) — istemci fiyatı/toplamı kendisi hesaplamaz, yanıttaki
+   * `newBalance`/`price` makbuzunu gösterir (CLAUDE.md "SUNUCU OTORİTESİ").
+   */
+  buyFeed: (playerId: string, type: FeedType, count: number, idempotencyKey: string) =>
+    request<BuyFeedResult>(`/players/${playerId}/feed-inventory/${type}/buy`, {
+      method: 'POST',
+      body: JSON.stringify({ count }),
+      headers: { 'Idempotency-Key': idempotencyKey },
+    }),
+
+  /**
+   * Besleme ekranı — `GET /horses/:id/feed-status` (bu turda EKLENDİ).
+   * Her kalem için stok + bu ATA özel kalan günlük hak. İstemci "bugün kaç
+   * saman hakkım kaldı"yı KENDİSİ HESAPLAMAZ (sunucu otoritesi).
+   */
+  getHorseFeedStatus: (horseId: string) =>
+    request<FeedStatusView>(`/horses/${horseId}/feed-status`, { method: 'GET' }),
 
   /**
    * Online (PvP) ekranı (`apps/web/src/app/online/page.tsx`) — `POST

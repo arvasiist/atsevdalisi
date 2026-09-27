@@ -342,21 +342,84 @@ export interface InjuryRecoveryConfig {
   maxInjuryRisk: number;
 }
 
+/**
+ * brief §12 Beslenme Sistemi — SOYUT besin türlerinden (standart/enerji/
+ * protein/recovery/performans) SOMUT yem kalemlerine geçildi (bu turda).
+ * Gerekçe: brief §12 "Besin türleri" listesi ile brief §11'in "Yem" bakım
+ * eylemi tek bir kavramdı ama oyuncu somut bir kalem ALIR ve onu VERİR;
+ * soyut "enerji yemi" adı ne satın alma ne stok ne de günlük sınır
+ * kavramlarını taşıyabiliyordu. Kullanıcı kararı: **saman bedava ve at
+ * başına günde 3**, **arpa/mama/havuç/vitamin elmasla alınır**.
+ */
 export interface FeedTypeEffect {
   vitalDelta?: Partial<Record<'health' | 'fitness' | 'fatigue' | 'energy' | 'morale', number>>;
   /** HorseHealth.weightCondition üzerindeki etki — brief §12: "her zaman daha pahalı yem = daha iyi olmayacaktır". */
   weightConditionDelta?: number;
   recoveryRateDelta?: number;
-  cost: { currency: 'money' | 'gems'; amount: number };
+  /**
+   * Kalemin ENVANTERDE tutulup tutulmadığı.
+   *
+   * `true`  → oyuncu bu kalemi `price` karşılığında SATIN ALIR, stokta
+   *           birikir ve her beslemede stoktan 1 düşer. Stok yoksa
+   *           beslenemez (`InsufficientFeedStockError`).
+   * `false` → kalem stoklanmaz: her zaman verilebilir (bedava), ama
+   *           varsa `dailyLimit` ile sınırlanır. `saman` böyledir.
+   *
+   * `stocked` ile `price` BİLEREK ayrı alanlardır: "stok tutulur mu" ve
+   * "satın alınabilir mi" farklı sorulardır — ileride yalnızca günlük
+   * hediyeden gelen (satın alınamayan ama stoklanan) bir kalem eklenebilsin.
+   */
+  stocked: boolean;
+  /** Satın alma fiyatı. Yoksa kalem SATIN ALINAMAZ (yalnızca bedava/hediye yoluyla gelir). */
+  price?: { currency: 'money' | 'gems'; amount: number };
+  /**
+   * Kalemin bir ATA günde en fazla kaç kez verilebileceği (kayan 24 saat
+   * penceresi — `dailyRewardCooldownHours` ile AYNI basitleştirme, takvim
+   * günü DEĞİL; bkz. `domain/economy/daily-reward.ts` KAPSAM notu). Yoksa
+   * sınırsızdır.
+   */
+  dailyLimit?: number;
 }
 
-export type FeedType = 'standard' | 'energy' | 'protein' | 'recovery' | 'performance';
+export type FeedType = 'saman' | 'arpa' | 'mama' | 'havuc' | 'vitamin';
 
 export interface CareConfig {
   actions: Record<CareActionType, CareActionEffect>;
   feedTypes: Record<FeedType, FeedTypeEffect>;
   /** AUDIT_REPORT.md H1 — bkz. `InjuryRecoveryConfig` üstündeki not. */
   injuryRecovery: InjuryRecoveryConfig;
+  /**
+   * Günlük yem sınırının ölçüldüğü KAYAN PENCERE (saat) — bu turda
+   * EKLENDİ. `FeedTypeEffect.dailyLimit` bu pencere içindeki adede göre
+   * uygulanır.
+   *
+   * Sihirli sayı olmasın diye config'tedir (CLAUDE.md "SİHİRLİ SAYI YOK");
+   * `economy.config.json`'daki `dailyRewardCooldownHours`'dan AYRI
+   * tutulmuştur çünkü ikisi farklı oyun döngüleridir ve biri değişince
+   * diğeri sessizce değişmemelidir.
+   */
+  feedWindowHours: number;
+  /**
+   * Tek bir satın alma isteğinde alınabilecek EN FAZLA adet — bu turda
+   * EKLENDİ. Üst sınır SUNUCUDADIR (`BuyFeedUseCase` doğrular): istemci
+   * gövdesindeki `count` serbest bir tamsayıdır ve doğrudan kabul edilseydi
+   * tek istekte dört haneli bir adetle stok/defter yazımı tetiklenebilirdi.
+   */
+  feedPurchaseMaxCount: number;
+  /**
+   * Günlük ödülle (brief §37) birlikte VERİLEN bedava yem kalemleri —
+   * kalem → adet. `ClaimDailyRewardUseCase` bu kalemleri oyuncunun
+   * envanterine, para ödülüyle AYNI transaction'da ekler.
+   *
+   * Yalnızca `stocked: true` kalemler burada yer alabilir (stoklanmayan
+   * `saman` için hediye vermek anlamsızdır — zaten her zaman bedava).
+   * Bu kuralı `loadCareConfig()` DEĞİL, domain doğrular
+   * (`domain/care/care.ts` `assertDailyGiftItemsAreStocked`) — diğer tüm
+   * `load*Config()` fonksiyonları gibi bu da düz bir tip iddiasıdır ve
+   * config içeriğini denetlemez (CLAUDE.md "Kardeş tuzak": doğrulama
+   * domain katmanına aittir).
+   */
+  feedDailyGift: Partial<Record<FeedType, number>>;
 }
 
 /**

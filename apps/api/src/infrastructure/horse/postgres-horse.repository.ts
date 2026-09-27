@@ -3,15 +3,13 @@ import type { Pool, PoolClient } from 'pg';
 import type { Horse } from '@at-sevdalisi/shared-types';
 import type { HorseRepository } from '../../application/ports/horse.repository';
 import { PG_POOL, withTransaction } from '../database/database.module';
+import { rowToHorse, writeHorseRow, type HorseRow } from './horse-row';
 
 /**
- * `horses` tablosunun satır şekli (snake_case, `database/migrations/
- * 0002_create_tracks_and_horses.up.sql`). `xp` BIGINT, `quality`/
- * `potential`/`health`/`fitness`/`fatigue`/`energy`/`morale`/`weight_kg`
- * NUMERIC'tir — `node-postgres` ikisini de (hassasiyet kaybını önlemek
- * için) varsayılan olarak STRING döner (bkz. `postgres-player.repository.ts`
- * üstündeki AYNI not); bu oyunun değerleri bu sınırı pratikte aşmayacağı
- * için `Number(...)`'a çevrilir.
+ * NOT — `HorseRow`/`rowToHorse`/`writeHorseRow` bu turda `horse-row.ts`'e
+ * TAŞINDI (bkz. o dosyanın başlığı): besleme akışı da aynı transaction
+ * içinde at satırını okuyup yazmak zorunda kaldı ve ikinci bir
+ * `UPDATE horses` metni yazmak bayat-SQL riski taşıyordu.
  *
  * NOT — KAPSAM: `horse_stats` (Antrenman, dördüncü dilim), `horse_health`
  * (Bakım, beşinci dilim) ve `horse_surface_stats`/`horse_distance_stats`
@@ -25,56 +23,6 @@ import { PG_POOL, withTransaction } from '../database/database.module';
  * varsayılan satırları GERİYE DÖNÜK olarak backfill eder — bkz. o
  * migration'ın doc yorumu.
  */
-interface HorseRow {
-  id: string;
-  owner_id: string;
-  name: string;
-  gender: string;
-  breed: string;
-  birth_date: Date;
-  level: number;
-  xp: string;
-  quality: string;
-  potential: string;
-  health: string;
-  fitness: string;
-  fatigue: string;
-  energy: string;
-  morale: string;
-  weight_kg: string | null;
-  status: string;
-  sire_id: string | null;
-  dam_id: string | null;
-  created_at: Date;
-  updated_at: Date;
-}
-
-function rowToHorse(row: HorseRow): Horse {
-  return {
-    id: row.id,
-    ownerId: row.owner_id,
-    name: row.name,
-    gender: row.gender as Horse['gender'],
-    breed: row.breed,
-    birthDate: row.birth_date.toISOString(),
-    level: row.level,
-    xp: Number(row.xp),
-    quality: Number(row.quality),
-    potential: Number(row.potential),
-    health: Number(row.health),
-    fitness: Number(row.fitness),
-    fatigue: Number(row.fatigue),
-    energy: Number(row.energy),
-    morale: Number(row.morale),
-    weightKg: row.weight_kg === null ? null : Number(row.weight_kg),
-    status: row.status as Horse['status'],
-    sireId: row.sire_id,
-    damId: row.dam_id,
-    createdAt: row.created_at.toISOString(),
-    updatedAt: row.updated_at.toISOString(),
-  };
-}
-
 @Injectable()
 export class PostgresHorseRepository implements HorseRepository {
   constructor(@Inject(PG_POOL) private readonly pool: Pool) {}
@@ -173,27 +121,8 @@ export class PostgresHorseRepository implements HorseRepository {
     });
   }
 
-  /** `update()`/`updateWithLock()`'un PAYLAŞTIĞI yazma sorgusu (DRY) — `Pool`/`PoolClient` ikisi de `pg`'nin uyumlu `query()` imzasına sahiptir. */
+  /** `update()`/`updateWithLock()`'un PAYLAŞTIĞI yazma sorgusu — `horse-row.ts`'te (DRY). */
   private async writeHorseRow(executor: Pool | PoolClient, horse: Horse): Promise<void> {
-    await executor.query(
-      `UPDATE horses
-       SET owner_id = $2, health = $3, fitness = $4, fatigue = $5, energy = $6, morale = $7,
-           weight_kg = $8, status = $9, level = $10, xp = $11, updated_at = $12
-       WHERE id = $1`,
-      [
-        horse.id,
-        horse.ownerId,
-        horse.health,
-        horse.fitness,
-        horse.fatigue,
-        horse.energy,
-        horse.morale,
-        horse.weightKg,
-        horse.status,
-        horse.level,
-        horse.xp,
-        new Date(horse.updatedAt),
-      ],
-    );
+    await writeHorseRow(executor, horse);
   }
 }

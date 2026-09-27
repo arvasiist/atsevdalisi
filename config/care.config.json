@@ -41,31 +41,43 @@
     "maxInjuryRisk": 40
   },
   "feedTypes": {
-    "standard": {
-      "vitalDelta": { "energy": 10 },
-      "weightConditionDelta": 0,
-      "cost": { "currency": "money", "amount": 20 }
-    },
-    "energy": {
-      "vitalDelta": { "energy": 20 },
-      "weightConditionDelta": -1,
-      "cost": { "currency": "money", "amount": 35 }
-    },
-    "protein": {
-      "vitalDelta": { "energy": 8, "fitness": 3 },
-      "weightConditionDelta": 1,
-      "cost": { "currency": "money", "amount": 40 }
-    },
-    "recovery": {
+    "saman": {
       "vitalDelta": { "energy": 6 },
-      "recoveryRateDelta": 4,
       "weightConditionDelta": 0,
-      "cost": { "currency": "money", "amount": 45 }
+      "stocked": false,
+      "dailyLimit": 3
     },
-    "performance": {
-      "vitalDelta": { "energy": 15, "fitness": 2 },
-      "weightConditionDelta": -2,
-      "cost": { "currency": "gems", "amount": 5 }
+    "arpa": {
+      "vitalDelta": { "energy": 18, "fitness": 2 },
+      "weightConditionDelta": 1,
+      "stocked": true,
+      "price": { "currency": "gems", "amount": 2 }
+    },
+    "mama": {
+      "vitalDelta": { "energy": 8, "fitness": 4 },
+      "weightConditionDelta": 1,
+      "stocked": true,
+      "price": { "currency": "gems", "amount": 3 }
+    },
+    "havuc": {
+      "vitalDelta": { "morale": 6, "health": 2 },
+      "recoveryRateDelta": 2,
+      "weightConditionDelta": 0,
+      "stocked": true,
+      "price": { "currency": "gems", "amount": 1 }
+    },
+    "vitamin": {
+      "vitalDelta": { "health": 4 },
+      "recoveryRateDelta": 3,
+      "weightConditionDelta": 0,
+      "stocked": true,
+      "price": { "currency": "gems", "amount": 4 }
     }
+  },
+  "feedWindowHours": 24,
+  "feedPurchaseMaxCount": 50,
+  "feedDailyGift": {
+    "arpa": 2,
+    "havuc": 1
   }
 }

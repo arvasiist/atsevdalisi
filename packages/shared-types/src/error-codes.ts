@@ -84,6 +84,20 @@ export const ErrorCode = {
   // önceliklendirdiği Ekipman dilimi (bu turda EKLENDİ) — bkz.
   // domain/equipment/errors.ts.
   HorseEquipmentNotFound: 'HORSE_EQUIPMENT_NOT_FOUND',
+  // brief §12 Beslenme / yem dükkânı (bu turda EKLENDİ) — bkz.
+  // domain/care/errors.ts. Dördü de `ValidationError`'a EZMEdilmedi:
+  // istemcinin AYRI bir ekran/metin gösterebilmesi için (ör. "stok bitti"
+  // → satın alma ekranına yönlendir) kavramsal olarak ayrıdırlar.
+  /** Geçersiz yem kalemi adı (400). */
+  InvalidFeedType: 'INVALID_FEED_TYPE',
+  /** Kalem stokta yok — önce satın alınmalı (409). */
+  InsufficientFeedStock: 'INSUFFICIENT_FEED_STOCK',
+  /** Kalemin bu at için günlük sınırı doldu (409). */
+  DailyFeedLimitReached: 'DAILY_FEED_LIMIT_REACHED',
+  /** Kalem satın alınamaz — yalnızca bedava verilir (400). */
+  FeedNotPurchasable: 'FEED_NOT_PURCHASABLE',
+  /** Satın alma adedi geçersiz (400). */
+  InvalidFeedPurchaseCount: 'INVALID_FEED_PURCHASE_COUNT',
 } as const;
 
 export type ErrorCodeValue = (typeof ErrorCode)[keyof typeof ErrorCode];

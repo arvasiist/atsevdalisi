@@ -2,9 +2,10 @@ import { Inject, Injectable } from '@nestjs/common';
 import type { ClaimDailyRewardResult, Player } from '@at-sevdalisi/shared-types';
 import { assertCanClaimDailyReward } from '../../domain/economy/daily-reward';
 import { credit } from '../../domain/economy/wallet';
+import { assertDailyGiftItemsAreStocked, getDailyGiftItems } from '../../domain/care/care';
 import { PlayerNotFoundError } from '../../domain/player/errors';
 import { AppConfigService } from '../../infrastructure/config/config.service';
-import { PLAYER_REPOSITORY, type PlayerRepository } from '../ports/player.repository';
+import { FEED_INVENTORY_REPOSITORY, type FeedInventoryRepository } from '../ports/feed-inventory.repository';
 
 /**
  * FAZ 1 wiring, yedinci dilim — brief §37 "GÜNLÜK OYUN DÖNGÜSÜ" (Login →
@@ -13,11 +14,16 @@ import { PLAYER_REPOSITORY, type PlayerRepository } from '../ports/player.reposi
  * İLK gerçek kullanımı (`debit`, Ahır Yükseltme dilimiyle zaten
  * bağlanmıştı).
  *
- * `PlayerRepository.updateWithLock` — Ahır Yükseltme'de kurulan AYNI satır
- * kilitleme deseni burada da kullanılır (bkz. docs/ARCHITECTURE.md §9.3):
+ * DEĞİŞTİ (bu turda) — günlük ödül artık para ile BİRLİKTE BEDAVA YEM de
+ * verir (`care.config.json` `feedDailyGift`: şu an 2 arpa + 1 havuç). Bu
+ * yüzden kilit/yazma `PlayerRepository.updateWithLock`'tan
+ * `FeedInventoryRepository.grantWithLock`'a TAŞINDI: `updateWithLock`'un
+ * callback'i yalnızca `players` satırını yazabildiğinden
+ * `player_feed_inventory`'ye dokunamaz, iki ayrı transaction'a bölmek ise
+ * "para verildi ama yem verilmedi" durumunu mümkün kılardı. Kilit, kilitleme
+ * disiplini ve "kontrol callback İÇİNDE yapılır" kuralı AYNEN korunmuştur:
  * iki eşzamanlı "günlük ödülü talep et" isteği aynı ödülü iki kez
- * kazandıramaz — `assertCanClaimDailyReward`, satır kilitliyken okunan
- * GÜNCEL `lastDailyRewardClaimedAt`'a göre çalışır.
+ * kazandıramaz.
  *
  * Kapsam dışı (bilinçli): brief §54'ün tam `Idempotency-Key` + Redis
  * "aynı yanıtı tekrar döndürme" altyapısı — bu eylem zaten kendi cooldown
@@ -32,12 +38,19 @@ import { PLAYER_REPOSITORY, type PlayerRepository } from '../ports/player.reposi
 @Injectable()
 export class ClaimDailyRewardUseCase {
   constructor(
-    @Inject(PLAYER_REPOSITORY) private readonly playerRepository: PlayerRepository,
+    @Inject(FEED_INVENTORY_REPOSITORY) private readonly feedRepository: FeedInventoryRepository,
     @Inject(AppConfigService) private readonly config: AppConfigService,
   ) {}
 
   async execute(playerId: string): Promise<ClaimDailyRewardResult> {
-    const result = await this.playerRepository.updateWithLock(playerId, (player) => {
+    // Config tutarlılığı (hediye yalnızca STOKLANAN kalemleri içerebilir)
+    // kilitten ÖNCE doğrulanır — yanlış düzenlenmiş bir config, sessizce
+    // "hediye verildi ama hiçbir şey eklenmedi" durumuna düşmesin
+    // (bkz. `assertDailyGiftItemsAreStocked` doc yorumu).
+    assertDailyGiftItemsAreStocked(this.config.care);
+    const giftItems = getDailyGiftItems(this.config.care);
+
+    const result = await this.feedRepository.grantWithLock(playerId, (player, quantities) => {
       const now = new Date();
       // BİLEREK satır kilitliyken (callback İÇİNDE) kontrol edilir — bkz.
       // `PlayerRepository.updateWithLock` doc yorumundaki "stale değer"
@@ -59,11 +72,20 @@ export class ClaimDailyRewardUseCase {
         now.getTime() + this.config.economy.dailyRewardCooldownHours * 60 * 60 * 1000,
       ).toISOString();
 
+      // Hediye edilen yem: kilitliyken okunan GÜNCEL stoğun ÜSTÜNE eklenir
+      // (`quantityAfter` mutlak değerdir — bkz. `FeedGrant`).
+      const grantedFeed = giftItems.map(({ type, count }) => ({
+        type,
+        count,
+        quantityAfter: (quantities.get(type) ?? 0) + count,
+      }));
+
       const claimResult: ClaimDailyRewardResult = {
         amount,
         currency: 'money',
         newBalance,
         nextClaimAvailableAt,
+        grantedFeed,
       };
 
       // AUDIT_AND_HARDENING Öncelik 2 (bu oturum) — para hareketi ledger'a
@@ -71,6 +93,7 @@ export class ClaimDailyRewardUseCase {
       // (bkz. `PlayerRepository.updateWithLock` doc yorumu).
       return {
         player: updated,
+        grants: grantedFeed.map((item) => ({ type: item.type, quantity: item.quantityAfter })),
         result: claimResult,
         ledgerEntries: [
           {

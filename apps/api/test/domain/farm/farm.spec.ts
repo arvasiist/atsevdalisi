@@ -9,13 +9,17 @@ import {
   getMaxDefinedFacilityLevel,
   getMaxStaffCapacity,
   getNextFacilityUpgradeCost,
+  getNextFacilityUpgradeOffer,
   getPaddockRecoveryMultiplier,
   getTrainingTrackInjuryRiskMultiplier,
   getVetCenterCostMultiplier,
   getWarehouseFeedCostMultiplier,
+  summarizeFacilities,
+  summarizeFacility,
   upgradeFacility,
 } from '../../../src/domain/farm/farm';
-import { MaxFacilityLevelReachedError, StaffCapacityExceededError } from '../../../src/domain/farm/errors';
+import { InvalidFacilityTypeError, MaxFacilityLevelReachedError, StaffCapacityExceededError } from '../../../src/domain/farm/errors';
+import { FACILITY_TYPES, parseFacilityType } from '../../../src/domain/farm/validation';
 import farmConfigJson from '../../../../../config/farm.config.json';
 import type { FarmConfig } from '@at-sevdalisi/game-config';
 
@@ -127,5 +131,81 @@ describe('personel kapasitesi (staff_building)', () => {
     const capacity = getMaxStaffCapacity(0, config);
     expect(() => assertCanHireMoreStaff(capacity, capacity)).toThrow(StaffCapacityExceededError);
     expect(() => assertCanHireMoreStaff(capacity - 1, capacity)).not.toThrow();
+  });
+});
+
+/**
+ * brief §32 "Çiftlik" ekranı (bu turda EKLENDİ) — `GET /players/:id/farm`'in
+ * gösterim adımı. Beklenen değerler `config/farm.config.json`'dan elle
+ * doğrulanmıştır: paddock seviye 1 = 6000 money, warehouse seviye 1 = 4000
+ * money, warehouse maxLevel = 2.
+ */
+describe('getNextFacilityUpgradeOffer', () => {
+  it('level 0 için İLK İNŞANIN teklifini döner (paddock → seviye 1, 6.000 ₺)', () => {
+    expect(getNextFacilityUpgradeOffer('paddock', 0, config)).toEqual({
+      nextLevel: 1,
+      cost: { currency: 'money', amount: 6000 },
+    });
+  });
+
+  it('en yüksek seviyede null döner — HATA FIRLATMAZ (fırlatan kardeşiyle karşıtlık test edilir)', () => {
+    const maxLevel = getMaxDefinedFacilityLevel('farrier_area', config);
+    expect(getNextFacilityUpgradeOffer('farrier_area', maxLevel, config)).toBeNull();
+    // Aynı girdiyle `getNextFacilityUpgradeCost` FIRLATIR: "tavanda" bir hata
+    // değil normal bir DURUMDUR, bu yüzden ekranın try/catch yazması
+    // gerekmesin diye ayrı bir fonksiyon vardır.
+    expect(() => getNextFacilityUpgradeCost('farrier_area', maxLevel, config)).toThrow(MaxFacilityLevelReachedError);
+  });
+
+  it('her seviyede teklifin maliyeti getNextFacilityUpgradeCost ile BİREBİR aynıdır', () => {
+    // Bu test, config değiştiğinde iki fonksiyonun sessizce ayrışmasını
+    // ENGELLER — elle yazılmış bir sayı yerine doğrudan karşılaştırma yapılır.
+    for (const type of FACILITY_TYPES) {
+      const maxLevel = getMaxDefinedFacilityLevel(type, config);
+      for (let level = 0; level < maxLevel; level += 1) {
+        const cost = getNextFacilityUpgradeCost(type, level, config);
+        expect(getNextFacilityUpgradeOffer(type, level, config)).toEqual({
+          nextLevel: cost.nextLevel,
+          cost: { currency: cost.currency, amount: cost.amount },
+        });
+      }
+    }
+  });
+});
+
+describe('summarizeFacility / summarizeFacilities', () => {
+  it('inşa edilmemiş tesis (level 0) sıfır bonusla gelir ama ilk inşa teklifi DOLU olur', () => {
+    expect(summarizeFacility('warehouse', 0, config)).toEqual({
+      type: 'warehouse',
+      level: 0,
+      maxLevel: 2,
+      bonusValue: 0,
+      nextUpgrade: { nextLevel: 1, cost: { currency: 'money', amount: 4000 } },
+    });
+  });
+
+  it('YEDİ tesisin TAMAMINI döner; kaydı olmayan tipler level 0 sayılır', () => {
+    const summaries = summarizeFacilities(new Map([['paddock', 2]]), config);
+    expect(summaries).toHaveLength(FACILITY_TYPES.length);
+    expect(summaries.map((summary) => summary.type)).toEqual([...FACILITY_TYPES]);
+    expect(summaries.find((summary) => summary.type === 'paddock')?.level).toBe(2);
+    expect(summaries.find((summary) => summary.type === 'vet_center')?.level).toBe(0);
+  });
+
+  it('tavana ulaşmış tesisin nextUpgrade alanı null olur (ekran "En yüksek seviyede" yazar)', () => {
+    const maxLevel = getMaxDefinedFacilityLevel('farrier_area', config);
+    expect(summarizeFacility('farrier_area', maxLevel, config).nextUpgrade).toBeNull();
+  });
+});
+
+describe('parseFacilityType', () => {
+  it('geçerli bir tipi olduğu gibi döner', () => {
+    expect(parseFacilityType('vet_center')).toBe('vet_center');
+  });
+
+  it('geçersiz bir değer için InvalidFacilityTypeError fırlatır — DTO doğrulaması esbuild altında atlansa BİLE', () => {
+    expect(() => parseFacilityType('greenhouse')).toThrow(InvalidFacilityTypeError);
+    expect(() => parseFacilityType(42)).toThrow(InvalidFacilityTypeError);
+    expect(() => parseFacilityType(undefined)).toThrow(InvalidFacilityTypeError);
   });
 });

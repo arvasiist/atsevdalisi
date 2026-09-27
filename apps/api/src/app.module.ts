@@ -3,6 +3,8 @@ import { AuthModule } from './api/auth/auth.module';
 import { CareModule } from './api/care/care.module';
 import { EconomyModule } from './api/economy/economy.module';
 import { EquipmentModule } from './api/equipment/equipment.module';
+import { FarmModule } from './api/farm/farm.module';
+import { FeedModule } from './api/feed/feed.module';
 import { HealthModule } from './api/health/health.module';
 import { HorseModule } from './api/horse/horse.module';
 import { MarketModule } from './api/market/market.module';
@@ -87,8 +89,16 @@ import { RedisModule } from './infrastructure/redis/redis.module';
     PlayerModule,
     HorseModule,
     StableModule,
+    // brief §32 "Çiftlik" (bu turda EKLENDİ) — `facilities` tablosu ve
+    // `domain/farm/farm.ts` FAZ 2'den beri hazırdı ama ikisini bağlayan
+    // hiçbir katman yoktu; bkz. `api/farm/farm.module.ts` doc yorumu.
+    FarmModule,
     TrainingModule,
     CareModule,
+    // brief §12 Beslenme / yem dükkânı (bu turda EKLENDİ) — yem kalemleri
+    // somutlaştı, elmasla satın alma + stoktan besleme + günlük hediye
+    // bağlandı; bkz. `api/feed/feed.module.ts` doc yorumu.
+    FeedModule,
     EconomyModule,
     RaceModule,
     MarketModule,

@@ -1,62 +1,15 @@
 import { Inject, Injectable } from '@nestjs/common';
-import type { Pool, PoolClient } from 'pg';
+import type { Pool } from 'pg';
 import type { Player } from '@at-sevdalisi/shared-types';
 import type { PlayerRepository } from '../../application/ports/player.repository';
 import type { EconomyLedgerEntryInput } from '../../application/ports/economy-ledger';
 import { PG_POOL, withTransaction } from '../database/database.module';
-
-/**
- * `players` tablosunun satır şekli (snake_case, `database/migrations/
- * 0001_create_extensions_and_players.up.sql`). `money`/`gems`/`xp`
- * PostgreSQL'de BIGINT'tir — `node-postgres` BIGINT'i (hassasiyet kaybını
- * önlemek için, JS `number`'ın güvenli tamsayı sınırını aşabileceğinden)
- * varsayılan olarak STRING döner; bu oyunun para/xp değerleri bu sınırı
- * pratikte aşmayacağı için `Number(...)`'a çevrilir (bkz. `Player.money`
- * tipi zaten `number`, `packages/shared-types/src/player.ts`).
- */
-interface PlayerRow {
-  id: string;
-  username: string;
-  display_name: string;
-  avatar_id: string | null;
-  level: number;
-  xp: string;
-  money: string;
-  gems: string;
-  reputation: number;
-  // FAZ 1 wiring, üçüncü dilim — `database/migrations/
-  // 0012_create_staff_and_stable_level.up.sql`. INTEGER olduğundan (BIGINT/
-  // NUMERIC'in aksine) `node-postgres` bunu doğrudan JS `number` döner.
-  stable_level: number;
-  // FAZ 1 wiring, yedinci dilim — `database/migrations/
-  // 0016_add_last_daily_reward_claimed_at.up.sql`.
-  last_daily_reward_claimed_at: Date | null;
-  // FAZ 1 wiring, on dördüncü dilim — `database/migrations/
-  // 0018_add_pvp_matchmaking.up.sql`. INTEGER olduğundan (BIGINT/NUMERIC'in
-  // AKSİNE, `stable_level` ile AYNI gerekçe) doğrudan JS `number` döner.
-  rating: number;
-  created_at: Date;
-  updated_at: Date;
-}
-
-function rowToPlayer(row: PlayerRow): Player {
-  return {
-    id: row.id,
-    username: row.username,
-    displayName: row.display_name,
-    avatarId: row.avatar_id,
-    level: row.level,
-    xp: Number(row.xp),
-    money: Number(row.money),
-    gems: Number(row.gems),
-    reputation: row.reputation,
-    stableLevel: row.stable_level,
-    lastDailyRewardClaimedAt: row.last_daily_reward_claimed_at ? row.last_daily_reward_claimed_at.toISOString() : null,
-    rating: row.rating,
-    createdAt: row.created_at.toISOString(),
-    updatedAt: row.updated_at.toISOString(),
-  };
-}
+// `PlayerRow`/`rowToPlayer`/`writePlayerRow`/`writeLedgerEntries` bu turda
+// `player-row.ts`'e TAŞINDI (davranış DEĞİŞMEDİ, yalnızca yer değişti):
+// çiftlik tesisleri de (`PostgresFacilityRepository`) aynı okuma/yazma
+// tanımlarına ihtiyaç duyuyor ve kopyalamak yerine paylaşmaları
+// gerekiyordu — bkz. o dosyanın başlığı.
+import { rowToPlayer, writeLedgerEntries, writePlayerRow, type PlayerRow } from './player-row';
 
 @Injectable()
 export class PostgresPlayerRepository implements PlayerRepository {
@@ -116,8 +69,8 @@ export class PostgresPlayerRepository implements PlayerRepository {
 
       const current = rowToPlayer(row);
       const { player: updated, result: mutateResult, ledgerEntries } = mutate(current);
-      await this.writePlayerRow(client, updated);
-      await this.writeLedgerEntries(client, ledgerEntries);
+      await writePlayerRow(client, updated);
+      await writeLedgerEntries(client, ledgerEntries);
 
       return mutateResult;
     });
@@ -187,75 +140,15 @@ export class PostgresPlayerRepository implements PlayerRepository {
         result: mutateResult,
       } = mutate(buyer, seller);
 
-      await this.writePlayerRow(client, updatedBuyer);
-      await this.writePlayerRow(client, updatedSeller);
+      await writePlayerRow(client, updatedBuyer);
+      await writePlayerRow(client, updatedSeller);
 
       return mutateResult;
     });
   }
 
-  /**
-   * `updateWithLock`/`updateTwoWithLock`'un PAYLAŞTIĞI yazma sorgusu (DRY).
-   * FAZ 1 wiring, on dördüncü dilim — `rating` da BURADAN güncellenir
-   * (`JoinMatchmakingQueueUseCase`, `updateTwoWithLock` ile İKİ oyuncunun
-   * Elo reytingini TEK transaction'da yazar — `BuyMarketListingUseCase`'in
-   * `money` alanı için yaptığıyla AYNI desen).
-   */
-  /**
-   * AUDIT_AND_HARDENING Öncelik 2 (bu oturum) — `updateWithLock`'un
-   * (para hareketi üreten HER çağrısı) yazdığı `economy_transactions`
-   * satırları, oyuncu satırının YAZILMASIYLA AYNI transaction'ın (AYNI
-   * `client`) içinde eklenir — biri başarısız olursa (ör. bir sonraki
-   * `client.query` bir hata fırlatırsa) `withTransaction` İKİSİNİ DE
-   * ROLLBACK eder, ledger asla gerçek bakiye değişikliğinden BAĞIMSIZ
-   * bir duruma düşemez. `entries` boş/`undefined` ise (para hareketi
-   * üretmeyen bir `mutate`) hiçbir şey yazılmaz.
-   */
-  private async writeLedgerEntries(client: PoolClient, entries: EconomyLedgerEntryInput[] | undefined): Promise<void> {
-    if (!entries || entries.length === 0) {
-      return;
-    }
-    for (const entry of entries) {
-      await client.query(
-        `INSERT INTO economy_transactions
-           (player_id, type, amount, currency, reference_type, reference_id, balance_before, balance_after, idempotency_key)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-        [
-          entry.playerId,
-          entry.type,
-          entry.amount,
-          entry.currency,
-          entry.referenceType,
-          entry.referenceId,
-          entry.balanceBefore,
-          entry.balanceAfter,
-          entry.idempotencyKey,
-        ],
-      );
-    }
-  }
-
-  private async writePlayerRow(client: PoolClient, updated: Player): Promise<void> {
-    await client.query(
-      `UPDATE players
-       SET display_name = $2, avatar_id = $3, level = $4, xp = $5,
-           money = $6, gems = $7, reputation = $8, stable_level = $9,
-           last_daily_reward_claimed_at = $10, rating = $11, updated_at = $12
-       WHERE id = $1`,
-      [
-        updated.id,
-        updated.displayName,
-        updated.avatarId,
-        updated.level,
-        updated.xp,
-        updated.money,
-        updated.gems,
-        updated.reputation,
-        updated.stableLevel,
-        updated.lastDailyRewardClaimedAt ? new Date(updated.lastDailyRewardClaimedAt) : null,
-        updated.rating,
-        new Date(updated.updatedAt),
-      ],
-    );
-  }
+  // `writePlayerRow`/`writeLedgerEntries` bu turda `player-row-writes.ts`'e
+  // TAŞINDI (davranış DEĞİŞMEDİ, yalnızca yer değişti): çiftlik tesisleri de
+  // (`PostgresFacilityRepository`) aynı iki sorguya ihtiyaç duyuyor ve
+  // kopyalamak yerine paylaşmaları gerekiyordu — bkz. o dosyanın başlığı.
 }
