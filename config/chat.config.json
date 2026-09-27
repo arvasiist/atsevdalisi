@@ -1,0 +1,8 @@
+{
+  "maxMessageLength": 300,
+  "historyLimit": 100,
+  "rateLimit": {
+    "limit": 20,
+    "windowSeconds": 60
+  }
+}

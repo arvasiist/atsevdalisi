@@ -28,6 +28,13 @@ Kullanıcı Türkçe konuşur, Türkçe yanıt veririm. Kod yorumları ve hata m
    dayalı örtük DI sessizce `undefined` çözer ve yalnızca CI'da patlar.
    (Kardeş tuzak: esbuild altında DTO `@IsIn`/`@IsUUID` atlanır → domain katmanında
    bağımsız doğrulama şart.)
+   **İKİNCİ KARDEŞ TUZAK — `@WebSocketServer()`:** `namespace` verilen bir
+   gateway'de Nest bu alana io `Server`'ı DEĞİL, **namespace'i** atar. `.to(oda)
+   .emit()` ikisinde de çalışır ama **oda sayımı çalışmaz**: io `Server`'da
+   `server.sockets` bir namespace'tir (`.adapter` var), namespace'te ise
+   `server.sockets` bir `Map`'tir (`.adapter` YOK). Doğrusu
+   `server.adapter.rooms`'tur. Alanı `Server` diye tiplamak derleyiciyi
+   susturur, hatayı gizlemez (yaşandı: 27.09.2026, §13.5).
 6. **SİHİRLİ SAYI YOK.** Önce `config/*.config.json`, `load*Config()` ile oku.
 7. **PARA/MUTASYON YOLU.** `SELECT ... FOR UPDATE` + aynı transaction'da
    `economy_transactions` defter kaydı olmadan kod yazılmaz.
@@ -100,13 +107,16 @@ bağlanmamış · tournament/club/ranking/season/progression/breeding bağlanmam
 ## Sıradaki iş
 
 **DİKKAT — 27.09.2026'da yapılan bir tarama, eskiden burada yazan 5'li listenin
-YANILTICI olduğunu gösterdi.** O iskeletlerden yalnızca İKİSİ bugün gerçekten
-bağlanabilir durumda:
+YANILTICI olduğunu gösterdi.** Bu bölüm iki kez bayatladı; aşağısı
+27.09.2026 akşamı itibarıyladır.
 
-- **`PedigreeTree.tsx` — YAPILABİLİR, ama büyük iş.** Asset gerekmiyor (saf
-  React + CSS) ama **veri zinciri hiç yok**: pedigri okuyan repository,
-  `GET /horses/:id/pedigree` uç noktası ve foal doğumunda kayıt — üçü de
-  mevcut değil. Önce backend, sonra UI. **Sıradaki anlamlı iş budur.**
+- **`PedigreeTree.tsx` — ARTIK YAPILABİLİR (veri zinciri BİTTİ).**
+  `GET /horses/:id/pedigree` (okuma, §13.2) ve `POST /players/:id/breeding`
+  (yazma — tay doğumu pedigriye kaydolur, §13.4) ikisi de mevcut. Kalan iş
+  **yalnızca UI**: bileşeni bir sayfaya bağlamak. Asset gerekmez.
+- **Sohbet/tribün arayüzü (brief §35) — YAPILABİLİR.** Backend + e2e hazır
+  (§13.5): `chat.message`/`chat.message.received`/`chat.history`/`chat.error`
+  ve `race.spectators` olaylarının **henüz frontend tüketicisi yok**.
 - `GltfAssetLoader.tsx` — **asset olmadan ANLAMSIZ.** `.glb` yokken her zaman
   yedek görünüme düşer = bugünkü kapsül+küre görüntüsünün tıpatıp aynısı.
   Bağlamak sıfır görsel etki üretir.
@@ -119,6 +129,12 @@ bağlanabilir durumda:
 
 **Bitmiş sayılacaklar (yeniden yapma):** telemetri zenginleştirme
 (`fatigueLevel`/`paceScore`, migration 0029) · Camera Director · Photo Finish
-sunumu · **toz VFX'i (`DustParticles` → `RaceScene3D`, 27.09.2026)** — son üçü
-`LiveRaceViewer`/`RaceViewer`/`RaceHud`'a BAĞLI.
+sunumu · **toz VFX'i (`DustParticles` → `RaceScene3D`, 27.09.2026)** · **soy
+ağacı okuma + yazma (§13.2/§13.4)** · **yarış sohbeti + izleyici sayısı
+(§13.5, 27.09.2026)** — son üçü `LiveRaceViewer`/`RaceViewer`/`RaceHud`'a BAĞLI.
 Ayrıntı: `PROJE_DURUMU.md` §13.
+
+**Bilinen açık hata (henüz düzeltilmedi):** `send-gift.use-case.ts`
+`recipientId`'yi yalnızca `@IsUUID()` ile doğrular → esbuild altında bu
+dekoratör atlanır ve UUID olmayan bir değer 400 yerine **500** döndürür
+(§13.4'te breeding'de düzeltilen hatanın AYNISI). Küçük ve bağımsız bir iş.

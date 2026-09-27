@@ -24,6 +24,7 @@ import type {
   FarmConfig,
   GeneticsConfig,
   GiftConfig,
+  ChatConfig,
   GrandstandConfig,
   HorseGrowthConfig,
   JockeyConfig,
@@ -57,6 +58,7 @@ import audioConfigJson from '../../../config/audio.config.json';
 import grandstandConfigJson from '../../../config/grandstand.config.json';
 import socialConfigJson from '../../../config/social.config.json';
 import giftConfigJson from '../../../config/gift.config.json';
+import chatConfigJson from '../../../config/chat.config.json';
 
 export function loadRaceConfig(): RaceBalanceConfig {
   return raceConfigJson as unknown as RaceBalanceConfig;
@@ -166,6 +168,26 @@ export function loadSocialConfig(): SocialConfig {
  */
 export function loadGiftConfig(): GiftConfig {
   return giftConfigJson as unknown as GiftConfig;
+}
+
+/**
+ * Yarış sohbeti + canlı izleyici sayısı (brief §13/§27, proje sahibinin
+ * açık talebi, 27.09.2026). Diğer `loadXConfig()` fonksiyonlarıyla AYNI
+ * desen — bu yükleyici de saf bir CAST'tir, çalışma zamanı doğrulaması
+ * YOKTUR.
+ *
+ * **`maxMessageLength` DB KISITIYLA EŞLEŞMEK ZORUNDADIR** —
+ * `race_messages.body` üzerindeki `CHECK (char_length(body) BETWEEN 1 AND
+ * 300)` (migration 0035) bu değeri sabitler. İkisi ayrı yerlerde
+ * yaşadığından, uyuşmazlık sessiz bir çalışma zamanı hatası olurdu (domain
+ * 1000 karakteri kabul eder, INSERT patlar). Bunu yakalayan şey
+ * `apps/api/test/domain/chat/chat-config.spec.ts`'tir: o test değeri
+ * MİGRASYON DOSYASINI OKUYARAK karşılaştırır, yani config'i değiştiren
+ * kişi migration'ı da güncellemesi gerektiğini ANINDA görür
+ * (`loadSocialConfig` ile AYNI gerekçe).
+ */
+export function loadChatConfig(): ChatConfig {
+  return chatConfigJson as unknown as ChatConfig;
 }
 
 export * from './types';

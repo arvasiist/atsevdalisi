@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { LOBBY_NOTIFIER } from '../../application/ports/lobby-notifier';
+import { ChatModule } from '../chat/chat.module';
 import { RaceModule } from '../race/race.module';
 import { RaceGateway } from './race.gateway';
 
@@ -21,7 +22,11 @@ import { RaceGateway } from './race.gateway';
  * (bkz. o modülün import listesi).
  */
 @Module({
-  imports: [RaceModule],
+  // `ChatModule` (brief §13, bu dilimde EKLENDİ) — `RaceGateway` artık
+  // sohbet mesajlarını YAZAN/OKUYAN iki use-case'e bağımlıdır (bkz.
+  // `race.gateway.ts` dosya başı doc yorumu "YARIŞ SOHBETİ" bölümü).
+  // `ChatModule` yalnızca `DatabaseModule`'ü import eder → DÖNGÜ YOK.
+  imports: [RaceModule, ChatModule],
   providers: [RaceGateway, { provide: LOBBY_NOTIFIER, useExisting: RaceGateway }],
   exports: [LOBBY_NOTIFIER],
 })

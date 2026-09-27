@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import {
   loadCareConfig,
+  loadChatConfig,
   loadEconomyConfig,
   loadFarmConfig,
   loadGeneticsConfig,
@@ -85,4 +86,11 @@ export class AppConfigService {
   // birim (ör. etkinlik para birimi) bu listeye AÇIKÇA yazılmadıkça
   // hediye edilemez.
   readonly gift = loadGiftConfig();
+  // YARIŞ SOHBETİ + CANLI İZLEYİCİ SAYISI (brief §13/§27, proje sahibinin
+  // açık talebi, 27.09.2026) — `config/chat.config.json` bu dilimde
+  // OLUŞTURULDU. `maxMessageLength` DB CHECK'iyle (`race_messages.body`,
+  // migration 0035) EŞLEŞMEK ZORUNDADIR (bkz. `chat-config.spec.ts`);
+  // geçmiş limiti ve hız sınırı da gateway/use-case'lerde hard-code
+  // EDİLMEZ (CLAUDE.md "SİHİRLİ SAYI YOK").
+  readonly chat = loadChatConfig();
 }

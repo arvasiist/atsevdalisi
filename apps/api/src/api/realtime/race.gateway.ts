@@ -8,18 +8,24 @@ import {
   WebSocketGateway,
   WebSocketServer,
 } from '@nestjs/websockets';
-import type { Server, Socket } from 'socket.io';
+import type { Namespace, Socket } from 'socket.io';
 import type {
   PvpMatchResult,
+  RaceChatHistoryPayload,
+  RaceChatMessageView,
   RaceFinishedPayload,
   RaceRosterEntrant,
   RaceRosterPayload,
   RaceSegmentSnapshot,
+  RaceSpectatorCountPayload,
   RaceTimelineView,
 } from '@at-sevdalisi/shared-types';
 import { GetRaceTimelineUseCase } from '../../application/use-cases/get-race-timeline.use-case';
+import { ListRaceMessagesUseCase } from '../../application/use-cases/list-race-messages.use-case';
+import { SendRaceMessageUseCase } from '../../application/use-cases/send-race-message.use-case';
 import { TOKEN_SERVICE, type TokenService } from '../../application/ports/token.service';
 import type { LobbyNotifier } from '../../application/ports/lobby-notifier';
+import { AppConfigService } from '../../infrastructure/config/config.service';
 
 /** `race_entries.id` gibi bir UUID metni — gövdede gelen `raceId`'nin kabaca şekil kontrolü (bkz. bu dosyanın doc yorumu). */
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -147,6 +153,55 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{
  * sistemi İCAT EDİLMEDİ; bağlantısı olmayan oyuncu hâlâ yeniden
  * `join`/`leave` çağırmak ZORUNDADIR (bkz. o use-case'in güncellenmiş
  * "ÖNEMLİ, BİLİNÇLİ SINIRLAMA" notu).
+ *
+ * **YARIŞ SOHBETİ + CANLI İZLEYİCİ SAYISI (brief §13/§27, proje sahibinin
+ * açık talebi, 27.09.2026 — bu dilimde EKLENDİ):** Bu gateway'e İKİ yeni
+ * yetenek geldi, ikisi de mevcut `/races` odasını ve mevcut yetkilendirme
+ * kapısını TEKRAR KULLANIR (yeni bir oda/namespace/kimlik mekanizması
+ * İCAT EDİLMEDİ):
+ *
+ * 1. **`race.spectators` (brief §27 "👥 348 spectators"):** sayı,
+ *    `race:${raceId}` odasındaki AÇIK soket sayısıdır (`server.sockets.
+ *    adapter.rooms`). Kimin abone olabileceği ZATEN `race.subscribe`
+ *    kapısından geçtiği için burada AYRICA bir yetki sorusu YOKTUR —
+ *    sayaç, kapının kendisinin doğal bir yan ürünüdür. Abone olunduğunda
+ *    ve bağlantı koptuğunda odanın TAMAMINA yayınlanır.
+ *    **BİLİNÇLİ SINIRLAMA (tek örnek):** `server.sockets.adapter`
+ *    Socket.IO'nun VARSAYILAN bellek-içi adapter'ıdır; bu sayaç, Redis
+ *    adapter'ı bağlanmadan YALNIZCA TEK bir sunucu örneği için doğrudur.
+ *    Çok örnekli bir kurulumda yanlış (eksik) sayı verirdi — bu, o
+ *    ölçek adımında çözülecek AYRI bir iştir ve burada sessizce
+ *    varsayılmaz.
+ *
+ * 2. **`chat.message` / `chat.message.received` / `chat.history`
+ *    (brief §13 "Chat WebSocket üzerinden gerçek zamanlı çalışmalı"):**
+ *    mesaj `SendRaceMessageUseCase` ile YAZILIR (domain doğrulaması orada,
+ *    `normalizeMessageBody`), SONRA odaya yayınlanır — yani istemcinin
+ *    gördüğü şey HER ZAMAN veritabanına gerçekten yazılmış satırdır
+ *    (CLAUDE.md "SUNUCU OTORİTESİ"; istemci kendi mesajını kendi ekranına
+ *    "optimistic" ekleyip sunucudan farklı bir şey gösterebilseydi, iki
+ *    izleyici farklı sohbetler görürdü). Geçmiş (`chat.history`) YALNIZCA
+ *    yeni abone olan istemciye gider, odaya DEĞİL (bkz.
+ *    `RaceChatHistoryPayload` doc yorumu).
+ *
+ * **Yetkilendirme — YENİ BİR KAPI AÇILMADI:** `chat.message` göndermek
+ * için gereken tek şey, bu soketin DAHA ÖNCE başarılı bir `race.subscribe`
+ * yapmış olmasıdır (`client.data.raceIds`). Bu, "katılımcı VEYA tribün
+ * bileti sahibi" kapısının TA KENDİSİDİR (`GetRaceTimelineUseCase`) —
+ * yalnızca HER MESAJDA yeniden sorulmaz, çünkü o soru tam bir timeline
+ * okuması demektir ve sohbeti yarış yayınının kendisinden pahalı hâle
+ * getirirdi (bkz. `SendRaceMessageUseCase` doc yorumu).
+ *
+ * **Hız sınırı (brief §32 "RATE LIMIT — chat"):** HTTP'deki
+ * `RateLimitGuard` bir `CanActivate`'tir ve WebSocket'te ÇALIŞMAZ; bu
+ * yüzden sohbet için AYNI `config/chat.config.json → rateLimit`
+ * değerlerinden beslenen sabit pencereli bir sayaç burada tutulur
+ * (`client.data.chatWindow`, Redis YOK — bkz. `RateLimitGuard`'ın "Redis
+ * yalnızca sayaç içindir, authoritative değildir" ilkesi; buradaki sayaç
+ * ise tamamen o soketin belleğindedir ve soket kopunca kaybolur, ki bu
+ * İSTENEN davranıştır). Sayaç, GÖVDE DOĞRULAMASINDAN ÖNCE artırılır:
+ * aksi halde geçersiz gövde gönderen bir istemci sınırsız deneme
+ * yapabilirdi.
  */
 const PLAYBACK_DURATION_MS = 4_000;
 
@@ -173,6 +228,20 @@ interface RacePlaybackSession {
   readonly timers: ReturnType<typeof setTimeout>[];
 }
 
+/**
+ * Bir soketin sohbet hız sınırı penceresi (bkz. dosya başı doc yorumu
+ * "Hız sınırı" bölümü). `RateLimitGuard`'ın Redis'teki
+ * `ratelimit:<ad>:<kimlik>` anahtarının buradaki karşılığıdır — ama
+ * BİLİNÇLİ olarak Redis'te DEĞİL, soketin kendi `data`'sında tutulur:
+ * sohbet zaten yalnızca AÇIK bir soket üzerinden akabilir, yani soket
+ * koptuğunda sayacın yaşaması gerekmez (soket kopunca yeniden bağlanan
+ * istemci temiz bir pencereyle başlar — istenen davranış).
+ */
+interface ChatRateWindow {
+  windowStartedAtMs: number;
+  count: number;
+}
+
 @WebSocketGateway({
   namespace: '/races',
   cors: { origin: process.env.CORS_ORIGIN ?? 'http://localhost:3000', credentials: true },
@@ -190,12 +259,38 @@ export class RaceGateway implements OnGatewayConnection, OnGatewayDisconnect, Lo
   /** Bkz. dosya başı doc yorumu "Senkronize çoklu-izleyici" bölümü. */
   private static readonly SESSION_RETENTION_AFTER_FINISH_MS = 60_000;
 
+  /**
+   * **BU ALAN `Server` DEĞİL, `Namespace`'TİR — ve bu bir yazım tercihi
+   * DEĞİL, ÇALIŞMA ZAMANI GERÇEĞİDİR.** Nest, `namespace` seçeneği verilen
+   * bir gateway'de (`@WebSocketGateway({ namespace: '/races' })`) bu alana
+   * io Server'ı DEĞİL, o namespace'in kendisini atar. İkisinin API'si
+   * `.to(oda).emit(...)` için AYNIdır, ama oda sayımı için AYNI DEĞİLDİR:
+   *
+   *   - io Server'da  → `server.sockets` bir NAMESPACE'tir, `.adapter` vardır.
+   *   - Namespace'te  → `server.sockets` bir `Map<SocketId, Socket>`'TİR,
+   *                     `.adapter` YOKTUR.
+   *
+   * Bu yüzden `server.sockets.adapter.rooms` Namespace üzerinde ÇALIŞMA
+   * ZAMANINDA `TypeError: Cannot read properties of undefined (reading
+   * 'rooms')` verir (yaşandı — `broadcastSpectatorCount` bu yüzden patladı
+   * ve `joinSharedPlayback`'in kalanı hiç koşmadı, `race.roster` hiç
+   * gönderilmedi). Doğrusu `server.adapter.rooms`'tur. Tipi `Server` yazmak
+   * derleyiciyi susturur ama hatayı GİZLEMEZ — o yüzden burada gerçek tip
+   * (`Namespace`) yazılıdır.
+   */
   @WebSocketServer()
-  server!: Server;
+  server!: Namespace;
 
   constructor(
     @Inject(TOKEN_SERVICE) private readonly tokenService: TokenService,
     @Inject(GetRaceTimelineUseCase) private readonly getRaceTimelineUseCase: GetRaceTimelineUseCase,
+    // YARIŞ SOHBETİ (brief §13, bu dilimde EKLENDİ) — bkz. dosya başı doc
+    // yorumu. `@Inject()` AÇIKÇA yazılır (CLAUDE.md: Vitest/esbuild
+    // `design:paramtypes` üretmez, tipe dayalı örtük DI sessizce
+    // `undefined` çözer ve yalnızca CI'da patlar).
+    @Inject(SendRaceMessageUseCase) private readonly sendRaceMessageUseCase: SendRaceMessageUseCase,
+    @Inject(ListRaceMessagesUseCase) private readonly listRaceMessagesUseCase: ListRaceMessagesUseCase,
+    @Inject(AppConfigService) private readonly config: AppConfigService,
   ) {}
 
   async handleConnection(client: Socket): Promise<void> {
@@ -229,6 +324,21 @@ export class RaceGateway implements OnGatewayConnection, OnGatewayDisconnect, Lo
    * elle yapılacak bir temizlik YOK.
    */
   handleDisconnect(client: Socket): void {
+    // CANLI İZLEYİCİ SAYISI (brief §27, bu dilimde EKLENDİ) — bkz. dosya
+    // başı doc yorumu. `handleDisconnect` (Socket.IO'nun `disconnect`
+    // olayı) TETİKLENDİĞİNDE soket odalarından ZATEN çıkarılmıştır
+    // (`_onclose` → `leaveAll()` → `emit('disconnect')` sırası), yani
+    // aşağıdaki sayaç bu istemciyi ARTIK SAYMAZ — istenen davranış budur
+    // (kalan izleyiciler doğru sayıyı görür). Soketin HANGİ odalarda
+    // olduğunu `client.rooms`'tan okumak MÜMKÜN DEĞİLDİR (o küme bu
+    // noktada boşaltılmıştır), bu yüzden abonelikler `client.data.raceIds`
+    // içinde AYRICA tutulur.
+    const raceIds = client.data.raceIds as Set<string> | undefined;
+    if (raceIds !== undefined) {
+      for (const raceId of raceIds) {
+        this.broadcastSpectatorCount(raceId);
+      }
+    }
     this.logger.debug(`Bağlantı koptu: ${client.id}`);
   }
 
@@ -315,6 +425,31 @@ export class RaceGateway implements OnGatewayConnection, OnGatewayDisconnect, Lo
     }
 
     await client.join(room);
+
+    // Abonelik kaydı (bu dilimde EKLENDİ) — `chat.message`'ın yetki kapısı
+    // ve `handleDisconnect`'in "hangi odaları güncellemeliyim" kaynağı
+    // (bkz. dosya başı doc yorumu "Yetkilendirme" bölümü).
+    this.trackSubscription(client, timeline.raceId);
+
+    // CANLI İZLEYİCİ SAYISI (brief §27) — `client.join`'den SONRA
+    // çağrılır ki YENİ izleyici de kendi katılımıyla oluşan sayıyı
+    // görsün; odanın TAMAMINA yayınlanır (tek bir istemciye değil).
+    this.broadcastSpectatorCount(timeline.raceId);
+
+    // SOHBET GEÇMİŞİ (brief §13) — YALNIZCA bu istemciye. Best-effort:
+    // geçmiş okunamazsa (ör. geçici bir DB hatası) yarış yayını YİNE DE
+    // devam eder; sohbet geçmişi yüzünden bir yarışı izleyememek kabul
+    // edilemez bir davranış olurdu.
+    try {
+      const history = await this.listRaceMessagesUseCase.execute(timeline.raceId);
+      client.emit('chat.history', history);
+    } catch (error) {
+      this.logger.warn(
+        `chat.history okunamadı (yarış ${timeline.raceId}): ${error instanceof Error ? error.message : String(error)}`,
+      );
+      const empty: RaceChatHistoryPayload = { raceId: timeline.raceId, messages: [] };
+      client.emit('chat.history', empty);
+    }
 
     // `race.roster` — bkz. dosya başı doc yorumu. Catch-up `race.telemetry`'den
     // ÖNCE gönderilir ki istemci ilk segment görüntülenmeden ÖNCE isim/
@@ -460,5 +595,144 @@ export class RaceGateway implements OnGatewayConnection, OnGatewayDisconnect, Lo
     session.timers.push(finishedTimer);
 
     return session;
+  }
+
+  // ============================================================
+  // YARIŞ SOHBETİ + CANLI İZLEYİCİ SAYISI (brief §13/§27, bu dilimde EKLENDİ)
+  // ============================================================
+
+  /**
+   * `chat.message` (brief §13) — istemci → sunucu. Sıra ÖNEMLİDİR:
+   * (1) kimlik, (2) gövde ŞEKLİ (`raceId` UUID mi — ucuz, DB'ye gitmez),
+   * (3) hız sınırı, (4) abonelik kapısı, (5) gövde doğrulaması + yazma,
+   * (6) odaya yayın. Hız sınırı ve abonelik kapısı, yazmadan ÖNCE gelir
+   * (bkz. dosya başı doc yorumu "Hız sınırı" bölümü) — reddedilen bir
+   * mesaj veritabanına SIZMAZ.
+   *
+   * **Yayınlanan şey İSTEMCİNİN GÖVDESİ DEĞİL, YAZILAN SATIRDIR:**
+   * `chat.message.received` `saved`'i taşır — kırpılmış gövde, sunucunun
+   * çözdüğü `username`, sunucunun ürettiği `messageId`/`createdAt`. Bu,
+   * "sunucu otoritesi"nin sohbet yolundaki karşılığıdır: iki izleyici
+   * ASLA farklı bir sohbet görmez.
+   */
+  @SubscribeMessage('chat.message')
+  async handleChatMessage(@ConnectedSocket() client: Socket, @MessageBody() body: unknown): Promise<void> {
+    const playerId = client.data.playerId as string | undefined;
+    if (!playerId) {
+      // `handleConnection` bu durumda ZATEN bağlantıyı kesmiş olmalı —
+      // `handleSubscribe`'daki AYNI ulaşılmaz savunma dalı.
+      client.disconnect(true);
+      return;
+    }
+
+    const parsed = this.extractChatMessage(body);
+    if (parsed === null) {
+      client.emit('chat.error', { message: 'Geçersiz sohbet mesajı.' });
+      return;
+    }
+
+    const rateLimitMessage = this.consumeChatQuota(client);
+    if (rateLimitMessage !== null) {
+      client.emit('chat.error', { message: rateLimitMessage });
+      return;
+    }
+
+    if (!this.subscribedRaceIds(client).has(parsed.raceId)) {
+      client.emit('chat.error', { message: 'Bu yarışa abone olmadan sohbet edemezsiniz.' });
+      return;
+    }
+
+    let saved: RaceChatMessageView;
+    try {
+      saved = await this.sendRaceMessageUseCase.execute(parsed.raceId, playerId, parsed.body);
+    } catch (error) {
+      // `InvalidMessageBodyError` (boş/aşırı uzun gövde) BURAYA düşer —
+      // HTTP'deki 400'ün WebSocket karşılığı `chat.error`'dır. Hata
+      // sınıfını AYRIŞTIRMAYA gerek yoktur: mesaj metni zaten kullanıcıya
+      // gösterilebilir (`normalizeMessageBody` doc yorumu).
+      client.emit('chat.error', { message: error instanceof Error ? error.message : 'Beklenmeyen hata.' });
+      return;
+    }
+
+    this.server.to(this.raceRoom(parsed.raceId)).emit('chat.message.received', saved);
+  }
+
+  /**
+   * Sohbet hız sınırı (brief §32) — sabit pencere, soket başına (bkz.
+   * dosya başı doc yorumu). Sınır AŞILDIYSA kullanıcıya gösterilecek
+   * metni, aksi hâlde `null` döner. Sayaç AŞILDIĞINDA DA artmaya devam
+   * eder; pencere kaydığında sıfırlanır — `RateLimitGuard`'ın Redis
+   * `INCR`/`EXPIRE` davranışıyla AYNI sonucu verir.
+   */
+  private consumeChatQuota(client: Socket): string | null {
+    const { limit, windowSeconds } = this.config.chat.rateLimit;
+    const nowMs = Date.now();
+    const existing = client.data.chatWindow as ChatRateWindow | undefined;
+    const window: ChatRateWindow =
+      existing !== undefined && nowMs - existing.windowStartedAtMs < windowSeconds * 1_000
+        ? existing
+        : { windowStartedAtMs: nowMs, count: 0 };
+    window.count += 1;
+    client.data.chatWindow = window;
+
+    if (window.count > limit) {
+      return `Çok hızlı mesaj gönderiyorsunuz. ${windowSeconds} saniye içinde en fazla ${limit} mesaj gönderebilirsiniz.`;
+    }
+    return null;
+  }
+
+  /**
+   * `chat.message` gövdesini ayrıştırır: `raceId` KABACA şekil kontrolünden
+   * geçmeli (`UUID_PATTERN` — `extractRaceId` ile AYNI desen), `body` ise
+   * BİLEREK `unknown` olarak geçirilir: gerçek doğrulama
+   * `SendRaceMessageUseCase` → `normalizeMessageBody` içindedir
+   * (`CLAUDE.md` "Kardeş tuzak": WebSocket gövdesi için HTTP'deki
+   * `ValidationPipe`'ın bir karşılığı YOKTUR).
+   */
+  private extractChatMessage(body: unknown): { raceId: string; body: unknown } | null {
+    if (typeof body !== 'object' || body === null) {
+      return null;
+    }
+    const raceId = (body as { raceId?: unknown }).raceId;
+    if (typeof raceId !== 'string' || !UUID_PATTERN.test(raceId)) {
+      return null;
+    }
+    return { raceId, body: (body as { body?: unknown }).body };
+  }
+
+  /**
+   * Bir soketin ABONE OLDUĞU yarışlar (bkz. dosya başı doc yorumu
+   * "Yetkilendirme" bölümü). `client.data` socket.io tarafından `any`
+   * olarak tiplenir; bu yüzden okuma tek bir yerde, bu yardımcıda yapılır.
+   * Küme yoksa OLUŞTURULUR — çağıranlar `undefined` ile uğraşmaz.
+   */
+  private subscribedRaceIds(client: Socket): Set<string> {
+    const existing = client.data.raceIds as Set<string> | undefined;
+    if (existing !== undefined) {
+      return existing;
+    }
+    const created = new Set<string>();
+    client.data.raceIds = created;
+    return created;
+  }
+
+  private trackSubscription(client: Socket, raceId: string): void {
+    this.subscribedRaceIds(client).add(raceId);
+  }
+
+  /**
+   * Canlı izleyici sayısını (brief §27) odaya yayınlar. Sayı
+   * `race:${raceId}` odasındaki AÇIK soket sayısıdır — `race_entries`/
+   * `race_tickets` satır sayısı DEĞİL (bkz. `RaceSpectatorCountPayload`
+   * doc yorumu). Oda boşsa `server.to(...)` sessizce hiçbir şey yapmaz
+   * (`notifyMatchFound` ile AYNI, İSTENEN davranış).
+   */
+  private broadcastSpectatorCount(raceId: string): void {
+    const room = this.raceRoom(raceId);
+    // `server.sockets.adapter` DEĞİL `server.adapter` — gerekçe `server`
+    // alanının doc yorumundadır (Nest buraya Namespace atar).
+    const count = this.server.adapter.rooms.get(room)?.size ?? 0;
+    const payload: RaceSpectatorCountPayload = { raceId, count };
+    this.server.to(room).emit('race.spectators', payload);
   }
 }

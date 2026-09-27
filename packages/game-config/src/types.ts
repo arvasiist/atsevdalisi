@@ -1012,3 +1012,56 @@ export interface GiftConfig {
    */
   allowedCurrencies: string[];
 }
+
+/**
+ * Yarış sohbeti + canlı izleyici sayısı (brief §13/§27, proje sahibinin
+ * açık talebi, 27.09.2026). `loadChatConfig()` ile okunur.
+ *
+ * **`maxMessageLength`'in DB CHECK kısıtıyla (`race_messages.body`,
+ * migration 0035) EŞLEŞMESİ ZORUNLUDUR** — bu yüzden değer bir test
+ * tarafından, MİGRASYON DOSYASI OKUNARAK sabitlenir (bkz.
+ * `loadChatConfig` doc yorumu ve `chat-config.spec.ts`).
+ *
+ * **NEDEN `social.maxMessageLength`'ten AYRI BİR SAYI:** ikisi farklı
+ * yüzeylerdir. Özel mesaj kalıcı bir kişisel yazışmadır; yarış sohbeti ise
+ * yarışın ORTASINDA, hızlı akan, o anki yarışla birlikte anlamını yitiren
+ * bir kanaldır — 300 karakter bu kanal için doğru, 500 ise gereksiz
+ * uzundur. İkisini tek sayıya bağlamak, birini değiştirmenin diğerini
+ * sessizce değiştirmesi demek olurdu.
+ */
+export interface ChatConfig {
+  /**
+   * Bir sohbet mesajının azami KARAKTER sayısı (byte değil — `char_length`
+   * kullanılır, bkz. migration 0035: Türkçe karakterler UTF-8'de 2 byte'tır
+   * ama kullanıcı için 1 karakterdir).
+   *
+   * **DB CHECK'i ile eşleşmek zorundadır.**
+   */
+  maxMessageLength: number;
+  /**
+   * `race.subscribe` sonrası istemciye gönderilen azami GEÇMİŞ mesaj
+   * sayısı. Bir LİSTE sınırıdır; sohbetin üyelik tavanı YOKTUR (yarış
+   * sohbetine katılmak için yapılacak tek şey yarışı izlemektir).
+   *
+   * Sınırsız bırakmak, uzun bir yarışta yeni abone olan HER istemciye tüm
+   * geçmişi göndermek demek olurdu (brief §38 "100+/500+ izleyici" ile
+   * doğrudan çelişir).
+   */
+  historyLimit: number;
+  /**
+   * Sohbet hız sınırı (brief §32 "RATE LIMIT — chat").
+   *
+   * **NEDEN HTTP'DEKİ `RateLimitGuard` KULLANILAMAZ:** o guard bir NestJS
+   * `CanActivate`'tir ve yalnızca HTTP isteklerinde çalışır; sohbet ise
+   * WebSocket üzerinden akar (brief §13). Aynı `config` değerlerinin
+   * burada, gateway'in kendi sayaç mantığı için yaşaması bu yüzdendir —
+   * sayı TEK bir yerde tanımlı kalır, iki taşıma katmanı da aynı kaynaktan
+   * okur.
+   */
+  rateLimit: {
+    /** Bir istemcinin `windowSeconds` içinde gönderebileceği azami mesaj. */
+    limit: number;
+    /** Sabit pencere genişliği (saniye) — `RateLimitOptions.windowSeconds` ile aynı anlam. */
+    windowSeconds: number;
+  };
+}

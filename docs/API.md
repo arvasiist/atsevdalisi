@@ -1615,6 +1615,11 @@ race.roster        — race.subscribe sonrası katılımcı isim/kimlik eşlemes
 race.telemetry     — canlı yarış sırasında segment güncellemeleri            [UYGULANDI]
 race.finished      — yarış sonucu hazır olduğunda                           [UYGULANDI]
 lobby.update       — online yarış lobisi (brief §41)                        [UYGULANDI]
+race.spectators    — canlı izleyici sayısı (brief §27)                      [UYGULANDI]
+chat.message       — istemci → sunucu, yarış sohbeti (brief §13)            [UYGULANDI]
+chat.message.received — sunucu → oda, yazılan sohbet satırı (brief §13)     [UYGULANDI]
+chat.history       — sunucu → abone, abonelik anında geçmiş (brief §13)     [UYGULANDI]
+chat.error         — sunucu → istemci, sohbet reddi (brief §13)             [UYGULANDI]
 notification.new   — brief §46 bildirim sistemi                             [PLANLI]
 ```
 
@@ -1681,10 +1686,61 @@ namespace'i):**
   mekanizmasından FAYDALANIR (tam bir reconnection protokolü HÂLÂ YOK,
   istemci `race.subscribe`'ı kendisi yeniden çağırmalıdır). Bir
   playback oturumu, bitişten 60 saniye sonra bellekten temizlenir.
+- **`race.spectators` (sunucu → oda, BEST-EFFORT — brief §27, bu dilimde
+  EKLENDİ):** `{ raceId, count }`. `count`, `race:${raceId}` odasındaki
+  **AÇIK SOKET** sayısıdır — `race_entries`/`race_tickets` **SATIR SAYISI
+  DEĞİLDİR**. Yani "bu yarışa kayıtlı kaç at var" değil, "şu an kaç kişi
+  izliyor" sorusunun cevabıdır (brief'in "👥 348 spectators" göstergesi).
+  NE ZAMAN yayınlanır: bir soket odaya girdiğinde (`race.subscribe`) ve bir
+  soket koptuğunda (`handleDisconnect` → `client.data.raceIds` üzerinden o
+  soketin abone olduğu HER yarış için ayrı ayrı). **BİLİNÇLİ SINIRLAMA:**
+  sayaç `server.sockets.adapter.rooms` üzerinden okunur, yani **TEK
+  INSTANCE** içindir — Socket.IO'nun Redis adapter'ı (brief §6) bağlanana
+  kadar çok-instance'lı bir dağıtımda her instance YALNIZCA kendi soketlerini
+  sayar ve sayı olduğundan KÜÇÜK görünür. Bu, sessiz bir yanlış değil,
+  bilinçli olarak belgelenmiş bir sınırdır (bkz. `RaceSpectatorCountPayload`
+  doc yorumu).
+- **`chat.message` (istemci → sunucu — brief §13, bu dilimde EKLENDİ):**
+  `{ raceId: string, body: string }` gönderir. **`playerId` GÖNDERİLMEZ**
+  (gönderilse bile yok sayılır) — gönderen, HTTP'deki gibi oturum
+  token'ından çözülür (`CLAUDE.md` "SUNUCU OTORİTESİ"). Sunucu sırası
+  ÖNEMLİDİR ve her adım bir öncekine bağlıdır: (1) kimlik yoksa soket
+  kesilir, (2) gövde şekli (`raceId` UUID + `body` alanı) kaba kontrol,
+  (3) **hız sınırı** (`config/chat.config.json → rateLimit`, brief §32),
+  (4) **yetki**: soket o yarışa `race.subscribe` ile abone mi, (5) yazma,
+  (6) odaya yayın. (3) ve (4) **yazmadan ÖNCE** çalışır — reddedilen mesaj
+  veritabanına sızmaz.
+- **`chat.message.received` (sunucu → `race:${raceId}` odasının TAMAMI,
+  bu dilimde EKLENDİ):** `RaceChatMessageView` = `{ messageId, raceId,
+  playerId, username, body, createdAt }`. **Yayınlanan gövde, istemcinin
+  gönderdiği HAM gövde DEĞİL, sunucunun yazdığı satırdır** (kırpılmış,
+  `maxMessageLength`'e uygun, `username` `players` JOIN'inden) — gönderen
+  dahil odadaki herkes aynı `messageId`'yi görür.
+- **`chat.history` (sunucu → YALNIZCA abone olan soket, abonelik anında
+  TAM OLARAK bir kez, bu dilimde EKLENDİ):** `{ raceId, messages: [] }` —
+  **KRONOLOJİK** (eskiden yeniye) sırada, en fazla `config/chat.config.json
+  → historyLimit` satır. Odaya DEĞİL tek sokete gönderilir (geç katılan bir
+  izleyicinin geçmişi ikinci kez herkese basması anlamsız olurdu). **Mesaj
+  yoksa da BOŞ LİSTE gönderilir** — istemcinin "geçmiş boş" ile "geçmiş hiç
+  gelmedi" arasındaki farkı ayırt edebilmesi için. Geçmiş okunamazsa
+  (DB hatası) boş liste gönderilir ve sunucu tarafında uyarı loglanır: bu
+  bir replay/izleme akışıdır, sohbet geçmişi yüzünden yarış izleme
+  DÜŞMEMELİDİR.
+- **`chat.error` (sunucu → istemci, bu dilimde EKLENDİ):** `{ message:
+  string }`. HTTP'deki 400/429'un WebSocket karşılığıdır — aynı olay hem
+  gövde doğrulama hatası (`normalizeMessageBody`: boş / yalnızca boşluk /
+  aşırı uzun / metin değil), hem hız sınırı aşımı, hem "bu yarışa abone
+  değilsin" için kullanılır (HTTP'de bunlar 400/429/403 iken burada tek
+  kanal vardır). **Yetki YENİDEN İCAT EDİLMEDİ:** sohbet, `race.subscribe`
+  ile AYNI kapıyı kullanır (katılımcı **VEYA** tribün bileti sahibi) —
+  `chat.message` için ayrı bir izin kontrolü YOKTUR.
 - **Bilinçli kapsam dışı (hâlâ YOK):** `notification.new` (yukarıdaki
-  tablo) — `lobby.update` ARTIK UYGULANDI (bkz. yukarıdaki madde).
-  İstemci tarafında otomatik yeniden abone olma ARTIK VAR — bkz. aşağıdaki
-  "Frontend entegrasyonu" notunun reconnection paragrafı.
+  tablo) — `lobby.update`, `race.spectators` ve `chat.*` ARTIK UYGULANDI
+  (bkz. yukarıdaki maddeler). İstemci tarafında otomatik yeniden abone olma
+  ARTIK VAR — bkz. aşağıdaki "Frontend entegrasyonu" notunun reconnection
+  paragrafı. **`chat.*` olaylarının HENÜZ bir frontend tüketicisi YOKTUR**
+  (backend + e2e tamamdır; tribün sohbeti arayüzü brief §35'in açık
+  işidir).
 
 **Frontend entegrasyonu (bu turda EKLENDİ — daha önce F2'nin GERÇEK bir
 tüketicisi YOKTU):** `apps/web/src/features/race-viewer/live-race-socket.ts`

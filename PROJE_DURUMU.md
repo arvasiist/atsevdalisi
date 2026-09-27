@@ -788,6 +788,90 @@ AYNI desen).
 yalnızca `@IsUUID()` ile doğrular → aynı 500'e açıktır. Bu dilimin kapsamı
 dışında bırakıldı, ayrıca ele alınmalıdır.
 
+### 13.5 Yarış sohbeti + canlı izleyici sayısı (27.09.2026)
+
+Brief §13 (yarış sohbeti) + §27 ("👥 348 spectators" göstergesi) + §32
+(sohbet hız sınırı). **Mevcut `/races` Socket.IO gateway'ine EKLENDİ** —
+yeni bir namespace, yeni bir simülasyon, yeni bir oyun durumu
+MAKİNESİ İCAT EDİLMEDİ.
+
+**Yazılan katmanlar:** `config/chat.config.json` + `ChatConfig`/
+`loadChatConfig()`, migration **0035** (`race_messages`), `RaceChatMessageView`/
+`RaceChatHistoryPayload`/`SendRaceChatMessagePayload`/`RaceSpectatorCountPayload`/
+`RaceChatErrorPayload` (shared-types), `ChatRepository` portu +
+`PostgresChatRepository`, `SendRaceMessageUseCase` +
+`ListRaceMessagesUseCase`, `ChatModule`, `RaceGateway`'e altı yeni olay
+(`race.spectators`, `chat.message`, `chat.message.received`, `chat.history`,
+`chat.error`) ve `apps/api/test/api/race-chat.e2e-spec.ts` (6 test).
+
+**Dört tasarım kararı:**
+
+1. **Yeni tablo açıldı, `direct_messages` YENİDEN KULLANILMADI.** Mevcut
+   tablo **çift eksenli** (gönderen↔alıcı) ve **arkadaşlık kapılı**;
+   yarış sohbeti **oda eksenli** (bir yarışın TÜM izleyicileri) ve
+   arkadaşlıkla İLGİSİZ. Birini diğerine sıkıştırmak, ya `direct_messages`'ın
+   `CHECK`/`UNIQUE` kısıtlarını gevşetmek ya da "yarış odası"nı sahte bir
+   oyuncu gibi modellemek anlamına gelirdi. `ON DELETE CASCADE` hem
+   `races(id)` hem `players(id)`'e bağlıdır.
+2. **Yetki YENİDEN İCAT EDİLMEDİ.** `chat.message` göndermek için gereken
+   şey, `race.subscribe`'ın ZATEN uyguladığı kapının aynısıdır (katılımcı
+   **veya** tribün bileti sahibi — `GetRaceTimelineUseCase`). Gateway,
+   abone olunan yarışları `client.data.raceIds` (`Set<string>`) içinde
+   tutar ve sohbette bu kümeye bakar. Yeni bir izin kontrolü, yeni bir
+   "sohbet üyeliği" kavramı YOK.
+3. **Sohbet bir PARA YOLU DEĞİLDİR** → `SELECT ... FOR UPDATE` ve
+   `economy_transactions` defter kaydı YOKTUR (CLAUDE.md'nin 7. kuralı
+   para/mutasyon yoluna aittir). `ChatRepository` portunun doc yorumu bunu
+   açıkça yazar; yetki de portun işi DEĞİLDİR (gateway'in işi).
+4. **İzleyici sayısı = odadaki AÇIK SOKET sayısı**, `race_tickets` satır
+   sayısı değil — yani "bilet aldı ama henüz gelmedi" sayılmaz. Sayaç
+   `handleDisconnect`'te `client.data.raceIds` üzerinden o soketin abone
+   olduğu HER yarış için ayrı ayrı yeniden yayınlanır (Socket.IO'nun
+   `_onclose` → `leaveAll()` → `emit('disconnect')` sırası sayesinde ayrılan
+   soket artık SAYILMAZ). **Bilinçli sınır:** sayaç tek-instance'tır —
+   Redis adapter bağlanana kadar çok-instance'lı dağıtımda eksik görünür
+   (docs/API.md §10'da belgelendi).
+
+**Hız sınırı neden `RateLimitGuard` DEĞİL:** mevcut guard bir NestJS
+`CanActivate`'tir ve **HTTP'ye özeldir** — WebSocket mesajları için
+çalışmaz (`guard` boru hattı WS'te yoktur). Bu yüzden pencere sayacı
+gateway içinde, soket başına (`client.data`) tutulur; limit/pencere yine
+`config/chat.config.json`'dan gelir (sihirli sayı YOK). **Bilinçli sınır:**
+sayaç soket başına ve BELLEK İÇİdir — çok-instance'lı dağıtımda oyuncu
+başına değil soket başına sınırlar ve yeniden bağlanmak sayacı SIFIRLAR.
+Tek-instance için doğru davranış; Redis'e taşınması ayrı bir iştir.
+
+**Config ↔ DB uyumu:** `maxMessageLength` (300) `race_messages.body`
+üzerindeki `CHECK (char_length(body) BETWEEN 1 AND 300)` ile
+EŞLEŞMEK ZORUNDADIR. Bunu `apps/api/test/domain/chat/chat-config.spec.ts`
+**MİGRASYON DOSYASINI OKUYARAK** doğrular (`social-config.spec.ts` ile
+AYNI gerekçe: `load*Config()` saf bir cast'tir, çalışma zamanı doğrulaması
+YOKTUR — sayıyı teste elle yazmak config'i sabitlerdi ama config ile
+veritabanının AYRIŞMASINI yakalayamazdı).
+
+**E2E'NİN BULDUĞU GERÇEK HATA (bu dilimin en değerli çıktısı):**
+`race.spectators` sayacı ilk yazıldığında `this.server.sockets.adapter.rooms`
+ile okunuyordu ve **çalışma zamanında patlıyordu**
+(`TypeError: Cannot read properties of undefined (reading 'rooms')`).
+Kök neden bir Nest tuzağıdır: **`namespace` seçeneği verilen bir gateway'de
+Nest, `@WebSocketServer()` alanına io `Server`'ı DEĞİL o namespace'i atar.**
+İkisinin API'si `.to(oda).emit(...)` için aynıdır ama oda sayımı için
+AYNI DEĞİLDİR — io `Server`'da `server.sockets` bir namespace'tir (`.adapter`
+vardır), namespace'te ise `server.sockets` bir `Map`'tir (`.adapter` YOKTUR).
+Doğrusu `server.adapter.rooms`'tur. Hata `joinSharedPlayback` içinde
+fırladığı için **kalan kod hiç koşmuyordu** — yani `race.roster` hiç
+gönderilmiyordu ve bu, benim dilimim dışındaki `realtime.e2e-spec.ts`'i de
+kırıyordu (6 test). Alanın tipi bu yüzden `Server` değil **`Namespace`**
+olarak yazıldı: tipi `Server` bırakmak derleyiciyi susturur ama hatayı
+GİZLEMEZ. **Ders:** "oda sayısı" gibi bir sayaç, tek bir testte 0 dönse bile
+"boş oda" gibi görünür; bu yüzden e2e testi sayının **arttığını VE
+azaldığını** ayrı ayrı iddia eder.
+
+**HENÜZ YOK:** `chat.*` olaylarının frontend tüketicisi (tribün sohbeti
+arayüzü brief §35'in açık işidir) · bildirim (brief §46) · sohbet moderasyonu/
+sansür (brief §13'ün "küfür filtresi" kısmı) · Redis adapter'a geçiş
+(yukarıdaki iki bilinçli sınırın ikisini de kaldırır).
+
 ---
 
 ## 14. Kendime hatırlatmalar (kısa liste)
