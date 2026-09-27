@@ -144,6 +144,26 @@ export const ErrorCode = {
    * savunması, bkz. `domain/social/errors.ts` `SocialLimitReachedError`.
    */
   SocialLimitReached: 'SOCIAL_LIMIT_REACHED',
+  /**
+   * Hediye gönderimi (proje sahibinin açık talebi, 27.09.2026) —
+   * aşağıdaki beş kod `domain/gift/errors.ts`'in ürettikleridir. BU BİR
+   * PARA YOLUDUR (bkz. `gift.repository.ts`).
+   */
+  /** Kendine hediye gönderilemez (400). */
+  CannotGiftSelf: 'CANNOT_GIFT_SELF',
+  /** Hediye miktarı geçersiz — tam sayı değil, ya da config'teki min/max dışında (400). */
+  InvalidGiftAmount: 'INVALID_GIFT_AMOUNT',
+  /** Bu para birimi hediye olarak gönderilemez (400) — bkz. `GiftConfig.allowedCurrencies`. */
+  GiftCurrencyNotAllowed: 'GIFT_CURRENCY_NOT_ALLOWED',
+  /**
+   * Hediye göndermek için arkadaş olmak gerekir (403). `NOT_FRIENDS`'ten
+   * AYRI bir koddur: kullanıcıya gösterilen metin farklıdır ("mesaj
+   * gönderemezsin" ≠ "hediye gönderemezsin") ve istemci hediye ekranını
+   * "önce arkadaş ekle" akışına yönlendirebilmelidir.
+   */
+  GiftRequiresFriendship: 'GIFT_REQUIRES_FRIENDSHIP',
+  /** Son 24 saatteki hediye SAYISI tavanı aşıldı (409) — bkz. `GiftConfig.dailyLimit`. */
+  DailyGiftLimitReached: 'DAILY_GIFT_LIMIT_REACHED',
 } as const;
 
 export type ErrorCodeValue = (typeof ErrorCode)[keyof typeof ErrorCode];

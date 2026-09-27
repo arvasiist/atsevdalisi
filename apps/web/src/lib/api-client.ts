@@ -13,6 +13,7 @@ import type {
   FeedType,
   FinalStretchPlan,
   FriendRequestView,
+  GiftView,
   HorseEquipment,
   HorseMarketValueView,
   JoinMatchmakingQueueResult,
@@ -30,6 +31,7 @@ import type {
   RemoveFriendResult,
   RespondFriendRequestResult,
   RiskLevel,
+  SendGiftResult,
   SocialOverviewView,
   StableSummaryView,
   StableUpgradeResult,
@@ -525,4 +527,39 @@ export const apiClient = {
 
   /** Gelen kutusu — bana gelen son mesajlar (gönderen adıyla). Okundu işaretlemez. */
   getInbox: (playerId: string) => request<DirectMessageView[]>(`/players/${playerId}/inbox`, { method: 'GET' }),
+
+  /**
+   * Hediye gönderimi (proje sahibinin açık talebi, 27.09.2026 — üç parçanın
+   * ÜÇÜNCÜSÜ: "tribün, arkadaşlık + mesajlaşma, hediye gönderimi").
+   *
+   * **PARA YOLU — `Idempotency-Key` ZORUNLUDUR** ve yukarıdaki sosyal
+   * metodların AKSİNE çağıran tarafından ÜRETİLİR
+   * (`buyRaceTicket`/`buyMarketListing` ile AYNI desen). Anahtar istek
+   * BAŞINA bir kez üretilip yeniden denemelerde AYNEN tekrarlanmalıdır;
+   * burada üretmek her çağrıyı YENİ bir anahtar yapar ve ağ hatası sonrası
+   * tekrar denemeyi İKİNCİ BİR HEDİYE hâline getirirdi (hediye bir
+   * TRANSFER'dir — çift gönderim alıcıyı haksız zenginleştirir).
+   *
+   * **Ön koşul arkadaşlıktır** (`GIFT_REQUIRES_FRIENDSHIP`, 403) ve
+   * günlük gönderim tavanı sunucudadır (`DAILY_GIFT_LIMIT_REACHED`, 409) —
+   * ikisi de istemcide TAKLİT EDİLMEZ, yalnızca düğme durumu için kullanılır.
+   *
+   * `amount` bilerek `number` tipinde: sınırlar `config/gift.config.json`'ta
+   * yaşar (`minAmount`/`maxAmount`) ve istemcide tip daraltmak, CLAUDE.md'nin
+   * uyardığı "DTO dekoratörüne güven" tuzağını büyütürdü.
+   */
+  sendGift: (playerId: string, recipientId: string, amount: number, currency: string, idempotencyKey: string) =>
+    request<SendGiftResult>(`/players/${playerId}/gifts`, {
+      method: 'POST',
+      headers: { 'Idempotency-Key': idempotencyKey },
+      body: JSON.stringify({ recipientId, amount, currency }),
+    }),
+
+  /**
+   * Hediye geçmişi — hem GELEN hem GİDEN hediyeler, en yeniden eskiye
+   * (`historyLimit` sunucudaki config'ten gelir). Her satır
+   * `direction` taşır; liste ekranı "gönderdim/geldi" ayrımını ikinci bir
+   * istek atmadan yapar.
+   */
+  getMyGifts: (playerId: string) => request<GiftView[]>(`/players/${playerId}/gifts`, { method: 'GET' }),
 };

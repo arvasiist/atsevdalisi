@@ -5,6 +5,7 @@ import { EconomyModule } from './api/economy/economy.module';
 import { EquipmentModule } from './api/equipment/equipment.module';
 import { FarmModule } from './api/farm/farm.module';
 import { FeedModule } from './api/feed/feed.module';
+import { GiftModule } from './api/gift/gift.module';
 import { GrandstandModule } from './api/grandstand/grandstand.module';
 import { HealthModule } from './api/health/health.module';
 import { HorseModule } from './api/horse/horse.module';
@@ -116,6 +117,13 @@ import { RedisModule } from './infrastructure/redis/redis.module';
     // okunabilirliktir: ikisi de aynı turda eklenen, birbirinden BAĞIMSIZ
     // dilimlerdir (Nest modül grafiğini sıraya bakmadan çözer).
     SocialModule,
+    // HEDİYE GÖNDERİMİ (proje sahibinin açık talebi, 27.09.2026 — üç
+    // parçanın üçüncüsü: "hediye gönderimi") — bkz.
+    // `api/gift/gift.module.ts` doc yorumu. `SocialModule`'ün HEMEN
+    // ardında durur çünkü onu `imports`'una alır (arkadaşlık ön kontrolü);
+    // Nest modül grafiğini sıraya bakmadan çözer, bu komşuluk yalnızca
+    // okunabilirlik içindir.
+    GiftModule,
     MarketModule,
     MatchmakingModule,
     RateLimitModule,

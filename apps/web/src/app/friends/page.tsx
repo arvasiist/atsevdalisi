@@ -1,8 +1,21 @@
 'use client';
 
 /**
- * `/friends` — ARKADAŞLIK + MESAJLAŞMA (proje sahibinin açık talebi,
- * 27.09.2026: "arkadaşlık + mesajlaşma").
+ * `/friends` — ARKADAŞLIK + MESAJLAŞMA + HEDİYE (proje sahibinin açık talebi,
+ * 27.09.2026: "arkadaşlık + mesajlaşma, hediye gönderimi").
+ *
+ * **Hediye AYRI BİR SAYFA DEĞİLDİR.** Hediyenin ön koşulu kabul edilmiş
+ * arkadaşlıktır (sunucu: `GIFT_REQUIRES_FRIENDSHIP`), yani hediye
+ * gönderilebilecek oyuncu kümesi bu sayfadaki arkadaş listesinin TA
+ * KENDİSİDİR. Ayrı bir `/gifts` sayfası, aynı listeyi ikinci kez çizmek ve
+ * "burada görebildiğim ama orada göremediğim" bir tutarsızlık riski
+ * demekti. Geçmiş listesi de aynı çağrıda (`GET /players/:id/gifts`)
+ * gelir.
+ *
+ * **Hediye bir PARA YOLUDUR** (`buyRaceTicket` ile aynı sınıf): istek
+ * `Idempotency-Key` taşır ve tutar sunucuda `SELECT ... FOR UPDATE` ile
+ * kilitlenip aynı transaction'da hem düşülür hem alıcıya eklenir — burada
+ * hesaplanan hiçbir şey otorite DEĞİLDİR.
  *
  * **TEK "özet" İSTEĞİ:** ekran açıldığında `GET /players/:id/social`
  * çağrılır ve arkadaşlar + gelen/giden istekler + okunmamış sayısı AYNI
@@ -30,16 +43,37 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
-import type { DirectMessageView, FriendRequestView, FriendView, SocialOverviewView } from '@at-sevdalisi/shared-types';
+import type {
+  Currency,
+  DirectMessageView,
+  FriendRequestView,
+  FriendView,
+  GiftView,
+  SocialOverviewView,
+} from '@at-sevdalisi/shared-types';
+import { CURRENCIES } from '@at-sevdalisi/shared-types';
 import { GlassPanel } from '../../components/ui/GlassPanel';
 import { apiClient } from '../../lib/api-client';
+import { CURRENCY_LABELS, formatCurrency, hasEnoughFunds } from '../../lib/currency';
 import { usePlayer } from '../../lib/player-context';
 
 /** Gelen kutusunda gösterilecek en fazla satır — sunucu zaten `inboxLimit` uygular. */
 const INBOX_PREVIEW_LIMIT = 5;
 
+/** Hediye geçmişinde gösterilecek en fazla satır — sunucu zaten `historyLimit` uygular. */
+const GIFT_HISTORY_LIMIT = 10;
+
 export default function FriendsPage(): React.ReactElement {
-  const { player, isLoading: isPlayerLoading, error: playerError, createPlayer } = usePlayer();
+  const {
+    player,
+    isLoading: isPlayerLoading,
+    error: playerError,
+    createPlayer,
+    // Hediye sonrası üst bardaki Çip/Elmas göstergesi tazelensin diye
+    // YENİDEN ADLANDIRILDI: bu dosyanın kendi `refresh`'i (özet + yazışma)
+    // ile çakışırdı.
+    refresh: refreshPlayerBalance,
+  } = usePlayer();
   const [overview, setOverview] = useState<SocialOverviewView | null>(null);
   const [inbox, setInbox] = useState<DirectMessageView[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -51,12 +85,26 @@ export default function FriendsPage(): React.ReactElement {
   const [pendingKey, setPendingKey] = useState<string | null>(null);
   const [isSending, setIsSending] = useState(false);
 
+  /**
+   * HEDİYE (proje sahibinin açık talebi, 27.09.2026 — üç parçanın ÜÇÜNCÜSÜ).
+   * Hedef arkadaş, tutar ve birim; hepsi tek bir panelde toplanır. Panel
+   * açıkken `activeFriend` (yazışma) KAPATILIR — ikisi aynı anda açık
+   * olsaydı hangi arkadaşa ne gönderildiği karışırdı.
+   */
+  const [activeGiftFriend, setActiveGiftFriend] = useState<FriendView | null>(null);
+  /** Ham metin: `input type="number"` bile boş bırakılabilir; ayrıştırma sunucudadır. */
+  const [giftAmount, setGiftAmount] = useState('');
+  const [giftCurrency, setGiftCurrency] = useState<Currency>('money');
+  const [gifts, setGifts] = useState<GiftView[] | null>(null);
+  const [isSendingGift, setIsSendingGift] = useState(false);
+
   const loadOverview = useCallback(async (playerId: string) => {
-    const [social, myInbox] = await Promise.all([
+    const [social, myInbox, myGifts] = await Promise.all([
       apiClient.getSocialOverview(playerId),
       apiClient.getInbox(playerId),
+      apiClient.getMyGifts(playerId),
     ]);
-    return { social, myInbox };
+    return { social, myInbox, myGifts };
   }, []);
 
   useEffect(() => {
@@ -66,12 +114,14 @@ export default function FriendsPage(): React.ReactElement {
     let cancelled = false;
     setOverview(null);
     setInbox(null);
+    setGifts(null);
     setError(null);
     void loadOverview(player.id)
-      .then(({ social, myInbox }) => {
+      .then(({ social, myInbox, myGifts }) => {
         if (cancelled) return;
         setOverview(social);
         setInbox(myInbox);
+        setGifts(myGifts);
       })
       .catch((err: unknown) => {
         if (!cancelled) setError(err instanceof Error ? err.message : 'Sosyal ekran yüklenemedi');
@@ -89,9 +139,10 @@ export default function FriendsPage(): React.ReactElement {
   const refresh = useCallback(
     async (options: { keepConversation?: boolean } = {}): Promise<void> => {
       if (!player) return;
-      const { social, myInbox } = await loadOverview(player.id);
+      const { social, myInbox, myGifts } = await loadOverview(player.id);
       setOverview(social);
       setInbox(myInbox);
+      setGifts(myGifts);
       if (options.keepConversation && activeFriend) {
         setMessages(await apiClient.getConversation(player.id, activeFriend.playerId));
       }
@@ -140,6 +191,13 @@ export default function FriendsPage(): React.ReactElement {
           setActiveFriend(null);
           setMessages(null);
         }
+        // Hediye paneli de kapanır: arkadaşlık bittiği an sunucu
+        // `GIFT_REQUIRES_FRIENDSHIP` döndürür, panel açık kalırsa kullanıcı
+        // anlamsız bir form görürdü.
+        if (activeGiftFriend?.playerId === targetId) {
+          setActiveGiftFriend(null);
+          setGiftAmount('');
+        }
         await refresh();
       },
       fallbackMessage,
@@ -151,12 +209,64 @@ export default function FriendsPage(): React.ReactElement {
       async () => {
         if (!player) return;
         setActiveFriend(friend);
+        setActiveGiftFriend(null);
         setMessages(await apiClient.getConversation(player.id, friend.playerId));
         // Okundu işaretlemesi sunucuda oldu; özet tazelenir ki rozet düşsün.
         const social = await apiClient.getSocialOverview(player.id);
         setOverview(social);
       },
       'Yazışma açılamadı',
+    );
+
+  /**
+   * Hediye panelini açar. Gerekli tek "iş kuralı" burada YOKTUR — tutar
+   * sınırı, birim izni, arkadaşlık ve günlük tavan sunucudadır.
+   */
+  const openGiftPanel = (friend: FriendView): void => {
+    setActiveGiftFriend(friend);
+    setActiveFriend(null);
+    setMessages(null);
+    setGiftAmount('');
+    setError(null);
+  };
+
+  /**
+   * HEDİYE GÖNDERİMİ — PARA YOLU.
+   *
+   * `Idempotency-Key` İSTEK BAŞINA bir kez üretilir ve çağrı tamamlanana
+   * kadar DEĞİŞMEZ: ağ hatası sonrası kullanıcı düğmeye tekrar basarsa yeni
+   * bir anahtar üretilir, ama sunucu zaten yazdıysa ikinci istek AYNI
+   * anahtarla değil — bu yüzden burada anahtar `runAction`'ın DIŞINDA,
+   * eylemin başında üretilir ve yalnızca bu tek deneme için geçerlidir
+   * (kullanıcı gerçekten yeni bir hediye göndermek istiyor olabilir).
+   *
+   * Gönderim sonrası bakiye `refresh()` ile tazelenir — üst bardaki Çip
+   * göstergesi aksi halde eski değeri gösterirdi.
+   */
+  const sendGift = (): Promise<void> =>
+    runAction(
+      'gift-send',
+      async () => {
+        if (!player || !activeGiftFriend) return;
+        const parsed = Number(giftAmount);
+        if (giftAmount.trim().length === 0 || !Number.isFinite(parsed)) return;
+        setIsSendingGift(true);
+        try {
+          await apiClient.sendGift(
+            player.id,
+            activeGiftFriend.playerId,
+            parsed,
+            giftCurrency,
+            crypto.randomUUID(),
+          );
+          setGiftAmount('');
+          await refresh();
+          refreshPlayerBalance();
+        } finally {
+          setIsSendingGift(false);
+        }
+      },
+      'Hediye gönderilemedi',
     );
 
   const send = (): Promise<void> =>
@@ -182,7 +292,7 @@ export default function FriendsPage(): React.ReactElement {
     <main className="page-container">
       <h1 style={{ fontSize: '24px', color: 'var(--color-text-primary)', marginBottom: '4px' }}>Arkadaşlar</h1>
       <p style={{ color: 'var(--color-text-secondary)', marginTop: 0, marginBottom: 'var(--space-lg)' }}>
-        Arkadaş ekle, istekleri yanıtla ve arkadaşlarınla yazış. Yeni arkadaş bulmak için{' '}
+        Arkadaş ekle, istekleri yanıtla, arkadaşlarınla yazış ve Çip/Elmas hediye gönder. Yeni arkadaş bulmak için{' '}
         <a href="/leaderboard" style={{ color: 'var(--color-accent-gold)' }}>
           sıralama tablosuna
         </a>{' '}
@@ -264,7 +374,12 @@ export default function FriendsPage(): React.ReactElement {
               </p>
             ) : (
               overview.friends.map((friend) => (
-                <Row key={friend.friendshipId} highlight={activeFriend?.playerId === friend.playerId}>
+                <Row
+                  key={friend.friendshipId}
+                  highlight={
+                    activeFriend?.playerId === friend.playerId || activeGiftFriend?.playerId === friend.playerId
+                  }
+                >
                   <RowLabel
                     primary={friend.displayName}
                     secondary={`Seviye ${friend.level} · ${formatRelativeDate(friend.friendsSince)} arkadaş`}
@@ -277,6 +392,13 @@ export default function FriendsPage(): React.ReactElement {
                       style={primaryButtonStyle()}
                     >
                       Yazış
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => openGiftPanel(friend)}
+                      style={secondaryButtonStyle()}
+                    >
+                      Hediye
                     </button>
                     <button
                       type="button"
@@ -349,6 +471,88 @@ export default function FriendsPage(): React.ReactElement {
               </div>
             </Section>
           ) : null}
+
+          {activeGiftFriend ? (
+            <Section title={`${activeGiftFriend.displayName} kişisine hediye gönder`}>
+              <p style={{ color: 'var(--color-text-muted)', margin: 0, fontSize: '13px' }}>
+                Hediye bir <strong>transferdir</strong>: düşülen tutar arkadaşının bakiyesine eklenir. Tutar sınırları
+                ve günlük gönderim tavanı sunucuda uygulanır.
+              </p>
+              <div style={{ display: 'flex', gap: 'var(--space-sm)', flexWrap: 'wrap' }}>
+                <select
+                  value={giftCurrency}
+                  onChange={(event) => setGiftCurrency(event.target.value as Currency)}
+                  style={{ ...inputStyle(), flex: '0 0 140px' }}
+                >
+                  {/* Liste `CURRENCIES`'ten gelir — hediye BAŞINA izinli
+                      birimler (`config/gift.config.json → allowedCurrencies`)
+                      sunucudadır ve istemcide TAKLİT EDİLMEZ; izinli
+                      olmayan bir birim seçilirse sunucu 400 döner. */}
+                  {CURRENCIES.map((currency) => (
+                    <option key={currency} value={currency}>
+                      {CURRENCY_LABELS[currency]}
+                    </option>
+                  ))}
+                </select>
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  min={1}
+                  value={giftAmount}
+                  onChange={(event) => setGiftAmount(event.target.value)}
+                  placeholder="Tutar"
+                  style={inputStyle()}
+                />
+                <button
+                  type="button"
+                  disabled={isSendingGift || giftAmount.trim().length === 0}
+                  onClick={() => void sendGift()}
+                  style={{
+                    ...primaryButtonStyle(),
+                    opacity: isSendingGift || giftAmount.trim().length === 0 ? 0.55 : 1,
+                  }}
+                >
+                  {isSendingGift ? 'Gönderiliyor…' : 'Hediye Gönder'}
+                </button>
+              </div>
+              {player && !canAffordGift(player, giftCurrency, giftAmount) ? (
+                <p style={{ color: 'var(--color-status-critical)', margin: 0, fontSize: '13px' }}>
+                  Bakiyen bu hediyeyi karşılamıyor. (Ön kontrol — asıl kontrol sunucudadır.)
+                </p>
+              ) : null}
+            </Section>
+          ) : null}
+
+          <Section title={`Hediye Geçmişi${gifts && gifts.length > 0 ? ` (${gifts.length})` : ''}`}>
+            {gifts === null || gifts.length === 0 ? (
+              <p style={{ color: 'var(--color-text-muted)', margin: 0, fontSize: '13px' }}>
+                Henüz hediye gönderilmemiş veya alınmamış.
+              </p>
+            ) : (
+              gifts.slice(0, GIFT_HISTORY_LIMIT).map((gift) => (
+                <Row key={gift.giftId}>
+                  <RowLabel
+                    primary={`${gift.direction === 'outgoing' ? '→ ' : '← '}${gift.counterparty.displayName}`}
+                    secondary={`${gift.direction === 'outgoing' ? 'Gönderildi' : 'Alındı'} · ${formatRelativeDate(
+                      gift.createdAt,
+                    )}`}
+                  />
+                  <RowActions>
+                    <span
+                      style={{
+                        fontSize: '13px',
+                        fontWeight: 700,
+                        color: gift.direction === 'outgoing' ? 'var(--color-status-critical)' : 'var(--color-accent-gold)',
+                      }}
+                    >
+                      {gift.direction === 'outgoing' ? '−' : '+'}
+                      {formatCurrency(gift.currency, gift.amount)}
+                    </span>
+                  </RowActions>
+                </Row>
+              ))
+            )}
+          </Section>
 
           <Section title={`Gelen Kutusu${overview.unreadMessageCount > 0 ? ` (${overview.unreadMessageCount} okunmamış)` : ''}`}>
             {inbox === null || inbox.length === 0 ? (
@@ -458,6 +662,19 @@ function formatRelativeDate(iso: string): string {
   if (diffMs < MS_PER_HOUR) return `${Math.floor(diffMs / MS_PER_MINUTE)} dk önce`;
   if (diffMs < MS_PER_DAY) return `${Math.floor(diffMs / MS_PER_HOUR)} sa önce`;
   return `${Math.floor(diffMs / MS_PER_DAY)} gün önce`;
+}
+
+/**
+ * Hediye formundaki "bakiye yetmiyor" uyarısı — YALNIZCA bir kullanılabilirlik
+ * ön kontrolüdür (`hasEnoughFunds`'un kendi doc yorumu). Tutar henüz geçerli
+ * bir sayı değilse (boş/yarım yazılmış) UYARI GÖSTERİLMEZ: kullanıcı daha
+ * yazarken kırmızı bir satır görmek, hatayı değil gürültüyü büyütürdü.
+ */
+function canAffordGift(player: { money: number; gems: number }, currency: Currency, rawAmount: string): boolean {
+  if (rawAmount.trim().length === 0) return true;
+  const amount = Number(rawAmount);
+  if (!Number.isFinite(amount)) return true;
+  return hasEnoughFunds(player, { currency, amount });
 }
 
 function primaryButtonStyle(): React.CSSProperties {

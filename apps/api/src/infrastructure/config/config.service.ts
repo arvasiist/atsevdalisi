@@ -4,6 +4,7 @@ import {
   loadEconomyConfig,
   loadFarmConfig,
   loadGeneticsConfig,
+  loadGiftConfig,
   loadGrandstandConfig,
   loadHorseGrowthConfig,
   loadOnlineConfig,
@@ -76,4 +77,12 @@ export class AppConfigService {
   // limitleri ve bekleyen istek tavanı da use-case'lerde hard-code
   // EDİLMEZ (CLAUDE.md "SİHİRLİ SAYI YOK").
   readonly social = loadSocialConfig();
+  // HEDİYE GÖNDERİMİ (proje sahibinin açık talebi, 27.09.2026) —
+  // `config/gift.config.json` bu dilimde OLUŞTURULDU. Miktar sınırları,
+  // günlük hediye tavanı + penceresi ve izinli para birimleri use-case'te
+  // hard-code EDİLMEZ (CLAUDE.md "SİHİRLİ SAYI YOK"). `allowedCurrencies`
+  // brief §13/§14'ün hediye yolundaki karşılığıdır: ileride eklenen bir
+  // birim (ör. etkinlik para birimi) bu listeye AÇIKÇA yazılmadıkça
+  // hediye edilemez.
+  readonly gift = loadGiftConfig();
 }

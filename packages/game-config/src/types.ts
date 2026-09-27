@@ -934,3 +934,81 @@ export interface SocialConfig {
   /** `GET /players/:id/messages/:otherPlayerId` yanıtındaki azami mesaj sayısı. */
   conversationLimit: number;
 }
+
+/**
+ * Hediye gönderimi ayarları (proje sahibinin açık talebi, 27.09.2026 —
+ * üç parçanın üçüncüsü: "tribün, arkadaşlık + mesajlaşma, hediye
+ * gönderimi").
+ *
+ * `loadGiftConfig()` ile okunur. **BU BİR PARA YOLUDUR:** her gönderim
+ * `economy_transactions`'a İKİ satır yazar (NEGATİF debit + POZİTİF credit,
+ * AYNI `reference_id`), `players` satırları sözlüksel sırada `FOR UPDATE`
+ * ile kilitlenir ve `Idempotency-Key` ZORUNLUDUR (bkz.
+ * `PostgresGiftRepository`).
+ *
+ * `game-config` yükleyicisi saf bir cast yaptığından (çalışma zamanı
+ * doğrulaması YOK) bu değerlerin tutarlılığı bir TESTLE garanti edilir
+ * (bkz. `apps/api/test/domain/gift/gift-config.spec.ts`).
+ */
+export interface GiftConfig {
+  /**
+   * Tek bir hediyenin ALT sınırı (dahil). 1'den küçük olamaz — sıfır
+   * miktarlı bir hediye hem `gift_sends.amount > 0` CHECK'ine hem
+   * `economy_transactions.amount <> 0` CHECK'ine takılırdı (migration 0019).
+   */
+  minAmount: number;
+  /**
+   * Tek bir hediyenin ÜST sınırı (dahil).
+   *
+   * **NEDEN VAR (güvenlik, denge değil):** bu sınır olmadan bir hesap,
+   * ele geçirilmiş bir oturumla TEK istekte tüm bakiyesini başka bir
+   * hesaba aktarabilirdi ve "yanlışlıkla bir sıfır fazla yazma" hatası
+   * telafi edilemez olurdu. `economy_transactions.amount` BIGINT olduğundan
+   * teknik taşma riski yoktur; sınır tamamen kullanıcı hatasına karşıdır.
+   */
+  maxAmount: number;
+  /**
+   * Bir gönderenin `dailyWindowHours` saatlik KAYAN pencerede
+   * gönderebileceği azami hediye SAYISI (tutar değil — `maxAmount` ile
+   * birlikte "çok sayıda küçük hediye" ile "tek büyük hediye" iki ayrı
+   * vektördür). Aşılırsa 409 `DAILY_GIFT_LIMIT_REACHED`.
+   *
+   * **Pencere KAYAN (rolling) bir penceredir, takvim günü DEĞİLDİR** —
+   * takvim günü seçilseydi saat dilimi (`Europe/Istanbul` varsayımı) koda
+   * sızardı ve gece yarısında limit sıfırlanırken iki "gün" arasında
+   * sınırsız gönderim yapılabilen bir sınır durumu doğardı. Pencerenin
+   * UZUNLUĞU `dailyWindowHours`'tadır (ayrı bir alan — çünkü "günlük
+   * limit" ne demek olduğu, kaç saat olduğu söylenmeden anlamsızdır ve
+   * sorguya gömülü bir `interval '24 hours'` sihirli sayı olurdu).
+   */
+  dailyLimit: number;
+  /**
+   * `dailyLimit`'in ölçüldüğü KAYAN pencere, SAAT cinsinden. Tipik değer
+   * 24'tür (yani "günlük"). Bu değer SQL tarafında
+   * `created_at >= now() - ($2::int * interval '1 hour')` biçiminde
+   * kullanılır — AÇIK `::int` cast'i ZORUNLUDUR: node-postgres
+   * parametreleri `unknown` tipiyle gönderir ve çıplak `$2 * interval
+   * '1 hour'` PostgreSQL tarafından "operator is not unique: unknown *
+   * interval" ile reddedilir (`make_interval(hours => $2)` de aynı
+   * belirsizliği taşır — adlandırılmış argümanın tipi yine `unknown`
+   * kalır).
+   */
+  dailyWindowHours: number;
+  /** `GET /players/:id/gifts` yanıtındaki azami hediye sayısı. */
+  historyLimit: number;
+  /**
+   * Hediye olarak gönderilebilecek para birimleri.
+   *
+   * **NEDEN config'te ve neden bir DİZİ:** brief §14 "MULTIPLE CURRENCY"
+   * ileride yeni bir birim (ör. etkinlik para birimi — brief §13) getirirse,
+   * o birimin hediye edilebilir olup olmadığı AYRI bir ürün kararıdır.
+   * Etkinlik para biriminin ana Çip ile karıştırılmaması brief'in AÇIK
+   * kuralıdır; bu dizi o kuralın hediye yolundaki karşılığıdır.
+   *
+   * Her eleman `@at-sevdalisi/shared-types`'taki `CURRENCIES`'in bir üyesi
+   * OLMAK ZORUNDADIR — `game-config` shared-types'a bağımlı olmadığından
+   * (bkz. `FarmConfig.facilities` ile AYNI gerekçe) burada `string` olarak
+   * yazılır; uyum `gift-config.spec.ts` tarafından kanıtlanır.
+   */
+  allowedCurrencies: string[];
+}

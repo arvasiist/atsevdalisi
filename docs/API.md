@@ -675,6 +675,105 @@ işaretlemenin damgayı ezmediği; gizlilik) ·
 `domain/social/friendship.spec.ts` · `domain/social/validation.spec.ts` ·
 `domain/social/social-config.spec.ts`.
 
+### Hediye Gönderimi (proje sahibinin açık talebi, 27.09.2026)
+
+Proje sahibinin talebi: *"hediye gönderimi"* — üç parçanın ÜÇÜNCÜSÜ
+(tribün `4cb712f`, arkadaşlık + mesajlaşma `7d1db53`). İki uç nokta,
+`GiftController` (`apps/api/src/api/gift/gift.controller.ts`).
+
+```http
+POST /api/v1/players/{id}/gifts
+Idempotency-Key: 5f2e1c2a-...-b3d9      # ZORUNLU
+{ "recipientId": "<uuid>", "amount": 750, "currency": "money" }
+
+GET  /api/v1/players/{id}/gifts
+```
+
+**BU BİR TRANSFERDİR, SINK DEĞİL.** Tribün biletinden (`migration 0032`)
+temel farkı budur: bilet geliri kimseye geçmez, hediyede ise düşülen tutar
+ALICIYA eklenir. Bu yüzden her gönderim `economy_transactions`'a **İKİ
+satır** yazar — `gift_send_debit` (NEGATİF, gönderen) ve `gift_send_credit`
+(POZİTİF, alıcı), ikisi de AYNI `reference_id` (= `gift_sends.id`) taşır ve
+bu id ile eşleştirilebilir. İki satır da `balance_before`/`balance_after`
+taşır; migration 0019'un `CHECK (balance_after = balance_before + amount)`
+kısıtı burada da geçerlidir.
+
+**PARA YOLU — `Idempotency-Key` ZORUNLUDUR** (§1.3). Anahtar istek başına
+bir kez üretilir ve yeniden denemelerde AYNEN tekrarlanır; anahtarsız istek
+`400 IDEMPOTENCY_KEY_REQUIRED` döner ve **hiçbir satır yazılmaz**. Aynı
+anahtarla tekrarlanan istek AYNI `giftId`'yi döner — ikinci bir transfer
+OLMAZ. Bu, hediyenin doğası gereği kritiktir: çift gönderim, alıcıyı haksız
+yere zenginleştirir ve geri alınamaz.
+
+**Kilit sırası:** iki `players` satırı SÖZLÜKSEL id sırasıyla `FOR UPDATE`
+ile kilitlenir (`PostgresMarketPurchaseRepository.executePurchase` ve
+`updateTwoWithLock` ile AYNI gelenek → kilit döngüsü kurulamaz). Arkadaşlık
+satırı kilitsiz OKUNUR: `removeFriendship` yalnızca `friendships` satırını
+tuttuğu için bir döngü oluşamaz. Günlük sayaç, gönderenin satırı KİLİTLİYKEN
+okunur — aynı gönderenin eşzamanlı iki isteği bu kilit üzerinden serileşir,
+yani sayım tutarlıdır.
+
+**Ön koşul arkadaşlıktır ve İKİ KEZ kontrol edilir:** `SendGiftUseCase`'te
+(403 `GIFT_REQUIRES_FRIENDSHIP`, yazma denenmeden önce) ve gönderim
+transaction'ının İÇİNDE (aynı `PoolClient` üzerinden, TOCTOU penceresini
+kapatmak için). Bu kural istenmeyen para transferlerini YAPISAL olarak
+engeller: bir oyuncuya hediye gönderebilmek için o oyuncunun isteği KABUL
+etmiş olması gerekir — rastgele hesaplara para yağdırma mümkün değildir.
+
+**Ön koşul NEDEN veritabanı kısıtı DEĞİL:** `friendships` bir DURUM
+makinesidir ve gönderim ANINDAKİ duruma bakar; iki tablo arasında FK kurmak
+"arkadaşlık silinince hediye kaydı da silinsin" gibi yanlış bir sonuç
+üretirdi — hediye GEÇMİŞTİR, silinmemelidir.
+
+**Sınırlar config'tedir, koda gömülmez** (`config/gift.config.json`):
+`minAmount`/`maxAmount` (tek istek), `dailyLimit` + `dailyWindowHours`
+(KAYAN pencere, varsayılan 20 hediye / 24 saat), `allowedCurrencies`,
+`historyLimit`. Pencere uzunluğu SQL'de sabitlenmez; sorgu
+`created_at >= now() - ($2::int * interval '1 hour')` biçimindedir —
+**açık `::int` cast'i ZORUNLUDUR**: node-postgres parametreleri `unknown`
+tipiyle gönderir ve çıplak `$2 * interval '1 hour'` PostgreSQL tarafından
+"operator is not unique: unknown * interval" ile reddedilir.
+
+`dailyWindowHours <= 0` ÖZEL olarak doğrulanır (`assertGiftConfigIsValid`):
+pencere boşalır, `COUNT(*)` her zaman 0 döner ve tavan **SESSİZCE** kapanır
+— hata görünmez, savunma ortadan kalkar. Aynı kapı `minAmount`/`maxAmount`/
+`dailyLimit`'i ve `allowedCurrencies ⊆ CURRENCIES` olmasını da kontrol eder.
+
+**Gizlilik:** yanıt `recipientBalance` TAŞIMAZ (`SendGiftResult` doc
+yorumu). At Pazarı satın alması satıcının bakiyesini döner; o desen burada
+TAKLİT EDİLMEDİ — bir hediyenin alıcısı, gönderene kendi bakiyesini
+göstermeyi kabul etmemiştir. Gönderen yalnızca KENDİ yeni bakiyesini
+(`senderBalance`) görür. `GET .../gifts` satırlarındaki `counterparty` de
+`SocialPlayerView`'dir (yalnızca `playerId`/`displayName`/`level`).
+
+**`GET /players/:id/gifts`** hem GELEN hem GİDEN hediyeleri tek listede, en
+yeniden eskiye döner; her satır `direction` taşır. `assertSelf` ile
+korunur (yalnızca kendi geçmişin). Arkadaşlık bittikten sonra da okunabilir
+— hediye geçmişi silinmez.
+
+**Yeni hata kodları:** `CANNOT_GIFT_SELF` (400) ·
+`INVALID_GIFT_AMOUNT` (400) · `GIFT_CURRENCY_NOT_ALLOWED` (400) ·
+`GIFT_REQUIRES_FRIENDSHIP` (403) · `DAILY_GIFT_LIMIT_REACHED` (409).
+Yetersiz bakiye MEVCUT `INSUFFICIENT_FUNDS` (400) kodunu kullanır — brief
+§29 "duplicate economy implementation oluşturma" gereği yeni bir sınıf
+TANIMLANMADI.
+
+`config/gift.config.json → allowedCurrencies`'in `gift_sends.currency`
+CHECK kısıtıyla AYNI kümeyi söylediği **migrasyon dosyası okunarak**
+kanıtlanır (`gift-config.spec.ts`) — gerekçe `social-config.spec.ts` ile
+AYNI (yükleyici saf cast, çalışma zamanı doğrulaması yok).
+
+**Testler:** `gift.e2e-spec.ts` (mutlu yolda İKİ defter satırının
+`balance_before`/`balance_after` ile birlikte doğrulanması; aynı
+`Idempotency-Key` ile tekrar → aynı `giftId` ve TEK `gift_sends` satırı;
+anahtarsız istek 400 ve hiçbir satır yazılmaması; arkadaş olmayana 403 ve
+bakiye değişmemesi; arkadaşlıktan çıkınca 403; yetersiz bakiyede
+`INSUFFICIENT_FUNDS` + rollback kanıtı; kayan pencerede tavana ulaşınca 409,
+pencerenin DIŞINDAKİ satırların sayılmaması, BAŞKA gönderenin satırlarının
+sayılmaması; `assertSelf` 403'ü; `GET .../gifts` yön ayrımı ve gizlilik) ·
+`domain/gift/gift.spec.ts` · `domain/gift/validation.spec.ts` ·
+`domain/gift/gift-config.spec.ts`.
+
 ### Ahır Yükseltme (FAZ 1 wiring, altıncı dilim; onuncu dilimde Idempotency-Key eklendi, bu oturum)
 
 ```http
@@ -1475,3 +1574,8 @@ dosyanın doc yorumu).
 | `FRIENDSHIP_NOT_FOUND` | Böyle bir arkadaşlık/istek yok, ya da bu oyuncuya ait değil (Arkadaşlık, 27.09.2026; üç durum TEK kodda toplanır — varlık sızdırmamak için) |
 | `FRIENDSHIP_ALREADY_EXISTS` | Bu çiftte zaten bekleyen veya kabul edilmiş bir arkadaşlık var (Arkadaşlık, 27.09.2026) |
 | `SOCIAL_LIMIT_REACHED` | Bekleyen arkadaşlık isteği tavanı aşıldı — `config/social.config.json → pendingRequestsLimit` (Arkadaşlık, 27.09.2026) |
+| `CANNOT_GIFT_SELF` | Kendine hediye gönderilemez (Hediye, 27.09.2026) |
+| `INVALID_GIFT_AMOUNT` | Hediye miktarı tam sayı değil ya da `config/gift.config.json → minAmount`/`maxAmount` aralığı dışında (Hediye, 27.09.2026) |
+| `GIFT_CURRENCY_NOT_ALLOWED` | Bu para birimi hediye olarak gönderilemez — `config/gift.config.json → allowedCurrencies` (Hediye, 27.09.2026) |
+| `GIFT_REQUIRES_FRIENDSHIP` | Alıcıyla kabul edilmiş bir arkadaşlık yok — hediye gönderilemez (Hediye, 27.09.2026) |
+| `DAILY_GIFT_LIMIT_REACHED` | Kayan penceredeki (`dailyWindowHours`) hediye SAYISI tavanı aşıldı — `config/gift.config.json → dailyLimit` (Hediye, 27.09.2026) |

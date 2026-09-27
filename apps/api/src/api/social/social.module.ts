@@ -26,11 +26,18 @@ import { SocialController } from './social.controller';
  * `@RateLimit(...)` meta verisini controller üzerinden okur
  * (`grandstand.controller.ts` ile AYNI durum).
  *
- * **`SOCIAL_REPOSITORY` EXPORT EDİLMEZ:** bu dilimde başka bir modül
- * sosyal veriye ihtiyaç duymaz. Hediye gönderimi (ayrı dilim) arkadaşlık
- * kontrolünü gerektirecek — o zaman ya bu token export edilir ya da o
- * modül kendi portundan sorgular; kararı o dilim verir (şimdiden
- * export etmek, kullanılmayan bir geniş yüzey açardı).
+ * **`SOCIAL_REPOSITORY` EXPORT EDİLİR (hediye diliminde EKLENDİ):** bu
+ * dilimde başka bir modül sosyal veriye ihtiyaç duymaz, AMA hediye
+ * gönderimi (`GiftModule`) arkadaşlık ÖN kontrolünü `areFriends` ile
+ * yapar ve o token'ı buradan tüketir. Export edilmemiş olsaydı
+ * `GiftModule` aynı `useClass`'ı İKİNCİ kez bağlamak zorunda kalırdı —
+ * "aynı token'ın iki örneği" (`GrandstandModule`'ün "neden export, neden
+ * ikinci kayıt değil" notuyla AYNI gerekçe).
+ *
+ * **NOT (hediye dilimi):** `PostgresGiftRepository` bu repository'yi
+ * KULLANMAZ — arkadaşlık sorgusunu kendi transaction'ının `PoolClient'ı
+ * üzerinde yapar (bkz. `GiftModule` doc yorumu). Buradaki export, use-case
+ * katmanındaki erken kontrol içindir.
  */
 @Module({
   imports: [PlayerModule],
@@ -45,5 +52,6 @@ import { SocialController } from './social.controller';
     GetInboxUseCase,
     { provide: SOCIAL_REPOSITORY, useClass: PostgresSocialRepository },
   ],
+  exports: [SOCIAL_REPOSITORY],
 })
 export class SocialModule {}

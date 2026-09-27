@@ -1,0 +1,8 @@
+{
+  "minAmount": 1,
+  "maxAmount": 10000,
+  "dailyLimit": 20,
+  "dailyWindowHours": 24,
+  "historyLimit": 50,
+  "allowedCurrencies": ["money", "gems"]
+}

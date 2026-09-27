@@ -16,3 +16,4 @@ export * from './facility';
 export * from './online';
 export * from './grandstand';
 export * from './social';
+export * from './gift';

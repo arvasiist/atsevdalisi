@@ -23,6 +23,7 @@ import type {
   EconomyConfig,
   FarmConfig,
   GeneticsConfig,
+  GiftConfig,
   GrandstandConfig,
   HorseGrowthConfig,
   JockeyConfig,
@@ -55,6 +56,7 @@ import vfxConfigJson from '../../../config/vfx.config.json';
 import audioConfigJson from '../../../config/audio.config.json';
 import grandstandConfigJson from '../../../config/grandstand.config.json';
 import socialConfigJson from '../../../config/social.config.json';
+import giftConfigJson from '../../../config/gift.config.json';
 
 export function loadRaceConfig(): RaceBalanceConfig {
   return raceConfigJson as unknown as RaceBalanceConfig;
@@ -153,6 +155,17 @@ export function loadGrandstandConfig(): GrandstandConfig {
  */
 export function loadSocialConfig(): SocialConfig {
   return socialConfigJson as unknown as SocialConfig;
+}
+
+/**
+ * Hediye gönderimi (proje sahibinin açık talebi, 27.09.2026) — üç parçanın
+ * üçüncüsü. Diğer `loadXConfig()` fonksiyonlarıyla AYNI desen; bu config
+ * BİR PARA YOLUNU beslediği için (min/max/günlük limit) değerleri
+ * `gift-config.spec.ts` ile sabitlenir — yükleyici saf bir cast'tir,
+ * çalışma zamanı doğrulaması YOKTUR.
+ */
+export function loadGiftConfig(): GiftConfig {
+  return giftConfigJson as unknown as GiftConfig;
 }
 
 export * from './types';

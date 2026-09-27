@@ -617,10 +617,30 @@ en sona bırakıldı.
    - **Bilinçli olarak YAPILMAYANLAR:** engelleme (block), arkadaşlık tavanı
      (karşılıklı onay gerektiği için spam vektörü yok), grup sohbeti,
      bildirim (`notification.new` hâlâ yok — okunmamış rozeti sayfada).
-3. **Hediye gönderimi — YAPILMADI.** Plan: migration `0034` (`gift_sends`),
-   `config/gift.config.json` (min/max/günlük limit/izinli birimler), İKİ satırlı
-   para yolu (lexical-id sırasıyla kilitleme + İKİ defter satırı + idempotency),
-   arkadaşlık şartı. Varsayılan kapsam: yalnızca Çip/Elmas.
+3. **HEDİYE GÖNDERİMİ — YAPILDI** (bu dilim; üçüncü ve son parça). Migration
+   `0034` (`gift_sends`), `config/gift.config.json`, `GiftModule` (2 uç nokta:
+   `POST /players/:id/gifts`, `GET /players/:id/gifts`), `/friends` sayfasında
+   hediye formu + hediye geçmişi.
+   - **TRANSFER, SINK DEĞİL.** Tribün biletinden temel fark: düşülen tutar
+     ALICIYA eklenir. Her gönderim `economy_transactions`'a **İKİ satır** yazar
+     (`gift_send_debit` negatif + `gift_send_credit` pozitif, AYNI
+     `reference_id` = `gift_sends.id`).
+   - **`Idempotency-Key` ZORUNLU** — çift gönderim alıcıyı haksız yere
+     zenginleştirir ve geri alınamaz. Anahtarsız istek 400 ve HİÇBİR satır
+     yazılmaz; aynı anahtar AYNI `giftId`'yi döner.
+   - **Arkadaşlık şartı İKİ KEZ kontrol edilir** (use-case'te + transaction'ın
+     İÇİNDE, aynı `PoolClient`). DB kısıtı DEĞİL: `friendships` bir durum
+     makinesidir ve hediye GEÇMİŞTİR, arkadaşlık silinince silinmemelidir.
+   - **Kilit sırası** sözlüksel id (`executePurchase`/`updateTwoWithLock` ile
+     AYNI gelenek); günlük sayaç gönderenin satırı KİLİTLİYKEN okunur, bu
+     yüzden eşzamanlı istekler serileşir ve sayım tutarlıdır.
+   - **`recipientBalance` yanıtta YOK** — alıcı, bakiyesini gönderene
+     göstermeyi kabul etmemiştir (At Pazarı satın almasının deseni bilinçli
+     olarak TAKLİT EDİLMEDİ).
+   - **Bilinçli olarak YAPILMAYANLAR:** hediye mesajı/notu, hediye paketi
+     görseli, toplu hediye, hediye geri alma (transfer geri alınamaz), alıcıya
+     bildirim (`notification.new` hâlâ yok — geçmiş `/friends` sayfasında),
+     Elmas kazanma yolu (harici sağlayıcı bekliyor, bkz. §10).
 
 **Grup 2** (§12'deki asset sorusuna bağlı): gerçek Horse/Jockey GLB + animasyon
 state machine, hipodrom çevresi, kalabalık sistemi, gerçek ses dosyaları,
@@ -641,7 +661,10 @@ winner ceremony / paylaşılabilir sonuç.
 7. **Sahte GLB/ses dosyası uydurmam.** Bu mutlak bir çizgi.
 8. **`README.md`/`ROADMAP.md` faz tablosuna güvenmem** — bayat. Gerçek durum §5'te.
 9. **"Çalışıyor" demem** — npm install ve tarayıcı yok; doğrulama CI'da olur.
-10. **Commit atmam / push etmem** — teslimat `bundle + .bat` ile sahibine gider.
+10. **Commit'i ben atar ve doğrudan `main`'e push ederim** (sahibinin
+    27.09.2026 tarihli açık talebi — eski `bundle + .bat` teslimatı geçersiz).
+    Push'tan ÖNCE `git fetch` + `git merge-base --is-ancestor origin/main HEAD`
+    şart; atalık sağlanmazsa push ETMEM.
 11. **Bayat belgeleri not ederim** (§10.2) ama istemeden "düzeltme" adına büyük
     refactor başlatmam.
 

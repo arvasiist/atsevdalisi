@@ -41,6 +41,13 @@ import {
   RaceTicketRequiredError,
 } from '../../domain/grandstand/errors';
 import {
+  CannotGiftSelfError,
+  DailyGiftLimitReachedError,
+  GiftCurrencyNotAllowedError,
+  GiftRequiresFriendshipError,
+  InvalidGiftAmountError,
+} from '../../domain/gift/errors';
+import {
   CannotFriendSelfError,
   CannotMessageSelfError,
   FriendshipAlreadyExistsError,
@@ -206,6 +213,26 @@ const DOMAIN_ERROR_MAP = new Map<ErrorClassConstructor, { status: number; code: 
   // 409 — duruma bağlı, GEÇİCİ engeller (biri kalıcı durum, diğeri sayım).
   [FriendshipAlreadyExistsError, { status: HttpStatus.CONFLICT, code: ErrorCode.FriendshipAlreadyExists }],
   [SocialLimitReachedError, { status: HttpStatus.CONFLICT, code: ErrorCode.SocialLimitReached }],
+  // HEDİYE GÖNDERİMİ (proje sahibinin açık talebi, 27.09.2026 — üç parçanın
+  // üçüncüsü). Beş hata da `DOMAIN_ERROR_MAP`'e girebilir çünkü kodları
+  // hatanın `reason` alanına BAĞLI DEĞİLDİR: `InvalidGiftAmountError` üç
+  // farklı `reason` ile fırlatılır ama HEPSİ `INVALID_GIFT_AMOUNT` döner —
+  // ayrım yalnızca mesajdadır (bkz. o sınıfın doc yorumu; `RaceNotWatchableError`
+  // ile AYNI desen). Durum kodları `domain/gift/errors.ts`'te tek tek
+  // gerekçelendirilmiştir.
+  //
+  // **`InsufficientFundsError` BURAYA EKLENMEZ** — `domain/economy/errors.ts`'te
+  // zaten eşlenmiştir ve hediye yolunda da AYNI anlamı taşır (brief §29
+  // "duplicate economy implementation oluşturma").
+  [CannotGiftSelfError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.CannotGiftSelf }],
+  [InvalidGiftAmountError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.InvalidGiftAmount }],
+  [GiftCurrencyNotAllowedError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.GiftCurrencyNotAllowed }],
+  // 403 — `NotFriendsError` ile AYNI kategori (yetki yok) ama FARKLI kod:
+  // hediye ekranı "önce arkadaş ekle" akışına yönlendirebilsin diye.
+  [GiftRequiresFriendshipError, { status: HttpStatus.FORBIDDEN, code: ErrorCode.GiftRequiresFriendship }],
+  // 409 — gövde geçerli, engel o anki SAYIMA bağlı ve pencere kaydıkça
+  // kendiliğinden kalkar (`SocialLimitReachedError` ile AYNI kategori).
+  [DailyGiftLimitReachedError, { status: HttpStatus.CONFLICT, code: ErrorCode.DailyGiftLimitReached }],
   // `POST /auth/login`'e özgü — bkz. `InvalidProviderTokenError` doc yorumu.
   [InvalidProviderTokenError, { status: HttpStatus.UNAUTHORIZED, code: ErrorCode.InvalidProviderToken }],
   // claude/hizli-bitirme-plani.md'nin proje sahibi tarafından
