@@ -277,8 +277,11 @@ Lib: `api-client.ts`, `player-context.tsx`. Bileşenler: `layout/TopBar.tsx`,
 - **Vitest** (Jest değil). ⚠️ `globals: false` — her spec `describe`/`it`/`expect`'i
   **açıkça import eder**. `vitest.config.ts`'te `esbuild.jsx: 'automatic'`
   (web tsconfig'i `jsx: "preserve"` kullandığı için zorunlu).
-- **81 spec dosyası** (27.09.2026): `apps/api/test/` 63 (17 e2e + 44 domain +
-  2 database), `apps/web/test/` 20, `packages/` 2. Yerelde doğrulanan sayılar:
+- **85 spec dosyası** (27.09.2026): `apps/api/test/` 63 (17 e2e + 44 domain +
+  2 database), `apps/web/test/` 20, `packages/` 2. (Sayım `*.spec.ts` +
+  `*.spec.tsx` + `*.e2e-spec.ts` desenlerinin üçünü birlikte kapsar; yalnızca
+  `*.spec.ts` sayılırsa e2e'ler kaçar ve toplam yanlış çıkar.) Yerelde
+  doğrulanan sayılar:
   `test/domain`+`features`+`lib`+`database` 555 ✔, web 329 ✔ (e2e yerelde
   koşamaz — Postgres yok, §8).
 - e2e: `supertest` (HTTP seviyesi) + `socket.io-client` (`realtime.e2e-spec.ts`).
