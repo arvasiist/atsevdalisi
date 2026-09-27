@@ -1,4 +1,15 @@
-import { Body, Controller, Headers, Inject, Param, ParseUUIDPipe, Post, UseInterceptors } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Headers,
+  Inject,
+  Param,
+  ParseUUIDPipe,
+  Post,
+  UseInterceptors,
+} from '@nestjs/common';
+import { isUUID } from 'class-validator';
 import type { ApiSuccess, BreedingResultView } from '@at-sevdalisi/shared-types';
 import { BreedHorsesUseCase } from '../../application/use-cases/breed-horses.use-case';
 import { assertSelf } from '../auth/assert-self';
@@ -58,6 +69,25 @@ export class BreedingController {
     @CurrentPlayer() currentPlayer: AuthenticatedPlayer,
   ): Promise<ApiSuccess<BreedingResultView>> {
     assertSelf(currentPlayer.id, id);
+
+    // İKİNCİ SAVUNMA HATTI — `@IsUUID()` dekoratörlerine TEK BAŞINA
+    // güvenilmez. Kök neden `MatchmakingController.join`'in doc yorumunda
+    // ayrıntılı yazılıdır (docs/ARCHITECTURE.md §9.1 Hata 7): Vitest/esbuild
+    // `design:paramtypes` üretmediği için `ValidationPipe` gövde
+    // doğrulamasını SESSİZCE atlar. Bu kontrol olmadan geçersiz bir
+    // `mareId` repository'ye ulaşır, `WHERE h.id = $1` ham bir Postgres
+    // tip hatası (`22P02 invalid input syntax for type uuid`) atar ve
+    // istemci 400 yerine **500** görür. Bu, `breeding.e2e-spec.ts`'in
+    // "UUID olmayan id 400 döner" testinin CI'da YAKALADIĞI gerçek
+    // hatadır — `horse.controller.ts`/`market.controller.ts`/
+    // `matchmaking.controller.ts` ile AYNI elle `isUUID()` deseni.
+    if (!dto.mareId || !isUUID(dto.mareId)) {
+      throw new BadRequestException('mareId geçerli bir UUID olmalıdır.');
+    }
+    if (!dto.stallionId || !isUUID(dto.stallionId)) {
+      throw new BadRequestException('stallionId geçerli bir UUID olmalıdır.');
+    }
+
     // `dto.foalName` HAM geçirilir (`unknown` bekleyen bir imzaya):
     // doğrulama domain'dedir ve burada tip daraltmak, CLAUDE.md'nin
     // uyardığı "DTO dekoratörüne güven" tuzağını büyütürdü

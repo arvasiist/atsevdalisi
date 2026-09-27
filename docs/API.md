@@ -948,9 +948,12 @@ değerlerle verilir — yaş/cooldown/sahiplik yarış durumuna düşemez.
 
 **Testler:** `domain/breeding/breeding.spec.ts` (`pickFoalGender`,
 `assertBreedingConfigIsValid`) · `domain/horse/horse.spec.ts`
-(`validateHorseName`'in `unknown` kabulü). **E2E TESTİ YOKTUR** — bu bir
-PARA YOLUDUR ve e2e eklenmesi gerekir (yerelde Postgres olmadığı için
-dosya CI'ya kadar doğrulanamazdı).
+(`validateHorseName`'in `unknown` kabulü) · **`test/api/breeding.e2e-spec.ts`
+(24 test, 27.09.2026 — yerelde 24/24 geçti).** E2E dosyası yazılırken
+gerçek bir hata bulundu ve düzeltildi: gövdede UUID olmayan `mareId`
+400 yerine **500** dönüyordu (esbuild `design:paramtypes` üretmediği için
+`@IsUUID()` atlanıyordu); controller'a elle `isUUID()` ikinci savunma hattı
+eklendi.
 
 ### Ahır Yükseltme (FAZ 1 wiring, altıncı dilim; onuncu dilimde Idempotency-Key eklendi, bu oturum)
 

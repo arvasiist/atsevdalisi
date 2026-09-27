@@ -46,9 +46,18 @@ Kullanıcı Türkçe konuşur, Türkçe yanıt veririm. Kod yorumları ve hata m
 - **`git` PATH'te yok** → tam yol:
   `C:\Users\adema\AppData\Local\GitHubDesktop\app-3.6.5\resources\app\git\cmd\git.exe`
 - **Tarayıcı/GPU yok** → 3D/görsel değişiklik "kod doğru ama gözle görülmedi".
-- **E2E çalışmaz** — Docker yok, Postgres 5432 kapalı (`ECONNREFUSED ::1:5432`).
-  `npm test`'te ~185 e2e testi bu yüzden düşer; **bunlar regresyon DEĞİLDİR.**
-  Birim testler (`test/domain`, `test/features`, `test/lib`) tamamen geçer.
+- **E2E ARTIK YERELDE KOŞAR** (27.09.2026'da doğrulandı; bu madde eskiden
+  "E2E çalışmaz — Docker yok, Postgres 5432 kapalı" diyordu, **artık
+  geçersiz**). Docker hâlâ yok ama makinede **PostgreSQL 18** kurulu
+  (`C:\Program Files\PostgreSQL\18`). Tek kullanımlık küme:
+  `initdb -D <veri> -U at_sevdalisi -A trust -E UTF8 --locale=C` →
+  `postgres.exe -D <veri> -p 5432 -c listen_addresses=127.0.0.1` (detached) →
+  `createdb` → `npm run migrate`. Redis zaten 6379'da.
+  ⚠️ **TAM PAKETİ KOŞMADAN ÖNCE ŞEMAYI DÜŞÜR**
+  (`DROP SCHEMA public CASCADE; CREATE SCHEMA public;` + `npm run migrate`).
+  Birikmiş veriyle dosyalar birbirini bozar ve **yanlış** hata verir —
+  yaşandı: `race.e2e-spec.ts` kirli DB'de 7 hata, temiz DB'de 24/24.
+  Tek dosya koşarken buna gerek yoktur.
 - **Asla "çalışıyor" deme** — kanıt CI'dır, ben değilim.
 
 ## Teslimat mekanizması

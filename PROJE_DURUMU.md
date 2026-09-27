@@ -277,13 +277,25 @@ Lib: `api-client.ts`, `player-context.tsx`. Bileşenler: `layout/TopBar.tsx`,
 - **Vitest** (Jest değil). ⚠️ `globals: false` — her spec `describe`/`it`/`expect`'i
   **açıkça import eder**. `vitest.config.ts`'te `esbuild.jsx: 'automatic'`
   (web tsconfig'i `jsx: "preserve"` kullandığı için zorunlu).
-- **86 spec dosyası** (27.09.2026): `apps/api/test/` 64 (17 e2e + 1 DI grafiği +
-  44 domain + 2 database), `apps/web/test/` 20, `packages/` 2. (Sayım
+- **99 spec dosyası** (27.09.2026, `breeding.e2e-spec.ts` eklendikten sonra):
+  `apps/api/test/` **77** (21 e2e + 2 diğer [`horse.mapper`, `module-graph`] +
+  52 domain + 2 database), `apps/web/test/` **20**, `packages/` **2**. (Sayım
   `*.spec.ts` + `*.spec.tsx` + `*.e2e-spec.ts` desenlerinin üçünü birlikte
   kapsar; yalnızca `*.spec.ts` sayılırsa e2e'ler kaçar ve toplam yanlış
-  çıkar.) Yerelde doğrulanan sayılar:
-  `test/domain`+`database`+`module-graph` **556** ✔, web 329 ✔ (e2e yerelde
-  koşamaz — Postgres yok, §8).
+  çıkar.) Yerelde ölçülen: `test/domain` **660 test / 52 dosya** ✔.
+- ✅ **E2E ARTIK YERELDE KOŞABİLİR (27.09.2026'da değişti).** Bu bölüm eskiden
+  "e2e yerelde koşamaz — Postgres yok" diyordu; **artık geçersiz.** Docker
+  hâlâ yok ama makinede **PostgreSQL 18** kurulu
+  (`C:\Program Files\PostgreSQL\18`). Geçici, tek kullanımlık bir küme şöyle
+  ayağa kalkıyor (şifre gerekmez, `trust`):
+  `initdb -D <veri> -U at_sevdalisi -A trust -E UTF8 --locale=C` →
+  `postgres.exe -D <veri> -p 5432 -c listen_addresses=127.0.0.1` →
+  `createdb` → `npm run migrate`. Redis zaten 6379'da koşuyor.
+  **CI'nın yaptığını birebir taklit etmek için koşudan ÖNCE şema düşürülür**
+  (`DROP SCHEMA public CASCADE; CREATE SCHEMA public;`) — aksi halde
+  birikmiş veri yüzünden dosyalar birbirini bozar ve YANLIŞ hata verir
+  (yaşandı: `race.e2e-spec.ts` tam pakette 7 hata verdi, tek başına 24/24
+  geçti; sebep buydu).
 - ⚠️ **`test/api/module-graph.spec.ts`** — altyapı GEREKTİRMEYEN tek API
   testidir: `AppModule`'ün DI grafiğini yalnızca `.compile()` ile kurar
   (`.init()` yok → Postgres/Redis'e bağlanmaz). 27.09.2026'da CI'ı düşüren
@@ -753,11 +765,28 @@ ikinci bir kopyası vardı; yeni hata sınıfıyla üçe çıkacaktı).
 `validateHorseName` artık `unknown` kabul eder ve doğrulanmış+`trim()`'lenmiş
 ismi DÖNER — ham gövde değeri sayı geldiğinde 500 (`TypeError`) yerine 400.
 
-**Bilinçli olarak YAPILMAYAN:** e2e testi (`apps/api/test/api/breeding.e2e-spec.ts`)
-bu dilimde YAZILMADI — yerelde Postgres yok (§2), yani dosya CI'ya kadar
-doğrulanamazdı. Domain birim testleri (`pickFoalGender`,
-`assertBreedingConfigIsValid`, `validateHorseName`) yazıldı ve yerelde
-koştu. **E2E EKSİKTİR** — para yolu olduğu için eklenmesi gerekir.
+**E2E SONRADAN YAZILDI (27.09.2026) — ve GERÇEK BİR HATA BULDU.**
+`apps/api/test/api/breeding.e2e-spec.ts` (24 test) eklendi; yerelde
+**24/24 geçti**. Kanıtladığı yedi şey dosyanın başlık yorumunda listelidir;
+özü: damızlık ücreti gerçek bir TRANSFERdir (iki defter satırı), aynı sahip
+ücret ödemez, doğan tay `GET /horses/:id/pedigree`'de görünür (zincir
+kapanır), yetersiz bakiyede HİÇBİR şey yazılmaz (rollback bütündür),
+idempotency tek tay/tek tahsilat verir, uygunluk kapıları reddeder ve
+yanıt aygır sahibinin bakiyesini ya da `seed`'i SIZDIRMAZ.
+
+**Dosyanın bulduğu hata:** gövdede UUID olmayan bir `mareId` gelince uç
+nokta 400 yerine **500** dönüyordu. Kök neden `docs/ARCHITECTURE.md` §9.1
+Hata 7'nin ta kendisi — Vitest/esbuild `design:paramtypes` üretmediği için
+`ValidationPipe` gövde doğrulamasını SESSİZCE atlıyor, `@IsUUID()`
+dekoratörleri etkisiz kalıyor ve ham değer repository'ye ulaşıp Postgres'ten
+`22P02 invalid input syntax for type uuid` hatası sızdırıyordu.
+`breeding.controller.ts`'e projenin yerleşik **elle `isUUID()`** ikinci
+savunma hattı eklendi (`horse`/`market`/`matchmaking` controller'larıyla
+AYNI desen).
+
+**AÇIK KALAN AYNI SINIF HATA:** `send-gift.use-case.ts` `recipientId`'yi
+yalnızca `@IsUUID()` ile doğrular → aynı 500'e açıktır. Bu dilimin kapsamı
+dışında bırakıldı, ayrıca ele alınmalıdır.
 
 ---
 
