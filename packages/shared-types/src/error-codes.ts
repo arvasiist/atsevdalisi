@@ -226,6 +226,29 @@ export const ErrorCode = {
    * oyuncunun aynı yarışa İKİ atla girmesini engeller.
    */
   AlreadyJoinedRace: 'ALREADY_JOINED_RACE',
+  /**
+   * READY gövdesi geçersiz (400) — `status` yok, metin değil ya da
+   * `ready`/`not_ready` dışında bir değer. `POST /races/:id/ready`
+   * (brief §6, §42 PHASE 3).
+   *
+   * **`waiting` ve `cancelled` BİLİNÇLİ OLARAK SEÇİLEMEZ:** `waiting`
+   * "henüz karar vermedim"in kaydıdır ve geri dönülemez; `cancelled` ise
+   * bir İADE politikası gerektiren ayrı bir iştir (bkz.
+   * `domain/race/lobby.ts` → `READY_SETTABLE_STATUSES`).
+   */
+  InvalidEntryReadyInput: 'INVALID_ENTRY_READY_INPUT',
+  /**
+   * Oyuncunun bu yarışta katılım satırı yok (404) —
+   * `POST /races/:id/ready` (brief §6, §42 PHASE 3). 403 değil 404:
+   * üzerinde işlem yapılacak kaynağın KENDİSİ yoktur.
+   */
+  RaceEntryNotFound: 'RACE_ENTRY_NOT_FOUND',
+  /**
+   * Katılım durumu şu an değiştirilemez (409): yarış `scheduled` değil,
+   * başlangıç zamanı geçmiş ya da katılım iptal edilmiş —
+   * `POST /races/:id/ready` (brief §6, §42 PHASE 3).
+   */
+  RaceEntryNotReadyable: 'RACE_ENTRY_NOT_READYABLE',
 } as const;
 
 export type ErrorCodeValue = (typeof ErrorCode)[keyof typeof ErrorCode];

@@ -1,7 +1,7 @@
 import type { RaceLobbyConfig } from '@at-sevdalisi/game-config';
 // Katılım (PHASE 1b) taktik/risk alanları — `RacingStyle`/`RiskLevel`
 // `race_entries` CHECK kısıtlarının (migration 0006) TS karşılığıdır.
-import type { RacingStyle, RiskLevel } from '@at-sevdalisi/shared-types';
+import type { RaceEntryStatus, RacingStyle, RiskLevel } from '@at-sevdalisi/shared-types';
 
 /**
  * Oyuncunun OLUŞTURDUĞU yarışın tanımı (brief §1-§7, §9-§11, §42 PHASE 1).
@@ -513,4 +513,148 @@ export function nextGatePosition(used: readonly number[]): number {
     candidate += 1;
   }
   return candidate;
+}
+
+/**
+ * READY düğmesiyle SEÇİLEBİLECEK katılım durumları (brief §6, §42 PHASE 3).
+ *
+ * **NEDEN AYRI BİR LİSTE — config'teki `entryStatuses` DEĞİL:** ikisi
+ * FARKLI soruları cevaplar. `entryStatuses` (config) "`race_entries.status`
+ * sütununda HANGİ değerler bulunabilir" sorusunun cevabıdır ve migration
+ * 0037'nin CHECK kısıtıyla birebir aynı olmak zorundadır. Buradaki liste
+ * ise "bir OYUNCU hangilerini SEÇEBİLİR" sorusunun cevabıdır ve bu bir
+ * oyun ayarı değil, protokol kuralıdır:
+ *
+ * - `waiting` SEÇİLEMEZ. Katılım anında yazılan başlangıç durumudur
+ *   (`joinLobbyRace`); oyuncunun "kararımı geri aldım" demenin yolu
+ *   `not_ready`'dir, `waiting`'e dönmek değil — aksi hâlde "hiç karar
+ *   vermemiş" ile "kararını geri almış" ayırt edilemezdi ve lobi
+ *   göstergesi yalan söylerdi.
+ * - `cancelled` SEÇİLEMEZ. Katılım iptali bir PARA YOLUDUR: ücretli bir
+ *   yarışta iade politikası gerektirir (`economy_transactions` kaydı,
+ *   `prize_pool` düşümü). READY ucundan `cancelled` yazılabilseydi, ücret
+ *   ödemeden çıkmanın ya da havuzu bozmanın bir yolu doğardı. İptal AYRI
+ *   bir uç olarak, iade kararı verildiğinde eklenecektir.
+ */
+export const READY_SETTABLE_STATUSES: readonly RaceEntryStatus[] = ['ready', 'not_ready'];
+
+/**
+ * READY isteğinin HAM gövdesi (brief §6, §42 PHASE 3).
+ *
+ * Tek alan `unknown`'dır — `RaceJoinInput` ile AYNI gerekçe: gövde esbuild
+ * altında doğrulanmadan gelir (CLAUDE.md kural 5), `status` çalışma anında
+ * gerçekten bir sayı, dizi ya da `null` olabilir.
+ */
+export interface EntryReadyInput {
+  /** Oyuncunun seçtiği yeni durum — `READY_SETTABLE_STATUSES`'tan biri. */
+  status: unknown;
+}
+
+/** `validateEntryReady`'nin başarılı çıktısı — daraltılmış, güvenli değer. */
+export interface ValidatedEntryReady {
+  status: RaceEntryStatus;
+}
+
+export interface EntryReadyValidation {
+  problems: string[];
+  /** Sorun varsa `null`; yoksa DARALTILMIŞ değer. */
+  value: ValidatedEntryReady | null;
+}
+
+/**
+ * READY gövdesini doğrular ve daraltır (brief §6, §42 PHASE 3).
+ *
+ * **NEDEN DTO DEKORATÖRÜ YETMEZ:** CLAUDE.md kural 5 — Vitest/esbuild
+ * `design:paramtypes` üretmediği için `ValidationPipe` gövdeyi HİÇ
+ * doğrulamaz. `@IsIn(READY_SETTABLE_STATUSES)` yazmak gerçek bir HTTP
+ * sunucusunda çalışır ama testlerde ve esbuild altında SESSİZCE atlanır;
+ * bu yüzden kural burada, tek doğruluk kaynağı olarak durur.
+ *
+ * `problems` FIRLATMAZ, toplar — `validateRaceJoin`/`validateRaceCreation`
+ * ile AYNI desen; nedeni domain hatasına çevirmek use-case'in işidir.
+ */
+export function validateEntryReady(input: EntryReadyInput): EntryReadyValidation {
+  const problems: string[] = [];
+
+  let status: RaceEntryStatus | null = null;
+  if (typeof input.status !== 'string') {
+    problems.push('Katılım durumu bir metin olmalıdır.');
+  } else if (!READY_SETTABLE_STATUSES.includes(input.status as RaceEntryStatus)) {
+    // `cancelled`/`waiting` burada AÇIKÇA reddedilir — sessizce yok saymak,
+    // istemciye "durum değişti" dedirtip değiştirmemek olurdu.
+    problems.push(`Katılım durumu şunlardan biri olmalıdır: ${READY_SETTABLE_STATUSES.join(', ')}.`);
+  } else {
+    status = input.status as RaceEntryStatus;
+  }
+
+  return { problems, value: status === null ? null : { status } };
+}
+
+/** `checkEntryReadyable`'ın ret nedenleri. */
+export type EntryReadyRejection = 'NOT_SCHEDULED' | 'ALREADY_STARTED' | 'CANCELLED';
+
+/**
+ * READY isteğinin ŞU AN yapılıp yapılamayacağını söyler; engel yoksa `null`.
+ *
+ * `checkRaceJoinable` ile AYNI desen (fırlatmaz, sonuç döndürür) ve AYNI
+ * gerekçe: kural DB transaction'ı olmadan tek başına test edilebilmelidir.
+ * Nedeni domain hatasına çevirmek `set-entry-ready.use-case`'in işidir.
+ *
+ * **ZATEN İSTENEN DURUMDA OLMAK RED NEDENİ DEĞİLDİR.** İstemci aynı düğmeye
+ * iki kez basarsa (ya da yanıt kaybolup istek tekrarlanırsa) sonuç aynı
+ * olmalıdır — READY bir MUTASYON değil, bir DURUM BİLDİRİMİDİR ve
+ * idempotenttir. Bu yüzden `checkEntryReadyable` mevcut duruma hiç bakmaz;
+ * aynı değeri yeniden yazmak yalnızca gereksiz bir UPDATE olur.
+ */
+export function checkEntryReadyable(
+  race: { status: string; startTime: Date },
+  entry: { status: string | null },
+  now: Date,
+): EntryReadyRejection | null {
+  if (race.status !== 'scheduled') {
+    return 'NOT_SCHEDULED';
+  }
+  // Sınırda (`now === startTime`) KAPALI — `checkRaceJoinable` ile AYNI
+  // kural: motorun snapshot'ı tam o anda alınır.
+  if (race.startTime.getTime() <= now.getTime()) {
+    return 'ALREADY_STARTED';
+  }
+  // `status` NULLABLE'dır (migration 0037): pratik/PvP satırları zaten
+  // KOŞMUŞ yarışların kayıtlarıdır. Lobiye ait OLMAYAN bir satıra READY
+  // yazmak anlamsızdır — ama bu durum pratikte `race.status` kontrolüne
+  // takılır (o yarışlar `finished`'dir); yine de kural burada AÇIKÇA
+  // durur, çünkü "hangi satırlara yazılabilir" sorusu yarışın durumuna
+  // bırakılamayacak kadar kritiktir.
+  if (entry.status === 'cancelled') {
+    return 'CANCELLED';
+  }
+  return null;
+}
+
+/**
+ * `GET /races`'in `limit` sorgu parametresini normalize eder (PHASE 3).
+ *
+ * **`unknown` ALIR** çünkü sorgu parametreleri her zaman METİNDİR
+ * (`?limit=abc` gerçekten gelebilir) ve `@Query()` değerleri de esbuild
+ * altında doğrulanmaz (CLAUDE.md kural 5).
+ *
+ * **HATALI GİRDİ 400 DEĞİL, VARSAYILANA DÜŞER — ve bu bilinçlidir:** bu
+ * bir LİSTELEME ucudur, mutasyon değil. `limit=abc` yüzünden tüm lobiyi
+ * göstermemek, kullanıcıya hiçbir şey kazandırmaz. Sessizce kırpma
+ * `lobbyListMaxLimit` için de geçerlidir (bkz. o alanın doc yorumu).
+ */
+export function normalizeLobbyListLimit(
+  raw: unknown,
+  config: Pick<RaceLobbyConfig, 'lobbyListDefaultLimit' | 'lobbyListMaxLimit'>,
+): number {
+  if (typeof raw !== 'string' || raw.trim() === '') {
+    return config.lobbyListDefaultLimit;
+  }
+  const parsed = Number(raw);
+  // `Number('')` 0'dır, `Number(' 12 ')` 12'dir, `Number('abc')` NaN'dır.
+  // `Number.isInteger` NaN'ı ve ondalıkları birlikte eler.
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    return config.lobbyListDefaultLimit;
+  }
+  return Math.min(parsed, config.lobbyListMaxLimit);
 }

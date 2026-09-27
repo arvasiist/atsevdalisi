@@ -2,8 +2,10 @@ import type {
   PvpMatch,
   Race,
   RaceEntry,
+  RaceEntryStatus,
   RaceLobbyView,
   RaceSegmentSnapshot,
+  RaceStatus,
   RaceTimelineView,
   RacingStyle,
   RecentRaceResultView,
@@ -215,6 +217,70 @@ export interface RaceRepository {
    * (`PlayerNotFoundError`, `InsufficientFundsError`).
    */
   joinLobbyRace(input: JoinLobbyRaceInput): Promise<RaceLobbyView>;
+
+  /**
+   * Katılınabilir lobi yarışlarını listeler (brief §5 "doluluk", §42
+   * PHASE 3).
+   *
+   * **PARA/ENVANTER OKUMAZ-YAZMAZ** — yalnızca `races` + `race_entries`
+   * okur. Bu yüzden kilit ve transaction YOKTUR: liste, ANLIK bir
+   * görüntüdür ve tutarlılık gerektirmez. Kilit almak, her lobi
+   * yenilemesini yarışa katılan oyuncuların arkasında sıraya sokardı.
+   *
+   * Sıralama `start_time ASC`'dir: en yakın başlayacak yarış en üstte
+   * olmalıdır — oyuncunun kararı zaten "hangi yarışa YETİŞEBİLİRİM"
+   * sorusudur.
+   */
+  listLobbyRaces(input: ListLobbyRacesInput): Promise<RaceLobbyView[]>;
+
+  /**
+   * Oyuncunun KENDİ katılım satırının durumunu değiştirir (brief §6, §42
+   * PHASE 3) ve güncel lobi görünümünü döner.
+   *
+   * **PARA YOLU DEĞİLDİR:** bakiye, ödül havuzu ve deftere HİÇ
+   * dokunulmaz — `status` alanı yalnızca "hazırım" bildirimidir. Bu
+   * yüzden `joinLobbyRace`'in aksine `Idempotency-Key` de gerekmez:
+   * aynı değeri iki kez yazmak sonucu değiştirmez (bkz.
+   * `checkEntryReadyable` doc yorumu).
+   *
+   * Yine de TEK transaction'dır ve yarış satırını `FOR UPDATE` ile
+   * KİLİTLER: aksi hâlde "yarış hâlâ `scheduled` mı" kontrolü ile yazma
+   * arasında yarış başlayabilir ve koşmuş bir yarışa `ready` yazılırdı.
+   *
+   * Hata FIRLATIR (`RaceEntryNotFoundError`, `RaceEntryNotReadyableError`)
+   * — `joinLobbyRace` ile AYNI desen.
+   */
+  setEntryReady(input: SetEntryReadyInput): Promise<RaceLobbyView>;
+}
+
+/**
+ * `RaceRepository.listLobbyRaces` (brief §5, §42 PHASE 3) girdi şekli.
+ *
+ * `limit` buraya NORMALİZE EDİLMİŞ gelir (`normalizeLobbyListLimit`) —
+ * ham sorgu parametresi asla repository'ye inmez; sınır bilgisi
+ * `config/race-lobby.config.json`'dadır (CLAUDE.md "SİHİRLİ SAYI YOK").
+ */
+export interface ListLobbyRacesInput {
+  /** Hangi durumdaki yarışlar — lobi için pratikte her zaman `scheduled`. */
+  status: RaceStatus;
+  /** Azami kayıt sayısı — çağıran tarafından config'e göre kırpılmıştır. */
+  limit: number;
+}
+
+/**
+ * `RaceRepository.setEntryReady` (brief §6, §42 PHASE 3) girdi şekli.
+ *
+ * `playerId` **`CurrentPlayer()`'dan gelir, gövdeden ASLA** (CLAUDE.md
+ * kural 1). `status` daraltılmıştır (`READY_SETTABLE_STATUSES`) — ham
+ * gövde asla buraya ulaşmaz.
+ */
+export interface SetEntryReadyInput {
+  raceId: string;
+  /** Katılımı değiştirilecek oyuncu — `CurrentPlayer()`. */
+  playerId: string;
+  status: RaceEntryStatus;
+  /** Şu an — `checkEntryReadyable`'a geçirilir; test edilebilirlik için parametredir. */
+  now: Date;
 }
 
 /**

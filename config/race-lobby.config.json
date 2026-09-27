@@ -12,5 +12,7 @@
   "maxOpenRacesPerPlayer": 3,
   "allowedSurfaces": ["grass", "dirt", "synthetic"],
   "allowedWeather": ["sunny", "rainy", "windy", "cloudy", "hot", "cold"],
-  "entryStatuses": ["waiting", "ready", "not_ready", "cancelled"]
+  "entryStatuses": ["waiting", "ready", "not_ready", "cancelled"],
+  "lobbyListDefaultLimit": 20,
+  "lobbyListMaxLimit": 100
 }

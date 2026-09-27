@@ -198,3 +198,56 @@ export class AlreadyJoinedRaceError extends Error {
     this.name = 'AlreadyJoinedRaceError';
   }
 }
+
+/**
+ * READY gövdesi geçersiz (400) — brief §6, §42 PHASE 3.
+ * `InvalidRaceJoinInputError` ile AYNI gerekçe: gövde esbuild altında
+ * doğrulanmadan gelir, kural `domain/race/lobby.ts` → `validateEntryReady`
+ * içinde BAĞIMSIZ olarak durur.
+ */
+export class InvalidEntryReadyInputError extends Error {
+  constructor(public readonly problems: string[]) {
+    super(`Geçersiz katılım durumu isteği: ${problems.join(' ')}`);
+    this.name = 'InvalidEntryReadyInputError';
+  }
+}
+
+/**
+ * Oyuncunun bu yarışta bir katılım satırı yok (404) — READY/ileride iptal
+ * uçlarının ortak ön koşulu (brief §6, §42 PHASE 3).
+ *
+ * **NEDEN 403 DEĞİL 404:** `HorseNotOwnedError`'un 403 olmasından AYRIŞMASI
+ * bilinçlidir. Orada oyuncu VAR OLAN bir kaynağa (başkasının atına)
+ * erişmeye çalışır ve reddedilir. Burada ise oyuncunun bu yarışta hiç
+ * katılımı YOKTUR — yani üzerinde işlem yapılacak kaynak bulunamaz.
+ * Ayrıca 403 dönmek "bu yarışta bir katılım var ama senin değil" bilgisini
+ * sızdırırdı; lobide bu bilgi zaten açıktır ama uç noktanın kendisi böyle
+ * bir çıkarım için zemin olmamalıdır.
+ */
+export class RaceEntryNotFoundError extends Error {
+  constructor(public readonly raceId: string, public readonly playerId: string) {
+    super('Bu yarışta size ait bir katılım bulunamadı.');
+    this.name = 'RaceEntryNotFoundError';
+  }
+}
+
+/**
+ * READY penceresi kapalı (409) — yarış `scheduled` değil, başlangıç zamanı
+ * geçmiş ya da katılım İPTAL edilmiş. Ret nedeni `EntryReadyRejection`'dan
+ * gelir (`domain/race/lobby.ts` → `checkEntryReadyable`).
+ *
+ * `RaceNotJoinableError` ile AYNI gerekçeyle 409: istek biçimsel olarak
+ * kusursuz, engelleyen şey DURUMDUR.
+ */
+export class RaceEntryNotReadyableError extends Error {
+  constructor(public readonly reason: 'NOT_SCHEDULED' | 'ALREADY_STARTED' | 'CANCELLED') {
+    super(
+      reason === 'ALREADY_STARTED'
+        ? 'Yarış başladı, katılım durumu artık değiştirilemez.'
+        : reason === 'CANCELLED'
+          ? 'Katılımınız iptal edilmiş.'
+          : 'Bu yarışta katılım durumu değiştirilemez.',
+    );
+    this.name = 'RaceEntryNotReadyableError';
+  }
+}

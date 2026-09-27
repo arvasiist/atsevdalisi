@@ -1195,4 +1195,20 @@ export interface RaceLobbyConfig {
    * (bkz. `race-lobby-config.spec.ts`, migration dosyası OKUNARAK).
    */
   entryStatuses: string[];
+  /**
+   * `GET /races` lobi listesinin, istek `limit` VERMEDİĞİNDE döneceği kayıt
+   * sayısı (PHASE 3). Sayfalama yoktur — lobi listesi "şu an katılabileceğin
+   * yarışlar" listesidir ve bu küme `maxOpenRacesPerPlayer` × oyuncu sayısı
+   * kadar büyüyebilir; yine de istemciye SINIRSIZ bir yanıt göndermek
+   * bellek ve bant genişliği açısından kabul edilemez (brief §18
+   * performans).
+   */
+  lobbyListDefaultLimit: number;
+  /**
+   * `GET /races`'in kabul ettiği AZAMI `limit` (PHASE 3). Bunun üstündeki
+   * bir istek 400 DEĞİL, bu değere KIRPILIR: istemcinin "hepsini getir"
+   * demesi meşrudur, sunucunun bunu reddetmesi için bir sebep yoktur —
+   * kırpmak hem isteği karşılar hem sunucuyu korur.
+   */
+  lobbyListMaxLimit: number;
 }

@@ -4,6 +4,8 @@ import { RACE_REPOSITORY } from '../../application/ports/race.repository';
 import { HORSE_EQUIPMENT_REPOSITORY } from '../../application/ports/horse-equipment.repository';
 import { CreateRaceUseCase } from '../../application/use-cases/create-race.use-case';
 import { JoinRaceUseCase } from '../../application/use-cases/join-race.use-case';
+import { ListLobbyRacesUseCase } from '../../application/use-cases/list-lobby-races.use-case';
+import { SetEntryReadyUseCase } from '../../application/use-cases/set-entry-ready.use-case';
 import { GetHorseMarketValueUseCase } from '../../application/use-cases/get-horse-market-value.use-case';
 import { GetLeaderboardUseCase } from '../../application/use-cases/get-leaderboard.use-case';
 import { GetRaceTimelineUseCase } from '../../application/use-cases/get-race-timeline.use-case';
@@ -58,6 +60,14 @@ import { RecentRacesController } from './recent-races.controller';
     // bağımlılıkları (`REDIS_CLIENT`, `PG_POOL`, `AppConfigService`) kök
     // modülden çözülür (`grandstand.controller.ts` ile AYNI desen).
     JoinRaceUseCase,
+    // brief §42 PHASE 3 — lobi listesi (`GET /races`). Bağımlılık profili
+    // `CreateRaceUseCase` ile AYNIdır (`RACE_REPOSITORY` + `@Global()`
+    // `AppConfigService`); ek modül importu GEREKMEZ.
+    ListLobbyRacesUseCase,
+    // brief §42 PHASE 3 — READY düğmesi (`POST /races/:id/ready`).
+    // Yalnızca `RACE_REPOSITORY` taşır; `IdempotencyInterceptor` bilinçli
+    // olarak YOKTUR (para yolu değildir, bkz. `SetEntryReadyUseCase`).
+    SetEntryReadyUseCase,
     GetRecentRaceResultsUseCase,
     // AUDIT_REPORT.md Bulgu R2 (Medium, bu oturum) — bkz. `get-race-timeline.use-case.ts` doc yorumu.
     GetRaceTimelineUseCase,

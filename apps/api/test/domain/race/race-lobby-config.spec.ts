@@ -295,3 +295,40 @@ describe('race-lobby.config.json — katılım durumları migrasyonla AYNI (brie
     expect(/DEFAULT/i.test(addColumn?.[1] as string)).toBe(false);
   });
 });
+
+describe('race-lobby.config.json — lobi listesi tavanı (brief §18, §42 PHASE 3)', () => {
+  it('lobbyListDefaultLimit pozitif bir tam sayıdır', () => {
+    expect(Number.isInteger(config.lobbyListDefaultLimit)).toBe(true);
+    // 0 olsaydı `?limit` verilmeyen HER liste isteği boş dönerdi — ve bu,
+    // "lobi boş" ile "varsayılan bozuk" ayrımını istemcide imkânsız kılardı.
+    expect(config.lobbyListDefaultLimit).toBeGreaterThan(0);
+  });
+
+  it('lobbyListMaxLimit pozitif bir tam sayıdır', () => {
+    expect(Number.isInteger(config.lobbyListMaxLimit)).toBe(true);
+    expect(config.lobbyListMaxLimit).toBeGreaterThan(0);
+  });
+
+  it('varsayılan tavanı AŞMAZ', () => {
+    // `normalizeLobbyListLimit` varsayılanı KIRPMAZ, doğrudan döner
+    // (`Math.min` yalnızca ayrıştırılmış girdiye uygulanır). Varsayılan
+    // tavanı aşarsa, parametresiz her istek kendi kuralını çiğnerdi.
+    expect(config.lobbyListDefaultLimit).toBeLessThanOrEqual(config.lobbyListMaxLimit);
+  });
+
+  it('tavan, varsayılanın anlamlı biçimde üstünde ya da eşittir', () => {
+    // `max < default` olamaz (yukarıdaki iddia); `max === default` ise
+    // `?limit` parametresinin HİÇBİR etkisi kalmaz ve sessizce ölü bir
+    // API yüzeyi doğar. İkisi de kabul edilebilir ama hangisi olduğu
+    // burada AÇIKÇA sabitlenir ki config'e yazım hatasıyla `max = 20`
+    // düşerse test konuşsun.
+    expect(config.lobbyListMaxLimit).toBeGreaterThanOrEqual(config.lobbyListDefaultLimit);
+  });
+
+  it('tavan, tek bir yanıtta istemciyi boğmayacak kadar küçüktür', () => {
+    // Sihirli sayı DEĞİL, bir güvenlik üst sınırı: `LIMIT $2` doğrudan
+    // SQL'e gider ve sınırsız bir liste tüm `races` tablosunu belleğe
+    // çekerdi. 1000, "hâlâ makul" sayılanın çok üstünde bir uyarı eşiğidir.
+    expect(config.lobbyListMaxLimit).toBeLessThanOrEqual(1_000);
+  });
+});

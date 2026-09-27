@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Get,
   Headers,
   HttpCode,
   HttpStatus,
@@ -8,16 +9,20 @@ import {
   Param,
   ParseUUIDPipe,
   Post,
+  Query,
   UseInterceptors,
 } from '@nestjs/common';
 import type { ApiSuccess, RaceLobbyView } from '@at-sevdalisi/shared-types';
 import { CreateRaceUseCase } from '../../application/use-cases/create-race.use-case';
 import { JoinRaceUseCase } from '../../application/use-cases/join-race.use-case';
+import { ListLobbyRacesUseCase } from '../../application/use-cases/list-lobby-races.use-case';
+import { SetEntryReadyUseCase } from '../../application/use-cases/set-entry-ready.use-case';
 import { CurrentPlayer, type AuthenticatedPlayer } from '../auth/current-player.decorator';
 import { IdempotencyInterceptor } from '../idempotency/idempotency.interceptor';
 import { IdempotencyScope } from '../idempotency/idempotency-scope.decorator';
 import { RateLimit } from '../rate-limit/rate-limit.decorator';
 import { CreateRaceDto } from './dto/create-race.dto';
+import { EntryReadyDto } from './dto/entry-ready.dto';
 import { JoinRaceDto } from './dto/join-race.dto';
 
 /**
@@ -39,7 +44,41 @@ export class RaceLobbyController {
   constructor(
     @Inject(CreateRaceUseCase) private readonly createRaceUseCase: CreateRaceUseCase,
     @Inject(JoinRaceUseCase) private readonly joinRaceUseCase: JoinRaceUseCase,
+    @Inject(ListLobbyRacesUseCase) private readonly listLobbyRacesUseCase: ListLobbyRacesUseCase,
+    @Inject(SetEntryReadyUseCase) private readonly setEntryReadyUseCase: SetEntryReadyUseCase,
   ) {}
+
+  /**
+   * Lobi listesi — şu an katılabilecek yarışlar (brief §5, §42 PHASE 3).
+   *
+   * **`limit` DIŞINDA PARAMETRE YOKTUR** ve bu bilinçlidir: liste her zaman
+   * `status = 'scheduled'` yarışları döner (lobi tanımı budur) ve sıralama
+   * sabittir (en yakın başlayacak en üstte). İstemciye "hangi durumdaki
+   * yarışlar" diye sormak, ona anlamsız bir seçim sunmak olurdu —
+   * gerekçenin tamamı `ListLobbyRacesUseCase` doc yorumunda.
+   *
+   * **`@CurrentPlayer()` YOKTUR:** liste oyuncuya ÖZEL DEĞİLDİR — aynı
+   * yarışlar herkese görünür. Buna rağmen uç KORUMALIDIR: `AuthGuard`
+   * `app.module.ts`'te `APP_GUARD` olarak global kayıtlıdır ve `@Public()`
+   * işareti olmayan her rota token ister. Lobi listesini token'sız açmak,
+   * `maxOpenRacesPerPlayer` tavanının koruduğu "keşif listesini çöple
+   * doldurma" yüzeyini (brief §26) anonim erişime açardı.
+   *
+   * **`@RateLimit` VAR, `IdempotencyInterceptor` YOK:** okuma yoludur,
+   * hiçbir şey yazmaz — ama sınırsız bırakmak veritabanını tekrarlı
+   * taramaya sokar. Tavan `join`'den YÜKSEK (60), çünkü lobi listesi bir
+   * akışın parçasıdır: oyuncu listeyi yeniler, filtreler, geri döner.
+   */
+  @RateLimit({ name: 'race-list', limit: 60, windowSeconds: 60, keyBy: 'player' })
+  @Get()
+  @HttpCode(HttpStatus.OK)
+  async list(@Query('limit') limit: string | undefined): Promise<ApiSuccess<RaceLobbyView[]>> {
+    // `limit` HAM geçirilir (`unknown` alan bir imzaya) — `create`/`join`
+    // ile AYNI desen: sorgu parametresi her zaman metindir ve `?limit=abc`
+    // gerçekten gelebilir. Daraltma/kırpma `normalizeLobbyListLimit`'tedir.
+    const races = await this.listLobbyRacesUseCase.execute(limit);
+    return { success: true, data: races };
+  }
 
   /**
    * Yeni bir yarış tanımı açar. Varsayılan **201 Created** döner — bu,
@@ -126,6 +165,44 @@ export class RaceLobbyController {
     @CurrentPlayer() currentPlayer: AuthenticatedPlayer,
   ): Promise<ApiSuccess<RaceLobbyView>> {
     const race = await this.joinRaceUseCase.execute(id, currentPlayer.id, dto, idempotencyKey ?? null);
+    return { success: true, data: race };
+  }
+
+  /**
+   * READY düğmesi — oyuncunun KENDİ katılım durumunu bildirmesi
+   * (brief §6, §42 PHASE 3).
+   *
+   * **`Idempotency-Key` YOKTUR — ve bu bilinçli bir AYRIMDIR:** bu uç
+   * bakiye, ödül havuzu ve deftere DOKUNMAZ; `status` yalnızca "hazırım"
+   * bildirimidir. Aynı değeri iki kez yazmak sonucu değiştirmediği için
+   * (`checkEntryReadyable` mevcut duruma bakmaz) brief §54'ün zorunlu
+   * kıldığı `Idempotency-Key` kapsamına GİRMEZ — `join` ile AYNI
+   * sınıflandırma mantığı, ters yönden.
+   *
+   * **200 OK:** `purchaseTicket`/`join` ile AYNI sınıflandırma — yanıt
+   * gövdesi GÜNCELLENMİŞ lobi görünümüdür, yeni bir kaynak adresi doğmaz.
+   *
+   * **403 DEĞİL 404:** oyuncunun bu yarışta katılımı yoksa
+   * `RACE_ENTRY_NOT_FOUND` döner. Gerekçe `RaceEntryNotFoundError` doc
+   * yorumunda: ortada işlem yapılacak bir KAYNAK yoktur ve 403 dönmek
+   * "burada bir katılım var ama senin değil" bilgisini sızdırırdı.
+   *
+   * Tavan `join` ile AYNI (30): ikisi de bir yarış seçme akışının
+   * parçasıdır ve oyuncu birkaç yarış arasında gidip gelirken READY
+   * düğmesine art arda basabilir.
+   */
+  @RateLimit({ name: 'race-ready', limit: 30, windowSeconds: 60, keyBy: 'player' })
+  @Post(':id/ready')
+  @HttpCode(HttpStatus.OK)
+  async ready(
+    @Param('id', ParseUUIDPipe) id: string,
+    // `dto` HAM geçirilir — daraltmayı `validateEntryReady` yapar.
+    @Body() dto: EntryReadyDto,
+    // Oyuncu **TOKEN'DAN** gelir, gövdeden ASLA (CLAUDE.md "SUNUCU
+    // OTORİTESİ"): başkasının katılım satırı bu uçtan değiştirilemez.
+    @CurrentPlayer() currentPlayer: AuthenticatedPlayer,
+  ): Promise<ApiSuccess<RaceLobbyView>> {
+    const race = await this.setEntryReadyUseCase.execute(id, currentPlayer.id, dto);
     return { success: true, data: race };
   }
 }

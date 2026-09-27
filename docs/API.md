@@ -1448,6 +1448,15 @@ GET  /api/v1/races/{id}/replay        # seed + snapshot + config (brief §58)
 POST /api/v1/races/{id}/claim-reward  # Idempotency-Key zorunlu (brief §54)
 ```
 
+> **`GET /races` ARTIK VAR — ama "takvim" DEĞİL, "LOBİ"dir.** 27.09.2026'da
+> (brief §42 PHASE 3) yayına alınan `GET /races` yalnızca **şu an
+> katılınabilir** yarışları döner (`status = 'scheduled'`, `start_time ASC`).
+> Yukarıdaki "yol haritası" bloğundaki `GET /races` **takvim**
+> anlamındadır: geçmiş/gelecek TÜM yarışlar, sonuçlarıyla birlikte — o hâlâ
+> YOKTUR. İkisi aynı yolu paylaştığı için bu ayrım önemlidir; uç bugünkü
+> hâliyle lobi sözleşmesini uygular. Tam belge için aşağıdaki
+> "Ücretli Yarış Lobi" bölümüne bakın.
+
 `POST /api/v1/races/{id}/enter` — örnek istek:
 
 ```json
@@ -1482,6 +1491,164 @@ kazandım/kaybettim" özetini de içerir):
   }
 }
 ```
+
+### Ücretli Yarış Lobi — oluştur / listele / katıl / hazır (brief §1-§7, §42 PHASE 1 + 3)
+
+**Oyuncunun kendi açtığı yarış** — sunucunun ürettiği pratik yarıştan
+(§4 `POST /horses/{id}/practice-race`) farkı: yarışı bir OYUNCU açar, giriş
+ücreti gerçek oyunculardan tahsil edilir ve o para `races.prize_pool`'a
+girer. Kontrolcü `api/race/race-lobby.controller.ts`'tir; iş kuralı
+`domain/race/lobby.ts`'te, para yolu `postgres-race.repository.ts`'tedir.
+
+```http
+POST /api/v1/races                # yeni yarış tanımı açar (201)
+GET  /api/v1/races                # lobi listesi: yalnızca katılınabilir yarışlar
+POST /api/v1/races/{id}/join      # KATIL — Idempotency-Key ZORUNLU (PARA YOLU)
+POST /api/v1/races/{id}/ready     # READY/NOT_READY bildirimi (para yolu DEĞİL)
+```
+
+Dördü de **kimliği doğrulanmış oyuncu** ister (`AuthGuard` global); oyuncu
+her zaman **token'dan** gelir, gövdeden ASLA — gövdede `playerId` gönderilse
+bile yok sayılır (CLAUDE.md "SUNUCU OTORİTESİ").
+
+#### `POST /races` — yarış açma
+
+Gövde: `name`, `fieldSize` (8/10/12/14/16), `maxPlayers`, `entryFee`,
+`raceType` (`free`|`paid`), `startTime` (ISO 8601), `surface`, `weather`,
+`distanceMeters`, `tribuneFee`, `spectatorCapacity`. Tümü
+`config/race-lobby.config.json`'daki seçeneklerden biri olmalıdır.
+
+**`Idempotency-Key` YOKTUR ve bu bilinçlidir:** bu uç hiçbir bakiye/ödül/
+envanter değiştirmez (ücret yarışa KATILIRKEN alınır) — brief §54'ün zorunlu
+kıldığı kapsama girmez. Buna karşılık `@RateLimit` (10/60 sn, oyuncu başına)
+vardır, çünkü her istek kalıcı bir `races` satırı yazar. Ayrıca
+`maxOpenRacesPerPlayer` (config) oyuncunun AÇIK yarış sayısını sınırlar —
+biri HIZ, diğeri SAYI sınırıdır.
+
+`raceType: 'paid'` ile `entryFee: 0` çelişir; `raceType: 'free'` ile
+`entryFee > 0` de öyle. Bu kural hem domain'de hem migration 0036'daki
+`(race_type = 'paid') = (entry_fee > 0)` CHECK'inde durur.
+
+#### `GET /races` — lobi listesi
+
+`?limit=` (varsayılan 20, tavan 100 — `config/race-lobby.config.json →
+lobbyListDefaultLimit` / `lobbyListMaxLimit`). **Geçersiz `limit` 400
+DÖNMEZ, varsayılana düşer**; tavanı aşan değer kırpılır. Bu bir okuma
+ucudur — bir liste isteğini hatalı bir sorgu parametresi yüzünden
+reddetmek kullanıcıya hiçbir şey kazandırmaz.
+
+Yanıt `RaceLobbyView[]`:
+
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": "...", "name": "...", "status": "scheduled",
+      "entryFee": 250, "raceType": "paid", "prizePool": 750,
+      "maxPlayers": 8, "joinedPlayers": 3,
+      "startTime": "2026-09-28T18:00:00.000Z",
+      "surface": "grass", "weather": "sunny", "distanceMeters": 1600,
+      "tribuneFee": 10, "spectatorCapacity": 500
+    }
+  ]
+}
+```
+
+- **Yalnızca `status = 'scheduled'`** yarışlar döner. `in_progress` /
+  `finished` / `cancelled` yarışlar listede GÖRÜNMEZ — görünselerdi oyuncu
+  katılamayacağı bir yarışa tıklar ve `RACE_NOT_JOINABLE` yerdi.
+- **`joinedPlayers` GERÇEK oyuncuları sayar, botları SAYMAZ.**
+  (`COUNT(e.player_id)`, `COUNT(*)` değil.) Bot satırları brief §6 "kalan
+  koltuklar AI ile dolar" kuralı yüzünden her yarışta bulunur; sayılsalardı
+  lobi her yarışı DOLU gösterirdi.
+- **Katılımı olmayan yarış da görünür** (`LEFT JOIN`, `joinedPlayers: 0`).
+- **`prizePool` gerçek ödül havuzudur** — katılımlardan birikmiş giriş
+  ücretlerinin toplamı; henüz dağıtılmamıştır.
+
+#### `POST /races/{id}/join` — katılma (PARA YOLU)
+
+`Idempotency-Key` **ZORUNLUDUR**; yoksa 400. Gövde: `horseId` (zorunlu,
+UUID), `tacticalStyle`, `riskLevel` (isteğe bağlı — verilmezse varsayılan
+uygulanır).
+
+Akış tek bir transaction'dadır ve kilit sırası **`races` → `players`**'dır
+(ters sıra iki eşzamanlı katılımda kilitlenme üretirdi):
+
+1. `SELECT ... FOR UPDATE` ile yarış kilitlenir (durum + başlangıç zamanı +
+   doluluk aynı anda okunur; TOCTOU kapanır).
+2. `SELECT ... FOR UPDATE` ile oyuncu satırı kilitlenir.
+3. `debit()` ile giriş ücreti düşülür, `races.prize_pool` aynı tutar kadar
+   artar.
+4. `race_entries` satırı `player_id` **DONDURULARAK** ve `status =
+   'waiting'` ile yazılır.
+5. Aynı transaction'da `economy_transactions` defter kaydı yazılır.
+
+`player_id`'nin donmasının sebebi: ücreti ÖDEYEN ödülü almalıdır. At
+sonradan satılırsa `horses.owner_id` canlı okunsaydı ödül yanlış kişiye
+giderdi.
+
+**Aynı oyuncu aynı yarışa bir kez girebilir.** Kural uygulamadaki ön
+kontrolle değil, `race_entries_race_player_uq` **kısmi tekil indeksiyle**
+(migration 0037) zorlanır — iki eşzamanlı istek arasındaki yarışı yalnızca
+indeks kapatır.
+
+`max_players` **GERÇEK oyuncu** kontenjanıdır; kalan koltuklar yapay zekâyla
+dolar. Dolduysa `RACE_FULL`.
+
+200 OK döner (201 değil): gövde `RaceLobbyView`'dir ve katılımın kendi
+adresi yoktur.
+
+#### `POST /races/{id}/ready` — hazırım / hazır değilim
+
+Gövde: `{ "status": "ready" }` ya da `{ "status": "not_ready" }`.
+Yalnızca bu ikisi kabul edilir — `waiting` ve `cancelled` **reddedilir**
+(400). `cancelled` bilinçli olarak kapalıdır: iptal, giriş ücretinin iadesi
+demektir ve o ayrı bir para yoludur; READY ucundan yazılabilseydi ücret
+ödemeden çıkmanın bir yolu doğardı.
+
+**`Idempotency-Key` YOKTUR** — bu uç bakiye, ödül havuzu ve deftere
+dokunmaz; aynı değeri iki kez yazmak sonucu değiştirmez.
+
+Kabul koşulları: yarış `scheduled` olmalı, başlangıç zamanı gelmemiş olmalı
+(tam başlangıç anında pencere KAPALIDIR — `join` ile aynı sınır), katılım
+`cancelled` olmamalı. Red nedeni önceliği: **durum > zaman > iptal**.
+
+**403 DEĞİL 404:** oyuncunun bu yarışta katılımı yoksa
+`RACE_ENTRY_NOT_FOUND` döner. 403 dönmek "burada bir katılım var ama senin
+değil" bilgisini sızdırırdı.
+
+200 OK döner ve gövde GÜNCELLENMİŞ `RaceLobbyView`'dir (doluluk korunur —
+READY katılımı silmez).
+
+#### `POST /races` / `POST /races/{id}/join` — örnek istek/yanıt
+
+```json
+{ "horseId": "...", "tacticalStyle": "tracker", "riskLevel": "normal" }
+```
+
+```json
+{
+  "success": true,
+  "data": {
+    "id": "...", "name": "Hazırlık Kupası", "status": "scheduled",
+    "entryFee": 50, "raceType": "paid", "prizePool": 50,
+    "maxPlayers": 8, "joinedPlayers": 1,
+    "startTime": "2026-09-28T18:00:00.000Z",
+    "surface": "grass", "weather": "sunny", "distanceMeters": 1600,
+    "tribuneFee": 0, "spectatorCapacity": 500
+  }
+}
+```
+
+#### Kapsam dışı (henüz YOK)
+
+Yarışın **otomatik başlaması** yoktur: `scheduled` bir yarışı `in_progress`e
+çeviren bir zamanlayıcı (cron/worker) henüz bağlanmamıştır — bu yüzden
+`GET /races` listesindeki yarışlar katılım toplar ama kendiliğinden
+koşmaz. READY durumu da bu yüzden şu an **bilgi**dir: motor başlatma anında
+hangi atların "hazır" olduğunu henüz OKUMAZ. Ödül dağıtımı (`claim-reward`),
+jokey seçimi ve yarış takvimi de kapsam dışıdır.
 
 ## 7. Breeding (Yetiştiricilik)
 
@@ -1779,7 +1946,7 @@ dosyanın doc yorumu).
 | `HORSE_INJURED` | At sakat, işlem yapılamaz |
 | `INSUFFICIENT_FUNDS` | Oyuncunun parası işlemi karşılamıyor |
 | `INSUFFICIENT_ENERGY` | Antrenman için enerji yetersiz |
-| `RACE_FULL` | Yarış katılımcı limitine ulaştı |
+| `RACE_FULL` | Yarış katılımcı limitine ulaştı; `POST /races/:id/join`'de ayrıca GERÇEK oyuncu kontenjanı (`races.max_players`) doldu demektir (Ücretli yarış, 27.09.2026) |
 | `RACE_ALREADY_STARTED` | Yarış başladıktan sonra kayıt/değişiklik denemesi |
 | `LISTING_NOT_FOUND` | Pazar ilanı bulunamadı veya süresi doldu |
 | `IDEMPOTENCY_KEY_REQUIRED` | Kritik işlemde `Idempotency-Key` header'ı eksik |
@@ -1816,3 +1983,11 @@ dosyanın doc yorumu).
 | `GIFT_CURRENCY_NOT_ALLOWED` | Bu para birimi hediye olarak gönderilemez — `config/gift.config.json → allowedCurrencies` (Hediye, 27.09.2026) |
 | `GIFT_REQUIRES_FRIENDSHIP` | Alıcıyla kabul edilmiş bir arkadaşlık yok — hediye gönderilemez (Hediye, 27.09.2026) |
 | `DAILY_GIFT_LIMIT_REACHED` | Kayan penceredeki (`dailyWindowHours`) hediye SAYISI tavanı aşıldı — `config/gift.config.json → dailyLimit` (Hediye, 27.09.2026) |
+| `INVALID_RACE_DEFINITION` | Yarış tanımı geçersiz: ad uzunluğu, at sayısı (8/10/12/14/16 dışında), giriş ücreti, mesafe, başlangıç zamanı, tribün ücreti/kapasitesi ya da `raceType`–`entryFee` çelişkisi — `POST /races` (Ücretli yarış, 27.09.2026) |
+| `RACE_LIMIT_REACHED` | Oyuncunun AÇIK yarış sayısı tavanı aşıldı — `config/race-lobby.config.json → maxOpenRacesPerPlayer` — `POST /races` (Ücretli yarış, 27.09.2026) |
+| `INVALID_RACE_JOIN_INPUT` | Katılım gövdesi geçersiz: `horseId` yok, UUID değil ya da yanlış tipte; taktik/risk bilinen bir değer değil — `POST /races/:id/join` (Ücretli yarış, 27.09.2026) |
+| `RACE_NOT_JOINABLE` | Yarışa katılunamaz: durumu `scheduled` değil ya da başlangıç zamanı geçmiş — `POST /races/:id/join` (Ücretli yarış, 27.09.2026) |
+| `ALREADY_JOINED_RACE` | Oyuncu bu yarışa zaten katılmış; kural uygulamada değil `race_entries_race_player_uq` kısmi tekil indeksinde ZORLANIR (migration 0037) — `POST /races/:id/join` (Ücretli yarış, 27.09.2026) |
+| `INVALID_ENTRY_READY_INPUT` | READY gövdesi geçersiz: `status` yok, metin değil ya da `ready`/`not_ready` dışında bir değer (`waiting`/`cancelled` dâhil) — `POST /races/:id/ready` (Ücretli yarış lobisi, 27.09.2026) |
+| `RACE_ENTRY_NOT_FOUND` | Oyuncunun bu yarışta katılımı yok — `POST /races/:id/ready`. **403 DEĞİL 404:** ortada işlem yapılacak bir KAYNAK yoktur ve 403 "burada bir katılım var ama senin değil" bilgisini sızdırırdı (Ücretli yarış lobisi, 27.09.2026) |
+| `RACE_ENTRY_NOT_READYABLE` | Hazır-olma penceresi kapalı: yarış `scheduled` değil, başlangıç zamanı gelmiş (sınırda kapalı) ya da katılım `cancelled` — `POST /races/:id/ready`. Ret nedeni önceliği: durum > zaman > iptal (Ücretli yarış lobisi, 27.09.2026) |

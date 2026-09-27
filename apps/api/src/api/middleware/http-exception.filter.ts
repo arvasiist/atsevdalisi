@@ -42,10 +42,13 @@ import {
   AlreadyJoinedRaceError,
   HorseNotOwnedError,
   HorseNotReadyToRaceError,
+  InvalidEntryReadyInputError,
   InvalidRaceDefinitionError,
   InvalidRaceJoinInputError,
   InvalidRaceTacticError,
   InvalidRaceTierError,
+  RaceEntryNotFoundError,
+  RaceEntryNotReadyableError,
   RaceFullError,
   RaceLimitReachedError,
   RaceNotJoinableError,
@@ -346,6 +349,18 @@ const DOMAIN_ERROR_MAP = new Map<ErrorClassConstructor, { status: number; code: 
   [RaceNotJoinableError, { status: HttpStatus.CONFLICT, code: ErrorCode.RaceNotJoinable }],
   [RaceFullError, { status: HttpStatus.CONFLICT, code: ErrorCode.RaceFull }],
   [AlreadyJoinedRaceError, { status: HttpStatus.CONFLICT, code: ErrorCode.AlreadyJoinedRace }],
+  // PHASE 3 (READY düğmesi) — üçü de yukarıdaki kategorilerin TEKRARIDIR,
+  // yeni bir sınıflandırma getirmez:
+  //
+  // 400 — `InvalidRaceJoinInputError` ile AYNI kategori (istek kalıcı
+  // olarak bozuk; `status` alanı `ready`/`not_ready` değil).
+  [InvalidEntryReadyInputError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.InvalidEntryReadyInput }],
+  // 404 — `RaceNotFoundError`/`ListingNotFoundError` ile AYNI kategori:
+  // üzerinde işlem yapılacak KAYNAK yok (burada: oyuncunun katılım satırı).
+  // 403 DEĞİL — gerekçe `RaceEntryNotFoundError` doc yorumunda.
+  [RaceEntryNotFoundError, { status: HttpStatus.NOT_FOUND, code: ErrorCode.RaceEntryNotFound }],
+  // 409 — `RaceNotJoinableError` ile AYNI gerekçe: engelleyen şey DURUM.
+  [RaceEntryNotReadyableError, { status: HttpStatus.CONFLICT, code: ErrorCode.RaceEntryNotReadyable }],
 ]);
 
 /**

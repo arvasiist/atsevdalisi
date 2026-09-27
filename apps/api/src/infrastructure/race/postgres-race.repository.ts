@@ -18,18 +18,22 @@ import type {
   CreateLobbyRaceInput,
   CreateLobbyRaceResult,
   JoinLobbyRaceInput,
+  ListLobbyRacesInput,
   RaceRepository,
   SavePracticeRaceWithStakesInput,
   SavePracticeRaceWithStakesResult,
   SavePvpMatchWithRatingsInput,
   SavePvpMatchWithRatingsResult,
+  SetEntryReadyInput,
 } from '../../application/ports/race.repository';
 import type { EconomyLedgerEntryInput } from '../../application/ports/economy-ledger';
 import { applyPracticeRaceStakes } from '../../domain/race/prize';
-import { checkRaceJoinable, nextGatePosition } from '../../domain/race/lobby';
+import { checkEntryReadyable, checkRaceJoinable, nextGatePosition } from '../../domain/race/lobby';
 import {
   AlreadyJoinedRaceError,
   HorseNotOwnedError,
+  RaceEntryNotFoundError,
+  RaceEntryNotReadyableError,
   RaceFullError,
   RaceNotJoinableError,
   RaceNotFoundError,
@@ -918,6 +922,120 @@ export class PostgresRaceRepository implements RaceRepository {
       }
 
       return rowToLobbyRaceView(finalRow, joinedPlayers + 1);
+    });
+  }
+
+  /**
+   * Katılınabilir lobi yarışlarını listeler (brief §5, §42 PHASE 3) —
+   * `RaceRepository.listLobbyRaces` port doc yorumu okunmalıdır.
+   *
+   * **TEK SORGU, `GROUP BY` İLE DOLULUK.** Doluluk `race_entries`'ten
+   * TÜRETİLİR (tek doğruluk kaynağı; `races`'te denormalize bir sayaç
+   * yoktur — bkz. `rowToLobbyRaceView` doc yorumu). N+1 sorgudan
+   * kaçınmak için `LEFT JOIN ... GROUP BY` kullanılır: 20 yarışlık bir
+   * liste 20 ayrı `COUNT` sorgusu yerine TEK sorgudur (brief §18).
+   *
+   * `COUNT(e.player_id)` — `COUNT(*)` DEĞİL. Fark kritiktir: `COUNT(*)`
+   * bot satırlarını da sayardı ve lobi "8/8 dolu" gösterirken gerçek
+   * oyuncu sayısı 2 olurdu (brief §6: at sayısı ≠ oyuncu sayısı).
+   * `LEFT JOIN`'in `ON` koşulundaki `player_id IS NOT NULL` ise bot
+   * satırlarını JOIN'e hiç sokmaz — koşul `WHERE`'a yazılsaydı hiç
+   * katılımcısı olmayan yarışlar listeden DÜŞERDİ.
+   *
+   * **TRANSACTION YOK** — bilinçlidir: bu yol hiçbir şey yazmaz ve
+   * listeyi kilit altına almak, her lobi yenilemesini yarışa katılanların
+   * arkasında sıraya sokardı. Görüntünün ANLIK olması yeterlidir.
+   */
+  async listLobbyRaces(input: ListLobbyRacesInput): Promise<RaceLobbyView[]> {
+    const result = await this.pool.query<LobbyRaceRow & { joined_players: string }>(
+      `SELECT r.id, r.name, r.participant_limit, r.max_players, r.entry_fee, r.prize_pool,
+              r.start_time, r.status, r.race_type, r.surface, r.weather, r.distance_m,
+              r.tribune_fee, r.spectator_capacity, r.created_by, r.created_at,
+              COUNT(e.player_id) AS joined_players
+       FROM races r
+       LEFT JOIN race_entries e ON e.race_id = r.id AND e.player_id IS NOT NULL
+       WHERE r.status = $1
+       GROUP BY r.id
+       ORDER BY r.start_time ASC
+       LIMIT $2`,
+      [input.status, input.limit],
+    );
+
+    return result.rows.map((row) => rowToLobbyRaceView(row, Number(row.joined_players)));
+  }
+
+  /**
+   * Oyuncunun kendi katılım satırının durumunu değiştirir (brief §6, §42
+   * PHASE 3) — `RaceRepository.setEntryReady` port doc yorumu okunmalıdır.
+   *
+   * **PARA YOLU DEĞİL:** bakiye, `prize_pool` ve deftere dokunulmaz.
+   * Transaction yine de ŞARTTIR, ama başka bir sebeple: "yarış hâlâ
+   * `scheduled` mı" kontrolü ile yazma arasında yarış başlayabilir ve
+   * koşmuş bir yarışa `ready` yazılırdı. Yarış satırı bu yüzden
+   * `FOR UPDATE` ile kilitlenir.
+   *
+   * **KİLİT SIRASI: `races` → `race_entries`.** İlk kilit `joinLobbyRace`
+   * ile AYNIdır; bu, aynı yarışa eşzamanlı katılım + READY isteklerinin
+   * çapraz kilitlenme (deadlock) üretmemesini sağlar.
+   */
+  async setEntryReady(input: SetEntryReadyInput): Promise<RaceLobbyView> {
+    return withTransaction(this.pool, async (client) => {
+      // 1) Yarış satırını kilitle — kilit alındıktan sonra okunan durum
+      //    bu transaction boyunca değişmez.
+      const raceResult = await client.query<LobbyRaceRow>(
+        `SELECT id, name, participant_limit, max_players, entry_fee, prize_pool, start_time, status,
+                race_type, surface, weather, distance_m, tribune_fee, spectator_capacity, created_by, created_at
+         FROM races
+         WHERE id = $1
+         FOR UPDATE`,
+        [input.raceId],
+      );
+      const raceRow = raceResult.rows[0];
+      if (raceRow === undefined) {
+        throw new RaceNotFoundError(input.raceId);
+      }
+
+      // 2) Oyuncunun KENDİ katılım satırı. `player_id` ile filtrelenir:
+      //    başkasının satırını değiştirmenin bir yolu YOKTUR, çünkü
+      //    `playerId` gövdeden değil `CurrentPlayer()`'dan gelir.
+      const entryResult = await client.query<{ status: string | null }>(
+        'SELECT status FROM race_entries WHERE race_id = $1 AND player_id = $2 FOR UPDATE',
+        [input.raceId, input.playerId],
+      );
+      const entry = entryResult.rows[0];
+      if (entry === undefined) {
+        throw new RaceEntryNotFoundError(input.raceId, input.playerId);
+      }
+
+      // 3) Durum denetimi — SAF fonksiyon (`domain/race/lobby.ts`).
+      const rejection = checkEntryReadyable(
+        { status: raceRow.status, startTime: raceRow.start_time },
+        { status: entry.status },
+        input.now,
+      );
+      if (rejection !== null) {
+        throw new RaceEntryNotReadyableError(rejection);
+      }
+
+      // 4) Yaz. Zaten aynı değerdeyse de yazılır — gereksiz bir UPDATE
+      //    zararsızdır ve "okuyup karşılaştırma" dalı, `checkEntryReadyable`
+      //    ile çakışan İKİNCİ bir kural kaynağı yaratırdı.
+      await client.query('UPDATE race_entries SET status = $3 WHERE race_id = $1 AND player_id = $2', [
+        input.raceId,
+        input.playerId,
+        input.status,
+      ]);
+
+      // 5) Doluluk. Bu transaction `races` satırını değiştirmediği için
+      //    (kilitli `raceRow`) YENİDEN OKUMAYA GEREK YOKTUR — `joinLobbyRace`
+      //    havuzu büyüttüğü için orada okumak zorundaydı, burada değil.
+      const joinedResult = await client.query<{ count: string }>(
+        'SELECT COUNT(*) AS count FROM race_entries WHERE race_id = $1 AND player_id IS NOT NULL',
+        [input.raceId],
+      );
+      const joinedPlayers = Number(joinedResult.rows[0]?.count ?? '0');
+
+      return rowToLobbyRaceView(raceRow, joinedPlayers);
     });
   }
 

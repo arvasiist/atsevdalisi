@@ -872,6 +872,73 @@ arayüzü brief §35'in açık işidir) · bildirim (brief §46) · sohbet moder
 sansür (brief §13'ün "küfür filtresi" kısmı) · Redis adapter'a geçiş
 (yukarıdaki iki bilinçli sınırın ikisini de kaldırır).
 
+### 13.6 Ücretli yarış — oluşturma + katılma (27.09.2026)
+
+brief §42 PHASE 1'in iki yarısı bitti: **1a** `POST /races` (commit `e030681`),
+**1b** `POST /races/:id/join` (commit `3d30892`). İkisi de CI'dan geçti.
+
+- **1a — yarış AÇMA.** `config/race-lobby.config.json` doğdu (`fieldSizes`
+  `[8,10,12,14,16]`, `paidEntryFeeOptions`, `distanceMeters`,
+  `maxOpenRacesPerPlayer`). Migration 0036 `races`'e lobi alanlarını ekledi.
+  Gövde `domain/race/lobby.ts` → `validateRaceCreation` ile BAĞIMSIZ doğrulanır
+  (CLAUDE.md kural 5: esbuild altında DTO dekoratörleri atlanır).
+- **1b — yarışa KATILMA.** Giriş ücreti **katılım anında** tahsil edilir ve
+  `races.prize_pool` aynı anda büyür. Migration 0037 `race_entries`'e
+  `player_id` + `status` ekledi.
+- **`player_id` neden katılım anında DONAR:** at sonradan satılırsa ödül yeni
+  sahibine gitmemelidir. `status` ise bilinçli olarak NULLABLE ve DEFAULT'suz:
+  pratik/PvP satırları zaten KOŞMUŞ yarışlardır, onlara `'waiting'` yazmak
+  yalan olurdu.
+- **Kilit sırası `races` → `players`.** Durum denetimlerinin HEPSİ yarış satırı
+  `FOR UPDATE` ile kilitliyken yapılır; use-case'e taşınsaydı kontrol ile yazma
+  arasında yarış dolabilirdi (TOCTOU).
+- **Kısmi tekil indeks** `race_entries_race_player_uq (race_id, player_id)
+  WHERE player_id IS NOT NULL`: ücret kişi başına alındığı için bir oyuncu iki
+  atla girip havuzu kendi lehine şişiremez. Uygulamadaki ön kontrol TOCTOU'ya
+  açıktır — asıl garanti indekstir.
+- **`Idempotency-Key` ZORUNLU** (`@IdempotencyScope('player')`): aynı anahtarla
+  tekrarlanan istek İKİNCİ kez ücret almaz.
+- **Bu dilimde bedava gelen iki ders:** (1) `RaceFull` `error-codes.ts`'in
+  BAŞINDA zaten tanımlıydı; ikinci kez eklenince `TS1117` (çift anahtar) çıktı
+  ve `ErrorCode.X` runtime'da `undefined`'a düşüp hata gövdesinden `code`
+  alanını **sessizce sildi** — testler "400 döndü ama kod yok" diye patladı.
+  (2) supertest'te `.set(başlık, null)` başlığı atlamaz, `String(null)` =
+  `"null"` yazar; "anahtarsız istek reddedilir" testi bu yüzden yalancı yeşil
+  oluyordu.
+- **HENÜZ YOK:** ödül dağıtımı/çarpanı (PHASE 5) · frontend tüketicisi.
+
+### 13.7 Ücretli yarış lobisi — listeleme + READY (27.09.2026)
+
+brief §42 PHASE 3. 13.6'nın "HENÜZ YOK" listesindeki iki madde kapandı:
+`GET /races` (lobi listesi) ve `POST /races/:id/ready`.
+
+- **`GET /races` = LOBİ, takvim değil.** Yalnızca `status = 'scheduled'`
+  yarışlar, `start_time ASC`. `docs/API.md` §6'daki yol haritası bloğunda
+  `GET /races` "takvim" anlamında geçiyordu; ikisi aynı yolu paylaştığı için
+  ayrım orada AÇIKÇA yazıldı.
+- **`joinedPlayers` GERÇEK oyuncuları sayar.** `COUNT(e.player_id)`,
+  `COUNT(*)` DEĞİL. Bot satırları (`bot_label` dolu, `player_id` NULL —
+  migration 0025/0037) sayılsaydı lobi her yarışı dolu gösterirdi.
+- **`LEFT JOIN`in koşulu `ON`'da, `WHERE`'da DEĞİL.** `player_id IS NOT
+  NULL` yanlışlıkla `WHERE`'a yazılsaydı sıfır katılımlı yarışlar listeden
+  tamamen kaybolurdu — sessiz ve fark edilmesi zor bir hata.
+- **READY bir para yolu DEĞİL.** `Idempotency-Key` bilinçli olarak YOK;
+  bakiye, `prize_pool` ve defter READY'den sonra tıpatıp aynı kalır (e2e
+  bunu tek tek ölçer). `checkEntryReadyable` mevcut duruma BAKMAZ → aynı
+  değeri iki kez yazmak idempotenttir.
+- **`cancelled` READY'den yazılamaz.** İptal = ücret iadesi, ayrı bir para
+  yolu; buradan yazılabilseydi ücret ödemeden çıkmanın yolu doğardı.
+- **403 değil 404** (`RACE_ENTRY_NOT_FOUND`): 403 "burada bir katılım var
+  ama senin değil" bilgisini sızdırırdı.
+- **Ret nedeni önceliği: durum > zaman > iptal.** Üçü birden bozuksa
+  kullanıcıya en anlamlı neden gösterilir.
+- **`?limit` asla 400 değil.** Geçersiz değer varsayılana düşer, tavan
+  kırpılır (`normalizeLobbyListLimit`). Bir okuma ucunu hatalı bir sorgu
+  parametresi yüzünden reddetmek kullanıcıya hiçbir şey kazandırmaz.
+- **HENÜZ YOK:** yarışı `in_progress`e çeviren zamanlayıcı (cron/worker) ·
+  READY durumunun motor tarafından OKUNMASI (şu an yalnızca bilgi) · ödül
+  dağıtımı/çarpanı (PHASE 5) · frontend tüketicisi.
+
 ---
 
 ## 14. Kendime hatırlatmalar (kısa liste)
