@@ -471,6 +471,7 @@ doğrulama ancak GitHub Actions'ta gerçek Postgres/Redis ile yapılabiliyor.
 | Kodlama kuralları, 6 adımlı protokol, isimlendirme, commit formatı | `docs/CODING_CONVENTIONS.md` |
 | Güvenlik: sunucu otoritesi, doğrulama katmanları, idempotency, kilitleme | `docs/SECURITY.md` |
 | Ekonomi modeli, pazar değeri formülü, monetizasyon sınırları | `docs/ECONOMY.md` |
+| **Ekonomi denetimi — 30 bulgu, CRITICAL/HIGH/MEDIUM sınıflı (27.09.2026)** | `docs/ECONOMY_AUDIT.md` |
 | Ekran haritası, üst bar, responsive/mobil ilkeler | `docs/GAME_DESIGN.md` |
 | Ana döngü, günlük döngü, bildirim tetikleyicileri | `docs/GAME_FLOW.md` |
 | API sözleşmeleri (envelope, uçlar, hata kodları) | `docs/API.md` |
