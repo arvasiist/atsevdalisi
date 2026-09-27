@@ -16,6 +16,7 @@ import type {
   GiftView,
   HorseEquipment,
   HorseMarketValueView,
+  HorsePedigreeView,
   JoinMatchmakingQueueResult,
   LeaderboardRowView,
   MatchmakingTicket,
@@ -155,6 +156,17 @@ export const apiClient = {
    * gerçekten kullanır. `@Public()` — `getHorseDetails` ile AYNI gerekçe.
    */
   getHorseMarketValue: (horseId: string) => request<HorseMarketValueView>(`/horses/${horseId}/market-value`),
+
+  /**
+   * Soy ağacı (`GET /horses/:id/pedigree`, bu dilimde EKLENDİ) —
+   * `PedigreeTree.tsx`'in veri kaynağı. `@Public()` (yukarıdaki
+   * `getHorseMarketValue` ile AYNI gerekçe: başka bir oyuncunun atına
+   * Pazar akışından bakılabilir).
+   *
+   * `pedigree` HER ZAMAN doludur — soy kaydı olmayan bir at için tüm
+   * ataları `null` olan bir ağaç döner (404 DEĞİL), bkz. `HorsePedigreeView`.
+   */
+  getHorsePedigree: (horseId: string) => request<HorsePedigreeView>(`/horses/${horseId}/pedigree`),
 
   /**
    * DÜZELTME (Faz 2, görsel kalite planı) — önceden `GET /stable/summary

@@ -1,6 +1,7 @@
 import { BadRequestException, Controller, Get, Inject, Param, ParseUUIDPipe, Query } from '@nestjs/common';
 import { isUUID } from 'class-validator';
-import type { ApiSuccess, PublicHorse } from '@at-sevdalisi/shared-types';
+import type { ApiSuccess, HorsePedigreeView, PublicHorse } from '@at-sevdalisi/shared-types';
+import { GetHorsePedigreeUseCase } from '../../application/use-cases/get-horse-pedigree.use-case';
 import { GetHorseUseCase } from '../../application/use-cases/get-horse.use-case';
 import { ListHorsesByOwnerUseCase } from '../../application/use-cases/list-horses-by-owner.use-case';
 import { assertSelf } from '../auth/assert-self';
@@ -45,6 +46,7 @@ export class HorseController {
   constructor(
     @Inject(GetHorseUseCase) private readonly getHorseUseCase: GetHorseUseCase,
     @Inject(ListHorsesByOwnerUseCase) private readonly listHorsesByOwnerUseCase: ListHorsesByOwnerUseCase,
+    @Inject(GetHorsePedigreeUseCase) private readonly getHorsePedigreeUseCase: GetHorsePedigreeUseCase,
   ) {}
 
   @Get()
@@ -73,5 +75,24 @@ export class HorseController {
   async getById(@Param('id', ParseUUIDPipe) id: string): Promise<ApiSuccess<PublicHorse>> {
     const horse = await this.getHorseUseCase.execute(id);
     return { success: true, data: toPublicHorse(horse) };
+  }
+
+  /**
+   * Soy ağacı — `PedigreeTree.tsx`'in veri kaynağı (bu dilimde EKLENDİ).
+   *
+   * `@Public()` — `getById` ile AYNI gerekçe (yukarıdaki sınıf doc yorumu):
+   * soy bilgisi zaten halka açık bir yarış atı bilgisidir ve Pazar'dan
+   * başka bir oyuncunun atına bakılırken de gereklidir. `PublicHorse`'dan
+   * farklı olarak burada GİZLİ STAT YOKTUR (soy ağacı performans verisi
+   * değildir), bu yüzden ayrı bir mapper'a gerek duyulmaz.
+   *
+   * Rota çakışması YOKTUR: `GET :id` ve `GET :id/pedigree` Express'te
+   * farklı segment sayılarıdır, biri diğerini gölgelemez.
+   */
+  @Public()
+  @Get(':id/pedigree')
+  async getPedigree(@Param('id', ParseUUIDPipe) id: string): Promise<ApiSuccess<HorsePedigreeView>> {
+    const view = await this.getHorsePedigreeUseCase.execute(id);
+    return { success: true, data: view };
   }
 }

@@ -422,7 +422,7 @@ doğrulama ancak GitHub Actions'ta gerçek Postgres/Redis ile yapılabiliyor.
 | **Çiftlik/personel çarpanları bağlanmamış** | `domain/farm/farm.ts`'teki tüm `get*Multiplier` fonksiyonlarının çağıranı yok; `domain/staff/` tamamen bağlanmamış |
 | **Bağlanmamış domain modülleri** | tournament, club, ranking, season, progression, breeding/genetics — mantık + spec var, controller/use-case/repository yok |
 | **Placeholder sayfalar** | `/club`, `/farm`, `/leaderboard` yalnızca `<ComingSoon>` render eder |
-| **Bağlanmamış iskeletler** | `RaceAudioManager`/`html-audio-backend`, `GltfAssetLoader` — hiçbir yerden import edilmiyor; `PedigreeTree.tsx` ve `PlayerDemoWidget.tsx` hiçbir sayfada mount edilmiyor. (**`DustParticles` artık BAĞLI** — 27.09.2026, bkz. §13) |
+| **Bağlanmamış iskeletler** | `RaceAudioManager`/`html-audio-backend`, `GltfAssetLoader` — hiçbir yerden import edilmiyor; `PlayerDemoWidget.tsx` hiçbir sayfada mount edilmiyor. (**`DustParticles` ve `PedigreeTree` artık BAĞLI** — 27.09.2026, bkz. §13 ve §13.2) |
 | **PWA nominal** | `public/manifest.json` → `icons: []`, `layout.tsx`'ten link'lenmiyor, `next-pwa` yok |
 | **`notification.new`** | WebSocket olayı planlandı, uygulanmadı |
 
@@ -557,8 +557,9 @@ gerçek asset gerektirmeden, her biri bağımsız commit+CI ile doğrulanabilir:
    hiçbir yerden import edilmiyor — çünkü `.mp3` dosyası YOK ve motor ses
    olaylarını (GATES_OPEN/OVERTAKE/WINNER) hiçbir yer YAYMIYOR; bağlanırsa
    sessiz bir no-op olurdu.
-6. **Pedigree görselleştirme** — *kod var* (`PedigreeTree.tsx`), sayfaya bağlı
-   değil (kendi README'si "4. Ahırım (/stable) sayfasına eklenmeli" diyor).
+6. **Pedigree görselleştirme** — *bağlandı* (`/stable` at kartındaki "Soy
+   Ağacı" düğmesi → `GET /horses/:id/pedigree`); bkz. §13.2. **Ama** yazan
+   yol (çiftleştirme) hâlâ yok, o yüzden ağaç çoğu at için boş.
 7. **Config ayrımı** — *yapıldı* (`camera.config.json`, `vfx.config.json`,
    `audio.config.json`).
 
@@ -568,10 +569,12 @@ gerçek asset gerektirmeden, her biri bağımsız commit+CI ile doğrulanabilir:
 "asset gerektirmez, hepsi bağlanabilir" diye okumak yanlıştı; tek tek
 incelendiğinde yalnızca **ikisi** gerçekten bugün bağlanabilir durumda:
 
-- **`PedigreeTree.tsx` — YAPILABİLİR, ama büyük iş.** Asset gerekmiyor (saf
-  React + CSS) ama **veri zinciri hiç yok**: pedigri okuyan repository,
-  `GET /horses/:id/pedigree` uç noktası ve foal doğumunda kayıt — üçü de
-  mevcut değil. Önce backend, sonra UI. **Sıradaki anlamlı iş budur.**
+- **`PedigreeTree.tsx` — OKUMA YOLU BİTTİ** (27.09.2026, §13.2): pedigri
+  okuyan repository + `GET /horses/:id/pedigree` + `/stable`'a bağlı UI
+  yazıldı. **Üçüncü parça (foal doğumunda kayıt) HÂLÂ YOK** ve tek başına
+  bir dilim: `POST /breeding` (docs/API.md §7) + `pedigrees`/`breeding_pairs`
+  yazımı. **O engel KALKTI (27.09.2026):** başlangıç atının cinsiyeti artık
+  sabit `gelding` DEĞİL, üç cinsiyetten rastgele — bkz. §13.3.
 - `GltfAssetLoader.tsx` — **asset olmadan ANLAMSIZ.** `.glb` yokken her zaman
   yedek görünüme düşer, yani bugünkü kapsül+küre görüntüsünün tıpatıp aynısı
   çıkar. Bağlamak sıfır görsel etki üretir.
@@ -582,8 +585,9 @@ incelendiğinde yalnızca **ikisi** gerçekten bugün bağlanabilir durumda:
   kaynağı doğurur, yani bugünkü tutarsızlığı (§10.2) büyütür.
 
 **DustParticles — bağlandı** (yukarıda madde 5): tek "küçük ve gerçek" işti,
-tamamlandı. Kalan iş `PedigreeTree`'dir ve o da tek başına bir backend dilimi
-gerektirir.
+tamamlandı. `PedigreeTree`'nin OKUMA yolu da bitti (§13.2); kalan iş onun
+YAZMA yoludur (çiftleştirme → tay doğumu) ve o, yukarıdaki "üreyebilen at
+edinilemiyor" engeli çözülmeden ulaşılabilir hale gelmez.
 
 ### 13.1 Sosyal/ekonomi dilimleri (proje sahibinin talebi, 27.09.2026)
 
@@ -645,6 +649,71 @@ en sona bırakıldı.
 **Grup 2** (§12'deki asset sorusuna bağlı): gerçek Horse/Jockey GLB + animasyon
 state machine, hipodrom çevresi, kalabalık sistemi, gerçek ses dosyaları,
 winner ceremony / paylaşılabilir sonuç.
+
+### 13.2 Soy ağacı veri zinciri — OKUMA YOLU (27.09.2026)
+
+Sahibinin "Başla" dediği iş. Üç parçadan **ikisi** yapıldı:
+
+- **`PostgresPedigreeRepository`** (`infrastructure/breeding/`) —
+  `horses` LEFT JOIN `pedigrees`, tek turda soy + ataların ADLARI.
+  `PEDIGREE_REPOSITORY` portu `HorseModule`'dan export edilir (yazma yolu
+  ayrı bir modülde olacağı için).
+- **`GET /horses/:id/pedigree`** (`@Public()`) → `GetHorsePedigreeUseCase`.
+- **UI bağlandı:** `/stable` at kartındaki "Soy Ağacı" düğmesi (tembel
+  yükleme — ahırdaki her at için istek atılmaz).
+
+**İki tasarım kararı (ikisi de e2e testiyle sabitlendi):**
+
+1. **"Soy kaydı yok" ≠ "at yok".** İlki `200` + tüm ataları `null` bir ağaç,
+   ikincisi `404 HORSE_NOT_FOUND`. Başlangıç atları hiç çiftleştirilmediği
+   için birinci durum bugün **kural**, istisna değil.
+2. **İki kaynak var, `pedigrees` kazanır.** Şema ebeveyni hem
+   `horses.sire_id`/`dam_id`'de (0002) hem `pedigrees`'te (0008) tutuyor;
+   repository zengin olanı tercih eder, satır yoksa sütunlara düşer ve
+   büyükebeveyn alanlarını **uydurmaz** (`null` bırakır).
+
+**ÜÇÜNCÜ PARÇA YAPILMADI:** `pedigrees` satırını YAZAN yol (çiftleştirme →
+tay doğumu, docs/API.md §7 `POST /breeding`) hâlâ yok. Ama **yolu tıkayan
+engel kaldırıldı** — aşağıya bkz. §13.3: `createStarterHorse` artık her
+zaman `gelding` üretmez, üç cinsiyetten rastgele üretir. Yani yazma yolu
+yazıldığında ULAŞILABİLİR olacaktır; engel artık oyunda değil, yazılmamış
+kodda.
+
+**Bilinçli olarak YAPILMAYANLAR:** `breeding_pairs` yazımı, `POST /breeding`,
+`GET /breeding/options` (eş adayları + tahmin), damızlık ücreti (bu bir PARA
+YOLU olurdu — `studFeeMultiplier` config'te hazır ama çağıranı yok), tay
+doğumunda kısrak cooldown'ı, `PedigreeTree`'nin Pazar/at detay sayfasına da
+eklenmesi.
+
+### 13.3 Başlangıç atının cinsiyeti artık rastgele (27.09.2026)
+
+**Sorun:** `createStarterHorse` tek at yaratma yoluydu ve cinsiyeti sabit
+`'gelding'` idi. Pazar yalnızca VAR OLAN atları el değiştirdiği için oyunda
+hiçbir zaman bir `mare`/`stallion` var olamıyordu — yani çiftleştirme
+uç noktası yazılsa bile kalıcı olarak ulaşılamaz kalırdı (projenin daha önce
+yakındığı "bağlı ama ulaşılamaz" sınıfı). **Sahibi 27.09.2026'da (a)
+seçeneğini seçti:** cinsiyet rastgeleleştirilsin.
+
+**Yapılan:** `STARTER_HORSE_GENDER` sabiti yerine
+`STARTER_HORSE_GENDERS = ['mare','stallion','gelding']` + `pickStarterHorseGender(randomValue)`
+(`domain/horse/horse.ts`, `pickStarterHorseName` ile aynı clamp deseni).
+İki kayıt yolu da (`RegisterPlayerUseCase`, `LoginWithProviderUseCase`) bunu
+çağırır. `NewStarterHorseInput.gender` **zorunlu** alan oldu — sessiz bir
+`gelding` varsayılanı bilerek bırakılmadı.
+
+**Bilinçli kararlar:**
+- **Dağılım düzgün (uniform).** `gelding`'i daha olası kılmak kilidi kısmen
+  geri getirirdi; bu yüzden ağırlıklandırma YAPILMADI.
+- **`gelding` havuzdan çıkarılmadı** — yarışabilen ama üreyemeyen bir at da
+  meşru bir sonuçtur; yalnızca TEK seçenek olmamalıydı.
+- **Regresyon koruması testte:** `pickStarterHorseGender` describe bloğu,
+  havuzun `mare`/`stallion` içerdiğini VE ikisinin de gerçekten üretilebildiğini
+  doğrular — karar sessizce geri dönerse test kırmızı olur.
+- `Math.random()` burada **meşrudur**: at yaratma simülasyonun parçası değil,
+  yarış sonucunu etkilemez ve seed'i yoktur (§1/§3 yarış determinizmi içindir).
+
+**Hâlâ yapılmayan:** yazma yolu (§13.2 sonu) — çiftleştirme uç noktası,
+`breeding_pairs`/`pedigrees` yazımı, damızlık ücreti (para yolu).
 
 ---
 

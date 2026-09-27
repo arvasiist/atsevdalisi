@@ -213,6 +213,7 @@ cooldown kontrolüyle çifte ödüle karşı zaten finansal olarak korumalıdır
 ```http
 GET    /api/v1/horses                  # oyuncunun ahırındaki atlar
 GET    /api/v1/horses/{id}             # at detayı (brief §40)
+GET    /api/v1/horses/{id}/pedigree    # soy ağacı + ataların adları (bu dilimde EKLENDİ, aşağıya bkz.)
 POST   /api/v1/horses/{id}/train       # antrenman (brief §10)
 POST   /api/v1/horses/{id}/care        # tımar/su/temizlik/veteriner/nalbant/dinlendirme
                                         # (brief §11 — tek uç nokta, `actionType` alanı,
@@ -263,11 +264,22 @@ istemciden gelir. Yanıt zarfı `data` alanı doğrudan bir `Horse[]` dizisidir
 (sayfalama/filtre henüz yok).
 
 `POST /players` ile kayıt olan her yeni oyuncu, otomatik olarak bir
-**başlangıç atı** alır (`gelding`, "Arap" cinsi, sabit isim havuzundan
-seçilmiş bir isim, kalite/potansiyel sabit başlangıç değerleri, "prime"
-yaşam evresinde — bkz. `domain/horse/horse.ts` `createStarterHorse`).
-Bu, brief'te açıkça yazmayan ama at yetiştiriciliği oyununda gerekli bir
-tasarım kararıdır (at olmadan Antrenman/Bakım/Yarış ekranları gösterilemez).
+**başlangıç atı** alır ("Arap" cinsi, sabit isim havuzundan seçilmiş bir
+isim, kalite/potansiyel sabit başlangıç değerleri, "prime" yaşam evresinde —
+bkz. `domain/horse/horse.ts` `createStarterHorse`). Bu, brief'te açıkça
+yazmayan ama at yetiştiriciliği oyununda gerekli bir tasarım kararıdır (at
+olmadan Antrenman/Bakım/Yarış ekranları gösterilemez).
+
+**DÜZELTME (27.09.2026) — cinsiyet artık SABİT DEĞİL.** Başlangıç atı
+önceden HER ZAMAN `gelding` idi; gerekçesi "henüz wiring edilmemiş
+yetiştiriciliği erken açığa çıkarmamak"tı. Bu gerekçe kendi kendini
+kilitliyordu: `createStarterHorse` tek at üretme yoludur ve Pazar yalnızca
+VAR OLAN atları el değiştirir — yani her at `gelding` olduğu sürece oyunda
+tek bir `mare`/`stallion` bile var olamaz ve yetiştiricilik hiçbir oyuncu
+için ulaşılamaz kalır. Artık `mare`/`stallion`/`gelding` arasından **düzgün
+dağılımla rastgele** seçilir (`pickStarterHorseGender`, `gelding`
+havuzdan çıkarılmadı). Rastgelelik Application katmanında üretilir, domain
+saf kalır (`pickStarterHorseName` ile AYNI desen).
 
 `GET /api/v1/horses/{id}/training-history` (bu turda EKLENDİ —
 docs/AUDIT_REPORT.md "Antrenman geçmişi gösterimi" bulgusunun kapatılması):
@@ -777,6 +789,79 @@ pencerenin DIŞINDAKİ satırların sayılmaması, BAŞKA gönderenin satırlar�
 sayılmaması; `assertSelf` 403'ü; `GET .../gifts` yön ayrımı ve gizlilik) ·
 `domain/gift/gift.spec.ts` · `domain/gift/validation.spec.ts` ·
 `domain/gift/gift-config.spec.ts`.
+
+### Soy Ağacı (soy ağacı veri zinciri dilimi, 27.09.2026)
+
+```http
+GET /api/v1/horses/{id}/pedigree
+```
+
+örnek yanıt:
+
+```json
+{
+  "success": true,
+  "data": {
+    "pedigree": {
+      "horseId": "…",
+      "sireId": "…",
+      "damId": "…",
+      "grandSireId": "…",
+      "grandDamId": null,
+      "bloodline": "Safkan Arap"
+    },
+    "horseNamesById": { "…": "Baba Aygır", "…": "Anne Kısrak" }
+  }
+}
+```
+
+**`@Public()`** — `GET /horses/{id}` ile AYNI gerekçe (bkz. §4 notu): Pazar
+akışı başka bir oyuncunun atının profiline bakabilmelidir. `PublicHorse`'dan
+farklı olarak burada **gizli stat YOKTUR** (soy ağacı performans verisi
+değildir), bu yüzden ayrı bir mapper'a gerek duyulmadı.
+
+**`pedigree` HER ZAMAN doludur — "soy kaydı yok" bir HATA değildir.**
+Başlangıç atları hiçbir zaman çiftleştirilmediği için `pedigrees` satırları
+yoktur; bu durumda `404` DEĞİL, tüm ata alanları `null` olan bir `Pedigree`
+döner. `404` yalnızca **atın kendisi yoksa** (`HORSE_NOT_FOUND`) döner.
+Bu ayrım bilinçlidir: `PedigreeTree.tsx` zaten `null` alanları "Bilinmiyor"
+düğümüne çevirir, istemcinin ikinci bir `null` dalı yazmasına gerek kalmaz.
+
+**İKİ KAYNAK — öncelik `pedigrees`'tedir (bilinçli karar).** Şemada ebeveyn
+bilgisi İKİ yerde durur ve ikisi de bu uç noktadan okunur:
+
+| Kaynak | Kapsam | Nereden yazılır |
+|---|---|---|
+| `pedigrees` (migration 0008) | 2 nesil + `bloodline`; `Pedigree` tipiyle 1:1 | `createFoalPedigree` (henüz bağlanmadı) |
+| `horses.sire_id`/`dam_id` (migration 0002) | yalnızca düz ebeveynler | `PostgresHorseRepository.save` |
+
+Repository `pedigrees` satırı varsa **onu** kullanır (zengin olan ve
+`PedigreeTree`'nin beklediği şekil); satır yoksa `horses.sire_id`/`dam_id`'ye
+düşer ve şemada o satırda **bulunmayan** büyükebeveyn alanları `null` kalır —
+hiçbir veri uydurulmaz, hiçbir kaynak da yok sayılmaz. İkisi ÇELİŞİRSE
+`pedigrees` kazanır (e2e testiyle sabitlenmiştir).
+
+**ŞEMANIN ASİMETRİK ŞEKLİ — uydurulmadı.** `Pedigree` tam 4 büyükebeveyn
+TUTMAZ: yalnızca `grandSireId` (aygırın babası — baba hattı büyükbaba) ve
+`grandDamId` (kısrağın annesi — anne hattı büyükanne) vardır. Diğer iki slot
+şemada **sütun olarak bile yoktur**, bu yüzden yanıtta da yoktur (bkz.
+`domain/breeding/pedigree.ts` `createFoalPedigree` doc yorumu).
+
+**`horseNamesById` yalnızca GERÇEKTEN var olan atları taşır** — adı
+çözülemeyen bir ID için sahte ad üretilmez; `pedigree-tree.ts` o durumda ham
+ID'yi gösterir.
+
+**Hâlâ YAPILMAYAN (bu dilimin bilinçli sınırı):** `pedigrees` satırlarını
+YAZAN yol (çiftleştirme → tay doğumu) yoktur. Bu yüzden bugün hiçbir atın
+soy kaydı ÜRETİLEMEZ ve ekranda görülen ağaç çoğu at için BOŞTUR. Yazma
+yolu (docs/API.md §7 `POST /breeding`) AYRI bir dilimdir.
+
+**Testler:** `pedigree.e2e-spec.ts` (2 nesil + kan hattının tam eşleşmesi;
+`@Public` doğrulaması — header'sız 200; soy kaydı olmayan başlangıç atı için
+404 DEĞİL boş ağaç; `pedigrees` yokken `horses.sire_id`/`dam_id`'ye düşme ve
+büyükebeveynlerin `null` kalması; **çelişkide `pedigrees`'in kazanması** ve
+kaybeden sütunların ad haritasına hiç girmemesi; var olmayan at 404
+`HORSE_NOT_FOUND`; UUID olmayan id 400).
 
 ### Ahır Yükseltme (FAZ 1 wiring, altıncı dilim; onuncu dilimde Idempotency-Key eklendi, bu oturum)
 

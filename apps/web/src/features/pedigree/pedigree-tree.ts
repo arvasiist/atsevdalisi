@@ -25,6 +25,25 @@
  * SADECE görselleştirme katmanını sunar, gerçek API wiring'i (breeding
  * controller + pedigree repository + `GET /horses/:id/pedigree`) AYRI,
  * daha büyük bir dilimdir (bkz. bu dosyanın bulunduğu README güncellemesi).
+ *
+ * GÜNCELLEME (soy ağacı veri zinciri dilimi) — yukarıdaki "backend wiring
+ * YOKTUR" notu artık GEÇERSİZ: `GET /horses/:id/pedigree`
+ * (`horse.controller.ts` → `GetHorsePedigreeUseCase` →
+ * `PostgresPedigreeRepository`) yazıldı ve `PedigreeTree.tsx` artık
+ * `apps/web/src/app/stable/page.tsx`'teki at kartından GERÇEKTEN
+ * çağrılıyor. Bu dosya (saf fonksiyonlar) DEĞİŞMEDİ — yalnızca artık
+ * gerçek veriyle besleniyor.
+ *
+ * **HÂLÂ GEÇERLİ OLAN SINIR:** `pedigrees` satırlarını YAZAN yol
+ * (çiftleştirme → tay doğumu) henüz YOKTUR; bugün hiçbir atın soy kaydı
+ * ÜRETİLEMEZ. Bu yüzden ekranda görülen ağaç çoğu at için BOŞTUR — bu bir
+ * hata değil, o veri henüz doğmadığı içindir.
+ *
+ * NOT (27.09.2026): bu sınırın eskiden yazılı olan İKİNCİ ayağı ("başlangıç
+ * atı hep `gelding`, yani üreyebilen at hiç var olamaz") ARTIK GEÇERSİZ —
+ * `createStarterHorse` üç cinsiyetten rastgele üretiyor (bkz.
+ * `domain/horse/horse.ts` `STARTER_HORSE_GENDERS`). Yani yazma yolu
+ * yazıldığında ulaşılabilir olacak; eksik olan tek şey o kod.
  */
 
 import type { Pedigree } from '@at-sevdalisi/shared-types';

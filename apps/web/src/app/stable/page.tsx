@@ -12,14 +12,23 @@
  * morale zaten var olan 0-100 alanlardır, yıldız derecelendirme `quality`
  * puanından İSTEMCİ TARAFINDA türetilir (bkz. `StarRating.tsx` doc
  * yorumu), yeni bir backend alanı İCAT EDİLMEZ.
+ *
+ * SOY AĞACI (bu dilimde BAĞLANDI) — her at kartındaki "Soy Ağacı" düğmesi
+ * `GET /horses/:id/pedigree` çağırır ve `PedigreeTree.tsx`'i render eder.
+ * Bu, o bileşenin İLK gerçek veri kaynağıdır: daha önce hiçbir yerden
+ * çağrılmıyordu (bkz. `PedigreeTree.tsx` dosya başı doc yorumu — orada
+ * yazan "backend wiring YOK" notu bu dilimle GEÇERSİZ olmuştur).
+ * **Tembel yüklenir** (kart açılmadan istek atılmaz) — ahırda 10 at varsa
+ * 10 gereksiz istek oluşmasın diye.
  */
 
 import { useCallback, useEffect, useState } from 'react';
-import type { PublicHorse, StableSummaryView, StableUpgradeResult } from '@at-sevdalisi/shared-types';
+import type { HorsePedigreeView, PublicHorse, StableSummaryView, StableUpgradeResult } from '@at-sevdalisi/shared-types';
 import { GlassPanel } from '../../components/ui/GlassPanel';
 import { HorseAvatar } from '../../components/ui/HorseAvatar';
 import { StarRating } from '../../components/ui/StarRating';
 import { StatBar } from '../../components/ui/StatBar';
+import { PedigreeTree } from '../../features/pedigree/PedigreeTree';
 import { apiClient } from '../../lib/api-client';
 import { formatCurrency, hasEnoughFunds } from '../../lib/currency';
 import { usePlayer } from '../../lib/player-context';
@@ -274,6 +283,30 @@ function HorseCard({ horse }: { horse: PublicHorse }): React.ReactElement {
     };
   }, [horse.id]);
 
+  // Soy ağacı — `marketValue` ile AYNI "bağımsız, tembel fetch" deseni,
+  // tek farkla: bu KULLANICI ETKİLEŞİMİYLE tetiklenir (ahırdaki her at için
+  // otomatik istek atmak gereksiz yük olurdu).
+  const [pedigree, setPedigree] = useState<HorsePedigreeView | null>(null);
+  const [isPedigreeOpen, setIsPedigreeOpen] = useState(false);
+  const [pedigreeError, setPedigreeError] = useState<string | null>(null);
+
+  const togglePedigree = useCallback(async (): Promise<void> => {
+    if (isPedigreeOpen) {
+      setIsPedigreeOpen(false);
+      return;
+    }
+    setIsPedigreeOpen(true);
+    if (pedigree !== null) {
+      return; // Zaten yüklendi — tekrar istek atılmaz.
+    }
+    setPedigreeError(null);
+    try {
+      setPedigree(await apiClient.getHorsePedigree(horse.id));
+    } catch (err: unknown) {
+      setPedigreeError(err instanceof Error ? err.message : 'Soy ağacı yüklenemedi');
+    }
+  }, [horse.id, isPedigreeOpen, pedigree]);
+
   return (
     <GlassPanel>
       <div style={{ display: 'flex', gap: 'var(--space-md)', alignItems: 'center', marginBottom: 'var(--space-md)' }}>
@@ -314,8 +347,44 @@ function HorseCard({ horse }: { horse: PublicHorse }): React.ReactElement {
           </span>
         ) : null}
       </div>
+
+      <button type="button" onClick={() => void togglePedigree()} style={pedigreeToggleStyle()}>
+        {isPedigreeOpen ? 'Soy Ağacını Kapat' : 'Soy Ağacı'}
+      </button>
+
+      {isPedigreeOpen ? (
+        pedigreeError !== null ? (
+          <p style={{ color: 'var(--color-status-critical)', fontSize: '12px', marginBottom: 0 }}>{pedigreeError}</p>
+        ) : pedigree === null ? (
+          <p style={{ color: 'var(--color-text-muted)', fontSize: '12px', marginBottom: 0 }}>Soy ağacı yükleniyor…</p>
+        ) : (
+          // Soy kaydı OLMAYAN at da geçerli bir sonuçtur (başlangıç atları
+          // hiçbir zaman çiftleştirilmedi) — `PedigreeTree` bu durumda tüm
+          // düğümleri "Bilinmiyor" olarak gösterir, hata DEĞİL.
+          <div style={{ marginTop: 'var(--space-md)' }}>
+            <PedigreeTree pedigree={pedigree.pedigree} horseNamesById={pedigree.horseNamesById} />
+          </div>
+        )
+      ) : null}
     </GlassPanel>
   );
+}
+
+/** Soy ağacı açma/kapama düğmesi — `upgradeButtonStyle` ile AYNI 44px dokunma hedefi kuralı (AUDIT_REPORT.md F1). */
+function pedigreeToggleStyle(): React.CSSProperties {
+  return {
+    marginTop: 'var(--space-md)',
+    minHeight: '44px',
+    width: '100%',
+    padding: '10px 16px',
+    background: 'transparent',
+    color: 'var(--color-text-secondary)',
+    border: '1px solid var(--color-border)',
+    borderRadius: 'var(--radius-md)',
+    fontWeight: 600,
+    fontSize: '13px',
+    cursor: 'pointer',
+  };
 }
 
 function StatusBadge({ status }: { status: PublicHorse['status'] }): React.ReactElement | null {

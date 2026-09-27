@@ -25,3 +25,23 @@ export interface Pedigree {
   grandDamId: UUID | null;
   bloodline: string | null;
 }
+
+/**
+ * `GET /horses/{id}/pedigree` yanıtı (bu dilimde EKLENDİ).
+ *
+ * `pedigree` **her zaman** doludur — soy kaydı OLMAYAN bir at için de
+ * (başlangıç atları hiçbir zaman çiftleştirilmediği için `pedigrees`
+ * satırları yoktur) tüm ata alanları `null` olan bir `Pedigree` döner.
+ * İstemcinin "kayıt yok" durumunu ayrı bir `null` kontrolüyle ele alması
+ * YERİNE, aynı şekli (`PedigreeTree`'nin beklediği) her zaman alması
+ * bilinçli bir tercihtir — `pedigree-tree.ts` zaten `null` alanları
+ * "Bilinmiyor" düğümüne çevirir.
+ *
+ * `horseNamesById` — ağaçta GÖRÜNEN her ata ID'si için at adı. Yalnızca
+ * GERÇEKTEN bulunan atlar girer (uydurma ad yok); bir ID burada yoksa
+ * `pedigree-tree.ts` ham ID'yi gösterir.
+ */
+export interface HorsePedigreeView {
+  pedigree: Pedigree;
+  horseNamesById: Record<string, string>;
+}
