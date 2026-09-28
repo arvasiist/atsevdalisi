@@ -72,6 +72,7 @@ describe('social.config.json — limitler', () => {
     ['pendingRequestsLimit', config.pendingRequestsLimit, 500],
     ['inboxLimit', config.inboxLimit, 1_000],
     ['conversationLimit', config.conversationLimit, 1_000],
+    ['notificationPreviewLength', config.notificationPreviewLength, 1_000],
   ];
 
   it.each(limits)('%s pozitif bir tam sayıdır', (_name, value) => {
@@ -91,5 +92,13 @@ describe('social.config.json — limitler', () => {
     // izin verirse liste "kırpılmış" görünür ve kullanıcı isteklerinin bir
     // kısmını hiç göremez — tavanı bir hata mesajıyla öğrenmesi gerekirken.
     expect(config.pendingRequestsLimit).toBeLessThanOrEqual(config.overviewRequestsLimit);
+  });
+
+  it('önizleme sınırı, mesaj sınırından KÜÇÜKtür (yoksa "önizleme" olmazdı)', () => {
+    // `notificationPreviewLength >= maxMessageLength` olsaydı kırpma HİÇ
+    // uygulanmaz ve `message_received` bildirimi tam mesajı taşırdı —
+    // yani bildirim listesi sessizce bir mesaj arşivine dönerdi. İki
+    // değerin ayrı ayrı "pozitif" olması bunu yakalamaz.
+    expect(config.notificationPreviewLength).toBeLessThan(config.maxMessageLength);
   });
 });

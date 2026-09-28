@@ -1055,6 +1055,22 @@ export interface SocialConfig {
    * metinden ayırt edebilmelidir.
    */
   pendingInvitesLimit: number;
+  /**
+   * `message_received` bildiriminin `payload.preview` alanındaki azami
+   * KARAKTER sayısı (brief §28, §42 PHASE 13).
+   *
+   * **NEDEN KIRPILIR:** mesaj gövdesi `maxMessageLength` (500) kadar
+   * olabilir; kırpılmadan yazılsaydı her bildirim satırı tam mesajı
+   * taşır ve bildirim listesi bir mesaj arşivine dönerdi — üstelik
+   * kullanıcı bildirime tıklayıp sohbete gitmek yerine metni orada
+   * okurdu. Kırpma SUNUCUDA yapılır (`buildMessagePreview`), çünkü
+   * istemcinin `body`yi hiç görmemesi gerekir: görseydi "önizleme"
+   * değil "mesaj" olurdu ve bildirim ucu bir okuma yoluna dönüşürdü.
+   *
+   * **SİHİRLİ SAYI DEĞİL (CLAUDE.md kural 6):** kırpma sınırı buradan
+   * okunur, `buildMessagePreview`e PARAMETRE olarak geçer.
+   */
+  notificationPreviewLength: number;
 }
 
 /**

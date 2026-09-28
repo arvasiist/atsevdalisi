@@ -1148,6 +1148,83 @@ katı mı" sorusu açık kalırdı.
 controller'da `if (!dto.x || !isUUID(dto.x)) throw new BadRequestException(...)`
 yaz ve `body-uuid-shape.e2e-spec.ts`'e bir bölüm ekle.
 
+**Commit:** `de7801c` (28.09.2026). Kanıt: 88 domain + 138 e2e test, 4 temiz
+tsc, eslint 0 hata.
+
+---
+
+### 13.13 Bildirim üreticileri — arkadaşlık + mesaj (brief §28, §42 PHASE 13)
+
+§13.11 bildirim ALTYAPISINI kurdu ama **tek üretici** bıraktı: `race_invite`.
+`domain/social/notification.ts`'in dosya başı notu bunu açıkça yazıyordu
+("bu turda yalnızca `race_invite` üretilir"). Bu dilim **üç üretici** ekledi.
+
+| Tür | Üreten yol | Bildirim KİME gider |
+|---|---|---|
+| `friend_request` | `POST /players/:id/friend-requests` | istek **ALANA** |
+| `friend_accepted` | `POST .../friend-requests/:id/respond` (`action: 'accept'`) | istek **SAHİBİNE** |
+| `message_received` | `POST /players/:id/messages` | mesaj **ALANA** |
+
+**Hâlâ üretilmeyen DÖRT tür:** `gift_received` (PARA YOLU — ayrı dilim
+hak eder, ledger doğrulaması ister), `race_starting`, `race_finished`,
+`prize_won` (üçü de yarış yaşam döngüsüne bağlı; race engine'e dokunmadan
+yapılabilecekleri ayrıca değerlendirilmeli). **"Bildirimler bitti" DEME.**
+
+**Mimari kural (uygulandı):** üreten repository, birincil satırını ve
+bildirimi **AYNI transaction'da** yazar — `NotificationRepository` port
+doc yorumundaki kural, `postgres-race-invite.repository.ts` → `saveInvite`
+ile aynı gerekçe. Bu yüzden `PostgresSocialRepository`'nin üç yazma yolu
+artık `withTransaction` kullanıyor ve **sınıf doc yorumundaki
+"`withTransaction` BİLE ÇAĞRILMAZ" notu güncellendi**: sebep para değil
+ATOMİKLİK. İki ayrı ifade olsalardı ikincisi düşerse ortada **görünmez** bir
+arkadaşlık isteği/mesaj kalırdı — karşı taraf onu hiç öğrenemezdi.
+
+**Atomikliğin kanıtı bir testtir:** 409 alan ikinci arkadaşlık isteği karşı
+tarafa İKİNCİ bir bildirim bırakmaz (`notification-producers.e2e-spec.ts`).
+İki yazma ayrı ifadeler olsaydı bu test düşerdi.
+
+**Yön kuralı:** bildirim **her zaman karşı tarafa** gider; gönderen kendi
+eylemi için bildirim ALMAZ. `friend_accepted` **yalnızca kabulde** üretilir —
+reddedilen istek karşı tarafa "reddedildin" bildirimi bırakmaz (bilinçli
+ürün kararı; brief §28 bunu istemez ve istek zaten geri çekilebiliyor).
+
+**Önizleme sunucuda kırpılır.** `message_received.payload.preview` sınırı
+yeni bir config değeridir: `config/social.config.json` →
+`notificationPreviewLength` (120). Sihirli sayı yok (CLAUDE.md kural 6).
+Kırpma `Array.from` ile **kod noktalarına** göre yapılır: `String.slice`
+UTF-16 kod birimleri üzerinde çalışır ve bir vekil çiftin (emoji)
+ortasından kesip istemciye `�` gönderebilirdi. **Gövdenin TAMAMI asla
+istemciye gitmez** — bildirim ucu bir okuma yolu değildir.
+
+**Payload şekli TS'te kurulur, SQL'de değil.** `build*Payload` fonksiyonları
+`domain/social/notification.ts`'te ve dönüş tipleri açıkça
+`NotificationPayloadByType[...]` — alan adı kayması **derleme hatası** olur.
+`jsonb_build_object` ile SQL'de kurmak, alan adlarının tip tanımından
+sessizce kaymasına izin verirdi.
+
+**DI notu:** `PostgresSocialRepository` artık `AppConfigService` de alıyor
+(`@Global()` olduğu için modül imports'una ekleme GEREKMEZ). Precedent:
+`postgres-breeding.repository.ts`, `postgres-market-purchase.repository.ts`.
+
+**Bu dilimin KIRDIĞI ve düzelttiği test:** `race-invite.e2e-spec.ts`
+yazıldığında "oyuncunun bildirimleri" ile "yarış daveti bildirimleri" aynı
+şeydi ve iddialar **tüm** listeyi sayıyordu. Artık `makeFriends` kurulumu da
+bildirim üretiyor. İki düzeltme yapıldı: (1) `notificationRowsOf` helper'ı
+`type = 'race_invite'`e daraltıldı, (2) `makeFriends` kurulumun **yan
+ürününü** temizliyor (yalnızca o iki oyuncu, yalnızca arkadaşlık/mesaj
+türleri — `race_invite` satırlarına asla dokunmaz). Ders: **yeni bir
+bildirim üreticisi eklemek, bildirim SAYAN mevcut testleri kırar.**
+
+**Testler:** `notification-payload.spec.ts` (10 domain testi: kırpma
+sınırları, emoji, bozuk config, payload şekli) +
+`notification-producers.e2e-spec.ts` (8 e2e: yön, atomiklik, önizleme).
+`social-config.spec.ts`'e `notificationPreviewLength < maxMessageLength`
+değişmezliği eklendi — iki değerin ayrı ayrı pozitif olması bu tuzağı
+yakalamaz.
+
+**Yeni bir gövde-UUID alanı eklerken (§13.12) geçerli kural burada da
+geçerli**; bu dilim yeni uç nokta eklemedi.
+
 ---
 
 ## 14. Kendime hatırlatmalar (kısa liste)

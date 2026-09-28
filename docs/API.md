@@ -791,12 +791,34 @@ sayılmaması; `assertSelf` 403'ü; `GET .../gifts` yön ayrımı ve gizlilik) �
 `domain/gift/gift.spec.ts` · `domain/gift/validation.spec.ts` ·
 `domain/gift/gift-config.spec.ts`.
 
-### Bildirimler + Yarış Daveti (brief §16, §28 — §42 PHASE 11)
+### Bildirimler + Yarış Daveti (brief §16, §28 — §42 PHASE 11 + PHASE 13)
 
 Brief §16: *"Arkadaşlar birbirlerini yarışa davet edebilsin. Örneğin: 'Ömer
 seni At Sevdalısı Cup yarışına davet etti.' [JOIN] [DECLINE] bildirimi
 gelsin."* Beş uç nokta, `NotificationController`
 (`apps/api/src/api/notification/notification.controller.ts`).
+
+**BİLDİRİM ÜRETİCİLERİ.** Sekiz türün DÖRDÜ üretilir; kalan dördü için
+`INSERT INTO notifications` yazan bir yol **yoktur** (bkz. `PROJE_DURUMU.md`
+§13.13). Her üretici, birincil satırını ve bildirimi **AYNI transaction'da**
+yazar.
+
+| Tür | Tetikleyen yol | Bildirim kime gider |
+|---|---|---|
+| `race_invite` | `POST /players/:id/race-invites` | davet edilene |
+| `friend_request` | `POST /players/:id/friend-requests` | istek **alana** |
+| `friend_accepted` | `POST .../friend-requests/:id/respond` (`accept`) | istek **sahibine** |
+| `message_received` | `POST /players/:id/messages` | mesaj **alana** |
+
+**Yön kuralı:** bildirim **her zaman karşı tarafa** gider; gönderen kendi
+eylemi için bildirim almaz. `friend_accepted` **yalnızca kabulde** üretilir —
+reddedilen istek karşı tarafa bildirim bırakmaz.
+
+**`message_received.payload.preview` SUNUCUDA kırpılır**
+(`config/social.config.json → notificationPreviewLength`, 120). Kırpma kod
+noktalarına göre yapılır (emoji ortadan kesilmez) ve **gövdenin tamamı asla
+istemciye gitmez** — bildirim ucu bir okuma yolu değildir. Sohbetin tamamı
+için `GET /players/:id/messages/{otherPlayerId}` kullanılır.
 
 ```http
 GET  /api/v1/players/{id}/notifications                        # liste + unreadCount

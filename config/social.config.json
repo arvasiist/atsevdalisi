@@ -6,5 +6,6 @@
   "inboxLimit": 50,
   "conversationLimit": 100,
   "notificationsLimit": 50,
-  "pendingInvitesLimit": 25
+  "pendingInvitesLimit": 25,
+  "notificationPreviewLength": 120
 }

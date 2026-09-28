@@ -5,15 +5,25 @@
  * Framework'süz saf TS — NestJS/ORM importu YOK (CLAUDE.md "KATMAN YÖNÜ
  * TEK YÖNLÜ"). Veritabanı erişimi `application/ports/` üzerinden yapılır.
  *
- * **BU TURDA YALNIZCA `race_invite` ÜRETİLİR.** Sekiz türün tamamı burada
- * tanımlıdır çünkü `notifications.type` CHECK'i (migration 0039) ile bu
- * liste BİREBİR olmak zorundadır; kayma `notification-types.spec.ts` ile
- * denetlenir. Kalan yedi türün ÜRETİCİSİ (arkadaşlık isteği kabul edildi,
- * hediye geldi, mesaj geldi, yarış başlıyor/bitti, ödül kazandın) PHASE
- * 13'ün işidir — bugün `INSERT INTO notifications` yazan TEK yol
- * `send-race-invite`tir. Bunu "yapıldı" saymamak için PROJE_DURUMU.md
- * §13.11'de açıkça yazılıdır.
+ * **ÜRETİCİLER (28.09.2026, PHASE 13):** `race_invite` (PHASE 11) +
+ * `friend_request`, `friend_accepted`, `message_received` (PHASE 13).
+ * `gift_received`, `race_starting`, `race_finished`, `prize_won` HÂLÂ
+ * ÜRETİLMEZ — bunu "yapıldı" saymamak için PROJE_DURUMU.md §13.13'te
+ * açıkça yazılıdır.
+ *
+ * Sekiz türün tamamı burada tanımlıdır çünkü `notifications.type` CHECK'i
+ * (migration 0039) ile bu liste BİREBİR olmak zorundadır; kayma
+ * `notification-types.spec.ts` ile denetlenir.
+ *
+ * **KURAL — üreten repository, birincil satırı ve bildirimi AYNI
+ * transaction'da yazar** (bkz. `NotificationRepository` port doc yorumu).
+ * Bu yüzden `build*Payload` fonksiyonları burada, çağıranın elinde olan
+ * alanları alır: repository, satırı yazdığı transaction içinde karşı
+ * tarafın `display_name`ini okur ve payload'ı KURAR — iki ayrı yerde
+ * kurulan bir payload, kaçınılmaz olarak ayrışırdı.
  */
+
+import type { NotificationPayloadByType } from '@at-sevdalisi/shared-types';
 
 /**
  * Geçerli bildirim türleri — `notifications.type` CHECK'i (migration 0039)
@@ -69,4 +79,84 @@ export function parseNotificationType(value: unknown): NotificationType | null {
 export function normalizeNotificationPayload(value: unknown): Record<string, unknown> {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) return {};
   return value as Record<string, unknown>;
+}
+
+/**
+ * Kırpılmış mesaj ÖNİZLEMESİ — `message_received` bildiriminin `preview`
+ * alanı (brief §28, §42 PHASE 13).
+ *
+ * **NEDEN KIRPILIR:** bkz. `SocialConfig.notificationPreviewLength` doc
+ * yorumu. Sınır PARAMETREDİR, sabit değil — CLAUDE.md kural 6.
+ *
+ * **`Array.from` ŞARTTIR, `body.slice` DEĞİL:** `slice` UTF-16 kod
+ * birimleri üzerinde çalışır ve bir vekil çiftin (surrogate pair) ORTASINDAN
+ * kesebilir. Kesilen yarım çift `�` olarak görünür — istemciye bozuk
+ * metin gitmesi, kırpmanın kendisinden daha kötüdür. `Array.from` kod
+ * NOKATLARINA ayırır (emoji tek eleman olur).
+ *
+ * **Üç nokta KIRPILDIĞINDA eklenir, her zaman değil:** sığan bir mesaja
+ * `…` eklemek "burada devamı var" yalanı olurdu.
+ *
+ * **Yeni satırlar KORUNUR** (boşluğa çevrilmez): önizleme düz metindir,
+ * HTML'e basılmaz; istemci satır sonlarını istediği gibi işler.
+ */
+export function buildMessagePreview(body: string, maxLength: number): string {
+  // Bozuk config'e karşı: 0/negatif bir sınır HER mesajı `'…'` yapardı.
+  const limit = Number.isInteger(maxLength) && maxLength > 0 ? maxLength : body.length;
+  const points = Array.from(body);
+  if (points.length <= limit) return body;
+  return `${points.slice(0, limit).join('')}…`;
+}
+
+/**
+ * Bildirim `payload`larını ÜRETEN saf fonksiyonlar.
+ *
+ * **NEDEN AYRI FONKSİYONLAR (repository içinde nesne kurmak yerine):**
+ * `payload` şekli `NotificationPayloadByType` ile sözleşmedir. Repository
+ * içinde satır içi bir nesne kurmak, alan adının orada sessizce kaymasına
+ * izin verirdi (ör. `displayName` → `name`); oysa bu fonksiyonlar dönüş
+ * tipini AÇIKÇA `NotificationPayloadByType[...]` diye bildirir ve kayma
+ * DERLEME hatası olur.
+ *
+ * **`payload`da HEM `playerId` HEM `displayName` vardır:** istemci her
+ * bildirim satırı için ikinci bir `GET /players/:id` atmasın diye — şekil
+ * sözleşmesinin kendi doc yorumundaki N+1 gerekçesi.
+ *
+ * `playerId` HER ZAMAN **KARŞI TARAFTIR** (bildirimi ÜRETEN değil): bildirim
+ * zaten üretildiği oyuncunun satırıdır, `playerId` "kim yaptı" sorusunun
+ * cevabıdır. İstemci "X sana arkadaşlık isteği gönderdi" cümlesini tam
+ * olarak bu alandan kurar.
+ */
+export function buildFriendRequestPayload(input: {
+  requestId: string;
+  playerId: string;
+  displayName: string;
+}): NotificationPayloadByType['friend_request'] {
+  return { requestId: input.requestId, playerId: input.playerId, displayName: input.displayName };
+}
+
+export function buildFriendAcceptedPayload(input: {
+  friendshipId: string;
+  playerId: string;
+  displayName: string;
+}): NotificationPayloadByType['friend_accepted'] {
+  return {
+    friendshipId: input.friendshipId,
+    playerId: input.playerId,
+    displayName: input.displayName,
+  };
+}
+
+export function buildMessageReceivedPayload(input: {
+  messageId: string;
+  playerId: string;
+  displayName: string;
+  preview: string;
+}): NotificationPayloadByType['message_received'] {
+  return {
+    messageId: input.messageId,
+    playerId: input.playerId,
+    displayName: input.displayName,
+    preview: input.preview,
+  };
 }

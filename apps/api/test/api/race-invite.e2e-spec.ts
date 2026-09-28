@@ -107,6 +107,22 @@ describe('Yarış daveti + bildirimler (e2e) — PHASE 11', () => {
       .set('Authorization', b.authHeader)
       .send({ action: 'accept' })
       .expect(200);
+
+    // PHASE 13 YAN ETKİSİ TEMİZLİĞİ (28.09.2026). Bu dosya yazıldığında
+    // `INSERT INTO notifications` yazan TEK yol yarış davetiydi, o yüzden
+    // "oyuncunun bildirimleri" ile "yarış daveti bildirimleri" aynı şeydi ve
+    // aşağıdaki iddialar TÜM listeyi sayıyor. Artık arkadaşlık kurmak da
+    // bildirim üretiyor (`friend_request` + `friend_accepted`) — bu dosyanın
+    // KONUSU OLMAYAN bir yan ürün. Kurulumun bıraktığı satırlar silinir ki
+    // dosyanın bütün `toHaveLength`/`unreadCount` iddiaları eski anlamını
+    // korusun. Silme YALNIZCA bu iki oyuncuya ve yalnızca arkadaşlık/mesaj
+    // türlerine dokunur — `race_invite` satırlarına ASLA.
+    await pool.query(
+      `DELETE FROM notifications
+       WHERE player_id = ANY($1::uuid[])
+         AND type IN ('friend_request', 'friend_accepted', 'message_received')`,
+      [[a.playerId, b.playerId]],
+    );
   }
 
   /**
@@ -130,11 +146,25 @@ describe('Yarış daveti + bildirimler (e2e) — PHASE 11', () => {
     return response.body.data.inviteId as string;
   }
 
+  /**
+   * Oyuncunun `race_invite` bildirimleri.
+   *
+   * **NEDEN `type` FİLTRESİ ŞART (28.09.2026, PHASE 13):** bu dosya
+   * yazıldığında `INSERT INTO notifications` yazan TEK yol yarış davetiydi,
+   * o yüzden "oyuncunun TÜM bildirimleri" ile "yarış daveti bildirimleri"
+   * aynı şeydi. PHASE 13 `friend_request`/`friend_accepted`/
+   * `message_received` üreticilerini ekledi ve bu dosyanın kurulumu
+   * `makeFriends` ÇAĞIRIYOR (davet arkadaşlık kapısına tabidir) — yani
+   * filtresiz bir sayım artık arkadaşlık bildirimlerini de sayar ve
+   * `toHaveLength(1)` iddiaları bu dosyanın KONUSU OLMAYAN bir sebeple
+   * düşerdi. Filtre, iddiayı asıl kanıtlamak istediği şeye geri daraltır.
+   */
   async function notificationRowsOf(playerId: string): Promise<
     { id: string; type: string; payload: Record<string, unknown>; read_at: Date | null }[]
   > {
     const result = await pool.query(
-      'SELECT id, type, payload, read_at FROM notifications WHERE player_id = $1 ORDER BY created_at',
+      `SELECT id, type, payload, read_at FROM notifications
+       WHERE player_id = $1 AND type = 'race_invite' ORDER BY created_at`,
       [playerId],
     );
     return result.rows;
@@ -188,7 +218,10 @@ describe('Yarış daveti + bildirimler (e2e) — PHASE 11', () => {
         inviterDisplayName: 'Davet Eden',
       });
 
-      // 3) Davet edenin kendi bildirim listesi BOŞ kalır (bildirim alıcıya gider).
+      // 3) Davet eden HİÇ race_invite bildirimi almaz (bildirim alıcıya gider).
+      //    (`makeFriends` yüzünden davet edenin listesinde bir
+      //    `friend_accepted` VARDIR — bu dosyanın konusu değildir ve
+      //    `notificationRowsOf` zaten `race_invite`e daraltır.)
       expect(await notificationRowsOf(inviter.playerId)).toHaveLength(0);
     });
 
