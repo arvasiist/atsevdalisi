@@ -2673,6 +2673,109 @@ yolun **eklenmemesini** korur.
 
 ---
 
+#### 13.28 YARIŞ DENGESİ — 10.000 koşum/saha boyutu + SÜRPRİZ PAYI BULGUSU (brief §42 PHASE 5) — 29.09.2026
+
+**BU DİLİM HİÇBİR ÜRETİM KODU DEĞİŞTİRMEDİ.** Ne `race-engine.ts`, ne
+`race.config.json`. Yaptığı şey brief'in istediği ölçümü **koşmak**,
+**CI'da kilitlemek** ve sonucu **dürüstçe raporlamaktı**.
+
+| Dosya | Rol |
+|---|---|
+| `apps/api/test/domain/race/race-balance-harness.ts` | Ölçüm motoru — **paylaşılan** saf modül (spec değil) |
+| `apps/api/test/domain/race/race-balance.spec.ts` | CI kilidi: 10.000 koşum/saha boyutu + eşikler |
+| `apps/api/tools/race-balance-report.ts` | Rapor üreticisi — aynı harness'ı koşar |
+| `docs/RACE_BALANCE_REPORT.md` | **ÜRETİLEN** belge (elle yazılmaz) |
+| `.claude/race-balance-report.mjs` | Kabuksuz koşturucu (yalnız bu makinede; commit EDİLMEZ) |
+
+Raporu üretmek için (`apps/api` dizininden):
+
+```
+node ../../node_modules/tsx/dist/cli.mjs tools/race-balance-report.ts
+```
+
+**NEDEN AYNI HARNESS İKİ YERDE:** elle yazılmış bir denge raporu, config
+değiştiği anda sessizce yalan söylemeye başlar. Rapor ile CI'ın eşikleri
+**aynı kod yolundan** gelmezse, "yeşil CI"nın kanıtladığı şey ile raporun
+anlattığı şey ayrışır. Tek modül, iki tüketici.
+
+**ÖLÇÜM: 5 saha boyutu × 5 koşum × 10.000 = 265.125 simülasyon, 31-43 sn.**
+Saha boyutları koda gömülmez, `config/race-lobby.config.json` → `fieldSizes`'tan
+okunur (CLAUDE.md kural 6).
+
+**DÖRT SAHA, ÇÜNKÜ TEK SAHA YETMEZ.** Her sahada TEK değişken oynatılır:
+dar merdiven (62→74), geniş merdiven (55→85), stil (statlar özdeş, yalnız
+`racingStyle`), ve **20 ayrı rastgele üretim bot lobisi**. Merdiven sahaları
+**yapaydır** — sekiz özellik aynı anda aynı yönde hareket eder ve bu gerçek
+bir sahada olmaz; onlar bir *yetenek aktarım probudur*, denge tablosu değil.
+
+**⚠️ ÖLÇÜLEN BULGU — MOTORUN SÜRPRİZ PAYI DARDIR. Bu dilimin asıl çıktısı:**
+
+- Merdiven sahalarında favori %76-98 kazanıyor ve **alt yarı 10.000 yarışta
+  HİÇ kazanmıyor**. **Bandı daraltmak düzeltmiyor** (62→74'te de alt yarı
+  0.00%) — yani sorun bandın genişliği değil.
+- **Üretim sahasında da aynı yönde:** rastgele lobilerde favori ortalama
+  `1/N`in **4.94×-8.04×** üzerinde, **en kötü lobide %99.8**, tek bir bot
+  galibiyetlerin ortalama %52-70'ini alıyor ve **500 yarışta hiç kazanmayan
+  botlar var** (16'lık sahada ortalama 8, en kötü lobide 11).
+- **Kök neden bir hata değil, ölçülebilir bir orandır:**
+  `randomFactorRange: [-6, 6]` segment başına ±6 puandır ama segment
+  performansları yarış boyunca (8 segment) **toplanır** → gürültünün yarış
+  düzeyindeki standart hatası `6/√3/√8 ≈ 1.2` puana iner. Bot statları
+  `[45,75]` bandından bağımsız çekildiği için dört ağırlıklı statın bileşimi
+  ~3.2 puan standart sapma verir; 16 botluk sahada en iyi ile en kötü
+  arasında ~11 puan fark oluşur. **Yetenek farkı gürültüyü aşıyor →
+  sıralama saha kurulurken belirleniyor.**
+
+**⚠️ BU, DETERMİZMLE KARIŞTIRILMAMALIDIR.** Determinizm (§13.24/§13.27)
+motorun *doğruluğudur*: aynı seed aynı sonucu verir ve ölçüm bunu her saha
+boyutunda 0 ihlalle doğruladı. Buradaki bulgu ise oyunun **sürpriz payının
+genişliğidir**: farklı seed'ler bile aynı sıralamayı üretir. İkisi ayrı
+şeylerdir ve ikisi de doğrudur.
+
+**⚠️ DENGE DEĞERİ BİLEREK DEĞİŞTİRİLMEDİ.** `randomFactorRange` / segment
+sayısı / taban puan ölçeği değişikliği `race.config.json` değişikliğidir ve
+**dondurulmuş `horse_snapshot`ların replay'ini sessizce başka bir sonuca
+çevirir** (CLAUDE.md kural 2 — "RACE ENGINE'E DOKUNMA"). Brief PHASE 5
+"test et ve raporla" der, "yeniden dengele" demez. Ölçüm karar için gereken
+sayıyı üretir; **karar proje sahibinindir.**
+
+**⚠️ BU YÜZDEN `race-balance.spec.ts` ÖLÇÜLEN KÖTÜ DEĞERLERİ KİLİTLEMEZ.**
+"Alt yarı hiç kazanmıyor" ya da "en kötü lobide favori %99.8" bir **iyi**
+durum değildir; bunları eşik yapmak, ileride düzeltme yapıldığında CI'ı
+kırmızıya çevirirdi. Kilitlenen şey **kırılmaması gerekenlerdir**:
+determinizm, sıra bütünlüğü, beraberlik nadirliği, yeteneğin sonuca
+dönüşmesi (`1/N`in ≥3 katı), **tam determinizm OLMAMASI** (favori < 0.995),
+hiçbir stilin ölü/baskın olmaması, mesafenin sonuca girmesi, üretimde
+favorinin makul bantta kalması. Ölçülen risk **raporda** yazılıdır.
+
+**DÜRÜST EKSİKLER (ölçülmeyen iddia edilmedi):**
+
+1. **`gatePosition` ölçülmedi — motora hiç girmiyor.** `race_entries.
+   gate_position` yalnızca yazılır, saklanır ve istemciye yansıtılır
+   (`settle-race.use-case.ts` → `postgres-race.repository.ts` →
+   `race.gateway.ts`); `simulateRace` onu **hiç okumaz**. Brief §17/§21 kapı
+   pozisyonunu bir faktör sayar. Bu bir denge bulgusu değil, **bağlanmamış
+   bir özelliktir** — olmayan bir etkiyi "dengeli" diye raporlamak uydurma
+   olurdu.
+2. **Jokey ölçülmedi** — `jockeySkillComposite` her zaman nötr `50`
+   (`NEUTRAL_UNMODELED_TRAIT_SCORE`), `race_entries.jockey_id`'yi yazan kod
+   yok. Ölçümde nötr bırakıldı: uydurma bir jokey değeri dengeyi üretimde
+   olmayan bir sinyalle şişirirdi. **PHASE 6.**
+3. **`startApproach`/`finalStretchPlan` ölçülmedi** — `assertValidRaceTactic`
+   doğrular ama `simulateRace` yalnızca `racingStyle` ve `riskLevel` okur;
+   ikisi bugün **doğrulanan ama kullanılmayan** alanlardır. **PHASE 6.**
+4. **Tek mesafe/zemin/hava** — kanonik yarış 1600 m / çim / güneşli / 22 °C;
+   yalnızca mesafe probu (1200/1600/2400) tarandı.
+5. **Gerçek oyuncu atı verisiyle ölçüm yok** — sahalar sentetik merdivenler,
+   sentetik özdeş alan ve üretim botlarıdır.
+
+**KANIT:** `race-balance.spec.ts` (CI) + `docs/RACE_BALANCE_REPORT.md`
+(265.125 simülasyonun tam tablosu). Rapor "ölçüm zamanı" ve "config parmak
+izi" satırlarını taşır: config değişip rapor güncellenmezse okuyucu bunu
+başlıktan görür.
+
+---
+
 ## 14. Kendime hatırlatmalar (kısa liste)
 
 1. **Race Engine'e dokunmadan önce iki kez düşün.** Denetim onu "KEEP, dokunma"

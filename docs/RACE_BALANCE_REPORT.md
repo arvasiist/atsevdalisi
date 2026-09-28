@@ -1,0 +1,309 @@
+# YARIŞ DENGESİ RAPORU
+
+> **Bu belge ELLE YAZILMAZ.** `apps/api/tools/race-balance-report.ts` ölçüp üretir.
+> Aynı ölçüm kodu (`apps/api/test/domain/race/race-balance-harness.ts`) `race-balance.spec.ts`
+> tarafından da koşulur ve **CI'da eşiklerle kilitlidir** — yani buradaki sayılar ile CI'ın
+> kırmızıya döndüğü sayılar aynı koşumdan gelir. Config değişip eşikler güncellenmezse CI kırılır.
+
+| | |
+| --- | --- |
+| Ölçüm zamanı | 2026-09-28T21:23:42.103Z |
+| Saha boyutları | 8 / 10 / 12 / 14 / 16 (`config/race-lobby.config.json` → `fieldSizes`) |
+| Saha boyutu başına koşum | **10.000** (her biri beş ayrı koşumda) |
+| Toplam simülasyon | **265.125** |
+| Kanonik yarış | 1600 m, çim, güneşli, 22 °C |
+| `RACE_ENGINE_VERSION` | `1.0.0` |
+| `RACE_RULESET_VERSION` | `1.1.0` |
+| `race.config.json` parmak izi | `62588ed88546` (sha256, ilk 12 hane) |
+
+Üretmek için (`apps/api` dizininden):
+
+```
+node ../../node_modules/tsx/dist/cli.mjs tools/race-balance-report.ts
+```
+
+Süre ~30-45 sn. `--trials=300` ile hızlı ön bakış alınabilir, ama **hızlı değerle üretilen
+rapor commit edilmez** — yukarıdaki “saha boyutu başına koşum” satırı kaç koşumla üretildiğini
+yazar.
+
+---
+
+## 1. Yöntem — neden DÖRT ayrı saha
+
+Denge ölçümünde en kolay hata, **tek sahada birden fazla değişkeni aynı anda oynatmak**tır:
+o zaman “fark yetenekten mi, taktikten mi, kulvardan mı geldi” sorusu cevaplanamaz. Bu yüzden
+her ölçüm kendi sahasını kurar ve o sahada tek bir değişken bırakır.
+
+| Saha | Değişken | Sabit | Ne ölçer |
+| --- | --- | --- | --- |
+| **Dar merdiven** (62 → 74) | statlar | tümü `mid_pack`, sabit ağırlık | Yetenek aktarımı — bant daralınca ne değişiyor? |
+| **Geniş merdiven** (55 → 85) | statlar | tümü `mid_pack`, sabit ağırlık | Yetenek aktarımı — bant genişleyince? |
+| **Stil** | `racingStyle` | tüm statlar özdeş | Taktik seçimi kazanma payını haksız domine ediyor mu? |
+| **Bot** | **20 ayrı rastgele** üretim sahası (`generateBotEntrants`) | — | **Üretim gerçeği**: rastgele bir lobide denge nasıl? |
+
+**Neden dört saha:** merdiven sahaları YAPAYDIR — sekiz özellik aynı anda aynı yönde hareket eder
+ve bu, gerçek bir sahada asla olmaz. Onlar bir **yetenek aktarım probudur**; denge tablosu DEĞİL
+(§2c). Denge iddiaları §4'teki üretim sahasında kurulur. İkisi de olmasaydı rapor ya “yetenek hiç
+işlemiyor” sanırdı ya da “ölçtüğüm şey üretimde yok” durumunu gizlerdi.
+
+**Neden 20 ayrı bot sahası:** tek saha yetmez. Ölçüm ilk kez TEK sabit sahayla yapıldığında saha
+boyutları arasında uçurum çıktı — bir boyutta favori ezici biçimde kazanırken diğerlerinde yazı-tura
+gibiydi. Fark motordan değil, tek bir **çekilişten**
+geliyordu (o sahada en güçlü botun ikinciye farkı büyüktü). Üretimde her lobi kendi rastgele
+sahasını alır (`settle-race.use-case.ts` seed'i yarış başına üretir), dolayısıyla doğru soru
+“bu sabit sahada kim kazanıyor” değil, **“rastgele bir sahada favori ortalama ne sıklıkla
+kazanıyor ve en kötü durumda ne oluyor”**dur.
+
+**Ölçülmeyen: `gatePosition`.** İstendi ve ölçülemedi, çünkü `simulateRace` kapı pozisyonunu
+**hiç okumaz**. `race_entries.gate_position` yalnızca yazılır, saklanır ve istemciye yansıtılır
+(`settle-race.use-case.ts`, `postgres-race.repository.ts`, `race.gateway.ts`). Olmayan bir etkiyi
+“dengeli çıktı” diye raporlamak uydurma olurdu — bkz. §7.
+
+---
+
+## 2. Yetenek sinyali — merdiven sahaları
+
+`1/N` **tarafsız** (yazı-tura) motorda beklenen paydır. Galibiyetin yeteneğe bağlı olması
+`1/N`'in ÜZERİNDE bir favori payı **gerektirir**; oyunun yarış olması da payın `1.00`
+OLMAMASINI gerektirir (aksi hâlde sonuç önceden bilinirdi).
+
+**“Hiç kazanmayan at” sütunu yapısal ölü at arar.** 10.000 yarışta bir at hiç kazanmıyorsa o at
+bu motorda yarışamaz durumdadır — sahibi için görünmez bir duvardır.
+
+### 2a. Dar merdiven — 62 → 74
+
+| Saha | Favori payı | Tarafsız `1/N` | Favori / tarafsız | En zayıf at | İlk yarı toplam | Son yarı toplam | Hiç kazanmayan at | Tek atın en yüksek payı | Yetenek–galibiyet korelasyonu |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 8 | 92.73% | 12.50% | **7.42×** | 0.00% | 100.00% | 0.00% | 4 | 92.73% | 0.614 |
+| 10 | 85.77% | 10.00% | **8.58×** | 0.00% | 100.00% | 0.00% | 5 | 85.77% | 0.587 |
+| 12 | 82.95% | 8.33% | **9.95×** | 0.00% | 100.00% | 0.00% | 6 | 82.95% | 0.547 |
+| 14 | 80.84% | 7.14% | **11.32×** | 0.00% | 100.00% | 0.00% | 7 | 80.84% | 0.543 |
+| 16 | 76.22% | 6.25% | **12.20×** | 0.00% | 100.00% | 0.00% | 8 | 76.22% | 0.523 |
+
+### 2b. Geniş merdiven — 55 → 85
+
+| Saha | Favori payı | Tarafsız `1/N` | Favori / tarafsız | En zayıf at | İlk yarı toplam | Son yarı toplam | Hiç kazanmayan at | Tek atın en yüksek payı | Yetenek–galibiyet korelasyonu |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 8 | 97.77% | 12.50% | **7.82×** | 0.00% | 100.00% | 0.00% | 5 | 97.77% | 0.590 |
+| 10 | 95.20% | 10.00% | **9.52×** | 0.00% | 100.00% | 0.00% | 7 | 95.20% | 0.543 |
+| 12 | 93.77% | 8.33% | **11.25×** | 0.00% | 100.00% | 0.00% | 8 | 93.77% | 0.506 |
+| 14 | 89.75% | 7.14% | **12.56×** | 0.00% | 100.00% | 0.00% | 9 | 89.75% | 0.493 |
+| 16 | 87.42% | 6.25% | **13.99×** | 0.00% | 100.00% | 0.00% | 11 | 87.42% | 0.472 |
+
+**Okunuşu:** “yetenek–galibiyet korelasyonu”, merdivenin sırası ile `computeBaseAbility`
+çıktısı arasındaki Spearman katsayısıdır — motorda **gerçekten kullanılan** taban puana göre
+ölçülür, merdivenin kendi sırasına göre değil. `1.000` olsaydı motor tamamen deterministik
+olurdu; `0` olsaydı yetenek hiç işlemiyor olurdu.
+
+### 2c. ÖLÇÜLEN BULGU — motorun sürpriz payı DARDIR
+
+İki tablo yan yana okunduğunda iki şey çıkıyor ve **ikincisi beklenmeyen olandır**:
+
+1. Merdiven sahalarında favori payı `1/N`'in katları mertebesinde ve **alt yarı 10.000 yarışta
+   HİÇ kazanmıyor** (`Son yarı toplam` = 0.00%, `Hiç kazanmayan at` sütunu sıfırdan büyük).
+2. **Dar bant da neredeyse aynı derecede deterministik.** Bandı daraltmak favori payını
+   düşürüyor — ama alt yarı **hâlâ** hiç kazanmıyor ve birkaç at yine hiç kazanmıyor.
+   Yani sorun bandın genişliği DEĞİL.
+
+Kök neden ölçülebilir bir orandır:
+
+```
+race.config.json → randomFactorRange: [-6, 6]   (segment başına ±6 puan)
+segment sayısı (1600 m / 200 m)                  = 8
+gürültünün yarış düzeyindeki standart hatası     ≈ 6 / √3 / √8 ≈ 1.2 puan
+```
+
+Yani segment gürültüsü yarış boyunca **toplanarak ortalanır**: tek bir segmentte ±6 puan
+büyük görünür, ama 8 segmentin toplam süresinde etkisi ~1.2 puana iner. Merdiven sahasında
+komşu iki atın farkı bunun üzerindedir — dolayısıyla sıralama neredeyse önceden belirlenir.
+
+⚠️ **Ama merdiven sahası ÜRETİM DEĞİLDİR ve bu tablolar denge kararı için kullanılmamalıdır.**
+Merdiven yapaydır: sekiz özellik (speed, stamina, acceleration, fitness, morale, surface/
+distance uyumu, yorgunluk) **aynı anda ve aynı yönde** hareket eder. Gerçek bir sahada iki at
+farklı özelliklerde birbirini geçer ve `computeBaseAbility` farkı küçülür. Merdiven bir
+**yetenek aktarım probudur** (“motor yeteneği ne kadar güçlü ödüllendiriyor”), denge tablosu
+değildir. Üretim gerçeği **§4'tedir** ve orada favori payı merdiveninkinin belirgin ALTINDADIR —
+ama yine de `1/N`'in katları mertebesinde, yani sürpriz payı orada da dar (§4a).
+
+**Bu, determinizmle KARIŞTIRILMAMALIDIR.** Determinizm (§5) motorun *doğruluğudur*: aynı seed
+aynı sonucu verir. Buradaki bulgu ise oyunun **sürpriz payının** genişliğidir: farklı seed'ler
+bile aynı sıralamayı üretir. İkisi ayrı şeylerdir ve ikisi de doğrudur.
+
+**Neden bu dilim değeri DEĞİŞTİRMEDİ:** `race.config.json`'daki bir sayıyı oynatmak
+(CLAUDE.md kural 2 — “RACE ENGINE'E DOKUNMA”; config dondurulmuş `horse_snapshot`ların
+replay'ini belirler) eski yarışların yeniden koşumunu **sessizce başka bir sonuca** çevirirdi.
+Bu dilim ölçümü ve karar için gereken sayıyı üretir; denge kararı proje sahibinindir.
+
+---
+
+## 3. Taktik dengesi — stil sahası
+
+Sahadaki atlar istatistiksel olarak **özdeş**; tek fark `racingStyle`. Beklenen pay sabit %25
+**değildir** — stil `index % 4` ile dağıtıldığı için 10 ve 14 atlık alanlarda 3-3-2-2 ve 4-4-3-3
+olur. Sabit %25 eşiği kullanmak o iki boyutta ölçüm hatası olurdu.
+
+| Saha | front_runner | tracker | mid_pack | closer |
+| --- | --- | --- | --- | --- |
+| 8 | 25.99% (bekl. 25.00%) | 18.86% (bekl. 25.00%) | 23.05% (bekl. 25.00%) | 32.10% (bekl. 25.00%) |
+| 10 | 32.90% (bekl. 30.00%) | 23.07% (bekl. 30.00%) | 19.06% (bekl. 20.00%) | 24.97% (bekl. 20.00%) |
+| 12 | 26.54% (bekl. 25.00%) | 19.42% (bekl. 25.00%) | 21.05% (bekl. 25.00%) | 32.99% (bekl. 25.00%) |
+| 14 | 30.13% (bekl. 28.57%) | 23.15% (bekl. 28.57%) | 18.76% (bekl. 21.43%) | 27.96% (bekl. 21.43%) |
+| 16 | 26.77% (bekl. 25.00%) | 19.91% (bekl. 25.00%) | 21.40% (bekl. 25.00%) | 31.92% (bekl. 25.00%) |
+
+**Neden tam %25 beklenmiyor:** `race.config.json`'ın `pace` bölümü bilinçli olarak asimetriktir
+(`front_runner` yarış boyunca daha çok stamina harcar ama erken/orta aşamada pozisyon bonusu
+alır; `closer` daha az harcar ve geç aşamada küçük bir bonus alır). Bu, dört stilin de
+**kimlikli** olması demektir. Aranan şey payların eşit olması değil, hiçbirinin **yapısal olarak
+ölü** (~%0) ya da **baskın** (~%100) olmamasıdır — eşikler `race-balance.spec.ts` içinde, ölçülen
+temel çizgiye güvenli marj bırakılarak sabitlenmiştir.
+
+---
+
+## 4. ÜRETİM GERÇEĞİ — rastgele bot lobileri
+
+**Bu, raporun asıl denge tablosudur.** §2'deki merdivenler yapay problar (§2c); üretimde bir
+oyuncunun karşılaştığı saha burada ölçülendir. `generateBotEntrants` üretimde de çağrılan
+fonksiyonun ta kendisidir (`settle-race.use-case.ts`).
+
+Saha boyutu başına **20 ayrı rastgele lobi** × 500 yarış.
+
+⚠️ **Burada stil tablosu YOKTUR ve olmamalıdır.** Bir lobide stil payı ölçmek, en güçlü botun
+hangi stile düştüğü **yazı-turasını** ölçmek olurdu (ilk koşumda tam olarak bu yanılgı görüldü:
+sabit bir saha için bir stilin payı ezici çıktı — çünkü o sahanın en güçlü botu o stile düşmüştü).
+Yirmi lobiye dağıtmak bu tesadüfü ortalar ama yine de stili değil **saha kompozisyonunu**
+ölçerdi. Taktik dengesi §3'ün işidir; burada ölçülen şey **yetenek dağılımıdır**.
+
+| Saha | Favori payı (ort.) | Tarafsız `1/N` | Favori / tarafsız | En kötü lobide favori | Hiç kazanmayan bot (ort. / en kötü) | Tek botun en yüksek payı (ort.) | Kazananın ort. süresi | 1. ile son arası ort. fark |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 8 | 61.77% | 12.50% | **4.94×** | 95.40% | 2.7 / 5 | 66.80% | 184.03 sn | 51.88 sn |
+| 10 | 60.88% | 10.00% | **6.09×** | 99.80% | 4.0 / 8 | 64.59% | 182.79 sn | 56.66 sn |
+| 12 | 66.96% | 8.33% | **8.04×** | 91.80% | 5.5 / 8 | 69.82% | 181.03 sn | 62.93 sn |
+| 14 | 53.79% | 7.14% | **7.53×** | 92.40% | 6.3 / 9 | 57.02% | 182.48 sn | 64.87 sn |
+| 16 | 42.59% | 6.25% | **6.81×** | 76.80% | 8.0 / 11 | 52.47% | 181.58 sn | 67.73 sn |
+
+“Favori” = `computeBaseAbility` çıktısı en yüksek olan bot — motorda **gerçekten kullanılan**
+taban puandır, sahaya bakıp seçilmiş bir etiket değil.
+
+**Okunuşu:** `Favori payı (ort.)` `1/N`'in belirgin üzerindeyse yetenek üretimde işliyor demektir;
+`1.00`'a yaklaşırsa oyun yazı-turaya döner. `En kötü lobide favori` sütunu ise tek bir lobide
+ne kadar domine edilebildiğini gösterir — dağıtım genişse **bazı lobiler yarış olmaktan çıkar**,
+oyuncu bunu seçemez ve göremez.
+
+### 4a. ÖLÇÜLEN BULGU — üretimde de sürpriz payı dar
+
+Bu tablo §2c'deki bulguyu **üretim sahasında doğruluyor** ve oradan daha rahatsız edici, çünkü
+merdiven yapaydı; burası gerçek:
+
+Sayılar yukarıdaki tablodadır; burada **okunuşu** var:
+
+- **Ortalama favori payı `1/N`'in katları mertebesinde** (`Favori / tarafsız` sütunu). Yani
+  yetenek işliyor — ama fazla iyi.
+- **`En kötü lobide favori` sütunu `1.00`'a yaklaşıyor.** Bir lobide favorinin yarışı kazanması
+  neredeyse kesinleşiyor; oyuncunun o lobiye girip girmemesi bir şans, sonucu değil.
+- **Yapısal ölü botlar var:** `Hiç kazanmayan bot` sütunu 500 yarışta hiç kazanmayan botları
+  sayar. Bu botlar için o lobi bir yarış değil — ve oyuncu hangi lobiye düştüğünü seçemez.
+- **`Tek botun en yüksek payı (ort.)`**, galibiyetlerin tek bir botta toplandığını gösterir.
+
+**Neden botlar ölü kalıyor — ve bu neden bir oyuncu sorunudur.** Botun statları `[45, 75]`
+bandından **bağımsız** çekilir; dört ağırlıklı statın bileşimi (speed .25 + stamina .20 +
+acceleration .15 + fitness .10) 30 puanlık bantta ~3.2 puan standart sapma verir, yani 16 botluk
+bir sahada en iyi ile en kötü arasında ~11 puan fark oluşur. Yarış gürültüsü ise ~1.2 puandır
+(§2c). Dolayısıyla **sıralama çoğunlukla saha kurulduğu anda belirlenir**; koşu onu yalnızca
+teyit eder. Gerçek bir oyuncu, botların arasına girdiğinde de aynı gürültüyle koşar: iyi bir atla
+**neredeyse her zaman** kazanır, kötü bir atla **neredeyse hiç**. Oyunun “sürpriz” üretmesi beklenen
+yer burasıdır ve bugün üretmiyor.
+
+⚠️ **Bu bir bulgudur, düzeltme DEĞİL.** `randomFactorRange` / segment sayısı / taban puan ölçeği
+değişikliği `race.config.json` değişikliğidir ve dondurulmuş `horse_snapshot`ların replay'ini
+sessizce başka bir sonuca çevirir (CLAUDE.md kural 2). Karar proje sahibinindir; bu dilim
+ölçümü ve eşikleri üretti.
+
+---
+
+## 5. Yapısal sağlamlık ve determinizm
+
+Yapısal koşum, dar merdiven sahasında ayrıca koşar (sıra bütünlüğü ve beraberlik için
+statların ÖZDEŞ olduğu bir saha daha zorlayıcıdır).
+
+| Saha | Sıra 1..N değil | Uzunluk ≠ N | Beraberlik içeren yarış | Determinizm ihlali | Kazanan ort. | Sonuncu ort. | Fark ort. |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 8 | 0 | 0 | 3 | 0 / 25 | 147.91 sn | 198.55 sn | 50.64 sn |
+| 10 | 0 | 0 | 5 | 0 / 25 | 147.96 sn | 200.61 sn | 52.65 sn |
+| 12 | 0 | 0 | 6 | 0 / 25 | 148.06 sn | 202.09 sn | 54.02 sn |
+| 14 | 0 | 0 | 13 | 0 / 25 | 148.09 sn | 203.33 sn | 55.23 sn |
+| 16 | 0 | 0 | 15 | 0 / 25 | 148.12 sn | 204.91 sn | 56.78 sn |
+
+**Determinizm** brief §18/§53/§58'in replay/audit garantisidir: aynı `simulationSeed` + aynı
+`entries` + aynı config **bit bit** aynı `RaceTimeline`'ı üretmelidir. Her saha boyutunda ilk
+25 seed iki kez koşulup `JSON.stringify` ile karşılaştırılır.
+
+**Beraberlik** sayısı sıfır olmak zorunda değildir ama küçük olmalıdır: motorda tam beraberlik
+`finishTimeMs` eşitliğidir ve `horseId` sözlük sırasıyla bozulur (brief §25 foto-finiş). Sıfır
+olması bir hata değildir; BÜYÜK olması “motor ayrıştırmıyor” demek olurdu.
+
+---
+
+## 6. Mesafe duyarlılığı
+
+Saha boyutu başına 1.000 koşum; kazananın ortalama süresi.
+Uzun yarış **daha yavaş** olmalıdır (stamina tüketimi + yorgunluk birikimi). Aksi, mesafenin
+sonuca hiç girmemesi demek olurdu.
+
+| Saha | 1200 m | 1600 m | 2400 m | 2400/1200 oranı |
+| --- | --- | --- | --- | --- |
+| 8 | 109.02 sn | 158.05 sn | 227.34 sn | 2.085 |
+| 10 | 109.01 sn | 158.13 sn | 227.22 sn | 2.085 |
+| 12 | 108.96 sn | 158.05 sn | 227.38 sn | 2.087 |
+| 14 | 108.74 sn | 157.76 sn | 226.99 sn | 2.087 |
+| 16 | 108.67 sn | 157.77 sn | 226.94 sn | 2.088 |
+
+---
+
+## 7. Dürüst eksikler — bu raporun KAPSAMADIĞI şeyler
+
+1. **Kapı pozisyonu (`gatePosition`) ölçülmedi** — çünkü motora hiç girmiyor. Brief §17/§21
+   kapı pozisyonunu bir faktör olarak sayar; bugün `race_entries.gate_position` yalnızca
+   saklanan ve istemciye yansıtılan bir **etikettir**. Bu bir denge bulgusu değil, bir
+   **bağlanmamış özelliktir**.
+2. **Jokey ölçülmedi** — `RaceEntrantSnapshot.jockeySkillComposite` her zaman nötr `50`
+   (`NEUTRAL_UNMODELED_TRAIT_SCORE`). `race_entries.jockey_id`'yi yazan hiçbir kod yoktur.
+   Ölçümde bu alan bilinçli olarak nötr bırakıldı: uydurma bir jokey değeri, üretimde
+   olmayan bir sinyalle dengeyi şişirirdi. **PHASE 6'nın konusudur.**
+3. **`startApproach` / `finalStretchPlan` ölçülmedi** — `RaceEntrantSnapshot.tactic` bu iki
+   alanı taşır ve `assertValidRaceTactic` onları doğrular, ama `simulateRace` yalnızca
+   `racingStyle` ve `riskLevel` okur. Yani bu iki alan bugün **doğrulanan ama kullanılmayan**
+   alanlardır. **PHASE 6'nın konusudur.**
+4. **Tek mesafe/saha koşulu** — kanonik yarış 1600 m / çim / güneşli / 22 °C'dir. Diğer
+   zemin ve hava koşulları (`weather.config.json`) §6'daki mesafe probu DIŞINDA ölçülmedi;
+   çoklu-zemin denge taraması bu dilimin kapsamı dışındadır.
+5. **Gerçek oyuncu atı verisiyle ölçüm yok** — sahalar sentetik merdivenler, sentetik özdeş
+   alan ve üretim botlarıdır. Gerçek `horses` satırlarıyla koşan bir denge taraması ancak
+   gerçek oyuncu popülasyonu oluştuğunda anlamlı olur.
+6. **Sürpriz payı ölçüldü ama DEĞİŞTİRİLMEDİ — bu raporun EN ÖNEMLİ AÇIK UCU** (§2c + §4a).
+   Ölçüm üretimde de doğruladı: favori payı `1/N`'in katları mertebesinde, en kötü lobide
+   `1.00`'a yaklaşıyor, tek bot galibiyetlerin çoğunu alıyor ve hiç kazanmayan botlar var
+   (§4 tablosu). Düzeltmesi
+   (`randomFactorRange`, segment sayısı ya da taban puan ölçeği) `race.config.json` değişikliği
+   gerektirir ve dondurulmuş snapshot replay'lerini etkiler. Bu dilim ölçüm dilimiydi;
+   **karar verilmedi** ve `race-balance.spec.ts` bu değeri “iyi” diye kilitlemez.
+7. **`in_progress` hâlâ ölü** (CLAUDE.md) — ölçüm bunu etkilemez ama yarış akışının gerçek
+   zamanlı bir aşaması olmadığını hatırlatır: buradaki tüm sayılar **tek seferde koşan**
+   simülasyonun sonucudur, canlı bir yarışın değil.
+
+---
+
+## 8. Sonuç
+
+| Soru | Cevap |
+| --- | --- |
+| Motor sonucu sunucuda mı belirliyor? | Evet — simülasyon yalnızca `domain/race/race-engine.ts`'te koşar |
+| Aynı seed aynı sonucu veriyor mu? | Evet — §5 determinizm ihlali sütunu tüm sahalarda 0 |
+| Yetenek kazandırıyor mu? | Evet — üretim sahasında favori `1/N`'in belirgin üzerinde (§4) |
+| Sonuç önceden bilinebilir mi? | **Üretimde hayır** — rastgele lobilerde favori oranı §4'ün “ort. favori” sütununda, sürpriz payı vardır. **Yapay merdiven sahasında neredeyse evet** — alt yarı hiç kazanmıyor (§2c) |
+| Bir taktik domine ediyor mu? | Hayır — dört stil de kimlikli, hiçbiri yapısal ölü/baskın değil (§3) |
+| Sürpriz payı yeterli mi? | **HAYIR — §2c + §4a + §7.6.** Gürültünün yarış düzeyindeki etkisi ~1.2 puan; yetenek farkı bunu aşınca sıralama saha kurulurken belirlenir. Üretimde “en kötü lobide favori” sütunu `1.00`'a yaklaşıyor (§4 tablosu). Ölçüldü, DEĞİŞTİRİLMEDİ |
+| Düzeltildi mi? | **Hayır, bilerek.** `race.config.json` değişikliği dondurulmuş snapshot replay'ini bozar; karar proje sahibinindir |
+| AI'ye gizli bonus var mı? | Hayır — botlar `generateBotEntrants` ile üretilir, ayrı bir bonus yolu yoktur (§4) |
+| Kapı pozisyonu etkiliyor mu? | **Hayır — motora hiç girmiyor (§7.1, bağlanmamış özellik)** |
+| Jokey etkiliyor mu? | **Hayır — nötr 50, hiç bağlanmamış (§7.2, PHASE 6)** |
+

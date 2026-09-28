@@ -352,6 +352,15 @@ başlarken bu dördünü "yapılacaklar" sanıp yeniden açma.
   (§13.14) + **`race_starting` (§13.24 — 28.09.2026; kilit anında, aynı
   transaction'da).** `race_starting`'in üreticisiz kalmasının tek sebebi
   projede zamanlayıcı olmamasıydı; `RaceLockScheduler` o boşluğu kapattı.
+- **PHASE 5 (denge ölçümü) — YAPILDI (§13.28, 29.09.2026).** 265.125
+  simülasyon (5 saha boyutu × 5 koşum × 10.000) koşuldu, CI'da kilitlendi
+  ve rapor üretildi. **⚠️ ÖLÇÜLEN BULGU: motorun SÜRPRİZ PAYI DARDIR** —
+  üretim lobilerinde favori ortalama `1/N`in 4.9-8.0 katı kazanıyor, en
+  kötü lobide %99.8, ve 500 yarışta hiç kazanmayan botlar var. Kök neden
+  `randomFactorRange: [-6,6]`nın 8 segment boyunca ortalanıp ~1.2 puana
+  inmesi. **BİLEREK DÜZELTİLMEDİ** (config değişikliği dondurulmuş
+  snapshot replay'ini bozar). Yeni bir denge dilimi açarken önce
+  `docs/RACE_BALANCE_REPORT.md` §2c/§4a/§7.6'yı oku.
 - `GltfAssetLoader.tsx` — **asset olmadan ANLAMSIZ.** `.glb` yokken her zaman
   yedek görünüme düşer = bugünkü kapsül+küre görüntüsünün tıpatıp aynısı.
   Bağlamak sıfır görsel etki üretir.
@@ -370,6 +379,22 @@ Bu yüzden brief §42 PHASE 1'in `STARTING`/`RUNNING`/`FINISHING`/
 `SETTLING`/`REFUNDING` durumları **eklenmedi**: hiçbir kodun yazmadığı
 durumlar uydurmak, `Pause`un imkânsız olmasıyla aynı gerekçeyle yanlış
 olurdu.
+
+**⚠️ DENGE ÖLÇÜMÜ ARTIK KODLA KİLİTLİDİR (§13.28).** Ölçüm mantığı
+`apps/api/test/domain/race/race-balance-harness.ts`'te **tek** yerde durur
+ve iki tüketicisi vardır: `race-balance.spec.ts` (CI eşikleri) ve
+`apps/api/tools/race-balance-report.ts` (rapor). **Yeni bir denge sorusu
+soracaksan harness'a ekle** — ayrı bir ölçüm kodu yazmak, rapor ile CI'ın
+ölçtüğü şeyi ayırır ve "yeşil CI"nın kanıtladığı şey raporun anlattığı şey
+olmaktan çıkar. ⚠️ Harness `test/domain/race/` altındadır, yani
+`verify-admin.mjs` grubu 1/3 onu **zaten koşar**.
+
+**⚠️ ÖLÇÜLEN KÖTÜ DEĞER EŞİK YAPILMAZ.** `race-balance.spec.ts` "alt yarı
+hiç kazanmıyor" ya da "en kötü lobide favori %99.8" gibi değerleri
+**kilitlemez**: bunlar bir iyi durum değildir ve düzeltilince CI kırmızıya
+dönmemelidir. Kilitlenen şey *kırılmaması gerekenlerdir* (determinizm, sıra
+bütünlüğü, favori < 0.995, hiçbir stil ölü/baskın değil, mesafe sonuca
+giriyor). Ölçülen risk raporda yaşar, eşikte değil.
 
 **Bitmiş sayılacaklar (yeniden yapma):** telemetri zenginleştirme
 (`fatigueLevel`/`paceScore`, migration 0029) · Camera Director · Photo Finish
