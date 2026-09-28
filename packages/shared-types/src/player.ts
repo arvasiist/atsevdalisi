@@ -44,7 +44,25 @@ export interface Player {
 }
 
 /** brief §38 Ana Sayfa "Oyuncu" kartı için minimal görünüm. */
-export type PlayerSummary = Pick<Player, 'id' | 'displayName' | 'avatarId' | 'level' | 'xp' | 'money' | 'gems'>;
+/**
+ * Oyuncunun KENDİ özeti — `GET /players/:id` (`assertSelf` ile korunur),
+ * `POST /players` ve `POST /auth/login` bunu döner. Yani bu tip HİÇBİR
+ * ZAMAN başka bir oyuncu için üretilmez; `money`/`gems` taşıması bu
+ * yüzdendir (herkese açık profil için bkz. `PlayerProfileView` — o tip
+ * bakiyeyi BİLİNÇLİ olarak taşımaz, AUDIT Bulgu S4).
+ *
+ * **`username` NEDEN EKLENDİ (28.09.2026):** `/profile/:username` ekranı
+ * (brief §24) yalnızca kullanıcı adıyla açılır ve bu, oyuncunun KENDİ
+ * profiline giden tek keşif yoludur — `nav-links.ts`'teki statik listeye
+ * giremez (DİNAMİK rota), yani bağlantıyı üretecek yer üst barın oyuncu
+ * bloğudur ve orada yalnızca `PlayerSummary` vardır. `username` gizli
+ * DEĞİLDİR: profilin URL'sidir, `GET /players/profile/:username` ile
+ * herkese açıktır ve sohbet mesajlarında zaten görünür.
+ */
+export type PlayerSummary = Pick<
+  Player,
+  'id' | 'username' | 'displayName' | 'avatarId' | 'level' | 'xp' | 'money' | 'gems'
+>;
 
 /**
  * AUDIT_REPORT.md Bulgu S1 hardening (bu oturum) — brief §41/§50 Google/Apple

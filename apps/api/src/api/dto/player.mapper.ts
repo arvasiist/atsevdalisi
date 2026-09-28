@@ -11,6 +11,10 @@ import type { Player, PlayerSummary } from '@at-sevdalisi/shared-types';
 export function toPlayerSummary(player: Player): PlayerSummary {
   return {
     id: player.id,
+    // `username` 28.09.2026'da eklendi — istemci kendi profiline
+    // (`/profile/:username`) bağlantı üretebilsin diye. Gerekçe:
+    // `shared-types/src/player.ts` `PlayerSummary` doc yorumu.
+    username: player.username,
     displayName: player.displayName,
     avatarId: player.avatarId,
     level: player.level,

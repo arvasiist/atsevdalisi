@@ -71,6 +71,7 @@ function requestArgs(fetchMock: ReturnType<typeof vi.fn>, callIndex = 0): [strin
 
 const samplePlayer: PlayerSummary = {
   id: 'player-1',
+  username: 'harbi_seyis',
   displayName: 'Harbi Seyis',
   avatarId: null,
   level: 3,
@@ -537,6 +538,46 @@ describe('apiClient — bildirimler + yarış daveti (brief §28/§16)', () => {
       const [, config] = requestArgs(fetchMock);
       expect((config.headers as Headers).has('Idempotency-Key')).toBe(false);
     }
+  });
+});
+
+describe('apiClient.getPlayerProfile (brief §24 — /profile/:username)', () => {
+  it('kullanıcı adını YOL PARAMETRESİ olarak gönderir', async () => {
+    const fetchMock = stubFetchOnce({ success: true, data: {} });
+    await apiClient.getPlayerProfile('harbi_seyis');
+    const [url] = requestArgs(fetchMock);
+    expect(url).toBe(`${API_BASE_URL}/players/profile/harbi_seyis`);
+  });
+
+  it('kullanıcı adını URL İÇİN KODLAR — ham birleştirme farklı bir rotaya giderdi', async () => {
+    // Gerçek bir senaryo: kullanıcı adı `%`/`/`/boşluk içerebilir. Ham
+    // birleştirmede `a b` → `/players/profile/a b` (bozuk URL), `a/b` ise
+    // TAMAMEN BAŞKA bir rota olurdu. Test bu yüzden kodlanmış hâli bekler.
+    const fetchMock = stubFetchOnce({ success: true, data: {} });
+    await apiClient.getPlayerProfile('a b/c');
+    const [url] = requestArgs(fetchMock);
+    expect(url).toBe(`${API_BASE_URL}/players/profile/a%20b%2Fc`);
+    expect(url).not.toContain(' ');
+  });
+
+  it('GET kullanır ve GÖVDE göndermez', async () => {
+    const fetchMock = stubFetchOnce({ success: true, data: {} });
+    await apiClient.getPlayerProfile('harbi_seyis');
+    const [, config] = requestArgs(fetchMock);
+    // `method` hiç verilmezse `fetch` varsayılanı GET'tir; iki durumu da
+    // kabul etmek yerine açıkça yoklanır ki yanlışlıkla POST'a dönmesin.
+    expect(config.method ?? 'GET').toBe('GET');
+    expect(config.body).toBeUndefined();
+  });
+
+  it('token GEREKTİRMEZ — token yokken de Authorization header\'ı eklenmez', async () => {
+    // Uç nokta `@Public()`'tir: kimliği doğrulanmamış bir ziyaretçi de
+    // profili görebilmelidir (brief §24). `setAuthToken(null)` zaten
+    // `beforeEach`'te yapılıyor; iddia bunun SONUCUNU sabitler.
+    const fetchMock = stubFetchOnce({ success: true, data: {} });
+    await apiClient.getPlayerProfile('harbi_seyis');
+    const [, config] = requestArgs(fetchMock);
+    expect((config.headers as Headers).has('Authorization')).toBe(false);
   });
 });
 

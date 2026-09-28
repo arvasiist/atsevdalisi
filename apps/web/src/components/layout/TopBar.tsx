@@ -78,7 +78,15 @@ export function TopBar(): React.ReactElement {
         <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 'var(--space-sm)' }}>
           <CurrencyPill icon="💰" label={CURRENCY_LABELS.money} value={player.money} />
           <CurrencyPill icon="💎" label={CURRENCY_LABELS.gems} value={player.gems} />
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          {/* Avatar + ad, oyuncunun KENDİ profiline götürür (`/profile/:username`,
+              brief §24). **NEDEN BURADAN:** `/profile/:username` DİNAMİK bir
+              rotadır ve `nav-links.ts`'teki statik listeye giremez — ama
+              profilin görülebilmesi için bir keşif yolu şarttır, yoksa sayfa
+              ÖLÜ KOD olur (bkz. `TopBar` doc yorumu). Buradaki bağlantı
+              her sayfada görünür ve hedefi her zaman geçerlidir: oyuncunun
+              kendi `username`'i `PlayerContext`'te zaten vardır, yani ek bir
+              istek gerekmez. */}
+          <Link href={`/profile/${encodeURIComponent(player.username)}`} style={profileLinkStyle}>
             <HorseAvatar horseId={player.id} size={32} />
             <div style={{ display: 'grid', lineHeight: 1.25 }}>
               <span style={{ fontSize: '13px', color: 'var(--color-text-primary)', fontWeight: 600 }}>
@@ -86,7 +94,7 @@ export function TopBar(): React.ReactElement {
               </span>
               <span style={{ fontSize: '11px', color: 'var(--color-accent-gold)' }}>Seviye {player.level}</span>
             </div>
-          </div>
+          </Link>
         </div>
       ) : (
         <span style={{ fontSize: '13px', color: 'var(--color-text-muted)' }}>Misafir</span>
@@ -115,6 +123,18 @@ export function TopBar(): React.ReactElement {
     </header>
   );
 }
+
+/**
+ * Avatar + oyuncu adı bloğunun görünümü — bir BAĞLANTI olduğu için
+ * `textDecoration: 'none'` taşır; `color` verilmez, içindeki iki `span`
+ * kendi rengini korur (aksi halde bağlantı rengi ikisini de ezerdi).
+ */
+const profileLinkStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: '8px',
+  textDecoration: 'none',
+};
 
 /**
  * Gezinti bağlantısı görünümü. `minHeight: 36px` — `friends/page.tsx`'teki

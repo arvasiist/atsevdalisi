@@ -24,6 +24,7 @@ import type {
   NotificationListResult,
   NotificationView,
   PerformCareActionResult,
+  PlayerProfileView,
   PlayerSummary,
   PracticeRaceResult,
   PublicHorse,
@@ -147,6 +148,30 @@ export const apiClient = {
     }),
 
   getPlayer: (playerId: string) => request<PlayerSummary>(`/players/${playerId}`),
+
+  /**
+   * brief §24 SOSYAL PROFİL — `/profile/:username` ekranı (28.09.2026).
+   *
+   * **İKİ FARKI VAR, ikisi de bilinçli:**
+   *   1. **`@Public()`** — bu uç nokta token GEREKTİRMEZ. Yukarıdaki
+   *      `getPlayer` (`GET /players/:id`) `assertSelf` ile KORUNUR ve
+   *      yalnızca kişinin KENDİ özetini döner; bu ise başkasının profilini
+   *      görüntülemek içindir ve `money`/`gems` TAŞIMAZ
+   *      (`PlayerProfileView` doc yorumu, AUDIT Bulgu S4). Token yine de
+   *      gönderilir (zararsızdır) çünkü `request()` token varsa ekler.
+   *   2. **`playerId` değil `username`** — yol parametresi bir UUID DEĞİL,
+   *      kullanıcı adıdır; şekil doğrulaması sunucuda `validateUsername` ile
+   *      yapılır (domain), burada YAPILMAZ.
+   *
+   * **`encodeURIComponent` ŞART:** kullanıcı adı URL yoluna gömülür ve
+   * geçerli bir kullanıcı adı `%`/`/`/boşluk gibi karakterler içerebilir —
+   * ham birleştirme, farklı bir rotaya istek atardı (ör. `a/b` → iki
+   * segment). Sunucu tarafında `@Param('username')` zaten ÇÖZÜLMÜŞ değeri
+   * alır.
+   */
+  getPlayerProfile: (username: string) =>
+    request<PlayerProfileView>(`/players/profile/${encodeURIComponent(username)}`),
+
 
   // At & Ahır İşlemleri
   getHorsesByOwner: (ownerId: string) => request<PublicHorse[]>(`/horses?ownerId=${ownerId}`),
