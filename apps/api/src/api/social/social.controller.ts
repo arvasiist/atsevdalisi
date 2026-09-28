@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -10,6 +11,7 @@ import {
   ParseUUIDPipe,
   Post,
 } from '@nestjs/common';
+import { isUUID } from 'class-validator';
 import type {
   ApiSuccess,
   DirectMessageView,
@@ -105,6 +107,23 @@ export class SocialController {
     @CurrentPlayer() currentPlayer: AuthenticatedPlayer,
   ): Promise<ApiSuccess<FriendRequestView>> {
     assertSelf(currentPlayer.id, id);
+
+    // İKİNCİ SAVUNMA HATTI — `@IsUUID()` dekoratörüne TEK BAŞINA güvenilmez.
+    // Kök neden `MatchmakingController.join`'in doc yorumunda ayrıntılı
+    // yazılıdır (docs/ARCHITECTURE.md §9.1 Hata 7): Vitest/esbuild
+    // `design:paramtypes` üretmediği için `ValidationPipe` gövde
+    // doğrulamasını SESSİZCE atlar. Bu kontrol olmadan geçersiz bir
+    // `addresseeId` repository'ye ulaşır, `WHERE p.id = $1` ham bir Postgres
+    // tip hatası (`22P02 invalid input syntax for type uuid`) atar ve istemci
+    // 400 yerine **500** görür. `GiftController.sendGift`/
+    // `BreedingController.breed` ile AYNI sınıf hata ve AYNI desen.
+    //
+    // NOT: `addresseeId` bir YOL PARAMETRESİ DEĞİL, GÖVDE alanıdır — bu
+    // yüzden `@Param('id', ParseUUIDPipe)` koruması buraya UZANMAZ.
+    if (!dto.addresseeId || !isUUID(dto.addresseeId)) {
+      throw new BadRequestException('addresseeId geçerli bir UUID olmalıdır.');
+    }
+
     const request = await this.sendFriendRequestUseCase.execute(id, dto.addresseeId);
     return { success: true, data: request };
   }
@@ -172,6 +191,16 @@ export class SocialController {
     @CurrentPlayer() currentPlayer: AuthenticatedPlayer,
   ): Promise<ApiSuccess<DirectMessageView>> {
     assertSelf(currentPlayer.id, id);
+
+    // İKİNCİ SAVUNMA HATTI — `sendFriendRequest` ile AYNI gerekçe ve AYNI
+    // desen: `recipientId` GÖVDE alanıdır, `ParseUUIDPipe` ona UZANMAZ ve
+    // `@IsUUID()` esbuild altında atlanır. `body`nin doğrulaması BURADA
+    // DEĞİL, `normalizeMessageBody`tedir (kırpma/boş/uzunluk) — o zaten
+    // domain katmanında ve bağımsızdır.
+    if (!dto.recipientId || !isUUID(dto.recipientId)) {
+      throw new BadRequestException('recipientId geçerli bir UUID olmalıdır.');
+    }
+
     const message = await this.sendMessageUseCase.execute(id, dto.recipientId, dto.body);
     return { success: true, data: message };
   }

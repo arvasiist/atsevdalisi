@@ -19,6 +19,8 @@ import { toDirectMessageView } from './social-message-view';
  *      Veritabanına HİÇ gidilmeden önce, çünkü ucuz ve girdi hatasıdır.
  *   3. Alıcı okunur; yoksa `PlayerNotFoundError` (404) — aksi halde FK
  *      `23503` ile 500 dönerdi (`SendFriendRequestUseCase`'in AYNI adımı).
+ *      (`recipientId`nin ŞEKİL kontrolü burada DEĞİL, `SocialController.
+ *      sendMessage`tedir — 400 döner, bkz. o dosya.)
  *   4. `areFriends` — **ARKADAŞLIK ZORUNLUDUR** (403 `NOT_FRIENDS`).
  *   5. `saveMessage`.
  *

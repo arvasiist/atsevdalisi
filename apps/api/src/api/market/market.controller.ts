@@ -95,6 +95,17 @@ export class MarketController {
   @Post('listings')
   @HttpCode(HttpStatus.CREATED)
   async createListing(@Body() dto: CreateMarketListingDto): Promise<ApiSuccess<MarketListing>> {
+    // İKİNCİ SAVUNMA HATTI — `HorseOwnerGuard`'a TEK BAŞINA güvenilmez:
+    // o guard, eksik/hatalı biçimli bir `horseId` gördüğünde bilinçli olarak
+    // SESSİZCE `true` döner ve "asıl 400 üretimini downstream katmana
+    // bırakır" (bkz. `horse-owner.guard.ts` dosya başı notu). Downstream'de
+    // bu kontrol olmadan `"abc"` repository'ye ulaşır, `WHERE h.id = $1` ham
+    // bir Postgres tip hatası (`22P02`) atar ve istemci 400 yerine **500**
+    // görür. `listMyListings`'in `sellerId` kontrolüyle AYNI desen.
+    if (!dto.horseId || !isUUID(dto.horseId)) {
+      throw new BadRequestException('horseId geçerli bir UUID olmalıdır.');
+    }
+
     const listing = await this.createMarketListingUseCase.execute({
       horseId: dto.horseId,
       price: dto.price,

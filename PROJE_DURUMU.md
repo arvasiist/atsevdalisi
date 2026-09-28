@@ -1095,6 +1095,61 @@ Migration `0039_create_notifications_and_race_invites`.
 
 ---
 
+### 13.12 Gövde-UUID şekil kontrolü — kalan üç boşluk kapatıldı (28.09.2026)
+
+**Tetikleyen:** `CLAUDE.md`'nin "Bilinen açık hata" notu. **Not BAYATTI.**
+Orada "`send-gift.use-case.ts` `recipientId`'yi yalnızca `@IsUUID()` ile
+doğrular" yazıyordu; oysa `gift.controller.ts` bu alanı ZATEN elle
+`isUUID()` ile koruyordu (400). Yani bilinen hata diye tarif edilen şey
+kapalıydı, ama TARİF EDİLMEYEN üç gerçek boşluk vardı.
+
+**Kök neden (değişmedi, CLAUDE.md kural 5):** Vitest/esbuild
+`design:paramtypes` üretmez → `ValidationPipe` GÖVDE doğrulamasını sessizce
+atlar; `ParseUUIDPipe` yalnızca YOL parametrelerini korur. Korumasız bir
+`"not-a-uuid"` repository'ye ulaşır, PostgreSQL `22P02` atar → istemci
+**500** görür (400 değil).
+
+**Gerçekten korumasız olan üç uç nokta (artık kapalı):**
+
+| Uç nokta | Alan | Not |
+|---|---|---|
+| `POST /players/:id/friend-requests` | `addresseeId` | `social.controller.ts` |
+| `POST /players/:id/messages` | `recipientId` | `social.controller.ts` |
+| `POST /market/listings` | `horseId` | `market.controller.ts` |
+
+`market/listings` özel: `HorseOwnerGuardByBodyField` zaten çalışıyor ama
+bozuk biçimli bir `horseId` görünce **bilinçli olarak sessizce `true`
+döner** ("asıl 400 üretimini downstream katmana bırakır" — bkz.
+`horse-owner.guard.ts` dosya başı notu) ve downstream'de o kontrol YOKTU.
+
+**Korunanlar (dokunulmadı):** `gifts` · `breeding` (`mareId`/`stallionId`) ·
+`matchmaking/queue` · `market/my-listings` (`sellerId`).
+
+**Karar — kontrol CONTROLLER'da, use-case'te DEĞİL.** Bu dilimde önce
+use-case katmanına kondu, sonra **bilerek geri alındı**:
+1. Projenin kendi yerleşik deseni bu (beş mevcut örnek, hepsi
+   `BadRequestException` → 400).
+2. Use-case `404` dönebiliyordu (domain Nest'i import ETMEZ, dolayısıyla
+   `BadRequestException` fırlatamaz) — bozuk bir GİRDİ için 400 doğru koddur.
+3. `class-validator`'ın `isUUID()`i zaten kullanılıyor; elle yazılmış ikinci
+   bir UUID doğrulayıcı (`domain/shared/uuid.ts`, yine bu dilimde yazılıp
+   silindi) iki ayrı doğruluk kaynağı doğururdu.
+
+**Tek istisna:** `POST /players/:id/race-invites` (§13.11) kontrolü hâlâ
+use-case'te (`domain/social/invite.ts` → `isUuid`) ve 404 döner. Gerekçesi
+o dosyada yazılı; bu dilim onu DEĞİŞTİRMEDİ (yayınlanmış + e2e ile sabit).
+
+**Testler:** `apps/api/test/api/body-uuid-shape.e2e-spec.ts` (yeni, 10 test).
+Beş uç nokta × ikişer test: (a) bozuk biçim → 400, (b) biçimi GEÇERLİ ama
+var olmayan UUID → 404. İkincisi ŞARTTIR: yalnızca (a) olsaydı "koruma fazla
+katı mı" sorusu açık kalırdı.
+
+**Kural (yeni bir gövde-UUID alanı eklerken):** DTO'daki `@IsUUID()` YETMEZ;
+controller'da `if (!dto.x || !isUUID(dto.x)) throw new BadRequestException(...)`
+yaz ve `body-uuid-shape.e2e-spec.ts`'e bir bölüm ekle.
+
+---
+
 ## 14. Kendime hatırlatmalar (kısa liste)
 
 1. **Race Engine'e dokunmadan önce iki kez düşün.** Denetim onu "KEEP, dokunma"

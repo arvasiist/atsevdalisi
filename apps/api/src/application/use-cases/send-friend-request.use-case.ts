@@ -21,6 +21,8 @@ import { SOCIAL_REPOSITORY, type SocialRepository } from '../ports/social.reposi
  *   2. Hedef oyuncu okunur; yoksa `PlayerNotFoundError` (404). **Bu adım
  *      ZORUNLUDUR:** atlanırsa olmayan bir `addresseeId` doğrudan INSERT'e
  *      gider, `friendships` FK'sı `23503` ile düşer ve istemci 500 görürdü.
+ *      (`addresseeId`nin ŞEKİL kontrolü burada DEĞİL, `SocialController.
+ *      sendFriendRequest`tedir — 400 döner, bkz. o dosya.)
  *   3. `assertFriendRequestAllowed` — bu çiftte `pending`/`accepted` kayıt
  *      varsa 409 (`rejected` SERBESTTİR: yeniden gönderilebilir).
  *   4. `assertUnderSocialLimit` — gönderenin bekleyen istek TAVANI (409).

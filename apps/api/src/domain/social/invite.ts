@@ -93,11 +93,13 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{
  * (22P02) fırlatır ve istemci 400 yerine **500** alır. `ParseUUIDPipe`
  * yalnızca YOL parametrelerini korur (`:id`, `:inviteId`), gövdeyi DEĞİL.
  *
- * Bu, `send-gift.use-case.ts`te hâlâ AÇIK olan hatanın (CLAUDE.md "Bilinen
- * açık hata") aynı sınıfıdır; burada YENİ yazılan yol için baştan kapatıldı.
- * O iki dosya (send-gift, send-friend-request) bu dilimin kapsamı DIŞINDADIR
- * ve ayrı bir dilimde düzeltilmelidir — buraya kopyalanan koruma onları
- * İYİLEŞTİRMEZ.
+ * **Neden use-case'te (controller'da değil):** davet uç noktası İKİ gövde
+ * alanı taşır ve `raceId` için `HorseOwnerGuard` benzeri hazır bir kapı YOK.
+ * Aynı koruma `social.controller.ts`/`market.controller.ts`te CONTROLLER
+ * katmanında `isUUID()` ile yapılır (beş örnek); orada 400 dönebilirler
+ * çünkü `BadRequestException`'ı doğrudan fırlatabilirler. Domain katmanı
+ * Nest'i import ETMEZ, bu yüzden burada dönen kod 404'tür (bkz. `isUuid`
+ * çağıranı `send-race-invite.use-case.ts`).
  */
 export function isUuid(value: unknown): value is string {
   return typeof value === 'string' && UUID_PATTERN.test(value);

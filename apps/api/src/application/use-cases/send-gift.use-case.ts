@@ -26,6 +26,10 @@ import { SOCIAL_REPOSITORY, type SocialRepository } from '../ports/social.reposi
  *      `string` olabilir).
  *   4. Alıcı okunur; yoksa `PlayerNotFoundError` (404) — aksi halde FK
  *      `23503` ile 500 dönerdi (`SendMessageUseCase`'in AYNI adımı).
+ *      (`recipientId`nin ŞEKİL kontrolü burada DEĞİL, `GiftController.
+ *      sendGift`tedir — 400 döner, bkz. o dosyanın "İKİNCİ SAVUNMA HATTI"
+ *      notu. Aynı koruma `social.controller.ts`/`market.controller.ts`te de
+ *      CONTROLLER katmanındadır; domain Nest'i import ETMEZ.)
  *   5. Arkadaşlık ÖN kontrolü (`areFriends`) — **erken ve anlaşılır bir
  *      hata** içindir, güvenlik için DEĞİL: asıl kapı
  *      `PostgresGiftRepository.sendGift`'in İÇİNDE, kilitli satırlarla

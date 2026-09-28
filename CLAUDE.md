@@ -145,7 +145,14 @@ ağacı okuma + yazma (§13.2/§13.4)** · **yarış sohbeti + izleyici sayısı
 (§13.11, PHASE 11)** — backend; ikisinin de istemci tüketicisi YOK.
 Ayrıntı: `PROJE_DURUMU.md` §13.
 
-**Bilinen açık hata (henüz düzeltilmedi):** `send-gift.use-case.ts`
-`recipientId`'yi yalnızca `@IsUUID()` ile doğrular → esbuild altında bu
-dekoratör atlanır ve UUID olmayan bir değer 400 yerine **500** döndürür
-(§13.4'te breeding'de düzeltilen hatanın AYNISI). Küçük ve bağımsız bir iş.
+**Bilinen açık hata:** YOK — 28.09.2026'da kapatıldı (§13.12). Burada eskiden
+"`send-gift.use-case.ts` `recipientId`'yi yalnızca `@IsUUID()` ile doğrular"
+yazıyordu; **o not BAYATTI**: `gift.controller.ts` bu alanı zaten
+`isUUID()` ile koruyordu. Gerçek boşluk BAŞKA üç uç noktadaydı
+(`friend-requests` → `addresseeId`, `messages` → `recipientId`,
+`market/listings` → `horseId`) ve üçü de controller katmanında kapatıldı.
+
+**Kural (yeni bir gövde-UUID alanı eklerken):** DTO'daki `@IsUUID()` YETMEZ.
+Controller'da `if (!dto.x || !isUUID(dto.x)) throw new BadRequestException(...)`
+yaz — beş mevcut örnek: `gift`, `breeding`, `matchmaking`, `market`
+(`sellerId`), `social`. Gerekçe ve testler: `PROJE_DURUMU.md` §13.12.
