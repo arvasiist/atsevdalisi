@@ -18,6 +18,7 @@ import {
 import { transfer } from '../../domain/economy/wallet';
 import { PlayerNotFoundError } from '../../domain/player/errors';
 import { canonicalPair } from '../../domain/social/friendship';
+import { buildGiftReceivedPayload } from '../../domain/social/notification';
 import { PG_POOL, withTransaction } from '../database/database.module';
 import { writeLedgerEntries } from '../player/player-row';
 
@@ -252,6 +253,38 @@ export class PostgresGiftRepository implements GiftRepository {
           idempotencyKey: input.idempotencyKey,
         },
       ]);
+
+      // BİLDİRİM — `gift_received`, AYNI transaction'da (brief §28, §42
+      // PHASE 13). `NotificationRepository` port doc yorumundaki kural:
+      // üreten use-case/repository, kendi satırını ve bildirimi TEK
+      // transaction'da yazar.
+      //
+      // **NEDEN TAM BURADA (defterden SONRA, `return`den ÖNCE):** para
+      // yoluyla bildirim AYRILAMAZ. İki ayrı ifade olsalardı ikincisi
+      // düşerse ortada GÖRÜNMEZ bir hediye kalırdı — alıcının bakiyesi
+      // artmış ama haberi olmamış olurdu; ve bu, hiçbir yerde hata
+      // üretmeyen sessiz bir tutarsızlık olurdu. Aynı transaction'da
+      // olduğu için ya ikisi de yazılır ya hiçbiri.
+      //
+      // `displayName` GÖNDERENİN adıdır (bildirim alıcının satırıdır,
+      // `playerId` karşı tarafı — yani göndereni — gösterir); `senderRow`
+      // yukarıda kilit altında ZATEN okundu, ikinci bir sorgu gerekmez.
+      await client.query(
+        'INSERT INTO notifications (player_id, type, payload) VALUES ($1, $2, $3::jsonb)',
+        [
+          recipientId,
+          'gift_received',
+          JSON.stringify(
+            buildGiftReceivedPayload({
+              giftSendId: gift.id,
+              playerId: senderId,
+              displayName: senderRow.display_name,
+              currency,
+              amount: input.amount,
+            }),
+          ),
+        ],
+      );
 
       const recipient: GiftCounterpartyFacts = {
         playerId: recipientId,

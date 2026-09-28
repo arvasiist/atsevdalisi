@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   buildFriendAcceptedPayload,
   buildFriendRequestPayload,
+  buildGiftReceivedPayload,
   buildMessagePreview,
   buildMessageReceivedPayload,
 } from '../../../src/domain/social/notification';
@@ -82,6 +83,34 @@ describe('payload kurucuları — şekil sözleşmesi', () => {
         preview: 'selam',
       }),
     ).toEqual({ messageId: 'm1', playerId: 'p3', displayName: 'Zeynep', preview: 'selam' });
+  });
+
+  it('gift_received: giftSendId + playerId + displayName + currency + amount', () => {
+    // `currency` payload'da ZORUNLUDUR: "500" tek başına belirsizdir
+    // (Çip mi Elmas mı) ve istemcinin bunu tahmin etmesi, sunucunun
+    // bildiği bir şeyi istemciye sormak olurdu.
+    expect(
+      buildGiftReceivedPayload({
+        giftSendId: 'g1',
+        playerId: 'p4',
+        displayName: 'Ömer',
+        currency: 'money',
+        amount: 500,
+      }),
+    ).toEqual({ giftSendId: 'g1', playerId: 'p4', displayName: 'Ömer', currency: 'money', amount: 500 });
+  });
+
+  it('gift_received miktarı İŞARETSİZ kalır (yön satırın kendisindedir)', () => {
+    // Negatif bir miktar, istemciye "500 Çip KAYBETTİN" dedirtirdi —
+    // oysa bu bildirim yalnızca hediye ALANA yazılır.
+    const payload = buildGiftReceivedPayload({
+      giftSendId: 'g1',
+      playerId: 'p4',
+      displayName: 'Ömer',
+      currency: 'gems',
+      amount: 15,
+    });
+    expect(payload.amount).toBeGreaterThan(0);
   });
 
   it('kurucular girdiyi TAŞIMAZ, kopyalar (dış referans sonradan değişse de payload sabit kalır)', () => {

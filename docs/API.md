@@ -798,7 +798,7 @@ seni At Sevdalısı Cup yarışına davet etti.' [JOIN] [DECLINE] bildirimi
 gelsin."* Beş uç nokta, `NotificationController`
 (`apps/api/src/api/notification/notification.controller.ts`).
 
-**BİLDİRİM ÜRETİCİLERİ.** Sekiz türün DÖRDÜ üretilir; kalan dördü için
+**BİLDİRİM ÜRETİCİLERİ.** Sekiz türün BEŞİ üretilir; kalan üçü için
 `INSERT INTO notifications` yazan bir yol **yoktur** (bkz. `PROJE_DURUMU.md`
 §13.13). Her üretici, birincil satırını ve bildirimi **AYNI transaction'da**
 yazar.
@@ -809,10 +809,23 @@ yazar.
 | `friend_request` | `POST /players/:id/friend-requests` | istek **alana** |
 | `friend_accepted` | `POST .../friend-requests/:id/respond` (`accept`) | istek **sahibine** |
 | `message_received` | `POST /players/:id/messages` | mesaj **alana** |
+| `gift_received` | `POST /players/:id/gifts` | hediye **alana** |
+
+**Üretilmeyen üç tür:** `race_starting`, `race_finished`, `prize_won` —
+üçü de yarış yaşam döngüsüne bağlıdır.
 
 **Yön kuralı:** bildirim **her zaman karşı tarafa** gider; gönderen kendi
 eylemi için bildirim almaz. `friend_accepted` **yalnızca kabulde** üretilir —
 reddedilen istek karşı tarafa bildirim bırakmaz.
+
+**`gift_received` bir PARA YOLUDUR ve atomikliği kanıtlanmıştır**
+(`PROJE_DURUMU.md` §13.13.1): `notifications` INSERT'i `sendGift`'in
+`withTransaction` gövdesinin İÇİNDEDİR, yani para hareketinin reddedildiği
+her yol (arkadaş değil → 403, yetersiz bakiye → 409, günlük tavan → 409,
+kendine hediye → 400) için bildirim de yazılmaz. Ayrı bir INSERT olsaydı
+alıcı, hesabına hiç geçmemiş bir hediyenin haberini alırdı.
+`payload = { giftSendId, playerId, displayName, currency, amount }` —
+`playerId`/`displayName` **göndereni** tanımlar, `amount` işaretsizdir.
 
 **`message_received.payload.preview` SUNUCUDA kırpılır**
 (`config/social.config.json → notificationPreviewLength`, 120). Kırpma kod
@@ -887,9 +900,9 @@ edilir; ikinci istek `ON CONFLICT DO NOTHING` ile 0 satır döner →
 `409 RACE_INVITE_ALREADY_EXISTS`).
 
 **`notifications` GENEL bir tablodur, davete özel değil.** brief §28 sekiz
-tür sayar; hepsi `type` CHECK'inde tanımlıdır. **BU DİLİMDE YALNIZCA
-`race_invite` ÜRETİLİR** — kalan yedi türün üreticisi PHASE 13'ün işidir ve
-bu, `PROJE_DURUMU.md` §13.11'de açıkça "yapılmadı" diye yazılıdır.
+tür sayar; hepsi `type` CHECK'inde tanımlıdır. **PHASE 11'de yalnızca
+`race_invite` üretiliyordu; PHASE 13 beşe çıkardı** (yukarıdaki tablo).
+Kalan üç tür için üretici hâlâ yoktur — `PROJE_DURUMU.md` §13.13.
 `payload` JSONB'dir: sekiz tür için sekiz ayrı kolon seti açmak her yeni
 türde bir migration gerektirirdi; şekil sözleşmesi TİP tarafında
 (`NotificationPayloadByType`) zorlanır.

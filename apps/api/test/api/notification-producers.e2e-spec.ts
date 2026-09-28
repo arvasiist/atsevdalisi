@@ -26,8 +26,10 @@ import {
  *       bildirim ucu bir okuma yolu değildir.
  *
  * **PARA YOLU YOK:** bu dilim `players`/`economy_transactions` tablolarına
- * dokunmaz (hediye gönderimi ayrı dilimdir — `gift_received` HÂLÂ
- * üretilmez, bkz. PROJE_DURUMU.md §13.13).
+ * dokunmaz. `gift_received` ARTIK ÜRETİLİR (§13.13.1) ama kanıtı BURADA
+ * DEĞİL, kendi para yolu dosyasındadır (`gift.e2e-spec.ts`) — iddiaları
+ * ("403/409/400 → bildirim YOK") ancak orada kurulabilir, çünkü ancak
+ * orada gerçek bir bakiye ve gerçek bir transfer vardır.
  */
 describe('Bildirim üreticileri (e2e)', () => {
   let app: INestApplication;

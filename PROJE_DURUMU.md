@@ -1153,21 +1153,21 @@ tsc, eslint 0 hata.
 
 ---
 
-### 13.13 Bildirim üreticileri — arkadaşlık + mesaj (brief §28, §42 PHASE 13)
+### 13.13 Bildirim üreticileri — arkadaşlık + mesaj + hediye (brief §28, §42 PHASE 13)
 
 §13.11 bildirim ALTYAPISINI kurdu ama **tek üretici** bıraktı: `race_invite`.
 `domain/social/notification.ts`'in dosya başı notu bunu açıkça yazıyordu
-("bu turda yalnızca `race_invite` üretilir"). Bu dilim **üç üretici** ekledi.
+("bu turda yalnızca `race_invite` üretilir"). İki dilim **dört üretici** ekledi.
 
 | Tür | Üreten yol | Bildirim KİME gider |
 |---|---|---|
 | `friend_request` | `POST /players/:id/friend-requests` | istek **ALANA** |
 | `friend_accepted` | `POST .../friend-requests/:id/respond` (`action: 'accept'`) | istek **SAHİBİNE** |
 | `message_received` | `POST /players/:id/messages` | mesaj **ALANA** |
+| `gift_received` | `POST /players/:id/gifts` | hediye **ALANA** |
 
-**Hâlâ üretilmeyen DÖRT tür:** `gift_received` (PARA YOLU — ayrı dilim
-hak eder, ledger doğrulaması ister), `race_starting`, `race_finished`,
-`prize_won` (üçü de yarış yaşam döngüsüne bağlı; race engine'e dokunmadan
+**Hâlâ üretilmeyen ÜÇ tür:** `race_starting`, `race_finished`, `prize_won`
+(üçü de yarış yaşam döngüsüne bağlı; race engine'e dokunmadan
 yapılabilecekleri ayrıca değerlendirilmeli). **"Bildirimler bitti" DEME.**
 
 **Mimari kural (uygulandı):** üreten repository, birincil satırını ve
@@ -1224,6 +1224,52 @@ yakalamaz.
 
 **Yeni bir gövde-UUID alanı eklerken (§13.12) geçerli kural burada da
 geçerli**; bu dilim yeni uç nokta eklemedi.
+
+#### 13.13.1 `gift_received` — PARA YOLUNDA bildirim (28.09.2026)
+
+Bu, PHASE 13'ün **para yoluna dokunan tek üreticisidir** ve bu yüzden
+bilinçli olarak AYRI bir dilimde yapıldı (arkadaşlık/mesaj üreticileri para
+yoluna hiç dokunmuyordu). Yazan yer: `PostgresGiftRepository.sendGift`.
+
+**Atomiklik burada "iyi olur" değil, ZORUNLUDUR.** Bildirim, para
+hareketinin görünür yüzüdür; ayrı bir INSERT olsaydı düşen bir bildirim
+yazımı **geri alınmış bir transferi haber verir** (ya da tersi: alıcının
+haberi olmayan bir transfer) ve ikisi de hiçbir yerde hata üretmezdi.
+Bu yüzden `notifications` INSERT'i `withTransaction` gövdesinin İÇİNDE,
+defter satırlarından sonra ve `return`den önce durur. `GiftRepository`
+port doc yorumunun adım listesine **6. adım** olarak yazıldı.
+
+**Kanıt — "bildirim yazıldı" değil, "REDDEDİLEN yolda bildirim YOK".**
+`gift.e2e-spec.ts`'teki `gift_received bildirimi — para yoluyla atomik`
+bloğu 8 test koşar ve para hareketinin REDDEDİLDİĞİ **her** yol için
+bildirimin de yazılmadığını gösterir: arkadaş değil (403), yetersiz bakiye
+(409), günlük tavan (409), kendine hediye (400). Ayrı bir INSERT olsaydı
+bu testlerden en az biri düşerdi. Ek olarak: aynı `Idempotency-Key` ile
+iki istek **TEK** bildirim üretir (alıcı aynı hediye için iki kez haberdar
+olmaz).
+
+**Payload:** `{ giftSendId, playerId, displayName, currency, amount }`.
+`playerId`/`displayName` **GÖNDERENİ** tanımlar (bildirimin sahibi alıcıdır
+— §13.13'ün genel yön kuralı). `currency` payload'da ZORUNLUDUR: "500" tek
+başına belirsizdir (Çip mi Elmas mı) ve istemcinin bunu tahmin etmesi,
+sunucunun bildiği bir şeyi istemciye sormak olurdu. `amount` **işaretsiz**
+kalır (`gift_sends.amount` gibi) — negatif bir miktar istemciye "500 Çip
+KAYBETTİN" dedirtirdi.
+
+**Bu dilim `notification-producers.e2e-spec.ts`'e DOKUNMADI:** oradaki
+dosya başı notu "bu dilim para yoluna dokunmaz" der ve bu hâlâ doğrudur —
+`gift_received`'ın kanıtı kendi para yolu dosyasında (`gift.e2e-spec.ts`)
+durur, çünkü iddiaları (403/409/400 → bildirim yok) ancak orada kurulabilir.
+
+**Yeni tuzak (bu dilimde ısırmadı ama yakınından geçti):**
+`giftNotifications()` helper'ı `type = 'gift_received'` ile süzülür.
+`makeFriends` kurulumu artık `friend_request`/`friend_accepted` ürettiği
+için, tüm listeyi sayan bir helper hediye iddiasını bir arkadaşlık
+bildirimiyle "doğrular"dı — §13.13'ün `race-invite.e2e-spec.ts`'te yaşanan
+tuzağının AYNISI. Ders tekrar: **bildirim sayan bir yardımcı yazarken
+`type`e daralt.**
+
+**Commit:** `gift_received` dilimi (28.09.2026). Önceki dilim: `35f41da`.
 
 ---
 

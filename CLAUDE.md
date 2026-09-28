@@ -124,10 +124,11 @@ YANILTICI olduğunu gösterdi.** Bu bölüm iki kez bayatladı; aşağısı
   (`notification.created`, `race.invite`, `race.invite.responded`) —
   **hiçbirinin istemci tüketicisi yok.** Asset gerekmez.
 - **PHASE 13 (bildirim üreticileri) — KISMEN YAPILDI (§13.13).** Sekiz
-  türden DÖRDÜ üretiliyor: `race_invite` (§13.11) + `friend_request`,
-  `friend_accepted`, `message_received` (§13.13). **Kalan DÖRT tür için
-  `INSERT INTO notifications` yazan bir yol YOK:** `gift_received` (para
-  yolu — ayrı dilim), `race_starting`, `race_finished`, `prize_won`.
+  türden BEŞİ üretiliyor: `race_invite` (§13.11) + `friend_request`,
+  `friend_accepted`, `message_received` (§13.13) + `gift_received`
+  (§13.13.1, para yolu). **Kalan ÜÇ tür için `INSERT INTO notifications`
+  yazan bir yol YOK:** `race_starting`, `race_finished`, `prize_won` —
+  üçü de yarış yaşam döngüsüne bağlı.
 - `GltfAssetLoader.tsx` — **asset olmadan ANLAMSIZ.** `.glb` yokken her zaman
   yedek görünüme düşer = bugünkü kapsül+küre görüntüsünün tıpatıp aynısı.
   Bağlamak sıfır görsel etki üretir.
@@ -144,14 +145,20 @@ sunumu · **toz VFX'i (`DustParticles` → `RaceScene3D`, 27.09.2026)** · **soy
 ağacı okuma + yazma (§13.2/§13.4)** · **yarış sohbeti + izleyici sayısı
 (§13.5, 27.09.2026)** — son üçü `LiveRaceViewer`/`RaceViewer`/`RaceHud`'a BAĞLI ·
 **ödül havuzu + çarpan (§13.10, PHASE 5)** · **bildirimler + yarış daveti
-(§13.11, PHASE 11)** · **arkadaşlık/mesaj bildirim üreticileri (§13.13,
-PHASE 13 — yalnızca bu üçü)** — backend; hiçbirinin istemci tüketicisi YOK.
-Ayrıntı: `PROJE_DURUMU.md` §13.
+(§13.11, PHASE 11)** · **arkadaşlık/mesaj/hediye bildirim üreticileri
+(§13.13 + §13.13.1, PHASE 13 — yalnızca bu dördü)** — backend; hiçbirinin
+istemci tüketicisi YOK. Ayrıntı: `PROJE_DURUMU.md` §13.
 
 **⚠️ YENİ BİR BİLDİRİM ÜRETİCİSİ EKLERKEN:** bildirim SAYAN mevcut e2e
 testlerini KIRARSIN (yaşandı: `race-invite.e2e-spec.ts`, §13.13). O dosya
 `makeFriends` çağırıyor ve iddiaları tüm listeyi sayıyordu. Kural: sayımı
 `type`e daralt, kurulumun yan ürününü temizle.
+
+**⚠️ BİLDİRİM, YAZILDIĞI ŞEYLE AYNI TRANSACTION'DA YAZILIR.** Para yolunda
+bu pazarlık konusu değildir (§13.13.1): ayrı bir `INSERT` olsaydı, geri
+alınmış bir transferin haberi alıcıda kalırdı ve bu **hiçbir yerde hata
+üretmezdi**. Yeni bir üretici eklerken `withTransaction` gövdesinin içinde
+kal.
 
 **Bilinen açık hata:** YOK — 28.09.2026'da kapatıldı (§13.12). Burada eskiden
 "`send-gift.use-case.ts` `recipientId`'yi yalnızca `@IsUUID()` ile doğrular"

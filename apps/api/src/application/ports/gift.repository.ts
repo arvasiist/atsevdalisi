@@ -46,9 +46,17 @@ export interface GiftRepository {
    *      `assertUnderDailyGiftLimit` ve `transfer` (`domain/economy/wallet.ts`).
    *   5. İKİ `players` UPDATE + `gift_sends` INSERT + İKİ
    *      `economy_transactions` INSERT.
+   *   6. `notifications` INSERT — `gift_received`, ALANA (PHASE 13).
    *
    * Herhangi bir adım hata fırlatırsa `withTransaction` ROLLBACK yapar:
-   * ne bakiye değişir ne defter satırı yazılır.
+   * ne bakiye değişir ne defter satırı yazılır — **ne de bildirim.**
+   *
+   * **ADIM 6 NEDEN AYNI TRANSACTION'DA:** bildirim, para hareketinin
+   * GÖRÜNÜR yüzüdür. Ayrı bir yazma olsaydı, düşen bir bildirim INSERT'i
+   * geri alınmış bir transferi haber verir (ya da tersi: haberi olmayan
+   * bir transfer) — ve ikisi de sessiz kalırdı. `NotificationRepository`
+   * port doc yorumundaki "üreten, kendi satırını ve bildirimi tek
+   * transaction'da yazar" kuralının bu dilimdeki karşılığıdır.
    */
   sendGift(input: SendGiftInput): Promise<SendGiftExecutionResult>;
 

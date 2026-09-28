@@ -6,10 +6,10 @@
  * TEK YÖNLÜ"). Veritabanı erişimi `application/ports/` üzerinden yapılır.
  *
  * **ÜRETİCİLER (28.09.2026, PHASE 13):** `race_invite` (PHASE 11) +
- * `friend_request`, `friend_accepted`, `message_received` (PHASE 13).
- * `gift_received`, `race_starting`, `race_finished`, `prize_won` HÂLÂ
- * ÜRETİLMEZ — bunu "yapıldı" saymamak için PROJE_DURUMU.md §13.13'te
- * açıkça yazılıdır.
+ * `friend_request`, `friend_accepted`, `message_received`, `gift_received`
+ * (PHASE 13). `race_starting`, `race_finished`, `prize_won` HÂLÂ ÜRETİLMEZ
+ * — bunu "yapıldı" saymamak için PROJE_DURUMU.md §13.13'te açıkça
+ * yazılıdır.
  *
  * Sekiz türün tamamı burada tanımlıdır çünkü `notifications.type` CHECK'i
  * (migration 0039) ile bu liste BİREBİR olmak zorundadır; kayma
@@ -23,7 +23,7 @@
  * kurulan bir payload, kaçınılmaz olarak ayrışırdı.
  */
 
-import type { NotificationPayloadByType } from '@at-sevdalisi/shared-types';
+import type { Currency, NotificationPayloadByType } from '@at-sevdalisi/shared-types';
 
 /**
  * Geçerli bildirim türleri — `notifications.type` CHECK'i (migration 0039)
@@ -144,6 +144,37 @@ export function buildFriendAcceptedPayload(input: {
     friendshipId: input.friendshipId,
     playerId: input.playerId,
     displayName: input.displayName,
+  };
+}
+
+/**
+ * `gift_received` — hediye ALANA yazılır (PARA YOLU, PHASE 13).
+ *
+ * **`playerId`/`displayName` GÖNDERENİ tanımlar**, alıcıyı değil — bu
+ * dosyanın genel kuralı (`playerId` HER ZAMAN karşı taraftır). İstemci
+ * "Ömer sana 500 Çip gönderdi" cümlesini tam olarak buradan kurar.
+ *
+ * **`amount` İŞARETSİZDİR** (`gift_sends.amount` gibi): yön satırın
+ * kendisindedir ve bu bildirim zaten yalnızca ALANA yazılır. Negatif bir
+ * miktar göndermek, istemciye "500 Çip kaybettin" dedirtirdi.
+ *
+ * `currency` payload'a KONUR: "500" tek başına belirsizdir (Çip mi
+ * Elmas mı) ve istemcinin bunu tahmin etmesi, sunucunun bildiği bir şeyi
+ * istemciye sormak olurdu.
+ */
+export function buildGiftReceivedPayload(input: {
+  giftSendId: string;
+  playerId: string;
+  displayName: string;
+  currency: Currency;
+  amount: number;
+}): NotificationPayloadByType['gift_received'] {
+  return {
+    giftSendId: input.giftSendId,
+    playerId: input.playerId,
+    displayName: input.displayName,
+    currency: input.currency,
+    amount: input.amount,
   };
 }
 

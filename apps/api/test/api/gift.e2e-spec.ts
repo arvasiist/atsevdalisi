@@ -61,6 +61,29 @@ describe('Hediye gönderimi (e2e) — PARA YOLU', () => {
       .expect(200);
   }
 
+  /**
+   * Oyuncunun `gift_received` bildirimlerini okur (brief §28, PHASE 13).
+   *
+   * **`type` İLE SÜZÜLÜR — sayım TÜM listeyi kapsamaz.** Bu dosyanın
+   * `makeFriends` kurulumu da bildirim üretir (`friend_request` +
+   * `friend_accepted`); tüm listeyi saymak, "hediye bildirimi yazıldı mı"
+   * sorusunu bir arkadaşlık bildirimiyle yanıtlayabilirdi. Aynı tuzak
+   * `race-invite.e2e-spec.ts`'te YAŞANDI (bkz. PROJE_DURUMU.md §13.13).
+   *
+   * **HTTP ucu kullanılır** (repository'den okumak yerine): kanıtlanması
+   * gereken şey "satır veritabanında var" değil, "ALICI bildirimi
+   * GÖRÜYOR"dur.
+   */
+  async function giftNotifications(player: RegisteredTestPlayer): Promise<Record<string, unknown>[]> {
+    const response = await request(app.getHttpServer())
+      .get(`/api/v1/players/${player.playerId}/notifications`)
+      .set('Authorization', player.authHeader)
+      .expect(200);
+    return (response.body.data.notifications as Record<string, unknown>[]).filter(
+      (n) => n.type === 'gift_received',
+    );
+  }
+
   /** `GET /players/:id` ile güncel bakiyeyi okur. */
   async function fetchBalance(playerId: string, authHeader: string): Promise<{ money: number; gems: number }> {
     const response = await request(app.getHttpServer())
@@ -532,6 +555,134 @@ describe('Hediye gönderimi (e2e) — PARA YOLU', () => {
         .get('/api/v1/players/gecersiz-uuid/gifts')
         .set('Authorization', player.authHeader)
         .expect(400);
+    });
+  });
+
+  /**
+   * `gift_received` BİLDİRİMİ (brief §28, §42 PHASE 13).
+   *
+   * **BU BLOĞUN ASIL KANITLADIĞI ŞEY ATOMLİKTİR:** bildirim, para
+   * hareketiyle AYNI transaction'da yazılır. Bunu iddia etmek yetmez —
+   * burada PARA HAREKETİNİN REDDEDİLDİĞİ her yol (403/409/400) için
+   * "bildirim de YOK" gösterilir. Ayrı bir INSERT olsaydı, bu yolların
+   * birinde geride bir bildirim kalırdı: alıcı, hesabına hiç geçmemiş bir
+   * hediyenin haberini alırdı.
+   */
+  describe('gift_received bildirimi — para yoluyla atomik', () => {
+    it('hediyeyi ALAN bir bildirim görür; payload göndereni ve miktarı taşır', async () => {
+      const sender = await registerTestPlayer(app, 'Hediye Gönderen');
+      const recipient = await registerTestPlayer(app, 'Bildirim Alan');
+      await makeFriends(sender, recipient);
+      await setBalance(sender.playerId, 5_000);
+
+      const response = await sendGift(sender, recipient.playerId, 750, 'money', 201);
+
+      const received = await giftNotifications(recipient);
+      expect(received).toHaveLength(1);
+      expect(received[0]?.payload).toEqual({
+        giftSendId: response.body.data.giftId,
+        // `playerId` KARŞI TARAFTIR — yani GÖNDEREN (bildirimin sahibi
+        // olan alıcı değil). İstemci "Ömer sana 750 Çip gönderdi"
+        // cümlesini bu alandan kurar.
+        playerId: sender.playerId,
+        displayName: 'Hediye Gönderen',
+        currency: 'money',
+        amount: 750,
+      });
+    });
+
+    it('hediyeyi GÖNDEREN kendi hediyesi için bildirim ALMAZ (yön kanıtı)', async () => {
+      const sender = await registerTestPlayer(app, 'Sessiz Gönderen');
+      const recipient = await registerTestPlayer(app, 'Sessiz Alan');
+      await makeFriends(sender, recipient);
+      await setBalance(sender.playerId, 5_000);
+
+      await sendGift(sender, recipient.playerId, 100, 'money', 201);
+
+      expect(await giftNotifications(sender)).toHaveLength(0);
+    });
+
+    it('Elmas hediyesinin bildirimi birimi `gems` olarak taşır', async () => {
+      const sender = await registerTestPlayer(app, 'Elmas Bildirim Gönderen');
+      const recipient = await registerTestPlayer(app, 'Elmas Bildirim Alan');
+      await makeFriends(sender, recipient);
+      await setBalance(sender.playerId, 0, 40);
+
+      await sendGift(sender, recipient.playerId, 15, 'gems', 201);
+
+      const received = await giftNotifications(recipient);
+      expect(received).toHaveLength(1);
+      // Birim payload'da OLMASAYDI istemci "15"i Çip sanırdı.
+      expect((received[0]?.payload as { currency: string }).currency).toBe('gems');
+    });
+
+    it('AYNI Idempotency-Key ile iki istek → TEK hediye, TEK bildirim', async () => {
+      const sender = await registerTestPlayer(app, 'Tekrar Bildirim Gönderen');
+      const recipient = await registerTestPlayer(app, 'Tekrar Bildirim Alan');
+      await makeFriends(sender, recipient);
+      await setBalance(sender.playerId, 10_000);
+
+      const key = randomUUID();
+      await sendGift(sender, recipient.playerId, 300, 'money', 201, key);
+      await sendGift(sender, recipient.playerId, 300, 'money', 201, key);
+
+      // İkinci istek yeniden işlenseydi alıcı AYNI hediye için İKİ kez
+      // haberdar olurdu — çift tahsilat kadar yanıltıcı bir "çift haber".
+      expect(await giftNotifications(recipient)).toHaveLength(1);
+    });
+
+    it('ARKADAŞ OLMAYANA hediye 403 → bildirim de YAZILMAZ', async () => {
+      const sender = await registerTestPlayer(app, 'Yabancı Bildirim Gönderen');
+      const stranger = await registerTestPlayer(app, 'Yabancı Bildirim Alan');
+      await setBalance(sender.playerId, 5_000);
+
+      await sendGift(sender, stranger.playerId, 500, 'money', 403);
+
+      expect(await giftNotifications(stranger)).toHaveLength(0);
+    });
+
+    it('YETERSİZ BAKİYE 409 → bildirim de YAZILMAZ (ROLLBACK bildirimi de geri alır)', async () => {
+      const sender = await registerTestPlayer(app, 'Yoksul Bildirim Gönderen');
+      const recipient = await registerTestPlayer(app, 'Yoksul Bildirim Alan');
+      await makeFriends(sender, recipient);
+      await setBalance(sender.playerId, 50);
+
+      await sendGift(sender, recipient.playerId, 100, 'money', 409);
+
+      // Para transferi geri alındıysa haber de geri alınmalıdır: aksi
+      // hâlde alıcı, hesabına HİÇ geçmemiş bir hediyeyi beklerdi.
+      expect(await giftNotifications(recipient)).toHaveLength(0);
+    });
+
+    it('GÜNLÜK TAVAN 409 → bildirim de YAZILMAZ', async () => {
+      const sender = await registerTestPlayer(app, 'Tavan Bildirim Gönderen');
+      const recipient = await registerTestPlayer(app, 'Tavan Bildirim Alan');
+      await makeFriends(sender, recipient);
+      await setBalance(sender.playerId, 1_000_000);
+
+      const { dailyLimit } = config.gift;
+      // Satırlar doğrudan yazılır (test hızı) — sorgu yine GERÇEK sorgudur.
+      // Bu satırlar BİLDİRİM ÜRETMEZ (bildirim yalnızca `sendGift`
+      // yolundan yazılır), yani aşağıdaki iddia "kurulum gürültüsü" değil,
+      // gerçekten "tavan isteği hiçbir şey yazmadı" der.
+      await pool.query(
+        `INSERT INTO gift_sends (sender_id, recipient_id, currency, amount)
+         SELECT $1, $2, 'money', 1 FROM generate_series(1, $3::int)`,
+        [sender.playerId, recipient.playerId, dailyLimit],
+      );
+
+      await sendGift(sender, recipient.playerId, 100, 'money', 409);
+
+      expect(await giftNotifications(recipient)).toHaveLength(0);
+    });
+
+    it('KENDİNE hediye 400 → bildirim YAZILMAZ (kendine bildirim saçmalığı)', async () => {
+      const player = await registerTestPlayer(app, 'Kendine Bildirim Gönderen');
+      await setBalance(player.playerId, 5_000);
+
+      await sendGift(player, player.playerId, 100, 'money', 400);
+
+      expect(await giftNotifications(player)).toHaveLength(0);
     });
   });
 });
