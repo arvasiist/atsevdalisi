@@ -129,6 +129,39 @@ export const ErrorCode = {
    */
   RaceTicketRequired: 'RACE_TICKET_REQUIRED',
   /**
+   * Tribün KONTENJANI doldu — `races.spectator_capacity` kadar bilet
+   * satıldı (409, `TribuneFullError`). PHASE 7.1, 29.09.2026.
+   *
+   * **Neden 409 (410/404 DEĞİL):** koltuk bir KAYNAK DURUMUDUR, kaynağın
+   * yokluğu değil. `RaceTicketAlreadyOwned` ile AYNI kategori: istek
+   * biçimsel olarak kusursuz, engelleyen şey o anki doluluk. İstemcinin
+   * önereceği eylem "başka bir yarış seç"tir — bu yüzden ayrı kod
+   * (`RACE_NOT_WATCHABLE`dan farkı: orada yarış hiç izlenemez, burada
+   * yalnızca YER kalmadı).
+   */
+  RaceTribuneFull: 'RACE_TRIBUNE_FULL',
+  /**
+   * ÜCRETSİZ tribünlü bir yarışa bilet alınmaya çalışıldı (409,
+   * `RaceTribuneFreeError`). PHASE 7.1, 29.09.2026.
+   *
+   * `races.tribune_fee = 0` "bu yarışın tribünü bedava" demektir — yani
+   * izlemek için bilet GEREKMEZ (`canWatchRaceWithoutTicket`). Böyle bir
+   * yarışa bilet satın almak anlamsızdır (0 tutarlı bir defter satırı
+   * yazılamaz: `economy_transactions.amount <> 0` kısıtı). Bu kod,
+   * o durumun sessizce "bedava bilet" ya da 500'e dönüşmesini engeller.
+   */
+  RaceTribuneFree: 'RACE_TRIBUNE_FREE',
+  /**
+   * İade edilecek bilet YOK (404, `RaceTicketNotFoundError`) — ya hiç
+   * alınmamış ya da zaten iade edilmiş. PHASE 7.2, 29.09.2026.
+   *
+   * **Neden 404:** iade, var olan bir KAYNAĞI (`race_tickets` satırı)
+   * hedefler; o satır yoksa hedef yoktur. Çift iadeyi engelleyen şey bu
+   * koddur ve `DELETE ... RETURNING`in 0 satır döndürmesidir — ayrı bir
+   * durum sütunu İCAT EDİLMEDİ (bkz. `refundTicket` doc yorumu).
+   */
+  RaceTicketNotFound: 'RACE_TICKET_NOT_FOUND',
+  /**
    * Arkadaşlık + mesajlaşma (proje sahibinin açık talebi, 27.09.2026) —
    * aşağıdaki altı kod `domain/social/errors.ts`'in ürettikleridir.
    */

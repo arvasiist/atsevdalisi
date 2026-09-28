@@ -659,9 +659,12 @@ describe('Market — At Pazarı (e2e)', () => {
       const sellerRow = await pool.query('SELECT money FROM players WHERE id = $1', [seller.playerId]);
       expect(Number(sellerRow.rows[0].money)).toBe(5000 + LISTING_PRICE);
 
+      // Kapsam ARTIK ROTA BAZLIDIR (PHASE 7.2) — `scope_id` handler öneki
+      // taşır (`MarketController.buyListing:<playerId>`). Gerekçe:
+      // `IdempotencyInterceptor.resolveScopeId` doc yorumu.
       const keyRow = await pool.query(
         'SELECT status FROM idempotency_keys WHERE scope_id = $1 AND idempotency_key = $2',
-        [buyer.playerId, idempotencyKey],
+        [`MarketController.buyListing:${buyer.playerId}`, idempotencyKey],
       );
       expect(keyRow.rows).toHaveLength(1);
       expect(keyRow.rows[0].status).toBe('completed');

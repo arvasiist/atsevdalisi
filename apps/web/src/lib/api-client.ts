@@ -32,6 +32,7 @@ import type {
   RacingStyle,
   RaceInviteView,
   RaceTicketPurchaseResult,
+  RaceTicketRefundResult,
   RaceTicketView,
   RaceTimelineView,
   RecentRaceResultView,
@@ -499,6 +500,29 @@ export const apiClient = {
   buyRaceTicket: (raceId: string, idempotencyKey: string) =>
     request<RaceTicketPurchaseResult>(`/races/${raceId}/tickets`, {
       method: 'POST',
+      headers: { 'Idempotency-Key': idempotencyKey },
+    }),
+
+  /**
+   * Bilet iadesi — `DELETE /races/:id/tickets` (PHASE 7.2, 29.09.2026).
+   *
+   * **PARA YOLU (ters yön), bu yüzden `Idempotency-Key` ZORUNLUDUR** ve
+   * `buyRaceTicket` ile AYNI deseni izler: anahtar ÇAĞIRAN tarafından
+   * üretilir. Fark şurada ve BİLEREK böyledir — `wallet/page.tsx`'in
+   * "anahtarı başarısızlıkta sakla" kuralı BURADA geçerli DEĞİLDİR, çünkü
+   * bu bir GİDER değil GELİRDİR: anahtarın kaybolması hâlinde oluşacak
+   * ikinci istek zaten sunucuda `DELETE ... RETURNING`in 0 satır
+   * dönmesiyle 404'e düşer (çift iade imkânsızdır, bkz.
+   * `refundTicket` doc yorumu). Yani burada her basışta yeni anahtar
+   * üretmek `grandstand/page.tsx`'teki satın alma ile aynı sınıftır.
+   *
+   * İade tutarı **biletin kendi `price`'ından** okunur (`races.tribune_fee`
+   * sonradan değişse bile) ve sunucu yeni bakiyeyi döner — istemci
+   * bakiyeyi KENDİ hesaplamaz.
+   */
+  refundRaceTicket: (raceId: string, idempotencyKey: string) =>
+    request<RaceTicketRefundResult>(`/races/${raceId}/tickets`, {
+      method: 'DELETE',
       headers: { 'Idempotency-Key': idempotencyKey },
     }),
 

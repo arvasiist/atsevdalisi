@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { CURRENCIES } from '@at-sevdalisi/shared-types';
-import { loadGrandstandConfig } from '@at-sevdalisi/game-config';
+import { loadGrandstandConfig, loadRaceLobbyConfig } from '@at-sevdalisi/game-config';
 
 /**
  * `config/grandstand.config.json` DEĞİŞMEZLERİ (invariants).
@@ -19,23 +19,49 @@ import { loadGrandstandConfig } from '@at-sevdalisi/game-config';
  * geçmez.)
  */
 const config = loadGrandstandConfig();
+const lobbyConfig = loadRaceLobbyConfig();
 
-describe('grandstand.config.json — bilet fiyatı', () => {
+describe('grandstand.config.json — varsayılan tribün ücreti', () => {
   it('para birimi `CURRENCIES` içindedir (DB CHECK kısıtıyla aynı liste)', () => {
-    expect(CURRENCIES).toContain(config.ticketPrice.currency);
+    expect(CURRENCIES).toContain(config.defaultTribuneFee.currency);
   });
 
   it('tutar POZİTİF bir tam sayıdır', () => {
-    // `race_tickets.price` BIGINT + `CHECK (price >= 0)`; 0 ise bilet
-    // ÜCRETSİZ olurdu ve tribün bir ekonomi SINK'i olmaktan çıkardı.
-    expect(Number.isInteger(config.ticketPrice.amount)).toBe(true);
-    expect(config.ticketPrice.amount).toBeGreaterThan(0);
+    // `races.tribune_fee` BIGINT + `CHECK (tribune_fee >= 0)`. 0 OLMAMALI:
+    // bu değer sunucu üretimi (pratik/PvP) yarışlara yazılır ve
+    // `tribune_fee = 0` "tribün ÜCRETSİZ" demektir — o zaman
+    // `POST /races/:id/tickets` her zaman 409 `RACE_TRIBUNE_FREE` dönerdi
+    // ve tribün bir ekonomi SINK'i olmaktan çıkardı.
+    expect(Number.isInteger(config.defaultTribuneFee.amount)).toBe(true);
+    expect(config.defaultTribuneFee.amount).toBeGreaterThan(0);
   });
 
   it('tutar `economy_transactions.amount <> 0` kısıtını ihlal edemez', () => {
     // Defter satırı `-amount` olarak yazılır; `amount = 0` olsaydı
     // defter kaydı CHECK'e takılır ve bilet satın alma HER ZAMAN düşerdi.
-    expect(-config.ticketPrice.amount).not.toBe(0);
+    expect(-config.defaultTribuneFee.amount).not.toBe(0);
+  });
+
+  it('varsayılan ücret, oyuncunun LOBİDE seçebildiği seçeneklerden biridir', () => {
+    // `race-lobby.config.json → tribuneFeeOptions` oyuncunun seçebileceği
+    // ücretlerdir; bu ise seçim yapılmadığında uygulanandır. İkisi
+    // ayrışırsa, oyuncunun hiç seçemeyeceği bir ücret sunucu üretimi
+    // yarışlarda görünür ve oyuncu için AÇIKLANAMAZ olurdu.
+    expect(lobbyConfig.tribuneFeeOptions).toContain(config.defaultTribuneFee.amount);
+  });
+});
+
+describe('grandstand.config.json — varsayılan tribün kapasitesi', () => {
+  it('POZİTİF bir tam sayıdır', () => {
+    // `races.spectator_capacity` INTEGER + `CHECK (spectator_capacity > 0)`.
+    expect(Number.isInteger(config.defaultSpectatorCapacity)).toBe(true);
+    expect(config.defaultSpectatorCapacity).toBeGreaterThan(0);
+  });
+
+  it('oyuncunun LOBİDE seçebildiği kapasitelerden biridir', () => {
+    // Yukarıdaki ücret gerekçesiyle AYNI: ayrışırlarsa oyuncunun
+    // seçemediği bir kapasite sunucu üretimi yarışlarda görünür.
+    expect(lobbyConfig.spectatorCapacityOptions).toContain(config.defaultSpectatorCapacity);
   });
 });
 

@@ -18,7 +18,12 @@
  * ticket.spec.ts` bu üçünü de sınır değerleriyle doğrular.
  */
 
-import { RaceNotWatchableError, RaceTicketAlreadyOwnedError } from './errors';
+import {
+  RaceNotWatchableError,
+  RaceTicketAlreadyOwnedError,
+  RaceTribuneFreeError,
+  TribuneFullError,
+} from './errors';
 
 /** `MS_PER_HOUR` — `config/grandstand.config.json`'daki pencere SAAT cinsindendir, karşılaştırma milisaniye cinsinden yapılır. */
 const MS_PER_HOUR = 60 * 60 * 1000;
@@ -105,9 +110,89 @@ export function assertTicketNotOwned(hasTicket: boolean, raceId: string): void {
  * sonlu, pozitif, tam sayı. Fiyat 0 olamaz — "ücretli seyirci girişi"
  * talebinin kendisi bunu gerektirir; bedava bir tribün ayrı bir ürün
  * kararıdır ve o zaman bilet satın alma uç noktası hiç çağrılmaz.
+ *
+ * **KAPSAM DEĞİŞTİ (PHASE 7.1, 29.09.2026).** Bu fonksiyon artık SATIN
+ * ALMA fiyatını değil, **yarış oluşturulurken uygulanan VARSAYILAN tribün
+ * ücretini** doğrular (`grandstand.config.json` → `defaultTribuneFee`).
+ * Satın alma fiyatı `races.tribune_fee`'dir ve onu `assertTribuneIsPaid`
+ * korur. Ayrım gerçektir: bu fonksiyon bir CONFIG hatasını (dağıtımla
+ * gelen bozuk dosya), `assertTribuneIsPaid` ise bir VERİ hatasını
+ * (0 ücretli yarış satırı) yakalar. İkisi birbirinin yerine geçmez.
  */
 export function assertTicketPriceIsValid(amount: number): void {
   if (!Number.isInteger(amount) || amount <= 0) {
     throw new Error(`Tribün bilet fiyatı geçersiz (config/grandstand.config.json): ${amount}`);
+  }
+}
+
+/**
+ * Config'teki VARSAYILAN tribün kapasitesini doğrular (PHASE 7.1,
+ * 29.09.2026). `assertTicketPriceIsValid`in kardeşidir ve AYNI gerekçeyle
+ * vardır: `game-config` yükleyicisi saf bir cast'tir.
+ *
+ * **Çağrı YERİ `insertRaceRow`dur** — config değerinin VERİTABANI SATIRINA
+ * dönüştüğü tek yer. `races_spectator_capacity_positive` CHECK'i bozuk bir
+ * değeri zaten reddederdi, ama o hata `23514` gibi anlaşılmaz bir Postgres
+ * hatası olarak çıkardı; bu ise hangi dosyanın bozuk olduğunu söyler.
+ */
+export function assertSpectatorCapacityIsValid(capacity: number): void {
+  if (!Number.isInteger(capacity) || capacity <= 0) {
+    throw new Error(`Tribün kapasitesi geçersiz (config/grandstand.config.json): ${capacity}`);
+  }
+}
+
+/**
+ * `races.tribune_fee = 0` ise o yarışın tribünü ÜCRETSİZDİR ve izlemek
+ * için bilet GEREKMEZ (PHASE 7.1, 29.09.2026).
+ *
+ * **Neden bu bir fonksiyon (inline `=== 0` yeterdi):** bu karar İKİ ayrı
+ * yerde aynı olmak zorundadır — (1) `GetRaceTimelineUseCase`'in yetki
+ * kapısı ("biletsiz izleyebilir miyim"), (2) `PurchaseRaceTicketUseCase`
+ * ("biletsiz izlenebilen bir yarışa bilet satılır mı" → HAYIR). İkisi
+ * ayrışırsa ya bedava yarışa bilet satılır ya da bedava yarış kimseye
+ * açılmaz; ikisi de **hiçbir yerde hata üretmez**. Tek bir fonksiyon o
+ * ayrışmayı yapısal olarak imkânsız kılar.
+ *
+ * `tribuneFee < 0` GÖRÜLEMEZ (`races_tribune_fee_non_negative` CHECK'i),
+ * ama yine de `<= 0` yazılır: bozuk bir okuma (NULL → NaN) durumunda
+ * "ücretsiz" tarafına düşmek, "herkese açık" tarafına düşmek demektir;
+ * bunun tersi (kapalı) yarışı kimseye açmazdı. Kapı `GetRaceTimelineUseCase`
+ * yarışın VARLIĞINI zaten doğruladığı için bu yön bilgi sızdırmaz.
+ */
+export function canWatchRaceWithoutTicket(tribuneFee: number): boolean {
+  return !Number.isFinite(tribuneFee) || tribuneFee <= 0;
+}
+
+/**
+ * Tribün kontenjanı dolduysa `TribuneFullError` fırlatır (PHASE 7.1).
+ *
+ * **Çağrı YERİ kritiktir:** bu fonksiyon `purchaseTicket` transaction'ının
+ * İÇİNDE, `races` satırı `FOR UPDATE` altındayken çağrılmalıdır. Dışarıda
+ * çağrılsaydı "kaç bilet satıldı" ile "bilet ekle" arasında TOCTOU
+ * penceresi kalırdı ve eşzamanlı istekler kontenjanı AŞABİLİRDİ — bu da
+ * hiçbir yerde hata üretmezdi (bkz. `TribuneFullError` doc yorumu).
+ *
+ * `ticketsSold >= capacity` → tam kapasite dolu demektir: `capacity` kadar
+ * bilet satıldığında `capacity + 1`inci istek reddedilir, `capacity`inci
+ * kabul edilir (kapasite KAPSAYICI bir üst sınırdır, "boş koltuk sayısı"
+ * değil).
+ */
+export function assertTribuneHasRoom(ticketsSold: number, capacity: number, raceId: string): void {
+  if (ticketsSold >= capacity) {
+    throw new TribuneFullError(raceId, capacity);
+  }
+}
+
+/**
+ * Ücretsiz tribünlü bir yarışa bilet satılmasını engeller (PHASE 7.1).
+ *
+ * `assertTicketPriceIsValid`'in ÇALIŞMA ZAMANI kardeşidir: o, config'teki
+ * VARSAYILAN ücreti korur (bozuk config → anlaşılmaz çökme); bu ise
+ * VERİTABANINDAKİ yarış başına ücreti korur (0 → 0 tutarlı defter satırı,
+ * ki `economy_transactions.amount <> 0` kısıtı onu reddederdi).
+ */
+export function assertTribuneIsPaid(tribuneFee: number, raceId: string): void {
+  if (canWatchRaceWithoutTicket(tribuneFee)) {
+    throw new RaceTribuneFreeError(raceId);
   }
 }

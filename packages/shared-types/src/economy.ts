@@ -56,7 +56,7 @@ export interface ClaimDailyRewardResult {
  * ekranında "yem aldın" satırını "para yatırdın" diye göstermek olurdu.
  * Bu yüzden brief'in 6 türü AYNEN korunur ve oyunun gerçek ihtiyaçları
  * için 4 aile daha eklenir. Brief'in saydığı 6 türün HEPSİNİN bu listede
- * bulunması `wallet-taxonomy.spec.ts` tarafından ayrıca sabitlenir.
+ * bulunması `wallet-history.spec.ts` tarafından ayrıca sabitlenir.
  */
 export const LEDGER_TRANSACTION_TYPES = [
   'daily_reward',
@@ -69,6 +69,21 @@ export const LEDGER_TRANSACTION_TYPES = [
   'gift_send_debit',
   'gift_send_credit',
   'grandstand_ticket',
+  /**
+   * brief §42 PHASE 7.2 (29.09.2026) — tribün bileti İADESİ. Tek gerçek
+   * fırlatıcısı `PostgresGrandstandRepository.refundTicket`'tır
+   * (`DELETE /races/:id/tickets`).
+   *
+   * `grandstand_ticket`'in TAM karşıtıdır (aynı tutar, ters yön) ve
+   * `race_entry_refund` ile AYNI gerekçeyle AYRI tutulur: cüzdan ekranında
+   * "yarış girişi iadesi" ile "bilet iadesi" ayrımını kanonik tür değil
+   * `type` alanı taşır. İkisi tek bir `REFUND` başlığı altında birleşseydi
+   * "hangi iade neyin karşılığı" sorusu defterden cevaplanamazdı.
+   *
+   * Tutar biletin KENDİ `race_tickets.price` sütunundan okunur
+   * (`races.tribune_fee`den DEĞİL) — bkz. `refundTicket` doc yorumu.
+   */
+  'grandstand_ticket_refund',
   'market_purchase_debit',
   'market_purchase_credit',
   'practice_race_entry_fee',
@@ -144,7 +159,7 @@ export type CanonicalTransactionType = (typeof CANONICAL_TRANSACTION_TYPES)[numb
 /**
  * Brief §20'nin AÇIKÇA saydığı türler — bu liste ile
  * `CANONICAL_TRANSACTION_TYPES` arasındaki ilişki testle sabitlenir
- * (`wallet-taxonomy.spec.ts`): brief'in istediği bir tür silinirse test
+ * (`wallet-history.spec.ts`): brief'in istediği bir tür silinirse test
  * kırılır.
  */
 export const BRIEF_TRANSACTION_TYPES = [
@@ -167,6 +182,12 @@ export const CANONICAL_BY_LEDGER_TYPE: Record<LedgerTransactionType, CanonicalTr
   gift_send_debit: 'GIFT',
   gift_send_credit: 'GIFT',
   grandstand_ticket: 'SPECTATOR_FEE',
+  // PHASE 7.2 — bilet iadesi, satın almanın AYNASI. `REFUND` (brief §20'nin
+  // açıkça saydığı tür) seçildi, `SPECTATOR_FEE` DEĞİL: iade bir seyirci
+  // ücreti TAHSİLİ değildir ve o başlık altında gösterilseydi cüzdan
+  // ekranında "tribün gideri" ile "tribün iadesi" aynı kalemde toplanır,
+  // net akış okunamaz hâle gelirdi.
+  grandstand_ticket_refund: 'REFUND',
   market_purchase_debit: 'MARKET',
   market_purchase_credit: 'MARKET',
   practice_race_entry_fee: 'ENTRY_FEE',

@@ -3,6 +3,7 @@ import { GRANDSTAND_REPOSITORY } from '../../application/ports/grandstand.reposi
 import { ListMyTicketsUseCase } from '../../application/use-cases/list-my-tickets.use-case';
 import { ListWatchableRacesUseCase } from '../../application/use-cases/list-watchable-races.use-case';
 import { PurchaseRaceTicketUseCase } from '../../application/use-cases/purchase-race-ticket.use-case';
+import { RefundRaceTicketUseCase } from '../../application/use-cases/refund-race-ticket.use-case';
 import { PostgresGrandstandRepository } from '../../infrastructure/grandstand/postgres-grandstand.repository';
 import { IdempotencyInterceptor } from '../idempotency/idempotency.interceptor';
 import { PlayerModule } from '../player/player.module';
@@ -39,6 +40,7 @@ import { MyTicketsController } from './my-tickets.controller';
   providers: [
     ListWatchableRacesUseCase,
     PurchaseRaceTicketUseCase,
+    RefundRaceTicketUseCase,
     ListMyTicketsUseCase,
     IdempotencyInterceptor,
     { provide: GRANDSTAND_REPOSITORY, useClass: PostgresGrandstandRepository },

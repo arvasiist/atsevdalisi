@@ -1,5 +1,6 @@
 {
-  "ticketPrice": { "currency": "money", "amount": 25 },
+  "defaultTribuneFee": { "currency": "money", "amount": 25 },
+  "defaultSpectatorCapacity": 500,
   "watchWindowHours": 48,
   "watchableRacesLimit": 50,
   "myTicketsLimit": 50

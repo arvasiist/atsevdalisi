@@ -11,9 +11,16 @@ import { PLAYER_REPOSITORY, type PlayerRepository } from '../ports/player.reposi
  *
  * `GetRecentRaceResultsUseCase` ile AYNI desen: hiçbir iş kuralı İÇERMEZ,
  * yalnızca oyuncunun var olduğunu doğrular ve repository'yi çağırır
- * (docs/ARCHITECTURE.md §4). **Tek istisna**, `ticketPrice`'ın burada
- * eklenmesidir — gerekçesi `GrandstandRepository.findWatchableRaces` port
- * doc yorumunda (fiyat bir config değeridir, veritabanı olgusu değildir).
+ * (docs/ARCHITECTURE.md §4).
+ *
+ * **`ticketPrice` ARTIK BURADA EKLENMEZ (PHASE 7.1, 29.09.2026).**
+ * 27.09.2026 – 29.09.2026 arasında bu use-case, repository'nin
+ * `WatchableRaceFacts` (`Omit<WatchableRaceView, 'ticketPrice'>`) satırlarına
+ * config'teki tek fiyatı yamıyordu. Artık fiyat satır başına
+ * `races.tribune_fee`'dir ve repository onu ZATEN `WatchableRaceView`
+ * olarak döner — burada yapılacak bir birleştirme kalmadı. İki katmana
+ * yayılmış bir "fiyatı kim koyuyor" sorusu, ikisinin ayrıştığı bir durum
+ * üretir; soru tek katmanda biter.
  *
  * `PLAYER_REPOSITORY` bağımlılığı `GetRecentRaceResultsUseCase`'teki AYNI
  * "var olmayan oyuncu 404 döner, sessizce boş liste dönmez" gerekçesiyledir.
@@ -32,9 +39,7 @@ export class ListWatchableRacesUseCase {
       throw new PlayerNotFoundError(playerId);
     }
 
-    const { watchWindowHours, watchableRacesLimit, ticketPrice } = this.config.grandstand;
-    const facts = await this.grandstandRepository.findWatchableRaces(playerId, watchWindowHours, watchableRacesLimit);
-
-    return facts.map((fact) => ({ ...fact, ticketPrice }));
+    const { watchWindowHours, watchableRacesLimit } = this.config.grandstand;
+    return this.grandstandRepository.findWatchableRaces(playerId, watchWindowHours, watchableRacesLimit);
   }
 }

@@ -614,46 +614,71 @@ replay'ini** (`GET /races/:id/timeline`) izleme yetkisi satar. Bilet
 **KATILIM DEĞİLDİR** — yarış sonucunu, istatistiği veya ödülü ETKİLEMEZ.
 
 ```http
-GET  /api/v1/races/watchable
-POST /api/v1/races/{id}/tickets        # Idempotency-Key ZORUNLU
-GET  /api/v1/players/{id}/tickets      # yalnızca kendi listesi (assertSelf)
+GET    /api/v1/races/watchable
+POST   /api/v1/races/{id}/tickets        # Idempotency-Key ZORUNLU
+DELETE /api/v1/races/{id}/tickets        # İADE — Idempotency-Key ZORUNLU
+GET    /api/v1/players/{id}/tickets      # yalnızca kendi listesi (assertSelf)
 ```
 
 **`GET /races/watchable`** — tribünden izlenebilecek yarışlar. Filtreler:
 `status = 'finished'` · son `config/grandstand.config.json →
 watchWindowHours` saat içinde oluşturulmuş · istek sahibinin o yarışta bir
 atı OLMAMASI (kendi yarışına bilet alması anlamsızdır — zaten
-katılımcıdır). Her satır `hasTicket` taşır, böylece istemci "Bilet Al" ile
-"İzle" arasında seçim yapmak için ikinci bir istek atmaz. `ticketPrice`
-satırda döner ama **repository'den değil** `ListWatchableRacesUseCase`'ten
-gelir (fiyat bir config değeridir; `WatchableRaceFacts = Omit<
-WatchableRaceView, 'ticketPrice'>` bu yüzden vardır — fiyatı eklemeyi
-unutmak DERLEME hatasıdır, sessiz "ücretsiz bilet" değil).
+katılımcıdır). Her satır `hasTicket`, `spectatorCapacity` ve `ticketsSold`
+taşır, böylece istemci "Bilet Al" / "İzle" / "Tribün dolu" arasında seçim
+yapmak için ikinci bir istek atmaz.
 
-**`POST /races/{id}/tickets`** — **PARA YOLU.** `SELECT ... FOR UPDATE` ile
-`players` satırı kilitlenir, `debit` ile bakiyeden düşülür, `race_tickets`
-satırı eklenir ve AYNI transaction'da `economy_transactions`'a İMZALI
-(NEGATİF) bir defter satırı yazılır (`type: 'grandstand_ticket'`). Bilet
-geliri bir **SINK**'tir: kimseye kredi geçmez (mevcut sink'lerle — bakım,
-yem, ahır yükseltmesi — aynı kategori). Yarış sahibine ödeme yapmak İKİ
-`players` satırının kilitlenmesini gerektirirdi; bu ayrı bir dilimdir.
+**`ticketPrice` satırda DÖNER ama bir SATIN ALMA fiyatı DEĞİLDİR** (PHASE
+7.1, 29.09.2026): tribün biletinin gerçek fiyatı `races.tribune_fee`dir ve
+`purchaseTicket` onu **kilitli yarış satırından** okur — istemcinin
+gönderdiği ya da listede gördüğü bir sayı ödeme yoluna GİRMEZ. Satırdaki
+`ticketPrice` yalnızca **gösterim** içindir ve `races.tribune_fee`den
+okunur (lobi yarışlarında oyuncunun seçtiği ücret, sunucu üretimi
+yarışlarda `grandstand.config.json → defaultTribuneFee` varsayılanı).
+
+**`POST /races/{id}/tickets`** — **PARA YOLU.** Kilit sırası `races` →
+`players`dır (mevcut `lockLobbyRace`/`settleLobbyRace` ile AYNI): `races`
+satırı `FOR UPDATE` altında kilitlenir, bilet sayısı AYNI ifadede sayılır,
+kontenjan dolduysa `409 RACE_TRIBUNE_FULL`, sonra `players` kilitlenir,
+`debit` ile bakiyeden düşülür, `race_tickets` satırı eklenir ve AYNI
+transaction'da `economy_transactions`'a İMZALI (NEGATİF) bir defter satırı
+yazılır (`type: 'grandstand_ticket'`). Bilet geliri bir **SINK**'tir:
+kimseye kredi geçmez (mevcut sink'lerle — bakım, yem, ahır yükseltmesi —
+aynı kategori). Yarış sahibine ödeme yapmak İKİ `players` satırının
+kilitlenmesini gerektirirdi; bu ayrı bir dilimdir.
 
 Yarış "izlenebilir" değilse `409 RACE_NOT_WATCHABLE` — üç neden tek kod
 altında döner (kendi yarışın · yarış henüz bitmemiş · izleme penceresi
 dolmuş). Aynı yarışa ikinci bilet `409 RACE_TICKET_ALREADY_OWNED` (ikinci
 savunma hattı `race_tickets_unique_per_player` kısıtıdır: eşzamanlı ikinci
 istek `23505` ile düşer ve TÜM transaction'ı — düşülen para dahil — geri
-alır). `Idempotency-Key` yoksa `400 IDEMPOTENCY_KEY_REQUIRED`.
+alır). **`tribune_fee = 0` olan yarışta bilet SATILMAZ** — tribün zaten
+ücretsizdir, `409 RACE_TRIBUNE_FREE` (0 tutarlı bir defter satırı
+`economy_transactions.amount <> 0` kısıtına da uymazdı).
+`Idempotency-Key` yoksa `400 IDEMPOTENCY_KEY_REQUIRED`.
+
+**`DELETE /races/{id}/tickets`** — **PARA YOLU (İADE).** `race_tickets`
+satırı `DELETE ... RETURNING` ile SİLİNİR (durum bayrağı DEĞİL: iadeden
+sonra yeniden satın almak beklenen akıştır), iade tutarı **satırın kendi
+`price` sütunundan** okunur (`races.tribune_fee`den DEĞİL — yarışın ücreti
+sonradan değişse bile geçmiş bir satın alma kendi tutarını korur), bakiyeye
+`credit` edilir ve AYNI transaction'da POZİTİF bir `grandstand_ticket_refund`
+defter satırı yazılır. Bilet yoksa `404 RACE_TICKET_NOT_FOUND`. İade
+penceresi YOKTUR (pencere yalnızca satın almayı kısıtlar); çift iadeyi
+`IdempotencyInterceptor` değil, `DELETE ... RETURNING`in 0 satır dönmesi
+engeller.
 
 `config/grandstand.config.json` değerleri **doğrudan** okunur; `game-config`
 yükleyicisi saf bir cast olduğundan (çalışma zamanı doğrulaması YOK),
-değişmezler hem `assertTicketPriceIsValid` (çalışma zamanı) hem de
-`grandstand-config.spec.ts` (CI) ile korunur.
+değişmezler üç katmanda korunur: `assertTicketPriceIsValid` +
+`assertSpectatorCapacityIsValid` (**çalışma zamanı** — config değerinin
+veritabanı satırına dönüştüğü tek yer olan `insertRaceRow`da),
+`grandstand-config.spec.ts` (CI) ve şemadaki CHECK kısıtları.
 
 **Testler:** `grandstand.e2e-spec.ts` (para yolu: kilit + bakiye + bilet
 satırı + imzalı defter satırı; idempotency; yetersiz bakiye; OWN_RACE;
-kapının biletle açılması) · `domain/grandstand/ticket.spec.ts` ·
-`grandstand-config.spec.ts`.
+kapının biletle açılması; kontenjan; ücretsiz tribün; iade) ·
+`domain/grandstand/ticket.spec.ts` · `grandstand-config.spec.ts`.
 
 ### Arkadaşlık + Mesajlaşma (proje sahibinin açık talebi, 27.09.2026)
 

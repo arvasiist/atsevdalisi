@@ -1035,12 +1035,43 @@ export interface AudioConfig {
  */
 export interface GrandstandConfig {
   /**
-   * Bilet fiyatı. `money` (Çip) VEYA `gems` (Elmas) olabilir —
-   * `CurrencyAmount` ile AYNI şekil, ama game-config shared-types'a bağımlı
-   * olmadığından (bkz. `FarmConfig.facilities` doc yorumundaki AYNI gerekçe)
-   * burada satır içi yazılır.
+   * **Sunucu üretimi yarışlar için VARSAYILAN tribün ücreti** (PHASE 7.1,
+   * 29.09.2026). Alan 27.09.2026'da `ticketPrice` adıyla doğdu ve o
+   * tarihten beri **satın alma fiyatı** sanılıyordu; artık değil.
+   *
+   * **Satın alma fiyatı `races.tribune_fee`'dir.** Oyuncunun açtığı lobi
+   * yarışlarında ücreti yarışı kuran seçer
+   * (`race-lobby.config.json → tribuneFeeOptions`) ve o değer satıra
+   * yazılır. `ticketPrice` adı, config'i okuyan herkese "fiyat buradan
+   * geliyor" izlenimi veriyordu ve `races.tribune_fee` sütununu ÖLÜ
+   * bırakıyordu — `aiFillEnabled` dersinin (`CLAUDE.md`) tam olarak aynısı:
+   * etkisi olmayan bir config değeri, hiç olmamasından kötüdür.
+   *
+   * **Nerede kullanılır:** yalnızca `insertRaceRow` (pratik/antrenman
+   * yarışları) — o satırların bir yaratıcısı olmadığı için ücreti config
+   * belirler. `0` vermek tüm sunucu üretimi yarışları ücretsiz yapar ve o
+   * zaman tribünde bilet satılmaz (`canWatchRaceWithoutTicket`).
+   *
+   * `money` (Çip) VEYA `gems` (Elmas) olabilir — `CurrencyAmount` ile AYNI
+   * şekil, ama game-config shared-types'a bağımlı olmadığından (bkz.
+   * `FarmConfig.facilities` doc yorumundaki AYNI gerekçe) burada satır içi
+   * yazılır. Para birimi **yarış başına değişemez**: `races` tablosunda
+   * tribün para birimi sütunu YOKTUR (`race_tickets.currency` satın alma
+   * anında yazılır), yani tek kaynak config'tir.
    */
-  ticketPrice: { currency: 'money' | 'gems'; amount: number };
+  defaultTribuneFee: { currency: 'money' | 'gems'; amount: number };
+  /**
+   * **Sunucu üretimi yarışlar için VARSAYILAN tribün kapasitesi** (PHASE
+   * 7.1). `races.spectator_capacity` sütununun şema varsayılanı 500'dür
+   * (migration 0036) ama bu değer buradan AÇIKÇA yazılır: "SİHİRLİ SAYI
+   * YOK" kuralı gereği bir denge parametresi SQL şemasında gizli kalmamalı
+   * — okuyan onu bulamaz ve değiştiremez.
+   *
+   * `race-lobby.config.json → spectatorCapacityOptions` oyuncunun
+   * SEÇEBİLECEĞİ değerlerdir; bu ise seçim yapılmadığında uygulanandır.
+   * İkisinin tutarlılığı `grandstand-config.spec.ts`te iddia edilir.
+   */
+  defaultSpectatorCapacity: number;
   /**
    * Bir yarışın BİTMESİNDEN sonra kaç saat boyunca bilet satın alınıp
    * izlenebileceği. Pencere kapanınca yarış artık "izlenebilir" listesinde

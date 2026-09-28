@@ -1,5 +1,6 @@
 import {
   Controller,
+  Delete,
   Get,
   Headers,
   HttpCode,
@@ -10,9 +11,15 @@ import {
   Post,
   UseInterceptors,
 } from '@nestjs/common';
-import type { ApiSuccess, RaceTicketPurchaseResult, WatchableRaceView } from '@at-sevdalisi/shared-types';
+import type {
+  ApiSuccess,
+  RaceTicketPurchaseResult,
+  RaceTicketRefundResult,
+  WatchableRaceView,
+} from '@at-sevdalisi/shared-types';
 import { ListWatchableRacesUseCase } from '../../application/use-cases/list-watchable-races.use-case';
 import { PurchaseRaceTicketUseCase } from '../../application/use-cases/purchase-race-ticket.use-case';
+import { RefundRaceTicketUseCase } from '../../application/use-cases/refund-race-ticket.use-case';
 import { CurrentPlayer, type AuthenticatedPlayer } from '../auth/current-player.decorator';
 import { IdempotencyInterceptor } from '../idempotency/idempotency.interceptor';
 import { IdempotencyScope } from '../idempotency/idempotency-scope.decorator';
@@ -38,6 +45,7 @@ export class GrandstandController {
   constructor(
     @Inject(ListWatchableRacesUseCase) private readonly listWatchableRacesUseCase: ListWatchableRacesUseCase,
     @Inject(PurchaseRaceTicketUseCase) private readonly purchaseRaceTicketUseCase: PurchaseRaceTicketUseCase,
+    @Inject(RefundRaceTicketUseCase) private readonly refundRaceTicketUseCase: RefundRaceTicketUseCase,
   ) {}
 
   /**
@@ -82,6 +90,38 @@ export class GrandstandController {
     @CurrentPlayer() currentPlayer: AuthenticatedPlayer,
   ): Promise<ApiSuccess<RaceTicketPurchaseResult>> {
     const result = await this.purchaseRaceTicketUseCase.execute(id, currentPlayer.id, idempotencyKey ?? null);
+    return { success: true, data: result };
+  }
+
+  /**
+   * Bilet iadesi ("tribünden ayrıl") — **PARA YOLU (ters yön)**, bu yüzden
+   * `Idempotency-Key` header'ı satın almada olduğu gibi ZORUNLUDUR.
+   *
+   * **`DELETE`, `POST .../refund` DEĞİL:** silinen kaynak biletin
+   * KENDİSİDİR (oyuncu-yarış çifti), yani `DELETE /races/:id/tickets`
+   * doğru REST karşılığıdır — `DELETE /players/:id/blocks/:blockedId`
+   * ile AYNI desen. Gövdesiz bir `POST` alt yolu, aynı kaynağa iki farklı
+   * adres yaratırdı.
+   *
+   * `@IdempotencyScope('player')` ve `keyBy: 'player'` gerekçeleri satın
+   * almayla AYNIDIR (`:id` yarışın id'sidir, anahtarın kapsamı değil).
+   *
+   * **Ayrı bir `RateLimit` sayacı** (`grandstand-ticket-refund`):
+   * `RateLimitOptions.name` sayacı PAYLAŞIR — satın alma ile aynı adı
+   * kullanmak, iki rotanın tek bütçeyi bölmesi demek olurdu
+   * (`CLAUDE.md`'nin kopyala-yapıştır tuzağı notu).
+   */
+  @RateLimit({ name: 'grandstand-ticket-refund', limit: 20, windowSeconds: 60, keyBy: 'player' })
+  @IdempotencyScope('player')
+  @Delete(':id/tickets')
+  @HttpCode(HttpStatus.OK)
+  @UseInterceptors(IdempotencyInterceptor)
+  async refundTicket(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Headers('Idempotency-Key') idempotencyKey: string | undefined,
+    @CurrentPlayer() currentPlayer: AuthenticatedPlayer,
+  ): Promise<ApiSuccess<RaceTicketRefundResult>> {
+    const result = await this.refundRaceTicketUseCase.execute(id, currentPlayer.id, idempotencyKey ?? null);
     return { success: true, data: result };
   }
 }

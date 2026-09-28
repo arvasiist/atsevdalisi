@@ -39,6 +39,9 @@ import type {
 import type { EconomyLedgerEntryInput } from '../../application/ports/economy-ledger';
 import { applyPracticeRaceStakes } from '../../domain/race/prize';
 import { pickStartingStats } from '../../domain/race/entrant-snapshot';
+// PHASE 7.1 — config'ten gelen tribün değerlerinin çalışma zamanı doğrulaması
+// (`insertRaceRow`), `assertTicketPriceIsValid` doc yorumundaki gerekçe.
+import { assertSpectatorCapacityIsValid, assertTicketPriceIsValid } from '../../domain/grandstand/ticket';
 import {
   describeRacePrizeEconomics,
   resolvePrizeDistribution,
@@ -1959,6 +1962,16 @@ export class PostgresRaceRepository implements RaceRepository {
    * oluştururken doldurmasından gelir.
    */
   private async insertRaceRow(client: PoolClient, race: Race): Promise<void> {
+    // PHASE 7.1 (29.09.2026) — config'ten gelen iki değer BURADA doğrulanır,
+    // çünkü burası o değerlerin VERİTABANI SATIRINA dönüştüğü TEK yerdir.
+    // `game-config` yükleyicisi saf bir cast'tir (çalışma zamanı doğrulaması
+    // yok); bozuk bir `grandstand.config.json` aksi hâlde ya `23514` gibi
+    // anlaşılmaz bir CHECK ihlaline ya da sessizce "bedava tribün"e
+    // dönüşürdü. Doğrulamayı buraya koymak, `assertTicketPriceIsValid`in
+    // üretimde ÇAĞIRANI OLMAMASI durumunu da ortadan kaldırır (ölü kod).
+    assertTicketPriceIsValid(this.config.grandstand.defaultTribuneFee.amount);
+    assertSpectatorCapacityIsValid(this.config.grandstand.defaultSpectatorCapacity);
+
     await client.query(
       // Migration 0036 (brief §42 PHASE 1) — `max_players` ve `race_type`
       // BU SORGUYA EKLENDİ ve ikisi de ZORUNLUDUR, isteğe bağlı değil:
@@ -1983,12 +1996,21 @@ export class PostgresRaceRepository implements RaceRepository {
       //    TÜRETİLİR — migration 0036'nın backfill'inde kullanılan
       //    `CASE`in BİREBİR AYNISI (tek doğruluk kaynağı: `entry_fee`).
       //
-      // `tribune_fee`/`spectator_capacity` BİLİNÇLİ olarak yazılmaz:
-      // varsayılanları (0 ve 500) sunucu üretimi yarışlar için doğrudur —
-      // böyle bir yarışın tribünü ücretsizdir ve config'teki en küçük
-      // kapasiteyi alır.
-      `INSERT INTO races (id, track_id, name, distance_m, surface, weather, temperature_c, wind_kmh, humidity_pct, participant_limit, max_players, race_type, entry_fee, prize_pool, start_time, status, simulation_seed, engine_version, ruleset_version, config_version, weather_config_version, created_at, updated_at)
-       VALUES ($1, NULL, $2, $3, $4, $5, $6, NULL, NULL, $7, $7, CASE WHEN $8::bigint > 0 THEN 'paid' ELSE 'free' END, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $17)`,
+      // `tribune_fee`/`spectator_capacity` ARTIK AÇIKÇA YAZILIR (PHASE 7.1,
+      // 29.09.2026). 27.09.2026 – 29.09.2026 arasında bu iki sütun
+      // "varsayılanları (0 ve 500) doğrudur" diye ATLANIYORDU ve bu, iki
+      // ayrı sorun üretiyordu:
+      //   1. `tribune_fee = 0` bir YOKLUK değil, "tribün ÜCRETSİZ" demektir
+      //      (`canWatchRaceWithoutTicket`). Sunucu üretimi yarışların
+      //      tribünü böylece sessizce bedava oluyordu ve config'teki
+      //      `defaultTribuneFee` HİÇBİR ŞEY İFADE ETMİYORDU — ölü config
+      //      tuzağı (`CLAUDE.md`, `aiFillEnabled` dersi).
+      //   2. Kapasite (500) SQL şemasında gizli bir denge parametresiydi;
+      //      "SİHİRLİ SAYI YOK" kuralı gereği okunabilir bir yerden
+      //      gelmelidir.
+      // İkisi de `grandstand.config.json`'dan gelir.
+      `INSERT INTO races (id, track_id, name, distance_m, surface, weather, temperature_c, wind_kmh, humidity_pct, participant_limit, max_players, race_type, entry_fee, prize_pool, tribune_fee, spectator_capacity, start_time, status, simulation_seed, engine_version, ruleset_version, config_version, weather_config_version, created_at, updated_at)
+       VALUES ($1, NULL, $2, $3, $4, $5, $6, NULL, NULL, $7, $7, CASE WHEN $8::bigint > 0 THEN 'paid' ELSE 'free' END, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $19)`,
       [
         race.id,
         race.name,
@@ -1999,6 +2021,8 @@ export class PostgresRaceRepository implements RaceRepository {
         race.participantLimit,
         race.entryFee,
         race.prizePool,
+        this.config.grandstand.defaultTribuneFee.amount,
+        this.config.grandstand.defaultSpectatorCapacity,
         new Date(race.startTime),
         race.status,
         race.simulationSeed,

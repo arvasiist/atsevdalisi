@@ -278,37 +278,60 @@ Postgres'in atomikliğidir (`withTransaction`) ve testten taklit edilemez.
 
 ## Sıradaki iş
 
-**BRIEF §42 PHASE İLERLEMESİ (29.09.2026).** PHASE 1 (kilit + yaşam döngüsü),
-2 (gerçek oyuncu/bot ayrımı), 3 (ekonomik mutabakat, §13.26) ve **4 (kopma /
-yeniden başlatma güvenliği, §13.27) BİTTİ**. **SIRADAKİ: PHASE 5 — yarış
-dengesi, alan başına (8/10/12/14/16) EN AZ 10.000 simülasyon ve
-`docs/RACE_BALANCE_REPORT.md`.** Sonra PHASE 6 (jokey/kişilik/taktik), 7
-(tribün/sosyal birleştirme), 8 (`docs/FINAL_PROJECT_AUDIT.md`).
-PHASE 5 için ön bilgi: `race_entries.jockey_id`'yi **hiçbir kod yazmaz**,
-`RaceSettlementPlace.jockeyId` her zaman `null`dur ve `domain/jockey`
-DOMAIN ONLY'dir — yani jokeyin motora etkisi bugün **ölçülecek bir şey
-değil, önce BAĞLANMASI gereken bir şeydir** (PHASE 6'nın konusu).
+**BRIEF §42 PHASE İLERLEMESİ (29.09.2026) — 8/8 BİTTİ.**
+PHASE 1 (kilit + yaşam döngüsü, §13.24) · 2 (gerçek oyuncu/bot ayrımı,
+§13.25) · 3 (ekonomik mutabakat, §13.26) · 4 (kopma / yeniden başlatma
+güvenliği, §13.27) · **5 (denge ölçümü — 265.125 simülasyon, §13.28 +
+`docs/RACE_BALANCE_REPORT.md`)** · **6 (jokey/kişilik/taktik motor etkisi —
+`1b12a86` + `7d9f814` + `7703b5e`, CI #226 ✅)** · **7 (tribün/sosyal/canlı
+birleştirme, §13.32)** · **8 (`docs/FINAL_PROJECT_AUDIT.md` — 51 özellik ×
+12 kolon)**.
+
+**SONUÇ BELGELERİ:** `docs/PROJECT_STATUS.md` (kısa "bugün neredeyiz") ·
+`docs/FINAL_PROJECT_AUDIT.md` (özellik-özellik denetim) ·
+`docs/FINAL_ACCEPTANCE.md` (27 maddelik kapanış kapısı) ·
+`docs/RACE_BALANCE_REPORT.md` (ölçüm). **51 özelliğin 32'si üretime hazır;
+`MISSING`/`BROKEN`/`UI ONLY`/`NOT WIRED` sayısı SIFIR.**
+
+⚠️ **`docs/FINAL_ACCEPTANCE.md`'deki 27 maddenin HER BİRİ bir test
+dosyasına dayanır.** Yeni bir kabul maddesi eklerken kanıt kolonuna
+**test dosyası yaz** — "dosya var" ya da "uç nokta var" kabul değildir.
+Uçtan uca akış `apps/api/test/api/final-e2e-spec.ts`tir; bu dosya
+`test/api/` altındadır, yani `.claude/verify-admin.mjs`in api vitest
+grubu onu **zaten koşar** (ayrı gruba eklemek gerekmez).
+
+⚠️ **Bir sonraki dilimi seçerken `docs/FINAL_PROJECT_AUDIT.md` §5'i oku** —
+orada kalan 19 madde öncelik sırasıyla listelenmiştir. En büyük üçü:
+yönetim paneli (7 uç hazır, arayüz yok), blok/şikâyet arayüzü (4 uç hazır),
+`username` alanının üç sosyal yüzeye eklenmesi (tek alan, üç yüzey açılır).
 
 **DİKKAT — 27.09.2026'da yapılan bir tarama, eskiden burada yazan 5'li listenin
 YANILTICI olduğunu gösterdi.** Bu bölüm iki kez bayatladı; aşağısı
 27.09.2026 akşamı itibarıyladır.
 
-**⚠️ brief §35 "Gerekli ekranlar" — KALAN DÖRT MADDE VE DÖRDÜNÜN DE
-GEREKÇESİ FARKLI (28.09.2026, §13.21–§13.23'ten sonra):**
-`/notifications` (§13.21), `/profile/:username` (§13.22) ve `/wallet`
-(§13.23) **yazıldı**. Kalanlar: **`/races/:id`** ve **`/races/:id/spectate`**
-— ikisi de **var olmayan bir uç noktaya** bağlıdır (`GET /races/:id` yok;
-uydurulmamalı), yani bunlar bir UI işi DEĞİL, önce backend işidir.
+**⚠️ brief §35 "Gerekli ekranlar" — 29.09.2026 İTİBARIYLA KAPANDI.**
+`/notifications` (§13.21), `/profile/:username` (§13.22), `/wallet`
+(§13.23) ve **`/races/[raceId]/watch` (§13.32, PHASE 7.5)** **yazıldı**.
+Sonuncusu brief'in "`/races/:id/spectate`" maddesinin karşılığıdır — ama
+**`GET /races/:id` İCAT EDİLMEDİ**: sayfa mevcut
+`GET /races/:id/timeline` ucunu kullanır ve `GetRaceTimelineUseCase`in
+yetki kapısını (katılımcı VEYA ücretsiz tribün VEYA bilet) aynen yeniden
+kullanır. Ayrıca **`/replays/[raceId]` bu iş için YETMEZ**: o ekran statik
+HTTP replay'idir, socket **açmaz**, yani `race:${raceId}` odasına girmez ve
+izleyici sayılmaz — tribün sohbeti orada ölü kalırdı.
+
 **`/messages`** — gelen kutusu + konuşma zaten `/friends` içinde çalışıyor;
 ayrı bir sayfa aynı yüzeyi İKİNCİ kez yapmak olurdu. **`/gifts`** — hediye
 gönderimi kabul edilmiş arkadaşlık şartına bağlıdır, yani hediye yüzeyi
-ZATEN arkadaş listesidir; ayrı sayfa kopya olurdu. Yeni bir dilime
-başlarken bu dördünü "yapılacaklar" sanıp yeniden açma.
+ZATEN arkadaş listesidir; ayrı sayfa kopya olurdu. **Bu ikisini "yapılacak"
+sanıp yeniden açma.**
 
-- **`PedigreeTree.tsx` — ARTIK YAPILABİLİR (veri zinciri BİTTİ).**
-  `GET /horses/:id/pedigree` (okuma, §13.2) ve `POST /players/:id/breeding`
-  (yazma — tay doğumu pedigriye kaydolur, §13.4) ikisi de mevcut. Kalan iş
-  **yalnızca UI**: bileşeni bir sayfaya bağlamak. Asset gerekmez.
+- ~~**`PedigreeTree.tsx` — ARTIK YAPILABİLİR.**~~ **BAĞLANDI.**
+  `apps/web/src/app/stable/page.tsx:365` bileşeni render eder; veri kaynağı
+  `GET /horses/:id/pedigree` (§13.2). Bu madde 29.09.2026'ya kadar
+  "bağlanmadı" diyordu ve **bayattı**. Kalan tek eksik **yetiştirme
+  (yazma) yüzeyi**: `POST /players/:id/breeding` (§13.4) sunucuda çalışıyor
+  ama hiçbir ekran onu çağırmıyor — bkz. `docs/FINAL_PROJECT_AUDIT.md` #16.
 - **Sohbet/tribün arayüzü (brief §35) — YAPILABİLİR.** Backend + e2e hazır
   (§13.5): `chat.message`/`chat.message.received`/`chat.history`/`chat.error`
   ve `race.spectators` olaylarının **henüz frontend tüketicisi yok**.

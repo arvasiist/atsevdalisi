@@ -51,11 +51,37 @@ export interface WatchableRaceView {
    */
   hasTicket: boolean;
   /**
-   * Bilet fiyatı (`config/grandstand.config.json` → `ticketPrice`). Sunucu
-   * tarafından gönderilir; istemci fiyatı KENDİ hesaplamaz veya
-   * varsaymaz (sunucu otoritesi ilkesi).
+   * Bu yarışın bilet fiyatı — **`races.tribune_fee`** (PHASE 7.1,
+   * 29.09.2026). Sunucu tarafından gönderilir; istemci fiyatı KENDİ
+   * hesaplamaz veya varsaymaz (sunucu otoritesi ilkesi).
+   *
+   * **KAYNAK DEĞİŞTİ.** 27.09.2026 – 29.09.2026 arasında bu alan
+   * `config/grandstand.config.json → ticketPrice`'tan geliyordu ve
+   * `races.tribune_fee` sütunu **hiç okunmuyordu** (ölü sütun). Artık tek
+   * doğruluk kaynağı satırdır: yarışı açan oyuncunun seçtiği ücret ne ise
+   * (`race-lobby.config.json → tribuneFeeOptions`) satın alma fiyatı
+   * odur. Config'teki değer yalnızca **oluşturma anındaki varsayılan**
+   * (`defaultTribuneFee`) olarak yaşar.
+   *
+   * `amount === 0` ise bu yarışın tribünü **ücretsizdir**: izlemek için
+   * bilet gerekmez ve `POST /races/:id/tickets` 409 `RACE_TRIBUNE_FREE`
+   * döner. İstemci bu satırda "Bilet Al" yerine doğrudan "İzle"
+   * göstermelidir.
    */
   ticketPrice: { currency: Currency; amount: number };
+  /**
+   * Bu yarışın tribün kapasitesi (`races.spectator_capacity`). PHASE 7.1
+   * ile **gerçekten uygulanır**: satılan bilet sayısı bu sayıya ulaşınca
+   * yeni bilet 409 `RACE_TRIBUNE_FULL` ile reddedilir.
+   */
+  spectatorCapacity: number;
+  /**
+   * Şu ana kadar satılan bilet sayısı (`count(*) FROM race_tickets`).
+   * İstemci "kaç koltuk kaldı" göstergesini `spectatorCapacity -
+   * ticketsSold` ile üretir — ama kararı SUNUCU verir; bu sayı yalnızca
+   * GÖSTERİM içindir (sunucu otoritesi ilkesi).
+   */
+  ticketsSold: number;
 }
 
 /**
@@ -87,4 +113,25 @@ export interface RaceTicketView {
   currency: Currency;
   purchasedAt: ISODateTimeString;
   finishedAt: ISODateTimeString;
+}
+
+/**
+ * `DELETE /races/:id/tickets` yanıtı — bilet iadesi (PHASE 7.2,
+ * 29.09.2026).
+ *
+ * `refundedAmount` İADE EDİLEN tutardır ve **bilet satırının kendi
+ * `price`'ından** okunur, `races.tribune_fee`den DEĞİL — yarışın ücreti
+ * sonradan değişse bile geçmiş bir satın alma kendi tutarını korur
+ * (yarış iptalindeki "iade tutarı DEFTERDEN okunur" kuralının AYNISI,
+ * `PROJE_DURUMU.md` §13.19).
+ *
+ * `newBalance` `RaceTicketPurchaseResult` ile AYNI `Pick<Player, ...>`
+ * desenidir: istemci yeni bakiyeyi KENDİ hesaplamaz.
+ */
+export interface RaceTicketRefundResult {
+  ticketId: UUID;
+  raceId: UUID;
+  refundedAmount: number;
+  currency: Currency;
+  newBalance: Pick<Player, 'money' | 'gems'>;
 }

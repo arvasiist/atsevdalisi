@@ -6,7 +6,7 @@ import type { CanonicalTransactionType, LedgerTransactionType } from '@at-sevdal
  *
  * ## Neden `Record<LedgerTransactionType, string>` ve düz bir nesne DEĞİL
  *
- * Defterde YAZILABİLEN her tür (`LEDGER_TRANSACTION_TYPES`, 18 değer) bu
+ * Defterde YAZILABİLEN her tür (`LEDGER_TRANSACTION_TYPES`, 20 değer) bu
  * haritada BULUNMAK ZORUNDADIR. Tip `Record<...>` olduğu için eksik bir
  * anahtar `tsc` hatası verir — sunucuya yeni bir tür eklendiğinde
  * (`shared-types`'ta birleşim büyür) istemci SESSİZCE boş bir satır
@@ -42,6 +42,10 @@ export const LEDGER_TYPE_LABELS: Record<LedgerTransactionType, string> = {
   gift_send_debit: 'Hediye gönderimi',
   gift_send_credit: 'Hediye alımı',
   grandstand_ticket: 'Tribün bileti',
+  // PHASE 7.2 — yönsüz: satın almanın AYNASI. "Tribün bileti iadesi"
+  // yazılsaydı etiket yönü (alacak) metne gömerdi; yönü `amount` işareti
+  // taşır. `race_entry_refund` ile aynı desen.
+  grandstand_ticket_refund: 'Tribün bileti iadesi',
   market_purchase_debit: 'Pazar alımı',
   market_purchase_credit: 'Pazar satışı',
   practice_race_entry_fee: 'Antrenman yarışı girişi',

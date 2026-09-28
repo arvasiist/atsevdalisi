@@ -70,8 +70,8 @@
 
 import dynamic from 'next/dynamic';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { RaceRosterEntrant, RaceSegmentSnapshot } from '@at-sevdalisi/shared-types';
-import { loadCameraConfig } from '@at-sevdalisi/game-config';
+import type { RaceChatMessageView, RaceRosterEntrant, RaceSegmentSnapshot } from '@at-sevdalisi/shared-types';
+import { loadCameraConfig, loadChatConfig } from '@at-sevdalisi/game-config';
 import {
   DEFAULT_LAP_LENGTH_METERS,
   DEFAULT_TURN_RADIUS_METERS,
@@ -86,8 +86,10 @@ import { getLiveLeaderboard, isAnyHorseBlockedAtTime } from './timeline-playback
 import { RaceHud, type MiniMapMarker } from './RaceHud';
 import type { HorseVisual } from './RaceScene3D';
 import { HORSE_VISUAL_HEIGHT_METERS, HUD_SYNC_INTERVAL_MS, computeHorseVisualsAt } from './RaceViewer';
-import { connectRaceSocket, type LiveRaceFinishedEntrant } from './live-race-socket';
+import { connectRaceSocket, sendRaceChatMessage, type LiveRaceFinishedEntrant } from './live-race-socket';
 import { mergeSegments } from './segment-merge';
+import { mergeChatMessages } from './chat-history-merge';
+import { RaceChatPanel } from './RaceChatPanel';
 
 const RaceScene3D = dynamic(() => import('./RaceScene3D').then((imported) => imported.RaceScene3D), {
   ssr: false,
@@ -99,6 +101,16 @@ const RaceScene3D = dynamic(() => import('./RaceScene3D').then((imported) => imp
  * desen: modül kapsamında BİR KEZ yüklenir (bkz. o dosyanın doc yorumu).
  */
 const cameraConfig = loadCameraConfig();
+
+/**
+ * PHASE 7.3 (29.09.2026) — sohbet akışının istemci tavanı. `cameraConfig`
+ * ile AYNI desen: modül kapsamında BİR KEZ yüklenir. Değer
+ * `config/chat.config.json → historyLimit`ten gelir; koda gömülü bir sayı
+ * DEĞİLDİR (`CLAUDE.md` "SİHİRLİ SAYI YOK"). Sunucu da `chat.history`yi
+ * aynı limitle kırpar — bu tavan yalnızca CANLI akışın sınırsız
+ * büyümesini engeller.
+ */
+const chatConfig = loadChatConfig();
 
 /**
  * Faz 2 "HUD Telemetri" düzeltmesi (bu turda EKLENDİ) — bu dosyanın kendi
@@ -125,8 +137,19 @@ export interface LiveRaceViewerProps {
   /** `api-client.ts`'in `getAuthToken()`'ı — `race.gateway.ts`'in handshake doğrulaması için. */
   token: string;
   raceId: string;
-  /** Roster'da bu `horseId`'ye sahip katılımcı, "Jokey Kamerası"nın takip ettiği/HUD'da vurgulanan attır. */
-  ownHorseId: string;
+  /**
+   * Roster'da bu `horseId`'ye sahip katılımcı, "Jokey Kamerası"nın takip
+   * ettiği/HUD'da vurgulanan attır.
+   *
+   * **İZLEYİCİ İÇİN BOŞTUR (PHASE 7.5, 29.09.2026).** Tribünden bilet
+   * alıp izleyen bir oyuncunun bu yarışta ATI YOKTUR — bu yüzden alan
+   * OPSİYONELdir ve varsayılanı `''`dir. `''` hiçbir `entryId` ile
+   * eşleşmez, `ownEntryId` `null` kalır ve kamera/hud odağı liderin
+   * üzerine düşer (bkz. `focusVisual` hesabı). Bunu zorunlu tutup
+   * izleyiciye uydurma bir `horseId` geçirmek, olmayan bir atı "benim
+   * atım" gibi gösterme riski taşırdı.
+   */
+  ownHorseId?: string;
   /** brief §7 `Track.turnCount`. Varsayılan: virajlı (2) — `RaceViewer.tsx` ile AYNI varsayılan. */
   turnCount?: number;
 }
@@ -135,7 +158,7 @@ export function LiveRaceViewer({
   apiBaseUrl,
   token,
   raceId,
-  ownHorseId,
+  ownHorseId = '',
   turnCount = 2,
 }: LiveRaceViewerProps): React.ReactElement {
   const trackGeometry = useMemo(
@@ -165,6 +188,14 @@ export function LiveRaceViewer({
   // bayrak yalnızca "DAHA ÖNCE bağlıydık ama bağlantı koptu" durumunu
   // ayırt eder.
   const [isDisconnected, setIsDisconnected] = useState(false);
+  // PHASE 7.3 — tribün sohbeti + canlı izleyici sayısı (brief §13, §27).
+  // Bu üç durum `RaceHud`'a GEÇİRİLMEZ: HUD `memo()` + 10Hz throttle
+  // üzerine kuruludur ve her yeni mesajda tüm HUD'u yeniden çizmek o
+  // tasarımı boşa çıkarırdı. Tüketicisi ayrı bir kardeş bileşendir
+  // (bkz. `RaceChatPanel.tsx` dosya başı doc yorumu).
+  const [chatMessages, setChatMessages] = useState<RaceChatMessageView[]>([]);
+  const [spectatorCount, setSpectatorCount] = useState<number | null>(null);
+  const [chatError, setChatError] = useState<string | null>(null);
 
   // Bkz. dosya başı doc yorumu madde 1 — "GERÇEK zaman = oynatma saati".
   const playbackStartedAtRef = useRef<number | null>(null);
@@ -175,6 +206,15 @@ export function LiveRaceViewer({
   // her güncellendiğinde YENİDEN BAŞLATILMAZ).
   const finishedRef = useRef(false);
   const segmentsRef = useRef<RaceSegmentSnapshot[]>([]);
+  // PHASE 7.3 — sohbet için `segmentsRef` ile AYNI gerekçe: `onChatHistory`
+  // ve `onChatMessage` handler'ları soket efektinin (yalnızca
+  // `apiBaseUrl`/`token`/`raceId` değişince kurulan) içinde tanımlıdır ve
+  // `chatMessages` state'ine doğrudan bakamaz — baksalardı her yeni
+  // mesajda soket YENİDEN KURULURDU. Kaynak: `chatMessagesRef`.
+  const chatMessagesRef = useRef<RaceChatMessageView[]>([]);
+  // Gönderme yolu soketin KENDİSİNE ihtiyaç duyar (`sendRaceChatMessage`),
+  // ve soket efektin yerel değişkenidir — bu ref onu dışarı taşır.
+  const socketRef = useRef<ReturnType<typeof connectRaceSocket> | null>(null);
 
   useEffect(() => {
     playbackStartedAtRef.current = null;
@@ -189,6 +229,10 @@ export function LiveRaceViewer({
     setHudTimeMs(0);
     lastHudSyncAtRef.current = 0;
     setIsDisconnected(false);
+    chatMessagesRef.current = [];
+    setChatMessages([]);
+    setSpectatorCount(null);
+    setChatError(null);
 
     const socket = connectRaceSocket(apiBaseUrl, token, raceId, {
       onRoster: (entrants) => {
@@ -221,9 +265,25 @@ export function LiveRaceViewer({
       onError: (message) => setErrorMessage(message),
       onConnectError: (message) => setErrorMessage(`Bağlantı hatası: ${message}`),
       onDisconnected: () => setIsDisconnected(true),
+      onSpectators: (count) => setSpectatorCount(count),
+      onChatHistory: (messages) => {
+        // `chat.history` HER (yeniden) bağlanmada TEKRAR gelir — koşulsuz
+        // ekleme son 100 mesajı her kopmada bir kez daha yazardı.
+        // `mergeChatMessages` `messageId`'ye göre tekilleştirir (bkz. o
+        // dosyanın doc yorumu); `segment-merge.ts`'in kardeşidir.
+        chatMessagesRef.current = mergeChatMessages(chatMessagesRef.current, messages, chatConfig.historyLimit);
+        setChatMessages(chatMessagesRef.current);
+      },
+      onChatMessage: (message) => {
+        chatMessagesRef.current = mergeChatMessages(chatMessagesRef.current, [message], chatConfig.historyLimit);
+        setChatMessages(chatMessagesRef.current);
+      },
+      onChatError: (message) => setChatError(message),
     });
+    socketRef.current = socket;
 
     return () => {
+      socketRef.current = null;
       socket.disconnect();
     };
     // NOT: bu repo'nun kök `.eslintrc.cjs`'inde `eslint-plugin-react-hooks`
@@ -419,6 +479,28 @@ export function LiveRaceViewer({
     setCameraMode(mode);
   }, []);
 
+  /**
+   * PHASE 7.3 — sohbet gönderimi. `useCallback` ile SABİT kimlikte
+   * (bkz. yukarıdaki `handleChangeCameraMode`'un AYNI gerekçesi): her
+   * render'da yeni bir fonksiyon referansı `RaceChatPanel`'in gereksiz
+   * yeniden render'ına yol açardı.
+   *
+   * Gövde burada DOĞRULANMAZ (boş/kırpma/hız sınırı sunucudadır) —
+   * yalnızca iletilir; ekran, sunucunun `chat.message.received` ile
+   * yayınladığı GERÇEK satırı gösterir.
+   */
+  const handleSendChatMessage = useCallback(
+    (body: string) => {
+      const socket = socketRef.current;
+      if (!socket) {
+        return;
+      }
+      setChatError(null);
+      sendRaceChatMessage(socket, raceId, body);
+    },
+    [raceId],
+  );
+
   if (errorMessage) {
     return <ScenePlaceholder text={errorMessage} isError />;
   }
@@ -445,6 +527,12 @@ export function LiveRaceViewer({
         onChangeCameraMode={handleChangeCameraMode}
         onSeek={NOOP_SEEK}
         liveStatus={finishedEntrants ? 'finished' : isDisconnected ? 'reconnecting' : 'live'}
+      />
+      <RaceChatPanel
+        messages={chatMessages}
+        spectatorCount={spectatorCount}
+        onSend={handleSendChatMessage}
+        errorMessage={chatError}
       />
     </div>
   );

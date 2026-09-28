@@ -44,15 +44,34 @@ export class IdempotencyInterceptor implements NestInterceptor {
     @Inject(Reflector) private readonly reflector: Reflector,
   ) {}
 
+  /**
+   * **KAPSAM ARTIK ROTA BAZLIDIR (PHASE 7.2, 29.09.2026).** Önce yalnızca
+   * `scopeId` (oyuncu ya da `:id`) dönerdi; bu, **AYNI kapsamdaki iki FARKLI
+   * rota**nın tek bir anahtar uzayını paylaşması demekti. `idempotency_keys`
+   * PK'si `(scope_id, idempotency_key)`dir ve **rotayı İÇERMEZ**, yani aynı
+   * oyuncunun aynı `Idempotency-Key` ile iki ayrı uca gitmesi, ikinci isteğe
+   * **birincinin yanıt gövdesini** döndürür ve işleyiciyi HİÇ ÇALIŞTIRMAZ.
+   *
+   * **Neden fark edilmeden kaldı:** bugüne kadar `@IdempotencyScope('player')`
+   * yalnızca TEK bir rotada (`market/listings/:id/buy`) vardı — çakışacak
+   * ikinci bir rota yoktu. `DELETE /races/:id/tickets` (bilet iadesi) aynı
+   * kapsamı kullanınca bu hâle geldi: aynı anahtarla satın alma + iade
+   * yapan bir istemci **iade edilmiş sanırken hiç iade almazdı** — para
+   * yolunda sessiz bir yanlış yanıt, tam olarak `CLAUDE.md`'nin "hiçbir
+   * yerde hata üretmez" diye işaretlediği sınıf.
+   *
+   * Handler adı (denetleyici + metot) önek olarak eklenir: rota başına ayrı
+   * anahtar uzayı. Aynı rotanın kendi içindeki eşzamanlı tekrarları
+   * (rezervasyon yarışı, `IDEMPOTENCY_KEY_IN_PROGRESS`) DEĞİŞMEDEN çalışır
+   * — önek her iki istekte de aynıdır.
+   */
   private resolveScopeId(context: ExecutionContext, request: AuthenticatedRequest): string {
     const scopeSource = this.reflector.getAllAndOverride<IdempotencyScopeSource>(IDEMPOTENCY_SCOPE_KEY, [
       context.getHandler(),
       context.getClass(),
     ]);
-    if (scopeSource === 'player' && request.player) {
-      return request.player.id;
-    }
-    return request.params?.id ?? 'global';
+    const scopeId = scopeSource === 'player' && request.player ? request.player.id : (request.params?.id ?? 'global');
+    return `${context.getClass().name}.${context.getHandler().name}:${scopeId}`;
   }
 
   async intercept(context: ExecutionContext, next: CallHandler): Promise<Observable<unknown>> {

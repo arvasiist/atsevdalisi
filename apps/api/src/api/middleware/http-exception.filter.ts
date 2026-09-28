@@ -73,7 +73,10 @@ import { JockeyAlreadyHiredError, JockeyAlreadyOwnedError, JockeyNotFoundError }
 import {
   RaceNotWatchableError,
   RaceTicketAlreadyOwnedError,
+  RaceTicketNotFoundError,
   RaceTicketRequiredError,
+  RaceTribuneFreeError,
+  TribuneFullError,
 } from '../../domain/grandstand/errors';
 import {
   CannotGiftSelfError,
@@ -267,6 +270,15 @@ const DOMAIN_ERROR_MAP = new Map<ErrorClassConstructor, { status: number; code: 
   // 403 — `ForbiddenError` ile AYNI durum, FARKLI kod: istemci "Bilet Al"
   // akışına yönlendirebilsin diye (bkz. `RaceTicketRequiredError` doc yorumu).
   [RaceTicketRequiredError, { status: HttpStatus.FORBIDDEN, code: ErrorCode.RaceTicketRequired }],
+  // PHASE 7.1/7.2 (29.09.2026) — kontenjan + ücretsiz tribün + iade.
+  // Üçünün de kodları hatanın alanlarına BAĞLI DEĞİLDİR (`TribuneFullError`
+  // taşıdığı `capacity`ye rağmen TEK kod döner — gerekçe
+  // `domain/grandstand/errors.ts`), yani `DOMAIN_ERROR_MAP`'e girebilirler.
+  [TribuneFullError, { status: HttpStatus.CONFLICT, code: ErrorCode.RaceTribuneFull }],
+  [RaceTribuneFreeError, { status: HttpStatus.CONFLICT, code: ErrorCode.RaceTribuneFree }],
+  // 404 — iade var olan bir KAYNAĞI hedefler, o kaynak (bilet) yoksa hedef
+  // yoktur (`RaceNotFoundError` ile AYNI kategori).
+  [RaceTicketNotFoundError, { status: HttpStatus.NOT_FOUND, code: ErrorCode.RaceTicketNotFound }],
   // ARKADAŞLIK + MESAJLAŞMA (proje sahibinin açık talebi, 27.09.2026) —
   // sekiz hata da `DOMAIN_ERROR_MAP`'e girebilir çünkü kodları hatanın
   // `reason`/`status` alanına BAĞLI DEĞİLDİR (aynı gerekçe: yukarıdaki

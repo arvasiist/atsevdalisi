@@ -37,7 +37,12 @@
  */
 
 import { io, type Socket } from 'socket.io-client';
-import type { RaceRosterEntrant, RaceSegmentSnapshot } from '@at-sevdalisi/shared-types';
+import type {
+  RaceChatMessageView,
+  RaceRosterEntrant,
+  RaceSegmentSnapshot,
+  SendRaceChatMessagePayload,
+} from '@at-sevdalisi/shared-types';
 import { deriveSocketOrigin } from './live-race-url';
 
 /** `race.gateway.ts`'teki `RaceFinishedPayload` alanlarıyla BİREBİR aynı (bkz. o tipin `@at-sevdalisi/shared-types` tanımı). */
@@ -69,6 +74,50 @@ export interface LiveRaceSocketHandlers {
    * MANTIĞI YÖNETMEZ.
    */
   onDisconnected: (reason: string) => void;
+  /**
+   * `race.spectators` — o an `race:${raceId}` odasındaki AÇIK soket sayısı
+   * (brief §27). Odaya YAYINLANIR (tek istemciye değil), yani her katılım
+   * ve her kopmada odadaki herkes tazelenmiş sayıyı alır (bkz.
+   * `race.gateway.ts` → `broadcastSpectatorCount`). Bu sayı bir
+   * BİLET/KATILIM sayısı DEĞİLDİR: bağlanmamış bir bilet sahibi izleyici
+   * sayılmaz.
+   */
+  onSpectators: (count: number) => void;
+  /**
+   * `chat.history` — YALNIZCA bu istemciye gönderilen geçmiş (brief §13),
+   * kronolojik (en eski → en yeni). **HER `race.subscribe`'ta TEKRAR
+   * gelir** — otomatik yeniden bağlanma dahil. Bu yüzden tüketici
+   * tarafın `messageId`'ye göre TEKİLLEŞTİRMESİ ŞARTTIR (bkz.
+   * `chat-history-merge.ts`).
+   */
+  onChatHistory: (messages: RaceChatMessageView[]) => void;
+  /** `chat.message.received` — odaya yayınlanan KAYITLI mesaj (sunucunun kırptığı gövdeyle). */
+  onChatMessage: (message: RaceChatMessageView) => void;
+  /**
+   * `chat.error` — sohbet reddedildi. `onError`'DAN AYRI bir sınıftır:
+   * sohbet reddedilse bile yarış yayını DEVAM EDER, ikisini tek olayda
+   * birleştirmek istemcinin "yarış bitti" sanmasına yol açardı (bkz.
+   * `RaceChatErrorPayload` doc yorumu).
+   */
+  onChatError: (message: string) => void;
+}
+
+/**
+ * `chat.message` gönderir (brief §13). `playerId` GÖNDERİLMEZ — gönderen,
+ * sunucunun handshake'te doğruladığı oturumdur; istemcinin kendini
+ * başkası olarak tanıtabilmesi yapısal olarak imkânsız olmalıdır
+ * (`SendRaceChatMessagePayload` doc yorumu, `CLAUDE.md` "SUNUCU
+ * OTORİTESİ").
+ *
+ * Gövde SUNUCUDA doğrulanır (boş/uzunluk, hız sınırı, abonelik kapısı);
+ * bu fonksiyon yalnızca iletir ve hiçbir şey DÖNMEZ. Kaydedilen satır
+ * `chat.message.received` ile odaya yayınlanır — yani iyimser (optimistic)
+ * bir yerel ekleme YAPILMAZ, ekran sunucunun gerçekten yazdığı satırı
+ * gösterir.
+ */
+export function sendRaceChatMessage(socket: Socket, raceId: string, body: string): void {
+  const payload: SendRaceChatMessagePayload = { raceId, body };
+  socket.emit('chat.message', payload);
 }
 
 /**
@@ -142,6 +191,34 @@ export function connectRaceSocket(
 
   socket.on('race.error', (payload: { message: string }) => {
     handlers.onError(payload.message);
+  });
+
+  // CANLI İZLEYİCİ SAYISI (brief §27) — odaya yayınlanır, bu yüzden
+  // `raceId` filtresi YOKTUR: bu soket YALNIZCA tek bir yarış odasına
+  // abonedir (bkz. yukarıdaki `race.subscribe` gönderimi), dolayısıyla
+  // gelen her `race.spectators` zaten bu yarışa aittir. Diğer olaylardaki
+  // `payload.raceId === raceId` kapısı, o olayların odaya değil tek
+  // istemciye gidebilmesindendir; burada öyle bir belirsizlik yok.
+  socket.on('race.spectators', (payload: { raceId: string; count: number }) => {
+    if (payload.raceId === raceId) {
+      handlers.onSpectators(payload.count);
+    }
+  });
+
+  socket.on('chat.history', (payload: { raceId: string; messages: RaceChatMessageView[] }) => {
+    if (payload.raceId === raceId) {
+      handlers.onChatHistory(payload.messages);
+    }
+  });
+
+  socket.on('chat.message.received', (payload: RaceChatMessageView) => {
+    if (payload.raceId === raceId) {
+      handlers.onChatMessage(payload);
+    }
+  });
+
+  socket.on('chat.error', (payload: { message: string }) => {
+    handlers.onChatError(payload.message);
   });
 
   return socket;

@@ -98,7 +98,7 @@ interface LedgerRow {
  * `as LedgerTransactionType` bir **iddia**dır, kanıt değil: veritabanına
  * elle yazılmış tanınmayan bir `type` değeri bu iddiayı yalanlar ve
  * `canonicalTypeOf` `undefined` döndürür. Bu, sessizce yanlış bir AİLE
- * göstermekten iyidir ama sessiz kalmamalıdır — `wallet-taxonomy.spec.ts`
+ * göstermekten iyidir ama sessiz kalmamalıdır — `wallet-history.spec.ts`
  * kodun yazdığı değerleri, `wallet.e2e-spec.ts` ise GERÇEK yazılan
  * satırları (günlük ödül, yem alımı, pazar) uçtan uca sınar. Kalan risk
  * (elle SQL ile uydurulmuş bir tür) `economy_transactions`'ın yalnızca

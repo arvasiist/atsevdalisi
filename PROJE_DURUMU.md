@@ -245,23 +245,45 @@ neredeyse hepsi ✅ DÜZELTİLDİ:
 
 ### 5.4 Frontend
 
-App Router sayfaları: `(dashboard)`, `stable`, `market`, `races`, `races/demo`,
-`replays`, `replays/[raceId]`, `training`, `care`, `equipment`, `online`, `club`,
-`farm`, `leaderboard`.
-Feature'lar: `race-viewer/` (15 dosya + assets/ + audio-vfx/ + fixtures/),
-`matchmaking/lobby-socket.ts`, `career/career-tier.ts`, `pedigree/`,
-`player-demo/PlayerDemoWidget.tsx`.
+**⚠️ BU LİSTE 29.09.2026'da GÜNCELLENDİ** — burada eskiden 14 sayfa yazıyordu
+ve **bayattı** (`/notifications`, `/wallet`, `/profile/[username]`,
+`/grandstand`, `/friends`, `/races/[raceId]/watch` eklendiği hâlde liste
+güncellenmemişti). Gerçek sayıyı bir daha yazarken
+`apps/web/src/app/**/page.tsx` dosyalarını say — bu belgeye değil.
+
+**21 sayfa (29.09.2026):** `(dashboard)`, `stable`, `market`, `races`,
+`races/demo`, `races/[raceId]/watch`, `replays`, `replays/[raceId]`,
+`training`, `care`, `equipment`, `online`, `club`, `farm`, `leaderboard`,
+`grandstand`, `friends`, `notifications`, `wallet`, `profile/[username]`.
+
+**`club` TEK `ComingSoon` yer tutucusudur** — diğer 20 sayfa gerçek bir uca
+bağlıdır. `ComingSoon` bileşeni `apps/web/src` içinde **yalnızca** `club`
+tarafından kullanılır (grep ile doğrulanabilir).
+
+Feature'lar: `race-viewer/` (+ `chat-history-merge.ts` ve
+`chat-history-merge.spec.ts`), `matchmaking/lobby-socket.ts`,
+`career/career-tier.ts`, `pedigree/`, `player-demo/PlayerDemoWidget.tsx`
+(**bağlı değil** — işlevi ana sayfa zaten yapıyor, ikinci bir base-url
+kaynağı doğurur).
 Lib: `api-client.ts`, `player-context.tsx`. Bileşenler: `layout/TopBar.tsx`,
 `ui/{ComingSoon,GlassPanel,HorseAvatar,StarRating,StatBar}.tsx`. Tema: `theme.ts`.
 
-### 5.5 Veritabanı: 28 migration, 24 tablo
+### 5.5 Veritabanı: 43 migration, 36 tablo
+
+**⚠️ BU SAYILAR 29.09.2026'da DÜZELTİLDİ** — burada eskiden "28 migration,
+24 tablo" yazıyordu ve **bayattı** (0043'e kadar migration eklendiği hâlde
+başlık güncellenmemişti). Sayıyı bir daha yazarken `database/migrations/`
+altındaki dosya sayısına ve `CREATE TABLE` aramasına bak — bu belgeye değil.
 
 `players`, `tracks`, `horses`, `horse_stats`, `horse_surface_stats`,
 `horse_distance_stats`, `horse_health`, `jockeys`, `training_sessions`, `races`,
 `race_entries`, `race_entry_segments`, `market_listings`, `breeding_pairs`,
 `pedigrees`, `player_auth_providers`, `staff`, `facilities`, `horse_care_log`,
 `matchmaking_tickets`, `pvp_matches`, `economy_transactions`, `idempotency_keys`,
-`horse_equipment` (+ `schema_migrations`).
+`horse_equipment`, `player_feed_inventory`, `horse_feed_log`, `race_tickets`,
+`friendships`, `direct_messages`, `gift_sends`, `race_messages`, `notifications`,
+`race_invites`, `player_blocks`, `player_reports`, `admin_audit_log`
+(+ `schema_migrations`, aracın kendi tablosu).
 
 Öne çıkan kısıtlar:
 - `players.level` 1–50, `players.rating >= 100`
@@ -430,7 +452,8 @@ doğrulama ancak GitHub Actions'ta gerçek Postgres/Redis ile yapılabiliyor.
 | **Matchmaking senkron** | `JoinMatchmakingQueueUseCase.playMatch` eşleşmeyi **HTTP isteği içinde** yapar. `@nestjs/schedule`/cron/worker YOK → arka plan işi yok |
 | **Pazar süresi dolması tembel** | `PostgresMarketListingRepository.sweepExpiredListings` — lazy sweep, zamanlanmış iş değil |
 | **Müzayede ilanı yok** | Yalnızca `fixed_price` |
-| **Jokey bağlanmamış** | `calculateJockeySkillComposite` race engine'den **hiç çağrılmıyor**; `jockeySkillComposite` nötr 50, `RaceEntry.jockeyId` hep `null` |
+| ~~**Jokey bağlanmamış**~~ **KAPANDI (§13.30, PHASE 6.2, 29.09.2026)** | `calculateJockeySkillComposite` artık motora girer; `race_entries.jockey_id` kilit anında yazılır. **AÇIK KALAN:** `calculateJockeyHorseCompatibility` ve `domain/jockey/jockey.ts`'teki `calculateTemperamentComponent` hâlâ **çağıransız**; `gatePosition` hâlâ okunmuyor |
+| **Jokey serbest bırakma yolu yok** | Bir jokeyi attan ayıran uç nokta yok; `race_entries.jockey_id` yazılır ama geri alınmaz |
 | **Çiftlik/personel çarpanları bağlanmamış** | `domain/farm/farm.ts`'teki tüm `get*Multiplier` fonksiyonlarının çağıranı yok; `domain/staff/` tamamen bağlanmamış |
 | **Bağlanmamış domain modülleri** | tournament, club, ranking, season, progression, breeding/genetics — mantık + spec var, controller/use-case/repository yok |
 | **Placeholder sayfalar** | `/club`, `/farm`, `/leaderboard` yalnızca `<ComingSoon>` render eder |
@@ -3103,6 +3126,121 @@ simetrisi 7 mesafede, kapalı ödünleşim, kırpma, AI tripwire) +
 `tactic-effect.spec.ts` (sürüm pini `1.3.0`) + `docs/RACE_BALANCE_REPORT.md`
 (§7.2/§7.3/§7.4 ve §8 tablosu bu dilimde **düzeltildi** — eskiden "jokey bağlı
 değil" yazıyordu ve **artık yanlıştı**).
+
+#### 13.32 TRIBÜN — kontenjan + iade + fiyatın tek kaynağı + canlı izleyici odası (brief §42 PHASE 7) — 29.09.2026
+
+**Dört boşluk kapatıldı ve dördü de "hata üretmeyen" türdendi** — yani hiçbiri
+ne derleyiciye ne başka bir teste görünüyordu.
+
+1. **KAPASİTE HİÇ UYGULANMIYORDU.** `races.spectator_capacity` (migration 0036)
+   okunuyordu ama **hiçbir yerde karşılaştırılmıyordu**: 501. bilet de satılırdı.
+   Artık `purchaseTicket` transaction'ının **içinde**, `races` satırı
+   `FOR UPDATE` altındayken sayılır ve dolarsa 409 `RACE_TRIBUNE_FULL` döner.
+   Dışarıda saymak TOCTOU penceresi bırakırdı.
+2. **FİYATIN İKİ KAYNAĞI VARDI.** Satılan fiyat config'teki `ticketPrice`
+   (her zaman 25), `races.tribune_fee` sütunu ise **ölü** idi. Artık tek kaynak
+   `races.tribune_fee`: `PurchaseTicketInput` `price`/`currency` **taşımaz**,
+   repository tutarı **kilitli yarış satırından** okur ve `PurchaseTicketResult`
+   ile geri döner — yanıt defterle çelişemez. Config'teki değer yeniden
+   adlandırıldı (`defaultTribuneFee`) ve **oluşturma anı varsayılanı** oldu;
+   yanına `defaultSpectatorCapacity` eklendi (500 SQL şemasında gizli bir denge
+   parametresiydi).
+3. **İADE YOKTU.** `DELETE /races/:id/tickets` eklendi: `race_tickets` satırı
+   `DELETE ... RETURNING` ile silinir, tutar **satırın kendi `price` sütunundan**
+   okunur (`races.tribune_fee` **değil** — yarışın ücreti sonradan değişse bile
+   geçmiş bir satın alma kendi tutarını korur), bakiyeye credit edilir ve **aynı
+   transaction'da POZİTİF** bir `grandstand_ticket_refund` defter satırı yazılır.
+   Çift iadeyi `IdempotencyInterceptor` değil, **0 satır dönmesi** engeller (404).
+4. **`tribune_fee = 0` SEMANTİĞİ TANIMSIZDI.** 0 bir yokluk değil, "tribün
+   ÜCRETSİZ" demektir: izlemek için bilet **gerekmez**
+   (`canWatchRaceWithoutTicket`) ve o yarışa bilet **satılmaz** (409
+   `RACE_TRIBUNE_FREE` — 0 tutarlı bir defter satırı
+   `economy_transactions.amount <> 0` kısıtına da uymazdı). Karar **tek
+   fonksiyonda** durur çünkü iki yerde aynı olmak zorundadır (timeline kapısı +
+   satın alma kapısı); ayrışırlarsa ya bedava yarışa bilet satılır ya bedava
+   yarış kimseye açılmaz — ikisi de sessiz hata.
+
+**⚠️ SESSİZ HATA DÜZELTMESİ — `@IdempotencyScope('player')` ANAHTAR UZAYI
+ÇAKIŞMASI.** Bu scope'u kullanan **tüm** rotalar aynı `idempotency_keys` anahtar
+uzayını paylaşıyordu: PK `(scope_id, idempotency_key)` ve `scope_id` **rotayı
+içermiyor**. İki farklı rotada aynı `Idempotency-Key` kullanılırsa ikinci istek
+**birincinin önbelleklenmiş yanıtını** alır ve handler **hiç koşmaz**. Artık
+`scope_id` `ControllerClass.handlerMethod:` ile öneklenir
+(`market.e2e-spec.ts`'teki tek literal iddia güncellendi).
+
+**⚠️ `insertRaceRow` YER TUTUCU SAYISI — 25 SÜTUN / 24 İFADE (29.09.2026).** Bu
+dilimin **kendi hatasıydı** ve tam paket koşumunda patladı: `tribune_fee` +
+`spectator_capacity` sütunları eklenirken VALUES kuyruğu **+1** kaydırılmıştı
+(+2 yerine), yani `created_at`/`updated_at` birer ifade eksik kalıyordu.
+`INSERT has more target columns than expressions` → **her pratik yarış / PvP
+insert'i 500** → 53 test düştü. Ders: **SQL bir metindir; `tsc` onu görmez.**
+Bu yüzden `.claude/phase7-db-check.mjs` yazıldı — şemayı sıfırlar, migration'ları
+uygular ve `insertRaceRow`u **gerçekten çalıştıran** e2e dosyalarını koşar
+(~53 sn). Saf domain testleri + tip kontrolü bu sınıf hatayı **yapısal olarak**
+göremez.
+
+**⚠️ İSTEMCİ TARAFI (PHASE 7.3/7.4/7.5) — SUNUCU HAZIRDI, TÜKETİCİ YOKTU.**
+`chat.message`/`chat.message.received`/`chat.history`/`chat.error`/
+`race.spectators` olayları 27.09.2026'dan beri sunucuda vardı ama **hiçbir
+istemci tüketicisi yoktu**. `RaceChatPanel` bunları tüketir ve **bilerek
+`RaceHud`'un İÇİNE KONMADI**: `RaceHud` `memo()` + 10 Hz HUD kısıtlaması taşır,
+sohbet durumunu ona geçirmek her mesajda tüm HUD'ı yeniden çizerdi.
+
+**⚠️ GÖNDERİLEN MESAJ İYİMSER (optimistic) EKLENMEZ.** Sunucu **kaydedilen**
+satırı `chat.message.received` ile yayar; iki kaynak aynı mesajı iki kez
+gösterirdi. Geçmiş de **tekilleştirilir** çünkü `chat.history` **her
+`race.subscribe`'da** (socket.io otomatik yeniden bağlanmaları dahil) yeniden
+gönderilir. Birleştirme `chat-history-merge.ts`'te **saf** bir fonksiyondur
+(`segment-merge.ts` kardeşi): tarayıcısız test edilebilir. Sıralama `createdAt`'e
+göredir çünkü gateway geçmişi **`await` ederken** odadaki başka bir izleyicinin
+canlı mesajı **önce** varabilir — naif "sona ekle" eski mesajı yeninin arkasına
+koyardı. Hiçbir şey değişmediyse **aynı referans** döner. Mesaj tavanı
+`config/chat.config.json → historyLimit` (**sihirli sayı yok**).
+
+**⚠️ GRANDSTAND'IN "İZLE" BAĞLANTISI YANLIŞ SAYFAYA GİDİYORDU (7.5).**
+`/replays/[raceId]` yarışı `GET /races/:id/timeline` ile **statik** bir tekrar
+olarak oynatır — HTTP, tek seferlik, **soket YOK**. Sonuç: `race:${raceId}`
+odası **boş** kalıyordu, yani `race.spectators` hiçbir izleyiciyi
+**saymıyordu** ve tribün sohbeti **ölüydü**. "İzleyici" kavramı sunucuda vardı,
+istemcide **yoktu**. Yeni `/races/[raceId]/watch` sayfası `LiveRaceViewer`'ı
+mount eder, o da `race.subscribe` gönderir. **Yetki kapısı YENİDEN
+YAZILMADI:** `race.subscribe` sunucuda `GetRaceTimelineUseCase.execute(raceId,
+playerId)` çağırır — yani `GET /races/:id/timeline` ile **aynı** kapı.
+`GET /races/:id` **uydurulmadı** (böyle bir uç nokta yok); `ownHorseId`
+geçirilmedi (izleyicinin bu yarışta atı yoktur, uydurma bir id "benim atım" gibi
+gösterirdi).
+
+**⚠️ İKİ İDEMPOTENCY DESENİ BİLEREK FARKLIDIR.** `grandstand/page.tsx` bilet
+alırken her basışta **yeni** anahtar üretir (zarar: ikinci bir *bilet*),
+`wallet/page.tsx` anahtarı başarısızlıkta **saklar** (zarar: ikinci bir *para
+girişi*). **İade** ise bir **gelir** yoludur: ikinci istek `DELETE ... RETURNING`
+0 satır döndürdüğü için 404'e düşer, yani anahtarın başarısızlıkta yaşaması
+**gerekmez**. Kural değil, soru sabittir: *"bu isteğin tekrarı neyi iki kez
+yapar?"*
+
+**KANIT:** `test/api/grandstand.e2e-spec.ts` (10 yeni test: kontenjan, ücretsiz
+tribün, iade para yolu, çift iade, iade sonrası yeniden satın alma) +
+`test/domain/grandstand/ticket.spec.ts` + `grandstand-config.spec.ts` +
+`apps/web/test/features/race-viewer/chat-history-merge.spec.ts` (7 test:
+tekilleştirme, aynı-referans, canlı-mesaj-önce-gelirse kronoloji, eşit
+`createdAt`'te `messageId` kararlılığı, limit, reconnect katlanması), gerçek
+PostgreSQL. **RACE ENGINE'E DOKUNULMADI**, hiçbir config değeri koda gömülmedi,
+`domain/` framework'süz kaldı.
+
+**AÇIK KALAN (PHASE 7) — dürüst liste:**
+
+1. **İade için ZAMAN/DURUM PENCERESİ YOKTUR.** `refundRaceTicket` yarışın
+   `status`una **bakmaz**: `finished` bir yarışın bileti de iade edilebilir.
+   Bu bugün için **kabul edilebilir** (izleyici bileti bir bahis değildir;
+   yarış koşmuşsa da seyirci koltuğunu geri vermek havuzdan para çekmez) ama
+   **test edilmemiştir** ve "yarış koştu, bilet iade edilemez" kuralı
+   istenirse o gün **buraya bir kapı eklenecek** yerdir.
+2. **Koltuk seçimi / oturma düzeni yoktur** — brief istemiyor, uydurulmadı.
+3. **Yarış başına elle fiyatlandırma ucu yoktur.** `tribune_fee` yarış
+   oluşturulurken `grandstand.config.json → defaultTribuneFee`'den yazılır;
+   onu sonradan değiştiren bir uç nokta **yoktur**. (Satın alma fiyatı
+   **her zaman** satırın kendisinden okunduğu için, böyle bir uç eklenirse
+   eski satın almalar kendi tutarlarını korur — `price` sütunu bu yüzden var.)
 
 ---
 
