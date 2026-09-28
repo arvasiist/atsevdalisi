@@ -75,6 +75,18 @@ export const LEDGER_TRANSACTION_TYPES = [
   'practice_race_prize',
   'lobby_race_entry_fee',
   /**
+   * brief §42 PHASE 13.14 — ÖDÜLLÜ LOBİ YARIŞI ödülü. Tek gerçek
+   * fırlatıcısı `postgres-race.repository.ts`'in `settleLobbyRace`'idir
+   * (`POST /races/:id/settle`).
+   *
+   * `practice_race_prize`'ten AYRI tutulur (aynı `PRIZE` kanonik türüne
+   * eşlenir): "bu para nereden geldi" sorusu tek bir defter sorgusuyla
+   * cevaplanabilmelidir. Aynı tür altında toplanırsa ödüllü lobi ile
+   * antrenman ödülü defterde birbirine karışır ve
+   * `races.prize_pool` ile ödenen toplam uzlaştırılamaz.
+   */
+  'lobby_race_prize',
+  /**
    * brief §20 DEPOSIT / §21 / §41, §42 PHASE 4b — SANAL (mock) para
    * yatırma. Tek gerçek fırlatıcısı `deposit-funds.use-case.ts`'tir ve o
    * use-case yalnızca `MockPaymentProvider` bağlıyken çalışır; yani bu
@@ -147,6 +159,7 @@ export const CANONICAL_BY_LEDGER_TYPE: Record<LedgerTransactionType, CanonicalTr
   practice_race_entry_fee: 'ENTRY_FEE',
   practice_race_prize: 'PRIZE',
   lobby_race_entry_fee: 'ENTRY_FEE',
+  lobby_race_prize: 'PRIZE',
   mock_deposit: 'DEPOSIT',
   // brief §20 REFUND, §42 PHASE 4c — `lobby_race_entry_fee`'nin TAM
   // karşıtı: aynı tutar, ters yön. Ayrı bir kanonik tür uydurulmaz

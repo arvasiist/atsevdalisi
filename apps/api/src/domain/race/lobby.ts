@@ -680,6 +680,63 @@ export function checkRaceLeavable(
   return null;
 }
 
+/** `checkRaceSettleable`'ın ret nedenleri. */
+export type RaceSettleRejection = 'NOT_SCHEDULED' | 'NOT_STARTED' | 'NO_PARTICIPANTS';
+
+/**
+ * ÖDÜL DAĞITIMI (settlement) isteğinin ŞU AN yapılıp yapılamayacağını
+ * söyler; engel yoksa `null` (§42 PHASE 13.14).
+ *
+ * **BU KURAL YUKARIDAKİ ÜÇÜNÜN TAM TERSİDİR — ve bu tesadüf değildir.**
+ * `checkRaceJoinable`/`checkEntryReadyable`/`checkRaceLeavable` için sınır
+ * `startTime <= now` → **KAPALI**'dır; burada aynı sınır → **AÇIK**'tır.
+ * Üçü "oyuncu ne zaman elini değiştirebilir" sorusunu, bu ise "yarış ne
+ * zaman koşulmuş sayılır" sorusunu cevaplar. İkisi arasında boşluk
+ * OLMAMALIDIR: `startTime` anında katılımcı listesi DONAR, dolayısıyla
+ * koşacak kadro bellidir; settlement'ın o andan sonra açılması, koşulacak
+ * kadronun gerçekten koştuğu andır. Tersi (settlement'ın da `startTime`dan
+ * önce açılması) henüz katılacak oyuncular varken yarışı kapatmak olurdu.
+ *
+ * **`NO_PARTICIPANTS` AYRI BİR RET NEDENİDİR:** hiç GERÇEK oyuncu
+ * katılmamış bir yarış koşulamaz. Bu bir "boş yarış" değil, bir PARA
+ * sorusudur — dağıtılacak bir havuz (ve bir kazanan) yoktur; motoru
+ * çalıştırıp botları sıralamak, `prize_pool`'u sıfır olan bir yarış için
+ * anlamsız bir `race_finished` bildirimi üretirdi (kimseye).
+ *
+ * **`minPlayers` BİLEREK ZORLANMAZ — bu bilinçli bir ürün kararıdır.**
+ * `config/race-lobby.config.json` → `minPlayers: 8` yalnızca yarış OLUŞTURMA
+ * anında `maxPlayers` için bir alt sınır olarak kullanılır
+ * (`validateRaceCreation`); "8 oyuncu dolmadan yarış koşmaz" diye bir kural
+ * HİÇBİR YERDE yoktur. Olsaydı ve burada uygulansaydı, 3 oyuncuyla açılmış
+ * bir yarış SONSUZA KADAR koşmaz ve üç oyuncunun ödediği giriş ücreti
+ * havuzda kilitli kalırdı: `startTime` geçtikten sonra `leaveLobbyRace`
+ * artık iade YAPMAZ (`checkRaceLeavable` → `ALREADY_STARTED`). Yani
+ * "minPlayers'ı zorla" demek, "parayı kalıcı olarak yak" demenin kibar
+ * hâli olurdu. Kalan koltuklar `aiFillEnabled: true` ile botlarla
+ * doldurulur; bu, yarışın koşması için yeterlidir.
+ *
+ * Fırlatmaz, sonuç döndürür — diğer üç kontrolle AYNI desen ve AYNI
+ * gerekçe: kural DB transaction'ı olmadan tek başına test edilebilmelidir.
+ */
+export function checkRaceSettleable(
+  race: { status: string; startTime: Date; joinedPlayers: number },
+  now: Date,
+): RaceSettleRejection | null {
+  if (race.status !== 'scheduled') {
+    return 'NOT_SCHEDULED';
+  }
+  // Sınırda (`now === startTime`) AÇIK — yukarıdaki üç fonksiyonun
+  // `ALREADY_STARTED` verdiği TAM O AN. İkisi aynı kuralı iki yönden
+  // söyler: o anda el değiştirme kapanır, koşma açılır.
+  if (race.startTime.getTime() > now.getTime()) {
+    return 'NOT_STARTED';
+  }
+  if (race.joinedPlayers < 1) {
+    return 'NO_PARTICIPANTS';
+  }
+  return null;
+}
+
 /**
  * `GET /races`'in `limit` sorgu parametresini normalize eder (PHASE 3).
  *

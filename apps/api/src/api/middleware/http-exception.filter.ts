@@ -60,6 +60,7 @@ import {
   RaceLimitReachedError,
   RaceNotJoinableError,
   RaceNotFoundError,
+  RaceNotSettleableError,
 } from '../../domain/race/errors';
 import { AlreadyInMatchmakingQueueError, NotInMatchmakingQueueError } from '../../domain/online/errors';
 import {
@@ -408,6 +409,13 @@ const DOMAIN_ERROR_MAP = new Map<ErrorClassConstructor, { status: number; code: 
   // yeniden katılma engeli KALICI bir durumdur (`AlreadyJoinedRaceError`
   // ile AYNI 409 ailesi, farklı ve daha doğru mesaj).
   [RaceEntryCancelledError, { status: HttpStatus.CONFLICT, code: ErrorCode.RaceEntryCancelled }],
+  // `RaceNotSettleableError` (§42 PHASE 13.14) — engelleyen şey yine
+  // yarışın DURUMUdur (henüz başlamamış, zaten koşulmuş, hiç katılımcısı
+  // yok). İstek biçimsel olarak kusursuz ve kaynak vardır → 400/404
+  // DEĞİL. Bu kod AYNI ZAMANDA settlement'ın idempotency cevabıdır
+  // (ikinci çağrı `NOT_SCHEDULED` alır) — bkz. `ErrorCode.RaceNotSettleable`
+  // doc yorumu.
+  [RaceNotSettleableError, { status: HttpStatus.CONFLICT, code: ErrorCode.RaceNotSettleable }],
   // SANAL PARA YATIRMA (brief §20 DEPOSIT, §21/§41, §42 PHASE 4b) — iki
   // hata da yeni bir sınıflandırma getirmez, mevcut kategorilerin
   // tekrarıdır (gerekçeler `packages/shared-types/src/error-codes.ts`'te

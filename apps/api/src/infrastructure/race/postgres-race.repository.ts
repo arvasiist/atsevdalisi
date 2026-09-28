@@ -7,12 +7,16 @@ import type {
   RaceJockeyDecision,
   RaceLobbyView,
   RaceSegmentSnapshot,
+  RaceSettlementPlace,
+  RaceSettlementResult,
   RaceStatus,
   RaceSurface,
   RaceTimelineEntrantView,
   RaceTimelineView,
   RaceWeather,
   RecentRaceResultView,
+  RacingStyle,
+  RiskLevel,
 } from '@at-sevdalisi/shared-types';
 import type {
   CreateLobbyRaceInput,
@@ -20,12 +24,15 @@ import type {
   JoinLobbyRaceInput,
   LeaveLobbyRaceInput,
   ListLobbyRacesInput,
+  LobbySettlementContext,
+  LobbySettlementEntrant,
   RaceRepository,
   SavePracticeRaceWithStakesInput,
   SavePracticeRaceWithStakesResult,
   SavePvpMatchWithRatingsInput,
   SavePvpMatchWithRatingsResult,
   SetEntryReadyInput,
+  SettleLobbyRaceInput,
 } from '../../application/ports/race.repository';
 import type { EconomyLedgerEntryInput } from '../../application/ports/economy-ledger';
 import { applyPracticeRaceStakes } from '../../domain/race/prize';
@@ -34,7 +41,13 @@ import {
   resolvePrizeDistribution,
 } from '../../domain/race/prize-distribution';
 import { AppConfigService } from '../config/config.service';
-import { checkEntryReadyable, checkRaceJoinable, checkRaceLeavable, nextGatePosition } from '../../domain/race/lobby';
+import {
+  checkEntryReadyable,
+  checkRaceJoinable,
+  checkRaceLeavable,
+  checkRaceSettleable,
+  nextGatePosition,
+} from '../../domain/race/lobby';
 import {
   AlreadyJoinedRaceError,
   HorseNotOwnedError,
@@ -45,9 +58,11 @@ import {
   RaceFullError,
   RaceNotJoinableError,
   RaceNotFoundError,
+  RaceNotSettleableError,
 } from '../../domain/race/errors';
 import { HorseNotFoundError, HorseInjuredError } from '../../domain/horse/errors';
 import { credit, debit } from '../../domain/economy/wallet';
+import { buildPrizeWonPayload, buildRaceFinishedPayload } from '../../domain/social/notification';
 import { applyEloUpdate } from '../../domain/online/elo';
 import { PlayerNotFoundError } from '../../domain/player/errors';
 import { PG_POOL, withTransaction } from '../database/database.module';
@@ -145,6 +160,45 @@ interface LobbyRaceRow {
   spectator_capacity: number;
   created_by: string | null;
   created_at: Date;
+}
+
+/**
+ * Kesinleşme (`findLobbySettlementContext`/`settleLobbyRace`) için `races`
+ * satır şekli (§42 PHASE 13.14).
+ *
+ * `entry_fee`/`prize_pool` BIGINT'tir → `pg` bunları STRING döner
+ * (`LobbyRaceRow` ile AYNI not). `temperature_c`/`wind_kmh`/`humidity_pct`
+ * NUMERIC'tir → onlar da STRING'dir ve `Number(...)`'a çevrilir; üçü de
+ * NULLABLE olduğundan önce `null` kontrolü yapılır (`Number(null)` 0
+ * verirdi ve "sıcaklık 0 °C" gibi YANLIŞ bir simülasyon girdisi doğardı).
+ */
+interface SettlementRaceRow {
+  id: string;
+  name: string;
+  participant_limit: number;
+  max_players: number;
+  entry_fee: string;
+  prize_pool: string;
+  start_time: Date;
+  status: string;
+  surface: string;
+  weather: string;
+  distance_m: number;
+  temperature_c: string | null;
+  wind_kmh: string | null;
+  humidity_pct: string | null;
+  created_by: string | null;
+  created_at: Date;
+}
+
+/** `findLobbySettlementContext`'in `race_entries` satır şekli. */
+interface SettlementEntryRow {
+  id: string;
+  player_id: string | null;
+  horse_id: string | null;
+  tactical_style: string | null;
+  risk_level: string | null;
+  gate_position: number | null;
 }
 
 /**
@@ -1275,6 +1329,344 @@ export class PostgresRaceRepository implements RaceRepository {
     });
   }
 
+  async findLobbySettlementContext(raceId: string): Promise<LobbySettlementContext | null> {
+    const raceResult = await this.pool.query<SettlementRaceRow>(
+      `SELECT id, name, participant_limit, max_players, entry_fee, prize_pool, start_time, status,
+              surface, weather, distance_m, temperature_c, wind_kmh, humidity_pct, created_by, created_at
+       FROM races
+       WHERE id = $1`,
+      [raceId],
+    );
+    const raceRow = raceResult.rows[0];
+    if (raceRow === undefined) {
+      return null;
+    }
+
+    // `status IS DISTINCT FROM 'cancelled'` — `leaveLobbyRace`'in doluluk
+    // sorgusuyla AYNI filtre. `IS DISTINCT FROM` kullanılır çünkü `status`
+    // NULLABLE'dır (migration 0037): `status <> 'cancelled'` NULL'da
+    // NULL döner ve satırı SESSİZCE elerdi.
+    const entryResult = await this.pool.query<SettlementEntryRow>(
+      `SELECT id, player_id, horse_id, tactical_style, risk_level, gate_position
+       FROM race_entries
+       WHERE race_id = $1 AND player_id IS NOT NULL AND status IS DISTINCT FROM 'cancelled'
+       ORDER BY id`,
+      [raceId],
+    );
+
+    const entrants: LobbySettlementEntrant[] = entryResult.rows.map((row) => ({
+      entryId: row.id,
+      playerId: row.player_id as string,
+      // `player_id` dolu ise `horse_id` de DOLUDUR — `race_entries_horse_xor_
+      // bot_chk` CHECK'i (migration 0025) ikisinin birden dolu/boş olmasını
+      // engeller. `as string` yalnızca sütunun NULLABLE tipini daraltır.
+      horseId: row.horse_id as string,
+      tacticalStyle: row.tactical_style as RacingStyle,
+      riskLevel: row.risk_level as RiskLevel,
+      gatePosition: row.gate_position,
+    }));
+
+    return {
+      raceId: raceRow.id,
+      raceName: raceRow.name,
+      status: raceRow.status,
+      startTime: raceRow.start_time,
+      joinedPlayers: entrants.length,
+      entryFee: Number(raceRow.entry_fee),
+      prizePool: Number(raceRow.prize_pool),
+      fieldSize: raceRow.participant_limit,
+      maxPlayers: raceRow.max_players,
+      surface: raceRow.surface,
+      weather: raceRow.weather,
+      distanceMeters: raceRow.distance_m,
+      temperatureC: raceRow.temperature_c === null ? null : Number(raceRow.temperature_c),
+      windKmh: raceRow.wind_kmh === null ? null : Number(raceRow.wind_kmh),
+      humidityPct: raceRow.humidity_pct === null ? null : Number(raceRow.humidity_pct),
+      createdBy: raceRow.created_by,
+      createdAt: raceRow.created_at,
+      entrants,
+    };
+  }
+
+  async settleLobbyRace(input: SettleLobbyRaceInput): Promise<RaceSettlementResult> {
+    return withTransaction(this.pool, async (client) => {
+      // 1) Yarış satırını kilitle — kilit alındıktan sonra okunan durum bu
+      //    transaction boyunca değişmez (`leaveLobbyRace` adım 1 ile AYNI).
+      const raceResult = await client.query<SettlementRaceRow>(
+        `SELECT id, name, participant_limit, max_players, entry_fee, prize_pool, start_time, status,
+                surface, weather, distance_m, temperature_c, wind_kmh, humidity_pct, created_by, created_at
+         FROM races
+         WHERE id = $1
+         FOR UPDATE`,
+        [input.raceId],
+      );
+      const raceRow = raceResult.rows[0];
+      if (raceRow === undefined) {
+        throw new RaceNotFoundError(input.raceId);
+      }
+
+      // 2) Doluluk — KİLİT ALTINDA. `checkRaceSettleable`'a geçirilecek
+      //    "kaç gerçek oyuncu var" sorusunun cevabı burada, yarış satırı
+      //    kilitliyken okunur; `joinLobbyRace`'in TOCTOU gerekçesiyle AYNI.
+      const joinedResult = await client.query<{ count: string }>(
+        `SELECT COUNT(*) FILTER (WHERE status IS DISTINCT FROM 'cancelled') AS count
+         FROM race_entries
+         WHERE race_id = $1 AND player_id IS NOT NULL`,
+        [input.raceId],
+      );
+      const joinedPlayers = Number(joinedResult.rows[0]?.count ?? '0');
+
+      // 3) Durum denetimi — SAF fonksiyon (`domain/race/lobby.ts`). Bu
+      //    kontrol AYNI ZAMANDA İDEMPOTENCY'NİN KENDİSİDİR: ilk çağrı
+      //    `status`'u `finished` yapar, ikincisi burada `NOT_SCHEDULED`
+      //    alır (bkz. `RaceNotSettleableError` doc yorumu).
+      const rejection = checkRaceSettleable(
+        { status: raceRow.status, startTime: raceRow.start_time, joinedPlayers },
+        input.now,
+      );
+      if (rejection !== null) {
+        throw new RaceNotSettleableError(rejection);
+      }
+
+      // 4) HAVUZ TRIPWIRE'I. Ödül tutarları use-case'te, kilitsiz okunan
+      //    havuzdan hesaplandı; burada kilit altında okunanla karşılaştırılır.
+      //    `GREATEST(..., 0)` gibi bir düzeltme YOKTUR ve olmamalıdır: fark
+      //    gerçek bir muhasebe bozulmasıdır ve sessizce yutulursa "havuzda
+      //    görünen" ile "ödenen" ayrışır (`prize_pool >= 0` CHECK'inin
+      //    `leaveLobbyRace`'de oynadığı rolün AYNISI).
+      const lockedPrizePool = Number(raceRow.prize_pool);
+      if (lockedPrizePool !== input.expectedPrizePool) {
+        throw new Error(
+          `Yarış havuzu kilit altında değişti: beklenen ${input.expectedPrizePool}, okunan ${lockedPrizePool}.`,
+        );
+      }
+
+      // 5) KİLİT ALTINDA gerçek katılımcılar + kadro tripwire'ı. Use-case
+      //    simülasyonu kilitsiz okunan kadro üzerinde koşturdu; kadro
+      //    `startTime`dan sonra DONMUŞ olduğundan (bkz. `checkRaceSettleable`
+      //    doc yorumu) ikisi AYNI olmak zorundadır. Değilse ödül YANLIŞ
+      //    kişilere giderdi — bu yüzden sessizce devam etmek yerine 500.
+      const entriesResult = await client.query<{ id: string; player_id: string; display_name: string }>(
+        `SELECT e.id, e.player_id, p.display_name
+         FROM race_entries e
+         JOIN players p ON p.id = e.player_id
+         WHERE e.race_id = $1 AND e.player_id IS NOT NULL AND e.status IS DISTINCT FROM 'cancelled'
+         ORDER BY e.id`,
+        [input.raceId],
+      );
+      const lockedEntryIds = entriesResult.rows.map((row) => row.id).sort();
+      const simulatedEntryIds = input.realEntries.map((entry) => entry.entryId).sort();
+      if (
+        lockedEntryIds.length !== simulatedEntryIds.length ||
+        lockedEntryIds.some((id, index) => id !== simulatedEntryIds[index])
+      ) {
+        throw new Error(
+          `Yarış kadrosu simülasyon sırasında değişti: ${simulatedEntryIds.length} simüle edildi, ${lockedEntryIds.length} kilit altında.`,
+        );
+      }
+
+      const playerIdByEntryId = new Map(entriesResult.rows.map((row) => [row.id, row.player_id]));
+      const displayNameByEntryId = new Map(entriesResult.rows.map((row) => [row.id, row.display_name]));
+
+      // 6) ÖDÜL ÖDEMELERİ — kazananlar ÖNCE sözlüksel id sırasında kilitlenir.
+      //    Kilit TEK bir oyuncu değil N oyuncudur; iki eşzamanlı kesinleşme
+      //    (farklı yarışlar) aynı iki oyuncuyu paylaşıyorsa, sıra
+      //    SABİTLENMEZSE çapraz kilitlenme doğardı (`updateTwoWithLock`'un
+      //    AYNI deseni).
+      const winnerByEntryId = new Map<string, number>();
+      for (const entry of input.realEntries) {
+        const payout = input.payouts[entry.finishPosition - 1] ?? 0;
+        if (payout > 0) {
+          winnerByEntryId.set(entry.entryId, payout);
+        }
+      }
+
+      const winnerPlayerIds = [...new Set(
+        [...winnerByEntryId.keys()].map((entryId) => playerIdByEntryId.get(entryId) as string),
+      )].sort();
+
+      const balanceByPlayerId = new Map<string, { money: number; gems: number }>();
+      if (winnerPlayerIds.length > 0) {
+        const balances = await client.query<{ id: string; money: string; gems: string }>(
+          'SELECT id, money, gems FROM players WHERE id = ANY($1::uuid[]) ORDER BY id FOR UPDATE',
+          [winnerPlayerIds],
+        );
+        for (const row of balances.rows) {
+          balanceByPlayerId.set(row.id, { money: Number(row.money), gems: Number(row.gems) });
+        }
+        // Eksik satır = ödül ödenemeyecek bir kazanan. Sessizce atlamak
+        // "havuz dağıtıldı" deyip ödememek olurdu.
+        for (const playerId of winnerPlayerIds) {
+          if (!balanceByPlayerId.has(playerId)) {
+            throw new PlayerNotFoundError(playerId);
+          }
+        }
+
+        // AYNI OYUNCUYA İKİ ÖDEME OLABİLİR Mİ? Hayır — `race_entries_race_
+        // player_uq` (migration 0037) bir oyuncunun bir yarışta TEK satırı
+        // olmasını garanti eder. Yine de aşağıdaki döngü bakiyeyi
+        // `balanceByPlayerId` üzerinden TAŞIR (satır satır DB'den yeniden
+        // okumaz), böylece varsayım yanlışlansa bile bakiye tutarlı kalır.
+        for (const [entryId, payout] of winnerByEntryId) {
+          const playerId = playerIdByEntryId.get(entryId) as string;
+          const current = balanceByPlayerId.get(playerId) as { money: number; gems: number };
+          const wallet = credit(current, payout, 'money');
+          const balanceAfter = wallet.money;
+
+          await client.query('UPDATE players SET money = $2, updated_at = $3 WHERE id = $1', [
+            playerId,
+            balanceAfter,
+            input.now,
+          ]);
+
+          await this.writeLedgerEntries(client, [
+            {
+              playerId,
+              // `lobby_race_prize` — kazanç ailesinin lobi yarışındaki
+              // karşılığı (`practice_race_prize` pratik yarışındır; ikisi
+              // AYRI tutulur ki "hangi para nereden geldi" sorusu defterden
+              // tek sorguyla cevaplanabilsin).
+              type: 'lobby_race_prize',
+              amount: payout,
+              currency: 'money',
+              referenceType: 'race',
+              referenceId: input.raceId,
+              balanceBefore: current.money,
+              balanceAfter,
+              // Settlement'ta Idempotency-Key YOKTUR (durum geçişi korur);
+              // defter satırı yine de yazılır — `economy_transactions`
+              // kaydı bir idempotency mekanizması değil, DENETİM İZİDİR.
+              idempotencyKey: null,
+            },
+          ]);
+
+          balanceByPlayerId.set(playerId, { money: balanceAfter, gems: current.gems });
+        }
+      }
+
+      // 7) Gerçek katılım satırlarının SONUÇLARI. `status` BİLEREK
+      //    dokunulmaz: `race_entries_status_valid` CHECK'i (migration 0037)
+      //    yalnızca `waiting`/`ready`/`not_ready`/`cancelled` kabul eder ve
+      //    "hazırım" bayrağı koşmuş bir yarışta anlamsızdır. `horse_snapshot`
+      //    İSE BURADA yazılır — katılım anında değil, koştuğu anda.
+      for (const entry of input.realEntries) {
+        await client.query(
+          `UPDATE race_entries
+           SET horse_snapshot = $2, final_time_ms = $3, finish_position = $4, performance_score = $5, gate_position = $6
+           WHERE id = $1`,
+          [
+            entry.entryId,
+            JSON.stringify(entry.horseSnapshot),
+            entry.finalTimeMs,
+            entry.finishPosition,
+            entry.performanceScore,
+            entry.gatePosition,
+          ],
+        );
+        await this.insertSegments(
+          client,
+          entry.entryId,
+          input.segments.filter((segment) => segment.raceEntryId === entry.entryId),
+        );
+      }
+
+      // 8) Bot koltukları — YENİ satırlar. `fieldSize - gerçekOyuncu` kadar
+      //    üretilir (use-case). Segmentleri de kendi satırlarına yazılır,
+      //    aksi hâlde `GET /races/:id/timeline` yalnızca gerçek oyuncuları
+      //    oynatabilirdi.
+      for (const botEntry of input.botEntries) {
+        await this.insertEntryWithSegments(
+          client,
+          botEntry,
+          input.segments.filter((segment) => segment.raceEntryId === botEntry.id),
+        );
+      }
+
+      // 9) Yarışı KESİNLEŞTİR. `simulation_seed` BURADA doğar (katılım
+      //    anında değil — bkz. `CreateLobbyRaceInput.simulationSeed` doc
+      //    yorumu); dört sürüm sütunu da koşan GERÇEK sürümlerle ÜZERİNE
+      //    yazılır (`createLobbyRace`'in "beklenen sürüm" notu).
+      await client.query(
+        `UPDATE races
+         SET status = 'finished', simulation_seed = $2, engine_version = $3, ruleset_version = $4,
+             config_version = $5, weather_config_version = $6, updated_at = $7
+         WHERE id = $1`,
+        [
+          input.raceId,
+          input.simulationSeed,
+          input.engineVersion,
+          input.rulesetVersion,
+          input.configVersion,
+          input.weatherConfigVersion,
+          input.now,
+        ],
+      );
+
+      // 10) BİLDİRİMLER — ödemelerle AYNI transaction'da (bkz. `settleLobbyRace`
+      //     port doc yorumu: ayrı yazılsaydı "ödül kazandınız" deyip ödemeyen
+      //     bir satır kalabilirdi).
+      const places: RaceSettlementPlace[] = [];
+      for (const entry of input.realEntries) {
+        const playerId = playerIdByEntryId.get(entry.entryId) as string;
+        const payout = winnerByEntryId.get(entry.entryId) ?? 0;
+
+        await client.query('INSERT INTO notifications (player_id, type, payload) VALUES ($1, $2, $3::jsonb)', [
+          playerId,
+          'race_finished',
+          JSON.stringify(
+            buildRaceFinishedPayload({
+              raceId: input.raceId,
+              raceName: input.raceName,
+              finishPosition: entry.finishPosition,
+            }),
+          ),
+        ]);
+
+        // `prize_won` YALNIZCA gerçekten ödeme yapılanlara. Sıfır tutarlı bir
+        // "kazandınız" bildirimi, istemciye 0 Çip gösteren bir satır bırakırdı
+        // (`buildPrizeWonPayload` doc yorumu).
+        if (payout > 0) {
+          await client.query('INSERT INTO notifications (player_id, type, payload) VALUES ($1, $2, $3::jsonb)', [
+            playerId,
+            'prize_won',
+            JSON.stringify(buildPrizeWonPayload({ raceId: input.raceId, raceName: input.raceName, amount: payout })),
+          ]);
+        }
+
+        places.push({
+          finishPosition: entry.finishPosition,
+          horseId: entry.horseId,
+          playerId,
+          displayName: displayNameByEntryId.get(entry.entryId) ?? null,
+          isBot: false,
+          prizeAmount: payout,
+        });
+      }
+
+      // Botlar da sonuç listesinde GÖRÜNÜR (sıralamayı onlar doldurur),
+      // ama ödül almazlar ve bir oyuncuya bağlı değildirler.
+      for (const botEntry of input.botEntries) {
+        places.push({
+          finishPosition: botEntry.finishPosition ?? 0,
+          horseId: botEntry.botLabel ?? '',
+          playerId: null,
+          displayName: null,
+          isBot: true,
+          prizeAmount: 0,
+        });
+      }
+      places.sort((a, b) => a.finishPosition - b.finishPosition);
+
+      return {
+        raceId: input.raceId,
+        status: 'finished',
+        prizePool: lockedPrizePool,
+        settledAt: input.now.toISOString(),
+        places,
+      };
+    });
+  }
+
   /**
    * `savePracticeRace`/`savePvpMatch`'in PAYLAŞTIĞI `races` satırı ekleme
    * sorgusu (DRY).
@@ -1389,19 +1781,42 @@ export class PostgresRaceRepository implements RaceRepository {
       ],
     );
 
+    await this.insertSegments(client, entry.id, segments);
+  }
+
+  /**
+   * TEK bir `race_entries.id`'ye ait segmentleri yazar (§42 PHASE 13.14'te
+   * `insertEntryWithSegments`'ten ÇIKARILDI).
+   *
+   * **NEDEN AYRI BİR METOT:** kesinleşme (`settleLobbyRace`) GERÇEK
+   * katılımcıların satırlarını INSERT ETMEZ, UPDATE eder — satırlar
+   * katılım anında zaten doğmuştur. Ama segmentleri yine de yazılmalıdır,
+   * yoksa yarışın tekrar oynatması (`GET /races/:id/timeline`) yalnızca
+   * botları gösterirdi. Metot çıkarılmasaydı aynı 14 sütunluk çoklu-satır
+   * INSERT'i ikinci kez kopyalamak gerekirdi — ve bu sorgunun kendi
+   * yorumunda yazdığı gibi sütun sayısı/`values.push` sırası/`$${base+n}`
+   * numaralandırması ÜÇÜ BİRLİKTE değişmek zorunda olduğundan, iki kopya
+   * kaçınılmaz olarak ayrışırdı.
+   *
+   * AUDIT_REPORT.md Bulgu R2 (Medium, bu oturum) — botlar da segment
+   * yazdığından (önceden yalnızca 1 katılımcı × ~8 segment, şimdi TÜM
+   * katılımcılar × ~8 segment), segment BAŞINA ayrı bir `client.query()`
+   * round-trip'i (`race.e2e-spec.ts`'in n=100 eşzamanlılık testlerinin
+   * CI #93-109'da onlarca turda stabilize edildiği, GERÇEK zamanlama
+   * hassasiyeti olan bir ortam) katılımcı sayısıyla ORANTILI olarak
+   * ÇOĞALIRDI. Bunun yerine TEK bir çoklu-satır INSERT — round-trip
+   * sayısı katılımcı/segment sayısından BAĞIMSIZ olarak sabit kalır
+   * (entry başına 1 sorgu).
+   */
+  private async insertSegments(
+    client: PoolClient,
+    raceEntryId: string,
+    segments: RaceSegmentSnapshot[],
+  ): Promise<void> {
     if (segments.length === 0) {
       return;
     }
 
-    // AUDIT_REPORT.md Bulgu R2 (Medium, bu oturum) — botlar da artık
-    // segment yazdığından (önceden yalnızca 1 katılımcı × ~8 segment,
-    // şimdi TÜM katılımcılar × ~8 segment), segment BAŞINA ayrı bir
-    // `client.query()` round-trip'i (`race.e2e-spec.ts`'in n=100
-    // eşzamanlılık testlerinin CI #93-109'da onlarca turda stabilize
-    // edildiği, GERÇEK zamanlama hassasiyeti olan bir ortam) katılımcı
-    // sayısıyla ORANTILI olarak ÇOĞALIRDI. Bunun yerine TEK bir çoklu-satır
-    // INSERT — round-trip sayısı katılımcı/segment sayısından BAĞIMSIZ
-    // olarak sabit kalır (entry başına 1 sorgu).
     const values: unknown[] = [];
     const rowPlaceholders = segments.map((segment, index) => {
       // 14 sütun (migration 0029 iki tane daha ekledi) — `base` çarpanı ve
@@ -1411,7 +1826,7 @@ export class PostgresRaceRepository implements RaceRepository {
       // KAYMIŞ değerler döndürür.
       const base = index * 14;
       values.push(
-        entry.id,
+        raceEntryId,
         segment.segmentDistanceMeters,
         segment.timestampMs,
         segment.positionMeters,

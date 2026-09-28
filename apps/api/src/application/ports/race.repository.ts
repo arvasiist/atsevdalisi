@@ -1,10 +1,12 @@
 import type {
   PvpMatch,
   Race,
+  RaceEntrantSnapshot,
   RaceEntry,
   RaceEntryStatus,
   RaceLobbyView,
   RaceSegmentSnapshot,
+  RaceSettlementResult,
   RaceStatus,
   RaceTimelineView,
   RacingStyle,
@@ -280,6 +282,70 @@ export interface RaceRepository {
    * kısıtı sıfır tutarlı bir satırı zaten reddederdi.
    */
   leaveLobbyRace(input: LeaveLobbyRaceInput): Promise<RaceLobbyView>;
+
+  /**
+   * Bir lobi yarışının KESİNLEŞME BAĞLAMINI okur (salt okuma, §42 PHASE
+   * 13.14): yarışın simülasyon parametreleri + koşacak GERÇEK katılımcılar.
+   *
+   * **KİLİT ALMAZ, TRANSACTION AÇMAZ — ve bu GÜVENLİDİR.** Okuma ile
+   * `settleLobbyRace` arasında katılımcı listesi DEĞİŞEMEZ: yarış
+   * `startTime`'ı geçtiği anda katılma (`checkRaceJoinable`), hazır
+   * bildirme (`checkEntryReadyable`) ve ayrılma (`checkRaceLeavable`)
+   * ÜÇÜ BİRDEN kapanır — `checkRaceSettleable`'ın sınırı bunların TAM
+   * TERSİDİR. Yani bu okumanın yaptığı iş "önizleme" değil, "donmuş
+   * kadroyu okuma"dır. Yine de `settleLobbyRace` bu listeyi kilit altında
+   * YENİDEN okur ve karşılaştırır (tripwire) — varsayım sessizce
+   * yanlışlanmasın diye.
+   *
+   * **SNAPSHOT BURADA ALINMAZ, `race_entries`'te de YOKTUR:**
+   * `joinLobbyRace` bilinçli olarak `horse_snapshot` yazmaz (bkz. o
+   * metodun doc yorumu) — atın o andaki hâli değil, KOŞTUĞU andaki hâli
+   * kayda geçmelidir. Bu yüzden çağıran (use-case) her katılımcı için atı
+   * ve istatistiklerini ayrıca yükleyip `buildHorseEntrantSnapshot` ile
+   * kendisi kurar.
+   */
+  findLobbySettlementContext(raceId: string): Promise<LobbySettlementContext | null>;
+
+  /**
+   * Lobi yarışını KOŞAR ve ödülleri dağıtır (§42 PHASE 13.14) — projenin
+   * EN KRİTİK PARA YOLU.
+   *
+   * **TEK ATOMİK TRANSACTION — ve burada atomiklik "iyi olur" değil,
+   * ZORUNLUDUR.** Aynı transaction içinde: (1) `races` satırı `FOR UPDATE`
+   * ile kilitlenir ve durum yeniden denetlenir, (2) kazananların `players`
+   * satırları kilitlenip ödüller `credit` edilir, (3) HER ödeme için
+   * `economy_transactions` defter satırı yazılır, (4) `race_entries`
+   * sonuçları güncellenir/eklenir, (5) `races.status = 'finished'` olur,
+   * (6) `race_finished`/`prize_won` bildirimleri yazılır. Altısından biri
+   * düşerse HİÇBİRİ kalıcı olmaz. Özellikle (6): bir bildirim, ödemenin
+   * GÖRÜNÜR yüzüdür — ayrı yazılsaydı "ödül kazandınız" deyip ödemeyen
+   * (ya da tersi) bir satır kalabilirdi ve hiçbir yerde hata çıkmazdı
+   * (`gift_received`'ın doc yorumundaki AYNI gerekçe, §13.13.1).
+   *
+   * **İDEMPOTENCY `Idempotency-Key` İLE DEĞİL, DURUM GEÇİŞİYLE SAĞLANIR.**
+   * Kilit altındaki ilk iş `checkRaceSettleable`'dır; ilk çağrı
+   * `status`'u `finished` yapar, ikinci çağrı `NOT_SCHEDULED` alır. Yani
+   * çift ödeme YAPISAL OLARAK imkânsızdır ve ayrı bir anahtar altyapısı
+   * gerekmez.
+   *
+   * **`expectedPrizePool` BİR TRIPWIRE'DIR, iş kuralı değil.**
+   * Ödül tutarları use-case'te, kilitsiz okunan havuzdan hesaplanır;
+   * burada kilit altında okunan `races.prize_pool` ile KARŞILAŞTIRILIR ve
+   * farklıysa düz bir `Error` fırlatılır (500). Fark oluşması bir hata
+   * değil bir MUHASEBE BOZULMASI olurdu — `prize_pool >= 0` CHECK'inin
+   * `leaveLobbyRace`'de oynadığı rolün AYNISI.
+   *
+   * **KİLİT SIRASI: `races` → `players` (SÖZLÜKSEL id sırası).**
+   * `races` her zaman ilktir (join/ready/leave ile AYNI), dolayısıyla
+   * çapraz kilitlenme oluşamaz. `players` kilidi TEK bir oyuncu değil N
+   * oyuncu olduğundan, iki eşzamanlı kesinleşmenin (farklı yarışlar)
+   * birbirini kilitlememesi için sıra `ORDER BY id` ile SABİTLENİR
+   * (`updateTwoWithLock`'un aynı deseni).
+   *
+   * Hata FIRLATIR: `RaceNotFoundError` (404), `RaceNotSettleableError`
+   * (409), `PlayerNotFoundError` (404) — `joinLobbyRace` ile AYNI desen.
+   */
+  settleLobbyRace(input: SettleLobbyRaceInput): Promise<RaceSettlementResult>;
 }
 
 /**
@@ -507,6 +573,126 @@ export interface SavePvpMatchWithRatingsResult {
   ratingAAfter: number;
   ratingBBefore: number;
   ratingBAfter: number;
+}
+
+/**
+ * Kesinleşecek yarışın GERÇEK katılımcılarından biri (§42 PHASE 13.14).
+ *
+ * **`horseSnapshot` BURADA YOKTUR — bilinçli.** Snapshot, yarış KOŞARKEN
+ * alınır (bkz. `joinLobbyRace` doc yorumu); bu arayüz ise snapshot'ın
+ * KURULMASI için gereken HAM girdileri taşır (hangi at, hangi taktik,
+ * hangi kulvar). Snapshot'ı burada taşımak, iki farklı yerin (bu port ve
+ * `RaceEntry`) aynı şeyi bilmesine yol açardı.
+ */
+export interface LobbySettlementEntrant {
+  entryId: string;
+  playerId: string;
+  horseId: string;
+  /** `race_entries.tactical_style` — `RaceTacticInput.racingStyle`. */
+  tacticalStyle: RacingStyle;
+  /** `race_entries.risk_level` — `RaceTacticInput.riskLevel`. */
+  riskLevel: RiskLevel;
+  /**
+   * Katılım anında çekilen kulvar (`joinLobbyRace` → `nextGatePosition`).
+   * `null` olabilir: `race_entries.gate_position` NULLABLE'dır ve bu satır
+   * bu sütun eklenmeden önce yazılmış olabilir. `null` ise kesinleşme
+   * anında yeniden çekilir (bkz. `settleLobbyRace`).
+   */
+  gatePosition: number | null;
+}
+
+/**
+ * `RaceRepository.findLobbySettlementContext` sonucu (§42 PHASE 13.14).
+ *
+ * **`entrants` YALNIZCA GERÇEK OYUNCULARDIR** (`player_id` dolu ve
+ * `status <> 'cancelled'`). Botlar burada YOKTUR çünkü henüz
+ * ÜRETİLMEMİŞLERDİR: kaç bot gerektiği `fieldSize - entrants.length` ile
+ * kesinleşme anında hesaplanır. Ayrılan oyuncuların satırları
+ * (`status = 'cancelled'`) da dışarıda kalır — koltukları boşalmıştır ve
+ * `leaveLobbyRace` ücretlerini zaten iade etmiştir; onları koşturmak hem
+ * iade edilmiş hem de ödül alabilecek bir "hayalet katılımcı" yaratırdı.
+ */
+export interface LobbySettlementContext {
+  raceId: string;
+  raceName: string;
+  /** `races.status` — HAM değer; yorumu `checkRaceSettleable` yapar. */
+  status: string;
+  startTime: Date;
+  /** Doluluk — `checkRaceSettleable`'a geçirilir (`entrants.length` ile AYNI olmalıdır). */
+  joinedPlayers: number;
+  entryFee: number;
+  /** brief §3 ödül havuzu — kesinleşme anında dağıtılacak GERÇEK tutar. */
+  prizePool: number;
+  /** brief §1/§7 at sayısı — bot sayısı bundan türetilir. */
+  fieldSize: number;
+  maxPlayers: number;
+  surface: string;
+  weather: string;
+  distanceMeters: number;
+  temperatureC: number | null;
+  windKmh: number | null;
+  humidityPct: number | null;
+  createdBy: string | null;
+  createdAt: Date;
+  entrants: LobbySettlementEntrant[];
+}
+
+/**
+ * Kesinleşme anında GERÇEK bir katılım satırına yazılacak sonuç
+ * (§42 PHASE 13.14). `entryId` ile eşleşen `race_entries` satırı UPDATE
+ * edilir — botlarınki gibi YENİ satır eklenmez, çünkü satır katılım
+ * anında zaten doğmuştur.
+ */
+export interface SettleLobbyRealEntryResult {
+  entryId: string;
+  /** Sonuç listesinde (`RaceSettlementPlace.horseId`) gösterilecek at. */
+  horseId: string;
+  /** Koştuğu andaki hâli — `buildHorseEntrantSnapshot` çıktısı. */
+  horseSnapshot: RaceEntrantSnapshot;
+  finalTimeMs: number;
+  finishPosition: number;
+  performanceScore: number;
+  /**
+   * Kulvar. Katılım anında çekilmişse AYNEN geçirilir; `null` ise
+   * kesinleşme anında çekilmiş YENİ değer geçirilir (bkz.
+   * `LobbySettlementEntrant.gatePosition` doc yorumu). `race_entries.
+   * gate_position` NULLABLE olduğundan bu alan `null` kalabilir.
+   */
+  gatePosition: number | null;
+}
+
+/** `RaceRepository.settleLobbyRace` girdi şekli (§42 PHASE 13.14). */
+export interface SettleLobbyRaceInput {
+  raceId: string;
+  /**
+   * Use-case'in, kilitsiz okuduğu havuzdan hesapladığı tutar. Kilit
+   * altında okunan `races.prize_pool` ile BİREBİR aynı olmalıdır —
+   * farklıysa `Error` fırlatılır (bkz. `settleLobbyRace` doc yorumu).
+   */
+  expectedPrizePool: number;
+  /** Yarış KOŞARKEN üretilen seed — `races.simulation_seed`'e yazılır. */
+  simulationSeed: string;
+  engineVersion: string;
+  rulesetVersion: string;
+  configVersion: string;
+  weatherConfigVersion: string;
+  /** Bildirim metinleri için — `races.name`. */
+  raceName: string;
+  /** Gerçek katılımcıların sonuçları (satırlar UPDATE edilir). */
+  realEntries: SettleLobbyRealEntryResult[];
+  /** Bot koltukları (satırlar INSERT edilir) — `botLabel` dolu olmalıdır. */
+  botEntries: RaceEntry[];
+  /** TÜM katılımcıların BİRLEŞTİRİLMİŞ segmentleri (`raceEntryId` ile eşleşir). */
+  segments: RaceSegmentSnapshot[];
+  /**
+   * Sıra → Çip. Dizinin `i` elemanı `i + 1`. sıranın ödülüdür; dizinin
+   * dışında kalan sıralar 0 alır. **TUTARLAR BURADA HESAPLANMAZ** —
+   * `domain/race/prize-distribution.ts` → `computePrizePayouts` çıktısı
+   * AYNEN geçirilir, böylece havuz aritmetiği tek bir yerde kalır.
+   */
+  payouts: number[];
+  /** Şu an — kilit altındaki durum denetimine ve tüm yazımlara geçirilir. */
+  now: Date;
 }
 
 /** NestJS DI için token (interface'ler runtime'da yok olduğundan bir Symbol gerekir). */

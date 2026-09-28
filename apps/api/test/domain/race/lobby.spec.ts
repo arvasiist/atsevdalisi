@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { loadRaceLobbyConfig } from '@at-sevdalisi/game-config';
 import {
+  checkRaceJoinable,
+  checkRaceSettleable,
   normalizeRaceName,
   validateRaceCreation,
   type RaceCreationInput,
@@ -378,5 +380,88 @@ describe('normalizeRaceName', () => {
 
   it('boşluk olmayan metni değiştirmez', () => {
     expect(normalizeRaceName('Kupa')).toBe('Kupa');
+  });
+});
+
+/**
+ * `checkRaceSettleable` — ÖDÜL DAĞITIMI kapısı (§42 PHASE 13.14).
+ *
+ * **BU BLOĞUN ASIL İDDİASI, KAPININ `checkRaceJoinable` İLE TAM TERS
+ * OLDUĞUDUR.** İki fonksiyon AYNI sınırı (`startTime`) iki yönden
+ * yorumlar: o anda el değiştirme kapanır, koşma açılır. Aşağıdaki "sınır"
+ * testi bunu AYNI `now` değeriyle iki fonksiyonu yan yana çağırarak
+ * kanıtlar — ikisi bir gün ayrışırsa (ör. biri `<=`, diğeri `<` yaparsa)
+ * arada, bir yarışın ne katılıma ne koşmaya açık olduğu bir an doğardı ve
+ * orada kaybedilen şey PARADIR.
+ */
+describe('checkRaceSettleable — ödül dağıtımı kapısı (§42 PHASE 13.14)', () => {
+  const startTime = new Date('2026-09-27T12:00:00.000Z');
+
+  /** Yalnızca ilgilenilen alanı bozmak için taban nesne. */
+  function race(overrides: Partial<{ status: string; startTime: Date; joinedPlayers: number }> = {}) {
+    return { status: 'scheduled', startTime, joinedPlayers: 3, ...overrides };
+  }
+
+  it('başlamış ve katılımcısı olan yarış kesinleştirilebilir', () => {
+    expect(checkRaceSettleable(race(), new Date('2026-09-27T12:00:01.000Z'))).toBeNull();
+  });
+
+  it('TAM BAŞLANGIÇ ANINDA açıktır (sınır dahil)', () => {
+    // Sınır `startTime <= now` → AÇIK. `checkRaceJoinable`ın AYNI anda
+    // verdiği cevap ise `ALREADY_STARTED`'dır; aşağıdaki test bunu birlikte
+    // doğrular.
+    expect(checkRaceSettleable(race(), startTime)).toBeNull();
+  });
+
+  it('sınır İKİ FONKSİYONDA TAM TERS: aynı anda katılım KAPALI, koşma AÇIK', () => {
+    const now = startTime;
+    expect(checkRaceSettleable(race(), now)).toBeNull();
+    // `checkRaceJoinable` AYNI anda `ALREADY_STARTED` döner — iki kural
+    // arasında boşluk da çakışma da YOKTUR.
+    expect(checkRaceJoinable({ status: 'scheduled', startTime, maxPlayers: 8, joinedPlayers: 3 }, now)).toBe(
+      'ALREADY_STARTED',
+    );
+  });
+
+  it('henüz başlamamışsa NOT_STARTED', () => {
+    expect(checkRaceSettleable(race(), new Date('2026-09-27T11:59:59.000Z'))).toBe('NOT_STARTED');
+  });
+
+  it('scheduled değilse NOT_SCHEDULED (zaten koşulmuş / iptal)', () => {
+    expect(checkRaceSettleable(race({ status: 'finished' }), new Date('2026-09-27T13:00:00.000Z'))).toBe(
+      'NOT_SCHEDULED',
+    );
+    expect(checkRaceSettleable(race({ status: 'cancelled' }), new Date('2026-09-27T13:00:00.000Z'))).toBe(
+      'NOT_SCHEDULED',
+    );
+  });
+
+  it('hiç GERÇEK oyuncu yoksa NO_PARTICIPANTS', () => {
+    expect(checkRaceSettleable(race({ joinedPlayers: 0 }), new Date('2026-09-27T13:00:00.000Z'))).toBe(
+      'NO_PARTICIPANTS',
+    );
+  });
+
+  it('TEK oyuncu YETERLİDİR — minPlayers (8) burada ZORLANMAZ', () => {
+    // Bilinçli ürün kararı (bkz. fonksiyonun doc yorumu): `startTime`
+    // geçtikten sonra ayrılma da kapandığından "8 dolmadı, koşmaz" demek
+    // ödenen ücreti kalıcı olarak yakardı. Kalan koltuklar botlarla dolar.
+    expect(checkRaceSettleable(race({ joinedPlayers: 1 }), new Date('2026-09-27T13:00:00.000Z'))).toBeNull();
+    expect(checkRaceSettleable(race({ joinedPlayers: 7 }), new Date('2026-09-27T13:00:00.000Z'))).toBeNull();
+  });
+
+  it('DURUM, ZAMANDAN ÖNCE gelir — `finished` bir yarış geç başlangıçla bile NOT_SCHEDULED', () => {
+    // Kontrol sırası testi: aksi hâlde `startTime`'ı geçmiş bir `finished`
+    // yarış "başlamış" sayılıp İKİNCİ KEZ ödeme yapılırdı.
+    expect(checkRaceSettleable(race({ status: 'finished', joinedPlayers: 0 }), new Date('2026-09-27T13:00:00.000Z'))).toBe(
+      'NOT_SCHEDULED',
+    );
+  });
+
+  it('saf fonksiyondur: girdiyi DEĞİŞTİRMEZ', () => {
+    const input = race();
+    const snapshot = JSON.stringify(input);
+    checkRaceSettleable(input, new Date('2026-09-27T13:00:00.000Z'));
+    expect(JSON.stringify(input)).toBe(snapshot);
   });
 });

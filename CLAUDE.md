@@ -102,6 +102,30 @@ bağlanmamış · tournament/club/ranking/season/progression/breeding bağlanmam
 `/club` `/farm` `/leaderboard` placeholder · `PedigreeTree`/`PlayerDemoWidget`/
 `GltfAssetLoader` hiçbir yere bağlı değil (`DustParticles` artık BAĞLI — §13).
 
+**✅ ÜCRETLİ LOBİ YARIŞI ARTIK KOŞUYOR — ÖDÜL DAĞITIMI VAR (§13.14,
+28.09.2026).** `POST /races/:id/settle` yarışı koşar, ödülleri `top5`
+paylarıyla dağıtır ve `races.status = 'finished'` yazar. **Zamanlayıcı
+YOKTUR** — uç bir "crank"tir: kimliği doğrulanmış HERHANGİ bir oyuncu
+çağırabilir, katılımcı olması gerekmez. Tekrar koruması `Idempotency-Key`
+DEĞİL, `scheduled → finished` geçişinin kendisidir (ikinci çağrı 409
+`RACE_NOT_SETTLEABLE`).
+
+**Bununla birlikte hâlâ eksik olan:** `race_starting` bildiriminin üreticisi
+YOK — o gerçekten **zamanlayıcı** ister (başlangıç anında tetiklenen bir iş)
+ve sunucuda zamanla tetiklenen hiçbir iş yoktur.
+
+**⚠️ BOT PAYI YANAR.** Kadro `fieldSize`a botlarla tamamlanır
+(`aiFillEnabled`) ve botların `player_id`'si yoktur — bota düşen ödül
+KİMSEYE ödenmez ve havuzda kalır. Bu bilinçlidir: aksi hâlde bir oyuncu
+kendi yarışını açıp tek gerçek katılımcı olarak havuzun çoğunu geri
+alabilirdi. Sonucu: gerçek oyuncu sayısı azken yarış oyuncu için
+KAYIPTIR.
+
+**⚠️ SNAPSHOT KESİNLEŞME ANINDA ALINIR, `startTime`'DA DEĞİL.** Oyuncu
+`startTime` ile kesinleşme arasında atını çalıştırıp sonucu etkileyebilir.
+Kapatmak `startTime`'da tetiklenen bir zamanlayıcı gerektirir — projede
+yok. `SettleRaceUseCase` doc yorumunda yazılı.
+
 **Sahibinin cevabını bekleyen tek kritik soru:** 3D/ses varlıkları nereden geliyor?
 
 ## Sıradaki iş
@@ -123,12 +147,16 @@ YANILTICI olduğunu gösterdi.** Bu bölüm iki kez bayatladı; aşağısı
   `POST .../race-invites`, `.../respond`) ve üç olay
   (`notification.created`, `race.invite`, `race.invite.responded`) —
   **hiçbirinin istemci tüketicisi yok.** Asset gerekmez.
-- **PHASE 13 (bildirim üreticileri) — KISMEN YAPILDI (§13.13).** Sekiz
-  türden BEŞİ üretiliyor: `race_invite` (§13.11) + `friend_request`,
+- **PHASE 13 (bildirim üreticileri) — YEDİ/SEKİZ YAPILDI (§13.13/§13.14).**
+  Sekiz türden YEDİSİ üretiliyor: `race_invite` (§13.11) + `friend_request`,
   `friend_accepted`, `message_received` (§13.13) + `gift_received`
-  (§13.13.1, para yolu). **Kalan ÜÇ tür için `INSERT INTO notifications`
-  yazan bir yol YOK:** `race_starting`, `race_finished`, `prize_won` —
-  üçü de yarış yaşam döngüsüne bağlı.
+  (§13.13.1, para yolu) + `race_finished`, `prize_won` (§13.14, ödül
+  dağıtımıyla birlikte). **Kalan TEK tür: `race_starting` — ve bu bir kod
+  eksikliği DEĞİL, altyapı eksikliğidir:** başlangıç ANINDA tetiklenen bir
+  iş gerektirir, projede ise zamanlayıcı/cron/worker YOKTUR. `race_finished`/
+  `prize_won`'un aksine bu, "bir uç noktadan çağrılır" biçiminde
+  modellenemez (bir oyuncunun "yarış başladı" bildirimini kendi eliyle
+  tetiklemesi anlamsız olurdu).
 - `GltfAssetLoader.tsx` — **asset olmadan ANLAMSIZ.** `.glb` yokken her zaman
   yedek görünüme düşer = bugünkü kapsül+küre görüntüsünün tıpatıp aynısı.
   Bağlamak sıfır görsel etki üretir.
@@ -146,7 +174,8 @@ ağacı okuma + yazma (§13.2/§13.4)** · **yarış sohbeti + izleyici sayısı
 (§13.5, 27.09.2026)** — son üçü `LiveRaceViewer`/`RaceViewer`/`RaceHud`'a BAĞLI ·
 **ödül havuzu + çarpan (§13.10, PHASE 5)** · **bildirimler + yarış daveti
 (§13.11, PHASE 11)** · **arkadaşlık/mesaj/hediye bildirim üreticileri
-(§13.13 + §13.13.1, PHASE 13 — yalnızca bu dördü)** — backend; hiçbirinin
+(§13.13 + §13.13.1, PHASE 13 — yalnızca bu dördü)** · **ÖDÜL DAĞITIMI —
+`POST /races/:id/settle` (§13.14, PHASE 13.14)** — backend; hiçbirinin
 istemci tüketicisi YOK. Ayrıntı: `PROJE_DURUMU.md` §13.
 
 **⚠️ YENİ BİR BİLDİRİM ÜRETİCİSİ EKLERKEN:** bildirim SAYAN mevcut e2e

@@ -275,6 +275,21 @@ export const ErrorCode = {
    */
   RaceEntryCancelled: 'RACE_ENTRY_CANCELLED',
   /**
+   * Ödül dağıtımı şu an yapılamaz (409): yarış `scheduled` değil (zaten
+   * koşulmuş/iptal edilmiş), başlangıç saati gelmemiş, ya da yarışa hiç
+   * GERÇEK oyuncu katılmamış — `POST /races/:id/settle` (§42 PHASE 13.14).
+   *
+   * **NEDEN 409:** istek biçimsel olarak kusursuzdur; engelleyen şey
+   * YARIŞIN DURUMUDUR (`RaceEntryNotLeavable` ile AYNI kategori).
+   *
+   * **BU KOD AYNI ZAMANDA İDEMPOTENCY'NİN KENDİSİDİR.** Settlement ucu
+   * Idempotency-Key kullanmaz; ikinci çağrı bu kodu alır, yani ikinci bir
+   * ödeme YAPISAL OLARAK imkânsızdır. İstemci bu kodu "hata" değil,
+   * "sonuç zaten kesinleşti" diye okumalıdır — ödülü öğrenmek için
+   * `GET /races/:id/timeline` ya da bildirimler kullanılır.
+   */
+  RaceNotSettleable: 'RACE_NOT_SETTLEABLE',
+  /**
    * SANAL para yatırma KAPALI (403) — brief §21/§41, §42 PHASE 4b.
    * `domain/economy/errors.ts` → `MockDepositDisabledError`.
    *

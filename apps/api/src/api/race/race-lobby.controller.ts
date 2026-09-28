@@ -12,12 +12,13 @@ import {
   Query,
   UseInterceptors,
 } from '@nestjs/common';
-import type { ApiSuccess, RaceLobbyView } from '@at-sevdalisi/shared-types';
+import type { ApiSuccess, RaceLobbyView, RaceSettlementResult } from '@at-sevdalisi/shared-types';
 import { CreateRaceUseCase } from '../../application/use-cases/create-race.use-case';
 import { JoinRaceUseCase } from '../../application/use-cases/join-race.use-case';
 import { LeaveRaceUseCase } from '../../application/use-cases/leave-race.use-case';
 import { ListLobbyRacesUseCase } from '../../application/use-cases/list-lobby-races.use-case';
 import { SetEntryReadyUseCase } from '../../application/use-cases/set-entry-ready.use-case';
+import { SettleRaceUseCase } from '../../application/use-cases/settle-race.use-case';
 import { CurrentPlayer, type AuthenticatedPlayer } from '../auth/current-player.decorator';
 import { IdempotencyInterceptor } from '../idempotency/idempotency.interceptor';
 import { IdempotencyScope } from '../idempotency/idempotency-scope.decorator';
@@ -48,6 +49,7 @@ export class RaceLobbyController {
     @Inject(ListLobbyRacesUseCase) private readonly listLobbyRacesUseCase: ListLobbyRacesUseCase,
     @Inject(SetEntryReadyUseCase) private readonly setEntryReadyUseCase: SetEntryReadyUseCase,
     @Inject(LeaveRaceUseCase) private readonly leaveRaceUseCase: LeaveRaceUseCase,
+    @Inject(SettleRaceUseCase) private readonly settleRaceUseCase: SettleRaceUseCase,
   ) {}
 
   /**
@@ -244,5 +246,38 @@ export class RaceLobbyController {
   ): Promise<ApiSuccess<RaceLobbyView>> {
     const race = await this.leaveRaceUseCase.execute(id, currentPlayer.id, idempotencyKey ?? null);
     return { success: true, data: race };
+  }
+
+  /**
+   * Yarışı KOŞTUR ve ödülleri dağıt (§42 PHASE 13.14).
+   *
+   * **HERHANGİ BİR KİMLİĞİ DOĞRULANMIŞ OYUNCU ÇAĞIRABİLİR — katılımcı
+   * olmak zorunda DEĞİLDİR.** Uç bir "crank" gibi çalışır: bu projede
+   * zamanlanmış görev altyapısı olmadığından (cron/worker yok), yarışı
+   * katılımcılarından birine kilitlemek, kimse çevrimiçi değilse parayı
+   * havuzda sonsuza kadar kilitlerdi. Gerekçenin tamamı
+   * `SettleRaceUseCase` doc yorumunda.
+   *
+   * **`IdempotencyInterceptor` BİLİNÇLİ OLARAK YOK.** Çift ödemeyi
+   * engelleyen şey anahtar değil, `scheduled → finished` DURUM GEÇİŞİDİR:
+   * ikinci çağrı kilit altındaki `checkRaceSettleable`'dan `NOT_SCHEDULED`
+   * alır ve 409 döner. Para yolu olduğu için `Idempotency-Key` eklemek
+   * zararsız görünürdü ama yanıltıcı olurdu — istemciye "bu anahtarı
+   * sakla" dedirtip, aslında koruyan şeyin o olmadığını gizlerdi.
+   *
+   * **GÖVDE YOKTUR** (`leave` ile AYNI gerekçe): tek parametre yoldan
+   * gelen `raceId`'dir.
+   *
+   * Tavan `leave`'den DÜŞÜK (10): bu bir keşif/akış ucu değil, bir yarışı
+   * SONLANDIRAN ve N oyuncuya ödeme yapan tek seferlik bir işlemdir.
+   * Tavan, tek bir oyuncunun rastgele yarışları deneyip her birinde tam
+   * simülasyon (CPU) tetiklemesini sınırlar.
+   */
+  @RateLimit({ name: 'race-settle', limit: 10, windowSeconds: 60, keyBy: 'player' })
+  @Post(':id/settle')
+  @HttpCode(HttpStatus.OK)
+  async settle(@Param('id', ParseUUIDPipe) id: string): Promise<ApiSuccess<RaceSettlementResult>> {
+    const settlement = await this.settleRaceUseCase.execute(id);
+    return { success: true, data: settlement };
   }
 }

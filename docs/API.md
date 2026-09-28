@@ -1833,6 +1833,74 @@ iptal**. Ret kodu `RACE_ENTRY_NOT_LEAVABLE` (409); katılım yoksa
 200 OK döner ve gövde GÜNCELLENMİŞ `RaceLobbyView`'dir (204 DEĞİL: istemci
 havuzun küçüldüğünü görmek için ikinci istek atmak zorunda kalmamalıdır).
 
+#### `POST /races/{id}/settle` — yarışı KOŞTUR ve ödülleri dağıt (§42 PHASE 13.14)
+
+**Gövde YOKTUR. `Idempotency-Key` YOKTUR.** Tek parametre yoldan gelen
+`raceId`'dir. 200 OK döner, gövde `RaceSettlementResult`'tır.
+
+**Yetki: kimliği doğrulanmış HERHANGİ bir oyuncu — katılımcı olmak
+zorunda DEĞİLDİR.** Bu bilinçli bir "crank" tasarımıdır: projede
+zamanlayıcı/cron/worker yoktur, yani yarışı kendiliğinden koşturacak bir
+yer yoktur. Uç para YARATMAZ — yalnızca zaten var olan `races.prize_pool`
+havuzunu dağıtır. Katılımcı şartı konsaydı, yarışın koşması tek bir
+oyuncunun oyuna girmesine bağlı kalırdı.
+
+**Neden `Idempotency-Key` YOK:** tekrar koruması **durum geçişinin
+kendisidir**. Transaction `races` satırını `FOR UPDATE` ile kilitler;
+`status !== 'scheduled'` ise `RACE_NOT_SETTLEABLE` (409) döner. İkinci
+çağrı bu kapıya çarpar, dolayısıyla **ikinci bir ödeme yapısal olarak
+imkânsızdır**.
+
+Kabul koşulları (`checkRaceSettleable` — `ready`/`leave`'in TAM
+tümleyeni, aynı `startTime` sınırı, ters yön): yarış `scheduled` olmalı,
+başlangıç zamanı **gelmiş** olmalı (sınırda açık), en az bir GERÇEK
+katılımcı bulunmalı. Ret nedeni önceliği: **durum > zaman > katılımcı**.
+Hepsi aynı kodu döner: `RACE_NOT_SETTLEABLE` (409). `minPlayers` BİLEREK
+dayatılmaz — başlangıçtan sonra `leave` kapalı olduğundan, eşiği dayatmak
+giriş ücretlerini kalıcı olarak hapsetmek olurdu.
+
+Ne olur (tek transaction): kadro `fieldSize`a botlarla tamamlanır, seed
+**koşma anında** üretilir (`randomUUID()`; `raceId` DEĞİL — o herkese
+açıktır ve sonucu önceden hesaplanabilir kılardı), simülasyon
+`race-engine.ts`'te koşar (motora DOKUNULMAZ, yalnızca ÇAĞRILIR), ödüller
+`prizeDistributions[race-lobby.prizeDistributionId]` paylarıyla
+`players` satırları `FOR UPDATE` altında ödenir, her ödeme için
+`economy_transactions` (`type: 'lobby_race_prize'`) yazılır,
+`races.status = 'finished'` + `simulation_seed` + sürümler işlenir ve
+**aynı transaction'da** bildirimler doğar: her gerçek katılımcıya
+`race_finished`, yalnızca ödeme yapılana `prize_won`.
+
+**`race_entries.status` DEĞİŞTİRİLMEZ** — CHECK kısıtı (migration 0037)
+`finished` diye bir değer kabul etmez; sonuç `finish_position`/
+`final_time_ms`/`horse_snapshot` sütunlarında yaşar.
+
+**Bot payı YANAR (bilinçli):** botların `player_id`'si yoktur, bota düşen
+ödül kimseye ödenmez. Aksi hâlde bir oyuncu kendi yarışını açıp tek
+gerçek katılımcı olarak havuzun çoğunu geri alabilirdi.
+
+**Bilinen açık pencere:** at snapshot'ı `startTime`'da değil, kesinleşme
+anında alınır — oyuncu aradaki sürede atını çalıştırabilir. Kapatmak
+`startTime`'da tetiklenen bir zamanlayıcı gerektirir.
+
+```json
+{
+  "success": true,
+  "data": {
+    "raceId": "...", "status": "finished", "prizePool": 800,
+    "settledAt": "2026-09-28T19:12:03.000Z",
+    "places": [
+      { "finishPosition": 1, "horseId": "...", "playerId": "...",
+        "displayName": "Ömer", "isBot": false, "prizeAmount": 300 },
+      { "finishPosition": 2, "horseId": "bot-1", "playerId": null,
+        "displayName": null, "isBot": true, "prizeAmount": 0 }
+    ]
+  }
+}
+```
+
+Başka oyuncuların BAKİYESİ açığa çıkmaz (uç herkese açık olduğundan);
+çağıran kendi sonucunu `places` içinde `playerId`'siyle bulur.
+
 #### `POST /races` / `POST /races/{id}/join` — örnek istek/yanıt
 
 ```json
@@ -2233,3 +2301,4 @@ dosyanın doc yorumu).
 | `RACE_ENTRY_NOT_READYABLE` | Hazır-olma penceresi kapalı: yarış `scheduled` değil, başlangıç zamanı gelmiş (sınırda kapalı) ya da katılım `cancelled` — `POST /races/:id/ready`. Ret nedeni önceliği: durum > zaman > iptal (Ücretli yarış lobisi, 27.09.2026) |
 | `RACE_ENTRY_NOT_LEAVABLE` | Ayrılma penceresi kapalı: yarış `scheduled` değil, başlangıç zamanı gelmiş (sınırda kapalı) ya da katılım zaten `cancelled` — `POST /races/:id/leave`. `RACE_ENTRY_NOT_READYABLE` ile AYNI sınırdadır; ayrılma geri alınamaz biçimde ücret iadesi doğurduğu için "önce uygun duruma getir" yolu YOKTUR (Ücretli yarış lobisi + iade, 28.09.2026) |
 | `RACE_ENTRY_CANCELLED` | Aynı yarışa yeniden katılma denemesi ama katılım daha önce İPTAL edilmiş — `POST /races/:id/join`. **`ALREADY_JOINED_RACE` DEĞİL:** oyuncu yarışta değildir, iptal etmiştir; ayrıl-katıl döngüsü READY bayrağını sıfırlayıp oyuncuya havuzu oynama imkânı verirdi. Boşalan koltuk BAŞKALARINA açıktır (Ücretli yarış lobisi + iade, 28.09.2026) |
+| `RACE_NOT_SETTLEABLE` | Ödül dağıtımı bu durumda yapılamaz: yarış `scheduled` değil (zaten koştu/iptal), başlangıç zamanı gelmemiş ya da hiç GERÇEK katılımcı yok — `POST /races/:id/settle`. **BU KOD AYNI ZAMANDA İDEMPOTENCY'NİN TA KENDİSİDİR:** uç `Idempotency-Key` kullanmaz, ikinci çağrı buraya çarpar ve ikinci bir ödeme yapısal olarak imkânsız olur (Ödül dağıtımı, 28.09.2026) |

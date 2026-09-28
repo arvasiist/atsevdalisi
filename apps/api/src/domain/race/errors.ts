@@ -304,3 +304,30 @@ export class RaceEntryCancelledError extends Error {
     this.name = 'RaceEntryCancelledError';
   }
 }
+
+/**
+ * Ödül dağıtımı (settlement) BU DURUMDA yapılamaz (409) — §42 PHASE 13.14.
+ *
+ * **NEDEN 400 DEĞİL 409:** istek biçimsel olarak kusursuzdur; engel
+ * yarışın DURUMUNDADIR (henüz başlamamış, zaten koşulmuş, ya da hiç
+ * katılımcısı yok). `RaceNotJoinableError`/`RaceEntryNotLeavableError` ile
+ * AYNI kategori.
+ *
+ * **BU HATA AYNI ZAMANDA İDEMPOTENCY'NİN TA KENDİSİDİR.** Settlement
+ * ucu Idempotency-Key KULLANMAZ; tekrar koruması `scheduled → finished`
+ * durum geçişinin kendisidir. İkinci çağrı `NOT_SCHEDULED` alır, yani
+ * ikinci bir ödeme YAPISAL OLARAK imkânsızdır — yeni bir idempotency
+ * altyapısı gerekmez.
+ */
+export class RaceNotSettleableError extends Error {
+  constructor(public readonly reason: 'NOT_SCHEDULED' | 'NOT_STARTED' | 'NO_PARTICIPANTS') {
+    super(
+      reason === 'NOT_STARTED'
+        ? 'Yarış henüz başlamadı; ödüller başlangıç saatinden sonra dağıtılır.'
+        : reason === 'NO_PARTICIPANTS'
+          ? 'Bu yarışa hiç oyuncu katılmadı; dağıtılacak bir ödül havuzu yok.'
+          : 'Bu yarış için ödüller zaten dağıtıldı ya da yarış iptal edildi.',
+    );
+    this.name = 'RaceNotSettleableError';
+  }
+}

@@ -89,12 +89,18 @@ olarak ayrıca sabitlenir — biri "gereksiz" görülüp silinirse
 | `grandstand_ticket` | `SPECTATOR_FEE` |
 | `market_purchase_debit`, `market_purchase_credit` | `MARKET` |
 | `practice_race_entry_fee`, `lobby_race_entry_fee` | `ENTRY_FEE` |
-| `practice_race_prize` | `PRIZE` |
+| `practice_race_prize`, `lobby_race_prize` | `PRIZE` |
 | **`mock_deposit`** | **`DEPOSIT`** |
 | **`race_entry_refund`** | **`REFUND`** |
 
 > **`REFUND` ailesi artık doludur** (§42 PHASE 4c): tek üreticisi
 > `leave-race.use-case.ts`'tir ve §4b'nin tersidir — ayrıntı §8'de.
+
+> **`PRIZE` ailesinin İKİNCİ üyesi geldi** (§42 PHASE 13.14):
+> `lobby_race_prize`. `practice_race_prize`'ten ayrı tutulur çünkü
+> "bu para nereden geldi" sorusu tek defter sorgusuyla cevaplanmalıdır;
+> aynı tür altında toplanırsa `races.prize_pool` ile ödenen toplam
+> uzlaştırılamaz.
 
 **`race_entry_refund` neden `races.entry_fee`'yi okumaz:** iade tutarı
 `economy_transactions`'tan, yani o oyuncunun o yarışa GERÇEKTE ödediği

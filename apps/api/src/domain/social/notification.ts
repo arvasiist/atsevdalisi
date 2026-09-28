@@ -191,3 +191,56 @@ export function buildMessageReceivedPayload(input: {
     preview: input.preview,
   };
 }
+
+/**
+ * `race_finished` — yarış KOŞTUKTAN sonra, o yarışa katılan HER oyuncuya
+ * yazılır (PARA YOLU, §42 PHASE 13.14).
+ *
+ * **BU TÜRDE `playerId`/`displayName` YOKTUR — ve bu bilinçlidir.** Bu
+ * dosyanın genel kuralı ("`playerId` her zaman karşı taraftır") SOSYAL
+ * türler içindir: orada anlatılacak bir karşı taraf vardır. Burada ise
+ * bildirimin konusu yarışın KENDİSİDİR; "kim yaptı" sorusunun cevabı
+ * yoktur ve olmayan bir alanı `null` ile doldurmak, sözleşmeyi
+ * `NotificationPayloadByType`'ta `string` yazıp pratikte boş bırakmak
+ * olurdu. `NotificationPayloadByType['race_finished']` şekli ZATEN böyle
+ * tanımlıdır (packages/shared-types/src/notification.ts).
+ *
+ * **`finishPosition` GÖRECELİ DEĞİL MUTLAK SIRADIR** (1 = kazanan).
+ * Bildirim alıcıya özel olduğundan, alıcının kendi sırası yazılır —
+ * istemcinin "kaçıncı oldum" cevabını başka bir uçtan hesaplaması
+ * gerekmez. Beraberlikte sıra `race_entries.finish_position`'dan AYNEN
+ * okunur (motor deterministik olduğundan beraberlik varsa bile sabittir).
+ */
+export function buildRaceFinishedPayload(input: {
+  raceId: string;
+  raceName: string;
+  finishPosition: number;
+}): NotificationPayloadByType['race_finished'] {
+  return {
+    raceId: input.raceId,
+    raceName: input.raceName,
+    finishPosition: input.finishPosition,
+  };
+}
+
+/**
+ * `prize_won` — ödül KAZANAN oyunculara yazılır (PARA YOLU, §42 PHASE
+ * 13.14). Kazanmayan katılımcı bu bildirimi ALMAZ: sıfır ödüllü bir
+ * "kazandınız" bildirimi, istemciye 0 Çip gösteren bir satır bırakırdı.
+ *
+ * **`amount` İŞARETSİZDİR** (`buildGiftReceivedPayload` ile AYNI gerekçe):
+ * yön satırın kendisindedir ve bu bildirim yalnızca KAZANANA yazılır.
+ * Negatif bir miktar, istemciye "ödül kaybettin" dedirtirdi.
+ *
+ * **`currency` YOKTUR:** ödül her zaman oyun içi ana para birimidir ve
+ * `prize_won` sözleşmesi (packages/shared-types) onu taşımaz. `gift_received`
+ * iki para birimi arasında seçim yapabildiği için `currency` taşımak
+ * ZORUNDAYDI; burada böyle bir belirsizlik yoktur.
+ */
+export function buildPrizeWonPayload(input: {
+  raceId: string;
+  raceName: string;
+  amount: number;
+}): NotificationPayloadByType['prize_won'] {
+  return { raceId: input.raceId, raceName: input.raceName, amount: input.amount };
+}

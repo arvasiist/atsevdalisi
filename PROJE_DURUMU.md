@@ -1051,11 +1051,12 @@ Migration `0039_create_notifications_and_race_invites`.
   CHECK'inde tanımlı), davete özel değil. `payload` JSONB — sekiz tür için
   sekiz kolon seti açmak her yeni türde migration gerektirirdi; şekil
   sözleşmesi TİP tarafında (`NotificationPayloadByType`).
-- **BU DİLİMDE YALNIZCA `race_invite` ÜRETİLİR.** Kalan YEDİ türün
+- **BU DİLİMDE (PHASE 11) YALNIZCA `race_invite` ÜRETİLİR.** Kalan YEDİ türün
   (`friend_request`, `friend_accepted`, `gift_received`, `message_received`,
-  `race_starting`, `race_finished`, `prize_won`) **ÜRETİCİSİ YOKTUR** —
-  bugün `INSERT INTO notifications` yazan tek yol `send-race-invite`tir.
-  Bu, "bildirimler bitti" demenin yanlış olacağı yerdir; PHASE 13'ün işidir.
+  `race_starting`, `race_finished`, `prize_won`) **ÜRETİCİSİ YOKTU** — o an
+  `INSERT INTO notifications` yazan tek yol `send-race-invite`ti.
+  **GÜNCEL DURUM: bu satır bayatladı — PHASE 13 dört üretici daha ekledi
+  (§13.13 + §13.13.1); kalan üç tür için hâlâ üretici yok.**
   (`NotificationRepository` portu bilinçli olarak yalnızca OKUMA +
   okundu-işaretleme içerir, `create` YOKTUR — "bildirimi kim üretir"
   sorusunun tek cevabı olsun diye.)
@@ -1270,6 +1271,144 @@ tuzağının AYNISI. Ders tekrar: **bildirim sayan bir yardımcı yazarken
 `type`e daralt.**
 
 **Commit:** `gift_received` dilimi (28.09.2026). Önceki dilim: `35f41da`.
+
+#### 13.13.2 NEDEN kalan üç tür yapılamıyordu — ÖDÜL DAĞITIMI YOK (28.09.2026 taraması)
+
+> **✅ ÇÖZÜLDÜ (§13.14, 28.09.2026).** Aşağıdaki boşluk artık KAPALI:
+> `POST /races/:id/settle` yarışı koşar, ödülleri dağıtır ve
+> `races.status = 'finished'` yazar. `race_finished` + `prize_won`
+> üretiliyor. Geriye yalnızca **`race_starting`** kaldı — ve o bir kod
+> eksiği değil, **zamanlayıcı** eksiğidir. Bu bölüm tarihsel kayıt olarak
+> duruyor.
+
+`race_starting`, `race_finished`, `prize_won` "bildirim yazılmamış" türler
+DEĞİLDİR. **Bunlar, üretecekleri OLAYIN kendisi var olmadığı için
+yapılamıyor.** Tarama şunu gösterdi:
+
+- `race-lobby.controller.ts` yalnızca BEŞ uç nokta sunar:
+  `GET /races`, `POST /races`, `POST /races/:id/join`, `POST /races/:id/ready`,
+  `POST /races/:id/leave`. **`start`/`finish` YOKTUR.**
+- `races.status = 'finished'` yazan yalnızca İKİ yol vardır ve ikisi de lobi
+  yarışı DEĞİLDİR: `run-practice-race.use-case.ts` (tek kişilik pratik) ve
+  `join-matchmaking-queue.use-case.ts` (PvP eşleştirme, `pvp_matches`).
+- `races.prize_pool` yalnızca İKİ yönde hareket eder: `join` **artırır**,
+  `leave` **azaltır**. **Havuzu kazanana ÖDEYEN bir kod yolu YOKTUR.**
+
+Sonuç: **ücretli lobi yarışı kurulabiliyor, katılınabiliyor, hazır
+olunabiliyor — ama hiç KOŞMUYOR ve ödül DAĞITILMIYOR.** Bu, "PHASE 1 Race
+Entry + Paid Race DONE" ve "PHASE 5 Prize Pool + Multiplier DONE"
+ifadelerinin yanıltıcı olduğu yerdir: **havuzun MATEMATİĞİ doğru ve
+test edilmiş (§13.10), ama havuzun ÖDENMESİ yok.** İkisi aynı şey değildir.
+
+**Bunun bedeli yalnızca bildirim değildir:** oyuncu giriş ücretini ödeyip
+havuzu büyütüyor ve o para **hiçbir zaman geri dönmüyor** (tek çıkış yolu
+`leave` — yani yarışa hiç girmemek). Bu, brief §3/§4'ün para döngüsünü
+yarıda keser.
+
+**Sıradaki iş budur — ve bir bildirim dilimi DEĞİLDİR.** Ödül dağıtımı:
+(a) lobi yarışının sonucunu üretmek (race engine'i ÇAĞIRIR — engine'e
+DOKUNMAZ, ama çok atlı bir koşuyu sürmek yeni bir use-case'tir),
+(b) `prize_pool`'u kademelere bölüp kazananlara `FOR UPDATE` + defter
+kaydıyla ödemek. (b) tek başına `gift`/`market` ile AYNI şablondur; asıl iş
+(a)'dır ve **kendi dilimini hak eder**. `race_finished`/`prize_won`
+bildirimleri o dilimin İÇİNDE, aynı transaction'da doğar (kural §13.13).
+
+**`race_starting` AYRICA bir ZAMANLAYICI ister** (cron/worker yok —
+`CLAUDE.md` "bilinen açık uçlar"): "yarış birazdan başlıyor" bildirimi,
+zamanı gelince birinin onu ÜRETMESİNİ gerektirir. Bugün sunucuda zamanla
+tetiklenen hiçbir iş yoktur.
+
+**"Bildirimler bitti" DEME — ama "bildirimler yapılamıyor" da DEME.**
+Doğru cümle: *kalan üç tür, eksik olan bir YARIŞ SONUÇLANDIRMA dilimine
+bağlı.*
+
+#### 13.14 ÖDÜL DAĞITIMI — `POST /races/:id/settle` (28.09.2026)
+
+**Bu dilim §13.13.2'nin açtığı boşluğu kapatır: oyuncunun ödediği giriş
+ücreti artık geri dönebiliyor.**
+
+Uç nokta: `POST /races/:id/settle` → 200 `RaceSettlementResult`.
+Yetki: **kimliği doğrulanmış HERHANGİ bir oyuncu** (katılımcı olmak
+zorunda değil). Gövde yok, `Idempotency-Key` yok. `@RateLimit` 10/60sn.
+
+**NEDEN "CRANK" — ve neden katılımcı şartı YOK.** Projede zamanlayıcı/cron/
+worker YOKTUR (`CLAUDE.md` "bilinen açık uçlar"). Yarışı "kendiliğinden"
+koşturacak bir yer olmadığı için koşma işi bir uç noktaya verildi ve
+çağıranın kim olduğu **önemsiz** kılındı: ilk gelen koşturur. Katılımcı
+şartı koysaydık, yarışın koşması tek bir oyuncunun oyuna girmesine bağlı
+kalırdı — ki o oyuncu hiç girmeyebilir. Zararı yoktur: uç para
+YARATMAZ, yalnızca zaten var olan havuzu dağıtır ve sonucu
+`races.status` belirler.
+
+**NEDEN `Idempotency-Key` YOK — tekrar koruması DURUM GEÇİŞİDİR.**
+`settleLobbyRace` transaction'ın başında `races` satırını `FOR UPDATE` ile
+kilitler ve `checkRaceSettleable` çağırır: `status !== 'scheduled'` ise
+`RaceNotSettleableError` (409 `RACE_NOT_SETTLEABLE`). İkinci çağrı bu
+kapıya çarpar, yani **ikinci bir ödeme yapısal olarak imkânsızdır.**
+Yeni bir idempotency altyapısı gerekmez; anahtar üretmek, var olan bir
+garantiyi ikinci kez (ve daha zayıf biçimde) ifade ederdi.
+
+**KAPI: `checkRaceSettleable` (`domain/race/lobby.ts`)** — `checkRaceJoinable`/
+`checkEntryReadyable`/`checkRaceLeavable`'ın **TAM TÜMLEYENİ**: aynı
+`startTime` sınırı, ters yön (arada boşluk yok, örtüşme yok). Reddetme
+nedenleri: `NOT_SCHEDULED` (zaten koştu/iptal), `NOT_STARTED` (henüz
+başlamadı), `NO_PARTICIPANTS` (havuz ve kazanan yok). **`minPlayers`
+BİLEREK dayatılmaz:** `startTime`'dan sonra `leave` engellidir
+(`ALREADY_STARTED`), yani katılımcı sayısını eşiğin altında bırakan bir
+yarışta `minPlayers` dayatmak giriş ücretlerini **kalıcı olarak**
+hapsetmek olurdu.
+
+**SEED KESİNLEŞMEDE DOĞAR** (`randomUUID()`), `raceId` DEĞİL: `raceId`
+herkese açıktır ve yarışı açan oyuncu seed'i önceden bilirse sonucu
+önceden hesaplayabilirdi. `races.simulation_seed` koşma anında yazılır ve
+`GET /races/:id/timeline` onu açığa çıkarır (replay).
+
+**PARA YOLU (tek transaction):** `races` FOR UPDATE → durum kapısı →
+`prize_pool` **TRIPWIRE** (kilitli değer, use-case'in hesapladığı havuzla
+birebir eşleşmeli) → kadro **TRIPWIRE** (kilitli `race_entries` kümesi,
+simüle edilen kadroyla birebir) → `players` **leksik id sırasıyla**
+FOR UPDATE → `credit()` + `economy_transactions`
+(`type: 'lobby_race_prize'`) → gerçek satırlara sonuç UPDATE'i + segmentler
+→ bot satırları INSERT + segmentler → `races.status = 'finished'` + seed +
+sürümler → **aynı transaction'da** `notifications`
+(`race_finished` her gerçek katılımcıya, `prize_won` yalnızca ödeme
+yapılana).
+
+**`race_entries.status` DEĞİŞTİRİLMEZ.** `race_entries_status_valid`
+CHECK'i (migration 0037) yalnızca `NULL | waiting | ready | not_ready |
+cancelled` kabul eder — **`finished` diye bir değer YOKTUR.** Sonuç
+`finish_position`/`final_time_ms`/`horse_snapshot` sütunlarında yaşar.
+
+**ÖDEME SIRAYA GÖRE, SIRAYI SİMÜLASYON BELİRLER.** Paylar
+`config/economy.config.json` → `prizeDistributions[race-lobby.
+prizeDistributionId]` (`top5`: `[0.375, 0.225, 0.15, 0.1, 0.05]`, toplam
+`1 − raceRake`). Repository `prize_pool`'u kilitleyip **yeniden okur** ve
+tutarları `computePrizePayouts` ile hesaplar — use-case'in gönderdiği
+tutarlara GÜVENMEZ.
+
+**⚠️ BOT PAYI YANAR — bilinçli.** Kadro `fieldSize`a botlarla tamamlanır
+(`aiFillEnabled`); botların `player_id`'si yoktur, dolayısıyla bota düşen
+ödül kimseye ödenmez. Aksi hâlde bir oyuncu kendi yarışını açıp TEK
+gerçek katılımcı olarak havuzun çoğunu geri alabilirdi (kendi kendini
+besleyen para döngüsü). Sonucu: gerçek oyuncu sayısı azken yarış, oyuncu
+için KAYIPTIR. `race-settlement.e2e-spec.ts` "botsuz saha" testi bu yüzden
+ayrıca koşar — orada dağıtım tam eşitlikle ölçülür.
+
+**⚠️ BİLİNEN AÇIK PENCERE — snapshot `startTime`'da DEĞİL, kesinleşme
+anında alınır.** Oyuncu `startTime` ile kesinleşme arasında atını
+çalıştırıp sonucu etkileyebilir. Kapatmak `startTime`'da tetiklenen bir
+zamanlayıcı gerektirir; projede yok. `SettleRaceUseCase` doc yorumunda
+yazılıdır.
+
+**Kanıt:** `race-settlement.e2e-spec.ts` (12 test). Çekirdek iddia PARA
+KORUNUMUDUR: *kesinleşmeden önceki toplam oyuncu parası + dağıtılan ödül =
+kesinleşmeden sonraki toplam oyuncu parası* — ve botsuz sahada dağıtılan
+toplam `computePrizePayoutTotal(pool, shares)`e **tam eşittir**. Ayrıca:
+ikinci çağrı 409 + ikinci defter satırı YOK; reddedilen her yol
+(NOT_STARTED / NO_PARTICIPANTS / 404 / 401 / 400) için para hareketi YOK;
+defter satırı yanıttaki tutarla **birebir**; koşmayan üçüncü oyuncuya
+bildirim YOK. Domain tarafı `lobby.spec.ts`'te 8 test (tümleyenlik,
+sınır, kontrol sırası, saflık).
 
 ---
 

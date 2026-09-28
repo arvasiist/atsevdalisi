@@ -522,3 +522,56 @@ export interface RaceLobbyView {
   /** Kazananın alacağı Çip (brief §3) — `prizePool`'un en yüksek payı, yuvarlanmış. */
   topPrize: number;
 }
+
+/**
+ * Bir yarış sonucundaki TEK sıra (§42 PHASE 13.14 — `POST /races/:id/settle`).
+ *
+ * **`playerId === null` İSE BU BİR BOT KOLTUĞUDUR.** Botun oyuncusu,
+ * cüzdanı ve ödülü YOKTUR (`prizeAmount` her zaman 0'dır); koltuk yalnızca
+ * sahayı doldurur (`aiFillEnabled`). `displayName` de bu yüzden `null`'dur —
+ * botun adı vardır ama bir oyuncu hesabına bağlı değildir.
+ *
+ * **`prizeAmount` SUNUCUNUN ÖDEDİĞİ TUTARDIR**, istemcinin hesapladığı
+ * değil: `domain/race/prize-distribution.ts` → `computePrizePayouts`
+ * çıktısıdır ve defterdeki (`economy_transactions`, `type =
+ * 'lobby_race_prize'`) satırla BİREBİR aynıdır. İstemci "ne kadar
+ * kazandım" sorusunu buradan cevaplar, havuzdan oran hesaplayarak değil.
+ */
+export interface RaceSettlementPlace {
+  finishPosition: number;
+  horseId: string;
+  /** `null` = bot koltuğu. */
+  playerId: UUID | null;
+  /** `null` = bot koltuğu. */
+  displayName: string | null;
+  isBot: boolean;
+  /** Kazanılan Çip; botlar ve ödül sırası dışındakiler için 0. */
+  prizeAmount: number;
+}
+
+/**
+ * `POST /races/:id/settle` yanıtı (§42 PHASE 13.14).
+ *
+ * **BU UÇ TÜM YARIŞI SONUÇLANDIRIR, TEK BİR OYUNCUYU DEĞİL.** Çağıran kişi
+ * (herhangi bir kimliği doğrulanmış oyuncu — bir "crank") yarışı koşturur
+ * ve HERKESİN ödemesini tetikler. Bu yüzden yanıt, çağıranın KİŞİSEL
+ * sonucunu ayrı bir alanda DEĞİL, `places` içinde kendi `playerId`'siyle
+ * arar. Ayrı bir "benim sonucum" alanı eklemek, aynı bilgiyi iki yerde
+ * tutmak ve ikisinin ayrışmasına izin vermek olurdu.
+ *
+ * **BAŞKA OYUNCULARIN BAKİYESİ BURADA YOKTUR — bilinçli.** Bu uç herkese
+ * açıktır (kimliği doğrulanmış her oyuncu çağırabilir), dolayısıyla
+ * cüzdan bakiyesi gibi kişisel bir veriyi taşıyamaz. Taşıdığı tek para
+ * bilgisi `prizeAmount`'tur; o da yarışın kamuya açık sonucudur.
+ */
+export interface RaceSettlementResult {
+  raceId: UUID;
+  /** Dağıtım TAMAMLANDIKTAN sonraki durum — her zaman `'finished'`. */
+  status: RaceStatus;
+  /** Dağıtılan toplam havuz (`races.prize_pool`, kesinleşme anındaki değeri). */
+  prizePool: number;
+  /** Ödüllerin fiilen ödendiği an (sunucu saati). */
+  settledAt: ISODateTimeString;
+  /** Sıralı sonuç listesi — 1. sıradan itibaren, botlar dahil. */
+  places: RaceSettlementPlace[];
+}

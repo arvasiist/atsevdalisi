@@ -5,6 +5,8 @@ import {
   buildGiftReceivedPayload,
   buildMessagePreview,
   buildMessageReceivedPayload,
+  buildPrizeWonPayload,
+  buildRaceFinishedPayload,
 } from '../../../src/domain/social/notification';
 
 /**
@@ -111,6 +113,30 @@ describe('payload kurucuları — şekil sözleşmesi', () => {
       amount: 15,
     });
     expect(payload.amount).toBeGreaterThan(0);
+  });
+
+  it('race_finished: raceId + raceName + finishPosition — playerId/displayName YOKTUR', () => {
+    // `toEqual` tam eşitlik ister: bu türde `playerId`/`displayName`
+    // EKLENİRSE test düşer. Eklenmesi yanlış olurdu — bu bildirimin konusu
+    // yarışın KENDİSİDİR, anlatılacak bir karşı taraf yoktur (bkz. kurucu
+    // doc yorumu).
+    expect(
+      buildRaceFinishedPayload({ raceId: 'ra1', raceName: 'Boğaziçi Kupası', finishPosition: 3 }),
+    ).toEqual({ raceId: 'ra1', raceName: 'Boğaziçi Kupası', finishPosition: 3 });
+  });
+
+  it('prize_won: raceId + raceName + amount — currency YOKTUR', () => {
+    // `gift_received`'ın AKSİNE `currency` taşımaz: ödül her zaman oyun içi
+    // ana para birimidir, seçim yoktur (`buildPrizeWonPayload` doc yorumu).
+    expect(buildPrizeWonPayload({ raceId: 'ra1', raceName: 'Boğaziçi Kupası', amount: 3200 })).toEqual({
+      raceId: 'ra1',
+      raceName: 'Boğaziçi Kupası',
+      amount: 3200,
+    });
+  });
+
+  it('prize_won miktarı İŞARETSİZ kalır (yön satırın kendisindedir)', () => {
+    expect(buildPrizeWonPayload({ raceId: 'ra1', raceName: 'Kupa', amount: 500 }).amount).toBeGreaterThan(0);
   });
 
   it('kurucular girdiyi TAŞIMAZ, kopyalar (dış referans sonradan değişse de payload sabit kalır)', () => {

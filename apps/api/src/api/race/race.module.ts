@@ -7,6 +7,7 @@ import { JoinRaceUseCase } from '../../application/use-cases/join-race.use-case'
 import { LeaveRaceUseCase } from '../../application/use-cases/leave-race.use-case';
 import { ListLobbyRacesUseCase } from '../../application/use-cases/list-lobby-races.use-case';
 import { SetEntryReadyUseCase } from '../../application/use-cases/set-entry-ready.use-case';
+import { SettleRaceUseCase } from '../../application/use-cases/settle-race.use-case';
 import { GetHorseMarketValueUseCase } from '../../application/use-cases/get-horse-market-value.use-case';
 import { GetLeaderboardUseCase } from '../../application/use-cases/get-leaderboard.use-case';
 import { GetRaceTimelineUseCase } from '../../application/use-cases/get-race-timeline.use-case';
@@ -76,6 +77,12 @@ import { RecentRacesController } from './recent-races.controller';
     // ve interceptor'ın kendi bağımlılıkları (`REDIS_CLIENT`, `PG_POOL`,
     // `AppConfigService`) kök modülden çözülür (`join` ile AYNI desen).
     LeaveRaceUseCase,
+    // §42 PHASE 13.14 — ücretli lobi yarışını KOŞTURAN ve ödülleri
+    // dağıtan use-case (`POST /races/:id/settle`). Bağımlılık profili
+    // `RunPracticeRaceUseCase` ile AYNIdır (at + istatistik + ekipman +
+    // `RACE_REPOSITORY`); hepsi bu modülde ya da `@Global()` modüllerde
+    // (`DatabaseModule`/`AppConfigModule`) kayıtlıdır.
+    SettleRaceUseCase,
     GetRecentRaceResultsUseCase,
     // AUDIT_REPORT.md Bulgu R2 (Medium, bu oturum) — bkz. `get-race-timeline.use-case.ts` doc yorumu.
     GetRaceTimelineUseCase,
