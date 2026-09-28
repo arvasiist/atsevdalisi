@@ -1,5 +1,5 @@
 {
-  "version": "1.0.0",
+  "version": "1.1.0",
   "baseAbilityWeights": {
     "speed": 0.25,
     "stamina": 0.20,
@@ -40,6 +40,20 @@
   "sprint": {
     "staminaReserveThreshold": 25,
     "bonusMultiplier": 12
+  },
+  "tactic": {
+    "startApproachWindowFraction": 0.35,
+    "finalStretchPlanBaseBonus": 6,
+    "startApproach": {
+      "aggressive": { "earlyPerformanceBonus": 8, "latePerformanceBonus": -5 },
+      "balanced": { "earlyPerformanceBonus": 0, "latePerformanceBonus": 0 },
+      "controlled": { "earlyPerformanceBonus": -8, "latePerformanceBonus": 5 }
+    },
+    "finalStretchPlan": {
+      "early_sprint": { "bonusMultiplier": 0.7, "windowMultiplier": 1.5, "staminaConsumptionMultiplier": 1.05 },
+      "normal": { "bonusMultiplier": 1, "windowMultiplier": 1, "staminaConsumptionMultiplier": 1 },
+      "late_sprint": { "bonusMultiplier": 1.6, "windowMultiplier": 0.6, "staminaConsumptionMultiplier": 0.96 }
+    }
   },
   "jockeyDecision": {
     "staminaLowThreshold": 15,

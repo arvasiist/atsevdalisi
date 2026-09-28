@@ -7,14 +7,14 @@
 
 | | |
 | --- | --- |
-| Ölçüm zamanı | 2026-09-28T21:23:42.103Z |
+| Ölçüm zamanı | 2026-09-28T21:44:12.761Z |
 | Saha boyutları | 8 / 10 / 12 / 14 / 16 (`config/race-lobby.config.json` → `fieldSizes`) |
 | Saha boyutu başına koşum | **10.000** (her biri beş ayrı koşumda) |
 | Toplam simülasyon | **265.125** |
 | Kanonik yarış | 1600 m, çim, güneşli, 22 °C |
 | `RACE_ENGINE_VERSION` | `1.0.0` |
-| `RACE_RULESET_VERSION` | `1.1.0` |
-| `race.config.json` parmak izi | `62588ed88546` (sha256, ilk 12 hane) |
+| `RACE_RULESET_VERSION` | `1.2.0` |
+| `race.config.json` parmak izi | `3dd447a8a8dd` (sha256, ilk 12 hane) |
 
 Üretmek için (`apps/api` dizininden):
 
@@ -74,21 +74,21 @@ bu motorda yarışamaz durumdadır — sahibi için görünmez bir duvardır.
 
 | Saha | Favori payı | Tarafsız `1/N` | Favori / tarafsız | En zayıf at | İlk yarı toplam | Son yarı toplam | Hiç kazanmayan at | Tek atın en yüksek payı | Yetenek–galibiyet korelasyonu |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 8 | 92.73% | 12.50% | **7.42×** | 0.00% | 100.00% | 0.00% | 4 | 92.73% | 0.614 |
-| 10 | 85.77% | 10.00% | **8.58×** | 0.00% | 100.00% | 0.00% | 5 | 85.77% | 0.587 |
-| 12 | 82.95% | 8.33% | **9.95×** | 0.00% | 100.00% | 0.00% | 6 | 82.95% | 0.547 |
-| 14 | 80.84% | 7.14% | **11.32×** | 0.00% | 100.00% | 0.00% | 7 | 80.84% | 0.543 |
-| 16 | 76.22% | 6.25% | **12.20×** | 0.00% | 100.00% | 0.00% | 8 | 76.22% | 0.523 |
+| 8 | 82.49% | 12.50% | **6.60×** | 0.00% | 100.00% | 0.00% | 4 | 82.49% | 0.669 |
+| 10 | 68.55% | 10.00% | **6.85×** | 0.00% | 100.00% | 0.00% | 5 | 68.55% | 0.684 |
+| 12 | 64.70% | 8.33% | **7.76×** | 0.00% | 100.00% | 0.00% | 6 | 64.70% | 0.647 |
+| 14 | 61.74% | 7.14% | **8.64×** | 0.00% | 100.00% | 0.00% | 7 | 61.74% | 0.648 |
+| 16 | 56.21% | 6.25% | **8.99×** | 0.00% | 100.00% | 0.00% | 9 | 56.21% | 0.634 |
 
 ### 2b. Geniş merdiven — 55 → 85
 
 | Saha | Favori payı | Tarafsız `1/N` | Favori / tarafsız | En zayıf at | İlk yarı toplam | Son yarı toplam | Hiç kazanmayan at | Tek atın en yüksek payı | Yetenek–galibiyet korelasyonu |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 8 | 97.77% | 12.50% | **7.82×** | 0.00% | 100.00% | 0.00% | 5 | 97.77% | 0.590 |
-| 10 | 95.20% | 10.00% | **9.52×** | 0.00% | 100.00% | 0.00% | 7 | 95.20% | 0.543 |
-| 12 | 93.77% | 8.33% | **11.25×** | 0.00% | 100.00% | 0.00% | 8 | 93.77% | 0.506 |
-| 14 | 89.75% | 7.14% | **12.56×** | 0.00% | 100.00% | 0.00% | 9 | 89.75% | 0.493 |
-| 16 | 87.42% | 6.25% | **13.99×** | 0.00% | 100.00% | 0.00% | 11 | 87.42% | 0.472 |
+| 8 | 94.26% | 12.50% | **7.54×** | 0.00% | 100.00% | 0.00% | 5 | 94.26% | 0.608 |
+| 10 | 85.96% | 10.00% | **8.60×** | 0.00% | 100.00% | 0.00% | 7 | 85.96% | 0.590 |
+| 12 | 83.70% | 8.33% | **10.04×** | 0.00% | 100.00% | 0.00% | 8 | 83.70% | 0.554 |
+| 14 | 76.99% | 7.14% | **10.78×** | 0.00% | 100.00% | 0.00% | 10 | 76.99% | 0.554 |
+| 16 | 71.57% | 6.25% | **11.45×** | 0.00% | 100.00% | 0.00% | 11 | 71.57% | 0.546 |
 
 **Okunuşu:** “yetenek–galibiyet korelasyonu”, merdivenin sırası ile `computeBaseAbility`
 çıktısı arasındaki Spearman katsayısıdır — motorda **gerçekten kullanılan** taban puana göre
@@ -144,11 +144,11 @@ olur. Sabit %25 eşiği kullanmak o iki boyutta ölçüm hatası olurdu.
 
 | Saha | front_runner | tracker | mid_pack | closer |
 | --- | --- | --- | --- | --- |
-| 8 | 25.99% (bekl. 25.00%) | 18.86% (bekl. 25.00%) | 23.05% (bekl. 25.00%) | 32.10% (bekl. 25.00%) |
-| 10 | 32.90% (bekl. 30.00%) | 23.07% (bekl. 30.00%) | 19.06% (bekl. 20.00%) | 24.97% (bekl. 20.00%) |
-| 12 | 26.54% (bekl. 25.00%) | 19.42% (bekl. 25.00%) | 21.05% (bekl. 25.00%) | 32.99% (bekl. 25.00%) |
-| 14 | 30.13% (bekl. 28.57%) | 23.15% (bekl. 28.57%) | 18.76% (bekl. 21.43%) | 27.96% (bekl. 21.43%) |
-| 16 | 26.77% (bekl. 25.00%) | 19.91% (bekl. 25.00%) | 21.40% (bekl. 25.00%) | 31.92% (bekl. 25.00%) |
+| 8 | 22.84% (bekl. 25.00%) | 21.78% (bekl. 25.00%) | 22.23% (bekl. 25.00%) | 33.15% (bekl. 25.00%) |
+| 10 | 29.07% (bekl. 30.00%) | 27.48% (bekl. 30.00%) | 17.30% (bekl. 20.00%) | 26.15% (bekl. 20.00%) |
+| 12 | 24.89% (bekl. 25.00%) | 21.26% (bekl. 25.00%) | 21.34% (bekl. 25.00%) | 32.51% (bekl. 25.00%) |
+| 14 | 29.97% (bekl. 28.57%) | 24.05% (bekl. 28.57%) | 18.20% (bekl. 21.43%) | 27.78% (bekl. 21.43%) |
+| 16 | 26.17% (bekl. 25.00%) | 20.60% (bekl. 25.00%) | 21.31% (bekl. 25.00%) | 31.92% (bekl. 25.00%) |
 
 **Neden tam %25 beklenmiyor:** `race.config.json`'ın `pace` bölümü bilinçli olarak asimetriktir
 (`front_runner` yarış boyunca daha çok stamina harcar ama erken/orta aşamada pozisyon bonusu
@@ -175,11 +175,11 @@ Yirmi lobiye dağıtmak bu tesadüfü ortalar ama yine de stili değil **saha ko
 
 | Saha | Favori payı (ort.) | Tarafsız `1/N` | Favori / tarafsız | En kötü lobide favori | Hiç kazanmayan bot (ort. / en kötü) | Tek botun en yüksek payı (ort.) | Kazananın ort. süresi | 1. ile son arası ort. fark |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 8 | 61.77% | 12.50% | **4.94×** | 95.40% | 2.7 / 5 | 66.80% | 184.03 sn | 51.88 sn |
-| 10 | 60.88% | 10.00% | **6.09×** | 99.80% | 4.0 / 8 | 64.59% | 182.79 sn | 56.66 sn |
-| 12 | 66.96% | 8.33% | **8.04×** | 91.80% | 5.5 / 8 | 69.82% | 181.03 sn | 62.93 sn |
-| 14 | 53.79% | 7.14% | **7.53×** | 92.40% | 6.3 / 9 | 57.02% | 182.48 sn | 64.87 sn |
-| 16 | 42.59% | 6.25% | **6.81×** | 76.80% | 8.0 / 11 | 52.47% | 181.58 sn | 67.73 sn |
+| 8 | 64.71% | 12.50% | **5.18×** | 97.00% | 3.1 / 6 | 70.09% | 174.69 sn | 44.31 sn |
+| 10 | 64.95% | 10.00% | **6.50×** | 98.40% | 4.3 / 6 | 67.35% | 173.65 sn | 48.81 sn |
+| 12 | 70.41% | 8.33% | **8.45×** | 96.40% | 6.0 / 9 | 72.13% | 171.64 sn | 54.86 sn |
+| 14 | 54.64% | 7.14% | **7.65×** | 85.80% | 6.8 / 10 | 59.04% | 173.24 sn | 56.75 sn |
+| 16 | 43.02% | 6.25% | **6.88×** | 85.40% | 8.4 / 12 | 55.05% | 172.43 sn | 59.50 sn |
 
 “Favori” = `computeBaseAbility` çıktısı en yüksek olan bot — motorda **gerçekten kullanılan**
 taban puandır, sahaya bakıp seçilmiş bir etiket değil.
@@ -227,11 +227,11 @@ statların ÖZDEŞ olduğu bir saha daha zorlayıcıdır).
 
 | Saha | Sıra 1..N değil | Uzunluk ≠ N | Beraberlik içeren yarış | Determinizm ihlali | Kazanan ort. | Sonuncu ort. | Fark ort. |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| 8 | 0 | 0 | 3 | 0 / 25 | 147.91 sn | 198.55 sn | 50.64 sn |
-| 10 | 0 | 0 | 5 | 0 / 25 | 147.96 sn | 200.61 sn | 52.65 sn |
-| 12 | 0 | 0 | 6 | 0 / 25 | 148.06 sn | 202.09 sn | 54.02 sn |
-| 14 | 0 | 0 | 13 | 0 / 25 | 148.09 sn | 203.33 sn | 55.23 sn |
-| 16 | 0 | 0 | 15 | 0 / 25 | 148.12 sn | 204.91 sn | 56.78 sn |
+| 8 | 0 | 0 | 10 | 0 / 25 | 143.29 sn | 186.63 sn | 43.34 sn |
+| 10 | 0 | 0 | 8 | 0 / 25 | 143.22 sn | 189.00 sn | 45.78 sn |
+| 12 | 0 | 0 | 11 | 0 / 25 | 143.38 sn | 190.68 sn | 47.30 sn |
+| 14 | 0 | 0 | 15 | 0 / 25 | 143.39 sn | 191.87 sn | 48.48 sn |
+| 16 | 0 | 0 | 26 | 0 / 25 | 143.33 sn | 193.40 sn | 50.07 sn |
 
 **Determinizm** brief §18/§53/§58'in replay/audit garantisidir: aynı `simulationSeed` + aynı
 `entries` + aynı config **bit bit** aynı `RaceTimeline`'ı üretmelidir. Her saha boyutunda ilk
@@ -251,11 +251,11 @@ sonuca hiç girmemesi demek olurdu.
 
 | Saha | 1200 m | 1600 m | 2400 m | 2400/1200 oranı |
 | --- | --- | --- | --- | --- |
-| 8 | 109.02 sn | 158.05 sn | 227.34 sn | 2.085 |
-| 10 | 109.01 sn | 158.13 sn | 227.22 sn | 2.085 |
-| 12 | 108.96 sn | 158.05 sn | 227.38 sn | 2.087 |
-| 14 | 108.74 sn | 157.76 sn | 226.99 sn | 2.087 |
-| 16 | 108.67 sn | 157.77 sn | 226.94 sn | 2.088 |
+| 8 | 105.61 sn | 151.98 sn | 221.51 sn | 2.097 |
+| 10 | 105.48 sn | 152.04 sn | 221.39 sn | 2.099 |
+| 12 | 105.53 sn | 151.84 sn | 221.28 sn | 2.097 |
+| 14 | 105.22 sn | 151.74 sn | 221.00 sn | 2.100 |
+| 16 | 105.19 sn | 151.67 sn | 220.87 sn | 2.100 |
 
 ---
 

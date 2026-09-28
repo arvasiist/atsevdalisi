@@ -154,6 +154,27 @@ const BOUNDS = {
 /** Mesafe probu — “uzun yarış daha yavaş” kuralı. */
 const DISTANCE_PROBE_TRIALS = 1_000;
 
+/** Stil payları toplamı 1'e bu ondalık duyarlıkla eşit olmalı (kayan nokta). */
+const SHARE_SUM_PRECISION = 6;
+
+/**
+ * Bot ölçümü en az bu kadar AYRI lobi örneklemelidir. Tek bir sabit saha
+ * ölçmek yazı-turası ölçmektir (rapor §4'ün “Neden 20 ayrı bot sahası”
+ * paragrafı): o hatanın geri gelmesini bu eşik yakalar.
+ */
+const BOT_FIELD_SAMPLES_MIN = 10;
+/** Ve örneklenen yarış sayısı koşum bütçesinin en az bu oranı olmalı. */
+const BOT_SAMPLE_COVERAGE_MIN = 0.5;
+
+/** Mesafe probunun iki ucu (metre). */
+const DISTANCE_PROBE_SHORT_METERS = 1200;
+const DISTANCE_PROBE_LONG_METERS = 2400;
+/**
+ * Uzun/kısa süre oranı. Mesafe iki katına çıktığı için ~2.0 beklenir;
+ * bunun belirgin altı “mesafe motora hiç girmiyor” demek olurdu.
+ */
+const DISTANCE_TIME_RATIO_MIN = 1.8;
+
 describe('PHASE 5 — yarış dengesi (10.000 koşum / saha boyutu)', () => {
   describe.each(FIELD_SIZES)('saha boyutu %i', (fieldSize) => {
     it('yapısal bütünlük ve determinizm bozulmuyor', () => {
@@ -206,7 +227,7 @@ describe('PHASE 5 — yarış dengesi (10.000 koşum / saha boyutu)', () => {
 
       // Beklenen paylar toplamı 1 olmalı — dağıtım `index % 4`'ten gelir.
       const expectedTotal = Object.values(style.expectedShare).reduce((sum, value) => sum + value, 0);
-      expect(expectedTotal).toBeCloseTo(1, 6);
+      expect(expectedTotal).toBeCloseTo(1, SHARE_SUM_PRECISION);
     });
 
     it('ÜRETİM sahasında denge: yetenek işliyor, yazı-turaya dönmüyor', () => {
@@ -226,19 +247,19 @@ describe('PHASE 5 — yarış dengesi (10.000 koşum / saha boyutu)', () => {
 
       // Ölçüm gerçekten birden fazla saha örneklemiş olmalı — tek sahaya
       // düşerse (ilk koşumdaki hata) bu sayı bir yazı-turası olur.
-      expect(bot.fields).toBeGreaterThanOrEqual(10);
-      expect(bot.racesPerField * bot.fields).toBeGreaterThanOrEqual(TRIALS * 0.5);
+      expect(bot.fields).toBeGreaterThanOrEqual(BOT_FIELD_SAMPLES_MIN);
+      expect(bot.racesPerField * bot.fields).toBeGreaterThanOrEqual(TRIALS * BOT_SAMPLE_COVERAGE_MIN);
     });
   });
 
   it('uzun yarış daha yavaş koşuluyor (mesafe sonuca giriyor)', () => {
     const fieldSize = FIELD_SIZES[0]!;
-    const short = probeDistance(fieldSize, 1200, DISTANCE_PROBE_TRIALS);
-    const long = probeDistance(fieldSize, 2400, DISTANCE_PROBE_TRIALS);
+    const short = probeDistance(fieldSize, DISTANCE_PROBE_SHORT_METERS, DISTANCE_PROBE_TRIALS);
+    const long = probeDistance(fieldSize, DISTANCE_PROBE_LONG_METERS, DISTANCE_PROBE_TRIALS);
 
     expect(long.meanWinnerTimeMs).toBeGreaterThan(short.meanWinnerTimeMs);
     // Oran 2.0 civarı olmalı: mesafe iki katına çıktı, süre de ~iki katına.
     // Belirgin biçimde ALTINDA olması “mesafe motora hiç girmiyor” demek olurdu.
-    expect(long.meanWinnerTimeMs / short.meanWinnerTimeMs).toBeGreaterThan(1.8);
+    expect(long.meanWinnerTimeMs / short.meanWinnerTimeMs).toBeGreaterThan(DISTANCE_TIME_RATIO_MIN);
   });
 });

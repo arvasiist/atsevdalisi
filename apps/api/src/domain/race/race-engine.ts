@@ -35,7 +35,7 @@ import type {
 import { computeBaseAbility } from './base-ability';
 import { applyDistanceWeightAdjustments, getDistanceCategory } from './distance-category';
 import { getEnvironmentModifier } from './environment';
-import { derivePaceEffect, derivePaceScore } from './pace';
+import { derivePaceEffect, derivePaceScore, deriveTacticEffect } from './pace';
 import { assignInitialLane, calculateAvailableSpace, calculateOvertakeProbability, deriveLaneChange } from './overtaking';
 import { decideJockeyAction, type JockeyDecision } from './jockey-decisions';
 import { deriveSprintBonus } from './sprint';
@@ -100,7 +100,19 @@ export const RACE_ENGINE_VERSION = '1.0.0';
  * yarışlar `ruleset_version: '1.0.0'` ile işaretli KALIR, replay/audit bu
  * ikisini asla KARIŞTIRMAZ.
  */
-export const RACE_RULESET_VERSION = '1.1.0';
+export const RACE_RULESET_VERSION = '1.2.0';
+/**
+ * PHASE 6 (brief §42 PHASE 6) — `1.1.0` → `1.2.0` YÜKSELTİLDİ. Gerekçe tam
+ * olarak yukarıdaki kuraldır: segment döngüsünün 3-geçişli YAPISI (Geçiş
+ * A/B/C) değişmedi (`RACE_ENGINE_VERSION` bu yüzden SABIT kalır), ama
+ * `pace.ts`'e `deriveTacticEffect` eklendi ve nihai segment performans
+ * formülü artık `startApproach`/`finalStretchPlan`'ı da içeriyor — yani
+ * bir KURAL MODÜLÜNÜN iç formülü değişti.
+ *
+ * Bu satır olmadan, `1.1.0` ile üretilmiş ESKİ yarışlar yeni motorla
+ * "replay" edildiğinde AYNI seed + AYNI snapshot'tan FARKLI bir sonuç
+ * çıkardı ve bu sessizce fark edilmezdi.
+ */
 
 interface HorseRuntimeState {
   horseId: string;
@@ -144,7 +156,16 @@ function computeStandings(states: HorseRuntimeState[], raceConfig: RaceBalanceCo
     const gapToChaserMs = next ? next.cumulativeTimeMs - state.cumulativeTimeMs : Infinity;
 
     result.set(state.horseId, {
-      isBoxedIn: previous !== undefined && gapToAheadMs <= raceConfig.overtaking.closeGapMs,
+      // PHASE 6 — `gapToAheadMs > 0` ŞARTI BİR ADALET DÜZELTMESİDİR.
+      // Yarışın BAŞINDA (segment 0) her atın `cumulativeTimeMs`'i tam olarak
+      // 0'dır. `> 0` olmadan, `ordered` dizisinin İKİNCİ elemanı "önündeki
+      // atla aynı hizada" olduğu için `isBoxedIn` sayılıyor ve o segmentte
+      // bloklanma cezasını (15 puan) yiyebiliyordu — birincisi ise asla.
+      // Yani `entries` dizisindeki SIRA, kimse fark etmeden bir avantaj
+      // üretiyordu: iki BİT BİT ÖZDEŞ atla ölçüldüğünde birinci at
+      // koşumların %65.2'sini kazanıyordu (beklenen %50).
+      // Aynı hizada olmak "arkada olmak" değildir; ikisi yan yanadır.
+      isBoxedIn: previous !== undefined && gapToAheadMs > 0 && gapToAheadMs <= raceConfig.overtaking.closeGapMs,
       aheadHorseId: previous?.horseId ?? null,
       isBeingChased: next !== undefined && gapToChaserMs <= raceConfig.jockeyDecision.opponentCloseGapMs,
     });
@@ -253,12 +274,19 @@ export function simulateRace(input: RaceSimulationInput): RaceTimeline {
     for (const state of runtimeStates) {
       const entry = entryByHorseId.get(state.horseId)!;
       const pace = derivePaceEffect(state.racingStyle, positionFraction, distanceMeters, raceConfig.pace);
+      // PHASE 6 — oyuncunun seçtiği `startApproach`/`finalStretchPlan` burada
+      // motora girer (bkz. `pace.ts` → `deriveTacticEffect` doc yorumu).
+      const tacticEffect = deriveTacticEffect(entry.tactic, positionFraction, distanceMeters, raceConfig.tactic, raceConfig.pace);
       const decision = decisionByHorseId.get(state.horseId)!;
 
       const staminaBeforeSegment = state.runtimeStamina;
       const staminaDepletedAtStart = staminaBeforeSegment <= 0;
       const staminaPenaltyFactor = staminaDepletedAtStart ? raceConfig.stamina.depletionPenaltyMultiplier : 1;
-      state.runtimeStamina = clamp(staminaBeforeSegment - baseStaminaConsumptionPerSegment * pace.staminaConsumptionMultiplier, 0, 100);
+      state.runtimeStamina = clamp(
+        staminaBeforeSegment - baseStaminaConsumptionPerSegment * pace.staminaConsumptionMultiplier * tacticEffect.staminaConsumptionMultiplier,
+        0,
+        100,
+      );
 
       // ConditionModifier: fitness + health, [0.6, 1.0] aralığına ölçeklenir.
       const conditionModifier = 0.6 + 0.4 * ((entry.fitness + entry.health) / 200);
@@ -295,7 +323,7 @@ export function simulateRace(input: RaceSimulationInput): RaceTimeline {
       ]);
 
       const rawScore =
-        (state.baseAbility + pace.performanceBonus + sprintBonus) * combinedConditionModifier +
+        (state.baseAbility + pace.performanceBonus + sprintBonus + tacticEffect.performanceBonus) * combinedConditionModifier +
         randomFactor -
         blockPenalty -
         fatiguePenalty;

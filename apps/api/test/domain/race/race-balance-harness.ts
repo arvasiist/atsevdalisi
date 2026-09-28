@@ -131,6 +131,25 @@ export const LADDER_WIDE = { weakStat: 55, strongStat: 85, label: '55 → 85' } 
 /** İdeal vücut ağırlığı — merdiven ölçümünde SABİT, `carriedWeight` kirişi kirletmesin. */
 const LADDER_WEIGHT_KG = 495;
 
+/**
+ * Merdiven sahasında statların YANINDA sürüklenen ikincil özellikler.
+ *
+ * `{ base, span }` → `t` (0 = en zayıf at, 1 = en güçlü at) için değer
+ * `base + span * t`. Merdivenin TAMAMI aynı yönde hareket ettiği için
+ * (bkz. dosya başı: "merdiven YAPAYDIR") bu rampalar da aynı yöndedir —
+ * amaç ikincil özelliklerin ölçüme GÜRÜLTÜ katmaması, kendi başına bir
+ * denge iddiası kurmamasıdır. Sabitler burada ADLANDIRILMIŞTIR çünkü
+ * `no-magic-numbers` kuralı dosya gövdesindeki çıplak sayıları yasaklar.
+ */
+const LADDER_SECONDARY_RAMPS = {
+  fitness: { base: 70, span: 20 },
+  fatigue: { base: 20, span: -10 },
+  health: 90,
+  morale: { base: 60, span: 20 },
+  surfaceCompatibility: { base: 60, span: 30 },
+  distanceCompatibility: { base: 60, span: 30 },
+} as const;
+
 /** Stil sahasının nötr atı — T3'ün (`race-engine-field-balance.spec.ts`) kendi profili. */
 const STYLE_FIELD_PROFILE = {
   speed: 70,
@@ -145,6 +164,11 @@ const STYLE_FIELD_PROFILE = {
   jockeySkillComposite: 65,
   form: 50,
 } as const;
+
+/** `{ base, span }` rampasını `t ∈ [0,1]` için tam sayıya çevirir. */
+function ramp(spec: { readonly base: number; readonly span: number }, t: number): number {
+  return Math.round(spec.base + spec.span * t);
+}
 
 function baseInput(entries: RaceEntrantSnapshot[], simulationSeed: string, distanceMeters: number) {
   return {
@@ -183,12 +207,12 @@ export function buildAbilityLadderField(
       speed: stat,
       stamina: stat,
       acceleration: stat,
-      fitness: Math.round(70 + 20 * t),
-      fatigue: Math.round(20 - 10 * t),
-      health: 90,
-      morale: Math.round(60 + 20 * t),
-      surfaceCompatibility: Math.round(60 + 30 * t),
-      distanceCompatibility: Math.round(60 + 30 * t),
+      fitness: ramp(LADDER_SECONDARY_RAMPS.fitness, t),
+      fatigue: ramp(LADDER_SECONDARY_RAMPS.fatigue, t),
+      health: LADDER_SECONDARY_RAMPS.health,
+      morale: ramp(LADDER_SECONDARY_RAMPS.morale, t),
+      surfaceCompatibility: ramp(LADDER_SECONDARY_RAMPS.surfaceCompatibility, t),
+      distanceCompatibility: ramp(LADDER_SECONDARY_RAMPS.distanceCompatibility, t),
       jockeySkillComposite: NEUTRAL_UNMODELED_TRAIT_SCORE,
       weightCompatibility,
       form: NEUTRAL_UNMODELED_TRAIT_SCORE,

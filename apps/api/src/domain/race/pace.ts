@@ -2,7 +2,7 @@
 
 import { clamp } from '@at-sevdalisi/shared-types';
 import type { RaceBalanceConfig } from '@at-sevdalisi/game-config';
-import type { RacingStyle } from '@at-sevdalisi/shared-types';
+import type { RaceEntrantSnapshot, RacingStyle } from '@at-sevdalisi/shared-types';
 
 export interface PaceEffect {
   /** Bu segmentte stamina tüketimine uygulanacak çarpan. */
@@ -82,6 +82,95 @@ export function derivePaceEffect(
     staminaConsumptionMultiplier: 1,
     performanceBonus: 0,
   };
+}
+
+/**
+ * PHASE 6 — `RaceTacticInput`'in `startApproach` ve `finalStretchPlan`
+ * alanlarının motor etkisi (brief §42 PHASE 6).
+ *
+ * **NEDEN BU FONKSİYON VAR.** Bu iki alan `assertValidRaceTactic`
+ * (`entrant-snapshot.ts`) tarafından ZATEN doğrulanıyordu, ama
+ * `simulateRace` onları HİÇ OKUMUYORDU — yani oyuncu `startApproach`'i
+ * değiştirdiğinde sonuç BİT BİT AYN kalıyordu. Doğrulanan ama tüketilmeyen
+ * bir alan, oyuncuya gösterilen sessiz bir yalandır; bu fonksiyon o boşluğu
+ * kapatır.
+ *
+ * **GİZLİ BONUS YOK.** Bütün sayılar `config/race.config.json` →
+ * `tactic` bloğundadır ve seçim `RaceTacticInput` ile istemciye yansıtılır
+ * (brief: "oyuncunun göremediği hileli bonuslar kullanma").
+ *
+ * **İKİ EKSEN DE KAPALI ÖDÜNLEŞİMDİR.**
+ *   - `startApproach` — `earlyPerformanceBonus` ile `latePerformanceBonus`
+ *     ZIT İŞARETLİ ve EŞİT BÜYÜKLÜKTEDİR: "sert kalk" erken puan kazandırır,
+ *     final düzlükte TAM AYNI miktarı geri verir. Toplam değişmez, yalnızca
+ *     ZAMANLAMA değişir. `balanced` her iki pencerede de 0'dır.
+ *     ⚠️ Bu eksende stamina çarpanı YOKTUR — `baseStaminaConsumptionPerSegment`
+ *     zaten `100 / segmentCount`'tur, yani stamina tam olarak bitişte tükenir;
+ *     1.0'ın üstündeki her çarpan SON segmenti `depletionPenaltyMultiplier`a
+ *     sokar ve ödünleşim bıçak sırtına döner (ölçüldü: 1.15 çarpanı 1600m'de
+ *     `aggressive`in galibiyet payını 0.53'ten 0.05'e düşürdü).
+ *   - `finalStretchPlan` — bonusun BÜYÜKLÜĞÜ ile PENCERESİ arasında
+ *     ödünleşir: `early_sprint` geniş-düşük, `late_sprint` dar-yüksek.
+ *
+ * Hiçbiri diğerini domine etmez — `tactic-effect.spec.ts` dokuz
+ * kombinasyonu 2.000 koşumla ölçer (hiçbiri "ölü" ya da "baskın" değildir).
+ *
+ * **GERİYE DÖNÜK UYUM.** Dondurulmuş eski `horse_snapshot`'larda bu alanlar
+ * `RaceTacticInput`'in bir parçası olduğu için ZATEN vardır (şema değişmedi);
+ * eksik/bozuk bir değer gelirse nötr (1.0 / 0 puan) döner — eski yarışlar
+ * `RACE_RULESET_VERSION` ile ayrıldığı için bu yol yalnızca savunmadır.
+ */
+export interface TacticEffect {
+  /** Bu segmentte segment performansına eklenecek puan (erken kalkış + final düzlük). */
+  performanceBonus: number;
+  /** Bu segmentte stamina tüketimine uygulanacak çarpan. */
+  staminaConsumptionMultiplier: number;
+}
+
+/** Nötr taktik etkisi — tanınmayan/eksik değerler için. */
+const NEUTRAL_TACTIC_EFFECT: TacticEffect = { performanceBonus: 0, staminaConsumptionMultiplier: 1 };
+
+export function deriveTacticEffect(
+  tactic: RaceEntrantSnapshot['tactic'],
+  positionFraction: number,
+  distanceMeters: number,
+  tacticConfig: RaceBalanceConfig['tactic'],
+  paceConfig: RaceBalanceConfig['pace'],
+): TacticEffect {
+  let performanceBonus = 0;
+  let staminaConsumptionMultiplier = 1;
+
+  // --- Eksen 1: startApproach (erken pencere + final düzlük, ZIT işaretli) ---
+  const approach = tacticConfig.startApproach[tactic.startApproach];
+  if (approach) {
+    if (positionFraction <= tacticConfig.startApproachWindowFraction) {
+      performanceBonus += approach.earlyPerformanceBonus;
+    }
+    if (positionFraction >= 1 - computeFinalStretchFraction(distanceMeters, paceConfig)) {
+      performanceBonus += approach.latePerformanceBonus;
+    }
+    // Stamina çarpanı YOKTUR (bilinçli): bkz. `RaceBalanceConfig.tactic.
+    // startApproach` doc yorumu — stamina zaten tam bitişte tükenir ve
+    // 1.0 üstü her çarpan son segmenti depletion cezasına sokardı.
+  }
+
+  // --- Eksen 2: finalStretchPlan (yalnızca final düzlükte) ---
+  const plan = tacticConfig.finalStretchPlan[tactic.finalStretchPlan];
+  if (plan) {
+    const baseFraction = computeFinalStretchFraction(distanceMeters, paceConfig);
+    // Plan penceresi taban pencereyi GENİŞLETİP DARALTABİLİR ama [0, 1]
+    // dışına çıkamaz — pencere yarışın tamamı olamaz.
+    const windowFraction = clamp(baseFraction * plan.windowMultiplier, 0, 1);
+    if (positionFraction >= 1 - windowFraction) {
+      performanceBonus += tacticConfig.finalStretchPlanBaseBonus * plan.bonusMultiplier;
+      staminaConsumptionMultiplier *= plan.staminaConsumptionMultiplier;
+    }
+  }
+
+  if (performanceBonus === 0 && staminaConsumptionMultiplier === 1) {
+    return NEUTRAL_TACTIC_EFFECT;
+  }
+  return { performanceBonus, staminaConsumptionMultiplier };
 }
 
 /** Tempo göstergesinin NÖTR karşılığı (çarpan tam olarak 1.0 iken). */

@@ -2776,6 +2776,90 @@ başlıktan görür.
 
 ---
 
+#### 13.29 TAKTİK MOTORUN İÇİNDE — ve bu sırada bulunan İKİ ADALET HATASI (brief §42 PHASE 6) — 29.09.2026
+
+**Kapanan boşluk:** `startApproach` ve `finalStretchPlan` `assertValidRaceTactic`
+(`entrant-snapshot.ts`) tarafından **ZATEN doğrulanıyordu**, ama `simulateRace`
+onları **hiç okumuyordu**. Oyuncu "sert kalk" seçtiğinde sonuç bit bit aynı
+kalıyordu. Doğrulanan ama tüketilmeyen bir alan, oyuncuya gösterilen **sessiz
+bir yalandır**; bu dilim o boşluğu kapattı.
+
+| Dosya | Rol |
+| --- | --- |
+| `apps/api/src/domain/race/pace.ts` | `deriveTacticEffect` — iki eksenin motor etkisi |
+| `apps/api/src/domain/race/race-engine.ts` | taktiği segmente bağlar + **`isBoxedIn` adalet düzeltmesi** |
+| `config/race.config.json` → `tactic` | bütün sayılar (gizli bonus yok) |
+| `packages/game-config/src/types.ts` | `RaceBalanceConfig['tactic']` |
+| `apps/api/test/domain/race/tactic-effect.spec.ts` | 10 test — mekanizma + motor ölçümü |
+
+**ÖLÇÜM MİMARİSİ İKİ KATMANLIDIR.** Katman 1 (`deriveTacticEffect` doğrudan
+çağrılır) mekanizmayı iddia eder: pencereler ayrık mı, ödünleşim kapalı mı,
+tanınmayan değer nötr mü. Katman 2 (`simulateRace`) **2.000 koşumla** sonucu
+ölçer. Tek katman yeterli değildir: yalnızca katman 1 olsaydı "puan doğru
+hesaplanıyor" derdi ama puanın **kazanmaya** dönüşüp dönüşmediğini bilmezdi;
+yalnızca katman 2 olsaydı sayı yeşil/kırmızı olurdu ve **neden** olduğu
+bilinmezdi.
+
+**⚠️ BULGU 1 — `isBoxedIn` BİR ADALET HATASIYDI (üretimi de etkiliyordu).**
+`computeStandings`'te `isBoxedIn: gapToAheadMs <= closeGapMs` yazıyordu.
+Yarışın BAŞINDA (segment 0) her atın `cumulativeTimeMs`'i tam olarak **0**'dır,
+yani `ordered` dizisinin İKİNCİ elemanı "önündeki atla aynı hizada" olduğu için
+bloklanmış sayılıyor ve o segmentte **15 puanlık** bloklanma cezasını
+yiyebiliyordu — birincisi ise **asla**. Yani `entries` dizisindeki SIRA, kimse
+fark etmeden bir avantaj üretiyordu. İki BİT BİT ÖZDEŞ atla ölçüldüğünde
+birinci at koşumların **%65.2'sini** kazanıyordu (beklenen %50). Düzeltme
+`gapToAheadMs > 0` şartıdır: **aynı hizada olmak "arkada olmak" değildir.**
+Ölçüm sonrası pay **0.4995**. Bu bulgu bu dilimde ortaya çıktı ama **hiçbir
+zaman bu dilime ait değildi** — üretimdeki her yarışı etkiliyordu ve hiçbir
+yerde hata üretmiyordu.
+
+**⚠️ BULGU 2 — `normal` final planı NÖTR DEĞİLDİ.** `finalStretchPlan.normal`
+`bonusMultiplier: 1` taşıyordu ve taban bonus `3`'tü; yani taktik seçimine
+**hiç dokunmamış** her oyuncu final düzlükte sessizce **+3 puan** alıyordu.
+Taban `6`'ya çıkarıldı ve `normal` artık **açıkça referans plan** olarak
+belgelendi; test "sıfır etki" değil, **belgelenmiş referans değeri** iddia eder.
+
+**⚠️ ÖLÇÜLEN KURAL 1 — BU EKSENDE STAMINA ÇARPANI OLMAZ.**
+`baseStaminaConsumptionPerSegment` zaten `100 / segmentCount`'tur, yani stamina
+**tam olarak bitişte** tükenir. 1.0'ın üstündeki her çarpan son segmenti
+`depletionPenaltyMultiplier`a (0.85) sokar. Ölçüldü: `aggressive`e 1.15 çarpanı
+verildiğinde galibiyet payı **0.529 → 0.0535**. Bu bir ödünleşim değil,
+**bıçak sırtıdır**. `startApproach`'in stamina çarpanı bu yüzden hem config'ten
+hem tipten **kaldırıldı**; yerine iki bonus ZIT İŞARETLİ ve EŞİT BÜYÜKLÜKTE
+yapıldı (toplam değişmez, yalnızca ZAMANLAMA değişir).
+
+**⚠️ ÖLÇÜLEN KURAL 2 — PUAN SİMETRİSİ, SONUÇ SİMETRİSİ DEĞİLDİR.**
+`segmentTimeMs = 1_250_000 / performanceScore` **dışbükeydir** (Jensen): aynı
+ortalamaya sahip **dalgalı** bir puan profili, **düz** olandan DAHA YAVAŞTIR.
+Bu yüzden erken puan kazanıp final düzlükte geri veren bir plan, puanı
+"ödünç verdiği" için değil, profili **dalgalandırdığı** için kaybeder. Ölçüm:
+`balanced` (en düz) **0.4965**, `aggressive` **0.441**, `controlled` **0.345**.
+Bu, "sıra bitişte ters döner" hipotezini **çürüttü** — hipotez ölçüldü ve
+testten çıkarıldı, spec'in yorumuna bulgu olarak yazıldı.
+
+**⚠️ ÖLÇÜLEN KURAL 3 — TAKTİK BİR RİSK-DAĞILIMI SEÇİMİDİR, BEDAVA PUAN DEĞİL.**
+Dokuz kombinasyonun hiçbiri "ölü" değil ve hiçbiri uniform payın 3 katını
+aşmıyor: en düşük **%7.0**, en yüksek **%14.3** (uniform **%11.1**).
+
+**DEĞİŞEN SÜRÜMLER.** `RACE_RULESET_VERSION` `1.1.0` → **`1.2.0`** (kural
+modülü formülü değişti). `RACE_ENGINE_VERSION` **`1.0.0`'da KALIR** — üç geçişli
+segment döngüsünün YAPISI değişmedi. `race.config.json` sürümü `1.0.0` →
+`1.1.0`; `docs/RACE_BALANCE_REPORT.md` **yeniden üretildi** (`1.2.0`, parmak
+izi `3dd447a8a8dd`).
+
+**DÜRÜST EKSİKLER (ölçülmeyen iddia edilmedi):**
+1. **Jokey hâlâ nötr** — `jockeySkillComposite` her zaman `50`. **PHASE 6.2.**
+2. **Kişilik hâlâ yok** — `Horse.temperament` motora hiç girmiyor. **PHASE 6.3.**
+3. **`gatePosition` hâlâ okunmuyor** — §13.28'deki bulgu aynen durur.
+4. **Ölçüm tek mesafede** (1600 m / çim / güneşli / 22 °C).
+5. **Botlar taktik seçmez** — `generateBotEntrants` hepsini `balanced`/`normal`
+   üretir, yani ölçüm gerçek oyuncu çeşitliliğini temsil etmez.
+
+**KANIT:** `tactic-effect.spec.ts` (CI, 10 test, 2.000 koşum/ölçüm) +
+`race-balance.spec.ts` (eşikler) + `docs/RACE_BALANCE_REPORT.md` (1.2.0).
+
+---
+
 ## 14. Kendime hatırlatmalar (kısa liste)
 
 1. **Race Engine'e dokunmadan önce iki kez düşün.** Denetim onu "KEEP, dokunma"

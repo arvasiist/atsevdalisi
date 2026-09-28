@@ -89,6 +89,38 @@ export interface RaceBalanceConfig {
     staminaReserveThreshold: number;
     bonusMultiplier: number;
   };
+  /**
+   * PHASE 6 — `RaceTacticInput`'in motor tarafından OKUNAN iki alanı
+   * (`startApproach`, `finalStretchPlan`). Bu ikisi daha önce yalnızca
+   * `assertValidRaceTactic` ile DOĞRULANIYOR ama hiçbir yerde
+   * TÜKETİLMİYORDU — yani oyuncunun seçtiği değer sonucu değiştirmiyordu.
+   * Bkz. `domain/race/pace.ts` → `deriveTacticEffect`.
+   *
+   * **Her iki eksen de KAPALI bir ödünleşimdir** (trade-off): hiçbir seçenek
+   * diğerini domine etmez — biri erken puan kazandırıp stamina yakar, diğeri
+   * stamina biriktirip puan kaybettirir. Gizli/hileli bonus YOKTUR: bütün
+   * sayılar bu dosyadadır ve istemciye `RaceTacticInput` ile yansıtılır.
+   */
+  tactic: {
+    /** `startApproach` etkisinin uygulandığı başlangıç penceresi (0=start, 1=finish). */
+    startApproachWindowFraction: number;
+    /** Final düzlükte plan başına bonusun TABANI (plan çarpanıyla ölçeklenir). */
+    finalStretchPlanBaseBonus: number;
+    /**
+     * Anahtar = `StartApproach`; game-config shared-types'a bağımlı olmadığı
+     * için genel `Record`. İki bonus ZIT İŞARETLİ ve EŞİT BÜYÜKLÜKTEDİR:
+     * "sert kalk" erken puan kazanır, final düzlükte TAM AYNI miktarı geri
+     * verir (kapalı ödünleşim — toplam değişmez, yalnızca ZAMANLAMA değişir).
+     * Stamina çarpanı BİLEREK yoktur: `baseStaminaConsumptionPerSegment`
+     * zaten 100/segmentCount'tur, yani stamina tam olarak bitişte tükenir;
+     * 1.0'ın üstündeki her çarpan son segmenti `depletionPenaltyMultiplier`a
+     * sokar ve ödünleşim bıçak sırtına döner (ölçüldü — bkz.
+     * `tactic-effect.spec.ts`).
+     */
+    startApproach: Record<string, { earlyPerformanceBonus: number; latePerformanceBonus: number }>;
+    /** Anahtar = `FinalStretchPlan`; aynı gerekçeyle genel `Record`. */
+    finalStretchPlan: Record<string, { bonusMultiplier: number; windowMultiplier: number; staminaConsumptionMultiplier: number }>;
+  };
   /** FAZ 5 — brief §60 jokey AI karar ağacı (bkz. `docs/RACE_ENGINE.md` §8, `domain/race/jockey-decisions.ts`). */
   jockeyDecision: {
     staminaLowThreshold: number;
