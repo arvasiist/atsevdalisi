@@ -939,6 +939,55 @@ brief §42 PHASE 3. 13.6'nın "HENÜZ YOK" listesindeki iki madde kapandı:
   READY durumunun motor tarafından OKUNMASI (şu an yalnızca bilgi) · ödül
   dağıtımı/çarpanı (PHASE 5) · frontend tüketicisi.
 
+### 13.8 Cüzdan + sanal para yatırma (brief §20/§22, §42 PHASE 4a + 4b)
+
+4a cüzdanı OKUNABİLİR yaptı (`GET /players/:id/wallet`, iki katmanlı işlem
+taksonomisi, migration 0038 defter değişmezliği trigger'ı). 4b cüzdana
+DIŞARIDAN para SOKAN ilk yolu açtı (`POST /players/:id/wallet/deposit`).
+Belgenin tamamı `docs/WALLET_SYSTEM.md`'dedir; buradaki özet yalnızca
+"nerede ne var" sorusunu cevaplar.
+
+- **`REFUND` ailesinin 4b sonunda hâlâ üreticisi yoktu** — bilinçli, §13.9'da
+  kapandı.
+- **`mock_deposit`, `deposit` DEĞİL.** Gerçek sağlayıcı bağlandığında
+  geçmişte hangi kaydın oyuncak olduğu geriye dönük OKUNABİLİR kalır.
+- **Üç savunma katmanı:** üretimde yapısal kapalılık (`NODE_ENV`), defter
+  türü ayrımı, sunucu tarafı işlem tavanı (aşan tutar SESSİZCE KIRPILMAZ).
+- **`PaymentProvider` bir PORT** (`application/ports/payment-provider.ts`);
+  `MockPaymentProvider` tek implementasyonu. Gerçek parayı açmak üç AÇIK
+  adım ister — "config'i çevir" kadar kolay değildir (brief §41).
+- **HENÜZ YOK:** günlük toplam yatırma tavanı (PHASE 16) · para ÇEKME ·
+  gerçek sağlayıcı (Stripe/iyzico) · `gems` yatırma · iade/chargeback.
+
+### 13.9 Yarıştan ayrılma + giriş ücreti iadesi (brief §20 `REFUND`, §42 PHASE 4c)
+
+`POST /races/:id/leave` — 13.7'nin ve 13.6'nın "HENÜZ YOK" listesindeki
+"iptal = iade" maddesini kapatır. **`REFUND` ailesinin projedeki İLK ve tek
+üreticisidir** (`race_entry_refund`).
+
+- **İade tutarı DEFTERDEN okunur**, `races.entry_fee`'den DEĞİL: oyuncunun
+  o yarışa yazdığı `lobby_race_entry_fee` satırının ters işaretlisidir.
+  Ücret politikası sonradan değişse bile iade ÖDENEN tutardır.
+- **Katılım SİLİNMEZ, `cancelled` olur.** `race_entries_race_player_uq`
+  (migration 0037) `status`'tan bağımsızdır; silmek ayrıl→katıl döngüsüyle
+  READY bayrağını sıfırlamanın yolunu açardı.
+- **İptal edilen katılım doluluk SAYILMAZ** — üç sayım sorgusu da
+  `FILTER (WHERE status IS DISTINCT FROM 'cancelled')` kullanır (`<>`
+  DEĞİL: `status` NULL olabilir ve NULL ile `<>` NULL döner, satır sessizce
+  sayılmazdı). Bu, "havuz = ödenen giriş ücretlerinin toplamı" değişmezinin
+  şartıdır — PHASE 5'in ödül dağıtımı ona dayanır.
+- **`prize_pool` `CHECK (>= 0)` bir TUZAK değil TELDİR:** düşüm
+  `GREATEST(...,0)` ile kırpılmaz. Kısıt patlarsa doğru tepki hatayı
+  GÖRMEKTİR (havuz ile defter ayrışmış demektir).
+- **Kilit sırası `races → race_entries → players`** — `joinLobbyRace` ile
+  ilk kilidi, `setEntryReady` ile ilk ikisini paylaşır, deadlock yok.
+- **`Idempotency-Key` ZORUNLU:** ikinci istek use-case'e HİÇ ULAŞMAZ, yani
+  İKİNCİ KEZ İADE EDİLMEZ — `join`'in "iki kez ücret alma" korumasının
+  aynası. Aynı oyuncunun yeniden katılması `RACE_ENTRY_CANCELLED` (409)
+  alır; boşalan koltuk BAŞKALARINA açıktır.
+- **HENÜZ YOK:** yarışın `cancelled` olması hâlinde TOPLU iade (13.7'deki
+  zamanlayıcı ile birlikte gelecek) · frontend tüketicisi.
+
 ---
 
 ## 14. Kendime hatırlatmalar (kısa liste)

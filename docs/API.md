@@ -1505,9 +1505,10 @@ POST /api/v1/races                # yeni yarış tanımı açar (201)
 GET  /api/v1/races                # lobi listesi: yalnızca katılınabilir yarışlar
 POST /api/v1/races/{id}/join      # KATIL — Idempotency-Key ZORUNLU (PARA YOLU)
 POST /api/v1/races/{id}/ready     # READY/NOT_READY bildirimi (para yolu DEĞİL)
+POST /api/v1/races/{id}/leave     # AYRIL + giriş ücreti iadesi (PARA YOLU, ters yön)
 ```
 
-Dördü de **kimliği doğrulanmış oyuncu** ister (`AuthGuard` global); oyuncu
+Beşi de **kimliği doğrulanmış oyuncu** ister (`AuthGuard` global); oyuncu
 her zaman **token'dan** gelir, gövdeden ASLA — gövdede `playerId` gönderilse
 bile yok sayılır (CLAUDE.md "SUNUCU OTORİTESİ").
 
@@ -1620,6 +1621,35 @@ değil" bilgisini sızdırırdı.
 
 200 OK döner ve gövde GÜNCELLENMİŞ `RaceLobbyView`'dir (doluluk korunur —
 READY katılımı silmez).
+
+#### `POST /races/{id}/leave` — yarıştan ayrılma + giriş ücreti iadesi
+
+**Gövde YOKTUR.** Tek parametre yoldan gelen `raceId`'dir.
+
+**`Idempotency-Key` ZORUNLUDUR** — `join`'in tam aynası, ters yönden: istemci
+zaman aşımından sonra aynı isteği tekrarlarsa İKİNCİ kez İADE alınmamalıdır.
+Kapsam `@IdempotencyScope('player')` ile doğrulanmış kimliğe bağlıdır;
+`{id}` yarışın id'sidir ve anahtarın kapsamı OLMAMALIDIR.
+
+Ne olur (tek transaction): ödenen tutar **defterden** okunur
+(`lobby_race_entry_fee` satırının ters işaretlisi — `races.entry_fee`'den
+DEĞİL), bakiye iade edilir, `races.prize_pool` aynı tutar kadar azalır,
+katılım `cancelled` olur ve `race_entry_refund` defter satırı yazılır.
+Ücretsiz yarışta bakiye ve deftere HİÇ dokunulmaz.
+
+Katılım **silinmez** (silinseydi oyuncu yeniden katılıp READY bayrağını
+sıfırlayabilirdi); iptal edilen katılım lobi doluluğunda **sayılmaz** ama
+boşalan koltuk **başkalarına** açıktır. Aynı oyuncunun yeniden katılma
+denemesi `RACE_ENTRY_CANCELLED` (409) alır.
+
+Kabul koşulları `ready` ile AYNI sınırdadır: yarış `scheduled` olmalı,
+başlangıç zamanı gelmemiş olmalı (tam başlangıç anında pencere KAPALIDIR),
+katılım zaten `cancelled` olmamalı. Red nedeni önceliği: **durum > zaman >
+iptal**. Ret kodu `RACE_ENTRY_NOT_LEAVABLE` (409); katılım yoksa
+`RACE_ENTRY_NOT_FOUND` (404).
+
+200 OK döner ve gövde GÜNCELLENMİŞ `RaceLobbyView`'dir (204 DEĞİL: istemci
+havuzun küçüldüğünü görmek için ikinci istek atmak zorunda kalmamalıdır).
 
 #### `POST /races` / `POST /races/{id}/join` — örnek istek/yanıt
 
@@ -1991,3 +2021,5 @@ dosyanın doc yorumu).
 | `INVALID_ENTRY_READY_INPUT` | READY gövdesi geçersiz: `status` yok, metin değil ya da `ready`/`not_ready` dışında bir değer (`waiting`/`cancelled` dâhil) — `POST /races/:id/ready` (Ücretli yarış lobisi, 27.09.2026) |
 | `RACE_ENTRY_NOT_FOUND` | Oyuncunun bu yarışta katılımı yok — `POST /races/:id/ready`. **403 DEĞİL 404:** ortada işlem yapılacak bir KAYNAK yoktur ve 403 "burada bir katılım var ama senin değil" bilgisini sızdırırdı (Ücretli yarış lobisi, 27.09.2026) |
 | `RACE_ENTRY_NOT_READYABLE` | Hazır-olma penceresi kapalı: yarış `scheduled` değil, başlangıç zamanı gelmiş (sınırda kapalı) ya da katılım `cancelled` — `POST /races/:id/ready`. Ret nedeni önceliği: durum > zaman > iptal (Ücretli yarış lobisi, 27.09.2026) |
+| `RACE_ENTRY_NOT_LEAVABLE` | Ayrılma penceresi kapalı: yarış `scheduled` değil, başlangıç zamanı gelmiş (sınırda kapalı) ya da katılım zaten `cancelled` — `POST /races/:id/leave`. `RACE_ENTRY_NOT_READYABLE` ile AYNI sınırdadır; ayrılma geri alınamaz biçimde ücret iadesi doğurduğu için "önce uygun duruma getir" yolu YOKTUR (Ücretli yarış lobisi + iade, 28.09.2026) |
+| `RACE_ENTRY_CANCELLED` | Aynı yarışa yeniden katılma denemesi ama katılım daha önce İPTAL edilmiş — `POST /races/:id/join`. **`ALREADY_JOINED_RACE` DEĞİL:** oyuncu yarışta değildir, iptal etmiştir; ayrıl-katıl döngüsü READY bayrağını sıfırlayıp oyuncuya havuzu oynama imkânı verirdi. Boşalan koltuk BAŞKALARINA açıktır (Ücretli yarış lobisi + iade, 28.09.2026) |
