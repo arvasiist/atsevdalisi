@@ -2,6 +2,7 @@ import type {
   AuthSession,
   BuyFeedResult,
   CareActionType,
+  ClaimDailyRewardResult,
   DirectMessageView,
   EquipmentType,
   FacilityType,
@@ -47,6 +48,8 @@ import type {
   TrainingIntensity,
   TrainingSession,
   TrainingType,
+  WalletDepositResult,
+  WalletView,
   WatchableRaceView,
 } from '@at-sevdalisi/shared-types';
 
@@ -656,4 +659,56 @@ export const apiClient = {
       method: 'POST',
       body: JSON.stringify({ action }),
     }),
+
+  /**
+   * brief §20 "WALLET SYSTEM", §35 `/wallet` — cüzdan + işlem geçmişi
+   * (28.09.2026). `limit` verilmezse sunucunun varsayılanı uygulanır.
+   *
+   * `hasMore` SUNUCUDAN gelir ve istemci onu **tahmin etmez**
+   * (`WalletView` doc yorumu): "satır sayısı === limit" yanılgısı, tam
+   * bölünen sonuçlarda fazladan boş bir istek üretir.
+   *
+   * `assertSelf` ile korunur — yalnızca kişinin KENDİ cüzdanı okunabilir.
+   */
+  getWallet: (playerId: string, limit?: number) =>
+    request<WalletView>(
+      `/players/${playerId}/wallet${limit === undefined ? '' : `?limit=${encodeURIComponent(String(limit))}`}`,
+      { method: 'GET' },
+    ),
+
+  /**
+   * brief §20 DEPOSIT, §21, §41 — **SANAL para yatırma** (mock sağlayıcı).
+   *
+   * **BİR PARA YOLUDUR ve `Idempotency-Key` ZORUNLUDUR** (`upgradeStable`/
+   * `buyFeed` ile AYNI sınıf): anahtar `crypto.randomUUID()` ile **istek
+   * BAŞINA bir kez** üretilir — aynı mantıksal işlem yeniden denenirse
+   * AYNI anahtar geçirilmelidir, yoksa ikinci bir yatırım daha yazılır.
+   *
+   * **Birim SEÇİLMEZ, `money`'dir.** Uç nokta gövdesi yalnızca `amount`
+   * alır (Elmas yatırmanın bir yolu YOKTUR); istemcide bir birim
+   * seçtiricisi göstermek, sunucunun kabul etmeyeceği bir seçenek
+   * sunmak olurdu. Yanıttaki `currency` alanı bu yüzden OKUNUR, tahmin
+   * edilmez.
+   *
+   * `amount` bilerek `number` ve doğrulama SUNUCUDA (`INVALID_DEPOSIT_AMOUNT`);
+   * istemci tavanı kendi uydurmaz, `config`'teki kural sunucunundur.
+   */
+  depositFunds: (playerId: string, amount: number, idempotencyKey: string) =>
+    request<WalletDepositResult>(`/players/${playerId}/wallet/deposit`, {
+      method: 'POST',
+      headers: { 'Idempotency-Key': idempotencyKey },
+      body: JSON.stringify({ amount }),
+    }),
+
+  /**
+   * brief §37 "GÜNLÜK OYUN DÖNGÜSÜ" — günlük ödül talebi.
+   *
+   * **`Idempotency-Key` GÖNDERİLMEZ** ve bu bilinçlidir: uç noktanın
+   * kendi tekrar koruması vardır (`nextClaimAvailableAt` + 409
+   * `DailyRewardAlreadyClaimedError`), yani ikinci bir çağrı para
+   * ÜRETMEZ. `depositFunds`'tan farkı budur — orada böyle bir doğal kapı
+   * yoktur, bu yüzden anahtar şarttır.
+   */
+  claimDailyReward: (playerId: string) =>
+    request<ClaimDailyRewardResult>(`/players/${playerId}/daily-reward`, { method: 'POST' }),
 };

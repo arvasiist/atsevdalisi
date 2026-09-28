@@ -106,11 +106,15 @@ describe('TopBar gezinti şeridi', () => {
     expect(new Set(hrefs).size).toBe(hrefs.length);
   });
 
-  it('brief §35\'in bu dilimde yazılan sayfası şerittedir (yazılan sayfa ULAŞILABİLİR olmalı)', () => {
-    // Bir sayfa yazıp şeride eklememek, ekranı ÖLÜ KOD yapar — bu dilimin
-    // varlık sebebi tam olarak buydu (bkz. `TopBar` doc yorumu).
-    expect(NAV_LINKS.map(([href]) => href)).toContain('/notifications');
-    expect(STATIC_ROUTES.has('/notifications')).toBe(true);
+  it('brief §35\'in yazılan sayfaları şerittedir (yazılan sayfa ULAŞILABİLİR olmalı)', () => {
+    // Bir sayfa yazıp şeride eklememek, ekranı ÖLÜ KOD yapar — bu
+    // dilimlerin varlık sebebi tam olarak buydu (bkz. `TopBar` doc
+    // yorumu). Liste BÜYÜR: her yeni ekran buraya bir satır ekler, yoksa
+    // sayfa derlenir, testler geçer ve kullanıcı ona HİÇ ULAŞAMAZ.
+    for (const href of ['/notifications', '/wallet']) {
+      expect(NAV_LINKS.map(([linkHref]) => linkHref)).toContain(href);
+      expect(STATIC_ROUTES.has(href), `Şeritte olmayan sayfa: ${href}`).toBe(true);
+    }
   });
 
   it('şeritte HİÇBİR bağlantı boş etiket taşımaz', () => {

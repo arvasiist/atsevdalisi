@@ -46,6 +46,7 @@ import type {
 import { GlassPanel } from '../../components/ui/GlassPanel';
 import { HorseAvatar } from '../../components/ui/HorseAvatar';
 import { StatBar } from '../../components/ui/StatBar';
+import { FEED_TYPE_LABELS } from '../../features/care/feed-labels';
 import { apiClient } from '../../lib/api-client';
 import { usePlayer } from '../../lib/player-context';
 
@@ -75,13 +76,9 @@ const CARE_ACTION_DESCRIPTIONS: Record<CareActionType, string> = {
   rest: 'Yorgunluğu düşürür, enerjiyi tazeler.',
 };
 
-const FEED_TYPE_LABELS: Record<FeedType, string> = {
-  saman: 'Saman',
-  arpa: 'Arpa',
-  mama: 'Mama',
-  havuc: 'Havuç',
-  vitamin: 'Vitamin',
-};
+// `FEED_TYPE_LABELS` 28.09.2026'da `features/care/feed-labels.ts`'e taşındı
+// (ikinci tüketici: `/wallet` ekranındaki günlük ödül bildirimi). Buradan
+// import edilir — kopyası TUTULMAZ.
 
 const FEED_TYPE_DESCRIPTIONS: Record<FeedType, string> = {
   saman: 'Bedava, enerji verir. At başına günde en fazla 3 kez.',

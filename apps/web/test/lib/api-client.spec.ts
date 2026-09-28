@@ -581,6 +581,89 @@ describe('apiClient.getPlayerProfile (brief §24 — /profile/:username)', () =>
   });
 });
 
+describe('apiClient.getWallet (brief §20/§22/§35 — /wallet)', () => {
+  it('oyuncu kimliğini YOL PARAMETRESİ olarak gönderir', async () => {
+    const fetchMock = stubFetchOnce({ success: true, data: {} });
+    await apiClient.getWallet('p-1');
+    const [url] = requestArgs(fetchMock);
+    expect(url).toBe(`${API_BASE_URL}/players/p-1/wallet`);
+  });
+
+  it('`limit` VERİLMEZSE sorgu dizesi EKLENMEZ (sunucunun varsayılanı uygulanır)', async () => {
+    // Önemli: `?limit=undefined` yazmak sunucuda ayrıştırma hatası ya da
+    // sessizce NaN üretebilir. Yokluk, yokluk olarak gönderilir.
+    const fetchMock = stubFetchOnce({ success: true, data: {} });
+    await apiClient.getWallet('p-1');
+    const [url] = requestArgs(fetchMock);
+    expect(url).not.toContain('?');
+    expect(url).not.toContain('limit');
+  });
+
+  it('`limit` verilirse sorgu dizesine eklenir', async () => {
+    const fetchMock = stubFetchOnce({ success: true, data: {} });
+    await apiClient.getWallet('p-1', 20);
+    const [url] = requestArgs(fetchMock);
+    expect(url).toBe(`${API_BASE_URL}/players/p-1/wallet?limit=20`);
+  });
+
+  it('GET kullanır ve `Idempotency-Key` GÖNDERMEZ (okuma yoludur)', async () => {
+    const fetchMock = stubFetchOnce({ success: true, data: {} });
+    await apiClient.getWallet('p-1');
+    const [, config] = requestArgs(fetchMock);
+    expect(config.method ?? 'GET').toBe('GET');
+    expect(config.body).toBeUndefined();
+    expect((config.headers as Headers).has('Idempotency-Key')).toBe(false);
+  });
+});
+
+describe('apiClient.depositFunds (brief §20 DEPOSIT — PARA YOLU)', () => {
+  it('POST eder ve tutarı GÖVDEDE taşır', async () => {
+    const fetchMock = stubFetchOnce({ success: true, data: {} });
+    await apiClient.depositFunds('p-1', 5000, 'key-1');
+    const [url, config] = requestArgs(fetchMock);
+    expect(url).toBe(`${API_BASE_URL}/players/p-1/wallet/deposit`);
+    expect(config.method).toBe('POST');
+    expect(JSON.parse(config.body as string)).toEqual({ amount: 5000 });
+  });
+
+  it('`Idempotency-Key` BAŞLIĞINI aynen geçirir', async () => {
+    // Bu iddia dilimin ASIL güvencesidir: başlık düşerse sunucu
+    // `IdempotencyInterceptor`ı devreye sokamaz ve ağ hatasından sonraki
+    // yeniden deneme deftere İKİNCİ bir `mock_deposit` satırı yazardı —
+    // hiçbir yerde hata üretmeden.
+    const fetchMock = stubFetchOnce({ success: true, data: {} });
+    await apiClient.depositFunds('p-1', 5000, 'anahtar-abc');
+    const [, config] = requestArgs(fetchMock);
+    expect((config.headers as Headers).get('Idempotency-Key')).toBe('anahtar-abc');
+  });
+
+  it('gövde YALNIZCA `amount` taşır — birim istemcide SEÇİLMEZ', async () => {
+    // Uç nokta Elmas yatırmayı kabul etmez; istemci `currency` gönderirse
+    // sunucu onu yok sayar ve ekranda seçilen birim ile yatan birim
+    // ayrışırdı. Birim yanıttaki `currency` alanından OKUNUR.
+    const fetchMock = stubFetchOnce({ success: true, data: {} });
+    await apiClient.depositFunds('p-1', 100, 'key-1');
+    const [, config] = requestArgs(fetchMock);
+    expect(Object.keys(JSON.parse(config.body as string))).toEqual(['amount']);
+  });
+});
+
+describe('apiClient.claimDailyReward (brief §37)', () => {
+  it('POST eder, gövde GÖNDERMEZ ve `Idempotency-Key` EKLEMEZ', async () => {
+    // Günlük ödülün kendi tekrar koruması vardır (cooldown → 409), bu
+    // yüzden anahtar GEREKSİZDİR. Test bunu sabitler ki birinin
+    // "her POST'a anahtar koyalım" refleksiyle eklediği fazladan başlık
+    // fark edilsin.
+    const fetchMock = stubFetchOnce({ success: true, data: {} });
+    await apiClient.claimDailyReward('p-1');
+    const [url, config] = requestArgs(fetchMock);
+    expect(url).toBe(`${API_BASE_URL}/players/p-1/daily-reward`);
+    expect(config.method).toBe('POST');
+    expect(config.body).toBeUndefined();
+    expect((config.headers as Headers).has('Idempotency-Key')).toBe(false);
+  });
+});
+
 describe('API taban adresi', () => {
   it('varsayılan port, API sunucusunun dinlediği portla aynı olmalı (4000)', () => {
     // Bu iddia, yukarıda anlatılan hatanın SINIFINI hedefler. Kritik nokta

@@ -10,11 +10,16 @@
  * mantık modüllerinde de uygulanıyor.
  *
  * **YALNIZCA GERÇEK SAYFALAR LİSTELENİR.** Brief §35'in henüz yazılmamış
- * sayfaları (`/wallet`, `/messages`, `/profile/:username`, `/gifts`,
- * `/races/:id`, `/races/:id/spectate`) buraya KONULMADI — kırık bir
- * bağlantı ya da sahte bir "yakında" satırı, listenin geri kalanına
- * duyulan güveni bozardı. Sayfa yazıldıkça buraya eklenir; sayfası
- * olmayan bir bağlantı eklenirse `top-bar-nav.spec.ts` KIRILIR.
+ * sayfaları (`/messages`, `/profile/:username`, `/gifts`, `/races/:id`,
+ * `/races/:id/spectate`) buraya KONULMADI — kırık bir bağlantı ya da sahte
+ * bir "yakında" satırı, listenin geri kalanına duyulan güveni bozardı.
+ * Sayfa yazıldıkça buraya eklenir; sayfası olmayan bir bağlantı eklenirse
+ * `top-bar-nav.spec.ts` KIRILIR.
+ *
+ * `/profile/:username` buraya **hiçbir zaman** giremez ve bu bir eksiklik
+ * değildir: dinamik bir segmenttir, statik bir gezinme hedefi olamaz —
+ * kullanıcı adı ancak oyuncunun kendisinden bilinir. Keşif yolu üst
+ * bardaki profil bağlantısıdır (`TopBar.tsx`).
  */
 export const NAV_LINKS: ReadonlyArray<readonly [string, string]> = [
   ['/', 'Panel'],
@@ -24,6 +29,7 @@ export const NAV_LINKS: ReadonlyArray<readonly [string, string]> = [
   ['/replays', 'Yarış Geçmişi'],
   ['/market', 'Pazar'],
   ['/leaderboard', 'Sıralama'],
+  ['/wallet', 'Cüzdan'],
   ['/friends', 'Arkadaşlar'],
   ['/notifications', 'Bildirimler'],
 ];
