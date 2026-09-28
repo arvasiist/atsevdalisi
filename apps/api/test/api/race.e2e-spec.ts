@@ -7,6 +7,7 @@ import type { EconomyConfig, RaceTierConfig } from '@at-sevdalisi/game-config';
 import type { Race, RaceEntry } from '@at-sevdalisi/shared-types';
 import economyConfigJson from '../../../../config/economy.config.json';
 import { PG_POOL } from '../../src/infrastructure/database/database.module';
+import { AppConfigService } from '../../src/infrastructure/config/config.service';
 import { getDefaultRaceTier, getRacePrize } from '../../src/domain/race/prize';
 import { RACE_REPOSITORY, type RaceRepository } from '../../src/application/ports/race.repository';
 import { RACE_ENGINE_VERSION, RACE_RULESET_VERSION } from '../../src/domain/race/race-engine';
@@ -48,9 +49,23 @@ const defaultTier = getDefaultRaceTier(economyConfig) as RaceTierConfig;
 describe('Race — Pratik Yarış (e2e)', () => {
   let app: INestApplication;
   let pool: Pool;
+  /**
+   * Sürüm iddiaları (aşağıda) SABİT METİNLE yazılmaz, KAYNAKTAN okunur.
+   * Gerekçe (CI #224, 29.09.2026): `RACE_RULESET_VERSION` bilinçli olarak
+   * `1.1.0` → `1.2.0` yükseltildiğinde bu dosyadaki `toBe('1.1.0')`
+   * KIRILDI — yani test, "sürüm doğru yazılıyor mu" değişmezini değil,
+   * "kimse sürümü yükseltmedi mi" olgusunu ölçüyordu. Sürüm yükseltmek
+   * MEŞRU bir eylemdir (formül değiştiyse ZORUNLUDUR); onu engelleyen bir
+   * test yanlış şeyi kilitler. Doğru iddia: kaydedilen sürüm, motorun
+   * İLAN ETTİĞİ sürüme EŞİT olmalıdır. Sabitin kendisinin beklenen
+   * değerde olduğunu kilitleyen test `test/domain/race/tactic-effect.spec.ts`
+   * içindedir — yani sürüm PİNLENMEDEN kalmıyor, sadece pin YERİ doğru.
+   */
+  let appConfig: AppConfigService;
 
   beforeAll(async () => {
     app = await bootstrapTestApp();
+    appConfig = app.get(AppConfigService);
 
     // "Sakatlanmış at yarışamaz" senaryosu doğal yoldan tetiklenmesi zor
     // (antrenman sakatlık riski deterministik değil) — uygulamanın kendi
@@ -136,11 +151,11 @@ describe('Race — Pratik Yarış (e2e)', () => {
     // (bkz. migration 0021, `domain/race/race-engine.ts` RACE_ENGINE_VERSION/
     // RACE_RULESET_VERSION). 'unknown' DEĞİL — bu, migration'ın SADECE eski
     // (migration öncesi) satırlar için kabul ettiği açık-eksik işaretidir.
-    expect(raceRow.rows[0].engine_version).toBe('1.0.0');
-    expect(raceRow.rows[0].ruleset_version).toBe('1.1.0');
-    expect(raceRow.rows[0].config_version).toBe('1.0.0');
+    expect(raceRow.rows[0].engine_version).toBe(RACE_ENGINE_VERSION);
+    expect(raceRow.rows[0].ruleset_version).toBe(RACE_RULESET_VERSION);
+    expect(raceRow.rows[0].config_version).toBe(appConfig.race.version);
     // AUDIT_REPORT.md R1 (bu oturum) — bkz. migration 0024.
-    expect(raceRow.rows[0].weather_config_version).toBe('1.0.0');
+    expect(raceRow.rows[0].weather_config_version).toBe(appConfig.weather.version);
 
     const entryRow = await pool.query('SELECT * FROM race_entries WHERE race_id = $1 AND horse_id = $2', [raceId, horseId]);
     expect(entryRow.rows).toHaveLength(1);

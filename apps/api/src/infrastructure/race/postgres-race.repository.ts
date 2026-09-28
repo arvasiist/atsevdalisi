@@ -232,6 +232,8 @@ interface SettlementEntryRow {
   tactical_style: string | null;
   risk_level: string | null;
   gate_position: number | null;
+  /** PHASE 6.2 — kilit anında yazılır (`lockLobbyRace`). */
+  jockey_id: string | null;
   /**
    * PHASE 1 (migration 0042) — `startTime` anında dondurulmuş hâl.
    * `null` ise kilit hiç çalışmamıştır.
@@ -1394,7 +1396,7 @@ export class PostgresRaceRepository implements RaceRepository {
     // NULLABLE'dır (migration 0037): `status <> 'cancelled'` NULL'da
     // NULL döner ve satırı SESSİZCE elerdi.
     const entryResult = await this.pool.query<SettlementEntryRow>(
-      `SELECT id, player_id, horse_id, tactical_style, risk_level, gate_position, horse_snapshot
+      `SELECT id, player_id, horse_id, tactical_style, risk_level, gate_position, horse_snapshot, jockey_id
        FROM race_entries
        WHERE race_id = $1 AND player_id IS NOT NULL AND status IS DISTINCT FROM 'cancelled'
        ORDER BY id`,
@@ -1414,6 +1416,12 @@ export class PostgresRaceRepository implements RaceRepository {
       // `null` → kilit çalışmadı. Dolu → `lockLobbyRace`in yazdığı JSONB;
       // tip gerekçesi `SettlementEntryRow.horse_snapshot` doc yorumunda.
       horseSnapshot: row.horse_snapshot === null ? null : (row.horse_snapshot as RaceEntrantSnapshot),
+      // PHASE 6.2 — `lockLobbyRace` yazdıysa DOLUDUR ve dondurulmuş
+      // snapshot'la AYNI andaki jokeydir. `null` ise kilit çalışmamıştır
+      // VE oyuncunun jokeyi olmayabilir de; ikisini ayırt etmek gerekmez,
+      // çünkü iki durumda da yapılacak şey aynıdır: `horseSnapshot === null`
+      // ise kesinleşme jokeyi kendisi çözer.
+      jockeyId: row.jockey_id,
     }));
 
     return {
@@ -1570,9 +1578,16 @@ export class PostgresRaceRepository implements RaceRepository {
       //    koşmadı ve bu sütunlara "yarıştı" izlenimi veren bir değer
       //    koymak, `settleLobbyRace`in 7. adımıyla çelişirdi.
       for (const item of input.entrantSnapshots) {
-        await client.query('UPDATE race_entries SET horse_snapshot = $2 WHERE id = $1', [
+        // `jockey_id` PHASE 6.2'DE BURAYA EKLENDİ — snapshot'la AYNI
+        // UPDATE'te, AYNI transaction'da. Ayrı yazılsaydı donmuş
+        // `jockeySkillComposite` ile sonuç ekranındaki jokey SESSİZCE
+        // ayrışabilirdi (bkz. `LockLobbyRaceInput.entrantSnapshots` doc
+        // yorumu). `COALESCE` DEĞİL düz atama: `null` da gerçek bir
+        // bilgidir ("jokeyi yoktu") ve eski bir değeri korumak yanlış olurdu.
+        await client.query('UPDATE race_entries SET horse_snapshot = $2, jockey_id = $3 WHERE id = $1', [
           item.entryId,
           JSON.stringify(item.snapshot),
+          item.jockeyId,
         ]);
       }
 
@@ -1675,14 +1690,13 @@ export class PostgresRaceRepository implements RaceRepository {
         id: string;
         player_id: string;
         display_name: string;
-        jockey_id: string | null;
       }>(
-        // `jockey_id` §42 PHASE 2'DE EKLENDİ: sonuç satırının "jokey"
-        // bileşeni buradan okunur. Sütun BUGÜN her zaman NULL'dur (onu
-        // yazan kod yok) ama alanı hiç göndermemek, sonucu
-        // ayrıştırılamaz kılardı — ve jokey bağlandığında (PHASE 6)
-        // sorgunun da güncellenmesi gerektiği SESSİZCE unutulurdu.
-        `SELECT e.id, e.player_id, p.display_name, e.jockey_id
+        // `jockey_id` §42 PHASE 2'de bu sorguya EKLENMİŞTİ (o zaman sütun
+        // her zaman NULL'du). PHASE 6.2'de ARTIK OKUNMUYOR: sonuç satırının
+        // jokeyi `input.realEntries[].jockeyId`den gelir. DB'den okumak,
+        // adım 5 (okuma) ile adım 7 (yazım) arasında bayatlayan bir değer
+        // taşırdı.
+        `SELECT e.id, e.player_id, p.display_name
          FROM race_entries e
          JOIN players p ON p.id = e.player_id
          WHERE e.race_id = $1 AND e.player_id IS NOT NULL AND e.status IS DISTINCT FROM 'cancelled'
@@ -1702,7 +1716,6 @@ export class PostgresRaceRepository implements RaceRepository {
 
       const playerIdByEntryId = new Map(entriesResult.rows.map((row) => [row.id, row.player_id]));
       const displayNameByEntryId = new Map(entriesResult.rows.map((row) => [row.id, row.display_name]));
-      const jockeyIdByEntryId = new Map(entriesResult.rows.map((row) => [row.id, row.jockey_id]));
 
       // 6) ÖDÜL ÖDEMELERİ — kazananlar ÖNCE sözlüksel id sırasında kilitlenir.
       //    Kilit TEK bir oyuncu değil N oyuncudur; iki eşzamanlı kesinleşme
@@ -1788,7 +1801,8 @@ export class PostgresRaceRepository implements RaceRepository {
       for (const entry of input.realEntries) {
         await client.query(
           `UPDATE race_entries
-           SET horse_snapshot = $2, final_time_ms = $3, finish_position = $4, performance_score = $5, gate_position = $6
+           SET horse_snapshot = $2, final_time_ms = $3, finish_position = $4, performance_score = $5, gate_position = $6,
+               jockey_id = $7
            WHERE id = $1`,
           [
             entry.entryId,
@@ -1797,6 +1811,12 @@ export class PostgresRaceRepository implements RaceRepository {
             entry.finishPosition,
             entry.performanceScore,
             entry.gatePosition,
+            // PHASE 6.2 — kilit çalıştıysa AYNI değer yeniden yazılır
+            // (idempotent); çalışmadıysa jokey BURADA kaydedilir. Bu yazım
+            // olmasaydı, dondurma yapılmadan kesinleşen bir yarışta
+            // snapshot'ta jokey puanı varken `jockey_id` NULL kalırdı —
+            // sonuç ekranı "jokeyi yok" derdi.
+            entry.jockeyId,
           ],
         );
         await this.insertSegments(
@@ -1875,10 +1895,11 @@ export class PostgresRaceRepository implements RaceRepository {
           playerId,
           displayName: displayNameByEntryId.get(entry.entryId) ?? null,
           participantType: 'human',
-          // `race_entries.jockey_id` — bu sütunu YAZAN kod yoktur (jokey
-          // sistemi bağlı değil, PHASE 6). `null` döndürmek onu
-          // UYDURMAKTAN iyidir: sonucun jokey bileşeni bugün "yok"tur.
-          jockeyId: jockeyIdByEntryId.get(entry.entryId) ?? null,
+          // PHASE 6.2 — `race_entries.jockey_id` ARTIK YAZILIYOR (adım 7).
+          // Değer DB'den YENİDEN OKUNMAZ, `input.realEntries`ten gelir:
+          // okuma adım 5'te, yazım adım 7'de olduğu için bir `Map` önbelleği
+          // BAYAT kalırdı ve sonuç ekranı koşmayan bir jokeyi gösterebilirdi.
+          jockeyId: entry.jockeyId,
           // DONDURULMUŞ snapshot'tan okunur (`race_entries.horse_snapshot`,
           // migration 0042) — `input.realEntries[i].horseSnapshot` tam
           // olarak o değerdir. Koşu anındaki canlı statlar DEĞİL.
@@ -2012,16 +2033,18 @@ export class PostgresRaceRepository implements RaceRepository {
       // olarak geçilmediğinden DB'ye HER ZAMAN null yazılıyordu — bu,
       // CI #129'un `race-timeline.e2e-spec.ts`'te GERÇEKTEN yakaladığı
       // hataydı (`gatePositions.every(gp => gp !== null)` false döndü).
-      // `jockey_id` gerçek bir jokey sistemi olmadığından hâlâ BİLİNÇLİ
-      // olarak hardcoded `NULL` kalıyor — yalnızca `gate_position` artık
-      // gerçek bir parametre (`$5`).
+      // `jockey_id` de aynı hatanın İKİNCİ yarısıydı: PHASE 6.2'ye kadar
+      // hardcoded `NULL` yazılıyordu ve `RaceEntry.jockeyId` alanı
+      // (shared-types) ZATEN vardı — yani çağıranlar değeri geçiriyor,
+      // repository onu SESSİZCE ATIYORDU. Artık gerçek bir parametre (`$5`).
       `INSERT INTO race_entries (id, race_id, horse_id, bot_label, jockey_id, gate_position, tactical_style, risk_level, horse_snapshot, final_time_ms, finish_position, performance_score, created_at)
-       VALUES ($1, $2, $3, $4, NULL, $5, $6, $7, $8, $9, $10, $11, $12)`,
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
       [
         entry.id,
         entry.raceId,
         entry.horseId,
         entry.botLabel,
+        entry.jockeyId,
         entry.gatePosition,
         entry.tacticalStyle,
         entry.riskLevel,

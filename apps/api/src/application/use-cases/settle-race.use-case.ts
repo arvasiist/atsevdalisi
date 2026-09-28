@@ -135,9 +135,21 @@ export class SettleRaceUseCase {
       // `LockRaceUseCase` `startTime` anında yazdıysa atın o andan sonraki
       // gelişimi (antrenman, bakım, ekipman) sonucu DEĞİŞTİREMEZ — açık
       // pencere kapandı. `null` ise eski davranış: koşma anında kurulur.
-      const snapshot =
-        entrant.horseSnapshot ??
-        (await this.entrantSnapshotBuilder.build(entrant, context.surface, context.distanceMeters));
+      //
+      // PHASE 6.2 — JOKEY DE AYNI KURALA TABİDİR: dondurulmuşsa
+      // `entrant.jockeyId` AYNEN kullanılır, canlı `jockeys` tablosundan
+      // YENİDEN çözülmez. Aksi hâlde oyuncu kilit ile kesinleşme arasında
+      // jokey değiştirip sonuç ekranında koşmayan bir jokeyi gösterebilirdi.
+      let jockeyId: string | null;
+      let snapshot: RaceEntrantSnapshot;
+      if (entrant.horseSnapshot === null) {
+        const built = await this.entrantSnapshotBuilder.build(entrant, context.surface, context.distanceMeters);
+        snapshot = built.snapshot;
+        jockeyId = built.jockeyId;
+      } else {
+        snapshot = entrant.horseSnapshot;
+        jockeyId = entrant.jockeyId;
+      }
       entrantSnapshots.push(snapshot);
 
       let gatePosition = entrant.gatePosition;
@@ -155,6 +167,8 @@ export class SettleRaceUseCase {
         finishPosition: 0,
         performanceScore: 0,
         gatePosition,
+        // PHASE 6.2 — snapshot'la AYNI kaynaktan (yukarıdaki dallanma).
+        jockeyId,
       });
     }
 

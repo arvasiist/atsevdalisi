@@ -109,6 +109,19 @@ export const LEDGER_TRANSACTION_TYPES = [
    * GERÇEKTE ödediği tutar olmalıdır.
    */
   'race_entry_refund',
+  /**
+   * brief §13 JOKEY, §42 PHASE 6.2 (29.09.2026) — jokey kiralamasının tek
+   * seferlik bedeli (`jockeys.salary`). Tek gerçek fırlatıcısı
+   * `postgres-jockey.repository.ts`'in `hire`'ıdır
+   * (`POST /jockeys/:jockeyId/hire`).
+   *
+   * **`salary = 0` OLABİLİR ve o zaman deftere HİÇ satır yazılmaz** —
+   * `economy_transactions.amount <> 0` CHECK'i (migration 0019) sıfır
+   * tutarlı bir "hareketi" reddeder ve bu doğrudur: muhasebe anlamında
+   * gerçekleşmemiştir. Yani bu türü arayan bir sorgu, ücretsiz kiralamaları
+   * BULMAZ; kiralama gerçeğinin tek kaynağı `jockeys.owner_id`dir.
+   */
+  'jockey_hire',
 ] as const;
 
 export type LedgerTransactionType = (typeof LEDGER_TRANSACTION_TYPES)[number];
@@ -167,6 +180,11 @@ export const CANONICAL_BY_LEDGER_TYPE: Record<LedgerTransactionType, CanonicalTr
   // açıkça sayar), çünkü cüzdan ekranında "giriş ücreti iadesi" ile
   // "başka bir iade" ayrımını kanonik tür değil `type` alanı taşır.
   race_entry_refund: 'REFUND',
+  // PHASE 6.2 — jokey maaşı bir BAKIM/gider kalemidir (`stable_upgrade`,
+  // `facility_*`, `feed_purchase` ile AYNI aile). `ENTRY_FEE` DEĞİL: jokey
+  // kiralamak bir yarışa giriş değildir ve cüzdanda "giriş ücreti" başlığı
+  // altında görünmesi oyuncuya yanlış bir tablo çizerdi.
+  jockey_hire: 'UPKEEP',
 };
 
 /**

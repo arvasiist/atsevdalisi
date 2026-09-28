@@ -10,6 +10,7 @@ import type {
   RaceSegmentSnapshot,
 } from '@at-sevdalisi/shared-types';
 import { buildHorseEntrantSnapshot, FORM_SAMPLE_SIZE, type TrackFitInput } from '../../domain/race/entrant-snapshot';
+import { calculateJockeySkillComposite } from '../../domain/jockey/jockey';
 import { assignGatePositions } from '../../domain/race/gate-assignment';
 import { findBestMatch } from '../../domain/online/matchmaking';
 import { createRaceRoomSeed, validateRaceRoomParticipants } from '../../domain/online/race-room';
@@ -24,6 +25,7 @@ import { HORSE_STATS_REPOSITORY, type HorseStatsRepository } from '../ports/hors
 import { HORSE_SURFACE_STATS_REPOSITORY, type HorseSurfaceStatsRepository } from '../ports/horse-surface-stats.repository';
 import { HORSE_DISTANCE_STATS_REPOSITORY, type HorseDistanceStatsRepository } from '../ports/horse-distance-stats.repository';
 import { HORSE_EQUIPMENT_REPOSITORY, type HorseEquipmentRepository } from '../ports/horse-equipment.repository';
+import { JOCKEY_REPOSITORY, type JockeyRepository } from '../ports/jockey.repository';
 import { LOBBY_NOTIFIER, type LobbyNotifier } from '../ports/lobby-notifier';
 import { MATCHMAKING_TICKET_REPOSITORY, type MatchmakingTicketRepository } from '../ports/matchmaking-ticket.repository';
 import { PLAYER_REPOSITORY, type PlayerRepository } from '../ports/player.repository';
@@ -143,6 +145,12 @@ export class JoinMatchmakingQueueUseCase {
     @Inject(RACE_REPOSITORY) private readonly raceRepository: RaceRepository,
     @Inject(MATCHMAKING_TICKET_REPOSITORY) private readonly ticketRepository: MatchmakingTicketRepository,
     @Inject(HORSE_EQUIPMENT_REPOSITORY) private readonly horseEquipmentRepository: HorseEquipmentRepository,
+    // JOKEY (PHASE 6.2, 29.09.2026) — `RunPracticeRaceUseCase` ile AYNI
+    // gerekçe: jokey OYUNCUYA aittir (`findByOwnerId(playerId)`), ata değil
+    // — oyuncu sahip olduğu HERHANGİ bir atla aynı jokeyi biner. Bu yol
+    // PvP'dir ve İKİ GERÇEK OYUNCU içerir: ikisinin de jokeyi AYRI AYRI
+    // çözülür, aksi hâlde bir oyuncunun jokeyi rakibine de yazılırdı.
+    @Inject(JOCKEY_REPOSITORY) private readonly jockeyRepository: JockeyRepository,
     @Inject(AppConfigService) private readonly config: AppConfigService,
     // `lobby.update` (bu turda EKLENDİ) — bkz. `race.gateway.ts`'in
     // "`lobby.update`" doc bölümü ve `lobby-notifier.ts`'in doc yorumu.
@@ -249,6 +257,8 @@ export class JoinMatchmakingQueueUseCase {
       opponentDistanceStats,
       equippedItems,
       opponentEquippedItems,
+      myJockey,
+      opponentJockey,
     ] = await Promise.all([
       this.horseRepository.findById(horseId),
       this.horseStatsRepository.findByHorseId(horseId),
@@ -263,6 +273,12 @@ export class JoinMatchmakingQueueUseCase {
       // Ekipman (bu turda EKLENDİ) — `RunPracticeRaceUseCase`'teki AYNI ekleme.
       this.horseEquipmentRepository.findEquippedByHorseId(horseId),
       this.horseEquipmentRepository.findEquippedByHorseId(opponentHorseId),
+      // JOKEY (PHASE 6.2) — salt okunur iki sorgu, `Promise.all`'a
+      // eklenmesi güvenli. `null` dönerse jokey YOKTUR ve motora nötr 50
+      // girer; bu "gizli AI bonusu" DEĞİL, tam tersine jokeyi olmayan
+      // oyuncunun dezavantajının AÇIKÇA modellenmesidir.
+      this.jockeyRepository.findByOwnerId(playerId),
+      this.jockeyRepository.findByOwnerId(opponentPlayerId),
     ]);
 
     // Veri bütünlüğü varsayımı: çağıranın kendi atı/statı bu metoda
@@ -297,7 +313,16 @@ export class JoinMatchmakingQueueUseCase {
             distanceMeters: PRACTICE_RACE_DISTANCE_METERS,
           };
 
-    const mySnapshot = buildHorseEntrantSnapshot(horse, stats, DEFAULT_RACE_TACTIC, recentResults, myTrackFit, equippedItems);
+    // JOKEY (PHASE 6.2, 29.09.2026) — kompozit HER İKİ taraf için ayrı
+    // hesaplanır; `null` jokey → `null` kompozit → `buildHorseEntrantSnapshot`
+    // nötr 50'ye indirger (bkz. o fonksiyonun 7. parametresi).
+    const myJockeySkillComposite = myJockey === null ? null : calculateJockeySkillComposite(myJockey, this.config.jockey);
+    const opponentJockeySkillComposite =
+      opponentJockey === null ? null : calculateJockeySkillComposite(opponentJockey, this.config.jockey);
+
+    const mySnapshot = buildHorseEntrantSnapshot(
+      horse, stats, DEFAULT_RACE_TACTIC, recentResults, myTrackFit, equippedItems, myJockeySkillComposite,
+    );
     const opponentSnapshot = buildHorseEntrantSnapshot(
       opponentHorse,
       opponentStats,
@@ -305,6 +330,7 @@ export class JoinMatchmakingQueueUseCase {
       opponentRecentResults,
       opponentTrackFit,
       opponentEquippedItems,
+      opponentJockeySkillComposite,
     );
 
     // brief §41 "participant validation" — bkz. `domain/online/race-room.ts`
@@ -390,7 +416,9 @@ export class JoinMatchmakingQueueUseCase {
       // savePvpMatchWithRatings` doc yorumu), bu yüzden `botLabel` burada
       // HER ZAMAN null'dur.
       botLabel: null,
-      jockeyId: null,
+      // PHASE 6.2 — PvP'de İKİ taraf da gerçek oyuncudur, yani ikisinin de
+      // jokeyi olabilir. `null` yalnızca jokeyi OLMAYAN oyuncu içindir.
+      jockeyId: myJockey === null ? null : myJockey.id,
       gatePosition: gatePositionByLabel.get(horseId) ?? null,
       tacticalStyle: DEFAULT_RACE_TACTIC.racingStyle,
       riskLevel: DEFAULT_RACE_TACTIC.riskLevel,
@@ -405,7 +433,7 @@ export class JoinMatchmakingQueueUseCase {
       raceId,
       horseId: opponentHorseId,
       botLabel: null,
-      jockeyId: null,
+      jockeyId: opponentJockey === null ? null : opponentJockey.id,
       gatePosition: gatePositionByLabel.get(opponentHorseId) ?? null,
       tacticalStyle: DEFAULT_RACE_TACTIC.racingStyle,
       riskLevel: DEFAULT_RACE_TACTIC.riskLevel,

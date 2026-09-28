@@ -35,13 +35,15 @@ import { InvalidRaceTacticError } from './errors';
  * eklemesi (bkz. o dosyanın doc yorumu + migration 0026 backfill), (b) bu
  * satırları okuyup gerçek bir sayıya çeviren saf fonksiyonlardı
  * (`domain/race/track-fit.ts`'teki `computeSurfaceCompatibility`/
- * `computeDistanceCompatibility`). `jockeySkillComposite` HALA nötr:
- * Jockey sistemi (FAZ 2) henüz wiring edilmedi, pratik yarışta oyuncunun
- * kiralı bir jokeyi yok (`race_entries.jockey_id = NULL`, tıpkı gerçek DB
- * satırında olduğu gibi) — bu, Carried Weight'in jokey/handikap/ekipman
- * ağırlığı alt-faktörleriyle AYNI kategoride, gerçek bir jokey-atama
- * akışını (ve bir yarış-sınıfı/handikap sistemini) gerektiren, ayrı ve
- * daha büyük bir dilimi hak ediyor.
+ * `computeDistanceCompatibility`).
+ *
+ * **PHASE 6.2 — JOKEY (29.09.2026):** `jockeySkillComposite` de ARTIK bu
+ * listede DEĞİL. Oyuncunun kiraladığı jokey varsa
+ * `calculateJockeySkillComposite` sonucu motora girer; jokeyi YOKSA
+ * AÇIKÇA nötr 50 kalır (sessizce değil — bkz. `EntrantSnapshotBuilder`).
+ * Bu satırla birlikte `UNMODELED_SNAPSHOT_FIELDS` BOŞALDI. Kalan bilinçli
+ * kapsam dışı: jokey/handikap/ekipman AĞIRLIĞI alt-faktörleri (Carried
+ * Weight'in geri kalanı) — bkz. `domain/race/carried-weight.ts`.
  *
  * **R4 — Carried Weight, SADECE at vücut ağırlığı alt-faktörü (bu turda
  * EKLENDİ):** `weightCompatibility` ARTIK bu listede DEĞİL (hiç
@@ -74,11 +76,23 @@ export const NEUTRAL_UNMODELED_TRAIT_SCORE = 50;
 /**
  * `RaceEntrantSnapshot`'ın, bu oturum itibarıyla HALA gerçek veriyle
  * BAĞLANMAMIŞ (`NEUTRAL_UNMODELED_TRAIT_SCORE` ile doldurulan) alanları.
- * `surfaceCompatibility`/`distanceCompatibility` ARTIK bu listede DEĞİL
- * (R3 — Track Fit, bu turda TAMAMLANDI) — bkz. bu dosyanın üstündeki doc
- * yorumu.
+ *
+ * **LİSTE ARTIK BOŞ (PHASE 6.2, 29.09.2026).** Son üyesi
+ * `jockeySkillComposite`ti ve jokey zinciri bağlandı: oyuncunun jokeyi
+ * varsa `calculateJockeySkillComposite` sonucu, yoksa AÇIKÇA nötr 50
+ * gelir (bkz. `buildHorseEntrantSnapshot`'ın `jockeySkillComposite`
+ * parametresi). `surfaceCompatibility`/`distanceCompatibility` (R3 — Track
+ * Fit) ve `weightCompatibility` (R4 — Carried Weight) de kendi
+ * dilimlerinde bu listeden ÇIKMIŞTI.
+ *
+ * **BOŞ LİSTE BİR HEDEFTİR, SİLİNMESİ DEĞİL.** `entrant-snapshot.spec.ts`
+ * bu listenin ÜZERİNDE döner ve "listeye yazılı her alan GERÇEKTEN nötr
+ * değer döner" diye iddia eder. Sabit burada kaldığı sürece, ileride
+ * nötr bırakılan YENİ bir alan (ör. kişilik, PHASE 6.3) buraya eklenip
+ * aynı testle kilitlenir. Sabiti silmek, "hangi alan sahte" sorusunu
+ * cevaplayan TEK programatik kaynağı yok ederdi.
  */
-export const UNMODELED_SNAPSHOT_FIELDS: ReadonlyArray<keyof RaceEntrantSnapshot> = ['jockeySkillComposite'];
+export const UNMODELED_SNAPSHOT_FIELDS: ReadonlyArray<keyof RaceEntrantSnapshot> = [];
 
 /**
  * R3 — Track Fit (bu turda EKLENDİ). `buildHorseEntrantSnapshot`'a
@@ -221,6 +235,22 @@ export function buildHorseEntrantSnapshot(
   // computeEquipmentPerformanceModifier([]) NEUTRAL_EQUIPMENT_MODIFIER (1)
   // doner. Botlar bu parametreyi HIC VERMEZ (envanterleri yok).
   equippedItems: readonly HorseEquipment[] = [],
+  // JOKEY (PHASE 6.2, 29.09.2026) — AYNI "opsiyonel, verilmezse nötr"
+  // deseni (recentResults/trackFit/equippedItems ile aynı gerekçe).
+  // `null`/verilmemişse `NEUTRAL_UNMODELED_TRAIT_SCORE` (50) kalır.
+  //
+  // **BURAYA SAYI GELİR, `Jockey` NESNESİ DEĞİL.** Ağırlıklı toplam
+  // (`calculateJockeySkillComposite`) ÇAĞIRANDA, config'in yanında
+  // hesaplanır — bu fonksiyonun saf kalması ve `config/`e bağımlı
+  // OLMAMASI için (bu dosya `domain/` katmanındadır ve config okumaz;
+  // aynı sınır `weightCompatibility`de de vardır).
+  //
+  // ⚠️ **BOTLAR BU PARAMETREYİ HİÇ VERMEZ** ve bu BİLİNÇLİDİR: botların
+  // jokeyi yoktur (`race_entries.jockey_id = NULL`) ve onlara nötr 50
+  // DIŞINDA bir değer vermek, oyuncunun göremediği bir AI performans
+  // bonusu olurdu — brief §42 PHASE 6'nın açık yasağı ("AI'ye gizli
+  // performans bonusu verme").
+  jockeySkillComposite: number | null = null,
 ): RaceEntrantSnapshot {
   assertValidRaceTactic(tactic);
 
@@ -237,7 +267,7 @@ export function buildHorseEntrantSnapshot(
       trackFit === null ? NEUTRAL_UNMODELED_TRAIT_SCORE : computeSurfaceCompatibility(trackFit.surfaceStats, trackFit.surface),
     distanceCompatibility:
       trackFit === null ? NEUTRAL_UNMODELED_TRAIT_SCORE : computeDistanceCompatibility(trackFit.distanceStats, trackFit.distanceMeters),
-    jockeySkillComposite: NEUTRAL_UNMODELED_TRAIT_SCORE,
+    jockeySkillComposite: jockeySkillComposite ?? NEUTRAL_UNMODELED_TRAIT_SCORE,
     form: deriveFormFromRecentResults(recentResults),
     // R4 — Carried Weight (bu turda EKLENDİ). YENİ bir repository/DB
     // sorgusu GEREKMEZ: `horse.weightKg` `Horse` aggregate'inde ZATEN

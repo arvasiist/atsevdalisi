@@ -122,12 +122,13 @@ export class LockRaceUseCase {
       return rejection;
     }
 
-    const entrantSnapshots: { entryId: string; snapshot: RaceEntrantSnapshot }[] = [];
+    const entrantSnapshots: { entryId: string; snapshot: RaceEntrantSnapshot; jockeyId: string | null }[] = [];
     for (const entrant of context.entrants) {
-      entrantSnapshots.push({
-        entryId: entrant.entryId,
-        snapshot: await this.entrantSnapshotBuilder.build(entrant, context.surface, context.distanceMeters),
-      });
+      // PHASE 6.2 — builder jokeyi de çözer ve `jockeyId`yi AYNI sonuçta
+      // döner: snapshot'a giren `jockeySkillComposite` ile `race_entries.
+      // jockey_id`nin iki ayrı okumadan doğması imkânsız hâle gelir.
+      const built = await this.entrantSnapshotBuilder.build(entrant, context.surface, context.distanceMeters);
+      entrantSnapshots.push({ entryId: entrant.entryId, snapshot: built.snapshot, jockeyId: built.jockeyId });
     }
 
     const locked = await this.raceRepository.lockLobbyRace({

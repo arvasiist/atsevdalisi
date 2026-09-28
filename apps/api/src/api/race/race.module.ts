@@ -2,6 +2,8 @@ import { Module } from '@nestjs/common';
 import { LEADERBOARD_REPOSITORY } from '../../application/ports/leaderboard.repository';
 import { RACE_REPOSITORY } from '../../application/ports/race.repository';
 import { HORSE_EQUIPMENT_REPOSITORY } from '../../application/ports/horse-equipment.repository';
+import { JOCKEY_REPOSITORY } from '../../application/ports/jockey.repository';
+import { PostgresJockeyRepository } from '../../infrastructure/jockey/postgres-jockey.repository';
 import { CreateRaceUseCase } from '../../application/use-cases/create-race.use-case';
 import { JoinRaceUseCase } from '../../application/use-cases/join-race.use-case';
 import { LeaveRaceUseCase } from '../../application/use-cases/leave-race.use-case';
@@ -120,6 +122,12 @@ import { RecentRacesController } from './recent-races.controller';
     // Ekipman (bu turda EKLENDİ) — `RunPracticeRaceUseCase`'in yeni bağımlılığı,
     // bkz. `equipment.module.ts` doc yorumundaki "token tekrarı" gerekçesi.
     { provide: HORSE_EQUIPMENT_REPOSITORY, useClass: PostgresHorseEquipmentRepository },
+    // JOKEY (PHASE 6.2, 29.09.2026) — `EntrantSnapshotBuilder` artık
+    // oyuncunun jokeyini okur (`jockeySkillComposite`in motora girdiği
+    // yer). Token `EquipmentModule`deki desenle AYNI şekilde burada
+    // TEKRARLANIR; `JockeyModule`ü `imports`'a eklemek iki modül arasında
+    // gereksiz bir çapraz bağımlılık yaratırdı.
+    { provide: JOCKEY_REPOSITORY, useClass: PostgresJockeyRepository },
     // AUDIT_REPORT.md Bulgu S2 hardening (bu oturum) — bkz. `horse-owner.guard.ts` doc yorumu.
     HorseOwnerGuardByParam,
   ],

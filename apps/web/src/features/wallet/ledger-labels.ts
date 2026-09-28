@@ -50,6 +50,10 @@ export const LEDGER_TYPE_LABELS: Record<LedgerTransactionType, string> = {
   lobby_race_prize: 'Yarış ödülü',
   mock_deposit: 'Sanal para yüklemesi',
   race_entry_refund: 'Yarış girişi iadesi',
+  // PHASE 6.2 — yönsüz: bu satır HEM ödeme (debit) hem de (ücretsiz jokeyde
+  // deftere hiç yazılmadığı için pratikte yalnızca) ödeme anlamına gelir,
+  // ama etiket kuralı gereği yön metne gömülmez.
+  jockey_hire: 'Jokey kiralama',
 };
 
 /**

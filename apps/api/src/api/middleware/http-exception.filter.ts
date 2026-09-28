@@ -69,6 +69,7 @@ import {
   RaceNotSettleableError,
 } from '../../domain/race/errors';
 import { AlreadyInMatchmakingQueueError, NotInMatchmakingQueueError } from '../../domain/online/errors';
+import { JockeyAlreadyHiredError, JockeyAlreadyOwnedError, JockeyNotFoundError } from '../../domain/jockey/errors';
 import {
   RaceNotWatchableError,
   RaceTicketAlreadyOwnedError,
@@ -370,6 +371,22 @@ const DOMAIN_ERROR_MAP = new Map<ErrorClassConstructor, { status: number; code: 
   // DURUMU uygun değil. Dört `reason` da tek koda düşer (yukarıdaki
   // `InvalidReportStatusError` notuyla AYNI desen).
   [RaceNotCancelableError, { status: HttpStatus.CONFLICT, code: ErrorCode.RaceNotCancelable }],
+  // JOKEY (brief §13, §42 PHASE 6.2 — 29.09.2026). Üç hata da
+  // `DOMAIN_ERROR_MAP`'e girebilir çünkü kodları hatanın hiçbir alanına
+  // BAĞLI DEĞİLDİR. Durum kodları `domain/jockey/errors.ts`'te tek tek
+  // gerekçelendirilmiştir.
+  //
+  // 404 — jokey yok. Bu kod YALNIZCA kiralama ucunun `:jockeyId`si için
+  // vardır; "oyuncunun jokeyi yok" durumu 404 DEĞİL, `null` yanıttır
+  // (`GetPlayerJockeyUseCase` doc yorumu).
+  [JockeyNotFoundError, { status: HttpStatus.NOT_FOUND, code: ErrorCode.JockeyNotFound }],
+  // 409 — ikisi de gövdesi kusursuz ama DURUMA bağlı engeller ve
+  // AYRI kodlar: "jokey başkasında" ≠ "senin zaten jokeyin var". İstemcinin
+  // önereceği eylem farklıdır ("başka jokey seç" / "önce mevcut jokeyini
+  // bırak") — aynı ayrım `RaceFullError` ile `AlreadyJoinedRaceError`
+  // arasında da vardır.
+  [JockeyAlreadyOwnedError, { status: HttpStatus.CONFLICT, code: ErrorCode.JockeyAlreadyOwned }],
+  [JockeyAlreadyHiredError, { status: HttpStatus.CONFLICT, code: ErrorCode.JockeyAlreadyHired }],
   // `POST /auth/login`'e özgü — bkz. `InvalidProviderTokenError` doc yorumu.
   [InvalidProviderTokenError, { status: HttpStatus.UNAUTHORIZED, code: ErrorCode.InvalidProviderToken }],
   // claude/hizli-bitirme-plani.md'nin proje sahibi tarafından

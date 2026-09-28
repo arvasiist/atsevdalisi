@@ -249,18 +249,57 @@ describe('buildHorseEntrantSnapshot', () => {
    * BİRİNİ gerçek veriyle (ör. jokey ataması) bağlayıp listeyi
    * güncellemeyi UNUTURSA, bu test KIRILIR (artık nötr olmayan bir alan
    * hâlâ "unmodeled" listesinde görünmeye devam eder ama üretilen snapshot
-   * artık 50 DÖNMEZ) — gap sessizce unutulamaz. R3 — Track Fit (bu turda
-   * TAMAMLANDI) sayesinde liste ARTIK yalnızca `jockeySkillComposite`
-   * içeriyor (`surfaceCompatibility`/`distanceCompatibility` çıkarıldı,
-   * `form`'un daha önce çıkarılmasıyla AYNI desen).
+   * artık 50 DÖNMEZ) — gap sessizce unutulamaz.
+   *
+   * **LİSTE PHASE 6.2'DE BOŞALDI (29.09.2026).** Son üyesi
+   * `jockeySkillComposite`ti ve jokey zinciri motora bağlandı. Eski
+   * `expect(UNMODELED_SNAPSHOT_FIELDS.length).toBeGreaterThan(0)` iddiası
+   * bu yüzden KALDIRILDI — boş bir liste üzerinde dönen bir döngü hiçbir
+   * şey kanıtlamaz ve `toBeGreaterThan(0)` artık YANLIŞ olurdu.
+   *
+   * **TEST SİLİNMEDİ, ANLAMI TERSİNE ÇEVRİLDİ:** döngü duruyor (liste
+   * ileride — ör. PHASE 6.3 kişilik — yeniden dolduğunda yine kilitler) ve
+   * altına jokeyin GERÇEKTEN motora girdiğini kanıtlayan POZİTİF bir iddia
+   * eklendi. Aksi hâlde "liste boş" demek, "jokey bağlandı" demek DEĞİLDİR
+   * — ikisi arasındaki fark tam olarak bu dilimin konusudur.
    */
   it('[TRIPWIRE] UNMODELED_SNAPSHOT_FIELDS listesindeki HER alan GERÇEKTEN nötr değer döner', () => {
     const snapshot = buildHorseEntrantSnapshot(makeHorse(), makeStats(), validTactic);
 
-    expect(UNMODELED_SNAPSHOT_FIELDS.length).toBeGreaterThan(0);
     for (const field of UNMODELED_SNAPSHOT_FIELDS) {
       expect(snapshot[field]).toBe(NEUTRAL_UNMODELED_TRAIT_SCORE);
     }
+  });
+
+  /**
+   * PHASE 6.2 — jokey puanı motora GERÇEKTEN giriyor mu? (Yukarıdaki
+   * tripwire'ın pozitif karşılığı: orası "sahte alan kalmadı" der, burası
+   * "gerçek alan geldi" der.)
+   */
+  it('jockeySkillComposite parametresi snapshot\'a AYNEN geçer (PHASE 6.2)', () => {
+    const snapshot = buildHorseEntrantSnapshot(
+      makeHorse(),
+      makeStats(),
+      validTactic,
+      [],
+      null,
+      [],
+      78.4,
+    );
+    expect(snapshot.jockeySkillComposite).toBe(78.4);
+  });
+
+  it('jokey verilmezse (botlar ve jokeyi olmayan oyuncular) nötr 50 kalır — gizli AI bonusu YOK', () => {
+    expect(buildHorseEntrantSnapshot(makeHorse(), makeStats(), validTactic).jockeySkillComposite).toBe(
+      NEUTRAL_UNMODELED_TRAIT_SCORE,
+    );
+    expect(
+      buildHorseEntrantSnapshot(makeHorse(), makeStats(), validTactic, [], null, [], null).jockeySkillComposite,
+    ).toBe(NEUTRAL_UNMODELED_TRAIT_SCORE);
+  });
+
+  it('UNMODELED_SNAPSHOT_FIELDS BOŞ — jokey bağlandı, sahte alan kalmadı (PHASE 6.2)', () => {
+    expect(UNMODELED_SNAPSHOT_FIELDS).toHaveLength(0);
   });
 
   it('geçersiz bir taktikle çağrılırsa InvalidRaceTacticError fırlatır (DTO doğrulaması atlanırsa bile)', () => {

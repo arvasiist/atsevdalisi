@@ -2848,7 +2848,9 @@ segment döngüsünün YAPISI değişmedi. `race.config.json` sürümü `1.0.0` 
 izi `3dd447a8a8dd`).
 
 **DÜRÜST EKSİKLER (ölçülmeyen iddia edilmedi):**
-1. **Jokey hâlâ nötr** — `jockeySkillComposite` her zaman `50`. **PHASE 6.2.**
+1. ~~**Jokey hâlâ nötr** — `jockeySkillComposite` her zaman `50`.~~
+   **KAPANDI (§13.30, PHASE 6.2)** — aşağıdaki madde bu dilimin çıkış
+   noktasıydı ve artık geçerli değil.
 2. **Kişilik hâlâ yok** — `Horse.temperament` motora hiç girmiyor. **PHASE 6.3.**
 3. **`gatePosition` hâlâ okunmuyor** — §13.28'deki bulgu aynen durur.
 4. **Ölçüm tek mesafede** (1600 m / çim / güneşli / 22 °C).
@@ -2857,6 +2859,136 @@ izi `3dd447a8a8dd`).
 
 **KANIT:** `tactic-effect.spec.ts` (CI, 10 test, 2.000 koşum/ölçüm) +
 `race-balance.spec.ts` (eşikler) + `docs/RACE_BALANCE_REPORT.md` (1.2.0).
+
+---
+
+#### 13.30 JOKEY MOTORUN İÇİNDE — ve zincirin hiç bağlanmamış olduğu gerçeği (brief §42 PHASE 6.2) — 29.09.2026
+
+**Kapanan boşluk, §13.29'un 1. dürüst eksiğiydi.** `jockeys` tablosu,
+`domain/jockey/jockey.ts` ve `calculateJockeySkillComposite` **FAZ 2'den beri**
+vardı; `config/jockey.config.json` da öyle. Zincirin **hiçbir halkası bağlı
+değildi**:
+
+| Kırık halka | Belirti |
+| --- | --- |
+| `loadJockeyConfig()` | Tanımlıydı, **hiç çağrılmıyordu** |
+| `jockeySkillComposite` | Motora **her zaman nötr 50** olarak giriyordu |
+| Kiralama ucu | **Yoktu** — jokey hiçbir yoldan sahiplenilemiyordu |
+| `race_entries.jockey_id` | Kolon vardı, çağrı yerleri dolduruyordu, **repository sessizce `NULL` yazıyordu** |
+
+Yani jokey oyuncu için **tamamen görünmezdi**: ne etkisi, ne de sahibi.
+
+**⚠️ ÖLÇÜLEN KURAL 4 — İKİ DEĞER TEK OKUMADAN DOĞMALIDIR.**
+`EntrantSnapshotBuilder.build()` artık jokey **nesnesi** değil bir **struct**
+döner: `{ snapshot, jockeyId }`. Gerekçe: motora giren kompozit ile
+`race_entries.jockey_id`nin **iki ayrı okumadan** doğması imkânsız hâle gelir.
+Ayrım olsaydı oyuncu **kilit ile kesinleşme arasında** jokey değiştirebilir ve
+sonuç ekranı **binmediği** bir jokeyi gösterebilirdi — hiçbir yerde hata
+üretmeden.
+
+**ÜÇ YOL DA BAĞLANDI.** Yalnızca biri bağlansaydı jokey oyuncunun **en çok
+kullandığı** akışta görünmez olurdu: (1) kesinleşme (`SettleRaceUseCase`),
+(2) kilitleme (`LockRaceUseCase` — `jockey_id` **dondurulmuş snapshot ile AYNI
+transaction'da** yazılır), (3) pratik yarış + PvP eşleşme. Jokey **oyuncuya**
+aittir (`findByOwnerId(playerId)`), **ata değil** — oyuncu sahip olduğu
+herhangi bir atla aynı jokeyi biner. PvP'de **iki tarafın jokeyi ayrı ayrı**
+çözülür; aksi hâlde bir oyuncunun jokeyi rakibine de yazılırdı.
+
+**⚠️ BOTLAR HER ZAMAN `null` → nötr 50.** Brief'in *"AI'ye gizli performans
+bonusu verme"* kuralının doğrudan uygulanmasıdır: jokeyi olmayan oyuncu ile bot
+**aynı yerde** durur. Yani jokey kiralamak bir **avantajdır** ve bu avantaj
+oyuncunun **ekranında görünür** (vitrin + kompozit ucu).
+
+**YENİ PARA YOLU: `POST /jockeys/:jockeyId/hire`.** Projenin **en küçük** para
+yoludur ve yine de tam kurala uyar: `SELECT ... FOR UPDATE` (önce `jockeys`,
+sonra `players`) + **aynı transaction'da** `economy_transactions` satırı.
+Kanonik aile **`UPKEEP`** (`ENTRY_FEE` **değil** — jokey kiralamak bir yarışa
+giriş değildir; cüzdanda "giriş ücreti" başlığı altında görünmesi oyuncuya
+yanlış bir tablo çizerdi).
+
+**⚠️ `Idempotency-Key` BİLEREK YOK — ve gerekçesi §13.23'ün tersidir.**
+Çift kiralamayı anahtar değil **durum geçişi** engeller: ikinci çağrı
+`owner_id`yi dolu bulur ve 409 alır (`scheduled → finished` geçişiyle **aynı
+desen**). `Idempotency-Key` başlığı **okunup yok sayılmaz** — okunup yok
+sayılsaydı istemci anahtar gönderdiğinde "korunuyorum" sanırdı.
+
+**İKİ FARKLI 409 — kodlar AYRI.** `JOCKEY_ALREADY_OWNED` ("jokey başkasında")
+ve `JOCKEY_ALREADY_HIRED` ("senin zaten jokeyin var"). İstemcinin önereceği
+eylem farklıdır: *"başka jokey seç"* / *"önce mevcut jokeyini bırak"*.
+
+**⚠️ ÜCRETSİZ JOKEY DEFTERE YAZILMAZ** (`salary = 0` olabilir, kolonun
+varsayılanı 0). `economy_transactions.amount <> 0` CHECK'i sıfır tutarlı bir
+"hareketi" reddeder ve bu **doğrudur** — muhasebe anlamında
+gerçekleşmemiştir. Kiralama yine gerçekleşir; bu yüzden bu türü **arayan** bir
+sorgu ücretsiz kiralamaları **bulmaz** (kiralama gerçeğinin tek kaynağı
+`jockeys.owner_id`).
+
+**⚠️ `UNMODELED_SNAPSHOT_FIELDS` ARTIK BOŞ.** Son üyesi
+`jockeySkillComposite`ti ve bağlandı. Liste **silinmedi, boşaltıldı**: tripwire
+testinin döngüsü duruyor (PHASE 6.3 kişilik alanı eklendiğinde yine kilitler)
+ve yanına **pozitif** bir iddia eklendi — *"liste boş"* demek *"jokey bağlandı"*
+demek **değildir**.
+
+**Yol boyunca bulunan iki gerçek hata:**
+1. `error-codes.ts`te `JOCKEY_ALREADY_OWNED` anahtarı **iki kez** tanımlanmıştı
+   (FAZ 2 bloğu + bu dilimin eki) → `tsc` **TS1117**. Değeri kopyalamak yerine
+   tek yerde tutuldu.
+2. `LedgerTransactionType` **kapalı** bir birleşimdir; `jockey_hire` eklenmeden
+   deftere yazmak **derleme hatası** verirdi. Eklendi + kanonik eşlemesi +
+   istemci etiketi (`ledger-labels.spec.ts` ikisinin uzunluğunu karşılaştırır).
+
+**⚠️ CI #224 KIRMIZI OLDU — VE SEBEBİ BU DİLİM DEĞİLDİ, HARNESS'Tİ.**
+PHASE 6.1 `RACE_RULESET_VERSION`ı `1.1.0 → 1.2.0` yükseltti; `race.e2e-spec.ts`
+ve `matchmaking.e2e-spec.ts` **sabit metinle** `'1.1.0'` bekliyordu. Yerel
+harness **yeşil** raporlamıştı çünkü bu iki dosya, elle tutulan **on dosyalık**
+e2e listesinde **yoktu**. Düzeltme iki katmanlıdır:
+
+1. **İddia kaynaktan okunur.** `toBe('1.1.0')` → `toBe(RACE_RULESET_VERSION)`
+   (config için `appConfig.race.version`). Eski hâli bir **değişmez** değil bir
+   **olguyu** ölçüyordu: *"kimse sürümü yükseltmedi mi"*. Oysa sürüm
+   yükseltmek — formül değiştiyse — **zorunludur**; onu engelleyen test yanlış
+   şeyi kilitler. Sabitin **kendisinin** beklenen değerde olduğunu kilitleyen
+   test `tactic-effect.spec.ts`te durur, yani pin **kaybolmadı, yeri düzeldi**.
+2. **Liste kaldırıldı.** Harness'in iki elle-seçilmiş grubu (5 domain dizini +
+   10 e2e dosyası) tek bir **tam paket** koşusuna indirildi: CI'ın koştuğu
+   komutun ta kendisi (`vitest run --passWithNoTests`, yol filtresi yok).
+   Artık *"harness'te yok"* diye bir durum **kalamaz** — yeni bir test dosyası
+   için güncellenecek bir yer olmadığı için unutulması da mümkün değildir.
+   Aynı tuzak **iki kez** ısırmıştı (28.09.2026 `test/domain/race`); ikinci
+   kez ısırdığında çözüm *"listeye ekle"* değil *"listeyi kaldır"* oldu.
+
+**KANIT:** `test/api/jockey.e2e-spec.ts` (13 test, **gerçek PostgreSQL**) —
+para yolu (bakiye farkı = defter `amount` = `balance_after − balance_before`),
+yetersiz bakiye (ne sahiplik ne defter), iki ayrı 409, 404, 403, ücretsiz jokey.
+**MOTOR KANITI:** kiralama **sonrası** gerçek pratik yarış koşturulur ve
+`race_entries`ten `jockey_id` **dolu** + kompozit **config'ten hesaplanan
+değere eşit** okunur; **kontrol grubunda** `jockey_id` `NULL` + kompozit nötr
+50. Bu iddia olmadan *"uç nokta var"* demiş olurduk.
+`test/domain/jockey/jockey-config.spec.ts` (11 test) ağırlık toplamlarını ve
+**"ortalama jokey (tüm beceriler 50) TAM nötr 50 verir"** değişmezini kilitler —
+bu iddia ağırlıklar bozulursa kırılır ve *"jokey kiralamak gizli bonus mu?"*
+sorusunu CI'da yanıtlar.
+
+**RACE ENGINE'E DOKUNULMADI.** `jockeySkillComposite` zaten FAZ 1'den beri
+`base-ability.ts`in girdisiydi; bu dilim o **girdiyi doldurdu**.
+`RACE_RULESET_VERSION` ve `RACE_ENGINE_VERSION` **değişmedi**.
+
+**DÜRÜST EKSİKLER:**
+1. **İstemci tüketicisi yok** — `GET /jockeys`, `GET /players/:id/jockey`,
+   `POST /jockeys/:jockeyId/hire` üçünün de **arayüzü yazılmadı**. Brief'in
+   *"sadece endpoint'i var diye tamam sayma"* kuralı gereği bu dilim
+   **PARTIAL**'dır, IMPLEMENTED değil.
+2. **Jokey yarış sonucunda gösterilmiyor** — `race_entries.jockey_id` yazılıyor
+   ama sonuç ekranı onu okumuyor.
+3. **Jokey bırakma yolu yok** — `JOCKEY_ALREADY_HIRED` mesajı *"önce mevcut
+   jokeyini bırak"* diyor, ama **bırakma ucu yoktur**. Yani o mesaj bugün
+   **yapılamayan bir şeyi öneriyor**.
+4. **Jokey yorgunluğu/sakatlığı yok** — `jockeys.experience` ve beceriler
+   motora girer, ama jokeyin kendi durumu (dinlenme, form) modellenmez.
+5. **`compatibilityWeights` motora girmiyor** — `calculateJockeyHorseCompatibility`
+   yazıldı ve test edildi ama **hiçbir çağrı yolu yok**; motora giren tek şey
+   `calculateJockeySkillComposite`tir.
+6. **Kişilik hâlâ yok** — `Horse.temperament` motora hiç girmiyor. **PHASE 6.3.**
 
 ---
 

@@ -11,6 +11,7 @@ import { GiftModule } from './api/gift/gift.module';
 import { GrandstandModule } from './api/grandstand/grandstand.module';
 import { HealthModule } from './api/health/health.module';
 import { HorseModule } from './api/horse/horse.module';
+import { JockeyModule } from './api/jockey/jockey.module';
 import { MarketModule } from './api/market/market.module';
 import { MatchmakingModule } from './api/matchmaking/matchmaking.module';
 import { NotificationModule } from './api/notification/notification.module';
@@ -141,6 +142,12 @@ import { RedisModule } from './infrastructure/redis/redis.module';
     // önceliklendirdiği "düşük riskli, karar gerektirmeyen" dilim (bu
     // turda EKLENDİ) — bkz. `api/equipment/equipment.module.ts` doc yorumu.
     EquipmentModule,
+    // JOKEY (brief §13, §42 PHASE 6.2 — proje sahibinin "sırayla yap"
+    // talimatı, 29.09.2026). `RaceModule`'ün HEMEN ardında durması
+    // okunabilirlik içindir: `jockeySkillComposite`in motora girdiği yer
+    // orasıdır (`EntrantSnapshotBuilder`), burası ise o değeri ÜRETEN
+    // jokeyin sahiplik/okuma uçlarıdır.
+    JockeyModule,
     // AUDIT_REPORT.md Bulgu F2 (bu oturum) — bkz. `api/realtime/race.gateway.ts`
     // doc yorumu. `RaceModule`'DEN SONRA gelmesi ZORUNLU DEĞİL (WebSocket
     // guard'ı `AuthGuard`'ın AKSİNE global `APP_GUARD` DEĞİL, kendi

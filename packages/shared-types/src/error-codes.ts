@@ -455,6 +455,37 @@ export const ErrorCode = {
    * ikisi de bu projede tanımlı DEĞİLDİR ve uydurulmamalıdır.
    */
   RaceNotCancelable: 'RACE_NOT_CANCELABLE',
+  /**
+   * JOKEY (brief §13, §42 PHASE 6.2) — aşağıdaki üç kod
+   * `domain/jockey/errors.ts`'in ürettikleridir.
+   */
+  /**
+   * Jokey bulunamadı (404) — `JockeyNotFoundError`. Okuma uçları
+   * (`GET /players/:id/jockey`) bunu DÖNDÜRMEZ: jokeyi olmayan bir oyuncu
+   * bir hata değil, `jockey: null` yanıtıdır. Bu kod yalnızca kiralama
+   * ucunun `:jockeyId`si için vardır.
+   */
+  JockeyNotFound: 'JOCKEY_NOT_FOUND',
+  /**
+   * ⚠️ `JockeyAlreadyOwned` BURADA **YENİDEN TANIMLANMAZ** — değeri
+   * yukarıda (Faz 2 bloğunda, satır ~52) FAZ 2'DEN BERİ duruyor ve
+   * `JOCKEY_ALREADY_OWNED`'dir. Aynı anahtarı burada ikinci kez yazmak
+   * `tsc` hatası verir (TS1117) — yani sessiz kalamaz; ama doğrusu değeri
+   * KOPYALAMAK değil, tek bir yerde tutmaktır. `JockeyAlreadyOwnedError`
+   * PHASE 6.2'de yeniden kullanıldı, yeniden ADLANDIRILMADI.
+   *
+   * Gerekçe (kodun kendisi): istek biçimsel olarak kusursuzdur; engelleyen
+   * şey KAYNAĞIN DURUMUDUR (`RaceTicketAlreadyOwned` ile AYNI kategori).
+   * `JockeyAlreadyHired`den AYRI kod — istemcinin önereceği eylem farklı:
+   * orada "başka jokey seç", burada "önce mevcut jokeyini bırak".
+   */
+  /**
+   * Oyuncunun ZATEN bir jokeyi var (409) — `JockeyAlreadyHiredError`.
+   * Bir oyuncu en fazla bir jokey kiralayabilir; bu kural bir DB kısıtıyla
+   * DEĞİL, kiralama yolunun kendisiyle korunur (bkz. `JockeyRepository`
+   * port doc yorumu).
+   */
+  JockeyAlreadyHired: 'JOCKEY_ALREADY_HIRED',
 } as const;
 
 export type ErrorCodeValue = (typeof ErrorCode)[keyof typeof ErrorCode];

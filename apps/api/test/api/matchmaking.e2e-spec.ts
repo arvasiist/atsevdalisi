@@ -6,6 +6,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { loadOnlineConfig } from '@at-sevdalisi/game-config';
 import type { PvpMatch, Race, RaceEntry } from '@at-sevdalisi/shared-types';
 import { PG_POOL } from '../../src/infrastructure/database/database.module';
+import { AppConfigService } from '../../src/infrastructure/config/config.service';
 import { RACE_REPOSITORY, type RaceRepository } from '../../src/application/ports/race.repository';
 import { RACE_ENGINE_VERSION, RACE_RULESET_VERSION } from '../../src/domain/race/race-engine';
 import { bootstrapTestApp, registerTestPlayer, registerTestPlayerWithStarterHorse } from './test-helpers';
@@ -26,10 +27,18 @@ import { bootstrapTestApp, registerTestPlayer, registerTestPlayerWithStarterHors
 describe('Matchmaking — PvP Eşleştirme (e2e)', () => {
   let app: INestApplication;
   let pool: Pool;
+  /**
+   * Sürüm iddiaları KAYNAKTAN okunur, sabit metinle yazılmaz —
+   * `race.e2e-spec.ts`teki AYNI gerekçe (CI #224, 29.09.2026: bilinçli bir
+   * `RACE_RULESET_VERSION` yükseltmesi bu dosyayı KIRDI; test değişmezi
+   * değil olguyu ölçüyordu).
+   */
+  let appConfig: AppConfigService;
 
   beforeAll(async () => {
     app = await bootstrapTestApp();
     pool = app.get<Pool>(PG_POOL);
+    appConfig = app.get(AppConfigService);
   });
 
   afterAll(async () => {
@@ -126,11 +135,11 @@ describe('Matchmaking — PvP Eşleştirme (e2e)', () => {
     expect(raceRows.rows).toHaveLength(1);
     // AUDIT_AND_HARDENING Öncelik 4 (bu oturum) — bkz. race.e2e-spec.ts'deki
     // AYNI assertion, migration 0021.
-    expect(raceRows.rows[0].engine_version).toBe('1.0.0');
-    expect(raceRows.rows[0].ruleset_version).toBe('1.1.0');
-    expect(raceRows.rows[0].config_version).toBe('1.0.0');
+    expect(raceRows.rows[0].engine_version).toBe(RACE_ENGINE_VERSION);
+    expect(raceRows.rows[0].ruleset_version).toBe(RACE_RULESET_VERSION);
+    expect(raceRows.rows[0].config_version).toBe(appConfig.race.version);
     // AUDIT_REPORT.md R1 (bu oturum) — bkz. migration 0024.
-    expect(raceRows.rows[0].weather_config_version).toBe('1.0.0');
+    expect(raceRows.rows[0].weather_config_version).toBe(appConfig.weather.version);
     const entryRows = await pool.query('SELECT * FROM race_entries WHERE race_id = $1', [match.raceId]);
     expect(entryRows.rows).toHaveLength(2);
     const pvpMatchRows = await pool.query('SELECT * FROM pvp_matches WHERE id = $1', [match.matchId]);

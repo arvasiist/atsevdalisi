@@ -1,14 +1,33 @@
 import { Inject, Injectable } from '@nestjs/common';
 import type { RaceEntrantSnapshot, RaceSurface, RaceTacticInput } from '@at-sevdalisi/shared-types';
 import { buildHorseEntrantSnapshot, FORM_SAMPLE_SIZE, type TrackFitInput } from '../../domain/race/entrant-snapshot';
+import { calculateJockeySkillComposite } from '../../domain/jockey/jockey';
 import { DEFAULT_RACE_TACTIC } from '../../domain/race/validation';
 import { HorseNotFoundError } from '../../domain/horse/errors';
+import { AppConfigService } from '../../infrastructure/config/config.service';
 import { HORSE_REPOSITORY, type HorseRepository } from '../ports/horse.repository';
 import { HORSE_STATS_REPOSITORY, type HorseStatsRepository } from '../ports/horse-stats.repository';
 import { HORSE_SURFACE_STATS_REPOSITORY, type HorseSurfaceStatsRepository } from '../ports/horse-surface-stats.repository';
 import { HORSE_DISTANCE_STATS_REPOSITORY, type HorseDistanceStatsRepository } from '../ports/horse-distance-stats.repository';
 import { HORSE_EQUIPMENT_REPOSITORY, type HorseEquipmentRepository } from '../ports/horse-equipment.repository';
+import { JOCKEY_REPOSITORY, type JockeyRepository } from '../ports/jockey.repository';
 import { RACE_REPOSITORY, type LobbySettlementEntrant, type RaceRepository } from '../ports/race.repository';
+
+/**
+ * `EntrantSnapshotBuilder.build` sonucu (PHASE 6.2).
+ *
+ * **NEDEN İKİ ALAN.** `snapshot` motora gider; `jockeyId` ise `race_entries.
+ * jockey_id` sütununa yazılır. İkisi AYNI okumadan doğar ve ayrılmaları
+ * mümkün değildir: jokeyi ayrıca sorgulamak, "snapshot'ta 78 yazan jokey
+ * puanı ile sonuç ekranında görünen jokey farklı kişiler" durumunu
+ * üretebilirdi — ve bu hiçbir yerde hata vermezdi.
+ *
+ * `jockeyId` `null` = oyuncunun kiralı jokeyi yok (nötr 50 ile koşar).
+ */
+export interface BuiltEntrantSnapshot {
+  snapshot: RaceEntrantSnapshot;
+  jockeyId: string | null;
+}
 
 /**
  * Bir lobi katılımcısının KOŞTUĞU ANDAKİ snapshot'ını kuran PAYLAŞILAN
@@ -42,6 +61,9 @@ export class EntrantSnapshotBuilder {
     @Inject(HORSE_SURFACE_STATS_REPOSITORY) private readonly horseSurfaceStatsRepository: HorseSurfaceStatsRepository,
     @Inject(HORSE_DISTANCE_STATS_REPOSITORY) private readonly horseDistanceStatsRepository: HorseDistanceStatsRepository,
     @Inject(HORSE_EQUIPMENT_REPOSITORY) private readonly horseEquipmentRepository: HorseEquipmentRepository,
+    // PHASE 6.2 — jokey zincirinin motora bağlandığı yer.
+    @Inject(JOCKEY_REPOSITORY) private readonly jockeyRepository: JockeyRepository,
+    @Inject(AppConfigService) private readonly config: AppConfigService,
   ) {}
 
   /**
@@ -49,10 +71,13 @@ export class EntrantSnapshotBuilder {
    * `joinLobbyRace` yalnızca `tactical_style`/`risk_level` saklar;
    * `startApproach`/`finalStretchPlan` HİÇ YAZILMAZ (bkz. `RaceJoinInput`).
    * Onları uydurmak yerine varsayılanları kullanmak, "kaydedilmemiş bir
-   * kararı sonradan icat etmemek" demektir — motor bu iki alanı bugün
-   * zaten OKUMUYOR (bkz. `InvalidRaceTacticError` doc yorumu). Katılım
-   * formu bu iki alanı toplamaya başladığında buranın da güncellenmesi
-   * gerekir; bu bilinçli bir açık uçtur (PHASE 6).
+   * kararı sonradan icat etmemek" demektir. **BU CÜMLE PHASE 6.1'DE
+   * BAYATLADI ve düzeltildi:** motor artık bu iki alanı OKUYOR (bkz.
+   * `race-engine.ts` `startApproach`/`finalStretchPlan` tüketimi,
+   * PROJE_DURUMU.md §13.29) — yani varsayılana düşmek "etkisiz" değil,
+   * "nötr plan" demektir. Katılım formu bu iki alanı toplamaya
+   * başladığında buranın da güncellenmesi gerekir; bu bilinçli bir açık
+   * uçtur.
    *
    * `surface`/`distanceMeters` `string`/`number` olarak alınır çünkü
    * `LobbySettlementContext` veritabanından gelen HAM değerleri taşır
@@ -62,10 +87,10 @@ export class EntrantSnapshotBuilder {
    * varsayım değil bir sözleşmedir.
    */
   async build(
-    entrant: Pick<LobbySettlementEntrant, 'horseId' | 'tacticalStyle' | 'riskLevel'>,
+    entrant: Pick<LobbySettlementEntrant, 'horseId' | 'playerId' | 'tacticalStyle' | 'riskLevel'>,
     surface: string,
     distanceMeters: number,
-  ): Promise<RaceEntrantSnapshot> {
+  ): Promise<BuiltEntrantSnapshot> {
     const horse = await this.horseRepository.findById(entrant.horseId);
     if (horse === null) {
       throw new HorseNotFoundError(entrant.horseId);
@@ -76,10 +101,16 @@ export class EntrantSnapshotBuilder {
     }
 
     const recentResults = await this.raceRepository.findRecentResultsByHorseId(entrant.horseId, FORM_SAMPLE_SIZE);
-    const [surfaceStats, distanceStats, equippedItems] = await Promise.all([
+    const [surfaceStats, distanceStats, equippedItems, jockey] = await Promise.all([
       this.horseSurfaceStatsRepository.findByHorseId(entrant.horseId),
       this.horseDistanceStatsRepository.findByHorseId(entrant.horseId),
       this.horseEquipmentRepository.findEquippedByHorseId(entrant.horseId),
+      // JOKEY (PHASE 6.2) — oyuncunun KİRALADIĞI jokey. `null` ise nötr 50.
+      // Bu sorgu ATIN değil OYUNCUNUN jokeyini arar (`findByOwnerId`):
+      // jokey bir atın değil bir oyuncunun varlığıdır, oyuncu istediği
+      // atına biner ve yarış anında hangi ata bindiği
+      // `race_entries.jockey_id` ile kaydedilir.
+      this.jockeyRepository.findByOwnerId(entrant.playerId),
     ]);
 
     const trackFit: TrackFitInput | null =
@@ -94,6 +125,25 @@ export class EntrantSnapshotBuilder {
       finalStretchPlan: DEFAULT_RACE_TACTIC.finalStretchPlan,
     };
 
-    return buildHorseEntrantSnapshot(horse, stats, tactic, recentResults, trackFit, equippedItems);
+    // JOKEY PUANI — ağırlıklı toplam (altı beceri × config ağırlıkları).
+    // `null` jokey AÇIKÇA nötre düşer; `buildHorseEntrantSnapshot` da
+    // `null`u nötre çevirir. İki yerde birden `?? NEUTRAL` yazmak bilinçli:
+    // buradaki, `jockeyId`i de `null` bırakarak "jokeyi yok" olgusunu
+    // KAYDEDER; oradaki, parametreyi hiç vermeyen çağıranlar (botlar) için
+    // güvenli varsayılandır.
+    const jockeySkillComposite = jockey === null ? null : calculateJockeySkillComposite(jockey, this.config.jockey);
+
+    return {
+      snapshot: buildHorseEntrantSnapshot(
+        horse,
+        stats,
+        tactic,
+        recentResults,
+        trackFit,
+        equippedItems,
+        jockeySkillComposite,
+      ),
+      jockeyId: jockey === null ? null : jockey.id,
+    };
   }
 }

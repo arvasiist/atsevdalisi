@@ -675,6 +675,18 @@ export interface LobbySettlementEntrant {
    * sonucu DEĞİŞTİREMEZ. `null` ise kesinleşme anında yeniden kurulur.
    */
   horseSnapshot: RaceEntrantSnapshot | null;
+  /**
+   * `race_entries.jockey_id` (PHASE 6.2). Kilit çalıştıysa orada yazılıdır;
+   * çalışmadıysa `null`dur ve kesinleşme jokeyi KENDİSİ çözer (bkz.
+   * `EntrantSnapshotBuilder.build` — aynı okuma `snapshot`ı da üretir).
+   *
+   * **BU ALAN `horseSnapshot` İLE TUTARLI OKUNMAK ZORUNDADIR:** snapshot
+   * dondurulmuşsa (`horseSnapshot !== null`) jokey de dondurulmuştur ve
+   * canlı `jockeys` tablosundan YENİDEN çözülemez — oyuncu kilit ile
+   * kesinleşme arasında jokey değiştirebilir ve sonuç ekranı koşmayan bir
+   * jokeyi gösterirdi.
+   */
+  jockeyId: string | null;
 }
 
 /**
@@ -751,8 +763,15 @@ export interface LockLobbyRaceInput {
   /**
    * Her GERÇEK katılımcı için dondurulacak snapshot. `entryId` kümesi,
    * kilit altında okunan kadroyla BİREBİR olmalıdır (tripwire).
+   *
+   * **`jockeyId` PHASE 6.2'DE EKLENDİ ve `snapshot` ile AYNI
+   * transaction'da yazılır.** Ayrı yazılsaydı (ör. kesinleşme anında)
+   * donmuş `jockeySkillComposite` ile `race_entries.jockey_id` SESSİZCE
+   * ayrışabilirdi: oyuncu kilit ile kesinleşme arasında jokeyini
+   * değiştirse, sonuç ekranı "jokeyin X" derken koşuyu Y jokeyiyle
+   * koşmuş olurdu. `null` = oyuncunun kiralı jokeyi yok.
    */
-  entrantSnapshots: { entryId: string; snapshot: RaceEntrantSnapshot }[];
+  entrantSnapshots: { entryId: string; snapshot: RaceEntrantSnapshot; jockeyId: string | null }[];
 }
 
 /**
@@ -777,6 +796,16 @@ export interface SettleLobbyRealEntryResult {
    * gate_position` NULLABLE olduğundan bu alan `null` kalabilir.
    */
   gatePosition: number | null;
+  /**
+   * Koşan jokey (PHASE 6.2) — `race_entries.jockey_id`'ye yazılır ve sonuç
+   * yanıtının (`RaceSettlementPlace.jockeyId`) kaynağıdır. `null` = jokeyi
+   * yoktu (nötr 50 ile koştu).
+   *
+   * Kilit çalıştıysa değer `LobbySettlementEntrant.jockeyId`den AYNEN
+   * geçirilir; çalışmadıysa `EntrantSnapshotBuilder.build` sonucundan
+   * gelir. İki yol da snapshot'ın üretildiği ANDAKİ jokeydir.
+   */
+  jockeyId: string | null;
 }
 
 /** `RaceRepository.settleLobbyRace` girdi şekli (§42 PHASE 13.14). */

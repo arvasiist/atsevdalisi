@@ -5,6 +5,7 @@ import type { RaceTierConfig } from '@at-sevdalisi/game-config';
 import { generateBotEntrants } from '../../domain/race/bot-generator';
 import { buildHorseEntrantSnapshot, FORM_SAMPLE_SIZE, type TrackFitInput } from '../../domain/race/entrant-snapshot';
 import { assignGatePositions } from '../../domain/race/gate-assignment';
+import { calculateJockeySkillComposite } from '../../domain/jockey/jockey';
 import { computeRacePool, getDefaultRaceTier, getRacePrize, getRaceTierById } from '../../domain/race/prize';
 import { checkRaceReadiness } from '../../domain/race/readiness';
 import { RACE_ENGINE_VERSION, RACE_RULESET_VERSION, simulateRace } from '../../domain/race/race-engine';
@@ -17,6 +18,7 @@ import { HORSE_STATS_REPOSITORY, type HorseStatsRepository } from '../ports/hors
 import { HORSE_SURFACE_STATS_REPOSITORY, type HorseSurfaceStatsRepository } from '../ports/horse-surface-stats.repository';
 import { HORSE_DISTANCE_STATS_REPOSITORY, type HorseDistanceStatsRepository } from '../ports/horse-distance-stats.repository';
 import { HORSE_EQUIPMENT_REPOSITORY, type HorseEquipmentRepository } from '../ports/horse-equipment.repository';
+import { JOCKEY_REPOSITORY, type JockeyRepository } from '../ports/jockey.repository';
 import { RACE_REPOSITORY, type RaceRepository } from '../ports/race.repository';
 import { MARKET_LISTING_REPOSITORY, type MarketListingRepository } from '../ports/market-listing.repository';
 
@@ -57,6 +59,13 @@ export class RunPracticeRaceUseCase {
     @Inject(RACE_REPOSITORY) private readonly raceRepository: RaceRepository,
     @Inject(MARKET_LISTING_REPOSITORY) private readonly marketListingRepository: MarketListingRepository,
     @Inject(HORSE_EQUIPMENT_REPOSITORY) private readonly horseEquipmentRepository: HorseEquipmentRepository,
+    // PHASE 6.2 (29.09.2026) — jokey ARTIK PRATİK YARIŞTA DA ETKİLİ.
+    // Yalnızca ücretli lobi yarışına bağlamak, oyuncunun en sık
+    // kullandığı yolda (tek başına pratik) jokeyin HİÇBİR etkisi
+    // olmadığı anlamına gelirdi — ve oyuncu bunu "jokey işe yaramıyor"
+    // diye okurdu. Jokey sahibi OYUNCUDUR, at değil; bu yüzden
+    // `horse.ownerId` üzerinden çözülür.
+    @Inject(JOCKEY_REPOSITORY) private readonly jockeyRepository: JockeyRepository,
     @Inject(AppConfigService) private readonly config: AppConfigService,
   ) {}
 
@@ -138,10 +147,13 @@ export class RunPracticeRaceUseCase {
     // (ÇÖKMEZ) — bkz. o fonksiyonun `trackFit` parametresinin doc yorumu.
     // Ekipman (bu turda EKLENDİ) — mevcut Promise.all'a EKLENDİ (salt
     // okunur, `surfaceStats`/`distanceStats` sorgularıyla AYNI kategori).
-    const [surfaceStats, distanceStats, equippedItems] = await Promise.all([
+    // PHASE 6.2 — jokey de mevcut `Promise.all`a eklendi (salt okunur,
+    // `equippedItems` ile AYNI kategori). `null` ise nötr 50 (gizli bonus YOK).
+    const [surfaceStats, distanceStats, equippedItems, jockey] = await Promise.all([
       this.horseSurfaceStatsRepository.findByHorseId(horseId),
       this.horseDistanceStatsRepository.findByHorseId(horseId),
       this.horseEquipmentRepository.findEquippedByHorseId(horseId),
+      this.jockeyRepository.findByOwnerId(horse.ownerId),
     ]);
     const trackFit: TrackFitInput | null =
       surfaceStats === null || distanceStats === null
@@ -149,7 +161,17 @@ export class RunPracticeRaceUseCase {
         : { surfaceStats, distanceStats, surface: PRACTICE_RACE_SURFACE, distanceMeters: PRACTICE_RACE_DISTANCE_METERS };
 
     const raceId = randomUUID();
-    const playerEntrant = buildHorseEntrantSnapshot(horse, stats, input.tactic, recentResults, trackFit, equippedItems);
+    const playerEntrant = buildHorseEntrantSnapshot(
+      horse,
+      stats,
+      input.tactic,
+      recentResults,
+      trackFit,
+      equippedItems,
+      // PHASE 6.2 — oyuncunun kiralı jokeyi varsa puanı, yoksa `null`
+      // (motor nötre çevirir). Botlarınki BİLEREK nötr kalır.
+      jockey === null ? null : calculateJockeySkillComposite(jockey, this.config.jockey),
+    );
     // ALAN DOLDURMA (proje sahibinin açık talebi, 27.09.2026): bot sayısı
     // artık sabit değil, kademenin `fieldSize`'ından türer — oyuncunun
     // kendi atı alanın BİR üyesi olduğundan `fieldSize − 1` rakip üretilir
@@ -241,7 +263,10 @@ export class RunPracticeRaceUseCase {
       raceId,
       horseId,
       botLabel: null,
-      jockeyId: null,
+      // PHASE 6.2 — koşan jokey kaydedilir (snapshot'taki puanla AYNI
+      // okumadan). Bot satırları (`botRaceEntries`) `null` kalır: onların
+      // jokeyi yoktur ve sonuç ekranı bunu doğru göstermelidir.
+      jockeyId: jockey === null ? null : jockey.id,
       gatePosition: gatePositionByLabel.get(horseId) ?? null,
       tacticalStyle: input.tactic.racingStyle,
       riskLevel: input.tactic.riskLevel,

@@ -9,6 +9,7 @@ import {
   loadGiftConfig,
   loadGrandstandConfig,
   loadHorseGrowthConfig,
+  loadJockeyConfig,
   loadOnlineConfig,
   loadProgressionConfig,
   loadRaceConfig,
@@ -112,4 +113,17 @@ export class AppConfigService {
   // yetkiyi kaynak kodla birlikte dağıtılan ve çalışma zamanında
   // değiştirilemeyen bir dosyaya bağlardı.
   readonly admin = loadAdminConfig();
+  // JOKEY (brief §13, §42 PHASE 6.2 — proje sahibinin "sırayla yap" talimatı,
+  // 29.09.2026) — `loadJockeyConfig()` projenin İLK GÜNÜNDEN beri
+  // `@at-sevdalisi/game-config`'te hazırdı ama HİÇBİR YERDE çağrılmıyordu:
+  // `domain/jockey/jockey.ts`teki `calculateJockeySkillComposite` yalnızca
+  // birim testinden besleniyordu ve `jockeySkillComposite` motora HER ZAMAN
+  // nötr `50` olarak giriyordu. Bu satır o zincirin ilk halkasıdır.
+  //
+  // **`skillCompositeWeights` TOPLAMI 1.0 OLMAK ZORUNDADIR** — ağırlıklar
+  // 0-100 aralığındaki altı beceriyi TEK bir 0-100 puana indirger; toplam
+  // 1'den saparsa puan sessizce ölçek değiştirir (ör. 1.2 → tüm jokeyler
+  // 20 puan daha güçlü görünür ve bu hiçbir yerde hata üretmez). Bunu
+  // sabitleyen test: `apps/api/test/domain/jockey/jockey-config.spec.ts`.
+  readonly jockey = loadJockeyConfig();
 }
