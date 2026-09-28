@@ -4,7 +4,36 @@ import type { Player } from './player';
 /** brief §14.1 Yarış parametreleri */
 export type RaceSurface = 'grass' | 'dirt' | 'synthetic';
 export type RaceWeather = 'sunny' | 'rainy' | 'windy' | 'cloudy' | 'hot' | 'cold';
-export type RaceStatus = 'scheduled' | 'in_progress' | 'finished' | 'cancelled';
+/**
+ * Yarışın yaşam döngüsü durumu — `races.status` CHECK'i (migration 0006 +
+ * 0042) ile BİREBİR aynı olmak zorundadır.
+ *
+ * **`locking` NEDEN VAR (migration 0042, PHASE 1):** `startTime` geldiğinde
+ * kayıt penceresi kapanır ve yarış "kilitli" hâle geçer — kadro donar,
+ * simülasyon seed'i üretilir, atların KOŞTUĞU andaki snapshot'ı
+ * `race_entries.horse_snapshot`'a yazılır. Bu durum olmadan snapshot ancak
+ * kesinleşme (settle) anında alınabiliyordu; o an `startTime`'dan saniyeler
+ * ya da dakikalar SONRA olabildiği için bir oyuncu arada atını
+ * eğitebiliyordu (PROJE_DURUMU.md §13.14'te dürüstçe yazılı adaletsizlik).
+ *
+ * **`in_progress` NEDEN HÂLÂ VAR:** hiçbir kod yolu bu değeri YAZMAZ
+ * (motor senkron koşar; "koşuyor" diye gözlemlenebilir bir ara durum
+ * yoktur) ama migration 0006'dan beri CHECK'te durur ve geçmiş bir satırda
+ * bulunabilir. CHECK'ten çıkarmak, var olan bir satırı geçersiz kılma
+ * riskini taşırdı; bu yüzden korunur ve `race-lifecycle.ts`'te "miras"
+ * olarak işaretlenir.
+ *
+ * **BRIEF'İN SAYDIĞI 11 DURUM NEDEN 5'E İNDİ:** brief `DRAFT/OPEN/LOCKING/
+ * STARTING/RUNNING/FINISHING/SETTLING/FINISHED/CANCELLED/REFUNDING/
+ * REFUNDED` sayar. `STARTING`/`RUNNING`/`FINISHING`/`SETTLING` motorun TEK
+ * senkron çağrısı içinde geçer, `REFUNDING`/`REFUNDED` ise iade
+ * transaction'ının içindedir. Bir transaction'ın İÇİNDE kalan bir durum
+ * hiçbir zaman gözlemlenemez (ne HTTP yanıtında, ne DB'de, ne WebSocket'te)
+ * — onu ayrı bir `status` değeri yapmak, hiçbir zaman okunamayacak bir alanı
+ * şemaya eklemek olurdu. Gerçekten gözlemlenebilir olan geçişler
+ * `race-lifecycle.ts`'teki tablodadır.
+ */
+export type RaceStatus = 'scheduled' | 'locking' | 'in_progress' | 'finished' | 'cancelled';
 
 /** brief §14.2 Oyuncu kararları */
 export type RacingStyle = 'front_runner' | 'tracker' | 'mid_pack' | 'closer';

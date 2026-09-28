@@ -6,26 +6,17 @@ import type {
   RaceSegmentSnapshot,
   RaceSettlementResult,
   RaceSurface,
-  RaceTacticInput,
   RaceWeather,
 } from '@at-sevdalisi/shared-types';
 import { generateBotEntrants } from '../../domain/race/bot-generator';
-import { buildHorseEntrantSnapshot, FORM_SAMPLE_SIZE, type TrackFitInput } from '../../domain/race/entrant-snapshot';
 import { checkRaceSettleable, nextGatePosition } from '../../domain/race/lobby';
 import { computePrizePayouts, resolvePrizeDistribution } from '../../domain/race/prize-distribution';
 import { RACE_ENGINE_VERSION, RACE_RULESET_VERSION, simulateRace } from '../../domain/race/race-engine';
-import { DEFAULT_RACE_TACTIC } from '../../domain/race/validation';
 import { RaceNotFoundError, RaceNotSettleableError } from '../../domain/race/errors';
-import { HorseNotFoundError } from '../../domain/horse/errors';
 import { AppConfigService } from '../../infrastructure/config/config.service';
-import { HORSE_REPOSITORY, type HorseRepository } from '../ports/horse.repository';
-import { HORSE_STATS_REPOSITORY, type HorseStatsRepository } from '../ports/horse-stats.repository';
-import { HORSE_SURFACE_STATS_REPOSITORY, type HorseSurfaceStatsRepository } from '../ports/horse-surface-stats.repository';
-import { HORSE_DISTANCE_STATS_REPOSITORY, type HorseDistanceStatsRepository } from '../ports/horse-distance-stats.repository';
-import { HORSE_EQUIPMENT_REPOSITORY, type HorseEquipmentRepository } from '../ports/horse-equipment.repository';
+import { EntrantSnapshotBuilder } from '../services/entrant-snapshot.builder';
 import {
   RACE_REPOSITORY,
-  type LobbySettlementEntrant,
   type RaceRepository,
   type SettleLobbyRealEntryResult,
 } from '../ports/race.repository';
@@ -63,25 +54,34 @@ import {
  * ödenen ücretleri kalıcı olarak yakmak olurdu. Kalan koltuklar botlarla
  * dolar (`aiFillEnabled`).
  *
- * **BİLİNEN AÇIK PENCERE (dürüstçe):** snapshot, katılım anında değil
- * KOŞMA anında alınır (`joinLobbyRace`'in bilinçli kararı). Crank deseni
- * yüzünden bu an `startTime`'dan saniyeler ya da dakikalar sonra olabilir;
- * yani bir oyuncu `startTime` ile kesinleşme arasında atını
- * eğitebilir/iyileştirebilir ve snapshot bu YENİ hâli yakalar. Bu,
- * sunucu otoritesini ÇİĞNEMEZ (sonucu yine sunucu belirler) ama adaletsiz
- * bir zamanlama avantajıdır. Kapatmanın yolu, `startTime` anında
- * snapshot'ı donduran bir zamanlayıcıdır — yani bu projede HENÜZ OLMAYAN
- * scheduler. Uydurma bir çözüm yerine boşluk burada yazılı bırakıldı.
+ * **AÇIK PENCERE KAPANDI (PHASE 1, migration 0042).** Burada eskiden şu
+ * yazıyordu: "snapshot, katılım anında değil KOŞMA anında alınır; crank
+ * deseni yüzünden bu an `startTime`'dan saniyeler/dakikalar sonra olabilir,
+ * yani oyuncu `startTime` ile kesinleşme arasında atını eğitip sonucu
+ * etkileyebilir. Kapatmanın yolu `startTime` anında snapshot'ı donduran bir
+ * zamanlayıcıdır — projede YOK."
+ *
+ * **Artık VAR.** `RaceLockScheduler` (`infrastructure/scheduler/`) her
+ * `tickSeconds` saniyede bir `LockRaceUseCase`i çağırır; o da
+ * `startTime`ı gelmiş yarışları `locking`e geçirip snapshot'ı VE seed'i
+ * `races.simulation_seed` / `race_entries.horse_snapshot` içine DONDURUR.
+ * Bu use-case artık o dondurulmuş değerleri TÜKETİR (`context.
+ * simulationSeed`, `entrant.horseSnapshot`).
+ *
+ * **`null` DONDURMA HÂLÂ MÜMKÜNDÜR ve bu bir gerileme değildir:**
+ * `lockScheduler.enabled = false` iken, ya da yarış `startTime`ından ÖNCE
+ * elle kesinleştirildiğinde (ki bu meşrudur — `checkRaceSettleable`
+ * yalnızca "başlamış mı" der, "kilitlenmiş mi" demez) dondurma hiç
+ * yapılmamıştır. O hâlde bu use-case eski davranışına düşer ve snapshot'ı
+ * kendisi kurar. Yani pencere "her zaman açık" değil, "zamanlayıcı
+ * çalışmıyorsa açık"tır — ve `lockScheduler.enabled`ın `false` yapılması
+ * bilinçli bir tercihtir, bir arıza değildir.
  */
 @Injectable()
 export class SettleRaceUseCase {
   constructor(
     @Inject(RACE_REPOSITORY) private readonly raceRepository: RaceRepository,
-    @Inject(HORSE_REPOSITORY) private readonly horseRepository: HorseRepository,
-    @Inject(HORSE_STATS_REPOSITORY) private readonly horseStatsRepository: HorseStatsRepository,
-    @Inject(HORSE_SURFACE_STATS_REPOSITORY) private readonly horseSurfaceStatsRepository: HorseSurfaceStatsRepository,
-    @Inject(HORSE_DISTANCE_STATS_REPOSITORY) private readonly horseDistanceStatsRepository: HorseDistanceStatsRepository,
-    @Inject(HORSE_EQUIPMENT_REPOSITORY) private readonly horseEquipmentRepository: HorseEquipmentRepository,
+    @Inject(EntrantSnapshotBuilder) private readonly entrantSnapshotBuilder: EntrantSnapshotBuilder,
     @Inject(AppConfigService) private readonly config: AppConfigService,
   ) {}
 
@@ -105,12 +105,19 @@ export class SettleRaceUseCase {
       throw new RaceNotSettleableError(rejection);
     }
 
-    // SEED, YARIŞ KOŞARKEN ÜRETİLİR — `races.simulation_seed` bu ana kadar
-    // NULL'dır ve `GET /races/:id/timeline` onu istemciye vermez (bkz.
-    // `CreateLobbyRaceInput.simulationSeed` doc yorumu). `raceId`'yi seed
-    // yapmak YASAK olurdu: `raceId` herkese açıktır, dolayısıyla sonuç
-    // önceden hesaplanabilirdi.
-    const simulationSeed = randomUUID();
+    // SEED — ÖNCE DONDURULMUŞ OLANA BAKILIR (PHASE 1, migration 0042).
+    // `LockRaceUseCase` seed'i `startTime` anında üretip `races.
+    // simulation_seed`e yazdıysa AYNEN o kullanılır: yeni bir seed üretmek,
+    // dondurulmuş snapshot'larla eşleşmeyen bir koşu demekti — iki farklı
+    // "aynı yarış" ve iki farklı sonuç.
+    //
+    // `null` ise (zamanlayıcı hiç çalışmadı — ör. `lockScheduler.enabled =
+    // false`, ya da yarış `startTime`dan önce elle kesinleştirildi) seed
+    // BURADA üretilir; bu, PHASE 1 öncesi davranışın AYNISIDIR ve yalnızca
+    // "dondurma yapılmadıysa" geçerlidir. `raceId`'yi seed yapmak YASAK
+    // olurdu: `raceId` herkese açıktır, dolayısıyla sonuç önceden
+    // hesaplanabilirdi.
+    const simulationSeed = context.simulationSeed ?? randomUUID();
 
     // KULVARLAR — gerçek katılımcılarınki katılım anında çekilmişti
     // (`nextGatePosition`); botlar ve (eski satırlarda) eksik kalanlar
@@ -122,7 +129,13 @@ export class SettleRaceUseCase {
     const entrantSnapshots: RaceEntrantSnapshot[] = [];
     const realEntryResults: SettleLobbyRealEntryResult[] = [];
     for (const entrant of context.entrants) {
-      const snapshot = await this.buildEntrantSnapshot(entrant, context.surface, context.distanceMeters);
+      // DONDURULMUŞ SNAPSHOT VARSA O KULLANILIR (PHASE 1, migration 0042).
+      // `LockRaceUseCase` `startTime` anında yazdıysa atın o andan sonraki
+      // gelişimi (antrenman, bakım, ekipman) sonucu DEĞİŞTİREMEZ — açık
+      // pencere kapandı. `null` ise eski davranış: koşma anında kurulur.
+      const snapshot =
+        entrant.horseSnapshot ??
+        (await this.entrantSnapshotBuilder.build(entrant, context.surface, context.distanceMeters));
       entrantSnapshots.push(snapshot);
 
       let gatePosition = entrant.gatePosition;
@@ -247,53 +260,4 @@ export class SettleRaceUseCase {
     });
   }
 
-  /**
-   * Bir katılımcının KOŞTUĞU ANDAKİ snapshot'ı — `RunPracticeRaceUseCase`
-   * ile AYNI kurulum (form son sonuçlardan türetilir, track-fit iki
-   * istatistik satırından).
-   *
-   * **TAKTİK: `DEFAULT_RACE_TACTIC` TABANI + KATILIM SATIRININ İKİ ALANI.**
-   * `joinLobbyRace` yalnızca `tactical_style`/`risk_level` saklar;
-   * `startApproach`/`finalStretchPlan` HİÇ YAZILMAZ (bkz. `RaceJoinInput`).
-   * Onları uydurmak yerine varsayılanları kullanmak, "kaydedilmemiş bir
-   * kararı sonradan icat etmemek" demektir — motor bu iki alanı bugün
-   * zaten OKUMUYOR (bkz. `InvalidRaceTacticError` doc yorumu). Katılım
-   * formu bu iki alanı toplamaya başladığında buranın da güncellenmesi
-   * gerekir; bu bilinçli bir açık uçtur.
-   */
-  private async buildEntrantSnapshot(
-    entrant: LobbySettlementEntrant,
-    surface: string,
-    distanceMeters: number,
-  ): Promise<RaceEntrantSnapshot> {
-    const horse = await this.horseRepository.findById(entrant.horseId);
-    if (horse === null) {
-      throw new HorseNotFoundError(entrant.horseId);
-    }
-    const stats = await this.horseStatsRepository.findByHorseId(entrant.horseId);
-    if (stats === null) {
-      throw new HorseNotFoundError(entrant.horseId);
-    }
-
-    const recentResults = await this.raceRepository.findRecentResultsByHorseId(entrant.horseId, FORM_SAMPLE_SIZE);
-    const [surfaceStats, distanceStats, equippedItems] = await Promise.all([
-      this.horseSurfaceStatsRepository.findByHorseId(entrant.horseId),
-      this.horseDistanceStatsRepository.findByHorseId(entrant.horseId),
-      this.horseEquipmentRepository.findEquippedByHorseId(entrant.horseId),
-    ]);
-
-    const trackFit: TrackFitInput | null =
-      surfaceStats === null || distanceStats === null
-        ? null
-        : { surfaceStats, distanceStats, surface: surface as RaceSurface, distanceMeters };
-
-    const tactic: RaceTacticInput = {
-      racingStyle: entrant.tacticalStyle,
-      riskLevel: entrant.riskLevel,
-      startApproach: DEFAULT_RACE_TACTIC.startApproach,
-      finalStretchPlan: DEFAULT_RACE_TACTIC.finalStretchPlan,
-    };
-
-    return buildHorseEntrantSnapshot(horse, stats, tactic, recentResults, trackFit, equippedItems);
-  }
 }

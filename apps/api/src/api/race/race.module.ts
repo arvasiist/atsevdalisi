@@ -8,6 +8,13 @@ import { LeaveRaceUseCase } from '../../application/use-cases/leave-race.use-cas
 import { ListLobbyRacesUseCase } from '../../application/use-cases/list-lobby-races.use-case';
 import { SetEntryReadyUseCase } from '../../application/use-cases/set-entry-ready.use-case';
 import { SettleRaceUseCase } from '../../application/use-cases/settle-race.use-case';
+import { LockRaceUseCase } from '../../application/use-cases/lock-race.use-case';
+// §42 PHASE 1 (migration 0042) — snapshot kurulumu ARTIK PAYLAŞILAN bir
+// servistir: hem kesinleşme (`SettleRaceUseCase`) hem kilitleme
+// (`LockRaceUseCase`) onu kullanır. Gerekçe: `entrant-snapshot.builder.ts`
+// dosya başı doc yorumu.
+import { EntrantSnapshotBuilder } from '../../application/services/entrant-snapshot.builder';
+import { RaceLockScheduler } from '../../infrastructure/scheduler/race-lock.scheduler';
 import { GetHorseMarketValueUseCase } from '../../application/use-cases/get-horse-market-value.use-case';
 import { GetLeaderboardUseCase } from '../../application/use-cases/get-leaderboard.use-case';
 import { GetRaceTimelineUseCase } from '../../application/use-cases/get-race-timeline.use-case';
@@ -83,6 +90,19 @@ import { RecentRacesController } from './recent-races.controller';
     // `RACE_REPOSITORY`); hepsi bu modülde ya da `@Global()` modüllerde
     // (`DatabaseModule`/`AppConfigModule`) kayıtlıdır.
     SettleRaceUseCase,
+    // §42 PHASE 1 (migration 0042) — paylaşılan snapshot kurucu. Bağımlılık
+    // profili `SettleRaceUseCase` ile AYNIdır ve hepsi bu modülde ya da
+    // `@Global()` modüllerde kayıtlıdır; ek modül importu GEREKMEZ.
+    EntrantSnapshotBuilder,
+    // §42 PHASE 1 (migration 0042) — `startTime`ı gelmiş yarışları
+    // `locking`e geçiren ve O ANI donduran use-case. Kendisi bir
+    // zamanlayıcı DEĞİLDİR (bkz. kendi doc yorumu); aşağıdaki
+    // `RaceLockScheduler` onu çağırır.
+    LockRaceUseCase,
+    // §42 PHASE 1 — PROJEDEKİ İLK ZAMANLAYICI. `NODE_ENV=test` iken kendi
+    // kendine KOŞMAZ; testler `tickNow()`u elle çağırır (gerekçe: sınıf
+    // doc yorumu, karar 3).
+    RaceLockScheduler,
     GetRecentRaceResultsUseCase,
     // AUDIT_REPORT.md Bulgu R2 (Medium, bu oturum) — bkz. `get-race-timeline.use-case.ts` doc yorumu.
     GetRaceTimelineUseCase,

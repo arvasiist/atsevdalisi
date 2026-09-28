@@ -1432,4 +1432,38 @@ export interface RaceLobbyConfig {
    * kırpmak hem isteği karşılar hem sunucuyu korur.
    */
   lobbyListMaxLimit: number;
+  /**
+   * KİLİT ZAMANLAYICISI (brief §42 PHASE 1, migration 0042, 28.09.2026) —
+   * `startTime` geldiğinde yarışı `scheduled`dan `locking`e geçiren,
+   * kadroyu/seed'i/snapshot'ı donduran arka plan işi.
+   *
+   * **BURADAKİ DEĞERLER "SİHİRLİ SAYI" OLMASIN DİYE VAR** (CLAUDE.md kural
+   * 6): tik aralığı ve tek turda işlenecek yarış sayısı kodun içine
+   * gömülmez.
+   *
+   * **`enabled: false` BİR KAÇIŞ KAPISIDIR, varsayılan DEĞİL.** Kapatılırsa
+   * yarışlar eskisi gibi yalnızca `POST /races/:id/settle` "crank"i ile
+   * koşar — ve snapshot yine `startTime`dan sonra alınır (adaletsiz
+   * pencere geri gelir). Yani bu anahtar bir güvenlik supabıdır, bir
+   * tercih değil.
+   */
+  lockScheduler: {
+    enabled: boolean;
+    /**
+     * Kaç saniyede bir taranacak. `startTime` hassasiyeti saniye
+     * mertebesindedir (kullanıcı yarışı saatler önce açar), bu yüzden
+     * saniyeler ölçeğinde bir tik fazlasıyla yeterlidir; daha küçük bir
+     * değer yalnızca boş sorgu trafiği üretirdi.
+     */
+    tickSeconds: number;
+    /**
+     * Tek bir turda kilitlenecek AZAMI yarış sayısı. Sınırsız bırakmak,
+     * aynı anda olgunlaşan yüzlerce yarışın tek bir turda işlenip
+     * gecikmeyi (ve bellek kullanımını) kontrolsüz büyütmesine yol açardı;
+     * kalanlar bir SONRAKİ turda alınır. Kilit zaten idempotenttir
+     * (`scheduled → locking` geçişi atomiktir), yani gecikmenin bedeli
+     * yalnızca birkaç saniyedir.
+     */
+    batchSize: number;
+  };
 }

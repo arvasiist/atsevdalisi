@@ -5,11 +5,13 @@
  * Framework'süz saf TS — NestJS/ORM importu YOK (CLAUDE.md "KATMAN YÖNÜ
  * TEK YÖNLÜ"). Veritabanı erişimi `application/ports/` üzerinden yapılır.
  *
- * **ÜRETİCİLER (28.09.2026, PHASE 13):** `race_invite` (PHASE 11) +
- * `friend_request`, `friend_accepted`, `message_received`, `gift_received`
- * (PHASE 13). `race_starting`, `race_finished`, `prize_won` HÂLÂ ÜRETİLMEZ
- * — bunu "yapıldı" saymamak için PROJE_DURUMU.md §13.13'te açıkça
- * yazılıdır.
+ * **ÜRETİCİLER — SEKİZİNİN SEKİZİ DE VAR (28.09.2026).** `race_invite`
+ * (PHASE 11) + `friend_request`, `friend_accepted`, `message_received`,
+ * `gift_received` (PHASE 13) + `race_finished`, `prize_won` (§13.14,
+ * ödül dağıtımıyla aynı transaction) + **`race_starting`** (PHASE 1,
+ * `race-lock.scheduler.ts`). Sonuncusu uzun süre eksikti çünkü gereken şey
+ * bir uç nokta değil bir ZAMANLAYICIYDI: "yarış başladı" bildirimini bir
+ * oyuncunun kendi eliyle tetiklemesi anlamsız olurdu.
  *
  * Sekiz türün tamamı burada tanımlıdır çünkü `notifications.type` CHECK'i
  * (migration 0039) ile bu liste BİREBİR olmak zorundadır; kayma
@@ -189,6 +191,41 @@ export function buildMessageReceivedPayload(input: {
     playerId: input.playerId,
     displayName: input.displayName,
     preview: input.preview,
+  };
+}
+
+/**
+ * `race_starting` — yarış KİLİTLENDİĞİ anda (`scheduled → locking`) o
+ * yarışın GERÇEK katılımcılarına yazılır (brief §42 PHASE 1, 28.09.2026).
+ *
+ * **BU TÜRÜN ÜRETİCİSİ UZUN SÜRE YOKTU — ve yokluğunun sebebi bir KOD
+ * eksikliği DEĞİL, bir ALTYAPI eksikliğiydi.** Diğer yedi türün aksine bu
+ * bildirim "bir uç noktadan çağrılır" biçiminde modellenemezdi: bir
+ * oyuncunun kendi eliyle "yarış başladı" bildirimini tetiklemesi anlamsız
+ * olurdu (kendine haber vermek). Gereken şey, BAŞLANGIÇ ANINDA tetiklenen
+ * bir işti — yani bir zamanlayıcı. `race-lock.scheduler.ts` (migration
+ * 0042) o zamanlayıcıdır ve bu fonksiyon onun ürettiği payload'ı kurar.
+ *
+ * **`startTime` PAYLOAD'DA TAŞINIR** çünkü istemcinin "ne zaman başladı"
+ * sorusunu yarış kaydından ayrıca sorması (N+1) gerekmesin —
+ * `race_invite`in `raceName`i taşımasıyla AYNI gerekçe.
+ *
+ * **`race_finished` İLE AYNI "karşı taraf yok" KURALI:** burada da
+ * `playerId`/`displayName` YOKTUR; bildirimin konusu yarışın kendisidir.
+ */
+export function buildRaceStartingPayload(input: {
+  raceId: string;
+  raceName: string;
+  startTime: Date;
+}): NotificationPayloadByType['race_starting'] {
+  return {
+    raceId: input.raceId,
+    raceName: input.raceName,
+    // ISO 8601 — `NotificationView.createdAt` ile AYNI gösterim. `Date`
+    // nesnesi JSONB'ye yazılırken `toISOString()`e düşerdi ama bunu
+    // ÖRTÜK bırakmak, payload'ı okuyan istemci için sözleşmeyi
+    // "JSON.stringify ne yaparsa"ya bağlardı.
+    startTime: input.startTime.toISOString(),
   };
 }
 

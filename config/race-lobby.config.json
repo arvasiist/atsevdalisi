@@ -15,5 +15,10 @@
   "entryStatuses": ["waiting", "ready", "not_ready", "cancelled"],
   "prizeDistributionId": "top5",
   "lobbyListDefaultLimit": 20,
-  "lobbyListMaxLimit": 100
+  "lobbyListMaxLimit": 100,
+  "lockScheduler": {
+    "enabled": true,
+    "tickSeconds": 5,
+    "batchSize": 20
+  }
 }

@@ -722,12 +722,71 @@ export function checkRaceSettleable(
   race: { status: string; startTime: Date; joinedPlayers: number },
   now: Date,
 ): RaceSettleRejection | null {
-  if (race.status !== 'scheduled') {
+  // `locking` DE KESİNLEŞTİRİLEBİLİR (migration 0042, PHASE 1). İki durum
+  // da aynı şeyi söyler — "kadro dondu, ödül henüz dağıtılmadı" — ve
+  // ikisinin de kesinleşmeye açık olması ZORUNLUDUR:
+  //
+  //  - `scheduled`: zamanlayıcı hiç çalışmadıysa (süreç kapalıydı, ya da
+  //    kilit ucu çağrılmadıysa) yarışın koşması için tek yol budur.
+  //  - `locking`: zamanlayıcı çalıştı, kadro/seed/snapshot DONDU; koşma
+  //    artık dondurulmuş veriyle yapılır (adil olan yol).
+  //
+  // `locking`i dışarıda bırakmak, kilitlenen her yarışın parasını kalıcı
+  // olarak havuzda yakardı — çünkü `startTime` geçtikten sonra ayrılma da
+  // kapalıdır (`checkRaceLeavable`).
+  if (race.status !== 'scheduled' && race.status !== 'locking') {
     return 'NOT_SCHEDULED';
   }
   // Sınırda (`now === startTime`) AÇIK — yukarıdaki üç fonksiyonun
   // `ALREADY_STARTED` verdiği TAM O AN. İkisi aynı kuralı iki yönden
   // söyler: o anda el değiştirme kapanır, koşma açılır.
+  if (race.startTime.getTime() > now.getTime()) {
+    return 'NOT_STARTED';
+  }
+  if (race.joinedPlayers < 1) {
+    return 'NO_PARTICIPANTS';
+  }
+  return null;
+}
+
+/** `checkRaceLockable`'ın ret nedenleri. */
+export type RaceLockRejection = 'NOT_SCHEDULED' | 'NOT_STARTED' | 'NO_PARTICIPANTS';
+
+/**
+ * KİLİT (lock) isteğinin ŞU AN yapılıp yapılamayacağını söyler; engel
+ * yoksa `null` (brief §42 PHASE 1, migration 0042).
+ *
+ * Kilit, `startTime` geldiğinde yarışı `scheduled`dan `locking`e geçirir ve
+ * O AN'da üç şeyi dondurur: kadro (yeni katılım/ayrılma yok — zaten
+ * `checkRace*` kapıları kapalıdır), simülasyon seed'i ve her gerçek
+ * katılımcının `horse_snapshot`'ı. Bu, `settle-race.use-case.ts` doc
+ * yorumunda dürüstçe yazılı olan adaletsizliği (oyuncunun `startTime` ile
+ * kesinleşme arasında atını eğitebilmesi) kapatır.
+ *
+ * **`checkRaceSettleable` İLE NEREDEYSE AYNI — ve bu BİLİNÇLİDİR.** Üç
+ * kuralın üçü de aynıdır (`scheduled`, `startTime <= now`, en az bir gerçek
+ * oyuncu) çünkü ikisi aynı ANIN iki farklı sorusudur: "dondurulabilir mi"
+ * ve "koşulabilir mi". Ortak bir yardımcıya çıkarmak yerine ayrı tutuldu,
+ * çünkü dördüncü bir kural eklenmesi gerektiğinde (ör. kilit yalnızca
+ * `aiFillEnabled` iken) ikisinin AYRIŞMASI gerekebilir ve o gün ortak
+ * fonksiyonu bölmek, bugün birleştirmekten daha pahalıdır.
+ *
+ * **`NO_PARTICIPANTS` BURADA DA AYRI BİR RET NEDENİDİR:** hiç gerçek
+ * oyuncu katılmamış bir yarış `locking`e geçirilmemelidir. Geçirilseydi,
+ * kimsenin beklemediği bir yarış `locking`te durur ve yönetim iptal
+ * etmedikçe (havuzu zaten sıfırdır) orada kalırdı — üstelik `listLobbyRaces`
+ * yalnızca `scheduled` listelediği için lobiden de kaybolurdu.
+ *
+ * Fırlatmaz, sonuç döndürür — diğer dört kontrolle AYNI desen.
+ */
+export function checkRaceLockable(
+  race: { status: string; startTime: Date; joinedPlayers: number },
+  now: Date,
+): RaceLockRejection | null {
+  if (race.status !== 'scheduled') {
+    return 'NOT_SCHEDULED';
+  }
+  // Sınırda (`now === startTime`) AÇIK — `checkRaceSettleable` ile AYNI.
   if (race.startTime.getTime() > now.getTime()) {
     return 'NOT_STARTED';
   }

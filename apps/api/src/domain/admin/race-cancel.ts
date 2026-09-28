@@ -9,8 +9,9 @@ import type { RaceStatus } from '@at-sevdalisi/shared-types';
  * altında GERÇEKTEN koşar — DTO dekoratörlerinin aksine (CLAUDE.md kural 5
  * "Kardeş tuzak": `@IsIn` esbuild altında sessizce atlanır).
  *
- * **KURAL TEK SATIRDA: İPTAL YALNIZCA `scheduled` İÇİN GEÇERLİDİR.**
- * Neden diğer üçü YASAK:
+ * **KURAL TEK SATIRDA: İPTAL `scheduled` VE `locking` İÇİN GEÇERLİDİR**
+ * (`locking` migration 0042 ile eklendi, PHASE 1). İkisinin ortak özelliği
+ * şudur: **ödül HENÜZ DAĞITILMAMIŞTIR.** Neden diğer üçü YASAK:
  *
  *  - `finished`: yarış KOŞTU ve ödüller dağıtıldı (`SettleRaceUseCase`,
  *    §13.14). İptal etmek "dağıtılmış ödülü geri al" demek olurdu — bu
@@ -64,6 +65,17 @@ export type RaceCancelRefusal = (typeof RACE_CANCEL_REFUSALS)[number];
  */
 const REFUSAL_BY_STATUS: Record<RaceStatus, RaceCancelRefusal | null> = {
   scheduled: null,
+  // `locking` DE İPTAL EDİLEBİLİR (migration 0042, PHASE 1) — ve bu,
+  // `finished`ten AYRILAN kritik noktadır: `locking` bir yarışta kadro ve
+  // snapshot DONMUŞTUR ama ödül HENÜZ DAĞITILMAMIŞTIR. Dolayısıyla iade,
+  // defterden doğru tutarı (`lobby_race_entry_fee`) bulur.
+  //
+  // Kapatılsaydı gerçek bir kilitlenme doğardı: kilit anında çöken ya da
+  // kesinleştirmesi hiç çağrılmayan bir yarış `locking`te kalır ve
+  // yöneticinin elinde parayı geri verecek HİÇBİR işlem olmazdı. `Pause`ın
+  // aksine bu durumun var olması bir tasarım tercihi değil, zamanlayıcının
+  // doğal sonucudur — dolayısıyla bir çıkışı olmak zorundadır.
+  locking: null,
   in_progress: 'ALREADY_STARTED',
   finished: 'ALREADY_FINISHED',
   cancelled: 'ALREADY_CANCELLED',

@@ -307,6 +307,67 @@ export interface RaceRepository {
   findLobbySettlementContext(raceId: string): Promise<LobbySettlementContext | null>;
 
   /**
+   * KİLİTLENMEYİ BEKLEYEN yarışların kimliklerini döner (brief §42 PHASE 1,
+   * migration 0042) — zamanlayıcının (`race-lock.scheduler.ts`) tek okuma
+   * kapısı.
+   *
+   * Ölçüt üç maddeden oluşur ve ÜÇÜ DE ZORUNLUDUR: `status = 'scheduled'`
+   * (zaten kilitlenmiş/iptal edilmiş bir yarışı yeniden kilitlemek anlamsız
+   * olurdu), `start_time <= now` (henüz açık bir lobi kilitlenemez) ve EN AZ
+   * BİR gerçek katılımcı (`player_id IS NOT NULL AND status IS DISTINCT FROM
+   * 'cancelled'`). Üçüncüsü olmadan, kimsenin katılmadığı yarışlar
+   * `locking`te birikir ve `listLobbyRaces` yalnızca `scheduled` listelediği
+   * için lobiden de kaybolurlardı.
+   *
+   * **SALT OKUMADIR, KİLİT ALMAZ** — ve bu güvenlidir: dönen liste yalnızca
+   * bir ADAY listesidir. Asıl karar `lockLobbyRace` içinde, `races` satırı
+   * `FOR UPDATE` ile kilitliyken verilir. İki zamanlayıcı örneği (ya da iki
+   * süreç) aynı kimliği okursa ikincisi kilit altında `NOT_SCHEDULED` görür
+   * ve hiçbir şey yapmaz — yani bu okumanın "yanlış" olması mümkün değildir.
+   *
+   * `ORDER BY start_time ASC`: en eski (en çok bekleyen) yarış önce
+   * kilitlenir — `listLobbyRaces`'in sıralamasıyla AYNI gerekçe. `limit`
+   * çağırandan gelir (`RaceLobbyConfig.lockScheduler.batchSize`).
+   */
+  findRacesDueForLock(input: { now: Date; limit: number }): Promise<string[]>;
+
+  /**
+   * Yarışı `scheduled`dan `locking`e geçirir ve O AN'ı DONDURUR (brief §42
+   * PHASE 1, migration 0042).
+   *
+   * **TEK ATOMİK TRANSACTION — ve atomiklik burada ZORUNLUDUR.** Aynı
+   * transaction içinde: (1) `races` satırı `FOR UPDATE` ile kilitlenir,
+   * (2) `checkRaceLockable` ile durum yeniden denetlenir, (3) kadro
+   * tripwire'ı koşar (aşağıda), (4) `status = 'locking'` + `simulation_seed`
+   * + dört sürüm sütunu yazılır, (5) her gerçek katılımcının
+   * `race_entries.horse_snapshot`'ı YAZILIR, (6) `race_starting`
+   * bildirimleri yazılır. Altısından biri düşerse HİÇBİRİ kalıcı olmaz —
+   * yani "kilitlendi ama snapshot yok" diye bir ara durum DB'ye HİÇ
+   * yazılmaz.
+   *
+   * **`false` DÖNER — HATA FIRLATMAZ — "kilitlenemez" durumunda.** Sebep
+   * ayrımı YOKTUR ve bilinçlidir: çağıran (zamanlayıcı) her durumda aynı
+   * şeyi yapar, yani hiçbir şey. Ayırt etmek yalnızca gürültülü bir günlük
+   * üretirdi. `false` dönen hâller: yarış yok, `scheduled` değil (başka bir
+   * örnek önce kilitlemiş, iptal edilmiş ya da koşmuş), `startTime`
+   * gelmemiş, gerçek katılımcı yok. **BU, "İKİ İŞÇİ AYNI YARIŞI KOŞTURUR MU"
+   * SORUSUNUN CEVABIDIR: hayır — ikinci işçi burada `false` alır.**
+   *
+   * **BAĞLAM DÖNMEZ — bilinçli.** Çağıran onu zaten snapshot'ları kurmak
+   * için okumuştu; ikinci bir kopya döndürmek, iki kopyanın ayrışmasına
+   * açık bir kapı olurdu (`settleLobbyRace`in `expectedPrizePool` tripwire'ı
+   * TAM OLARAK o kapıyı kapatmak için vardır).
+   *
+   * **KADRO TRIPWIRE'I:** use-case snapshot'ları kilitsiz bir okumadan
+   * kurar; burada kilit altında okunan kadro ile KARŞILAŞTIRILIR ve
+   * farklıysa düz bir `Error` fırlatılır (500). Fark, `startTime`dan sonra
+   * katılım/ayrılmanın KAPALI olması sayesinde oluşmamalıdır; oluşursa
+   * dondurulan snapshot yanlış kadroya ait olurdu — sessizce devam etmek
+   * yanlış bir yarış kaydı üretirdi.
+   */
+  lockLobbyRace(input: LockLobbyRaceInput): Promise<boolean>;
+
+  /**
    * Lobi yarışını KOŞAR ve ödülleri dağıtır (§42 PHASE 13.14) — projenin
    * EN KRİTİK PARA YOLU.
    *
@@ -578,11 +639,20 @@ export interface SavePvpMatchWithRatingsResult {
 /**
  * Kesinleşecek yarışın GERÇEK katılımcılarından biri (§42 PHASE 13.14).
  *
- * **`horseSnapshot` BURADA YOKTUR — bilinçli.** Snapshot, yarış KOŞARKEN
- * alınır (bkz. `joinLobbyRace` doc yorumu); bu arayüz ise snapshot'ın
- * KURULMASI için gereken HAM girdileri taşır (hangi at, hangi taktik,
- * hangi kulvar). Snapshot'ı burada taşımak, iki farklı yerin (bu port ve
- * `RaceEntry`) aynı şeyi bilmesine yol açardı.
+ * **`horseSnapshot` BURAYA PHASE 1'DE EKLENDİ (migration 0042).** Eskiden
+ * bu alan bilinçli olarak yoktu: snapshot yarış KOŞARKEN alınırdı ve bu
+ * arayüz yalnızca snapshot'ın KURULMASI için gereken ham girdileri
+ * (hangi at, hangi taktik, hangi kulvar) taşırdı. **O TASARIMIN AÇIK
+ * PENCERESİ VARDI:** kesinleşme `startTime`dan çok sonra çağrılabildiği
+ * için, oyuncu `startTime` ile kesinleşme arasında atını çalıştırıp
+ * sonucu etkileyebilirdi. Artık snapshot `startTime` ANINDA (`scheduled →
+ * locking`) dondurulur ve burada TAŞINIR.
+ *
+ * **`null` HÂLÂ MÜMKÜNDÜR ve bir HATA DEĞİLDİR:** zamanlayıcı hiç
+ * çalışmamış (ör. `lockScheduler.enabled = false`, ya da yarış
+ * `startTime`dan önce elle kesinleştirilmiş) olabilir. O durumda
+ * kesinleşme snapshot'ı kendisi kurar — yani davranış ESKİSİYLE AYNIdır,
+ * yalnızca artık "her zaman" değil "zamanlayıcı çalışmadıysa" geçerlidir.
  */
 export interface LobbySettlementEntrant {
   entryId: string;
@@ -599,6 +669,12 @@ export interface LobbySettlementEntrant {
    * anında yeniden çekilir (bkz. `settleLobbyRace`).
    */
   gatePosition: number | null;
+  /**
+   * `startTime` anında DONDURULMUŞ hâl (`race_entries.horse_snapshot`).
+   * Doluysa kesinleşme ONU kullanır ve atın o andan sonraki gelişimi
+   * sonucu DEĞİŞTİREMEZ. `null` ise kesinleşme anında yeniden kurulur.
+   */
+  horseSnapshot: RaceEntrantSnapshot | null;
 }
 
 /**
@@ -635,6 +711,48 @@ export interface LobbySettlementContext {
   createdBy: string | null;
   createdAt: Date;
   entrants: LobbySettlementEntrant[];
+  /**
+   * `races.simulation_seed` — kilitlenme anında dondurulan seed (§42
+   * PHASE 1, migration 0042).
+   *
+   * **`null` İSE SEED HENÜZ ÜRETİLMEMİŞTİR** ve kesinleşme kendi seed'ini
+   * üretir (eski davranış). Doluysa kesinleşme AYNEN onu kullanır:
+   * seed'i kesinleşme anında yeniden üretmek, dondurulmuş snapshot ile
+   * eşleşmeyen bir koşu üretme riski taşır ve iki farklı "aynı yarış"
+   * doğururdu.
+   */
+  simulationSeed: string | null;
+}
+
+/**
+ * `RaceRepository.lockLobbyRace` girdi şekli (§42 PHASE 1, migration 0042).
+ *
+ * Use-case snapshot'ları kilitten ÖNCE, kilitsiz bir okumadan kurar; bu
+ * girdi onları repository'ye taşır ki durum geçişi, seed ve snapshot'lar
+ * TEK transaction'da yazılabilsin. Bu güvenlidir: `startTime` geçtikten
+ * sonra katılma (`checkRaceJoinable`) ve ayrılma (`checkRaceLeavable`) da
+ * kapalıdır, yani kadro bu okuma ile kilit arasında DEĞİŞEMEZ. Değişirse
+ * repository tripwire'ı düz `Error` fırlatır.
+ */
+export interface LockLobbyRaceInput {
+  raceId: string;
+  /** Zamanlayıcının "şimdi"si — `checkRaceLockable`'a geçirilir. */
+  now: Date;
+  /**
+   * `races.simulation_seed`'e yazılacak seed. Üretimi ÇAĞIRANIN işidir:
+   * domain katmanı `randomUUID` gibi bir yan etki taşımaz ve seed'in
+   * kaynağı (rastgele mi, türetilmiş mi) bir politika kararıdır.
+   */
+  simulationSeed: string;
+  engineVersion: string;
+  rulesetVersion: string;
+  configVersion: string;
+  weatherConfigVersion: string;
+  /**
+   * Her GERÇEK katılımcı için dondurulacak snapshot. `entryId` kümesi,
+   * kilit altında okunan kadroyla BİREBİR olmalıdır (tripwire).
+   */
+  entrantSnapshots: { entryId: string; snapshot: RaceEntrantSnapshot }[];
 }
 
 /**

@@ -3,6 +3,7 @@ import type { Pool, PoolClient } from 'pg';
 import type {
   PvpMatch,
   Race,
+  RaceEntrantSnapshot,
   RaceEntry,
   RaceJockeyDecision,
   RaceLobbyView,
@@ -24,6 +25,7 @@ import type {
   JoinLobbyRaceInput,
   LeaveLobbyRaceInput,
   ListLobbyRacesInput,
+  LockLobbyRaceInput,
   LobbySettlementContext,
   LobbySettlementEntrant,
   RaceRepository,
@@ -45,6 +47,7 @@ import {
   checkEntryReadyable,
   checkRaceJoinable,
   checkRaceLeavable,
+  checkRaceLockable,
   checkRaceSettleable,
   nextGatePosition,
 } from '../../domain/race/lobby';
@@ -62,7 +65,11 @@ import {
 } from '../../domain/race/errors';
 import { HorseNotFoundError, HorseInjuredError } from '../../domain/horse/errors';
 import { credit, debit } from '../../domain/economy/wallet';
-import { buildPrizeWonPayload, buildRaceFinishedPayload } from '../../domain/social/notification';
+import {
+  buildPrizeWonPayload,
+  buildRaceFinishedPayload,
+  buildRaceStartingPayload,
+} from '../../domain/social/notification';
 import { applyEloUpdate } from '../../domain/online/elo';
 import { PlayerNotFoundError } from '../../domain/player/errors';
 import { PG_POOL, withTransaction } from '../database/database.module';
@@ -189,6 +196,12 @@ interface SettlementRaceRow {
   humidity_pct: string | null;
   created_by: string | null;
   created_at: Date;
+  /**
+   * PHASE 1 (migration 0042) — kilitlenme anında dondurulan seed. `null`
+   * ise seed henüz üretilmemiştir (zamanlayıcı çalışmadı) ve kesinleşme
+   * kendi seed'ini üretir.
+   */
+  simulation_seed: string | null;
 }
 
 /** `findLobbySettlementContext`'in `race_entries` satır şekli. */
@@ -199,6 +212,19 @@ interface SettlementEntryRow {
   tactical_style: string | null;
   risk_level: string | null;
   gate_position: number | null;
+  /**
+   * PHASE 1 (migration 0042) — `startTime` anında dondurulmuş hâl.
+   * `null` ise kilit hiç çalışmamıştır.
+   *
+   * TİP `unknown`: JSONB sütunu teorik olarak her şeyi içerebilir.
+   * Doğrudan `RaceEntrantSnapshot` diye tip vermek, veritabanındaki bozuk
+   * bir değeri sessizce sözleşmeye sokardı. Çağıran (`settle-race.
+   * use-case.ts`) `null` olmayanı `as RaceEntrantSnapshot` ile geçirir —
+   * bu kabul edilebilir çünkü değeri YALNIZCA bu repository'nin kendisi
+   * yazar (`lockLobbyRace`) ve `JSON.stringify(buildHorseEntrantSnapshot(...))`
+   * ile yazar.
+   */
+  horse_snapshot: unknown;
 }
 
 /**
@@ -1332,7 +1358,8 @@ export class PostgresRaceRepository implements RaceRepository {
   async findLobbySettlementContext(raceId: string): Promise<LobbySettlementContext | null> {
     const raceResult = await this.pool.query<SettlementRaceRow>(
       `SELECT id, name, participant_limit, max_players, entry_fee, prize_pool, start_time, status,
-              surface, weather, distance_m, temperature_c, wind_kmh, humidity_pct, created_by, created_at
+              surface, weather, distance_m, temperature_c, wind_kmh, humidity_pct, created_by, created_at,
+              simulation_seed
        FROM races
        WHERE id = $1`,
       [raceId],
@@ -1347,7 +1374,7 @@ export class PostgresRaceRepository implements RaceRepository {
     // NULLABLE'dır (migration 0037): `status <> 'cancelled'` NULL'da
     // NULL döner ve satırı SESSİZCE elerdi.
     const entryResult = await this.pool.query<SettlementEntryRow>(
-      `SELECT id, player_id, horse_id, tactical_style, risk_level, gate_position
+      `SELECT id, player_id, horse_id, tactical_style, risk_level, gate_position, horse_snapshot
        FROM race_entries
        WHERE race_id = $1 AND player_id IS NOT NULL AND status IS DISTINCT FROM 'cancelled'
        ORDER BY id`,
@@ -1364,6 +1391,9 @@ export class PostgresRaceRepository implements RaceRepository {
       tacticalStyle: row.tactical_style as RacingStyle,
       riskLevel: row.risk_level as RiskLevel,
       gatePosition: row.gate_position,
+      // `null` → kilit çalışmadı. Dolu → `lockLobbyRace`in yazdığı JSONB;
+      // tip gerekçesi `SettlementEntryRow.horse_snapshot` doc yorumunda.
+      horseSnapshot: row.horse_snapshot === null ? null : (row.horse_snapshot as RaceEntrantSnapshot),
     }));
 
     return {
@@ -1385,7 +1415,182 @@ export class PostgresRaceRepository implements RaceRepository {
       createdBy: raceRow.created_by,
       createdAt: raceRow.created_at,
       entrants,
+      simulationSeed: raceRow.simulation_seed,
     };
+  }
+
+  /**
+   * Kilitle bekleyen yarışların kimlikleri (PHASE 1, migration 0042).
+   * Gerekçe ve güvenlik kanıtı: `RaceRepository.findRacesDueForLock` port
+   * doc yorumu. Burada yalnızca SQL vardır.
+   */
+  async findRacesDueForLock(input: { now: Date; limit: number }): Promise<string[]> {
+    // `EXISTS` KULLANILIR, `JOIN + GROUP BY` DEĞİL: yarışın kaç katılımcısı
+    // olduğu SORULMAZ, yalnızca "en az bir tane var mı" sorulur. `EXISTS`
+    // ilk satırı bulduğunda durur; `COUNT` ise tüm satırları okurdu —
+    // zamanlayıcı her 5 saniyede koştuğu için bu fark gerçek bir maliyettir.
+    //
+    // `status IS DISTINCT FROM 'cancelled'` — `status` NULLABLE (migration
+    // 0037) ve `<>` NULL'lı satırları SESSİZCE düşürürdü (CLAUDE.md kuralı).
+    // Burada doğru davranış "NULL'ı katılımcı SAY"dır: pratik/PvP girişleri
+    // bu durumda olabilir ve ayrılmamış bir satırı yok saymak, yarışı
+    // sonsuza kadar `scheduled` bırakırdı.
+    const result = await this.pool.query<{ id: string }>(
+      `SELECT r.id
+       FROM races r
+       WHERE r.status = 'scheduled'
+         AND r.start_time <= $1
+         AND EXISTS (
+           SELECT 1 FROM race_entries e
+           WHERE e.race_id = r.id
+             AND e.player_id IS NOT NULL
+             AND e.status IS DISTINCT FROM 'cancelled'
+         )
+       ORDER BY r.start_time ASC, r.id ASC
+       LIMIT $2`,
+      [input.now, input.limit],
+    );
+    return result.rows.map((row) => row.id);
+  }
+
+  /**
+   * `scheduled → locking` + seed + snapshot + bildirim, TEK transaction
+   * (PHASE 1, migration 0042). Adımların gerekçesi `RaceRepository.
+   * lockLobbyRace` port doc yorumundadır; burada adım numaraları oraya
+   * karşılık gelir.
+   */
+  async lockLobbyRace(input: LockLobbyRaceInput): Promise<boolean> {
+    return withTransaction(this.pool, async (client) => {
+      // 1) `races` satırı KİLİTLİ okunur. Kilit alındıktan sonra bu
+      //    transaction boyunca başka bir zamanlayıcı/işçi aynı satıra
+      //    yazamaz — "iki işçi aynı yarışı kilitler mi" sorusunun cevabı
+      //    tam olarak burasıdır: ikincisi 3. adımda `null` alır.
+      const raceResult = await client.query<SettlementRaceRow>(
+        `SELECT id, name, participant_limit, max_players, entry_fee, prize_pool, start_time, status,
+                surface, weather, distance_m, temperature_c, wind_kmh, humidity_pct, created_by, created_at,
+                simulation_seed
+         FROM races
+         WHERE id = $1
+         FOR UPDATE`,
+        [input.raceId],
+      );
+      const raceRow = raceResult.rows[0];
+      if (raceRow === undefined) {
+        return false;
+      }
+
+      // 2) Doluluk KİLİT ALTINDA (`settleLobbyRace` adım 2 ile AYNI sorgu ve
+      //    AYNI gerekçe: `checkRaceLockable`'a verilecek sayı, kararın
+      //    verildiği an ile aynı okumadan gelmelidir).
+      const joinedResult = await client.query<{ count: string }>(
+        `SELECT COUNT(*) FILTER (WHERE status IS DISTINCT FROM 'cancelled') AS count
+         FROM race_entries
+         WHERE race_id = $1 AND player_id IS NOT NULL`,
+        [input.raceId],
+      );
+      const joinedPlayers = Number(joinedResult.rows[0]?.count ?? '0');
+
+      // 3) Durum denetimi — SAF fonksiyon. `null` dönüşü burada "kilitlenemez"
+      //    demektir ve hata FIRLATILMAZ (gerekçe: port doc yorumu — çağıran
+      //    her hâlükârda hiçbir şey yapmaz, ayırt etmek gürültü olurdu).
+      const rejection = checkRaceLockable(
+        { status: raceRow.status, startTime: raceRow.start_time, joinedPlayers },
+        input.now,
+      );
+      if (rejection !== null) {
+        return false;
+      }
+
+      // 4) KADRO TRIPWIRE'I. Snapshot'lar kilitten önce, kilitsiz bir
+      //    okumadan kuruldu; burada kilit altındaki kadroyla karşılaştırılır.
+      //    `settleLobbyRace` adım 5'in BİREBİR aynısı — ve aynı gerekçe:
+      //    fark, snapshot'ın YANLIŞ kadroya ait olması demektir ve sessizce
+      //    devam etmek bozuk bir yarış kaydı üretirdi.
+      const entriesResult = await client.query<{ id: string }>(
+        `SELECT id
+         FROM race_entries
+         WHERE race_id = $1 AND player_id IS NOT NULL AND status IS DISTINCT FROM 'cancelled'
+         ORDER BY id`,
+        [input.raceId],
+      );
+      const lockedEntryIds = entriesResult.rows.map((row) => row.id).sort();
+      const frozenEntryIds = input.entrantSnapshots.map((item) => item.entryId).sort();
+      if (
+        lockedEntryIds.length !== frozenEntryIds.length ||
+        lockedEntryIds.some((id, index) => id !== frozenEntryIds[index])
+      ) {
+        throw new Error(
+          `Yarış kadrosu kilitlenirken değişti: ${frozenEntryIds.length} snapshot kuruldu, ${lockedEntryIds.length} kilit altında.`,
+        );
+      }
+
+      // 5) DURUM GEÇİŞİ + DONDURMA. `simulation_seed` ve dört sürüm sütunu
+      //    BURADA yazılır; kesinleşme (`settleLobbyRace` adım 9) AYNI
+      //    değerleri tekrar yazar — bu kasıtlıdır, ikinci yazım ilkini
+      //    doğrular ve iki uç arasında bir sürüm kayması olursa görünür olur.
+      await client.query(
+        `UPDATE races
+         SET status = 'locking', simulation_seed = $2, engine_version = $3, ruleset_version = $4,
+             config_version = $5, weather_config_version = $6, updated_at = $7
+         WHERE id = $1`,
+        [
+          input.raceId,
+          input.simulationSeed,
+          input.engineVersion,
+          input.rulesetVersion,
+          input.configVersion,
+          input.weatherConfigVersion,
+          input.now,
+        ],
+      );
+
+      // 6) SNAPSHOT'LAR — dondurmanın KENDİSİ. `entry_id` ile UPDATE edilir;
+      //    satır katılım anında doğmuştur, burada yeni satır AÇILMAZ.
+      //    `finish_position`/`final_time_ms` BİLEREK yazılmaz: yarış henüz
+      //    koşmadı ve bu sütunlara "yarıştı" izlenimi veren bir değer
+      //    koymak, `settleLobbyRace`in 7. adımıyla çelişirdi.
+      for (const item of input.entrantSnapshots) {
+        await client.query('UPDATE race_entries SET horse_snapshot = $2 WHERE id = $1', [
+          item.entryId,
+          JSON.stringify(item.snapshot),
+        ]);
+      }
+
+      // 7) `race_starting` BİLDİRİMLERİ — durum geçişiyle AYNI transaction
+      //    (CLAUDE.md: "BİLDİRİM, YAZILDIĞI ŞEYLE AYNI TRANSACTION'DA
+      //    YAZILIR"). Bu yol bir PARA YOLU DEĞİLDİR ama kural yine geçerli:
+      //    ayrı yazılsaydı geri alınmış bir kilidin "yarış başlıyor"
+      //    haberi oyuncularda kalırdı.
+      //
+      //    Yalnızca GERÇEK katılımcılara yazılır (botların `player_id`si
+      //    yoktur — bkz. `generateBotEntrants`).
+      const playerResult = await client.query<{ player_id: string }>(
+        `SELECT player_id
+         FROM race_entries
+         WHERE race_id = $1 AND player_id IS NOT NULL AND status IS DISTINCT FROM 'cancelled'
+         ORDER BY player_id`,
+        [input.raceId],
+      );
+      const startingPayload = JSON.stringify(
+        buildRaceStartingPayload({
+          raceId: raceRow.id,
+          raceName: raceRow.name,
+          startTime: raceRow.start_time,
+        }),
+      );
+      for (const row of playerResult.rows) {
+        await client.query('INSERT INTO notifications (player_id, type, payload) VALUES ($1, $2, $3::jsonb)', [
+          row.player_id,
+          'race_starting',
+          startingPayload,
+        ]);
+      }
+
+      // 8) `true` — kilitlendi. Bağlam DÖNMEZ: çağıran (use-case) onu zaten
+      //    snapshot'ları kurmak için okumuştu, ikinci kez döndürmek iki
+      //    kopyanın ayrışmasına açık bir kapı olurdu.
+      return true;
+    });
   }
 
   async settleLobbyRace(input: SettleLobbyRaceInput): Promise<RaceSettlementResult> {

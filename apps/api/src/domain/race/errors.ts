@@ -331,3 +331,30 @@ export class RaceNotSettleableError extends Error {
     this.name = 'RaceNotSettleableError';
   }
 }
+
+/**
+ * Meşru OLMAYAN bir yarış durumu geçişi denendi (PHASE 1, 28.09.2026) —
+ * `domain/race/race-lifecycle.ts` → `assertRaceTransitionAllowed`.
+ *
+ * **BU HATA 500'E DÜŞER VE DÜŞMELİDİR.** Buraya gelmek bir kullanıcı hatası
+ * DEĞİL, bir YARIŞ DURUMU (race condition) ya da kod hatasıdır: çağıran
+ * yollar (`settle`, `cancel`, `lock`) geçişi kilit altında ZATEN
+ * doğrular. Yani bu istisna, "iki yol aynı yarışa aynı anda dokundu ve
+ * ikisi de kendi kapısından geçti" anlamına gelir — ve böyle bir durumda
+ * sessizce devam etmek (ör. `scheduled → locking` ikinci kez) ÇİFT
+ * snapshot/ÇİFT iade gibi sonuçlar doğurabilir.
+ *
+ * `RaceNotSettleableError`/`RaceNotCancelableError` 409'dur çünkü orada
+ * engel ÇAĞIRANIN isteğindedir; burada ise engel çağıranın hiç
+ * bilemeyeceği bir yarıştır ve doğru cevap "tekrar deneyin" değil,
+ * "beklenmeyen bir şey oldu"dur.
+ */
+export class InvalidRaceTransitionError extends Error {
+  constructor(
+    public readonly from: string,
+    public readonly to: string,
+  ) {
+    super(`Geçersiz yarış durumu geçişi: ${from} → ${to}`);
+    this.name = 'InvalidRaceTransitionError';
+  }
+}

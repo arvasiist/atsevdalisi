@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { loadRaceLobbyConfig } from '@at-sevdalisi/game-config';
 import {
   checkRaceJoinable,
+  checkRaceLockable,
   checkRaceSettleable,
   normalizeRaceName,
   validateRaceCreation,
@@ -436,6 +437,22 @@ describe('checkRaceSettleable — ödül dağıtımı kapısı (§42 PHASE 13.14
     );
   });
 
+  it('`locking` KESİNLEŞTİRİLEBİLİR — zamanlayıcı kadroyu dondurmuş, yarış henüz koşmamıştır', () => {
+    // PHASE 1 (migration 0042). `locking` burada KAPALI olsaydı,
+    // zamanlayıcının dondurduğu her yarış havuzuyla birlikte kalıcı olarak
+    // kilitlenirdi: ne koşardı ne iptal edilebilirdi.
+    expect(checkRaceSettleable(race({ status: 'locking' }), new Date('2026-09-27T13:00:00.000Z'))).toBeNull();
+  });
+
+  it('`in_progress` MİRAS bir durumdur ve KESİNLEŞTİRİLEMEZ — hiçbir kod onu yazmaz', () => {
+    // `in_progress`i kabul etmek, hiçbir kod yolunun üretmediği bir durumu
+    // "geçerli bir başlangıç" saymak olurdu. Reddetmek doğrudur: satır
+    // gerçekten varsa (miras), kesinleşme `scheduled`dan çağrılır.
+    expect(checkRaceSettleable(race({ status: 'in_progress' }), new Date('2026-09-27T13:00:00.000Z'))).toBe(
+      'NOT_SCHEDULED',
+    );
+  });
+
   it('hiç GERÇEK oyuncu yoksa NO_PARTICIPANTS', () => {
     expect(checkRaceSettleable(race({ joinedPlayers: 0 }), new Date('2026-09-27T13:00:00.000Z'))).toBe(
       'NO_PARTICIPANTS',
@@ -462,6 +479,73 @@ describe('checkRaceSettleable — ödül dağıtımı kapısı (§42 PHASE 13.14
     const input = race();
     const snapshot = JSON.stringify(input);
     checkRaceSettleable(input, new Date('2026-09-27T13:00:00.000Z'));
+    expect(JSON.stringify(input)).toBe(snapshot);
+  });
+});
+
+/**
+ * `checkRaceLockable` — KİLİT kapısı (§42 PHASE 1, migration 0042).
+ *
+ * **BU KAPININ ÜÇ KOŞULU DA ZORUNLUDUR ve her biri bir arızayı önler:**
+ * `scheduled` olmayan bir yarışı kilitlemek durumu GERİYE sarmak olurdu;
+ * `startTime`ı gelmemiş bir lobiyi kilitlemek oyuncuların katılma hakkını
+ * elinden alırdı; katılımcısız bir yarışı kilitlemek onu lobi listesinden
+ * (`listLobbyRaces` yalnızca `scheduled` listeler) SESSİZCE düşürürdü —
+ * yani görünmez bir `locking` çöplüğü doğardı.
+ */
+describe('checkRaceLockable — kilit kapısı (§42 PHASE 1)', () => {
+  const startTime = new Date('2026-09-27T12:00:00.000Z');
+
+  function race(overrides: Partial<{ status: string; startTime: Date; joinedPlayers: number }> = {}) {
+    return { status: 'scheduled', startTime, joinedPlayers: 3, ...overrides };
+  }
+
+  it('başlamış ve katılımcısı olan `scheduled` yarış kilitlenebilir', () => {
+    expect(checkRaceLockable(race(), new Date('2026-09-27T12:00:01.000Z'))).toBeNull();
+  });
+
+  it('TAM BAŞLANGIÇ ANINDA kilitlenebilir (sınır dahil — `checkRaceSettleable` ile AYNI)', () => {
+    expect(checkRaceLockable(race(), startTime)).toBeNull();
+  });
+
+  it('henüz başlamamışsa NOT_STARTED (lobi hâlâ açıktır)', () => {
+    expect(checkRaceLockable(race(), new Date('2026-09-27T11:59:59.000Z'))).toBe('NOT_STARTED');
+  });
+
+  it.each(['locking', 'in_progress', 'finished', 'cancelled'])(
+    '`scheduled` değilse NOT_SCHEDULED: %s',
+    (status) => {
+      expect(checkRaceLockable(race({ status }), new Date('2026-09-27T13:00:00.000Z'))).toBe('NOT_SCHEDULED');
+    },
+  );
+
+  it('hiç GERÇEK oyuncu yoksa NO_PARTICIPANTS (botlar sayılmaz)', () => {
+    expect(checkRaceLockable(race({ joinedPlayers: 0 }), new Date('2026-09-27T13:00:00.000Z'))).toBe(
+      'NO_PARTICIPANTS',
+    );
+  });
+
+  it('TEK oyuncu YETERLİDİR — `minPlayers` burada ZORLANMAZ (`checkRaceSettleable` ile AYNI karar)', () => {
+    // Kilit "yarış koşabilir mi" sorusunu sormaz, "kadro dondurulabilir mi"
+    // sorusunu sorar. `minPlayers` kapısı BİLEREK yoktur: eşik koysaydık,
+    // tek oyunculu bir yarış `scheduled`da kalır, `checkRaceLeavable`
+    // `startTime` sonrası ayrılmayı kapattığı için oyuncu ne ayrılabilir ne
+    // koşturabilirdi.
+    expect(checkRaceLockable(race({ joinedPlayers: 1 }), new Date('2026-09-27T13:00:00.000Z'))).toBeNull();
+  });
+
+  it('DURUM, ZAMANDAN ÖNCE gelir — `finished` bir yarış geç başlangıçla bile NOT_SCHEDULED', () => {
+    // Kontrol sırası testi: aksi hâlde koşmuş bir yarış `locking`e geri
+    // sarılabilirdi (`RaceStatus` geçiş çizgesinin yasakladığı şey).
+    expect(checkRaceLockable(race({ status: 'finished', joinedPlayers: 0 }), new Date('2026-09-27T13:00:00.000Z'))).toBe(
+      'NOT_SCHEDULED',
+    );
+  });
+
+  it('saf fonksiyondur: girdiyi DEĞİŞTİRMEZ', () => {
+    const input = race();
+    const snapshot = JSON.stringify(input);
+    checkRaceLockable(input, new Date('2026-09-27T13:00:00.000Z'));
     expect(JSON.stringify(input)).toBe(snapshot);
   });
 });

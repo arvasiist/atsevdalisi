@@ -335,6 +335,51 @@ describe('race-lobby.config.json — lobi listesi tavanı (brief §18, §42 PHAS
 });
 
 /**
+ * §42 PHASE 1 — KİLİT ZAMANLAYICISI (migration 0042).
+ *
+ * `lockScheduler` bloğu, projede ZAMANLA tetiklenen ilk iştir ve config'te
+ * yanlış bir değer SESSİZ bir arızaya dönüşür: `enabled: false` yazım
+ * hatası olmadan adaletsiz pencereyi geri açar (hiçbir hata çıkmaz, yalnızca
+ * snapshot yeniden koşma anında alınır); `tickSeconds: 0` ise `setTimeout(…,
+ * 0)` ile saniyede binlerce boş sorgu üretir.
+ */
+describe('race-lobby.config.json — kilit zamanlayıcısı (§42 PHASE 1)', () => {
+  it('lockScheduler bir nesnedir ve üç alanı da vardır', () => {
+    expect(config.lockScheduler).toBeDefined();
+    expect(typeof config.lockScheduler.enabled).toBe('boolean');
+    expect(Number.isInteger(config.lockScheduler.tickSeconds)).toBe(true);
+    expect(Number.isInteger(config.lockScheduler.batchSize)).toBe(true);
+  });
+
+  it('tickSeconds POZİTİFtir — 0, `setTimeout(…, 0)` ile boş sorgu fırtınası üretirdi', () => {
+    expect(config.lockScheduler.tickSeconds).toBeGreaterThan(0);
+  });
+
+  it('tickSeconds MAKUL bir üst sınırın altındadır', () => {
+    // Sihirli sayı değil, bir uyarı eşiği: `startTime`in hassasiyeti saat
+    // ölçeğindedir; 1 saatten seyrek bir tur, kilidi "neredeyse hiç"
+    // çalıştırmamak demektir ve pencere pratikte açık kalır.
+    expect(config.lockScheduler.tickSeconds).toBeLessThanOrEqual(3_600);
+  });
+
+  it('batchSize POZİTİFtir — 0 olsaydı HİÇBİR yarış kilitlenmezdi', () => {
+    // `LIMIT 0` her turda boş liste döner ve bu SESSİZ bir arızadır:
+    // zamanlayıcı çalışıyor görünür, hiçbir şey yapmaz.
+    expect(config.lockScheduler.batchSize).toBeGreaterThan(0);
+  });
+
+  it('batchSize, lobi listesi tavanını AŞMAZ (tek turda lobinin tamamı işlenebilsin)', () => {
+    // `lobbyListMaxLimit`, bir lobinin makul kabul edilen en büyük hâlidir.
+    // Tur başına iş yükü ondan küçükse, en yoğun anda bile bir turda
+    // kilitlenmesi gereken her yarış işlenir; büyükse zaten zararsızdır
+    // (sonraki tur devam eder). İddia, tavanın YANLIŞLIKLA 1'e
+    // düşürülmesini yakalar — o durumda kuyruk asla yetişemezdi.
+    expect(config.lockScheduler.batchSize).toBeGreaterThanOrEqual(1);
+    expect(config.lockScheduler.batchSize).toBeLessThanOrEqual(config.lobbyListMaxLimit);
+  });
+});
+
+/**
  * §42 PHASE 5 — lobi yarışının ödül dağıtımı BAŞKA bir config dosyasına
  * (`economy.config.json` → `prizeDistributions`) başvurur. Bu, iki dosya
  * arasında sessizce kopabilecek bir bağdır: `prizeDistributionId` bir yazım

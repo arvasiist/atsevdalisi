@@ -24,15 +24,29 @@ import { REPO_ROOT } from '../../support/repo-root';
  * makul görünen) bir tutar ödenirdi; hiçbir yerde hata çıkmazdı.
  */
 
-const ALL_STATUSES: readonly RaceStatus[] = ['scheduled', 'in_progress', 'finished', 'cancelled'];
+const ALL_STATUSES: readonly RaceStatus[] = ['scheduled', 'locking', 'in_progress', 'finished', 'cancelled'];
+
+/**
+ * İPTAL EDİLEBİLİR DURUMLAR — `locking` PHASE 1'DE (migration 0042)
+ * eklendi.
+ *
+ * **NEDEN `locking` DE İPTAL EDİLEBİLİR:** `locking`in tek anlamı
+ * "kadro+seed+snapshot donduruldu, henüz KOŞMADI"dır. Ödüller
+ * DAĞITILMAMIŞTIR, yani `finished`ten temel farkı tam olarak budur ve
+ * iade doğru tutarı bulur (defterdeki son `lobby_race_entry_fee`).
+ * `locking`i kapatmak, zamanlayıcı bir yarışı kilitleyip kimse
+ * kesinleştirmediğinde havuzun KALICI olarak kilitlenmesi demekti —
+ * `scheduled`daki zaman kuralının yokluğuyla AYNI gerekçe.
+ */
+const CANCELABLE_STATUSES: readonly RaceStatus[] = ['scheduled', 'locking'];
 
 describe('RACE_CANCEL_REFUSALS', () => {
   it('TEKİLDİR', () => {
     expect(new Set(RACE_CANCEL_REFUSALS).size).toBe(RACE_CANCEL_REFUSALS.length);
   });
 
-  it('`scheduled` İÇİN BİR RET NEDENİ YOKTUR (iptal edilebilir olan tek durum)', () => {
-    expect(checkRaceCancelable('scheduled')).toBeNull();
+  it.each(CANCELABLE_STATUSES)('`%s` İÇİN BİR RET NEDENİ YOKTUR', (status) => {
+    expect(checkRaceCancelable(status)).toBeNull();
   });
 });
 
@@ -47,11 +61,12 @@ describe('checkRaceCancelable — kapalı eşleme', () => {
 
   it('HER durum için bir cevap vardır (eksik anahtar sessizce "iptal edilebilir" yapardı)', () => {
     for (const status of ALL_STATUSES) {
-      // `null` (izin) yalnızca `scheduled` için geçerlidir.
+      // `null` (izin) yalnızca `CANCELABLE_STATUSES` için geçerlidir.
       // ⚠️ `toEqual`, `toBe` DEĞİL: `expect.any(String)` asimetrik bir
       // eşleştiricidir ve `toBe` onu Object.is ile karşılaştırdığı için
       // her zaman düşer (yaşandı, 28.09.2026).
-      expect(checkRaceCancelable(status)).toEqual(status === 'scheduled' ? null : expect.any(String));
+      const cancelable = CANCELABLE_STATUSES.includes(status);
+      expect(checkRaceCancelable(status)).toEqual(cancelable ? null : expect.any(String));
     }
   });
 
@@ -80,26 +95,49 @@ describe('`paused` DURUMU YOKTUR — brief §34 "Pause" neden yapılamıyor', ()
   // dizininden, yerel harness'te depo kökünden koşar (bkz.
   // `test/support/repo-root.ts`). `process.cwd()` ile yazılsaydı YERELDE
   // yeşil, CI'da ENOENT olurdu — yaşandı (28.09.2026).
-  const migration = readFileSync(
-    join(REPO_ROOT, 'database', 'migrations', '0006_create_races_and_entries.up.sql'),
-    'utf-8',
-  );
+  const readMigration = (name: string): string =>
+    readFileSync(join(REPO_ROOT, 'database', 'migrations', name), 'utf-8');
 
-  it('`races.status` CHECK`inde `paused` YOKTUR', () => {
-    const match = /status\s+TEXT\s+NOT\s+NULL\s+DEFAULT\s+'scheduled'\s+CHECK\s*\(\s*status\s+IN\s*\(([\s\S]*?)\)\s*\)/i.exec(
-      migration,
-    );
+  const ORIGINAL = readMigration('0006_create_races_and_entries.up.sql');
+  const LOCKING = readMigration('0042_add_race_locking_status.up.sql');
+
+  /**
+   * ⚠️ **YÜRÜRLÜKTEKİ YETKİ ARTIK 0042'DİR, 0006 DEĞİL.** Bu test eskiden
+   * yalnızca 0006'yı okuyordu; 0006'nın CHECK'i tabloya SATIR İÇİ
+   * (`status TEXT ... CHECK (...)`) yazıldığı için PostgreSQL ona
+   * `races_status_check` adını verir. 0042 o kısıtı DÜŞÜRÜP yerine
+   * `races_status_valid` koyar. **İki kısıt birlikte yürürlükte olsaydı
+   * `locking` ÇALIŞMA ANINDA reddedilirdi** ve bunu hiçbir derleyici
+   * söylemezdi — bu yüzden düşürme İDDİA EDİLİR, varsayılmaz.
+   */
+  it('0042 ESKİ kısıtı DÜŞÜRÜR (düşürmeseydi `locking` çalışma anında reddedilirdi)', () => {
+    expect(LOCKING).toMatch(/ALTER\s+TABLE\s+races\s+DROP\s+CONSTRAINT\s+IF\s+EXISTS\s+races_status_check/i);
+  });
+
+  it('`races.status` CHECK`inde `paused` YOKTUR (yürürlükteki kısıt: 0042)', () => {
+    const match = /status\s+IN\s*\(([\s\S]*?)\)\s*\)/i.exec(LOCKING);
     expect(match).not.toBeNull();
     const fromSql = [...(match?.[1] ?? '').matchAll(/'([a-z_]+)'/g)].map((m) => m[1]);
     expect(fromSql).not.toContain('paused');
   });
 
-  it('CHECK listesi ile `RaceStatus` tipi BİREBİR aynıdır', () => {
-    const match = /status\s+TEXT\s+NOT\s+NULL\s+DEFAULT\s+'scheduled'\s+CHECK\s*\(\s*status\s+IN\s*\(([\s\S]*?)\)\s*\)/i.exec(
-      migration,
-    );
+  it('0042`NİN listesi ile `RaceStatus` tipi BİREBİR aynıdır', () => {
+    const match = /status\s+IN\s*\(([\s\S]*?)\)\s*\)/i.exec(LOCKING);
     const fromSql = [...(match?.[1] ?? '').matchAll(/'([a-z_]+)'/g)].map((m) => m[1]);
     expect(fromSql.sort()).toEqual([...ALL_STATUSES].sort());
+  });
+
+  it('0006`NIN özgün listesi KORUNUR — 0042 onu yalnızca GENİŞLETİR', () => {
+    // 0042 bir değer SİLSEYDİ, o durumdaki mevcut satırlar geçersiz hâle
+    // gelirdi. Yalnızca ekleme yapıldığını kanıtlar.
+    const match = /status\s+TEXT\s+NOT\s+NULL\s+DEFAULT\s+'scheduled'\s+CHECK\s*\(\s*status\s+IN\s*\(([\s\S]*?)\)\s*\)/i.exec(
+      ORIGINAL,
+    );
+    expect(match).not.toBeNull();
+    const fromSql = [...(match?.[1] ?? '').matchAll(/'([a-z_]+)'/g)].map((m) => m[1]);
+    for (const status of fromSql) {
+      expect(ALL_STATUSES).toContain(status);
+    }
   });
 });
 
