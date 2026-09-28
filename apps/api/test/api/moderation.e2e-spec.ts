@@ -334,6 +334,26 @@ describe('Block / Report — moderasyon (e2e)', () => {
       const byId = new Map(balances.rows.map((row) => [row.id as string, row.money as string]));
       expect(Number(byId.get(sender.playerId))).toBe(5_000);
       expect(Number(byId.get(recipient.playerId))).toBe(100);
+
+      // DEFTER VE `gift_sends` DE BOŞ KALMALI. Bakiye iddiası TEK BAŞINA
+      // yetmez: kapı transferden SONRA olsaydı ve transfer geri alınsaydı
+      // bakiyeler yine yerinde görünürdü ama `gift_sends` satırı ile iki
+      // defter kaydı (`gift_send_debit`/`gift_send_credit`) ARKADA KALIRDI —
+      // yani geri alma, izini silmeyen bir telafi olurdu. Asıl kanıt hiç
+      // yazılmamış olmasıdır.
+      const gifts = await pool.query(
+        `SELECT count(*)::int AS count FROM gift_sends
+         WHERE sender_id = $1 AND recipient_id = $2`,
+        [sender.playerId, recipient.playerId],
+      );
+      expect(gifts.rows[0].count).toBe(0);
+
+      const ledger = await pool.query(
+        `SELECT count(*)::int AS count FROM economy_transactions
+         WHERE player_id = ANY($1::uuid[]) AND reference_type = 'gift_send'`,
+        [[sender.playerId, recipient.playerId]],
+      );
+      expect(ledger.rows[0].count).toBe(0);
     });
 
     it('ENGEL KALDIRILINCA yol yeniden AÇILIR (arkadaşlık silinmediği için)', async () => {
