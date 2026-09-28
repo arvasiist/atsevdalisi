@@ -176,6 +176,33 @@ oluşur, boş sahanın havuzu yoktur. `resolveFieldComposition` bunu
 gerçek oyuncudan** başlar. Bu senaryoyu "geçirmek" için kapıyı gevşetmek,
 parasız/ödülsüz bir yarışa izin vermek olurdu.
 
+**⚠️ PARA MUTABAKATI — İKİ ÖLÇÜM TUZAĞI (§13.26).** Bir para testi yazarken:
+(1) **"Önce" bakiye ölçümü KATILIMDAN ÖNCE alınır.** Sonra alınırsa ödenen
+giriş ücreti gizlenir ve defter (`−200`) ile bakiye farkı (`+10`) **tam
+olarak ücret kadar** ayrışır — yaşandı, dört test birden düştü. (2)
+**`net = 0` yalnızca İPTAL sonrası doğrudur.** **Terk edilmiş** bir yarışta
+kalan oyuncunun ücreti hâlâ havuzdadır; doğru iddia `net = −kalan ücret`tir
+(yaşandı: `toBe(0)` yazılmıştı, test −100 görüp düştü — **test haklıydı**).
+
+**⚠️ İKİ AYRI HAVUZ MODELİ YAN YANA YAŞAR — KARIŞTIRMA (§13.26).**
+**Pratik** yarış: `computeRacePool(tier) = entryFee × fieldSize`, botlar
+ödemiş **sayılır** (havuz oyuncunun ödediğinden büyüktür). **Lobi** yarışı:
+havuz = `entryFee × GERÇEK oyuncu sayısı`, botlar hiçbir şey ödemez.
+`docs/ECONOMY.md` §4.1.1'in tablosu **pratik** modeli anlatır; lobi için
+ona bakmak yanıltıcıdır. İkisi de bilinçli, ikisi de **korunur**.
+
+**⚠️ PLATFORM PAYI VE BOT ARTĞI İÇİN HESAP SATIRI YOKTUR (§13.26).**
+`raceRake` payı ve bota düşen ödül oyuncu ekonomisinden **çıkar**, başka bir
+hesaba **girmez**; mutabakatta `−(platformPayı + botArtğı)` olarak görünür.
+"Kesilen para nerede" sorusunun bugünkü cevabı budur — uydurma bir "ev
+hesabı" açmak, bakiyesi olmayan bir satır uydurmak olurdu.
+
+**⚠️ ÖDÜL SIRASI SİMÜLASYON SONUCUDUR — TESTİ KARARSIZ KURMA (§13.26).**
+"En az bir oyuncu ödül aldı" gibi bir iddia **botlu** sahada kurulamaz: 2
+gerçek oyuncu 8 atlık sahada ilk beşe girmeyebilir ve seed her koşuda
+yenidir. O iddia yalnızca **botsuz** sahada kararlıdır (orada ödül sırasının
+tamamı gerçek oyuncudur).
+
 **⚠️ `locking` DURUMU — ÜÇ KAPI AYNI ANDA AÇIK OLMALI (migration 0042,
 §13.24).** Zamanlayıcı `startTime`da yarışı `locking`e alır ve kadroyu +
 seed'i + `horse_snapshot`ı **dondurur**. Bu durum **kesinleştirilebilir**

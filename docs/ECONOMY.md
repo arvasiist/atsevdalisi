@@ -94,9 +94,21 @@ tablodan değil, bir havuzdan** dağıtılır. Kaynak
 | `elite` Elit | 14 at | 1.000 | 14.000 | 8 | 4.62× |
 | `championship` Şampiyona | 16 at | 2.000 | 32.000 | 9 | 4.80× |
 
-- **Havuz** = `entryFee × fieldSize`. Botlar da giriş ücretini ödemiş
-  sayılır, yani havuz gerçek bir havuzdur (eski modelde botlar hiçbir şey
-  ödemiyordu ve ödül sabit bir tablodan geliyordu — E7 musluğunun kaynağı).
+- **Havuz (PRATİK yarış modeli)** = `entryFee × fieldSize`. Bot rakipler de
+  giriş ücretini ödemiş sayılır (`domain/race/prize.ts` → `computeRacePool`,
+  proje sahibinin "evet ödesin" kararı); havuzun oyuncunun ödediğinden
+  **büyük** olması bilinçlidir ve oyuncunun gördüğü çarpanın
+  (`shares × fieldSize`) kaynağıdır.
+
+> **⚠️ LOBİ YARIŞI FARKLI BİR HAVUZ MODELİ KULLANIR (28.09.2026, §13.26).**
+> Ücretli **lobi** yarışında havuz `entryFee × GERÇEK oyuncu sayısı`dır ve
+> **botlar hiçbir şey ödemez**. Bu yüzden botların kapabildiği ödül sırası
+> **kimseye ödenmez** ve havuzda kalır (`CLAUDE.md` "BOT PAYI YANAR") —
+> gerçek oyuncu sayısı azken yarış oyuncu için **kayıptır**. Yukarıdaki
+> tablo yalnızca **pratik** (kademeli) yarışı anlatır; lobi için o tabloya
+> bakmak yanıltıcıdır. İki model bilinçli olarak yan yana yaşar ve
+> **değiştirilmemiştir** (brief §42 PHASE 3: "mevcut ekonomi farklı bir
+> bölüşüm kullanıyorsa onu koru ve belgele").
 - **Pay** = `shares[finishPosition-1]`, `Σ shares = 1 − raceRake`.
   Dağıtılan toplam ödül havuza **yapısal olarak** eşit olamaz, yani yarış
   HİÇBİR kademede Çip basamaz. Bu değişmez bir testle korunur
@@ -129,6 +141,37 @@ tablodan değil, bir havuzdan** dağıtılır. Kaynak
 > çözüldü (bir yarış ne kadar tekrarlanırsa tekrarlansın Çip üretmez).
 > Değişmezler: `apps/api/test/domain/race/prize.spec.ts` (33 test) ve
 > uçtan uca `apps/api/test/api/race.e2e-spec.ts`.
+
+### 4.1.2 Mutabakat — para nereden gelir, nereye gider (28.09.2026, §13.26)
+
+Bir yarışın parası **ya dağıtılır ya iade edilir**; ikisi aynı anda olmaz.
+Bu yüzden mutabakat, tek bir denklem yerine **üç ayrı olay** için kurulur.
+Kanıt: `apps/api/test/api/economy-reconciliation.e2e-spec.ts` (gerçek
+PostgreSQL; tutarlar config'ten türetilir, koda gömülmez).
+
+| Olay | Denklem |
+|---|---|
+| Kesinleşen yarış, **bot yok** | `giriş ücretleri = havuz` ve `havuz = ödüller + platform payı` |
+| Kesinleşen yarış, **botlu** | `havuz = ödüller + BOT ARTĞI + platform payı` |
+| İptal edilen yarış | `giriş ücretleri = iadeler` (tam), `races.prize_pool = 0` |
+| Terk edilen yarış | ayrılan oyuncunun **kendi neti = 0**; kalanın ücreti havuzda kalır |
+
+**Değişmez (asıl iddia):** `SUM(economy_transactions.amount)` — yarışın
+`reference_id`'si altında — **oyuncu bakiyelerindeki gerçek değişime eşittir.**
+İki sayı ayrışırsa ya defter yalan söylüyordur ya para yoktan var/dan yok
+oluyordur; ikisi de hiçbir yerde hata üretmez.
+
+**Platform payı ve bot artığı için bir hesap satırı YOKTUR.** İkisi de oyuncu
+ekonomisinden çıkar ve başka bir hesaba girmez; mutabakatta
+`−(platformPayı + botArtğı)` olarak görünürler. Uydurma bir "ev hesabı"
+açmak, bakiyesi olmayan bir satır uydurmak olurdu. Bir gelir tablosu
+isteniyorsa bu ayrı bir iştir.
+
+**Ölçüm tuzakları (test tarafı, §13.26):** bakiye "önce" ölçümü **katılımdan
+önce** alınmalıdır (sonra alınırsa ödenen giriş ücreti gizlenir ve iki sayı
+tam olarak ücret kadar ayrışır); ve `net = 0` yalnızca **iptal** sonrası
+doğrudur — **terk edilmiş** bir yarışta kalan oyuncunun ücreti hâlâ havuzda
+olduğu için doğru iddia `net = −kalan ücret`tir.
 
 ### 4.2 Bugün bedava olan giderler
 

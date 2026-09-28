@@ -2524,6 +2524,91 @@ değeri koda gömülmedi.**
 
 ---
 
+#### 13.26 EKONOMİK MUTABAKAT — giriş ücreti = ödül havuzu + platform payı + iade (brief §42 PHASE 3) — 28.09.2026
+
+**Bu dilim YALNIZCA testtir; hiçbir üretim kodu, hiçbir migration, hiçbir
+config değeri değişmedi.** Kanıt: `apps/api/test/api/economy-reconciliation.e2e-spec.ts`
+(4 test, gerçek PostgreSQL).
+
+**BRIEF'İN DENKLEMİ TEK BİR YARIŞ İÇİN AYNEN KURULAMAZ — ve bu bir eksiklik
+değil, yarışın tanımıdır.** Brief `TOPLAM GİRİŞ ÜCRETİ = ÖDÜL HAVUZU +
+PLATFORM PAYI + İADELER` istiyor; ama bir yarış **ya kesinleşir ya iptal
+edilir**. İade edilen bir yarışta ödül havuzu hiç dağıtılmaz; dağıtılan bir
+yarışta iade hiç olmaz. Denklem bu yüzden gerçekte var olan **üç ayrı
+muhasebe olayına** çevrildi ve üçü ayrı ayrı kanıtlandı:
+
+| Olay | Denklem | Kanıt |
+|---|---|---|
+| **Kesinleşen yarış (botsuz)** | `giriş ücretleri = havuz` ve `havuz = ödüller + platform payı` — **tam eşitlik** | 8 gerçek oyuncu, `paidTotal === computePrizePayoutTotal(havuz, paylar)` |
+| **Kesinleşen yarış (botlu)** | `havuz = ödüller + BOT ARTĞI + platform payı` | 2 gerçek + 6 bot |
+| **İptal edilen yarış** | `giriş ücretleri = iadeler`, **tam eşitlik**; `havuz = 0` | yönetim iptali, 3 oyuncu |
+| **Terk edilen yarış** | ayrılan oyuncunun **kendi neti = 0** | 1 ayrılan + 1 kalan |
+
+**ASIL İDDİA DEFTERİN KENDİSİDİR.** Her olayda
+`SUM(economy_transactions.amount) WHERE reference_type = 'race' AND
+reference_id = <raceId>` ile **oyuncuların bakiyelerindeki GERÇEK değişim**
+birebir karşılaştırılır. İki sayı ayrışırsa ya defter yalan söylüyordur ya
+para yoktan var/dan yok oluyordur — ve **ikisi de hiçbir yerde hata
+üretmez**. `race-settlement.e2e-spec.ts` yalnızca "havuz − ödenen = rake"
+diyordu; **iadeler ve bot artığı o mutabakatta YOKTU**, yani iptal yolu
+defterle hiç karşılaştırılmamıştı. Bu dilim o boşluğu kapatır.
+
+**PLATFORM PAYI VE BOT ARTĞI KİMSEYE YAZILMAZ.** Projede bir "platform
+hesabı" satırı yoktur; ikisi de oyuncu ekonomisinden **çıkar** ve başka bir
+hesaba **girmez**. Mutabakatta `−(platformPayı + botArtğı)` olarak görünürler
+(2 gerçek oyunculu 200 Çip'lik havuzda: ödüller + bot artığı + platform payı
+= 180 + 20 = 200; defter neti oyuncular için **−20**). Uydurma bir "ev
+hesabı" açmak, bakiyesi olmayan bir satır uydurmak olurdu.
+
+**BOTLAR HAVUZA PARA KOYMAZ — iki farklı model YAN YANA yaşar ve ikisi de
+bilinçlidir:**
+
+- **Pratik yarış (kademeli):** `computeRacePool(tier) = entryFee × fieldSize`
+  ve **botlar ödemiş sayılır** (`domain/race/prize.ts` — proje sahibinin
+  "evet ödesin" kararı). Havuz oyuncunun ödediğinden **büyüktür**.
+- **Lobi yarışı (bu dilimin konusu):** havuz = `entryFee × GERÇEK oyuncu
+  sayısı`; botlar hiçbir şey ödemez ve **bota düşen ödül KİMSEYE ödenmez**
+  (`CLAUDE.md` "BOT PAYI YANAR"). Yani gerçek oyuncu sayısı azken havuz
+  küçüktür ve yarış oyuncu için **kayıptır**.
+
+`docs/ECONOMY.md` §4.1.1 bu ayrımı yazmıyordu (tablo yalnızca pratik modeli
+anlatıyor, ama lobi de o tabloya bakıyormuş gibi okunuyordu); bu dilimde
+düzeltildi. **Bu bir denge kararıdır ve DEĞİŞTİRİLMEDİ** — brief'in
+"mevcut ekonomi farklı bir bölüşüm kullanıyorsa onu koru ve belgele"
+maddesi gereği belgelendi.
+
+**İKİ ÖLÇÜM TUZAĞI (ikisi de bu dilimde yaşandı, ikisi de test hatasıydı —
+para yolları doğruydu):**
+
+1. **Bakiye ölçümü KATILIMDAN ÖNCE alınır.** Katılımdan sonra alınan bir
+   "önce" ölçümü ödenen giriş ücretini gizler: defter `−200` derken bakiye
+   farkı `+10` görünür ve iki sayı **tam olarak giriş ücreti kadar** ayrışır.
+   İlk koşuda dört testin dördü de bu yüzden düştü.
+2. **`net = 0` yalnızca İPTAL/TERK sonrası "herkes çıktı" durumunda
+   doğrudur.** Terk edilmiş bir yarışta **kalan** oyuncunun ücreti hâlâ
+   havuzdadır; doğru iddia `net = −kalan ücret`tir. (Buraya `toBe(0)`
+   yazılmıştı; test −100 görüp düştü — **test haklıydı, iddia yanlıştı**.)
+
+**KARARSIZ İDDİA KURULMADI.** "En az bir oyuncu ödül aldı" iddiası botlu
+testte **yoktur**: 8 atlık sahada 2 gerçek oyuncu ilk beşe girmeyebilir ve
+ödül sırası simülasyonun **sonucudur** (seed her koşuda yenidir). Öyle bir
+iddia testi kararsız yapardı. O iddia kararlı biçimde **botsuz** sahada
+kurulur: orada ödül sırasının tamamı gerçek oyuncudur, yani ödenen toplam
+simülasyondan **bağımsız olarak** sabittir (`= havuzun 1 − rake'i`).
+
+**ÇİFT İADE YOK — defter satır sayısıyla kanıtlanır.** İkinci iptal çağrısı
+409 `RACE_NOT_CANCELABLE` döner (koruma `Idempotency-Key` değil,
+`scheduled → cancelled` geçişidir) **ve** `race_entry_refund` satır sayısı ile
+oyuncu bakiyeleri değişmez.
+
+**Açık kalan (bu dilimin kapsamı dışında, uydurulmadı):** platform payı ve
+bot artığı için bir **hesap satırı yoktur**, yani "kesilen para nerede"
+sorusunun cevabı yalnızca "oyuncu ekonomisinden çıktı"dır — bir gelir
+tablosu/günlüğü isteniyorsa bu ayrı bir iştir. Ayrıca pratik yarışın
+"botlar ödedi sayılır" modeli **ölçülmedi** (bu dilim lobi zincirini ölçer).
+
+---
+
 ## 14. Kendime hatırlatmalar (kısa liste)
 
 1. **Race Engine'e dokunmadan önce iki kez düşün.** Denetim onu "KEEP, dokunma"
