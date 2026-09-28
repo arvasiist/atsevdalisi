@@ -1,15 +1,23 @@
 import { Inject, Injectable } from '@nestjs/common';
 import type { Pool, PoolClient } from 'pg';
-import type { FriendshipStatus, NotificationType } from '@at-sevdalisi/shared-types';
 import type {
+  FriendshipStatus,
+  NotificationType,
+  ReportCategory,
+  ReportStatus,
+} from '@at-sevdalisi/shared-types';
+import type {
+  BlockedPlayerRow,
   DirectMessageRow,
   FriendFacts,
   FriendRequestFacts,
   FriendshipRow,
   RemoveFriendshipInput,
+  ReportRow,
   RespondToRequestInput,
   SaveFriendRequestInput,
   SaveMessageInput,
+  SaveReportInput,
   SocialOverviewFacts,
   SocialOverviewQuery,
   SocialRepository,
@@ -54,6 +62,25 @@ interface DirectMessageDbRow {
   body: string;
   created_at: Date;
   read_at: Date | null;
+}
+
+/** `player_blocks` + `players` JOIN sonucu (brief §33). */
+interface BlockedPlayerDbRow {
+  player_id: string;
+  display_name: string;
+  level: number;
+  blocked_at: Date;
+}
+
+/** `player_reports` satır şekli (snake_case) — `INSERT ... RETURNING` çıktısı. */
+interface ReportDbRow {
+  id: string;
+  reporter_id: string;
+  reported_id: string;
+  category: string;
+  reason: string | null;
+  status: string;
+  created_at: Date;
 }
 
 /**
@@ -444,6 +471,140 @@ export class PostgresSocialRepository implements SocialRepository {
       'INSERT INTO notifications (player_id, type, payload) VALUES ($1, $2, $3::jsonb)',
       [playerId, type, JSON.stringify(payload)],
     );
+  }
+
+  /**
+   * brief §33 BLOCK / REPORT (PHASE 15). `ON CONFLICT DO NOTHING` ile
+   * İDEMPOTENTTİR — bkz. port doc yorumu ("engelleme bir DURUMdur, olay
+   * değil").
+   *
+   * **BİLDİRİM ÜRETMEZ — ve bu bilinçlidir.** Diğer tüm yazma yolları
+   * karşı tarafa bildirim yazar; engelleme YAZMAZ. Sebep doğrudan
+   * engellemenin amacıdır: karşı tarafa "seni engelledi" diye haber
+   * vermek, engellemeyi sessiz bir mesafe olmaktan çıkarıp bir SOSYAL
+   * SİNYALE (ve misilleme tetikleyicisine) çevirirdi. Bu yüzden bu metot
+   * `insertNotification`ı ÇAĞIRMAZ; `withTransaction` da GEREKMEZ —
+   * yazılan tek satır var ve atomikliği ifadenin kendisi sağlar.
+   */
+  async blockPlayer(blockerId: string, blockedId: string, createdAt: Date): Promise<Date> {
+    // `DO NOTHING` DEĞİL `DO UPDATE` — ve güncellenen sütun kendine eşittir
+    // (bilinçli bir "no-op yazma"). Sebep tamamen `RETURNING` içindir:
+    // `DO NOTHING` çakışmada HİÇBİR satır döndürmez, dolayısıyla var olan
+    // engelin `created_at`ini geri okuyamazdık ve çağıranın `new Date()`ine
+    // mahkûm kalırdık (yani ikinci çağrıda YANLIŞ tarih dönerdi). Yazılan
+    // değer aynı olduğundan satırın anlamı değişmez; `RETURNING` ise var
+    // olan satırın `created_at`ini döner.
+    const result = await this.pool.query<{ created_at: Date }>(
+      `INSERT INTO player_blocks (blocker_id, blocked_id, created_at)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (blocker_id, blocked_id)
+         DO UPDATE SET blocked_id = player_blocks.blocked_id
+       RETURNING created_at`,
+      [blockerId, blockedId, createdAt],
+    );
+    const row = result.rows[0];
+    if (!row) {
+      // `INSERT ... RETURNING` (ON CONFLICT yolunda da) her zaman bir satır
+      // döner; buraya düşmek şema/bağlantı seviyesinde beklenmedik bir
+      // durumdur (`saveReport` ile AYNI gerekçe).
+      throw new Error(`Engel yazılamadı (blocker_id: ${blockerId}).`);
+    }
+    return row.created_at;
+  }
+
+  async unblockPlayer(blockerId: string, blockedId: string): Promise<boolean> {
+    const result = await this.pool.query(
+      'DELETE FROM player_blocks WHERE blocker_id = $1 AND blocked_id = $2',
+      [blockerId, blockedId],
+    );
+    return result.rowCount !== null && result.rowCount > 0;
+  }
+
+  async findBlockedPlayers(blockerId: string, limit: number): Promise<BlockedPlayerRow[]> {
+    // JOIN şart: `BlockedPlayerView` görünen ad ve seviye taşır ve bunlar
+    // `player_blocks`ta YOKTUR. Her satır için ikinci bir `GET /players/:id`
+    // isteği N+1 olurdu (`findInbox` ile AYNI gerekçe).
+    //
+    // Sıralama `created_at DESC`: en SON engellenen en üstte — kullanıcı
+    // neredeyse her zaman "az önce engellediğim kişiyi" arar
+    // (`findInbox`ın "en yeni mesaj üstte" tercihiyle AYNI).
+    const result = await this.pool.query<BlockedPlayerDbRow>(
+      `SELECT b.blocked_id AS player_id, b.created_at AS blocked_at,
+              p.display_name, p.level
+       FROM player_blocks b
+       JOIN players p ON p.id = b.blocked_id
+       WHERE b.blocker_id = $1
+       ORDER BY b.created_at DESC
+       LIMIT $2`,
+      [blockerId, limit],
+    );
+    return result.rows.map((row) => ({
+      playerId: row.player_id,
+      displayName: row.display_name,
+      level: row.level,
+      blockedAt: row.blocked_at,
+    }));
+  }
+
+  async isBlockedBetween(aId: string, bId: string): Promise<boolean> {
+    // İKİ YÖN TEK SORGUDA — port doc yorumundaki gerekçe: iki ayrı sorgu
+    // iki tur gecikme demekti ve arada bir yön değişebilirdi.
+    //
+    // `LIMIT 1`: varlık sorusudur, sayı sorusu değil. İki yön birden
+    // engelliyse bile ilk satırda durur.
+    const result = await this.pool.query(
+      `SELECT 1 FROM player_blocks
+       WHERE (blocker_id = $1 AND blocked_id = $2)
+          OR (blocker_id = $2 AND blocked_id = $1)
+       LIMIT 1`,
+      [aId, bId],
+    );
+    return result.rowCount !== null && result.rowCount > 0;
+  }
+
+  /**
+   * Şikâyet kaydı (brief §33). `RETURNING` ile yazılan satır geri okunur —
+   * `id`/`created_at`/`status` sunucuda üretilir ve yanıtta istemciye
+   * döner (`saveMessage`ın CTE deseniyle AYNI amaç).
+   *
+   * **`reason` NULL OLABİLİR** ve bu bilinçlidir (bkz.
+   * `normalizeReportReason`). `status` bu dilimde her zaman `'open'`dır;
+   * yine de parametre olarak geçer, çünkü DB varsayılanına güvenmek
+   * "hangi durumda yazıldı" bilgisini SQL'in içine gizlerdi.
+   */
+  async saveReport(input: SaveReportInput): Promise<ReportRow> {
+    const result = await this.pool.query<ReportDbRow>(
+      `INSERT INTO player_reports (reporter_id, reported_id, category, reason, status, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING id, reporter_id, reported_id, category, reason, status, created_at`,
+      [
+        input.reporterId,
+        input.reportedId,
+        input.category,
+        input.reason,
+        input.status,
+        input.createdAt,
+      ],
+    );
+    const row = result.rows[0];
+    if (!row) {
+      // `INSERT ... RETURNING` her zaman bir satır döner; buraya düşmek
+      // şema/bağlantı seviyesinde beklenmedik bir durumdur — sessizce
+      // `undefined` döndürmek yerine AÇIKÇA fırlatılır (`saveMessage` ile
+      // AYNI gerekçe).
+      throw new Error(`Şikâyet yazılamadı (reporter_id: ${input.reporterId}).`);
+    }
+    return {
+      reportId: row.id,
+      reporterId: row.reporter_id,
+      reportedId: row.reported_id,
+      // `category`/`status` DB CHECK ile kısıtlıdır (migration 0040) —
+      // cast güvenlidir (`rowToFriendship`in `status` cast'iyle AYNI).
+      category: row.category as ReportCategory,
+      reason: row.reason,
+      status: row.status as ReportStatus,
+      createdAt: row.created_at,
+    };
   }
 }
 

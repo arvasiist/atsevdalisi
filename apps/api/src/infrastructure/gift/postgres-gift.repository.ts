@@ -18,6 +18,7 @@ import {
 import { transfer } from '../../domain/economy/wallet';
 import { PlayerNotFoundError } from '../../domain/player/errors';
 import { canonicalPair } from '../../domain/social/friendship';
+import { assertNoBlock } from '../../domain/social/moderation';
 import { buildGiftReceivedPayload } from '../../domain/social/notification';
 import { PG_POOL, withTransaction } from '../database/database.module';
 import { writeLedgerEntries } from '../player/player-row';
@@ -163,6 +164,25 @@ export class PostgresGiftRepository implements GiftRepository {
         friendshipResult.rowCount !== null && friendshipResult.rowCount > 0,
         recipientId,
       );
+
+      // ENGEL KAPISI — brief §33 (PHASE 15). Arkadaşlık kapısıyla AYNI
+      // yerde ve AYNI gerekçeyle: engelleme arkadaşlık satırını SİLMEZ
+      // (bkz. `BlockPlayerUseCase`), yani yukarıdaki arkadaşlık kontrolü
+      // engelli bir çiftte GEÇER. Use-case'teki ön kontrol erken bir hata
+      // içindir; para yolu olduğu için asıl kapı burada, kilitli
+      // transaction'ın içinde TEKRARLANIR — arada konan bir engel parayı
+      // durdurmalıdır.
+      //
+      // İKİ YÖN TEK SORGUDA: A, B'yi engellediyse B'nin A'ya hediye
+      // gönderememesi gerekir (`isBlockedBetween` ile AYNI semantik).
+      const blockResult = await client.query(
+        `SELECT 1 FROM player_blocks
+         WHERE (blocker_id = $1 AND blocked_id = $2)
+            OR (blocker_id = $2 AND blocked_id = $1)
+         LIMIT 1`,
+        [senderId, recipientId],
+      );
+      assertNoBlock(blockResult.rowCount !== null && blockResult.rowCount > 0);
 
       // GÜNLÜK SAYIM — gönderenin satırı YUKARIDA `FOR UPDATE` ile
       // KİLİTLİ olduğundan, aynı gönderenin eşzamanlı iki isteği bu kilit

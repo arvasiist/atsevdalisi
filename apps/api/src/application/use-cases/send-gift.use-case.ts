@@ -5,6 +5,7 @@ import { assertGiftConfigIsValid, assertNotSelfGift, resolveGiftCurrency } from 
 import { parseGiftAmount } from '../../domain/gift/validation';
 import { PlayerNotFoundError } from '../../domain/player/errors';
 import { canonicalPair } from '../../domain/social/friendship';
+import { assertNoBlock } from '../../domain/social/moderation';
 import { AppConfigService } from '../../infrastructure/config/config.service';
 import { GIFT_REPOSITORY, type GiftRepository } from '../ports/gift.repository';
 import { PLAYER_REPOSITORY, type PlayerRepository } from '../ports/player.repository';
@@ -79,6 +80,12 @@ export class SendGiftUseCase {
     if (!(await this.socialRepository.areFriends(lowId, highId))) {
       throw new GiftRequiresFriendshipError(recipientId);
     }
+
+    // brief §33: engel varsa hediye GÖNDERİLEMEZ (403 `PLAYER_BLOCKED`).
+    // Arkadaşlık ön kontrolüyle AYNI statüde — erken ve anlaşılır bir hata
+    // içindir; asıl kapı `PostgresGiftRepository.sendGift`in İÇİNDE,
+    // kilitli satırlarla TEKRARLANIR (bkz. o dosyadaki "ENGEL KAPISI" notu).
+    assertNoBlock(await this.socialRepository.isBlockedBetween(senderId, recipientId));
 
     const execution = await this.giftRepository.sendGift({
       senderId,

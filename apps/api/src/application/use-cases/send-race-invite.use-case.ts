@@ -10,6 +10,7 @@ import {
   RaceNotInvitableError,
 } from '../../domain/social/errors';
 import { assertInviteNotSelf, checkInviteable, isUuid } from '../../domain/social/invite';
+import { assertNoBlock } from '../../domain/social/moderation';
 import { AppConfigService } from '../../infrastructure/config/config.service';
 import { NOTIFICATION_NOTIFIER, type NotificationNotifier } from '../ports/notification-notifier';
 import { PLAYER_REPOSITORY, type PlayerRepository } from '../ports/player.repository';
@@ -115,6 +116,13 @@ export class SendRaceInviteUseCase {
     if (!friends) {
       throw new InviteRequiresFriendshipError(inviteeId);
     }
+
+    // brief §33: engel varsa yarış daveti GÖNDERİLEMEZ (403). Arkadaşlık
+    // kapısından SONRA sorulur — arkadaş olmayan biri zaten 403 alır ve
+    // engel sorgusu boşuna yapılmamış olur. `areFriends` YERİNE GEÇMEZ:
+    // engelleme arkadaşlık satırını silmediği için eskiden arkadaş olan
+    // iki oyuncu aksi hâlde davetleşmeye devam ederdi.
+    assertNoBlock(await this.socialRepository.isBlockedBetween(inviterId, inviteeId));
 
     const pendingCount = await this.inviteRepository.countOutgoingPending(inviterId);
     assertUnderSocialLimit(pendingCount, this.config.social.pendingInvitesLimit, 'PENDING_INVITES');

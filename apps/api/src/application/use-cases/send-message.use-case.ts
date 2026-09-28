@@ -2,6 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import type { DirectMessageView } from '@at-sevdalisi/shared-types';
 import { CannotMessageSelfError, NotFriendsError } from '../../domain/social/errors';
 import { canonicalPair } from '../../domain/social/friendship';
+import { assertNoBlock } from '../../domain/social/moderation';
 import { normalizeMessageBody } from '../../domain/social/validation';
 import { PlayerNotFoundError } from '../../domain/player/errors';
 import { AppConfigService } from '../../infrastructure/config/config.service';
@@ -58,6 +59,16 @@ export class SendMessageUseCase {
     if (!(await this.socialRepository.areFriends(lowId, highId))) {
       throw new NotFriendsError(recipientId);
     }
+
+    // brief §33: engel varsa mesaj GÖNDERİLEMEZ (403). Kapı `areFriends`ten
+    // SONRA sorulur — sıra bilinçlidir: arkadaş olmayan biri zaten 403
+    // `NOT_FRIENDS` alır ve engel sorgusu boşuna yapılmamış olur. İki
+    // oyuncu ARKADAŞKEN engellenmişse cevap `PLAYER_BLOCKED` olur.
+    //
+    // `areFriends` YERİNE GEÇMEZ: engelleme arkadaşlık satırını SİLMEZ
+    // (bkz. `BlockPlayerUseCase`), yani bu kontrol olmasaydı eskiden
+    // arkadaş olan iki oyuncu engelden sonra yazışmaya devam ederdi.
+    assertNoBlock(await this.socialRepository.isBlockedBetween(playerId, recipientId));
 
     const row = await this.socialRepository.saveMessage({
       senderId: playerId,

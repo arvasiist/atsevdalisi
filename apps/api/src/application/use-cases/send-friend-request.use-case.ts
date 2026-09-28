@@ -7,6 +7,7 @@ import {
   assertUnderSocialLimit,
   canonicalPair,
 } from '../../domain/social/friendship';
+import { assertNoBlock } from '../../domain/social/moderation';
 import { PlayerNotFoundError } from '../../domain/player/errors';
 import { AppConfigService } from '../../infrastructure/config/config.service';
 import { PLAYER_REPOSITORY, type PlayerRepository } from '../ports/player.repository';
@@ -60,6 +61,21 @@ export class SendFriendRequestUseCase {
     }
 
     const { lowId, highId } = canonicalPair(playerId, addresseeId);
+
+    // ENGEL KAPISI — brief §33. **BİLİNÇLİ BİR SAPMA:** brief üç yolu
+    // sayar (mesaj, hediye, yarış daveti) ve arkadaşlık isteğini saymaz;
+    // buraya eklendi çünkü SAYILMASAYDI engelleme gerçek bir delik
+    // bırakırdı — engellenen oyuncu davet edilemediği hâlde arkadaşlık
+    // isteği göndermeye devam edebilir, yani engelin engellediği tek şey
+    // "rahatsız etme biçimi" olurdu (davet), asıl rahatsızlık kaynağı
+    // (istek bildirimi) açık kalırdı. Kural aynıdır ve tek bir cümledir:
+    // bu iki oyuncu arasında engel varsa YAZMA yolu kapalıdır.
+    //
+    // `assertFriendRequestAllowed`TEN ÖNCE sorulur: engel, çiftteki
+    // mevcut kayıttan bağımsız bir kapıdır ve engelli bir çiftte
+    // "409 zaten istek var" demek yanıltıcı olurdu.
+    assertNoBlock(await this.socialRepository.isBlockedBetween(playerId, addresseeId));
+
     const existing = await this.socialRepository.findPair(lowId, highId);
     assertFriendRequestAllowed(existing?.status ?? null);
 

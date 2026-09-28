@@ -1,4 +1,4 @@
-import type { FriendshipStatus } from '@at-sevdalisi/shared-types';
+import type { FriendshipStatus, ReportCategory, ReportStatus } from '@at-sevdalisi/shared-types';
 
 /**
  * `SocialRepository` — Arkadaşlık + mesajlaşma diliminin Application →
@@ -131,6 +131,102 @@ export interface SocialRepository {
 
   /** Oyuncunun aldığı son mesajlar (gönderen adıyla), en yeniden eskiye. Salt okunur. */
   findInbox(playerId: string, limit: number): Promise<DirectMessageRow[]>;
+
+  /**
+   * brief §33 BLOCK / REPORT (PHASE 15) — yönlü engel koyar.
+   *
+   * **İDEMPOTENTTİR:** aynı engeli iki kez koymak yeni bir satır üretmez
+   * ve hata da vermez. NEDEN: engelleme bir DURUMdur, bir olay değil —
+   * "zaten engelli" bir hata değil, istenen sonucun hâlihazırda geçerli
+   * olmasıdır (`race_ready`in "zaten hazır" durumuna yaklaşımıyla AYNI).
+   * İstemci çift tıklarsa 409 almak anlamsız olurdu.
+   *
+   * **DÖNEN TARİH "YÜRÜRLÜKTEKİ" TARİHTİR, `createdAt` DEĞİL:** ikinci
+   * çağrıda var olan satırın `created_at`i korunur ve DÖNEN değer odur.
+   * NEDEN ÖNEMLİ: yanıt (`BlockedPlayerView.blockedAt`) istemciye engelin
+   * gerçekten ne zaman konduğunu söyler; çağıranın `new Date()`i ikinci
+   * çağrıda yanlış olurdu. Bunu SQL `RETURNING` ile yapar — ayrı bir
+   * `SELECT` turu gerekmez ve arada bir yarış durumu kalmaz.
+   *
+   * `createdAt` ÇAĞIRANDAN gelir — repository `now()` ÇAĞIRMAZ
+   * (`markConversationRead` ile AYNI test edilebilirlik disiplini).
+   */
+  blockPlayer(blockerId: string, blockedId: string, createdAt: Date): Promise<Date>;
+
+  /**
+   * Engeli KALDIRIR (yalnızca verilen yönde). Satır yoksa `false` döner —
+   * çağıran bunu `NotFound`a çevirir.
+   *
+   * **"Zaten yok" ile "kaldırıldı" AYRI ŞEYLERDİR** (blok koymanın
+   * aksine): istemci listesinden bir satırı sildiğinde gerçekten bir
+   * şeyin silindiğini bilmelidir, yoksa bayat bir listeyle çalıştığını
+   * fark etmezdi (`removeFriendship` ile AYNI gerekçe).
+   */
+  unblockPlayer(blockerId: string, blockedId: string): Promise<boolean>;
+
+  /**
+   * Oyuncunun ENGELLEDİĞİ kişiler, en yeniden eskiye, `limit` ile
+   * sınırlı. Salt okunur — `withTransaction` GEREKMEZ (`findInbox` ile
+   * AYNI gerekçe).
+   *
+   * **YALNIZCA TEK YÖN listelenir** (`blocker_id = playerId`): kullanıcı
+   * KENDİ koyduğu engelleri görür ve kaldırabilir. "Beni engelleyenler"
+   * listesi bilinçli olarak YOKTUR — o liste engellemeyi bir sosyal
+   * sinyale (ve misilleme aracına) çevirirdi.
+   */
+  findBlockedPlayers(blockerId: string, limit: number): Promise<BlockedPlayerRow[]>;
+
+  /**
+   * İki oyuncu arasında **HERHANGİ bir yönde** engel var mı? Yazma
+   * yollarının (mesaj, hediye, yarış daveti, arkadaşlık isteği) tek
+   * kapısıdır — bkz. `domain/social/moderation.ts` `assertNoBlock`.
+   *
+   * **İKİ YÖN TEK SORGUDA:** `blocker_id = a AND blocked_id = b` VEYA
+   * `blocker_id = b AND blocked_id = a`. İki ayrı sorgu, iki tur
+   * gecikme demekti ve arada bir yön değişebilirdi.
+   */
+  isBlockedBetween(aId: string, bId: string): Promise<boolean>;
+
+  /**
+   * Şikâyeti YAZAR (brief §33). Bir OLAY kaydıdır: engellemenin aksine
+   * idempotent DEĞİLDİR ve geri alınmaz — aynı oyuncuyu iki kez şikâyet
+   * etmek İKİ satır üretir (tekrarlayan şikâyet, moderasyon için
+   * başlı başına bir sinyaldir; tekilleştirmek o sinyali yok ederdi).
+   *
+   * **BU BİR PARA YOLU DEĞİLDİR:** `players` satırı güncellenmez,
+   * `economy_transactions` geçmez — bu yüzden `withTransaction` ve
+   * `SELECT ... FOR UPDATE` GEREKMEZ (bu portun genel kuralı).
+   */
+  saveReport(input: SaveReportInput): Promise<ReportRow>;
+}
+
+/** `player_blocks` satırı + `players` JOIN'inden gelen görünen ad/seviye. */
+export interface BlockedPlayerRow extends SocialPlayerFacts {
+  /** `player_blocks.created_at` — engelin konduğu an. */
+  blockedAt: Date;
+}
+
+/** `SocialRepository.saveReport` girdisi. */
+export interface SaveReportInput {
+  reporterId: string;
+  reportedId: string;
+  category: ReportCategory;
+  /** `normalizeReportReason` çıktısı — `null` = gerekçe yazılmamış. */
+  reason: string | null;
+  /** Yeni satırın durumu — bu dilimde HER ZAMAN `'open'` (bkz. `ReportStatus`). */
+  status: ReportStatus;
+  createdAt: Date;
+}
+
+/** `player_reports` satırının Application katmanındaki karşılığı. */
+export interface ReportRow {
+  reportId: string;
+  reporterId: string;
+  reportedId: string;
+  category: ReportCategory;
+  reason: string | null;
+  status: ReportStatus;
+  createdAt: Date;
 }
 
 /** `friendships` satırının Application katmanındaki karşılığı (snake_case → camelCase). */

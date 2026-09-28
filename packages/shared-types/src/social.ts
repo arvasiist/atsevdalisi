@@ -156,6 +156,59 @@ export interface PlayerProfileView {
   achievements: null;
 }
 
+/**
+ * brief §33 BLOCK / REPORT (PHASE 15) — şikâyet kategorileri.
+ *
+ * `domain/social/moderation.ts` → `REPORT_CATEGORIES` ile ve
+ * `player_reports.category` CHECK kısıtıyla (migration 0040) BİREBİR aynı
+ * kümedir. Üçü ayrı yerlerde yaşadığı için uyuşmazlık sessiz olurdu;
+ * bunu yakalayan şey `moderation.spec.ts`tir.
+ *
+ * **`other` NEDEN VAR:** kapalı bir liste, listeye girmeyen bir davranışı
+ * (ör. ticaret dolandırıcılığı) BİLDİRİLEMEZ kılardı — moderasyonun en
+ * çok ihtiyaç duyduğu şey ise tam olarak "beklenmeyen" durumları
+ * duymaktır. Serbest metin `reason` alanı bunu tamamlar.
+ */
+export type ReportCategory = 'spam' | 'harassment' | 'cheating' | 'offensive_name' | 'other';
+
+/**
+ * Şikâyetin moderasyon durumu (brief §34 yönetim panelinin kuyruğu).
+ * Bu dilimde YALNIZCA `open` yazılır; geçişler yönetim paneli diliminde
+ * gelecektir — tip şimdiden tamdır ki istemci sözleşmeyi iki kez
+ * öğrenmesin.
+ */
+export type ReportStatus = 'open' | 'reviewing' | 'resolved' | 'dismissed';
+
+/**
+ * Engellenen oyuncu satırı. `SocialPlayerView`i GENİŞLETİR — engel
+ * listesi de bir sosyal listedir ve arkadaş listesiyle AYNI alanları
+ * taşır (`playerId`/`displayName`/`level`), böylece istemci aynı satır
+ * bileşenini kullanır.
+ */
+export interface BlockedPlayerView extends SocialPlayerView {
+  /** Engelin konduğu an (`player_blocks.created_at`) — ISO tarih. */
+  blockedAt: string;
+}
+
+/**
+ * `DELETE /players/:id/blocks/:blockedId` sonucu.
+ *
+ * **NEDEN GÖVDE VAR (204 DEĞİL):** `RemoveFriendResult` ile AYNI gerekçe —
+ * istemcinin `request()` yardımcısı her yanıtta `response.json()` çağırır.
+ */
+export interface RemoveBlockResult {
+  blockedId: string;
+}
+
+/** `POST /players/:id/reports` sonucu — şikâyetin sunucudaki hâli. */
+export interface ReportPlayerResult {
+  reportId: string;
+  reportedId: string;
+  category: ReportCategory;
+  status: ReportStatus;
+  createdAt: string;
+}
+
 /** `PlayerProfileView.stats` — yalnızca KOŞMUŞ (kesinleşmiş) yarışlar sayılır. */
 export interface PlayerProfileStats {
   /** `races.status = 'finished'` olan yarışlardaki katılım sayısı. */

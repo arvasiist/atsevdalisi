@@ -285,6 +285,119 @@ export class InvalidRaceInviteActionError extends Error {
 }
 
 /**
+ * Kendini engelleyemezsin. 400.
+ *
+ * `player_blocks_not_self` CHECK'inin (migration 0040) uygulama
+ * tarafındaki karşılığıdır — `CannotFriendSelfError`/
+ * `CannotMessageSelfError`/`CannotInviteSelfError` ile AYNI çift katmanlı
+ * savunma (CLAUDE.md kural 5).
+ */
+export class CannotBlockSelfError extends Error {
+  constructor() {
+    super('Kendinizi engelleyemezsiniz.');
+    this.name = 'CannotBlockSelfError';
+  }
+}
+
+/**
+ * Kendini şikâyet edemezsin. 400. `player_reports_not_self` CHECK'inin
+ * karşılığıdır; gerekçe `CannotBlockSelfError` ile AYNI.
+ */
+export class CannotReportSelfError extends Error {
+  constructor() {
+    super('Kendinizi şikâyet edemezsiniz.');
+    this.name = 'CannotReportSelfError';
+  }
+}
+
+/**
+ * Bu iki oyuncu arasında HERHANGİ bir yönde engel var. 403.
+ *
+ * **brief §33:** "Blocklanan kullanıcı: mesaj gönderemez, gift
+ * gönderemez, race invite gönderemez." Bu hata, o üç yolun (ve
+ * arkadaşlık isteğinin — bkz. `moderation.ts` `assertNoBlock`) ortak
+ * kapısıdır.
+ *
+ * **NEDEN 403 (400/409 DEĞİL):** gövde geçerlidir ve ortada geçici bir
+ * durum yoktur — istek sahibinin o kaynağa YETKİSİ yoktur
+ * (`NotFriendsError` ile AYNI kategori). Engel kaldırıldığında AYNI istek
+ * başarılı olur.
+ *
+ * **YÖN BİLİNÇLİ OLARAK AÇIKLANMAZ:** engelleyen de engellenen de aynı
+ * mesajı alır. "Seni engelledi" demek, engellemenin sağladığı sessiz
+ * mesafeyi bozardı. Engeli koyan taraf listesini `GET
+ * /players/:id/blocks`tan zaten görür.
+ *
+ * **HANGİ İLİŞKİNİN ENGELLENDİĞİ SÖYLENMEZ:** mesaj, hediye, davet ve
+ * arkadaşlık isteği aynı metni alır; ayrımı istemci zaten hangi uca
+ * istek attığını bilerek yapar.
+ */
+export class PlayerBlockedError extends Error {
+  constructor() {
+    super('Bu oyuncuyla etkileşim kuramazsınız.');
+    this.name = 'PlayerBlockedError';
+  }
+}
+
+/**
+ * Şikâyet kategorisi bilinen kümenin dışında. 400.
+ *
+ * `InvalidFriendshipActionError`/`InvalidRaceInviteActionError` ile AYNI
+ * gerekçe: `@IsIn` TEK BAŞINA YETERLİ DEĞİLDİR (CLAUDE.md kural 5) —
+ * doğrulama domain'de YAPILIR.
+ */
+export class InvalidReportCategoryError extends Error {
+  constructor(public readonly value: unknown) {
+    super(`Geçersiz şikâyet kategorisi: "${String(value)}".`);
+    this.name = 'InvalidReportCategoryError';
+  }
+}
+
+/**
+ * Şikâyet gerekçesi geçersiz: metin değil ya da azami uzunluğu aşmış. 400.
+ *
+ * `InvalidMessageBodyError` ile AYNI desen (`reason` alanı çağırana AYRI
+ * açıklama imkânı verir, tek kod altında döner). **BOŞ METİN GEÇERLİDİR**
+ * ve `null`a indirgenir: gerekçe İSTEĞE BAĞLIDIR (brief §33 yalnızca
+ * "REPORT USER" der). Boşluğu hata yapmak, kategoriyi seçmiş bir oyuncuyu
+ * serbest metin yazmaya zorlardı.
+ */
+export class InvalidReportReasonError extends Error {
+  constructor(
+    public readonly reason: 'NOT_A_STRING' | 'TOO_LONG',
+    public readonly maxLength: number,
+  ) {
+    super(
+      reason === 'TOO_LONG'
+        ? `Şikâyet gerekçesi en fazla ${maxLength} karakter olabilir.`
+        : 'Şikâyet gerekçesi bir metin olmalıdır.',
+    );
+    this.name = 'InvalidReportReasonError';
+  }
+}
+
+/**
+ * Kaldırılacak engel yok. 404.
+ *
+ * **NEDEN 404 (sessiz başarı DEĞİL):** engel KOYMAK idempotenttir — istenen
+ * sonuç zaten geçerliyse bu bir hata değildir. Engel KALDIRMAK ise bir
+ * SİLMEDİR: istemci listesinden bir satırı sildiğinde gerçekten bir şeyin
+ * silindiğini bilmelidir, yoksa bayat bir listeyle çalıştığını fark
+ * etmezdi (`FriendshipNotFoundError`ın `DELETE /friends/:id` için aldığı
+ * kararla AYNI ayrım).
+ *
+ * `blockedId` YALNIZCA gövde/kimlik bilgisidir; "bu engel başkasına mı
+ * aitti" sorusu DOĞMAZ — `DELETE` zaten `blocker_id = <isteyen>` koşuluyla
+ * çalışır, yani başkasının engelini kaldırmak mümkün değildir.
+ */
+export class BlockNotFoundError extends Error {
+  constructor(blockedId: string) {
+    super(`Engel kaydı bulunamadı: ${blockedId}`);
+    this.name = 'BlockNotFoundError';
+  }
+}
+
+/**
  * Bildirim bulunamadı ya da bu oyuncuya ait değil. 404.
  *
  * `RaceEntryNotFoundError`/`FriendshipNotFoundError` ile AYNI gerekçe:

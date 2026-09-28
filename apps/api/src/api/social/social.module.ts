@@ -1,12 +1,16 @@
 import { Module } from '@nestjs/common';
 import { SOCIAL_REPOSITORY } from '../../application/ports/social.repository';
+import { BlockPlayerUseCase } from '../../application/use-cases/block-player.use-case';
 import { GetConversationUseCase } from '../../application/use-cases/get-conversation.use-case';
 import { GetInboxUseCase } from '../../application/use-cases/get-inbox.use-case';
 import { GetSocialOverviewUseCase } from '../../application/use-cases/get-social-overview.use-case';
+import { ListBlockedPlayersUseCase } from '../../application/use-cases/list-blocked-players.use-case';
 import { RemoveFriendUseCase } from '../../application/use-cases/remove-friend.use-case';
+import { ReportPlayerUseCase } from '../../application/use-cases/report-player.use-case';
 import { RespondFriendRequestUseCase } from '../../application/use-cases/respond-friend-request.use-case';
 import { SendFriendRequestUseCase } from '../../application/use-cases/send-friend-request.use-case';
 import { SendMessageUseCase } from '../../application/use-cases/send-message.use-case';
+import { UnblockPlayerUseCase } from '../../application/use-cases/unblock-player.use-case';
 import { PostgresSocialRepository } from '../../infrastructure/social/postgres-social.repository';
 import { PlayerModule } from '../player/player.module';
 import { SocialController } from './social.controller';
@@ -50,6 +54,10 @@ import { SocialController } from './social.controller';
     SendMessageUseCase,
     GetConversationUseCase,
     GetInboxUseCase,
+    BlockPlayerUseCase,
+    UnblockPlayerUseCase,
+    ListBlockedPlayersUseCase,
+    ReportPlayerUseCase,
     { provide: SOCIAL_REPOSITORY, useClass: PostgresSocialRepository },
   ],
   exports: [SOCIAL_REPOSITORY],

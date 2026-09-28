@@ -14,22 +14,31 @@ import {
 import { isUUID } from 'class-validator';
 import type {
   ApiSuccess,
+  BlockedPlayerView,
   DirectMessageView,
   FriendRequestView,
+  RemoveBlockResult,
   RemoveFriendResult,
+  ReportPlayerResult,
   RespondFriendRequestResult,
   SocialOverviewView,
 } from '@at-sevdalisi/shared-types';
+import { BlockPlayerUseCase } from '../../application/use-cases/block-player.use-case';
 import { GetConversationUseCase } from '../../application/use-cases/get-conversation.use-case';
 import { GetInboxUseCase } from '../../application/use-cases/get-inbox.use-case';
 import { GetSocialOverviewUseCase } from '../../application/use-cases/get-social-overview.use-case';
+import { ListBlockedPlayersUseCase } from '../../application/use-cases/list-blocked-players.use-case';
 import { RemoveFriendUseCase } from '../../application/use-cases/remove-friend.use-case';
+import { ReportPlayerUseCase } from '../../application/use-cases/report-player.use-case';
 import { RespondFriendRequestUseCase } from '../../application/use-cases/respond-friend-request.use-case';
 import { SendFriendRequestUseCase } from '../../application/use-cases/send-friend-request.use-case';
 import { SendMessageUseCase } from '../../application/use-cases/send-message.use-case';
+import { UnblockPlayerUseCase } from '../../application/use-cases/unblock-player.use-case';
 import { assertSelf } from '../auth/assert-self';
 import { CurrentPlayer, type AuthenticatedPlayer } from '../auth/current-player.decorator';
 import { RateLimit } from '../rate-limit/rate-limit.decorator';
+import { BlockPlayerDto } from './dto/block-player.dto';
+import { ReportPlayerDto } from './dto/report-player.dto';
 import { RespondFriendRequestDto } from './dto/respond-friend-request.dto';
 import { SendFriendRequestDto } from './dto/send-friend-request.dto';
 import { SendMessageDto } from './dto/send-message.dto';
@@ -43,7 +52,7 @@ import { SendMessageDto } from './dto/send-message.dto';
  * `@Controller('players')` ile almak, aynı prefix'i üçüncü kez bildirmek
  * olurdu.
  *
- * **Yedi uç noktanın TAMAMI `assertSelf` ile korunur** — `:id` her zaman
+ * **On bir uç noktanın TAMAMI `assertSelf` ile korunur** — `:id` her zaman
  * İŞLEMİ YAPAN oyuncudur, hiçbir zaman "hedef" değildir (hedef gövdede ya
  * da ikinci yol parametresinde gelir). Bu, IDOR'a karşı ilk kapıdır
  * (AUDIT_REPORT.md Bulgu S4): başkasının sosyal listesini okumak veya
@@ -70,6 +79,11 @@ export class SocialController {
     @Inject(SendMessageUseCase) private readonly sendMessageUseCase: SendMessageUseCase,
     @Inject(GetConversationUseCase) private readonly getConversationUseCase: GetConversationUseCase,
     @Inject(GetInboxUseCase) private readonly getInboxUseCase: GetInboxUseCase,
+    @Inject(BlockPlayerUseCase) private readonly blockPlayerUseCase: BlockPlayerUseCase,
+    @Inject(UnblockPlayerUseCase) private readonly unblockPlayerUseCase: UnblockPlayerUseCase,
+    @Inject(ListBlockedPlayersUseCase)
+    private readonly listBlockedPlayersUseCase: ListBlockedPlayersUseCase,
+    @Inject(ReportPlayerUseCase) private readonly reportPlayerUseCase: ReportPlayerUseCase,
   ) {}
 
   /**
@@ -238,5 +252,120 @@ export class SocialController {
     assertSelf(currentPlayer.id, id);
     const messages = await this.getInboxUseCase.execute(id);
     return { success: true, data: messages };
+  }
+
+  /**
+   * Bir oyuncuyu engeller (brief §33, §42 PHASE 15). Yeni bir
+   * `player_blocks` satırı yaratır → 201.
+   *
+   * **İDEMPOTENTTİR (409 DEĞİL, 201):** zaten engelli bir oyuncu için
+   * ikinci çağrı da 201 döner ve var olan satırın `blockedAt`ini taşır.
+   * Gerekçe `SocialRepository.blockPlayer` doc yorumunda — engelleme bir
+   * DURUMdur, olay değil; istemci çift tıklarsa 409 almak anlamsız olurdu.
+   *
+   * `@RateLimit` — engelleme karşı tarafa bildirim ÜRETMEZ (bilinçli,
+   * bkz. repository notu), yani limitin amacı bildirim spam'i değil
+   * `player_blocks` tablosuna yazma hızıdır. 60/60sn, insan eliyle
+   * engellemenin kat kat üzerindedir.
+   */
+  @RateLimit({ name: 'player-block', limit: 60, windowSeconds: 60, keyBy: 'player' })
+  @Post('players/:id/blocks')
+  async blockPlayer(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: BlockPlayerDto,
+    @CurrentPlayer() currentPlayer: AuthenticatedPlayer,
+  ): Promise<ApiSuccess<BlockedPlayerView>> {
+    assertSelf(currentPlayer.id, id);
+
+    // İKİNCİ SAVUNMA HATTI — `sendFriendRequest` ile AYNI gerekçe: `blockedId`
+    // GÖVDE alanıdır, `ParseUUIDPipe` ona UZANMAZ ve `@IsUUID()` esbuild
+    // altında atlanır. Bu kontrol olmadan geçersiz bir uuid repository'ye
+    // ulaşır ve istemci 400 yerine 500 (`22P02`) görür.
+    if (!dto.blockedId || !isUUID(dto.blockedId)) {
+      throw new BadRequestException('blockedId geçerli bir UUID olmalıdır.');
+    }
+
+    const blocked = await this.blockPlayerUseCase.execute(id, dto.blockedId);
+    return { success: true, data: blocked };
+  }
+
+  /**
+   * Engeli kaldırır. **200 OK + gövde (204 DEĞİL)** — `removeFriend` ile
+   * AYNI gerekçe (`RemoveBlockResult` doc yorumu).
+   *
+   * `:blockedId` YOL PARAMETRESİDİR ve `ParseUUIDPipe` ile doğrulanır:
+   * geçersiz bir uuid veritabanına hiç gitmez. Gövde UUID'sindeki ek
+   * `isUUID` kapısı burada GEREKMEZ — boru hattı zaten aynı işi yapar.
+   *
+   * Engel YOKSA 404 döner (sessiz başarı DEĞİL): gerekçe
+   * `BlockNotFoundError` doc yorumunda.
+   */
+  @Delete('players/:id/blocks/:blockedId')
+  @HttpCode(HttpStatus.OK)
+  async unblockPlayer(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('blockedId', ParseUUIDPipe) blockedId: string,
+    @CurrentPlayer() currentPlayer: AuthenticatedPlayer,
+  ): Promise<ApiSuccess<RemoveBlockResult>> {
+    assertSelf(currentPlayer.id, id);
+    const result = await this.unblockPlayerUseCase.execute(id, blockedId);
+    return { success: true, data: result };
+  }
+
+  /**
+   * Engellenen oyuncuların listesi (en yeniden eskiye).
+   *
+   * **YALNIZCA TEK YÖN:** kullanıcı KENDİ koyduğu engelleri görür. "Beni
+   * engelleyenler" listesi bilinçli olarak YOKTUR — o liste engellemeyi
+   * sessiz bir mesafe olmaktan çıkarıp bir sosyal sinyale çevirirdi
+   * (gerekçe: `SocialRepository.findBlockedPlayers` doc yorumu).
+   *
+   * **`@Public()` DEĞİLDİR ve OLMAYACAKTIR:** liste yalnızca sahibine
+   * açıktır (`assertSelf`), çünkü "kim kimi engellemiş" bilgisi
+   * `GET /players/profile/:username`in aksine bir GİZLİLİK konusudur.
+   */
+  @Get('players/:id/blocks')
+  async getBlockedPlayers(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentPlayer() currentPlayer: AuthenticatedPlayer,
+  ): Promise<ApiSuccess<BlockedPlayerView[]>> {
+    assertSelf(currentPlayer.id, id);
+    const blocked = await this.listBlockedPlayersUseCase.execute(id);
+    return { success: true, data: blocked };
+  }
+
+  /**
+   * Bir oyuncuyu şikâyet eder (brief §33). Yeni bir `player_reports` satırı
+   * yaratır → 201.
+   *
+   * **İDEMPOTENT DEĞİLDİR:** aynı oyuncuyu iki kez şikâyet etmek İKİ satır
+   * üretir (tekrarlayan şikâyet moderasyon için bir sinyaldir — bkz.
+   * `ReportPlayerUseCase`).
+   *
+   * `@RateLimit` — şikâyet karşı tarafa bildirim ÜRETMEZ (yalnızca
+   * moderasyon kuyruğuna düşer, brief §34), yani limitin amacı bildirim
+   * spam'i değil `player_reports` tablosuna yazma hızıdır. 20/60sn,
+   * gerçek bir kullanıcının kat kat üzerindedir.
+   */
+  @RateLimit({ name: 'player-report', limit: 20, windowSeconds: 60, keyBy: 'player' })
+  @Post('players/:id/reports')
+  async reportPlayer(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: ReportPlayerDto,
+    @CurrentPlayer() currentPlayer: AuthenticatedPlayer,
+  ): Promise<ApiSuccess<ReportPlayerResult>> {
+    assertSelf(currentPlayer.id, id);
+
+    // İKİNCİ SAVUNMA HATTI — `reportedId` GÖVDE alanıdır. `category` için
+    // BURADA bir kontrol YOKTUR ve olmamalıdır: geçerli küme
+    // `parseReportCategory`dedir (domain) ve oradaki liste DB CHECK'iyle
+    // hizalıdır — burada ikinci bir kopya tutmak, ayrışacak üçüncü bir
+    // kaynak yaratırdı (bkz. `ReportPlayerDto` doc yorumu).
+    if (!dto.reportedId || !isUUID(dto.reportedId)) {
+      throw new BadRequestException('reportedId geçerli bir UUID olmalıdır.');
+    }
+
+    const report = await this.reportPlayerUseCase.execute(id, dto.reportedId, dto.category, dto.reason);
+    return { success: true, data: report };
   }
 }

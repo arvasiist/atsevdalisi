@@ -1071,6 +1071,28 @@ export interface SocialConfig {
    * okunur, `buildMessagePreview`e PARAMETRE olarak geçer.
    */
   notificationPreviewLength: number;
+  /**
+   * `GET /players/:id/blocks` yanıtındaki azami engel satırı (brief §33,
+   * §42 PHASE 15) — bir LİSTE sınırıdır.
+   *
+   * **BU BİR TAVAN DEĞİLDİR ve olmamalıdır:** engelleme sayısını
+   * sınırlamak, "daha fazla rahatsız edilene kadar engelleyebilirsin"
+   * demek olurdu — moderasyonun amacına TERS. `overviewFriendsLimit` ile
+   * AYNI sınıf: yalnızca yanıtın boyutunu sınırlar. Kırpılsa bile engelin
+   * kendisi yürürlükte kalır — yazma yolları listeyi DEĞİL,
+   * `player_blocks` tablosunu okur (`inboxLimit` ile AYNI ilişki).
+   */
+  blockListLimit: number;
+  /**
+   * `POST /players/:id/reports` gövdesindeki serbest metin `reason`
+   * alanının azami KARAKTER sayısı (brief §33).
+   *
+   * **DB'de TEKRARLANMAZ** (`player_reports.reason` serbest metindir —
+   * migration 0040): bu bir ÜRÜN kararıdır, veri bütünlüğü kuralı değil
+   * (hediye üst sınırı ile AYNI gerekçe). Sınırı uygulayan şey
+   * `normalizeReportReason`dır ve değer ONA parametre olarak geçer.
+   */
+  reportReasonMaxLength: number;
 }
 
 /**

@@ -1483,6 +1483,114 @@ gevşetmez.
 
 ---
 
+#### 13.16 BLOK / ŞİKÂYET — sosyal moderasyon (brief §33, §42 PHASE 15) — 28.09.2026
+
+**Ne yapıldı.** Brief §33 ("Block/Report User") uçtan uca bağlandı. Dört yeni
+uç nokta (`POST`/`DELETE`/`GET /players/:id/blocks`, `POST /players/:id/reports`),
+iki yeni tablo (`player_blocks`, `player_reports`, migration **0040**), yeni
+domain modülü (`domain/social/moderation.ts`), dört use-case, iki DTO ve
+**yazma yollarına dört kapı** eklendi.
+
+**Bu dilim PHASE 15'in İLK yarısıdır.** İkinci yarı (brief §34 — yönetim
+paneli, şikâyet kuyruğu ekranı, `admin` rolü, denetim günlüğü) **YAPILMADI**;
+`player_reports.status` bu yüzden bu dilimde HER ZAMAN `'open'`dır ve
+`reviewing`/`resolved`/`dismissed` geçişlerini yapacak hiçbir kod yoktur.
+
+**ENGELLEME YÖNLÜDÜR — kanonik çift YOK.** `friendships`in aksine
+`(blocker_id, blocked_id)` sıralı bir çifttir; A→B ile B→A iki AYRI satırdır.
+Yazma yollarının sorduğu soru "A, B'yi engelledi mi" değil **"aralarında
+herhangi bir yönde engel var mı"**dır → `isBlockedBetween`, tek sorguda iki
+yön. Bu yüzden `blocked_id` üzerinde ayrı indeks şarttır (PK yalnızca
+`blocker_id` ile başlar ve ters yönü tarayamaz).
+
+**YÖN SIZDIRILMAZ.** Engelleyen de engellenen de **403 `PLAYER_BLOCKED`** alır
+— tek kod, iki yön. Yönü ayırt eden ikinci bir kod, engellenen oyuncuya "seni
+engelledi" bilgisini verirdi; engellemenin amacı tam olarak **sessiz bir
+mesafedir**. Aynı gerekçeyle **"beni engelleyenler" listesi bilinçli olarak
+YOKTUR**; `GET /players/:id/blocks` yalnızca tek yönü (benim engellediklerim)
+döner. `moderation.spec.ts` bunu bir iddiayla sabitler: hata mesajı
+`/engelledi|engellendi|seni/i` ile EŞLEŞMEMELİDİR — mesajı "düzeltmek"
+isteyen gelecekteki bir değişiklik testi kırar.
+
+**ENGEL NE KAPATIR.** `messages`, `gifts`, `race-invites` (brief'in saydığı
+üçü) **+ `friend-requests`** — dördüncüsü **bilinçli bir sapmadır**. Brief
+arkadaşlık isteğini saymaz; sayılmasaydı engel gerçek bir delik bırakırdı:
+engellenen oyuncu davet edilemediği hâlde istek göndermeye devam edebilir,
+yani engelin kapattığı tek şey rahatsızlığın bir biçimi olurdu.
+
+**HEDİYE YOLUNDA KAPI TRANSACTION İÇİNDEDİR.** Engelleme arkadaşlık satırını
+silmediği için `areFriends` kapısı engelli bir çiftte **geçer**. Para yolu
+olduğundan asıl kapı `PostgresGiftRepository.sendGift`in kilitli
+transaction'ında `assertGiftAllowedByFriendship`ten hemen sonra tekrarlanır.
+`moderation.e2e-spec.ts` bunu yalnızca 403 ile değil, **403 sonrası bakiye ve
+`economy_transactions` satır sayısı DEĞİŞMEDİ** diye doğrular: kapı
+transferden sonra olsaydı kod yine 403 dönerdi ama para çoktan hareket
+etmiş olurdu — bu, hiçbir yerde hata üretmeyen bir para sızıntısıdır.
+
+**ENGEL ARKADAŞLIĞI VE MESAJ GEÇMİŞİNİ SİLMEZ.** Engelleme **EK bir
+kapıdır**, mevcut ilişkinin yerine geçmez. Aksi hâlde engeli kaldıran oyuncu
+arkadaşlığını da kaybetmiş bulurdu — geri alınamayan bir yan etki. Sonuç:
+`DELETE .../blocks/:blockedId` sonrası mesajlaşma **kendiliğinden** açılır;
+e2e bunu ölçer (engel → 403, engel kaldır → 201, arkadaşlık sayısı hâlâ 1).
+
+**İDEMPOTENTLİK AYRIMI BİLİNÇLİ.** Engel **koymak** idempotenttir: tekrar
+çağrı 201 döner ve **var olan** `blockedAt`i verir, yeni satır yazmaz —
+istenen sonuç zaten geçerliyse çift tıklayan istemciye 409 vermek anlamsız
+olurdu. Bunu `ON CONFLICT DO NOTHING` ile yapmak MÜMKÜN DEĞİLDİ, çünkü
+kullanıcıya dönecek tarih uydurulamaz: use-case kendi `new Date()`ini bassaydı
+ikinci çağrı YANLIŞ (daha yeni) bir tarih döndürürdü. Çözüm: `ON CONFLICT
+(blocker_id, blocked_id) DO UPDATE SET blocked_id = player_blocks.blocked_id
+RETURNING created_at` — kasıtlı bir no-op yazma, yalnızca `RETURNING`in
+ateşlenip var olan satırın tarihini döndürmesi için. Engel **kaldırmak** ise
+idempotent DEĞİLDİR: silme işlemi olarak 404 `BLOCK_NOT_FOUND` döner ve
+istemciye bayat bir listeyle çalıştığını söyler. **Şikâyet idempotent
+DEĞİLDİR**: iki kez gönderilirse iki satır yazılır, çünkü tekrarlayan şikâyet
+moderasyon için başlı başına bir sinyaldir.
+
+**ŞİKÂYET ARKADAŞLIK GEREKTİRMEZ ve `assertNoBlock` ÇAĞIRMAZ** — ikisi de
+bilinçli. Arkadaşlık aransaydı yalnızca arkadaşlar birbirini şikâyet
+edebilirdi; asıl şikâyet edilmesi gerekenler çoğu zaman arkadaş olunmayanlar.
+`assertNoBlock` çağrılsaydı engelleme şikâyeti de kapatırdı: oyuncu birini
+engellediği anda onu şikâyet etme hakkını kaybederdi — oysa doğru sıra tam
+tersidir (engelle, **sonra** şikâyet et).
+
+**KATEGORİLER:** `spam`, `harassment`, `cheating`, `offensive_name`, `other`.
+Tek kaynak `domain/social/moderation.ts → REPORT_CATEGORIES`dir;
+`ReportPlayerDto`daki `@IsIn` listeyi oradan okur (ikinci kopya yok) ama
+**otorite değildir** — esbuild altında dekoratörler atlanır, gerçek doğrulama
+`parseReportCategory`dedir. `other` bilinçli olarak vardır: kapalı bir liste,
+beklenmeyen bir durumun bildirilememesi demek olurdu.
+
+**`reason` İSTEĞE BAĞLIDIR ve BOŞ → `null`.** Boş/yalnızca boşluk gerekçe 400
+DEĞİLDİR; `null` yazmak "gerekçe yok" ile "boş gerekçe" arasındaki
+veritabanında ayırt edilemeyen durumu ortadan kaldırır. Azami uzunluk
+`social.config.json → reportReasonMaxLength` (500) ve ölçüm **kod noktası**
+sayar (`[...str].length`) — `normalizeMessageBody` ile AYNI gerekçe: JS
+`str.length` UTF-16 birimi sayardı ve sunucu, veritabanının kabul edeceği
+geçerli bir gerekçeyi reddederdi.
+
+**BİLDİRİM ÜRETİLMEZ.** Diğer tüm yazma yollarının aksine engelleme karşı
+tarafa bildirim yazmaz; "seni engelledi" haberi engellemeyi sessiz bir
+mesafe olmaktan çıkarıp sosyal bir sinyale (ve misilleme tetikleyicisine)
+çevirirdi. Şikâyet de bildirim üretmez — yalnızca moderasyon kuyruğuna düşer.
+Bu yüzden `blockPlayer` bir `withTransaction` gövdesi GEREKTİRMEZ.
+
+**Kanıt.** `apps/api/test/api/moderation.e2e-spec.ts` — engelin iki yönde
+mesaj/hediye/davet/istek yolunu kapatması; engel kaldırılınca yolun
+kendiliğinden açılması ve arkadaşlığın yerinde kalması; idempotentliğin
+**DB'de satır sayılarak** kanıtlanması ve ikinci çağrının AYNI `blockedAt`i
+dönmesi; hediye 403'ünde bakiye+defter değişmezliği; şikâyetin arkadaşlık
+gerektirmemesi ve engelden etkilenmemesi; tüm uçlarda `assertSelf` (403 IDOR)
+ve 401. `apps/api/test/domain/social/moderation.spec.ts` — kategori listesi
+ile migration CHECK'inin **dosya okunarak** karşılaştırılması (liste domain'de
+genişleyip migration'da genişlemezse INSERT `23514` ile patlardı ve bu test
+onu CI'da yakalar), kendini engelleme/şikâyet, gerekçe normalizasyonu,
+yön sızdırmama.
+
+**Uçlar:** `docs/API.md` → "Block / Report — Sosyal Moderasyon".
+
+---
+
 ## 14. Kendime hatırlatmalar (kısa liste)
 
 1. **Race Engine'e dokunmadan önce iki kez düşün.** Denetim onu "KEEP, dokunma"

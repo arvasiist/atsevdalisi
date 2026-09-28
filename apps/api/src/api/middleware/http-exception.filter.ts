@@ -76,17 +76,23 @@ import {
   InvalidGiftAmountError,
 } from '../../domain/gift/errors';
 import {
+  BlockNotFoundError,
+  CannotBlockSelfError,
   CannotFriendSelfError,
   CannotInviteSelfError,
   CannotMessageSelfError,
+  CannotReportSelfError,
   FriendshipAlreadyExistsError,
   FriendshipNotFoundError,
   InvalidFriendshipActionError,
   InvalidMessageBodyError,
   InvalidRaceInviteActionError,
+  InvalidReportCategoryError,
+  InvalidReportReasonError,
   InviteRequiresFriendshipError,
   NotFriendsError,
   NotificationNotFoundError,
+  PlayerBlockedError,
   RaceInviteAlreadyExistsError,
   RaceInviteNotFoundError,
   RaceInviteNotRespondableError,
@@ -312,6 +318,31 @@ const DOMAIN_ERROR_MAP = new Map<ErrorClassConstructor, { status: number; code: 
   [RaceNotInvitableError, { status: HttpStatus.CONFLICT, code: ErrorCode.RaceNotInvitable }],
   [RaceInviteAlreadyExistsError, { status: HttpStatus.CONFLICT, code: ErrorCode.RaceInviteAlreadyExists }],
   [RaceInviteNotRespondableError, { status: HttpStatus.CONFLICT, code: ErrorCode.RaceInviteNotRespondable }],
+  // BLOCK / REPORT (brief §33, §42 PHASE 15) — altı hata da
+  // `DOMAIN_ERROR_MAP`'e girebilir çünkü kodları hatanın
+  // `reason`/`value` alanına BAĞLI DEĞİLDİR (`InvalidReportReasonError` iki
+  // farklı `reason` ile fırlatılır ama İKİSİ de `INVALID_REPORT_REASON`
+  // döner — ayrım yalnızca mesajdadır; yukarıdaki
+  // `InvalidGiftAmountError`/`InvalidMessageBodyError` ile AYNI desen).
+  // Durum kodları `domain/social/errors.ts`'teki doc yorumlarında tek tek
+  // gerekçelendirilmiştir.
+  //
+  // 400 — ikisi de "kendinle etkileşim" kurma denemesidir; gövde biçimsel
+  // olarak geçerli ama istek anlamsızdır (`CannotFriendSelfError` ile AYNI
+  // kategori).
+  [CannotBlockSelfError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.CannotBlockSelf }],
+  [CannotReportSelfError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.CannotReportSelf }],
+  [InvalidReportCategoryError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.InvalidReportCategory }],
+  [InvalidReportReasonError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.InvalidReportReason }],
+  // 403 — `NotFriendsError`/`GiftRequiresFriendshipError`/
+  // `InviteRequiresFriendshipError` ile AYNI kategori (yetki yok) ama
+  // FARKLI kod. TEK kod, İKİ YÖN İÇİN: engelleyen de engellenen de aynı
+  // cevabı alır — gerekçe `ErrorCode.PlayerBlocked` doc yorumunda.
+  [PlayerBlockedError, { status: HttpStatus.FORBIDDEN, code: ErrorCode.PlayerBlocked }],
+  // 404 — `FriendshipNotFoundError` ile AYNI ayrım: engel KOYMAK
+  // idempotenttir (istenen sonuç zaten geçerliyse hata yok), engel
+  // KALDIRMAK ise bir silmedir ve "zaten yok" istemciye bildirilmelidir.
+  [BlockNotFoundError, { status: HttpStatus.NOT_FOUND, code: ErrorCode.BlockNotFound }],
   // `POST /auth/login`'e özgü — bkz. `InvalidProviderTokenError` doc yorumu.
   [InvalidProviderTokenError, { status: HttpStatus.UNAUTHORIZED, code: ErrorCode.InvalidProviderToken }],
   // claude/hizli-bitirme-plani.md'nin proje sahibi tarafından

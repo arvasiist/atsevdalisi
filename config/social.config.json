@@ -7,5 +7,7 @@
   "conversationLimit": 100,
   "notificationsLimit": 50,
   "pendingInvitesLimit": 25,
-  "notificationPreviewLength": 120
+  "notificationPreviewLength": 120,
+  "blockListLimit": 200,
+  "reportReasonMaxLength": 500
 }

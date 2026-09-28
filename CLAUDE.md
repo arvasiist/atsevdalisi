@@ -153,6 +153,10 @@ YANILTICI olduğunu gösterdi.** Bu bölüm iki kez bayatladı; aşağısı
   sayfasının kendisidir; kariyer kademesi istemcide `level`'den türetilir
   (`features/career/career-tier.ts`), `achievements` bilinçli olarak `null`
   gelir. Asset gerekmez.
+- **Blok/şikâyet arayüzü (brief §33, §42 PHASE 15) — YAPILABİLİR.** Backend +
+  e2e hazır (§13.16): dört uç nokta — hiçbirinin istemci tüketicisi yok.
+  Asset gerekmez. **PHASE 15'in ikinci yarısı (brief §34 yönetim paneli)
+  AYRI ve daha büyük bir iştir:** `admin` rolü + denetim günlüğü gerektirir.
 - **PHASE 13 (bildirim üreticileri) — YEDİ/SEKİZ YAPILDI (§13.13/§13.14).**
   Sekiz türden YEDİSİ üretiliyor: `race_invite` (§13.11) + `friend_request`,
   `friend_accepted`, `message_received` (§13.13) + `gift_received`
@@ -182,8 +186,14 @@ ağacı okuma + yazma (§13.2/§13.4)** · **yarış sohbeti + izleyici sayısı
 (§13.11, PHASE 11)** · **arkadaşlık/mesaj/hediye bildirim üreticileri
 (§13.13 + §13.13.1, PHASE 13 — yalnızca bu dördü)** · **ÖDÜL DAĞITIMI —
 `POST /races/:id/settle` (§13.14, PHASE 13.14)** · **SOSYAL PROFİL —
-`GET /players/profile/:username` (§13.15, PHASE 14)** — backend; hiçbirinin
+`GET /players/profile/:username` (§13.15, PHASE 14)** · **BLOK / ŞİKÂYET —
+brief §33 (§13.16, PHASE 15'İN İLK YARISI)** — backend; hiçbirinin
 istemci tüketicisi YOK. Ayrıntı: `PROJE_DURUMU.md` §13.
+
+**PHASE 15 YARIMDIR.** Brief §33 (BLOCK/REPORT) bitti; **§34 (yönetim
+paneli) YAPILMADI** — `admin` rolü, şikâyet kuyruğu ekranı ve denetim günlüğü
+yoktur, `player_reports.status` bu yüzden HER ZAMAN `'open'`dır. Yeniden
+yapma: §13.16.
 
 **⚠️ PROFİL UCU PARA SIZDIRMAZ — BUNU BOZMA.** `GET /players/profile/:username`
 `@Public()`'tir, yani yanıtına giren her alan HERKESE açıktır.
@@ -212,5 +222,32 @@ yazıyordu; **o not BAYATTI**: `gift.controller.ts` bu alanı zaten
 
 **Kural (yeni bir gövde-UUID alanı eklerken):** DTO'daki `@IsUUID()` YETMEZ.
 Controller'da `if (!dto.x || !isUUID(dto.x)) throw new BadRequestException(...)`
-yaz — beş mevcut örnek: `gift`, `breeding`, `matchmaking`, `market`
-(`sellerId`), `social`. Gerekçe ve testler: `PROJE_DURUMU.md` §13.12.
+yaz — altı mevcut örnek: `gift`, `breeding`, `matchmaking`, `market`
+(`sellerId`), `social` (mesaj/davet), `social` (`blocks` → `blockedId`,
+`reports` → `reportedId`). Gerekçe ve testler: `PROJE_DURUMU.md` §13.12.
+
+**⚠️ ENGELLEME YÖNLÜDÜR — "kanonik çift" ARAMA.** `player_blocks`
+`(blocker_id, blocked_id)` SIRALI bir çifttir; A→B ile B→A iki ayrı satırdır.
+Yazma yollarının sorduğu soru "A, B'yi engelledi mi" DEĞİL, **"aralarında
+herhangi bir yönde engel var mı"**dır → `isBlockedBetween` (tek sorgu, iki
+yön). `friendships` gibi normalize etmeye kalkışmak engeli tek yönde
+delik bırakır. Yeni bir yazma yolu eklerken `assertNoBlock` çağır; **para
+yolunda** (hediye) kapı `withTransaction` İÇİNDE tekrarlanmalıdır, çünkü
+engelleme arkadaşlık satırını silmez ve dıştaki `areFriends` kapısı geçer.
+
+**⚠️ `PLAYER_BLOCKED` YÖN SIZDIRMAZ — İKİNCİ KOD EKLEME.** Engelleyen de
+engellenen de 403 `PLAYER_BLOCKED` alır. Yönü ayırt eden bir kod ya da mesaj,
+engellenen oyuncuya "seni engelledi" bilgisini verir; engellemenin amacı
+sessiz bir mesafedir. Aynı gerekçeyle **"beni engelleyenler" listesi yoktur**
+— `GET /players/:id/blocks` yalnızca tek yönü döner. `moderation.spec.ts`
+hata mesajının `/engelledi|engellendi|seni/i` ile eşleşmemesini iddia eder;
+mesajı "iyileştirmek" testi kırar, test haklıdır.
+
+**⚠️ ENGEL ARKADAŞLIĞI SİLMEZ; ŞİKÂYET ENGELDEN ETKİLENMEZ.** Engel EK bir
+kapıdır, `friendships` satırına dokunulmaz — aksi hâlde engeli kaldıran
+oyuncu arkadaşlığını da kaybetmiş bulurdu. Şikâyet ise ne arkadaşlık arar ne
+`assertNoBlock` çağırır: doğru sıra "engelle, SONRA şikâyet et"tir.
+
+**⚠️ `blockedId`/`reportedId` GÖVDE ALANIDIR.** Yol parametresi olmadıkları
+için `ParseUUIDPipe` uygulanamaz; controller'daki `isUUID()` kapısı şarttır
+(yukarıdaki kural).

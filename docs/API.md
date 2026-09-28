@@ -1008,6 +1008,135 @@ okundu işaretlemenin idempotentliği ve payload'ı bozmaması; `read-all`in
 yalnızca çağıranı etkilemesi) · `domain/social/invite.spec.ts` ·
 `domain/social/notification-types.spec.ts`.
 
+### Block / Report — Sosyal Moderasyon (brief §33, §42 PHASE 15)
+
+Brief §33: *"Blocklanan kullanıcı: mesaj gönderemez, gift gönderemez, race
+invite gönderemez."* Dört uç nokta, `SocialController`
+(`apps/api/src/api/social/social.controller.ts`).
+
+```http
+POST   /api/v1/players/{id}/blocks                    # 201 BlockedPlayerView
+DELETE /api/v1/players/{id}/blocks/{blockedId}        # 200 { blockedId }
+GET    /api/v1/players/{id}/blocks                    # 200 BlockedPlayerView[]
+POST   /api/v1/players/{id}/reports                   # 201 ReportPlayerResult
+```
+
+```json
+// POST /players/{id}/blocks  gövdesi
+{ "blockedId": "3f1c…" }
+// POST /players/{id}/reports gövdesi
+{ "reportedId": "3f1c…", "category": "harassment", "reason": "sürekli hakaret" }
+```
+
+**İKİ AYRI KAVRAM, İKİ AYRI TABLO.** `player_blocks` bir **DURUM**dur
+(kaldırılana kadar yürürlükte) ve yazma yollarını KAPATIR; `player_reports`
+bir **OLAY** kaydıdır (bir kez yazılır, değişmez) ve yalnızca moderasyon
+kuyruğunu besler. İkisini tek tabloda birleştirmek "engelledim" ile "şikâyet
+ettim" arasındaki farkı (biri geri alınabilir, diğeri bir ihbar kaydıdır)
+silerdi.
+
+**ENGELLEME YÖNLÜDÜR — kanonik çift YOKTUR.** `friendships`in aksine A'nın
+B'yi engellemesi, B'nin A'yı engellemesi demek **değildir**; birincil anahtar
+`(blocker_id, blocked_id)` ikilisidir ve `blocked_id` için ayrı indeks
+şarttır. Yazma yollarının sorduğu soru "A, B'yi engelledi mi" değil, **"bu
+iki oyuncu arasında HERHANGİ bir yönde engel var mı"**dır — iki yön tek
+sorguda (`isBlockedBetween`).
+
+**YÖN SIZDIRILMAZ.** Engelleyen de engellenen de **403 `PLAYER_BLOCKED`**
+alır — tek kod, iki yön için. Yönü ayırt eden ikinci bir kod, engellenen
+oyuncuya "seni engelledi" bilgisini sızdırırdı; engellemenin amacı tam
+olarak **sessiz bir mesafedir**. Engeli koyan taraf listesini zaten
+`GET /players/{id}/blocks` ile görür — bilgi orada, kapıda değil. Aynı
+gerekçeyle **"beni engelleyenler" listesi yoktur**; `GET .../blocks`
+yalnızca TEK yönü döner.
+
+**ENGEL NE KAPATIR:**
+
+| Yol | Sonuç |
+|---|---|
+| `POST /players/{id}/messages` | 403 `PLAYER_BLOCKED` |
+| `POST /players/{id}/gifts` | 403 `PLAYER_BLOCKED` (**transaction İÇİNDE** tekrarlanır) |
+| `POST /players/{id}/race-invites` | 403 `PLAYER_BLOCKED` |
+| `POST /players/{id}/friend-requests` | 403 `PLAYER_BLOCKED` (bilinçli sapma — aşağıda) |
+
+**ARKADAŞLIK İSTEĞİ BİLİNÇLİ BİR SAPMADIR.** Brief üç yolu sayar; istek
+sayılmaz. Sayılmasaydı engel gerçek bir delik bırakırdı: engellenen oyuncu
+davet edilemediği hâlde arkadaşlık isteği göndermeye devam edebilir, yani
+engelin engellediği tek şey "rahatsız etme biçimi" (davet) olurdu, asıl
+rahatsızlık kaynağı (istek bildirimi) açık kalırdı.
+
+**HEDİYE YOLUNDA KAPI TRANSACTION İÇİNDEDİR.** Engelleme arkadaşlık satırını
+silmediği için (aşağıya bakınız) `areFriends` kapısı engelli bir çiftte
+**geçer**. Para yolu olduğundan asıl kapı
+`PostgresGiftRepository.sendGift`in kilitli transaction'ının içinde
+tekrarlanır — arada konan bir engel parayı durdurmalıdır. `moderation.e2e-spec.ts`
+bunu yalnızca HTTP koduna bakarak değil, **403 sonrası bakiye ve defter
+satırı sayısı DEĞİŞMEDİ** diye doğrular: kapı transferden sonra olsaydı 403
+yine dönerdi ama para çoktan hareket etmiş olurdu.
+
+**ENGEL ARKADAŞLIĞI VE MESAJ GEÇMİŞİNİ SİLMEZ.** Arkadaşlık ayrı bir
+tablodur (migration 0033) ve burada ona dokunulmaz: engelleme **EK bir
+kapıdır**, mevcut ilişkinin yerine geçmez. Aksi hâlde engeli kaldıran oyuncu
+arkadaşlığını da kaybetmiş bulurdu — geri alınamayan bir yan etki. Sonuç:
+`DELETE .../blocks/{blockedId}` sonrası mesajlaşma **kendiliğinden** yeniden
+açılır ve arkadaşlık yerinde durur.
+
+**İDEMPOTENTLİK AYRIMI BİLİNÇLİDİR:**
+
+| İşlem | Tekrar çağrı | Gerekçe |
+|---|---|---|
+| Engel **koymak** | 201, **var olan** `blockedAt` döner, yeni satır YOK | İstenen sonuç zaten geçerliyse bu bir hata değildir; istemci çift tıklayınca 409 almak anlamsız olurdu |
+| Engel **kaldırmak** | 404 `BLOCK_NOT_FOUND` | Bu bir **silmedir**; istemci bayat bir listeyle çalıştığını bilmelidir |
+| Şikâyet | 201, **İKİ satır** yazılır | Tekrarlayan şikâyet moderasyon için başlı başına bir sinyaldir; tekilleştirmek o sinyali yok ederdi |
+
+**ŞİKÂYET ARKADAŞLIK GEREKTİRMEZ ve `assertNoBlock` ÇAĞIRMAZ** — ikisi de
+bilinçli. Arkadaşlık aransaydı yalnızca arkadaşlar birbirini şikâyet
+edebilirdi; oysa asıl şikâyet edilmesi gerekenler çoğu zaman arkadaş
+olunmayanlardır. `assertNoBlock` çağrılsaydı engelleme şikâyeti de
+kapatırdı: oyuncu birini engellediği anda onu şikâyet etme hakkını da
+kaybederdi — oysa doğru sıra tam tersidir (engelle, **sonra** şikâyet et).
+
+**KATEGORİLER** (`player_reports.category` CHECK'i ile birebir): `spam` ·
+`harassment` · `cheating` · `offensive_name` · `other`. Geçerli kümenin TEK
+kaynağı `domain/social/moderation.ts` → `REPORT_CATEGORIES`dir;
+`ReportPlayerDto`'daki `@IsIn` listeyi oradan **okur** (ikinci bir kopya
+tutulmaz), ama **otorite değildir** — esbuild altında DTO dekoratörleri
+atlanır, gerçek doğrulama `parseReportCategory`dedir (400
+`INVALID_REPORT_CATEGORY`).
+
+**`reason` İSTEĞE BAĞLIDIR.** Boş/yalnızca boşluk bir gerekçe `null`a
+indirgenir (400 **değil**); `null` yazmak, "gerekçe yok" ile "boş gerekçe
+yazıldı" arasında veritabanında ayırt edilemeyen iki durum yaratırdı. Azami
+uzunluk `config/social.config.json → reportReasonMaxLength` (500) ve ölçüm
+`normalizeMessageBody` ile aynı şekilde **kod noktası** sayar. Aşım 400
+`INVALID_REPORT_REASON`.
+
+**`status` bu dilimde HER ZAMAN `'open'`dır** — kuyruğa yeni düşen bir
+kayıttır; geçişler (`reviewing`/`resolved`/`dismissed`) brief §34 yönetim
+panelini bekler (tip şimdiden tamdır).
+
+**Dört uç noktanın tamamı `assertSelf` ile korunur** (`:id` her zaman işlemi
+yapan oyuncudur) ve `blockedId`/`reportedId` **gövde alanları** olduğundan
+controller'da `isUUID()` ile 400 kapısı vardır (CLAUDE.md "Kardeş tuzak" —
+esbuild altında `@IsUUID()` atlanır ve gevşek bir uuid repository'ye ulaşıp
+500 `22P02` üretirdi). Hız sınırları: engel 60/60sn, şikâyet 20/60sn, ikisi
+de `keyBy: 'player'`.
+
+**Engelleme karşı tarafa BİLDİRİM ÜRETMEZ** — diğer tüm yazma yollarının
+aksine. "Seni engelledi" haberini vermek, engellemeyi sessiz bir mesafe
+olmaktan çıkarıp bir sosyal sinyale (ve misilleme tetikleyicisine)
+çevirirdi. Şikâyet de bildirim üretmez (yalnızca moderasyon kuyruğuna düşer).
+
+**Kanıt:** `moderation.e2e-spec.ts` (a) engelin iki yönde de mesaj/hediye/
+davet/arkadaşlık-isteği yolunu kapatması; (b) engel kaldırılınca yolun
+kendiliğinden açılması ve arkadaşlığın yerinde kalması; (c) idempotentliğin
+**DB'de satır sayılarak** kanıtlanması ve ikinci çağrının AYNI `blockedAt`i
+dönmesi; (d) hediye 403'ünde bakiye ve defterin değişmemesi; (e) şikâyetin
+arkadaşlık gerektirmemesi ve engelden etkilenmemesi; (f) tüm uçlarda
+`assertSelf` 403'leri · `domain/social/moderation.spec.ts` (kategori listesi
+ile migration CHECK'inin **dosya okunarak** karşılaştırılması, kendini
+engelleme/şikâyet, gerekçe normalizasyonu).
+
 ### Soy Ağacı (soy ağacı veri zinciri dilimi, 27.09.2026)
 
 ```http

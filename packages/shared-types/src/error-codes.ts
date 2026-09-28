@@ -152,6 +152,40 @@ export const ErrorCode = {
    */
   SocialLimitReached: 'SOCIAL_LIMIT_REACHED',
   /**
+   * BLOCK / REPORT (brief §33, §42 PHASE 15) — aşağıdaki altı kod
+   * `domain/social/errors.ts`'in ürettikleridir.
+   */
+  /** Kaldırılacak engel kaydı yok (404). */
+  BlockNotFound: 'BLOCK_NOT_FOUND',
+  /** Kendini engelleyemezsin (400). */
+  CannotBlockSelf: 'CANNOT_BLOCK_SELF',
+  /**
+   * Bu iki oyuncu arasında (HERHANGİ bir yönde) engel var (403).
+   *
+   * **NEDEN TEK KOD, İKİ YÖN İÇİN:** engelleyen taraf da engellenen taraf
+   * da aynı cevabı alır. Yönü ayırt eden ikinci bir kod, engellenen
+   * oyuncuya "seni engelledi" bilgisini sızdırırdı; oysa engellemenin
+   * amacı tam olarak sessiz bir mesafedir. Engeli KOYAN taraf zaten
+   * `GET /players/:id/blocks` ile listesini görür — bilgi orada,
+   * kapıda değil.
+   */
+  PlayerBlocked: 'PLAYER_BLOCKED',
+  /** Kendini şikâyet edemezsin (400). */
+  CannotReportSelf: 'CANNOT_REPORT_SELF',
+  /**
+   * Şikâyet kategorisi `domain/social/moderation.ts` `REPORT_CATEGORIES`
+   * dışında (400). `InvalidFriendshipAction` ile AYNI gerekçe: `@IsIn`
+   * TEK BAŞINA YETMEZ (CLAUDE.md kural 5 — esbuild altında DTO
+   * dekoratörleri atlanır), doğrulama domain'de YAPILIR.
+   */
+  InvalidReportCategory: 'INVALID_REPORT_CATEGORY',
+  /**
+   * Şikâyet gerekçesi geçersiz — metin değil ya da azami uzunluğu aşıyor
+   * (400). `InvalidMessageBody` ile AYNI desen: BOŞ METİN GEÇERLİDİR ve
+   * `null`a indirgenir (gerekçe isteğe bağlıdır).
+   */
+  InvalidReportReason: 'INVALID_REPORT_REASON',
+  /**
    * Hediye gönderimi (proje sahibinin açık talebi, 27.09.2026) —
    * aşağıdaki beş kod `domain/gift/errors.ts`'in ürettikleridir. BU BİR
    * PARA YOLUDUR (bkz. `gift.repository.ts`).
