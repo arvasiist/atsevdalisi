@@ -1591,6 +1591,153 @@ yön sızdırmama.
 
 ---
 
+#### 13.17 YÖNETİM (ADMIN) — rol + denetim günlüğü + moderasyon kuyruğu (brief §34, §42 PHASE 15-B) — 28.09.2026
+
+**BU, PHASE 15'İN İKİNCİ YARISIDIR ve brief §34'ün TAMAMI DEĞİLDİR.** §34
+"Admin: Users Races Transactions Wallet Gifts Reports Chat Reports
+görebilmeli. Race: Create Cancel Pause Finish işlemleri kontrollü şekilde
+yapılabilmeli. Finansal işlemler audit log'a yazılmalı." der. Bu dilim
+**rolü + denetim günlüğünü** kurar ve o temelin üzerine oturan **ilk**
+ekranı getirir: şikâyet kuyruğu. Neden o? Çünkü §34'ün saydığı yedi
+listeden **tek hazır verisi** olan odur — migration 0040 `status` alanını
+bilinçli olarak bırakmıştı. **Users / Races / Transactions / Wallet /
+Gifts / Chat Reports ekranları ile race Cancel/Pause/Finish kontrolleri
+HENÜZ YOKTUR; PHASE 15 YARIMDIR.**
+
+**Ne yapıldı.** Üç uç nokta: `GET /admin/reports` (moderasyon kuyruğu),
+`PATCH /admin/reports/:reportId` (durum geçişi), `GET /admin/audit-log`
+(denetim günlüğü okuma). Migration 0041: `players.is_admin` kolonu,
+`admin_audit_log` tablosu (+ iki indeks), `player_reports.reviewed_by`/
+`reviewed_at` kolonları. Yeni paylaşılan tipler
+(`packages/shared-types/src/admin.ts`), yeni hata kodları
+(`ADMIN_REQUIRED`, `REPORT_NOT_FOUND`, `INVALID_REPORT_STATUS`), yeni
+config (`config/admin.config.json`) ve yeni domain modülü
+(`domain/admin/`).
+
+**ROL BİR KOLONDUR, TOKEN'A GÖMÜLMEZ — dilimin asıl kararı budur.**
+`players.is_admin` her istekte okunur; yetkisi alınan bir yönetici elindeki
+geçerli token'la erişmeye devam EDEMEZ. Rol JWT'ye konsaydı iptal ancak
+token süresi dolunca etki ederdi. e2e bunu **aynı token'la** ölçer:
+403 → kolon `true` → 200 → kolon `false` → 403. Ayrı bir `roles` tablosu
+neden yok: bugün TEK rol var ve çoktan-çoğa ilişki "rol"ü her okumada JOIN
+gerektiren bir *veri* hâline getirirdi.
+
+**`config/admin.config.json` BİR YETKİ KAPISI DEĞİLDİR** — oradaki iki
+değer yalnızca liste boyutudur. Config dosyaları kaynak kodla birlikte
+dağıtılır; bir yetki kararını oraya koymak onu bir dağıtım hatasıyla açığa
+çıkarılabilir hâle getirirdi.
+
+**⚠️ YÖNETİCİ ATAMANIN ARAYÜZÜ YOKTUR (bilinçli).** Kendini yönetici
+yapabilen bir uç nokta yönetim yetkisini anlamsız kılardı. Kolon şimdilik
+elle açılır; **testler de `UPDATE players SET is_admin = true` ile yapar**
+(`gift.e2e-spec.ts`in bakiyeyi `UPDATE` ile kurmasıyla aynı yöntem).
+§34'ün "kullanıcı yönetimi" ekranı geldiğinde bu, denetim günlüğüne
+yazılan bir işlem hâline gelmelidir.
+
+**IDOR KAPISI — 403 ÖNCE, 404 SONRA.** `ReportNotFoundError` yetki
+kontrolünden **sonra** fırlatılır. Aksi hâlde yönetici olmayan biri
+kimlikleri deneyerek kuyrukta hangi kayıtların bulunduğunu öğrenebilirdi.
+e2e tam olarak bunu doğrular: yönetici olmayan, **var olmayan** bir şikâyet
+kimliği için 404 değil **403** alır.
+
+**GEÇİŞ ÇİZGESİ KAPALI BİR DAG'DIR** (`domain/admin/moderation-queue.ts`):
+
+```
+open ──▶ reviewing ──▶ resolved
+  │           └─────▶ dismissed
+  ├─────────────────▶ resolved
+  └─────────────────▶ dismissed
+```
+
+- `open`dan doğrudan kapanış serbesttir (bariz spam için ara adım zorunlu
+  olmamalı).
+- **`resolved`/`dismissed` ÇIKIŞSIZDIR.** Geri açılabilen bir kuyruk aynı
+  şikâyetin iki sonucundan hangisinin geçerli olduğunu söyleyemez hâle
+  gelirdi ve her geri açma günlükte geri alınamaz bir iz bırakırdı. Yanlış
+  kapatılan şikâyet için doğru yol **yeni bir şikâyet**tir (şikâyet zaten
+  idempotent değildir).
+- `reviewing` → `open` de yasak: "kuyruğa geri koydum" ile "hiç
+  dokunulmamış" ayırt edilemez hâle gelirdi.
+- **AYNI duruma geçiş de yasak.** Bu idempotent bir çağrı değil, **bayat
+  ekran** işaretidir; sessiz başarı `reviewed_at`i gereksiz ilerletir ve
+  günlüğü gürültüye boğardı.
+
+**GEÇİŞ KURALI KİLİDİN İÇİNDE ÇALIŞIR.** Mevcut durum yalnızca `FOR UPDATE
+OF r` altında okunduğunda güvenilirdir; dışarıda okunan bir `status` ile
+karar vermek iki yönetici aynı şikâyeti farklı durumlara çektiğinde yarış
+koşuluna düşerdi — ikisi de `open` okur, ikisi de geçerli bir geçiş
+hesaplar, son yazan kazanır ve **arada bir geçiş kaybolur**. Kural bir
+callback olarak repository'ye geçer: domain fonksiyonu framework'süz
+kalır, çağrıldığı yer transaction'ın içidir.
+
+**DENETİM KAYDI GÜNCELLEMEYLE AYNI TRANSACTION'DA YAZILIR.** Ayrı bir
+`INSERT` olsaydı geri alınmış bir güncellemenin kaydı ortada kalırdı ve bu
+**hiçbir yerde hata üretmezdi**. e2e bunu yalnızca HTTP koduna bakarak
+değil, yasak bir geçişten sonra **hem durumun hem `admin_audit_log` satır
+sayısının değişmediği** gösterilerek doğrular — yani rollback gerçekten
+çalışıyor.
+
+**⚠️ `admin_audit_log` ≠ `economy_transactions`.** O bir **muhasebe
+defteri**dir (bakiye hareketi, `balance_before`/`balance_after`); bu bir
+**yetki kaydı**dır ("kim hangi yönetim işlemini ne zaman yaptı"). Bir
+yönetici şikâyet kapatırsa para hareket etmez ama burada satır olur; bir
+oyuncu hediye gönderirse deftere satır olur ama burası boş kalır. İkisini
+birleştirmek defteri "yönetici eylemleriyle kirlenmiş bir bakiye
+tablosu"na çevirirdi. `admin_id` **`ON DELETE RESTRICT`** (denetim kaydı
+denetlenen kişi silinince yok olamaz); `player_reports.reviewed_by` ise
+**`SET NULL`** — orada kayıt şikâyete bağlıdır, yönetici yalnızca bir
+değişkendir.
+
+**KUYRUK TÜM ŞİKÂYETLERİ DÖNER**, yalnızca `open` olanları değil: kuyruk
+bir iş listesi değil bir **kayıt görünümü**dür; "bu oyuncu daha önce
+şikâyet edilmiş miydi" sorusu ancak kapanmış kayıtlar görülerek
+yanıtlanır. Sunucuda `status` süzgeci tekrarlayan-şikâyet tespitini
+imkânsız kılardı. Sorgu parametresi de yoktur (doğrulanmamış bir
+parametreyi SQL `WHERE`ine sokmamak için). Görünen adlar JOIN ile gelir
+(N+1 yasak) ve `reviewer` JOIN'i **`LEFT`tir** — henüz ele alınmamış
+şikâyetler kuyruğun çoğunluğudur ve `INNER JOIN` onların tamamını
+düşürürdü.
+
+**BAYAT KOLON NOTU DÜZELTİLDİ.** Migration 0040 `status` için "şu an
+yalnızca 'open' yazılır; geçişler yönetim paneli diliminde gelecek"
+diyordu; bu dilim o geçişleri getirdi. **0040 dosyası DEĞİŞTİRİLMEDİ**
+(uygulanmış bir migration'ın içeriğini değiştirmek onu bir kez koşmuş
+ortamlarda sessizce farklı bir şemaya işaret eder); düzeltme 0041'de
+`COMMENT ON COLUMN` ile yapıldı.
+
+**`REPORT_STATUSES` ↔ DB CHECK.** Domain listesi `player_reports.status`
+CHECK'iyle birebir olmak zorundadır; `moderation-queue.spec.ts` migration
+dosyasını **okuyarak** karşılaştırır (`REPORT_CATEGORIES` için
+`moderation.spec.ts` ile aynı desen). Liste domain'de genişleyip
+migration'da genişlemezse `UPDATE` `23514` ile patlar ve yönetici 400
+yerine 500 görürdü.
+
+**`IdempotencyInterceptor` yok** (para/mülkiyet değişmez) ve **`PATCH`in
+kendi koruması geçiş çizgesidir**: `resolved` → `resolved` zaten 400'dür,
+yani tekrarlanan bir istek ikinci bir denetim kaydı üretemez.
+
+**Kanıt.** `apps/api/test/api/admin.e2e-spec.ts` — (a) yönetici olmayan üç
+uçta da 403 `ADMIN_REQUIRED` ve **var olmayan kimlik için 404 değil 403**;
+(b) rol DB'den okunur, aynı token kolon değişince anında yetki
+kazanır/kaybeder; (c) geçerli geçiş durumu değiştirir ve günlüğe
+`{from,to}` yazar; (d) yasak ve aynı-duruma geçiş 400 döner, **ne durum ne
+denetim kaydı değişir**; (e) kapanmış şikâyetler kuyrukta kalır;
+(f) token'sız istek 401, geçersiz UUID 400.
+`apps/api/test/domain/admin/moderation-queue.spec.ts` — durum listesinin
+migration CHECK'iyle dosya okunarak karşılaştırılması, çizgenin kapalılığı
+ve terminal durumları, çizgede olmayan **her** çiftin reddi, aynı-durum
+reddi, `assertAdmin`, config sabitlemesi.
+
+**Koşu.** `verify-admin.mjs` ile: temiz şema (`DROP SCHEMA` + migrate
+0041 dahil) → tsc ×4 → vitest domain 8 dosya/187 test → vitest e2e 3
+dosya/72 test → eslint. Hepsi geçti; commit
+`1adf537ab8845be6fe311249409d9194485e91dc` push edildi ve `git ls-remote`
+ile doğrulandı.
+
+**Uçlar:** `docs/API.md` → "Yönetim (Admin)".
+
+---
+
 ## 14. Kendime hatırlatmalar (kısa liste)
 
 1. **Race Engine'e dokunmadan önce iki kez düşün.** Denetim onu "KEEP, dokunma"

@@ -1111,9 +1111,10 @@ uzunluk `config/social.config.json → reportReasonMaxLength` (500) ve ölçüm
 `normalizeMessageBody` ile aynı şekilde **kod noktası** sayar. Aşım 400
 `INVALID_REPORT_REASON`.
 
-**`status` bu dilimde HER ZAMAN `'open'`dır** — kuyruğa yeni düşen bir
-kayıttır; geçişler (`reviewing`/`resolved`/`dismissed`) brief §34 yönetim
-panelini bekler (tip şimdiden tamdır).
+**`status` bu uçta HER ZAMAN `'open'`dır** — kuyruğa yeni düşen bir
+kayıttır. Geçişler (`reviewing`/`resolved`/`dismissed`) yönetim ucundadır
+(`PATCH /admin/reports/:reportId` — aşağıda "Yönetim (Admin)" bölümü);
+şikâyeti AÇAN yol hiçbir zaman `'open'` dışında bir değer yazmaz.
 
 **Dört uç noktanın tamamı `assertSelf` ile korunur** (`:id` her zaman işlemi
 yapan oyuncudur) ve `blockedId`/`reportedId` **gövde alanları** olduğundan
@@ -1136,6 +1137,264 @@ arkadaşlık gerektirmemesi ve engelden etkilenmemesi; (f) tüm uçlarda
 `assertSelf` 403'leri · `domain/social/moderation.spec.ts` (kategori listesi
 ile migration CHECK'inin **dosya okunarak** karşılaştırılması, kendini
 engelleme/şikâyet, gerekçe normalizasyonu).
+
+### Yönetim (Admin) — moderasyon kuyruğu + denetim günlüğü (brief §34, §42 PHASE 15-B, 28.09.2026)
+
+```http
+GET   /api/v1/admin/reports
+PATCH /api/v1/admin/reports/{reportId}
+GET   /api/v1/admin/audit-log
+```
+
+**BU BÖLÜM BRIEF §34'ÜN TAMAMI DEĞİLDİR.** §34 "Admin: Users Races
+Transactions Wallet Gifts Reports Chat Reports görebilmeli. Race: Create
+Cancel Pause Finish işlemleri kontrollü şekilde yapılabilmeli. Finansal
+işlemler audit log'a yazılmalı." der. Bu dilim **rolü + denetim günlüğünü**
+kurar ve o temelin üzerine oturan **ilk** ekranı getirir: şikâyet kuyruğu —
+çünkü §34'ün saydığı yedi listeden tek hazır verisi olan odur (migration
+0040 `status` alanını zaten bırakmıştı). **Users / Races / Transactions /
+Wallet / Gifts / Chat Reports ekranları ile race Cancel/Pause/Finish
+kontrolleri HENÜZ YOKTUR.**
+
+#### Yönetici kimdir — `players.is_admin`
+
+Rol, `players` tablosunda **tek bir boolean kolondur** (migration 0041);
+ayrı bir `roles`/`player_roles` çoktan-çoğa ilişkisi bugün TEK bir rol için
+ödenecek karmaşıklık olurdu ve "rol"ü her okumada JOIN gerektiren bir
+*veri* hâline getirirdi.
+
+**Rol TOKEN'A GÖMÜLMEZ — bu dilimin asıl kararı budur.** `assertAdmin`
+kolonu **her istekte** okur; yetkisi alınan bir yönetici elindeki geçerli
+token'la erişmeye devam **edemez**. Rol JWT'ye konsaydı iptal ancak token
+süresi dolunca etkirdi — yönetim yetkisi için kabul edilemez bir gecikme.
+`admin.e2e-spec.ts` bunu **aynı token'la** ölçer: 403 → kolon `true` → 200
+→ kolon `false` → 403.
+
+**`config/admin.config.json` BİR YETKİ KAPISI DEĞİLDİR.** Oradaki iki değer
+yalnızca liste boyutudur (`reportQueueLimit`, `auditLogLimit`). Config
+dosyaları kaynak kodla birlikte dağıtılır; bir yetki kararını oraya koymak
+onu bir dağıtım hatasıyla açığa çıkarılabilir hâle getirirdi.
+
+**⚠️ YÖNETİCİ ATAMANIN ARAYÜZÜ/UÇ NOKTASI YOKTUR (bilinçli).** Kendini
+yönetici yapabilen bir uç nokta, yönetim yetkisini anlamsız kılardı. Kolon
+şimdilik elle açılır (`UPDATE players SET is_admin = true WHERE ...`);
+testler de bunu doğrudan SQL ile yapar (`gift.e2e-spec.ts`in bakiyeyi
+`UPDATE` ile kurmasıyla aynı yöntem). Brief §34'ün "kullanıcı yönetimi"
+ekranı geldiğinde bu, **denetim günlüğüne yazılan** bir yönetim işlemi
+hâline gelmelidir.
+
+#### Üç hata kodu
+
+| Kod | Durum | Neden |
+|---|---|---|
+| `ADMIN_REQUIRED` | 403 | Eksik olan **rol**dür, **sahiplik** değil — bu yüzden `FORBIDDEN`'dan ayrı bir koddur (istemci "başka hesaba geçmeliyim" ile "bu ekran bana hiç görünmemeli" arasını ayırt edebilmelidir) |
+| `REPORT_NOT_FOUND` | 404 | Şikâyet satırı yok. **Yetki kapısından SONRA** kontrol edilir |
+| `INVALID_REPORT_STATUS` | 400 | Bilinmeyen durum **veya** yasak geçiş — ikisi tek kod (`reason` alanı `UNKNOWN_STATUS`/`FORBIDDEN_TRANSITION` ayrımını yalnızca mesajda taşır) |
+
+**⚠️ 404 ile 403 KARIŞTIRILAMAZ — IDOR kapısı budur.** `REPORT_NOT_FOUND`
+yetki kontrolünden **sonra** fırlatılır: aksi hâlde yönetici olmayan biri
+kimlikleri deneyerek kuyrukta hangi kayıtların bulunduğunu öğrenebilirdi.
+`admin.e2e-spec.ts` tam olarak bunu doğrular: **yönetici olmayan, VAR
+OLMAYAN bir şikâyet kimliği için 404 değil 403 alır.**
+
+#### `GET /admin/reports`
+
+örnek yanıt:
+
+```json
+{
+  "success": true,
+  "data": {
+    "reports": [
+      {
+        "reportId": "…",
+        "reporter": { "playerId": "…", "displayName": "Ayşe" },
+        "reported": { "playerId": "…", "displayName": "Mehmet" },
+        "category": "harassment",
+        "reason": "lobide rahatsız etti",
+        "status": "open",
+        "createdAt": "2026-09-28T19:04:11.220Z",
+        "reviewedBy": null,
+        "reviewedAt": null
+      }
+    ]
+  }
+}
+```
+
+**TÜM şikâyetler döner — yalnızca `open` olanlar değil.** Kuyruk bir *iş
+listesi* değil bir *kayıt görünümüdür*: yönetici "bu oyuncu daha önce
+şikâyet edilmiş miydi" sorusunu ancak kapanmış kayıtları da görerek
+yanıtlayabilir. Sunucuda `status` süzgeci tekrarlayan-şikâyet tespitini
+imkânsız kılardı. **Sorgu parametresi de yoktur** — doğrulanmamış bir
+parametreyi SQL `WHERE`ine sokmak zorunda kalmamak için; liste zaten
+`reportQueueLimit` ile sınırlıdır.
+
+`reporter`/`reported` **nesnedir, düz id değil**: görünen adlar JOIN ile
+gelir, yoksa ekran her satır için iki ayrı oyuncu isteği atmak zorunda
+kalırdı (N+1 — `findBlockedPlayers` ile aynı yasak). Üçüncü JOIN (`reviewer`)
+**`LEFT`tir**: henüz ele alınmamış şikâyetler kuyruğun çoğunluğudur ve
+`INNER JOIN` onların tamamını listeden düşürürdü.
+
+**`reviewedBy`, `status`'tan TÜRETİLEMEZ** — `reviewing` durumundaki bir
+kaydı *kimin* aldığı ayrı bir bilgidir. `reviewedById` dolu ama JOIN'de ad
+yoksa yanıt `null` döner: yarısı dolu bir referans üretmek istemciyi
+"adsız yönetici" diye bir şey olduğuna inandırırdı.
+
+#### `PATCH /admin/reports/{reportId}`
+
+```json
+{ "status": "reviewing" }
+```
+
+**200 OK (201 değil):** yeni kaynak yaratmaz, mevcut satırın durumunu
+değiştirir. `:reportId` bir yol parametresidir ve `ParseUUIDPipe` ile
+doğrulanır (geçersiz uuid veritabanına hiç gitmez). Gövdedeki `status` HAM
+geçirilir: doğrulama domain'dedir (`parseReportStatus`) ve DTO
+dekoratörüne güvenilmez (CLAUDE.md "Kardeş tuzak").
+
+**Durum geçiş çizgesi kapalı bir DAG'dır** — tek kaynağı
+`domain/admin/moderation-queue.ts` → `REPORT_STATUS_TRANSITIONS`:
+
+```
+open ──▶ reviewing ──▶ resolved
+  │           └─────▶ dismissed
+  ├─────────────────▶ resolved
+  └─────────────────▶ dismissed
+```
+
+- `open`dan **doğrudan kapanışa** geçiş serbesttir (bariz bir spam kaydı
+  için "inceliyorum"a çekmek zorunlu olmamalı).
+- **`resolved` ve `dismissed` ÇIKIŞSIZDIR.** Geri açılabilen bir kuyruk,
+  aynı şikâyetin iki sonucundan hangisinin geçerli olduğunu söyleyemez
+  hâle gelirdi — üstelik her geri açma denetim günlüğünde geri alınamaz bir
+  iz bırakır. Yanlış kapatılan bir şikâyet için doğru yol **yeni bir
+  şikâyet**tir (şikâyet zaten idempotent değildir).
+- `reviewing` → `open` de yasaktır: "kuyruğa geri koydum" ile "hiç
+  dokunulmamış" ayırt edilemez hâle gelirdi.
+- **AYNI duruma geçiş de yasaktır.** Zaten `resolved` bir kaydı tekrar
+  `resolved` yapmak idempotent bir çağrı değil, **bayat bir ekran**dan
+  geldiğinin işaretidir; sessizce başarı döndürmek `reviewed_at`i gereksiz
+  ilerletir ve günlüğü "aynı şey iki kez oldu" gibi gösterirdi.
+
+**Geçiş kuralı KİLİDİN İÇİNDE çalışır.** Mevcut durum yalnızca `FOR UPDATE
+OF r` altında okunduğunda güvenilirdir; dışarıda okunan bir `status` ile
+karar vermek, iki yönetici aynı şikâyeti aynı anda farklı durumlara
+çektiğinde yarış koşuluna düşerdi — ikisi de `open` okur, ikisi de geçerli
+bir geçiş hesaplar, son yazan kazanır ve **arada bir geçiş kaybolur**.
+Kural bir callback olarak repository'ye geçer; domain fonksiyonu
+framework'süz kalır, çağrıldığı yer transaction'ın içidir.
+
+örnek yanıt (güncellenmiş satır):
+
+```json
+{
+  "success": true,
+  "data": {
+    "reportId": "…",
+    "status": "reviewing",
+    "reviewedBy": { "playerId": "…", "displayName": "Yönetici" },
+    "reviewedAt": "2026-09-28T19:05:00.001Z"
+  }
+}
+```
+
+**`reviewed_by` = İŞLEMİ YAPAN yöneticidir**, satırın önceki ele alanı
+değil. İkisini karıştırmak "kim kapattı" sorusuna "onu ilk inceleyen
+kimdi" cevabını verdirirdi.
+
+#### `GET /admin/audit-log`
+
+```json
+{
+  "success": true,
+  "data": {
+    "entries": [
+      {
+        "id": "…",
+        "admin": { "playerId": "…", "displayName": "Yönetici" },
+        "action": "report.status_changed",
+        "targetType": "player_report",
+        "targetId": "…",
+        "details": { "from": "open", "to": "resolved" },
+        "createdAt": "2026-09-28T19:05:00.001Z"
+      }
+    ]
+  }
+}
+```
+
+**BU DİLİMDE GÜNLÜĞE YAZILAN TEK EYLEM** `report.status_changed`dır.
+§34'ün saydığı diğer yönetim işlemleri henüz yoktur; okuma ayağı
+onlardan **önce** hazır edilmiştir ki ilk yazma yolu eklendiğinde ayrı bir
+"günlüğü okuyacak uç" işi doğmasın.
+
+`action` **serbest metindir** (DB'de CHECK yok): her yeni yönetim işlemi
+kendi eylem adını getirir ve her seferinde migration yazmak denetime
+hizmet etmez. Kapalı küme yalnızca **davranışı kısıtlaması gereken**
+yerlerde (şikâyet durumu) vardır.
+
+#### ⚠️ `admin_audit_log` ile `economy_transactions` KARIŞTIRILAMAZ
+
+- `economy_transactions` bir **muhasebe defteri**dir: her satır bir bakiye
+  hareketidir, `balance_before`/`balance_after` taşır.
+- `admin_audit_log` bir **yetki kaydı**dır: "kim, hangi yönetim işlemini,
+  ne zaman yaptı".
+
+Bir yönetici bir şikâyeti kapatırsa para hareket **etmez** ama burada bir
+satır **olur**; tersine, bir oyuncu hediye gönderirse deftere satır olur
+ama burası **boş** kalır. İkisini birleştirmek defteri "yönetici
+eylemleriyle kirlenmiş bir bakiye tablosu"na çevirir ve defterin tek işi
+olan "bakiyeyi satır satır açıklama" özelliğini bozardı.
+
+`admin_id` **`ON DELETE RESTRICT`**: denetim kaydının, denetlenen kişinin
+silinmesiyle yok olması denetimin tanımına aykırıdır. Buna karşılık
+`player_reports.reviewed_by` **`ON DELETE SET NULL`**dır — orada kayıt
+şikâyete bağlıdır ve yönetici yalnızca bir **değişken**dir.
+
+#### ⚠️ DENETİM KAYDI GÜNCELLEMEYLE AYNI TRANSACTION'DA YAZILIR
+
+Ayrı bir `INSERT` olsaydı, geri alınmış bir güncellemenin kaydı ortada
+kalırdı ve bu **hiçbir yerde hata üretmezdi**. `admin.e2e-spec.ts` bunu
+yalnızca HTTP koduna bakarak değil, yasak bir geçişten sonra **hem durumun
+hem `admin_audit_log` satır sayısının değişmediği** gösterilerek doğrular —
+yani rollback gerçekten çalışıyor.
+
+#### Diğer kurallar
+
+- **Üç uç nokta `@Public()` DEĞİLDİR ve olmayacaktır.** Kuyruk, şikâyet
+  eden/edilen oyuncuların kimliğini ve serbest metin gerekçeyi taşır;
+  günlük ise "kim ne yaptı" bilgisidir.
+- **`:id` yoktur, `assertSelf` de yoktur — olmamalıdır.** İşlemi yapan
+  kimliği `@CurrentPlayer()` verir; karşılaştırılacak bir *hedef* id
+  yoktur. `assertSelf` eklemek "yönetici yalnızca kendi kaydını görebilir"
+  gibi sahte bir kısıt doğururdu.
+- **`@RateLimit` yalnızca `PATCH`te** (60/60sn, `keyBy: 'player'`). Okuma
+  uçları bir panel açıldığında saniyede birkaç kez çağrılır ve limit
+  koymak gerçek bir yöneticiyi meşru işinden alıkoyardı; asıl savunma
+  yetki kapısıdır. `PATCH` kalıcı durum değiştirir ve günlüğe satır yazar.
+- **`IdempotencyInterceptor` yoktur:** bu dilimdeki hiçbir rota
+  para/mülkiyet değiştirmez. `PATCH`in kendi koruması geçiş çizgesidir —
+  `resolved` → `resolved` zaten 400'dür, yani tekrarlanan bir istek ikinci
+  bir denetim kaydı **üretemez**.
+
+**`REPORT_STATUSES` ↔ DB CHECK.** `domain/admin/moderation-queue.ts`teki
+liste `player_reports.status` CHECK'iyle **birebir** olmak zorundadır.
+Uyuşmazlığı `moderation-queue.spec.ts` yakalar: migration dosyasını
+**okuyarak** karşılaştırır (`REPORT_CATEGORIES` için `moderation.spec.ts`
+ile aynı desen). Liste domain'de genişleyip migration'da genişlemezse
+`UPDATE` `23514` ile patlar ve yönetici 400 yerine **500** görürdü.
+
+**Kanıt:** `admin.e2e-spec.ts` (a) yönetici olmayan üç uçta da 403
+`ADMIN_REQUIRED` alır ve **var olmayan kimlik için 404 değil 403 alır**;
+(b) rol DB'den okunur — aynı token kolon değişince anında yetki
+kazanır/kaybeder; (c) geçerli geçiş durumu değiştirir ve `admin_audit_log`a
+`{from,to}` yazar; (d) yasak ve aynı-duruma geçiş 400 `INVALID_REPORT_STATUS`
+döner ve **ne durum ne denetim kaydı değişir** (rollback kanıtı);
+(e) kapanmış şikâyetler kuyrukta kalır; (f) token'sız istek 401 ·
+`domain/admin/moderation-queue.spec.ts` (durum listesinin migration
+CHECK'iyle **dosya okunarak** karşılaştırılması, geçiş çizgesinin kapalılığı
+ve terminal durumları, aynı-durum reddi, `assertAdmin`, config sabitlemesi).
 
 ### Soy Ağacı (soy ağacı veri zinciri dilimi, 27.09.2026)
 

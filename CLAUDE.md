@@ -155,8 +155,19 @@ YANILTICI olduğunu gösterdi.** Bu bölüm iki kez bayatladı; aşağısı
   gelir. Asset gerekmez.
 - **Blok/şikâyet arayüzü (brief §33, §42 PHASE 15) — YAPILABİLİR.** Backend +
   e2e hazır (§13.16): dört uç nokta — hiçbirinin istemci tüketicisi yok.
-  Asset gerekmez. **PHASE 15'in ikinci yarısı (brief §34 yönetim paneli)
-  AYRI ve daha büyük bir iştir:** `admin` rolü + denetim günlüğü gerektirir.
+  Asset gerekmez.
+- **Yönetim paneli arayüzü (brief §34, §42 PHASE 15-B) — YAPILABİLİR
+  (yalnızca şikâyet kuyruğu).** Backend + e2e hazır (§13.17): üç uç nokta —
+  hiçbirinin istemci tüketicisi yok. Asset gerekmez. **§34'ün KALANI AYRI
+  ve daha büyük bir iştir:** Users / Races / Transactions / Wallet / Gifts /
+  Chat Reports ekranları + race Cancel/Pause/Finish kontrolleri; bunlar
+  yeni yönetim okuma portları ve (race kontrolleri için) yeni denetim
+  eylem adları gerektirir.
+- **⚠️ YÖNETİCİ ATAMANIN ARAYÜZÜ YOKTUR (bilinçli).** `players.is_admin`
+  şimdilik elle açılır (`UPDATE players SET is_admin = true WHERE ...`);
+  testler de SQL ile yapar. Kendini yönetici yapabilen bir uç nokta
+  yönetim yetkisini anlamsız kılardı. §34'ün "kullanıcı yönetimi" ekranı
+  geldiğinde bu, **denetim günlüğüne yazılan** bir işlem olmalıdır.
 - **PHASE 13 (bildirim üreticileri) — YEDİ/SEKİZ YAPILDI (§13.13/§13.14).**
   Sekiz türden YEDİSİ üretiliyor: `race_invite` (§13.11) + `friend_request`,
   `friend_accepted`, `message_received` (§13.13) + `gift_received`
@@ -187,13 +198,18 @@ ağacı okuma + yazma (§13.2/§13.4)** · **yarış sohbeti + izleyici sayısı
 (§13.13 + §13.13.1, PHASE 13 — yalnızca bu dördü)** · **ÖDÜL DAĞITIMI —
 `POST /races/:id/settle` (§13.14, PHASE 13.14)** · **SOSYAL PROFİL —
 `GET /players/profile/:username` (§13.15, PHASE 14)** · **BLOK / ŞİKÂYET —
-brief §33 (§13.16, PHASE 15'İN İLK YARISI)** — backend; hiçbirinin
+brief §33 (§13.16, PHASE 15'İN İLK YARISI)** · **YÖNETİM — rol + denetim
+günlüğü + moderasyon kuyruğu (§13.17, PHASE 15-B)** — backend; hiçbirinin
 istemci tüketicisi YOK. Ayrıntı: `PROJE_DURUMU.md` §13.
 
-**PHASE 15 YARIMDIR.** Brief §33 (BLOCK/REPORT) bitti; **§34 (yönetim
-paneli) YAPILMADI** — `admin` rolü, şikâyet kuyruğu ekranı ve denetim günlüğü
-yoktur, `player_reports.status` bu yüzden HER ZAMAN `'open'`dır. Yeniden
-yapma: §13.16.
+**PHASE 15 HÂLÂ YARIMDIR.** Brief §33 (BLOCK/REPORT) bitti (§13.16) ve
+**§34'ün TEMELİ kuruldu** (§13.17): `admin` rolü (`players.is_admin`),
+denetim günlüğü (`admin_audit_log`) ve üç uç nokta
+(`GET /admin/reports`, `PATCH /admin/reports/:reportId`,
+`GET /admin/audit-log`) vardır — `player_reports.status` artık
+`'open'`da DONMAZ. **AMA §34'ün TAMAMI BİTMEDİ:** Users / Races /
+Transactions / Wallet / Gifts / Chat Reports ekranları ile race
+Cancel/Pause/Finish kontrolleri YOKTUR. Yeniden yapma: §13.16 + §13.17.
 
 **⚠️ PROFİL UCU PARA SIZDIRMAZ — BUNU BOZMA.** `GET /players/profile/:username`
 `@Public()`'tir, yani yanıtına giren her alan HERKESE açıktır.
@@ -251,3 +267,41 @@ oyuncu arkadaşlığını da kaybetmiş bulurdu. Şikâyet ise ne arkadaşlık a
 **⚠️ `blockedId`/`reportedId` GÖVDE ALANIDIR.** Yol parametresi olmadıkları
 için `ParseUUIDPipe` uygulanamaz; controller'daki `isUUID()` kapısı şarttır
 (yukarıdaki kural).
+
+**⚠️ YÖNETİCİ ROLÜ TOKEN'A GÖMÜLMEZ — `players.is_admin` HER İSTEKTE
+OKUNUR.** Rolü JWT'ye koymak, yetki iptalini token süresinin dolmasına
+bağlardı. Yeni bir yönetim ucu yazarken `isAdmin` sorgusunu **önbelleğe
+alma** ve **yetki kapısını veri okumadan ÖNCE** çağır. `assertAdmin`
+use-case'in ilk satırıdır; `AdminRepository.isAdmin` önbelleksizdir.
+Gerekçe: `PROJE_DURUMU.md` §13.17.
+
+**⚠️ 403 ÖNCE, 404 SONRA — YÖNETİM UÇLARINDA IDOR KAPISI.** Yönetici
+olmayan bir çağırana `REPORT_NOT_FOUND` (404) döndürmek, kimlikleri
+deneyerek kuyrukta ne olduğunu yoklamasına izin verir. `ReportNotFoundError`
+yetki kapısından SONRA fırlatılır; `admin.e2e-spec.ts` bunu "var olmayan
+kimlik → 403, 404 değil" diye iddia eder.
+
+**⚠️ ŞİKÂYET DURUM GEÇİŞİ KİLİDİN İÇİNDE DOĞRULANIR, DIŞARIDA DEĞİL.**
+`assertReportTransitionAllowed` `updateReportStatusWithLock`un `mutate`
+callback'i içinde çalışır. Dışarıda okunan bir `status` ile karar vermek
+iki yönetici yarıştığında bir geçişi KAYBETTİRİR. Geçiş çizgesi kapalı bir
+DAG'dır; `resolved`/`dismissed` **çıkışsızdır** ve **aynı duruma geçiş de
+yasaktır** (bayat istemci göstergesi). Yeni bir durum eklersen
+`REPORT_STATUSES`ı `player_reports.status` CHECK'iyle hizalı tut —
+`moderation-queue.spec.ts` migration dosyasını **okuyarak** karşılaştırır.
+
+**⚠️ DENETİM KAYDI YAZILDIĞI ŞEYLE AYNI TRANSACTION'DA YAZILIR.** Bildirim
+kuralının aynısı: ayrı bir `INSERT` olsaydı geri alınmış bir güncellemenin
+kaydı ortada kalırdı ve bu **hiçbir yerde hata üretmezdi**. Bu yüzden
+`admin_audit_log` satırını use-case değil, **repository** (aynı `client`
+üzerinde) yazar.
+
+**⚠️ `admin_audit_log` ≠ `economy_transactions`.** Biri **yetki kaydı**
+("kim hangi yönetim işlemini ne zaman yaptı"), diğeri **muhasebe defteri**
+(bakiye hareketi). Bir yönetim işlemini "denetlensin" diye deftere yazmak,
+defterin tek işi olan "bakiyeyi satır satır açıklama" özelliğini bozar.
+
+**⚠️ `config/admin.config.json` BİR YETKİ KAPISI DEĞİLDİR.** Oradaki iki
+değer yalnızca **liste boyutudur**. Bir yetki kararını config'e koymak,
+onu kaynak kodla birlikte dağıtılan ve çalışma zamanında değiştirilemeyen
+bir dosyaya bağlar.
