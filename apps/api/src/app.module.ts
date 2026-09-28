@@ -12,6 +12,7 @@ import { HealthModule } from './api/health/health.module';
 import { HorseModule } from './api/horse/horse.module';
 import { MarketModule } from './api/market/market.module';
 import { MatchmakingModule } from './api/matchmaking/matchmaking.module';
+import { NotificationModule } from './api/notification/notification.module';
 import { PlayerModule } from './api/player/player.module';
 import { RateLimitModule } from './api/rate-limit/rate-limit.module';
 import { RaceModule } from './api/race/race.module';
@@ -145,6 +146,13 @@ import { RedisModule } from './infrastructure/redis/redis.module';
     // `handleConnection`'ında bağımsız doğrulama yapar) ama okunabilirlik
     // için ilişkili olduğu `RaceModule`'e yakın, dizinin sonuna eklendi.
     RealtimeModule,
+    // BİLDİRİMLER + YARIŞ DAVETİ (brief §16/§28, §42 PHASE 11) — bkz.
+    // `api/notification/notification.module.ts` doc yorumu. `RealtimeModule`'ün
+    // HEMEN ardında durur çünkü onu `imports`'una alır (`NOTIFICATION_NOTIFIER`
+    // yayını için) ve `SocialModule`'ü de (arkadaşlık kapısı); Nest modül
+    // grafiğini sıraya bakmadan çözer, bu komşuluk yalnızca okunabilirlik
+    // içindir.
+    NotificationModule,
   ],
 })
 export class AppModule {}

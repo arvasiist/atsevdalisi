@@ -304,6 +304,56 @@ export const ErrorCode = {
    * `InvalidGiftAmount` ile AYNI desen ve AYNI gerekçe.
    */
   InvalidDepositAmount: 'INVALID_DEPOSIT_AMOUNT',
+  /**
+   * Yarış daveti + bildirim (brief §16 RACE INVITE, §28, §42 PHASE 11) —
+   * aşağıdaki sekiz kod `domain/social/errors.ts`'in ürettikleridir.
+   */
+  /** Kendini yarışa davet edemezsin (400). */
+  CannotInviteSelf: 'CANNOT_INVITE_SELF',
+  /**
+   * Davet göndermek için arkadaş olmak gerekir (403) — brief §16
+   * "Arkadaşlar birbirlerini yarışa davet edebilsin".
+   *
+   * `NotFriends`/`GiftRequiresFriendship` ile AYNI gerekçeyle AYRI kod:
+   * kullanıcıya gösterilen metin farklıdır ve istemci "önce arkadaş ekle"
+   * akışına yönlendirebilmelidir. `NOT_FRIENDS`'i yeniden kullanmak,
+   * istemciye "mesaj mı, hediye mi, davet mi gönderemedim" sorusunu
+   * cevapsız bırakırdı.
+   */
+  InviteRequiresFriendship: 'INVITE_REQUIRES_FRIENDSHIP',
+  /** Davet bulunamadı ya da bu oyuncuya ait değil (404). */
+  RaceInviteNotFound: 'RACE_INVITE_NOT_FOUND',
+  /**
+   * Davet zaten yanıtlanmış — `accept`/`decline` dışında bir durumda (409).
+   * `pending` bir davet yanıtlanabilir; `accepted`/`declined`/`expired`
+   * yanıtlanamaz (geri alınamaz — aynı davet iki kez kabul edilemez).
+   */
+  RaceInviteNotRespondable: 'RACE_INVITE_NOT_RESPONDABLE',
+  /**
+   * Bu yarışa şu an davet GÖNDERİLEMEZ (409): yarış `scheduled` değil ya da
+   * başlangıç zamanı geçmiş — `checkRaceJoinable`ın davete uyarlanmış hâli.
+   *
+   * **NEDEN KATILIMDAN AYRI KOD:** `RaceNotJoinable` mesajı "katılamazsın"
+   * der; oysa burada engellenen şey DAVETTİR. İstemcinin davet düğmesini
+   * gizlemesi için hangi işlemin engellendiği ayrı olmalıdır.
+   */
+  RaceNotInvitable: 'RACE_NOT_INVITABLE',
+  /**
+   * Bu oyuncu bu yarışa ZATEN davet edilmiş (409) — kural veritabanında
+   * ZORLANIR: `race_invites_race_invitee_uq` tekil indeksi (migration 0039).
+   * `FriendshipAlreadyExists` ile AYNI desen.
+   */
+  RaceInviteAlreadyExists: 'RACE_INVITE_ALREADY_EXISTS',
+  /** Davet yanıtı `accept`/`decline` dışında bir değer (400). */
+  InvalidRaceInviteAction: 'INVALID_RACE_INVITE_ACTION',
+  /**
+   * Bildirim bulunamadı ya da bu oyuncuya ait değil (404) —
+   * `POST /players/:id/notifications/:notificationId/read`. 403 değil 404:
+   * üzerinde işlem yapılacak kaynağın KENDİSİ yoktur (`RaceEntryNotFound`
+   * ile AYNI gerekçe — başkasının bildirim kimliğini denemek de aynı yanıtı
+   * alır, yani kimlik varlığı sızdırılmaz).
+   */
+  NotificationNotFound: 'NOTIFICATION_NOT_FOUND',
 } as const;
 
 export type ErrorCodeValue = (typeof ErrorCode)[keyof typeof ErrorCode];

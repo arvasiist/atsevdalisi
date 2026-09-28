@@ -4,5 +4,7 @@
   "overviewRequestsLimit": 50,
   "pendingRequestsLimit": 25,
   "inboxLimit": 50,
-  "conversationLimit": 100
+  "conversationLimit": 100,
+  "notificationsLimit": 50,
+  "pendingInvitesLimit": 25
 }

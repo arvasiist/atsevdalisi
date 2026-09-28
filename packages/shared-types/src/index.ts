@@ -18,3 +18,4 @@ export * from './grandstand';
 export * from './social';
 export * from './gift';
 export * from './chat';
+export * from './notification';

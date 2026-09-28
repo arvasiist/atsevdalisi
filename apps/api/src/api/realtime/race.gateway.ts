@@ -10,10 +10,12 @@ import {
 } from '@nestjs/websockets';
 import type { Namespace, Socket } from 'socket.io';
 import type {
+  NotificationView,
   PvpMatchResult,
   RaceChatHistoryPayload,
   RaceChatMessageView,
   RaceFinishedPayload,
+  RaceInviteView,
   RaceRosterEntrant,
   RaceRosterPayload,
   RaceSegmentSnapshot,
@@ -25,6 +27,7 @@ import { ListRaceMessagesUseCase } from '../../application/use-cases/list-race-m
 import { SendRaceMessageUseCase } from '../../application/use-cases/send-race-message.use-case';
 import { TOKEN_SERVICE, type TokenService } from '../../application/ports/token.service';
 import type { LobbyNotifier } from '../../application/ports/lobby-notifier';
+import type { NotificationNotifier } from '../../application/ports/notification-notifier';
 import { AppConfigService } from '../../infrastructure/config/config.service';
 
 /** `race_entries.id` gibi bir UUID metni — gövdede gelen `raceId`'nin kabaca şekil kontrolü (bkz. bu dosyanın doc yorumu). */
@@ -79,12 +82,22 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{
  * YENİ bir oturum başlatır (replay idempotent olduğundan zararsız, AYNI
  * ilke `docs/ROADMAP.md`'nin yeniden bağlanma notuyla tutarlı).
  *
+ * **BİLDİRİM YAYINI (brief §28, §42 PHASE 11 — bu dilimde EKLENDİ):**
+ * Yukarıdaki "kapsam dışı" notu ARTIK GEÇERSİZ. `NotificationNotifier`
+ * portu bu gateway tarafından uygulanır ve `player:${playerId}` odasına ÜÇ
+ * olay yayınlar: `notification.created` (bildirim listesi tüketicisi),
+ * `race.invite` (davet EDİLENE — iki düğmeli kart) ve `race.invite.responded`
+ * (davet EDENE — sonucu bildirir). Ayrıntı: `notifyNotification` doc yorumu.
+ * Bu, `lobby.update`nin kullandığı ALTYAPININ AYNISIDIR (aynı oda, aynı
+ * best-effort sözleşmesi, aynı `RealtimeModule` bağlaması) — yeni bir oda
+ * ya da kimlik mekanizması İCAT EDİLMEDİ.
+ *
  * **Kapsam DIŞI (bilinçli, gelecek dilimler için docs/ROADMAP.md'ye not
- * düşülecek):** `notification.new` (docs/API.md §10'un genel bildirim
- * sistemi önerisi, brief §46) bu dilimde HÂLÂ YOK — daha belirsiz/büyük
- * bir kapsam olduğundan BİLEREK ayrı bırakıldı. `lobby.update` ise ARTIK
- * UYGULANDI (bkz. aşağıdaki "`lobby.update`" doc bölümü) — F2'nin ilk
- * turda bıraktığı son kapsam dışı madde buydu.
+ * düşülecek):** brief §28'in sekiz bildirim türünden YALNIZCA `race_invite`
+ * ÜRETİLİR (bkz. `domain/social/notification.ts`); kalan yedi türün
+ * üreticisi PHASE 13'ün işidir. `lobby.update` de ARTIK UYGULANDI (bkz.
+ * aşağıdaki "`lobby.update`" doc bölümü) — F2'nin ilk turda bıraktığı son
+ * kapsam dışı madde buydu.
  *
  * **Yeniden bağlanma (madde 2 — bu turda TAMAMLANDI):** Önceden burada
  * "yeniden bağlanma/kaldığı yerden devam etme YOK" yazıyordu — bu artık
@@ -246,7 +259,9 @@ interface ChatRateWindow {
   namespace: '/races',
   cors: { origin: process.env.CORS_ORIGIN ?? 'http://localhost:3000', credentials: true },
 })
-export class RaceGateway implements OnGatewayConnection, OnGatewayDisconnect, LobbyNotifier {
+export class RaceGateway
+  implements OnGatewayConnection, OnGatewayDisconnect, LobbyNotifier, NotificationNotifier
+{
   private readonly logger = new Logger(RaceGateway.name);
 
   /**
@@ -398,6 +413,38 @@ export class RaceGateway implements OnGatewayConnection, OnGatewayDisconnect, Lo
    */
   notifyMatchFound(playerId: string, result: PvpMatchResult): void {
     this.server.to(this.playerRoom(playerId)).emit('lobby.update', result);
+  }
+
+  /**
+   * BİLDİRİM YAYINI (brief §28, §42 PHASE 11) — `NotificationNotifier`
+   * portunun (`application/ports/notification-notifier.ts`) uygulaması.
+   * Üçü de `lobby.update` ile AYNI odayı (`player:${playerId}`) ve AYNI
+   * best-effort sözleşmeyi kullanır: oyuncunun açık bir soketi yoksa
+   * `server.to(...).emit(...)` sessizce hiçbir şey yapmaz — bildirim
+   * satırı ZATEN veritabanına yazılmıştır, oyuncu onu bir sonraki
+   * `GET /players/:id/notifications` çağrısında görür. Garanti teslim/
+   * kuyruk sistemi BİLİNÇLİ olarak İCAT EDİLMEDİ (`notifyMatchFound`
+   * ile AYNI sınır).
+   *
+   * **NEDEN ÜÇ AYRI OLAY (tek bir `notification.created` yetmez):**
+   * bildirim LİSTESİ ile davet KARTI istemcide iki ayrı tüketicidir —
+   * rozet sayacı listeyi, iki düğmeli kart (`[JOIN]`/`[DECLINE]`) daveti
+   * dinler. Üçüncü olay (`race.invite.responded`) ise DAVET EDENE gider,
+   * yani farklı bir ALICIYA: davet eden kendi bekleyen davetini ekranında
+   * görüyordur ve sonucu öğrenmelidir.
+   */
+  notifyNotification(playerId: string, notification: NotificationView): void {
+    this.server.to(this.playerRoom(playerId)).emit('notification.created', notification);
+  }
+
+  /** Bkz. `notifyNotification` doc yorumu — ALICI: davet EDİLEN. */
+  notifyRaceInvite(inviteeId: string, invite: RaceInviteView): void {
+    this.server.to(this.playerRoom(inviteeId)).emit('race.invite', invite);
+  }
+
+  /** Bkz. `notifyNotification` doc yorumu — ALICI: davet EDEN. */
+  notifyRaceInviteResponded(inviterId: string, invite: RaceInviteView): void {
+    this.server.to(this.playerRoom(inviterId)).emit('race.invite.responded', invite);
   }
 
   /**

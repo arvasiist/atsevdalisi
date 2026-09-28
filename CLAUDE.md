@@ -117,6 +117,15 @@ YANILTICI olduğunu gösterdi.** Bu bölüm iki kez bayatladı; aşağısı
 - **Sohbet/tribün arayüzü (brief §35) — YAPILABİLİR.** Backend + e2e hazır
   (§13.5): `chat.message`/`chat.message.received`/`chat.history`/`chat.error`
   ve `race.spectators` olaylarının **henüz frontend tüketicisi yok**.
+- **Bildirim/davet arayüzü (brief §16/§28, §42 PHASE 11) — YAPILABİLİR.**
+  Backend + e2e hazır (§13.11): beş uç nokta
+  (`GET /players/:id/notifications`, `read-all`, `:notificationId/read`,
+  `POST .../race-invites`, `.../respond`) ve üç olay
+  (`notification.created`, `race.invite`, `race.invite.responded`) —
+  **hiçbirinin istemci tüketicisi yok.** Asset gerekmez.
+- **PHASE 13 (bildirim üreticileri) — YAPILABİLİR.** Sekiz türden YALNIZCA
+  `race_invite` üretiliyor; kalan yedisi için `INSERT INTO notifications`
+  yazan bir yol yok (§13.11).
 - `GltfAssetLoader.tsx` — **asset olmadan ANLAMSIZ.** `.glb` yokken her zaman
   yedek görünüme düşer = bugünkü kapsül+küre görüntüsünün tıpatıp aynısı.
   Bağlamak sıfır görsel etki üretir.
@@ -131,7 +140,9 @@ YANILTICI olduğunu gösterdi.** Bu bölüm iki kez bayatladı; aşağısı
 (`fatigueLevel`/`paceScore`, migration 0029) · Camera Director · Photo Finish
 sunumu · **toz VFX'i (`DustParticles` → `RaceScene3D`, 27.09.2026)** · **soy
 ağacı okuma + yazma (§13.2/§13.4)** · **yarış sohbeti + izleyici sayısı
-(§13.5, 27.09.2026)** — son üçü `LiveRaceViewer`/`RaceViewer`/`RaceHud`'a BAĞLI.
+(§13.5, 27.09.2026)** — son üçü `LiveRaceViewer`/`RaceViewer`/`RaceHud`'a BAĞLI ·
+**ödül havuzu + çarpan (§13.10, PHASE 5)** · **bildirimler + yarış daveti
+(§13.11, PHASE 11)** — backend; ikisinin de istemci tüketicisi YOK.
 Ayrıntı: `PROJE_DURUMU.md` §13.
 
 **Bilinen açık hata (henüz düzeltilmedi):** `send-gift.use-case.ts`

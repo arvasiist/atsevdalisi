@@ -791,6 +791,135 @@ sayılmaması; `assertSelf` 403'ü; `GET .../gifts` yön ayrımı ve gizlilik) �
 `domain/gift/gift.spec.ts` · `domain/gift/validation.spec.ts` ·
 `domain/gift/gift-config.spec.ts`.
 
+### Bildirimler + Yarış Daveti (brief §16, §28 — §42 PHASE 11)
+
+Brief §16: *"Arkadaşlar birbirlerini yarışa davet edebilsin. Örneğin: 'Ömer
+seni At Sevdalısı Cup yarışına davet etti.' [JOIN] [DECLINE] bildirimi
+gelsin."* Beş uç nokta, `NotificationController`
+(`apps/api/src/api/notification/notification.controller.ts`).
+
+```http
+GET  /api/v1/players/{id}/notifications                        # liste + unreadCount
+POST /api/v1/players/{id}/notifications/read-all               # 200 { markedCount }
+POST /api/v1/players/{id}/notifications/{notificationId}/read  # 200 NotificationView
+POST /api/v1/players/{id}/race-invites                         # 201 RaceInviteView
+POST /api/v1/players/{id}/race-invites/{inviteId}/respond      # 200 { inviteId, status }
+```
+
+**Beş uç noktanın TAMAMI `assertSelf` ile korunur** — yoldaki `:id` her
+zaman İŞLEMİ YAPAN oyuncudur, hedef değildir (hedef gövdede ya da ikinci
+yol parametresinde gelir). Arkadaşlık + mesajlaşma dilimiyle AYNI kapı.
+
+**DAVET, BİLDİRİMSİZ ANLAMSIZDIR.** brief §16 "davet gönder" değil, "davet
+BİLDİRİMİ gelsin" der. Bu yüzden `saveInvite` **TEK transaction'da İKİ satır
+yazar**: `race_invites` + `notifications`. İki ayrı transaction olsaydı,
+arada kopan bir bağlantı `race_invites` satırını yazar, bildirimi yazmaz ve
+`race_invites_race_invitee_uq` tekil indeksi yüzünden o davet **sonsuza
+kadar yeniden gönderilemez** hâle gelirdi — davet edilen hiçbir zaman
+haberdar olmazdı.
+
+**Bildirim kimliği ≠ davet kimliği.** İki ayrı tablodur; `notifications.
+payload.inviteId` davetin kimliğini taşır (`notificationId` ise bildirimin).
+İstemci `[JOIN]`/`[DECLINE]` düğmelerini `payload.inviteId` ile kurar.
+
+**Davet kimliği UYGULAMA katmanında üretilir** (`randomUUID()`,
+`create-race.use-case.ts` ile aynı desen): kimlik, bildirimin `payload`ına
+YAZILIR ve ikisi tek transaction'da doğar. Veritabanında üretilseydi payload
+INSERT anında bilinmeyen bir değer taşımak zorunda kalırdı.
+
+**Davet edilebilirlik penceresi** (`domain/social/invite.ts →
+`checkInviteable`): yarış `scheduled` VE başlangıç zamanı gelecekte olmalı.
+`domain/race/lobby.ts`'teki `checkRaceJoinable` ile AYNI pencere ama AYRI
+kural: katılım `maxPlayers`ı da denetler, davet denetlemez (davet edilen
+katılmak zorunda değildir, üstelik yarış davet anında dolu olsa bile biri
+ayrılırsa yer açılabilir). İki domain kardeştir ve birbirini import etmez.
+
+**`accept` YARIŞA KATILMAK DEĞİLDİR.** Davet bir at taşımaz; katılım bir
+PARA yoludur (`SELECT ... FOR UPDATE` + `economy_transactions`). brief
+§16'nın `[JOIN]` düğmesi istemcide iki adımdır: bu uç nokta yalnızca daveti
+kabul eder, istemci sonra lobiye gidip atını seçer. Giriş ücreti TEK
+yoldan, `POST /races/{id}/join` üzerinden geçer — bu yüzden
+`RespondRaceInviteResult` yalnızca `{ inviteId, status }` döner ve
+`race-invite.e2e-spec.ts` kabul sonrası `race_entries` satırı OLUŞMADIĞINI
+ve bakiyenin DEĞİŞMEDİĞİNİ ayrıca doğrular.
+
+**Yanıt yalnızca DAVET EDİLENDEN gelir.** `respond` sorgusu
+`WHERE id = $1 AND invitee_id = $2 AND status = 'pending'` biçimindedir;
+davet eden kendi davetini yanıtlamaya çalışırsa 0 satır döner ve
+`404 RACE_INVITE_NOT_FOUND`. "Bu id var ama senin değil" demek başkasının
+davetinin VARLIĞINI sızdırırdı (`RaceInviteNotFoundError` üç durumu —
+yok / başkasının / benim gönderdiğim — tek kodda birleştirir).
+
+**Davet yanıtı davet edene BİLDİRİM YAZMAZ.** Sekiz bildirim türü
+arasında (`NOTIFICATION_TYPES`) buna karşılık gelen bir tür yoktur; davet
+eden sonucu `race.invite.responded` WebSocket olayından öğrenir. Uydurma
+bir tür eklemek, `notifications.type` CHECK'ini ve istemci sözleşmesini
+brief §28'in dışına taşırdı.
+
+**`race_invites` üç yapısal kısıt taşır** (`migration 0039`):
+`race_invites_not_self_ck` (kendini davet yasak — uygulama katmanı da
+`400 CANNOT_INVITE_SELF` döner), `race_invites_responded_at_ck` (`pending`
+bir satırın `responded_at`i olamaz; yanıtlanmış bir satırın OLMALIDIR) ve
+`race_invites_race_invitee_uq` (aynı yarışa aynı oyuncu BİR KEZ davet
+edilir; ikinci istek `ON CONFLICT DO NOTHING` ile 0 satır döner →
+`409 RACE_INVITE_ALREADY_EXISTS`).
+
+**`notifications` GENEL bir tablodur, davete özel değil.** brief §28 sekiz
+tür sayar; hepsi `type` CHECK'inde tanımlıdır. **BU DİLİMDE YALNIZCA
+`race_invite` ÜRETİLİR** — kalan yedi türün üreticisi PHASE 13'ün işidir ve
+bu, `PROJE_DURUMU.md` §13.11'de açıkça "yapılmadı" diye yazılıdır.
+`payload` JSONB'dir: sekiz tür için sekiz ayrı kolon seti açmak her yeni
+türde bir migration gerektirirdi; şekil sözleşmesi TİP tarafında
+(`NotificationPayloadByType`) zorlanır.
+
+**Okunmamış sayısı (`unreadCount`) LİSTE LİMİTİNDEN BAĞIMSIZDIR** — ayrı
+bir `COUNT(*)`tur, dönen dizinin uzunluğu değildir. Liste
+`config/social.config.json → notificationsLimit` (50) ile kırpılır; sayaç
+kırpılmaz, çünkü rozet "kaç bildirimin var" sorusunu yanıtlar.
+
+**Bekleyen davet TAVANI** (`pendingInvitesLimit`, 25) gönderen tarafı
+sınırlar (`409 SOCIAL_LIMIT_REACHED`); amaç bildirim spam'ini engellemektir,
+bu yüzden limit İSTEĞİ GÖNDERENİN bekleyen davetlerini sayar. `@RateLimit`
+(`race-invite` 20/dk, `keyBy: 'player'`) ikinci savunma hattıdır.
+**`Idempotency-Key` KULLANILMAZ** (bilinçli): bu uç noktaların hiçbiri
+para/mülkiyet değiştirmez; interceptor'ın çözdüğü sorun burada yoktur.
+Tekilliği zaten `race_invites_race_invitee_uq` sağlar.
+
+**Gövde kimlikleri domain'de ŞEKİL olarak doğrulanır** (`isUuid`).
+`@IsUUID()` esbuild altında ATLANIR (CLAUDE.md kural 5) ve `ParseUUIDPipe`
+yalnızca YOL parametrelerini korur; bu koruma olmadan `{"inviteeId":"abc"}`
+doğrudan `WHERE id = $1`e gider, PostgreSQL 22P02 fırlatır ve istemci
+**500** alırdı. `send-gift.use-case.ts`te hâlâ açık olan hatanın aynı
+sınıfıdır; yeni yolda baştan kapatıldı.
+
+**Yeni hata kodları:** `CANNOT_INVITE_SELF` (400) ·
+`INVALID_RACE_INVITE_ACTION` (400) · `INVITE_REQUIRES_FRIENDSHIP` (403) ·
+`RACE_INVITE_NOT_FOUND` (404) · `NOTIFICATION_NOT_FOUND` (404) ·
+`RACE_NOT_INVITABLE` (409) · `RACE_INVITE_ALREADY_EXISTS` (409) ·
+`RACE_INVITE_NOT_RESPONDABLE` (409). Tavan için MEVCUT
+`SOCIAL_LIMIT_REACHED` (409) kullanılır — brief §29 "duplicate
+implementation oluşturma" gereği yeni bir sınıf TANIMLANMADI.
+
+`domain/social/notification.ts → NOTIFICATION_TYPES`, `packages/
+shared-types/src/notification.ts → NOTIFICATION_TYPES` ve
+`notifications.type` CHECK'i (`migration 0039`) **ÜÇÜ DE AYNI** olmak
+zorundadır ve bu `notification-types.spec.ts` ile — migrasyon dosyası
+OKUNARAK — kanıtlanır. TypeScript iki `as const` dizisinin eşitliğini
+kendiliğinden denetlemez; kayma yalnızca o tür ilk kez yazılmaya
+çalışıldığında, üretimde patlardı.
+
+**Testler:** `race-invite.e2e-spec.ts` (mutlu yolda İKİ satırın da
+doğrulanması; arkadaş olmayana 403 ve hiçbir satır yazılmaması; kendini
+davet 400; olmayan oyuncu/yarış 404; BOZUK kimlikte 500 yerine 404;
+ikinci davet 409 ve İKİNCİ bildirim yazılmaması; başlamış/`scheduled`
+olmayan yarış 409; tavan 409; IDOR 403'ler; `accept`/`decline` durum
+geçişleri ve `responded_at`; `accept` sonrası katılım/bakiye DEĞİŞMEZ;
+çift yanıt 409; geçersiz/eksik `action` 400 ve davetin tükenmemesi; davet
+edenin kendi davetini yanıtlayamaması 404; bildirim listesi/`unreadCount`;
+okundu işaretlemenin idempotentliği ve payload'ı bozmaması; `read-all`in
+yalnızca çağıranı etkilemesi) · `domain/social/invite.spec.ts` ·
+`domain/social/notification-types.spec.ts`.
+
 ### Soy Ağacı (soy ağacı veri zinciri dilimi, 27.09.2026)
 
 ```http
@@ -1832,9 +1961,9 @@ Brief'te WebSocket "gerektiğinde" kullanılacağı belirtilmiş (§6).
 AUDIT_REPORT.md Bulgu F2 (bu turda proje sahibinin AskUserQuestion ile
 onayladığı seçim) `race.telemetry`/`race.finished`'i temel bir
 bağlantı+yayın iskeleti olarak UYGULADI; sonraki bir turda `lobby.update`
-de bu ALTYAPI ÜZERİNE (YENİDEN İCAT EDİLMEDEN) eklendi. `notification.new`
-hâlâ PLANLI/uygulanmadı (daha belirsiz/büyük bir kapsam, bkz.
-docs/ROADMAP.md):
+de bu ALTYAPI ÜZERİNE (YENİDEN İCAT EDİLMEDEN) eklendi. Bildirim yayını
+PHASE 11'de EKLENDİ ama `notification.new` adıyla DEĞİL —
+**`notification.created`** olarak (gerekçe aşağıda):
 
 ```text
 race.roster        — race.subscribe sonrası katılımcı isim/kimlik eşlemesi  [UYGULANDI]
@@ -1846,8 +1975,25 @@ chat.message       — istemci → sunucu, yarış sohbeti (brief §13)         
 chat.message.received — sunucu → oda, yazılan sohbet satırı (brief §13)     [UYGULANDI]
 chat.history       — sunucu → abone, abonelik anında geçmiş (brief §13)     [UYGULANDI]
 chat.error         — sunucu → istemci, sohbet reddi (brief §13)             [UYGULANDI]
-notification.new   — brief §46 bildirim sistemi                             [PLANLI]
+notification.created  — sunucu → oyuncu odası, yeni bildirim (§28, §42 P11)  [UYGULANDI]
+race.invite        — sunucu → davet edilenin odası, yarış daveti (§16, §42 P11) [UYGULANDI]
+race.invite.responded — sunucu → davet edenin odası, davet yanıtı (§16, §42 P11) [UYGULANDI]
 ```
+
+**`notification.new` DEĞİL `notification.created` (bilinçli).** Yukarıdaki
+tabloda yıllardır `notification.new` yazıyordu; PHASE 11'de yayınlanan olay
+adı **`notification.created`**tır. Ad, bildirimin KALICI olarak yazıldığını
+(transaction commit edildi, `GET /players/:id/notifications` ile okunabilir)
+anlatır — "new" ise "az önce üretildi, kaybolabilir" imasını taşırdı.
+İstemci bu olayı yalnızca rozeti tazelemek için bir TETİKLEYİCİ saymalıdır;
+gerçek liste kaynağı HTTP uç noktasıdır. (Soket kopuksa olay gelmez, ama
+bildirim yine de vardır — bu yüzden ekran açılışında HTTP ile okunur.)
+
+**`race.invite` / `race.invite.responded` OYUNCU odasına gider**, yarış
+odasına değil: davet edilen kişi henüz o yarışa katılmamıştır (daveti kabul
+etmek katılmak değildir, bkz. §3 "Bildirimler + Yarış Daveti"), yani yarış
+odasına abone olması için hiçbir sebep yoktur. `notification.created` da
+aynı odaya gider (`playerRoom(playerId)`).
 
 **Uygulanan kısım (`apps/api/src/api/realtime/race.gateway.ts`, `/races`
 namespace'i):**

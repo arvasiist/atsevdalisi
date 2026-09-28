@@ -1030,6 +1030,31 @@ export interface SocialConfig {
   inboxLimit: number;
   /** `GET /players/:id/messages/:otherPlayerId` yanıtındaki azami mesaj sayısı. */
   conversationLimit: number;
+  /**
+   * `GET /players/:id/notifications` yanıtındaki azami bildirim sayısı —
+   * bir LİSTE sınırıdır (brief §28, §42 PHASE 11).
+   *
+   * **`unreadCount` BU SINIRDAN ETKİLENMEZ:** yanıttaki okunmamış sayısı
+   * ayrı bir `COUNT(*)` sorgusundan gelir, çünkü kırpılmış bir diziden
+   * sayılan rozet yanlış olurdu (bkz. `NotificationListResult` doc yorumu).
+   */
+  notificationsLimit: number;
+  /**
+   * Bir oyuncunun AYNI ANDA gönderebileceği azami bekleyen yarış daveti —
+   * bu bir LİSTE sınırı DEĞİL, **zorunlu bir TAVANDIR**
+   * (`assertUnderSocialLimit`, 409 `SOCIAL_LIMIT_REACHED`).
+   *
+   * `pendingRequestsLimit` ile AYNI gerekçe: davet, karşı tarafa bildirim
+   * üreten bir uçtur. Tavanı olmasaydı tek bir hesap yüzlerce oyuncuya
+   * davet yağdırabilirdi. Arkadaşlık isteğinden AYRI bir değerdir çünkü
+   * davet DAHA AĞIR bir iştir: her davet karşı tarafın ekranında iki
+   * düğmeli ([JOIN]/[DECLINE]) bir kart üretir.
+   *
+   * **`SocialLimitReachedError`'ın `reason` birleşimine `'PENDING_INVITES'`
+   * eklenmesiyle birlikte gelir** — istemci hangi tavanın dolduğunu
+   * metinden ayırt edebilmelidir.
+   */
+  pendingInvitesLimit: number;
 }
 
 /**

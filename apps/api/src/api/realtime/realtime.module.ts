@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { LOBBY_NOTIFIER } from '../../application/ports/lobby-notifier';
+import { NOTIFICATION_NOTIFIER } from '../../application/ports/notification-notifier';
 import { ChatModule } from '../chat/chat.module';
 import { RaceModule } from '../race/race.module';
 import { RaceGateway } from './race.gateway';
@@ -20,6 +21,15 @@ import { RaceGateway } from './race.gateway';
  * durumu OLMAYAN) yaratılırdı. `exports`'a eklenir ki `MatchmakingModule`
  * bunu import edip `JoinMatchmakingQueueUseCase`'e enjekte edebilsin
  * (bkz. o modülün import listesi).
+ *
+ * Bildirim yayını (brief §28, §42 PHASE 11) — `RaceGateway` artık
+ * `NotificationNotifier` portunu da implemente eder (bkz. o dosyanın
+ * `notifyNotification` doc yorumu). Bağlama `LOBBY_NOTIFIER` ile BİREBİR
+ * AYNIdır ve `useExisting` olması da AYNI sebebe dayanır: `useClass` YENİ
+ * bir `RaceGateway` örneği yaratırdı ve o örnek, gerçek soketlere sahip
+ * olan TEK instance'ın oda durumunu (`raceSessions`, `server`) GÖREMEZDİ.
+ * `exports`'a eklenir ki `NotificationModule` bunu import edip
+ * use-case'lerine enjekte edebilsin.
  */
 @Module({
   // `ChatModule` (brief §13, bu dilimde EKLENDİ) — `RaceGateway` artık
@@ -27,7 +37,11 @@ import { RaceGateway } from './race.gateway';
   // `race.gateway.ts` dosya başı doc yorumu "YARIŞ SOHBETİ" bölümü).
   // `ChatModule` yalnızca `DatabaseModule`'ü import eder → DÖNGÜ YOK.
   imports: [RaceModule, ChatModule],
-  providers: [RaceGateway, { provide: LOBBY_NOTIFIER, useExisting: RaceGateway }],
-  exports: [LOBBY_NOTIFIER],
+  providers: [
+    RaceGateway,
+    { provide: LOBBY_NOTIFIER, useExisting: RaceGateway },
+    { provide: NOTIFICATION_NOTIFIER, useExisting: RaceGateway },
+  ],
+  exports: [LOBBY_NOTIFIER, NOTIFICATION_NOTIFIER],
 })
 export class RealtimeModule {}

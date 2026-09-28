@@ -76,12 +76,20 @@ import {
 } from '../../domain/gift/errors';
 import {
   CannotFriendSelfError,
+  CannotInviteSelfError,
   CannotMessageSelfError,
   FriendshipAlreadyExistsError,
   FriendshipNotFoundError,
   InvalidFriendshipActionError,
   InvalidMessageBodyError,
+  InvalidRaceInviteActionError,
+  InviteRequiresFriendshipError,
   NotFriendsError,
+  NotificationNotFoundError,
+  RaceInviteAlreadyExistsError,
+  RaceInviteNotFoundError,
+  RaceInviteNotRespondableError,
+  RaceNotInvitableError,
   SocialLimitReachedError,
 } from '../../domain/social/errors';
 import {
@@ -283,6 +291,26 @@ const DOMAIN_ERROR_MAP = new Map<ErrorClassConstructor, { status: number; code: 
   // 409 — gövde geçerli, engel o anki SAYIMA bağlı ve pencere kaydıkça
   // kendiliğinden kalkar (`SocialLimitReachedError` ile AYNI kategori).
   [DailyGiftLimitReachedError, { status: HttpStatus.CONFLICT, code: ErrorCode.DailyGiftLimitReached }],
+  // BİLDİRİM + YARIŞ DAVETİ (brief §16/§28, §42 PHASE 11) — sekiz hata da
+  // `DOMAIN_ERROR_MAP`'e girebilir çünkü kodları hatanın `reason`/`status`
+  // alanına BAĞLI DEĞİLDİR (yukarıdaki tribün/sosyal notlarla AYNI gerekçe).
+  // Durum kodları `domain/social/errors.ts`'teki doc yorumlarında tek tek
+  // gerekçelendirilmiştir.
+  [CannotInviteSelfError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.CannotInviteSelf }],
+  [InvalidRaceInviteActionError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.InvalidRaceInviteAction }],
+  // 403 — `NotFriendsError`/`GiftRequiresFriendshipError` ile AYNI kategori
+  // (yetki yok) ama FARKLI kod: davet ekranı "önce arkadaş ekle" akışına
+  // yönlendirebilsin diye.
+  [InviteRequiresFriendshipError, { status: HttpStatus.FORBIDDEN, code: ErrorCode.InviteRequiresFriendship }],
+  // 404 — "yok" ile "senin değil" TEK kodda birleşir (bilgi sızıntısını
+  // önlemek için, bkz. `RaceInviteNotFoundError` doc yorumu).
+  [RaceInviteNotFoundError, { status: HttpStatus.NOT_FOUND, code: ErrorCode.RaceInviteNotFound }],
+  [NotificationNotFoundError, { status: HttpStatus.NOT_FOUND, code: ErrorCode.NotificationNotFound }],
+  // 409 — üçü de gövdesi geçerli ama DURUMA bağlı engeller: yarış artık
+  // davet edilebilir değil, davet zaten var ya da zaten yanıtlanmış.
+  [RaceNotInvitableError, { status: HttpStatus.CONFLICT, code: ErrorCode.RaceNotInvitable }],
+  [RaceInviteAlreadyExistsError, { status: HttpStatus.CONFLICT, code: ErrorCode.RaceInviteAlreadyExists }],
+  [RaceInviteNotRespondableError, { status: HttpStatus.CONFLICT, code: ErrorCode.RaceInviteNotRespondable }],
   // `POST /auth/login`'e özgü — bkz. `InvalidProviderTokenError` doc yorumu.
   [InvalidProviderTokenError, { status: HttpStatus.UNAUTHORIZED, code: ErrorCode.InvalidProviderToken }],
   // claude/hizli-bitirme-plani.md'nin proje sahibi tarafından

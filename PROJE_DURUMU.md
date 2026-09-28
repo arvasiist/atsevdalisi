@@ -1035,6 +1035,64 @@ dokunmaz, ondan hiçbir şey import etmez, `fieldSize` diye bir şey duymaz.
   `apps/api/test/domain/race/prize-distribution.spec.ts` (yeni) +
   `prize.spec.ts` (güncellendi).
 
+### 13.11 Bildirimler + yarış daveti (brief §16/§28, §42 PHASE 11)
+
+brief §16: *"Arkadaşlar birbirlerini yarışa davet edebilsin. Örneğin: 'Ömer
+seni At Sevdalısı Cup yarışına davet etti.' [JOIN] [DECLINE] bildirimi
+gelsin."* Beş uç nokta, `NotificationController` + `NotificationModule`.
+Migration `0039_create_notifications_and_race_invites`.
+
+- **DAVET İLE BİLDİRİM AYNI TRANSACTION'DA YAZILIR.** brief'in istediği şey
+  "davet gönder" değil, "davet BİLDİRİMİ gelsin"dir; ikisi ayrı
+  transaction'larda olsaydı, arada kopan bağlantı `race_invites` satırını
+  yazar, bildirimi yazmaz ve `race_invites_race_invitee_uq` tekil indeksi
+  yüzünden o davet **sonsuza kadar yeniden gönderilemez** hâle gelirdi.
+- **`notifications` GENEL bir tablodur** (brief §28'in sekiz türü `type`
+  CHECK'inde tanımlı), davete özel değil. `payload` JSONB — sekiz tür için
+  sekiz kolon seti açmak her yeni türde migration gerektirirdi; şekil
+  sözleşmesi TİP tarafında (`NotificationPayloadByType`).
+- **BU DİLİMDE YALNIZCA `race_invite` ÜRETİLİR.** Kalan YEDİ türün
+  (`friend_request`, `friend_accepted`, `gift_received`, `message_received`,
+  `race_starting`, `race_finished`, `prize_won`) **ÜRETİCİSİ YOKTUR** —
+  bugün `INSERT INTO notifications` yazan tek yol `send-race-invite`tir.
+  Bu, "bildirimler bitti" demenin yanlış olacağı yerdir; PHASE 13'ün işidir.
+  (`NotificationRepository` portu bilinçli olarak yalnızca OKUMA +
+  okundu-işaretleme içerir, `create` YOKTUR — "bildirimi kim üretir"
+  sorusunun tek cevabı olsun diye.)
+- **`accept` YARIŞA KATILMAK DEĞİLDİR.** Davet bir at taşımaz; katılım bir
+  para yoludur. brief §16'nın `[JOIN]` düğmesi istemcide iki adımdır: daveti
+  kabul et → lobiye git, atını seç. e2e bunu ayrıca kanıtlar: kabul sonrası
+  `race_entries` satırı oluşmaz, bakiye değişmez.
+- **Yanıt yalnızca DAVET EDİLENDEN gelir.** Davet eden kendi davetini
+  yanıtlamaya çalışırsa `404 RACE_INVITE_NOT_FOUND` — "bu id var ama senin
+  değil" demek başkasının davetinin VARLIĞINI sızdırırdı.
+- **Davet yanıtı davet edene BİLDİRİM YAZMAZ.** Sekiz tür arasında buna
+  karşılık gelen bir tür yoktur; davet eden sonucu `race.invite.responded`
+  WebSocket olayından öğrenir. Uydurma bir tür eklemek CHECK'i ve istemci
+  sözleşmesini brief §28'in dışına taşırdı.
+- **YENİ BİR 500 HATASI SINIFI KAPATILDI.** `inviteeId`/`raceId` GÖVDE
+  alanlarıdır ve `@IsUUID()` esbuild altında atlanır (`ParseUUIDPipe` yalnızca
+  yol parametrelerini korur); `domain/social/invite.ts → isUuid` olmadan
+  `{"inviteeId":"abc"}` doğrudan `WHERE id = $1`e gider ve PostgreSQL 22P02
+  ile **500** dönerdi. `send-gift.use-case.ts`te hâlâ AÇIK olan hatanın
+  (CLAUDE.md "Bilinen açık hata") aynı sınıfıdır — o dosya bu dilimin
+  DIŞINDADIR, ayrıca düzeltilmelidir.
+- **WebSocket olayı `notification.new` DEĞİL `notification.created`.** Eski
+  ad `docs/API.md` §10'da yıllardır "PLANLI" olarak duruyordu; yayınlanan ad
+  bildirimin KALICI olarak yazıldığını anlatır. `race.invite` /
+  `race.invite.responded` OYUNCU odasına gider (davet edilen henüz yarış
+  odasına abone değildir).
+- **HENÜZ YOK — frontend tüketicisi.** `notification.created`,
+  `race.invite`, `race.invite.responded` olaylarının ve beş HTTP uç
+  noktasının **hiçbir istemci tüketicisi yoktur** (`chat.*` ve
+  `race.spectators` ile AYNI durum — §13.5). Backend + e2e hazır; kalan iş
+  yalnızca UI.
+- Ayrıntı: `docs/API.md` §3 "Bildirimler + Yarış Daveti" ve §10, testler
+  `apps/api/test/api/race-invite.e2e-spec.ts` (yeni) ·
+  `apps/api/test/domain/social/invite.spec.ts` (yeni) ·
+  `notification-types.spec.ts` (yeni — domain/shared-types/migration CHECK
+  üçlüsünü migrasyon dosyasını OKUYARAK bağlar).
+
 ---
 
 ## 14. Kendime hatırlatmalar (kısa liste)

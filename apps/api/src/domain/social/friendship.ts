@@ -92,14 +92,21 @@ export function assertFriendRequestAllowed(existingStatus: 'pending' | 'accepted
  *
  * `currentCount`, o kuralın SAYDIĞI satır sayısıdır: `FRIENDS` için kabul
  * edilmiş arkadaşlıklar, `PENDING_REQUESTS` için gönderenin bekleyen
- * istekleri. Sınır KAPSAYICIDIR: tam `limit` kayıt varken yenisi
- * eklenemez (`isWithinWatchWindow`'un aksine "en fazla N" anlamındadır,
- * yani N'e ulaşmak engeldir).
+ * istekleri, `PENDING_INVITES` için gönderenin bekleyen yarış davetleri
+ * (brief §16, §42 PHASE 11). Sınır KAPSAYICIDIR: tam `limit` kayıt varken
+ * yenisi eklenemez (`isWithinWatchWindow`'un aksine "en fazla N"
+ * anlamındadır, yani N'e ulaşmak engeldir).
+ *
+ * **NEDEN DAVET DE BURADA (ayrı bir kapı değil):** davet tavanı, arkadaşlık
+ * isteği tavanıyla TAM OLARAK aynı sorunu çözer — karşı tarafa bildirim
+ * üreten bir uç noktayı sınırlamak. İki ayrı fonksiyon yazmak, aynı
+ * doğrulamayı (`limit` tam sayı mı, pozitif mi) iki kez yazmak ve iki
+ * kopyanın ayrışmasına izin vermek olurdu.
  */
 export function assertUnderSocialLimit(
   currentCount: number,
   limit: number,
-  reason: 'FRIENDS' | 'PENDING_REQUESTS',
+  reason: 'FRIENDS' | 'PENDING_REQUESTS' | 'PENDING_INVITES',
 ): void {
   if (!Number.isInteger(limit) || limit <= 0) {
     throw new Error(`Sosyal sınır geçersiz (config/social.config.json): ${limit}`);
