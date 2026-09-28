@@ -1738,6 +1738,81 @@ ile doğrulandı.
 
 ---
 
+#### 13.18 YÖNETİM OKUMA EKRANLARI — Users / Races / Transactions (+ Wallet, Gifts) (brief §34, §42 PHASE 15-B) — 28.09.2026
+
+**BU, §13.17'NİN ÜZERİNE OTURUR ve §34'ün "Admin: Users Races
+Transactions Wallet Gifts Reports Chat Reports görebilmeli" cümlesinin
+`Reports` DIŞINDAKİ kısmını KAPATIR.** Üç yeni okuma ucu:
+`GET /admin/players`, `GET /admin/races`, `GET /admin/transactions`.
+
+**YEDİ LİSTE, ÜÇ UÇ NOKTADIR — bu bilinçlidir.** brief yedi liste sayar
+ama üçü ayrı bir varlık DEĞİLDİR:
+- **Wallet = Users.** Cüzdan ayrı bir tablo değil, `players.money` /
+  `players.gems` kolonudur (migration 0001). Ayrı bir uç açmak aynı
+  satırları iki yanıttan sunmak ve ikisinin kaymasına izin vermek olurdu.
+- **Gifts = Transactions.** Hediye ayrı bir defter değil, `type =
+  'gift_send'` olan bir `economy_transactions` satırıdır (migration
+  0034).
+- **Chat Reports = YOK.** Sohbet mesajına bağlı bir şikâyet kavramı
+  projede MEVCUT DEĞİLDİR: `race_messages` (0035) mesajları tutar ama
+  `player_reports` (0040) bir mesaja değil bir OYUNCUYA bağlıdır ve
+  `category = 'spam'` bunun en yakın karşılığıdır. Yeni bir tablo
+  uydurmak yerine boşluk burada AÇIKÇA kaydedilir.
+
+**BU ÜÇ UÇ BAKİYE TAŞIR.** `GET /players/profile/:username`in "para
+sızdırma" kuralı (AUDIT Bulgu S4) burada GEÇERSİZ DEĞİLDİR, TERSİNE
+uygulanır: o uç `@Public()` olduğu için bakiyeyi gizler, bunlar yetki
+kapısı arkasında olduğu için gösterir. Kapı use-case'lerin İLK
+satırıdır (`assertAdmin`), limit config'tendir
+(`playerListLimit`/`raceListLimit`/`transactionListLimit`).
+
+**BIGINT TUZAĞI — BU DİLİMİN EN SOMUT RİSKİ.** `money`, `xp`, `gems`,
+`amount`, `entry_fee`, `prize_pool`, `balance_before/after` ve `COUNT(*)`
+PostgreSQL'de `int8`dir ve `pg` sürücüsü bunları **METİN** döner
+(hassasiyet kaybını önlemek için). Dönüşüm unutulsaydı yanıt
+`"money": "1234"` olurdu ve **hiçbir yerde hata üretmezdi** — istemci `+`
+operatörünü birleştirme olarak kullanırdı. Dönüşüm tek bir `toNumber()`
+yardımcısında toplanır; e2e `typeof === 'number'` iddia eder.
+
+**`joinedPlayers` SAYIMI `IS DISTINCT FROM 'cancelled'` KULLANIR, `<>`
+DEĞİL.** Ayrılan oyuncunun satırı SİLİNMEZ, `cancelled` işaretlenir
+(migration 0037) ve `status` sunucu üretimi girişlerde **NULL**'dır —
+`<>` NULL'lı satırları düşürürdü. `LEFT JOIN LATERAL` ile tek sorguda
+sayılır (N+1 yasak). `created_by` JOIN'i `LEFT`tir: sunucu üretimi
+yarışların oluşturucusu yoktur ve `INNER JOIN` onları listeden
+düşürürdü; yarısı dolu bir `AdminPlayerRef` üretmemek için ad JOIN'de
+yoksa `createdBy: null` döner.
+
+**SIRALAMA `created_at DESC, id DESC`.** `created_at` TEK BAŞINA
+deterministik değildir (aynı milisaniyede doğan iki hesap yer
+değiştirebilir ve `LIMIT` hangi satırı kırptığı belirsizleşir); ikincil
+anahtar bu belirsizliği kapatır.
+
+**YAZMA YOLU YOKTUR.** brief §34 "Race: Create Cancel Pause Finish
+işlemleri kontrollü şekilde yapılabilmeli" der; bu dilim YALNIZCA
+GÖRÜNTÜLEME ayağıdır. `Cancel` bilinçli olarak eklenmedi: katılım
+ücretlerinin iadesi + aynı transaction'da defter kaydı + denetim
+günlüğü gerektirir, yani bir PARA YOLUDUR. **`Pause` ise bugün
+MÜMKÜN DEĞİLDİR:** `races.status` CHECK'i
+`scheduled|in_progress|finished|cancelled`tır ve `in_progress`u YAZAN
+HİÇBİR KOD YOKTUR — yarış `scheduled`dan doğrudan `finished`a geçer
+(`SettleRaceUseCase`). Yani "duraklatılacak koşan bir yarış" kavramı
+sunucuda yoktur; `paused` eklemek yeni bir durum makinesi kurmaktır.
+
+**KANIT:** `admin.e2e-spec.ts` — (a) yönetici olmayan ALTI uçta da 403
+`ADMIN_REQUIRED` ve hata zarfı `data` TAŞIMAZ, (b) bakiye/limit alanları
+`number`, (c) en yeni kayıt önce, (d) `createdBy: null` satır listeden
+DÜŞMEZ, (e) `joinedPlayers` iptali saymaz ama NULL'ı sayar, (f) defter
+değişmezi `balanceAfter = balanceBefore + amount` yanıtta da geçerli.
+`moderation-queue.spec.ts` ayrıca `AdminConfig`in TÜM limit
+anahtarlarını `config/admin.config.json` ile karşılaştırır ve sabitlenen
+liste config dosyasını TAM kapsamak zorundadır (yeni bir limit eklenip
+listeye yazılmazsa CI KIRILIR).
+
+**Uçlar:** `docs/API.md` → "Yönetim (Admin)".
+
+---
+
 ## 14. Kendime hatırlatmalar (kısa liste)
 
 1. **Race Engine'e dokunmadan önce iki kez düşün.** Denetim onu "KEEP, dokunma"

@@ -1138,23 +1138,25 @@ arkadaşlık gerektirmemesi ve engelden etkilenmemesi; (f) tüm uçlarda
 ile migration CHECK'inin **dosya okunarak** karşılaştırılması, kendini
 engelleme/şikâyet, gerekçe normalizasyonu).
 
-### Yönetim (Admin) — moderasyon kuyruğu + denetim günlüğü (brief §34, §42 PHASE 15-B, 28.09.2026)
+### Yönetim (Admin) — moderasyon kuyruğu + denetim günlüğü + okuma ekranları (brief §34, §42 PHASE 15-B, 28.09.2026)
 
 ```http
 GET   /api/v1/admin/reports
 PATCH /api/v1/admin/reports/{reportId}
 GET   /api/v1/admin/audit-log
+GET   /api/v1/admin/players
+GET   /api/v1/admin/races
+GET   /api/v1/admin/transactions
 ```
 
 **BU BÖLÜM BRIEF §34'ÜN TAMAMI DEĞİLDİR.** §34 "Admin: Users Races
 Transactions Wallet Gifts Reports Chat Reports görebilmeli. Race: Create
 Cancel Pause Finish işlemleri kontrollü şekilde yapılabilmeli. Finansal
-işlemler audit log'a yazılmalı." der. Bu dilim **rolü + denetim günlüğünü**
-kurar ve o temelin üzerine oturan **ilk** ekranı getirir: şikâyet kuyruğu —
-çünkü §34'ün saydığı yedi listeden tek hazır verisi olan odur (migration
-0040 `status` alanını zaten bırakmıştı). **Users / Races / Transactions /
-Wallet / Gifts / Chat Reports ekranları ile race Cancel/Pause/Finish
-kontrolleri HENÜZ YOKTUR.**
+işlemler audit log'a yazılmalı." der. Kurulan: **rol + denetim günlüğü**
+temeli, o temelin üzerine oturan şikâyet kuyruğu (migration 0040 `status`
+alanını zaten bırakmıştı) ve **okuma ekranları** (aşağıda ayrı bölüm).
+**Yarış üzerinde Cancel/Pause/Finish kontrolleri ile Chat Reports HENÜZ
+YOKTUR** — gerekçeleri kendi bölümlerinde yazılıdır.
 
 #### Yönetici kimdir — `players.is_admin`
 
@@ -1333,6 +1335,96 @@ onlardan **önce** hazır edilmiştir ki ilk yazma yolu eklendiğinde ayrı bir
 kendi eylem adını getirir ve her seferinde migration yazmak denetime
 hizmet etmez. Kapalı küme yalnızca **davranışı kısıtlaması gereken**
 yerlerde (şikâyet durumu) vardır.
+
+---
+
+#### Yönetim okuma ekranları — `GET /admin/players` · `/admin/races` · `/admin/transactions`
+
+**§34'ün "Admin: Users Races Transactions Wallet Gifts Reports Chat
+Reports görebilmeli" cümlesinin `Reports` dışındaki kısmı.** YEDİ liste,
+ÜÇ uç noktadır — çünkü üçü ayrı bir varlık değildir:
+
+| brief başlığı | karşılığı |
+| --- | --- |
+| Users + **Wallet** | `GET /admin/players` — cüzdan `players.money`/`gems` kolonudur (migration 0001) |
+| Races | `GET /admin/races` |
+| Transactions + **Gifts** | `GET /admin/transactions` — hediye `type = 'gift_send'` satırıdır (migration 0034) |
+| **Chat Reports** | **YOK** — sohbete bağlı şikâyet kavramı projede mevcut değil (`player_reports` bir OYUNCUYA bağlıdır, mesaja değil) |
+
+Üçü de **yalnızca okumadır**, `@Public()` **değildir**, `@RateLimit`
+**taşımaz** (`PATCH` ile aynı gerekçe: limit kalıcı durum değiştiren
+uçlar içindir) ve `:id`/`assertSelf` **almaz** — yetki kapısı
+`players.is_admin`tir ve her istekte okunur.
+
+**BU ÜÇ YANIT BAKİYE TAŞIR.** `GET /players/profile/:username`in bakiye
+sızdırmama kuralı burada geçersiz değil, **tersine** uygulanır: o uç
+herkese açık olduğu için gizler, bunlar yetki kapısı arkasında olduğu
+için gösterir.
+
+```json
+{
+  "success": true,
+  "data": {
+    "players": [
+      {
+        "playerId": "…", "username": "seyis_1", "displayName": "Seyis",
+        "level": 3, "xp": 120, "money": 1250, "gems": 5,
+        "reputation": 7, "isAdmin": false, "createdAt": "2026-09-28T19:00:00.000Z"
+      }
+    ]
+  }
+}
+```
+
+`races` yanıtı: `raceId`, `name`, `status`, `raceType`, `surface`,
+`distanceM`, `entryFee`, `prizePool`, `tribuneFee`, `participantLimit`
+(AT), `maxPlayers` (OYUNCU), `joinedPlayers`, `startTime`, `createdAt`,
+`createdBy` (sunucu üretimi yarışta `null`).
+
+`transactions` yanıtı: `transactionId`, `player`, `type`, `amount`
+(**İMZALI**: negatif = düşüm), `currency`, `referenceType`, `referenceId`,
+`balanceBefore`, `balanceAfter`, `createdAt`.
+
+**BIGINT → METİN TUZAĞI.** `money`/`xp`/`gems`/`amount`/`entryFee`/
+`prizePool`/`tribuneFee`/`balanceBefore`/`balanceAfter`/`joinedPlayers`
+`int8`dir ve `pg` sürücüsü bunları **METİN** döner. Dönüşüm
+(`toNumber()`) unutulsaydı yanıt `"money": "1250"` olurdu ve **hiçbir
+yerde hata üretmezdi** — istemci `+` operatörünü birleştirme olarak
+kullanırdı. Sözleşme `number` der; e2e `typeof === 'number'` iddia eder.
+
+**`joinedPlayers` İPTAL EDİLMİŞ katılımı SAYMAZ** ama `status`ı `NULL`
+olan girişi **SAYAR**: ayrılan oyuncunun satırı silinmez, `cancelled`
+işaretlenir (migration 0037) ve sunucu üretimi girişlerde `status`
+`NULL`dır — bu yüzden SQL `IS DISTINCT FROM 'cancelled'` kullanır
+(`<>` NULL'lı satırları düşürürdü).
+
+**SIRALAMA** üçünde de `created_at DESC, id DESC`tir; ikincil anahtar
+şarttır, çünkü aynı milisaniyede doğan iki satırda `created_at` tek
+başına deterministik değildir ve `LIMIT`in hangi satırı kırptığı
+belirsizleşirdi.
+
+**SÜZGEÇ YOKTUR.** Ne `status` ne `type` sorgu parametresi alınır:
+doğrulanmamış bir parametre doğrudan SQL `WHERE`ine girmek zorunda
+kalırdı ve `type` serbest metin olduğundan (migration 0019) bir `type`
+süzgeci **sessizce eksik** sonuç döndürürdü — denetim ekranında "eksik
+ama doğru görünen" bir liste, hiç liste olmamasından kötüdür.
+
+**BU ÜÇ UÇ HİÇBİR ŞEY YAZMAZ.** `economy_transactions`a yalnızca para
+yolu, kendi transaction'ı içinde yazar; buraya bir "düzeltme" işlemi
+eklemek defteri değiştirilebilir kılar ve
+`balance_after = balance_before + amount` zincirini koparırdı.
+
+**YARIŞ ÜZERİNDE YAZMA HÂLÂ YOKTUR.** §34'ün "Cancel Pause Finish"
+kısmı ayrı bir dilimdir. **`Pause` bugün mümkün değildir:** `races.status`
+CHECK'i `scheduled|in_progress|finished|cancelled`tır ve `in_progress`u
+yazan hiçbir kod yoktur — yarış `scheduled`dan doğrudan `finished`a geçer.
+**`Cancel` bir para yoludur** (katılım ücretlerinin iadesi + aynı
+transaction'da defter kaydı + denetim günlüğü) ve iade mantığı yazılmadan
+durum değiştirmek ödenmiş parayı havuzda bırakırdı.
+
+**Hata kodları:** yetkisiz çağrı → `403 ADMIN_REQUIRED` (403 önce, 404
+sonra — IDOR kapısı). Bu üç uçta `404` **yoktur**: hepsi koleksiyon
+döner, yol parametresi almaz.
 
 #### ⚠️ `admin_audit_log` ile `economy_transactions` KARIŞTIRILAMAZ
 

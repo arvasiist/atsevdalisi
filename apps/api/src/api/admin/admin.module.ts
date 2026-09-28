@@ -1,7 +1,10 @@
 import { Module } from '@nestjs/common';
 import { ADMIN_REPOSITORY } from '../../application/ports/admin.repository';
 import { ListAdminAuditLogUseCase } from '../../application/use-cases/list-admin-audit-log.use-case';
+import { ListAdminPlayersUseCase } from '../../application/use-cases/list-admin-players.use-case';
+import { ListAdminRacesUseCase } from '../../application/use-cases/list-admin-races.use-case';
 import { ListAdminReportsUseCase } from '../../application/use-cases/list-admin-reports.use-case';
+import { ListAdminTransactionsUseCase } from '../../application/use-cases/list-admin-transactions.use-case';
 import { UpdateReportStatusUseCase } from '../../application/use-cases/update-report-status.use-case';
 import { PostgresAdminRepository } from '../../infrastructure/admin/postgres-admin.repository';
 import { AdminController } from './admin.controller';
@@ -13,11 +16,13 @@ import { AdminController } from './admin.controller';
  * token'ına bağlanır. `DatabaseModule` `@Global()` olduğundan `PG_POOL`
  * ayrıca import EDİLMEZ.
  *
- * **`PlayerModule` IMPORT EDİLMEZ** — sosyal modülün aksine buradaki üç
- * use-case "oyuncu var mı" sorusunu SORMAZ: yönetici kimliği `AuthGuard`'dan
- * gelir, hedef ise bir şikâyet satırıdır (oyuncu değil). Bu yüzden
- * `PLAYER_REPOSITORY`e ihtiyaç yoktur; import etmek kullanılmayan bir
- * bağımlılık doğururdu.
+ * **`PlayerModule` IMPORT EDİLMEZ** — sosyal modülün aksine buradaki
+ * use-case'lerin hiçbiri "oyuncu var mı" sorusunu SORMAZ: yönetici kimliği
+ * `AuthGuard`'dan gelir, hedefler ise şikâyet/yarış/defter satırlarıdır.
+ * `GET /admin/players` bile `PLAYER_REPOSITORY`i DEĞİL, kendi portunu
+ * kullanır: liste yönetim okumasıdır ve `AdminRepository`nin yetki
+ * kapısıyla AYNI sınıfta durur. Bu yüzden `PLAYER_REPOSITORY`e ihtiyaç
+ * yoktur; import etmek kullanılmayan bir bağımlılık doğururdu.
  *
  * **`SOCIAL_REPOSITORY` DE İMPORT EDİLMEZ:** şikâyet OKUMA/YAZMA yolu
  * (`player_reports`) bu modülde `PostgresAdminRepository` üzerinden
@@ -47,6 +52,9 @@ import { AdminController } from './admin.controller';
     ListAdminReportsUseCase,
     UpdateReportStatusUseCase,
     ListAdminAuditLogUseCase,
+    ListAdminPlayersUseCase,
+    ListAdminRacesUseCase,
+    ListAdminTransactionsUseCase,
     { provide: ADMIN_REPOSITORY, useClass: PostgresAdminRepository },
   ],
 })

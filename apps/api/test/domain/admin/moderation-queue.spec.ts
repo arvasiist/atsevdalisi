@@ -46,6 +46,32 @@ function findRepoRoot(startDir: string): string {
 
 const repoRoot = findRepoRoot(process.cwd());
 
+/**
+ * `AdminConfig`in TÜM limit anahtarları — `config/admin.config.json` ile
+ * birebir örtüşmek zorundadır (aşağıdaki "kontrol testi" bunu zorlar).
+ *
+ * **NEDEN ELLE YAZILAN BİR LİSTE:** `loadAdminConfig()` saf bir cast'tir,
+ * çalışma zamanı doğrulaması yoktur; tipin anahtarları ÇALIŞMA ZAMANINDA
+ * görünmez (`interface`ler derlemede silinir). Liste bu yüzden elle
+ * tutulur — ve kapsamını `Object.keys(json)` ile karşılaştıran bir test
+ * sayesinde bir bakım yükü olmaktan çıkar: yeni bir limit eklenip buraya
+ * yazılmazsa CI KIRILIR.
+ */
+const ADMIN_LIMIT_KEYS = [
+  'reportQueueLimit',
+  'auditLogLimit',
+  'playerListLimit',
+  'raceListLimit',
+  'transactionListLimit',
+] as const;
+
+/** `config/admin.config.json` — HAM JSON (yükleyicinin cast'ine güvenmeden). */
+function readAdminConfigJson(): Record<string, unknown> {
+  return JSON.parse(
+    readFileSync(join(repoRoot, 'config', 'admin.config.json'), 'utf-8'),
+  ) as Record<string, unknown>;
+}
+
 const REPORTS_MIGRATION = readdirSync(join(repoRoot, 'database', 'migrations')).find((name) =>
   name.endsWith('create_player_blocks_and_reports.up.sql'),
 );
@@ -233,20 +259,28 @@ describe('AdminConfig — sabitlenmiş liste boyutları', () => {
   // `undefined` olur ve `LIMIT undefined` gibi bir sorguya dönüşürdü. Bu
   // yüzden değerler burada sabitlenir (`social-config.spec.ts` ile AYNI
   // gerekçe).
-  it('iki limit de POZİTİF tam sayıdır', () => {
+  it('her limit POZİTİF tam sayıdır', () => {
     const config = loadAdminConfig();
-    expect(Number.isInteger(config.reportQueueLimit)).toBe(true);
-    expect(config.reportQueueLimit).toBeGreaterThan(0);
-    expect(Number.isInteger(config.auditLogLimit)).toBe(true);
-    expect(config.auditLogLimit).toBeGreaterThan(0);
+    for (const key of ADMIN_LIMIT_KEYS) {
+      expect(Number.isInteger(config[key]), `${key} tam sayı değil`).toBe(true);
+      expect(config[key], `${key} pozitif değil`).toBeGreaterThan(0);
+    }
   });
 
   it('config dosyasındaki değerlerle BİREBİR aynıdır', () => {
-    const json = JSON.parse(
-      readFileSync(join(repoRoot, 'config', 'admin.config.json'), 'utf-8'),
-    ) as Record<string, unknown>;
-    expect(loadAdminConfig().reportQueueLimit).toBe(json.reportQueueLimit);
-    expect(loadAdminConfig().auditLogLimit).toBe(json.auditLogLimit);
+    const json = readAdminConfigJson();
+    for (const key of ADMIN_LIMIT_KEYS) {
+      expect(loadAdminConfig()[key], `${key} JSON ile uyuşmuyor`).toBe(json[key]);
+    }
+  });
+
+  it('sabitlenen anahtar listesi config dosyasını TAM kapsar (kontrol testi)', () => {
+    // BU TESTİN ASIL AMACI: yeni bir limit `AdminConfig`e ve JSON'a
+    // eklenip `ADMIN_LIMIT_KEYS`e YAZILMAZSA, yukarıdaki iki iddia o
+    // anahtarı hiç görmez ve sessizce yeşil kalırdı. Küme eşitliği bunu
+    // imkânsız kılar — liste bir bakım yükü değil, bir kapıdır.
+    const json = readAdminConfigJson();
+    expect(Object.keys(json).sort()).toEqual([...ADMIN_LIMIT_KEYS].sort());
   });
 });
 

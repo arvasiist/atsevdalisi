@@ -1,4 +1,7 @@
 {
   "reportQueueLimit": 100,
-  "auditLogLimit": 200
+  "auditLogLimit": 200,
+  "playerListLimit": 100,
+  "raceListLimit": 100,
+  "transactionListLimit": 200
 }

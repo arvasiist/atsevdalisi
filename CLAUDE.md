@@ -157,12 +157,17 @@ YANILTICI olduğunu gösterdi.** Bu bölüm iki kez bayatladı; aşağısı
   e2e hazır (§13.16): dört uç nokta — hiçbirinin istemci tüketicisi yok.
   Asset gerekmez.
 - **Yönetim paneli arayüzü (brief §34, §42 PHASE 15-B) — YAPILABİLİR
-  (yalnızca şikâyet kuyruğu).** Backend + e2e hazır (§13.17): üç uç nokta —
-  hiçbirinin istemci tüketicisi yok. Asset gerekmez. **§34'ün KALANI AYRI
-  ve daha büyük bir iştir:** Users / Races / Transactions / Wallet / Gifts /
-  Chat Reports ekranları + race Cancel/Pause/Finish kontrolleri; bunlar
-  yeni yönetim okuma portları ve (race kontrolleri için) yeni denetim
-  eylem adları gerektirir.
+  (şikâyet kuyruğu + okuma ekranları).** Backend + e2e hazır
+  (§13.17 + §13.18): **ALTI** uç nokta — hiçbirinin istemci tüketicisi
+  yok. Asset gerekmez. **§34'ün KALANI:** race Cancel/Pause/Finish
+  kontrolleri. `Cancel` bir PARA YOLUDUR (iade + aynı transaction'da
+  defter + denetim günlüğü); **`Pause` ise bugün MÜMKÜN DEĞİL** —
+  `races.status`'ta `paused` yoktur ve `in_progress`u yazan hiçbir kod
+  yoktur (yarış `scheduled`dan doğrudan `finished`a geçer), yani
+  duraklatılacak bir "koşan yarış" kavramı sunucuda MEVCUT DEĞİLDİR.
+  **`Chat Reports` de YOK ve uydurulmamalıdır:** sohbete bağlı şikâyet
+  diye bir olgu projede yoktur (`player_reports` bir OYUNCUYA bağlıdır,
+  mesaja değil).
 - **⚠️ YÖNETİCİ ATAMANIN ARAYÜZÜ YOKTUR (bilinçli).** `players.is_admin`
   şimdilik elle açılır (`UPDATE players SET is_admin = true WHERE ...`);
   testler de SQL ile yapar. Kendini yönetici yapabilen bir uç nokta
@@ -199,17 +204,20 @@ ağacı okuma + yazma (§13.2/§13.4)** · **yarış sohbeti + izleyici sayısı
 `POST /races/:id/settle` (§13.14, PHASE 13.14)** · **SOSYAL PROFİL —
 `GET /players/profile/:username` (§13.15, PHASE 14)** · **BLOK / ŞİKÂYET —
 brief §33 (§13.16, PHASE 15'İN İLK YARISI)** · **YÖNETİM — rol + denetim
-günlüğü + moderasyon kuyruğu (§13.17, PHASE 15-B)** — backend; hiçbirinin
-istemci tüketicisi YOK. Ayrıntı: `PROJE_DURUMU.md` §13.
+günlüğü + moderasyon kuyruğu (§13.17, PHASE 15-B)** · **YÖNETİM OKUMA
+EKRANLARI — Users/Races/Transactions (§13.18, PHASE 15-B)** — backend;
+hiçbirinin istemci tüketicisi YOK. Ayrıntı: `PROJE_DURUMU.md` §13.
 
 **PHASE 15 HÂLÂ YARIMDIR.** Brief §33 (BLOCK/REPORT) bitti (§13.16) ve
-**§34'ün TEMELİ kuruldu** (§13.17): `admin` rolü (`players.is_admin`),
-denetim günlüğü (`admin_audit_log`) ve üç uç nokta
-(`GET /admin/reports`, `PATCH /admin/reports/:reportId`,
-`GET /admin/audit-log`) vardır — `player_reports.status` artık
-`'open'`da DONMAZ. **AMA §34'ün TAMAMI BİTMEDİ:** Users / Races /
-Transactions / Wallet / Gifts / Chat Reports ekranları ile race
-Cancel/Pause/Finish kontrolleri YOKTUR. Yeniden yapma: §13.16 + §13.17.
+**§34'ün GÖRÜNTÜLEME TARAFI neredeyse tamam** (§13.17 + §13.18): `admin`
+rolü (`players.is_admin`), denetim günlüğü (`admin_audit_log`) ve ALTI
+uç nokta (`GET /admin/reports`, `PATCH /admin/reports/:reportId`,
+`GET /admin/audit-log`, `GET /admin/players`, `GET /admin/races`,
+`GET /admin/transactions`) vardır — `player_reports.status` artık
+`'open'`da DONMAZ ve Users/Wallet/Races/Transactions/Gifts listeleri
+GÖRÜLEBİLİR. **AMA §34'ün YAZMA TARAFI BİTMEDİ:** race
+Cancel/Pause/Finish kontrolleri YOKTUR. Yeniden yapma: §13.16 + §13.17 +
+§13.18.
 
 **⚠️ PROFİL UCU PARA SIZDIRMAZ — BUNU BOZMA.** `GET /players/profile/:username`
 `@Public()`'tir, yani yanıtına giren her alan HERKESE açıktır.
@@ -301,7 +309,31 @@ kaydı ortada kalırdı ve bu **hiçbir yerde hata üretmezdi**. Bu yüzden
 (bakiye hareketi). Bir yönetim işlemini "denetlensin" diye deftere yazmak,
 defterin tek işi olan "bakiyeyi satır satır açıklama" özelliğini bozar.
 
-**⚠️ `config/admin.config.json` BİR YETKİ KAPISI DEĞİLDİR.** Oradaki iki
-değer yalnızca **liste boyutudur**. Bir yetki kararını config'e koymak,
+**⚠️ `config/admin.config.json` BİR YETKİ KAPISI DEĞİLDİR.** Oradaki
+değerler yalnızca **liste boyutudur**. Bir yetki kararını config'e koymak,
 onu kaynak kodla birlikte dağıtılan ve çalışma zamanında değiştirilemeyen
-bir dosyaya bağlar.
+bir dosyaya bağlar. **Yeni bir limit eklersen `ADMIN_LIMIT_KEYS`e de yaz**
+(`moderation-queue.spec.ts`): o liste config dosyasını TAM kapsamak
+zorundadır, yoksa CI kırılır — ve kırılması İSTENEN şey tam olarak budur.
+
+**⚠️ `pg` BIGINT'İ METİN DÖNER — `Number(...)` ŞART.** `money`, `xp`,
+`gems`, `amount`, `entry_fee`, `prize_pool`, `balance_before/after` ve
+`COUNT(*)` `int8`dir; dönüşüm unutulursa yanıt `"money": "1250"` olur ve
+**hiçbir yerde hata üretmez** — istemci `+` operatörünü birleştirme olarak
+kullanır. `postgres-admin.repository.ts` bunu tek bir `toNumber()`da
+toplar; `NUMERIC` (örn. `performance_score`) de aynı tuzağa sahiptir.
+Yeni bir yönetim/okuma ucu yazarken yanıt alanlarının `typeof`unu
+e2e'de iddia et.
+
+**⚠️ `status IS DISTINCT FROM 'cancelled'`, `<> 'cancelled'` DEĞİL.**
+`race_entries.status` **NULL olabilir** (pratik/PvP girişleri, migration
+0037) ve `<>` NULL'lı satırları düşürür. Ayrılan oyuncunun satırı da
+SİLİNMEZ, `cancelled` işaretlenir — sayım yapan her sorgu bu ikisini
+birlikte doğru ele almak zorundadır.
+
+**⚠️ YÖNETİM OKUMA UÇLARI BAKİYE TAŞIR — `@Public()` YAPMA.** `GET
+/admin/players` ve `GET /admin/transactions` `money`/`gems` ve tüm para
+hareketlerini döner. Bunlar `GET /players/profile/:username` ile AYNI
+sınıf DEĞİLDİR: o uç herkese açık olduğu için bakiyeyi GİZLER, bunlar
+yetki kapısı arkasında olduğu için GÖSTERİR. `@Public()` eklemek bu
+ayrımı tek satırda yok eder.

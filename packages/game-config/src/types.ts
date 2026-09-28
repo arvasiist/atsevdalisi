@@ -1117,6 +1117,27 @@ export interface AdminConfig {
   reportQueueLimit: number;
   /** `GET /admin/audit-log` yanıtındaki azami kayıt sayısı (`reportQueueLimit` ile AYNI sınıf). */
   auditLogLimit: number;
+  /**
+   * `GET /admin/players` yanıtındaki azami oyuncu sayısı.
+   *
+   * **BU EKRAN HEM "Users" HEM "Wallet"DIR** (brief §34): cüzdan, oyuncunun
+   * `money`/`gems` kolonlarıdır ve ayrı bir "cüzdan" varlığı YOKTUR
+   * (migration 0001). Aynı listeyi ikinci bir uç noktayla sunmak, iki
+   * yanıtın birbirinden kaymasına açık bir kapı olurdu.
+   */
+  playerListLimit: number;
+  /** `GET /admin/races` yanıtındaki azami yarış sayısı (`reportQueueLimit` ile AYNI sınıf). */
+  raceListLimit: number;
+  /**
+   * `GET /admin/transactions` yanıtındaki azami defter satırı sayısı.
+   *
+   * **BU EKRAN HEM "Transactions" HEM "Gifts"TİR** (brief §34): hediye bir
+   * `economy_transactions` satırıdır (`type = 'gift_send'`), ayrı bir
+   * hediye defteri YOKTUR (migration 0034). Süzgeç istemcinin işidir —
+   * sunucuda `type` süzgeci, tür listesinin serbest metin olması yüzünden
+   * (migration 0019 notu) sessizce eksik sonuç döndürürdü.
+   */
+  transactionListLimit: number;
 }
 
 /**

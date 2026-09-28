@@ -1,10 +1,13 @@
 import { Inject, Injectable } from '@nestjs/common';
-import type { ReportCategory, ReportStatus } from '@at-sevdalisi/shared-types';
+import type { Currency, RaceStatus, RaceSurface, ReportCategory, ReportStatus } from '@at-sevdalisi/shared-types';
 import type { Pool } from 'pg';
 import {
   type AdminAuditLogRecord,
+  type AdminPlayerAccountRecord,
+  type AdminRaceRecord,
   type AdminReportRecord,
   type AdminRepository,
+  type AdminTransactionRecord,
 } from '../../application/ports/admin.repository';
 import { PG_POOL, withTransaction } from '../database/database.module';
 
@@ -51,6 +54,75 @@ interface AdminAuditLogDbRow {
   target_id: string | null;
   details: Record<string, unknown>;
   created_at: Date;
+}
+
+/** Oyuncu listesi satırı — `players` (snake_case). */
+interface AdminPlayerAccountDbRow {
+  id: string;
+  username: string;
+  display_name: string;
+  level: number;
+  /** `BIGINT` — `pg` bunu METİN olarak döndürür (aşağıdaki `toNumber` notu). */
+  xp: string;
+  money: string;
+  gems: string;
+  reputation: number;
+  is_admin: boolean;
+  created_at: Date;
+}
+
+/** Yarış listesi satırı — `races` + iki `players` JOIN'i (snake_case). */
+interface AdminRaceDbRow {
+  race_id: string;
+  name: string;
+  status: string;
+  race_type: string;
+  surface: string;
+  distance_m: number;
+  entry_fee: string;
+  prize_pool: string;
+  tribune_fee: string;
+  participant_limit: number;
+  max_players: number;
+  joined_players: string;
+  start_time: Date;
+  created_at: Date;
+  created_by_id: string | null;
+  created_by_display_name: string | null;
+}
+
+/** Defter satırı — `economy_transactions` + `players` JOIN'i (snake_case). */
+interface AdminTransactionDbRow {
+  id: string;
+  player_id: string;
+  player_display_name: string;
+  type: string;
+  amount: string;
+  currency: string;
+  reference_type: string | null;
+  reference_id: string | null;
+  balance_before: string;
+  balance_after: string;
+  created_at: Date;
+}
+
+/**
+ * `BIGINT` → `number` — **BU DÖNÜŞÜM ATLANAMAZ.**
+ *
+ * `pg` sürücüsü `int8`i (ve `COUNT(*)` sonucunu) JavaScript `number`ına
+ * ÇEVİRMEZ, çünkü 2^53 üzerindeki değerler sessizce yuvarlanırdı; ham
+ * değer bir **metin** olarak gelir. `as unknown as number` ile susturmak,
+ * JSON yanıtında `"money": "1250"` gibi bir METİN üretirdi ve istemci
+ * `+` operatörünü birleştirme olarak kullanırdı. Bu yüzden dönüşüm tek
+ * bir yardımcıda, AÇIKÇA yapılır.
+ *
+ * Buradaki tutarlar `players.money`/`economy_transactions.amount`tır;
+ * oyunun ekonomisi 2^53 Çip'e ulaşmadığı sürece `number` güvenlidir ve
+ * istemci sözleşmesi (`AdminPlayerAccountView.money: number`) bunu
+ * ZATEN varsayar — dönüşümü gizlemek yerine burada açıkça yapıyoruz.
+ */
+function toNumber(value: string): number {
+  return Number(value);
 }
 
 /**
@@ -213,6 +285,116 @@ export class PostgresAdminRepository implements AdminRepository {
       targetType: row.target_type,
       targetId: row.target_id,
       details: row.details,
+      createdAt: row.created_at,
+    }));
+  }
+
+  async listPlayerAccounts(limit: number): Promise<AdminPlayerAccountRecord[]> {
+    // `ORDER BY created_at DESC, id DESC` — `created_at` TEK BAŞINA
+    // deterministik DEĞİLDİR: aynı milisaniyede doğan iki hesap (e2e
+    // kurulumu tam olarak bunu yapar) sıralamada yer değiştirebilir ve
+    // `LIMIT` hangi satırın kırpıldığını belirsizleştirirdi. İkincil
+    // anahtar bu belirsizliği kapatır.
+    const result = await this.pool.query<AdminPlayerAccountDbRow>(
+      `SELECT id, username, display_name, level, xp, money, gems, reputation, is_admin, created_at
+         FROM players
+        ORDER BY created_at DESC, id DESC
+        LIMIT $1`,
+      [limit],
+    );
+    return result.rows.map((row) => ({
+      playerId: row.id,
+      username: row.username,
+      displayName: row.display_name,
+      level: row.level,
+      xp: toNumber(row.xp),
+      money: toNumber(row.money),
+      gems: toNumber(row.gems),
+      reputation: row.reputation,
+      isAdmin: row.is_admin,
+      createdAt: row.created_at,
+    }));
+  }
+
+  async listRaces(limit: number): Promise<AdminRaceRecord[]> {
+    // `joined_players` KORELASYONLU BİR ALTSORGU DEĞİL, `LEFT JOIN
+    // LATERAL` ile sayılır: `race_entries` üzerindeki
+    // `(race_id, player_id)` benzersizliği (migration 0037) sayımı
+    // doğrudan `COUNT(*)` yapmayı güvenli kılar. `status IS DISTINCT FROM
+    // 'cancelled'` ŞARTTIR (`IS DISTINCT FROM`, yalnızca `<>` değil):
+    // ayrılan oyuncunun satırı SİLİNMEZ, `cancelled` işaretlenir
+    // (migration 0037 notu), yani `<>` NULL'lı satırları düşürürdü —
+    // `PostgresRaceRepository` ile AYNI desen (bkz. satır ~1047 notu).
+    //
+    // `created_by` JOIN'i `LEFT`: sunucu üretimi yarışların (pratik/PvP)
+    // oluşturucusu YOKTUR ve `INNER JOIN` onların tamamını listeden
+    // düşürürdü.
+    const result = await this.pool.query<AdminRaceDbRow>(
+      `SELECT r.id AS race_id, r.name, r.status, r.race_type, r.surface, r.distance_m,
+              r.entry_fee, r.prize_pool, r.tribune_fee, r.participant_limit, r.max_players,
+              r.start_time, r.created_at,
+              r.created_by AS created_by_id,
+              creator.display_name AS created_by_display_name,
+              COALESCE(joined.joined_players, 0) AS joined_players
+         FROM races r
+         LEFT JOIN players creator ON creator.id = r.created_by
+         LEFT JOIN LATERAL (
+              SELECT COUNT(*) AS joined_players
+                FROM race_entries e
+               WHERE e.race_id = r.id
+                 AND e.status IS DISTINCT FROM 'cancelled'
+         ) joined ON true
+        ORDER BY r.created_at DESC, r.id DESC
+        LIMIT $1`,
+      [limit],
+    );
+    return result.rows.map((row) => ({
+      raceId: row.race_id,
+      name: row.name,
+      status: row.status as RaceStatus,
+      raceType: row.race_type as 'free' | 'paid',
+      surface: row.surface as RaceSurface,
+      distanceM: row.distance_m,
+      entryFee: toNumber(row.entry_fee),
+      prizePool: toNumber(row.prize_pool),
+      tribuneFee: toNumber(row.tribune_fee),
+      participantLimit: row.participant_limit,
+      maxPlayers: row.max_players,
+      joinedPlayers: toNumber(row.joined_players),
+      startTime: row.start_time,
+      createdAt: row.created_at,
+      createdById: row.created_by_id,
+      createdByDisplayName: row.created_by_display_name,
+    }));
+  }
+
+  async listTransactions(limit: number): Promise<AdminTransactionRecord[]> {
+    // `JOIN players` (INNER): `player_id` NOT NULL + `ON DELETE CASCADE`
+    // olduğundan (migration 0019) eşleşmeyen satır İMKÂNSIZDIR. Burada
+    // `LEFT JOIN` kullanmak, olmayan bir durumu varmış gibi göstermek
+    // olurdu — ve "sahibi silinmiş para hareketi" diye bir şey olamaz:
+    // hesap silinince defter satırları da gider.
+    const result = await this.pool.query<AdminTransactionDbRow>(
+      `SELECT t.id, t.player_id, p.display_name AS player_display_name,
+              t.type, t.amount, t.currency, t.reference_type, t.reference_id,
+              t.balance_before, t.balance_after, t.created_at
+         FROM economy_transactions t
+         JOIN players p ON p.id = t.player_id
+        ORDER BY t.created_at DESC, t.id DESC
+        LIMIT $1`,
+      [limit],
+    );
+    return result.rows.map((row) => ({
+      transactionId: row.id,
+      playerId: row.player_id,
+      playerDisplayName: row.player_display_name,
+      type: row.type,
+      amount: toNumber(row.amount),
+      currency: row.currency as Currency,
+      referenceType: row.reference_type,
+      referenceId: row.reference_id,
+      balanceBefore: toNumber(row.balance_before),
+      balanceAfter: toNumber(row.balance_after),
       createdAt: row.created_at,
     }));
   }

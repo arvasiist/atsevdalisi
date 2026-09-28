@@ -1,4 +1,10 @@
-import type { ReportCategory, ReportStatus } from '@at-sevdalisi/shared-types';
+import type {
+  Currency,
+  RaceStatus,
+  RaceSurface,
+  ReportCategory,
+  ReportStatus,
+} from '@at-sevdalisi/shared-types';
 
 /**
  * `AdminRepository` — yönetim (admin) uçlarının Infrastructure'a bağlandığı
@@ -95,6 +101,36 @@ export interface AdminRepository {
    * gereksiniminin OKUMA ayağı.
    */
   listAuditLog(limit: number): Promise<AdminAuditLogRecord[]>;
+
+  /**
+   * Oyuncu listesi — brief §34'ün "Users" VE "Wallet" başlıklarının
+   * ortak karşılığı (cüzdan ayrı bir varlık değil, `players` kolonudur).
+   *
+   * **EN YENİ KAYIT ÖNCE GELİR.** Panelin ilk sorusu "son katılanlar
+   * kimler"dir; alfabetik sıra, 100 satırlık bir tavanda yeni bir hesabı
+   * listenin dışında bırakabilirdi.
+   */
+  listPlayerAccounts(limit: number): Promise<AdminPlayerAccountRecord[]>;
+
+  /**
+   * Yarış listesi — brief §34'ün "Races" başlığı. En yeniden eskiye.
+   *
+   * **`joinedPlayers` BURADA SAYILIR, use-case'te DEĞİL.** Sayımı
+   * use-case'e bırakmak, her yarış için ayrı bir sorgu demek olurdu
+   * (N+1 — `findBlockedPlayers` ile AYNI yasak).
+   */
+  listRaces(limit: number): Promise<AdminRaceRecord[]>;
+
+  /**
+   * Ekonomi defteri — brief §34'ün "Transactions" VE "Gifts"
+   * başlıklarının ortak karşılığı (hediye ayrı bir defter değildir).
+   * En yeniden eskiye.
+   *
+   * **SÜZGEÇ YOKTUR.** `type` serbest metindir (migration 0019 notu);
+   * sunucuda bir `type` süzgeci, listede olmayan bir türü sessizce
+   * "yok" gibi gösterirdi. Süzgeç istemcinin işidir.
+   */
+  listTransactions(limit: number): Promise<AdminTransactionRecord[]>;
 }
 
 /**
@@ -143,3 +179,60 @@ export interface AdminAuditLogRecord {
 
 /** NestJS DI için token (interface'ler runtime'da yok olduğundan bir Symbol gerekir). */
 export const ADMIN_REPOSITORY = Symbol('ADMIN_REPOSITORY');
+
+/**
+ * Oyuncu listesinin tek satırı (port tipi — `AdminReportRecord` ile AYNI
+ * gerekçe: tarih `Date`, ISO'ya çevirmek use-case'in işi).
+ *
+ * **`username` VE `displayName` İKİSİ DE TAŞINIR.** Görünen ad
+ * BENZERSİZ DEĞİLDİR; yönetici "aynı addan iki hesap" durumunu ancak
+ * giriş kimliğiyle ayırt edebilir. Yalnızca görünen adı göstermek,
+ * şikâyet edilen bir hesabı YANLIŞ kişiyle eşleştirmeye açık kapı olurdu.
+ */
+export interface AdminPlayerAccountRecord {
+  playerId: string;
+  username: string;
+  displayName: string;
+  level: number;
+  xp: number;
+  money: number;
+  gems: number;
+  reputation: number;
+  isAdmin: boolean;
+  createdAt: Date;
+}
+
+/** Yarış listesinin tek satırı (port tipi — `AdminReportRecord` ile AYNI gerekçe). */
+export interface AdminRaceRecord {
+  raceId: string;
+  name: string;
+  status: RaceStatus;
+  raceType: 'free' | 'paid';
+  surface: RaceSurface;
+  distanceM: number;
+  entryFee: number;
+  prizePool: number;
+  tribuneFee: number;
+  participantLimit: number;
+  maxPlayers: number;
+  joinedPlayers: number;
+  startTime: Date;
+  createdAt: Date;
+  createdById: string | null;
+  createdByDisplayName: string | null;
+}
+
+/** Defter satırı (port tipi — `AdminReportRecord` ile AYNI gerekçe). */
+export interface AdminTransactionRecord {
+  transactionId: string;
+  playerId: string;
+  playerDisplayName: string;
+  type: string;
+  amount: number;
+  currency: Currency;
+  referenceType: string | null;
+  referenceId: string | null;
+  balanceBefore: number;
+  balanceAfter: number;
+  createdAt: Date;
+}
