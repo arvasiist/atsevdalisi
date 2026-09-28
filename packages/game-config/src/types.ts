@@ -121,6 +121,43 @@ export interface RaceBalanceConfig {
     /** Anahtar = `FinalStretchPlan`; aynı gerekçeyle genel `Record`. */
     finalStretchPlan: Record<string, { bonusMultiplier: number; windowMultiplier: number; staminaConsumptionMultiplier: number }>;
   };
+  /**
+   * PHASE 6.3 — `horse_stats.temperament` (kişilik/mizaç) ekseninin motor
+   * etkisi (bkz. `domain/race/temperament.ts`).
+   *
+   * **Yön:** yüksek temperament = huysuz/istekli at → startta öne fırlar
+   * (`startBonusMax`) ama final düzlükte AYNI MİKTARI geri verir
+   * (`latePenaltyMax`) ve erken pencerede daha çok stamina yakar
+   * (`energyCostMax`); düşük temperament bunun tam tersidir. `startBonusMax`
+   * ile `latePenaltyMax` EŞİT tutulmalıdır — aksi hâlde bu bir ödünleşim
+   * değil, gizli bir bonus/ceza olur (bkz. `temperament.spec.ts` simetri
+   * iddiası; test bu eşitliği config üzerinden OKUYARAK kontrol eder).
+   *
+   * **`neutral` neden config'te:** 50 sabitini koda gömmek, `temperament`
+   * ölçeğinin anlamını tek bir dosyaya kilitlemek olurdu; ayrıca
+   * `deriveTemperamentEffect` "tam olarak `neutral` ise no-op" kapısını bu
+   * değere göre kurar, yani config değişirse no-op noktası da birlikte
+   * kaymalıdır.
+   */
+  temperament: {
+    /** No-op noktası. `temperament` tam buna eşitse motor hiçbir şey yapmaz. */
+    neutral: number;
+    /**
+     * HER İKİ pencerenin de genişliği (yarışın oranı olarak). Motor bunu
+     * `windowFraction × segmentCount` ile SEGMENT sayısına çevirir ve iki uçta
+     * AYNI sayıda segment uygular — oranla karşılaştırma (`<=` / `>=`) iki
+     * pencereye FARKLI sayıda segment sokup ödünleşimi sessizce açardı (bkz.
+     * `domain/race/temperament.ts` dosya başındaki ⚠️ not: 1600m'de 2 vs 3).
+     * `floor(segmentCount / 2)` ile sınırlanır, yani pencereler çakışamaz.
+     */
+    windowFraction: number;
+    /** Erken pencerede uç değerlerin (±50 sapma) alacağı azami puan. */
+    startBonusMax: number;
+    /** Final penceresinde uç değerlerin vereceği azami puan — `startBonusMax` ile EŞİT olmalı. */
+    latePenaltyMax: number;
+    /** Uç değerlerin erken/final penceredeki stamina tüketim sapması (çarpan ±). */
+    energyCostMax: number;
+  };
   /** FAZ 5 — brief §60 jokey AI karar ağacı (bkz. `docs/RACE_ENGINE.md` §8, `domain/race/jockey-decisions.ts`). */
   jockeyDecision: {
     staminaLowThreshold: number;

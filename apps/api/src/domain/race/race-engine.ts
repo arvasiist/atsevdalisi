@@ -36,6 +36,7 @@ import { computeBaseAbility } from './base-ability';
 import { applyDistanceWeightAdjustments, getDistanceCategory } from './distance-category';
 import { getEnvironmentModifier } from './environment';
 import { derivePaceEffect, derivePaceScore, deriveTacticEffect } from './pace';
+import { deriveTemperamentEffect } from './temperament';
 import { assignInitialLane, calculateAvailableSpace, calculateOvertakeProbability, deriveLaneChange } from './overtaking';
 import { decideJockeyAction, type JockeyDecision } from './jockey-decisions';
 import { deriveSprintBonus } from './sprint';
@@ -100,7 +101,7 @@ export const RACE_ENGINE_VERSION = '1.0.0';
  * yarışlar `ruleset_version: '1.0.0'` ile işaretli KALIR, replay/audit bu
  * ikisini asla KARIŞTIRMAZ.
  */
-export const RACE_RULESET_VERSION = '1.2.0';
+export const RACE_RULESET_VERSION = '1.3.0';
 /**
  * PHASE 6 (brief §42 PHASE 6) — `1.1.0` → `1.2.0` YÜKSELTİLDİ. Gerekçe tam
  * olarak yukarıdaki kuraldır: segment döngüsünün 3-geçişli YAPISI (Geçiş
@@ -112,6 +113,18 @@ export const RACE_RULESET_VERSION = '1.2.0';
  * Bu satır olmadan, `1.1.0` ile üretilmiş ESKİ yarışlar yeni motorla
  * "replay" edildiğinde AYNI seed + AYNI snapshot'tan FARKLI bir sonuç
  * çıkardı ve bu sessizce fark edilmezdi.
+ *
+ * **PHASE 6.3 (29.09.2026) — `1.2.0` → `1.3.0`.** Aynı kural bir kez daha
+ * işledi: 3-geçişli YAPI (Geçiş A/B/C) DEĞİŞMEDİ (`RACE_ENGINE_VERSION`
+ * sabit), ama YENİ bir kural modülü (`temperament.ts`) devreye girdi ve
+ * nihai segment performans formülü artık `horse_stats.temperament`'ı da
+ * içeriyor. Ayrıca `race.config.json` sürümü `1.1.0` → `1.2.0` yükseldi
+ * (yeni `temperament` bloğu) — ikisi AYRI sayaçlardır, bkz. yukarısı.
+ *
+ * ⚠️ **ESKİ SNAPSHOT'LARIN ÇOĞU İÇİN SONUÇ DEĞİŞMEZ** (`temperament` o
+ * alanı hiç taşımıyorsa `undefined` → tam nötr), ama bu bir GARANTİ DEĞİLDİR:
+ * `temperament`ı 50'den farklı olan bir snapshot yeni motorla farklı koşar.
+ * Sürümü artırmanın tek sebebi bu ihtimaldir.
  */
 
 interface HorseRuntimeState {
@@ -277,13 +290,28 @@ export function simulateRace(input: RaceSimulationInput): RaceTimeline {
       // PHASE 6 — oyuncunun seçtiği `startApproach`/`finalStretchPlan` burada
       // motora girer (bkz. `pace.ts` → `deriveTacticEffect` doc yorumu).
       const tacticEffect = deriveTacticEffect(entry.tactic, positionFraction, distanceMeters, raceConfig.tactic, raceConfig.pace);
+      // PHASE 6.3 — atın KALICI kişiliği (bkz. `temperament.ts`). `undefined`
+      // (bu alanı hiç doldurmayan eski fixture) ve 50 (başlangıç atlarının
+      // varsayılanı, botların sabiti) TAM nötrdür — yani bu satır mevcut
+      // ölçümleri DEĞİŞTİRMEZ.
+      const temperamentEffect = deriveTemperamentEffect(
+        entry.temperament,
+        positionFraction,
+        distanceMeters,
+        raceConfig.segmentLengthMeters,
+        raceConfig.temperament,
+      );
       const decision = decisionByHorseId.get(state.horseId)!;
 
       const staminaBeforeSegment = state.runtimeStamina;
       const staminaDepletedAtStart = staminaBeforeSegment <= 0;
       const staminaPenaltyFactor = staminaDepletedAtStart ? raceConfig.stamina.depletionPenaltyMultiplier : 1;
       state.runtimeStamina = clamp(
-        staminaBeforeSegment - baseStaminaConsumptionPerSegment * pace.staminaConsumptionMultiplier * tacticEffect.staminaConsumptionMultiplier,
+        staminaBeforeSegment -
+          baseStaminaConsumptionPerSegment *
+            pace.staminaConsumptionMultiplier *
+            tacticEffect.staminaConsumptionMultiplier *
+            temperamentEffect.staminaConsumptionMultiplier,
         0,
         100,
       );
@@ -323,7 +351,12 @@ export function simulateRace(input: RaceSimulationInput): RaceTimeline {
       ]);
 
       const rawScore =
-        (state.baseAbility + pace.performanceBonus + sprintBonus + tacticEffect.performanceBonus) * combinedConditionModifier +
+        (state.baseAbility +
+          pace.performanceBonus +
+          sprintBonus +
+          tacticEffect.performanceBonus +
+          temperamentEffect.performanceBonus) *
+          combinedConditionModifier +
         randomFactor -
         blockPenalty -
         fatiguePenalty;

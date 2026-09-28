@@ -302,6 +302,22 @@ describe('buildHorseEntrantSnapshot', () => {
     expect(UNMODELED_SNAPSHOT_FIELDS).toHaveLength(0);
   });
 
+  /**
+   * PHASE 6.3 — kişilik/mizaç. `temperament` buraya PARAMETRE olarak
+   * girmez: `HorseStats`in ZORUNLU bir alanıdır (migration 0003,
+   * `NOT NULL DEFAULT 50`), yani `stats` üzerinden doğrudan okunur. Bu test
+   * "okuma gerçekten yapılıyor" iddiasını kurar — sabit 50 dönen bir kod
+   * da bu testi geçemez, çünkü aşağıda 50'den FARKLI bir değer verilir.
+   */
+  it('temperament `stats`ten AYNEN okunur (PHASE 6.3) — sabit 50 DEĞİL', () => {
+    expect(buildHorseEntrantSnapshot(makeHorse(), makeStats({ temperament: 82 }), validTactic).temperament).toBe(82);
+    expect(buildHorseEntrantSnapshot(makeHorse(), makeStats({ temperament: 17 }), validTactic).temperament).toBe(17);
+    // Başlangıç atları (DB varsayılanı) nötr 50 alır.
+    expect(buildHorseEntrantSnapshot(makeHorse(), makeStats(), validTactic).temperament).toBe(
+      NEUTRAL_UNMODELED_TRAIT_SCORE,
+    );
+  });
+
   it('geçersiz bir taktikle çağrılırsa InvalidRaceTacticError fırlatır (DTO doğrulaması atlanırsa bile)', () => {
     expect(() => buildHorseEntrantSnapshot(makeHorse(), makeStats(), { ...validTactic, riskLevel: 'extreme' as never })).toThrow(
       InvalidRaceTacticError,

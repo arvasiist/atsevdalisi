@@ -2988,7 +2988,121 @@ sorusunu CI'da yanıtlar.
 5. **`compatibilityWeights` motora girmiyor** — `calculateJockeyHorseCompatibility`
    yazıldı ve test edildi ama **hiçbir çağrı yolu yok**; motora giren tek şey
    `calculateJockeySkillComposite`tir.
-6. **Kişilik hâlâ yok** — `Horse.temperament` motora hiç girmiyor. **PHASE 6.3.**
+6. ~~**Kişilik hâlâ yok** — `Horse.temperament` motora hiç girmiyor. **PHASE 6.3.**~~
+   **KAPANDI — §13.31 (29.09.2026).**
+
+---
+
+#### 13.31 KİŞİLİK (MIZAÇ) MOTORUN İÇİNDE — ve ölçümün ortaya çıkardığı ASİMETRİ HATASI (brief §42 PHASE 6.3) — 29.09.2026
+
+**Kapanan boşluk, §13.30'un 6. dürüst eksiğiydi.** `horse_stats.temperament`
+**migration 0003'ten beri** veritabanındadır, üremeyle yavruya geçer
+(`INHERITED_STAT_COLUMNS`), API'de okunur/yazılır — ama `simulateRace` onu **hiç
+görmüyordu**. Yani oyuncunun yetiştiricilik kararlarından biri (*"hangi tayı
+tutayım"*) yarış sonucuna hiç etki etmiyordu ve bunu **ne derleyici ne hiçbir
+test** söylüyordu. Aynı sınıf hata, aynı ailede **üçüncü** kez (§13.25
+`aiFillEnabled`, §13.30 `jockeySkillComposite`).
+
+**YÖN — "SICAK AT HIZLI KALKAR, ÇABUK YORULUR."** `heat = (temperament − 50)/50`
+ile `[-1, +1]`'e normalize edilir. Erken kalkış penceresinde sıcak at
+`+heat × startBonusMax` puan alır ve `+heat × energyCostMax` kadar **fazla
+stamina yakar**; final düzlüğünde **aynı puanı geri verir** ve aynı enerjiyi
+**geri kazanır**. Bütün sayılar `config/race.config.json` → `temperament`
+bloğundadır (`neutral: 50`, `windowFraction: 0.25`, `startBonusMax: 4`,
+`latePenaltyMax: 4`, `energyCostMax: 0.06`) — **sihirli sayı yok**.
+
+**⚠️ 50 = TAM NO-OP — ve bu, mevcut ölçümleri DEĞİŞTİRMEMENİN tek yoluydu.**
+`temperament` `undefined` ise (bu alanı hiç doldurmayan eski fixture) ya da tam
+olarak `neutral` (50) ise fonksiyon sabit nötr nesneyi döner. Başlangıç atları
+`DEFAULT 50` alır ve **botlar `generateBotEntrants` içinde sabit 50 üretir** —
+yani `docs/RACE_BALANCE_REPORT.md`'nin 265.125 koşumu ve
+`race-balance.spec.ts` eşikleri **bit bit aynı** kaldı. Bu iddia sözle değil
+**testle** kilitlendi: aynı seed'lerle 50 yarış, alan varken ve yokken
+`JSON.stringify` ile **birebir** karşılaştırılır.
+
+**⚠️ ÖLÇÜLEN HATA — "KAPALI ÖDÜNLEŞİM" KÂĞITTA DOĞRUYDU, MOTORDA DEĞİLDİ.**
+İlk sürüm iki pencereyi **ORANLA** kuruyordu (`positionFraction <= 0.25` /
+`>= 0.75`). Motor `positionFraction`ı `(segmentIndex + 1) / segmentCount` olarak
+ürettiği için (bkz. `race-engine.ts`), 1600 m / 200 m'lik bir yarışta bu **erken
+pencereye 2, final penceresine 3 segment** sokuyordu. Sonuç: sakin at
+`3 × (+4)` kazanıp `2 × (−4)` ödüyordu — yani **net +4 puan bedava avantaj**.
+5.000 koşumluk 1v1 ölçüm (rakip nötr) hatayı gösterdi:
+
+| temperament | ilk sürüm (oran) | düzeltilmiş (segment) |
+| --- | --- | --- |
+| 0 (sakin) | **0.5686** | 0.4764 |
+| 25 | 0.5448 | 0.5022 |
+| 50 (nötr) | 0.4956 | 0.4956 |
+| 75 | 0.4630 | 0.5088 |
+| 100 (sıcak) | **0.3816** | 0.4814 |
+
+Düzeltme: pencere genişliği `windowFraction × segmentCount` ile **SEGMENT
+cinsinden** hesaplanır ve `floor(segmentCount / 2)` ile sınırlanır — böylece iki
+pencere **her mesafede** hem aynı sayıda segment içerir hem de **asla
+çakışamaz**. `temperament.spec.ts` bunu 800'den 3200 metreye **yedi** mesafede
+iddia eder (`800m 1/1 · 1000m 1/1 · 1200m 2/2 · 1600m 2/2 · 2000m 3/3 · 2400m 3/3
+· 3200m 4/4`).
+
+**⚠️ BU HATAYI GALİBİYET PAYI TESTİ YAKALAMAZDI.** Spec'in "hiçbir uç nötr atı
+ezmez" iddiası önce `0.75/0.25` sınırıyla yazılmıştı ve **eski hatanın 0.3816
+değeri o sınırın içinde kalıyordu** — yani test yeşil kalırken hata yaşardı.
+Sınır **0.56/0.44**'e çekildi: bu bir "iyi durum hedefi" değil, bulunan gerçek
+hatayı **iki uçtan da** yakalayan bir değişmez sınırıdır (0.5686 > 0.56 ve
+0.3816 < 0.44). Tohumlar sabit olduğu için ölçüm deterministiktir — kırılırsa
+motor gerçekten değişmiştir.
+
+**ZİNCİR — altı halka, hepsi bağlı:**
+
+| Halka | Nerede |
+| --- | --- |
+| Veritabanı | `horse_stats.temperament` (migration 0003, `NUMERIC(5,2) NOT NULL DEFAULT 50 CHECK 0..100`) |
+| Snapshot | `buildHorseEntrantSnapshot` → `temperament: stats.temperament` (YENİ parametre GEREKMEZ, `stats` zaten imzada) |
+| Sözleşme | `RaceEntrantSnapshot.temperament` (**opsiyonel** — `equipmentModifier` ile aynı gerekçe) |
+| Kural | `domain/race/temperament.ts` → `deriveTemperamentEffect` (saf, framework'süz) |
+| Motor | `race-engine.ts` Geçiş C — puan toplamı **ve** stamina çarpanı |
+| Config | `config/race.config.json` → `temperament` bloğu; `RACE_RULESET_VERSION` `1.2.0 → 1.3.0` |
+
+**⚠️ `UNMODELED_SNAPSHOT_FIELDS` LİSTESİ BOŞ KALDI — VE BU BİLİNÇLİ.** §13.30
+listeyi silmeyip boşaltmıştı; PHASE 6.3 kişiliği **bağlamayı** seçti (nötr
+bırakmak yerine), yani listeye yeni bir üye **eklenmedi**. Yanına **pozitif** bir
+iddia kondu: `temperament` `stats`ten **aynen** okunur (82 → 82, 17 → 17), sabit
+50 değil.
+
+**⚠️ AI'YE GİZLİ BONUS TRIPWIRE'I — bu dilimde de var.** `temperament.spec.ts`
+`generateBotEntrants(12, 'anti-cheat-seed')` çağırır, **hepsinin 50 olduğunu**
+ve çağrılar arasında **deterministik** olduğunu iddia eder; ayrıca bot sahasının
+alan varken ve yokken **JSON-özdeş** olduğunu gösterir. Motora giren girdi ile
+oyuncuya gösterilen sayı arasına bir çarpan girse test **kırılır**.
+
+**⚠️ `race-engine.ts` DEĞİŞTİ — ve bu CLAUDE.md'nin "RACE ENGINE'E DOKUNMA"
+kuralıyla ÇELİŞMİYOR.** Kuralın ölçtüğü şey **determinizmdir**, "dosyaya
+dokunma" değil. `RACE_ENGINE_VERSION` (3-geçişli yapı: Geçiş A/B/C) **sabit
+kaldı**; yalnızca `RACE_RULESET_VERSION` yükseldi — yani *formül* değişti,
+*çatı* değişmedi. `tactic-effect.spec.ts`teki sürüm pin'i tek yerde durur ve
+`1.3.0`'a güncellendi.
+
+**DÜRÜST EKSİKLER:**
+1. **Başlangıç atları hep 50 alır** — etki bugün yalnızca **üreme**
+   (`INHERITED_STAT_COLUMNS`) ve **pazar** çeşitliliğinden doğar. Başlangıç
+   atlarına değişkenlik veren bir dilim yoktur; o gelene kadar kişilik, oyuncunun
+   **kendi yetiştirdiği** atlarda anlam kazanır.
+2. **Oyuncu bu statı EKRANDA göremez** — `VisibleHorseStats` `temperament`
+   taşımaz. Bu bir AI bonusu **değildir** (atın kendi istatistiğidir, brief'in
+   yasağı ihlal edilmez) ama *görünürlük* eksiktir: oyuncu sonucu açıklayan
+   sayıyı okuyamaz.
+3. **`domain/jockey/jockey.ts` içindeki `calculateTemperamentComponent` hâlâ
+   çağıransız** — yönü artık motorunkiyle **aynı** (yüksek temperament = kontrolü
+   zor) ama o zincir bağlandığında bu ikisinin **uzlaştırılması** gerekir.
+4. **Ölçüm tek mesafede** (1600 m / çim / güneşli / 22 °C) — pencere simetrisi
+   yedi mesafede test edilir, ama **galibiyet payı** ölçümü tek mesafededir.
+5. **`gatePosition` hâlâ okunmuyor** — §13.28'deki bulgu aynen durur.
+
+**KANIT:** `test/domain/race/temperament.spec.ts` (14 test: no-op kanıtı, pencere
+simetrisi 7 mesafede, kapalı ödünleşim, kırpma, AI tripwire) +
+`test/domain/race/entrant-snapshot.spec.ts` (pozitif okuma iddiası) +
+`tactic-effect.spec.ts` (sürüm pini `1.3.0`) + `docs/RACE_BALANCE_REPORT.md`
+(§7.2/§7.3/§7.4 ve §8 tablosu bu dilimde **düzeltildi** — eskiden "jokey bağlı
+değil" yazıyordu ve **artık yanlıştı**).
 
 ---
 

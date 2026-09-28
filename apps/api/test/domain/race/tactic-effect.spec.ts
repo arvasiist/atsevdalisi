@@ -242,7 +242,11 @@ describe('PHASE 6 — deriveTacticEffect (mekanizma)', () => {
 
   it('ruleset sürümü PHASE 6 ile YÜKSELTİLDİ — eski yarışların replay`i karışmasın', () => {
     // Bu iddia, "formül değişti ama sürüm sabit kaldı" regresyonunu yakalar.
-    expect(RACE_RULESET_VERSION).toBe('1.2.0');
+    // PHASE 6.1 taktik (`1.1.0` → `1.2.0`), PHASE 6.3 kişilik
+    // (`1.2.0` → `1.3.0`) — her ikisi de bir KURAL MODÜLÜNÜN iç formülünü
+    // değiştirdi, segment döngüsünün YAPISINI değil (bkz. `race-engine.ts`
+    // üstündeki sürümleme kuralı).
+    expect(RACE_RULESET_VERSION).toBe('1.3.0');
   });
 });
 

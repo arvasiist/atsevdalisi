@@ -1,5 +1,5 @@
 {
-  "version": "1.1.0",
+  "version": "1.2.0",
   "baseAbilityWeights": {
     "speed": 0.25,
     "stamina": 0.20,
@@ -54,6 +54,13 @@
       "normal": { "bonusMultiplier": 1, "windowMultiplier": 1, "staminaConsumptionMultiplier": 1 },
       "late_sprint": { "bonusMultiplier": 1.6, "windowMultiplier": 0.6, "staminaConsumptionMultiplier": 0.96 }
     }
+  },
+  "temperament": {
+    "neutral": 50,
+    "windowFraction": 0.25,
+    "startBonusMax": 4,
+    "latePenaltyMax": 4,
+    "energyCostMax": 0.06
   },
   "jockeyDecision": {
     "staminaLowThreshold": 15,

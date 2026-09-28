@@ -88,9 +88,18 @@ export const NEUTRAL_UNMODELED_TRAIT_SCORE = 50;
  * **BOŞ LİSTE BİR HEDEFTİR, SİLİNMESİ DEĞİL.** `entrant-snapshot.spec.ts`
  * bu listenin ÜZERİNDE döner ve "listeye yazılı her alan GERÇEKTEN nötr
  * değer döner" diye iddia eder. Sabit burada kaldığı sürece, ileride
- * nötr bırakılan YENİ bir alan (ör. kişilik, PHASE 6.3) buraya eklenip
- * aynı testle kilitlenir. Sabiti silmek, "hangi alan sahte" sorusunu
- * cevaplayan TEK programatik kaynağı yok ederdi.
+ * nötr bırakılan YENİ bir alan buraya eklenip aynı testle kilitlenir.
+ * Sabiti silmek, "hangi alan sahte" sorusunu cevaplayan TEK programatik
+ * kaynağı yok ederdi.
+ *
+ * **PHASE 6.3 (kişilik/temperament, 29.09.2026) — liste BOŞ KALDI, ve bu
+ * bilinçlidir.** Bu satır eskiden "ileride nötr bırakılacak bir alan (ör.
+ * kişilik, PHASE 6.3)" diyordu; kişilik dilimi geldiğinde seçilen yol NÖTR
+ * BIRAKMAK değil, GERÇEKTEN BAĞLAMAK oldu: `horse_stats.temperament` zaten
+ * veritabanında vardır ve `buildHorseEntrantSnapshot` onu doğrudan okur
+ * (bkz. aşağıdaki satır). Yani bu alan bir gün "sahte" olsaydı buraya
+ * yazılacaktı; sahte olmadığı için buraya YAZILMAZ — listenin boş kalması
+ * "bağlanmamış alan yok" iddiasının ta kendisidir.
  */
 export const UNMODELED_SNAPSHOT_FIELDS: ReadonlyArray<keyof RaceEntrantSnapshot> = [];
 
@@ -278,5 +287,13 @@ export function buildHorseEntrantSnapshot(
     // Ekipman (bu turda EKLENDİ) — bkz. bu fonksiyonun ustundeki doc yorumu
     // ve `packages/shared-types/src/race.ts` `equipmentModifier` doc yorumu.
     equipmentModifier: computeEquipmentPerformanceModifier(equippedItems),
+    // PHASE 6.3 — kişilik/mizaç. YENİ bir parametre GEREKMEZ: `stats`
+    // (`HorseStats`) zaten bu fonksiyonun imzasındadır ve `temperament`
+    // onun ZORUNLU bir alanıdır (migration 0003, `NOT NULL DEFAULT 50`) —
+    // yani burada nötr bir yedek YOKTUR, gerçek sütun okunur. Başlangıç
+    // atları 50 (DB varsayılanı) aldığı için bu satır MEVCUT yarışların
+    // sonucunu değiştirmez; fark ÜREME (`INHERITED_STAT_COLUMNS`) ve pazar
+    // çeşitliliğinden doğar.
+    temperament: stats.temperament,
   };
 }

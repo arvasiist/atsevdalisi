@@ -214,6 +214,31 @@ export interface RaceEntrantSnapshot {
    * engine.ts`'in `combineConditionModifiers([...])` dizisine eklenir.
    */
   equipmentModifier?: number;
+  /**
+   * Kişilik / mizaç (brief §42 PHASE 6.3). Kaynağı `horse_stats.temperament`
+   * (migration 0003, `NUMERIC(5,2) NOT NULL DEFAULT 50 CHECK BETWEEN 0 AND
+   * 100`) — yani `weightCompatibility` gibi GERÇEK bir sütundur, uydurma bir
+   * alan değildir; üreme (`INHERITED_STAT_COLUMNS`) ile yavruya geçer.
+   *
+   * BİLEREK OPSİYONEL — `equipmentModifier` ile AYNI gerekçe: bu tipi
+   * doğrudan literal olarak inşa eden çok sayıda test fixture'ı vardır ve
+   * HİÇBİRİNİN değişmesi gerekmesin diye `undefined` = nötr 50 kabul edilir
+   * (tüketim noktası `race-engine.ts` → `deriveTemperamentEffect`; `undefined`
+   * TAM OLARAK `50` ile aynı davranışı üretir, yani mevcut fixture'lar için
+   * motor BİT BİT aynı sonucu verir — bu, `docs/RACE_BALANCE_REPORT.md`'deki
+   * ölçümlerin ve `race-balance.spec.ts` eşiklerinin geçerliliğini korur).
+   *
+   * **YÖN — "sıcak at hızlı kalkar, çabuk yorulur" (bkz. `domain/race/
+   * temperament.ts` doc yorumu):** 50'nin ÜSTÜ erken pencerede puan kazanır
+   * ama final düzlükte AYNI MİKTARI geri verir ve erken segmentlerde stamina
+   * daha hızlı tüketir; 50'nin ALTI bunun tam tersidir. Gizli bonus değildir:
+   * bütün sayılar `config/race.config.json` → `temperament` bloğundadır.
+   *
+   * ⚠️ **BOTLAR HER ZAMAN 50 ALIR** (`bot-generator.ts`) — brief §42 PHASE 6'nın
+   * "AI'ye gizli performans bonusu verme" yasağı gereği. `temperament.spec.ts`
+   * bunu `generateBotEntrants`'ı yeniden üretip iddia ederek kilitler.
+   */
+  temperament?: number;
 }
 
 /**

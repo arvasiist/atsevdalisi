@@ -7,14 +7,14 @@
 
 | | |
 | --- | --- |
-| Ölçüm zamanı | 2026-09-28T21:44:12.761Z |
+| Ölçüm zamanı | 2026-09-28T22:47:26.059Z |
 | Saha boyutları | 8 / 10 / 12 / 14 / 16 (`config/race-lobby.config.json` → `fieldSizes`) |
 | Saha boyutu başına koşum | **10.000** (her biri beş ayrı koşumda) |
 | Toplam simülasyon | **265.125** |
 | Kanonik yarış | 1600 m, çim, güneşli, 22 °C |
 | `RACE_ENGINE_VERSION` | `1.0.0` |
-| `RACE_RULESET_VERSION` | `1.2.0` |
-| `race.config.json` parmak izi | `3dd447a8a8dd` (sha256, ilk 12 hane) |
+| `RACE_RULESET_VERSION` | `1.3.0` |
+| `race.config.json` parmak izi | `7e569597af38` (sha256, ilk 12 hane) |
 
 Üretmek için (`apps/api` dizininden):
 
@@ -265,28 +265,43 @@ sonuca hiç girmemesi demek olurdu.
    kapı pozisyonunu bir faktör olarak sayar; bugün `race_entries.gate_position` yalnızca
    saklanan ve istemciye yansıtılan bir **etikettir**. Bu bir denge bulgusu değil, bir
    **bağlanmamış özelliktir**.
-2. **Jokey ölçülmedi** — `RaceEntrantSnapshot.jockeySkillComposite` her zaman nötr `50`
-   (`NEUTRAL_UNMODELED_TRAIT_SCORE`). `race_entries.jockey_id`'yi yazan hiçbir kod yoktur.
-   Ölçümde bu alan bilinçli olarak nötr bırakıldı: uydurma bir jokey değeri, üretimde
-   olmayan bir sinyalle dengeyi şişirirdi. **PHASE 6'nın konusudur.**
-3. **`startApproach` / `finalStretchPlan` ölçülmedi** — `RaceEntrantSnapshot.tactic` bu iki
-   alanı taşır ve `assertValidRaceTactic` onları doğrular, ama `simulateRace` yalnızca
-   `racingStyle` ve `riskLevel` okur. Yani bu iki alan bugün **doğrulanan ama kullanılmayan**
-   alanlardır. **PHASE 6'nın konusudur.**
-4. **Tek mesafe/saha koşulu** — kanonik yarış 1600 m / çim / güneşli / 22 °C'dir. Diğer
+2. **Jokey ve kişilik BU RAPORDA ölçülmedi — ama artık BAĞLIDIR** (PHASE 6.2/6.3,
+   29.09.2026). Bu madde eskiden "jokey motora bağlı değil" diyordu; **o cümle artık
+   yanlıştı ve düzeltildi.** Bugünkü durum: `RaceEntrantSnapshot.jockeySkillComposite`
+   gerçek bir motora girdisidir, `race_entries.jockey_id` kilit anında YAZILIR ve
+   `temperament` (mizaç) `horse_stats`ten snapshot'a taşınıp Geçiş C'ye girer.
+   **Bu raporda ölçülmemelerinin sebebi bağlantısızlık değil, KONTROLDÜR:**
+   `race-balance-harness.ts` yetenek merdivenini ve stil paylarını ölçerken jokeyi ve
+   mizacı saha İÇİNDE sabit tutar (nötr), yoksa ölçülen şey yetenek değil jokey olurdu.
+   İkisinin **etkisi kendi spec'lerinde** ölçülür: `jockey-decisions.spec.ts` ve
+   `temperament.spec.ts` (ikisi de CI'da kilitli).
+3. **`startApproach` / `finalStretchPlan` artık ÖLÇÜLÜR durumda** (PHASE 6.1, 29.09.2026).
+   Bu madde eskiden "doğrulanan ama kullanılmayan alanlar" diyordu; `simulateRace` artık
+   ikisini de okur. Bu raporda ayrıca tablolaştırılmadılar çünkü etkileri
+   `tactic-effect.spec.ts`te ve §3'ün stil tablosunda zaten görünür — **bu raporun
+   kapsamı denge taramasıdır, özellik-bazlı etki ölçümü değil.**
+4. **Kişilik (temperament) etkisi BİLEREK KAPALI ÖDÜNLEŞİMDİR** (PHASE 6.3).
+   "Sıcak at hızlı kalkar, çabuk yorulur" kuralı erken ve final penceresinde **simetrik**
+   puan uygular; ölçüm bunu doğruladı (1v1, nötr rakibe karşı, 5.000 koşum):
+   `0 → 0.4764`, `25 → 0.5022`, `50 → 0.4956`, `75 → 0.5088`, `100 → 0.4814`.
+   Yani kişilik **yarış içi konumu ve stamina profilini** değiştirir, ama nötr bir
+   rakibe karşı **galibiyet payını sistematik olarak kaydırmaz** — gizli bonus yoktur.
+   ⚠️ Bu satırlar bir EŞİK değildir; kilitlenen şey `temperament.spec.ts`teki
+   "hiçbir uç nötr atı ezmez" değişmezidir.
+5. **Tek mesafe/saha koşulu** — kanonik yarış 1600 m / çim / güneşli / 22 °C'dir. Diğer
    zemin ve hava koşulları (`weather.config.json`) §6'daki mesafe probu DIŞINDA ölçülmedi;
    çoklu-zemin denge taraması bu dilimin kapsamı dışındadır.
-5. **Gerçek oyuncu atı verisiyle ölçüm yok** — sahalar sentetik merdivenler, sentetik özdeş
+6. **Gerçek oyuncu atı verisiyle ölçüm yok** — sahalar sentetik merdivenler, sentetik özdeş
    alan ve üretim botlarıdır. Gerçek `horses` satırlarıyla koşan bir denge taraması ancak
    gerçek oyuncu popülasyonu oluştuğunda anlamlı olur.
-6. **Sürpriz payı ölçüldü ama DEĞİŞTİRİLMEDİ — bu raporun EN ÖNEMLİ AÇIK UCU** (§2c + §4a).
+7. **Sürpriz payı ölçüldü ama DEĞİŞTİRİLMEDİ — bu raporun EN ÖNEMLİ AÇIK UCU** (§2c + §4a).
    Ölçüm üretimde de doğruladı: favori payı `1/N`'in katları mertebesinde, en kötü lobide
    `1.00`'a yaklaşıyor, tek bot galibiyetlerin çoğunu alıyor ve hiç kazanmayan botlar var
    (§4 tablosu). Düzeltmesi
    (`randomFactorRange`, segment sayısı ya da taban puan ölçeği) `race.config.json` değişikliği
    gerektirir ve dondurulmuş snapshot replay'lerini etkiler. Bu dilim ölçüm dilimiydi;
    **karar verilmedi** ve `race-balance.spec.ts` bu değeri “iyi” diye kilitlemez.
-7. **`in_progress` hâlâ ölü** (CLAUDE.md) — ölçüm bunu etkilemez ama yarış akışının gerçek
+8. **`in_progress` hâlâ ölü** (CLAUDE.md) — ölçüm bunu etkilemez ama yarış akışının gerçek
    zamanlı bir aşaması olmadığını hatırlatır: buradaki tüm sayılar **tek seferde koşan**
    simülasyonun sonucudur, canlı bir yarışın değil.
 
@@ -305,5 +320,7 @@ sonuca hiç girmemesi demek olurdu.
 | Düzeltildi mi? | **Hayır, bilerek.** `race.config.json` değişikliği dondurulmuş snapshot replay'ini bozar; karar proje sahibinindir |
 | AI'ye gizli bonus var mı? | Hayır — botlar `generateBotEntrants` ile üretilir, ayrı bir bonus yolu yoktur (§4) |
 | Kapı pozisyonu etkiliyor mu? | **Hayır — motora hiç girmiyor (§7.1, bağlanmamış özellik)** |
-| Jokey etkiliyor mu? | **Hayır — nötr 50, hiç bağlanmamış (§7.2, PHASE 6)** |
+| Jokey etkiliyor mu? | **Evet — `jockeySkillComposite` motora giren gerçek bir girdidir ve `race_entries.jockey_id` kilit anında yazılır** (PHASE 6.2, §7.2). Etkisi `jockey-decisions.spec.ts`te ölçülür; **bu raporda** saha içinde sabit tutulur |
+| Kişilik (temperament) etkiliyor mu? | **Evet, ama KAPALI ödünleşimle** — erken kalkış ve final düzlüğü simetrik puan uygular, nötr rakibe karşı galibiyet payı kaymaz (PHASE 6.3, §7.4). Etkisi `temperament.spec.ts`te ölçülür |
+| `startApproach` / `finalStretchPlan` etkiliyor mu? | **Evet — `simulateRace` ikisini de okur** (PHASE 6.1, §7.3). Etkisi `tactic-effect.spec.ts`te ölçülür |
 

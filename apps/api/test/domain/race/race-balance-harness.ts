@@ -187,10 +187,15 @@ function baseInput(entries: RaceEntrantSnapshot[], simulationSeed: string, dista
 /**
  * En güçlü attan en zayıfa DÜZ merdiven; hepsi `mid_pack`.
  *
- * `jockeySkillComposite` nötr (50) bırakılır: jokey sistemi henüz motora
- * bağlı DEĞİLDİR (`race_entries.jockey_id`'yi yazan kod yoktur) — buraya
- * uydurma bir jokey değeri koymak, ölçülen dengeyi üretimde var olmayan bir
- * sinyalle şişirirdi. Bu alanın bağlanması PHASE 6'nın konusudur.
+ * `jockeySkillComposite` nötr (50) bırakılır — ama gerekçe DEĞİŞTİ
+ * (PHASE 6.2, 29.09.2026). Eskiden "jokey motora bağlı değil" deniyordu;
+ * o cümle ARTIK YANLIŞ: `jockeySkillComposite` gerçek bir girdidir
+ * (`race-engine.ts` Geçiş C). Burada nötr bırakılmasının sebebi artık
+ * **kontroldür**: bu saha YETENEK merdivenini ölçer, jokey etkisini
+ * değil. Jokeyin etkisi kendi spec'inde (`jockey-decisions.spec.ts`)
+ * ölçülür. Aynı sebeple `temperament` burada **hiç verilmez**
+ * (`undefined` = tam nötr, `temperament.ts` bunu garanti eder) — yani
+ * bu saha kişiliği de sabit tutar.
  */
 export function buildAbilityLadderField(
   fieldSize: number,

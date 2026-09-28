@@ -52,6 +52,13 @@ export function generateBotEntrants(count: number, seedBase: string): RaceEntran
       // distanceCompatibility ile AYNI desen).
       weightCompatibility: NEUTRAL_UNMODELED_TRAIT_SCORE,
       form: NEUTRAL_UNMODELED_TRAIT_SCORE,
+      // PHASE 6.3 — kişilik/mizaç. Botların `horses`/`horse_stats` satırı
+      // YOKTUR, yani gerçek bir `temperament` değerleri de yoktur. Nötr 50
+      // dışında bir değer vermek, oyuncunun göremediği bir AI performans
+      // bonusu olurdu — brief §42 PHASE 6'nın açık yasağı ("AI'ye gizli
+      // performans bonusu verme"). `surfaceCompatibility`/`distanceCompatibility`/
+      // `jockeySkillComposite`/`weightCompatibility`/`form` ile AYNI kural.
+      temperament: NEUTRAL_UNMODELED_TRAIT_SCORE,
       tactic: {
         racingStyle: RACING_STYLES[styleIndex] ?? 'mid_pack',
         riskLevel: 'normal',
