@@ -403,6 +403,43 @@ export const ErrorCode = {
    * alır, yani kimlik varlığı sızdırılmaz).
    */
   NotificationNotFound: 'NOTIFICATION_NOT_FOUND',
+  /**
+   * Yönetim (admin) uçları (brief §34, §42 PHASE 15-B) — aşağıdaki üç kod
+   * `domain/admin/errors.ts`'in ürettikleridir.
+   */
+  /**
+   * Bu uç nokta yalnızca yöneticiler içindir (403) —
+   * `domain/admin/errors.ts` → `AdminRequiredError`.
+   *
+   * **`Forbidden`'DAN AYRI BİR KOD:** `FORBIDDEN` "bu kaynak SENİN değil"
+   * demektir (`assertSelf`/IDOR kapıları); burada ise oyuncunun kendi
+   * kaynağıyla hiç ilgisi yoktur — eksik olan şey ROLDÜR. İstemci
+   * `FORBIDDEN` görünce "başka bir hesaba geçmeliyim", bu kodu görünce
+   * "bu ekran bana hiç görünmemeli" sonucunu çıkarır; ikisini tek kodda
+   * birleştirmek yönetim ekranını yanlışlıkla açık bırakırdı.
+   *
+   * **ROL VERİTABANINDAN OKUNUR, TOKEN'DAN DEĞİL.** `players.is_admin`
+   * her istekte tazelenir; yetkisi alınan bir yönetici, elindeki eski
+   * token'la erişmeye devam EDEMEZ (rol token'a gömülseydi, iptal ancak
+   * token süresi dolunca etki ederdi).
+   */
+  AdminRequired: 'ADMIN_REQUIRED',
+  /**
+   * Şikâyet kaydı bulunamadı (404) — `AdminRequiredError`'DAN SONRA
+   * kontrol edilir: yönetici olmayan bir çağırana şikâyetin VAR OLUP
+   * OLMADIĞI bilgisi verilmez.
+   */
+  ReportNotFound: 'REPORT_NOT_FOUND',
+  /**
+   * Şikâyet durumu geçersiz (400): metin değil, bilinen dört değerden
+   * biri değil, ya da mevcut durumdan bu duruma GEÇİŞ yasak (örn.
+   * `resolved` → `open`).
+   *
+   * **İKİ NEDEN TEK KOD:** istemcinin ayırt etmesi gereken bir şey yok —
+   * mesaj hangi geçişin neden reddedildiğini söyler ve istemci kuyruğu
+   * zaten sunucudan okur (`InvalidRaceDefinition` ile AYNI gerekçe).
+   */
+  InvalidReportStatus: 'INVALID_REPORT_STATUS',
 } as const;
 
 export type ErrorCodeValue = (typeof ErrorCode)[keyof typeof ErrorCode];

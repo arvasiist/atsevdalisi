@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import {
+  loadAdminConfig,
   loadCareConfig,
   loadChatConfig,
   loadEconomyConfig,
@@ -101,4 +102,14 @@ export class AppConfigService {
   // seçenekleri ile mesafe/başlangıç sınırları use-case ve domain
   // katmanında hard-code EDİLMEZ (CLAUDE.md "SİHİRLİ SAYI YOK").
   readonly raceLobby = loadRaceLobbyConfig();
+  // YÖNETİM (ADMIN) — brief §34 "ADMIN PANEL", §42 PHASE 15-B (proje
+  // sahibinin "brieften kontrol edelim sırayla" talimatı, 28.09.2026) —
+  // `config/admin.config.json` bu dilimde OLUŞTURULDU.
+  //
+  // **BURADA YALNIZCA LİSTE BOYUTLARI VARDIR; YETKİ KAPISI DEĞİLDİR.**
+  // Yönetici olmak `players.is_admin` kolonundadır (migration 0041) ve her
+  // istekte VERİTABANINDAN okunur — config'e bir "adminIds" listesi koymak,
+  // yetkiyi kaynak kodla birlikte dağıtılan ve çalışma zamanında
+  // değiştirilemeyen bir dosyaya bağlardı.
+  readonly admin = loadAdminConfig();
 }

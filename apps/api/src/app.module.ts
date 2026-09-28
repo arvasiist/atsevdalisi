@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { AdminModule } from './api/admin/admin.module';
 import { AuthModule } from './api/auth/auth.module';
 import { BreedingModule } from './api/breeding/breeding.module';
 import { CareModule } from './api/care/care.module';
@@ -153,6 +154,13 @@ import { RedisModule } from './infrastructure/redis/redis.module';
     // grafiğini sıraya bakmadan çözer, bu komşuluk yalnızca okunabilirlik
     // içindir.
     NotificationModule,
+    // YÖNETİM (ADMIN) — brief §34 "ADMIN PANEL", §42 PHASE 15-B (proje
+    // sahibinin "brieften kontrol edelim sırayla" talimatı, 28.09.2026) —
+    // bkz. `api/admin/admin.module.ts` doc yorumu. `NotificationModule`'ün
+    // ardında durması yalnızca kronolojiktir (en son eklenen dilim); Nest
+    // modül grafiğini sıraya bakmadan çözer ve bu modül HİÇBİR modülü
+    // import ETMEZ (yalnızca `DatabaseModule`, o da `@Global()`).
+    AdminModule,
   ],
 })
 export class AppModule {}

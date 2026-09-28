@@ -17,6 +17,7 @@
  * etkilemeyen bir iç değişiklik olur.
  */
 import type {
+  AdminConfig,
   AudioConfig,
   CameraConfig,
   CareConfig,
@@ -61,6 +62,7 @@ import socialConfigJson from '../../../config/social.config.json';
 import giftConfigJson from '../../../config/gift.config.json';
 import chatConfigJson from '../../../config/chat.config.json';
 import raceLobbyConfigJson from '../../../config/race-lobby.config.json';
+import adminConfigJson from '../../../config/admin.config.json';
 
 export function loadRaceConfig(): RaceBalanceConfig {
   return raceConfigJson as unknown as RaceBalanceConfig;
@@ -159,6 +161,20 @@ export function loadGrandstandConfig(): GrandstandConfig {
  */
 export function loadSocialConfig(): SocialConfig {
   return socialConfigJson as unknown as SocialConfig;
+}
+
+/**
+ * Yönetim (admin) ayarları (brief §34, §42 PHASE 15-B) —
+ * `config/admin.config.json`.
+ *
+ * **`load*Config()` AİLESİNİN TAMAMI GİBİ SAF BİR CAST'TİR** — çalışma
+ * zamanı doğrulaması YOKTUR (bkz. `loadSocialConfig` doc yorumu). Yani
+ * JSON'a yazılan bir yazım hatası sessizce `undefined` olur ve
+ * `LIMIT undefined` gibi bir sorguya dönüşür. Bu yüzden değerler
+ * `admin-config.spec.ts` tarafından sabitlenir.
+ */
+export function loadAdminConfig(): AdminConfig {
+  return adminConfigJson as unknown as AdminConfig;
 }
 
 /**

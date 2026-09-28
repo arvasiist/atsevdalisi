@@ -2,6 +2,11 @@ import { ArgumentsHost, Catch, ExceptionFilter, HttpException, HttpStatus } from
 import type { Response } from 'express';
 import { ErrorCode } from '@at-sevdalisi/shared-types';
 import {
+  AdminRequiredError,
+  InvalidReportStatusError,
+  ReportNotFoundError,
+} from '../../domain/admin/errors';
+import {
   HorseInjuredError,
   HorseListedInMarketError,
   HorseNotFoundError,
@@ -343,6 +348,22 @@ const DOMAIN_ERROR_MAP = new Map<ErrorClassConstructor, { status: number; code: 
   // idempotenttir (istenen sonuç zaten geçerliyse hata yok), engel
   // KALDIRMAK ise bir silmedir ve "zaten yok" istemciye bildirilmelidir.
   [BlockNotFoundError, { status: HttpStatus.NOT_FOUND, code: ErrorCode.BlockNotFound }],
+  // YÖNETİM (ADMIN) — brief §34, §42 PHASE 15-B. Üç hata da
+  // `DOMAIN_ERROR_MAP`'e girebilir çünkü kodları hatanın `reason` alanına
+  // BAĞLI DEĞİLDİR: `InvalidReportStatusError` iki farklı `reason` ile
+  // fırlatılır (`UNKNOWN_STATUS` / `FORBIDDEN_TRANSITION`) ama İKİSİ de
+  // `INVALID_REPORT_STATUS` döner — ayrım yalnızca mesajdadır
+  // (`InvalidGiftAmountError`/`InvalidMessageBodyError` ile AYNI desen).
+  // Durum kodları `domain/admin/errors.ts`'te tek tek gerekçelendirilmiştir.
+  //
+  // 403 — `ForbiddenError`'dan AYRI kod, AYNI durum: eksik olan şey
+  // SAHİPLİK değil ROLdür ve istemci "yetkin yok" ile "bu senin değil"
+  // arasını ayırt edebilmelidir (bkz. `ErrorCode.AdminRequired` doc yorumu).
+  [AdminRequiredError, { status: HttpStatus.FORBIDDEN, code: ErrorCode.AdminRequired }],
+  // 404 — şikâyet yok. Bu kontrol yetki kapısından SONRA yapılır, böylece
+  // yönetici olmayan biri kuyruktaki kimlikleri yoklayamaz (IDOR).
+  [ReportNotFoundError, { status: HttpStatus.NOT_FOUND, code: ErrorCode.ReportNotFound }],
+  [InvalidReportStatusError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.InvalidReportStatus }],
   // `POST /auth/login`'e özgü — bkz. `InvalidProviderTokenError` doc yorumu.
   [InvalidProviderTokenError, { status: HttpStatus.UNAUTHORIZED, code: ErrorCode.InvalidProviderToken }],
   // claude/hizli-bitirme-plani.md'nin proje sahibi tarafından

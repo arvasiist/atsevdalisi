@@ -19,3 +19,4 @@ export * from './social';
 export * from './gift';
 export * from './chat';
 export * from './notification';
+export * from './admin';

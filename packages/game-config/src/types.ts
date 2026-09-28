@@ -1096,6 +1096,30 @@ export interface SocialConfig {
 }
 
 /**
+ * Yönetim (admin) ayarları — brief §34 "ADMIN PANEL" (§42 PHASE 15-B).
+ * `loadAdminConfig()` ile okunur.
+ *
+ * **BU AYARLAR BİR YETKİ KAPISI DEĞİLDİR.** Yönetici olup olmamak
+ * `players.is_admin` kolonundadır (migration 0041); buradaki değerler
+ * yalnızca LİSTE BOYUTUDUR. Config'i kurcalayabilen biri kendini
+ * yönetici yapamaz — bu ayrım bilinçlidir, çünkü config dosyaları
+ * kaynak kodla birlikte dağıtılır ve bir yetki kararını oraya koymak,
+ * onu bir dağıtım hatasıyla açığa çıkarılabilir hâle getirirdi.
+ */
+export interface AdminConfig {
+  /**
+   * `GET /admin/reports` yanıtındaki azami şikâyet sayısı.
+   *
+   * **BU BİR KUYRUK TAVANI DEĞİLDİR:** sınır yalnızca yanıtın boyutunu
+   * belirler, kayıtların VARLIĞINI değil — kırpılan bir şikâyet
+   * veritabanında durmaya devam eder (`blockListLimit` ile AYNI sınıf).
+   */
+  reportQueueLimit: number;
+  /** `GET /admin/audit-log` yanıtındaki azami kayıt sayısı (`reportQueueLimit` ile AYNI sınıf). */
+  auditLogLimit: number;
+}
+
+/**
  * Hediye gönderimi ayarları (proje sahibinin açık talebi, 27.09.2026 —
  * üç parçanın üçüncüsü: "tribün, arkadaşlık + mesajlaşma, hediye
  * gönderimi").

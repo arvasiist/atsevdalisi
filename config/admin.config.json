@@ -1,0 +1,4 @@
+{
+  "reportQueueLimit": 100,
+  "auditLogLimit": 200
+}
