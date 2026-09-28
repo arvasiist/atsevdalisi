@@ -1,5 +1,6 @@
 import { Body, Controller, Get, Inject, Param, ParseUUIDPipe, Post } from '@nestjs/common';
-import type { ApiSuccess, AuthSession, PlayerSummary } from '@at-sevdalisi/shared-types';
+import type { ApiSuccess, AuthSession, PlayerProfileView, PlayerSummary } from '@at-sevdalisi/shared-types';
+import { GetPlayerProfileUseCase } from '../../application/use-cases/get-player-profile.use-case';
 import { GetPlayerUseCase } from '../../application/use-cases/get-player.use-case';
 import { RegisterPlayerUseCase } from '../../application/use-cases/register-player.use-case';
 import { TOKEN_SERVICE, type TokenService } from '../../application/ports/token.service';
@@ -38,6 +39,7 @@ export class PlayerController {
   constructor(
     @Inject(RegisterPlayerUseCase) private readonly registerPlayerUseCase: RegisterPlayerUseCase,
     @Inject(GetPlayerUseCase) private readonly getPlayerUseCase: GetPlayerUseCase,
+    @Inject(GetPlayerProfileUseCase) private readonly getPlayerProfileUseCase: GetPlayerProfileUseCase,
     @Inject(TOKEN_SERVICE) private readonly tokenService: TokenService,
   ) {}
 
@@ -52,6 +54,38 @@ export class PlayerController {
     const player = await this.registerPlayerUseCase.execute(dto);
     const token = this.tokenService.sign({ sub: player.id });
     return { success: true, data: { token, player: toPlayerSummary(player) } };
+  }
+
+  /**
+   * brief §24 SOCIAL PROFILE (PHASE 14) — `/profile/:username`.
+   *
+   * **ROTA SIRASI:** bu metot `@Get(':id')`'den ÖNCE tanımlanmıştır ama bu
+   * zorunlu DEĞİLDİR: `profile/:username` İKİ, `:id` TEK segmenttir, yani
+   * Express ikisini hiçbir zaman karıştırmaz (bir isteğin segment sayısı
+   * sabittir). Yine de önce yazılması, okuyana "bu iki rota çakışmıyor"
+   * sorusunu bir bakışta cevaplar.
+   *
+   * **`@Public()`** — brief §24 profilin görüntülenebilir olmasını ister ve
+   * bu, kayıt (`POST /players`) ve tarama amaçlı `GET /horses/:id` ile AYNI
+   * gerekçedir. Gizli veri taşımadığı `PlayerProfileView` sözleşmesiyle
+   * garanti altındadır (o tipin doc yorumu).
+   *
+   * **`ParseUUIDPipe` YOK** — kullanıcı adı UUID değildir; şekil doğrulaması
+   * domain'de (`validateUsername`, bkz. `GetPlayerProfileUseCase` doc
+   * yorumu — CLAUDE.md "Kardeş tuzak").
+   *
+   * **Hız sınırı IP başınadır** (`keyBy: 'ip'`): `@Public()` olduğundan
+   * `request.player` yoktur, oyuncu başına anahtarlama mümkün değildir
+   * (bkz. `rate-limit.decorator.ts`). Sınır, kayıt ucundan (10/5dk) çok
+   * daha gevşektir çünkü bu bir OKUMA ucudur ve profil sayfası normal
+   * kullanımda art arda açılır.
+   */
+  @RateLimit({ name: 'player-profile', limit: 60, windowSeconds: 60, keyBy: 'ip' })
+  @Public()
+  @Get('profile/:username')
+  async getProfile(@Param('username') username: string): Promise<ApiSuccess<PlayerProfileView>> {
+    const profile = await this.getPlayerProfileUseCase.execute(username);
+    return { success: true, data: profile };
   }
 
   @Get(':id')

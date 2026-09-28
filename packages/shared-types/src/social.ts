@@ -97,3 +97,71 @@ export interface RespondFriendRequestResult {
   /** `accept` ise yeni arkadaş; `reject` ise isteği gönderen oyuncu. */
   player: SocialPlayerView;
 }
+
+/**
+ * brief §24 "SOCIAL PROFILE" — `/profile/:username` ekranının gördüğü
+ * GENEL (herkese açık) oyuncu profili.
+ *
+ * **`PlayerSummary`'den İKİ FARKI VARDIR, ikisi de bilinçlidir:**
+ *   1. `money`/`gems` YOKTUR. Bu bir eksiklik değil, gizlilik kuralıdır
+ *      (AUDIT_REPORT.md Bulgu S4 — bakiye yalnızca sahibine görünür;
+ *      `SocialPlayerView`'in aynı gerekçesi). Profil herkese açık olduğu
+ *      için burada unutulan bir alan doğrudan bir sızıntı olurdu; bu
+ *      yüzden `PlayerSummary`'yi `Pick`/`Omit` ile TÜRETMEK yerine alanlar
+ *      AÇIKÇA yazılır — yeni bir bakiye alanı `PlayerSummary`'ye eklenirse
+ *      bu tip onu KENDİLİĞİNDEN almaz.
+ *   2. `id` yerine `playerId` adı kullanılır — arkadaş listesi/mesaj
+ *      satırlarıyla AYNI ad (`SocialPlayerView.playerId`), böylece istemci
+ *      aynı oyuncuyu iki ekranda aynı alanla tanır.
+ *
+ * **`careerTier` NEDEN YOK:** brief §24 "Career Tier" ister, ama kademe
+ * sunucuda saklanan bir alan DEĞİLDİR — `level`'in saf sunum türevi olarak
+ * `apps/web/src/features/career/career-tier.ts`'te yaşar (o dosyanın doc
+ * yorumu bunu ayrıntılı gerekçelendirir). Sunucunun aynı eşikleri ikinci
+ * kez hesaplaması, iki kopyanın zamanla ayrışması demek olurdu.
+ */
+export interface PlayerProfileView {
+  playerId: string;
+  username: string;
+  displayName: string;
+  avatarId: string | null;
+  /** 1-50 (brief §36). Kariyer kademesi istemcide BUNDAN türetilir. */
+  level: number;
+  xp: number;
+  /** ISO tarih — profildeki "üyelik" bilgisi (`players.created_at`). */
+  memberSince: string;
+  /**
+   * **`isSelf` NEDEN YOK:** uç nokta `@Public()`'tir ve global `AuthGuard`
+   * herkese açık rotalarda token'ı HİÇ ayrıştırmaz (`auth.guard.ts` —
+   * `isPublic` görünce hemen `true` döner), yani sunucunun "isteyen kim"
+   * bilgisi burada YOKTUR. Bunu mümkün kılmak için guard'ı "herkese açık
+   * rotada da token'ı dene ama hata fırlatma" davranışına çevirmek
+   * gerekirdi; bu, kimlik doğrulamayla ilgili KÜRESEL bir guard'ı yalnızca
+   * tek bir görünüm alanı için gevşetmek olurdu. İstemci kendi oturumundaki
+   * oyuncu id'sini zaten taşır — `playerId` ile karşılaştırmak tek satırdır
+   * ve yanlış olma ihtimali yoktur.
+   */
+  stats: PlayerProfileStats;
+  /** Kabul edilmiş arkadaşlık sayısı (`friendships.status = 'accepted'`). */
+  friendCount: number;
+  /** Bu oyuncuya GÖNDERİLMİŞ hediye sayısı (`gift_sends.recipient_id`). */
+  giftCount: number;
+  /**
+   * brief §24 "Achievements" — HENÜZ YOKTUR ve bu bilinçli bir karardır:
+   * kalıcı bir başarım veri modeli + yeni migration gerektirir
+   * (`career-tier.ts`'in achievement notuyla AYNI karar). Alan ŞİMDİDEN
+   * vardır ki istemci "geldi mi gelmedi mi" diye tahmin yürütmesin; dizi
+   * DOLDUĞUNDA bu sözleşme değişmez.
+   */
+  achievements: null;
+}
+
+/** `PlayerProfileView.stats` — yalnızca KOŞMUŞ (kesinleşmiş) yarışlar sayılır. */
+export interface PlayerProfileStats {
+  /** `races.status = 'finished'` olan yarışlardaki katılım sayısı. */
+  raceCount: number;
+  /** Bunlardan birinci bitirilenler (`finish_position = 1`). */
+  winCount: number;
+  /** Bunlardan ilk üçte bitirilenler (birinciler DAHİL, `finish_position <= 3`). */
+  podiumCount: number;
+}

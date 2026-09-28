@@ -1412,6 +1412,77 @@ sınır, kontrol sırası, saflık).
 
 ---
 
+#### 13.15 SOSYAL PROFİL — `GET /players/profile/:username` (28.09.2026)
+
+**brief §24 "SOCIAL PROFILE"** — kullanıcı profili `/profile/:username`
+şeklinde görüntülenebilsin.
+
+Uç nokta: `GET /api/v1/players/profile/{username}` → 200
+`PlayerProfileView`. **TOKEN GEREKMEZ** (`@Public()`), `@RateLimit`
+60/60sn, **IP başınadır** (herkese açık rotada `request.player` yoktur,
+oyuncu başına anahtarlama mümkün değildir).
+
+**NEDEN `username`, `id` DEĞİL:** §24 adresin paylaşılabilir olmasını
+ister — "profilin şu adreste" denebilmelidir. `GET /players/:id` ZATEN
+vardır ve **yalnızca kendi profilini** döner (`assertSelf`, başkasının
+id'si → 403), çünkü `PlayerSummary` + **bakiye** döner. İki uç
+ÇELİŞMEZ: biri `PlayerSummary` (sahibine, bakiyeli), diğeri
+`PlayerProfileView` (herkese, bakiyesiz). Yeni uç `GET /players/:id`'nin
+kendi-profil kuralını **gevşetmez** — e2e bunu ayrıca sınar.
+
+**⚠️ PARA SIZINTISI BU DİLİMİN ASIL RİSKİYDİ.** Profil herkese açık
+olduğu için unutulan tek bir bakiye alanı doğrudan bir sızıntı olurdu
+(AUDIT_REPORT.md Bulgu S4). Bu yüzden `PlayerProfileView` alanları
+`PlayerSummary`'den `Pick`/`Omit` ile **türetilmez**, AÇIKÇA yazılır:
+`PlayerSummary`'ye yarın bir bakiye alanı eklenirse bu tip onu
+kendiliğinden ALMAZ. Test de alanın varlığını değil **YOKLUĞUNU** sınar
+(`not.toHaveProperty`) ve ayrıca gövdenin **tamamının** anahtar listesini
+birebir karşılaştırır — yeni bir gizli alan eklenirse test kırmızı olur.
+
+**`isSelf` BİLİNÇLİ OLARAK YOK.** Uç `@Public()`'tir ve global `AuthGuard`
+herkese açık rotalarda token'ı **hiç ayrıştırmadan** `true` döner
+(`auth.guard.ts`), yani sunucuda "isteyen kim" bilgisi YOKTUR. Bunu
+mümkün kılmak, kimlik doğrulamayla ilgili KÜRESEL bir guard'ı tek bir
+görünüm alanı için gevşetmek olurdu. İstemci kendi oyuncu id'sini zaten
+taşır; `playerId` ile karşılaştırmak tek satırdır.
+
+**`careerTier` DE YOK** — sunucuda saklanmaz, `level`'in saf sunum
+türevidir (`apps/web/src/features/career/career-tier.ts`). Aynı eşikleri
+sunucuda ikinci kez hesaplamak, iki kopyanın zamanla ayrışması demekti.
+
+**`achievements: null`** — §24'ün istediği ama **henüz var olmayan**
+alandır (kalıcı başarım modeli + migration gerektirir; `career-tier.ts`
+zaten aynı kararı yazılı tutuyor). Alanın ŞİMDİDEN var olması, istemcinin
+"geldi mi gelmedi mi" tahminini ortadan kaldırır ve dizi dolduğunda
+sözleşme DEĞİŞMEZ.
+
+**`stats` yalnızca KESİNLEŞMİŞ yarışları sayar** (`races.status =
+'finished'`) — lobide bekleyen bir yarış istatistiğe girmez.
+`podiumCount` birincileri de kapsar (`finish_position <= 3`).
+`friendCount` arkadaşlık çiftinin **iki ucunu** da sayar
+(`player_low_id`/`player_high_id`, kanonik çift); `giftCount` yalnızca
+**gelen** hediyelerdir (`gift_sends.recipient_id`).
+
+**400 ↔ 404 AYRIMI BİLİNÇLİDİR.** Şekli bozuk ad (`AB`, `Buyuk_Harf`,
+`a`, `bosluk var`) → `400 VALIDATION_ERROR`; şekli geçerli ama alınmamış
+ad → `404 PLAYER_NOT_FOUND`. "Bu ad hiçbir zaman var olamaz" ile "bu ad
+henüz alınmamış" istemci için farklı cevaplardır. Doğrulama **domain'de**
+(`validateUsername`, kayıt akışının kullandığı AYNI fonksiyon), DTO'da
+değil: CLAUDE.md "Kardeş tuzak" — esbuild altında gövde doğrulaması
+atlanır, üstelik bu bir yol parametresidir ve `ParseUUIDPipe` uygulanamaz.
+
+**Kanıt:** `player-profile.e2e-spec.ts` (6 test). Çekirdek iddialar:
+(a) istek **hiçbir yerde** `Authorization` başlığı göndermez ve 200 alır —
+`@Public()` kararının ölçümü budur; (b) `money`/`gems` yoktur ve gövdenin
+anahtar listesi birebir sabittir; (c) sayılar **gerçek** yarıştan gelir
+(`POST /races` → `join` → `settle` üretim yoluyla) ve kazanma iddiası
+**gözleme** dayanır — test "kazandı" varsaymaz, "kazandıysa 1, kaybettiyse
+0" der, çünkü sıra simülasyonun sonucudur; (d) arkadaşlık ve hediye
+sayıları gerçek uçlarla kurulur; (e) yeni uç `GET /players/:id`'yi
+gevşetmez.
+
+---
+
 ## 14. Kendime hatırlatmalar (kısa liste)
 
 1. **Race Engine'e dokunmadan önce iki kez düşün.** Denetim onu "KEEP, dokunma"

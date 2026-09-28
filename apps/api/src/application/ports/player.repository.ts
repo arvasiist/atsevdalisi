@@ -94,6 +94,46 @@ export interface PlayerRepository {
     sellerId: string,
     mutate: (buyer: Player, seller: Player) => { buyer: Player; seller: Player; result: T },
   ): Promise<T | null>;
+
+  /**
+   * brief §24 SOCIAL PROFILE (PHASE 14) — `GET /players/profile/:username`
+   * için TEK okumada profil aggregate'i.
+   *
+   * **NEDEN AYRI BİR METOD, `findByUsername` + üç ayrı COUNT DEĞİL:**
+   * profil dört tabloyu (players/race_entries/friendships/gift_sends)
+   * birleştirir; bunları use-case içinde ayrı çağrılarla toplamak, aynı
+   * profil için 5 gidiş-dönüş ve TUTARSIZ bir an (biri diğerinden sonra
+   * yazılmış olabilir) üretirdi. Tek sorgu tek bir tutarlı an okur.
+   *
+   * `money`/`gems` BİLİNÇLİ olarak SEÇİLMEZ (bkz. `PlayerProfileView` doc
+   * yorumu — AUDIT_REPORT.md Bulgu S4): veritabanından hiç okunmayan bir
+   * alan yanlışlıkla istemciye sızamaz.
+   *
+   * Bulunamazsa `null` döner; çağıran `PlayerNotFoundError` fırlatır
+   * (`findById` ile AYNI sözleşme).
+   */
+  findProfileByUsername(username: string): Promise<PlayerProfileRecord | null>;
+}
+
+/**
+ * `findProfileByUsername`'in döndürdüğü ham satır — PORT katmanındadır,
+ * `PlayerProfileView` (paylaşılan tip) DEĞİLDİR: `memberSince` burada ISO
+ * metindir, çünkü repository'nin işi satırı olduğu gibi taşımaktır; alan
+ * adlarının API sözleşmesine eşlenmesi use-case'in işidir.
+ */
+export interface PlayerProfileRecord {
+  id: string;
+  username: string;
+  displayName: string;
+  avatarId: string | null;
+  level: number;
+  xp: number;
+  memberSince: string;
+  raceCount: number;
+  winCount: number;
+  podiumCount: number;
+  friendCount: number;
+  giftCount: number;
 }
 
 /** NestJS DI için token (interface'ler runtime'da yok olduğundan bir Symbol gerekir). */

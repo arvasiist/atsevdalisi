@@ -147,6 +147,12 @@ YANILTICI olduğunu gösterdi.** Bu bölüm iki kez bayatladı; aşağısı
   `POST .../race-invites`, `.../respond`) ve üç olay
   (`notification.created`, `race.invite`, `race.invite.responded`) —
   **hiçbirinin istemci tüketicisi yok.** Asset gerekmez.
+- **Sosyal profil arayüzü (brief §24, §42 PHASE 14) — YAPILABİLİR.** Backend
+  hazır (§13.15): `GET /players/profile/:username` **token'sız** çalışır ve
+  `money`/`gems` taşımaz. Eksik olan yalnızca `/profile/:username`
+  sayfasının kendisidir; kariyer kademesi istemcide `level`'den türetilir
+  (`features/career/career-tier.ts`), `achievements` bilinçli olarak `null`
+  gelir. Asset gerekmez.
 - **PHASE 13 (bildirim üreticileri) — YEDİ/SEKİZ YAPILDI (§13.13/§13.14).**
   Sekiz türden YEDİSİ üretiliyor: `race_invite` (§13.11) + `friend_request`,
   `friend_accepted`, `message_received` (§13.13) + `gift_received`
@@ -175,8 +181,16 @@ ağacı okuma + yazma (§13.2/§13.4)** · **yarış sohbeti + izleyici sayısı
 **ödül havuzu + çarpan (§13.10, PHASE 5)** · **bildirimler + yarış daveti
 (§13.11, PHASE 11)** · **arkadaşlık/mesaj/hediye bildirim üreticileri
 (§13.13 + §13.13.1, PHASE 13 — yalnızca bu dördü)** · **ÖDÜL DAĞITIMI —
-`POST /races/:id/settle` (§13.14, PHASE 13.14)** — backend; hiçbirinin
+`POST /races/:id/settle` (§13.14, PHASE 13.14)** · **SOSYAL PROFİL —
+`GET /players/profile/:username` (§13.15, PHASE 14)** — backend; hiçbirinin
 istemci tüketicisi YOK. Ayrıntı: `PROJE_DURUMU.md` §13.
+
+**⚠️ PROFİL UCU PARA SIZDIRMAZ — BUNU BOZMA.** `GET /players/profile/:username`
+`@Public()`'tir, yani yanıtına giren her alan HERKESE açıktır.
+`PlayerProfileView` bu yüzden `PlayerSummary`'den `Pick`/`Omit` ile
+TÜRETİLMEZ, alanları açıkça yazar (`money`/`gems` yoktur — AUDIT Bulgu S4).
+`PlayerSummary`'ye bakiye türevi bir alan eklenirse profil onu
+kendiliğinden ALMAZ; almamalıdır da.
 
 **⚠️ YENİ BİR BİLDİRİM ÜRETİCİSİ EKLERKEN:** bildirim SAYAN mevcut e2e
 testlerini KIRARSIN (yaşandı: `race-invite.e2e-spec.ts`, §13.13). O dosya

@@ -1,7 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import type { Pool } from 'pg';
 import type { Player } from '@at-sevdalisi/shared-types';
-import type { PlayerRepository } from '../../application/ports/player.repository';
+import type { PlayerProfileRecord, PlayerRepository } from '../../application/ports/player.repository';
 import type { EconomyLedgerEntryInput } from '../../application/ports/economy-ledger';
 import { PG_POOL, withTransaction } from '../database/database.module';
 // `PlayerRow`/`rowToPlayer`/`writePlayerRow`/`writeLedgerEntries` bu turda
@@ -25,6 +25,96 @@ export class PostgresPlayerRepository implements PlayerRepository {
       username,
     ]);
     return result.rows[0] ? rowToPlayer(result.rows[0]) : null;
+  }
+
+  /**
+   * brief §24 SOCIAL PROFILE (PHASE 14). Sözleşme portta (`PlayerRepository.
+   * findProfileByUsername`) açıklanmıştır; burada yalnızca SQL'in kendisine
+   * dair üç not vardır:
+   *
+   * 1. **`money`/`gems` SEÇİLMEZ.** Gizlilik kararı (AUDIT_REPORT.md Bulgu
+   *    S4) burada uygulanır: okunmayan alan sızamaz.
+   * 2. **Yarış sayıları `races.status = 'finished'` süzgecinden geçer.**
+   *    Süzgeç olmadan, henüz KOŞMAMIŞ bir yarışa katılmış olmak "yarış
+   *    koştu" gibi sayılırdı — ve `finish_position` o an `NULL` olduğundan
+   *    zafer sayısı sessizce 0 kalırdı (yanlış veri, hata değil: en sinsi
+   *    tür).
+   * 3. **`friend_count` kanonik çiftin İKİ ucunu da sayar**
+   *    (`player_low_id`/`player_high_id`, migration 0033): arkadaşlık yönü
+   *    `requested_by_id`'de tutulur, kimin kime istek attığı "arkadaş
+   *    sayısı"nı DEĞİŞTİRMEZ.
+   *
+   * Beş alt sorgu TEK gidiş-dönüşte koşar; `players` satırı zaten
+   * `username` UNIQUE indeksiyle tek satırdır, alt sorgular da o tek
+   * `p.id`'ye bağlanır.
+   */
+  async findProfileByUsername(username: string): Promise<PlayerProfileRecord | null> {
+    const result = await this.pool.query<{
+      id: string;
+      username: string;
+      display_name: string;
+      avatar_id: string | null;
+      level: number;
+      xp: string;
+      created_at: Date;
+      race_count: string;
+      win_count: string;
+      podium_count: string;
+      friend_count: string;
+      gift_count: string;
+    }>(
+      `SELECT
+         p.id,
+         p.username,
+         p.display_name,
+         p.avatar_id,
+         p.level,
+         p.xp,
+         p.created_at,
+         (SELECT COUNT(*) FROM race_entries e
+            JOIN races r ON r.id = e.race_id
+           WHERE e.player_id = p.id AND r.status = 'finished') AS race_count,
+         (SELECT COUNT(*) FROM race_entries e
+            JOIN races r ON r.id = e.race_id
+           WHERE e.player_id = p.id AND r.status = 'finished'
+             AND e.finish_position = 1) AS win_count,
+         (SELECT COUNT(*) FROM race_entries e
+            JOIN races r ON r.id = e.race_id
+           WHERE e.player_id = p.id AND r.status = 'finished'
+             AND e.finish_position <= 3) AS podium_count,
+         (SELECT COUNT(*) FROM friendships f
+           WHERE f.status = 'accepted'
+             AND (f.player_low_id = p.id OR f.player_high_id = p.id)) AS friend_count,
+         (SELECT COUNT(*) FROM gift_sends g WHERE g.recipient_id = p.id) AS gift_count
+       FROM players p
+       WHERE p.username = $1
+       LIMIT 1`,
+      [username],
+    );
+
+    const row = result.rows[0];
+    if (!row) {
+      return null;
+    }
+
+    return {
+      id: row.id,
+      username: row.username,
+      displayName: row.display_name,
+      avatarId: row.avatar_id,
+      level: row.level,
+      xp: Number(row.xp),
+      memberSince: row.created_at.toISOString(),
+      // `COUNT(*)` Postgres'te BIGINT'tir ve `pg` onu METİN olarak döndürür
+      // (`BIGINT` > JS `number` güvenli aralığı olabilir). Sınırların
+      // farkında olarak sayıya çevrilir — `moneyOf`/`prizePoolOf` ile AYNI
+      // desen.
+      raceCount: Number(row.race_count),
+      winCount: Number(row.win_count),
+      podiumCount: Number(row.podium_count),
+      friendCount: Number(row.friend_count),
+      giftCount: Number(row.gift_count),
+    };
   }
 
   async save(player: Player): Promise<void> {

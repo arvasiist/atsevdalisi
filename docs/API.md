@@ -208,6 +208,59 @@ streak bonusu ve brief §54'ün tam `Idempotency-Key` + Redis "aynı yanıtı
 tekrar döndürme" altyapısı bu dilimin KAPSAMI DIŞINDADIR (bu eylem kendi
 cooldown kontrolüyle çifte ödüle karşı zaten finansal olarak korumalıdır).
 
+### Sosyal Profil (brief §24, §42 PHASE 14)
+
+```http
+GET /api/v1/players/profile/{username}
+```
+
+**TOKEN GEREKMEZ** (`@Public()`) — brief §24 profilin
+`/profile/:username` yolundan görüntülenebilmesini ister ve bu, adresin
+paylaşılabilir olması demektir. Uç nokta `GET /players/{id}`'yi
+GEVŞETMEZ: o uç hâlâ yalnızca kendi profilini isteyen oyuncuya 200 döner
+(başkasının id'si → `403`), çünkü `PlayerSummary` + bakiye döner. Burada
+ise **`money`/`gems` YOKTUR** (AUDIT_REPORT.md Bulgu S4 — bakiye yalnızca
+sahibine görünür). İki sözleşme çelişmez, farklı okuma yollarıdır.
+
+Örnek yanıt:
+
+```json
+{
+  "success": true,
+  "data": {
+    "playerId": "0f0b0f4e-6a2f-4d4a-9c2e-2c1a5f0a9d10",
+    "username": "ahmet_61",
+    "displayName": "Ahmet",
+    "avatarId": null,
+    "level": 1,
+    "xp": 0,
+    "memberSince": "2026-09-28T09:12:44.318Z",
+    "stats": { "raceCount": 1, "winCount": 1, "podiumCount": 1 },
+    "friendCount": 1,
+    "giftCount": 1,
+    "achievements": null
+  }
+}
+```
+
+`stats` YALNIZCA **kesinleşmiş** (`races.status = 'finished'`) yarışları
+sayar — lobide bekleyen bir yarış istatistiğe girmez. `podiumCount`
+birincileri de kapsar (`finish_position <= 3`). `achievements` brief
+§24'ün istediği ama henüz VAR OLMAYAN alandır (kalıcı bir başarım veri
+modeli + migration gerektirir); sabit `null` dönmesi "unutulmuş alan" ile
+"henüz gelmemiş alan"ı ayırır ve dizi dolduğunda bu sözleşme değişmez.
+`careerTier` de yanıtta YOKTUR çünkü sunucuda saklanmaz — `level`'in saf
+sunum türevi olarak istemcide türetilir
+(`apps/web/src/features/career/career-tier.ts`).
+
+Olası hatalar: ad **hiçbir zaman geçerli olamayacak** şekildeyse `400
+VALIDATION_ERROR` (3-20 karakter, `[a-z0-9_]`), ad geçerli ama
+alınmamışsa `404 PLAYER_NOT_FOUND`. Bu ayrım bilinçlidir: istemcinin
+"yazımı düzelt" ile "böyle biri yok" cevaplarını ayırması gerekir.
+
+Hız sınırı **IP başınadır** (dakikada 60) — `@Public()` olduğundan
+`request.player` yoktur, oyuncu başına anahtarlama mümkün değildir.
+
 ## 4. Horses (Ahır)
 
 ```http

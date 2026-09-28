@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { HorseModule } from '../horse/horse.module';
 import { PLAYER_REPOSITORY } from '../../application/ports/player.repository';
+import { GetPlayerProfileUseCase } from '../../application/use-cases/get-player-profile.use-case';
 import { GetPlayerUseCase } from '../../application/use-cases/get-player.use-case';
 import { RegisterPlayerUseCase } from '../../application/use-cases/register-player.use-case';
 import { PostgresPlayerRepository } from '../../infrastructure/player/postgres-player.repository';
@@ -26,6 +27,7 @@ import { PlayerController } from './player.controller';
   providers: [
     RegisterPlayerUseCase,
     GetPlayerUseCase,
+    GetPlayerProfileUseCase,
     { provide: PLAYER_REPOSITORY, useClass: PostgresPlayerRepository },
   ],
   exports: [PLAYER_REPOSITORY],
