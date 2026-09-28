@@ -2506,7 +2506,15 @@ gerçek katılımcı olarak havuzun çoğunu geri alabilirdi.
 
 **Bilinen açık pencere:** at snapshot'ı `startTime`'da değil, kesinleşme
 anında alınır — oyuncu aradaki sürede atını çalıştırabilir. Kapatmak
-`startTime`'da tetiklenen bir zamanlayıcı gerektirir.
+`startTime`'da tetiklenen bir zamanlayıcı gerektirir. ⚠️ **Bu pencere
+PHASE 1 (migration 0042) ile KAPANDI** — `RaceLockScheduler` `startTime`da
+kilitler ve `horse_snapshot`ı dondurur; ayrıntı: `PROJE_DURUMU.md` §13.24.
+
+**`places` ayrıştırılabilir bir sonuçtur (PHASE 2, §13.25):** her satır
+`participantType` (`'human'` | `'ai'`), `jockeyId` (bugün her zaman
+`null` — jokey sistemi bağlı değil), `startingStats` (dondurulmuş
+snapshot'tan okunan 8 sayı) ve `finalTimeMs` taşır. ⚠️ Eski `isBot`
+alanı **KALDIRILDI**; yerine `participantType` geldi.
 
 ```json
 {
@@ -2516,13 +2524,25 @@ anında alınır — oyuncu aradaki sürede atını çalıştırabilir. Kapatmak
     "settledAt": "2026-09-28T19:12:03.000Z",
     "places": [
       { "finishPosition": 1, "horseId": "...", "playerId": "...",
-        "displayName": "Ömer", "isBot": false, "prizeAmount": 300 },
+        "displayName": "Ömer", "participantType": "human", "jockeyId": null,
+        "startingStats": { "speed": 61, "stamina": 55, "acceleration": 58,
+          "fitness": 70, "form": 50, "morale": 62, "fatigue": 8, "health": 100 },
+        "finalTimeMs": 96340, "prizeAmount": 300 },
       { "finishPosition": 2, "horseId": "bot-1", "playerId": null,
-        "displayName": null, "isBot": true, "prizeAmount": 0 }
+        "displayName": null, "participantType": "ai", "jockeyId": null,
+        "startingStats": { "speed": 66, "stamina": 51, "acceleration": 63,
+          "fitness": 72, "form": 50, "morale": 60, "fatigue": 0, "health": 100 },
+        "finalTimeMs": 96402, "prizeAmount": 0 }
     ]
   }
 }
 ```
+
+**Saha `fieldSize`a tamamlanır ama YALNIZCA `aiFillEnabled` ise**
+(`config/race-lobby.config.json`); kapalıysa yarış **daha az atla** koşar
+ve boş koltuklar boş kalır. Bot sayısı = `fieldSize − gerçek oyuncu`.
+⚠️ "0 gerçek oyuncu + N bot" diye bir yarış **yoktur** (`NO_PARTICIPANTS`/
+`NO_HUMAN_PLAYERS`): ödül havuzu gerçek giriş ücretlerinden oluşur.
 
 Başka oyuncuların BAKİYESİ açığa çıkmaz (uç herkese açık olduğundan);
 çağıran kendi sonucunu `places` içinde `playerId`'siyle bulur.
