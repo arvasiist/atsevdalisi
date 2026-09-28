@@ -2106,6 +2106,79 @@ koda gömülmedi.**
 
 ---
 
+#### 13.22 SOSYAL PROFİL EKRANI — `/profile/:username` (brief §24, §42 PHASE 14) — 28.09.2026
+
+**BİR ÖNCEKİ DİLİMİN İKİZİ.** §13.15'in uç noktası
+(`GET /players/profile/:username`, `@Public()`) **zaten vardı**; eksik
+olan yalnızca istemciydi. Bu dilim o boşluğu kapatır.
+
+**⚠️ SÖZLEŞMENİN DIŞINA ÇIKILMAZ.** Ekran, bakiyeyi göstermek için
+**ikinci bir istek ATMAZ** (`getPlayer` çağrılmaz). O uç nokta
+`assertSelf` ile korunur ve başkasının bakiyesi **zaten alınamaz** —
+alınabilseydi burada göstermek doğrudan bir **sızıntı** olurdu.
+`PlayerProfileView` `money`/`gems` taşımaz (AUDIT Bulgu S4); ekran da
+o sözleşmeye uyar.
+
+**`isSelf` SUNUCUDAN GELMEZ, İSTEMCİDE TÜRETİLİR.** Uç nokta `@Public()`
+olduğu için global `AuthGuard` token'ı **hiç ayrıştırmaz**, yani sunucu
+"isteyen kim" bilgisine sahip değildir. Bunu mümkün kılmak, kimlik
+doğrulamayla ilgili **küresel** bir guard'ı tek bir görünüm alanı için
+gevşetmek olurdu; karşılaştırma (`player.id === profile.playerId`) tek
+satırdır ve yanlış olma ihtimali yoktur.
+
+**KARİYER KADEMESİ BURADA HESAPLANMAZ.** Eşikler tek bir yerde
+(`features/career/career-tier.ts`) yaşar ve ekran onu **çağırır**; ikinci
+bir kopya zamanla ayrışırdı. `getCareerProgress` son kademede
+`progressToNextTier = 1` döner ("daha fazla ilerleme yok") ve ekran bunu
+**metinle** söyler, çubuğun dolu görünmesini öylece bırakmaz.
+
+**`achievements` `null` LİTERAL TİPİDİR — VE BU YÜZDEN KOŞUL YAZILMAZ.**
+Alan `string[] | null` değil, düpedüz `null`'dur (kalıcı başarım veri
+modeli yok, yeni migration gerektirir). Bir `if` yazmak `else` dalını
+`never` yapardı. Model eklendiğinde tip genişleyecek ve **derleyici tam o
+satıra gelip** "artık bir dal yazmalısın" diyecektir — sessizce boş kalan
+bir liste değil.
+
+**`encodeURIComponent` ŞART.** Kullanıcı adı URL **yoluna** gömülür;
+`a b` ham birleştirmede bozuk bir URL, `a/b` ise **tamamen başka bir
+rota** üretirdi. Kodlama/çözme **tek bir yerde** (api-client) yapılır —
+Next.js dinamik segmenti zaten çözülmüş verir, bu yüzden sayfa ikinci kez
+çözmez.
+
+**GEÇ YANIT KORUMASI.** Kullanıcı hızlıca başka bir profile geçerse eski
+isteğin yanıtı **yeni ekrana yazılmaz** (`friends/page.tsx`'teki yazışma
+yüklemesiyle aynı desen).
+
+**⚠️ SÖZLEŞME DEĞİŞİKLİĞİ — `PlayerSummary`'ye `username` EKLENDİ**
+(mapper dâhil). **Gerekçe:** `/profile/:username` **dinamik** bir rotadır,
+`nav-links.ts`'teki statik listeye **giremez**; yani oyuncunun **kendi**
+profiline giden tek keşif yolu üst bardır ve orada yalnızca
+`PlayerSummary` vardır. `username` olmadan sayfa **ölü kod** olurdu.
+`username` **gizli değildir** (profilin URL'sidir, `GET
+/players/profile/:username` ile herkese açıktır, sohbet mesajlarında
+zaten görünür) ve `PlayerSummary` **hiçbir zaman başka bir oyuncu için
+üretilmez** (`GET /players/:id` `assertSelf` ile korunur). Üst bardaki
+avatar + ad artık kendi profiline bağlantıdır.
+
+**KANIT.** `apps/web/test/lib/api-client.spec.ts` — yol parametresi, **URL
+kodlaması** (`a b/c` → `a%20b%2Fc`), `GET`/gövdesiz, ve **token'sız
+çalışma** (uç nokta `@Public()`). Ayrıca harness'in e2e grubuna
+`test/api/player-profile.e2e-spec.ts` **eklendi** — değişen sözleşmeyi
+uçtan uca kuran dosya odur (profil yanıtında `money`/`gems` olmadığını da
+o doğrular).
+
+**BU DİLİMDE KAPANMAYANLAR (dürüst):** profilin **gösterilecek bir
+listesi yok** — arkadaş listesi (`SocialPlayerView`) ve sıralama tablosu
+(`LeaderboardRowView`) `username` **taşımaz**, yani başka birinin profiline
+gitmenin bir yolu bugün **yoktur**. Bunu açmak, o iki görünüme `username`
+eklemek (ve arkadaş listesi için repository SQL'ini değiştirmek) demektir;
+**yapılmadı.** Bugün erişilebilen profil, oyuncunun **kendi** profilidir.
+
+**Race engine'e dokunulmadı, para yolu değişmedi, hiçbir config değeri
+koda gömülmedi.**
+
+---
+
 ## 14. Kendime hatırlatmalar (kısa liste)
 
 1. **Race Engine'e dokunmadan önce iki kez düşün.** Denetim onu "KEEP, dokunma"

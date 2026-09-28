@@ -148,12 +148,12 @@ YANILTICI olduğunu gösterdi.** Bu bölüm iki kez bayatladı; aşağısı
   hiç gelmez. Bir de `/notifications` şeride eklendi; **gezinti listesi
   `nav-links.ts`'te** ve `top-bar-nav.spec.ts` sayfası olmayan bir
   bağlantıyı CI'da kilitler.
-- **Sosyal profil arayüzü (brief §24, §42 PHASE 14) — YAPILABİLİR.** Backend
-  hazır (§13.15): `GET /players/profile/:username` **token'sız** çalışır ve
-  `money`/`gems` taşımaz. Eksik olan yalnızca `/profile/:username`
-  sayfasının kendisidir; kariyer kademesi istemcide `level`'den türetilir
-  (`features/career/career-tier.ts`), `achievements` bilinçli olarak `null`
-  gelir. Asset gerekmez.
+- ~~Sosyal profil arayüzü~~ **YAPILDI (§13.22, 28.09.2026)** —
+  `/profile/[username]`. **AÇIK KALAN:** arkadaş listesi
+  (`SocialPlayerView`) ve sıralama tablosu (`LeaderboardRowView`)
+  `username` **taşımaz**, yani bugün yalnızca oyuncunun **KENDİ** profiline
+  gidilebilir (üst bardaki avatar + ad). Başkasının profiline gitmek o iki
+  görünüme `username` eklemeyi gerektirir — **yapılmadı**.
 - **Blok/şikâyet arayüzü (brief §33, §42 PHASE 15) — YAPILABİLİR.** Backend +
   e2e hazır (§13.16): dört uç nokta — hiçbirinin istemci tüketicisi yok.
   Asset gerekmez.
@@ -209,8 +209,16 @@ günlüğü + moderasyon kuyruğu (§13.17, PHASE 15-B)** · **YÖNETİM OKUMA
 EKRANLARI — Users/Races/Transactions (§13.18, PHASE 15-B)** · **YARIŞ
 İPTALİ — `POST /admin/races/:raceId/cancel` (§13.19, PHASE 15-B, PARA
 YOLU)** · **BİLDİRİM EKRANI — `/notifications` + gezinti şeridi (§13.21,
+28.09.2026)** · **SOSYAL PROFİL EKRANI — `/profile/[username]` (§13.22,
 28.09.2026)** — backend; kalanların hiçbirinin istemci tüketicisi YOK.
 Ayrıntı: `PROJE_DURUMU.md` §13.
+
+**⚠️ `PlayerSummary`'de `username` VARDIR — SİLME.** Üst barın oyuncu
+blogu onu kendi profiline (`/profile/:username`) bağlamak için kullanır ve
+`/profile/:username` **dinamik** bir rota olduğu için `nav-links.ts`'teki
+statik listeye giremez — yani bu, oyuncunun kendi profiline giden **tek**
+yoludur (§13.22). Gizli bir alan değildir (profilin URL'sidir) ve
+`PlayerSummary` hiçbir zaman başka bir oyuncu için üretilmez.
 
 **⚠️ YEREL HARNESS'E ÜÇÜNCÜ VITEST GRUBU EKLENDİ (§13.21).** `.claude/
 verify-admin.mjs` eskiden yalnızca `apps/api` testlerini çağırıyordu;
