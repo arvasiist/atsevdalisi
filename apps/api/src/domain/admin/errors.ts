@@ -69,3 +69,39 @@ export class InvalidReportStatusError extends Error {
     this.name = 'InvalidReportStatusError';
   }
 }
+
+/**
+ * Yarış, bulunduğu durumdan İPTAL EDİLEMEZ (409) — brief §34 "Cancel"
+ * (28.09.2026). Kuralın tamamı `domain/admin/race-cancel.ts`tedir.
+ *
+ * **409, 400 DEĞİL:** istek kusurlu değil, yarış artık o işleme açık
+ * değil (`RaceNotSettleableError`/`RaceEntryNotLeavableError` ile AYNI
+ * kategori ve AYNI durum kodu).
+ *
+ * **`reason` MESAJI BELİRLER, KODU DEĞİL:** dört neden de
+ * `RACE_NOT_CANCELABLE` döner (`InvalidReportStatusError` ile AYNI desen).
+ * İstemcinin ayırt etmesi gereken bir şey yoktur — yapacağı şey listeyi
+ * tazelemektir; ayrım yalnızca yöneticiye gösterilen mesajda ve testte
+ * gereklidir.
+ *
+ * **MESAJ DURUMU SÖYLER, İADE TUTARINI SÖYLEMEZ.** İptal reddedildiğinde
+ * hiçbir para hareketi olmamıştır; mesaja bir tutar koymak, olmayan bir
+ * işlemi olmuş gibi gösterirdi.
+ */
+export class RaceNotCancelableError extends Error {
+  constructor(
+    readonly reason: 'ALREADY_STARTED' | 'ALREADY_FINISHED' | 'ALREADY_CANCELLED' | 'UNKNOWN_STATUS',
+    readonly raceId: string,
+  ) {
+    super(
+      reason === 'ALREADY_STARTED'
+        ? `Yarış koşmaya başladığı için iptal edilemez: ${raceId}`
+        : reason === 'ALREADY_FINISHED'
+          ? `Yarış tamamlandığı için iptal edilemez: ${raceId}`
+          : reason === 'ALREADY_CANCELLED'
+            ? `Yarış zaten iptal edilmiş: ${raceId}`
+            : `Yarışın durumu tanınmadığı için iptal edilemez: ${raceId}`,
+    );
+    this.name = 'RaceNotCancelableError';
+  }
+}

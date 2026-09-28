@@ -1811,6 +1811,112 @@ listeye yazılmazsa CI KIRILIR).
 
 **Uçlar:** `docs/API.md` → "Yönetim (Admin)".
 
+⚠️ **Yukarıdaki "YAZMA YOLU YOKTUR" paragrafı 28.09.2026 akşamı BAYATLADI**
+— `Cancel` yazıldı (§13.19). `Pause` hakkındaki kısım hâlâ geçerlidir.
+
+#### 13.19 YARIŞ İPTALİ — `POST /admin/races/:raceId/cancel` (brief §34 "Cancel", §42 PHASE 15-B) — 28.09.2026
+
+**§34'ün "Race: Create Cancel Pause Finish işlemleri kontrollü şekilde
+yapılabilmeli" cümlesinin `Cancel` ayağı.** §13.18'in üzerine oturur ve
+`AdminController`'a **YEDİNCİ** uç noktayı ekler.
+
+**ÜÇÜN MUHASEBESİ — hiçbiri "yapılmadı" diye geçiştirilmez:**
+
+| §34 | Durum |
+|---|---|
+| `Cancel` | **YAZILDI** — `POST /admin/races/:raceId/cancel` (para yolu) |
+| `Finish` | **YAZILDI ama yönetime özel DEĞİL** — `POST /races/:id/settle` (§13.14) |
+| `Pause` | **MÜMKÜN DEĞİL** — duraklatılacak durum yok (aşağıda) |
+
+`Finish` için ikinci bir uç **eklenmedi**: ödül dağıtımı zaten yetki
+gerektirmeyen bir "crank"tir ve yanına `POST /admin/races/:id/finish`
+koymak aynı işi iki kod yolundan yapmak olurdu.
+
+**`Pause` İMKÂNSIZDIR — ve bu bir EKSİKLİK DEĞİL, ŞEMADIR.** `races.status`
+CHECK'i `scheduled|in_progress|finished|cancelled`tır (migration 0006) ve
+`in_progress`u **YAZAN HİÇBİR KOD YOKTUR**; yarış `scheduled`dan doğrudan
+`finished`a geçer. Yani "koşan, duraklatılacak bir yarış" kavramı sunucuda
+yoktur. Bu, yorumda iddia edilmekle kalmaz —
+`test/domain/admin/race-cancel.spec.ts` **migration dosyasını okuyarak**
+kanıtlar: CHECK listesinde `paused` olmadığını ve listenin `RaceStatus`
+tipiyle **birebir** olduğunu doğrular. Migration'a `paused` eklenirse test
+KIRILIR ve o gün Pause yazılabilir hâle gelir; sessizce "yapılmış gibi"
+görünmez.
+
+**YALNIZCA `scheduled` İPTAL EDİLEBİLİR.** Diğer üç durum → `409
+RACE_NOT_CANCELABLE` (**409, 400 DEĞİL**: istek biçimsel olarak doğrudur,
+çakışan bir DURUMdur). Tanınmayan bir durum da reddedilir
+(`UNKNOWN_STATUS`): bilinmeyen bir durumu "iptal edilebilir" saymak
+sessiz bir para hatası olurdu.
+
+**`finished` NEDEN ÖZELLİKLE YASAK — bu dilimin en ince riski.** İptal
+`finished`e izin verseydi, koşmuş ve ödülleri DAĞITILMIŞ bir yarışta iade
+çalışırdı; iade tutarı defterden okunduğu için kazanana ödenen
+`race_prize` değil, ödediği `lobby_race_entry_fee` bulunurdu — yani
+**makul görünen ama YANLIŞ** bir tutar ödenirdi ve hiçbir yerde hata
+çıkmazdı.
+
+**ZAMAN KURALI YOKTUR.** `startTime` geçmiş ama hâlâ `scheduled` bir yarış
+İPTAL EDİLEBİLİR; aksi hâlde havuz kalıcı olarak kilitlenirdi. "Eşzamanlı
+iptal + settle" yarışı `races` satırındaki `FOR UPDATE` ile serileştirilir
+(settle da aynı kilidi alır).
+
+**İADE TUTARI DEFTERDEN OKUNUR, `races.entry_fee`DEN DEĞİL.** Her oyuncu
+için en son `lobby_race_entry_fee` satırı bulunur, `-amount` iade edilir.
+`entry_fee` sabitinden hesaplamak indirimli girmiş bir oyuncuya yanlış
+tutar öderdi.
+
+**BOT PAYI YANAR — İADE EDİLMEZ.** Botların `player_id`si yoktur; iade
+yalnızca `player_id IS NOT NULL` satırlara yapılır ve
+`refundedPlayers`/`refundedTotal` **yalnızca gerçek oyuncuları** sayar.
+Havuz yine de sıfırlanır (`prize_pool = 0`), bu yüzden yanıt "havuz
+sıfırlandı" değil **ne kadar iade edildi** bilgisini döner. (Bu, §13.14'ün
+"gerçek oyuncu sayısı azken yarış oyuncu için kayıptır" notuyla AYNI
+bilinçli tercihtir.)
+
+**Katılımlar SİLİNMEZ, `cancelled` işaretlenir.** `race_entries_race_player_uq`
+kısıtı `status`tan bağımsızdır; satırı silmek aynı oyuncunun yarışa
+**yeniden katılmasına** kapı açardı.
+
+**KİLİT SIRASI `races → race_entries → players`** ve giriş kilidi
+`ORDER BY player_id` ile alınır (eşzamanlı iki iptal birbirini kilitlemesin
+diye). **Durum kuralı da `FOR UPDATE` ALTINDA koşar**: repository'ye
+`mutate` geri çağrısı geçirilir ve `checkRaceCancelable` orada çağrılır —
+"iptal edilebilir mi" ile "iade et" arasında TOCTOU penceresi kalmaz.
+Kuralı use-case'te (kilidin dışında) çalıştırmak, tam da bu dilimin
+engellemeye çalıştığı çift iadeyi mümkün kılardı.
+
+**Denetim kaydı AYNI transaction'da:** `admin_audit_log` →
+`action = 'race.cancelled'`, `target_type = 'race'`,
+`details = {from, to: 'cancelled', refundedPlayers, refundedTotal}`.
+**Bildirim ÜRETİLMEZ**: eşleşen bir bildirim türü yoktur ve eklemek
+migration + `notification-types.spec.ts` değişikliği gerektirirdi.
+
+**`IdempotencyInterceptor` EKLENMEDİ — gerekçe DEĞİŞTİ.** §13.18'de
+"buradaki rotalar para değiştirmez" deniyordu; iptal para taşıdığı için o
+cümle artık geçersiz. Ama interceptor yine de yanlış çözümdür: çift iadeyi
+engelleyen şey **zaten ve daha güçlü olarak** vardır — `scheduled →
+cancelled` geçişi. İkinci istek `FOR UPDATE` altında yeni durumu görür ve
+409 alır. `SettleRaceUseCase`in `Idempotency-Key` yerine durum geçişine
+güvenmesiyle **aynı gerekçe**.
+
+**`@RateLimit` 30/60sn** (`keyBy: 'player'`) — `PATCH`in 60'ından sıkıdır,
+çünkü bu uç para hareket ettirir. Okuma uçlarında hâlâ limit yoktur.
+
+**KANIT:** `admin.e2e-spec.ts` — (a) iki oyuncu × 250 iade,
+`refundedPlayers: 2` / `refundedTotal: 500`, bakiyeler SQL ile doğrulanır,
+(b) defter değişmezi (`balance_after = balance_before + amount`),
+(c) `prize_pool = 0`, girişler `cancelled`, (d) denetim `details`i,
+(e) bot payı iade EDİLMEZ (1 oyuncu, 250), (f) ücretsiz yarışta **HİÇ**
+defter satırı yazılmaz, (g) ikinci iptal 409 + bakiye ve satır sayısı
+DEĞİŞMEZ (denetim sayısı 1 kalır), (h) `finished` yarış 409 + hiçbir şey
+yazılmaz, (i) olmayan yarış 404 `RACE_NOT_FOUND`, (j) bozuk uuid 400,
+(k) yönetici olmayan 403 (var olmayan kimlik için bile 403, 404 değil) ·
+`domain/admin/race-cancel.spec.ts` (kapalı eşleme, `UNKNOWN_STATUS`,
+`paused`un migration okunarak kanıtlanması, hata mesajında tutar geçmemesi).
+
+**Uç:** `docs/API.md` → "Yönetim (Admin)" → `POST /admin/races/{raceId}/cancel`.
+
 ---
 
 ## 14. Kendime hatırlatmalar (kısa liste)

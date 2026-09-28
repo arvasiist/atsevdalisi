@@ -1,14 +1,18 @@
 import { Inject, Injectable } from '@nestjs/common';
 import type { Currency, RaceStatus, RaceSurface, ReportCategory, ReportStatus } from '@at-sevdalisi/shared-types';
-import type { Pool } from 'pg';
+import type { Pool, PoolClient } from 'pg';
+import type { EconomyLedgerEntryInput } from '../../application/ports/economy-ledger';
 import {
   type AdminAuditLogRecord,
   type AdminPlayerAccountRecord,
+  type AdminRaceCancelRecord,
   type AdminRaceRecord,
   type AdminReportRecord,
   type AdminRepository,
   type AdminTransactionRecord,
+  type CancelAdminRaceInput,
 } from '../../application/ports/admin.repository';
+import { credit } from '../../domain/economy/wallet';
 import { PG_POOL, withTransaction } from '../database/database.module';
 
 /**
@@ -397,6 +401,231 @@ export class PostgresAdminRepository implements AdminRepository {
       balanceAfter: toNumber(row.balance_after),
       createdAt: row.created_at,
     }));
+  }
+
+  /**
+   * Yarışı iptal eder ve ödenmiş giriş ücretlerini iade eder — brief §34
+   * "Cancel" (28.09.2026). Port doc yorumu okunmalıdır.
+   *
+   * **PARA YOLU (CLAUDE.md kural 7).** Adımların SIRASI pazarlık konusu
+   * değildir:
+   *
+   *  1. `races` satırı `FOR UPDATE` — kilit alındıktan sonra okunan durum
+   *     bu transaction boyunca değişmez.
+   *  2. `mutate` → durum kuralı (`checkRaceCancelable`) KİLİT ALTINDA.
+   *     Fırlatırsa `withTransaction` ROLLBACK eder: ne iade, ne durum, ne
+   *     denetim kaydı yazılır.
+   *  3. Katılım satırları `FOR UPDATE`, `ORDER BY player_id` ile
+   *     KİLİTLENİR. Sıralama önemlidir: iki yönetici iki yarışı aynı anda
+   *     iptal ederken ortak oyuncuları farklı sırada kilitlerse kilitlenme
+   *     (deadlock) doğardı; sabit sıra bunu imkânsız kılar.
+   *  4. Her GERÇEK oyuncu için iade, `players` satırı `FOR UPDATE` ile
+   *     kilitlenerek yapılır ve defter satırı AYNI transaction'da yazılır.
+   *  5. Katılımlar `cancelled` işaretlenir (SİLİNMEZ — `race_entries_race_
+   *     player_uq` `status`'tan bağımsızdır, silmek yeniden katılmayı
+   *     açardı; `leaveLobbyRace` ile AYNI gerekçe).
+   *  6. `races.status = 'cancelled'` + `prize_pool = 0`.
+   *  7. `admin_audit_log` satırı.
+   *
+   * **İADE TUTARI DEFTERDEN OKUNUR, `races.entry_fee`'DEN DEĞİL** —
+   * `leaveLobbyRace` ile AYNI gerekçe (ücret bir gün değiştirilebilir
+   * olursa "o an geçerli ücret" sessizce yanlış tutar öderdi).
+   *
+   * **`prize_pool = 0` BOT PAYINI YAKAR — bilinçli.** Havuz, iade
+   * edilmeyen (bota düşen) payı da içerir; sıfırlamak o tutarı sahipsiz
+   * bırakır. Alternatifler daha kötüdür: havuzda bırakmak, iptal edilmiş
+   * bir yarış için kalıcı bir bakiye yaratırdı; yöneticiye ödemek ise
+   * yöneticiye para kazandıran bir yol açardı. Aynı kural ödül
+   * dağıtımında da geçerlidir ("bot payı yanar").
+   *
+   * **BİLDİRİM ÜRETİLMEZ.** İptal, sekiz bildirim türünün HİÇBİRİNE
+   * karşılık gelmez (`race_finished`/`prize_won` değildir) ve yeni bir tür
+   * eklemek `notification-types.spec.ts`in sabitlediği listeyi ve
+   * `player_notifications` CHECK'ini migration gerektirir. Oyuncu parasını
+   * geri alır; bunu defterinde ve bakiyesinde görür.
+   */
+  async cancelRaceWithLock<T>(
+    input: CancelAdminRaceInput,
+    mutate: (race: { raceId: string; name: string; status: string }) => T,
+  ): Promise<{ record: AdminRaceCancelRecord; result: T } | null> {
+    return withTransaction(this.pool, async (client) => {
+      // 1) Yarış satırını kilitle.
+      const raceResult = await client.query<{ id: string; name: string; status: string }>(
+        'SELECT id, name, status FROM races WHERE id = $1 FOR UPDATE',
+        [input.raceId],
+      );
+      const raceRow = raceResult.rows[0];
+      if (raceRow === undefined) {
+        return null;
+      }
+
+      // 2) Durum kuralı — KİLİT ALTINDA (TOCTOU kapısı).
+      const result = mutate({ raceId: raceRow.id, name: raceRow.name, status: raceRow.status });
+
+      // 3) İptal edilecek GERÇEK katılımlar. Botlar (`player_id IS NULL`)
+      //    listede YOKTUR: ödedikleri bir para da yoktur.
+      const entryResult = await client.query<{ player_id: string }>(
+        `SELECT player_id
+           FROM race_entries
+          WHERE race_id = $1
+            AND player_id IS NOT NULL
+            AND status IS DISTINCT FROM 'cancelled'
+          ORDER BY player_id
+          FOR UPDATE`,
+        [input.raceId],
+      );
+
+      let refundedPlayers = 0;
+      let refundedTotal = 0;
+
+      for (const entry of entryResult.rows) {
+        const playerId = entry.player_id;
+
+        // 4a) Bu oyuncunun bu yarış için GERÇEKTEN ödediği tutar. `amount`
+        //     defterde İMZALIDIR (ödeme negatiftir) → işaret çevrilir.
+        //     `Math.max(0, ...)` güvenlik kemeridir: iade ASLA negatif
+        //     olamaz (`leaveLobbyRace` ile AYNI koruma).
+        const paidResult = await client.query<{ amount: string }>(
+          `SELECT amount
+             FROM economy_transactions
+            WHERE player_id = $1
+              AND type = 'lobby_race_entry_fee'
+              AND reference_type = 'race'
+              AND reference_id = $2
+            ORDER BY created_at DESC
+            LIMIT 1`,
+          [playerId, input.raceId],
+        );
+        const paidRow = paidResult.rows[0];
+        const refund = paidRow === undefined ? 0 : Math.max(0, -Number(paidRow.amount));
+        if (refund === 0) {
+          // Ücretsiz yarış (ya da ödeme satırı olmayan katılım): `players`
+          // satırına HİÇ dokunulmaz, gereksiz kilit de alınmaz.
+          continue;
+        }
+
+        const balanceResult = await client.query<{ money: string; gems: string }>(
+          'SELECT money, gems FROM players WHERE id = $1 FOR UPDATE',
+          [playerId],
+        );
+        const balanceRow = balanceResult.rows[0];
+        if (balanceRow === undefined) {
+          // `race_entries.player_id` `ON DELETE CASCADE`tir (migration
+          // 0037): oyuncu silinseydi satır da giderdi. Buraya düşmek bir
+          // bütünlük hatasıdır ve sessizce atlanırsa iade KAYBOLUR.
+          throw new Error(`İade edilecek oyuncu bulunamadı: ${playerId}`);
+        }
+        const balanceBefore = Number(balanceRow.money);
+        const wallet = credit({ money: balanceBefore, gems: Number(balanceRow.gems) }, refund, 'money');
+
+        await client.query('UPDATE players SET money = $2, updated_at = $3 WHERE id = $1', [
+          playerId,
+          wallet.money,
+          input.now,
+        ]);
+
+        // 4b) Defter satırı — bakiye güncellemesiyle AYNI transaction.
+        await this.writeLedgerEntries(client, [
+          {
+            playerId,
+            // `race_entry_refund` `leaveLobbyRace`in de kullandığı tiptir
+            // (`REFUND` ailesi). Tip serbest metindir (migration 0019), yeni
+            // bir değer migration GEREKTİRMEZ.
+            type: 'race_entry_refund',
+            amount: refund,
+            currency: 'money',
+            referenceType: 'race',
+            referenceId: input.raceId,
+            balanceBefore,
+            balanceAfter: wallet.money,
+            // Yönetim iptali `Idempotency-Key` KULLANMAZ: çift iadeyi
+            // engelleyen şey anahtar değil `scheduled → cancelled`
+            // geçişidir (`SettleRaceUseCase` ile AYNI gerekçe).
+            idempotencyKey: null,
+          },
+        ]);
+
+        refundedPlayers += 1;
+        refundedTotal += refund;
+      }
+
+      // 5) Katılımları iptal et — botlar dahil (yarış artık yoktur).
+      await client.query(
+        `UPDATE race_entries
+            SET status = 'cancelled'
+          WHERE race_id = $1
+            AND status IS DISTINCT FROM 'cancelled'`,
+        [input.raceId],
+      );
+
+      // 6) Yarışın kendisi. `status='cancelled'` DB CHECK'inde vardır
+      //    (migration 0006) — yeni bir durum UYDURULMAMIŞTIR.
+      await client.query(
+        `UPDATE races
+            SET status = 'cancelled', prize_pool = 0, updated_at = $2
+          WHERE id = $1`,
+        [input.raceId, input.now],
+      );
+
+      // 7) DENETİM KAYDI — iade ve durum değişikliğiyle AYNI transaction
+      //    (brief §34 "Finansal işlemler audit log'a yazılmalı."). Ayrı
+      //    olsaydı geri alınmış bir iptalin kaydı ortada kalırdı ve bu
+      //    hiçbir yerde hata üretmezdi.
+      await client.query(
+        `INSERT INTO admin_audit_log (admin_id, action, target_type, target_id, details)
+         VALUES ($1, $2, $3, $4, $5::jsonb)`,
+        [
+          input.adminId,
+          'race.cancelled',
+          'race',
+          input.raceId,
+          JSON.stringify({
+            from: raceRow.status,
+            to: 'cancelled',
+            refundedPlayers,
+            refundedTotal,
+          }),
+        ],
+      );
+
+      return {
+        record: {
+          raceId: raceRow.id,
+          name: raceRow.name,
+          refundedPlayers,
+          refundedTotal,
+          cancelledAt: input.now,
+        },
+        result,
+      };
+    });
+  }
+
+  /**
+   * Defter satırlarını yazar. `PostgresRaceRepository.writeLedgerEntries`
+   * ile AYNI gövdedir — ortak bir yardımcıya çıkarmak, iki infrastructure
+   * sınıfı arasında yeni bir bağımlılık doğururdu (ve bu sınıf
+   * `race.repository` portunu bilmemelidir).
+   */
+  private async writeLedgerEntries(client: PoolClient, entries: EconomyLedgerEntryInput[]): Promise<void> {
+    for (const entry of entries) {
+      await client.query(
+        `INSERT INTO economy_transactions
+           (player_id, type, amount, currency, reference_type, reference_id, balance_before, balance_after, idempotency_key)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+        [
+          entry.playerId,
+          entry.type,
+          entry.amount,
+          entry.currency,
+          entry.referenceType,
+          entry.referenceId,
+          entry.balanceBefore,
+          entry.balanceAfter,
+          entry.idempotencyKey,
+        ],
+      );
+    }
   }
 
   /** `AdminReportDbRow` → `AdminReportRecord` (snake_case → camelCase). */

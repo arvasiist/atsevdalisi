@@ -131,6 +131,68 @@ export interface AdminRepository {
    * "yok" gibi gösterirdi. Süzgeç istemcinin işidir.
    */
   listTransactions(limit: number): Promise<AdminTransactionRecord[]>;
+
+  /**
+   * Yarışı İPTAL EDER ve ödenmiş giriş ücretlerini İADE eder — brief §34
+   * "Cancel" (28.09.2026).
+   *
+   * **BU PORTUN TEK YAZMA YOLUDUR VE BİR PARA YOLUDUR** (CLAUDE.md kural
+   * 7): `SELECT ... FOR UPDATE` + aynı transaction'da `economy_transactions`
+   * defter kaydı + `admin_audit_log` satırı. Üçü ayrılırsa ortaya çıkan
+   * durum hiçbir yerde hata üretmez: iade edilmiş ama kaydı olmayan para,
+   * ya da yazılmış ama geri alınmış bir denetim satırı.
+   *
+   * **KİLİT SIRASI: `races` → `race_entries` → `players`** —
+   * `leaveLobbyRace`/`joinLobbyRace`/`setEntryReady` ile AYNIdır, yani bu
+   * dört yol arasında çapraz kilitlenme (deadlock) oluşamaz.
+   *
+   * **`mutate` GERİ ÇAĞIRMASI NEDEN VAR:** durum kuralı
+   * (`checkRaceCancelable`) kilit ALTINDA, okunan GERÇEK durum üzerinden
+   * çalışmak zorundadır. Çağıran (use-case) kuralı önce kendi okuduğu bir
+   * kopyaya uygulasaydı, "iptal edilebilir" cevabı ile UPDATE arasında
+   * yarış koşabilir ve KOŞMUŞ bir yarıştan para iade edilirdi (TOCTOU —
+   * `updateReportStatusWithLock` ile AYNI gerekçe). Kural fırlatırsa
+   * transaction ROLLBACK olur: ne durum, ne iade, ne denetim kaydı yazılır.
+   *
+   * `null` döner ⇔ yarış YOKTUR (404). Yetki kapısı buraya girmeden
+   * geçilmiş olmalıdır — yönetici olmayan bir çağırana "bu yarış var mı"
+   * sorusunun cevabı verilmemelidir (bkz. `ReportNotFoundError` notu).
+   */
+  cancelRaceWithLock<T>(
+    input: CancelAdminRaceInput,
+    mutate: (race: { raceId: string; name: string; status: string }) => T,
+  ): Promise<{ record: AdminRaceCancelRecord; result: T } | null>;
+}
+
+/**
+ * `cancelRaceWithLock` girdisi.
+ *
+ * `adminId` DENETİM KAYDI İÇİNDİR, iade alanı değil: iade, yarışa
+ * KATILMIŞ oyunculara gider; yönetici yalnızca işlemi yapandır.
+ * (`updateReportStatusWithLock` ile AYNI ayrım — bkz. `reviewed_by` notu.)
+ */
+export interface CancelAdminRaceInput {
+  raceId: string;
+  adminId: string;
+  now: Date;
+}
+
+/**
+ * İptalin SONUCU — kaç oyuncuya ne kadar iade edildiği.
+ *
+ * **`refundedTotal` İADE EDİLENLERİN TOPLAMIDIR, HAVUZUN TAMAMI DEĞİL.**
+ * Havuz `0`a çekilir ama iade, havuzdan değil DEFTERDEN hesaplanır: bota
+ * düşen pay havuzda kalır (botların `player_id`'si yoktur — bkz.
+ * `AdminRaceCancelResult` doc yorumu). Yani "havuz sıfırlandı" ile "şu
+ * kadar iade edildi" iki AYRI sayıdır ve yöneticiye gösterilmesi gereken
+ * ikincisidir.
+ */
+export interface AdminRaceCancelRecord {
+  raceId: string;
+  name: string;
+  refundedPlayers: number;
+  refundedTotal: number;
+  cancelledAt: Date;
 }
 
 /**

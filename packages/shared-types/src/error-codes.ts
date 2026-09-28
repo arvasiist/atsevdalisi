@@ -440,6 +440,21 @@ export const ErrorCode = {
    * zaten sunucudan okur (`InvalidRaceDefinition` ile AYNI gerekçe).
    */
   InvalidReportStatus: 'INVALID_REPORT_STATUS',
+  /**
+   * Yarış, bulunduğu durumdan İPTAL EDİLEMEZ (409) — brief §34 "Race:
+   * Create Cancel Pause Finish işlemleri kontrollü şekilde yapılabilmeli."
+   *
+   * **NEDEN 409, 400 DEĞİL:** istek kusurlu değildir; yarış artık o
+   * işleme açık değildir (`RaceNotSettleable`/`RaceEntryNotLeavable` ile
+   * AYNI kategori — "durum uygun değil"). İstemcinin yapacağı şey
+   * isteği düzeltmek değil, listeyi tazelemektir.
+   *
+   * **İPTAL YALNIZCA `scheduled` İÇİN GEÇERLİDİR.** Koşmuş bir yarışı
+   * iptal etmek, dağıtılmış ödülleri geri almak demek olurdu; koşan bir
+   * yarışı iptal etmek ise simülasyonun ortasından para iade etmek —
+   * ikisi de bu projede tanımlı DEĞİLDİR ve uydurulmamalıdır.
+   */
+  RaceNotCancelable: 'RACE_NOT_CANCELABLE',
 } as const;
 
 export type ErrorCodeValue = (typeof ErrorCode)[keyof typeof ErrorCode];

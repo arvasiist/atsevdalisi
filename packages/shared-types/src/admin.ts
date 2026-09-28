@@ -172,6 +172,38 @@ export interface AdminRaceListResult {
 }
 
 /**
+ * `POST /admin/races/:raceId/cancel` yanıtı — brief §34 "Cancel"
+ * (28.09.2026).
+ *
+ * **BU BİR PARA YOLUDUR.** İptal, katılım ücreti ödemiş HER oyuncuya
+ * parasını geri verir ve `races.prize_pool`'u sıfırlar. Bu yüzden yanıt
+ * yalnızca "iptal edildi" demez; **KAÇ OYUNCUYA NE KADAR İADE EDİLDİĞİNİ**
+ * de söyler. Yönetici ekranının ihtiyacı olan sayı budur: "iptal ettim"
+ * tek başına, iadenin gerçekten yapıldığını kanıtlamaz.
+ *
+ * `refundedTotal` = iade edilen tutarların TOPLAMI. İade tutarı defterden
+ * okunur (`lobby_race_entry_fee` satırı), `races.entry_fee`'den DEĞİL —
+ * gerekçe `LeaveRaceUseCase` ile AYNIdır: "o an geçerli ücret" üzerinden
+ * iade hesaplamak, ücret güncellenebilir hâle geldiğinde sessizce yanlış
+ * tutar öderdi.
+ *
+ * **BOTLARA İADE YOKTUR ve `refundedPlayers`a GİRMEZLER.** Botların
+ * `player_id`'si yoktur, dolayısıyla ödedikleri bir para da yoktur —
+ * onları saymak, iade edilmiş gibi görünen ama edilmemiş bir tutar
+ * üretirdi (ödül dağıtımındaki "bot payı yanar" kuralının iade
+ * tarafındaki karşılığı).
+ */
+export interface AdminRaceCancelResult {
+  raceId: string;
+  name: string;
+  /** İadesi yapılan GERÇEK oyuncu sayısı — ücretsiz yarışta `0`dır. */
+  refundedPlayers: number;
+  /** İade edilen toplam tutar (para birimi: `money`). */
+  refundedTotal: number;
+  cancelledAt: string;
+}
+
+/**
  * Yönetim ekranlarındaki defter satırı — brief §34'ün "Transactions" VE
  * "Gifts" başlıklarının ORTAK karşılığı.
  *

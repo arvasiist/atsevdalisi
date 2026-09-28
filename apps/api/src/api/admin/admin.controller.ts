@@ -8,16 +8,19 @@ import {
   Param,
   ParseUUIDPipe,
   Patch,
+  Post,
 } from '@nestjs/common';
 import type {
   AdminAuditLogResult,
   AdminPlayerListResult,
+  AdminRaceCancelResult,
   AdminRaceListResult,
   AdminReportListResult,
   AdminTransactionListResult,
   ApiSuccess,
   UpdateReportStatusResult,
 } from '@at-sevdalisi/shared-types';
+import { CancelAdminRaceUseCase } from '../../application/use-cases/cancel-admin-race.use-case';
 import { ListAdminAuditLogUseCase } from '../../application/use-cases/list-admin-audit-log.use-case';
 import { ListAdminPlayersUseCase } from '../../application/use-cases/list-admin-players.use-case';
 import { ListAdminRacesUseCase } from '../../application/use-cases/list-admin-races.use-case';
@@ -31,7 +34,7 @@ import { UpdateReportStatusDto } from './dto/update-report-status.dto';
 /**
  * Yönetim (admin) uçları — brief §34 "ADMIN PANEL", §42 PHASE 15-B.
  *
- * **ALTI UÇ NOKTANIN HİÇBİRİ `@Public()` DEĞİLDİR ve OLMAYACAKTIR.**
+ * **YEDİ UÇ NOKTANIN HİÇBİRİ `@Public()` DEĞİLDİR ve OLMAYACAKTIR.**
  * Bunlar `GET /players/profile/:username` gibi herkese açık okumalar
  * DEĞİLDİR: kuyruk, şikâyet eden/edilen oyuncuların kimliğini ve serbest
  * metin gerekçeyi taşır; günlük "kim, ne zaman, hangi kaydı değiştirdi"
@@ -48,14 +51,14 @@ import { UpdateReportStatusDto } from './dto/update-report-status.dto';
  * eklemek "yönetici yalnızca kendi kaydını görebilir" gibi sahte bir
  * kısıt doğururdu.
  *
- * **`@RateLimit` YALNIZCA YAZMA UCUNDA.** Okuma uçları bir yöneticinin
- * paneli açtığında saniyede birkaç kez çağrılır ve limit koymak, gerçek
- * bir yöneticiyi meşru işinden alıkoyardı; asıl savunma yetki kapısının
- * kendisidir. `PATCH` ise kalıcı bir durum değiştirir ve denetim günlüğüne
- * satır yazar — burada limit, günlüğü gürültüye boğacak bir döngüye karşı
- * ikinci hattır (`SocialController.blockPlayer` ile AYNI sınıf gerekçe).
- * Bu denge, ALTI okuma ucundan sonra da değişmedi: yeni uçların hiçbiri
- * yazmaz, dolayısıyla hiçbiri limit gerektirmez.
+ * **`@RateLimit` YALNIZCA YAZMA UÇLARINDA** — `PATCH reports/:reportId`
+ * ve `POST races/:raceId/cancel`. Okuma uçları bir yöneticinin paneli
+ * açtığında saniyede birkaç kez çağrılır ve limit koymak, gerçek bir
+ * yöneticiyi meşru işinden alıkoyardı; asıl savunma yetki kapısının
+ * kendisidir. Yazma uçları ise kalıcı durum değiştirir ve denetim
+ * günlüğüne satır yazar — orada limit, günlüğü (ve iptal ucunda DEFTERİ)
+ * gürültüye boğacak bir döngüye karşı ikinci hattır
+ * (`SocialController.blockPlayer` ile AYNI sınıf gerekçe).
  *
  * İş kuralı İÇERMEZ — yalnızca Application katmanını çağırır ve sonucu
  * docs/API.md §1.1 zarfına sarar.
@@ -75,6 +78,8 @@ export class AdminController {
     private readonly listAdminRacesUseCase: ListAdminRacesUseCase,
     @Inject(ListAdminTransactionsUseCase)
     private readonly listAdminTransactionsUseCase: ListAdminTransactionsUseCase,
+    @Inject(CancelAdminRaceUseCase)
+    private readonly cancelAdminRaceUseCase: CancelAdminRaceUseCase,
   ) {}
 
   /**
@@ -164,14 +169,14 @@ export class AdminController {
   }
 
   /**
-   * Yarış listesi — brief §34 "Races". YALNIZCA OKUMADIR.
+   * Yarış listesi — brief §34 "Races". YALNIZCA OKUMADIR; yazma ayağı
+   * `POST /admin/races/:raceId/cancel`tir (aşağıda).
    *
-   * brief'in "Cancel Pause Finish işlemleri kontrollü şekilde
-   * yapılabilmeli" kısmı bu dilimde YOKTUR ve bilinçli olarak bu
-   * controller'a eklenmemiştir: "Cancel" bir PARA YOLUDUR (katılım
-   * ücretlerinin iadesi + aynı transaction'da defter kaydı + denetim
-   * günlüğü) ve iade mantığı yazılmadan durum değiştirmek ödenmiş parayı
-   * havuzda bırakırdı.
+   * brief'in "Cancel Pause Finish" üçlüsünün durumu (28.09.2026):
+   * `Cancel` YAPILDI · `Finish` zaten vardır ama yöneticiye özel değildir
+   * (`POST /races/:id/settle`, §13.14) · **`Pause` İMKÂNSIZDIR** —
+   * `races.status` CHECK'inde `paused` yoktur ve `in_progress` hiçbir
+   * kod tarafından yazılmaz, yani duraklatılacak bir durum yoktur.
    */
   @Get('races')
   async listRaces(
@@ -197,6 +202,42 @@ export class AdminController {
     @CurrentPlayer() currentPlayer: AuthenticatedPlayer,
   ): Promise<ApiSuccess<AdminTransactionListResult>> {
     const result = await this.listAdminTransactionsUseCase.execute(currentPlayer.id);
+    return { success: true, data: result };
+  }
+
+  /**
+   * Yarışı İPTAL EDER ve ödenmiş giriş ücretlerini İADE eder — brief §34
+   * "Race: ... Cancel ... kontrollü şekilde yapılabilmeli."
+   *
+   * **BU BİR PARA YOLUDUR** (`PATCH /admin/reports/:reportId` de yazmadır
+   * ama para taşımaz). `@RateLimit` bu yüzden burada da vardır:
+   * `keyBy: 'player'` — limitin amacı paylaşılan bir ağı cezalandırmak
+   * değil, tek bir yönetici hesabının döngüye girip defteri ve denetim
+   * günlüğünü doldurmasını durdurmaktır.
+   *
+   * **`POST`, `PATCH` DEĞİL:** kaynak yaratmaz ama işlemin kendisi bir
+   * OLAYDIR ("bu yarışı iptal et"), satırın bir alanını düzenlemek
+   * değildir — gövdesi de yoktur. `POST /races/:id/settle` (yine bir
+   * olay) ile AYNI biçim.
+   *
+   * **`@HttpCode(200)`:** 201 "yeni kaynak yaratıldı" demektir; burada
+   * yaratılan bir kaynak yoktur.
+   *
+   * **GÖVDE YOKTUR, dolayısıyla doğrulanacak alan da yoktur:** tek
+   * parametre yoldan gelen `raceId`dir ve `ParseUUIDPipe`'dan geçer
+   * (pipe'lar esbuild altında da çalışır — CLAUDE.md kural 5).
+   * `adminId` GÖVDEDEN DEĞİL `@CurrentPlayer()`DAN gelir; gövdeden kabul
+   * etmek, bir yöneticinin başka bir yöneticinin adına iade yapmasını
+   * (denetim kaydını yanlış kişiye yazdırmasını) mümkün kılardı.
+   */
+  @RateLimit({ name: 'admin-race-cancel', limit: 30, windowSeconds: 60, keyBy: 'player' })
+  @Post('races/:raceId/cancel')
+  @HttpCode(HttpStatus.OK)
+  async cancelRace(
+    @Param('raceId', ParseUUIDPipe) raceId: string,
+    @CurrentPlayer() currentPlayer: AuthenticatedPlayer,
+  ): Promise<ApiSuccess<AdminRaceCancelResult>> {
+    const result = await this.cancelAdminRaceUseCase.execute(currentPlayer.id, raceId);
     return { success: true, data: result };
   }
 }

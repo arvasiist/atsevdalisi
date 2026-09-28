@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ADMIN_REPOSITORY } from '../../application/ports/admin.repository';
+import { CancelAdminRaceUseCase } from '../../application/use-cases/cancel-admin-race.use-case';
 import { ListAdminAuditLogUseCase } from '../../application/use-cases/list-admin-audit-log.use-case';
 import { ListAdminPlayersUseCase } from '../../application/use-cases/list-admin-players.use-case';
 import { ListAdminRacesUseCase } from '../../application/use-cases/list-admin-races.use-case';
@@ -30,12 +31,17 @@ import { AdminController } from './admin.controller';
  * iki yol AYNI transaction'a girmek zorunda DEĞİLDİR (şikâyet oluşturmak
  * ile onu kapatmak birbirinden bağımsız iki olaydır).
  *
- * **`IdempotencyInterceptor` YOKTUR** — bu modüldeki hiçbir rota para/
- * mülkiyet değiştirmez (bkz. `AdminController` doc yorumu); interceptor'ın
- * çözdüğü sorun ("zaman aşımından sonra tekrarlanan istek iki kez tahsil
- * etmesin") burada mevcut değildir. `PATCH`in kendi koruması geçiş
- * çizgesidir: `resolved` → `resolved` zaten 400'dür, yani tekrarlanan bir
- * istek ikinci bir denetim kaydı ÜRETEMEZ.
+ * **`IdempotencyInterceptor` HÂLÂ YOKTUR — `POST races/:raceId/cancel`
+ * DAHİL.** Bu karar 28.09.2026'da gözden geçirildi: iptal ucu PARA
+ * TAŞIR, yani "interceptor'ın çözdüğü sorun burada mevcut değildir"
+ * cümlesi artık yanlış olurdu. Ama interceptor hâlâ YANLIŞ ÇÖZÜMDÜR,
+ * çünkü çift iadeyi engelleyen şey zaten vardır ve DAHA GÜÇLÜDÜR:
+ * `scheduled → cancelled` durum geçişi. İkinci istek, `FOR UPDATE`
+ * altında yeni durumu görür ve `RaceNotCancelableError` (409) alır —
+ * `SettleRaceUseCase`in `Idempotency-Key` yerine durum geçişine
+ * güvenmesiyle AYNI gerekçe. Bir anahtar altyapısı eklemek, yapısal
+ * olarak imkânsız bir şeyi ikinci kez engellemek olurdu.
+ * `PATCH`in koruması da aynı sınıftır: `resolved` → `resolved` 400'dür.
  *
  * **`RateLimitGuard` için burada bir provider GEREKMEZ:** o guard global
  * `APP_GUARD` olarak kayıtlıdır ve `@RateLimit(...)` meta verisini
@@ -55,6 +61,7 @@ import { AdminController } from './admin.controller';
     ListAdminPlayersUseCase,
     ListAdminRacesUseCase,
     ListAdminTransactionsUseCase,
+    CancelAdminRaceUseCase,
     { provide: ADMIN_REPOSITORY, useClass: PostgresAdminRepository },
   ],
 })

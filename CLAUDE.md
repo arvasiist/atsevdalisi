@@ -157,11 +157,11 @@ YANILTICI olduğunu gösterdi.** Bu bölüm iki kez bayatladı; aşağısı
   e2e hazır (§13.16): dört uç nokta — hiçbirinin istemci tüketicisi yok.
   Asset gerekmez.
 - **Yönetim paneli arayüzü (brief §34, §42 PHASE 15-B) — YAPILABİLİR
-  (şikâyet kuyruğu + okuma ekranları).** Backend + e2e hazır
-  (§13.17 + §13.18): **ALTI** uç nokta — hiçbirinin istemci tüketicisi
-  yok. Asset gerekmez. **§34'ün KALANI:** race Cancel/Pause/Finish
-  kontrolleri. `Cancel` bir PARA YOLUDUR (iade + aynı transaction'da
-  defter + denetim günlüğü); **`Pause` ise bugün MÜMKÜN DEĞİL** —
+  (şikâyet kuyruğu + okuma ekranları + yarış iptali).** Backend + e2e hazır
+  (§13.17 + §13.18 + §13.19): **YEDİ** uç nokta — hiçbirinin istemci
+  tüketicisi yok. Asset gerekmez. **§34'ün race kontrolleri:** `Cancel`
+  YAZILDI (PARA YOLU: iade + aynı transaction'da defter + denetim
+  günlüğü), `Finish` başka uçta (§13.14), **`Pause` MÜMKÜN DEĞİL** —
   `races.status`'ta `paused` yoktur ve `in_progress`u yazan hiçbir kod
   yoktur (yarış `scheduled`dan doğrudan `finished`a geçer), yani
   duraklatılacak bir "koşan yarış" kavramı sunucuda MEVCUT DEĞİLDİR.
@@ -205,19 +205,49 @@ ağacı okuma + yazma (§13.2/§13.4)** · **yarış sohbeti + izleyici sayısı
 `GET /players/profile/:username` (§13.15, PHASE 14)** · **BLOK / ŞİKÂYET —
 brief §33 (§13.16, PHASE 15'İN İLK YARISI)** · **YÖNETİM — rol + denetim
 günlüğü + moderasyon kuyruğu (§13.17, PHASE 15-B)** · **YÖNETİM OKUMA
-EKRANLARI — Users/Races/Transactions (§13.18, PHASE 15-B)** — backend;
-hiçbirinin istemci tüketicisi YOK. Ayrıntı: `PROJE_DURUMU.md` §13.
+EKRANLARI — Users/Races/Transactions (§13.18, PHASE 15-B)** · **YARIŞ
+İPTALİ — `POST /admin/races/:raceId/cancel` (§13.19, PHASE 15-B, PARA
+YOLU)** — backend; hiçbirinin istemci tüketicisi YOK. Ayrıntı:
+`PROJE_DURUMU.md` §13.
+
+**⚠️ §34 "Cancel Pause Finish" — ÜÇÜNÜN DURUMU (28.09.2026).**
+`Cancel` = `POST /admin/races/:raceId/cancel` (§13.19) · `Finish` =
+`POST /races/:id/settle` (§13.14, yönetime ÖZEL DEĞİL — ikinci uç
+bilinçli olarak eklenmedi) · **`Pause` İMKÂNSIZDIR**: `races.status`
+CHECK'inde `paused` yoktur ve `in_progress`u yazan hiçbir kod yoktur, yani
+duraklatılacak bir durum yoktur. Bu, `race-cancel.spec.ts`te **migration
+dosyası okunarak** kanıtlanır (migration'a `paused` eklenirse test kırılır).
+
+**⚠️ İPTAL BİR PARA YOLUDUR — ÜÇ KURAL BOZULMAMALI (§13.19).**
+1. **İade tutarı DEFTERDEN okunur** (son `lobby_race_entry_fee` satırının
+   `-amount`u), `races.entry_fee` sabitinden DEĞİL — indirimli girmiş bir
+   oyuncuya yanlış tutar ödenmesin diye.
+2. **Durum kuralı `FOR UPDATE` ALTINDA koşar** (repository'ye geçirilen
+   `mutate` geri çağrısının içinde): "iptal edilebilir mi" ile "iade et"
+   arasında TOCTOU penceresi kalırsa **çift iade** mümkün olur ve bu
+   hiçbir yerde hata üretmez.
+3. **Katılım satırı SİLİNMEZ, `cancelled` işaretlenir** —
+   `race_entries_race_player_uq` kısıtı `status`tan bağımsızdır; silmek
+   aynı oyuncunun yarışa yeniden katılmasına kapı açardı.
+Ayrıca: bot payı iade EDİLMEZ (havuz yine de sıfırlanır) · `finished`
+yarış iptal EDİLEMEZ (kazanana ödenen `race_prize` değil, ödediği giriş
+ücreti iade edilirdi = makul görünen YANLIŞ tutar) · zaman kuralı YOKTUR
+(`startTime` geçmiş ama hâlâ `scheduled` yarış iptal edilebilir, yoksa
+havuz kalıcı kilitlenirdi) · denetim kaydı AYNI transaction'da yazılır ·
+`IdempotencyInterceptor` eklenmedi: çift iadeyi `scheduled → cancelled`
+geçişi zaten engelliyor.
 
 **PHASE 15 HÂLÂ YARIMDIR.** Brief §33 (BLOCK/REPORT) bitti (§13.16) ve
 **§34'ün GÖRÜNTÜLEME TARAFI neredeyse tamam** (§13.17 + §13.18): `admin`
-rolü (`players.is_admin`), denetim günlüğü (`admin_audit_log`) ve ALTI
-uç nokta (`GET /admin/reports`, `PATCH /admin/reports/:reportId`,
+rolü (`players.is_admin`), denetim günlüğü (`admin_audit_log`) ve **YEDİ
+uç nokta** (`GET /admin/reports`, `PATCH /admin/reports/:reportId`,
 `GET /admin/audit-log`, `GET /admin/players`, `GET /admin/races`,
-`GET /admin/transactions`) vardır — `player_reports.status` artık
-`'open'`da DONMAZ ve Users/Wallet/Races/Transactions/Gifts listeleri
-GÖRÜLEBİLİR. **AMA §34'ün YAZMA TARAFI BİTMEDİ:** race
-Cancel/Pause/Finish kontrolleri YOKTUR. Yeniden yapma: §13.16 + §13.17 +
-§13.18.
+`GET /admin/transactions`, `POST /admin/races/:raceId/cancel`) vardır —
+`player_reports.status` artık `'open'`da DONMAZ, Users/Wallet/Races/
+Transactions/Gifts listeleri GÖRÜLEBİLİR ve **yarış iptali (iade dahil)
+ÇALIŞIR**. **KALAN:** `Pause` imkânsız, `Finish` başka uçta (§13.14);
+asıl eksik **paneldir** — yedi ucun hiçbirinin istemci tüketicisi yoktur.
+Yeniden yapma: §13.16 + §13.17 + §13.18 + §13.19.
 
 **⚠️ PROFİL UCU PARA SIZDIRMAZ — BUNU BOZMA.** `GET /players/profile/:username`
 `@Public()`'tir, yani yanıtına giren her alan HERKESE açıktır.

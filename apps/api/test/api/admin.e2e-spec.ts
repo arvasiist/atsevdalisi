@@ -43,9 +43,15 @@ import { bootstrapTestApp, registerTestPlayer, type RegisteredTestPlayer } from 
  * "kullanıcı yönetimi" ekranı geldiğinde bu, denetim günlüğüne yazılan bir
  * yönetim işlemi hâline gelmelidir.
  *
- * **PARA YOLU YOKTUR:** bu dilimdeki hiçbir uç `economy_transactions`
- * yazmaz ve `players` bakiyesine dokunmaz. Denetim günlüğü bir YETKİ
- * kaydıdır, muhasebe defteri DEĞİLDİR (bkz. migration 0041 notu).
+ *   (7) **YARIŞ İPTALİ BİR PARA YOLUDUR** (`POST /admin/races/:raceId/
+ *       cancel`, 28.09.2026): iade DEFTERDEN hesaplanır, bakiyeler SQL ile
+ *       doğrulanır, havuz sıfırlanır ve çift iade DURUM GEÇİŞİYLE
+ *       engellenir. Bot payı iade EDİLMEZ (ödediği para yoktur).
+ *
+ * **DENETİM GÜNLÜĞÜ ≠ MUHASEBE DEFTERİ.** `admin_audit_log` bir YETKİ
+ * kaydıdır ("kim, ne zaman, hangi kaydı değiştirdi"); para yalnızca
+ * `economy_transactions`ta hareket eder. İptal ucu İKİSİNE DE yazar ve
+ * ikisi AYNI transaction'dadır (migration 0041 notu).
  */
 describe('Admin — moderasyon kuyruğu + denetim günlüğü (e2e)', () => {
   let app: INestApplication;
@@ -66,6 +72,7 @@ describe('Admin — moderasyon kuyruğu + denetim günlüğü (e2e)', () => {
   const racesAdminUrl = '/api/v1/admin/races';
   const transactionsAdminUrl = '/api/v1/admin/transactions';
   const reportStatusUrl = (reportId: string) => `/api/v1/admin/reports/${reportId}`;
+  const cancelRaceUrl = (raceId: string) => `/api/v1/admin/races/${raceId}/cancel`;
   const playerReportsUrl = (playerId: string) => `/api/v1/players/${playerId}/reports`;
 
   /** Oyuncuyu yönetici yapar (bkz. dosya başı "DÜRÜST NOT"). */
@@ -118,13 +125,12 @@ describe('Admin — moderasyon kuyruğu + denetim günlüğü (e2e)', () => {
   }
 
   describe('yetki kapısı', () => {
-    it('yönetici OLMAYAN ALTI uç noktada da 403 ADMIN_REQUIRED alır', async () => {
+    it('yönetici OLMAYAN YEDİ uç noktada da 403 ADMIN_REQUIRED alır', async () => {
       const player = await registerTestPlayer(app, 'Yönetici Değil');
 
-      // DÖRT OKUMA UCU TEK TEK denenir: biri unutulursa (yeni bir uç
-      // eklenip kapı konmazsa) bu test KIRILIR. Liste `READ_URLS`
-      // üzerinden dolaşılır ki yeni bir uç eklemek yalnızca tek satır
-      // gerektirsin.
+      // HER UÇ TEK TEK denenir: biri unutulursa (yeni bir uç eklenip kapı
+      // konmazsa) bu test KIRILIR. Liste üzerinden dolaşılır ki yeni bir uç
+      // eklemek yalnızca tek satır gerektirsin.
       for (const url of [reportsAdminUrl, auditLogUrl, playersAdminUrl, racesAdminUrl, transactionsAdminUrl]) {
         const response = await request(app.getHttpServer())
           .get(url)
@@ -135,6 +141,16 @@ describe('Admin — moderasyon kuyruğu + denetim günlüğü (e2e)', () => {
 
       const patch = await patchStatus(player, '00000000-0000-0000-0000-000000000001', 'reviewing', 403);
       expect(patch.body.error.code).toBe('ADMIN_REQUIRED');
+
+      // PARA YOLU DA AYNI KAPIDAN GEÇER: iptal ucu, yönetici olmayan bir
+      // oyuncuya 403 döner — yani başkalarının giriş ücretlerini iade
+      // ettiremez. Var olmayan bir yarış kimliğiyle bile 403 (404 DEĞİL):
+      // aksi hâlde hangi yarışların var olduğu yoklanabilirdi.
+      const cancel = await request(app.getHttpServer())
+        .post(cancelRaceUrl('00000000-0000-0000-0000-000000000003'))
+        .set('Authorization', player.authHeader)
+        .expect(403);
+      expect(cancel.body.error.code).toBe('ADMIN_REQUIRED');
     });
 
     it('BAKİYE uçları yönetici olmayana 403 verir — para SIZMAZ', async () => {
@@ -723,6 +739,322 @@ describe('Admin — moderasyon kuyruğu + denetim günlüğü (e2e)', () => {
       );
       expect(row?.type).toBe('gift_send');
       expect(row?.amount).toBe(-50);
+    });
+  });
+
+  describe('POST /admin/races/:raceId/cancel — brief §34 "Cancel"', () => {
+    /**
+     * Yarış satırı yaratır. `status` verilebilir çünkü testlerden biri
+     * KOŞMUŞ (`finished`) bir yarışın iptal EDİLEMEDİĞİNİ kanıtlar.
+     */
+    async function createRace(options: {
+      entryFee: number;
+      prizePool: number;
+      status?: string;
+    }): Promise<string> {
+      const result = await pool.query<{ id: string }>(
+        `INSERT INTO races
+           (name, distance_m, surface, weather, start_time, max_players, created_by,
+            race_type, entry_fee, prize_pool, participant_limit, status,
+            engine_version, ruleset_version, config_version, weather_config_version)
+         VALUES ($1, 1200, 'grass', 'sunny', now() + interval '1 hour', 8, NULL,
+                 $2, $3, $4, 12, $5,
+                 'test-engine', 'test-ruleset', 'test-config', 'test-weather-config')
+         RETURNING id`,
+        [
+          `e2e iptal yarışı ${randomUUID().slice(0, 8)}`,
+          options.entryFee > 0 ? 'paid' : 'free',
+          options.entryFee,
+          options.prizePool,
+          options.status ?? 'scheduled',
+        ],
+      );
+      return result.rows[0].id;
+    }
+
+    /** Oyuncunun bakiyesi — yanıt gövdesine GÜVENMEDEN, doğrudan SQL. */
+    async function readMoney(playerId: string): Promise<number> {
+      const result = await pool.query<{ money: string }>(
+        'SELECT money FROM players WHERE id = $1',
+        [playerId],
+      );
+      return Number(result.rows[0].money);
+    }
+
+    /**
+     * Ücretli katılım: at girişi + GERÇEK bir `lobby_race_entry_fee` defter
+     * satırı + bakiyeden düşüm. Üçü birlikte gerekir, çünkü iptal iade
+     * tutarını `races.entry_fee`den DEĞİL defterden okur — bu kurulum
+     * olmadan test, iade mantığını hiç ölçmezdi.
+     */
+    async function addPaidEntry(raceId: string, playerId: string, fee: number): Promise<void> {
+      const horse = await pool.query<{ id: string }>(
+        'SELECT id FROM horses WHERE owner_id = $1 LIMIT 1',
+        [playerId],
+      );
+      await pool.query(
+        `INSERT INTO race_entries (race_id, horse_id, player_id, status)
+         VALUES ($1, $2, $3, NULL)`,
+        [raceId, horse.rows[0].id, playerId],
+      );
+      const before = await readMoney(playerId);
+      await pool.query('UPDATE players SET money = $2 WHERE id = $1', [playerId, before - fee]);
+      await pool.query(
+        `INSERT INTO economy_transactions
+           (player_id, type, amount, currency, reference_type, reference_id,
+            balance_before, balance_after)
+         VALUES ($1, 'lobby_race_entry_fee', $2::bigint, 'money', 'race', $3, $4, $4::bigint + $2::bigint)`,
+        [playerId, -fee, raceId, before],
+      );
+    }
+
+    /**
+     * BOT katılımı — `player_id` YOKTUR (migration 0025
+     * `race_entries_horse_xor_bot_chk`). Botun ödediği bir para da yoktur;
+     * bu satır, "havuz bot payı içeriyor ama iade edilmez" durumunu
+     * kurmak için vardır.
+     */
+    async function addBotEntry(raceId: string, label: string): Promise<void> {
+      await pool.query(
+        `INSERT INTO race_entries (race_id, bot_label, status) VALUES ($1, $2, NULL)`,
+        [raceId, label],
+      );
+    }
+
+    /** Bu yarış için yazılmış İADE defter satırlarının sayısı. */
+    async function countRefundRows(raceId: string): Promise<number> {
+      const result = await pool.query(
+        `SELECT count(*)::int AS count FROM economy_transactions
+          WHERE type = 'race_entry_refund' AND reference_type = 'race' AND reference_id = $1`,
+        [raceId],
+      );
+      return result.rows[0].count as number;
+    }
+
+    /** `admin_audit_log`taki `race.cancelled` satırı (yoksa `undefined`). */
+    async function readCancelAudit(raceId: string): Promise<Record<string, unknown> | undefined> {
+      const result = await pool.query<{ details: Record<string, unknown> }>(
+        `SELECT details FROM admin_audit_log
+          WHERE action = 'race.cancelled' AND target_type = 'race' AND target_id = $1`,
+        [raceId],
+      );
+      return result.rows[0]?.details;
+    }
+
+    /** İptal çağrısı — beklenen kod ZORUNLU (çağrı yerinde okunur). */
+    async function cancel(
+      caller: RegisteredTestPlayer,
+      raceId: string,
+      expectedStatus: number,
+    ): Promise<request.Response> {
+      return request(app.getHttpServer())
+        .post(cancelRaceUrl(raceId))
+        .set('Authorization', caller.authHeader)
+        .expect(expectedStatus);
+    }
+
+    it('ödemiş HER oyuncuya iade eder, havuzu sıfırlar ve denetim kaydı yazar', async () => {
+      const admin = await registerTestPlayer(app, 'İptal Eden');
+      await makeAdmin(admin.playerId);
+      const a = await registerTestPlayer(app, 'İade Alan A');
+      const b = await registerTestPlayer(app, 'İade Alan B');
+
+      const raceId = await createRace({ entryFee: 250, prizePool: 500 });
+      await addPaidEntry(raceId, a.playerId, 250);
+      await addPaidEntry(raceId, b.playerId, 250);
+      const beforeA = await readMoney(a.playerId);
+      const beforeB = await readMoney(b.playerId);
+
+      const response = await cancel(admin, raceId, 200);
+
+      expect(response.body.data.raceId).toBe(raceId);
+      expect(response.body.data.refundedPlayers).toBe(2);
+      expect(response.body.data.refundedTotal).toBe(500);
+      expect(typeof response.body.data.cancelledAt).toBe('string');
+
+      // BAKİYELER — iddia SQL ile doğrulanır, yanıt gövdesiyle DEĞİL:
+      // "iade edildi" cevabı tek başına parayı kanıtlamaz.
+      expect(await readMoney(a.playerId)).toBe(beforeA + 250);
+      expect(await readMoney(b.playerId)).toBe(beforeB + 250);
+
+      // DEFTER: her iade için bir satır ve `CHECK (balance_after =
+      // balance_before + amount)` korunmuş olmalı.
+      const ledger = await pool.query<{ amount: string; balance_before: string; balance_after: string }>(
+        `SELECT amount, balance_before, balance_after FROM economy_transactions
+          WHERE type = 'race_entry_refund' AND reference_type = 'race' AND reference_id = $1
+          ORDER BY player_id`,
+        [raceId],
+      );
+      expect(ledger.rows).toHaveLength(2);
+      for (const row of ledger.rows) {
+        expect(Number(row.amount)).toBe(250);
+        expect(Number(row.balance_after)).toBe(Number(row.balance_before) + Number(row.amount));
+      }
+
+      // HAVUZ SIFIRLANIR: iptal edilmiş bir yarışta kalıcı bir bakiye
+      // kalmamalıdır.
+      const race = await pool.query<{ status: string; prize_pool: string }>(
+        'SELECT status, prize_pool FROM races WHERE id = $1',
+        [raceId],
+      );
+      expect(race.rows[0].status).toBe('cancelled');
+      expect(Number(race.rows[0].prize_pool)).toBe(0);
+
+      // KATILIMLAR `cancelled` İŞARETLENİR, SİLİNMEZ.
+      const entries = await pool.query<{ count: string }>(
+        `SELECT count(*)::int AS count FROM race_entries
+          WHERE race_id = $1 AND status = 'cancelled'`,
+        [raceId],
+      );
+      expect(entries.rows[0].count).toBe(2);
+
+      // DENETİM KAYDI — brief §34 "Finansal işlemler audit log'a
+      // yazılmalı." Aynı transaction'da yazıldığı için burada GÖRÜNMESİ
+      // gerekir.
+      const details = await readCancelAudit(raceId);
+      expect(details).toBeDefined();
+      expect(details?.to).toBe('cancelled');
+      expect(details?.refundedPlayers).toBe(2);
+      expect(details?.refundedTotal).toBe(500);
+    });
+
+    it('BOT PAYI İADE EDİLMEZ — `refundedTotal` havuzun tamamı DEĞİLDİR', async () => {
+      // Havuz 500, gerçek oyuncu 250 ödedi, kalan 250 bota aittir. Botun
+      // `player_id`si yoktur, yani ödediği bir para da yoktur; onu iade
+      // etmiş gibi saymak, ödenmemiş bir tutarı ödenmiş göstermek olurdu.
+      const admin = await registerTestPlayer(app, 'Bot İptal Eden');
+      await makeAdmin(admin.playerId);
+      const real = await registerTestPlayer(app, 'Gerçek Katılımcı');
+
+      const raceId = await createRace({ entryFee: 250, prizePool: 500 });
+      await addPaidEntry(raceId, real.playerId, 250);
+      await addBotEntry(raceId, 'bot-1');
+      const before = await readMoney(real.playerId);
+
+      const response = await cancel(admin, raceId, 200);
+
+      expect(response.body.data.refundedPlayers).toBe(1);
+      expect(response.body.data.refundedTotal).toBe(250);
+      expect(await readMoney(real.playerId)).toBe(before + 250);
+      // Bot payı havuzda KALMAZ: havuz yine sıfırlanır (sahipsiz bir
+      // bakiye bırakmak, iptal edilmiş yarış için kalıcı bir kalıntı
+      // yaratırdı).
+      const race = await pool.query<{ prize_pool: string }>(
+        'SELECT prize_pool FROM races WHERE id = $1',
+        [raceId],
+      );
+      expect(Number(race.rows[0].prize_pool)).toBe(0);
+    });
+
+    it('ÜCRETSİZ yarışta para yoluna HİÇ girilmez — iade satırı yazılmaz', async () => {
+      const admin = await registerTestPlayer(app, 'Ücretsiz İptal Eden');
+      await makeAdmin(admin.playerId);
+      const player = await registerTestPlayer(app, 'Ücretsiz Katılımcı');
+
+      const raceId = await createRace({ entryFee: 0, prizePool: 0 });
+      const horse = await pool.query<{ id: string }>(
+        'SELECT id FROM horses WHERE owner_id = $1 LIMIT 1',
+        [player.playerId],
+      );
+      await pool.query(
+        `INSERT INTO race_entries (race_id, horse_id, player_id, status) VALUES ($1, $2, $3, NULL)`,
+        [raceId, horse.rows[0].id, player.playerId],
+      );
+      const before = await readMoney(player.playerId);
+
+      const response = await cancel(admin, raceId, 200);
+
+      expect(response.body.data.refundedPlayers).toBe(0);
+      expect(response.body.data.refundedTotal).toBe(0);
+      expect(await readMoney(player.playerId)).toBe(before);
+      expect(await countRefundRows(raceId)).toBe(0);
+      // Katılım yine de iptal işaretlenir: yarış artık yoktur.
+      const entries = await pool.query<{ count: string }>(
+        `SELECT count(*)::int AS count FROM race_entries
+          WHERE race_id = $1 AND status = 'cancelled'`,
+        [raceId],
+      );
+      expect(entries.rows[0].count).toBe(1);
+    });
+
+    it('İKİNCİ iptal 409 RACE_NOT_CANCELABLE döner ve İKİNCİ KEZ ÖDEMEZ', async () => {
+      // Çift iadeyi engelleyen şey `Idempotency-Key` DEĞİL, durum
+      // geçişinin kendisidir (`SettleRaceUseCase` ile AYNI gerekçe). Bu
+      // test tam olarak onu ölçer: ikinci çağrıdan sonra bakiye ve defter
+      // satır sayısı DEĞİŞMEMİŞ olmalıdır.
+      const admin = await registerTestPlayer(app, 'İki Kez İptal Eden');
+      await makeAdmin(admin.playerId);
+      const player = await registerTestPlayer(app, 'Tek İade Alan');
+
+      const raceId = await createRace({ entryFee: 100, prizePool: 100 });
+      await addPaidEntry(raceId, player.playerId, 100);
+
+      await cancel(admin, raceId, 200);
+      const afterFirst = await readMoney(player.playerId);
+
+      const second = await cancel(admin, raceId, 409);
+      expect(second.body.error.code).toBe('RACE_NOT_CANCELABLE');
+
+      expect(await readMoney(player.playerId)).toBe(afterFirst);
+      expect(await countRefundRows(raceId)).toBe(1);
+      // Denetim günlüğü de İKİNCİ satırı almaz — gerçekleşmemiş bir
+      // işlemin kaydı olmamalıdır.
+      const audit = await pool.query<{ count: string }>(
+        `SELECT count(*)::int AS count FROM admin_audit_log
+          WHERE action = 'race.cancelled' AND target_id = $1`,
+        [raceId],
+      );
+      expect(audit.rows[0].count).toBe(1);
+    });
+
+    it('KOŞMUŞ (`finished`) yarış iptal EDİLEMEZ — dağıtılmış ödül geri alınamaz', async () => {
+      // Bu iddianın asıl değeri şurada: iade tutarı DEFTERDEN okunur. Bir
+      // kazananın defterinde `lobby_race_entry_fee` DEĞİL `race_prize`
+      // satırı vardır; iptale izin verilseydi kazanana ödediği ücret
+      // iade edilir, ödülü ise yerinde kalırdı — sessizce yanlış bir
+      // muhasebe, hiçbir hata mesajı olmadan.
+      const admin = await registerTestPlayer(app, 'Bitmiş Yarış Yöneticisi');
+      await makeAdmin(admin.playerId);
+      const player = await registerTestPlayer(app, 'Bitmiş Yarış Oyuncusu');
+
+      const raceId = await createRace({ entryFee: 100, prizePool: 0, status: 'finished' });
+      await addPaidEntry(raceId, player.playerId, 100);
+      const before = await readMoney(player.playerId);
+
+      const response = await cancel(admin, raceId, 409);
+      expect(response.body.error.code).toBe('RACE_NOT_CANCELABLE');
+
+      expect(await readMoney(player.playerId)).toBe(before);
+      expect(await countRefundRows(raceId)).toBe(0);
+      const race = await pool.query<{ status: string }>(
+        'SELECT status FROM races WHERE id = $1',
+        [raceId],
+      );
+      expect(race.rows[0].status).toBe('finished');
+      expect(await readCancelAudit(raceId)).toBeUndefined();
+    });
+
+    it('olmayan yarış için 404 RACE_NOT_FOUND döner (yönetici için)', async () => {
+      // Yönetici OLMAYAN için aynı çağrı 403'tür (yukarıdaki kapı testi):
+      // 404 ile 403 karşılaştırılarak yarış kimlikleri yoklanamaz.
+      const admin = await registerTestPlayer(app, 'Yarış Bulamayan');
+      await makeAdmin(admin.playerId);
+
+      const response = await cancel(admin, randomUUID(), 404);
+      expect(response.body.error.code).toBe('RACE_NOT_FOUND');
+    });
+
+    it('geçersiz uuid veritabanına HİÇ gitmez — 400 döner', async () => {
+      // `ParseUUIDPipe` yol parametresini korur (pipe'lar esbuild altında
+      // da çalışır — CLAUDE.md kural 5); aksi hâlde `22P02` ile 500
+      // görülürdü.
+      const admin = await registerTestPlayer(app, 'Uuid Denetleyen');
+      await makeAdmin(admin.playerId);
+
+      await request(app.getHttpServer())
+        .post('/api/v1/admin/races/yaris-1/cancel')
+        .set('Authorization', admin.authHeader)
+        .expect(400);
     });
   });
 });

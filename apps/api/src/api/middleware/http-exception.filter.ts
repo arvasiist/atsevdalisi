@@ -4,6 +4,7 @@ import { ErrorCode } from '@at-sevdalisi/shared-types';
 import {
   AdminRequiredError,
   InvalidReportStatusError,
+  RaceNotCancelableError,
   ReportNotFoundError,
 } from '../../domain/admin/errors';
 import {
@@ -364,6 +365,11 @@ const DOMAIN_ERROR_MAP = new Map<ErrorClassConstructor, { status: number; code: 
   // yönetici olmayan biri kuyruktaki kimlikleri yoklayamaz (IDOR).
   [ReportNotFoundError, { status: HttpStatus.NOT_FOUND, code: ErrorCode.ReportNotFound }],
   [InvalidReportStatusError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.InvalidReportStatus }],
+  // 409 — yarış bu durumdan iptal edilemez (28.09.2026). `RaceNotSettleable`/
+  // `RaceEntryNotLeavable` ile AYNI kategori: istek kusurlu değil, kaynağın
+  // DURUMU uygun değil. Dört `reason` da tek koda düşer (yukarıdaki
+  // `InvalidReportStatusError` notuyla AYNI desen).
+  [RaceNotCancelableError, { status: HttpStatus.CONFLICT, code: ErrorCode.RaceNotCancelable }],
   // `POST /auth/login`'e özgü — bkz. `InvalidProviderTokenError` doc yorumu.
   [InvalidProviderTokenError, { status: HttpStatus.UNAUTHORIZED, code: ErrorCode.InvalidProviderToken }],
   // claude/hizli-bitirme-plani.md'nin proje sahibi tarafından
