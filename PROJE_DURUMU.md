@@ -2272,6 +2272,154 @@ gömülmedi.**
 
 ---
 
+#### 13.24 YARIŞ YAŞAM DÖNGÜSÜ — `startTime` kilidi + dondurulmuş snapshot + İLK ZAMANLAYICI (brief §42 PHASE 1) — 28.09.2026
+
+**BU DİLİM BİR "AÇIK PENCERE"Yİ KAPATIR — ve pencere kapatıldığı için
+`locking` diye YENİ bir durum doğdu (migration 0042).**
+
+**ÖNCEKİ DURUM (dürüst):** `startTime`ı İŞLEYEN HİÇBİR ŞEY YOKTU. Ücretli
+lobi yarışı yalnızca kimliği doğrulanmış bir oyuncu
+`POST /races/:id/settle` çağırdığında koşuyordu; seed ve `horse_snapshot`
+ise **kesinleşme ANINDA** üretiliyordu. Yani oyuncu `startTime` ile
+kesinleşme arasındaki pencerede atını çalıştırıp (ya da ekipman
+değiştirip) sonucu **etkileyebiliyordu** — ve bu, hiçbir yerde hata
+üretmiyordu. `SettleRaceUseCase` doc yorumu bu pencereyi açıkça yazıyordu.
+
+**YENİ ZİNCİR:** `scheduled` → (zamanlayıcı, `startTime` geçince) →
+**`locking`** → (`settle`) → `finished`. `locking`in tek anlamı: *"kadro +
+seed + snapshot donduruldu, henüz KOŞMADI."* Ödüller bu durumda
+**DAĞITILMAMIŞTIR** — bu ayrım iptal kararının temelidir (aşağıda).
+
+**PROJEDEKİ İLK ZAMANLAYICI — `RaceLockScheduler`.** `race_starting`
+bildiriminin üreticisiz kalmasının ve yukarıdaki pencerenin tek sebebi,
+projede zamanla tetiklenen **hiçbir işin olmamasıydı**. Sınıfın doc
+yorumunda beş karar ve her birinin tuzağı yazılıdır:
+
+1. `setInterval` DEĞİL **`setTimeout` zinciri** — yavaş bir tur turları üst
+   üste bindirmesin.
+2. **`unref()`** — zamanlayıcı Node sürecini ayakta tutmasın (yoksa
+   kapanmakta olan bir süreç açık bir timer yüzünden bekler).
+3. **`NODE_ENV === 'test'` iken KAPALI** — e2e saati KENDİSİ sürmelidir,
+   yoksa arka plan turu testin kurulumu ile iddiası arasına girer ve CI'da
+   **rastgele** düşen bir test doğar. **Bu, kilidin test edilmediği
+   anlamına GELMEZ:** testler `tickNow()` çağırır, yani koşan kod yolu
+   birebir aynıdır — yalnızca saat testin elindedir.
+4. **`isTicking` yeniden giriş kilidi** (ve `finally`de bırakılır — bir
+   `throw` yolu kilidi kalıcı bıraksaydı zamanlayıcı bir daha asla
+   kilitlenmez ve bunu **hiçbir şey söylemezdi**).
+5. **Tur seviyesinde hata yutulur** — yakalanmayan bir söz, Node sürümüne
+   göre süreci öldürebilir; zamanlayıcının bir kez düşüp bir daha
+   çalışmaması = kilitlenmeyen yarışlar.
+
+**ATOMİKLİK — `scheduled → locking` TEK TRANSACTION'DA YAZILIR:**
+durum + `simulation_seed` + dört sürüm kolonu (`engine_version`,
+`ruleset_version`, `config_version`, `weather_config_version`) + **her
+girişin `horse_snapshot`ı** + `race_starting` bildirimleri. Ayrı
+`INSERT`lar olsaydı bir çökme "kilitli ama snapshotsız" satır bırakırdı ve
+kesinleşme o satırı **sessizce** yeniden kurardı — yani pencere geri
+açılırdı. İkinci tur `NOT_LOCKABLE_UNDER_LOCK` döner (durum kilit altında
+tekrar denetlenir); `settle` zaten `scheduled|locking → finished`
+geçişiyle korunuyor.
+
+**⚠️ ÜÇ KAPI AYNI ANDA AÇILDI — biri unutulsaydı KALICI PARA KİLİDİ
+doğardı.** Zamanlayıcı `startTime`da kilitler; kimse kesinleştirmezse
+`checkRaceLeavable` `startTime` sonrası ayrılmayı kapattığı için oyuncu
+parasını **hiçbir yoldan** geri alamazdı. Bu yüzden `locking`:
+- **kesinleştirilebilir** (`checkRaceSettleable`),
+- **iptal edilebilir** (`checkRaceCancelable` → `locking` için ret yok;
+  iade defterdeki son `lobby_race_entry_fee`den okunur, §13.19),
+- **kilitlenebilir** (asıl geçiş).
+
+**SEED ARTIK KİLİTTE DOĞAR.** Eskiden kesinleşmede doğuyordu.
+`randomUUID()` — **`Math.random()` DEĞİL**: CLAUDE.md'nin yasağı motorun
+İÇİNDEKİ rastgelelik içindir (motor `deriveRandom(seed, ...)` ile
+determinist olmalı); seed'in KENDİSİ rastgele olmalıdır, yoksa sonuç
+önceden hesaplanabilirdi. `raceId`yi seed yapmak bu yüzden **yasak**
+olurdu.
+
+**YENİ DOSYALAR:**
+- `domain/race/race-lifecycle.ts` — kapalı geçiş çizgesi,
+  `Record<RaceStatus, ...>` olarak (eksik anahtar **tsc hatası** verir, yani
+  "yeni durum eklendi ama tablo güncellenmedi" sessizce izin veremez).
+  `TERMINAL_RACE_STATUSES` = `finished`/`cancelled`; **`finished →
+  cancelled` YASAK** (ödül dağıtılmış yarışta iade, kazanana ödenen
+  `race_prize` değil ödediği giriş ücreti olurdu = makul görünen YANLIŞ
+  tutar).
+- `infrastructure/scheduler/race-lock.scheduler.ts` — yukarıdaki 5 karar.
+- `application/use-cases/lock-race.use-case.ts` — "şimdi kilitlenecek ne
+  var" sorusunu **soran ve cevaplayan** use-case; **zamanlayıcı DEĞİL**.
+  Ayrım bilinçlidir: testler gerçek kodu koştururken saati kendileri
+  kontrol eder. Yarış başına `try`/`catch`: tek bir bozuk satır TÜM
+  lobiyi kilitleyip havuzları kalıcı kilitlememelidir.
+- `application/services/entrant-snapshot.builder.ts` — snapshot kurma
+  mantığı `SettleRaceUseCase`in özel metodu iken **paylaşılan servise**
+  taşındı. İki kopya bırakmak, `buildHorseEntrantSnapshot` girdileri
+  değiştiğinde (PHASE 6'da jokey/kişilik **planlanıyor**) birinin
+  güncellenip diğerinin unutulması demekti — dondurulmuş snapshot ile
+  kesinleşme snapshot'ı **sessizce** ayrışırdı. `domain/` altında DEĞİL
+  `application/services/` altındadır: repository portlarına bağımlıdır
+  (katman yönü).
+
+**CONFIG (sihirli sayı yok):** `config/race-lobby.config.json` →
+`lockScheduler: { enabled, tickSeconds, batchSize }`, tipi
+`packages/game-config/src/types.ts`'te. **Bu bir yetki kapısı değil
+ayardır** — `enabled: false` kilidi kapatır ama `settle` yolu çalışmaya
+devam eder (crank yolu), yani para kilitli kalmaz.
+
+**KANIT:**
+- `apps/api/test/domain/race/race-lifecycle.spec.ts` — geçiş çizgesi +
+  **migration 0042'nin CHECK listesiyle BİREBİR hizalama (dosya OKUNARAK)**.
+  `races.status` CHECK'i veritabanındaki tek gerçekliktir; kayma yalnızca
+  **üretimde** `23514 check_violation` olarak patlar.
+- `apps/api/test/api/race-lifecycle.e2e-spec.ts` — 7 test: kilit + seed +
+  snapshot yazımı; ikinci turun **no-op** olması ve seed'in DEĞİŞMEMESİ;
+  `startTime`ı gelmemiş yarışın kilitlenmemesi; katılımcısız yarışın
+  kilitlenmemesi; `race_starting` bildiriminin katılımcılara gidip
+  **yabancıya gitmemesi**; **DONDURULMUŞ SNAPSHOT KANITI**; `locking`
+  yarışın iptalinde iadenin **defterden** okunması.
+- Diğer: `domain/race/lobby.spec.ts` (`checkRaceLockable` — 8 test),
+  `domain/admin/race-cancel.spec.ts` (`locking` iptal edilebilir;
+  **yürürlükteki yetki artık 0042**, eski `races_status_check`i düşürdüğü
+  iddia edilir), `domain/race/race-lobby-config.spec.ts` (`lockScheduler`).
+
+**⚠️ DONDURULMUŞ SNAPSHOT NASIL KANITLANIR — testin asıl değeri budur.**
+Test kilit anındaki `speed` ve `seed`i saklar, sonra **doğrudan SQL ile**
+`horse_stats.speed`i **artırır** ve kesinleştirir; sonuç DEĞİŞMEMELİDİR.
+Eğitim API'si **bilerek** kullanılmadı: `applyTraining`'in `statGain`i
+meşru şekilde **0** olabilir ve o zaman iddia **boş** olurdu (test yeşil
+kalır, hiçbir şey kanıtlamaz). Test önce artışın **gerçekten olduğunu**
+iddia eder (`expect(bumped).toBeGreaterThan(speedAtLock)`) — bu ön koşul
+olmadan sonraki iddia boş bir totolojidir.
+
+**⚠️ `RaceEntrantSnapshot` `ports/race.repository.ts`ten İTHAL
+EDİLEMEZ** — o port onu `@at-sevdalisi/shared-types`tan alır ve **yeniden
+ihraç etmez**; `TS2459` verir. Doğrudan `shared-types`tan ithal edilir.
+
+**BU DİLİMDE KAPANMAYANLAR (dürüst):**
+- **`race_starting` bildirimi artık GERÇEKTEN üretilir** (kilit anında,
+  aynı transaction'da) — PHASE 13'ün kalan **tek** türü buydu. Ama
+  zamanlayıcı **`NODE_ENV=test` ve `lockScheduler.enabled=false` iken
+  kapalıdır**, yani üretim yapılandırmasına bağlıdır.
+- **`in_progress` DURUMU HÂLÂ ÖLÜDÜR.** Tabloda ve geçiş çizgesinde
+  durur (miras), ama onu **yazan hiçbir kod yoktur**: yarış `locking`ten
+  doğrudan `finished`a geçer. Canlı yarış **yayını** (`race.*` olayları)
+  hâlâ yalnızca izleyici akışıdır; motor tek seferde koşar, kademeli
+  değil. Yani "LIVE RACE" aşaması **simülasyon anlık görüntüsüdür, gerçek
+  zamanlı koşu değildir**.
+- **Zamanlayıcı TEK örneklidir.** İki API örneği koşarsa ikisi de tur
+  atar; kilidin kendisi `FOR UPDATE` + durum geçişiyle idempotent olduğu
+  için **çift kilit olmaz**, ama gereksiz yük olur (dağıtık kilit yok).
+- **Snapshot hâlâ `startTime`da değil, tur ANINDA alınır** — tur
+  `tickSeconds` kadar geç olabilir. Pencere **saniyeler** mertebesine
+  indi, **sıfırlanmadı**; `tickSeconds` config'ten küçültülebilir.
+- Yarış **geçmişi/tekrar oynatma** uçları bu dilimin dışındadır.
+
+**Race engine'e DOKUNULMADI, para yolu DEĞİŞMEDİ** (kilit yalnızca
+yazar; ödül dağıtımı aynı `settle` ucundadır), **hiçbir config değeri
+koda gömülmedi.**
+
+---
+
 ## 14. Kendime hatırlatmalar (kısa liste)
 
 1. **Race Engine'e dokunmadan önce iki kez düşün.** Denetim onu "KEEP, dokunma"

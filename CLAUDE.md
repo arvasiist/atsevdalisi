@@ -110,9 +110,12 @@ YOKTUR** — uç bir "crank"tir: kimliği doğrulanmış HERHANGİ bir oyuncu
 DEĞİL, `scheduled → finished` geçişinin kendisidir (ikinci çağrı 409
 `RACE_NOT_SETTLEABLE`).
 
-**Bununla birlikte hâlâ eksik olan:** `race_starting` bildiriminin üreticisi
-YOK — o gerçekten **zamanlayıcı** ister (başlangıç anında tetiklenen bir iş)
-ve sunucuda zamanla tetiklenen hiçbir iş yoktur.
+**✅ `race_starting` BİLDİRİMİ ARTIK ÜRETİLİR (§13.24, 28.09.2026).**
+`RaceLockScheduler` — projenin **İLK ZAMANLAYICISI** — `startTime`ı geçmiş
+lobi yarışlarını `locking`e geçirir; bildirim AYNI transaction'da yazılır.
+⚠️ Zamanlayıcı **`NODE_ENV=test` iken ve `lockScheduler.enabled=false`
+iken KAPALIDIR** (e2e saati kendi sürer: `tickNow()`), yani üretim
+yapılandırmasına bağlıdır.
 
 **⚠️ BOT PAYI YANAR.** Kadro `fieldSize`a botlarla tamamlanır
 (`aiFillEnabled`) ve botların `player_id`'si yoktur — bota düşen ödül
@@ -121,10 +124,44 @@ kendi yarışını açıp tek gerçek katılımcı olarak havuzun çoğunu geri
 alabilirdi. Sonucu: gerçek oyuncu sayısı azken yarış oyuncu için
 KAYIPTIR.
 
-**⚠️ SNAPSHOT KESİNLEŞME ANINDA ALINIR, `startTime`'DA DEĞİL.** Oyuncu
-`startTime` ile kesinleşme arasında atını çalıştırıp sonucu etkileyebilir.
-Kapatmak `startTime`'da tetiklenen bir zamanlayıcı gerektirir — projede
-yok. `SettleRaceUseCase` doc yorumunda yazılı.
+**⚠️ `locking` DURUMU — ÜÇ KAPI AYNI ANDA AÇIK OLMALI (migration 0042,
+§13.24).** Zamanlayıcı `startTime`da yarışı `locking`e alır ve kadroyu +
+seed'i + `horse_snapshot`ı **dondurur**. Bu durum **kesinleştirilebilir**
+(`checkRaceSettleable`), **iptal edilebilir** (`checkRaceCancelable`) ve
+**kilitlenebilir** olmak zorundadır. Birini kapatmak **kalıcı para kilidi**
+doğurur: `checkRaceLeavable` `startTime` sonrası ayrılmayı kapattığı için
+oyuncu parasını hiçbir yoldan geri alamaz — ve bu hiçbir yerde hata
+üretmez. Yeni bir kapı yazarken `RaceStatus`e `locking` eklendi mi diye
+sor.
+
+**⚠️ YENİ BİR `RaceStatus` EKLERKEN ÜÇ YER:** (1)
+`domain/race/race-lifecycle.ts` — `Record<RaceStatus, ...>` tam olmalıdır
+(eksik anahtar **tsc hatası** verir, sessizce izin vermez), (2) migration
+`races.status` CHECK'i — **eski kısıt ADIYLA düşürülür**
+(`races_status_check` → `races_status_valid`; ikisi birlikte yürürlükte
+kalsaydı yeni durum **çalışma anında** reddedilirdi ve derleyici susardı),
+(3) `test/domain/race/race-lifecycle.spec.ts` migration'ı **okuyarak**
+karşılaştırır.
+
+**⚠️ `finished → cancelled` YASAKTIR ve bu bir para kuralıdır.** Koşmuş
+yarışta iade, kazanana ödenen `race_prize` değil oyuncunun ödediği giriş
+ücreti olurdu = **makul görünen yanlış tutar**. `cancelled`/`finished`
+**çıkışsızdır**.
+
+**⚠️ SEED KİLİT ANINDA DOĞAR, kesinleşmede DEĞİL** — ve `randomUUID()`
+kullanır. CLAUDE.md'nin `Math.random()` yasağı **motorun İÇİNDEKİ**
+rastgelelik içindir (motor `deriveRandom(seed, ...)` ile determinist
+olmalı); seed'in KENDİSİ rastgele olmak zorundadır, yoksa sonuç önceden
+hesaplanabilirdi. `raceId`yi seed yapmak bu yüzden yasaktır.
+
+**⚠️ `RaceEntrantSnapshot` `ports/race.repository.ts`ten İTHAL EDİLEMEZ**
+(`TS2459` — port onu yeniden ihraç etmez); `@at-sevdalisi/shared-types`tan
+alınır.
+
+**⚠️ DONDURULMUŞ SNAPSHOT TESTİ EĞİTİM API'SİYLE YAZILMAZ.** `applyTraining`
+`statGain`i meşru şekilde **0** olabilir; o zaman iddia **boş** olur ve
+test yeşil kalırken hiçbir şey kanıtlamaz. Test **SQL ile** stat bump eder
+ve ÖNCE artışın gerçekten olduğunu iddia eder (§13.24).
 
 **Sahibinin cevabını bekleyen tek kritik soru:** 3D/ses varlıkları nereden geliyor?
 
@@ -186,16 +223,13 @@ başlarken bu dördünü "yapılacaklar" sanıp yeniden açma.
   testler de SQL ile yapar. Kendini yönetici yapabilen bir uç nokta
   yönetim yetkisini anlamsız kılardı. §34'ün "kullanıcı yönetimi" ekranı
   geldiğinde bu, **denetim günlüğüne yazılan** bir işlem olmalıdır.
-- **PHASE 13 (bildirim üreticileri) — YEDİ/SEKİZ YAPILDI (§13.13/§13.14).**
-  Sekiz türden YEDİSİ üretiliyor: `race_invite` (§13.11) + `friend_request`,
-  `friend_accepted`, `message_received` (§13.13) + `gift_received`
-  (§13.13.1, para yolu) + `race_finished`, `prize_won` (§13.14, ödül
-  dağıtımıyla birlikte). **Kalan TEK tür: `race_starting` — ve bu bir kod
-  eksikliği DEĞİL, altyapı eksikliğidir:** başlangıç ANINDA tetiklenen bir
-  iş gerektirir, projede ise zamanlayıcı/cron/worker YOKTUR. `race_finished`/
-  `prize_won`'un aksine bu, "bir uç noktadan çağrılır" biçiminde
-  modellenemez (bir oyuncunun "yarış başladı" bildirimini kendi eliyle
-  tetiklemesi anlamsız olurdu).
+- **PHASE 13 (bildirim üreticileri) — SEKİZ/SEKİZ YAPILDI (§13.13/§13.14/
+  §13.24).** Sekiz türün SEKİZİ de üretiliyor: `race_invite` (§13.11) +
+  `friend_request`, `friend_accepted`, `message_received` (§13.13) +
+  `gift_received` (§13.13.1, para yolu) + `race_finished`, `prize_won`
+  (§13.14) + **`race_starting` (§13.24 — 28.09.2026; kilit anında, aynı
+  transaction'da).** `race_starting`'in üreticisiz kalmasının tek sebebi
+  projede zamanlayıcı olmamasıydı; `RaceLockScheduler` o boşluğu kapattı.
 - `GltfAssetLoader.tsx` — **asset olmadan ANLAMSIZ.** `.glb` yokken her zaman
   yedek görünüme düşer = bugünkü kapsül+küre görüntüsünün tıpatıp aynısı.
   Bağlamak sıfır görsel etki üretir.
@@ -205,6 +239,15 @@ başlarken bu dördünü "yapılacaklar" sanıp yeniden açma.
 - `PlayerDemoWidget.tsx` — **gereksiz.** İşlevi ana sayfa (`usePlayer`/
   `apiClient`) tarafından zaten yapılıyor; bağlamak ikinci bir base-url
   kaynağı doğurur.
+
+**⚠️ `in_progress` HÂLÂ ÖLÜDÜR (§13.24).** Tabloda ve geçiş çizgesinde
+durur (miras), ama onu **yazan hiçbir kod yoktur**: yarış `locking`ten
+doğrudan `finished`a geçer. "LIVE RACE" aşaması **simülasyon anlık
+görüntüsüdür, gerçek zamanlı koşu değildir** — motor tek seferde koşar.
+Bu yüzden brief §42 PHASE 1'in `STARTING`/`RUNNING`/`FINISHING`/
+`SETTLING`/`REFUNDING` durumları **eklenmedi**: hiçbir kodun yazmadığı
+durumlar uydurmak, `Pause`un imkânsız olmasıyla aynı gerekçeyle yanlış
+olurdu.
 
 **Bitmiş sayılacaklar (yeniden yapma):** telemetri zenginleştirme
 (`fatigueLevel`/`paceScore`, migration 0029) · Camera Director · Photo Finish
@@ -256,6 +299,13 @@ yönsüzdür ("Yem alımı", "Yem aldın" değil) ve içlerinde `+`/`−`
 geçmez — `ledger-labels.spec.ts` bunu iddia eder. Yönün tek kaynağı
 sunucunun **işaretli** `amount`'udur; ikinci bir yön kaynağı, ikisinin
 çeliştiği bir durum üretir.
+
+**⚠️ YEREL HARNESS'TE `test/domain/race` HİÇ KOŞMUYORDU (28.09.2026'da
+düzeltildi, §13.24).** Domain grubu yalnızca `test/domain/admin`,
+`test/domain/social` ve `test/security` dizinlerini çağırıyordu; bu
+dizine yazılan bir test "yerelde doğrulandı" sanılırken **hiç koşmamış**
+olurdu ve **yeşil harness çıktısı bunu ele vermez**. Yeni bir test
+dizini yazarsan `.claude/verify-admin.mjs`teki gruba EKLE.
 
 **⚠️ YEREL HARNESS'E ÜÇÜNCÜ VITEST GRUBU EKLENDİ (§13.21).** `.claude/
 verify-admin.mjs` eskiden yalnızca `apps/api` testlerini çağırıyordu;
