@@ -2420,6 +2420,110 @@ koda gömülmedi.**
 
 ---
 
+#### 13.25 SAHA KOMPOZİSYONU — `fieldSize` ≠ gerçek oyuncu sayısı + ayrıştırılabilir sonuç (brief §42 PHASE 2) — 28.09.2026
+
+**BU DİLİM BİR "ÖLÜ CONFIG"İ ORTAYA ÇIKARDI.** `config/race-lobby.
+config.json` → `aiFillEnabled` **hiçbir kod tarafından okunmuyordu**:
+yalnızca JSON'da, `packages/game-config/src/types.ts`te ve "boolean mı"
+diyen tek bir testte duruyordu. `SettleRaceUseCase` ise sahayı **koşulsuz
+olarak** `fieldSize`a tamamlıyordu — yani sahibi onu `false` yapsa
+**tek bir bot bile eksilmezdi** ve bunu **ne derleyici ne hiçbir test**
+söylerdi. Bir config değerinin hiçbir etkisi olmaması, o değerin hiç
+olmamasından **daha kötüdür**: okuyan onu "kapatma düğmesi" sanar.
+
+**ÜÇ SOMUT BOŞLUK KAPATILDI:**
+
+1. **`fieldSize` ile gerçek oyuncu sayısı ayrıldı.** Kural artık saf bir
+   fonksiyondur: `domain/race/field-composition.ts` → `resolveFieldComposition`.
+   `settle-race.use-case.ts` onu **tüketir** (`this.config.raceLobby.
+   aiFillEnabled` + `fieldSizes`), bot sayısını kendi hesaplamaz.
+2. **Sonuç artık AYRIŞTIRILABİLİR.** `RaceSettlementPlace`ten `isBot`
+   KALDIRILDI; yerine `participantType: 'human' | 'ai'` geldi ve
+   `jockeyId`, `startingStats` (8 sayı), `finalTimeMs` eklendi. `isBot`un
+   web tüketicisi **olmadığı doğrulandı** (yalnızca
+   `RaceTimelineEntrantView`/`RaceRosterEntrant` o adı kullanır; onlar
+   DEĞİŞMEDİ).
+3. **`startingStats` DONDURULMUŞ snapshot'tan okunur**, canlı statlardan
+   değil. Canlı okunsaydı, sonucu **açıklayan** sayılar ile sonucu
+   **üreten** sayılar ayrışırdı ve bu hiçbir yerde hata üretmezdi.
+
+**YENİ DOSYA:** `apps/api/src/domain/race/field-composition.ts` —
+`resolveFieldComposition(input, config)` → `{ok:true, composition}` ya da
+`{ok:false, reason}`. Ret nedenleri: `UNSUPPORTED_FIELD_SIZE` ·
+`TOO_MANY_PLAYERS` · `NO_HUMAN_PLAYERS`. `fieldSizes` **config'ten**
+gelir (koda ikinci bir liste gömmek, config'e eklenen bir boyutu sessizce
+reddeden bir kod doğururdu — kural 6). `fieldSize` kontrolü burada
+**tekrarlanır**: `races.field_size` doğrudan SQL ile değiştirilebilir ve
+o durumda `generateBotEntrants` negatif bir sayı alırdı.
+
+**DEĞİŞEN DOSYALAR:** `packages/shared-types/src/race.ts` (yeni
+`RaceParticipantType`, yeni `RaceStartingStats`, `RaceSettlementPlace`
+yeniden yazıldı) · `domain/race/field-composition.ts` (yeni) ·
+`domain/race/entrant-snapshot.ts` (yeni `pickStartingStats` — bilinçli
+ALT KÜME, kopyalanır/referans geçirilmez) · `application/use-cases/
+settle-race.use-case.ts` (`resolveFieldComposition` tüketimi) ·
+`infrastructure/race/postgres-race.repository.ts` (`assertBotSnapshot`
+yardımcısı, kilitli-giriş sorgusuna `jockey_id`, `jockeyIdByEntryId`
+haritası, iki `places.push` bloğu).
+
+**⚠️ BOT SNAPSHOT'I `?? null` İLE GEÇİŞTİRİLMEZ.** `RaceEntry.
+horseSnapshot` NULLABLE'dır (gerçek atlar için kilit anında yazılır, eski
+satırlarda hiç yoktur) — ama **botlar için her zaman vardır**:
+`generateBotEntrants` onu simülasyon için üretir ve use-case doğrudan o
+nesneyi geçirir. `null` gelmesi bir bütünlük hatasıdır ve sıfırlarla bir
+`startingStats` uydurmak, yanıta **yanlış** sayılar koymak olurdu. Bu
+yüzden `assertBotSnapshot` **patlar**.
+
+**⚠️ "AI'YE GİZLİ BONUS" ARTIK TESTLE ELE VERİLİR.** Bot statları aynı
+seed ile **yeniden üretilip** yanıttaki sayılarla **birebir** karşılaştırılır
+(`generateBotEntrants(6, seed)`). Motora giren girdi ile oyuncuya gösterilen
+sayı arasına bir çarpan girse bu test **kırılır** — brief'in "gizli +%50"
+yasağının ölçülebilir karşılığı budur.
+
+**⚠️ BRIEF'İN "8/0/8" SENARYOSU SUNUCUDA İMKÂNSIZDIR — UYDURULMADI.**
+`checkRaceSettleable`/`checkRaceLockable` `joinedPlayers < 1` durumunu
+`NO_PARTICIPANTS` ile keser; ödül havuzu **gerçek giriş ücretlerinden**
+oluşur, yani boş sahanın havuzu da yoktur. Kural bunu `NO_HUMAN_PLAYERS`
+olarak **ikinci kez** reddeder (saf fonksiyon, "0 oyuncu + N bot" diye bir
+yarış kavramsal olarak yoktur). Ulaşılabilir matris **1 gerçek oyuncudan**
+başlar: `8/1/7`, `8/4/4`, `8/8/0` ve aynısı 10/12/14/16 — hepsi test
+edilir.
+
+**KANIT:**
+- `apps/api/test/domain/race/field-composition.spec.ts` — 8/10/12/14/16 ×
+  **her** oyuncu sayısı, `aiFillEnabled` `true`/`false`, ret yolları.
+  Saf fonksiyon olduğu için **veritabanı gerekmez**.
+- `apps/api/test/api/race-field-composition.e2e-spec.ts` — 2 gerçek + 6
+  bot: 8 satır, `1..8` **tekil** sıra, `jockeyId === null`, bot statları
+  üretilenle birebir, gerçek oyuncu statları `race_entries.horse_snapshot`
+  ile birebir, ve `aiFillEnabled = false` iken sahanın **gerçekten eksik
+  koştuğu** (tek oyuncu → tek satır). İkinci test config'i yalnızca
+  **bellekte** kapatır ve `finally` ile geri alır (config dosyası
+  paylaşılan bir kaynaktır).
+
+**BU DİLİMDE KAPANMAYANLAR (dürüst):**
+- **`jockeyId` bugün HER ZAMAN `null`dur.** `race_entries.jockey_id`
+  sütununu **yazan hiçbir kod yoktur** (PHASE 6). Alanın varlığı bir
+  uydurma değil, sözleşmenin **dürüst** hâlidir: sonucun jokey bileşeni
+  bugün "yok"tur ve `null` bunu söyler.
+- **`startingStats` yalnızca 8 alandır** (`speed`/`stamina`/`acceleration`/
+  `fitness`/`form`/`morale`/`fatigue`/`health`). `surfaceCompatibility`/
+  `distanceCompatibility`/`weightCompatibility`/`equipmentModifier`/
+  `tactic` yanıtta **yoktur** — bunlar koşu başına değişmez ve "neden
+  kazandı" sorusunu cevaplamaz.
+- **`aiFillEnabled = false` üretimde bir kayıptır** (gerçek oyuncu azken
+  yarış oyuncu için kayıptır — CLAUDE.md'deki "BOT PAYI YANAR" notunun
+  kardeşi). Bu bilinçli bir tercih kapısıdır, varsayılanı `true`dur.
+- **`fieldSize` ≠ gerçek oyuncu ayrımı yalnızca `settle` yolunda
+  uygulanır.** Pratik yarış ve PvP yolları kendi bot üretimlerini
+  kullanır ve bu dilimin dışındadır.
+
+**Race engine'e DOKUNULMADI, para yolu DEĞİŞMEDİ** (bu dilim yalnızca
+saha kompozisyonunu ve sonucun **şeklini** değiştirir), **hiçbir config
+değeri koda gömülmedi.**
+
+---
+
 ## 14. Kendime hatırlatmalar (kısa liste)
 
 1. **Race Engine'e dokunmadan önce iki kez düşün.** Denetim onu "KEEP, dokunma"

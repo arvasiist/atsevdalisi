@@ -118,11 +118,63 @@ iken KAPALIDIR** (e2e saati kendi sürer: `tickNow()`), yani üretim
 yapılandırmasına bağlıdır.
 
 **⚠️ BOT PAYI YANAR.** Kadro `fieldSize`a botlarla tamamlanır
-(`aiFillEnabled`) ve botların `player_id`'si yoktur — bota düşen ödül
-KİMSEYE ödenmez ve havuzda kalır. Bu bilinçlidir: aksi hâlde bir oyuncu
-kendi yarışını açıp tek gerçek katılımcı olarak havuzun çoğunu geri
-alabilirdi. Sonucu: gerçek oyuncu sayısı azken yarış oyuncu için
+(`aiFillEnabled`, bkz. §13.25) ve botların `player_id`'si yoktur — bota
+düşen ödül KİMSEYE ödenmez ve havuzda kalır. Bu bilinçlidir: aksi hâlde
+bir oyuncu kendi yarışını açıp tek gerçek katılımcı olarak havuzun çoğunu
+geri alabilirdi. Sonucu: gerçek oyuncu sayısı azken yarış oyuncu için
 KAYIPTIR.
+
+**⚠️ `fieldSize` ≠ GERÇEK OYUNCU SAYISI — KURAL SAF FONKSİYONDADIR
+(§13.25).** `domain/race/field-composition.ts` → `resolveFieldComposition`.
+`settle-race.use-case.ts` bot sayısını **kendi hesaplamaz**, bu fonksiyonu
+tüketir; `fieldSizes` de koda gömülmez, `config/race-lobby.config.json`dan
+gelir. Yeni bir saha kuralı yazacaksan **oraya** yaz (saf = veritabanısız
+tam matris test edilebilir).
+
+**⚠️ `aiFillEnabled` ARTIK GERÇEKTEN OKUNUR — ÖLÜ CONFIG BİR TUZAKTIR
+(§13.25).** 28.09.2026'ya kadar bu değer **hiçbir kod tarafından
+okunmuyordu**: `false` yapmak sahada tek bir botu bile eksiltmiyordu ve
+bunu **ne derleyici ne hiçbir test** söylüyordu. Bir config değerinin
+hiçbir etkisi olmaması, o değerin hiç olmamasından **daha kötüdür** —
+okuyan onu "kapatma düğmesi" sanar. **Yeni bir config alanı eklerken
+onu OKUYAN kodu ve onu DÜŞÜREN bir testi aynı dilimde yaz**; yoksa
+`game-config` tipi ile gerçek davranış sessizce ayrışır.
+⚠️ `aiFillEnabled = false` üretimde **oyuncu aleyhinedir** (yarış eksik
+koşar, boş koltuklar kimseye yaramaz); varsayılanı `true`dur.
+
+**⚠️ `RaceSettlementPlace`te `isBot` YOKTUR — `participantType` VARDIR
+(§13.25).** `'human' | 'ai'`. Yanıt ayrıca `jockeyId`, `startingStats`
+(8 sayı) ve `finalTimeMs` taşır. `isBot`u geri eklemek **ikinci bir
+doğruluk kaynağı** doğurur. `isBot` adı hâlâ
+`RaceTimelineEntrantView`/`RaceRosterEntrant`ta (zaman çizelgesi/roster)
+kullanılır — o ayrı bir sözleşmedir, **değişmedi**.
+
+**⚠️ `startingStats` DONDURULMUŞ SNAPSHOT'TAN OKUNUR, canlı statlardan
+DEĞİL (§13.25).** `race_entries.horse_snapshot` (migration 0042) →
+`pickStartingStats`. Canlı `horse_stats` okunsaydı, sonucu **açıklayan**
+sayılar ile sonucu **üreten** sayılar ayrışırdı ve bu hiçbir yerde hata
+üretmezdi. `pickStartingStats` bilinçli bir **alt kümedir** ve
+**kopyalar** (referans geçirmez — aynı nesne motora da gider).
+
+**⚠️ BOT SNAPSHOT'I `?? null` İLE GEÇİŞTİRİLMEZ (§13.25).**
+`RaceEntry.horseSnapshot` NULLABLE'dır (gerçek atlar için kilit anında
+yazılır, eski satırlarda hiç yoktur) — ama **botlar için her zaman
+vardır** (`generateBotEntrants` üretir, use-case doğrudan geçirir).
+`null` bir bütünlük hatasıdır: sıfırlarla bir `startingStats` uydurmak
+yanıta **yanlış** sayı koyar. `assertBotSnapshot` **patlar**.
+
+**⚠️ "AI'YE GİZLİ BONUS" TESTLE ELE VERİLİR (§13.25).** Bot statları aynı
+seed ile **yeniden üretilip** yanıttaki sayılarla **birebir**
+karşılaştırılır (`generateBotEntrants(n, seed)`). Motora giren girdi ile
+oyuncuya gösterilen sayı arasına bir çarpan girse test **kırılır**.
+
+**⚠️ BRIEF'İN "8/0/8" SENARYOSU SUNUCUDA İMKÂNSIZDIR (§13.25).**
+`checkRaceSettleable`/`checkRaceLockable` `joinedPlayers < 1` durumunu
+`NO_PARTICIPANTS` ile keser; ödül havuzu **gerçek giriş ücretlerinden**
+oluşur, boş sahanın havuzu yoktur. `resolveFieldComposition` bunu
+`NO_HUMAN_PLAYERS` ile **ikinci kez** reddeder. Ulaşılabilir matris **1
+gerçek oyuncudan** başlar. Bu senaryoyu "geçirmek" için kapıyı gevşetmek,
+parasız/ödülsüz bir yarışa izin vermek olurdu.
 
 **⚠️ `locking` DURUMU — ÜÇ KAPI AYNI ANDA AÇIK OLMALI (migration 0042,
 §13.24).** Zamanlayıcı `startTime`da yarışı `locking`e alır ve kadroyu +
