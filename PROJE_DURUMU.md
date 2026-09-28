@@ -2609,6 +2609,70 @@ tablosu/günlüğü isteniyorsa bu ayrı bir iştir. Ayrıca pratik yarışın
 
 ---
 
+#### 13.27 BAĞLANTI KOPMASI / YENİDEN BAŞLATMA — "CLIENT DISCONNECT ≠ HORSE REMOVED" (brief §42 PHASE 4) — 29.09.2026
+
+**BU DİLİM HİÇBİR ÜRETİM KODU DEĞİŞTİRMEDİ.** İptal + iade zaten yazılıydı
+(§13.19), çift iade zaten engelliydi (§13.26). Eksik olan şey bu güvencelerin
+**kopma ve yeniden başlatma altında da geçerli olduğunun ÖLÇÜLMESİYDİ.**
+Kanıt: `apps/api/test/api/race-disconnect.e2e-spec.ts` (6 test, gerçek soket +
+gerçek PostgreSQL).
+
+**İDDİA TEK CÜMLE:** oyuncunun interneti kopması, tarayıcıyı kapatması ya da
+sunucunun yeniden başlaması **kadroyu, sonucu veya parayı DEĞİŞTİRMEZ**.
+
+| # | Senaryo | Ne kanıtlanır |
+|---|---|---|
+| 1 | Aynı oyuncu `scheduled`/`locking`/`finished`/`cancelled` dört yarışa girer; **tek soket dört odaya** abone olur, kopar | Dört durumda da `race_entries` satırları **bayt bayt aynı** |
+| 2 | Kilit **sonrası** kopma → kesinleşme | Snapshot donmuş kalır; kopan oyuncu sonuçta `participantType = 'human'` ve `finishPosition > 0` ile görünür (listede durmuyor, **koştu**); defter = bakiye farkı |
+| 3 | Kopukken **iptal** | İade yine yapılır; oyuncu başlangıç bakiyesine döner; defter neti 0 |
+| 4 | **Çoklu kopma** — üç oyuncu aynı anda | Üçü de sonuçta; kadro bozulmaz |
+| 5 | **Yeniden bağlanma** + ikinci kesinleşme | Aynı yarışa yeni soketle abone olunur; `GET /races/:id/timeline` **aynı seed + aynı bitiş sırası**; ikinci kesinleşme 409 `RACE_NOT_SETTLEABLE`; defter satır sayısı ve bakiye sabit |
+| 6 | **Sunucu yeniden başlama** (ikinci uygulama örneği) | İkinci kesinleşme 409, ikinci iptal 409 `RACE_NOT_CANCELABLE`; **hiçbir satır eklenmez, hiçbir bakiye değişmez** |
+
+**NEDEN GERÇEK SOKET (uydurma kopma reddedildi).** Kopmayı taklit etmenin ucuz
+yolu "hiç soket açma, SQL'e dokunma, sonra 'değişmedi' de" olurdu — ve o test
+**boş bir cümle** söylerdi: hiç tetiklenmemiş bir kod yolu hakkında hiçbir şey
+söylemez. Bu yüzden gerçek bir `socket.io-client` bağlanır, `race.subscribe`
+ile odaya girer ve `disconnect()` çağrılır — yani `RaceGateway.handleDisconnect`
+**gerçekten koşar**.
+
+**VAKUM TUZAĞI (bu dilimin asıl tekniği).** `client.disconnect()` istemcide
+**anında** döner; sunucu olayı **asenkron** işler. Kopmadan hemen sonra iddia
+kurmak "sunucu hiçbir şey yapmadı" ile "sunucu henüz işlemedi" durumlarını
+**ayırt edemez** — test yeşil kalır, hiçbir şey kanıtlamaz. Bu yüzden her
+kopmadan **önce** ikinci bir **tanık soket** odaya sokulur ve kopan soketin
+sayıdan düştüğü `race.spectators` olayıyla **beklenir**. O yayın tam olarak
+`handleDisconnect`'in içinden çıkar, yani **sunucu tarafı kanıttır**.
+Çoklu kopma senaryosunda bariyer farklıdır: kopan oyunculardan biri **yeni**
+bir soketle odaya girer ve sayacı `1` okur (kopmalar işlenmemiş olsaydı `4`
+okunurdu).
+
+**ÖLÇÜLEN ŞEY `race_entries` SATIRLARININ TAMAMIDIR, `status` DEĞİL.**
+`status`e bakmak yetmez: bir hata satırı `cancelled` yapmadan da bozabilir
+(`horse_snapshot`ı temizlemek, `gate_position`ı sıfırlamak, `player_id`yi
+NULL'a çekmek). Satırlar `JSON.stringify` ile **bütün** olarak karşılaştırılır.
+
+**YAPISAL GERÇEK (test bunu doğruluyor, tesadüf değil):**
+`RaceGateway.handleDisconnect` veritabanına **hiç dokunmaz** — yalnızca
+`client.data.raceIds` kümesini gezip izleyici sayacını tazeler ve log yazar.
+Soket odalardan çıkarılmayı Socket.IO'nun kendisi yapar; elle temizlik yoktur.
+Yani "kopma atı yarıştan çıkarır" diye bir kod yolu **yoktur** — bu testler o
+yolun **eklenmemesini** korur.
+
+**DÜRÜST SINIRLAR (ölçülmeyen şey iddia edilmedi):**
+
+1. **6. senaryo bir SÜREÇ yeniden başlatması DEĞİLDİR**, yeni bir **uygulama
+   örneğidir**. Kanıtladığı şey korumanın DI konteynerine/örneğe özgü bellekte
+   değil **veritabanı durumunda** yaşadığıdır. İki örnek **aynı Node sürecini**
+   paylaştığı için `module`-scope bir önbelleği **yakalayamaz**; bu sınır test
+   dosyasının başına açıkça yazıldı.
+2. Gerçek bir `SIGKILL` sırasında **yarıda kalan** bir transaction senaryosu
+   test **edilmez**: onun güvencesi uygulama kodu değil, Postgres'in kendi
+   atomikliğidir (`withTransaction` — COMMIT'ten önce hiçbir şey kalıcı
+   değildir) ve buradan taklit edilemez.
+
+---
+
 ## 14. Kendime hatırlatmalar (kısa liste)
 
 1. **Race Engine'e dokunmadan önce iki kez düşün.** Denetim onu "KEEP, dokunma"

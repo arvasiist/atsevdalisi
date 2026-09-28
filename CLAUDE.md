@@ -242,9 +242,52 @@ alınır.
 test yeşil kalırken hiçbir şey kanıtlamaz. Test **SQL ile** stat bump eder
 ve ÖNCE artışın gerçekten olduğunu iddia eder (§13.24).
 
+**⚠️ KOPMA VERİTABANINA DOKUNMAZ — "CLIENT DISCONNECT ≠ HORSE REMOVED"
+(§13.27).** `RaceGateway.handleDisconnect` **hiçbir satır yazmaz**: yalnızca
+`client.data.raceIds`i gezip izleyici sayacını tazeler. Oyuncunun bağlantısı
+kopunca **kadrodan düşürülmesi**, parasının iade edilmesi ya da atının
+yarıştan çıkarılması diye bir davranış **yoktur ve eklenmemelidir**. Odalardan
+çıkarma işini Socket.IO kendisi yapar. Yeni bir "kopan oyuncuyu temizle"
+mantığı eklemek, ödeme yapılmış bir yarıştan atı sessizce siler ve bu
+**hiçbir yerde hata üretmez**.
+
+**⚠️ KOPMA TESTİ SOKETSİZ YAZILMAZ — VAKUM TUZAĞI (§13.27).** "Soket hiç
+açma, SQL'e dokunma, sonra 'değişmedi' de" demek **yeşil ama boş** bir test
+üretir: hiç tetiklenmemiş bir kod yolu hakkında hiçbir şey söylemez. Gerçek
+bir `socket.io-client` bağlanıp `disconnect()` çağrılmalıdır. **Ama
+`disconnect()` istemcide ANINDA döner, sunucu olayı ASENKRON işler** — bu
+yüzden kopmadan sonra beklenmesi gereken şey **ikinci bir tanık soketin**
+aldığı `race.spectators` yayınıdır (o yayın `handleDisconnect`'in içinden
+çıkar). Bariyer olmadan test "sunucu yapmadı" ile "sunucu henüz işlemedi"yi
+ayırt edemez.
+
+**⚠️ KOPMA TESTİNDE `status`'E BAKMAK YETMEZ (§13.27).** Bir hata satırı
+`cancelled` yapmadan da bozabilir: `horse_snapshot`ı temizlemek,
+`gate_position`ı sıfırlamak, `player_id`yi NULL'a çekmek. Satırlar
+`JSON.stringify` ile **bütün** olarak karşılaştırılır.
+
+**⚠️ "SUNUCU YENİDEN BAŞLATMA" TESTİ İKİNCİ UYGULAMA ÖRNEĞİDİR, SÜREÇ
+DEĞİL (§13.27).** `bootstrapTestApp()`i ikinci kez çağırmak, korumanın DI
+konteynerine/örneğe özgü bellekte değil **veritabanı durumunda** yaşadığını
+kanıtlar. İki örnek **aynı Node sürecini** paylaşır, yani `module`-scope bir
+önbelleği **yakalayamaz** — bu sınır test dosyasında yazılıdır. Gerçek bir
+`SIGKILL` sırasında yarıda kalan transaction'ın güvencesi uygulama kodu değil
+Postgres'in atomikliğidir (`withTransaction`) ve testten taklit edilemez.
+
 **Sahibinin cevabını bekleyen tek kritik soru:** 3D/ses varlıkları nereden geliyor?
 
 ## Sıradaki iş
+
+**BRIEF §42 PHASE İLERLEMESİ (29.09.2026).** PHASE 1 (kilit + yaşam döngüsü),
+2 (gerçek oyuncu/bot ayrımı), 3 (ekonomik mutabakat, §13.26) ve **4 (kopma /
+yeniden başlatma güvenliği, §13.27) BİTTİ**. **SIRADAKİ: PHASE 5 — yarış
+dengesi, alan başına (8/10/12/14/16) EN AZ 10.000 simülasyon ve
+`docs/RACE_BALANCE_REPORT.md`.** Sonra PHASE 6 (jokey/kişilik/taktik), 7
+(tribün/sosyal birleştirme), 8 (`docs/FINAL_PROJECT_AUDIT.md`).
+PHASE 5 için ön bilgi: `race_entries.jockey_id`'yi **hiçbir kod yazmaz**,
+`RaceSettlementPlace.jockeyId` her zaman `null`dur ve `domain/jockey`
+DOMAIN ONLY'dir — yani jokeyin motora etkisi bugün **ölçülecek bir şey
+değil, önce BAĞLANMASI gereken bir şeydir** (PHASE 6'nın konusu).
 
 **DİKKAT — 27.09.2026'da yapılan bir tarama, eskiden burada yazan 5'li listenin
 YANILTICI olduğunu gösterdi.** Bu bölüm iki kez bayatladı; aşağısı
