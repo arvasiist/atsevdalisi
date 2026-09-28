@@ -464,6 +464,82 @@ describe('apiClient.upgradeFacility', () => {
   });
 });
 
+describe('apiClient — bildirimler + yarış daveti (brief §28/§16)', () => {
+  /**
+   * Beş uç noktanın URL/method/gövde eşleşmesi. `apps/api`'nin
+   * `notification.controller.ts`'iyle BİREBİR olmalıdır — bu testin
+   * koruduğu şey tam olarak o eşleşmedir (bkz. dosya başı T2 notu: bir
+   * uç nokta adı sessizce kayarsa HİÇBİR test kırılmazdı).
+   */
+
+  it('getNotifications GET /players/:id/notifications çağırır', async () => {
+    const fetchMock = stubFetchOnce({ success: true, data: { notifications: [], unreadCount: 0 } });
+    await apiClient.getNotifications('player-1');
+    const [url, config] = requestArgs(fetchMock);
+    expect(url).toBe(`${API_BASE_URL}/players/player-1/notifications`);
+    expect(config.method).toBe('GET');
+  });
+
+  it('markAllNotificationsRead POST /players/:id/notifications/read-all çağırır ve GÖVDE GÖNDERMEZ', async () => {
+    // Gövde gönderilmemesi bilinçlidir: sunucu yoldaki `:id`den başka
+    // hiçbir girdi almaz (`notification.controller.ts`), ve bu uç nokta
+    // `assertSelf` ile korunur — yani "kimin bildirimleri" sorusunun
+    // cevabı GÖVDEDEN değil TOKEN'dan gelir.
+    const fetchMock = stubFetchOnce({ success: true, data: { markedCount: 3 } });
+    await apiClient.markAllNotificationsRead('player-1');
+    const [url, config] = requestArgs(fetchMock);
+    expect(url).toBe(`${API_BASE_URL}/players/player-1/notifications/read-all`);
+    expect(config.method).toBe('POST');
+    expect(config.body).toBeUndefined();
+  });
+
+  it('markNotificationRead POST /players/:id/notifications/:notificationId/read çağırır', async () => {
+    const fetchMock = stubFetchOnce({ success: true, data: {} });
+    await apiClient.markNotificationRead('player-1', 'notif-9');
+    const [url, config] = requestArgs(fetchMock);
+    expect(url).toBe(`${API_BASE_URL}/players/player-1/notifications/notif-9/read`);
+    expect(config.method).toBe('POST');
+  });
+
+  it('sendRaceInvite POST /players/:id/race-invites çağırır, body\'de inviteeId+raceId gönderir', async () => {
+    const fetchMock = stubFetchOnce({ success: true, data: {} });
+    await apiClient.sendRaceInvite('player-1', 'player-2', 'race-7');
+    const [url, config] = requestArgs(fetchMock);
+    expect(url).toBe(`${API_BASE_URL}/players/player-1/race-invites`);
+    expect(config.method).toBe('POST');
+    expect(JSON.parse(config.body as string)).toEqual({ inviteeId: 'player-2', raceId: 'race-7' });
+  });
+
+  it('respondRaceInvite POST /players/:id/race-invites/:inviteId/respond çağırır, body\'de action gönderir', async () => {
+    const fetchMock = stubFetchOnce({ success: true, data: { inviteId: 'inv-1', status: 'accepted' } });
+    await apiClient.respondRaceInvite('player-1', 'inv-1', 'accept');
+    const [url, config] = requestArgs(fetchMock);
+    expect(url).toBe(`${API_BASE_URL}/players/player-1/race-invites/inv-1/respond`);
+    expect(config.method).toBe('POST');
+    expect(JSON.parse(config.body as string)).toEqual({ action: 'accept' });
+  });
+
+  it('HİÇBİRİ Idempotency-Key göndermez — bu uçların hiçbiri para/mülkiyet değiştirmez', async () => {
+    // `accept` YARIŞA KATILMAK DEĞİLDİR (giriş ücreti tek yoldan,
+    // `POST /races/:id/join`, geçer). Bu iddia, ileride birinin buraya
+    // yanlışlıkla idempotency header'ı ekleyip eklemediğini yakalar:
+    // eklemek zararsız görünür ama interceptor'ın `idempotency_keys`
+    // tablosunu bu uçlarla DOLDURURDU.
+    const cases: ReadonlyArray<() => Promise<unknown>> = [
+      () => apiClient.markAllNotificationsRead('player-1'),
+      () => apiClient.markNotificationRead('player-1', 'notif-9'),
+      () => apiClient.sendRaceInvite('player-1', 'player-2', 'race-7'),
+      () => apiClient.respondRaceInvite('player-1', 'inv-1', 'decline'),
+    ];
+    for (const call of cases) {
+      const fetchMock = stubFetchOnce({ success: true, data: {} });
+      await call();
+      const [, config] = requestArgs(fetchMock);
+      expect((config.headers as Headers).has('Idempotency-Key')).toBe(false);
+    }
+  });
+});
+
 describe('API taban adresi', () => {
   it('varsayılan port, API sunucusunun dinlediği portla aynı olmalı (4000)', () => {
     // Bu iddia, yukarıda anlatılan hatanın SINIFINI hedefler. Kritik nokta

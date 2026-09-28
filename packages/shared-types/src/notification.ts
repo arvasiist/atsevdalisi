@@ -100,6 +100,25 @@ export interface NotificationListResult {
 }
 
 /**
+ * `POST /players/:id/notifications/read-all` yanıtı.
+ *
+ * **NEDEN BURADA (Application katmanında değil):** bu, `apps/web`'in
+ * OKUDUĞU bir sözleşmedir — `RespondFriendRequestResult`/`RemoveFriendResult`
+ * ile AYNI sınıf. Application katmanında kalsaydı istemci ya tipi
+ * ÇOĞALTMAK ya da `unknown`'a düşmek zorunda kalırdı.
+ *
+ * **NEDEN `markedCount` DÖNER (204 yerine):** `RemoveFriendResult` ile AYNI
+ * gerekçe — istemcinin `request()` yardımcısı HER ZAMAN `response.json()`
+ * çağırır, yani gövdesiz bir yanıt istemcide hata üretir. Ayrıca sayı,
+ * istemciye "rozeti kaça düşüreyim" sorusunun cevabını verir: yarış
+ * koşulunda arada gelen bir bildirim rozeti 0 yapmamalıdır.
+ */
+export interface MarkAllNotificationsReadResult {
+  /** Gerçekten okundu işaretlenen satır sayısı. */
+  markedCount: number;
+}
+
+/**
  * `race_invites.status` CHECK'i (migration 0039) ile birebir aynı liste.
  *
  * `expired` bu turda HİÇBİR ZAMAN yazılmaz (zamanlayıcı yok — bkz.

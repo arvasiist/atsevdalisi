@@ -24,6 +24,20 @@ import Link from 'next/link';
 import { CURRENCY_LABELS } from '../../lib/currency';
 import { usePlayer } from '../../lib/player-context';
 import { HorseAvatar } from '../ui/HorseAvatar';
+import { NAV_LINKS } from './nav-links';
+
+/**
+ * ÜST BAR GEZİNME ŞERİDİ (28.09.2026).
+ *
+ * **NEDEN EKLENDİ:** projede hiçbir gezinti yoktu — her sayfa yalnızca
+ * başka bir sayfanın içindeki tek tük bağlantıdan bulunabiliyordu. Brief
+ * §35'in istediği `/notifications` sayfası bu koşullarda ULAŞILAMAZ
+ * olurdu: var olan ama kimsenin açamadığı bir ekran, ölü koddur.
+ *
+ * Listenin kendisi (`NAV_LINKS`) `nav-links.ts`'tedir — gerekçesi o
+ * dosyanın doc yorumunda (React'ten ayrılmış saf veri, test edilebilirlik).
+ * Kırık bağlantı kilidi: `test/components/top-bar-nav.spec.ts`.
+ */
 
 export function TopBar(): React.ReactElement {
   const { player } = usePlayer();
@@ -77,9 +91,50 @@ export function TopBar(): React.ReactElement {
       ) : (
         <span style={{ fontSize: '13px', color: 'var(--color-text-muted)' }}>Misafir</span>
       )}
+
+      {/* `width: '100%'` üst barın `flexWrap`'iyle birlikte şeridi HER ZAMAN
+          yeni bir satıra indirir — dar ekranda logo/oyuncu grubuyla aynı
+          satırda sıkışıp taşmaz (AUDIT_REPORT.md Bulgu F1'in taşma kuralı). */}
+      <nav
+        aria-label="Ana gezinti"
+        style={{
+          width: '100%',
+          display: 'flex',
+          flexWrap: 'wrap',
+          gap: '4px',
+          borderTop: '1px solid var(--color-border)',
+          paddingTop: '8px',
+        }}
+      >
+        {NAV_LINKS.map(([href, label]) => (
+          <Link key={href} href={href} style={navLinkStyle}>
+            {label}
+          </Link>
+        ))}
+      </nav>
     </header>
   );
 }
+
+/**
+ * Gezinti bağlantısı görünümü. `minHeight: 36px` — `friends/page.tsx`'teki
+ * ikincil düğmeyle AYNI. Bu bir FORM düğmesi değil, bir bağlantıdır; yine
+ * de sabit bir `minHeight` taşır ki satır içi metin olarak kalmasın ve
+ * dokunulabilir bir hedef olsun.
+ */
+const navLinkStyle: React.CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  minHeight: '36px',
+  padding: '6px 12px',
+  borderRadius: '999px',
+  border: '1px solid var(--color-border)',
+  color: 'var(--color-text-secondary)',
+  fontSize: '13px',
+  fontWeight: 600,
+  textDecoration: 'none',
+  whiteSpace: 'nowrap',
+};
 
 /**
  * Rozet dar olduğu için birim adı GÖRÜNMEZ metin olarak verilir

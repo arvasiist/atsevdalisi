@@ -1,11 +1,17 @@
 import { Inject, Injectable } from '@nestjs/common';
+import type { MarkAllNotificationsReadResult } from '@at-sevdalisi/shared-types';
 import { NOTIFICATION_REPOSITORY, type NotificationRepository } from '../ports/notification.repository';
 
-/** `POST /players/:id/notifications/read-all` yanıtı. */
-export interface MarkAllNotificationsReadResult {
-  /** Gerçekten okundu işaretlenen satır sayısı. */
-  markedCount: number;
-}
+/**
+ * Sonuç tipi `packages/shared-types`'e TAŞINDI (28.09.2026): `apps/web` bu
+ * uç noktanın yanıtını okuyacak, yani tip `RespondFriendRequestResult`/
+ * `RemoveFriendResult` ile AYNI sınıftır. Application katmanında bırakmak
+ * istemciyi ya tipi çoğaltmaya ya da `unknown`'a düşmeye zorlardı.
+ *
+ * **Yeniden dışa aktarılır** ki mevcut çağıranlar (`notification.controller.ts`)
+ * değişmeden çalışsın — taşıma, tüketici imzalarını KIRMAMALIDIR.
+ */
+export type { MarkAllNotificationsReadResult };
 
 /**
  * Oyuncunun TÜM okunmamış bildirimlerini okundu işaretler.

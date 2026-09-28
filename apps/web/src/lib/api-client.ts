@@ -19,18 +19,23 @@ import type {
   HorsePedigreeView,
   JoinMatchmakingQueueResult,
   LeaderboardRowView,
+  MarkAllNotificationsReadResult,
   MatchmakingTicket,
+  NotificationListResult,
+  NotificationView,
   PerformCareActionResult,
   PlayerSummary,
   PracticeRaceResult,
   PublicHorse,
   RacingStyle,
+  RaceInviteView,
   RaceTicketPurchaseResult,
   RaceTicketView,
   RaceTimelineView,
   RecentRaceResultView,
   RemoveFriendResult,
   RespondFriendRequestResult,
+  RespondRaceInviteResult,
   RiskLevel,
   SendGiftResult,
   SocialOverviewView,
@@ -574,4 +579,56 @@ export const apiClient = {
    * istek atmadan yapar.
    */
   getMyGifts: (playerId: string) => request<GiftView[]>(`/players/${playerId}/gifts`, { method: 'GET' }),
+
+  /**
+   * BİLDİRİMLER + YARIŞ DAVETİ (brief §28/§16, §35 `/notifications`).
+   *
+   * Beş uç noktanın TAMAMI `assertSelf` ile korunur — yoldaki `:id` her
+   * zaman İŞLEMİ YAPAN oyuncudur, hedef değildir (hedef gövdede gelir).
+   * `playerId` daima `usePlayer()`'dan gelen KENDİ kimliğimizdir.
+   *
+   * **`Idempotency-Key` YOKTUR (bilinçli, sunucudaki gerekçeyle AYNI):**
+   * bu uçların hiçbiri para/mülkiyet değiştirmez — `accept` yarışa
+   * KATILMAK DEĞİLDİR, giriş ücreti tek yoldan (`POST /races/:id/join`)
+   * geçer. Spam savunması sunucudaki `@RateLimit`'tir (davet: 20/dk).
+   */
+
+  /**
+   * Bildirim listesi + okunmamış sayısı, TEK istekte.
+   *
+   * `unreadCount` AYRI bir alandır (istemci listeden saymaz): liste `limit`
+   * ile KIRPILMIŞTIR, yani kırpılmış bir diziden sayılan rozet yanlış olurdu.
+   */
+  getNotifications: (playerId: string) =>
+    request<NotificationListResult>(`/players/${playerId}/notifications`, { method: 'GET' }),
+
+  /** Tüm bildirimleri okundu işaretler (200 + `markedCount`, 204 DEĞİL). */
+  markAllNotificationsRead: (playerId: string) =>
+    request<MarkAllNotificationsReadResult>(`/players/${playerId}/notifications/read-all`, { method: 'POST' }),
+
+  /**
+   * Tek bildirimi okundu işaretler. **İdempotenttir:** zaten okunmuş bir
+   * bildirim yine 200 döner, gövdesi değişmez.
+   */
+  markNotificationRead: (playerId: string, notificationId: string) =>
+    request<NotificationView>(`/players/${playerId}/notifications/${notificationId}/read`, { method: 'POST' }),
+
+  /** Arkadaşı yarışa davet eder (201). Bekleyen davet tavanı sunucudadır (409). */
+  sendRaceInvite: (playerId: string, inviteeId: string, raceId: string) =>
+    request<RaceInviteView>(`/players/${playerId}/race-invites`, {
+      method: 'POST',
+      body: JSON.stringify({ inviteeId, raceId }),
+    }),
+
+  /**
+   * Daveti yanıtlar (200). `action` bilerek `string`e açık: doğrulama
+   * sunucuda (`parseRaceInviteAction`) ve istemcide tip daraltmak,
+   * CLAUDE.md'nin uyardığı "DTO dekoratörüne güven" tuzağını büyütürdü
+   * (`respondFriendRequest` ile AYNI satır).
+   */
+  respondRaceInvite: (playerId: string, inviteId: string, action: 'accept' | 'decline') =>
+    request<RespondRaceInviteResult>(`/players/${playerId}/race-invites/${inviteId}/respond`, {
+      method: 'POST',
+      body: JSON.stringify({ action }),
+    }),
 };
