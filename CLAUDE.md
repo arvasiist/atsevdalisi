@@ -141,12 +141,13 @@ YANILTICI olduğunu gösterdi.** Bu bölüm iki kez bayatladı; aşağısı
 - **Sohbet/tribün arayüzü (brief §35) — YAPILABİLİR.** Backend + e2e hazır
   (§13.5): `chat.message`/`chat.message.received`/`chat.history`/`chat.error`
   ve `race.spectators` olaylarının **henüz frontend tüketicisi yok**.
-- **Bildirim/davet arayüzü (brief §16/§28, §42 PHASE 11) — YAPILABİLİR.**
-  Backend + e2e hazır (§13.11): beş uç nokta
-  (`GET /players/:id/notifications`, `read-all`, `:notificationId/read`,
-  `POST .../race-invites`, `.../respond`) ve üç olay
-  (`notification.created`, `race.invite`, `race.invite.responded`) —
-  **hiçbirinin istemci tüketicisi yok.** Asset gerekmez.
+- ~~Bildirim/davet arayüzü~~ **YAPILDI (§13.21, 28.09.2026)** —
+  `/notifications` sayfası §13.11'in beş ucunu ve üç olayını tüketiyor.
+  **UYARI:** ekran `race_starting` bildirimini GÖSTERİR ama o türün
+  **üreticisi yok** (zamanlayıcı ister, §13.13) — yani o satır pratikte
+  hiç gelmez. Bir de `/notifications` şeride eklendi; **gezinti listesi
+  `nav-links.ts`'te** ve `top-bar-nav.spec.ts` sayfası olmayan bir
+  bağlantıyı CI'da kilitler.
 - **Sosyal profil arayüzü (brief §24, §42 PHASE 14) — YAPILABİLİR.** Backend
   hazır (§13.15): `GET /players/profile/:username` **token'sız** çalışır ve
   `money`/`gems` taşımaz. Eksik olan yalnızca `/profile/:username`
@@ -207,8 +208,17 @@ brief §33 (§13.16, PHASE 15'İN İLK YARISI)** · **YÖNETİM — rol + deneti
 günlüğü + moderasyon kuyruğu (§13.17, PHASE 15-B)** · **YÖNETİM OKUMA
 EKRANLARI — Users/Races/Transactions (§13.18, PHASE 15-B)** · **YARIŞ
 İPTALİ — `POST /admin/races/:raceId/cancel` (§13.19, PHASE 15-B, PARA
-YOLU)** — backend; hiçbirinin istemci tüketicisi YOK. Ayrıntı:
-`PROJE_DURUMU.md` §13.
+YOLU)** · **BİLDİRİM EKRANI — `/notifications` + gezinti şeridi (§13.21,
+28.09.2026)** — backend; kalanların hiçbirinin istemci tüketicisi YOK.
+Ayrıntı: `PROJE_DURUMU.md` §13.
+
+**⚠️ YEREL HARNESS'E ÜÇÜNCÜ VITEST GRUBU EKLENDİ (§13.21).** `.claude/
+verify-admin.mjs` eskiden yalnızca `apps/api` testlerini çağırıyordu;
+`apps/web/test/...` altına yazılan bir test "yerelde doğrulandı"
+sanılırken **hiç koşmamış** olurdu ve **yeşil harness çıktısı bunu ele
+vermez**. Yeni grup `cwd: apps/web` ile koşar (CI `--workspaces` ile her
+workspace'i kendi dizininden çalıştırır — `process.cwd()`e bakan test
+yerelde geçip CI'da düşerdi, §7.2 dersi).
 
 **⚠️ §34 "Cancel Pause Finish" — ÜÇÜNÜN DURUMU (28.09.2026).**
 `Cancel` = `POST /admin/races/:raceId/cancel` (§13.19) · `Finish` =

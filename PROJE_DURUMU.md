@@ -1984,6 +1984,128 @@ değeri koda gömülmedi. Ayrıntı: `docs/SECURITY.md` §7.
 
 ---
 
+#### 13.21 BİLDİRİM EKRANI — `/notifications` + gezinti şeridi (brief §35, §42 PHASE 11) — 28.09.2026
+
+**BU DİLİM YENİ BİR BACKEND YAZMAZ.** §13.11'in beş uç noktası ve üç
+WebSocket olayı **zaten hazırdı**; eksik olan tek şey **istemciydi** — bu
+yüzeye o güne kadar hiçbir istemci dokunmuyordu. Brief §35'in istediği
+`/notifications` ekranı bu boşluğu kapatır. `PROJE_DURUMU.md` §13.11'in
+"hiçbirinin istemci tüketicisi yok" notu **bu dilimle bayatladı**.
+
+**SUNUCU OTORİTESİ (kural 1) — EKRAN HİÇBİR İŞ KURALI UYGULAMAZ.**
+`unreadCount` listeden **sayılmaz**, ayrı bir alan olarak **okunur**.
+Sebep somut: liste `limit` ile **kırpılmıştır**, yani kırpılmış bir
+diziden sayılan rozet yanlış olurdu — 60 okunmamış bildirimi olan oyuncu
+50 satırlık listede **50** görürdü. Sayma işi sunucunundur
+(`COUNT(*)`, int8 → API'de `Number`'a çevrilir; BIGINT tuzağı §7).
+
+**SOKET OLAYI BİR "TAZELE" SİNYALİDİR, VERİ KAYNAĞI DEĞİL.**
+`notification.created` zaten DB'ye yazılmış satırı taşır ve doğrudan
+listeye eklenebilirdi. Bu **bilinçli olarak** yapılmadı, üç gerekçeyle:
+
+1. Sunucu listeyi **kırpar**; olayı doğrudan eklemek istemciyi sunucudan
+   **bir fazla elemanlı** yapardı ve liste bir sonraki tam yüklemede
+   kendiliğinden değişirdi.
+2. `sendRaceInvite` **hem** `notification.created` **hem** `race.invite`
+   yayınlar (biri rozet listesi, diğeri iki düğmeli kart için). İkisini de
+   uygulamak **aynı daveti iki kez** gösterirdi.
+3. `race.invite.responded` **davet edene** gider; onun bildirim
+   listesinde **karşılığı yoktur**.
+
+Üç olay da aynı şeyi yapar: listeyi sunucudan yeniden ister.
+
+**SOKET BEST-EFFORT.** Bağlantı kurulamazsa sayfa **çalışmaya devam
+eder**, yalnızca canlı güncellenmez ve bu kullanıcıya söylenir. Yeniden
+bağlanma/kuyruk mantığı yazılmadı — `socket.io-client` zaten otomatik
+yeniden bağlanır ve o da olmasa ekran **yanlış** bir şey göstermez,
+sadece eskir.
+
+**`[Kabul Et]` YARIŞA KATILMAK DEĞİLDİR — bu sunucu sözleşmesidir.**
+Katılım bir **ata** ve bir **giriş ücretine** bağlıdır ve tek yoldan
+(`POST /races/:id/join`) geçer (`RespondRaceInviteResult` doc yorumu).
+Kabul yalnızca davetin durumunu değiştirir; ücret ikinci adımda ödenir.
+Ekran bunu metinde de söyler.
+
+**DÜĞMELERİ GİZLEMEK İÇİN SUNUCUDAN BİLGİ ALINAMAZ.** Davet
+bildiriminin `payload`'ı davetin **durumunu taşımaz** ve
+`GET /race-invites/:id` diye bir uç **yoktur**. Sunucudan gelmeyen bir
+durumu **tahmin etmek** yanlış olurdu: `respond` bildirimi **okundu
+işaretlemez**, yani "okunmadıysa hâlâ bekliyordur" gibi bir çıkarım
+düğmeleri **hiç gizlemezdi**. Bu yüzden yalnızca **kendi yaptığımız
+işlem** hatırlanır (`respondedInvites` kümesi) ve yalnızca respond
+**başarılı olduktan sonra** yazılır — sunucu durumunun taklidi değil,
+kendi eylemimizin kaydı. **Bilinçli sınır:** sayfa yenilenince düğmeler
+geri gelir ve sunucu 409 ile gerekçeyi söyler.
+
+**GEZİNTİ ŞERİDİ — bu dilimin ikinci yarısı.** Projede **hiçbir gezinti
+yoktu**; her sayfa yalnızca başka bir sayfanın içindeki tek tük
+bağlantıdan bulunabiliyordu. Bu koşullarda `/notifications`
+**ulaşılamaz** olurdu: var olan ama kimsenin açamadığı bir ekran **ölü
+koddur**. `TopBar`'a bir şerit eklendi. Liste `nav-links.ts`'te **saf
+veri** olarak durur (React'ten ayrılmıştır) ki doğrulayan test DOM'suz
+koşabilsin.
+
+**YALNIZCA GERÇEK SAYFALAR LİSTELENİR.** §35'in henüz yazılmamış
+sayfaları (`/wallet`, `/messages`, `/profile/:username`, `/gifts`,
+`/races/:id`, `/races/:id/spectate`) şeride **konulmadı** — kırık bir
+bağlantı ya da sahte bir "yakında" satırı, listenin geri kalanına
+duyulan güveni bozardı.
+
+**KANIT (iki dosya).**
+1. `apps/web/test/lib/api-client.spec.ts` — beş uç noktanın **URL/method/
+   gövde** eşleşmesi + hiçbirinin `Idempotency-Key` **göndermediği** (bu
+   uçlar para/mülkiyet değiştirmez, §4.7'nin kapsamı dışındadır).
+2. `apps/web/test/components/top-bar-nav.spec.ts` — şeritteki **her**
+   bağlantının gerçekten bir `page.tsx`'i olduğu, **gerçek dosya sistemi
+   taranarak** doğrulanır. **NEDEN GEREKLİ:** Next.js'te var olmayan bir
+   yola `<Link href="/yok">` yazmak **derleme hatası değildir**; ne `tsc`
+   ne `next build` yakalar, sayfa yalnızca tıklanınca 404 olur. Gezinti
+   listesi elle yazıldığı için liste ile `src/app` arasındaki tutarsızlık
+   sessizce birikebilirdi. Test listeyi **kopyalamaz**, `NAV_LINKS`'i
+   **kaynaktan import eder** ve rotaları `src/app` altından **türetir**
+   (rota grupları `(dashboard)` düşülür; `[dinamik]` segmentler statik
+   hedef olamayacağı için `null` döner).
+
+**⚠️ HARNESS'E ÜÇÜNCÜ TEST GRUBU EKLENDİ — YOKSA BU TESTLER HİÇ
+KOŞMAZDI.** `.claude/verify-admin.mjs` o güne kadar yalnızca `apps/api`
+testlerini çağırıyordu. `apps/web/test/...` altına yazılan bir test
+"yerelde doğrulandı" sanılırken **hiç çalışmamış** olurdu ve **yeşil bir
+harness çıktısı bunu ele vermez**. Grup `cwd: apps/web` ile koşar: CI kök
+`npm run test` → `--workspaces` ile her workspace'i **kendi dizininden**
+çalıştırır; `process.cwd()`'ye bakan bir test bu yüzden yerelde geçip
+CI'da düşebilirdi (aynı ders §7.2'nin `race-cancel.spec.ts` vakası).
+
+**YENİ TUZAK — AYRIK BİRLİKTE `payload` DESTRUCTURING'İ DARALTMAYI
+BOZAR.** `describe(notification)` fonksiyonunun ilk hâli
+`const { payload } = notification;` yazıp `switch (notification.type)`
+yapıyordu. TypeScript bağlantıyı **kaybeder**: `payload` sekiz şeklin
+**birleşimi** olarak kalır ve `case 'race_invite'` içinde bile
+`payload.inviteId` hata verir (yaşandı: `tsc -p apps/web` **17 hata**).
+Daraltma **`notification` üzerinde** yapılmalı ve erişim her durumun
+**içinde** doğrudan `notification.payload.x` biçiminde olmalıdır.
+
+**PAYLAŞILAN SÖZLEŞME TAŞINDI:** `MarkAllNotificationsReadResult`
+Application katmanından `packages/shared-types`'e alındı
+(`RespondFriendRequestResult`/`RemoveFriendResult` ile **aynı sınıf**:
+`apps/web` okuyorsa sözleşme paylaşılan pakettedir). Use-case onu
+**yeniden dışa aktarır**, yani taşıma tüketici imzalarını kırmaz.
+`markedCount` dönmesinin sebebi 204 değil: istemcinin `request()`
+yardımcısı **her zaman** `response.json()` çağırır ve sayı, rozeti kaça
+düşüreceğini söyler (yarış koşulunda arada gelen bir bildirim rozeti
+0 yapmamalıdır).
+
+**BU DİLİMDE KAPANMAYANLAR (dürüst):** `race_starting` bildiriminin
+**üreticisi hâlâ yok** (§13.13'teki gerekçe geçerli: başlangıç **anında**
+tetiklenen bir iş, yani zamanlayıcı ister — projede yok). `/wallet`,
+`/messages`, `/profile/:username`, `/gifts`, `/races/:id`,
+`/races/:id/spectate` **yazılmadı**. Sohbet/tribün arayüzünün istemci
+tüketicisi (§13.5) hâlâ **yok**.
+
+**Race engine'e dokunulmadı, para yolu değişmedi, hiçbir config değeri
+koda gömülmedi.**
+
+---
+
 ## 14. Kendime hatırlatmalar (kısa liste)
 
 1. **Race Engine'e dokunmadan önce iki kez düşün.** Denetim onu "KEEP, dokunma"
