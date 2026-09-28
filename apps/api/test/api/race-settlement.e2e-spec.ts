@@ -196,12 +196,22 @@ describe('Ödül dağıtımı (e2e) — POST /races/:id/settle', () => {
     return notifications.filter((notification) => notification.type === type);
   }
 
+  /**
+   * ⚠️ `isBot: boolean` YERİNİ `participantType`A BIRAKTI (§42 PHASE 2,
+   * 28.09.2026). İkisi aynı olguyu taşıyordu; tip artık brief'in istediği
+   * ayrıştırılabilir sonucu (jokey, başlangıç statları, bitiş süresi)
+   * doğrudan veriyor. Bu dosyadaki iddialar da bu yüzden
+   * `participantType === 'ai'` / `'human'` üzerinden kurulur.
+   */
   interface SettlementPlace {
     finishPosition: number;
     horseId: string;
     playerId: string | null;
     displayName: string | null;
-    isBot: boolean;
+    participantType: 'human' | 'ai';
+    jockeyId: string | null;
+    startingStats: Record<string, number>;
+    finalTimeMs: number | null;
     prizeAmount: number;
   }
 
@@ -262,7 +272,8 @@ describe('Ödül dağıtımı (e2e) — POST /races/:id/settle', () => {
 
       // Bot dolgusu YOK: saha tam olarak kayıtlı oyunculardan oluşur.
       expect(body.data.places).toHaveLength(players.length);
-      expect(body.data.places.filter((place) => place.isBot)).toHaveLength(0);
+      expect(body.data.places.filter((place) => place.participantType === 'ai')).toHaveLength(0);
+      expect(body.data.places.every((place) => place.participantType === 'human')).toBe(true);
 
       // HER sıra config'teki payın AYNISI — sıra simülasyonun sonucudur,
       // ama ödül TUTARI ona bağlı olarak TAM olarak hesaplanabilir.
@@ -389,7 +400,7 @@ describe('Ödül dağıtımı (e2e) — POST /races/:id/settle', () => {
       const prizePool = ENTRY_FEE * 2;
 
       expect(body.data.places).toHaveLength(12);
-      const bots = body.data.places.filter((place) => place.isBot);
+      const bots = body.data.places.filter((place) => place.participantType === 'ai');
       expect(bots).toHaveLength(10);
       for (const bot of bots) {
         expect(bot.playerId).toBeNull();
@@ -419,7 +430,7 @@ describe('Ödül dağıtımı (e2e) — POST /races/:id/settle', () => {
       expect(Number(segmentOwners.rows[0]?.c)).toBe(12);
 
       // Gerçek oyuncuların ödemesi YİNE sıraya göre config payının AYNISI.
-      for (const place of body.data.places.filter((entry) => !entry.isBot)) {
+      for (const place of body.data.places.filter((entry) => entry.participantType === 'human')) {
         expect(place.prizeAmount).toBe(expectedPrizeFor(place, prizePool));
       }
     });

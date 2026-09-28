@@ -553,12 +553,75 @@ export interface RaceLobbyView {
 }
 
 /**
+ * Bir koltuğun GERÇEK oyuncuya mı yapay zekâya mı ait olduğu (§42 PHASE 2).
+ *
+ * **`isBot: boolean` YERİNE BU TİP GEÇTİ (28.09.2026).** İkisi aynı olguyu
+ * iki farklı biçimde söylerdi ve `boolean` üçüncü bir türü (ör. ileride
+ * "hayalet"/"NPC antrenör") ifade edemezdi. Tipin kendisi `string` bir
+ * birleşimdir, yani yeni bir üye eklendiğinde onu tüketen `Record<...>`
+ * haritaları ve `switch`ler **derleme zamanında** uyarır.
+ *
+ * `'human'` = `race_entries.player_id` dolu; `'ai'` = `bot_label` dolu
+ * (`horse_id` NULL) — ayrım veritabanındaki CHECK kısıtıyla da zorunludur
+ * (migration 0025).
+ */
+export type RaceParticipantType = 'human' | 'ai';
+
+/**
+ * Bir koltuğun YARIŞ BAŞLARKENKİ temel statları (§42 PHASE 2 — sonucun
+ * "başlangıç statları" bileşeni).
+ *
+ * **`RaceEntrantSnapshot`'IN TAMAMI DEĞİLDİR — bilinçli bir ALT KÜME.**
+ * Tam snapshot `tactic`, `surfaceCompatibility`, `weightCompatibility`,
+ * `jockeySkillComposite` gibi alanlar da taşır; bunlar koşu başına
+ * değişmez ve sonucu okumak için gerekli değildir. Sonuç yanıtına tam
+ * snapshot'ı koymak, her yarış sonucunu onlarca gereksiz alanla
+ * şişirirdi.
+ *
+ * **BU DEĞERLER DONDURULMUŞ SNAPSHOT'TAN GELİR** (`race_entries.
+ * horse_snapshot`, migration 0042): yani `startTime`dan SONRA yapılan
+ * antrenman burada GÖRÜNMEZ. Görünseydi, sonucu açıklayan sayılar ile
+ * sonucu üreten sayılar ayrışırdı — ve bu hiçbir yerde hata üretmezdi.
+ */
+export interface RaceStartingStats {
+  speed: number;
+  stamina: number;
+  acceleration: number;
+  fitness: number;
+  /** `form` — son N yarışın ağırlıklı ortalaması (bkz. `buildHorseEntrantSnapshot`). */
+  form: number;
+  morale: number;
+  /** Yarışa GİRERKENKİ yorgunluk (0 = dinç). */
+  fatigue: number;
+  health: number;
+}
+
+/**
  * Bir yarış sonucundaki TEK sıra (§42 PHASE 13.14 — `POST /races/:id/settle`).
  *
- * **`playerId === null` İSE BU BİR BOT KOLTUĞUDUR.** Botun oyuncusu,
- * cüzdanı ve ödülü YOKTUR (`prizeAmount` her zaman 0'dır); koltuk yalnızca
- * sahayı doldurur (`aiFillEnabled`). `displayName` de bu yüzden `null`'dur —
- * botun adı vardır ama bir oyuncu hesabına bağlı değildir.
+ * **SONUÇ AYRIŞTIRILABİLİR OLMALIDIR (brief §42 PHASE 2):** her sıra
+ * `horseId` (hangi at) + `playerId` (hangi SAHİP) + `participantType`
+ * (gerçek oyuncu mu AI mı) + `jockeyId` (jokey) + `startingStats`
+ * (başlangıç statları) + `finishPosition` (final pozisyon) + `finalTimeMs`
+ * (bitiş süresi) ile açıklanabilir. Bu alanlardan biri eksikse "neden
+ * kazandı" sorusu yanıtsız kalır ve sonuç **güven meselesi** olur.
+ *
+ * **`playerId` AYNI ZAMANDA SAHİPTİR.** Ayrı bir `ownerId` alanı
+ * EKLENMEDİ: lobi yarışına katılırken oyuncu atın SAHİBİ olmak zorundadır
+ * (`joinLobbyRace` → `HorseNotOwnedError`), yani ikinci bir alan aynı
+ * değeri taşır ve ayrışma riski doğururdu. Atın sonradan satılması
+ * katılımı geçersiz kılmaz — `player_id` katılım anında DONAR (bkz.
+ * `joinLobbyRace` doc yorumu).
+ *
+ * **`jockeyId` BUGÜN HER ZAMAN `null`'DUR** ve bu dürüst bir alandır:
+ * `race_entries.jockey_id` sütunu vardır ama onu YAZAN kod yoktur (jokey
+ * sistemi bağlanmamıştır — PHASE 6). Alanı hiç koymamak, sonucun jokey
+ * bileşenini "yok" saymak olurdu; `null` ise "henüz yok" der.
+ *
+ * **`participantType === 'ai'` İSE ÖDÜL YOKTUR** (`prizeAmount` her zaman
+ * 0'dır); koltuk yalnızca sahayı doldurur (`aiFillEnabled`). `displayName`
+ * de bu yüzden `null`'dur — botun adı vardır (`horseId` alanında
+ * `botLabel` taşınır) ama bir oyuncu hesabına bağlı değildir.
  *
  * **`prizeAmount` SUNUCUNUN ÖDEDİĞİ TUTARDIR**, istemcinin hesapladığı
  * değil: `domain/race/prize-distribution.ts` → `computePrizePayouts`
@@ -569,12 +632,19 @@ export interface RaceLobbyView {
 export interface RaceSettlementPlace {
   finishPosition: number;
   horseId: string;
-  /** `null` = bot koltuğu. */
+  /** `null` = AI koltuğu. Aynı zamanda atın SAHİBİDİR (bkz. arayüz notu). */
   playerId: UUID | null;
-  /** `null` = bot koltuğu. */
+  /** `null` = AI koltuğu. */
   displayName: string | null;
-  isBot: boolean;
-  /** Kazanılan Çip; botlar ve ödül sırası dışındakiler için 0. */
+  /** Gerçek oyuncu mu, yapay zekâ mı (§42 PHASE 2). */
+  participantType: RaceParticipantType;
+  /** Jokey — bugün her zaman `null` (jokey sistemi bağlı değil, PHASE 6). */
+  jockeyId: UUID | null;
+  /** Yarış BAŞLARKENKİ statlar — dondurulmuş snapshot'tan okunur. */
+  startingStats: RaceStartingStats;
+  /** Bitiş süresi (ms). Motor her katılımcı için üretir; bu yüzden `null` beklenmez. */
+  finalTimeMs: number | null;
+  /** Kazanılan Çip; AI kolonları ve ödül sırası dışındakiler için 0. */
   prizeAmount: number;
 }
 

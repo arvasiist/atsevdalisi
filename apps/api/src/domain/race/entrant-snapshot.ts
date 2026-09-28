@@ -6,6 +6,7 @@ import {
   type HorseStats,
   type HorseSurfaceStats,
   type RaceEntrantSnapshot,
+  type RaceStartingStats,
   type RaceSurface,
   type RaceTacticInput,
   type RecentRaceResultView,
@@ -131,6 +132,37 @@ export function deriveFormFromRecentResults(recentResults: readonly RecentRaceRe
   const sample = recentResults.slice(0, FORM_SAMPLE_SIZE);
   const average = sample.reduce((sum, result) => sum + result.performanceScore, 0) / sample.length;
   return clamp(Math.round(average), 0, 100);
+}
+
+/**
+ * Dondurulmuş bir snapshot'tan sonuç yanıtına giren "başlangıç statları"
+ * ALT KÜMESİNİ seçer (§42 PHASE 2).
+ *
+ * **NEDEN TAM SNAPSHOT DEĞİL:** sonuç yanıtı her yarış için onlarca satır
+ * taşır; `tactic`, `surfaceCompatibility`, `weightCompatibility`,
+ * `jockeySkillComposite` gibi alanlar koşu başına değişmez ve "neden
+ * kazandı" sorusuna cevap vermez. Sekiz sayı, sonucu açıklamak için
+ * yeterlidir ve yanıtı şişirmez.
+ *
+ * **KOPYALANIR, REFERANS GEÇİRİLMEZ:** `RaceEntrantSnapshot` motora da
+ * gider; aynı nesneyi yanıta koymak, ileride bir yerde yapılan bir
+ * mutasyonun HEM sonucu HEM de saklanan snapshot'ı değiştirmesi demekti.
+ *
+ * ⚠️ **DEĞERLER DONDURULMUŞ SNAPSHOT'TAN GELİR, canlı statlardan DEĞİL**
+ * (`race_entries.horse_snapshot`, migration 0042). Canlı okunsaydı,
+ * sonucu AÇIKLAYAN sayılar ile sonucu ÜRETEN sayılar ayrışırdı.
+ */
+export function pickStartingStats(snapshot: RaceEntrantSnapshot): RaceStartingStats {
+  return {
+    speed: snapshot.speed,
+    stamina: snapshot.stamina,
+    acceleration: snapshot.acceleration,
+    fitness: snapshot.fitness,
+    form: snapshot.form,
+    morale: snapshot.morale,
+    fatigue: snapshot.fatigue,
+    health: snapshot.health,
+  };
 }
 
 /**

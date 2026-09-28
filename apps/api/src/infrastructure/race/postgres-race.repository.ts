@@ -38,6 +38,7 @@ import type {
 } from '../../application/ports/race.repository';
 import type { EconomyLedgerEntryInput } from '../../application/ports/economy-ledger';
 import { applyPracticeRaceStakes } from '../../domain/race/prize';
+import { pickStartingStats } from '../../domain/race/entrant-snapshot';
 import {
   describeRacePrizeEconomics,
   resolvePrizeDistribution,
@@ -96,6 +97,25 @@ function isUniqueViolation(error: unknown, constraint: string): boolean {
     'constraint' in error &&
     (error as { constraint?: string }).constraint === constraint
   );
+}
+
+/**
+ * Bir BOT katılım satırının snapshot'ını döndürür; yoksa PATLAR
+ * (§42 PHASE 2).
+ *
+ * **NEDEN `?? null` İLE GEÇİŞTİRİLMEDİ:** `RaceEntry.horseSnapshot`
+ * NULLABLE bir alandır (gerçek atlar için kilit anında yazılır, eski
+ * satırlarda hiç yoktur). Botlar için ise snapshot **her zaman** vardır —
+ * `generateBotEntrants` onu simülasyon için ÜRETİR ve `settle-race.use-case`
+ * doğrudan o nesneyi geçirir. `null` gelmesi bir bütünlük hatasıdır ve
+ * sıfırlarla bir `startingStats` uydurmak, sonuç yanıtına **yanlış**
+ * sayılar koymak olurdu (hiçbir yerde hata çıkmadan).
+ */
+function assertBotSnapshot(entry: RaceEntry): RaceEntrantSnapshot {
+  if (entry.horseSnapshot === null) {
+    throw new Error(`Bot katılım satırının (${entry.id}) snapshot'ı yok — simülasyon girdisi eksik.`);
+  }
+  return entry.horseSnapshot;
 }
 
 /**
@@ -1651,8 +1671,18 @@ export class PostgresRaceRepository implements RaceRepository {
       //    `startTime`dan sonra DONMUŞ olduğundan (bkz. `checkRaceSettleable`
       //    doc yorumu) ikisi AYNI olmak zorundadır. Değilse ödül YANLIŞ
       //    kişilere giderdi — bu yüzden sessizce devam etmek yerine 500.
-      const entriesResult = await client.query<{ id: string; player_id: string; display_name: string }>(
-        `SELECT e.id, e.player_id, p.display_name
+      const entriesResult = await client.query<{
+        id: string;
+        player_id: string;
+        display_name: string;
+        jockey_id: string | null;
+      }>(
+        // `jockey_id` §42 PHASE 2'DE EKLENDİ: sonuç satırının "jokey"
+        // bileşeni buradan okunur. Sütun BUGÜN her zaman NULL'dur (onu
+        // yazan kod yok) ama alanı hiç göndermemek, sonucu
+        // ayrıştırılamaz kılardı — ve jokey bağlandığında (PHASE 6)
+        // sorgunun da güncellenmesi gerektiği SESSİZCE unutulurdu.
+        `SELECT e.id, e.player_id, p.display_name, e.jockey_id
          FROM race_entries e
          JOIN players p ON p.id = e.player_id
          WHERE e.race_id = $1 AND e.player_id IS NOT NULL AND e.status IS DISTINCT FROM 'cancelled'
@@ -1672,6 +1702,7 @@ export class PostgresRaceRepository implements RaceRepository {
 
       const playerIdByEntryId = new Map(entriesResult.rows.map((row) => [row.id, row.player_id]));
       const displayNameByEntryId = new Map(entriesResult.rows.map((row) => [row.id, row.display_name]));
+      const jockeyIdByEntryId = new Map(entriesResult.rows.map((row) => [row.id, row.jockey_id]));
 
       // 6) ÖDÜL ÖDEMELERİ — kazananlar ÖNCE sözlüksel id sırasında kilitlenir.
       //    Kilit TEK bir oyuncu değil N oyuncudur; iki eşzamanlı kesinleşme
@@ -1843,7 +1874,16 @@ export class PostgresRaceRepository implements RaceRepository {
           horseId: entry.horseId,
           playerId,
           displayName: displayNameByEntryId.get(entry.entryId) ?? null,
-          isBot: false,
+          participantType: 'human',
+          // `race_entries.jockey_id` — bu sütunu YAZAN kod yoktur (jokey
+          // sistemi bağlı değil, PHASE 6). `null` döndürmek onu
+          // UYDURMAKTAN iyidir: sonucun jokey bileşeni bugün "yok"tur.
+          jockeyId: jockeyIdByEntryId.get(entry.entryId) ?? null,
+          // DONDURULMUŞ snapshot'tan okunur (`race_entries.horse_snapshot`,
+          // migration 0042) — `input.realEntries[i].horseSnapshot` tam
+          // olarak o değerdir. Koşu anındaki canlı statlar DEĞİL.
+          startingStats: pickStartingStats(entry.horseSnapshot),
+          finalTimeMs: entry.finalTimeMs,
           prizeAmount: payout,
         });
       }
@@ -1856,7 +1896,14 @@ export class PostgresRaceRepository implements RaceRepository {
           horseId: botEntry.botLabel ?? '',
           playerId: null,
           displayName: null,
-          isBot: true,
+          participantType: 'ai',
+          jockeyId: null,
+          // Botun snapshot'ı `generateBotEntrants`ın ÜRETTİĞİ değerdir —
+          // motora giden de TAM OLARAK budur. Aradaki fark sıfır olmak
+          // zorundadır: bir "gizli AI bonusu" eklenirse bu alan onu ELE
+          // VERİR (bkz. `race-field-composition.e2e-spec.ts`).
+          startingStats: pickStartingStats(assertBotSnapshot(botEntry)),
+          finalTimeMs: botEntry.finalTimeMs ?? null,
           prizeAmount: 0,
         });
       }

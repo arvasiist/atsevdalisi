@@ -9,6 +9,7 @@ import type {
   RaceWeather,
 } from '@at-sevdalisi/shared-types';
 import { generateBotEntrants } from '../../domain/race/bot-generator';
+import { resolveFieldComposition } from '../../domain/race/field-composition';
 import { checkRaceSettleable, nextGatePosition } from '../../domain/race/lobby';
 import { computePrizePayouts, resolvePrizeDistribution } from '../../domain/race/prize-distribution';
 import { RACE_ENGINE_VERSION, RACE_RULESET_VERSION, simulateRace } from '../../domain/race/race-engine';
@@ -51,8 +52,9 @@ import {
  * **KATILIMCI SAYISI `minPlayers`'A TAKILMAZ — bilinçli.** Gerekçenin
  * tamamı `checkRaceSettleable` doc yorumundadır: `startTime` geçtikten
  * sonra ayrılma da kapandığı için "8 oyuncu dolmadı, koşmaz" demek,
- * ödenen ücretleri kalıcı olarak yakmak olurdu. Kalan koltuklar botlarla
- * dolar (`aiFillEnabled`).
+ * ödenen ücretleri kalıcı olarak yakmak olurdu. Kalan koltuklar
+ * `aiFillEnabled` İSE botlarla dolar; değilse yarış **daha az atla**
+ * koşar (bkz. `domain/race/field-composition.ts`).
  *
  * **AÇIK PENCERE KAPANDI (PHASE 1, migration 0042).** Burada eskiden şu
  * yazıyordu: "snapshot, katılım anında değil KOŞMA anında alınır; crank
@@ -156,7 +158,27 @@ export class SettleRaceUseCase {
       });
     }
 
-    const botEntrants = generateBotEntrants(context.fieldSize - context.entrants.length, simulationSeed);
+    // SAHA KOMPOZİSYONU — `aiFillEnabled` BURADA OKUNUR (§42 PHASE 2).
+    // Öncesinde bu değer HİÇBİR KOD TARAFINDAN OKUNMUYORDU: `false`
+    // yapılsa bile saha yine botlarla doluyordu ve bunu hiçbir şey
+    // söylemiyordu. Kural `domain/race/field-composition.ts`te saf bir
+    // fonksiyondur; burada yalnızca tüketilir.
+    const composition = resolveFieldComposition(
+      { fieldSize: context.fieldSize, humanCount: context.entrants.length },
+      { fieldSizes: this.config.raceLobby.fieldSizes, aiFillEnabled: this.config.raceLobby.aiFillEnabled },
+    );
+    if (!composition.ok) {
+      // `NO_PARTICIPANTS` yolu zaten `checkRaceSettleable` tarafından
+      // kesilir; buraya düşen bir ret, VERİTABANINDA bozuk bir satır
+      // olduğu anlamına gelir (ör. `races.field_size` doğrudan SQL ile
+      // değiştirilmiş). Sıfırla devam etmek — eski davranış — sessizce
+      // YANLIŞ bir saha koştururdu.
+      throw new Error(
+        `Yarış ${raceId} için saha kompozisyonu geçersiz: ${composition.reason} (fieldSize=${context.fieldSize}, oyuncu=${context.entrants.length}).`,
+      );
+    }
+
+    const botEntrants = generateBotEntrants(composition.composition.bots, simulationSeed);
     const botEntries: RaceEntry[] = botEntrants.map((bot) => {
       const gatePosition = nextGatePosition(usedGatePositions);
       usedGatePositions.push(gatePosition);
