@@ -2179,6 +2179,99 @@ koda gömülmedi.**
 
 ---
 
+#### 13.23 CÜZDAN EKRANI — `/wallet` (brief §20/§22/§35/§37, §42 PHASE 4) — 28.09.2026
+
+**Ne yapıldı:** brief §35'in "Gerekli ekranlar" listesindeki `/wallet`
+maddesi yazıldı. Backend **zaten vardı** ve üç uç noktanın da **istemci
+tüketicisi yoktu**:
+
+| Uç nokta | Yanıt | Ekrandaki karşılığı |
+|---|---|---|
+| `GET /players/:id/wallet` | `WalletView` | bakiye kutuları + işlem geçmişi |
+| `POST /players/:id/wallet/deposit` | `WalletDepositResult` | "Sanal Para Yükle" formu |
+| `POST /players/:id/daily-reward` | `ClaimDailyRewardResult` | "Günlük Ödülü Al" düğmesi |
+
+**Sunucu otoritesi korunur:** ekran hiçbir finansal hesap **yapmaz**.
+Bakiye sunucunun döndürdüğü `newBalance`'tan okunur; istemci toplama ya
+da çıkarma yapmaz (brief §22 "Tüm finansal hesaplamalar backend'de
+yapılmalı"). İşlem satırlarındaki yön (borç/alacak) sunucunun **işaretli**
+`amount`'undan gelir ve `balanceAfter` ile birlikte gösterilir — oyuncunun
+"o an ne kadar vardı" sorusunu cevaplayan tek alan sunucunun yazdığı bu
+değerdir.
+
+**⚠️ IDEMPOTENCY KARARI — `grandstand/page.tsx`'ten BİLEREK AYRILIR.**
+Orada kural "her basışta yeni anahtar"dır ve gerekçesi yazılıdır: zarar
+ikinci bir **bilet**tir. Burada zarar ikinci bir **PARA GİRİŞİ**dir ve
+senaryo gerçektir: sunucu yatırımı yazıp yanıt ağda kaybolursa kullanıcı
+düğmeye yeniden basar; yeni bir anahtar üretilseydi deftere **ikinci** bir
+`mock_deposit` satırı düşerdi ve bu **hiçbir yerde hata üretmezdi**.
+Bu yüzden `depositKeyRef` anahtarı **başarısızlıkta atar, saklar**:
+anahtar yalnızca (a) tutar değiştiğinde ya da (b) işlem başarıyla
+bittiğinde bırakılır. Böylece "aynı mantıksal isteğin tekrarı" sunucuda
+aynı anahtarla karşılaşır ve tek satır yazılır.
+
+`claimDailyReward` ise anahtar **göndermez** — uç noktanın kendi tekrar
+koruması vardır (günlük cooldown → 409) ve bu, `economy.controller.ts`'te
+`IdempotencyInterceptor`'ın yalnızca `deposit`'e konmasıyla tutarlıdır.
+
+**⚠️ SİHİRLİ SAYI YOK — yükleme sınırları CONFIG'TEN.** Alt/üst sınır
+(`mockDeposit.minAmount`/`maxAmount`) ve geçmiş sayfa boyutu
+(`walletHistoryDefaultLimit`) `config/economy.config.json` →
+`loadEconomyConfig()` ile okunur. `100`/`50000` değerlerini sayfaya gömmek,
+sunucu politikası değiştiğinde ekranı **yalancı** duruma düşürürdü: sunucu
+reddederken ekran "geçerli" derdi. `mockDeposit.enabled` **false** ise form
+yerine "bu sunucuda para yükleme kapalıdır" metni gösterilir — yani kill
+switch'e saygı duyulur, gizlenmez.
+
+**Gerçek para izlenimi verilmez:** ekran yüklemenin **oyun içi (sanal)**
+olduğunu gizlemez ve sağlayıcı adını (`providerId`) **yanıttan okur**.
+Bugün `'mock'` yazar; gerçek bir sağlayıcı bağlandığında ekran
+kendiliğinden doğru adı yazar. `mock_deposit` adının bilerek `'deposit'`
+olmadığı karar (bkz. §13.14 çevresi / `economy.ts`) bu ekranda da
+korunur.
+
+**Yeni modül — `apps/web/src/features/wallet/ledger-labels.ts`:** 18 defter
+türünün ve 10 kanonik türün Türkçe etiketi, `Record<...>` olarak yazıldı.
+Eksik anahtar **derleme hatası** verir; sunucu yeni bir tür eklerse istemci
+sessizce **boş** bir satır gösteremez. Etiketler **yönsüzdür** ("Yem
+alımı", "Yem aldın" değil): yönü metne gömmek, `amount` işaretiyle
+çelişebilecek **ikinci** bir yön kaynağı doğururdu — aynı etiket hem borç
+hem alacak satırında görünebilir. Bilinmeyen bir tür gelirse **ham değer**
+döner; boş ya da uydurma bir metin değil.
+
+**Yan refactor — `FEED_TYPE_LABELS` taşındı.** Günlük ödül bildirimi
+`grantedFeed` kalemlerini göstermek zorundaydı ve harita `app/care/page.tsx`
+içinde **yereldi**. İkinci tüketici doğduğu için
+`apps/web/src/features/care/feed-labels.ts`'e taşındı (aynı eşik
+`lib/currency.ts`'te de yaşanmıştı; kural: ikinci tüketici çıktığında ortak
+modüle taşı). Açıklama metinleri (`FEED_TYPE_DESCRIPTIONS`) yerelde
+**bırakıldı** — tek tüketicililer.
+
+**KANIT:** `apps/web/test/lib/api-client.spec.ts` (yol parametresi;
+`limit` verilmediğinde sorgu dizesinin **hiç eklenmemesi** — `?limit=undefined`
+sunucuda ayrıştırma hatası üretirdi; `Idempotency-Key` başlığının deposit'te
+**var**, diğer ikisinde **yok** olması; deposit gövdesinin **yalnızca**
+`amount` taşıması) + yeni `apps/web/test/features/wallet/ledger-labels.spec.ts`
+(harita kapsamının **çalışma zamanı** kanıtı: `tsc` yeterli değildir, çünkü
+`transpilePackages`/`dist` üzerinden çözülen bir birleşim `any`'ye
+düşebilir ve derleyici susar; ayrıca **fazla** anahtar iddiası — silinmiş
+bir türün etiketi kalırsa okuyan "bu hâlâ oluyor" sanır) +
+`top-bar-nav.spec.ts` `/wallet` bağlantısını gerçek `page.tsx`'e kilitler.
+
+**BU DİLİMDE KAPANMAYANLAR (dürüst):** geçmiş **sayfalanmaz** —
+`hasMore` sunucudan okunur ve "yalnızca son N hareket gösteriliyor" yazar,
+ama "daha fazla yükle" düğmesi **yoktur** (`limit` parametresi
+`api-client`'ta hazırdır). Elmas yüklemenin **hiçbir yolu yoktur** ve
+olmamalıdır: uç nokta yalnızca `amount` alır, para birimi seçilemez.
+Bakiye `usePlayer` önbelleğinden **değil**, cüzdan yanıtından okunur; üst
+bardaki bakiye bir sonraki oyuncu tazelemesine kadar eski kalabilir.
+
+**Race engine'e dokunulmadı, para yolu DEĞİŞMEDİ** (yalnızca var olan uç
+noktaların istemci tüketicisi yazıldı), **hiçbir config değeri koda
+gömülmedi.**
+
+---
+
 ## 14. Kendime hatırlatmalar (kısa liste)
 
 1. **Race Engine'e dokunmadan önce iki kez düşün.** Denetim onu "KEEP, dokunma"

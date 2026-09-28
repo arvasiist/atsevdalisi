@@ -134,6 +134,18 @@ yok. `SettleRaceUseCase` doc yorumunda yazılı.
 YANILTICI olduğunu gösterdi.** Bu bölüm iki kez bayatladı; aşağısı
 27.09.2026 akşamı itibarıyladır.
 
+**⚠️ brief §35 "Gerekli ekranlar" — KALAN DÖRT MADDE VE DÖRDÜNÜN DE
+GEREKÇESİ FARKLI (28.09.2026, §13.21–§13.23'ten sonra):**
+`/notifications` (§13.21), `/profile/:username` (§13.22) ve `/wallet`
+(§13.23) **yazıldı**. Kalanlar: **`/races/:id`** ve **`/races/:id/spectate`**
+— ikisi de **var olmayan bir uç noktaya** bağlıdır (`GET /races/:id` yok;
+uydurulmamalı), yani bunlar bir UI işi DEĞİL, önce backend işidir.
+**`/messages`** — gelen kutusu + konuşma zaten `/friends` içinde çalışıyor;
+ayrı bir sayfa aynı yüzeyi İKİNCİ kez yapmak olurdu. **`/gifts`** — hediye
+gönderimi kabul edilmiş arkadaşlık şartına bağlıdır, yani hediye yüzeyi
+ZATEN arkadaş listesidir; ayrı sayfa kopya olurdu. Yeni bir dilime
+başlarken bu dördünü "yapılacaklar" sanıp yeniden açma.
+
 - **`PedigreeTree.tsx` — ARTIK YAPILABİLİR (veri zinciri BİTTİ).**
   `GET /horses/:id/pedigree` (okuma, §13.2) ve `POST /players/:id/breeding`
   (yazma — tay doğumu pedigriye kaydolur, §13.4) ikisi de mevcut. Kalan iş
@@ -210,7 +222,8 @@ EKRANLARI — Users/Races/Transactions (§13.18, PHASE 15-B)** · **YARIŞ
 İPTALİ — `POST /admin/races/:raceId/cancel` (§13.19, PHASE 15-B, PARA
 YOLU)** · **BİLDİRİM EKRANI — `/notifications` + gezinti şeridi (§13.21,
 28.09.2026)** · **SOSYAL PROFİL EKRANI — `/profile/[username]` (§13.22,
-28.09.2026)** — backend; kalanların hiçbirinin istemci tüketicisi YOK.
+28.09.2026)** · **CÜZDAN EKRANI — `/wallet` (§13.23, PHASE 4)** —
+backend; kalanların hiçbirinin istemci tüketicisi YOK.
 Ayrıntı: `PROJE_DURUMU.md` §13.
 
 **⚠️ `PlayerSummary`'de `username` VARDIR — SİLME.** Üst barın oyuncu
@@ -219,6 +232,30 @@ blogu onu kendi profiline (`/profile/:username`) bağlamak için kullanır ve
 statik listeye giremez — yani bu, oyuncunun kendi profiline giden **tek**
 yoludur (§13.22). Gizli bir alan değildir (profilin URL'sidir) ve
 `PlayerSummary` hiçbir zaman başka bir oyuncu için üretilmez.
+
+**⚠️ `Idempotency-Key` PARA YOLUNDA BAŞARISIZLIKTA ATILMAZ — SAKLANIR
+(§13.23).** İki istemci deseni vardır ve ikisi de BİLEREK farklıdır:
+`grandstand/page.tsx` her basışta **yeni** anahtar üretir (zarar: ikinci
+bir *bilet*), `wallet/page.tsx` ise anahtarı `useRef`'te **tutar
+değişene ya da işlem başarıyla bitene kadar** tutar (zarar: ikinci bir
+*para girişi*). Fark gerçektir: yatırma yazılıp yanıt ağda kaybolursa
+kullanıcı yeniden basar; yeni anahtar üretilseydi deftere **ikinci** bir
+`mock_deposit` satırı düşerdi ve bu **hiçbir yerde hata üretmezdi**.
+Yeni bir para yolu eklerken soru şudur: *"bu isteğin tekrarı neyi iki kez
+yapar?"* Cevap "para" ise anahtar başarısızlıkta yaşamalıdır.
+
+**⚠️ `/wallet`'taki SINIRLAR KODA GÖMÜLMEZ (§13.23).** Yükleme
+alt/üst sınırı (`mockDeposit.minAmount`/`maxAmount`) ve geçmiş sayfa
+boyutu (`walletHistoryDefaultLimit`) `loadEconomyConfig()`'ten okunur.
+Sunucu reddederken ekranın "geçerli" demesi, sessizce üretilen bir
+yalandır. `mockDeposit.enabled === false` ise form **gösterilmez**
+(kill switch'e uyulur, gizlenmez).
+
+**⚠️ YÖN METNE GÖMÜLMEZ (§13.23).** `LEDGER_TYPE_LABELS` etiketleri
+yönsüzdür ("Yem alımı", "Yem aldın" değil) ve içlerinde `+`/`−`
+geçmez — `ledger-labels.spec.ts` bunu iddia eder. Yönün tek kaynağı
+sunucunun **işaretli** `amount`'udur; ikinci bir yön kaynağı, ikisinin
+çeliştiği bir durum üretir.
 
 **⚠️ YEREL HARNESS'E ÜÇÜNCÜ VITEST GRUBU EKLENDİ (§13.21).** `.claude/
 verify-admin.mjs` eskiden yalnızca `apps/api` testlerini çağırıyordu;
