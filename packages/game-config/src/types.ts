@@ -192,10 +192,43 @@ export interface RaceTierConfig {
   /** Bir katılımcının yatırdığı Çip — havuzun tamamı bunun katıdır. */
   entryFee: number;
   /**
-   * Ödül havuzunun sıraya göre dağıtım oranları (1. sıra ilk eleman).
-   * Toplamı `1 - raceRake` olmalıdır; kalan pay evin kesintisidir.
+   * Ödül dağıtımının kimliği — `EconomyConfig.prizeDistributions` içinde
+   * ARANIR. Oranlar buraya GÖMÜLMEZ (brief §3 "Ödül sistemi hard-code
+   * yapılmamalı. Örneğin: PrizeDistributionConfig oluştur.").
+   *
+   * NEDEN AYRI BİR KİMLİK (27.09.2026, §42 PHASE 5): önceden her kademe
+   * kendi `payoutShares` dizisini taşıyordu. Lobi yarışı (çok oyunculu,
+   * kademesiz) da bir dağıtıma ihtiyaç duyunca aynı oranlar İKİNCİ kez
+   * yazılacaktı — ve iki kopya kaçınılmaz olarak ayrışır. Artık dağıtımın
+   * TEK tanımı `prizeDistributions`'tadır; kademe de, lobi de (bkz.
+   * `RaceLobbyConfig.prizeDistributionId`) ona İSİMLE başvurur.
    */
-  payoutShares: number[];
+  distributionId: string;
+}
+
+/**
+ * Adlandırılmış ödül dağıtım şablonu — brief §3 "PRIZE POOL" +
+ * §4 "ÇARPAN / MULTIPLIER SİSTEMİ".
+ *
+ * `shares[i]` = (i+1). sıranın havuzdan aldığı oran. Değişmezler
+ * (`domain/race/prize-distribution.ts` → `validatePrizeDistributions`
+ * tarafından denetlenir, config elle düzenlenebilir bir JSON olduğu için
+ * yalnızca testle kapatılabilir):
+ *
+ * 1. `Σ shares = 1 − raceRake` — dağıtılmayan pay evin kesintisidir.
+ * 2. Her pay POZİTİF ve dizi AZALAN — 1. sıra her zaman en çok kazanır.
+ * 3. Dizinin uzunluğu, kullanıldığı yarışın alan büyüklüğünü AŞAMAZ.
+ *
+ * (1) sağlandığı sürece `Σ ödül < havuz` YAPISAL olarak garantidir: yarış
+ * kaç sıraya ödül verirse versin para basamaz (denetim bulgusu E7).
+ */
+export interface PrizeDistributionConfig {
+  /** Kararlı kimlik (ör. `top5`). Oyuncuya gösterilmez. */
+  id: string;
+  /** Oyuncuya gösterilen ad (ör. "İlk 5"). */
+  label: string;
+  /** Sıraya göre oranlar — 1. sıra ilk eleman. */
+  shares: number[];
 }
 
 export interface EconomyConfig {
@@ -220,15 +253,21 @@ export interface EconomyConfig {
   /**
    * Proje sahibinin kararı (27.09.2026): "Kesinti olsun (~%10)". Ödül
    * havuzundan dağıtılmayan payın oranı — evin (oyunun) geliri. Her
-   * `RaceTierConfig.payoutShares` dizisinin toplamı `1 - raceRake` ETMEK
+   * `PrizeDistributionConfig.shares` dizisinin toplamı `1 - raceRake` ETMEK
    * ZORUNDADIR; bu, `raceRake`'in İKİNCİ bir doğruluk kaynağı olmadığı
-   * anlamına gelir: dağıtımı belirleyen TEK şey `payoutShares`'tir,
+   * anlamına gelir: dağıtımı belirleyen TEK şey `shares`'tir,
    * `raceRake` ise (a) test edilen AÇIK bir değişmez (bkz.
-   * `validateRaceTiers`) ve (b) oyuncuya "ev payı" olarak gösterilebilen
-   * okunabilir bir sayıdır. İkisi ayrışırsa test kırılır, para sessizce
-   * akmaz.
+   * `validatePrizeDistributions`) ve (b) oyuncuya "ev payı" olarak
+   * gösterilebilen okunabilir bir sayıdır. İkisi ayrışırsa test kırılır,
+   * para sessizce akmaz.
    */
   raceRake: number;
+  /**
+   * Adlandırılmış ödül dağıtım şablonları — brief §3/§4, §42 PHASE 5.
+   * Tüketiciler (kademeler ve lobi yarışı) dağıtıma `distributionId` ile
+   * başvurur; oranlar burada TEK KEZ tanımlanır.
+   */
+  prizeDistributions: PrizeDistributionConfig[];
   /**
    * Yarış kademeleri — proje sahibinin açık talebi (27.09.2026): "yarışlar
    * ücretli olsun, verilen ücret kadarıyla giriş yapan kişiler çarpan
@@ -236,13 +275,14 @@ export interface EconomyConfig {
    *
    * Ekonomik model (bkz. `domain/race/prize.ts`): havuz = `entryFee ×
    * fieldSize` — bot rakipler de "giriş ücreti ödemiş" sayılır, yani havuz
-   * gerçekten doludur. Ödül = `entryFee × payoutShares[sıra] × fieldSize`,
-   * yani oyuncunun gördüğü ÇARPAN = `payoutShares[sıra] × fieldSize`'tır
-   * (ör. mahalli 1. = 0.375 × 8 = 3.0x giriş ücreti). `payoutShares`
-   * toplamı `1 - raceRake` olduğundan yarış YAPISAL OLARAK para basamaz:
-   * dağıtılan < toplanan her zaman. Dizinin uzunluğu ödül alan sıra
-   * sayısıdır; `fieldSize`'ı AŞAMAZ (aşarsa kazanan olmayan sıraya ödül
-   * tanımlanmış olur — `validateRaceTiers` bunu hata sayar).
+   * gerçekten doludur. Ödül = `entryFee × shares[sıra] × fieldSize`, yani
+   * oyuncunun gördüğü ÇARPAN = `shares[sıra] × fieldSize`'tır (ör. mahalli
+   * 1. = 0.375 × 8 = 3.0x giriş ücreti; `shares` artık kademenin kendi
+   * dizisi DEĞİL, `distributionId`'nin çözdüğü dağıtımdır). Pay toplamı
+   * `1 - raceRake` olduğundan yarış YAPISAL OLARAK para basamaz:
+   * dağıtılan < toplanan her zaman. Dağıtım dizisinin uzunluğu ödül alan
+   * sıra sayısıdır; `fieldSize`'ı AŞAMAZ (aşarsa kazanan olmayan sıraya
+   * ödül tanımlanmış olur — `validateRaceTiers` bunu hata sayar).
    */
   raceTiers: RaceTierConfig[];
   /** brief §31/§42 — yeni oyuncu hesabı oluşturulunca verilen başlangıç bakiyesi. */
@@ -1252,6 +1292,22 @@ export interface RaceLobbyConfig {
    * (bkz. `race-lobby-config.spec.ts`, migration dosyası OKUNARAK).
    */
   entryStatuses: string[];
+  /**
+   * Lobi yarışının ödül havuzunun hangi dağıtımla paylaşılacağı — brief §3
+   * "Prize distribution configurable olmalı", §42 PHASE 5.
+   *
+   * `EconomyConfig.prizeDistributions` içinde ARANIR. Lobi yarışı bir
+   * KADEME (`raceTiers`) DEĞİLDİR (kademeler pratik yarış içindir ve
+   * `fieldSize`'ları sabittir; lobi yarışının alanı 8-16 arasında
+   * değişir), bu yüzden dağıtımını ayrıca bildirir — ama oranlar yine TEK
+   * yerde (`prizeDistributions`) tanımlıdır, burada kopyalanmaz.
+   *
+   * NEDEN `top5`: lobi yarışı 16 oyuncuya kadar çıkabilir; ödül alan sıra
+   * sayısı alan büyüklüğünden BAĞIMSIZ olmalıdır ki "16 kişilik yarışta ilk
+   * 16'ya ödül" gibi rekabeti anlamsızlaştıran bir durum doğmasın. İlk 5
+   * sıra, alan ne olursa olsun sabit bir hedeftir.
+   */
+  prizeDistributionId: string;
   /**
    * `GET /races` lobi listesinin, istek `limit` VERMEDİĞİNDE döneceği kayıt
    * sayısı (PHASE 3). Sayfalama yoktur — lobi listesi "şu an katılabileceğin

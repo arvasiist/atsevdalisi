@@ -24,41 +24,48 @@
     "maxAmount": 50000
   },
   "raceRake": 0.1,
+  "prizeDistributions": [
+    { "id": "top5", "label": "İlk 5", "shares": [0.375, 0.225, 0.15, 0.1, 0.05] },
+    { "id": "top6", "label": "İlk 6", "shares": [0.36, 0.22, 0.14, 0.1, 0.05, 0.03] },
+    { "id": "top7", "label": "İlk 7", "shares": [0.34, 0.21, 0.14, 0.1, 0.06, 0.03, 0.02] },
+    { "id": "top8", "label": "İlk 8", "shares": [0.33, 0.2, 0.14, 0.1, 0.06, 0.04, 0.02, 0.01] },
+    { "id": "top9", "label": "İlk 9", "shares": [0.3, 0.2, 0.13, 0.1, 0.07, 0.04, 0.03, 0.02, 0.01] }
+  ],
   "raceTiers": [
     {
       "id": "local",
       "label": "Mahalli Koşu",
       "fieldSize": 8,
       "entryFee": 100,
-      "payoutShares": [0.375, 0.225, 0.15, 0.1, 0.05]
+      "distributionId": "top5"
     },
     {
       "id": "regional",
       "label": "Bölgesel Koşu",
       "fieldSize": 10,
       "entryFee": 250,
-      "payoutShares": [0.36, 0.22, 0.14, 0.1, 0.05, 0.03]
+      "distributionId": "top6"
     },
     {
       "id": "national",
       "label": "Ulusal Koşu",
       "fieldSize": 12,
       "entryFee": 500,
-      "payoutShares": [0.34, 0.21, 0.14, 0.1, 0.06, 0.03, 0.02]
+      "distributionId": "top7"
     },
     {
       "id": "elite",
       "label": "Elit Koşu",
       "fieldSize": 14,
       "entryFee": 1000,
-      "payoutShares": [0.33, 0.2, 0.14, 0.1, 0.06, 0.04, 0.02, 0.01]
+      "distributionId": "top8"
     },
     {
       "id": "championship",
       "label": "Şampiyona Koşusu",
       "fieldSize": 16,
       "entryFee": 2000,
-      "payoutShares": [0.3, 0.2, 0.13, 0.1, 0.07, 0.04, 0.03, 0.02, 0.01]
+      "distributionId": "top9"
     }
   ],
   "newPlayerStartingBalance": {

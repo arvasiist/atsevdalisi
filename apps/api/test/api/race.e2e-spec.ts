@@ -174,7 +174,7 @@ describe('Race — Pratik Yarış (e2e)', () => {
     const playerFinish = response.body.data.finalResult.find(
       (entry: { horseId: string }) => entry.horseId === horseId,
     );
-    expect(prizeWon).toBe(getRacePrize(defaultTier, playerFinish.finishPosition));
+    expect(prizeWon).toBe(getRacePrize(economyConfig, defaultTier, playerFinish.finishPosition));
     expect(newBalance.money).toBe(moneyBefore - entryFee + prizeWon);
 
     const afterRow = await pool.query('SELECT money FROM players WHERE id = $1', [playerId]);

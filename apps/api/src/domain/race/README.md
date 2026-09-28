@@ -89,13 +89,23 @@ yapısal çözümüdür.
   yerine:
   - `computeRacePool(tier)` = `entryFee × fieldSize` (botlar da ödemiş
     sayılır → havuz gerçek),
-  - `getRacePrize(tier, position)` = `round(havuz × payoutShares[position-1])`,
-  - `computeRacePayoutTotal` / `computeRaceRakeAmount`,
+  - `getRaceTierShares(config, tier)` — kademenin `distributionId`'sinin
+    çözülmüş hâli (oranlar §42 PHASE 5'ten beri kademede DEĞİL),
+  - `getRacePrize(config, tier, position)` = `round(havuz × shares[position-1])`,
+  - `computeRacePayoutTotal(config, tier)` / `computeRaceRakeAmount(config, tier)`,
   - `getRaceTierById` / `getDefaultRaceTier` (listenin İLKİ),
   - `validateRaceTiers(config)` — config değişmezlerini SORUN listesi olarak
-    döner (ASLA fırlatmaz): pay toplamı `1 − raceRake` olmalı, paylar
-    azalan/pozitif olmalı, ödül sırası sayısı `fieldSize`'ı aşmamalı ve
-    **dağıtılan toplam havuzdan KÜÇÜK olmalı**.
+    döner (ASLA fırlatmaz): `distributionId` ÇÖZÜLMELİ, pay toplamı
+    `1 − raceRake` olmalı, paylar azalan/pozitif olmalı, ödül sırası sayısı
+    `fieldSize`'ı aşmamalı ve **dağıtılan toplam havuzdan KÜÇÜK olmalı**.
+- `prize-distribution.ts` — YENİ (§42 PHASE 5). KADEMESİZ ödül matematiği:
+  `computePrizePayouts` / `computePrizePayoutTotal` / `computePrizePool` /
+  `computePrizeMultiplier` / `describeRacePrizeEconomics` /
+  `resolvePrizeDistribution` / `validatePrizeDistributions`. Brief §4'ün açık
+  şartı budur ("çarpan hesaplama Race Engine'den ayrı bir domain/service
+  olmalı") ve lobi yarışı ile pratik yarış AYNI oran tablosunu buradan
+  paylaşır. Bu dosya `fieldSize` diye bir şey duymaz; `race-engine.ts`'e
+  dokunmaz ve ondan hiçbir şey import etmez.
   - `applyPracticeRaceStakes` — değişmedi (yukarıdaki dokuzuncu dilim).
 - `readiness.ts` — YENİ: `checkRaceReadiness(status, vitals, thresholds)`.
   At `active` olmalı, sağlık ≥ 50, yorgunluk ≤ 70, enerji ≥ 30
@@ -103,7 +113,7 @@ yapısal çözümüdür.
   (15/90) BİLİNÇLİ olarak daha sıkıdır ve kontrol sırası DETERMİNİSTİKTİR
   (en kalıcıdan en geçiciye) — istemci tek bir neden gösterir.
 
-**Neden pay toplamı `1 − raceRake`:** `Σ payoutShares = 1` olsaydı dağıtılan
+**Neden pay toplamı `1 − raceRake`:** `Σ shares = 1` olsaydı dağıtılan
 ödül havuza EŞİT olurdu ve botlar para ödemediği için yarış Çip basardı
 (E7'nin ta kendisi). Pay toplamını `1 − raceRake`'e bağlamak, "yarış para
 basmaz" değişmezini sayı ayarına değil YAPIYA bağlar: hangi alan büyüklüğü ve
@@ -114,8 +124,10 @@ zamanı doğrulaması YOK) ve config elle düzenlenebilir bir JSON'dur.
 **EV (denetim E30):** eşit güçte bir alanda `P(sıra i) ≈ 1/fieldSize`
 varsayımıyla `EV(ödül) = Σ ödül / fieldSize`, yani `EV(net) = −raceRake ×
 entryFee` — ALAN BÜYÜKLÜĞÜNDEN BAĞIMSIZ olarak negatif. Bu, oyuncunun gördüğü
-çarpana da yansır: `payoutShares[i] × fieldSize` (mahalli 1. sıra 3.00×,
+çarpana da yansır: `shares[i] × fieldSize` (mahalli 1. sıra 3.00×,
 şampiyona 1. sıra 4.80×) — çarpan TÜRETİLİR, ayrı bir tablo tutulmaz.
+Lobi yarışında aynı türetme `participantCount × shares[0]`'dır
+(`computePrizeMultiplier`), çünkü orada havuz `races.prize_pool`'dur.
 
 ## FAZ 1 wiring, on dördüncü dilim — PvP Eşleştirme'nin Race Engine kullanımı (bu oturum)
 

@@ -97,18 +97,25 @@ tablodan değil, bir havuzdan** dağıtılır. Kaynak
 - **Havuz** = `entryFee × fieldSize`. Botlar da giriş ücretini ödemiş
   sayılır, yani havuz gerçek bir havuzdur (eski modelde botlar hiçbir şey
   ödemiyordu ve ödül sabit bir tablodan geliyordu — E7 musluğunun kaynağı).
-- **Pay** = `payoutShares[finishPosition-1]`, `Σ payoutShares = 1 − raceRake`.
+- **Pay** = `shares[finishPosition-1]`, `Σ shares = 1 − raceRake`.
   Dağıtılan toplam ödül havuza **yapısal olarak** eşit olamaz, yani yarış
   HİÇBİR kademede Çip basamaz. Bu değişmez bir testle korunur
   (`apps/api/test/domain/race/prize.spec.ts`), çünkü `game-config` loader'ı
   saf bir cast'tir (çalışma zamanı doğrulaması yok) ve config elle
   düzenlenebilir.
+- **Oranlar TEK bir tabloda:** §42 PHASE 5'ten beri kademe kendi pay
+  dizisini taşımaz, bir `distributionId` taşır; diziler
+  `config/economy.config.json` → `prizeDistributions` altındadır
+  (`top5`…`top9`). Lobi yarışı da (`raceLobby.prizeDistributionId = top5`)
+  aynı tablodan beslenir — iki kopya olsaydı kaçınılmaz olarak kayarlardı.
 - **Kesinti** = `raceRake` = **%10** (proje sahibinin kararı, 27.09.2026).
   Bu, sistemin tek "sink"idir: kesilen kısım hiçbir oyuncuya ödenmez.
-- **Oyuncunun gördüğü çarpan** türetilir: `payoutShares[i] × fieldSize`
+- **Oyuncunun gördüğü çarpan** türetilir: `shares[i] × fieldSize`
   (ör. mahalli 1. sıra 3.00×). Ayrı bir çarpan tablosu TUTULMAZ, böylece
   alan büyüklüğü arttığında çarpan kendiliğinden büyür ve kayacak ikinci
-  bir tablo oluşmaz.
+  bir tablo oluşmaz. Lobi yarışında aynı türetme
+  `katılımcı sayısı × shares[0]`'dır ve `RaceLobbyView.prizeMultiplier`
+  alanı olarak döner (`null` = gösterilecek çarpan yok).
 - **EV:** eşit güçte bir alanda `EV(net) = −raceRake × entryFee`, yani
   alan büyüklüğünden bağımsız olarak **negatif**. Yarış bir Çip kaynağı
   değil, Çip havuzudur (denetim bulgusu E30'un doğrudan testi).

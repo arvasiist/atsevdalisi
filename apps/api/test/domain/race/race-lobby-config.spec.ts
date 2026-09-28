@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { loadRaceLobbyConfig } from '@at-sevdalisi/game-config';
+import { loadEconomyConfig, loadRaceLobbyConfig } from '@at-sevdalisi/game-config';
 
 /**
  * `config/race-lobby.config.json` DEĞİŞMEZLERİ (invariants) — brief §1-§11,
@@ -31,6 +31,7 @@ import { loadRaceLobbyConfig } from '@at-sevdalisi/game-config';
  *     kullanıcıya 500 dönen gerçek bir üretim hatasıdır.
  */
 const config = loadRaceLobbyConfig();
+const economyConfig = loadEconomyConfig();
 
 /** `chat-config.spec.ts` ile AYNI "yukarı yürü" deseni (sabit `../..` sayısı iki çalıştırma yolundan birinde kırılırdı). */
 const MAX_PARENT_WALK_DEPTH = 10;
@@ -330,5 +331,44 @@ describe('race-lobby.config.json — lobi listesi tavanı (brief §18, §42 PHAS
     // SQL'e gider ve sınırsız bir liste tüm `races` tablosunu belleğe
     // çekerdi. 1000, "hâlâ makul" sayılanın çok üstünde bir uyarı eşiğidir.
     expect(config.lobbyListMaxLimit).toBeLessThanOrEqual(1_000);
+  });
+});
+
+/**
+ * §42 PHASE 5 — lobi yarışının ödül dağıtımı BAŞKA bir config dosyasına
+ * (`economy.config.json` → `prizeDistributions`) başvurur. Bu, iki dosya
+ * arasında sessizce kopabilecek bir bağdır: `prizeDistributionId` bir yazım
+ * hatası taşırsa hiçbir istisna fırlamaz, `validateRaceTiers` YALNIZCA
+ * kademeleri denetler, ve lobi yarışı herkese 0 ödül vaat eder. Bu yüzden
+ * bağ burada, config katmanında AÇIKÇA test edilir.
+ */
+describe('race-lobby.config.json — ödül dağıtımı bağı (§42 PHASE 5)', () => {
+  it('prizeDistributionId, economy.config.json`daki dağıtımlardan birini gösterir', () => {
+    const ids = economyConfig.prizeDistributions.map((distribution) => distribution.id);
+    expect(ids).toContain(config.prizeDistributionId);
+  });
+
+  it('işaret edilen dağıtımın payları geçerlidir (boş değil, azalan, pozitif)', () => {
+    const distribution = economyConfig.prizeDistributions.find(
+      (candidate) => candidate.id === config.prizeDistributionId,
+    );
+    expect(distribution).toBeDefined();
+
+    const shares = distribution?.shares ?? [];
+    expect(shares.length).toBeGreaterThan(0);
+    for (let index = 0; index < shares.length; index += 1) {
+      expect(shares[index] as number).toBeGreaterThan(0);
+      if (index > 0) {
+        expect(shares[index] as number).toBeLessThan(shares[index - 1] as number);
+      }
+    }
+  });
+
+  it('işaret edilen dağıtımın pay toplamı 1 − raceRake`dir (lobi de para basmasın)', () => {
+    const distribution = economyConfig.prizeDistributions.find(
+      (candidate) => candidate.id === config.prizeDistributionId,
+    );
+    const total = (distribution?.shares ?? []).reduce((sum, share) => sum + share, 0);
+    expect(Math.abs(total - (1 - economyConfig.raceRake))).toBeLessThan(1e-9);
   });
 });

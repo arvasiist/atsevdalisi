@@ -9,7 +9,9 @@
  *  2. Seçili at yarışa HAZIR mı; değilse neden?
  *
  * HİÇBİR LİSTE BURADA TANIMLANMAZ. Tek kaynak `config/economy.config.json`
- * (`raceTiers`/`raceRake`) ve `config/race.config.json` (`readiness`) —
+ * (`raceTiers`/`raceRake`/`prizeDistributions` — oranlar §42 PHASE 5'ten
+ * beri kademede değil, bu ortak dağıtım tablosunda) ve
+ * `config/race.config.json` (`readiness`) —
  * sunucu da AYNI dosyaları okur (`apps/api/src/domain/race/prize.ts` ve
  * `.../readiness.ts`). `career-tier.ts`'in `progression.config.json`'a
  * bağlanmasıyla AYNI desen. İstemci kendi giriş ücreti / alan büyüklüğü /
@@ -55,6 +57,23 @@ export function findRaceTier(tierId: string | null): RaceTierConfig | null {
 }
 
 /**
+ * Kademenin ödül dağıtım ORANLARI — §42 PHASE 5.
+ *
+ * ÖNCEDEN bu dizi kademenin kendi `payoutShares` alanıydı. Artık oranlar
+ * `economy.config.json` → `prizeDistributions` altında TEK KEZ yazılır ve
+ * kademe yalnızca bir `distributionId` taşır; lobi yarışı da (farklı bir
+ * alan büyüklüğüyle) AYNI dağıtımı kullanır. İki tüketici tek tanımdan
+ * beslendiği için "lobide 3.75× yazıp pratikte 3.00× ödemek" mümkün olmaz.
+ *
+ * Sunucudaki `resolvePrizeDistribution` ile AYNI çözümleme; bulunamazsa
+ * BOŞ dizi döner (çökme yok) — o kademe hiç ödül ödemez ve bu, config
+ * hatası olarak `apps/api` testlerinde yakalanır.
+ */
+function getTierShares(tier: RaceTierConfig): readonly number[] {
+  return economyConfig.prizeDistributions.find((distribution) => distribution.id === tier.distributionId)?.shares ?? [];
+}
+
+/**
  * Oyuncunun gördüğü ÇARPANDIR: `prize = entryFee × fieldSize × share`
  * olduğundan, ödülün ÖDENEN giriş ücretine oranı tam olarak
  * `fieldSize × share`'dır. Ayrı bir çarpan tablosu TUTULMAZ — çarpan
@@ -67,7 +86,7 @@ export function findRaceTier(tierId: string | null): RaceTierConfig | null {
  * büyüklüğünden küçüktür).
  */
 export function getPayoutMultiplier(tier: RaceTierConfig, finishPosition: number): number {
-  const share = tier.payoutShares[finishPosition - 1];
+  const share = getTierShares(tier)[finishPosition - 1];
   return share === undefined ? 0 : share * tier.fieldSize;
 }
 
@@ -79,7 +98,7 @@ export function getPayoutMultiplier(tier: RaceTierConfig, finishPosition: number
  * yazılır.
  */
 export function getTopPayoutMultipliers(tier: RaceTierConfig, count: number): number[] {
-  const positions = Math.max(0, Math.min(count, tier.payoutShares.length));
+  const positions = Math.max(0, Math.min(count, getTierShares(tier).length));
   const multipliers: number[] = [];
   for (let position = 1; position <= positions; position += 1) {
     multipliers.push(getPayoutMultiplier(tier, position));

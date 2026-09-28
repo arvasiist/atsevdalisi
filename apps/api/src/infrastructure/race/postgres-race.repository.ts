@@ -29,6 +29,11 @@ import type {
 } from '../../application/ports/race.repository';
 import type { EconomyLedgerEntryInput } from '../../application/ports/economy-ledger';
 import { applyPracticeRaceStakes } from '../../domain/race/prize';
+import {
+  describeRacePrizeEconomics,
+  resolvePrizeDistribution,
+} from '../../domain/race/prize-distribution';
+import { AppConfigService } from '../config/config.service';
 import { checkEntryReadyable, checkRaceJoinable, checkRaceLeavable, nextGatePosition } from '../../domain/race/lobby';
 import {
   AlreadyJoinedRaceError,
@@ -150,7 +155,20 @@ interface LobbyRaceRow {
  * demek olurdu. Bu metot yalnızca `races` satırını gördüğü için sayıyı
  * çağırandan alır.
  */
-function rowToLobbyRaceView(row: LobbyRaceRow, joinedPlayers: number): RaceLobbyView {
+function rowToLobbyRaceView(config: AppConfigService, row: LobbyRaceRow, joinedPlayers: number): RaceLobbyView {
+  // §42 PHASE 5 — ÖDÜL EKONOMİSİ (brief §3/§4). Havuz `races.prize_pool`
+  // sütunudur (katılımda büyür, ayrılmada küçülür); çarpan ve kazanan
+  // ödülü ONDAN türetilir. `null` çarpan = "bu yarışta gösterilecek çarpan
+  // yok" (ücretsiz yarış ya da henüz katılım yok) — istemci bu durumda
+  // çarpanı hiç göstermez, `0.00x` göstermez.
+  const shares = resolvePrizeDistribution(config.economy, config.raceLobby.prizeDistributionId)?.shares ?? [];
+  const economics = describeRacePrizeEconomics({
+    entryFee: Number(row.entry_fee),
+    participantCount: joinedPlayers,
+    pool: Number(row.prize_pool),
+    shares,
+  });
+
   return {
     id: row.id,
     name: row.name,
@@ -169,6 +187,8 @@ function rowToLobbyRaceView(row: LobbyRaceRow, joinedPlayers: number): RaceLobby
     spectatorCapacity: row.spectator_capacity,
     createdBy: row.created_by,
     createdAt: row.created_at.toISOString(),
+    prizeMultiplier: economics.multiplier,
+    topPrize: economics.topPrize,
   };
 }
 
@@ -194,7 +214,16 @@ function rowToLobbyRaceView(row: LobbyRaceRow, joinedPlayers: number): RaceLobby
  */
 @Injectable()
 export class PostgresRaceRepository implements RaceRepository {
-  constructor(@Inject(PG_POOL) private readonly pool: Pool) {}
+  constructor(
+    @Inject(PG_POOL) private readonly pool: Pool,
+    // §42 PHASE 5 — lobi görünümü artık ödül ekonomisini (havuz, çarpan,
+    // kazanan ödülü) da taşıyor. `AppConfigModule` `@Global()` olduğu için
+    // ek modül importu GEREKMEZ (`postgres-breeding.repository.ts` ile AYNI
+    // desen). Config BURADA okunmaz: dağıtımın çözülmesi ve matematiği saf
+    // domain fonksiyonlarındadır (`domain/race/prize-distribution.ts`),
+    // bu sınıf yalnızca onları çağırır.
+    @Inject(AppConfigService) private readonly config: AppConfigService,
+  ) {}
 
   async savePracticeRace(race: Race, entry: RaceEntry, segments: RaceSegmentSnapshot[]): Promise<void> {
     await withTransaction(this.pool, async (client) => {
@@ -707,7 +736,7 @@ export class PostgresRaceRepository implements RaceRepository {
       // üretir (PHASE 1b). Yarışı açan kişi otomatik olarak katılmış
       // SAYILMAZ — saysaydı, ücretsiz bir "önce katıl sonra ödemeyi
       // düşün" yolu doğardı.
-      return { ok: true, race: rowToLobbyRaceView(insertedRow, 0) };
+      return { ok: true, race: rowToLobbyRaceView(this.config, insertedRow, 0) };
     });
   }
 
@@ -937,7 +966,7 @@ export class PostgresRaceRepository implements RaceRepository {
         throw new Error('Yarış satırı katılım transaction\'ı içinde okunamadı.');
       }
 
-      return rowToLobbyRaceView(finalRow, joinedPlayers + 1);
+      return rowToLobbyRaceView(this.config, finalRow, joinedPlayers + 1);
     });
   }
 
@@ -987,7 +1016,7 @@ export class PostgresRaceRepository implements RaceRepository {
       [input.status, input.limit],
     );
 
-    return result.rows.map((row) => rowToLobbyRaceView(row, Number(row.joined_players)));
+    return result.rows.map((row) => rowToLobbyRaceView(this.config, row, Number(row.joined_players)));
   }
 
   /**
@@ -1065,7 +1094,7 @@ export class PostgresRaceRepository implements RaceRepository {
       );
       const joinedPlayers = Number(joinedResult.rows[0]?.count ?? '0');
 
-      return rowToLobbyRaceView(raceRow, joinedPlayers);
+      return rowToLobbyRaceView(this.config, raceRow, joinedPlayers);
     });
   }
 
@@ -1242,7 +1271,7 @@ export class PostgresRaceRepository implements RaceRepository {
         [input.raceId],
       );
 
-      return rowToLobbyRaceView(finalRow, Number(joinedResult.rows[0]?.count ?? '0'));
+      return rowToLobbyRaceView(this.config, finalRow, Number(joinedResult.rows[0]?.count ?? '0'));
     });
   }
 

@@ -28,6 +28,16 @@ import {
 const economyConfig = loadEconomyConfig();
 const raceConfig = loadRaceConfig();
 
+/**
+ * Kademenin ödül oranları — §42 PHASE 5'ten beri kademede DEĞİL,
+ * `prizeDistributions` tablosunda ve `distributionId` ile bağlanır.
+ * Testler de ekranla AYNI yoldan (config'ten) okur; sabit bir dizi
+ * yazılsaydı config değişince test yalan söylerdi.
+ */
+function sharesOf(tier: RaceTierConfig): readonly number[] {
+  return economyConfig.prizeDistributions.find((distribution) => distribution.id === tier.distributionId)?.shares ?? [];
+}
+
 describe('RACE_TIERS — config ile birebir aynı liste', () => {
   it('kademe listesi doğrudan economy.config.json`dan gelir (kopya DEĞİL)', () => {
     expect(RACE_TIERS).toBe(economyConfig.raceTiers);
@@ -74,8 +84,9 @@ describe('getPayoutMultiplier — "verilen ücret kadarıyla çarpan"', () => {
 
   it('çarpan TAM OLARAK pay × alan büyüklüğüdür (ödül = giriş × çarpan)', () => {
     for (const tier of RACE_TIERS) {
-      for (let position = 1; position <= tier.payoutShares.length; position += 1) {
-        const share = tier.payoutShares[position - 1] as number;
+      const shares = sharesOf(tier);
+      for (let position = 1; position <= shares.length; position += 1) {
+        const share = shares[position - 1] as number;
         expect(getPayoutMultiplier(tier, position)).toBeCloseTo(share * tier.fieldSize, 10);
       }
     }
@@ -83,7 +94,7 @@ describe('getPayoutMultiplier — "verilen ücret kadarıyla çarpan"', () => {
 
   it('ödül almayan sıra için 0 döner (ödülsüz bitirmek OLAĞAN yoldur)', () => {
     for (const tier of RACE_TIERS) {
-      expect(getPayoutMultiplier(tier, tier.payoutShares.length + 1)).toBe(0);
+      expect(getPayoutMultiplier(tier, sharesOf(tier).length + 1)).toBe(0);
       expect(getPayoutMultiplier(tier, tier.fieldSize)).toBe(0);
       expect(getPayoutMultiplier(tier, 0)).toBe(0);
     }
@@ -97,7 +108,7 @@ describe('getPayoutMultiplier — "verilen ücret kadarıyla çarpan"', () => {
    */
   it('tüm sıraların çarpan toplamı, kesintiden sonra kalan oranı aşmaz', () => {
     for (const tier of RACE_TIERS) {
-      const totalMultiplier = tier.payoutShares.reduce((sum, share) => sum + share * tier.fieldSize, 0);
+      const totalMultiplier = sharesOf(tier).reduce((sum, share) => sum + share * tier.fieldSize, 0);
       expect(totalMultiplier).toBeLessThanOrEqual(tier.fieldSize * (1 - RACE_RAKE) + 1e-9);
     }
   });
@@ -115,7 +126,7 @@ describe('getTopPayoutMultipliers', () => {
 
   it('istenenden fazla sıra istenirse mevcut sıra sayısıyla sınırlanır (taşma yok)', () => {
     const tier = RACE_TIERS[0] as RaceTierConfig;
-    expect(getTopPayoutMultipliers(tier, 99)).toHaveLength(tier.payoutShares.length);
+    expect(getTopPayoutMultipliers(tier, 99)).toHaveLength(sharesOf(tier).length);
     expect(getTopPayoutMultipliers(tier, 0)).toEqual([]);
     expect(getTopPayoutMultipliers(tier, -1)).toEqual([]);
   });

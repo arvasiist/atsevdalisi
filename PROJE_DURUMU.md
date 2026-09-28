@@ -206,7 +206,7 @@ progression, player, auth.
 verilen ücret kadarıyla giriş yapan kişiler çarpan olsun ve bir yarışta 8 /
 10 / 12 / 14 / 16 at koşabilsin, hazır olan kişiler yarışabilsinler"* +
 *"kesinti olsun (~%10)"*. Ödül sabit tablodan değil `havuz = entryFee ×
-fieldSize` havuzundan dağıtılır; `Σ payoutShares = 1 − raceRake` olduğundan
+fieldSize` havuzundan dağıtılır; `Σ shares = 1 − raceRake` olduğundan
 yarış **hiçbir kademede Çip basamaz** (denetim CRITICAL E7 + MEDIUM E30
 kapandı). Yarışa girmek `domain/race/readiness.ts` kapısına bağlı (sağlık ≥
 50, yorgunluk ≤ 70, enerji ≥ 30). Web ekranına kademe seçici eklendi.
@@ -905,7 +905,7 @@ brief §42 PHASE 1'in iki yarısı bitti: **1a** `POST /races` (commit `e030681`
   (2) supertest'te `.set(başlık, null)` başlığı atlamaz, `String(null)` =
   `"null"` yazar; "anahtarsız istek reddedilir" testi bu yüzden yalancı yeşil
   oluyordu.
-- **HENÜZ YOK:** ödül dağıtımı/çarpanı (PHASE 5) · frontend tüketicisi.
+- **HENÜZ YOK:** ödül dağıtımı (PHASE 5, bkz. §13.10) · frontend tüketicisi.
 
 ### 13.7 Ücretli yarış lobisi — listeleme + READY (27.09.2026)
 
@@ -937,7 +937,8 @@ brief §42 PHASE 3. 13.6'nın "HENÜZ YOK" listesindeki iki madde kapandı:
   parametresi yüzünden reddetmek kullanıcıya hiçbir şey kazandırmaz.
 - **HENÜZ YOK:** yarışı `in_progress`e çeviren zamanlayıcı (cron/worker) ·
   READY durumunun motor tarafından OKUNMASI (şu an yalnızca bilgi) · ödül
-  dağıtımı/çarpanı (PHASE 5) · frontend tüketicisi.
+  dağıtımının UYGULANMASI (PHASE 5 oranları/çarpanı getirdi ama ödeme yapacak
+  koşucu yok — §13.10) · frontend tüketicisi.
 
 ### 13.8 Cüzdan + sanal para yatırma (brief §20/§22, §42 PHASE 4a + 4b)
 
@@ -987,6 +988,52 @@ Belgenin tamamı `docs/WALLET_SYSTEM.md`'dedir; buradaki özet yalnızca
   alır; boşalan koltuk BAŞKALARINA açıktır.
 - **HENÜZ YOK:** yarışın `cancelled` olması hâlinde TOPLU iade (13.7'deki
   zamanlayıcı ile birlikte gelecek) · frontend tüketicisi.
+
+### 13.10 Ödül havuzu + çarpan (brief §3/§4, §42 PHASE 5)
+
+brief §3 "PRIZE POOL" ve §4 "ÇARPAN / MULTIPLIER SİSTEMİ". Brief §4'ün AÇIK
+şartı olan "çarpan hesaplama Race Engine'den ayrı bir domain/service olmalı"
+kuralı gereği yeni dosya `domain/race/prize-distribution.ts`'tir: `race-engine.ts`'e
+dokunmaz, ondan hiçbir şey import etmez, `fieldSize` diye bir şey duymaz.
+
+- **Oranlar artık KADEMEDE DEĞİL.** `RaceTierConfig.payoutShares` kaldırıldı;
+  yerine `distributionId` geldi ve diziler `economy.config.json` →
+  `prizeDistributions` altında (`top5`…`top9`) TEK KEZ yazılıyor. Sebep:
+  lobi yarışı da aynı oranlarla ödül veriyor ve iki kopya kaçınılmaz olarak
+  kayardı — "lobide 3.75× yazıp pratikte 3.00× ödemek" tam olarak bu yüzden
+  mümkün olmamalı. `raceLobby.prizeDistributionId` (varsayılan `top5`)
+  ikinci tüketicinin bağlandığı yerdir.
+- **Çarpan AYRI BİR MERDİVEN DEĞİL, TÜRETİLMİŞTİR.** Brief §4 örnek olarak
+  `1.00x / 1.25x / 1.50x / 2.00x` verir; bu merdiven bilinçli olarak config'e
+  YAZILMADI. Yazılsaydı gösterilen çarpan ile ödenen ödül iki ayrı kaynaktan
+  gelir ve biri diğerini yalanlayabilirdi. Çarpan
+  `havuz × shares[0] ÷ entryFee` = `katılımcı sayısı × shares[0]`'dır, yani
+  "kalan süre/katılım arttıkça artar" davranışı KENDİLİĞİNDEN oluşur
+  (8 oyuncuda 3.00×, 16 oyuncuda 6.00×).
+- **`null` ile `0` AYRI ŞEYLER.** Ücretsiz yarışta, henüz katılımcısı olmayan
+  yarışta ya da ödül sırası tanımsız bir dağıtımda çarpan `null`'dır —
+  "bu yarışta çarpan kavramı yok". `0` göstermek "kazanç yok" diye okunurdu.
+  `RaceLobbyView.prizeMultiplier` bu yüzden `number | null`'dır.
+- **`validatePrizeDistributions` YENİ ve kritik:** `distributionId` yazımı
+  yanlış olduğunda (`top5` yerine `top55`) hiçbir istisna fırlamaz, hiçbir
+  ekran uyarı vermez — kademe HİÇ ödül ödemez ve herkes kaybeder. Sessiz
+  olduğu için yakalanması yalnızca testle mümkündür.
+  `validateRaceTiers` artık önce onu çağırır, sonra her kademenin dağıtımı
+  DOĞRU kullandığını denetler (`shares.length ≤ fieldSize`, `Σ ödül < havuz`).
+- **Yuvarlama şart:** `money` bir tam sayı birimidir; `round(havuz × pay)`
+  olmadan `wallet.ts`'in `Number.isInteger` kontrolü `InvalidAmountError`
+  fırlatır ve istemciye 500 döner. Yuvarlamadan sonra bile `Σ ödül < havuz`
+  korunur — bu, ulaşılabilir EN KÜÇÜK lobi havuzunda (50 Çip × 8 at = 400 →
+  dağıtılan 360) ve tüm ücret×alan kombinasyonlarında test edilir.
+- **HENÜZ YOK — ve bu AÇIKÇA yazılmalı:** ödülü ÖDEYEN bir yol yok. Bir lobi
+  yarışını `in_progress`e çeviren zamanlayıcı (cron/worker) olmadığı için
+  `prizeMultiplier`/`topPrize` bir VAATTİR, gerçekleşmiş bir kazanç değildir.
+  Dağıtımı uygulayacak matematik hazırdır (`computePrizePayouts`); eksik olan
+  tek parça yarışı başlatan/bitiren sunucu tarafıdır. Alan adlarının "kazandın"
+  değil "kazanan ne alır" anlamına gelmesi bu yüzden bilinçlidir.
+- Ayrıntı: `docs/ECONOMY.md` §4.1.1, `docs/API.md` §6, testler
+  `apps/api/test/domain/race/prize-distribution.spec.ts` (yeni) +
+  `prize.spec.ts` (güncellendi).
 
 ---
 

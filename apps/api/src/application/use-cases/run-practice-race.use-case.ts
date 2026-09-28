@@ -179,13 +179,16 @@ export class RunPracticeRaceUseCase {
     // `domain/race/prize.ts` doc yorumundaki tam model. Oyuncunun ödediği
     // ücret kademeden gelir; havuz TÜM katılımcıların ücretidir (botlar da
     // "ödedi" sayılır) ve ödül bu havuzun bir PAYIDIR. `prizeWon`, ödül
-    // almayan bir sırada 0 olur — bu olağan bir durumdur (her kademede
-    // yalnızca `payoutShares.length` kadar sıra ödül alır) ve
+    // almayan bir sırada 0 olur — bu olağan bir durumdur (her dağıtımda
+    // yalnızca `shares.length` kadar sıra ödül alır) ve
     // `applyPracticeRaceStakes` sıfır miktarda `credit` ÇAĞIRMADIĞI için
     // 500 hatası üretmez (bkz. o fonksiyonun doc yorumundaki CI hatası).
+    //
+    // §42 PHASE 5: `getRacePrize` artık `config` de alır — oranlar kademenin
+    // kendi alanı değil, `distributionId`'nin çözdüğü dağıtımdır.
     const entryFee = tier.entryFee;
     const prizePool = computeRacePool(tier);
-    const prizeWon = getRacePrize(tier, playerFinish.finishPosition);
+    const prizeWon = getRacePrize(this.config.economy, tier, playerFinish.finishPosition);
 
     // AUDIT_REPORT.md Bulgu R3 (bu oturum) — "Draw/post-position" artık
     // gerçek bir çekilişten türetiliyor (bkz. `gate-assignment.ts` doc

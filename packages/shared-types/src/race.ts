@@ -502,4 +502,23 @@ export interface RaceLobbyView {
   /** Yarışı açan oyuncu (brief §1). `null` yalnızca sunucu üretimi yarışlarda olur. */
   createdBy: UUID | null;
   createdAt: ISODateTimeString;
+  /**
+   * brief §4 ÇARPAN — kazananın alacağı ödülün giriş ücretine oranı.
+   * "Giriş ücretimin kaç katını kazanabilirim."
+   *
+   * **`null` = "gösterilecek çarpan yok"** — ücretsiz yarış (`entryFee = 0`),
+   * henüz katılımcısı olmayan yarış (`prizePool = 0`) veya ödül sırası
+   * tanımsız bir dağıtım. İstemci bu durumda çarpanı HİÇ göstermez;
+   * `0.00x` göstermek "kazanç yok" diye okunurdu, oysa doğru anlam
+   * "bu yarışta çarpan kavramı yok"tur. `0` ile `null` bu yüzden AYRI
+   * tiplerdir, `number` ile temsil edilmez.
+   *
+   * Çarpan TÜRETİLMİŞ bir değerdir (`prizePool × en yüksek pay ÷ entryFee`),
+   * ayrı bir config merdiveninden gelmez — böylece lobide görünen sayı ile
+   * gerçekten ödenecek tutar birbirini yalanlayamaz (bkz.
+   * `apps/api/src/domain/race/prize-distribution.ts`).
+   */
+  prizeMultiplier: number | null;
+  /** Kazananın alacağı Çip (brief §3) — `prizePool`'un en yüksek payı, yuvarlanmış. */
+  topPrize: number;
 }

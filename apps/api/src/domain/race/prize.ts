@@ -1,5 +1,11 @@
 import type { EconomyConfig, RaceTierConfig } from '@at-sevdalisi/game-config';
 import { credit, debit, type WalletBalance } from '../economy/wallet';
+import {
+  computePrizePayoutTotal,
+  computePrizePayouts,
+  resolvePrizeDistribution,
+  validatePrizeDistributions,
+} from './prize-distribution';
 
 /**
  * Yarış ekonomisi — giriş ücreti, ödül havuzu ve ödül dağıtımı
@@ -26,11 +32,11 @@ import { credit, debit, type WalletBalance } from '../economy/wallet';
  * havuzun bir PAYIDIR:
  *
  *   havuz  = entryFee × fieldSize            (botlar DA "ödedi" sayılır)
- *   ödül(i) = entryFee × payoutShares[i] × fieldSize
- *           = havuz × payoutShares[i]
- *   çarpan(i) = ödül(i) / entryFee = payoutShares[i] × fieldSize
+ *   ödül(i) = entryFee × shares[i] × fieldSize
+ *           = havuz × shares[i]
+ *   çarpan(i) = ödül(i) / entryFee = shares[i] × fieldSize
  *
- * `Σ payoutShares = 1 − raceRake` olduğundan `Σ ödül = havuz × (1 −
+ * `Σ shares = 1 − raceRake` olduğundan `Σ ödül = havuz × (1 −
  * raceRake) < havuz` — yarış YAPISAL OLARAK para basamaz, kazanan sıra
  * sayısı ve alan büyüklüğü NE OLURSA OLSUN. Rake yalnızca bir "ev payı"
  * değil, aynı zamanda bu musluğun kapatılma biçimidir.
@@ -40,18 +46,18 @@ import { credit, debit, type WalletBalance } from '../economy/wallet';
  * entryFee × (1−rake)`. Yani `EV(net) = −rake × entryFee`, alan
  * büyüklüğünden BAĞIMSIZ olarak her yarışta ~%10 kayıp (bir bahis/kumar
  * mekaniği değil, oyun-içi bir "ev payı" — kaynak tüketimi).
+ *
+ * ## §42 PHASE 5 — oranlar artık bu dosyada DEĞİL
+ *
+ * Yukarıdaki `shares`, eskiden kademenin kendi `payoutShares` alanıydı.
+ * Artık `distributionId`'nin çözdüğü `PrizeDistributionConfig`'tir ve
+ * havuz/ödül matematiğinin KADEMESİZ kısmı `./prize-distribution.ts`'e
+ * taşındı (lobi yarışı da aynı matematiği kullanır — brief §3/§4). Bu
+ * dosya kademe kavramını bilen ince bir kabuk olarak kaldı: kademeyi bul,
+ * dağıtımını çöz, havuzunu hesapla. Ölçek/tolerans sabitleri de oradadır
+ * (`PRIZE_DISTRIBUTION_SHARE_TOLERANCE`) — burada ikinci bir kopya
+ * TUTULMAZ.
  */
-
-/**
- * `payoutShares` toplamı ile `1 − raceRake` karşılaştırılırken kullanılan
- * tolerans. Kayan noktalı toplama (ör. `0.375 + 0.225 + ...`) tam
- * `0.9` vermeyebilir (`0.8999999999999999`) — bu bir kod hatası DEĞİL,
- * IEEE-754'ün doğal sonucudur, bu yüzden kesin eşitlik YERİNE tolerans
- * kullanılır. Tolerans 1e-9'dur: gerçek bir config hatası (ör. bir
- * basamağın yanlış yazılması) her zaman bundan KAT KAT büyük bir sapma
- * üretir, yani bu tolerans hiçbir gerçek hatayı gizlemez.
- */
-export const RACE_TIER_SHARE_TOLERANCE = 1e-9;
 
 /**
  * Kademeyi `id` ile bulur. Bulunamazsa `null` döner — çağıran
@@ -84,7 +90,7 @@ export function getDefaultRaceTier(config: EconomyConfig): RaceTierConfig | null
  * Ödül havuzu = `entryFee × fieldSize`. Bot rakipler de bu havuzun
  * içindedir (proje sahibinin "evet ödesin" kararı) — bu, ödülün alan
  * büyüklüğüyle BÜYÜMESİNİ sağlar ve oyuncunun gördüğü "çarpan"ın
- * (`payoutShares × fieldSize`) kaynağıdır.
+ * (`shares × fieldSize`) kaynağıdır.
  *
  * NOT: gerçek çok oyunculu yarışta (FAZ 7 Matchmaking) bu değer
  * katılımcıların GERÇEK ödemelerinin toplamı olacaktır — formül AYNI
@@ -96,31 +102,45 @@ export function computeRacePool(tier: RaceTierConfig): number {
 }
 
 /**
- * Bitiş sırasına göre ödül. `finishPosition` 1 tabanlıdır (1. = birinci).
- * `payoutShares` dizisinin sınırları dışında bir sıralama gelirse ödül 0
- * kabul edilir — bu, `entrant-snapshot.ts`deki nötr-değer felsefesiyle
- * AYNI: eksik/beklenmeyen veri bir çökmeye DEĞİL, güvenli bir varsayılana
- * yol açar. (Ödül almayan sıralar zaten normaldir: her kademede
- * `payoutShares.length` kadarı ödül alır, geri kalanı almaz.)
+ * Kademenin ödül dağıtım ORANLARI — `distributionId`'nin
+ * `EconomyConfig.prizeDistributions` içinde çözülmüş hâli.
+ *
+ * Bulunamazsa BOŞ dizi döner. Bu bilinçli bir "güvenli varsayılan"dır:
+ * `null` döndürüp çağıranı her yerde `?? []` yazmaya zorlamak aynı sonucu
+ * verir ama her çağrı yerine bir hata dalı eklerdi. Boş dizi kendini belli
+ * eder — `getRacePrize` 0 ödül, `computePrizeMultiplier` `null` çarpan
+ * üretir, yani HİÇBİR ödül ödenmez. Böyle bir config ZATEN geçersizdir ve
+ * `validateRaceTiers` onu hata olarak bildirir; istek yolunda ise para
+ * basmamak doğru tepkidir.
  */
-export function getRacePrize(tier: RaceTierConfig, finishPosition: number): number {
-  const share = tier.payoutShares[finishPosition - 1];
-  if (share === undefined) {
+export function getRaceTierShares(config: EconomyConfig, tier: RaceTierConfig): number[] {
+  return resolvePrizeDistribution(config, tier.distributionId)?.shares ?? [];
+}
+
+/**
+ * Bitiş sırasına göre ödül. `finishPosition` 1 tabanlıdır (1. = birinci).
+ * Dağıtım dizisinin sınırları dışında bir sıralama gelirse ödül 0 kabul
+ * edilir — bu, `entrant-snapshot.ts`deki nötr-değer felsefesiyle AYNI:
+ * eksik/beklenmeyen veri bir çökmeye DEĞİL, güvenli bir varsayılana yol
+ * açar. (Ödül almayan sıralar zaten normaldir: her dağıtımda
+ * `shares.length` kadarı ödül alır, geri kalanı almaz.)
+ *
+ * `config` parametresi §42 PHASE 5'te EKLENDİ: oranlar artık kademenin
+ * kendi alanı değil, `distributionId`'nin çözdüğü dağıtımdır (bkz.
+ * `RaceTierConfig.distributionId` doc yorumu). Yuvarlama işi
+ * `computePrizePayouts`'a delege edilir ki tek bir yerde kalsın.
+ */
+export function getRacePrize(config: EconomyConfig, tier: RaceTierConfig, finishPosition: number): number {
+  const shares = getRaceTierShares(config, tier);
+  if (shares[finishPosition - 1] === undefined) {
     return 0;
   }
-  // Yuvarlama ŞART: `money` bir tam sayı birimidir (bkz. `wallet.ts`daki
-  // `assertValidAmount`'ın `Number.isInteger` kontrolü) — kayan noktalı
-  // bir ödül `InvalidAmountError` fırlatır ve istemciye 500 dönerdi.
-  return Math.round(computeRacePool(tier) * share);
+  return computePrizePayouts(computeRacePool(tier), shares)[finishPosition - 1] ?? 0;
 }
 
 /** Bu kademede dağıtılan TOPLAM ödül (yuvarlanmış hâliyle) — rake testinin çekirdeği. */
-export function computeRacePayoutTotal(tier: RaceTierConfig): number {
-  let total = 0;
-  for (let position = 1; position <= tier.payoutShares.length; position += 1) {
-    total += getRacePrize(tier, position);
-  }
-  return total;
+export function computeRacePayoutTotal(config: EconomyConfig, tier: RaceTierConfig): number {
+  return computePrizePayoutTotal(computeRacePool(tier), getRaceTierShares(config, tier));
 }
 
 /**
@@ -130,8 +150,8 @@ export function computeRacePayoutTotal(tier: RaceTierConfig): number {
  * hesaplamak yuvarlama farkını gizlerdi (bu fonksiyonun tek işi
  * GERÇEKLEŞEN kesintiyi raporlamaktır).
  */
-export function computeRaceRakeAmount(tier: RaceTierConfig): number {
-  return computeRacePool(tier) - computeRacePayoutTotal(tier);
+export function computeRaceRakeAmount(config: EconomyConfig, tier: RaceTierConfig): number {
+  return computeRacePool(tier) - computeRacePayoutTotal(config, tier);
 }
 
 /**
@@ -148,7 +168,12 @@ export function computeRaceRakeAmount(tier: RaceTierConfig): number {
  * `apps/api/test/domain/race/prize.spec.ts`.
  */
 export function validateRaceTiers(config: EconomyConfig): string[] {
-  const problems: string[] = [];
+  // Dağıtımların KENDİ geçerliliği (pay toplamı, azalanlık, pozitiflik)
+  // ayrı bir denetimdir ve kademelerden bağımsızdır — burada ÖNCE o
+  // koşar, sonra her kademenin o dağıtımı DOĞRU kullandığı denetlenir.
+  // İkisini birbirine karıştırmak, "dağıtım bozuk" ile "kademe dağıtımı
+  // yanlış bağlamış" hatalarını aynı mesaja indirgerdi.
+  const problems: string[] = validatePrizeDistributions(config);
 
   if (config.raceTiers.length === 0) {
     problems.push('raceTiers boş olamaz — en az bir kademe gerekir.');
@@ -179,36 +204,26 @@ export function validateRaceTiers(config: EconomyConfig): string[] {
       problems.push(`${where}: entryFee pozitif bir tam sayı olmalı (verilen: ${tier.entryFee}).`);
     }
 
-    if (tier.payoutShares.length === 0) {
-      problems.push(`${where}: payoutShares boş olamaz.`);
-    }
-    if (tier.payoutShares.length > tier.fieldSize) {
+    // Kademenin dağıtım referansı ÇÖZÜLMELİ. Çözülmezse `getRaceTierShares`
+    // boş dizi döner ve o kademe HİÇ ödül ödemez — sessiz bir "herkes
+    // kaybeder" durumu. Yazım hatası (`top5` yerine `top55`) bu yüzden
+    // burada, test zamanında yakalanır.
+    const distribution = resolvePrizeDistribution(config, tier.distributionId);
+    if (distribution === null) {
       problems.push(
-        `${where}: payoutShares (${tier.payoutShares.length}) fieldSize'dan (${tier.fieldSize}) uzun olamaz — ` +
-          'yarışa katılmayan bir sıraya ödül tanımlanmış olurdu.',
+        `${where}: distributionId "${tier.distributionId}" prizeDistributions içinde bulunamadı ` +
+          '(geçerli kimlikler: ' +
+          `${config.prizeDistributions.map((d) => d.id).join(', ') || '—'}).`,
       );
+      // Dağıtım yoksa aşağıdaki uzunluk/havuz kontrolleri anlamsızdır:
+      // boş bir dizi her zaman "sığar" ve "para basmaz" görünürdü.
+      continue;
     }
 
-    let previousShare = Number.POSITIVE_INFINITY;
-    let shareTotal = 0;
-    for (const [index, share] of tier.payoutShares.entries()) {
-      if (!(share > 0)) {
-        problems.push(`${where}: payoutShares[${index}] pozitif olmalı (verilen: ${share}).`);
-      }
-      // 1. sıra her zaman en çok kazanır — azalan sıra, "birinciyi
-      // ödüllendirme" niyetinin bozulmadığını garanti eder.
-      if (share >= previousShare) {
-        problems.push(`${where}: payoutShares azalan olmalı — [${index}] (${share}) öncekinden (${previousShare}) büyük/eşit.`);
-      }
-      previousShare = share;
-      shareTotal += share;
-    }
-
-    const expectedShareTotal = 1 - config.raceRake;
-    if (Math.abs(shareTotal - expectedShareTotal) > RACE_TIER_SHARE_TOLERANCE) {
+    if (distribution.shares.length > tier.fieldSize) {
       problems.push(
-        `${where}: payoutShares toplamı ${shareTotal}, beklenen ${expectedShareTotal} (1 − raceRake ${config.raceRake}). ` +
-          'Ayrışma, ya kesintinin ya ödül dağıtımının yanlış olduğu anlamına gelir.',
+        `${where}: dağıtım "${distribution.id}" (${distribution.shares.length} sıra) fieldSize'dan ` +
+          `(${tier.fieldSize}) uzun olamaz — yarışa katılmayan bir sıraya ödül tanımlanmış olurdu.`,
       );
     }
 
@@ -216,11 +231,15 @@ export function validateRaceTiers(config: EconomyConfig): string[] {
     // dağıtılan toplam havuzun ALTINDA kalmalı. Pay toplamı testi bunu
     // matematiksel olarak zaten garanti eder; bu kontrol yuvarlamanın
     // (pay başına en fazla 0.5 Çip) bu garantiyi boymadığını da kapsar.
-    if (tier.fieldSize >= 2 && tier.entryFee > 0 && computeRacePayoutTotal(tier) >= computeRacePool(tier)) {
-      problems.push(
-        `${where}: dağıtılan ödül (${computeRacePayoutTotal(tier)}) havuzdan (${computeRacePool(tier)}) KÜÇÜK olmalı — ` +
-          'aksi hâlde yarış para basar (denetim bulgusu E7).',
-      );
+    if (tier.fieldSize >= 2 && tier.entryFee > 0) {
+      const payoutTotal = computeRacePayoutTotal(config, tier);
+      const pool = computeRacePool(tier);
+      if (payoutTotal >= pool) {
+        problems.push(
+          `${where}: dağıtılan ödül (${payoutTotal}) havuzdan (${pool}) KÜÇÜK olmalı — ` +
+            'aksi hâlde yarış para basar (denetim bulgusu E7).',
+        );
+      }
     }
   }
 

@@ -9,9 +9,9 @@ import {
   getDefaultRaceTier,
   getRacePrize,
   getRaceTierById,
-  RACE_TIER_SHARE_TOLERANCE,
   validateRaceTiers,
 } from '../../../src/domain/race/prize';
+import { PRIZE_DISTRIBUTION_SHARE_TOLERANCE, resolvePrizeDistribution } from '../../../src/domain/race/prize-distribution';
 import { InsufficientFundsError } from '../../../src/domain/economy/errors';
 
 /**
@@ -36,8 +36,27 @@ import { InsufficientFundsError } from '../../../src/domain/economy/errors';
  *  2. EV'yi test eder (E30): eşit güçte N katılımcı varsayımıyla beklenen
  *     NET sonuç NEGATİF olmalı, yani yarış bir Çip KAYNAĞI değil
  *     Çip HAVUZU (sink) olmalıdır.
+ *
+ * ## §42 PHASE 5 — oranlar artık kademede DEĞİL
+ *
+ * `RaceTierConfig.payoutShares` kaldırıldı; kademe bir `distributionId`
+ * taşır ve oranlar `economy.config.json` → `prizeDistributions` altında
+ * TEK KEZ yazılır (lobi yarışı da aynı tabloyu kullanır). Bu yüzden
+ * aşağıdaki "yapay bozuk config" testleri artık dağıtımı da kurar, ve
+ * pay dizisinin KENDİ değişmezleri (toplam/azalan/pozitif)
+ * `prize-distribution.spec.ts`te ayrıca test edilir — burada yalnızca
+ * `validateRaceTiers`'ın onları GERÇEKTEN raporladığı doğrulanır.
  */
 const economyConfig = economyConfigJson as unknown as EconomyConfig;
+
+/**
+ * Kademenin ödül oranları — `distributionId`'nin çözülmüş hâli. Testler
+ * de üretim kodunun AYNI yolundan okur (`resolvePrizeDistribution`);
+ * sabit bir dizi yazılsaydı config değişince test yalan söylerdi.
+ */
+function sharesOf(tier: RaceTierConfig): readonly number[] {
+  return resolvePrizeDistribution(economyConfig, tier.distributionId)?.shares ?? [];
+}
 
 describe('raceTiers yapılandırması (değişmezler)', () => {
   it('validateRaceTiers gerçek config için HİÇBİR sorun bildirmez', () => {
@@ -66,6 +85,13 @@ describe('raceTiers yapılandırması (değişmezler)', () => {
     expect(getRaceTierById(economyConfig, 'boyle-bir-kademe-yok')).toBeNull();
   });
 
+  it('her kademenin dağıtım referansı ÇÖZÜLÜR (yazım hatası sessizce ödülsüz bırakmasın)', () => {
+    for (const tier of economyConfig.raceTiers) {
+      expect(resolvePrizeDistribution(economyConfig, tier.distributionId)).not.toBeNull();
+      expect(sharesOf(tier).length).toBeGreaterThan(0);
+    }
+  });
+
   /**
    * Boş bir `raceTiers` ile `validateRaceTiers`'ın SESSİZCE geçmediğini
    * kanıtlar — `economy-currency.spec.ts`'teki "boş küme sessizce
@@ -75,52 +101,83 @@ describe('raceTiers yapılandırması (değişmezler)', () => {
   it('kademe listesi boşsa bunu bir SORUN olarak bildirir', () => {
     expect(validateRaceTiers({ ...economyConfig, raceTiers: [] }).length).toBeGreaterThan(0);
   });
+
+  it('dağıtım tablosu boşsa bunu bir SORUN olarak bildirir', () => {
+    expect(validateRaceTiers({ ...economyConfig, prizeDistributions: [] }).length).toBeGreaterThan(0);
+  });
 });
 
 describe('kademe değişmezleri (yapay bozuk config ile)', () => {
+  /** Geçerli bir dağıtım: toplam tam `1 − raceRake` (0.9), azalan, pozitif. */
+  const validShares = [0.5, 0.4];
   const baseTier: RaceTierConfig = {
     id: 'test',
     label: 'Test Koşusu',
     fieldSize: 8,
     entryFee: 100,
-    payoutShares: [0.5, 0.4],
+    distributionId: 'test-dist',
   };
-  const configWith = (tier: RaceTierConfig): EconomyConfig => ({
+
+  /**
+   * Tek kademeli + tek dağıtımlı yapay bir config. `shares` verilmezse
+   * geçerli olan kullanılır; böylece her test yalnızca BOZMAK istediği
+   * alanı yazar ve diğer değişmezler yanlışlıkla ihlal edilmez.
+   *
+   * ⚠️ Dağıtımın kimliği `tier.distributionId`DEN TÜRETİLMEZ, sabit
+   * `baseTier.distributionId`dir. Türetilseydi "çözülemeyen distributionId"
+   * testi KENDİNİ bozardı: bozuk kimlik yazıldığında ona uyan bir dağıtım
+   * da yaratılır, referans yine çözülür ve hata hiç üretilmezdi (yaşandı,
+   * 28.09.2026 — test yeşil sanılıp aslında hiçbir şey denetlemiyordu).
+   */
+  const configWith = (tier: RaceTierConfig, shares: number[] = validShares): EconomyConfig => ({
     ...economyConfig,
     raceRake: 0.1,
     raceTiers: [tier],
+    prizeDistributions: [{ id: baseTier.distributionId, label: 'Test Dağıtımı', shares }],
   });
 
   it('pay toplamı 1 − raceRake değilse hata bildirir', () => {
-    const problems = validateRaceTiers(configWith({ ...baseTier, payoutShares: [0.5, 0.5] }));
+    const problems = validateRaceTiers(configWith(baseTier, [0.5, 0.5]));
     expect(problems.some((problem) => problem.includes('toplamı'))).toBe(true);
   });
 
   /**
-   * CRITICAL E7'nin ÖZÜ: pay toplamı 1.0 (yani kesinti YOK) ve havuzu
-   * AŞAN bir dağıtım → "yarış para basıyor" demektir. İki kontrol de
-   * (pay toplamı + havuz karşılaştırması) bunu yakalamalıdır.
+   * CRITICAL E7'nin ÖZÜ: pay toplamı 1.0'ı aşan bir dağıtım → "yarış para
+   * basıyor" demektir. İki kontrol de (pay toplamı + havuz karşılaştırması)
+   * bunu yakalamalıdır.
    */
   it('paylar havuzu aşarsa (para basan config) hata bildirir', () => {
-    const problems = validateRaceTiers(configWith({ ...baseTier, payoutShares: [0.8, 0.5] }));
+    const problems = validateRaceTiers(configWith(baseTier, [0.8, 0.5]));
     expect(problems.some((problem) => problem.includes('havuzdan'))).toBe(true);
   });
 
   it('alan büyüklüğünden fazla ödül sırası tanımlanırsa hata bildirir', () => {
-    const problems = validateRaceTiers(
-      configWith({ ...baseTier, fieldSize: 2, payoutShares: [0.5, 0.2, 0.1, 0.1] }),
-    );
+    // 4 sıraya ödül var ama alanda yalnızca 2 at koşuyor: 3. ve 4. sıraya
+    // ödül tanımlamak "yarışa katılmayan bir sıraya para vermek" olurdu.
+    const problems = validateRaceTiers(configWith({ ...baseTier, fieldSize: 2 }, [0.4, 0.25, 0.15, 0.1]));
     expect(problems.some((problem) => problem.includes('fieldSize'))).toBe(true);
   });
 
   it('azalan olmayan pay dizisini hata olarak bildirir (1. sıra en çok kazanmalı)', () => {
-    const problems = validateRaceTiers(configWith({ ...baseTier, payoutShares: [0.4, 0.5] }));
+    const problems = validateRaceTiers(configWith(baseTier, [0.4, 0.5]));
     expect(problems.some((problem) => problem.includes('azalan'))).toBe(true);
   });
 
   it('pozitif olmayan bir payı hata olarak bildirir', () => {
-    const problems = validateRaceTiers(configWith({ ...baseTier, payoutShares: [0.9, 0] }));
+    const problems = validateRaceTiers(configWith(baseTier, [0.9, 0]));
     expect(problems.some((problem) => problem.includes('pozitif'))).toBe(true);
+  });
+
+  /**
+   * §42 PHASE 5'in EN SESSİZ HATASI: `distributionId` yazımı yanlış
+   * (`top5` yerine `top55`) olduğunda `getRaceTierShares` boş dizi döner ve
+   * kademe HİÇ ödül ödemez. Hiçbir istisna fırlamaz, hiçbir ekran uyarı
+   * vermez — yalnızca herkes kaybeder. Bu yüzden test zamanında
+   * yakalanması ŞARTTIR.
+   */
+  it('çözülemeyen bir distributionId hata olarak bildirilir (sessiz ödülsüzlük olmasın)', () => {
+    const problems = validateRaceTiers(configWith({ ...baseTier, distributionId: 'boyle-bir-dagitim-yok' }));
+    expect(problems.some((problem) => problem.includes('distributionId'))).toBe(true);
   });
 
   it('geçersiz fieldSize (1 veya kesirli) ve entryFee (0) hata olarak bildirilir', () => {
@@ -131,8 +188,7 @@ describe('kademe değişmezleri (yapay bozuk config ile)', () => {
 
   it('tekrarlanan kimlik ve boş label hata olarak bildirilir', () => {
     const duplicated: EconomyConfig = {
-      ...economyConfig,
-      raceRake: 0.1,
+      ...configWith(baseTier),
       raceTiers: [baseTier, { ...baseTier }],
     };
     expect(validateRaceTiers(duplicated).some((problem) => problem.includes('tekrar'))).toBe(true);
@@ -158,7 +214,7 @@ describe('computeRacePool', () => {
 describe('getRacePrize', () => {
   it('1. sıra en yüksek ödülü alır, sıra düştükçe ödül azalır', () => {
     for (const tier of economyConfig.raceTiers) {
-      const prizes = tier.payoutShares.map((_, index) => getRacePrize(tier, index + 1));
+      const prizes = sharesOf(tier).map((_, index) => getRacePrize(economyConfig, tier, index + 1));
       for (let index = 1; index < prizes.length; index += 1) {
         expect(prizes[index] as number).toBeLessThan(prizes[index - 1] as number);
       }
@@ -168,28 +224,38 @@ describe('getRacePrize', () => {
   it('her ödül bir TAM SAYIdır (money birimi — kayan nokta `wallet.ts`te patlar)', () => {
     for (const tier of economyConfig.raceTiers) {
       for (let position = 1; position <= tier.fieldSize; position += 1) {
-        expect(Number.isInteger(getRacePrize(tier, position))).toBe(true);
+        expect(Number.isInteger(getRacePrize(economyConfig, tier, position))).toBe(true);
       }
     }
   });
 
   it('ödül = havuz × pay (yuvarlanmış)', () => {
     const tier = economyConfig.raceTiers[0] as RaceTierConfig;
-    const share = tier.payoutShares[0] as number;
-    expect(getRacePrize(tier, 1)).toBe(Math.round(computeRacePool(tier) * share));
+    const share = sharesOf(tier)[0] as number;
+    expect(getRacePrize(economyConfig, tier, 1)).toBe(Math.round(computeRacePool(tier) * share));
   });
 
   it('ödül alan sıra sayısının dışındaki bir sıralama için 0 döner (çökme yok)', () => {
     const tier = economyConfig.raceTiers[0] as RaceTierConfig;
-    const outOfRange = tier.payoutShares.length + 1;
-    expect(getRacePrize(tier, outOfRange)).toBe(0);
-    expect(getRacePrize(tier, tier.fieldSize)).toBe(0);
+    const outOfRange = sharesOf(tier).length + 1;
+    expect(getRacePrize(economyConfig, tier, outOfRange)).toBe(0);
+    expect(getRacePrize(economyConfig, tier, tier.fieldSize)).toBe(0);
   });
 
   it('geçersiz (0 veya negatif) bir sıralama için de 0 döner', () => {
     const tier = economyConfig.raceTiers[0] as RaceTierConfig;
-    expect(getRacePrize(tier, 0)).toBe(0);
-    expect(getRacePrize(tier, -1)).toBe(0);
+    expect(getRacePrize(economyConfig, tier, 0)).toBe(0);
+    expect(getRacePrize(economyConfig, tier, -1)).toBe(0);
+  });
+
+  /**
+   * §42 PHASE 5: `distributionId` çözülemezse ödül 0'dır — çökme YOK.
+   * İstek yolunda bozuk bir config'in 500'e dönüşmemesi bilinçlidir; asıl
+   * yakalama yeri `validateRaceTiers`tır (yukarıdaki test).
+   */
+  it('çözülemeyen bir dağıtımda ödül 0 döner (istek yolunda 500 yok)', () => {
+    const broken: RaceTierConfig = { ...(economyConfig.raceTiers[0] as RaceTierConfig), distributionId: 'yok' };
+    expect(getRacePrize(economyConfig, broken, 1)).toBe(0);
   });
 });
 
@@ -206,8 +272,8 @@ describe('para bütünlüğü — yarış asla Çip BASMAZ (denetim bulgusu E7/E
 
   it('her kademede dağıtılan toplam ödül havuzdan KÜÇÜKTÜR (kesinti pozitif)', () => {
     for (const tier of economyConfig.raceTiers) {
-      expect(computeRacePayoutTotal(tier)).toBeLessThan(computeRacePool(tier));
-      expect(computeRaceRakeAmount(tier)).toBeGreaterThan(0);
+      expect(computeRacePayoutTotal(economyConfig, tier)).toBeLessThan(computeRacePool(tier));
+      expect(computeRaceRakeAmount(economyConfig, tier)).toBeGreaterThan(0);
     }
   });
 
@@ -216,7 +282,7 @@ describe('para bütünlüğü — yarış asla Çip BASMAZ (denetim bulgusu E7/E
     // eşitlik beklenmez; %1'lik bant hem yuvarlamayı hem de config'de
     // yanlış bir pay yazılmasını ayırt etmeye yeter.
     for (const tier of economyConfig.raceTiers) {
-      const actualRakeRatio = computeRaceRakeAmount(tier) / computeRacePool(tier);
+      const actualRakeRatio = computeRaceRakeAmount(economyConfig, tier) / computeRacePool(tier);
       expect(Math.abs(actualRakeRatio - economyConfig.raceRake)).toBeLessThan(0.01);
     }
   });
@@ -225,7 +291,7 @@ describe('para bütünlüğü — yarış asla Çip BASMAZ (denetim bulgusu E7/E
     // P(sıra i) ≈ 1/fieldSize varsayımıyla EV(ödül) = Σ ödül / fieldSize.
     // Net = EV(ödül) − entryFee. Kesinti oranı kadar, yani negatif olmalı.
     for (const tier of economyConfig.raceTiers) {
-      const expectedPrize = computeRacePayoutTotal(tier) / tier.fieldSize;
+      const expectedPrize = computeRacePayoutTotal(economyConfig, tier) / tier.fieldSize;
       const expectedNet = expectedPrize - tier.entryFee;
       expect(expectedNet).toBeLessThan(0);
       // Kayıp TAM OLARAK kesinti kadardır: EV(net) = −rake × entryFee.
@@ -243,9 +309,9 @@ describe('para bütünlüğü — yarış asla Çip BASMAZ (denetim bulgusu E7/E
   });
 
   it('pay toplamı ile raceRake arasındaki tolerans gerçek hataları gizlemeyecek kadar dardır', () => {
-    for (const tier of economyConfig.raceTiers) {
-      const total = tier.payoutShares.reduce((sum, share) => sum + share, 0);
-      expect(Math.abs(total - (1 - economyConfig.raceRake))).toBeLessThan(RACE_TIER_SHARE_TOLERANCE);
+    for (const distribution of economyConfig.prizeDistributions) {
+      const total = distribution.shares.reduce((sum, share) => sum + share, 0);
+      expect(Math.abs(total - (1 - economyConfig.raceRake))).toBeLessThan(PRIZE_DISTRIBUTION_SHARE_TOLERANCE);
     }
   });
 });
@@ -299,7 +365,11 @@ describe('applyPracticeRaceStakes', () => {
    */
   it('1. sıradaki kazanç bile havuzun tamamından azdır (kesinti gerçekten alınır)', () => {
     for (const tier of economyConfig.raceTiers) {
-      const afterRace = applyPracticeRaceStakes({ money: tier.entryFee, gems: 0 }, tier.entryFee, getRacePrize(tier, 1));
+      const afterRace = applyPracticeRaceStakes(
+        { money: tier.entryFee, gems: 0 },
+        tier.entryFee,
+        getRacePrize(economyConfig, tier, 1),
+      );
       expect(afterRace.money).toBeLessThan(computeRacePool(tier));
     }
   });

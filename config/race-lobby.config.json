@@ -13,6 +13,7 @@
   "allowedSurfaces": ["grass", "dirt", "synthetic"],
   "allowedWeather": ["sunny", "rainy", "windy", "cloudy", "hot", "cold"],
   "entryStatuses": ["waiting", "ready", "not_ready", "cancelled"],
+  "prizeDistributionId": "top5",
   "lobbyListDefaultLimit": 20,
   "lobbyListMaxLimit": 100
 }

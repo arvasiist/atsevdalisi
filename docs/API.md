@@ -1225,13 +1225,15 @@ Tasarım kararları (bkz. `application/use-cases/run-practice-race.use-case.ts`
   yarışta 8 / 10 / 12 / 14 / 16 at koşabilsin"):** ödül artık sabit bir
   tablodan DEĞİL, `havuz = entryFee × fieldSize` havuzundan dağıtılır
   (botlar da giriş ücretini ödemiş sayılır). Bitiş sırasına düşen pay
-  `config/economy.config.json` `raceTiers[].payoutShares`'ten gelir ve
-  `Σ payoutShares = 1 − raceRake` olduğundan dağıtılan toplam ödül havuzdan
+  kademenin `distributionId`'sinin çözdüğü dağıtımdan gelir
+  (`config/economy.config.json` → `prizeDistributions`, §42 PHASE 5'ten
+  beri oranlar kademede DEĞİL; lobi yarışı da aynı tabloyu kullanır) ve
+  `Σ shares = 1 − raceRake` olduğundan dağıtılan toplam ödül havuzdan
   YAPISAL OLARAK küçüktür — yarış hiçbir alan büyüklüğünde para BASAMAZ
   (denetim bulgusu E7'nin çözümü; değişmez `apps/api/test/domain/race/
   prize.spec.ts` ile korunur, çünkü config elle düzenlenebilir bir JSON'dur
   ve `game-config` loader'ı çalışma zamanı doğrulaması YAPMAZ).
-  Oyuncunun gördüğü çarpan türetilir: `payoutShares[i] × fieldSize`.
+  Oyuncunun gördüğü çarpan türetilir: `shares[i] × fieldSize`.
   Kesinti `raceRake` = %10 (proje sahibinin kararı) — eşit güçte bir alanda
   oyuncunun beklenen NET sonucu tam olarak `−raceRake × entryFee`'dir, yani
   yarış bir Çip KAYNAĞI değil HAVUZUDUR (denetim bulgusu E30'un çözümü).
@@ -1548,6 +1550,7 @@ Yanıt `RaceLobbyView[]`:
       "id": "...", "name": "...", "status": "scheduled",
       "entryFee": 250, "raceType": "paid", "prizePool": 750,
       "maxPlayers": 8, "joinedPlayers": 3,
+      "prizeMultiplier": 1.125, "topPrize": 281,
       "startTime": "2026-09-28T18:00:00.000Z",
       "surface": "grass", "weather": "sunny", "distanceMeters": 1600,
       "tribuneFee": 10, "spectatorCapacity": 500
@@ -1566,6 +1569,21 @@ Yanıt `RaceLobbyView[]`:
 - **Katılımı olmayan yarış da görünür** (`LEFT JOIN`, `joinedPlayers: 0`).
 - **`prizePool` gerçek ödül havuzudur** — katılımlardan birikmiş giriş
   ücretlerinin toplamı; henüz dağıtılmamıştır.
+- **`prizeMultiplier` / `topPrize` (§42 PHASE 5, brief §3/§4)** — sunucu
+  tarafından TÜRETİLİR, istemci hesaplamaz:
+  `prizeMultiplier = prizePool × shares[0] ÷ entryFee` (yani
+  `joinedPlayers × shares[0]`), `topPrize = round(prizePool × shares[0])`.
+  Oranlar `raceLobby.prizeDistributionId` (varsayılan `top5`) ile
+  `config/economy.config.json` → `prizeDistributions`'tan çözülür — lobi
+  ile pratik yarış AYNI tabloyu kullanır, böylece lobide yazan çarpan
+  gerçekten ödenecek tutarın ta kendisidir.
+  **`prizeMultiplier: null` = "bu yarışta gösterilecek çarpan yok"**
+  (ücretsiz yarış ya da henüz katılımcı yok); istemci bu durumda çarpanı
+  HİÇ göstermemelidir, `0.00×` yazmamalıdır. `null` ile `0` ayrı şeylerdir.
+- **Ödülün KENDİSİ hâlâ dağıtılmaz** — `prizePool` birikir, `topPrize`
+  "kazanan ne ALACAK" sorusunun cevabıdır, "ne aldı"nın değil. Bir yarışı
+  `in_progress`e çeviren zamanlayıcı henüz yoktur (aşağıdaki "Kapsam
+  dışı" notu).
 
 #### `POST /races/{id}/join` — katılma (PARA YOLU)
 
@@ -1664,6 +1682,7 @@ havuzun küçüldüğünü görmek için ikinci istek atmak zorunda kalmamalıd�
     "id": "...", "name": "Hazırlık Kupası", "status": "scheduled",
     "entryFee": 50, "raceType": "paid", "prizePool": 50,
     "maxPlayers": 8, "joinedPlayers": 1,
+    "prizeMultiplier": 0.375, "topPrize": 19,
     "startTime": "2026-09-28T18:00:00.000Z",
     "surface": "grass", "weather": "sunny", "distanceMeters": 1600,
     "tribuneFee": 0, "spectatorCapacity": 500
@@ -1679,6 +1698,16 @@ Yarışın **otomatik başlaması** yoktur: `scheduled` bir yarışı `in_progre
 koşmaz. READY durumu da bu yüzden şu an **bilgi**dir: motor başlatma anında
 hangi atların "hazır" olduğunu henüz OKUMAZ. Ödül dağıtımı (`claim-reward`),
 jokey seçimi ve yarış takvimi de kapsam dışıdır.
+
+**§42 PHASE 5'in sınırı açıkça budur:** ödül havuzu + dağıtım oranları +
+çarpan (brief §3/§4) HAZIR ve `RaceLobbyView`'da gösterilir, ama bir lobi
+yarışını koşturacak zamanlayıcı olmadığı için **henüz kimseye ödeme
+yapılmaz**. Yani `prizeMultiplier`/`topPrize` bir VAAT'tir, gerçekleşmiş bir
+kazanç değildir; bunu gizlememek için alan adları "kazandın" değil "kazanan
+ne alır" anlamına gelecek şekilde seçilmiştir. Dağıtımı uygulayacak yol
+zaten hazırdır (`domain/race/prize-distribution.ts` +
+`computePrizePayouts`), eksik olan tek parça yarışı başlatan/bitiren
+sunucu tarafıdır.
 
 ## 7. Breeding (Yetiştiricilik)
 
