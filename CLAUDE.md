@@ -237,6 +237,28 @@ havuz kalıcı kilitlenirdi) · denetim kaydı AYNI transaction'da yazılır ·
 `IdempotencyInterceptor` eklenmedi: çift iadeyi `scheduled → cancelled`
 geçişi zaten engelliyor.
 
+**PHASE 16 (güvenlik/hız sınırı) BÜYÜK ÖLÇÜDE KAPANDI — §13.20.**
+Brief §31 (istemci otorite değildir) ve §32 (Chat/Messages/Friend
+Requests/Gift/Race Join → hız sınırı) **CI'da kilitlendi**:
+`apps/api/test/security/phase16-hardening.spec.ts`. Ayrıca §32'nin "spam
+engelle" maddesinin açıkta bıraktığı **üç sosyal yazma rotası** kapatıldı
+(`respondToFriendRequest`, `removeFriend`, `unblockPlayer`).
+**KALAN TEK MADDE:** anormal davranış tespiti (hız sınırı istek SAYAR,
+desen TANIMAZ) — eşikler sahibinin kararı, uydurulmadı.
+
+**⚠️ `@RateLimit` OPT-IN'DİR — İŞARETLENMEYEN ROTA SINIRSIZDIR.**
+`RateLimitGuard` yalnızca `@RateLimit(...)` konmuş rotalarda devreye girer
+(bilinçli tercih, `rate-limit.decorator.ts`). Yeni bir **yazma** rotası
+eklerken decorator'ı unutmak **sessiz** bir boşluk açar: ne derleyici ne
+başka bir test fark eder. `SocialController` için kapalı küme iddiası
+vardır (§13.20) — yeni bir yazma rotası ekleyip `@RateLimit` koymazsan
+`phase16-hardening.spec.ts` **kırılır**; başka bir controller'da aynı
+korumayı istiyorsan testi de genişlet.
+
+**⚠️ `RateLimitOptions.name` SAYACI PAYLAŞIR.** Aynı `name`i iki rota
+kullanırsa tek bütçeyi bölerler (kopyala-yapıştır tuzağı) — bu yüzden
+`phase16-hardening.spec.ts` `name`i de sabitler.
+
 **PHASE 15 HÂLÂ YARIMDIR.** Brief §33 (BLOCK/REPORT) bitti (§13.16) ve
 **§34'ün GÖRÜNTÜLEME TARAFI neredeyse tamam** (§13.17 + §13.18): `admin`
 rolü (`players.is_admin`), denetim günlüğü (`admin_audit_log`) ve **YEDİ

@@ -1917,6 +1917,71 @@ yazılmaz, (i) olmayan yarış 404 `RACE_NOT_FOUND`, (j) bozuk uuid 400,
 
 **Uç:** `docs/API.md` → "Yönetim (Admin)" → `POST /admin/races/{raceId}/cancel`.
 
+#### 13.20 PHASE 16 — brief §31/§32 kanıt testi + sosyal yazma uçlarına hız sınırı (§42 PHASE 16) — 28.09.2026
+
+**BU DİLİM YENİ BİR ÖZELLİK YAZMAZ.** brief §31 (anti-cheat: istemci
+otorite değildir) ve §32 (beş işleme hız sınırı) kodda ZATEN
+karşılanıyordu; eksik olan bunun **CI tarafından kilitlenmesiydi**.
+Ayrıca §32'nin "spam engelle" maddesinin açıkta bıraktığı **üç sosyal
+yazma rotası** kapatıldı.
+
+**YENİ DOSYA: `apps/api/test/security/phase16-hardening.spec.ts`.**
+`test/domain/` ALTINDA DEĞİL, çünkü `@nestjs/common` ve gerçek controller
+sınıflarını import eder — `domain/` framework'süz saf TS olmak zorundadır
+(CLAUDE.md kural 4). Ama e2e de DEĞİLDİR: DB/Redis/HTTP'ye dokunmaz, bu
+yüzden hızlı grupta koşar.
+
+**§32 — METADATA İLE KANIT, METİN ARAMA İLE DEĞİL.** `RateLimitGuard`
+kararını `Reflector.getAllAndOverride(RATE_LIMIT_KEY, ...)` ile verir;
+test de **aynı kanaldan** okur, böylece "testin gördüğü" ile "guard'ın
+gördüğü" aynı şey olur. Kaynak metninde `@RateLimit` aramak, decorator
+yorum satırına alındığında ya da başka bir sınıfa taşındığında **YEŞİL
+kalırdı** — yani hiçbir şey kanıtlamazdı. Beş işlemin dördü
+(Messages/Friend Requests/Gift/Race Join) böyle doğrulanır; **Chat** bir
+WebSocket OLAYIDIR (`chat.message`), `@RateLimit` decorator'ı oraya
+**uygulanamaz**, o yüzden kaynak okunarak doğrulanır.
+
+**CHAT İÇİN ASIL İDDİA SIRA KANITIDIR:** `consumeChatQuota` çağrısı
+`sendRaceMessageUseCase.execute` çağrısından **ÖNCE** gelmelidir. Sıra
+tersine dönerse sınır yine "vardır" ama işe yaramaz: reddedilen mesaj
+çoktan veritabanına yazılmış olurdu ve **hiçbir test kırmızı olmazdı**.
+
+**KAPALI KÜME — §32'nin "spam engelle" maddesi.** brief beş işlem sayar
+ama aynı yüzeydeki **kardeş yazma rotaları** korumasız kalsaydı spam
+kapısı ORADAN açık kalırdı. Bu dilimde **üç rota** sınırlandı:
+`respondToFriendRequest` (30/60), `removeFriend` (30/60), `unblockPlayer`
+(60/60) — hepsi `keyBy: 'player'`. `RateLimitGuard` **opt-in** çalışır
+(işaretlenmemiş rota = **sınırsız**, bilinçli bir tercih), yani eksik bir
+decorator'ı ne derleyici ne başka bir test fark ederdi; kapalı küme
+iddiası bunu CI'da kilitler. Liste testte **elle** yazılır (kaynak
+taranarak üretilmez): bir rota silinirse listede "fazladan" bir ad kalır
+ve test onu bulamayıp **kırılır** — yani liste kendini bayatlatamaz.
+
+**§31 — İKİ SOMUT KANIT.**
+1. `POST /races/:id/settle` **yalnızca yol parametresi** alır: imzada
+   `@Body`/`@Query` **yoktur**. O uçta bir gövde bulunması, istemcinin
+   sonucu ya da tutarı seçebilmesinin **ön koşuludur**.
+2. `JoinRaceDto` gövdesi **tam olarak üç alan** taşır (`horseId`/
+   `tacticalStyle`/`riskLevel`) ve alan adlarının hiçbiri
+   `fee|prize|money|amount|multiplier|result|score|time|rank` ile
+   eşleşmez. Giriş ücreti ve ödül havuzu **sunucuda**, yarış satırından
+   ve config'ten gelir.
+
+Alan adları **kaynaktan** okunur: `!:` ile bildirilen alanlar çalışma
+anında kendi özelliği olarak **var olmaz** (`new JoinRaceDto()` boştur)
+ve esbuild `design:type` üretmediği için `Reflect` üzerinden de
+görünmezler.
+
+**PHASE 16'NIN KALAN TEK MADDESİ:** `docs/SECURITY.md` §7'nin "anormal
+davranış tespiti … henüz uygulanmadı" notu. Hız sınırı bir **istek
+sayar**, anormal bir **deseni** tanımaz (ör. 30 saniyede 20 farklı at
+üzerinde antrenman). Eşikler ve tepki (log / geçici kilit / inceleme
+kuyruğu) proje sahibinin kararını gerektirir — **uydurulmadı.**
+
+**KANIT:** `apps/api/test/security/phase16-hardening.spec.ts` (metadata +
+kaynak sıra kanıtı + DTO şekli). Race engine'e dokunulmadı, hiçbir config
+değeri koda gömülmedi. Ayrıntı: `docs/SECURITY.md` §7.
+
 ---
 
 ## 14. Kendime hatırlatmalar (kısa liste)

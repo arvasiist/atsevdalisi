@@ -152,8 +152,32 @@ tutarlı olarak eklenmiştir:
   algoritmasına hiç gerek kalmadan, birinci dilimde kurulan altyapı
   (opt-in `@RateLimit(...)` + CI-genelinde bayrak + izole e2e testi)
   doğrudan yeniden kullanıldı.
+- **Brief §32'nin beş işlemi (Chat, Messages, Friend Requests, Gift,
+  Race Join) ve sosyal yüzeyin KAPALI KÜMESİ: ✅ UYGULANDI** (§42 PHASE 16,
+  28.09.2026). Dördü `@RateLimit` ile (`direct-message` 30/60 ·
+  `friend-request` 20/60 · `gift-send` 20/60 · `race-join` 30/60, hepsi
+  `keyBy: 'player'`), **Chat** ise bir WebSocket olayı olduğu için
+  (`chat.message` — decorator oraya uygulanamaz) gateway içinde soket
+  başına sabit pencereyle sınırlıdır. Bu dilimde ayrıca "spam engelle"
+  maddesinin açıkta bıraktığı **üç kardeş yazma rotası** kapatıldı
+  (`respondToFriendRequest` 30/60, `removeFriend` 30/60,
+  `unblockPlayer` 60/60) — `RateLimitGuard` opt-in çalıştığı için
+  (işaretlenmemiş rota **sınırsız**) eksik bir decorator'ı hiçbir test
+  yakalayamazdı; `test/security/phase16-hardening.spec.ts` artık
+  `SocialController`ın yazma rotalarını **kapalı küme** olarak doğrular.
+- **Brief §31 (anti-cheat) kilitlendi: ✅ UYGULANDI** (aynı test).
+  İki somut iddia: `POST /races/:id/settle` **yalnızca yol parametresi**
+  alır (imzada `@Body`/`@Query` yoktur — o uçta bir gövde, istemcinin
+  sonucu seçebilmesinin ön koşulu olurdu) ve `JoinRaceDto` gövdesi
+  **tam olarak üç alan** taşır (`horseId`/`tacticalStyle`/`riskLevel`);
+  alan adlarının hiçbiri para/sonuç kavramı taşımaz. Giriş ücreti ve
+  ödül havuzu sunucuda, yarış satırından ve config'ten gelir.
 - Anormal davranış tespiti (örn. saniyeler içinde onlarca antrenman
-  isteği) loglanır ve incelemeye alınır — henüz uygulanmadı.
+  isteği) loglanır ve incelemeye alınır — **henüz uygulanmadı.** Bu,
+  PHASE 16'nın kalan tek maddesidir: hız sınırı bir İSTEK SAYAR, anormal
+  bir DESENİ tanımaz (ör. 30 saniyede 20 farklı at üzerinde antrenman).
+  Eşikler ve tepki (log / geçici kilit / inceleme kuyruğu) proje
+  sahibinin kararını gerektirir — uydurulmadı.
 
 ## 8. Loglama / audit trail (brief §65)
 

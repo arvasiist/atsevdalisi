@@ -7,6 +7,7 @@ import {
   checkRaceCancelable,
 } from '../../../src/domain/admin/race-cancel';
 import { RaceNotCancelableError } from '../../../src/domain/admin/errors';
+import { REPO_ROOT } from '../../support/repo-root';
 
 /**
  * `domain/admin/race-cancel.ts` — yarış iptalinin durum kuralı (brief §34,
@@ -75,13 +76,12 @@ describe('`paused` DURUMU YOKTUR — brief §34 "Pause" neden yapılamıyor', ()
    * `paused` eklenirse bu test kırılır ve o gün Pause YAZILABİLİR hâle
    * gelir — sessizce "yapılmış gibi" görünmez.
    */
+  // ⚠️ `process.cwd()` DEĞİL `REPO_ROOT`: bu dosya CI'da `apps/api`
+  // dizininden, yerel harness'te depo kökünden koşar (bkz.
+  // `test/support/repo-root.ts`). `process.cwd()` ile yazılsaydı YERELDE
+  // yeşil, CI'da ENOENT olurdu — yaşandı (28.09.2026).
   const migration = readFileSync(
-    join(
-      process.cwd(),
-      'database',
-      'migrations',
-      '0006_create_races_and_entries.up.sql',
-    ),
+    join(REPO_ROOT, 'database', 'migrations', '0006_create_races_and_entries.up.sql'),
     'utf-8',
   );
 

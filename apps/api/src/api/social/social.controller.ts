@@ -66,6 +66,16 @@ import { SendMessageDto } from './dto/send-message.dto';
  * istemci butonu istek sürerken devre dışı bırakarak çözer. Bunun yerine
  * **`@RateLimit`** uygulanır (aşağıda) — spam'in asıl savunması.
  *
+ * **BU SINIFTAKİ HER YAZMA ROTASI SINIRLIDIR — KAPALI KÜME (28.09.2026).**
+ * brief §32 "spam engelle" der ve tek tek saydığı beş işlem asgariyi
+ * verir; aynı yüzeydeki kardeş yazma rotaları (isteğe yanıt, arkadaş
+ * silme, engel kaldırma) korumasız kalsaydı spam kapısı ORADAN açık
+ * kalırdı. Üçü bu dilimde eklendi. `test/security/phase16-hardening.spec.ts`
+ * bu kümeyi **kapalı** olarak doğrular: yeni bir yazma rotası eklenip
+ * `@RateLimit` konmazsa o test KIRILIR — `RateLimitGuard` opt-in çalıştığı
+ * için (bkz. `rate-limit.decorator.ts`) aksi hâlde rota sessizce sınırsız
+ * kalırdı ve bunu ne derleyici ne başka bir test fark ederdi.
+ *
  * İş kuralı İÇERMEZ — yalnızca Application katmanını çağırır ve sonucu
  * docs/API.md §1.1 zarfına sarar.
  */
@@ -151,6 +161,7 @@ export class SocialController {
    * doğrulanır: geçersiz bir uuid veritabanına hiç gitmez (`22P02` yerine
    * anında 400).
    */
+  @RateLimit({ name: 'friend-request-respond', limit: 30, windowSeconds: 60, keyBy: 'player' })
   @Post('players/:id/friend-requests/:requestId/respond')
   @HttpCode(HttpStatus.OK)
   async respondToFriendRequest(
@@ -177,6 +188,7 @@ export class SocialController {
    * orada patlardı — gerekçe `RemoveFriendResult` doc yorumunda. Gövde,
    * silinen satırın kimliğini taşır.
    */
+  @RateLimit({ name: 'friend-remove', limit: 30, windowSeconds: 60, keyBy: 'player' })
   @Delete('players/:id/friends/:friendId')
   @HttpCode(HttpStatus.OK)
   async removeFriend(
@@ -300,6 +312,7 @@ export class SocialController {
    * Engel YOKSA 404 döner (sessiz başarı DEĞİL): gerekçe
    * `BlockNotFoundError` doc yorumunda.
    */
+  @RateLimit({ name: 'player-unblock', limit: 60, windowSeconds: 60, keyBy: 'player' })
   @Delete('players/:id/blocks/:blockedId')
   @HttpCode(HttpStatus.OK)
   async unblockPlayer(
