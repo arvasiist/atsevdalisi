@@ -21,6 +21,24 @@ import type { Currency } from '../../domain/economy/wallet';
 import type { LedgerTransactionType } from '@at-sevdalisi/shared-types';
 
 export interface EconomyLedgerEntryInput {
+  /**
+   * Satırın UUID'si — **isteğe bağlı**, verilmezse veritabanı üretir
+   * (`gen_random_uuid()`).
+   *
+   * NEDEN VAR (brief §22 "Transaction ID oluşturulmalı", §42 PHASE 4b):
+   * `POST /players/:id/wallet/deposit` yanıtı, oluşturduğu defter
+   * satırının kimliğini döndürmek ZORUNDADIR. Kimliği veritabanı üretirse
+   * çağıran onu ancak satır yazıldıktan SONRA, geriye dönük bir okumayla
+   * öğrenebilir — bu okuma ile yazma arasına başka bir para hareketi
+   * girebilir ve "hangisi benim?" sorusu yarış koşuluna (race) açık kalır.
+   * Kimliği ÇAĞIRANIN üretmesi bu belirsizliği tamamen ortadan kaldırır:
+   * `result.transactionId` kilitten ÖNCE bilinir ve yazılan satırın
+   * kimliğiyle YAPISAL olarak aynıdır.
+   *
+   * Diğer tüm çağrılar bu alanı kullanmaz — verilmediğinde davranış
+   * DEĞİŞMEZ (`COALESCE($1::uuid, gen_random_uuid())`).
+   */
+  id?: string;
   playerId: string;
   /**
    * Defter kategori kimliği. **ARTIK SERBEST METİN DEĞİL** (brief §20,

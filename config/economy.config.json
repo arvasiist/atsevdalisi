@@ -18,6 +18,11 @@
   "dailyRewardCooldownHours": 24,
   "walletHistoryDefaultLimit": 20,
   "walletHistoryMaxLimit": 100,
+  "mockDeposit": {
+    "enabled": true,
+    "minAmount": 100,
+    "maxAmount": 50000
+  },
   "raceRake": 0.1,
   "raceTiers": [
     {

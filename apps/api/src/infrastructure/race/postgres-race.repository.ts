@@ -18,6 +18,7 @@ import type {
   CreateLobbyRaceInput,
   CreateLobbyRaceResult,
   JoinLobbyRaceInput,
+  LeaveLobbyRaceInput,
   ListLobbyRacesInput,
   RaceRepository,
   SavePracticeRaceWithStakesInput,
@@ -28,18 +29,20 @@ import type {
 } from '../../application/ports/race.repository';
 import type { EconomyLedgerEntryInput } from '../../application/ports/economy-ledger';
 import { applyPracticeRaceStakes } from '../../domain/race/prize';
-import { checkEntryReadyable, checkRaceJoinable, nextGatePosition } from '../../domain/race/lobby';
+import { checkEntryReadyable, checkRaceJoinable, checkRaceLeavable, nextGatePosition } from '../../domain/race/lobby';
 import {
   AlreadyJoinedRaceError,
   HorseNotOwnedError,
+  RaceEntryCancelledError,
   RaceEntryNotFoundError,
+  RaceEntryNotLeavableError,
   RaceEntryNotReadyableError,
   RaceFullError,
   RaceNotJoinableError,
   RaceNotFoundError,
 } from '../../domain/race/errors';
 import { HorseNotFoundError, HorseInjuredError } from '../../domain/horse/errors';
-import { debit } from '../../domain/economy/wallet';
+import { credit, debit } from '../../domain/economy/wallet';
 import { applyEloUpdate } from '../../domain/online/elo';
 import { PlayerNotFoundError } from '../../domain/player/errors';
 import { PG_POOL, withTransaction } from '../database/database.module';
@@ -749,8 +752,14 @@ export class PostgresRaceRepository implements RaceRepository {
 
       // 2) GERÇEK oyuncu sayısı — `player_id` dolu satırlar. Botlar
       //    (`player_id IS NULL`) sayılmaz; brief §6 at/oyuncu ayrımı.
+      //    İPTAL EDİLMİŞ katılımlar da sayılmaz (PHASE 4c): ayrılan oyuncu
+      //    ücretini geri almıştır, dolayısıyla havuzda payı yoktur ve
+      //    koltuğu BOŞTUR. Sayılsaydı lobi "3/8" gösterirken havuz yalnızca
+      //    iki kişilik olurdu — gösterilen sayı ile gerçek para ayrışırdı.
       const joinedResult = await client.query<{ count: string }>(
-        'SELECT COUNT(*) AS count FROM race_entries WHERE race_id = $1 AND player_id IS NOT NULL',
+        `SELECT COUNT(*) FILTER (WHERE status IS DISTINCT FROM 'cancelled') AS count
+         FROM race_entries
+         WHERE race_id = $1 AND player_id IS NOT NULL`,
         [input.raceId],
       );
       const joinedPlayers = Number(joinedResult.rows[0]?.count ?? '0');
@@ -798,11 +807,18 @@ export class PostgresRaceRepository implements RaceRepository {
       //    başına). Kuralın ASIL garantisi `race_entries_race_player_uq`
       //    kısmi tekil indeksidir (migration 0037); bu ön kontrol yalnızca
       //    kullanıcıya 500 yerine anlamlı bir 409 vermek içindir.
-      const duplicate = await client.query(
-        'SELECT 1 FROM race_entries WHERE race_id = $1 AND player_id = $2 LIMIT 1',
+      const duplicate = await client.query<{ status: string | null }>(
+        'SELECT status FROM race_entries WHERE race_id = $1 AND player_id = $2 LIMIT 1',
         [input.raceId, input.playerId],
       );
-      if (duplicate.rows.length > 0) {
+      const existingEntry = duplicate.rows[0];
+      if (existingEntry !== undefined) {
+        // PHASE 4c — AYRILMIŞ oyuncu ile AKTİF katılımcı AYNI hatayı hak
+        // etmez: biri "zaten katıldınız" değildir. Gerekçenin tamamı
+        // `RaceEntryCancelledError` doc yorumunda.
+        if (existingEntry.status === 'cancelled') {
+          throw new RaceEntryCancelledError(input.raceId);
+        }
         throw new AlreadyJoinedRaceError(input.raceId);
       }
 
@@ -942,6 +958,16 @@ export class PostgresRaceRepository implements RaceRepository {
    * satırlarını JOIN'e hiç sokmaz — koşul `WHERE`'a yazılsaydı hiç
    * katılımcısı olmayan yarışlar listeden DÜŞERDİ.
    *
+   * `FILTER (WHERE e.status IS DISTINCT FROM 'cancelled')` — PHASE 4c.
+   * İPTAL EDİLMİŞ katılımı olan oyuncu ücretini geri almıştır ve koltuğu
+   * BOŞTUR; sayılsaydı lobi listesi ile `prize_pool` birbirini yalanlardı.
+   * `IS DISTINCT FROM` (yalnızca `<> 'cancelled'` DEĞİL) ŞARTTIR: pratik/
+   * PvP satırlarında `status` NULL'dur (migration 0037) ve `NULL <> 'x'`
+   * sonucu NULL'dur, yani FILTER onları SESSİZCE dışarıda bırakırdı.
+   * `FILTER`'ı `ON` koşuluna taşımak ise yanlış olurdu — iptal edilmiş
+   * satır JOIN'den düşer ama `LEFT JOIN` sayesinde yarış listede kalır;
+   * yine de koşulu tek yerde tutmak (sayım) okunabilirliği artırır.
+   *
    * **TRANSACTION YOK** — bilinçlidir: bu yol hiçbir şey yazmaz ve
    * listeyi kilit altına almak, her lobi yenilemesini yarışa katılanların
    * arkasında sıraya sokardı. Görüntünün ANLIK olması yeterlidir.
@@ -951,7 +977,7 @@ export class PostgresRaceRepository implements RaceRepository {
       `SELECT r.id, r.name, r.participant_limit, r.max_players, r.entry_fee, r.prize_pool,
               r.start_time, r.status, r.race_type, r.surface, r.weather, r.distance_m,
               r.tribune_fee, r.spectator_capacity, r.created_by, r.created_at,
-              COUNT(e.player_id) AS joined_players
+              COUNT(e.player_id) FILTER (WHERE e.status IS DISTINCT FROM 'cancelled') AS joined_players
        FROM races r
        LEFT JOIN race_entries e ON e.race_id = r.id AND e.player_id IS NOT NULL
        WHERE r.status = $1
@@ -1029,13 +1055,194 @@ export class PostgresRaceRepository implements RaceRepository {
       // 5) Doluluk. Bu transaction `races` satırını değiştirmediği için
       //    (kilitli `raceRow`) YENİDEN OKUMAYA GEREK YOKTUR — `joinLobbyRace`
       //    havuzu büyüttüğü için orada okumak zorundaydı, burada değil.
+      //    İPTAL EDİLMİŞ katılımlar sayılmaz — gerekçe `joinLobbyRace`
+      //    adım 2'deki AYNI not (PHASE 4c).
       const joinedResult = await client.query<{ count: string }>(
-        'SELECT COUNT(*) AS count FROM race_entries WHERE race_id = $1 AND player_id IS NOT NULL',
+        `SELECT COUNT(*) FILTER (WHERE status IS DISTINCT FROM 'cancelled') AS count
+         FROM race_entries
+         WHERE race_id = $1 AND player_id IS NOT NULL`,
         [input.raceId],
       );
       const joinedPlayers = Number(joinedResult.rows[0]?.count ?? '0');
 
       return rowToLobbyRaceView(raceRow, joinedPlayers);
+    });
+  }
+
+  /**
+   * Oyuncuyu katıldığı lobi yarışından ÇIKARIR ve giriş ücretini İADE eder
+   * (brief §20 `REFUND`, §42 PHASE 4c) — `RaceRepository.leaveLobbyRace`
+   * port doc yorumu okunmalıdır.
+   *
+   * **PARA YOLU (CLAUDE.md kural 7) — `joinLobbyRace`'in TAM TERSİ.**
+   * Ücret alınırken `prize_pool` BÜYÜTÜLMÜŞTÜ; burada aynı tutar kadar
+   * KÜÇÜLTÜLÜR. İkisi simetrik olduğu sürece "havuz = ödenmiş giriş
+   * ücretlerinin toplamı" değişmezi korunur — ve bu değişmez, ödül
+   * dağıtımının (PHASE 5) dayandığı tek zemindir.
+   *
+   * **KİLİT SIRASI: `races` → `race_entries` → `players`.** İlk iki adım
+   * `setEntryReady` ile, ilk adım `joinLobbyRace` ile AYNIdır; ortak ilk
+   * kilit `races` olduğundan bu üç yol arasında çapraz kilitlenme
+   * (deadlock) oluşamaz.
+   *
+   * **İADE TUTARI DEFTERDEN OKUNUR, `races.entry_fee`'DEN DEĞİL.**
+   * `entry_fee` bugün değiştirilemez olduğu için ikisi aynı sonucu verirdi;
+   * ama "o an geçerli ücret" üzerinden iade hesaplamak, ücret bir gün
+   * güncellenebilir hâle geldiğinde sessizce YANLIŞ tutar iade ederdi.
+   * Defter zaten "bu oyuncu bu yarışa ne ödedi" sorusunun tek doğruluk
+   * kaynağıdır. Ücretsiz yarışta hiç satır yoktur → `refund = 0` → para
+   * yoluna HİÇ girilmez (ne kilit, ne defter satırı).
+   */
+  async leaveLobbyRace(input: LeaveLobbyRaceInput): Promise<RaceLobbyView> {
+    return withTransaction(this.pool, async (client) => {
+      // 1) Yarış satırını kilitle — kilit alındıktan sonra okunan durum bu
+      //    transaction boyunca değişmez (`setEntryReady` ile AYNI gerekçe).
+      const raceResult = await client.query<LobbyRaceRow>(
+        `SELECT id, name, participant_limit, max_players, entry_fee, prize_pool, start_time, status,
+                race_type, surface, weather, distance_m, tribune_fee, spectator_capacity, created_by, created_at
+         FROM races
+         WHERE id = $1
+         FOR UPDATE`,
+        [input.raceId],
+      );
+      const raceRow = raceResult.rows[0];
+      if (raceRow === undefined) {
+        throw new RaceNotFoundError(input.raceId);
+      }
+
+      // 2) Oyuncunun KENDİ katılım satırı — `player_id` ile filtrelenir, yani
+      //    başkasının katılımını iptal etmenin bir yolu YOKTUR (`playerId`
+      //    gövdeden değil `CurrentPlayer()`'dan gelir).
+      const entryResult = await client.query<{ status: string | null }>(
+        'SELECT status FROM race_entries WHERE race_id = $1 AND player_id = $2 FOR UPDATE',
+        [input.raceId, input.playerId],
+      );
+      const entry = entryResult.rows[0];
+      if (entry === undefined) {
+        throw new RaceEntryNotFoundError(input.raceId, input.playerId);
+      }
+
+      // 3) Durum denetimi — SAF fonksiyon (`domain/race/lobby.ts`).
+      const rejection = checkRaceLeavable(
+        { status: raceRow.status, startTime: raceRow.start_time },
+        { status: entry.status },
+        input.now,
+      );
+      if (rejection !== null) {
+        throw new RaceEntryNotLeavableError(rejection);
+      }
+
+      // 4) Bu oyuncunun bu yarış için GERÇEKTEN ödediği tutar. `amount`
+      //    defterde İMZALIDIR (ödeme negatiftir), bu yüzden işaret çevrilir.
+      //    `Math.max(0, ...)` bir güvenlik kemeridir: iade ASLA negatif
+      //    olamaz — bozuk bir satır iadeyi "geri alma"ya çevirmemelidir.
+      const paidResult = await client.query<{ amount: string }>(
+        `SELECT amount
+         FROM economy_transactions
+         WHERE player_id = $1
+           AND type = 'lobby_race_entry_fee'
+           AND reference_type = 'race'
+           AND reference_id = $2
+         ORDER BY created_at DESC
+         LIMIT 1`,
+        [input.playerId, input.raceId],
+      );
+      const paidRow = paidResult.rows[0];
+      const refund = paidRow === undefined ? 0 : Math.max(0, -Number(paidRow.amount));
+
+      let balanceBefore = 0;
+      let balanceAfter = 0;
+
+      // 5) İADE — yalnızca gerçekten ödenmiş bir tutar varsa. Ücretsiz
+      //    yarışta `players` satırına HİÇ dokunulmaz (gereksiz kilit de
+      //    alınmaz), `joinLobbyRace` adım 7 ile AYNI desen.
+      if (refund > 0) {
+        const balanceResult = await client.query<{ money: string; gems: string }>(
+          'SELECT money, gems FROM players WHERE id = $1 FOR UPDATE',
+          [input.playerId],
+        );
+        const balanceRow = balanceResult.rows[0];
+        if (balanceRow === undefined) {
+          throw new PlayerNotFoundError(input.playerId);
+        }
+        balanceBefore = Number(balanceRow.money);
+        const wallet = credit({ money: balanceBefore, gems: Number(balanceRow.gems) }, refund, 'money');
+        balanceAfter = wallet.money;
+
+        await client.query('UPDATE players SET money = $2, updated_at = $3 WHERE id = $1', [
+          input.playerId,
+          balanceAfter,
+          input.now,
+        ]);
+
+        // Havuzu KÜÇÜLT. `prize_pool >= 0` CHECK'i (migration 0006) burada
+        // bir TRIPWIRE'dır, bir iş kuralı değil: iade tam olarak katılımda
+        // eklenen tutardır, dolayısıyla negatife düşmesi İMKÂNSIZDIR.
+        // Düşerse gerçek bir muhasebe bozulması vardır ve bu sessizce
+        // yutulmamalıdır — 500 doğru cevaptır, `GREATEST(..., 0)` yanlış
+        // olurdu (havuzu gerçek paradan bağımsız gösterirdi).
+        await client.query('UPDATE races SET prize_pool = prize_pool - $2, updated_at = $3 WHERE id = $1', [
+          input.raceId,
+          refund,
+          input.now,
+        ]);
+      }
+
+      // 6) Katılımı İPTAL et. Satır SİLİNMEZ — `race_entries_race_player_uq`
+      //    (migration 0037) `status`'tan bağımsız olarak `player_id` dolu her
+      //    satırı kapsar, yani silmek yeniden katılmayı AÇARDI. Bu bilinçli
+      //    olarak İSTENMEZ: bkz. `RaceEntryCancelledError` doc yorumu.
+      await client.query('UPDATE race_entries SET status = $3 WHERE race_id = $1 AND player_id = $2', [
+        input.raceId,
+        input.playerId,
+        'cancelled',
+      ]);
+
+      // 7) Defter kaydı — bakiye güncellemesiyle AYNI transaction'da.
+      if (refund > 0) {
+        await this.writeLedgerEntries(client, [
+          {
+            playerId: input.playerId,
+            // `REFUND` ailesinin bu projedeki İLK üreticisi (bkz. use-case
+            // doc yorumu). Tip serbest metindir (`economy-ledger.ts`), yeni
+            // bir değer migration GEREKTİRMEZ.
+            type: 'race_entry_refund',
+            amount: refund,
+            currency: 'money',
+            referenceType: 'race',
+            referenceId: input.raceId,
+            balanceBefore,
+            balanceAfter,
+            idempotencyKey: input.idempotencyKey,
+          },
+        ]);
+      }
+
+      // 8) Güncel görünüm. `raceRow` havuz düşümünden ÖNCE okunmuştu;
+      //    istemciye BAYAT bir havuz dönmemelidir (`joinLobbyRace` adım 10
+      //    ile AYNI gerekçe).
+      const finalResult = await client.query<LobbyRaceRow>(
+        `SELECT id, name, participant_limit, max_players, entry_fee, prize_pool, start_time, status,
+                race_type, surface, weather, distance_m, tribune_fee, spectator_capacity, created_by, created_at
+         FROM races
+         WHERE id = $1`,
+        [input.raceId],
+      );
+      const finalRow = finalResult.rows[0];
+      if (finalRow === undefined) {
+        throw new Error('Yarış satırı ayrılma transaction\'ı içinde okunamadı.');
+      }
+
+      // Doluluk İPTAL EDİLMİŞ satırları SAYMAZ: ayrılan oyuncunun koltuğu
+      // boşalmıştır (gerekçe `joinLobbyRace` adım 2'deki not).
+      const joinedResult = await client.query<{ count: string }>(
+        `SELECT COUNT(*) FILTER (WHERE status IS DISTINCT FROM 'cancelled') AS count
+         FROM race_entries
+         WHERE race_id = $1 AND player_id IS NOT NULL`,
+        [input.raceId],
+      );
+
+      return rowToLobbyRaceView(finalRow, Number(joinedResult.rows[0]?.count ?? '0'));
     });
   }
 

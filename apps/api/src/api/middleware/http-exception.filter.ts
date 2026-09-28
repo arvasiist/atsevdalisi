@@ -37,7 +37,12 @@ import {
 } from '../../domain/care/errors';
 import { MaxStableLevelReachedError, StableCapacityExceededError } from '../../domain/stable/errors';
 import { InvalidFacilityTypeError, MaxFacilityLevelReachedError } from '../../domain/farm/errors';
-import { DailyRewardAlreadyClaimedError, InsufficientFundsError } from '../../domain/economy/errors';
+import {
+  DailyRewardAlreadyClaimedError,
+  InsufficientFundsError,
+  InvalidDepositAmountError,
+  MockDepositDisabledError,
+} from '../../domain/economy/errors';
 import {
   AlreadyJoinedRaceError,
   HorseNotOwnedError,
@@ -47,7 +52,9 @@ import {
   InvalidRaceJoinInputError,
   InvalidRaceTacticError,
   InvalidRaceTierError,
+  RaceEntryCancelledError,
   RaceEntryNotFoundError,
+  RaceEntryNotLeavableError,
   RaceEntryNotReadyableError,
   RaceFullError,
   RaceLimitReachedError,
@@ -361,6 +368,32 @@ const DOMAIN_ERROR_MAP = new Map<ErrorClassConstructor, { status: number; code: 
   [RaceEntryNotFoundError, { status: HttpStatus.NOT_FOUND, code: ErrorCode.RaceEntryNotFound }],
   // 409 — `RaceNotJoinableError` ile AYNI gerekçe: engelleyen şey DURUM.
   [RaceEntryNotReadyableError, { status: HttpStatus.CONFLICT, code: ErrorCode.RaceEntryNotReadyable }],
+  // PHASE 4c (yarıştan AYRILMA + iade, brief §20 REFUND) — ikisi de
+  // yukarıdaki 409 kategorisinin TEKRARIDIR, yeni bir sınıflandırma
+  // getirmez:
+  //
+  // `RaceEntryNotLeavableError` — engelleyen şey yarışın/katılımın
+  // DURUMUdur (başladı, iptal edilmiş ya da `scheduled` değil). İstek
+  // biçimsel olarak kusursuz ve kaynak vardır → 400/404 DEĞİL.
+  [RaceEntryNotLeavableError, { status: HttpStatus.CONFLICT, code: ErrorCode.RaceEntryNotLeavable }],
+  // `RaceEntryCancelledError` — katılım DAHA ÖNCE iptal edilmiş, yani
+  // yeniden katılma engeli KALICI bir durumdur (`AlreadyJoinedRaceError`
+  // ile AYNI 409 ailesi, farklı ve daha doğru mesaj).
+  [RaceEntryCancelledError, { status: HttpStatus.CONFLICT, code: ErrorCode.RaceEntryCancelled }],
+  // SANAL PARA YATIRMA (brief §20 DEPOSIT, §21/§41, §42 PHASE 4b) — iki
+  // hata da yeni bir sınıflandırma getirmez, mevcut kategorilerin
+  // tekrarıdır (gerekçeler `packages/shared-types/src/error-codes.ts`'te
+  // ve `domain/economy/errors.ts`'te tek tek yazılmıştır):
+  //
+  // 403 — `RaceTicketRequiredError` ile AYNI kategori: istek kusursuz,
+  // kaynak var, engelleyen şey SUNUCU TARAFINDAKİ bir yapılandırma
+  // kararıdır (uç nokta bu ortamda kapalı). 409 DEĞİL çünkü geçici
+  // değildir; 404 DEĞİL çünkü cüzdan gerçekten vardır.
+  [MockDepositDisabledError, { status: HttpStatus.FORBIDDEN, code: ErrorCode.MockDepositDisabled }],
+  // 400 — `InvalidGiftAmountError` ile AYNI kategori (gerçek, KALICI bir
+  // doğrulama hatası; aynı isteği tekrarlamak düzeltmez) ve AYNI desen
+  // (üç neden → tek kod; ayrım yalnızca mesajdadır).
+  [InvalidDepositAmountError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.InvalidDepositAmount }],
 ]);
 
 /**

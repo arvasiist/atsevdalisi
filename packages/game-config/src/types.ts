@@ -269,6 +269,52 @@ export interface EconomyConfig {
   walletHistoryDefaultLimit: number;
   /** `?limit` bu değerin üzerindeyse kırpılır (sessizce — istek 400 ALMAZ). */
   walletHistoryMaxLimit: number;
+  /**
+   * brief §21/§41, §42 PHASE 4b — SANAL (mock) para yatırma.
+   *
+   * `config/payments.config.json` gibi AYRI bir dosya BİLİNÇLİ OLARAK
+   * AÇILMADI: bu blok `economy.config.json`'ın bir parçasıdır çünkü
+   * tanımladığı şey bir sağlayıcı ayarı değil, EKONOMİ POLİTİKASIDIR
+   * ("bu sunucuda cüzdana para girişi var mı, varsa hangi aralıkta").
+   * Gerçek bir sağlayıcının API anahtarları geldiğinde onlar zaten ortam
+   * değişkeni olacaktır, config dosyası değil.
+   */
+  mockDeposit: MockDepositConfig;
+}
+
+/**
+ * SANAL para yatırma politikası (brief §41: "Ücretli yarış sistemini
+ * doğrudan 'kullanıcıların para yatırıp yarış sonucuna göre para
+ * kazanması' şeklinde varsayılan olarak production'a açma. Sistemi önce:
+ * Virtual Coin / Mock Wallet olarak geliştir.").
+ *
+ * **`enabled` bir "kill switch"tir, bir özellik bayrağı değil.** `false`
+ * yapıldığında uç nokta `MOCK_DEPOSIT_DISABLED` (403) döner ve HİÇBİR
+ * yazma yapılmaz. Bu alan `false` olsa bile `NODE_ENV=production` altında
+ * uç nokta KAPALIDIR — bkz. `MockPaymentProvider.isEnabled` (iki koşulun
+ * BİRLEŞİMİ; config'i yanlışlıkla `true` bırakmak üretimi açmaz).
+ */
+export interface MockDepositConfig {
+  enabled: boolean;
+  /** Tek işlemde yatırılabilecek EN AZ sanal para. `0` olamaz (sıfır yatırma deftere yazılamaz — `amount <> 0` CHECK'i, migration 0019). */
+  minAmount: number;
+  /**
+   * Tek işlemde yatırılabilecek EN ÇOK sanal para — sunucu tarafı bir
+   * tavan. Bunun ALTINDA bir değer göndermek `INVALID_DEPOSIT_AMOUNT`
+   * (400) verir, SESSİZCE KIRPILMAZ: yatırma bir PARA GİRİŞİDİR ve
+   * "istediğimden az yattı" sessizliği, cüzdan sayfalama sınırındaki
+   * "sessizce kırp" kararından (bkz. `walletHistoryMaxLimit`) TEMELEN
+   * farklıdır — orada kırpılan şey bir GÖRÜNTÜLEME tercihiydi, burada
+   * kırpılan şey oyuncunun parası olurdu.
+   *
+   * NOT (dürüstlük): GÜNLÜK toplam yatırma tavanı bu dilimde YOKTUR.
+   * Sebebi teknik: tavan, kilitli satırın İÇİNDE "bugün ne kadar
+   * yatırıldı" toplamını okumayı gerektirir; `updateWithLock`'un callback'i
+   * senkron ve veritabanına erişemez, kilidin DIŞINDA okumak ise yarış
+   * koşuluna (race) açık olurdu. Doğru yer PHASE 16 (anti-cheat) —
+   * `docs/WALLET_SYSTEM.md`'de açıkça listelenmiştir.
+   */
+  maxAmount: number;
 }
 
 export interface GeneticsConfig {

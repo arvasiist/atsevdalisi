@@ -44,3 +44,53 @@ export class DailyRewardAlreadyClaimedError extends Error {
     this.name = 'DailyRewardAlreadyClaimedError';
   }
 }
+
+/**
+ * SANAL para yatırma kapalı — brief §21/§41, §42 PHASE 4b.
+ *
+ * `reason` alanı YOKTUR ve bilinçlidir: `MockDepositDisabledError`'ın
+ * iki fırlatıcısı vardır (`config.mockDeposit.enabled === false` ve
+ * `NODE_ENV === 'production'`, bkz. `MockPaymentProvider.isEnabled`) ama
+ * İKİSİ DE aynı `MOCK_DEPOSIT_DISABLED` (403) kodunu döndürür.
+ * Ayrımı mesaja koymak CAZİPTİ ama YANLIŞ olurdu: bu uç nokta üretimde
+ * her zaman kapalıdır, yani "neden kapalı" bilgisi üretimde çağırana
+ * HİÇBİR ZAMAN gösterilmeyecek, yalnızca geliştirme ortamında işe
+ * yarayacaktır — bunun için API sözleşmesine kalıcı bir alan eklemek
+ * (`RaceNotWatchableError`'ın üç nedenli `reason`'ından farklı olarak,
+ * orada ayrımı oyuncu GÖRÜR) gereksiz bir karmaşıklık olurdu.
+ */
+export class MockDepositDisabledError extends Error {
+  constructor() {
+    super('Sanal para yatırma bu sunucuda kapalıdır.');
+    this.name = 'MockDepositDisabledError';
+  }
+}
+
+/**
+ * Yatırma tutarı geçersiz — brief §20 DEPOSIT, §42 PHASE 4b.
+ *
+ * `problem` alanı çağıranlar (testler ve API filtre katmanı) içindir;
+ * mesaj HER ZAMAN bu alandan türetilir, böylece ikisinin ayrışması
+ * imkânsızdır (`InvalidGiftAmountError` ile AYNI desen). Tek bir
+ * `reason → mesaj` haritası vardır.
+ *
+ * `problem` `'disabled'` İÇEREMEZ: "yatırma kapalı" durumu tamamen
+ * `MockDepositDisabledError`'a aittir ve tutarın geçerliliğiyle İLGİSİZDİR
+ * (kapalı bir uçta "tutarın çok küçük" demek yanıltıcı olurdu). Bu yüzden
+ * `domain/economy/mock-deposit.ts` → `validateMockDeposit` `enabled`
+ * alanına hiç BAKMAZ; o kararın tek sahibi `PaymentProvider.isEnabled()`'dır.
+ */
+export type InvalidDepositAmountProblem = 'not_an_integer' | 'below_minimum' | 'above_maximum';
+
+const DEPOSIT_AMOUNT_MESSAGES: Record<InvalidDepositAmountProblem, string> = {
+  not_an_integer: 'Yatırılacak tutar pozitif bir tam sayı olmalıdır.',
+  below_minimum: 'Yatırılacak tutar izin verilen en düşük miktarın altında.',
+  above_maximum: 'Yatırılacak tutar izin verilen en yüksek miktarın üzerinde.',
+};
+
+export class InvalidDepositAmountError extends Error {
+  constructor(public readonly problem: InvalidDepositAmountProblem) {
+    super(DEPOSIT_AMOUNT_MESSAGES[problem]);
+    this.name = 'InvalidDepositAmountError';
+  }
+}

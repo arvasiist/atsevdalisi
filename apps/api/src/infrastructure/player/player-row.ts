@@ -126,11 +126,17 @@ export async function writeLedgerEntries(client: PoolClient, entries: EconomyLed
     return;
   }
   for (const entry of entries) {
+    // `id` ÇAĞIRANDAN gelebilir (bkz. `EconomyLedgerEntryInput.id` doc
+    // yorumu — brief §22'nin istediği "Transaction ID"nin yanıtta
+    // dönebilmesi için); gelmezse `gen_random_uuid()` üretir, yani
+    // eski çağrıların davranışı DEĞİŞMEZ. `COALESCE` bu iki yolu tek
+    // INSERT'te birleştirir — ayrı bir "id var mı" dalı yoktur.
     await client.query(
       `INSERT INTO economy_transactions
-         (player_id, type, amount, currency, reference_type, reference_id, balance_before, balance_after, idempotency_key)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+         (id, player_id, type, amount, currency, reference_type, reference_id, balance_before, balance_after, idempotency_key)
+       VALUES (COALESCE($1::uuid, gen_random_uuid()), $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
       [
+        entry.id ?? null,
         entry.playerId,
         entry.type,
         entry.amount,

@@ -15,6 +15,7 @@ import {
 import type { ApiSuccess, RaceLobbyView } from '@at-sevdalisi/shared-types';
 import { CreateRaceUseCase } from '../../application/use-cases/create-race.use-case';
 import { JoinRaceUseCase } from '../../application/use-cases/join-race.use-case';
+import { LeaveRaceUseCase } from '../../application/use-cases/leave-race.use-case';
 import { ListLobbyRacesUseCase } from '../../application/use-cases/list-lobby-races.use-case';
 import { SetEntryReadyUseCase } from '../../application/use-cases/set-entry-ready.use-case';
 import { CurrentPlayer, type AuthenticatedPlayer } from '../auth/current-player.decorator';
@@ -46,6 +47,7 @@ export class RaceLobbyController {
     @Inject(JoinRaceUseCase) private readonly joinRaceUseCase: JoinRaceUseCase,
     @Inject(ListLobbyRacesUseCase) private readonly listLobbyRacesUseCase: ListLobbyRacesUseCase,
     @Inject(SetEntryReadyUseCase) private readonly setEntryReadyUseCase: SetEntryReadyUseCase,
+    @Inject(LeaveRaceUseCase) private readonly leaveRaceUseCase: LeaveRaceUseCase,
   ) {}
 
   /**
@@ -203,6 +205,44 @@ export class RaceLobbyController {
     @CurrentPlayer() currentPlayer: AuthenticatedPlayer,
   ): Promise<ApiSuccess<RaceLobbyView>> {
     const race = await this.setEntryReadyUseCase.execute(id, currentPlayer.id, dto);
+    return { success: true, data: race };
+  }
+
+  /**
+   * Yarıştan AYRILMA — **PARA YOLU (ters yönden).** Brief §20 `REFUND`,
+   * §42 PHASE 4c. Giriş ücreti iade edilir, `races.prize_pool` aynı tutar
+   * kadar azaltılır ve katılım `cancelled` olur — hepsi TEK transaction.
+   *
+   * **`Idempotency-Key` ZORUNLUDUR** — `join` ile AYNI desen ve AYNI
+   * gerekçe, ama yönü ters: istemci zaman aşımından sonra aynı isteği
+   * tekrarlarsa İKİNCİ kez İADE alınmamalıdır. `@IdempotencyScope('player')`
+   * — kapsam `:id` (yarışın id'si) DEĞİL, kimliği doğrulanmış oyuncudur.
+   *
+   * **200 OK, 204 DEĞİL** — `join`/`ready` ile AYNI sınıflandırma: yanıt
+   * gövdesi GÜNCELLENMİŞ lobi görünümüdür (`RaceLobbyView`) ve istemcinin
+   * bir sonraki adımı zaten lobidir. 204 seçilseydi istemci havuzun
+   * KÜÇÜLDÜĞÜNÜ görmek için ikinci bir istek atmak zorunda kalırdı.
+   *
+   * **GÖVDE YOKTUR.** Ayrılma isteğinin tek parametresi yoldan gelen
+   * `raceId`'dir; `@Body()` almak, esbuild altında doğrulanmayan bir yüzey
+   * açardı (CLAUDE.md kural 5) ve karşılığında hiçbir şey vermezdi.
+   *
+   * Tavan `join` ile AYNI (30): ikisi de bir yarış seçme/terk etme
+   * akışının parçasıdır.
+   */
+  @RateLimit({ name: 'race-leave', limit: 30, windowSeconds: 60, keyBy: 'player' })
+  @IdempotencyScope('player')
+  @Post(':id/leave')
+  @HttpCode(HttpStatus.OK)
+  @UseInterceptors(IdempotencyInterceptor)
+  async leave(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Headers('Idempotency-Key') idempotencyKey: string | undefined,
+    // Ayrılan oyuncu **TOKEN'DAN** gelir, gövdeden ASLA (CLAUDE.md
+    // "SUNUCU OTORİTESİ"): başkasının katılımı bu uçtan iptal edilemez.
+    @CurrentPlayer() currentPlayer: AuthenticatedPlayer,
+  ): Promise<ApiSuccess<RaceLobbyView>> {
+    const race = await this.leaveRaceUseCase.execute(id, currentPlayer.id, idempotencyKey ?? null);
     return { success: true, data: race };
   }
 }

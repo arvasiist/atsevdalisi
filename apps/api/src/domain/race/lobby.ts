@@ -631,6 +631,55 @@ export function checkEntryReadyable(
   return null;
 }
 
+/** `checkRaceLeavable`'ın ret nedenleri. */
+export type RaceLeaveRejection = 'NOT_SCHEDULED' | 'ALREADY_STARTED' | 'ALREADY_CANCELLED';
+
+/**
+ * Ayrılma isteğinin ŞU AN yapılıp yapılamayacağını söyler; engel yoksa
+ * `null` (brief §20 `REFUND`, §42 PHASE 4c).
+ *
+ * `checkRaceJoinable`/`checkEntryReadyable` ile AYNI desen (fırlatmaz, sonuç
+ * döndürür) ve AYNI gerekçe: kural DB transaction'ı olmadan tek başına test
+ * edilebilmelidir. Nedeni domain hatasına çevirmek
+ * `leaveLobbyRace`'in işidir.
+ *
+ * **ZAMAN SINIRI ÜÇ FONKSİYONDA DA AYNIDIR: `startTime <= now` → KAPALI.**
+ * Bu tesadüf değildir. Motorun katılım snapshot'ı tam başlangıç anında
+ * alınır; o andan sonra ne katılmak, ne hazır bildirmek, ne de ayrılmak
+ * mümkün olmalıdır. Üçünden biri diğerinden farklı düşünürse "katılamazsın
+ * ama ayrılıp paranı geri alabilirsin" gibi bir aralık doğardı — ve o
+ * aralıkta kaybedilen şey paradır.
+ *
+ * **ZATEN İPTAL EDİLMİŞ OLMAK AYRI BİR RET NEDENİDİR** (`checkEntryReadyable`
+ * ile aynı tercih, `CANCELLED` orada da ayrı bir nedendir). Aynı isteğin
+ * tekrarı — istemci yanıtı kaybedip yeniden denediğinde — 500 ya da ikinci
+ * bir İADE değil, anlamlı bir 409 üretmelidir. İkinci iadeyi fiilen
+ * engelleyen mekanizma idempotency ve defterdir; bu kontrol kullanıcıya
+ * doğru mesajı verir.
+ *
+ * `status` NULLABLE'dır (`checkEntryReadyable`'daki AYNI not): pratik/PvP
+ * satırları KOŞMUŞ yarışların kayıtlarıdır ve tek AÇIK ret nedeni
+ * `cancelled`'dır. İkinci bir kural kaynağı yaratmamak için burada da
+ * yalnızca `cancelled` reddedilir; lobiye ait olmayan satırlar zaten
+ * `race.status !== 'scheduled'` kontrolüne takılır.
+ */
+export function checkRaceLeavable(
+  race: { status: string; startTime: Date },
+  entry: { status: string | null },
+  now: Date,
+): RaceLeaveRejection | null {
+  if (race.status !== 'scheduled') {
+    return 'NOT_SCHEDULED';
+  }
+  if (race.startTime.getTime() <= now.getTime()) {
+    return 'ALREADY_STARTED';
+  }
+  if (entry.status === 'cancelled') {
+    return 'ALREADY_CANCELLED';
+  }
+  return null;
+}
+
 /**
  * `GET /races`'in `limit` sorgu parametresini normalize eder (PHASE 3).
  *

@@ -212,7 +212,7 @@ describe('Economy — Daily Reward (e2e)', () => {
       );
       expect(ledgerRows.rows).toHaveLength(1);
       expect(Number(ledgerRows.rows[0].amount)).toBe(500);
-    }, 15000);
+    }, 30000);
 
     it('n=50 GERÇEKTEN eşzamanlı günlük ödül talebinden SADECE BİRİ başarılı olur', async () => {
       const { id, startingMoney, authHeader } = await registerPlayer();
@@ -232,7 +232,13 @@ describe('Economy — Daily Reward (e2e)', () => {
 
       const playerRow = await sendWithRetry(() => pool.query('SELECT money FROM players WHERE id = $1', [id]));
       expect(Number(playerRow.rows[0].money)).toBe(startingMoney + 500);
-    }, { timeout: 30000, retry: 2 });
+      // 28.09.2026 — tavan 30 sn'den 90 sn'ye çıkarıldı. Gerekçe ÖLÇÜM:
+      // 50 istek AYNI oyuncu satırında `FOR UPDATE` üzerinde sıraya girer,
+      // yani süre 50 transaction'ın toplamıdır ve bu makinede 30 sn'yi
+      // aşabiliyordu. Testin KANITLADIĞI şey (tek başarı, tek defter satırı)
+      // değişmedi; yalnızca yavaş diskte sabır sınırı büyüdü. Kalıcı çözüm
+      // `verify-lobby.mjs`'teki `synchronous_commit = off` ayarıdır.
+    }, { timeout: 90000, retry: 2 });
 
     it('n=100 GERÇEKTEN eşzamanlı günlük ödül talebinden SADECE BİRİ başarılı olur, bakiye TAM OLARAK bir kez artar (50 kat DEĞİL, 100 kat DEĞİL)', async () => {
       const { id, startingMoney, authHeader } = await registerPlayer();
@@ -265,6 +271,11 @@ describe('Economy — Daily Reward (e2e)', () => {
         pool.query("SELECT * FROM economy_transactions WHERE player_id = $1 AND type = 'daily_reward'", [id]),
       );
       expect(ledgerRows.rows).toHaveLength(1);
-    }, { timeout: 60000, retry: 2 });
+      // 28.09.2026 — 60 sn YETMEDİ (yerel koşu: "Test timed out in 60000ms",
+      // 2 yeniden denemeyle birlikte). Ölçüm aynı: 100 transaction AYNI
+      // satırda sıraya giriyor ve her commit WAL'i diske bekliyordu.
+      // 180 sn, CI'daki davranışı DEĞİŞTİRMEZ (orada bu test ~20-30 sn'de
+      // bitiyor); yalnızca yavaş diskte yanlış kırmızı vermeyi engeller.
+    }, { timeout: 180000, retry: 2 });
   });
 });

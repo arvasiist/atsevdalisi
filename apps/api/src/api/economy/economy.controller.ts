@@ -1,9 +1,24 @@
-import { Controller, Get, HttpCode, HttpStatus, Inject, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
-import type { ApiSuccess, ClaimDailyRewardResult, WalletView } from '@at-sevdalisi/shared-types';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Inject,
+  Param,
+  ParseUUIDPipe,
+  Post,
+  Query,
+  UseInterceptors,
+} from '@nestjs/common';
+import type { ApiSuccess, ClaimDailyRewardResult, WalletDepositResult, WalletView } from '@at-sevdalisi/shared-types';
 import { ClaimDailyRewardUseCase } from '../../application/use-cases/claim-daily-reward.use-case';
+import { DepositFundsUseCase } from '../../application/use-cases/deposit-funds.use-case';
 import { GetWalletUseCase } from '../../application/use-cases/get-wallet.use-case';
 import { assertSelf } from '../auth/assert-self';
 import { CurrentPlayer, type AuthenticatedPlayer } from '../auth/current-player.decorator';
+import { IdempotencyInterceptor } from '../idempotency/idempotency.interceptor';
+import { IdempotencyScope } from '../idempotency/idempotency-scope.decorator';
 import { RateLimit } from '../rate-limit/rate-limit.decorator';
 
 /**
@@ -17,7 +32,50 @@ export class EconomyController {
   constructor(
     @Inject(ClaimDailyRewardUseCase) private readonly claimDailyRewardUseCase: ClaimDailyRewardUseCase,
     @Inject(GetWalletUseCase) private readonly getWalletUseCase: GetWalletUseCase,
+    @Inject(DepositFundsUseCase) private readonly depositFundsUseCase: DepositFundsUseCase,
   ) {}
+
+  /**
+   * SANAL para yatırma — brief §20 DEPOSIT, §21, §41, §42 PHASE 4b.
+   *
+   * `@Post(':id/wallet/deposit')` — mevcut `@Get(':id/wallet')` ile AYNI
+   * prefix/segment desenindedir; tam yollar çakışmaz (`StableController`
+   * gerekçesinin AYNISI).
+   *
+   * **GÖVDE İÇİN DTO SINIFI YOK — bilinçlidir.** CLAUDE.md kural 5:
+   * esbuild altında `@Body()`'nin metatipi `undefined` kalır ve global
+   * `ValidationPipe` gövde doğrulamasını sessizce atlar; yani
+   * `class-validator` dekoratörleriyle süslenmiş bir DTO, ÇALIŞMA ANINDA
+   * hiçbir şey doğrulamaz — güvenlik hissi verir, güvenlik vermez. Bu
+   * yüzden gövde burada düz bir tip olarak alınır ve GERÇEK doğrulama
+   * `domain/economy/mock-deposit.ts`'te yapılır (`InvalidRaceJoinInputError`/
+   * `InvalidGiftAmountError` ile AYNI savunma).
+   *
+   * `@RateLimit` `keyBy: 'player'` — kişiye özel bir uçtur (`assertSelf`),
+   * yani limit oyuncu başına sayılmalıdır. Sayaç limiti
+   * `daily-reward`'dan (5/60 sn) YÜKSEKTİR: burada kazanç sağlayan bir
+   * "ödül" yok, yalnızca kendi cüzdanına sanal para ekleme var, ve
+   * gerçek bir kullanıcı birkaç denemede tutarı düzeltip tekrar
+   * gönderebilir. Asıl koruma `Idempotency-Key` + tek işlem tavanıdır.
+   */
+  @RateLimit({ name: 'wallet-deposit', limit: 10, windowSeconds: 60, keyBy: 'player' })
+  @Post(':id/wallet/deposit')
+  @HttpCode(HttpStatus.OK)
+  @UseInterceptors(IdempotencyInterceptor)
+  @IdempotencyScope('player')
+  async deposit(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() body: { amount?: unknown },
+    @CurrentPlayer() currentPlayer: AuthenticatedPlayer,
+  ): Promise<ApiSuccess<WalletDepositResult>> {
+    assertSelf(currentPlayer.id, id);
+    // `body.amount` bilerek `unknown` olarak geçer: doğrulama domain'de,
+    // hatanın kendi kodunu (`INVALID_DEPOSIT_AMOUNT`) üretecek şekilde
+    // yapılır. `body?.amount` — gövde hiç gönderilmezse `body` `undefined`
+    // olabilir (esbuild altında doğrulanmadığı için bu gerçek bir olasılık).
+    const result = await this.depositFundsUseCase.execute(id, body?.amount);
+    return { success: true, data: result };
+  }
 
   /**
    * Cüzdan + işlem geçmişi — brief §20 "WALLET SYSTEM", §42 PHASE 4.

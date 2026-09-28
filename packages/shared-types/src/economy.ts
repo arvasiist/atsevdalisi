@@ -74,6 +74,29 @@ export const LEDGER_TRANSACTION_TYPES = [
   'practice_race_entry_fee',
   'practice_race_prize',
   'lobby_race_entry_fee',
+  /**
+   * brief §20 DEPOSIT / §21 / §41, §42 PHASE 4b — SANAL (mock) para
+   * yatırma. Tek gerçek fırlatıcısı `deposit-funds.use-case.ts`'tir ve o
+   * use-case yalnızca `MockPaymentProvider` bağlıyken çalışır; yani bu
+   * değerin üretimde GERÇEK para karşılığı YOKTUR. Adı bilerek
+   * `'mock_deposit'`tir, `'deposit'` DEĞİL: gerçek bir sağlayıcı
+   * (Stripe/iyzico) bağlandığında defterde "hangi yatırma gerçek, hangisi
+   * oyuncak" ayrımı KAYBOLMAMALIDIR — bu ayrım olmadan geçmiş kayıtlar
+   * muhasebe açısından zehirlenir (bkz. `docs/WALLET_SYSTEM.md`).
+   */
+  'mock_deposit',
+  /**
+   * brief §20 REFUND, §42 PHASE 4c — yarıştan AYRILMA + giriş ücreti
+   * iadesi. Tek gerçek fırlatıcısı `leave-race.use-case.ts`'tir
+   * (`POST /races/:id/leave`).
+   *
+   * Tutar `races.entry_fee`'den OKUNMAZ, defterin kendisinden okunur: aynı
+   * oyuncunun aynı yarışa yaptığı `lobby_race_entry_fee` satırının ters
+   * işaretli hâlidir. Gerekçe `LeaveLobbyRaceInput` doc yorumunda — kısaca,
+   * ücret politikası değişse bile geçmiş bir katılımın iadesi o katılımın
+   * GERÇEKTE ödediği tutar olmalıdır.
+   */
+  'race_entry_refund',
 ] as const;
 
 export type LedgerTransactionType = (typeof LEDGER_TRANSACTION_TYPES)[number];
@@ -124,6 +147,13 @@ export const CANONICAL_BY_LEDGER_TYPE: Record<LedgerTransactionType, CanonicalTr
   practice_race_entry_fee: 'ENTRY_FEE',
   practice_race_prize: 'PRIZE',
   lobby_race_entry_fee: 'ENTRY_FEE',
+  mock_deposit: 'DEPOSIT',
+  // brief §20 REFUND, §42 PHASE 4c — `lobby_race_entry_fee`'nin TAM
+  // karşıtı: aynı tutar, ters yön. Ayrı bir kanonik tür uydurulmaz
+  // (`REFUND` zaten `BRIEF_TRANSACTION_TYPES` içindedir ve brief §20 onu
+  // açıkça sayar), çünkü cüzdan ekranında "giriş ücreti iadesi" ile
+  // "başka bir iade" ayrımını kanonik tür değil `type` alanı taşır.
+  race_entry_refund: 'REFUND',
 };
 
 /**
@@ -161,4 +191,36 @@ export interface WalletView {
   gems: number;
   transactions: WalletTransaction[];
   hasMore: boolean;
+}
+
+/**
+ * `POST /players/{id}/wallet/deposit` yanıtı (brief §20 DEPOSIT, §21
+ * "Gerçek para entegrasyonunu şimdilik doğrudan hard-code etme", §41
+ * "Sistemi önce Virtual Coin / Mock Wallet olarak geliştir", §42 PHASE 4b).
+ *
+ * ## Neden iki ayrı kimlik döner
+ *
+ * `transactionId` — DEFTER satırının UUID'si (brief §22 "Transaction ID
+ * oluşturulmalı"). Kalıcı, değişmez, `GET /wallet`'ta da görünen
+ * kimliktir; bir uyuşmazlıkta oyuncunun "şu işlem" diye işaret edeceği şey.
+ *
+ * `providerReference` — ÖDEME SAĞLAYICISININ kendi referansı. Mock
+ * sağlayıcıda üretilmiş bir yer tutucudur (`mock_<uuid>`), ama gerçek bir
+ * sağlayıcıda Stripe/iyzico tarafındaki işlem numarası olurdu ve
+ * mutabakat (reconciliation) YALNIZCA onunla yapılabilir. İkisini tek
+ * alanda birleştirmek, sağlayıcı değiştiğinde geriye dönük izlenebilirliği
+ * yok ederdi.
+ *
+ * `newBalance` — sunucunun hesapladığı YENİ bakiye. İstemci bakiyeyi
+ * kendisi toplamaz (brief §22 "Tüm finansal hesaplamalar backend'de
+ * yapılmalı").
+ */
+export interface WalletDepositResult {
+  transactionId: string;
+  amount: number;
+  currency: Currency;
+  newBalance: Pick<Player, 'money' | 'gems'>;
+  /** Sağlayıcının kimliği — şu an her zaman `'mock'`. Gerçek sağlayıcı eklendiğinde ayırt edici alan budur. */
+  providerId: string;
+  providerReference: string;
 }

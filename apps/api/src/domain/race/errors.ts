@@ -251,3 +251,56 @@ export class RaceEntryNotReadyableError extends Error {
     this.name = 'RaceEntryNotReadyableError';
   }
 }
+
+/**
+ * Yarıştan AYRILINAMAZ (brief §20 `REFUND`, §42 PHASE 4c) — yarış
+ * `scheduled` değil, başlangıç zamanı geçmiş ya da katılım zaten iptal
+ * edilmiş. Ret nedeni `RaceLeaveRejection`'dan gelir
+ * (`domain/race/lobby.ts` → `checkRaceLeavable`).
+ *
+ * `RaceEntryNotReadyableError` ile AYNI gerekçeyle 409: istek biçimsel
+ * olarak kusursuz, engelleyen şey DURUMDUR. Ve bu uç PARA İADE ettiği için
+ * "yarış başladı" cevabının DOĞRU olması hayatidir — koşmuş bir yarıştan
+ * iade edilen her kuruş, havuzdan ödül alacak diğer oyunculardan çalınmış
+ * olurdu.
+ */
+export class RaceEntryNotLeavableError extends Error {
+  constructor(public readonly reason: 'NOT_SCHEDULED' | 'ALREADY_STARTED' | 'ALREADY_CANCELLED') {
+    super(
+      reason === 'ALREADY_STARTED'
+        ? 'Yarış başladı, artık ayrılamazsınız.'
+        : reason === 'ALREADY_CANCELLED'
+          ? 'Bu yarıştaki katılımınız zaten iptal edilmiş.'
+          : 'Bu yarıştan ayrılamazsınız.',
+    );
+    this.name = 'RaceEntryNotLeavableError';
+  }
+}
+
+/**
+ * Katılım DAHA ÖNCE İPTAL EDİLMİŞ ve oyuncu aynı yarışa yeniden katılmaya
+ * çalışıyor (409) — `POST /races/:id/join`, §42 PHASE 4c.
+ *
+ * **NEDEN AYRI BİR HATA (`AlreadyJoinedRaceError` YETMEZ):** ikisi FARKLI
+ * durumlardır ve farklı mesajı hak eder. `AlreadyJoinedRaceError`
+ * "zaten katıldınız" der; burada ise ortada AKTİF bir katılım yoktur —
+ * oyuncu ayrılmıştır. Aynı hatayı dönmek "zaten katıldınız" diyerek
+ * yalan söylerdi ve oyuncuyu lobide olmayan bir katılımı aramaya
+ * gönderirdi.
+ *
+ * **YENİDEN KATILMA NEDEN ENGELLENİR:** ayrılan satır `status='cancelled'`
+ * olarak KALIR (silinmez — defterle birlikte denetim izi) ve
+ * `race_entries_race_player_uq` kısmi tekil indeksi (migration 0037)
+ * `player_id` dolu HER satırı kapsar, durumdan bağımsız olarak. Yani bu
+ * bir uygulama tercihi değil, veritabanının koyduğu kuraldır. Tercih
+ * olsaydı da doğru olurdu: ayrıl-yeniden katıl döngüsü, READY durumunu
+ * sıfırlamanın ve havuzu kendi lehine oynatmanın bir yolu olurdu.
+ * Ayrılan oyuncunun BOŞALTTIĞI koltuk BAŞKALARINA açıktır (doluluk
+ * sayımı iptal edilmiş satırları saymaz) — bu ayrım bilinçlidir.
+ */
+export class RaceEntryCancelledError extends Error {
+  constructor(public readonly raceId: string) {
+    super('Bu yarıştaki katılımınızı iptal ettiniz; aynı yarışa yeniden katılamazsınız.');
+    this.name = 'RaceEntryCancelledError';
+  }
+}

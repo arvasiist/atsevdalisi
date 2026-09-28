@@ -4,6 +4,7 @@ import { RACE_REPOSITORY } from '../../application/ports/race.repository';
 import { HORSE_EQUIPMENT_REPOSITORY } from '../../application/ports/horse-equipment.repository';
 import { CreateRaceUseCase } from '../../application/use-cases/create-race.use-case';
 import { JoinRaceUseCase } from '../../application/use-cases/join-race.use-case';
+import { LeaveRaceUseCase } from '../../application/use-cases/leave-race.use-case';
 import { ListLobbyRacesUseCase } from '../../application/use-cases/list-lobby-races.use-case';
 import { SetEntryReadyUseCase } from '../../application/use-cases/set-entry-ready.use-case';
 import { GetHorseMarketValueUseCase } from '../../application/use-cases/get-horse-market-value.use-case';
@@ -68,6 +69,13 @@ import { RecentRacesController } from './recent-races.controller';
     // Yalnızca `RACE_REPOSITORY` taşır; `IdempotencyInterceptor` bilinçli
     // olarak YOKTUR (para yolu değildir, bkz. `SetEntryReadyUseCase`).
     SetEntryReadyUseCase,
+    // brief §20 `REFUND`, §42 PHASE 4c — yarıştan ayrılma + giriş ücreti
+    // iadesi (`POST /races/:id/leave`). Bağımlılık profili `JoinRaceUseCase`
+    // ile AYNIdır (`RACE_REPOSITORY`); `IdempotencyInterceptor` burada da
+    // ayrı bir provider DEĞİLDİR — `@UseInterceptors` sınıfı doğrudan verir
+    // ve interceptor'ın kendi bağımlılıkları (`REDIS_CLIENT`, `PG_POOL`,
+    // `AppConfigService`) kök modülden çözülür (`join` ile AYNI desen).
+    LeaveRaceUseCase,
     GetRecentRaceResultsUseCase,
     // AUDIT_REPORT.md Bulgu R2 (Medium, bu oturum) — bkz. `get-race-timeline.use-case.ts` doc yorumu.
     GetRaceTimelineUseCase,

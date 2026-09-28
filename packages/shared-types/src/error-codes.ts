@@ -249,6 +249,61 @@ export const ErrorCode = {
    * `POST /races/:id/ready` (brief §6, §42 PHASE 3).
    */
   RaceEntryNotReadyable: 'RACE_ENTRY_NOT_READYABLE',
+  /**
+   * Yarıştan ayrılma şu an yapılamaz (409): yarış `scheduled` değil,
+   * başlangıç zamanı gelmiş/geçmiş ya da katılım zaten iptal edilmiş —
+   * `POST /races/:id/leave` (brief §20 REFUND, §42 PHASE 4c).
+   *
+   * **NEDEN 409:** istek biçimsel olarak kusursuzdur ve kaynak (oyuncunun
+   * katılımı) vardır; engelleyen şey KAYNAĞIN DURUMUDUR. Ayrılma geri
+   * alınamaz biçimde ücret iadesi doğurduğu için "önce uygun duruma getir,
+   * sonra tekrar dene" yolu YOKTUR — istemci bu kodu görünce beklemeyi
+   * bırakmalıdır. (`RaceEntryNotReadyable` ile AYNI kategori.)
+   */
+  RaceEntryNotLeavable: 'RACE_ENTRY_NOT_LEAVABLE',
+  /**
+   * Oyuncu bu yarıştaki katılımını DAHA ÖNCE iptal etmiş (409) —
+   * `POST /races/:id/join` (brief §20 REFUND, §42 PHASE 4c).
+   *
+   * **NEDEN AYRI KOD:** eski davranış `ALREADY_JOINED_RACE` dönmek
+   * olurdu, ama o mesaj YANLIŞTIR — oyuncu yarışta DEĞİLDİR, iptal
+   * etmiştir ve yeniden katılması BİLİNÇLİ olarak engellenmiştir
+   * (`race_entries_race_player_uq` tekilliği `status`'tan bağımsızdır;
+   * ayrıl-katıl döngüsü READY bayrağını sıfırlayıp oyuncuya havuzu
+   * oynama imkânı verirdi — gerekçenin tamamı `RaceEntryCancelledError`
+   * doc yorumunda).
+   */
+  RaceEntryCancelled: 'RACE_ENTRY_CANCELLED',
+  /**
+   * SANAL para yatırma KAPALI (403) — brief §21/§41, §42 PHASE 4b.
+   * `domain/economy/errors.ts` → `MockDepositDisabledError`.
+   *
+   * **NEDEN 403 (404/409 DEĞİL):** istek biçimsel olarak kusursuzdur ve
+   * kaynak da vardır; engelleyen şey SUNUCU TARAFINDAKİ bir yapılandırma
+   * kararıdır — yani "kimlik doğrulandı, bu işlem bu sunucuda yapılamaz"
+   * (`RaceTicketRequiredError` ile AYNI kategori). 409 olamaz çünkü
+   * duruma bağlı GEÇİCİ bir engel değildir; 404 olamaz çünkü kaynak
+   * (oyuncunun cüzdanı) gerçekten vardır.
+   *
+   * Bu kod üretimde (NODE_ENV=production) HER ZAMAN döner: mock sağlayıcı
+   * orada kendini kapalı ilan eder (bkz. `MockPaymentProvider.isEnabled`).
+   */
+  MockDepositDisabled: 'MOCK_DEPOSIT_DISABLED',
+  /**
+   * Yatırma tutarı geçersiz (400): tam sayı değil, sıfır/negatif, ya da
+   * `economy.config.json` → `mockDeposit.minAmount`/`maxAmount` aralığının
+   * dışında — `domain/economy/errors.ts` → `InvalidDepositAmountError`.
+   *
+   * **`ValidationError` DEĞİL, KENDİ KODU:** bu uç noktanın gövdesi
+   * (`{ amount }`) `ValidationPipe`'a BIRAKILAMAZ — CLAUDE.md kural 5
+   * gereği esbuild altında DTO dekoratörleri atlanır, yani doğrulama
+   * ÇALIŞMA ANINDA domain katmanında yapılır (bkz.
+   * `domain/economy/mock-deposit.ts`). İstemcinin "hangi alan bozuk"
+   * sorusunu ayırt edebilmesi için (bu, tek alanlı bir uçtur — mesaj
+   * zaten nedeni söyler, ama kod da tutarlı olmalı) kendi kodu vardır;
+   * `InvalidGiftAmount` ile AYNI desen ve AYNI gerekçe.
+   */
+  InvalidDepositAmount: 'INVALID_DEPOSIT_AMOUNT',
 } as const;
 
 export type ErrorCodeValue = (typeof ErrorCode)[keyof typeof ErrorCode];

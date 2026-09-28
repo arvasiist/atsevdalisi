@@ -251,6 +251,53 @@ export interface RaceRepository {
    * — `joinLobbyRace` ile AYNI desen.
    */
   setEntryReady(input: SetEntryReadyInput): Promise<RaceLobbyView>;
+
+  /**
+   * Oyuncuyu katıldığı lobi yarışından ÇIKARIR, giriş ücretini İADE eder ve
+   * güncel lobi görünümünü döner (brief §20 `REFUND`, §42 PHASE 4c).
+   *
+   * **PARA YOLU (CLAUDE.md kural 7) — `joinLobbyRace`'in TAM TERSİ.**
+   * `races` satırı kilitlenir, oyuncunun katılım satırı `status='cancelled'`
+   * yapılır, `prize_pool` ödenen ücret kadar AZALTILIR, bakiye iade edilir
+   * ve AYNI transaction'da `race_entry_refund` (`REFUND` ailesi) defter
+   * kaydı yazılır. Dördü birlikte değilse havuz ile gerçek para ayrışır.
+   *
+   * **İADE TUTARI `races.entry_fee`'DEN DEĞİL, DEFTERDEN OKUNUR.** O an
+   * geçerli ücret ile oyuncunun GERÇEKTE ödediği tutar aynı olmak zorunda
+   * olsa da, iadeyi "şu anki ücret" üzerinden hesaplamak ileride ücret
+   * güncellenebilir hâle geldiğinde sessizce yanlış tutar iade ederdi.
+   * Defter zaten "ne ödendi" sorusunun tek doğruluk kaynağıdır.
+   *
+   * **KİLİT SIRASI: `races` → `race_entries` → `players`.** İlk iki adım
+   * `setEntryReady` ile, ilk adım `joinLobbyRace` ile AYNIdır; ortak ilk
+   * kilit `races` olduğu için bu üç yol arasında çapraz kilitlenme
+   * (deadlock) oluşamaz.
+   *
+   * Hata FIRLATIR: `RaceNotFoundError` (404), `RaceEntryNotFoundError`
+   * (404), `RaceEntryNotLeavableError` (409) — `joinLobbyRace` ile AYNI
+   * desen. Ücretsiz yarışta (ödenmiş ücret yoksa) `players` satırına HİÇ
+   * dokunulmaz ve defter satırı YAZILMAZ: `economy_transactions.amount <> 0`
+   * kısıtı sıfır tutarlı bir satırı zaten reddederdi.
+   */
+  leaveLobbyRace(input: LeaveLobbyRaceInput): Promise<RaceLobbyView>;
+}
+
+/**
+ * `RaceRepository.leaveLobbyRace` (brief §20, §42 PHASE 4c) girdi şekli.
+ *
+ * `playerId` **`CurrentPlayer()`'dan gelir, gövdeden ASLA** (CLAUDE.md
+ * kural 1): aksi hâlde bir oyuncu başkasını yarıştan atıp parasını iade
+ * ettirebilirdi (IDOR). Gövde alanı YOKTUR — ayrılma isteğinin tek
+ * parametresi yoldan gelen `raceId`'dir.
+ */
+export interface LeaveLobbyRaceInput {
+  raceId: string;
+  /** Ayrılan oyuncu — `CurrentPlayer()`. */
+  playerId: string;
+  /** Şu an — `checkRaceLeavable`'a geçirilir; test edilebilirlik için parametredir. */
+  now: Date;
+  /** Başlıktan geçer ve İADE defter satırına yazılır — `joinLobbyRace` ile AYNI gerekçe. */
+  idempotencyKey: string | null;
 }
 
 /**
