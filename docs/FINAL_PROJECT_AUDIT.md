@@ -65,7 +65,7 @@ CI'dır."*
 | 13 | At pazarı (market) | `IMPLEMENTED` | Evet |
 | 14 | At değerleme (market-value) | `IMPLEMENTED` | Evet |
 | 15 | Soy ağacı (pedigree) okuma | `IMPLEMENTED` | Evet |
-| 16 | Yetiştiricilik (breeding) | `PARTIAL` | Koşullu |
+| 16 | Yetiştiricilik (breeding) | `IMPLEMENTED` | Evet |
 | 17 | Genetik domain | `PARTIAL` | Koşullu |
 | 18 | Jokey vitrini ve kiralama | `PARTIAL` | Koşullu |
 | 19 | Jokey → motor etkisi | `IMPLEMENTED` | Evet |
@@ -92,22 +92,33 @@ CI'dır."*
 | 40 | Yarış sohbeti ve izleyici sayısı | `IMPLEMENTED` | Evet |
 | 41 | Bildirimler | `IMPLEMENTED` | Evet |
 | 42 | Yarış daveti | `IMPLEMENTED` | Evet |
-| 43 | Arkadaşlık | `PARTIAL` | Koşullu |
+| 43 | Arkadaşlık | `IMPLEMENTED` | Evet |
 | 44 | Doğrudan mesajlar | `IMPLEMENTED` | Evet |
 | 45 | Hediye | `IMPLEMENTED` | Evet |
-| 46 | Blok ve şikâyet | `API ONLY` | Hayır |
-| 47 | Yönetim uçları (7 uç) | `API ONLY` | Hayır |
+| 46 | Blok ve şikâyet | `IMPLEMENTED` | Evet |
+| 47 | Yönetim uçları (7 uç) | `IMPLEMENTED` | Evet |
 | 48 | Denetim günlüğü (`admin_audit_log`) | `IMPLEMENTED` | Evet |
-| 49 | Sıralama (leaderboard) | `PARTIAL` | Koşullu |
+| 49 | Sıralama (leaderboard) | `IMPLEMENTED` | Evet |
 | 50 | Bağlanmamış domain modülleri (kulüp/sezon/turnuva/progression) | `DOMAIN ONLY` | Hayır |
 | 51 | 3D sunum ve ses | `PARTIAL` | Hayır (asset bekliyor) |
 
-**Sayım:** `IMPLEMENTED` 32 · `PARTIAL` 14 · `API ONLY` 2 · `DOMAIN ONLY` 1 ·
+**Sayım:** `IMPLEMENTED` 37 · `PARTIAL` 10 · `API ONLY` 0 · `DOMAIN ONLY` 1 ·
 `MISSING`/`BROKEN`/`UI ONLY`/`NOT WIRED` **0**.
 
-**Üretime hazır: 32/51.** Geriye kalan 19 maddenin 9'u **bilinçli** olarak
+**Üretime hazır: 37/51.** Geriye kalan 14 maddenin 9'u **bilinçli** olarak
 ertelendi (asset bekleyen 1, sahibin kararını bekleyen 1, tasarım gereği
 istemci tüketicisi olmayan 2, oyun dengesi kararı bekleyen 5).
+
+> ⚠️ **29.09.2026 — `PARTIAL` 11 → 10.** #16 (yetiştiricilik) `IMPLEMENTED`
+> oldu: `BreedingPanel` `/stable`a bağlandı. Bu sayımı güncellememek, bu
+> belgenin daha önce **iki kez** düştüğü tuzağın ta kendisidir (bkz.
+> aşağıdaki `API ONLY` notu).
+
+⚠️ **`API ONLY` SAYISI ARTIK SIFIRDIR.** Bu satır 29.09.2026'ya kadar 2
+gösteriyordu (#46 ve #47) ve **bayattı**: iki dilim boyunca (#47 yönetim
+paneli, #43/#49 `username`) arayüzler yazıldı ama bu tablo güncellenmedi.
+Bir sayım tablosunu güncellememek, tek tek satırları güncellememekten daha
+kötüdür — okuyan kişi "panel yok" diye yeni bir panel yazmaya kalkar.
 
 ---
 
@@ -481,24 +492,36 @@ vardır: Durum · Backend · Frontend · Database · API · WebSocket · Tests �
 
 ### 16. Yetiştiricilik (breeding)
 
-- **Durum:** `PARTIAL`
+- **Durum:** `IMPLEMENTED`
 - **Backend:** `BreedingController` — `POST /players/:id/breeding`; tay
   doğumu pedigriye kaydolur. `breeding_center` tesisi risk çarpanını düşürür.
-- **Frontend:** **Yok** — `/stable` üzerinden bir yetiştirme yüzeyi
-  bulunmuyor.
+- **Frontend:** **VAR (29.09.2026).** `apps/web/src/features/breeding/
+  BreedingPanel.tsx` — `/stable` sayfasında, at kartlarının üstünde.
+  Kısrak + aygır + tay adı toplar; aygır listesi kendi aygırlarıdır, ayrıca
+  başka bir oyuncunun aygırı için UUID girilebilir (`GET /horses/:id` zaten
+  `@Public()`tir — **yeni bir "aygır pazarı" ucu İCAT EDİLMEDİ**). Sonuç
+  paneli tayı, `fee`yi, `inbreedingDetected` uyarısını ve
+  `birthHealthRisk`i **yanıttan** gösterir; istemci hiçbir tutar HESAPLAMAZ.
 - **Database:** `breeding_pairs`, `pedigrees`, `horses`.
 - **API:** `/api/v1/players/:id/breeding`.
 - **WebSocket:** ilgisiz.
-- **Tests:** `test/api/breeding*.e2e-spec.ts`, `test/domain/genetics/`.
-- **Üretime hazır:** Koşullu.
-- **Eksik:** İstemci tüketicisi yok; ayrıca soy yakınlığı (inbreeding)
-  kuralı domain'de var ama kullanıcıya hiç gösterilmiyor.
-- **Risk:** Orta — oyuncu üreme yapamıyor; genetik sistem oyuncuya kapalı.
-- **Sıradaki adım:** `/breeding` (veya `/stable` sekmesi) — damızlık seç,
-  uyum/soy yakınlığı uyarısını **sunucudan gelen** sayılarla göster, doğum
-  sonucunu bildir.
+- **Tests:** `test/api/breeding.e2e-spec.ts`, `test/domain/genetics/`,
+  `apps/web/test/lib/api-client.spec.ts` (URL/gövde + `Idempotency-Key`),
+  `apps/web/test/features/breeding/BreedingPanel.spec.tsx` (anahtar yaşam
+  döngüsü + sunucu otoritesi).
+- **Üretime hazır:** Evet.
+- **Eksik:** Yok. (`inbreedingDetected` artık kullanıcıya gösteriliyor.)
+- **Risk:** Düşük — para yolu sunucuda, `FOR UPDATE` + aynı transaction'da
+  defter çiftiyle; arayüz yalnızca girdi toplar.
+- **Sıradaki adım:** —
+- **İstemcide iki kural (bozulmamalı):** (1) `Idempotency-Key`
+  **başarısızlıkta YAŞAR** (`wallet/page.tsx` deseni) — burada zarar
+  "ikinci bir TAY"dır, `grandstand`'ın "her basışta yeni anahtar" kararından
+  bilerek ayrılır. (2) Aygır seçimi değişince **bekleyen anahtar
+  bırakılır**; bırakılmazsa oyuncu yeni bir çiftleştirme yaptığını sanırken
+  sunucu ilk isteğin saklanan yanıtını döner ve **hiçbir şey olmaz**.
 - **Kaynak:** `apps/api/src/api/breeding/breeding.controller.ts`,
-  `apps/api/src/domain/genetics/`.
+  `apps/api/src/domain/genetics/`, `apps/web/src/features/breeding/`.
 
 ---
 
@@ -1083,21 +1106,25 @@ vardır: Durum · Backend · Frontend · Database · API · WebSocket · Tests �
 
 ### 43. Arkadaşlık
 
-- **Durum:** `PARTIAL`
+- **Durum:** `IMPLEMENTED` (29.09.2026 — `username` alanı eklendi)
 - **Backend:** istek gönder/yanıtla/kaldır; mesaj ve hediye akışı bunun
   üstünde çalışır. `@RateLimit` kapsamı `phase16-hardening.spec.ts` ile
   kapalı küme olarak iddia edilir.
-- **Frontend:** `/friends` (gelen kutusu + konuşma da burada).
+- **Frontend:** `/friends` (gelen kutusu + konuşma da burada). Her satırın
+  adı artık `/profile/:username`e bağlıdır — `SocialPlayerView` **`username`
+  taşır** ve `RowLabel` adresi TEK bir yerde kurar.
 - **Database:** `friendships`.
-- **API:** `/api/v1/social/friends/*`.
+- **API:** `/api/v1/players/:id/social`, `/api/v1/players/:id/friend-requests`,
+  `/api/v1/players/:id/friends/:friendId`.
 - **WebSocket:** ilgisiz (bildirim üzerinden).
-- **Tests:** `test/api/social*.e2e-spec.ts`, `test/security/phase16-hardening.spec.ts`.
-- **Üretime hazır:** Koşullu.
-- **Eksik:** `SocialPlayerView` **`username` taşımaz** → arkadaş listesinden
-  arkadaşın profiline gidilemez.
-- **Risk:** Orta — sosyal grafik görünür ama gezilemez.
-- **Sıradaki adım:** `username` alanını ekle, satırı `/profile/:username`e
-  bağla.
+- **Tests:** `test/api/social*.e2e-spec.ts`, `test/api/gift.e2e-spec.ts`,
+  `test/security/phase16-hardening.spec.ts`.
+- **Üretime hazır:** **Evet.**
+- **Eksik:** Yok.
+- **Risk:** `SocialPlayerView`i genişleten HER tip `username`i otomatik alır
+  (arkadaş, istek, engel, hediye karşı tarafı) — bu bilinçlidir, ama
+  `money`/`gems`in o tipe **girmemesi** kuralı aynen sürer; tam küme
+  karşılaştırması `gift.e2e-spec.ts`te kilitlidir.
 - **Kaynak:** `apps/api/src/api/social/social.controller.ts`.
 
 ---
@@ -1143,43 +1170,65 @@ vardır: Durum · Backend · Frontend · Database · API · WebSocket · Tests �
 
 ### 46. Blok ve şikâyet
 
-- **Durum:** `API ONLY` (§13.16, brief §33)
+- **Durum:** `IMPLEMENTED` (§13.16 backend + 29.09.2026 istemci)
 - **Backend:** 4 uç — blokla, engeli kaldır, engel listesi, şikâyet.
-- **Frontend:** **Yok.**
+- **Frontend:** **VAR (29.09.2026).** `/profile/:username` → "Güvenlik"
+  paneli (Engelle / Engeli Kaldır + kategori seçimli şikâyet formu).
+  `/friends` → "Engellenenler" bölümü (Engeli Kaldır). `apiClient`'a dört
+  metot eklendi (`listBlockedPlayers`, `blockPlayer`, `unblockPlayer`,
+  `reportPlayer`).
 - **Database:** `player_blocks`, `player_reports`.
-- **API:** `/api/v1/social/blocks`, `/api/v1/social/reports`.
+- **API:** `/api/v1/players/:id/blocks` (GET/POST),
+  `/api/v1/players/:id/blocks/:blockedId` (DELETE),
+  `/api/v1/players/:id/reports` (POST). **Controller prefix'i BOŞTUR** —
+  yollar `players/:id/...` eksenindedir (bu satır eskiden
+  `/api/v1/social/blocks` diyordu ve **yanlıştı**).
 - **WebSocket:** ilgisiz.
-- **Tests:** `test/api/moderation.spec.ts`.
-- **Üretime hazır:** Hayır (istemci tüketicisi yok).
-- **Eksik:** Arayüz.
+- **Tests:** `test/api/moderation.spec.ts` (sunucu),
+  `test/api/body-uuid-shape.e2e-spec.ts` (gövde UUID kapısı),
+  `apps/web/test/lib/api-client.spec.ts` (istemci sözleşmesi).
+- **Üretime hazır:** **Evet.**
+- **Eksik:** Yok.
 - **Risk:** **Engelleme yönlüdür** — `(blocker_id, blocked_id)` sıralı
   çifttir; doğru soru "aralarında **herhangi bir yönde** engel var mı"dır
   (`isBlockedBetween`). Normalize etmeye kalkışmak engeli tek yönde delik
   bırakır. Ayrıca **`PLAYER_BLOCKED` yön sızdırmaz** — engelleyen de
   engellenen de aynı kodu alır; ikinci bir kod eklemek engellenene "seni
   engelledi" bilgisini verir.
-- **Sıradaki adım:** `/friends` ve profillere blok/şikâyet düğmesi.
-- **Kaynak:** `apps/api/src/api/social/social.controller.ts`.
+- **⚠️ İSTEMCİDE İKİ TUZAK:** (1) **"Engelli mi" bilgisi profilden
+  OKUNAMAZ** — `GET /players/profile/:username` `@Public()`'tir ve orada
+  engel durumu yoktur; olsaydı "seni engelledi mi" sorusu herkese açık bir
+  uçtan cevaplanırdı. Tek meşru kaynak kendi engel listesidir. (2)
+  **Şikâyet kategorisi istemcide LİSTELENMEZ**, yalnızca etiketleri
+  tutulur — kümenin tek kaynağı `domain/social/moderation.ts`tir.
+- **Kaynak:** `apps/api/src/api/social/social.controller.ts`,
+  `apps/web/src/app/profile/[username]/page.tsx`,
+  `apps/web/src/app/friends/page.tsx`.
 
 ---
 
 ### 47. Yönetim uçları (7 uç)
 
-- **Durum:** `API ONLY` (§13.17 + §13.18 + §13.19, PHASE 15-B)
+- **Durum:** `IMPLEMENTED` (§13.17 + §13.18 + §13.19 backend; panel
+  29.09.2026)
 - **Backend:** `GET /admin/reports`, `PATCH /admin/reports/:reportId`,
   `GET /admin/audit-log`, `GET /admin/players`, `GET /admin/races`,
   `GET /admin/transactions`, `POST /admin/races/:raceId/cancel`.
-- **Frontend:** **Yok.**
+- **Frontend:** **VAR** — `/admin`. Beş okuma sekmesi (şikâyet kuyruğu,
+  oyuncular, yarışlar, işlemler, denetim günlüğü) + şikâyet durum
+  güncelleme + yarış iptali. Yedi ucun YEDİSİ de tüketilir.
 - **Database:** `player_reports`, `admin_audit_log`, `players.is_admin`.
 - **API:** `/api/v1/admin/*` — **hiçbiri `@Public()` değildir ve
   olmayacaktır.**
 - **WebSocket:** ilgisiz.
 - **Tests:** `test/api/admin.e2e-spec.ts`.
-- **Üretime hazır:** Hayır (panel yok).
-- **Eksik:** Panel. Ayrıca `Pause` **imkânsız** (`races.status`ta `paused`
+- **Üretime hazır:** **Evet.**
+- **Eksik:** Yok. `Pause` **imkânsız** (`races.status`ta `paused`
   yok, `in_progress`u yazan kod yok); `Finish` başka uçta (§13.14);
   **`Chat Reports` yok ve uydurulmamalı** — sohbete bağlı şikâyet diye bir
   olgu projede yoktur (`player_reports` bir oyuncuya bağlıdır, mesaja değil).
+  Bunların hiçbiri "eksik" DEĞİLDİR; sunucuda karşılığı olmayan bir şeyi
+  uydurmamak bilinçli bir karardır.
 - **Risk:** (1) **Yönetici rolü token'a gömülmez** — `players.is_admin`
   her istekte okunur, önbelleğe alınmaz; (2) **403 önce, 404 sonra** —
   yönetici olmayana `REPORT_NOT_FOUND` döndürmek kimlik denemeye izin verir;
@@ -1187,8 +1236,7 @@ vardır: Durum · Backend · Frontend · Database · API · WebSocket · Tests �
   okuma uçları bakiye taşır** — `@Public()` eklemek bu ayrımı tek satırda
   yok eder; (5) `config/admin.config.json` bir **yetki kapısı değildir**,
   yalnızca liste boyutudur.
-- **Sıradaki adım:** `/admin` paneli (şikâyet kuyruğu + okuma ekranları +
-  yarış iptali).
+- **Sıradaki adım:** —
 - **Kaynak:** `apps/api/src/api/admin/admin.controller.ts`.
 
 ---
@@ -1215,23 +1263,27 @@ vardır: Durum · Backend · Frontend · Database · API · WebSocket · Tests �
 
 ### 49. Sıralama (leaderboard)
 
-- **Durum:** `PARTIAL`
+- **Durum:** `IMPLEMENTED` (29.09.2026 — `username` alanı eklendi)
 - **Backend:** `GET /leaderboard` — `@Public()`, `GetLeaderboardUseCase`;
   puanlama `domain/ranking/leaderboard.ts`te saf fonksiyondur.
-- **Frontend:** `/leaderboard` — tablo **GERÇEKTEN BAĞLI**; ayrıca her
+- **Frontend:** `/leaderboard` — tablo **GERÇEKTEN BAĞLI**; satır adı artık
+  `/profile/:username`e gider (`LeaderboardRowView.username`). Ayrıca her
   satırda "Arkadaş Ekle" düğmesi vardır (sıralama, başka oyuncunun
   `playerId`'sini gören tek yüzeydir; ayrı bir "oyuncu ara" ucu
   **uydurulmadı** — enumerasyon yüzeyi olurdu).
 - **Database:** bitirilmiş yarışlardan türetilir (`race_entries`).
 - **API:** `GET /api/v1/leaderboard`.
 - **WebSocket:** ilgisiz.
-- **Tests:** `test/api/leaderboard.e2e-spec.ts`.
-- **Üretime hazır:** Koşullu.
-- **Eksik:** `LeaderboardRowView` **`username` taşımaz** → satırdan
-  profiline gidilemez. Sayfalama yok (ilk N).
+- **Tests:** `test/api/leaderboard.e2e-spec.ts` (sunucu; her satırın
+  `username`i `players` tablosundaki gerçek değerle karşılaştırılır ve o
+  adın gerçekten 200 dönen bir profile çözüldüğü kanıtlanır),
+  `apps/web/test/lib/api-client.spec.ts`.
+- **Üretime hazır:** **Evet.**
+- **Eksik:** Yok. Sayfalama YOKTUR ama bu bir eksik değil, bilinçli bir
+  üst sınırdır (`LEADERBOARD_TOP_N = 50` — sunucu kırpar, istemci kırpmaz).
 - **Risk:** İstemci puanı **yeniden hesaplamamalı**; sunucudan gelen
   `rank`/`score`/`raceCount` yalnızca gösterilir.
-- **Sıradaki adım:** `username` ekle + profiline bağla.
+- **Sıradaki adım:** —
 - **Kaynak:** `apps/api/src/api/leaderboard/leaderboard.controller.ts`,
   `apps/web/src/app/leaderboard/page.tsx`.
 
@@ -1291,15 +1343,22 @@ vardır: Durum · Backend · Frontend · Database · API · WebSocket · Tests �
 |---:|---|---|
 | 1 | **3D/ses varlıkları** | Tek karar bekleyen konu; çözülene kadar brief'in kendi kapsamı dışında. |
 | 2 | **OAuth kimlik bilgileri** | `POST /auth/login` pratikte çalışmıyor; gerçek giriş olmadan üretim yok. |
-| 3 | **Yönetim paneli (#47)** | 7 uç hazır, tek eksik arayüz; moderasyon kuyruğu bugün elle SQL ile yönetiliyor. |
-| 4 | **Blok/şikâyet arayüzü (#46)** | 4 uç hazır; oyuncu kendini koruyamıyor. |
-| 5 | **Yetiştirme yüzeyi (#16)** | Genetik + pedigri zinciri tam, oyuncuya kapalı. |
-| 6 | **Jokey yüzeyi + serbest bırakma (#18)** | Jokey motora giriyor ama seçilemiyor. |
-| 7 | **`username` alanı (#3, #43, #49)** | Tek alan; üç sosyal yüzeyi birden açıyor. |
-| 8 | **Ayrılma düğmesi (#23)** | Sunucu hazır, arayüz yok. |
-| 9 | **Tribün iade penceresi (#37)** | Bilet, yarış bittikten sonra da iade edilebiliyor. |
-| 10 | **Matchmaking zamanlayıcısı (#21)** | Senkron eşleştirme gerçek oyuncu azken boş döner. |
-| 11 | **Kulüp/sezon/turnuva (#50)** | En büyük eksik özellik kümesi; yeni bir faz gerektirir. |
+| 3 | **Jokey yüzeyi + serbest bırakma (#18)** | Jokey motora giriyor ama seçilemiyor. |
+| 4 | **Ayrılma düğmesi (#23)** | Sunucu hazır, arayüz yok. |
+| 5 | **Tribün iade penceresi (#37)** | Bilet, yarış bittikten sonra da iade edilebiliyor. |
+| 6 | **Matchmaking zamanlayıcısı (#21)** | Senkron eşleştirme gerçek oyuncu azken boş döner. |
+| 7 | **Kulüp/sezon/turnuva (#50)** | En büyük eksik özellik kümesi; yeni bir faz gerektirir. |
+
+> ⚠️ **29.09.2026:** **Yetiştirme yüzeyi (#16)** bu tablodan **çıkarıldı** —
+> `BreedingPanel` yazıldı ve `/stable`a bağlandı. Satır silinip kalanlar
+> yeniden numaralandırılmazsa, sıradaki dilimi seçen kişi **bitmiş** bir işi
+> yeniden yapar (bu tablo iki kez bayatladı; bkz. yukarıdaki not).
+
+**Bu tablodan ÇIKARILANLAR (29.09.2026):** ~~Yönetim paneli (#47)~~,
+~~Blok/şikâyet arayüzü (#46)~~, ~~`username` alanı (#3, #43, #49)~~ —
+üçü de yazıldı. Tabloyu güncellememek, sıradaki dilimi seçen kişiye
+**bitmiş bir işi yeniden yaptırır**; bu yüzden tamamlanan satır burada
+tutulmaz, §2 tablosunda `IMPLEMENTED` olarak durur.
 
 ---
 

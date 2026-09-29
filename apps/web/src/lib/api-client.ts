@@ -6,6 +6,8 @@ import type {
   AdminReportListResult,
   AdminTransactionListResult,
   AuthSession,
+  BlockedPlayerView,
+  BreedingResultView,
   BuyFeedResult,
   CareActionType,
   ClaimDailyRewardResult,
@@ -42,7 +44,10 @@ import type {
   RaceTicketView,
   RaceTimelineView,
   RecentRaceResultView,
+  RemoveBlockResult,
   RemoveFriendResult,
+  ReportCategory,
+  ReportPlayerResult,
   ReportStatus,
   RespondFriendRequestResult,
   RespondRaceInviteResult,
@@ -243,6 +248,39 @@ export const apiClient = {
    * ataları `null` olan bir ağaç döner (404 DEĞİL), bkz. `HorsePedigreeView`.
    */
   getHorsePedigree: (horseId: string) => request<HorsePedigreeView>(`/horses/${horseId}/pedigree`),
+
+  /**
+   * Çiftleştirme — `POST /players/:id/breeding` (brief §18). Soy ağacı veri
+   * zincirinin **YAZMA** yarısıdır (`getHorsePedigree` okuma yarısı).
+   *
+   * **BİR PARA YOLUDUR ve `Idempotency-Key` ZORUNLUDUR** (`depositFunds`/
+   * `upgradeStable` ile AYNI sınıf): aygır BAŞKA bir oyuncunun ise damızlık
+   * ücreti kısrak sahibinden aygır sahibine transfer edilir ve aynı
+   * transaction'da İKİ defter satırı (`breeding_stud_fee_debit`/`_credit`)
+   * yazılır. Aynı sahip kendi atlarını çiftleştirirse ücret 0'dır ve hiçbir
+   * para hareketi olmaz — bu bir SUNUCU kararıdır; istemci ücreti ne
+   * hesaplar ne tahmin eder, yalnızca yanıttaki `fee` alanını gösterir.
+   *
+   * **Anahtar BAŞARISIZLIKTA YAŞAMALIDIR** (`depositFunds` ile AYNI desen,
+   * `grandstand`'ın "her basışta yeni anahtar" kararından BİLEREK AYRILIR):
+   * burada zarar "ikinci bir TAY"dır — geri alınamayan bir envanter + soy
+   * kaydı. Sunucu hata durumunda `pending` rezervasyonu SİLER
+   * (`idempotency.interceptor.ts` → `tap({ error })`), yani anahtarı korumak
+   * bayat bir hatayı tekrarlamaz; ilk istek gerçekten başarılı olup yanıt
+   * ağda kaybolduysa tekrar AYNI anahtarla gider ve sunucu SAKLANAN yanıtı
+   * döner — ikinci bir tay doğmaz.
+   *
+   * Gövde YALNIZCA `{ mareId, stallionId, foalName }` taşır: sahiplik ve
+   * uygunluk (yaş/cinsiyet/cooldown/pazar ilanı/akrabalık) SUNUCUDA, KİLİTLİ
+   * satırlardan doğrulanır; tayın statları `pairId` seed'iyle sunucuda
+   * üretilir. İstemci hiçbir sayı GÖNDERMEZ.
+   */
+  breedHorses: (playerId: string, mareId: string, stallionId: string, foalName: string, idempotencyKey: string) =>
+    request<BreedingResultView>(`/players/${playerId}/breeding`, {
+      method: 'POST',
+      headers: { 'Idempotency-Key': idempotencyKey },
+      body: JSON.stringify({ mareId, stallionId, foalName }),
+    }),
 
   /**
    * DÜZELTME (Faz 2, görsel kalite planı) — önceden `GET /stable/summary
@@ -619,6 +657,71 @@ export const apiClient = {
    */
   removeFriend: (playerId: string, friendId: string) =>
     request<RemoveFriendResult>(`/players/${playerId}/friends/${friendId}`, { method: 'DELETE' }),
+
+  /**
+   * BLOK / ŞİKÂYET (brief §33, §42 PHASE 15 — istemci tarafı, 29.09.2026).
+   * Dört uç nokta `PROJE_DURUMU.md` §13.16'dan beri SUNUCUDA hazırdı; eksik
+   * olan yalnızca istemciydi. Dördü de `assertSelf` ile korunur, yani
+   * `playerId` HER ZAMAN çağıranın kendi kimliğidir — başkası adına
+   * engelleme/şikâyet yolu YOKTUR.
+   *
+   * **`Idempotency-Key` YOKTUR ve olmamalıdır:** bu dört uç para/mülkiyet
+   * değiştirmez. Engelleme zaten İDEMPOTENTTİR (ikinci çağrı 201 döner,
+   * ikinci satır yazmaz); şikâyet ise bilinçli olarak idempotent DEĞİLDİR
+   * (tekrarlayan şikâyet moderasyon için bir sinyaldir) — oraya anahtar
+   * koymak o sinyali sustururdu. Spam savunması sunucudaki `@RateLimit`tir
+   * (engel 60/dk, şikâyet 20/dk).
+   */
+
+  /**
+   * KENDİ engel listem. **Yalnızca tek yön:** "beni engelleyenler" diye bir
+   * liste YOKTUR ve sunucudan istenemez (brief §33 — engelleme sessiz bir
+   * mesafedir; karşı tarafa "seni engelledi" bilgisini veren her yüzey o
+   * amacı bozar).
+   */
+  listBlockedPlayers: (playerId: string) =>
+    request<BlockedPlayerView[]>(`/players/${playerId}/blocks`, { method: 'GET' }),
+
+  /**
+   * Bir oyuncuyu engeller. **`blockedId` GÖVDE alanıdır** — sunucudaki
+   * `ParseUUIDPipe` ona uzanmaz, bu yüzden sunucu ayrıca `isUUID` kapısı
+   * tutar (`social.controller.ts`). İstemci burada ikinci bir doğrulama
+   * YAPMAZ: `playerId` zaten sunucudan gelen bir UUID'dir.
+   */
+  blockPlayer: (playerId: string, blockedId: string) =>
+    request<BlockedPlayerView>(`/players/${playerId}/blocks`, {
+      method: 'POST',
+      body: JSON.stringify({ blockedId }),
+    }),
+
+  /**
+   * Engeli kaldırır (200 + gövde, 204 DEĞİL — `RemoveBlockResult` gerekçesi).
+   * Engel YOKSA sunucu 404 döner; istemci bunu "sessiz başarı" saymaz.
+   */
+  unblockPlayer: (playerId: string, blockedId: string) =>
+    request<RemoveBlockResult>(`/players/${playerId}/blocks/${blockedId}`, { method: 'DELETE' }),
+
+  /**
+   * Bir oyuncuyu şikâyet eder.
+   *
+   * **`category` İSTEMCİDE TİP OLARAK DARALTILMAZ, `ReportCategory` ile
+   * VERİLİR:** geçerli kümenin TEK kaynağı `domain/social/moderation.ts` →
+   * `REPORT_CATEGORIES`dir ve sunucu geçersiz bir değeri 400
+   * (`InvalidReportCategoryError`) ile reddeder. İstemcide ikinci bir liste
+   * tutmak, kategori eklendiğinde sessizce ayrışırdı.
+   *
+   * **`reason` BOŞKEN GÖNDERİLMEZ:** sunucu eksik gerekçeyi `null`a
+   * indirger, yani `reason: ''` göndermek sözleşmeyi değiştirmez — ama boş
+   * bir alanı "doldurulmuş" gibi taşımak, moderasyon kuyruğunda gerekçesi
+   * olan bir şikâyet izlenimi verirdi.
+   */
+  reportPlayer: (playerId: string, reportedId: string, category: ReportCategory, reason?: string) =>
+    request<ReportPlayerResult>(`/players/${playerId}/reports`, {
+      method: 'POST',
+      body: JSON.stringify(
+        reason !== undefined && reason.length > 0 ? { reportedId, category, reason } : { reportedId, category },
+      ),
+    }),
 
   /** Mesaj gönderir (`POST`, 201). Arkadaşlık kapısı sunucudadır (`NOT_FRIENDS`, 403). */
   sendMessage: (playerId: string, recipientId: string, body: string) =>

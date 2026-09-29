@@ -35,12 +35,33 @@
  * modeli yok — yeni migration gerektirir). `null` gelen bir alanı boş
  * liste gibi göstermek "hiç başarımın yok" demek olurdu; bu ekran bunun
  * yerine durumu AÇIKÇA söyler.
+ *
+ * **BLOK / ŞİKÂYET (29.09.2026).** Dört uç nokta sunucuda hazırdı
+ * (`PROJE_DURUMU.md` §13.16) ama hiçbir istemci tüketicisi yoktu; bu
+ * ekran onların İLK yüzeyidir. Üç karar burada yazılıdır:
+ *
+ *   1. **PANEL YALNIZCA BAŞKA BİRİNİN PROFİLİNDE GÖRÜNÜR.** Kendi
+ *      profilinde engelleme/şikâyet düğmesi göstermek, sunucunun
+ *      `assertNotSelf` kapısıyla zaten reddedilecek bir isteği
+ *      düğmeye bağlamak olurdu.
+ *   2. **"ENGELLİ Mİ" BİLGİSİ KENDİ LİSTEMDEN OKUNUR, profilden DEĞİL.**
+ *      Profil ucu `@Public()`'tir ve engel durumu ORADA YOKTUR — olsaydı
+ *      "seni engelledi mi" sorusu herkese açık bir uçtan cevaplanırdı
+ *      (brief §33: engelleme sessiz bir mesafedir). Tek meşru kaynak
+ *      `GET /players/:id/blocks`tur ve o da yalnızca KENDİ listendir.
+ *      Liste alınamazsa düğme "Engelle" olarak kalır — yanlış bir "engeli
+ *      kaldır" göstermekten iyidir, çünkü engelleme İDEMPOTENTTİR
+ *      (ikinci çağrı da 201 döner ve satır çoğalmaz).
+ *   3. **ŞİKÂYET GEREKÇESİ İSTEĞE BAĞLIDIR.** Kategori ZORUNLUDUR
+ *      (sunucu geçersiz/eksik kategoriyi 400 ile reddeder), serbest metin
+ *      değildir. Boş bir metni "doldurulmuş" gibi göndermek, moderasyon
+ *      kuyruğunda gerekçesi olan bir şikâyet izlenimi verirdi.
  */
 
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import type { PlayerProfileView } from '@at-sevdalisi/shared-types';
+import type { PlayerProfileView, ReportCategory } from '@at-sevdalisi/shared-types';
 import { GlassPanel } from '../../../components/ui/GlassPanel';
 import { getCareerProgress } from '../../../features/career/career-tier';
 import { apiClient } from '../../../lib/api-client';
@@ -62,6 +83,23 @@ export default function PlayerProfilePage(): React.ReactElement {
   const [profile, setProfile] = useState<PlayerProfileView | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+
+  /**
+   * Moderasyon durumu (bkz. dosya başı 2. madde). `viewerId` çağıranın
+   * kendi kimliği, `moderationTargetId` ise "engellenebilir/şikâyet
+   * edilebilir oyuncu"dur — kendi profilinde `null` olur ve panel çizilmez.
+   */
+  const viewerId = player?.id ?? null;
+  const moderationTargetId =
+    player !== null && profile !== null && player.id !== profile.playerId ? profile.playerId : null;
+
+  const [isBlocked, setIsBlocked] = useState(false);
+  const [isModerationBusy, setIsModerationBusy] = useState(false);
+  const [moderationError, setModerationError] = useState<string | null>(null);
+  const [isReportOpen, setIsReportOpen] = useState(false);
+  const [reportCategory, setReportCategory] = useState<ReportCategory>('spam');
+  const [reportReason, setReportReason] = useState('');
+  const [isReportSent, setIsReportSent] = useState(false);
 
   useEffect(() => {
     if (username.length === 0) {
@@ -98,6 +136,71 @@ export default function PlayerProfilePage(): React.ReactElement {
       isActive = false;
     };
   }, [username]);
+
+  /**
+   * Engel durumu — TEK meşru kaynak kendi engel listemdir (dosya başı 2.
+   * madde). Hata YUTULUR ve `false`a düşülür: liste alınamadı diye
+   * profilin geri kalanını hata ekranına çevirmek orantısız olurdu, ve
+   * `false` yanlış bir "engeli kaldır" göstermez (engelleme idempotenttir).
+   */
+  useEffect(() => {
+    if (viewerId === null || moderationTargetId === null) {
+      setIsBlocked(false);
+      return;
+    }
+    let isActive = true;
+    apiClient
+      .listBlockedPlayers(viewerId)
+      .then((rows) => {
+        if (isActive) setIsBlocked(rows.some((row) => row.playerId === moderationTargetId));
+      })
+      .catch(() => {
+        if (isActive) setIsBlocked(false);
+      });
+    return () => {
+      isActive = false;
+    };
+  }, [viewerId, moderationTargetId]);
+
+  async function toggleBlock(): Promise<void> {
+    if (viewerId === null || moderationTargetId === null) return;
+    setIsModerationBusy(true);
+    setModerationError(null);
+    try {
+      if (isBlocked) {
+        await apiClient.unblockPlayer(viewerId, moderationTargetId);
+        setIsBlocked(false);
+      } else {
+        await apiClient.blockPlayer(viewerId, moderationTargetId);
+        setIsBlocked(true);
+      }
+    } catch (err: unknown) {
+      setModerationError(err instanceof Error ? err.message : 'İşlem tamamlanamadı.');
+    } finally {
+      setIsModerationBusy(false);
+    }
+  }
+
+  async function submitReport(): Promise<void> {
+    if (viewerId === null || moderationTargetId === null) return;
+    setIsModerationBusy(true);
+    setModerationError(null);
+    try {
+      await apiClient.reportPlayer(
+        viewerId,
+        moderationTargetId,
+        reportCategory,
+        reportReason.trim().length > 0 ? reportReason.trim() : undefined,
+      );
+      setIsReportSent(true);
+      setIsReportOpen(false);
+      setReportReason('');
+    } catch (err: unknown) {
+      setModerationError(err instanceof Error ? err.message : 'Şikâyet gönderilemedi.');
+    } finally {
+      setIsModerationBusy(false);
+    }
+  }
 
   if (isLoading) {
     return <CenteredMessage>Profil yükleniyor…</CenteredMessage>;
@@ -185,6 +288,87 @@ export default function PlayerProfilePage(): React.ReactElement {
           {formatMemberSince(profile.memberSince)} tarihinden beri At Sevdalısı&apos;nda.
         </p>
       </GlassPanel>
+
+      {moderationTargetId !== null ? (
+        <GlassPanel>
+          <h2 style={sectionTitleStyle}>Güvenlik</h2>
+          {/* Engelleme ve şikâyet AYRI şeylerdir ve sırası da önemlidir:
+              engel, karşı tarafı sessizce uzaklaştırır; şikâyet moderasyon
+              kuyruğuna düşer. Şikâyet engelden ETKİLENMEZ (doğru sıra
+              "engelle, SONRA şikâyet et"tir — `moderation.ts` notu), bu
+              yüzden ikisi aynı anda sunulur ve biri diğerini kilitlemez. */}
+          <div style={{ display: 'flex', gap: 'var(--space-sm)', flexWrap: 'wrap', alignItems: 'center' }}>
+            <button type="button" disabled={isModerationBusy} onClick={() => void toggleBlock()} style={secondaryButtonStyle}>
+              {isBlocked ? 'Engeli Kaldır' : 'Engelle'}
+            </button>
+            {!isReportSent ? (
+              <button
+                type="button"
+                disabled={isModerationBusy}
+                onClick={() => setIsReportOpen((open) => !open)}
+                style={secondaryButtonStyle}
+              >
+                {isReportOpen ? 'Şikâyetten Vazgeç' : 'Şikâyet Et'}
+              </button>
+            ) : null}
+            {isReportSent ? (
+              <span style={{ fontSize: '13px', color: 'var(--color-accent-gold)' }}>
+                Şikâyetin moderasyon kuyruğuna iletildi.
+              </span>
+            ) : null}
+          </div>
+
+          {isReportOpen && !isReportSent ? (
+            <div style={{ display: 'grid', gap: 'var(--space-sm)', marginTop: 'var(--space-sm)' }}>
+              <label style={fieldLabelStyle}>
+                Kategori
+                <select
+                  value={reportCategory}
+                  onChange={(event) => setReportCategory(event.target.value as ReportCategory)}
+                  style={inputStyle}
+                >
+                  {REPORT_CATEGORY_ORDER.map((category) => (
+                    <option key={category} value={category}>
+                      {REPORT_CATEGORY_LABELS[category]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label style={fieldLabelStyle}>
+                Açıklama (isteğe bağlı)
+                <textarea
+                  value={reportReason}
+                  onChange={(event) => setReportReason(event.target.value)}
+                  rows={3}
+                  placeholder="Neyin yanlış olduğunu kısaca anlat."
+                  style={{ ...inputStyle, resize: 'vertical' }}
+                />
+              </label>
+              <div>
+                <button
+                  type="button"
+                  disabled={isModerationBusy}
+                  onClick={() => void submitReport()}
+                  style={secondaryButtonStyle}
+                >
+                  {isModerationBusy ? 'Gönderiliyor…' : 'Şikâyeti Gönder'}
+                </button>
+              </div>
+            </div>
+          ) : null}
+
+          {isBlocked ? (
+            <p style={footnoteStyle}>
+              Bu oyuncu engelli. Engel; mesaj, hediye, yarış daveti ve arkadaşlık isteği yollarını iki yönde
+              kapatır. Engelin fark edilmemesi bilinçlidir — karşı tarafa bildirilmez.
+            </p>
+          ) : null}
+
+          {moderationError !== null ? (
+            <p style={{ ...footnoteStyle, color: 'var(--color-danger, #f87171)' }}>{moderationError}</p>
+          ) : null}
+        </GlassPanel>
+      ) : null}
 
       <div style={{ display: 'flex', gap: 'var(--space-sm)', flexWrap: 'wrap' }}>
         <Link href="/friends" style={linkButtonStyle}>
@@ -307,3 +491,57 @@ const linkButtonStyle: React.CSSProperties = {
   fontWeight: 600,
   textDecoration: 'none',
 };
+
+const secondaryButtonStyle: React.CSSProperties = {
+  minHeight: '36px',
+  padding: '6px 12px',
+  borderRadius: '999px',
+  border: '1px solid var(--color-border)',
+  background: 'transparent',
+  color: 'var(--color-text-secondary)',
+  fontSize: '13px',
+  fontWeight: 600,
+  cursor: 'pointer',
+};
+
+const fieldLabelStyle: React.CSSProperties = {
+  display: 'grid',
+  gap: '4px',
+  fontSize: '12px',
+  color: 'var(--color-text-muted)',
+};
+
+const inputStyle: React.CSSProperties = {
+  minHeight: '36px',
+  padding: '6px 10px',
+  borderRadius: 'var(--radius-md, 8px)',
+  border: '1px solid var(--color-border)',
+  background: 'rgba(255, 255, 255, 0.04)',
+  color: 'var(--color-text-primary)',
+  fontSize: '13px',
+  fontFamily: 'inherit',
+};
+
+/**
+ * Şikâyet kategorilerinin TÜRKÇE etiketleri.
+ *
+ * **TİP TAM BİR `Record`TUR — EKSİK ANAHTAR DERLEME HATASI VERİR.**
+ * `ReportCategory`ye yeni bir kategori eklendiğinde (`domain/social/
+ * moderation.ts` → `REPORT_CATEGORIES` + `player_reports.category` CHECK'i)
+ * buraya yazılmadan `tsc` geçmez. Bu bilinçlidir: kategori kümesinin TEK
+ * kaynağı sunucudur ve istemci onu İKİNCİ kez listeleyemez — yalnızca
+ * ETİKETLERİNİ tutar (bkz. `apiClient.reportPlayer` notu).
+ */
+const REPORT_CATEGORY_LABELS: Record<ReportCategory, string> = {
+  spam: 'Spam / reklam',
+  harassment: 'Taciz veya hakaret',
+  cheating: 'Hile / kural dışı davranış',
+  offensive_name: 'Uygunsuz kullanıcı adı',
+  other: 'Diğer',
+};
+
+/**
+ * Açılır listedeki SIRA. `Object.keys` ile türetilir, elle yazılmaz —
+ * ikinci bir liste, yeni kategori eklendiğinde ayrışırdı.
+ */
+const REPORT_CATEGORY_ORDER = Object.keys(REPORT_CATEGORY_LABELS) as ReportCategory[];

@@ -759,6 +759,122 @@ describe('apiClient.claimDailyReward (brief §37)', () => {
   });
 });
 
+describe('apiClient blok / şikâyet (brief §33 — istemci tarafı, 29.09.2026)', () => {
+  /**
+   * Bu dört metot, sunucuda §13.16'dan beri hazır olan dört ucun İLK
+   * istemci tüketicisidir. Testler URL + method + gövde sözleşmesini
+   * sabitler; asıl davranış (yetki, idempotency, 404) `moderation.e2e-spec.ts`
+   * ve `body-uuid-shape.e2e-spec.ts`te kanıtlanmıştır.
+   */
+
+  it('listBlockedPlayers KENDİ listesini GET eder', async () => {
+    const fetchMock = stubFetchOnce({ success: true, data: [] });
+    await apiClient.listBlockedPlayers('p-1');
+    const [url, config] = requestArgs(fetchMock);
+    expect(url).toBe(`${API_BASE_URL}/players/p-1/blocks`);
+    expect(config.method).toBe('GET');
+  });
+
+  it('blockPlayer POST eder ve `blockedId`yi GÖVDEDE taşır', async () => {
+    // `blockedId` GÖVDE alanıdır (yol parametresi DEĞİL) — sunucudaki
+    // `ParseUUIDPipe` ona uzanmaz ve orada ayrıca bir `isUUID` kapısı
+    // vardır. Gövde şekli bozulursa o kapı 400 döner ve engelleme sessizce
+    // çalışmaz hâle gelir.
+    const fetchMock = stubFetchOnce({ success: true, data: {} });
+    await apiClient.blockPlayer('p-1', 'p-2');
+    const [url, config] = requestArgs(fetchMock);
+    expect(url).toBe(`${API_BASE_URL}/players/p-1/blocks`);
+    expect(config.method).toBe('POST');
+    expect(JSON.parse(config.body as string)).toEqual({ blockedId: 'p-2' });
+  });
+
+  it('unblockPlayer DELETE eder ve engellenen kimliği YOLDA taşır', async () => {
+    const fetchMock = stubFetchOnce({ success: true, data: {} });
+    await apiClient.unblockPlayer('p-1', 'p-2');
+    const [url, config] = requestArgs(fetchMock);
+    expect(url).toBe(`${API_BASE_URL}/players/p-1/blocks/p-2`);
+    expect(config.method).toBe('DELETE');
+  });
+
+  it('reportPlayer gövdede `reportedId` ve `category` gönderir', async () => {
+    const fetchMock = stubFetchOnce({ success: true, data: {} });
+    await apiClient.reportPlayer('p-1', 'p-2', 'harassment');
+    const [url, config] = requestArgs(fetchMock);
+    expect(url).toBe(`${API_BASE_URL}/players/p-1/reports`);
+    expect(config.method).toBe('POST');
+    expect(JSON.parse(config.body as string)).toEqual({ reportedId: 'p-2', category: 'harassment' });
+  });
+
+  it('reportPlayer BOŞ gerekçeyi gövdeye KOYMAZ', async () => {
+    // Sunucu eksik gerekçeyi `null`a indirger, yani `reason: ''` göndermek
+    // sözleşmeyi değiştirmez — ama moderasyon kuyruğunda "gerekçe yazılmış"
+    // izlenimi verirdi. Boş dize ile `undefined` AYNI davranışı üretmelidir.
+    const withEmpty = stubFetchOnce({ success: true, data: {} });
+    await apiClient.reportPlayer('p-1', 'p-2', 'spam', '');
+    const [, emptyConfig] = requestArgs(withEmpty);
+    expect(Object.keys(JSON.parse(emptyConfig.body as string)).sort()).toEqual(['category', 'reportedId']);
+
+    const withText = stubFetchOnce({ success: true, data: {} });
+    await apiClient.reportPlayer('p-1', 'p-2', 'spam', 'reklam atıyor');
+    const [, textConfig] = requestArgs(withText);
+    expect(JSON.parse(textConfig.body as string)).toEqual({
+      reportedId: 'p-2',
+      category: 'spam',
+      reason: 'reklam atıyor',
+    });
+  });
+
+  it('blok/şikâyet uçlarının HİÇBİRİ `Idempotency-Key` EKLEMEZ', async () => {
+    // Bu dört uç para/mülkiyet değiştirmez. Engelleme zaten idempotenttir;
+    // şikâyet ise bilinçli olarak DEĞİLDİR (tekrarlayan şikâyet moderasyon
+    // için bir sinyaldir) — oraya anahtar koymak o sinyali sustururdu.
+    // Test, "her POST'a anahtar koyalım" refleksini yakalar.
+    const calls: Array<() => Promise<unknown>> = [
+      () => apiClient.blockPlayer('p-1', 'p-2'),
+      () => apiClient.unblockPlayer('p-1', 'p-2'),
+      () => apiClient.reportPlayer('p-1', 'p-2', 'spam'),
+    ];
+    for (const call of calls) {
+      const fetchMock = stubFetchOnce({ success: true, data: {} });
+      await call();
+      const [, config] = requestArgs(fetchMock);
+      expect((config.headers as Headers).has('Idempotency-Key')).toBe(false);
+    }
+  });
+});
+
+describe('apiClient çiftleştirme (brief §18 — istemci tarafı, 29.09.2026)', () => {
+  /**
+   * `POST /players/:id/breeding` — soy ağacı zincirinin YAZMA yarısı ve bir
+   * PARA YOLU (damızlık ücreti transferi + iki defter satırı).
+   *
+   * Burada sabitlenen iki şey var ve ikisi de sessiz bozulabilecek türden:
+   * (1) gövde YALNIZCA üç alan taşır — sahiplik/uygunluk/stat üretimi
+   * sunucudadır, istemci hiçbir sayı göndermez; (2) `Idempotency-Key`
+   * başlığı GERÇEKTEN gider — eksik olsaydı sunucu 400
+   * `IDEMPOTENCY_KEY_REQUIRED` döner ve çiftleştirme hiç çalışmazdı.
+   */
+  it('breedHorses doğru URL/method/gövde ile POST eder', async () => {
+    const fetchMock = stubFetchOnce({ success: true, data: {} });
+    await apiClient.breedHorses('p-1', 'mare-1', 'stallion-1', 'Yıldız', 'key-1');
+    const [url, config] = requestArgs(fetchMock);
+    expect(url).toBe(`${API_BASE_URL}/players/p-1/breeding`);
+    expect(config.method).toBe('POST');
+    expect(JSON.parse(config.body as string)).toEqual({
+      mareId: 'mare-1',
+      stallionId: 'stallion-1',
+      foalName: 'Yıldız',
+    });
+  });
+
+  it('breedHorses `Idempotency-Key` başlığını taşır (para yolu — ZORUNLU)', async () => {
+    const fetchMock = stubFetchOnce({ success: true, data: {} });
+    await apiClient.breedHorses('p-1', 'mare-1', 'stallion-1', 'Yıldız', 'key-42');
+    const [, config] = requestArgs(fetchMock);
+    expect((config.headers as Headers).get('Idempotency-Key')).toBe('key-42');
+  });
+});
+
 describe('API taban adresi', () => {
   it('varsayılan port, API sunucusunun dinlediği portla aynı olmalı (4000)', () => {
     // Bu iddia, yukarıda anlatılan hatanın SINIFINI hedefler. Kritik nokta

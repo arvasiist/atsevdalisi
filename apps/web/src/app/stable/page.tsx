@@ -28,6 +28,7 @@ import { GlassPanel } from '../../components/ui/GlassPanel';
 import { HorseAvatar } from '../../components/ui/HorseAvatar';
 import { StarRating } from '../../components/ui/StarRating';
 import { StatBar } from '../../components/ui/StatBar';
+import { BreedingPanel } from '../../features/breeding/BreedingPanel';
 import { PedigreeTree } from '../../features/pedigree/PedigreeTree';
 import { apiClient } from '../../lib/api-client';
 import { formatCurrency, hasEnoughFunds } from '../../lib/currency';
@@ -58,6 +59,28 @@ export default function StablePage(): React.ReactElement {
     };
   }, [player]);
 
+  /**
+   * Tay doğduktan SONRA çağrılır (`BreedingPanel`): ahır listesi tazelenir
+   * (yeni tay orada görünmelidir) **ve** oyuncu bağlamı yenilenir — damızlık
+   * ücreti ödendiyse üst bardaki bakiye aksi halde sayfa yenilenene kadar
+   * ESKİ değeri gösterirdi (`StableUpgradeCard`'ın `onUpgraded` notuyla AYNI
+   * gerekçe). Burada `cancelled` koruması YOKTUR çünkü bu, kullanıcı
+   * eylemiyle tetiklenen bir tazelemedir — bileşen kaldırılırsa React
+   * uyarı verir ama sızıntı olmaz; yarışan iki tazeleme de aynı veriyi yazar.
+   */
+  const handleBred = useCallback(async (): Promise<void> => {
+    if (!player) {
+      return;
+    }
+    setError(null);
+    try {
+      setHorses(await apiClient.getHorsesByOwner(player.id));
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Atlar yüklenemedi');
+    }
+    await refresh();
+  }, [player, refresh]);
+
   return (
     <main className="page-container">
       <h1 style={{ fontSize: '24px', color: 'var(--color-text-primary)', marginBottom: '4px' }}>Ahırım</h1>
@@ -80,6 +103,8 @@ export default function StablePage(): React.ReactElement {
       {error ? <p style={{ color: 'var(--color-status-critical)' }}>{error}</p> : null}
 
       {player ? <StableUpgradeCard ownerId={player.id} onUpgraded={refresh} /> : null}
+
+      {player && horses !== null ? <BreedingPanel ownerId={player.id} horses={horses} onBred={handleBred} /> : null}
 
       {player && horses === null && !error ? (
         <p style={{ color: 'var(--color-text-muted)' }}>Ahır yükleniyor…</p>

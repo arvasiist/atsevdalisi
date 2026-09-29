@@ -45,6 +45,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import type {
+  BlockedPlayerView,
   Currency,
   DirectMessageView,
   FriendRequestView,
@@ -99,13 +100,25 @@ export default function FriendsPage(): React.ReactElement {
   const [gifts, setGifts] = useState<GiftView[] | null>(null);
   const [isSendingGift, setIsSendingGift] = useState(false);
 
+  /**
+   * KENDİ engel listem (29.09.2026, brief §33). Sunucu YALNIZCA tek yön
+   * döner — "beni engelleyenler" diye bir liste yoktur ve istenemez.
+   */
+  const [blocked, setBlocked] = useState<BlockedPlayerView[] | null>(null);
+
   const loadOverview = useCallback(async (playerId: string) => {
-    const [social, myInbox, myGifts] = await Promise.all([
+    const [social, myInbox, myGifts, myBlocked] = await Promise.all([
       apiClient.getSocialOverview(playerId),
       apiClient.getInbox(playerId),
       apiClient.getMyGifts(playerId),
+      // BLOK / ŞİKÂYET (29.09.2026) — engel listesi BU ekranın bir
+      // bölümüdür, ayrı bir sayfa DEĞİL: engellemenin tek anlamı sosyal
+      // yüzeyleri kapatmaktır, yani listesi de o yüzeylerin yanında durur.
+      // Ayrı bir `/settings/blocks` rotası, aynı veriyi ikinci bir yerde
+      // göstermek ve gezinti şeridine yeni bir bağlantı eklemek olurdu.
+      apiClient.listBlockedPlayers(playerId),
     ]);
-    return { social, myInbox, myGifts };
+    return { social, myInbox, myGifts, myBlocked };
   }, []);
 
   useEffect(() => {
@@ -116,13 +129,15 @@ export default function FriendsPage(): React.ReactElement {
     setOverview(null);
     setInbox(null);
     setGifts(null);
+    setBlocked(null);
     setError(null);
     void loadOverview(player.id)
-      .then(({ social, myInbox, myGifts }) => {
+      .then(({ social, myInbox, myGifts, myBlocked }) => {
         if (cancelled) return;
         setOverview(social);
         setInbox(myInbox);
         setGifts(myGifts);
+        setBlocked(myBlocked);
       })
       .catch((err: unknown) => {
         if (!cancelled) setError(err instanceof Error ? err.message : 'Sosyal ekran yüklenemedi');
@@ -140,10 +155,11 @@ export default function FriendsPage(): React.ReactElement {
   const refresh = useCallback(
     async (options: { keepConversation?: boolean } = {}): Promise<void> => {
       if (!player) return;
-      const { social, myInbox, myGifts } = await loadOverview(player.id);
+      const { social, myInbox, myGifts, myBlocked } = await loadOverview(player.id);
       setOverview(social);
       setInbox(myInbox);
       setGifts(myGifts);
+      setBlocked(myBlocked);
       if (options.keepConversation && activeFriend) {
         setMessages(await apiClient.getConversation(player.id, activeFriend.playerId));
       }
@@ -202,6 +218,21 @@ export default function FriendsPage(): React.ReactElement {
         await refresh();
       },
       fallbackMessage,
+    );
+
+  /**
+   * Engeli kaldırır (29.09.2026). `remove` ile AYNI `runAction` deseni:
+   * satır bazlı "işleniyor" durumu ve ortak hata satırı. Engel YOKSA
+   * sunucu 404 döner ve mesajı görünür — sessiz başarı SAYILMAZ.
+   */
+  const unblock = (blockedId: string): Promise<void> =>
+    runAction(
+      `unblock-${blockedId}`,
+      async () => {
+        await apiClient.unblockPlayer(player?.id ?? '', blockedId);
+        await refresh();
+      },
+      'Engel kaldırılamadı',
     );
 
   const openConversation = (friend: FriendView): Promise<void> =>
@@ -423,6 +454,45 @@ export default function FriendsPage(): React.ReactElement {
               ))
             )}
           </Section>
+
+          {/* Engellenenler — YALNIZCA liste boş DEĞİLSE çizilir. Boş bir
+              "Engellenenler (0)" bölümü herkese görünen bir gürültüdür ve
+              kullanıcıya "burada bir şey olmalı" hissi verir; oysa
+              engellemek istisnai bir eylemdir. Liste alınamazsa
+              (`blocked === null`) da çizilmez — hata zaten yukarıdaki
+              `error` satırında görünür. */}
+          {blocked !== null && blocked.length > 0 ? (
+            <Section title={`Engellenenler (${blocked.length})`}>
+              {blocked.map((entry) => (
+                <Row key={entry.playerId}>
+                  <RowLabel
+                    primary={entry.displayName}
+                    secondary={`Seviye ${entry.level} · ${formatRelativeDate(entry.blockedAt)} engellendi`}
+                    profileUsername={entry.username}
+                  />
+                  <RowActions>
+                    <button
+                      type="button"
+                      disabled={pendingKey === `unblock-${entry.playerId}`}
+                      onClick={() => void unblock(entry.playerId)}
+                      style={secondaryButtonStyle()}
+                    >
+                      Engeli Kaldır
+                    </button>
+                  </RowActions>
+                </Row>
+              ))}
+              {/* Yön AÇIKÇA söylenir: bu liste "beni engelleyenler" DEĞİL.
+                  Sunucu o listeyi hiç üretmez (brief §33 — engelleme sessiz
+                  bir mesafedir), ama kullanıcının bunu ekrandan anlaması
+                  gerekir; yoksa "burada görünmüyorsa beni engellememiş"
+                  gibi yanlış bir çıkarım yapardı. */}
+              <p style={{ color: 'var(--color-text-muted)', margin: 0, fontSize: '12px' }}>
+                Bu liste yalnızca SENİN koyduğun engelleri gösterir. Seni engelleyenler burada görünmez ve
+                görünmemesi bilinçlidir.
+              </p>
+            </Section>
+          ) : null}
 
           {activeFriend ? (
             <Section title={`${activeFriend.displayName} ile yazışma`}>

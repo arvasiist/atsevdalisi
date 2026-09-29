@@ -1,19 +1,23 @@
 # AT SEVDALISI — FİNAL KABUL KRİTERLERİ
 
 **Tarih:** 29.09.2026
-**Bu belge nedir:** Brief §42'nin kapanış kapısı. **27 madde**, her biri
+**Bu belge nedir:** Brief §42'nin kapanış kapısı. **29 madde**, her biri
 **çalışan bir zincire** ya da **koşan bir teste** dayanır. "Dosya var" ya da
 "uç nokta var" **kabul değildir** — kanıt kolonunda **test dosyası** yazar.
 
 > ⚠️ **Dürüstlük notu.** Brief'in 27 maddelik orijinal metni bu depoda
 > **yoktur** (`docs/PROJECT_BRIEF.md` 72 bölümlük asıl brief'tir,
 > `docs/IMPLEMENTATION_PLAN_MASTER_BRIEF.md` başka bir belgedir). Aşağıdaki
-> 27 madde, brief'in **8 fazından ve kesişen kurallarından** yeniden
+> maddeler, brief'in **8 fazından ve kesişen kurallarından** yeniden
 > kurulmuştur. Uydurma madde yoktur; her madde bu depoda karşılığı olan bir
 > kuraldır. Nerede kanıt zayıfsa **zayıf** diye yazılmıştır.
+> 29.09.2026: 28. madde (blok/şikâyet zinciri) ve 29. madde (yetiştirme
+> zinciri) sonradan eklendi — ikisi de "sunucu var, istemci yok" durumundan
+> çıkarıldı.
 
-**Sonuç: 27/27 PASS** — 26 madde mevcut testlerle, 1 madde
-(`apps/api/test/api/final.e2e-spec.ts`) bu dilimde yazılan uçtan uca testle.
+**Sonuç: 29/29 PASS** — 26 madde mevcut testlerle, 1 madde
+(`apps/api/test/api/final.e2e-spec.ts`) yazılan uçtan uca testle, 2 madde
+(28 ve 29) istemci tüketicisi + istemci testiyle.
 
 ---
 
@@ -142,7 +146,7 @@ Aynı seed + aynı snapshot, farklı taktik → **farklı** sonuç; ve hiçbir s
 
 ---
 
-## G. Güvenlik, sosyal ve uçtan uca (26–27)
+## G. Güvenlik, sosyal ve uçtan uca (26–29)
 
 ### 26. Sosyal yazma rotaları hız sınırlı — kapsam testle kilitli
 `@RateLimit` **opt-in**'dir; işaretlenmeyen rota sınırsızdır. `SocialController` için **kapalı küme** iddiası vardır: yeni bir yazma rotası ekleyip `@RateLimit` koymazsan test **kırılır**. `RateLimitOptions.name` de sabitlenir (aynı `name` iki rota tek bütçeyi böler).
@@ -154,6 +158,36 @@ Kayıt → başlangıç atı → lobi → katıl/hazır ol → tribün bileti �
 erişim kapıları. Zincirin **her halkası** bu tek dosyada gerçek HTTP üzerinden
 sınanır.
 **Kanıt:** `test/api/final.e2e-spec.ts` — **PASS**
+
+### 28. Blok / şikâyet zinciri uçtan uca çalışır (sunucu + istemci)
+Dört uç (`POST/DELETE/GET /players/:id/blocks`, `POST /players/:id/reports`)
+sunucuda çalışır **ve** istemcide tüketicisi vardır: `/profile/:username`
+"Güvenlik" paneli (engelle / engeli kaldır / kategorili şikâyet) ve
+`/friends` "Engellenenler" bölümü. **İstemcide iki tuzak sabitlenir:**
+(1) "engelli mi" bilgisi profilden OKUNAMAZ (o uç `@Public()`tir ve engel
+durumu orada yoktur — olsaydı "seni engelledi mi" sorusu herkese açık bir
+uçtan cevaplanırdı); (2) şikâyet kategorisi istemcide **listelenmez**,
+yalnızca etiketleri tutulur — kümenin tek kaynağı `domain/social/moderation.ts`.
+**Kanıt:** `test/api/moderation.e2e-spec.ts` · `test/api/body-uuid-shape.e2e-spec.ts` ·
+`apps/web/test/lib/api-client.spec.ts` — **PASS**
+
+### 29. Yetiştirme zinciri uçtan uca çalışır (sunucu + istemci)
+`POST /players/:id/breeding` kısrağı/aygırı kilitli satırlardan doğrular,
+tayı + soy kaydını + statlarını yazar ve aygır başkasının ise damızlık
+ücretini **aynı transaction'da** iki defter satırıyla
+(`breeding_stud_fee_debit`/`_credit`) transfer eder. **İstemci tüketicisi
+artık var:** `/stable` → `BreedingPanel` (kısrak + aygır + tay adı; sonuç
+paneli tayı, `fee`yi, akrabalık uyarısını ve doğum sağlık riskini
+**yanıttan** gösterir — istemci hiçbir tutar HESAPLAMAZ).
+**İstemcide iki tuzak sabitlenir:** (1) `Idempotency-Key` **başarısızlıkta
+yaşar** (`/wallet` deseni) — burada zarar "ikinci bir tay"dır, `/grandstand`ın
+"her basışta yeni anahtar" kararından bilerek ayrılır; (2) aygır/kısrak/tay
+adı **değişince bekleyen anahtar bırakılır**, yoksa sunucu ilk isteğin
+saklanan yanıtını döner ve oyuncu yeni bir çiftleştirme yaptığını sanırken
+**hiçbir şey olmaz**.
+**Kanıt:** `test/api/breeding.e2e-spec.ts` · `test/domain/genetics/` ·
+`apps/web/test/lib/api-client.spec.ts` ·
+`apps/web/test/features/breeding/BreedingPanel.spec.tsx` — **PASS**
 
 ---
 
@@ -167,13 +201,14 @@ sınanır.
 | D. Para zinciri | 13–18 | ✅ 6/6 |
 | E. İptal/kopma/iade | 19–22 | ✅ 4/4 |
 | F. Motor girdileri | 23–25 | ✅ 3/3 |
-| G. Güvenlik + uçtan uca | 26–27 | ✅ 2/2 |
-| **TOPLAM** | **27** | **✅ 27/27 PASS** |
+| G. Güvenlik + uçtan uca | 26–29 | ✅ 4/4 |
+| **TOPLAM** | **29** | **✅ 29/29 PASS** |
 
 **Kabul edilmeyen madde yoktur.** Ancak üretime hazır **olmayan** özellikler
 **vardır** — onlar kabul kriteri değil, **eksik iş**tir ve
 `docs/FINAL_PROJECT_AUDIT.md` §5'te öncelik sırasıyla listelenmiştir
-(yönetim paneli, blok/şikâyet arayüzü, jokey seçim ucu, yetiştirme yüzeyi …).
+(jokey yüzeyi, ayrılma düğmesi, tribün iade penceresi, matchmaking
+zamanlayıcısı, kulüp/sezon/turnuva …).
 
 **Kural hatırlatması:** *"Asla 'çalışıyor' deme — kanıt CI'dır."* Bu belgedeki
 her PASS bir **test dosyasına** dayanır; testlerin gerçekten koştuğunun kanıtı
