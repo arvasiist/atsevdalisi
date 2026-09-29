@@ -7,7 +7,7 @@
 
 | | |
 | --- | --- |
-| Ölçüm zamanı | 2026-09-28T22:47:26.059Z |
+| Ölçüm zamanı | 2026-09-29T00:01:39.938Z |
 | Saha boyutları | 8 / 10 / 12 / 14 / 16 (`config/race-lobby.config.json` → `fieldSizes`) |
 | Saha boyutu başına koşum | **10.000** (her biri beş ayrı koşumda) |
 | Toplam simülasyon | **265.125** |

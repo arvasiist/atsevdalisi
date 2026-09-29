@@ -296,9 +296,19 @@ birleştirme, §13.32)** · **8 (`docs/FINAL_PROJECT_AUDIT.md` — 51 özellik �
 ⚠️ **`docs/FINAL_ACCEPTANCE.md`'deki 27 maddenin HER BİRİ bir test
 dosyasına dayanır.** Yeni bir kabul maddesi eklerken kanıt kolonuna
 **test dosyası yaz** — "dosya var" ya da "uç nokta var" kabul değildir.
-Uçtan uca akış `apps/api/test/api/final-e2e-spec.ts`tir; bu dosya
+Uçtan uca akış `apps/api/test/api/final.e2e-spec.ts`tir; bu dosya
 `test/api/` altındadır, yani `.claude/verify-admin.mjs`in api vitest
 grubu onu **zaten koşar** (ayrı gruba eklemek gerekmez).
+
+⚠️ **YENİ BİR E2E DOSYASI ADLANDIRIRKEN — VİTEST KALIBI NOKTA İSTER
+(29.09.2026'da yaşandı).** `apps/api/vitest.config.ts` include kalıbı
+`test/**/*.e2e-spec.ts`tir; `*` ile `e2e` arasında bir **nokta** vardır.
+`final-e2e-spec.ts` (tire) bu kalıba **UYMAZ** → dosya hiç koşmaz. Ve
+koşan komut `--passWithNoTests` taşıyorsa sonuç **YEŞİL ama BOŞ** olur:
+"hiç test koşmadı" ile "hepsi geçti" ayırt edilemez. Doğru ad
+`final.e2e-spec.ts`. Bir betiğin çıktısında **`No test files found`**
+görürsen o koşum bir kanıt DEĞİLDİR — `Test Files 1 passed` görmelisin.
+Aynı tuzak, var olmayan bir yolu `vitest <yol>` diye vermekle de kurulur.
 
 ⚠️ **Bir sonraki dilimi seçerken `docs/FINAL_PROJECT_AUDIT.md` §5'i oku** —
 orada kalan 19 madde öncelik sırasıyla listelenmiştir. En büyük üçü:
