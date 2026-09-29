@@ -514,6 +514,12 @@ describe('Hediye gönderimi (e2e) — PARA YOLU', () => {
       expect(outgoing.counterparty.playerId).toBe(b.playerId);
       expect(incoming.direction).toBe('incoming');
       expect(incoming.counterparty.playerId).toBe(b.playerId);
+      // `username` DEĞERİ kayıtlı kullanıcı adıyla birebir aynı olmalı
+      // (29.09.2026). Yalnızca "alan var mı" demek yetmez: `playerId`den
+      // türetilmiş ya da boş bir metin de alanı doldurur ve istemcide
+      // `/profile/<çöp>` bağlantısı üretirdi — hiçbir yerde hata vermez.
+      expect(outgoing.counterparty.username).toBe(b.username);
+      expect(incoming.counterparty.username).toBe(b.username);
 
       // Karşı taraftan bakıldığında yönler TERS olmalı — `direction`
       // sunucuda `sender_id`'den türetildiğinin kanıtı.
@@ -525,8 +531,10 @@ describe('Hediye gönderimi (e2e) — PARA YOLU', () => {
       expect(bList.body.data.find((gift: { amount: number }) => gift.amount === 222).direction).toBe('outgoing');
 
       // Karşı tarafın bakiyesi listede GEÇMEZ: `counterparty` yalnızca
-      // görünür alanları taşır (`SocialPlayerView`).
-      expect(Object.keys(outgoing.counterparty).sort()).toEqual(['displayName', 'level', 'playerId']);
+      // görünür alanları taşır (`SocialPlayerView`). Bu iddia TAM küme
+      // karşılaştırmasıdır — `money`/`gems` sızarsa burada kırılır, ve
+      // `username` de (29.09.2026'da eklendi) buraya yazılmadan geçemez.
+      expect(Object.keys(outgoing.counterparty).sort()).toEqual(['displayName', 'level', 'playerId', 'username']);
     });
 
     it('hiç hediye almamış oyuncu boş liste alır (404 DEĞİL)', async () => {

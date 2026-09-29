@@ -44,6 +44,7 @@ export class ListMyGiftsUseCase {
       direction: row.direction,
       counterparty: {
         playerId: row.counterparty.playerId,
+        username: row.counterparty.username,
         displayName: row.counterparty.displayName,
         level: row.counterparty.level,
       },

@@ -17,6 +17,27 @@ export type FriendshipStatus = 'pending' | 'accepted' | 'rejected';
  */
 export interface SocialPlayerView {
   playerId: string;
+  /**
+   * **NEDEN VAR (29.09.2026, `FINAL_PROJECT_AUDIT.md` §5 madde 3):** bu
+   * alan olmadan başka bir oyuncunun profiline giden HİÇBİR yol yoktu —
+   * `/profile/:username` ekranı yalnızca üst bardaki "kendi profilim"
+   * bağlantısından açılabiliyordu, çünkü arkadaş listesi ve sıralama
+   * tablosu yalnızca `displayName` taşıyordu. Görünen ad bir URL değildir
+   * (boşluk/aksak karakter içerir); profil rotası `username` ister.
+   *
+   * **BU BİR GİZLİLİK DEĞİŞİKLİĞİ DEĞİLDİR:** `username` zaten
+   * `GET /players/profile/:username` ucunun ADRESİDİR ve o uç `@Public()`
+   * (token'sız erişilebilir, bkz. `PlayerProfileView` doc yorumu). Yani bu
+   * alan gizli bir veriyi açığa çıkarmaz; yalnızca ZATEN açık olan bir
+   * yolu tıklanabilir hâle getirir. `money`/`gems`in burada OLMAMASI
+   * kuralı aynen sürer.
+   *
+   * **`SocialPlayerView`i GENİŞLETEN HER TİP OTOMATİK ALIR** (arkadaş,
+   * istek, engel, hediye karşı tarafı) — bu bilinçlidir: aynı satır
+   * bileşeni hepsinde kullanılır ve "bu listede profile gidilebiliyor, şu
+   * listede gidilemiyor" tutarsızlığı doğmasın.
+   */
+  username: string;
   displayName: string;
   level: number;
 }
@@ -182,8 +203,9 @@ export type ReportStatus = 'open' | 'reviewing' | 'resolved' | 'dismissed';
 /**
  * Engellenen oyuncu satırı. `SocialPlayerView`i GENİŞLETİR — engel
  * listesi de bir sosyal listedir ve arkadaş listesiyle AYNI alanları
- * taşır (`playerId`/`displayName`/`level`), böylece istemci aynı satır
- * bileşenini kullanır.
+ * taşır (`playerId`/`username`/`displayName`/`level`), böylece istemci
+ * aynı satır bileşenini kullanır ve satırdaki ad yine
+ * `/profile/:username`e bağlanabilir.
  */
 export interface BlockedPlayerView extends SocialPlayerView {
   /** Engelin konduğu an (`player_blocks.created_at`) — ISO tarih. */

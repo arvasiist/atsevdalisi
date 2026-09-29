@@ -28,6 +28,8 @@ export const LEADERBOARD_REPOSITORY = Symbol('LEADERBOARD_REPOSITORY');
  */
 export interface PlayerRaceRecord {
   playerId: string;
+  /** Profil rotasının adresi — `players.username` (`LeaderboardRowView.username`). */
+  username: string;
   /** Sıralamada gösterilecek ad — `players.display_name`. */
   displayName: string;
   /** `race_entries.performance_score` (NUMERIC(6,2)). */

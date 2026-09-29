@@ -43,6 +43,7 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
 import type {
   Currency,
   DirectMessageView,
@@ -323,7 +324,11 @@ export default function FriendsPage(): React.ReactElement {
             <Section title={`Gelen İstekler (${overview.incomingRequests.length})`}>
               {overview.incomingRequests.map((request) => (
                 <Row key={request.requestId}>
-                  <RowLabel primary={request.displayName} secondary={`Seviye ${request.level} · ${formatRelativeDate(request.createdAt)}`} />
+                  <RowLabel
+                    primary={request.displayName}
+                    secondary={`Seviye ${request.level} · ${formatRelativeDate(request.createdAt)}`}
+                    profileUsername={request.username}
+                  />
                   <RowActions>
                     <button
                       type="button"
@@ -351,7 +356,11 @@ export default function FriendsPage(): React.ReactElement {
             <Section title={`Gönderdiğim İstekler (${overview.outgoingRequests.length})`}>
               {overview.outgoingRequests.map((request) => (
                 <Row key={request.requestId}>
-                  <RowLabel primary={request.displayName} secondary={`Yanıt bekleniyor · ${formatRelativeDate(request.createdAt)}`} />
+                  <RowLabel
+                    primary={request.displayName}
+                    secondary={`Yanıt bekleniyor · ${formatRelativeDate(request.createdAt)}`}
+                    profileUsername={request.username}
+                  />
                   <RowActions>
                     <button
                       type="button"
@@ -383,6 +392,7 @@ export default function FriendsPage(): React.ReactElement {
                   <RowLabel
                     primary={friend.displayName}
                     secondary={`Seviye ${friend.level} · ${formatRelativeDate(friend.friendsSince)} arkadaş`}
+                    profileUsername={friend.username}
                   />
                   <RowActions>
                     <button
@@ -616,19 +626,50 @@ function Row({ children, highlight }: { children: React.ReactNode; highlight?: b
   );
 }
 
+/** Profil bağlantısının stili — alt çizgi YOK (satır listesi okunaklı kalsın). */
+const rowLabelLinkStyle: React.CSSProperties = {
+  color: 'inherit',
+  textDecoration: 'none',
+};
+
+/**
+ * Satır etiketi. `profileUsername` VERİLİRSE `primary` bir profil
+ * bağlantısına dönüşür (29.09.2026).
+ *
+ * **NEDEN `href` DEĞİL `username`:** rota `/profile/:username`dir ve
+ * çağıranın yolu elle kurması (`/profile/${x}`) dört ayrı yerde
+ * tekrarlanan bir dize şablonu demekti — biri yanlış yazılırsa o satır
+ * sessizce 404'e giderdi. Adresin TEK kurucusu buradadır.
+ *
+ * **NEDEN ZORUNLU DEĞİL:** iki meşru sebep var. (1) Hediye geçmişi
+ * satırının `primary`si bir AD değil YÖNLÜ bir metindir (`→ Ayşe`) ve o
+ * satırın karşı tarafı zaten bir ARKADAŞTIR (hediye arkadaşlık şartına
+ * bağlıdır) — yani aynı ekranda yukarıdaki arkadaş satırında zaten bir
+ * profil bağlantısı vardır; ikincisi aynı yere giden bir kopya olurdu.
+ * (2) `username` sunucudan gelmediği sürece bağlantı ÜRETİLMEZ —
+ * uydurulmuş bir slug, profil ucunda 404 olurdu.
+ */
 function RowLabel({
   primary,
   secondary,
   unread,
+  profileUsername,
 }: {
   primary: string;
   secondary: string;
   unread?: boolean;
+  profileUsername?: string;
 }): React.ReactElement {
   return (
     <div style={{ minWidth: 0 }}>
       <div style={{ fontSize: '14px', color: 'var(--color-text-primary)', fontWeight: unread ? 700 : 600 }}>
-        {primary}
+        {profileUsername === undefined ? (
+          primary
+        ) : (
+          <Link href={`/profile/${profileUsername}`} style={rowLabelLinkStyle}>
+            {primary}
+          </Link>
+        )}
         {unread ? <span style={{ color: 'var(--color-accent-gold)', fontSize: '12px' }}> · yeni</span> : null}
       </div>
       <div

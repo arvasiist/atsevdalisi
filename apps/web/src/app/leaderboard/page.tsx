@@ -21,6 +21,7 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
 import type { LeaderboardRowView } from '@at-sevdalisi/shared-types';
 import { GlassPanel } from '../../components/ui/GlassPanel';
 import { apiClient } from '../../lib/api-client';
@@ -47,12 +48,17 @@ export default function LeaderboardPage(): React.ReactElement {
    * Arkadaşlık isteği gönderir (proje sahibinin talebi, 27.09.2026).
    *
    * **NEDEN BURADA:** sıralama tablosu, başka oyuncuların kimliğini
-   * (`playerId`) GÖREN tek mevcut yüzeydir — `LeaderboardRowView` hem
-   * `playerId` hem `displayName` taşır (bkz. `packages/shared-types/src/
+   * (`playerId`) GÖREN keşif yüzeyidir — `LeaderboardRowView` `playerId`,
+   * `username` ve `displayName` taşır (bkz. `packages/shared-types/src/
    * online.ts`). Ayrı bir "oyuncu ara" uç noktası İCAT EDİLMEDİ: öyle bir
    * uç nokta, tüm görünen adları numaralandırmaya (enumeration) açık yeni
    * bir yüzey olurdu. Mevcut `@Public()` sıralama tablosu zaten herkese
    * açık olan veriyi kullanır.
+   *
+   * (29.09.2026) Sıralama tablosu artık keşfin TEK yüzeyi DEĞİLDİR: satır
+   * adı `/profile/:username`e bağlanır ve oradan da arkadaşlık/engel
+   * işlemleri yapılabilir. "Tek yüzey" ifadesi bu yüzden kaldırıldı —
+   * bayat bir yorum, olmayan bir kısıtı anlatır.
    *
    * `Idempotency-Key` YOKTUR — bu uç nokta para/mülkiyet değiştirmez
    * (bkz. `SocialController` doc yorumu). Spam savunması sunucudaki
@@ -182,9 +188,20 @@ function LeaderboardRow({
         {row.rank}
       </td>
       <td style={bodyCellStyle(undefined, 'left')}>
-        <span style={isCurrentPlayer ? currentPlayerNameStyle : nameStyle}>
+        {/*
+          Ad artık BAŞKA BİR OYUNCUNUN PROFİLİNE giden yoldur (29.09.2026).
+          Bunu mümkün kılan şey `LeaderboardRowView.username`dir — görünen
+          ad bir URL olamaz (boşluk/aksak karakter). Bağlantı SUNUCUDAN
+          gelen `username`i olduğu gibi kullanır; istemci bir slug
+          ÜRETMEZ (türetilen bir slug, profil ucunun 404 vermesine yol
+          açardı ve bu hiçbir yerde hata üretmezdi).
+        */}
+        <Link
+          href={`/profile/${row.username}`}
+          style={isCurrentPlayer ? currentPlayerNameLinkStyle : nameLinkStyle}
+        >
           {row.displayName}
-        </span>
+        </Link>
         {isCurrentPlayer ? <span style={{ color: 'var(--color-text-muted)', fontSize: '12px' }}> (sen)</span> : null}
       </td>
       <td style={{ ...bodyCellStyle('96px', 'right'), color: 'var(--color-text-primary)', fontWeight: 600 }}>
@@ -230,8 +247,22 @@ function addFriendButtonStyle(disabled: boolean): React.CSSProperties {
 }
 
 /** Kendi satırı vurgulanırken sporcu adı kalınlaşır (bkz. `LeaderboardRow`). */
-const nameStyle: React.CSSProperties = { color: 'var(--color-text-primary)' };
-const currentPlayerNameStyle: React.CSSProperties = { color: 'var(--color-accent-gold)', fontWeight: 'bold' };
+/**
+ * Ad bağlantısı. `textDecoration: 'none'` BİLİNÇLİDİR: tablonun tamamı
+ * bağlantı olsaydı okunaksız görünürdü; bağlantı olduğu yalnızca fareyle
+ * üzerine gelindiğinde (`hover` rengi CSS'te `a` için tanımlıdır) belli
+ * olur. Renkler eski `nameStyle`/`currentPlayerNameStyle` ile AYNIdır —
+ * bu değişiklik yalnızca tıklanabilirlik ekler, görünümü değiştirmez.
+ */
+const nameLinkStyle: React.CSSProperties = {
+  color: 'var(--color-text-primary)',
+  textDecoration: 'none',
+};
+const currentPlayerNameLinkStyle: React.CSSProperties = {
+  color: 'var(--color-accent-gold)',
+  fontWeight: 'bold',
+  textDecoration: 'none',
+};
 
 function headerCellStyle(width: string | undefined, align: 'left' | 'right' = 'right'): React.CSSProperties {
   return {

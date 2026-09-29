@@ -132,6 +132,11 @@ describe('Arkadaşlık + mesajlaşma (e2e)', () => {
         .expect(200);
       expect(senderOverview.body.data.outgoingRequests).toHaveLength(1);
       expect(senderOverview.body.data.outgoingRequests[0].playerId).toBe(addressee.playerId);
+      // (29.09.2026) `username` — `/friends` ekranındaki ad artık
+      // `/profile/:username`e giden yoldur; değer kayıtlı adla birebir
+      // aynı olmalı, yoksa istemci ölü bir bağlantı kurar ve bu SESSİZ
+      // kalır (bkz. `SocialPlayerView.username` doc yorumu).
+      expect(senderOverview.body.data.outgoingRequests[0].username).toBe(addressee.username);
       expect(senderOverview.body.data.incomingRequests).toEqual([]);
       expect(senderOverview.body.data.friends).toEqual([]);
 
@@ -229,6 +234,8 @@ describe('Arkadaşlık + mesajlaşma (e2e)', () => {
           .expect(200);
         expect(overview.body.data.friends).toHaveLength(1);
         expect(overview.body.data.friends[0].playerId).toBe(other.playerId);
+        // (29.09.2026) Arkadaş satırındaki ad `/profile/:username`e bağlanır.
+        expect(overview.body.data.friends[0].username).toBe(other.username);
         expect(overview.body.data.incomingRequests).toEqual([]);
         expect(overview.body.data.outgoingRequests).toEqual([]);
       }
@@ -688,10 +695,17 @@ describe('Arkadaşlık + mesajlaşma (e2e)', () => {
       expect(overview.body.data.friends[0].playerId).toBe(friend.playerId);
       expect(overview.body.data.friends[0].friendshipId).toBeDefined();
       expect(overview.body.data.friends[0].friendsSince).toBeDefined();
+      // (29.09.2026) `/friends` ekranı bu satırın adını `/profile/:username`e
+      // bağlar; üç görünümün ÜÇÜ de (arkadaş, gelen istek, giden istek) aynı
+      // alanı taşımak zorundadır — biri eksik kalırsa o satırın bağlantısı
+      // sessizce ölür.
+      expect(overview.body.data.friends[0].username).toBe(friend.username);
       expect(overview.body.data.incomingRequests).toHaveLength(1);
       expect(overview.body.data.incomingRequests[0].playerId).toBe(requester.playerId);
+      expect(overview.body.data.incomingRequests[0].username).toBe(requester.username);
       expect(overview.body.data.outgoingRequests).toHaveLength(1);
       expect(overview.body.data.outgoingRequests[0].playerId).toBe(addressee.playerId);
+      expect(overview.body.data.outgoingRequests[0].username).toBe(addressee.username);
       expect(overview.body.data.unreadMessageCount).toBe(1);
 
       // GİZLİLİK: başka oyuncunun bakiyesi asla taşınmaz (AUDIT_REPORT.md

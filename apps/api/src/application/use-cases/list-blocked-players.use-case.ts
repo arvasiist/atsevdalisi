@@ -43,6 +43,7 @@ export class ListBlockedPlayersUseCase {
     );
     return rows.map((row) => ({
       playerId: row.playerId,
+      username: row.username,
       displayName: row.displayName,
       level: row.level,
       blockedAt: row.blockedAt.toISOString(),

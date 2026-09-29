@@ -381,9 +381,14 @@ describe('apiClient.runPracticeRace', () => {
 });
 
 describe('apiClient.getLeaderboard', () => {
+  // `username` FIXTURE'DA ZORUNLUDUR (29.09.2026): sıralama ekranı satır
+  // adını `/profile/${row.username}`e bağlar. Bu dosya `apps/web/tsconfig.json`
+  // kapsamı DIŞINDADIR (o tsconfig yalnızca `src`i tip denetler), yani eksik
+  // bir alan burada DERLEME hatası vermez — yalnızca ekranı sessizce
+  // `/profile/undefined`e bağlardı.
   const rows = [
-    { rank: 1, playerId: 'player-1', displayName: 'Ayşe', score: 230, raceCount: 1 },
-    { rank: 2, playerId: 'player-2', displayName: 'Mehmet', score: 60, raceCount: 3 },
+    { rank: 1, playerId: 'player-1', username: 'ayse_42', displayName: 'Ayşe', score: 230, raceCount: 1 },
+    { rank: 2, playerId: 'player-2', username: 'mehmet_7', displayName: 'Mehmet', score: 60, raceCount: 3 },
   ];
 
   it('GET /leaderboard çağırır ve sorgu parametresi EKLEMEZ', async () => {

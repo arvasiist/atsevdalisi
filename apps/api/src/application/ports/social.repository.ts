@@ -254,6 +254,8 @@ export interface DirectMessageRow {
 /** Arkadaş/istek satırlarının ortak gövdesi — `players` JOIN'inden gelir. */
 export interface SocialPlayerFacts {
   playerId: string;
+  /** Profil rotasının adresi (`/profile/:username`) — gerekçe: `SocialPlayerView.username`. */
+  username: string;
   displayName: string;
   level: number;
 }

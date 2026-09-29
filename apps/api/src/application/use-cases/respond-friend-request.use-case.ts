@@ -70,6 +70,9 @@ export class RespondFriendRequestUseCase {
       status: updated.status,
       player: {
         playerId: other.id,
+        // `SocialPlayerView.username` (29.09.2026) — `/friends` ekranı bu
+        // satırın adını `/profile/:username`e bağlar.
+        username: other.username,
         displayName: other.displayName,
         level: other.level,
       },

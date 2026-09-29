@@ -49,6 +49,7 @@ interface SocialListRow {
   created_at: Date;
   responded_at: Date | null;
   player_id: string;
+  username: string;
   display_name: string;
   level: number;
 }
@@ -67,6 +68,7 @@ interface DirectMessageDbRow {
 /** `player_blocks` + `players` JOIN sonucu (brief §33). */
 interface BlockedPlayerDbRow {
   player_id: string;
+  username: string;
   display_name: string;
   level: number;
   blocked_at: Date;
@@ -172,7 +174,7 @@ export class PostgresSocialRepository implements SocialRepository {
     const [friendsResult, requestsResult, unreadResult] = await Promise.all([
       this.pool.query<SocialListRow>(
         `SELECT f.id AS friendship_id, f.requested_by_id, f.created_at, f.responded_at,
-                p.id AS player_id, p.display_name, p.level
+                p.id AS player_id, p.username, p.display_name, p.level
          FROM friendships f
          JOIN players p ON p.id = CASE WHEN f.player_low_id = $1 THEN f.player_high_id ELSE f.player_low_id END
          WHERE f.status = 'accepted' AND (f.player_low_id = $1 OR f.player_high_id = $1)
@@ -182,7 +184,7 @@ export class PostgresSocialRepository implements SocialRepository {
       ),
       this.pool.query<SocialListRow>(
         `SELECT f.id AS friendship_id, f.requested_by_id, f.created_at, f.responded_at,
-                p.id AS player_id, p.display_name, p.level
+                p.id AS player_id, p.username, p.display_name, p.level
          FROM friendships f
          JOIN players p ON p.id = CASE WHEN f.player_low_id = $1 THEN f.player_high_id ELSE f.player_low_id END
          WHERE f.status = 'pending' AND (f.player_low_id = $1 OR f.player_high_id = $1)
@@ -199,6 +201,7 @@ export class PostgresSocialRepository implements SocialRepository {
     const friends: FriendFacts[] = friendsResult.rows.map((row) => ({
       friendshipId: row.friendship_id,
       playerId: row.player_id,
+      username: row.username,
       displayName: row.display_name,
       level: row.level,
       // `responded_at` kabul anıdır; bozuk/eski bir satırda NULL olabilir
@@ -215,6 +218,7 @@ export class PostgresSocialRepository implements SocialRepository {
       const view: FriendRequestFacts = {
         requestId: row.friendship_id,
         playerId: row.player_id,
+        username: row.username,
         displayName: row.display_name,
         level: row.level,
         direction: row.requested_by_id === input.playerId ? 'outgoing' : 'incoming',
@@ -530,7 +534,7 @@ export class PostgresSocialRepository implements SocialRepository {
     // (`findInbox`ın "en yeni mesaj üstte" tercihiyle AYNI).
     const result = await this.pool.query<BlockedPlayerDbRow>(
       `SELECT b.blocked_id AS player_id, b.created_at AS blocked_at,
-              p.display_name, p.level
+              p.username, p.display_name, p.level
        FROM player_blocks b
        JOIN players p ON p.id = b.blocked_id
        WHERE b.blocker_id = $1
@@ -540,6 +544,7 @@ export class PostgresSocialRepository implements SocialRepository {
     );
     return result.rows.map((row) => ({
       playerId: row.player_id,
+      username: row.username,
       displayName: row.display_name,
       level: row.level,
       blockedAt: row.blocked_at,

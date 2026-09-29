@@ -28,6 +28,7 @@ interface PlayerBalanceRow {
   id: string;
   money: string;
   gems: string;
+  username: string;
   display_name: string;
   level: number;
 }
@@ -40,6 +41,7 @@ interface GiftListRow {
   amount: string;
   created_at: Date;
   counterparty_id: string;
+  counterparty_username: string;
   counterparty_display_name: string;
   counterparty_level: number;
 }
@@ -53,6 +55,7 @@ function rowToGiftFacts(row: GiftListRow, playerId: string): GiftFacts {
     direction: row.sender_id === playerId ? 'outgoing' : 'incoming',
     counterparty: {
       playerId: row.counterparty_id,
+      username: row.counterparty_username,
       displayName: row.counterparty_display_name,
       level: row.counterparty_level,
     },
@@ -123,7 +126,7 @@ export class PostgresGiftRepository implements GiftRepository {
       const balancesById = new Map<string, PlayerBalanceRow>();
       for (const id of [firstId, secondId]) {
         const result = await client.query<PlayerBalanceRow>(
-          'SELECT id, money, gems, display_name, level FROM players WHERE id = $1 FOR UPDATE',
+          'SELECT id, money, gems, username, display_name, level FROM players WHERE id = $1 FOR UPDATE',
           [id],
         );
         const row = result.rows[0];
@@ -308,6 +311,7 @@ export class PostgresGiftRepository implements GiftRepository {
 
       const recipient: GiftCounterpartyFacts = {
         playerId: recipientId,
+        username: recipientRow.username,
         displayName: recipientRow.display_name,
         level: recipientRow.level,
       };
@@ -326,7 +330,8 @@ export class PostgresGiftRepository implements GiftRepository {
     // JOIN'in `ON` koşulu bu yüzden `CASE`'i TEKRARLAR.
     const result = await this.pool.query<GiftListRow>(
       `SELECT g.id, g.sender_id, g.currency, g.amount, g.created_at,
-              p.id AS counterparty_id, p.display_name AS counterparty_display_name, p.level AS counterparty_level
+              p.id AS counterparty_id, p.username AS counterparty_username,
+              p.display_name AS counterparty_display_name, p.level AS counterparty_level
        FROM gift_sends g
        JOIN players p
          ON p.id = CASE WHEN g.sender_id = $1 THEN g.recipient_id ELSE g.sender_id END

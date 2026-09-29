@@ -3,7 +3,7 @@ import type { SocialOverviewView } from '@at-sevdalisi/shared-types';
 import { PlayerNotFoundError } from '../../domain/player/errors';
 import { AppConfigService } from '../../infrastructure/config/config.service';
 import { PLAYER_REPOSITORY, type PlayerRepository } from '../ports/player.repository';
-import { SOCIAL_REPOSITORY, type SocialRepository } from '../ports/social.repository';
+import { SOCIAL_REPOSITORY, type SocialPlayerFacts, type SocialRepository } from '../ports/social.repository';
 
 /**
  * Sosyal özet (proje sahibinin açık talebi, 27.09.2026: "arkadaşlık +
@@ -36,8 +36,14 @@ export class GetSocialOverviewUseCase {
       requestsLimit: overviewRequestsLimit,
     });
 
-    const toPlayer = (row: { playerId: string; displayName: string; level: number }) => ({
+    // Parametre tipi BİLİNÇLİ olarak `SocialPlayerFacts`tir — elle yazılmış
+    // bir `{ playerId; displayName; level }` şekli DEĞİL. Elle yazılsaydı
+    // `username` gibi yeni bir alan bu eşleyiciden sessizce düşerdi:
+    // yapısal tipler fazladan alanı kabul eder, yani hata ÇIKMAZDI.
+    // Şimdi eksik alan `SocialOverviewView` dönüş tipinde tsc hatası verir.
+    const toPlayer = (row: SocialPlayerFacts) => ({
       playerId: row.playerId,
+      username: row.username,
       displayName: row.displayName,
       level: row.level,
     });

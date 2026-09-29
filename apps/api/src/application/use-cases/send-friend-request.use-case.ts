@@ -93,6 +93,9 @@ export class SendFriendRequestUseCase {
     return {
       requestId: row.id,
       playerId: addressee.id,
+      // `SocialPlayerView.username` (29.09.2026) — giden istek satırının adı
+      // `/profile/:username`e bağlanır.
+      username: addressee.username,
       displayName: addressee.displayName,
       level: addressee.level,
       // Ben gönderdim — yön her zaman `outgoing`dur.

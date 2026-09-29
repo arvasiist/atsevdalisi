@@ -115,6 +115,10 @@ describe('Block / Report — moderasyon (e2e)', () => {
       const response = await block(blocker, blocked.playerId, 201);
       expect(response.body.data.playerId).toBe(blocked.playerId);
       expect(response.body.data.displayName).toBe('Engellenen');
+      // (29.09.2026) `BlockedPlayerView` `SocialPlayerView`i genişletir, yani
+      // `username` taşır — engel listesindeki ad da `/profile/:username`e
+      // bağlanabilsin diye. Değer kayıtlı adla birebir aynı olmalı.
+      expect(response.body.data.username).toBe(blocked.username);
       expect(typeof response.body.data.blockedAt).toBe('string');
 
       const list = await request(app.getHttpServer())
@@ -123,6 +127,7 @@ describe('Block / Report — moderasyon (e2e)', () => {
         .expect(200);
       expect(list.body.data).toHaveLength(1);
       expect(list.body.data[0].playerId).toBe(blocked.playerId);
+      expect(list.body.data[0].username).toBe(blocked.username);
 
       // TERS YÖN LİSTESİ BOŞTUR — engelleme YÖNLÜDÜR ve "beni engelleyenler"
       // listesi bilinçli olarak yoktur (bkz. `findBlockedPlayers` doc yorumu).

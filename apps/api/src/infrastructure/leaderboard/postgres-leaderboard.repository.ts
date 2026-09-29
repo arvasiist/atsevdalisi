@@ -11,6 +11,7 @@ import { PG_POOL } from '../database/database.module';
  */
 interface FinishedRaceRow {
   owner_id: string;
+  username: string;
   display_name: string;
   performance_score: string;
   finish_position: number;
@@ -41,6 +42,7 @@ export class PostgresLeaderboardRepository implements LeaderboardRepository {
     const result = await this.pool.query<FinishedRaceRow>(
       `SELECT
          h.owner_id          AS owner_id,
+         p.username          AS username,
          p.display_name      AS display_name,
          e.performance_score AS performance_score,
          e.finish_position   AS finish_position,
@@ -55,6 +57,7 @@ export class PostgresLeaderboardRepository implements LeaderboardRepository {
 
     return result.rows.map((row) => ({
       playerId: row.owner_id,
+      username: row.username,
       displayName: row.display_name,
       performanceScore: Number(row.performance_score),
       finishPosition: row.finish_position,

@@ -116,6 +116,8 @@ export interface SendGiftExecutionResult {
 /** Hediye satırında karşı tarafın taşınan alanları — `SocialPlayerFacts` ile AYNI küme. */
 export interface GiftCounterpartyFacts {
   playerId: string;
+  /** Profil rotasının adresi — `SocialPlayerView.username` ile AYNI gerekçe. */
+  username: string;
   displayName: string;
   level: number;
 }

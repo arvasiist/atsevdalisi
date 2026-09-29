@@ -52,6 +52,7 @@ export class BlockPlayerUseCase {
 
     return {
       playerId: blockedId,
+      username: blocked.username,
       displayName: blocked.displayName,
       level: blocked.level,
       blockedAt: blockedAt.toISOString(),

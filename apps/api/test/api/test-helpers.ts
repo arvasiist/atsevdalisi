@@ -191,6 +191,16 @@ export async function sendConcurrentRequestsBatched<T>(
 
 export interface RegisteredTestPlayer {
   playerId: string;
+  /**
+   * Kayıtta ÜRETİLEN kullanıcı adı (`uniqueUsername()`).
+   *
+   * **NEDEN DÖNÜYOR (29.09.2026):** `username` artık `SocialPlayerView`/
+   * `LeaderboardRowView` gibi GÖRÜNÜMLERİN parçasıdır ve o görünümlerin
+   * doğruluğu ancak kayıtlı gerçek değerle karşılaştırılarak kanıtlanır.
+   * Çağıran `uniqueUsername()`'i kendi de üretebilirdi ama o zaman kayıt
+   * ile iddia İKİ ayrı üretim yoluna bakardı; burada tek kaynak var.
+   */
+  username: string;
   token: string;
   /** `.set('Authorization', authHeader)` olarak doğrudan kullanıma hazır. */
   authHeader: string;
@@ -208,12 +218,13 @@ export async function registerTestPlayer(
   app: INestApplication,
   displayName = 'Test Oyuncu',
 ): Promise<RegisteredTestPlayer> {
+  const username = uniqueUsername();
   const response = await request(app.getHttpServer())
     .post('/api/v1/players')
-    .send({ username: uniqueUsername(), displayName })
+    .send({ username, displayName })
     .expect(201);
   const { token, player } = response.body.data as { token: string; player: { id: string } };
-  return { playerId: player.id, token, authHeader: `Bearer ${token}` };
+  return { playerId: player.id, username, token, authHeader: `Bearer ${token}` };
 }
 
 /**

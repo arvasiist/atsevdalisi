@@ -41,6 +41,10 @@ export class GetLeaderboardUseCase {
     // yazmak, gerçekte olamayacak bir durumu gizleyip hatayı sessizleştirirdi.
     const totals = sumRankingScores(records, this.config.online);
     const displayNames = new Map(records.map((record) => [record.playerId, record.displayName]));
+    // `username` de aynı kaynaktan (`records`) gelir — ikinci bir sorgu
+    // ATILMAZ. Aynı oyuncunun onlarca yarış kaydı olabilir; hepsi aynı
+    // `players` satırından okunduğu için değer aynıdır.
+    const usernames = new Map(records.map((record) => [record.playerId, record.username]));
     const totalsByPlayer = new Map(totals.map((total) => [total.playerId, total]));
 
     const ranked = buildLeaderboard(
@@ -56,6 +60,7 @@ export class GetLeaderboardUseCase {
     return ranked.slice(0, LEADERBOARD_TOP_N).map((entry) => ({
       rank: entry.rank,
       playerId: entry.playerId,
+      username: usernames.get(entry.playerId)!,
       displayName: displayNames.get(entry.playerId)!,
       score: entry.score,
       raceCount: totalsByPlayer.get(entry.playerId)!.raceCount,

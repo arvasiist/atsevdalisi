@@ -59,6 +59,15 @@ export interface LeaderboardRowView {
   /** 1 = zirve. Eşit puanda olanlar AYNI rank'i paylaşır (bkz. `buildLeaderboard`). */
   rank: number;
   playerId: UUID;
+  /**
+   * Profil rotasının adresi (`/profile/:username`) — `SocialPlayerView.
+   * username` ile AYNI gerekçe (29.09.2026, `FINAL_PROJECT_AUDIT.md` §5
+   * madde 3): sıralama tablosu başka oyuncuların kimliğini gösteren
+   * yüzeylerden biridir ve `displayName` bir URL olamaz. Gizlilik
+   * değişikliği DEĞİLDİR — `username` zaten `@Public()` olan
+   * `GET /players/profile/:username` ucunun adresidir.
+   */
+  username: string;
   displayName: string;
   score: number;
   raceCount: number;
