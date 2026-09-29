@@ -1,8 +1,15 @@
 import { Controller, Get, HttpCode, HttpStatus, Inject, Param, ParseUUIDPipe, Post } from '@nestjs/common';
-import type { ApiSuccess, HireJockeyResultView, Jockey, PlayerJockeyView } from '@at-sevdalisi/shared-types';
+import type {
+  ApiSuccess,
+  HireJockeyResultView,
+  Jockey,
+  PlayerJockeyView,
+  ReleaseJockeyResultView,
+} from '@at-sevdalisi/shared-types';
 import { GetPlayerJockeyUseCase } from '../../application/use-cases/get-player-jockey.use-case';
 import { HireJockeyUseCase } from '../../application/use-cases/hire-jockey.use-case';
 import { ListAvailableJockeysUseCase } from '../../application/use-cases/list-available-jockeys.use-case';
+import { ReleaseJockeyUseCase } from '../../application/use-cases/release-jockey.use-case';
 import { assertSelf } from '../auth/assert-self';
 import { CurrentPlayer, type AuthenticatedPlayer } from '../auth/current-player.decorator';
 import { RateLimit } from '../rate-limit/rate-limit.decorator';
@@ -10,7 +17,7 @@ import { RateLimit } from '../rate-limit/rate-limit.decorator';
 /**
  * Jokey (brief §13, §42 PHASE 6.2).
  *
- * **ÜÇ UÇ, İKİ FARKLI EKSEN — bu yüzden `@Controller()` (boş prefix) +
+ * **DÖRT UÇ, İKİ FARKLI EKSEN — bu yüzden `@Controller()` (boş prefix) +
  * TAM yollar** (`GiftController`/`SocialController` ile AYNI gerekçe):
  * vitrin `/jockeys` altında, oyuncunun kendi jokeyi ise `/players/:id/...`
  * altındadır.
@@ -33,6 +40,7 @@ export class JockeyController {
     @Inject(ListAvailableJockeysUseCase) private readonly listAvailableJockeysUseCase: ListAvailableJockeysUseCase,
     @Inject(GetPlayerJockeyUseCase) private readonly getPlayerJockeyUseCase: GetPlayerJockeyUseCase,
     @Inject(HireJockeyUseCase) private readonly hireJockeyUseCase: HireJockeyUseCase,
+    @Inject(ReleaseJockeyUseCase) private readonly releaseJockeyUseCase: ReleaseJockeyUseCase,
   ) {}
 
   /**
@@ -87,6 +95,40 @@ export class JockeyController {
     @CurrentPlayer() currentPlayer: AuthenticatedPlayer,
   ): Promise<ApiSuccess<HireJockeyResultView>> {
     const result = await this.hireJockeyUseCase.execute(jockeyId, currentPlayer.id);
+    return { success: true, data: result };
+  }
+
+  /**
+   * Jokeyi serbest bırakır (29.09.2026, FINAL_PROJECT_AUDIT #18).
+   *
+   * **200, 201 DEĞİL:** yeni bir kaynak yaratılmaz — var olan satırın
+   * `owner_id`si `NULL`a çekilir. `hire` 201 döner çünkü yeni bir
+   * MÜLKİYET ilişkisi doğar; burada ilişki SONA erer.
+   *
+   * **`@RateLimit` VAR, `IdempotencyInterceptor` YOK — `hire` ile AYNI
+   * gerekçe:** çift bırakmayı engelleyen şey anahtar değil DURUM
+   * GEÇİŞİDİR (ikinci çağrı `owner_id`ı `NULL` bulur ve 409
+   * `JOCKEY_NOT_OWNED` alır). `@RateLimit` ise FARKLI bir soruyu
+   * cevaplar — "ne kadar SIK". ⚠️ `name` `hire`dan AYRI olmak zorundadır:
+   * aynı `name` tek bütçeyi bölerdi (PHASE 16 kuralı,
+   * `phase16-hardening.spec.ts`).
+   *
+   * **PARA YOLU DEĞİL:** iade yoktur, defter satırı yazılmaz
+   * (`JockeyRepository.release` doc yorumu).
+   *
+   * **KİMLİK TOKEN'DAN GELİR.** Yol parametresi jokeydir, oyuncu değil;
+   * `currentPlayer.id` hiçbir istemci girdisinden gelmez — `hire`daki
+   * aynı kapı (gövdeye/path'e `playerId` eklenirse bir oyuncu
+   * BAŞKASININ jokeyini bırakabilir).
+   */
+  @RateLimit({ name: 'jockey-release', limit: 10, windowSeconds: 60, keyBy: 'player' })
+  @Post('jockeys/:jockeyId/release')
+  @HttpCode(HttpStatus.OK)
+  async release(
+    @Param('jockeyId', ParseUUIDPipe) jockeyId: string,
+    @CurrentPlayer() currentPlayer: AuthenticatedPlayer,
+  ): Promise<ApiSuccess<ReleaseJockeyResultView>> {
+    const result = await this.releaseJockeyUseCase.execute(jockeyId, currentPlayer.id);
     return { success: true, data: result };
   }
 }

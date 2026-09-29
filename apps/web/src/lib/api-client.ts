@@ -23,9 +23,11 @@ import type {
   FinalStretchPlan,
   FriendRequestView,
   GiftView,
+  HireJockeyResultView,
   HorseEquipment,
   HorseMarketValueView,
   HorsePedigreeView,
+  Jockey,
   JoinMatchmakingQueueResult,
   LeaderboardRowView,
   MarkAllNotificationsReadResult,
@@ -33,6 +35,7 @@ import type {
   NotificationListResult,
   NotificationView,
   PerformCareActionResult,
+  PlayerJockeyView,
   PlayerProfileView,
   PlayerSummary,
   PracticeRaceResult,
@@ -44,6 +47,7 @@ import type {
   RaceTicketView,
   RaceTimelineView,
   RecentRaceResultView,
+  ReleaseJockeyResultView,
   RemoveBlockResult,
   RemoveFriendResult,
   ReportCategory,
@@ -291,6 +295,59 @@ export const apiClient = {
    * `StableSummaryView` şeklini kullanıyor.
    */
   getStableSummary: (ownerId: string) => request<StableSummaryView>(`/players/${ownerId}/stable-summary`),
+
+  /**
+   * Kiralamaya AÇIK jokey vitrini — `GET /jockeys` (brief §13, PHASE 6.2;
+   * istemci tüketicisi 29.09.2026, FINAL_PROJECT_AUDIT #18).
+   *
+   * **Uç, 29.09.2026'ya kadar İSTEMCİSİZDİ:** jokey kiralanabiliyor ve
+   * motora giriyordu (`jockeySkillComposite`) ama oyuncu ne jokeyini
+   * görebiliyor ne de seçebiliyordu. `JockeyAlreadyHiredError`ın mesajı
+   * "Önce onu bırakmalısın" diyordu ve bırakmanın da yolu yoktu.
+   *
+   * Sıralama SUNUCUDAN gelir (`salary` artan) — istemci yeniden sıralamaz,
+   * yoksa iki sıralama kuralı doğardı.
+   */
+  getJockeys: () => request<Jockey[]>('/jockeys'),
+
+  /**
+   * Oyuncunun kiralı jokeyi — `GET /players/:id/jockey`.
+   *
+   * **`null` BİR HATA DEĞİLDİR** (404 değil): jokeyi olmayan oyuncu nötr 50
+   * ile koşar ve ekran bu ayrımla "jokeyin yok, kirala" hâlini kurar.
+   *
+   * `composite` SUNUCUDAN gelir — altı beceriyi config ağırlıklarıyla
+   * çarpmak formülün ikinci bir kopyasını doğururdu ve config değişince
+   * gösterilen sayı ile motora giren sayı sessizce ayrışırdı.
+   */
+  getPlayerJockey: (playerId: string) => request<PlayerJockeyView | null>(`/players/${playerId}/jockey`),
+
+  /**
+   * Jokey kiralar — `POST /jockeys/:jockeyId/hire` (PARA YOLU).
+   *
+   * **`Idempotency-Key` GÖNDERİLMEZ ve bu bilinçlidir.** Sunucu bu başlığı
+   * BİLEREK okumaz: çift kiralamayı engelleyen şey anahtar değil DURUM
+   * GEÇİŞİDİR (ikinci çağrı 409 `JOCKEY_ALREADY_OWNED` / `_HIRED` alır).
+   * Anahtar gönderip yok sayılmak, istemciye "korunuyorum" hissi verirdi.
+   *
+   * Ödeyen taraf GÖVDEDEN GELMEZ: kimlik token'dan çözülür. Gövde yoktur.
+   */
+  hireJockey: (jockeyId: string) => request<HireJockeyResultView>(`/jockeys/${jockeyId}/hire`, { method: 'POST' }),
+
+  /**
+   * Jokeyi serbest bırakır — `POST /jockeys/:jockeyId/release`
+   * (29.09.2026, FINAL_PROJECT_AUDIT #18).
+   *
+   * **PARA YOLU DEĞİLDİR: İADE YOKTUR.** Kiralama bedeli bir kiralama
+   * ücretidir, depozito değil — bu yüzden yanıt `balanceAfter` taşımaz ve
+   * ekran üst bardaki bakiyeyi güncellemek zorunda değildir. İade
+   * edilseydi `kirala → bırak` döngüsü jokey kiralamayı BEDAVA yapardı.
+   *
+   * `hire` gibi bu da anahtar ALMAZ: çift bırakmayı `owner_id`ın zaten
+   * `NULL` olması engeller (409 `JOCKEY_NOT_OWNED`).
+   */
+  releaseJockey: (jockeyId: string) =>
+    request<ReleaseJockeyResultView>(`/jockeys/${jockeyId}/release`, { method: 'POST' }),
 
   /**
    * Ahırı bir sonraki seviyeye yükseltir (brief §32). Bu uç nokta

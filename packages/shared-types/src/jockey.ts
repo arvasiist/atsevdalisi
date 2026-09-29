@@ -56,3 +56,24 @@ export interface HireJockeyResultView {
   paid: number;
   balanceAfter: number;
 }
+
+/**
+ * `POST /jockeys/:jockeyId/release` yanıtı (29.09.2026, FINAL_PROJECT_AUDIT
+ * #18) — jokeyi attan/oyuncudan ayırır.
+ *
+ * **`balanceAfter` YOKTUR ve bu bilinçlidir.** Bırakma bir **PARA YOLU
+ * DEĞİLDİR**: kiralama bedeli bir KİRALAMA ücretidir, depozito değil —
+ * geri ödenmez. Bu yüzden `hire` yanıtındaki gibi bir bakiye alanı
+ * döndürmek, istemciye "bakiye değişti" diyen bir sözleşme verirdi ve
+ * ekranda güncellenecek bir sayı olmadığı hâlde güncelleniyormuş gibi
+ * görünürdü. İstemci `balanceAfter`ı yalnızca `HireJockeyResultView`dan
+ * alır.
+ *
+ * **`jockey` DÖNER, `null` DEĞİL:** bırakılan satır SİLİNMEZ (geçmiş
+ * yarışların `race_entries.jockey_id`si ona işaret eder); yalnızca
+ * `ownerId` `null`a çekilir. İstemci "X serbest bırakıldı" diyebilsin
+ * diye jokeyin KENDİSİ geri verilir.
+ */
+export interface ReleaseJockeyResultView {
+  jockey: Jockey;
+}

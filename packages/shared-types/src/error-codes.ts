@@ -519,6 +519,23 @@ export const ErrorCode = {
    * port doc yorumu).
    */
   JockeyAlreadyHired: 'JOCKEY_ALREADY_HIRED',
+  /**
+   * Jokey SENİN DEĞİL — serbest bırakma reddi (409).
+   * `POST /jockeys/:jockeyId/release` (29.09.2026, FINAL_PROJECT_AUDIT #18).
+   *
+   * **NEDEN `JOCKEY_NOT_FOUND` YETMEZ:** jokey vardır, kimliği de herkese
+   * açık vitrinde (`GET /jockeys`) görünür — yani "yok" demek yanlış
+   * olurdu. Engelleyen şey KAYNAĞIN DURUMUDUR: `owner_id` ya `NULL`dır
+   * (zaten serbest, ya da hiç kiralanmamış) ya da BAŞKA bir oyuncudadır.
+   * `JockeyAlreadyOwned` ("başkasında") ile birleştirmek, sahipsiz bir
+   * jokeyi bırakmaya çalışan istemciye yanlış bir cümle kurardı.
+   *
+   * **BU KOD YÖN SIZDIRMAZ.** İki alt durum (sahipsiz / başkasının) TEK
+   * kod ve TEK mesajla döner; ayrılsaydı bir oyuncu kimlik deneyerek
+   * "bu jokey birinin mi" sorusunu yoklayabilirdi. Aynı gerekçe
+   * `PLAYER_BLOCKED` için de geçerlidir (PROJE_DURUMU §13.16).
+   */
+  JockeyNotOwned: 'JOCKEY_NOT_OWNED',
 } as const;
 
 export type ErrorCodeValue = (typeof ErrorCode)[keyof typeof ErrorCode];

@@ -69,7 +69,12 @@ import {
   RaceNotSettleableError,
 } from '../../domain/race/errors';
 import { AlreadyInMatchmakingQueueError, NotInMatchmakingQueueError } from '../../domain/online/errors';
-import { JockeyAlreadyHiredError, JockeyAlreadyOwnedError, JockeyNotFoundError } from '../../domain/jockey/errors';
+import {
+  JockeyAlreadyHiredError,
+  JockeyAlreadyOwnedError,
+  JockeyNotFoundError,
+  JockeyNotOwnedError,
+} from '../../domain/jockey/errors';
 import {
   RaceNotWatchableError,
   RaceTicketAlreadyOwnedError,
@@ -399,6 +404,11 @@ const DOMAIN_ERROR_MAP = new Map<ErrorClassConstructor, { status: number; code: 
   // arasında da vardır.
   [JockeyAlreadyOwnedError, { status: HttpStatus.CONFLICT, code: ErrorCode.JockeyAlreadyOwned }],
   [JockeyAlreadyHiredError, { status: HttpStatus.CONFLICT, code: ErrorCode.JockeyAlreadyHired }],
+  // 409 — serbest bırakma reddi. İKİ alt durum (sahipsiz / başkasında) TEK
+  // kodla döner; ayrılsaydı kimlik deneyen biri "bu jokey birinin mi"
+  // sorusunu yanıtlardı. `JockeyNotFoundError` (404) DEĞİLDİR: satır
+  // vardır ve kimliği herkese açık vitrinde görünür.
+  [JockeyNotOwnedError, { status: HttpStatus.CONFLICT, code: ErrorCode.JockeyNotOwned }],
   // `POST /auth/login`'e özgü — bkz. `InvalidProviderTokenError` doc yorumu.
   [InvalidProviderTokenError, { status: HttpStatus.UNAUTHORIZED, code: ErrorCode.InvalidProviderToken }],
   // claude/hizli-bitirme-plani.md'nin proje sahibi tarafından

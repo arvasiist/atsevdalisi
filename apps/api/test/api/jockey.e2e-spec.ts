@@ -7,6 +7,8 @@ import { PG_POOL } from '../../src/infrastructure/database/database.module';
 import { AppConfigService } from '../../src/infrastructure/config/config.service';
 import { calculateJockeySkillComposite } from '../../src/domain/jockey/jockey';
 import { NEUTRAL_UNMODELED_TRAIT_SCORE } from '../../src/domain/race/entrant-snapshot';
+import { JockeyController } from '../../src/api/jockey/jockey.controller';
+import { RATE_LIMIT_KEY, type RateLimitOptions } from '../../src/api/rate-limit/rate-limit.decorator';
 import {
   bootstrapTestApp,
   registerTestPlayerWithStarterHorse,
@@ -47,6 +49,20 @@ import {
  *     403'tür; `hire` gövdesi/path'i ödeyen tarafı BELİRLEMEZ (test
  *     gövdeye `playerId` koymayı denemez çünkü DTO yoktur — asıl kapı
  *     `currentPlayer.id`nin hiçbir istemci girdisinden gelmemesidir).
+ *
+ *  7. **SERBEST BIRAKMA İADE ETMEZ** (29.09.2026, FINAL_PROJECT_AUDIT #18).
+ *     `POST /jockeys/:jockeyId/release` jokeyi ayırır ama kiralama bedelini
+ *     GERİ ÖDEMEZ: bedel bir kiralama ücretidir, depozito değil. Test bunu
+ *     "bakiye değişmedi" demekle bırakmaz — `hire → release → hire`
+ *     döngüsünü kurar ve İKİNCİ kiralamanın YİNE para düşürdüğünü
+ *     iddia eder. Aksi hâlde iade sessizce eklenebilirdi.
+ *  8. **SERBEST BIRAKMA MOTORA YANSIR.** Bıraktıktan sonra koşulan pratik
+ *     yarışta `jockey_id` NULL ve kompozit nötr 50'dir — yani bu uç
+ *     yalnızca bir ekran değil, motorun girdisini değiştirir.
+ *  9. **YÖN SIZMAZ.** Sahipsiz bir jokeyi bırakmak ile BAŞKASININ jokeyini
+ *     bırakmak AYNI kodu (409 `JOCKEY_NOT_OWNED`) ve aynı mesajı alır;
+ *     mesajda "başkası/ait/senin" ayrımı geçmez. Ayrılsaydı kimlik deneyen
+ *     bir oyuncu "bu jokey birinin mi" sorusunu yanıtlardı.
  *
  * Gerçek PostgreSQL + Redis gerektirir (diğer e2e dosyalarıyla AYNI kısıt).
  */
@@ -391,6 +407,169 @@ describe('Jokey (e2e) — brief §13, PHASE 6.2', () => {
       // Botlarla AYNI değer: jokeyi olmayan oyuncuya gizli bir ceza da
       // bonus da verilmez.
       expect(snapshot.jockeySkillComposite).toBe(NEUTRAL_UNMODELED_TRAIT_SCORE);
+    });
+  });
+
+  describe('serbest bırakma — POST /jockeys/:jockeyId/release (audit #18)', () => {
+    async function release(player: RegisteredTestPlayer, jockeyId: string, expectedStatus: number) {
+      return request(app.getHttpServer())
+        .post(`${JOCKEYS_URL}/${jockeyId}/release`)
+        .set('Authorization', player.authHeader)
+        .expect(expectedStatus);
+    }
+
+    it('mutlu yol: sahiplik düşer, jokey vitrine DÖNER ve PARA DEĞİŞMEZ', async () => {
+      const player = await registerTestPlayerWithStarterHorse(app, 'Birakan');
+      const jockeyId = await createJockey({ salary: 700 });
+      await setMoney(player.playerId, 5_000);
+
+      await hire(player, jockeyId, 201);
+      expect(await moneyOf(player.playerId)).toBe(4_300);
+
+      const response = await release(player, jockeyId, 200);
+      expect(response.body.data.jockey.id).toBe(jockeyId);
+      // ⚠️ Bırakılan jokeyin `ownerId`si `null` dönmelidir — yanıt
+      // "sahiplik devam ediyor" diyen bir satır taşırsa istemci yanlış
+      // ekran kurar.
+      expect(response.body.data.jockey.ownerId).toBeNull();
+      // ⚠️ `salary` BIGINT — METİN değil SAYI dönmelidir.
+      expect(typeof response.body.data.jockey.salary).toBe('number');
+
+      expect(await ownerOfJockey(jockeyId)).toBeNull();
+      // İADE YOK — bakiye 4.300'de KALIR.
+      expect(await moneyOf(player.playerId)).toBe(4_300);
+      // Defterde YALNIZCA kiralama satırı vardır; bırakma satır ÜRETMEZ.
+      expect(await hireLedgerRows(player.playerId)).toHaveLength(1);
+
+      // Jokey vitrine geri döndü — yani "serbest" gerçekten serbest.
+      const showcase = await request(app.getHttpServer())
+        .get(JOCKEYS_URL)
+        .set('Authorization', player.authHeader)
+        .expect(200);
+      expect((showcase.body.data as { id: string }[]).map((row) => row.id)).toContain(jockeyId);
+    });
+
+    it('İADE YOK — `hire → release → hire` döngüsü ikinci kez de para düşer', async () => {
+      const player = await registerTestPlayerWithStarterHorse(app, 'Dongu');
+      const salary = 500;
+      const first = await createJockey({ salary });
+      const second = await createJockey({ salary });
+      await setMoney(player.playerId, 5_000);
+
+      await hire(player, first, 201);
+      await release(player, first, 200);
+      // İade edilmiş olsaydı bakiye 5.000'e dönerdi.
+      expect(await moneyOf(player.playerId)).toBe(4_500);
+
+      await hire(player, second, 201);
+      // İkinci kiralama YİNE düşer — kiralama bedeli bir KİRALAMA
+      // ücretidir, depozito değil. Bu iddia olmadan bir iade sessizce
+      // eklenebilirdi ve "jokey kiralamak bedava" olurdu.
+      expect(await moneyOf(player.playerId)).toBe(4_000);
+      expect(await hireLedgerRows(player.playerId)).toHaveLength(2);
+      expect(await ownerOfJockey(second)).toBe(player.playerId);
+    });
+
+    it('SERBEST BIRAKMA MOTORA YANSIR: sonraki yarışta `jockey_id` NULL, kompozit nötr', async () => {
+      const player = await registerTestPlayerWithStarterHorse(app, 'BiraktiKostu');
+      await setMoney(player.playerId, 50_000);
+      const jockeyId = await createJockey({ salary: 0, skill: 95 });
+      await hire(player, jockeyId, 201);
+      await release(player, jockeyId, 200);
+
+      await request(app.getHttpServer())
+        .post(`/api/v1/horses/${player.horseId}/practice-race`)
+        .set('Authorization', player.authHeader)
+        .set('Idempotency-Key', randomUUID())
+        .send({})
+        .expect(200);
+
+      const entry = await pool.query<{ jockey_id: string | null; horse_snapshot: string }>(
+        `SELECT jockey_id, horse_snapshot FROM race_entries
+         WHERE horse_id = $1 AND bot_label IS NULL
+         ORDER BY created_at DESC LIMIT 1`,
+        [player.horseId],
+      );
+      expect(entry.rows).toHaveLength(1);
+      expect(entry.rows[0].jockey_id).toBeNull();
+      const snapshot = JSON.parse(JSON.stringify(entry.rows[0].horse_snapshot)) as {
+        jockeySkillComposite: number;
+      };
+      expect(snapshot.jockeySkillComposite).toBe(NEUTRAL_UNMODELED_TRAIT_SCORE);
+    });
+
+    it('İKİNCİ bırakma 409 JOCKEY_NOT_OWNED — koruma anahtar değil DURUM GEÇİŞİ', async () => {
+      const player = await registerTestPlayerWithStarterHorse(app, 'CiftBirakan');
+      const jockeyId = await createJockey({ salary: 100 });
+      await setMoney(player.playerId, 5_000);
+      await hire(player, jockeyId, 201);
+      await release(player, jockeyId, 200);
+
+      const response = await release(player, jockeyId, 409);
+      expect(response.body.error.code).toBe('JOCKEY_NOT_OWNED');
+      expect(await ownerOfJockey(jockeyId)).toBeNull();
+      expect(await moneyOf(player.playerId)).toBe(4_900);
+    });
+
+    it('BAŞKASININ jokeyi 409 JOCKEY_NOT_OWNED — ve yön SIZMAZ', async () => {
+      const owner = await registerTestPlayerWithStarterHorse(app, 'Sahip2');
+      const other = await registerTestPlayerWithStarterHorse(app, 'Diger2');
+      const jockeyId = await createJockey({ salary: 100, ownerId: owner.playerId });
+      await setMoney(other.playerId, 5_000);
+
+      const foreign = await release(other, jockeyId, 409);
+      expect(foreign.body.error.code).toBe('JOCKEY_NOT_OWNED');
+      // Sahiplik DEĞİŞMEZ.
+      expect(await ownerOfJockey(jockeyId)).toBe(owner.playerId);
+      expect(await moneyOf(other.playerId)).toBe(5_000);
+
+      // YÖN SIZMAZ: sahipsiz bir jokeyi bırakmaya çalışan oyuncunun
+      // aldığı yanıt, BAŞKASININ jokeyini bırakmaya çalışanınkinden
+      // AYIRT EDİLEMEZ olmalıdır. İkisi ayrılsaydı kimlik deneyen bir
+      // oyuncu "bu jokey birinin mi" sorusunu yanıtlardı.
+      const free = await createJockey({ salary: 100 });
+      const ownerless = await release(other, free, 409);
+      expect(ownerless.body.error.code).toBe(foreign.body.error.code);
+      // Mesaj jokeyin KİMLİĞİNİ taşır (kod tabanının genel üslubu) —
+      // kimliği nötrleştirip geri kalanı karşılaştırırız.
+      const stripId = (message: unknown): string => String(message).replace(/[0-9a-f-]{36}/g, '<id>');
+      expect(stripId(ownerless.body.error.message)).toBe(stripId(foreign.body.error.message));
+      // Mesajda "başkası / başka birinin / ait" gibi bir YÖN kelimesi
+      // GEÇMEZ.
+      expect(String(foreign.body.error.message)).not.toMatch(/başkası|başka bir|ait/i);
+    });
+
+    it('var olmayan jokey 404 JOCKEY_NOT_FOUND (409 DEĞİL)', async () => {
+      const player = await registerTestPlayerWithStarterHorse(app, 'Hayalet2');
+      const response = await release(player, randomUUID(), 404);
+      expect(response.body.error.code).toBe('JOCKEY_NOT_FOUND');
+    });
+
+    it('kimlik doğrulaması olmadan 401 döner ve sahiplik DEĞİŞMEZ', async () => {
+      const player = await registerTestPlayerWithStarterHorse(app, 'Kimliksiz2');
+      const jockeyId = await createJockey({ salary: 0 });
+      await hire(player, jockeyId, 201);
+
+      await request(app.getHttpServer()).post(`${JOCKEYS_URL}/${jockeyId}/release`).expect(401);
+      expect(await ownerOfJockey(jockeyId)).toBe(player.playerId);
+    });
+
+    it('hız sınırı: `release` SINIRLIDIR ve `hire`ın bütçesini BÖLMEZ', async () => {
+      const hireOptions = Reflect.getMetadata(RATE_LIMIT_KEY, JockeyController.prototype.hire) as
+        | RateLimitOptions
+        | undefined;
+      const releaseOptions = Reflect.getMetadata(RATE_LIMIT_KEY, JockeyController.prototype.release) as
+        | RateLimitOptions
+        | undefined;
+      // `@RateLimit` opt-in'dir: işaretlenmeyen yazma rotası SINIRSIZDIR ve
+      // bunu ne derleyici ne başka bir test fark eder.
+      expect(hireOptions).toBeDefined();
+      expect(releaseOptions).toBeDefined();
+      // ⚠️ Aynı `name` tek bütçeyi böler (kopyala-yapıştır tuzağı) —
+      // PHASE 16 kuralı.
+      expect(releaseOptions?.name).not.toBe(hireOptions?.name);
+      expect(releaseOptions?.name).toBe('jockey-release');
+      expect(releaseOptions?.keyBy).toBe('player');
     });
   });
 });

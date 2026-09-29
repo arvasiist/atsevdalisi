@@ -63,6 +63,59 @@ export interface JockeyRepository {
    * `PlayerNotFoundError` (404), `InsufficientFundsError` (400).
    */
   hire(input: HireJockeyInput): Promise<HireJockeyResult>;
+
+  /**
+   * **PARA YOLU DEĞİLDİR — ve bu, tasarımın en önemli kararıdır.**
+   * `POST /jockeys/:jockeyId/release` (29.09.2026, FINAL_PROJECT_AUDIT
+   * #18): jokeyi oyuncudan ayırır (`owner_id = NULL`).
+   *
+   * **İADE YOKTUR.** Kiralama bedeli (`jockeys.salary`) bir KİRALAMA
+   * ücretidir, depozito değil. İade edilseydi `hire → release` döngüsü
+   * kiralama bedelini SIFIRLARDI ve `jockey_hire` defter satırı bir gelir
+   * değil, geri alınabilir bir blokaj olurdu — yani "jokey kiralamak
+   * bedava" olurdu. Bu yüzden bırakma **hiçbir bakiye hareketi üretmez**
+   * ve `economy_transactions`a satır YAZMAZ (`amount <> 0` CHECK'i zaten
+   * sıfır tutarlı bir hareketi reddederdi; muhasebe anlamında hiçbir
+   * hareket gerçekleşmemiştir).
+   *
+   * **SATIR SİLİNMEZ.** Geçmiş yarışların `race_entries.jockey_id`si bu
+   * satıra işaret eder; silmek o kayıtları bozardı. Yalnızca `owner_id`
+   * `NULL`a çekilir, yani jokey vitrine (`GET /jockeys`) geri döner.
+   *
+   * **KİLİT ALTINDA KARAR VERİLİR.** Satır `FOR UPDATE` ile kilitlenir ve
+   * sahiplik KİLİT ALTINDA okunur: dışarıda okunan bir değerle karar
+   * vermek, eşzamanlı bir `hire` ile yarışıp aynı jokeyin hem yeni
+   * sahibine yazılmasına hem de "serbest bırakıldı" yanıtı almasına izin
+   * verirdi — ve bu hiçbir yerde hata üretmezdi.
+   *
+   * **İDEMPOTENCY ANAHTARLA DEĞİL, DURUMLA:** ikinci bırakma `owner_id`ı
+   * `NULL` bulur ve `JockeyNotOwnedError` alır (`hire`in
+   * `JockeyAlreadyOwnedError`ıyla AYNI desen).
+   *
+   * Fırlatır: `JockeyNotFoundError` (404), `JockeyNotOwnedError` (409).
+   */
+  release(input: ReleaseJockeyInput): Promise<ReleaseJockeyResult>;
+}
+
+/** `JockeyRepository.release` girdisi. */
+export interface ReleaseJockeyInput {
+  jockeyId: string;
+  /**
+   * Bırakan oyuncu — **TOKEN'dan gelir**, gövdeden/path'ten DEĞİL.
+   * `hire`daki aynı kapı: gövdeye bir `playerId` alanı eklenirse bir
+   * oyuncu BAŞKASININ jokeyini serbest bırakabilir.
+   */
+  playerId: string;
+  /**
+   * `updated_at` damgası — ÇAĞIRAN verir (`hire`ın `now`uyla AYNI desen:
+   * repository `new Date()` çağırmaz).
+   */
+  now: Date;
+}
+
+/** `JockeyRepository.release` sonucu — `jockey.ownerId` artık `null`dır. */
+export interface ReleaseJockeyResult {
+  jockey: Jockey;
 }
 
 /** `JockeyRepository.hire` girdisi. */

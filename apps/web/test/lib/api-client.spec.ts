@@ -875,6 +875,60 @@ describe('apiClient çiftleştirme (brief §18 — istemci tarafı, 29.09.2026)'
   });
 });
 
+describe('apiClient jokey (brief §13 — istemci tarafı, 29.09.2026)', () => {
+  /**
+   * Jokey zincirinin dört ucu: vitrin (`GET /jockeys`), oyuncunun kendi
+   * jokeyi (`GET /players/:id/jockey`), kiralama (`POST .../hire`, PARA
+   * YOLU) ve serbest bırakma (`POST .../release`, PARA YOLU **DEĞİL**).
+   *
+   * Burada sabitlenen şey URL'ler ve `Idempotency-Key`'in YOKLUĞUDUR:
+   * sunucu o başlığı bilerek okumaz — çift kiralamayı/bırakmayı
+   * `jockeys.owner_id` durum geçişi engeller (409). İstemci anahtar
+   * gönderseydi, "korunuyorum" sanan bir yanılsama doğardı; test bunu
+   * kilitler. (`POST /admin/races/:id/cancel`ın iddiasıyla AYNI desen.)
+   */
+  it('getJockeys vitrini GET eder ve `Idempotency-Key` GÖNDERMEZ', async () => {
+    const fetchMock = stubFetchOnce({ success: true, data: [] });
+    await apiClient.getJockeys();
+    const [url, config] = requestArgs(fetchMock);
+    expect(url).toBe(`${API_BASE_URL}/jockeys`);
+    // `?? 'GET'` — `request()` çağıran `method` vermezse `config.method`
+    // tanımsızdır ve fetch varsayılanı GET'tir (dosyanın geri kalanındaki
+    // aynı kalıp).
+    expect(config.method ?? 'GET').toBe('GET');
+    expect((config.headers as Headers).has('Idempotency-Key')).toBe(false);
+  });
+
+  it('getPlayerJockey oyuncunun KENDİ jokeyini GET eder (kimlik yoldan, sahiplik sunucuda)', async () => {
+    const fetchMock = stubFetchOnce({ success: true, data: null });
+    await apiClient.getPlayerJockey('p-1');
+    const [url, config] = requestArgs(fetchMock);
+    expect(url).toBe(`${API_BASE_URL}/players/p-1/jockey`);
+    expect(config.method ?? 'GET').toBe('GET');
+  });
+
+  it('hireJockey POST eder, gövde GÖNDERMEZ ve `Idempotency-Key` EKLEMEZ', async () => {
+    const fetchMock = stubFetchOnce({ success: true, data: {} });
+    await apiClient.hireJockey('j-1');
+    const [url, config] = requestArgs(fetchMock);
+    expect(url).toBe(`${API_BASE_URL}/jockeys/j-1/hire`);
+    expect(config.method).toBe('POST');
+    // Ödeyen taraf token'dan gelir — gövdede bir `playerId` olsaydı bir
+    // oyuncu BAŞKASININ bakiyesinden jokey kiralayabilirdi.
+    expect(config.body).toBeUndefined();
+    expect((config.headers as Headers).has('Idempotency-Key')).toBe(false);
+  });
+
+  it('releaseJockey POST eder ve `Idempotency-Key` EKLEMEZ (tekrar koruması durum geçişidir)', async () => {
+    const fetchMock = stubFetchOnce({ success: true, data: {} });
+    await apiClient.releaseJockey('j-1');
+    const [url, config] = requestArgs(fetchMock);
+    expect(url).toBe(`${API_BASE_URL}/jockeys/j-1/release`);
+    expect(config.method).toBe('POST');
+    expect((config.headers as Headers).has('Idempotency-Key')).toBe(false);
+  });
+});
+
 describe('API taban adresi', () => {
   it('varsayılan port, API sunucusunun dinlediği portla aynı olmalı (4000)', () => {
     // Bu iddia, yukarıda anlatılan hatanın SINIFINI hedefler. Kritik nokta

@@ -1,7 +1,7 @@
 # AT SEVDALISI — FİNAL KABUL KRİTERLERİ
 
 **Tarih:** 29.09.2026
-**Bu belge nedir:** Brief §42'nin kapanış kapısı. **29 madde**, her biri
+**Bu belge nedir:** Brief §42'nin kapanış kapısı. **30 madde**, her biri
 **çalışan bir zincire** ya da **koşan bir teste** dayanır. "Dosya var" ya da
 "uç nokta var" **kabul değildir** — kanıt kolonunda **test dosyası** yazar.
 
@@ -11,13 +11,13 @@
 > maddeler, brief'in **8 fazından ve kesişen kurallarından** yeniden
 > kurulmuştur. Uydurma madde yoktur; her madde bu depoda karşılığı olan bir
 > kuraldır. Nerede kanıt zayıfsa **zayıf** diye yazılmıştır.
-> 29.09.2026: 28. madde (blok/şikâyet zinciri) ve 29. madde (yetiştirme
-> zinciri) sonradan eklendi — ikisi de "sunucu var, istemci yok" durumundan
-> çıkarıldı.
+> 29.09.2026: 28. madde (blok/şikâyet zinciri), 29. madde (yetiştirme
+> zinciri) ve 30. madde (jokey zinciri) sonradan eklendi — üçü de "sunucu
+> var, istemci yok" durumundan çıkarıldı.
 
-**Sonuç: 29/29 PASS** — 26 madde mevcut testlerle, 1 madde
-(`apps/api/test/api/final.e2e-spec.ts`) yazılan uçtan uca testle, 2 madde
-(28 ve 29) istemci tüketicisi + istemci testiyle.
+**Sonuç: 30/30 PASS** — 26 madde mevcut testlerle, 1 madde
+(`apps/api/test/api/final.e2e-spec.ts`) yazılan uçtan uca testle, 3 madde
+(28, 29 ve 30) istemci tüketicisi + istemci testiyle.
 
 ---
 
@@ -146,7 +146,7 @@ Aynı seed + aynı snapshot, farklı taktik → **farklı** sonuç; ve hiçbir s
 
 ---
 
-## G. Güvenlik, sosyal ve uçtan uca (26–29)
+## G. Güvenlik, sosyal ve uçtan uca (26–30)
 
 ### 26. Sosyal yazma rotaları hız sınırlı — kapsam testle kilitli
 `@RateLimit` **opt-in**'dir; işaretlenmeyen rota sınırsızdır. `SocialController` için **kapalı küme** iddiası vardır: yeni bir yazma rotası ekleyip `@RateLimit` koymazsan test **kırılır**. `RateLimitOptions.name` de sabitlenir (aynı `name` iki rota tek bütçeyi böler).
@@ -189,6 +189,35 @@ saklanan yanıtını döner ve oyuncu yeni bir çiftleştirme yaptığını san�
 `apps/web/test/lib/api-client.spec.ts` ·
 `apps/web/test/features/breeding/BreedingPanel.spec.tsx` — **PASS**
 
+### 30. Jokey zinciri uçtan uca çalışır (sunucu + istemci)
+Dört uç: vitrin (`GET /jockeys`), oyuncunun jokeyi
+(`GET /players/:id/jockey`), kiralama (`POST /jockeys/:jockeyId/hire`,
+**PARA YOLU**) ve **serbest bırakma** (`POST /jockeys/:jockeyId/release`).
+Kiralanan jokey `race_entries.jockey_id`ye yazılır ve
+`jockeySkillComposite` olarak motora girer (madde 24).
+**İstemci tüketicisi artık var:** `/stable` → `JockeyPanel` (vitrin +
+"Jokeyin" kartı + iki düğme).
+
+**İstemcide üç tuzak sabitlenir:**
+1. **Serbest bırakma PARA YOLU DEĞİLDİR** — iade yoktur, defter satırı
+   yazılmaz ve ekran bunu **açıkça** söyler; test iade **vaat eden** bir
+   metni düşürür. `kirala → bırak` bedava olsaydı `jockey_hire` gelir olmaktan
+   çıkardı. Bırakmadan sonra bakiye **tazelenmez** (para kıpırdamadı);
+   kiralamadan sonra **tazelenir** (para gerçekten düştü) — iki iddia
+   birbirinin tersidir ve ikisi de testtedir.
+2. **Vitrin `composite` HESAPLAMAZ** — sunucuda hesaplanmış puan yalnızca
+   oyuncunun KENDİ jokeyi için gelir; altı beceriyi istemcide ağırlıklandırmak
+   formülün ikinci bir kopyasını doğurur ve config değişince gösterilen sayı
+   motordan **sessizce** ayrışırdı.
+3. **`JOCKEY_NOT_OWNED` yön sızdırmaz** — "sahipsiz" ile "başkasının" TEK kod
+   ve TEK mesajla döner; ayrılsaydı kimlik deneyen biri "bu jokey birinin mi"
+   sorusunu yoklayabilirdi (`PLAYER_BLOCKED` ile aynı gerekçe).
+
+Ayrıca bırakma satırı **SİLMEZ**: `owner_id` `NULL`a çekilir, çünkü geçmiş
+yarışların `race_entries.jockey_id`si o satıra işaret eder.
+**Kanıt:** `test/api/jockey.e2e-spec.ts` · `apps/web/test/lib/api-client.spec.ts` ·
+`apps/web/test/features/jockey/JockeyPanel.spec.tsx` — **PASS**
+
 ---
 
 ## Kapanış
@@ -201,13 +230,13 @@ saklanan yanıtını döner ve oyuncu yeni bir çiftleştirme yaptığını san�
 | D. Para zinciri | 13–18 | ✅ 6/6 |
 | E. İptal/kopma/iade | 19–22 | ✅ 4/4 |
 | F. Motor girdileri | 23–25 | ✅ 3/3 |
-| G. Güvenlik + uçtan uca | 26–29 | ✅ 4/4 |
-| **TOPLAM** | **29** | **✅ 29/29 PASS** |
+| G. Güvenlik + uçtan uca | 26–30 | ✅ 5/5 |
+| **TOPLAM** | **30** | **✅ 30/30 PASS** |
 
 **Kabul edilmeyen madde yoktur.** Ancak üretime hazır **olmayan** özellikler
 **vardır** — onlar kabul kriteri değil, **eksik iş**tir ve
 `docs/FINAL_PROJECT_AUDIT.md` §5'te öncelik sırasıyla listelenmiştir
-(jokey yüzeyi, ayrılma düğmesi, tribün iade penceresi, matchmaking
+(ayrılma düğmesi, tribün iade penceresi, matchmaking
 zamanlayıcısı, kulüp/sezon/turnuva …).
 
 **Kural hatırlatması:** *"Asla 'çalışıyor' deme — kanıt CI'dır."* Bu belgedeki

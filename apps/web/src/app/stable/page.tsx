@@ -29,6 +29,7 @@ import { HorseAvatar } from '../../components/ui/HorseAvatar';
 import { StarRating } from '../../components/ui/StarRating';
 import { StatBar } from '../../components/ui/StatBar';
 import { BreedingPanel } from '../../features/breeding/BreedingPanel';
+import { JockeyPanel } from '../../features/jockey/JockeyPanel';
 import { PedigreeTree } from '../../features/pedigree/PedigreeTree';
 import { apiClient } from '../../lib/api-client';
 import { formatCurrency, hasEnoughFunds } from '../../lib/currency';
@@ -105,6 +106,15 @@ export default function StablePage(): React.ReactElement {
       {player ? <StableUpgradeCard ownerId={player.id} onUpgraded={refresh} /> : null}
 
       {player && horses !== null ? <BreedingPanel ownerId={player.id} horses={horses} onBred={handleBred} /> : null}
+
+      {/*
+        JOKEY PANELİ (29.09.2026, FINAL_PROJECT_AUDIT #18) — `horses`e BAĞLI
+        DEĞİLDİR: jokey oyuncunun kendisine aittir, tek bir ata değil
+        (`jockeys.owner_id`), ve ahırı boş bir oyuncu da jokey kiralamak
+        isteyebilir. Bu yüzden `BreedingPanel`in aksine at listesini
+        beklemez — yalnızca `player` yeterlidir.
+      */}
+      {player ? <JockeyPanel playerId={player.id} /> : null}
 
       {player && horses === null && !error ? (
         <p style={{ color: 'var(--color-text-muted)' }}>Ahır yükleniyor…</p>

@@ -1,11 +1,22 @@
 import { Inject, Injectable } from '@nestjs/common';
 import type { Pool } from 'pg';
 import type { Jockey } from '@at-sevdalisi/shared-types';
-import { JockeyAlreadyHiredError, JockeyAlreadyOwnedError, JockeyNotFoundError } from '../../domain/jockey/errors';
+import {
+  JockeyAlreadyHiredError,
+  JockeyAlreadyOwnedError,
+  JockeyNotFoundError,
+  JockeyNotOwnedError,
+} from '../../domain/jockey/errors';
 import { PlayerNotFoundError } from '../../domain/player/errors';
 import { debit } from '../../domain/economy/wallet';
 import { PG_POOL, withTransaction } from '../database/database.module';
-import type { HireJockeyInput, HireJockeyResult, JockeyRepository } from '../../application/ports/jockey.repository';
+import type {
+  HireJockeyInput,
+  HireJockeyResult,
+  JockeyRepository,
+  ReleaseJockeyInput,
+  ReleaseJockeyResult,
+} from '../../application/ports/jockey.repository';
 
 /** `jockeys` satırının HAM hâli (pg sürücüsü `NUMERIC`/`BIGINT`i METİN döner). */
 interface JockeyRow {
@@ -190,6 +201,54 @@ export class PostgresJockeyRepository implements JockeyRepository {
       }
 
       return { jockey: rowToJockey(updatedRow), paid: salary, balanceBefore, balanceAfter };
+    });
+  }
+
+  /**
+   * Jokeyi serbest bırakır (`owner_id = NULL`) — **PARA HAREKET ETMEZ.**
+   *
+   * **NEDEN YİNE DE `withTransaction`:** tek bir `UPDATE` yeterdi, ama
+   * karar (sahiplik) KİLİT ALTINDA okunmak zorundadır. `UPDATE ... WHERE
+   * id = $1 AND owner_id = $2` yazıp etkilenen satır sayısına bakmak da
+   * atomiktir; ancak o zaman "bulunamadı" ile "senin değil" ayırt
+   * EDİLEMEZ — ikisi de 0 satır döndürür ve istemciye yanlış kod
+   * giderdi. Kilitli okuma bu ayrımı gerçek kılar.
+   *
+   * **`players` KİLİTLENMEZ.** `hire`dan farklı olarak burada bakiye
+   * okunmaz/yazılmaz; kilit sırası (`jockeys` → `players`) bozulmaz,
+   * çünkü ikinci kilit hiç alınmaz. Bu, `hire` ile çapraz kilitlenme
+   * riskini de ortadan kaldırır.
+   */
+  async release(input: ReleaseJockeyInput): Promise<ReleaseJockeyResult> {
+    return withTransaction(this.pool, async (client) => {
+      const jockeyResult = await client.query<JockeyRow>(
+        `SELECT ${JOCKEY_COLUMNS} FROM jockeys WHERE id = $1 FOR UPDATE`,
+        [input.jockeyId],
+      );
+      const jockeyRow = jockeyResult.rows[0];
+      if (jockeyRow === undefined) {
+        throw new JockeyNotFoundError(input.jockeyId);
+      }
+      // İKİ ALT DURUM (sahipsiz / başkasında) TEK hataya düşer — yön
+      // sızdırılmaz (bkz. `JockeyNotOwnedError` doc yorumu).
+      if (jockeyRow.owner_id !== input.playerId) {
+        throw new JockeyNotOwnedError(input.jockeyId);
+      }
+
+      const updated = await client.query<JockeyRow>(
+        `UPDATE jockeys SET owner_id = NULL, updated_at = $2 WHERE id = $1 RETURNING ${JOCKEY_COLUMNS}`,
+        [input.jockeyId, input.now],
+      );
+      const updatedRow = updated.rows[0];
+      if (updatedRow === undefined) {
+        // Ulaşılamaz: satır yukarıda FOR UPDATE ile bulundu. Savunma amaçlı.
+        throw new JockeyNotFoundError(input.jockeyId);
+      }
+
+      // DEFTER SATIRI YOK — bilinçli. Bakiye değişmediği için yazılacak
+      // bir muhasebe hareketi de yoktur (`amount <> 0` CHECK'i sıfır
+      // tutarlı bir satırı zaten reddederdi).
+      return { jockey: rowToJockey(updatedRow) };
     });
   }
 }

@@ -3,6 +3,7 @@ import { JOCKEY_REPOSITORY } from '../../application/ports/jockey.repository';
 import { GetPlayerJockeyUseCase } from '../../application/use-cases/get-player-jockey.use-case';
 import { HireJockeyUseCase } from '../../application/use-cases/hire-jockey.use-case';
 import { ListAvailableJockeysUseCase } from '../../application/use-cases/list-available-jockeys.use-case';
+import { ReleaseJockeyUseCase } from '../../application/use-cases/release-jockey.use-case';
 import { DatabaseModule } from '../../infrastructure/database/database.module';
 import { PostgresJockeyRepository } from '../../infrastructure/jockey/postgres-jockey.repository';
 import { JockeyController } from './jockey.controller';
@@ -28,6 +29,7 @@ import { JockeyController } from './jockey.controller';
     ListAvailableJockeysUseCase,
     GetPlayerJockeyUseCase,
     HireJockeyUseCase,
+    ReleaseJockeyUseCase,
     { provide: JOCKEY_REPOSITORY, useClass: PostgresJockeyRepository },
   ],
 })

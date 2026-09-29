@@ -67,7 +67,7 @@ CI'dır."*
 | 15 | Soy ağacı (pedigree) okuma | `IMPLEMENTED` | Evet |
 | 16 | Yetiştiricilik (breeding) | `IMPLEMENTED` | Evet |
 | 17 | Genetik domain | `PARTIAL` | Koşullu |
-| 18 | Jokey vitrini ve kiralama | `PARTIAL` | Koşullu |
+| 18 | Jokey vitrini, kiralama ve serbest bırakma | `IMPLEMENTED` | Evet |
 | 19 | Jokey → motor etkisi | `IMPLEMENTED` | Evet |
 | 20 | Pratik yarış | `IMPLEMENTED` | Evet |
 | 21 | PvP matchmaking | `PARTIAL` | Koşullu |
@@ -102,17 +102,29 @@ CI'dır."*
 | 50 | Bağlanmamış domain modülleri (kulüp/sezon/turnuva/progression) | `DOMAIN ONLY` | Hayır |
 | 51 | 3D sunum ve ses | `PARTIAL` | Hayır (asset bekliyor) |
 
-**Sayım:** `IMPLEMENTED` 37 · `PARTIAL` 10 · `API ONLY` 0 · `DOMAIN ONLY` 1 ·
-`MISSING`/`BROKEN`/`UI ONLY`/`NOT WIRED` **0**.
+**Sayım:** `IMPLEMENTED` **42** · `PARTIAL` **8** · `API ONLY` 0 ·
+`DOMAIN ONLY` 1 · `MISSING`/`BROKEN`/`UI ONLY`/`NOT WIRED` **0**.
 
-**Üretime hazır: 37/51.** Geriye kalan 14 maddenin 9'u **bilinçli** olarak
-ertelendi (asset bekleyen 1, sahibin kararını bekleyen 1, tasarım gereği
-istemci tüketicisi olmayan 2, oyun dengesi kararı bekleyen 5).
+**Üretime hazır: 42/51.** Geriye kalan 9 maddenin **dokuzu da** bilinçli
+olarak ertelendi (asset bekleyen 1, sahibin kararını bekleyen 1, tasarım
+gereği istemci tüketicisi olmayan 2, oyun dengesi kararı bekleyen 5).
 
-> ⚠️ **29.09.2026 — `PARTIAL` 11 → 10.** #16 (yetiştiricilik) `IMPLEMENTED`
-> oldu: `BreedingPanel` `/stable`a bağlandı. Bu sayımı güncellememek, bu
-> belgenin daha önce **iki kez** düştüğü tuzağın ta kendisidir (bkz.
-> aşağıdaki `API ONLY` notu).
+> ⚠️ **29.09.2026 — SAYIM DÜZELTİLDİ (`37` → `42`).** Bu satır #18'den
+> önce `IMPLEMENTED` **37** diyordu ve **yanlıştı**: §2 tablosunda
+> `IMPLEMENTED` + `Evet` taşıyan satırlar zaten **41** taneydi. Sayı, tek
+> tek satırlar güncellenirken **hiç** güncellenmemiş ve üç dilim boyunca
+> yanlış kalmış. Doğrulama yöntemi: tablo satırları sayıldı
+> (`grep '^\| [0-9]* \| .* \| \`IMPLEMENTED\` \| Evet \|$'` → 41; #18 ile
+> **42**), tahmin edilmedi. Bir sayım tablosunun kendi satırlarıyla
+> çelişmesi, bu belgenin en sık düştüğü hata sınıfıdır — bir sonraki
+> dilimde sayıyı **tablodan türet**, elle artırma.
+>
+> ⚠️ **29.09.2026 — `PARTIAL` 10 → 9 → 8.** #18 (jokey) `IMPLEMENTED`
+> oldu: `JockeyPanel` `/stable`a bağlandı **ve** eksik olan
+> `POST /jockeys/:jockeyId/release` ucu yazıldı. (#16 yetiştiricilik de
+> aynı gün `IMPLEMENTED` olmuştu.) Bu sayımı güncellememek, bu belgenin
+> daha önce **iki kez** düştüğü tuzağın ta kendisidir (bkz. aşağıdaki
+> `API ONLY` notu).
 
 ⚠️ **`API ONLY` SAYISI ARTIK SIFIRDIR.** Bu satır 29.09.2026'ya kadar 2
 gösteriyordu (#46 ve #47) ve **bayattı**: iki dilim boyunca (#47 yönetim
@@ -546,24 +558,37 @@ vardır: Durum · Backend · Frontend · Database · API · WebSocket · Tests �
 
 ---
 
-### 18. Jokey vitrini ve kiralama
+### 18. Jokey vitrini, kiralama ve serbest bırakma
 
-- **Durum:** `PARTIAL`
-- **Backend:** `JockeyController` — liste, oyuncunun jokeyi, **kiralama**.
-- **Frontend:** yok.
-- **Database:** `jockeys`, `race_entries.jockey_id`.
-- **API:** `/api/v1/jockeys/*`.
+- **Durum:** `IMPLEMENTED` (29.09.2026)
+- **Backend:** `JockeyController` — **DÖRT** uç: liste (`GET /jockeys`),
+  oyuncunun jokeyi (`GET /players/:id/jockey`), kiralama
+  (`POST /jockeys/:jockeyId/hire`, PARA YOLU) ve **serbest bırakma**
+  (`POST /jockeys/:jockeyId/release`).
+- **Frontend:** `apps/web/src/features/jockey/JockeyPanel.tsx` →
+  `apps/web/src/app/stable/page.tsx`. Vitrin + "Jokeyin" kartı + iki düğme.
+- **Database:** `jockeys`, `race_entries.jockey_id`. Bırakma satırı
+  **SİLMEZ**, `owner_id`yi `NULL`a çeker (geçmiş yarışların `jockey_id`si
+  o satıra işaret eder).
+- **API:** `/api/v1/jockeys/*`, `/api/v1/players/:id/jockey`.
 - **WebSocket:** ilgisiz.
-- **Tests:** `test/api/jockey*.e2e-spec.ts`.
-- **Üretime hazır:** Koşullu.
-- **Eksik:** (1) İstemci tüketicisi yok; (2) **jokeyi serbest bırakma yolu
-  yoktur** — `race_entries.jockey_id` yazılır ama geri alınmaz; bir jokeyi
-  attan ayıran uç nokta yok.
-- **Risk:** Orta — jokey kiralanıp motora giriyor (PHASE 6.2), ama oyuncu
-  bunu ne seçebiliyor ne de değiştirebiliyor.
-- **Sıradaki adım:** (a) jokey seçim yüzeyi, (b) `POST /jockeys/:id/release`
-  ya da yarış öncesi değiştirme ucu.
-- **Kaynak:** `apps/api/src/api/jockey/jockey.controller.ts`.
+- **Tests:** `test/api/jockey.e2e-spec.ts` (kiralama + **8 serbest bırakma
+  testi**) · `apps/web/test/features/jockey/JockeyPanel.spec.tsx` ·
+  `apps/web/test/lib/api-client.spec.ts`.
+- **Üretime hazır:** Evet.
+- **Eksik:** Yok.
+- **Risk:** Düşük. Serbest bırakma **PARA YOLU DEĞİLDİR** ve bu bilinçlidir:
+  kiralama bedeli depozito değil kiralama ücretidir, iade edilmez — iade
+  edilseydi `kirala → bırak` döngüsü kiralamayı bedava yapardı. Ekran bunu
+  düğmenin üstünde AÇIKÇA yazar ve test bunu kilitler (iade vaat eden bir
+  metin testi düşürür). `JOCKEY_NOT_OWNED` **yön sızdırmaz**: "sahipsiz" ile
+  "başkasının" TEK kod ve TEK mesajla döner, yoksa kimlik deneyen biri
+  "bu jokey birinin mi" sorusunu yoklayabilirdi (`PLAYER_BLOCKED` ile aynı
+  gerekçe).
+- **Sıradaki adım:** —
+- **Kaynak:** `apps/api/src/api/jockey/jockey.controller.ts`,
+  `apps/api/src/infrastructure/jockey/postgres-jockey.repository.ts`,
+  `apps/web/src/features/jockey/JockeyPanel.tsx`.
 
 ---
 
@@ -1343,20 +1368,24 @@ vardır: Durum · Backend · Frontend · Database · API · WebSocket · Tests �
 |---:|---|---|
 | 1 | **3D/ses varlıkları** | Tek karar bekleyen konu; çözülene kadar brief'in kendi kapsamı dışında. |
 | 2 | **OAuth kimlik bilgileri** | `POST /auth/login` pratikte çalışmıyor; gerçek giriş olmadan üretim yok. |
-| 3 | **Jokey yüzeyi + serbest bırakma (#18)** | Jokey motora giriyor ama seçilemiyor. |
-| 4 | **Ayrılma düğmesi (#23)** | Sunucu hazır, arayüz yok. |
-| 5 | **Tribün iade penceresi (#37)** | Bilet, yarış bittikten sonra da iade edilebiliyor. |
-| 6 | **Matchmaking zamanlayıcısı (#21)** | Senkron eşleştirme gerçek oyuncu azken boş döner. |
-| 7 | **Kulüp/sezon/turnuva (#50)** | En büyük eksik özellik kümesi; yeni bir faz gerektirir. |
+| 3 | **Ayrılma düğmesi (#23)** | Sunucu hazır, arayüz yok. |
+| 4 | **Tribün iade penceresi (#37)** | Bilet, yarış bittikten sonra da iade edilebiliyor. |
+| 5 | **Matchmaking zamanlayıcısı (#21)** | Senkron eşleştirme gerçek oyuncu azken boş döner. |
+| 6 | **Kulüp/sezon/turnuva (#50)** | En büyük eksik özellik kümesi; yeni bir faz gerektirir. |
 
-> ⚠️ **29.09.2026:** **Yetiştirme yüzeyi (#16)** bu tablodan **çıkarıldı** —
-> `BreedingPanel` yazıldı ve `/stable`a bağlandı. Satır silinip kalanlar
+> ⚠️ **29.09.2026:** **Jokey yüzeyi + serbest bırakma (#18)** bu tablodan
+> **çıkarıldı** — `JockeyPanel` yazıldı, `/stable`a bağlandı **ve** eksik
+> olan `POST /jockeys/:jockeyId/release` ucu eklendi. Satır silinip kalanlar
 > yeniden numaralandırılmazsa, sıradaki dilimi seçen kişi **bitmiş** bir işi
 > yeniden yapar (bu tablo iki kez bayatladı; bkz. yukarıdaki not).
+>
+> ⚠️ **29.09.2026:** **Yetiştirme yüzeyi (#16)** bu tablodan **çıkarıldı** —
+> `BreedingPanel` yazıldı ve `/stable`a bağlandı.
 
 **Bu tablodan ÇIKARILANLAR (29.09.2026):** ~~Yönetim paneli (#47)~~,
-~~Blok/şikâyet arayüzü (#46)~~, ~~`username` alanı (#3, #43, #49)~~ —
-üçü de yazıldı. Tabloyu güncellememek, sıradaki dilimi seçen kişiye
+~~Blok/şikâyet arayüzü (#46)~~, ~~`username` alanı (#3, #43, #49)~~,
+~~Yetiştirme yüzeyi (#16)~~, ~~Jokey yüzeyi + serbest bırakma (#18)~~ —
+beşi de yazıldı. Tabloyu güncellememek, sıradaki dilimi seçen kişiye
 **bitmiş bir işi yeniden yaptırır**; bu yüzden tamamlanan satır burada
 tutulmaz, §2 tablosunda `IMPLEMENTED` olarak durur.
 
