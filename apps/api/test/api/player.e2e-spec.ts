@@ -95,6 +95,24 @@ describe('Player (e2e)', () => {
     expect(fetched.body.data.displayName).toBe('Getirilecek Oyuncu');
   });
 
+  it('/api/v1/players/:id (GET) `isAdmin` taşır ve yeni hesapta false', async () => {
+    // 28.09.2026 — üst bar yönetim bağlantısını yalnızca yöneticiye
+    // çizebilsin diye eklendi. Bu alanın VARLIĞI burada kilitlenir çünkü
+    // eksikliği sessizdir: `undefined` bir bayrak `false` gibi davranır,
+    // yani bağlantı hiç görünmez ve kimse hata almaz — yönetici paneli
+    // erişilemez olur, testler yeşil kalır.
+    //
+    // ⚠️ BU ALAN BİR YETKİ KAPISI DEĞİLDİR: `/admin/*` uçları
+    // `players.is_admin`i her istekte yeniden okur (`admin.e2e-spec.ts`).
+    const player = await registerTestPlayer(app, 'Bayrak Taşıyan');
+    const fetched = await request(app.getHttpServer())
+      .get(`/api/v1/players/${player.playerId}`)
+      .set('Authorization', player.authHeader);
+
+    expect(fetched.status).toBe(200);
+    expect(fetched.body.data.isAdmin).toBe(false);
+  });
+
   it('/api/v1/players/:id (GET) başka bir oyuncunun profilini isteyen istek 403 döner (AUDIT_REPORT.md S4)', async () => {
     const viewer = await registerTestPlayer(app, 'Gözlemci');
     const other = await registerTestPlayer(app, 'Başka Oyuncu');

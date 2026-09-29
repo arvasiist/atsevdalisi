@@ -58,6 +58,11 @@ export interface PlayerRow {
   // 0018_add_pvp_matchmaking.up.sql`. INTEGER olduğundan (BIGINT/NUMERIC'in
   // AKSİNE, `stable_level` ile AYNI gerekçe) doğrudan JS `number` döner.
   rating: number;
+  // brief §34 yönetim rolü — `database/migrations/
+  // 0041_create_admin_role_and_audit_log.up.sql`. BOOLEAN olduğundan
+  // (BIGINT'in AKSİNE) `node-postgres` doğrudan JS `boolean` döner; burada
+  // `Number(...)` YOKTUR ve olmamalıdır.
+  is_admin: boolean;
   created_at: Date;
   updated_at: Date;
 }
@@ -76,6 +81,7 @@ export function rowToPlayer(row: PlayerRow): Player {
     stableLevel: row.stable_level,
     lastDailyRewardClaimedAt: row.last_daily_reward_claimed_at ? row.last_daily_reward_claimed_at.toISOString() : null,
     rating: row.rating,
+    isAdmin: row.is_admin,
     createdAt: row.created_at.toISOString(),
     updatedAt: row.updated_at.toISOString(),
   };
@@ -87,6 +93,16 @@ export function rowToPlayer(row: PlayerRow): Player {
  * güncellenir (`JoinMatchmakingQueueUseCase`, `updateTwoWithLock` ile İKİ
  * oyuncunun Elo reytingini TEK transaction'da yazar —
  * `BuyMarketListingUseCase`'in `money` alanı için yaptığıyla AYNI desen).
+ *
+ * ⚠️ **`is_admin` BİLEREK YAZILMAZ ve yazılmamalıdır.** `Player.isAdmin`
+ * taşır ama bu `UPDATE` onu `SET` etmez. Sebep: bu fonksiyonun çağıranları
+ * "parayı/tesisi güncelle" derdindedir ve ellerindeki `Player` nesnesi
+ * okuma anındaki BAYAT `is_admin` değerini taşır. `SET` listesine eklenmesi,
+ * birbirinden habersiz iki yolun (rol verme + para harcama) yarıştığı anda
+ * yönetici rolünü sessizce SİLEN bir kod üretirdi — ve bu hiçbir yerde hata
+ * üretmezdi. Rol bugün yalnızca elle SQL ile verilir (§13.17); yazma yolu
+ * açıldığında `admin_audit_log` satırıyla AYNI transaction'da, AYRI ve
+ * AÇIK bir fonksiyon olmalıdır.
  */
 export async function writePlayerRow(client: PoolClient, updated: Player): Promise<void> {
   await client.query(

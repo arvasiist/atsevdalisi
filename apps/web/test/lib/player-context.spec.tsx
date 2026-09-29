@@ -50,6 +50,7 @@ function samplePlayer(overrides: Partial<PlayerSummary> = {}): PlayerSummary {
     xp: 0,
     money: 1000,
     gems: 0,
+    isAdmin: false,
     ...overrides,
   };
 }

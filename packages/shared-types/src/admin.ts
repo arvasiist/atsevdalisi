@@ -38,6 +38,25 @@ export interface AdminReportView {
   /** Serbest metin gerekçe — oyuncu yazmadıysa `null` (`normalizeReportReason`). */
   reason: string | null;
   status: ReportStatus;
+  /**
+   * Bu durumdan ÇIKILABİLECEK durumlar — sunucudan gelir, istemcide
+   * TÜRETİLMEZ (28.09.2026, yönetim paneli dilimi).
+   *
+   * **NEDEN BİR ALAN, NEDEN İSTEMCİDE `if` DEĞİL:** geçiş çizgesi
+   * (`REPORT_STATUS_TRANSITIONS`) kapalı bir DAG'dır ve terminal
+   * durumların (`resolved`/`dismissed`) çıkışı YOKTUR. İstemciye "şu
+   * düğmeleri göster" demek için çizgeyi ORADA ikinci kez yazmak, iki
+   * kaynağın çeliştiği bir an üretirdi — ve o an, sunucunun reddettiği bir
+   * düğmeyi "geçerli" gösterir (kullanıcı basar, 409 alır, panel bozuk
+   * görünür). Alternatif olan "hepsini göster, geçersizse hata çıkar" ise
+   * kapanmış bir kayda üç tane asla çalışmayacak düğme koyardı.
+   *
+   * **TEK KAYNAK KORUNUR:** bu alan sunucuda `REPORT_STATUS_TRANSITIONS`ten
+   * ÜRETİLİR, oradan kopyalanmaz; `admin.e2e-spec.ts` yanıttaki değeri
+   * çizgenin kendisiyle karşılaştırır. Terminal durumda `[]`dir — istemci
+   * "boş dizi = eylem yok" diye okur, "bilinmiyor" diye değil.
+   */
+  allowedTransitions: ReportStatus[];
   createdAt: string;
   /**
    * Şikâyeti en son ELE ALAN yönetici — hiç ele alınmadıysa `null`.
@@ -134,6 +153,34 @@ export interface AdminPlayerListResult {
 }
 
 /**
+ * Yarış iptalinin REDDEDİLME nedenleri — kapalı küme (28.09.2026, yönetim
+ * paneli dilimi).
+ *
+ * **NEDEN BURADA, `domain/admin/race-cancel.ts`TE DEĞİL:** kural
+ * (hangi durumun iptal edilebilir olduğu) DOMAIN'de kalır
+ * (`REFUSAL_BY_STATUS`); buradaki yalnızca **sözleşmedir** — sunucunun
+ * istemciye döndürebileceği değerlerin listesi. `AdminRaceView` bu
+ * değerlerden birini taşıdığı için tipin API sınırını geçmesi gerekir ve
+ * `shared-types` tam olarak o sınırdır (`ERROR_CODES` ile AYNI gerekçe).
+ * Domain dosyası bu sabiti İTHAL EDİP yeniden ihraç eder; yani liste TEK
+ * yerde durur, kopyası yoktur.
+ *
+ * **NEDEN KOD, NEDEN `canCancel: boolean` DEĞİL:** "iptal edilemez" tek
+ * başına yöneticiye hiçbir şey söylemez. `ALREADY_FINISHED` ("yarış koştu,
+ * ödüller dağıtıldı") ile `ALREADY_STARTED` ("yarış şu an koşuyor") aynı
+ * düğmenin yokluğunda ayırt edilemez hâle gelirdi — oysa biri kalıcı,
+ * diğeri geçicidir. Ekran bu kodu Türkçe bir gerekçeye çevirir.
+ */
+export const RACE_CANCEL_REFUSALS = [
+  'ALREADY_STARTED',
+  'ALREADY_FINISHED',
+  'ALREADY_CANCELLED',
+  'UNKNOWN_STATUS',
+] as const;
+
+export type RaceCancelRefusal = (typeof RACE_CANCEL_REFUSALS)[number];
+
+/**
  * Yönetim ekranlarındaki yarış satırı — brief §34'ün "Races" başlığı.
  *
  * `joinedPlayers` GÖRÜNÜM İÇİN TÜRETİLMİŞ BİR SAYIDIR (iptal edilmiş
@@ -156,6 +203,18 @@ export interface AdminRaceView {
   maxPlayers: number;
   /** Şu an katılmış GERÇEK oyuncu sayısı — iptal edilmiş katılımlar sayılmaz. */
   joinedPlayers: number;
+  /**
+   * `null` = **İPTAL EDİLEBİLİR**, aksi hâlde reddin nedeni.
+   *
+   * Sunucudaki `checkRaceCancelable`in sonucudur — istemci "hangi durum
+   * iptal edilebilir" sorusunu KENDİ SORMAZ. `allowedTransitions` ile AYNI
+   * gerekçe: kuralı istemcide ikinci kez yazmak, iki kaynağın çeliştiği bir
+   * an üretir — ve burada sonuç yalnızca bozuk bir düğme değil, **para
+   * yolunda yanlış bir işlem vaadidir** (`finished` bir yarışı iptal etmek,
+   * kazanana ödenmiş `race_prize` yerine ödediği giriş ücretini iade
+   * etmek olurdu).
+   */
+  cancelRefusal: RaceCancelRefusal | null;
   startTime: string;
   createdAt: string;
   /**

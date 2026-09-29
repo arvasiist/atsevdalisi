@@ -57,6 +57,12 @@ export function createNewPlayer(input: NewPlayerInput, economyConfig: EconomyCon
     // BİREBİR aynı).
     lastDailyRewardClaimedAt: null,
     rating: initialRating,
+    // Yeni hesap ASLA yönetici doğmaz (`database/migrations/
+    // 0041_create_admin_role_and_audit_log.up.sql`'deki DEFAULT false ile
+    // BİREBİR aynı). Rol vermenin bir uç noktası YOKTUR ve bilinçli olarak
+    // yoktur: kendini yönetici yapabilen bir uç, yönetim yetkisini
+    // anlamsız kılardı (§13.17). Bugün tek yol elle SQL'dir.
+    isAdmin: false,
     createdAt: now,
     updatedAt: now,
   };

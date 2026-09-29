@@ -1,4 +1,10 @@
 import type {
+  AdminAuditLogResult,
+  AdminPlayerListResult,
+  AdminRaceCancelResult,
+  AdminRaceListResult,
+  AdminReportListResult,
+  AdminTransactionListResult,
   AuthSession,
   BuyFeedResult,
   CareActionType,
@@ -37,6 +43,7 @@ import type {
   RaceTimelineView,
   RecentRaceResultView,
   RemoveFriendResult,
+  ReportStatus,
   RespondFriendRequestResult,
   RespondRaceInviteResult,
   RiskLevel,
@@ -47,6 +54,7 @@ import type {
   StartApproach,
   TrainHorseResult,
   TrainingIntensity,
+  UpdateReportStatusResult,
   TrainingSession,
   TrainingType,
   WalletDepositResult,
@@ -110,6 +118,38 @@ export function getAuthToken(): string | null {
   return currentAuthToken;
 }
 
+/**
+ * API hata zarfının `code` alanını TAŞIYAN hata (28.09.2026 — yönetim paneli
+ * dilimi).
+ *
+ * **NEDEN GEREKLİ:** sunucu hata zarfı `{ code, message }` çiftidir
+ * (`apps/api/src/api/filters/*`), ama buradaki `request()` bugüne kadar
+ * yalnızca `message`ı atıp `code`u ÇÖPE ATIYORDU. `message` İNSAN içindir ve
+ * değişebilir; `code` ise MAKİNE içindir ve sözleşmedir. Bir ekranın
+ * "yetkiniz yok" ile "sunucu patladı"yı ayırt etmesi gerektiğinde tek
+ * güvenilir ölçüt `code`dur — metinle eşleştirme yapmak (örn.
+ * `message.includes('yetki')`) sunucudaki bir yazım düzeltmesiyle sessizce
+ * bozulur ve ekran, yetkisiz oyuncuya "tekrar dene" der.
+ *
+ * **`code` NULL OLABİLİR** ve bu dürüsttür: gövdesi JSON olmayan ya da
+ * zarf taşımayan bir yanıtta (ağ hatası, proxy 502'si) sunucu kodu YOKTUR.
+ * Uydurma bir kod üretmek, çağıranı "sunucu böyle dedi" sanısına düşürürdü.
+ *
+ * **`status` AYRI TUTULUR:** HTTP durumu ile zarfın `code`u aynı şey
+ * DEĞİLDİR (403 dönen her yanıt `ADMIN_REQUIRED` değildir).
+ */
+export class ApiError extends Error {
+  readonly code: string | null;
+  readonly status: number;
+
+  constructor(message: string, code: string | null, status: number) {
+    super(message);
+    this.name = 'ApiError';
+    this.code = code;
+    this.status = status;
+  }
+}
+
 async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
   const headers = new Headers(options.headers || {});
   headers.set('Content-Type', 'application/json');
@@ -127,7 +167,9 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
 
   if (!response.ok || !result.success) {
     const message = result.error?.message || `API Hatası: ${response.status}`;
-    throw new Error(message);
+    // `ApiError` HÂLÂ bir `Error`dır — `instanceof Error` ile yakalayan
+    // mevcut çağıranların hiçbiri bozulmaz; `code` yalnızca isteyene verilir.
+    throw new ApiError(message, result.error?.code ?? null, response.status);
   }
 
   return result.data;
@@ -735,4 +777,64 @@ export const apiClient = {
    */
   claimDailyReward: (playerId: string) =>
     request<ClaimDailyRewardResult>(`/players/${playerId}/daily-reward`, { method: 'POST' }),
+
+  // ---------------------------------------------------------------------
+  // brief §34 YÖNETİM PANELİ — §42 PHASE 15-B (28.09.2026)
+  //
+  // YEDİ uç noktanın istemci karşılığı. **Hiçbiri `@Public()` DEĞİLDİR**:
+  // yetki kapısı sunucudadır (`players.is_admin` HER istekte okunur, rol
+  // token'a gömülmez — §13.17). İstemcide bir "yönetici miyim" kontrolü
+  // YAPILMAZ ve YAPILAMAZ: buradaki `player.isAdmin` yalnızca bağlantıyı
+  // GÖSTERİP GİZLEMEK içindir, bir yetki kapısı değildir. Paneli elle
+  // açan yönetici olmayan bir oyuncu 403 `ADMIN_REQUIRED` alır.
+  //
+  // **`limit` PARAMETRESİ YOKTUR.** Sunucu liste boyutunu
+  // `config/admin.config.json`dan okur (`ADMIN_LIMIT_KEYS`); istemcinin
+  // `?limit=` göndermesi, sunucunun kabul etmeyeceği bir parametre
+  // uydurmak olurdu (bkz. `AdminConfig` doc yorumu: "config bir yetki
+  // kapısı DEĞİLDİR" — ama boyut da istemcinin kararı değildir).
+  // ---------------------------------------------------------------------
+
+  /** Moderasyon kuyruğu — `status` süzgeci YOKTUR, kuyruk kapalı bir DAG'dır (§13.17). */
+  listAdminReports: () => request<AdminReportListResult>('/admin/reports', { method: 'GET' }),
+
+  /**
+   * Şikâyet durumunu ilerletir. **GEÇİŞ ÇİZGESİ İSTEMCİDE TEKRARLANMAZ:**
+   * hangi geçişin yasal olduğunu sunucu `FOR UPDATE` kilidinin İÇİNDE
+   * doğrular (`assertReportTransitionAllowed`). İstemcide ikinci bir
+   * çizge tutmak, iki kaynağın çeliştiği bir an üretirdi — ve o an
+   * sunucunun reddettiği bir düğmeyi "geçerli" gösterirdi.
+   *
+   * Düğmeler bu yüzden yalnızca sunucunun KAPALI kümesini (`REPORT_STATUSES`)
+   * listeler; yasak geçiş sunucudan 409 olarak döner ve ekranda görünür.
+   */
+  updateReportStatus: (reportId: string, status: ReportStatus) =>
+    request<UpdateReportStatusResult>(`/admin/reports/${reportId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status }),
+    }),
+
+  /** Denetim günlüğü — "kim hangi yönetim işlemini ne zaman yaptı" (§13.17). */
+  listAdminAuditLog: () => request<AdminAuditLogResult>('/admin/audit-log', { method: 'GET' }),
+
+  /** Users + Wallet ekranlarının ORTAK kaynağı (bakiye `players` kolonudur). */
+  listAdminPlayers: () => request<AdminPlayerListResult>('/admin/players', { method: 'GET' }),
+
+  listAdminRaces: () => request<AdminRaceListResult>('/admin/races', { method: 'GET' }),
+
+  /** Transactions + Gifts ekranlarının ORTAK kaynağı; süzgeç İSTEMCİNİN işidir. */
+  listAdminTransactions: () =>
+    request<AdminTransactionListResult>('/admin/transactions', { method: 'GET' }),
+
+  /**
+   * **BİR PARA YOLUDUR.** İade + aynı transaction'da defter kaydı +
+   * denetim günlüğü satırı sunucuda birlikte yazılır.
+   *
+   * **`Idempotency-Key` GÖNDERİLMEZ** ve bu bilinçlidir: çift iadeyi
+   * `scheduled → cancelled` geçişinin kendisi engeller, ikinci çağrı 409
+   * `RACE_NOT_CANCELABLE` alır (§13.19). `depositFunds`'ta böyle bir doğal
+   * kapı YOKTUR, o yüzden orada anahtar şarttır.
+   */
+  cancelAdminRace: (raceId: string) =>
+    request<AdminRaceCancelResult>(`/admin/races/${raceId}/cancel`, { method: 'POST' }),
 };

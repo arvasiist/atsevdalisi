@@ -39,6 +39,19 @@ export interface Player {
    * başlar (bkz. `domain/player/player.ts` `createNewPlayer`).
    */
   rating: number;
+  /**
+   * brief §34 yönetim rolü — `players.is_admin` (migration 0041).
+   *
+   * **BU ALAN BİR YETKİ KAPISI DEĞİLDİR ve olamaz.** Sunucu her istekte
+   * `players.is_admin`i VERİTABANINDAN yeniden okur; rol token'a gömülmez,
+   * böylece yetki iptali anında etki eder (§13.17). Buradaki değer
+   * yalnızca istemcinin "yönetim bağlantısını göstereyim mi" sorusunu
+   * yanıtlar; kararı sunucu verir ve yönetici olmayan çağıran 403
+   * `ADMIN_REQUIRED` alır. `PlayerSummary`de durması güvenlidir çünkü bu
+   * tip HİÇBİR ZAMAN başka bir oyuncu için üretilmez (`GET /players/:id`
+   * `assertSelf` ile korunur) — yani kişi yalnızca KENDİ bayrağını görür.
+   */
+  isAdmin: boolean;
   createdAt: ISODateTimeString;
   updatedAt: ISODateTimeString;
 }
@@ -58,10 +71,18 @@ export interface Player {
  * bloğudur ve orada yalnızca `PlayerSummary` vardır. `username` gizli
  * DEĞİLDİR: profilin URL'sidir, `GET /players/profile/:username` ile
  * herkese açıktır ve sohbet mesajlarında zaten görünür.
+ *
+ * **`isAdmin` NEDEN EKLENDİ (28.09.2026, yönetim paneli dilimi):** panel
+ * `/admin` rotasında yaşar ve bu rota `nav-links.ts`'e GİREMEZ — oradaki
+ * liste her oyuncuya çizilir, yani yönetici olmayan herkes 403 alan bir
+ * bağlantı görürdü. Bağlantıyı üst barda koşullu çizmek için istemcinin
+ * KENDİ bayrağını bilmesi gerekir; bu tipin "hiçbir zaman başkası için
+ * üretilmez" sözleşmesi bunu güvenli kılar. **Sunucudaki kapı DEĞİŞMEZ:**
+ * bağlantıyı gizlemek yetki vermez, göstermek de vermez.
  */
 export type PlayerSummary = Pick<
   Player,
-  'id' | 'username' | 'displayName' | 'avatarId' | 'level' | 'xp' | 'money' | 'gems'
+  'id' | 'username' | 'displayName' | 'avatarId' | 'level' | 'xp' | 'money' | 'gems' | 'isAdmin'
 >;
 
 /**

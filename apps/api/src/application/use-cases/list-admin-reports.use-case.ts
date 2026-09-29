@@ -1,6 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import type { AdminReportListResult, AdminReportView } from '@at-sevdalisi/shared-types';
-import { assertAdmin } from '../../domain/admin/moderation-queue';
+import { assertAdmin, REPORT_STATUS_TRANSITIONS } from '../../domain/admin/moderation-queue';
 import { AppConfigService } from '../../infrastructure/config/config.service';
 import { ADMIN_REPOSITORY, type AdminRepository } from '../ports/admin.repository';
 
@@ -40,6 +40,11 @@ export class ListAdminReportsUseCase {
           category: record.category,
           reason: record.reason,
           status: record.status,
+          // Geçiş çizgesi İSTEMCİYE AÇILIR, orada TEKRARLANMAZ — gerekçe
+          // `AdminReportView.allowedTransitions` doc yorumunda. Kopya
+          // değil, aynı sabitten ÜRETİM: `assertReportTransitionAllowed`in
+          // okuduğu satır ile burada dönen liste aynı nesnedir.
+          allowedTransitions: [...REPORT_STATUS_TRANSITIONS[record.status]],
           createdAt: record.createdAt.toISOString(),
           // `reviewedById` dolu ama JOIN'de görünen ad YOKSA (oyuncu
           // silinmişse) `null` döneriz: yarısı dolu bir `AdminPlayerRef`

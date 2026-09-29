@@ -9,7 +9,7 @@ import type {
   TrainingIntensity,
   TrainingType,
 } from '@at-sevdalisi/shared-types';
-import { apiClient, API_BASE_URL, setAuthToken } from '../../src/lib/api-client';
+import { ApiError, apiClient, API_BASE_URL, setAuthToken } from '../../src/lib/api-client';
 
 /**
  * AUDIT_REPORT.md T2 — `apps/web`'in tek gerçek kontrat testi. Bu oturumun
@@ -78,6 +78,9 @@ const samplePlayer: PlayerSummary = {
   xp: 120,
   money: 5000,
   gems: 10,
+  // 28.09.2026: `PlayerSummary`ye eklendi (üst bar yönetim bağlantısı).
+  // Burada `false` — testin konusu yetki değil, istek gövdesi/başlıkları.
+  isAdmin: false,
 };
 
 beforeEach(() => {
@@ -397,6 +400,93 @@ describe('apiClient.getLeaderboard', () => {
   it('sunucudan gelen satırları AYNEN döner — istemci sıralamayı yeniden hesaplamaz', async () => {
     stubFetchOnce({ success: true, data: rows });
     await expect(apiClient.getLeaderboard()).resolves.toEqual(rows);
+  });
+});
+
+/**
+ * brief §34 yönetim uçları (28.09.2026). Bu blok YALNIZCA sözleşmeyi
+ * kilitler: yol, metot ve gövde. Yetki, geçiş kuralları ve iade tutarı
+ * SUNUCUNUN işidir ve orada test edilir (`admin.e2e-spec.ts`) — burada
+ * "istemci doğru adrese doğru şeyi gönderiyor mu" sorusu sorulur.
+ */
+describe('apiClient yönetim uçları', () => {
+  it('beş liste ucu da doğru yola GET atar ve `limit` UYDURMAZ', async () => {
+    const cases: ReadonlyArray<readonly [() => Promise<unknown>, string]> = [
+      [() => apiClient.listAdminReports(), '/admin/reports'],
+      [() => apiClient.listAdminPlayers(), '/admin/players'],
+      [() => apiClient.listAdminRaces(), '/admin/races'],
+      [() => apiClient.listAdminTransactions(), '/admin/transactions'],
+      [() => apiClient.listAdminAuditLog(), '/admin/audit-log'],
+    ];
+
+    for (const [call, path] of cases) {
+      const fetchMock = stubFetchOnce({ success: true, data: {} });
+      await call();
+      const [url, config] = requestArgs(fetchMock);
+      expect(url).toBe(`${API_BASE_URL}${path}`);
+      // Sorgu string'i OLMAMALI: liste boyutları `config/admin.config.json`
+      // dan gelir, istemcinin seçeceği bir şey değildir.
+      expect(url).not.toContain('?');
+      expect(config.method ?? 'GET').toBe('GET');
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('şikâyet durumu PATCH gövdesiyle gönderilir (yol parametresi rapor kimliğidir)', async () => {
+    const fetchMock = stubFetchOnce({ success: true, data: {} });
+
+    await apiClient.updateReportStatus('report-7', 'reviewing');
+
+    const [url, config] = requestArgs(fetchMock);
+    expect(url).toBe(`${API_BASE_URL}/admin/reports/report-7`);
+    expect(config.method).toBe('PATCH');
+    expect(JSON.parse(config.body as string)).toEqual({ status: 'reviewing' });
+  });
+
+  it('yarış iptali POSTtur ve Idempotency-Key GÖNDERMEZ (tekrar koruması durum geçişidir)', async () => {
+    const fetchMock = stubFetchOnce({ success: true, data: {} });
+
+    await apiClient.cancelAdminRace('race-3');
+
+    const [url, config] = requestArgs(fetchMock);
+    expect(url).toBe(`${API_BASE_URL}/admin/races/race-3/cancel`);
+    expect(config.method).toBe('POST');
+    // `depositFunds`in AKSİNE: çift iadeyi `scheduled → cancelled` geçişi
+    // engeller, yani anahtar gereksizdir (gerekçe: `api-client.ts` doc yorumu).
+    expect((config.headers as Headers).get('Idempotency-Key')).toBeNull();
+  });
+});
+
+/**
+ * 28.09.2026 — `ApiError`. `request()` bugüne kadar yalnızca `message`ı
+ * atıyor, sunucunun MAKİNE kodunu (`code`) çöpe atıyordu. Yönetim ekranı
+ * "yetkiniz yok" ile "sunucu patladı"yı ayırt etmek zorunda olduğu için
+ * `code` artık taşınır — ve bu test onu KİLİTLER.
+ */
+describe('ApiError', () => {
+  it('sunucu zarfındaki `code` ve HTTP durumu hataya taşınır', async () => {
+    stubFetchOnce(
+      { success: false, error: { code: 'ADMIN_REQUIRED', message: 'Yönetici yetkisi gerekli' } },
+      { ok: false, status: 403 },
+    );
+
+    const err = await apiClient.listAdminReports().catch((e: unknown) => e);
+
+    expect(err).toBeInstanceOf(ApiError);
+    expect((err as ApiError).code).toBe('ADMIN_REQUIRED');
+    expect((err as ApiError).status).toBe(403);
+    // `message` KORUNUR — `instanceof Error` ile yakalayan mevcut
+    // çağıranların hiçbiri bozulmaz.
+    expect((err as Error).message).toBe('Yönetici yetkisi gerekli');
+  });
+
+  it('zarf taşımayan yanıtta `code` null olur — uydurma kod ÜRETİLMEZ', async () => {
+    stubFetchOnce({ success: false }, { ok: false, status: 502 });
+
+    const err = await apiClient.listAdminReports().catch((e: unknown) => e);
+
+    expect((err as ApiError).code).toBeNull();
+    expect((err as ApiError).status).toBe(502);
   });
 });
 

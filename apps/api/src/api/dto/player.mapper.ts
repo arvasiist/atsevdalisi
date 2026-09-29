@@ -21,5 +21,10 @@ export function toPlayerSummary(player: Player): PlayerSummary {
     xp: player.xp,
     money: player.money,
     gems: player.gems,
+    // `isAdmin` 28.09.2026'da eklendi — üst bar yönetim bağlantısını
+    // yalnızca yöneticiye çizebilsin diye. Bu bir YETKİ KAPISI DEĞİLDİR:
+    // sunucu her istekte `players.is_admin`i yeniden okur ve kararı orada
+    // verir. Gerekçe: `shared-types/src/player.ts` `PlayerSummary` doc yorumu.
+    isAdmin: player.isAdmin,
   };
 }

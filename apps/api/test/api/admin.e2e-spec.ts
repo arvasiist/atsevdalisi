@@ -245,6 +245,10 @@ describe('Admin — moderasyon kuyruğu + denetim günlüğü (e2e)', () => {
       expect(row?.category).toBe('harassment');
       expect(row?.reason).toBe('e2e testi');
       expect(row?.status).toBe('open');
+      // GEÇİŞ ÇİZGİSİ SUNUCUDAN GELİR (28.09.2026): istemci kendi kuralını
+      // yazmaz, çünkü iki kaynağın çeliştiği an sunucunun reddedeceği bir
+      // düğmeyi geçerli gösterir. `open`dan üçü de serbesttir (§13.17).
+      expect(row?.allowedTransitions).toEqual(['reviewing', 'resolved', 'dismissed']);
       // Henüz ele alınmadı: "kim" bilgisi YOKTUR (`status`'tan türetilemez).
       expect(row?.reviewedBy).toBeNull();
       expect(row?.reviewedAt).toBeNull();
@@ -270,6 +274,11 @@ describe('Admin — moderasyon kuyruğu + denetim günlüğü (e2e)', () => {
         (r) => r.reportId === reportId,
       );
       expect(row?.status).toBe('dismissed');
+      // TERMİNAL DURUM: `dismissed`/`resolved` ÇIKIŞSIZDIR — sunucu BOŞ
+      // liste döner ve istemci "boş dizi = eylem yok" diye okur (bu yüzden
+      // `undefined` DEĞİL `[]` olması önemlidir: `undefined` "bilinmiyor"
+      // gibi görünürdü).
+      expect(row?.allowedTransitions).toEqual([]);
       expect(row?.reviewedBy).toEqual({ playerId: admin.playerId, displayName: 'Kapanmış Kuyruk Yöneticisi' });
       expect(typeof row?.reviewedAt).toBe('string');
     });
@@ -576,6 +585,32 @@ describe('Admin — moderasyon kuyruğu + denetim günlüğü (e2e)', () => {
       expect(typeof row?.tribuneFee).toBe('number');
       expect(row?.createdBy).toEqual({ playerId: owner.playerId, displayName: 'Yarış Sahibi' });
       expect(typeof row?.startTime).toBe('string');
+      // `scheduled` yarış İPTAL EDİLEBİLİR: reddin nedeni YOKTUR (`null`).
+      // Düğmenin çizilip çizilmeyeceği kararı bu alandan verilir; kuralın
+      // kendisi sunucuda (`checkRaceCancelable`) kalır.
+      expect(row?.cancelRefusal).toBeNull();
+    });
+
+    it('iptal edilebilirlik SUNUCUDAN gelir — koşmuş yarış `ALREADY_FINISHED` döner', async () => {
+      // Bu, `finish`in `Pause` gibi bir "eksik özellik" değil bir PARA
+      // kuralı olduğunu ekrana taşıyan tek sinyaldir: `finished` bir yarışı
+      // iptal etmek, kazanana ödenmiş `race_prize` yerine ödediği giriş
+      // ücretini iade etmek olurdu (§13.19).
+      const admin = await registerTestPlayer(app, 'İptal Reddini Gören');
+      await makeAdmin(admin.playerId);
+      const raceId = await createRace({ entryFee: 100 });
+      await pool.query(`UPDATE races SET status = 'finished' WHERE id = $1`, [raceId]);
+
+      const response = await request(app.getHttpServer())
+        .get(racesAdminUrl)
+        .set('Authorization', admin.authHeader)
+        .expect(200);
+
+      const row = (response.body.data.races as Array<Record<string, unknown>>).find(
+        (r) => r.raceId === raceId,
+      );
+      expect(row?.status).toBe('finished');
+      expect(row?.cancelRefusal).toBe('ALREADY_FINISHED');
     });
 
     it('SUNUCU ÜRETİMİ yarışta `createdBy: null`dır (INNER JOIN olsaydı satır listeden DÜŞERDİ)', async () => {

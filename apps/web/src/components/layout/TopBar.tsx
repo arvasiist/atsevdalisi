@@ -119,6 +119,21 @@ export function TopBar(): React.ReactElement {
             {label}
           </Link>
         ))}
+
+        {/* brief §34 — YÖNETİM BAĞLANTISI KOŞULLUDUR ve `NAV_LINKS`te
+            DEĞİLDİR. O liste her oyuncuya çizilir; `/admin` oraya girseydi
+            yönetici olmayan herkes 403 alan bir bağlantı görürdü.
+
+            ⚠️ BU BİR YETKİ KONTROLÜ DEĞİLDİR. Bağlantıyı gizlemek kimseyi
+            durdurmaz: `/admin` adresini elle açan oyuncu 403 `ADMIN_REQUIRED`
+            alır, çünkü karar sunucuda ve HER istekte verilir (§13.17).
+            `player.isAdmin` yalnızca kişinin KENDİ bayrağıdır
+            (`PlayerSummary` hiçbir zaman başka bir oyuncu için üretilmez). */}
+        {player?.isAdmin ? (
+          <Link href="/admin" style={adminLinkStyle}>
+            Yönetim
+          </Link>
+        ) : null}
       </nav>
     </header>
   );
@@ -154,6 +169,18 @@ const navLinkStyle: React.CSSProperties = {
   fontWeight: 600,
   textDecoration: 'none',
   whiteSpace: 'nowrap',
+};
+
+/**
+ * Yönetim bağlantısı — diğerlerinden AYRI renktedir (altın), çünkü
+ * yanındaki on bağlantı oyunun parçasıdır, bu ise bir MODERASYON aracıdır.
+ * Rolü görsel olarak da ayırmamak, yöneticinin kendi hesabıyla normal bir
+ * ekranı karıştırmasını kolaylaştırırdı.
+ */
+const adminLinkStyle: React.CSSProperties = {
+  ...navLinkStyle,
+  border: '1px solid var(--color-accent-gold)',
+  color: 'var(--color-accent-gold)',
 };
 
 /**

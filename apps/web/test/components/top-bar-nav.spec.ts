@@ -122,4 +122,21 @@ describe('TopBar gezinti şeridi', () => {
       expect(label.trim().length, `Boş etiket: ${href}`).toBeGreaterThan(0);
     }
   });
+
+  /**
+   * 28.09.2026 — YÖNETİM PANELİ ŞERİTTE DEĞİLDİR ve olmamalıdır.
+   *
+   * İki iddia birlikte anlamlıdır: (1) sayfa GERÇEKTEN var, yani bağlantı
+   * kırık değil; (2) `/admin` `NAV_LINKS`te YOK, çünkü o liste HER oyuncuya
+   * çizilir ve yönetici olmayan herkes 403 alan bir bağlantı görürdü.
+   * Bağlantı `TopBar`da `player.isAdmin` ile KOŞULLU çizilir.
+   *
+   * Bu iki iddiadan biri tek başına yanıltıcıdır: "sayfa var" demek onu
+   * şeride eklemeyi meşrulaştırmaz; "şeritte yok" demek de sayfanın var
+   * olması gerektiğini söylemez.
+   */
+  it('yönetim paneli VARDIR ama gezinti şeridine KONMAZ (yönetici olmayana 403)', () => {
+    expect(STATIC_ROUTES.has('/admin'), '/admin sayfası yok').toBe(true);
+    expect(NAV_LINKS.map(([href]) => href)).not.toContain('/admin');
+  });
 });

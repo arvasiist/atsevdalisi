@@ -1,4 +1,4 @@
-import type { RaceStatus } from '@at-sevdalisi/shared-types';
+import { RACE_CANCEL_REFUSALS, type RaceCancelRefusal, type RaceStatus } from '@at-sevdalisi/shared-types';
 
 /**
  * `domain/admin/race-cancel.ts` — YARIŞ İPTALİNİN tek kuralı: hangi
@@ -42,19 +42,20 @@ import type { RaceStatus } from '@at-sevdalisi/shared-types';
 /**
  * İptalin reddedilme nedenleri — KAPALI küme (test ve mesaj ayrımı için).
  *
+ * **28.09.2026'da `@at-sevdalisi/shared-types`e TAŞINDI ve buradan yeniden
+ * ihraç edilir.** Sebep: aynı değerler artık API sözleşmesinde
+ * (`AdminRaceView.cancelRefusal`) istemciye dönüyor, yani tipin sınırı
+ * geçmesi gerekiyordu. Kural (`REFUSAL_BY_STATUS`) burada KALIR — taşınan
+ * yalnızca değer listesidir. İki kopya tutmak, birinin sessizce eskimesi
+ * demekti; `ERROR_CODES` için de aynı yol izlenir.
+ *
  * `UNKNOWN_STATUS` savunma amaçlıdır: `races.status` sütunu DB'de CHECK
  * ile korunur, yani buraya düşmesi bir bütünlük hatasıdır — ama
  * "tanımadığım durumu iptal edilebilir saymak" sessiz bir para hatası
  * olurdu, "reddet" ise güvenli taraftır.
  */
-export const RACE_CANCEL_REFUSALS = [
-  'ALREADY_STARTED',
-  'ALREADY_FINISHED',
-  'ALREADY_CANCELLED',
-  'UNKNOWN_STATUS',
-] as const;
-
-export type RaceCancelRefusal = (typeof RACE_CANCEL_REFUSALS)[number];
+export { RACE_CANCEL_REFUSALS };
+export type { RaceCancelRefusal };
 
 /**
  * Durum → ret nedeni. `scheduled` için `null` = "iptal edilebilir".

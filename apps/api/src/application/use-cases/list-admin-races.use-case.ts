@@ -1,6 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import type { AdminRaceListResult, AdminRaceView } from '@at-sevdalisi/shared-types';
 import { assertAdmin } from '../../domain/admin/moderation-queue';
+import { checkRaceCancelable } from '../../domain/admin/race-cancel';
 import { AppConfigService } from '../../infrastructure/config/config.service';
 import { ADMIN_REPOSITORY, type AdminRepository } from '../ports/admin.repository';
 
@@ -52,6 +53,13 @@ export class ListAdminRacesUseCase {
           participantLimit: record.participantLimit,
           maxPlayers: record.maxPlayers,
           joinedPlayers: record.joinedPlayers,
+          // İptal edilebilirlik İSTEMCİYE AÇILIR, orada TEKRARLANMAZ —
+          // gerekçe `AdminRaceView.cancelRefusal` doc yorumunda. Kuralın
+          // kendisi `checkRaceCancelable`tır ve `CancelAdminRaceUseCase`
+          // aynı fonksiyonu kilidin İÇİNDE yeniden çağırır: buradaki değer
+          // yalnızca "düğmeyi çizeyim mi" sorusunu yanıtlar, iptali
+          // ONAYLAMAZ.
+          cancelRefusal: checkRaceCancelable(record.status),
           startTime: record.startTime.toISOString(),
           createdAt: record.createdAt.toISOString(),
           // `AdminReportView.reviewedBy` ile AYNI kural: kimlik dolu ama
