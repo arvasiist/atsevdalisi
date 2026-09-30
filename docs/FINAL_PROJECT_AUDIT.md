@@ -72,7 +72,7 @@ CI'dır."*
 | 20 | Pratik yarış | `IMPLEMENTED` | Evet |
 | 21 | PvP matchmaking | `PARTIAL` | Koşullu |
 | 22 | Lobi yarışı oluşturma | `IMPLEMENTED` | Evet |
-| 23 | Lobi katılma / hazır / ayrılma | `PARTIAL` | Koşullu |
+| 23 | Lobi katılma / hazır / ayrılma | `IMPLEMENTED` | Evet |
 | 24 | Yarış yaşam döngüsü ve zamanlayıcı | `IMPLEMENTED` | Evet |
 | 25 | Saha kompozisyonu (fieldSize + botlar) | `IMPLEMENTED` | Evet |
 | 26 | Race Engine (deterministik simülasyon) | `IMPLEMENTED` | Evet |
@@ -99,13 +99,23 @@ CI'dır."*
 | 47 | Yönetim uçları (7 uç) | `IMPLEMENTED` | Evet |
 | 48 | Denetim günlüğü (`admin_audit_log`) | `IMPLEMENTED` | Evet |
 | 49 | Sıralama (leaderboard) | `IMPLEMENTED` | Evet |
-| 50 | Bağlanmamış domain modülleri (kulüp/sezon/turnuva/progression) | `DOMAIN ONLY` | Hayır |
+| 50 | Bağlanmamış domain modülleri (kulüp/sezon/turnuva/progression/personel) | `DOMAIN ONLY` | Hayır |
 | 51 | 3D sunum ve ses | `PARTIAL` | Hayır (asset bekliyor) |
 
-**Sayım:** `IMPLEMENTED` **42** · `PARTIAL` **8** · `API ONLY` 0 ·
+**Sayım:** `IMPLEMENTED` **43** · `PARTIAL` **7** · `API ONLY` 0 ·
 `DOMAIN ONLY` 1 · `MISSING`/`BROKEN`/`UI ONLY`/`NOT WIRED` **0**.
 
-**Üretime hazır: 42/51.** Geriye kalan 9 maddenin **dokuzu da** bilinçli
+**Üretime hazır: 43/51.**
+
+> ⚠️ **30.09.2026 — BAĞIMSIZ YENİDEN DENETİM.** Bu belgenin #22/#23/#29
+> satırları "arayüz var / katılma bağlı" diyordu ve **YANLIŞTI**: web
+> istemcisi `GET/POST /races`, `/join`, `/ready`, `/leave`, `/settle`
+> uçlarının HİÇBİRİNİ çağırmıyordu (`api-client.ts` taraması). Ayrıca üç
+> sunucu açığı bulundu ve kapatıldı: satılan at eski sahibi adına
+> koşuyordu (#13/#23), READY yalnızca bilgiydi (#23), kilitlenen yarışı
+> kesinleştiren iş yoktu (#29). Ayrıntı: `PROJE_DURUMU.md` §13.33.
+> `#50` personeli (`domain/staff`) hiç saymıyordu — eklendi. Sayım tablodan
+> türetildi: #23 `PARTIAL → IMPLEMENTED` (43/7). Geriye kalan 9 maddenin **dokuzu da** bilinçli
 olarak ertelendi (asset bekleyen 1, sahibin kararını bekleyen 1, tasarım
 gereği istemci tüketicisi olmayan 2, oyun dengesi kararı bekleyen 5).
 
@@ -459,7 +469,11 @@ vardır: Durum · Backend · Frontend · Database · API · WebSocket · Tests �
 - **Eksik:** —
 - **Risk:** `sellerId`/`horseId` gibi gövde-UUID alanları `@IsUUID()`a
   güvenemez (esbuild DTO doğrulamasını atlar) — controller'daki `isUUID()`
-  kapısı şarttır.
+  kapısı şarttır. **30.09.2026:** açık (`scheduled`/`locking`) bir lobi
+  yarışına kayıtlı at ilana çıkamaz ve satın alınamaz
+  (`HORSE_IN_ACTIVE_RACE`); asıl kapı satın alma transaction'ıdır (at satırı
+  kilitliyken). Önceden satılan at eski sahibi adına koşuyor, ödülü satıcı
+  alıyordu.
 - **Sıradaki adım:** —
 - **Kaynak:** `apps/api/src/api/market/market.controller.ts`.
 
@@ -658,7 +672,10 @@ vardır: Durum · Backend · Frontend · Database · API · WebSocket · Tests �
 - **Durum:** `IMPLEMENTED`
 - **Backend:** `RaceLobbyController` — oluşturma + listeleme
   (`createLobbyRace`, `ListLobbyRacesUseCase`).
-- **Frontend:** `/races`, `/grandstand`.
+- **Frontend:** **30.09.2026'dan beri gerçekten** `/races` →
+  `LobbyPanel` ("Yarış Aç" formu, seçenekler `race-lobby.config.json`dan).
+  Bu satır daha önce de `/races` diyordu ama o sayfa yalnızca pratik yarış
+  koşuyordu — **yanlıştı**.
 - **Database:** `races` (`race_type='paid'`, `start_time`, `tribune_fee`,
   `spectator_capacity`).
 - **API:** `/api/v1/races` (lobi).
@@ -674,25 +691,31 @@ vardır: Durum · Backend · Frontend · Database · API · WebSocket · Tests �
 
 ### 23. Lobi katılma / hazır / ayrılma
 
-- **Durum:** `PARTIAL`
-- **Backend:** katılma (`POST /races/:id/join`), ayrılma
-  (`POST /races/:id/leave`), katılım listesi.
-- **Frontend:** katılma **bağlı**; **ayrılma ucunun istemci tüketicisi
-  yok**.
-- **Database:** `race_entries` (ayrılan satır `cancelled` işaretlenir,
-  **silinmez**).
-- **API:** `/api/v1/races/:id/join`, `/api/v1/races/:id/leave`.
+- **Durum:** `IMPLEMENTED` (30.09.2026)
+- **Backend:** katılma (`POST /races/:id/join`), hazır (`/ready`), ayrılma
+  (`/leave`). Katılımda at satırı `FOR UPDATE`; pazardaki ya da başka açık
+  yarıştaki at katılamaz. **READY ŞARTI:** başlangıçta `ready` demeyen
+  katılım iptal edilir ve ücreti İADE edilir (`dropUnreadyLobbyEntries`);
+  kimse hazır değilse yarış iptal olur.
+- **Frontend:** `LobbyPanel` — "Katıl" / "Hazırım" / "Hazır değilim" /
+  "Ayrıl (ücret iade)". Düğmeler yalnızca `GET /races` satırındaki
+  `myEntry`den türer. (Bu satır eskiden "katılma bağlı" diyordu —
+  **yanlıştı**, hiçbir istemci `/join`u çağırmıyordu.)
+- **Database:** `race_entries` (ayrılan/düşürülen satır `cancelled`
+  işaretlenir, **silinmez**).
+- **API:** `/api/v1/races/:id/join`, `/ready`, `/leave`; `GET /races` →
+  `RaceLobbyListItem.myEntry`.
 - **WebSocket:** `race.roster`, `lobby.update`.
-- **Tests:** `test/api/race*.e2e-spec.ts`.
-- **Üretime hazır:** Koşullu.
-- **Eksik:** Ayrılma düğmesi yok — oyuncu katıldıktan sonra arayüzden
-  vazgeçemiyor (sunucu destekliyor).
-- **Risk:** Orta — `checkRaceLeavable` `startTime` sonrası ayrılmayı
-  kapatır; arayüz olmadığı için oyuncu bunu hiç göremez.
-- **Sıradaki adım:** `/races` listesinde "Katıldın — Ayrıl" düğmesi
-  (`Idempotency-Key` **yeni** üretilir: zarar ikinci bir bilet değil,
-  ikinci bir iade olurdu → dikkat).
-- **Kaynak:** `apps/api/src/api/race/race.controller.ts`.
+- **Tests:** `race-join`, `race-ready`, `race-leave`, `race-ready-gate`,
+  `race-horse-lock`, `race-lobby-list` e2e; web `LobbyPanel.spec.tsx`,
+  `lobby-logic.spec.ts`, `api-client.spec.ts`.
+- **Üretime hazır:** Evet.
+- **Eksik:** —
+- **Risk:** Lobi yarışını koşturan her yeni e2e katılımdan sonra `ready`
+  DEMELİDİR, yoksa katılım kilitte düşer (7 dosya bu yüzden uyarlandı).
+- **Sıradaki adım:** —
+- **Kaynak:** `apps/api/src/infrastructure/race/postgres-race.repository.ts`,
+  `apps/web/src/features/race-lobby/`.
 
 ---
 
@@ -804,14 +827,20 @@ vardır: Durum · Backend · Frontend · Database · API · WebSocket · Tests �
 
 - **Durum:** `IMPLEMENTED` (§13.14)
 - **Backend:** `POST /races/:id/settle` — yarışı koşar, `top5` paylarıyla
-  ödül dağıtır, `races.status='finished'` yazar. **Zamanlayıcı yoktur**: uç
-  bir "crank"tir, kimliği doğrulanmış herhangi bir oyuncu çağırabilir.
-- **Frontend:** `/grandstand` + `/races`.
+  ödül dağıtır, `races.status='finished'` yazar. Uç bir "crank"tir;
+  **30.09.2026'dan beri zamanlayıcı da** kilidin ardından `locking`
+  yarışları aynı use-case'le kesinleştirir (`SettleDueRacesUseCase`).
+  Önceden kilitlenen yarışı kesinleştiren hiçbir iş yoktu.
+- **Frontend:** kesinleşmeyi istemci TETİKLEMEZ (zamanlayıcı yapar); sonuç
+  `race_finished`/`prize_won` bildirimi ve `/replays/[raceId]` ile görülür.
+  (Bu satır eskiden "`/grandstand` + `/races`" diyordu — hiçbiri
+  `/settle`u çağırmıyordu.)
 - **Database:** `races`, `race_entries`, `economy_transactions`
   (`race_prize`), `notifications` (`race_finished`, `prize_won`).
 - **API:** `POST /api/v1/races/:id/settle`.
 - **WebSocket:** `race.finished`.
-- **Tests:** `test/api/settle*.e2e-spec.ts`.
+- **Tests:** `test/api/race-settlement.e2e-spec.ts`,
+  `test/api/race-auto-settle.e2e-spec.ts` (zamanlayıcı + çift ödeme yok).
 - **Üretime hazır:** Evet.
 - **Eksik:** —
 - **Risk:** Tekrar koruması `Idempotency-Key` **değil**, `scheduled →
@@ -826,15 +855,15 @@ vardır: Durum · Backend · Frontend · Database · API · WebSocket · Tests �
 - **Durum:** `IMPLEMENTED` (§13.19)
 - **Backend:** `POST /admin/races/:raceId/cancel` — iade + aynı
   transaction'da defter + denetim kaydı.
-- **Frontend:** **Yönetim paneli yok** (bkz. #47).
+- **Frontend:** `/admin` → yarışlar sekmesi → "İptal" (bkz. #47).
 - **Database:** `races.status='cancelled'`, `economy_transactions`,
   `admin_audit_log`.
 - **API:** `POST /api/v1/admin/races/:raceId/cancel`.
 - **WebSocket:** ilgisiz.
 - **Tests:** `test/api/race-cancel.spec.ts` (migration'ı okuyarak `paused`
   yokluğunu da kanıtlar).
-- **Üretime hazır:** Evet (sunucu tarafı).
-- **Eksik:** Arayüz.
+- **Üretime hazır:** Evet.
+- **Eksik:** —
 - **Risk:** **Üç kural bozulmamalı:** (1) iade tutarı **defterden** okunur
   (`races.entry_fee` sabitinden değil — indirimli giren oyuncuya yanlış
   tutar ödenmesin); (2) durum kuralı `FOR UPDATE` **altında** koşar (yoksa
@@ -1271,13 +1300,13 @@ vardır: Durum · Backend · Frontend · Database · API · WebSocket · Tests �
 - **Durum:** `IMPLEMENTED` (backend)
 - **Backend:** Satırı **use-case değil, repository** yazar (aynı `client`
   üzerinde) — geri alınmış bir güncellemenin kaydı ortada kalmasın diye.
-- **Frontend:** yok (bkz. #47).
+- **Frontend:** `/admin` → "Denetim günlüğü" sekmesi (bkz. #47).
 - **Database:** `admin_audit_log`.
 - **API:** `GET /api/v1/admin/audit-log`.
 - **WebSocket:** ilgisiz.
 - **Tests:** `test/api/admin.e2e-spec.ts`.
-- **Üretime hazır:** Evet (sunucu tarafı).
-- **Eksik:** Arayüz.
+- **Üretime hazır:** Evet.
+- **Eksik:** —
 - **Risk:** **`admin_audit_log` ≠ `economy_transactions`.** Biri yetki
   kaydı, diğeri muhasebe defteri. Bir yönetim işlemini "denetlensin" diye
   deftere yazmak, defterin tek işini bozar.
@@ -1314,11 +1343,14 @@ vardır: Durum · Backend · Frontend · Database · API · WebSocket · Tests �
 
 ---
 
-### 50. Bağlanmamış domain modülleri (kulüp/sezon/turnuva/progression)
+### 50. Bağlanmamış domain modülleri (kulüp/sezon/turnuva/progression/personel)
 
 - **Durum:** `DOMAIN ONLY`
 - **Backend:** `domain/club/club.ts`, `domain/career/`,
-  `domain/progression/` — saf TS + birim testleri.
+  `domain/progression/`, `domain/season/`, `domain/tournament/`,
+  **`domain/staff/` (+ `config/staff.config.json`)** — saf TS + birim
+  testleri. **30.09.2026:** personel bu listede hiç yoktu; `domain/staff`i
+  `domain/` dışından içe aktaran tek dosya yoktur (API/ekran yok).
 - **Frontend:** `/club` bir `ComingSoon` **yer tutucusudur** ve dosya
   başındaki not bunu dürüstçe yazar. (Diğer tüm sayfalar gerçek veriye
   bağlıdır — `ComingSoon` yalnızca 1 sayfada kullanılır.)
@@ -1368,10 +1400,9 @@ vardır: Durum · Backend · Frontend · Database · API · WebSocket · Tests �
 |---:|---|---|
 | 1 | **3D/ses varlıkları** | Tek karar bekleyen konu; çözülene kadar brief'in kendi kapsamı dışında. |
 | 2 | **OAuth kimlik bilgileri** | `POST /auth/login` pratikte çalışmıyor; gerçek giriş olmadan üretim yok. |
-| 3 | **Ayrılma düğmesi (#23)** | Sunucu hazır, arayüz yok. |
-| 4 | **Tribün iade penceresi (#37)** | Bilet, yarış bittikten sonra da iade edilebiliyor. |
-| 5 | **Matchmaking zamanlayıcısı (#21)** | Senkron eşleştirme gerçek oyuncu azken boş döner. |
-| 6 | **Kulüp/sezon/turnuva (#50)** | En büyük eksik özellik kümesi; yeni bir faz gerektirir. |
+| 3 | **Tribün iade penceresi (#37)** | Bilet, yarış bittikten sonra da iade edilebiliyor. |
+| 4 | **Matchmaking zamanlayıcısı (#21)** | Senkron eşleştirme gerçek oyuncu azken boş döner. |
+| 5 | **Kulüp/sezon/turnuva/personel (#50)** | En büyük eksik özellik kümesi; yeni bir faz gerektirir. |
 
 > ⚠️ **29.09.2026:** **Jokey yüzeyi + serbest bırakma (#18)** bu tablodan
 > **çıkarıldı** — `JockeyPanel` yazıldı, `/stable`a bağlandı **ve** eksik

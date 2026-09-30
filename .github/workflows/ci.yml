@@ -87,12 +87,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # 30.09.2026: Node 20'nin desteği 30.04.2026'da bitti ve GitHub Actions
+      # loglarında uyarı veriyordu → 22 (LTS). `package-lock.json` artık
+      # commit'li ve `npm ci` ile uyumlu (yerelde doğrulandı), bu yüzden
+      # yukarıdaki notun öngördüğü geri dönüş yapıldı: `npm ci` + önbellek.
+      # `npm ci` kilit dosyasıyla çelişen bir `package.json`da DÜŞER — bu
+      # istenen davranıştır (kurulum artık tekrarlanabilir).
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
+          cache: 'npm'
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
       - name: Lint
         run: npm run lint

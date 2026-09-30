@@ -3244,6 +3244,54 @@ PostgreSQL. **RACE ENGINE'E DOKUNULMADI**, hiçbir config değeri koda gömülme
 
 ---
 
+#### 13.33 BAĞIMSIZ YENİDEN DENETİM → ÜÇ SUNUCU AÇIĞI + LOBİ ARAYÜZÜ — 30.09.2026
+
+Projenin kendi denetimi (`docs/FINAL_PROJECT_AUDIT.md`) koddan
+bağımsız olarak yeniden doğrulandı. Yerel kanıt (temiz PG16 + Redis, CI ile
+aynı komutlar): lint 0 hata · typecheck · build · API 125 dosya/2134 test ·
+web 27 dosya/418 test.
+
+**Bulunan ve kapatılanlar:**
+
+1. **Lobi yarışının arayüzü YOKTU** (denetim "var" diyordu). `api-client.ts`
+   `GET/POST /races`, `/join`, `/ready`, `/leave`, `/settle`i hiç
+   çağırmıyordu. → `features/race-lobby/` (`LobbyPanel` + saf
+   `lobby-logic.ts`), `/races` sayfasına bağlandı. `GET /races` satırı
+   artık çağıranın kendi katılımını taşır (`RaceLobbyListItem.myEntry`) —
+   olmadan istemci "katıldım mı" bilgisini yalnızca belleğinde tutabilirdi.
+2. **Satılan at eski sahibi adına koşuyordu.** Katılım `horses` satırını
+   kilitlemiyor, pazar aktif yarışa bakmıyor, kilit sahipliği yeniden
+   doğrulamıyordu → ödülü SATICI alıyordu; aynı at aynı anda birden çok
+   açık yarışa da yazılabiliyordu. → `HORSE_IN_ACTIVE_RACE` (katılım, ilan,
+   satın alma); tek tanım `infrastructure/horse/active-race-entry.ts`.
+   Lobi katılımı ayrıca pazardaki atı artık reddeder (pratik/antrenmanla
+   aynı kural). Kilit sırası: `races` → `horses` → `players`.
+3. **READY yalnızca bilgiydi** (§13.7 "HENÜZ YOK"). → Kilitte (ve
+   `scheduled`dan doğrudan kesinleşmede) hazır demeyen katılım `cancelled`
+   + defterden okunan tutarla İADE (`race_entry_refund`). **Karar: yakma
+   değil iade** — hazır olmamak bir vazgeçmedir, `leave` ile aynı sonuç.
+   Kimse hazır değilse yarış iptal. ⚠️ Lobi yarışı koşturan her e2e
+   katılımdan sonra `ready` DEMELİDİR (7 dosya bu yüzden uyarlandı).
+4. **Kilitlenen yarışı kesinleştiren iş yoktu** — `/settle` bir crank'ti ve
+   çağıranı yoktu; ücretler havuzda süresiz kalıyordu. →
+   `SettleDueRacesUseCase`, zamanlayıcı turunda kilidin ARDINDAN.
+
+**Kanıt:** her sunucu dilimi için yeni e2e (`race-horse-lock`,
+`race-ready-gate`, `race-auto-settle`) düzeltme GERİ ALINARAK koşuldu ve
+DÜŞTÜ (5/5, 3/3, 2/2), düzeltmeyle geçti.
+
+**CI:** Node 20 → 22 (20'nin desteği 30.04.2026'da bitti), `npm install`
+→ `npm ci` + `cache: 'npm'` (kilit dosyası `npm ci` ile doğrulandı).
+
+**BİLEREK YAPILMAYANLAR (sahibin kararı gerekir):**
+- Kökte izlenen 22 geçici dosya (`*.bat`, `*.bundle` ~6.4 MB, `*-log.txt`)
+  `.gitignore`da ama repoda duruyor. `git rm --cached` bir sonraki
+  `pull`da sahibin diskinden de SİLER; bu yüzden dokunulmadı.
+- `no-magic-numbers` yalnızca UYARI: 2644 uyarının ~190'ı üretim kodunda.
+  Kural 6 CI'da zorlanmıyor.
+- Dağıtım altyapısı (Dockerfile/hosting) yok; misafir hesap tarayıcıya
+  bağlı (kurtarma yok); OAuth kimlik bilgileri yok.
+
 ## 14. Kendime hatırlatmalar (kısa liste)
 
 1. **Race Engine'e dokunmadan önce iki kez düşün.** Denetim onu "KEEP, dokunma"
