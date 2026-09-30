@@ -145,6 +145,11 @@ export const ErrorCode = {
    */
   RaceTribuneFull: 'RACE_TRIBUNE_FULL',
   /**
+   * İzlenmiş bilet iade edilemez (409, `TicketAlreadyUsedError`) —
+   * 30.09.2026, migration 0044 `race_tickets.first_viewed_at`.
+   */
+  TicketAlreadyUsed: 'TICKET_ALREADY_USED',
+  /**
    * ÜCRETSİZ tribünlü bir yarışa bilet alınmaya çalışıldı (409,
    * `RaceTribuneFreeError`). PHASE 7.1, 29.09.2026.
    *

@@ -82,6 +82,7 @@ import {
   RaceTicketNotFoundError,
   RaceTicketRequiredError,
   RaceTribuneFreeError,
+  TicketAlreadyUsedError,
   TribuneFullError,
 } from '../../domain/grandstand/errors';
 import {
@@ -283,6 +284,8 @@ const DOMAIN_ERROR_MAP = new Map<ErrorClassConstructor, { status: number; code: 
   // taşıdığı `capacity`ye rağmen TEK kod döner — gerekçe
   // `domain/grandstand/errors.ts`), yani `DOMAIN_ERROR_MAP`'e girebilirler.
   [TribuneFullError, { status: HttpStatus.CONFLICT, code: ErrorCode.RaceTribuneFull }],
+  // 30.09.2026 — izlenmiş bilet iade edilemez (migration 0044).
+  [TicketAlreadyUsedError, { status: HttpStatus.CONFLICT, code: ErrorCode.TicketAlreadyUsed }],
   [RaceTribuneFreeError, { status: HttpStatus.CONFLICT, code: ErrorCode.RaceTribuneFree }],
   // 404 — iade var olan bir KAYNAĞI hedefler, o kaynak (bilet) yoksa hedef
   // yoktur (`RaceNotFoundError` ile AYNI kategori).

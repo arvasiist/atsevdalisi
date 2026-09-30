@@ -80,6 +80,15 @@ export interface GrandstandRepository {
   getTribuneAccess(raceId: string, viewerId: string): Promise<TribuneAccessFacts | null>;
 
   /**
+   * 30.09.2026 — biletin "kullanıldı" işareti (migration 0044). Yarış
+   * izleyiciye BİLET SAYESİNDE açılırken çağrılır; `first_viewed_at`
+   * yalnızca ilk kez yazılır (`COALESCE`). `false` = bilet satırı artık
+   * yok (eşzamanlı bir iade onu sildi) → çağıran erişimi REDDETMELİDİR,
+   * yoksa "izle + aynı anda iade et" penceresi açık kalırdı.
+   */
+  markTicketViewed(raceId: string, playerId: string): Promise<boolean>;
+
+  /**
    * **PARA YOLU.** Bileti satın alır: `races` ve `players` satırlarını
    * `SELECT ... FOR UPDATE` ile KİLİTLER, KONTENJANI kilit altında
    * doğrular (`TribuneFullError`), tutarı **kilitli yarış satırından**

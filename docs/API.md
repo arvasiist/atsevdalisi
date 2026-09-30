@@ -663,10 +663,19 @@ sonra yeniden satın almak beklenen akıştır), iade tutarı **satırın kendi
 `price` sütunundan** okunur (`races.tribune_fee`den DEĞİL — yarışın ücreti
 sonradan değişse bile geçmiş bir satın alma kendi tutarını korur), bakiyeye
 `credit` edilir ve AYNI transaction'da POZİTİF bir `grandstand_ticket_refund`
-defter satırı yazılır. Bilet yoksa `404 RACE_TICKET_NOT_FOUND`. İade
-penceresi YOKTUR (pencere yalnızca satın almayı kısıtlar); çift iadeyi
-`IdempotencyInterceptor` değil, `DELETE ... RETURNING`in 0 satır dönmesi
-engeller.
+defter satırı yazılır. Bilet yoksa `404 RACE_TICKET_NOT_FOUND`. Çift
+iadeyi `IdempotencyInterceptor` değil, `DELETE ... RETURNING`in 0 satır
+dönmesi engeller.
+
+**30.09.2026 — İZLENMİŞ BİLET İADE EDİLMEZ (`409 TICKET_ALREADY_USED`).**
+Bilet yalnızca bitmiş yarışa satıldığı için "zaman penceresi" anlamsızdır;
+asıl açık "izle + parayı geri al"dı. Yarış izleyiciye ilk kez **bilet
+sayesinde** açıldığında (`GetRaceTimelineUseCase` — HTTP replay ve canlı
+`race.subscribe` aynı kapı) `race_tickets.first_viewed_at` doldurulur
+(migration 0044); dolu bilet iade edilmez. `GET /players/{id}/tickets`
+satırı bunu `usedAt` olarak taşır. Katılımcının ya da ücretsiz tribünün
+izlemesi bileti işaretlemez. Eşzamanlı "izle + iade et": iade önce
+kazanırsa izleme `403 RACE_TICKET_REQUIRED` alır.
 
 `config/grandstand.config.json` değerleri **doğrudan** okunur; `game-config`
 yükleyicisi saf bir cast olduğundan (çalışma zamanı doğrulaması YOK),

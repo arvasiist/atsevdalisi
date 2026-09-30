@@ -579,11 +579,11 @@ describe('Tribün — ücretli seyirci girişi (e2e)', () => {
         .set('Authorization', viewer.authHeader)
         .set('Idempotency-Key', randomUUID())
         .expect(200);
-      await request(app.getHttpServer())
-        .get(`/api/v1/races/${raceId}/timeline`)
-        .set('Authorization', viewer.authHeader)
-        .expect(200);
 
+      // 30.09.2026: bu test eskiden bileti ÖNCE kullanıp (timeline 200) SONRA
+      // iade ediyordu — yani "izle + parayı geri al" açığını doğru davranış
+      // diye kilitliyordu. İzlenmemiş bilet iade edilir; izlenmiş olan
+      // aşağıdaki testte reddedilir.
       await request(app.getHttpServer())
         .delete(`/api/v1/races/${raceId}/tickets`)
         .set('Authorization', viewer.authHeader)
@@ -597,6 +597,70 @@ describe('Tribün — ücretli seyirci girişi (e2e)', () => {
         .set('Authorization', viewer.authHeader);
       expect(after.status).toBe(403);
       expect(after.body.error.code).toBe('RACE_TICKET_REQUIRED');
+    });
+
+    it('İZLENMİŞ bilet iade edilemez — 409 TICKET_ALREADY_USED, para ve bilet yerinde kalır (migration 0044)', async () => {
+      const owner = await registerTestPlayerWithStarterHorse(app, 'Kullanım Sahibi');
+      const viewer = await registerTestPlayerWithStarterHorse(app, 'Kullanım İzleyicisi');
+      const raceId = await runFinishedRace(owner.horseId, owner.authHeader);
+
+      await request(app.getHttpServer())
+        .post(`/api/v1/races/${raceId}/tickets`)
+        .set('Authorization', viewer.authHeader)
+        .set('Idempotency-Key', randomUUID())
+        .expect(200);
+      const tickets = await request(app.getHttpServer())
+        .get(`/api/v1/players/${viewer.playerId}/tickets`)
+        .set('Authorization', viewer.authHeader)
+        .expect(200);
+      expect(tickets.body.data[0].usedAt).toBeNull();
+
+      await request(app.getHttpServer())
+        .get(`/api/v1/races/${raceId}/timeline`)
+        .set('Authorization', viewer.authHeader)
+        .expect(200);
+      const moneyAfterWatch = await fetchMoney(viewer.playerId, viewer.authHeader);
+
+      const refund = await request(app.getHttpServer())
+        .delete(`/api/v1/races/${raceId}/tickets`)
+        .set('Authorization', viewer.authHeader)
+        .set('Idempotency-Key', randomUUID())
+        .expect(409);
+      expect(refund.body.error.code).toBe('TICKET_ALREADY_USED');
+
+      expect(await fetchMoney(viewer.playerId, viewer.authHeader)).toBe(moneyAfterWatch);
+      const listed = await request(app.getHttpServer())
+        .get(`/api/v1/players/${viewer.playerId}/tickets`)
+        .set('Authorization', viewer.authHeader)
+        .expect(200);
+      expect(typeof listed.body.data[0].usedAt).toBe('string');
+      // Bilet hâlâ geçerli — yarış yeniden izlenebilir.
+      await request(app.getHttpServer())
+        .get(`/api/v1/races/${raceId}/timeline`)
+        .set('Authorization', viewer.authHeader)
+        .expect(200);
+    });
+
+    it('yarış SAHİBİ (katılımcı) izlemesi başkasının biletini "kullanılmış" yapmaz', async () => {
+      const owner = await registerTestPlayerWithStarterHorse(app, 'Katılımcı İzler');
+      const viewer = await registerTestPlayerWithStarterHorse(app, 'Bilet Bekler');
+      const raceId = await runFinishedRace(owner.horseId, owner.authHeader);
+      await request(app.getHttpServer())
+        .post(`/api/v1/races/${raceId}/tickets`)
+        .set('Authorization', viewer.authHeader)
+        .set('Idempotency-Key', randomUUID())
+        .expect(200);
+
+      await request(app.getHttpServer())
+        .get(`/api/v1/races/${raceId}/timeline`)
+        .set('Authorization', owner.authHeader)
+        .expect(200);
+
+      await request(app.getHttpServer())
+        .delete(`/api/v1/races/${raceId}/tickets`)
+        .set('Authorization', viewer.authHeader)
+        .set('Idempotency-Key', randomUUID())
+        .expect(200);
     });
 
     it('bileti OLMAYAN oyuncu iade isteyince 404 RACE_TICKET_NOT_FOUND döner', async () => {
