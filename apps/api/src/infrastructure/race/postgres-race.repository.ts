@@ -6,6 +6,8 @@ import type {
   RaceEntrantSnapshot,
   RaceEntry,
   RaceJockeyDecision,
+  RaceEntryStatus,
+  RaceLobbyListItem,
   RaceLobbyView,
   RaceSegmentSnapshot,
   RaceSettlementPlace,
@@ -1132,22 +1134,36 @@ export class PostgresRaceRepository implements RaceRepository {
    * listeyi kilit altına almak, her lobi yenilemesini yarışa katılanların
    * arkasında sıraya sokardı. Görüntünün ANLIK olması yeterlidir.
    */
-  async listLobbyRaces(input: ListLobbyRacesInput): Promise<RaceLobbyView[]> {
-    const result = await this.pool.query<LobbyRaceRow & { joined_players: string }>(
+  async listLobbyRaces(input: ListLobbyRacesInput): Promise<RaceLobbyListItem[]> {
+    // `my_*` (30.09.2026) — çağıranın KENDİ katılımı, aynı JOIN'den
+    // `FILTER` ile. `race_entries_race_player_uq` oyuncu başına en fazla bir
+    // satır garanti eder; `MAX` yalnızca gruplamanın istediği toplama
+    // biçimidir, birden çok değer arasında seçim yapmaz.
+    const result = await this.pool.query<
+      LobbyRaceRow & { joined_players: string; my_status: string | null; my_horse_id: string | null }
+    >(
       `SELECT r.id, r.name, r.participant_limit, r.max_players, r.entry_fee, r.prize_pool,
               r.start_time, r.status, r.race_type, r.surface, r.weather, r.distance_m,
               r.tribune_fee, r.spectator_capacity, r.created_by, r.created_at,
-              COUNT(e.player_id) FILTER (WHERE e.status IS DISTINCT FROM 'cancelled') AS joined_players
+              COUNT(e.player_id) FILTER (WHERE e.status IS DISTINCT FROM 'cancelled') AS joined_players,
+              MAX(e.status) FILTER (WHERE e.player_id = $3) AS my_status,
+              MAX(e.horse_id::text) FILTER (WHERE e.player_id = $3) AS my_horse_id
        FROM races r
        LEFT JOIN race_entries e ON e.race_id = r.id AND e.player_id IS NOT NULL
        WHERE r.status = $1
        GROUP BY r.id
        ORDER BY r.start_time ASC
        LIMIT $2`,
-      [input.status, input.limit],
+      [input.status, input.limit, input.viewerId],
     );
 
-    return result.rows.map((row) => rowToLobbyRaceView(this.config, row, Number(row.joined_players)));
+    return result.rows.map((row) => ({
+      ...rowToLobbyRaceView(this.config, row, Number(row.joined_players)),
+      myEntry:
+        row.my_status !== null && row.my_horse_id !== null
+          ? { status: row.my_status as RaceEntryStatus, horseId: row.my_horse_id }
+          : null,
+    }));
   }
 
   /**

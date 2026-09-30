@@ -42,6 +42,10 @@ import type {
   PublicHorse,
   RacingStyle,
   RaceInviteView,
+  RaceLobbyListItem,
+  RaceLobbyView,
+  RaceSurface,
+  RaceWeather,
   RaceTicketPurchaseResult,
   RaceTicketRefundResult,
   RaceTicketView,
@@ -86,6 +90,25 @@ import type {
  * yanlış olan yalnızca bu yedek değerdi; `apps/web/.env.example`'ın
  * bildirdiği ad ise yanlıştı ve o da aynı turda düzeltildi.
  */
+/**
+ * `POST /races` gövdesi (30.09.2026). Alanların geçerli değerleri
+ * `config/race-lobby.config.json`dan gelir ve sunucu `validateRaceCreation`
+ * ile BAĞIMSIZ doğrular — istemcinin seçenek listeleri yalnızca kolaylıktır.
+ */
+export interface CreateLobbyRaceBody {
+  name: string;
+  fieldSize: number;
+  maxPlayers: number;
+  entryFee: number;
+  raceType: 'free' | 'paid';
+  startTime: string;
+  surface: RaceSurface;
+  weather: RaceWeather;
+  distanceMeters: number;
+  tribuneFee: number;
+  spectatorCapacity: number;
+}
+
 export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1';
 
 interface ApiResponse<T> {
@@ -660,6 +683,65 @@ export const apiClient = {
   refundRaceTicket: (raceId: string, idempotencyKey: string) =>
     request<RaceTicketRefundResult>(`/races/${raceId}/tickets`, {
       method: 'DELETE',
+      headers: { 'Idempotency-Key': idempotencyKey },
+    }),
+
+  /**
+   * ÜCRETLİ LOBİ YARIŞI — istemci tarafı (30.09.2026). Bu beş uç sunucuda
+   * 27–28.09.2026'dan beri vardı ama HİÇBİR ekran onları çağırmıyordu:
+   * oyuncu ücretli yarış açamıyor, katılamıyor, hazır diyemiyordu.
+   *
+   * `listLobbyRaces` — `GET /races`. Her satır çağıranın KENDİ katılımını
+   * (`myEntry`) taşır; "Katıl" ile "Hazırım / Ayrıl" arasındaki seçim ona
+   * bakılarak yapılır, istemci belleğine DEĞİL.
+   */
+  listLobbyRaces: () => request<RaceLobbyListItem[]>('/races'),
+
+  /**
+   * `POST /races` — yarış AÇAR, katılmaz (açan kişi ayrıca katılır). PARA
+   * YOLU DEĞİLDİR ve `Idempotency-Key` OKUNMAZ: çift açmayı
+   * `maxOpenRacesPerPlayer` tavanı sınırlar. Açan kimse TOKEN'dan gelir.
+   */
+  createLobbyRace: (body: CreateLobbyRaceBody) =>
+    request<RaceLobbyView>('/races', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+
+  /**
+   * `POST /races/:id/join` — PARA YOLU (giriş ücreti). `Idempotency-Key`
+   * ZORUNLUDUR ve çağıran tarafından üretilir (bkz. `buyRaceTicket`).
+   * Katılan oyuncu TOKEN'dan gelir; gövdede yalnızca at ve taktik vardır.
+   */
+  joinLobbyRace: (
+    raceId: string,
+    entry: { horseId: string; tacticalStyle?: RacingStyle; riskLevel?: RiskLevel },
+    idempotencyKey: string,
+  ) =>
+    request<RaceLobbyView>(`/races/${raceId}/join`, {
+      method: 'POST',
+      body: JSON.stringify(entry),
+      headers: { 'Idempotency-Key': idempotencyKey },
+    }),
+
+  /**
+   * `POST /races/:id/ready` — PARA YOLU DEĞİL, `Idempotency-Key` YOK.
+   * 30.09.2026'dan beri READY bir bilgi değil KOŞMANIN ŞARTIDIR: başlangıç
+   * anında hazır demeyen katılım iptal edilip ücreti iade edilir.
+   */
+  setLobbyEntryReady: (raceId: string, status: 'ready' | 'not_ready') =>
+    request<RaceLobbyView>(`/races/${raceId}/ready`, {
+      method: 'POST',
+      body: JSON.stringify({ status }),
+    }),
+
+  /**
+   * `POST /races/:id/leave` — PARA YOLU (ters yön: giriş ücreti iadesi).
+   * `Idempotency-Key` ZORUNLUDUR; tekrar ikinci bir iade üretmez.
+   */
+  leaveLobbyRace: (raceId: string, idempotencyKey: string) =>
+    request<RaceLobbyView>(`/races/${raceId}/leave`, {
+      method: 'POST',
       headers: { 'Idempotency-Key': idempotencyKey },
     }),
 

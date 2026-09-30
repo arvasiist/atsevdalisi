@@ -578,6 +578,23 @@ export interface RaceLobbyView {
 }
 
 /**
+ * `GET /races` satırı (30.09.2026) — `RaceLobbyView` + ÇAĞIRANIN bu yarıştaki
+ * kendi katılımı. Lobi arayüzü "Katıl" ile "Hazırım / Ayrıl" düğmeleri
+ * arasında buna bakarak seçer; bu alan olmadan istemci kimin nereye
+ * katıldığını yalnızca kendi belleğinde tutabilirdi ve sayfa yenilenince
+ * kaybederdi.
+ *
+ * **YALNIZCA ÇAĞIRANIN KENDİ SATIRI** — başka oyuncuların at/durum bilgisi
+ * bu yanıta GİRMEZ (lobi herkese açık bir liste değildir ama yine de bir
+ * oyuncunun başkasının READY durumunu görmesine gerek yoktur).
+ * `status: 'cancelled'` = oyuncu ayrıldı ya da hazır olmadığı için düşürüldü;
+ * aynı yarışa yeniden katılamaz (`RACE_ENTRY_CANCELLED`).
+ */
+export interface RaceLobbyListItem extends RaceLobbyView {
+  myEntry: { status: RaceEntryStatus; horseId: UUID } | null;
+}
+
+/**
  * Bir koltuğun GERÇEK oyuncuya mı yapay zekâya mı ait olduğu (§42 PHASE 2).
  *
  * **`isBot: boolean` YERİNE BU TİP GEÇTİ (28.09.2026).** İkisi aynı olguyu

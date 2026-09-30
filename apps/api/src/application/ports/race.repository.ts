@@ -4,6 +4,7 @@ import type {
   RaceEntrantSnapshot,
   RaceEntry,
   RaceEntryStatus,
+  RaceLobbyListItem,
   RaceLobbyView,
   RaceSegmentSnapshot,
   RaceSettlementResult,
@@ -233,7 +234,7 @@ export interface RaceRepository {
    * olmalıdır — oyuncunun kararı zaten "hangi yarışa YETİŞEBİLİRİM"
    * sorusudur.
    */
-  listLobbyRaces(input: ListLobbyRacesInput): Promise<RaceLobbyView[]>;
+  listLobbyRaces(input: ListLobbyRacesInput): Promise<RaceLobbyListItem[]>;
 
   /**
    * Oyuncunun KENDİ katılım satırının durumunu değiştirir (brief §6, §42
@@ -469,6 +470,8 @@ export interface ListLobbyRacesInput {
   status: RaceStatus;
   /** Azami kayıt sayısı — çağıran tarafından config'e göre kırpılmıştır. */
   limit: number;
+  /** Çağıran oyuncu — yalnızca KENDİ katılımı (`myEntry`) için okunur. */
+  viewerId: string;
 }
 
 /**

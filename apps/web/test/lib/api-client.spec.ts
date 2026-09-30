@@ -943,3 +943,72 @@ describe('API taban adresi', () => {
     expect(API_BASE_URL).toBe('http://localhost:4000/api/v1');
   });
 });
+
+describe('apiClient ücretli lobi yarışı (30.09.2026 — istemci tarafı)', () => {
+  /**
+   * Beş uç: liste, açma, katılma (PARA YOLU), hazır (para yolu DEĞİL),
+   * ayrılma (PARA YOLU, iade). Sabitlenen şey URL/method/gövde ve
+   * `Idempotency-Key`in YALNIZCA para yollarında gönderilmesidir: katılma ve
+   * ayrılmada anahtar yoksa sunucu 400 döner; hazır/açmada gönderilseydi
+   * "korunuyorum" yanılsaması doğardı (sunucu okumaz).
+   */
+  it('listLobbyRaces GET /races eder ve anahtar GÖNDERMEZ', async () => {
+    const fetchMock = stubFetchOnce({ success: true, data: [] });
+    await apiClient.listLobbyRaces();
+    const [url, config] = requestArgs(fetchMock);
+    expect(url).toBe(`${API_BASE_URL}/races`);
+    expect(config.method ?? 'GET').toBe('GET');
+    expect((config.headers as Headers).get('Idempotency-Key')).toBeNull();
+  });
+
+  it('createLobbyRace gövdeyi POST /races ile gönderir, anahtar GÖNDERMEZ', async () => {
+    const fetchMock = stubFetchOnce({ success: true, data: {} });
+    const body = {
+      name: 'Kupa',
+      fieldSize: 8,
+      maxPlayers: 8,
+      entryFee: 50,
+      raceType: 'paid' as const,
+      startTime: '2026-09-30T13:00:00.000Z',
+      surface: 'grass' as const,
+      weather: 'sunny' as const,
+      distanceMeters: 1600,
+      tribuneFee: 0,
+      spectatorCapacity: 500,
+    };
+    await apiClient.createLobbyRace(body);
+    const [url, config] = requestArgs(fetchMock);
+    expect(url).toBe(`${API_BASE_URL}/races`);
+    expect(config.method).toBe('POST');
+    expect(JSON.parse(config.body as string)).toEqual(body);
+    expect((config.headers as Headers).get('Idempotency-Key')).toBeNull();
+  });
+
+  it('joinLobbyRace at + anahtarla POST eder (para yolu — ZORUNLU)', async () => {
+    const fetchMock = stubFetchOnce({ success: true, data: {} });
+    await apiClient.joinLobbyRace('race-1', { horseId: 'horse-1' }, 'key-7');
+    const [url, config] = requestArgs(fetchMock);
+    expect(url).toBe(`${API_BASE_URL}/races/race-1/join`);
+    expect(config.method).toBe('POST');
+    expect(JSON.parse(config.body as string)).toEqual({ horseId: 'horse-1' });
+    expect((config.headers as Headers).get('Idempotency-Key')).toBe('key-7');
+  });
+
+  it('setLobbyEntryReady durumu gönderir ve anahtar GÖNDERMEZ', async () => {
+    const fetchMock = stubFetchOnce({ success: true, data: {} });
+    await apiClient.setLobbyEntryReady('race-1', 'ready');
+    const [url, config] = requestArgs(fetchMock);
+    expect(url).toBe(`${API_BASE_URL}/races/race-1/ready`);
+    expect(JSON.parse(config.body as string)).toEqual({ status: 'ready' });
+    expect((config.headers as Headers).get('Idempotency-Key')).toBeNull();
+  });
+
+  it('leaveLobbyRace anahtarla POST eder (iade — ZORUNLU)', async () => {
+    const fetchMock = stubFetchOnce({ success: true, data: {} });
+    await apiClient.leaveLobbyRace('race-1', 'key-9');
+    const [url, config] = requestArgs(fetchMock);
+    expect(url).toBe(`${API_BASE_URL}/races/race-1/leave`);
+    expect(config.method).toBe('POST');
+    expect((config.headers as Headers).get('Idempotency-Key')).toBe('key-9');
+  });
+});
