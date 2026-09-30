@@ -67,7 +67,12 @@ import {
   RaceNotFoundError,
   RaceNotSettleableError,
 } from '../../domain/race/errors';
-import { HorseNotFoundError, HorseInjuredError } from '../../domain/horse/errors';
+import {
+  HorseInActiveRaceError,
+  HorseInjuredError,
+  HorseListedInMarketError,
+  HorseNotFoundError,
+} from '../../domain/horse/errors';
 import { credit, debit } from '../../domain/economy/wallet';
 import {
   buildPrizeWonPayload,
@@ -77,6 +82,7 @@ import {
 import { applyEloUpdate } from '../../domain/online/elo';
 import { PlayerNotFoundError } from '../../domain/player/errors';
 import { PG_POOL, withTransaction } from '../database/database.module';
+import { isHorseInActiveRace } from '../horse/active-race-entry';
 
 /** Postgres `unique_violation` hata kodu (bkz. PostgreSQL "Error Codes" §22.6 sınıf 23). */
 const POSTGRES_UNIQUE_VIOLATION = '23505';
@@ -915,13 +921,24 @@ export class PostgresRaceRepository implements RaceRepository {
         throw new RaceNotJoinableError(rejection);
       }
 
-      // 4) At: var mı, bu oyuncunun mu, sağlıklı mı. ÜÇÜ TEK SORGUDA —
-      //    ayrı sorgular arasında atın satılması gibi bir yarış olmaz ve
-      //    `horses` satırı burada KİLİTLENMEZ (kilit yalnızca para ve
-      //    kontenjan içindir; atın satılması katılımı geçersiz kılmaz,
-      //    çünkü `player_id` katılım anında DONAR).
+      // 4) At: var mı, bu oyuncunun mu, sağlıklı mı — satır KİLİTLİ.
+      //    30.09.2026 DÜZELTMESİ: bu adım eskiden `horses` satırını
+      //    KİLİTLEMİYORDU ve "atın satılması katılımı geçersiz kılmaz,
+      //    `player_id` donar" diyordu. Sonucu: katılımdan sonra satılan at
+      //    ESKİ sahibi adına koşuyor ve ödülü SATICI alıyordu; ayrıca aynı
+      //    at aynı anda birden çok açık yarışa yazılabiliyordu. Artık:
+      //    (a) satır `FOR UPDATE` ile kilitlenir — pazar satın alması
+      //        (`PostgresMarketPurchaseRepository`) AYNI satırı kilitlediği
+      //        için "aynı anda katıl + sat" sıraya girer;
+      //    (b) pazarda aktif ilanı olan at katılamaz (pratik yarış ve
+      //        antrenmanla AYNI kural, `HorseListedInMarketError`);
+      //    (c) başka bir açık (`scheduled`/`locking`) yarışa kayıtlı at
+      //        katılamaz (`isHorseInActiveRace` — tek tanım).
+      //    KİLİT SIRASI: `races` → `horses` → `players`. Pazar yolu
+      //    `market_listings` → `horses` → `players`; ikisi de `horses`u
+      //    `players`tan önce kilitler, çapraz kilitlenme doğmaz.
       const horseResult = await client.query<{ owner_id: string; status: string }>(
-        'SELECT owner_id, status FROM horses WHERE id = $1',
+        'SELECT owner_id, status FROM horses WHERE id = $1 FOR UPDATE',
         [input.horseId],
       );
       const horse = horseResult.rows[0];
@@ -931,10 +948,18 @@ export class PostgresRaceRepository implements RaceRepository {
       if (horse.owner_id !== input.playerId) {
         throw new HorseNotOwnedError(input.horseId);
       }
-      // `horses.status` METİNDİR, boolean bir `injured` sütunu YOKTUR —
-      // `join-matchmaking-queue.use-case.ts` ile AYNI kontrol.
       if (horse.status === 'injured') {
         throw new HorseInjuredError(input.horseId);
+      }
+      const listedResult = await client.query(
+        "SELECT 1 FROM market_listings WHERE horse_id = $1 AND status = 'active' AND (expires_at IS NULL OR expires_at > $2) LIMIT 1",
+        [input.horseId, input.now],
+      );
+      if (listedResult.rows.length > 0) {
+        throw new HorseListedInMarketError(input.horseId);
+      }
+      if (await isHorseInActiveRace(client, input.horseId, input.raceId)) {
+        throw new HorseInActiveRaceError(input.horseId);
       }
 
       // 5) Aynı oyuncu aynı yarışa iki kez giremez (brief §2 — ücret kişi

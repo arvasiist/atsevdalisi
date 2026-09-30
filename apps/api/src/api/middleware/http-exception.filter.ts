@@ -8,6 +8,7 @@ import {
   ReportNotFoundError,
 } from '../../domain/admin/errors';
 import {
+  HorseInActiveRaceError,
   HorseInjuredError,
   HorseListedInMarketError,
   HorseNotFoundError,
@@ -158,6 +159,8 @@ const DOMAIN_ERROR_MAP = new Map<ErrorClassConstructor, { status: number; code: 
   [HorseInjuredError, { status: HttpStatus.CONFLICT, code: ErrorCode.HorseInjured }],
   // AUDIT_REPORT.md Bulgu H2 (Medium) — pazarda aktif ilanı olan bir at antrenmana veya yarışa sokulamaz.
   [HorseListedInMarketError, { status: HttpStatus.CONFLICT, code: ErrorCode.HorseListedInMarket }],
+  // 30.09.2026 — açık bir lobi yarışına kayıtlı at satılamaz/pazara çıkamaz/ikinci yarışa yazılamaz.
+  [HorseInActiveRaceError, { status: HttpStatus.CONFLICT, code: ErrorCode.HorseInActiveRace }],
   // CI Hata 7 (bkz. domain/training/errors.ts InvalidTrainingInputError) —
   // DTO doğrulaması esbuild altında atlanabildiğinde domain katmanının
   // kendi bağımsız kontrolünün fırlattığı hata; gerçek bir DOĞRULAMA

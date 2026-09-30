@@ -3,7 +3,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import type { MarketListing } from '@at-sevdalisi/shared-types';
 import { createListingDraft } from '../../domain/market/market';
 import { HorseAlreadyListedError } from '../../domain/market/errors';
-import { HorseNotFoundError } from '../../domain/horse/errors';
+import { HorseInActiveRaceError, HorseNotFoundError } from '../../domain/horse/errors';
 import { HORSE_REPOSITORY, type HorseRepository } from '../ports/horse.repository';
 import { MARKET_LISTING_REPOSITORY, type MarketListingRepository } from '../ports/market-listing.repository';
 
@@ -63,6 +63,13 @@ export class CreateMarketListingUseCase {
     const horse = await this.horseRepository.findById(input.horseId);
     if (horse === null) {
       throw new HorseNotFoundError(input.horseId);
+    }
+
+    // 30.09.2026 — açık bir lobi yarışına kayıtlı at pazara çıkarılamaz
+    // (satılırsa eski sahibi adına koşar, ödülü satıcı alırdı). Bu bir ÖN
+    // kontroldür; asıl garanti satın alma transaction'ındaki aynı kontroldür.
+    if (await this.horseRepository.isInActiveRace(input.horseId)) {
+      throw new HorseInActiveRaceError(input.horseId);
     }
 
     const existingActiveListing = await this.marketListingRepository.findActiveByHorseId(input.horseId);

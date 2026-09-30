@@ -2923,6 +2923,7 @@ dosyanın doc yorumu).
 |---|---|
 | `HORSE_TOO_TIRED` | Atın enerjisi/yorgunluğu yarış veya antrenman için yetersiz |
 | `HORSE_INJURED` | At sakat, işlem yapılamaz |
+| `HORSE_IN_ACTIVE_RACE` | At henüz koşulmamış (`scheduled`/`locking`) bir lobi yarışına kayıtlı: ikinci bir açık yarışa yazılamaz (`POST /races/:id/join`), pazara çıkarılamaz (`POST /market/listings`) ve satın alınamaz (`POST /market/listings/:id/buy`). Yarış bitince, iptal edilince ya da oyuncu ayrılınca kalkar (30.09.2026) |
 | `INSUFFICIENT_FUNDS` | Oyuncunun parası işlemi karşılamıyor |
 | `INSUFFICIENT_ENERGY` | Antrenman için enerji yetersiz |
 | `RACE_FULL` | Yarış katılımcı limitine ulaştı; `POST /races/:id/join`'de ayrıca GERÇEK oyuncu kontenjanı (`races.max_players`) doldu demektir (Ücretli yarış, 27.09.2026) |

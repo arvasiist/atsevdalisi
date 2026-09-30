@@ -67,6 +67,10 @@ export const ErrorCode = {
   // ikinci bir hata (`BreedingHorseListedError`) eklediği için kopya
   // sayısı üçe çıkacaktı — bu yüzden kod artık TEK yerde, burada tanımlı.
   HorseListedInMarket: 'HORSE_LISTED_IN_MARKET',
+  // 30.09.2026 — `HorseInActiveRaceError`: at, henüz koşulmamış (`scheduled`/
+  // `locking`) bir lobi yarışına kayıtlıyken satılamaz, pazara çıkarılamaz ve
+  // ikinci bir açık yarışa yazılamaz (bkz. `domain/horse/errors.ts`).
+  HorseInActiveRace: 'HORSE_IN_ACTIVE_RACE',
   // Faz 3 — Yetiştiricilik (domain/breeding)
   NotEligibleForBreeding: 'NOT_ELIGIBLE_FOR_BREEDING',
   // Faz 4 — Çiftlik / Tesisler (domain/farm)
