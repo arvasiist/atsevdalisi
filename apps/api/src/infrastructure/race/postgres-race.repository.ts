@@ -1626,6 +1626,19 @@ export class PostgresRaceRepository implements RaceRepository {
     return result.rows.map((row) => row.id);
   }
 
+  /** Otomatik kesinleşme sırası — port doc yorumu okunmalıdır. */
+  async findRacesDueForSettle(input: { limit: number }): Promise<string[]> {
+    const result = await this.pool.query<{ id: string }>(
+      `SELECT id
+       FROM races
+       WHERE status = 'locking'
+       ORDER BY start_time ASC, id ASC
+       LIMIT $1`,
+      [input.limit],
+    );
+    return result.rows.map((row) => row.id);
+  }
+
   /**
    * `scheduled → locking` + seed + snapshot + bildirim, TEK transaction
    * (PHASE 1, migration 0042). Adımların gerekçesi `RaceRepository.

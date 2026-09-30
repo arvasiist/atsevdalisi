@@ -351,6 +351,17 @@ export interface RaceRepository {
   findRacesDueForLock(input: { now: Date; limit: number }): Promise<string[]>;
 
   /**
+   * Kesinleşmeyi bekleyen (`locking`) yarışların kimlikleri, en eski
+   * başlangıç önce (30.09.2026 — otomatik kesinleşme). `locking` = snapshot
+   * donmuş, ödül dağıtılmamış; bu durumda kalan her yarışın giriş ücretleri
+   * havuzda BEKLER. Zamanlayıcı bu listeyi `SettleRaceUseCase` ile kapatır.
+   * Kilit ALMAZ: seçim yalnızca bir ön listedir, asıl karar
+   * `settleLobbyRace`in kilit altındaki durum kontrolüdür (ikinci işçi 409
+   * `RACE_NOT_SETTLEABLE` alır ve atlar).
+   */
+  findRacesDueForSettle(input: { limit: number }): Promise<string[]>;
+
+  /**
    * Yarışı `scheduled`dan `locking`e geçirir ve O AN'ı DONDURUR (brief §42
    * PHASE 1, migration 0042).
    *

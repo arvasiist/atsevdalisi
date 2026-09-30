@@ -2495,6 +2495,13 @@ havuzun küçüldüğünü görmek için ikinci istek atmak zorunda kalmamalıd�
 
 #### `POST /races/{id}/settle` — yarışı KOŞTUR ve ödülleri dağıt (§42 PHASE 13.14)
 
+> **30.09.2026 — ZAMANLAYICI ARTIK KESİNLEŞTİRİR.** `RaceLockScheduler`
+> her turda önce vadesi gelen yarışları kilitler, ardından `locking`
+> durumundaki yarışları bu uçla AYNI use-case'le (`SettleRaceUseCase`)
+> kesinleştirir (`SettleDueRacesUseCase`). Bu uç bir "crank" olarak
+> yaşamaya devam eder; ikisi aynı yarışa gelirse ikincisi 409
+> `RACE_NOT_SETTLEABLE` alır — çift ödeme yapısal olarak imkânsızdır.
+
 **Gövde YOKTUR. `Idempotency-Key` YOKTUR.** Tek parametre yoldan gelen
 `raceId`'dir. 200 OK döner, gövde `RaceSettlementResult`'tır.
 

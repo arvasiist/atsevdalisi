@@ -1,10 +1,17 @@
 import { Inject, Injectable, Logger, type OnModuleDestroy, type OnModuleInit } from '@nestjs/common';
-import { LockRaceUseCase } from '../../application/use-cases/lock-race.use-case';
+import { LockRaceUseCase, type LockDueRacesResult } from '../../application/use-cases/lock-race.use-case';
+import { SettleDueRacesUseCase, type SettleDueRacesResult } from '../../application/use-cases/settle-due-races.use-case';
 import { AppConfigService } from '../config/config.service';
 
 /**
  * `startTime`ı gelmiş lobi yarışlarını periyodik olarak kilitleyen
  * zamanlayıcı (§42 PHASE 1, migration 0042).
+ *
+ * **30.09.2026 — ARTIK KESİNLEŞTİRİR DE.** Her tur iki adımdır: (1) vadesi
+ * gelen `scheduled` yarışları kilitle (READY şartı burada uygulanır), (2)
+ * `locking` yarışları kesinleştir (`SettleDueRacesUseCase`). İkinci adım
+ * olmadan kilitlenen yarışların ödülü hiç dağıtılmıyordu. Sınıfın adı
+ * geriye dönük uyum için korunmuştur.
  *
  * **PROJEDEKİ İLK ZAMANLAYICIDIR — ve bu yüzden kuralları burada yazılıdır.**
  * `race_starting` bildiriminin üreticisiz kalmasının ve "snapshot `startTime`
@@ -51,6 +58,11 @@ import { AppConfigService } from '../config/config.service';
  * riskini doğurur. Bu yüzden söz YUTULUR ve içeride günlüklenir. Testler
  * beklemek isterse `tickNow()`u kullanır.
  */
+/** Bir zamanlayıcı turunun sonucu: kilit adımı + kesinleşme adımı. */
+export interface SchedulerTickResult extends LockDueRacesResult {
+  settlement: SettleDueRacesResult;
+}
+
 @Injectable()
 export class RaceLockScheduler implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(RaceLockScheduler.name);
@@ -61,6 +73,7 @@ export class RaceLockScheduler implements OnModuleInit, OnModuleDestroy {
 
   constructor(
     @Inject(LockRaceUseCase) private readonly lockRaceUseCase: LockRaceUseCase,
+    @Inject(SettleDueRacesUseCase) private readonly settleDueRacesUseCase: SettleDueRacesUseCase,
     @Inject(AppConfigService) private readonly config: AppConfigService,
   ) {}
 
@@ -96,7 +109,7 @@ export class RaceLockScheduler implements OnModuleInit, OnModuleDestroy {
    * yani bir tur koşarken çağrılırsa `null` döner ve İKİNCİ bir tur
    * başlatmaz.
    */
-  async tickNow(now: Date = new Date()): Promise<{ locked: string[]; skipped: { raceId: string; reason: string }[] } | null> {
+  async tickNow(now: Date = new Date()): Promise<SchedulerTickResult | null> {
     if (this.isTicking) {
       return null;
     }
@@ -106,7 +119,17 @@ export class RaceLockScheduler implements OnModuleInit, OnModuleDestroy {
       if (result.locked.length > 0) {
         this.logger.log(`Kilitlenen yarışlar: ${result.locked.join(', ')}`);
       }
-      return result;
+      // OTOMATİK KESİNLEŞME (30.09.2026) — kilidin ARDINDAN, aynı turda.
+      // Bu adım olmadan kilitlenen yarışlar `locking`de kalıyor ve giriş
+      // ücretleri havuzda süresiz bekliyordu (bkz. `SettleDueRacesUseCase`).
+      // Aynı turda koşması, yeni kilitlenen yarışın da hemen kesinleşmesini
+      // sağlar; önceki turlardan kalan (ör. süreç yeniden başladı) `locking`
+      // yarışlar da burada toplanır.
+      const settlement = await this.settleDueRacesUseCase.execute();
+      if (settlement.settled.length > 0) {
+        this.logger.log(`Kesinleşen yarışlar: ${settlement.settled.join(', ')}`);
+      }
+      return { ...result, settlement };
     } finally {
       // `finally` ŞARTTIR: `return`/`throw` yolunda da kilit bırakılmalıdır,
       // aksi hâlde tek bir hata zamanlayıcıyı KALICI olarak kilitlerdi
