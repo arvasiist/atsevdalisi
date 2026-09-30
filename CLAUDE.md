@@ -98,7 +98,7 @@ küçük dilim → yerel doğrula (kök `npm run typecheck` + hedefli vitest + l
 **30.09.2026'da yeniden doğrulandı (bu liste iki kez bayatlamıştı):**
 Gerçek 3D/ses varlığı yok · OAuth kimlik bilgileri yok (`POST /auth/login` pratikte
 çalışmaz) · frontend'de gerçek giriş yok (misafir hesap, localStorage — tarayıcı
-verisi silinirse hesap kaybolur) · yarış takvimi yok · matchmaking senkron ·
+verisi silinirse hesap kaybolur) · yarış takvimi yok ·
 personel (`domain/staff`) + club/season/tournament/progression **DOMAIN ONLY**
 (API/ekran yok) · yer tutucu olan TEK sayfa `/club` · `PlayerDemoWidget`/
 `GltfAssetLoader` bağlı değil (bilinçli). Jokey, mizaç, taktik motora BAĞLI;
@@ -118,6 +118,12 @@ yeni e2e, katılımdan sonra `ready` DEMELİDİR — yoksa katılım düşer.
 yarışları kesinleştirir (`SettleDueRacesUseCase`); crank uç yaşamaya devam
 eder, çift ödeme imkânsız. (4) `GET /races` satırı çağıranın kendi
 katılımını taşır (`myEntry`) ve `/races` sayfasında `LobbyPanel` vardır.
+(5) **İzlenmiş tribün bileti iade edilmez** (`TICKET_ALREADY_USED`,
+migration 0044 `race_tickets.first_viewed_at`) — bilet YALNIZCA bitmiş
+yarışa satılır, "zaman penceresi" bütün iadeleri kapatırdı; açık "izle +
+parayı geri al"dı. (6) **Eşleştirme kuyruğu taranır** (`MatchmakingScheduler`,
+`online.matchmaking.queueScan`). (7) **Cüzdan geçmişi sayfalanır**
+(`?before=` imleci; bozuk imleç 400, varsayılana düşmez).
 
 **✅ ÜCRETLİ LOBİ YARIŞI ARTIK KOŞUYOR — ÖDÜL DAĞITIMI VAR (§13.14,
 28.09.2026).** `POST /races/:id/settle` yarışı koşar, ödülleri `top5`

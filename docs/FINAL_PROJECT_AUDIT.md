@@ -70,7 +70,7 @@ CI'dır."*
 | 18 | Jokey vitrini, kiralama ve serbest bırakma | `IMPLEMENTED` | Evet |
 | 19 | Jokey → motor etkisi | `IMPLEMENTED` | Evet |
 | 20 | Pratik yarış | `IMPLEMENTED` | Evet |
-| 21 | PvP matchmaking | `PARTIAL` | Koşullu |
+| 21 | PvP matchmaking | `IMPLEMENTED` | Evet |
 | 22 | Lobi yarışı oluşturma | `IMPLEMENTED` | Evet |
 | 23 | Lobi katılma / hazır / ayrılma | `IMPLEMENTED` | Evet |
 | 24 | Yarış yaşam döngüsü ve zamanlayıcı | `IMPLEMENTED` | Evet |
@@ -82,11 +82,11 @@ CI'dır."*
 | 30 | Yarış iptali ve iade | `IMPLEMENTED` | Evet |
 | 31 | Yarış dengesi ölçümü | `IMPLEMENTED` | Evet |
 | 32 | Ekonomi defteri (`economy_transactions`) | `IMPLEMENTED` | Evet |
-| 33 | Cüzdan (yatırma / günlük ödül / geçmiş) | `PARTIAL` | Koşullu |
+| 33 | Cüzdan (yatırma / günlük ödül / geçmiş) | `IMPLEMENTED` | Evet |
 | 34 | Idempotency | `IMPLEMENTED` | Evet |
 | 35 | Ödül havuzu ve çarpan | `IMPLEMENTED` | Evet |
 | 36 | Tribün bileti ve kontenjan | `IMPLEMENTED` | Evet |
-| 37 | Tribün iadesi | `PARTIAL` | Koşullu |
+| 37 | Tribün iadesi | `IMPLEMENTED` | Evet |
 | 38 | Canlı zaman çizelgesi ve replay | `IMPLEMENTED` | Evet |
 | 39 | WebSocket yayın katmanı | `IMPLEMENTED` | Evet |
 | 40 | Yarış sohbeti ve izleyici sayısı | `IMPLEMENTED` | Evet |
@@ -102,10 +102,17 @@ CI'dır."*
 | 50 | Bağlanmamış domain modülleri (kulüp/sezon/turnuva/progression/personel) | `DOMAIN ONLY` | Hayır |
 | 51 | 3D sunum ve ses | `PARTIAL` | Hayır (asset bekliyor) |
 
-**Sayım:** `IMPLEMENTED` **43** · `PARTIAL` **7** · `API ONLY` 0 ·
+**Sayım:** `IMPLEMENTED` **46** · `PARTIAL` **4** · `API ONLY` 0 ·
 `DOMAIN ONLY` 1 · `MISSING`/`BROKEN`/`UI ONLY`/`NOT WIRED` **0**.
 
-**Üretime hazır: 43/51.**
+**Üretime hazır: 46/51.**
+
+> ⚠️ **30.09.2026 (ikinci dilim) — #21, #33, #37 `IMPLEMENTED`.** #21:
+> kuyruk taraması (`MatchmakingScheduler`). #33: geçmiş sayfalama
+> (`?before=` imleci). #37: bu satır "koşmuş yarışın bileti iade
+> edilebiliyor" diyordu — **teşhis yanlıştı**: bilet YALNIZCA bitmiş yarışa
+> satılır; asıl açık "izle + parayı geri al"dı → izlenmiş bilet iade
+> edilmez (migration 0044). Sayım tablodan türetildi (46/4).
 
 > ⚠️ **30.09.2026 — BAĞIMSIZ YENİDEN DENETİM.** Bu belgenin #22/#23/#29
 > satırları "arayüz var / katılma bağlı" diyordu ve **YANLIŞTI**: web
@@ -649,7 +656,7 @@ vardır: Durum · Backend · Frontend · Database · API · WebSocket · Tests �
 
 ### 21. PvP matchmaking
 
-- **Durum:** `PARTIAL`
+- **Durum:** `IMPLEMENTED` (30.09.2026)
 - **Backend:** `MatchmakingController` — kuyruğa girme ve **senkron**
   eşleştirme (`matchmaking_tickets`, `pvp_matches`).
 - **Frontend:** `/online`.
@@ -658,11 +665,14 @@ vardır: Durum · Backend · Frontend · Database · API · WebSocket · Tests �
 - **WebSocket:** ilgisiz (eşleşme HTTP yanıtıyla döner).
 - **Tests:** `test/api/matchmaking.e2e-spec.ts` (15 test).
 - **Üretime hazır:** Koşullu.
-- **Eksik:** Cron/worker yok — eşleştirme istek anında koşar, yani kuyrukta
-  bekleyen oyuncular kendiliğinden eşleşmez.
-- **Risk:** Orta — gerçek oyuncu sayısı azken PvP pratikte boş döner.
-- **Sıradaki adım:** Zamanlayıcı (`RaceLockScheduler` deseni) ile kuyruk
-  taraması; ya da matchmaking'in "bot ile tamamla" davranışını belgele.
+- **Eksik:** — (30.09.2026: `MatchmakingScheduler` kuyruğu periyodik
+  tarar — `JoinMatchmakingQueueUseCase.scanQueue`, config
+  `online.matchmaking.queueScan`; atı satılmış/sakatlanmış bilet düşürülür,
+  iki oyuncuya da `lobby.update`. Test: `matchmaking-scan.e2e-spec.ts`,
+  `matchmaking-scheduler.spec.ts`.)
+- **Risk:** Gerçek oyuncu sayısı azken PvP yine boş dönebilir — ama artık
+  sebebi eksik kod değil, rakip yokluğudur.
+- **Sıradaki adım:** —
 - **Kaynak:** `apps/api/src/api/matchmaking/`.
 
 ---
@@ -927,7 +937,7 @@ vardır: Durum · Backend · Frontend · Database · API · WebSocket · Tests �
 
 ### 33. Cüzdan (yatırma / günlük ödül / geçmiş)
 
-- **Durum:** `PARTIAL` (§13.23, PHASE 4)
+- **Durum:** `IMPLEMENTED` (§13.23, PHASE 4; sayfalama 30.09.2026)
 - **Backend:** `mock_deposit` (kill switch'li), günlük ödül, geçmiş.
 - **Frontend:** `/wallet` — sınırlar `loadEconomyConfig()`ten okunur,
   koda gömülmez; `mockDeposit.enabled === false` ise form **gösterilmez**.
@@ -936,12 +946,13 @@ vardır: Durum · Backend · Frontend · Database · API · WebSocket · Tests �
 - **WebSocket:** ilgisiz.
 - **Tests:** `test/api/wallet*.e2e-spec.ts`, `ledger-labels.spec.ts`.
 - **Üretime hazır:** Koşullu.
-- **Eksik:** Geçmiş **sayfalanmıyor** (tek seferde `walletHistoryDefaultLimit`).
+- **Eksik:** — (30.09.2026: `?before=` imleci + `nextCursor`, `/wallet`ta
+  "Daha fazla göster"; bozuk imleç 400, başkasının satırı boş sayfa.)
 - **Risk:** **Idempotency-Key para yolunda başarısızlıkta ATILMAZ** —
   `/wallet` anahtarı `useRef`'te tutar (zarar: ikinci bir *para girişi*),
   `grandstand` ise her basışta yeni anahtar üretir (zarar: ikinci bir
   *bilet*). İkisi bilerek farklıdır.
-- **Sıradaki adım:** Geçmiş sayfalama.
+- **Sıradaki adım:** —
 - **Kaynak:** `apps/web/src/app/wallet/page.tsx`,
   `apps/api/src/api/economy/`.
 
@@ -1018,27 +1029,29 @@ vardır: Durum · Backend · Frontend · Database · API · WebSocket · Tests �
 
 ### 37. Tribün iadesi
 
-- **Durum:** `PARTIAL`
-- **Backend:** `refundRaceTicket` — `DELETE ... RETURNING` + pozitif
-  `grandstand_ticket_refund` defter satırı, tek transaction. Çift iade 0
-  satır → `RaceTicketNotFoundError` (404) ile engellenir.
-- **Frontend:** `/grandstand` "İade Et" düğmesi (anahtar başarısızlıkta
-  **korunur** — `wallet` deseni).
-- **Database:** `race_tickets` satırı **silinir** (yeniden satın alma
-  beklenen akıştır).
-- **API:** `DELETE /api/v1/races/:id/tickets`.
-- **WebSocket:** `race.spectators`.
-- **Tests:** `test/api/grandstand.e2e-spec.ts`.
-- **Üretime hazır:** Koşullu.
-- **Eksik:** **Zaman/durum penceresi yok** — `refund-race-ticket.use-case.ts`
-  yarışın `status`una **bakmaz**; yalnızca `PlayerNotFoundError` ve
-  `RaceTicketNotFoundError` fırlatır. Yani koşmuş bir yarışın bileti de
-  iade edilebilir.
-- **Risk:** Orta — bilet, yarış bittikten sonra da iade edilebilir; tribün
-  geliri bu yüzden kalıcı değildir.
-- **Sıradaki adım:** İade penceresi (ör. `startTime` öncesi) — ama kural
-  **config'e** yazılmalı, koda gömülmemeli.
-- **Kaynak:** `apps/api/src/application/use-cases/refund-race-ticket.use-case.ts`.
+- **Durum:** `IMPLEMENTED` (30.09.2026)
+- **Backend:** `refundRaceTicket` — bilet satırı `FOR UPDATE`, **izlenmişse
+  409 `TICKET_ALREADY_USED`**; değilse `DELETE ... RETURNING` + pozitif
+  `grandstand_ticket_refund` defter satırı, tek transaction.
+- **Frontend:** `/grandstand` — izlenmemiş bilette "İade Et", izlenmişte
+  "İzlendi · iade yok" (`RaceTicketView.usedAt`).
+- **Database:** `race_tickets.first_viewed_at` (migration 0044).
+- **API:** `DELETE /api/v1/races/:id/tickets`, `GET /players/:id/tickets`.
+- **WebSocket:** `race.subscribe` aynı kapıdan (`GetRaceTimelineUseCase`)
+  geçer — canlı izleme de bileti "kullanılmış" yapar.
+- **Tests:** `test/api/grandstand.e2e-spec.ts` (25).
+- **Üretime hazır:** Evet.
+- **Eksik:** —
+- **Risk:** Bu satır eskiden "koşmuş yarışın bileti iade edilebiliyor, iade
+  penceresi config'e yazılmalı" diyordu — **teşhis yanlıştı**: bilet
+  YALNIZCA bitmiş yarışa satılır (`assertRaceWatchable`), yani zaman
+  penceresi bütün iadeleri kapatırdı. Asıl açık "izle + parayı geri al"dı.
+  Katılımcının ya da ücretsiz tribünün izlemesi bileti işaretlemez.
+  Migration'dan önce satılmış biletler `NULL` kalır (iade edilebilir) —
+  geriye dönük "izlendi" bilgisi uydurulmadı.
+- **Sıradaki adım:** —
+- **Kaynak:** `apps/api/src/infrastructure/grandstand/postgres-grandstand.repository.ts`,
+  `database/migrations/0044_add_race_ticket_first_viewed_at.up.sql`.
 
 ---
 
@@ -1400,9 +1413,7 @@ vardır: Durum · Backend · Frontend · Database · API · WebSocket · Tests �
 |---:|---|---|
 | 1 | **3D/ses varlıkları** | Tek karar bekleyen konu; çözülene kadar brief'in kendi kapsamı dışında. |
 | 2 | **OAuth kimlik bilgileri** | `POST /auth/login` pratikte çalışmıyor; gerçek giriş olmadan üretim yok. |
-| 3 | **Tribün iade penceresi (#37)** | Bilet, yarış bittikten sonra da iade edilebiliyor. |
-| 4 | **Matchmaking zamanlayıcısı (#21)** | Senkron eşleştirme gerçek oyuncu azken boş döner. |
-| 5 | **Kulüp/sezon/turnuva/personel (#50)** | En büyük eksik özellik kümesi; yeni bir faz gerektirir. |
+| 3 | **Kulüp/sezon/turnuva/personel (#50)** | En büyük eksik özellik kümesi; yeni bir faz gerektirir. |
 
 > ⚠️ **29.09.2026:** **Jokey yüzeyi + serbest bırakma (#18)** bu tablodan
 > **çıkarıldı** — `JockeyPanel` yazıldı, `/stable`a bağlandı **ve** eksik

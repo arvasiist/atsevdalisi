@@ -3292,6 +3292,29 @@ DÜŞTÜ (5/5, 3/3, 2/2), düzeltmeyle geçti.
 - Dağıtım altyapısı (Dockerfile/hosting) yok; misafir hesap tarayıcıya
   bağlı (kurtarma yok); OAuth kimlik bilgileri yok.
 
+#### 13.34 İKİNCİ DİLİM — tribün iadesi, eşleştirme taraması, cüzdan sayfalama — 30.09.2026
+
+`FINAL_PROJECT_AUDIT.md` §5'teki üç `PARTIAL` madde kapandı (46/4):
+
+- **#37 Tribün iadesi — TEŞHİS DÜZELTİLDİ.** Denetim "koşmuş yarışın
+  bileti iade edilebiliyor, config'e iade penceresi yaz" diyordu. Yanlıştı:
+  bilet YALNIZCA bitmiş yarışa satılır (`assertRaceWatchable`), yani zaman
+  penceresi bütün iadeleri kapatırdı (ilk deneme tam olarak bunu yaptı ve
+  geri alındı). Asıl açık: bilet al → izle → parayı geri al. Çözüm:
+  migration 0044 `race_tickets.first_viewed_at`; `GetRaceTimelineUseCase`
+  erişim YALNIZCA bilet sayesindeyse bileti işaretler (HTTP replay + canlı
+  `race.subscribe` aynı kapı); izlenmiş bilet `409 TICKET_ALREADY_USED`.
+  Eşzamanlı "izle + iade et": iade önce kazanırsa izleme 403 alır. Eski
+  test açığı doğru davranış diye kilitliyordu (izle → iade 200) —
+  düzeltildi.
+- **#21 Eşleştirme taraması.** Eşleştirme yalnızca katılım anında
+  deneniyordu. `JoinMatchmakingQueueUseCase.scanQueue` + `MatchmakingScheduler`
+  (ayrı sınıf: `RaceModule → MatchmakingModule` modül döngüsü doğururdu).
+  Bayat bilet (at satılmış/sakat) düşürülür. Config
+  `online.matchmaking.queueScan`, düşüren test `matchmaking-scheduler.spec.ts`.
+- **#33 Cüzdan sayfalama.** `?before=<işlem id>`, `(created_at, id)`
+  anahtar-tabanlı; `nextCursor`; `/wallet` "Daha fazla göster".
+
 ## 14. Kendime hatırlatmalar (kısa liste)
 
 1. **Race Engine'e dokunmadan önce iki kez düşün.** Denetim onu "KEEP, dokunma"
