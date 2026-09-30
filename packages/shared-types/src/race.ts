@@ -592,6 +592,12 @@ export interface RaceLobbyView {
  */
 export interface RaceLobbyListItem extends RaceLobbyView {
   myEntry: { status: RaceEntryStatus; horseId: UUID } | null;
+  /**
+   * 30.09.2026 — yarış bir TURNUVA finaliyse kademesi ve seviye şartı
+   * (`tournaments` tablosu, migration 0045); değilse `null`. Turnuva finali
+   * botsuz koşulur ve ödül ilk üçe dağıtılır (`online.config.json`).
+   */
+  tournament: { tier: 'bronze' | 'silver' | 'gold'; minPlayerLevel: number } | null;
 }
 
 /**

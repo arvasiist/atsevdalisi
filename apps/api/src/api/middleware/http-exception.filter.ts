@@ -1,6 +1,7 @@
 import { ArgumentsHost, Catch, ExceptionFilter, HttpException, HttpStatus } from '@nestjs/common';
 import type { Response } from 'express';
 import { ErrorCode } from '@at-sevdalisi/shared-types';
+import { PlayerLevelTooLowError } from '../../domain/tournament/errors';
 import {
   AdminRequiredError,
   InvalidReportStatusError,
@@ -163,6 +164,8 @@ const DOMAIN_ERROR_MAP = new Map<ErrorClassConstructor, { status: number; code: 
   [HorseListedInMarketError, { status: HttpStatus.CONFLICT, code: ErrorCode.HorseListedInMarket }],
   // 30.09.2026 — açık bir lobi yarışına kayıtlı at satılamaz/pazara çıkamaz/ikinci yarışa yazılamaz.
   [HorseInActiveRaceError, { status: HttpStatus.CONFLICT, code: ErrorCode.HorseInActiveRace }],
+  // 30.09.2026 — turnuva seviye şartı (migration 0045).
+  [PlayerLevelTooLowError, { status: HttpStatus.CONFLICT, code: ErrorCode.PlayerLevelTooLow }],
   // CI Hata 7 (bkz. domain/training/errors.ts InvalidTrainingInputError) —
   // DTO doğrulaması esbuild altında atlanabildiğinde domain katmanının
   // kendi bağımsız kontrolünün fırlattığı hata; gerçek bir DOĞRULAMA

@@ -23,6 +23,24 @@ export const SURFACE_LABELS: Record<RaceSurface, string> = {
   synthetic: 'Sentetik',
 };
 
+/** Turnuva kademe adları (30.09.2026, migration 0045). */
+export const TOURNAMENT_TIER_LABELS: Record<'bronze' | 'silver' | 'gold', string> = {
+  bronze: 'Bronz Kupa',
+  silver: 'Gümüş Kupa',
+  gold: 'Altın Kupa',
+};
+
+/**
+ * Turnuva satırının açıklaması — kurallar SUNUCUDAN gelen alanlardan
+ * kurulur (`race.tournament`); istemci ödül hesaplamaz.
+ */
+export function describeTournament(race: RaceLobbyListItem): string | null {
+  if (race.tournament === null) {
+    return null;
+  }
+  return `${TOURNAMENT_TIER_LABELS[race.tournament.tier]} · Seviye ${race.tournament.minPlayerLevel}+ · Botsuz final, ödül ilk üçe`;
+}
+
 export const WEATHER_LABELS: Record<RaceWeather, string> = {
   sunny: 'Güneşli',
   rainy: 'Yağmurlu',

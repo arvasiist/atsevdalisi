@@ -780,6 +780,32 @@ export interface OnlineConfig {
     >;
     /** Anahtar = final sırası (1, 2, 3, ...), değer = ödül havuzunun bu sıraya ayrılan payı (0-1). Toplamı 1.0'ı aşmamalıdır. */
     prizeDistributionByPlacement: Record<string, number>;
+    /**
+     * 30.09.2026 — finalin koşulması için gereken en az HAZIR oyuncu. Altında
+     * turnuva iptal edilir ve herkese ücreti iade edilir (final botsuz
+     * koşulduğu için tek kişilik "turnuva" havuzu kendine geri alırdı).
+     * Okuyan: `LockRaceUseCase`/`SettleRaceUseCase`; düşüren test:
+     * `tournament.e2e-spec.ts`.
+     */
+    minParticipants: number;
+    /**
+     * 30.09.2026 — otomatik takvim (`TournamentScheduler`): her kademe için
+     * kaydı açık bir turnuva yoksa yenisi `registrationHours` sonra başlamak
+     * üzere açılır. `enabled=false` takvimi kapatır; `NODE_ENV=test` iken de
+     * kapalıdır (testler `tickNow()` çağırır).
+     */
+    schedule: { enabled: boolean; tickSeconds: number; registrationHours: number };
+    /**
+     * Turnuva finalinin yarış ayarları. Değerler `race-lobby.config.json`un
+     * izin verdiği kümelerin İÇİNDE olmalıdır (`tournament-config.spec.ts`).
+     */
+    race: {
+      distanceMeters: number;
+      surface: 'grass' | 'dirt' | 'synthetic';
+      weather: 'sunny' | 'rainy' | 'windy' | 'cloudy' | 'hot' | 'cold';
+      tribuneFee: number;
+      spectatorCapacity: number;
+    };
   };
   /** brief §69 SEZON SİSTEMİ (bkz. `domain/season/season.ts`). */
   season: {

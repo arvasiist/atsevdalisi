@@ -9,6 +9,7 @@ import { JoinRaceUseCase } from '../../application/use-cases/join-race.use-case'
 import { LeaveRaceUseCase } from '../../application/use-cases/leave-race.use-case';
 import { ListLobbyRacesUseCase } from '../../application/use-cases/list-lobby-races.use-case';
 import { SetEntryReadyUseCase } from '../../application/use-cases/set-entry-ready.use-case';
+import { ScheduleTournamentsUseCase } from '../../application/use-cases/schedule-tournaments.use-case';
 import { SettleDueRacesUseCase } from '../../application/use-cases/settle-due-races.use-case';
 import { SettleRaceUseCase } from '../../application/use-cases/settle-race.use-case';
 import { LockRaceUseCase } from '../../application/use-cases/lock-race.use-case';
@@ -18,6 +19,7 @@ import { LockRaceUseCase } from '../../application/use-cases/lock-race.use-case'
 // dosya başı doc yorumu.
 import { EntrantSnapshotBuilder } from '../../application/services/entrant-snapshot.builder';
 import { RaceLockScheduler } from '../../infrastructure/scheduler/race-lock.scheduler';
+import { TournamentScheduler } from '../../infrastructure/scheduler/tournament.scheduler';
 import { GetHorseMarketValueUseCase } from '../../application/use-cases/get-horse-market-value.use-case';
 import { GetLeaderboardUseCase } from '../../application/use-cases/get-leaderboard.use-case';
 import { GetRaceTimelineUseCase } from '../../application/use-cases/get-race-timeline.use-case';
@@ -105,6 +107,9 @@ import { RecentRacesController } from './recent-races.controller';
     // 30.09.2026 — `locking` yarışları kesinleştiren use-case; zamanlayıcı
     // kilit turunun ARDINDAN çağırır (bkz. kendi doc yorumu).
     SettleDueRacesUseCase,
+    // 30.09.2026 — otomatik turnuva takvimi (migration 0045).
+    ScheduleTournamentsUseCase,
+    TournamentScheduler,
     // §42 PHASE 1 — PROJEDEKİ İLK ZAMANLAYICI. `NODE_ENV=test` iken kendi
     // kendine KOŞMAZ; testler `tickNow()`u elle çağırır (gerekçe: sınıf
     // doc yorumu, karar 3).

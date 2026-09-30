@@ -301,7 +301,33 @@ export interface RaceRepository {
    * satırı `FOR UPDATE`; yarış `scheduled` değilse ya da başlangıç zamanı
    * gelmemişse HİÇBİR ŞEY yapmaz (idempotent — ikinci çağrı boş döner).
    */
-  dropUnreadyLobbyEntries(input: { raceId: string; now: Date }): Promise<DropUnreadyLobbyEntriesResult>;
+  dropUnreadyLobbyEntries(input: {
+    raceId: string;
+    now: Date;
+    /**
+     * 30.09.2026 — düşürmeden sonra kalması gereken en az HAZIR oyuncu.
+     * Varsayılan 1 (lobi). Turnuvada `online.tournament.minParticipants`:
+     * altında kalınırsa KALANLAR da iade edilip yarış iptal edilir.
+     */
+    minRemaining?: number;
+  }): Promise<DropUnreadyLobbyEntriesResult>;
+
+  /** 30.09.2026 — yarış bir turnuva finaliyse kademesi ve seviye şartı; değilse `null`. */
+  findTournamentInfo(raceId: string): Promise<TournamentInfo | null>;
+
+  /** 30.09.2026 — kaydı AÇIK (`scheduled`) turnuvası olan kademeler. */
+  findOpenTournamentTiers(): Promise<string[]>;
+
+  /**
+   * 30.09.2026 — turnuva finali olan bir lobi yarışı + `tournaments` satırı,
+   * TEK transaction. `created_by` NULL'dır (sunucu üretimi yarış). O
+   * kademede kaydı açık bir turnuva zaten varsa (eşzamanlı ikinci çağrı)
+   * hiçbir şey yazmaz ve `null` döner.
+   */
+  createTournamentRace(input: CreateTournamentRaceInput): Promise<string | null>;
+
+  /** 30.09.2026 — başlangıcı geçmiş, hiç katılımı olmayan turnuvaları iptal eder; iptal sayısını döner. */
+  cancelEmptyDueTournaments(now: Date): Promise<number>;
 
   /**
    * Bir lobi yarışının KESİNLEŞME BAĞLAMINI okur (salt okuma, §42 PHASE
@@ -687,6 +713,30 @@ export interface SavePvpMatchWithRatingsResult {
  * kesinleşme snapshot'ı kendisi kurar — yani davranış ESKİSİYLE AYNIdır,
  * yalnızca artık "her zaman" değil "zamanlayıcı çalışmadıysa" geçerlidir.
  */
+export interface TournamentInfo {
+  tier: 'bronze' | 'silver' | 'gold';
+  minPlayerLevel: number;
+}
+
+export interface CreateTournamentRaceInput {
+  raceId: string;
+  tier: 'bronze' | 'silver' | 'gold';
+  name: string;
+  startTime: Date;
+  entryFee: number;
+  maxParticipants: number;
+  minPlayerLevel: number;
+  distanceMeters: number;
+  surface: string;
+  weather: string;
+  tribuneFee: number;
+  spectatorCapacity: number;
+  engineVersion: string;
+  rulesetVersion: string;
+  configVersion: string;
+  weatherConfigVersion: string;
+}
+
 /** `dropUnreadyLobbyEntries` sonucu. */
 export interface DropUnreadyLobbyEntriesResult {
   /** Katılımı iptal edilip ücreti iade edilen oyuncular. */

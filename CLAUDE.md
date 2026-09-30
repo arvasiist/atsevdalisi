@@ -99,7 +99,7 @@ küçük dilim → yerel doğrula (kök `npm run typecheck` + hedefli vitest + l
 Gerçek 3D/ses varlığı yok · OAuth kimlik bilgileri yok (`POST /auth/login` pratikte
 çalışmaz) · frontend'de gerçek giriş yok (misafir hesap, localStorage — tarayıcı
 verisi silinirse hesap kaybolur) · yarış takvimi yok ·
-personel (`domain/staff`) + club/season/tournament/progression **DOMAIN ONLY**
+personel (`domain/staff`) + club/season/progression **DOMAIN ONLY**
 (API/ekran yok) · yer tutucu olan TEK sayfa `/club` · `PlayerDemoWidget`/
 `GltfAssetLoader` bağlı değil (bilinçli). Jokey, mizaç, taktik motora BAĞLI;
 `PedigreeTree`, `BreedingPanel`, `JockeyPanel`, `/admin`, `/leaderboard`,
@@ -127,6 +127,12 @@ parayı geri al"dı. (6) **Eşleştirme kuyruğu taranır** (`MatchmakingSchedul
 (8) **Hazırlık kapısı her yarış yolunda** — `checkRaceReadiness` eskiden
 yalnızca pratik yarışta uygulanıyordu; lobi katılımı ve eşleştirme de
 artık aynı kapıdan geçer (enerjisi bitmiş at ücretli yarışa giremez).
+(9) **TURNUVA (migration 0045)** — lobi yarışının ÜSTÜNE kurulu:
+`tournaments` (race_id, tier, min_player_level; durum sütunu YOK, yarıştan
+türetilir). `TournamentScheduler` her kademe için otomatik açar; final
+BOTSUZ, ödül `online.tournament.prizeDistributionByPlacement` (rake yok);
+`minParticipants` altında iptal + iade. Ayrı turnuva ucu YOK — `GET /races`
+listeler (`RaceLobbyListItem.tournament`).
 
 **✅ ÜCRETLİ LOBİ YARIŞI ARTIK KOŞUYOR — ÖDÜL DAĞITIMI VAR (§13.14,
 28.09.2026).** `POST /races/:id/settle` yarışı koşar, ödülleri `top5`

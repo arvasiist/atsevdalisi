@@ -99,13 +99,15 @@ CI'dır."*
 | 47 | Yönetim uçları (7 uç) | `IMPLEMENTED` | Evet |
 | 48 | Denetim günlüğü (`admin_audit_log`) | `IMPLEMENTED` | Evet |
 | 49 | Sıralama (leaderboard) | `IMPLEMENTED` | Evet |
-| 50 | Bağlanmamış domain modülleri (kulüp/sezon/turnuva/progression/personel) | `DOMAIN ONLY` | Hayır |
+| 50 | Bağlanmamış domain modülleri (kulüp/sezon/progression/personel) | `DOMAIN ONLY` | Hayır |
 | 51 | 3D sunum ve ses | `PARTIAL` | Hayır (asset bekliyor) |
+| 52 | Turnuva (otomatik takvim + tek final) | `IMPLEMENTED` | Evet |
 
-**Sayım:** `IMPLEMENTED` **48** · `PARTIAL` **2** · `API ONLY` 0 ·
-`DOMAIN ONLY` 1 · `MISSING`/`BROKEN`/`UI ONLY`/`NOT WIRED` **0**.
+**Sayım:** `IMPLEMENTED` **49** · `PARTIAL` **2** · `API ONLY` 0 ·
+`DOMAIN ONLY` 1 · `MISSING`/`BROKEN`/`UI ONLY`/`NOT WIRED` **0** (52 satır).
 
-**Üretime hazır: 48/51.** Kalan üç madde de sahibin kararına bağlıdır:
+**Üretime hazır: 49/52.** (30.09.2026: turnuva #50'den ayrılıp #52 olarak
+`IMPLEMENTED` oldu.) Kalan üç madde de sahibin kararına bağlıdır:
 #1 (OAuth kimlik bilgileri), #50 (kulüp/sezon/turnuva/personel — yeni faz),
 #51 (3D/ses varlıkları).
 
@@ -1386,7 +1388,7 @@ vardır: Durum · Backend · Frontend · Database · API · WebSocket · Tests �
 
 ---
 
-### 50. Bağlanmamış domain modülleri (kulüp/sezon/turnuva/progression/personel)
+### 50. Bağlanmamış domain modülleri (kulüp/sezon/progression/personel)
 
 - **Durum:** `DOMAIN ONLY`
 - **Backend:** `domain/club/club.ts`, `domain/career/`,
@@ -1405,8 +1407,8 @@ vardır: Durum · Backend · Frontend · Database · API · WebSocket · Tests �
 - **Eksik:** Uç nokta, tablo, ekran.
 - **Risk:** Düşük (kullanıcıya görünmez), ama "yazılmış ama bağlanmamış"
   kod zamanla bakım borcuna dönüşür.
-- **Sıradaki adım:** Bir sonraki büyük dilim: sezon + turnuva (kulüpten
-  önce, çünkü ödül dağıtımı ve takvim altyapısını paylaşırlar).
+- **Sıradaki adım:** Sezon (turnuva 30.09.2026'da #52 olarak bağlandı; sezon
+  aynı takvim altyapısını kullanabilir), sonra kulüp ve personel.
 - **Kaynak:** `apps/api/src/domain/club/`, `apps/web/src/app/club/page.tsx`.
 
 ---
@@ -1434,6 +1436,41 @@ vardır: Durum · Backend · Frontend · Database · API · WebSocket · Tests �
   3D/ses varlıkları nereden geliyor?
 - **Kaynak:** `apps/web/src/features/race-viewer/RaceScene3D.tsx`,
   `docs/ASSET_MANIFEST.md`.
+
+---
+
+### 52. Turnuva (otomatik takvim + tek final)
+
+- **Durum:** `IMPLEMENTED` (30.09.2026, migration 0045)
+- **Tasarım (proje sahibinin kararı):** sunucu her kademe için otomatik
+  açar; turnuva TEK BÜYÜK FİNALdir.
+- **Backend:** Turnuva = bir ücretli lobi yarışı (`races`) + `tournaments`
+  satırı (kademe + seviye şartı). Para yolu, READY şartı, at kilidi,
+  hazırlık kapısı, kilit ve otomatik kesinleşme lobiden AYNEN gelir.
+  Turnuvaya özgü: `ScheduleTournamentsUseCase` + `TournamentScheduler`
+  (her kademede kaydı açık turnuva yoksa `registrationHours` sonrası için
+  açar; başlangıcı geçmiş boş turnuvayı iptal eder; kademe başına
+  advisory-lock ile çift açılış engellenir) · katılımda seviye kapısı
+  (`PLAYER_LEVEL_TOO_LOW`) · final **botsuz** · ödül
+  `online.tournament.prizeDistributionByPlacement` (50/30/20, rake yok) ·
+  `minParticipants` altında hazır oyuncu varsa iptal + herkese iade.
+- **Frontend:** `LobbyPanel` satırında kademe rozeti ve seviye şartı
+  (`RaceLobbyListItem.tournament`).
+- **Database:** `tournaments` (durum sütunu YOK — bağlı yarıştan türetilir).
+- **API:** yeni uç YOK — `GET /races` turnuvaları da listeler; katılım
+  `POST /races/:id/join`.
+- **WebSocket:** lobi yarışıyla aynı.
+- **Tests:** `test/api/tournament.e2e-spec.ts` (5),
+  `test/api/tournament-scheduler.spec.ts`,
+  `test/domain/tournament/tournament-config.spec.ts`.
+- **Üretime hazır:** Evet.
+- **Eksik:** Eleme (bracket) formatı bilinçli olarak yapılmadı (sahibin
+  kararı: tek final). `seedTournamentBracket` bu yüzden hâlâ çağıransız.
+- **Risk:** Altın kademenin `maxParticipants`ı 32'den 16'ya indirildi —
+  tek yarışta en büyük saha 16'dır (`race-lobby.config.json → fieldSizes`);
+  `tournament-config.spec.ts` bunu kilitler.
+- **Kaynak:** `apps/api/src/application/use-cases/schedule-tournaments.use-case.ts`,
+  `database/migrations/0045_create_tournaments.up.sql`.
 
 ---
 

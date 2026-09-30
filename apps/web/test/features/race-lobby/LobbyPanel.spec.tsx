@@ -57,6 +57,7 @@ function lobbyRace(overrides: Partial<RaceLobbyListItem> = {}): RaceLobbyListIte
     createdAt: new Date().toISOString(),
     prizeMultiplier: null,
     myEntry: null,
+    tournament: null,
     ...overrides,
   } as RaceLobbyListItem;
 }

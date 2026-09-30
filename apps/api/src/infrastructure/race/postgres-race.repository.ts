@@ -25,6 +25,7 @@ import type {
 import type {
   CreateLobbyRaceInput,
   CreateLobbyRaceResult,
+  CreateTournamentRaceInput,
   DropUnreadyLobbyEntriesResult,
   JoinLobbyRaceInput,
   LeaveLobbyRaceInput,
@@ -34,6 +35,7 @@ import type {
   LobbySettlementEntrant,
   RaceRepository,
   SavePracticeRaceWithStakesInput,
+  TournamentInfo,
   SavePracticeRaceWithStakesResult,
   SavePvpMatchWithRatingsInput,
   SavePvpMatchWithRatingsResult,
@@ -88,6 +90,7 @@ import { applyEloUpdate } from '../../domain/online/elo';
 import { PlayerNotFoundError } from '../../domain/player/errors';
 import { PG_POOL, withTransaction } from '../database/database.module';
 import { isHorseInActiveRace } from '../horse/active-race-entry';
+import { PlayerLevelTooLowError } from '../../domain/tournament/errors';
 import { checkRaceReadiness } from '../../domain/race/readiness';
 
 /** Postgres `unique_violation` hata kodu (bkz. PostgreSQL "Error Codes" §22.6 sınıf 23). */
@@ -927,6 +930,21 @@ export class PostgresRaceRepository implements RaceRepository {
         throw new RaceNotJoinableError(rejection);
       }
 
+      // 3b) TURNUVA SEVİYE ŞARTI (30.09.2026, migration 0045). Yarış bir
+      //     turnuva finaliyse oyuncunun seviyesi kademenin şartını
+      //     karşılamalıdır (`domain/tournament` → `PlayerLevelTooLowError`).
+      //     Para hareketinden ÖNCE — reddedilen katılımda Çip oynamaz.
+      const tournamentGate = await client.query<{ min_player_level: number; level: number }>(
+        `SELECT t.min_player_level, p.level
+         FROM tournaments t, players p
+         WHERE t.race_id = $1 AND p.id = $2`,
+        [input.raceId, input.playerId],
+      );
+      const gate = tournamentGate.rows[0];
+      if (gate !== undefined && Number(gate.level) < gate.min_player_level) {
+        throw new PlayerLevelTooLowError(Number(gate.level), gate.min_player_level);
+      }
+
       // 4) At: var mı, bu oyuncunun mu, sağlıklı mı — satır KİLİTLİ.
       //    30.09.2026 DÜZELTMESİ: bu adım eskiden `horses` satırını
       //    KİLİTLEMİYORDU ve "atın satılması katılımı geçersiz kılmaz,
@@ -1171,18 +1189,27 @@ export class PostgresRaceRepository implements RaceRepository {
     // satır garanti eder; `MAX` yalnızca gruplamanın istediği toplama
     // biçimidir, birden çok değer arasında seçim yapmaz.
     const result = await this.pool.query<
-      LobbyRaceRow & { joined_players: string; my_status: string | null; my_horse_id: string | null }
+      LobbyRaceRow & {
+        joined_players: string;
+        my_status: string | null;
+        my_horse_id: string | null;
+        tournament_tier: TournamentInfo['tier'] | null;
+        tournament_min_level: number | null;
+      }
     >(
       `SELECT r.id, r.name, r.participant_limit, r.max_players, r.entry_fee, r.prize_pool,
               r.start_time, r.status, r.race_type, r.surface, r.weather, r.distance_m,
               r.tribune_fee, r.spectator_capacity, r.created_by, r.created_at,
               COUNT(e.player_id) FILTER (WHERE e.status IS DISTINCT FROM 'cancelled') AS joined_players,
               MAX(e.status) FILTER (WHERE e.player_id = $3) AS my_status,
-              MAX(e.horse_id::text) FILTER (WHERE e.player_id = $3) AS my_horse_id
+              MAX(e.horse_id::text) FILTER (WHERE e.player_id = $3) AS my_horse_id,
+              t.tier AS tournament_tier,
+              t.min_player_level AS tournament_min_level
        FROM races r
        LEFT JOIN race_entries e ON e.race_id = r.id AND e.player_id IS NOT NULL
+       LEFT JOIN tournaments t ON t.race_id = r.id
        WHERE r.status = $1
-       GROUP BY r.id
+       GROUP BY r.id, t.tier, t.min_player_level
        ORDER BY r.start_time ASC
        LIMIT $2`,
       [input.status, input.limit, input.viewerId],
@@ -1193,6 +1220,10 @@ export class PostgresRaceRepository implements RaceRepository {
       myEntry:
         row.my_status !== null && row.my_horse_id !== null
           ? { status: row.my_status as RaceEntryStatus, horseId: row.my_horse_id }
+          : null,
+      tournament:
+        row.tournament_tier !== null && row.tournament_min_level !== null
+          ? { tier: row.tournament_tier, minPlayerLevel: row.tournament_min_level }
           : null,
     }));
   }
@@ -1461,7 +1492,12 @@ export class PostgresRaceRepository implements RaceRepository {
    * Otomatik bir iade olduğu için `idempotency_key` NULL yazılır; tekrar
    * koruması durumun kendisidir (iptal edilen satır ikinci turda seçilmez).
    */
-  async dropUnreadyLobbyEntries(input: { raceId: string; now: Date }): Promise<DropUnreadyLobbyEntriesResult> {
+  async dropUnreadyLobbyEntries(input: {
+    raceId: string;
+    now: Date;
+    minRemaining?: number;
+  }): Promise<DropUnreadyLobbyEntriesResult> {
+    const minRemaining = input.minRemaining ?? 1;
     return withTransaction(this.pool, async (client) => {
       const raceResult = await client.query<{ status: string; start_time: Date }>(
         'SELECT status, start_time FROM races WHERE id = $1 FOR UPDATE',
@@ -1486,87 +1522,203 @@ export class PostgresRaceRepository implements RaceRepository {
       );
       const droppedPlayerIds: string[] = [];
       for (const { player_id: playerId } of unreadyResult.rows) {
-        const paidResult = await client.query<{ amount: string }>(
-          `SELECT amount
-           FROM economy_transactions
-           WHERE player_id = $1
-             AND type = 'lobby_race_entry_fee'
-             AND reference_type = 'race'
-             AND reference_id = $2
-           ORDER BY created_at DESC
-           LIMIT 1`,
-          [playerId, input.raceId],
-        );
-        const paidRow = paidResult.rows[0];
-        const refund = paidRow === undefined ? 0 : Math.max(0, -Number(paidRow.amount));
-
-        if (refund > 0) {
-          const balanceResult = await client.query<{ money: string; gems: string }>(
-            'SELECT money, gems FROM players WHERE id = $1 FOR UPDATE',
-            [playerId],
-          );
-          const balanceRow = balanceResult.rows[0];
-          if (balanceRow === undefined) {
-            throw new PlayerNotFoundError(playerId);
-          }
-          const balanceBefore = Number(balanceRow.money);
-          const balanceAfter = credit({ money: balanceBefore, gems: Number(balanceRow.gems) }, refund, 'money').money;
-          await client.query('UPDATE players SET money = $2, updated_at = $3 WHERE id = $1', [
-            playerId,
-            balanceAfter,
-            input.now,
-          ]);
-          await client.query('UPDATE races SET prize_pool = prize_pool - $2, updated_at = $3 WHERE id = $1', [
-            input.raceId,
-            refund,
-            input.now,
-          ]);
-          await this.writeLedgerEntries(client, [
-            {
-              playerId,
-              type: 'race_entry_refund',
-              amount: refund,
-              currency: 'money',
-              referenceType: 'race',
-              referenceId: input.raceId,
-              balanceBefore,
-              balanceAfter,
-              idempotencyKey: null,
-            },
-          ]);
-        }
-
-        await client.query("UPDATE race_entries SET status = 'cancelled' WHERE race_id = $1 AND player_id = $2", [
-          input.raceId,
-          playerId,
-        ]);
+        await this.refundAndCancelEntry(client, input.raceId, playerId, input.now);
         droppedPlayerIds.push(playerId);
       }
 
-      // Hiç hazır oyuncu kalmadıysa yarış koşulamaz: `scheduled` bırakmak
-      // onu zamanlayıcının her turunda yeniden seçilen ölü bir satıra
-      // çevirirdi. `scheduled → cancelled` yaşam döngüsünde izinlidir.
-      // YALNIZCA bu turda birileri düşürüldüyse: hiç katılımı olmamış bir
-      // yarışa dokunulmaz (`NO_PARTICIPANTS` davranışı değişmez).
-      if (droppedPlayerIds.length === 0) {
-        return { droppedPlayerIds, raceCancelled: false };
-      }
-      const remainingResult = await client.query<{ count: string }>(
-        `SELECT COUNT(*) AS count
+      // Kalan (hazır) oyuncu sayısı. Hiç kimse kalmadıysa yarış koşulamaz;
+      // turnuvada (30.09.2026) `minRemaining`in altında kalınırsa da
+      // koşulmaz — final botsuzdur ve tek kişilik bir "turnuva" havuzu
+      // kendine geri alırdı. O durumda KALANLAR da iade edilir.
+      // `scheduled → cancelled` yaşam döngüsünde izinlidir.
+      const remainingResult = await client.query<{ player_id: string }>(
+        `SELECT player_id
          FROM race_entries
-         WHERE race_id = $1 AND player_id IS NOT NULL AND status IS DISTINCT FROM 'cancelled'`,
+         WHERE race_id = $1 AND player_id IS NOT NULL AND status IS DISTINCT FROM 'cancelled'
+         ORDER BY player_id
+         FOR UPDATE`,
         [input.raceId],
       );
-      const raceCancelled = Number(remainingResult.rows[0]?.count ?? '0') === 0;
-      if (raceCancelled) {
-        await client.query("UPDATE races SET status = 'cancelled', updated_at = $2 WHERE id = $1", [
-          input.raceId,
-          input.now,
-        ]);
+      const remaining = remainingResult.rows.map((row) => row.player_id);
+      // Lobi (`minRemaining = 1`): YALNIZCA bu turda birileri düşürüldüyse
+      // iptal edilir — hiç katılımı olmamış bir yarışa dokunulmaz
+      // (`NO_PARTICIPANTS` davranışı değişmez). Turnuvada eşik her zaman
+      // uygulanır.
+      const belowMinimum = remaining.length < minRemaining && (droppedPlayerIds.length > 0 || minRemaining > 1);
+      if (!belowMinimum) {
+        return { droppedPlayerIds, raceCancelled: false };
       }
-
-      return { droppedPlayerIds, raceCancelled };
+      for (const playerId of remaining) {
+        await this.refundAndCancelEntry(client, input.raceId, playerId, input.now);
+        droppedPlayerIds.push(playerId);
+      }
+      await client.query("UPDATE races SET status = 'cancelled', updated_at = $2 WHERE id = $1", [
+        input.raceId,
+        input.now,
+      ]);
+      return { droppedPlayerIds, raceCancelled: true };
     });
+  }
+
+  /**
+   * Tek bir katılımı `cancelled` yapar ve ödediği giriş ücretini İADE eder —
+   * `leaveLobbyRace` ile AYNI kurallar: tutar DEFTERDEN okunur (son
+   * `lobby_race_entry_fee` satırı, `races.entry_fee` sabitinden DEĞİL),
+   * bakiye `players` satırı `FOR UPDATE` altında artar, havuz aynı miktarda
+   * küçülür, `race_entry_refund` defter satırı AYNI transaction'da yazılır.
+   * Otomatik bir iade olduğu için `idempotency_key` NULL'dır; tekrar koruması
+   * durumun kendisidir (iptal edilen satır bir daha seçilmez).
+   */
+  private async refundAndCancelEntry(client: PoolClient, raceId: string, playerId: string, now: Date): Promise<void> {
+    const paidResult = await client.query<{ amount: string }>(
+      `SELECT amount
+       FROM economy_transactions
+       WHERE player_id = $1
+         AND type = 'lobby_race_entry_fee'
+         AND reference_type = 'race'
+         AND reference_id = $2
+       ORDER BY created_at DESC
+       LIMIT 1`,
+      [playerId, raceId],
+    );
+    const paidRow = paidResult.rows[0];
+    const refund = paidRow === undefined ? 0 : Math.max(0, -Number(paidRow.amount));
+
+    if (refund > 0) {
+      const balanceResult = await client.query<{ money: string; gems: string }>(
+        'SELECT money, gems FROM players WHERE id = $1 FOR UPDATE',
+        [playerId],
+      );
+      const balanceRow = balanceResult.rows[0];
+      if (balanceRow === undefined) {
+        throw new PlayerNotFoundError(playerId);
+      }
+      const balanceBefore = Number(balanceRow.money);
+      const balanceAfter = credit({ money: balanceBefore, gems: Number(balanceRow.gems) }, refund, 'money').money;
+      await client.query('UPDATE players SET money = $2, updated_at = $3 WHERE id = $1', [playerId, balanceAfter, now]);
+      await client.query('UPDATE races SET prize_pool = prize_pool - $2, updated_at = $3 WHERE id = $1', [
+        raceId,
+        refund,
+        now,
+      ]);
+      await this.writeLedgerEntries(client, [
+        {
+          playerId,
+          type: 'race_entry_refund',
+          amount: refund,
+          currency: 'money',
+          referenceType: 'race',
+          referenceId: raceId,
+          balanceBefore,
+          balanceAfter,
+          idempotencyKey: null,
+        },
+      ]);
+    }
+
+    await client.query("UPDATE race_entries SET status = 'cancelled' WHERE race_id = $1 AND player_id = $2", [
+      raceId,
+      playerId,
+    ]);
+  }
+
+  async findTournamentInfo(raceId: string): Promise<TournamentInfo | null> {
+    const result = await this.pool.query<{ tier: TournamentInfo['tier']; min_player_level: number }>(
+      'SELECT tier, min_player_level FROM tournaments WHERE race_id = $1',
+      [raceId],
+    );
+    const row = result.rows[0];
+    return row === undefined ? null : { tier: row.tier, minPlayerLevel: row.min_player_level };
+  }
+
+  async findOpenTournamentTiers(): Promise<string[]> {
+    const result = await this.pool.query<{ tier: string }>(
+      `SELECT DISTINCT t.tier
+       FROM tournaments t
+       JOIN races r ON r.id = t.race_id
+       WHERE r.status = 'scheduled'`,
+    );
+    return result.rows.map((row) => row.tier);
+  }
+
+  /**
+   * Turnuva finali = sunucu üretimi bir ücretli lobi yarışı + `tournaments`
+   * satırı, TEK transaction (migration 0045). `participant_limit` ve
+   * `max_players` aynıdır: final BOTSUZDUR, saha = oyuncu tavanı.
+   * `simulation_seed` NULL'dır — seed kilit anında doğar (lobi ile AYNI kural).
+   */
+  async createTournamentRace(input: CreateTournamentRaceInput): Promise<string | null> {
+    return withTransaction(this.pool, async (client) => {
+      // ÇİFT AÇILIŞ KORUMASI: iki sunucu örneği aynı turda aynı kademe için
+      // turnuva açmaya kalkarsa, kademe başına bir transaction-kilidi ikisini
+      // sıraya sokar; ikincisi kilit altında "zaten açık" görür ve `null`
+      // döner. `tournaments`ta durum sütunu olmadığı için bunu bir tekil
+      // indeks ifade edemez (açıklık, bağlı yarışın durumundan türetilir).
+      await client.query("SELECT pg_advisory_xact_lock(hashtext('tournament-open:' || $1))", [input.tier]);
+      const open = await client.query(
+        `SELECT 1 FROM tournaments t JOIN races r ON r.id = t.race_id
+         WHERE t.tier = $1 AND r.status = 'scheduled' LIMIT 1`,
+        [input.tier],
+      );
+      if (open.rows.length > 0) {
+        return null;
+      }
+      await client.query(
+        `INSERT INTO races (
+           id, created_by, name, distance_m, surface, weather,
+           participant_limit, max_players, entry_fee, prize_pool, race_type,
+           tribune_fee, spectator_capacity, start_time, status, simulation_seed,
+           engine_version, ruleset_version, config_version, weather_config_version
+         )
+         VALUES ($1, NULL, $2, $3, $4, $5, $6, $6, $7, 0, $8, $9, $10, $11, 'scheduled', NULL, $12, $13, $14, $15)`,
+        [
+          input.raceId,
+          input.name,
+          input.distanceMeters,
+          input.surface,
+          input.weather,
+          input.maxParticipants,
+          input.entryFee,
+          input.entryFee > 0 ? 'paid' : 'free',
+          input.tribuneFee,
+          input.spectatorCapacity,
+          input.startTime,
+          input.engineVersion,
+          input.rulesetVersion,
+          input.configVersion,
+          input.weatherConfigVersion,
+        ],
+      );
+      await client.query('INSERT INTO tournaments (race_id, tier, min_player_level) VALUES ($1, $2, $3)', [
+        input.raceId,
+        input.tier,
+        input.minPlayerLevel,
+      ]);
+      return input.raceId;
+    });
+  }
+
+  /**
+   * Başlangıcı geçmiş, HİÇ katılımı olmayan turnuvaları iptal eder. Kilit
+   * zamanlayıcısı katılımı olmayan yarışı hiç seçmez (`findRacesDueForLock`
+   * `EXISTS` ister); turnuva `scheduled` kalsaydı o kademede yeni turnuva
+   * hiç açılmazdı. Para yoktur (katılım yok) — defter satırı yazılmaz.
+   */
+  async cancelEmptyDueTournaments(now: Date): Promise<number> {
+    const result = await this.pool.query(
+      `UPDATE races r
+       SET status = 'cancelled', updated_at = $1
+       FROM tournaments t
+       WHERE t.race_id = r.id
+         AND r.status = 'scheduled'
+         AND r.start_time <= $1
+         AND NOT EXISTS (
+           SELECT 1 FROM race_entries e
+           WHERE e.race_id = r.id AND e.player_id IS NOT NULL AND e.status IS DISTINCT FROM 'cancelled'
+         )`,
+      [now],
+    );
+    return result.rowCount ?? 0;
   }
 
   async findLobbySettlementContext(raceId: string): Promise<LobbySettlementContext | null> {

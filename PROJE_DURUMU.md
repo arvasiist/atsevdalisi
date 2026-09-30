@@ -3315,6 +3315,20 @@ DÜŞTÜ (5/5, 3/3, 2/2), düzeltmeyle geçti.
 - **#33 Cüzdan sayfalama.** `?before=<işlem id>`, `(created_at, id)`
   anahtar-tabanlı; `nextCursor`; `/wallet` "Daha fazla göster".
 
+#### 13.35 TURNUVA — otomatik takvim + tek final (migration 0045) — 30.09.2026
+
+Sahibin kararı: sunucu her kademe için otomatik açsın, turnuva tek büyük
+final olsun. **Turnuva sıfırdan yazılmadı, lobi yarışının üstüne kuruldu** —
+para yolu, iade, READY, at kilidi, hazırlık kapısı, kilit ve kesinleşme
+ikinci kez yazılmadı. Turnuvaya özgü dört şey: seviye kapısı (katılımda,
+kilitli transaction içinde), botsuz final (`aiFillEnabled` turnuvada
+`false`), 50/30/20 ödül (tek kaynak `online.tournament`, `economy`ye kopya
+yok), `minParticipants` altında iptal + herkese iade
+(`dropUnreadyLobbyEntries({ minRemaining })`). Boş turnuva: kilit
+zamanlayıcısı katılımsız yarışı seçmediği için takvim onu ayrıca iptal eder,
+yoksa o kademe sonsuza dek "açık" kalırdı. Altın kademe 32 → 16 (tek yarışta
+en büyük saha). Eleme formatı bilinçli olarak yok.
+
 ## 14. Kendime hatırlatmalar (kısa liste)
 
 1. **Race Engine'e dokunmadan önce iki kez düşün.** Denetim onu "KEEP, dokunma"

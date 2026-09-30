@@ -71,6 +71,8 @@ export const ErrorCode = {
   // `locking`) bir lobi yarışına kayıtlıyken satılamaz, pazara çıkarılamaz ve
   // ikinci bir açık yarışa yazılamaz (bkz. `domain/horse/errors.ts`).
   HorseInActiveRace: 'HORSE_IN_ACTIVE_RACE',
+  // 30.09.2026 — turnuvanın seviye şartı karşılanmadı (`PlayerLevelTooLowError`).
+  PlayerLevelTooLow: 'PLAYER_LEVEL_TOO_LOW',
   // Faz 3 — Yetiştiricilik (domain/breeding)
   NotEligibleForBreeding: 'NOT_ELIGIBLE_FOR_BREEDING',
   // Faz 4 — Çiftlik / Tesisler (domain/farm)

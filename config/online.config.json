@@ -34,7 +34,16 @@
     "tiers": {
       "bronze": { "minPlayerLevel": 1, "entryFee": 500, "maxParticipants": 8 },
       "silver": { "minPlayerLevel": 15, "entryFee": 2000, "maxParticipants": 16 },
-      "gold": { "minPlayerLevel": 30, "entryFee": 8000, "maxParticipants": 32 }
+      "gold": { "minPlayerLevel": 30, "entryFee": 8000, "maxParticipants": 16 }
+    },
+    "minParticipants": 2,
+    "schedule": { "enabled": true, "tickSeconds": 60, "registrationHours": 6 },
+    "race": {
+      "distanceMeters": 2000,
+      "surface": "grass",
+      "weather": "sunny",
+      "tribuneFee": 25,
+      "spectatorCapacity": 5000
     },
     "prizeDistributionByPlacement": {
       "1": 0.5,

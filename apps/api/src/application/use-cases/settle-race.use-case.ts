@@ -79,6 +79,20 @@ import {
  * çalışmıyorsa açık"tır — ve `lockScheduler.enabled`ın `false` yapılması
  * bilinçli bir tercihtir, bir arıza değildir.
  */
+/**
+ * `online.tournament.prizeDistributionByPlacement` (`{"1":0.5,"2":0.3,...}`)
+ * → sıra dizisi (`[0.5, 0.3, ...]`). TEK kaynak config'tir; `economy` içinde
+ * ikinci bir turnuva dağılımı TANIMLANMAZ. Sıra anahtarları 1'den ardışık
+ * olmalıdır — boşluk varsa orada kesilir (eksik sıra ödül almaz).
+ */
+export function tournamentShares(byPlacement: Record<string, number>): number[] {
+  const shares: number[] = [];
+  for (let placement = 1; byPlacement[String(placement)] !== undefined; placement += 1) {
+    shares.push(byPlacement[String(placement)] as number);
+  }
+  return shares;
+}
+
 @Injectable()
 export class SettleRaceUseCase {
   constructor(
@@ -95,7 +109,15 @@ export class SettleRaceUseCase {
     // düşülür. `locking` yarışta bu çağrı hiçbir şey yapmaz (kilit anında
     // zaten uygulandı). Hiç hazır oyuncu kalmadıysa yarış artık
     // `cancelled`dır ve aşağıdaki `checkRaceSettleable` 409 döner.
-    await this.raceRepository.dropUnreadyLobbyEntries({ raceId, now });
+    // TURNUVA (30.09.2026, migration 0045): final BOTSUZ koşulur, ödül
+    // `online.tournament.prizeDistributionByPlacement`ten dağıtılır ve
+    // `minParticipants`in altında hazır oyuncu varsa turnuva iptal olur.
+    const tournament = await this.raceRepository.findTournamentInfo(raceId);
+    await this.raceRepository.dropUnreadyLobbyEntries({
+      raceId,
+      now,
+      minRemaining: tournament === null ? 1 : this.config.online.tournament.minParticipants,
+    });
 
     const context = await this.raceRepository.findLobbySettlementContext(raceId);
     if (context === null) {
@@ -187,7 +209,10 @@ export class SettleRaceUseCase {
     // fonksiyondur; burada yalnızca tüketilir.
     const composition = resolveFieldComposition(
       { fieldSize: context.fieldSize, humanCount: context.entrants.length },
-      { fieldSizes: this.config.raceLobby.fieldSizes, aiFillEnabled: this.config.raceLobby.aiFillEnabled },
+      {
+        fieldSizes: this.config.raceLobby.fieldSizes,
+        aiFillEnabled: tournament === null ? this.config.raceLobby.aiFillEnabled : false,
+      },
     );
     if (!composition.ok) {
       // `NO_PARTICIPANTS` yolu zaten `checkRaceSettleable` tarafından
@@ -283,8 +308,10 @@ export class SettleRaceUseCase {
     // ÖDÜL TUTARLARI — `pool` DIŞARIDAN verilir ve burada `races.prize_pool`
     // sütunudur (kademe yarışındaki `entryFee × fieldSize` DEĞİL; bkz.
     // `prize-distribution.ts` doc yorumu). Paylar config'ten gelir.
-    const distribution = resolvePrizeDistribution(this.config.economy, this.config.raceLobby.prizeDistributionId);
-    const shares = distribution?.shares ?? [];
+    const shares =
+      tournament === null
+        ? (resolvePrizeDistribution(this.config.economy, this.config.raceLobby.prizeDistributionId)?.shares ?? [])
+        : tournamentShares(this.config.online.tournament.prizeDistributionByPlacement);
     const payouts = computePrizePayouts(context.prizePool, shares);
 
     return this.raceRepository.settleLobbyRace({

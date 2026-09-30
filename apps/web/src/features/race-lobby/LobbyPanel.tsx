@@ -30,6 +30,7 @@ import { formatCurrency } from '../../lib/currency';
 import { formatMultiplier } from '../race/race-entry';
 import {
   ENTRY_STATUS_LABELS,
+  describeTournament,
   SURFACE_LABELS,
   WEATHER_LABELS,
   buildCreateRaceBody,
@@ -383,6 +384,11 @@ export function LobbyPanel({ horses, onBalanceChanged }: LobbyPanelProps): React
               <li key={race.id} data-testid={`lobby-race-${race.id}`} style={rowStyle()}>
                 <div style={{ display: 'grid', gap: '2px' }}>
                   <strong style={{ color: 'var(--color-text-primary)', fontSize: '14px' }}>{race.name}</strong>
+                  {describeTournament(race) !== null ? (
+                    <span style={{ ...smallStyle(), color: 'var(--color-accent-gold)', fontWeight: 600 }}>
+                      {describeTournament(race)}
+                    </span>
+                  ) : null}
                   <span style={smallStyle()}>
                     {SURFACE_LABELS[race.surface]} · {WEATHER_LABELS[race.weather]} · {race.distanceMeters} m ·{' '}
                     {formatStartsIn(race.startTime, now)}

@@ -3,6 +3,7 @@ import { loadRaceLobbyConfig } from '@at-sevdalisi/game-config';
 import type { RaceLobbyListItem } from '@at-sevdalisi/shared-types';
 import {
   buildCreateRaceBody,
+  describeTournament,
   defaultLobbyRaceForm,
   formatStartsIn,
   lobbyEntryActions,
@@ -39,6 +40,7 @@ function race(overrides: Partial<RaceLobbyListItem> = {}): RaceLobbyListItem {
     createdAt: new Date().toISOString(),
     prizeMultiplier: null,
     myEntry: null,
+    tournament: null,
     ...overrides,
   } as RaceLobbyListItem;
 }
@@ -125,5 +127,14 @@ describe('formatStartsIn', () => {
     expect(formatStartsIn('2026-09-30T12:12:30.000Z', now)).toBe('12 dk sonra');
     expect(formatStartsIn('2026-09-30T13:05:00.000Z', now)).toBe('1 sa 5 dk sonra');
     expect(formatStartsIn('2026-09-30T11:59:00.000Z', now)).toBe('başlıyor');
+  });
+});
+
+describe('describeTournament', () => {
+  it('turnuva değilse null; turnuvaysa kademe + seviye şartı sunucu alanlarından', () => {
+    expect(describeTournament(race())).toBeNull();
+    expect(describeTournament(race({ tournament: { tier: 'silver', minPlayerLevel: 15 } }))).toBe(
+      'Gümüş Kupa · Seviye 15+ · Botsuz final, ödül ilk üçe',
+    );
   });
 });
