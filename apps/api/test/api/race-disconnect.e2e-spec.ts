@@ -138,6 +138,14 @@ describe('Bağlantı kopması / yeniden başlatma güvenliği (e2e) — brief §
       .set('Idempotency-Key', randomUUID())
       .send({ horseId: player.horseId })
       .expect(200);
+    // READY ŞARTI (30.09.2026): hazır demeyen katılım kilit/kesinleşme
+    // anında iptal edilip iade edilir. Bu dosya koşan bir kadro ölçtüğü için
+    // her katılım hazır işaretlenir (READY'nin kendisi `race-ready-gate`te).
+    await request(app.getHttpServer())
+      .post(`${racesUrl}/${raceId}/ready`)
+      .set('Authorization', player.authHeader)
+      .send({ status: 'ready' })
+      .expect(200);
   }
 
   /** `POST /races` en az 60 sn ileri bir başlangıç zorunlu kılar; test beklemez, satırın saatini geriye alır. */

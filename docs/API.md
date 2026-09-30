@@ -2444,6 +2444,15 @@ demektir ve o ayrı bir para yoludur; READY ucundan yazılabilseydi ücret
 **`Idempotency-Key` YOKTUR** — bu uç bakiye, ödül havuzu ve deftere
 dokunmaz; aynı değeri iki kez yazmak sonucu değiştirmez.
 
+**READY ŞARTI (30.09.2026) — YALNIZCA HAZIR OLAN KOŞAR.** Başlangıç zamanı
+gelip yarış kilitlenirken (ya da `scheduled` yarış doğrudan
+`POST /races/{id}/settle` ile kesinleştirilirken) `ready` DEMEMİŞ her
+katılım (`waiting`/`not_ready`) `cancelled` olur ve ödediği giriş ücreti
+**defterden okunan tutarla** iade edilir (`race_entry_refund`, ayrılma ile
+AYNI). Hiç hazır oyuncu kalmazsa yarışın kendisi `cancelled` olur. Bu
+yüzden READY artık bilgi değil, **koşmanın şartıdır**; pencere başlangıç
+anında kapanır.
+
 Kabul koşulları: yarış `scheduled` olmalı, başlangıç zamanı gelmemiş olmalı
 (tam başlangıç anında pencere KAPALIDIR — `join` ile aynı sınır), katılım
 `cancelled` olmamalı. Red nedeni önceliği: **durum > zaman > iptal**.

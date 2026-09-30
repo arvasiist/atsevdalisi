@@ -109,6 +109,15 @@ export class LockRaceUseCase {
    * kadro dondurulmaz.
    */
   private async lockOne(raceId: string, now: Date): Promise<string | null> {
+    // READY ŞARTI (30.09.2026) — snapshot kurulmadan ÖNCE: hazır demeyen
+    // katılımlar iptal edilip ücretleri iade edilir, böylece aşağıdaki
+    // bağlam ve kadro tripwire'ı yalnızca hazır katılımları görür. Hiç hazır
+    // oyuncu kalmadıysa yarış iptal edilmiştir ve kilitlenecek bir şey yoktur.
+    const dropped = await this.raceRepository.dropUnreadyLobbyEntries({ raceId, now });
+    if (dropped.raceCancelled) {
+      return 'NO_READY_PARTICIPANTS';
+    }
+
     const context = await this.raceRepository.findLobbySettlementContext(raceId);
     if (context === null) {
       return 'RACE_NOT_FOUND';

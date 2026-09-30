@@ -282,6 +282,25 @@ export interface RaceRepository {
    * kısıtı sıfır tutarlı bir satırı zaten reddederdi.
    */
   leaveLobbyRace(input: LeaveLobbyRaceInput): Promise<RaceLobbyView>;
+  /**
+   * READY ŞARTI (30.09.2026) — brief §6 / proje sahibinin talebi: "HAZIR
+   * OLAN kişiler yarışabilsinler". Başlangıç zamanı gelmiş `scheduled` bir
+   * yarışta `ready` DEMEMİŞ (`waiting`/`not_ready`) her gerçek katılımı
+   * `cancelled` yapar ve ödediği giriş ücretini İADE eder
+   * (`race_entry_refund`, tutar `leaveLobbyRace` gibi DEFTERDEN okunur).
+   * Hiç hazır oyuncu kalmazsa yarışın kendisi `cancelled` olur.
+   *
+   * **NEDEN İADE, YAKMA DEĞİL:** hazır olmamak bir kural ihlali değil, bir
+   * vazgeçmedir; `leaveLobbyRace` ile aynı sonucu üretir. Yakmak, READY
+   * düğmesini görmeyen oyuncuyu cezalandırırdı.
+   *
+   * Kilitleme (`LockRaceUseCase`) ve `scheduled`dan doğrudan kesinleştirme
+   * (`SettleRaceUseCase`) snapshot kurmadan ÖNCE çağırır; böylece kadro
+   * tripwire'ı yalnızca hazır katılımları görür. Tek transaction, `races`
+   * satırı `FOR UPDATE`; yarış `scheduled` değilse ya da başlangıç zamanı
+   * gelmemişse HİÇBİR ŞEY yapmaz (idempotent — ikinci çağrı boş döner).
+   */
+  dropUnreadyLobbyEntries(input: { raceId: string; now: Date }): Promise<DropUnreadyLobbyEntriesResult>;
 
   /**
    * Bir lobi yarışının KESİNLEŞME BAĞLAMINI okur (salt okuma, §42 PHASE
@@ -654,6 +673,14 @@ export interface SavePvpMatchWithRatingsResult {
  * kesinleşme snapshot'ı kendisi kurar — yani davranış ESKİSİYLE AYNIdır,
  * yalnızca artık "her zaman" değil "zamanlayıcı çalışmadıysa" geçerlidir.
  */
+/** `dropUnreadyLobbyEntries` sonucu. */
+export interface DropUnreadyLobbyEntriesResult {
+  /** Katılımı iptal edilip ücreti iade edilen oyuncular. */
+  droppedPlayerIds: string[];
+  /** Hiç hazır oyuncu kalmadığı için yarışın kendisi `cancelled` oldu mu. */
+  raceCancelled: boolean;
+}
+
 export interface LobbySettlementEntrant {
   entryId: string;
   playerId: string;

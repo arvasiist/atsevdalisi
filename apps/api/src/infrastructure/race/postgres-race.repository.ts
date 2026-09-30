@@ -22,6 +22,7 @@ import type {
 import type {
   CreateLobbyRaceInput,
   CreateLobbyRaceResult,
+  DropUnreadyLobbyEntriesResult,
   JoinLobbyRaceInput,
   LeaveLobbyRaceInput,
   ListLobbyRacesInput,
@@ -1402,6 +1403,122 @@ export class PostgresRaceRepository implements RaceRepository {
       );
 
       return rowToLobbyRaceView(this.config, finalRow, Number(joinedResult.rows[0]?.count ?? '0'));
+    });
+  }
+
+  /**
+   * READY şartı — port doc yorumu okunmalıdır. İade mantığı
+   * `leaveLobbyRace` ile AYNIDIR (tutar defterden okunur, `races.entry_fee`
+   * sabitinden DEĞİL; bakiye + havuz + defter tek transaction'da). Kilit
+   * sırası `races` → `race_entries` → `players` (ayrılma yoluyla AYNI).
+   * Otomatik bir iade olduğu için `idempotency_key` NULL yazılır; tekrar
+   * koruması durumun kendisidir (iptal edilen satır ikinci turda seçilmez).
+   */
+  async dropUnreadyLobbyEntries(input: { raceId: string; now: Date }): Promise<DropUnreadyLobbyEntriesResult> {
+    return withTransaction(this.pool, async (client) => {
+      const raceResult = await client.query<{ status: string; start_time: Date }>(
+        'SELECT status, start_time FROM races WHERE id = $1 FOR UPDATE',
+        [input.raceId],
+      );
+      const raceRow = raceResult.rows[0];
+      if (
+        raceRow === undefined ||
+        raceRow.status !== 'scheduled' ||
+        raceRow.start_time.getTime() > input.now.getTime()
+      ) {
+        return { droppedPlayerIds: [], raceCancelled: false };
+      }
+
+      const unreadyResult = await client.query<{ player_id: string }>(
+        `SELECT player_id
+         FROM race_entries
+         WHERE race_id = $1 AND player_id IS NOT NULL AND status IN ('waiting', 'not_ready')
+         ORDER BY player_id
+         FOR UPDATE`,
+        [input.raceId],
+      );
+      const droppedPlayerIds: string[] = [];
+      for (const { player_id: playerId } of unreadyResult.rows) {
+        const paidResult = await client.query<{ amount: string }>(
+          `SELECT amount
+           FROM economy_transactions
+           WHERE player_id = $1
+             AND type = 'lobby_race_entry_fee'
+             AND reference_type = 'race'
+             AND reference_id = $2
+           ORDER BY created_at DESC
+           LIMIT 1`,
+          [playerId, input.raceId],
+        );
+        const paidRow = paidResult.rows[0];
+        const refund = paidRow === undefined ? 0 : Math.max(0, -Number(paidRow.amount));
+
+        if (refund > 0) {
+          const balanceResult = await client.query<{ money: string; gems: string }>(
+            'SELECT money, gems FROM players WHERE id = $1 FOR UPDATE',
+            [playerId],
+          );
+          const balanceRow = balanceResult.rows[0];
+          if (balanceRow === undefined) {
+            throw new PlayerNotFoundError(playerId);
+          }
+          const balanceBefore = Number(balanceRow.money);
+          const balanceAfter = credit({ money: balanceBefore, gems: Number(balanceRow.gems) }, refund, 'money').money;
+          await client.query('UPDATE players SET money = $2, updated_at = $3 WHERE id = $1', [
+            playerId,
+            balanceAfter,
+            input.now,
+          ]);
+          await client.query('UPDATE races SET prize_pool = prize_pool - $2, updated_at = $3 WHERE id = $1', [
+            input.raceId,
+            refund,
+            input.now,
+          ]);
+          await this.writeLedgerEntries(client, [
+            {
+              playerId,
+              type: 'race_entry_refund',
+              amount: refund,
+              currency: 'money',
+              referenceType: 'race',
+              referenceId: input.raceId,
+              balanceBefore,
+              balanceAfter,
+              idempotencyKey: null,
+            },
+          ]);
+        }
+
+        await client.query("UPDATE race_entries SET status = 'cancelled' WHERE race_id = $1 AND player_id = $2", [
+          input.raceId,
+          playerId,
+        ]);
+        droppedPlayerIds.push(playerId);
+      }
+
+      // Hiç hazır oyuncu kalmadıysa yarış koşulamaz: `scheduled` bırakmak
+      // onu zamanlayıcının her turunda yeniden seçilen ölü bir satıra
+      // çevirirdi. `scheduled → cancelled` yaşam döngüsünde izinlidir.
+      // YALNIZCA bu turda birileri düşürüldüyse: hiç katılımı olmamış bir
+      // yarışa dokunulmaz (`NO_PARTICIPANTS` davranışı değişmez).
+      if (droppedPlayerIds.length === 0) {
+        return { droppedPlayerIds, raceCancelled: false };
+      }
+      const remainingResult = await client.query<{ count: string }>(
+        `SELECT COUNT(*) AS count
+         FROM race_entries
+         WHERE race_id = $1 AND player_id IS NOT NULL AND status IS DISTINCT FROM 'cancelled'`,
+        [input.raceId],
+      );
+      const raceCancelled = Number(remainingResult.rows[0]?.count ?? '0') === 0;
+      if (raceCancelled) {
+        await client.query("UPDATE races SET status = 'cancelled', updated_at = $2 WHERE id = $1", [
+          input.raceId,
+          input.now,
+        ]);
+      }
+
+      return { droppedPlayerIds, raceCancelled };
     });
   }
 

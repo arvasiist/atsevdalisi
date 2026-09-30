@@ -88,12 +88,20 @@ export class SettleRaceUseCase {
   ) {}
 
   async execute(raceId: string): Promise<RaceSettlementResult> {
+    const now = new Date();
+    // READY ŞARTI (30.09.2026) — `scheduled` bir yarış kilitlenmeden doğrudan
+    // kesinleştirilirse (zamanlayıcı kapalıyken ya da ondan önce gelen bir
+    // crank) aynı kural burada da uygulanır: hazır demeyenler iade edilip
+    // düşülür. `locking` yarışta bu çağrı hiçbir şey yapmaz (kilit anında
+    // zaten uygulandı). Hiç hazır oyuncu kalmadıysa yarış artık
+    // `cancelled`dır ve aşağıdaki `checkRaceSettleable` 409 döner.
+    await this.raceRepository.dropUnreadyLobbyEntries({ raceId, now });
+
     const context = await this.raceRepository.findLobbySettlementContext(raceId);
     if (context === null) {
       throw new RaceNotFoundError(raceId);
     }
 
-    const now = new Date();
     // Durum denetimi BURADA da yapılır (repository kilit altında TEKRAR
     // yapar): geçersiz bir istek, aşağıdaki PAHALI simülasyon (onlarca
     // katılımcı × yüzlerce segment) hiç koşmadan reddedilmelidir —
