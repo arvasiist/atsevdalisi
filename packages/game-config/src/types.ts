@@ -744,6 +744,15 @@ export interface OnlineConfig {
     rangeExpansionPerSecond: number;
     /** Aralık bu değeri asla aşamaz (çok farklı seviyede eşleşmeyi önler). */
     maxRatingRangeWidth: number;
+    /**
+     * 30.09.2026 — kuyruk TARAMASI (`MatchmakingScheduler`). Eşleştirme
+     * eskiden YALNIZCA katılım anında deneniyordu; aralık zamanla genişlese
+     * de bekleyen iki oyuncu hiç eşleşmiyordu. `enabled=false` taramayı
+     * kapatır (katılım anındaki eşleştirme sürer); `NODE_ENV=test` iken de
+     * kapalıdır, e2e `tickNow()` çağırır. Okuyan + düşüren test:
+     * `matchmaking-scheduler.spec.ts`.
+     */
+    queueScan: { enabled: boolean; tickSeconds: number };
   };
   /** brief §43 RankingScore = RacePerformance + WinBonus + PlacementBonus + TournamentBonus (bkz. `domain/ranking/ranking-score.ts`). */
   ranking: {

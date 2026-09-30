@@ -16,6 +16,7 @@ import { HorseModule } from '../horse/horse.module';
 import { PlayerModule } from '../player/player.module';
 import { RealtimeModule } from '../realtime/realtime.module';
 import { MatchmakingController } from './matchmaking.controller';
+import { MatchmakingScheduler } from '../../infrastructure/scheduler/matchmaking.scheduler';
 
 /**
  * FAZ 1 wiring, on dördüncü dilim — brief §41 PvP Eşleştirme. `HorseModule`/
@@ -37,6 +38,8 @@ import { MatchmakingController } from './matchmaking.controller';
   providers: [
     JoinMatchmakingQueueUseCase,
     LeaveMatchmakingQueueUseCase,
+    // 30.09.2026 — kuyruk taraması (bkz. sınıf doc yorumu).
+    MatchmakingScheduler,
     { provide: HORSE_STATS_REPOSITORY, useClass: PostgresHorseStatsRepository },
     { provide: RACE_REPOSITORY, useClass: PostgresRaceRepository },
     { provide: MATCHMAKING_TICKET_REPOSITORY, useClass: PostgresMatchmakingTicketRepository },

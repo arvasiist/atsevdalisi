@@ -227,6 +227,97 @@ export class JoinMatchmakingQueueUseCase {
    * transaction'da gerçekleşir (bkz. o metodun/portun doc yorumu) — bu
    * çağrı başarısız olursa reytingler de DB'ye hiç YAZILMAZ.
    */
+  /**
+   * KUYRUK TARAMASI (30.09.2026, `FINAL_PROJECT_AUDIT.md` #21). Eşleştirme
+   * eskiden YALNIZCA katılım anında deneniyordu: `findBestMatch`in aralığı
+   * bekleme süresiyle genişlese de, kuyrukta bekleyen iki oyuncu yeni bir
+   * katılım gelmedikçe hiç eşleşmiyordu. `MatchmakingScheduler` bu metodu
+   * periyodik çağırır.
+   *
+   * **EN UZUN BEKLEYEN ÖNCE** (aralığı en geniş olan o). Her çift için İKİ
+   * bilet de `deleteByPlayerId` ile SAHİPLENİLİR — satır silme atomik
+   * olduğundan eşzamanlı bir katılım/ayrılma aynı bileti ikinci kez
+   * kullanamaz. İkinci sahiplenme başarısız olursa ilk bilet AYNI
+   * `queuedAt` ile geri yazılır (bekleme süresi sıfırlanmaz).
+   *
+   * **BAYAT BİLET DÜŞÜRÜLÜR:** at bu arada satıldıysa ya da sakatlandıysa
+   * bilet silinir; aksi hâlde eşleşme başkasının atıyla ya da sakat atla
+   * koşardı. İki oyuncu da `lobby.update` alır (katılım yolunda yalnızca
+   * rakip alır, çünkü isteyen HTTP yanıtını görür; taramada ikisi de
+   * bekleyendir).
+   *
+   * Hata EŞLEŞME başına yakalanır — tek bozuk çift turu öldürmez.
+   */
+  async scanQueue(now: Date = new Date()): Promise<{ matched: number }> {
+    const tickets = (await this.ticketRepository.findAll()).sort(
+      (a, b) => new Date(a.queuedAt).getTime() - new Date(b.queuedAt).getTime(),
+    );
+    const consumed = new Set<string>();
+    let matched = 0;
+
+    for (const ticket of tickets) {
+      if (consumed.has(ticket.playerId)) {
+        continue;
+      }
+      if (!(await this.isTicketStillValid(ticket))) {
+        await this.ticketRepository.deleteByPlayerId(ticket.playerId);
+        consumed.add(ticket.playerId);
+        continue;
+      }
+      const candidates = tickets.filter((candidate) => !consumed.has(candidate.playerId));
+      const opponent = findBestMatch(ticket, candidates, this.config.online, now);
+      if (opponent === null) {
+        continue;
+      }
+      if (!(await this.isTicketStillValid(opponent))) {
+        await this.ticketRepository.deleteByPlayerId(opponent.playerId);
+        consumed.add(opponent.playerId);
+        continue;
+      }
+      if (!(await this.ticketRepository.deleteByPlayerId(ticket.playerId))) {
+        consumed.add(ticket.playerId);
+        continue;
+      }
+      if (!(await this.ticketRepository.deleteByPlayerId(opponent.playerId))) {
+        consumed.add(opponent.playerId);
+        await this.ticketRepository.save(ticket);
+        continue;
+      }
+      consumed.add(ticket.playerId);
+      consumed.add(opponent.playerId);
+      try {
+        const result = await this.playMatch(ticket.playerId, ticket.horseId, opponent, now);
+        this.notifySafely(ticket.playerId, result);
+        matched += 1;
+      } catch (error) {
+        this.logger.error(
+          `Kuyruk eşleşmesi koşulamadı (${ticket.playerId} × ${opponent.playerId}): ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      }
+    }
+    return { matched };
+  }
+
+  /** Bilet hâlâ geçerli mi: at var, sahibi bilet sahibi, sakat değil. */
+  private async isTicketStillValid(ticket: MatchmakingTicket): Promise<boolean> {
+    const horse = await this.horseRepository.findById(ticket.horseId);
+    return horse !== null && horse.ownerId === ticket.playerId && horse.status !== 'injured';
+  }
+
+  private notifySafely(playerId: string, result: PvpMatchResult): void {
+    try {
+      this.lobbyNotifier.notifyMatchFound(playerId, result);
+    } catch (error) {
+      this.logger.error(
+        `notifyMatchFound başarısız oldu (playerId=${playerId}, matchId=${result.matchId}): ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
+  }
+
   private async playMatch(
     playerId: string,
     horseId: string,
