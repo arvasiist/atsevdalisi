@@ -677,6 +677,13 @@ describe('apiClient.getPlayerProfile (brief §24 — /profile/:username)', () =>
 });
 
 describe('apiClient.getWallet (brief §20/§22/§35 — /wallet)', () => {
+  it('`before` imleci verilirse `limit` ile birlikte sorgu dizesine eklenir (30.09.2026)', async () => {
+    const fetchMock = stubFetchOnce({ success: true, data: {} });
+    await apiClient.getWallet('p-1', 20, 'cursor-1');
+    const [url] = requestArgs(fetchMock);
+    expect(url).toBe(`${API_BASE_URL}/players/p-1/wallet?limit=20&before=cursor-1`);
+  });
+
   it('oyuncu kimliğini YOL PARAMETRESİ olarak gönderir', async () => {
     const fetchMock = stubFetchOnce({ success: true, data: {} });
     await apiClient.getWallet('p-1');

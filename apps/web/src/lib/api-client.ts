@@ -978,11 +978,14 @@ export const apiClient = {
    *
    * `assertSelf` ile korunur — yalnızca kişinin KENDİ cüzdanı okunabilir.
    */
-  getWallet: (playerId: string, limit?: number) =>
-    request<WalletView>(
-      `/players/${playerId}/wallet${limit === undefined ? '' : `?limit=${encodeURIComponent(String(limit))}`}`,
-      { method: 'GET' },
-    ),
+  getWallet: (playerId: string, limit?: number, before?: string) => {
+    // `before` (30.09.2026) — önceki sayfanın `nextCursor`ı; yoksa ilk sayfa.
+    const params = new URLSearchParams();
+    if (limit !== undefined) params.set('limit', String(limit));
+    if (before !== undefined) params.set('before', before);
+    const query = params.toString();
+    return request<WalletView>(`/players/${playerId}/wallet${query === '' ? '' : `?${query}`}`, { method: 'GET' });
+  },
 
   /**
    * brief §20 DEPOSIT, §21, §41 — **SANAL para yatırma** (mock sağlayıcı).

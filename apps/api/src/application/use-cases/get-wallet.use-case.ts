@@ -1,7 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import type { WalletView } from '@at-sevdalisi/shared-types';
 import { PlayerNotFoundError } from '../../domain/player/errors';
-import { normalizeWalletHistoryLimit } from '../../domain/economy/wallet-history';
+import { normalizeWalletHistoryCursor, normalizeWalletHistoryLimit } from '../../domain/economy/wallet-history';
 import { AppConfigService } from '../../infrastructure/config/config.service';
 import { WALLET_REPOSITORY, type WalletRepository } from '../ports/wallet.repository';
 
@@ -25,9 +25,10 @@ export class GetWalletUseCase {
     @Inject(AppConfigService) private readonly config: AppConfigService,
   ) {}
 
-  async execute(playerId: string, rawLimit: unknown): Promise<WalletView> {
+  async execute(playerId: string, rawLimit: unknown, rawBefore: unknown = undefined): Promise<WalletView> {
     const limit = normalizeWalletHistoryLimit(rawLimit, this.config.economy);
-    const wallet = await this.walletRepository.findWallet(playerId, limit);
+    const before = normalizeWalletHistoryCursor(rawBefore);
+    const wallet = await this.walletRepository.findWallet(playerId, limit, before);
     if (wallet === null) {
       throw new PlayerNotFoundError(playerId);
     }

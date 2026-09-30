@@ -1,6 +1,7 @@
 import type { EconomyConfig } from '@at-sevdalisi/game-config';
 import type { CanonicalTransactionType, LedgerTransactionType } from '@at-sevdalisi/shared-types';
 import { CANONICAL_BY_LEDGER_TYPE } from '@at-sevdalisi/shared-types';
+import { InvalidWalletCursorError } from './errors';
 
 /**
  * Cüzdan işlem geçmişinin (brief §20, §42 PHASE 4) SAF domain kuralları.
@@ -56,4 +57,25 @@ export function normalizeWalletHistoryLimit(
  */
 export function canonicalTypeOf(type: LedgerTransactionType): CanonicalTransactionType {
   return CANONICAL_BY_LEDGER_TYPE[type];
+}
+
+/** `domain/race/lobby.ts` → `UUID_PATTERN` ile AYNI desen (domain framework'süzdür, `class-validator` yok). */
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Cüzdan geçmişi SAYFA İMLECİ (30.09.2026, `FINAL_PROJECT_AUDIT.md` #33).
+ * İmleç, önceki sayfanın SON satırının `economy_transactions.id`sidir;
+ * sonraki sayfa `(created_at, id)` sırasında ondan SONRAKİ satırlardır
+ * (anahtar-tabanlı sayfalama — `OFFSET` DEĞİL: arada yeni bir satır
+ * yazılırsa `OFFSET` aynı satırı iki kez gösterir ya da birini atlar).
+ * Yoksa/boşsa `null` (ilk sayfa); UUID değilse `InvalidWalletCursorError`.
+ */
+export function normalizeWalletHistoryCursor(raw: unknown): string | null {
+  if (raw === undefined || raw === null || (typeof raw === 'string' && raw.trim() === '')) {
+    return null;
+  }
+  if (typeof raw !== 'string' || !UUID_PATTERN.test(raw)) {
+    throw new InvalidWalletCursorError(String(raw));
+  }
+  return raw;
 }

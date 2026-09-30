@@ -48,6 +48,7 @@ import {
   DailyRewardAlreadyClaimedError,
   InsufficientFundsError,
   InvalidDepositAmountError,
+  InvalidWalletCursorError,
   MockDepositDisabledError,
 } from '../../domain/economy/errors';
 import {
@@ -533,6 +534,8 @@ const DOMAIN_ERROR_MAP = new Map<ErrorClassConstructor, { status: number; code: 
   // doğrulama hatası; aynı isteği tekrarlamak düzeltmez) ve AYNI desen
   // (üç neden → tek kod; ayrım yalnızca mesajdadır).
   [InvalidDepositAmountError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.InvalidDepositAmount }],
+  // 30.09.2026 — bozuk sayfa imleci (varsayılana DÜŞÜLMEZ, bkz. sınıf doc yorumu).
+  [InvalidWalletCursorError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.ValidationError }],
 ]);
 
 /**

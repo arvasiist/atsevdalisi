@@ -58,6 +58,7 @@ export default function WalletPage(): React.ReactElement {
 
   const [wallet, setWallet] = useState<WalletView | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
   /** Son başarılı mutasyonun kullanıcıya gösterilen özeti. */
   const [notice, setNotice] = useState<string | null>(null);
   const [isDepositing, setIsDepositing] = useState(false);
@@ -83,6 +84,37 @@ export default function WalletPage(): React.ReactElement {
   const loadWallet = useCallback(async (playerId: string) => {
     return apiClient.getWallet(playerId, HISTORY_LIMIT);
   }, []);
+
+  /**
+   * SAYFALAMA (30.09.2026, `FINAL_PROJECT_AUDIT.md` #33) — sunucunun
+   * `nextCursor`ı ile bir sonraki sayfayı çeker ve MEVCUT listenin SONUNA
+   * ekler. Bakiye yeni yanıttan alınır (en taze okuma). Aynı `id` iki kez
+   * eklenmez: arada yeni bir hareket yazılsa bile anahtar-tabanlı imleç
+   * satır kaydırmaz, ama savunma olarak tekilleştirilir.
+   */
+  const loadMore = useCallback(async () => {
+    if (!player || wallet === null || wallet.nextCursor === null) {
+      return;
+    }
+    setIsLoadingMore(true);
+    try {
+      const next = await apiClient.getWallet(player.id, HISTORY_LIMIT, wallet.nextCursor);
+      setWallet((current) => {
+        if (current === null) {
+          return next;
+        }
+        const seen = new Set(current.transactions.map((transaction) => transaction.id));
+        return {
+          ...next,
+          transactions: [...current.transactions, ...next.transactions.filter((transaction) => !seen.has(transaction.id))],
+        };
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Geçmiş yüklenemedi');
+    } finally {
+      setIsLoadingMore(false);
+    }
+  }, [player, wallet]);
 
   useEffect(() => {
     if (!player) {
@@ -280,11 +312,26 @@ export default function WalletPage(): React.ReactElement {
               </ul>
             ) : null}
             {wallet !== null && wallet.hasMore ? (
-              /* `hasMore` SUNUCUDAN gelir (bkz. `WalletView` doc yorumu) —
-                 "satır sayısı === limit" diye tahmin EDİLMEZ. */
-              <p style={{ color: 'var(--color-text-muted)', fontSize: '12px', margin: 'var(--space-sm) 0 0' }}>
-                Yalnızca son {HISTORY_LIMIT} hareket gösteriliyor.
-              </p>
+              /* `hasMore`/`nextCursor` SUNUCUDAN gelir (bkz. `WalletView` doc
+                 yorumu) — "satır sayısı === limit" diye tahmin EDİLMEZ. */
+              <button
+                type="button"
+                onClick={() => void loadMore()}
+                disabled={isLoadingMore}
+                style={{
+                  marginTop: 'var(--space-sm)',
+                  minHeight: '44px',
+                  padding: '10px 16px',
+                  background: 'transparent',
+                  color: 'var(--color-text-primary)',
+                  border: '1px solid var(--color-border)',
+                  borderRadius: 'var(--radius-md)',
+                  fontSize: '13px',
+                  cursor: isLoadingMore ? 'not-allowed' : 'pointer',
+                }}
+              >
+                {isLoadingMore ? 'Yükleniyor…' : 'Daha fazla göster'}
+              </button>
             ) : null}
           </GlassPanel>
         </div>

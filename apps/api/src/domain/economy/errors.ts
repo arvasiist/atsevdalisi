@@ -94,3 +94,15 @@ export class InvalidDepositAmountError extends Error {
     this.name = 'InvalidDepositAmountError';
   }
 }
+
+/**
+ * `GET /players/:id/wallet?before=` imleci UUID değil (30.09.2026). 400 —
+ * `limit`in aksine VARSAYILANA DÜŞÜLMEZ: bozuk imleç sessizce ilk sayfayı
+ * dönseydi "daha fazla göster" aynı sayfayı sonsuza dek tekrar getirirdi.
+ */
+export class InvalidWalletCursorError extends Error {
+  constructor(raw: string) {
+    super(`Geçersiz cüzdan geçmişi imleci: ${raw.slice(0, 64)}`);
+    this.name = 'InvalidWalletCursorError';
+  }
+}
