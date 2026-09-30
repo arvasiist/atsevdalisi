@@ -124,6 +124,9 @@ yarışa satılır, "zaman penceresi" bütün iadeleri kapatırdı; açık "izle
 parayı geri al"dı. (6) **Eşleştirme kuyruğu taranır** (`MatchmakingScheduler`,
 `online.matchmaking.queueScan`). (7) **Cüzdan geçmişi sayfalanır**
 (`?before=` imleci; bozuk imleç 400, varsayılana düşmez).
+(8) **Hazırlık kapısı her yarış yolunda** — `checkRaceReadiness` eskiden
+yalnızca pratik yarışta uygulanıyordu; lobi katılımı ve eşleştirme de
+artık aynı kapıdan geçer (enerjisi bitmiş at ücretli yarışa giremez).
 
 **✅ ÜCRETLİ LOBİ YARIŞI ARTIK KOŞUYOR — ÖDÜL DAĞITIMI VAR (§13.14,
 28.09.2026).** `POST /races/:id/settle` yarışı koşar, ödülleri `top5`

@@ -17,6 +17,9 @@ import { createRaceRoomSeed, validateRaceRoomParticipants } from '../../domain/o
 import { RACE_ENGINE_VERSION, RACE_RULESET_VERSION, simulateRace } from '../../domain/race/race-engine';
 import { DEFAULT_RACE_TACTIC, PRACTICE_RACE_DISTANCE_METERS } from '../../domain/race/validation';
 import { HorseInjuredError, HorseNotFoundError } from '../../domain/horse/errors';
+import type { VitalSigns } from '../../domain/horse/vital-signs';
+import { HorseNotReadyToRaceError } from '../../domain/race/errors';
+import { checkRaceReadiness } from '../../domain/race/readiness';
 import { AlreadyInMatchmakingQueueError } from '../../domain/online/errors';
 import { PlayerNotFoundError } from '../../domain/player/errors';
 import { AppConfigService } from '../../infrastructure/config/config.service';
@@ -37,6 +40,21 @@ export interface JoinMatchmakingQueueInput {
 
 /** `RunPracticeRaceUseCase`'in KENDİ sabitleriyle AYNI — bkz. o dosyanın doc yorumu "KAPSAM DIŞI" maddesi; PvP maçları da AYNI gerekçeyle şimdilik sabit zemin/hava/mesafe kullanır. */
 const PVP_MATCH_SURFACE = 'grass' as const;
+
+/**
+ * `run-practice-race.use-case.ts` ile AYNI açık kurulum: alanlar TEK TEK
+ * yazılır ki `Horse`a yeni bir vital alanı eklenip burada unutulursa
+ * derleyici uyarsın.
+ */
+function vitalsOf(horse: { health: number; fitness: number; fatigue: number; energy: number; morale: number }): VitalSigns {
+  return {
+    health: horse.health,
+    fitness: horse.fitness,
+    fatigue: horse.fatigue,
+    energy: horse.energy,
+    morale: horse.morale,
+  };
+}
 const PVP_MATCH_WEATHER = 'sunny' as const;
 
 /**
@@ -164,6 +182,14 @@ export class JoinMatchmakingQueueUseCase {
     }
     if (horse.status === 'injured') {
       throw new HorseInjuredError(input.horseId);
+    }
+    // HAZIRLIK KAPISI (30.09.2026, `FINAL_PROJECT_AUDIT.md` #8) — pratik ve
+    // lobi yarışıyla AYNI tek karar noktası (`domain/race/readiness.ts`).
+    // Önceden yalnızca sakatlık kontrol ediliyordu; enerjisi bitmiş at
+    // kuyruğa girip eşleşme koşabiliyordu.
+    const readiness = checkRaceReadiness(horse.status, vitalsOf(horse), this.config.race.readiness);
+    if (!readiness.ready && readiness.reason !== null) {
+      throw new HorseNotReadyToRaceError(readiness.reason);
     }
 
     // `sellerId`nin `horse.ownerId`'den TÜRETİLMESİ (`CreateMarketListingUseCase`
@@ -300,10 +326,14 @@ export class JoinMatchmakingQueueUseCase {
     return { matched };
   }
 
-  /** Bilet hâlâ geçerli mi: at var, sahibi bilet sahibi, sakat değil. */
+  /** Bilet hâlâ geçerli mi: at var, sahibi bilet sahibi, yarışa hazır (sakat değil, enerjisi/sağlığı yeterli). */
   private async isTicketStillValid(ticket: MatchmakingTicket): Promise<boolean> {
     const horse = await this.horseRepository.findById(ticket.horseId);
-    return horse !== null && horse.ownerId === ticket.playerId && horse.status !== 'injured';
+    return (
+      horse !== null &&
+      horse.ownerId === ticket.playerId &&
+      checkRaceReadiness(horse.status, vitalsOf(horse), this.config.race.readiness).ready
+    );
   }
 
   private notifySafely(playerId: string, result: PvpMatchResult): void {

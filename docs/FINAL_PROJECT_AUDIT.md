@@ -57,7 +57,7 @@ CI'dır."*
 | 5 | At listesi ve detay | `IMPLEMENTED` | Evet |
 | 6 | At istatistikleri (8 stat) | `IMPLEMENTED` | Evet |
 | 7 | Zemin ve mesafe istatistikleri | `IMPLEMENTED` | Evet |
-| 8 | At sağlığı (6 boyut) | `PARTIAL` | Koşullu |
+| 8 | At sağlığı (6 boyut) | `IMPLEMENTED` | Evet |
 | 9 | Antrenman | `IMPLEMENTED` | Evet |
 | 10 | Bakım (care) | `IMPLEMENTED` | Evet |
 | 11 | Beslenme ve yem envanteri | `IMPLEMENTED` | Evet |
@@ -66,7 +66,7 @@ CI'dır."*
 | 14 | At değerleme (market-value) | `IMPLEMENTED` | Evet |
 | 15 | Soy ağacı (pedigree) okuma | `IMPLEMENTED` | Evet |
 | 16 | Yetiştiricilik (breeding) | `IMPLEMENTED` | Evet |
-| 17 | Genetik domain | `PARTIAL` | Koşullu |
+| 17 | Genetik domain | `IMPLEMENTED` | Evet |
 | 18 | Jokey vitrini, kiralama ve serbest bırakma | `IMPLEMENTED` | Evet |
 | 19 | Jokey → motor etkisi | `IMPLEMENTED` | Evet |
 | 20 | Pratik yarış | `IMPLEMENTED` | Evet |
@@ -102,10 +102,18 @@ CI'dır."*
 | 50 | Bağlanmamış domain modülleri (kulüp/sezon/turnuva/progression/personel) | `DOMAIN ONLY` | Hayır |
 | 51 | 3D sunum ve ses | `PARTIAL` | Hayır (asset bekliyor) |
 
-**Sayım:** `IMPLEMENTED` **46** · `PARTIAL` **4** · `API ONLY` 0 ·
+**Sayım:** `IMPLEMENTED` **48** · `PARTIAL` **2** · `API ONLY` 0 ·
 `DOMAIN ONLY` 1 · `MISSING`/`BROKEN`/`UI ONLY`/`NOT WIRED` **0**.
 
-**Üretime hazır: 46/51.**
+**Üretime hazır: 48/51.** Kalan üç madde de sahibin kararına bağlıdır:
+#1 (OAuth kimlik bilgileri), #50 (kulüp/sezon/turnuva/personel — yeni faz),
+#51 (3D/ses varlıkları).
+
+> ⚠️ **30.09.2026 (üçüncü dilim) — #8 ve #17 `IMPLEMENTED`.** #8'in
+> envanteri ÖLÇÜLDÜ ve bir açık buldu: hazırlık kapısı
+> (`checkRaceReadiness`) yalnızca pratik yarışta uygulanıyordu — lobi ve
+> eşleştirmeye eklendi. #17'nin "çağıransız" teşhisi bayattı. Sayım
+> tablodan türetildi (48/2).
 
 > ⚠️ **30.09.2026 (ikinci dilim) — #21, #33, #37 `IMPLEMENTED`.** #21:
 > kuyruk taraması (`MatchmakingScheduler`). #33: geçmiş sayfalama
@@ -368,22 +376,37 @@ vardır: Durum · Backend · Frontend · Database · API · WebSocket · Tests �
 
 ### 8. At sağlığı (6 boyut)
 
-- **Durum:** `PARTIAL`
-- **Backend:** `horse_health` — `health`, `fitness`, `fatigue`, `energy`,
-  `form`, `morale`.
+- **Durum:** `IMPLEMENTED` (30.09.2026 — envanter ölçüldü)
+- **Backend:** `horses` satırındaki `health`, `fitness`, `fatigue`,
+  `energy`, `morale` + türetilmiş `form`.
+- **Motorda okunan boyutlar (koddan ölçüldü, `domain/race/`):**
+  `health`, `fatigue` → `race-engine.ts`; `fitness` → `race-engine.ts` +
+  `base-ability.ts`; `morale` → `base-ability.ts`; `form` →
+  `base-ability.ts` — ama **`horses.form` sütunundan DEĞİL**, son yarış
+  sonuçlarından türetilir (`deriveFormFromRecentResults`). **`energy`
+  motora girmez** — yalnızca yarışa giriş kapısıdır.
+- **Hazırlık kapısı (`checkRaceReadiness`, `race.config.json → readiness`):**
+  durum `active`, sağlık ≥ `minHealth`, yorgunluk ≤ `maxFatigue`, enerji ≥
+  `minEnergy`. **30.09.2026 AÇIĞI:** kapı yalnızca pratik yarışta
+  uygulanıyordu; enerjisi bitmiş at **ücretli lobiye** ve eşleştirme
+  kuyruğuna girebiliyordu. Artık üç yol da aynı kapıdan geçer (lobi
+  katılımında at satırı kilitliyken, para hareketinden önce; eşleştirme
+  taramasında hazır olmayan atın bileti düşürülür).
 - **Frontend:** `/stable`, `/care`.
-- **Database:** `horse_health`.
-- **API:** at okuma + bakım uçları.
+- **Database:** `horses`.
+- **API:** at okuma + bakım uçları; `409 INSUFFICIENT_ENERGY` /
+  `HORSE_TOO_TIRED` / `INSUFFICIENT_HEALTH` / `HORSE_NOT_ACTIVE`.
 - **WebSocket:** `race.telemetry` içinde `fatigueLevel` (migration 0029).
-- **Tests:** `test/domain/care/`, `test/api/care*.e2e-spec.ts`.
-- **Üretime hazır:** Koşullu.
-- **Eksik:** Motorun tükettiği boyutlar ile **tümü** birebir örtüşmez;
-  bazı boyutlar yalnızca bakım/antrenman girdisi olarak yaşar.
-- **Risk:** Düşük — ama "sağlık 6 boyut" iddiasını motora bağlamak isteyen
-  bir dilim açılırsa önce hangi boyutun okunduğu ölçülmelidir.
-- **Sıradaki adım:** Motorda okunan boyutların envanterini çıkar; okunmayan
-  varsa ya bağla ya "gösterim amaçlı" diye belgele.
-- **Kaynak:** `database/migrations/*horse_health*`, `domain/care/`.
+- **Tests:** `test/domain/race/readiness.spec.ts`,
+  `test/api/race-horse-lock.e2e-spec.ts` (lobi + kuyruk kapısı).
+- **Üretime hazır:** Evet.
+- **Eksik:** —
+- **Risk:** `horses.form` sütunu motor tarafından OKUNMAZ (gösterim/bakım
+  girdisi); motordaki form yarış geçmişinden türetilir. Bu bilinçlidir ve
+  motora dokunmak "KEEP" kuralı gereği ayrı bir karar ister.
+- **Sıradaki adım:** —
+- **Kaynak:** `apps/api/src/domain/race/readiness.ts`,
+  `apps/api/src/domain/race/entrant-snapshot.ts`.
 
 ---
 
@@ -560,22 +583,29 @@ vardır: Durum · Backend · Frontend · Database · API · WebSocket · Tests �
 
 ### 17. Genetik domain
 
-- **Durum:** `PARTIAL`
-- **Backend:** `domain/genetics/` — saf TS, birim testli.
-- **Frontend:** yok.
-- **Database:** genler `horses`/`pedigrees` içinde.
-- **API:** dolaylı (breeding).
+- **Durum:** `IMPLEMENTED` (30.09.2026 — teşhis düzeltildi)
+- **Backend:** `domain/breeding/genetics.ts` (bu satır eskiden
+  `domain/genetics/` diyordu — **öyle bir klasör yok**). Dört fonksiyonun
+  DÖRDÜ de yetiştirme yolunda çağrılır: `generateInheritanceSplit`,
+  `calculateMutation`, `calculateChildStat`, `calculateChildPotential`.
+- **Frontend:** `BreedingPanel` sonucu (tay statları, akrabalık uyarısı,
+  doğum riski) + `PedigreeTree`.
+- **Database:** `breeding_pairs`, `pedigrees`, `horse_stats`.
+- **API:** `POST /players/:id/breeding`, `GET /horses/:id/pedigree`.
 - **WebSocket:** ilgisiz.
-- **Tests:** `test/domain/genetics/` — kapsamlı.
-- **Üretime hazır:** Koşullu.
-- **Eksik:** `calculateJockeyHorseCompatibility` ve
-  `calculateTemperamentComponent` **çağıransız**; gen ifadesi oyuncuya
-  hiçbir yerde gösterilmiyor.
-- **Risk:** Orta — genetik, oyunun en pahalı sistemlerinden biri olarak
-  yazıldı ama oyuncuya görünen yüzeyi yok.
-- **Sıradaki adım:** PHASE 6 disipliniyle: her genetik bileşen için ya bir
-  çağıran ya da "gösterim amaçlı" etiketi.
-- **Kaynak:** `apps/api/src/domain/genetics/`.
+- **Tests:** `test/domain/breeding/`, `test/api/breeding.e2e-spec.ts`.
+- **Üretime hazır:** Evet.
+- **Eksik:** — Bu satırın eski "Eksik"i bayattı:
+  `calculateTemperamentComponent` artık yok (yerine gelen
+  `deriveTemperamentEffect` motora bağlı, #28). Oyunda "gen" kavramı
+  yoktur — kalıtım STAT düzeyindedir, gösterilecek ayrı bir gen ifadesi
+  uydurulmadı.
+- **Risk:** `calculateJockeyHorseCompatibility` (`domain/jockey/jockey.ts`)
+  hâlâ çağıransızdır. Bağlamak yarış sonucunu değiştirir (motor girdisi) —
+  bu bir oyun dengesi kararıdır ve PHASE 6 disipliniyle (ölçüm harness'ta)
+  ayrı dilimde yapılmalıdır.
+- **Sıradaki adım:** —
+- **Kaynak:** `apps/api/src/domain/breeding/genetics.ts`.
 
 ---
 

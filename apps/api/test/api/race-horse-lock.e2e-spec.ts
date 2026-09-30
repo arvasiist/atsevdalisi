@@ -180,4 +180,32 @@ describe('Açık yarıştaki at kilidi (e2e) — HORSE_IN_ACTIVE_RACE', () => {
 
     await createListing(racer).expect(201);
   });
+
+  it('HAZIRLIK KAPISI (FINAL_PROJECT_AUDIT #8): enerjisi bitmiş at ücretli yarışa GİREMEZ — 409, para hareket etmez', async () => {
+    const creator = await registerTestPlayerWithStarterHorse(app, 'Hazırlık Kapısı Kuran');
+    const tired = await registerTestPlayerWithStarterHorse(app, 'Bitkin At Sahibi');
+    const raceId = await createRace(creator);
+    await pool.query('UPDATE horses SET energy = 0 WHERE id = $1', [tired.horseId]);
+    const before = await moneyOf(tired.playerId);
+
+    const response = await join(tired, raceId).expect(409);
+    expect(response.body.error.code).toBe('INSUFFICIENT_ENERGY');
+    expect(await moneyOf(tired.playerId)).toBe(before);
+    const entries = await pool.query('SELECT 1 FROM race_entries WHERE race_id = $1', [raceId]);
+    expect(entries.rows.length).toBe(0);
+  });
+
+  it('HAZIRLIK KAPISI: aşırı yorgun at eşleştirme kuyruğuna GİREMEZ — 409, bilet yazılmaz', async () => {
+    const tired = await registerTestPlayerWithStarterHorse(app, 'Yorgun Kuyrukçu');
+    await pool.query('UPDATE horses SET fatigue = 100 WHERE id = $1', [tired.horseId]);
+
+    const response = await request(app.getHttpServer())
+      .post('/api/v1/matchmaking/queue')
+      .set('Authorization', tired.authHeader)
+      .send({ horseId: tired.horseId })
+      .expect(409);
+    expect(response.body.error.code).toBe('HORSE_TOO_TIRED');
+    const tickets = await pool.query('SELECT 1 FROM matchmaking_tickets WHERE player_id = $1', [tired.playerId]);
+    expect(tickets.rows.length).toBe(0);
+  });
 });

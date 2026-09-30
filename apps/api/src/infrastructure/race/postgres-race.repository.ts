@@ -1,6 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import type { Pool, PoolClient } from 'pg';
 import type {
+  HorseStatus,
   PvpMatch,
   Race,
   RaceEntrantSnapshot,
@@ -61,6 +62,7 @@ import {
 import {
   AlreadyJoinedRaceError,
   HorseNotOwnedError,
+  HorseNotReadyToRaceError,
   RaceEntryCancelledError,
   RaceEntryNotFoundError,
   RaceEntryNotLeavableError,
@@ -86,6 +88,7 @@ import { applyEloUpdate } from '../../domain/online/elo';
 import { PlayerNotFoundError } from '../../domain/player/errors';
 import { PG_POOL, withTransaction } from '../database/database.module';
 import { isHorseInActiveRace } from '../horse/active-race-entry';
+import { checkRaceReadiness } from '../../domain/race/readiness';
 
 /** Postgres `unique_violation` hata kodu (bkz. PostgreSQL "Error Codes" §22.6 sınıf 23). */
 const POSTGRES_UNIQUE_VIOLATION = '23505';
@@ -940,8 +943,16 @@ export class PostgresRaceRepository implements RaceRepository {
       //    KİLİT SIRASI: `races` → `horses` → `players`. Pazar yolu
       //    `market_listings` → `horses` → `players`; ikisi de `horses`u
       //    `players`tan önce kilitler, çapraz kilitlenme doğmaz.
-      const horseResult = await client.query<{ owner_id: string; status: string }>(
-        'SELECT owner_id, status FROM horses WHERE id = $1 FOR UPDATE',
+      const horseResult = await client.query<{
+        owner_id: string;
+        status: string;
+        health: number;
+        fitness: number;
+        fatigue: number;
+        energy: number;
+        morale: number;
+      }>(
+        'SELECT owner_id, status, health, fitness, fatigue, energy, morale FROM horses WHERE id = $1 FOR UPDATE',
         [input.horseId],
       );
       const horse = horseResult.rows[0];
@@ -953,6 +964,26 @@ export class PostgresRaceRepository implements RaceRepository {
       }
       if (horse.status === 'injured') {
         throw new HorseInjuredError(input.horseId);
+      }
+      // HAZIRLIK KAPISI (30.09.2026, `FINAL_PROJECT_AUDIT.md` #8) —
+      // `domain/race/readiness.ts` kendini "yarışa girebilir mi"nin TEK
+      // karar noktası diye tanımlar ama bu yol onu çağırmıyordu: enerjisi
+      // bitmiş ya da aşırı yorgun bir at pratik yarışa giremediği hâlde
+      // PARA ÖDENEN yarışa girebiliyordu. Kontrol para hareketinden ÖNCE ve
+      // at satırı kilitliyken koşar; `HORSE_INJURED` sözleşmesi korunur.
+      const readiness = checkRaceReadiness(
+        horse.status as HorseStatus,
+        {
+          health: Number(horse.health),
+          fitness: Number(horse.fitness),
+          fatigue: Number(horse.fatigue),
+          energy: Number(horse.energy),
+          morale: Number(horse.morale),
+        },
+        this.config.race.readiness,
+      );
+      if (!readiness.ready && readiness.reason !== null) {
+        throw new HorseNotReadyToRaceError(readiness.reason);
       }
       const listedResult = await client.query(
         "SELECT 1 FROM market_listings WHERE horse_id = $1 AND status = 'active' AND (expires_at IS NULL OR expires_at > $2) LIMIT 1",
