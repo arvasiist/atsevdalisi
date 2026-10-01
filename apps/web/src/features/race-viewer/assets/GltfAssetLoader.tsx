@@ -59,7 +59,7 @@ interface GltfErrorBoundaryState {
  * bir KARŞILIĞI YOKTUR, bu yüzden burada `useState`/hook TABANLI bir
  * alternatif YAZILMADI (böyle bir şey React'ın kendisinde MEVCUT DEĞİL).
  */
-class GltfErrorBoundary extends Component<GltfErrorBoundaryProps, GltfErrorBoundaryState> {
+export class GltfErrorBoundary extends Component<GltfErrorBoundaryProps, GltfErrorBoundaryState> {
   constructor(props: GltfErrorBoundaryProps) {
     super(props);
     this.state = { hasError: false };

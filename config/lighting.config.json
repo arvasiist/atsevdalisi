@@ -1,0 +1,17 @@
+{
+  "toneMappingExposure": 1.0,
+  "hdri": {
+    "environmentIntensity": 0.9,
+    "backgroundIntensity": 1.0
+  },
+  "bloom": {
+    "luminanceThreshold": 0.85,
+    "luminanceSmoothing": 0.6,
+    "intensity": 0.3
+  },
+  "softShadows": {
+    "size": 20,
+    "samples": 12,
+    "focus": 0.6
+  }
+}

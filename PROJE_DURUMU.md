@@ -3531,6 +3531,17 @@ Canvas açan eski "3D Önizle" kaldırıldı; kartlardaki "Ahırda Göster"
 sahneye at seçer (sayfada tek WebGL bağlamı). Tarayıcıda 1440/390 px
 doğrulandı: dışarıya istek yok, hata yok, taşma yok.
 
+#### 13.49 3D ADIM 7 — IŞIK (01.10.2026)
+
+Ortak `SceneRenderSettings` (ACES ton eşleme, `lighting.config.json`
+pozlaması, ultra'da PCSS yumuşak gölge) + `SCENE_GL_OPTIONS` üç sahnede.
+Bloom değerleri config'ten, ölçülü (eşik 0.85, yoğunluk 0.3); ana sayfaya
+yüksek/ultra kademede bloom ve atın altına temas gölgesi eklendi.
+`HdriEnvironment`: `public/hdri/golden-hour.hdr` varsa dış mekânda gökyüzü +
+ortam ışığı, ahırda yalnızca ortam/yansıma; yerel, yoklanmış, hata sınırlı
+(CDN `preset` yasağı `lighting.spec.ts` ile kaynak taranarak kilitli).
+Geçici bir test HDR'si ile tarayıcıda doğrulandı (sonra silindi).
+
 ## 14. Kendime hatırlatmalar (kısa liste)
 
 1. **Race Engine'e dokunmadan önce iki kez düşün.** Denetim onu "KEEP, dokunma"

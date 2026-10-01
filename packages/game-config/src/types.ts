@@ -1748,3 +1748,16 @@ export interface AtmosphereConfig {
     densityByTier: Record<'low' | 'medium' | 'high' | 'ultra', number>;
   };
 }
+
+/**
+ * 01.10.2026 — 3D sahnelerin ortak ışık ayarları (3D adım 7). Yarış, ana
+ * sayfa ve ahır AYNI değerleri okur (sahneler arası tutarlı görünüm).
+ * `bloom` bilinçli olarak ölçülüdür (yalnızca gerçekten parlak yüzeyler).
+ */
+export interface LightingConfig {
+  toneMappingExposure: number;
+  hdri: { environmentIntensity: number; backgroundIntensity: number };
+  bloom: { luminanceThreshold: number; luminanceSmoothing: number; intensity: number };
+  /** Yalnızca 'ultra' kalite kademesinde (PCSS, pahalı). */
+  softShadows: { size: number; samples: number; focus: number };
+}

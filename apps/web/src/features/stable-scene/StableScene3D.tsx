@@ -14,7 +14,6 @@
 import { Suspense, useMemo } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { ContactShadows, OrbitControls } from '@react-three/drei';
-import * as THREE from 'three';
 import { loadHorsePresenceConfig } from '@at-sevdalisi/game-config';
 import type { PublicHorse } from '@at-sevdalisi/shared-types';
 import { HorseAvatar3D } from '../race-viewer/HorseAvatar3D';
@@ -22,6 +21,9 @@ import { GltfAssetLoader } from '../race-viewer/assets/GltfAssetLoader';
 import { PlaceholderBadge } from '../race-viewer/assets/PlaceholderBadge';
 import { getAssetById } from '../race-viewer/assets/asset-manifest';
 import { forwardAxisRotation } from '../race-viewer/assets/model-fit';
+import { HdriEnvironment } from '../race-viewer/assets/HdriEnvironment';
+import { assetUrl, useAssetAvailability } from '../race-viewer/assets/asset-pipeline';
+import { SCENE_GL_OPTIONS, SceneRenderSettings } from '../race-viewer/SceneRenderSettings';
 import { detectQualityTier } from '../race-viewer/detect-quality-tier';
 import { getQualityTierRenderSettings } from '../race-viewer/quality-tier';
 import { HORSE_MOOD_LABELS, deriveHorseDemeanor } from '../horse-stage/horse-demeanor';
@@ -29,6 +31,8 @@ import { PlaceholderStall } from './PlaceholderStall';
 
 const PRESENCE_CONFIG = loadHorsePresenceConfig();
 const STABLE_ASSET = getAssetById('STABLE_ENVIRONMENT_REQUIRED');
+const HDRI_ASSET = getAssetById('HDRI_SKY_REQUIRED');
+const HDRI_URL = HDRI_ASSET ? assetUrl(HDRI_ASSET.expectedPath) : '';
 
 export type StableSceneHorse = Pick<
   PublicHorse,
@@ -114,19 +118,21 @@ export interface StableScene3DProps {
 export function StableScene3D({ horse }: StableScene3DProps): React.ReactElement {
   const settings = useMemo(() => getQualityTierRenderSettings(detectQualityTier()), []);
   const mood = deriveHorseDemeanor(horse, PRESENCE_CONFIG).mood;
+  // İç mekân: HDRI gökyüzü olarak GÖRÜNMEZ, yalnızca yansıma/ortam ışığı verir.
+  const hdri = useAssetAvailability(HDRI_URL);
   return (
     <div className="stable3d">
       <Canvas
         shadows={settings.shadowsEnabled}
         dpr={[1, settings.pixelRatioCap]}
         camera={{ position: [4.4, 2.1, 3.4], fov: 42 }}
-        gl={{
-          antialias: true,
-          toneMapping: THREE.ACESFilmicToneMapping,
-          outputColorSpace: THREE.SRGBColorSpace,
-        }}
+        gl={SCENE_GL_OPTIONS}
       >
         <Suspense fallback={null}>
+          <SceneRenderSettings settings={settings} />
+          {hdri === 'available' ? (
+            <HdriEnvironment url={HDRI_URL} background={false} fallback={null} />
+          ) : null}
           <StableSceneContents horse={horse} shadows={settings.shadowsEnabled} />
         </Suspense>
       </Canvas>

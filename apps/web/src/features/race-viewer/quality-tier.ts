@@ -116,6 +116,8 @@ export interface QualityTierRenderSettings {
   shadowsEnabled: boolean;
   /** `directionalLight`'ın `shadow-mapSize` değeri (kare, piksel cinsinden kenar uzunluğu) — `shadowsEnabled=false` iken anlamsızdır. */
   shadowMapSize: number;
+  /** 01.10.2026 — drei `<SoftShadows>` (PCSS); pahalı, yalnızca 'ultra'. */
+  softShadowsEnabled: boolean;
   /** `<Canvas dpr={[1, pixelRatioCap]}>` üst sınırı — yüksek DPR'li (retina/mobil) ekranlarda GPU'yu gereksiz yere doldurmamak için. */
   pixelRatioCap: number;
 }
@@ -127,6 +129,7 @@ const QUALITY_TIER_RENDER_SETTINGS: Record<QualityTier, Omit<QualityTierRenderSe
     ssaoEnabled: false,
     shadowsEnabled: false,
     shadowMapSize: 512,
+    softShadowsEnabled: false,
     pixelRatioCap: 1,
   },
   medium: {
@@ -135,6 +138,7 @@ const QUALITY_TIER_RENDER_SETTINGS: Record<QualityTier, Omit<QualityTierRenderSe
     ssaoEnabled: false,
     shadowsEnabled: true,
     shadowMapSize: 1024,
+    softShadowsEnabled: false,
     pixelRatioCap: 1.5,
   },
   high: {
@@ -143,6 +147,7 @@ const QUALITY_TIER_RENDER_SETTINGS: Record<QualityTier, Omit<QualityTierRenderSe
     ssaoEnabled: false,
     shadowsEnabled: true,
     shadowMapSize: 2048,
+    softShadowsEnabled: false,
     pixelRatioCap: 2,
   },
   // Faz 1'de sabit kodlanmış ÖNCEKİ (kademe kavramı olmadan önceki) davranışın
@@ -155,6 +160,7 @@ const QUALITY_TIER_RENDER_SETTINGS: Record<QualityTier, Omit<QualityTierRenderSe
     ssaoEnabled: true,
     shadowsEnabled: true,
     shadowMapSize: 2048,
+    softShadowsEnabled: true,
     pixelRatioCap: 2,
   },
 };

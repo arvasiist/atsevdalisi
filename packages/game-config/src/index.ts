@@ -40,6 +40,7 @@ import type {
   HorseAppearanceConfig,
   HorsePresenceConfig,
   AtmosphereConfig,
+  LightingConfig,
   TrainingConfig,
   VfxConfig,
   WeatherConfig,
@@ -59,6 +60,7 @@ import staffConfigJson from '../../../config/staff.config.json';
 import horseAppearanceConfigJson from '../../../config/horse-appearance.config.json';
 import horsePresenceConfigJson from '../../../config/horse-presence.config.json';
 import atmosphereConfigJson from '../../../config/atmosphere.config.json';
+import lightingConfigJson from '../../../config/lighting.config.json';
 import farmConfigJson from '../../../config/farm.config.json';
 import onlineConfigJson from '../../../config/online.config.json';
 import cameraConfigJson from '../../../config/camera.config.json';
@@ -258,4 +260,9 @@ export function loadHorsePresenceConfig(): HorsePresenceConfig {
 /** 01.10.2026 — hipodrom atmosferi (kalabalık heyecanı, tribün animasyonu, LOD). */
 export function loadAtmosphereConfig(): AtmosphereConfig {
   return atmosphereConfigJson as unknown as AtmosphereConfig;
+}
+
+/** 01.10.2026 — 3D sahnelerin ortak ışık ayarları (ton eşleme, HDRI, bloom, yumuşak gölge). */
+export function loadLightingConfig(): LightingConfig {
+  return lightingConfigJson as unknown as LightingConfig;
 }

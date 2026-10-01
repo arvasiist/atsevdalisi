@@ -91,6 +91,7 @@ import { DustParticles } from './audio-vfx/DustParticles';
 import { HorseAvatar3D } from './HorseAvatar3D';
 import { SkyAndLighting, TRACK_WIDTH_METERS } from './TrackScenery';
 import { HippodromeSurroundings } from './HippodromeSurroundings';
+import { LIGHTING, SCENE_GL_OPTIONS, SceneRenderSettings } from './SceneRenderSettings';
 import type { StadiumTrackGeometry } from './track-path';
 import type { CameraPose } from './camera-presets';
 import {
@@ -201,9 +202,9 @@ export function RaceScene3D({
     effects.push(
       <Bloom
         key="bloom"
-        luminanceThreshold={0.5}
-        luminanceSmoothing={0.9}
-        intensity={0.4}
+        luminanceThreshold={LIGHTING.bloom.luminanceThreshold}
+        luminanceSmoothing={LIGHTING.bloom.luminanceSmoothing}
+        intensity={LIGHTING.bloom.intensity}
         mipmapBlur
       />,
     );
@@ -215,7 +216,9 @@ export function RaceScene3D({
       shadows={settings.shadowsEnabled}
       dpr={[1, settings.pixelRatioCap]}
       camera={{ fov: 50, near: 0.5, far: 4000 }}
+      gl={SCENE_GL_OPTIONS}
     >
+      <SceneRenderSettings settings={settings} />
       <SkyAndLighting
         environmentEnabled={settings.environmentEnabled}
         shadowsEnabled={settings.shadowsEnabled}

@@ -240,6 +240,10 @@ Salt sunum — sonuca etkisi YOK.
 (TEK Canvas; kartlardaki "Ahırda Göster" sahneye at seçer — eski kart
 başına `HorseShowcase` KALDIRILDI). Ortam `stable-environment.glb`
 (`keepOrigin`, orijin = bölme zemini, at +X) ya da `PlaceholderStall`.
+(23) **IŞIK (3D adım 7, §13.49)** — üç sahne `SceneRenderSettings` +
+`SCENE_GL_OPTIONS` (ACES, `lighting.config.json` pozlama; PCSS yumuşak gölge
+YALNIZCA ultra). HDRI: `HdriEnvironment` — YEREL dosya, önce yoklanır, hata
+sınırlı; `preset` YASAK (`lighting.spec.ts` src'yi tarar ve kırılır).
 
 **✅ ÜCRETLİ LOBİ YARIŞI ARTIK KOŞUYOR — ÖDÜL DAĞITIMI VAR (§13.14,
 28.09.2026).** `POST /races/:id/settle` yarışı koşar, ödülleri `top5`

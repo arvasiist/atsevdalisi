@@ -21,6 +21,9 @@ import { useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { loadAtmosphereConfig } from '@at-sevdalisi/game-config';
 import { keepSpectator, spectatorLift } from './race-atmosphere';
+import { HdriEnvironment } from './assets/HdriEnvironment';
+import { getAssetById } from './assets/asset-manifest';
+import { assetUrl, useAssetAvailability } from './assets/asset-pipeline';
 import { Environment, Lightformer, Sky } from '@react-three/drei';
 import * as THREE from 'three';
 import {
@@ -31,6 +34,8 @@ import {
 
 export const TRACK_WIDTH_METERS = 20;
 const ATMOSPHERE = loadAtmosphereConfig();
+const HDRI_ASSET = getAssetById('HDRI_SKY_REQUIRED');
+const HDRI_URL = HDRI_ASSET ? assetUrl(HDRI_ASSET.expectedPath) : '';
 const TRACK_TURN_COUNT_FOR_VISUAL = 2;
 const TRACK_SAMPLES = 320;
 const RAIL_HEIGHT_METERS = 1.1;
@@ -53,6 +58,31 @@ export function SkyAndLighting({
   shadowsEnabled: boolean;
   shadowMapSize: number;
 }): React.ReactElement {
+  // 01.10.2026 (3D adım 7) — gerçek HDRI (`public/hdri/golden-hour.hdr`)
+  // varsa gökyüzü + ortam ışığı ondan gelir; yoksa aşağıdaki prosedürel
+  // gökyüzü + Lightformer ortamı. HDRI YEREL dosyadır ve önce yoklanır.
+  const hdri = useAssetAvailability(HDRI_URL);
+  if (hdri === 'available' && environmentEnabled) {
+    return (
+      <>
+        <HdriEnvironment url={HDRI_URL} background fallback={null} />
+        <fog attach="fog" args={['#d9c9b0', 420, 2000]} />
+        <directionalLight
+          position={SUN_POSITION}
+          intensity={2.1}
+          color="#fff4e0"
+          castShadow={shadowsEnabled}
+          shadow-mapSize={[shadowMapSize, shadowMapSize]}
+          shadow-camera-left={-260}
+          shadow-camera-right={260}
+          shadow-camera-top={260}
+          shadow-camera-bottom={-260}
+          shadow-camera-far={900}
+          shadow-bias={-0.0004}
+        />
+      </>
+    );
+  }
   return (
     <>
       <Sky

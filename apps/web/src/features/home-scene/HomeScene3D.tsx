@@ -28,6 +28,13 @@ import { HorseAvatar3D } from '../race-viewer/HorseAvatar3D';
 import { SkyAndLighting } from '../race-viewer/TrackScenery';
 import { HippodromeSurroundings } from '../race-viewer/HippodromeSurroundings';
 import {
+  LIGHTING,
+  SCENE_GL_OPTIONS,
+  SceneRenderSettings,
+} from '../race-viewer/SceneRenderSettings';
+import { ContactShadows } from '@react-three/drei';
+import { Bloom, EffectComposer } from '@react-three/postprocessing';
+import {
   getQualityTierRenderSettings,
   type QualityTierRenderSettings,
 } from '../race-viewer/quality-tier';
@@ -222,12 +229,9 @@ export function HomeScene3D({
       dpr={[1, settings.pixelRatioCap]}
       frameloop={active ? 'always' : 'never'}
       camera={{ fov: 40, near: 0.1, far: 3000, position: [0, 3, 10] }}
-      gl={{
-        antialias: true,
-        toneMapping: THREE.ACESFilmicToneMapping,
-        outputColorSpace: THREE.SRGBColorSpace,
-      }}
+      gl={SCENE_GL_OPTIONS}
     >
+      <SceneRenderSettings settings={settings} />
       <SkyAndLighting
         environmentEnabled={settings.environmentEnabled}
         shadowsEnabled={settings.shadowsEnabled}
@@ -242,6 +246,24 @@ export function HomeScene3D({
       />
       <PlaceholderBarn castShadow={settings.shadowsEnabled} />
       {horse ? <PlayerHorse horse={horse} settings={settings} /> : null}
+      {/* Atın altındaki temas gölgesi — sabit sahnede ucuz, zemine "oturma" hissi verir. */}
+      <ContactShadows
+        position={[HORSE_ANCHOR[0], 0.02, HORSE_ANCHOR[2]]}
+        opacity={0.55}
+        scale={6}
+        blur={2}
+        far={3}
+      />
+      {settings.bloomEnabled ? (
+        <EffectComposer>
+          <Bloom
+            luminanceThreshold={LIGHTING.bloom.luminanceThreshold}
+            luminanceSmoothing={LIGHTING.bloom.luminanceSmoothing}
+            intensity={LIGHTING.bloom.intensity}
+            mipmapBlur
+          />
+        </EffectComposer>
+      ) : null}
       <CameraRig requestedShot={requestedShot} autoplay={autoplay} onShotChange={onShotChange} />
     </Canvas>
   );
