@@ -3454,6 +3454,27 @@ hiçbir şey ödemez. Web: `/leaderboard` "Genel / Sezon" sekmeleri, kalan
 süre, sıran ve olası ödülün; tablo mobilde yatay kaydırılır. Kanıt:
 `season.e2e-spec.ts` (3); tam paket temiz DB'de 140 dosya / 2242 test.
 
+#### 13.44 3D YOL HARİTASI ADIM 1-2 — VARLIK HATTI + OYUNCUNUN ATI (01.10.2026)
+
+Varlık denetimi: depoda HİÇBİR 3D/doku/HDRI/ses dosyası yok; at, jokey,
+tribün prosedürel PLACEHOLDER. **Adım 1 (hat):** yerel Draco/KTX2 çözücüleri
+(drei'nin gstatic CDN varsayılanı kapatıldı), `asset-pipeline.ts`
+(yoklama + önbellek + `useMissingAssetPaths`), `GltfAssetLoader` (dosya
+yoksa denemez; `children(gltf, clips)`), manifest'e ahır ortamı, HDRI, üç
+PBR doku ve ahır sesi eklendi; `resolveAnimationClips` rol → klip adı;
+`PlaceholderBadge`. **Adım 2 (oyuncunun atı):** migration 0051 görünüş
+sütunları (CHECK = shared-types sabitleri, test migration'ı okur); eski
+atlar özetten tekdüze, yeni atlar config ağırlıklarıyla, taylar ebeveyn
+donundan. `Horse.appearance` API'de döner. `deriveHorseDemeanor` (sakat >
+keyifsiz > yorgun > durgun > enerjik > nötr) → `HorseModel` bekleme
+davranışı (nefes, baş, kuyruk, ağırlık aktarma, kulak) + don/işaret
+renkleri. `/stable` kartında "3D Önizle" (`HorseShowcase`, yörünge kamera,
+dışarıya istek YOK — tarayıcıda doğrulandı). Kanıt: `appearance.spec.ts`,
+`horse-appearance.e2e-spec.ts`, `breeding.e2e-spec.ts` kalıtım iddiası,
+web `horse-demeanor`/`coat-palette`/`asset-pipeline`/`asset-manifest`
+testleri; API 142/2253, web 32/452, `next build` geçti. **Görsel sıçrama
+gerçek GLB'lere bağlıdır** (adım 4+).
+
 ## 14. Kendime hatırlatmalar (kısa liste)
 
 1. **Race Engine'e dokunmadan önce iki kez düşün.** Denetim onu "KEEP, dokunma"

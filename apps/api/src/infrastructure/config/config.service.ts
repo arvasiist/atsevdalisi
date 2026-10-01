@@ -9,6 +9,7 @@ import {
   loadGiftConfig,
   loadGrandstandConfig,
   loadHorseGrowthConfig,
+  loadHorseAppearanceConfig,
   loadJockeyConfig,
   loadOnlineConfig,
   loadAuthConfig,
@@ -140,4 +141,6 @@ export class AppConfigService {
   readonly jockey = loadJockeyConfig();
   /** 01.10.2026 — personel (brief §33) kiralama/sözleşme/etki. */
   readonly staff = loadStaffConfig();
+  /** 01.10.2026 — atın görünüşü (don/işaret ağırlıkları + kalıtım). */
+  readonly horseAppearance = loadHorseAppearanceConfig();
 }

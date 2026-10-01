@@ -1,11 +1,12 @@
 import { Inject, Injectable } from '@nestjs/common';
 import type { Pool, PoolClient } from 'pg';
-import type { BreedingResultView, Horse, Pedigree } from '@at-sevdalisi/shared-types';
+import type { BreedingResultView, Horse, HorseCoatColor, Pedigree } from '@at-sevdalisi/shared-types';
 import type { BreedingRepository, ExecuteBreedingInput } from '../../application/ports/breeding.repository';
 import { breedHorses, calculateStudFee, type BreedingCandidate } from '../../domain/breeding/breeding';
 import { BreedingHorseListedError, MareNotOwnedError } from '../../domain/breeding/errors';
 import { HorseNotFoundError } from '../../domain/horse/errors';
 import { calculateAgeInMonths } from '../../domain/horse/age-curve';
+import { inheritAppearance } from '../../domain/horse/appearance';
 import { transfer } from '../../domain/economy/wallet';
 import { PlayerNotFoundError } from '../../domain/player/errors';
 import { assertCanAddHorseToStable, getStableCapacity } from '../../domain/stable/stable';
@@ -56,6 +57,7 @@ interface BreedableHorseRow {
   weight_kg: string | null;
   status: string;
   is_listed: boolean;
+  coat_color: string;
 }
 
 /** `pedigrees` satırı (yoksa `null` sütunlarla döner). */
@@ -116,7 +118,7 @@ export class PostgresBreedingRepository implements BreedingRepository {
       for (const horseId of [firstHorseId, secondHorseId]) {
         const result = await client.query<BreedableHorseRow>(
           `SELECT h.id, h.owner_id, h.name, h.gender, h.breed, h.birth_date, h.quality, h.potential,
-                  h.health, h.weight_kg, h.status,
+                  h.health, h.weight_kg, h.status, h.coat_color,
                   EXISTS (
                     SELECT 1 FROM market_listings ml
                     WHERE ml.horse_id = h.id AND ml.status = 'active'
@@ -286,12 +288,15 @@ export class PostgresBreedingRepository implements BreedingRepository {
         ]);
       }
 
-      const foal = this.buildFoal(input, result, mareRow.breed, now);
+      const foal = this.buildFoal(input, result, mareRow.breed, now, {
+        sireCoat: stallionRow.coat_color as HorseCoatColor,
+        damCoat: mareRow.coat_color as HorseCoatColor,
+      });
       await client.query(
         `INSERT INTO horses (id, owner_id, name, gender, breed, birth_date, level, xp, quality, potential,
                              health, fitness, fatigue, energy, morale, weight_kg, status, sire_id, dam_id,
-                             created_at, updated_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)`,
+                             created_at, updated_at, coat_color, face_marking, leg_marking)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24)`,
         [
           foal.id,
           foal.ownerId,
@@ -314,6 +319,9 @@ export class PostgresBreedingRepository implements BreedingRepository {
           foal.damId,
           new Date(foal.createdAt),
           new Date(foal.updatedAt),
+          foal.appearance.coatColor,
+          foal.appearance.faceMarking,
+          foal.appearance.legMarking,
         ],
       );
 
@@ -418,6 +426,7 @@ export class PostgresBreedingRepository implements BreedingRepository {
     result: { foalQuality: number; foalPotential: number; foalWeightKg: number; foalPedigree: Pedigree },
     breed: string,
     now: Date,
+    parentCoats: { sireCoat: HorseCoatColor; damCoat: HorseCoatColor },
   ): Horse {
     return {
       id: input.foalId,
@@ -442,6 +451,8 @@ export class PostgresBreedingRepository implements BreedingRepository {
       status: 'active',
       sireId: input.stallionId,
       damId: input.mareId,
+      // 01.10.2026 — don rengi ebeveynlerden kalıtılır (domain/horse/appearance.ts).
+      appearance: inheritAppearance(input.foalId, parentCoats.sireCoat, parentCoats.damCoat, this.config.horseAppearance),
       createdAt: now.toISOString(),
       updatedAt: now.toISOString(),
     };

@@ -4,6 +4,7 @@ import type { Player } from '@at-sevdalisi/shared-types';
 import type { AuthProvider } from '../../domain/player/auth-provider';
 import { createPlayerAuthProviderLink } from '../../domain/player/auth-provider';
 import { createNewPlayer } from '../../domain/player/player';
+import { deriveAppearance } from '../../domain/horse/appearance';
 import { createStarterHorse, generateStarterHorseWeightKg, pickStarterHorseGender, pickStarterHorseName } from '../../domain/horse/horse';
 import { AppConfigService } from '../../infrastructure/config/config.service';
 import { HORSE_REPOSITORY, type HorseRepository } from '../ports/horse.repository';
@@ -98,9 +99,12 @@ export class LoginWithProviderUseCase {
     // bir başlangıç atıyla başlar" kuralıyla AYNI (bkz. o dosyanın yorumu) —
     // giriş yolu (token'sız demo kaydı VEYA gerçek Google/Apple girişi)
     // BAĞIMSIZ olarak bu davranış TUTARLI olmalıdır.
+    const starterHorseId = randomUUID();
     const starterHorse = createStarterHorse({
-      id: randomUUID(),
+      id: starterHorseId,
       ownerId: player.id,
+      // 01.10.2026 — görünüş kimlikten determinist türetilir (config ağırlıkları).
+      appearance: deriveAppearance(starterHorseId, this.config.horseAppearance),
       name: pickStarterHorseName(Math.random()),
       // R4 — Carried Weight (bu turda EKLENDİ) — `RegisterPlayerUseCase`'in
       // aynı diliminde eklenenle AYNI gerekçe (bkz. o dosyanın yorumu).

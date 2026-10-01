@@ -54,8 +54,8 @@ export class PostgresHorseRepository implements HorseRepository {
     // kaynağıdır, burada TEKRAR yazılmaz.
     await withTransaction(this.pool, async (client) => {
       await client.query(
-        `INSERT INTO horses (id, owner_id, name, gender, breed, birth_date, level, xp, quality, potential, health, fitness, fatigue, energy, morale, weight_kg, status, sire_id, dam_id, created_at, updated_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)`,
+        `INSERT INTO horses (id, owner_id, name, gender, breed, birth_date, level, xp, quality, potential, health, fitness, fatigue, energy, morale, weight_kg, status, sire_id, dam_id, created_at, updated_at, coat_color, face_marking, leg_marking)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24)`,
         [
           horse.id,
           horse.ownerId,
@@ -78,6 +78,9 @@ export class PostgresHorseRepository implements HorseRepository {
           horse.damId,
           new Date(horse.createdAt),
           new Date(horse.updatedAt),
+          horse.appearance.coatColor,
+          horse.appearance.faceMarking,
+          horse.appearance.legMarking,
         ],
       );
       await client.query('INSERT INTO horse_stats (horse_id) VALUES ($1)', [horse.id]);

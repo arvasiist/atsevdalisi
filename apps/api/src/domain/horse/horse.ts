@@ -15,7 +15,7 @@
  * üretir).
  */
 
-import type { Horse, HorseGender } from '@at-sevdalisi/shared-types';
+import type { Horse, HorseAppearance, HorseGender } from '@at-sevdalisi/shared-types';
 import { validateHorseName } from './validation';
 import { generateBellCurveWeightKg, HORSE_WEIGHT_POPULATION_MEAN_KG } from './weight';
 
@@ -121,6 +121,8 @@ export interface NewStarterHorseInput {
   id: string;
   ownerId: string;
   name: string;
+  /** 01.10.2026 — görünüş (bkz. `appearance.ts` `deriveAppearance`); zorunlu — atlar sessizce 'bay' doğmasın. */
+  appearance: HorseAppearance;
   now?: Date;
   /**
    * Gerçek, çeşitlilik gösteren bir vücut ağırlığı (kg) — bkz.
@@ -176,6 +178,7 @@ export function createStarterHorse(input: NewStarterHorseInput): Horse {
     status: 'active',
     sireId: null,
     damId: null,
+    appearance: input.appearance,
     createdAt: now.toISOString(),
     updatedAt: now.toISOString(),
   };

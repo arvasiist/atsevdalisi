@@ -37,6 +37,8 @@ import type {
   SocialConfig,
   StableConfig,
   StaffConfig,
+  HorseAppearanceConfig,
+  HorsePresenceConfig,
   TrainingConfig,
   VfxConfig,
   WeatherConfig,
@@ -53,6 +55,8 @@ import careConfigJson from '../../../config/care.config.json';
 import stableConfigJson from '../../../config/stable.config.json';
 import jockeyConfigJson from '../../../config/jockey.config.json';
 import staffConfigJson from '../../../config/staff.config.json';
+import horseAppearanceConfigJson from '../../../config/horse-appearance.config.json';
+import horsePresenceConfigJson from '../../../config/horse-presence.config.json';
 import farmConfigJson from '../../../config/farm.config.json';
 import onlineConfigJson from '../../../config/online.config.json';
 import cameraConfigJson from '../../../config/camera.config.json';
@@ -108,6 +112,11 @@ export function loadJockeyConfig(): JockeyConfig {
 
 export function loadStaffConfig(): StaffConfig {
   return staffConfigJson as unknown as StaffConfig;
+}
+
+/** 01.10.2026 — atın görünüşü (don/işaret ağırlıkları + kalıtım). */
+export function loadHorseAppearanceConfig(): HorseAppearanceConfig {
+  return horseAppearanceConfigJson as unknown as HorseAppearanceConfig;
 }
 
 export function loadFarmConfig(): FarmConfig {
@@ -237,4 +246,9 @@ export * from './types';
  */
 export function loadAuthConfig(): AuthConfig {
   return authConfigJson as unknown as AuthConfig;
+}
+
+/** 01.10.2026 — atın durumu → 3D davranış (salt görsel). */
+export function loadHorsePresenceConfig(): HorsePresenceConfig {
+  return horsePresenceConfigJson as unknown as HorsePresenceConfig;
 }

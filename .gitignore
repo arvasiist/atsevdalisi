@@ -94,3 +94,8 @@ assets/**/*
 !assets/**/
 !assets/**/.gitkeep
 !assets/README.md
+
+# 01.10.2026 — 3D çözücüler (Draco/KTX2) `three` paketinden KOPYALANIR
+# (`apps/web/scripts/copy-3d-decoders.mjs`, predev/prebuild). Üretilmiş
+# dosyadır, sürüm kontrolüne girmez.
+apps/web/public/decoders/

@@ -4,7 +4,9 @@
   "private": true,
   "description": "AT SEVDALISI web istemcisi (Next.js) - bkz. docs/ARCHITECTURE.md §5",
   "scripts": {
+    "predev": "node scripts/copy-3d-decoders.mjs",
     "dev": "next dev",
+    "prebuild": "node scripts/copy-3d-decoders.mjs",
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc -p tsconfig.json --noEmit",
@@ -21,7 +23,8 @@
     "react": "^18.3.0",
     "react-dom": "^18.3.0",
     "socket.io-client": "^4.7.5",
-    "three": "^0.169.0"
+    "three": "^0.169.0",
+    "three-stdlib": "^2.35.6"
   },
   "devDependencies": {
     "@testing-library/react": "^16.0.0",

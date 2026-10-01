@@ -6,6 +6,8 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { PG_POOL } from '../../src/infrastructure/database/database.module';
 import { AppConfigService } from '../../src/infrastructure/config/config.service';
 import { STARTER_HORSE_POTENTIAL, STARTER_HORSE_QUALITY } from '../../src/domain/horse/horse';
+import { inheritAppearance } from '../../src/domain/horse/appearance';
+import { loadHorseAppearanceConfig } from '@at-sevdalisi/game-config';
 import {
   bootstrapTestApp,
   registerTestPlayerWithStarterHorse,
@@ -204,6 +206,25 @@ describe('Çiftleştirme (e2e) — PARA YOLU', () => {
       expect(foalRow.rows[0].dam_id).toBe(payer.horseId);
       expect(Number(foalRow.rows[0].level)).toBe(1);
       expect(Number(foalRow.rows[0].xp)).toBe(0);
+
+      // 01.10.2026 — GÖRÜNÜŞ KALITIMI: tayın donu ebeveynlerin (gerçek)
+      // donlarından `inheritAppearance` ile türetilir (migration 0051).
+      const parents = await pool.query<{ id: string; coat_color: string }>(
+        'SELECT id, coat_color FROM horses WHERE id = ANY($1)',
+        [[stallionId, payer.horseId]],
+      );
+      const coatOf = (id: string) => parents.rows.find((row) => row.id === id)?.coat_color as never;
+      const expectedAppearance = inheritAppearance(
+        response.body.data.foalId,
+        coatOf(stallionId),
+        coatOf(payer.horseId),
+        loadHorseAppearanceConfig(),
+      );
+      expect({
+        coatColor: foalRow.rows[0].coat_color,
+        faceMarking: foalRow.rows[0].face_marking,
+        legMarking: foalRow.rows[0].leg_marking,
+      }).toEqual(expectedAppearance);
 
       // ÇİFT KAYDI — `foal_id` DOLU olmalı (cooldown bu sütuna bakar).
       const pairRow = await pool.query('SELECT * FROM breeding_pairs WHERE id = $1', [response.body.data.pairId]);

@@ -1666,3 +1666,41 @@ export interface AuthConfig {
    */
   passwordReset: { tokenTtlMinutes: number; tokenBytes: number; minIntervalSeconds: number };
 }
+
+/**
+ * 01.10.2026 — atın GÖRÜNÜŞÜ (don rengi + işaretler). Ağırlıklar göreli
+ * sayılardır (toplamı 100 olmak zorunda değil). Kalıtım: tay, `parentCoatChance`
+ * olasılıkla bir ebeveynin donunu alır (`sireCoatShare` = babadan alma payı),
+ * aksi hâlde ağırlıklı rastgele bir don. Seçim seed'li PRNG ile determinist.
+ */
+export interface HorseAppearanceConfig {
+  coatWeights: Record<string, number>;
+  faceMarkingWeights: Record<string, number>;
+  legMarkingWeights: Record<string, number>;
+  inheritance: { parentCoatChance: number; sireCoatShare: number };
+}
+
+/**
+ * 01.10.2026 — atın durumunun 3D davranışa yansıması (salt GÖRSEL; oyun
+ * mantığı değildir). Eşikler `Horse` alanları (0-100) üzerindedir; her
+ * ruh hâli bir animasyon parametre seti seçer (1 = nötr hız/genlik).
+ */
+export interface HorsePresenceMoodParams {
+  breathRate: number;
+  headLift: number;
+  tailSwishRate: number;
+  weightShiftRate: number;
+  earPerk: number;
+}
+
+export interface HorsePresenceConfig {
+  thresholds: {
+    lowHealth: number;
+    lowEnergy: number;
+    highFatigue: number;
+    lowMorale: number;
+    highEnergy: number;
+    highMorale: number;
+  };
+  moods: Record<'energetic' | 'neutral' | 'calm' | 'tired' | 'unwell' | 'injured', HorsePresenceMoodParams>;
+}

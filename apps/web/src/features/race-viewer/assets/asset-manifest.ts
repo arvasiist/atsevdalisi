@@ -27,9 +27,19 @@ export type AssetKind =
   | 'texture'
   | 'audio_sfx'
   | 'audio_music'
-  | 'audio_voice';
+  | 'audio_voice'
+  /** 01.10.2026 — gökyüzü/ortam ışığı haritası (HDRI). */
+  | 'environment_map';
 
-export type AssetFormat = 'glb' | 'gltf' | 'ktx2' | 'png' | 'mp3' | 'ogg';
+export type AssetFormat = 'glb' | 'gltf' | 'ktx2' | 'png' | 'mp3' | 'ogg' | 'hdr';
+
+/**
+ * 01.10.2026 — bir modelin animasyon klipleri için ANLAMSAL roller. Gerçek
+ * paketlerde klip adları değişir ("Gallop", "horse_gallop_01", "Run"…);
+ * manifest her role kabul edilen adları sıralar, `resolveAnimationClips`
+ * GLB'deki gerçek adlarla eşler. Kod klip ADINA değil ROLE bağlanır.
+ */
+export type AnimationRole = 'idle' | 'walk' | 'trot' | 'canter' | 'gallop' | 'ride';
 
 /**
  * `status` bu dosyada ASLA elle `'present'` yapılmaz — bir asset
@@ -51,6 +61,8 @@ export interface AssetRequirement {
   description: string;
   /** Dosya yoksa/yüklenemezse hangi mevcut ilkel görsel/davranışa DÜŞÜLDÜĞÜ (uydurma değil, ZATEN VAR OLAN kod). */
   fallbackBehavior: string;
+  /** 01.10.2026 — yalnızca animasyonlu modellerde: rol → kabul edilen klip adları (büyük/küçük harf duyarsız). */
+  animationClips?: Partial<Record<AnimationRole, string[]>>;
 }
 
 /**
@@ -65,7 +77,15 @@ export const ASSET_MANIFEST: AssetRequirement[] = [
     kind: 'model_3d',
     format: 'glb',
     expectedPath: 'models/horse.glb',
-    description: 'Gerçekçi safkan at modeli, Gallop/Trot/Idle animasyon klipleri, tutarlı iskelet (skeleton).',
+    description:
+      'Gerçekçi safkan at modeli, Gallop/Trot/Idle animasyon klipleri, tutarlı iskelet (skeleton).',
+    animationClips: {
+      idle: ['Idle', 'Stand', 'Idle_01'],
+      walk: ['Walk', 'Walk_01'],
+      trot: ['Trot', 'Trot_01'],
+      canter: ['Canter', 'Canter_01'],
+      gallop: ['Gallop', 'Run', 'Gallop_01'],
+    },
     fallbackBehavior: "RaceScene3D.tsx'teki mevcut kapsül+küre HorseMarker ilkel şekli.",
   },
   {
@@ -73,8 +93,14 @@ export const ASSET_MANIFEST: AssetRequirement[] = [
     kind: 'model_3d',
     format: 'glb',
     expectedPath: 'models/jockey.glb',
-    description: "At modeliyle UYUMLU iskelete sahip jokey modeli, oturma/kamçı animasyon klipleri.",
-    fallbackBehavior: 'Şu an ayrı bir jokey görseli YOK — at markörüyle birlikte render edilmez (Grup 2 kapsamı).',
+    description:
+      'At modeliyle UYUMLU iskelete sahip jokey modeli, oturma/kamçı animasyon klipleri.',
+    animationClips: {
+      idle: ['Idle', 'Sit', 'Mounted_Idle'],
+      ride: ['Ride', 'Jockey_Ride', 'Riding'],
+    },
+    fallbackBehavior:
+      'Şu an ayrı bir jokey görseli YOK — at markörüyle birlikte render edilmez (Grup 2 kapsamı).',
   },
   {
     id: 'HIPPODROME_ENVIRONMENT_REQUIRED',
@@ -82,7 +108,8 @@ export const ASSET_MANIFEST: AssetRequirement[] = [
     format: 'glb',
     expectedPath: 'models/hippodrome-environment.glb',
     description: 'Tribün, pist çevresi, paddock alanı içeren hipodrom sahne modeli.',
-    fallbackBehavior: "RaceScene3D.tsx'teki mevcut instanced pist zemini + Environment preset (gün batımı) arka planı.",
+    fallbackBehavior:
+      "RaceScene3D.tsx'teki mevcut instanced pist zemini + Environment preset (gün batımı) arka planı.",
   },
   {
     id: 'START_GATE_MODEL_REQUIRED',
@@ -97,8 +124,61 @@ export const ASSET_MANIFEST: AssetRequirement[] = [
     kind: 'texture',
     format: 'ktx2',
     expectedPath: 'textures/crowd-billboard.ktx2',
-    description: 'Tribün kalabalığı için instanced billboard dokusu (brief §46 mobil kademe uyumlu, sıkıştırılmış KTX2).',
+    description:
+      'Tribün kalabalığı için instanced billboard dokusu (brief §46 mobil kademe uyumlu, sıkıştırılmış KTX2).',
     fallbackBehavior: 'Şu an tribünde görsel bir kalabalık YOK (Grup 2 kapsamı).',
+  },
+  // --- 01.10.2026: 3D varlık denetiminden eklenenler -----------------------
+  {
+    id: 'STABLE_ENVIRONMENT_REQUIRED',
+    kind: 'model_3d',
+    format: 'glb',
+    expectedPath: 'models/stable-environment.glb',
+    description:
+      'Ahır içi: bölme, saman, yemlik, su kabı, eyer/ekipman askısı; PBR ahşap/metal/taş.',
+    fallbackBehavior:
+      '3D ahır YOK — /stable kart arayüzü ve at önizlemesi (PLACEHOLDER rozetli) gösterilir.',
+  },
+  {
+    id: 'HDRI_SKY_REQUIRED',
+    kind: 'environment_map',
+    format: 'hdr',
+    expectedPath: 'hdri/golden-hour.hdr',
+    description:
+      'Gün batımı / altın saat gökyüzü HDRI (2K mobil, 4K masaüstü); kendi sitemizden servis edilir, CDN değil.',
+    fallbackBehavior: 'drei <Sky> + Lightformer ışıklar (TrackScenery.tsx `SkyAndLighting`).',
+  },
+  {
+    id: 'TRACK_DIRT_PBR_REQUIRED',
+    kind: 'texture',
+    format: 'ktx2',
+    expectedPath: 'textures/track-dirt-pbr.ktx2',
+    description: 'Kum/toprak pist PBR dokusu (renk + normal + pürüzlülük), döşenebilir.',
+    fallbackBehavior: 'Düz renkli standart malzeme (TrackScenery.tsx `DirtTrack`).',
+  },
+  {
+    id: 'GRASS_PBR_REQUIRED',
+    kind: 'texture',
+    format: 'ktx2',
+    expectedPath: 'textures/grass-pbr.ktx2',
+    description: 'Çim PBR dokusu (renk + normal + pürüzlülük), döşenebilir.',
+    fallbackBehavior: 'Düz renkli standart malzeme (TrackScenery.tsx `Grass`).',
+  },
+  {
+    id: 'STABLE_WOOD_PBR_REQUIRED',
+    kind: 'texture',
+    format: 'ktx2',
+    expectedPath: 'textures/stable-wood-pbr.ktx2',
+    description: 'Ahır ahşabı PBR dokusu (renk + normal + pürüzlülük).',
+    fallbackBehavior: 'Ahır sahnesi henüz yok; geldiğinde düz renkli malzemeye düşer.',
+  },
+  {
+    id: 'STABLE_AMBIENCE_SFX_REQUIRED',
+    kind: 'audio_sfx',
+    format: 'mp3',
+    expectedPath: 'audio/stable-ambience-loop.mp3',
+    description: 'Ahır ortam sesi döngüsü (saman, uzak kişneme, kuşlar).',
+    fallbackBehavior: "AudioManager'ın sessiz no-op modu.",
   },
   {
     id: 'HOOFBEAT_SFX_REQUIRED',
@@ -106,7 +186,8 @@ export const ASSET_MANIFEST: AssetRequirement[] = [
     format: 'mp3',
     expectedPath: 'audio/hoofbeat-loop.mp3',
     description: 'Nal sesi döngüsü (loop), hıza göre pitch/hacim ayarlanabilir.',
-    fallbackBehavior: "AudioManager'ın (bkz. `audio-manager.ts`) sessiz no-op modu — ses YOK ama hata da YOK.",
+    fallbackBehavior:
+      "AudioManager'ın (bkz. `audio-manager.ts`) sessiz no-op modu — ses YOK ama hata da YOK.",
   },
   {
     id: 'CROWD_AMBIENCE_SFX_REQUIRED',
@@ -139,7 +220,8 @@ export const ASSET_MANIFEST: AssetRequirement[] = [
     expectedPath: 'audio/commentary/',
     description:
       'Brief §31 "Commentary" soyutlaması için önceden kaydedilmiş/TTS anlatım klipleri (ör. "ve start veriliyor", "kafa kafaya bir bitiş!") — klasör, tekil dosya DEĞİL (birden çok klip beklenir).',
-    fallbackBehavior: "AudioManager'ın sessiz no-op modu — anlatım YOK, HUD metinsel açıklamalarla (`RaceExplanation`) yetinir.",
+    fallbackBehavior:
+      "AudioManager'ın sessiz no-op modu — anlatım YOK, HUD metinsel açıklamalarla (`RaceExplanation`) yetinir.",
   },
   // Faz 2/4 hata düzeltmesi (bu turda EKLENDİ) — brief §31'in "Architecture"
   // listesindeki 11 ses kategorisinden `audio-manager.ts`'in daha önce
@@ -218,7 +300,8 @@ export const ASSET_MANIFEST: AssetRequirement[] = [
     kind: 'audio_sfx',
     format: 'mp3',
     expectedPath: 'audio/crowd-cheering.mp3',
-    description: 'Kazanan kesinleştiği andaki kalabalık tezahürat patlaması, bir seferlik (döngüsüz) — `WINNER_CELEBRATION_SFX_REQUIRED` ile BİRLİKTE çalar.',
+    description:
+      'Kazanan kesinleştiği andaki kalabalık tezahürat patlaması, bir seferlik (döngüsüz) — `WINNER_CELEBRATION_SFX_REQUIRED` ile BİRLİKTE çalar.',
     fallbackBehavior: "AudioManager'ın sessiz no-op modu.",
   },
   {
@@ -235,7 +318,8 @@ export const ASSET_MANIFEST: AssetRequirement[] = [
     kind: 'audio_sfx',
     format: 'mp3',
     expectedPath: 'audio/horse-snort.mp3',
-    description: 'At burun/horlama sesi, bir seferlik (döngüsüz) — çağıranın (ör. gelecekteki rastgele/anlatımsal tetikleyici) kararıyla çalınır.',
+    description:
+      'At burun/horlama sesi, bir seferlik (döngüsüz) — çağıranın (ör. gelecekteki rastgele/anlatımsal tetikleyici) kararıyla çalınır.',
     fallbackBehavior: "AudioManager'ın sessiz no-op modu.",
   },
   {
@@ -251,7 +335,8 @@ export const ASSET_MANIFEST: AssetRequirement[] = [
     kind: 'audio_sfx',
     format: 'mp3',
     expectedPath: 'audio/horse-movement.mp3',
-    description: 'At vücudu/koşum takımı genel hareket sesi, bir seferlik (döngüsüz) — çağıranın kararıyla çalınır.',
+    description:
+      'At vücudu/koşum takımı genel hareket sesi, bir seferlik (döngüsüz) — çağıranın kararıyla çalınır.',
     fallbackBehavior: "AudioManager'ın sessiz no-op modu.",
   },
   {
@@ -259,15 +344,18 @@ export const ASSET_MANIFEST: AssetRequirement[] = [
     kind: 'audio_sfx',
     format: 'mp3',
     expectedPath: 'audio/hoof-grass-loop.mp3',
-    description: 'Çim (grass) pist yüzeyine özel nal sesi döngüsü — `RaceSurface` `"grass"` iken `HOOFBEAT_SFX_REQUIRED` YERİNE kullanılır (bkz. `startHoofbeats(surface)`).',
-    fallbackBehavior: "AudioManager'ın sessiz no-op modu; asset yoksa jenerik HOOFBEAT_SFX_REQUIRED'a DÜŞÜLMEZ (o da eksik) — sessiz kalır.",
+    description:
+      'Çim (grass) pist yüzeyine özel nal sesi döngüsü — `RaceSurface` `"grass"` iken `HOOFBEAT_SFX_REQUIRED` YERİNE kullanılır (bkz. `startHoofbeats(surface)`).',
+    fallbackBehavior:
+      "AudioManager'ın sessiz no-op modu; asset yoksa jenerik HOOFBEAT_SFX_REQUIRED'a DÜŞÜLMEZ (o da eksik) — sessiz kalır.",
   },
   {
     id: 'HOOF_DIRT_SFX_REQUIRED',
     kind: 'audio_sfx',
     format: 'mp3',
     expectedPath: 'audio/hoof-dirt-loop.mp3',
-    description: 'Toprak (dirt) pist yüzeyine özel nal sesi döngüsü — `RaceSurface` `"dirt"` iken kullanılır.',
+    description:
+      'Toprak (dirt) pist yüzeyine özel nal sesi döngüsü — `RaceSurface` `"dirt"` iken kullanılır.',
     fallbackBehavior: "AudioManager'ın sessiz no-op modu.",
   },
   {
@@ -275,7 +363,8 @@ export const ASSET_MANIFEST: AssetRequirement[] = [
     kind: 'audio_sfx',
     format: 'mp3',
     expectedPath: 'audio/hoof-synthetic-loop.mp3',
-    description: 'Sentetik pist yüzeyine özel nal sesi döngüsü — `RaceSurface` `"synthetic"` iken kullanılır.',
+    description:
+      'Sentetik pist yüzeyine özel nal sesi döngüsü — `RaceSurface` `"synthetic"` iken kullanılır.',
     fallbackBehavior: "AudioManager'ın sessiz no-op modu.",
   },
   // Proje sahibinin "başka notta eksik kalan ne var?" sorusu üzerine
@@ -290,7 +379,8 @@ export const ASSET_MANIFEST: AssetRequirement[] = [
     expectedPath: 'audio/hoof-turn-loop.mp3',
     description:
       'Pist virajındayken (`track-path.ts`in `isOnTrackTurn()` ZATEN VAR OLAN pist geometrisinden hesapladığı GERÇEK bir durum) çalınan nal sesi döngüsü — düz kısımlardaki yüzey bazlı nal sesinin (HOOF_GRASS/DIRT/SYNTHETIC) YERİNİ GEÇİCİ OLARAK alır (bkz. `setHoofbeatTurning`).',
-    fallbackBehavior: "AudioManager'ın sessiz no-op modu; asset yoksa düz kısım nal sesi (varsa) KESİNTİYE UĞRAMADAN çalmaya devam eder.",
+    fallbackBehavior:
+      "AudioManager'ın sessiz no-op modu; asset yoksa düz kısım nal sesi (varsa) KESİNTİYE UĞRAMADAN çalmaya devam eder.",
   },
   {
     id: 'PHOTO_FINISH_SFX_REQUIRED',
@@ -325,7 +415,8 @@ export const ASSET_MANIFEST: AssetRequirement[] = [
     expectedPath: 'audio/hoof-fast-layer-loop.mp3',
     description:
       'Hız oranı `AudioConfig.hoofFast.speedRatioThreshold`i aştığında, o an çalan yüzey/viraj nal sesinin (HOOF_GRASS/DIRT/SYNTHETIC/TURN) ÜZERİNE (onu durdurmadan) eklenen ek "dörtnala geçiş" doku katmanı (loop) — bkz. `updateHoofTempoLayer`.',
-    fallbackBehavior: "AudioManager'ın sessiz no-op modu; asset yoksa taban yüzey nal sesi KESİNTİYE UĞRAMADAN çalmaya devam eder (sadece ek katman duyulmaz).",
+    fallbackBehavior:
+      "AudioManager'ın sessiz no-op modu; asset yoksa taban yüzey nal sesi KESİNTİYE UĞRAMADAN çalmaya devam eder (sadece ek katman duyulmaz).",
   },
   {
     id: 'HOOF_SPRINT_SFX_REQUIRED',
@@ -334,7 +425,8 @@ export const ASSET_MANIFEST: AssetRequirement[] = [
     expectedPath: 'audio/hoof-sprint-layer-loop.mp3',
     description:
       'Hız oranı `AudioConfig.hoofSprint.speedRatioThreshold`i aştığında `HOOF_FAST_SFX_REQUIRED`in YERİNİ alan, daha yoğun "azami çaba" doku katmanı (loop) — `hoofFast`/`hoofSprint` katmanları AYNI ANDA ÇALMAZ (bkz. `updateHoofTempoLayer`).',
-    fallbackBehavior: "AudioManager'ın sessiz no-op modu; asset yoksa taban yüzey nal sesi KESİNTİYE UĞRAMADAN çalmaya devam eder.",
+    fallbackBehavior:
+      "AudioManager'ın sessiz no-op modu; asset yoksa taban yüzey nal sesi KESİNTİYE UĞRAMADAN çalmaya devam eder.",
   },
 ];
 
@@ -359,4 +451,25 @@ export function getAssetsByKind(kind: AssetKind): AssetRequirement[] {
 export function getMissingAssets(presentPaths: string[]): AssetRequirement[] {
   const presentSet = new Set(presentPaths);
   return ASSET_MANIFEST.filter((asset) => !presentSet.has(asset.expectedPath));
+}
+
+/**
+ * 01.10.2026 — GLB'deki gerçek klip adlarını manifest rollerine eşler
+ * (büyük/küçük harf duyarsız, manifestteki sıra öncelik sırasıdır).
+ * Eşleşmeyen rol `null` döner — çağıran prosedürel animasyona düşer.
+ */
+export function resolveAnimationClips(
+  asset: AssetRequirement,
+  clipNames: readonly string[],
+): Partial<Record<AnimationRole, string | null>> {
+  const byLower = new Map(clipNames.map((name) => [name.toLowerCase(), name]));
+  const result: Partial<Record<AnimationRole, string | null>> = {};
+  for (const [role, aliases] of Object.entries(asset.animationClips ?? {}) as Array<
+    [AnimationRole, string[]]
+  >) {
+    result[role] =
+      aliases.map((alias) => byLower.get(alias.toLowerCase())).find((name) => name !== undefined) ??
+      null;
+  }
+  return result;
 }

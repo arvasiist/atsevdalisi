@@ -22,9 +22,10 @@
  * 10 gereksiz istek oluşmasın diye.
  */
 
+import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
-import { Activity, BatteryMedium, Dumbbell, HeartPulse, Network, Smile, Zap } from 'lucide-react';
+import { Activity, BatteryMedium, Box, Dumbbell, HeartPulse, Network, Smile, Zap } from 'lucide-react';
 import type { HorsePedigreeView, PublicHorse, StableSummaryView, StableUpgradeResult } from '@at-sevdalisi/shared-types';
 import { GlassPanel } from '../../components/ui/GlassPanel';
 import { HorseHeadIcon } from '../../components/ui/HorseHeadIcon';
@@ -36,6 +37,16 @@ import { PedigreeTree } from '../../features/pedigree/PedigreeTree';
 import { apiClient } from '../../lib/api-client';
 import { formatCurrency, hasEnoughFunds } from '../../lib/currency';
 import { usePlayer } from '../../lib/player-context';
+
+/**
+ * 01.10.2026 — atın 3D önizlemesi. Tembel ve istemci tarafında yüklenir
+ * (three.js sunucuda çalışmaz); yalnızca düğmeye basılınca bağlanır —
+ * her kartta açık bir WebGL bağlamı tarayıcı sınırını aşardı.
+ */
+const HorseShowcase = dynamic(
+  () => import('../../features/horse-stage/HorseShowcase').then((mod) => mod.HorseShowcase),
+  { ssr: false, loading: () => <div style={{ height: 260, display: 'grid', placeItems: 'center', color: 'var(--color-text-muted)' }}>3D sahne yükleniyor…</div> },
+);
 
 export default function StablePage(): React.ReactElement {
   const { player, isLoading: isPlayerLoading, error: playerError, createPlayer, refresh } = usePlayer();
@@ -307,6 +318,7 @@ function HorseCard({ horse }: { horse: PublicHorse }): React.ReactElement {
   // otomatik istek atmak gereksiz yük olurdu).
   const [pedigree, setPedigree] = useState<HorsePedigreeView | null>(null);
   const [isPedigreeOpen, setIsPedigreeOpen] = useState(false);
+  const [isShowcaseOpen, setIsShowcaseOpen] = useState(false);
   const [pedigreeError, setPedigreeError] = useState<string | null>(null);
 
   const togglePedigree = useCallback(async (): Promise<void> => {
@@ -328,6 +340,7 @@ function HorseCard({ horse }: { horse: PublicHorse }): React.ReactElement {
 
   return (
     <GlassPanel style={{ padding: 0, overflow: 'hidden' }}>
+      {isShowcaseOpen ? <HorseShowcase horse={horse} /> : null}
       {/* Sahne bandı — CSS degrade + projeye özgü at silüeti (görsel dosyası YOK). */}
       <div className="horse-card-stage">
         <HorseHeadIcon size={150} gradient withMane className="horse-card-silhouette" />
@@ -360,6 +373,17 @@ function HorseCard({ horse }: { horse: PublicHorse }): React.ReactElement {
           Bakım
         </Link>
       </div>
+
+      <button
+        type="button"
+        onClick={() => setIsShowcaseOpen((open) => !open)}
+        className="btn-outline"
+        style={{ width: '100%', marginTop: 'var(--space-md)' }}
+        aria-pressed={isShowcaseOpen}
+      >
+        <Box size={16} aria-hidden="true" />
+        {isShowcaseOpen ? '3D Önizlemeyi Kapat' : '3D Önizle'}
+      </button>
 
       <div
         style={{

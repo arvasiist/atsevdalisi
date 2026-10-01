@@ -194,6 +194,21 @@ satırı); tek sefer kapısı `seasons.rewards_paid_at` KİLİT ALTINDA.
 Zamanlayıcı `NODE_ENV=test`te kapalı — e2e `tickNow(gelecekTarih)` ile
 sezon bitişini simüle eder. ⚠️ Ödül sırası ile ekrandaki sıra AYNI
 fonksiyondan (`SeasonUseCase.rankSeason`) çıkar; ayrı hesap yazma.
+(18) **3D VARLIK HATTI + OYUNCUNUN ATI (01.10.2026, migration 0051, §13.44)**
+— ⚠️ drei `useGLTF` Draco çözücüsünü VARSAYILAN olarak gstatic CDN'inden
+indirir; `GltfAssetLoader` artık yerel `/decoders/draco/` (+ KTX2 `/decoders/
+basis/`) kullanır. Çözücüler `apps/web/scripts/copy-3d-decoders.mjs` ile
+`three` paketinden kopyalanır (`predev`/`prebuild`, çıktı gitignore'lu).
+`useGLTF(path)` ÇIPLAK ÇAĞIRMA. Dosya yoksa yükleme denenmez (HEAD
+yoklaması) ve `PlaceholderBadge` "PLACEHOLDER" yazar — prosedürel görüntü
+asla "gerçekçi" diye sunulmaz. Animasyon klipleri ADA değil ROLE bağlanır
+(`resolveAnimationClips`). At görünüşü (`horses.coat_color/face_marking/
+leg_marking`) DB'dedir: başlangıç atı `deriveAppearance(id)`, tay
+`inheritAppearance` (config `horse-appearance.config.json`); sütun
+varsayılanı yalnızca eski satırlar/SQL fikstürleri içindir. Durum →
+davranış `horse-presence.config.json` (salt görsel); "stres" alanı yok,
+uydurulmadı. 3D önizleme `/stable` kartında DÜĞMEYLE açılır (her kartta
+Canvas = WebGL bağlam sınırı).
 
 **✅ ÜCRETLİ LOBİ YARIŞI ARTIK KOŞUYOR — ÖDÜL DAĞITIMI VAR (§13.14,
 28.09.2026).** `POST /races/:id/settle` yarışı koşar, ödülleri `top5`
