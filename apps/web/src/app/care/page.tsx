@@ -50,7 +50,14 @@ import { FEED_TYPE_LABELS } from '../../features/care/feed-labels';
 import { apiClient } from '../../lib/api-client';
 import { usePlayer } from '../../lib/player-context';
 
-const CARE_ACTION_TYPES: readonly CareActionType[] = ['groom', 'water', 'clean', 'vet', 'farrier', 'rest'];
+const CARE_ACTION_TYPES: readonly CareActionType[] = [
+  'groom',
+  'water',
+  'clean',
+  'vet',
+  'farrier',
+  'rest',
+];
 /**
  * Somut yem kalemleri (bu turda DEĞİŞTİ — önceden soyut besin türleriydi).
  * `apps/api/src/domain/care/validation.ts` `FEED_TYPES` ile BİREBİR aynı
@@ -226,9 +233,18 @@ export default function CarePage(): React.ReactElement {
 
   return (
     <main className="page-container">
-      <h1 style={{ fontSize: '24px', color: 'var(--color-text-primary)', marginBottom: '4px' }}>Bakım</h1>
-      <p style={{ color: 'var(--color-text-secondary)', marginTop: 0, marginBottom: 'var(--space-lg)' }}>
-        Bir at seç, bakım eylemi veya öğün ver — sağlık ve yaşamsal değerleri gerçek zamanlı güncellenir.
+      <h1 style={{ fontSize: '24px', color: 'var(--color-text-primary)', marginBottom: '4px' }}>
+        Bakım
+      </h1>
+      <p
+        style={{
+          color: 'var(--color-text-secondary)',
+          marginTop: 0,
+          marginBottom: 'var(--space-lg)',
+        }}
+      >
+        Bir at seç, bakım eylemi veya öğün ver — sağlık ve yaşamsal değerleri gerçek zamanlı
+        güncellenir.
       </p>
 
       {!player && !isPlayerLoading ? (
@@ -239,7 +255,9 @@ export default function CarePage(): React.ReactElement {
           <button type="button" onClick={() => void createPlayer()} style={primaryButtonStyle()}>
             Başlangıç Paketiyle Oyuncu Oluştur
           </button>
-          {playerError ? <p style={{ color: 'var(--color-status-critical)', marginBottom: 0 }}>{playerError}</p> : null}
+          {playerError ? (
+            <p style={{ color: 'var(--color-status-critical)', marginBottom: 0 }}>{playerError}</p>
+          ) : null}
         </GlassPanel>
       ) : null}
 
@@ -251,12 +269,17 @@ export default function CarePage(): React.ReactElement {
 
       {player && horses && horses.length === 0 ? (
         <GlassPanel style={{ textAlign: 'center', padding: 'var(--space-xl)' }}>
-          <p style={{ color: 'var(--color-text-secondary)', margin: 0 }}>Ahırında bakım yapılabilecek bir at bulunamıyor.</p>
+          <p style={{ color: 'var(--color-text-secondary)', margin: 0 }}>
+            Ahırında bakım yapılabilecek bir at bulunamıyor.
+          </p>
         </GlassPanel>
       ) : null}
 
       {player && horses && horses.length > 0 ? (
-        <div style={{ display: 'grid', gap: 'var(--space-lg)', gridTemplateColumns: 'minmax(0, 1fr)' }} className="care-grid">
+        <div
+          style={{ display: 'grid', gap: 'var(--space-lg)', gridTemplateColumns: 'minmax(0, 1fr)' }}
+          className="care-grid"
+        >
           <GlassPanel>
             <h2 style={sectionTitleStyle()}>At Seç</h2>
             <div style={{ display: 'grid', gap: '8px' }}>
@@ -269,8 +292,18 @@ export default function CarePage(): React.ReactElement {
                 >
                   <HorseAvatar horseId={horse.id} size={40} />
                   <div style={{ display: 'grid', gap: '2px', textAlign: 'left', flex: 1 }}>
-                    <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--color-text-primary)' }}>{horse.name}</span>
-                    <span style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>{horseStatusLabel(horse.status)}</span>
+                    <span
+                      style={{
+                        fontSize: '14px',
+                        fontWeight: 600,
+                        color: 'var(--color-text-primary)',
+                      }}
+                    >
+                      {horse.name}
+                    </span>
+                    <span style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>
+                      {horseStatusLabel(horse.status)}
+                    </span>
                   </div>
                 </button>
               ))}
@@ -292,11 +325,14 @@ export default function CarePage(): React.ReactElement {
 
             {selectedHorse && selectedHorse.status === 'injured' ? (
               <p style={{ color: 'var(--color-status-warning)', fontSize: '13px' }}>
-                Bu at sakat — Veteriner bakımı iyileşmeyi hızlandırabilir ve uygun eşikler karşılanırsa atı tekrar aktif duruma döndürebilir.
+                Bu at sakat — Veteriner bakımı iyileşmeyi hızlandırabilir ve uygun eşikler
+                karşılanırsa atı tekrar aktif duruma döndürebilir.
               </p>
             ) : null}
 
-            <div style={{ display: 'grid', gap: 'var(--space-sm)', marginBottom: 'var(--space-md)' }}>
+            <div
+              style={{ display: 'grid', gap: 'var(--space-sm)', marginBottom: 'var(--space-md)' }}
+            >
               <label style={labelStyle()}>Bakım Eylemi</label>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
                 {CARE_ACTION_TYPES.map((option) => (
@@ -314,7 +350,9 @@ export default function CarePage(): React.ReactElement {
               </div>
             </div>
 
-            <div style={{ display: 'grid', gap: 'var(--space-sm)', marginBottom: 'var(--space-lg)' }}>
+            <div
+              style={{ display: 'grid', gap: 'var(--space-sm)', marginBottom: 'var(--space-lg)' }}
+            >
               <label style={labelStyle()}>Besleme</label>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
                 {FEED_TYPES.map((option) => {
@@ -324,7 +362,9 @@ export default function CarePage(): React.ReactElement {
                   // daha dürüsttür. Günlük sınırda da aynı mantık.
                   const isOutOfStock = item !== null && item.stocked && (item.quantity ?? 0) <= 0;
                   const isLimitReached =
-                    item !== null && item.dailyLimit !== null && (item.fedInWindow ?? 0) >= item.dailyLimit;
+                    item !== null &&
+                    item.dailyLimit !== null &&
+                    (item.fedInWindow ?? 0) >= item.dailyLimit;
                   const isDisabled = !canAct || isOutOfStock || isLimitReached;
                   return (
                     <button
@@ -343,17 +383,37 @@ export default function CarePage(): React.ReactElement {
               </div>
             </div>
 
-            {isBusy ? <p style={{ color: 'var(--color-text-muted)', fontSize: '13px' }}>İşleniyor…</p> : null}
+            {isBusy ? (
+              <p style={{ color: 'var(--color-text-muted)', fontSize: '13px' }}>İşleniyor…</p>
+            ) : null}
 
             {message ? (
-              <p style={{ marginTop: 'var(--space-md)', color: messageIsError ? 'var(--color-status-critical)' : 'var(--color-text-primary)' }}>
+              <p
+                style={{
+                  marginTop: 'var(--space-md)',
+                  color: messageIsError
+                    ? 'var(--color-status-critical)'
+                    : 'var(--color-text-primary)',
+                }}
+              >
                 {message}
               </p>
             ) : null}
 
             {careResult ? (
-              <div style={{ marginTop: 'var(--space-md)', display: 'grid', gap: '4px', fontSize: '13px' }}>
-                {(Object.keys(careResult.newHealth) as Array<keyof PerformCareActionResult['newHealth']>).map((field) => (
+              <div
+                style={{
+                  marginTop: 'var(--space-md)',
+                  display: 'grid',
+                  gap: '4px',
+                  fontSize: '13px',
+                }}
+              >
+                {(
+                  Object.keys(careResult.newHealth) as Array<
+                    keyof PerformCareActionResult['newHealth']
+                  >
+                ).map((field) => (
                   <span key={field} style={{ color: 'var(--color-text-secondary)' }}>
                     {HEALTH_FIELD_LABELS[field]}: {Math.round(careResult.newHealth[field])}
                   </span>
@@ -363,15 +423,30 @@ export default function CarePage(): React.ReactElement {
                     Personel etkisi: +%{Math.round((careResult.staffMultiplier - 1) * 100)}
                   </span>
                 ) : null}
+                {careResult.farmMultiplier > 1 ? (
+                  <span style={{ color: 'var(--color-accent-gold)' }}>
+                    Padok etkisi: +%{Math.round((careResult.farmMultiplier - 1) * 100)}
+                  </span>
+                ) : null}
               </div>
             ) : null}
 
             {feedResult ? (
-              <div style={{ marginTop: 'var(--space-md)', display: 'grid', gap: '4px', fontSize: '13px' }}>
-                <span style={{ color: 'var(--color-status-positive)' }}>Enerji: {Math.round(feedResult.newVitals.energy)}</span>
+              <div
+                style={{
+                  marginTop: 'var(--space-md)',
+                  display: 'grid',
+                  gap: '4px',
+                  fontSize: '13px',
+                }}
+              >
+                <span style={{ color: 'var(--color-status-positive)' }}>
+                  Enerji: {Math.round(feedResult.newVitals.energy)}
+                </span>
                 {feedResult.remainingToday !== null ? (
                   <span style={{ color: 'var(--color-text-secondary)' }}>
-                    Bugün kalan {FEED_TYPE_LABELS[feedResult.feedType]} hakkı: {feedResult.remainingToday}
+                    Bugün kalan {FEED_TYPE_LABELS[feedResult.feedType]} hakkı:{' '}
+                    {feedResult.remainingToday}
                   </span>
                 ) : null}
                 {feedResult.stockAfter !== null ? (
@@ -408,6 +483,9 @@ function feedItemDetail(item: FeedStatusView['items'][number]): string {
   if (item.dailyLimit !== null) {
     parts.push(`bugün ${item.fedInWindow ?? 0}/${item.dailyLimit}`);
   }
+  if (item.price !== null && item.discountPercent > 0) {
+    parts.push(`depo indirimi %${item.discountPercent}`);
+  }
   return parts.join(' · ');
 }
 
@@ -422,7 +500,12 @@ function horseStatusLabel(status: PublicHorse['status']): string {
 }
 
 function sectionTitleStyle(): React.CSSProperties {
-  return { fontSize: '15px', color: 'var(--color-text-primary)', marginTop: 0, marginBottom: 'var(--space-md)' };
+  return {
+    fontSize: '15px',
+    color: 'var(--color-text-primary)',
+    marginTop: 0,
+    marginBottom: 'var(--space-md)',
+  };
 }
 
 function labelStyle(): React.CSSProperties {
@@ -453,8 +536,16 @@ function chipStyle(selected: boolean, disabled: boolean): React.CSSProperties {
     padding: '8px 14px',
     borderRadius: '999px',
     border: `1px solid ${selected ? 'var(--color-accent-gold)' : 'var(--color-border)'}`,
-    background: disabled ? 'var(--color-bg-surface-elevated)' : selected ? 'var(--color-accent-gold)' : 'transparent',
-    color: disabled ? 'var(--color-text-muted)' : selected ? '#1a1405' : 'var(--color-text-secondary)',
+    background: disabled
+      ? 'var(--color-bg-surface-elevated)'
+      : selected
+        ? 'var(--color-accent-gold)'
+        : 'transparent',
+    color: disabled
+      ? 'var(--color-text-muted)'
+      : selected
+        ? '#1a1405'
+        : 'var(--color-text-secondary)',
     fontSize: '13px',
     fontWeight: 600,
     cursor: disabled ? 'not-allowed' : 'pointer',

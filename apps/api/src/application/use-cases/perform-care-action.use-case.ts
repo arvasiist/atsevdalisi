@@ -4,9 +4,14 @@ import { HorseNotFoundError } from '../../domain/horse/errors';
 import { applyCareAction, canRecoverFromInjury } from '../../domain/care/care';
 import type { StaffRole } from '@at-sevdalisi/shared-types';
 import { ManageStaffUseCase } from './manage-staff.use-case';
+import { careActionFarmMultiplier } from '../../domain/farm/farm';
+import { FarmEffectsService } from './farm-effects.service';
 import { AppConfigService } from '../../infrastructure/config/config.service';
 import { CARE_LOG_REPOSITORY, type CareLogRepository } from '../ports/care-log.repository';
-import { HORSE_HEALTH_REPOSITORY, type HorseHealthRepository } from '../ports/horse-health.repository';
+import {
+  HORSE_HEALTH_REPOSITORY,
+  type HorseHealthRepository,
+} from '../ports/horse-health.repository';
 import { HORSE_REPOSITORY, type HorseRepository } from '../ports/horse.repository';
 
 /**
@@ -63,6 +68,7 @@ export class PerformCareActionUseCase {
     @Inject(CARE_LOG_REPOSITORY) private readonly careLogRepository: CareLogRepository,
     @Inject(AppConfigService) private readonly config: AppConfigService,
     @Inject(ManageStaffUseCase) private readonly staff: ManageStaffUseCase,
+    @Inject(FarmEffectsService) private readonly farmEffects: FarmEffectsService,
   ) {}
 
   async execute(horseId: string, actionType: CareActionType): Promise<PerformCareActionResult> {
@@ -85,7 +91,14 @@ export class PerformCareActionUseCase {
     // 01.10.2026 — personel etkisi: eylemin rolü (`staff.careActionRoles`) varsa
     // o roldeki en iyi ETKİN personelin çarpanı; yoksa 1 (nötr).
     const staffRole = this.config.staff.careActionRoles[actionType] as StaffRole | undefined;
-    const staffMultiplier = staffRole ? await this.staff.multiplierFor(horse.ownerId, staffRole, now) : 1;
+    const staffMultiplier = staffRole
+      ? await this.staff.multiplierFor(horse.ownerId, staffRole, now)
+      : 1;
+    // 01.10.2026 — çiftlik tesisi etkisi (padok → `rest`); personel çarpanıyla ÇARPILIR.
+    const farmMultiplier = careActionFarmMultiplier(
+      actionType,
+      await this.farmEffects.effectsFor(horse.ownerId),
+    );
 
     const lockResult = await this.horseRepository.updateWithLock(horseId, (lockedHorse) => {
       const vitals = {
@@ -103,12 +116,17 @@ export class PerformCareActionUseCase {
         health,
         lastPerformedAt,
         now,
-        staffMultiplier,
+        staffMultiplier * farmMultiplier,
       );
 
       const recoversFromInjury =
         lockedHorse.status === 'injured' &&
-        canRecoverFromInjury(this.config.care, actionType, result.vitals.health, result.health.injuryRisk);
+        canRecoverFromInjury(
+          this.config.care,
+          actionType,
+          result.vitals.health,
+          result.health.injuryRisk,
+        );
       const newStatus = recoversFromInjury ? 'active' : lockedHorse.status;
 
       const updatedHorse: Horse = {
@@ -146,6 +164,7 @@ export class PerformCareActionUseCase {
       newHealth: careResult.health,
       newStatus,
       staffMultiplier,
+      farmMultiplier,
     };
   }
 }

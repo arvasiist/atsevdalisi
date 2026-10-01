@@ -272,6 +272,16 @@ saf `computeCalendarSlotTimes`) SIRADAN lobi yarışı olarak açar
 sunucu da açamaz; program eklerken `race-calendar.spec.ts` bunu dener.
 Katılımsız geçmiş yarış iptal edilir, iptal edilen yuva YENİDEN AÇILMAZ.
 `GET /races` satırı `calendar: { programId } | null` taşır.
+(28) **ÇİFTLİK TESİSİ ETKİLERİ BAĞLANDI (01.10.2026, §13.54)** — eskiden
+yedi tesisten yalnızca personel binası işliyordu; oyuncu diğerlerine para
+ödüyor, hiçbir şey almıyordu. `computeFarmEffects` (saf) +
+`FarmEffectsService`: padok → `rest` bakımı, antrenman pisti × nalbant →
+antrenman sakatlık olasılığı, depo → yem TOPLAMI (`discountedTotal`, yukarı
+yuvarlama), üreme merkezi → doğum sağlık riski. ⚠️ **Veteriner merkezi
+ETKİSİZ** (bakım ücretsiz — düşürülecek maliyet yok): `farm.config.json` →
+`inactiveFacilities`, inşa 409 `FACILITY_INACTIVE`. Yeni tesis tipi
+eklersen ya bağla ya `inactiveFacilities`e koy — `farm.spec.ts` kapalı küme
+iddiasıyla kırılır.
 
 **✅ ÜCRETLİ LOBİ YARIŞI ARTIK KOŞUYOR — ÖDÜL DAĞITIMI VAR (§13.14,
 28.09.2026).** `POST /races/:id/settle` yarışı koşar, ödülleri `top5`

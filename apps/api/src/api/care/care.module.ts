@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { FarmModule } from '../farm/farm.module';
 import { StaffModule } from '../staff/staff.module';
 import { CARE_LOG_REPOSITORY } from '../../application/ports/care-log.repository';
 import { FEED_INVENTORY_REPOSITORY } from '../../application/ports/feed-inventory.repository';
@@ -47,7 +48,7 @@ import { CareController } from './care.controller';
  * dışındadır (bkz. `feed.module.ts`teki AYNI not).
  */
 @Module({
-  imports: [HorseModule, StaffModule],
+  imports: [HorseModule, StaffModule, FarmModule],
   controllers: [CareController],
   providers: [
     PerformCareActionUseCase,

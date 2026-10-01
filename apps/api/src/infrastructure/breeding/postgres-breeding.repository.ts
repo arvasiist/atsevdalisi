@@ -1,8 +1,20 @@
 import { Inject, Injectable } from '@nestjs/common';
 import type { Pool, PoolClient } from 'pg';
-import type { BreedingResultView, Horse, HorseCoatColor, Pedigree } from '@at-sevdalisi/shared-types';
-import type { BreedingRepository, ExecuteBreedingInput } from '../../application/ports/breeding.repository';
-import { breedHorses, calculateStudFee, type BreedingCandidate } from '../../domain/breeding/breeding';
+import type {
+  BreedingResultView,
+  Horse,
+  HorseCoatColor,
+  Pedigree,
+} from '@at-sevdalisi/shared-types';
+import type {
+  BreedingRepository,
+  ExecuteBreedingInput,
+} from '../../application/ports/breeding.repository';
+import {
+  breedHorses,
+  calculateStudFee,
+  type BreedingCandidate,
+} from '../../domain/breeding/breeding';
 import { BreedingHorseListedError, MareNotOwnedError } from '../../domain/breeding/errors';
 import { HorseNotFoundError } from '../../domain/horse/errors';
 import { calculateAgeInMonths } from '../../domain/horse/age-curve';
@@ -76,7 +88,11 @@ interface PlayerRow {
   stable_level: number;
 }
 
-function rowToCandidate(row: BreedableHorseRow, stats: Record<string, number>, now: Date): BreedingCandidate {
+function rowToCandidate(
+  row: BreedableHorseRow,
+  stats: Record<string, number>,
+  now: Date,
+): BreedingCandidate {
   return {
     id: row.id,
     gender: row.gender as BreedingCandidate['gender'],
@@ -239,7 +255,10 @@ export class PostgresBreedingRepository implements BreedingRepository {
         [input.playerId],
       );
       const horseCount = Number(horseCountResult.rows[0]?.count ?? '0');
-      assertCanAddHorseToStable(horseCount, getStableCapacity(payerRow.stable_level, this.config.stable));
+      assertCanAddHorseToStable(
+        horseCount,
+        getStableCapacity(payerRow.stable_level, this.config.stable),
+      );
 
       // ÜCRET — yalnızca AYGIR BAŞKASININSA. Kendi atlarını çiftleştiren
       // oyuncu kendine ödeme yapmaz (bkz. `BreedingResultView.fee` doc
@@ -248,9 +267,14 @@ export class PostgresBreedingRepository implements BreedingRepository {
       const fee = sameOwner ? 0 : calculateStudFee(stallion, this.config.genetics);
 
       const payerBalance = { money: Number(payerRow.money), gems: Number(payerRow.gems) };
-      const stallionOwnerBalance = { money: Number(stallionOwnerRow.money), gems: Number(stallionOwnerRow.gems) };
+      const stallionOwnerBalance = {
+        money: Number(stallionOwnerRow.money),
+        gems: Number(stallionOwnerRow.gems),
+      };
       const moved =
-        fee > 0 ? transfer(payerBalance, stallionOwnerBalance, fee, 'money') : { from: payerBalance, to: stallionOwnerBalance };
+        fee > 0
+          ? transfer(payerBalance, stallionOwnerBalance, fee, 'money')
+          : { from: payerBalance, to: stallionOwnerBalance };
 
       // DOMAIN — satırlar HÂLÂ kilitliyken, EN GÜNCEL değerlerle.
       // `NotEligibleForBreedingError` (yaş/cinsiyet/durum/cooldown) burada
@@ -267,6 +291,7 @@ export class PostgresBreedingRepository implements BreedingRepository {
           // SEED = pairId (bkz. `ExecuteBreedingInput` doc yorumu): kayıt
           // satırı elde olduğu sürece tayın statları yeniden üretilebilir.
           seed: input.pairId,
+          birthHealthRiskMultiplier: input.birthHealthRiskMultiplier,
         },
         this.config.genetics,
         this.config.horseGrowth,
@@ -274,18 +299,14 @@ export class PostgresBreedingRepository implements BreedingRepository {
 
       // ---- YAZMA ----
       if (fee > 0) {
-        await client.query('UPDATE players SET money = $2, gems = $3, updated_at = $4 WHERE id = $1', [
-          input.playerId,
-          moved.from.money,
-          moved.from.gems,
-          now,
-        ]);
-        await client.query('UPDATE players SET money = $2, gems = $3, updated_at = $4 WHERE id = $1', [
-          stallionOwnerId,
-          moved.to.money,
-          moved.to.gems,
-          now,
-        ]);
+        await client.query(
+          'UPDATE players SET money = $2, gems = $3, updated_at = $4 WHERE id = $1',
+          [input.playerId, moved.from.money, moved.from.gems, now],
+        );
+        await client.query(
+          'UPDATE players SET money = $2, gems = $3, updated_at = $4 WHERE id = $1',
+          [stallionOwnerId, moved.to.money, moved.to.gems, now],
+        );
       }
 
       const foal = this.buildFoal(input, result, mareRow.breed, now, {
@@ -366,7 +387,9 @@ export class PostgresBreedingRepository implements BreedingRepository {
         // şema/bağlantı seviyesinde beklenmedik bir durumdur. Sessizce devam
         // etmek, defter satırlarını `reference_id` olmadan yazardı
         // (`postgres-grandstand.repository.ts` ile AYNI not).
-        throw new Error(`Çiftleştirme kaydı yazılamadı (kısrak: ${input.mareId}, aygır: ${input.stallionId}).`);
+        throw new Error(
+          `Çiftleştirme kaydı yazılamadı (kısrak: ${input.mareId}, aygır: ${input.stallionId}).`,
+        );
       }
 
       // DEFTER — AYNI transaction'da İKİ satır. Damızlık ücreti bir
@@ -423,7 +446,12 @@ export class PostgresBreedingRepository implements BreedingRepository {
    */
   private buildFoal(
     input: ExecuteBreedingInput,
-    result: { foalQuality: number; foalPotential: number; foalWeightKg: number; foalPedigree: Pedigree },
+    result: {
+      foalQuality: number;
+      foalPotential: number;
+      foalWeightKg: number;
+      foalPedigree: Pedigree;
+    },
     breed: string,
     now: Date,
     parentCoats: { sireCoat: HorseCoatColor; damCoat: HorseCoatColor },
@@ -452,7 +480,12 @@ export class PostgresBreedingRepository implements BreedingRepository {
       sireId: input.stallionId,
       damId: input.mareId,
       // 01.10.2026 — don rengi ebeveynlerden kalıtılır (domain/horse/appearance.ts).
-      appearance: inheritAppearance(input.foalId, parentCoats.sireCoat, parentCoats.damCoat, this.config.horseAppearance),
+      appearance: inheritAppearance(
+        input.foalId,
+        parentCoats.sireCoat,
+        parentCoats.damCoat,
+        this.config.horseAppearance,
+      ),
       createdAt: now.toISOString(),
       updatedAt: now.toISOString(),
     };

@@ -729,6 +729,14 @@ export interface FarmConfig {
    * burada genel bir `Record<string, ...>` kullanılır.
    */
   facilities: Record<string, FacilityDefinition>;
+  /**
+   * 01.10.2026 — etkisi oyunda BAĞLANACAK bir yeri olmayan tesisler. Bunlar
+   * inşa edilemez/yükseltilemez (409 `FACILITY_INACTIVE`), ekranda "şu an
+   * etkisiz" görünür: oyuncuya işe yaramayan bir şey satılmaz. `vet_center`
+   * "tedavi maliyeti" düşürür ama bakım bugün ÜCRETSİZDİR — bakım ücretli
+   * olursa listeden çıkarılır ve etkisi bağlanır.
+   */
+  inactiveFacilities: string[];
   /** `staff_building` hiç inşa edilmemişken (level 0) bile geçerli olan taban personel kapasitesi. */
   baseStaffCapacityWithoutFacility: number;
 }

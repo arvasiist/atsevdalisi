@@ -100,6 +100,7 @@ export const ErrorCode = {
   NotEligibleForBreeding: 'NOT_ELIGIBLE_FOR_BREEDING',
   // Faz 4 — Çiftlik / Tesisler (domain/farm)
   MaxFacilityLevelReached: 'MAX_FACILITY_LEVEL_REACHED',
+  FacilityInactive: 'FACILITY_INACTIVE',
   StaffCapacityExceeded: 'STAFF_CAPACITY_EXCEEDED',
   // FAZ 1 wiring — Player (domain/player)
   UsernameAlreadyTaken: 'USERNAME_ALREADY_TAKEN',

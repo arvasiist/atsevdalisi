@@ -449,17 +449,17 @@ doğrulama ancak GitHub Actions'ta gerçek Postgres/Redis ile yapılabiliyor.
 | **OAuth kimlik bilgisi yok** | Kod tam (§13.38: Google düğmesi + bağlama); `GOOGLE_OAUTH_CLIENT_ID` boşken düğme gizlenir ve `POST /auth/login` `InvalidProviderTokenError` döner. Apple: istemci yok, ücretli üyelik bekliyor |
 | ~~Frontend'de gerçek giriş yok~~ | **KAPANDI** — `/account`: e-posta + şifre (§13.36), sıfırlama (§13.37), Google (§13.38), çıkış |
 | ~~**Yarış takvimi yok**~~ | **KAPANDI (01.10.2026, §13.53)** — sunucu config programıyla lobi yarışı açar |
-| **Matchmaking senkron** | `JoinMatchmakingQueueUseCase.playMatch` eşleşmeyi **HTTP isteği içinde** yapar. `@nestjs/schedule`/cron/worker YOK → arka plan işi yok |
+| **Matchmaking senkron** | `JoinMatchmakingQueueUseCase.playMatch` eşleşmeyi HTTP isteği içinde yapar; 30.09.2026'dan beri `MatchmakingScheduler` kuyruğu ayrıca tarar (§13.33). Projede artık beş zamanlayıcı var (kilit, turnuva, sezon, eşleştirme, takvim) |
 | **Pazar süresi dolması tembel** | `PostgresMarketListingRepository.sweepExpiredListings` — lazy sweep, zamanlanmış iş değil |
 | **Müzayede ilanı yok** | Yalnızca `fixed_price` |
 | ~~**Jokey bağlanmamış**~~ **KAPANDI (§13.30, PHASE 6.2, 29.09.2026)** | `calculateJockeySkillComposite` artık motora girer; `race_entries.jockey_id` kilit anında yazılır. **AÇIK KALAN:** `calculateJockeyHorseCompatibility` ve `domain/jockey/jockey.ts`'teki `calculateTemperamentComponent` hâlâ **çağıransız**; `gatePosition` hâlâ okunmuyor |
-| **Jokey serbest bırakma yolu yok** | Bir jokeyi attan ayıran uç nokta yok; `race_entries.jockey_id` yazılır ama geri alınmaz |
-| **Çiftlik/personel çarpanları bağlanmamış** | `domain/farm/farm.ts`'teki tüm `get*Multiplier` fonksiyonlarının çağıranı yok; `domain/staff/` tamamen bağlanmamış |
+| ~~**Jokey serbest bırakma yolu yok**~~ | **KAPANDI (29.09.2026)** — `POST /jockeys/:jockeyId/release` |
+| ~~**Çiftlik/personel çarpanları bağlanmamış**~~ | **KAPANDI (01.10.2026)** — personel §13.42, tesisler §13.54 (veteriner merkezi bilinçli etkisiz: bakım ücretsiz) |
 | ~~**Bağlanmamış domain modülleri**~~ | **KAPANDI (30.09–01.10.2026):** turnuva §13.35, kulüp §13.41, sezon §13.43, ilerleme §13.40, yetiştirme §13.4 — hepsi uç + ekranla bağlı |
 | ~~**Placeholder sayfalar**~~ | **KAPANDI** — `/club`, `/farm`, `/leaderboard` gerçek ekranlar |
 | **Bağlanmamış iskeletler** | ~~`RaceAudioManager`/`html-audio-backend`, `GltfAssetLoader`~~ **01.10.2026'da BAĞLANDI** (§13.46, §13.51); `PlayerDemoWidget.tsx` hiçbir sayfada mount edilmiyor. (**`DustParticles` ve `PedigreeTree` artık BAĞLI** — 27.09.2026, bkz. §13 ve §13.2) |
 | **PWA nominal** | `public/manifest.json` → `icons: []`, `layout.tsx`'ten link'lenmiyor, `next-pwa` yok |
-| **`notification.new`** | WebSocket olayı planlandı, uygulanmadı |
+| ~~**`notification.new`**~~ | **KAPANDI** — olay adı `notification.created` (`race.gateway.ts`), istemci `notification-socket.ts` dinler |
 
 ### 10.2 Yapılandırma tutarsızlıkları
 
@@ -3599,6 +3599,23 @@ testte). Lobi satırı `calendar.programId` taşır; `LobbyPanel` "Takvim
 yarışı" etiketi gösterir. Test: `race-calendar.spec.ts` (saf),
 `race-calendar.e2e-spec.ts` (4 senaryo; iptal adımı kapatılınca düştüğü
 doğrulandı), `race-calendar-scheduler.spec.ts` (`enabled` okunuyor).
+
+#### 13.54 ÇİFTLİK TESİSİ ETKİLERİ (01.10.2026)
+
+Bulgu: `domain/farm`taki altı çarpanın hiçbiri çağrılmıyordu; yalnızca
+personel binası (kapasite) işliyordu. Oyuncu 4.000–55.000 para ödeyip etkisiz
+tesis alıyordu — personeldeki "işe yaramayan şey satma" sorununun aynısı.
+Bağlandı: padok → `rest` bakım deltaları (`farmMultiplier` yanıtta), antrenman
+pisti × nalbant alanı → antrenman sakatlık olasılığı (kaydedilen risk de
+tesis sonrası değer), depo → yem satın alma TOPLAMI (`discountedTotal`:
+yukarı yuvarlama, kayan nokta artığı temizlenir; `totalCost` yanıtta ve
+defterde aynı; yem listesinde `discountPercent`), üreme merkezi → tayın doğum
+sağlık riski. **Veteriner merkezi bağlanamaz:** "tedavi maliyeti" düşürür
+ama bakım ücretsizdir → `inactiveFacilities`, inşa 409 `FACILITY_INACTIVE`,
+ekranda "şu an etkisiz". Bakım ücretli yapılırsa (sahibin kararı) listeden
+çıkarılıp bağlanır. Test: `farm.spec.ts` (+ kapalı küme), `breeding.spec.ts`,
+`farm-effects.e2e-spec.ts` (depo/padok/veteriner; depo ve padok bağlantısı
+kapatılınca düştüğü doğrulandı).
 
 ## 14. Kendime hatırlatmalar (kısa liste)
 

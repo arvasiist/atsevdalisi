@@ -2,11 +2,16 @@ import { Inject, Injectable } from '@nestjs/common';
 import type { BuyFeedResult, Player } from '@at-sevdalisi/shared-types';
 import { debit } from '../../domain/economy/wallet';
 import { getFeedPrice, isFeedStocked } from '../../domain/care/care';
+import { discountedTotal } from '../../domain/farm/farm';
+import { FarmEffectsService } from './farm-effects.service';
 import { FeedNotPurchasableError, InvalidFeedPurchaseCountError } from '../../domain/care/errors';
 import { parseFeedType } from '../../domain/care/validation';
 import { PlayerNotFoundError } from '../../domain/player/errors';
 import { AppConfigService } from '../../infrastructure/config/config.service';
-import { FEED_INVENTORY_REPOSITORY, type FeedInventoryRepository } from '../ports/feed-inventory.repository';
+import {
+  FEED_INVENTORY_REPOSITORY,
+  type FeedInventoryRepository,
+} from '../ports/feed-inventory.repository';
 
 /**
  * `POST /players/:id/feed-inventory/:type/buy` — bu turda EKLENDİ.
@@ -41,6 +46,7 @@ export class BuyFeedUseCase {
   constructor(
     @Inject(FEED_INVENTORY_REPOSITORY) private readonly feedRepository: FeedInventoryRepository,
     @Inject(AppConfigService) private readonly config: AppConfigService,
+    @Inject(FarmEffectsService) private readonly farmEffects: FarmEffectsService,
   ) {}
 
   async execute(playerId: string, rawFeedType: unknown, rawCount: unknown): Promise<BuyFeedResult> {
@@ -54,7 +60,9 @@ export class BuyFeedUseCase {
       throw new FeedNotPurchasableError(feedType);
     }
 
-    const total = price.amount * count;
+    // 01.10.2026 — depo indirimi TOPLAMA uygulanır, yukarı yuvarlanır (`discountedTotal`).
+    const { feedCostMultiplier } = await this.farmEffects.effectsFor(playerId);
+    const total = discountedTotal(price.amount, count, feedCostMultiplier);
 
     const result = await this.feedRepository.buyWithLock(
       playerId,
@@ -79,6 +87,7 @@ export class BuyFeedUseCase {
           newBalance,
           price: { currency: price.currency, amount: price.amount },
           purchasedCount: count,
+          totalCost: total,
         };
 
         return {
@@ -122,7 +131,12 @@ export class BuyFeedUseCase {
       return 1;
     }
     const { feedPurchaseMaxCount } = this.config.care;
-    if (typeof value !== 'number' || !Number.isInteger(value) || value < 1 || value > feedPurchaseMaxCount) {
+    if (
+      typeof value !== 'number' ||
+      !Number.isInteger(value) ||
+      value < 1 ||
+      value > feedPurchaseMaxCount
+    ) {
       throw new InvalidFeedPurchaseCountError(value, feedPurchaseMaxCount);
     }
     return value;

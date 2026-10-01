@@ -2,6 +2,10 @@ import { describe, expect, it } from 'vitest';
 import {
   assertCanHireMoreStaff,
   buildFacility,
+  careActionFarmMultiplier,
+  computeFarmEffects,
+  discountedTotal,
+  NEUTRAL_FARM_EFFECTS,
   canHireMoreStaff,
   getBreedingCenterHealthRiskMultiplier,
   getFarrierAreaInjuryRiskMultiplier,
@@ -18,7 +22,11 @@ import {
   summarizeFacility,
   upgradeFacility,
 } from '../../../src/domain/farm/farm';
-import { InvalidFacilityTypeError, MaxFacilityLevelReachedError, StaffCapacityExceededError } from '../../../src/domain/farm/errors';
+import {
+  InvalidFacilityTypeError,
+  MaxFacilityLevelReachedError,
+  StaffCapacityExceededError,
+} from '../../../src/domain/farm/errors';
 import { FACILITY_TYPES, parseFacilityType } from '../../../src/domain/farm/validation';
 import farmConfigJson from '../../../../../config/farm.config.json';
 import type { FarmConfig } from '@at-sevdalisi/game-config';
@@ -41,7 +49,9 @@ describe('getNextFacilityUpgradeCost', () => {
 
   it('tanımlı en yüksek seviyeye ulaşınca MaxFacilityLevelReachedError fırlatır', () => {
     const maxLevel = getMaxDefinedFacilityLevel('farrier_area', config);
-    expect(() => getNextFacilityUpgradeCost('farrier_area', maxLevel, config)).toThrow(MaxFacilityLevelReachedError);
+    expect(() => getNextFacilityUpgradeCost('farrier_area', maxLevel, config)).toThrow(
+      MaxFacilityLevelReachedError,
+    );
   });
 });
 
@@ -58,27 +68,38 @@ describe('getFacilityBonusValue', () => {
 
   it('tanımsız bir ara seviye için altındaki en yüksek tanımlı seviyenin değerini kullanır', () => {
     // warehouse maxLevel=2; 50 tanımlı değil, seviye 2'nin değeri kullanılmalı.
-    expect(getFacilityBonusValue('warehouse', 50, config)).toBe(getFacilityBonusValue('warehouse', 2, config));
+    expect(getFacilityBonusValue('warehouse', 50, config)).toBe(
+      getFacilityBonusValue('warehouse', 2, config),
+    );
   });
 });
 
 describe('buildFacility / upgradeFacility', () => {
   it('yeni bir tesisi level 1 olarak inşa eder', () => {
-    const { facility, cost } = buildFacility({ id: 'f1', ownerId: 'player-1', type: 'paddock' }, config);
+    const { facility, cost } = buildFacility(
+      { id: 'f1', ownerId: 'player-1', type: 'paddock' },
+      config,
+    );
     expect(facility.level).toBe(1);
     expect(facility.ownerId).toBe('player-1');
     expect(cost.nextLevel).toBe(1);
   });
 
   it('var olan bir tesisi bir seviye yükseltir', () => {
-    const { facility } = buildFacility({ id: 'f1', ownerId: 'player-1', type: 'vet_center' }, config);
+    const { facility } = buildFacility(
+      { id: 'f1', ownerId: 'player-1', type: 'training_track' },
+      config,
+    );
     const upgraded = upgradeFacility(facility, config, new Date('2026-02-01T00:00:00Z'));
     expect(upgraded.facility.level).toBe(2);
     expect(upgraded.cost.nextLevel).toBe(2);
   });
 
   it('en yüksek seviyedeki bir tesisi yükseltmeye çalışırsa hata fırlatır', () => {
-    let current = buildFacility({ id: 'f1', ownerId: 'player-1', type: 'farrier_area' }, config).facility;
+    let current = buildFacility(
+      { id: 'f1', ownerId: 'player-1', type: 'farrier_area' },
+      config,
+    ).facility;
     const maxLevel = getMaxDefinedFacilityLevel('farrier_area', config);
     while (current.level < maxLevel) {
       current = upgradeFacility(current, config).facility;
@@ -154,7 +175,9 @@ describe('getNextFacilityUpgradeOffer', () => {
     // Aynı girdiyle `getNextFacilityUpgradeCost` FIRLATIR: "tavanda" bir hata
     // değil normal bir DURUMDUR, bu yüzden ekranın try/catch yazması
     // gerekmesin diye ayrı bir fonksiyon vardır.
-    expect(() => getNextFacilityUpgradeCost('farrier_area', maxLevel, config)).toThrow(MaxFacilityLevelReachedError);
+    expect(() => getNextFacilityUpgradeCost('farrier_area', maxLevel, config)).toThrow(
+      MaxFacilityLevelReachedError,
+    );
   });
 
   it('her seviyede teklifin maliyeti getNextFacilityUpgradeCost ile BİREBİR aynıdır', () => {
@@ -181,6 +204,7 @@ describe('summarizeFacility / summarizeFacilities', () => {
       maxLevel: 2,
       bonusValue: 0,
       nextUpgrade: { nextLevel: 1, cost: { currency: 'money', amount: 4000 } },
+      isActive: true,
     });
   });
 
@@ -207,5 +231,80 @@ describe('parseFacilityType', () => {
     expect(() => parseFacilityType('greenhouse')).toThrow(InvalidFacilityTypeError);
     expect(() => parseFacilityType(42)).toThrow(InvalidFacilityTypeError);
     expect(() => parseFacilityType(undefined)).toThrow(InvalidFacilityTypeError);
+  });
+});
+
+describe('tesis etkileri oyuna bağlı (01.10.2026)', () => {
+  const levels = (entries: Array<[string, number]>) =>
+    new Map(entries) as ReadonlyMap<never, number>;
+
+  it('hiç tesis yoksa etkiler nötr', () => {
+    expect(computeFarmEffects(levels([]), config)).toEqual(NEUTRAL_FARM_EFFECTS);
+  });
+
+  it('her tesis kendi çarpanını config değerinden alır', () => {
+    const effects = computeFarmEffects(
+      levels([
+        ['paddock', 2],
+        ['training_track', 1],
+        ['farrier_area', 2],
+        ['warehouse', 2],
+        ['breeding_center', 3],
+      ]),
+      config,
+    );
+    expect(effects.restEffectMultiplier).toBe(getPaddockRecoveryMultiplier(2, config));
+    expect(effects.restEffectMultiplier).toBeGreaterThan(1);
+    // İki tesis aynı riske etki eder: çarpılır.
+    expect(effects.trainingInjuryRiskMultiplier).toBeCloseTo(
+      getTrainingTrackInjuryRiskMultiplier(1, config) *
+        getFarrierAreaInjuryRiskMultiplier(2, config),
+      12,
+    );
+    expect(effects.feedCostMultiplier).toBe(getWarehouseFeedCostMultiplier(2, config));
+    expect(effects.birthHealthRiskMultiplier).toBe(
+      getBreedingCenterHealthRiskMultiplier(3, config),
+    );
+  });
+
+  it('padok yalnızca `rest` eylemini güçlendirir', () => {
+    const effects = computeFarmEffects(levels([['paddock', 3]]), config);
+    expect(careActionFarmMultiplier('rest', effects)).toBe(effects.restEffectMultiplier);
+    expect(careActionFarmMultiplier('vet', effects)).toBe(1);
+  });
+
+  it('indirim TOPLAMA uygulanır, yukarı yuvarlanır, kayan nokta artığı bir birim eklemez', () => {
+    expect(discountedTotal(2, 10, 0.9)).toBe(18); // 18.000000000000004 → 19 OLMAMALI
+    expect(discountedTotal(2, 1, 0.95)).toBe(2); // bedava kalem yok
+    expect(discountedTotal(3, 7, 1)).toBe(21);
+  });
+
+  it('etkisiz tesis (`inactiveFacilities`) satılmaz ve eski seviyesi etki vermez', () => {
+    expect(config.inactiveFacilities).toContain('vet_center');
+    expect(() => buildFacility({ id: 'f', ownerId: 'p', type: 'vet_center' }, config)).toThrow(
+      /etkisi yok/,
+    );
+    const summary = summarizeFacility('vet_center', 1, config);
+    expect(summary.isActive).toBe(false);
+    expect(summary.nextUpgrade).toBeNull();
+    const inactiveConfig = { ...config, inactiveFacilities: ['warehouse'] };
+    expect(computeFarmEffects(levels([['warehouse', 2]]), inactiveConfig).feedCostMultiplier).toBe(
+      1,
+    );
+  });
+
+  it('etkisi bağlı olmayan HİÇBİR satılık tesis kalmadı (kapalı küme)', () => {
+    // Yeni bir tesis tipi eklenirse: ya `computeFarmEffects`e bağla ya `inactiveFacilities`e koy.
+    const wired = [
+      'paddock',
+      'training_track',
+      'farrier_area',
+      'warehouse',
+      'breeding_center',
+      'staff_building',
+    ];
+    for (const type of Object.keys(config.facilities)) {
+      expect(wired.includes(type) || config.inactiveFacilities.includes(type), type).toBe(true);
+    }
   });
 });

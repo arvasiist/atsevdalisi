@@ -42,13 +42,17 @@ describe('applyCareAction — groom (tımar)', () => {
 describe('cooldown kontrolü', () => {
   it('cooldown dolmadan tekrar eylem CareActionOnCooldownError fırlatır', () => {
     const now = new Date('2026-09-12T12:00:00Z');
-    expect(() => applyCareAction(config, 'groom', vitals, health, now, now)).toThrow(CareActionOnCooldownError);
+    expect(() => applyCareAction(config, 'groom', vitals, health, now, now)).toThrow(
+      CareActionOnCooldownError,
+    );
   });
 
   it('cooldown dolunca tekrar izin verir', () => {
     const now = new Date('2026-09-12T12:00:00Z');
     const later = new Date(now.getTime() + config.actions.groom.cooldownMinutes * 60 * 1000 + 1000);
-    expect(canPerformCareAction(now, later, config.actions.groom.cooldownMinutes).allowed).toBe(true);
+    expect(canPerformCareAction(now, later, config.actions.groom.cooldownMinutes).allowed).toBe(
+      true,
+    );
     expect(() => applyCareAction(config, 'groom', vitals, health, now, later)).not.toThrow();
   });
 });
@@ -96,12 +100,16 @@ describe('applyFeed (brief §12)', () => {
    * `arpa`'dan pahalıdır (3 > 2) ama enerji katkısı daha azdır — karşılığında
    * fitness verir. Bu, kalem seçiminin duruma göre anlamlı olmasını sağlar.
    */
-  it('mama, arpa\'dan pahalı olduğu hâlde enerji katkısı daha azdır (fitness verir)', () => {
-    expect(config.feedTypes.mama.price?.amount).toBeGreaterThan(config.feedTypes.arpa.price?.amount ?? 0);
+  it("mama, arpa'dan pahalı olduğu hâlde enerji katkısı daha azdır (fitness verir)", () => {
+    expect(config.feedTypes.mama.price?.amount).toBeGreaterThan(
+      config.feedTypes.arpa.price?.amount ?? 0,
+    );
     const arpa = applyFeed(config, 'arpa', vitals, health);
     const mama = applyFeed(config, 'mama', vitals, health);
     expect(mama.vitals.energy - vitals.energy).toBeLessThan(arpa.vitals.energy - vitals.energy);
-    expect(mama.vitals.fitness - vitals.fitness).toBeGreaterThan(arpa.vitals.fitness - vitals.fitness);
+    expect(mama.vitals.fitness - vitals.fitness).toBeGreaterThan(
+      arpa.vitals.fitness - vitals.fitness,
+    );
   });
 
   it('havuç enerji VERMEZ ama moral ve toparlanma verir', () => {
@@ -111,7 +119,7 @@ describe('applyFeed (brief §12)', () => {
     expect(result.health.recoveryRate).toBeGreaterThan(health.recoveryRate);
   });
 
-  it('saman energy artırır ve weightCondition\'a dokunmaz', () => {
+  it("saman energy artırır ve weightCondition'a dokunmaz", () => {
     const result = applyFeed(config, 'saman', vitals, health);
     expect(result.vitals.energy).toBeGreaterThan(vitals.energy);
     expect(result.health.weightCondition).toBe(health.weightCondition);
@@ -160,7 +168,7 @@ describe('maliyet/fiyat okuma', () => {
    * FARKLIDIR — 0, "bedava satın alınabilir" diye okunurdu ve `saman`'ın
    * günlük sınırını (at başına 3) anlamsız kılardı.
    */
-  it('saman\'ın fiyatı yoktur ve stoklanmaz', () => {
+  it("saman'ın fiyatı yoktur ve stoklanmaz", () => {
     expect(getFeedPrice(config, 'saman')).toBeUndefined();
     expect(isFeedStocked(config, 'saman')).toBe(false);
     expect(isFeedStocked(config, 'arpa')).toBe(true);
@@ -213,10 +221,12 @@ describe('evaluateFeedAllowance / assertFeedAllowance', () => {
   });
 
   it('assertFeedAllowance sınır dolduğunda DailyFeedLimitReachedError fırlatır', () => {
-    expect(() => assertFeedAllowance('saman', 3, 3, new Date('2026-09-27T10:00:00Z'), now, 24)).toThrow(
-      DailyFeedLimitReachedError,
-    );
-    expect(() => assertFeedAllowance('saman', 3, 2, new Date('2026-09-27T10:00:00Z'), now, 24)).not.toThrow();
+    expect(() =>
+      assertFeedAllowance('saman', 3, 3, new Date('2026-09-27T10:00:00Z'), now, 24),
+    ).toThrow(DailyFeedLimitReachedError);
+    expect(() =>
+      assertFeedAllowance('saman', 3, 2, new Date('2026-09-27T10:00:00Z'), now, 24),
+    ).not.toThrow();
   });
 });
 
@@ -234,7 +244,7 @@ describe('assertFeedStockAvailable', () => {
 
 /** Bu turda EKLENDİ — günlük hediye. */
 describe('günlük hediye (feedDailyGift)', () => {
-  it('config\'teki hediye kalemleri stoklanan kalemlerdir', () => {
+  it("config'teki hediye kalemleri stoklanan kalemlerdir", () => {
     expect(() => assertDailyGiftItemsAreStocked(config)).not.toThrow();
     const items = getDailyGiftItems(config);
     expect(items.length).toBeGreaterThan(0);
@@ -265,6 +275,7 @@ describe('buildFeedItemView', () => {
       dailyLimit: null,
       quantity: 5,
       fedInWindow: null,
+      discountPercent: 0,
     });
     // `saman` stoklanmaz → `quantity` 0 DEĞİL, null döner ("stok bitti"
     // diye okunmasın).
@@ -275,7 +286,12 @@ describe('buildFeedItemView', () => {
       dailyLimit: 3,
       quantity: null,
       fedInWindow: null,
+      discountPercent: 0,
     });
+  });
+
+  it('depo çarpanı yüzde olarak gösterilir (01.10.2026)', () => {
+    expect(buildFeedItemView(config, 'arpa', 0, null, 0.9).discountPercent).toBe(10);
   });
 
   it('fedInWindow yalnızca çağıran verdiyse dolar', () => {
@@ -347,10 +363,19 @@ describe('applyCareAction — personel çarpanı (01.10.2026)', () => {
 
     const boosted = applyCareAction(config, 'vet', vitals, health, null, now, 1.25);
     const vet = config.actions.vet;
-    expect(boosted.health.injuryRisk).toBeCloseTo(health.injuryRisk + (vet.injuryRiskDelta ?? 0) * 1.25, 10);
-    expect(boosted.health.recoveryRate).toBeCloseTo(health.recoveryRate + (vet.recoveryRateDelta ?? 0) * 1.25, 10);
+    expect(boosted.health.injuryRisk).toBeCloseTo(
+      health.injuryRisk + (vet.injuryRiskDelta ?? 0) * 1.25,
+      10,
+    );
+    expect(boosted.health.recoveryRate).toBeCloseTo(
+      health.recoveryRate + (vet.recoveryRateDelta ?? 0) * 1.25,
+      10,
+    );
 
     const groomed = applyCareAction(config, 'groom', vitals, health, null, now, 1.1);
-    expect(groomed.vitals.morale).toBeCloseTo(vitals.morale + (config.actions.groom.vitalDelta?.morale ?? 0) * 1.1, 10);
+    expect(groomed.vitals.morale).toBeCloseTo(
+      vitals.morale + (config.actions.groom.vitalDelta?.morale ?? 0) * 1.1,
+      10,
+    );
   });
 });

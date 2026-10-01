@@ -72,6 +72,8 @@ export interface ExecuteBreedingInput {
   foalGender: HorseGender;
   now: Date;
   idempotencyKey: string | null;
+  /** 01.10.2026 — kısrak sahibinin (çağıranın) üreme merkezi çarpanı; bkz. `BreedHorsesInput`. */
+  birthHealthRiskMultiplier: number;
 }
 
 /** NestJS DI için token (interface'ler runtime'da yok olduğundan bir Symbol gerekir). */

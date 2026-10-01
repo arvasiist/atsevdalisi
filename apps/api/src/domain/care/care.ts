@@ -13,7 +13,13 @@
 
 import { clamp } from '@at-sevdalisi/shared-types';
 import type { FeedItemView } from '@at-sevdalisi/shared-types';
-import type { CareActionEffect, CareActionType, CareConfig, FeedType, FeedTypeEffect } from '@at-sevdalisi/game-config';
+import type {
+  CareActionEffect,
+  CareActionType,
+  CareConfig,
+  FeedType,
+  FeedTypeEffect,
+} from '@at-sevdalisi/game-config';
 import { applyVitalDelta, type VitalSigns } from '../horse/vital-signs';
 import {
   CareActionOnCooldownError,
@@ -49,7 +55,9 @@ export function canPerformCareAction(
   }
   const elapsedMinutes = (now.getTime() - lastPerformedAt.getTime()) / (1000 * 60);
   const remaining = cooldownMinutes - elapsedMinutes;
-  return remaining <= 0 ? { allowed: true, remainingMinutes: 0 } : { allowed: false, remainingMinutes: Math.ceil(remaining) };
+  return remaining <= 0
+    ? { allowed: true, remainingMinutes: 0 }
+    : { allowed: false, remainingMinutes: Math.ceil(remaining) };
 }
 
 /**
@@ -164,7 +172,13 @@ export function assertFeedAllowance(
   now: Date,
   windowHours: number,
 ): FeedAllowance {
-  const allowance = evaluateFeedAllowance(dailyLimit, fedInWindow, oldestInWindowAt, now, windowHours);
+  const allowance = evaluateFeedAllowance(
+    dailyLimit,
+    fedInWindow,
+    oldestInWindowAt,
+    now,
+    windowHours,
+  );
   if (!allowance.allowed) {
     throw new DailyFeedLimitReachedError(feedType, dailyLimit ?? 0, allowance.remainingMinutes);
   }
@@ -205,7 +219,9 @@ export function assertFeedStockAvailable(
 export function assertDailyGiftItemsAreStocked(config: CareConfig): void {
   for (const [feedType, count] of Object.entries(config.feedDailyGift)) {
     if (count <= 0) {
-      throw new InvalidCareInputError(`Günlük hediye adedi pozitif olmalı: "${feedType}" → ${count}.`);
+      throw new InvalidCareInputError(
+        `Günlük hediye adedi pozitif olmalı: "${feedType}" → ${count}.`,
+      );
     }
     if (!isFeedStocked(config, feedType as FeedType)) {
       throw new InvalidCareInputError(
@@ -217,7 +233,10 @@ export function assertDailyGiftItemsAreStocked(config: CareConfig): void {
 
 /** `feedDailyGift` içeriğini (kalem, adet) çiftleri olarak döner. */
 export function getDailyGiftItems(config: CareConfig): { type: FeedType; count: number }[] {
-  return Object.entries(config.feedDailyGift).map(([type, count]) => ({ type: type as FeedType, count }));
+  return Object.entries(config.feedDailyGift).map(([type, count]) => ({
+    type: type as FeedType,
+    count,
+  }));
 }
 
 /**
@@ -236,6 +255,8 @@ export function buildFeedItemView(
   type: FeedType,
   quantity: number,
   fedInWindow: number | null,
+  /** 01.10.2026 — depo çarpanı (`FarmEffects.feedCostMultiplier`); 1 = indirimsiz. */
+  feedCostMultiplier = 1,
 ): FeedItemView {
   const stocked = isFeedStocked(config, type);
   const price = getFeedPrice(config, type);
@@ -249,6 +270,7 @@ export function buildFeedItemView(
     // ("stok bitti" diye okunurdu), bu yüzden `null` döner.
     quantity: stocked ? quantity : null,
     fedInWindow,
+    discountPercent: Math.round((1 - feedCostMultiplier) * 100),
   };
 }
 
@@ -274,7 +296,10 @@ export function canRecoverFromInjury(
   if (actionType !== injuryRecovery.action) {
     return false;
   }
-  return postCareVitalsHealth >= injuryRecovery.minHealth && postCareInjuryRisk <= injuryRecovery.maxInjuryRisk;
+  return (
+    postCareVitalsHealth >= injuryRecovery.minHealth &&
+    postCareInjuryRisk <= injuryRecovery.maxInjuryRisk
+  );
 }
 
 /**
@@ -309,8 +334,16 @@ export function applyCareAction(
     vitals: applyVitalDelta(vitals, vitalDelta ?? {}),
     health: {
       injuryRisk: clamp(health.injuryRisk + scale(effect.injuryRiskDelta), MIN_VALUE, MAX_VALUE),
-      recoveryRate: clamp(health.recoveryRate + scale(effect.recoveryRateDelta), MIN_VALUE, MAX_VALUE),
-      jointCondition: clamp(health.jointCondition + scale(effect.jointConditionDelta), MIN_VALUE, MAX_VALUE),
+      recoveryRate: clamp(
+        health.recoveryRate + scale(effect.recoveryRateDelta),
+        MIN_VALUE,
+        MAX_VALUE,
+      ),
+      jointCondition: clamp(
+        health.jointCondition + scale(effect.jointConditionDelta),
+        MIN_VALUE,
+        MAX_VALUE,
+      ),
       weightCondition: health.weightCondition,
     },
   };
@@ -337,9 +370,17 @@ export function applyFeed(
     vitals: applyVitalDelta(vitals, effect.vitalDelta ?? {}),
     health: {
       injuryRisk: health.injuryRisk,
-      recoveryRate: clamp(health.recoveryRate + (effect.recoveryRateDelta ?? 0), MIN_VALUE, MAX_VALUE),
+      recoveryRate: clamp(
+        health.recoveryRate + (effect.recoveryRateDelta ?? 0),
+        MIN_VALUE,
+        MAX_VALUE,
+      ),
       jointCondition: health.jointCondition,
-      weightCondition: clamp(health.weightCondition + (effect.weightConditionDelta ?? 0), MIN_VALUE, MAX_VALUE),
+      weightCondition: clamp(
+        health.weightCondition + (effect.weightConditionDelta ?? 0),
+        MIN_VALUE,
+        MAX_VALUE,
+      ),
     },
   };
 }
