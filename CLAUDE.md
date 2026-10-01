@@ -328,6 +328,15 @@ yoklar (`checkWaitingRace`); kesinleşince oynatma odanın tamamına başlar,
 iptalde `race.cancelled`. Boş oda yoklamayı durdurur. ⚠️ Yeni bir "yarış
 sürerken izle" yolu yazarken `pollForPlayback`/oturum önbelleği ayrımını
 koru — bitmemiş yarışa `createPlaybackSession` ÇAĞIRMA.
+(32) **CANLI TRİBÜN (01.10.2026, §13.58)** — kontrollü yarış koşarken
+`GET /races/:id/live/spectate` (yetki `GetRaceTimelineUseCase.assertCanWatch`
+— zaman çizelgesiyle AYNI kapı, ikinci kural YAZMA). Görünüm `role:
+'spectator'`: komut/sonuç yok, yalnızca GÖSTERİLMİŞ segmentler (tribün
+oyuncunun görmediğini göremez). `/races/:id/watch` yarış kilitlenene kadar
+5 sn'de bir yoklar, canlıyken `InteractiveRaceViewer`ı tribün modunda açar;
+"Tekrarı izle" soket oynatmasına döner. ⚠️ İzleme sayfası token'ı oturum
+yüklendikten SONRA okur (`usePlayer`) — eskiden ilk render'da okuyordu ve
+doğrudan açılan/yenilenen sayfa girişli oyuncuya "hesap oluştur" diyordu.
 
 **✅ ÜCRETLİ LOBİ YARIŞI ARTIK KOŞUYOR — ÖDÜL DAĞITIMI VAR (§13.14,
 28.09.2026).** `POST /races/:id/settle` yarışı koşar, ödülleri `top5`

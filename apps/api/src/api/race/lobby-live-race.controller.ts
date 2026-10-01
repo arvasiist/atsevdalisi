@@ -38,6 +38,15 @@ export class LobbyLiveRaceController {
     return { success: true, data: await this.useCase.view(player.id, raceId) };
   }
 
+  /** Canlı tribün (01.10.2026) — yetki zaman çizelgesiyle aynı (katılımcı / ücretsiz tribün / bilet). */
+  @Get(':id/live/spectate')
+  async spectate(
+    @Param('id', ParseUUIDPipe) raceId: string,
+    @CurrentPlayer() player: AuthenticatedPlayer,
+  ): Promise<ApiSuccess<InteractiveRaceView>> {
+    return { success: true, data: await this.useCase.spectate(player.id, raceId) };
+  }
+
   @Post(':id/live/commands')
   @HttpCode(HttpStatus.OK)
   @RateLimit({ name: 'lobby-live-command', limit: 600, windowSeconds: 60, keyBy: 'player' })

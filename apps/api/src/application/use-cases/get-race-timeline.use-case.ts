@@ -69,6 +69,17 @@ export class GetRaceTimelineUseCase {
       throw new RaceNotFoundError(raceId);
     }
 
+    await this.assertCanWatch(raceId, requestingPlayerId);
+
+    return timeline;
+  }
+
+  /**
+   * İzleme yetki kapısı (katılımcı VEYA ücretsiz tribün VEYA bilet). Kontrollü
+   * yarışın canlı tribün görünümü de (01.10.2026) AYNI kapıyı kullanır —
+   * ikinci bir yetki kuralı yazılmaz.
+   */
+  async assertCanWatch(raceId: string, requestingPlayerId: string): Promise<void> {
     const isParticipant = await this.raceRepository.isPlayerParticipant(raceId, requestingPlayerId);
     if (!isParticipant) {
       // Tribün sorgusu YALNIZCA katılımcı DEĞİLSE yapılır — katılımcı için
@@ -91,8 +102,6 @@ export class GetRaceTimelineUseCase {
         throw new RaceTicketRequiredError(raceId);
       }
     }
-
-    return timeline;
   }
 
   /**

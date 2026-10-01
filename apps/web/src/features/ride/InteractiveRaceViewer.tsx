@@ -30,6 +30,7 @@ import { useAudioMuted, useRaceAudio } from '../race-viewer/audio-vfx/use-race-a
 import { HORSE_VISUAL_HEIGHT_METERS, computeHorseVisualsAt } from '../race-viewer/RaceViewer';
 import {
   controlForKey,
+  finishOrder,
   latestStamina,
   pendingCommand,
   raceClockMs,
@@ -73,6 +74,13 @@ export const LOBBY_RIDE_SOURCE: RideSource = {
   finish: (raceId) => apiClient.finishLiveLobbyRace(raceId),
 };
 
+/** Canlı tribün (01.10.2026) — yalnızca izler; komut ve kesinleşme yok. */
+export const SPECTATOR_RIDE_SOURCE: RideSource = {
+  get: (raceId) => apiClient.getLiveLobbyRaceSpectate(raceId),
+  command: () => Promise.reject(new Error('Tribünden komut verilemez.')),
+  finish: () => Promise.reject(new Error('Tribünden yarış bitirilemez.')),
+};
+
 export interface InteractiveRaceViewerProps {
   initialView: InteractiveRaceView;
   horseName: string;
@@ -87,7 +95,14 @@ export function InteractiveRaceViewer({
   onClose,
   source,
 }: InteractiveRaceViewerProps): React.ReactElement {
-  const api = source ?? (initialView.kind === 'lobby' ? LOBBY_RIDE_SOURCE : PRACTICE_RIDE_SOURCE);
+  const spectator = initialView.role === 'spectator';
+  const api =
+    source ??
+    (spectator
+      ? SPECTATOR_RIDE_SOURCE
+      : initialView.kind === 'lobby'
+        ? LOBBY_RIDE_SOURCE
+        : PRACTICE_RIDE_SOURCE);
   const [view, setView] = useState(initialView);
   const offsetRef = useRef(serverClockOffsetMs(initialView.serverNow, Date.now()));
   const [raceTimeMs, setRaceTimeMs] = useState(() =>
@@ -247,8 +262,17 @@ export function InteractiveRaceViewer({
   const pending = pendingCommand(view);
   const stamina = latestStamina(view, clampedTime);
   const countdown = raceTimeMs < 0 ? Math.ceil(-raceTimeMs / view.timeScale / 1000) : null;
-  const canCommand = running && view.nextCommandSegment !== null;
+  const canCommand = !spectator && running && view.nextCommandSegment !== null;
   const outcome = view.outcome;
+  const nameOf = (label: string | undefined): string =>
+    view.entrants.find((entrant) => entrant.label === label)?.displayName ?? '—';
+  const leaderName = nameOf(leaderboard[0]?.horseId);
+  const lastSegmentMs = view.segments.reduce((max, segment) => Math.max(max, segment.timestampMs), 0);
+  const awaitingResult =
+    spectator &&
+    !finished &&
+    view.revealedSegments >= view.segmentCount &&
+    clampedTime >= lastSegmentMs;
 
   return (
     <div className="ride">
@@ -265,10 +289,17 @@ export function InteractiveRaceViewer({
       <div className="ride-top">
         <div className="ride-badge">
           <strong>{horseName}</strong>
-          <span>
-            {myRank !== null ? `${myRank}. sıra` : 'Kapıda'} · {Math.round(myPositionMeters)} /{' '}
-            {view.distanceMeters} m
-          </span>
+          {spectator ? (
+            <span>
+              Lider: {leaderName} · {Math.round(Math.min(view.distanceMeters, leaderPositionMeters))}{' '}
+              / {view.distanceMeters} m
+            </span>
+          ) : (
+            <span>
+              {myRank !== null ? `${myRank}. sıra` : 'Kapıda'} · {Math.round(myPositionMeters)} /{' '}
+              {view.distanceMeters} m
+            </span>
+          )}
           {stamina !== null ? (
             <div className="ride-stamina" aria-label={`Dayanıklılık ${Math.round(stamina)}`}>
               <div style={{ width: `${Math.max(0, Math.min(100, stamina))}%` }} />
@@ -294,7 +325,7 @@ export function InteractiveRaceViewer({
 
       {countdown !== null ? <div className="ride-countdown">{countdown}</div> : null}
 
-      {!finished ? (
+      {!finished && !spectator ? (
         <div className="ride-controls" role="group" aria-label="At kontrolleri">
           <button
             type="button"
@@ -364,7 +395,14 @@ export function InteractiveRaceViewer({
             Tamam
           </button>
         </div>
-      ) : finished ? null : view.canFinish ? (
+      ) : spectator && finished ? (
+        <div className="ride-result">
+          <h2>Kazanan: {nameOf(finishOrder(view)[0])}</h2>
+          <button type="button" className="btn-gold" onClick={onClose}>
+            Tekrarı izle
+          </button>
+        </div>
+      ) : finished ? null : view.canFinish || awaitingResult ? (
         <div className="ride-result">
           <p>Sonuç hesaplanıyor…</p>
         </div>

@@ -26,6 +26,7 @@ import {
   type LobbySettlementContext,
   type RaceRepository,
 } from '../ports/race.repository';
+import { GetRaceTimelineUseCase } from './get-race-timeline.use-case';
 import { SettleRaceUseCase } from './settle-race.use-case';
 
 /**
@@ -46,7 +47,28 @@ export class LobbyLiveRaceUseCase {
     @Inject(RACE_REPOSITORY) private readonly raceRepository: RaceRepository,
     @Inject(SettleRaceUseCase) private readonly settleRace: SettleRaceUseCase,
     @Inject(AppConfigService) private readonly config: AppConfigService,
+    @Inject(GetRaceTimelineUseCase) private readonly timeline: GetRaceTimelineUseCase,
   ) {}
+
+  /**
+   * CANLI TRİBÜN (01.10.2026) — kontrollü yarışı katılımcı olmayan da canlı
+   * izler. Yetki kapısı zaman çizelgesiyle AYNIDIR (`assertCanWatch`:
+   * katılımcı VEYA ücretsiz tribün VEYA bilet). Görünüm komut taşımaz ve
+   * yalnızca GÖSTERİLMİŞ segmentleri içerir (oyuncu görünümüyle aynı sınır —
+   * tribün, oyuncunun henüz görmediği bölümü göremez).
+   */
+  async spectate(playerId: string, raceId: string, now = new Date()): Promise<InteractiveRaceView> {
+    const context = await this.raceRepository.findLobbySettlementContext(raceId);
+    if (
+      context === null ||
+      !context.playerControl ||
+      (context.status !== 'locking' && context.status !== 'finished')
+    ) {
+      throw new InteractiveRaceNotFoundError(raceId);
+    }
+    await this.timeline.assertCanWatch(raceId, playerId);
+    return this.toView(context, null, now);
+  }
 
   async current(playerId: string, now = new Date()): Promise<InteractiveRaceView | null> {
     const raceId = await this.raceRepository.findLiveLobbyRaceIdForPlayer(playerId);
@@ -139,9 +161,10 @@ export class LobbyLiveRaceUseCase {
     return this.settleRace.buildRun(context.raceId, context, tournament === null, now);
   }
 
+  /** `playerId === null` → tribün görünümü (komut yok, sonuç kartı yok). */
   private async toView(
     context: LobbySettlementContext,
-    playerId: string,
+    playerId: string | null,
     now: Date,
   ): Promise<InteractiveRaceView> {
     const run = await this.buildRun(context, now);
@@ -158,7 +181,10 @@ export class LobbyLiveRaceUseCase {
           elapsed,
           this.config.interactiveRace.revealLeadMs,
         );
-    const me = context.entrants.find((entrant) => entrant.playerId === playerId)!;
+    const me =
+      playerId === null
+        ? null
+        : (context.entrants.find((entrant) => entrant.playerId === playerId) ?? null);
     const humanLabels = new Set(context.entrants.map((entrant) => entrant.horseId));
     let humanIndex = 0;
     let botIndex = 0;
@@ -166,7 +192,7 @@ export class LobbyLiveRaceUseCase {
       .map((entry) => entry.horseId)
       .sort()
       .map((label) => {
-        const isPlayer = label === me.horseId;
+        const isPlayer = me !== null && label === me.horseId;
         const displayName = isPlayer
           ? 'Senin atın'
           : humanLabels.has(label)
@@ -175,9 +201,10 @@ export class LobbyLiveRaceUseCase {
         return { label, displayName, isPlayer };
       });
 
-    const outcome = finished
-      ? await this.raceRepository.findLobbyOutcome(context.raceId, playerId)
-      : null;
+    const outcome =
+      finished && playerId !== null
+        ? await this.raceRepository.findLobbyOutcome(context.raceId, playerId)
+        : null;
     return {
       raceId: context.raceId,
       status: finished ? 'finished' : 'running',
@@ -189,12 +216,13 @@ export class LobbyLiveRaceUseCase {
       weather: context.weather as RaceWeather,
       segmentCount: total,
       revealedSegments: revealed,
-      nextCommandSegment: finished || revealed >= total ? null : revealed,
-      playerLabel: me.horseId,
+      nextCommandSegment: me === null || finished || revealed >= total ? null : revealed,
+      playerLabel: me?.horseId ?? '',
       entrants,
       segments: timeline.segments.slice(0, revealed * entryCount),
-      myCommands: me.playerCommands,
+      myCommands: me?.playerCommands ?? {},
       canFinish:
+        me !== null &&
         !finished && liveRemainingMs(context, timeline, now, this.config.interactiveRace) <= 0,
       result: null,
       outcome:
@@ -208,6 +236,7 @@ export class LobbyLiveRaceUseCase {
               ),
             },
       kind: 'lobby',
+      role: me === null ? 'spectator' : 'rider',
     };
   }
 }

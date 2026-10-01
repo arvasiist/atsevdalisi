@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { InteractiveRaceView, RaceSegmentSnapshot } from '@at-sevdalisi/shared-types';
 import {
   controlForKey,
+  finishOrder,
   latestStamina,
   pendingCommand,
   raceClockMs,
@@ -56,5 +57,13 @@ describe('kontrollü yarış ekran mantığı (01.10.2026)', () => {
     expect(latestStamina(view, 5_000)).toBe(90);
     expect(latestStamina(view, 15_000)).toBe(70);
     expect(latestStamina({ ...view, segments: [] }, 0)).toBeNull();
+  });
+
+  it('tribün bitiş sırası: son segment zamanı en küçük olan kazanır', () => {
+    const view = {
+      segments: [seg('a', 10_000, 90), seg('b', 9_000, 90), seg('a', 21_000, 50), seg('b', 20_500, 40)],
+    };
+    expect(finishOrder(view)).toEqual(['b', 'a']);
+    expect(finishOrder({ segments: [] })).toEqual([]);
   });
 });

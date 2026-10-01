@@ -41,10 +41,16 @@
  */
 
 import Link from 'next/link';
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import type { InteractiveRaceView } from '@at-sevdalisi/shared-types';
 import { GlassPanel } from '../../../../components/ui/GlassPanel';
 import { LiveRaceViewer } from '../../../../features/race-viewer/LiveRaceViewer';
-import { API_BASE_URL, getAuthToken } from '../../../../lib/api-client';
+import { InteractiveRaceViewer } from '../../../../features/ride/InteractiveRaceViewer';
+import { API_BASE_URL, ApiError, apiClient, getAuthToken } from '../../../../lib/api-client';
+import { usePlayer } from '../../../../lib/player-context';
+
+/** Kontrollü yarışın canlı tribününü arama aralığı (yarış kilitlenince açılır). */
+const LIVE_SPECTATE_POLL_MS = 5000;
 
 interface WatchRacePageProps {
   params: { raceId: string };
@@ -55,7 +61,57 @@ export default function WatchRacePage({ params }: WatchRacePageProps): React.Rea
   // `races/page.tsx`'teki AYNI desen: `getAuthToken()`'ın GERÇEK
   // sözleşmesi `null` dönebilir, bu yüzden `!` ile ZORLAMAK yerine açıkça
   // kontrol edilip dürüst bir durum gösterilir.
-  const authToken = useMemo(() => getAuthToken(), []);
+  // 01.10.2026 — token oturum yüklendikten SONRA okunur. Eskiden ilk
+  // render'da bir kez okunuyordu; sayfa doğrudan açılınca (yenileme, paylaşılan
+  // bağlantı) oturum henüz yüklenmemiş olduğundan girişli oyuncuya da "hesap
+  // oluştur" deniyordu.
+  const { player, isLoading } = usePlayer();
+  const authToken = useMemo(() => (player ? getAuthToken() : null), [player]);
+  // CANLI TRİBÜN (01.10.2026): kontrollü yarış koşarken sürüş ekranı tribün
+  // modunda açılır; yarış kilitlenene kadar yoklanır. Kapatılınca (ya da
+  // yarış kontrollü değilse) soket oynatması (`LiveRaceViewer`) gösterilir.
+  const [liveView, setLiveView] = useState<InteractiveRaceView | null>(null);
+  const [liveDismissed, setLiveDismissed] = useState(false);
+
+  useEffect(() => {
+    if (!authToken || liveDismissed || liveView !== null) return undefined;
+    let stopped = false;
+    const probe = (): void => {
+      apiClient
+        .getLiveLobbyRaceSpectate(raceId)
+        .then((view) => {
+          if (stopped) return;
+          if (view.status === 'running') {
+            setLiveView(view);
+          } else {
+            stopped = true; // bitmiş: tekrar oynatma soketten
+          }
+        })
+        .catch((cause: unknown) => {
+          // 403 (bilet yok) kalıcıdır; 404 yarış henüz kilitlenmemiş olabilir.
+          if (cause instanceof ApiError && cause.status === 403) stopped = true;
+        });
+    };
+    probe();
+    const timer = window.setInterval(() => {
+      if (!stopped) probe();
+    }, LIVE_SPECTATE_POLL_MS);
+    return () => {
+      stopped = true;
+      window.clearInterval(timer);
+    };
+  }, [authToken, raceId, liveDismissed, liveView]);
+
+  if (isLoading) {
+    return (
+      <main className="page-container">
+        <BackLink />
+        <GlassPanel style={{ textAlign: 'center', padding: 'var(--space-xl)', marginTop: 'var(--space-md)' }}>
+          <p style={{ color: 'var(--color-text-secondary)', margin: 0 }}>Oturum yükleniyor…</p>
+        </GlassPanel>
+      </main>
+    );
+  }
 
   if (!authToken) {
     return (
@@ -72,7 +128,17 @@ export default function WatchRacePage({ params }: WatchRacePageProps): React.Rea
 
   return (
     <main className="viewer-page" style={{ width: '100%', height: '100%', background: '#0b1220', position: 'relative' }}>
-      <div style={{ position: 'absolute', top: 'var(--space-sm)', left: 'var(--space-sm)', zIndex: 10 }}>
+      <div
+        style={{
+          position: 'absolute',
+          left: 'var(--space-sm)',
+          zIndex: 10,
+          // Canlı tribünde sol üst köşe sürüş rozetinindir.
+          ...(liveView !== null && !liveDismissed
+            ? { bottom: 'var(--space-sm)' }
+            : { top: 'var(--space-sm)' }),
+        }}
+      >
         <BackLink />
       </div>
       {/*
@@ -82,7 +148,16 @@ export default function WatchRacePage({ params }: WatchRacePageProps): React.Rea
         (`races/page.tsx`'teki 420px'lik kap ile AYNI gerekçe).
       */}
       <div style={{ width: '100%', height: '100%', minHeight: '520px', position: 'relative' }}>
-        <LiveRaceViewer key={raceId} apiBaseUrl={API_BASE_URL} token={authToken} raceId={raceId} />
+        {liveView !== null && !liveDismissed ? (
+          <InteractiveRaceViewer
+            key={liveView.raceId}
+            initialView={liveView}
+            horseName="Canlı Tribün"
+            onClose={() => setLiveDismissed(true)}
+          />
+        ) : (
+          <LiveRaceViewer key={raceId} apiBaseUrl={API_BASE_URL} token={authToken} raceId={raceId} />
+        )}
       </div>
     </main>
   );

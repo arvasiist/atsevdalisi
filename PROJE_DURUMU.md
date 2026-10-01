@@ -3684,8 +3684,30 @@ Karar: önce pratik yarış; kırbaç sınırsız, dayanıklılık bedelli.
   `race.cancelled`. İzleme ekranı iki durumu bir bildirimle gösterir.
 - **Kanıt:** `race-spectator-wait.e2e-spec.ts` (eski abonelik koduyla iki
   test de düşüyor; iptal senaryosu gerçek zamanlayıcıyla).
-- **Açık:** kontrollü yarış canlı koşarken tribün segmentleri ANINDA görmez
-  (kesinleşince oynatılır); canlı tribün akışı ayrı dilim.
+- **Açık:** ~~kontrollü yarış canlı koşarken tribün segmentleri ANINDA görmez~~
+  → §13.58.
+
+### 13.58 Canlı tribün — kontrollü yarışı izlemek (01.10.2026)
+
+- **Uç:** `GET /races/:id/live/spectate` → `LobbyLiveRaceUseCase.spectate`.
+  Kontrollü + `locking`/`finished` değilse 404; yetki `assertCanWatch`
+  (zaman çizelgesinden ÇIKARILDI, iki uç aynı kapıyı kullanır: katılımcı /
+  ücretsiz tribün / bilet → yoksa 403 `RACE_TICKET_REQUIRED`).
+- **Görünüm:** `InteractiveRaceView.role` (`rider` | `spectator`). Tribün
+  görünümü komut, `canFinish` ve sonuç taşımaz; segmentler oyuncunun
+  gördüğü sınırla AYNIDIR.
+- **Ekran:** `/races/:id/watch` canlı yarışta sürüş ekranını tribün modunda
+  açar (kontrol düğmesi yok, rozet lideri gösterir, sonda kazanan + "Tekrarı
+  izle"). Kazanan `finishOrder` (son segment zamanı) ile bulunur — bitişte
+  mesafe eşittir.
+- **Yan düzeltme:** izleme sayfası doğrudan açılınca girişli oyuncuya "hesap
+  oluştur" diyordu (token ilk render'da okunuyordu) → `usePlayer`.
+- **Kanıt:** `lobby-live-race.e2e-spec.ts` "CANLI TRİBÜN" (yetki kapısı
+  kaldırılınca düştüğü doğrulandı), web `ride-logic.spec` `finishOrder`.
+  Tarayıcıda: bekleme bildirimi → kilit → canlı tribün (kontrol yok) →
+  kazanan kartı → tekrar oynatma (aynı kazanan).
+- **Not:** her yoklama yarışı yeniden simüle eder (oyuncu görünümüyle aynı);
+  çok kalabalık tribünde önbellek gerekebilir.
 
 ## 14. Kendime hatırlatmalar (kısa liste)
 

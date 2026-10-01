@@ -750,6 +750,8 @@ export const apiClient = {
   /** 01.10.2026 — kontrollü LOBİ yarışı (çok oyunculu canlı koşu). */
   getCurrentLiveLobbyRace: () => request<InteractiveRaceView | null>('/races/live/current'),
   getLiveLobbyRace: (raceId: string) => request<InteractiveRaceView>(`/races/${raceId}/live`),
+  getLiveLobbyRaceSpectate: (raceId: string) =>
+    request<InteractiveRaceView>(`/races/${raceId}/live/spectate`),
   sendLiveLobbyControl: (raceId: string, control: PlayerControlInput) =>
     request<InteractiveRaceView>(`/races/${raceId}/live/commands`, {
       method: 'POST',

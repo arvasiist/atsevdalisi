@@ -289,6 +289,7 @@ export class InteractiveRaceUseCase {
               xpGained: record.result.xpGained.player,
             },
       kind: 'practice',
+      role: 'rider',
     };
   }
 }

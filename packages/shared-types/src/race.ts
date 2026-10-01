@@ -785,4 +785,9 @@ export interface InteractiveRaceView {
   outcome: { finishPosition: number; prizeWon: number; entryFee: number; xpGained: number } | null;
   /** 01.10.2026 — `practice` = tek oyunculu kontrollü pratik, `lobby` = çok oyunculu kontrollü lobi/turnuva. */
   kind: 'practice' | 'lobby';
+  /**
+   * 01.10.2026 — `rider`: atı süren oyuncu; `spectator`: kontrollü lobi
+   * yarışını tribünden canlı izleyen (komut yok, `playerLabel` boş).
+   */
+  role: 'rider' | 'spectator';
 }

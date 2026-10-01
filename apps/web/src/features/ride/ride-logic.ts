@@ -69,3 +69,21 @@ export function latestStamina(
   }
   return stamina;
 }
+
+/**
+ * Bitiş sırası (01.10.2026, tribün) — her atın SON segment zamanı onun bitiş
+ * süresidir; bitişte herkes aynı mesafede olduğundan sıra mesafeden çıkmaz.
+ * Yalnızca bitmiş (tüm segmentleri gösterilmiş) görünümde anlamlıdır.
+ */
+export function finishOrder(view: Pick<InteractiveRaceView, 'segments'>): string[] {
+  const finishMs = new Map<string, number>();
+  for (const segment of view.segments) {
+    finishMs.set(
+      segment.raceEntryId,
+      Math.max(finishMs.get(segment.raceEntryId) ?? 0, segment.timestampMs),
+    );
+  }
+  return [...finishMs.entries()]
+    .sort((a, b) => a[1] - b[1] || a[0].localeCompare(b[0]))
+    .map(([label]) => label);
+}

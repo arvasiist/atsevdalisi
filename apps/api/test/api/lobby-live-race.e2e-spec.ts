@@ -59,6 +59,7 @@ describe('Lobi yarışında oyuncu kontrolü (e2e)', () => {
   async function createRace(
     creator: RegisteredTestPlayer,
     playerControl?: boolean,
+    tribuneFee = 0,
   ): Promise<string> {
     const response = await http()
       .post(racesUrl)
@@ -73,7 +74,7 @@ describe('Lobi yarışında oyuncu kontrolü (e2e)', () => {
         surface: 'grass',
         weather: 'sunny',
         distanceMeters: 1600,
-        tribuneFee: 0,
+        tribuneFee,
         spectatorCapacity: 500,
         ...(playerControl === undefined ? {} : { playerControl }),
       })
@@ -287,6 +288,79 @@ describe('Lobi yarışında oyuncu kontrolü (e2e)', () => {
     const byHorse = new Map(decisions.rows.map((row) => [row.horse_id, row]));
     expect(byHorse.get(a.horseId)?.jockey_decision).toBe('push_for_finish');
     expect(byHorse.get(b.horseId)?.n).toBe(byHorse.get(a.horseId)?.n);
+  });
+
+  it('CANLI TRİBÜN: katılımcı olmayan izler (komutsuz, yalnızca gösterilmiş segmentler); bilet kapısı ve 404', async () => {
+    const rider = await player('Tribün Jokeyi');
+    const outsider = await player('Tribün Seyircisi');
+    const raceId = await createRace(rider, true);
+    await joinReady(rider, raceId);
+
+    // Kilitlenmemiş yarış canlı değildir.
+    await http()
+      .get(`${racesUrl}/${raceId}/live/spectate`)
+      .set('Authorization', outsider.authHeader)
+      .expect(404);
+    await lock(raceId);
+    await liveAgo(raceId, 20);
+
+    const riderView = await http()
+      .get(`${racesUrl}/${raceId}/live`)
+      .set('Authorization', rider.authHeader)
+      .expect(200);
+    const seen = await http()
+      .get(`${racesUrl}/${raceId}/live/spectate`)
+      .set('Authorization', outsider.authHeader)
+      .expect(200);
+    const view = seen.body.data;
+    expect(view.role).toBe('spectator');
+    expect(riderView.body.data.role).toBe('rider');
+    expect(view.playerLabel).toBe('');
+    expect(view.myCommands).toEqual({});
+    expect(view.nextCommandSegment).toBeNull();
+    expect(view.canFinish).toBe(false);
+    expect(view.entrants.some((entrant: { isPlayer: boolean }) => entrant.isPlayer)).toBe(false);
+    // Tribün, oyuncunun henüz görmediği bölümü göremez.
+    expect(view.revealedSegments).toBeGreaterThan(0);
+    expect(view.revealedSegments).toBeLessThan(view.segmentCount);
+    expect(view.revealedSegments).toBe(riderView.body.data.revealedSegments);
+    expect(view.segments).toHaveLength(view.revealedSegments * view.entrants.length);
+
+    // İzleyici komut veremez, yarışı bitiremez.
+    await http()
+      .post(`${racesUrl}/${raceId}/live/commands`)
+      .set('Authorization', outsider.authHeader)
+      .send({ control: 'whip' })
+      .expect(404);
+    await http()
+      .post(`${racesUrl}/${raceId}/live/finish`)
+      .set('Authorization', outsider.authHeader)
+      .expect(404);
+
+    // Ücretli tribün: biletsiz izleyici 403; katılımcı yine izler.
+    const paidOwner = await player('Ücretli Tribün');
+    const paidRaceId = await createRace(paidOwner, true, 25);
+    await joinReady(paidOwner, paidRaceId);
+    await lock(paidRaceId);
+    const denied = await http()
+      .get(`${racesUrl}/${paidRaceId}/live/spectate`)
+      .set('Authorization', outsider.authHeader)
+      .expect(403);
+    expect(denied.body.error.code).toBe('RACE_TICKET_REQUIRED');
+    await http()
+      .get(`${racesUrl}/${paidRaceId}/live/spectate`)
+      .set('Authorization', paidOwner.authHeader)
+      .expect(200);
+
+    // Kontrolsüz yarışın canlı tribünü yoktur.
+    const plainOwner = await player('Kontrolsüz Tribün');
+    const plainRaceId = await createRace(plainOwner);
+    await joinReady(plainOwner, plainRaceId);
+    await lock(plainRaceId);
+    await http()
+      .get(`${racesUrl}/${plainRaceId}/live/spectate`)
+      .set('Authorization', outsider.authHeader)
+      .expect(404);
   });
 
   it('playerControl verilmeyen yarış eskisi gibi: kilit turunda hemen kesinleşir', async () => {
