@@ -228,6 +228,14 @@ three.js İÇE AKTARMAZ (KTX2 `ktx2-loader.ts`te) — rozet ana pakete three
 manifest `binding` değişir. `npm run assets:check` dosyaları doğrular.
 ⚠️ Prosedürel jokey jokey-GLB yokken atın GÖVDE grubunda çizilir (dörtnalda
 birlikte sallanır) — ayrı çizmek kopukluk yaratır.
+(21) **HİPODROM + KALABALIK (3D adım 5, §13.47)** — `HippodromeSurroundings`
+yarış ve ana sayfanın ortak çevresi. Ortam GLB'si (`keepOrigin`) yalnızca
+tribün/kule/ağaçların YERİNİ alır; pist, korkuluk, çim HER ZAMAN oyunun
+(atların yolu `track-path.ts`e bağlı). Kalabalık heyecanı
+`computeCrowdExcitement` (`atmosphere.config.json`, final eşiği
+`camera.config.json` ile AYNI) → tribün kalkar/dalgalanır; `animationHz`
+seyreltmesi, `lodDistanceMeters` LOD, `densityByTier` kademe yoğunluğu.
+Salt sunum — sonuca etkisi YOK.
 
 **✅ ÜCRETLİ LOBİ YARIŞI ARTIK KOŞUYOR — ÖDÜL DAĞITIMI VAR (§13.14,
 28.09.2026).** `POST /races/:id/settle` yarışı koşar, ödülleri `top5`

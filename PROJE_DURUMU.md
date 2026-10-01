@@ -3505,6 +3505,21 @@ doğrulandı: model döndürüldü, 2.5 m'ye ölçeklendi, zemine oturdu, don re
 uygulandı, rozetten düştü. Kanıt: `model-binding.spec.ts` (10; sentetik GLB
 bellekte üretilir); web 34/472.
 
+#### 13.47 3D ADIM 5 — HİPODROM ORTAMI + TRİBÜN KALABALIĞI (01.10.2026)
+
+`HippodromeSurroundings` (yarış + ana sayfa): `hippodrome-environment.glb`
+varsa kendi koordinatıyla (manifest `keepOrigin`) yerleşir ve prosedürel
+tribün/kule/ağaçların yerini alır; pist/korkuluk/çim her durumda oyunun.
+Kalabalık artık yarışın gerçek ilerlemesine tepki verir:
+`computeCrowdExcitement` (öncesi sakin → koşu → final düzlüğü → bitiş
+coşkusu, sonra söner), `spectatorLift` (eşik üstünde ayağa kalkma +
+heyecanla büyüyen zıplama). Performans: güncelleme `animationHz` ile
+seyreltilir, kamera tribünden uzaksa durur (LOD), kalite kademesi koltuk
+yoğunluğunu düşürür (low %35). Kanıt: `race-atmosphere.spec.ts` (5);
+demo yarışta tarayıcıda doğrulandı. Billboard dokusu (`crowd-billboard.
+ktx2`) bu adımda BAĞLANMADI: dokunun atlas düzeni paket gelmeden
+bilinemez; kalabalık bugün instanced kutulardır (PLACEHOLDER).
+
 ## 14. Kendime hatırlatmalar (kısa liste)
 
 1. **Race Engine'e dokunmadan önce iki kez düşün.** Denetim onu "KEEP, dokunma"

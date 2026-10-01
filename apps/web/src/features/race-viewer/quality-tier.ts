@@ -80,7 +80,10 @@ const UNKNOWN_CORE_COUNT_FALLBACK = 4;
  * BİREBİR karşılığıdır.
  */
 export function classifyQualityTier(input: QualityTierClassificationInput): QualityTier {
-  const cores = input.hardwareConcurrencyCores > 0 ? input.hardwareConcurrencyCores : UNKNOWN_CORE_COUNT_FALLBACK;
+  const cores =
+    input.hardwareConcurrencyCores > 0
+      ? input.hardwareConcurrencyCores
+      : UNKNOWN_CORE_COUNT_FALLBACK;
 
   if (input.isMobileUserAgent) {
     if (cores <= MOBILE_LOW_MAX_CORES) {

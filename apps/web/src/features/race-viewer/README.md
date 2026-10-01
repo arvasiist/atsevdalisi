@@ -24,7 +24,7 @@ sahnesi + temel UI.
   dönüşümü.
 - **Oynatma mantığı** (`timeline-playback.ts`) — `RaceTimeline` segment
   kontrol noktaları arasında lineer ara değerleme (`apps/api/src/domain/
-  race/race-interpolation.ts`'in KASITLI bir kopyası — `apps/web`,
+race/race-interpolation.ts`'in KASITLI bir kopyası — `apps/web`,
   `apps/api/src/domain/*`'a bağımlı OLAMAZ, aynı gerekçe
   `packages/shared-types/src/race.ts`'teki `RaceJockeyDecision` tekrarı
   için de geçerlidir), canlı sıralama, oynatma saati ilerletme.
@@ -265,6 +265,7 @@ Toz tamamen prosedürel olduğundan ve hiçbir varlık dosyası GEREKTİRMEDİĞ
 bu bağlama, Faz 3'ün asset kararını BEKLEMEDEN yapılabildi.
 
 İki teknik ayrıntı kayda değer:
+
 1. `<DustParticles>`, `HorseMarker`'ın İÇİNE değil KARDEŞİ olarak konur
    (React `Fragment` ile). `DustParticles` parçacık konumlarını DÜNYA
    koordinatında yazar; `HorseMarker` ise kendi `<group>` transform'unu her
@@ -472,17 +473,18 @@ yüzden AYRI metotlarla modellendi:
 
 **Eklenen ses kanalları:** `AudioConfig.volumeChannels` (`master`/
 `music`/`sfx`/`crowd`/`commentary`/`horse`, `@at-sevdalisi/game-config`)
-+ `RaceAudioManager.setChannelVolume()`/`getChannelVolume()`. Her çalınan
-sesin NİHAİ hacmi `resolveVolume(channel, taban) = taban × kanal ×
+
+- `RaceAudioManager.setChannelVolume()`/`getChannelVolume()`. Her çalınan
+  sesin NİHAİ hacmi `resolveVolume(channel, taban) = taban × kanal ×
 master` olarak hesaplanır (`resolveVolume` private metodu) — TÜM
-varsayılan kanal değerleri `1` olduğundan bu değişiklik ÖNCEKİ
-davranışla (hiçbir kanal kısılmamışken TÜM sesler kendi taban hacminde
-çalar) BİREBİR AYNI sonucu üretir, geriye dönük UYUMLUDUR (bkz. aşağıdaki
-doğrulama). `setChannelVolume` çağrıldığında O AN çalan döngülü sesler
-(nal/nefes/kalabalık/rüzgar/müzik) `reapplyActiveLoopVolumes()` ile
-ANINDA yeniden hacimlendirilir — aksi halde bir ses ayarları
-kaydırıcısını yarış SIRASINDA hareket ettirmenin GÖZLENEBİLİR hiçbir
-etkisi olmazdı.
+  varsayılan kanal değerleri `1` olduğundan bu değişiklik ÖNCEKİ
+  davranışla (hiçbir kanal kısılmamışken TÜM sesler kendi taban hacminde
+  çalar) BİREBİR AYNI sonucu üretir, geriye dönük UYUMLUDUR (bkz. aşağıdaki
+  doğrulama). `setChannelVolume` çağrıldığında O AN çalan döngülü sesler
+  (nal/nefes/kalabalık/rüzgar/müzik) `reapplyActiveLoopVolumes()` ile
+  ANINDA yeniden hacimlendirilir — aksi halde bir ses ayarları
+  kaydırıcısını yarış SIRASINDA hareket ettirmenin GÖZLENEBİLİR hiçbir
+  etkisi olmazdı.
 
 **Yeni asset gereksinimleri** (`asset-manifest.ts` + `docs/ASSET_GUIDE.md`,
 İKİSİ DE elle senkron güncellendi, hiçbiri gerçek bir dosya İCAT ETMEZ):
@@ -548,8 +550,7 @@ kod+doküman işi):**
   Ayrıca `STADIUM_AMBIENT_SFX_REQUIRED` (crowd'dan BAĞIMSIZ, yapısal
   stadyum ortam sesi) `race_start`ta başlar, `stopAll`da durur.
 - **§21 "7 kanallı ses seviyeleri" (Master/Music/SFX/Horse/Crowd/
-  Environment/Commentary):** `AudioChannel`/`AudioConfig.volumeChannels`e
-  7. kanal olarak `environment` eklendi — `Wind` (daha önce YANLIŞLIKLA
+  Environment/Commentary):** `AudioChannel`/`AudioConfig.volumeChannels`e 7. kanal olarak `environment` eklendi — `Wind` (daha önce YANLIŞLIKLA
   `sfx` altındaydı) VE yeni `StadiumAmbient` bu kanala taşındı/bağlandı.
 - **§17 "Horse Snort/Neigh/Movement":** Race Engine bu vokalizasyonların
   TETİKLENME ANINI HENÜZ yaymadığından (rastgele/anlatımsal bir
@@ -590,16 +591,17 @@ olduğu NOT edildi — ileride yapılırsa FARKLI isimler (ör.
 
 **Doğrulama:** `RaceSurface` importu DAHİL, GERÇEK `tsc --noEmit` (0 hata,
 hem `apps/web/tsconfig.logic.json` hem `packages/game-config/tsconfig.json`)
-+ gerçek `tsx` ile ÇALIŞTIRILAN spec dosyaları: 44/44
-(`audio-manager.spec.ts`, 20 yeni test EKLENDİ) ve 29/29 (`config.spec.ts`,
-2 yeni test EKLENDİ) geçti. Bu doğrulama SIRASINDA yazılan bir testin
-YANLIŞ varsayımı (`environment` kanalı değiştiğinde `crowd`'a HİÇ
-`setVolume` çağrısı GİTMEZ sanılmıştı) gerçek çalıştırma İLE yakalandı —
-`reapplyActiveLoopVolumes` HER kanal değişikliğinde TÜM aktif loop'ları
-yeniden hesaplar (ÖNCEDEN de böyleydi, `master` testi zaten bunu
-doğruluyordu), bu yüzden test `crowd`'ın DEĞERİNİN değişmediğini
-doğrulayacak şekilde DÜZELTİLDİ — implementasyon DEĞİL, testin kendisi
-hatalıydı.
+
+- gerçek `tsx` ile ÇALIŞTIRILAN spec dosyaları: 44/44
+  (`audio-manager.spec.ts`, 20 yeni test EKLENDİ) ve 29/29 (`config.spec.ts`,
+  2 yeni test EKLENDİ) geçti. Bu doğrulama SIRASINDA yazılan bir testin
+  YANLIŞ varsayımı (`environment` kanalı değiştiğinde `crowd`'a HİÇ
+  `setVolume` çağrısı GİTMEZ sanılmıştı) gerçek çalıştırma İLE yakalandı —
+  `reapplyActiveLoopVolumes` HER kanal değişikliğinde TÜM aktif loop'ları
+  yeniden hesaplar (ÖNCEDEN de böyleydi, `master` testi zaten bunu
+  doğruluyordu), bu yüzden test `crowd`'ın DEĞERİNİN değişmediğini
+  doğrulayacak şekilde DÜZELTİLDİ — implementasyon DEĞİL, testin kendisi
+  hatalıydı.
 
 **Ek düzeltme (aynı gün, proje sahibinin "notu komple inceledin mi?"
 sorusu ÜZERİNE):** İlk geçiş SADECE ses granülaritesini (§17-21) ve
@@ -666,14 +668,15 @@ SESSİZCE ATLAMAK yerine AÇIKÇA belgeler — bu, "tamamlandı" ile
 
 **Doğrulama (üçüncü geçiş):** gerçek `tsc --noEmit` (0 hata, hem
 `apps/web/tsconfig.logic.json` hem `packages/game-config/tsconfig.json`)
-+ gerçek `tsx` ile çalıştırılan: `audio-manager.spec.ts` 56/56 (8 yeni
-test: 2 `photo_finish`, 6 `setHoofbeatTurning`), `track-path.spec.ts`
-20/20 (8 yeni `isOnTrackTurn` testi), `config.spec.ts` 30/30 (1 yeni
-`photoFinishVolume` testi). Bu doğrulama SIRASINDA yazılan bir testin
-YANLIŞ girdisi (`createStadiumTrackGeometry(0, 1000)`in `lapLengthMeters`i
-GERÇEKTEN 0 ÜRETMEDİĞİ — `turnRadiusMeters=1000` TEK BAŞINA ~6283m'lik
-bir viraj çevresi üretir) yine gerçek çalıştırmayla YAKALANDI ve
-`createStadiumTrackGeometry(0, 0)` OLARAK düzeltildi.
+
+- gerçek `tsx` ile çalıştırılan: `audio-manager.spec.ts` 56/56 (8 yeni
+  test: 2 `photo_finish`, 6 `setHoofbeatTurning`), `track-path.spec.ts`
+  20/20 (8 yeni `isOnTrackTurn` testi), `config.spec.ts` 30/30 (1 yeni
+  `photoFinishVolume` testi). Bu doğrulama SIRASINDA yazılan bir testin
+  YANLIŞ girdisi (`createStadiumTrackGeometry(0, 1000)`in `lapLengthMeters`i
+  GERÇEKTEN 0 ÜRETMEDİĞİ — `turnRadiusMeters=1000` TEK BAŞINA ~6283m'lik
+  bir viraj çevresi üretir) yine gerçek çalıştırmayla YAKALANDI ve
+  `createStadiumTrackGeometry(0, 0)` OLARAK düzeltildi.
 
 ## ÖNEMLİ — bu oturumdaki doğrulama kısıtı
 
@@ -712,7 +715,7 @@ SORULMUŞ olan §9 maddesi de bu YEŞİL IŞIK kapsamında sayılıp yapıldı:
 
 1. **`track-path.ts`**'e YENİ, SAF bir fonksiyon eklendi:
    `getOutwardBoundaryPoint(distanceMeters, turnCount, geometry,
-   offsetMeters)` — pist orta hattından pistin DIŞINA doğru (nümerik
+offsetMeters)` — pist orta hattından pistin DIŞINA doğru (nümerik
    teğet türevinden 90° döndürülmüş normal ile) offsetli bir nokta
    hesaplar. Düz kenarlarda VE virajlarda AYNI kod yoluyla çalışır,
    virajın kendi merkez noktasını AYRICA bilmeye GEREK DUYMAZ — yönü
@@ -727,7 +730,7 @@ SORULMUŞ olan §9 maddesi de bu YEŞİL IŞIK kapsamında sayılıp yapıldı:
 2. **`RaceScene3D.tsx`**'e `CrowdBillboards` bileşeni eklendi —
    `TrackSurface` ile AYNI desende (tek `InstancedMesh`) pistin
    çevresine 48 billboard yerleştirir. `CROWD_BILLBOARD_TEXTURE_
-   REQUIRED` HÂLÂ dokusuz (KTX2 transcoder pipeline'ı bu sandbox'ta
+REQUIRED` HÂLÂ dokusuz (KTX2 transcoder pipeline'ı bu sandbox'ta
    kurulamaz — bkz. `docs/ASSET_GUIDE.md`teki güncellenmiş girişi VE
    "Bilinçli olarak HENÜZ ele alınmayan" bölümündeki YENİ madde), bu
    yüzden düz renkli bir placeholder materyal kullanıldı — "tribünde
@@ -741,7 +744,7 @@ SORULMUŞ olan §9 maddesi de bu YEŞİL IŞIK kapsamında sayılıp yapıldı:
    `updateHoofbeatIntensity`nin ZATEN hesapladığı hız oranını iki
    eşikle karşılaştırıp kademeli bir ek doku katmanı yönetir). Üçüncü
    asset (`asset-manifest.ts`'e 3 yeni giriş: `START_GATE_AMBIENT_SFX_
-   REQUIRED`, `HOOF_FAST_SFX_REQUIRED`, `HOOF_SPRINT_SFX_REQUIRED`) ve
+REQUIRED`, `HOOF_FAST_SFX_REQUIRED`, `HOOF_SPRINT_SFX_REQUIRED`) ve
    `AudioConfig`e (`packages/game-config/src/types.ts`) karşılık gelen
    alanlar (`startGateAmbientVolume`, `hoofFast`, `hoofSprint`) eklendi.
    **NEDEN bunlar Tier 2 DEĞİL, Tier 1 oldu:** önceki turda "Race
@@ -758,15 +761,16 @@ SORULMUŞ olan §9 maddesi de bu YEŞİL IŞIK kapsamında sayılıp yapıldı:
 
 **Doğrulama (dördüncü geçiş):** gerçek `tsc --noEmit` (0 hata, hem
 `apps/web/tsconfig.logic.json` hem `packages/game-config/tsconfig.json`)
-+ gerçek `tsx` ile çalıştırılan: `track-path.spec.ts` 28/28 (8 yeni
-`getOutwardBoundaryPoint` testi), `audio-manager.spec.ts` 71/71 (15 yeni
-test: 7 `startGateAmbience`/`stopGateAmbience`, 8 hız-katmanlı nal
-sesi), `config.spec.ts` 33/33 (3 yeni test). `RaceScene3D.tsx`teki YENİ
-`CrowdBillboards` bileşeni, dosyanın GERİ KALANIYLA AYNI kısıta tabidir
-(bu sandbox'ta `three`/`@react-three/fiber` kurulu olmadığından SADECE
-`ts.transpileModule` ile sözdizimi kontrolü yapılabildi, hata YOK) —
-gerçek tip/davranış doğrulaması CI'dadır. Bir test hassasiyeti sorunu
-(`getOutwardBoundaryPoint`in viraj testlerinde nümerik teğet türevinin
-BEKLENEN küçük yaklaşıklık hatası, `toBeCloseTo` hassasiyeti 4'ten 3'e
-gevşetilerek — YANLIŞ implementasyon DEĞİL, ayrık örneklemenin doğal
-sonucu) yine gerçek çalıştırmayla YAKALANIP düzeltildi.
+
+- gerçek `tsx` ile çalıştırılan: `track-path.spec.ts` 28/28 (8 yeni
+  `getOutwardBoundaryPoint` testi), `audio-manager.spec.ts` 71/71 (15 yeni
+  test: 7 `startGateAmbience`/`stopGateAmbience`, 8 hız-katmanlı nal
+  sesi), `config.spec.ts` 33/33 (3 yeni test). `RaceScene3D.tsx`teki YENİ
+  `CrowdBillboards` bileşeni, dosyanın GERİ KALANIYLA AYNI kısıta tabidir
+  (bu sandbox'ta `three`/`@react-three/fiber` kurulu olmadığından SADECE
+  `ts.transpileModule` ile sözdizimi kontrolü yapılabildi, hata YOK) —
+  gerçek tip/davranış doğrulaması CI'dadır. Bir test hassasiyeti sorunu
+  (`getOutwardBoundaryPoint`in viraj testlerinde nümerik teğet türevinin
+  BEKLENEN küçük yaklaşıklık hatası, `toBeCloseTo` hassasiyeti 4'ten 3'e
+  gevşetilerek — YANLIŞ implementasyon DEĞİL, ayrık örneklemenin doğal
+  sonucu) yine gerçek çalıştırmayla YAKALANIP düzeltildi.

@@ -1722,3 +1722,29 @@ export interface HorsePresenceConfig {
   };
   moods: Record<'energetic' | 'neutral' | 'calm' | 'tired' | 'unwell' | 'injured', HorsePresenceMoodParams>;
 }
+
+/**
+ * 01.10.2026 — hipodrom atmosferi (salt GÖRSEL/İŞİTSEL; yarış sonucuna
+ * etkisi YOK). Kalabalık heyecanı 0..1: tribün hareketi ve (adım 9) kalabalık
+ * sesinin şiddeti aynı değerden beslenir.
+ */
+export interface AtmosphereConfig {
+  crowd: {
+    preRaceExcitement: number;
+    raceExcitement: number;
+    finalStretchExcitement: number;
+    finishExcitement: number;
+    /** Bitişten sonra coşkunun sürdüğü süre; sonra yarış seviyesine iner. */
+    finishCelebrationSeconds: number;
+    /** Kalabalık animasyonunun güncelleme sıklığı (performans). */
+    animationHz: number;
+    /** Heyecan 1 iken bir seyircinin en fazla zıplama yüksekliği. */
+    maxBobMeters: number;
+    /** Bu heyecanın üstünde seyirciler ayağa kalkar. */
+    standUpThreshold: number;
+    /** Kamera tribüne bundan uzaksa kalabalık animasyonu durur (LOD). */
+    lodDistanceMeters: number;
+    /** Kalite kademesine göre doldurulan koltuk oranı. */
+    densityByTier: Record<'low' | 'medium' | 'high' | 'ultra', number>;
+  };
+}

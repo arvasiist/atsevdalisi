@@ -74,9 +74,15 @@ export function computeCameraPose(mode: CameraMode, context: CameraContext): Cam
       const inwardZ = Math.cos(heading);
       return {
         position: {
-          x: leader.x + inwardX * BROADCAST_CAMERA_SIDE_OFFSET_METERS + forwardX * BROADCAST_CAMERA_AHEAD_OFFSET_METERS,
+          x:
+            leader.x +
+            inwardX * BROADCAST_CAMERA_SIDE_OFFSET_METERS +
+            forwardX * BROADCAST_CAMERA_AHEAD_OFFSET_METERS,
           y: BROADCAST_CAMERA_HEIGHT_METERS,
-          z: leader.z + inwardZ * BROADCAST_CAMERA_SIDE_OFFSET_METERS + forwardZ * BROADCAST_CAMERA_AHEAD_OFFSET_METERS,
+          z:
+            leader.z +
+            inwardZ * BROADCAST_CAMERA_SIDE_OFFSET_METERS +
+            forwardZ * BROADCAST_CAMERA_AHEAD_OFFSET_METERS,
         },
         lookAt: {
           x: leader.x - forwardX * BROADCAST_CAMERA_LOOK_BEHIND_METERS,
@@ -134,4 +140,9 @@ export const CAMERA_MODE_LABELS: Record<CameraMode, string> = {
   photo_finish: 'Fotofiniş',
 };
 
-export const CAMERA_MODE_ORDER: CameraMode[] = ['track', 'jockey', 'final_straight', 'photo_finish'];
+export const CAMERA_MODE_ORDER: CameraMode[] = [
+  'track',
+  'jockey',
+  'final_straight',
+  'photo_finish',
+];

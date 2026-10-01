@@ -75,7 +75,7 @@ import type {
   RaceRosterEntrant,
   RaceSegmentSnapshot,
 } from '@at-sevdalisi/shared-types';
-import { loadCameraConfig, loadChatConfig } from '@at-sevdalisi/game-config';
+import { loadAtmosphereConfig, loadCameraConfig, loadChatConfig } from '@at-sevdalisi/game-config';
 import {
   DEFAULT_LAP_LENGTH_METERS,
   DEFAULT_TURN_RADIUS_METERS,
@@ -92,6 +92,7 @@ import { buildPhotoFinishRows } from './photo-finish';
 import { projectToMiniMap } from './minimap-projection';
 import { getLiveLeaderboard, isAnyHorseBlockedAtTime } from './timeline-playback';
 import { RaceHud, type MiniMapMarker } from './RaceHud';
+import { computeCrowdExcitement, useSecondsSinceFinish } from './race-atmosphere';
 import type { HorseVisual } from './RaceScene3D';
 import {
   HORSE_VISUAL_HEIGHT_METERS,
@@ -122,6 +123,7 @@ const RaceScene3D = dynamic(
  * desen: modül kapsamında BİR KEZ yüklenir (bkz. o dosyanın doc yorumu).
  */
 const cameraConfig = loadCameraConfig();
+const ATMOSPHERE = loadAtmosphereConfig();
 
 /**
  * PHASE 7.3 (29.09.2026) — sohbet akışının istemci tavanı. `cameraConfig`
@@ -488,6 +490,21 @@ export function LiveRaceViewer({
   // olayı kullanılıyor).
   const isRaceFinished = finishedEntrants !== null;
   const leaderPositionMeters = leaderboard[0]?.positionMeters ?? 0;
+  // 01.10.2026 — kalabalık heyecanı (tribün hareketi; adım 9'da kalabalık sesi).
+  const secondsSinceFinish = useSecondsSinceFinish(
+    isRaceFinished,
+    ATMOSPHERE.crowd.finishCelebrationSeconds,
+  );
+  const crowdExcitement = computeCrowdExcitement(
+    {
+      leaderPositionMeters,
+      raceDistanceMeters,
+      finalStretchRemainingMeters: cameraConfig.finalStretchRemainingMeters,
+      isRaceFinished,
+      secondsSinceFinish,
+    },
+    ATMOSPHERE,
+  );
   const anyHorseBlocked = useMemo(
     () => isAnyHorseBlockedAtTime(segments, entryIds, hudTimeMs),
     [segments, entryIds, hudTimeMs],
@@ -571,7 +588,12 @@ export function LiveRaceViewer({
 
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%', minHeight: '480px' }}>
-      <RaceScene3D horses={horseVisuals} cameraPose={cameraPose} trackGeometry={trackGeometry} />
+      <RaceScene3D
+        horses={horseVisuals}
+        crowdExcitement={crowdExcitement}
+        cameraPose={cameraPose}
+        trackGeometry={trackGeometry}
+      />
       <RaceHud
         horseNamesById={horseNamesById}
         leaderboard={leaderboard}

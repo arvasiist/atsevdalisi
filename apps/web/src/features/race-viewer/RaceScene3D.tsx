@@ -89,16 +89,8 @@ import { Bloom, EffectComposer, SSAO } from '@react-three/postprocessing';
 import * as THREE from 'three';
 import { DustParticles } from './audio-vfx/DustParticles';
 import { HorseAvatar3D } from './HorseAvatar3D';
-import {
-  DirtTrack,
-  Grandstand,
-  Grass,
-  Rails,
-  SkyAndLighting,
-  TRACK_WIDTH_METERS,
-  TrackFurniture,
-  TreeLine,
-} from './TrackScenery';
+import { SkyAndLighting, TRACK_WIDTH_METERS } from './TrackScenery';
+import { HippodromeSurroundings } from './HippodromeSurroundings';
 import type { StadiumTrackGeometry } from './track-path';
 import type { CameraPose } from './camera-presets';
 import {
@@ -119,6 +111,8 @@ export interface HorseVisual {
 
 export interface RaceScene3DProps {
   horses: HorseVisual[];
+  /** 01.10.2026 — kalabalık heyecanı 0..1 (`race-atmosphere.ts`); tribün hareketi. */
+  crowdExcitement?: number;
   cameraPose: CameraPose;
   trackGeometry: StadiumTrackGeometry;
   /** Bkz. dosya başı doc yorumu "FAZ 4 (kalite kademeleri)". Verilmezse `detectQualityTier()` ile otomatik algılanır. */
@@ -161,6 +155,7 @@ function laneOffsetMeters(index: number, count: number): number {
 
 export function RaceScene3D({
   horses,
+  crowdExcitement = 0.35,
   cameraPose,
   trackGeometry,
   qualityTierOverride,
@@ -226,12 +221,11 @@ export function RaceScene3D({
         shadowsEnabled={settings.shadowsEnabled}
         shadowMapSize={settings.shadowMapSize}
       />
-      <Grass />
-      <DirtTrack geometry={trackGeometry} />
-      <Rails geometry={trackGeometry} />
-      <Grandstand geometry={trackGeometry} />
-      <TrackFurniture geometry={trackGeometry} />
-      <TreeLine geometry={trackGeometry} />
+      <HippodromeSurroundings
+        geometry={trackGeometry}
+        crowdExcitement={crowdExcitement}
+        qualityTier={settings.tier}
+      />
       {/*
        * `DustParticles` KASITLI OLARAK atın grubunun İÇİNE DEĞİL, YANINA
        * (kardeş düğüm) konur: parçacıklar DÜNYA koordinatında yazılır; iç

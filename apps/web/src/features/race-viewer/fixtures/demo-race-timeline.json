@@ -686,12 +686,8 @@
     "explanations": [
       {
         "horseId": "simsek",
-        "positives": [
-          "Yarış boyunca hiç bloklanmadan temiz bir koşu çıkardı."
-        ],
-        "negatives": [
-          "Yarış sırasında enerjisi tamamen tükendi, son bölümde performansı düştü."
-        ]
+        "positives": ["Yarış boyunca hiç bloklanmadan temiz bir koşu çıkardı."],
+        "negatives": ["Yarış sırasında enerjisi tamamen tükendi, son bölümde performansı düştü."]
       },
       {
         "horseId": "karayel",
@@ -699,15 +695,11 @@
           "Yarışın başında 5. sıradayken, bitişte 2. sıraya yükseldi.",
           "Yarış boyunca hiç bloklanmadan temiz bir koşu çıkardı."
         ],
-        "negatives": [
-          "Yarış sırasında enerjisi tamamen tükendi, son bölümde performansı düştü."
-        ]
+        "negatives": ["Yarış sırasında enerjisi tamamen tükendi, son bölümde performansı düştü."]
       },
       {
         "horseId": "firtina",
-        "positives": [
-          "Yarış boyunca hiç bloklanmadan temiz bir koşu çıkardı."
-        ],
+        "positives": ["Yarış boyunca hiç bloklanmadan temiz bir koşu çıkardı."],
         "negatives": [
           "Yarışın başında 2. sıradayken, bitişte 3. sıraya düştü.",
           "Yarış sırasında enerjisi tamamen tükendi, son bölümde performansı düştü."

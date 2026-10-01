@@ -110,7 +110,11 @@ export interface DustParticlesProps {
   isMoving: boolean;
 }
 
-export function DustParticles({ horseId, emitterPosition, isMoving }: DustParticlesProps): React.ReactElement {
+export function DustParticles({
+  horseId,
+  emitterPosition,
+  isMoving,
+}: DustParticlesProps): React.ReactElement {
   const particlesRef = useRef<SeededDustParticle[]>([]);
   const spawnCounterRef = useRef(0);
   const accumulatedMsRef = useRef(0);
@@ -118,8 +122,14 @@ export function DustParticles({ horseId, emitterPosition, isMoving }: DustPartic
 
   const geometry = useMemo(() => {
     const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(MAX_ACTIVE_PARTICLES * 3), 3));
-    geo.setAttribute('opacity', new THREE.BufferAttribute(new Float32Array(MAX_ACTIVE_PARTICLES), 1));
+    geo.setAttribute(
+      'position',
+      new THREE.BufferAttribute(new Float32Array(MAX_ACTIVE_PARTICLES * 3), 3),
+    );
+    geo.setAttribute(
+      'opacity',
+      new THREE.BufferAttribute(new Float32Array(MAX_ACTIVE_PARTICLES), 1),
+    );
     return geo;
   }, []);
 
@@ -157,11 +167,17 @@ export function DustParticles({ horseId, emitterPosition, isMoving }: DustPartic
     if (isMoving) {
       accumulatedMsRef.current += deltaMs;
       const spawnIntervalMs = 1000 / vfxConfig.dustParticles.spawnRatePerSecond;
-      while (accumulatedMsRef.current >= spawnIntervalMs && advanced.length < MAX_ACTIVE_PARTICLES) {
+      while (
+        accumulatedMsRef.current >= spawnIntervalMs &&
+        advanced.length < MAX_ACTIVE_PARTICLES
+      ) {
         accumulatedMsRef.current -= spawnIntervalMs;
         spawnCounterRef.current += 1;
         const seed = `${horseId}:${spawnCounterRef.current}`;
-        advanced.push({ particle: spawnDustParticle(emitterPosition.x, emitterPosition.z, seed, vfxConfig), seed });
+        advanced.push({
+          particle: spawnDustParticle(emitterPosition.x, emitterPosition.z, seed, vfxConfig),
+          seed,
+        });
       }
     }
 

@@ -18,6 +18,9 @@
  */
 
 import { useEffect, useMemo, useRef } from 'react';
+import { useFrame } from '@react-three/fiber';
+import { loadAtmosphereConfig } from '@at-sevdalisi/game-config';
+import { keepSpectator, spectatorLift } from './race-atmosphere';
 import { Environment, Lightformer, Sky } from '@react-three/drei';
 import * as THREE from 'three';
 import {
@@ -27,6 +30,7 @@ import {
 } from './track-path';
 
 export const TRACK_WIDTH_METERS = 20;
+const ATMOSPHERE = loadAtmosphereConfig();
 const TRACK_TURN_COUNT_FOR_VISUAL = 2;
 const TRACK_SAMPLES = 320;
 const RAIL_HEIGHT_METERS = 1.1;
@@ -260,20 +264,31 @@ const CROWD_COLORS = [
  */
 export function Grandstand({
   geometry,
+  excitement = ATMOSPHERE.crowd.preRaceExcitement,
+  density = 1,
 }: {
   geometry: StadiumTrackGeometry;
+  /**
+   * 01.10.2026 — kalabalık heyecanı 0..1 (`race-atmosphere.ts`). Seyirciler
+   * eşiğin üstünde ayağa kalkar ve heyecanla orantılı dalgalanır.
+   */
+  excitement?: number;
+  /** Doldurulan koltuk oranı (kalite kademesi, `atmosphere.config.json`). */
+  density?: number;
 }): React.ReactElement | null {
   const layout = useMemo(() => {
     if (geometry.lapLengthMeters <= 0) return null;
     const length = Math.min(geometry.straightLengthMeters * 0.75, 520);
     const frontZ = -geometry.turnRadiusMeters - TRACK_WIDTH_METERS / 2 - 14;
     const seatsPerRow = Math.floor(length / STAND_SEAT_SPACING);
-    const crowd: Array<{ x: number; y: number; z: number; color: number }> = [];
+    const crowd: Array<{ x: number; y: number; z: number; color: number; phase: number }> = [];
     for (let row = 0; row < STAND_ROWS; row += 1) {
       for (let seat = 0; seat < seatsPerRow; seat += 1) {
         const index = row * seatsPerRow + seat;
         if (seeded(index, 3) < 0.18) continue; // boş koltuklar
+        if (!keepSpectator(seeded(index, 13), density)) continue; // kalite kademesi seyreltmesi
         crowd.push({
+          phase: seeded(index, 17),
           x: -length / 2 + seat * STAND_SEAT_SPACING + (seeded(index, 5) - 0.5) * 0.2,
           y: (row + 1) * STAND_ROW_RISE + 0.45,
           z: frontZ - row * STAND_ROW_DEPTH - 0.4,
@@ -282,7 +297,7 @@ export function Grandstand({
       }
     }
     return { length, frontZ, crowd };
-  }, [geometry]);
+  }, [geometry, density]);
 
   const crowdRef = useRef<THREE.InstancedMesh>(null);
   useEffect(() => {
@@ -299,6 +314,37 @@ export function Grandstand({
     if (instanced.instanceColor) instanced.instanceColor.needsUpdate = true;
     instanced.computeBoundingSphere();
   }, [layout]);
+
+  // KALABALIK ANİMASYONU (01.10.2026) — `animationHz` ile seyreltilmiş
+  // güncelleme; kamera tribünden `lodDistanceMeters` uzaktaysa durur (LOD).
+  const excitementRef = useRef(excitement);
+  excitementRef.current = excitement;
+  const lastUpdateRef = useRef(0);
+  const matrix = useMemo(() => new THREE.Matrix4(), []);
+  useFrame(({ clock, camera }) => {
+    const instanced = crowdRef.current;
+    if (!instanced || !layout) return;
+    const now = clock.elapsedTime;
+    if (now - lastUpdateRef.current < 1 / ATMOSPHERE.crowd.animationHz) return;
+    lastUpdateRef.current = now;
+    const standCenterZ = layout.frontZ - (STAND_ROWS * STAND_ROW_DEPTH) / 2;
+    const distance = Math.hypot(
+      camera.position.x -
+        THREE.MathUtils.clamp(camera.position.x, -layout.length / 2, layout.length / 2),
+      camera.position.z - standCenterZ,
+    );
+    if (distance > ATMOSPHERE.crowd.lodDistanceMeters) return;
+    const level = excitementRef.current;
+    layout.crowd.forEach((person, index) => {
+      matrix.makeTranslation(
+        person.x,
+        person.y + spectatorLift(level, person.phase, now, ATMOSPHERE),
+        person.z,
+      );
+      instanced.setMatrixAt(index, matrix);
+    });
+    instanced.instanceMatrix.needsUpdate = true;
+  });
 
   if (!layout) return null;
   const { length, frontZ, crowd } = layout;

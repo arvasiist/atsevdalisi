@@ -171,9 +171,16 @@ export function RaceChatPanel({
             ) : (
               messages.map((message) => (
                 <li key={message.messageId} style={{ fontSize: '12px', lineHeight: 1.4 }}>
-                  <span style={{ color: 'var(--color-accent-gold)', fontWeight: 600 }}>{message.username}</span>
-                  <span style={{ color: 'var(--color-text-muted)' }}> {formatClockTime(message.createdAt)} </span>
-                  <span style={{ color: 'var(--color-text-primary)', wordBreak: 'break-word' }}>{message.body}</span>
+                  <span style={{ color: 'var(--color-accent-gold)', fontWeight: 600 }}>
+                    {message.username}
+                  </span>
+                  <span style={{ color: 'var(--color-text-muted)' }}>
+                    {' '}
+                    {formatClockTime(message.createdAt)}{' '}
+                  </span>
+                  <span style={{ color: 'var(--color-text-primary)', wordBreak: 'break-word' }}>
+                    {message.body}
+                  </span>
                 </li>
               ))
             )}
@@ -194,7 +201,12 @@ export function RaceChatPanel({
 
           <form
             onSubmit={handleSubmit}
-            style={{ display: 'flex', gap: 'var(--space-xs)', padding: 'var(--space-xs)', borderTop: '1px solid var(--color-border)' }}
+            style={{
+              display: 'flex',
+              gap: 'var(--space-xs)',
+              padding: 'var(--space-xs)',
+              borderTop: '1px solid var(--color-border)',
+            }}
           >
             <input
               type="text"

@@ -14,7 +14,7 @@
 import dynamic from 'next/dynamic';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { RaceSegmentSnapshot, RaceTimeline } from '@at-sevdalisi/shared-types';
-import { loadCameraConfig } from '@at-sevdalisi/game-config';
+import { loadAtmosphereConfig, loadCameraConfig } from '@at-sevdalisi/game-config';
 import {
   DEFAULT_LAP_LENGTH_METERS,
   DEFAULT_TURN_RADIUS_METERS,
@@ -39,6 +39,7 @@ import {
   isAnyHorseBlockedAtTime,
 } from './timeline-playback';
 import { RaceHud, type MiniMapMarker, type MiniMapPoint } from './RaceHud';
+import { computeCrowdExcitement, useSecondsSinceFinish } from './race-atmosphere';
 import type { HorseVisual } from './RaceScene3D';
 
 const RaceScene3D = dynamic(
@@ -58,6 +59,7 @@ const RaceScene3D = dynamic(
  * sabit render döngüsünün DIŞINDA tutulur).
  */
 const cameraConfig = loadCameraConfig();
+const ATMOSPHERE = loadAtmosphereConfig();
 
 export interface RaceViewerProps {
   timeline: RaceTimeline;
@@ -337,6 +339,21 @@ export function RaceViewer({
   // tercih edilir).
   const isRaceFinished = durationMs > 0 && currentTimeMs >= durationMs;
   const leaderPositionMeters = leaderboard[0]?.positionMeters ?? 0;
+  // 01.10.2026 — kalabalık heyecanı (tribün hareketi; adım 9'da kalabalık sesi).
+  const secondsSinceFinish = useSecondsSinceFinish(
+    isRaceFinished,
+    ATMOSPHERE.crowd.finishCelebrationSeconds,
+  );
+  const crowdExcitement = computeCrowdExcitement(
+    {
+      leaderPositionMeters,
+      raceDistanceMeters,
+      finalStretchRemainingMeters: cameraConfig.finalStretchRemainingMeters,
+      isRaceFinished,
+      secondsSinceFinish,
+    },
+    ATMOSPHERE,
+  );
   const anyHorseBlocked = useMemo(
     () => isAnyHorseBlockedAtTime(timeline.segments, horseIds, hudTimeMs),
     [timeline.segments, horseIds, hudTimeMs],
@@ -458,6 +475,7 @@ export function RaceViewer({
     <div style={{ position: 'relative', width: '100%', height: '100%', minHeight: '480px' }}>
       <RaceScene3D
         horses={horseVisuals}
+        crowdExcitement={crowdExcitement}
         cameraPose={cameraPose}
         trackGeometry={trackGeometry}
         isPlaying={isPlaying}

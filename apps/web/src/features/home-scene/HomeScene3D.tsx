@@ -18,18 +18,15 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
-import { loadCameraConfig, loadHorsePresenceConfig } from '@at-sevdalisi/game-config';
+import {
+  loadAtmosphereConfig,
+  loadCameraConfig,
+  loadHorsePresenceConfig,
+} from '@at-sevdalisi/game-config';
 import type { PublicHorse } from '@at-sevdalisi/shared-types';
 import { HorseAvatar3D } from '../race-viewer/HorseAvatar3D';
-import {
-  DirtTrack,
-  Grandstand,
-  Grass,
-  Rails,
-  SkyAndLighting,
-  TrackFurniture,
-  TreeLine,
-} from '../race-viewer/TrackScenery';
+import { SkyAndLighting } from '../race-viewer/TrackScenery';
+import { HippodromeSurroundings } from '../race-viewer/HippodromeSurroundings';
 import {
   getQualityTierRenderSettings,
   type QualityTierRenderSettings,
@@ -45,6 +42,7 @@ import { evaluateShowcaseCamera, fitFovToAspect, toWorld, type Vec3 } from './sh
 
 const CAMERA_CONFIG = loadCameraConfig().homeShowcase;
 const PRESENCE_CONFIG = loadHorsePresenceConfig();
+const ATMOSPHERE = loadAtmosphereConfig();
 
 const TRACK_GEOMETRY = createStadiumTrackGeometry(
   DEFAULT_LAP_LENGTH_METERS,
@@ -237,12 +235,11 @@ export function HomeScene3D({
       />
       {/* Altın saat dolgu ışığı: güneş tribünün arkasında, atın kameraya bakan yüzü kararmasın. */}
       <directionalLight position={[40, 18, 30]} intensity={0.8} color="#ffcf8a" />
-      <Grass />
-      <DirtTrack geometry={TRACK_GEOMETRY} />
-      <Rails geometry={TRACK_GEOMETRY} />
-      <Grandstand geometry={TRACK_GEOMETRY} />
-      <TrackFurniture geometry={TRACK_GEOMETRY} />
-      <TreeLine geometry={TRACK_GEOMETRY} />
+      <HippodromeSurroundings
+        geometry={TRACK_GEOMETRY}
+        crowdExcitement={ATMOSPHERE.crowd.preRaceExcitement}
+        qualityTier={settings.tier}
+      />
       <PlaceholderBarn castShadow={settings.shadowsEnabled} />
       {horse ? <PlayerHorse horse={horse} settings={settings} /> : null}
       <CameraRig requestedShot={requestedShot} autoplay={autoplay} onShotChange={onShotChange} />

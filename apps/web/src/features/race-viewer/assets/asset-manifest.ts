@@ -63,6 +63,11 @@ export interface AssetBinding {
   mountBoneNames?: string[];
   /** Jokey: kemik bulunamazsa at köküne göre oturma noktası (metre, oyun ekseni). */
   mountOffset?: [number, number, number];
+  /**
+   * Ortam modelleri: model zaten oyun koordinatında (metre, orijin = pist
+   * merkezi) hazırlanmıştır — ölçek/merkezleme YAPILMAZ, yalnızca eksen döner.
+   */
+  keepOrigin?: boolean;
 }
 
 /**
@@ -147,7 +152,8 @@ export const ASSET_MANIFEST: AssetRequirement[] = [
     expectedPath: 'models/hippodrome-environment.glb',
     description: 'Tribün, pist çevresi, paddock alanı içeren hipodrom sahne modeli.',
     fallbackBehavior:
-      "RaceScene3D.tsx'teki mevcut instanced pist zemini + Environment preset (gün batımı) arka planı.",
+      'Prosedürel tribün + animasyonlu kalabalık, kuleler, ağaçlar (TrackScenery.tsx). Pist ve korkuluk her durumda oyunun (yarış yoluna bağlı).',
+    binding: { forwardAxis: '+x', keepOrigin: true },
   },
   {
     id: 'START_GATE_MODEL_REQUIRED',

@@ -59,7 +59,11 @@ export function spawnDustParticle(
   // gereken bir açı/mesafe DEĞİL). Burada sadece ömür (`lifetimeMs`)
   // belirlenir — bu, parçacığın DOĞUŞUNDA sabitlenen tek gerçek durumdur.
   const rng = createSeededRandom(seed);
-  const lifetimeMs = seededRange(rng, config.dustParticles.minLifetimeMs, config.dustParticles.maxLifetimeMs);
+  const lifetimeMs = seededRange(
+    rng,
+    config.dustParticles.minLifetimeMs,
+    config.dustParticles.maxLifetimeMs,
+  );
   return {
     originX,
     originZ,

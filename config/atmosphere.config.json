@@ -1,0 +1,14 @@
+{
+  "crowd": {
+    "preRaceExcitement": 0.15,
+    "raceExcitement": 0.35,
+    "finalStretchExcitement": 0.85,
+    "finishExcitement": 1.0,
+    "finishCelebrationSeconds": 8,
+    "animationHz": 15,
+    "maxBobMeters": 0.22,
+    "standUpThreshold": 0.7,
+    "lodDistanceMeters": 260,
+    "densityByTier": { "low": 0.35, "medium": 0.65, "high": 1.0, "ultra": 1.0 }
+  }
+}
