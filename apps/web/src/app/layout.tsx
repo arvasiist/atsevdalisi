@@ -1,4 +1,4 @@
-import { Inter } from 'next/font/google';
+import { Cinzel, Inter } from 'next/font/google';
 import type { Metadata, Viewport } from 'next';
 import type { ReactNode } from 'react';
 import { TopBar } from '../components/layout/TopBar';
@@ -13,7 +13,10 @@ import './globals.css';
  * indirip kendi sunucusundan (self-host) servis eder; harici bir çalışma
  * zamanı isteği YOKTUR (gizlilik + performans).
  */
-const inter = Inter({ subsets: ['latin'], variable: '--font-inter', display: 'swap' });
+const inter = Inter({ subsets: ['latin', 'latin-ext'], variable: '--font-inter', display: 'swap' });
+// Başlık/logo yazı tipi (01.10.2026 tasarım yenilemesi) — OFL lisanslı,
+// Inter ile AYNI şekilde build zamanında self-host edilir.
+const cinzel = Cinzel({ subsets: ['latin', 'latin-ext'], weight: ['600', '700'], variable: '--font-cinzel', display: 'swap' });
 
 export const metadata: Metadata = {
   title: 'AT Sevdalısı',
@@ -24,12 +27,12 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
-  themeColor: '#0b1220',
+  themeColor: '#070b14',
 };
 
 export default function RootLayout({ children }: { children: ReactNode }): React.ReactElement {
   return (
-    <html lang="tr" className={inter.variable}>
+    <html lang="tr" className={`${inter.variable} ${cinzel.variable}`}>
       <body>
         <PlayerProvider>
           <TopBar />

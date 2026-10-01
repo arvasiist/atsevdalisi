@@ -27,6 +27,7 @@ import { loadRaceLobbyConfig } from '@at-sevdalisi/game-config';
 import { GlassPanel } from '../../components/ui/GlassPanel';
 import { apiClient } from '../../lib/api-client';
 import { formatCurrency } from '../../lib/currency';
+import { formatRaceStart } from '../../lib/format-time';
 import { formatMultiplier } from '../race/race-entry';
 import {
   ENTRY_STATUS_LABELS,
@@ -391,7 +392,7 @@ export function LobbyPanel({ horses, onBalanceChanged }: LobbyPanelProps): React
                   ) : null}
                   <span style={smallStyle()}>
                     {SURFACE_LABELS[race.surface]} · {WEATHER_LABELS[race.weather]} · {race.distanceMeters} m ·{' '}
-                    {formatStartsIn(race.startTime, now)}
+                    {formatRaceStart(race.startTime, now)} · {formatStartsIn(race.startTime, now)}
                   </span>
                   <span style={smallStyle()}>
                     Oyuncu {race.joinedPlayers}/{race.maxPlayers} · {race.fieldSize} at · Giriş{' '}

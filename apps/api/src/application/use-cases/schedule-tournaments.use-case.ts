@@ -5,8 +5,6 @@ import { AppConfigService } from '../../infrastructure/config/config.service';
 import { RACE_REPOSITORY, type RaceRepository, type TournamentInfo } from '../ports/race.repository';
 
 const MS_PER_HOUR = 60 * 60 * 1000;
-/** `YYYY-MM-DD HH:MM` — `toISOString()`in ilk 16 karakteri (UTC, sunucu saatinden bağımsız). */
-const ISO_MINUTE_LENGTH = 16;
 
 const TIER_LABELS: Record<TournamentInfo['tier'], string> = {
   bronze: 'Bronz',
@@ -59,7 +57,10 @@ export class ScheduleTournamentsUseCase {
       const raceId = await this.raceRepository.createTournamentRace({
         raceId: randomUUID(),
         tier: typedTier,
-        name: `${TIER_LABELS[typedTier]} Kupası · ${startTime.toISOString().slice(0, ISO_MINUTE_LENGTH).replace('T', ' ')} UTC`,
+        // Ad yalnızca kademedir; başlangıç saati ayrı alandır (`startTime`) ve
+        // istemci onu oyuncunun yerel saatiyle gösterir. Ada UTC damgası
+        // gömmek ekranda ham "2026-10-01 07:26 UTC" metni bırakıyordu.
+        name: `${TIER_LABELS[typedTier]} Kupası`,
         startTime,
         entryFee: tier.entryFee,
         maxParticipants: tier.maxParticipants,

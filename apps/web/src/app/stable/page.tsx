@@ -22,10 +22,12 @@
  * 10 gereksiz istek oluşmasın diye.
  */
 
+import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
+import { Activity, BatteryMedium, Dumbbell, HeartPulse, Network, Smile, Zap } from 'lucide-react';
 import type { HorsePedigreeView, PublicHorse, StableSummaryView, StableUpgradeResult } from '@at-sevdalisi/shared-types';
 import { GlassPanel } from '../../components/ui/GlassPanel';
-import { HorseAvatar } from '../../components/ui/HorseAvatar';
+import { HorseHeadIcon } from '../../components/ui/HorseHeadIcon';
 import { StarRating } from '../../components/ui/StarRating';
 import { StatBar } from '../../components/ui/StatBar';
 import { BreedingPanel } from '../../features/breeding/BreedingPanel';
@@ -84,7 +86,7 @@ export default function StablePage(): React.ReactElement {
 
   return (
     <main className="page-container">
-      <h1 style={{ fontSize: '24px', color: 'var(--color-text-primary)', marginBottom: '4px' }}>Ahırım</h1>
+      <h1 className="page-title" style={{ marginBottom: '4px' }}>Ahırım</h1>
       <p style={{ color: 'var(--color-text-secondary)', marginTop: 0, marginBottom: 'var(--space-lg)' }}>
         Atlarının durumunu takip et, en güçlülerini yarışa hazırla.
       </p>
@@ -94,7 +96,7 @@ export default function StablePage(): React.ReactElement {
           <p style={{ color: 'var(--color-text-secondary)', marginTop: 0 }}>
             Ahırını görebilmek için önce bir seyis/jokey hesabı oluştur.
           </p>
-          <button type="button" onClick={() => void createPlayer()} style={primaryButtonStyle()}>
+          <button type="button" onClick={() => void createPlayer()} className="btn-gold">
             Başlangıç Paketiyle Oyuncu Oluştur
           </button>
           {playerError ? <p style={{ color: 'var(--color-status-critical)', marginBottom: 0 }}>{playerError}</p> : null}
@@ -104,17 +106,6 @@ export default function StablePage(): React.ReactElement {
       {error ? <p style={{ color: 'var(--color-status-critical)' }}>{error}</p> : null}
 
       {player ? <StableUpgradeCard ownerId={player.id} onUpgraded={refresh} /> : null}
-
-      {player && horses !== null ? <BreedingPanel ownerId={player.id} horses={horses} onBred={handleBred} /> : null}
-
-      {/*
-        JOKEY PANELİ (29.09.2026, FINAL_PROJECT_AUDIT #18) — `horses`e BAĞLI
-        DEĞİLDİR: jokey oyuncunun kendisine aittir, tek bir ata değil
-        (`jockeys.owner_id`), ve ahırı boş bir oyuncu da jokey kiralamak
-        isteyebilir. Bu yüzden `BreedingPanel`in aksine at listesini
-        beklemez — yalnızca `player` yeterlidir.
-      */}
-      {player ? <JockeyPanel playerId={player.id} /> : null}
 
       {player && horses === null && !error ? (
         <p style={{ color: 'var(--color-text-muted)' }}>Ahır yükleniyor…</p>
@@ -127,12 +118,25 @@ export default function StablePage(): React.ReactElement {
       ) : null}
 
       {horses && horses.length > 0 ? (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 'var(--space-md)' }}>
+        // 01.10.2026 tasarım yenilemesi: atlar sayfanın ASIL içeriğidir —
+        // yükseltme kartının hemen altında, yetiştirme/jokeyden ÖNCE gelir.
+        <div className="horse-grid">
           {horses.map((horse) => (
             <HorseCard key={horse.id} horse={horse} />
           ))}
         </div>
       ) : null}
+      {player && horses !== null ? <BreedingPanel ownerId={player.id} horses={horses} onBred={handleBred} /> : null}
+
+      {/*
+        JOKEY PANELİ (29.09.2026, FINAL_PROJECT_AUDIT #18) — `horses`e BAĞLI
+        DEĞİLDİR: jokey oyuncunun kendisine aittir, tek bir ata değil
+        (`jockeys.owner_id`), ve ahırı boş bir oyuncu da jokey kiralamak
+        isteyebilir. Bu yüzden `BreedingPanel`in aksine at listesini
+        beklemez — yalnızca `player` yeterlidir.
+      */}
+      {player ? <JockeyPanel playerId={player.id} /> : null}
+
     </main>
   );
 }
@@ -245,7 +249,7 @@ function StableUpgradeCard({ ownerId, onUpgraded }: { ownerId: string; onUpgrade
               >
                 Maliyet: {formatCurrency(offer.cost.currency, offer.cost.amount)}
               </span>
-              <button type="button" onClick={() => void handleUpgrade()} disabled={!isEnabled} style={upgradeButtonStyle(isEnabled)}>
+              <button type="button" onClick={() => void handleUpgrade()} disabled={!isEnabled} className="btn-gold">
                 {isUpgrading ? 'Yükseltiliyor…' : 'Ahırı Yükselt'}
               </button>
               {!isEnabled && !isUpgrading ? (
@@ -269,26 +273,6 @@ function StableUpgradeCard({ ownerId, onUpgraded }: { ownerId: string; onUpgrade
       {error !== null ? <p style={{ color: 'var(--color-status-critical)', marginBottom: 0 }}>{error}</p> : null}
     </GlassPanel>
   );
-}
-
-/**
- * Yalnızca GÖSTERİM amaçlı yeterlilik karşılaştırması. Sunucu otoritesini
- * DEĞİŞTİRMEZ: bu fonksiyon yanlış cevap verse bile harcama kararını
- * `POST .../stable/upgrade` içindeki `SELECT ... FOR UPDATE` verir.
- */
-function upgradeButtonStyle(enabled: boolean): React.CSSProperties {
-  return {
-    // AUDIT_REPORT.md F1 ile AYNI kural: 44px dokunma hedefi.
-    minHeight: '44px',
-    padding: '12px 24px',
-    background: enabled ? 'var(--color-accent-gold)' : 'transparent',
-    color: enabled ? '#1a1405' : 'var(--color-text-muted)',
-    border: enabled ? 'none' : '1px solid var(--color-border)',
-    borderRadius: 'var(--radius-md)',
-    fontWeight: 700,
-    fontSize: '14px',
-    cursor: enabled ? 'pointer' : 'not-allowed',
-  };
 }
 
 function HorseCard({ horse }: { horse: PublicHorse }): React.ReactElement {
@@ -343,12 +327,13 @@ function HorseCard({ horse }: { horse: PublicHorse }): React.ReactElement {
   }, [horse.id, isPedigreeOpen, pedigree]);
 
   return (
-    <GlassPanel>
-      <div style={{ display: 'flex', gap: 'var(--space-md)', alignItems: 'center', marginBottom: 'var(--space-md)' }}>
-        <HorseAvatar horseId={horse.id} size={64} />
-        <div style={{ display: 'grid', gap: '2px' }}>
-          <span style={{ fontSize: '16px', fontWeight: 700, color: 'var(--color-text-primary)' }}>{horse.name}</span>
-          <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
+    <GlassPanel style={{ padding: 0, overflow: 'hidden' }}>
+      {/* Sahne bandı — CSS degrade + projeye özgü at silüeti (görsel dosyası YOK). */}
+      <div className="horse-card-stage">
+        <HorseHeadIcon size={150} gradient withMane className="horse-card-silhouette" />
+        <div className="horse-card-title">
+          <span className="horse-card-name">{horse.name}</span>
+          <span className="featured-meta">
             {breedGenderLabel(horse.breed, horse.gender)} · Seviye {horse.level}
           </span>
           <StarRating score={horse.quality} />
@@ -356,12 +341,24 @@ function HorseCard({ horse }: { horse: PublicHorse }): React.ReactElement {
         <StatusBadge status={horse.status} />
       </div>
 
-      <div style={{ display: 'grid', gap: '8px' }}>
-        <StatBar label="Sağlık" value={horse.health} />
-        <StatBar label="Enerji" value={horse.energy} />
-        <StatBar label="Kondisyon" value={horse.fitness} />
-        <StatBar label="Yorgunluk" value={horse.fatigue} higherIsBetter={false} />
-        <StatBar label="Moral" value={horse.morale} />
+      <div style={{ padding: 'var(--space-lg)' }}>
+      <div style={{ display: 'grid', gap: '10px' }}>
+        <StatBar icon={<HeartPulse size={14} />} label="Sağlık" value={horse.health} />
+        <StatBar icon={<BatteryMedium size={14} />} label="Enerji" value={horse.energy} />
+        <StatBar icon={<Activity size={14} />} label="Kondisyon" value={horse.fitness} />
+        <StatBar icon={<Zap size={14} />} label="Yorgunluk" value={horse.fatigue} higherIsBetter={false} />
+        <StatBar icon={<Smile size={14} />} label="Moral" value={horse.morale} />
+      </div>
+
+      <div className="featured-actions" style={{ marginTop: 'var(--space-md)' }}>
+        <Link href="/training" className="btn-action btn-action-blue">
+          <Dumbbell size={18} aria-hidden="true" />
+          Antrenman
+        </Link>
+        <Link href="/care" className="btn-action btn-action-green">
+          <HeartPulse size={18} aria-hidden="true" />
+          Bakım
+        </Link>
       </div>
 
       <div
@@ -383,7 +380,8 @@ function HorseCard({ horse }: { horse: PublicHorse }): React.ReactElement {
         ) : null}
       </div>
 
-      <button type="button" onClick={() => void togglePedigree()} style={pedigreeToggleStyle()}>
+      <button type="button" onClick={() => void togglePedigree()} className="btn-outline" style={{ width: '100%', marginTop: 'var(--space-md)' }}>
+        <Network size={16} aria-hidden="true" />
         {isPedigreeOpen ? 'Soy Ağacını Kapat' : 'Soy Ağacı'}
       </button>
 
@@ -401,25 +399,9 @@ function HorseCard({ horse }: { horse: PublicHorse }): React.ReactElement {
           </div>
         )
       ) : null}
+      </div>
     </GlassPanel>
   );
-}
-
-/** Soy ağacı açma/kapama düğmesi — `upgradeButtonStyle` ile AYNI 44px dokunma hedefi kuralı (AUDIT_REPORT.md F1). */
-function pedigreeToggleStyle(): React.CSSProperties {
-  return {
-    marginTop: 'var(--space-md)',
-    minHeight: '44px',
-    width: '100%',
-    padding: '10px 16px',
-    background: 'transparent',
-    color: 'var(--color-text-secondary)',
-    border: '1px solid var(--color-border)',
-    borderRadius: 'var(--radius-md)',
-    fontWeight: 600,
-    fontSize: '13px',
-    cursor: 'pointer',
-  };
 }
 
 function StatusBadge({ status }: { status: PublicHorse['status'] }): React.ReactElement | null {
@@ -458,17 +440,3 @@ function breedGenderLabel(breed: string, gender: PublicHorse['gender']): string 
   return `${breed} · ${genderLabels[gender]}`;
 }
 
-function primaryButtonStyle(): React.CSSProperties {
-  return {
-    // AUDIT_REPORT.md F1: minHeight eklendi - 44px dokunma hedefi kuralini garanti eder.
-    minHeight: '44px',
-    padding: '12px 24px',
-    background: 'var(--color-accent-gold)',
-    color: '#1a1405',
-    border: 'none',
-    borderRadius: 'var(--radius-md)',
-    fontWeight: 700,
-    fontSize: '14px',
-    cursor: 'pointer',
-  };
-}
