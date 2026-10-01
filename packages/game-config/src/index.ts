@@ -42,6 +42,7 @@ import type {
   AtmosphereConfig,
   LightingConfig,
   PerformanceConfig,
+  InteractiveRaceConfig,
   TrainingConfig,
   VfxConfig,
   WeatherConfig,
@@ -63,6 +64,7 @@ import horsePresenceConfigJson from '../../../config/horse-presence.config.json'
 import atmosphereConfigJson from '../../../config/atmosphere.config.json';
 import lightingConfigJson from '../../../config/lighting.config.json';
 import performanceConfigJson from '../../../config/performance.config.json';
+import interactiveRaceConfigJson from '../../../config/interactive-race.config.json';
 import farmConfigJson from '../../../config/farm.config.json';
 import onlineConfigJson from '../../../config/online.config.json';
 import cameraConfigJson from '../../../config/camera.config.json';
@@ -271,4 +273,8 @@ export function loadLightingConfig(): LightingConfig {
 
 export function loadPerformanceConfig(): PerformanceConfig {
   return performanceConfigJson as unknown as PerformanceConfig;
+}
+
+export function loadInteractiveRaceConfig(): InteractiveRaceConfig {
+  return interactiveRaceConfigJson as unknown as InteractiveRaceConfig;
 }

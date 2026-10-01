@@ -37,6 +37,11 @@ export async function isHorseInActiveRace(
        AND e.status IS DISTINCT FROM 'cancelled'
        AND r.status IN ('scheduled', 'locking')
        AND ($2::uuid IS NULL OR r.id <> $2::uuid)
+     UNION ALL
+     -- 01.10.2026 — süren oyuncu kontrollü yarıştaki at da kilitlidir
+     -- (satılırsa ödül/XP yanlış sahibe giderdi).
+     SELECT 1 AS found FROM interactive_races i
+     WHERE i.horse_id = $1 AND i.status = 'running'
      LIMIT 1`,
     [horseId, excludeRaceId],
   );

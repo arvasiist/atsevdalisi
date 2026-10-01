@@ -10,6 +10,7 @@ import {
   loadGrandstandConfig,
   loadHorseGrowthConfig,
   loadHorseAppearanceConfig,
+  loadInteractiveRaceConfig,
   loadJockeyConfig,
   loadOnlineConfig,
   loadAuthConfig,
@@ -143,4 +144,6 @@ export class AppConfigService {
   readonly staff = loadStaffConfig();
   /** 01.10.2026 — atın görünüşü (don/işaret ağırlıkları + kalıtım). */
   readonly horseAppearance = loadHorseAppearanceConfig();
+  // 01.10.2026 — oyuncu kontrollü pratik yarışın canlı oturum ayarları.
+  readonly interactiveRace = loadInteractiveRaceConfig();
 }

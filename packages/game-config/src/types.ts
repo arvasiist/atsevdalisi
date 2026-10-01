@@ -90,6 +90,21 @@ export interface RaceBalanceConfig {
     bonusMultiplier: number;
   };
   /**
+   * 01.10.2026 — OYUNCU KONTROLÜ (yalnızca `RaceSimulationInput.playerCommands`
+   * verildiğinde okunur; komutsuz yarışta HİÇBİR etkisi yoktur).
+   * Kırbaç sınırsızdır (proje sahibinin kararı) ama her biri
+   * `whipStaminaCost` dayanıklılık yakar; hız bonusu sprint bonusunun
+   * `kırbaç^whipBonusExponent` katıdır (azalan getiri). Dayanıklılık sprint
+   * rezervinin altındaysa kırbaç bonus VERMEZ, yalnızca yakar (yorgun at
+   * kırbaca cevap vermez). `maxWhipsPerSegment` oyun kuralı değil, kayıt
+   * sınırıdır (spam'in veritabanını şişirmesini önler).
+   */
+  playerControl: {
+    whipStaminaCost: number;
+    whipBonusExponent: number;
+    maxWhipsPerSegment: number;
+  };
+  /**
    * PHASE 6 — `RaceTacticInput`'in motor tarafından OKUNAN iki alanı
    * (`startApproach`, `finalStretchPlan`). Bu ikisi daha önce yalnızca
    * `assertValidRaceTactic` ile DOĞRULANIYOR ama hiçbir yerde
@@ -1862,4 +1877,28 @@ export interface PerformanceConfig {
     flipflops: number;
   };
   maxAutoDowngrades: number;
+}
+
+/**
+ * 01.10.2026 — OYUNCU KONTROLLÜ PRATİK YARIŞ (canlı oturum). Yarış sunucuda
+ * gerçek zamanlı akar: segment `j`, lider `j`'ye başlamadan `revealLeadMs`
+ * önce gösterilir ve o andan sonra o segmente komut verilemez (komut ilk
+ * gösterilmemiş segmente yazılır). `finishGraceMs` son atın bitişinden sonra
+ * kesinleşmeye izin verilmeden önce beklenen pay. Zamanlayıcı, oyuncu
+ * sayfayı kapatsa da yarışı kesinleştirir (terk ederek ücretten kaçılamaz).
+ */
+export interface InteractiveRaceConfig {
+  version: string;
+  startCountdownSeconds: number;
+  /**
+   * Yarış saatinin gerçek saate oranı (2 = iki kat hızlı). Motorun ürettiği
+   * süreler gerçekçi at hızına göredir ama yavaş bir başlangıç atıyla 1600 m
+   * gerçek zamanda ~3,5 dk sürer; canlı kontrol için bu çok uzun. Sonucu
+   * DEĞİŞTİRMEZ, yalnızca akış hızını. `revealLeadMs`/`finishGraceMs` YARIŞ
+   * saati cinsindendir.
+   */
+  timeScale: number;
+  revealLeadMs: number;
+  finishGraceMs: number;
+  scheduler: { enabled: boolean; tickSeconds: number; batchSize: number };
 }

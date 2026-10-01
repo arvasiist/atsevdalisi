@@ -101,6 +101,11 @@ export const ErrorCode = {
   // Faz 4 — Çiftlik / Tesisler (domain/farm)
   MaxFacilityLevelReached: 'MAX_FACILITY_LEVEL_REACHED',
   FacilityInactive: 'FACILITY_INACTIVE',
+  InvalidPlayerControl: 'INVALID_PLAYER_CONTROL',
+  InteractiveRaceNotFound: 'INTERACTIVE_RACE_NOT_FOUND',
+  InteractiveRaceInProgress: 'INTERACTIVE_RACE_IN_PROGRESS',
+  InteractiveRaceNotFinished: 'INTERACTIVE_RACE_NOT_FINISHED',
+  InteractiveRaceClosed: 'INTERACTIVE_RACE_CLOSED',
   StaffCapacityExceeded: 'STAFF_CAPACITY_EXCEEDED',
   // FAZ 1 wiring — Player (domain/player)
   UsernameAlreadyTaken: 'USERNAME_ALREADY_TAKEN',

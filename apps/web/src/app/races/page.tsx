@@ -1,5 +1,7 @@
 'use client';
 
+import dynamic from 'next/dynamic';
+
 /**
  * 30.09.2026 — ÜCRETLİ LOBİ BAĞLANDI: sayfanın üstünde `LobbyPanel`
  * (`GET/POST /races`, `/join`, `/ready`, `/leave`). Aşağıdaki "`GET /races`
@@ -45,6 +47,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Activity, BatteryMedium, HeartPulse, Smile, Timer, Users, Zap } from 'lucide-react';
 import Link from 'next/link';
 import type {
+  InteractiveRaceView,
   FinalStretchPlan,
   PracticeRaceResult,
   PublicHorse,
@@ -118,6 +121,12 @@ const WEATHER_LABELS: Record<PracticeRaceResult['weather'], string> = {
   cold: 'Soğuk',
 };
 
+const InteractiveRaceViewer = dynamic(
+  () =>
+    import('../../features/ride/InteractiveRaceViewer').then((mod) => mod.InteractiveRaceViewer),
+  { ssr: false },
+);
+
 export default function RacesPage(): React.ReactElement {
   const {
     player,
@@ -140,6 +149,19 @@ export default function RacesPage(): React.ReactElement {
   // 01.10.2026 tasarım yenilemesi: lobi ve pratik yarış alt alta çok uzun
   // bir sayfa oluşturuyordu — artık iki sekme.
   const [tab, setTab] = useState<'lobby' | 'practice'>('lobby');
+  // 01.10.2026 — oyuncu kontrollü yarış (kırbaç/yön). Sayfa yenilenince süren oturum geri gelir.
+  const [ride, setRide] = useState<InteractiveRaceView | null>(null);
+  const [isStartingRide, setIsStartingRide] = useState(false);
+
+  useEffect(() => {
+    if (!player) return;
+    void apiClient
+      .getCurrentInteractiveRace()
+      .then((current) => {
+        if (current) setRide(current);
+      })
+      .catch(() => undefined);
+  }, [player?.id]);
 
   const loadHorses = async (ownerId: string) => {
     setHorsesError(null);
@@ -207,12 +229,54 @@ export default function RacesPage(): React.ReactElement {
     }
   };
 
+  const handleRide = async () => {
+    if (!selectedHorse || !player || !selectedTier) {
+      return;
+    }
+    setIsStartingRide(true);
+    setMessage(null);
+    setResult(null);
+    try {
+      setRide(
+        await apiClient.startInteractiveRace(selectedHorse.id, {
+          racingStyle,
+          riskLevel,
+          startApproach,
+          finalStretchPlan,
+          tierId: selectedTier.id,
+        }),
+      );
+      await refresh();
+    } catch (err: unknown) {
+      setMessage(err instanceof Error ? err.message : 'Yarış başlatılamadı');
+    } finally {
+      setIsStartingRide(false);
+    }
+  };
+
+  const closeRide = async () => {
+    setRide(null);
+    if (player) {
+      await loadHorses(player.id);
+      await refresh();
+    }
+  };
+
   const ownEntry = result?.finalResult.find((entry) => entry.horseId === selectedHorse?.id) ?? null;
   const ownExplanation =
     result?.explanations.find((entry) => entry.horseId === selectedHorse?.id) ?? null;
 
   return (
     <main className="page-container">
+      {ride ? (
+        <div className="ride-overlay">
+          <InteractiveRaceViewer
+            initialView={ride}
+            horseName={horses?.find((horse) => horse.id === ride.playerLabel)?.name ?? 'Atın'}
+            onClose={() => void closeRide()}
+          />
+        </div>
+      ) : null}
       <h1 style={{ marginBottom: '4px' }}>Yarışlar</h1>
       <p
         style={{
@@ -482,6 +546,16 @@ export default function RacesPage(): React.ReactElement {
                 : selectedTier
                   ? `${formatCurrency('money', selectedTier.entryFee)} Öde ve Yarışa Başla`
                   : 'Yarışa Başla'}
+            </button>
+            <button
+              type="button"
+              disabled={!canRace || isStartingRide || ride !== null}
+              onClick={() => void handleRide()}
+              className="btn-outline"
+              style={{ marginLeft: 'var(--space-sm)' }}
+              title="Atı sen sür: kırbaç, sol/sağ, sakin"
+            >
+              {isStartingRide ? 'Hazırlanıyor…' : 'Atı Kendin Sür'}
             </button>
 
             {message ? (

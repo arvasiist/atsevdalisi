@@ -1,4 +1,6 @@
 import type {
+  InteractiveRaceView,
+  PlayerControlInput,
   AccountCredentialsView,
   AccountProvider,
   AdminAuditLogResult,
@@ -325,7 +327,6 @@ export const apiClient = {
   getPlayerProfile: (username: string) =>
     request<PlayerProfileView>(`/players/profile/${encodeURIComponent(username)}`),
 
-
   // At & Ahır İşlemleri
   getHorsesByOwner: (ownerId: string) => request<PublicHorse[]>(`/horses?ownerId=${ownerId}`),
 
@@ -338,7 +339,8 @@ export const apiClient = {
    * olan ama HİÇBİR yerden çağrılmayan `calculateMarketValue`'yu artık
    * gerçekten kullanır. `@Public()` — `getHorseDetails` ile AYNI gerekçe.
    */
-  getHorseMarketValue: (horseId: string) => request<HorseMarketValueView>(`/horses/${horseId}/market-value`),
+  getHorseMarketValue: (horseId: string) =>
+    request<HorseMarketValueView>(`/horses/${horseId}/market-value`),
 
   /**
    * Soy ağacı (`GET /horses/:id/pedigree`, bu dilimde EKLENDİ) —
@@ -377,7 +379,13 @@ export const apiClient = {
    * satırlardan doğrulanır; tayın statları `pairId` seed'iyle sunucuda
    * üretilir. İstemci hiçbir sayı GÖNDERMEZ.
    */
-  breedHorses: (playerId: string, mareId: string, stallionId: string, foalName: string, idempotencyKey: string) =>
+  breedHorses: (
+    playerId: string,
+    mareId: string,
+    stallionId: string,
+    foalName: string,
+    idempotencyKey: string,
+  ) =>
     request<BreedingResultView>(`/players/${playerId}/breeding`, {
       method: 'POST',
       headers: { 'Idempotency-Key': idempotencyKey },
@@ -392,7 +400,8 @@ export const apiClient = {
    * TÜKETMEDİĞİ için fark edilmemişti. Artık gerçek rotayı ve gerçek
    * `StableSummaryView` şeklini kullanıyor.
    */
-  getStableSummary: (ownerId: string) => request<StableSummaryView>(`/players/${ownerId}/stable-summary`),
+  getStableSummary: (ownerId: string) =>
+    request<StableSummaryView>(`/players/${ownerId}/stable-summary`),
 
   /**
    * Kiralamaya AÇIK jokey vitrini — `GET /jockeys` (brief §13, PHASE 6.2;
@@ -418,7 +427,8 @@ export const apiClient = {
    * çarpmak formülün ikinci bir kopyasını doğururdu ve config değişince
    * gösterilen sayı ile motora giren sayı sessizce ayrışırdı.
    */
-  getPlayerJockey: (playerId: string) => request<PlayerJockeyView | null>(`/players/${playerId}/jockey`),
+  getPlayerJockey: (playerId: string) =>
+    request<PlayerJockeyView | null>(`/players/${playerId}/jockey`),
 
   /**
    * Jokey kiralar — `POST /jockeys/:jockeyId/hire` (PARA YOLU).
@@ -430,7 +440,8 @@ export const apiClient = {
    *
    * Ödeyen taraf GÖVDEDEN GELMEZ: kimlik token'dan çözülür. Gövde yoktur.
    */
-  hireJockey: (jockeyId: string) => request<HireJockeyResultView>(`/jockeys/${jockeyId}/hire`, { method: 'POST' }),
+  hireJockey: (jockeyId: string) =>
+    request<HireJockeyResultView>(`/jockeys/${jockeyId}/hire`, { method: 'POST' }),
 
   /**
    * Jokeyi serbest bırakır — `POST /jockeys/:jockeyId/release`
@@ -532,13 +543,17 @@ export const apiClient = {
     }),
 
   // Pazar (Market) İşlemleri
-  getMarketListings: (params: { minPrice?: number; maxPrice?: number; page?: number; pageSize?: number } = {}) => {
+  getMarketListings: (
+    params: { minPrice?: number; maxPrice?: number; page?: number; pageSize?: number } = {},
+  ) => {
     const query = new URLSearchParams();
     if (params.minPrice) query.set('minPrice', params.minPrice.toString());
     if (params.maxPrice) query.set('maxPrice', params.maxPrice.toString());
     if (params.page) query.set('page', params.page.toString());
     if (params.pageSize) query.set('pageSize', params.pageSize.toString());
-    return request<Array<{ id: string; horseId: string; price: number; status: string }>>(`/market/listings?${query}`);
+    return request<Array<{ id: string; horseId: string; price: number; status: string }>>(
+      `/market/listings?${query}`,
+    );
   },
 
   /**
@@ -548,7 +563,10 @@ export const apiClient = {
    * `training.controller.ts` doc yorumu) — `setAuthToken` ile bir token
    * ayarlanmış olması ZORUNLUDUR, aksi halde 401.
    */
-  trainHorse: (horseId: string, input: { type: TrainingType; intensity: TrainingIntensity; durationMinutes?: number }) =>
+  trainHorse: (
+    horseId: string,
+    input: { type: TrainingType; intensity: TrainingIntensity; durationMinutes?: number },
+  ) =>
     request<TrainHorseResult>(`/horses/${horseId}/train`, {
       method: 'POST',
       body: JSON.stringify(input),
@@ -561,7 +579,8 @@ export const apiClient = {
    * ile AYNI `HorseOwnerGuardByParam` koruması altındadır, bu yüzden bu
    * çağrının da geçerli bir `Authorization` header'ı gerekir.
    */
-  getTrainingHistory: (horseId: string) => request<TrainingSession[]>(`/horses/${horseId}/training-history`),
+  getTrainingHistory: (horseId: string) =>
+    request<TrainingSession[]>(`/horses/${horseId}/training-history`),
 
   /**
    * Bakım ekranı (`apps/web/src/app/care/page.tsx`) — `POST /horses/:id/care`
@@ -697,6 +716,37 @@ export const apiClient = {
     }),
 
   /**
+   * 01.10.2026 — OYUNCU KONTROLLÜ PRATİK YARIŞ. Başlatma ücreti hemen düşer;
+   * Idempotency-Key gerekmez (tek süren oturum kuralı; yanıt kaybolursa
+   * `getCurrentInteractiveRace` oturumu geri bulur).
+   */
+  startInteractiveRace: (
+    horseId: string,
+    tactic: {
+      racingStyle?: RacingStyle;
+      riskLevel?: RiskLevel;
+      startApproach?: StartApproach;
+      finalStretchPlan?: FinalStretchPlan;
+      tierId?: string;
+    } = {},
+  ) =>
+    request<InteractiveRaceView>(`/horses/${horseId}/interactive-race`, {
+      method: 'POST',
+      body: JSON.stringify(tactic),
+    }),
+  getCurrentInteractiveRace: () =>
+    request<InteractiveRaceView | null>('/interactive-races/current'),
+  getInteractiveRace: (raceId: string) =>
+    request<InteractiveRaceView>(`/interactive-races/${raceId}`),
+  sendRaceControl: (raceId: string, control: PlayerControlInput) =>
+    request<InteractiveRaceView>(`/interactive-races/${raceId}/commands`, {
+      method: 'POST',
+      body: JSON.stringify({ control }),
+    }),
+  finishInteractiveRace: (raceId: string) =>
+    request<InteractiveRaceView>(`/interactive-races/${raceId}/finish`, { method: 'POST' }),
+
+  /**
    * Ekipman (`apps/web/src/app/equipment/page.tsx`, bu turda EKLENDİ —
    * `claude/hizli-bitirme-plani.md`'nin proje sahibi tarafından
    * önceliklendirdiği dilim) — `getTrainingHistory` ile AYNI
@@ -704,17 +754,24 @@ export const apiClient = {
    */
   getHorseEquipment: (horseId: string) => request<HorseEquipment[]>(`/horses/${horseId}/equipment`),
 
-  createHorseEquipment: (horseId: string, input: { equipmentType: EquipmentType; name: string; quality: number }) =>
+  createHorseEquipment: (
+    horseId: string,
+    input: { equipmentType: EquipmentType; name: string; quality: number },
+  ) =>
     request<HorseEquipment>(`/horses/${horseId}/equipment`, {
       method: 'POST',
       body: JSON.stringify(input),
     }),
 
   equipHorseEquipment: (horseId: string, equipmentId: string) =>
-    request<HorseEquipment>(`/horses/${horseId}/equipment/${equipmentId}/equip`, { method: 'POST' }),
+    request<HorseEquipment>(`/horses/${horseId}/equipment/${equipmentId}/equip`, {
+      method: 'POST',
+    }),
 
   unequipHorseEquipment: (horseId: string, equipmentId: string) =>
-    request<HorseEquipment>(`/horses/${horseId}/equipment/${equipmentId}/unequip`, { method: 'POST' }),
+    request<HorseEquipment>(`/horses/${horseId}/equipment/${equipmentId}/unequip`, {
+      method: 'POST',
+    }),
 
   /**
    * Tribün (proje sahibinin açık talebi, 27.09.2026 — "tribüne ücretli
@@ -859,10 +916,13 @@ export const apiClient = {
    * CLAUDE.md'nin uyardığı "DTO dekoratörüne güven" tuzağını büyütürdü.
    */
   respondFriendRequest: (playerId: string, requestId: string, action: 'accept' | 'reject') =>
-    request<RespondFriendRequestResult>(`/players/${playerId}/friend-requests/${requestId}/respond`, {
-      method: 'POST',
-      body: JSON.stringify({ action }),
-    }),
+    request<RespondFriendRequestResult>(
+      `/players/${playerId}/friend-requests/${requestId}/respond`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ action }),
+      },
+    ),
 
   /**
    * Arkadaşlıktan çıkar VEYA bekleyen isteği geri çeker (iki anlam,
@@ -936,7 +996,9 @@ export const apiClient = {
     request<ReportPlayerResult>(`/players/${playerId}/reports`, {
       method: 'POST',
       body: JSON.stringify(
-        reason !== undefined && reason.length > 0 ? { reportedId, category, reason } : { reportedId, category },
+        reason !== undefined && reason.length > 0
+          ? { reportedId, category, reason }
+          : { reportedId, category },
       ),
     }),
 
@@ -954,10 +1016,13 @@ export const apiClient = {
    * YAPMAZ.
    */
   getConversation: (playerId: string, otherPlayerId: string) =>
-    request<DirectMessageView[]>(`/players/${playerId}/messages/${otherPlayerId}`, { method: 'GET' }),
+    request<DirectMessageView[]>(`/players/${playerId}/messages/${otherPlayerId}`, {
+      method: 'GET',
+    }),
 
   /** Gelen kutusu — bana gelen son mesajlar (gönderen adıyla). Okundu işaretlemez. */
-  getInbox: (playerId: string) => request<DirectMessageView[]>(`/players/${playerId}/inbox`, { method: 'GET' }),
+  getInbox: (playerId: string) =>
+    request<DirectMessageView[]>(`/players/${playerId}/inbox`, { method: 'GET' }),
 
   /**
    * Hediye gönderimi (proje sahibinin açık talebi, 27.09.2026 — üç parçanın
@@ -979,7 +1044,13 @@ export const apiClient = {
    * yaşar (`minAmount`/`maxAmount`) ve istemcide tip daraltmak, CLAUDE.md'nin
    * uyardığı "DTO dekoratörüne güven" tuzağını büyütürdü.
    */
-  sendGift: (playerId: string, recipientId: string, amount: number, currency: string, idempotencyKey: string) =>
+  sendGift: (
+    playerId: string,
+    recipientId: string,
+    amount: number,
+    currency: string,
+    idempotencyKey: string,
+  ) =>
     request<SendGiftResult>(`/players/${playerId}/gifts`, {
       method: 'POST',
       headers: { 'Idempotency-Key': idempotencyKey },
@@ -992,7 +1063,8 @@ export const apiClient = {
    * `direction` taşır; liste ekranı "gönderdim/geldi" ayrımını ikinci bir
    * istek atmadan yapar.
    */
-  getMyGifts: (playerId: string) => request<GiftView[]>(`/players/${playerId}/gifts`, { method: 'GET' }),
+  getMyGifts: (playerId: string) =>
+    request<GiftView[]>(`/players/${playerId}/gifts`, { method: 'GET' }),
 
   /**
    * BİLDİRİMLER + YARIŞ DAVETİ (brief §28/§16, §35 `/notifications`).
@@ -1018,14 +1090,18 @@ export const apiClient = {
 
   /** Tüm bildirimleri okundu işaretler (200 + `markedCount`, 204 DEĞİL). */
   markAllNotificationsRead: (playerId: string) =>
-    request<MarkAllNotificationsReadResult>(`/players/${playerId}/notifications/read-all`, { method: 'POST' }),
+    request<MarkAllNotificationsReadResult>(`/players/${playerId}/notifications/read-all`, {
+      method: 'POST',
+    }),
 
   /**
    * Tek bildirimi okundu işaretler. **İdempotenttir:** zaten okunmuş bir
    * bildirim yine 200 döner, gövdesi değişmez.
    */
   markNotificationRead: (playerId: string, notificationId: string) =>
-    request<NotificationView>(`/players/${playerId}/notifications/${notificationId}/read`, { method: 'POST' }),
+    request<NotificationView>(`/players/${playerId}/notifications/${notificationId}/read`, {
+      method: 'POST',
+    }),
 
   /** Arkadaşı yarışa davet eder (201). Bekleyen davet tavanı sunucudadır (409). */
   sendRaceInvite: (playerId: string, inviteeId: string, raceId: string) =>
@@ -1062,7 +1138,9 @@ export const apiClient = {
     if (limit !== undefined) params.set('limit', String(limit));
     if (before !== undefined) params.set('before', before);
     const query = params.toString();
-    return request<WalletView>(`/players/${playerId}/wallet${query === '' ? '' : `?${query}`}`, { method: 'GET' });
+    return request<WalletView>(`/players/${playerId}/wallet${query === '' ? '' : `?${query}`}`, {
+      method: 'GET',
+    });
   },
 
   /**
@@ -1173,7 +1251,8 @@ export const apiClient = {
   createClub: (name: string, tag: string) =>
     request<ClubDetailView>('/clubs', { method: 'POST', body: JSON.stringify({ name, tag }) }),
 
-  joinClub: (clubId: string) => request<ClubDetailView>(`/clubs/${clubId}/join`, { method: 'POST' }),
+  joinClub: (clubId: string) =>
+    request<ClubDetailView>(`/clubs/${clubId}/join`, { method: 'POST' }),
 
   leaveClub: () => request<{ left: true }>('/clubs/leave', { method: 'POST' }),
 
@@ -1187,7 +1266,8 @@ export const apiClient = {
       body: JSON.stringify({ role }),
     }),
 
-  disbandClub: (clubId: string) => request<{ disbanded: true }>(`/clubs/${clubId}`, { method: 'DELETE' }),
+  disbandClub: (clubId: string) =>
+    request<{ disbanded: true }>(`/clubs/${clubId}`, { method: 'DELETE' }),
 
   // --- Personel (brief §33, 01.10.2026) -----------------------------------
   /** Kadro + aday pazarı + kapasite (oyuncu token'dan). */
@@ -1197,11 +1277,14 @@ export const apiClient = {
    * PARA YOLU (peşin sözleşme). `Idempotency-Key` GÖNDERİLMEZ: tekrar
    * DURUMLA engellenir — ikinci çağrı 409 `STAFF_ALREADY_HIRED`.
    */
-  hireStaff: (staffId: string) => request<StaffHireResult>(`/staff/${staffId}/hire`, { method: 'POST' }),
+  hireStaff: (staffId: string) =>
+    request<StaffHireResult>(`/staff/${staffId}/hire`, { method: 'POST' }),
 
   /** PARA YOLU — yalnızca bitime yakın/bitmişse açılır; ikinci çağrı 409 `STAFF_RENEWAL_NOT_DUE`. */
-  renewStaff: (staffId: string) => request<StaffHireResult>(`/staff/${staffId}/renew`, { method: 'POST' }),
+  renewStaff: (staffId: string) =>
+    request<StaffHireResult>(`/staff/${staffId}/renew`, { method: 'POST' }),
 
   /** İade YOK — peşin sözleşme bir kiralama bedelidir. */
-  releaseStaff: (staffId: string) => request<StaffView>(`/staff/${staffId}/release`, { method: 'POST' }),
+  releaseStaff: (staffId: string) =>
+    request<StaffView>(`/staff/${staffId}/release`, { method: 'POST' }),
 };

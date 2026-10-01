@@ -9,6 +9,9 @@ import { JoinRaceUseCase } from '../../application/use-cases/join-race.use-case'
 import { LeaveRaceUseCase } from '../../application/use-cases/leave-race.use-case';
 import { ListLobbyRacesUseCase } from '../../application/use-cases/list-lobby-races.use-case';
 import { SetEntryReadyUseCase } from '../../application/use-cases/set-entry-ready.use-case';
+import { InteractiveRaceUseCase } from '../../application/use-cases/interactive-race.use-case';
+import { InteractiveRaceScheduler } from '../../infrastructure/scheduler/interactive-race.scheduler';
+import { InteractiveRaceController } from './interactive-race.controller';
 import { ScheduleRaceCalendarUseCase } from '../../application/use-cases/schedule-race-calendar.use-case';
 import { ScheduleTournamentsUseCase } from '../../application/use-cases/schedule-tournaments.use-case';
 import { SettleDueRacesUseCase } from '../../application/use-cases/settle-due-races.use-case';
@@ -53,6 +56,7 @@ import { RecentRacesController } from './recent-races.controller';
   imports: [DatabaseModule, HorseModule, PlayerModule, MarketModule, GrandstandModule],
   controllers: [
     RaceController,
+    InteractiveRaceController,
     RecentRacesController,
     RaceTimelineController,
     // brief §1-§7, §42 PHASE 1 — oyuncunun kendi yarışını açması
@@ -114,6 +118,9 @@ import { RecentRacesController } from './recent-races.controller';
     TournamentScheduler,
     ScheduleRaceCalendarUseCase,
     RaceCalendarScheduler,
+    // 01.10.2026 — oyuncu kontrollü pratik yarış (migration 0053).
+    InteractiveRaceUseCase,
+    InteractiveRaceScheduler,
     // §42 PHASE 1 — PROJEDEKİ İLK ZAMANLAYICI. `NODE_ENV=test` iken kendi
     // kendine KOŞMAZ; testler `tickNow()`u elle çağırır (gerekçe: sınıf
     // doc yorumu, karar 3).

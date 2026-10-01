@@ -282,6 +282,24 @@ ETKİSİZ** (bakım ücretsiz — düşürülecek maliyet yok): `farm.config.jso
 `inactiveFacilities`, inşa 409 `FACILITY_INACTIVE`. Yeni tesis tipi
 eklersen ya bağla ya `inactiveFacilities`e koy — `farm.spec.ts` kapalı küme
 iddiasıyla kırılır.
+(29) **OYUNCU KONTROLLÜ PRATİK YARIŞ (01.10.2026, migration 0053, §13.55)** —
+`/races` → Pratik → "Atı Kendin Sür": kırbaç (Boşluk), sol/sağ (← →), sakin
+(↓). ⚠️ **MOTORA DOKUNULDU** (sahibinin talebi): `RaceSimulationInput.
+playerCommands` OPSİYONEL; komutsuz çıktı eski motorla BİT BİT AYNI —
+`race-engine-player-control.spec.ts` 120 yarışın SHA-256 parmak izini
+kilitler (değişiklik öncesi motordan alındı). Komut yalnızca kendi
+segmentinden itibaren etkiler (önek değişmezliği) — canlı yarış BUNA
+dayanır: komut her zaman İLK GÖSTERİLMEMİŞ segmente yazılır, gösterilen
+geçmiş değişmez. Kırbaç sınırsız (sahibinin kararı), her biri
+`playerControl.whipStaminaCost` yakar, bonus azalan getirili; dayanıklılık
+sprint rezervinin altındaysa bonus YOK. Oturum `interactive_races`:
+ücret BAŞLANGIÇTA düşer, kesinleşme pratik yarışın kayıt yolunu
+(`savePracticeRaceInTransaction`) oturum kilitliyken kullanır,
+`InteractiveRaceScheduler` terk edileni kesinleştirir. ⚠️ Tohum GİZLİ
+(`simulation_seed`, yarış kimliği DEĞİL) — aksi hâlde oyuncu açık kaynak
+motorla en iyi komutları önceden hesaplardı. Yarış saati `timeScale` (2×)
+ile akar; yalnızca süre kısalır, sonuç değişmez. Süren yarıştaki at
+`isHorseInActiveRace` ile kilitli. Lobi/turnuva HENÜZ kontrollü DEĞİL.
 
 **✅ ÜCRETLİ LOBİ YARIŞI ARTIK KOŞUYOR — ÖDÜL DAĞITIMI VAR (§13.14,
 28.09.2026).** `POST /races/:id/settle` yarışı koşar, ödülleri `top5`

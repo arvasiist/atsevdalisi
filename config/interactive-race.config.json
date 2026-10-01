@@ -1,0 +1,12 @@
+{
+  "version": "1.0.0",
+  "startCountdownSeconds": 4,
+  "timeScale": 2,
+  "revealLeadMs": 2500,
+  "finishGraceMs": 1500,
+  "scheduler": {
+    "enabled": true,
+    "tickSeconds": 10,
+    "batchSize": 20
+  }
+}

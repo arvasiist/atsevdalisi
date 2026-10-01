@@ -110,6 +110,13 @@ import {
   RaceNotSettleableError,
 } from '../../domain/race/errors';
 import {
+  InteractiveRaceClosedError,
+  InteractiveRaceInProgressError,
+  InteractiveRaceNotFinishedError,
+  InteractiveRaceNotFoundError,
+  InvalidPlayerControlError,
+} from '../../domain/race/errors';
+import {
   AlreadyInMatchmakingQueueError,
   NotInMatchmakingQueueError,
 } from '../../domain/online/errors';
@@ -734,6 +741,26 @@ const DOMAIN_ERROR_MAP = new Map<ErrorClassConstructor, { status: number; code: 
   // (ikinci çağrı `NOT_SCHEDULED` alır) — bkz. `ErrorCode.RaceNotSettleable`
   // doc yorumu.
   [RaceNotSettleableError, { status: HttpStatus.CONFLICT, code: ErrorCode.RaceNotSettleable }],
+  [
+    InvalidPlayerControlError,
+    { status: HttpStatus.BAD_REQUEST, code: ErrorCode.InvalidPlayerControl },
+  ],
+  [
+    InteractiveRaceNotFoundError,
+    { status: HttpStatus.NOT_FOUND, code: ErrorCode.InteractiveRaceNotFound },
+  ],
+  [
+    InteractiveRaceInProgressError,
+    { status: HttpStatus.CONFLICT, code: ErrorCode.InteractiveRaceInProgress },
+  ],
+  [
+    InteractiveRaceNotFinishedError,
+    { status: HttpStatus.CONFLICT, code: ErrorCode.InteractiveRaceNotFinished },
+  ],
+  [
+    InteractiveRaceClosedError,
+    { status: HttpStatus.CONFLICT, code: ErrorCode.InteractiveRaceClosed },
+  ],
   // SANAL PARA YATIRMA (brief §20 DEPOSIT, §21/§41, §42 PHASE 4b) — iki
   // hata da yeni bir sınıflandırma getirmez, mevcut kategorilerin
   // tekrarıdır (gerekçeler `packages/shared-types/src/error-codes.ts`'te

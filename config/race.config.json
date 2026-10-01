@@ -1,5 +1,5 @@
 {
-  "version": "1.2.0",
+  "version": "1.3.0",
   "baseAbilityWeights": {
     "speed": 0.25,
     "stamina": 0.20,
@@ -91,5 +91,10 @@
     "minEnergy": 30,
     "maxFatigue": 70,
     "minHealth": 50
+  },
+  "playerControl": {
+    "whipStaminaCost": 4,
+    "whipBonusExponent": 0.5,
+    "maxWhipsPerSegment": 20
   }
 }

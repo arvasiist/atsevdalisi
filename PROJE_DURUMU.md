@@ -3617,6 +3617,34 @@ ekranda "şu an etkisiz". Bakım ücretli yapılırsa (sahibin kararı) listeden
 `farm-effects.e2e-spec.ts` (depo/padok/veteriner; depo ve padok bağlantısı
 kapatılınca düştüğü doğrulandı).
 
+#### 13.55 OYUNCU KONTROLLÜ PRATİK YARIŞ (01.10.2026, migration 0053)
+
+Sahibinin talebi: "atı kullanıcı kendisi koştursun — yön verme, kırbaçlama".
+Karar: önce pratik yarış; kırbaç sınırsız, dayanıklılık bedelli.
+
+- **Motor:** her 200 m'lik segmentte jokey kararı zaten vardı; oyuncu komutu
+  bu kararın yerine geçer (kırbaç → finişe zorla + `whipStaminaCost` ×
+  kırbaç sayısı, bonus `kırbaç^0.5`; sakin → tempo düşür; sol/sağ → kulvar
+  ±1). Komutsuz yarış bit bit eskisiyle aynı (120 yarışlık parmak izi
+  testi); `race.config.json` 1.3.0 (`playerControl`).
+- **Canlı oturum:** `POST /horses/:id/interactive-race` (ücret hemen,
+  defter), `GET /interactive-races/current|:id` (yalnızca gösterilmiş
+  segmentler; sonuç ve tohum yarış bitmeden GİTMEZ), `POST .../commands`
+  (`{control}`), `POST .../finish`. Segment `j`, lider ona başlamadan
+  `revealLeadMs` önce gösterilir; komut ilk gösterilmemiş segmente düşer
+  (kilit altında hesaplanır). `interactive-race.config.json`: geri sayım,
+  `timeScale` 2, zamanlayıcı.
+- **Ekran:** `features/ride/InteractiveRaceViewer` — tam ekran 3D, sunucu
+  saatine göre oynatma, dört düğme + klavye, dayanıklılık çubuğu, kamera
+  seçimi, sonuç kartı. Sayfa yenilenince süren yarış geri gelir.
+- **Kanıt:** motor testleri (parmak izi, önek, kırbaç/kulvar/sakin), e2e 5
+  senaryo (ücret, tek oturum, at kilidi, komut hedefi, geçmiş değişmez,
+  erken kesinleşme 409, ödül tek sefer, terk → zamanlayıcı). Komut gösterilmiş
+  segmente yazdırılınca "geçmiş değişmez" testinin düştüğü doğrulandı.
+  Tarayıcıda masaüstü + 390 px uçtan uca koşuldu (sonuç ekranı dahil).
+- **Açık:** lobi/turnuva yarışları kontrollü değil (çok oyunculu canlı
+  koşu, kopma kuralları vb. ayrı karar). Kırbaç dengesi config'ten ayarlanır.
+
 ## 14. Kendime hatırlatmalar (kısa liste)
 
 1. **Race Engine'e dokunmadan önce iki kez düşün.** Denetim onu "KEEP, dokunma"

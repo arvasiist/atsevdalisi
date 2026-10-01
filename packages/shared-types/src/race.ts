@@ -249,7 +249,8 @@ export interface RaceEntrantSnapshot {
  * (bağımlılık yönü tersine döner) — aynı gerekçe `RacingStyle` gibi diğer
  * union tipler için de geçerlidir.
  */
-export type RaceJockeyDecision = 'reduce_pace' | 'push_for_finish' | 'search_overtake_lane' | 'defend_position' | 'hold';
+export type RaceJockeyDecision =
+  'reduce_pace' | 'push_for_finish' | 'search_overtake_lane' | 'defend_position' | 'hold';
 
 /** brief §24 Race Telemetry / §19 Segment sistemi */
 export interface RaceSegmentSnapshot {
@@ -731,4 +732,51 @@ export interface RaceSettlementResult {
   settledAt: ISODateTimeString;
   /** Sıralı sonuç listesi — 1. sıradan itibaren, botlar dahil. */
   places: RaceSettlementPlace[];
+}
+
+/** 01.10.2026 — oyuncu kontrollü yarışın düğmeleri. */
+export type PlayerControlInput = 'whip' | 'left' | 'right' | 'ease';
+
+/** Bir segmentteki oyuncu komutu (sunucunun kaydettiği hâliyle). */
+export interface PlayerSegmentCommandView {
+  whips: number;
+  laneShift: -1 | 0 | 1;
+  ease: boolean;
+}
+
+export interface InteractiveRaceEntrantView {
+  /** Segmentlerdeki `raceEntryId` ile aynı etiket (oyuncu atı için at kimliği, botlar için `bot-N`). */
+  label: string;
+  displayName: string;
+  isPlayer: boolean;
+}
+
+/**
+ * 01.10.2026 — `GET /interactive-races/:id`. Yalnızca GÖSTERİLMİŞ segmentler
+ * gelir; sonuç ve ileri segmentler yarış bitmeden gönderilmez (tohum hiç).
+ * Saatler sunucudandır: istemci `serverNow` ile kendi saat farkını bulur.
+ */
+export interface InteractiveRaceView {
+  raceId: UUID;
+  status: 'running' | 'finished';
+  serverNow: string;
+  /** Başlangıç işareti (kapılar açılır). Öncesi geri sayımdır. */
+  startsAt: string;
+  /** Yarış saati / gerçek saat (segment zamanları yarış saatindedir). */
+  timeScale: number;
+  distanceMeters: number;
+  surface: RaceSurface;
+  weather: RaceWeather;
+  segmentCount: number;
+  revealedSegments: number;
+  /** Komutun bir sonraki etki edeceği segment (yarış bitince `null`). */
+  nextCommandSegment: number | null;
+  playerLabel: string;
+  entrants: InteractiveRaceEntrantView[];
+  segments: RaceSegmentSnapshot[];
+  myCommands: Record<string, PlayerSegmentCommandView>;
+  /** Yarış bitti, kesinleştirilebilir (`POST .../finish`). */
+  canFinish: boolean;
+  /** Kesinleşmişse sonuç (para + XP dahil); değilse `null`. */
+  result: PracticeRaceResult | null;
 }
