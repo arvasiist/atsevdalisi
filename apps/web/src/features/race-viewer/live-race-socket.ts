@@ -100,6 +100,11 @@ export interface LiveRaceSocketHandlers {
    * `RaceChatErrorPayload` doc yorumu).
    */
   onChatError: (message: string) => void;
+  /**
+   * `race.waiting` / `race.cancelled` (01.10.2026) — yarış henüz bitmedi
+   * (oynatma kesinleşince başlar) ya da iptal edildi. Bitmiş yarışta gelmez.
+   */
+  onPhase?: (phase: 'waiting' | 'cancelled') => void;
 }
 
 /**
@@ -186,6 +191,18 @@ export function connectRaceSocket(
   socket.on('race.finished', (payload: { raceId: string; entrants: LiveRaceFinishedEntrant[] }) => {
     if (payload.raceId === raceId) {
       handlers.onFinished(payload.entrants);
+    }
+  });
+
+  socket.on('race.waiting', (payload: { raceId: string }) => {
+    if (payload.raceId === raceId) {
+      handlers.onPhase?.('waiting');
+    }
+  });
+
+  socket.on('race.cancelled', (payload: { raceId: string }) => {
+    if (payload.raceId === raceId) {
+      handlers.onPhase?.('cancelled');
     }
   });
 

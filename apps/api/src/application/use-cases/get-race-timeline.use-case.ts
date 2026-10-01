@@ -94,4 +94,24 @@ export class GetRaceTimelineUseCase {
 
     return timeline;
   }
+
+  /**
+   * Tribün soketinin BEKLEME yoklaması (01.10.2026) — yetki kapısı YOKTUR,
+   * çünkü yalnızca `execute`ten zaten geçmiş bir abonelik adına çağrılır.
+   * Yarış bittiyse zaman çizelgesini, iptal edildiyse `cancelled`ı, hâlâ
+   * sürüyorsa `pending`i döner.
+   */
+  async pollForPlayback(
+    raceId: string,
+  ): Promise<{ state: 'finished'; timeline: RaceTimelineView } | { state: 'pending' } | { state: 'cancelled' }> {
+    const status = await this.raceRepository.findRaceStatus(raceId);
+    if (status === null || status === 'cancelled') {
+      return { state: 'cancelled' };
+    }
+    if (status !== 'finished') {
+      return { state: 'pending' };
+    }
+    const timeline = await this.raceRepository.findTimelineByRaceId(raceId);
+    return timeline === null ? { state: 'cancelled' } : { state: 'finished', timeline };
+  }
 }

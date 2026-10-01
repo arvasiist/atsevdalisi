@@ -271,6 +271,16 @@ export class RaceGateway
    */
   private readonly raceSessions = new Map<string, RacePlaybackSession>();
 
+  /**
+   * BEKLEYEN TRİBÜN (01.10.2026) — henüz bitmemiş bir yarışa abone olunan
+   * odalar için yoklama zamanlayıcıları. Eskiden bitmemiş yarışa abone olmak
+   * BOŞ bir oynatma oturumu kuruyordu: 4 sn sonra sıra bilgisi olmayan
+   * `race.finished` yayınlanıyor ve oturum 60 sn önbellekte kalıyordu — o
+   * sürede gelen izleyici de yarışı hiç göremiyordu. Kontrollü yarışta
+   * (kilit → canlı koşu → kesinleşme) bu pencere dakikalar sürer.
+   */
+  private readonly waitingRaces = new Map<string, ReturnType<typeof setInterval>>();
+
   /** Bkz. dosya başı doc yorumu "Senkronize çoklu-izleyici" bölümü. */
   private static readonly SESSION_RETENTION_AFTER_FINISH_MS = 60_000;
 
@@ -382,7 +392,98 @@ export class RaceGateway
       return;
     }
 
-    await this.joinSharedPlayback(client, timeline);
+    // Oturum zaten varsa (bitmiş yarış ya da kesinleşmeyle başlamış oynatma)
+    // ona katıl; yoksa yarışın gerçekten bitip bitmediğine bak.
+    if (this.raceSessions.has(raceId)) {
+      await this.joinSharedPlayback(client, timeline);
+      return;
+    }
+    let playback: Awaited<ReturnType<GetRaceTimelineUseCase['pollForPlayback']>>;
+    try {
+      playback = await this.getRaceTimelineUseCase.pollForPlayback(raceId);
+    } catch (error) {
+      client.emit('race.error', { message: error instanceof Error ? error.message : 'Beklenmeyen hata.' });
+      return;
+    }
+    if (playback.state === 'finished') {
+      await this.joinSharedPlayback(client, playback.timeline);
+      return;
+    }
+    await this.joinWaitingRoom(client, timeline, playback.state);
+  }
+
+  /**
+   * Bitmemiş (ya da iptal edilmiş) yarışın odası: izleyici sayılır, sohbet
+   * eder, kadroyu görür — ama oynatma oturumu KURULMAZ. Bekleyen yarış
+   * yoklanır; kesinleşince oynatma odanın tamamına başlar.
+   */
+  private async joinWaitingRoom(
+    client: Socket,
+    timeline: RaceTimelineView,
+    state: 'pending' | 'cancelled',
+  ): Promise<void> {
+    await client.join(this.raceRoom(timeline.raceId));
+    this.trackSubscription(client, timeline.raceId);
+    this.broadcastSpectatorCount(timeline.raceId);
+    await this.emitChatHistory(client, timeline.raceId);
+    const rosterPayload: RaceRosterPayload = { raceId: timeline.raceId, entrants: toRoster(timeline) };
+    client.emit('race.roster', rosterPayload);
+    if (state === 'cancelled') {
+      client.emit('race.cancelled', { raceId: timeline.raceId });
+      return;
+    }
+    client.emit('race.waiting', { raceId: timeline.raceId });
+    this.ensureWaitingPoll(timeline.raceId);
+  }
+
+  private ensureWaitingPoll(raceId: string): void {
+    if (this.waitingRaces.has(raceId)) {
+      return;
+    }
+    const timer = setInterval(() => {
+      void this.checkWaitingRace(raceId);
+    }, this.config.raceLobby.spectatorWaitPollSeconds * 1000);
+    timer.unref?.();
+    this.waitingRaces.set(raceId, timer);
+  }
+
+  private stopWaitingPoll(raceId: string): void {
+    const timer = this.waitingRaces.get(raceId);
+    if (timer !== undefined) {
+      clearInterval(timer);
+      this.waitingRaces.delete(raceId);
+    }
+  }
+
+  /** Bekleyen yarışın tek yoklama turu — boş oda yoklamayı durdurur. */
+  async checkWaitingRace(raceId: string): Promise<void> {
+    const room = this.raceRoom(raceId);
+    if ((this.server.adapter.rooms.get(room)?.size ?? 0) === 0) {
+      this.stopWaitingPoll(raceId);
+      return;
+    }
+    let playback: Awaited<ReturnType<GetRaceTimelineUseCase['pollForPlayback']>>;
+    try {
+      playback = await this.getRaceTimelineUseCase.pollForPlayback(raceId);
+    } catch (error) {
+      this.logger.warn(
+        `Bekleyen tribün yoklanamadı (yarış ${raceId}): ${error instanceof Error ? error.message : String(error)}`,
+      );
+      return;
+    }
+    if (playback.state === 'pending') {
+      return;
+    }
+    this.stopWaitingPoll(raceId);
+    if (playback.state === 'cancelled') {
+      this.server.to(room).emit('race.cancelled', { raceId });
+      return;
+    }
+    if (!this.raceSessions.has(raceId)) {
+      // Oturumun zamanlayıcıları odanın TAMAMINA yayın yapar — bekleyen
+      // izleyiciler oynatmayı birlikte izler.
+      this.raceSessions.set(raceId, this.createPlaybackSession(playback.timeline));
+    }
   }
 
   private extractRaceId(body: unknown): string | null {
@@ -487,16 +588,7 @@ export class RaceGateway
     // geçmiş okunamazsa (ör. geçici bir DB hatası) yarış yayını YİNE DE
     // devam eder; sohbet geçmişi yüzünden bir yarışı izleyememek kabul
     // edilemez bir davranış olurdu.
-    try {
-      const history = await this.listRaceMessagesUseCase.execute(timeline.raceId);
-      client.emit('chat.history', history);
-    } catch (error) {
-      this.logger.warn(
-        `chat.history okunamadı (yarış ${timeline.raceId}): ${error instanceof Error ? error.message : String(error)}`,
-      );
-      const empty: RaceChatHistoryPayload = { raceId: timeline.raceId, messages: [] };
-      client.emit('chat.history', empty);
-    }
+    await this.emitChatHistory(client, timeline.raceId);
 
     // `race.roster` — bkz. dosya başı doc yorumu. Catch-up `race.telemetry`'den
     // ÖNCE gönderilir ki istemci ilk segment görüntülenmeden ÖNCE isim/
@@ -557,6 +649,19 @@ export class RaceGateway
    * odaya yayınlanır ve bir eviction zamanlayıcısı, oturumu bir süre sonra
    * (`SESSION_RETENTION_AFTER_FINISH_MS`) bellekten temizler.
    */
+  private async emitChatHistory(client: Socket, raceId: string): Promise<void> {
+    try {
+      const history = await this.listRaceMessagesUseCase.execute(raceId);
+      client.emit('chat.history', history);
+    } catch (error) {
+      this.logger.warn(
+        `chat.history okunamadı (yarış ${raceId}): ${error instanceof Error ? error.message : String(error)}`,
+      );
+      const empty: RaceChatHistoryPayload = { raceId, messages: [] };
+      client.emit('chat.history', empty);
+    }
+  }
+
   private createPlaybackSession(timeline: RaceTimelineView): RacePlaybackSession {
     const room = this.raceRoom(timeline.raceId);
     const allSegments = timeline.entrants.flatMap((entrant) => entrant.segments);
@@ -597,15 +702,7 @@ export class RaceGateway
     // Bkz. dosya başı doc yorumu "`race.roster`" bölümü — `segments`/
     // final-sonuç alanları BİLEREK dışarıda bırakılır (roster yarış
     // BAŞLARKEN gönderilir, o alanlar henüz/asla roster'a ait değildir).
-    const roster: RaceRosterEntrant[] = timeline.entrants.map((entrant) => ({
-      entryId: entrant.entryId,
-      isBot: entrant.isBot,
-      horseId: entrant.horseId,
-      horseName: entrant.horseName,
-      botLabel: entrant.botLabel,
-      tacticalStyle: entrant.tacticalStyle,
-      gatePosition: entrant.gatePosition,
-    }));
+    const roster: RaceRosterEntrant[] = toRoster(timeline);
 
     const session: RacePlaybackSession = {
       raceId: timeline.raceId,
@@ -782,4 +879,16 @@ export class RaceGateway
     const payload: RaceSpectatorCountPayload = { raceId, count };
     this.server.to(room).emit('race.spectators', payload);
   }
+}
+
+function toRoster(timeline: RaceTimelineView): RaceRosterEntrant[] {
+  return timeline.entrants.map((entrant) => ({
+    entryId: entrant.entryId,
+    isBot: entrant.isBot,
+    horseId: entrant.horseId,
+    horseName: entrant.horseName,
+    botLabel: entrant.botLabel,
+    tacticalStyle: entrant.tacticalStyle,
+    gatePosition: entrant.gatePosition,
+  }));
 }

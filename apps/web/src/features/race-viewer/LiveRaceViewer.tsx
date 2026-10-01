@@ -223,6 +223,9 @@ export function LiveRaceViewer({
   // bayrak yalnızca "DAHA ÖNCE bağlıydık ama bağlantı koptu" durumunu
   // ayırt eder.
   const [isDisconnected, setIsDisconnected] = useState(false);
+  // Bekleyen tribün (01.10.2026): yarış henüz bitmedi ya da iptal edildi —
+  // sunucu bitmemiş yarışta oynatma kurmaz, kesinleşince odaya başlatır.
+  const [racePhase, setRacePhase] = useState<'waiting' | 'cancelled' | null>(null);
   // PHASE 7.3 — tribün sohbeti + canlı izleyici sayısı (brief §13, §27).
   // Bu üç durum `RaceHud`'a GEÇİRİLMEZ: HUD `memo()` + 10Hz throttle
   // üzerine kuruludur ve her yeni mesajda tüm HUD'u yeniden çizmek o
@@ -268,6 +271,7 @@ export function LiveRaceViewer({
     setChatMessages([]);
     setSpectatorCount(null);
     setChatError(null);
+    setRacePhase(null);
 
     const socket = connectRaceSocket(apiBaseUrl, token, raceId, {
       onRoster: (entrants) => {
@@ -280,6 +284,7 @@ export function LiveRaceViewer({
       },
       onTelemetry: (newSegments) => {
         setIsDisconnected(false);
+        setRacePhase(null);
         if (playbackStartedAtRef.current === null) {
           playbackStartedAtRef.current = performance.now();
         }
@@ -298,6 +303,7 @@ export function LiveRaceViewer({
         setFinishedEntrants(entrants);
       },
       onError: (message) => setErrorMessage(message),
+      onPhase: (phase) => setRacePhase(phase),
       onConnectError: (message) => setErrorMessage(`Bağlantı hatası: ${message}`),
       onDisconnected: () => setIsDisconnected(true),
       onSpectators: (count) => setSpectatorCount(count),
@@ -654,6 +660,13 @@ export function LiveRaceViewer({
         onSend={handleSendChatMessage}
         errorMessage={chatError}
       />
+      {racePhase !== null && segments.length === 0 && (
+        <div className="race-phase-banner" role="status">
+          {racePhase === 'waiting'
+            ? 'Yarış sürüyor — bitince burada oynatılacak.'
+            : 'Bu yarış iptal edildi.'}
+        </div>
+      )}
     </div>
   );
 }

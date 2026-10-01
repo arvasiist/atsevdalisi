@@ -3670,6 +3670,23 @@ Karar: önce pratik yarış; kırbaç sınırsız, dayanıklılık bedelli.
   çekilerek), web `lobby-logic.spec`. Tarayıcıda form → katıl → hazır →
   kilit → sürüş ekranı → sonuç kartı uçtan uca koşuldu.
 
+### 13.57 Bekleyen tribün — bitmemiş yarışa abonelik (01.10.2026)
+
+- **Hata:** `race.subscribe` bitmemiş yarışta boş bir oynatma oturumu
+  kuruyordu; 4 sn sonra sıra bilgisi olmayan `race.finished` yayınlanıyor ve
+  oturum 60 sn önbellekte kalıyordu. O sürede (kesinleşmeden sonra bile)
+  gelen izleyici yarışı göremiyordu. Kontrollü yarışta (§13.56) pencere
+  dakikalar sürdüğü için görünür hâle geldi.
+- **Düzeltme:** gateway önce `GetRaceTimelineUseCase.pollForPlayback` ile
+  durumu sorar (`findRaceStatus`). Bitmemiş yarışta oda + sohbet + kadro +
+  `race.waiting`; `spectatorWaitPollSeconds` (race-lobby config) aralığıyla
+  yoklanır; kesinleşince `createPlaybackSession` odaya yayınlar; iptalde
+  `race.cancelled`. İzleme ekranı iki durumu bir bildirimle gösterir.
+- **Kanıt:** `race-spectator-wait.e2e-spec.ts` (eski abonelik koduyla iki
+  test de düşüyor; iptal senaryosu gerçek zamanlayıcıyla).
+- **Açık:** kontrollü yarış canlı koşarken tribün segmentleri ANINDA görmez
+  (kesinleşince oynatılır); canlı tribün akışı ayrı dilim.
+
 ## 14. Kendime hatırlatmalar (kısa liste)
 
 1. **Race Engine'e dokunmadan önce iki kez düşün.** Denetim onu "KEEP, dokunma"

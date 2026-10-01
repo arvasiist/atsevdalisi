@@ -761,6 +761,14 @@ export class PostgresRaceRepository implements RaceRepository {
    * sorgu segment-seviyesinde çalıştığından ayrım daha nettir. Salt okunur,
    * `withTransaction` GEREKMEZ.
    */
+  async findRaceStatus(raceId: string): Promise<RaceStatus | null> {
+    const result = await this.pool.query<{ status: RaceStatus }>(
+      'SELECT status FROM races WHERE id = $1::uuid',
+      [raceId],
+    );
+    return result.rows[0]?.status ?? null;
+  }
+
   async findTimelineByRaceId(raceId: string): Promise<RaceTimelineView | null> {
     const raceResult = await this.pool.query<{
       distance_m: number;

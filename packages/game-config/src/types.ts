@@ -1713,6 +1713,12 @@ export interface RaceLobbyConfig {
    * pencere geri gelir). Yani bu anahtar bir güvenlik supabıdır, bir
    * tercih değil.
    */
+  /**
+   * Tribün soketi, henüz bitmemiş bir yarışa abone olan izleyici için yarışın
+   * kesinleşmesini/iptalini kaç saniyede bir yoklar (01.10.2026). Kontrollü
+   * yarışta bekleme dakikalar sürebilir; yarış bitince oynatma odaya başlar.
+   */
+  spectatorWaitPollSeconds: number;
   lockScheduler: {
     enabled: boolean;
     /**

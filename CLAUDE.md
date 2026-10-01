@@ -319,6 +319,15 @@ sonucu önceden hesaplamak). ⚠️ `JoinRaceDto` taktik alanları
 `@IsOptional()` — onsuz gerçek sunucu `LobbyPanel` katılımını 400'lüyordu
 (esbuild e2e'de görünmez; `join-race-dto.spec.ts` kilitler). Lobi formunun
 "1 dakika" gecikmesi sunucu alt sınırının altındaydı (en az 2 dk).
+(31) **BEKLEYEN TRİBÜN (01.10.2026, §13.57)** — bitmemiş yarışa
+`race.subscribe` eskiden BOŞ oynatma oturumu kuruyordu (4 sn'de sırasız
+`race.finished`, 60 sn önbellek → kesinleşmeden sonra gelen bile yarışı
+göremiyordu). Artık `RaceGateway` bitmemiş yarışta oturum KURMAZ: odaya alır,
+`race.waiting` yollar ve `race-lobby.spectatorWaitPollSeconds` aralığıyla
+yoklar (`checkWaitingRace`); kesinleşince oynatma odanın tamamına başlar,
+iptalde `race.cancelled`. Boş oda yoklamayı durdurur. ⚠️ Yeni bir "yarış
+sürerken izle" yolu yazarken `pollForPlayback`/oturum önbelleği ayrımını
+koru — bitmemiş yarışa `createPlaybackSession` ÇAĞIRMA.
 
 **✅ ÜCRETLİ LOBİ YARIŞI ARTIK KOŞUYOR — ÖDÜL DAĞITIMI VAR (§13.14,
 28.09.2026).** `POST /races/:id/settle` yarışı koşar, ödülleri `top5`

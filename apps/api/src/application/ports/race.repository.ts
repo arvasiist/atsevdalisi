@@ -176,6 +176,12 @@ export interface RaceRepository {
   findTimelineByRaceId(raceId: string): Promise<RaceTimelineView | null>;
 
   /**
+   * Yarışın yalnızca durumu (01.10.2026) — tribün soketi, bitmemiş bir
+   * yarışın kesinleşmesini ya da iptalini beklerken yoklar. Satır yoksa `null`.
+   */
+  findRaceStatus(raceId: string): Promise<RaceStatus | null>;
+
+  /**
    * AUDIT_REPORT.md Bulgu R2 (Medium, bu oturum) — `GET /races/:id/timeline`
    * yetkilendirmesi: bu yarışta `playerId`'ye ait EN AZ bir gerçek at
    * (bot DEĞİL) katılımcı olarak var mı? `HorseOwnerGuardByParam` ile AYNI

@@ -25,6 +25,7 @@
   "prizeDistributionId": "top5",
   "lobbyListDefaultLimit": 20,
   "lobbyListMaxLimit": 100,
+  "spectatorWaitPollSeconds": 2,
   "lockScheduler": {
     "enabled": true,
     "tickSeconds": 5,
