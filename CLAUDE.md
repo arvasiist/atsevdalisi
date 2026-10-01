@@ -236,6 +236,10 @@ tribün/kule/ağaçların YERİNİ alır; pist, korkuluk, çim HER ZAMAN oyunun
 `camera.config.json` ile AYNI) → tribün kalkar/dalgalanır; `animationHz`
 seyreltmesi, `lodDistanceMeters` LOD, `densityByTier` kademe yoğunluğu.
 Salt sunum — sonuca etkisi YOK.
+(22) **3D AHIR (3D adım 6, §13.48)** — `/stable` üstünde `StableScene3D`
+(TEK Canvas; kartlardaki "Ahırda Göster" sahneye at seçer — eski kart
+başına `HorseShowcase` KALDIRILDI). Ortam `stable-environment.glb`
+(`keepOrigin`, orijin = bölme zemini, at +X) ya da `PlaceholderStall`.
 
 **✅ ÜCRETLİ LOBİ YARIŞI ARTIK KOŞUYOR — ÖDÜL DAĞITIMI VAR (§13.14,
 28.09.2026).** `POST /races/:id/settle` yarışı koşar, ödülleri `top5`

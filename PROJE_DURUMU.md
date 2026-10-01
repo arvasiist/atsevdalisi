@@ -3520,6 +3520,17 @@ demo yarışta tarayıcıda doğrulandı. Billboard dokusu (`crowd-billboard.
 ktx2`) bu adımda BAĞLANMADI: dokunun atlas düzeni paket gelmeden
 bilinemez; kalabalık bugün instanced kutulardır (PLACEHOLDER).
 
+#### 13.48 3D ADIM 6 — AHIR SAHNESİ (01.10.2026)
+
+`/stable` artık bir 3D ahır bölmesiyle açılır: seçili at (varsayılan öne
+çıkan at) bölmesinde, gerçek görünüş + durumdan gelen bekleme davranışıyla
+durur; sıcak fener + kapı ışığı, temas gölgesi, sınırlı yörünge kamera.
+Ortam GLB'si yoksa `PlaceholderStall` (ahşap duvar, yarım kapı, saman,
+yemlik, kova, eyer askısı, balyalar) + PLACEHOLDER rozeti. Kart başına
+Canvas açan eski "3D Önizle" kaldırıldı; kartlardaki "Ahırda Göster"
+sahneye at seçer (sayfada tek WebGL bağlamı). Tarayıcıda 1440/390 px
+doğrulandı: dışarıya istek yok, hata yok, taşma yok.
+
 ## 14. Kendime hatırlatmalar (kısa liste)
 
 1. **Race Engine'e dokunmadan önce iki kez düşün.** Denetim onu "KEEP, dokunma"

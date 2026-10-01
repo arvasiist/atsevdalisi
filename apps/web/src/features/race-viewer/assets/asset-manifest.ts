@@ -181,7 +181,9 @@ export const ASSET_MANIFEST: AssetRequirement[] = [
     description:
       'Ahır içi: bölme, saman, yemlik, su kabı, eyer/ekipman askısı; PBR ahşap/metal/taş.',
     fallbackBehavior:
-      '3D ahır YOK — /stable kart arayüzü ve at önizlemesi (PLACEHOLDER rozetli) gösterilir.',
+      'Prosedürel bölme (ahşap duvar, yarım kapı, saman, yemlik, kova, eyer askısı) + PLACEHOLDER rozeti (stable-scene/PlaceholderStall.tsx).',
+    // Model oyun koordinatında hazırlanır: orijin = bölme zemininin ortası, at +X'e bakar.
+    binding: { forwardAxis: '+x', keepOrigin: true },
   },
   {
     id: 'HDRI_SKY_REQUIRED',
