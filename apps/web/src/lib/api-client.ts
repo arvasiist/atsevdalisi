@@ -79,6 +79,7 @@ import type {
   ClubDetailView,
   ClubRole,
   ClubSummaryView,
+  SeasonView,
   StaffHireResult,
   StaffOverview,
   StaffView,
@@ -502,6 +503,9 @@ export const apiClient = {
    * olduğu gibi gösterir.
    */
   getLeaderboard: () => request<LeaderboardRowView[]>('/leaderboard'),
+
+  /** Güncel sezon (brief §69, 01.10.2026) — oturum ister (`me` satırı için). */
+  getCurrentSeason: () => request<SeasonView>('/seasons/current'),
 
   /**
    * brief §32 "Çiftlik" (bu turda EKLENDİ) — `/farm` ekranı.

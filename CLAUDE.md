@@ -102,8 +102,8 @@ Gerçek 3D/ses varlığı yok · OAuth kimlik bilgileri yok (Google kodu + düğ
 `/account`, migration 0046/0047; sıfırlama e-postası üretimde
 `RESEND_API_KEY` ister) · yarış takvimi yok
 (turnuva takvimi VAR) ·
-season **DOMAIN ONLY** (API/ekran yok; progression, kulüp ve personel
-01.10.2026'da BAĞLANDI — artık yer tutucu sayfa YOK) · `PlayerDemoWidget`/
+**DOMAIN ONLY modül KALMADI** (progression, kulüp, personel ve sezon
+01.10.2026'da BAĞLANDI; yer tutucu sayfa YOK) · `PlayerDemoWidget`/
 `GltfAssetLoader` bağlı değil (bilinçli). Jokey, mizaç, taktik motora BAĞLI;
 `PedigreeTree`, `BreedingPanel`, `JockeyPanel`, `/admin`, `/leaderboard`,
 `/farm`, **lobi yarışı (`LobbyPanel`, 30.09.2026)** bağlı.
@@ -184,6 +184,16 @@ veteriner/nalbant → `applyCareAction` `effectMultiplier`
 (`staff.careActionRoles`); aynı rolden yalnızca EN İYİ etkin personel
 sayılır; süresi dolan etki vermez. ⚠️ `hireableRoles`a etkisi BAĞLANMAMIŞ
 bir rol ekleme — oyuncuya işe yaramayan personel satmak olur.
+(17) **SEZON (01.10.2026, migration 0050, §13.43)** — `GET /seasons/current`
++ `/leaderboard` "Sezon" sekmesi. Sezon SKORU TUTULMAZ: genel sıralamanın
+formülüyle, yalnızca `races.start_time` sezon penceresindeki kayıtlardan
+TÜRETİLİR (ikinci puan defteri yok → ayrışamaz; "sezon reseti ilerlemeyi
+silmez" kendiliğinden). Sezonlar ardışık açılır (advisory lock). Ödülü
+`SeasonScheduler` öder (`season.rewardsByRank`, `season_reward` defter
+satırı); tek sefer kapısı `seasons.rewards_paid_at` KİLİT ALTINDA.
+Zamanlayıcı `NODE_ENV=test`te kapalı — e2e `tickNow(gelecekTarih)` ile
+sezon bitişini simüle eder. ⚠️ Ödül sırası ile ekrandaki sıra AYNI
+fonksiyondan (`SeasonUseCase.rankSeason`) çıkar; ayrı hesap yazma.
 
 **✅ ÜCRETLİ LOBİ YARIŞI ARTIK KOŞUYOR — ÖDÜL DAĞITIMI VAR (§13.14,
 28.09.2026).** `POST /races/:id/settle` yarışı koşar, ödülleri `top5`

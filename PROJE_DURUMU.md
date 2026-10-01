@@ -3438,6 +3438,22 @@ gösterir. Kanıt: `staff.e2e-spec.ts` (7; antrenör bağlantısı koparılınca
 test düşüyor — doğrulandı), domain `staff.spec.ts` + `care.spec.ts`; tam
 paket temiz DB'de 139 dosya / 2237 test.
 
+#### 13.43 SEZON BAĞLANDI — 01.10.2026
+
+`domain/season` DOMAIN ONLY idi. **Migration 0050:** `seasons` (numara,
+pencere, `rewards_paid_at`). Sezon skoru için tablo YOK: sıralama genel
+sıralamanın formülüyle (`sumRankingScores` + `buildLeaderboard`), yalnızca
+`races.start_time` pencere içindeki dereceli kayıtlardan türetilir.
+`GET /seasons/current` güncel sezonu (yoksa ardışık olarak açar), ilk
+`season.leaderboardSize` satırı, çağıranın satırını, ödül tablosunu ve
+önceki sezonun podyumunu döner. **Ödül (PARA YOLU):** `SeasonScheduler`
+(`season.schedule`) bitmiş ve ödenmemiş sezonu `FOR UPDATE` kilitler,
+`rewardsByRank`e göre (eşit puan = eşit sıra = eşit ödül) bakiye + `season_reward`
+defter satırı + `rewards_paid_at`i aynı transaction'da yazar; ikinci tur
+hiçbir şey ödemez. Web: `/leaderboard` "Genel / Sezon" sekmeleri, kalan
+süre, sıran ve olası ödülün; tablo mobilde yatay kaydırılır. Kanıt:
+`season.e2e-spec.ts` (3); tam paket temiz DB'de 140 dosya / 2242 test.
+
 ## 14. Kendime hatırlatmalar (kısa liste)
 
 1. **Race Engine'e dokunmadan önce iki kez düşün.** Denetim onu "KEEP, dokunma"

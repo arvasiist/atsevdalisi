@@ -59,6 +59,7 @@ export const LEDGER_TYPE_LABELS: Record<LedgerTransactionType, string> = {
   // ama etiket kuralı gereği yön metne gömülmez.
   jockey_hire: 'Jokey kiralama',
   staff_contract: 'Personel sözleşmesi',
+  season_reward: 'Sezon ödülü',
 };
 
 /**

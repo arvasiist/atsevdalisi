@@ -138,6 +138,7 @@ export const LEDGER_TRANSACTION_TYPES = [
    */
   'jockey_hire',
   'staff_contract',
+  'season_reward',
 ] as const;
 
 export type LedgerTransactionType = (typeof LEDGER_TRANSACTION_TYPES)[number];
@@ -208,6 +209,7 @@ export const CANONICAL_BY_LEDGER_TYPE: Record<LedgerTransactionType, CanonicalTr
   // altında görünmesi oyuncuya yanlış bir tablo çizerdi.
   jockey_hire: 'UPKEEP',
   staff_contract: 'UPKEEP',
+  season_reward: 'REWARD',
 };
 
 /**

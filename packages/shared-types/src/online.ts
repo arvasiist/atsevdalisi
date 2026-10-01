@@ -168,6 +168,33 @@ export interface Season {
  * bu arayüzdeki alanları sıfırlar; `Player`/`Horse` gibi KALICI varlıklar bu
  * arayüzde YOKTUR (onlar hiç dokunulmadan kalır).
  */
+/** 01.10.2026 — `GET /seasons/current` (brief §69). */
+export interface SeasonInfoView {
+  id: UUID;
+  number: number;
+  name: string;
+  startsAt: ISODateTimeString;
+  endsAt: ISODateTimeString;
+  status: SeasonStatus;
+  /** Ödüller ödendiyse damga (yalnızca bitmiş sezonda dolar). */
+  rewardsPaidAt: ISODateTimeString | null;
+}
+
+export interface SeasonStandingRow extends LeaderboardRowView {
+  /** Sezon bitince bu sıranın alacağı ödül (çip); ödülsüz sırada 0. */
+  reward: number;
+}
+
+export interface SeasonView {
+  season: SeasonInfoView;
+  standings: SeasonStandingRow[];
+  /** Çağıranın sezon satırı; bu sezon hiç yarışmadıysa `null`. */
+  me: SeasonStandingRow | null;
+  rewardsByRank: number[];
+  /** Bir önceki (bitmiş) sezonun ilk üçü — yoksa `null`. */
+  previous: { season: SeasonInfoView; podium: SeasonStandingRow[] } | null;
+}
+
 export interface PlayerSeasonState {
   playerId: UUID;
   seasonId: UUID;

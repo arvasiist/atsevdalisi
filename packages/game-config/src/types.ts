@@ -848,6 +848,15 @@ export interface OnlineConfig {
   /** brief §69 SEZON SİSTEMİ (bkz. `domain/season/season.ts`). */
   season: {
     durationDays: number;
+    /** 01.10.2026 — `GET /seasons/current` sıralamasında gösterilen satır sayısı. */
+    leaderboardSize: number;
+    /**
+     * Sezon sonu ödülü (çip), sıra başına: `[0]` = 1. Eşit puanlılar aynı
+     * sırayı paylaşır ve AYNI ödülü alır. Liste dışı sıralar ödül almaz.
+     */
+    rewardsByRank: number[];
+    /** Sezon zamanlayıcısı (yeni sezonu açar, biteni öder). `NODE_ENV=test`te kapalı. */
+    schedule: { enabled: boolean; tickSeconds: number };
   };
 }
 
