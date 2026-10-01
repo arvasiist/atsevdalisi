@@ -198,6 +198,8 @@ export default function RacesPage(): React.ReactElement {
       );
       setResult(raceResult);
       await loadHorses(player.id);
+      // Üst bardaki bakiye ve seviye (yarış XP'si) tazelensin.
+      await refresh();
     } catch (err: unknown) {
       setMessage(err instanceof Error ? err.message : 'Yarış başlatılamadı');
     } finally {
@@ -606,6 +608,9 @@ function RaceResultPanel({
         <span style={{ color: 'var(--color-text-primary)' }}>
           Yeni bakiye: {formatCurrency('money', result.newBalance.money)} /{' '}
           {formatCurrency('gems', result.newBalance.gems)}
+        </span>
+        <span style={{ color: 'var(--color-accent-gold)' }}>
+          Kazanılan XP: oyuncu +{result.xpGained.player} · at +{result.xpGained.horse}
         </span>
       </div>
 

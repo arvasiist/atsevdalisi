@@ -3352,6 +3352,19 @@ oyuncunun tüm bekleyen bağlantılarını kapatır. E-posta: Resend (yerleşik
 üretimde içerik loglanmaz. **Bilinen sınır:** JWT durumsuzdur; şifre
 değişince mevcut oturumlar süreleri dolana kadar geçerli kalır.
 
+#### 13.40 XP / SEVİYE İLERLEMESİ BAĞLANDI — 01.10.2026
+
+**Bulgu:** `applyXpGain` yazılmıştı ama hiçbir yerden çağrılmıyordu —
+oyuncular ve atlar sonsuza dek Seviye 1'deydi; seviye şartlı turnuvalar
+(Gümüş 15, Altın 30) ve kariyer kademeleri ölüydü. **Çözüm:**
+`progression.xpRewards` (oyuncu/at: yarışı bitirme + ilk üç bonusu +
+antrenman). Pratik yarış (`savePracticeRaceWithStakes`) ve lobi
+kesinleşmesi (`settleLobbyRace` adım 7) XP'yi para ile aynı transaction'da
+yazar; antrenman ata `updateWithLock` içinde, oyuncuya kendi kilidiyle.
+Pratik yarış yanıtı `xpGained` taşır. Test: `progression.e2e-spec.ts` (4;
+yazım kapatılınca 2'si düşüyor). **Denge notu:** XP eğrisi
+(`100·L^1.5`) ile Sv. 15 ≈ 300 yarış — sahibin ayarlayacağı bir değer.
+
 #### 13.39 TASARIM YENİLEMESİ — tema, menü, ana sayfa, yarış ekranı — 01.10.2026
 
 Sahibin paylaştığı konsept görsellere göre. **Arayüz:** altın-lacivert tema

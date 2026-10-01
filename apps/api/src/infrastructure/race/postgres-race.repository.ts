@@ -1,3 +1,5 @@
+import { computeRaceXp } from '../../domain/progression/progression';
+import { awardXpInTransaction } from '../progression/award-xp';
 import { Inject, Injectable } from '@nestjs/common';
 import type { Pool, PoolClient } from 'pg';
 import type {
@@ -416,6 +418,28 @@ export class PostgresRaceRepository implements RaceRepository {
       await this.writeLedgerEntries(client, ledgerEntries);
 
       await this.insertRaceRow(client, input.race);
+
+      // 01.10.2026 — XP: oyuncu ve atı, para ile AYNI transaction'da (bkz.
+      // `awardXpInTransaction`). İlk giriş oyuncunun kendi atıdır (port sözleşmesi).
+      const ownEntry = input.entries[0];
+      const progression = this.config.progression;
+      await awardXpInTransaction(
+        client,
+        'players',
+        input.playerId,
+        computeRaceXp(ownEntry?.finishPosition ?? null, progression.xpRewards.player),
+        progression,
+      );
+      if (ownEntry?.horseId) {
+        await awardXpInTransaction(
+          client,
+          'horses',
+          ownEntry.horseId,
+          computeRaceXp(ownEntry.finishPosition ?? null, progression.xpRewards.horse),
+          progression,
+        );
+      }
+
       // AUDIT_REPORT.md Bulgu R2 (Medium, bu oturum) — `input.entry`/
       // `input.segments` (tekil) yerine `input.entries` (oyuncu + TÜM bot
       // rakipler) — bkz. port doc yorumu, `savePvpMatch`'teki AYNI
@@ -2046,6 +2070,7 @@ export class PostgresRaceRepository implements RaceRepository {
       const entriesResult = await client.query<{
         id: string;
         player_id: string;
+        horse_id: string | null;
         display_name: string;
       }>(
         // `jockey_id` §42 PHASE 2'de bu sorguya EKLENMİŞTİ (o zaman sütun
@@ -2053,7 +2078,7 @@ export class PostgresRaceRepository implements RaceRepository {
         // jokeyi `input.realEntries[].jockeyId`den gelir. DB'den okumak,
         // adım 5 (okuma) ile adım 7 (yazım) arasında bayatlayan bir değer
         // taşırdı.
-        `SELECT e.id, e.player_id, p.display_name
+        `SELECT e.id, e.player_id, e.horse_id, p.display_name
          FROM race_entries e
          JOIN players p ON p.id = e.player_id
          WHERE e.race_id = $1 AND e.player_id IS NOT NULL AND e.status IS DISTINCT FROM 'cancelled'
@@ -2073,6 +2098,7 @@ export class PostgresRaceRepository implements RaceRepository {
 
       const playerIdByEntryId = new Map(entriesResult.rows.map((row) => [row.id, row.player_id]));
       const displayNameByEntryId = new Map(entriesResult.rows.map((row) => [row.id, row.display_name]));
+      const horseIdByEntryId = new Map(entriesResult.rows.map((row) => [row.id, row.horse_id]));
 
       // 6) ÖDÜL ÖDEMELERİ — kazananlar ÖNCE sözlüksel id sırasında kilitlenir.
       //    Kilit TEK bir oyuncu değil N oyuncudur; iki eşzamanlı kesinleşme
@@ -2181,6 +2207,29 @@ export class PostgresRaceRepository implements RaceRepository {
           entry.entryId,
           input.segments.filter((segment) => segment.raceEntryId === entry.entryId),
         );
+
+        // 01.10.2026 — XP: her gerçek katılımcı ve atı, ödemelerle AYNI
+        // transaction'da (pratik yarışla aynı tablo — `xpRewards`).
+        const progression = this.config.progression;
+        await awardXpInTransaction(
+          client,
+          'players',
+          playerIdByEntryId.get(entry.entryId) as string,
+          computeRaceXp(entry.finishPosition, progression.xpRewards.player),
+          progression,
+          input.now,
+        );
+        const horseId = horseIdByEntryId.get(entry.entryId);
+        if (horseId) {
+          await awardXpInTransaction(
+            client,
+            'horses',
+            horseId,
+            computeRaceXp(entry.finishPosition, progression.xpRewards.horse),
+            progression,
+            input.now,
+          );
+        }
       }
 
       // 8) Bot koltukları — YENİ satırlar. `fieldSize - gerçekOyuncu` kadar

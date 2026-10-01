@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   applyXpGain,
+  computeRaceXp,
   getUnlockedFeatures,
   getXpRequiredForLevel,
 } from '../../../src/domain/progression/progression';
@@ -67,5 +68,29 @@ describe('getUnlockedFeatures', () => {
     const features = getUnlockedFeatures(10, config.unlocks);
     expect(features).toEqual(expect.arrayContaining(['basic_stable', 'horse_market', 'advanced_training']));
     expect(features).not.toContain('breeding');
+  });
+});
+
+describe('computeRaceXp (01.10.2026)', () => {
+  const table = { raceFinished: 50, placementBonus: [100, 60, 30], trainingSession: 10 };
+
+  it('bitiren herkese katılım XP\'si, ilk sıralara ek bonus verir', () => {
+    expect(computeRaceXp(1, table)).toBe(150);
+    expect(computeRaceXp(3, table)).toBe(80);
+    expect(computeRaceXp(4, table)).toBe(50);
+  });
+
+  it('sıra bilinmiyorsa (null) ya da geçersizse yalnızca katılım XP\'si verilir', () => {
+    expect(computeRaceXp(null, table)).toBe(50);
+    expect(computeRaceXp(0, table)).toBe(50);
+  });
+
+  it('gerçek config: oyuncu ve at tabloları pozitif ve ödül sırası azalan', () => {
+    for (const reward of [config.xpRewards.player, config.xpRewards.horse]) {
+      expect(reward.raceFinished).toBeGreaterThan(0);
+      expect(reward.trainingSession).toBeGreaterThan(0);
+      const bonuses = reward.placementBonus;
+      expect([...bonuses].sort((a, b) => b - a)).toEqual(bonuses);
+    }
   });
 });

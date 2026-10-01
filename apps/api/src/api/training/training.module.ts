@@ -7,10 +7,12 @@ import { PostgresTrainingSessionRepository } from '../../infrastructure/training
 import { HorseOwnerGuardByParam } from '../auth/horse-owner.guard';
 import { HorseModule } from '../horse/horse.module';
 import { MarketModule } from '../market/market.module';
+import { PlayerModule } from '../player/player.module';
 import { TrainingController } from './training.controller';
 
 @Module({
-  imports: [DatabaseModule, HorseModule, MarketModule],
+  // PlayerModule: antrenman oyuncuya da XP verir (01.10.2026).
+  imports: [DatabaseModule, HorseModule, MarketModule, PlayerModule],
   controllers: [TrainingController],
   providers: [
     TrainHorseUseCase,

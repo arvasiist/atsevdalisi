@@ -374,6 +374,11 @@ export interface PracticeRaceResult {
   prizePool: number;
   prizeWon: number;
   newBalance: Pick<Player, 'money' | 'gems'>;
+  /**
+   * 01.10.2026 — bu yarışın kazandırdığı XP (oyuncu + at). Yazım, para ile
+   * AYNI transaction'dadır; burası yalnızca gösterim içindir.
+   */
+  xpGained: { player: number; horse: number };
 }
 
 /**

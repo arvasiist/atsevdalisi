@@ -1,3 +1,4 @@
+import { computeRaceXp } from '../../domain/progression/progression';
 import { randomUUID } from 'node:crypto';
 import { Inject, Injectable } from '@nestjs/common';
 import type { PracticeRaceResult, Race, RaceEntry, RaceSegmentSnapshot, RaceTacticInput } from '@at-sevdalisi/shared-types';
@@ -344,6 +345,10 @@ export class RunPracticeRaceUseCase {
       prizePool,
       prizeWon,
       newBalance,
+      xpGained: {
+        player: computeRaceXp(playerFinish.finishPosition, this.config.progression.xpRewards.player),
+        horse: computeRaceXp(playerFinish.finishPosition, this.config.progression.xpRewards.horse),
+      },
     };
   }
 }

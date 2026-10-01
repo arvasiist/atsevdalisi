@@ -528,6 +528,25 @@ export interface ProgressionConfig {
     baseXpPerLevel: number;
     exponent: number;
   };
+  /**
+   * 01.10.2026 — XP ÖDÜLLERİ. Bu tablo eklenene kadar XP/seviye mantığı
+   * (`domain/progression`) HİÇBİR yerden çağrılmıyordu: oyuncular ve atlar
+   * sonsuza dek Seviye 1'de kalıyor, seviye şartlı turnuvalar (Gümüş 15,
+   * Altın 30) kimseye açılamıyordu.
+   */
+  xpRewards: {
+    player: XpRewardTable;
+    horse: XpRewardTable;
+  };
+}
+
+export interface XpRewardTable {
+  /** Yarışı bitiren HER katılımcıya (sıradan bağımsız). */
+  raceFinished: number;
+  /** Dizinin `i` elemanı `i + 1`. sıranın EK ödülüdür; dışındaki sıralar 0. */
+  placementBonus: number[];
+  /** Tamamlanan her antrenman seansı. */
+  trainingSession: number;
 }
 
 /** brief §11 Bakım Sistemi — tımar/su/temizlik/veteriner/nalbant/dinlendir. */

@@ -158,6 +158,14 @@ HİÇBİR dosya indirmez — eski drei `<Environment preset>` CDN'den HDR
 indiriyordu ve indirme düşünce yarış ekranı TAMAMEN çöküyordu; `preset`/
 `files` ile ortam haritası GERİ EKLEME. Kamera yumuşatması kare hızından
 bağımsızdır (düşük fps'te kamera takılmasın).
+(14) **XP / SEVİYE ARTIK İŞLİYOR (01.10.2026)** — `domain/progression`
+önceden HİÇBİR yerden çağrılmıyordu: herkes Sv. 1'de kalıyor, Gümüş/Altın
+turnuvalar açılamıyordu. Ödül tablosu `progression.xpRewards` (oyuncu + at
+ayrı). Pratik yarış ve lobi kesinleşmesi XP'yi PARA İLE AYNI transaction'da
+yazar (`infrastructure/progression/award-xp.ts`, satır `FOR UPDATE`);
+antrenman ata kilit içinde, oyuncuya kendi kilidiyle verir. ⚠️ Yarış sonrası
+XP'yi 0 sanan test yazma — beklenen değeri `applyXpGain` + `computeRaceXp`
+ile hesapla (`progression.e2e-spec.ts`).
 
 **✅ ÜCRETLİ LOBİ YARIŞI ARTIK KOŞUYOR — ÖDÜL DAĞITIMI VAR (§13.14,
 28.09.2026).** `POST /races/:id/settle` yarışı koşar, ödülleri `top5`

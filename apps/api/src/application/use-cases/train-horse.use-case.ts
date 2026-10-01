@@ -11,12 +11,14 @@ import type {
 import { calculateAgeInMonths } from '../../domain/horse/age-curve';
 import { HorseInjuredError, HorseListedInMarketError, HorseNotFoundError } from '../../domain/horse/errors';
 import { applyVitalDelta } from '../../domain/horse/vital-signs';
+import { applyXpGain } from '../../domain/progression/progression';
 import { applyTraining, getPrimaryStatKey, rollInjuryOccurred } from '../../domain/training/training';
 import { AppConfigService } from '../../infrastructure/config/config.service';
 import { HORSE_STATS_REPOSITORY, type HorseStatsRepository } from '../ports/horse-stats.repository';
 import { HORSE_REPOSITORY, type HorseRepository } from '../ports/horse.repository';
 import { TRAINING_SESSION_REPOSITORY, type TrainingSessionRepository } from '../ports/training-session.repository';
 import { MARKET_LISTING_REPOSITORY, type MarketListingRepository } from '../ports/market-listing.repository';
+import { PLAYER_REPOSITORY, type PlayerRepository } from '../ports/player.repository';
 
 export interface TrainHorseInput {
   type: TrainingType;
@@ -38,6 +40,7 @@ export class TrainHorseUseCase {
     @Inject(TRAINING_SESSION_REPOSITORY) private readonly trainingSessionRepository: TrainingSessionRepository,
     @Inject(MARKET_LISTING_REPOSITORY) private readonly marketListingRepository: MarketListingRepository,
     @Inject(AppConfigService) private readonly config: AppConfigService,
+    @Inject(PLAYER_REPOSITORY) private readonly playerRepository: PlayerRepository,
   ) {}
 
   async execute(horseId: string, input: TrainHorseInput): Promise<TrainHorseResult> {
@@ -95,10 +98,21 @@ export class TrainHorseUseCase {
       const injuryOccurred = rollInjuryOccurred(outcome.injuryRisk, `${sessionId}:injury`);
       const newVitals = applyVitalDelta(vitals, { fatigue: outcome.fatigueGain });
 
+      // 01.10.2026 — XP: at, kilit altında, vitallerle AYNI yazımda ilerler.
+      const progression = this.config.progression;
+      const horseProgress = applyXpGain(
+        lockedHorse.level,
+        lockedHorse.xp,
+        progression.xpRewards.horse.trainingSession,
+        progression,
+      );
+
       const updatedHorse: Horse = {
         ...lockedHorse,
         fatigue: newVitals.fatigue,
         status: injuryOccurred ? 'injured' : lockedHorse.status,
+        level: horseProgress.level,
+        xp: horseProgress.xp,
         updatedAt: now.toISOString(),
       };
 
@@ -127,6 +141,19 @@ export class TrainHorseUseCase {
       injuryRisk: outcome.injuryRisk,
       injuryOccurred,
       createdAt: now.toISOString(),
+    });
+
+    // Oyuncu XP'si (01.10.2026). Antrenman bir para yolu değildir ve atın
+    // yazımı yukarıda ayrı bir kilitte tamamlandı; oyuncu satırı kendi
+    // kilidiyle güncellenir (eşzamanlı iki antrenman XP'yi ezmesin diye).
+    await this.playerRepository.updateWithLock(horse.ownerId, (player) => {
+      const progress = applyXpGain(
+        player.level,
+        player.xp,
+        this.config.progression.xpRewards.player.trainingSession,
+        this.config.progression,
+      );
+      return { player: { ...player, level: progress.level, xp: progress.xp, updatedAt: now.toISOString() }, result: null };
     });
 
     return {
