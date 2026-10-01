@@ -71,6 +71,7 @@
 import dynamic from 'next/dynamic';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type {
+  RaceSurface,
   RaceChatMessageView,
   RaceRosterEntrant,
   RaceSegmentSnapshot,
@@ -178,7 +179,7 @@ export interface LiveRaceViewerProps {
    * mesafeyi bilir; gerçek yarış mesafesi bilinmiyorsa bu prop VERİLMEZ ve
    * ilgili parçalar çizilmez (uydurma bir mesafe gösterilmez).
    */
-  raceInfo?: { title: string; distanceMeters: number; subtitle?: string };
+  raceInfo?: { title: string; distanceMeters: number; subtitle?: string; surface?: RaceSurface };
   ownHorseId?: string;
   /** brief §7 `Track.turnCount`. Varsayılan: virajlı (2) — `RaceViewer.tsx` ile AYNI varsayılan. */
   turnCount?: number;
@@ -490,6 +491,11 @@ export function LiveRaceViewer({
   // olayı kullanılıyor).
   const isRaceFinished = finishedEntrants !== null;
   const leaderPositionMeters = leaderboard[0]?.positionMeters ?? 0;
+  // 01.10.2026 (3D adım 8) — start kapısı mesafe 0'da.
+  const startPoint = useMemo(
+    () => getHorseTrackPosition(0, turnCount, trackGeometry),
+    [turnCount, trackGeometry],
+  );
   // 01.10.2026 — kalabalık heyecanı (tribün hareketi; adım 9'da kalabalık sesi).
   const secondsSinceFinish = useSecondsSinceFinish(
     isRaceFinished,
@@ -591,6 +597,9 @@ export function LiveRaceViewer({
       <RaceScene3D
         horses={horseVisuals}
         crowdExcitement={crowdExcitement}
+        surface={raceInfo?.surface ?? 'dirt'}
+        startPoint={startPoint}
+        gateOpen={leaderPositionMeters > 0 || isRaceFinished}
         cameraPose={cameraPose}
         trackGeometry={trackGeometry}
       />

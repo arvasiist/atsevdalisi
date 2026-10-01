@@ -119,7 +119,10 @@ export interface RaceBalanceConfig {
      */
     startApproach: Record<string, { earlyPerformanceBonus: number; latePerformanceBonus: number }>;
     /** Anahtar = `FinalStretchPlan`; aynı gerekçeyle genel `Record`. */
-    finalStretchPlan: Record<string, { bonusMultiplier: number; windowMultiplier: number; staminaConsumptionMultiplier: number }>;
+    finalStretchPlan: Record<
+      string,
+      { bonusMultiplier: number; windowMultiplier: number; staminaConsumptionMultiplier: number }
+    >;
   };
   /**
    * PHASE 6.3 — `horse_stats.temperament` (kişilik/mizaç) ekseninin motor
@@ -230,7 +233,10 @@ export interface TrainingTypeConfig {
 
 export interface TrainingConfig {
   diminishingExponent: number;
-  types: Record<'speed' | 'sprint' | 'stamina' | 'start' | 'cornering' | 'tempo' | 'rest', TrainingTypeConfig>;
+  types: Record<
+    'speed' | 'sprint' | 'stamina' | 'start' | 'cornering' | 'tempo' | 'rest',
+    TrainingTypeConfig
+  >;
   intensityMultipliers: Record<'low' | 'medium' | 'high', number>;
   durationMultiplier: {
     unitMinutes: number;
@@ -931,6 +937,24 @@ export interface VfxConfig {
     sizeScale: number;
     /** Materyalin temel (henüz solmamış) opaklığı, [0, 1]. */
     baseOpacity: number;
+  };
+  /**
+   * 01.10.2026 (3D adım 8) — zemine göre toz: kum bol ve açık, sentetik
+   * orta ve koyu, çim çok az. `rateFactor` `spawnRatePerSecond`u çarpar.
+   */
+  dustBySurface: Record<'dirt' | 'synthetic' | 'grass', { rateFactor: number; color: string }>;
+  /** Bu hızda (m/s) toz tam oranda çıkar; yavaşta orantılı azalır. */
+  dustSpeedReferenceMps: number;
+  /** Kamera uzaklaştıkça toz seyrelir (performans + gerçekçilik). */
+  dustCameraFalloff: { nearMeters: number; farMeters: number; minFactor: number };
+  /** Pist yüzeyinin rengi yarışın zeminine göre (çim yarışı kum pistte koşulmaz). */
+  trackColorBySurface: Record<'dirt' | 'synthetic' | 'grass', string>;
+  /** Start kapısı: açılma süresi ve prosedürel boyutlar. */
+  startGate: {
+    openSeconds: number;
+    stallWidthMeters: number;
+    heightMeters: number;
+    depthMeters: number;
   };
 }
 
@@ -1676,7 +1700,13 @@ export interface AuthConfig {
   email: { maxLength: number };
   password: { minLength: number; maxLength: number };
   /** Node `crypto.scrypt` parametreleri: `cost` (N, 2'nin kuvveti), `blockSize` (r), `parallelization` (p). */
-  scrypt: { cost: number; blockSize: number; parallelization: number; keyLength: number; saltBytes: number };
+  scrypt: {
+    cost: number;
+    blockSize: number;
+    parallelization: number;
+    keyLength: number;
+    saltBytes: number;
+  };
   /**
    * Şifre sıfırlama (migration 0047): bağlantı ömrü, rastgele bayt sayısı ve
    * aynı oyuncuya iki e-posta arasındaki en kısa süre (posta kutusunu
@@ -1720,7 +1750,10 @@ export interface HorsePresenceConfig {
     highEnergy: number;
     highMorale: number;
   };
-  moods: Record<'energetic' | 'neutral' | 'calm' | 'tired' | 'unwell' | 'injured', HorsePresenceMoodParams>;
+  moods: Record<
+    'energetic' | 'neutral' | 'calm' | 'tired' | 'unwell' | 'injured',
+    HorsePresenceMoodParams
+  >;
 }
 
 /**

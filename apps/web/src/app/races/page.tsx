@@ -311,6 +311,7 @@ export default function RacesPage(): React.ReactElement {
                     title: result.tierLabel,
                     distanceMeters: result.distanceMeters,
                     subtitle: `${result.distanceMeters} m · ${SURFACE_LABELS[result.surface]} · ${WEATHER_LABELS[result.weather]}`,
+                    surface: result.surface,
                   }}
                 />
               );

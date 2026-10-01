@@ -39,7 +39,7 @@ export type AssetFormat = 'glb' | 'gltf' | 'ktx2' | 'png' | 'mp3' | 'ogg' | 'hdr
  * manifest her role kabul edilen adları sıralar, `resolveAnimationClips`
  * GLB'deki gerçek adlarla eşler. Kod klip ADINA değil ROLE bağlanır.
  */
-export type AnimationRole = 'idle' | 'walk' | 'trot' | 'canter' | 'gallop' | 'ride';
+export type AnimationRole = 'idle' | 'walk' | 'trot' | 'canter' | 'gallop' | 'ride' | 'open';
 
 /**
  * 01.10.2026 — bir modelin sahneye NASIL oturtulacağı (3D adım 4). Satın
@@ -161,7 +161,11 @@ export const ASSET_MANIFEST: AssetRequirement[] = [
     format: 'glb',
     expectedPath: 'models/start-gate.glb',
     description: 'Yarış başlangıç kapıları (starting gate) modeli, açılma animasyonu.',
-    fallbackBehavior: 'Şu an başlangıç çizgisinde görsel bir kapı YOK (Grup 2 kapsamı).',
+    fallbackBehavior:
+      'Prosedürel start kapısı (StartGate.tsx): bölme başına ön kapılar, start anında açılır.',
+    animationClips: { open: ['Open', 'Gate_Open', 'Doors_Open'] },
+    // Kapı genişliği sahaya göre değişir; model yüksekliğe uydurulur, X'e bakar.
+    binding: { forwardAxis: '+x', targetHeightMeters: 2.6 },
   },
   {
     id: 'CROWD_BILLBOARD_TEXTURE_REQUIRED',

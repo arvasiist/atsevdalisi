@@ -45,11 +45,17 @@ import dynamic from 'next/dynamic';
 import { useEffect, useState } from 'react';
 import { GlassPanel } from '../../../components/ui/GlassPanel';
 import { apiClient } from '../../../lib/api-client';
-import { adaptRaceTimelineViewToReplayData, type ReplayTimelineData } from '../../../features/race-viewer/replay-adapter';
+import {
+  adaptRaceTimelineViewToReplayData,
+  type ReplayTimelineData,
+} from '../../../features/race-viewer/replay-adapter';
 
 const RaceViewer = dynamic(
   () => import('../../../features/race-viewer/RaceViewer').then((mod) => mod.RaceViewer),
-  { ssr: false, loading: () => <p style={{ color: '#fff', padding: '2rem' }}>3D Hipodrom yükleniyor...</p> },
+  {
+    ssr: false,
+    loading: () => <p style={{ color: '#fff', padding: '2rem' }}>3D Hipodrom yükleniyor...</p>,
+  },
 );
 
 interface ReplayDetailPageProps {
@@ -74,7 +80,9 @@ export default function ReplayDetailPage({ params }: ReplayDetailPageProps): Rea
           // Bkz. dosya başı doc yorumu — hiçbir katılımcının bitiş verisi
           // tam değilse (beklenmedik/bozuk veri) `RaceViewer` BOŞ veriyle
           // mount edilmez, açık bir hata durumu gösterilir.
-          setError('Bu yarışın tekrar (replay) verisi eksik — hiçbir katılımcının bitiş kaydı bulunamadı.');
+          setError(
+            'Bu yarışın tekrar (replay) verisi eksik — hiçbir katılımcının bitiş kaydı bulunamadı.',
+          );
           return;
         }
         setReplayData(adapted);
@@ -91,7 +99,9 @@ export default function ReplayDetailPage({ params }: ReplayDetailPageProps): Rea
     return (
       <main className="page-container">
         <BackLink />
-        <GlassPanel style={{ textAlign: 'center', padding: 'var(--space-xl)', marginTop: 'var(--space-md)' }}>
+        <GlassPanel
+          style={{ textAlign: 'center', padding: 'var(--space-xl)', marginTop: 'var(--space-md)' }}
+        >
           <p style={{ color: 'var(--color-status-critical)', margin: 0 }}>{error}</p>
         </GlassPanel>
       </main>
@@ -102,17 +112,33 @@ export default function ReplayDetailPage({ params }: ReplayDetailPageProps): Rea
     return (
       <main className="page-container">
         <BackLink />
-        <p style={{ color: 'var(--color-text-muted)', marginTop: 'var(--space-md)' }}>Yarış tekrarı yükleniyor…</p>
+        <p style={{ color: 'var(--color-text-muted)', marginTop: 'var(--space-md)' }}>
+          Yarış tekrarı yükleniyor…
+        </p>
       </main>
     );
   }
 
   return (
-    <main className="viewer-page" style={{ width: '100%', height: '100%', background: '#0b1220', position: 'relative' }}>
-      <div style={{ position: 'absolute', top: 'var(--space-sm)', left: 'var(--space-sm)', zIndex: 10 }}>
+    <main
+      className="viewer-page"
+      style={{ width: '100%', height: '100%', background: '#0b1220', position: 'relative' }}
+    >
+      <div
+        style={{
+          position: 'absolute',
+          top: 'var(--space-sm)',
+          left: 'var(--space-sm)',
+          zIndex: 10,
+        }}
+      >
         <BackLink />
       </div>
-      <RaceViewer timeline={replayData.timeline} horseNamesById={replayData.horseNamesById} />
+      <RaceViewer
+        timeline={replayData.timeline}
+        horseNamesById={replayData.horseNamesById}
+        surface={replayData.surface}
+      />
     </main>
   );
 }

@@ -3542,6 +3542,16 @@ ortam ışığı, ahırda yalnızca ortam/yansıma; yerel, yoklanmış, hata sı
 (CDN `preset` yasağı `lighting.spec.ts` ile kaynak taranarak kilitli).
 Geçici bir test HDR'si ile tarayıcıda doğrulandı (sonra silindi).
 
+#### 13.50 3D ADIM 8 — YARIŞ ENTEGRASYONU (01.10.2026)
+
+`StartGate`: `start_gate.glb` varsa `open` klibiyle, yoksa şerit ofsetlerine
+dizilmiş prosedürel bölmeler; kapılar yarış başlayınca açılır (`gateOpen`,
+süre `vfx.config.json` `startGate.openSeconds`). Toz artık yüzeye bağlı
+(çim < sentetik < kum), atın gerçek hızıyla (`HorseDust`, konum farkından)
+ve kamera uzaklığıyla ölçeklenir (`dustSpawnRate`, saf + test). Pist rengi
+de yüzeye göre. `/races/demo`da tarayıcıda görüldü (kapı + kalabalık);
+toz yazılımsal GPU'da düşük kademede seyrek görünür.
+
 ## 14. Kendime hatırlatmalar (kısa liste)
 
 1. **Race Engine'e dokunmadan önce iki kez düşün.** Denetim onu "KEEP, dokunma"

@@ -13,7 +13,7 @@
 
 import dynamic from 'next/dynamic';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { RaceSegmentSnapshot, RaceTimeline } from '@at-sevdalisi/shared-types';
+import type { RaceSurface, RaceSegmentSnapshot, RaceTimeline } from '@at-sevdalisi/shared-types';
 import { loadAtmosphereConfig, loadCameraConfig } from '@at-sevdalisi/game-config';
 import {
   DEFAULT_LAP_LENGTH_METERS,
@@ -66,6 +66,8 @@ export interface RaceViewerProps {
   horseNamesById: Record<string, string>;
   /** brief §7 `Track.turnCount` — pist virajlı mı, düz mü. Varsayılan: virajlı (2). */
   turnCount?: number;
+  /** 01.10.2026 (3D adım 8) — yarış zemini; verilmezse kum. */
+  surface?: RaceSurface;
 }
 
 /**
@@ -222,6 +224,7 @@ export function RaceViewer({
   timeline,
   horseNamesById,
   turnCount = 2,
+  surface = 'dirt',
 }: RaceViewerProps): React.ReactElement {
   const horseIds = useMemo(() => getHorseIdsFromTimeline(timeline), [timeline]);
   const durationMs = useMemo(() => getRaceDurationMs(timeline), [timeline]);
@@ -339,6 +342,11 @@ export function RaceViewer({
   // tercih edilir).
   const isRaceFinished = durationMs > 0 && currentTimeMs >= durationMs;
   const leaderPositionMeters = leaderboard[0]?.positionMeters ?? 0;
+  // 01.10.2026 (3D adım 8) — start kapısı mesafe 0'da.
+  const startPoint = useMemo(
+    () => getHorseTrackPosition(0, turnCount, trackGeometry),
+    [turnCount, trackGeometry],
+  );
   // 01.10.2026 — kalabalık heyecanı (tribün hareketi; adım 9'da kalabalık sesi).
   const secondsSinceFinish = useSecondsSinceFinish(
     isRaceFinished,
@@ -476,6 +484,9 @@ export function RaceViewer({
       <RaceScene3D
         horses={horseVisuals}
         crowdExcitement={crowdExcitement}
+        surface={surface}
+        startPoint={startPoint}
+        gateOpen={currentTimeMs > 0}
         cameraPose={cameraPose}
         trackGeometry={trackGeometry}
         isPlaying={isPlaying}

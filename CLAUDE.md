@@ -244,6 +244,11 @@ başına `HorseShowcase` KALDIRILDI). Ortam `stable-environment.glb`
 `SCENE_GL_OPTIONS` (ACES, `lighting.config.json` pozlama; PCSS yumuşak gölge
 YALNIZCA ultra). HDRI: `HdriEnvironment` — YEREL dosya, önce yoklanır, hata
 sınırlı; `preset` YASAK (`lighting.spec.ts` src'yi tarar ve kırılır).
+(24) **YARIŞ ENTEGRASYONU (3D adım 8, §13.50)** — `StartGate` (GLB `open`
+klibi ya da prosedürel bölmeler, kapılar `gateOpen`la açılır) + yüzeye göre
+toz/pist rengi (`vfx.config.json` `dustBySurface`/`trackColorBySurface`;
+hız ve kamera mesafesiyle ölçekli, `dustSpawnRate`). Yüzey `view.surface`ten
+gelir; izleme sayfası yüzey geçirmez → `dirt`.
 
 **✅ ÜCRETLİ LOBİ YARIŞI ARTIK KOŞUYOR — ÖDÜL DAĞITIMI VAR (§13.14,
 28.09.2026).** `POST /races/:id/settle` yarışı koşar, ödülleri `top5`

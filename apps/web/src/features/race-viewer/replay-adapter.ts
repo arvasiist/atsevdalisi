@@ -38,6 +38,7 @@
  */
 
 import type {
+  RaceSurface,
   RaceFinishEntry,
   RaceSegmentSnapshot,
   RaceTimeline,
@@ -47,6 +48,8 @@ import type {
 export interface ReplayTimelineData {
   timeline: RaceTimeline;
   horseNamesById: Record<string, string>;
+  /** 01.10.2026 (3D adım 8) — yarış zemini (pist rengi + toz). */
+  surface: RaceSurface;
 }
 
 /**
@@ -110,5 +113,6 @@ export function adaptRaceTimelineViewToReplayData(view: RaceTimelineView): Repla
       explanations: [],
     },
     horseNamesById,
+    surface: view.surface,
   };
 }

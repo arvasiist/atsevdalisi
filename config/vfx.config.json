@@ -11,5 +11,36 @@
     "size": 0.15,
     "sizeScale": 300,
     "baseOpacity": 0.6
+  },
+  "dustBySurface": {
+    "dirt": {
+      "rateFactor": 1.0,
+      "color": "#c9b28a"
+    },
+    "synthetic": {
+      "rateFactor": 0.45,
+      "color": "#7a6a5c"
+    },
+    "grass": {
+      "rateFactor": 0.12,
+      "color": "#8a9a6a"
+    }
+  },
+  "dustSpeedReferenceMps": 16,
+  "dustCameraFalloff": {
+    "nearMeters": 18,
+    "farMeters": 140,
+    "minFactor": 0.2
+  },
+  "trackColorBySurface": {
+    "dirt": "#9a7550",
+    "synthetic": "#6e5646",
+    "grass": "#5c8c45"
+  },
+  "startGate": {
+    "openSeconds": 0.35,
+    "stallWidthMeters": 1.6,
+    "heightMeters": 2.6,
+    "depthMeters": 3.4
   }
 }

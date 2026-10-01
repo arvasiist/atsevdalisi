@@ -150,8 +150,11 @@ export function Grass(): React.ReactElement {
 /** Kum pist: pist merkez çizgisinin iki yanına `TRACK_WIDTH_METERS/2` açılan sürekli bir şerit. */
 export function DirtTrack({
   geometry,
+  color = '#9a7550',
 }: {
   geometry: StadiumTrackGeometry;
+  /** 01.10.2026 — yüzey rengi yarışın zeminine göre (`vfx.config.json` `trackColorBySurface`). */
+  color?: string;
 }): React.ReactElement | null {
   const mesh = useMemo(() => {
     if (geometry.lapLengthMeters <= 0) return null;
@@ -159,7 +162,7 @@ export function DirtTrack({
     const positions: number[] = [];
     const colors: number[] = [];
     const indices: number[] = [];
-    const base = new THREE.Color('#9a7550');
+    const base = new THREE.Color(color);
     for (let i = 0; i <= TRACK_SAMPLES; i += 1) {
       const distance = (i / TRACK_SAMPLES) * geometry.lapLengthMeters;
       const inner = getOutwardBoundaryPoint(distance, TRACK_TURN_COUNT_FOR_VISUAL, geometry, -half);
@@ -180,7 +183,7 @@ export function DirtTrack({
     bufferGeometry.setIndex(indices);
     bufferGeometry.computeVertexNormals();
     return bufferGeometry;
-  }, [geometry]);
+  }, [geometry, color]);
 
   useEffect(() => () => mesh?.dispose(), [mesh]);
 

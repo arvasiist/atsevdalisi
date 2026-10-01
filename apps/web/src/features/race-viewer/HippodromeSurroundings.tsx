@@ -16,7 +16,8 @@
  */
 
 import { useMemo } from 'react';
-import { loadAtmosphereConfig } from '@at-sevdalisi/game-config';
+import { loadAtmosphereConfig, loadVfxConfig } from '@at-sevdalisi/game-config';
+import type { RaceSurface } from '@at-sevdalisi/shared-types';
 import { GltfAssetLoader } from './assets/GltfAssetLoader';
 import { getAssetById } from './assets/asset-manifest';
 import { forwardAxisRotation } from './assets/model-fit';
@@ -26,18 +27,22 @@ import type { StadiumTrackGeometry } from './track-path';
 
 const ENVIRONMENT_ASSET = getAssetById('HIPPODROME_ENVIRONMENT_REQUIRED');
 const ATMOSPHERE = loadAtmosphereConfig();
+const VFX = loadVfxConfig();
 
 export interface HippodromeSurroundingsProps {
   geometry: StadiumTrackGeometry;
   /** Kalabalık heyecanı 0..1 (`race-atmosphere.ts`). */
   crowdExcitement: number;
   qualityTier: QualityTier;
+  /** 01.10.2026 (adım 8) — yarışın zemini; pist yüzeyinin rengi buna göre. */
+  surface?: RaceSurface;
 }
 
 export function HippodromeSurroundings({
   geometry,
   crowdExcitement,
   qualityTier,
+  surface = 'dirt',
 }: HippodromeSurroundingsProps): React.ReactElement {
   const density = ATMOSPHERE.crowd.densityByTier[qualityTier];
   const procedural = (
@@ -55,7 +60,7 @@ export function HippodromeSurroundings({
   return (
     <>
       <Grass />
-      <DirtTrack geometry={geometry} />
+      <DirtTrack geometry={geometry} color={VFX.trackColorBySurface[surface]} />
       <Rails geometry={geometry} />
       {ENVIRONMENT_ASSET ? (
         <GltfAssetLoader asset={ENVIRONMENT_ASSET} fallback={procedural}>

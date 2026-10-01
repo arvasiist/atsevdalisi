@@ -91,6 +91,8 @@ import { DustParticles } from './audio-vfx/DustParticles';
 import { HorseAvatar3D } from './HorseAvatar3D';
 import { SkyAndLighting, TRACK_WIDTH_METERS } from './TrackScenery';
 import { HippodromeSurroundings } from './HippodromeSurroundings';
+import { StartGate } from './StartGate';
+import type { RaceSurface } from '@at-sevdalisi/shared-types';
 import { LIGHTING, SCENE_GL_OPTIONS, SceneRenderSettings } from './SceneRenderSettings';
 import type { StadiumTrackGeometry } from './track-path';
 import type { CameraPose } from './camera-presets';
@@ -114,6 +116,12 @@ export interface RaceScene3DProps {
   horses: HorseVisual[];
   /** 01.10.2026 — kalabalık heyecanı 0..1 (`race-atmosphere.ts`); tribün hareketi. */
   crowdExcitement?: number;
+  /** 01.10.2026 (adım 8) — yarış zemini: pist rengi + toz miktarı/rengi. */
+  surface?: RaceSurface;
+  /** 01.10.2026 (adım 8) — start çizgisi (mesafe 0) noktası; verilirse start kapısı çizilir. */
+  startPoint?: { x: number; z: number; headingRadians: number };
+  /** Start kapıları açık mı (yarış başladı). */
+  gateOpen?: boolean;
   cameraPose: CameraPose;
   trackGeometry: StadiumTrackGeometry;
   /** Bkz. dosya başı doc yorumu "FAZ 4 (kalite kademeleri)". Verilmezse `detectQualityTier()` ile otomatik algılanır. */
@@ -157,6 +165,9 @@ function laneOffsetMeters(index: number, count: number): number {
 export function RaceScene3D({
   horses,
   crowdExcitement = 0.35,
+  surface = 'dirt',
+  startPoint,
+  gateOpen = true,
   cameraPose,
   trackGeometry,
   qualityTierOverride,
@@ -228,7 +239,17 @@ export function RaceScene3D({
         geometry={trackGeometry}
         crowdExcitement={crowdExcitement}
         qualityTier={settings.tier}
+        surface={surface}
       />
+      {startPoint ? (
+        <StartGate
+          position={startPoint}
+          headingRadians={startPoint.headingRadians}
+          laneOffsets={horses.map((_, index) => laneOffsetMeters(index, horses.length))}
+          open={gateOpen}
+          castShadow={settings.shadowsEnabled}
+        />
+      ) : null}
       {/*
        * `DustParticles` KASITLI OLARAK atın grubunun İÇİNE DEĞİL, YANINA
        * (kardeş düğüm) konur: parçacıklar DÜNYA koordinatında yazılır; iç
@@ -250,11 +271,7 @@ export function RaceScene3D({
               isMoving={isPlaying}
               castShadow={settings.shadowsEnabled}
             />
-            <DustParticles
-              horseId={horse.horseId}
-              emitterPosition={{ x, z }}
-              isMoving={isPlaying}
-            />
+            <HorseDust horseId={horse.horseId} x={x} z={z} isMoving={isPlaying} surface={surface} />
           </Fragment>
         );
       })}
@@ -283,6 +300,47 @@ export function RaceScene3D({
 }
 
 /** Atın dünya konumu + yönü; model `HorseModel.tsx`'tedir. Lider atın üstünde altın bir işaret döner. */
+/**
+ * Atın tozu (01.10.2026, adım 8): hız, konumun zaman içindeki değişiminden
+ * ölçülür (yarışın gerçek temposu; oynatma hızı çarpanı dahil — ekranda ne
+ * görünüyorsa toz ona uyar). Değer yumuşatılır ki kare kare titremesin.
+ */
+function HorseDust({
+  horseId,
+  x,
+  z,
+  isMoving,
+  surface,
+}: {
+  horseId: string;
+  x: number;
+  z: number;
+  isMoving: boolean;
+  surface: RaceSurface;
+}): React.ReactElement {
+  const last = useRef<{ x: number; z: number; t: number; speed: number } | null>(null);
+  const now = typeof performance === 'undefined' ? 0 : performance.now();
+  const previous = last.current;
+  let speed = previous?.speed ?? 0;
+  if (previous && (previous.x !== x || previous.z !== z)) {
+    const dt = Math.max(0.001, (now - previous.t) / 1000);
+    const instant = Math.hypot(x - previous.x, z - previous.z) / dt;
+    speed = previous.speed * 0.7 + instant * 0.3;
+    last.current = { x, z, t: now, speed };
+  } else if (!previous) {
+    last.current = { x, z, t: now, speed: 0 };
+  }
+  return (
+    <DustParticles
+      horseId={horseId}
+      emitterPosition={{ x, z }}
+      isMoving={isMoving && speed > 0.5}
+      speedMps={speed}
+      surface={surface}
+    />
+  );
+}
+
 function HorseRig({
   horse,
   x,
