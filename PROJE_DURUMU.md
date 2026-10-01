@@ -3352,6 +3352,22 @@ oyuncunun tüm bekleyen bağlantılarını kapatır. E-posta: Resend (yerleşik
 üretimde içerik loglanmaz. **Bilinen sınır:** JWT durumsuzdur; şifre
 değişince mevcut oturumlar süreleri dolana kadar geçerli kalır.
 
+#### 13.39 TASARIM YENİLEMESİ — tema, menü, ana sayfa, yarış ekranı — 01.10.2026
+
+Sahibin paylaştığı konsept görsellere göre. **Arayüz:** altın-lacivert tema
+(Cinzel başlık, altın çerçeveli paneller), tek satır simgeli üst bar +
+telefonda alt sekme çubuğu, ana sayfa (öne çıkan at, ahır/cüzdan/kariyer,
+yaklaşan yarışlar), ahırda atlar üstte, yarışlar sekmeli. **Yarış ekranı:**
+gökyüzü shader'ı, kum pist, beyaz korkuluk, çatılı tribün + kalabalık,
+ağaçlar, bayrak; kapsül yerine bacakları dörtnal salınan, numaralı eyer
+örtülü, formalı jokeyli prosedürel at; yayın kamerası (iç sahadan lideri
+takip); HUD: koşu bilgisi, renkli rozetli sıralama, odak at kartı (gerçek
+hız/tempo/kalan), ilerleme şeridi, pist çizgili mini harita. **Düzeltilen
+hata:** drei `<Environment preset="sunset">` HDR'yi CDN'den indiriyordu;
+indirme başarısız olunca yarış ekranı çöküyordu — artık yerel
+`<Lightformer>` ortamı. **Fotoğraf gerçekliği YOK:** gerçek at/hipodrom
+görüntüsü lisanslı `.glb`/görsel ister (CLAUDE.md kural 8).
+
 #### 13.38 GOOGLE GİRİŞİ + HESAP BAĞLAMA (migration 0048) — 01.10.2026
 
 Sunucu doğrulayıcısı (`GoogleAppleIdentityProvider`) ve `POST /auth/login`

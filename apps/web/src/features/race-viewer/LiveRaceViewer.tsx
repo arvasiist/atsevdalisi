@@ -70,7 +70,11 @@
 
 import dynamic from 'next/dynamic';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { RaceChatMessageView, RaceRosterEntrant, RaceSegmentSnapshot } from '@at-sevdalisi/shared-types';
+import type {
+  RaceChatMessageView,
+  RaceRosterEntrant,
+  RaceSegmentSnapshot,
+} from '@at-sevdalisi/shared-types';
 import { loadCameraConfig, loadChatConfig } from '@at-sevdalisi/game-config';
 import {
   DEFAULT_LAP_LENGTH_METERS,
@@ -79,22 +83,39 @@ import {
   getHorseTrackPosition,
 } from './track-path';
 import { computeCameraPose, type CameraMode } from './camera-presets';
-import { selectAutomaticCameraMode, classifyRaceCameraEvent, type RaceCameraEvent } from './camera-director';
+import {
+  selectAutomaticCameraMode,
+  classifyRaceCameraEvent,
+  type RaceCameraEvent,
+} from './camera-director';
 import { buildPhotoFinishRows } from './photo-finish';
 import { projectToMiniMap } from './minimap-projection';
 import { getLiveLeaderboard, isAnyHorseBlockedAtTime } from './timeline-playback';
 import { RaceHud, type MiniMapMarker } from './RaceHud';
 import type { HorseVisual } from './RaceScene3D';
-import { HORSE_VISUAL_HEIGHT_METERS, HUD_SYNC_INTERVAL_MS, computeHorseVisualsAt } from './RaceViewer';
-import { connectRaceSocket, sendRaceChatMessage, type LiveRaceFinishedEntrant } from './live-race-socket';
+import {
+  HORSE_VISUAL_HEIGHT_METERS,
+  HUD_SYNC_INTERVAL_MS,
+  buildMiniMapTrack,
+  colorsByHorseId,
+  computeHorseVisualsAt,
+} from './RaceViewer';
+import {
+  connectRaceSocket,
+  sendRaceChatMessage,
+  type LiveRaceFinishedEntrant,
+} from './live-race-socket';
 import { mergeSegments } from './segment-merge';
 import { mergeChatMessages } from './chat-history-merge';
 import { RaceChatPanel } from './RaceChatPanel';
 
-const RaceScene3D = dynamic(() => import('./RaceScene3D').then((imported) => imported.RaceScene3D), {
-  ssr: false,
-  loading: () => <ScenePlaceholder text="Sahne yükleniyor…" />,
-});
+const RaceScene3D = dynamic(
+  () => import('./RaceScene3D').then((imported) => imported.RaceScene3D),
+  {
+    ssr: false,
+    loading: () => <ScenePlaceholder text="Sahne yükleniyor…" />,
+  },
+);
 
 /**
  * Faz 6 "Config ayrımı" (bu turda EKLENDİ) — `RaceViewer.tsx`'teki AYNI
@@ -149,6 +170,13 @@ export interface LiveRaceViewerProps {
    * izleyiciye uydurma bir `horseId` geçirmek, olmayan bir atı "benim
    * atım" gibi gösterme riski taşırdı.
    */
+  /**
+   * Yarışın bilinen bilgisi (01.10.2026) — HUD'un koşu paneli, ilerleme
+   * şeridi ve "kalan mesafe" için. Canlı yayın yalnızca o ana kadar koşulan
+   * mesafeyi bilir; gerçek yarış mesafesi bilinmiyorsa bu prop VERİLMEZ ve
+   * ilgili parçalar çizilmez (uydurma bir mesafe gösterilmez).
+   */
+  raceInfo?: { title: string; distanceMeters: number; subtitle?: string };
   ownHorseId?: string;
   /** brief §7 `Track.turnCount`. Varsayılan: virajlı (2) — `RaceViewer.tsx` ile AYNI varsayılan. */
   turnCount?: number;
@@ -159,6 +187,7 @@ export function LiveRaceViewer({
   token,
   raceId,
   ownHorseId = '',
+  raceInfo,
   turnCount = 2,
 }: LiveRaceViewerProps): React.ReactElement {
   const trackGeometry = useMemo(
@@ -271,11 +300,19 @@ export function LiveRaceViewer({
         // ekleme son 100 mesajı her kopmada bir kez daha yazardı.
         // `mergeChatMessages` `messageId`'ye göre tekilleştirir (bkz. o
         // dosyanın doc yorumu); `segment-merge.ts`'in kardeşidir.
-        chatMessagesRef.current = mergeChatMessages(chatMessagesRef.current, messages, chatConfig.historyLimit);
+        chatMessagesRef.current = mergeChatMessages(
+          chatMessagesRef.current,
+          messages,
+          chatConfig.historyLimit,
+        );
         setChatMessages(chatMessagesRef.current);
       },
       onChatMessage: (message) => {
-        chatMessagesRef.current = mergeChatMessages(chatMessagesRef.current, [message], chatConfig.historyLimit);
+        chatMessagesRef.current = mergeChatMessages(
+          chatMessagesRef.current,
+          [message],
+          chatConfig.historyLimit,
+        );
         setChatMessages(chatMessagesRef.current);
       },
       onChatError: (message) => setChatError(message),
@@ -303,7 +340,10 @@ export function LiveRaceViewer({
     const tick = (): void => {
       const now = performance.now();
       if (finishedRef.current) {
-        const maxTimestampMs = segmentsRef.current.reduce((max, segment) => Math.max(max, segment.timestampMs), 0);
+        const maxTimestampMs = segmentsRef.current.reduce(
+          (max, segment) => Math.max(max, segment.timestampMs),
+          0,
+        );
         currentTimeMsRef.current = maxTimestampMs;
         setCurrentTimeMs(maxTimestampMs);
         // Faz 2 düzeltmesi (bkz. `RaceViewer.tsx`'in AYNI deseni) — yarış
@@ -344,7 +384,9 @@ export function LiveRaceViewer({
   const horseNamesById = useMemo(() => {
     const map: Record<string, string> = {};
     for (const entrant of roster ?? []) {
-      map[entrant.entryId] = entrant.isBot ? (entrant.botLabel ?? 'Rakip') : (entrant.horseName ?? 'At');
+      map[entrant.entryId] = entrant.isBot
+        ? (entrant.botLabel ?? 'Rakip')
+        : (entrant.horseName ?? 'At');
     }
     return map;
   }, [roster]);
@@ -392,7 +434,9 @@ export function LiveRaceViewer({
     return buildPhotoFinishRows(
       finishedEntrants
         .filter(
-          (entrant): entrant is LiveRaceFinishedEntrant & { finishPosition: number; finalTimeMs: number } =>
+          (
+            entrant,
+          ): entrant is LiveRaceFinishedEntrant & { finishPosition: number; finalTimeMs: number } =>
             entrant.finishPosition !== null && entrant.finalTimeMs !== null,
         )
         .map((entrant) => ({
@@ -405,12 +449,21 @@ export function LiveRaceViewer({
     );
   }, [finishedEntrants]);
 
+  const horseColorsById = useMemo(() => colorsByHorseId(entryIds), [entryIds]);
+  const miniMapTrack = useMemo(
+    () => buildMiniMapTrack(turnCount, trackGeometry),
+    [turnCount, trackGeometry],
+  );
+
   const miniMapMarkers: MiniMapMarker[] = useMemo(
     () =>
       hudHorseVisuals.map((horse) => ({
         horseId: horse.horseId,
         isLeader: horse.isLeader,
-        ...projectToMiniMap({ x: horse.x, z: horse.z, headingRadians: horse.headingRadians }, trackGeometry),
+        ...projectToMiniMap(
+          { x: horse.x, z: horse.z, headingRadians: horse.headingRadians },
+          trackGeometry,
+        ),
       })),
     [hudHorseVisuals, trackGeometry],
   );
@@ -443,7 +496,12 @@ export function LiveRaceViewer({
   const lastAutoCameraEventRef = useRef<RaceCameraEvent | null>(null);
 
   useEffect(() => {
-    const cameraDirectorInput = { leaderPositionMeters, raceDistanceMeters, anyHorseBlocked, isFinished: isRaceFinished };
+    const cameraDirectorInput = {
+      leaderPositionMeters,
+      raceDistanceMeters,
+      anyHorseBlocked,
+      isFinished: isRaceFinished,
+    };
     const currentEvent = classifyRaceCameraEvent(cameraDirectorInput, cameraConfig);
     if (currentEvent !== lastAutoCameraEventRef.current) {
       manualCameraOverrideRef.current = false;
@@ -467,6 +525,8 @@ export function LiveRaceViewer({
       focusHorsePosition,
       trackCenter: { x: 0, y: 0, z: 0 },
       finishLinePosition: { x: finishLinePoint.x, y: 0, z: finishLinePoint.z },
+      leaderHeadingRadians: leaderVisual?.headingRadians ?? 0,
+      focusHeadingRadians: focusVisual?.headingRadians ?? 0,
     });
   }, [cameraMode, leaderVisual, focusVisual, finishLinePoint]);
 
@@ -527,6 +587,12 @@ export function LiveRaceViewer({
         onChangeCameraMode={handleChangeCameraMode}
         onSeek={NOOP_SEEK}
         liveStatus={finishedEntrants ? 'finished' : isDisconnected ? 'reconnecting' : 'live'}
+        horseColorsById={horseColorsById}
+        focusHorseId={focusVisual?.horseId}
+        raceDistanceMeters={raceInfo?.distanceMeters}
+        raceTitle={raceInfo?.title}
+        raceSubtitle={raceInfo?.subtitle}
+        miniMapTrack={miniMapTrack}
       />
       <RaceChatPanel
         messages={chatMessages}
@@ -538,7 +604,13 @@ export function LiveRaceViewer({
   );
 }
 
-function ScenePlaceholder({ text, isError = false }: { text: string; isError?: boolean }): React.ReactElement {
+function ScenePlaceholder({
+  text,
+  isError = false,
+}: {
+  text: string;
+  isError?: boolean;
+}): React.ReactElement {
   return (
     <div
       style={{

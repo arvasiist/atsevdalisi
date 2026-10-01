@@ -103,7 +103,7 @@ export function classifyQualityTier(input: QualityTierClassificationInput): Qual
 
 export interface QualityTierRenderSettings {
   tier: QualityTier;
-  /** `<Environment preset="sunset">` (IBL/yansıma) açık mı — kapalıysa `RaceScene3D.tsx` Faz 1 ÖNCESİ düz `<ambientLight>`'a geri döner (bkz. o dosyanın doc yorumu). */
+  /** Yerel ortam haritası (`<Environment>` + `<Lightformer>`, dosya indirmez — `TrackScenery.tsx`) açık mı; kapalıysa yalnızca yarım küre + güneş ışığı. */
   environmentEnabled: boolean;
   /** `@react-three/postprocessing` `<Bloom>` açık mı. */
   bloomEnabled: boolean;

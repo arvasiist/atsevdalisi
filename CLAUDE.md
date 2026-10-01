@@ -150,6 +150,14 @@ okur). ⚠️ Üretimde sıfırlama bağlantısını LOGLAMA — parola eşdeğe
 hesaplar BİRLEŞTİRİLMEZ (para/at taşımak ayrı karar). Misafir = e-posta YOK
 VE `linkedProviders` boş. E2e Google belgesini sahte doğrulayıcıyla taklit
 eder (`bootstrapTestApp(builder => builder.overrideProvider(...))`).
+(13) **TASARIM YENİLEMESİ (01.10.2026, §13.39)** — altın-lacivert tema
+(`globals.css` token'ları), simgeli üst bar + mobil alt sekme çubuğu
+(`nav-links.ts` artık nesne listesi), yayın tarzı yarış HUD'u, prosedürel
+at+jokey (`HorseModel.tsx`) ve hipodrom (`TrackScenery.tsx`). ⚠️ 3D sahne
+HİÇBİR dosya indirmez — eski drei `<Environment preset>` CDN'den HDR
+indiriyordu ve indirme düşünce yarış ekranı TAMAMEN çöküyordu; `preset`/
+`files` ile ortam haritası GERİ EKLEME. Kamera yumuşatması kare hızından
+bağımsızdır (düşük fps'te kamera takılmasın).
 
 **✅ ÜCRETLİ LOBİ YARIŞI ARTIK KOŞUYOR — ÖDÜL DAĞITIMI VAR (§13.14,
 28.09.2026).** `POST /races/:id/settle` yarışı koşar, ödülleri `top5`

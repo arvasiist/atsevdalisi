@@ -1156,3 +1156,554 @@ button[style*='background: var(--color-accent-gold)'] {
   box-shadow: var(--shadow-gold-glow);
   color: #1a1204 !important;
 }
+
+/* ---- Sekmeler ---- */
+.tabs {
+  display: inline-flex;
+  gap: 4px;
+  padding: 4px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border-gold);
+  background: rgba(0, 0, 0, 0.35);
+}
+
+.tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 42px;
+  padding: 0 18px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--color-text-secondary);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.tab[aria-selected='true'] {
+  background: var(--gradient-gold);
+  color: #1a1204;
+  box-shadow: var(--shadow-gold-glow);
+}
+
+/* ==========================================================================
+ * YARIŞ HUD'U (01.10.2026) — yayın tarzı katman. Paneller koyu cam, ince
+ * altın kenar; rozet renkleri jokey formasıyla aynıdır.
+ * ========================================================================== */
+.hud {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-rows: auto 1fr auto;
+  gap: 12px;
+  padding: 14px;
+}
+
+.hud-panel {
+  pointer-events: auto;
+  background: linear-gradient(180deg, rgba(16, 24, 40, 0.86), rgba(8, 12, 22, 0.86));
+  border: 1px solid rgba(232, 184, 74, 0.28);
+  border-radius: 12px;
+  box-shadow: 0 8px 26px rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(6px);
+  color: var(--color-text-primary);
+}
+
+.hud-top {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.hud-top-right {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.hud-info {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 16px;
+}
+
+.hud-info-text {
+  display: grid;
+  padding-right: 14px;
+  border-right: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.hud-info-title {
+  font-family: var(--font-display);
+  font-size: 20px;
+  letter-spacing: 0.04em;
+}
+
+.hud-info-subtitle {
+  font-size: 12.5px;
+  color: #7dc4ff;
+  font-weight: 600;
+}
+
+.hud-clock {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-variant-numeric: tabular-nums;
+}
+
+.hud-clock svg {
+  color: var(--color-accent-gold);
+}
+
+.hud-clock-now {
+  color: var(--color-accent-gold-light);
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.hud-clock-total {
+  color: var(--color-text-muted);
+  font-size: 14px;
+}
+
+.hud-live {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+}
+
+.hud-live-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.hud-cameras {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 5px;
+}
+
+.hud-camera-button,
+.hud-speed-button {
+  min-height: 40px;
+  padding: 0 12px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--color-text-secondary);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.hud-camera-button[aria-pressed='true'],
+.hud-speed-button[aria-pressed='true'] {
+  background: var(--gradient-gold);
+  color: #1a1204;
+}
+
+.hud-standings {
+  grid-column: 2;
+  align-self: start;
+  width: min(280px, 46vw);
+  padding: 10px 12px;
+}
+
+.hud-panel-title {
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+
+.hud-standings-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+  max-height: 52vh;
+  overflow-y: auto;
+}
+
+.hud-standings-row {
+  display: grid;
+  gap: 2px;
+  padding: 4px 6px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.hud-standings-row[data-leader] {
+  background: linear-gradient(90deg, rgba(232, 184, 74, 0.2), rgba(232, 184, 74, 0.03));
+}
+
+.hud-standings-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13.5px;
+}
+
+.hud-rank-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 4px;
+  border-radius: 5px;
+  color: #fff;
+  font-size: 12.5px;
+  font-weight: 800;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.25);
+}
+
+.hud-standings-name {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+  line-height: 1.2;
+}
+
+.hud-standings-meta {
+  font-size: 10.5px;
+  color: var(--color-text-muted);
+}
+
+.hud-standings-gap {
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-secondary);
+  font-size: 12.5px;
+}
+
+.hud-statbar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 9.5px;
+  padding-left: 30px;
+}
+
+.hud-statbar > span {
+  width: 22px;
+  flex-shrink: 0;
+  color: var(--color-text-muted);
+}
+
+.hud-statbar-track {
+  flex: 1;
+  height: 3px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.12);
+  overflow: hidden;
+}
+
+.hud-bottom {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 12px;
+}
+
+.hud-bottom-center {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.hud-focus {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px 10px 10px;
+}
+
+.hud-focus-portrait {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  height: 64px;
+  border-radius: 12px;
+  border: 2px solid;
+  background: radial-gradient(circle at 60% 30%, rgba(255, 196, 110, 0.35), rgba(20, 16, 24, 0.9));
+}
+
+.hud-focus-body {
+  display: grid;
+  gap: 6px;
+}
+
+.hud-focus-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 16px;
+}
+
+.hud-focus-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+
+.hud-focus-stat {
+  display: grid;
+  grid-template-columns: auto auto;
+  column-gap: 5px;
+  align-items: center;
+  font-size: 15px;
+}
+
+.hud-focus-stat svg {
+  color: #7dc4ff;
+  grid-row: span 2;
+}
+
+.hud-focus-stat-label {
+  font-size: 10.5px;
+  color: var(--color-text-muted);
+}
+
+.hud-progress {
+  padding: 12px 18px 10px;
+}
+
+.hud-progress-track {
+  position: relative;
+  height: 26px;
+  margin-right: 14px;
+  border-bottom: 2px solid rgba(255, 255, 255, 0.35);
+}
+
+.hud-progress-finish {
+  position: absolute;
+  right: -16px;
+  bottom: 4px;
+  color: var(--color-accent-gold);
+}
+
+.hud-progress-marker {
+  position: absolute;
+  bottom: 4px;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 3px;
+  border-radius: 10px 10px 10px 2px;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+  transition: left 0.12s linear;
+}
+
+.hud-minimap {
+  width: min(200px, 34vw);
+  aspect-ratio: 5 / 3;
+  padding: 8px;
+  overflow: hidden;
+}
+
+.hud-playback {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+}
+
+.hud-play-button {
+  width: 42px;
+  height: 42px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  border: none;
+  background: var(--gradient-gold);
+  color: #1a1204;
+  font-size: 15px;
+  cursor: pointer;
+}
+
+.hud-seek {
+  flex: 1 1 120px;
+  min-height: 40px;
+  accent-color: var(--color-accent-gold);
+}
+
+.hud-speeds {
+  display: flex;
+  gap: 4px;
+}
+
+.hud-finish-backdrop {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: auto;
+  background: rgba(8, 12, 22, 0.55);
+}
+
+.hud-finish {
+  min-width: min(340px, 86vw);
+  max-width: 440px;
+  padding: 20px 18px;
+}
+
+.hud-finish-photo {
+  color: var(--color-accent-gold);
+  font-weight: 800;
+  font-size: 13px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+
+.hud-finish-title {
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.hud-finish-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.hud-finish-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 4px;
+  font-size: 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.hud-finish-list li[data-winner] {
+  color: var(--color-accent-gold-light);
+  font-weight: 800;
+}
+
+.hud-finish-gap {
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Telefonda: alt bölüm tek sütun, odak kartı ve mini harita küçülür. */
+@media (max-width: 760px) {
+  .hud {
+    padding: 8px;
+    gap: 8px;
+  }
+
+  .hud-info-text {
+    display: none;
+  }
+
+  .hud-bottom {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .hud-bottom > :first-child {
+    grid-column: 1 / -1;
+  }
+
+  .hud-focus-portrait {
+    display: none;
+  }
+
+  .hud-standings {
+    width: min(210px, 52vw);
+  }
+
+  .hud-statbar {
+    display: none;
+  }
+}
+
+/*
+ * Tam ekran yarış görüntüleme sayfaları (demo / izle / tekrar): yükseklik
+ * üst bar ve (telefonda) alt sekme çubuğu düşülerek verilir — aksi hâlde
+ * HUD'un alt kontrolleri sekme çubuğunun altında kalıyordu.
+ */
+.viewer-page {
+  height: calc(100dvh - var(--topbar-height) - var(--bottom-nav-height) - env(safe-area-inset-bottom, 0px)) !important;
+  min-height: 420px;
+}
+
+@media (min-width: 1280px) {
+  .viewer-page {
+    height: calc(100dvh - var(--topbar-height)) !important;
+  }
+}
+
+@media (max-width: 760px) {
+  .hud-cameras {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    max-width: calc(100vw - 16px);
+  }
+
+  .hud-camera-button {
+    min-height: 34px;
+    padding: 0 9px;
+    font-size: 12px;
+    white-space: nowrap;
+  }
+
+  .hud-standings {
+    width: min(170px, 46vw);
+    padding: 8px;
+  }
+
+  .hud-standings-list {
+    max-height: 34vh;
+  }
+
+  .hud-standings-meta,
+  .hud-minimap {
+    display: none;
+  }
+
+  .hud-panel-title {
+    font-size: 11px;
+    margin-bottom: 4px;
+  }
+
+  .hud-speed-button {
+    min-height: 34px;
+    padding: 0 8px;
+  }
+}

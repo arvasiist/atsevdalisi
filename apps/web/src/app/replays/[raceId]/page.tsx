@@ -108,7 +108,7 @@ export default function ReplayDetailPage({ params }: ReplayDetailPageProps): Rea
   }
 
   return (
-    <main style={{ width: '100%', height: '100%', background: '#0b1220', position: 'relative' }}>
+    <main className="viewer-page" style={{ width: '100%', height: '100%', background: '#0b1220', position: 'relative' }}>
       <div style={{ position: 'absolute', top: 'var(--space-sm)', left: 'var(--space-sm)', zIndex: 10 }}>
         <BackLink />
       </div>
