@@ -1612,4 +1612,10 @@ export interface AuthConfig {
   password: { minLength: number; maxLength: number };
   /** Node `crypto.scrypt` parametreleri: `cost` (N, 2'nin kuvveti), `blockSize` (r), `parallelization` (p). */
   scrypt: { cost: number; blockSize: number; parallelization: number; keyLength: number; saltBytes: number };
+  /**
+   * Şifre sıfırlama (migration 0047): bağlantı ömrü, rastgele bayt sayısı ve
+   * aynı oyuncuya iki e-posta arasındaki en kısa süre (posta kutusunu
+   * doldurmayı önler — yanıt yine aynıdır, enumerasyon yok).
+   */
+  passwordReset: { tokenTtlMinutes: number; tokenBytes: number; minIntervalSeconds: number };
 }

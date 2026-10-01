@@ -23,6 +23,8 @@ export const ErrorCode = {
   InvalidCredentials: 'INVALID_CREDENTIALS',
   EmailAlreadyRegistered: 'EMAIL_ALREADY_REGISTERED',
   CredentialsAlreadySet: 'CREDENTIALS_ALREADY_SET',
+  // Şifre sıfırlama bağlantısı geçersiz/süresi dolmuş/kullanılmış (migration 0047).
+  InvalidResetToken: 'INVALID_RESET_TOKEN',
   NotFound: 'NOT_FOUND',
   // AUDIT_REPORT.md Bulgu S1/S2/S4 hardening (bu oturum) — brief §41/§50
   // Google/Apple Sign-In + IDOR sertleştirmesi. `Unauthorized` (401) daha

@@ -1,5 +1,19 @@
 {
   "email": { "maxLength": 254 },
-  "password": { "minLength": 8, "maxLength": 128 },
-  "scrypt": { "cost": 16384, "blockSize": 8, "parallelization": 1, "keyLength": 64, "saltBytes": 16 }
+  "password": {
+    "minLength": 8,
+    "maxLength": 128
+  },
+  "scrypt": {
+    "cost": 16384,
+    "blockSize": 8,
+    "parallelization": 1,
+    "keyLength": 64,
+    "saltBytes": 16
+  },
+  "passwordReset": {
+    "tokenTtlMinutes": 30,
+    "tokenBytes": 32,
+    "minIntervalSeconds": 60
+  }
 }

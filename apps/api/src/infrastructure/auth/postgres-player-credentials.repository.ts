@@ -2,7 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import type { Pool } from 'pg';
 import { CredentialsAlreadySetError, EmailAlreadyRegisteredError } from '../../domain/auth/errors';
 import type { PlayerCredentialsRepository } from '../../application/ports/player-credentials.repository';
-import { PG_POOL } from '../database/database.module';
+import { PG_POOL, withTransaction } from '../database/database.module';
 
 const UNIQUE_VIOLATION = '23505';
 const EMAIL_INDEX = 'player_credentials_email_uq';
@@ -61,5 +61,50 @@ export class PostgresPlayerCredentialsRepository implements PlayerCredentialsRep
       }
       throw error;
     }
+  }
+
+  async findLatestResetRequestAt(playerId: string): Promise<Date | null> {
+    const result = await this.pool.query<{ created_at: Date }>(
+      'SELECT created_at FROM password_reset_tokens WHERE player_id = $1 ORDER BY created_at DESC LIMIT 1',
+      [playerId],
+    );
+    return result.rows[0]?.created_at ?? null;
+  }
+
+  async createResetToken(input: { playerId: string; tokenHash: string; expiresAt: Date }): Promise<void> {
+    await this.pool.query('INSERT INTO password_reset_tokens (player_id, token_hash, expires_at) VALUES ($1, $2, $3)', [
+      input.playerId,
+      input.tokenHash,
+      input.expiresAt,
+    ]);
+  }
+
+  async consumeResetToken(input: { tokenHash: string; now: Date; passwordHash: string }): Promise<string | null> {
+    return withTransaction(this.pool, async (client) => {
+      // Satır KİLİTLİ: aynı bağlantıyla eşzamanlı iki onay iki kez şifre
+      // yazamaz — ikincisi kilit altında `used_at`ı dolu görür.
+      const found = await client.query<{ player_id: string }>(
+        `SELECT player_id FROM password_reset_tokens
+         WHERE token_hash = $1 AND used_at IS NULL AND expires_at > $2
+         FOR UPDATE`,
+        [input.tokenHash, input.now],
+      );
+      const playerId = found.rows[0]?.player_id;
+      if (playerId === undefined) {
+        return null;
+      }
+      const updated = await client.query(
+        'UPDATE player_credentials SET password_hash = $2, updated_at = $3 WHERE player_id = $1',
+        [playerId, input.passwordHash, input.now],
+      );
+      if ((updated.rowCount ?? 0) === 0) {
+        return null;
+      }
+      await client.query(
+        'UPDATE password_reset_tokens SET used_at = $2 WHERE player_id = $1 AND used_at IS NULL',
+        [playerId, input.now],
+      );
+      return playerId;
+    });
   }
 }

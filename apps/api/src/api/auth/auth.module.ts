@@ -8,6 +8,10 @@ import { PASSWORD_HASHER } from '../../application/ports/password-hasher';
 import { PLAYER_CREDENTIALS_REPOSITORY } from '../../application/ports/player-credentials.repository';
 import { PostgresPlayerCredentialsRepository } from '../../infrastructure/auth/postgres-player-credentials.repository';
 import { ScryptPasswordHasher } from '../../infrastructure/auth/scrypt-password-hasher';
+import { EMAIL_SENDER } from '../../application/ports/email-sender';
+import { AppConfigService } from '../../infrastructure/config/config.service';
+import { OutboxEmailSender } from '../../infrastructure/email/outbox-email-sender';
+import { ResendEmailSender } from '../../infrastructure/email/resend-email-sender';
 import { GoogleAppleIdentityProvider } from '../../infrastructure/auth/google-apple-identity-provider';
 import { PostgresPlayerAuthProviderRepository } from '../../infrastructure/player/postgres-player-auth-provider.repository';
 import { HorseModule } from '../horse/horse.module';
@@ -40,9 +44,21 @@ import { AuthGuard } from './auth.guard';
     PasswordAuthUseCase,
     { provide: PASSWORD_HASHER, useClass: ScryptPasswordHasher },
     { provide: PLAYER_CREDENTIALS_REPOSITORY, useClass: PostgresPlayerCredentialsRepository },
+    // Şifre sıfırlama e-postası (migration 0047): `RESEND_API_KEY` varsa
+    // gerçek gönderim, yoksa bellek içi giden kutusu (bkz. sınıf doc yorumları).
+    {
+      provide: EMAIL_SENDER,
+      useFactory: (config: AppConfigService) =>
+        config.env.resendApiKey !== ''
+          ? new ResendEmailSender(config.env.resendApiKey, config.env.mailFrom)
+          : new OutboxEmailSender(config.env.nodeEnv),
+      inject: [AppConfigService],
+    },
     { provide: IDENTITY_PROVIDER_VERIFIER, useClass: GoogleAppleIdentityProvider },
     { provide: PLAYER_AUTH_PROVIDER_REPOSITORY, useClass: PostgresPlayerAuthProviderRepository },
     { provide: APP_GUARD, useClass: AuthGuard },
   ],
+  // Testler sıfırlama e-postasını giden kutusundan okur (`app.get(EMAIL_SENDER)`).
+  exports: [EMAIL_SENDER],
 })
 export class AuthModule {}

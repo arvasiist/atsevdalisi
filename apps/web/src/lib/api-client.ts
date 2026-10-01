@@ -250,6 +250,23 @@ export const apiClient = {
   getAccountCredentials: () => request<AccountCredentialsView>('/auth/credentials'),
 
   /**
+   * ŞİFRE SIFIRLAMA İSTEĞİ (30.09.2026, migration 0047) — token'SIZ. Yanıt
+   * e-posta kayıtlı olsun olmasın AYNIDIR (enumerasyon yok).
+   */
+  requestPasswordReset: (email: string) =>
+    request<{ accepted: true }>('/auth/password-reset/request', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    }),
+
+  /** Şifre sıfırlama onayı — e-postadaki bağlantının `token`ı + yeni şifre. */
+  confirmPasswordReset: (token: string, password: string) =>
+    request<{ reset: true }>('/auth/password-reset/confirm', {
+      method: 'POST',
+      body: JSON.stringify({ token, password }),
+    }),
+
+  /**
    * brief §24 SOSYAL PROFİL — `/profile/:username` ekranı (28.09.2026).
    *
    * **İKİ FARKI VAR, ikisi de bilinçli:**

@@ -34,6 +34,7 @@ export default function AccountPage(): React.ReactElement {
   const [isBusy, setIsBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [isForgotOpen, setIsForgotOpen] = useState(false);
 
   useEffect(() => {
     if (!player) {
@@ -84,6 +85,25 @@ export default function AccountPage(): React.ReactElement {
       setIsBusy(false);
     }
   }, [email, password]);
+
+  /**
+   * ŞİFREMİ UNUTTUM (30.09.2026) — sunucu yanıtı e-posta kayıtlı olsun
+   * olmasın AYNIDIR; ekran da bu yüzden "kayıtlıysa gönderildi" der, asla
+   * "böyle bir hesap yok" demez.
+   */
+  const submitForgot = useCallback(async () => {
+    setIsBusy(true);
+    setError(null);
+    try {
+      await apiClient.requestPasswordReset(email);
+      setNotice('Bu e-posta kayıtlıysa şifre sıfırlama bağlantısı gönderildi. Gelen kutunu (ve gereksiz klasörünü) kontrol et.');
+      setIsForgotOpen(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'İstek gönderilemedi.');
+    } finally {
+      setIsBusy(false);
+    }
+  }, [email]);
 
   const confirmLogout = useCallback(() => {
     if (
@@ -149,7 +169,45 @@ export default function AccountPage(): React.ReactElement {
         <GlassPanel style={{ marginBottom: 'var(--space-lg)' }}>
           <h2 style={titleStyle()}>Giriş yap</h2>
           <p style={mutedStyle()}>Kayıtlı hesabın varsa e-posta ve şifrenle giriş yap — atların ve paran seni bekliyor.</p>
-          {form(submitLogin, 'Giriş yap', 'current-password')}
+          {isForgotOpen ? (
+            <form
+              onSubmit={(event) => {
+                event.preventDefault();
+                void submitForgot();
+              }}
+              style={{ display: 'grid', gap: 'var(--space-md)', maxWidth: '360px', marginTop: 'var(--space-md)' }}
+            >
+              <label style={labelStyle()}>
+                E-posta
+                <input
+                  aria-label="Sıfırlama e-postası"
+                  type="email"
+                  autoComplete="email"
+                  value={email}
+                  maxLength={AUTH_CONFIG.email.maxLength}
+                  onChange={(event) => setEmail(event.target.value)}
+                  style={inputStyle()}
+                />
+              </label>
+              <button type="submit" disabled={isBusy || email === ''} style={primaryButtonStyle(!isBusy)}>
+                {isBusy ? 'Bekle…' : 'Sıfırlama bağlantısı gönder'}
+              </button>
+              <button type="button" onClick={() => setIsForgotOpen(false)} style={linkButtonStyle()}>
+                Girişe dön
+              </button>
+            </form>
+          ) : (
+            <>
+              {form(submitLogin, 'Giriş yap', 'current-password')}
+              <button
+                type="button"
+                onClick={() => setIsForgotOpen(true)}
+                style={{ ...linkButtonStyle(), marginTop: 'var(--space-sm)' }}
+              >
+                Şifremi unuttum
+              </button>
+            </>
+          )}
           <p style={{ ...mutedStyle(), marginTop: 'var(--space-lg)' }}>
             Hesabın yok mu?{' '}
             <button type="button" onClick={() => void createPlayer()} style={linkButtonStyle()}>

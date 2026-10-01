@@ -3341,6 +3341,17 @@ dokunmaz — atlar/para aynı `player_id`de. Giriş hatası tek kod
 (`INVALID_CREDENTIALS`) + sahte özetle zaman eşitleme. Web: `/account`.
 **Yok:** şifre sıfırlama (e-posta servisi gerekir).
 
+#### 13.37 ŞİFRE SIFIRLAMA (migration 0047) — 30.09.2026
+
+`password_reset_tokens` (yalnızca SHA-256 özeti; tek kullanımlık; 30 dk).
+İstek ucu kayıtlı olsun olmasın 202 döner ve `minIntervalSeconds` içinde
+ikinci e-posta göndermez; gönderim hatası yutulup loglanır (farklı yanıt
+"kayıtlı" demek olurdu). Onay `FOR UPDATE` altında şifreyi değiştirir ve
+oyuncunun tüm bekleyen bağlantılarını kapatır. E-posta: Resend (yerleşik
+`fetch`, yeni bağımlılık yok); anahtar yoksa `OutboxEmailSender` —
+üretimde içerik loglanmaz. **Bilinen sınır:** JWT durumsuzdur; şifre
+değişince mevcut oturumlar süreleri dolana kadar geçerli kalır.
+
 ## 14. Kendime hatırlatmalar (kısa liste)
 
 1. **Race Engine'e dokunmadan önce iki kez düşün.** Denetim onu "KEEP, dokunma"

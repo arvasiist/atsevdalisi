@@ -1047,3 +1047,21 @@ describe('apiClient e-posta + şifre girişi (30.09.2026)', () => {
     expect(config.method ?? 'GET').toBe('GET');
   });
 });
+
+describe('apiClient şifre sıfırlama (30.09.2026)', () => {
+  it('requestPasswordReset POST /auth/password-reset/request', async () => {
+    const fetchMock = stubFetchOnce({ success: true, data: { accepted: true } });
+    await apiClient.requestPasswordReset('ali@ornek.com');
+    const [url, config] = requestArgs(fetchMock);
+    expect(url).toBe(`${API_BASE_URL}/auth/password-reset/request`);
+    expect(JSON.parse(config.body as string)).toEqual({ email: 'ali@ornek.com' });
+  });
+
+  it('confirmPasswordReset POST /auth/password-reset/confirm', async () => {
+    const fetchMock = stubFetchOnce({ success: true, data: { reset: true } });
+    await apiClient.confirmPasswordReset('tok', 'yeni-sifre-1');
+    const [url, config] = requestArgs(fetchMock);
+    expect(url).toBe(`${API_BASE_URL}/auth/password-reset/confirm`);
+    expect(JSON.parse(config.body as string)).toEqual({ token: 'tok', password: 'yeni-sifre-1' });
+  });
+});

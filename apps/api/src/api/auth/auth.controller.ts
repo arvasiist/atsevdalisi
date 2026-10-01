@@ -89,4 +89,27 @@ export class AuthController {
   async credentials(@CurrentPlayer() currentPlayer: AuthenticatedPlayer): Promise<ApiSuccess<AccountCredentialsView>> {
     return { success: true, data: { email: await this.passwordAuth.accountEmail(currentPlayer.id) } };
   }
+
+  /**
+   * ŞİFRE SIFIRLAMA İSTEĞİ (30.09.2026, migration 0047) — `@Public()`.
+   * Yanıt HER ZAMAN 202'dir; e-postanın kayıtlı olup olmadığını söylemez.
+   */
+  @RateLimit({ name: 'password-reset-request', limit: 5, windowSeconds: 900, keyBy: 'ip' })
+  @Public()
+  @Post('password-reset/request')
+  @HttpCode(HttpStatus.ACCEPTED)
+  async requestPasswordReset(@Body() body: { email?: unknown }): Promise<ApiSuccess<{ accepted: true }>> {
+    await this.passwordAuth.requestPasswordReset(body?.email);
+    return { success: true, data: { accepted: true } };
+  }
+
+  /** Şifre sıfırlama onayı — bağlantıdaki token + yeni şifre. `@Public()`. */
+  @RateLimit({ name: 'password-reset-confirm', limit: 10, windowSeconds: 900, keyBy: 'ip' })
+  @Public()
+  @Post('password-reset/confirm')
+  @HttpCode(HttpStatus.OK)
+  async confirmPasswordReset(@Body() body: { token?: unknown; password?: unknown }): Promise<ApiSuccess<{ reset: true }>> {
+    await this.passwordAuth.confirmPasswordReset(body?.token, body?.password);
+    return { success: true, data: { reset: true } };
+  }
 }

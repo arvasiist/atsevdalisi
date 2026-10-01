@@ -51,6 +51,14 @@ export class AppConfigService {
     // Apple Developer'da oluşturulan Services ID (Sign in with Apple'ın
     // `aud`/audience değeri) — `googleOAuthClientId` ile AYNI gerekçe.
     appleOAuthClientId: process.env.APPLE_OAUTH_CLIENT_ID ?? '',
+    // ŞİFRE SIFIRLAMA (30.09.2026, migration 0047) — e-posta gönderimi
+    // Resend (https://resend.com) üzerinden. Anahtar BOŞSA e-posta
+    // GÖNDERİLMEZ: bellek içi giden kutusuna düşer (geliştirme/test); üretimde
+    // sıfırlama bağlantısı güvenlik gereği LOGLANMAZ, yalnızca uyarı yazılır.
+    resendApiKey: process.env.RESEND_API_KEY ?? '',
+    mailFrom: process.env.MAIL_FROM ?? 'At Sevdalısı <no-reply@atsevdalisi.local>',
+    // E-postadaki bağlantının kökü (web uygulamasının adresi).
+    webBaseUrl: process.env.WEB_BASE_URL ?? 'http://localhost:3000',
   };
 
   readonly race = loadRaceConfig();

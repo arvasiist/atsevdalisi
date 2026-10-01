@@ -103,3 +103,15 @@ export class CredentialsAlreadySetError extends Error {
     this.name = 'CredentialsAlreadySetError';
   }
 }
+
+/**
+ * Sıfırlama bağlantısı geçersiz, süresi dolmuş ya da kullanılmış (400,
+ * migration 0047). Üç durum BİLEREK tek hatadır — hangisi olduğunu söylemek
+ * bağlantı yoklamaya bilgi verirdi.
+ */
+export class InvalidResetTokenError extends Error {
+  constructor() {
+    super('Şifre sıfırlama bağlantısı geçersiz ya da süresi dolmuş. Yeni bir bağlantı iste.');
+    this.name = 'InvalidResetTokenError';
+  }
+}

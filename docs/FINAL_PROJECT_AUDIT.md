@@ -249,8 +249,17 @@ vardır: Durum · Backend · Frontend · Database · API · WebSocket · Tests �
   `test/domain/auth/credentials.spec.ts` (5), web `api-client.spec.ts`,
   `player-context.spec.tsx`.
 - **Üretime hazır:** Evet.
-- **Eksik:** Şifre sıfırlama (e-posta gönderimi bir servis ister) ·
-  Google/Apple girişi (kimlik bilgisi bekliyor; altyapı hazır).
+- **Şifre sıfırlama (migration 0047):** `POST /auth/password-reset/request`
+  (yanıt HER ZAMAN 202 — enumerasyon yok; aynı oyuncuya
+  `minIntervalSeconds` içinde ikinci e-posta yok) ve `.../confirm` (tek
+  kullanımlık, 30 dk, yalnızca SHA-256 özeti saklanır; başarı diğer bekleyen
+  bağlantıları da geçersiz kılar). E-posta Resend ile (`RESEND_API_KEY`);
+  anahtar yoksa bellek içi giden kutusu — üretimde bağlantı LOGLANMAZ.
+  Web: `/account` "Şifremi unuttum" + `/account/reset`. Test:
+  `password-reset.e2e-spec.ts` (7), `resend-email-sender.spec.ts`.
+- **Eksik:** Google/Apple girişi (kimlik bilgisi bekliyor; altyapı hazır) ·
+  `RESEND_API_KEY` üretim ortamında tanımlanmalı (yoksa sıfırlama e-postası
+  GİTMEZ).
 - **Risk:** Yanlış şifre ile kayıtlı olmayan e-posta AYNI 401
   `INVALID_CREDENTIALS` + aynı mesajdır ve kayıtsız e-postada da sahte bir
   özet doğrulanır — ayrıştırmak e-posta enumerasyonu açar. E-posta
@@ -1486,7 +1495,7 @@ vardır: Durum · Backend · Frontend · Database · API · WebSocket · Tests �
 | Öncelik | Madde | Neden şimdi |
 |---:|---|---|
 | 1 | **3D/ses varlıkları** | Tek karar bekleyen konu; çözülene kadar brief'in kendi kapsamı dışında. |
-| 2 | **OAuth kimlik bilgileri** | E-posta + şifre girişi VAR (30.09.2026); Google/Apple yalnızca ek kolaylık. Şifre sıfırlama bir e-posta servisi ister. |
+| 2 | **OAuth kimlik bilgileri + `RESEND_API_KEY`** | E-posta + şifre girişi ve şifre sıfırlama VAR (30.09.2026); Google/Apple yalnızca ek kolaylık. Sıfırlama e-postasının gerçekten gitmesi için üretimde `RESEND_API_KEY` gerekir. |
 | 3 | **Kulüp/sezon/turnuva/personel (#50)** | En büyük eksik özellik kümesi; yeni bir faz gerektirir. |
 
 > ⚠️ **29.09.2026:** **Jokey yüzeyi + serbest bırakma (#18)** bu tablodan

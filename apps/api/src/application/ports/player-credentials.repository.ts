@@ -14,6 +14,20 @@ export interface PlayerCredentialsRepository {
    * kolaylıktır.
    */
   create(input: { playerId: string; email: string; passwordHash: string }): Promise<void>;
+
+  /** ŞİFRE SIFIRLAMA (migration 0047) — oyuncunun en son bağlantısının oluşturulma anı; yoksa `null`. */
+  findLatestResetRequestAt(playerId: string): Promise<Date | null>;
+
+  /** Yeni bir sıfırlama bağlantısı — yalnızca ÖZETİ saklanır. */
+  createResetToken(input: { playerId: string; tokenHash: string; expiresAt: Date }): Promise<void>;
+
+  /**
+   * Bağlantıyı TEK transaction'da tüketir: kullanılmamış ve süresi dolmamış
+   * bir satır varsa (`FOR UPDATE`) şifre özetini değiştirir ve oyuncunun
+   * TÜM bekleyen bağlantılarını kullanılmış sayar. Geçersizse `null`;
+   * başarılıysa oyuncu kimliği.
+   */
+  consumeResetToken(input: { tokenHash: string; now: Date; passwordHash: string }): Promise<string | null>;
 }
 
 export const PLAYER_CREDENTIALS_REPOSITORY = Symbol('PLAYER_CREDENTIALS_REPOSITORY');
