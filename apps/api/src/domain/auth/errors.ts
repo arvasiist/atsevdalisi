@@ -115,3 +115,23 @@ export class InvalidResetTokenError extends Error {
     this.name = 'InvalidResetTokenError';
   }
 }
+
+/**
+ * Bu Google/Apple hesabı BAŞKA bir oyuncuya bağlı (409, migration 0048).
+ * Enumerasyon riski yoktur: çağıran, kimlik belgesiyle o hesabın sahibi
+ * olduğunu ZATEN kanıtlamıştır.
+ */
+export class ProviderIdentityTakenError extends Error {
+  constructor() {
+    super('Bu hesap zaten başka bir oyuncuya bağlı. O oyuncuya geçmek için çıkış yapıp bu hesapla giriş yap.');
+    this.name = 'ProviderIdentityTakenError';
+  }
+}
+
+/** Bu oyuncunun bu sağlayıcıdan zaten BAŞKA bir hesabı bağlı (409). */
+export class ProviderAlreadyLinkedError extends Error {
+  constructor() {
+    super('Bu oyuncuya zaten başka bir hesap bağlı.');
+    this.name = 'ProviderAlreadyLinkedError';
+  }
+}

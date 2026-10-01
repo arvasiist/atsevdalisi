@@ -34,6 +34,8 @@ import {
   InvalidCredentialsError,
   InvalidCredentialsInputError,
   InvalidProviderTokenError,
+  ProviderAlreadyLinkedError,
+  ProviderIdentityTakenError,
   InvalidResetTokenError,
   MissingAuthTokenError,
 } from '../../domain/auth/errors';
@@ -432,6 +434,9 @@ const DOMAIN_ERROR_MAP = new Map<ErrorClassConstructor, { status: number; code: 
   [JockeyNotOwnedError, { status: HttpStatus.CONFLICT, code: ErrorCode.JockeyNotOwned }],
   // `POST /auth/login`'e özgü — bkz. `InvalidProviderTokenError` doc yorumu.
   [InvalidProviderTokenError, { status: HttpStatus.UNAUTHORIZED, code: ErrorCode.InvalidProviderToken }],
+  // 01.10.2026 — Google hesabı bağlama (migration 0048).
+  [ProviderIdentityTakenError, { status: HttpStatus.CONFLICT, code: ErrorCode.ProviderIdentityTaken }],
+  [ProviderAlreadyLinkedError, { status: HttpStatus.CONFLICT, code: ErrorCode.ProviderAlreadyLinked }],
   // claude/hizli-bitirme-plani.md'nin proje sahibi tarafından
   // önceliklendirdiği Ekipman dilimi (bu turda EKLENDİ) — `InvalidTraining
   // InputError` ile AYNI gerekçe (Hata 7 savunması, gerçek bir DOĞRULAMA

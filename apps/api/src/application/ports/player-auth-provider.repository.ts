@@ -1,4 +1,4 @@
-import type { PlayerAuthProviderLink } from '../../domain/player/auth-provider';
+import type { AuthProvider, PlayerAuthProviderLink } from '../../domain/player/auth-provider';
 
 /**
  * `PlayerAuthProviderRepository` — `player_auth_providers` tablosuna
@@ -8,7 +8,13 @@ import type { PlayerAuthProviderLink } from '../../domain/player/auth-provider';
 export interface PlayerAuthProviderRepository {
   /** `(provider, providerUserId)` benzersiz çiftine göre bağlantıyı bulur — `null` ise bu sağlayıcı kimliği daha önce hiç giriş yapmamış (yeni oyuncu oluşturulmalı). */
   findByProviderIdentity(provider: string, providerUserId: string): Promise<PlayerAuthProviderLink | null>;
-  /** Yeni bir bağlantı ekler. */
+  /** Oyuncuya bağlı sağlayıcılar (01.10.2026, `GET /auth/credentials`). */
+  findProvidersByPlayerId(playerId: string): Promise<AuthProvider[]>;
+  /**
+   * Yeni bir bağlantı ekler. Kimlik başka oyuncudaysa
+   * `ProviderIdentityTakenError`, oyuncunun bu sağlayıcıdan zaten bir
+   * bağlantısı varsa `ProviderAlreadyLinkedError` (migration 0048) fırlatır.
+   */
   save(link: PlayerAuthProviderLink): Promise<void>;
 }
 

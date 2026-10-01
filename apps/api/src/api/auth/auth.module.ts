@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { IDENTITY_PROVIDER_VERIFIER } from '../../application/ports/identity-provider';
 import { PLAYER_AUTH_PROVIDER_REPOSITORY } from '../../application/ports/player-auth-provider.repository';
+import { LinkProviderUseCase } from '../../application/use-cases/link-provider.use-case';
 import { LoginWithProviderUseCase } from '../../application/use-cases/login-with-provider.use-case';
 import { PasswordAuthUseCase } from '../../application/use-cases/password-auth.use-case';
 import { PASSWORD_HASHER } from '../../application/ports/password-hasher';
@@ -40,6 +41,8 @@ import { AuthGuard } from './auth.guard';
   controllers: [AuthController],
   providers: [
     LoginWithProviderUseCase,
+    // 01.10.2026 — Google hesabı bağlama (migration 0048).
+    LinkProviderUseCase,
     // 30.09.2026 — e-posta + şifre girişi (migration 0046).
     PasswordAuthUseCase,
     { provide: PASSWORD_HASHER, useClass: ScryptPasswordHasher },

@@ -1,11 +1,13 @@
 import type {
   AccountCredentialsView,
+  AccountProvider,
   AdminAuditLogResult,
   AdminPlayerListResult,
   AdminRaceCancelResult,
   AdminRaceListResult,
   AdminReportListResult,
   AdminTransactionListResult,
+  AuthProvidersView,
   AuthSession,
   BlockedPlayerView,
   BreedingResultView,
@@ -241,13 +243,40 @@ export const apiClient = {
 
   /** "Hesabını kaydet" — oturumdaki MİSAFİR oyuncuya e-posta + şifre bağlar (oyuncu token'dan gelir). */
   saveAccount: (email: string, password: string) =>
-    request<AccountCredentialsView>('/auth/credentials', {
+    request<{ email: string }>('/auth/credentials', {
       method: 'POST',
       body: JSON.stringify({ email, password }),
     }),
 
-  /** Oyuncunun giriş bilgisi durumu — `email: null` misafir hesap demektir. */
+  /**
+   * Oyuncunun giriş bilgisi durumu — `email === null` VE `linkedProviders`
+   * boşsa misafir hesaptır.
+   */
   getAccountCredentials: () => request<AccountCredentialsView>('/auth/credentials'),
+
+  /**
+   * Hangi dış girişler yapılandırılmış (01.10.2026) — token'SIZ.
+   * `googleClientId === null` ise Google düğmesi gösterilmez.
+   */
+  getAuthProviders: () => request<AuthProvidersView>('/auth/providers'),
+
+  /**
+   * GOOGLE İLE GİRİŞ — token'SIZ. `idToken`, Google'ın tarayıcıda verdiği
+   * kimlik belgesidir; sunucu imzasını doğrular. İlk girişte yeni oyuncu
+   * açılır, bağlı hesapta aynı oyuncuya dönülür.
+   */
+  loginWithGoogle: (idToken: string) =>
+    request<AuthSession>('/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ provider: 'google', idToken }),
+    }),
+
+  /** "Google hesabını bağla" — oturumdaki oyuncuya Google kimliği bağlar (oyuncu token'dan gelir). */
+  linkGoogle: (idToken: string) =>
+    request<{ provider: AccountProvider }>('/auth/link', {
+      method: 'POST',
+      body: JSON.stringify({ provider: 'google', idToken }),
+    }),
 
   /**
    * ŞİFRE SIFIRLAMA İSTEĞİ (30.09.2026, migration 0047) — token'SIZ. Yanıt

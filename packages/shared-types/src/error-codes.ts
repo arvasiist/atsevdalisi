@@ -40,6 +40,11 @@ export const ErrorCode = {
   // JWT'imiz) kasıtlı olarak AYRI bir koddur (bkz. `domain/auth/errors.ts`
   // `InvalidProviderTokenError`).
   InvalidProviderToken: 'INVALID_PROVIDER_TOKEN',
+  // 01.10.2026 — Google hesabı bağlama (`POST /auth/link`, migration 0048).
+  // Bu Google hesabı BAŞKA bir oyuncuya bağlı / bu oyuncunun zaten başka bir
+  // Google hesabı var.
+  ProviderIdentityTaken: 'PROVIDER_IDENTITY_TAKEN',
+  ProviderAlreadyLinked: 'PROVIDER_ALREADY_LINKED',
   // Faz 2 — At Pazarı (domain/market)
   ListingNotActive: 'LISTING_NOT_ACTIVE',
   ListingExpired: 'LISTING_EXPIRED',

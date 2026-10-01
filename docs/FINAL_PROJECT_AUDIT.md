@@ -237,8 +237,10 @@ vardır: Durum · Backend · Frontend · Database · API · WebSocket · Tests �
   ("Hesabını kaydet": oturumdaki misafire e-posta + şifre bağlar; oyuncu
   satırı, atlar ve para aynen kalır) · **`POST /auth/login/password`**
   (`@Public`, IP başına hız sınırı) · **`GET /auth/credentials`**
-  (`email: null` = misafir) · `POST /auth/login` (Google/Apple — kimlik
-  bilgisi bekliyor). Şifre `scrypt` özetidir (Node yerleşik, yeni bağımlılık
+  (`email` + `linkedProviders`) · `POST /auth/login` (Google/Apple) ·
+  **`POST /auth/link`** (oturumdaki oyuncuya Google bağlar; başkasının
+  kimliği 409, hesaplar birleşmez; migration 0048) · **`GET /auth/providers`**
+  (`@Public`; kimlik bilgisi yoksa `null`). Şifre `scrypt` özetidir (Node yerleşik, yeni bağımlılık
   yok; parametreler + tuz özetin içinde, `auth.config.json`).
 - **Frontend:** `/account` — oturum yoksa "Giriş yap", misafirse "Hesabını
   kaydet" (uyarılı), kayıtlıysa e-posta + "Çıkış yap" (misafir çıkışı
@@ -257,7 +259,12 @@ vardır: Durum · Backend · Frontend · Database · API · WebSocket · Tests �
   anahtar yoksa bellek içi giden kutusu — üretimde bağlantı LOGLANMAZ.
   Web: `/account` "Şifremi unuttum" + `/account/reset`. Test:
   `password-reset.e2e-spec.ts` (7), `resend-email-sender.spec.ts`.
-- **Eksik:** Google/Apple girişi (kimlik bilgisi bekliyor; altyapı hazır) ·
+- **Google (01.10.2026):** `/account`'ta "Google ile oturum aç" (oturum
+  yokken) ve "Google ile devam et" (misafiri bağlar). Düğme yalnızca sunucu
+  istemci kimliği bildirirse görünür. Test: `google-link.e2e-spec.ts` (8),
+  web `GoogleSignInButton.spec.tsx`.
+- **Eksik:** `GOOGLE_OAUTH_CLIENT_ID` (kod hazır, kimlik bilgisi bekliyor) ·
+  Apple girişi (istemci yok; ücretli üyelik) ·
   `RESEND_API_KEY` üretim ortamında tanımlanmalı (yoksa sıfırlama e-postası
   GİTMEZ).
 - **Risk:** Yanlış şifre ile kayıtlı olmayan e-posta AYNI 401
@@ -1495,7 +1502,7 @@ vardır: Durum · Backend · Frontend · Database · API · WebSocket · Tests �
 | Öncelik | Madde | Neden şimdi |
 |---:|---|---|
 | 1 | **3D/ses varlıkları** | Tek karar bekleyen konu; çözülene kadar brief'in kendi kapsamı dışında. |
-| 2 | **OAuth kimlik bilgileri + `RESEND_API_KEY`** | E-posta + şifre girişi ve şifre sıfırlama VAR (30.09.2026); Google/Apple yalnızca ek kolaylık. Sıfırlama e-postasının gerçekten gitmesi için üretimde `RESEND_API_KEY` gerekir. |
+| 2 | **OAuth kimlik bilgileri + `RESEND_API_KEY`** | E-posta + şifre girişi, şifre sıfırlama ve Google düğmesi/bağlama VAR; Google için yalnızca `GOOGLE_OAUTH_CLIENT_ID` eksik, Apple ücretli üyelik bekliyor. Sıfırlama e-postasının gerçekten gitmesi için üretimde `RESEND_API_KEY` gerekir. |
 | 3 | **Kulüp/sezon/turnuva/personel (#50)** | En büyük eksik özellik kümesi; yeni bir faz gerektirir. |
 
 > ⚠️ **29.09.2026:** **Jokey yüzeyi + serbest bırakma (#18)** bu tablodan

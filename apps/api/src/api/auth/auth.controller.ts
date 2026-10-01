@@ -1,5 +1,12 @@
 import { Body, Controller, Get, HttpCode, HttpStatus, Inject, Post } from '@nestjs/common';
-import type { AccountCredentialsView, ApiSuccess, AuthSession } from '@at-sevdalisi/shared-types';
+import type {
+  AccountCredentialsView,
+  AccountProvider,
+  ApiSuccess,
+  AuthProvidersView,
+  AuthSession,
+} from '@at-sevdalisi/shared-types';
+import { LinkProviderUseCase } from '../../application/use-cases/link-provider.use-case';
 import { LoginWithProviderUseCase } from '../../application/use-cases/login-with-provider.use-case';
 import { PasswordAuthUseCase } from '../../application/use-cases/password-auth.use-case';
 import { CurrentPlayer, type AuthenticatedPlayer } from './current-player.decorator';
@@ -31,6 +38,7 @@ export class AuthController {
     @Inject(LoginWithProviderUseCase) private readonly loginWithProviderUseCase: LoginWithProviderUseCase,
     @Inject(TOKEN_SERVICE) private readonly tokenService: TokenService,
     @Inject(PasswordAuthUseCase) private readonly passwordAuth: PasswordAuthUseCase,
+    @Inject(LinkProviderUseCase) private readonly linkProvider: LinkProviderUseCase,
   ) {}
 
   // AUDIT_REPORT.md Bulgu S5 (High) hardening (bu oturum) — `register`
@@ -78,7 +86,7 @@ export class AuthController {
   async saveAccount(
     @Body() body: { email?: unknown; password?: unknown },
     @CurrentPlayer() currentPlayer: AuthenticatedPlayer,
-  ): Promise<ApiSuccess<AccountCredentialsView>> {
+  ): Promise<ApiSuccess<{ email: string }>> {
     const saved = await this.passwordAuth.saveAccount(currentPlayer.id, body?.email, body?.password);
     return { success: true, data: { email: saved.email } };
   }
@@ -87,7 +95,38 @@ export class AuthController {
   @Get('credentials')
   @HttpCode(HttpStatus.OK)
   async credentials(@CurrentPlayer() currentPlayer: AuthenticatedPlayer): Promise<ApiSuccess<AccountCredentialsView>> {
-    return { success: true, data: { email: await this.passwordAuth.accountEmail(currentPlayer.id) } };
+    const [email, linkedProviders] = await Promise.all([
+      this.passwordAuth.accountEmail(currentPlayer.id),
+      this.linkProvider.linkedProviders(currentPlayer.id),
+    ]);
+    return { success: true, data: { email, linkedProviders } };
+  }
+
+  /**
+   * GOOGLE HESABI BAĞLAMA (01.10.2026, migration 0048) — oturum açmış
+   * oyuncu kendi hesabına bir Google kimliği bağlar. Oyuncu TOKEN'dan gelir.
+   * Gövde HAM geçirilir; doğrulama use-case'tedir (CLAUDE.md kural 5).
+   */
+  @RateLimit({ name: 'link-provider', limit: 5, windowSeconds: 300, keyBy: 'player' })
+  @Post('link')
+  @HttpCode(HttpStatus.OK)
+  async link(
+    @Body() body: { provider?: unknown; idToken?: unknown },
+    @CurrentPlayer() currentPlayer: AuthenticatedPlayer,
+  ): Promise<ApiSuccess<{ provider: AccountProvider }>> {
+    return { success: true, data: await this.linkProvider.link(currentPlayer.id, body?.provider, body?.idToken) };
+  }
+
+  /**
+   * Hangi dış girişlerin yapılandırıldığı (01.10.2026) — `@Public()`; giriş
+   * ekranı oturum açılmadan önce okur. Kimlik bilgisi yoksa `null` döner ve
+   * web Google düğmesini GÖSTERMEZ.
+   */
+  @Public()
+  @Get('providers')
+  @HttpCode(HttpStatus.OK)
+  providers(): ApiSuccess<AuthProvidersView> {
+    return { success: true, data: this.linkProvider.providersView() };
   }
 
   /**

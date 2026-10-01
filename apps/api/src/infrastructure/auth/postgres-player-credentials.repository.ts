@@ -8,7 +8,8 @@ const UNIQUE_VIOLATION = '23505';
 const EMAIL_INDEX = 'player_credentials_email_uq';
 const PRIMARY_KEY = 'player_credentials_pkey';
 
-function uniqueConstraintOf(error: unknown): string | null {
+/** Benzersizlik ihlalinde çiğnenen kısıtın ADI; başka hatada `null`. */
+export function uniqueConstraintOf(error: unknown): string | null {
   if (
     typeof error === 'object' &&
     error !== null &&

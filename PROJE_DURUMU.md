@@ -446,8 +446,8 @@ doğrulama ancak GitHub Actions'ta gerçek Postgres/Redis ile yapılabiliyor.
 | Boşluk | Detay |
 |---|---|
 | **Gerçek 3D/ses varlığı yok** | §8.3 — en büyük görsel engel; sahibinin kararını bekliyor |
-| **OAuth canlı değil** | `GoogleAppleIdentityProvider`, `GOOGLE_OAUTH_CLIENT_ID`/`APPLE_OAUTH_CLIENT_ID` boş olduğu için **her zaman** `InvalidProviderTokenError` fırlatır → `POST /auth/login` pratikte çalışmaz |
-| **Frontend'de gerçek giriş yok** | `player-context.tsx` sadece localStorage (`atSevdalisi.playerId`, `atSevdalisi.authToken`) + `jokey_${random}` isimli sahte oyuncu üretir. Login formu, logout, OAuth akışı YOK |
+| **OAuth kimlik bilgisi yok** | Kod tam (§13.38: Google düğmesi + bağlama); `GOOGLE_OAUTH_CLIENT_ID` boşken düğme gizlenir ve `POST /auth/login` `InvalidProviderTokenError` döner. Apple: istemci yok, ücretli üyelik bekliyor |
+| ~~Frontend'de gerçek giriş yok~~ | **KAPANDI** — `/account`: e-posta + şifre (§13.36), sıfırlama (§13.37), Google (§13.38), çıkış |
 | **Yarış takvimi yok** | Planlı, çok katılımcılı `GET /races` takvimi yok; yalnızca practice race + PvP |
 | **Matchmaking senkron** | `JoinMatchmakingQueueUseCase.playMatch` eşleşmeyi **HTTP isteği içinde** yapar. `@nestjs/schedule`/cron/worker YOK → arka plan işi yok |
 | **Pazar süresi dolması tembel** | `PostgresMarketListingRepository.sweepExpiredListings` — lazy sweep, zamanlanmış iş değil |
@@ -3351,6 +3351,22 @@ oyuncunun tüm bekleyen bağlantılarını kapatır. E-posta: Resend (yerleşik
 `fetch`, yeni bağımlılık yok); anahtar yoksa `OutboxEmailSender` —
 üretimde içerik loglanmaz. **Bilinen sınır:** JWT durumsuzdur; şifre
 değişince mevcut oturumlar süreleri dolana kadar geçerli kalır.
+
+#### 13.38 GOOGLE GİRİŞİ + HESAP BAĞLAMA (migration 0048) — 01.10.2026
+
+Sunucu doğrulayıcısı (`GoogleAppleIdentityProvider`) ve `POST /auth/login`
+önceden vardı; eksik olan istemci ve mevcut oyuncuya bağlama idi.
+`POST /auth/link` (oturumdaki oyuncuya Google kimliği; oyuncu token'dan) ·
+`GET /auth/providers` (`@Public`; `googleClientId` yoksa `null` → web düğmeyi
+GÖSTERMEZ) · `GET /auth/credentials` artık `linkedProviders` taşır (misafir =
+e-posta yok VE bağlı sağlayıcı yok). Kimlik başka oyuncudaysa 409
+`PROVIDER_IDENTITY_TAKEN` — **hesaplar birleştirilmez** (para/at taşımak
+ayrı bir karardır). Oyuncu başına sağlayıcı tekilliği migration 0048
+kısıtıyla (eşzamanlı istekler; kısıt kaldırılınca test düşüyor).
+Web: `GoogleSignInButton` (GIS betiği yalnızca gerektiğinde yüklenir) →
+`/account`. **Canlıya almak için:** Google Cloud Console'da OAuth istemci
+kimliği + "Yetkili JavaScript kaynakları"na web adresi; sunucuda
+`GOOGLE_OAUTH_CLIENT_ID`. Apple: ücretli üyelik bekliyor.
 
 ## 14. Kendime hatırlatmalar (kısa liste)
 

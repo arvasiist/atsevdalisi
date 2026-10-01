@@ -94,8 +94,9 @@ commit hash'ine ya da koşum numarasına dayanır.
 1. **3D/ses varlıkları yok** — proje sahibinin cevabını bekleyen **tek
    kritik soru**. Sahte/placeholder asset uydurmak yasaktır;
    `apps/web/public/` bilinçli olarak boştur.
-2. **OAuth kimlik bilgileri yok** — `POST /auth/login` pratikte çalışmaz;
-   istemcide gerçek giriş yok (localStorage).
+2. **OAuth kimlik bilgileri yok** — Google girişi kodlu (`/account`,
+   migration 0048) ama `GOOGLE_OAUTH_CLIENT_ID` tanımlanana kadar düğme
+   gizli. E-posta + şifre girişi ve sıfırlama çalışır.
 3. **Yönetim paneli yok** — 7 uç + denetim günlüğü **hazır**, istemci
    tüketicisi yok. Moderasyon bugün elle SQL ile yönetiliyor.
 4. **Blok/şikâyet arayüzü yok** — 4 uç hazır, oyuncu kendini koruyamıyor.

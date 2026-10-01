@@ -1040,11 +1040,39 @@ describe('apiClient e-posta + şifre girişi (30.09.2026)', () => {
   });
 
   it('getAccountCredentials GET /auth/credentials', async () => {
-    const fetchMock = stubFetchOnce({ success: true, data: { email: null } });
+    const fetchMock = stubFetchOnce({ success: true, data: { email: null, linkedProviders: [] } });
     await apiClient.getAccountCredentials();
     const [url, config] = requestArgs(fetchMock);
     expect(url).toBe(`${API_BASE_URL}/auth/credentials`);
     expect(config.method ?? 'GET').toBe('GET');
+  });
+});
+
+describe('apiClient Google girişi (01.10.2026)', () => {
+  it('getAuthProviders GET /auth/providers', async () => {
+    const fetchMock = stubFetchOnce({ success: true, data: { googleClientId: null } });
+    expect(await apiClient.getAuthProviders()).toEqual({ googleClientId: null });
+    const [url, config] = requestArgs(fetchMock);
+    expect(url).toBe(`${API_BASE_URL}/auth/providers`);
+    expect(config.method ?? 'GET').toBe('GET');
+  });
+
+  it('loginWithGoogle POST /auth/login — sağlayıcı google, belge gövdede', async () => {
+    const fetchMock = stubFetchOnce({ success: true, data: { token: 't', player: samplePlayer } });
+    await apiClient.loginWithGoogle('google-belgesi');
+    const [url, config] = requestArgs(fetchMock);
+    expect(url).toBe(`${API_BASE_URL}/auth/login`);
+    expect(config.method).toBe('POST');
+    expect(JSON.parse(config.body as string)).toEqual({ provider: 'google', idToken: 'google-belgesi' });
+  });
+
+  it('linkGoogle POST /auth/link — oyuncu kimliği GÖVDEDE YOK (token\'dan gelir)', async () => {
+    const fetchMock = stubFetchOnce({ success: true, data: { provider: 'google' } });
+    await apiClient.linkGoogle('google-belgesi');
+    const [url, config] = requestArgs(fetchMock);
+    expect(url).toBe(`${API_BASE_URL}/auth/link`);
+    expect(config.method).toBe('POST');
+    expect(JSON.parse(config.body as string)).toEqual({ provider: 'google', idToken: 'google-belgesi' });
   });
 });
 

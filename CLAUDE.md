@@ -96,9 +96,11 @@ küçük dilim → yerel doğrula (kök `npm run typecheck` + hedefli vitest + l
 ## Bilinen açık uçlar (kısa)
 
 **30.09.2026'da yeniden doğrulandı (bu liste iki kez bayatlamıştı):**
-Gerçek 3D/ses varlığı yok · OAuth kimlik bilgileri yok (Google/Apple; e-posta +
-şifre girişi + şifre sıfırlama VAR — `/account`, migration 0046/0047;
-sıfırlama e-postası üretimde `RESEND_API_KEY` ister) · yarış takvimi yok
+Gerçek 3D/ses varlığı yok · OAuth kimlik bilgileri yok (Google kodu + düğmesi
++ hesap bağlama VAR, `GOOGLE_OAUTH_CLIENT_ID` boşken düğme gizli — migration
+0048; Apple istemcisi yok; e-posta + şifre girişi + şifre sıfırlama VAR —
+`/account`, migration 0046/0047; sıfırlama e-postası üretimde
+`RESEND_API_KEY` ister) · yarış takvimi yok
 (turnuva takvimi VAR) ·
 personel (`domain/staff`) + club/season/progression **DOMAIN ONLY**
 (API/ekran yok) · yer tutucu olan TEK sayfa `/club` · `PlayerDemoWidget`/
@@ -143,6 +145,11 @@ enumerasyon açar; kayıtsız e-postada da sahte özet doğrulanır.
 DB'de yalnızca SHA-256 özeti. İstek yanıtı HER ZAMAN 202. `EMAIL_SENDER`:
 `RESEND_API_KEY` varsa Resend, yoksa `OutboxEmailSender` (testler oradan
 okur). ⚠️ Üretimde sıfırlama bağlantısını LOGLAMA — parola eşdeğeridir.
+(12) **GOOGLE BAĞLAMA (migration 0048)** — `POST /auth/link`, `GET
+/auth/providers` (`@Public`). ⚠️ Başkasına bağlı Google kimliği 409 —
+hesaplar BİRLEŞTİRİLMEZ (para/at taşımak ayrı karar). Misafir = e-posta YOK
+VE `linkedProviders` boş. E2e Google belgesini sahte doğrulayıcıyla taklit
+eder (`bootstrapTestApp(builder => builder.overrideProvider(...))`).
 
 **✅ ÜCRETLİ LOBİ YARIŞI ARTIK KOŞUYOR — ÖDÜL DAĞITIMI VAR (§13.14,
 28.09.2026).** `POST /races/:id/settle` yarışı koşar, ödülleri `top5`
