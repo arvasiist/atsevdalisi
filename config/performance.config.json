@@ -1,0 +1,9 @@
+{
+  "version": "1.0.0",
+  "monitor": {
+    "lowerFps": 28,
+    "upperFps": 55,
+    "flipflops": 3
+  },
+  "maxAutoDowngrades": 2
+}

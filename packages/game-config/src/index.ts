@@ -41,6 +41,7 @@ import type {
   HorsePresenceConfig,
   AtmosphereConfig,
   LightingConfig,
+  PerformanceConfig,
   TrainingConfig,
   VfxConfig,
   WeatherConfig,
@@ -61,6 +62,7 @@ import horseAppearanceConfigJson from '../../../config/horse-appearance.config.j
 import horsePresenceConfigJson from '../../../config/horse-presence.config.json';
 import atmosphereConfigJson from '../../../config/atmosphere.config.json';
 import lightingConfigJson from '../../../config/lighting.config.json';
+import performanceConfigJson from '../../../config/performance.config.json';
 import farmConfigJson from '../../../config/farm.config.json';
 import onlineConfigJson from '../../../config/online.config.json';
 import cameraConfigJson from '../../../config/camera.config.json';
@@ -265,4 +267,8 @@ export function loadAtmosphereConfig(): AtmosphereConfig {
 /** 01.10.2026 — 3D sahnelerin ortak ışık ayarları (ton eşleme, HDRI, bloom, yumuşak gölge). */
 export function loadLightingConfig(): LightingConfig {
   return lightingConfigJson as unknown as LightingConfig;
+}
+
+export function loadPerformanceConfig(): PerformanceConfig {
+  return performanceConfigJson as unknown as PerformanceConfig;
 }

@@ -1805,3 +1805,19 @@ export interface LightingConfig {
   /** Yalnızca 'ultra' kalite kademesinde (PCSS, pahalı). */
   softShadows: { size: number; samples: number; focus: number };
 }
+
+/**
+ * 01.10.2026 (3D adım 10) — çalışma anı performans izleme. "Otomatik"
+ * kalite seçiliyken kare hızı `lowerFps` altında kalırsa kademe bir
+ * düşürülür (en fazla `maxAutoDowngrades` kez); `flipflops` kez inip
+ * çıkan ölçümde izleme durur (drei `PerformanceMonitor`).
+ */
+export interface PerformanceConfig {
+  version: string;
+  monitor: {
+    lowerFps: number;
+    upperFps: number;
+    flipflops: number;
+  };
+  maxAutoDowngrades: number;
+}

@@ -254,6 +254,14 @@ türetir (`deriveRaceAudioCues`, saf; motor ses yaymaz). Kalabalık hacmi
 tribünle AYNI `crowdExcitement`ten. `createProbedAudioBackend`: dosya yoksa
 sessiz (yalnızca HEAD yoklaması), yollar `assetUrl` ile MUTLAK. Varsayılan
 SESSİZ (`AudioToggle`, localStorage); ahırda `useStableAmbience`.
+(26) **PERFORMANS (3D adım 10, §13.52)** — üç sahne kaliteyi `useQualityTier`
+den alır (tercih: Otomatik/Düşük/Orta/Yüksek/Ultra, `QualitySelect`).
+"Otomatik"te `SceneQualityMonitor` (drei `PerformanceMonitor`,
+`performance.config.json`) kare hızı düşünce kademeyi en fazla
+`maxAutoDowngrades` kez indirir; sabit seçim EZİLMEZ. `<Canvas key={tier}>`
+— kademe değişince sahne yeniden kurulur (gölge haritası çalışma anında
+güvenle açılıp kapanmaz). ⚠️ Yazılımsal GPU'da (CI/headless) otomatik kademe
+hızla "Düşük"e iner — ekran görüntüsünde bu beklenir.
 
 **✅ ÜCRETLİ LOBİ YARIŞI ARTIK KOŞUYOR — ÖDÜL DAĞITIMI VAR (§13.14,
 28.09.2026).** `POST /races/:id/settle` yarışı koşar, ödülleri `top5`

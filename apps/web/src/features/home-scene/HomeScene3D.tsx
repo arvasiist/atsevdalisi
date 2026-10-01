@@ -32,13 +32,11 @@ import {
   SCENE_GL_OPTIONS,
   SceneRenderSettings,
 } from '../race-viewer/SceneRenderSettings';
+import { SceneQualityMonitor } from '../race-viewer/SceneQualityMonitor';
+import { useQualityTier } from '../race-viewer/use-quality-tier';
 import { ContactShadows } from '@react-three/drei';
 import { Bloom, EffectComposer } from '@react-three/postprocessing';
-import {
-  getQualityTierRenderSettings,
-  type QualityTierRenderSettings,
-} from '../race-viewer/quality-tier';
-import { detectQualityTier } from '../race-viewer/detect-quality-tier';
+import type { QualityTierRenderSettings } from '../race-viewer/quality-tier';
 import {
   DEFAULT_LAP_LENGTH_METERS,
   DEFAULT_TURN_RADIUS_METERS,
@@ -222,15 +220,22 @@ export function HomeScene3D({
   active,
   onShotChange,
 }: HomeScene3DProps): React.ReactElement {
-  const settings = useMemo(() => getQualityTierRenderSettings(detectQualityTier()), []);
+  // 01.10.2026 (3D adım 10) — ortak kalite tercihi + otomatik düşürme.
+  const quality = useQualityTier();
+  const settings = quality.settings;
   return (
     <Canvas
+      key={settings.tier}
       shadows={settings.shadowsEnabled}
       dpr={[1, settings.pixelRatioCap]}
       frameloop={active ? 'always' : 'never'}
       camera={{ fov: 40, near: 0.1, far: 3000, position: [0, 3, 10] }}
       gl={SCENE_GL_OPTIONS}
     >
+      <SceneQualityMonitor
+        enabled={quality.preference === 'auto'}
+        onDecline={quality.reportPerformanceDecline}
+      />
       <SceneRenderSettings settings={settings} />
       <SkyAndLighting
         environmentEnabled={settings.environmentEnabled}

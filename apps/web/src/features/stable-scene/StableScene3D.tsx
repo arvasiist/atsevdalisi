@@ -24,11 +24,12 @@ import { forwardAxisRotation } from '../race-viewer/assets/model-fit';
 import { HdriEnvironment } from '../race-viewer/assets/HdriEnvironment';
 import { assetUrl, useAssetAvailability } from '../race-viewer/assets/asset-pipeline';
 import { SCENE_GL_OPTIONS, SceneRenderSettings } from '../race-viewer/SceneRenderSettings';
-import { detectQualityTier } from '../race-viewer/detect-quality-tier';
-import { getQualityTierRenderSettings } from '../race-viewer/quality-tier';
+import { SceneQualityMonitor } from '../race-viewer/SceneQualityMonitor';
+import { useQualityTier } from '../race-viewer/use-quality-tier';
 import { HORSE_MOOD_LABELS, deriveHorseDemeanor } from '../horse-stage/horse-demeanor';
 import { PlaceholderStall } from './PlaceholderStall';
 import { AudioToggle } from '../race-viewer/audio-vfx/AudioToggle';
+import { QualitySelect } from '../race-viewer/QualitySelect';
 import { useAudioMuted, useStableAmbience } from '../race-viewer/audio-vfx/use-race-audio';
 
 const PRESENCE_CONFIG = loadHorsePresenceConfig();
@@ -118,7 +119,9 @@ export interface StableScene3DProps {
 }
 
 export function StableScene3D({ horse }: StableScene3DProps): React.ReactElement {
-  const settings = useMemo(() => getQualityTierRenderSettings(detectQualityTier()), []);
+  // 01.10.2026 (3D adım 10) — ortak kalite tercihi + otomatik düşürme.
+  const quality = useQualityTier();
+  const settings = quality.settings;
   const mood = deriveHorseDemeanor(horse, PRESENCE_CONFIG).mood;
   // İç mekân: HDRI gökyüzü olarak GÖRÜNMEZ, yalnızca yansıma/ortam ışığı verir.
   const hdri = useAssetAvailability(HDRI_URL);
@@ -128,11 +131,16 @@ export function StableScene3D({ horse }: StableScene3DProps): React.ReactElement
   return (
     <div className="stable3d">
       <Canvas
+        key={settings.tier}
         shadows={settings.shadowsEnabled}
         dpr={[1, settings.pixelRatioCap]}
         camera={{ position: [4.4, 2.1, 3.4], fov: 42 }}
         gl={SCENE_GL_OPTIONS}
       >
+        <SceneQualityMonitor
+          enabled={quality.preference === 'auto'}
+          onDecline={quality.reportPerformanceDecline}
+        />
         <Suspense fallback={null}>
           <SceneRenderSettings settings={settings} />
           {hdri === 'available' ? (
@@ -142,11 +150,10 @@ export function StableScene3D({ horse }: StableScene3DProps): React.ReactElement
         </Suspense>
       </Canvas>
       <PlaceholderBadge assetIds={['HORSE_MODEL_REQUIRED', 'STABLE_ENVIRONMENT_REQUIRED']} />
-      <AudioToggle
-        muted={audioMuted}
-        onChange={setAudioMuted}
-        style={{ position: 'absolute', top: 12, right: 12 }}
-      />
+      <div className="scene-controls" style={{ bottom: 12, right: 12 }}>
+        <AudioToggle muted={audioMuted} onChange={setAudioMuted} />
+        <QualitySelect />
+      </div>
       <div className="stable3d-caption">
         <span className="stable3d-name">{horse.name}</span>
         <span className="home3d-mood">{HORSE_MOOD_LABELS[mood]}</span>

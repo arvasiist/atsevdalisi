@@ -41,6 +41,7 @@ import {
 import { RaceHud, type MiniMapMarker, type MiniMapPoint } from './RaceHud';
 import { computeCrowdExcitement, useSecondsSinceFinish } from './race-atmosphere';
 import { AudioToggle } from './audio-vfx/AudioToggle';
+import { QualitySelect } from './QualitySelect';
 import { useAudioMuted, useRaceAudio } from './audio-vfx/use-race-audio';
 import type { HorseVisual } from './RaceScene3D';
 
@@ -509,11 +510,10 @@ export function RaceViewer({
         trackGeometry={trackGeometry}
         isPlaying={isPlaying}
       />
-      <AudioToggle
-        muted={audioMuted}
-        onChange={setAudioMuted}
-        style={{ position: 'absolute', top: 156, left: 16, zIndex: 5 }}
-      />
+      <div className="scene-controls" style={{ top: 156, left: 16 }}>
+        <AudioToggle muted={audioMuted} onChange={setAudioMuted} />
+        <QualitySelect />
+      </div>
       <RaceHud
         horseNamesById={horseNamesById}
         leaderboard={leaderboard}

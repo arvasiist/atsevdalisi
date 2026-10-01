@@ -94,6 +94,8 @@ import { HippodromeSurroundings } from './HippodromeSurroundings';
 import { StartGate } from './StartGate';
 import type { RaceSurface } from '@at-sevdalisi/shared-types';
 import { LIGHTING, SCENE_GL_OPTIONS, SceneRenderSettings } from './SceneRenderSettings';
+import { SceneQualityMonitor } from './SceneQualityMonitor';
+import { useQualityTier } from './use-quality-tier';
 import type { StadiumTrackGeometry } from './track-path';
 import type { CameraPose } from './camera-presets';
 import {
@@ -101,7 +103,6 @@ import {
   type QualityTier,
   type QualityTierRenderSettings,
 } from './quality-tier';
-import { detectQualityTier } from './detect-quality-tier';
 
 export interface HorseVisual {
   horseId: string;
@@ -178,9 +179,13 @@ export function RaceScene3D({
   // değişmez varsayımıyla; `qualityTierOverride` verilmişse (bugün hiçbir
   // çağıran taraf vermiyor, bkz. `RaceScene3DProps` doc yorumu) algılama
   // hiç ÇALIŞTIRILMAZ.
+  // 01.10.2026 (3D adım 10) — ortak kalite tercihi (`useQualityTier`) +
+  // kare hızına göre otomatik düşürme; `qualityTierOverride` hâlâ önceliklidir.
+  const quality = useQualityTier();
   const settings: QualityTierRenderSettings = useMemo(
-    () => getQualityTierRenderSettings(qualityTierOverride ?? detectQualityTier()),
-    [qualityTierOverride],
+    () =>
+      qualityTierOverride ? getQualityTierRenderSettings(qualityTierOverride) : quality.settings,
+    [qualityTierOverride, quality.settings],
   );
   // FAZ 4: `@react-three/postprocessing`'in `<EffectComposer>` bileşeni
   // `children`'ı `Effect` elemanlarından oluşan bir DİZİ/tekil eleman
@@ -224,11 +229,16 @@ export function RaceScene3D({
 
   return (
     <Canvas
+      key={settings.tier}
       shadows={settings.shadowsEnabled}
       dpr={[1, settings.pixelRatioCap]}
       camera={{ fov: 50, near: 0.5, far: 4000 }}
       gl={SCENE_GL_OPTIONS}
     >
+      <SceneQualityMonitor
+        enabled={quality.preference === 'auto'}
+        onDecline={quality.reportPerformanceDecline}
+      />
       <SceneRenderSettings settings={settings} />
       <SkyAndLighting
         environmentEnabled={settings.environmentEnabled}

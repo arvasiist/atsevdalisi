@@ -3566,6 +3566,23 @@ boş olduğu için bugün her ses sessizce düşer (tarayıcıda doğrulandı: y
 HEAD istekleri, GET/uyarı yok). Varsayılan sessiz; düğme tercihi saklar.
 **Ses dosyası YOK (PLACEHOLDER)** — manifestteki yollara konunca çalar.
 
+#### 13.52 3D ADIM 10 — PERFORMANS + MOBİL + CİLA (01.10.2026)
+
+Ortak kalite kaynağı `useQualityTier` (ana sayfa, yarış, ahır): oyuncu
+seçimi tarayıcıda saklanır ve açık sahneler arasında eşitlenir; "Otomatik"te
+cihaz algılamasıyla başlar, kare hızı `lowerFps` altına düşerse çalışma
+anında kademe iner (`performance.config.json`; saf mantık
+`resolveQualityTier`, test `quality-preference.spec.ts`). Yarış ve ahırda
+ses + kalite düğmeleri (`scene-controls`). 390 px genişlikte yarış/ahır/ana
+sayfa yatay taşma yok, dış istek yok (tarayıcıda doğrulandı); `next build`
+temiz.
+
+**3D YOL HARİTASI (10 ADIM) KOD OLARAK TAMAM.** Görüntü hâlâ prosedürel
+PLACEHOLDER'dır: gerçek `.glb`/HDRI/ses dosyaları `asset-manifest.ts`teki
+yollara konunca kod değişmeden devreye girer (`npm run assets:check`
+boyut/üçgen/klip denetler). **Bekleyen karar: varlık kaynağı (CC0 mi,
+ücretli/özel üretim mi).**
+
 ## 14. Kendime hatırlatmalar (kısa liste)
 
 1. **Race Engine'e dokunmadan önce iki kez düşün.** Denetim onu "KEEP, dokunma"
