@@ -295,6 +295,9 @@ export class RaceAudioManager {
   private hoofbeatTurning = false;
   /** Brief §20 (bu turda EKLENDİ) — o an ÇALAN kalabalık döngüsü (ambience veya final-düzlük "excited" varyantı), bkz. `switchToExcitedCrowd`. */
   private activeCrowdAssetId: CrowdAssetId | null = null;
+  /** 01.10.2026 (3D adım 9) — kalabalık heyecanı [0, 1]; bkz. `setCrowdExcitement`. Varsayılan 1 = eski davranış (taban hacim). */
+  private crowdExcitement = 1;
+  private stableAmbiencePlaying = false;
 
   constructor(config: AudioConfig, backend: AudioBackend = SILENT_AUDIO_BACKEND) {
     this.config = config;
@@ -742,7 +745,7 @@ export class RaceAudioManager {
     }
     this.backend.play(asset.expectedPath, {
       loop: true,
-      volume: this.resolveVolume('crowd', this.config.crowdAmbienceVolume),
+      volume: this.resolveVolume('crowd', this.crowdLoopVolume(this.config.crowdAmbienceVolume)),
     });
     this.crowdPlaying = true;
     this.activeCrowdAssetId = 'CROWD_AMBIENCE_SFX_REQUIRED';
@@ -783,7 +786,7 @@ export class RaceAudioManager {
     const previous = this.activeCrowdAssetId ? getAssetById(this.activeCrowdAssetId) : undefined;
     this.backend.play(excited.expectedPath, {
       loop: true,
-      volume: this.resolveVolume('crowd', this.config.crowdExcitedVolume),
+      volume: this.resolveVolume('crowd', this.crowdLoopVolume(this.config.crowdExcitedVolume)),
     });
     if (previous) {
       this.backend.stop(previous.expectedPath);
@@ -1031,7 +1034,10 @@ export class RaceAudioManager {
           this.activeCrowdAssetId === 'CROWD_EXCITED_SFX_REQUIRED'
             ? this.config.crowdExcitedVolume
             : this.config.crowdAmbienceVolume;
-        this.backend.setVolume(asset.expectedPath, this.resolveVolume('crowd', base));
+        this.backend.setVolume(
+          asset.expectedPath,
+          this.resolveVolume('crowd', this.crowdLoopVolume(base)),
+        );
       }
     }
     if (this.windPlaying) {
@@ -1070,6 +1076,15 @@ export class RaceAudioManager {
         );
       }
     }
+    if (this.stableAmbiencePlaying) {
+      const asset = getAssetById('STABLE_AMBIENCE_SFX_REQUIRED');
+      if (asset) {
+        this.backend.setVolume(
+          asset.expectedPath,
+          this.resolveVolume('environment', this.config.stableAmbienceVolume),
+        );
+      }
+    }
     if (this.hoofSprintPlaying) {
       const asset = getAssetById('HOOF_SPRINT_SFX_REQUIRED');
       if (asset) {
@@ -1081,6 +1096,64 @@ export class RaceAudioManager {
     }
   }
 
+  /**
+   * 01.10.2026 (3D adım 9) — kalabalık döngüsü heyecanla nefes alır:
+   * taban hacim × (min + (1 − min) × heyecan). Heyecan tribün animasyonunu
+   * süren AYNI değerdir (`computeCrowdExcitement`) — ses ile görüntü ayrışmaz.
+   */
+  setCrowdExcitement(level: number): void {
+    const next = clamp01(level);
+    if (next === this.crowdExcitement) {
+      return;
+    }
+    this.crowdExcitement = next;
+    if (this.crowdPlaying && this.activeCrowdAssetId) {
+      const asset = getAssetById(this.activeCrowdAssetId);
+      if (asset) {
+        const base =
+          this.activeCrowdAssetId === 'CROWD_EXCITED_SFX_REQUIRED'
+            ? this.config.crowdExcitedVolume
+            : this.config.crowdAmbienceVolume;
+        this.backend.setVolume(
+          asset.expectedPath,
+          this.resolveVolume('crowd', this.crowdLoopVolume(base)),
+        );
+      }
+    }
+  }
+
+  private crowdLoopVolume(base: number): number {
+    const min = clamp01(this.config.crowdExcitementMinFactor);
+    return base * (min + (1 - min) * this.crowdExcitement);
+  }
+
+  /** 01.10.2026 (3D adım 9) — ahır sahnesinin ortam döngüsü (yarıştan bağımsız). */
+  startStableAmbience(): void {
+    if (this.stableAmbiencePlaying) {
+      return;
+    }
+    const asset = getAssetById('STABLE_AMBIENCE_SFX_REQUIRED');
+    if (!asset) {
+      return;
+    }
+    this.backend.play(asset.expectedPath, {
+      loop: true,
+      volume: this.resolveVolume('environment', this.config.stableAmbienceVolume),
+    });
+    this.stableAmbiencePlaying = true;
+  }
+
+  stopStableAmbience(): void {
+    if (!this.stableAmbiencePlaying) {
+      return;
+    }
+    const asset = getAssetById('STABLE_AMBIENCE_SFX_REQUIRED');
+    if (asset) {
+      this.backend.stop(asset.expectedPath);
+    }
+    this.stableAmbiencePlaying = false;
+  }
+
   /** Testler/temizlik için — bileşen unmount olduğunda (`useEffect` cleanup) çağrılır. */
   stopAll(): void {
     this.stopHoofbeats();
@@ -1089,6 +1162,7 @@ export class RaceAudioManager {
     this.stopWindAmbience();
     this.stopStadiumAmbience();
     this.stopGateAmbience();
+    this.stopStableAmbience();
     const music = getAssetById('RACE_BACKGROUND_MUSIC_REQUIRED');
     if (music) {
       this.backend.stop(music.expectedPath);

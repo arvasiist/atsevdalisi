@@ -28,6 +28,8 @@ import { detectQualityTier } from '../race-viewer/detect-quality-tier';
 import { getQualityTierRenderSettings } from '../race-viewer/quality-tier';
 import { HORSE_MOOD_LABELS, deriveHorseDemeanor } from '../horse-stage/horse-demeanor';
 import { PlaceholderStall } from './PlaceholderStall';
+import { AudioToggle } from '../race-viewer/audio-vfx/AudioToggle';
+import { useAudioMuted, useStableAmbience } from '../race-viewer/audio-vfx/use-race-audio';
 
 const PRESENCE_CONFIG = loadHorsePresenceConfig();
 const STABLE_ASSET = getAssetById('STABLE_ENVIRONMENT_REQUIRED');
@@ -120,6 +122,9 @@ export function StableScene3D({ horse }: StableScene3DProps): React.ReactElement
   const mood = deriveHorseDemeanor(horse, PRESENCE_CONFIG).mood;
   // İç mekân: HDRI gökyüzü olarak GÖRÜNMEZ, yalnızca yansıma/ortam ışığı verir.
   const hdri = useAssetAvailability(HDRI_URL);
+  // 01.10.2026 (3D adım 9) — ahır ortam sesi (dosya yoksa sessiz).
+  const [audioMuted, setAudioMuted] = useAudioMuted();
+  useStableAmbience(audioMuted);
   return (
     <div className="stable3d">
       <Canvas
@@ -137,6 +142,11 @@ export function StableScene3D({ horse }: StableScene3DProps): React.ReactElement
         </Suspense>
       </Canvas>
       <PlaceholderBadge assetIds={['HORSE_MODEL_REQUIRED', 'STABLE_ENVIRONMENT_REQUIRED']} />
+      <AudioToggle
+        muted={audioMuted}
+        onChange={setAudioMuted}
+        style={{ position: 'absolute', top: 12, right: 12 }}
+      />
       <div className="stable3d-caption">
         <span className="stable3d-name">{horse.name}</span>
         <span className="home3d-mood">{HORSE_MOOD_LABELS[mood]}</span>

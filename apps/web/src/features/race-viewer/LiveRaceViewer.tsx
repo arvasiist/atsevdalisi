@@ -94,6 +94,8 @@ import { projectToMiniMap } from './minimap-projection';
 import { getLiveLeaderboard, isAnyHorseBlockedAtTime } from './timeline-playback';
 import { RaceHud, type MiniMapMarker } from './RaceHud';
 import { computeCrowdExcitement, useSecondsSinceFinish } from './race-atmosphere';
+import { AudioToggle } from './audio-vfx/AudioToggle';
+import { useAudioMuted, useRaceAudio } from './audio-vfx/use-race-audio';
 import type { HorseVisual } from './RaceScene3D';
 import {
   HORSE_VISUAL_HEIGHT_METERS,
@@ -511,6 +513,22 @@ export function LiveRaceViewer({
     },
     ATMOSPHERE,
   );
+  // 01.10.2026 (3D adım 9) — ses: olaylar ekrandaki durumdan türetilir.
+  const [audioMuted, setAudioMuted] = useAudioMuted();
+  useRaceAudio({
+    muted: audioMuted,
+    isPlaying: true,
+    surface: raceInfo?.surface ?? 'dirt',
+    timeMs: hudTimeMs,
+    started: leaderPositionMeters > 0 || isRaceFinished,
+    leaderHorseId: leaderboard[0]?.horseId,
+    inFinalStretch:
+      raceDistanceMeters > 0 &&
+      raceDistanceMeters - leaderPositionMeters <= cameraConfig.finalStretchRemainingMeters,
+    isFinished: isRaceFinished,
+    crowdExcitement,
+    leaderSpeedMps: leaderboard[0]?.speedMps ?? 0,
+  });
   const anyHorseBlocked = useMemo(
     () => isAnyHorseBlockedAtTime(segments, entryIds, hudTimeMs),
     [segments, entryIds, hudTimeMs],
@@ -602,6 +620,11 @@ export function LiveRaceViewer({
         gateOpen={leaderPositionMeters > 0 || isRaceFinished}
         cameraPose={cameraPose}
         trackGeometry={trackGeometry}
+      />
+      <AudioToggle
+        muted={audioMuted}
+        onChange={setAudioMuted}
+        style={{ position: 'absolute', top: 156, left: 16, zIndex: 5 }}
       />
       <RaceHud
         horseNamesById={horseNamesById}

@@ -164,7 +164,6 @@ a {
   }
 }
 
-
 /* ==========================================================================
  * 01.10.2026 — PREMIUM ARAYÜZ SINIFLARI
  * ========================================================================== */
@@ -246,7 +245,9 @@ a {
   white-space: nowrap;
   cursor: pointer;
   text-decoration: none;
-  transition: color 0.15s ease, background 0.15s ease;
+  transition:
+    color 0.15s ease,
+    background 0.15s ease;
 }
 
 .nav-item:hover {
@@ -605,7 +606,9 @@ a {
   text-decoration: none;
   cursor: pointer;
   box-shadow: var(--shadow-gold-glow);
-  transition: transform 0.12s ease, filter 0.12s ease;
+  transition:
+    transform 0.12s ease,
+    filter 0.12s ease;
 }
 
 .btn-gold:hover {
@@ -738,7 +741,12 @@ a {
   inset: auto 0 0 0;
   height: 46%;
   pointer-events: none;
-  background: linear-gradient(180deg, transparent 0%, rgba(5, 8, 16, 0.55) 55%, rgba(5, 8, 16, 0.88) 100%);
+  background: linear-gradient(
+    180deg,
+    transparent 0%,
+    rgba(5, 8, 16, 0.55) 55%,
+    rgba(5, 8, 16, 0.88) 100%
+  );
 }
 
 .home3d-shots {
@@ -770,6 +778,24 @@ a {
   color: #1a1204;
   background: var(--gradient-gold);
   border-color: transparent;
+}
+
+.audio-toggle {
+  display: inline-grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(6, 10, 20, 0.6);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  backdrop-filter: blur(6px);
+}
+
+.audio-toggle[aria-pressed='true'] {
+  color: var(--color-gold, #e2b44b);
+  border-color: currentColor;
 }
 
 .home3d-shot-icon {
@@ -1044,7 +1070,9 @@ a {
   font-size: 15px;
   font-weight: 700;
   text-decoration: none;
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  box-shadow:
+    0 6px 18px rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
 }
 
 .btn-action-blue {
@@ -1193,7 +1221,9 @@ a {
   box-shadow: var(--shadow-panel);
   text-align: center;
   text-decoration: none;
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease;
 }
 
 .quick-tile:hover {
@@ -1817,7 +1847,9 @@ button[style*='background: var(--color-accent-gold)'] {
  * HUD'un alt kontrolleri sekme çubuğunun altında kalıyordu.
  */
 .viewer-page {
-  height: calc(100dvh - var(--topbar-height) - var(--bottom-nav-height) - env(safe-area-inset-bottom, 0px)) !important;
+  height: calc(
+    100dvh - var(--topbar-height) - var(--bottom-nav-height) - env(safe-area-inset-bottom, 0px)
+  ) !important;
   min-height: 420px;
 }
 

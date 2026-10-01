@@ -249,6 +249,11 @@ klibi ya da prosedürel bölmeler, kapılar `gateOpen`la açılır) + yüzeye g�
 toz/pist rengi (`vfx.config.json` `dustBySurface`/`trackColorBySurface`;
 hız ve kamera mesafesiyle ölçekli, `dustSpawnRate`). Yüzey `view.surface`ten
 gelir; izleme sayfası yüzey geçirmez → `dirt`.
+(25) **SES (3D adım 9, §13.51)** — `useRaceAudio` olayları EKRANDAKİ durumdan
+türetir (`deriveRaceAudioCues`, saf; motor ses yaymaz). Kalabalık hacmi
+tribünle AYNI `crowdExcitement`ten. `createProbedAudioBackend`: dosya yoksa
+sessiz (yalnızca HEAD yoklaması), yollar `assetUrl` ile MUTLAK. Varsayılan
+SESSİZ (`AudioToggle`, localStorage); ahırda `useStableAmbience`.
 
 **✅ ÜCRETLİ LOBİ YARIŞI ARTIK KOŞUYOR — ÖDÜL DAĞITIMI VAR (§13.14,
 28.09.2026).** `POST /races/:id/settle` yarışı koşar, ödülleri `top5`

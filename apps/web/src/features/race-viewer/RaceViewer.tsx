@@ -40,6 +40,8 @@ import {
 } from './timeline-playback';
 import { RaceHud, type MiniMapMarker, type MiniMapPoint } from './RaceHud';
 import { computeCrowdExcitement, useSecondsSinceFinish } from './race-atmosphere';
+import { AudioToggle } from './audio-vfx/AudioToggle';
+import { useAudioMuted, useRaceAudio } from './audio-vfx/use-race-audio';
 import type { HorseVisual } from './RaceScene3D';
 
 const RaceScene3D = dynamic(
@@ -362,6 +364,22 @@ export function RaceViewer({
     },
     ATMOSPHERE,
   );
+  // 01.10.2026 (3D adım 9) — ses: olaylar ekrandaki durumdan türetilir.
+  const [audioMuted, setAudioMuted] = useAudioMuted();
+  useRaceAudio({
+    muted: audioMuted,
+    isPlaying: isPlaying,
+    surface: surface,
+    timeMs: hudTimeMs,
+    started: hudTimeMs > 0,
+    leaderHorseId: leaderboard[0]?.horseId,
+    inFinalStretch:
+      raceDistanceMeters > 0 &&
+      raceDistanceMeters - leaderPositionMeters <= cameraConfig.finalStretchRemainingMeters,
+    isFinished: isRaceFinished,
+    crowdExcitement,
+    leaderSpeedMps: leaderboard[0]?.speedMps ?? 0,
+  });
   const anyHorseBlocked = useMemo(
     () => isAnyHorseBlockedAtTime(timeline.segments, horseIds, hudTimeMs),
     [timeline.segments, horseIds, hudTimeMs],
@@ -490,6 +508,11 @@ export function RaceViewer({
         cameraPose={cameraPose}
         trackGeometry={trackGeometry}
         isPlaying={isPlaying}
+      />
+      <AudioToggle
+        muted={audioMuted}
+        onChange={setAudioMuted}
+        style={{ position: 'absolute', top: 156, left: 16, zIndex: 5 }}
       />
       <RaceHud
         horseNamesById={horseNamesById}

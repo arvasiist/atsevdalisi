@@ -1009,6 +1009,8 @@ export interface AudioConfig {
     baseVolume: number;
     /** Azami hızda taban hacme EKLENEN pay, [0, 1] (taban + bu ≤ 1 olmalı). */
     maxExtraVolume: number;
+    /** 01.10.2026 (3D adım 9) — yoğunluğun 1'e ulaştığı lider hızı (m/s). */
+    referenceSpeedMps: number;
   };
   /**
    * Brief §31 "HorseBreathing" (bu turda EKLENDİ) — `hoofbeat` ile AYNI
@@ -1134,6 +1136,15 @@ export interface AudioConfig {
     speedRatioThreshold: number;
     layerVolume: number;
   };
+  /**
+   * 01.10.2026 (3D adım 9) — kalabalık döngüsünün hacmi heyecanla ölçeklenir:
+   * çarpan = min + (1 − min) × heyecan (heyecan `computeCrowdExcitement`ten, [0, 1]).
+   */
+  crowdExcitementMinFactor: number;
+  /** Ahır ortam döngüsü (`STABLE_AMBIENCE_SFX_REQUIRED`), `environment` kanalı. */
+  stableAmbienceVolume: number;
+  /** Lider değişimi "overtake" sesinin en sık çalma aralığı (ms) — sürekli el değiştirmede spam olmasın. */
+  overtakeCooldownMs: number;
 }
 
 /**

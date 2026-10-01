@@ -3552,6 +3552,20 @@ ve kamera uzaklığıyla ölçeklenir (`dustSpawnRate`, saf + test). Pist rengi
 de yüzeye göre. `/races/demo`da tarayıcıda görüldü (kapı + kalabalık);
 toz yazılımsal GPU'da düşük kademede seyrek görünür.
 
+#### 13.51 3D ADIM 9 — SES (01.10.2026)
+
+`RaceAudioManager` (önceden hiçbir yerden çağrılmıyordu) artık iki yarış
+izleyicisine ve ahıra bağlı. Olaylar (`race_start`/`gate_open`/
+`start_signal`/`overtake`/`final_stretch`/`finish`/`winner`) oynatma
+durumundan saf `deriveRaceAudioCues` ile türetilir; ses yarış ortasında
+açılırsa geçmiş tek seferlik sesler çalınmaz, geri sarma döngüleri susturur,
+lider değişimi `overtakeCooldownMs`ten sık çalmaz. Kalabalık döngüsü
+heyecanla ölçeklenir (`crowdExcitementMinFactor`), nal sesi lider hızıyla
+(`hoofbeat.referenceSpeedMps`). Arka uç her yolu HEAD ile yoklar — `public/`
+boş olduğu için bugün her ses sessizce düşer (tarayıcıda doğrulandı: yalnızca
+HEAD istekleri, GET/uyarı yok). Varsayılan sessiz; düğme tercihi saklar.
+**Ses dosyası YOK (PLACEHOLDER)** — manifestteki yollara konunca çalar.
+
 ## 14. Kendime hatırlatmalar (kısa liste)
 
 1. **Race Engine'e dokunmadan önce iki kez düşün.** Denetim onu "KEEP, dokunma"
