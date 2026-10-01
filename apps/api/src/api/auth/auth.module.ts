@@ -3,6 +3,11 @@ import { APP_GUARD } from '@nestjs/core';
 import { IDENTITY_PROVIDER_VERIFIER } from '../../application/ports/identity-provider';
 import { PLAYER_AUTH_PROVIDER_REPOSITORY } from '../../application/ports/player-auth-provider.repository';
 import { LoginWithProviderUseCase } from '../../application/use-cases/login-with-provider.use-case';
+import { PasswordAuthUseCase } from '../../application/use-cases/password-auth.use-case';
+import { PASSWORD_HASHER } from '../../application/ports/password-hasher';
+import { PLAYER_CREDENTIALS_REPOSITORY } from '../../application/ports/player-credentials.repository';
+import { PostgresPlayerCredentialsRepository } from '../../infrastructure/auth/postgres-player-credentials.repository';
+import { ScryptPasswordHasher } from '../../infrastructure/auth/scrypt-password-hasher';
 import { GoogleAppleIdentityProvider } from '../../infrastructure/auth/google-apple-identity-provider';
 import { PostgresPlayerAuthProviderRepository } from '../../infrastructure/player/postgres-player-auth-provider.repository';
 import { HorseModule } from '../horse/horse.module';
@@ -31,6 +36,10 @@ import { AuthGuard } from './auth.guard';
   controllers: [AuthController],
   providers: [
     LoginWithProviderUseCase,
+    // 30.09.2026 — e-posta + şifre girişi (migration 0046).
+    PasswordAuthUseCase,
+    { provide: PASSWORD_HASHER, useClass: ScryptPasswordHasher },
+    { provide: PLAYER_CREDENTIALS_REPOSITORY, useClass: PostgresPlayerCredentialsRepository },
     { provide: IDENTITY_PROVIDER_VERIFIER, useClass: GoogleAppleIdentityProvider },
     { provide: PLAYER_AUTH_PROVIDER_REPOSITORY, useClass: PostgresPlayerAuthProviderRepository },
     { provide: APP_GUARD, useClass: AuthGuard },

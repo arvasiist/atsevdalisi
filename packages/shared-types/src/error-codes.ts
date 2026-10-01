@@ -18,6 +18,11 @@ export const ErrorCode = {
   IdempotencyKeyInProgress: 'IDEMPOTENCY_KEY_IN_PROGRESS',
   ValidationError: 'VALIDATION_ERROR',
   Unauthorized: 'UNAUTHORIZED',
+  // 30.09.2026 — e-posta + şifre girişi (migration 0046). Kayıtlı olmayan
+  // e-posta ile yanlış şifre BİLEREK aynı koddur (enumerasyon yok).
+  InvalidCredentials: 'INVALID_CREDENTIALS',
+  EmailAlreadyRegistered: 'EMAIL_ALREADY_REGISTERED',
+  CredentialsAlreadySet: 'CREDENTIALS_ALREADY_SET',
   NotFound: 'NOT_FOUND',
   // AUDIT_REPORT.md Bulgu S1/S2/S4 hardening (bu oturum) — brief §41/§50
   // Google/Apple Sign-In + IDOR sertleştirmesi. `Unauthorized` (401) daha

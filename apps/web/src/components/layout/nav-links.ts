@@ -32,4 +32,5 @@ export const NAV_LINKS: ReadonlyArray<readonly [string, string]> = [
   ['/wallet', 'Cüzdan'],
   ['/friends', 'Arkadaşlar'],
   ['/notifications', 'Bildirimler'],
+  ['/account', 'Hesap'],
 ];

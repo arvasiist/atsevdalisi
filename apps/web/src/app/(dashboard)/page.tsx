@@ -91,6 +91,14 @@ export default function DashboardPage(): React.ReactElement {
             <button type="button" onClick={() => void createPlayer()} style={primaryButtonStyle()}>
               Başlangıç Paketiyle Oyuncu Oluştur
             </button>
+            {/* 30.09.2026 — kayıtlı hesabı olan (yeni cihaz / silinmiş tarayıcı
+                verisi) oyuncunun geri dönüş yolu. */}
+            <p style={{ color: 'var(--color-text-secondary)', fontSize: '13px', marginBottom: 0 }}>
+              Kayıtlı hesabın var mı?{' '}
+              <Link href="/account" style={{ color: 'var(--color-accent-focus)', fontWeight: 600 }}>
+                E-posta ile giriş yap
+              </Link>
+            </p>
             {error ? <p style={{ color: 'var(--color-status-critical)', marginBottom: 0 }}>{error}</p> : null}
           </GlassPanel>
         ) : null}

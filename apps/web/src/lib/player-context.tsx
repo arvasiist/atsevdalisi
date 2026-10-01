@@ -31,6 +31,17 @@ export interface PlayerContextValue {
   error: string | null;
   createPlayer: () => Promise<void>;
   refresh: () => Promise<void>;
+  /**
+   * 30.09.2026 — e-posta + şifre ile giriş. Başarılıysa oturum bu
+   * tarayıcıya yazılır ve oyuncu yüklenir; hata FIRLATILIR (form gösterir).
+   */
+  loginWithPassword: (email: string, password: string) => Promise<void>;
+  /**
+   * Oturumu bu tarayıcıdan siler. Sunucuda hiçbir şey değişmez; kayıtlı
+   * (e-postalı) bir hesap tekrar giriş yapılarak geri alınır, MİSAFİR hesap
+   * ise geri alınamaz — ekran bu yüzden misafire önce kaydetmeyi söyler.
+   */
+  logout: () => void;
 }
 
 const PlayerContext = createContext<PlayerContextValue | null>(null);
@@ -96,6 +107,22 @@ export function PlayerProvider({ children }: { children: React.ReactNode }): Rea
     }
   }, []);
 
+  const loginWithPassword = useCallback(async (email: string, password: string) => {
+    const session = await apiClient.loginWithPassword(email, password);
+    setAuthToken(session.token);
+    window.localStorage.setItem(STORAGE_KEY, session.player.id);
+    window.localStorage.setItem(TOKEN_STORAGE_KEY, session.token);
+    setError(null);
+    setPlayer(session.player);
+  }, []);
+
+  const logout = useCallback(() => {
+    window.localStorage.removeItem(STORAGE_KEY);
+    window.localStorage.removeItem(TOKEN_STORAGE_KEY);
+    setAuthToken(null);
+    setPlayer(null);
+  }, []);
+
   const refresh = useCallback(async () => {
     setPlayer((current) => {
       if (current) {
@@ -106,8 +133,8 @@ export function PlayerProvider({ children }: { children: React.ReactNode }): Rea
   }, []);
 
   const value = useMemo<PlayerContextValue>(
-    () => ({ player, isLoading, error, createPlayer, refresh }),
-    [player, isLoading, error, createPlayer, refresh],
+    () => ({ player, isLoading, error, createPlayer, refresh, loginWithPassword, logout }),
+    [player, isLoading, error, createPlayer, refresh, loginWithPassword, logout],
   );
 
   return <PlayerContext.Provider value={value}>{children}</PlayerContext.Provider>;

@@ -1,4 +1,5 @@
 import type {
+  AccountCredentialsView,
   AdminAuditLogResult,
   AdminPlayerListResult,
   AdminRaceCancelResult,
@@ -226,6 +227,27 @@ export const apiClient = {
     }),
 
   getPlayer: (playerId: string) => request<PlayerSummary>(`/players/${playerId}`),
+
+  /**
+   * E-POSTA + ŞİFRE GİRİŞİ (30.09.2026, migration 0046) — token'SIZ çağrılır
+   * (yeni cihaz / silinmiş tarayıcı verisi). Yanlış şifre ile kayıtlı
+   * olmayan e-posta AYNI 401 `INVALID_CREDENTIALS`tir.
+   */
+  loginWithPassword: (email: string, password: string) =>
+    request<AuthSession>('/auth/login/password', {
+      method: 'POST',
+      body: JSON.stringify({ email, password }),
+    }),
+
+  /** "Hesabını kaydet" — oturumdaki MİSAFİR oyuncuya e-posta + şifre bağlar (oyuncu token'dan gelir). */
+  saveAccount: (email: string, password: string) =>
+    request<AccountCredentialsView>('/auth/credentials', {
+      method: 'POST',
+      body: JSON.stringify({ email, password }),
+    }),
+
+  /** Oyuncunun giriş bilgisi durumu — `email: null` misafir hesap demektir. */
+  getAccountCredentials: () => request<AccountCredentialsView>('/auth/credentials'),
 
   /**
    * brief §24 SOSYAL PROFİL — `/profile/:username` ekranı (28.09.2026).

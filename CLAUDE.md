@@ -96,9 +96,9 @@ küçük dilim → yerel doğrula (kök `npm run typecheck` + hedefli vitest + l
 ## Bilinen açık uçlar (kısa)
 
 **30.09.2026'da yeniden doğrulandı (bu liste iki kez bayatlamıştı):**
-Gerçek 3D/ses varlığı yok · OAuth kimlik bilgileri yok (`POST /auth/login` pratikte
-çalışmaz) · frontend'de gerçek giriş yok (misafir hesap, localStorage — tarayıcı
-verisi silinirse hesap kaybolur) · yarış takvimi yok ·
+Gerçek 3D/ses varlığı yok · OAuth kimlik bilgileri yok (Google/Apple; e-posta +
+şifre girişi VAR — `/account`, migration 0046) · şifre sıfırlama yok (e-posta
+servisi ister) · yarış takvimi yok (turnuva takvimi VAR) ·
 personel (`domain/staff`) + club/season/progression **DOMAIN ONLY**
 (API/ekran yok) · yer tutucu olan TEK sayfa `/club` · `PlayerDemoWidget`/
 `GltfAssetLoader` bağlı değil (bilinçli). Jokey, mizaç, taktik motora BAĞLI;
@@ -133,6 +133,11 @@ türetilir). `TournamentScheduler` her kademe için otomatik açar; final
 BOTSUZ, ödül `online.tournament.prizeDistributionByPlacement` (rake yok);
 `minParticipants` altında iptal + iade. Ayrı turnuva ucu YOK — `GET /races`
 listeler (`RaceLobbyListItem.tournament`).
+(10) **E-POSTA + ŞİFRE GİRİŞİ (migration 0046)** — `POST /auth/credentials`
+(misafiri kaydet), `POST /auth/login/password` (`@Public`), `GET
+/auth/credentials`. Şifre `scrypt` (yerleşik; parametre + tuz özette).
+⚠️ Yanlış şifre ile kayıtsız e-posta AYNI 401 + aynı mesaj — ayırmak
+enumerasyon açar; kayıtsız e-postada da sahte özet doğrulanır.
 
 **✅ ÜCRETLİ LOBİ YARIŞI ARTIK KOŞUYOR — ÖDÜL DAĞITIMI VAR (§13.14,
 28.09.2026).** `POST /races/:id/settle` yarışı koşar, ödülleri `top5`

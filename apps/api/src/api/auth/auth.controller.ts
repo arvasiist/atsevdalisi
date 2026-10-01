@@ -1,6 +1,8 @@
-import { Body, Controller, HttpCode, HttpStatus, Inject, Post } from '@nestjs/common';
-import type { ApiSuccess, AuthSession } from '@at-sevdalisi/shared-types';
+import { Body, Controller, Get, HttpCode, HttpStatus, Inject, Post } from '@nestjs/common';
+import type { AccountCredentialsView, ApiSuccess, AuthSession } from '@at-sevdalisi/shared-types';
 import { LoginWithProviderUseCase } from '../../application/use-cases/login-with-provider.use-case';
+import { PasswordAuthUseCase } from '../../application/use-cases/password-auth.use-case';
+import { CurrentPlayer, type AuthenticatedPlayer } from './current-player.decorator';
 import { TOKEN_SERVICE, type TokenService } from '../../application/ports/token.service';
 import { toPlayerSummary } from '../dto/player.mapper';
 import { RateLimit } from '../rate-limit/rate-limit.decorator';
@@ -28,6 +30,7 @@ export class AuthController {
   constructor(
     @Inject(LoginWithProviderUseCase) private readonly loginWithProviderUseCase: LoginWithProviderUseCase,
     @Inject(TOKEN_SERVICE) private readonly tokenService: TokenService,
+    @Inject(PasswordAuthUseCase) private readonly passwordAuth: PasswordAuthUseCase,
   ) {}
 
   // AUDIT_REPORT.md Bulgu S5 (High) hardening (bu oturum) — `register`
@@ -44,5 +47,46 @@ export class AuthController {
     });
     const token = this.tokenService.sign({ sub: player.id });
     return { success: true, data: { token, player: toPlayerSummary(player) } };
+  }
+
+  /**
+   * E-POSTA + ŞİFRE İLE GİRİŞ (30.09.2026, migration 0046). `@Public()` —
+   * token'ı olmayan (yeni cihaz, silinmiş tarayıcı verisi) oyuncunun hesabına
+   * dönmesinin yolu budur. Kayıtlı olmayan e-posta ile yanlış şifre AYNI 401
+   * `INVALID_CREDENTIALS`tir. Hız sınırı IP başınadır (kaba kuvvet denemesi).
+   * Gövde HAM geçirilir; doğrulama use-case'tedir (CLAUDE.md kural 5).
+   */
+  @RateLimit({ name: 'login-password', limit: 10, windowSeconds: 300, keyBy: 'ip' })
+  @Public()
+  @Post('login/password')
+  @HttpCode(HttpStatus.OK)
+  async loginWithPassword(@Body() body: { email?: unknown; password?: unknown }): Promise<ApiSuccess<AuthSession>> {
+    const player = await this.passwordAuth.login(body?.email, body?.password);
+    const token = this.tokenService.sign({ sub: player.id });
+    return { success: true, data: { token, player: toPlayerSummary(player) } };
+  }
+
+  /**
+   * "HESABINI KAYDET" (30.09.2026) — oturum açmış MİSAFİR oyuncu kendi
+   * hesabına e-posta + şifre bağlar. Oyuncu TOKEN'dan gelir; gövdede başka
+   * bir oyuncu kimliği KABUL EDİLMEZ. Atlar, para ve geçmiş aynı oyuncuda
+   * kalır — yeni hesap açılmaz.
+   */
+  @RateLimit({ name: 'save-account', limit: 5, windowSeconds: 300, keyBy: 'player' })
+  @Post('credentials')
+  @HttpCode(HttpStatus.CREATED)
+  async saveAccount(
+    @Body() body: { email?: unknown; password?: unknown },
+    @CurrentPlayer() currentPlayer: AuthenticatedPlayer,
+  ): Promise<ApiSuccess<AccountCredentialsView>> {
+    const saved = await this.passwordAuth.saveAccount(currentPlayer.id, body?.email, body?.password);
+    return { success: true, data: { email: saved.email } };
+  }
+
+  /** Oyuncunun giriş bilgisi durumu — `email: null` misafir demektir. */
+  @Get('credentials')
+  @HttpCode(HttpStatus.OK)
+  async credentials(@CurrentPlayer() currentPlayer: AuthenticatedPlayer): Promise<ApiSuccess<AccountCredentialsView>> {
+    return { success: true, data: { email: await this.passwordAuth.accountEmail(currentPlayer.id) } };
   }
 }

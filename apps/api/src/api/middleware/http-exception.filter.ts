@@ -28,7 +28,11 @@ import {
 } from '../../domain/player/errors';
 import {
   ForbiddenError,
+  CredentialsAlreadySetError,
+  EmailAlreadyRegisteredError,
   InvalidAuthTokenError,
+  InvalidCredentialsError,
+  InvalidCredentialsInputError,
   InvalidProviderTokenError,
   MissingAuthTokenError,
 } from '../../domain/auth/errors';
@@ -271,6 +275,11 @@ const DOMAIN_ERROR_MAP = new Map<ErrorClassConstructor, { status: number; code: 
   // giriş/kayıt gerekir), bu yüzden AYNI `ErrorCode.Unauthorized`'ı paylaşırlar.
   [MissingAuthTokenError, { status: HttpStatus.UNAUTHORIZED, code: ErrorCode.Unauthorized }],
   [InvalidAuthTokenError, { status: HttpStatus.UNAUTHORIZED, code: ErrorCode.Unauthorized }],
+  // 30.09.2026 — e-posta + şifre girişi (migration 0046).
+  [InvalidCredentialsError, { status: HttpStatus.UNAUTHORIZED, code: ErrorCode.InvalidCredentials }],
+  [InvalidCredentialsInputError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.ValidationError }],
+  [EmailAlreadyRegisteredError, { status: HttpStatus.CONFLICT, code: ErrorCode.EmailAlreadyRegistered }],
+  [CredentialsAlreadySetError, { status: HttpStatus.CONFLICT, code: ErrorCode.CredentialsAlreadySet }],
   // Token GEÇERLİ ama sahiplik yok — kavramsal olarak 401'den FARKLI, bkz.
   // `ForbiddenError` doc yorumu.
   [ForbiddenError, { status: HttpStatus.FORBIDDEN, code: ErrorCode.Forbidden }],

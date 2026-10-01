@@ -1602,3 +1602,14 @@ export interface RaceLobbyConfig {
     batchSize: number;
   };
 }
+
+/**
+ * `config/auth.config.json` (30.09.2026) — e-posta + şifre girişi.
+ * `email.maxLength` `player_credentials.email` CHECK'iyle (254) eşleşmelidir.
+ */
+export interface AuthConfig {
+  email: { maxLength: number };
+  password: { minLength: number; maxLength: number };
+  /** Node `crypto.scrypt` parametreleri: `cost` (N, 2'nin kuvveti), `blockSize` (r), `parallelization` (p). */
+  scrypt: { cost: number; blockSize: number; parallelization: number; keyLength: number; saltBytes: number };
+}

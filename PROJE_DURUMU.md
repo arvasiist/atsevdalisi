@@ -3329,6 +3329,18 @@ zamanlayıcısı katılımsız yarışı seçmediği için takvim onu ayrıca ip
 yoksa o kademe sonsuza dek "açık" kalırdı. Altın kademe 32 → 16 (tek yarışta
 en büyük saha). Eleme formatı bilinçli olarak yok.
 
+#### 13.36 E-POSTA + ŞİFRE GİRİŞİ — misafir hesabı kaydetme (migration 0046) — 30.09.2026
+
+Sahibin talebi. Hesaplar yalnızca tarayıcıdaki JWT'de yaşıyordu: tarayıcı
+verisi silinince, cihaz değişince ya da **30 günlük token dolunca** oyuncu
+her şeyini kaybediyordu. Google/Apple kimlik bilgisi beklemeden çözüldü:
+`player_credentials` (PK `player_id`, tekil `lower(email)`), `scrypt`
+(Node yerleşik — yeni bağımlılık yok; özet `scrypt$N$r$p$tuz$özet`, config
+değişse de eski özet doğrulanır). "Hesabını kaydet" oyuncu satırına
+dokunmaz — atlar/para aynı `player_id`de. Giriş hatası tek kod
+(`INVALID_CREDENTIALS`) + sahte özetle zaman eşitleme. Web: `/account`.
+**Yok:** şifre sıfırlama (e-posta servisi gerekir).
+
 ## 14. Kendime hatırlatmalar (kısa liste)
 
 1. **Race Engine'e dokunmadan önce iki kez düşün.** Denetim onu "KEEP, dokunma"

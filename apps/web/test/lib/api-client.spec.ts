@@ -1019,3 +1019,31 @@ describe('apiClient ücretli lobi yarışı (30.09.2026 — istemci tarafı)', (
     expect((config.headers as Headers).get('Idempotency-Key')).toBe('key-9');
   });
 });
+
+describe('apiClient e-posta + şifre girişi (30.09.2026)', () => {
+  it('loginWithPassword gövdeyi POST /auth/login/password ile gönderir', async () => {
+    const fetchMock = stubFetchOnce({ success: true, data: { token: 't', player: samplePlayer } });
+    await apiClient.loginWithPassword('ali@ornek.com', 'sifre-12345');
+    const [url, config] = requestArgs(fetchMock);
+    expect(url).toBe(`${API_BASE_URL}/auth/login/password`);
+    expect(config.method).toBe('POST');
+    expect(JSON.parse(config.body as string)).toEqual({ email: 'ali@ornek.com', password: 'sifre-12345' });
+  });
+
+  it('saveAccount POST /auth/credentials — oyuncu kimliği GÖVDEDE YOK (token\'dan gelir)', async () => {
+    const fetchMock = stubFetchOnce({ success: true, data: { email: 'ali@ornek.com' } });
+    await apiClient.saveAccount('ali@ornek.com', 'sifre-12345');
+    const [url, config] = requestArgs(fetchMock);
+    expect(url).toBe(`${API_BASE_URL}/auth/credentials`);
+    expect(config.method).toBe('POST');
+    expect(JSON.parse(config.body as string)).toEqual({ email: 'ali@ornek.com', password: 'sifre-12345' });
+  });
+
+  it('getAccountCredentials GET /auth/credentials', async () => {
+    const fetchMock = stubFetchOnce({ success: true, data: { email: null } });
+    await apiClient.getAccountCredentials();
+    const [url, config] = requestArgs(fetchMock);
+    expect(url).toBe(`${API_BASE_URL}/auth/credentials`);
+    expect(config.method ?? 'GET').toBe('GET');
+  });
+});

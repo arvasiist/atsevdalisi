@@ -11,6 +11,7 @@ import {
   loadHorseGrowthConfig,
   loadJockeyConfig,
   loadOnlineConfig,
+  loadAuthConfig,
   loadProgressionConfig,
   loadRaceConfig,
   loadRaceLobbyConfig,
@@ -65,6 +66,8 @@ export class AppConfigService {
   // §41/§43). `loadOnlineConfig()` FAZ 7'den beri `@at-sevdalisi/game-config`'te
   // hazırdı ama hiçbir yerde çağrılmıyordu (bkz. docs/ROADMAP.md).
   readonly online = loadOnlineConfig();
+  // E-POSTA + ŞİFRE GİRİŞİ (30.09.2026, migration 0046).
+  readonly auth = loadAuthConfig();
   // brief §32 "Çiftlik" (bu turda EKLENDİ) — `loadFarmConfig()` FAZ 2'den
   // beri `@at-sevdalisi/game-config`'te hazırdı ama HİÇBİR YERDE
   // çağrılmıyordu: `domain/farm/farm.ts` yalnızca birim testinden

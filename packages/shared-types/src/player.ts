@@ -99,3 +99,12 @@ export interface AuthSession {
   token: string;
   player: PlayerSummary;
 }
+
+/**
+ * 30.09.2026 — oyuncunun giriş bilgisi durumu (`GET /auth/credentials`).
+ * `email: null` = misafir hesap: yalnızca bu tarayıcıda yaşar, "Hesabını
+ * kaydet" ile kalıcı hâle getirilmelidir.
+ */
+export interface AccountCredentialsView {
+  email: string | null;
+}

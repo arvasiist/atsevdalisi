@@ -50,7 +50,7 @@ CI'dır."*
 
 | # | Özellik | Durum | Üretime hazır |
 |---:|---|---|---|
-| 1 | Kayıt ve giriş (e-posta/JWT) | `PARTIAL` | Koşullu |
+| 1 | Kayıt ve giriş (e-posta/JWT) | `IMPLEMENTED` | Evet |
 | 2 | Oyuncu özeti ve üst bar | `IMPLEMENTED` | Evet |
 | 3 | Genel sosyal profil (`/profile/:username`) | `IMPLEMENTED` | Evet |
 | 4 | Bakiye ve para birimi modeli (money/gems) | `IMPLEMENTED` | Evet |
@@ -103,10 +103,10 @@ CI'dır."*
 | 51 | 3D sunum ve ses | `PARTIAL` | Hayır (asset bekliyor) |
 | 52 | Turnuva (otomatik takvim + tek final) | `IMPLEMENTED` | Evet |
 
-**Sayım:** `IMPLEMENTED` **49** · `PARTIAL` **2** · `API ONLY` 0 ·
+**Sayım:** `IMPLEMENTED` **50** · `PARTIAL` **1** · `API ONLY` 0 ·
 `DOMAIN ONLY` 1 · `MISSING`/`BROKEN`/`UI ONLY`/`NOT WIRED` **0** (52 satır).
 
-**Üretime hazır: 49/52.** (30.09.2026: turnuva #50'den ayrılıp #52 olarak
+**Üretime hazır: 50/52.** (30.09.2026: #1 e-posta + şifre girişiyle `IMPLEMENTED`.) (30.09.2026: turnuva #50'den ayrılıp #52 olarak
 `IMPLEMENTED` oldu.) Kalan üç madde de sahibin kararına bağlıdır:
 #1 (OAuth kimlik bilgileri), #50 (kulüp/sezon/turnuva/personel — yeni faz),
 #51 (3D/ses varlıkları).
@@ -232,25 +232,32 @@ vardır: Durum · Backend · Frontend · Database · API · WebSocket · Tests �
 
 ### 1. Kayıt ve giriş (e-posta/JWT)
 
-- **Durum:** `PARTIAL`
-- **Backend:** `POST /players` (token'sız demo kaydı, `startupPackage` ile),
-  `POST /auth/login` (`LoginWithProviderUseCase` + `TOKEN_SERVICE`),
-  `AuthGuard` `APP_GUARD` olarak global kayıtlı, `@Public()` opt-out.
-- **Frontend:** `usePlayer()` + `player-context` — oyuncu kimliği
-  **localStorage**'da tutulur; gerçek token akışı istemcide yoktur.
-- **Database:** `players`, `player_auth_providers`.
-- **API:** `/api/v1/players`, `/api/v1/auth/login`.
-- **WebSocket:** ilgisiz.
-- **Tests:** `test/api/auth.e2e-spec.ts`, `test/api/player*.e2e-spec.ts`.
-- **Üretime hazır:** Koşullu.
-- **Eksik:** (1) OAuth sağlayıcı kimlik bilgileri (Google/Apple client
-  id/secret) **yok** — `POST /auth/login` bu yüzden pratikte çalışmaz;
-  (2) istemcide gerçek giriş ekranı yok.
-- **Risk:** Düşük (demo akışı bilinçli). Ama üretimde kimlik doğrulaması
-  olmadan yönetim uçları da korunamaz.
-- **Sıradaki adım:** Proje sahibinden OAuth kimlik bilgileri; sonra
-  `apps/web`'e gerçek giriş ekranı.
-- **Kaynak:** `apps/api/src/api/auth/*`, `apps/web/src/lib/player-context.tsx`.
+- **Durum:** `IMPLEMENTED` (30.09.2026, migration 0046)
+- **Backend:** `POST /players` (misafir kaydı) · **`POST /auth/credentials`**
+  ("Hesabını kaydet": oturumdaki misafire e-posta + şifre bağlar; oyuncu
+  satırı, atlar ve para aynen kalır) · **`POST /auth/login/password`**
+  (`@Public`, IP başına hız sınırı) · **`GET /auth/credentials`**
+  (`email: null` = misafir) · `POST /auth/login` (Google/Apple — kimlik
+  bilgisi bekliyor). Şifre `scrypt` özetidir (Node yerleşik, yeni bağımlılık
+  yok; parametreler + tuz özetin içinde, `auth.config.json`).
+- **Frontend:** `/account` — oturum yoksa "Giriş yap", misafirse "Hesabını
+  kaydet" (uyarılı), kayıtlıysa e-posta + "Çıkış yap" (misafir çıkışı
+  onay ister: hesap geri alınamaz). Ana sayfada "E-posta ile giriş yap".
+- **Database:** `players`, `player_credentials` (PK `player_id`, tekil
+  `lower(email)`), `player_auth_providers`.
+- **Tests:** `test/api/auth-password.e2e-spec.ts` (6),
+  `test/domain/auth/credentials.spec.ts` (5), web `api-client.spec.ts`,
+  `player-context.spec.tsx`.
+- **Üretime hazır:** Evet.
+- **Eksik:** Şifre sıfırlama (e-posta gönderimi bir servis ister) ·
+  Google/Apple girişi (kimlik bilgisi bekliyor; altyapı hazır).
+- **Risk:** Yanlış şifre ile kayıtlı olmayan e-posta AYNI 401
+  `INVALID_CREDENTIALS` + aynı mesajdır ve kayıtsız e-postada da sahte bir
+  özet doğrulanır — ayrıştırmak e-posta enumerasyonu açar. E-posta
+  tekilliği VERİTABANINDA zorlanır (eşzamanlı iki kayıt).
+- **Kaynak:** `apps/api/src/application/use-cases/password-auth.use-case.ts`,
+  `apps/api/src/infrastructure/auth/scrypt-password-hasher.ts`,
+  `apps/web/src/app/account/page.tsx`.
 
 ---
 
@@ -1479,7 +1486,7 @@ vardır: Durum · Backend · Frontend · Database · API · WebSocket · Tests �
 | Öncelik | Madde | Neden şimdi |
 |---:|---|---|
 | 1 | **3D/ses varlıkları** | Tek karar bekleyen konu; çözülene kadar brief'in kendi kapsamı dışında. |
-| 2 | **OAuth kimlik bilgileri** | `POST /auth/login` pratikte çalışmıyor; gerçek giriş olmadan üretim yok. |
+| 2 | **OAuth kimlik bilgileri** | E-posta + şifre girişi VAR (30.09.2026); Google/Apple yalnızca ek kolaylık. Şifre sıfırlama bir e-posta servisi ister. |
 | 3 | **Kulüp/sezon/turnuva/personel (#50)** | En büyük eksik özellik kümesi; yeni bir faz gerektirir. |
 
 > ⚠️ **29.09.2026:** **Jokey yüzeyi + serbest bırakma (#18)** bu tablodan
