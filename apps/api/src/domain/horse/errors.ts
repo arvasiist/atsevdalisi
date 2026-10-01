@@ -42,3 +42,20 @@ export class HorseListedInMarketError extends Error {
     this.name = 'HorseListedInMarketError';
   }
 }
+
+/**
+ * 30.09.2026 — at, henüz koşulmamış (`scheduled`/`locking`) bir lobi
+ * yarışına kayıtlıyken satılamaz, pazara çıkarılamaz ve ikinci bir açık
+ * yarışa yazılamaz. Aksi hâlde satılan at eski sahibi adına koşar ve ödülü
+ * satıcı alırdı (katılım satırının `player_id`si satıcıdır) — bu hiçbir
+ * yerde hata üretmezdi. Kilit yarış bitince/iptal edilince kendiliğinden
+ * kalkar: kural durum-temellidir, ayrı bir "serbest bırak" adımı yoktur.
+ */
+export class HorseInActiveRaceError extends Error {
+  readonly code = ErrorCode.HorseInActiveRace;
+
+  constructor(public readonly horseId: string) {
+    super(`At (${horseId}) henüz koşulmamış bir yarışa kayıtlı olduğu için bu işlem yapılamaz.`);
+    this.name = 'HorseInActiveRaceError';
+  }
+}

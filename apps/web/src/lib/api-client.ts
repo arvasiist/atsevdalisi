@@ -1,10 +1,13 @@
 import type {
+  AccountCredentialsView,
+  AccountProvider,
   AdminAuditLogResult,
   AdminPlayerListResult,
   AdminRaceCancelResult,
   AdminRaceListResult,
   AdminReportListResult,
   AdminTransactionListResult,
+  AuthProvidersView,
   AuthSession,
   BlockedPlayerView,
   BreedingResultView,
@@ -42,6 +45,10 @@ import type {
   PublicHorse,
   RacingStyle,
   RaceInviteView,
+  RaceLobbyListItem,
+  RaceLobbyView,
+  RaceSurface,
+  RaceWeather,
   RaceTicketPurchaseResult,
   RaceTicketRefundResult,
   RaceTicketView,
@@ -86,6 +93,25 @@ import type {
  * yanlış olan yalnızca bu yedek değerdi; `apps/web/.env.example`'ın
  * bildirdiği ad ise yanlıştı ve o da aynı turda düzeltildi.
  */
+/**
+ * `POST /races` gövdesi (30.09.2026). Alanların geçerli değerleri
+ * `config/race-lobby.config.json`dan gelir ve sunucu `validateRaceCreation`
+ * ile BAĞIMSIZ doğrular — istemcinin seçenek listeleri yalnızca kolaylıktır.
+ */
+export interface CreateLobbyRaceBody {
+  name: string;
+  fieldSize: number;
+  maxPlayers: number;
+  entryFee: number;
+  raceType: 'free' | 'paid';
+  startTime: string;
+  surface: RaceSurface;
+  weather: RaceWeather;
+  distanceMeters: number;
+  tribuneFee: number;
+  spectatorCapacity: number;
+}
+
 export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1';
 
 interface ApiResponse<T> {
@@ -203,6 +229,71 @@ export const apiClient = {
     }),
 
   getPlayer: (playerId: string) => request<PlayerSummary>(`/players/${playerId}`),
+
+  /**
+   * E-POSTA + ŞİFRE GİRİŞİ (30.09.2026, migration 0046) — token'SIZ çağrılır
+   * (yeni cihaz / silinmiş tarayıcı verisi). Yanlış şifre ile kayıtlı
+   * olmayan e-posta AYNI 401 `INVALID_CREDENTIALS`tir.
+   */
+  loginWithPassword: (email: string, password: string) =>
+    request<AuthSession>('/auth/login/password', {
+      method: 'POST',
+      body: JSON.stringify({ email, password }),
+    }),
+
+  /** "Hesabını kaydet" — oturumdaki MİSAFİR oyuncuya e-posta + şifre bağlar (oyuncu token'dan gelir). */
+  saveAccount: (email: string, password: string) =>
+    request<{ email: string }>('/auth/credentials', {
+      method: 'POST',
+      body: JSON.stringify({ email, password }),
+    }),
+
+  /**
+   * Oyuncunun giriş bilgisi durumu — `email === null` VE `linkedProviders`
+   * boşsa misafir hesaptır.
+   */
+  getAccountCredentials: () => request<AccountCredentialsView>('/auth/credentials'),
+
+  /**
+   * Hangi dış girişler yapılandırılmış (01.10.2026) — token'SIZ.
+   * `googleClientId === null` ise Google düğmesi gösterilmez.
+   */
+  getAuthProviders: () => request<AuthProvidersView>('/auth/providers'),
+
+  /**
+   * GOOGLE İLE GİRİŞ — token'SIZ. `idToken`, Google'ın tarayıcıda verdiği
+   * kimlik belgesidir; sunucu imzasını doğrular. İlk girişte yeni oyuncu
+   * açılır, bağlı hesapta aynı oyuncuya dönülür.
+   */
+  loginWithGoogle: (idToken: string) =>
+    request<AuthSession>('/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ provider: 'google', idToken }),
+    }),
+
+  /** "Google hesabını bağla" — oturumdaki oyuncuya Google kimliği bağlar (oyuncu token'dan gelir). */
+  linkGoogle: (idToken: string) =>
+    request<{ provider: AccountProvider }>('/auth/link', {
+      method: 'POST',
+      body: JSON.stringify({ provider: 'google', idToken }),
+    }),
+
+  /**
+   * ŞİFRE SIFIRLAMA İSTEĞİ (30.09.2026, migration 0047) — token'SIZ. Yanıt
+   * e-posta kayıtlı olsun olmasın AYNIDIR (enumerasyon yok).
+   */
+  requestPasswordReset: (email: string) =>
+    request<{ accepted: true }>('/auth/password-reset/request', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    }),
+
+  /** Şifre sıfırlama onayı — e-postadaki bağlantının `token`ı + yeni şifre. */
+  confirmPasswordReset: (token: string, password: string) =>
+    request<{ reset: true }>('/auth/password-reset/confirm', {
+      method: 'POST',
+      body: JSON.stringify({ token, password }),
+    }),
 
   /**
    * brief §24 SOSYAL PROFİL — `/profile/:username` ekranı (28.09.2026).
@@ -663,6 +754,65 @@ export const apiClient = {
       headers: { 'Idempotency-Key': idempotencyKey },
     }),
 
+  /**
+   * ÜCRETLİ LOBİ YARIŞI — istemci tarafı (30.09.2026). Bu beş uç sunucuda
+   * 27–28.09.2026'dan beri vardı ama HİÇBİR ekran onları çağırmıyordu:
+   * oyuncu ücretli yarış açamıyor, katılamıyor, hazır diyemiyordu.
+   *
+   * `listLobbyRaces` — `GET /races`. Her satır çağıranın KENDİ katılımını
+   * (`myEntry`) taşır; "Katıl" ile "Hazırım / Ayrıl" arasındaki seçim ona
+   * bakılarak yapılır, istemci belleğine DEĞİL.
+   */
+  listLobbyRaces: () => request<RaceLobbyListItem[]>('/races'),
+
+  /**
+   * `POST /races` — yarış AÇAR, katılmaz (açan kişi ayrıca katılır). PARA
+   * YOLU DEĞİLDİR ve `Idempotency-Key` OKUNMAZ: çift açmayı
+   * `maxOpenRacesPerPlayer` tavanı sınırlar. Açan kimse TOKEN'dan gelir.
+   */
+  createLobbyRace: (body: CreateLobbyRaceBody) =>
+    request<RaceLobbyView>('/races', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+
+  /**
+   * `POST /races/:id/join` — PARA YOLU (giriş ücreti). `Idempotency-Key`
+   * ZORUNLUDUR ve çağıran tarafından üretilir (bkz. `buyRaceTicket`).
+   * Katılan oyuncu TOKEN'dan gelir; gövdede yalnızca at ve taktik vardır.
+   */
+  joinLobbyRace: (
+    raceId: string,
+    entry: { horseId: string; tacticalStyle?: RacingStyle; riskLevel?: RiskLevel },
+    idempotencyKey: string,
+  ) =>
+    request<RaceLobbyView>(`/races/${raceId}/join`, {
+      method: 'POST',
+      body: JSON.stringify(entry),
+      headers: { 'Idempotency-Key': idempotencyKey },
+    }),
+
+  /**
+   * `POST /races/:id/ready` — PARA YOLU DEĞİL, `Idempotency-Key` YOK.
+   * 30.09.2026'dan beri READY bir bilgi değil KOŞMANIN ŞARTIDIR: başlangıç
+   * anında hazır demeyen katılım iptal edilip ücreti iade edilir.
+   */
+  setLobbyEntryReady: (raceId: string, status: 'ready' | 'not_ready') =>
+    request<RaceLobbyView>(`/races/${raceId}/ready`, {
+      method: 'POST',
+      body: JSON.stringify({ status }),
+    }),
+
+  /**
+   * `POST /races/:id/leave` — PARA YOLU (ters yön: giriş ücreti iadesi).
+   * `Idempotency-Key` ZORUNLUDUR; tekrar ikinci bir iade üretmez.
+   */
+  leaveLobbyRace: (raceId: string, idempotencyKey: string) =>
+    request<RaceLobbyView>(`/races/${raceId}/leave`, {
+      method: 'POST',
+      headers: { 'Idempotency-Key': idempotencyKey },
+    }),
+
   /** "Biletlerim" — `GET /players/:id/tickets` (`assertSelf`: yalnızca kendi listem). */
   getMyTickets: (playerId: string) => request<RaceTicketView[]>(`/players/${playerId}/tickets`),
 
@@ -896,11 +1046,14 @@ export const apiClient = {
    *
    * `assertSelf` ile korunur — yalnızca kişinin KENDİ cüzdanı okunabilir.
    */
-  getWallet: (playerId: string, limit?: number) =>
-    request<WalletView>(
-      `/players/${playerId}/wallet${limit === undefined ? '' : `?limit=${encodeURIComponent(String(limit))}`}`,
-      { method: 'GET' },
-    ),
+  getWallet: (playerId: string, limit?: number, before?: string) => {
+    // `before` (30.09.2026) — önceki sayfanın `nextCursor`ı; yoksa ilk sayfa.
+    const params = new URLSearchParams();
+    if (limit !== undefined) params.set('limit', String(limit));
+    if (before !== undefined) params.set('before', before);
+    const query = params.toString();
+    return request<WalletView>(`/players/${playerId}/wallet${query === '' ? '' : `?${query}`}`, { method: 'GET' });
+  },
 
   /**
    * brief §20 DEPOSIT, §21, §41 — **SANAL para yatırma** (mock sağlayıcı).

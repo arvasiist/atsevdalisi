@@ -303,19 +303,25 @@ export default function GrandstandPage(): React.ReactElement {
                     <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
                       {formatCost({ currency: ticket.currency, amount: ticket.price })}
                     </span>
-                    <button
-                      type="button"
-                      onClick={() => void refundTicket(ticket)}
-                      disabled={isRefunding}
-                      title="Bileti iade et — ücret bakiyene geri döner"
-                      style={{
-                        ...secondaryButtonStyle(),
-                        opacity: isRefunding ? 0.55 : 1,
-                        cursor: isRefunding ? 'not-allowed' : 'pointer',
-                      }}
-                    >
-                      {isRefunding ? 'İade ediliyor…' : 'İade Et'}
-                    </button>
+                    {ticket.usedAt !== null ? (
+                      // 30.09.2026 — izlenmiş bilet iade edilmez (sunucu 409
+                      // `TICKET_ALREADY_USED` döner); düğme hiç gösterilmez.
+                      <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>İzlendi · iade yok</span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => void refundTicket(ticket)}
+                        disabled={isRefunding}
+                        title="Bileti iade et — ücret bakiyene geri döner"
+                        style={{
+                          ...secondaryButtonStyle(),
+                          opacity: isRefunding ? 0.55 : 1,
+                          cursor: isRefunding ? 'not-allowed' : 'pointer',
+                        }}
+                      >
+                        {isRefunding ? 'İade ediliyor…' : 'İade Et'}
+                      </button>
+                    )}
                   </GlassPanel>
                 </li>
               );

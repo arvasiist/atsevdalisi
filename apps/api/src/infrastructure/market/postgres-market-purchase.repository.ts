@@ -7,12 +7,13 @@ import type {
   MarketPurchaseRepository,
 } from '../../application/ports/market-purchase.repository';
 import { expireListingIfNeeded, purchaseListing } from '../../domain/market/market';
-import { HorseNotFoundError } from '../../domain/horse/errors';
+import { HorseInActiveRaceError, HorseNotFoundError } from '../../domain/horse/errors';
 import { PlayerNotFoundError } from '../../domain/player/errors';
 import { ListingNotFoundError, ListingStaleOwnerError } from '../../domain/market/errors';
 import { assertCanAddHorseToStable, getStableCapacity } from '../../domain/stable/stable';
 import { AppConfigService } from '../config/config.service';
 import { PG_POOL, withTransaction } from '../database/database.module';
+import { isHorseInActiveRace } from '../horse/active-race-entry';
 
 /** `market_listings` satır şekli — `PostgresMarketListingRepository`'nin KENDİ (küçük, dosyaya-özel) mapper'ıyla AYNI desen. */
 interface MarketListingRow {
@@ -147,6 +148,16 @@ export class PostgresMarketPurchaseRepository implements MarketPurchaseRepositor
       // satın alma" testleri).
       if (listing.status === 'active' && horseRow.owner_id !== listing.sellerId) {
         throw new ListingStaleOwnerError(listing.id, listing.horseId);
+      }
+
+      // 30.09.2026 — açık (`scheduled`/`locking`) bir lobi yarışına kayıtlı
+      // at SATILAMAZ: satılsaydı yeni sahibinin atı eski sahibi adına koşar
+      // ve ödülü satıcı alırdı. At satırı yukarıda KİLİTLİ; lobi katılımı da
+      // aynı satırı kilitlediği için "aynı anda katıl + sat" sıraya girer.
+      // Kontrol `status === 'active'` ile sınırlıdır — satılmış/iptal ilanda
+      // doğru hata `ListingNotActiveError`dır (yukarıdaki D2 notuyla AYNI).
+      if (listing.status === 'active' && (await isHorseInActiveRace(client, listing.horseId))) {
+        throw new HorseInActiveRaceError(listing.horseId);
       }
 
       const buyerId = input.buyerId;

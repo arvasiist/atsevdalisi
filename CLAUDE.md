@@ -95,18 +95,68 @@ küçük dilim → yerel doğrula (kök `npm run typecheck` + hedefli vitest + l
 
 ## Bilinen açık uçlar (kısa)
 
-Gerçek 3D/ses varlığı yok · OAuth kimlik bilgileri yok (`POST /auth/login` pratikte
-çalışmaz) · frontend'de gerçek giriş yok (localStorage) · yarış takvimi yok ·
-matchmaking senkron (cron/worker yok) · jokey + çiftlik/personel çarpanları
-bağlanmamış · tournament/club/ranking/season/progression/breeding bağlanmamış ·
-`/club` `/farm` `/leaderboard` placeholder · `PedigreeTree`/`PlayerDemoWidget`/
-`GltfAssetLoader` hiçbir yere bağlı değil (`DustParticles` artık BAĞLI — §13).
+**30.09.2026'da yeniden doğrulandı (bu liste iki kez bayatlamıştı):**
+Gerçek 3D/ses varlığı yok · OAuth kimlik bilgileri yok (Google kodu + düğmesi
++ hesap bağlama VAR, `GOOGLE_OAUTH_CLIENT_ID` boşken düğme gizli — migration
+0048; Apple istemcisi yok; e-posta + şifre girişi + şifre sıfırlama VAR —
+`/account`, migration 0046/0047; sıfırlama e-postası üretimde
+`RESEND_API_KEY` ister) · yarış takvimi yok
+(turnuva takvimi VAR) ·
+personel (`domain/staff`) + club/season/progression **DOMAIN ONLY**
+(API/ekran yok) · yer tutucu olan TEK sayfa `/club` · `PlayerDemoWidget`/
+`GltfAssetLoader` bağlı değil (bilinçli). Jokey, mizaç, taktik motora BAĞLI;
+`PedigreeTree`, `BreedingPanel`, `JockeyPanel`, `/admin`, `/leaderboard`,
+`/farm`, **lobi yarışı (`LobbyPanel`, 30.09.2026)** bağlı.
+
+**✅ 30.09.2026 — ÜÇ SUNUCU KURALI + LOBİ ARAYÜZÜ (§13.33):**
+(1) **Açık yarıştaki at kilidi** — `scheduled`/`locking` bir lobi yarışına
+kayıtlı at satılamaz, pazara çıkamaz, ikinci açık yarışa yazılamaz
+(`HORSE_IN_ACTIVE_RACE`; tek tanım `infrastructure/horse/active-race-entry.ts`).
+Önceden satılan at eski sahibi adına koşuyor ve ödülü satıcı alıyordu.
+(2) **READY ŞARTI** — başlangıçta `ready` demeyen katılım iptal edilir ve
+ücreti defterden okunan tutarla İADE edilir (yakılmaz); kimse hazır değilse
+yarış iptal olur (`dropUnreadyLobbyEntries`). Lobi yarışını koşturan her
+yeni e2e, katılımdan sonra `ready` DEMELİDİR — yoksa katılım düşer.
+(3) **OTOMATİK KESİNLEŞME** — zamanlayıcı kilidin ardından `locking`
+yarışları kesinleştirir (`SettleDueRacesUseCase`); crank uç yaşamaya devam
+eder, çift ödeme imkânsız. (4) `GET /races` satırı çağıranın kendi
+katılımını taşır (`myEntry`) ve `/races` sayfasında `LobbyPanel` vardır.
+(5) **İzlenmiş tribün bileti iade edilmez** (`TICKET_ALREADY_USED`,
+migration 0044 `race_tickets.first_viewed_at`) — bilet YALNIZCA bitmiş
+yarışa satılır, "zaman penceresi" bütün iadeleri kapatırdı; açık "izle +
+parayı geri al"dı. (6) **Eşleştirme kuyruğu taranır** (`MatchmakingScheduler`,
+`online.matchmaking.queueScan`). (7) **Cüzdan geçmişi sayfalanır**
+(`?before=` imleci; bozuk imleç 400, varsayılana düşmez).
+(8) **Hazırlık kapısı her yarış yolunda** — `checkRaceReadiness` eskiden
+yalnızca pratik yarışta uygulanıyordu; lobi katılımı ve eşleştirme de
+artık aynı kapıdan geçer (enerjisi bitmiş at ücretli yarışa giremez).
+(9) **TURNUVA (migration 0045)** — lobi yarışının ÜSTÜNE kurulu:
+`tournaments` (race_id, tier, min_player_level; durum sütunu YOK, yarıştan
+türetilir). `TournamentScheduler` her kademe için otomatik açar; final
+BOTSUZ, ödül `online.tournament.prizeDistributionByPlacement` (rake yok);
+`minParticipants` altında iptal + iade. Ayrı turnuva ucu YOK — `GET /races`
+listeler (`RaceLobbyListItem.tournament`).
+(10) **E-POSTA + ŞİFRE GİRİŞİ (migration 0046)** — `POST /auth/credentials`
+(misafiri kaydet), `POST /auth/login/password` (`@Public`), `GET
+/auth/credentials`. Şifre `scrypt` (yerleşik; parametre + tuz özette).
+⚠️ Yanlış şifre ile kayıtsız e-posta AYNI 401 + aynı mesaj — ayırmak
+enumerasyon açar; kayıtsız e-postada da sahte özet doğrulanır.
+(11) **ŞİFRE SIFIRLAMA (migration 0047)** — bağlantı tek kullanımlık, 30 dk,
+DB'de yalnızca SHA-256 özeti. İstek yanıtı HER ZAMAN 202. `EMAIL_SENDER`:
+`RESEND_API_KEY` varsa Resend, yoksa `OutboxEmailSender` (testler oradan
+okur). ⚠️ Üretimde sıfırlama bağlantısını LOGLAMA — parola eşdeğeridir.
+(12) **GOOGLE BAĞLAMA (migration 0048)** — `POST /auth/link`, `GET
+/auth/providers` (`@Public`). ⚠️ Başkasına bağlı Google kimliği 409 —
+hesaplar BİRLEŞTİRİLMEZ (para/at taşımak ayrı karar). Misafir = e-posta YOK
+VE `linkedProviders` boş. E2e Google belgesini sahte doğrulayıcıyla taklit
+eder (`bootstrapTestApp(builder => builder.overrideProvider(...))`).
 
 **✅ ÜCRETLİ LOBİ YARIŞI ARTIK KOŞUYOR — ÖDÜL DAĞITIMI VAR (§13.14,
 28.09.2026).** `POST /races/:id/settle` yarışı koşar, ödülleri `top5`
-paylarıyla dağıtır ve `races.status = 'finished'` yazar. **Zamanlayıcı
-YOKTUR** — uç bir "crank"tir: kimliği doğrulanmış HERHANGİ bir oyuncu
-çağırabilir, katılımcı olması gerekmez. Tekrar koruması `Idempotency-Key`
+paylarıyla dağıtır ve `races.status = 'finished'` yazar. Uç bir
+"crank"tir: kimliği doğrulanmış HERHANGİ bir oyuncu çağırabilir, katılımcı
+olması gerekmez. **30.09.2026'dan beri zamanlayıcı da aynı use-case'le
+kesinleştirir** (yukarıdaki (3)); ikisi yarışırsa ikincisi 409 alır. Tekrar koruması `Idempotency-Key`
 DEĞİL, `scheduled → finished` geçişinin kendisidir (ikinci çağrı 409
 `RACE_NOT_SETTLEABLE`).
 
@@ -339,32 +389,22 @@ sanıp yeniden açma.**
 - ~~**`PedigreeTree.tsx` — ARTIK YAPILABİLİR.**~~ **BAĞLANDI.**
   `apps/web/src/app/stable/page.tsx:365` bileşeni render eder; veri kaynağı
   `GET /horses/:id/pedigree` (§13.2). Bu madde 29.09.2026'ya kadar
-  "bağlanmadı" diyordu ve **bayattı**. Kalan tek eksik **yetiştirme
-  (yazma) yüzeyi**: `POST /players/:id/breeding` (§13.4) sunucuda çalışıyor
-  ama hiçbir ekran onu çağırmıyor — bkz. `docs/FINAL_PROJECT_AUDIT.md` #16.
-- **Sohbet/tribün arayüzü (brief §35) — YAPILABİLİR.** Backend + e2e hazır
-  (§13.5): `chat.message`/`chat.message.received`/`chat.history`/`chat.error`
-  ve `race.spectators` olaylarının **henüz frontend tüketicisi yok**.
+  "bağlanmadı" diyordu ve **bayattı**. Yetiştirme (yazma) yüzeyi de
+  **BAĞLANDI** (`BreedingPanel` → `/stable`, 29.09.2026).
+- ~~Sohbet/tribün arayüzü~~ **BAĞLI** — `RaceChatPanel` + izleyici sayısı
+  `LiveRaceViewer`/`RaceHud` üzerinden (§13.5).
 - ~~Bildirim/davet arayüzü~~ **YAPILDI (§13.21, 28.09.2026)** —
   `/notifications` sayfası §13.11'in beş ucunu ve üç olayını tüketiyor.
-  **UYARI:** ekran `race_starting` bildirimini GÖSTERİR ama o türün
-  **üreticisi yok** (zamanlayıcı ister, §13.13) — yani o satır pratikte
-  hiç gelmez. Bir de `/notifications` şeride eklendi; **gezinti listesi
+  `race_starting` artık kilit anında ÜRETİLİR (§13.24). Bir de `/notifications` şeride eklendi; **gezinti listesi
   `nav-links.ts`'te** ve `top-bar-nav.spec.ts` sayfası olmayan bir
   bağlantıyı CI'da kilitler.
 - ~~Sosyal profil arayüzü~~ **YAPILDI (§13.22, 28.09.2026)** —
-  `/profile/[username]`. **AÇIK KALAN:** arkadaş listesi
-  (`SocialPlayerView`) ve sıralama tablosu (`LeaderboardRowView`)
-  `username` **taşımaz**, yani bugün yalnızca oyuncunun **KENDİ** profiline
-  gidilebilir (üst bardaki avatar + ad). Başkasının profiline gitmek o iki
-  görünüme `username` eklemeyi gerektirir — **yapılmadı**.
-- **Blok/şikâyet arayüzü (brief §33, §42 PHASE 15) — YAPILABİLİR.** Backend +
-  e2e hazır (§13.16): dört uç nokta — hiçbirinin istemci tüketicisi yok.
-  Asset gerekmez.
-- **Yönetim paneli arayüzü (brief §34, §42 PHASE 15-B) — YAPILABİLİR
-  (şikâyet kuyruğu + okuma ekranları + yarış iptali).** Backend + e2e hazır
-  (§13.17 + §13.18 + §13.19): **YEDİ** uç nokta — hiçbirinin istemci
-  tüketicisi yok. Asset gerekmez. **§34'ün race kontrolleri:** `Cancel`
+  `/profile/[username]`. Arkadaş listesi ve sıralama tablosu da artık
+  `username` taşır (29.09.2026) — başkasının profiline gidilebilir.
+- ~~Blok/şikâyet arayüzü~~ **YAPILDI (29.09.2026)** — profil "Güvenlik"
+  paneli + `/friends` "Engellenenler".
+- ~~Yönetim paneli arayüzü~~ **YAPILDI (29.09.2026)** — `/admin`, yedi ucun
+  yedisi de tüketilir. **§34'ün race kontrolleri:** `Cancel`
   YAZILDI (PARA YOLU: iade + aynı transaction'da defter + denetim
   günlüğü), `Finish` başka uçta (§13.14), **`Pause` MÜMKÜN DEĞİL** —
   `races.status`'ta `paused` yoktur ve `in_progress`u yazan hiçbir kod

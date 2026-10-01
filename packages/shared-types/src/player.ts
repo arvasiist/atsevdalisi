@@ -99,3 +99,31 @@ export interface AuthSession {
   token: string;
   player: PlayerSummary;
 }
+
+/**
+ * 30.09.2026 — oyuncunun giriş bilgisi durumu (`GET /auth/credentials`).
+ * `email: null` = misafir hesap: yalnızca bu tarayıcıda yaşar, "Hesabını
+ * kaydet" ile kalıcı hâle getirilmelidir.
+ */
+export interface AccountCredentialsView {
+  email: string | null;
+  /**
+   * 01.10.2026 — hesaba bağlı dış giriş sağlayıcıları (`POST /auth/link`).
+   * E-postası olmayan ama Google bağlı bir hesap da kalıcıdır; "misafir" =
+   * `email === null && linkedProviders.length === 0`.
+   */
+  linkedProviders: AccountProvider[];
+}
+
+/** Dış giriş sağlayıcısı (`player_auth_providers.provider` CHECK'i ile aynı küme). */
+export type AccountProvider = 'google' | 'apple';
+
+/**
+ * 01.10.2026 — `GET /auth/providers` (`@Public`). Web, Google düğmesini
+ * YALNIZCA `googleClientId` doluysa gösterir; kimlik bilgisi yapılandırılmamış
+ * bir sunucuda hiç çalışmayacak bir düğme göstermek yalan olurdu. İstemci
+ * kimliği gizli değildir (Google onu tarayıcıya zaten verir).
+ */
+export interface AuthProvidersView {
+  googleClientId: string | null;
+}

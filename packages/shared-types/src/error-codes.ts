@@ -18,6 +18,13 @@ export const ErrorCode = {
   IdempotencyKeyInProgress: 'IDEMPOTENCY_KEY_IN_PROGRESS',
   ValidationError: 'VALIDATION_ERROR',
   Unauthorized: 'UNAUTHORIZED',
+  // 30.09.2026 — e-posta + şifre girişi (migration 0046). Kayıtlı olmayan
+  // e-posta ile yanlış şifre BİLEREK aynı koddur (enumerasyon yok).
+  InvalidCredentials: 'INVALID_CREDENTIALS',
+  EmailAlreadyRegistered: 'EMAIL_ALREADY_REGISTERED',
+  CredentialsAlreadySet: 'CREDENTIALS_ALREADY_SET',
+  // Şifre sıfırlama bağlantısı geçersiz/süresi dolmuş/kullanılmış (migration 0047).
+  InvalidResetToken: 'INVALID_RESET_TOKEN',
   NotFound: 'NOT_FOUND',
   // AUDIT_REPORT.md Bulgu S1/S2/S4 hardening (bu oturum) — brief §41/§50
   // Google/Apple Sign-In + IDOR sertleştirmesi. `Unauthorized` (401) daha
@@ -33,6 +40,11 @@ export const ErrorCode = {
   // JWT'imiz) kasıtlı olarak AYRI bir koddur (bkz. `domain/auth/errors.ts`
   // `InvalidProviderTokenError`).
   InvalidProviderToken: 'INVALID_PROVIDER_TOKEN',
+  // 01.10.2026 — Google hesabı bağlama (`POST /auth/link`, migration 0048).
+  // Bu Google hesabı BAŞKA bir oyuncuya bağlı / bu oyuncunun zaten başka bir
+  // Google hesabı var.
+  ProviderIdentityTaken: 'PROVIDER_IDENTITY_TAKEN',
+  ProviderAlreadyLinked: 'PROVIDER_ALREADY_LINKED',
   // Faz 2 — At Pazarı (domain/market)
   ListingNotActive: 'LISTING_NOT_ACTIVE',
   ListingExpired: 'LISTING_EXPIRED',
@@ -67,6 +79,12 @@ export const ErrorCode = {
   // ikinci bir hata (`BreedingHorseListedError`) eklediği için kopya
   // sayısı üçe çıkacaktı — bu yüzden kod artık TEK yerde, burada tanımlı.
   HorseListedInMarket: 'HORSE_LISTED_IN_MARKET',
+  // 30.09.2026 — `HorseInActiveRaceError`: at, henüz koşulmamış (`scheduled`/
+  // `locking`) bir lobi yarışına kayıtlıyken satılamaz, pazara çıkarılamaz ve
+  // ikinci bir açık yarışa yazılamaz (bkz. `domain/horse/errors.ts`).
+  HorseInActiveRace: 'HORSE_IN_ACTIVE_RACE',
+  // 30.09.2026 — turnuvanın seviye şartı karşılanmadı (`PlayerLevelTooLowError`).
+  PlayerLevelTooLow: 'PLAYER_LEVEL_TOO_LOW',
   // Faz 3 — Yetiştiricilik (domain/breeding)
   NotEligibleForBreeding: 'NOT_ELIGIBLE_FOR_BREEDING',
   // Faz 4 — Çiftlik / Tesisler (domain/farm)
@@ -140,6 +158,11 @@ export const ErrorCode = {
    * yalnızca YER kalmadı).
    */
   RaceTribuneFull: 'RACE_TRIBUNE_FULL',
+  /**
+   * İzlenmiş bilet iade edilemez (409, `TicketAlreadyUsedError`) —
+   * 30.09.2026, migration 0044 `race_tickets.first_viewed_at`.
+   */
+  TicketAlreadyUsed: 'TICKET_ALREADY_USED',
   /**
    * ÜCRETSİZ tribünlü bir yarışa bilet alınmaya çalışıldı (409,
    * `RaceTribuneFreeError`). PHASE 7.1, 29.09.2026.

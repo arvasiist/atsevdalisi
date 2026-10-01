@@ -10,6 +10,7 @@ import type {
   RefundTicketResult,
   TribuneAccessFacts,
 } from '../../application/ports/grandstand.repository';
+import { TicketAlreadyUsedError } from '../../domain/grandstand/errors';
 import { assertTribuneHasRoom } from '../../domain/grandstand/ticket';
 import { credit, debit, type Currency } from '../../domain/economy/wallet';
 import { AppConfigService } from '../config/config.service';
@@ -64,6 +65,7 @@ interface RaceTicketRow {
   currency: string;
   created_at: Date;
   finished_at: Date;
+  first_viewed_at: Date | null;
 }
 
 /** `findRaceWatchability` satır şekli (snake_case). */
@@ -149,7 +151,7 @@ export class PostgresGrandstandRepository implements GrandstandRepository {
   async findTicketsByPlayerId(playerId: string, limit: number): Promise<RaceTicketView[]> {
     const result = await this.pool.query<RaceTicketRow>(
       `SELECT t.id AS ticket_id, t.race_id, r.name AS race_name,
-              t.price, t.currency, t.created_at, r.created_at AS finished_at
+              t.price, t.currency, t.created_at, r.created_at AS finished_at, t.first_viewed_at
        FROM race_tickets t
        JOIN races r ON r.id = t.race_id
        WHERE t.player_id = $1
@@ -166,6 +168,7 @@ export class PostgresGrandstandRepository implements GrandstandRepository {
       currency: row.currency as Currency,
       purchasedAt: row.created_at.toISOString(),
       finishedAt: row.finished_at.toISOString(),
+      usedAt: row.first_viewed_at === null ? null : row.first_viewed_at.toISOString(),
     }));
   }
 
@@ -209,6 +212,16 @@ export class PostgresGrandstandRepository implements GrandstandRepository {
       // alıp `purchaseTicket`'a geçirir — config'ten DEĞİL.
       tribuneFee: Number(row.tribune_fee),
     };
+  }
+
+  async markTicketViewed(raceId: string, playerId: string): Promise<boolean> {
+    const result = await this.pool.query(
+      `UPDATE race_tickets
+       SET first_viewed_at = COALESCE(first_viewed_at, now())
+       WHERE race_id = $1 AND player_id = $2`,
+      [raceId, playerId],
+    );
+    return (result.rowCount ?? 0) > 0;
   }
 
   async getTribuneAccess(raceId: string, viewerId: string): Promise<TribuneAccessFacts | null> {
@@ -389,6 +402,23 @@ export class PostgresGrandstandRepository implements GrandstandRepository {
         // bu metotta "bilet yok" (404) anlamına gelir ve var olan bir
         // oyuncuya "biletin yok" demek yanlış teşhis olurdu.
         throw new Error(`İade yapılacak oyuncu bulunamadı (player_id: ${input.playerId}).`);
+      }
+
+      // 30.09.2026 — İZLENMİŞ BİLET İADE EDİLMEZ (migration 0044). Bilet
+      // satırı `FOR UPDATE` ile kilitlenir: `markTicketViewed`in `UPDATE`i
+      // aynı satırda sıraya girer, yani "izle + aynı anda iade et" iki
+      // sıradan birine düşer — iade önce kazanırsa izleme erişimi reddedilir
+      // (`markTicketViewed` → `false`), izleme önce kazanırsa iade 409 alır.
+      const ticketState = await client.query<{ first_viewed_at: Date | null }>(
+        'SELECT first_viewed_at FROM race_tickets WHERE race_id = $1 AND player_id = $2 FOR UPDATE',
+        [input.raceId, input.playerId],
+      );
+      const stateRow = ticketState.rows[0];
+      if (!stateRow) {
+        return null;
+      }
+      if (stateRow.first_viewed_at !== null) {
+        throw new TicketAlreadyUsedError(input.raceId);
       }
 
       const deleted = await client.query<DeletedTicketRow>(

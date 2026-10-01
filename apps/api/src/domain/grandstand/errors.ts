@@ -149,3 +149,16 @@ export class RaceTicketNotFoundError extends Error {
     this.name = 'RaceTicketNotFoundError';
   }
 }
+
+/**
+ * İzlenmiş (kullanılmış) bir bilet iade edilemez (30.09.2026,
+ * `FINAL_PROJECT_AUDIT.md` #37, migration 0044). Bu kural gelene kadar
+ * oyuncu bileti alıp yarışı izliyor ve parasını geri alıyordu. 409 —
+ * istek biçimsel olarak doğru, engelleyen biletin durumu.
+ */
+export class TicketAlreadyUsedError extends Error {
+  constructor(public readonly raceId: string) {
+    super(`Bu bilet yarışı izlemek için kullanıldı; iade edilemez: ${raceId}`);
+    this.name = 'TicketAlreadyUsedError';
+  }
+}

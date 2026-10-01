@@ -744,6 +744,15 @@ export interface OnlineConfig {
     rangeExpansionPerSecond: number;
     /** Aralık bu değeri asla aşamaz (çok farklı seviyede eşleşmeyi önler). */
     maxRatingRangeWidth: number;
+    /**
+     * 30.09.2026 — kuyruk TARAMASI (`MatchmakingScheduler`). Eşleştirme
+     * eskiden YALNIZCA katılım anında deneniyordu; aralık zamanla genişlese
+     * de bekleyen iki oyuncu hiç eşleşmiyordu. `enabled=false` taramayı
+     * kapatır (katılım anındaki eşleştirme sürer); `NODE_ENV=test` iken de
+     * kapalıdır, e2e `tickNow()` çağırır. Okuyan + düşüren test:
+     * `matchmaking-scheduler.spec.ts`.
+     */
+    queueScan: { enabled: boolean; tickSeconds: number };
   };
   /** brief §43 RankingScore = RacePerformance + WinBonus + PlacementBonus + TournamentBonus (bkz. `domain/ranking/ranking-score.ts`). */
   ranking: {
@@ -771,6 +780,32 @@ export interface OnlineConfig {
     >;
     /** Anahtar = final sırası (1, 2, 3, ...), değer = ödül havuzunun bu sıraya ayrılan payı (0-1). Toplamı 1.0'ı aşmamalıdır. */
     prizeDistributionByPlacement: Record<string, number>;
+    /**
+     * 30.09.2026 — finalin koşulması için gereken en az HAZIR oyuncu. Altında
+     * turnuva iptal edilir ve herkese ücreti iade edilir (final botsuz
+     * koşulduğu için tek kişilik "turnuva" havuzu kendine geri alırdı).
+     * Okuyan: `LockRaceUseCase`/`SettleRaceUseCase`; düşüren test:
+     * `tournament.e2e-spec.ts`.
+     */
+    minParticipants: number;
+    /**
+     * 30.09.2026 — otomatik takvim (`TournamentScheduler`): her kademe için
+     * kaydı açık bir turnuva yoksa yenisi `registrationHours` sonra başlamak
+     * üzere açılır. `enabled=false` takvimi kapatır; `NODE_ENV=test` iken de
+     * kapalıdır (testler `tickNow()` çağırır).
+     */
+    schedule: { enabled: boolean; tickSeconds: number; registrationHours: number };
+    /**
+     * Turnuva finalinin yarış ayarları. Değerler `race-lobby.config.json`un
+     * izin verdiği kümelerin İÇİNDE olmalıdır (`tournament-config.spec.ts`).
+     */
+    race: {
+      distanceMeters: number;
+      surface: 'grass' | 'dirt' | 'synthetic';
+      weather: 'sunny' | 'rainy' | 'windy' | 'cloudy' | 'hot' | 'cold';
+      tribuneFee: number;
+      spectatorCapacity: number;
+    };
   };
   /** brief §69 SEZON SİSTEMİ (bkz. `domain/season/season.ts`). */
   season: {
@@ -1566,4 +1601,21 @@ export interface RaceLobbyConfig {
      */
     batchSize: number;
   };
+}
+
+/**
+ * `config/auth.config.json` (30.09.2026) — e-posta + şifre girişi.
+ * `email.maxLength` `player_credentials.email` CHECK'iyle (254) eşleşmelidir.
+ */
+export interface AuthConfig {
+  email: { maxLength: number };
+  password: { minLength: number; maxLength: number };
+  /** Node `crypto.scrypt` parametreleri: `cost` (N, 2'nin kuvveti), `blockSize` (r), `parallelization` (p). */
+  scrypt: { cost: number; blockSize: number; parallelization: number; keyLength: number; saltBytes: number };
+  /**
+   * Şifre sıfırlama (migration 0047): bağlantı ömrü, rastgele bayt sayısı ve
+   * aynı oyuncuya iki e-posta arasındaki en kısa süre (posta kutusunu
+   * doldurmayı önler — yanıt yine aynıdır, enumerasyon yok).
+   */
+  passwordReset: { tokenTtlMinutes: number; tokenBytes: number; minIntervalSeconds: number };
 }

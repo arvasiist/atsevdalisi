@@ -24,16 +24,22 @@ import { PlayerProvider, usePlayer } from '../../src/lib/player-context';
  * ("Cannot access before initialization").
  */
 
-const { getPlayerMock, registerPlayerMock, setAuthTokenMock } = vi.hoisted(() => ({
-  getPlayerMock: vi.fn(),
-  registerPlayerMock: vi.fn(),
-  setAuthTokenMock: vi.fn(),
-}));
+const { getPlayerMock, registerPlayerMock, setAuthTokenMock, loginWithPasswordMock, loginWithGoogleMock } = vi.hoisted(
+  () => ({
+    getPlayerMock: vi.fn(),
+    registerPlayerMock: vi.fn(),
+    setAuthTokenMock: vi.fn(),
+    loginWithPasswordMock: vi.fn(),
+    loginWithGoogleMock: vi.fn(),
+  }),
+);
 
 vi.mock('../../src/lib/api-client', () => ({
   apiClient: {
     getPlayer: (...args: unknown[]) => getPlayerMock(...args),
     registerPlayer: (...args: unknown[]) => registerPlayerMock(...args),
+    loginWithPassword: (...args: unknown[]) => loginWithPasswordMock(...args),
+    loginWithGoogle: (...args: unknown[]) => loginWithGoogleMock(...args),
   },
   setAuthToken: (...args: unknown[]) => setAuthTokenMock(...args),
 }));
@@ -56,7 +62,7 @@ function samplePlayer(overrides: Partial<PlayerSummary> = {}): PlayerSummary {
 }
 
 function TestConsumer(): React.ReactElement {
-  const { player, isLoading, error, createPlayer } = usePlayer();
+  const { player, isLoading, error, createPlayer, loginWithPassword, loginWithGoogle, logout } = usePlayer();
   return (
     <div>
       <span data-testid="loading">{String(isLoading)}</span>
@@ -64,6 +70,15 @@ function TestConsumer(): React.ReactElement {
       <span data-testid="error">{error ?? 'yok'}</span>
       <button type="button" onClick={() => void createPlayer()}>
         Oyuncu Oluştur
+      </button>
+      <button type="button" onClick={() => void loginWithPassword('ali@ornek.com', 'sifre-12345')}>
+        Giriş Yap
+      </button>
+      <button type="button" onClick={() => void loginWithGoogle('google-belgesi')}>
+        Google Giriş
+      </button>
+      <button type="button" onClick={() => logout()}>
+        Çıkış
       </button>
     </div>
   );
@@ -75,6 +90,8 @@ describe('PlayerProvider / usePlayer', () => {
     getPlayerMock.mockReset();
     registerPlayerMock.mockReset();
     setAuthTokenMock.mockReset();
+    loginWithPasswordMock.mockReset();
+    loginWithGoogleMock.mockReset();
   });
 
   afterEach(() => {
@@ -166,6 +183,54 @@ describe('PlayerProvider / usePlayer', () => {
     await waitFor(() => expect(screen.getByTestId('error').textContent).toBe('Sunucu hatası'));
     expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull();
     expect(window.localStorage.getItem(TOKEN_STORAGE_KEY)).toBeNull();
+  });
+
+  it('loginWithPassword() oturumu bu tarayıcıya yazar; logout() siler ve oyuncuyu boşaltır (30.09.2026)', async () => {
+    loginWithPasswordMock.mockResolvedValueOnce({
+      token: 'giris-token',
+      player: samplePlayer({ id: 'p9', displayName: 'Dönen Oyuncu' }),
+    } satisfies AuthSession);
+
+    render(
+      <PlayerProvider>
+        <TestConsumer />
+      </PlayerProvider>,
+    );
+    await waitFor(() => expect(screen.getByTestId('loading').textContent).toBe('false'));
+
+    fireEvent.click(screen.getByText('Giriş Yap'));
+    await waitFor(() => expect(screen.getByTestId('player-name').textContent).toBe('Dönen Oyuncu'));
+    expect(loginWithPasswordMock).toHaveBeenCalledWith('ali@ornek.com', 'sifre-12345');
+    expect(setAuthTokenMock).toHaveBeenCalledWith('giris-token');
+    expect(window.localStorage.getItem(STORAGE_KEY)).toBe('p9');
+    expect(window.localStorage.getItem(TOKEN_STORAGE_KEY)).toBe('giris-token');
+
+    fireEvent.click(screen.getByText('Çıkış'));
+    await waitFor(() => expect(screen.getByTestId('player-name').textContent).toBe('yok'));
+    expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull();
+    expect(window.localStorage.getItem(TOKEN_STORAGE_KEY)).toBeNull();
+    expect(setAuthTokenMock).toHaveBeenLastCalledWith(null);
+  });
+
+  it('loginWithGoogle() oturumu bu tarayıcıya yazar (01.10.2026)', async () => {
+    loginWithGoogleMock.mockResolvedValueOnce({
+      token: 'google-token',
+      player: samplePlayer({ id: 'p7', displayName: 'Google Oyuncu' }),
+    } satisfies AuthSession);
+
+    render(
+      <PlayerProvider>
+        <TestConsumer />
+      </PlayerProvider>,
+    );
+    await waitFor(() => expect(screen.getByTestId('loading').textContent).toBe('false'));
+
+    fireEvent.click(screen.getByText('Google Giriş'));
+    await waitFor(() => expect(screen.getByTestId('player-name').textContent).toBe('Google Oyuncu'));
+    expect(loginWithGoogleMock).toHaveBeenCalledWith('google-belgesi');
+    expect(setAuthTokenMock).toHaveBeenCalledWith('google-token');
+    expect(window.localStorage.getItem(STORAGE_KEY)).toBe('p7');
+    expect(window.localStorage.getItem(TOKEN_STORAGE_KEY)).toBe('google-token');
   });
 
   it('usePlayer(), <PlayerProvider> dışında çağrılırsa açıklayıcı bir hata fırlatır', () => {

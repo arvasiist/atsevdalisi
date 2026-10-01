@@ -18,7 +18,7 @@
  */
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import type { PlayerSummary } from '@at-sevdalisi/shared-types';
+import type { AuthSession, PlayerSummary } from '@at-sevdalisi/shared-types';
 import { apiClient, setAuthToken } from './api-client';
 
 const STORAGE_KEY = 'atSevdalisi.playerId';
@@ -31,6 +31,19 @@ export interface PlayerContextValue {
   error: string | null;
   createPlayer: () => Promise<void>;
   refresh: () => Promise<void>;
+  /**
+   * 30.09.2026 — e-posta + şifre ile giriş. Başarılıysa oturum bu
+   * tarayıcıya yazılır ve oyuncu yüklenir; hata FIRLATILIR (form gösterir).
+   */
+  loginWithPassword: (email: string, password: string) => Promise<void>;
+  /** Google ile giriş (01.10.2026) — ilk girişte yeni oyuncu açılır. */
+  loginWithGoogle: (idToken: string) => Promise<void>;
+  /**
+   * Oturumu bu tarayıcıdan siler. Sunucuda hiçbir şey değişmez; kayıtlı
+   * (e-postalı) bir hesap tekrar giriş yapılarak geri alınır, MİSAFİR hesap
+   * ise geri alınamaz — ekran bu yüzden misafire önce kaydetmeyi söyler.
+   */
+  logout: () => void;
 }
 
 const PlayerContext = createContext<PlayerContextValue | null>(null);
@@ -96,6 +109,36 @@ export function PlayerProvider({ children }: { children: React.ReactNode }): Rea
     }
   }, []);
 
+  const applySession = useCallback((session: AuthSession) => {
+    setAuthToken(session.token);
+    window.localStorage.setItem(STORAGE_KEY, session.player.id);
+    window.localStorage.setItem(TOKEN_STORAGE_KEY, session.token);
+    setError(null);
+    setPlayer(session.player);
+  }, []);
+
+  const loginWithPassword = useCallback(
+    async (email: string, password: string) => {
+      applySession(await apiClient.loginWithPassword(email, password));
+    },
+    [applySession],
+  );
+
+  // 01.10.2026 — Google ile giriş: `idToken` Google'ın tarayıcıda verdiği belgedir.
+  const loginWithGoogle = useCallback(
+    async (idToken: string) => {
+      applySession(await apiClient.loginWithGoogle(idToken));
+    },
+    [applySession],
+  );
+
+  const logout = useCallback(() => {
+    window.localStorage.removeItem(STORAGE_KEY);
+    window.localStorage.removeItem(TOKEN_STORAGE_KEY);
+    setAuthToken(null);
+    setPlayer(null);
+  }, []);
+
   const refresh = useCallback(async () => {
     setPlayer((current) => {
       if (current) {
@@ -106,8 +149,8 @@ export function PlayerProvider({ children }: { children: React.ReactNode }): Rea
   }, []);
 
   const value = useMemo<PlayerContextValue>(
-    () => ({ player, isLoading, error, createPlayer, refresh }),
-    [player, isLoading, error, createPlayer, refresh],
+    () => ({ player, isLoading, error, createPlayer, refresh, loginWithPassword, loginWithGoogle, logout }),
+    [player, isLoading, error, createPlayer, refresh, loginWithPassword, loginWithGoogle, logout],
   );
 
   return <PlayerContext.Provider value={value}>{children}</PlayerContext.Provider>;

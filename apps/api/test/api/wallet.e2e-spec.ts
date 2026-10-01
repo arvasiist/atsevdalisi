@@ -362,4 +362,69 @@ describe('Cüzdan (e2e) — GET /players/:id/wallet', () => {
     expect(after).toEqual(before);
     expect(await ledgerCountOf(owner.playerId)).toBe(beforeCount);
   });
+
+  describe('SAYFALAMA — `?before=` imleci (30.09.2026, FINAL_PROJECT_AUDIT #33)', () => {
+    async function depositTimes(player: RegisteredTestPlayer, count: number): Promise<void> {
+      const economy = loadEconomyConfig();
+      for (let index = 0; index < count; index += 1) {
+        await request(app.getHttpServer())
+          .post(`/api/v1/players/${player.playerId}/wallet/deposit`)
+          .set('Authorization', player.authHeader)
+          .set('Idempotency-Key', randomUUID())
+          .send({ amount: economy.mockDeposit.minAmount + index })
+          .expect(200);
+      }
+    }
+
+    function page(player: RegisteredTestPlayer, query: Record<string, string>) {
+      return request(app.getHttpServer())
+        .get(`/api/v1/players/${player.playerId}/wallet`)
+        .set('Authorization', player.authHeader)
+        .query(query);
+    }
+
+    it('sayfalar ÖRTÜŞMEZ ve birleşimi tam listeye eşittir; son sayfada nextCursor null', async () => {
+      const player = await registerTestPlayer(app, 'Sayfa Oyuncusu');
+      await depositTimes(player, 5);
+      const full = await page(player, { limit: '100' }).expect(200);
+      const allIds = (full.body.data.transactions as WalletTransaction[]).map((row) => row.id);
+      expect(allIds.length).toBeGreaterThanOrEqual(5);
+
+      const collected: string[] = [];
+      let cursor: string | null = null;
+      for (let guard = 0; guard < allIds.length + 1; guard += 1) {
+        const query: Record<string, string> = { limit: '2' };
+        if (cursor !== null) query.before = cursor;
+        const response = await page(player, query).expect(200);
+        const data = response.body.data as { transactions: WalletTransaction[]; hasMore: boolean; nextCursor: string | null };
+        collected.push(...data.transactions.map((row) => row.id));
+        if (!data.hasMore) {
+          expect(data.nextCursor).toBeNull();
+          break;
+        }
+        expect(data.nextCursor).toBe(data.transactions[data.transactions.length - 1].id);
+        cursor = data.nextCursor;
+      }
+      expect(collected).toEqual(allIds);
+    });
+
+    it('bozuk imleç 400 VALIDATION_ERROR döner (ilk sayfaya DÜŞMEZ)', async () => {
+      const player = await registerTestPlayer(app, 'Bozuk İmleç');
+      const response = await page(player, { before: 'abc' }).expect(400);
+      expect(response.body.error.code).toBe(ErrorCode.ValidationError);
+    });
+
+    it('BAŞKASININ defter satırı imleç yapılırsa boş sayfa döner — konum sızmaz', async () => {
+      const owner = await registerTestPlayer(app, 'İmleç Sahibi');
+      const other = await registerTestPlayer(app, 'İmleç Yabancısı');
+      await depositTimes(owner, 1);
+      await depositTimes(other, 2);
+      const ownerRows = await page(owner, {}).expect(200);
+      const foreignCursor = (ownerRows.body.data.transactions as WalletTransaction[])[0].id;
+
+      const response = await page(other, { before: foreignCursor }).expect(200);
+      expect(response.body.data.transactions).toEqual([]);
+      expect(response.body.data.hasMore).toBe(false);
+    });
+  });
 });

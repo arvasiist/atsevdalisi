@@ -62,3 +62,76 @@ export class InvalidProviderTokenError extends Error {
     this.name = 'InvalidProviderTokenError';
   }
 }
+
+/**
+ * E-posta/şifre GÖVDESİ biçimsel olarak geçersiz (30.09.2026) — yalnızca
+ * "Hesabını kaydet" yolunda kullanılır (400). GİRİŞ yolunda biçim hatası da
+ * `InvalidCredentialsError` döner: "bu e-posta geçerli mi / kayıtlı mı"
+ * bilgisi sızmasın.
+ */
+export class InvalidCredentialsInputError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'InvalidCredentialsInputError';
+  }
+}
+
+/**
+ * E-posta ya da şifre yanlış (401). "E-posta kayıtlı değil" ile "şifre
+ * yanlış" BİLEREK aynı hatadır — ayrı olsalardı giriş ucu kayıtlı e-posta
+ * adreslerini yoklamanın bir yolu olurdu (`PLAYER_BLOCKED` ile aynı ilke).
+ */
+export class InvalidCredentialsError extends Error {
+  constructor() {
+    super('E-posta ya da şifre hatalı.');
+    this.name = 'InvalidCredentialsError';
+  }
+}
+
+/** Bu e-posta başka bir hesaba bağlı (409). */
+export class EmailAlreadyRegisteredError extends Error {
+  constructor() {
+    super('Bu e-posta adresi başka bir hesapta kullanılıyor.');
+    this.name = 'EmailAlreadyRegisteredError';
+  }
+}
+
+/** Bu oyuncunun zaten bir e-posta/şifresi var (409) — ikinci kez kaydedilemez. */
+export class CredentialsAlreadySetError extends Error {
+  constructor() {
+    super('Bu hesap zaten bir e-posta ve şifreyle kayıtlı.');
+    this.name = 'CredentialsAlreadySetError';
+  }
+}
+
+/**
+ * Sıfırlama bağlantısı geçersiz, süresi dolmuş ya da kullanılmış (400,
+ * migration 0047). Üç durum BİLEREK tek hatadır — hangisi olduğunu söylemek
+ * bağlantı yoklamaya bilgi verirdi.
+ */
+export class InvalidResetTokenError extends Error {
+  constructor() {
+    super('Şifre sıfırlama bağlantısı geçersiz ya da süresi dolmuş. Yeni bir bağlantı iste.');
+    this.name = 'InvalidResetTokenError';
+  }
+}
+
+/**
+ * Bu Google/Apple hesabı BAŞKA bir oyuncuya bağlı (409, migration 0048).
+ * Enumerasyon riski yoktur: çağıran, kimlik belgesiyle o hesabın sahibi
+ * olduğunu ZATEN kanıtlamıştır.
+ */
+export class ProviderIdentityTakenError extends Error {
+  constructor() {
+    super('Bu hesap zaten başka bir oyuncuya bağlı. O oyuncuya geçmek için çıkış yapıp bu hesapla giriş yap.');
+    this.name = 'ProviderIdentityTakenError';
+  }
+}
+
+/** Bu oyuncunun bu sağlayıcıdan zaten BAŞKA bir hesabı bağlı (409). */
+export class ProviderAlreadyLinkedError extends Error {
+  constructor() {
+    super('Bu oyuncuya zaten başka bir hesap bağlı.');
+    this.name = 'ProviderAlreadyLinkedError';
+  }
+}

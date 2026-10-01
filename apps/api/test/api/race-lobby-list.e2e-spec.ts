@@ -394,4 +394,55 @@ describe('Lobi listesi (e2e) — GET /races', () => {
       expect(await idsFor(second)).toContain(raceId);
     });
   });
+
+  describe('`myEntry` — çağıranın KENDİ katılımı (30.09.2026)', () => {
+    async function rowFor(player: RegisteredTestPlayer, raceId: string) {
+      const response = await list(player, String(MAX_LIMIT)).expect(200);
+      const row = (response.body.data as Array<{ id: string; myEntry: unknown }>).find((race) => race.id === raceId);
+      expect(row).toBeDefined();
+      return row as { id: string; myEntry: { status: string; horseId: string } | null };
+    }
+
+    it('katılmayan için `null`, katılan için durum + at; READY ve ayrılma yansır', async () => {
+      const creator = await registerTestPlayerWithStarterHorse(app, 'Benim Kuran');
+      const joiner = await registerTestPlayerWithStarterHorse(app, 'Benim Katılan');
+      const raceId = await createRace(creator, { name: 'Benim Yarışım' });
+
+      expect((await rowFor(joiner, raceId)).myEntry).toBeNull();
+
+      await join(joiner, raceId);
+      expect((await rowFor(joiner, raceId)).myEntry).toEqual({ status: 'waiting', horseId: joiner.horseId });
+
+      await request(app.getHttpServer())
+        .post(`${racesUrl}/${raceId}/ready`)
+        .set('Authorization', joiner.authHeader)
+        .send({ status: 'ready' })
+        .expect(200);
+      expect((await rowFor(joiner, raceId)).myEntry?.status).toBe('ready');
+
+      await request(app.getHttpServer())
+        .post(`${racesUrl}/${raceId}/leave`)
+        .set('Authorization', joiner.authHeader)
+        .set('Idempotency-Key', randomUUID())
+        .expect(200);
+      expect((await rowFor(joiner, raceId)).myEntry?.status).toBe('cancelled');
+    });
+
+    it('BAŞKASININ katılımı `myEntry`e SIZMAZ ve doluluk sayımı değişmez', async () => {
+      const creator = await registerTestPlayerWithStarterHorse(app, 'Sızma Kuran');
+      const joiner = await registerTestPlayerWithStarterHorse(app, 'Sızma Katılan');
+      const observer = await registerTestPlayerWithStarterHorse(app, 'Sızma Gözlemci');
+      const raceId = await createRace(creator, { name: 'Sızma Yarışı' });
+      await join(joiner, raceId);
+
+      const seen = (await list(observer, String(MAX_LIMIT)).expect(200)).body.data as Array<{
+        id: string;
+        joinedPlayers: number;
+        myEntry: unknown;
+      }>;
+      const row = seen.find((race) => race.id === raceId);
+      expect(row?.myEntry).toBeNull();
+      expect(row?.joinedPlayers).toBe(1);
+    });
+  });
 });

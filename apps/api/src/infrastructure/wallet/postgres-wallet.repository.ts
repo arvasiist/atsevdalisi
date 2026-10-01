@@ -33,7 +33,7 @@ import { PG_POOL } from '../database/database.module';
 export class PostgresWalletRepository implements WalletRepository {
   constructor(@Inject(PG_POOL) private readonly pool: Pool) {}
 
-  async findWallet(playerId: string, limit: number): Promise<WalletView | null> {
+  async findWallet(playerId: string, limit: number, before: string | null = null): Promise<WalletView | null> {
     // Bakiye — `money`/`gems` BIGINT'tir, `node-postgres` bunları
     // varsayılan olarak STRING döner (hassasiyet kaybı endişesi); oyunun
     // değerleri güvenli tamsayı sınırını aşmadığı için `Number(...)`'a
@@ -59,9 +59,16 @@ export class PostgresWalletRepository implements WalletRepository {
               reference_type, reference_id, created_at
          FROM economy_transactions
         WHERE player_id = $1
+          -- 30.09.2026 SAYFALAMA: imleç satırından SONRAKİLER, aynı
+          -- (created_at, id) sırasıyla. İmleç başka bir oyuncunun satırıysa
+          -- alt sorgu boş döner, karşılaştırma NULL olur ve sayfa boş gelir
+          -- — başkasının defterinde konum SIZMAZ.
+          AND ($3::uuid IS NULL OR (created_at, id) < (
+                SELECT created_at, id FROM economy_transactions WHERE id = $3 AND player_id = $1
+              ))
         ORDER BY created_at DESC, id DESC
         LIMIT $2`,
-      [playerId, limit + 1],
+      [playerId, limit + 1, before],
     );
 
     const hasMore = ledgerResult.rows.length > limit;
@@ -73,6 +80,7 @@ export class PostgresWalletRepository implements WalletRepository {
       gems: Number(playerRow.gems),
       transactions: page.map(rowToWalletTransaction),
       hasMore,
+      nextCursor: hasMore ? (page[page.length - 1]?.id ?? null) : null,
     };
   }
 }

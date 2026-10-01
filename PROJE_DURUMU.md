@@ -446,8 +446,8 @@ doğrulama ancak GitHub Actions'ta gerçek Postgres/Redis ile yapılabiliyor.
 | Boşluk | Detay |
 |---|---|
 | **Gerçek 3D/ses varlığı yok** | §8.3 — en büyük görsel engel; sahibinin kararını bekliyor |
-| **OAuth canlı değil** | `GoogleAppleIdentityProvider`, `GOOGLE_OAUTH_CLIENT_ID`/`APPLE_OAUTH_CLIENT_ID` boş olduğu için **her zaman** `InvalidProviderTokenError` fırlatır → `POST /auth/login` pratikte çalışmaz |
-| **Frontend'de gerçek giriş yok** | `player-context.tsx` sadece localStorage (`atSevdalisi.playerId`, `atSevdalisi.authToken`) + `jokey_${random}` isimli sahte oyuncu üretir. Login formu, logout, OAuth akışı YOK |
+| **OAuth kimlik bilgisi yok** | Kod tam (§13.38: Google düğmesi + bağlama); `GOOGLE_OAUTH_CLIENT_ID` boşken düğme gizlenir ve `POST /auth/login` `InvalidProviderTokenError` döner. Apple: istemci yok, ücretli üyelik bekliyor |
+| ~~Frontend'de gerçek giriş yok~~ | **KAPANDI** — `/account`: e-posta + şifre (§13.36), sıfırlama (§13.37), Google (§13.38), çıkış |
 | **Yarış takvimi yok** | Planlı, çok katılımcılı `GET /races` takvimi yok; yalnızca practice race + PvP |
 | **Matchmaking senkron** | `JoinMatchmakingQueueUseCase.playMatch` eşleşmeyi **HTTP isteği içinde** yapar. `@nestjs/schedule`/cron/worker YOK → arka plan işi yok |
 | **Pazar süresi dolması tembel** | `PostgresMarketListingRepository.sweepExpiredListings` — lazy sweep, zamanlanmış iş değil |
@@ -3243,6 +3243,130 @@ PostgreSQL. **RACE ENGINE'E DOKUNULMADI**, hiçbir config değeri koda gömülme
    eski satın almalar kendi tutarlarını korur — `price` sütunu bu yüzden var.)
 
 ---
+
+#### 13.33 BAĞIMSIZ YENİDEN DENETİM → ÜÇ SUNUCU AÇIĞI + LOBİ ARAYÜZÜ — 30.09.2026
+
+Projenin kendi denetimi (`docs/FINAL_PROJECT_AUDIT.md`) koddan
+bağımsız olarak yeniden doğrulandı. Yerel kanıt (temiz PG16 + Redis, CI ile
+aynı komutlar): lint 0 hata · typecheck · build · API 125 dosya/2134 test ·
+web 27 dosya/418 test.
+
+**Bulunan ve kapatılanlar:**
+
+1. **Lobi yarışının arayüzü YOKTU** (denetim "var" diyordu). `api-client.ts`
+   `GET/POST /races`, `/join`, `/ready`, `/leave`, `/settle`i hiç
+   çağırmıyordu. → `features/race-lobby/` (`LobbyPanel` + saf
+   `lobby-logic.ts`), `/races` sayfasına bağlandı. `GET /races` satırı
+   artık çağıranın kendi katılımını taşır (`RaceLobbyListItem.myEntry`) —
+   olmadan istemci "katıldım mı" bilgisini yalnızca belleğinde tutabilirdi.
+2. **Satılan at eski sahibi adına koşuyordu.** Katılım `horses` satırını
+   kilitlemiyor, pazar aktif yarışa bakmıyor, kilit sahipliği yeniden
+   doğrulamıyordu → ödülü SATICI alıyordu; aynı at aynı anda birden çok
+   açık yarışa da yazılabiliyordu. → `HORSE_IN_ACTIVE_RACE` (katılım, ilan,
+   satın alma); tek tanım `infrastructure/horse/active-race-entry.ts`.
+   Lobi katılımı ayrıca pazardaki atı artık reddeder (pratik/antrenmanla
+   aynı kural). Kilit sırası: `races` → `horses` → `players`.
+3. **READY yalnızca bilgiydi** (§13.7 "HENÜZ YOK"). → Kilitte (ve
+   `scheduled`dan doğrudan kesinleşmede) hazır demeyen katılım `cancelled`
+   + defterden okunan tutarla İADE (`race_entry_refund`). **Karar: yakma
+   değil iade** — hazır olmamak bir vazgeçmedir, `leave` ile aynı sonuç.
+   Kimse hazır değilse yarış iptal. ⚠️ Lobi yarışı koşturan her e2e
+   katılımdan sonra `ready` DEMELİDİR (7 dosya bu yüzden uyarlandı).
+4. **Kilitlenen yarışı kesinleştiren iş yoktu** — `/settle` bir crank'ti ve
+   çağıranı yoktu; ücretler havuzda süresiz kalıyordu. →
+   `SettleDueRacesUseCase`, zamanlayıcı turunda kilidin ARDINDAN.
+
+**Kanıt:** her sunucu dilimi için yeni e2e (`race-horse-lock`,
+`race-ready-gate`, `race-auto-settle`) düzeltme GERİ ALINARAK koşuldu ve
+DÜŞTÜ (5/5, 3/3, 2/2), düzeltmeyle geçti.
+
+**CI:** Node 20 → 22 (20'nin desteği 30.04.2026'da bitti), `npm install`
+→ `npm ci` + `cache: 'npm'` (kilit dosyası `npm ci` ile doğrulandı).
+
+**BİLEREK YAPILMAYANLAR (sahibin kararı gerekir):**
+- Kökte izlenen 22 geçici dosya (`*.bat`, `*.bundle` ~6.4 MB, `*-log.txt`)
+  `.gitignore`da ama repoda duruyor. `git rm --cached` bir sonraki
+  `pull`da sahibin diskinden de SİLER; bu yüzden dokunulmadı.
+- `no-magic-numbers` yalnızca UYARI: 2644 uyarının ~190'ı üretim kodunda.
+  Kural 6 CI'da zorlanmıyor.
+- Dağıtım altyapısı (Dockerfile/hosting) yok; misafir hesap tarayıcıya
+  bağlı (kurtarma yok); OAuth kimlik bilgileri yok.
+
+#### 13.34 İKİNCİ DİLİM — tribün iadesi, eşleştirme taraması, cüzdan sayfalama — 30.09.2026
+
+`FINAL_PROJECT_AUDIT.md` §5'teki üç `PARTIAL` madde kapandı (46/4):
+
+- **#37 Tribün iadesi — TEŞHİS DÜZELTİLDİ.** Denetim "koşmuş yarışın
+  bileti iade edilebiliyor, config'e iade penceresi yaz" diyordu. Yanlıştı:
+  bilet YALNIZCA bitmiş yarışa satılır (`assertRaceWatchable`), yani zaman
+  penceresi bütün iadeleri kapatırdı (ilk deneme tam olarak bunu yaptı ve
+  geri alındı). Asıl açık: bilet al → izle → parayı geri al. Çözüm:
+  migration 0044 `race_tickets.first_viewed_at`; `GetRaceTimelineUseCase`
+  erişim YALNIZCA bilet sayesindeyse bileti işaretler (HTTP replay + canlı
+  `race.subscribe` aynı kapı); izlenmiş bilet `409 TICKET_ALREADY_USED`.
+  Eşzamanlı "izle + iade et": iade önce kazanırsa izleme 403 alır. Eski
+  test açığı doğru davranış diye kilitliyordu (izle → iade 200) —
+  düzeltildi.
+- **#21 Eşleştirme taraması.** Eşleştirme yalnızca katılım anında
+  deneniyordu. `JoinMatchmakingQueueUseCase.scanQueue` + `MatchmakingScheduler`
+  (ayrı sınıf: `RaceModule → MatchmakingModule` modül döngüsü doğururdu).
+  Bayat bilet (at satılmış/sakat) düşürülür. Config
+  `online.matchmaking.queueScan`, düşüren test `matchmaking-scheduler.spec.ts`.
+- **#33 Cüzdan sayfalama.** `?before=<işlem id>`, `(created_at, id)`
+  anahtar-tabanlı; `nextCursor`; `/wallet` "Daha fazla göster".
+
+#### 13.35 TURNUVA — otomatik takvim + tek final (migration 0045) — 30.09.2026
+
+Sahibin kararı: sunucu her kademe için otomatik açsın, turnuva tek büyük
+final olsun. **Turnuva sıfırdan yazılmadı, lobi yarışının üstüne kuruldu** —
+para yolu, iade, READY, at kilidi, hazırlık kapısı, kilit ve kesinleşme
+ikinci kez yazılmadı. Turnuvaya özgü dört şey: seviye kapısı (katılımda,
+kilitli transaction içinde), botsuz final (`aiFillEnabled` turnuvada
+`false`), 50/30/20 ödül (tek kaynak `online.tournament`, `economy`ye kopya
+yok), `minParticipants` altında iptal + herkese iade
+(`dropUnreadyLobbyEntries({ minRemaining })`). Boş turnuva: kilit
+zamanlayıcısı katılımsız yarışı seçmediği için takvim onu ayrıca iptal eder,
+yoksa o kademe sonsuza dek "açık" kalırdı. Altın kademe 32 → 16 (tek yarışta
+en büyük saha). Eleme formatı bilinçli olarak yok.
+
+#### 13.36 E-POSTA + ŞİFRE GİRİŞİ — misafir hesabı kaydetme (migration 0046) — 30.09.2026
+
+Sahibin talebi. Hesaplar yalnızca tarayıcıdaki JWT'de yaşıyordu: tarayıcı
+verisi silinince, cihaz değişince ya da **30 günlük token dolunca** oyuncu
+her şeyini kaybediyordu. Google/Apple kimlik bilgisi beklemeden çözüldü:
+`player_credentials` (PK `player_id`, tekil `lower(email)`), `scrypt`
+(Node yerleşik — yeni bağımlılık yok; özet `scrypt$N$r$p$tuz$özet`, config
+değişse de eski özet doğrulanır). "Hesabını kaydet" oyuncu satırına
+dokunmaz — atlar/para aynı `player_id`de. Giriş hatası tek kod
+(`INVALID_CREDENTIALS`) + sahte özetle zaman eşitleme. Web: `/account`.
+**Yok:** şifre sıfırlama (e-posta servisi gerekir).
+
+#### 13.37 ŞİFRE SIFIRLAMA (migration 0047) — 30.09.2026
+
+`password_reset_tokens` (yalnızca SHA-256 özeti; tek kullanımlık; 30 dk).
+İstek ucu kayıtlı olsun olmasın 202 döner ve `minIntervalSeconds` içinde
+ikinci e-posta göndermez; gönderim hatası yutulup loglanır (farklı yanıt
+"kayıtlı" demek olurdu). Onay `FOR UPDATE` altında şifreyi değiştirir ve
+oyuncunun tüm bekleyen bağlantılarını kapatır. E-posta: Resend (yerleşik
+`fetch`, yeni bağımlılık yok); anahtar yoksa `OutboxEmailSender` —
+üretimde içerik loglanmaz. **Bilinen sınır:** JWT durumsuzdur; şifre
+değişince mevcut oturumlar süreleri dolana kadar geçerli kalır.
+
+#### 13.38 GOOGLE GİRİŞİ + HESAP BAĞLAMA (migration 0048) — 01.10.2026
+
+Sunucu doğrulayıcısı (`GoogleAppleIdentityProvider`) ve `POST /auth/login`
+önceden vardı; eksik olan istemci ve mevcut oyuncuya bağlama idi.
+`POST /auth/link` (oturumdaki oyuncuya Google kimliği; oyuncu token'dan) ·
+`GET /auth/providers` (`@Public`; `googleClientId` yoksa `null` → web düğmeyi
+GÖSTERMEZ) · `GET /auth/credentials` artık `linkedProviders` taşır (misafir =
+e-posta yok VE bağlı sağlayıcı yok). Kimlik başka oyuncudaysa 409
+`PROVIDER_IDENTITY_TAKEN` — **hesaplar birleştirilmez** (para/at taşımak
+ayrı bir karardır). Oyuncu başına sağlayıcı tekilliği migration 0048
+kısıtıyla (eşzamanlı istekler; kısıt kaldırılınca test düşüyor).
+Web: `GoogleSignInButton` (GIS betiği yalnızca gerektiğinde yüklenir) →
+`/account`. **Canlıya almak için:** Google Cloud Console'da OAuth istemci
+kimliği + "Yetkili JavaScript kaynakları"na web adresi; sunucuda
+`GOOGLE_OAUTH_CLIENT_ID`. Apple: ücretli üyelik bekliyor.
 
 ## 14. Kendime hatırlatmalar (kısa liste)
 

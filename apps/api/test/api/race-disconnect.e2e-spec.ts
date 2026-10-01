@@ -138,6 +138,14 @@ describe('Bağlantı kopması / yeniden başlatma güvenliği (e2e) — brief §
       .set('Idempotency-Key', randomUUID())
       .send({ horseId: player.horseId })
       .expect(200);
+    // READY ŞARTI (30.09.2026): hazır demeyen katılım kilit/kesinleşme
+    // anında iptal edilip iade edilir. Bu dosya koşan bir kadro ölçtüğü için
+    // her katılım hazır işaretlenir (READY'nin kendisi `race-ready-gate`te).
+    await request(app.getHttpServer())
+      .post(`${racesUrl}/${raceId}/ready`)
+      .set('Authorization', player.authHeader)
+      .send({ status: 'ready' })
+      .expect(200);
   }
 
   /** `POST /races` en az 60 sn ileri bir başlangıç zorunlu kılar; test beklemez, satırın saatini geriye alır. */
@@ -326,18 +334,32 @@ describe('Bağlantı kopması / yeniden başlatma güvenliği (e2e) — brief §
     const finishedId = await createRace(player);
     const cancelledId = await createRace(secondCreator);
 
-    await join(player, scheduledId);
-    // Tanık, sayacın düşüşünü görebilmek için AYNI odada olmak zorundadır.
-    await join(watcher, scheduledId);
-    await join(player, lockingId);
+    // ⚠️ SIRA ÖNEMLİDİR (30.09.2026): bir at artık AYNI ANDA iki açık
+    // (`scheduled`/`locking`) yarışa yazılamaz (`HORSE_IN_ACTIVE_RACE`,
+    // bkz. `race-horse-lock.e2e-spec.ts`). Bu yüzden yarışlar TEK TEK
+    // kurulur: bitirilen ve iptal edilen yarış atı serbest bırakır; açık
+    // kalan İKİ yarış (locking + scheduled) için oyuncuya ikinci bir at
+    // verilir. Ölçülen şey OYUNCUNUN katılım satırıdır; hangi atla girdiği
+    // bu dosyanın iddialarını değiştirmez.
     await join(player, finishedId);
-    await join(player, cancelledId);
-
-    await makeRaceStarted(lockingId);
-    await lockUntilLocked(lockingId);
     await makeRaceStarted(finishedId);
     await settle(finishedId, crank);
+    await join(player, cancelledId);
     await adminCancel(cancelledId, admin);
+    await join(player, lockingId);
+    await makeRaceStarted(lockingId);
+    await lockUntilLocked(lockingId);
+
+    const secondHorseId = randomUUID();
+    await pool.query(
+      `INSERT INTO horses (id, owner_id, name, gender, breed, birth_date, quality, potential)
+       VALUES ($1, $2, 'Kopma İkinci At', 'mare', 'Arap', CURRENT_DATE - INTERVAL '5 years', 70, 80)`,
+      [secondHorseId, player.playerId],
+    );
+    await pool.query('INSERT INTO horse_stats (horse_id) VALUES ($1)', [secondHorseId]);
+    await join({ ...player, horseId: secondHorseId }, scheduledId);
+    // Tanık, sayacın düşüşünü görebilmek için AYNI odada olmak zorundadır.
+    await join(watcher, scheduledId);
 
     // Dört durumun GERÇEKTEN kurulduğu iddia edilir — aksi hâlde "dört
     // durumda da dokunulmadı" cümlesi yalnızca bir durum hakkında olurdu.

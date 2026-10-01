@@ -1,6 +1,10 @@
 'use client';
 
 /**
+ * 30.09.2026 — ÜCRETLİ LOBİ BAĞLANDI: sayfanın üstünde `LobbyPanel`
+ * (`GET/POST /races`, `/join`, `/ready`, `/leave`). Aşağıdaki "`GET /races`
+ * HÂLÂ YOK" anlatımı TARİHSELDİR; pratik yarış bölümü aynen yaşar.
+ *
  * Yarışlar — daha önce dürüst bir "yakında" placeholder'ıydı çünkü
  * backend'de bir `GET /races` (yarış takvimi) uç noktası HÂLÂ YOK. Ama
  * `POST /horses/:id/practice-race` (docs/API.md §4, brief §6 Race Engine)
@@ -51,6 +55,7 @@ import { GlassPanel } from '../../components/ui/GlassPanel';
 import { HorseAvatar } from '../../components/ui/HorseAvatar';
 import { StatBar } from '../../components/ui/StatBar';
 import { LiveRaceViewer } from '../../features/race-viewer/LiveRaceViewer';
+import { LobbyPanel } from '../../features/race-lobby/LobbyPanel';
 import {
   DEFAULT_RACE_TIER_ID,
   findRaceTier,
@@ -112,7 +117,7 @@ const WEATHER_LABELS: Record<PracticeRaceResult['weather'], string> = {
 };
 
 export default function RacesPage(): React.ReactElement {
-  const { player, isLoading: isPlayerLoading, error: playerError, createPlayer } = usePlayer();
+  const { player, isLoading: isPlayerLoading, error: playerError, createPlayer, refresh } = usePlayer();
   const [horses, setHorses] = useState<PublicHorse[] | null>(null);
   const [horsesError, setHorsesError] = useState<string | null>(null);
   const [selectedHorseId, setSelectedHorseId] = useState<string | null>(null);
@@ -198,9 +203,9 @@ export default function RacesPage(): React.ReactElement {
       </p>
 
       <GlassPanel style={{ marginBottom: 'var(--space-lg)', fontSize: '12px', color: 'var(--color-text-muted)' }}>
-        Not: planlanmış turnuva/yarış takvimi henüz yok (backend'de bir `GET /races` uç noktası bulunmuyor) — bu,
-        dürüstçe belirtilmiş bilinen bir sınırlama. Şimdilik yalnızca anlık pratik yarış mevcut. Yarış Görüntüleyiciyi
-        (3D) görsel bir demo olarak denemek istersen:{' '}
+        İki tür yarış var: aşağıdaki <strong>ücretli lobi</strong> (başka oyuncularla, belirlenen saatte koşar) ve
+        sayfanın altındaki <strong>anlık pratik yarış</strong>. Yarış Görüntüleyiciyi (3D) görsel bir demo olarak denemek
+        istersen:{' '}
         <Link href="/races/demo" style={{ color: 'var(--color-accent-focus)', fontWeight: 600 }}>
           buradan
         </Link>
@@ -230,6 +235,8 @@ export default function RacesPage(): React.ReactElement {
           <p style={{ color: 'var(--color-text-secondary)', margin: 0 }}>Yarıştırabileceğin bir at bulunamıyor.</p>
         </GlassPanel>
       ) : null}
+
+      {player && horses && horses.length > 0 ? <LobbyPanel horses={horses} onBalanceChanged={refresh} /> : null}
 
       {result && selectedHorse ? (
         <GlassPanel style={{ marginBottom: 'var(--space-lg)', padding: 0, overflow: 'hidden' }}>

@@ -92,6 +92,14 @@ describe('Yarış yaşam döngüsü (e2e) — kilit ve dondurma', () => {
       .set('Idempotency-Key', randomUUID())
       .send({ horseId: player.horseId })
       .expect(200);
+    // READY ŞARTI (30.09.2026): hazır demeyen katılım kilit/kesinleşme
+    // anında iptal edilip iade edilir. Bu dosya koşan bir kadro ölçtüğü için
+    // her katılım hazır işaretlenir (READY'nin kendisi `race-ready-gate`te).
+    await request(app.getHttpServer())
+      .post(`${racesUrl}/${raceId}/ready`)
+      .set('Authorization', player.authHeader)
+      .send({ status: 'ready' })
+      .expect(200);
   }
 
   /** `startDelaySeconds.min = 60` yüzünden başlangıcı geçmişe çeker (bkz. `race-settlement.e2e-spec.ts`). */

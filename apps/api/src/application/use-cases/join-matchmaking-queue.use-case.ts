@@ -17,6 +17,9 @@ import { createRaceRoomSeed, validateRaceRoomParticipants } from '../../domain/o
 import { RACE_ENGINE_VERSION, RACE_RULESET_VERSION, simulateRace } from '../../domain/race/race-engine';
 import { DEFAULT_RACE_TACTIC, PRACTICE_RACE_DISTANCE_METERS } from '../../domain/race/validation';
 import { HorseInjuredError, HorseNotFoundError } from '../../domain/horse/errors';
+import type { VitalSigns } from '../../domain/horse/vital-signs';
+import { HorseNotReadyToRaceError } from '../../domain/race/errors';
+import { checkRaceReadiness } from '../../domain/race/readiness';
 import { AlreadyInMatchmakingQueueError } from '../../domain/online/errors';
 import { PlayerNotFoundError } from '../../domain/player/errors';
 import { AppConfigService } from '../../infrastructure/config/config.service';
@@ -37,6 +40,21 @@ export interface JoinMatchmakingQueueInput {
 
 /** `RunPracticeRaceUseCase`'in KENDİ sabitleriyle AYNI — bkz. o dosyanın doc yorumu "KAPSAM DIŞI" maddesi; PvP maçları da AYNI gerekçeyle şimdilik sabit zemin/hava/mesafe kullanır. */
 const PVP_MATCH_SURFACE = 'grass' as const;
+
+/**
+ * `run-practice-race.use-case.ts` ile AYNI açık kurulum: alanlar TEK TEK
+ * yazılır ki `Horse`a yeni bir vital alanı eklenip burada unutulursa
+ * derleyici uyarsın.
+ */
+function vitalsOf(horse: { health: number; fitness: number; fatigue: number; energy: number; morale: number }): VitalSigns {
+  return {
+    health: horse.health,
+    fitness: horse.fitness,
+    fatigue: horse.fatigue,
+    energy: horse.energy,
+    morale: horse.morale,
+  };
+}
 const PVP_MATCH_WEATHER = 'sunny' as const;
 
 /**
@@ -165,6 +183,14 @@ export class JoinMatchmakingQueueUseCase {
     if (horse.status === 'injured') {
       throw new HorseInjuredError(input.horseId);
     }
+    // HAZIRLIK KAPISI (30.09.2026, `FINAL_PROJECT_AUDIT.md` #8) — pratik ve
+    // lobi yarışıyla AYNI tek karar noktası (`domain/race/readiness.ts`).
+    // Önceden yalnızca sakatlık kontrol ediliyordu; enerjisi bitmiş at
+    // kuyruğa girip eşleşme koşabiliyordu.
+    const readiness = checkRaceReadiness(horse.status, vitalsOf(horse), this.config.race.readiness);
+    if (!readiness.ready && readiness.reason !== null) {
+      throw new HorseNotReadyToRaceError(readiness.reason);
+    }
 
     // `sellerId`nin `horse.ownerId`'den TÜRETİLMESİ (`CreateMarketListingUseCase`
     // ile AYNI desen/gerekçe) — gövdede AYRI bir `playerId` alanı YOK.
@@ -227,6 +253,101 @@ export class JoinMatchmakingQueueUseCase {
    * transaction'da gerçekleşir (bkz. o metodun/portun doc yorumu) — bu
    * çağrı başarısız olursa reytingler de DB'ye hiç YAZILMAZ.
    */
+  /**
+   * KUYRUK TARAMASI (30.09.2026, `FINAL_PROJECT_AUDIT.md` #21). Eşleştirme
+   * eskiden YALNIZCA katılım anında deneniyordu: `findBestMatch`in aralığı
+   * bekleme süresiyle genişlese de, kuyrukta bekleyen iki oyuncu yeni bir
+   * katılım gelmedikçe hiç eşleşmiyordu. `MatchmakingScheduler` bu metodu
+   * periyodik çağırır.
+   *
+   * **EN UZUN BEKLEYEN ÖNCE** (aralığı en geniş olan o). Her çift için İKİ
+   * bilet de `deleteByPlayerId` ile SAHİPLENİLİR — satır silme atomik
+   * olduğundan eşzamanlı bir katılım/ayrılma aynı bileti ikinci kez
+   * kullanamaz. İkinci sahiplenme başarısız olursa ilk bilet AYNI
+   * `queuedAt` ile geri yazılır (bekleme süresi sıfırlanmaz).
+   *
+   * **BAYAT BİLET DÜŞÜRÜLÜR:** at bu arada satıldıysa ya da sakatlandıysa
+   * bilet silinir; aksi hâlde eşleşme başkasının atıyla ya da sakat atla
+   * koşardı. İki oyuncu da `lobby.update` alır (katılım yolunda yalnızca
+   * rakip alır, çünkü isteyen HTTP yanıtını görür; taramada ikisi de
+   * bekleyendir).
+   *
+   * Hata EŞLEŞME başına yakalanır — tek bozuk çift turu öldürmez.
+   */
+  async scanQueue(now: Date = new Date()): Promise<{ matched: number }> {
+    const tickets = (await this.ticketRepository.findAll()).sort(
+      (a, b) => new Date(a.queuedAt).getTime() - new Date(b.queuedAt).getTime(),
+    );
+    const consumed = new Set<string>();
+    let matched = 0;
+
+    for (const ticket of tickets) {
+      if (consumed.has(ticket.playerId)) {
+        continue;
+      }
+      if (!(await this.isTicketStillValid(ticket))) {
+        await this.ticketRepository.deleteByPlayerId(ticket.playerId);
+        consumed.add(ticket.playerId);
+        continue;
+      }
+      const candidates = tickets.filter((candidate) => !consumed.has(candidate.playerId));
+      const opponent = findBestMatch(ticket, candidates, this.config.online, now);
+      if (opponent === null) {
+        continue;
+      }
+      if (!(await this.isTicketStillValid(opponent))) {
+        await this.ticketRepository.deleteByPlayerId(opponent.playerId);
+        consumed.add(opponent.playerId);
+        continue;
+      }
+      if (!(await this.ticketRepository.deleteByPlayerId(ticket.playerId))) {
+        consumed.add(ticket.playerId);
+        continue;
+      }
+      if (!(await this.ticketRepository.deleteByPlayerId(opponent.playerId))) {
+        consumed.add(opponent.playerId);
+        await this.ticketRepository.save(ticket);
+        continue;
+      }
+      consumed.add(ticket.playerId);
+      consumed.add(opponent.playerId);
+      try {
+        const result = await this.playMatch(ticket.playerId, ticket.horseId, opponent, now);
+        this.notifySafely(ticket.playerId, result);
+        matched += 1;
+      } catch (error) {
+        this.logger.error(
+          `Kuyruk eşleşmesi koşulamadı (${ticket.playerId} × ${opponent.playerId}): ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      }
+    }
+    return { matched };
+  }
+
+  /** Bilet hâlâ geçerli mi: at var, sahibi bilet sahibi, yarışa hazır (sakat değil, enerjisi/sağlığı yeterli). */
+  private async isTicketStillValid(ticket: MatchmakingTicket): Promise<boolean> {
+    const horse = await this.horseRepository.findById(ticket.horseId);
+    return (
+      horse !== null &&
+      horse.ownerId === ticket.playerId &&
+      checkRaceReadiness(horse.status, vitalsOf(horse), this.config.race.readiness).ready
+    );
+  }
+
+  private notifySafely(playerId: string, result: PvpMatchResult): void {
+    try {
+      this.lobbyNotifier.notifyMatchFound(playerId, result);
+    } catch (error) {
+      this.logger.error(
+        `notifyMatchFound başarısız oldu (playerId=${playerId}, matchId=${result.matchId}): ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
+  }
+
   private async playMatch(
     playerId: string,
     horseId: string,

@@ -12,7 +12,7 @@ import {
   Query,
   UseInterceptors,
 } from '@nestjs/common';
-import type { ApiSuccess, RaceLobbyView, RaceSettlementResult } from '@at-sevdalisi/shared-types';
+import type { ApiSuccess, RaceLobbyListItem, RaceLobbyView, RaceSettlementResult } from '@at-sevdalisi/shared-types';
 import { CreateRaceUseCase } from '../../application/use-cases/create-race.use-case';
 import { JoinRaceUseCase } from '../../application/use-cases/join-race.use-case';
 import { LeaveRaceUseCase } from '../../application/use-cases/leave-race.use-case';
@@ -61,8 +61,11 @@ export class RaceLobbyController {
    * yarışlar" diye sormak, ona anlamsız bir seçim sunmak olurdu —
    * gerekçenin tamamı `ListLobbyRacesUseCase` doc yorumunda.
    *
-   * **`@CurrentPlayer()` YOKTUR:** liste oyuncuya ÖZEL DEĞİLDİR — aynı
-   * yarışlar herkese görünür. Buna rağmen uç KORUMALIDIR: `AuthGuard`
+   * **YARIŞ LİSTESİ herkese aynıdır; `myEntry` alanı çağırana özeldir**
+   * (30.09.2026 — `@CurrentPlayer()` bu yüzden eklendi): her satır,
+   * çağıranın o yarıştaki KENDİ katılımını (durum + at) taşır; lobi
+   * arayüzü "Katıl" ile "Hazırım / Ayrıl" arasında buna bakarak seçer.
+   * Başka oyuncuların satırı yanıta girmez. Uç KORUMALIDIR: `AuthGuard`
    * `app.module.ts`'te `APP_GUARD` olarak global kayıtlıdır ve `@Public()`
    * işareti olmayan her rota token ister. Lobi listesini token'sız açmak,
    * `maxOpenRacesPerPlayer` tavanının koruduğu "keşif listesini çöple
@@ -76,11 +79,15 @@ export class RaceLobbyController {
   @RateLimit({ name: 'race-list', limit: 60, windowSeconds: 60, keyBy: 'player' })
   @Get()
   @HttpCode(HttpStatus.OK)
-  async list(@Query('limit') limit: string | undefined): Promise<ApiSuccess<RaceLobbyView[]>> {
+  async list(
+    @Query('limit') limit: string | undefined,
+    // Çağıran TOKEN'dan gelir — `myEntry` yalnızca onun kendi satırıdır.
+    @CurrentPlayer() currentPlayer: AuthenticatedPlayer,
+  ): Promise<ApiSuccess<RaceLobbyListItem[]>> {
     // `limit` HAM geçirilir (`unknown` alan bir imzaya) — `create`/`join`
     // ile AYNI desen: sorgu parametresi her zaman metindir ve `?limit=abc`
     // gerçekten gelebilir. Daraltma/kırpma `normalizeLobbyListLimit`'tedir.
-    const races = await this.listLobbyRacesUseCase.execute(limit);
+    const races = await this.listLobbyRacesUseCase.execute(currentPlayer.id, limit);
     return { success: true, data: races };
   }
 

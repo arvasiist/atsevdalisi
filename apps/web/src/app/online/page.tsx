@@ -157,10 +157,10 @@ export default function OnlinePage(): React.ReactElement {
       </p>
 
       <GlassPanel style={{ marginBottom: 'var(--space-lg)', fontSize: '12px', color: 'var(--color-text-muted)' }}>
-        Not: eşleştirme şu an tamamen senkron. Rakip bulunursa sonucu hemen görürsün; bulunamazsa kuyrukta beklersin —
-        bu sayfa AÇIK kaldığı sürece biri seninle sonradan eşleşirse bunu artık canlı bildirimle görürsün. Ama bu
-        garanti değil: sekmeyi kapatırsan veya bağlantın koparsa hâlâ öğrenemezsin, bu durumda kuyruktan çıkıp tekrar
-        katılman gerekir — bu, dürüstçe belirtilmiş bilinen bir sınırlama.
+        Not: rakip hemen bulunursa sonucu anında görürsün. Bulunamazsa kuyrukta beklersin; sunucu kuyruğu düzenli
+        aralıklarla tarar ve beklerken kabul edilen reyting farkı genişler, yani sonradan da eşleşebilirsin. Bu sayfa
+        açıkken sonucu canlı bildirimle görürsün; sekmeyi kapattıysan sonuç yine yazılır (geçmiş yarışlarında ve
+        reytinginde görünür) ama anlık bildirim almazsın.
       </GlassPanel>
 
       {!player && !isPlayerLoading ? (

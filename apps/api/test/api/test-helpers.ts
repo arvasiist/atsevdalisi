@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
-import { Test } from '@nestjs/testing';
+import { Test, type TestingModuleBuilder } from '@nestjs/testing';
 import { IoAdapter } from '@nestjs/platform-socket.io';
 import request from 'supertest';
 import { AppModule } from '../../src/app.module';
@@ -18,10 +18,16 @@ import { HttpExceptionFilter } from '../../src/api/middleware/http-exception.fil
  * burada kurulur (bkz. o dosyanın doc yorumu — `app.listen` yerine
  * `Test.createTestingModule` + `supertest`).
  */
-export async function bootstrapTestApp(): Promise<INestApplication> {
-  const moduleRef = await Test.createTestingModule({
-    imports: [AppModule],
-  }).compile();
+export async function bootstrapTestApp(
+  // 01.10.2026 — bir sağlayıcıyı sahtesiyle değiştirmek için (örn. Google'ın
+  // belge doğrulayıcısı: testte gerçek Google belgesi üretilemez).
+  configure: (builder: TestingModuleBuilder) => TestingModuleBuilder = (builder) => builder,
+): Promise<INestApplication> {
+  const moduleRef = await configure(
+    Test.createTestingModule({
+      imports: [AppModule],
+    }),
+  ).compile();
 
   const app = moduleRef.createNestApplication();
   app.setGlobalPrefix('api/v1');

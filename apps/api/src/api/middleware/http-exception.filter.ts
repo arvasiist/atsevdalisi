@@ -1,6 +1,7 @@
 import { ArgumentsHost, Catch, ExceptionFilter, HttpException, HttpStatus } from '@nestjs/common';
 import type { Response } from 'express';
 import { ErrorCode } from '@at-sevdalisi/shared-types';
+import { PlayerLevelTooLowError } from '../../domain/tournament/errors';
 import {
   AdminRequiredError,
   InvalidReportStatusError,
@@ -8,6 +9,7 @@ import {
   ReportNotFoundError,
 } from '../../domain/admin/errors';
 import {
+  HorseInActiveRaceError,
   HorseInjuredError,
   HorseListedInMarketError,
   HorseNotFoundError,
@@ -26,8 +28,15 @@ import {
 } from '../../domain/player/errors';
 import {
   ForbiddenError,
+  CredentialsAlreadySetError,
+  EmailAlreadyRegisteredError,
   InvalidAuthTokenError,
+  InvalidCredentialsError,
+  InvalidCredentialsInputError,
   InvalidProviderTokenError,
+  ProviderAlreadyLinkedError,
+  ProviderIdentityTakenError,
+  InvalidResetTokenError,
   MissingAuthTokenError,
 } from '../../domain/auth/errors';
 import { HorseNotReadyForTrainingError, InvalidTrainingInputError } from '../../domain/training/errors';
@@ -47,6 +56,7 @@ import {
   DailyRewardAlreadyClaimedError,
   InsufficientFundsError,
   InvalidDepositAmountError,
+  InvalidWalletCursorError,
   MockDepositDisabledError,
 } from '../../domain/economy/errors';
 import {
@@ -81,6 +91,7 @@ import {
   RaceTicketNotFoundError,
   RaceTicketRequiredError,
   RaceTribuneFreeError,
+  TicketAlreadyUsedError,
   TribuneFullError,
 } from '../../domain/grandstand/errors';
 import {
@@ -158,6 +169,10 @@ const DOMAIN_ERROR_MAP = new Map<ErrorClassConstructor, { status: number; code: 
   [HorseInjuredError, { status: HttpStatus.CONFLICT, code: ErrorCode.HorseInjured }],
   // AUDIT_REPORT.md Bulgu H2 (Medium) — pazarda aktif ilanı olan bir at antrenmana veya yarışa sokulamaz.
   [HorseListedInMarketError, { status: HttpStatus.CONFLICT, code: ErrorCode.HorseListedInMarket }],
+  // 30.09.2026 — açık bir lobi yarışına kayıtlı at satılamaz/pazara çıkamaz/ikinci yarışa yazılamaz.
+  [HorseInActiveRaceError, { status: HttpStatus.CONFLICT, code: ErrorCode.HorseInActiveRace }],
+  // 30.09.2026 — turnuva seviye şartı (migration 0045).
+  [PlayerLevelTooLowError, { status: HttpStatus.CONFLICT, code: ErrorCode.PlayerLevelTooLow }],
   // CI Hata 7 (bkz. domain/training/errors.ts InvalidTrainingInputError) —
   // DTO doğrulaması esbuild altında atlanabildiğinde domain katmanının
   // kendi bağımsız kontrolünün fırlattığı hata; gerçek bir DOĞRULAMA
@@ -263,6 +278,12 @@ const DOMAIN_ERROR_MAP = new Map<ErrorClassConstructor, { status: number; code: 
   // giriş/kayıt gerekir), bu yüzden AYNI `ErrorCode.Unauthorized`'ı paylaşırlar.
   [MissingAuthTokenError, { status: HttpStatus.UNAUTHORIZED, code: ErrorCode.Unauthorized }],
   [InvalidAuthTokenError, { status: HttpStatus.UNAUTHORIZED, code: ErrorCode.Unauthorized }],
+  // 30.09.2026 — e-posta + şifre girişi (migration 0046).
+  [InvalidCredentialsError, { status: HttpStatus.UNAUTHORIZED, code: ErrorCode.InvalidCredentials }],
+  [InvalidCredentialsInputError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.ValidationError }],
+  [EmailAlreadyRegisteredError, { status: HttpStatus.CONFLICT, code: ErrorCode.EmailAlreadyRegistered }],
+  [CredentialsAlreadySetError, { status: HttpStatus.CONFLICT, code: ErrorCode.CredentialsAlreadySet }],
+  [InvalidResetTokenError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.InvalidResetToken }],
   // Token GEÇERLİ ama sahiplik yok — kavramsal olarak 401'den FARKLI, bkz.
   // `ForbiddenError` doc yorumu.
   [ForbiddenError, { status: HttpStatus.FORBIDDEN, code: ErrorCode.Forbidden }],
@@ -280,6 +301,8 @@ const DOMAIN_ERROR_MAP = new Map<ErrorClassConstructor, { status: number; code: 
   // taşıdığı `capacity`ye rağmen TEK kod döner — gerekçe
   // `domain/grandstand/errors.ts`), yani `DOMAIN_ERROR_MAP`'e girebilirler.
   [TribuneFullError, { status: HttpStatus.CONFLICT, code: ErrorCode.RaceTribuneFull }],
+  // 30.09.2026 — izlenmiş bilet iade edilemez (migration 0044).
+  [TicketAlreadyUsedError, { status: HttpStatus.CONFLICT, code: ErrorCode.TicketAlreadyUsed }],
   [RaceTribuneFreeError, { status: HttpStatus.CONFLICT, code: ErrorCode.RaceTribuneFree }],
   // 404 — iade var olan bir KAYNAĞI hedefler, o kaynak (bilet) yoksa hedef
   // yoktur (`RaceNotFoundError` ile AYNI kategori).
@@ -411,6 +434,9 @@ const DOMAIN_ERROR_MAP = new Map<ErrorClassConstructor, { status: number; code: 
   [JockeyNotOwnedError, { status: HttpStatus.CONFLICT, code: ErrorCode.JockeyNotOwned }],
   // `POST /auth/login`'e özgü — bkz. `InvalidProviderTokenError` doc yorumu.
   [InvalidProviderTokenError, { status: HttpStatus.UNAUTHORIZED, code: ErrorCode.InvalidProviderToken }],
+  // 01.10.2026 — Google hesabı bağlama (migration 0048).
+  [ProviderIdentityTakenError, { status: HttpStatus.CONFLICT, code: ErrorCode.ProviderIdentityTaken }],
+  [ProviderAlreadyLinkedError, { status: HttpStatus.CONFLICT, code: ErrorCode.ProviderAlreadyLinked }],
   // claude/hizli-bitirme-plani.md'nin proje sahibi tarafından
   // önceliklendirdiği Ekipman dilimi (bu turda EKLENDİ) — `InvalidTraining
   // InputError` ile AYNI gerekçe (Hata 7 savunması, gerçek bir DOĞRULAMA
@@ -527,6 +553,8 @@ const DOMAIN_ERROR_MAP = new Map<ErrorClassConstructor, { status: number; code: 
   // doğrulama hatası; aynı isteği tekrarlamak düzeltmez) ve AYNI desen
   // (üç neden → tek kod; ayrım yalnızca mesajdadır).
   [InvalidDepositAmountError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.InvalidDepositAmount }],
+  // 30.09.2026 — bozuk sayfa imleci (varsayılana DÜŞÜLMEZ, bkz. sınıf doc yorumu).
+  [InvalidWalletCursorError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.ValidationError }],
 ]);
 
 /**

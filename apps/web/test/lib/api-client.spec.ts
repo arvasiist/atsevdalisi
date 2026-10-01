@@ -677,6 +677,13 @@ describe('apiClient.getPlayerProfile (brief §24 — /profile/:username)', () =>
 });
 
 describe('apiClient.getWallet (brief §20/§22/§35 — /wallet)', () => {
+  it('`before` imleci verilirse `limit` ile birlikte sorgu dizesine eklenir (30.09.2026)', async () => {
+    const fetchMock = stubFetchOnce({ success: true, data: {} });
+    await apiClient.getWallet('p-1', 20, 'cursor-1');
+    const [url] = requestArgs(fetchMock);
+    expect(url).toBe(`${API_BASE_URL}/players/p-1/wallet?limit=20&before=cursor-1`);
+  });
+
   it('oyuncu kimliğini YOL PARAMETRESİ olarak gönderir', async () => {
     const fetchMock = stubFetchOnce({ success: true, data: {} });
     await apiClient.getWallet('p-1');
@@ -941,5 +948,148 @@ describe('API taban adresi', () => {
       return;
     }
     expect(API_BASE_URL).toBe('http://localhost:4000/api/v1');
+  });
+});
+
+describe('apiClient ücretli lobi yarışı (30.09.2026 — istemci tarafı)', () => {
+  /**
+   * Beş uç: liste, açma, katılma (PARA YOLU), hazır (para yolu DEĞİL),
+   * ayrılma (PARA YOLU, iade). Sabitlenen şey URL/method/gövde ve
+   * `Idempotency-Key`in YALNIZCA para yollarında gönderilmesidir: katılma ve
+   * ayrılmada anahtar yoksa sunucu 400 döner; hazır/açmada gönderilseydi
+   * "korunuyorum" yanılsaması doğardı (sunucu okumaz).
+   */
+  it('listLobbyRaces GET /races eder ve anahtar GÖNDERMEZ', async () => {
+    const fetchMock = stubFetchOnce({ success: true, data: [] });
+    await apiClient.listLobbyRaces();
+    const [url, config] = requestArgs(fetchMock);
+    expect(url).toBe(`${API_BASE_URL}/races`);
+    expect(config.method ?? 'GET').toBe('GET');
+    expect((config.headers as Headers).get('Idempotency-Key')).toBeNull();
+  });
+
+  it('createLobbyRace gövdeyi POST /races ile gönderir, anahtar GÖNDERMEZ', async () => {
+    const fetchMock = stubFetchOnce({ success: true, data: {} });
+    const body = {
+      name: 'Kupa',
+      fieldSize: 8,
+      maxPlayers: 8,
+      entryFee: 50,
+      raceType: 'paid' as const,
+      startTime: '2026-09-30T13:00:00.000Z',
+      surface: 'grass' as const,
+      weather: 'sunny' as const,
+      distanceMeters: 1600,
+      tribuneFee: 0,
+      spectatorCapacity: 500,
+    };
+    await apiClient.createLobbyRace(body);
+    const [url, config] = requestArgs(fetchMock);
+    expect(url).toBe(`${API_BASE_URL}/races`);
+    expect(config.method).toBe('POST');
+    expect(JSON.parse(config.body as string)).toEqual(body);
+    expect((config.headers as Headers).get('Idempotency-Key')).toBeNull();
+  });
+
+  it('joinLobbyRace at + anahtarla POST eder (para yolu — ZORUNLU)', async () => {
+    const fetchMock = stubFetchOnce({ success: true, data: {} });
+    await apiClient.joinLobbyRace('race-1', { horseId: 'horse-1' }, 'key-7');
+    const [url, config] = requestArgs(fetchMock);
+    expect(url).toBe(`${API_BASE_URL}/races/race-1/join`);
+    expect(config.method).toBe('POST');
+    expect(JSON.parse(config.body as string)).toEqual({ horseId: 'horse-1' });
+    expect((config.headers as Headers).get('Idempotency-Key')).toBe('key-7');
+  });
+
+  it('setLobbyEntryReady durumu gönderir ve anahtar GÖNDERMEZ', async () => {
+    const fetchMock = stubFetchOnce({ success: true, data: {} });
+    await apiClient.setLobbyEntryReady('race-1', 'ready');
+    const [url, config] = requestArgs(fetchMock);
+    expect(url).toBe(`${API_BASE_URL}/races/race-1/ready`);
+    expect(JSON.parse(config.body as string)).toEqual({ status: 'ready' });
+    expect((config.headers as Headers).get('Idempotency-Key')).toBeNull();
+  });
+
+  it('leaveLobbyRace anahtarla POST eder (iade — ZORUNLU)', async () => {
+    const fetchMock = stubFetchOnce({ success: true, data: {} });
+    await apiClient.leaveLobbyRace('race-1', 'key-9');
+    const [url, config] = requestArgs(fetchMock);
+    expect(url).toBe(`${API_BASE_URL}/races/race-1/leave`);
+    expect(config.method).toBe('POST');
+    expect((config.headers as Headers).get('Idempotency-Key')).toBe('key-9');
+  });
+});
+
+describe('apiClient e-posta + şifre girişi (30.09.2026)', () => {
+  it('loginWithPassword gövdeyi POST /auth/login/password ile gönderir', async () => {
+    const fetchMock = stubFetchOnce({ success: true, data: { token: 't', player: samplePlayer } });
+    await apiClient.loginWithPassword('ali@ornek.com', 'sifre-12345');
+    const [url, config] = requestArgs(fetchMock);
+    expect(url).toBe(`${API_BASE_URL}/auth/login/password`);
+    expect(config.method).toBe('POST');
+    expect(JSON.parse(config.body as string)).toEqual({ email: 'ali@ornek.com', password: 'sifre-12345' });
+  });
+
+  it('saveAccount POST /auth/credentials — oyuncu kimliği GÖVDEDE YOK (token\'dan gelir)', async () => {
+    const fetchMock = stubFetchOnce({ success: true, data: { email: 'ali@ornek.com' } });
+    await apiClient.saveAccount('ali@ornek.com', 'sifre-12345');
+    const [url, config] = requestArgs(fetchMock);
+    expect(url).toBe(`${API_BASE_URL}/auth/credentials`);
+    expect(config.method).toBe('POST');
+    expect(JSON.parse(config.body as string)).toEqual({ email: 'ali@ornek.com', password: 'sifre-12345' });
+  });
+
+  it('getAccountCredentials GET /auth/credentials', async () => {
+    const fetchMock = stubFetchOnce({ success: true, data: { email: null, linkedProviders: [] } });
+    await apiClient.getAccountCredentials();
+    const [url, config] = requestArgs(fetchMock);
+    expect(url).toBe(`${API_BASE_URL}/auth/credentials`);
+    expect(config.method ?? 'GET').toBe('GET');
+  });
+});
+
+describe('apiClient Google girişi (01.10.2026)', () => {
+  it('getAuthProviders GET /auth/providers', async () => {
+    const fetchMock = stubFetchOnce({ success: true, data: { googleClientId: null } });
+    expect(await apiClient.getAuthProviders()).toEqual({ googleClientId: null });
+    const [url, config] = requestArgs(fetchMock);
+    expect(url).toBe(`${API_BASE_URL}/auth/providers`);
+    expect(config.method ?? 'GET').toBe('GET');
+  });
+
+  it('loginWithGoogle POST /auth/login — sağlayıcı google, belge gövdede', async () => {
+    const fetchMock = stubFetchOnce({ success: true, data: { token: 't', player: samplePlayer } });
+    await apiClient.loginWithGoogle('google-belgesi');
+    const [url, config] = requestArgs(fetchMock);
+    expect(url).toBe(`${API_BASE_URL}/auth/login`);
+    expect(config.method).toBe('POST');
+    expect(JSON.parse(config.body as string)).toEqual({ provider: 'google', idToken: 'google-belgesi' });
+  });
+
+  it('linkGoogle POST /auth/link — oyuncu kimliği GÖVDEDE YOK (token\'dan gelir)', async () => {
+    const fetchMock = stubFetchOnce({ success: true, data: { provider: 'google' } });
+    await apiClient.linkGoogle('google-belgesi');
+    const [url, config] = requestArgs(fetchMock);
+    expect(url).toBe(`${API_BASE_URL}/auth/link`);
+    expect(config.method).toBe('POST');
+    expect(JSON.parse(config.body as string)).toEqual({ provider: 'google', idToken: 'google-belgesi' });
+  });
+});
+
+describe('apiClient şifre sıfırlama (30.09.2026)', () => {
+  it('requestPasswordReset POST /auth/password-reset/request', async () => {
+    const fetchMock = stubFetchOnce({ success: true, data: { accepted: true } });
+    await apiClient.requestPasswordReset('ali@ornek.com');
+    const [url, config] = requestArgs(fetchMock);
+    expect(url).toBe(`${API_BASE_URL}/auth/password-reset/request`);
+    expect(JSON.parse(config.body as string)).toEqual({ email: 'ali@ornek.com' });
+  });
+
+  it('confirmPasswordReset POST /auth/password-reset/confirm', async () => {
+    const fetchMock = stubFetchOnce({ success: true, data: { reset: true } });
+    await apiClient.confirmPasswordReset('tok', 'yeni-sifre-1');
+    const [url, config] = requestArgs(fetchMock);
+    expect(url).toBe(`${API_BASE_URL}/auth/password-reset/confirm`);
+    expect(JSON.parse(config.body as string)).toEqual({ token: 'tok', password: 'yeni-sifre-1' });
   });
 });

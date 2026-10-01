@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import type { RaceLobbyView } from '@at-sevdalisi/shared-types';
+import type { RaceLobbyListItem } from '@at-sevdalisi/shared-types';
 import { normalizeLobbyListLimit } from '../../domain/race/lobby';
 import { RACE_REPOSITORY, type RaceRepository } from '../ports/race.repository';
 import { AppConfigService } from '../../infrastructure/config/config.service';
@@ -44,8 +44,8 @@ export class ListLobbyRacesUseCase {
    * hem tipini hem aralığını güvenli hâle getirir — hatalı girdi 400 değil,
    * varsayılana düşer (gerekçesi o fonksiyonun doc yorumunda).
    */
-  async execute(rawLimit: unknown): Promise<RaceLobbyView[]> {
+  async execute(viewerId: string, rawLimit: unknown): Promise<RaceLobbyListItem[]> {
     const limit = normalizeLobbyListLimit(rawLimit, this.config.raceLobby);
-    return this.raceRepository.listLobbyRaces({ status: 'scheduled', limit });
+    return this.raceRepository.listLobbyRaces({ status: 'scheduled', limit, viewerId });
   }
 }

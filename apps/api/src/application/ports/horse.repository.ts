@@ -47,6 +47,13 @@ export interface HorseRepository {
    * `feed-horse.use-case.ts` doc yorumları).
    */
   updateWithLock<T>(id: string, mutate: (horse: Horse) => { horse: Horse; result: T }): Promise<T | null>;
+  /**
+   * 30.09.2026 — at henüz koşulmamış (`scheduled`/`locking`) bir lobi
+   * yarışına kayıtlı mı? Pazar ilanı açılmadan önce sorulur. Kilit ALMAZ:
+   * ilan oluşturma bir ön kontroldür, asıl garanti satın alma
+   * transaction'ındaki (at satırı kilitliyken) AYNI kontroldür.
+   */
+  isInActiveRace(horseId: string): Promise<boolean>;
 }
 
 /** NestJS DI için token (interface'ler runtime'da yok olduğundan bir Symbol gerekir). */

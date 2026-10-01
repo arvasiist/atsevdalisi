@@ -113,6 +113,12 @@ export interface RaceTicketView {
   currency: Currency;
   purchasedAt: ISODateTimeString;
   finishedAt: ISODateTimeString;
+  /**
+   * 30.09.2026 (migration 0044) — yarışın bu bilet sayesinde İLK izlendiği
+   * an. `null` = hiç izlenmedi → iade edilebilir; dolu = kullanıldı →
+   * `DELETE /races/:id/tickets` 409 `TICKET_ALREADY_USED` döner.
+   */
+  usedAt: ISODateTimeString | null;
 }
 
 /**

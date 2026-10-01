@@ -83,6 +83,13 @@ export class GetRaceTimelineUseCase {
       if (!canWatchFree && !hasTicket) {
         throw new RaceTicketRequiredError(raceId);
       }
+      // 30.09.2026 — erişim YALNIZCA bilet sayesindeyse bilet "kullanıldı"
+      // işaretlenir (migration 0044); izlenmiş bilet iade edilmez. Satır
+      // bu arada iade edildiyse (`false`) erişim reddedilir — aksi hâlde
+      // eşzamanlı "izle + iade et" bedava izleme penceresi bırakırdı.
+      if (!canWatchFree && !(await this.grandstandRepository.markTicketViewed(raceId, requestingPlayerId))) {
+        throw new RaceTicketRequiredError(raceId);
+      }
     }
 
     return timeline;

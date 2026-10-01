@@ -243,6 +243,11 @@ export interface WalletView {
   gems: number;
   transactions: WalletTransaction[];
   hasMore: boolean;
+  /**
+   * 30.09.2026 — sonraki sayfanın imleci (`?before=` ile gönderilir).
+   * `hasMore` ise bu sayfanın SON satırının `id`si, değilse `null`.
+   */
+  nextCursor: string | null;
 }
 
 /**

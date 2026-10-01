@@ -122,6 +122,12 @@ describe('Oyuncu profili (e2e) — GET /players/profile/:username', () => {
       .set('Idempotency-Key', `profil-${raceId}`)
       .send({ horseId: participant.horseId })
       .expect(200);
+    // READY ŞARTI (30.09.2026): hazır demeyen katılım kesinleşmede iade edilip düşülür.
+    await request(app.getHttpServer())
+      .post(`/api/v1/races/${raceId}/ready`)
+      .set('Authorization', participant.authHeader)
+      .send({ status: 'ready' })
+      .expect(200);
 
     // `startDelaySeconds.min` 60'tır — yarışı "başlamış" duruma getirmenin
     // başka yolu yoktur (üretimde bunu bir zamanlayıcı yapar).

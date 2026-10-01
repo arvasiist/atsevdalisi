@@ -17,6 +17,7 @@
  * etkilemeyen bir iç değişiklik olur.
  */
 import type {
+  AuthConfig,
   AdminConfig,
   AudioConfig,
   CameraConfig,
@@ -63,6 +64,7 @@ import giftConfigJson from '../../../config/gift.config.json';
 import chatConfigJson from '../../../config/chat.config.json';
 import raceLobbyConfigJson from '../../../config/race-lobby.config.json';
 import adminConfigJson from '../../../config/admin.config.json';
+import authConfigJson from '../../../config/auth.config.json';
 
 export function loadRaceConfig(): RaceBalanceConfig {
   return raceConfigJson as unknown as RaceBalanceConfig;
@@ -226,3 +228,13 @@ export function loadRaceLobbyConfig(): RaceLobbyConfig {
 }
 
 export * from './types';
+
+/**
+ * E-posta + şifre girişi (30.09.2026, migration 0046). Diğer `load*Config()`
+ * gibi saf bir cast'tir; değerler `auth-config.spec.ts` ile sabitlenir.
+ * `scrypt` parametreleri YALNIZCA yeni özetler için kullanılır — eski
+ * özetler kendi parametrelerini taşır.
+ */
+export function loadAuthConfig(): AuthConfig {
+  return authConfigJson as unknown as AuthConfig;
+}

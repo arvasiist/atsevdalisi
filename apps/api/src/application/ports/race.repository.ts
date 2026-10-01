@@ -4,6 +4,7 @@ import type {
   RaceEntrantSnapshot,
   RaceEntry,
   RaceEntryStatus,
+  RaceLobbyListItem,
   RaceLobbyView,
   RaceSegmentSnapshot,
   RaceSettlementResult,
@@ -233,7 +234,7 @@ export interface RaceRepository {
    * olmalıdır — oyuncunun kararı zaten "hangi yarışa YETİŞEBİLİRİM"
    * sorusudur.
    */
-  listLobbyRaces(input: ListLobbyRacesInput): Promise<RaceLobbyView[]>;
+  listLobbyRaces(input: ListLobbyRacesInput): Promise<RaceLobbyListItem[]>;
 
   /**
    * Oyuncunun KENDİ katılım satırının durumunu değiştirir (brief §6, §42
@@ -282,6 +283,51 @@ export interface RaceRepository {
    * kısıtı sıfır tutarlı bir satırı zaten reddederdi.
    */
   leaveLobbyRace(input: LeaveLobbyRaceInput): Promise<RaceLobbyView>;
+  /**
+   * READY ŞARTI (30.09.2026) — brief §6 / proje sahibinin talebi: "HAZIR
+   * OLAN kişiler yarışabilsinler". Başlangıç zamanı gelmiş `scheduled` bir
+   * yarışta `ready` DEMEMİŞ (`waiting`/`not_ready`) her gerçek katılımı
+   * `cancelled` yapar ve ödediği giriş ücretini İADE eder
+   * (`race_entry_refund`, tutar `leaveLobbyRace` gibi DEFTERDEN okunur).
+   * Hiç hazır oyuncu kalmazsa yarışın kendisi `cancelled` olur.
+   *
+   * **NEDEN İADE, YAKMA DEĞİL:** hazır olmamak bir kural ihlali değil, bir
+   * vazgeçmedir; `leaveLobbyRace` ile aynı sonucu üretir. Yakmak, READY
+   * düğmesini görmeyen oyuncuyu cezalandırırdı.
+   *
+   * Kilitleme (`LockRaceUseCase`) ve `scheduled`dan doğrudan kesinleştirme
+   * (`SettleRaceUseCase`) snapshot kurmadan ÖNCE çağırır; böylece kadro
+   * tripwire'ı yalnızca hazır katılımları görür. Tek transaction, `races`
+   * satırı `FOR UPDATE`; yarış `scheduled` değilse ya da başlangıç zamanı
+   * gelmemişse HİÇBİR ŞEY yapmaz (idempotent — ikinci çağrı boş döner).
+   */
+  dropUnreadyLobbyEntries(input: {
+    raceId: string;
+    now: Date;
+    /**
+     * 30.09.2026 — düşürmeden sonra kalması gereken en az HAZIR oyuncu.
+     * Varsayılan 1 (lobi). Turnuvada `online.tournament.minParticipants`:
+     * altında kalınırsa KALANLAR da iade edilip yarış iptal edilir.
+     */
+    minRemaining?: number;
+  }): Promise<DropUnreadyLobbyEntriesResult>;
+
+  /** 30.09.2026 — yarış bir turnuva finaliyse kademesi ve seviye şartı; değilse `null`. */
+  findTournamentInfo(raceId: string): Promise<TournamentInfo | null>;
+
+  /** 30.09.2026 — kaydı AÇIK (`scheduled`) turnuvası olan kademeler. */
+  findOpenTournamentTiers(): Promise<string[]>;
+
+  /**
+   * 30.09.2026 — turnuva finali olan bir lobi yarışı + `tournaments` satırı,
+   * TEK transaction. `created_by` NULL'dır (sunucu üretimi yarış). O
+   * kademede kaydı açık bir turnuva zaten varsa (eşzamanlı ikinci çağrı)
+   * hiçbir şey yazmaz ve `null` döner.
+   */
+  createTournamentRace(input: CreateTournamentRaceInput): Promise<string | null>;
+
+  /** 30.09.2026 — başlangıcı geçmiş, hiç katılımı olmayan turnuvaları iptal eder; iptal sayısını döner. */
+  cancelEmptyDueTournaments(now: Date): Promise<number>;
 
   /**
    * Bir lobi yarışının KESİNLEŞME BAĞLAMINI okur (salt okuma, §42 PHASE
@@ -330,6 +376,17 @@ export interface RaceRepository {
    * çağırandan gelir (`RaceLobbyConfig.lockScheduler.batchSize`).
    */
   findRacesDueForLock(input: { now: Date; limit: number }): Promise<string[]>;
+
+  /**
+   * Kesinleşmeyi bekleyen (`locking`) yarışların kimlikleri, en eski
+   * başlangıç önce (30.09.2026 — otomatik kesinleşme). `locking` = snapshot
+   * donmuş, ödül dağıtılmamış; bu durumda kalan her yarışın giriş ücretleri
+   * havuzda BEKLER. Zamanlayıcı bu listeyi `SettleRaceUseCase` ile kapatır.
+   * Kilit ALMAZ: seçim yalnızca bir ön listedir, asıl karar
+   * `settleLobbyRace`in kilit altındaki durum kontrolüdür (ikinci işçi 409
+   * `RACE_NOT_SETTLEABLE` alır ve atlar).
+   */
+  findRacesDueForSettle(input: { limit: number }): Promise<string[]>;
 
   /**
    * Yarışı `scheduled`dan `locking`e geçirir ve O AN'ı DONDURUR (brief §42
@@ -439,6 +496,8 @@ export interface ListLobbyRacesInput {
   status: RaceStatus;
   /** Azami kayıt sayısı — çağıran tarafından config'e göre kırpılmıştır. */
   limit: number;
+  /** Çağıran oyuncu — yalnızca KENDİ katılımı (`myEntry`) için okunur. */
+  viewerId: string;
 }
 
 /**
@@ -654,6 +713,38 @@ export interface SavePvpMatchWithRatingsResult {
  * kesinleşme snapshot'ı kendisi kurar — yani davranış ESKİSİYLE AYNIdır,
  * yalnızca artık "her zaman" değil "zamanlayıcı çalışmadıysa" geçerlidir.
  */
+export interface TournamentInfo {
+  tier: 'bronze' | 'silver' | 'gold';
+  minPlayerLevel: number;
+}
+
+export interface CreateTournamentRaceInput {
+  raceId: string;
+  tier: 'bronze' | 'silver' | 'gold';
+  name: string;
+  startTime: Date;
+  entryFee: number;
+  maxParticipants: number;
+  minPlayerLevel: number;
+  distanceMeters: number;
+  surface: string;
+  weather: string;
+  tribuneFee: number;
+  spectatorCapacity: number;
+  engineVersion: string;
+  rulesetVersion: string;
+  configVersion: string;
+  weatherConfigVersion: string;
+}
+
+/** `dropUnreadyLobbyEntries` sonucu. */
+export interface DropUnreadyLobbyEntriesResult {
+  /** Katılımı iptal edilip ücreti iade edilen oyuncular. */
+  droppedPlayerIds: string[];
+  /** Hiç hazır oyuncu kalmadığı için yarışın kendisi `cancelled` oldu mu. */
+  raceCancelled: boolean;
+}
+
 export interface LobbySettlementEntrant {
   entryId: string;
   playerId: string;

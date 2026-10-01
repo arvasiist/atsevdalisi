@@ -98,9 +98,12 @@ export class EconomyController {
     @Param('id', ParseUUIDPipe) id: string,
     @Query('limit') limit: string | undefined,
     @CurrentPlayer() currentPlayer: AuthenticatedPlayer,
+    // 30.09.2026 — sayfa imleci (`WalletView.nextCursor`); HAM geçirilir,
+    // doğrulama `normalizeWalletHistoryCursor`dadır.
+    @Query('before') before: string | undefined,
   ): Promise<ApiSuccess<WalletView>> {
     assertSelf(currentPlayer.id, id);
-    const wallet = await this.getWalletUseCase.execute(id, limit);
+    const wallet = await this.getWalletUseCase.execute(id, limit, before);
     return { success: true, data: wallet };
   }
 

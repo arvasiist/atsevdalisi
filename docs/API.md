@@ -663,10 +663,19 @@ sonra yeniden satın almak beklenen akıştır), iade tutarı **satırın kendi
 `price` sütunundan** okunur (`races.tribune_fee`den DEĞİL — yarışın ücreti
 sonradan değişse bile geçmiş bir satın alma kendi tutarını korur), bakiyeye
 `credit` edilir ve AYNI transaction'da POZİTİF bir `grandstand_ticket_refund`
-defter satırı yazılır. Bilet yoksa `404 RACE_TICKET_NOT_FOUND`. İade
-penceresi YOKTUR (pencere yalnızca satın almayı kısıtlar); çift iadeyi
-`IdempotencyInterceptor` değil, `DELETE ... RETURNING`in 0 satır dönmesi
-engeller.
+defter satırı yazılır. Bilet yoksa `404 RACE_TICKET_NOT_FOUND`. Çift
+iadeyi `IdempotencyInterceptor` değil, `DELETE ... RETURNING`in 0 satır
+dönmesi engeller.
+
+**30.09.2026 — İZLENMİŞ BİLET İADE EDİLMEZ (`409 TICKET_ALREADY_USED`).**
+Bilet yalnızca bitmiş yarışa satıldığı için "zaman penceresi" anlamsızdır;
+asıl açık "izle + parayı geri al"dı. Yarış izleyiciye ilk kez **bilet
+sayesinde** açıldığında (`GetRaceTimelineUseCase` — HTTP replay ve canlı
+`race.subscribe` aynı kapı) `race_tickets.first_viewed_at` doldurulur
+(migration 0044); dolu bilet iade edilmez. `GET /players/{id}/tickets`
+satırı bunu `usedAt` olarak taşır. Katılımcının ya da ücretsiz tribünün
+izlemesi bileti işaretlemez. Eşzamanlı "izle + iade et": iade önce
+kazanırsa izleme `403 RACE_TICKET_REQUIRED` alır.
 
 `config/grandstand.config.json` değerleri **doğrudan** okunur; `game-config`
 yükleyicisi saf bir cast olduğundan (çalışma zamanı doğrulaması YOK),
@@ -2444,6 +2453,15 @@ demektir ve o ayrı bir para yoludur; READY ucundan yazılabilseydi ücret
 **`Idempotency-Key` YOKTUR** — bu uç bakiye, ödül havuzu ve deftere
 dokunmaz; aynı değeri iki kez yazmak sonucu değiştirmez.
 
+**READY ŞARTI (30.09.2026) — YALNIZCA HAZIR OLAN KOŞAR.** Başlangıç zamanı
+gelip yarış kilitlenirken (ya da `scheduled` yarış doğrudan
+`POST /races/{id}/settle` ile kesinleştirilirken) `ready` DEMEMİŞ her
+katılım (`waiting`/`not_ready`) `cancelled` olur ve ödediği giriş ücreti
+**defterden okunan tutarla** iade edilir (`race_entry_refund`, ayrılma ile
+AYNI). Hiç hazır oyuncu kalmazsa yarışın kendisi `cancelled` olur. Bu
+yüzden READY artık bilgi değil, **koşmanın şartıdır**; pencere başlangıç
+anında kapanır.
+
 Kabul koşulları: yarış `scheduled` olmalı, başlangıç zamanı gelmemiş olmalı
 (tam başlangıç anında pencere KAPALIDIR — `join` ile aynı sınır), katılım
 `cancelled` olmamalı. Red nedeni önceliği: **durum > zaman > iptal**.
@@ -2485,6 +2503,13 @@ iptal**. Ret kodu `RACE_ENTRY_NOT_LEAVABLE` (409); katılım yoksa
 havuzun küçüldüğünü görmek için ikinci istek atmak zorunda kalmamalıdır).
 
 #### `POST /races/{id}/settle` — yarışı KOŞTUR ve ödülleri dağıt (§42 PHASE 13.14)
+
+> **30.09.2026 — ZAMANLAYICI ARTIK KESİNLEŞTİRİR.** `RaceLockScheduler`
+> her turda önce vadesi gelen yarışları kilitler, ardından `locking`
+> durumundaki yarışları bu uçla AYNI use-case'le (`SettleRaceUseCase`)
+> kesinleştirir (`SettleDueRacesUseCase`). Bu uç bir "crank" olarak
+> yaşamaya devam eder; ikisi aynı yarışa gelirse ikincisi 409
+> `RACE_NOT_SETTLEABLE` alır — çift ödeme yapısal olarak imkânsızdır.
 
 **Gövde YOKTUR. `Idempotency-Key` YOKTUR.** Tek parametre yoldan gelen
 `raceId`'dir. 200 OK döner, gövde `RaceSettlementResult`'tır.
@@ -2923,6 +2948,12 @@ dosyanın doc yorumu).
 |---|---|
 | `HORSE_TOO_TIRED` | Atın enerjisi/yorgunluğu yarış veya antrenman için yetersiz |
 | `HORSE_INJURED` | At sakat, işlem yapılamaz |
+| `INVALID_CREDENTIALS` | E-posta ya da şifre hatalı — `POST /auth/login/password` (401). Kayıtlı olmayan e-posta ile yanlış şifre BİLEREK aynı kod ve aynı mesajdır (enumerasyon yok) (30.09.2026) |
+| `EMAIL_ALREADY_REGISTERED` | Bu e-posta başka bir hesaba bağlı — `POST /auth/credentials` (409); karşılaştırma büyük/küçük harf duyarsız (30.09.2026) |
+| `INVALID_RESET_TOKEN` | Şifre sıfırlama bağlantısı geçersiz, süresi dolmuş ya da kullanılmış — `POST /auth/password-reset/confirm` (400). Üç durum BİLEREK tek koddur (30.09.2026, migration 0047) |
+| `CREDENTIALS_ALREADY_SET` | Bu hesap zaten e-posta + şifreyle kayıtlı — `POST /auth/credentials` (409) (30.09.2026) |
+| `PLAYER_LEVEL_TOO_LOW` | Turnuvanın seviye şartı karşılanmadı — `POST /races/:id/join` (409), para hareket etmez (30.09.2026, migration 0045) |
+| `HORSE_IN_ACTIVE_RACE` | At henüz koşulmamış (`scheduled`/`locking`) bir lobi yarışına kayıtlı: ikinci bir açık yarışa yazılamaz (`POST /races/:id/join`), pazara çıkarılamaz (`POST /market/listings`) ve satın alınamaz (`POST /market/listings/:id/buy`). Yarış bitince, iptal edilince ya da oyuncu ayrılınca kalkar (30.09.2026) |
 | `INSUFFICIENT_FUNDS` | Oyuncunun parası işlemi karşılamıyor |
 | `INSUFFICIENT_ENERGY` | Antrenman için enerji yetersiz |
 | `RACE_FULL` | Yarış katılımcı limitine ulaştı; `POST /races/:id/join`'de ayrıca GERÇEK oyuncu kontenjanı (`races.max_players`) doldu demektir (Ücretli yarış, 27.09.2026) |
