@@ -52,6 +52,8 @@ import { HorseHeadIcon } from '../../components/ui/HorseHeadIcon';
 import { StarRating } from '../../components/ui/StarRating';
 import { StatBar } from '../../components/ui/StatBar';
 import { getCareerProgress } from '../../features/career/career-tier';
+import { pickFeaturedHorse } from '../../features/home-scene/featured-horse';
+import { HomeHero } from '../../features/home-scene/HomeHero';
 import { apiClient } from '../../lib/api-client';
 import { CURRENCY_LABELS } from '../../lib/currency';
 import { formatRaceStart, formatTimeUntil } from '../../lib/format-time';
@@ -86,7 +88,7 @@ export default function DashboardPage(): React.ReactElement {
 
   return (
     <main>
-      <Hero />
+      <HomeHero />
 
       <div className="page-container" style={{ display: 'grid', gap: 'var(--space-lg)' }}>
         {!player && !isLoading ? (
@@ -126,76 +128,6 @@ export default function DashboardPage(): React.ReactElement {
         <QuickAccess />
       </div>
     </main>
-  );
-}
-
-function Hero(): React.ReactElement {
-  return (
-    <section className="home-hero">
-      <HeroScenery />
-      <div className="home-hero-content">
-        <HorseHeadIcon size={64} gradient withMane />
-        <h1 className="home-hero-title">AT SEVDALISI</h1>
-        <p className="home-hero-subtitle">
-          Atını yetiştir <span aria-hidden="true">•</span> Ahırını yönet <span aria-hidden="true">•</span> Yarışları kazan
-        </p>
-        <div className="home-hero-actions">
-          <Link href="/races" className="btn-gold">
-            <Trophy size={18} aria-hidden="true" />
-            Yarışa Katıl
-          </Link>
-          <Link href="/stable" className="btn-outline">
-            <HorseHeadIcon size={18} />
-            Ahırıma Git
-          </Link>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-/**
- * Başlık bandının sahnesi — gün batımında hipodrom: güneş parıltısı, uzak
- * tribün silüeti, pist korkulukları. Tamamen CSS/SVG; fotoğraf DEĞİLDİR.
- */
-function HeroScenery(): React.ReactElement {
-  return (
-    <svg aria-hidden="true" viewBox="0 0 1440 360" preserveAspectRatio="xMidYMax slice" className="home-hero-scenery">
-      <defs>
-        <radialGradient id="hero-sun" cx="0.72" cy="0.55" r="0.45">
-          <stop offset="0" stopColor="#ffd27a" stopOpacity="0.55" />
-          <stop offset="0.35" stopColor="#e8963c" stopOpacity="0.22" />
-          <stop offset="1" stopColor="#e8963c" stopOpacity="0" />
-        </radialGradient>
-        <linearGradient id="hero-ground" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#1a1f2a" />
-          <stop offset="1" stopColor="#070b14" />
-        </linearGradient>
-      </defs>
-      <rect width="1440" height="360" fill="url(#hero-sun)" />
-      {/* Tribün silüeti */}
-      <path
-        d="M760 250 L760 196 L1180 176 L1440 182 L1440 250 Z"
-        fill="#0d1322"
-        opacity="0.95"
-      />
-      <path d="M760 196 L1180 176 L1440 182" stroke="#e8b84a" strokeOpacity="0.35" strokeWidth="2" fill="none" />
-      {Array.from({ length: 14 }, (_, i) => (
-        <rect key={i} x={790 + i * 46} y={200 - i * 1.4} width="3" height="50" fill="#e8b84a" opacity="0.12" />
-      ))}
-      {/* Uzak tepeler */}
-      <path d="M0 262 C180 236 320 248 470 240 C620 232 700 252 840 246 L840 262 Z" fill="#0f1626" />
-      {/* Pist zemini */}
-      <rect y="250" width="1440" height="110" fill="url(#hero-ground)" />
-      {/* Pist korkulukları */}
-      <path d="M0 286 C400 268 1040 268 1440 290" stroke="#f5f1e8" strokeOpacity="0.5" strokeWidth="3" fill="none" />
-      <path d="M0 322 C420 300 1020 300 1440 326" stroke="#f5f1e8" strokeOpacity="0.28" strokeWidth="2" fill="none" />
-      {Array.from({ length: 30 }, (_, i) => {
-        const x = i * 50;
-        const y = 286 - Math.sin((x / 1440) * Math.PI) * 18;
-        return <rect key={i} x={x} y={y} width="3" height="16" fill="#f5f1e8" opacity="0.35" />;
-      })}
-    </svg>
   );
 }
 
@@ -338,10 +270,7 @@ const GENDER_LABELS: Record<PublicHorse['gender'], string> = {
 };
 
 /** Öne çıkan at: en yüksek kaliteli olan (eşitlikte en yüksek seviye). */
-function pickFeatured(horses: PublicHorse[]): PublicHorse | null {
-  if (horses.length === 0) return null;
-  return [...horses].sort((a, b) => b.quality - a.quality || b.level - a.level)[0] ?? null;
-}
+const pickFeatured = pickFeaturedHorse;
 
 function FeaturedHorseCard({ ownerId }: { ownerId: string }): React.ReactElement {
   const [horses, setHorses] = useState<PublicHorse[] | null>(null);

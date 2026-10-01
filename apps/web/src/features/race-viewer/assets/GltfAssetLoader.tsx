@@ -39,12 +39,8 @@ import { useThree } from '@react-three/fiber';
 import { useGLTF } from '@react-three/drei';
 import type { GLTF, GLTFLoader } from 'three-stdlib';
 import { resolveAnimationClips, type AnimationRole, type AssetRequirement } from './asset-manifest';
-import {
-  DRACO_DECODER_PATH,
-  assetUrl,
-  getKtx2Loader,
-  useAssetAvailability,
-} from './asset-pipeline';
+import { DRACO_DECODER_PATH, assetUrl, useAssetAvailability } from './asset-pipeline';
+import { getKtx2Loader } from './ktx2-loader';
 
 interface GltfErrorBoundaryProps {
   fallback: ReactNode;
@@ -104,7 +100,7 @@ function GltfScene({
 }): React.ReactElement {
   const gl = useThree((state) => state.gl);
   // 01.10.2026 — Draco çözücüsü YEREL yoldan (CDN değil), Meshopt paketten,
-  // KTX2 dokular renderer'a bağlı yerel transcoder ile (asset-pipeline.ts).
+  // KTX2 dokular renderer'a bağlı yerel transcoder ile (ktx2-loader.ts).
   const gltf = useGLTF(path, DRACO_DECODER_PATH, true, (loader) => {
     (loader as unknown as GLTFLoader).setKTX2Loader(getKtx2Loader(gl));
   }) as unknown as GLTF;

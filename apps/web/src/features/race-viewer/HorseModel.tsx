@@ -89,6 +89,8 @@ export interface HorseModelProps {
   demeanor?: HorseDemeanor;
   /** Jokey çizilsin mi (ahır/vitrin sahnesinde at yalnız durabilir). Varsayılan: evet. */
   showJockey?: boolean;
+  /** Numaralı eyer örtüsü — yalnızca yarışta anlamlı. Varsayılan: `showJockey`. */
+  showSaddleCloth?: boolean;
 }
 
 export function HorseModel({
@@ -100,6 +102,7 @@ export function HorseModel({
   appearance,
   demeanor,
   showJockey = true,
+  showSaddleCloth,
 }: HorseModelProps): React.ReactElement {
   const coatIndex = hashString(horseId) % COAT_COLORS.length;
   const palette = appearance ? paletteFor(appearance) : null;
@@ -195,8 +198,9 @@ export function HorseModel({
           <boxGeometry args={[0.08, 0.95, 0.07]} />
           {darkMaterial}
         </mesh>
-        {/* Baş: boyun ucundan aşağı-ileri */}
-        <group position={[0, 0.95, 0]} rotation={[0, 0, 1.75]}>
+        {/* Baş: boyun ucundan öne-aşağı (01.10.2026 düzeltmesi — eski açı 1.75
+            başı geriye-yukarı çeviriyordu; toplam açı ≈ -2.2 rad = öne-aşağı). */}
+        <group position={[0, 0.95, 0]} rotation={[0, 0, -1.51]}>
           <mesh position={[0, 0.3, 0]} castShadow={castShadow}>
             <cylinderGeometry args={[0.09, 0.15, 0.62, 10]} />
             {coatMaterial}
@@ -264,8 +268,8 @@ export function HorseModel({
         hind
       />
 
-      {/* Eyer örtüsü (numaralı) — yalnızca jokeyli (yarış) görünümde */}
-      {showJockey ? (
+      {/* Eyer örtüsü (numaralı) — yalnızca yarış görünümünde */}
+      {(showSaddleCloth ?? showJockey) ? (
         <>
           <mesh position={[-0.05, 1.42, 0.335]}>
             <planeGeometry args={[0.62, 0.42]} />
@@ -334,8 +338,8 @@ const Leg = forwardRef<THREE.Group, LegProps>(function Leg(
 });
 
 /**
- * Yüz işareti (01.10.2026) — baş grubunun yerel ekseninde (+Y burna doğru)
- * alnın önüne yerleşen beyaz alan. star = alında küçük leke, stripe = ince
+ * Yüz işareti (01.10.2026) — baş grubunun yerel ekseninde (+Y burna doğru,
+ * -X alın yüzü) alnın önüne yerleşen beyaz alan. star = alında küçük leke, stripe = ince
  * şerit, blaze = geniş şerit, snip = burun ucunda leke.
  */
 function FaceMarking({
@@ -347,7 +351,7 @@ function FaceMarking({
   const material = <meshStandardMaterial color={MARKING_WHITE} roughness={0.7} />;
   if (kind === 'star') {
     return (
-      <mesh position={[0.1, 0.12, 0]}>
+      <mesh position={[-0.1, 0.12, 0]}>
         <sphereGeometry args={[0.05, 8, 6]} />
         {material}
       </mesh>
@@ -355,7 +359,7 @@ function FaceMarking({
   }
   if (kind === 'snip') {
     return (
-      <mesh position={[0.07, 0.58, 0]}>
+      <mesh position={[-0.07, 0.58, 0]}>
         <sphereGeometry args={[0.045, 8, 6]} />
         {material}
       </mesh>
@@ -363,7 +367,7 @@ function FaceMarking({
   }
   const width = kind === 'blaze' ? 0.09 : 0.035;
   return (
-    <mesh position={[0.11, 0.32, 0]}>
+    <mesh position={[-0.11, 0.32, 0]}>
       <boxGeometry args={[0.03, 0.5, width]} />
       {material}
     </mesh>

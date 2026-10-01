@@ -51,8 +51,9 @@ export function PlaceholderBadge({
       }}
     >
       <strong style={{ letterSpacing: '0.08em' }}>PLACEHOLDER</strong> — prosedürel görüntü, nihai
-      değil. Bekleyen varlıklar:
-      <ul style={{ margin: '2px 0 0', paddingLeft: 16 }}>
+      değil. <span className="placeholder-badge-list">Bekleyen varlıklar:</span>
+      <span className="placeholder-badge-count">({missing.length} varlık bekleniyor)</span>
+      <ul className="placeholder-badge-list" style={{ margin: '2px 0 0', paddingLeft: 16 }}>
         {missing.map((url) => (
           <li key={url}>{url.replace(/^\//, '')}</li>
         ))}

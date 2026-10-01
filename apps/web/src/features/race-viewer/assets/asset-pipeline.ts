@@ -6,14 +6,14 @@
  *    (13)). Çözücüler `scripts/copy-3d-decoders.mjs` ile `three` paketinden
  *    `public/decoders/`e kopyalanır ve buradan yüklenir. Meshopt çözücüsü
  *    zaten paketin içindedir (ağ isteği yok).
+ *    KTX2 yükleyicisi `ktx2-loader.ts`tedir (three.js'i bu dosyadan
+ *    uzak tutmak için — rozet/yoklama ana pakete three çekmesin).
  * 2. **Varlık yoklaması.** Dosya `public/` altında yoksa yüklemeyi hiç
  *    denemeyiz (404 + hata sınırı yerine doğrudan PLACEHOLDER). Sonuç oturum
  *    boyunca önbelleklenir.
  */
 
 import { useEffect, useState } from 'react';
-import type { WebGLRenderer } from 'three';
-import { KTX2Loader } from 'three-stdlib';
 
 export const DRACO_DECODER_PATH = '/decoders/draco/';
 export const BASIS_TRANSCODER_PATH = '/decoders/basis/';
@@ -21,18 +21,6 @@ export const BASIS_TRANSCODER_PATH = '/decoders/basis/';
 /** `public/`e göreli manifest yolunu URL'ye çevirir. */
 export function assetUrl(expectedPath: string): string {
   return `/${expectedPath.replace(/^\/+/, '')}`;
-}
-
-const ktx2Loaders = new WeakMap<WebGLRenderer, KTX2Loader>();
-
-/** Renderer başına TEK KTX2 yükleyici (GPU biçim desteği renderer'a bağlıdır). */
-export function getKtx2Loader(renderer: WebGLRenderer): KTX2Loader {
-  let loader = ktx2Loaders.get(renderer);
-  if (!loader) {
-    loader = new KTX2Loader().setTranscoderPath(BASIS_TRANSCODER_PATH).detectSupport(renderer);
-    ktx2Loaders.set(renderer, loader);
-  }
-  return loader;
 }
 
 export type AssetAvailability = 'checking' | 'available' | 'missing';

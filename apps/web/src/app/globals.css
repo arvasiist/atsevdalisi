@@ -708,77 +708,235 @@ a {
   text-transform: uppercase;
 }
 
-/* ---- Ana sayfa: başlık bandı ---- */
-.home-hero {
+/* ---- Ana sayfa: 3D vitrin (01.10.2026) — önce dünya, sonra arayüz ----
+   Sahne ekranın üstünü kaplar; HUD kenarlarda ince katmanlardır. Altın
+   yalnızca ana eylem ve aktif çekimde kullanılır. */
+.home3d {
   position: relative;
+  height: clamp(460px, 78vh, 780px);
   overflow: hidden;
-  min-height: 330px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 40px var(--space-md) 70px;
+  background: #0b1222;
   border-bottom: 1px solid var(--color-border-gold);
-  background:
-    radial-gradient(70% 90% at 72% 60%, rgba(255, 190, 90, 0.18), transparent 70%),
-    linear-gradient(180deg, #0f1b33 0%, #172540 38%, #3a2a2a 74%, #1a1520 100%);
 }
 
-.home-hero-scenery {
+.home3d-canvas {
   position: absolute;
   inset: 0;
-  width: 100%;
+}
+
+.home3d-loading {
   height: 100%;
-}
-
-.home-hero-content {
-  position: relative;
   display: grid;
-  justify-items: center;
-  gap: 8px;
-  text-align: center;
+  place-items: center;
+  color: var(--color-text-muted);
+  font-size: 14px;
 }
 
-.home-hero-title {
-  margin: 0;
-  font-family: var(--font-display);
-  font-size: clamp(38px, 7vw, 76px);
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  line-height: 1;
-  background: var(--gradient-gold);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  filter: drop-shadow(0 4px 18px rgba(0, 0, 0, 0.6));
+/* Yalnızca HUD okunabilirliği için alt kenar gölgesi — sahne değil. */
+.home3d-vignette {
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 46%;
+  pointer-events: none;
+  background: linear-gradient(180deg, transparent 0%, rgba(5, 8, 16, 0.55) 55%, rgba(5, 8, 16, 0.88) 100%);
 }
 
-.home-hero-subtitle {
-  margin: 0;
-  font-family: var(--font-display);
-  font-size: clamp(14px, 2vw, 19px);
-  letter-spacing: 0.06em;
-  color: var(--color-text-primary);
-  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.7);
-}
-
-.home-hero-subtitle span {
-  color: var(--color-accent-gold);
-  margin: 0 6px;
-}
-
-.home-hero-actions {
+.home3d-shots {
+  position: absolute;
+  top: 12px;
+  right: 12px;
   display: flex;
   flex-wrap: wrap;
-  justify-content: center;
+  justify-content: flex-end;
+  gap: 6px;
+  max-width: min(560px, 60%);
+}
+
+.home3d-shot {
+  min-height: 30px;
+  padding: 0 11px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(6, 10, 20, 0.55);
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  backdrop-filter: blur(6px);
+}
+
+.home3d-shot[aria-pressed='true'] {
+  color: #1a1204;
+  background: var(--gradient-gold);
+  border-color: transparent;
+}
+
+.home3d-shot-icon {
+  display: inline-grid;
+  place-items: center;
+  padding: 0 9px;
+}
+
+.home3d-hud {
+  position: absolute;
+  inset: auto 0 0 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-lg);
+  padding: 0 clamp(16px, 4vw, 48px) clamp(18px, 4vh, 36px);
+  pointer-events: none;
+}
+
+.home3d-hud > * {
+  pointer-events: auto;
+}
+
+.home3d-horse {
+  max-width: 420px;
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.7);
+}
+
+.home3d-horse-name {
+  font-family: var(--font-display);
+  font-size: clamp(30px, 5vw, 54px);
+  font-weight: 700;
+  line-height: 1.05;
+  letter-spacing: 0.03em;
+  color: #f6efe0;
+}
+
+.home3d-horse-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+  color: var(--color-text-secondary);
+  font-size: 14px;
+}
+
+.home3d-mood {
+  padding: 2px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(243, 213, 138, 0.5);
+  color: var(--color-accent-gold);
+  font-size: 12px;
+  font-weight: 600;
+  text-shadow: none;
+}
+
+.home3d-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px 18px;
+  margin-top: 12px;
+}
+
+.home3d-stat {
+  display: grid;
+  grid-template-columns: 74px 1fr 28px;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+.home3d-stat strong {
+  color: #f6efe0;
+  text-align: right;
+}
+
+.home3d-stat-track {
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.14);
+  overflow: hidden;
+}
+
+.home3d-stat-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #8fd18a, #d9f2b5);
+}
+
+.home3d-actions {
+  display: flex;
+  flex-wrap: wrap;
   gap: 10px;
-  margin-top: 14px;
+}
+
+.home3d-cta {
+  min-width: 150px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+@media (max-width: 767px) {
+  .home3d {
+    height: clamp(520px, 82vh, 720px);
+  }
+
+  .home3d-shots {
+    top: auto;
+    bottom: 222px;
+    left: 12px;
+    right: 12px;
+    max-width: none;
+    justify-content: flex-start;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .home3d-shot {
+    flex: 0 0 auto;
+  }
+
+  .home3d-hud {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 14px;
+    padding-bottom: 18px;
+  }
+
+  .home3d-horse-name {
+    font-size: 32px;
+  }
+
+  .home3d-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .home3d-cta {
+    min-width: 0;
+    font-size: 14px;
+    letter-spacing: 0.03em;
+    white-space: nowrap;
+  }
+}
+
+/* PLACEHOLDER rozeti: mobilde yalnızca başlık + sayı (sahneyi örtmesin). */
+.placeholder-badge-count {
+  display: none;
+}
+
+@media (max-width: 767px) {
+  .placeholder-badge-list {
+    display: none;
+  }
+
+  .placeholder-badge-count {
+    display: inline;
+  }
 }
 
 /* ---- Ana sayfa: üç sütun ---- */
 .home-grid {
   display: grid;
   gap: var(--space-lg);
-  margin-top: -40px;
+  margin-top: var(--space-lg);
   position: relative;
   z-index: 1;
 }

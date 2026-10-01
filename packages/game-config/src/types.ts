@@ -884,6 +884,24 @@ export interface CameraConfig {
     /** Ağır çekimin ULAŞTIĞI en düşük oynatma hızı çarpanı (1 = normal, bu değer = en yavaş). */
     slowMotionMinFactor: number;
   };
+  /**
+   * 01.10.2026 — ana sayfa 3D vitrininin sinematik çekimleri. Konumlar
+   * oyuncunun atına GÖRE (at yerel +X'e bakar, orijin toynak hizası).
+   * Her çekim `from`dan `to`ya yavaşça kayar (dolly); son `blendSeconds`
+   * saniyede bir sonraki çekime yumuşakça geçilir.
+   */
+  homeShowcase: {
+    blendSeconds: number;
+    shots: Array<{
+      id: string;
+      label: string;
+      durationSeconds: number;
+      from: [number, number, number];
+      to: [number, number, number];
+      target: [number, number, number];
+      fov: number;
+    }>;
+  };
 }
 
 /**

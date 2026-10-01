@@ -209,6 +209,17 @@ varsayılanı yalnızca eski satırlar/SQL fikstürleri içindir. Durum →
 davranış `horse-presence.config.json` (salt görsel); "stres" alanı yok,
 uydurulmadı. 3D önizleme `/stable` kartında DÜĞMEYLE açılır (her kartta
 Canvas = WebGL bağlam sınırı).
+(19) **ANA SAYFA 3D VİTRİN (01.10.2026, §13.45)** — `features/home-scene`.
+Eski CSS/SVG hero KALDIRILDI; ekranın üstü 3D hipodrom + OYUNCUNUN atı
+(`pickFeaturedHorse`, kartla aynı kural) + jokey + PLACEHOLDER ahır. 6
+sinematik çekim `config/camera.config.json` → `homeShowcase` (ata göre
+konum, `from→to` dolly, `blendSeconds` yumuşak geçiş; saf
+`evaluateShowcaseCamera`, sınırda sıçrama testle kilitli). Dar ekranda
+`fitFovToAspect` yatay kapsamı korur. Ekran dışında render durur,
+`prefers-reduced-motion` otomatik dolaşımı kapatır. ⚠️ `asset-pipeline.ts`
+three.js İÇE AKTARMAZ (KTX2 `ktx2-loader.ts`te) — rozet ana pakete three
+çekiyordu (ana sayfa 216 kB → 15 kB). ⚠️ `HorseModel` baş açısı düzeltildi
+(baş eskiden geriye-yukarı bakıyordu; yarış ekranını da etkiler).
 
 **✅ ÜCRETLİ LOBİ YARIŞI ARTIK KOŞUYOR — ÖDÜL DAĞITIMI VAR (§13.14,
 28.09.2026).** `POST /races/:id/settle` yarışı koşar, ödülleri `top5`

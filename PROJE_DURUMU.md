@@ -3475,6 +3475,23 @@ web `horse-demeanor`/`coat-palette`/`asset-pipeline`/`asset-manifest`
 testleri; API 142/2253, web 32/452, `next build` geçti. **Görsel sıçrama
 gerçek GLB'lere bağlıdır** (adım 4+).
 
+#### 13.45 3D YOL HARİTASI ADIM 3 — ANA SAYFA 3D VİTRİN (01.10.2026)
+
+Ana sayfanın CSS degrade + SVG pist çizgili hero'su kaldırıldı; yerine
+`HomeHero` + `HomeScene3D`: hipodrom (`TrackScenery` — pist, korkuluk,
+instanced tribün kalabalığı, kuleler, ağaçlar), önde oyuncunun atı (görünüş
++ durum → bekleme davranışı, jokeyli, numarasız), iç sahada PLACEHOLDER
+ahır. Kamera 6 çekim (Hipodrom, At, Yakın Çekim, Ahır, Pist, Jokey) —
+config'ten, yumuşak geçişli; HUD'da çekim seçici + durdur/başlat. HUD:
+atın adı, ırk/cinsiyet/seviye, ruh hâli, 4 değer; "Yarışa Katıl" / "Ahır"
+(oyuncu yoksa "Oyuna Başla"). PLACEHOLDER rozeti 5 bekleyen varlığı
+listeler (mobilde yalnızca sayı). Kalite kademesi yarış sahnesiyle aynı
+algılayıcıdan (`detect-quality-tier.ts`). Bulunan iki hata: prosedürel atın
+başı geriye bakıyordu (düzeltildi); ışık kulesi ve ahır genel planı
+kapatıyordu (at kuleler arasına alındı). Tarayıcıda 1440 ve 390 px'de
+doğrulandı: dışarıya istek yok, konsol hatası yok, yatay taşma yok. Kanıt:
+`showcase-camera.spec.ts` (10); web 33/462; `next build` (ana sayfa 15.3 kB).
+
 ## 14. Kendime hatırlatmalar (kısa liste)
 
 1. **Race Engine'e dokunmadan önce iki kez düşün.** Denetim onu "KEEP, dokunma"
