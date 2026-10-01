@@ -3,6 +3,7 @@ import { loadRaceLobbyConfig } from '@at-sevdalisi/game-config';
 import type { RaceLobbyListItem } from '@at-sevdalisi/shared-types';
 import {
   buildCreateRaceBody,
+  describeCalendar,
   describeTournament,
   defaultLobbyRaceForm,
   formatStartsIn,
@@ -41,6 +42,7 @@ function race(overrides: Partial<RaceLobbyListItem> = {}): RaceLobbyListItem {
     prizeMultiplier: null,
     myEntry: null,
     tournament: null,
+    calendar: null,
     ...overrides,
   } as RaceLobbyListItem;
 }
@@ -77,17 +79,31 @@ describe('buildCreateRaceBody', () => {
   it('kısa ad, geçersiz tavan, sınır dışı mesafe ve gecikme reddedilir', () => {
     const base = { ...defaultLobbyRaceForm(config), name: 'Geçerli Ad' };
     expect(buildCreateRaceBody({ ...base, name: 'ab' }, now, config).ok).toBe(false);
-    expect(buildCreateRaceBody({ ...base, maxPlayers: config.minPlayers - 1 }, now, config).ok).toBe(false);
-    expect(buildCreateRaceBody({ ...base, distanceMeters: config.distanceMeters.max + 1 }, now, config).ok).toBe(false);
+    expect(
+      buildCreateRaceBody({ ...base, maxPlayers: config.minPlayers - 1 }, now, config).ok,
+    ).toBe(false);
+    expect(
+      buildCreateRaceBody({ ...base, distanceMeters: config.distanceMeters.max + 1 }, now, config)
+        .ok,
+    ).toBe(false);
     const bounds = startDelayMinuteBounds(config);
-    expect(buildCreateRaceBody({ ...base, startDelayMinutes: bounds.min - 1 }, now, config).ok).toBe(false);
-    expect(buildCreateRaceBody({ ...base, startDelayMinutes: bounds.max + 1 }, now, config).ok).toBe(false);
+    expect(
+      buildCreateRaceBody({ ...base, startDelayMinutes: bounds.min - 1 }, now, config).ok,
+    ).toBe(false);
+    expect(
+      buildCreateRaceBody({ ...base, startDelayMinutes: bounds.max + 1 }, now, config).ok,
+    ).toBe(false);
   });
 });
 
 describe('lobbyEntryActions — düğmeler YALNIZCA `myEntry`den türer', () => {
   it('katılım yok: yalnızca Katıl; dolu yarışta o da kapalı', () => {
-    expect(lobbyEntryActions(race())).toEqual({ canJoin: true, canMarkReady: false, canMarkNotReady: false, canLeave: false });
+    expect(lobbyEntryActions(race())).toEqual({
+      canJoin: true,
+      canMarkReady: false,
+      canMarkNotReady: false,
+      canLeave: false,
+    });
     expect(lobbyEntryActions(race({ joinedPlayers: 8, maxPlayers: 8 })).canJoin).toBe(false);
   });
 
@@ -133,6 +149,10 @@ describe('formatStartsIn', () => {
 describe('describeTournament', () => {
   it('turnuva değilse null; turnuvaysa kademe + seviye şartı sunucu alanlarından', () => {
     expect(describeTournament(race())).toBeNull();
+    expect(describeCalendar(race())).toBeNull();
+    expect(describeCalendar(race({ calendar: { programId: 'dirt-sprint' } }))).toBe(
+      'Takvim yarışı · sunucu açtı',
+    );
     expect(describeTournament(race({ tournament: { tier: 'silver', minPlayerLevel: 15 } }))).toBe(
       'Gümüş Kupa · Seviye 15+ · Botsuz final, ödül ilk üçe',
     );

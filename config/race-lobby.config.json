@@ -6,9 +6,18 @@
   "paidEntryFeeOptions": [50, 100, 250, 500, 1000],
   "tribuneFeeOptions": [0, 10, 25, 50],
   "spectatorCapacityOptions": [500, 1000, 5000],
-  "distanceMeters": { "min": 800, "max": 3200 },
-  "nameLength": { "min": 3, "max": 60 },
-  "startDelaySeconds": { "min": 60, "max": 604800 },
+  "distanceMeters": {
+    "min": 800,
+    "max": 3200
+  },
+  "nameLength": {
+    "min": 3,
+    "max": 60
+  },
+  "startDelaySeconds": {
+    "min": 60,
+    "max": 604800
+  },
   "maxOpenRacesPerPlayer": 3,
   "allowedSurfaces": ["grass", "dirt", "synthetic"],
   "allowedWeather": ["sunny", "rainy", "windy", "cloudy", "hot", "cold"],
@@ -20,5 +29,55 @@
     "enabled": true,
     "tickSeconds": 5,
     "batchSize": 20
+  },
+  "calendar": {
+    "enabled": true,
+    "tickSeconds": 60,
+    "horizonHours": 3,
+    "minLeadMinutes": 10,
+    "programs": [
+      {
+        "id": "dirt-sprint",
+        "name": "Kum Sprint",
+        "intervalMinutes": 30,
+        "offsetMinutes": 0,
+        "fieldSize": 8,
+        "maxPlayers": 8,
+        "entryFee": 100,
+        "distanceMeters": 1200,
+        "surface": "dirt",
+        "weather": "sunny",
+        "tribuneFee": 10,
+        "spectatorCapacity": 1000
+      },
+      {
+        "id": "grass-mile",
+        "name": "Çim Mil",
+        "intervalMinutes": 60,
+        "offsetMinutes": 15,
+        "fieldSize": 10,
+        "maxPlayers": 10,
+        "entryFee": 250,
+        "distanceMeters": 1600,
+        "surface": "grass",
+        "weather": "sunny",
+        "tribuneFee": 25,
+        "spectatorCapacity": 5000
+      },
+      {
+        "id": "open-run",
+        "name": "Açık Koşu",
+        "intervalMinutes": 20,
+        "offsetMinutes": 5,
+        "fieldSize": 8,
+        "maxPlayers": 8,
+        "entryFee": 0,
+        "distanceMeters": 1000,
+        "surface": "synthetic",
+        "weather": "cloudy",
+        "tribuneFee": 0,
+        "spectatorCapacity": 500
+      }
+    ]
   }
 }

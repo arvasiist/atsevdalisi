@@ -100,11 +100,11 @@ Gerçek 3D/ses varlığı yok · OAuth kimlik bilgileri yok (Google kodu + düğ
 + hesap bağlama VAR, `GOOGLE_OAUTH_CLIENT_ID` boşken düğme gizli — migration
 0048; Apple istemcisi yok; e-posta + şifre girişi + şifre sıfırlama VAR —
 `/account`, migration 0046/0047; sıfırlama e-postası üretimde
-`RESEND_API_KEY` ister) · yarış takvimi yok
-(turnuva takvimi VAR) ·
+`RESEND_API_KEY` ister) · **yarış takvimi VAR** (01.10.2026, (27)) ·
 **DOMAIN ONLY modül KALMADI** (progression, kulüp, personel ve sezon
-01.10.2026'da BAĞLANDI; yer tutucu sayfa YOK) · `PlayerDemoWidget`/
-`GltfAssetLoader` bağlı değil (bilinçli). Jokey, mizaç, taktik motora BAĞLI;
+01.10.2026'da BAĞLANDI; yer tutucu sayfa YOK) · `PlayerDemoWidget` bağlı
+değil (bilinçli). `GltfAssetLoader` ve ses yöneticisi 01.10.2026'dan beri
+BAĞLI (3D adım 4/9) — dosya yokken prosedürel/sessiz yedeğe düşerler. Jokey, mizaç, taktik motora BAĞLI;
 `PedigreeTree`, `BreedingPanel`, `JockeyPanel`, `/admin`, `/leaderboard`,
 `/farm`, **lobi yarışı (`LobbyPanel`, 30.09.2026)** bağlı.
 
@@ -262,6 +262,16 @@ den alır (tercih: Otomatik/Düşük/Orta/Yüksek/Ultra, `QualitySelect`).
 — kademe değişince sahne yeniden kurulur (gölge haritası çalışma anında
 güvenle açılıp kapanmaz). ⚠️ Yazılımsal GPU'da (CI/headless) otomatik kademe
 hızla "Düşük"e iner — ekran görüntüsünde bu beklenir.
+(27) **YARIŞ TAKVİMİ (01.10.2026, migration 0052, §13.53)** —
+`race-lobby.config.json` → `calendar.programs`; `RaceCalendarScheduler`
+her programın penceredeki yuvalarını (UTC'den hizalı `k×aralık+ofset`,
+saf `computeCalendarSlotTimes`) SIRADAN lobi yarışı olarak açar
+(`created_by` NULL, botlu, aynı kilit/kesinleşme). Tekrar koruması
+`race_calendar_slots (program_id, start_time)` PK + yuva advisory kilidi.
+⚠️ Her yuva `validateRaceCreation`dan geçer — oyuncuya yasak bir yarışı
+sunucu da açamaz; program eklerken `race-calendar.spec.ts` bunu dener.
+Katılımsız geçmiş yarış iptal edilir, iptal edilen yuva YENİDEN AÇILMAZ.
+`GET /races` satırı `calendar: { programId } | null` taşır.
 
 **✅ ÜCRETLİ LOBİ YARIŞI ARTIK KOŞUYOR — ÖDÜL DAĞITIMI VAR (§13.14,
 28.09.2026).** `POST /races/:id/settle` yarışı koşar, ödülleri `top5`
@@ -546,12 +556,10 @@ sanıp yeniden açma.**
   inmesi. **BİLEREK DÜZELTİLMEDİ** (config değişikliği dondurulmuş
   snapshot replay'ini bozar). Yeni bir denge dilimi açarken önce
   `docs/RACE_BALANCE_REPORT.md` §2c/§4a/§7.6'yı oku.
-- `GltfAssetLoader.tsx` — **asset olmadan ANLAMSIZ.** `.glb` yokken her zaman
-  yedek görünüme düşer = bugünkü kapsül+küre görüntüsünün tıpatıp aynısı.
-  Bağlamak sıfır görsel etki üretir.
-- `createHtmlAudioBackend()` — **asset olmadan ANLAMSIZ.** `.mp3` dosyası yok,
-  üstelik motor ses olaylarını (GATES_OPEN/OVERTAKE/WINNER) hiç yaymıyor.
-  Bağlanırsa sessiz bir no-op olur.
+- ~~`GltfAssetLoader.tsx` / `createHtmlAudioBackend()` — asset olmadan
+  anlamsız~~ **BAĞLANDI (01.10.2026, 3D adım 4 ve 9)** — "dosya gelince kod
+  değişmesin" diye. Ses olayları motordan değil ekrandaki durumdan türetilir
+  (`deriveRaceAudioCues`). Dosya yokken davranış öncekiyle aynıdır.
 - `PlayerDemoWidget.tsx` — **gereksiz.** İşlevi ana sayfa (`usePlayer`/
   `apiClient`) tarafından zaten yapılıyor; bağlamak ikinci bir base-url
   kaynağı doğurur.

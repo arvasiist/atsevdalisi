@@ -603,6 +603,11 @@ export interface RaceLobbyListItem extends RaceLobbyView {
    * botsuz koşulur ve ödül ilk üçe dağıtılır (`online.config.json`).
    */
   tournament: { tier: 'bronze' | 'silver' | 'gold'; minPlayerLevel: number } | null;
+  /**
+   * 01.10.2026 — yarışı sunucu TAKVİMİ açtıysa programın kimliği
+   * (`race_calendar_slots`, migration 0052); oyuncunun açtığı yarışta `null`.
+   */
+  calendar: { programId: string } | null;
 }
 
 /**

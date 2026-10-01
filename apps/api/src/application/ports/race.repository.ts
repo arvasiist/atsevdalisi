@@ -330,6 +330,23 @@ export interface RaceRepository {
   cancelEmptyDueTournaments(now: Date): Promise<number>;
 
   /**
+   * 01.10.2026 — YARIŞ TAKVİMİ: verilen yuvalardan HANGİLERİ zaten açılmış
+   * (`race_calendar_slots`). Yuvanın yarışı iptal edilmiş olsa bile açılmış
+   * sayılır — iptal edilen yuva yeniden açılmaz.
+   */
+  findExistingCalendarSlots(programId: string, startTimes: Date[]): Promise<Date[]>;
+
+  /**
+   * 01.10.2026 — takvim yuvası için bir lobi yarışı + `race_calendar_slots`
+   * satırı, TEK transaction. `created_by` NULL'dır. Yuva zaten açıksa
+   * (eşzamanlı ikinci çağrı) hiçbir şey yazmaz ve `null` döner.
+   */
+  createCalendarRace(input: CreateCalendarRaceInput): Promise<string | null>;
+
+  /** 01.10.2026 — başlangıcı geçmiş, hiç katılımı olmayan takvim yarışlarını iptal eder; iptal sayısını döner. */
+  cancelEmptyDueCalendarRaces(now: Date): Promise<number>;
+
+  /**
    * Bir lobi yarışının KESİNLEŞME BAĞLAMINI okur (salt okuma, §42 PHASE
    * 13.14): yarışın simülasyon parametreleri + koşacak GERÇEK katılımcılar.
    *
@@ -726,6 +743,27 @@ export interface CreateTournamentRaceInput {
   entryFee: number;
   maxParticipants: number;
   minPlayerLevel: number;
+  distanceMeters: number;
+  surface: string;
+  weather: string;
+  tribuneFee: number;
+  spectatorCapacity: number;
+  engineVersion: string;
+  rulesetVersion: string;
+  configVersion: string;
+  weatherConfigVersion: string;
+}
+
+/** 01.10.2026 — takvim yarışı girdisi: doğrulanmış yarış tanımı + yuva. */
+export interface CreateCalendarRaceInput {
+  raceId: string;
+  programId: string;
+  name: string;
+  startTime: Date;
+  fieldSize: number;
+  maxPlayers: number;
+  entryFee: number;
+  raceType: 'free' | 'paid';
   distanceMeters: number;
   surface: string;
   weather: string;

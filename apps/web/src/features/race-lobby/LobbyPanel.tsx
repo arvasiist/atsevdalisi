@@ -22,7 +22,12 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { PublicHorse, RaceLobbyListItem, RaceSurface, RaceWeather } from '@at-sevdalisi/shared-types';
+import type {
+  PublicHorse,
+  RaceLobbyListItem,
+  RaceSurface,
+  RaceWeather,
+} from '@at-sevdalisi/shared-types';
 import { loadRaceLobbyConfig } from '@at-sevdalisi/game-config';
 import { GlassPanel } from '../../components/ui/GlassPanel';
 import { apiClient } from '../../lib/api-client';
@@ -31,6 +36,7 @@ import { formatRaceStart } from '../../lib/format-time';
 import { formatMultiplier } from '../race/race-entry';
 import {
   ENTRY_STATUS_LABELS,
+  describeCalendar,
   describeTournament,
   SURFACE_LABELS,
   WEATHER_LABELS,
@@ -82,7 +88,12 @@ export function LobbyPanel({ horses, onBalanceChanged }: LobbyPanelProps): React
   }, [refresh]);
 
   const runAction = useCallback(
-    async (raceId: string, action: () => Promise<unknown>, successNotice: string, movesMoney: boolean) => {
+    async (
+      raceId: string,
+      action: () => Promise<unknown>,
+      successNotice: string,
+      movesMoney: boolean,
+    ) => {
       setBusyRaceId(raceId);
       setError(null);
       setNotice(null);
@@ -147,7 +158,9 @@ export function LobbyPanel({ horses, onBalanceChanged }: LobbyPanelProps): React
       void runAction(
         race.id,
         () => apiClient.setLobbyEntryReady(race.id, status),
-        status === 'ready' ? 'Hazırsın — başlangıçta yarışacaksın.' : 'Hazır değilsin — başlangıçta düşürülürsün.',
+        status === 'ready'
+          ? 'Hazırsın — başlangıçta yarışacaksın.'
+          : 'Hazır değilsin — başlangıçta düşürülürsün.',
         false,
       );
     },
@@ -176,25 +189,41 @@ export function LobbyPanel({ horses, onBalanceChanged }: LobbyPanelProps): React
     }
   }, [form, refresh]);
 
-  const playerCapOptions = useMemo(() => maxPlayersOptions(form.fieldSize, LOBBY_CONFIG), [form.fieldSize]);
-  const updateForm = (patch: Partial<LobbyRaceForm>): void => setForm((current) => ({ ...current, ...patch }));
+  const playerCapOptions = useMemo(
+    () => maxPlayersOptions(form.fieldSize, LOBBY_CONFIG),
+    [form.fieldSize],
+  );
+  const updateForm = (patch: Partial<LobbyRaceForm>): void =>
+    setForm((current) => ({ ...current, ...patch }));
   const now = new Date();
 
   return (
     <GlassPanel style={{ marginBottom: 'var(--space-lg)' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 'var(--space-sm)' }}>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          gap: 'var(--space-sm)',
+        }}
+      >
         <h2 style={titleStyle()}>Ücretli Yarış Lobisi</h2>
         <div style={{ display: 'flex', gap: 'var(--space-sm)' }}>
           <button type="button" onClick={() => void refresh()} style={secondaryButtonStyle()}>
             Yenile
           </button>
-          <button type="button" onClick={() => setIsFormOpen((open) => !open)} style={secondaryButtonStyle()}>
+          <button
+            type="button"
+            onClick={() => setIsFormOpen((open) => !open)}
+            style={secondaryButtonStyle()}
+          >
             {isFormOpen ? 'Vazgeç' : 'Yarış Aç'}
           </button>
         </div>
       </div>
       <p style={mutedStyle()}>
-        Giriş ücretleri ödül havuzunu oluşturur; kadro botlarla at sayısına tamamlanır. Yalnızca başlangıçta
+        Giriş ücretleri ödül havuzunu oluşturur; kadro botlarla at sayısına tamamlanır. Yalnızca
+        başlangıçta
         <strong> hazır</strong> olan oyuncular koşar — hazır olmayanın ücreti iade edilir.
       </p>
 
@@ -219,7 +248,12 @@ export function LobbyPanel({ horses, onBalanceChanged }: LobbyPanelProps): React
               onChange={(event) => {
                 const fieldSize = Number(event.target.value);
                 const caps = maxPlayersOptions(fieldSize, LOBBY_CONFIG);
-                updateForm({ fieldSize, maxPlayers: caps.includes(form.maxPlayers) ? form.maxPlayers : (caps.at(-1) ?? form.maxPlayers) });
+                updateForm({
+                  fieldSize,
+                  maxPlayers: caps.includes(form.maxPlayers)
+                    ? form.maxPlayers
+                    : (caps.at(-1) ?? form.maxPlayers),
+                });
               }}
               style={inputStyle()}
             >
@@ -345,7 +379,12 @@ export function LobbyPanel({ horses, onBalanceChanged }: LobbyPanelProps): React
               ))}
             </select>
           </label>
-          <button type="button" onClick={() => void createRace()} disabled={isCreating} style={primaryButtonStyle(!isCreating)}>
+          <button
+            type="button"
+            onClick={() => void createRace()}
+            disabled={isCreating}
+            style={primaryButtonStyle(!isCreating)}
+          >
             {isCreating ? 'Açılıyor…' : 'Yarışı Aç'}
           </button>
         </div>
@@ -369,43 +408,79 @@ export function LobbyPanel({ horses, onBalanceChanged }: LobbyPanelProps): React
         </label>
       ) : null}
 
-      {notice !== null ? <p style={{ ...mutedStyle(), color: 'var(--color-status-positive)' }}>{notice}</p> : null}
-      {error !== null ? <p style={{ ...mutedStyle(), color: 'var(--color-status-critical)' }}>{error}</p> : null}
+      {notice !== null ? (
+        <p style={{ ...mutedStyle(), color: 'var(--color-status-positive)' }}>{notice}</p>
+      ) : null}
+      {error !== null ? (
+        <p style={{ ...mutedStyle(), color: 'var(--color-status-critical)' }}>{error}</p>
+      ) : null}
 
       {races === null ? (
         <p style={mutedStyle()}>Lobi yükleniyor…</p>
       ) : races.length === 0 ? (
         <p style={mutedStyle()}>Şu an katılınabilir bir yarış yok — ilkini sen aç.</p>
       ) : (
-        <ul style={{ listStyle: 'none', padding: 0, margin: 'var(--space-md) 0 0 0', display: 'grid', gap: 'var(--space-sm)' }}>
+        <ul
+          style={{
+            listStyle: 'none',
+            padding: 0,
+            margin: 'var(--space-md) 0 0 0',
+            display: 'grid',
+            gap: 'var(--space-sm)',
+          }}
+        >
           {races.map((race) => {
             const actions = lobbyEntryActions(race);
             const isBusy = busyRaceId === race.id;
             return (
               <li key={race.id} data-testid={`lobby-race-${race.id}`} style={rowStyle()}>
                 <div style={{ display: 'grid', gap: '2px' }}>
-                  <strong style={{ color: 'var(--color-text-primary)', fontSize: '14px' }}>{race.name}</strong>
+                  <strong style={{ color: 'var(--color-text-primary)', fontSize: '14px' }}>
+                    {race.name}
+                  </strong>
                   {describeTournament(race) !== null ? (
-                    <span style={{ ...smallStyle(), color: 'var(--color-accent-gold)', fontWeight: 600 }}>
+                    <span
+                      style={{
+                        ...smallStyle(),
+                        color: 'var(--color-accent-gold)',
+                        fontWeight: 600,
+                      }}
+                    >
                       {describeTournament(race)}
                     </span>
                   ) : null}
+                  {describeCalendar(race) !== null ? (
+                    <span
+                      style={{
+                        ...smallStyle(),
+                        color: 'var(--color-text-secondary)',
+                        fontWeight: 600,
+                      }}
+                    >
+                      {describeCalendar(race)}
+                    </span>
+                  ) : null}
                   <span style={smallStyle()}>
-                    {SURFACE_LABELS[race.surface]} · {WEATHER_LABELS[race.weather]} · {race.distanceMeters} m ·{' '}
-                    {formatRaceStart(race.startTime, now)} · {formatStartsIn(race.startTime, now)}
+                    {SURFACE_LABELS[race.surface]} · {WEATHER_LABELS[race.weather]} ·{' '}
+                    {race.distanceMeters} m · {formatRaceStart(race.startTime, now)} ·{' '}
+                    {formatStartsIn(race.startTime, now)}
                   </span>
                   <span style={smallStyle()}>
                     Oyuncu {race.joinedPlayers}/{race.maxPlayers} · {race.fieldSize} at · Giriş{' '}
-                    {race.entryFee > 0 ? formatCurrency('money', race.entryFee) : 'ücretsiz'} · Havuz{' '}
-                    {formatCurrency('money', race.prizePool)}
-                    {race.prizeMultiplier !== null ? ` · Kazanana ${formatMultiplier(race.prizeMultiplier)}` : ''}
+                    {race.entryFee > 0 ? formatCurrency('money', race.entryFee) : 'ücretsiz'} ·
+                    Havuz {formatCurrency('money', race.prizePool)}
+                    {race.prizeMultiplier !== null
+                      ? ` · Kazanana ${formatMultiplier(race.prizeMultiplier)}`
+                      : ''}
                   </span>
                   {race.myEntry !== null ? (
                     <span
                       style={{
                         ...smallStyle(),
                         color:
-                          race.myEntry.status === 'ready' ? 'var(--color-status-positive)' : 'var(--color-status-warning)',
+                          race.myEntry.status === 'ready'
+                            ? 'var(--color-status-positive)'
+                            : 'var(--color-status-warning)',
                       }}
                     >
                       {ENTRY_STATUS_LABELS[race.myEntry.status]}
@@ -414,23 +489,45 @@ export function LobbyPanel({ horses, onBalanceChanged }: LobbyPanelProps): React
                 </div>
                 <div style={{ display: 'flex', gap: 'var(--space-sm)', flexWrap: 'wrap' }}>
                   {actions.canJoin ? (
-                    <button type="button" disabled={isBusy || effectiveHorseId === ''} onClick={() => join(race)} style={primaryButtonStyle(!isBusy)}>
+                    <button
+                      type="button"
+                      disabled={isBusy || effectiveHorseId === ''}
+                      onClick={() => join(race)}
+                      style={primaryButtonStyle(!isBusy)}
+                    >
                       Katıl
                     </button>
                   ) : null}
-                  {race.myEntry === null && !actions.canJoin ? <span style={smallStyle()}>Dolu</span> : null}
+                  {race.myEntry === null && !actions.canJoin ? (
+                    <span style={smallStyle()}>Dolu</span>
+                  ) : null}
                   {actions.canMarkReady ? (
-                    <button type="button" disabled={isBusy} onClick={() => setReady(race, 'ready')} style={primaryButtonStyle(!isBusy)}>
+                    <button
+                      type="button"
+                      disabled={isBusy}
+                      onClick={() => setReady(race, 'ready')}
+                      style={primaryButtonStyle(!isBusy)}
+                    >
                       Hazırım
                     </button>
                   ) : null}
                   {actions.canMarkNotReady ? (
-                    <button type="button" disabled={isBusy} onClick={() => setReady(race, 'not_ready')} style={secondaryButtonStyle()}>
+                    <button
+                      type="button"
+                      disabled={isBusy}
+                      onClick={() => setReady(race, 'not_ready')}
+                      style={secondaryButtonStyle()}
+                    >
                       Hazır değilim
                     </button>
                   ) : null}
                   {actions.canLeave ? (
-                    <button type="button" disabled={isBusy} onClick={() => leave(race)} style={secondaryButtonStyle()}>
+                    <button
+                      type="button"
+                      disabled={isBusy}
+                      onClick={() => leave(race)}
+                      style={secondaryButtonStyle()}
+                    >
                       Ayrıl (ücret iade)
                     </button>
                   ) : null}

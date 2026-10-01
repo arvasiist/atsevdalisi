@@ -747,7 +747,7 @@ vardır: Durum · Backend · Frontend · Database · API · WebSocket · Tests �
 - **WebSocket:** `lobby.update`.
 - **Tests:** `test/api/race-lobby*.e2e-spec.ts`.
 - **Üretime hazır:** Evet.
-- **Eksik:** Yarış takvimi (önceden planlanmış seri) yok.
+- **Eksik:** — (yarış takvimi 01.10.2026'da eklendi, migration 0052).
 - **Risk:** Düşük.
 - **Sıradaki adım:** —
 - **Kaynak:** `apps/api/src/api/race/race-lobby.controller.ts`.
@@ -1501,9 +1501,8 @@ vardır: Durum · Backend · Frontend · Database · API · WebSocket · Tests �
 
 | Öncelik | Madde | Neden şimdi |
 |---:|---|---|
-| 1 | **3D/ses varlıkları** | Tek karar bekleyen konu; çözülene kadar brief'in kendi kapsamı dışında. |
+| 1 | **3D/ses varlıkları** | Tek karar bekleyen konu (kaynak: CC0 mi ücretli mi). Kod hattı 01.10.2026'da BİTTİ (3D adım 1-10): dosyalar `asset-manifest.ts` yollarına konunca kod değişmeden devreye girer, `npm run assets:check` denetler. |
 | 2 | **OAuth kimlik bilgileri + `RESEND_API_KEY`** | E-posta + şifre girişi, şifre sıfırlama ve Google düğmesi/bağlama VAR; Google için yalnızca `GOOGLE_OAUTH_CLIENT_ID` eksik, Apple ücretli üyelik bekliyor. Sıfırlama e-postasının gerçekten gitmesi için üretimde `RESEND_API_KEY` gerekir. |
-| 3 | **Kulüp/sezon/turnuva/personel (#50)** | En büyük eksik özellik kümesi; yeni bir faz gerektirir. |
 
 > ⚠️ **29.09.2026:** **Jokey yüzeyi + serbest bırakma (#18)** bu tablodan
 > **çıkarıldı** — `JockeyPanel` yazıldı, `/stable`a bağlandı **ve** eksik
@@ -1513,6 +1512,10 @@ vardır: Durum · Backend · Frontend · Database · API · WebSocket · Tests �
 >
 > ⚠️ **29.09.2026:** **Yetiştirme yüzeyi (#16)** bu tablodan **çıkarıldı** —
 > `BreedingPanel` yazıldı ve `/stable`a bağlandı.
+
+> ⚠️ **01.10.2026:** **Kulüp/sezon/turnuva/personel (#50)** bu tablodan
+> **çıkarıldı** — turnuva (§13.35), kulüp (§13.41), personel (§13.42) ve
+> sezon (§13.43) uç + ekranla bağlı.
 
 **Bu tablodan ÇIKARILANLAR (29.09.2026):** ~~Yönetim paneli (#47)~~,
 ~~Blok/şikâyet arayüzü (#46)~~, ~~`username` alanı (#3, #43, #49)~~,

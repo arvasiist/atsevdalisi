@@ -10,7 +10,12 @@
  * havuz ve çarpan HER ZAMAN sunucunun lobi satırından okunur.
  */
 
-import type { RaceEntryStatus, RaceLobbyListItem, RaceSurface, RaceWeather } from '@at-sevdalisi/shared-types';
+import type {
+  RaceEntryStatus,
+  RaceLobbyListItem,
+  RaceSurface,
+  RaceWeather,
+} from '@at-sevdalisi/shared-types';
 import type { RaceLobbyConfig } from '@at-sevdalisi/game-config';
 import type { CreateLobbyRaceBody } from '../../lib/api-client';
 
@@ -39,6 +44,14 @@ export function describeTournament(race: RaceLobbyListItem): string | null {
     return null;
   }
   return `${TOURNAMENT_TIER_LABELS[race.tournament.tier]} · Seviye ${race.tournament.minPlayerLevel}+ · Botsuz final, ödül ilk üçe`;
+}
+
+/**
+ * Takvim yarışı (01.10.2026, migration 0052) — sunucunun programla açtığı
+ * sıradan lobi yarışı; kuralı oyuncunun açtığı yarışla aynıdır.
+ */
+export function describeCalendar(race: RaceLobbyListItem): string | null {
+  return race.calendar === null ? null : 'Takvim yarışı · sunucu açtı';
 }
 
 export const WEATHER_LABELS: Record<RaceWeather, string> = {
@@ -112,7 +125,8 @@ export function defaultLobbyRaceForm(config: RaceLobbyConfig): LobbyRaceForm {
   };
 }
 
-export type BuildCreateRaceResult = { ok: true; body: CreateLobbyRaceBody } | { ok: false; problem: string };
+export type BuildCreateRaceResult =
+  { ok: true; body: CreateLobbyRaceBody } | { ok: false; problem: string };
 
 /**
  * Formu `POST /races` gövdesine çevirir. İstemci tarafı kontroller yalnızca
@@ -120,7 +134,11 @@ export type BuildCreateRaceResult = { ok: true; body: CreateLobbyRaceBody } | { 
  * yapar. `startTime` = `now + startDelayMinutes` — sunucu en az
  * `startDelaySeconds.min` ileri bir zaman ister.
  */
-export function buildCreateRaceBody(form: LobbyRaceForm, now: Date, config: RaceLobbyConfig): BuildCreateRaceResult {
+export function buildCreateRaceBody(
+  form: LobbyRaceForm,
+  now: Date,
+  config: RaceLobbyConfig,
+): BuildCreateRaceResult {
   const name = form.name.trim();
   if (name.length < config.nameLength.min || name.length > config.nameLength.max) {
     return {
@@ -131,7 +149,10 @@ export function buildCreateRaceBody(form: LobbyRaceForm, now: Date, config: Race
   if (!maxPlayersOptions(form.fieldSize, config).includes(form.maxPlayers)) {
     return { ok: false, problem: 'Oyuncu tavanı at sayısıyla uyumlu değil.' };
   }
-  if (form.distanceMeters < config.distanceMeters.min || form.distanceMeters > config.distanceMeters.max) {
+  if (
+    form.distanceMeters < config.distanceMeters.min ||
+    form.distanceMeters > config.distanceMeters.max
+  ) {
     return {
       ok: false,
       problem: `Mesafe ${config.distanceMeters.min}–${config.distanceMeters.max} m arasında olmalıdır.`,
@@ -199,7 +220,9 @@ export function lobbyEntryActions(race: RaceLobbyListItem): LobbyEntryActions {
 
 /** "12 dk sonra" / "1 sa 5 dk sonra" / "başlıyor". Saniye hassasiyeti bilinçli olarak yok. */
 export function formatStartsIn(startTime: string, now: Date): string {
-  const minutes = Math.floor((new Date(startTime).getTime() - now.getTime()) / (SECONDS_PER_MINUTE * MS_PER_SECOND));
+  const minutes = Math.floor(
+    (new Date(startTime).getTime() - now.getTime()) / (SECONDS_PER_MINUTE * MS_PER_SECOND),
+  );
   if (minutes <= 0) {
     return 'başlıyor';
   }

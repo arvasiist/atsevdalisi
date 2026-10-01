@@ -1701,6 +1701,40 @@ export interface RaceLobbyConfig {
      */
     batchSize: number;
   };
+  /**
+   * 01.10.2026 — YARIŞ TAKVİMİ. Sunucu her programın bir sonraki
+   * yuvalarını (`intervalMinutes` adımlı, UTC çağından hizalı +
+   * `offsetMinutes`) `horizonHours` ileriye kadar lobi yarışı olarak açar.
+   * Yarış oyuncunun açtığı lobi yarışıyla AYNIDIR (giriş ücreti, READY,
+   * bot dolgusu, kilit, kesinleşme); yalnızca `created_by` NULL'dır. Her
+   * program `validateRaceCreation`dan geçmek zorundadır (test).
+   */
+  calendar: {
+    enabled: boolean;
+    tickSeconds: number;
+    horizonHours: number;
+    /** Başlangıcına bundan az kalan yuva açılmaz (kayıt için süre kalsın). */
+    minLeadMinutes: number;
+    programs: RaceCalendarProgram[];
+  };
+}
+
+export interface RaceCalendarProgram {
+  /** Kalıcı kimlik — `race_calendar_slots.program_id`. Değiştirmek yeni program demektir. */
+  id: string;
+  name: string;
+  intervalMinutes: number;
+  /** [0, intervalMinutes) — aynı aralıklı programlar çakışmasın. */
+  offsetMinutes: number;
+  fieldSize: number;
+  maxPlayers: number;
+  /** 0 → ücretsiz yarış. */
+  entryFee: number;
+  distanceMeters: number;
+  surface: string;
+  weather: string;
+  tribuneFee: number;
+  spectatorCapacity: number;
 }
 
 /**

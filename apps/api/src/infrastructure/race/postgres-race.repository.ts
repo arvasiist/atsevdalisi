@@ -28,6 +28,7 @@ import type {
 import type {
   CreateLobbyRaceInput,
   CreateLobbyRaceResult,
+  CreateCalendarRaceInput,
   CreateTournamentRaceInput,
   DropUnreadyLobbyEntriesResult,
   JoinLobbyRaceInput,
@@ -1227,6 +1228,7 @@ export class PostgresRaceRepository implements RaceRepository {
         my_horse_id: string | null;
         tournament_tier: TournamentInfo['tier'] | null;
         tournament_min_level: number | null;
+        calendar_program_id: string | null;
       }
     >(
       `SELECT r.id, r.name, r.participant_limit, r.max_players, r.entry_fee, r.prize_pool,
@@ -1236,12 +1238,14 @@ export class PostgresRaceRepository implements RaceRepository {
               MAX(e.status) FILTER (WHERE e.player_id = $3) AS my_status,
               MAX(e.horse_id::text) FILTER (WHERE e.player_id = $3) AS my_horse_id,
               t.tier AS tournament_tier,
-              t.min_player_level AS tournament_min_level
+              t.min_player_level AS tournament_min_level,
+              c.program_id AS calendar_program_id
        FROM races r
        LEFT JOIN race_entries e ON e.race_id = r.id AND e.player_id IS NOT NULL
        LEFT JOIN tournaments t ON t.race_id = r.id
+       LEFT JOIN race_calendar_slots c ON c.race_id = r.id
        WHERE r.status = $1
-       GROUP BY r.id, t.tier, t.min_player_level
+       GROUP BY r.id, t.tier, t.min_player_level, c.program_id
        ORDER BY r.start_time ASC
        LIMIT $2`,
       [input.status, input.limit, input.viewerId],
@@ -1257,6 +1261,7 @@ export class PostgresRaceRepository implements RaceRepository {
         row.tournament_tier !== null && row.tournament_min_level !== null
           ? { tier: row.tournament_tier, minPlayerLevel: row.tournament_min_level }
           : null,
+      calendar: row.calendar_program_id !== null ? { programId: row.calendar_program_id } : null,
     }));
   }
 
@@ -1742,6 +1747,96 @@ export class PostgresRaceRepository implements RaceRepository {
        SET status = 'cancelled', updated_at = $1
        FROM tournaments t
        WHERE t.race_id = r.id
+         AND r.status = 'scheduled'
+         AND r.start_time <= $1
+         AND NOT EXISTS (
+           SELECT 1 FROM race_entries e
+           WHERE e.race_id = r.id AND e.player_id IS NOT NULL AND e.status IS DISTINCT FROM 'cancelled'
+         )`,
+      [now],
+    );
+    return result.rowCount ?? 0;
+  }
+
+  async findExistingCalendarSlots(programId: string, startTimes: Date[]): Promise<Date[]> {
+    if (startTimes.length === 0) {
+      return [];
+    }
+    const result = await this.pool.query<{ start_time: Date }>(
+      'SELECT start_time FROM race_calendar_slots WHERE program_id = $1 AND start_time = ANY($2::timestamptz[])',
+      [programId, startTimes],
+    );
+    return result.rows.map((row) => row.start_time);
+  }
+
+  /**
+   * Takvim yarışı = sunucu üretimi sıradan bir lobi yarışı + yuva satırı,
+   * TEK transaction (migration 0052). İki sunucu örneği aynı yuvayı açmaya
+   * kalkarsa yuva başına transaction-kilidi ikisini sıraya sokar; ikincisi
+   * kilit altında yuvayı dolu görür ve `null` döner (turnuvayla aynı desen).
+   * Kilit kaçırılsa bile yuvanın birincil anahtarı ikinci satırı reddeder.
+   */
+  async createCalendarRace(input: CreateCalendarRaceInput): Promise<string | null> {
+    return withTransaction(this.pool, async (client) => {
+      await client.query("SELECT pg_advisory_xact_lock(hashtext('race-calendar:' || $1 || ':' || $2))", [
+        input.programId,
+        input.startTime.toISOString(),
+      ]);
+      const existing = await client.query(
+        'SELECT 1 FROM race_calendar_slots WHERE program_id = $1 AND start_time = $2',
+        [input.programId, input.startTime],
+      );
+      if (existing.rows.length > 0) {
+        return null;
+      }
+      await client.query(
+        `INSERT INTO races (
+           id, created_by, name, distance_m, surface, weather,
+           participant_limit, max_players, entry_fee, prize_pool, race_type,
+           tribune_fee, spectator_capacity, start_time, status, simulation_seed,
+           engine_version, ruleset_version, config_version, weather_config_version
+         )
+         VALUES ($1, NULL, $2, $3, $4, $5, $6, $7, $8, 0, $9, $10, $11, $12, 'scheduled', NULL, $13, $14, $15, $16)`,
+        [
+          input.raceId,
+          input.name,
+          input.distanceMeters,
+          input.surface,
+          input.weather,
+          input.fieldSize,
+          input.maxPlayers,
+          input.entryFee,
+          input.raceType,
+          input.tribuneFee,
+          input.spectatorCapacity,
+          input.startTime,
+          input.engineVersion,
+          input.rulesetVersion,
+          input.configVersion,
+          input.weatherConfigVersion,
+        ],
+      );
+      await client.query('INSERT INTO race_calendar_slots (program_id, start_time, race_id) VALUES ($1, $2, $3)', [
+        input.programId,
+        input.startTime,
+        input.raceId,
+      ]);
+      return input.raceId;
+    });
+  }
+
+  /**
+   * Başlangıcı geçmiş, HİÇ katılımı olmayan takvim yarışlarını iptal eder
+   * (`cancelEmptyDueTournaments` ile aynı gerekçe: kilit zamanlayıcısı
+   * katılımsız yarışı seçmez, `scheduled`da sonsuza dek kalırdı ve lobi
+   * listesini geçmiş yarışlarla doldururdu). Para yoktur — defter satırı yazılmaz.
+   */
+  async cancelEmptyDueCalendarRaces(now: Date): Promise<number> {
+    const result = await this.pool.query(
+      `UPDATE races r
+       SET status = 'cancelled', updated_at = $1
+       FROM race_calendar_slots c
+       WHERE c.race_id = r.id
          AND r.status = 'scheduled'
          AND r.start_time <= $1
          AND NOT EXISTS (

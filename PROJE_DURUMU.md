@@ -448,16 +448,16 @@ doğrulama ancak GitHub Actions'ta gerçek Postgres/Redis ile yapılabiliyor.
 | **Gerçek 3D/ses varlığı yok** | §8.3 — en büyük görsel engel; sahibinin kararını bekliyor |
 | **OAuth kimlik bilgisi yok** | Kod tam (§13.38: Google düğmesi + bağlama); `GOOGLE_OAUTH_CLIENT_ID` boşken düğme gizlenir ve `POST /auth/login` `InvalidProviderTokenError` döner. Apple: istemci yok, ücretli üyelik bekliyor |
 | ~~Frontend'de gerçek giriş yok~~ | **KAPANDI** — `/account`: e-posta + şifre (§13.36), sıfırlama (§13.37), Google (§13.38), çıkış |
-| **Yarış takvimi yok** | Planlı, çok katılımcılı `GET /races` takvimi yok; yalnızca practice race + PvP |
+| ~~**Yarış takvimi yok**~~ | **KAPANDI (01.10.2026, §13.53)** — sunucu config programıyla lobi yarışı açar |
 | **Matchmaking senkron** | `JoinMatchmakingQueueUseCase.playMatch` eşleşmeyi **HTTP isteği içinde** yapar. `@nestjs/schedule`/cron/worker YOK → arka plan işi yok |
 | **Pazar süresi dolması tembel** | `PostgresMarketListingRepository.sweepExpiredListings` — lazy sweep, zamanlanmış iş değil |
 | **Müzayede ilanı yok** | Yalnızca `fixed_price` |
 | ~~**Jokey bağlanmamış**~~ **KAPANDI (§13.30, PHASE 6.2, 29.09.2026)** | `calculateJockeySkillComposite` artık motora girer; `race_entries.jockey_id` kilit anında yazılır. **AÇIK KALAN:** `calculateJockeyHorseCompatibility` ve `domain/jockey/jockey.ts`'teki `calculateTemperamentComponent` hâlâ **çağıransız**; `gatePosition` hâlâ okunmuyor |
 | **Jokey serbest bırakma yolu yok** | Bir jokeyi attan ayıran uç nokta yok; `race_entries.jockey_id` yazılır ama geri alınmaz |
 | **Çiftlik/personel çarpanları bağlanmamış** | `domain/farm/farm.ts`'teki tüm `get*Multiplier` fonksiyonlarının çağıranı yok; `domain/staff/` tamamen bağlanmamış |
-| **Bağlanmamış domain modülleri** | tournament, club, ranking, season, progression, breeding/genetics — mantık + spec var, controller/use-case/repository yok |
-| **Placeholder sayfalar** | `/club`, `/farm`, `/leaderboard` yalnızca `<ComingSoon>` render eder |
-| **Bağlanmamış iskeletler** | `RaceAudioManager`/`html-audio-backend`, `GltfAssetLoader` — hiçbir yerden import edilmiyor; `PlayerDemoWidget.tsx` hiçbir sayfada mount edilmiyor. (**`DustParticles` ve `PedigreeTree` artık BAĞLI** — 27.09.2026, bkz. §13 ve §13.2) |
+| ~~**Bağlanmamış domain modülleri**~~ | **KAPANDI (30.09–01.10.2026):** turnuva §13.35, kulüp §13.41, sezon §13.43, ilerleme §13.40, yetiştirme §13.4 — hepsi uç + ekranla bağlı |
+| ~~**Placeholder sayfalar**~~ | **KAPANDI** — `/club`, `/farm`, `/leaderboard` gerçek ekranlar |
+| **Bağlanmamış iskeletler** | ~~`RaceAudioManager`/`html-audio-backend`, `GltfAssetLoader`~~ **01.10.2026'da BAĞLANDI** (§13.46, §13.51); `PlayerDemoWidget.tsx` hiçbir sayfada mount edilmiyor. (**`DustParticles` ve `PedigreeTree` artık BAĞLI** — 27.09.2026, bkz. §13 ve §13.2) |
 | **PWA nominal** | `public/manifest.json` → `icons: []`, `layout.tsx`'ten link'lenmiyor, `next-pwa` yok |
 | **`notification.new`** | WebSocket olayı planlandı, uygulanmadı |
 
@@ -3582,6 +3582,23 @@ PLACEHOLDER'dır: gerçek `.glb`/HDRI/ses dosyaları `asset-manifest.ts`teki
 yollara konunca kod değişmeden devreye girer (`npm run assets:check`
 boyut/üçgen/klip denetler). **Bekleyen karar: varlık kaynağı (CC0 mi,
 ücretli/özel üretim mi).**
+
+#### 13.53 YARIŞ TAKVİMİ (01.10.2026, migration 0052)
+
+Oyuncu yarış açmasa da lobi boş kalmasın: `race-lobby.config.json` →
+`calendar` (`horizonHours` 3, `minLeadMinutes` 10, üç program: Kum Sprint
+30 dk, Çim Mil 60 dk, ücretsiz Açık Koşu 20 dk). `RaceCalendarScheduler`
+(`TournamentScheduler` deseni, testte kapalı) her tur
+`ScheduleRaceCalendarUseCase`i çağırır: başlangıcı geçmiş katılımsız takvim
+yarışlarını iptal eder, sonra penceredeki açılmamış yuvaları açar. Yarış
+sıradan lobi yarışıdır — giriş ücreti, READY, bot dolgusu, kilit ve
+kesinleşme değişmedi. Her yuva oyuncunun kuralından
+(`validateRaceCreation`) geçer; geçemeyen program loglanır ve açılmaz.
+Tekrar koruması yuva PK'sı + `pg_advisory_xact_lock` (eşzamanlı iki tur
+testte). Lobi satırı `calendar.programId` taşır; `LobbyPanel` "Takvim
+yarışı" etiketi gösterir. Test: `race-calendar.spec.ts` (saf),
+`race-calendar.e2e-spec.ts` (4 senaryo; iptal adımı kapatılınca düştüğü
+doğrulandı), `race-calendar-scheduler.spec.ts` (`enabled` okunuyor).
 
 ## 14. Kendime hatırlatmalar (kısa liste)
 
