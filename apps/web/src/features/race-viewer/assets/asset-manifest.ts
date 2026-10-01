@@ -42,6 +42,30 @@ export type AssetFormat = 'glb' | 'gltf' | 'ktx2' | 'png' | 'mp3' | 'ogg' | 'hdr
 export type AnimationRole = 'idle' | 'walk' | 'trot' | 'canter' | 'gallop' | 'ride';
 
 /**
+ * 01.10.2026 — bir modelin sahneye NASIL oturtulacağı (3D adım 4). Satın
+ * alınan paketler farklı eksen, ölçek ve adlandırma kullanır; kod bunlara
+ * değil bu sözleşmeye bağlanır. Model farklıysa YALNIZCA burası değişir.
+ */
+export interface AssetBinding {
+  /** Modelin "ileri" baktığı yerel eksen. Oyunda ileri = +X. */
+  forwardAxis: '+x' | '-x' | '+z' | '-z';
+  /** Modelin ileri eksendeki toplam uzunluğu bu değere ölçeklenir (metre). */
+  targetLengthMeters?: number;
+  /** Ya da toplam yüksekliği bu değere ölçeklenir (uzunluk verilmemişse). */
+  targetHeightMeters?: number;
+  /**
+   * Renklendirilecek malzeme adları (büyük/küçük harf duyarsız, "içerir"
+   * eşleşmesi). Ton yalnızca nötr/gri tonlu dokuyla doğru görünür; model
+   * kendi renkli dokusuyla geliyorsa bu listeyi BOŞ bırakın.
+   */
+  tintMaterials?: Partial<Record<'coat' | 'mane' | 'silk', string[]>>;
+  /** Jokey: atın iskeletinde oturacağı kemik adları (ilk bulunan). */
+  mountBoneNames?: string[];
+  /** Jokey: kemik bulunamazsa at köküne göre oturma noktası (metre, oyun ekseni). */
+  mountOffset?: [number, number, number];
+}
+
+/**
  * `status` bu dosyada ASLA elle `'present'` yapılmaz — bir asset
  * gerçekten `public/` altına konulup `GltfAssetLoader`/ses çalarlar
  * tarafından BAŞARIYLA yüklendiğinde bunu YANSITACAK tek yer ÇALIŞMA
@@ -63,6 +87,8 @@ export interface AssetRequirement {
   fallbackBehavior: string;
   /** 01.10.2026 — yalnızca animasyonlu modellerde: rol → kabul edilen klip adları (büyük/küçük harf duyarsız). */
   animationClips?: Partial<Record<AnimationRole, string[]>>;
+  /** 01.10.2026 — sahneye yerleştirme sözleşmesi (yalnızca modellerde). */
+  binding?: AssetBinding;
 }
 
 /**
@@ -86,7 +112,12 @@ export const ASSET_MANIFEST: AssetRequirement[] = [
       canter: ['Canter', 'Canter_01'],
       gallop: ['Gallop', 'Run', 'Gallop_01'],
     },
-    fallbackBehavior: "RaceScene3D.tsx'teki mevcut kapsül+küre HorseMarker ilkel şekli.",
+    binding: {
+      forwardAxis: '+z',
+      targetLengthMeters: 2.5,
+      tintMaterials: { coat: ['coat', 'body', 'fur'], mane: ['mane', 'tail', 'hair'] },
+    },
+    fallbackBehavior: 'Prosedürel at (HorseModel.tsx) + ekranda PLACEHOLDER rozeti.',
   },
   {
     id: 'JOCKEY_MODEL_REQUIRED',
@@ -99,8 +130,15 @@ export const ASSET_MANIFEST: AssetRequirement[] = [
       idle: ['Idle', 'Sit', 'Mounted_Idle'],
       ride: ['Ride', 'Jockey_Ride', 'Riding'],
     },
+    binding: {
+      forwardAxis: '+z',
+      targetHeightMeters: 1.05,
+      tintMaterials: { silk: ['silk', 'shirt', 'jersey', 'jacket'] },
+      mountBoneNames: ['Saddle', 'saddle', 'Spine2', 'spine_02', 'Spine1'],
+      mountOffset: [0.15, 1.75, 0],
+    },
     fallbackBehavior:
-      'Şu an ayrı bir jokey görseli YOK — at markörüyle birlikte render edilmez (Grup 2 kapsamı).',
+      'Prosedürel jokey (HorseModel.tsx `Jockey`); gerçek at GLB ile birlikte `mountOffset` noktasına oturur.',
   },
   {
     id: 'HIPPODROME_ENVIRONMENT_REQUIRED',

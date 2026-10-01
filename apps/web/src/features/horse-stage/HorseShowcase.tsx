@@ -17,68 +17,24 @@
  * Sahne hiçbir dosyayı CDN'den indirmez: ışık ve gökyüzü sahnede üretilir.
  */
 
-import { Suspense, useEffect, useMemo, useRef } from 'react';
+import { Suspense, useMemo } from 'react';
 import { Canvas } from '@react-three/fiber';
-import { ContactShadows, OrbitControls, useAnimations } from '@react-three/drei';
-import type { Group } from 'three';
-import type { GLTF } from 'three-stdlib';
+import { ContactShadows, OrbitControls } from '@react-three/drei';
 import { loadHorsePresenceConfig } from '@at-sevdalisi/game-config';
 import type { PublicHorse } from '@at-sevdalisi/shared-types';
-import { HorseModel } from '../race-viewer/HorseModel';
-import { GltfAssetLoader } from '../race-viewer/assets/GltfAssetLoader';
+import { HorseAvatar3D } from '../race-viewer/HorseAvatar3D';
 import { PlaceholderBadge } from '../race-viewer/assets/PlaceholderBadge';
-import { getAssetById } from '../race-viewer/assets/asset-manifest';
 import { HORSE_MOOD_LABELS, deriveHorseDemeanor } from './horse-demeanor';
 
 const PRESENCE_CONFIG = loadHorsePresenceConfig();
-const HORSE_ASSET = getAssetById('HORSE_MODEL_REQUIRED');
 
 export type ShowcaseHorse = Pick<
   PublicHorse,
   'id' | 'name' | 'health' | 'energy' | 'fatigue' | 'morale' | 'status' | 'appearance'
 >;
 
-/** GLB geldiğinde: modeli sahneye koyar ve `idle` klibini oynatır. */
-function GltfHorse({
-  gltf,
-  idleClip,
-}: {
-  gltf: GLTF;
-  idleClip: string | null;
-}): React.ReactElement {
-  const root = useRef<Group>(null);
-  const { actions } = useAnimations(gltf.animations, root);
-  useEffect(() => {
-    if (!idleClip) return undefined;
-    const action = actions[idleClip];
-    action?.reset().fadeIn(0.4).play();
-    return () => {
-      action?.fadeOut(0.3);
-    };
-  }, [actions, idleClip]);
-  return (
-    <group ref={root}>
-      <primitive object={gltf.scene} />
-    </group>
-  );
-}
-
 function ShowcaseScene({ horse }: { horse: ShowcaseHorse }): React.ReactElement {
   const demeanor = useMemo(() => deriveHorseDemeanor(horse, PRESENCE_CONFIG), [horse]);
-  const procedural = (
-    <group position={[0.1, 0, 0]}>
-      <HorseModel
-        horseId={horse.id}
-        silkColor="#c9a227"
-        saddleNumber={1}
-        isMoving={false}
-        castShadow
-        appearance={horse.appearance}
-        demeanor={demeanor}
-        showJockey={false}
-      />
-    </group>
-  );
   return (
     <>
       <color attach="background" args={['#0d1424']} />
@@ -98,13 +54,18 @@ function ShowcaseScene({ horse }: { horse: ShowcaseHorse }): React.ReactElement 
         <meshStandardMaterial color="#3a2c1d" roughness={0.95} />
       </mesh>
       <ContactShadows position={[0, 0.01, 0]} opacity={0.55} scale={7} blur={2.2} far={3} />
-      {HORSE_ASSET ? (
-        <GltfAssetLoader asset={HORSE_ASSET} fallback={procedural}>
-          {(gltf, clips) => <GltfHorse gltf={gltf} idleClip={clips.idle ?? null} />}
-        </GltfAssetLoader>
-      ) : (
-        procedural
-      )}
+      <group position={[0.1, 0, 0]}>
+        <HorseAvatar3D
+          horseId={horse.id}
+          silkColor="#c9a227"
+          saddleNumber={1}
+          gait="idle"
+          castShadow
+          appearance={horse.appearance}
+          demeanor={demeanor}
+          showJockey={false}
+        />
+      </group>
       <OrbitControls
         target={[0, 1.2, 0]}
         enablePan={false}

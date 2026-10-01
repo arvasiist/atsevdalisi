@@ -11,18 +11,16 @@
  *
  * ⚠️ PLACEHOLDER: at, jokey, ahır ve tribün bugün prosedürel geometridir
  * (gerçek GLB yok — `PlaceholderBadge` bunu ekranda söyler). `public/models/
- * horse.glb` konunca at `GltfAssetLoader` üzerinden gerçek modele geçer.
+ * horse.glb` / `jockey.glb` konunca `HorseAvatar3D` gerçek modellere geçer.
  * Sahne hiçbir dosyayı CDN'den indirmez.
  */
 
 import { useEffect, useMemo, useRef } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { useAnimations } from '@react-three/drei';
 import * as THREE from 'three';
-import type { GLTF } from 'three-stdlib';
 import { loadCameraConfig, loadHorsePresenceConfig } from '@at-sevdalisi/game-config';
 import type { PublicHorse } from '@at-sevdalisi/shared-types';
-import { HorseModel } from '../race-viewer/HorseModel';
+import { HorseAvatar3D } from '../race-viewer/HorseAvatar3D';
 import {
   DirtTrack,
   Grandstand,
@@ -32,8 +30,6 @@ import {
   TrackFurniture,
   TreeLine,
 } from '../race-viewer/TrackScenery';
-import { GltfAssetLoader } from '../race-viewer/assets/GltfAssetLoader';
-import { getAssetById } from '../race-viewer/assets/asset-manifest';
 import {
   getQualityTierRenderSettings,
   type QualityTierRenderSettings,
@@ -49,7 +45,6 @@ import { evaluateShowcaseCamera, fitFovToAspect, toWorld, type Vec3 } from './sh
 
 const CAMERA_CONFIG = loadCameraConfig().homeShowcase;
 const PRESENCE_CONFIG = loadHorsePresenceConfig();
-const HORSE_ASSET = getAssetById('HORSE_MODEL_REQUIRED');
 
 const TRACK_GEOMETRY = createStadiumTrackGeometry(
   DEFAULT_LAP_LENGTH_METERS,
@@ -142,31 +137,6 @@ function CameraRig({
   return null;
 }
 
-/** GLB geldiğinde: model + `idle` klibi. */
-function GltfHorse({
-  gltf,
-  idleClip,
-}: {
-  gltf: GLTF;
-  idleClip: string | null;
-}): React.ReactElement {
-  const root = useRef<THREE.Group>(null);
-  const { actions } = useAnimations(gltf.animations, root);
-  useEffect(() => {
-    if (!idleClip) return undefined;
-    const action = actions[idleClip];
-    action?.reset().fadeIn(0.4).play();
-    return () => {
-      action?.fadeOut(0.3);
-    };
-  }, [actions, idleClip]);
-  return (
-    <group ref={root}>
-      <primitive object={gltf.scene} />
-    </group>
-  );
-}
-
 function PlayerHorse({
   horse,
   settings,
@@ -175,28 +145,19 @@ function PlayerHorse({
   settings: QualityTierRenderSettings;
 }): React.ReactElement {
   const demeanor = useMemo(() => deriveHorseDemeanor(horse, PRESENCE_CONFIG), [horse]);
-  const procedural = (
-    <HorseModel
-      horseId={horse.id}
-      silkColor="#c9a227"
-      saddleNumber={1}
-      isMoving={false}
-      castShadow={settings.shadowsEnabled}
-      appearance={horse.appearance}
-      demeanor={demeanor}
-      showJockey
-      showSaddleCloth={false}
-    />
-  );
   return (
     <group position={HORSE_ANCHOR} rotation={[0, -HORSE_HEADING, 0]}>
-      {HORSE_ASSET ? (
-        <GltfAssetLoader asset={HORSE_ASSET} fallback={procedural}>
-          {(gltf, clips) => <GltfHorse gltf={gltf} idleClip={clips.idle ?? null} />}
-        </GltfAssetLoader>
-      ) : (
-        procedural
-      )}
+      <HorseAvatar3D
+        horseId={horse.id}
+        silkColor="#c9a227"
+        saddleNumber={1}
+        gait="idle"
+        castShadow={settings.shadowsEnabled}
+        appearance={horse.appearance}
+        demeanor={demeanor}
+        showJockey
+        showSaddleCloth={false}
+      />
     </group>
   );
 }

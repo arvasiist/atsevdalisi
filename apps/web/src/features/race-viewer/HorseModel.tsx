@@ -290,7 +290,7 @@ export function HorseModel({
         </>
       ) : null}
 
-      {showJockey ? <Jockey silkColor={silkColor} castShadow={castShadow} /> : null}
+      {showJockey ? <ProceduralJockey silkColor={silkColor} castShadow={castShadow} /> : null}
     </group>
   );
 }
@@ -374,7 +374,7 @@ function FaceMarking({
   );
 }
 
-function Jockey({
+export function ProceduralJockey({
   silkColor,
   castShadow,
 }: {

@@ -584,6 +584,16 @@ ihtiyaç duyuyor. Sessizce atlamak yerine burada AÇIKÇA listeleniyor:
 
 ## Bir varlık eklendiğinde yapılması gerekenler
 
+**01.10.2026 — 3D modeli eklemek (adım 4):**
+1. Dosyayı `apps/web/public/<expectedPath>` altına koy (ör. `public/models/horse.glb`).
+2. `npm run assets:check` çalıştır: biçim, mesh/iskelet sayısı, animasyon
+   klipleri, renklendirilecek malzemeler ve mobil boyut bütçesi raporlanır.
+3. Rapordaki "not" satırlarına göre `asset-manifest.ts` → `binding`
+   (ileri eksen, hedef boy, malzeme adları, jokey kemiği) ve
+   `animationClips` (klip takma adları) güncellenir — kod değişmez.
+4. Sayfayı yenile: at/jokey her sahnede (ana sayfa, ahır önizlemesi, yarış)
+   `HorseAvatar3D` üzerinden gerçek modele geçer; PLACEHOLDER rozetinden düşer.
+
 **01.10.2026 — sıkıştırma:** GLB'ler Draco ya da Meshopt ile, dokular KTX2
 ile sıkıştırılabilir; çözücüler YEREL servis edilir (`/decoders/`,
 `apps/web/scripts/copy-3d-decoders.mjs`). Animasyon klip adları manifestteki

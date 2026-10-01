@@ -3492,6 +3492,19 @@ kapatıyordu (at kuleler arasına alındı). Tarayıcıda 1440 ve 390 px'de
 doğrulandı: dışarıya istek yok, konsol hatası yok, yatay taşma yok. Kanıt:
 `showcase-camera.spec.ts` (10); web 33/462; `next build` (ana sayfa 15.3 kB).
 
+#### 13.46 3D ADIM 4 — AT + JOKEY GLB BAĞLAMA (01.10.2026)
+
+Gerçek varlık hâlâ yok (lisans kararı sahipte); bu adım dosya konduğu anda
+her sahnenin gerçek modele geçmesini sağlar. `HorseAvatar3D` üç sahnenin
+ortak bileşeni oldu. Manifest'e `binding` sözleşmesi (ileri eksen, hedef
+boy, renklendirilecek malzemeler, jokey kemikleri/oturma noktası).
+`model-fit.ts` (saf), `asset-inspect.ts` (saf GLB/HDR/KTX2/MP3 doğrulama) +
+`npm run assets:check`. Tarayıcıda GEÇİCİ bir test GLB'si (Z'ye bakan kutu,
+"Coat" malzemesi, "Idle" klibi — testten sonra silindi, repoya girmedi) ile
+doğrulandı: model döndürüldü, 2.5 m'ye ölçeklendi, zemine oturdu, don rengi
+uygulandı, rozetten düştü. Kanıt: `model-binding.spec.ts` (10; sentetik GLB
+bellekte üretilir); web 34/472.
+
 ## 14. Kendime hatırlatmalar (kısa liste)
 
 1. **Race Engine'e dokunmadan önce iki kez düşün.** Denetim onu "KEEP, dokunma"

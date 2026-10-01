@@ -17,4 +17,3 @@ export function getKtx2Loader(renderer: WebGLRenderer): KTX2Loader {
   }
   return loader;
 }
-

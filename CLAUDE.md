@@ -220,6 +220,14 @@ konum, `from→to` dolly, `blendSeconds` yumuşak geçiş; saf
 three.js İÇE AKTARMAZ (KTX2 `ktx2-loader.ts`te) — rozet ana pakete three
 çekiyordu (ana sayfa 216 kB → 15 kB). ⚠️ `HorseModel` baş açısı düzeltildi
 (baş eskiden geriye-yukarı bakıyordu; yarış ekranını da etkiler).
+(20) **GLB BAĞLAMA (3D adım 4, §13.46)** — sahnelerin TEK at bileşeni
+`HorseAvatar3D` (yarış, ana sayfa, ahır önizlemesi): GLB varsa
+`SkeletonUtils.clone` (örnek başına), `computeModelFit` (eksen/ölçek/taban),
+`tintMaterials` (don/yele/forma), rol ile klip (`pickGaitClip`), jokey
+`mountBoneNames` kemiğine; yoksa prosedürel. Model farklıysa YALNIZCA
+manifest `binding` değişir. `npm run assets:check` dosyaları doğrular.
+⚠️ Prosedürel jokey jokey-GLB yokken atın GÖVDE grubunda çizilir (dörtnalda
+birlikte sallanır) — ayrı çizmek kopukluk yaratır.
 
 **✅ ÜCRETLİ LOBİ YARIŞI ARTIK KOŞUYOR — ÖDÜL DAĞITIMI VAR (§13.14,
 28.09.2026).** `POST /races/:id/settle` yarışı koşar, ödülleri `top5`

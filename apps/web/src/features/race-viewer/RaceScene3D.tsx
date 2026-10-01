@@ -88,7 +88,7 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { Bloom, EffectComposer, SSAO } from '@react-three/postprocessing';
 import * as THREE from 'three';
 import { DustParticles } from './audio-vfx/DustParticles';
-import { HorseModel } from './HorseModel';
+import { HorseAvatar3D } from './HorseAvatar3D';
 import {
   DirtTrack,
   Grandstand,
@@ -315,11 +315,11 @@ function HorseRig({
 
   return (
     <group ref={groupRef}>
-      <HorseModel
+      <HorseAvatar3D
         horseId={horse.horseId}
         silkColor={horse.color}
         saddleNumber={saddleNumber}
-        isMoving={isMoving}
+        gait={isMoving ? 'gallop' : 'idle'}
         castShadow={castShadow}
       />
       {horse.isLeader ? (
