@@ -39,6 +39,16 @@ import {
   InvalidResetTokenError,
   MissingAuthTokenError,
 } from '../../domain/auth/errors';
+import {
+  AlreadyClubMemberError,
+  ClubFullError,
+  ClubLeaderCannotLeaveError,
+  ClubNameTakenError,
+  ClubNotFoundError,
+  InsufficientClubPermissionError,
+  InvalidClubInputError,
+  NotClubMemberError,
+} from '../../domain/club/errors';
 import { HorseNotReadyForTrainingError, InvalidTrainingInputError } from '../../domain/training/errors';
 import { HorseEquipmentNotFoundError, InvalidEquipmentInputError } from '../../domain/equipment/errors';
 import {
@@ -437,6 +447,15 @@ const DOMAIN_ERROR_MAP = new Map<ErrorClassConstructor, { status: number; code: 
   // 01.10.2026 — Google hesabı bağlama (migration 0048).
   [ProviderIdentityTakenError, { status: HttpStatus.CONFLICT, code: ErrorCode.ProviderIdentityTaken }],
   [ProviderAlreadyLinkedError, { status: HttpStatus.CONFLICT, code: ErrorCode.ProviderAlreadyLinked }],
+  // 01.10.2026 — kulüp (migration 0049).
+  [ClubNotFoundError, { status: HttpStatus.NOT_FOUND, code: ErrorCode.ClubNotFound }],
+  [ClubNameTakenError, { status: HttpStatus.CONFLICT, code: ErrorCode.ClubNameTaken }],
+  [ClubFullError, { status: HttpStatus.CONFLICT, code: ErrorCode.ClubFull }],
+  [AlreadyClubMemberError, { status: HttpStatus.CONFLICT, code: ErrorCode.AlreadyClubMember }],
+  [NotClubMemberError, { status: HttpStatus.FORBIDDEN, code: ErrorCode.NotClubMember }],
+  [InsufficientClubPermissionError, { status: HttpStatus.FORBIDDEN, code: ErrorCode.InsufficientClubPermission }],
+  [ClubLeaderCannotLeaveError, { status: HttpStatus.CONFLICT, code: ErrorCode.ClubLeaderCannotLeave }],
+  [InvalidClubInputError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.ValidationError }],
   // claude/hizli-bitirme-plani.md'nin proje sahibi tarafından
   // önceliklendirdiği Ekipman dilimi (bu turda EKLENDİ) — `InvalidTraining
   // InputError` ile AYNI gerekçe (Hata 7 savunması, gerçek bir DOĞRULAMA

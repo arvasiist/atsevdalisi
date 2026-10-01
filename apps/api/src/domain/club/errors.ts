@@ -34,3 +34,27 @@ export class ClubLeaderCannotLeaveError extends Error {
     this.name = 'ClubLeaderCannotLeaveError';
   }
 }
+
+/** Kulüp bulunamadı (404). */
+export class ClubNotFoundError extends Error {
+  constructor(public readonly clubId: string) {
+    super(`Kulüp bulunamadı (${clubId}).`);
+    this.name = 'ClubNotFoundError';
+  }
+}
+
+/** Bu adla bir kulüp zaten var (409) — ad harf duyarsız tekildir. */
+export class ClubNameTakenError extends Error {
+  constructor() {
+    super('Bu adla bir kulüp zaten var.');
+    this.name = 'ClubNameTakenError';
+  }
+}
+
+/** Kulüp adı/etiketi/rolü biçimsel olarak geçersiz (400). */
+export class InvalidClubInputError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'InvalidClubInputError';
+  }
+}

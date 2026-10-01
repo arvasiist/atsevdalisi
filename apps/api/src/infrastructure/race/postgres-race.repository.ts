@@ -1,5 +1,6 @@
 import { computeRaceXp } from '../../domain/progression/progression';
 import { awardXpInTransaction } from '../progression/award-xp';
+import { addClubPointsInTransaction } from '../club/postgres-club.repository';
 import { Inject, Injectable } from '@nestjs/common';
 import type { Pool, PoolClient } from 'pg';
 import type {
@@ -429,6 +430,13 @@ export class PostgresRaceRepository implements RaceRepository {
         input.playerId,
         computeRaceXp(ownEntry?.finishPosition ?? null, progression.xpRewards.player),
         progression,
+      );
+      // Kulüp katkısı: oyuncunun yarış XP'si kulüp puanına da yazılır (aynı transaction).
+      await addClubPointsInTransaction(
+        client,
+        input.playerId,
+        computeRaceXp(ownEntry?.finishPosition ?? null, progression.xpRewards.player),
+        this.config.online,
       );
       if (ownEntry?.horseId) {
         await awardXpInTransaction(
@@ -2218,6 +2226,12 @@ export class PostgresRaceRepository implements RaceRepository {
           computeRaceXp(entry.finishPosition, progression.xpRewards.player),
           progression,
           input.now,
+        );
+        await addClubPointsInTransaction(
+          client,
+          playerIdByEntryId.get(entry.entryId) as string,
+          computeRaceXp(entry.finishPosition, progression.xpRewards.player),
+          this.config.online,
         );
         const horseId = horseIdByEntryId.get(entry.entryId);
         if (horseId) {

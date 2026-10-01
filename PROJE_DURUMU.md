@@ -3397,6 +3397,27 @@ Web: `GoogleSignInButton` (GIS betiği yalnızca gerektiğinde yüklenir) →
 kimliği + "Yetkili JavaScript kaynakları"na web adresi; sunucuda
 `GOOGLE_OAUTH_CLIENT_ID`. Apple: ücretli üyelik bekliyor.
 
+#### 13.41 KULÜP BAĞLANDI — 01.10.2026
+
+`domain/club` (brief §44) yalnızca birim testinden çağrılıyordu; `/club`
+"Yakında" yer tutucusuydu. **Migration 0049:** `clubs` (+`name_key` tekil) ve
+`club_members` (`player_id` BİRİNCİL ANAHTAR = tek kulüp kuralı DB'de).
+**Uçlar** (`api/club`): `GET /clubs?search=` (puana göre sıralama, LIKE
+jokerleri kaçırılır, `club.listLimit`), `GET /clubs/mine`, `GET /clubs/:id`,
+`POST /clubs` (ad/etiket DOMAIN'de doğrulanır, `club.name`/`club.tag`),
+`POST /clubs/:id/join` (kulüp satırı `FOR UPDATE` → son koltuğu iki kişi
+dolduramaz), `POST /clubs/leave` (lider ayrılamaz), `DELETE
+/clubs/:id/members/:playerId` (subay+), `POST .../role` (yalnızca lider;
+`leader` = devir, eski lider subay, `clubs.leader_id` aynı transaction'da),
+`DELETE /clubs/:id` (fesih, lider). Bütün yazma rotaları `@RateLimit`.
+**Puan:** yarış XP'si (pratik + lobi kesinleşmesi) kulüp puanına ve üyenin
+katkısına aynı transaction'da yazılır; seviye `levelThresholds`ten.
+**Bulunan hata:** ad tekilliği ilk sürümde `lower(name)` idi — `C` yerel
+ayarında Türkçe büyük harfler küçülmediği için "IŞIK ÜÇLÜSÜ" ile "Işık
+Üçlüsü" iki ayrı kulüp olabiliyordu; e2e yakaladı, `clubNameKey`e geçildi.
+Kanıt: `club.e2e-spec.ts` (7), `test/domain/club/club.spec.ts` (21); tam
+paket temiz DB'de 138 dosya / 2225 test.
+
 ## 14. Kendime hatırlatmalar (kısa liste)
 
 1. **Race Engine'e dokunmadan önce iki kez düşün.** Denetim onu "KEEP, dokunma"

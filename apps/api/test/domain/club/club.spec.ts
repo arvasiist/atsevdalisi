@@ -3,16 +3,21 @@ import {
   addClubPoints,
   assertHasClubPermission,
   calculateClubLevel,
+  clubNameKey,
   createClub,
   joinClub,
   kickMember,
   leaveClub,
+  planRoleChange,
+  validateClubName,
+  validateClubTag,
 } from '../../../src/domain/club/club';
 import {
   AlreadyClubMemberError,
   ClubFullError,
   ClubLeaderCannotLeaveError,
   InsufficientClubPermissionError,
+  InvalidClubInputError,
   NotClubMemberError,
 } from '../../../src/domain/club/errors';
 import onlineConfigJson from '../../../../../config/online.config.json';
@@ -126,5 +131,66 @@ describe('addClubPoints', () => {
   it('negatif puan reddedilir', () => {
     const { club, leaderMembership } = createClub({ id: 'club-1', name: 'X', tag: null, logoId: null, leaderId: 'p1' });
     expect(() => addClubPoints(club, leaderMembership, -10, onlineConfig)).toThrow();
+  });
+});
+
+describe('validateClubName / validateClubTag / clubNameKey (01.10.2026)', () => {
+  it('ad kırpılır, iç boşluklar teke iner; sınırlar config\'ten', () => {
+    expect(validateClubName('  Rüzgar   Atlıları ', onlineConfig)).toBe('Rüzgar Atlıları');
+    const { minLength, maxLength } = onlineConfig.club.name;
+    expect(() => validateClubName('a'.repeat(minLength - 1), onlineConfig)).toThrow(InvalidClubInputError);
+    expect(() => validateClubName('a'.repeat(maxLength + 1), onlineConfig)).toThrow(InvalidClubInputError);
+    expect(() => validateClubName(42, onlineConfig)).toThrow(InvalidClubInputError);
+    expect(() => validateClubName('<script>', onlineConfig)).toThrow(InvalidClubInputError);
+  });
+
+  it('etiket opsiyoneldir, Türkçe büyük harfe çevrilir', () => {
+    expect(validateClubTag(undefined, onlineConfig)).toBeNull();
+    expect(validateClubTag('  ', onlineConfig)).toBeNull();
+    expect(validateClubTag('işk', onlineConfig)).toBe('İŞK');
+    expect(() => validateClubTag('a b', onlineConfig)).toThrow(InvalidClubInputError);
+    expect(() => validateClubTag('x'.repeat(onlineConfig.club.tag.maxLength + 1), onlineConfig)).toThrow(
+      InvalidClubInputError,
+    );
+  });
+
+  it('ad anahtarı Türkçe harf duyarsızdır', () => {
+    expect(clubNameKey('IŞIK ÜÇLÜSÜ')).toBe(clubNameKey('ışık üçlüsü'));
+    expect(clubNameKey('İstanbul')).toBe(clubNameKey('istanbul'));
+    expect(clubNameKey('Kartal')).not.toBe(clubNameKey('Kartallar'));
+  });
+});
+
+describe('planRoleChange (01.10.2026)', () => {
+  const member = (playerId: string, role: ClubMembership['role'], clubId = 'c1'): ClubMembership => ({
+    clubId,
+    playerId,
+    role,
+    contributionPoints: 0,
+    joinedAt: new Date(0).toISOString(),
+  });
+
+  it('lider rol atar; liderlik devrinde eski lider subay olur', () => {
+    expect(planRoleChange(member('l', 'leader'), member('m', 'member'), 'officer')).toEqual({
+      targetRole: 'officer',
+      actingRole: 'leader',
+    });
+    expect(planRoleChange(member('l', 'leader'), member('m', 'member'), 'leader')).toEqual({
+      targetRole: 'leader',
+      actingRole: 'officer',
+    });
+  });
+
+  it('subay rol atayamaz; lider kendi rolünü değiştiremez; başka kulüp ve geçersiz rol reddedilir', () => {
+    expect(() => planRoleChange(member('o', 'officer'), member('m', 'member'), 'officer')).toThrow(
+      InsufficientClubPermissionError,
+    );
+    expect(() => planRoleChange(member('l', 'leader'), member('l', 'leader'), 'member')).toThrow(
+      InsufficientClubPermissionError,
+    );
+    expect(() => planRoleChange(member('l', 'leader'), member('m', 'member', 'c2'), 'officer')).toThrow(
+      NotClubMemberError,
+    );
+    expect(() => planRoleChange(member('l', 'leader'), member('m', 'member'), 'king')).toThrow(InvalidClubInputError);
   });
 });

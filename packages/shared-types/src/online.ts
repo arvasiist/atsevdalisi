@@ -115,6 +115,39 @@ export interface ClubMembership {
   joinedAt: ISODateTimeString;
 }
 
+/** 01.10.2026 — `GET /clubs` satırı ve kulüp başlığı (kulüp sıralaması da budur). */
+export interface ClubSummaryView {
+  id: UUID;
+  name: string;
+  tag: string | null;
+  level: number;
+  points: number;
+  /** Sonraki seviye için gereken TOPLAM puan; en üst seviyede `null`. */
+  nextLevelPoints: number | null;
+  memberCount: number;
+  maxMembers: number;
+  leaderUsername: string;
+  leaderDisplayName: string;
+  createdAt: ISODateTimeString;
+}
+
+export interface ClubMemberView {
+  playerId: UUID;
+  username: string;
+  displayName: string;
+  playerLevel: number;
+  role: ClubRole;
+  contributionPoints: number;
+  joinedAt: ISODateTimeString;
+}
+
+/** `GET /clubs/:id` ve `GET /clubs/mine` — `myRole` çağıranın bu kulüpteki rolü (üye değilse `null`). */
+export interface ClubDetailView {
+  club: ClubSummaryView;
+  members: ClubMemberView[];
+  myRole: ClubRole | null;
+}
+
 // ---------------------------------------------------------------------------
 // Sezon (brief §69 SEZON SİSTEMİ)
 // ---------------------------------------------------------------------------

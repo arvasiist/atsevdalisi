@@ -102,8 +102,9 @@ Gerçek 3D/ses varlığı yok · OAuth kimlik bilgileri yok (Google kodu + düğ
 `/account`, migration 0046/0047; sıfırlama e-postası üretimde
 `RESEND_API_KEY` ister) · yarış takvimi yok
 (turnuva takvimi VAR) ·
-personel (`domain/staff`) + club/season/progression **DOMAIN ONLY**
-(API/ekran yok) · yer tutucu olan TEK sayfa `/club` · `PlayerDemoWidget`/
+personel (`domain/staff`) + season **DOMAIN ONLY** (API/ekran yok;
+progression 01.10.2026'da, kulüp 01.10.2026'da BAĞLANDI — artık yer
+tutucu sayfa YOK) · `PlayerDemoWidget`/
 `GltfAssetLoader` bağlı değil (bilinçli). Jokey, mizaç, taktik motora BAĞLI;
 `PedigreeTree`, `BreedingPanel`, `JockeyPanel`, `/admin`, `/leaderboard`,
 `/farm`, **lobi yarışı (`LobbyPanel`, 30.09.2026)** bağlı.
@@ -166,6 +167,14 @@ yazar (`infrastructure/progression/award-xp.ts`, satır `FOR UPDATE`);
 antrenman ata kilit içinde, oyuncuya kendi kilidiyle verir. ⚠️ Yarış sonrası
 XP'yi 0 sanan test yazma — beklenen değeri `applyXpGain` + `computeRaceXp`
 ile hesapla (`progression.e2e-spec.ts`).
+(15) **KULÜP (01.10.2026, migration 0049, §13.41)** — `/clubs` uçları +
+`/club` ekranı. Tek kulüp kuralı `club_members.player_id` BİRİNCİL
+ANAHTARIDIR (eşzamanlı iki katılımı kısıt keser). Kilit sırası önce
+`clubs`, sonra `club_members`. Liderlik devri tek transaction'da (eski lider
+`officer`). Yarış XP'si kulüp puanına AYNI transaction'da yazılır
+(`addClubPointsInTransaction`). ⚠️ Ad tekilliği `lower(name)` DEĞİL
+`name_key`tir: `--locale=C` kümesinde `lower()` "Ü"/"İ"yi küçültmez —
+anahtar `clubNameKey` (tr-TR) ile uygulamada üretilir.
 
 **✅ ÜCRETLİ LOBİ YARIŞI ARTIK KOŞUYOR — ÖDÜL DAĞITIMI VAR (§13.14,
 28.09.2026).** `POST /races/:id/settle` yarışı koşar, ödülleri `top5`

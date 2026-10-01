@@ -76,6 +76,9 @@ import type {
   WalletDepositResult,
   WalletView,
   WatchableRaceView,
+  ClubDetailView,
+  ClubRole,
+  ClubSummaryView,
 } from '@at-sevdalisi/shared-types';
 
 /**
@@ -1150,4 +1153,32 @@ export const apiClient = {
    */
   cancelAdminRace: (raceId: string) =>
     request<AdminRaceCancelResult>(`/admin/races/${raceId}/cancel`, { method: 'POST' }),
+
+  // --- Kulüp (brief §44, 01.10.2026) -------------------------------------
+  listClubs: (search?: string) =>
+    request<ClubSummaryView[]>(`/clubs${search ? `?search=${encodeURIComponent(search)}` : ''}`),
+
+  /** Çağıranın kulübü; üye değilse `null`. */
+  getMyClub: () => request<ClubDetailView | null>('/clubs/mine'),
+
+  getClub: (clubId: string) => request<ClubDetailView>(`/clubs/${clubId}`),
+
+  createClub: (name: string, tag: string) =>
+    request<ClubDetailView>('/clubs', { method: 'POST', body: JSON.stringify({ name, tag }) }),
+
+  joinClub: (clubId: string) => request<ClubDetailView>(`/clubs/${clubId}/join`, { method: 'POST' }),
+
+  leaveClub: () => request<{ left: true }>('/clubs/leave', { method: 'POST' }),
+
+  kickClubMember: (clubId: string, playerId: string) =>
+    request<ClubDetailView>(`/clubs/${clubId}/members/${playerId}`, { method: 'DELETE' }),
+
+  /** `role: 'leader'` liderliği DEVREDER (çağıran subay olur). */
+  setClubMemberRole: (clubId: string, playerId: string, role: ClubRole) =>
+    request<ClubDetailView>(`/clubs/${clubId}/members/${playerId}/role`, {
+      method: 'POST',
+      body: JSON.stringify({ role }),
+    }),
+
+  disbandClub: (clubId: string) => request<{ disbanded: true }>(`/clubs/${clubId}`, { method: 'DELETE' }),
 };

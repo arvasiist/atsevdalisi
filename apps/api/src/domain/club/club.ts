@@ -15,6 +15,7 @@
 import type { OnlineConfig } from '@at-sevdalisi/game-config';
 import type { Club, ClubMembership, ClubRole } from '@at-sevdalisi/shared-types';
 import {
+  InvalidClubInputError,
   AlreadyClubMemberError,
   ClubFullError,
   ClubLeaderCannotLeaveError,
@@ -164,4 +165,81 @@ export function addClubPoints(
   const leveledUp = newLevel > club.level;
 
   return { club: { ...updatedClub, level: newLevel }, membership: updatedMembership, leveledUp };
+}
+
+/** Harf, rakam, boşluk, tire ve alt çizgi (Türkçe harfler dahil). */
+const CLUB_NAME_PATTERN = /^[\p{L}\p{N}][\p{L}\p{N} _-]*$/u;
+/** Etiket: harf/rakam, boşluksuz; büyük harfe çevrilerek saklanır. */
+const CLUB_TAG_PATTERN = /^[\p{L}\p{N}]+$/u;
+
+/**
+ * Kulüp adı doğrulaması (01.10.2026). DTO'ya güvenilmez (esbuild altında
+ * `class-validator` dekoratörleri atlanır — CLAUDE.md kural 5); kural burada.
+ * Baştaki/sondaki boşluk atılır, iç boşluklar teke indirilir.
+ */
+export function validateClubName(raw: unknown, config: OnlineConfig): string {
+  if (typeof raw !== 'string') {
+    throw new InvalidClubInputError('Kulüp adı metin olmalıdır.');
+  }
+  const name = raw.trim().replace(/\s+/g, ' ');
+  const { minLength, maxLength } = config.club.name;
+  if (name.length < minLength || name.length > maxLength) {
+    throw new InvalidClubInputError(`Kulüp adı ${minLength}-${maxLength} karakter olmalıdır.`);
+  }
+  if (!CLUB_NAME_PATTERN.test(name)) {
+    throw new InvalidClubInputError('Kulüp adında yalnızca harf, rakam, boşluk, tire ve alt çizgi olabilir.');
+  }
+  return name;
+}
+
+/**
+ * Ad tekilliği anahtarı: Türkçe küçük harf + noktasız ı → i ("RÜZGAR" =
+ * "rüzgar", "ISIK" = "ışık" = "işik"). Veritabanının `lower()`ı `C` yerel
+ * ayarında ASCII dışını küçültmez — bu yüzden anahtar burada üretilir.
+ */
+export function clubNameKey(name: string): string {
+  return name.normalize('NFC').toLocaleLowerCase('tr-TR').replace(/ı/g, 'i');
+}
+
+/** Etiket opsiyoneldir (`null`/boş = etiketsiz); verilirse büyük harfe çevrilir. */
+export function validateClubTag(raw: unknown, config: OnlineConfig): string | null {
+  if (raw === undefined || raw === null || (typeof raw === 'string' && raw.trim() === '')) {
+    return null;
+  }
+  if (typeof raw !== 'string') {
+    throw new InvalidClubInputError('Kulüp etiketi metin olmalıdır.');
+  }
+  const tag = raw.trim().toLocaleUpperCase('tr-TR');
+  const { minLength, maxLength } = config.club.tag;
+  if (tag.length < minLength || tag.length > maxLength || !CLUB_TAG_PATTERN.test(tag)) {
+    throw new InvalidClubInputError(`Kulüp etiketi ${minLength}-${maxLength} harf/rakam olmalıdır.`);
+  }
+  return tag;
+}
+
+const ASSIGNABLE_ROLES: readonly ClubRole[] = ['leader', 'officer', 'member'];
+
+/**
+ * Rol değişikliği (01.10.2026). Yalnızca LİDER rol atar. Lider başka bir
+ * üyeye `leader` verirse liderlik DEVREDİLİR ve eski lider `officer` olur
+ * (kulüp bir an bile lidersiz ya da iki liderli kalmaz). Lider kendi rolünü
+ * değiştiremez (önce devretmeli).
+ */
+export function planRoleChange(
+  acting: ClubMembership,
+  target: ClubMembership,
+  rawRole: unknown,
+): { targetRole: ClubRole; actingRole: ClubRole } {
+  if (typeof rawRole !== 'string' || !ASSIGNABLE_ROLES.includes(rawRole as ClubRole)) {
+    throw new InvalidClubInputError('Rol "leader", "officer" ya da "member" olmalıdır.');
+  }
+  if (acting.clubId !== target.clubId) {
+    throw new NotClubMemberError(target.playerId, acting.clubId);
+  }
+  assertHasClubPermission(acting, 'leader');
+  if (acting.playerId === target.playerId) {
+    throw new InsufficientClubPermissionError(acting.playerId, 'leader');
+  }
+  const targetRole = rawRole as ClubRole;
+  return { targetRole, actingRole: targetRole === 'leader' ? 'officer' : acting.role };
 }

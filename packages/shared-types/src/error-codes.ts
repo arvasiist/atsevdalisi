@@ -45,6 +45,14 @@ export const ErrorCode = {
   // Google hesabı var.
   ProviderIdentityTaken: 'PROVIDER_IDENTITY_TAKEN',
   ProviderAlreadyLinked: 'PROVIDER_ALREADY_LINKED',
+  // 01.10.2026 — kulüp (brief §44, migration 0049).
+  ClubNotFound: 'CLUB_NOT_FOUND',
+  ClubNameTaken: 'CLUB_NAME_TAKEN',
+  ClubFull: 'CLUB_FULL',
+  AlreadyClubMember: 'ALREADY_CLUB_MEMBER',
+  NotClubMember: 'NOT_CLUB_MEMBER',
+  InsufficientClubPermission: 'INSUFFICIENT_CLUB_PERMISSION',
+  ClubLeaderCannotLeave: 'CLUB_LEADER_CANNOT_LEAVE',
   // Faz 2 — At Pazarı (domain/market)
   ListingNotActive: 'LISTING_NOT_ACTIVE',
   ListingExpired: 'LISTING_EXPIRED',

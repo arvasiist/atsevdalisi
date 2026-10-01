@@ -786,6 +786,11 @@ export interface OnlineConfig {
     maxMembers: number;
     /** Anahtar = ULAŞILACAK kulüp seviyesi, değer = o seviye için gereken TOPLAM (kümülatif) kulüp puanı. */
     levelThresholds: Record<string, number>;
+    /** 01.10.2026 — kulüp adı/etiketi uzunluk sınırları (`validateClubName`/`validateClubTag`). */
+    name: { minLength: number; maxLength: number };
+    tag: { minLength: number; maxLength: number };
+    /** `GET /clubs` sıralama listesinin en fazla satır sayısı. */
+    listLimit: number;
   };
   /** brief §35 YARIŞ TAKVİMİ "Özel kupalar/Büyük ödüllü yarışlar" turnuva karşılığı (bkz. `domain/tournament/tournament.ts`). */
   tournament: {
