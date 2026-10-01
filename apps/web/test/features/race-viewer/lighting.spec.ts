@@ -32,8 +32,11 @@ describe('ışık (01.10.2026, 3D adım 7)', () => {
 
   it("hiçbir 3D bileşen ortam haritasını CDN'den (drei preset) istemez — CLAUDE.md (13)", () => {
     const root = join(__dirname, '../../../src/features');
+    // Yorumlar çıkarılır: eski davranışı ANLATAN açıklamalar ihlal değildir.
+    const withoutComments = (code: string): string =>
+      code.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
     const offenders = sourceFiles(root).filter((file) =>
-      /<Environment[^>]*\bpreset\s*=/.test(readFileSync(file, 'utf8')),
+      /<Environment[^>]*\bpreset\s*=/.test(withoutComments(readFileSync(file, 'utf8'))),
     );
     expect(offenders).toEqual([]);
     const hdri = readFileSync(join(root, 'race-viewer/assets/HdriEnvironment.tsx'), 'utf8');
