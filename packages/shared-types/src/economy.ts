@@ -137,6 +137,7 @@ export const LEDGER_TRANSACTION_TYPES = [
    * BULMAZ; kiralama gerçeğinin tek kaynağı `jockeys.owner_id`dir.
    */
   'jockey_hire',
+  'staff_contract',
 ] as const;
 
 export type LedgerTransactionType = (typeof LEDGER_TRANSACTION_TYPES)[number];
@@ -206,6 +207,7 @@ export const CANONICAL_BY_LEDGER_TYPE: Record<LedgerTransactionType, CanonicalTr
   // kiralamak bir yarışa giriş değildir ve cüzdanda "giriş ücreti" başlığı
   // altında görünmesi oyuncuya yanlış bir tablo çizerdi.
   jockey_hire: 'UPKEEP',
+  staff_contract: 'UPKEEP',
 };
 
 /**

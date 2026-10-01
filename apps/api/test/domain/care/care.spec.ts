@@ -338,3 +338,19 @@ describe('geçersiz bakım girdisi', () => {
     expect(() => getFeedPrice(config, 'not-a-real-feed')).toThrow(InvalidCareInputError);
   });
 });
+
+describe('applyCareAction — personel çarpanı (01.10.2026)', () => {
+  it('çarpan 1 iken eski davranış; >1 iken bütün deltalar ölçeklenir', () => {
+    const now = new Date();
+    const plain = applyCareAction(config, 'vet', vitals, health, null, now);
+    expect(applyCareAction(config, 'vet', vitals, health, null, now, 1)).toEqual(plain);
+
+    const boosted = applyCareAction(config, 'vet', vitals, health, null, now, 1.25);
+    const vet = config.actions.vet;
+    expect(boosted.health.injuryRisk).toBeCloseTo(health.injuryRisk + (vet.injuryRiskDelta ?? 0) * 1.25, 10);
+    expect(boosted.health.recoveryRate).toBeCloseTo(health.recoveryRate + (vet.recoveryRateDelta ?? 0) * 1.25, 10);
+
+    const groomed = applyCareAction(config, 'groom', vitals, health, null, now, 1.1);
+    expect(groomed.vitals.morale).toBeCloseTo(vitals.morale + (config.actions.groom.vitalDelta?.morale ?? 0) * 1.1, 10);
+  });
+});

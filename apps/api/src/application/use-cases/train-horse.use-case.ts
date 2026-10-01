@@ -12,6 +12,7 @@ import { calculateAgeInMonths } from '../../domain/horse/age-curve';
 import { HorseInjuredError, HorseListedInMarketError, HorseNotFoundError } from '../../domain/horse/errors';
 import { applyVitalDelta } from '../../domain/horse/vital-signs';
 import { applyXpGain } from '../../domain/progression/progression';
+import { ManageStaffUseCase } from './manage-staff.use-case';
 import { applyTraining, getPrimaryStatKey, rollInjuryOccurred } from '../../domain/training/training';
 import { AppConfigService } from '../../infrastructure/config/config.service';
 import { HORSE_STATS_REPOSITORY, type HorseStatsRepository } from '../ports/horse-stats.repository';
@@ -40,6 +41,7 @@ export class TrainHorseUseCase {
     @Inject(TRAINING_SESSION_REPOSITORY) private readonly trainingSessionRepository: TrainingSessionRepository,
     @Inject(MARKET_LISTING_REPOSITORY) private readonly marketListingRepository: MarketListingRepository,
     @Inject(AppConfigService) private readonly config: AppConfigService,
+    @Inject(ManageStaffUseCase) private readonly staff: ManageStaffUseCase,
     @Inject(PLAYER_REPOSITORY) private readonly playerRepository: PlayerRepository,
   ) {}
 
@@ -66,6 +68,8 @@ export class TrainHorseUseCase {
     const statKey: NumericHorseStatField | null = getPrimaryStatKey(input.type);
     const currentStatValue: number = statKey === null ? 0 : stats[statKey];
     const now = new Date();
+    // 01.10.2026 — antrenör etkisi (domain/staff). Süresi dolmuş antrenör 1 (nötr) döner.
+    const trainerFactor = await this.staff.multiplierFor(horse.ownerId, 'trainer', now);
 
     // AUDIT_REPORT.md Bulgu C2 hardening (bu oturum) — `horseRepository.updateWithLock`
     // (bkz. o metodun doc yorumu, `PlayerRepository.updateWithLock` ile AYNI
@@ -92,6 +96,7 @@ export class TrainHorseUseCase {
         potential: lockedHorse.potential,
         vitals,
         ageMonths,
+        trainerFactor,
       });
 
       const sessionId = randomUUID();
@@ -162,6 +167,7 @@ export class TrainHorseUseCase {
       fatigueGain: outcome.fatigueGain,
       injuryOccurred,
       newStatus: { fatigue: newVitals.fatigue, energy: newVitals.energy, morale: newVitals.morale },
+      staffMultiplier: trainerFactor,
     };
   }
 }

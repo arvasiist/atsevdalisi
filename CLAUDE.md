@@ -102,9 +102,8 @@ Gerçek 3D/ses varlığı yok · OAuth kimlik bilgileri yok (Google kodu + düğ
 `/account`, migration 0046/0047; sıfırlama e-postası üretimde
 `RESEND_API_KEY` ister) · yarış takvimi yok
 (turnuva takvimi VAR) ·
-personel (`domain/staff`) + season **DOMAIN ONLY** (API/ekran yok;
-progression 01.10.2026'da, kulüp 01.10.2026'da BAĞLANDI — artık yer
-tutucu sayfa YOK) · `PlayerDemoWidget`/
+season **DOMAIN ONLY** (API/ekran yok; progression, kulüp ve personel
+01.10.2026'da BAĞLANDI — artık yer tutucu sayfa YOK) · `PlayerDemoWidget`/
 `GltfAssetLoader` bağlı değil (bilinçli). Jokey, mizaç, taktik motora BAĞLI;
 `PedigreeTree`, `BreedingPanel`, `JockeyPanel`, `/admin`, `/leaderboard`,
 `/farm`, **lobi yarışı (`LobbyPanel`, 30.09.2026)** bağlı.
@@ -175,6 +174,16 @@ ANAHTARIDIR (eşzamanlı iki katılımı kısıt keser). Kilit sırası önce
 (`addClubPointsInTransaction`). ⚠️ Ad tekilliği `lower(name)` DEĞİL
 `name_key`tir: `--locale=C` kümesinde `lower()` "Ü"/"İ"yi küçültmez —
 anahtar `clubNameKey` (tr-TR) ile uygulamada üretilir.
+(16) **PERSONEL (01.10.2026, §13.42)** — `/staff` uçları + ekranı;
+`staff` tablosu (0012) artık yaşıyor. Sözleşme PEŞİN (`staff.contractMonths`)
+→ PARA YOLU: `staff` → `players` `FOR UPDATE` + `staff_contract` defter
+satırı aynı transaction'da. Çift ödeme DURUMLA engellenir (sahipli aday
+409, yenileme yalnızca bitime `renewWindowDays` kala) — Idempotency-Key
+YOK. Bırakma iade ETMEZ. Etkiler: antrenör → `trainerFactor`, seyis/
+veteriner/nalbant → `applyCareAction` `effectMultiplier`
+(`staff.careActionRoles`); aynı rolden yalnızca EN İYİ etkin personel
+sayılır; süresi dolan etki vermez. ⚠️ `hireableRoles`a etkisi BAĞLANMAMIŞ
+bir rol ekleme — oyuncuya işe yaramayan personel satmak olur.
 
 **✅ ÜCRETLİ LOBİ YARIŞI ARTIK KOŞUYOR — ÖDÜL DAĞITIMI VAR (§13.14,
 28.09.2026).** `POST /races/:id/settle` yarışı koşar, ödülleri `top5`

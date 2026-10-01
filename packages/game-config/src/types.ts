@@ -740,6 +740,20 @@ export interface StaffConfig {
   moraleSalaryPenaltyThreshold: number;
   /** Düşük moralde bonusun ne kadarının korunacağı (0-1). */
   lowMoraleBonusPenaltyMultiplier: number;
+  /**
+   * 01.10.2026 — pazarda kiralanabilen roller. Yalnızca etkisi oyuna BAĞLI
+   * olan roller listelenir (antrenör → antrenman, seyis/veteriner/nalbant →
+   * ilgili bakım eylemi); etkisiz bir personel satmak oyuncuyu kandırmak olurdu.
+   */
+  hireableRoles: string[];
+  /** Kiralama/yenileme başına peşin ödenen sözleşme süresi (ay). */
+  contractMonths: number;
+  /** Yenileme yalnızca bitime bu kadar gün kala (ya da bitmişse) açılır — çift ödemeyi durum engeller. */
+  renewWindowDays: number;
+  /** Bakım eylemi → etkisini güçlendiren personel rolü. */
+  careActionRoles: Record<string, string>;
+  /** Aday havuzu: rol başına en az bu kadar boşta aday tutulur. */
+  market: { candidatesPerRole: number; skillMin: number; skillMax: number; names: string[] };
 }
 
 /**

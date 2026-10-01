@@ -73,6 +73,9 @@ export const ErrorCode = {
   // Faz 2 — Personel (domain/staff)
   StaffAlreadyHired: 'STAFF_ALREADY_HIRED',
   StaffContractExpired: 'STAFF_CONTRACT_EXPIRED',
+  StaffNotFound: 'STAFF_NOT_FOUND',
+  StaffNotOwned: 'STAFF_NOT_OWNED',
+  StaffRenewalNotDue: 'STAFF_RENEWAL_NOT_DUE',
   // Faz 2 — Ahır yükseltme (domain/stable)
   MaxStableLevelReached: 'MAX_STABLE_LEVEL_REACHED',
   // AUDIT_REPORT.md Bulgu C1 (bu oturum) — `StableCapacityExceededError`

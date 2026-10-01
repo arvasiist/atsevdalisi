@@ -1,11 +1,11 @@
 {
   "maxBonusMultiplierByRole": {
-    "trainer": 0.20,
+    "trainer": 0.2,
     "vet": 0.25,
     "farrier": 0.15,
-    "groom": 0.10,
-    "geneticist": 0.20,
-    "scout": 0.30,
+    "groom": 0.1,
+    "geneticist": 0.2,
+    "scout": 0.3,
     "farm_manager": 0.15
   },
   "baseSalaryByRole": {
@@ -19,5 +19,49 @@
   },
   "salaryPerSkillPoint": 8,
   "moraleSalaryPenaltyThreshold": 30,
-  "lowMoraleBonusPenaltyMultiplier": 0.5
+  "lowMoraleBonusPenaltyMultiplier": 0.5,
+  "hireableRoles": [
+    "trainer",
+    "vet",
+    "groom",
+    "farrier"
+  ],
+  "contractMonths": 1,
+  "renewWindowDays": 7,
+  "careActionRoles": {
+    "groom": "groom",
+    "vet": "vet",
+    "farrier": "farrier"
+  },
+  "market": {
+    "candidatesPerRole": 3,
+    "skillMin": 20,
+    "skillMax": 85,
+    "names": [
+      "Ahmet Usta",
+      "Mehmet Kaya",
+      "Ayşe Demir",
+      "Fatma Yıldız",
+      "Mustafa Çelik",
+      "Zeynep Arslan",
+      "Hasan Aydın",
+      "Elif Şahin",
+      "Hüseyin Koç",
+      "Emine Kurt",
+      "Ali Özdemir",
+      "Hatice Polat",
+      "İbrahim Erdoğan",
+      "Meryem Aksoy",
+      "Osman Güneş",
+      "Seda Tunç",
+      "Kemal Bulut",
+      "Derya Işık",
+      "Cem Yalçın",
+      "Gül Ateş",
+      "Murat Kılıç",
+      "Selin Karaca",
+      "Yusuf Doğan",
+      "Esra Bayram"
+    ]
+  }
 }

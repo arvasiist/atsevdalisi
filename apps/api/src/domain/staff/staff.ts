@@ -9,7 +9,12 @@
 import { clamp } from '@at-sevdalisi/shared-types';
 import type { StaffConfig } from '@at-sevdalisi/game-config';
 import type { Staff, StaffContract, StaffRole } from '@at-sevdalisi/shared-types';
-import { StaffAlreadyHiredError, StaffContractExpiredError } from './errors';
+import {
+  StaffAlreadyHiredError,
+  StaffContractExpiredError,
+  StaffRenewalNotDueError,
+  StaffRoleNotHireableError,
+} from './errors';
 
 export interface CreateStaffCandidateInput {
   id: string;
@@ -113,4 +118,78 @@ export function calculateStaffBonusMultiplier(staff: Pick<Staff, 'role' | 'skill
 /** Bu ayki maaş borcu (brief §31 gider kalemi "Personel"). */
 export function calculateMonthlySalaryDue(staff: Pick<Staff, 'salary'>): number {
   return staff.salary;
+}
+
+// ---------------------------------------------------------------------------
+// 01.10.2026 — kiralama/sözleşme/etki BAĞLANDI. Sözleşme PEŞİN ödenir
+// (`contractMonths` ay); süresi dolan personel bonus VERMEZ. Aylık borç ve
+// zamanlayıcı yoktur — "ödenmemiş maaş" diye bir durum oluşamaz.
+// ---------------------------------------------------------------------------
+
+/** Pazarda yalnızca etkisi oyuna bağlı roller kiralanır. */
+export function assertHireableRole(role: string, config: StaffConfig): asserts role is StaffRole {
+  if (!config.hireableRoles.includes(role)) {
+    throw new StaffRoleNotHireableError(role);
+  }
+}
+
+/** Sözleşme bitişi; süresiz sözleşmede `null`. */
+export function contractEndsAt(contract: StaffContract): Date | null {
+  if (contract.durationMonths === null) {
+    return null;
+  }
+  const end = new Date(contract.startedAt);
+  end.setMonth(end.getMonth() + contract.durationMonths);
+  return end;
+}
+
+/** Bir sözleşme döneminin peşin bedeli. */
+export function calculateContractCost(staff: Pick<Staff, 'salary'>, config: StaffConfig): number {
+  return calculateMonthlySalaryDue(staff) * config.contractMonths;
+}
+
+/** Yenileme açık mı: süresi dolmuş ya da bitime `renewWindowDays` veya daha az kalmış. */
+export function isContractRenewable(contract: StaffContract, config: StaffConfig, now: Date = new Date()): boolean {
+  const end = contractEndsAt(contract);
+  if (end === null) {
+    return false;
+  }
+  const windowMs = config.renewWindowDays * 24 * 60 * 60 * 1000;
+  return end.getTime() - now.getTime() <= windowMs;
+}
+
+/**
+ * Sözleşmeyi bir dönem uzatır. Süresi DOLMUŞSA yeni dönem `now`dan başlar
+ * (ölü günler için ödeme alınmaz); dolmamışsa mevcut bitişe eklenir.
+ * Pencere dışında `StaffRenewalNotDueError` — ikinci bir basış (çift
+ * tıklama) bu yüzden ikinci kez ödeme alamaz.
+ */
+export function renewContract(contract: StaffContract, config: StaffConfig, now: Date = new Date()): StaffContract {
+  if (!isContractRenewable(contract, config, now)) {
+    throw new StaffRenewalNotDueError(config.renewWindowDays);
+  }
+  if (isContractExpired(contract, now)) {
+    return { startedAt: now.toISOString(), durationMonths: config.contractMonths };
+  }
+  return { startedAt: contract.startedAt, durationMonths: (contract.durationMonths ?? 0) + config.contractMonths };
+}
+
+/**
+ * Bir role ait EN İYİ etkin personelin çarpanı; yoksa 1 (nötr). Aynı rolden
+ * iki personel bonusları TOPLAMAZ — en iyisi geçerlidir (brief §32
+ * "Bonuslar kontrollü olmalıdır").
+ */
+export function bestActiveStaffMultiplier(
+  staffList: ReadonlyArray<Pick<Staff, 'role' | 'skill' | 'morale' | 'contract'>>,
+  role: StaffRole,
+  config: StaffConfig,
+  now: Date = new Date(),
+): number {
+  let best = 1;
+  for (const staff of staffList) {
+    if (staff.role === role && !isContractExpired(staff.contract, now)) {
+      best = Math.max(best, calculateStaffBonusMultiplier(staff, config));
+    }
+  }
+  return best;
 }

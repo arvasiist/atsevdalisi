@@ -3418,6 +3418,26 @@ ayarında Türkçe büyük harfler küçülmediği için "IŞIK ÜÇLÜSÜ" ile 
 Kanıt: `club.e2e-spec.ts` (7), `test/domain/club/club.spec.ts` (21); tam
 paket temiz DB'de 138 dosya / 2225 test.
 
+#### 13.42 PERSONEL BAĞLANDI — 01.10.2026
+
+`staff` tablosu (migration 0012) ve `domain/staff` DOMAIN ONLY idi; yeni
+migration GEREKMEDİ. **Uçlar** (`api/staff`, oyuncu token'dan): `GET /staff`
+(kadro + aday pazarı + kapasite; havuz rol başına `market.candidatesPerRole`
+adaya tamamlanır), `POST /staff/:id/hire`, `POST /staff/:id/renew`,
+`POST /staff/:id/release`. **Para:** sözleşme peşin (`salary ×
+contractMonths`), `staff_contract` defter satırı aynı transaction'da; kilit
+sırası `staff` → `players`; kapasite (`staff_building`) `players` kilidinden
+SONRA sayılır (aynı oyuncunun eşzamanlı iki kiralaması kapasiteyi aşamaz).
+Tekrar koruması durumla: sahipli aday 409 `STAFF_ALREADY_HIRED`, erken
+yenileme 409 `STAFF_RENEWAL_NOT_DUE`; süresi dolmuş sözleşme yenilenince
+yeni dönem ŞİMDİ başlar (ölü günlere ödeme yok). Bırakma iade etmez, deftere
+yazmaz. **Etkiler:** antrenör → antrenman `trainerFactor` (motor kancası
+FAZ 1'den beri hazırdı, hep 1'di); seyis/veteriner/nalbant → ilgili bakım
+eyleminin bütün deltaları. Yanıtlara `staffMultiplier` eklendi, ekranlar
+gösterir. Kanıt: `staff.e2e-spec.ts` (7; antrenör bağlantısı koparılınca
+test düşüyor — doğrulandı), domain `staff.spec.ts` + `care.spec.ts`; tam
+paket temiz DB'de 139 dosya / 2237 test.
+
 ## 14. Kendime hatırlatmalar (kısa liste)
 
 1. **Race Engine'e dokunmadan önce iki kez düşün.** Denetim onu "KEEP, dokunma"

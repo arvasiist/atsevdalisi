@@ -52,6 +52,8 @@ export interface PerformCareActionResult {
   newVitals: Pick<Horse, 'health' | 'fitness' | 'fatigue' | 'energy' | 'morale'>;
   newHealth: CareableHealthView;
   newStatus: HorseStatus;
+  /** 01.10.2026 — uygulanan personel çarpanı (seyis/veteriner/nalbant; 1 = personelsiz). */
+  staffMultiplier: number;
 }
 
 /**

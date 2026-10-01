@@ -157,6 +157,8 @@ export interface TrainHorseResult {
   fatigueGain: number;
   injuryOccurred: boolean;
   newStatus: Pick<Horse, 'fatigue' | 'energy' | 'morale'>;
+  /** 01.10.2026 — uygulanan antrenör çarpanı (1 = antrenörsüz). */
+  staffMultiplier: number;
 }
 
 /** brief §39 Ahır ekranı kartı için minimal görünüm. */

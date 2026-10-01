@@ -288,19 +288,29 @@ export function applyCareAction(
   health: CareableHealth,
   lastPerformedAt: Date | null,
   now: Date = new Date(),
+  /**
+   * 01.10.2026 — personel etkisi (seyis/veteriner/nalbant). Eylemin TÜM
+   * deltaları bu çarpanla ölçeklenir; 1 = personelsiz (eski davranış).
+   * Bkz. `domain/staff` `bestActiveStaffMultiplier`.
+   */
+  effectMultiplier = 1,
 ): CareActionResult {
   const effect = getCareActionEffect(config, actionType);
   const readiness = canPerformCareAction(lastPerformedAt, now, effect.cooldownMinutes);
   if (!readiness.allowed) {
     throw new CareActionOnCooldownError(readiness.remainingMinutes);
   }
+  const scale = (delta: number | undefined): number => (delta ?? 0) * effectMultiplier;
+  const vitalDelta = Object.fromEntries(
+    Object.entries(effect.vitalDelta ?? {}).map(([key, value]) => [key, scale(value)]),
+  ) as typeof effect.vitalDelta;
 
   return {
-    vitals: applyVitalDelta(vitals, effect.vitalDelta ?? {}),
+    vitals: applyVitalDelta(vitals, vitalDelta ?? {}),
     health: {
-      injuryRisk: clamp(health.injuryRisk + (effect.injuryRiskDelta ?? 0), MIN_VALUE, MAX_VALUE),
-      recoveryRate: clamp(health.recoveryRate + (effect.recoveryRateDelta ?? 0), MIN_VALUE, MAX_VALUE),
-      jointCondition: clamp(health.jointCondition + (effect.jointConditionDelta ?? 0), MIN_VALUE, MAX_VALUE),
+      injuryRisk: clamp(health.injuryRisk + scale(effect.injuryRiskDelta), MIN_VALUE, MAX_VALUE),
+      recoveryRate: clamp(health.recoveryRate + scale(effect.recoveryRateDelta), MIN_VALUE, MAX_VALUE),
+      jointCondition: clamp(health.jointCondition + scale(effect.jointConditionDelta), MIN_VALUE, MAX_VALUE),
       weightCondition: health.weightCondition,
     },
   };

@@ -58,6 +58,7 @@ export const LEDGER_TYPE_LABELS: Record<LedgerTransactionType, string> = {
   // deftere hiç yazılmadığı için pratikte yalnızca) ödeme anlamına gelir,
   // ama etiket kuralı gereği yön metne gömülmez.
   jockey_hire: 'Jokey kiralama',
+  staff_contract: 'Personel sözleşmesi',
 };
 
 /**

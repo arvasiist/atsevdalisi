@@ -358,6 +358,11 @@ export default function CarePage(): React.ReactElement {
                     {HEALTH_FIELD_LABELS[field]}: {Math.round(careResult.newHealth[field])}
                   </span>
                 ))}
+                {careResult.staffMultiplier > 1 ? (
+                  <span style={{ color: 'var(--color-accent-gold)' }}>
+                    Personel etkisi: +%{Math.round((careResult.staffMultiplier - 1) * 100)}
+                  </span>
+                ) : null}
               </div>
             ) : null}
 

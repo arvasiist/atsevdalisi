@@ -40,6 +40,13 @@ import {
   MissingAuthTokenError,
 } from '../../domain/auth/errors';
 import {
+  StaffAlreadyHiredError,
+  StaffNotFoundError,
+  StaffNotOwnedError,
+  StaffRenewalNotDueError,
+  StaffRoleNotHireableError,
+} from '../../domain/staff/errors';
+import {
   AlreadyClubMemberError,
   ClubFullError,
   ClubLeaderCannotLeaveError,
@@ -61,7 +68,7 @@ import {
   InvalidFeedTypeError,
 } from '../../domain/care/errors';
 import { MaxStableLevelReachedError, StableCapacityExceededError } from '../../domain/stable/errors';
-import { InvalidFacilityTypeError, MaxFacilityLevelReachedError } from '../../domain/farm/errors';
+import { InvalidFacilityTypeError, MaxFacilityLevelReachedError, StaffCapacityExceededError } from '../../domain/farm/errors';
 import {
   DailyRewardAlreadyClaimedError,
   InsufficientFundsError,
@@ -456,6 +463,13 @@ const DOMAIN_ERROR_MAP = new Map<ErrorClassConstructor, { status: number; code: 
   [InsufficientClubPermissionError, { status: HttpStatus.FORBIDDEN, code: ErrorCode.InsufficientClubPermission }],
   [ClubLeaderCannotLeaveError, { status: HttpStatus.CONFLICT, code: ErrorCode.ClubLeaderCannotLeave }],
   [InvalidClubInputError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.ValidationError }],
+  // 01.10.2026 — personel (brief §33).
+  [StaffNotFoundError, { status: HttpStatus.NOT_FOUND, code: ErrorCode.StaffNotFound }],
+  [StaffAlreadyHiredError, { status: HttpStatus.CONFLICT, code: ErrorCode.StaffAlreadyHired }],
+  [StaffNotOwnedError, { status: HttpStatus.CONFLICT, code: ErrorCode.StaffNotOwned }],
+  [StaffRenewalNotDueError, { status: HttpStatus.CONFLICT, code: ErrorCode.StaffRenewalNotDue }],
+  [StaffRoleNotHireableError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.ValidationError }],
+  [StaffCapacityExceededError, { status: HttpStatus.CONFLICT, code: ErrorCode.StaffCapacityExceeded }],
   // claude/hizli-bitirme-plani.md'nin proje sahibi tarafından
   // önceliklendirdiği Ekipman dilimi (bu turda EKLENDİ) — `InvalidTraining
   // InputError` ile AYNI gerekçe (Hata 7 savunması, gerçek bir DOĞRULAMA

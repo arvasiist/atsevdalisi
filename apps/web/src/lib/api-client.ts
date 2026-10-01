@@ -79,6 +79,9 @@ import type {
   ClubDetailView,
   ClubRole,
   ClubSummaryView,
+  StaffHireResult,
+  StaffOverview,
+  StaffView,
 } from '@at-sevdalisi/shared-types';
 
 /**
@@ -1181,4 +1184,20 @@ export const apiClient = {
     }),
 
   disbandClub: (clubId: string) => request<{ disbanded: true }>(`/clubs/${clubId}`, { method: 'DELETE' }),
+
+  // --- Personel (brief §33, 01.10.2026) -----------------------------------
+  /** Kadro + aday pazarı + kapasite (oyuncu token'dan). */
+  getStaffOverview: () => request<StaffOverview>('/staff'),
+
+  /**
+   * PARA YOLU (peşin sözleşme). `Idempotency-Key` GÖNDERİLMEZ: tekrar
+   * DURUMLA engellenir — ikinci çağrı 409 `STAFF_ALREADY_HIRED`.
+   */
+  hireStaff: (staffId: string) => request<StaffHireResult>(`/staff/${staffId}/hire`, { method: 'POST' }),
+
+  /** PARA YOLU — yalnızca bitime yakın/bitmişse açılır; ikinci çağrı 409 `STAFF_RENEWAL_NOT_DUE`. */
+  renewStaff: (staffId: string) => request<StaffHireResult>(`/staff/${staffId}/renew`, { method: 'POST' }),
+
+  /** İade YOK — peşin sözleşme bir kiralama bedelidir. */
+  releaseStaff: (staffId: string) => request<StaffView>(`/staff/${staffId}/release`, { method: 'POST' }),
 };

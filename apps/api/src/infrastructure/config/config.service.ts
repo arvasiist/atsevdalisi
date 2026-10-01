@@ -17,6 +17,7 @@ import {
   loadRaceLobbyConfig,
   loadSocialConfig,
   loadStableConfig,
+  loadStaffConfig,
   loadTrainingConfig,
   loadWeatherConfig,
 } from '@at-sevdalisi/game-config';
@@ -137,4 +138,6 @@ export class AppConfigService {
   // 20 puan daha güçlü görünür ve bu hiçbir yerde hata üretmez). Bunu
   // sabitleyen test: `apps/api/test/domain/jockey/jockey-config.spec.ts`.
   readonly jockey = loadJockeyConfig();
+  /** 01.10.2026 — personel (brief §33) kiralama/sözleşme/etki. */
+  readonly staff = loadStaffConfig();
 }
