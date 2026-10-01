@@ -4,6 +4,7 @@ import type { RaceLobbyListItem } from '@at-sevdalisi/shared-types';
 import {
   buildCreateRaceBody,
   describeCalendar,
+  describePlayerControl,
   describeTournament,
   defaultLobbyRaceForm,
   formatStartsIn,
@@ -43,6 +44,7 @@ function race(overrides: Partial<RaceLobbyListItem> = {}): RaceLobbyListItem {
     myEntry: null,
     tournament: null,
     calendar: null,
+    playerControl: false,
     ...overrides,
   } as RaceLobbyListItem;
 }
@@ -68,6 +70,13 @@ describe('buildCreateRaceBody', () => {
     expect(result.body.raceType).toBe(form.entryFee > 0 ? 'paid' : 'free');
     const delayMs = new Date(result.body.startTime).getTime() - now.getTime();
     expect(delayMs / 1000).toBeGreaterThanOrEqual(config.startDelaySeconds.min);
+  });
+
+  it('kontrollü yarış seçimi gövdeye geçer (varsayılan kapalı)', () => {
+    const base = { ...defaultLobbyRaceForm(config), name: 'Kontrol Kupası' };
+    expect(base.playerControl).toBe(false);
+    const result = buildCreateRaceBody({ ...base, playerControl: true }, now, config);
+    expect(result.ok && result.body.playerControl).toBe(true);
   });
 
   it('ücret 0 ise tip `free` olur (sunucunun `races_race_type_matches_fee` kısıtı)', () => {
@@ -150,6 +159,8 @@ describe('describeTournament', () => {
   it('turnuva değilse null; turnuvaysa kademe + seviye şartı sunucu alanlarından', () => {
     expect(describeTournament(race())).toBeNull();
     expect(describeCalendar(race())).toBeNull();
+    expect(describePlayerControl(race())).toBeNull();
+    expect(describePlayerControl(race({ playerControl: true }))).toContain('Kontrollü');
     expect(describeCalendar(race({ calendar: { programId: 'dirt-sprint' } }))).toBe(
       'Takvim yarışı · sunucu açtı',
     );

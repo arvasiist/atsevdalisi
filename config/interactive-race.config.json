@@ -3,6 +3,7 @@
   "startCountdownSeconds": 4,
   "timeScale": 2,
   "revealLeadMs": 2500,
+  "commandSafetyMs": 600,
   "finishGraceMs": 1500,
   "scheduler": {
     "enabled": true,

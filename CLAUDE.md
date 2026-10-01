@@ -302,7 +302,23 @@ değiştirirsen `race-engine-player-control.spec.ts` denge kilitlerine bak. Otur
 (`simulation_seed`, yarış kimliği DEĞİL) — aksi hâlde oyuncu açık kaynak
 motorla en iyi komutları önceden hesaplardı. Yarış saati `timeScale` (2×)
 ile akar; yalnızca süre kısalır, sonuç değişmez. Süren yarıştaki at
-`isHorseInActiveRace` ile kilitli. Lobi/turnuva HENÜZ kontrollü DEĞİL.
+`isHorseInActiveRace` ile kilitli.
+(30) **KONTROLLÜ LOBİ/TURNUVA YARIŞI (01.10.2026, migration 0054, §13.56)** —
+`races.player_control` (yarış açarken "Kontrollü yarış", turnuva finali ve
+`grass-mile` takvim programı açık). Kilit `live_starts_at`ı yazar (kilit +
+geri sayım); komutlar `race_entries.player_commands`a (yarış `FOR SHARE`,
+katılım `FOR UPDATE`) aynı "ilk gösterilmemiş segment" kuralıyla düşer. Uçlar
+YALNIZCA katılımcıya (yoksa 404): `GET races/live/current`, `GET
+races/:id/live`, `POST …/live/commands` (`@RateLimit`), `POST …/live/finish`
+(= kesinleşme). ⚠️ Kesinleşme (crank, zamanlayıcı, finish) canlı koşu
+bitmeden `InteractiveRaceNotFinishedError` (409) verir; zamanlayıcı bunu
+sessizce atlar. Kopan oyuncunun atını AI jokey sürer — DB'ye yazılmaz.
+⚠️ **TOHUM SIZINTISI KAPATILDI:** `GET /races/:id/timeline` tohumu artık
+YALNIZCA `finished` yarışta döner (kilitli yarışta tohum + açık motor =
+sonucu önceden hesaplamak). ⚠️ `JoinRaceDto` taktik alanları
+`@IsOptional()` — onsuz gerçek sunucu `LobbyPanel` katılımını 400'lüyordu
+(esbuild e2e'de görünmez; `join-race-dto.spec.ts` kilitler). Lobi formunun
+"1 dakika" gecikmesi sunucu alt sınırının altındaydı (en az 2 dk).
 
 **✅ ÜCRETLİ LOBİ YARIŞI ARTIK KOŞUYOR — ÖDÜL DAĞITIMI VAR (§13.14,
 28.09.2026).** `POST /races/:id/settle` yarışı koşar, ödülleri `top5`

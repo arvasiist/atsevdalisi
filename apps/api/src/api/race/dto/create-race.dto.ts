@@ -1,4 +1,4 @@
-import { IsInt, IsString } from 'class-validator';
+import { IsBoolean, IsInt, IsOptional, IsString } from 'class-validator';
 
 /**
  * `POST /races` gövde şeması (brief §1, §42 PHASE 1).
@@ -85,4 +85,13 @@ export class CreateRaceDto {
   /** brief §11 izleyici kapasitesi — seçenekler config'te (`spectatorCapacityOptions`). */
   @IsInt()
   spectatorCapacity!: unknown;
+
+  /**
+   * 01.10.2026 — oyuncu kontrollü canlı yarış. `main.ts` `whitelist: true`
+   * olduğundan DTO'da OLMAYAN alan üretimde sessizce silinirdi; doğrulamanın
+   * kendisi domain'dedir (`validateRaceCreation`).
+   */
+  @IsOptional()
+  @IsBoolean()
+  playerControl?: unknown;
 }

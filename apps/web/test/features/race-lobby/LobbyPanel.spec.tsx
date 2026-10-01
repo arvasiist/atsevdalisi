@@ -59,6 +59,7 @@ function lobbyRace(overrides: Partial<RaceLobbyListItem> = {}): RaceLobbyListIte
     myEntry: null,
     tournament: null,
     calendar: null,
+    playerControl: false,
     ...overrides,
   } as RaceLobbyListItem;
 }

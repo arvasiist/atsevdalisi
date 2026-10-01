@@ -119,6 +119,7 @@ export interface CreateLobbyRaceBody {
   distanceMeters: number;
   tribuneFee: number;
   spectatorCapacity: number;
+  playerControl?: boolean;
 }
 
 export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1';
@@ -745,6 +746,17 @@ export const apiClient = {
     }),
   finishInteractiveRace: (raceId: string) =>
     request<InteractiveRaceView>(`/interactive-races/${raceId}/finish`, { method: 'POST' }),
+
+  /** 01.10.2026 — kontrollü LOBİ yarışı (çok oyunculu canlı koşu). */
+  getCurrentLiveLobbyRace: () => request<InteractiveRaceView | null>('/races/live/current'),
+  getLiveLobbyRace: (raceId: string) => request<InteractiveRaceView>(`/races/${raceId}/live`),
+  sendLiveLobbyControl: (raceId: string, control: PlayerControlInput) =>
+    request<InteractiveRaceView>(`/races/${raceId}/live/commands`, {
+      method: 'POST',
+      body: JSON.stringify({ control }),
+    }),
+  finishLiveLobbyRace: (raceId: string) =>
+    request<InteractiveRaceView>(`/races/${raceId}/live/finish`, { method: 'POST' }),
 
   /**
    * Ekipman (`apps/web/src/app/equipment/page.tsx`, bu turda EKLENDİ —

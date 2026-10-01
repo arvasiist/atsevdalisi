@@ -54,6 +54,13 @@ export function describeCalendar(race: RaceLobbyListItem): string | null {
   return race.calendar === null ? null : 'Takvim yarışı · sunucu açtı';
 }
 
+/** 01.10.2026 — kontrollü yarış etiketi. */
+export function describePlayerControl(
+  race: Pick<RaceLobbyListItem, 'playerControl'>,
+): string | null {
+  return race.playerControl ? 'Kontrollü · atı sen sürersin (kırbaç, yön)' : null;
+}
+
 export const WEATHER_LABELS: Record<RaceWeather, string> = {
   sunny: 'Güneşli',
   rainy: 'Yağmurlu',
@@ -83,6 +90,8 @@ export interface LobbyRaceForm {
   distanceMeters: number;
   tribuneFee: number;
   spectatorCapacity: number;
+  /** 01.10.2026 — atı oyuncular sürer (kırbaç/yön); yarış kilitten sonra canlı akar. */
+  playerControl: boolean;
 }
 
 /**
@@ -103,7 +112,10 @@ export function maxPlayersOptions(fieldSize: number, config: RaceLobbyConfig): n
 /** Başlangıç gecikmesinin dakika cinsinden sınırları — `startDelaySeconds`ten türetilir. */
 export function startDelayMinuteBounds(config: RaceLobbyConfig): { min: number; max: number } {
   return {
-    min: Math.ceil(config.startDelaySeconds.min / SECONDS_PER_MINUTE),
+    // 01.10.2026 — alt sınır TAM dakikaya denk gelirse (60 sn) form değeri
+    // sunucuya varana kadar 59,x saniyeye düşüp reddediliyordu; varsayılan
+    // ayarlarla yarış açılamıyordu. Sınırın bir saniye üstü yuvarlanır.
+    min: Math.ceil((config.startDelaySeconds.min + 1) / SECONDS_PER_MINUTE),
     max: Math.floor(config.startDelaySeconds.max / SECONDS_PER_MINUTE),
   };
 }
@@ -122,6 +134,7 @@ export function defaultLobbyRaceForm(config: RaceLobbyConfig): LobbyRaceForm {
     distanceMeters: config.distanceMeters.min,
     tribuneFee: config.tribuneFeeOptions[0] ?? 0,
     spectatorCapacity: config.spectatorCapacityOptions[0] ?? 0,
+    playerControl: false,
   };
 }
 
@@ -159,8 +172,8 @@ export function buildCreateRaceBody(
     };
   }
   const delaySeconds = form.startDelayMinutes * SECONDS_PER_MINUTE;
-  if (delaySeconds < config.startDelaySeconds.min || delaySeconds > config.startDelaySeconds.max) {
-    const bounds = startDelayMinuteBounds(config);
+  const bounds = startDelayMinuteBounds(config);
+  if (form.startDelayMinutes < bounds.min || form.startDelayMinutes > bounds.max) {
     return { ok: false, problem: `Başlangıç ${bounds.min}–${bounds.max} dakika sonra olmalıdır.` };
   }
   return {
@@ -177,6 +190,7 @@ export function buildCreateRaceBody(
       distanceMeters: form.distanceMeters,
       tribuneFee: form.tribuneFee,
       spectatorCapacity: form.spectatorCapacity,
+      playerControl: form.playerControl,
     },
   };
 }

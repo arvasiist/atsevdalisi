@@ -71,7 +71,8 @@
       "surface": "grass",
       "weather": "sunny",
       "tribuneFee": 25,
-      "spectatorCapacity": 5000
+      "spectatorCapacity": 5000,
+      "playerControl": true
     },
     "prizeDistributionByPlacement": {
       "1": 0.5,

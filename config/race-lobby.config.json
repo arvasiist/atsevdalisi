@@ -52,7 +52,7 @@
       },
       {
         "id": "grass-mile",
-        "name": "Çim Mil",
+        "name": "Çim Mil (Kontrollü)",
         "intervalMinutes": 60,
         "offsetMinutes": 15,
         "fieldSize": 10,
@@ -62,7 +62,8 @@
         "surface": "grass",
         "weather": "sunny",
         "tribuneFee": 25,
-        "spectatorCapacity": 5000
+        "spectatorCapacity": 5000,
+        "playerControl": true
       },
       {
         "id": "open-run",

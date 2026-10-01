@@ -121,6 +121,9 @@ const WEATHER_LABELS: Record<PracticeRaceResult['weather'], string> = {
   cold: 'Soğuk',
 };
 
+/** Kontrollü lobi yarışının başlayıp başlamadığını yoklama aralığı. */
+const LIVE_RACE_POLL_MS = 5000;
+
 const InteractiveRaceViewer = dynamic(
   () =>
     import('../../features/ride/InteractiveRaceViewer').then((mod) => mod.InteractiveRaceViewer),
@@ -162,6 +165,22 @@ export default function RacesPage(): React.ReactElement {
       })
       .catch(() => undefined);
   }, [player?.id]);
+
+  // 01.10.2026 — kontrollü LOBİ yarışın kilitlenince ekran kendiliğinden açılır.
+  useEffect(() => {
+    if (!player || ride !== null) return undefined;
+    const check = (): void => {
+      void apiClient
+        .getCurrentLiveLobbyRace()
+        .then((live) => {
+          if (live) setRide(live);
+        })
+        .catch(() => undefined);
+    };
+    check();
+    const timer = window.setInterval(check, LIVE_RACE_POLL_MS);
+    return () => window.clearInterval(timer);
+  }, [player?.id, ride === null]);
 
   const loadHorses = async (ownerId: string) => {
     setHorsesError(null);
@@ -273,6 +292,7 @@ export default function RacesPage(): React.ReactElement {
           <InteractiveRaceViewer
             initialView={ride}
             horseName={horses?.find((horse) => horse.id === ride.playerLabel)?.name ?? 'Atın'}
+            key={ride.raceId}
             onClose={() => void closeRide()}
           />
         </div>

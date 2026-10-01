@@ -78,6 +78,7 @@ export class ScheduleRaceCalendarUseCase {
           weather: value.weather,
           tribuneFee: value.tribuneFee,
           spectatorCapacity: value.spectatorCapacity,
+          playerControl: value.playerControl,
           engineVersion: RACE_ENGINE_VERSION,
           rulesetVersion: RACE_RULESET_VERSION,
           configVersion: this.config.race.version,

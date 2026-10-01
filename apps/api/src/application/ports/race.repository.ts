@@ -367,6 +367,30 @@ export interface RaceRepository {
 
   findInteractiveRace(raceId: string): Promise<InteractiveRaceRecord | null>;
 
+  /**
+   * 01.10.2026 — oyuncunun şu an CANLI koşan (kontrollü, `locking`) lobi
+   * yarışı; yoksa `null`.
+   */
+  findLiveLobbyRaceIdForPlayer(playerId: string): Promise<string | null>;
+
+  /**
+   * 01.10.2026 — oyuncunun kendi katılımına komut yazar. `races` satırı
+   * `FOR SHARE` (kesinleşme onu `FOR UPDATE` aldığından iki yazım
+   * çakışmaz), katılım satırı `FOR UPDATE`. `mutate` fırlatırsa hiçbir şey
+   * yazılmaz. Katılım yoksa `null`.
+   */
+  updateLobbyEntryCommands(
+    raceId: string,
+    playerId: string,
+    mutate: (current: PlayerCommandLog, raceStatus: string) => PlayerCommandLog,
+  ): Promise<PlayerCommandLog | null>;
+
+  /** 01.10.2026 — kesinleşmiş lobi yarışında oyuncunun sırası ve aldığı ödül; yoksa `null`. */
+  findLobbyOutcome(
+    raceId: string,
+    playerId: string,
+  ): Promise<{ finishPosition: number; prizeWon: number; entryFee: number } | null>;
+
   findRunningInteractiveRaceId(playerId: string): Promise<string | null>;
 
   /** Zamanlayıcı için: süren oturumlar, en eski başlangıç önce. */
@@ -688,6 +712,8 @@ export interface CreateLobbyRaceInput {
    * (aşağıdaki `CreateLobbyRaceResult`'ın doc yorumu).
    */
   maxOpenRaces: number;
+  /** 01.10.2026 — oyuncu kontrollü canlı yarış (migration 0054). */
+  playerControl: boolean;
 }
 
 /**
@@ -806,6 +832,8 @@ export interface CreateTournamentRaceInput {
   rulesetVersion: string;
   configVersion: string;
   weatherConfigVersion: string;
+  /** 01.10.2026 — oyuncu kontrollü canlı yarış (migration 0054). */
+  playerControl: boolean;
 }
 
 /** 01.10.2026 — oyuncu kontrollü pratik yarış oturumu (migration 0053). */
@@ -855,6 +883,8 @@ export interface CreateCalendarRaceInput {
   rulesetVersion: string;
   configVersion: string;
   weatherConfigVersion: string;
+  /** 01.10.2026 — oyuncu kontrollü canlı yarış (migration 0054). */
+  playerControl: boolean;
 }
 
 /** `dropUnreadyLobbyEntries` sonucu. */
@@ -898,6 +928,8 @@ export interface LobbySettlementEntrant {
    * jokeyi gösterirdi.
    */
   jockeyId: string | null;
+  /** 01.10.2026 — oyuncunun segment komutları (kontrollü yarış; diğerlerinde boş). */
+  playerCommands: PlayerCommandLog;
 }
 
 /**
@@ -945,6 +977,10 @@ export interface LobbySettlementContext {
    * doğururdu.
    */
   simulationSeed: string | null;
+  /** 01.10.2026 (migration 0054). */
+  playerControl: boolean;
+  /** Kontrollü yarışta kapıların açıldığı an (kilitte yazılır); diğerlerinde `null`. */
+  liveStartsAt: Date | null;
 }
 
 /**
@@ -983,6 +1019,8 @@ export interface LockLobbyRaceInput {
    * koşmuş olurdu. `null` = oyuncunun kiralı jokeyi yok.
    */
   entrantSnapshots: { entryId: string; snapshot: RaceEntrantSnapshot; jockeyId: string | null }[];
+  /** 01.10.2026 — kontrollü yarışta kilit ile kapıların açılması arasındaki geri sayım (sn). */
+  liveCountdownSeconds: number;
 }
 
 /**

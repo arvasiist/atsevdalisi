@@ -37,6 +37,7 @@ import { formatMultiplier } from '../race/race-entry';
 import {
   ENTRY_STATUS_LABELS,
   describeCalendar,
+  describePlayerControl,
   describeTournament,
   SURFACE_LABELS,
   WEATHER_LABELS,
@@ -379,6 +380,15 @@ export function LobbyPanel({ horses, onBalanceChanged }: LobbyPanelProps): React
               ))}
             </select>
           </label>
+          <label style={{ ...labelStyle(), display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <input
+              type="checkbox"
+              aria-label="Kontrollü yarış"
+              checked={form.playerControl}
+              onChange={(event) => updateForm({ playerControl: event.target.checked })}
+            />
+            Kontrollü yarış (atı oyuncular sürer: kırbaç, yön)
+          </label>
           <button
             type="button"
             onClick={() => void createRace()}
@@ -447,6 +457,17 @@ export function LobbyPanel({ horses, onBalanceChanged }: LobbyPanelProps): React
                       }}
                     >
                       {describeTournament(race)}
+                    </span>
+                  ) : null}
+                  {describePlayerControl(race) !== null ? (
+                    <span
+                      style={{
+                        ...smallStyle(),
+                        color: 'var(--color-accent-gold)',
+                        fontWeight: 600,
+                      }}
+                    >
+                      {describePlayerControl(race)}
                     </span>
                   ) : null}
                   {describeCalendar(race) !== null ? (

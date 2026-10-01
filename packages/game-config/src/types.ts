@@ -878,6 +878,8 @@ export interface OnlineConfig {
       weather: 'sunny' | 'rainy' | 'windy' | 'cloudy' | 'hot' | 'cold';
       tribuneFee: number;
       spectatorCapacity: number;
+      /** 01.10.2026 — turnuva finali oyuncu kontrollü canlı yarış mı. */
+      playerControl: boolean;
     };
   };
   /** brief §69 SEZON SİSTEMİ (bkz. `domain/season/season.ts`). */
@@ -1764,6 +1766,8 @@ export interface RaceCalendarProgram {
   weather: string;
   tribuneFee: number;
   spectatorCapacity: number;
+  /** 01.10.2026 — bu programın yarışları oyuncu kontrollü mü (varsayılan false). */
+  playerControl?: boolean;
 }
 
 /**
@@ -1905,6 +1909,12 @@ export interface InteractiveRaceConfig {
    */
   timeScale: number;
   revealLeadMs: number;
+  /**
+   * Komut hedefi gösterim sınırının bu kadar (yarış ms) İLERİSİNDEN seçilir:
+   * hesap ile yazım arasında sınır ilerlese de komut gösterilmiş bir
+   * segmente düşmez.
+   */
+  commandSafetyMs: number;
   finishGraceMs: number;
   scheduler: { enabled: boolean; tickSeconds: number; batchSize: number };
 }

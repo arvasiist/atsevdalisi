@@ -3643,8 +3643,32 @@ Karar: önce pratik yarış; kırbaç sınırsız, dayanıklılık bedelli.
   erken kesinleşme 409, ödül tek sefer, terk → zamanlayıcı). Komut gösterilmiş
   segmente yazdırılınca "geçmiş değişmez" testinin düştüğü doğrulandı.
   Tarayıcıda masaüstü + 390 px uçtan uca koşuldu (sonuç ekranı dahil).
-- **Açık:** lobi/turnuva yarışları kontrollü değil (çok oyunculu canlı
-  koşu, kopma kuralları vb. ayrı karar). Kırbaç dengesi config'ten ayarlanır.
+- **Açık:** ~~lobi/turnuva yarışları kontrollü değil~~ → §13.56. Kırbaç
+  dengesi config'ten ayarlanır.
+
+### 13.56 Kontrollü lobi/turnuva yarışı (01.10.2026, migration 0054)
+
+- **Veri:** `races.player_control` + `races.live_starts_at`;
+  `race_entries.player_commands` (JSONB, segment → komut).
+- **Akış:** kilit kadroyu + tohumu dondurur ve kontrollü yarışta
+  `live_starts_at = kilit + startCountdownSeconds` yazar. Katılımcı
+  `GET /races/live/current` ile canlı yarışını bulur (`/races` 5 sn'de bir
+  yoklar ve sürüş ekranını açar), komutlarını gönderir; segmentler pratik
+  yarışla AYNI açıklama kuralıyla gösterilir. Koşu bitince `…/live/finish`,
+  crank ya da zamanlayıcı kesinleştirir; motor herkesin komutlarını
+  `playerCommands` olarak alır. Kopan oyuncunun atını AI jokey sürer.
+- **Kurallar:** uçlar yalnızca katılımcıya (yoksa 404, varlık sızdırmaz);
+  canlı koşu bitmeden kesinleşme 409 `InteractiveRaceNotFinishedError`;
+  `GET /races/:id/timeline` tohumu yalnızca `finished` yarışta döner
+  (önceden kilitli yarışın tohumu sızıyordu).
+- **Yan düzeltmeler:** `JoinRaceDto` taktik alanları `@IsOptional()` (gerçek
+  sunucu taktiksiz katılımı 400'lüyordu; esbuild e2e'de görünmez —
+  `test/api/join-race-dto.spec.ts`), lobi formunun en kısa gecikmesi sunucu
+  alt sınırına hizalandı.
+- **Kanıt:** `lobby-live-race.e2e-spec.ts` (kalan-süre kapısı kapatılınca
+  düştüğü doğrulandı), `tournament.e2e-spec.ts` (canlı başlangıç geriye
+  çekilerek), web `lobby-logic.spec`. Tarayıcıda form → katıl → hazır →
+  kilit → sürüş ekranı → sonuç kartı uçtan uca koşuldu.
 
 ## 14. Kendime hatırlatmalar (kısa liste)
 

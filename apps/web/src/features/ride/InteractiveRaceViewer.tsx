@@ -54,17 +54,40 @@ const CAMERA_LABELS: Record<CameraMode, string> = {
   photo_finish: 'Fotofiniş',
 };
 
+/** 01.10.2026 — görüntüleyicinin veri kaynağı: pratik (tek oyunculu) ya da lobi (çok oyunculu). */
+export interface RideSource {
+  get: (raceId: string) => Promise<InteractiveRaceView>;
+  command: (raceId: string, control: PlayerControlInput) => Promise<InteractiveRaceView>;
+  finish: (raceId: string) => Promise<InteractiveRaceView>;
+}
+
+export const PRACTICE_RIDE_SOURCE: RideSource = {
+  get: (raceId) => apiClient.getInteractiveRace(raceId),
+  command: (raceId, control) => apiClient.sendRaceControl(raceId, control),
+  finish: (raceId) => apiClient.finishInteractiveRace(raceId),
+};
+
+export const LOBBY_RIDE_SOURCE: RideSource = {
+  get: (raceId) => apiClient.getLiveLobbyRace(raceId),
+  command: (raceId, control) => apiClient.sendLiveLobbyControl(raceId, control),
+  finish: (raceId) => apiClient.finishLiveLobbyRace(raceId),
+};
+
 export interface InteractiveRaceViewerProps {
   initialView: InteractiveRaceView;
   horseName: string;
   onClose: () => void;
+  /** Verilmezse görünümün `kind`ine göre seçilir. */
+  source?: RideSource;
 }
 
 export function InteractiveRaceViewer({
   initialView,
   horseName,
   onClose,
+  source,
 }: InteractiveRaceViewerProps): React.ReactElement {
+  const api = source ?? (initialView.kind === 'lobby' ? LOBBY_RIDE_SOURCE : PRACTICE_RIDE_SOURCE);
   const [view, setView] = useState(initialView);
   const offsetRef = useRef(serverClockOffsetMs(initialView.serverNow, Date.now()));
   const [raceTimeMs, setRaceTimeMs] = useState(() =>
@@ -86,13 +109,13 @@ export function InteractiveRaceViewer({
   useEffect(() => {
     if (!running) return undefined;
     const timer = window.setInterval(() => {
-      void apiClient
-        .getInteractiveRace(raceId)
+      void api
+        .get(raceId)
         .then(accept)
         .catch(() => undefined);
     }, POLL_INTERVAL_MS);
     return () => window.clearInterval(timer);
-  }, [raceId, running, accept]);
+  }, [api, raceId, running, accept]);
 
   // Yarış saati — her karede.
   useEffect(() => {
@@ -109,28 +132,28 @@ export function InteractiveRaceViewer({
   useEffect(() => {
     if (!view.canFinish || !running || finishingRef.current) return;
     finishingRef.current = true;
-    void apiClient
-      .finishInteractiveRace(raceId)
+    void api
+      .finish(raceId)
       .then(accept)
       .catch((cause: unknown) => {
         finishingRef.current = false;
         setError(cause instanceof Error ? cause.message : 'Yarış kesinleşemedi.');
       });
-  }, [view.canFinish, running, raceId, accept]);
+  }, [api, view.canFinish, running, raceId, accept]);
 
   const send = useCallback(
     (control: PlayerControlInput) => {
       if (!running || view.nextCommandSegment === null) return;
       setFlash(control);
       window.setTimeout(() => setFlash((current) => (current === control ? null : current)), 150);
-      void apiClient
-        .sendRaceControl(raceId, control)
+      void api
+        .command(raceId, control)
         .then(accept)
         .catch((cause: unknown) =>
           setError(cause instanceof Error ? cause.message : 'Komut iletilemedi.'),
         );
     },
-    [raceId, running, view.nextCommandSegment, accept],
+    [api, raceId, running, view.nextCommandSegment, accept],
   );
 
   useEffect(() => {
@@ -162,9 +185,7 @@ export function InteractiveRaceViewer({
   );
   const myRow = leaderboard.find((row) => row.horseId === view.playerLabel);
   // Bitişte herkes aynı mesafededir; kesin sıra sunucunun sonucundan gelir.
-  const finalPosition =
-    view.result?.finalResult.find((entry) => entry.horseId === view.result?.horseId)
-      ?.finishPosition ?? null;
+  const finalPosition = view.outcome?.finishPosition ?? null;
   const myRank = finalPosition ?? myRow?.rank ?? null;
   const myPositionMeters = Math.min(view.distanceMeters, myRow?.positionMeters ?? 0);
   const mine = horses.find((horse) => horse.horseId === view.playerLabel);
@@ -227,8 +248,7 @@ export function InteractiveRaceViewer({
   const stamina = latestStamina(view, clampedTime);
   const countdown = raceTimeMs < 0 ? Math.ceil(-raceTimeMs / view.timeScale / 1000) : null;
   const canCommand = running && view.nextCommandSegment !== null;
-  const result = view.result;
-  const myFinish = result?.finalResult.find((entry) => entry.horseId === result.horseId) ?? null;
+  const outcome = view.outcome;
 
   return (
     <div className="ride">
@@ -333,12 +353,12 @@ export function InteractiveRaceViewer({
         </div>
       ) : null}
 
-      {result && myFinish ? (
+      {outcome ? (
         <div className="ride-result">
-          <h2>{myFinish.finishPosition}. oldun</h2>
+          <h2>{outcome.finishPosition}. oldun</h2>
           <p>
-            Ödül: <strong>{result.prizeWon.toLocaleString('tr-TR')}</strong> · Giriş:{' '}
-            {result.entryFee.toLocaleString('tr-TR')} · XP +{result.xpGained.player}
+            Ödül: <strong>{outcome.prizeWon.toLocaleString('tr-TR')}</strong> · Giriş:{' '}
+            {outcome.entryFee.toLocaleString('tr-TR')} · XP +{outcome.xpGained}
           </p>
           <button type="button" className="btn-gold" onClick={onClose}>
             Tamam

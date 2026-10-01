@@ -7,7 +7,11 @@ import { AppConfigService } from '../../src/infrastructure/config/config.service
 import { PG_POOL } from '../../src/infrastructure/database/database.module';
 import { RaceLockScheduler } from '../../src/infrastructure/scheduler/race-lock.scheduler';
 import { TournamentScheduler } from '../../src/infrastructure/scheduler/tournament.scheduler';
-import { bootstrapTestApp, registerTestPlayerWithStarterHorse, type RegisteredTestPlayer } from './test-helpers';
+import {
+  bootstrapTestApp,
+  registerTestPlayerWithStarterHorse,
+  type RegisteredTestPlayer,
+} from './test-helpers';
 
 /**
  * TURNUVA (30.09.2026, `FINAL_PROJECT_AUDIT.md` #50, migration 0045).
@@ -79,22 +83,35 @@ describe('Turnuva (e2e) — otomatik takvim + tek final', () => {
   }
 
   async function moneyOf(playerId: string): Promise<number> {
-    const result = await pool.query<{ money: string }>('SELECT money FROM players WHERE id = $1', [playerId]);
+    const result = await pool.query<{ money: string }>('SELECT money FROM players WHERE id = $1', [
+      playerId,
+    ]);
     return Number(result.rows[0].money);
   }
 
   async function statusOf(raceId: string): Promise<string> {
-    const result = await pool.query<{ status: string }>('SELECT status FROM races WHERE id = $1', [raceId]);
+    const result = await pool.query<{ status: string }>('SELECT status FROM races WHERE id = $1', [
+      raceId,
+    ]);
     return result.rows[0].status;
   }
 
   async function startNow(raceId: string): Promise<void> {
-    await pool.query("UPDATE races SET start_time = now() - interval '1 minute' WHERE id = $1", [raceId]);
+    await pool.query("UPDATE races SET start_time = now() - interval '1 minute' WHERE id = $1", [
+      raceId,
+    ]);
   }
 
   async function tickRacesUntilDone(raceId: string): Promise<void> {
     for (let tick = 0; tick < 25; tick += 1) {
       await races.tickNow();
+      // 01.10.2026 — turnuva finali oyuncu kontrollü CANLI koşar
+      // (`online.tournament.race.playerControl`); kesinleşme koşu bitince
+      // olur. Test saati süremediği için canlı koşunun bittiği anı geriye çeker.
+      await pool.query(
+        "UPDATE races SET live_starts_at = now() - interval '1 hour' WHERE id = $1 AND live_starts_at IS NOT NULL",
+        [raceId],
+      );
       const status = await statusOf(raceId);
       if (status === 'finished' || status === 'cancelled') {
         return;
@@ -112,17 +129,22 @@ describe('Turnuva (e2e) — otomatik takvim + tek final', () => {
     // Lobi listesi `start_time ASC` + en fazla 100 satırdır; birikmiş test
     // verisinde 6 saat sonra başlayan turnuvalar listenin dışında kalabilir.
     // Başlangıçlarını en öne alacak kadar yaklaştır (hâlâ gelecekte).
-    await pool.query("UPDATE races SET start_time = now() + interval '61 seconds' WHERE id = ANY($1::uuid[])", [
-      first?.opened ?? [],
-    ]);
+    await pool.query(
+      "UPDATE races SET start_time = now() + interval '61 seconds' WHERE id = ANY($1::uuid[])",
+      [first?.opened ?? []],
+    );
     const viewer = await registerTestPlayerWithStarterHorse(app, 'Turnuva Bakan');
     const lobby = await request(app.getHttpServer())
       .get('/api/v1/races')
       .query({ limit: '100' })
       .set('Authorization', viewer.authHeader)
       .expect(200);
-    const listed = (lobby.body.data as Array<{ id: string; tournament: { tier: string; minPlayerLevel: number } | null }>)
-      .filter((race) => first?.opened.includes(race.id));
+    const listed = (
+      lobby.body.data as Array<{
+        id: string;
+        tournament: { tier: string; minPlayerLevel: number } | null;
+      }>
+    ).filter((race) => first?.opened.includes(race.id));
     expect(listed).toHaveLength(first?.opened.length ?? -1);
     for (const race of listed) {
       const tier = config.online.tournament.tiers[race.tournament?.tier ?? ''];
@@ -174,7 +196,10 @@ describe('Turnuva (e2e) — otomatik takvim + tek final', () => {
     await tickRacesUntilDone(raceId);
 
     expect(await statusOf(raceId)).toBe('finished');
-    const bots = await pool.query('SELECT 1 FROM race_entries WHERE race_id = $1 AND bot_label IS NOT NULL', [raceId]);
+    const bots = await pool.query(
+      'SELECT 1 FROM race_entries WHERE race_id = $1 AND bot_label IS NOT NULL',
+      [raceId],
+    );
     expect(bots.rows).toHaveLength(0);
 
     const pool3 = entryFee * players.length;
@@ -220,7 +245,10 @@ describe('Turnuva (e2e) — otomatik takvim + tek final', () => {
     expect(await statusOf(raceId)).toBe('cancelled');
     expect(await moneyOf(ready.playerId)).toBe(100000);
     expect(await moneyOf(unready.playerId)).toBe(100000);
-    const racePool = await pool.query<{ prize_pool: string }>('SELECT prize_pool FROM races WHERE id = $1', [raceId]);
+    const racePool = await pool.query<{ prize_pool: string }>(
+      'SELECT prize_pool FROM races WHERE id = $1',
+      [raceId],
+    );
     expect(Number(racePool.rows[0].prize_pool)).toBe(0);
   });
 

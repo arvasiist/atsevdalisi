@@ -18,6 +18,7 @@ import {
 } from '../../domain/race/errors';
 import {
   applyPlayerControl,
+  commandTargetSegment,
   parsePlayerControlInput,
   raceEndMs,
   revealedSegmentCount,
@@ -127,11 +128,11 @@ export class InteractiveRaceUseCase {
       // Gösterim sınırı KİLİT ALTINDA hesaplanır: komut kesinlikle gösterilmemiş bir segmente düşer.
       const timeline = this.simulate(record);
       const entryCount = record.entrants.length;
-      const target = revealedSegmentCount(
+      const target = commandTargetSegment(
         timeline,
         entryCount,
         this.elapsedMs(record, now),
-        this.config.interactiveRace.revealLeadMs,
+        this.config.interactiveRace,
       );
       if (target >= segmentCountOf(timeline, entryCount)) {
         throw new InteractiveRaceClosedError(raceId);
@@ -276,6 +277,18 @@ export class InteractiveRaceUseCase {
       myCommands: record.commands,
       canFinish: !finished && this.remainingMs(record, timeline, now) <= 0,
       result: record.result,
+      outcome:
+        record.result === null
+          ? null
+          : {
+              finishPosition:
+                record.result.finalResult.find((entry) => entry.horseId === record.result?.horseId)
+                  ?.finishPosition ?? 0,
+              prizeWon: record.result.prizeWon,
+              entryFee: record.result.entryFee,
+              xpGained: record.result.xpGained.player,
+            },
+      kind: 'practice',
     };
   }
 }

@@ -218,6 +218,7 @@ interface LobbyRaceRow {
   spectator_capacity: number;
   created_by: string | null;
   created_at: Date;
+  player_control: boolean;
 }
 
 /**
@@ -253,6 +254,9 @@ interface SettlementRaceRow {
    * kendi seed'ini üretir.
    */
   simulation_seed: string | null;
+  /** 01.10.2026 (migration 0054). Kilit sorgusu bu iki sütunu seçmez → opsiyonel. */
+  player_control?: boolean;
+  live_starts_at?: Date | null;
 }
 
 /** `findLobbySettlementContext`'in `race_entries` satır şekli. */
@@ -265,6 +269,8 @@ interface SettlementEntryRow {
   gate_position: number | null;
   /** PHASE 6.2 — kilit anında yazılır (`lockLobbyRace`). */
   jockey_id: string | null;
+  /** 01.10.2026 (migration 0054) — oyuncunun segment komutları. */
+  player_commands: PlayerCommandLog;
   /**
    * PHASE 1 (migration 0042) — `startTime` anında dondurulmuş hâl.
    * `null` ise kilit hiç çalışmamıştır.
@@ -327,6 +333,7 @@ function rowToLobbyRaceView(
     createdAt: row.created_at.toISOString(),
     prizeMultiplier: economics.multiplier,
     topPrize: economics.topPrize,
+    playerControl: row.player_control,
   };
 }
 
@@ -760,7 +767,16 @@ export class PostgresRaceRepository implements RaceRepository {
       surface: string;
       weather: string;
       simulation_seed: string | null;
-    }>('SELECT distance_m, surface, weather, simulation_seed FROM races WHERE id = $1', [raceId]);
+    }>(
+      // 01.10.2026 — tohum YALNIZCA bitmiş yarışta döner. Kilitli (`locking`)
+      // yarışın tohumu kilit anında doğar; kesinleşmeden önce görünseydi
+      // katılımcı sonucu (ve oyuncu kontrollü yarışta en iyi komutları)
+      // önceden hesaplayabilirdi.
+      `SELECT distance_m, surface, weather,
+              CASE WHEN status = 'finished' THEN simulation_seed ELSE NULL END AS simulation_seed
+       FROM races WHERE id = $1`,
+      [raceId],
+    );
     const raceRow = raceResult.rows[0];
     if (!raceRow) {
       return null;
@@ -946,11 +962,11 @@ export class PostgresRaceRepository implements RaceRepository {
            id, created_by, name, distance_m, surface, weather,
            participant_limit, max_players, entry_fee, prize_pool, race_type,
            tribune_fee, spectator_capacity, start_time, status, simulation_seed,
-           engine_version, ruleset_version, config_version, weather_config_version
+           engine_version, ruleset_version, config_version, weather_config_version, player_control
          )
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, 'scheduled', $15, $16, $17, $18, $19)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, 'scheduled', $15, $16, $17, $18, $19, $20)
          RETURNING id, name, participant_limit, max_players, entry_fee, prize_pool, start_time, status,
-                   race_type, surface, weather, distance_m, tribune_fee, spectator_capacity, created_by, created_at`,
+                   race_type, surface, weather, distance_m, tribune_fee, spectator_capacity, created_by, created_at, player_control`,
         [
           input.id,
           input.createdBy,
@@ -971,6 +987,7 @@ export class PostgresRaceRepository implements RaceRepository {
           input.rulesetVersion,
           input.configVersion,
           input.weatherConfigVersion,
+          input.playerControl,
         ],
       );
 
@@ -1022,7 +1039,7 @@ export class PostgresRaceRepository implements RaceRepository {
       //    yarışın eşzamanlı bir katılımla değişmesinden etkilenmez.
       const raceResult = await client.query<LobbyRaceRow>(
         `SELECT id, name, participant_limit, max_players, entry_fee, prize_pool, start_time, status,
-                race_type, surface, weather, distance_m, tribune_fee, spectator_capacity, created_by, created_at
+                race_type, surface, weather, distance_m, tribune_fee, spectator_capacity, created_by, created_at, player_control
          FROM races
          WHERE id = $1
          FOR UPDATE`,
@@ -1275,7 +1292,7 @@ export class PostgresRaceRepository implements RaceRepository {
       //     okunmuştu; istemciye BAYAT bir havuz dönmemelidir).
       const finalResult = await client.query<LobbyRaceRow>(
         `SELECT id, name, participant_limit, max_players, entry_fee, prize_pool, start_time, status,
-                race_type, surface, weather, distance_m, tribune_fee, spectator_capacity, created_by, created_at
+                race_type, surface, weather, distance_m, tribune_fee, spectator_capacity, created_by, created_at, player_control
          FROM races
          WHERE id = $1`,
         [input.raceId],
@@ -1337,7 +1354,7 @@ export class PostgresRaceRepository implements RaceRepository {
     >(
       `SELECT r.id, r.name, r.participant_limit, r.max_players, r.entry_fee, r.prize_pool,
               r.start_time, r.status, r.race_type, r.surface, r.weather, r.distance_m,
-              r.tribune_fee, r.spectator_capacity, r.created_by, r.created_at,
+              r.tribune_fee, r.spectator_capacity, r.created_by, r.created_at, r.player_control,
               COUNT(e.player_id) FILTER (WHERE e.status IS DISTINCT FROM 'cancelled') AS joined_players,
               MAX(e.status) FILTER (WHERE e.player_id = $3) AS my_status,
               MAX(e.horse_id::text) FILTER (WHERE e.player_id = $3) AS my_horse_id,
@@ -1389,7 +1406,7 @@ export class PostgresRaceRepository implements RaceRepository {
       //    bu transaction boyunca değişmez.
       const raceResult = await client.query<LobbyRaceRow>(
         `SELECT id, name, participant_limit, max_players, entry_fee, prize_pool, start_time, status,
-                race_type, surface, weather, distance_m, tribune_fee, spectator_capacity, created_by, created_at
+                race_type, surface, weather, distance_m, tribune_fee, spectator_capacity, created_by, created_at, player_control
          FROM races
          WHERE id = $1
          FOR UPDATE`,
@@ -1477,7 +1494,7 @@ export class PostgresRaceRepository implements RaceRepository {
       //    transaction boyunca değişmez (`setEntryReady` ile AYNI gerekçe).
       const raceResult = await client.query<LobbyRaceRow>(
         `SELECT id, name, participant_limit, max_players, entry_fee, prize_pool, start_time, status,
-                race_type, surface, weather, distance_m, tribune_fee, spectator_capacity, created_by, created_at
+                race_type, surface, weather, distance_m, tribune_fee, spectator_capacity, created_by, created_at, player_control
          FROM races
          WHERE id = $1
          FOR UPDATE`,
@@ -1603,7 +1620,7 @@ export class PostgresRaceRepository implements RaceRepository {
       //    ile AYNI gerekçe).
       const finalResult = await client.query<LobbyRaceRow>(
         `SELECT id, name, participant_limit, max_players, entry_fee, prize_pool, start_time, status,
-                race_type, surface, weather, distance_m, tribune_fee, spectator_capacity, created_by, created_at
+                race_type, surface, weather, distance_m, tribune_fee, spectator_capacity, created_by, created_at, player_control
          FROM races
          WHERE id = $1`,
         [input.raceId],
@@ -1825,9 +1842,9 @@ export class PostgresRaceRepository implements RaceRepository {
            id, created_by, name, distance_m, surface, weather,
            participant_limit, max_players, entry_fee, prize_pool, race_type,
            tribune_fee, spectator_capacity, start_time, status, simulation_seed,
-           engine_version, ruleset_version, config_version, weather_config_version
+           engine_version, ruleset_version, config_version, weather_config_version, player_control
          )
-         VALUES ($1, NULL, $2, $3, $4, $5, $6, $6, $7, 0, $8, $9, $10, $11, 'scheduled', NULL, $12, $13, $14, $15)`,
+         VALUES ($1, NULL, $2, $3, $4, $5, $6, $6, $7, 0, $8, $9, $10, $11, 'scheduled', NULL, $12, $13, $14, $15, $16)`,
         [
           input.raceId,
           input.name,
@@ -1844,6 +1861,7 @@ export class PostgresRaceRepository implements RaceRepository {
           input.rulesetVersion,
           input.configVersion,
           input.weatherConfigVersion,
+          input.playerControl,
         ],
       );
       await client.query(
@@ -1913,9 +1931,9 @@ export class PostgresRaceRepository implements RaceRepository {
            id, created_by, name, distance_m, surface, weather,
            participant_limit, max_players, entry_fee, prize_pool, race_type,
            tribune_fee, spectator_capacity, start_time, status, simulation_seed,
-           engine_version, ruleset_version, config_version, weather_config_version
+           engine_version, ruleset_version, config_version, weather_config_version, player_control
          )
-         VALUES ($1, NULL, $2, $3, $4, $5, $6, $7, $8, 0, $9, $10, $11, $12, 'scheduled', NULL, $13, $14, $15, $16)`,
+         VALUES ($1, NULL, $2, $3, $4, $5, $6, $7, $8, 0, $9, $10, $11, $12, 'scheduled', NULL, $13, $14, $15, $16, $17)`,
         [
           input.raceId,
           input.name,
@@ -1933,6 +1951,7 @@ export class PostgresRaceRepository implements RaceRepository {
           input.rulesetVersion,
           input.configVersion,
           input.weatherConfigVersion,
+          input.playerControl,
         ],
       );
       await client.query(
@@ -2046,6 +2065,80 @@ export class PostgresRaceRepository implements RaceRepository {
     return result.rows[0] ? rowToInteractiveRace(result.rows[0]) : null;
   }
 
+  async findLiveLobbyRaceIdForPlayer(playerId: string): Promise<string | null> {
+    const result = await this.pool.query<{ id: string }>(
+      `SELECT r.id FROM races r
+       JOIN race_entries e ON e.race_id = r.id
+       WHERE e.player_id = $1 AND e.status IS DISTINCT FROM 'cancelled'
+         AND r.player_control AND r.status = 'locking'
+       ORDER BY r.live_starts_at DESC NULLS LAST
+       LIMIT 1`,
+      [playerId],
+    );
+    return result.rows[0]?.id ?? null;
+  }
+
+  async updateLobbyEntryCommands(
+    raceId: string,
+    playerId: string,
+    mutate: (current: PlayerCommandLog, raceStatus: string) => PlayerCommandLog,
+  ): Promise<PlayerCommandLog | null> {
+    return withTransaction(this.pool, async (client) => {
+      const race = await client.query<{ status: string }>(
+        'SELECT status FROM races WHERE id = $1 FOR SHARE',
+        [raceId],
+      );
+      if (!race.rows[0]) {
+        return null;
+      }
+      const entry = await client.query<{ id: string; player_commands: PlayerCommandLog }>(
+        `SELECT id, player_commands FROM race_entries
+         WHERE race_id = $1 AND player_id = $2 AND status IS DISTINCT FROM 'cancelled'
+         FOR UPDATE`,
+        [raceId, playerId],
+      );
+      const row = entry.rows[0];
+      if (!row) {
+        return null;
+      }
+      const next = mutate(row.player_commands ?? {}, race.rows[0].status);
+      await client.query('UPDATE race_entries SET player_commands = $2 WHERE id = $1', [
+        row.id,
+        JSON.stringify(next),
+      ]);
+      return next;
+    });
+  }
+
+  async findLobbyOutcome(
+    raceId: string,
+    playerId: string,
+  ): Promise<{ finishPosition: number; prizeWon: number; entryFee: number } | null> {
+    const result = await this.pool.query<{
+      finish_position: number | null;
+      prize: string;
+      fee: string;
+    }>(
+      `SELECT e.finish_position,
+              COALESCE((SELECT SUM(t.amount) FROM economy_transactions t
+                        WHERE t.player_id = $2 AND t.reference_id = $1::text AND t.type = 'lobby_race_prize'), 0) AS prize,
+              COALESCE((SELECT -SUM(t.amount) FROM economy_transactions t
+                        WHERE t.player_id = $2 AND t.reference_id = $1::text AND t.type = 'lobby_race_entry_fee'), 0) AS fee
+       FROM race_entries e
+       WHERE e.race_id = $1::uuid AND e.player_id = $2 AND e.status IS DISTINCT FROM 'cancelled'`,
+      [raceId, playerId],
+    );
+    const row = result.rows[0];
+    if (!row || row.finish_position === null) {
+      return null;
+    }
+    return {
+      finishPosition: row.finish_position,
+      prizeWon: Number(row.prize),
+      entryFee: Number(row.fee),
+    };
+  }
+
   async findRunningInteractiveRaceId(playerId: string): Promise<string | null> {
     const result = await this.pool.query<{ id: string }>(
       "SELECT id FROM interactive_races WHERE player_id = $1 AND status = 'running' LIMIT 1",
@@ -2125,7 +2218,7 @@ export class PostgresRaceRepository implements RaceRepository {
     const raceResult = await this.pool.query<SettlementRaceRow>(
       `SELECT id, name, participant_limit, max_players, entry_fee, prize_pool, start_time, status,
               surface, weather, distance_m, temperature_c, wind_kmh, humidity_pct, created_by, created_at,
-              simulation_seed
+              simulation_seed, player_control, live_starts_at
        FROM races
        WHERE id = $1`,
       [raceId],
@@ -2140,7 +2233,8 @@ export class PostgresRaceRepository implements RaceRepository {
     // NULLABLE'dır (migration 0037): `status <> 'cancelled'` NULL'da
     // NULL döner ve satırı SESSİZCE elerdi.
     const entryResult = await this.pool.query<SettlementEntryRow>(
-      `SELECT id, player_id, horse_id, tactical_style, risk_level, gate_position, horse_snapshot, jockey_id
+      `SELECT id, player_id, horse_id, tactical_style, risk_level, gate_position, horse_snapshot, jockey_id,
+              player_commands
        FROM race_entries
        WHERE race_id = $1 AND player_id IS NOT NULL AND status IS DISTINCT FROM 'cancelled'
        ORDER BY id`,
@@ -2167,6 +2261,7 @@ export class PostgresRaceRepository implements RaceRepository {
       // çünkü iki durumda da yapılacak şey aynıdır: `horseSnapshot === null`
       // ise kesinleşme jokeyi kendisi çözer.
       jockeyId: row.jockey_id,
+      playerCommands: row.player_commands ?? {},
     }));
 
     return {
@@ -2189,6 +2284,8 @@ export class PostgresRaceRepository implements RaceRepository {
       createdAt: raceRow.created_at,
       entrants,
       simulationSeed: raceRow.simulation_seed,
+      playerControl: raceRow.player_control ?? false,
+      liveStartsAt: raceRow.live_starts_at ?? null,
     };
   }
 
@@ -2317,7 +2414,9 @@ export class PostgresRaceRepository implements RaceRepository {
       await client.query(
         `UPDATE races
          SET status = 'locking', simulation_seed = $2, engine_version = $3, ruleset_version = $4,
-             config_version = $5, weather_config_version = $6, updated_at = $7
+             config_version = $5, weather_config_version = $6, updated_at = $7,
+             -- 01.10.2026 — kontrollü yarışta canlı koşu kilitle başlar (geri sayım sonrası).
+             live_starts_at = CASE WHEN player_control THEN $7::timestamptz + make_interval(secs => $8) ELSE NULL END
          WHERE id = $1`,
         [
           input.raceId,
@@ -2327,6 +2426,7 @@ export class PostgresRaceRepository implements RaceRepository {
           input.configVersion,
           input.weatherConfigVersion,
           input.now,
+          input.liveCountdownSeconds,
         ],
       );
 

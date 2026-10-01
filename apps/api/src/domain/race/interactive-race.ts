@@ -1,4 +1,4 @@
-import type { RaceBalanceConfig } from '@at-sevdalisi/game-config';
+import type { InteractiveRaceConfig, RaceBalanceConfig } from '@at-sevdalisi/game-config';
 import type { RaceTimeline } from '@at-sevdalisi/shared-types';
 import type { PlayerSegmentCommand } from './race-engine';
 import { InvalidPlayerControlError } from './errors';
@@ -114,4 +114,59 @@ export function revealedSegmentCount(
 /** Son atın bitiş anı (yarış saati, ms). */
 export function raceEndMs(timeline: RaceTimeline): number {
   return timeline.finalResult.reduce((max, entry) => Math.max(max, entry.finishTimeMs), 0);
+}
+
+/** Birden çok oyuncunun komut kayıtları → motorun haritası (lobi kontrollü yarışı). */
+export function toPlayerCommandMaps(
+  entries: { horseId: string; commands: PlayerCommandLog }[],
+): ReadonlyMap<string, ReadonlyMap<number, PlayerSegmentCommand>> {
+  return new Map(
+    entries.map((entry) => [
+      entry.horseId,
+      new Map(Object.entries(entry.commands).map(([key, value]) => [Number(key), value] as const)),
+    ]),
+  );
+}
+
+/** Canlı yarış saati (ms, yarış zamanı): gerçek geçen süre × `timeScale`; başlangıç yoksa −∞. */
+export function liveElapsedMs(
+  liveStartsAt: Date | null,
+  now: Date,
+  config: Pick<InteractiveRaceConfig, 'timeScale'>,
+): number {
+  return liveStartsAt === null
+    ? -Infinity
+    : (now.getTime() - liveStartsAt.getTime()) * config.timeScale;
+}
+
+/** Kesinleşmeye kalan YARIŞ zamanı (ms); ≤ 0 ise yarış bitmiştir. */
+export function liveRemainingMs(
+  race: { liveStartsAt: Date | null },
+  timeline: RaceTimeline,
+  now: Date,
+  config: Pick<InteractiveRaceConfig, 'timeScale' | 'finishGraceMs'>,
+): number {
+  if (race.liveStartsAt === null) {
+    return Infinity;
+  }
+  return raceEndMs(timeline) + config.finishGraceMs - liveElapsedMs(race.liveStartsAt, now, config);
+}
+
+/**
+ * Komutun yazılacağı segment: gösterim sınırı, `commandSafetyMs` kadar
+ * İLERİDEN hesaplanır — hesap ile yazım arasında sınır ilerlese bile komut
+ * hâlâ gösterilmemiş bir segmente düşer (gösterilen geçmiş değişmez).
+ */
+export function commandTargetSegment(
+  timeline: RaceTimeline,
+  entryCount: number,
+  elapsedMs: number,
+  config: Pick<InteractiveRaceConfig, 'revealLeadMs' | 'commandSafetyMs'>,
+): number {
+  return revealedSegmentCount(
+    timeline,
+    entryCount,
+    elapsedMs + config.commandSafetyMs,
+    config.revealLeadMs,
+  );
 }

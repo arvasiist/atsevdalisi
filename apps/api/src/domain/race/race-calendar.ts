@@ -58,6 +58,7 @@ export function calendarProgramToCreationInput(
     distanceMeters: program.distanceMeters,
     tribuneFee: program.tribuneFee,
     spectatorCapacity: program.spectatorCapacity,
+    playerControl: program.playerControl ?? false,
   };
 }
 

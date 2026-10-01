@@ -581,6 +581,8 @@ export interface RaceLobbyView {
   prizeMultiplier: number | null;
   /** Kazananın alacağı Çip (brief §3) — `prizePool`'un en yüksek payı, yuvarlanmış. */
   topPrize: number;
+  /** 01.10.2026 — oyuncu kontrollü canlı yarış (kilitten sonra canlı akar, oyuncular atını yönetir). */
+  playerControl: boolean;
 }
 
 /**
@@ -777,6 +779,10 @@ export interface InteractiveRaceView {
   myCommands: Record<string, PlayerSegmentCommandView>;
   /** Yarış bitti, kesinleştirilebilir (`POST .../finish`). */
   canFinish: boolean;
-  /** Kesinleşmişse sonuç (para + XP dahil); değilse `null`. */
+  /** Kesinleşmişse sonuç (para + XP dahil); değilse `null`. Yalnızca pratik yarışta dolu. */
   result: PracticeRaceResult | null;
+  /** Kesinleşmişse oyuncunun özeti (pratik ve lobi ortak); değilse `null`. */
+  outcome: { finishPosition: number; prizeWon: number; entryFee: number; xpGained: number } | null;
+  /** 01.10.2026 — `practice` = tek oyunculu kontrollü pratik, `lobby` = çok oyunculu kontrollü lobi/turnuva. */
+  kind: 'practice' | 'lobby';
 }
