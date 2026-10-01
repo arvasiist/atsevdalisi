@@ -8,6 +8,7 @@ import {
   type RaceSimulationInput,
 } from '../../../src/domain/race/race-engine';
 import raceConfigJson from '../../../../../config/race.config.json';
+import { measurePlayerControlPlan, PLAYER_CONTROL_PLANS } from './race-balance-harness';
 import weatherConfigJson from '../../../../../config/weather.config.json';
 
 const raceConfig = raceConfigJson as unknown as RaceBalanceConfig;
@@ -131,30 +132,37 @@ describe('oyuncu kontrolü — motor (01.10.2026)', () => {
     expect(one.stamina - four.stamina).toBeCloseTo(3 * raceConfig.playerControl.whipStaminaCost, 9);
   });
 
-  it('dayanıklılık bitmişken kırbaç hız vermez, yalnızca yakar', () => {
+  it('yorgun at kırbaca zayıf, tükenmiş at hiç tepki vermez (bonus dayanıklılıkla orantılı)', () => {
     const base = input('tired', 8, 3200);
     const horse = base.entries[0]!.horseId;
     const n = base.entries.length;
-    // Her segment kırbaç → dayanıklılık sprint rezervinin altına iner.
     const all: Record<number, PlayerSegmentCommand> = {};
     for (let i = 0; i < 16; i += 1) all[i] = cmd({ whips: 5 });
     const run = simulateRace({ ...base, playerCommands: commands(horse, all) });
     const mine = run.segments.filter((s) => s.raceEntryId === horse);
-    const exhausted = mine.findIndex((s) => s.stamina < raceConfig.sprint.staminaReserveThreshold);
-    expect(exhausted).toBeGreaterThan(0);
-    // Sonraki segmentte kırbaç bonusu yok: aynı segmentte komutsuz (yapay zekâ) çalışmaya göre hız artmaz.
-    const next = exhausted + 1;
+    // Dayanıklılığı 0'a inen ilk segmentin ARDINDAN gelen segment.
+    const empty = mine.findIndex((s) => s.stamina === 0);
+    expect(empty).toBeGreaterThan(0);
+    const next = empty + 1;
+    expect(next).toBeLessThan(mine.length);
     const without = { ...all };
     delete without[next];
     const alt = simulateRace({ ...base, playerCommands: commands(horse, without) });
-    const withWhip = run.segments
-      .slice(next * n, (next + 1) * n)
-      .find((s) => s.raceEntryId === horse)!;
-    const noWhip = alt.segments
-      .slice(next * n, (next + 1) * n)
-      .find((s) => s.raceEntryId === horse)!;
-    expect(withWhip.speed).toBeLessThanOrEqual(noWhip.speed);
-    expect(withWhip.stamina).toBeLessThanOrEqual(noWhip.stamina);
+    const at = (t: typeof run) =>
+      t.segments.slice(next * n, (next + 1) * n).find((s) => s.raceEntryId === horse)!;
+    expect(at(run).speed).toBeLessThanOrEqual(at(alt).speed);
+  });
+
+  it('kırbaç yorgunluğu KALICI: erken kırbaç sonraki segmentleri yavaşlatır', () => {
+    const base = input('fatigue');
+    const horse = base.entries[0]!.horseId;
+    const whipped = simulateRace({
+      ...base,
+      playerCommands: commands(horse, { 0: cmd({ whips: 3 }) }),
+    });
+    const plain = simulateRace(base);
+    const mine = (t: typeof plain) => t.segments.filter((s) => s.raceEntryId === horse);
+    expect(mine(whipped)[1]!.fatigueLevel!).toBeGreaterThan(mine(plain)[1]!.fatigueLevel!);
   });
 
   it('yön: kulvar oyuncunun istediği tarafa bir kayar, pist sınırında kalır', () => {
@@ -181,5 +189,33 @@ describe('oyuncu kontrolü — motor (01.10.2026)', () => {
     const first = (t: typeof plain) => t.segments.find((s) => s.raceEntryId === horse)!;
     expect(first(eased).decision).toBe('reduce_pace');
     expect(first(eased).fatigueLevel).toBeLessThan(first(plain).fatigueLevel!);
+  });
+});
+
+describe('oyuncu kontrolü — denge (harness, 01.10.2026)', () => {
+  // Ölçülen tablo `docs/RACE_BALANCE_REPORT.md` §8'de. Burada yalnızca
+  // KIRILMAMASI gerekenler kilitlenir (ölçülen değerler eşik yapılmaz).
+  const TRIALS = 400;
+  const baseline = measurePlayerControlPlan(PLAYER_CONTROL_PLANS.none, TRIALS);
+
+  it('erken ve aralıksız kırbaç CEZALIDIR (kırbaç bedava hız değildir)', () => {
+    expect(measurePlayerControlPlan(PLAYER_CONTROL_PLANS.earlyWhip3, TRIALS)).toBeGreaterThan(
+      baseline + 1,
+    );
+    expect(measurePlayerControlPlan(PLAYER_CONTROL_PLANS.whipEverySegment, TRIALS)).toBeGreaterThan(
+      baseline + 0.5,
+    );
+  });
+
+  it('son düzlükte kırbaç oyuncuyu CEZALANDIRMAZ (düğmenin bir anlamı var)', () => {
+    expect(measurePlayerControlPlan(PLAYER_CONTROL_PLANS.finalWhip5, TRIALS)).toBeLessThanOrEqual(
+      baseline + 0.05,
+    );
+  });
+
+  it('hiçbir basit strateji statları ezmez (yapay zekâya göre en fazla 1 sıra)', () => {
+    for (const plan of Object.values(PLAYER_CONTROL_PLANS)) {
+      expect(measurePlayerControlPlan(plan, TRIALS)).toBeGreaterThan(baseline - 1);
+    }
   });
 });

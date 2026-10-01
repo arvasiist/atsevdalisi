@@ -3623,9 +3623,10 @@ Sahibinin talebi: "atı kullanıcı kendisi koştursun — yön verme, kırbaçl
 Karar: önce pratik yarış; kırbaç sınırsız, dayanıklılık bedelli.
 
 - **Motor:** her 200 m'lik segmentte jokey kararı zaten vardı; oyuncu komutu
-  bu kararın yerine geçer (kırbaç → finişe zorla + `whipStaminaCost` ×
-  kırbaç sayısı, bonus `kırbaç^0.5`; sakin → tempo düşür; sol/sağ → kulvar
-  ±1). Komutsuz yarış bit bit eskisiyle aynı (120 yarışlık parmak izi
+  bu kararın yerine geçer (kırbaç → finişe zorla, bonus dayanıklılıkla
+  orantılı × `kırbaç^0.5`, bedel dayanıklılık + kalıcı yorgunluk; sakin →
+  −4 hız, dayanıklılık ×0.6; sol/sağ → kulvar ±1). Denge ölçüldü:
+  `RACE_BALANCE_REPORT.md` §9. Komutsuz yarış bit bit eskisiyle aynı (120 yarışlık parmak izi
   testi); `race.config.json` 1.3.0 (`playerControl`).
 - **Canlı oturum:** `POST /horses/:id/interactive-race` (ücret hemen,
   defter), `GET /interactive-races/current|:id` (yalnızca gösterilmiş

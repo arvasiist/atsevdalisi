@@ -290,9 +290,12 @@ playerCommands` OPSİYONEL; komutsuz çıktı eski motorla BİT BİT AYNI —
 kilitler (değişiklik öncesi motordan alındı). Komut yalnızca kendi
 segmentinden itibaren etkiler (önek değişmezliği) — canlı yarış BUNA
 dayanır: komut her zaman İLK GÖSTERİLMEMİŞ segmente yazılır, gösterilen
-geçmiş değişmez. Kırbaç sınırsız (sahibinin kararı), her biri
-`playerControl.whipStaminaCost` yakar, bonus azalan getirili; dayanıklılık
-sprint rezervinin altındaysa bonus YOK. Oturum `interactive_races`:
+geçmiş değişmez. Kırbaç sınırsız (sahibinin kararı), her biri dayanıklılık
+yakar + KALICI yorgunluk ekler (sonraki segmentten itibaren), bonus
+dayanıklılıkla orantılı ve azalan getirili; "sakin" atı yavaşlatır ama
+dayanıklılık biriktirir. Değerler ÖLÇÜLEREK seçildi
+(`RACE_BALANCE_REPORT.md` §9; harness `measurePlayerControlPlan`) —
+değiştirirsen `race-engine-player-control.spec.ts` denge kilitlerine bak. Oturum `interactive_races`:
 ücret BAŞLANGIÇTA düşer, kesinleşme pratik yarışın kayıt yolunu
 (`savePracticeRaceInTransaction`) oturum kilitliyken kullanır,
 `InteractiveRaceScheduler` terk edileni kesinleştirir. ⚠️ Tohum GİZLİ

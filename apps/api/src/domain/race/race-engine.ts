@@ -384,7 +384,12 @@ export function simulateRace(input: RaceSimulationInput): RaceTimeline {
         raceConfig.temperament,
       );
       const decision = decisionByHorseId.get(state.horseId)!;
-      const whips = input.playerCommands?.get(state.horseId)?.get(segmentIndex)?.whips ?? 0;
+      const playerCommand = input.playerCommands?.get(state.horseId)?.get(segmentIndex);
+      const whips = playerCommand?.whips ?? 0;
+      // 01.10.2026 — oyuncunun "sakin" komutu bedelsiz değildir: at yavaşlar
+      // (`easeSpeedPenalty`) ama dayanıklılık biriktirir (`easeStaminaFactor`).
+      // Yapay zekânın kendi `reduce_pace` kararı ETKİLENMEZ (komutsuz yarış aynı).
+      const playerEase = playerCommand !== undefined && playerCommand.ease && whips === 0;
 
       const staminaBeforeSegment = state.runtimeStamina;
       const staminaDepletedAtStart = staminaBeforeSegment <= 0;
@@ -396,7 +401,8 @@ export function simulateRace(input: RaceSimulationInput): RaceTimeline {
           baseStaminaConsumptionPerSegment *
             pace.staminaConsumptionMultiplier *
             tacticEffect.staminaConsumptionMultiplier *
-            temperamentEffect.staminaConsumptionMultiplier -
+            temperamentEffect.staminaConsumptionMultiplier *
+            (playerEase ? raceConfig.playerControl.easeStaminaFactor : 1) -
           // 01.10.2026 — kırbacın bedeli (komutsuz yarışta whips = 0 → 0).
           whips * (whips > 0 ? raceConfig.playerControl.whipStaminaCost : 0),
         0,
@@ -423,10 +429,15 @@ export function simulateRace(input: RaceSimulationInput): RaceTimeline {
         entry.jockeySkillComposite,
         raceConfig.sprint,
       );
-      // 01.10.2026 — çok kırbaç azalan getiriyle güçlendirir (komutsuzda aynen eski değer).
+      // 01.10.2026 — OYUNCU KIRBACI: sprint rezervi şartı YOK (yorgun at da
+      // tepki verir ama dayanıklılığıyla orantılı zayıf), azalan getiri
+      // (`kırbaç^whipBonusExponent`). Komutsuz yarışta (`whips = 0`) eski formül aynen.
       const sprintBonus =
-        whips > 1
-          ? baseSprintBonus * whips ** raceConfig.playerControl.whipBonusExponent
+        whips > 0
+          ? raceConfig.sprint.bonusMultiplier *
+            (staminaBeforeSegment / 100) *
+            (entry.jockeySkillComposite / 100) *
+            whips ** raceConfig.playerControl.whipBonusExponent
           : baseSprintBonus;
 
       state.runtimeFatigue = accumulateRuntimeFatigue(
@@ -438,6 +449,17 @@ export function simulateRace(input: RaceSimulationInput): RaceTimeline {
         state.runtimeFatigue,
         raceConfig.fatigue,
       );
+      if (whips > 0) {
+        // Her kırbaç KALICI yorgunluk ekler — bu segmentin cezası hesaplandıktan
+        // SONRA (at kırbaçla hemen hızlanır, yorgunluk sonra çıkar): erken kırbaç bütün yarışa pahalıya
+        // patlar, son düzlükteki kırbaç ucuzdur. Doğrusal bedel × azalan getiri
+        // = basmanın bir tavanı vardır.
+        state.runtimeFatigue = clamp(
+          state.runtimeFatigue + whips * raceConfig.playerControl.whipFatigue,
+          0,
+          raceConfig.fatigue.maxRuntimeFatigue,
+        );
+      }
 
       // AUDIT_AND_HARDENING Öncelik 6 (bu oturum) — bkz. `modifier-
       // combination.ts` doc yorumu: BEŞ çarpansal modifikatör artık ARKA
@@ -469,7 +491,8 @@ export function simulateRace(input: RaceSimulationInput): RaceTimeline {
           combinedConditionModifier +
         randomFactor -
         blockPenalty -
-        fatiguePenalty;
+        fatiguePenalty -
+        (playerEase ? raceConfig.playerControl.easeSpeedPenalty : 0);
 
       const performanceScore = Math.max(MIN_SEGMENT_PERFORMANCE_SCORE, rawScore);
       state.performanceScores.push(performanceScore);

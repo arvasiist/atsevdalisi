@@ -95,6 +95,9 @@
   "playerControl": {
     "whipStaminaCost": 4,
     "whipBonusExponent": 0.5,
-    "maxWhipsPerSegment": 20
+    "maxWhipsPerSegment": 20,
+    "whipFatigue": 6,
+    "easeSpeedPenalty": 4,
+    "easeStaminaFactor": 0.6
   }
 }

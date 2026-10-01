@@ -324,3 +324,37 @@ sonuca hiç girmemesi demek olurdu.
 | Kişilik (temperament) etkiliyor mu? | **Evet, ama KAPALI ödünleşimle** — erken kalkış ve final düzlüğü simetrik puan uygular, nötr rakibe karşı galibiyet payı kaymaz (PHASE 6.3, §7.4). Etkisi `temperament.spec.ts`te ölçülür |
 | `startApproach` / `finalStretchPlan` etkiliyor mu? | **Evet — `simulateRace` ikisini de okur** (PHASE 6.1, §7.3). Etkisi `tactic-effect.spec.ts`te ölçülür |
 
+
+---
+
+## 9. Oyuncu kontrolü (kırbaç / sakin) — 01.10.2026
+
+Oyuncu kontrollü pratik yarışın (§13.55) kuralları ölçülerek ayarlandı.
+Oyuncunun atı 8 atlık bot sahasında 1. at; deterministik tohumlar. Ölçüm
+kodu harness'ta (`measurePlayerControlPlan`), CI kilitleri
+`race-engine-player-control.spec.ts`te.
+
+**İlk sürümde bulunan iki açık (düzeltildi):** (1) "sakin" bedavaydı
+(yorgunluğu yarıya indiriyor, hızı düşürmüyordu) — "ilk yarı sakin + sonda
+kırbaç" yapay zekâya göre ortalama 1 sıra kazandırıyordu; (2) kırbaç ucuzdu
+— "baştan sona kırbaç" yapay zekâdan iyiydi, son düzlükte kırbaç ise sprint
+rezervi (%25) yüzünden hiç etki etmiyordu.
+
+**Yeni kurallar (`race.config.json` → `playerControl`):** sakin = −4 puan
+hız, dayanıklılık tüketimi ×0.6 · kırbaç = rezerv şartı YOK, bonus
+dayanıklılıkla orantılı ve `kırbaç^0.5` (azalan), her kırbaç 4 dayanıklılık
++ 6 KALICI yorgunluk (bir sonraki segmentten itibaren).
+
+| Strateji (1500 yarış) | 1200 m | 1600 m | 2400 m |
+|---|---|---|---|
+| Hiç dokunma (yapay zekâ) | 4.49 | 4.50 | 4.48 |
+| Son bölümde ×5 kırbaç | 4.39 | 4.44 | 4.47 |
+| Son bölümde ×20 kırbaç | 4.30 | 4.38 | 4.42 |
+| İlk yarı sakin | 4.64 | 4.23 | 3.85 |
+| Baştan sona ×1 kırbaç | 5.11 | 5.63 | 6.28 |
+| İlk 3 bölümde ×3 kırbaç | 6.77 | 7.04 | 7.19 |
+
+(ortalama bitiş sırası, düşük = iyi.) Okuma: kırbaç yalnızca sonda işe yarar;
+erken/aralıksız kırbaç ağır cezalı; tempo yönetimi uzun yarışta değerli,
+sprintte zararlı. Hiçbir basit strateji statları ezmez (en iyi kazanç
+≈ 0.6 sıra, 2400 m). **Komutsuz yarış değişmedi** (parmak izi testi).

@@ -321,8 +321,8 @@ export function InteractiveRaceViewer({
             {pending?.laneShift === 1 ? <em>✓</em> : null}
           </button>
           <p className="ride-hint">
-            Klavye: Boşluk kırbaç · ← → yön · ↓ sakin. Komut bir sonraki bölümde etki eder; her
-            kırbaç dayanıklılık yakar.
+            Klavye: Boşluk kırbaç · ← → yön · ↓ sakin. Komut bir sonraki bölümde etki eder. Kırbaç
+            sonda işe yarar; erken kırbaç atı bütün yarış boyunca yorar.
           </p>
         </div>
       ) : null}

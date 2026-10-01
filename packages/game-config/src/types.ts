@@ -103,6 +103,12 @@ export interface RaceBalanceConfig {
     whipStaminaCost: number;
     whipBonusExponent: number;
     maxWhipsPerSegment: number;
+    /** Kırbaç başına eklenen KALICI yarış içi yorgunluk (performans cezası `fatigue.performancePenaltyPerFatiguePoint`). */
+    whipFatigue: number;
+    /** Oyuncunun "sakin" komutunda segment performansından düşülen puan (at yavaşlar). */
+    easeSpeedPenalty: number;
+    /** "Sakin" segmentinde dayanıklılık tüketim çarpanı (< 1 = biriktirir). */
+    easeStaminaFactor: number;
   };
   /**
    * PHASE 6 — `RaceTacticInput`'in motor tarafından OKUNAN iki alanı

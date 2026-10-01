@@ -92,7 +92,7 @@
 
 import type { RaceBalanceConfig, WeatherConfig } from '@at-sevdalisi/game-config';
 import type { RaceEntrantSnapshot, RacingStyle } from '@at-sevdalisi/shared-types';
-import { simulateRace } from '../../../src/domain/race/race-engine';
+import { simulateRace, type PlayerSegmentCommand } from '../../../src/domain/race/race-engine';
 import { computeBaseAbility } from '../../../src/domain/race/base-ability';
 import { computeWeightCompatibility } from '../../../src/domain/race/carried-weight';
 import { generateBotEntrants } from '../../../src/domain/race/bot-generator';
@@ -221,7 +221,12 @@ export function buildAbilityLadderField(
       jockeySkillComposite: NEUTRAL_UNMODELED_TRAIT_SCORE,
       weightCompatibility,
       form: NEUTRAL_UNMODELED_TRAIT_SCORE,
-      tactic: { racingStyle: 'mid_pack', riskLevel: 'normal', startApproach: 'balanced', finalStretchPlan: 'normal' },
+      tactic: {
+        racingStyle: 'mid_pack',
+        riskLevel: 'normal',
+        startApproach: 'balanced',
+        finalStretchPlan: 'normal',
+      },
     } satisfies RaceEntrantSnapshot;
   });
 }
@@ -386,7 +391,9 @@ function runAbilityLadder(
   const winsByAbilityRank = new Array<number>(fieldSize).fill(0);
 
   for (let i = 0; i < trials; i += 1) {
-    const timeline = simulateRace(baseInput(entries, `${prefix}-${fieldSize}-${i}`, CANONICAL_DISTANCE_METERS));
+    const timeline = simulateRace(
+      baseInput(entries, `${prefix}-${fieldSize}-${i}`, CANONICAL_DISTANCE_METERS),
+    );
     const winnerId = timeline.finalResult[0]!.horseId;
     const rank = Number(winnerId.slice(winnerId.lastIndexOf('-') + 1));
     winsByAbilityRank[rank] = (winsByAbilityRank[rank] ?? 0) + 1;
@@ -397,7 +404,9 @@ function runAbilityLadder(
   const bottomHalfWins = winsByAbilityRank.slice(fieldSize - half).reduce((sum, v) => sum + v, 0);
   // `computeBaseAbility` ile merdiven sırasının AYNI olduğunu VARSAYMIYORUZ:
   // korelasyon, motorda GERÇEKTEN kullanılan taban puanla ölçülür.
-  const baseAbilities = entries.map((entry) => computeBaseAbility(entry, raceBalanceConfig.baseAbilityWeights));
+  const baseAbilities = entries.map((entry) =>
+    computeBaseAbility(entry, raceBalanceConfig.baseAbilityWeights),
+  );
 
   return {
     label: band.label,
@@ -484,7 +493,9 @@ export function measureFieldSize(fieldSize: number, trials: number): FieldSizeMe
     winsByStyle[style] = 0;
   }
   for (let i = 0; i < trials; i += 1) {
-    const timeline = simulateRace(baseInput(styleField, `balance-style-${fieldSize}-${i}`, CANONICAL_DISTANCE_METERS));
+    const timeline = simulateRace(
+      baseInput(styleField, `balance-style-${fieldSize}-${i}`, CANONICAL_DISTANCE_METERS),
+    );
     const winnerId = timeline.finalResult[0]!.horseId;
     const winner = styleField.find((entry) => entry.horseId === winnerId)!;
     winsByStyle[winner.tactic.racingStyle] = (winsByStyle[winner.tactic.racingStyle] ?? 0) + 1;
@@ -493,7 +504,8 @@ export function measureFieldSize(fieldSize: number, trials: number): FieldSizeMe
   const expectedShare: Record<string, number> = {};
   for (const style of RACING_STYLES) {
     observedShare[style] = winsByStyle[style]! / trials;
-    expectedShare[style] = styleField.filter((entry) => entry.tactic.racingStyle === style).length / fieldSize;
+    expectedShare[style] =
+      styleField.filter((entry) => entry.tactic.racingStyle === style).length / fieldSize;
   }
 
   // ---- Üretim bot sahaları (rastgele lobiler) ----
@@ -512,19 +524,28 @@ export function measureFieldSize(fieldSize: number, trials: number): FieldSizeMe
     const botWins = new Array<number>(fieldSize).fill(0);
     for (let i = 0; i < racesPerField; i += 1) {
       const timeline = simulateRace(
-        baseInput(botField, `balance-bot-${fieldSize}-${fieldIndex}-${i}`, CANONICAL_DISTANCE_METERS),
+        baseInput(
+          botField,
+          `balance-bot-${fieldSize}-${fieldIndex}-${i}`,
+          CANONICAL_DISTANCE_METERS,
+        ),
       );
-      const winnerIndex = botField.findIndex((entry) => entry.horseId === timeline.finalResult[0]!.horseId);
+      const winnerIndex = botField.findIndex(
+        (entry) => entry.horseId === timeline.finalResult[0]!.horseId,
+      );
       botWins[winnerIndex] = (botWins[winnerIndex] ?? 0) + 1;
       botWinnerSum += timeline.finalResult[0]!.finishTimeMs;
       botSpreadSum +=
-        timeline.finalResult[timeline.finalResult.length - 1]!.finishTimeMs - timeline.finalResult[0]!.finishTimeMs;
+        timeline.finalResult[timeline.finalResult.length - 1]!.finishTimeMs -
+        timeline.finalResult[0]!.finishTimeMs;
     }
     botRaces += racesPerField;
 
     // "Favori" = `computeBaseAbility` çıktısı en yüksek olan bot; bu, motorda
     // GERÇEKTEN kullanılan taban puandır, sahaya bakıp seçilmiş bir etiket değil.
-    const baseAbilities = botField.map((entry) => computeBaseAbility(entry, raceBalanceConfig.baseAbilityWeights));
+    const baseAbilities = botField.map((entry) =>
+      computeBaseAbility(entry, raceBalanceConfig.baseAbilityWeights),
+    );
     const favoriteIndex = baseAbilities.indexOf(Math.max(...baseAbilities));
     const favoriteRate = botWins[favoriteIndex]! / racesPerField;
 
@@ -570,7 +591,11 @@ export interface DistanceProbe {
   meanWinnerTimeMs: number;
 }
 
-export function probeDistance(fieldSize: number, distanceMeters: number, trials: number): DistanceProbe {
+export function probeDistance(
+  fieldSize: number,
+  distanceMeters: number,
+  trials: number,
+): DistanceProbe {
   const entries = buildStyleField(fieldSize);
   let sum = 0;
   for (let i = 0; i < trials; i += 1) {
@@ -580,4 +605,61 @@ export function probeDistance(fieldSize: number, distanceMeters: number, trials:
     sum += timeline.finalResult[0]!.finishTimeMs;
   }
   return { distanceMeters, meanWinnerTimeMs: sum / trials };
+}
+
+// ---------------------------------------------------------------------------
+// 01.10.2026 — OYUNCU KONTROLÜ (kırbaç/sakin) DENGESİ. Oyuncunun atı bot
+// sahasında 1. at olarak koşar; plan, segment başına komut üretir.
+// ---------------------------------------------------------------------------
+
+export type PlayerControlPlan = (
+  segmentIndex: number,
+  segmentCount: number,
+) => PlayerSegmentCommand | undefined;
+
+export const PLAYER_CONTROL_PLANS = {
+  none: () => undefined,
+  finalWhip5: (s: number, n: number) =>
+    s === n - 1 ? { whips: 5, laneShift: 0 as const, ease: false } : undefined,
+  easeFirstHalf: (s: number, n: number) =>
+    s < n / 2 ? { whips: 0, laneShift: 0 as const, ease: true } : undefined,
+  whipEverySegment: () => ({ whips: 1, laneShift: 0 as const, ease: false }),
+  earlyWhip3: (s: number) => (s < 3 ? { whips: 3, laneShift: 0 as const, ease: false } : undefined),
+} satisfies Record<string, PlayerControlPlan>;
+
+/** Planın ortalama bitiş sırası (8 atlık bot sahası, deterministik tohumlar). */
+export function measurePlayerControlPlan(
+  plan: PlayerControlPlan,
+  trials: number,
+  distanceMeters: number = CANONICAL_DISTANCE_METERS,
+): number {
+  const segmentCount = Math.max(
+    1,
+    Math.round(distanceMeters / raceBalanceConfig.segmentLengthMeters),
+  );
+  let positionSum = 0;
+  for (let trial = 0; trial < trials; trial += 1) {
+    const seed = `player-control-${trial}`;
+    const entries = generateBotEntrants(8, seed);
+    const me = entries[0]!.horseId;
+    const commands = new Map<number, PlayerSegmentCommand>();
+    for (let s = 0; s < segmentCount; s += 1) {
+      const command = plan(s, segmentCount);
+      if (command) commands.set(s, command);
+    }
+    const timeline = simulateRace({
+      raceId: seed,
+      simulationSeed: seed,
+      distanceMeters,
+      surface: CANONICAL_SURFACE,
+      weather: CANONICAL_WEATHER,
+      temperatureC: CANONICAL_TEMPERATURE_C,
+      entries,
+      raceConfig: raceBalanceConfig,
+      weatherConfig: raceBalanceWeatherConfig,
+      playerCommands: new Map([[me, commands]]),
+    });
+    positionSum += timeline.finalResult.find((entry) => entry.horseId === me)!.finishPosition;
+  }
+  return positionSum / trials;
 }
