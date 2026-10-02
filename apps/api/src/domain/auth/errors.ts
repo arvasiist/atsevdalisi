@@ -135,3 +135,34 @@ export class ProviderAlreadyLinkedError extends Error {
     this.name = 'ProviderAlreadyLinkedError';
   }
 }
+
+/**
+ * Yenileme token'ı geçersiz, süresi dolmuş, iptal edilmiş ya da YENİDEN
+ * kullanılmış (401, migration 0057). Dört durum BİLEREK tek hatadır.
+ */
+export class InvalidRefreshTokenError extends Error {
+  constructor() {
+    super('Oturum yenilenemedi. Yeniden giriş yap.');
+    this.name = 'InvalidRefreshTokenError';
+  }
+}
+
+/** Oturum yok ya da çağırana ait değil (404 — başkasının oturumu VAR mı sızdırılmaz). */
+export class SessionNotFoundError extends Error {
+  constructor() {
+    super('Oturum bulunamadı.');
+    this.name = 'SessionNotFoundError';
+  }
+}
+
+/**
+ * `POST /auth/session` yalnızca OTURUMSUZ (02.10.2026 öncesi, `sid`siz)
+ * token'ı yükseltir (409). Oturumlu kısa ömürlü bir erişim token'ının uzun
+ * ömürlü bir yenileme token'ı basması, çalınan token'ı kalıcı kılardı.
+ */
+export class SessionUpgradeNotAllowedError extends Error {
+  constructor() {
+    super('Bu oturum zaten yenilenebilir; yükseltme gerekmiyor.');
+    this.name = 'SessionUpgradeNotAllowedError';
+  }
+}

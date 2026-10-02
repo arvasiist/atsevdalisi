@@ -37,7 +37,10 @@ import {
   ProviderAlreadyLinkedError,
   ProviderIdentityTakenError,
   InvalidResetTokenError,
+  InvalidRefreshTokenError,
   MissingAuthTokenError,
+  SessionNotFoundError,
+  SessionUpgradeNotAllowedError,
 } from '../../domain/auth/errors';
 import {
   StaffAlreadyHiredError,
@@ -393,6 +396,13 @@ const DOMAIN_ERROR_MAP = new Map<ErrorClassConstructor, { status: number; code: 
     { status: HttpStatus.CONFLICT, code: ErrorCode.CredentialsAlreadySet },
   ],
   [InvalidResetTokenError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.InvalidResetToken }],
+  // 02.10.2026 — oturum (migration 0057).
+  [InvalidRefreshTokenError, { status: HttpStatus.UNAUTHORIZED, code: ErrorCode.InvalidRefreshToken }],
+  [SessionNotFoundError, { status: HttpStatus.NOT_FOUND, code: ErrorCode.SessionNotFound }],
+  [
+    SessionUpgradeNotAllowedError,
+    { status: HttpStatus.CONFLICT, code: ErrorCode.SessionUpgradeNotAllowed },
+  ],
   // Token GEÇERLİ ama sahiplik yok — kavramsal olarak 401'den FARKLI, bkz.
   // `ForbiddenError` doc yorumu.
   [ForbiddenError, { status: HttpStatus.FORBIDDEN, code: ErrorCode.Forbidden }],

@@ -3,6 +3,7 @@ import type { Pool } from 'pg';
 import { CredentialsAlreadySetError, EmailAlreadyRegisteredError } from '../../domain/auth/errors';
 import type { PlayerCredentialsRepository } from '../../application/ports/player-credentials.repository';
 import { PG_POOL, withTransaction } from '../database/database.module';
+import { revokeAllInTransaction } from './postgres-auth-session.repository';
 
 const UNIQUE_VIOLATION = '23505';
 const EMAIL_INDEX = 'player_credentials_email_uq';
@@ -105,6 +106,9 @@ export class PostgresPlayerCredentialsRepository implements PlayerCredentialsRep
         'UPDATE password_reset_tokens SET used_at = $2 WHERE player_id = $1 AND used_at IS NULL',
         [playerId, input.now],
       );
+      // 02.10.2026 (migration 0057) — şifre sıfırlandıysa hesap ele geçirilmiş
+      // olabilir: TÜM oturumlar ve eski token'lar AYNI transaction'da kapanır.
+      await revokeAllInTransaction(client, playerId, 'password_reset', input.now);
       return playerId;
     });
   }

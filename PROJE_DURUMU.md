@@ -3789,6 +3789,37 @@ Karar: önce pratik yarış; kırbaç sınırsız, dayanıklılık bedelli.
   motora giren değeri bağımsız girdilerle yeniden hesaplar ve salt beceriden
   farklı olduğunu iddia eder (mizaç sabitlenerek).
 
+### 13.63 Oturum: refresh token + çıkış + tüm cihazlardan çıkış (02.10.2026, migration 0057)
+
+- Eskiden tek bir 30 günlük JWT vardı: iptal edilemiyordu, sunucuda çıkış
+  yoktu, şifre sıfırlama çalınmış token'ı öldürmüyordu.
+- Şimdi erişim JWT'si kısa (`auth.session.accessTokenTtlSeconds` = 1 sa) ve
+  `sid` taşır; refresh token rastgeledir, DB'de yalnızca SHA-256 özeti
+  (`auth_sessions`), HER yenilemede döner. Önceki token tekrar sunulursa
+  oturum `reuse_detected` ile kapanır (çalıntı tespiti).
+- `AuthGuard` ve soket el sıkışması TEK sorguyla (`players` ⟕ `auth_sessions`)
+  oturumun açık ve hesabın var olduğunu denetler → çıkış ANINDA etkilidir.
+  Var olmayan oyuncunun token'ı artık 401 (eskiden 404'e kadar iniyordu).
+- Eski (`sid`siz) token'lar reddedilmez (misafirin hesabı onda); web açılışta
+  `POST /auth/session` ile yükseltir. `players.tokens_valid_after` tüm
+  cihazlardan çıkışta ve şifre sıfırlamada eski token'ları da keser.
+  Şifre sıfırlama tüm oturumları AYNI transaction'da kapatır.
+- Uçlar: `POST /auth/refresh` (`@Public`), `/auth/session`, `/auth/logout`,
+  `/auth/logout-all`, `GET /auth/sessions`, `DELETE /auth/sessions/:id`
+  (başkasınınki 404). `maxActiveSessionsPerPlayer` aşılınca en eski kapanır.
+- Soket kimlik doğrulaması `afterInit` ara katmanına taşındı: async kapı
+  `handleConnection`da beklenince bağlanır bağlanmaz gelen `race.subscribe`
+  reddediliyordu (yaşandı). Reddedilen istemci artık `connect_error` alır.
+- Web: 401 → tek uçuşlu yenileme + bir kez tekrar; bitişten 60 sn önce
+  proaktif yenileme; sekmeler arası `navigator.locks`. **Oturum yalnızca 401'de
+  silinir** — eskiden HER hata (ağ kopması dahil) misafir hesabını
+  kaybettiriyordu; "Oyuncu oluştur" depodaki çözülmemiş oturumu ezmez.
+  `/account` → "Oturumlar" paneli (kayıtlı hesapta).
+- Kanıt: `test/api/auth-session.e2e-spec.ts`, `test/domain/auth/session.spec.ts`,
+  `realtime.e2e-spec.ts` (çıkmış token soket açamaz), web
+  `player-context.spec.tsx` / `session-logic.spec.ts` / `api-client.spec.ts`;
+  tarayıcıda yerel Playwright ile uçtan uca denendi.
+
 ## 14. Kendime hatırlatmalar (kısa liste)
 
 1. **Race Engine'e dokunmadan önce iki kez düşün.** Denetim onu "KEEP, dokunma"

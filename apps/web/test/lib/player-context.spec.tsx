@@ -2,6 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import type { AuthSession, PlayerSummary } from '@at-sevdalisi/shared-types';
+import { ApiError } from '../../src/lib/api-client';
 import { PlayerProvider, usePlayer } from '../../src/lib/player-context';
 
 /**
@@ -24,28 +25,56 @@ import { PlayerProvider, usePlayer } from '../../src/lib/player-context';
  * ("Cannot access before initialization").
  */
 
-const { getPlayerMock, registerPlayerMock, setAuthTokenMock, loginWithPasswordMock, loginWithGoogleMock } = vi.hoisted(
-  () => ({
-    getPlayerMock: vi.fn(),
-    registerPlayerMock: vi.fn(),
-    setAuthTokenMock: vi.fn(),
-    loginWithPasswordMock: vi.fn(),
-    loginWithGoogleMock: vi.fn(),
-  }),
-);
-
-vi.mock('../../src/lib/api-client', () => ({
-  apiClient: {
-    getPlayer: (...args: unknown[]) => getPlayerMock(...args),
-    registerPlayer: (...args: unknown[]) => registerPlayerMock(...args),
-    loginWithPassword: (...args: unknown[]) => loginWithPasswordMock(...args),
-    loginWithGoogle: (...args: unknown[]) => loginWithGoogleMock(...args),
-  },
-  setAuthToken: (...args: unknown[]) => setAuthTokenMock(...args),
+const {
+  getPlayerMock,
+  registerPlayerMock,
+  setAuthTokenMock,
+  loginWithPasswordMock,
+  loginWithGoogleMock,
+  upgradeSessionMock,
+  logoutMock,
+  logoutAllMock,
+} = vi.hoisted(() => ({
+  getPlayerMock: vi.fn(),
+  registerPlayerMock: vi.fn(),
+  setAuthTokenMock: vi.fn(),
+  loginWithPasswordMock: vi.fn(),
+  loginWithGoogleMock: vi.fn(),
+  upgradeSessionMock: vi.fn(),
+  logoutMock: vi.fn(),
+  logoutAllMock: vi.fn(),
 }));
+
+vi.mock('../../src/lib/api-client', async () => {
+  // `ApiError` GERÇEK sınıftır — oturum yalnızca `status === 401`de silinir.
+  const actual = await vi.importActual<typeof import('../../src/lib/api-client')>('../../src/lib/api-client');
+  return {
+    ApiError: actual.ApiError,
+    apiClient: {
+      getPlayer: (...args: unknown[]) => getPlayerMock(...args),
+      registerPlayer: (...args: unknown[]) => registerPlayerMock(...args),
+      loginWithPassword: (...args: unknown[]) => loginWithPasswordMock(...args),
+      loginWithGoogle: (...args: unknown[]) => loginWithGoogleMock(...args),
+      upgradeSession: (...args: unknown[]) => upgradeSessionMock(...args),
+      logout: (...args: unknown[]) => logoutMock(...args),
+      logoutAll: (...args: unknown[]) => logoutAllMock(...args),
+      refreshSession: vi.fn(),
+    },
+    setAuthToken: (...args: unknown[]) => setAuthTokenMock(...args),
+    getAuthToken: () => null,
+    setSessionRefresher: vi.fn(),
+    refreshSessionOnce: vi.fn(),
+  };
+});
 
 const STORAGE_KEY = 'atSevdalisi.playerId';
 const TOKEN_STORAGE_KEY = 'atSevdalisi.authToken';
+const REFRESH_STORAGE_KEY = 'atSevdalisi.refreshToken';
+const EXPIRES_AT = '2030-01-01T00:00:00.000Z';
+
+function tokens(token: string) {
+  return { token, refreshToken: `yenile-${token}`, accessTokenExpiresAt: EXPIRES_AT };
+}
 
 function samplePlayer(overrides: Partial<PlayerSummary> = {}): PlayerSummary {
   return {
@@ -77,7 +106,7 @@ function TestConsumer(): React.ReactElement {
       <button type="button" onClick={() => void loginWithGoogle('google-belgesi')}>
         Google Giriş
       </button>
-      <button type="button" onClick={() => logout()}>
+      <button type="button" onClick={() => void logout()}>
         Çıkış
       </button>
     </div>
@@ -92,6 +121,9 @@ describe('PlayerProvider / usePlayer', () => {
     setAuthTokenMock.mockReset();
     loginWithPasswordMock.mockReset();
     loginWithGoogleMock.mockReset();
+    upgradeSessionMock.mockReset();
+    logoutMock.mockReset().mockResolvedValue({ loggedOut: true });
+    logoutAllMock.mockReset().mockResolvedValue({ loggedOut: true });
   });
 
   afterEach(() => {
@@ -113,6 +145,7 @@ describe('PlayerProvider / usePlayer', () => {
   it('localStorage\'da geçerli id+token varsa sayfa yüklenirken token HEMEN etkinleştirilir ve getPlayer çağrılır', async () => {
     window.localStorage.setItem(STORAGE_KEY, 'p1');
     window.localStorage.setItem(TOKEN_STORAGE_KEY, 'tok-123');
+    window.localStorage.setItem(REFRESH_STORAGE_KEY, 'yenile-123');
     getPlayerMock.mockResolvedValueOnce(samplePlayer());
 
     render(
@@ -126,12 +159,14 @@ describe('PlayerProvider / usePlayer', () => {
     expect(setAuthTokenMock).toHaveBeenCalledWith('tok-123');
     await waitFor(() => expect(screen.getByTestId('player-name').textContent).toBe('Test Oyuncu'));
     expect(getPlayerMock).toHaveBeenCalledWith('p1');
+    expect(upgradeSessionMock).not.toHaveBeenCalled();
   });
 
-  it('kayıtlı token artık geçersizse (backend 401/403 fırlatır) localStorage temizlenir ve "oyuncu oluştur" durumuna döner', async () => {
+  it('kayıtlı token artık geçersizse (sunucu 401) localStorage temizlenir ve "oyuncu oluştur" durumuna döner', async () => {
     window.localStorage.setItem(STORAGE_KEY, 'p1');
     window.localStorage.setItem(TOKEN_STORAGE_KEY, 'eski-token');
-    getPlayerMock.mockRejectedValueOnce(new Error('401 Unauthorized'));
+    window.localStorage.setItem(REFRESH_STORAGE_KEY, 'yenile-eski');
+    getPlayerMock.mockRejectedValueOnce(new ApiError('Geçersiz oturum', 'UNAUTHORIZED', 401));
 
     render(
       <PlayerProvider>
@@ -142,13 +177,80 @@ describe('PlayerProvider / usePlayer', () => {
     await waitFor(() => expect(screen.getByTestId('loading').textContent).toBe('false'));
     expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull();
     expect(window.localStorage.getItem(TOKEN_STORAGE_KEY)).toBeNull();
+    expect(window.localStorage.getItem(REFRESH_STORAGE_KEY)).toBeNull();
     expect(setAuthTokenMock).toHaveBeenCalledWith(null);
     expect(screen.getByTestId('player-name').textContent).toBe('yok');
   });
 
+  it('AĞ HATASI oturumu SİLMEZ (eskiden her hata misafir hesabını kaybettiriyordu)', async () => {
+    window.localStorage.setItem(STORAGE_KEY, 'p1');
+    window.localStorage.setItem(TOKEN_STORAGE_KEY, 'tok-ag');
+    window.localStorage.setItem(REFRESH_STORAGE_KEY, 'yenile-ag');
+    getPlayerMock.mockRejectedValueOnce(new TypeError('Failed to fetch'));
+
+    render(
+      <PlayerProvider>
+        <TestConsumer />
+      </PlayerProvider>,
+    );
+
+    await waitFor(() => expect(screen.getByTestId('loading').textContent).toBe('false'));
+    expect(window.localStorage.getItem(TOKEN_STORAGE_KEY)).toBe('tok-ag');
+    expect(window.localStorage.getItem(REFRESH_STORAGE_KEY)).toBe('yenile-ag');
+    expect(screen.getByTestId('error').textContent).toMatch(/ulaşılamadı/);
+
+    // "Oyuncu oluştur" depodaki oturumu EZMEZ: sunucu hâlâ yoksa yeni hesap açılmaz.
+    getPlayerMock.mockRejectedValueOnce(new TypeError('Failed to fetch'));
+    fireEvent.click(screen.getByText('Oyuncu Oluştur'));
+    await waitFor(() => expect(getPlayerMock).toHaveBeenCalledTimes(2));
+    expect(registerPlayerMock).not.toHaveBeenCalled();
+    expect(window.localStorage.getItem(TOKEN_STORAGE_KEY)).toBe('tok-ag');
+
+    // Sunucu dönünce aynı düğme mevcut oyuncuyu yükler.
+    getPlayerMock.mockResolvedValueOnce(samplePlayer({ displayName: 'Geri Dönen' }));
+    fireEvent.click(screen.getByText('Oyuncu Oluştur'));
+    await waitFor(() => expect(screen.getByTestId('player-name').textContent).toBe('Geri Dönen'));
+    expect(registerPlayerMock).not.toHaveBeenCalled();
+  });
+
+  it('refresh token\'ı olmayan ESKİ oturum açılışta yükseltilir ve yeni token\'lar yazılır', async () => {
+    window.localStorage.setItem(STORAGE_KEY, 'p1');
+    window.localStorage.setItem(TOKEN_STORAGE_KEY, 'eski-tip');
+    upgradeSessionMock.mockResolvedValueOnce(tokens('oturumlu'));
+    getPlayerMock.mockResolvedValueOnce(samplePlayer());
+
+    render(
+      <PlayerProvider>
+        <TestConsumer />
+      </PlayerProvider>,
+    );
+
+    await waitFor(() => expect(screen.getByTestId('player-name').textContent).toBe('Test Oyuncu'));
+    expect(upgradeSessionMock).toHaveBeenCalledTimes(1);
+    expect(window.localStorage.getItem(TOKEN_STORAGE_KEY)).toBe('oturumlu');
+    expect(window.localStorage.getItem(REFRESH_STORAGE_KEY)).toBe('yenile-oturumlu');
+    expect(setAuthTokenMock).toHaveBeenLastCalledWith('oturumlu');
+  });
+
+  it('yükseltme ağ hatasıyla düşerse eski token\'la devam edilir (silinmez)', async () => {
+    window.localStorage.setItem(STORAGE_KEY, 'p1');
+    window.localStorage.setItem(TOKEN_STORAGE_KEY, 'eski-tip');
+    upgradeSessionMock.mockRejectedValueOnce(new TypeError('Failed to fetch'));
+    getPlayerMock.mockResolvedValueOnce(samplePlayer());
+
+    render(
+      <PlayerProvider>
+        <TestConsumer />
+      </PlayerProvider>,
+    );
+
+    await waitFor(() => expect(screen.getByTestId('player-name').textContent).toBe('Test Oyuncu'));
+    expect(window.localStorage.getItem(TOKEN_STORAGE_KEY)).toBe('eski-tip');
+  });
+
   it('createPlayer() yeni bir oturum açar, token\'ı etkinleştirir ve id+token\'ı localStorage\'a yazar', async () => {
     const session: AuthSession = {
-      token: 'yeni-token',
+      ...tokens('yeni-token'),
       player: samplePlayer({ id: 'p2', displayName: 'Yeni Oyuncu' }),
     };
     registerPlayerMock.mockResolvedValueOnce(session);
@@ -166,6 +268,7 @@ describe('PlayerProvider / usePlayer', () => {
     expect(setAuthTokenMock).toHaveBeenCalledWith('yeni-token');
     expect(window.localStorage.getItem(STORAGE_KEY)).toBe('p2');
     expect(window.localStorage.getItem(TOKEN_STORAGE_KEY)).toBe('yeni-token');
+    expect(window.localStorage.getItem(REFRESH_STORAGE_KEY)).toBe('yenile-yeni-token');
   });
 
   it('createPlayer() başarısız olursa hatayı error alanına yazar ve localStorage\'a hiçbir şey YAZMAZ', async () => {
@@ -187,7 +290,7 @@ describe('PlayerProvider / usePlayer', () => {
 
   it('loginWithPassword() oturumu bu tarayıcıya yazar; logout() siler ve oyuncuyu boşaltır (30.09.2026)', async () => {
     loginWithPasswordMock.mockResolvedValueOnce({
-      token: 'giris-token',
+      ...tokens('giris-token'),
       player: samplePlayer({ id: 'p9', displayName: 'Dönen Oyuncu' }),
     } satisfies AuthSession);
 
@@ -207,14 +310,17 @@ describe('PlayerProvider / usePlayer', () => {
 
     fireEvent.click(screen.getByText('Çıkış'));
     await waitFor(() => expect(screen.getByTestId('player-name').textContent).toBe('yok'));
+    // Çıkış SUNUCUDA da oturumu kapatır (02.10.2026).
+    expect(logoutMock).toHaveBeenCalledTimes(1);
     expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull();
+    expect(window.localStorage.getItem(REFRESH_STORAGE_KEY)).toBeNull();
     expect(window.localStorage.getItem(TOKEN_STORAGE_KEY)).toBeNull();
     expect(setAuthTokenMock).toHaveBeenLastCalledWith(null);
   });
 
   it('loginWithGoogle() oturumu bu tarayıcıya yazar (01.10.2026)', async () => {
     loginWithGoogleMock.mockResolvedValueOnce({
-      token: 'google-token',
+      ...tokens('google-token'),
       player: samplePlayer({ id: 'p7', displayName: 'Google Oyuncu' }),
     } satisfies AuthSession);
 

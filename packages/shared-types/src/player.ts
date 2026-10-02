@@ -95,9 +95,32 @@ export type PlayerSummary = Pick<
  * token'ı DEĞİL) — sağlayıcı token'ı yalnızca `/auth/login` isteğinde BİR
  * KEZ kullanılır, saklanmaz.
  */
-export interface AuthSession {
-  token: string;
+export interface AuthSession extends SessionTokens {
   player: PlayerSummary;
+}
+
+/**
+ * 02.10.2026 — OTURUM (migration 0057). `token` kısa ömürlü erişim JWT'sidir
+ * (`auth.session.accessTokenTtlSeconds`); `refreshToken` HER yenilemede
+ * DEĞİŞİR ve eskisi bir daha kullanılırsa oturum kapatılır (çalıntı tespiti).
+ * Sunucu refresh token'ın yalnızca SHA-256 özetini saklar.
+ */
+export interface SessionTokens {
+  token: string;
+  refreshToken: string;
+  /** ISO — erişim token'ının bitişi; istemci bundan önce yeniler. */
+  accessTokenExpiresAt: string;
+}
+
+/** `GET /auth/sessions` satırı — aktif oturumlar (cihazlar). */
+export interface AuthSessionInfo {
+  id: string;
+  userAgent: string | null;
+  createdAt: string;
+  lastUsedAt: string;
+  expiresAt: string;
+  /** Bu isteği yapan oturum mu. */
+  current: boolean;
 }
 
 /**

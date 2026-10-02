@@ -259,20 +259,18 @@ describe('Cüzdan (e2e) — GET /players/:id/wallet', () => {
     expect(response.body.error.code).toBe(ErrorCode.Forbidden);
   });
 
-  it('var OLMAYAN oyuncunun cüzdanı 404 PLAYER_NOT_FOUND', async () => {
-    // `AuthGuard` token'ın `sub` claim'ine GÜVENİR, oyuncunun var olduğunu
-    // AYRIca sorgulamaz (bkz. `auth.guard.ts` doc yorumu). Bu yüzden
-    // rastgele bir UUID için imzalanmış GEÇERLİ bir token guard'ı geçer ve
-    // `assertSelf` de eşleşir (id === currentPlayer.id) — 404 kararı
-    // repository'nin `null` dönüşünden gelir. Bu test tam olarak o dalı
-    // kanıtlar.
+  it("var OLMAYAN oyuncunun token'ı 401 UNAUTHORIZED (oturum kapısı)", async () => {
+    // 02.10.2026 (migration 0057) — `AuthGuard` artık oyuncunun VAR olduğunu
+    // da sorgular (oturum kapısı, tek sorgu): silinmiş/hiç olmamış bir hesap
+    // için imzası geçerli token 401'dir. Eskiden guard `sub`a körü körüne
+    // güvenir ve 404 kararı repository'den gelirdi.
     const ghostId = randomUUID();
-    const ghostToken = tokenService.sign({ sub: ghostId });
+    const ghostToken = tokenService.sign({ sub: ghostId }, 3600);
     const response = await request(app.getHttpServer())
       .get(walletUrl(ghostId))
       .set('Authorization', `Bearer ${ghostToken}`)
-      .expect(404);
-    expect(response.body.error.code).toBe(ErrorCode.PlayerNotFound);
+      .expect(401);
+    expect(response.body.error.code).toBe(ErrorCode.Unauthorized);
   });
 
   // ------------------------------------------------- defter değişmezliği

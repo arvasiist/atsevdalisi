@@ -3,6 +3,7 @@ import {
   ConnectedSocket,
   MessageBody,
   OnGatewayConnection,
+  OnGatewayInit,
   OnGatewayDisconnect,
   SubscribeMessage,
   WebSocketGateway,
@@ -26,6 +27,7 @@ import { GetRaceTimelineUseCase } from '../../application/use-cases/get-race-tim
 import { ListRaceMessagesUseCase } from '../../application/use-cases/list-race-messages.use-case';
 import { SendRaceMessageUseCase } from '../../application/use-cases/send-race-message.use-case';
 import { TOKEN_SERVICE, type TokenService } from '../../application/ports/token.service';
+import { AuthSessionUseCase } from '../../application/use-cases/auth-session.use-case';
 import type { LobbyNotifier } from '../../application/ports/lobby-notifier';
 import type { NotificationNotifier } from '../../application/ports/notification-notifier';
 import { AppConfigService } from '../../infrastructure/config/config.service';
@@ -260,7 +262,7 @@ interface ChatRateWindow {
   cors: { origin: process.env.CORS_ORIGIN ?? 'http://localhost:3000', credentials: true },
 })
 export class RaceGateway
-  implements OnGatewayConnection, OnGatewayDisconnect, LobbyNotifier, NotificationNotifier
+  implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect, LobbyNotifier, NotificationNotifier
 {
   private readonly logger = new Logger(RaceGateway.name);
 
@@ -308,6 +310,7 @@ export class RaceGateway
 
   constructor(
     @Inject(TOKEN_SERVICE) private readonly tokenService: TokenService,
+    @Inject(AuthSessionUseCase) private readonly authSessions: AuthSessionUseCase,
     @Inject(GetRaceTimelineUseCase) private readonly getRaceTimelineUseCase: GetRaceTimelineUseCase,
     // YARIŞ SOHBETİ (brief §13, bu dilimde EKLENDİ) — bkz. dosya başı doc
     // yorumu. `@Inject()` AÇIKÇA yazılır (CLAUDE.md: Vitest/esbuild
@@ -318,25 +321,48 @@ export class RaceGateway
     @Inject(AppConfigService) private readonly config: AppConfigService,
   ) {}
 
-  async handleConnection(client: Socket): Promise<void> {
+  /**
+   * KİMLİK DOĞRULAMA EL SIKIŞMADA (02.10.2026, migration 0057). Oturum kapısı
+   * bir veritabanı sorgusudur (asenkron); `handleConnection`da beklenseydi
+   * istemcinin bağlanır bağlanmaz yolladığı `race.subscribe`,
+   * `client.data.playerId` dolmadan işlenip reddedilirdi (yaşandı: soket
+   * e2e'leri zaman aşımına düştü). Ara katman bağlantı KURULMADAN önce koşar;
+   * reddedilen istemci `connect_error` alır, hiç bağlanmaz.
+   */
+  afterInit(server: Namespace): void {
+    server.use((client, next) => {
+      void this.authenticate(client).then(
+        () => next(),
+        () => next(new Error('Geçersiz ya da kapatılmış oturum.')),
+      );
+    });
+  }
+
+  private async authenticate(client: Socket): Promise<void> {
     const token = client.handshake.auth?.token as string | undefined;
     if (!token) {
+      throw new Error('token yok');
+    }
+    const payload = this.tokenService.verify(token);
+    // HTTP guard'ıyla AYNI oturum kapısı: kapatılmış oturum ya da silinmiş
+    // hesap soket de açamaz.
+    await this.authSessions.authorize(payload);
+    client.data.playerId = payload.sub;
+  }
+
+  async handleConnection(client: Socket): Promise<void> {
+    const playerId = client.data.playerId as string | undefined;
+    if (!playerId) {
       client.disconnect(true);
       return;
     }
-    try {
-      const payload = this.tokenService.verify(token);
-      client.data.playerId = payload.sub;
-      // `lobby.update` (bu turda EKLENDİ) — bkz. dosya başı doc yorumu
-      // "`lobby.update`" bölümü. HER istemci, kendi `race.subscribe`
-      // çağrısından BAĞIMSIZ olarak (yani bağlantı kurulur kurulmaz,
-      // hiçbir yarışa abone olmadan ÖNCE) kendi oyuncu-bazlı odasına
-      // katılır — `notifyMatchFound`'un bu istemciye ulaşabilmesi için
-      // TEK ön koşul budur.
-      await client.join(this.playerRoom(payload.sub));
-    } catch {
-      client.disconnect(true);
-    }
+    // `lobby.update` (bu turda EKLENDİ) — bkz. dosya başı doc yorumu
+    // "`lobby.update`" bölümü. HER istemci, kendi `race.subscribe`
+    // çağrısından BAĞIMSIZ olarak (yani bağlantı kurulur kurulmaz,
+    // hiçbir yarışa abone olmadan ÖNCE) kendi oyuncu-bazlı odasına
+    // katılır — `notifyMatchFound`'un bu istemciye ulaşabilmesi için
+    // TEK ön koşul budur.
+    await client.join(this.playerRoom(playerId));
   }
 
   /**

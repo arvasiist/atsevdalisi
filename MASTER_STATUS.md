@@ -64,9 +64,11 @@ migration'ların üretim verisinde prova ortamı (staging) yok.
 
 VAR: misafir kayıt (JWT), e-posta + şifre (`scrypt`), şifre sıfırlama (tek
 kullanımlık, 30 dk, özet saklanır), Google girişi + hesap bağlama, hız sınırı.
-YOK: **refresh token / oturum yenileme** (JWT 30 gün, iptal edilemez),
-**logout (sunucu tarafı)**, **e-posta doğrulama**, **hesap silme / veri silme**,
-Apple girişi. Üretim için `GOOGLE_OAUTH_CLIENT_ID`, `RESEND_API_KEY`, güçlü `JWT_SECRET` gerekir.
+VAR (02.10.2026, Faz 1-B.1): kısa ömürlü erişim JWT'si + dönen refresh
+token (özet saklanır, yeniden kullanımda oturum kapanır), sunucu tarafı
+logout / logout-all, cihaz listesi + cihaz kapatma, şifre sıfırlamada tüm
+oturumların kapanması, guard + soket oturum kapısı (çıkış ANINDA etkili).
+YOK: **e-posta doğrulama**, **hesap silme / veri silme**, Apple girişi. Üretim için `GOOGLE_OAUTH_CLIENT_ID`, `RESEND_API_KEY`, güçlü `JWT_SECRET` gerekir.
 
 ## Economy Status — TESTED (üretim değil)
 
@@ -189,7 +191,7 @@ anahtar yönetimi YOK. CI yalnızca doğrular (deploy etmez).
 Sunucu otoritesi, sahiplik kapıları, IDOR (403 önce 404 sonra), hız sınırı
 (sosyal/para/yarış/müzayede), idempotency, değişmez defter, gizli statların
 sızmaması, tohum gizliliği, helmet. YOK: CI'da bağımlılık/gizli anahtar/SAST
-taraması, JWT iptali (logout/refresh), anormal davranış tespiti, dosya
+taraması, anormal davranış tespiti, dosya
 yükleme güvenliği (henüz yükleme yok).
 
 ## Testing Status — TESTED
@@ -231,7 +233,7 @@ geri kalanı (at/pazar/config/etkinlik/rol) · gözlemlenebilirlik · dağıtım
 
 1. Gerçek 3D/ses varlıkları (satın alınacak).
 2. `mockDeposit` üretimde açık (sahte para yolu) — kapatılmalı ya da gerçek ödemeyle değiştirilmeli.
-3. Oturum güvenliği: 30 günlük iptal edilemez JWT, logout/refresh yok.
+3. ~~Oturum güvenliği: 30 günlük iptal edilemez JWT, logout/refresh yok.~~ **KAPANDI (02.10.2026, Faz 1-B.1).**
 4. E-posta doğrulama + hesap silme (KVKK/GDPR) yok.
 5. Gözlemlenebilirlik (sağlık kontrolü DB/Redis, request id, hata izleme) yok.
 6. Dağıtım (Dockerfile, staging, gizli anahtar yönetimi, yedek/geri yükleme) yok.
@@ -259,7 +261,7 @@ Brief fazlarına göre gerçek durum:
 | Faz | Durum |
 |---|---|
 | 0 Audit | COMPLETE (bu dosya) |
-| 1 Core | PARTIAL — oyun çekirdeği TESTED, hesap/oturum eksik (refresh, logout, e-posta doğrulama, silme) |
+| 1 Core | PARTIAL — oyun çekirdeği TESTED, oturum TESTED (1-B.1); e-posta doğrulama + hesap silme eksik |
 | 2 Management | TESTED |
 | 3 Genetics | TESTED |
 | 4 Farm | TESTED |
@@ -309,3 +311,52 @@ TECHNICAL DEBT: yukarıda
 PRODUCTION BLOCKERS: yukarıda (8 madde)
 REMAINING: Faz 1-B, 13-A, 10, 11, 8, 12, 6
 NEXT PHASE: 1-B Hesap/oturum tamamlama
+
+---
+
+PHASE: 1-B.1 — Oturum güvenliği (refresh token, logout, logout-all, cihazlar)
+STATUS: TESTED
+COMPLETED: Kısa ömürlü erişim JWT'si (`sid`) + dönen refresh token; yeniden
+kullanım tespiti; sunucu tarafı çıkış / tüm cihazlardan çıkış; cihaz listesi
+ve kapatma (IDOR 404); eski token kabulü + yükseltme; şifre sıfırlamada tüm
+oturumların aynı transaction'da kapanması; guard + soket oturum kapısı;
+web otomatik yenileme, sekmeler arası kilit, yalnızca 401'de oturum silme,
+`/account` "Oturumlar" paneli.
+FILES CREATED: database/migrations/0057_create_auth_sessions.{up,down}.sql ·
+apps/api/src/domain/auth/session.ts · application/ports/auth-session.repository.ts ·
+application/use-cases/auth-session.use-case.ts ·
+infrastructure/auth/postgres-auth-session.repository.ts ·
+apps/web/src/lib/session-logic.ts · features/auth/{SessionsPanel.tsx,device-label.ts} ·
+testler (aşağıda)
+FILES MODIFIED: auth.guard · auth.controller · player.controller · race.gateway ·
+token.service (+jsonwebtoken) · token.module · postgres-player-credentials.repository ·
+http-exception.filter · config/auth.config.json (+session) · game-config types ·
+shared-types (AuthSession, SessionTokens, AuthSessionInfo, 3 hata kodu) ·
+web api-client · player-context · account sayfası · globals.css · belgeler
+DATABASE CHANGES: `auth_sessions` tablosu + `players.tokens_valid_after` (veri bozmayan, eklemeli)
+API CHANGES: POST /auth/refresh, /auth/session, /auth/logout, /auth/logout-all;
+GET /auth/sessions; DELETE /auth/sessions/:id. Giriş/kayıt yanıtına
+`refreshToken` + `accessTokenExpiresAt` eklendi. Var olmayan oyuncunun
+token'ı 401 (eskiden 404). Soket reddi artık `connect_error`.
+FRONTEND CHANGES: otomatik yenileme, eski oturum yükseltme, Oturumlar paneli
+BACKEND CHANGES: oturum servisi, guard async, soket kimliği ara katmanda
+GAMEPLAY CHANGES: —
+3D CHANGES: —
+AI CHANGES: —
+SECURITY CHANGES: iptal edilebilir oturum; çalıntı refresh tespiti; şifre
+sıfırlama tüm oturumları öldürür; refresh token düz metni saklanmaz/loglanmaz
+ADMIN CHANGES: —
+DEPLOYMENT CHANGES: `JWT_EXPIRES_IN_SECONDS` env KALDIRILDI (süre config'te)
+TESTS ADDED: api `auth-session.e2e-spec.ts` (10), `domain/auth/session.spec.ts` (5),
+`realtime.e2e-spec.ts` (+1: çıkmış token soket açamaz); web `session-logic.spec.ts`,
+`player-context.spec.tsx` (+3), `api-client.spec.ts` (+5)
+TESTS PASSED: API 2346/2346 (157 dosya, temiz şema), web 43 dosya yeşil; tarayıcıda
+uçtan uca (kayıt → bozuk token → yenileme → eski token yükseltme → tüm cihazlardan çıkış)
+TESTS FAILED: 0
+BUGS FOUND: web her hatada (ağ kopması dahil) oturumu siliyordu; soket kapısı
+async olunca ilk olay `playerId`siz işleniyordu; StrictMode çift yükseltme
+BUGS FIXED: üçü de
+TECHNICAL DEBT: açık soket bağlantısı çıkışta koparılmaz (yeni bağlantı reddedilir)
+PRODUCTION BLOCKERS: "iptal edilemez 30 günlük JWT" KAPANDI
+REMAINING: 1-B.2 e-posta doğrulama, 1-B.3 hesap silme, 13-A üretim temeli
+NEXT PHASE: 1-B.2 E-posta doğrulama

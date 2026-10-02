@@ -376,6 +376,15 @@ dondurulurken `jockeySkillComposite`e yazılır (lobi/pratik/eşleşme);
 `jockey.compatibilityInfluence` (0.15, 0 = eski davranış). MOTOR DEĞİŞMEDİ.
 ⚠️ Kadrodaki jokey puanını salt `calculateJockeySkillComposite` ile
 karşılaştıran test yazma — uyum dahil değerdir (`jockey.e2e-spec.ts`).
+(37) **OTURUM (02.10.2026, migration 0057, §13.63)** — erişim JWT'si 1 sa
++ `sid`; refresh token döner, DB'de yalnızca özet (`auth_sessions`); eski
+token tekrar sunulursa oturum kapanır. Guard + soket TEK sorguyla oturumu ve
+oyuncunun VARLIĞINI denetler (yok → 401). `TokenService.sign` artık süre
+ister — yeni token BASMA, `AuthSessionUseCase.issue` kullan. ⚠️ Soket
+kimliği `afterInit` ara katmanındadır; `handleConnection`a async kapı
+KOYMA (bağlanır bağlanmaz gelen olay `playerId`siz işlenir). ⚠️ Web oturumu
+YALNIZCA 401'de siler (`isUnauthorized`); ağ hatasında silmek misafir
+hesabını kaybettirir. Eski (`sid`siz) token kabul edilir, yükseltilir.
 
 **✅ ÜCRETLİ LOBİ YARIŞI ARTIK KOŞUYOR — ÖDÜL DAĞITIMI VAR (§13.14,
 28.09.2026).** `POST /races/:id/settle` yarışı koşar, ödülleri `top5`

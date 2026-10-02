@@ -292,21 +292,18 @@ describe('Sanal para yatırma (e2e) — POST /players/:id/wallet/deposit', () =>
     expect(await balanceOf(owner)).toEqual(before);
   });
 
-  it('var OLMAYAN oyuncu 404 PLAYER_NOT_FOUND', async () => {
-    // `AuthGuard` token'ın `sub` claim'ine GÜVENİR, oyuncunun var olduğunu
-    // ayrıca sorgulamaz — bu yüzden rastgele bir UUID için imzalanmış
-    // GEÇERLİ bir token guard'ı ve `assertSelf`'i geçer, 404 kararı
-    // repository'nin `null` dönüşünden gelir (`wallet.e2e-spec.ts`'teki
-    // AYNI dal).
+  it("var OLMAYAN oyuncunun token'ı 401 UNAUTHORIZED (oturum kapısı)", async () => {
+    // 02.10.2026 (migration 0057) — guard oyuncunun varlığını sorgular;
+    // bkz. `wallet.e2e-spec.ts`teki AYNI dal. Para hiçbir yola düşmez.
     const ghostId = randomUUID();
-    const ghostToken = tokenService.sign({ sub: ghostId });
+    const ghostToken = tokenService.sign({ sub: ghostId }, 3600);
     const response = await request(app.getHttpServer())
       .post(depositUrl(ghostId))
       .set('Authorization', `Bearer ${ghostToken}`)
       .set('Idempotency-Key', randomUUID())
       .send({ amount: MIN })
-      .expect(404);
-    expect(response.body.error.code).toBe(ErrorCode.PlayerNotFound);
+      .expect(401);
+    expect(response.body.error.code).toBe(ErrorCode.Unauthorized);
   });
 
   // -------------------------------------------------------- defter tutarlılığı

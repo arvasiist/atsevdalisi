@@ -15,5 +15,12 @@
     "tokenTtlMinutes": 30,
     "tokenBytes": 32,
     "minIntervalSeconds": 60
+  },
+  "session": {
+    "accessTokenTtlSeconds": 3600,
+    "refreshTokenTtlDays": 30,
+    "refreshTokenBytes": 32,
+    "maxActiveSessionsPerPlayer": 20,
+    "userAgentMaxLength": 200
   }
 }

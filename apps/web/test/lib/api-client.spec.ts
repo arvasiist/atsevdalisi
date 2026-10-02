@@ -9,7 +9,7 @@ import type {
   TrainingIntensity,
   TrainingType,
 } from '@at-sevdalisi/shared-types';
-import { ApiError, apiClient, API_BASE_URL, setAuthToken } from '../../src/lib/api-client';
+import { ApiError, apiClient, API_BASE_URL, setAuthToken, setSessionRefresher } from '../../src/lib/api-client';
 
 /**
  * AUDIT_REPORT.md T2 — `apps/web`'in tek gerçek kontrat testi. Bu oturumun
@@ -1091,5 +1091,106 @@ describe('apiClient şifre sıfırlama (30.09.2026)', () => {
     const [url, config] = requestArgs(fetchMock);
     expect(url).toBe(`${API_BASE_URL}/auth/password-reset/confirm`);
     expect(JSON.parse(config.body as string)).toEqual({ token: 'tok', password: 'yeni-sifre-1' });
+  });
+});
+
+describe('OTURUM YENİLEME — 401 → bir kez yenile + tekrar dene (02.10.2026)', () => {
+  afterEach(() => {
+    setSessionRefresher(null);
+  });
+
+  it('401 alan korumalı istek yenilenen token\'la BİR KEZ tekrarlanır', async () => {
+    setAuthToken('eski');
+    const refresher = vi.fn(async () => {
+      setAuthToken('yeni');
+      return 'yeni';
+    });
+    setSessionRefresher(refresher);
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({ success: false, error: { code: 'UNAUTHORIZED', message: 'x' } }, { ok: false, status: 401 }))
+      .mockResolvedValueOnce(jsonResponse({ success: true, data: { id: 'p1' } }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(apiClient.getPlayer('p1')).resolves.toEqual({ id: 'p1' });
+    expect(refresher).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const retried = fetchMock.mock.calls[1]![1] as RequestInit;
+    expect(new Headers(retried.headers).get('Authorization')).toBe('Bearer yeni');
+  });
+
+  it('yenileme başarısızsa 401 ApiError fırlar ve sonsuz döngü olmaz', async () => {
+    setAuthToken('eski');
+    setSessionRefresher(async () => null);
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(jsonResponse({ success: false, error: { code: 'UNAUTHORIZED', message: 'x' } }, { ok: false, status: 401 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(apiClient.getPlayer('p1')).rejects.toMatchObject({ status: 401 });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('eşzamanlı 401\'ler TEK yenilemeyi paylaşır (refresh token iki kez harcanmaz)', async () => {
+    setAuthToken('eski');
+    let release: (value: string) => void = () => undefined;
+    const refresher = vi.fn(
+      () =>
+        new Promise<string>((resolve) => {
+          release = (value) => {
+            setAuthToken(value);
+            resolve(value);
+          };
+        }),
+    );
+    setSessionRefresher(refresher);
+    const unauthorized = jsonResponse({ success: false, error: { code: 'UNAUTHORIZED', message: 'x' } }, { ok: false, status: 401 });
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(unauthorized)
+      .mockResolvedValueOnce(unauthorized)
+      .mockResolvedValue(jsonResponse({ success: true, data: { ok: true } }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const first = apiClient.getPlayer('p1');
+    const second = apiClient.getPlayer('p2');
+    await vi.waitFor(() => expect(refresher).toHaveBeenCalledTimes(1));
+    release('yeni');
+    await Promise.all([first, second]);
+    expect(refresher).toHaveBeenCalledTimes(1);
+  });
+
+  it('yenileme ucunun kendisi ve giriş uçları 401de yenileyiciyi ÇAĞIRMAZ', async () => {
+    setAuthToken('eski');
+    const refresher = vi.fn(async () => 'yeni');
+    setSessionRefresher(refresher);
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(jsonResponse({ success: false, error: { code: 'X', message: 'x' } }, { ok: false, status: 401 })),
+    );
+    await expect(apiClient.refreshSession('r')).rejects.toBeInstanceOf(ApiError);
+    await expect(apiClient.loginWithPassword('a@b.c', 'sifre')).rejects.toBeInstanceOf(ApiError);
+    await expect(apiClient.upgradeSession()).rejects.toBeInstanceOf(ApiError);
+    expect(refresher).not.toHaveBeenCalled();
+  });
+
+  it('oturum uçları doğru rota/yöntemi kullanır', async () => {
+    setAuthToken('t');
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ success: true, data: {} }));
+    vi.stubGlobal('fetch', fetchMock);
+    await apiClient.refreshSession('r1');
+    await apiClient.logout();
+    await apiClient.logoutAll();
+    await apiClient.listSessions();
+    await apiClient.revokeSession('s-1');
+    const calls = fetchMock.mock.calls.map(([url, config]) => [String(url).replace(API_BASE_URL, ''), (config as RequestInit).method ?? 'GET']);
+    expect(calls).toEqual([
+      ['/auth/refresh', 'POST'],
+      ['/auth/logout', 'POST'],
+      ['/auth/logout-all', 'POST'],
+      ['/auth/sessions', 'GET'],
+      ['/auth/sessions/s-1', 'DELETE'],
+    ]);
+    expect(JSON.parse(String((fetchMock.mock.calls[0]![1] as RequestInit).body))).toEqual({ refreshToken: 'r1' });
   });
 });

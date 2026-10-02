@@ -1,16 +1,18 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Inject, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Headers, HttpCode, HttpStatus, Inject, Param, ParseUUIDPipe, Post } from '@nestjs/common';
 import type {
   AccountCredentialsView,
   AccountProvider,
   ApiSuccess,
   AuthProvidersView,
   AuthSession,
+  AuthSessionInfo,
+  SessionTokens,
 } from '@at-sevdalisi/shared-types';
+import { AuthSessionUseCase } from '../../application/use-cases/auth-session.use-case';
 import { LinkProviderUseCase } from '../../application/use-cases/link-provider.use-case';
 import { LoginWithProviderUseCase } from '../../application/use-cases/login-with-provider.use-case';
 import { PasswordAuthUseCase } from '../../application/use-cases/password-auth.use-case';
 import { CurrentPlayer, type AuthenticatedPlayer } from './current-player.decorator';
-import { TOKEN_SERVICE, type TokenService } from '../../application/ports/token.service';
 import { toPlayerSummary } from '../dto/player.mapper';
 import { RateLimit } from '../rate-limit/rate-limit.decorator';
 import { Public } from './public.decorator';
@@ -36,7 +38,7 @@ import { LoginDto } from './dto/login.dto';
 export class AuthController {
   constructor(
     @Inject(LoginWithProviderUseCase) private readonly loginWithProviderUseCase: LoginWithProviderUseCase,
-    @Inject(TOKEN_SERVICE) private readonly tokenService: TokenService,
+    @Inject(AuthSessionUseCase) private readonly sessions: AuthSessionUseCase,
     @Inject(PasswordAuthUseCase) private readonly passwordAuth: PasswordAuthUseCase,
     @Inject(LinkProviderUseCase) private readonly linkProvider: LinkProviderUseCase,
   ) {}
@@ -48,13 +50,16 @@ export class AuthController {
   @Public()
   @Post('login')
   @HttpCode(HttpStatus.OK)
-  async login(@Body() dto: LoginDto): Promise<ApiSuccess<AuthSession>> {
+  async login(
+    @Body() dto: LoginDto,
+    @Headers('user-agent') userAgent: string | undefined,
+  ): Promise<ApiSuccess<AuthSession>> {
     const { player } = await this.loginWithProviderUseCase.execute({
       provider: dto.provider,
       idToken: dto.idToken,
     });
-    const token = this.tokenService.sign({ sub: player.id });
-    return { success: true, data: { token, player: toPlayerSummary(player) } };
+    const session = await this.sessions.issue(player.id, userAgent);
+    return { success: true, data: { ...session, player: toPlayerSummary(player) } };
   }
 
   /**
@@ -68,10 +73,81 @@ export class AuthController {
   @Public()
   @Post('login/password')
   @HttpCode(HttpStatus.OK)
-  async loginWithPassword(@Body() body: { email?: unknown; password?: unknown }): Promise<ApiSuccess<AuthSession>> {
+  async loginWithPassword(
+    @Body() body: { email?: unknown; password?: unknown },
+    @Headers('user-agent') userAgent: string | undefined,
+  ): Promise<ApiSuccess<AuthSession>> {
     const player = await this.passwordAuth.login(body?.email, body?.password);
-    const token = this.tokenService.sign({ sub: player.id });
-    return { success: true, data: { token, player: toPlayerSummary(player) } };
+    const session = await this.sessions.issue(player.id, userAgent);
+    return { success: true, data: { ...session, player: toPlayerSummary(player) } };
+  }
+
+  /**
+   * OTURUM YENİLEME (02.10.2026, migration 0057) — `@Public()`: erişim
+   * token'ının süresi dolmuşken çağrılır. Refresh token HER çağrıda değişir;
+   * eskisi tekrar sunulursa oturum kapanır. Hata tek koddur
+   * (`INVALID_REFRESH_TOKEN`, 401).
+   */
+  @RateLimit({ name: 'auth-refresh', limit: 30, windowSeconds: 300, keyBy: 'ip' })
+  @Public()
+  @Post('refresh')
+  @HttpCode(HttpStatus.OK)
+  async refresh(@Body() body: { refreshToken?: unknown }): Promise<ApiSuccess<SessionTokens>> {
+    return { success: true, data: await this.sessions.refresh(body?.refreshToken) };
+  }
+
+  /**
+   * ESKİ TOKEN'I OTURUMA YÜKSELTME — yalnızca 02.10.2026 öncesi `sid`siz
+   * token kabul edilir (oturumlu token 409). Misafirin hesabı token'dadır;
+   * bu uç onu kaybetmeden yeni modele taşır.
+   */
+  @RateLimit({ name: 'auth-session-upgrade', limit: 5, windowSeconds: 300, keyBy: 'player' })
+  @Post('session')
+  @HttpCode(HttpStatus.OK)
+  async upgradeSession(
+    @CurrentPlayer() currentPlayer: AuthenticatedPlayer,
+    @Headers('user-agent') userAgent: string | undefined,
+  ): Promise<ApiSuccess<SessionTokens>> {
+    const access = { playerId: currentPlayer.id, sessionId: currentPlayer.sessionId };
+    return { success: true, data: await this.sessions.upgradeLegacy(access, userAgent) };
+  }
+
+  /** Bu cihazdan çıkış — erişim token'ı ANINDA geçersizleşir. */
+  @RateLimit({ name: 'auth-logout', limit: 20, windowSeconds: 300, keyBy: 'player' })
+  @Post('logout')
+  @HttpCode(HttpStatus.OK)
+  async logout(@CurrentPlayer() currentPlayer: AuthenticatedPlayer): Promise<ApiSuccess<{ loggedOut: true }>> {
+    await this.sessions.logout({ playerId: currentPlayer.id, sessionId: currentPlayer.sessionId });
+    return { success: true, data: { loggedOut: true } };
+  }
+
+  /** Tüm cihazlardan çıkış — eski (`sid`siz) token'lar dahil. */
+  @RateLimit({ name: 'auth-logout-all', limit: 10, windowSeconds: 300, keyBy: 'player' })
+  @Post('logout-all')
+  @HttpCode(HttpStatus.OK)
+  async logoutAll(@CurrentPlayer() currentPlayer: AuthenticatedPlayer): Promise<ApiSuccess<{ loggedOut: true }>> {
+    await this.sessions.logoutAll(currentPlayer.id);
+    return { success: true, data: { loggedOut: true } };
+  }
+
+  /** Aktif oturumlar (cihazlar) — yalnızca çağıranın. */
+  @Get('sessions')
+  @HttpCode(HttpStatus.OK)
+  async listSessions(@CurrentPlayer() currentPlayer: AuthenticatedPlayer): Promise<ApiSuccess<AuthSessionInfo[]>> {
+    const access = { playerId: currentPlayer.id, sessionId: currentPlayer.sessionId };
+    return { success: true, data: await this.sessions.list(access) };
+  }
+
+  /** Bir cihazı kapat. Başkasının oturumu 404 (IDOR kapısı SQL'dedir). */
+  @RateLimit({ name: 'auth-session-revoke', limit: 20, windowSeconds: 300, keyBy: 'player' })
+  @Delete('sessions/:sessionId')
+  @HttpCode(HttpStatus.OK)
+  async revokeSession(
+    @Param('sessionId', ParseUUIDPipe) sessionId: string,
+    @CurrentPlayer() currentPlayer: AuthenticatedPlayer,
+  ): Promise<ApiSuccess<{ revoked: true }>> {
+    await this.sessions.revoke(currentPlayer.id, sessionId);
+    return { success: true, data: { revoked: true } };
   }
 
   /**

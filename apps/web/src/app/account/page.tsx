@@ -19,6 +19,9 @@
  * bildirirse (`GET /auth/providers`) görünür — kimlik bilgisi yokken hiç
  * çalışmayacak bir düğme göstermek yalan olurdu.
  *
+ * OTURUMLAR (02.10.2026): kayıtlı hesapta cihaz listesi + tek cihazı kapatma
+ * + tüm cihazlardan çıkış (`SessionsPanel`). Çıkış artık sunucuda da oturumu kapatır.
+ *
  * Şifre sınırları `auth.config.json`dan okunur; sunucu aynı kuralları
  * bağımsız uygular (istemci otorite değildir).
  */
@@ -28,13 +31,14 @@ import type { AccountProvider } from '@at-sevdalisi/shared-types';
 import { loadAuthConfig } from '@at-sevdalisi/game-config';
 import { GlassPanel } from '../../components/ui/GlassPanel';
 import { GoogleSignInButton } from '../../features/auth/GoogleSignInButton';
+import { SessionsPanel } from '../../features/auth/SessionsPanel';
 import { apiClient } from '../../lib/api-client';
 import { usePlayer } from '../../lib/player-context';
 
 const AUTH_CONFIG = loadAuthConfig();
 
 export default function AccountPage(): React.ReactElement {
-  const { player, isLoading, createPlayer, loginWithPassword, loginWithGoogle, logout } = usePlayer();
+  const { player, isLoading, createPlayer, loginWithPassword, loginWithGoogle, logout, logoutAll } = usePlayer();
   const [accountEmail, setAccountEmail] = useState<string | null | undefined>(undefined);
   const [linkedProviders, setLinkedProviders] = useState<AccountProvider[]>([]);
   const [googleClientId, setGoogleClientId] = useState<string | null>(null);
@@ -175,9 +179,13 @@ export default function AccountPage(): React.ReactElement {
     ) {
       return;
     }
-    logout();
-    setNotice('Çıkış yapıldı.');
+    void logout().then(() => setNotice('Çıkış yapıldı.'));
   }, [isGuest, logout]);
+
+  const confirmLogoutAll = useCallback(async () => {
+    await logoutAll();
+    setNotice('Tüm cihazlardan çıkış yapıldı.');
+  }, [logoutAll]);
 
   const form = (submit: () => Promise<void>, submitLabel: string, autoComplete: 'current-password' | 'new-password') => (
     <form
@@ -324,6 +332,9 @@ export default function AccountPage(): React.ReactElement {
           ) : null}
         </GlassPanel>
       ) : null}
+
+      {/* Misafirde "tüm cihazlardan çık" hesabı kalıcı kaybettirir — yalnızca kayıtlıya. */}
+      {player && isRegistered ? <SessionsPanel onLogoutAll={confirmLogoutAll} /> : null}
 
       {player ? (
         <button type="button" onClick={confirmLogout} style={secondaryButtonStyle()}>

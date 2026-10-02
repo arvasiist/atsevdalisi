@@ -1,4 +1,6 @@
 import type {
+  AuthSessionInfo,
+  SessionTokens,
   InteractiveRaceView,
   PlayerControlInput,
   AccountCredentialsView,
@@ -197,11 +199,42 @@ export class ApiError extends Error {
   }
 }
 
-async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+/**
+ * OTURUM YENİLEME (02.10.2026, migration 0057). Erişim token'ı kısa
+ * ömürlüdür; korumalı bir istek 401 alırsa `PlayerProvider`ın kaydettiği
+ * yenileyici refresh token'la yeni bir erişim token'ı alır ve istek BİR
+ * KEZ tekrarlanır. Aynı anda düşen istekler TEK yenilemeyi paylaşır —
+ * refresh token her yenilemede değiştiği için ikinci bir paralel yenileme
+ * sunucuda "yeniden kullanım" sayılır ve oturumu KAPATIR.
+ */
+type SessionRefresher = () => Promise<string | null>;
+let sessionRefresher: SessionRefresher | null = null;
+let inflightRefresh: Promise<string | null> | null = null;
+
+export function setSessionRefresher(refresher: SessionRefresher | null): void {
+  sessionRefresher = refresher;
+}
+
+/** Tek uçuşlu yenileme — eşzamanlı çağıranlar aynı sözü bekler. */
+export function refreshSessionOnce(): Promise<string | null> {
+  if (sessionRefresher === null) return Promise.resolve(null);
+  if (inflightRefresh === null) {
+    inflightRefresh = sessionRefresher().finally(() => {
+      inflightRefresh = null;
+    });
+  }
+  return inflightRefresh;
+}
+
+/** Yenilemeyi tetiklememesi gereken uçlar (kendisi ya da token'sız giriş uçları). */
+const NO_REFRESH_ENDPOINTS = ['/auth/refresh', '/auth/login', '/auth/session'];
+
+async function request<T>(endpoint: string, options: RequestInit = {}, isRetry = false): Promise<T> {
   const headers = new Headers(options.headers || {});
   headers.set('Content-Type', 'application/json');
-  if (currentAuthToken) {
-    headers.set('Authorization', `Bearer ${currentAuthToken}`);
+  const sentToken = currentAuthToken;
+  if (sentToken) {
+    headers.set('Authorization', `Bearer ${sentToken}`);
   }
 
   const config: RequestInit = {
@@ -210,6 +243,20 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
   };
 
   const response = await fetch(`${API_BASE_URL}${endpoint}`, config);
+
+  if (
+    response.status === 401 &&
+    !isRetry &&
+    sentToken !== null &&
+    !NO_REFRESH_ENDPOINTS.some((path) => endpoint === path || endpoint.startsWith(`${path}/`))
+  ) {
+    // Başka bir istek token'ı ZATEN yenilediyse yenisiyle tekrar dene.
+    const next = currentAuthToken !== sentToken ? currentAuthToken : await refreshSessionOnce();
+    if (next !== null && next !== sentToken) {
+      return request<T>(endpoint, options, true);
+    }
+  }
+
   const result: ApiResponse<T> = await response.json();
 
   if (!response.ok || !result.success) {
@@ -271,6 +318,31 @@ export const apiClient = {
    * `googleClientId === null` ise Google düğmesi gösterilmez.
    */
   getAuthProviders: () => request<AuthProvidersView>('/auth/providers'),
+
+  /**
+   * OTURUM (02.10.2026, migration 0057). `refreshSession` token'sız
+   * çağrılabilir (erişim token'ı dolmuşken); dönen refresh token ESKİSİNİN
+   * yerine yazılmalıdır — eskisi bir daha kullanılırsa oturum kapanır.
+   */
+  refreshSession: (refreshToken: string) =>
+    request<SessionTokens>('/auth/refresh', {
+      method: 'POST',
+      body: JSON.stringify({ refreshToken }),
+    }),
+
+  /** 02.10.2026 öncesi (oturumsuz) token'ı yenilenebilir oturuma taşır. */
+  upgradeSession: () => request<SessionTokens>('/auth/session', { method: 'POST' }),
+
+  /** Bu cihazdan çıkış — erişim token'ı sunucuda ANINDA geçersizleşir. */
+  logout: () => request<{ loggedOut: true }>('/auth/logout', { method: 'POST' }),
+
+  /** Tüm cihazlardan çıkış. */
+  logoutAll: () => request<{ loggedOut: true }>('/auth/logout-all', { method: 'POST' }),
+
+  listSessions: () => request<AuthSessionInfo[]>('/auth/sessions'),
+
+  revokeSession: (sessionId: string) =>
+    request<{ revoked: true }>(`/auth/sessions/${encodeURIComponent(sessionId)}`, { method: 'DELETE' }),
 
   /**
    * GOOGLE İLE GİRİŞ — token'SIZ. `idToken`, Google'ın tarayıcıda verdiği

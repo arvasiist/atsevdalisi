@@ -100,32 +100,26 @@ koleksiyon değildir.
 
 ## 2. Auth
 
+> Bu bölüm 02.10.2026'da gerçek uçlara göre yeniden yazıldı (eski taslak
+> `register`/`accessToken` adlarını kullanıyordu; öyle bir uç yoktu).
+
 ```http
-POST /api/v1/auth/register
-POST /api/v1/auth/login
-POST /api/v1/auth/refresh
-POST /api/v1/auth/logout
+POST   /api/v1/players                   # misafir kaydı (@Public) → AuthSession
+POST   /api/v1/auth/login                # Google (@Public) → AuthSession
+POST   /api/v1/auth/login/password       # e-posta + şifre (@Public) → AuthSession
+POST   /api/v1/auth/refresh              # @Public, { refreshToken } → SessionTokens
+POST   /api/v1/auth/session              # yalnızca eski (sid'siz) token'ı yükseltir; aksi 409
+POST   /api/v1/auth/logout               # bu cihaz — token ANINDA geçersiz
+POST   /api/v1/auth/logout-all           # tüm cihazlar + eski token'lar
+GET    /api/v1/auth/sessions             # AuthSessionInfo[] (yalnızca çağıranın)
+DELETE /api/v1/auth/sessions/{id}        # başkasınınki/olmayan → 404 SESSION_NOT_FOUND
 ```
 
-`POST /api/v1/auth/register` — örnek istek/yanıt:
-
-```json
-// İstek
-{ "username": "atsevdalisi", "email": "user@example.com", "password": "..." }
-
-// Yanıt (201)
-{
-  "success": true,
-  "data": {
-    "player": { "id": "...", "username": "atsevdalisi", "level": 1 },
-    "accessToken": "...",
-    "refreshToken": "..."
-  }
-}
-```
-
-> **Açık karar (bkz. ARCHITECTURE.md §10.1):** Sosyal giriş (Google/Apple) ve
-> misafir modu desteği proje sahibinin onayına sunulmuştur.
+`AuthSession` = `{ token, refreshToken, accessTokenExpiresAt, player }`.
+Erişim token'ı kısa ömürlüdür (`auth.session.accessTokenTtlSeconds`);
+refresh token HER yenilemede değişir ve eskisi tekrar sunulursa oturum
+kapanır (`INVALID_REFRESH_TOKEN`, 401). Sunucu yalnızca SHA-256 özetini
+saklar (migration 0057). Şifre sıfırlama tüm oturumları kapatır.
 
 ## 3. Player
 
@@ -2951,6 +2945,9 @@ dosyanın doc yorumu).
 | `INVALID_CREDENTIALS` | E-posta ya da şifre hatalı — `POST /auth/login/password` (401). Kayıtlı olmayan e-posta ile yanlış şifre BİLEREK aynı kod ve aynı mesajdır (enumerasyon yok) (30.09.2026) |
 | `EMAIL_ALREADY_REGISTERED` | Bu e-posta başka bir hesaba bağlı — `POST /auth/credentials` (409); karşılaştırma büyük/küçük harf duyarsız (30.09.2026) |
 | `INVALID_RESET_TOKEN` | Şifre sıfırlama bağlantısı geçersiz, süresi dolmuş ya da kullanılmış — `POST /auth/password-reset/confirm` (400). Üç durum BİLEREK tek koddur (30.09.2026, migration 0047) |
+| `INVALID_REFRESH_TOKEN` | Refresh token geçersiz, süresi dolmuş, kapatılmış ya da YENİDEN kullanılmış — `POST /auth/refresh` (401). Dört durum BİLEREK tek koddur; yeniden kullanım oturumu kapatır (02.10.2026, migration 0057) |
+| `SESSION_NOT_FOUND` | Oturum yok ya da çağırana ait değil — `DELETE /auth/sessions/:id` (404, varlık sızdırılmaz) |
+| `SESSION_UPGRADE_NOT_ALLOWED` | `POST /auth/session` yalnızca eski (`sid`siz) token'ı yükseltir (409) |
 | `CREDENTIALS_ALREADY_SET` | Bu hesap zaten e-posta + şifreyle kayıtlı — `POST /auth/credentials` (409) (30.09.2026) |
 | `PLAYER_LEVEL_TOO_LOW` | Turnuvanın seviye şartı karşılanmadı — `POST /races/:id/join` (409), para hareket etmez (30.09.2026, migration 0045) |
 | `HORSE_IN_ACTIVE_RACE` | At henüz koşulmamış (`scheduled`/`locking`) bir lobi yarışına kayıtlı: ikinci bir açık yarışa yazılamaz (`POST /races/:id/join`), pazara çıkarılamaz (`POST /market/listings`) ve satın alınamaz (`POST /market/listings/:id/buy`). Yarış bitince, iptal edilince ya da oyuncu ayrılınca kalkar (30.09.2026) |

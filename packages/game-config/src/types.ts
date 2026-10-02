@@ -1813,6 +1813,18 @@ export interface AuthConfig {
    * doldurmayı önler — yanıt yine aynıdır, enumerasyon yok).
    */
   passwordReset: { tokenTtlMinutes: number; tokenBytes: number; minIntervalSeconds: number };
+  /**
+   * 02.10.2026 — OTURUM (migration 0057). Erişim token'ı kısa ömürlüdür ve
+   * oturum kimliği (`sid`) taşır; refresh token her yenilemede değişir.
+   * `maxActiveSessionsPerPlayer` aşılırsa EN ESKİ oturum kapatılır.
+   */
+  session: {
+    accessTokenTtlSeconds: number;
+    refreshTokenTtlDays: number;
+    refreshTokenBytes: number;
+    maxActiveSessionsPerPlayer: number;
+    userAgentMaxLength: number;
+  };
 }
 
 /**

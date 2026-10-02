@@ -38,11 +38,8 @@ export class AppConfigService {
     redisUrl: process.env.REDIS_URL ?? '',
     jwtSecret: process.env.JWT_SECRET ?? '',
     idempotencyKeyTtlSeconds: Number(process.env.IDEMPOTENCY_KEY_TTL_SECONDS ?? 86400),
-    // AUDIT_REPORT.md Bulgu S1 hardening (bu oturum) — brief §41/§50
-    // Google/Apple Sign-In. Bizim KENDİ oturum JWT'imizin geçerlilik
-    // süresi (`TokenService.sign`, bkz. o dosyanın doc yorumu) —
-    // sağlayıcı ID token'larının kendi süreleriyle İLGİSİZDİR.
-    jwtExpiresInSeconds: Number(process.env.JWT_EXPIRES_IN_SECONDS ?? 60 * 60 * 24 * 30),
+    // 02.10.2026 — erişim token'ı ömrü artık `auth.session.accessTokenTtlSeconds`
+    // (config); eski `JWT_EXPIRES_IN_SECONDS` (30 gün, iptal edilemez) KALDIRILDI.
     // Google Cloud Console'da oluşturulan OAuth 2.0 Client ID (Web/iOS/
     // Android türlerinden en az biri) — `google-auth-library`'nin
     // `verifyIdToken` audience kontrolü için ZORUNLUDUR. Proje sahibi
