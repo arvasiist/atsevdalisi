@@ -6,6 +6,7 @@ import helmet from 'helmet';
 import { loadOpsConfig } from '@at-sevdalisi/game-config';
 import { AppModule } from './app.module';
 import { checkEnvironment } from './infrastructure/ops/production-env';
+import { JsonLogger } from './infrastructure/ops/structured-log';
 import { HttpExceptionFilter } from './api/middleware/http-exception.filter';
 
 /**
@@ -29,7 +30,12 @@ async function bootstrap(): Promise<void> {
     process.exit(1);
   }
 
-  const app = await NestFactory.create(AppModule);
+  // 02.10.2026 (Faz 13-C) — üretimde tek satır JSON log (log toplayıcı
+  // bağımsız); geliştirmede Nest'in okunur logu.
+  const app = await NestFactory.create(
+    AppModule,
+    process.env.NODE_ENV === 'production' ? { logger: new JsonLogger() } : {},
+  );
 
   // AUDIT_REPORT.md Bulgu F2 (bu oturum) — `RaceGateway`'in (bkz. o
   // dosyanın doc yorumu) kullandığı socket.io tabanlı WebSocket adaptörünü

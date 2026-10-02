@@ -320,6 +320,17 @@ export const apiClient = {
    */
   getAuthProviders: () => request<AuthProvidersView>('/auth/providers'),
 
+  /**
+   * İSTEMCİ HATA RAPORU (02.10.2026, Faz 13-C) — hata sınırları kullanır.
+   * Yalnızca mesaj/özet/yol gider (kişisel veri, token, girdi GİTMEZ).
+   * Raporun kendisi düşerse sessizce yutulur: hata ekranı ikinci bir hata
+   * üretmemeli.
+   */
+  reportClientError: (report: { message: string; digest?: string; path?: string }) =>
+    request<{ accepted: true }>('/client-errors', { method: 'POST', body: JSON.stringify(report) }).catch(
+      () => undefined,
+    ),
+
   /** HESAP SİLME (02.10.2026, migration 0059) — silinebilir mi, neden değil. */
   getAccountDeletionCheck: () => request<AccountDeletionCheck>('/account/deletion'),
 

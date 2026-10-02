@@ -1,5 +1,6 @@
 import { Module, type MiddlewareConsumer, type NestModule } from '@nestjs/common';
 import { RequestIdMiddleware } from './api/middleware/request-id.middleware';
+import { OpsModule } from './api/ops/ops.module';
 import { AdminModule } from './api/admin/admin.module';
 import { AuthModule } from './api/auth/auth.module';
 import { BreedingModule } from './api/breeding/breeding.module';
@@ -91,6 +92,8 @@ import { RedisModule } from './infrastructure/redis/redis.module';
  */
 @Module({
   imports: [
+    // 02.10.2026 (Faz 13-C) — istemci hata raporu.
+    OpsModule,
     AppConfigModule,
     DatabaseModule,
     RedisModule,

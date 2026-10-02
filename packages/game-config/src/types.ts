@@ -1966,4 +1966,6 @@ export interface OpsConfig {
   readiness: { checkTimeoutMs: number };
   requestId: { maxLength: number };
   productionEnv: { minJwtSecretLength: number; forbiddenJwtSecrets: string[] };
+  /** 02.10.2026 (Faz 13-C) — `POST /client-errors` alan sınırları (aşan kırpılır). */
+  clientErrors: { maxMessageLength: number; maxPathLength: number; maxDigestLength: number };
 }

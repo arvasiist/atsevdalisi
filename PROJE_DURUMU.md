@@ -3906,6 +3906,18 @@ Karar: önce pratik yarış; kırbaç sınırsız, dayanıklılık bedelli.
   gizlediği için kullanılmadı.
 - Kanıt: tam API/web paketleri, next build, tarayıcıda üç 3D sahne + 6 sayfa.
 
+### 13.68 Yedek provası + staging + hata izleme temeli (02.10.2026, Faz 13-C)
+
+- Yedek/geri yükleme betikleri + parmak izi (satır sayıları, migration
+  listesi, defter SHA-256, bakiye toplamı); CI testlerin verisiyle prova eder.
+  Geri yükleme boş olmayan hedefi reddeder.
+- `docker-compose.staging.yml` (üretim modu, migrate → api → web) +
+  `tools/ops/smoke.mjs`; CI'da koşar.
+- Üretimde JSON log; `reportError` (değiştirilebilir raporlayıcı); web hata
+  sınırları + `POST /client-errors`.
+- Sağlayıcı seçimleri (barındırma, kayıt defteri, gizli anahtar yöneticisi,
+  Sentry, zamanlanmış yedek) SAHİBİNİN kararıdır; hiçbiri uydurulmadı.
+
 ## 14. Kendime hatırlatmalar (kısa liste)
 
 1. **Race Engine'e dokunmadan önce iki kez düşün.** Denetim onu "KEEP, dokunma"

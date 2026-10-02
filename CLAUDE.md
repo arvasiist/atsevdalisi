@@ -415,6 +415,13 @@ nesneye dönmez — `@Query('x')` düz parametre kullan).
 KALDIRMA: aksi hâlde eski React 18 kökte kalır, iki React olur. ⚠️ Dockerfile
 çalışma katmanı `apps/*/node_modules`u da kopyalar (npm çatışan sürümleri
 oraya kurar). Bağımlılık izin listesi BOŞ — yeni yüksek/kritik açık CI'ı kırar.
+(43) **13-C (02.10.2026)** — `docker-compose.staging.yml` + `tools/ops/smoke.mjs`
+(CI'da koşar); yedek: `tools/ops/db-backup.sh`/`db-restore.sh` (boş olmayan
+hedefi REDDEDER)/`backup-drill.sh` (CI'da). Hata: `reportError` (varsayılan
+JSON log) — Sentry seçilince `setErrorReporter`; ⚠️ rapora sorgu dizesi,
+token, girdi KOYMA. Web `app/error.tsx` + `global-error.tsx` → `POST
+/client-errors`. Yeni bir kişisel veri tablosu yedeğe kendiliğinden girer
+(yedek dosyası KİŞİSEL VERİDİR, depoya girmez).
 
 **✅ ÜCRETLİ LOBİ YARIŞI ARTIK KOŞUYOR — ÖDÜL DAĞITIMI VAR (§13.14,
 28.09.2026).** `POST /races/:id/settle` yarışı koşar, ödülleri `top5`

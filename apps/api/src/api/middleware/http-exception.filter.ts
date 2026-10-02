@@ -1,6 +1,7 @@
 import { ArgumentsHost, Catch, ExceptionFilter, HttpException, HttpStatus } from '@nestjs/common';
 import type { Response } from 'express';
 import type { RequestWithId } from './request-id.middleware';
+import { reportError } from '../../infrastructure/ops/error-reporting';
 import { ErrorCode } from '@at-sevdalisi/shared-types';
 import { PlayerLevelTooLowError } from '../../domain/tournament/errors';
 import {
@@ -915,10 +916,16 @@ export class HttpExceptionFilter implements ExceptionFilter {
       return;
     }
 
-    // Yığın izi YALNIZCA sunucu loguna gider, istemciye ASLA (genel mesaj +
-    // istek kimliği). Log satırı istek kimliğiyle bulunur.
-    // eslint-disable-next-line no-console
-    console.error(`Beklenmeyen hata [requestId=${requestId ?? '-'}]:`, exception);
+    // Yığın izi YALNIZCA raporlayıcıya gider, istemciye ASLA (genel mesaj +
+    // istek kimliği). Raporlayıcı varsayılan olarak yapılandırılmış log
+    // yazar; hata izleme hizmeti seçilince oraya takılır (Faz 13-C).
+    const request = ctx.getRequest<RequestWithId | undefined>();
+    reportError(exception, {
+      source: 'server',
+      requestId,
+      method: request?.method,
+      path: request?.originalUrl?.split('?')[0],
+    });
     response.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
       success: false,
       error: withId({

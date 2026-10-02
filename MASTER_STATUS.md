@@ -188,6 +188,9 @@ VAR (02.10.2026, Faz 13-A): `GET /health` (canlılık) + `GET /health/ready`
 zarfında `error.requestId`, beklenmeyen hata logu istek kimliğiyle (yığın
 izi istemciye gitmez). YOK: yapılandırılmış (JSON) log, hata izleme
 (Sentry vb.), metrik.
+VAR (02.10.2026, Faz 13-C): üretimde tek satır JSON log, değiştirilebilir hata
+raporlayıcı (varsayılan: log), web hata sınırları + `POST /client-errors`.
+YOK: seçilmiş bir hata izleme hizmeti (Sentry vb.) ve metrik/uyarı.
 
 ## Deployment Status — PARTIAL
 
@@ -196,7 +199,8 @@ hedefi, root olmayan kullanıcı, HEALTHCHECK), `apps/web/Dockerfile`,
 `.dockerignore`, CI'da imaj build + "eksik ortamla açılmaz" duman testi,
 üretim ortam doğrulaması (açılışta), `docs/DEPLOYMENT.md`. YOK: staging/
 production ortamı, imaj kayıt defteri + dağıtım hattı, gizli anahtar
-yöneticisi, yedek/geri yükleme provası.
+yöneticisi. VAR (Faz 13-C): `docker-compose.staging.yml` + uçtan uca duman
+testi (CI'da), yedek/geri yükleme betikleri + CI provası.
 
 ## Security Status — PARTIAL (iyi temel)
 
@@ -538,3 +542,36 @@ TESTS PASSED: web 43 / 524, next build, API 161 / 2383 (temiz şema), tarayıcı
 kontrollü yarış 3D sahneleri + 6 sayfa: sayfa hatası 0; yalnızca beklenen eksik-varlık HEAD 404'leri
 PRODUCTION BLOCKERS: 9. madde (Next 14 açıkları) KAPANDI
 REMAINING: staging, hata izleme, yedek provası (13-C)
+
+---
+
+PHASE: 13-C — Yedek provası + staging yığını + hata izleme temeli
+STATUS: TESTED (staging yığını yalnızca CI'da kapsayıcılarla koşar; yerelde aynı
+süreçlerle — derlenmiş API üretim modu + next start — duman testi geçti)
+COMPLETED: db-backup / db-restore (boş olmayan hedefi reddeder) / backup-drill +
+db-fingerprint; CI'da test verisiyle prova. docker-compose.staging.yml +
+.env.staging.example + tools/ops/smoke.mjs; CI'da yığın + duman testi. Üretimde JSON
+log (JsonLogger), ErrorReporter (varsayılan log; Sentry takılabilir), filtre 500'ü
+raporlar, POST /client-errors, web error.tsx + global-error.tsx.
+FILES CREATED: tools/ops/{db-backup.sh,db-restore.sh,backup-drill.sh,db-fingerprint.mjs,smoke.mjs} ·
+docker-compose.staging.yml · .env.staging.example · infrastructure/ops/{structured-log,error-reporting}.ts ·
+api/ops/{client-errors.controller,ops.module}.ts · web app/error.tsx, app/global-error.tsx,
+features/errors/error-report.ts · testler (aşağıda)
+FILES MODIFIED: main.ts · app.module.ts · http-exception.filter · config/ops.config.json
+(+clientErrors) · game-config types · web api-client · ci.yml · .gitignore (.env.staging) ·
+docs/DEPLOYMENT.md
+DATABASE CHANGES: —
+API CHANGES: POST /client-errors (202; mesajsız 400)
+SECURITY CHANGES: rapora sorgu dizesi girmez (token olabilir); istemciye yığın izi yok;
+raporlayıcı hatası isteği düşürmez; .env.staging gitignore
+DEPLOYMENT CHANGES: staging compose, duman testi, yedek/geri yükleme betikleri
+TESTS ADDED: test/security/error-reporting.spec.ts (3), test/api/client-errors.e2e-spec.ts (2),
+web test/features/errors/error-report.spec.ts (3)
+TESTS PASSED: API 163 / 2388 (temiz şema), web 44 / 527, next build; yedek provası test verisiyle
+(48 tablo, 615 defter satırı); negatif: dolu hedef reddedildi, +1 bakiye farkı yakalandı;
+duman testi 6/6 (üretim modu)
+TESTS FAILED: 0
+PRODUCTION BLOCKERS: sağlayıcı kararları: barındırma, imaj kayıt defteri, gizli anahtar
+yöneticisi, hata izleme hizmeti, zamanlanmış yedek/saklama süresi
+REMAINING: sahibinin sağlayıcı kararları; kalan fazlar (8 AI avatar, 10/11 admin+live ops, 12 ödeme)
+NEXT PHASE: sahibinin kararına bağlı

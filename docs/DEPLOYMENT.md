@@ -1,7 +1,9 @@
 # Dağıtım (02.10.2026, Faz 13-A)
 
-Bu belge yalnızca **depoda gerçekten olanı** anlatır. Staging/production
-ortamı, imaj kayıt defteri ve gizli anahtar yöneticisi henüz YOKTUR.
+Bu belge yalnızca **depoda gerçekten olanı** anlatır. Barındırma
+sağlayıcısı, imaj kayıt defteri, gizli anahtar yöneticisi ve hata izleme
+hizmeti henüz SEÇİLMEDİ (sahibinin kararı) — aşağıdakiler sağlayıcıdan
+bağımsızdır ve oraya olduğu gibi taşınır.
 
 ## İmajlar
 
@@ -64,3 +66,50 @@ aynı kimlikle yazılır. Kullanıcı destek talebinde bu kimliği verir.
   yükseltmeleriyle yüksek/kritik açık kalmadı).
 - **Gizli anahtar taraması**: gitleaks (sürüm sabit, SHA-256 doğrulamalı),
   tüm git geçmişi. İncelenmiş yanlış pozitifler `.gitleaksignore`da.
+
+## Staging yığını (Faz 13-C)
+
+`docker-compose.staging.yml` tüm sistemi ÜRETİM modunda kurar: postgres +
+redis → `migrate` (tek seferlik, başarıyla bitmeli) → api → web.
+
+```bash
+cp .env.staging.example .env.staging     # gerçek değerleri doldur; gitignore'lu
+docker compose -f docker-compose.staging.yml --env-file .env.staging up -d --build --wait
+node tools/ops/smoke.mjs http://localhost:4000/api/v1 http://localhost:3000
+```
+
+`tools/ops/smoke.mjs` uçtan uca temel akışı dener (hazırlık, istek kimliği,
+misafir kaydı + oturum, korumalı uç, sahte yatırmanın üretimde KAPALI
+olduğu, oturum yenileme, web ana sayfa). CI her değişiklikte aynı yığını
+kurup bu testi koşar (`docker` işi).
+
+## Yedek ve geri yükleme (Faz 13-C)
+
+```bash
+DATABASE_URL=... tools/ops/db-backup.sh yedek.dump          # pg_dump custom, sahiplik/yetki yok
+TARGET_DATABASE_URL=... tools/ops/db-restore.sh yedek.dump  # hedef BOŞ değilse REDDEDER
+DATABASE_URL=... tools/ops/backup-drill.sh                  # yedek → geçici DB → parmak izi karşılaştırması
+```
+
+- Yedek dosyası KİŞİSEL VERİ içerir: şifreli depoda tut, depoya commit etme.
+- `db-fingerprint.mjs` satır sayıları, migration listesi, defter özeti
+  (SHA-256) ve bakiye toplamını karşılaştırır; tek bir bakiyede +1 fark
+  bile yakalanır (denendi).
+- CI her değişiklikte testlerin bıraktığı gerçek veriyle provayı koşar.
+- Zamanlanmış yedek ve saklama süresi barındırma sağlayıcısına bağlıdır
+  (henüz yok): yönetilen Postgres'in anlık görüntüsü + bu betikle günlük
+  mantıksal yedek önerilir. Geri yükleme hedefi her zaman BOŞ bir
+  veritabanıdır; doğrulamadan trafik çevrilmez.
+
+## Loglar ve hata izleme (Faz 13-C)
+
+- Üretimde API logları **tek satır JSON**dur (`ts`, `level`, `msg`, alanlar)
+  — her log toplayıcı ayrıştırır. Gizli değer (token, şifre, bağlantı)
+  loglanmaz.
+- Beklenmeyen sunucu hataları ve web hata sınırlarının bildirdiği istemci
+  hataları (`POST /client-errors`, oturumsuz, IP başına hız sınırlı, alanlar
+  kırpılır) `infrastructure/ops/error-reporting.ts`ten geçer. Varsayılan
+  raporlayıcı JSON log yazar; Sentry vb. seçildiğinde `setErrorReporter` ile
+  takılır — çağıranlar değişmez.
+- Web: `app/error.tsx` (sayfa) ve `app/global-error.tsx` (kök) hata
+  sınırları; ekrana hata ayrıntısı basılmaz.

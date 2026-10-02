@@ -14,6 +14,10 @@ out/
 .env
 .env.local
 .env.*.local
+# 02.10.2026 (Faz 13-C) — staging/production değerleri ASLA depoya girmez.
+.env.staging
+.env.production
+!.env.staging.example
 !.env.example
 
 # Logs
