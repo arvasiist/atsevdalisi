@@ -1,8 +1,20 @@
 import { Inject, Injectable } from '@nestjs/common';
 import type { Pool, PoolClient } from 'pg';
-import type { ListingStatus, ListingType, MarketListing } from '@at-sevdalisi/shared-types';
+import type {
+  ListingStatus,
+  ListingType,
+  MarketListing,
+  NotificationPayloadByType,
+} from '@at-sevdalisi/shared-types';
+
+type AuctionNotificationType =
+  | 'auction_outbid'
+  | 'auction_won'
+  | 'auction_sold'
+  | 'auction_unsold'
+  | 'auction_refunded';
 import type { MarketAuctionRepository } from '../../application/ports/market-auction.repository';
-import { assertBidAllowed } from '../../domain/market/auction';
+import { assertBidAllowed, minimumNextBid } from '../../domain/market/auction';
 import {
   AuctionHasBidsError,
   ListingNotActiveError,
@@ -108,6 +120,15 @@ export class PostgresMarketAuctionRepository implements MarketAuctionRepository 
         );
         balances.set(leading.bidder_id, { money: refunded.money });
         await client.query("UPDATE market_bids SET status = 'outbid' WHERE id = $1", [leading.id]);
+        // Kendi teklifini yükselten oyuncuya "geçildin" denmez.
+        if (leading.bidder_id !== input.bidderId) {
+          await this.notify(client, leading.bidder_id, 'auction_outbid', {
+            listingId: listing.id,
+            horseName: await this.horseName(client, listing.horseId),
+            amount: Number(leading.amount),
+            minimumNextBid: minimumNextBid(listing.price, input.amount, this.config.economy.auction),
+          });
+        }
       }
 
       const bidder = balances.get(input.bidderId)!;
@@ -154,10 +175,12 @@ export class PostgresMarketAuctionRepository implements MarketAuctionRepository 
         return null;
       }
       const leading = await this.lockLeadingBid(client, listingId);
+      const horseName = await this.horseName(client, listing.horseId);
       if (leading === null) {
         await client.query("UPDATE market_listings SET status = 'expired' WHERE id = $1", [
           listingId,
         ]);
+        await this.notify(client, listing.sellerId, 'auction_unsold', { listingId, horseName });
         return 'expired';
       }
 
@@ -193,6 +216,12 @@ export class PostgresMarketAuctionRepository implements MarketAuctionRepository 
         await client.query("UPDATE market_listings SET status = 'expired' WHERE id = $1", [
           listingId,
         ]);
+        await this.notify(client, leading.bidder_id, 'auction_refunded', {
+          listingId,
+          horseName,
+          amount,
+        });
+        await this.notify(client, listing.sellerId, 'auction_unsold', { listingId, horseName });
         return 'expired';
       }
 
@@ -216,6 +245,13 @@ export class PostgresMarketAuctionRepository implements MarketAuctionRepository 
       ]);
       await client.query("UPDATE market_bids SET status = 'won' WHERE id = $1", [leading.id]);
       await client.query("UPDATE market_listings SET status = 'sold' WHERE id = $1", [listingId]);
+      await this.notify(client, leading.bidder_id, 'auction_won', {
+        listingId,
+        horseId: listing.horseId,
+        horseName,
+        amount,
+      });
+      await this.notify(client, listing.sellerId, 'auction_sold', { listingId, horseName, amount });
       return 'sold';
     });
   }
@@ -321,6 +357,29 @@ export class PostgresMarketAuctionRepository implements MarketAuctionRepository 
       after,
       now,
     ]);
+  }
+
+  /**
+   * Bildirim, yazıldığı para hareketiyle AYNI transaction'dadır: geri alınan
+   * bir teklifin "geçildin" haberi alıcıda kalamaz.
+   */
+  private async notify<K extends AuctionNotificationType>(
+    client: PoolClient,
+    playerId: string,
+    type: K,
+    payload: NotificationPayloadByType[K],
+  ): Promise<void> {
+    await client.query(
+      'INSERT INTO notifications (player_id, type, payload) VALUES ($1, $2, $3::jsonb)',
+      [playerId, type, JSON.stringify(payload)],
+    );
+  }
+
+  private async horseName(client: PoolClient, horseId: string): Promise<string> {
+    const result = await client.query<{ name: string }>('SELECT name FROM horses WHERE id = $1', [
+      horseId,
+    ]);
+    return result.rows[0]?.name ?? 'At';
   }
 
   private async ledger(

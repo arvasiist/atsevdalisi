@@ -45,6 +45,11 @@ export const NOTIFICATION_TYPES = [
   'race_starting',
   'race_finished',
   'prize_won',
+  'auction_outbid',
+  'auction_won',
+  'auction_sold',
+  'auction_unsold',
+  'auction_refunded',
 ] as const;
 
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];

@@ -3753,6 +3753,13 @@ Karar: önce pratik yarış; kırbaç sınırsız, dayanıklılık bedelli.
   doğrulandı; `test/domain/market/auction.spec.ts`; web `market-logic.spec`.
   Tarayıcıda: satıcı formla müzayede açtı, alıcı (390 px) teklif verdi,
   bakiye emanet kadar düştü, "Öndesin" göründü.
+- **Bildirimler (migration 0056):** geçilen teklif sahibine `auction_outbid`
+  (iade tutarı + yeni en düşük teklif; kendi teklifini yükseltene gitmez),
+  kapanışta `auction_won`/`auction_sold`, satışsız bitişte satıcıya
+  `auction_unsold`, iade yolunda alıcıya `auction_refunded`. Hepsi para
+  hareketiyle aynı transaction'da; `/notifications` metinleri ve bağlantıları
+  (pazar/ahır/cüzdan) eklendi. CHECK kısıtı adıyla düşürülüp genişletildi;
+  kapalı küme testi artık CHECK'i yazan EN SON migration'ı okur.
 
 ## 14. Kendime hatırlatmalar (kısa liste)
 

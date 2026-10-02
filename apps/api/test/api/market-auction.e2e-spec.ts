@@ -57,6 +57,15 @@ describe('Müzayede (e2e)', () => {
     return Number(result.rows[0]!.money);
   }
 
+  /** Oyuncunun bu ilana ait bildirim türleri (oluşturulma sırasıyla). */
+  async function notes(playerId: string, listingId: string): Promise<string[]> {
+    const result = await pool.query<{ type: string }>(
+      "SELECT type FROM notifications WHERE player_id = $1 AND payload->>'listingId' = $2 ORDER BY created_at, type",
+      [playerId, listingId],
+    );
+    return result.rows.map((row) => row.type);
+  }
+
   async function ledgerSum(playerId: string, listingId: string): Promise<number> {
     const result = await pool.query<{ total: string | null }>(
       'SELECT SUM(amount) AS total FROM economy_transactions WHERE player_id = $1 AND reference_id = $2',
@@ -160,6 +169,15 @@ describe('Müzayede (e2e)', () => {
     expect(await money(a.playerId)).toBe(10000); // geçilince AYNI işlemde iade
     expect(await money(b.playerId)).toBe(9400);
     await bid(a, listingId, 700).expect(200);
+    // A iki kez geçildi (B'nin 600'ü), B bir kez (A'nın 700'ü). A'nın kendi
+    // teklifini yükseltmesi olmadığı için fazladan "geçildin" yok.
+    expect(await notes(a.playerId, listingId)).toEqual(['auction_outbid']);
+    expect(await notes(b.playerId, listingId)).toEqual(['auction_outbid']);
+    const outbid = await pool.query<{ payload: Record<string, unknown> }>(
+      "SELECT payload FROM notifications WHERE player_id = $1 AND type = 'auction_outbid' AND payload->>'listingId' = $2",
+      [b.playerId, listingId],
+    );
+    expect(outbid.rows[0]!.payload).toMatchObject({ amount: 600, minimumNextBid: 735 });
     expect(await money(b.playerId)).toBe(10000);
     expect(await money(a.playerId)).toBe(9300);
 
@@ -202,6 +220,17 @@ describe('Müzayede (e2e)', () => {
     expect(await ledgerSum(a.playerId, listingId)).toBe(-700);
     expect(await ledgerSum(b.playerId, listingId)).toBe(0);
     expect(await ledgerSum(seller.playerId, listingId)).toBe(700);
+    expect(await notes(a.playerId, listingId)).toEqual(['auction_outbid', 'auction_won']);
+    expect(await notes(seller.playerId, listingId)).toEqual(['auction_sold']);
+    // Uç üzerinden de ulaşır (tür daraltması yeni türleri düşürmez).
+    const inbox = await http()
+      .get(`/api/v1/players/${a.playerId}/notifications`)
+      .set('Authorization', a.authHeader)
+      .expect(200);
+    const won = inbox.body.data.notifications.find(
+      (note: { type: string }) => note.type === 'auction_won',
+    );
+    expect(won.payload).toMatchObject({ listingId, horseId: seller.horseId, amount: 700 });
   });
 
   it('teklifsiz müzayede kapanışta süresi dolar; teklifsiz iptal edilebilir', async () => {
@@ -211,6 +240,7 @@ describe('Müzayede (e2e)', () => {
     await scheduler.tickNow();
     const listing = await http().get(`${url}/${listingId}`).expect(200);
     expect(listing.body.data.status).toBe('expired');
+    expect(await notes(seller.playerId, listingId)).toEqual(['auction_unsold']);
 
     const other = await player('Teklifsiz İptal');
     const cancelId = await createAuction(other);
@@ -248,6 +278,8 @@ describe('Müzayede (e2e)', () => {
       [listingId],
     );
     expect(status.rows.map((row) => row.status)).toEqual(['refunded']);
+    expect(await notes(bidder.playerId, listingId)).toEqual(['auction_refunded']);
+    expect(await notes(seller.playerId, listingId)).toEqual(['auction_unsold']);
   });
 
   it('eşzamanlı iki teklif: tam biri kazanır, para korunur', async () => {

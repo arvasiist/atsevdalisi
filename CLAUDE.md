@@ -362,6 +362,11 @@ Müzayede "hemen al" ile alınamaz (409 `LISTING_IS_AUCTION`), bitişsiz açıla
 teklif almışsa iptal edilemez (409 `AUCTION_HAS_BIDS`). Web'de ilan AÇMA yolu
 bu tarihe kadar HİÇ YOKTU — `/market` artık "Atımı Sat" formu + teklif + at adı
 (`MarketListing.horseName`, `auction` durumu) taşır.
+Bildirimler (migration 0056): `auction_outbid` (kendi teklifini yükseltene
+gitmez), `auction_won`, `auction_sold`, `auction_unsold`, `auction_refunded` —
+para hareketiyle AYNI transaction'da. ⚠️ `notifications.type` CHECK'i artık
+0056'dadır; `notification-types.spec.ts` CHECK'i yazan EN SON migration'ı okur.
+Yeni tür eklerken kısıtı ADIYLA (`notifications_type_check`) düşür.
 
 **✅ ÜCRETLİ LOBİ YARIŞI ARTIK KOŞUYOR — ÖDÜL DAĞITIMI VAR (§13.14,
 28.09.2026).** `POST /races/:id/settle` yarışı koşar, ödülleri `top5`
