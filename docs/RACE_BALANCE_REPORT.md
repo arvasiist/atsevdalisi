@@ -358,3 +358,31 @@ dayanıklılıkla orantılı ve `kırbaç^0.5` (azalan), her kırbaç 4 dayanık
 erken/aralıksız kırbaç ağır cezalı; tempo yönetimi uzun yarışta değerli,
 sprintte zararlı. Hiçbir basit strateji statları ezmez (en iyi kazanç
 ≈ 0.6 sıra, 2400 m). **Komutsuz yarış değişmedi** (parmak izi testi).
+
+### 9.1 Yön komutu ve çok oyunculu kontrol — 02.10.2026
+
+1000 yarış, 8 atlık bot sahası, 1600 m (`measurePlayerControlPlan`,
+`measureMultiPlayerControl`; ortalama bitiş sırası, düşük = iyi):
+
+| Plan | Sıra |
+|---|---|
+| Komutsuz (yapay zekâ) | 4.49 |
+| Her bölüm sol | 4.42 |
+| Her bölüm sağ | 4.44 |
+| Zikzak | 4.47 |
+| İlk yarı sakin + sonda kırbaç | 4.20 |
+
+| Sahadaki "akıllı" sürücü sayısı | Sürücülerin ortalaması | Aynı atlar komutsuz |
+|---|---|---|
+| 1 | 4.20 | 4.49 |
+| 2 | 4.22 | 4.49 |
+| 3 | 4.29 | 4.50 |
+| 4 | 4.36 | 4.52 |
+
+Aynı sahada akıllı sürücü 3.82, erken kırbaçlayan 7.11.
+
+Okuma: yön komutu bedava hız DEĞİLDİR (±0.07). Kontrol avantajı birden çok
+sürücüde küçülür (sıfır toplamlı sıralama, beklenen) ama kaybolmaz; beceri
+farkı belirgin ödüllendirilir. Düzeltme gerekmedi. CI kilitleri:
+`race-engine-player-control.spec.ts` (yön > yapay zekâ − 0.25; dört akıllı
+sürücü komutsuzdan iyi; akıllı, pervasızdan en az 1 sıra iyi).

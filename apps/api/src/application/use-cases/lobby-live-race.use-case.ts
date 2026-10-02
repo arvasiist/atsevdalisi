@@ -1,6 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import type {
   InteractiveRaceView,
+  RaceTimeline,
   PlayerControlInput,
   RaceSurface,
   RaceWeather,
@@ -26,6 +27,7 @@ import {
   type LobbySettlementContext,
   type RaceRepository,
 } from '../ports/race.repository';
+import { BoundedCache } from '../services/bounded-cache';
 import { GetRaceTimelineUseCase } from './get-race-timeline.use-case';
 import { SettleRaceUseCase } from './settle-race.use-case';
 
@@ -48,7 +50,19 @@ export class LobbyLiveRaceUseCase {
     @Inject(SettleRaceUseCase) private readonly settleRace: SettleRaceUseCase,
     @Inject(AppConfigService) private readonly config: AppConfigService,
     @Inject(GetRaceTimelineUseCase) private readonly timeline: GetRaceTimelineUseCase,
-  ) {}
+  ) {
+    this.runCache = new BoundedCache(this.config.interactiveRace.liveRunCacheEntries);
+  }
+
+  /**
+   * SİMÜLASYON ÖNBELLEĞİ (02.10.2026) — sürücü ve tribün her saniye yoklar;
+   * her yoklama yarışı baştan koşturuyordu. Zaman çizelgesi yalnızca tohum,
+   * dondurulmuş kadro ve komutların fonksiyonudur (determinizm), bu yüzden
+   * anahtar bunlardır: komut değişince anahtar değişir, eski sonuç asla
+   * dönmez. Tohum ya da dondurulmuş snapshot yoksa ÖNBELLEĞE ALINMAZ.
+   * Kesinleşme bu önbelleği KULLANMAZ (`SettleRaceUseCase` kendi koşar).
+   */
+  private readonly runCache: BoundedCache<RaceTimeline>;
 
   /**
    * CANLI TRİBÜN (01.10.2026) — kontrollü yarışı katılımcı olmayan da canlı
@@ -91,18 +105,18 @@ export class LobbyLiveRaceUseCase {
     if (context.status !== 'locking') {
       throw new InteractiveRaceClosedError(raceId);
     }
-    const run = await this.buildRun(context, now);
-    const entryCount = run.timeline.finalResult.length;
+    const timeline = await this.liveTimeline(context, now);
+    const entryCount = timeline.finalResult.length;
     // Hedef, başka oyuncuların gösterilmemiş komutlarından ETKİLENMEZ (önek
     // değişmezliği) — bu yüzden kilit dışında hesaplanabilir; güvenlik payı
     // hesap ile yazım arasındaki zamanı karşılar.
     const target = commandTargetSegment(
-      run.timeline,
+      timeline,
       entryCount,
       liveElapsedMs(context.liveStartsAt, now, this.config.interactiveRace),
       this.config.interactiveRace,
     );
-    if (target >= segmentCountOf(run.timeline, entryCount)) {
+    if (target >= segmentCountOf(timeline, entryCount)) {
       throw new InteractiveRaceClosedError(raceId);
     }
     const written = await this.raceRepository.updateLobbyEntryCommands(
@@ -156,9 +170,30 @@ export class LobbyLiveRaceUseCase {
     return context;
   }
 
-  private async buildRun(context: LobbySettlementContext, now: Date) {
+  private async liveTimeline(context: LobbySettlementContext, now: Date): Promise<RaceTimeline> {
+    const cacheable =
+      context.simulationSeed !== null &&
+      context.entrants.every((entrant) => entrant.horseSnapshot !== null);
+    const key = cacheable
+      ? JSON.stringify([
+          context.raceId,
+          context.simulationSeed,
+          context.entrants.map((entrant) => [entrant.entryId, entrant.playerCommands]),
+        ])
+      : null;
+    if (key !== null) {
+      const hit = this.runCache.get(key);
+      if (hit !== undefined) return hit;
+    }
     const tournament = await this.raceRepository.findTournamentInfo(context.raceId);
-    return this.settleRace.buildRun(context.raceId, context, tournament === null, now);
+    const { timeline } = await this.settleRace.buildRun(
+      context.raceId,
+      context,
+      tournament === null,
+      now,
+    );
+    if (key !== null) this.runCache.set(key, timeline);
+    return timeline;
   }
 
   /** `playerId === null` → tribün görünümü (komut yok, sonuç kartı yok). */
@@ -167,8 +202,7 @@ export class LobbyLiveRaceUseCase {
     playerId: string | null,
     now: Date,
   ): Promise<InteractiveRaceView> {
-    const run = await this.buildRun(context, now);
-    const { timeline } = run;
+    const timeline = await this.liveTimeline(context, now);
     const entryCount = timeline.finalResult.length;
     const total = segmentCountOf(timeline, entryCount);
     const finished = context.status === 'finished';

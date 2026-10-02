@@ -5,6 +5,7 @@
   "revealLeadMs": 2500,
   "commandSafetyMs": 600,
   "finishGraceMs": 1500,
+  "liveRunCacheEntries": 64,
   "scheduler": {
     "enabled": true,
     "tickSeconds": 10,

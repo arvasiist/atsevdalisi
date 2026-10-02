@@ -8,7 +8,11 @@ import {
   type RaceSimulationInput,
 } from '../../../src/domain/race/race-engine';
 import raceConfigJson from '../../../../../config/race.config.json';
-import { measurePlayerControlPlan, PLAYER_CONTROL_PLANS } from './race-balance-harness';
+import {
+  measureMultiPlayerControl,
+  measurePlayerControlPlan,
+  PLAYER_CONTROL_PLANS,
+} from './race-balance-harness';
 import weatherConfigJson from '../../../../../config/weather.config.json';
 
 const raceConfig = raceConfigJson as unknown as RaceBalanceConfig;
@@ -211,6 +215,34 @@ describe('oyuncu kontrolü — denge (harness, 01.10.2026)', () => {
     expect(measurePlayerControlPlan(PLAYER_CONTROL_PLANS.finalWhip5, TRIALS)).toBeLessThanOrEqual(
       baseline + 0.05,
     );
+  });
+
+  it('yön komutu bedava hız değildir (sol/sağ/zikzak yapay zekâya yakın)', () => {
+    for (const plan of [
+      PLAYER_CONTROL_PLANS.laneLeftEvery,
+      PLAYER_CONTROL_PLANS.laneRightEvery,
+      PLAYER_CONTROL_PLANS.laneZigzag,
+    ]) {
+      expect(measurePlayerControlPlan(plan, TRIALS)).toBeGreaterThan(baseline - 0.25);
+    }
+  });
+
+  it('ÇOK OYUNCULU: kontrol avantajı birden çok sürücüde de kalır; beceri ödüllendirilir', () => {
+    const none = measureMultiPlayerControl(
+      Array.from({ length: 4 }, () => PLAYER_CONTROL_PLANS.none),
+      TRIALS,
+    );
+    const smart = measureMultiPlayerControl(
+      Array.from({ length: 4 }, () => PLAYER_CONTROL_PLANS.easeThenFinalWhip),
+      TRIALS,
+    );
+    const mean = (values: number[]) => values.reduce((sum, value) => sum + value, 0) / values.length;
+    expect(mean(smart)).toBeLessThan(mean(none));
+    const [careful, reckless] = measureMultiPlayerControl(
+      [PLAYER_CONTROL_PLANS.easeThenFinalWhip, PLAYER_CONTROL_PLANS.earlyWhip3],
+      TRIALS,
+    );
+    expect(careful! + 1).toBeLessThan(reckless!);
   });
 
   it('hiçbir basit strateji statları ezmez (yapay zekâya göre en fazla 1 sıra)', () => {

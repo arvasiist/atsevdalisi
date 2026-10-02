@@ -1922,5 +1922,11 @@ export interface InteractiveRaceConfig {
    */
   commandSafetyMs: number;
   finishGraceMs: number;
+  /**
+   * Canlı lobi yarışı görünümünün simülasyon önbelleği (02.10.2026) — en
+   * fazla kaç (yarış × komut durumu) sonucu bellekte tutulur. Sürücü ve
+   * tribün her saniye yoklar; komutlar değişmedikçe sonuç aynıdır. 0 kapatır.
+   */
+  liveRunCacheEntries: number;
   scheduler: { enabled: boolean; tickSeconds: number; batchSize: number };
 }

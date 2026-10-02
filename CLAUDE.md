@@ -339,6 +339,13 @@ yüklendikten SONRA okur (`usePlayer`) — eskiden ilk render'da okuyordu ve
 doğrudan açılan/yenilenen sayfa girişli oyuncuya "hesap oluştur" diyordu.
 Canlı görünümde atlar GERÇEK adıyla (sürücüde "Ad (sen)"), botlar tekrar
 oynatmadaki etiketiyle (`bot-2`) görünür — `LobbySettlementEntrant.horseName`.
+(33) **CANLI GÖRÜNÜM ÖNBELLEĞİ + ÇOK OYUNCULU DENGE (02.10.2026, §13.59)** —
+`LobbyLiveRaceUseCase` zaman çizelgesini `BoundedCache` (LRU,
+`interactive-race.liveRunCacheEntries`, 0 kapatır) ile tutar; anahtar
+yarış + tohum + HER katılımın komutları — komut değişince anahtar değişir.
+Tohum ya da dondurulmuş snapshot yoksa önbelleğe ALINMAZ. ⚠️ Kesinleşme
+önbelleği KULLANMAZ. Yön komutu ve çok oyunculu kontrol ölçüldü
+(`RACE_BALANCE_REPORT.md` §9.1); düzeltme gerekmedi, değişmezler CI'da.
 
 **✅ ÜCRETLİ LOBİ YARIŞI ARTIK KOŞUYOR — ÖDÜL DAĞITIMI VAR (§13.14,
 28.09.2026).** `POST /races/:id/settle` yarışı koşar, ödülleri `top5`

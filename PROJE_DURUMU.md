@@ -3713,6 +3713,19 @@ Karar: önce pratik yarış; kırbaç sınırsız, dayanıklılık bedelli.
 - **Not:** her yoklama yarışı yeniden simüle eder (oyuncu görünümüyle aynı);
   çok kalabalık tribünde önbellek gerekebilir.
 
+### 13.59 Canlı görünüm önbelleği + çok oyunculu kontrol dengesi (02.10.2026)
+
+- **Önbellek:** sürücü ve tribün saniyede bir yoklar; her yoklama yarışı
+  baştan koşturuyordu. `LobbyLiveRaceUseCase.liveTimeline` sonucu
+  `BoundedCache`te (LRU, `liveRunCacheEntries`) tutar; anahtar yarış + tohum
+  + tüm katılımların komutları. Tohumsuz/dondurulmamış kadroda önbellek yok.
+  Kesinleşme kendi simülasyonunu koşar (önbellekten okumaz).
+  Kanıt: `test/api/lobby-live-race-cache.spec.ts` (anahtardan komutlar
+  çıkarılınca düştüğü doğrulandı; 0 → kapalı).
+- **Denge:** yön komutu ve 1–4 sürücülü saha ölçüldü — sömürü yok, avantaj
+  birden çok sürücüde küçülüp kalıyor, beceri ödüllendiriliyor
+  (`RACE_BALANCE_REPORT.md` §9.1). Kilitler `race-engine-player-control.spec.ts`.
+
 ## 14. Kendime hatırlatmalar (kısa liste)
 
 1. **Race Engine'e dokunmadan önce iki kez düşün.** Denetim onu "KEEP, dokunma"

@@ -625,6 +625,21 @@ export const PLAYER_CONTROL_PLANS = {
     s < n / 2 ? { whips: 0, laneShift: 0 as const, ease: true } : undefined,
   whipEverySegment: () => ({ whips: 1, laneShift: 0 as const, ease: false }),
   earlyWhip3: (s: number) => (s < 3 ? { whips: 3, laneShift: 0 as const, ease: false } : undefined),
+  // 02.10.2026 — yön komutu: her bölümde içe (sol), dışa (sağ) ve zikzak.
+  laneLeftEvery: () => ({ whips: 0, laneShift: -1 as const, ease: false }),
+  laneRightEvery: () => ({ whips: 0, laneShift: 1 as const, ease: false }),
+  laneZigzag: (s: number) => ({
+    whips: 0,
+    laneShift: (s % 2 === 0 ? -1 : 1) as -1 | 1,
+    ease: false,
+  }),
+  // En iyi "akıllı" plan: ilk yarı sakin, son bölümde kırbaç.
+  easeThenFinalWhip: (s: number, n: number) =>
+    s === n - 1
+      ? { whips: 5, laneShift: 0 as const, ease: false }
+      : s < n / 2
+        ? { whips: 0, laneShift: 0 as const, ease: true }
+        : undefined,
 } satisfies Record<string, PlayerControlPlan>;
 
 /** Planın ortalama bitiş sırası (8 atlık bot sahası, deterministik tohumlar). */
@@ -663,3 +678,52 @@ export function measurePlayerControlPlan(
   }
   return positionSum / trials;
 }
+
+/**
+ * 02.10.2026 — ÇOK OYUNCULU KONTROL. Sahadaki ilk `plans.length` at oyuncudur
+ * ve her biri kendi planını uygular; dönen dizi her oyuncunun ortalama bitiş
+ * sırasıdır. Soru: kontrol avantajı birden çok sürücüde ADDİTİF mi kalır,
+ * yoksa sürücüler birbirini bozar mı (ör. kulvar komutlarının çakışması)?
+ */
+export function measureMultiPlayerControl(
+  plans: readonly PlayerControlPlan[],
+  trials: number,
+  distanceMeters: number = CANONICAL_DISTANCE_METERS,
+): number[] {
+  const segmentCount = Math.max(
+    1,
+    Math.round(distanceMeters / raceBalanceConfig.segmentLengthMeters),
+  );
+  const sums = plans.map(() => 0);
+  for (let trial = 0; trial < trials; trial += 1) {
+    const seed = `player-control-${trial}`;
+    const entries = generateBotEntrants(8, seed);
+    const playerCommands = new Map<string, Map<number, PlayerSegmentCommand>>();
+    plans.forEach((plan, index) => {
+      const commands = new Map<number, PlayerSegmentCommand>();
+      for (let s = 0; s < segmentCount; s += 1) {
+        const command = plan(s, segmentCount);
+        if (command) commands.set(s, command);
+      }
+      playerCommands.set(entries[index]!.horseId, commands);
+    });
+    const timeline = simulateRace({
+      raceId: seed,
+      simulationSeed: seed,
+      distanceMeters,
+      surface: CANONICAL_SURFACE,
+      weather: CANONICAL_WEATHER,
+      temperatureC: CANONICAL_TEMPERATURE_C,
+      entries,
+      raceConfig: raceBalanceConfig,
+      weatherConfig: raceBalanceWeatherConfig,
+      playerCommands,
+    });
+    plans.forEach((_, index) => {
+      const horseId = entries[index]!.horseId;
+      sums[index]! += timeline.finalResult.find((entry) => entry.horseId === horseId)!.finishPosition;
+    });
+  }
+  return sums.map((sum) => sum / trials);
+}
+
