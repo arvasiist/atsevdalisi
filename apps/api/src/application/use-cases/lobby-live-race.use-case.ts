@@ -185,20 +185,18 @@ export class LobbyLiveRaceUseCase {
       playerId === null
         ? null
         : (context.entrants.find((entrant) => entrant.playerId === playerId) ?? null);
-    const humanLabels = new Set(context.entrants.map((entrant) => entrant.horseId));
-    let humanIndex = 0;
-    let botIndex = 0;
+    // Gerçek atlar ADIYLA, botlar tekrar oynatmadaki etiketleriyle (`bot-2`)
+    // gösterilir — canlı ekran ile tekrar aynı adları kullanır.
+    const horseNames = new Map(
+      context.entrants.map((entrant) => [entrant.horseId, entrant.horseName]),
+    );
     const entrants = timeline.finalResult
       .map((entry) => entry.horseId)
       .sort()
       .map((label) => {
         const isPlayer = me !== null && label === me.horseId;
-        const displayName = isPlayer
-          ? 'Senin atın'
-          : humanLabels.has(label)
-            ? `Oyuncu ${(humanIndex += 1)}`
-            : `Rakip ${(botIndex += 1)}`;
-        return { label, displayName, isPlayer };
+        const name = horseNames.get(label) || label;
+        return { label, displayName: isPlayer ? `${name} (sen)` : name, isPlayer };
       });
 
     const outcome =

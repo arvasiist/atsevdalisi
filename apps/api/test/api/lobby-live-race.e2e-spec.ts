@@ -320,6 +320,22 @@ describe('Lobi yarışında oyuncu kontrolü (e2e)', () => {
     expect(view.nextCommandSegment).toBeNull();
     expect(view.canFinish).toBe(false);
     expect(view.entrants.some((entrant: { isPlayer: boolean }) => entrant.isPlayer)).toBe(false);
+    // Gerçek at ADIYLA görünür (tribünde düz ad, sürücüde "(sen)"); botlar
+    // tekrar oynatmadaki etiketleriyle.
+    const horseName = (
+      await pool.query<{ name: string }>('SELECT name FROM horses WHERE id = $1', [rider.horseId])
+    ).rows[0].name;
+    type Named = { label: string; displayName: string };
+    const spectatorRow = view.entrants.find((entrant: Named) => entrant.label === rider.horseId);
+    expect(spectatorRow.displayName).toBe(horseName);
+    const riderRow = riderView.body.data.entrants.find(
+      (entrant: Named) => entrant.label === rider.horseId,
+    );
+    expect(riderRow.displayName).toBe(`${horseName} (sen)`);
+    for (const bot of view.entrants.filter((entrant: Named) => entrant.label !== rider.horseId)) {
+      expect(bot.displayName).toBe(bot.label);
+      expect(bot.label).toMatch(/^bot-\d+$/);
+    }
     // Tribün, oyuncunun henüz görmediği bölümü göremez.
     expect(view.revealedSegments).toBeGreaterThan(0);
     expect(view.revealedSegments).toBeLessThan(view.segmentCount);

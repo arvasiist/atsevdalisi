@@ -936,6 +936,8 @@ export interface LobbySettlementEntrant {
   jockeyId: string | null;
   /** 01.10.2026 — oyuncunun segment komutları (kontrollü yarış; diğerlerinde boş). */
   playerCommands: PlayerCommandLog;
+  /** `horses.name` — canlı görünümde (oyuncu + tribün) at adı (01.10.2026). */
+  horseName: string;
 }
 
 /**

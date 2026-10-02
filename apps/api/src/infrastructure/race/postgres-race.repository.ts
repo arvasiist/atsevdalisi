@@ -262,6 +262,7 @@ interface SettlementRaceRow {
 /** `findLobbySettlementContext`'in `race_entries` satır şekli. */
 interface SettlementEntryRow {
   id: string;
+  horse_name: string | null;
   player_id: string | null;
   horse_id: string | null;
   tactical_style: string | null;
@@ -2241,11 +2242,12 @@ export class PostgresRaceRepository implements RaceRepository {
     // NULLABLE'dır (migration 0037): `status <> 'cancelled'` NULL'da
     // NULL döner ve satırı SESSİZCE elerdi.
     const entryResult = await this.pool.query<SettlementEntryRow>(
-      `SELECT id, player_id, horse_id, tactical_style, risk_level, gate_position, horse_snapshot, jockey_id,
-              player_commands
-       FROM race_entries
-       WHERE race_id = $1 AND player_id IS NOT NULL AND status IS DISTINCT FROM 'cancelled'
-       ORDER BY id`,
+      `SELECT e.id, e.player_id, e.horse_id, e.tactical_style, e.risk_level, e.gate_position,
+              e.horse_snapshot, e.jockey_id, e.player_commands, h.name AS horse_name
+       FROM race_entries e
+       LEFT JOIN horses h ON h.id = e.horse_id
+       WHERE e.race_id = $1 AND e.player_id IS NOT NULL AND e.status IS DISTINCT FROM 'cancelled'
+       ORDER BY e.id`,
       [raceId],
     );
 
@@ -2270,6 +2272,7 @@ export class PostgresRaceRepository implements RaceRepository {
       // ise kesinleşme jokeyi kendisi çözer.
       jockeyId: row.jockey_id,
       playerCommands: row.player_commands ?? {},
+      horseName: row.horse_name ?? '',
     }));
 
     return {

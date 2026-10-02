@@ -3706,6 +3706,10 @@ Karar: önce pratik yarış; kırbaç sınırsız, dayanıklılık bedelli.
   kaldırılınca düştüğü doğrulandı), web `ride-logic.spec` `finishOrder`.
   Tarayıcıda: bekleme bildirimi → kilit → canlı tribün (kontrol yok) →
   kazanan kartı → tekrar oynatma (aynı kazanan).
+- **At adları (02.10.2026):** canlı görünüm (sürücü + tribün) "Oyuncu 1 /
+  Rakip 2" yerine gerçek at adlarını (`horses.name`, bağlam sorgusunda JOIN)
+  ve botların tekrar oynatmadaki etiketlerini (`bot-2`) gösterir — canlı
+  ekran ile tekrar aynı adları kullanır. Kanıt: aynı e2e'de ad iddiaları.
 - **Not:** her yoklama yarışı yeniden simüle eder (oyuncu görünümüyle aynı);
   çok kalabalık tribünde önbellek gerekebilir.
 

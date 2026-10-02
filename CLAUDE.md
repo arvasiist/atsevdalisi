@@ -337,6 +337,8 @@ oyuncunun görmediğini göremez). `/races/:id/watch` yarış kilitlenene kadar
 "Tekrarı izle" soket oynatmasına döner. ⚠️ İzleme sayfası token'ı oturum
 yüklendikten SONRA okur (`usePlayer`) — eskiden ilk render'da okuyordu ve
 doğrudan açılan/yenilenen sayfa girişli oyuncuya "hesap oluştur" diyordu.
+Canlı görünümde atlar GERÇEK adıyla (sürücüde "Ad (sen)"), botlar tekrar
+oynatmadaki etiketiyle (`bot-2`) görünür — `LobbySettlementEntrant.horseName`.
 
 **✅ ÜCRETLİ LOBİ YARIŞI ARTIK KOŞUYOR — ÖDÜL DAĞITIMI VAR (§13.14,
 28.09.2026).** `POST /races/:id/settle` yarışı koşar, ödülleri `top5`
