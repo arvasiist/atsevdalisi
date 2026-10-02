@@ -452,7 +452,7 @@ doğrulama ancak GitHub Actions'ta gerçek Postgres/Redis ile yapılabiliyor.
 | **Matchmaking senkron** | `JoinMatchmakingQueueUseCase.playMatch` eşleşmeyi HTTP isteği içinde yapar; 30.09.2026'dan beri `MatchmakingScheduler` kuyruğu ayrıca tarar (§13.33). Projede artık beş zamanlayıcı var (kilit, turnuva, sezon, eşleştirme, takvim) |
 | **Pazar süresi dolması tembel** | `PostgresMarketListingRepository.sweepExpiredListings` — lazy sweep, zamanlanmış iş değil |
 | ~~**Müzayede ilanı yok**~~ | **KAPANDI (02.10.2026, §13.60)** |
-| ~~**Jokey bağlanmamış**~~ **KAPANDI (§13.30, PHASE 6.2, 29.09.2026)** | `calculateJockeySkillComposite` artık motora girer; `race_entries.jockey_id` kilit anında yazılır. **AÇIK KALAN:** `calculateJockeyHorseCompatibility` ve `domain/jockey/jockey.ts`'teki `calculateTemperamentComponent` hâlâ **çağıransız**; `gatePosition` hâlâ okunmuyor |
+| ~~**Jokey bağlanmamış**~~ **KAPANDI (§13.30, PHASE 6.2, 29.09.2026)** | `calculateJockeySkillComposite` artık motora girer; `race_entries.jockey_id` kilit anında yazılır. **02.10.2026:** `calculateJockeyHorseCompatibility` (mizaç bileşeni dahil) BAĞLANDI (§13.62). **AÇIK KALAN:** `gatePosition` hâlâ okunmuyor |
 | ~~**Jokey serbest bırakma yolu yok**~~ | **KAPANDI (29.09.2026)** — `POST /jockeys/:jockeyId/release` |
 | ~~**Çiftlik/personel çarpanları bağlanmamış**~~ | **KAPANDI (01.10.2026)** — personel §13.42, tesisler §13.54 (veteriner merkezi bilinçli etkisiz: bakım ücretsiz) |
 | ~~**Bağlanmamış domain modülleri**~~ | **KAPANDI (30.09–01.10.2026):** turnuva §13.35, kulüp §13.41, sezon §13.43, ilerleme §13.40, yetiştirme §13.4 — hepsi uç + ekranla bağlı |
@@ -3773,6 +3773,21 @@ Karar: önce pratik yarış; kırbaç sınırsız, dayanıklılık bedelli.
   otoritesi — çevrimdışı oyun anlamsız; önbellek bayat bakiye gösterirdi).
 - Kanıt: web `pwa.spec.ts`; üretim sunucusunda manifest + ikonlar 200,
   yanlış ölçü 404; Chromium `Page.getInstallabilityErrors` → boş.
+
+### 13.62 Jokey-at uyumu bağlandı (02.10.2026)
+
+- `effectiveJockeySkill` (saf): beceri × (1 + `compatibilityInfluence` ×
+  (uyum − 50)/50). Üç yerde kadro kurulurken kullanılır: lobi
+  (`EntrantSnapshotBuilder`, ortak geçmiş `findJockeyPairAveragePerformance`),
+  pratik yarış (ortak geçmiş dahil), hızlı eşleşme (geçmiş nötr).
+- **Motor değişmedi**; değer dondurulan kadroya yazılır → eski yarışların
+  yeniden oynatması bozulmaz. Etki 0 = eski davranış.
+- Ölçüm ve gerekçe: `RACE_BALANCE_REPORT.md` §10 (≈ ±0.2 sıra).
+- Ekran salt beceri puanını göstermeye devam eder: uyum gizli mizaca bağlıdır,
+  sayısal göstermek gizli stat'ı sızdırırdı.
+- Kanıt: `test/domain/jockey/effective-jockey-skill.spec.ts`; `jockey.e2e-spec.ts`
+  motora giren değeri bağımsız girdilerle yeniden hesaplar ve salt beceriden
+  farklı olduğunu iddia eder (mizaç sabitlenerek).
 
 ## 14. Kendime hatırlatmalar (kısa liste)
 

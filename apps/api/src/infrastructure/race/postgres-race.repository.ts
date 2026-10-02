@@ -762,6 +762,18 @@ export class PostgresRaceRepository implements RaceRepository {
    * sorgu segment-seviyesinde çalıştığından ayrım daha nettir. Salt okunur,
    * `withTransaction` GEREKMEZ.
    */
+  async findJockeyPairAveragePerformance(horseId: string, jockeyId: string): Promise<number | null> {
+    // `performance_score` NUMERIC → metin döner; `Number(...)` şart.
+    const result = await this.pool.query<{ average: string | null }>(
+      `SELECT AVG(performance_score) AS average
+       FROM race_entries
+       WHERE horse_id = $1::uuid AND jockey_id = $2::uuid AND performance_score IS NOT NULL`,
+      [horseId, jockeyId],
+    );
+    const average = result.rows[0]?.average;
+    return average == null ? null : Number(average);
+  }
+
   async findRaceStatus(raceId: string): Promise<RaceStatus | null> {
     const result = await this.pool.query<{ status: RaceStatus }>(
       'SELECT status FROM races WHERE id = $1::uuid',

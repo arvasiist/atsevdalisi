@@ -182,6 +182,12 @@ export interface RaceRepository {
   findRaceStatus(raceId: string): Promise<RaceStatus | null>;
 
   /**
+   * 02.10.2026 — bu at-jokey ikilisinin geçmiş yarışlarındaki ortalama
+   * `performance_score`u (0-100); ortak geçmiş yoksa `null` (uyumda nötr).
+   */
+  findJockeyPairAveragePerformance(horseId: string, jockeyId: string): Promise<number | null>;
+
+  /**
    * AUDIT_REPORT.md Bulgu R2 (Medium, bu oturum) — `GET /races/:id/timeline`
    * yetkilendirmesi: bu yarışta `playerId`'ye ait EN AZ bir gerçek at
    * (bot DEĞİL) katılımcı olarak var mı? `HorseOwnerGuardByParam` ile AYNI

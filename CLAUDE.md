@@ -371,6 +371,11 @@ Yeni tür eklerken kısıtı ADIYLA (`notifications_type_check`) düşür.
 yolundan `next/og` ile üretilir (`/pwa-icon/[size]`, `app/icon.tsx`,
 `app/apple-icon.tsx`) — `public/`e ikon DOSYASI koyma. Service worker YOK
 (bilinçli). Chromium kurulabilirlik denetimi hatasız.
+(36) **JOKEY-AT UYUMU (02.10.2026, §13.62)** — `effectiveJockeySkill` kadro
+dondurulurken `jockeySkillComposite`e yazılır (lobi/pratik/eşleşme);
+`jockey.compatibilityInfluence` (0.15, 0 = eski davranış). MOTOR DEĞİŞMEDİ.
+⚠️ Kadrodaki jokey puanını salt `calculateJockeySkillComposite` ile
+karşılaştıran test yazma — uyum dahil değerdir (`jockey.e2e-spec.ts`).
 
 **✅ ÜCRETLİ LOBİ YARIŞI ARTIK KOŞUYOR — ÖDÜL DAĞITIMI VAR (§13.14,
 28.09.2026).** `POST /races/:id/settle` yarışı koşar, ödülleri `top5`

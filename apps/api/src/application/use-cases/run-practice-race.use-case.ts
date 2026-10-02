@@ -19,7 +19,7 @@ import {
   type TrackFitInput,
 } from '../../domain/race/entrant-snapshot';
 import { assignGatePositions } from '../../domain/race/gate-assignment';
-import { calculateJockeySkillComposite } from '../../domain/jockey/jockey';
+import { effectiveJockeySkill } from '../../domain/jockey/jockey';
 import {
   computeRacePool,
   getDefaultRaceTier,
@@ -255,7 +255,18 @@ export class RunPracticeRaceUseCase {
       equippedItems,
       // PHASE 6.2 — oyuncunun kiralı jokeyi varsa puanı, yoksa `null`
       // (motor nötre çevirir). Botlarınki BİLEREK nötr kalır.
-      jockey === null ? null : calculateJockeySkillComposite(jockey, this.config.jockey),
+      // 02.10.2026 — uyum dahil (`effectiveJockeySkill`).
+      jockey === null
+        ? null
+        : effectiveJockeySkill(
+            {
+              jockey,
+              horse: { temperament: stats.temperament, racingStyle: input.tactic.racingStyle },
+              previousPairAveragePerformance:
+                await this.raceRepository.findJockeyPairAveragePerformance(horseId, jockey.id),
+            },
+            this.config.jockey,
+          ),
     );
     // ALAN DOLDURMA (proje sahibinin açık talebi, 27.09.2026): bot sayısı
     // artık sabit değil, kademenin `fieldSize`'ından türer — oyuncunun

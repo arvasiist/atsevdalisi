@@ -10,7 +10,7 @@ import type {
   RaceSegmentSnapshot,
 } from '@at-sevdalisi/shared-types';
 import { buildHorseEntrantSnapshot, FORM_SAMPLE_SIZE, type TrackFitInput } from '../../domain/race/entrant-snapshot';
-import { calculateJockeySkillComposite } from '../../domain/jockey/jockey';
+import { effectiveJockeySkill } from '../../domain/jockey/jockey';
 import { assignGatePositions } from '../../domain/race/gate-assignment';
 import { findBestMatch } from '../../domain/online/matchmaking';
 import { createRaceRoomSeed, validateRaceRoomParticipants } from '../../domain/online/race-room';
@@ -437,9 +437,30 @@ export class JoinMatchmakingQueueUseCase {
     // JOKEY (PHASE 6.2, 29.09.2026) — kompozit HER İKİ taraf için ayrı
     // hesaplanır; `null` jokey → `null` kompozit → `buildHorseEntrantSnapshot`
     // nötr 50'ye indirger (bkz. o fonksiyonun 7. parametresi).
-    const myJockeySkillComposite = myJockey === null ? null : calculateJockeySkillComposite(myJockey, this.config.jockey);
+    // 02.10.2026 — uyum dahil (`effectiveJockeySkill`). Hızlı eşleşmede ortak
+    // geçmiş sorgulanmaz (nötr) — mizaç + stil + deneyim yine işler.
+    const myJockeySkillComposite =
+      myJockey === null
+        ? null
+        : effectiveJockeySkill(
+            {
+              jockey: myJockey,
+              horse: { temperament: stats.temperament, racingStyle: DEFAULT_RACE_TACTIC.racingStyle },
+              previousPairAveragePerformance: null,
+            },
+            this.config.jockey,
+          );
     const opponentJockeySkillComposite =
-      opponentJockey === null ? null : calculateJockeySkillComposite(opponentJockey, this.config.jockey);
+      opponentJockey === null
+        ? null
+        : effectiveJockeySkill(
+            {
+              jockey: opponentJockey,
+              horse: { temperament: opponentStats.temperament, racingStyle: DEFAULT_RACE_TACTIC.racingStyle },
+              previousPairAveragePerformance: null,
+            },
+            this.config.jockey,
+          );
 
     const mySnapshot = buildHorseEntrantSnapshot(
       horse, stats, DEFAULT_RACE_TACTIC, recentResults, myTrackFit, equippedItems, myJockeySkillComposite,

@@ -725,6 +725,11 @@ export interface JockeyConfig {
   experienceForMaxScore: number;
   /** at-jokey ikilisinin hiç ortak geçmişi yoksa previous_pair_history_component için nötr varsayılan. */
   neutralHistoryScore: number;
+  /**
+   * 02.10.2026 — jokey-at uyumunun beceri puanına etkisi (0 = kapalı).
+   * `effectiveJockeySkill`: `beceri × (1 + etki × (uyum − 50) / 50)`.
+   */
+  compatibilityInfluence: number;
 }
 
 /**

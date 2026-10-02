@@ -386,3 +386,16 @@ sürücüde küçülür (sıfır toplamlı sıralama, beklenen) ama kaybolmaz; b
 farkı belirgin ödüllendirilir. Düzeltme gerekmedi. CI kilitleri:
 `race-engine-player-control.spec.ts` (yön > yapay zekâ − 0.25; dört akıllı
 sürücü komutsuzdan iyi; akıllı, pervasızdan en az 1 sıra iyi).
+
+## 10. Jokey-at uyumu — 02.10.2026
+
+`calculateJockeyHorseCompatibility` (mizaç + stil + deneyim + ortak geçmiş,
+0-100, 50 nötr) artık kadro dondurulurken jokey beceri puanını ölçekler:
+`beceri × (1 + 0.15 × (uyum − 50) / 50)` (`jockey.compatibilityInfluence`).
+Motor DEĞİŞMEDİ (parmak izi aynı); eski dondurulmuş kadrolar aynen kalır.
+
+Ölçüm (1000 yarış, 8 at, 1600 m): jokey puanının her 1 puanı ≈ 0.043 sıra
+(44 → 4.73, 50 → 4.47, 62 → 3.97, 74 → 3.53). Gerçekçi uyum aralığında
+(35-75) etki ≈ ±4.5 puan ≈ ±0.2 sıra — kırbaç stratejisinin kazancından
+(≈0.3, §9.1) küçük: hissedilir, baskın değil. Botlar nötr kalır.
+
