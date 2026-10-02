@@ -1825,6 +1825,8 @@ export interface AuthConfig {
     maxActiveSessionsPerPlayer: number;
     userAgentMaxLength: number;
   };
+  /** 02.10.2026 — e-posta doğrulama bağlantısı (migration 0058). */
+  emailVerification: { tokenTtlHours: number; tokenBytes: number; minIntervalSeconds: number };
 }
 
 /**

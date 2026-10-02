@@ -112,4 +112,63 @@ export class PostgresPlayerCredentialsRepository implements PlayerCredentialsRep
       return playerId;
     });
   }
+
+  async findVerificationState(playerId: string): Promise<{ email: string; verifiedAt: Date | null } | null> {
+    const result = await this.pool.query<{ email: string; email_verified_at: Date | null }>(
+      'SELECT email, email_verified_at FROM player_credentials WHERE player_id = $1',
+      [playerId],
+    );
+    const row = result.rows[0];
+    return row === undefined ? null : { email: row.email, verifiedAt: row.email_verified_at };
+  }
+
+  async findLatestVerificationRequestAt(playerId: string): Promise<Date | null> {
+    const result = await this.pool.query<{ created_at: Date }>(
+      'SELECT created_at FROM email_verification_tokens WHERE player_id = $1 ORDER BY created_at DESC LIMIT 1',
+      [playerId],
+    );
+    return result.rows[0]?.created_at ?? null;
+  }
+
+  async createVerificationToken(input: {
+    playerId: string;
+    email: string;
+    tokenHash: string;
+    expiresAt: Date;
+  }): Promise<void> {
+    await this.pool.query(
+      'INSERT INTO email_verification_tokens (player_id, email, token_hash, expires_at) VALUES ($1, $2, $3, $4)',
+      [input.playerId, input.email, input.tokenHash, input.expiresAt],
+    );
+  }
+
+  async consumeVerificationToken(input: { tokenHash: string; now: Date }): Promise<string | null> {
+    return withTransaction(this.pool, async (client) => {
+      const found = await client.query<{ player_id: string; email: string }>(
+        `SELECT player_id, email FROM email_verification_tokens
+         WHERE token_hash = $1 AND used_at IS NULL AND expires_at > $2
+         FOR UPDATE`,
+        [input.tokenHash, input.now],
+      );
+      const row = found.rows[0];
+      if (row === undefined) {
+        return null;
+      }
+      // Bağlantı ÜRETİLDİĞİ e-postayı doğrular: adres o arada değiştiyse
+      // eski bağlantı yeni adresi doğrulayamaz.
+      const updated = await client.query(
+        `UPDATE player_credentials SET email_verified_at = COALESCE(email_verified_at, $3)
+         WHERE player_id = $1 AND lower(email) = lower($2)`,
+        [row.player_id, row.email, input.now],
+      );
+      if ((updated.rowCount ?? 0) === 0) {
+        return null;
+      }
+      await client.query(
+        'UPDATE email_verification_tokens SET used_at = $2 WHERE player_id = $1 AND used_at IS NULL',
+        [row.player_id, input.now],
+      );
+      return row.player_id;
+    });
+  }
 }

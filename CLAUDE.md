@@ -385,6 +385,12 @@ kimliği `afterInit` ara katmanındadır; `handleConnection`a async kapı
 KOYMA (bağlanır bağlanmaz gelen olay `playerId`siz işlenir). ⚠️ Web oturumu
 YALNIZCA 401'de siler (`isUnauthorized`); ağ hatasında silmek misafir
 hesabını kaybettirir. Eski (`sid`siz) token kabul edilir, yükseltilir.
+(38) **E-POSTA DOĞRULAMA (02.10.2026, migration 0058, §13.64)** — kayıt
+doğrulama e-postası yollar (hata kaydı bozmaz); bağlantı özetle saklanır,
+tek kullanımlık, ÜRETİLDİĞİ e-postaya bağlı. `GET /auth/credentials`
+`emailVerified` taşır. ⚠️ Kayıt artık e-posta ürettiği için giden kutusunu
+SAYAN testleri konuya (`subject`) daralt (yaşandı: `password-reset.e2e-spec.ts`).
+Doğrulama bugün hiçbir özelliği kapatmaz.
 
 **✅ ÜCRETLİ LOBİ YARIŞI ARTIK KOŞUYOR — ÖDÜL DAĞITIMI VAR (§13.14,
 28.09.2026).** `POST /races/:id/settle` yarışı koşar, ödülleri `top5`

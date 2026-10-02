@@ -41,6 +41,9 @@ import {
   MissingAuthTokenError,
   SessionNotFoundError,
   SessionUpgradeNotAllowedError,
+  InvalidVerificationTokenError,
+  NoAccountEmailError,
+  EmailAlreadyVerifiedError,
 } from '../../domain/auth/errors';
 import {
   StaffAlreadyHiredError,
@@ -403,6 +406,13 @@ const DOMAIN_ERROR_MAP = new Map<ErrorClassConstructor, { status: number; code: 
     SessionUpgradeNotAllowedError,
     { status: HttpStatus.CONFLICT, code: ErrorCode.SessionUpgradeNotAllowed },
   ],
+  // 02.10.2026 — e-posta doğrulama (migration 0058).
+  [
+    InvalidVerificationTokenError,
+    { status: HttpStatus.BAD_REQUEST, code: ErrorCode.InvalidVerificationToken },
+  ],
+  [NoAccountEmailError, { status: HttpStatus.CONFLICT, code: ErrorCode.NoAccountEmail }],
+  [EmailAlreadyVerifiedError, { status: HttpStatus.CONFLICT, code: ErrorCode.EmailAlreadyVerified }],
   // Token GEÇERLİ ama sahiplik yok — kavramsal olarak 401'den FARKLI, bkz.
   // `ForbiddenError` doc yorumu.
   [ForbiddenError, { status: HttpStatus.FORBIDDEN, code: ErrorCode.Forbidden }],

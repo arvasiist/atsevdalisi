@@ -130,6 +130,8 @@ export interface AuthSessionInfo {
  */
 export interface AccountCredentialsView {
   email: string | null;
+  /** 02.10.2026 (migration 0058) — kayıtlı e-posta doğrulandı mı; e-posta yoksa `false`. */
+  emailVerified: boolean;
   /**
    * 01.10.2026 — hesaba bağlı dış giriş sağlayıcıları (`POST /auth/link`).
    * E-postası olmayan ama Google bağlı bir hesap da kalıcıdır; "misafir" =

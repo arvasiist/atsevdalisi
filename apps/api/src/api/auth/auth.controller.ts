@@ -12,6 +12,7 @@ import { AuthSessionUseCase } from '../../application/use-cases/auth-session.use
 import { LinkProviderUseCase } from '../../application/use-cases/link-provider.use-case';
 import { LoginWithProviderUseCase } from '../../application/use-cases/login-with-provider.use-case';
 import { PasswordAuthUseCase } from '../../application/use-cases/password-auth.use-case';
+import { EmailVerificationUseCase } from '../../application/use-cases/email-verification.use-case';
 import { CurrentPlayer, type AuthenticatedPlayer } from './current-player.decorator';
 import { toPlayerSummary } from '../dto/player.mapper';
 import { RateLimit } from '../rate-limit/rate-limit.decorator';
@@ -41,6 +42,7 @@ export class AuthController {
     @Inject(AuthSessionUseCase) private readonly sessions: AuthSessionUseCase,
     @Inject(PasswordAuthUseCase) private readonly passwordAuth: PasswordAuthUseCase,
     @Inject(LinkProviderUseCase) private readonly linkProvider: LinkProviderUseCase,
+    @Inject(EmailVerificationUseCase) private readonly emailVerification: EmailVerificationUseCase,
   ) {}
 
   // AUDIT_REPORT.md Bulgu S5 (High) hardening (bu oturum) — `register`
@@ -164,6 +166,8 @@ export class AuthController {
     @CurrentPlayer() currentPlayer: AuthenticatedPlayer,
   ): Promise<ApiSuccess<{ email: string }>> {
     const saved = await this.passwordAuth.saveAccount(currentPlayer.id, body?.email, body?.password);
+    // 02.10.2026 — kayıt sonrası doğrulama e-postası; gönderim hatası kaydı bozmaz.
+    await this.emailVerification.sendAfterRegistration(currentPlayer.id);
     return { success: true, data: { email: saved.email } };
   }
 
@@ -171,11 +175,38 @@ export class AuthController {
   @Get('credentials')
   @HttpCode(HttpStatus.OK)
   async credentials(@CurrentPlayer() currentPlayer: AuthenticatedPlayer): Promise<ApiSuccess<AccountCredentialsView>> {
-    const [email, linkedProviders] = await Promise.all([
+    const [email, linkedProviders, emailVerified] = await Promise.all([
       this.passwordAuth.accountEmail(currentPlayer.id),
       this.linkProvider.linkedProviders(currentPlayer.id),
+      this.emailVerification.isVerified(currentPlayer.id),
     ]);
-    return { success: true, data: { email, linkedProviders } };
+    return { success: true, data: { email, linkedProviders, emailVerified } };
+  }
+
+  /**
+   * E-POSTA DOĞRULAMA BAĞLANTISI İSTE (02.10.2026, migration 0058). Oyuncu
+   * token'dan gelir. `sent: false` = kısa aralıkta ikinci istek, e-posta
+   * gitmedi. Misafir 409 `NO_ACCOUNT_EMAIL`, doğrulanmış 409
+   * `EMAIL_ALREADY_VERIFIED`.
+   */
+  @RateLimit({ name: 'email-verification-request', limit: 5, windowSeconds: 900, keyBy: 'player' })
+  @Post('email/verification')
+  @HttpCode(HttpStatus.ACCEPTED)
+  async requestEmailVerification(
+    @CurrentPlayer() currentPlayer: AuthenticatedPlayer,
+  ): Promise<ApiSuccess<{ sent: boolean }>> {
+    const result = await this.emailVerification.send(currentPlayer.id);
+    return { success: true, data: { sent: result === 'sent' } };
+  }
+
+  /** Doğrulama onayı — e-postadaki bağlantının `token`ı. `@Public()`: bağlantı başka cihazda açılabilir. */
+  @RateLimit({ name: 'email-verification-confirm', limit: 10, windowSeconds: 900, keyBy: 'ip' })
+  @Public()
+  @Post('email/verify')
+  @HttpCode(HttpStatus.OK)
+  async verifyEmail(@Body() body: { token?: unknown }): Promise<ApiSuccess<{ verified: true }>> {
+    await this.emailVerification.verify(body?.token);
+    return { success: true, data: { verified: true } };
   }
 
   /**

@@ -92,7 +92,7 @@ describe('Google girişi + hesap bağlama (e2e)', () => {
       .get('/api/v1/auth/credentials')
       .set('Authorization', guest.authHeader)
       .expect(200);
-    expect(status.body.data).toEqual({ email: null, linkedProviders: ['google'] });
+    expect(status.body.data).toEqual({ email: null, emailVerified: false, linkedProviders: ['google'] });
 
     const session = await googleLogin(token).expect(200);
     expect(session.body.data.player.id).toBe(guest.playerId);

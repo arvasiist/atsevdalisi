@@ -40,6 +40,7 @@ const AUTH_CONFIG = loadAuthConfig();
 export default function AccountPage(): React.ReactElement {
   const { player, isLoading, createPlayer, loginWithPassword, loginWithGoogle, logout, logoutAll } = usePlayer();
   const [accountEmail, setAccountEmail] = useState<string | null | undefined>(undefined);
+  const [emailVerified, setEmailVerified] = useState(false);
   const [linkedProviders, setLinkedProviders] = useState<AccountProvider[]>([]);
   const [googleClientId, setGoogleClientId] = useState<string | null>(null);
   const [email, setEmail] = useState('');
@@ -75,6 +76,7 @@ export default function AccountPage(): React.ReactElement {
         if (cancelled) return;
         setAccountEmail(status.email);
         setLinkedProviders(status.linkedProviders);
+        setEmailVerified(status.emailVerified);
       })
       .catch(() => {
         if (!cancelled) setAccountEmail(null);
@@ -111,8 +113,9 @@ export default function AccountPage(): React.ReactElement {
     try {
       const saved = await apiClient.saveAccount(email, password);
       setAccountEmail(saved.email);
+      setEmailVerified(false);
       setPassword('');
-      setNotice('Hesabın kaydedildi. Artık her cihazdan bu e-posta ve şifreyle giriş yapabilirsin.');
+      setNotice('Hesabın kaydedildi. Artık her cihazdan bu e-posta ve şifreyle giriş yapabilirsin. E-postana bir doğrulama bağlantısı gönderdik.');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Hesap kaydedilemedi.');
     } finally {
@@ -181,6 +184,23 @@ export default function AccountPage(): React.ReactElement {
     }
     void logout().then(() => setNotice('Çıkış yapıldı.'));
   }, [isGuest, logout]);
+
+  const sendVerification = useCallback(async () => {
+    setIsBusy(true);
+    setError(null);
+    try {
+      const result = await apiClient.requestEmailVerification();
+      setNotice(
+        result.sent
+          ? 'Doğrulama bağlantısı gönderildi. Gelen kutunu (ve gereksiz klasörünü) kontrol et.'
+          : 'Az önce bir bağlantı gönderildi; birkaç dakika sonra tekrar deneyebilirsin.',
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Bağlantı gönderilemedi.');
+    } finally {
+      setIsBusy(false);
+    }
+  }, []);
 
   const confirmLogoutAll = useCallback(async () => {
     await logoutAll();
@@ -317,6 +337,27 @@ export default function AccountPage(): React.ReactElement {
               <strong style={{ color: 'var(--color-text-primary)' }}>{accountEmail}</strong> ile kayıtlısın. Başka bir
               cihazda bu e-posta ve şifreyle giriş yapabilirsin.
             </p>
+          ) : null}
+          {typeof accountEmail === 'string' ? (
+            emailVerified ? (
+              <p style={{ ...mutedStyle(), color: 'var(--color-status-positive)' }} data-testid="email-verified">
+                ✓ E-posta doğrulandı.
+              </p>
+            ) : (
+              <div style={{ marginTop: 'var(--space-sm)' }} data-testid="email-unverified">
+                <p style={mutedStyle()}>
+                  E-postan henüz doğrulanmadı. Kayıtta gönderilen bağlantıyı açarak adresin sana ait olduğunu kanıtla.
+                </p>
+                <button
+                  type="button"
+                  disabled={isBusy}
+                  onClick={() => void sendVerification()}
+                  style={{ ...secondaryButtonStyle(), marginTop: 'var(--space-sm)' }}
+                >
+                  Doğrulama bağlantısını tekrar gönder
+                </button>
+              </div>
+            )
           ) : null}
           {isGoogleLinked ? (
             <p style={mutedStyle()}>

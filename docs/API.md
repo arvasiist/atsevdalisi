@@ -113,6 +113,8 @@ POST   /api/v1/auth/logout               # bu cihaz — token ANINDA geçersiz
 POST   /api/v1/auth/logout-all           # tüm cihazlar + eski token'lar
 GET    /api/v1/auth/sessions             # AuthSessionInfo[] (yalnızca çağıranın)
 DELETE /api/v1/auth/sessions/{id}        # başkasınınki/olmayan → 404 SESSION_NOT_FOUND
+POST   /api/v1/auth/email/verification   # doğrulama bağlantısı iste → 202 { sent }
+POST   /api/v1/auth/email/verify         # @Public, { token } → { verified: true }
 ```
 
 `AuthSession` = `{ token, refreshToken, accessTokenExpiresAt, player }`.
@@ -2946,6 +2948,9 @@ dosyanın doc yorumu).
 | `EMAIL_ALREADY_REGISTERED` | Bu e-posta başka bir hesaba bağlı — `POST /auth/credentials` (409); karşılaştırma büyük/küçük harf duyarsız (30.09.2026) |
 | `INVALID_RESET_TOKEN` | Şifre sıfırlama bağlantısı geçersiz, süresi dolmuş ya da kullanılmış — `POST /auth/password-reset/confirm` (400). Üç durum BİLEREK tek koddur (30.09.2026, migration 0047) |
 | `INVALID_REFRESH_TOKEN` | Refresh token geçersiz, süresi dolmuş, kapatılmış ya da YENİDEN kullanılmış — `POST /auth/refresh` (401). Dört durum BİLEREK tek koddur; yeniden kullanım oturumu kapatır (02.10.2026, migration 0057) |
+| `INVALID_VERIFICATION_TOKEN` | E-posta doğrulama bağlantısı geçersiz, süresi dolmuş, kullanılmış ya da e-posta değişmiş — `POST /auth/email/verify` (400), tek kod (02.10.2026, migration 0058) |
+| `NO_ACCOUNT_EMAIL` | Misafir hesabın doğrulanacak e-postası yok — `POST /auth/email/verification` (409) |
+| `EMAIL_ALREADY_VERIFIED` | E-posta zaten doğrulanmış (409) |
 | `SESSION_NOT_FOUND` | Oturum yok ya da çağırana ait değil — `DELETE /auth/sessions/:id` (404, varlık sızdırılmaz) |
 | `SESSION_UPGRADE_NOT_ALLOWED` | `POST /auth/session` yalnızca eski (`sid`siz) token'ı yükseltir (409) |
 | `CREDENTIALS_ALREADY_SET` | Bu hesap zaten e-posta + şifreyle kayıtlı — `POST /auth/credentials` (409) (30.09.2026) |

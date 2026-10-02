@@ -5,6 +5,7 @@ import { PLAYER_AUTH_PROVIDER_REPOSITORY } from '../../application/ports/player-
 import { LinkProviderUseCase } from '../../application/use-cases/link-provider.use-case';
 import { LoginWithProviderUseCase } from '../../application/use-cases/login-with-provider.use-case';
 import { PasswordAuthUseCase } from '../../application/use-cases/password-auth.use-case';
+import { EmailVerificationUseCase } from '../../application/use-cases/email-verification.use-case';
 import { PASSWORD_HASHER } from '../../application/ports/password-hasher';
 import { PLAYER_CREDENTIALS_REPOSITORY } from '../../application/ports/player-credentials.repository';
 import { PostgresPlayerCredentialsRepository } from '../../infrastructure/auth/postgres-player-credentials.repository';
@@ -45,6 +46,8 @@ import { AuthGuard } from './auth.guard';
     LinkProviderUseCase,
     // 30.09.2026 — e-posta + şifre girişi (migration 0046).
     PasswordAuthUseCase,
+    // 02.10.2026 — e-posta doğrulama (migration 0058).
+    EmailVerificationUseCase,
     { provide: PASSWORD_HASHER, useClass: ScryptPasswordHasher },
     { provide: PLAYER_CREDENTIALS_REPOSITORY, useClass: PostgresPlayerCredentialsRepository },
     // Şifre sıfırlama e-postası (migration 0047): `RESEND_API_KEY` varsa

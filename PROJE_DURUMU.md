@@ -3820,6 +3820,28 @@ Karar: önce pratik yarış; kırbaç sınırsız, dayanıklılık bedelli.
   `player-context.spec.tsx` / `session-logic.spec.ts` / `api-client.spec.ts`;
   tarayıcıda yerel Playwright ile uçtan uca denendi.
 
+### 13.64 E-posta doğrulama (02.10.2026, migration 0058)
+
+- `player_credentials.email_verified_at` + `email_verification_tokens`
+  (yalnızca SHA-256 özet, hedef e-posta, tek kullanımlık, 48 sa —
+  `auth.emailVerification`). 0058 öncesi kayıtlar doğrulanmamış görünür ve
+  bağlantı isteyebilir; veri bozulmaz.
+- Kayıt (`POST /auth/credentials`) doğrulama e-postasını kendiliğinden yollar;
+  gönderim hatası kaydı BOZMAZ (yalnızca loglanır, bağlantı loglanmaz).
+- `POST /auth/email/verification` (oturumlu; `sent: false` = kısa aralıkta
+  tekrar; misafir 409 `NO_ACCOUNT_EMAIL`, doğrulanmış 409
+  `EMAIL_ALREADY_VERIFIED`) · `POST /auth/email/verify` (`@Public`; geçersiz /
+  süresi dolmuş / kullanılmış / e-posta değişmiş → TEK 400
+  `INVALID_VERIFICATION_TOKEN`). `GET /auth/credentials` → `emailVerified`.
+- Web: `/account` rozeti + "tekrar gönder"; `/account/verify` doğrulamayı
+  DÜĞMEYLE yapar (JS çalıştıran e-posta tarayıcıları tek kullanımlık
+  bağlantıyı tüketmesin).
+- **Bugün hiçbir özelliği kapatmaz** — yalnızca sahipliği kaydeder. Bilinen
+  açık: başkasının e-postasıyla doğrulanmamış kayıt o adresi meşgul eder
+  (sahibi kaydolamaz); "doğrulanmamış kaydı devralma" ayrı bir karar.
+- Kanıt: `test/api/email-verification.e2e-spec.ts` (5 test); tarayıcıda uçtan
+  uca (kayıt → e-postadaki bağlantı → doğrula → rozet).
+
 ## 14. Kendime hatırlatmalar (kısa liste)
 
 1. **Race Engine'e dokunmadan önce iki kez düşün.** Denetim onu "KEEP, dokunma"

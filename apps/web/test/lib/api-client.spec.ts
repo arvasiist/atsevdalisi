@@ -1194,3 +1194,19 @@ describe('OTURUM YENİLEME — 401 → bir kez yenile + tekrar dene (02.10.2026)
     expect(JSON.parse(String((fetchMock.mock.calls[0]![1] as RequestInit).body))).toEqual({ refreshToken: 'r1' });
   });
 });
+
+describe('E-POSTA DOĞRULAMA uçları (02.10.2026)', () => {
+  it('istek ve onay doğru rota/yöntem/gövdeyi kullanır', async () => {
+    setAuthToken('t');
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ success: true, data: {} }));
+    vi.stubGlobal('fetch', fetchMock);
+    await apiClient.requestEmailVerification();
+    await apiClient.verifyEmail('dogrulama-1');
+    const calls = fetchMock.mock.calls.map(([url, config]) => [String(url).replace(API_BASE_URL, ''), (config as RequestInit).method]);
+    expect(calls).toEqual([
+      ['/auth/email/verification', 'POST'],
+      ['/auth/email/verify', 'POST'],
+    ]);
+    expect(JSON.parse(String((fetchMock.mock.calls[1]![1] as RequestInit).body))).toEqual({ token: 'dogrulama-1' });
+  });
+});

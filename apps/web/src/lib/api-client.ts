@@ -319,6 +319,14 @@ export const apiClient = {
    */
   getAuthProviders: () => request<AuthProvidersView>('/auth/providers'),
 
+  /** E-POSTA DOĞRULAMA (02.10.2026, migration 0058) — `sent: false` = kısa aralıkta tekrar, e-posta gitmedi. */
+  requestEmailVerification: () =>
+    request<{ sent: boolean }>('/auth/email/verification', { method: 'POST' }),
+
+  /** E-postadaki bağlantının `token`ı ile doğrulama — token'sız da çalışır. */
+  verifyEmail: (token: string) =>
+    request<{ verified: true }>('/auth/email/verify', { method: 'POST', body: JSON.stringify({ token }) }),
+
   /**
    * OTURUM (02.10.2026, migration 0057). `refreshSession` token'sız
    * çağrılabilir (erişim token'ı dolmuşken); dönen refresh token ESKİSİNİN

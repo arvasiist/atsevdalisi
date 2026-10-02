@@ -68,7 +68,8 @@ VAR (02.10.2026, Faz 1-B.1): kısa ömürlü erişim JWT'si + dönen refresh
 token (özet saklanır, yeniden kullanımda oturum kapanır), sunucu tarafı
 logout / logout-all, cihaz listesi + cihaz kapatma, şifre sıfırlamada tüm
 oturumların kapanması, guard + soket oturum kapısı (çıkış ANINDA etkili).
-YOK: **e-posta doğrulama**, **hesap silme / veri silme**, Apple girişi. Üretim için `GOOGLE_OAUTH_CLIENT_ID`, `RESEND_API_KEY`, güçlü `JWT_SECRET` gerekir.
+VAR (02.10.2026, Faz 1-B.2): e-posta doğrulama (bağlantı, yeniden gönderme, durum).
+YOK: **hesap silme / veri silme**, Apple girişi. Üretim için `GOOGLE_OAUTH_CLIENT_ID`, `RESEND_API_KEY`, güçlü `JWT_SECRET` gerekir.
 
 ## Economy Status — TESTED (üretim değil)
 
@@ -261,7 +262,7 @@ Brief fazlarına göre gerçek durum:
 | Faz | Durum |
 |---|---|
 | 0 Audit | COMPLETE (bu dosya) |
-| 1 Core | PARTIAL — oyun çekirdeği TESTED, oturum TESTED (1-B.1); e-posta doğrulama + hesap silme eksik |
+| 1 Core | PARTIAL — oyun çekirdeği TESTED, oturum + e-posta doğrulama TESTED (1-B.1/1-B.2); hesap silme eksik |
 | 2 Management | TESTED |
 | 3 Genetics | TESTED |
 | 4 Farm | TESTED |
@@ -360,3 +361,37 @@ TECHNICAL DEBT: açık soket bağlantısı çıkışta koparılmaz (yeni bağlan
 PRODUCTION BLOCKERS: "iptal edilemez 30 günlük JWT" KAPANDI
 REMAINING: 1-B.2 e-posta doğrulama, 1-B.3 hesap silme, 13-A üretim temeli
 NEXT PHASE: 1-B.2 E-posta doğrulama
+
+---
+
+PHASE: 1-B.2 — E-posta doğrulama
+STATUS: TESTED
+COMPLETED: Kayıtta doğrulama e-postası; tek kullanımlık, süreli, e-postaya
+bağlı bağlantı (özet saklanır); yeniden gönderme (aralık sınırı); durum
+`GET /auth/credentials.emailVerified`; `/account` rozeti + `/account/verify`.
+FILES CREATED: database/migrations/0058_create_email_verification.{up,down}.sql ·
+application/use-cases/email-verification.use-case.ts · apps/web/src/app/account/verify/page.tsx ·
+test/api/email-verification.e2e-spec.ts
+FILES MODIFIED: player-credentials port + Postgres repo · auth.controller/module ·
+domain/auth/errors · http-exception.filter · config/auth.config.json (+emailVerification) ·
+game-config types · shared-types (AccountCredentialsView.emailVerified, 3 kod) ·
+web api-client + account sayfası · password-reset/google-link e2e (yeni e-posta/alan) · belgeler
+DATABASE CHANGES: `player_credentials.email_verified_at` + `email_verification_tokens` (eklemeli)
+API CHANGES: POST /auth/email/verification, POST /auth/email/verify; credentials görünümüne `emailVerified`
+FRONTEND CHANGES: doğrulama rozeti, tekrar gönder, doğrulama sayfası (düğmeyle)
+BACKEND CHANGES: EmailVerificationUseCase
+GAMEPLAY CHANGES: —
+3D CHANGES: —
+AI CHANGES: —
+SECURITY CHANGES: bağlantı düz metni saklanmaz/loglanmaz; e-posta değişirse eski bağlantı geçersiz
+ADMIN CHANGES: —
+DEPLOYMENT CHANGES: üretimde gerçek gönderim için `RESEND_API_KEY` (değişmedi)
+TESTS ADDED: email-verification.e2e-spec.ts (5), web api-client (+1)
+TESTS PASSED: API 158 dosya (2355 test; temiz şema), web 43 dosya / 523; tarayıcıda uçtan uca
+TESTS FAILED: 0
+BUGS FOUND: 98519ab öncesi e653023'te iki soket testi yanlışlıkla düşmüştü (CI lint yakaladı) — geri eklendi
+BUGS FIXED: aynı
+TECHNICAL DEBT: doğrulanmamış e-postayla adres işgali (devralma kararı yok)
+PRODUCTION BLOCKERS: —
+REMAINING: 1-B.3 hesap silme, 13-A üretim temeli
+NEXT PHASE: 1-B.3 Hesap silme

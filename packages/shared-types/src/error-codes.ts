@@ -31,6 +31,10 @@ export const ErrorCode = {
   SessionNotFound: 'SESSION_NOT_FOUND',
   // `POST /auth/session` yalnızca oturumsuz (eski) token'ı yükseltir.
   SessionUpgradeNotAllowed: 'SESSION_UPGRADE_NOT_ALLOWED',
+  // 02.10.2026 — e-posta doğrulama (migration 0058).
+  InvalidVerificationToken: 'INVALID_VERIFICATION_TOKEN',
+  NoAccountEmail: 'NO_ACCOUNT_EMAIL',
+  EmailAlreadyVerified: 'EMAIL_ALREADY_VERIFIED',
   NotFound: 'NOT_FOUND',
   // AUDIT_REPORT.md Bulgu S1/S2/S4 hardening (bu oturum) — brief §41/§50
   // Google/Apple Sign-In + IDOR sertleştirmesi. `Unauthorized` (401) daha

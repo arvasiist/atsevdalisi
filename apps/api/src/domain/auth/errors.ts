@@ -166,3 +166,27 @@ export class SessionUpgradeNotAllowedError extends Error {
     this.name = 'SessionUpgradeNotAllowedError';
   }
 }
+
+/** Doğrulama bağlantısı geçersiz, süresi dolmuş, kullanılmış ya da e-posta değişmiş (400, migration 0058) — tek hata. */
+export class InvalidVerificationTokenError extends Error {
+  constructor() {
+    super('Doğrulama bağlantısı geçersiz ya da süresi dolmuş. Hesap sayfasından yeni bağlantı iste.');
+    this.name = 'InvalidVerificationTokenError';
+  }
+}
+
+/** Doğrulanacak e-posta yok — misafir hesap (409). */
+export class NoAccountEmailError extends Error {
+  constructor() {
+    super('Hesabına kayıtlı bir e-posta yok. Önce hesabını kaydet.');
+    this.name = 'NoAccountEmailError';
+  }
+}
+
+/** E-posta zaten doğrulanmış (409). */
+export class EmailAlreadyVerifiedError extends Error {
+  constructor() {
+    super('E-postan zaten doğrulanmış.');
+    this.name = 'EmailAlreadyVerifiedError';
+  }
+}
