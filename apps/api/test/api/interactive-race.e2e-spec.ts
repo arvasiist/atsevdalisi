@@ -205,7 +205,14 @@ describe('Oyuncu kontrollü pratik yarış (e2e)', () => {
         .send({ control: 'whip' })
         .expect(200)
     ).body.data;
-    expect(Object.keys(after.myCommands)).toEqual([String(before.revealedSegments)]);
+    // Komut, POST ANINDAKİ ilk gösterilmemiş segmente düşer. Yarış saati GET
+    // ile POST arasında ilerleyebilir (CI'da yaşandı: 4 beklenip 5 geldi) —
+    // bu yüzden iddia "GET'te görülen ilk boş segmentten önce DEĞİL ve
+    // POST yanıtında gösterilenlerin ötesinde DEĞİL"dir.
+    const commandSegments = Object.keys(after.myCommands).map(Number);
+    expect(commandSegments).toHaveLength(1);
+    expect(commandSegments[0]).toBeGreaterThanOrEqual(before.revealedSegments);
+    expect(commandSegments[0]).toBeLessThanOrEqual(after.revealedSegments);
     const shown = before.segments.length;
     expect(after.segments.slice(0, shown)).toEqual(before.segments);
 
