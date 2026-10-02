@@ -237,8 +237,12 @@ describe('Personel (e2e)', () => {
 
     const reset = async () => {
       await pool.query('UPDATE horse_stats SET speed = 50 WHERE horse_id = $1', [player.horseId]);
+      // `status` de sıfırlanır: antrenman rastgele sakatlık üretebilir
+      // (`rollInjuryOccurred`) ve sakat at ikinci antrenmanı 409 ile reddeder —
+      // CI'da yaşandı (02.10.2026, kararsız düşüş). Ölçülen şey kazanç
+      // çarpanıdır; sakatlık bu testin konusu değildir.
       await pool.query(
-        'UPDATE horses SET potential = 90, health = 100, fatigue = 0, energy = 100 WHERE id = $1',
+        "UPDATE horses SET potential = 90, health = 100, fatigue = 0, energy = 100, status = 'active' WHERE id = $1",
         [player.horseId],
       );
     };
