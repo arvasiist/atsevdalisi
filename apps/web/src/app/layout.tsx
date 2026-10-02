@@ -22,6 +22,9 @@ export const metadata: Metadata = {
   title: 'AT Sevdalısı',
   description:
     'At sahibi/yönetici simülasyonu — atını yetiştir, antrenman yaptır, yarış kazan, kendi şampiyon kan hattını kur.',
+  // PWA (02.10.2026): manifest `app/manifest.ts`ten, ikonlar `app/icon.tsx`,
+  // `app/apple-icon.tsx`, `app/pwa-icon/[size]` (logo yolundan üretilir).
+  appleWebApp: { capable: true, title: 'At Sevdalısı', statusBarStyle: 'black-translucent' },
 };
 
 export const viewport: Viewport = {

@@ -458,7 +458,7 @@ doğrulama ancak GitHub Actions'ta gerçek Postgres/Redis ile yapılabiliyor.
 | ~~**Bağlanmamış domain modülleri**~~ | **KAPANDI (30.09–01.10.2026):** turnuva §13.35, kulüp §13.41, sezon §13.43, ilerleme §13.40, yetiştirme §13.4 — hepsi uç + ekranla bağlı |
 | ~~**Placeholder sayfalar**~~ | **KAPANDI** — `/club`, `/farm`, `/leaderboard` gerçek ekranlar |
 | **Bağlanmamış iskeletler** | ~~`RaceAudioManager`/`html-audio-backend`, `GltfAssetLoader`~~ **01.10.2026'da BAĞLANDI** (§13.46, §13.51); `PlayerDemoWidget.tsx` hiçbir sayfada mount edilmiyor. (**`DustParticles` ve `PedigreeTree` artık BAĞLI** — 27.09.2026, bkz. §13 ve §13.2) |
-| **PWA nominal** | `public/manifest.json` → `icons: []`, `layout.tsx`'ten link'lenmiyor, `next-pwa` yok |
+| ~~**PWA nominal**~~ | **KAPANDI (02.10.2026, §13.61)** — `app/manifest.ts` + logo yolundan üretilen ikonlar; Chromium kurulabilirlik denetimi hatasız. Service worker YOK (bilinçli: oyun çevrimiçi) |
 | ~~**`notification.new`**~~ | **KAPANDI** — olay adı `notification.created` (`race.gateway.ts`), istemci `notification-socket.ts` dinler |
 
 ### 10.2 Yapılandırma tutarsızlıkları
@@ -3760,6 +3760,19 @@ Karar: önce pratik yarış; kırbaç sınırsız, dayanıklılık bedelli.
   hareketiyle aynı transaction'da; `/notifications` metinleri ve bağlantıları
   (pazar/ahır/cüzdan) eklendi. CHECK kısıtı adıyla düşürülüp genişletildi;
   kapalı küme testi artık CHECK'i yazan EN SON migration'ı okur.
+
+### 13.61 PWA — ana ekrana kurulabilir (02.10.2026)
+
+- `public/manifest.json` hiçbir sayfaya bağlı değildi ve ikonu yoktu (silindi).
+  Yerine `app/manifest.ts` (`/manifest.webmanifest`, Next `<head>`e bağlar).
+- İkonlar DOSYA DEĞİL: `HorseHeadIcon`un `HEAD_PATH`/`MANE_PATH` yolları
+  `next/og` ile PNG'ye çevrilir — `/pwa-icon/192|512` (any + maskable, logo
+  %62 → güvenli bölge), `app/icon.tsx` (favicon), `app/apple-icon.tsx` (iOS).
+  Uydurma/lisanssız görsel yok (kural 8); logo değişirse ikon da değişir.
+- iOS: `metadata.appleWebApp`. Service worker bilinçli olarak YOK (sunucu
+  otoritesi — çevrimdışı oyun anlamsız; önbellek bayat bakiye gösterirdi).
+- Kanıt: web `pwa.spec.ts`; üretim sunucusunda manifest + ikonlar 200,
+  yanlış ölçü 404; Chromium `Page.getInstallabilityErrors` → boş.
 
 ## 14. Kendime hatırlatmalar (kısa liste)
 

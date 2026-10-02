@@ -9,13 +9,14 @@ import { useId } from 'react';
  * verilirse logo için altın degrade kullanılır.
  */
 
-const HEAD_PATH =
+/** PWA ikonu da (`app/pwa-icon`) AYNI yolu çizer — tek kaynak. */
+export const HEAD_PATH =
   'M14 60 C13 49 15 39 19 31 C21.5 26 24.5 22 28 19 L26 7.5 C26 6.6 27 6.2 27.7 6.9 L33.3 12.4 ' +
   'C40 12 46 16 50.5 22.5 L57.5 33.5 C59 36 58.4 39.4 55.6 40 C53.8 40.4 52.2 39.8 50.8 38.8 L46 35.6 ' +
   'C43.2 34 40.4 35.6 39.8 39 C39.2 43 40.4 48 42.6 52 L46 60 Z ' +
   'M42 22 a1.9 1.9 0 1 0 0.01 0 Z M54.6 35 a1 1 0 1 0 0.01 0 Z';
 
-const MANE_PATH =
+export const MANE_PATH =
   'M8 54 C9 44 11 35 16 27 C19 22 23 18 27.5 15.5 C23 22 20.5 29 19.5 37 C18.8 43 18.8 49 19.5 55 Z';
 
 export interface HorseHeadIconProps {

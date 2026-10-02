@@ -13,8 +13,8 @@ Realistic Thoroughbred horse GLB, Gallop animation, Compatible skeleton`).
 ## Durum (2026-09-25 itibarıyla)
 
 **Aşağıdaki listedeki HİÇBİR varlık şu an repoda YOKTUR.**
-`apps/web/public/` klasörü boştur (yalnızca `manifest.json` PWA dosyası
-var). Bu BİLİNÇLİ bir kararın sonucudur: proje sahibi, gerçek varlık
+`apps/web/public/` klasörü boştur (PWA manifesti ve ikonları 02.10.2026'dan beri kodla üretilir — `app/manifest.ts`,
+`app/pwa-icon`). Bu BİLİNÇLİ bir kararın sonucudur: proje sahibi, gerçek varlık
 kaynağı seçimi (satın alma / lisanslı paket / özel üretim) konusunda
 **"şimdilik erteleyelim"** demiştir (bkz.
 `docs/IMPLEMENTATION_PLAN_MASTER_BRIEF.md`'nin "Grup 2" bölümü). Bu

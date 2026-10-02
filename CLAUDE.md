@@ -367,6 +367,10 @@ gitmez), `auction_won`, `auction_sold`, `auction_unsold`, `auction_refunded` —
 para hareketiyle AYNI transaction'da. ⚠️ `notifications.type` CHECK'i artık
 0056'dadır; `notification-types.spec.ts` CHECK'i yazan EN SON migration'ı okur.
 Yeni tür eklerken kısıtı ADIYLA (`notifications_type_check`) düşür.
+(35) **PWA (02.10.2026, §13.61)** — `app/manifest.ts` + ikonlar logo SVG
+yolundan `next/og` ile üretilir (`/pwa-icon/[size]`, `app/icon.tsx`,
+`app/apple-icon.tsx`) — `public/`e ikon DOSYASI koyma. Service worker YOK
+(bilinçli). Chromium kurulabilirlik denetimi hatasız.
 
 **✅ ÜCRETLİ LOBİ YARIŞI ARTIK KOŞUYOR — ÖDÜL DAĞITIMI VAR (§13.14,
 28.09.2026).** `POST /races/:id/settle` yarışı koşar, ödülleri `top5`
