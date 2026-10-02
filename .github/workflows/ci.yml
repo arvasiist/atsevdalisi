@@ -115,3 +115,58 @@ jobs:
 
       - name: Build
         run: npm run build
+
+  # 02.10.2026 (Faz 13-A) — GÜVENLİK TARAMASI.
+  # (1) Bağımlılık kapısı: YÜKSEK/KRİTİK her danışman
+  #     `security/audit-allowlist.json`da gerekçeli + süresi dolmamış bir
+  #     kayıt ister; yeni açık ya da süresi dolan izin CI'ı kırar.
+  # (2) Gizli anahtar taraması: tüm git geçmişi gitleaks ile taranır;
+  #     incelenmiş yanlış pozitifler `.gitleaksignore`da. İkili sürüm
+  #     sabitlenir ve SHA-256 ile doğrulanır.
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+      - name: Dependency audit gate
+        run: node tools/security/audit-gate.mjs
+      - name: Secret scan (gitleaks)
+        env:
+          GITLEAKS_VERSION: 8.24.3
+          GITLEAKS_SHA256: 9991e0b2903da4c8f6122b5c3186448b927a5da4deef1fe45271c3793f4ee29c
+        run: |
+          curl -sSL -o gitleaks.tgz "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          echo "${GITLEAKS_SHA256}  gitleaks.tgz" | sha256sum -c -
+          tar xzf gitleaks.tgz gitleaks
+          ./gitleaks git --no-banner --redact --exit-code 1 .
+
+  # 02.10.2026 (Faz 13-A) — imajlar her değişiklikte DERLENİR (gönderilmez).
+  # Duman testi: API imajı üretim modunda ortam değişkenleri olmadan
+  # AÇILMAYI REDDETMELİDİR (production-env.ts) — imaj hem çalışır hem de
+  # güvensiz yapılandırmayla canlıya çıkamaz.
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build API image
+        run: docker build -f apps/api/Dockerfile -t at-sevdalisi-api .
+      - name: Build migrate image
+        run: docker build -f apps/api/Dockerfile --target migrate -t at-sevdalisi-migrate .
+      - name: Build web image
+        run: docker build -f apps/web/Dockerfile --build-arg NEXT_PUBLIC_API_URL=https://api.example.invalid/api/v1 -t at-sevdalisi-web .
+      - name: API image refuses to start without production env
+        run: |
+          set +e
+          output=$(docker run --rm at-sevdalisi-api 2>&1)
+          code=$?
+          set -e
+          echo "$output"
+          test "$code" -ne 0
+          echo "$output" | grep -q "\[ortam\] HATA: JWT_SECRET"

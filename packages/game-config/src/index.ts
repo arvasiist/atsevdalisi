@@ -18,6 +18,7 @@
  */
 import type {
   AuthConfig,
+  OpsConfig,
   AdminConfig,
   AudioConfig,
   CameraConfig,
@@ -77,6 +78,7 @@ import chatConfigJson from '../../../config/chat.config.json';
 import raceLobbyConfigJson from '../../../config/race-lobby.config.json';
 import adminConfigJson from '../../../config/admin.config.json';
 import authConfigJson from '../../../config/auth.config.json';
+import opsConfigJson from '../../../config/ops.config.json';
 
 export function loadRaceConfig(): RaceBalanceConfig {
   return raceConfigJson as unknown as RaceBalanceConfig;
@@ -254,6 +256,14 @@ export * from './types';
  */
 export function loadAuthConfig(): AuthConfig {
   return authConfigJson as unknown as AuthConfig;
+}
+
+/**
+ * 02.10.2026 — işletim (Faz 13-A): hazırlık denetimi zaman aşımı, istek
+ * kimliği sınırı, üretim ortam doğrulaması. Oyun dengesi DEĞİLDİR.
+ */
+export function loadOpsConfig(): OpsConfig {
+  return opsConfigJson as unknown as OpsConfig;
 }
 
 /** 01.10.2026 — atın durumu → 3D davranış (salt görsel). */

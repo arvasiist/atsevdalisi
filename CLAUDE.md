@@ -398,6 +398,14 @@ Doğrulama bugün hiçbir özelliği kapatmaz.
 ⚠️ Oyuncuya bağlı YENİ bir kişisel veri tablosu eklersen
 `postgres-account-deletion.repository.ts` silme listesine de ekle; yeni bir
 emanet/para bekleten durum eklersen `BLOCKERS_SQL`e ekle.
+(40) **ÜRETİM TEMELİ (02.10.2026, Faz 13-A, §13.66)** — üretimde eksik/zayıf
+ortamla API AÇILMAZ (`production-env.ts`); yeni zorunlu bir ortam değişkeni
+eklersen oraya + `docs/DEPLOYMENT.md`ye yaz. `/health/ready` DB+Redis.
+Hata zarfı `error.requestId` taşır. ⚠️ CI `security` işi: yeni yüksek/kritik
+bağımlılık açığı CI'ı KIRAR; izin eklemek karardır (gerekçe + son tarih,
+`security/audit-allowlist.json`). İzinler **2026-11-01'de biter** (Next 16 /
+Nest 12 yükseltmesi gerekir). Gitleaks tüm geçmişi tarar; yanlış pozitif
+`.gitleaksignore`a parmak iziyle. Docker yerelde YOK — imajlar CI'da derlenir.
 
 **✅ ÜCRETLİ LOBİ YARIŞI ARTIK KOŞUYOR — ÖDÜL DAĞITIMI VAR (§13.14,
 28.09.2026).** `POST /races/:id/settle` yarışı koşar, ödülleri `top5`

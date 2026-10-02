@@ -3,7 +3,9 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { IoAdapter } from '@nestjs/platform-socket.io';
 import helmet from 'helmet';
+import { loadOpsConfig } from '@at-sevdalisi/game-config';
 import { AppModule } from './app.module';
+import { checkEnvironment } from './infrastructure/ops/production-env';
 import { HttpExceptionFilter } from './api/middleware/http-exception.filter';
 
 /**
@@ -12,6 +14,21 @@ import { HttpExceptionFilter } from './api/middleware/http-exception.filter';
  * eklenecektir.
  */
 async function bootstrap(): Promise<void> {
+  // 02.10.2026 (Faz 13-A) — üretimde eksik/zayıf ortam değişkeniyle AÇILMA
+  // (bkz. `production-env.ts`). Değerlerin kendisi ASLA loglanmaz.
+  const envCheck = checkEnvironment(process.env, loadOpsConfig().productionEnv);
+  for (const warning of envCheck.warnings) {
+    // eslint-disable-next-line no-console
+    console.warn(`[ortam] UYARI: ${warning}`);
+  }
+  if (envCheck.errors.length > 0) {
+    for (const error of envCheck.errors) {
+      // eslint-disable-next-line no-console
+      console.error(`[ortam] HATA: ${error}`);
+    }
+    process.exit(1);
+  }
+
   const app = await NestFactory.create(AppModule);
 
   // AUDIT_REPORT.md Bulgu F2 (bu oturum) — `RaceGateway`'in (bkz. o

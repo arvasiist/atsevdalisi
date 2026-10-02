@@ -1960,3 +1960,10 @@ export interface InteractiveRaceConfig {
   liveRunCacheEntries: number;
   scheduler: { enabled: boolean; tickSeconds: number; batchSize: number };
 }
+
+/** 02.10.2026 — `config/ops.config.json` (Faz 13-A, işletim). */
+export interface OpsConfig {
+  readiness: { checkTimeoutMs: number };
+  requestId: { maxLength: number };
+  productionEnv: { minJwtSecretLength: number; forbiddenJwtSecrets: string[] };
+}

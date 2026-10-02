@@ -77,8 +77,12 @@ YOK: Apple girişi; kişisel veri DIŞA AKTARMA. Üretim için `GOOGLE_OAUTH_CLI
 Sunucu otoriteli; her hareket defterde (tür, tutar, önce/sonra bakiye,
 referans). Idempotency: satın alma, hediye, para yatırma, bilet (anahtar);
 yarış ödülü/iade/müzayede durum geçişiyle. Mutabakat e2e testi var.
-⚠️ **ÜRETİM ENGELİ:** `mockDeposit.enabled = true` — gerçek ödeme olmadan
-oyuncuya sanal para yükleyen bir yol (brief §70 "FAKE PURCHASE"). Elmas
+**DÜZELTME (02.10.2026, Faz 13-A):** Faz 0 denetimi "mockDeposit üretimde
+açık" demişti — YANLIŞTI: `MockPaymentProvider.isEnabled()` config bayrağı
+VE `NODE_ENV !== 'production'` ister, yani üretimde sahte yatırma zaten
+kapalıydı. Gerçek açık web'deydi: form istemci config'ine bakıyordu ve
+üretimde de "Yükle" gösteriyordu; artık sunucunun `depositAvailable`
+bayrağına bağlı. Elmas
 (premium) birimi var ama **harcama yolu yok** (`gemShopWhitelist` ölü config).
 Gerçek ödeme sağlayıcısı YOK (NOT_STARTED).
 
@@ -177,23 +181,31 @@ Zamanlayıcıyla açılan takvim yarışları, turnuvalar, sezon ve sezon ödül
 günlük ödül. YOK: günlük/haftalık etkinlik, duyuru, sınırlı ödül, yönetimden
 etkinlik planlama.
 
-## Observability Status — PARTIAL (zayıf)
+## Observability Status — PARTIAL
 
-`GET /health` yalnızca "ok" döner (DB/Redis kontrol ETMEZ). Nest `Logger`
-var; yapılandırılmış log, istek kimliği (request id), hata izleme (Sentry vb.),
-metrik YOK. Hata yanıtı `{ code, message }` — request id taşımıyor.
+VAR (02.10.2026, Faz 13-A): `GET /health` (canlılık) + `GET /health/ready`
+(PostgreSQL + Redis, zaman aşımlı, 503); her yanıtta `X-Request-Id`, hata
+zarfında `error.requestId`, beklenmeyen hata logu istek kimliğiyle (yığın
+izi istemciye gitmez). YOK: yapılandırılmış (JSON) log, hata izleme
+(Sentry vb.), metrik.
 
-## Deployment Status — NOT_STARTED
+## Deployment Status — PARTIAL
 
-Dockerfile, staging/production ortamı, dağıtım hattı, ortam ayrımı, gizli
-anahtar yönetimi YOK. CI yalnızca doğrular (deploy etmez).
+VAR (02.10.2026, Faz 13-A): `apps/api/Dockerfile` (runtime + `migrate`
+hedefi, root olmayan kullanıcı, HEALTHCHECK), `apps/web/Dockerfile`,
+`.dockerignore`, CI'da imaj build + "eksik ortamla açılmaz" duman testi,
+üretim ortam doğrulaması (açılışta), `docs/DEPLOYMENT.md`. YOK: staging/
+production ortamı, imaj kayıt defteri + dağıtım hattı, gizli anahtar
+yöneticisi, yedek/geri yükleme provası.
 
 ## Security Status — PARTIAL (iyi temel)
 
 Sunucu otoritesi, sahiplik kapıları, IDOR (403 önce 404 sonra), hız sınırı
 (sosyal/para/yarış/müzayede), idempotency, değişmez defter, gizli statların
-sızmaması, tohum gizliliği, helmet. YOK: CI'da bağımlılık/gizli anahtar/SAST
-taraması, anormal davranış tespiti, dosya
+sızmaması, tohum gizliliği, helmet, CI'da bağımlılık kapısı (gerekçeli +
+süreli izin listesi) ve gizli anahtar taraması (gitleaks, tüm geçmiş).
+⚠️ **Next.js 14'te kritik açıklar** (bkz. Production Blockers 9). YOK: SAST,
+anormal davranış tespiti, dosya
 yükleme güvenliği (henüz yükleme yok).
 
 ## Testing Status — TESTED
@@ -234,13 +246,17 @@ geri kalanı (at/pazar/config/etkinlik/rol) · gözlemlenebilirlik · dağıtım
 ## Production Blockers
 
 1. Gerçek 3D/ses varlıkları (satın alınacak).
-2. `mockDeposit` üretimde açık (sahte para yolu) — kapatılmalı ya da gerçek ödemeyle değiştirilmeli.
+2. ~~`mockDeposit` üretimde açık~~ **YANLIŞ TESPİTTİ** (sunucu üretimde zaten kapalı); web formu artık sunucu bayrağına bağlı (Faz 13-A). Gerçek ödeme sağlayıcısı hâlâ yok.
 3. ~~Oturum güvenliği: 30 günlük iptal edilemez JWT, logout/refresh yok.~~ **KAPANDI (02.10.2026, Faz 1-B.1).**
 4. ~~E-posta doğrulama + hesap silme (KVKK/GDPR) yok.~~ **KAPANDI (02.10.2026, Faz 1-B.2/1-B.3)**; veri dışa aktarma hâlâ yok.
-5. Gözlemlenebilirlik (sağlık kontrolü DB/Redis, request id, hata izleme) yok.
-6. Dağıtım (Dockerfile, staging, gizli anahtar yönetimi, yedek/geri yükleme) yok.
+5. Gözlemlenebilirlik: sağlık + istek kimliği VAR (13-A); hata izleme/metrik/yapılandırılmış log YOK.
+6. Dağıtım: Dockerfile + CI imaj build VAR (13-A); staging, kayıt defteri, gizli anahtar yöneticisi, yedek/geri yükleme YOK.
 7. Kimlik bilgileri: `GOOGLE_OAUTH_CLIENT_ID`, `RESEND_API_KEY`.
 8. AI avatar (brief zorunlu kılıyor) — sağlayıcı + depolama kararı.
+9. **Next.js 14 kritik/yüksek açıklar** (GHSA-2xp9-vwfh-vxw4 ve GHSA-p293-qw3h-jr36 uzaktan kod
+   çalıştırma, SSRF, DoS) + `@nestjs/platform-express`/multer DoS — düzeltme yalnızca büyük sürüm
+   (Next 16, Nest 12). `security/audit-allowlist.json` 2026-11-01'de sona erer → o tarihten sonra CI
+   kırılır. Faz 13-B: çerçeve yükseltmesi.
 
 ## Recommended Priority
 
@@ -275,7 +291,7 @@ Brief fazlarına göre gerçek durum:
 | 10 Admin | PARTIAL |
 | 11 Live Ops | PARTIAL |
 | 12 Monetization | NOT_STARTED (yalnızca sahte yatırma) |
-| 13 Production | NOT_STARTED |
+| 13 Production | PARTIAL — 13-A temel (sağlık, istek kimliği, ortam kapısı, taramalar, Dockerfile) TESTED; 13-B çerçeve yükseltmesi + staging/izleme yok |
 | 14 Final E2E | PARTIAL — `final.e2e-spec.ts` API yolculuğu var; avatar/ödeme yok |
 
 ## Next Phase
@@ -432,3 +448,44 @@ TECHNICAL DEBT: kişisel veri dışa aktarma yok; şikâyet metinleri moderasyon
 PRODUCTION BLOCKERS: "hesap/veri silme yok" KAPANDI
 REMAINING: 13-A üretim temeli (health DB/Redis, request id, mockDeposit üretimde kapalı, CI taramaları, Dockerfile)
 NEXT PHASE: 13-A Üretim temeli
+
+---
+
+PHASE: 13-A — Üretim temeli
+STATUS: TESTED (Docker imajları yalnızca CI'da derlenir — yerelde Docker daemon yok)
+COMPLETED: Üretim ortam kapısı (eksik/zayıf ortamda açılmaz); `/health/ready`
+(DB + Redis); istek kimliği (başlık + hata zarfı + log); cüzdan formu sunucu
+bayrağına bağlı; CI bağımlılık kapısı + gitleaks; API/web Dockerfile + CI build
++ duman testi; `images.unoptimized` (savunma katmanı); `docs/DEPLOYMENT.md`.
+FILES CREATED: config/ops.config.json · infrastructure/ops/production-env.ts ·
+api/middleware/request-id.middleware.ts · tools/security/audit-gate.mjs ·
+security/audit-allowlist.json · .gitleaksignore · .dockerignore ·
+apps/api/Dockerfile · apps/web/Dockerfile · docs/DEPLOYMENT.md ·
+test/security/production-env.spec.ts · test/api/ops.e2e-spec.ts
+FILES MODIFIED: main.ts · app.module.ts · health.controller · http-exception.filter ·
+get-wallet use-case + wallet repo/port · game-config (loadOpsConfig) · shared-types
+(WalletView.depositAvailable) · web wallet sayfası + next.config.mjs · ci.yml ·
+apps/api/.env.example · belgeler
+DATABASE CHANGES: —
+API CHANGES: GET /health/ready; tüm yanıtlarda X-Request-Id; hata zarfında error.requestId;
+GET /players/:id/wallet → depositAvailable
+FRONTEND CHANGES: yatırma formu yalnızca sunucu izin verirse
+BACKEND CHANGES: açılış ortam doğrulaması, istek kimliği ara katmanı
+GAMEPLAY CHANGES: —
+3D CHANGES: —
+AI CHANGES: —
+SECURITY CHANGES: zayıf/eksik gizli değerle açılmama; DISABLE_RATE_LIMIT üretimde yasak;
+istek kimliği güvenli karakterle sınırlı (log enjeksiyonu yok); bağımlılık + gizli anahtar taraması
+ADMIN CHANGES: —
+DEPLOYMENT CHANGES: Dockerfile'lar, migrate hedefi, HEALTHCHECK, CI imaj build
+TESTS ADDED: production-env.spec.ts (16), ops.e2e-spec.ts (6, Redis düşük senaryosu dahil)
+TESTS PASSED: API 161 dosya / 2383 (temiz şema), web 43 / 524; derlenmiş sunucu üretim modunda
+eksik ortamla çıkış 1, tam ortamla /health/ready 200; audit kapısı yeni açıkla 1 döner (negatif deneme)
+TESTS FAILED: 0
+BUGS FOUND: web yatırma formu üretimde de görünüyordu; Faz 0 "mockDeposit üretimde açık" tespiti yanlıştı
+BUGS FIXED: ikisi de
+TECHNICAL DEBT: `images.unoptimized` etkisi yerelde gösterilemedi (uç her iki ayarda 404) —
+asıl çözüm Next yükseltmesi
+PRODUCTION BLOCKERS: Next 14 kritik açıklar (yeni, 9. madde) — Faz 13-B
+REMAINING: 13-B çerçeve yükseltmesi (Next 16 + React 19, Nest 12), staging, hata izleme, yedek provası
+NEXT PHASE: 13-B Next/Nest yükseltmesi (izin listesi 2026-11-01'de biter)

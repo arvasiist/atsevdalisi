@@ -1,5 +1,6 @@
 import { ArgumentsHost, Catch, ExceptionFilter, HttpException, HttpStatus } from '@nestjs/common';
 import type { Response } from 'express';
+import type { RequestWithId } from './request-id.middleware';
 import { ErrorCode } from '@at-sevdalisi/shared-types';
 import { PlayerLevelTooLowError } from '../../domain/tournament/errors';
 import {
@@ -836,6 +837,11 @@ export class HttpExceptionFilter implements ExceptionFilter {
   catch(exception: unknown, host: ArgumentsHost): void {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
+    // 02.10.2026 (Faz 13-A) — her hata zarfı istek kimliğini taşır
+    // (`RequestIdMiddleware`); kullanıcı destek talebinde bunu verir.
+    const requestId = ctx.getRequest<RequestWithId | undefined>()?.requestId;
+    const withId = <T extends object>(error: T): T & { requestId?: string } =>
+      requestId === undefined ? error : { ...error, requestId };
 
     if (exception instanceof HorseNotReadyForTrainingError) {
       const code =
@@ -844,7 +850,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
           : ErrorCode.HorseTooTired;
       response
         .status(HttpStatus.CONFLICT)
-        .json({ success: false, error: { code, message: exception.message } });
+        .json({ success: false, error: withId({ code, message: exception.message }) });
       return;
     }
 
@@ -864,7 +870,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
       } as const;
       response.status(HttpStatus.CONFLICT).json({
         success: false,
-        error: { code: codeByReason[exception.reason], message: exception.message },
+        error: withId({ code: codeByReason[exception.reason], message: exception.message }),
       });
       return;
     }
@@ -876,7 +882,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
       response.setHeader('Retry-After', String(exception.retryAfterSeconds));
       response.status(HttpStatus.TOO_MANY_REQUESTS).json({
         success: false,
-        error: { code: ErrorCode.RateLimitExceeded, message: exception.message },
+        error: withId({ code: ErrorCode.RateLimitExceeded, message: exception.message }),
       });
       return;
     }
@@ -885,7 +891,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
       if (exception instanceof ErrorClass) {
         response.status(mapping.status).json({
           success: false,
-          error: { code: mapping.code, message: (exception as Error).message },
+          error: withId({ code: mapping.code, message: (exception as Error).message }),
         });
         return;
       }
@@ -901,22 +907,24 @@ export class HttpExceptionFilter implements ExceptionFilter {
 
       response.status(status).json({
         success: false,
-        error: {
+        error: withId({
           code: status === HttpStatus.BAD_REQUEST ? ErrorCode.ValidationError : ErrorCode.NotFound,
           message: Array.isArray(message) ? message.join(', ') : message,
-        },
+        }),
       });
       return;
     }
 
+    // Yığın izi YALNIZCA sunucu loguna gider, istemciye ASLA (genel mesaj +
+    // istek kimliği). Log satırı istek kimliğiyle bulunur.
     // eslint-disable-next-line no-console
-    console.error('Beklenmeyen hata:', exception);
+    console.error(`Beklenmeyen hata [requestId=${requestId ?? '-'}]:`, exception);
     response.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
       success: false,
-      error: {
+      error: withId({
         code: 'INTERNAL_ERROR',
         message: 'Beklenmeyen bir hata oluştu.',
-      },
+      }),
     });
   }
 }

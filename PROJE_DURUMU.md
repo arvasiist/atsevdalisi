@@ -3871,6 +3871,25 @@ Karar: önce pratik yarış; kırbaç sınırsız, dayanıklılık bedelli.
   kaydı olarak kalır; açık soket bağlantısı silmede koparılmaz (yeni
   bağlantı reddedilir).
 
+### 13.66 Üretim temeli (02.10.2026, Faz 13-A)
+
+- **Ortam kapısı:** `NODE_ENV=production`da eksik/zayıf `JWT_SECRET`,
+  `DATABASE_URL`, `REDIS_URL`, localhost `CORS_ORIGIN`/`WEB_BASE_URL` ya da
+  `DISABLE_RATE_LIMIT=true` → açılış durur (`production-env.ts`, saf).
+- **Sağlık:** `/health` canlılık (değişmedi) + `/health/ready` (DB + Redis,
+  zaman aşımlı, 503, ayrıntı sızdırmaz).
+- **İstek kimliği:** `RequestIdMiddleware` (AppModule'de → e2e de alır);
+  `X-Request-Id` başlığı + `error.requestId` + log.
+- **Sahte yatırma:** Faz 0'ın "üretimde açık" tespiti YANLIŞTI (sunucu zaten
+  kapalıydı); web formu artık `WalletView.depositAvailable`a bağlı.
+- **CI:** `security` işi (bağımlılık kapısı + gitleaks), `docker` işi
+  (üç imaj + "eksik ortamla açılmaz" duman testi). Docker yerelde YOK.
+- ⚠️ **Next 14 / Nest 10 açıkları** (Next'te uzaktan kod çalıştırma dahil)
+  yalnızca büyük sürümle kapanır; izin listesi 2026-11-01'de biter.
+  `images.unoptimized` savunma katmanıdır, etkisi yerelde gösterilemedi.
+- Belge: `docs/DEPLOYMENT.md`. Kanıt: `test/security/production-env.spec.ts`,
+  `test/api/ops.e2e-spec.ts`.
+
 ## 14. Kendime hatırlatmalar (kısa liste)
 
 1. **Race Engine'e dokunmadan önce iki kez düşün.** Denetim onu "KEEP, dokunma"

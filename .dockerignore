@@ -1,0 +1,17 @@
+# 02.10.2026 (Faz 13-A) — imaja yalnızca kaynak girer; yerel çıktılar,
+# gizli dosyalar ve kökteki eski scratch dosyaları girmez.
+.git
+**/node_modules
+**/dist
+**/.next
+**/*.tsbuildinfo
+**/.env
+**/.env.*
+!**/.env.example
+*.bundle
+*.bat
+*.bat.txt
+*-log.txt
+outputs
+assets
+apps/web/public/decoders

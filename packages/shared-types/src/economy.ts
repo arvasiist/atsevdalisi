@@ -260,6 +260,12 @@ export interface WalletView {
    * `hasMore` ise bu sayfanın SON satırının `id`si, değilse `null`.
    */
   nextCursor: string | null;
+  /**
+   * 02.10.2026 (Faz 13-A) — bu sunucuda para yatırma açık mı (config bayrağı
+   * VE ortam; üretimde sahte yatırma her zaman kapalı). Ekran formu buna
+   * göre gösterir — istemci config'inden tahmin ETMEZ.
+   */
+  depositAvailable: boolean;
 }
 
 /**

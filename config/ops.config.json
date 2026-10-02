@@ -1,0 +1,8 @@
+{
+  "readiness": { "checkTimeoutMs": 2000 },
+  "requestId": { "maxLength": 128 },
+  "productionEnv": {
+    "minJwtSecretLength": 32,
+    "forbiddenJwtSecrets": ["ci-test-only-jwt-secret-never-use-in-production"]
+  }
+}

@@ -1,4 +1,5 @@
-import { Module } from '@nestjs/common';
+import { Module, type MiddlewareConsumer, type NestModule } from '@nestjs/common';
+import { RequestIdMiddleware } from './api/middleware/request-id.middleware';
 import { AdminModule } from './api/admin/admin.module';
 import { AuthModule } from './api/auth/auth.module';
 import { BreedingModule } from './api/breeding/breeding.module';
@@ -179,4 +180,10 @@ import { RedisModule } from './infrastructure/redis/redis.module';
     AdminModule,
   ],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  // 02.10.2026 (Faz 13-A) — istek kimliği HER rotada (hata zarfı + yanıt
+  // başlığı). Modülde kaydedilir ki e2e önyüklemesi de aynısını alsın.
+  configure(consumer: MiddlewareConsumer): void {
+    consumer.apply(RequestIdMiddleware).forRoutes('*');
+  }
+}

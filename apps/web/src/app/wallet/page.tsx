@@ -250,7 +250,11 @@ export default function WalletPage(): React.ReactElement {
             </button>
           </GlassPanel>
 
-          {DEPOSIT.enabled ? (
+          {/* 02.10.2026 (Faz 13-A): formun TEK kaynağı sunucudur
+              (`depositAvailable` — config bayrağı VE ortam). Eskiden istemci
+              config'ine bakılıyordu; üretimde sunucu kapalıyken ekran yine
+              "Yükle" diyordu. Cüzdan yüklenene kadar form gösterilmez. */}
+          {wallet === null ? null : wallet.depositAvailable ? (
             <GlassPanel style={{ padding: 'var(--space-lg)' }}>
               <h2 style={sectionTitleStyle}>Sanal Para Yükle</h2>
               {/* ⚠️ Bu bir SANAL yatırmadır ve ekran bunu gizlemez. Üretimde
