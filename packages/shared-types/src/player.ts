@@ -52,6 +52,8 @@ export interface Player {
    * `assertSelf` ile korunur) — yani kişi yalnızca KENDİ bayrağını görür.
    */
   isAdmin: boolean;
+  /** 02.10.2026 (Faz 10, migration 0060) — moderatör mü. Yetki kapısı DEĞİLDİR (bkz. `isAdmin`). */
+  isModerator: boolean;
   createdAt: ISODateTimeString;
   updatedAt: ISODateTimeString;
 }
@@ -82,7 +84,7 @@ export interface Player {
  */
 export type PlayerSummary = Pick<
   Player,
-  'id' | 'username' | 'displayName' | 'avatarId' | 'level' | 'xp' | 'money' | 'gems' | 'isAdmin'
+  'id' | 'username' | 'displayName' | 'avatarId' | 'level' | 'xp' | 'money' | 'gems' | 'isAdmin' | 'isModerator'
 >;
 
 /**

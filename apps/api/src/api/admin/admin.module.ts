@@ -9,6 +9,10 @@ import { ListAdminTransactionsUseCase } from '../../application/use-cases/list-a
 import { UpdateReportStatusUseCase } from '../../application/use-cases/update-report-status.use-case';
 import { PostgresAdminRepository } from '../../infrastructure/admin/postgres-admin.repository';
 import { AdminController } from './admin.controller';
+import { AnnouncementsController, ModerationController } from './moderation.controller';
+import { ModerationUseCase } from '../../application/use-cases/moderation.use-case';
+import { MODERATION_REPOSITORY } from '../../application/ports/moderation.repository';
+import { PostgresModerationRepository } from '../../infrastructure/admin/postgres-moderation.repository';
 
 /**
  * Yönetim (admin) modülü — brief §34, §42 PHASE 15-B.
@@ -53,7 +57,7 @@ import { AdminController } from './admin.controller';
  * portu yanlışlıkla enjekte etmesine kapı açardı.
  */
 @Module({
-  controllers: [AdminController],
+  controllers: [AdminController, ModerationController, AnnouncementsController],
   providers: [
     ListAdminReportsUseCase,
     UpdateReportStatusUseCase,
@@ -63,6 +67,9 @@ import { AdminController } from './admin.controller';
     ListAdminTransactionsUseCase,
     CancelAdminRaceUseCase,
     { provide: ADMIN_REPOSITORY, useClass: PostgresAdminRepository },
+    // 02.10.2026 — Faz 10 + 11-A (migration 0060).
+    ModerationUseCase,
+    { provide: MODERATION_REPOSITORY, useClass: PostgresModerationRepository },
   ],
 })
 export class AdminModule {}

@@ -105,3 +105,74 @@ export class RaceNotCancelableError extends Error {
     this.name = 'RaceNotCancelableError';
   }
 }
+
+/* 02.10.2026 — Faz 10 + 11-A (migration 0060). */
+
+/** Hesap askıda/yasaklı (403). Mesaj bitişi ve gerekçeyi söyler — oyuncu nedenini bilmeli. */
+export class AccountSuspendedError extends Error {
+  constructor(
+    readonly kind: 'suspend' | 'ban',
+    readonly expiresAt: Date | null,
+    readonly reason: string,
+  ) {
+    super(
+      kind === 'ban'
+        ? `Hesabın kalıcı olarak yasaklandı. Gerekçe: ${reason}`
+        : `Hesabın ${expiresAt?.toISOString() ?? ''} tarihine kadar askıya alındı. Gerekçe: ${reason}`,
+    );
+    this.name = 'AccountSuspendedError';
+  }
+}
+
+/** Yaptırım girdisi geçersiz (tür/gerekçe/süre) — 400. */
+export class InvalidSanctionError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'InvalidSanctionError';
+  }
+}
+
+/** Kendine ya da personele yaptırım uygulanamaz (409). */
+export class SanctionTargetNotAllowedError extends Error {
+  constructor(message = 'Bu oyuncuya yaptırım uygulanamaz (kendin ya da personel).') {
+    super(message);
+    this.name = 'SanctionTargetNotAllowedError';
+  }
+}
+
+export class SanctionNotFoundError extends Error {
+  constructor() {
+    super('Yaptırım bulunamadı ya da zaten kaldırılmış.');
+    this.name = 'SanctionNotFoundError';
+  }
+}
+
+/** Rol değişikliği geçersiz (kendi rolün, bilinmeyen rol) — 400. */
+export class InvalidRoleChangeError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'InvalidRoleChangeError';
+  }
+}
+
+export class InvalidAnnouncementError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'InvalidAnnouncementError';
+  }
+}
+
+export class AnnouncementNotFoundError extends Error {
+  constructor() {
+    super('Duyuru bulunamadı ya da zaten arşivlenmiş.');
+    this.name = 'AnnouncementNotFoundError';
+  }
+}
+
+/** Aynı anda yayında olabilecek duyuru sınırı (`announcements.maxLive`) — 409. */
+export class AnnouncementLimitReachedError extends Error {
+  constructor(max: number) {
+    super(`Aynı anda en fazla ${max} duyuru yayında olabilir; önce birini arşivle.`);
+    this.name = 'AnnouncementLimitReachedError';
+  }
+}

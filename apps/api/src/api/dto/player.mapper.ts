@@ -26,5 +26,6 @@ export function toPlayerSummary(player: Player): PlayerSummary {
     // sunucu her istekte `players.is_admin`i yeniden okur ve kararı orada
     // verir. Gerekçe: `shared-types/src/player.ts` `PlayerSummary` doc yorumu.
     isAdmin: player.isAdmin,
+    isModerator: player.isModerator,
   };
 }

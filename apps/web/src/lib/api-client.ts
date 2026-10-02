@@ -1,5 +1,11 @@
 import type {
   AccountDeletionCheck,
+  AdminAnnouncementView,
+  AnnouncementLevel,
+  AnnouncementView,
+  AssignableRole,
+  PlayerSanctionView,
+  SanctionKind,
   AuthSessionInfo,
   SessionTokens,
   InteractiveRaceView,
@@ -1359,6 +1365,34 @@ export const apiClient = {
 
   /** Denetim günlüğü — "kim hangi yönetim işlemini ne zaman yaptı" (§13.17). */
   listAdminAuditLog: () => request<AdminAuditLogResult>('/admin/audit-log', { method: 'GET' }),
+
+  /* 02.10.2026 — Faz 10 + 11-A: moderasyon ve duyurular. Yetki SUNUCUDA. */
+  sanctionPlayer: (playerId: string, body: { kind: SanctionKind; reason: string; durationHours?: number }) =>
+    request<PlayerSanctionView>(`/admin/players/${encodeURIComponent(playerId)}/sanctions`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  getPlayerSanctions: (playerId: string) =>
+    request<PlayerSanctionView[]>(`/admin/players/${encodeURIComponent(playerId)}/sanctions`),
+  liftSanction: (sanctionId: string, reason: string) =>
+    request<PlayerSanctionView>(`/admin/sanctions/${encodeURIComponent(sanctionId)}/lift`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    }),
+  setPlayerRole: (playerId: string, role: AssignableRole) =>
+    request<{ from: AssignableRole; to: AssignableRole }>(`/admin/players/${encodeURIComponent(playerId)}/role`, {
+      method: 'PUT',
+      body: JSON.stringify({ role }),
+    }),
+  listAdminAnnouncements: () => request<AdminAnnouncementView[]>('/admin/announcements'),
+  createAnnouncement: (body: { title: string; body: string; level: AnnouncementLevel; startsAt?: string; endsAt?: string }) =>
+    request<AdminAnnouncementView>('/admin/announcements', { method: 'POST', body: JSON.stringify(body) }),
+  archiveAnnouncement: (announcementId: string) =>
+    request<AdminAnnouncementView>(`/admin/announcements/${encodeURIComponent(announcementId)}/archive`, {
+      method: 'POST',
+    }),
+  /** Oyunculara açık (oturumsuz da çalışır). */
+  getAnnouncements: () => request<AnnouncementView[]>('/announcements'),
 
   /** Users + Wallet ekranlarının ORTAK kaynağı (bakiye `players` kolonudur). */
   listAdminPlayers: () => request<AdminPlayerListResult>('/admin/players', { method: 'GET' }),

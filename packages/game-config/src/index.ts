@@ -19,6 +19,7 @@
 import type {
   AuthConfig,
   OpsConfig,
+  ModerationConfig,
   AdminConfig,
   AudioConfig,
   CameraConfig,
@@ -79,6 +80,7 @@ import raceLobbyConfigJson from '../../../config/race-lobby.config.json';
 import adminConfigJson from '../../../config/admin.config.json';
 import authConfigJson from '../../../config/auth.config.json';
 import opsConfigJson from '../../../config/ops.config.json';
+import moderationConfigJson from '../../../config/moderation.config.json';
 
 export function loadRaceConfig(): RaceBalanceConfig {
   return raceConfigJson as unknown as RaceBalanceConfig;
@@ -264,6 +266,11 @@ export function loadAuthConfig(): AuthConfig {
  */
 export function loadOpsConfig(): OpsConfig {
   return opsConfigJson as unknown as OpsConfig;
+}
+
+/** 02.10.2026 — Faz 10 + 11-A: yaptırım ve duyuru sınırları. Yetki kapısı DEĞİLDİR. */
+export function loadModerationConfig(): ModerationConfig {
+  return moderationConfigJson as unknown as ModerationConfig;
 }
 
 /** 01.10.2026 — atın durumu → 3D davranış (salt görsel). */

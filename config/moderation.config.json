@@ -1,0 +1,16 @@
+{
+  "sanctions": {
+    "reasonMinLength": 5,
+    "reasonMaxLength": 500,
+    "moderatorMaxSuspendHours": 72,
+    "adminMaxSuspendHours": 8760,
+    "historyLimit": 50
+  },
+  "announcements": {
+    "titleMaxLength": 80,
+    "bodyMaxLength": 1000,
+    "maxLive": 5,
+    "maxDurationDays": 90,
+    "adminListLimit": 50
+  }
+}

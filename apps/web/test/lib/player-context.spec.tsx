@@ -86,6 +86,7 @@ function samplePlayer(overrides: Partial<PlayerSummary> = {}): PlayerSummary {
     money: 1000,
     gems: 0,
     isAdmin: false,
+    isModerator: false,
     ...overrides,
   };
 }
@@ -211,6 +212,23 @@ describe('PlayerProvider / usePlayer', () => {
     fireEvent.click(screen.getByText('Oyuncu Oluştur'));
     await waitFor(() => expect(screen.getByTestId('player-name').textContent).toBe('Geri Dönen'));
     expect(registerPlayerMock).not.toHaveBeenCalled();
+  });
+
+  it('askıdaki hesap (403 ACCOUNT_SUSPENDED): oturum SİLİNMEZ, sunucu mesajı gösterilir', async () => {
+    window.localStorage.setItem(STORAGE_KEY, 'p1');
+    window.localStorage.setItem(TOKEN_STORAGE_KEY, 'tok-aski');
+    window.localStorage.setItem(REFRESH_STORAGE_KEY, 'yenile-aski');
+    getPlayerMock.mockRejectedValueOnce(new ApiError('Hesabın askıya alındı. Gerekçe: spam', 'ACCOUNT_SUSPENDED', 403));
+
+    render(
+      <PlayerProvider>
+        <TestConsumer />
+      </PlayerProvider>,
+    );
+
+    await waitFor(() => expect(screen.getByTestId('error').textContent).toMatch(/askıya alındı/));
+    expect(window.localStorage.getItem(TOKEN_STORAGE_KEY)).toBe('tok-aski');
+    expect(window.localStorage.getItem(REFRESH_STORAGE_KEY)).toBe('yenile-aski');
   });
 
   it('refresh token\'ı olmayan ESKİ oturum açılışta yükseltilir ve yeni token\'lar yazılır', async () => {

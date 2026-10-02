@@ -1650,7 +1650,7 @@ değer yalnızca liste boyutudur. Config dosyaları kaynak kodla birlikte
 dağıtılır; bir yetki kararını oraya koymak onu bir dağıtım hatasıyla açığa
 çıkarılabilir hâle getirirdi.
 
-**⚠️ YÖNETİCİ ATAMANIN ARAYÜZÜ YOKTUR (bilinçli).** Kendini yönetici
+**(02.10.2026 notu: rol ataması artık var — §13.69; ilk yönetici hâlâ SQL ile.)** **⚠️ YÖNETİCİ ATAMANIN ARAYÜZÜ YOKTUR (bilinçli).** Kendini yönetici
 yapabilen bir uç nokta yönetim yetkisini anlamsız kılardı. Kolon şimdilik
 elle açılır; **testler de `UPDATE players SET is_admin = true` ile yapar**
 (`gift.e2e-spec.ts`in bakiyeyi `UPDATE` ile kurmasıyla aynı yöntem).
@@ -3917,6 +3917,21 @@ Karar: önce pratik yarış; kırbaç sınırsız, dayanıklılık bedelli.
   sınırları + `POST /client-errors`.
 - Sağlayıcı seçimleri (barındırma, kayıt defteri, gizli anahtar yöneticisi,
   Sentry, zamanlanmış yedek) SAHİBİNİN kararıdır; hiçbiri uydurulmadı.
+
+### 13.69 Roller, yaptırımlar, duyurular (02.10.2026, Faz 10 + 11-A)
+
+- Migration 0060: `players.is_moderator`, `player_sanctions` (askı süreli,
+  yasak süresiz; kaldırma `lifted_*`, silme yok), `announcements`.
+- İzinler saf `domain/admin/staff.ts`; moderatör şikâyet + oyuncu listesi +
+  süreli askı, geri kalanı yönetici. Her yazma denetim kaydıyla AYNI
+  transaction'da.
+- Askı/yasak oturum kapısında: istek, soket, giriş, yenileme → 403
+  `ACCOUNT_SUSPENDED`; yasak bütün oturumları kapatır. Web oturumu silmez,
+  sunucu mesajını gösterir.
+- Duyurular: `/admin` "Duyurular" sekmesi, üst şerit (`AnnouncementStrip`,
+  kapatılan yerel olarak hatırlanır), en fazla `maxLive` yayında.
+- YOK: at/pazar/config/kulüp/turnuva yönetimi, zamanlanmış etkinlik
+  (Faz 11-B), anormal davranış tespiti.
 
 ## 14. Kendime hatırlatmalar (kısa liste)
 

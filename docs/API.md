@@ -1613,6 +1613,29 @@ döner ve **ne durum ne denetim kaydı değişir** (rollback kanıtı);
 CHECK'iyle **dosya okunarak** karşılaştırılması, geçiş çizgesinin kapalılığı
 ve terminal durumları, aynı-durum reddi, `assertAdmin`, config sabitlemesi).
 
+### Roller, yaptırımlar, duyurular (Faz 10 + 11-A, 02.10.2026, migration 0060)
+
+Yetki her istekte DB'den okunur (`is_admin`, `is_moderator`); izinler
+`domain/admin/staff.ts`. Yetkisiz çağıran 403 `ADMIN_REQUIRED` alır, var olmayan
+kimlikte bile (404'ten ÖNCE). Her yazma `admin_audit_log` satırıyla aynı
+transaction'dadır.
+
+| Uç | Kim | Not |
+|---|---|---|
+| `POST /admin/players/:id/sanctions` | moderatör (yalnızca `suspend`, ≤ `moderatorMaxSuspendHours`) / yönetici | gövde `{ kind: 'suspend'\|'ban', reason, durationHours? }`; kendine/personele 409 `SANCTION_TARGET_NOT_ALLOWED`; yasak oturumları kapatır |
+| `GET /admin/players/:id/sanctions` | moderatör / yönetici | geçmiş (`historyLimit`) |
+| `POST /admin/sanctions/:id/lift` | askı: moderatör / yönetici; yasak: yönetici | gövde `{ reason }` |
+| `PUT /admin/players/:id/role` | yönetici | gövde `{ role: 'player'\|'moderator'\|'admin' }`; kendine 400 `INVALID_ROLE_CHANGE` |
+| `POST /admin/announcements` | yönetici | `{ title, body, level, startsAt?, endsAt? }`; yayında `maxLive` aşılırsa 409 `ANNOUNCEMENT_LIMIT_REACHED` |
+| `GET /admin/announcements` | yönetici | arşiv dahil |
+| `POST /admin/announcements/:id/archive` | yönetici | |
+| `GET /announcements` | herkes (`@Public`) | yalnızca şu an yayında olanlar |
+
+Askıdaki/yasaklı hesap her istekte, soket bağlantısında, girişte ve token
+yenilemede **403 `ACCOUNT_SUSPENDED`** alır (401 değil — istemci oturumu
+silmez). `GET /admin/players` satırı `isModerator` ve `activeSanction` taşır;
+`PlayerSummary` `isModerator` taşır.
+
 ### Soy Ağacı (soy ağacı veri zinciri dilimi, 27.09.2026)
 
 ```http
@@ -3011,3 +3034,11 @@ dosyanın doc yorumu).
 | `RACE_ENTRY_NOT_LEAVABLE` | Ayrılma penceresi kapalı: yarış `scheduled` değil, başlangıç zamanı gelmiş (sınırda kapalı) ya da katılım zaten `cancelled` — `POST /races/:id/leave`. `RACE_ENTRY_NOT_READYABLE` ile AYNI sınırdadır; ayrılma geri alınamaz biçimde ücret iadesi doğurduğu için "önce uygun duruma getir" yolu YOKTUR (Ücretli yarış lobisi + iade, 28.09.2026) |
 | `RACE_ENTRY_CANCELLED` | Aynı yarışa yeniden katılma denemesi ama katılım daha önce İPTAL edilmiş — `POST /races/:id/join`. **`ALREADY_JOINED_RACE` DEĞİL:** oyuncu yarışta değildir, iptal etmiştir; ayrıl-katıl döngüsü READY bayrağını sıfırlayıp oyuncuya havuzu oynama imkânı verirdi. Boşalan koltuk BAŞKALARINA açıktır (Ücretli yarış lobisi + iade, 28.09.2026) |
 | `RACE_NOT_SETTLEABLE` | Ödül dağıtımı bu durumda yapılamaz: yarış `scheduled` değil (zaten koştu/iptal), başlangıç zamanı gelmemiş ya da hiç GERÇEK katılımcı yok — `POST /races/:id/settle`. **BU KOD AYNI ZAMANDA İDEMPOTENCY'NİN TA KENDİSİDİR:** uç `Idempotency-Key` kullanmaz, ikinci çağrı buraya çarpar ve ikinci bir ödeme yapısal olarak imkânsız olur (Ödül dağıtımı, 28.09.2026) |
+| `ACCOUNT_SUSPENDED` | 403 — hesap askıda ya da yasaklı; mesaj gerekçe + bitişi taşır (Faz 10, 02.10.2026) |
+| `INVALID_SANCTION` | 400 — yaptırım gövdesi geçersiz (tür, gerekçe uzunluğu, süre; moderatörün yasak/uzun askı denemesi 403 `ADMIN_REQUIRED`) |
+| `SANCTION_TARGET_NOT_ALLOWED` | 409 — kendine ya da personele yaptırım |
+| `SANCTION_NOT_FOUND` | 404 — yaptırım yok ya da zaten kalkmış |
+| `INVALID_ROLE_CHANGE` | 400 — bilinmeyen rol ya da kendi rolünü değiştirme |
+| `INVALID_ANNOUNCEMENT` | 400 — başlık/metin/düzey/tarih geçersiz |
+| `ANNOUNCEMENT_NOT_FOUND` | 404 |
+| `ANNOUNCEMENT_LIMIT_REACHED` | 409 — aynı pencerede yayında olan duyuru sınırı dolu |

@@ -169,17 +169,17 @@ Gerçek cihaz testi YAPILMADI. Service worker bilinçli olarak yok.
 
 ## Admin Status — PARTIAL
 
-Rol `players.is_admin` (her istekte DB'den), denetim günlüğü (aynı
-transaction), 7 uç: şikâyet kuyruğu + durum, denetim günlüğü, oyuncu/yarış/
-işlem listeleri, yarış iptali (iade). `/admin` ekranı. YOK: at/pazar/kulüp/
-turnuva/sezon yönetimi, config yönetimi, duyurular, rol yönetimi
-(MODERATOR/SUPER_ADMIN), eski/yeni değer + IP + gerekçe alanları (kısmen).
+Roller `players.is_admin` + `is_moderator` (her istekte DB'den; izin tablosu
+`domain/admin/staff.ts`), denetim günlüğü (aynı transaction): şikâyet kuyruğu,
+oyuncu/yarış/işlem listeleri, yarış iptali (iade), **rol atama, askı/yasak +
+kaldırma, duyurular** (Faz 10, 02.10.2026). `/admin` sekmeleri role göre.
+YOK: at/pazar/kulüp/turnuva/sezon yönetimi, config yönetimi, IP alanı.
 
 ## Live Operations Status — PARTIAL
 
 Zamanlayıcıyla açılan takvim yarışları, turnuvalar, sezon ve sezon ödülü,
-günlük ödül. YOK: günlük/haftalık etkinlik, duyuru, sınırlı ödül, yönetimden
-etkinlik planlama.
+günlük ödül, **duyurular** (Faz 11-A: zamanlı, üst şerit). YOK: günlük/haftalık
+etkinlik, sınırlı ödül, yönetimden etkinlik planlama (Faz 11-B).
 
 ## Observability Status — PARTIAL
 
@@ -235,8 +235,8 @@ CI'da değil). YOK: yük testi, CI'da tarayıcı E2E, mutasyon testi CI'da.
 
 Kişisel veri dışa aktarma · Apple girişi · AI avatar (tümü) ·
 gerçek ödeme + elmas harcama yolu · gerçek 3D/ses varlıkları · sosyal hub/emote ·
-kulüp sohbeti/yarışı · canlı etkinlik/duyuru sistemi · yönetim panelinin
-geri kalanı (at/pazar/config/etkinlik/rol) · gözlemlenebilirlik · dağıtım.
+kulüp sohbeti/yarışı · canlı etkinlik sistemi · yönetim panelinin
+geri kalanı (at/pazar/config/etkinlik) · gözlemlenebilirlik · dağıtım.
 
 ## Technical Debt
 
@@ -292,8 +292,8 @@ Brief fazlarına göre gerçek durum:
 | 7 Online | TESTED (yük testi yok) |
 | 8 AI Avatar | NOT_STARTED |
 | 9 Social | PARTIAL — hub/emote/kulüp sohbeti yok |
-| 10 Admin | PARTIAL |
-| 11 Live Ops | PARTIAL |
+| 10 Admin | PARTIAL — roller + yaptırım + duyuru TESTED; at/pazar/config yönetimi yok |
+| 11 Live Ops | PARTIAL — duyurular (11-A) TESTED; etkinlik sistemi (11-B) yok |
 | 12 Monetization | NOT_STARTED (yalnızca sahte yatırma) |
 | 13 Production | PARTIAL — 13-A temel (sağlık, istek kimliği, ortam kapısı, taramalar, Dockerfile) TESTED; 13-B çerçeve yükseltmesi + staging/izleme yok |
 | 14 Final E2E | PARTIAL — `final.e2e-spec.ts` API yolculuğu var; avatar/ödeme yok |
@@ -575,3 +575,35 @@ PRODUCTION BLOCKERS: sağlayıcı kararları: barındırma, imaj kayıt defteri,
 yöneticisi, hata izleme hizmeti, zamanlanmış yedek/saklama süresi
 REMAINING: sahibinin sağlayıcı kararları; kalan fazlar (8 AI avatar, 10/11 admin+live ops, 12 ödeme)
 NEXT PHASE: sahibinin kararına bağlı
+
+---
+
+PHASE: 10 + 11-A — Roller, yaptırımlar, duyurular
+STATUS: TESTED
+SUMMARY: Moderatör rolü + izin tablosu; askı (süreli) / yasak (süresiz) + kaldırma; rol
+atama; duyurular (yönetimden açılır, herkes görür). Askı oturum kapısında (istek, soket,
+giriş, yenileme → 403 ACCOUNT_SUSPENDED); yasak oturumları kapatır. Her yazma denetim
+kaydıyla aynı transaction'da.
+FILES CREATED: migration 0060 · config/moderation.config.json · domain/admin/staff.ts ·
+ports/moderation.repository.ts · infrastructure/admin/postgres-moderation.repository.ts ·
+use-cases/moderation.use-case.ts · api/admin/moderation.controller.ts · web
+features/admin/{PlayerModerationPanel,AnnouncementsAdmin,moderation-labels} ·
+features/announcements/{AnnouncementStrip,announcement-logic} · testler
+FILES MODIFIED: auth-session (use-case/repo/domain) · admin repo + 3 use-case (moderatör izni) ·
+player tipi/mapper (isModerator) · http-exception.filter · shared-types · game-config ·
+web admin/page, layout, TopBar, api-client, player-context, session-logic, globals.css
+DATABASE CHANGES: 0060 — players.is_moderator, player_sanctions, announcements (yalnızca ekleme)
+API CHANGES: POST/GET /admin/players/:id/sanctions · POST /admin/sanctions/:id/lift ·
+PUT /admin/players/:id/role · POST/GET /admin/announcements · POST
+/admin/announcements/:id/archive · GET /announcements (@Public) · GET /admin/players
++isModerator/activeSanction · PlayerSummary.isModerator
+SECURITY CHANGES: yetki her istekte DB'den, 403 önce 404 sonra; kendine rol/yaptırım yasak;
+personele yaptırım yasak; moderatör yasak/uzun askı veremez; askı 401 değil 403 (oturum kaybolmaz)
+TESTS ADDED: test/api/staff-moderation.e2e-spec.ts (8), web announcement-logic (3),
+moderation-labels + isAccountSuspended (3), player-context askı (1), api-client rotaları (1)
+TESTS PASSED: API 164 / 2398 (temiz şema), web 46 / 535, next build, lint 0 hata; tarayıcı:
+duyuru yayınlandı → şeritte göründü, askı uygulandı → oyuncu mesajı gördü, oturum kaldı
+TESTS FAILED: 0
+PRODUCTION BLOCKERS: değişmedi
+REMAINING: 11-B etkinlikler, at/pazar/config yönetimi, anormal davranış tespiti
+NEXT PHASE: sahibinin kararı (8 AI avatar / 12 ödeme sağlayıcı bekliyor; kodla yapılabilen: 11-B)

@@ -17,6 +17,11 @@ export interface SessionAuthorizationState {
   tokensValidAfter: Date | null;
   /** `sid`li token için oturum satırı; yoksa `null`. */
   session: { revokedAt: Date | null; expiresAt: Date } | null;
+  /**
+   * 02.10.2026 (Faz 10, migration 0060) — etkin yaptırım. Token GEÇERLİ olsa
+   * bile oyuncu askıda/yasaklıysa erişim 403'tür (kimlik doğru, izin yok).
+   */
+  sanction?: { kind: 'suspend' | 'ban'; expiresAt: Date | null; reason: string } | null;
 }
 
 export interface AccessTokenClaims {

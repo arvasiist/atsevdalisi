@@ -422,6 +422,19 @@ JSON log) — Sentry seçilince `setErrorReporter`; ⚠️ rapora sorgu dizesi,
 token, girdi KOYMA. Web `app/error.tsx` + `global-error.tsx` → `POST
 /client-errors`. Yeni bir kişisel veri tablosu yedeğe kendiliğinden girer
 (yedek dosyası KİŞİSEL VERİDİR, depoya girmez).
+(44) **ROLLER + YAPTIRIM + DUYURU (02.10.2026, Faz 10 + 11-A, migration 0060,
+§13.69)** — `players.is_moderator`; izin tablosu saf `domain/admin/staff.ts`
+(`STAFF_PERMISSIONS`). Moderatör: şikâyet kuyruğu, oyuncu listesi, SÜRELİ
+askı (`moderation.config.json` → `moderatorMaxSuspendHours`); yasak + rol +
+duyuru + diğer uçlar YALNIZCA yönetici. Rol `PUT /admin/players/:id/role`
+(kendine YASAK, denetim `player.role_changed`). Yaptırım `player_sanctions`
+(silinmez, `lifted_*` ile kalkar); personele yaptırım YOK. ⚠️ Askı/yasak
+oturum kapısındadır (guard + soket + giriş + yenileme TEK sorgu) → 403
+`ACCOUNT_SUSPENDED` — 401 DEĞİL: web oturumu yalnızca 401'de siler, askı
+bitince oyuncu aynı hesapla döner. Yasak bütün oturumları kapatır. Duyuru
+`GET /announcements` (`@Public`); aynı anda en fazla `maxLive` (advisory
+kilit altında sayılır). Yeni bir yönetim ucu: izni `STAFF_PERMISSIONS`e
+yaz, kapıyı `assertStaffPermission` ile VERİ OKUMADAN ÖNCE çağır.
 
 **✅ ÜCRETLİ LOBİ YARIŞI ARTIK KOŞUYOR — ÖDÜL DAĞITIMI VAR (§13.14,
 28.09.2026).** `POST /races/:id/settle` yarışı koşar, ödülleri `top5`
@@ -685,11 +698,10 @@ sanıp yeniden açma.**
   **`Chat Reports` de YOK ve uydurulmamalıdır:** sohbete bağlı şikâyet
   diye bir olgu projede yoktur (`player_reports` bir OYUNCUYA bağlıdır,
   mesaja değil).
-- **⚠️ YÖNETİCİ ATAMANIN ARAYÜZÜ YOKTUR (bilinçli).** `players.is_admin`
-  şimdilik elle açılır (`UPDATE players SET is_admin = true WHERE ...`);
-  testler de SQL ile yapar. Kendini yönetici yapabilen bir uç nokta
-  yönetim yetkisini anlamsız kılardı. §34'ün "kullanıcı yönetimi" ekranı
-  geldiğinde bu, **denetim günlüğüne yazılan** bir işlem olmalıdır.
+- **ROL ATAMA (02.10.2026, (44)).** İLK yönetici hâlâ elle açılır (`UPDATE
+  players SET is_admin = true WHERE ...`); sonrakileri bir yönetici
+  `/admin` → Oyuncular → Yönet ile verir (denetim günlüğüne yazılır, kendi
+  rolünü değiştiremez).
 - **PHASE 13 (bildirim üreticileri) — SEKİZ/SEKİZ YAPILDI (§13.13/§13.14/
   §13.24).** Sekiz türün SEKİZİ de üretiliyor: `race_invite` (§13.11) +
   `friend_request`, `friend_accepted`, `message_received` (§13.13) +

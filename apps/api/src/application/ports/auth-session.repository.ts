@@ -41,7 +41,13 @@ export interface AuthSessionRepository {
   }): Promise<string>;
   /** Satır KİLİTLİ: aynı token'la eşzamanlı iki yenilemeden yalnızca biri döner. */
   rotate(input: { refreshHash: string; newRefreshHash: string; expiresAt: Date; now: Date }): Promise<RotateResult>;
-  authorizationState(playerId: string, sessionId: string | null): Promise<SessionAuthorizationState>;
+  /** Oturum + oyuncu varlığı + etkin yaptırım — TEK sorgu (her istekte koşar). */
+  authorizationState(playerId: string, sessionId: string | null, now: Date): Promise<SessionAuthorizationState>;
+  /** Giriş/yenilemede: etkin yaptırım (en kısıtlayıcısı); yoksa `null`. */
+  findActiveSanction(
+    playerId: string,
+    now: Date,
+  ): Promise<{ kind: 'suspend' | 'ban'; expiresAt: Date | null; reason: string } | null>;
   listActive(playerId: string, now: Date): Promise<StoredSession[]>;
   /** Oyuncuya ait aktif oturumu kapatır; yoksa/başkasınınsa `false` (IDOR kapısı SQL'de). */
   revoke(playerId: string, sessionId: string, reason: SessionRevokeReason, now: Date): Promise<boolean>;

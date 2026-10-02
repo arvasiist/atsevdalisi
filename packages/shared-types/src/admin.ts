@@ -144,6 +144,10 @@ export interface AdminPlayerAccountView {
    * alan, o işlem yapılana kadar tek görünürlük kaynağıdır.
    */
   isAdmin: boolean;
+  /** 02.10.2026 (Faz 10) — moderatör mü (`is_moderator`). */
+  isModerator: boolean;
+  /** 02.10.2026 (Faz 10) — şu an etkin yaptırım (en kısıtlayıcı); yoksa `null`. */
+  activeSanction: AdminActiveSanction | null;
   createdAt: string;
 }
 
@@ -297,4 +301,59 @@ export interface AdminTransactionView {
 /** `GET /admin/transactions` yanıtı. */
 export interface AdminTransactionListResult {
   transactions: AdminTransactionView[];
+}
+
+/* ------------------------------------------------------------------ */
+/* 02.10.2026 — FAZ 10 + 11-A: roller, yaptırımlar, duyurular           */
+/* ------------------------------------------------------------------ */
+
+/** Yönetim rolü (moderasyon); oyuncu için `null`. Personel (seyis vb.) `StaffRole` İLE KARIŞTIRMA. */
+export type ModerationRole = 'admin' | 'moderator';
+/** `PUT /admin/players/:id/role` gövdesi. */
+export type AssignableRole = 'player' | ModerationRole;
+
+/** Askı SÜRELİ, yasak SÜRESİZ (migration 0060 CHECK). */
+export type SanctionKind = 'suspend' | 'ban';
+
+export interface PlayerSanctionView {
+  id: string;
+  playerId: string;
+  kind: SanctionKind;
+  reason: string;
+  createdBy: string;
+  createdAt: string;
+  /** Askıda bitiş; yasakta `null`. */
+  expiresAt: string | null;
+  liftedAt: string | null;
+  liftedBy: string | null;
+  liftReason: string | null;
+  /** Sunucunun "şu an" ile hesapladığı durum (istemci saatine güvenilmez). */
+  active: boolean;
+}
+
+export interface AdminActiveSanction {
+  id: string;
+  kind: SanctionKind;
+  expiresAt: string | null;
+}
+
+export type AnnouncementLevel = 'info' | 'warning' | 'maintenance';
+
+/** Oyuncuya görünen duyuru (`GET /announcements`). */
+export interface AnnouncementView {
+  id: string;
+  title: string;
+  body: string;
+  level: AnnouncementLevel;
+  startsAt: string;
+  endsAt: string | null;
+}
+
+/** Yönetim listesi satırı — arşiv bilgisiyle. */
+export interface AdminAnnouncementView extends AnnouncementView {
+  createdBy: string;
+  createdAt: string;
+  archivedAt: string | null;
+  /** Şu an oyunculara görünüyor mu (sunucu hesaplar). */
+  live: boolean;
 }

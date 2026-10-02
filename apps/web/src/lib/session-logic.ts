@@ -24,6 +24,11 @@ export function isUnauthorized(error: unknown): boolean {
   return error instanceof ApiError && error.status === 401;
 }
 
+/** 02.10.2026 (Faz 10) — hesap askıda/yasaklı (403 `ACCOUNT_SUSPENDED`): oturum korunur, mesaj gösterilir. */
+export function isAccountSuspended(error: unknown): boolean {
+  return error instanceof ApiError && error.status === 403 && error.code === 'ACCOUNT_SUSPENDED';
+}
+
 /** Proaktif yenilemeye kalan süre; bilinmeyen/bozuk bitişte `null` (yalnızca 401'de yenilenir). */
 export function refreshDelayMs(accessExpiresAt: string | null, now: number, leadMs: number = REFRESH_LEAD_MS): number | null {
   if (accessExpiresAt === null) return null;

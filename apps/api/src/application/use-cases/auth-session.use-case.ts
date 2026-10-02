@@ -8,6 +8,7 @@ import {
   SessionUpgradeNotAllowedError,
 } from '../../domain/auth/errors';
 import { isAccessTokenAuthorized, normalizeUserAgent } from '../../domain/auth/session';
+import { AccountSuspendedError } from '../../domain/admin/errors';
 import { AppConfigService } from '../../infrastructure/config/config.service';
 import { AUTH_SESSION_REPOSITORY, type AuthSessionRepository } from '../ports/auth-session.repository';
 import { TOKEN_SERVICE, type TokenPayload, type TokenService } from '../ports/token.service';
@@ -42,6 +43,8 @@ export class AuthSessionUseCase {
 
   /** Giriş/kayıt sonrası yeni oturum. */
   async issue(playerId: string, rawUserAgent: unknown, now: Date = new Date()): Promise<SessionTokens> {
+    // 02.10.2026 (Faz 10) — askıdaki/yasaklı oyuncuya YENİ oturum açılmaz.
+    await this.assertNotSanctioned(playerId, now);
     const settings = this.config.auth.session;
     const refreshToken = this.newRefreshToken();
     const sessionId = await this.sessions.create({
@@ -74,16 +77,26 @@ export class AuthSessionUseCase {
     if (result.kind !== 'rotated') {
       throw new InvalidRefreshTokenError();
     }
+    const sanction = await this.sessions.findActiveSanction(result.playerId, now);
+    if (sanction !== null) {
+      // Yeni token verilmez; döndürülen oturum kapatılır (eski refresh zaten geçersiz).
+      await this.sessions.revoke(result.playerId, result.sessionId, 'revoked', now);
+      throw new AccountSuspendedError(sanction.kind, sanction.expiresAt, sanction.reason);
+    }
     return this.tokensFor(result.playerId, result.sessionId, refreshToken, now);
   }
 
   /** Erişim token'ının ŞU AN geçerli olup olmadığı (guard + soket el sıkışması). */
   async authorize(payload: TokenPayload, now: Date = new Date()): Promise<AuthorizedAccess> {
     const sessionId = payload.sid ?? null;
-    const state = await this.sessions.authorizationState(payload.sub, sessionId);
+    const state = await this.sessions.authorizationState(payload.sub, sessionId, now);
     const ok = isAccessTokenAuthorized({ sessionId, issuedAtSeconds: payload.iat ?? null }, state, now);
     if (!ok) {
       throw new InvalidAuthTokenError();
+    }
+    // Kimlik doğru ama erişim yok: 403 (401 istemciye "oturum geçersiz" der).
+    if (state.sanction) {
+      throw new AccountSuspendedError(state.sanction.kind, state.sanction.expiresAt, state.sanction.reason);
     }
     return { playerId: payload.sub, sessionId };
   }
@@ -132,6 +145,13 @@ export class AuthSessionUseCase {
       throw new SessionUpgradeNotAllowedError();
     }
     return this.issue(access.playerId, rawUserAgent, now);
+  }
+
+  private async assertNotSanctioned(playerId: string, now: Date): Promise<void> {
+    const sanction = await this.sessions.findActiveSanction(playerId, now);
+    if (sanction !== null) {
+      throw new AccountSuspendedError(sanction.kind, sanction.expiresAt, sanction.reason);
+    }
   }
 
   private tokensFor(playerId: string, sessionId: string, refreshToken: string, now: Date): SessionTokens {

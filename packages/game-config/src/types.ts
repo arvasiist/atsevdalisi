@@ -1969,3 +1969,21 @@ export interface OpsConfig {
   /** 02.10.2026 (Faz 13-C) — `POST /client-errors` alan sınırları (aşan kırpılır). */
   clientErrors: { maxMessageLength: number; maxPathLength: number; maxDigestLength: number };
 }
+
+/** 02.10.2026 — `config/moderation.config.json` (Faz 10 + 11-A). Yalnızca sınırlar; yetki kodda/veritabanındadır. */
+export interface ModerationConfig {
+  sanctions: {
+    reasonMinLength: number;
+    reasonMaxLength: number;
+    moderatorMaxSuspendHours: number;
+    adminMaxSuspendHours: number;
+    historyLimit: number;
+  };
+  announcements: {
+    titleMaxLength: number;
+    bodyMaxLength: number;
+    maxLive: number;
+    maxDurationDays: number;
+    adminListLimit: number;
+  };
+}

@@ -39,6 +39,16 @@ export const ErrorCode = {
   DeletionConfirmationMismatch: 'DELETION_CONFIRMATION_MISMATCH',
   DeletionPasswordInvalid: 'DELETION_PASSWORD_INVALID',
   AccountDeletionBlocked: 'ACCOUNT_DELETION_BLOCKED',
+  // 02.10.2026 — Faz 10 + 11-A (migration 0060).
+  /** Hesap askıda ya da yasaklı (403 — 401 DEĞİL: istemci oturumu silmesin). */
+  AccountSuspended: 'ACCOUNT_SUSPENDED',
+  InvalidSanction: 'INVALID_SANCTION',
+  SanctionTargetNotAllowed: 'SANCTION_TARGET_NOT_ALLOWED',
+  SanctionNotFound: 'SANCTION_NOT_FOUND',
+  InvalidRoleChange: 'INVALID_ROLE_CHANGE',
+  InvalidAnnouncement: 'INVALID_ANNOUNCEMENT',
+  AnnouncementNotFound: 'ANNOUNCEMENT_NOT_FOUND',
+  AnnouncementLimitReached: 'ANNOUNCEMENT_LIMIT_REACHED',
   NotFound: 'NOT_FOUND',
   // AUDIT_REPORT.md Bulgu S1/S2/S4 hardening (bu oturum) — brief §41/§50
   // Google/Apple Sign-In + IDOR sertleştirmesi. `Unauthorized` (401) daha

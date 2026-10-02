@@ -63,6 +63,7 @@ export interface PlayerRow {
   // (BIGINT'in AKSİNE) `node-postgres` doğrudan JS `boolean` döner; burada
   // `Number(...)` YOKTUR ve olmamalıdır.
   is_admin: boolean;
+  is_moderator: boolean;
   created_at: Date;
   updated_at: Date;
 }
@@ -82,6 +83,7 @@ export function rowToPlayer(row: PlayerRow): Player {
     lastDailyRewardClaimedAt: row.last_daily_reward_claimed_at ? row.last_daily_reward_claimed_at.toISOString() : null,
     rating: row.rating,
     isAdmin: row.is_admin,
+    isModerator: row.is_moderator,
     createdAt: row.created_at.toISOString(),
     updatedAt: row.updated_at.toISOString(),
   };

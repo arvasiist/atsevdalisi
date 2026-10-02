@@ -111,7 +111,7 @@ export function TopBar(): React.ReactElement {
                       {link.label}
                     </Link>
                   ))}
-                  {player?.isAdmin ? <AdminLink /> : null}
+                  {player?.isAdmin || player?.isModerator ? <AdminLink /> : null}
                 </div>
               ) : null}
             </div>

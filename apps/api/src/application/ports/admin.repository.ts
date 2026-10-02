@@ -261,6 +261,9 @@ export interface AdminPlayerAccountRecord {
   gems: number;
   reputation: number;
   isAdmin: boolean;
+  /** 02.10.2026 (Faz 10). */
+  isModerator: boolean;
+  activeSanction: { id: string; kind: 'suspend' | 'ban'; expiresAt: Date | null } | null;
   createdAt: Date;
 }
 

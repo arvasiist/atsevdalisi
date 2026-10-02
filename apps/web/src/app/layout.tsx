@@ -2,6 +2,7 @@ import { Cinzel, Inter } from 'next/font/google';
 import type { Metadata, Viewport } from 'next';
 import type { ReactNode } from 'react';
 import { TopBar } from '../components/layout/TopBar';
+import { AnnouncementStrip } from '../features/announcements/AnnouncementStrip';
 import { PlayerProvider } from '../lib/player-context';
 import './globals.css';
 
@@ -39,6 +40,7 @@ export default function RootLayout({ children }: { children: ReactNode }): React
       <body>
         <PlayerProvider>
           <TopBar />
+          <AnnouncementStrip />
           <div className="app-main">{children}</div>
         </PlayerProvider>
       </body>

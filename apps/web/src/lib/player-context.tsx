@@ -29,7 +29,13 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import type { AuthSession, PlayerSummary, SessionTokens } from '@at-sevdalisi/shared-types';
 import { apiClient, getAuthToken, refreshSessionOnce, setAuthToken, setSessionRefresher } from './api-client';
-import { SESSION_STORAGE_KEYS, adoptableStoredToken, isUnauthorized, refreshDelayMs } from './session-logic';
+import {
+  SESSION_STORAGE_KEYS,
+  adoptableStoredToken,
+  isAccountSuspended,
+  isUnauthorized,
+  refreshDelayMs,
+} from './session-logic';
 
 const RANDOM_ID_MULTIPLIER = 10000;
 const REFRESH_LOCK_NAME = 'atSevdalisi.sessionRefresh';
@@ -205,6 +211,10 @@ export function PlayerProvider({ children }: { children: React.ReactNode }): Rea
         if (isUnauthorized(err)) {
           // Oturum gerçekten geçersiz (kapatılmış, hesap yok) — temizle.
           dropSession();
+        } else if (isAccountSuspended(err)) {
+          // 02.10.2026 (Faz 10) — askı/yasak: oturum SİLİNMEZ (askı bitince
+          // oyuncu kaldığı yerden döner); sunucunun mesajı (bitiş + gerekçe) gösterilir.
+          setError(err instanceof Error ? err.message : OFFLINE_MESSAGE);
         } else {
           setError(OFFLINE_MESSAGE);
         }
@@ -241,7 +251,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }): Rea
           return;
         } catch (err) {
           if (!isUnauthorized(err)) {
-            setError(OFFLINE_MESSAGE);
+            setError(isAccountSuspended(err) && err instanceof Error ? err.message : OFFLINE_MESSAGE);
             return;
           }
           dropSession();

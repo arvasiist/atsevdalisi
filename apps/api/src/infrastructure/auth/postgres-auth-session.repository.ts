@@ -89,18 +89,32 @@ export class PostgresAuthSessionRepository implements AuthSessionRepository {
     });
   }
 
-  async authorizationState(playerId: string, sessionId: string | null): Promise<SessionAuthorizationState> {
+  async authorizationState(
+    playerId: string,
+    sessionId: string | null,
+    now: Date,
+  ): Promise<SessionAuthorizationState> {
     const result = await this.pool.query<{
       tokens_valid_after: Date | null;
       session_id: string | null;
       revoked_at: Date | null;
       expires_at: Date | null;
+      sanction_kind: 'suspend' | 'ban' | null;
+      sanction_expires_at: Date | null;
+      sanction_reason: string | null;
     }>(
-      `SELECT p.tokens_valid_after, s.id AS session_id, s.revoked_at, s.expires_at
+      `SELECT p.tokens_valid_after, s.id AS session_id, s.revoked_at, s.expires_at,
+              x.kind AS sanction_kind, x.expires_at AS sanction_expires_at, x.reason AS sanction_reason
        FROM players p
        LEFT JOIN auth_sessions s ON s.id = $2::uuid AND s.player_id = p.id
+       LEFT JOIN LATERAL (
+         SELECT kind, expires_at, reason FROM player_sanctions
+          WHERE player_id = p.id AND lifted_at IS NULL AND (expires_at IS NULL OR expires_at > $3)
+          ORDER BY expires_at DESC NULLS FIRST
+          LIMIT 1
+       ) x ON true
        WHERE p.id = $1 AND p.deleted_at IS NULL`,
-      [playerId, sessionId],
+      [playerId, sessionId, now],
     );
     const row = result.rows[0];
     if (row === undefined) {
@@ -113,7 +127,26 @@ export class PostgresAuthSessionRepository implements AuthSessionRepository {
         row.session_id === null || row.expires_at === null
           ? null
           : { revokedAt: row.revoked_at, expiresAt: row.expires_at },
+      sanction:
+        row.sanction_kind === null
+          ? null
+          : { kind: row.sanction_kind, expiresAt: row.sanction_expires_at, reason: row.sanction_reason ?? '' },
     };
+  }
+
+  async findActiveSanction(
+    playerId: string,
+    now: Date,
+  ): Promise<{ kind: 'suspend' | 'ban'; expiresAt: Date | null; reason: string } | null> {
+    const result = await this.pool.query<{ kind: 'suspend' | 'ban'; expires_at: Date | null; reason: string }>(
+      `SELECT kind, expires_at, reason FROM player_sanctions
+        WHERE player_id = $1 AND lifted_at IS NULL AND (expires_at IS NULL OR expires_at > $2)
+        ORDER BY expires_at DESC NULLS FIRST
+        LIMIT 1`,
+      [playerId, now],
+    );
+    const row = result.rows[0];
+    return row === undefined ? null : { kind: row.kind, expiresAt: row.expires_at, reason: row.reason };
   }
 
   async listActive(playerId: string, now: Date): Promise<StoredSession[]> {

@@ -9,6 +9,14 @@ import {
   InvalidReportStatusError,
   RaceNotCancelableError,
   ReportNotFoundError,
+  AccountSuspendedError,
+  InvalidSanctionError,
+  SanctionTargetNotAllowedError,
+  SanctionNotFoundError,
+  InvalidRoleChangeError,
+  InvalidAnnouncementError,
+  AnnouncementNotFoundError,
+  AnnouncementLimitReachedError,
 } from '../../domain/admin/errors';
 import {
   HorseInActiveRaceError,
@@ -426,6 +434,16 @@ const DOMAIN_ERROR_MAP = new Map<ErrorClassConstructor, { status: number; code: 
   ],
   [DeletionPasswordInvalidError, { status: HttpStatus.FORBIDDEN, code: ErrorCode.DeletionPasswordInvalid }],
   [AccountDeletionBlockedError, { status: HttpStatus.CONFLICT, code: ErrorCode.AccountDeletionBlocked }],
+  // 02.10.2026 — Faz 10 + 11-A (migration 0060). Askı 403'tür, 401 DEĞİL:
+  // istemci 401'de oturumu siler; askıdaki oyuncu nedenini görmeli.
+  [AccountSuspendedError, { status: HttpStatus.FORBIDDEN, code: ErrorCode.AccountSuspended }],
+  [InvalidSanctionError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.InvalidSanction }],
+  [SanctionTargetNotAllowedError, { status: HttpStatus.CONFLICT, code: ErrorCode.SanctionTargetNotAllowed }],
+  [SanctionNotFoundError, { status: HttpStatus.NOT_FOUND, code: ErrorCode.SanctionNotFound }],
+  [InvalidRoleChangeError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.InvalidRoleChange }],
+  [InvalidAnnouncementError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.InvalidAnnouncement }],
+  [AnnouncementNotFoundError, { status: HttpStatus.NOT_FOUND, code: ErrorCode.AnnouncementNotFound }],
+  [AnnouncementLimitReachedError, { status: HttpStatus.CONFLICT, code: ErrorCode.AnnouncementLimitReached }],
   // Token GEÇERLİ ama sahiplik yok — kavramsal olarak 401'den FARKLI, bkz.
   // `ForbiddenError` doc yorumu.
   [ForbiddenError, { status: HttpStatus.FORBIDDEN, code: ErrorCode.Forbidden }],

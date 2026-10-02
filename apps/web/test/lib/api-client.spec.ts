@@ -81,6 +81,7 @@ const samplePlayer: PlayerSummary = {
   // 28.09.2026: `PlayerSummary`ye eklendi (üst bar yönetim bağlantısı).
   // Burada `false` — testin konusu yetki değil, istek gövdesi/başlıkları.
   isAdmin: false,
+  isModerator: false,
 };
 
 beforeEach(() => {
@@ -1229,6 +1230,38 @@ describe('HESAP SİLME uçları (02.10.2026)', () => {
     expect(JSON.parse(String((fetchMock.mock.calls[2]![1] as RequestInit).body))).toEqual({
       confirmUsername: 'harbi_seyis',
       password: 'sifre-12345',
+    });
+  });
+});
+
+describe('MODERASYON + DUYURU uçları (02.10.2026)', () => {
+  it('doğru rota/yöntem/gövde', async () => {
+    setAuthToken('t');
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ success: true, data: {} }));
+    vi.stubGlobal('fetch', fetchMock);
+    await apiClient.sanctionPlayer('p1', { kind: 'suspend', reason: 'spam yapıyor', durationHours: 2 });
+    await apiClient.getPlayerSanctions('p1');
+    await apiClient.liftSanction('s1', 'itiraz kabul');
+    await apiClient.setPlayerRole('p1', 'moderator');
+    await apiClient.listAdminAnnouncements();
+    await apiClient.createAnnouncement({ title: 'Bakım', body: 'metin', level: 'maintenance' });
+    await apiClient.archiveAnnouncement('a1');
+    await apiClient.getAnnouncements();
+    const calls = fetchMock.mock.calls.map(([url, config]) => [String(url).replace(API_BASE_URL, ''), (config as RequestInit).method ?? 'GET']);
+    expect(calls).toEqual([
+      ['/admin/players/p1/sanctions', 'POST'],
+      ['/admin/players/p1/sanctions', 'GET'],
+      ['/admin/sanctions/s1/lift', 'POST'],
+      ['/admin/players/p1/role', 'PUT'],
+      ['/admin/announcements', 'GET'],
+      ['/admin/announcements', 'POST'],
+      ['/admin/announcements/a1/archive', 'POST'],
+      ['/announcements', 'GET'],
+    ]);
+    expect(JSON.parse(String((fetchMock.mock.calls[0]![1] as RequestInit).body))).toEqual({
+      kind: 'suspend',
+      reason: 'spam yapıyor',
+      durationHours: 2,
     });
   });
 });
