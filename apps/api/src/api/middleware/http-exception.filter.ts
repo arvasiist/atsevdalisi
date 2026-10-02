@@ -167,6 +167,12 @@ import {
   SocialLimitReachedError,
 } from '../../domain/social/errors';
 import {
+  AuctionHasBidsError,
+  AuctionRequiresEndTimeError,
+  BidTooLowError,
+  CannotBidOwnListingError,
+  ListingIsAuctionError,
+  ListingNotAuctionError,
   CannotBuyOwnListingError,
   HorseAlreadyListedError,
   InvalidListingExpiryError,
@@ -334,6 +340,14 @@ const DOMAIN_ERROR_MAP = new Map<ErrorClassConstructor, { status: number; code: 
   // 409 Conflict, 400/404 DEĞİL.
   [ListingNotActiveError, { status: HttpStatus.CONFLICT, code: ErrorCode.ListingNotActive }],
   [ListingExpiredError, { status: HttpStatus.CONFLICT, code: ErrorCode.ListingExpired }],
+  // 02.10.2026 — müzayede. Kendi ilanına teklif `CannotBuyOwnListing` ile
+  // aynı sınıf (400); diğerleri duruma bağlı (409), bitişsiz müzayede 400.
+  [CannotBidOwnListingError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.CannotBidOwnListing }],
+  [AuctionRequiresEndTimeError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.AuctionRequiresEndTime }],
+  [ListingIsAuctionError, { status: HttpStatus.CONFLICT, code: ErrorCode.ListingIsAuction }],
+  [ListingNotAuctionError, { status: HttpStatus.CONFLICT, code: ErrorCode.ListingNotAuction }],
+  [BidTooLowError, { status: HttpStatus.CONFLICT, code: ErrorCode.BidTooLow }],
+  [AuctionHasBidsError, { status: HttpStatus.CONFLICT, code: ErrorCode.AuctionHasBids }],
   [HorseAlreadyListedError, { status: HttpStatus.CONFLICT, code: ErrorCode.HorseAlreadyListed }],
   // AUDIT_REPORT.md Bulgu D2 (bu oturum) — bkz. domain/market/errors.ts `ListingStaleOwnerError`.
   [ListingStaleOwnerError, { status: HttpStatus.CONFLICT, code: ErrorCode.ListingStaleOwner }],

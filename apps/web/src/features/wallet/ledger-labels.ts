@@ -60,6 +60,9 @@ export const LEDGER_TYPE_LABELS: Record<LedgerTransactionType, string> = {
   jockey_hire: 'Jokey kiralama',
   staff_contract: 'Personel sözleşmesi',
   season_reward: 'Sezon ödülü',
+  auction_bid_hold: 'Müzayede teklifi',
+  auction_bid_refund: 'Müzayede teklifi iadesi',
+  auction_sale_credit: 'Müzayede satışı',
 };
 
 /**

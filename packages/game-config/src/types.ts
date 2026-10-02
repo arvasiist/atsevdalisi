@@ -416,6 +416,17 @@ export interface EconomyConfig {
    * değişkeni olacaktır, config dosyası değil.
    */
   mockDeposit: MockDepositConfig;
+  /**
+   * 02.10.2026 — MÜZAYEDE. Bir sonraki teklif en az
+   * `max(mevcut × minIncrementPercent/100 (yukarı yuvarlanır), minIncrementAmount)`
+   * kadar yüksek olmalıdır; ilk teklif en az başlangıç fiyatıdır.
+   * `settleScheduler` süresi dolan müzayedeleri kapatır.
+   */
+  auction: {
+    minIncrementPercent: number;
+    minIncrementAmount: number;
+    settleScheduler: { enabled: boolean; tickSeconds: number; batchSize: number };
+  };
 }
 
 /**

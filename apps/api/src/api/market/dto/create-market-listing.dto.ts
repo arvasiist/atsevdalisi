@@ -1,4 +1,4 @@
-import { IsInt, IsOptional, IsUUID, Max, Min } from 'class-validator';
+import { IsIn, IsInt, IsOptional, IsUUID, Max, Min } from 'class-validator';
 import { MAX_LISTING_EXPIRY_HOURS, MIN_LISTING_EXPIRY_HOURS } from '../../../domain/market/validation';
 
 /**
@@ -7,8 +7,8 @@ import { MAX_LISTING_EXPIRY_HOURS, MIN_LISTING_EXPIRY_HOURS } from '../../../dom
  * (`price` sıfır/negatif/tam sayı değilse, `expiresInHours` aralık
  * dışındaysa) `domain/market/market.ts`'teki `createListingDraft`
  * BAĞIMSIZ olarak da yapar (bkz. docs/ARCHITECTURE.md §9.1 Hata 7).
- * `listingType` BİLEREK BURADA YOK — bu dilimde her ilan `fixed_price`'tır
- * (bkz. `CreateMarketListingUseCase` doc yorumu).
+ * `listingType` (02.10.2026) isteğe bağlıdır; değer kümesi use-case'te
+ * BAĞIMSIZ doğrulanır (esbuild altında `@IsIn` atlanır).
  *
  * FAZ 1 wiring, on üçüncü dilim (bu oturum) — `expiresInHours` YENİ
  * eklendi (bkz. `domain/market/validation.ts` sınır sabitleri — bu
@@ -29,4 +29,8 @@ export class CreateMarketListingDto {
   @Min(MIN_LISTING_EXPIRY_HOURS)
   @Max(MAX_LISTING_EXPIRY_HOURS)
   expiresInHours?: number;
+
+  @IsOptional()
+  @IsIn(['fixed_price', 'auction'])
+  listingType?: unknown;
 }

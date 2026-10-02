@@ -31,6 +31,8 @@ import type {
   HireJockeyResultView,
   HorseEquipment,
   HorseMarketValueView,
+  MarketListing,
+  PlaceBidResult,
   HorsePedigreeView,
   Jockey,
   JoinMatchmakingQueueResult,
@@ -552,10 +554,34 @@ export const apiClient = {
     if (params.maxPrice) query.set('maxPrice', params.maxPrice.toString());
     if (params.page) query.set('page', params.page.toString());
     if (params.pageSize) query.set('pageSize', params.pageSize.toString());
-    return request<Array<{ id: string; horseId: string; price: number; status: string }>>(
-      `/market/listings?${query}`,
-    );
+    return request<MarketListing[]>(`/market/listings?${query}`);
   },
+
+  /**
+   * 02.10.2026 — at satışa çıkar (sabit fiyat ya da müzayede). Müzayedede
+   * `price` başlangıç fiyatıdır ve `expiresInHours` zorunludur (sunucu kuralı).
+   */
+  createMarketListing: (body: {
+    horseId: string;
+    price: number;
+    listingType: 'fixed_price' | 'auction';
+    expiresInHours?: number;
+  }) =>
+    request<MarketListing>('/market/listings', { method: 'POST', body: JSON.stringify(body) }),
+
+  cancelMarketListing: (listingId: string) =>
+    request<MarketListing>(`/market/listings/${listingId}`, { method: 'DELETE' }),
+
+  /**
+   * 02.10.2026 — MÜZAYEDE TEKLİFİ (para emanete alınır). `Idempotency-Key`
+   * YOK: aynı teklifin tekrarı sunucuda `BID_TOO_LOW` ile düşer, ikinci
+   * emanet alınamaz.
+   */
+  placeMarketBid: (listingId: string, amount: number) =>
+    request<PlaceBidResult>(`/market/listings/${listingId}/bids`, {
+      method: 'POST',
+      body: JSON.stringify({ amount }),
+    }),
 
   /**
    * Antrenman ekranı (`apps/web/src/app/training/page.tsx`) — `POST

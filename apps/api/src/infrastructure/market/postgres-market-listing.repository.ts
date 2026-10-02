@@ -4,6 +4,8 @@ import type { ListingStatus, ListingType, MarketListing, PaginatedResult } from 
 import type { MarketListingRepository, MarketListingSearchFilter } from '../../application/ports/market-listing.repository';
 import { expireListingIfNeeded } from '../../domain/market/market';
 import { HorseAlreadyListedError, ListingNotActiveError } from '../../domain/market/errors';
+import { minimumNextBid } from '../../domain/market/auction';
+import { AppConfigService } from '../config/config.service';
 import { PG_POOL } from '../database/database.module';
 
 /** Postgres `unique_violation` hata kodu (bkz. PostgreSQL "Error Codes" §22.6 sınıf 23). */
@@ -37,11 +39,69 @@ function rowToListing(row: MarketListingRow): MarketListing {
 
 @Injectable()
 export class PostgresMarketListingRepository implements MarketListingRepository {
-  constructor(@Inject(PG_POOL) private readonly pool: Pool) {}
+  constructor(
+    @Inject(PG_POOL) private readonly pool: Pool,
+    @Inject(AppConfigService) private readonly config: AppConfigService,
+  ) {}
+
+  /**
+   * 02.10.2026 — ilanlara at adını, müzayede ilanlarına anlık durumu ekler.
+   * `minimumNextBid` sunucu kuralıyla (`minimumNextBid`) hesaplanır — ekran
+   * kendi kuralını yazmaz.
+   */
+  private async withAuctionState(input: MarketListing[]): Promise<MarketListing[]> {
+    if (input.length === 0) return input;
+    // At adı (herkese açık — ilan zaten atı herkese gösterir).
+    const names = await this.pool.query<{ id: string; name: string }>(
+      'SELECT id, name FROM horses WHERE id = ANY($1::uuid[])',
+      [input.map((listing) => listing.horseId)],
+    );
+    const nameById = new Map(names.rows.map((row) => [row.id, row.name]));
+    const listings = input.map((listing) => ({
+      ...listing,
+      horseName: nameById.get(listing.horseId) ?? null,
+    }));
+    const auctionIds = listings
+      .filter((listing) => listing.listingType === 'auction')
+      .map((listing) => listing.id);
+    if (auctionIds.length === 0) return listings;
+    const result = await this.pool.query<{
+      listing_id: string;
+      bid_count: string;
+      current_bid: string | null;
+      leader_id: string | null;
+    }>(
+      `SELECT b.listing_id,
+              COUNT(*) AS bid_count,
+              MAX(b.amount) FILTER (WHERE b.status IN ('leading', 'won')) AS current_bid,
+              MAX(b.bidder_id::text) FILTER (WHERE b.status IN ('leading', 'won')) AS leader_id
+       FROM market_bids b
+       WHERE b.listing_id = ANY($1::uuid[])
+       GROUP BY b.listing_id`,
+      [auctionIds],
+    );
+    const byId = new Map(result.rows.map((row) => [row.listing_id, row]));
+    return listings.map((listing) => {
+      if (listing.listingType !== 'auction') return listing;
+      const row = byId.get(listing.id);
+      const currentBid = row?.current_bid == null ? null : Number(row.current_bid);
+      return {
+        ...listing,
+        auction: {
+          currentBid,
+          bidCount: Number(row?.bid_count ?? 0),
+          minimumNextBid: minimumNextBid(listing.price, currentBid, this.config.economy.auction),
+          leaderId: row?.leader_id ?? null,
+        },
+      };
+    });
+  }
 
   private async sweepExpiredListings(): Promise<void> {
     const dueResult = await this.pool.query<MarketListingRow>(
-      "SELECT * FROM market_listings WHERE status = 'active' AND expires_at IS NOT NULL AND expires_at <= NOW()",
+      // 02.10.2026 — müzayede BURADA süpürülmez: teklifli bir müzayede
+      // `expired` yapılsaydı emanet askıda kalırdı. Onu kapanış kapatır.
+      "SELECT * FROM market_listings WHERE status = 'active' AND listing_type = 'fixed_price' AND expires_at IS NOT NULL AND expires_at <= NOW()",
     );
     if (dueResult.rows.length === 0) {
       return;
@@ -67,7 +127,7 @@ export class PostgresMarketListingRepository implements MarketListingRepository 
       id,
     ]);
     const row = result.rows[0];
-    return row ? rowToListing(row) : null;
+    return row ? (await this.withAuctionState([rowToListing(row)]))[0]! : null;
   }
 
   async findActiveByHorseId(horseId: string): Promise<MarketListing | null> {
@@ -183,7 +243,7 @@ export class PostgresMarketListingRepository implements MarketListingRepository 
     );
 
     return {
-      items: dataResult.rows.map(rowToListing),
+      items: await this.withAuctionState(dataResult.rows.map(rowToListing)),
       meta: {
         page: filter.page,
         pageSize: filter.pageSize,
@@ -204,6 +264,6 @@ export class PostgresMarketListingRepository implements MarketListingRepository 
           'SELECT * FROM market_listings WHERE seller_id = $1 ORDER BY created_at DESC',
           [sellerId],
         );
-    return result.rows.map(rowToListing);
+    return this.withAuctionState(result.rows.map(rowToListing));
   }
 }

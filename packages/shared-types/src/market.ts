@@ -13,6 +13,31 @@ export interface MarketListing {
   status: ListingStatus;
   createdAt: ISODateTimeString;
   expiresAt: ISODateTimeString | null;
+  /**
+   * 02.10.2026 — yalnızca müzayede ilanlarında dolu. `price` müzayedede
+   * BAŞLANGIÇ fiyatıdır; güncel durum buradadır.
+   */
+  auction?: MarketAuctionState;
+  /** 02.10.2026 — listeleme/okuma yanıtlarında at adı (at silinmişse `null`). */
+  horseName?: string | null;
+}
+
+/** Müzayedenin anlık durumu (02.10.2026). */
+export interface MarketAuctionState {
+  /** En yüksek (emanette tutulan) teklif; teklif yoksa `null`. */
+  currentBid: number | null;
+  bidCount: number;
+  /** Kabul edilecek en düşük sonraki teklif (sunucu kuralı, `minimumNextBid`). */
+  minimumNextBid: number;
+  /** Önde olan oyuncu — ilan zaten satıcıyı herkese açık gösterir. */
+  leaderId: UUID | null;
+}
+
+/** `POST /market/listings/:id/bids` yanıtı (02.10.2026). */
+export interface PlaceBidResult {
+  listing: MarketListing;
+  /** Teklif verenin güncel bakiyesi (emanet düşülmüş). */
+  bidderMoney: number;
 }
 
 /**

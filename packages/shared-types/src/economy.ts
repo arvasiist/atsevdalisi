@@ -139,6 +139,9 @@ export const LEDGER_TRANSACTION_TYPES = [
   'jockey_hire',
   'staff_contract',
   'season_reward',
+  'auction_bid_hold',
+  'auction_bid_refund',
+  'auction_sale_credit',
 ] as const;
 
 export type LedgerTransactionType = (typeof LEDGER_TRANSACTION_TYPES)[number];
@@ -210,6 +213,11 @@ export const CANONICAL_BY_LEDGER_TYPE: Record<LedgerTransactionType, CanonicalTr
   jockey_hire: 'UPKEEP',
   staff_contract: 'UPKEEP',
   season_reward: 'REWARD',
+  // 02.10.2026 — müzayede emaneti: teklif tutulur (MARKET), geçilince ya da
+  // satış gerçekleşmezse iade edilir (REFUND), satışta satıcıya geçer (MARKET).
+  auction_bid_hold: 'MARKET',
+  auction_bid_refund: 'REFUND',
+  auction_sale_credit: 'MARKET',
 };
 
 /**

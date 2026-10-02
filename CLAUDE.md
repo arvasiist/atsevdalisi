@@ -346,6 +346,22 @@ yarış + tohum + HER katılımın komutları — komut değişince anahtar değ
 Tohum ya da dondurulmuş snapshot yoksa önbelleğe ALINMAZ. ⚠️ Kesinleşme
 önbelleği KULLANMAZ. Yön komutu ve çok oyunculu kontrol ölçüldü
 (`RACE_BALANCE_REPORT.md` §9.1); düzeltme gerekmedi, değişmezler CI'da.
+(34) **MÜZAYEDE + PAZARDA SATIŞ EKRANI (02.10.2026, migration 0055, §13.60)** —
+PARA YOLU. `market_bids` (leading/outbid/won/refunded; ilanda en fazla bir
+leading/won — kısmi tekil indeks). Teklif EMANETTİR: teklif anında para
+düşer (`auction_bid_hold`), geçilen lider AYNI transaction'da iade alır
+(`auction_bid_refund`). Kilit sırası: ilan → leading teklif → at → oyuncular
+(id sırası). Tekrar koruması `Idempotency-Key` DEĞİL: aynı teklifin tekrarı
+`BID_TOO_LOW` ile düşer. Artış `economy.auction` (yüzde + sabit, saf
+`minimumNextBid`). Kapanış `AuctionSettleScheduler` (test'te kapalı,
+`tickNow`): at alıcıya + `auction_sale_credit`; at artık satıcının değilse /
+alıcının ahırı doluysa / at açık yarıştaysa emanet İADE + `expired`.
+⚠️ Tembel süre süpürmesi (`sweepExpiredListings`) ve satın alma yolu
+müzayedeyi ASLA `expired` yapmaz (emanet askıda kalırdı) — e2e bunu kilitler.
+Müzayede "hemen al" ile alınamaz (409 `LISTING_IS_AUCTION`), bitişsiz açılamaz,
+teklif almışsa iptal edilemez (409 `AUCTION_HAS_BIDS`). Web'de ilan AÇMA yolu
+bu tarihe kadar HİÇ YOKTU — `/market` artık "Atımı Sat" formu + teklif + at adı
+(`MarketListing.horseName`, `auction` durumu) taşır.
 
 **✅ ÜCRETLİ LOBİ YARIŞI ARTIK KOŞUYOR — ÖDÜL DAĞITIMI VAR (§13.14,
 28.09.2026).** `POST /races/:id/settle` yarışı koşar, ödülleri `top5`

@@ -56,6 +56,13 @@ export const ErrorCode = {
   // Faz 2 — At Pazarı (domain/market)
   ListingNotActive: 'LISTING_NOT_ACTIVE',
   ListingExpired: 'LISTING_EXPIRED',
+  // 02.10.2026 — müzayede.
+  ListingIsAuction: 'LISTING_IS_AUCTION',
+  ListingNotAuction: 'LISTING_NOT_AUCTION',
+  BidTooLow: 'BID_TOO_LOW',
+  CannotBidOwnListing: 'CANNOT_BID_OWN_LISTING',
+  AuctionHasBids: 'AUCTION_HAS_BIDS',
+  AuctionRequiresEndTime: 'AUCTION_REQUIRES_END_TIME',
   CannotBuyOwnListing: 'CANNOT_BUY_OWN_LISTING',
   InvalidListingPrice: 'INVALID_LISTING_PRICE',
   // FAZ 1 wiring, on üçüncü dilim (bu oturum) — `InvalidListingPriceError`

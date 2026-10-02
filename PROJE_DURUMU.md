@@ -451,7 +451,7 @@ doğrulama ancak GitHub Actions'ta gerçek Postgres/Redis ile yapılabiliyor.
 | ~~**Yarış takvimi yok**~~ | **KAPANDI (01.10.2026, §13.53)** — sunucu config programıyla lobi yarışı açar |
 | **Matchmaking senkron** | `JoinMatchmakingQueueUseCase.playMatch` eşleşmeyi HTTP isteği içinde yapar; 30.09.2026'dan beri `MatchmakingScheduler` kuyruğu ayrıca tarar (§13.33). Projede artık beş zamanlayıcı var (kilit, turnuva, sezon, eşleştirme, takvim) |
 | **Pazar süresi dolması tembel** | `PostgresMarketListingRepository.sweepExpiredListings` — lazy sweep, zamanlanmış iş değil |
-| **Müzayede ilanı yok** | Yalnızca `fixed_price` |
+| ~~**Müzayede ilanı yok**~~ | **KAPANDI (02.10.2026, §13.60)** |
 | ~~**Jokey bağlanmamış**~~ **KAPANDI (§13.30, PHASE 6.2, 29.09.2026)** | `calculateJockeySkillComposite` artık motora girer; `race_entries.jockey_id` kilit anında yazılır. **AÇIK KALAN:** `calculateJockeyHorseCompatibility` ve `domain/jockey/jockey.ts`'teki `calculateTemperamentComponent` hâlâ **çağıransız**; `gatePosition` hâlâ okunmuyor |
 | ~~**Jokey serbest bırakma yolu yok**~~ | **KAPANDI (29.09.2026)** — `POST /jockeys/:jockeyId/release` |
 | ~~**Çiftlik/personel çarpanları bağlanmamış**~~ | **KAPANDI (01.10.2026)** — personel §13.42, tesisler §13.54 (veteriner merkezi bilinçli etkisiz: bakım ücretsiz) |
@@ -3725,6 +3725,34 @@ Karar: önce pratik yarış; kırbaç sınırsız, dayanıklılık bedelli.
 - **Denge:** yön komutu ve 1–4 sürücülü saha ölçüldü — sömürü yok, avantaj
   birden çok sürücüde küçülüp kalıyor, beceri ödüllendiriliyor
   (`RACE_BALANCE_REPORT.md` §9.1). Kilitler `race-engine-player-control.spec.ts`.
+
+### 13.60 Müzayede + pazarda satış ekranı (02.10.2026, migration 0055)
+
+- **Model:** `market_bids` emanet modeli. Teklif anında para düşer
+  (`auction_bid_hold`), geçilen teklif aynı transaction'da iade edilir
+  (`auction_bid_refund`), kapanışta satıcıya geçer (`auction_sale_credit`).
+  Kanonik türler: hold/credit → MARKET, refund → REFUND.
+- **Kurallar (saf, `domain/market/auction.ts`):** ilk teklif ≥ başlangıç
+  fiyatı; sonraki ≥ mevcut + max(⌈mevcut × %5⌉, 10) (`economy.auction`).
+  Satıcı kendi ilanına teklif veremez; sabit fiyatlıya teklif, müzayedeye
+  "hemen al" yok; müzayede bitişsiz açılamaz; teklif almışsa iptal edilemez.
+- **Kapanış:** `AuctionSettleScheduler` (`economy.auction.settleScheduler`).
+  Satış gerçekleşemezse (at el değiştirmiş, alıcının ahırı dolu, at açık
+  yarışta) emanet iade + `expired`; teklifsizse `expired`. Kapanış satır
+  kilidiyle korunur — ikinci tur ikinci ödeme yapmaz.
+- **Tuzak kapatıldı:** pazarın tembel süre süpürmesi ve satın alma yolu
+  müzayedeyi `expired` yapsaydı teklif emaneti askıda kalırdı; ikisi de
+  artık müzayedeyi atlar.
+- **Ekran:** `/market` — bu tarihe kadar web'de ilan AÇMA yolu YOKTU
+  (yalnızca satın alma). Artık "Atımı Sat" (sabit fiyat / müzayede, süre),
+  teklif kutusu (varsayılan sunucunun `minimumNextBid`i), "Öndesin" rozeti,
+  ilan kaldırma ve at adları (`horseName`; eskiden "At ID: uuid").
+- **Kanıt:** `market-auction.e2e-spec.ts` (5 senaryo: kurallar, emanet/iade/
+  tekrar, süpürme kapalı, kapanış + defter mutabakatı, iade yolu, eşzamanlı
+  teklif) — süpürme koruması ve iade satırı ayrı ayrı bozulunca düştüğü
+  doğrulandı; `test/domain/market/auction.spec.ts`; web `market-logic.spec`.
+  Tarayıcıda: satıcı formla müzayede açtı, alıcı (390 px) teklif verdi,
+  bakiye emanet kadar düştü, "Öndesin" göründü.
 
 ## 14. Kendime hatırlatmalar (kısa liste)
 
