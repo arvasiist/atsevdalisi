@@ -89,6 +89,26 @@ describe('Race WebSocket yayını (e2e) — AUDIT_REPORT.md Bulgu F2', () => {
     }
   });
 
+  it('geçersiz bir token ile bağlantı reddedilir (hiç bağlanmaz)', async () => {
+    const client = connect('bariz-sekilde-gecersiz-bir-token');
+    try {
+      expect(await expectRejected(client)).toBe('rejected');
+    } finally {
+      client.disconnect();
+    }
+  });
+
+  it("çıkış yapılmış oturumun token'ı soket açamaz (oturum kapısı, migration 0057)", async () => {
+    const player = await registerTestPlayer(app, 'Soket Çıkış');
+    await request(app.getHttpServer()).post('/api/v1/auth/logout').set('Authorization', player.authHeader).expect(200);
+    const client = connect(player.token);
+    try {
+      expect(await expectRejected(client)).toBe('rejected');
+    } finally {
+      client.disconnect();
+    }
+  });
+
   it('race.subscribe: geçerli bir katılımcı için race.roster + race.telemetry + race.finished olayları GERÇEK sırayla gelir', async () => {
     const { raceId, token } = await runFinishedPracticeRace();
     const client = connect(token);
