@@ -52,6 +52,8 @@ export class PostgresLeaderboardRepository implements LeaderboardRepository {
        JOIN players p ON p.id = h.owner_id
        WHERE e.finish_position IS NOT NULL
          AND e.performance_score IS NOT NULL
+         -- 02.10.2026 (migration 0059): silinmiş hesap sıralamada görünmez.
+         AND p.deleted_at IS NULL
        ORDER BY e.created_at ASC`,
     );
 

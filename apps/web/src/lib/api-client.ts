@@ -1,4 +1,5 @@
 import type {
+  AccountDeletionCheck,
   AuthSessionInfo,
   SessionTokens,
   InteractiveRaceView,
@@ -318,6 +319,16 @@ export const apiClient = {
    * `googleClientId === null` ise Google düğmesi gösterilmez.
    */
   getAuthProviders: () => request<AuthProvidersView>('/auth/providers'),
+
+  /** HESAP SİLME (02.10.2026, migration 0059) — silinebilir mi, neden değil. */
+  getAccountDeletionCheck: () => request<AccountDeletionCheck>('/account/deletion'),
+
+  /** Geri alınamaz. Yanlış şifre 403 (401 değil — oturum silinmesin). */
+  deleteAccount: (confirmUsername: string, password?: string) =>
+    request<{ deleted: true }>('/account/delete', {
+      method: 'POST',
+      body: JSON.stringify(password === undefined ? { confirmUsername } : { confirmUsername, password }),
+    }),
 
   /** E-POSTA DOĞRULAMA (02.10.2026, migration 0058) — `sent: false` = kısa aralıkta tekrar, e-posta gitmedi. */
   requestEmailVerification: () =>

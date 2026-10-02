@@ -16,12 +16,12 @@ export class PostgresPlayerRepository implements PlayerRepository {
   constructor(@Inject(PG_POOL) private readonly pool: Pool) {}
 
   async findById(id: string): Promise<Player | null> {
-    const result = await this.pool.query<PlayerRow>('SELECT * FROM players WHERE id = $1 LIMIT 1', [id]);
+    const result = await this.pool.query<PlayerRow>('SELECT * FROM players WHERE id = $1 AND deleted_at IS NULL LIMIT 1', [id]);
     return result.rows[0] ? rowToPlayer(result.rows[0]) : null;
   }
 
   async findByUsername(username: string): Promise<Player | null> {
-    const result = await this.pool.query<PlayerRow>('SELECT * FROM players WHERE username = $1 LIMIT 1', [
+    const result = await this.pool.query<PlayerRow>('SELECT * FROM players WHERE username = $1 AND deleted_at IS NULL LIMIT 1', [
       username,
     ]);
     return result.rows[0] ? rowToPlayer(result.rows[0]) : null;
@@ -87,7 +87,7 @@ export class PostgresPlayerRepository implements PlayerRepository {
              AND (f.player_low_id = p.id OR f.player_high_id = p.id)) AS friend_count,
          (SELECT COUNT(*) FROM gift_sends g WHERE g.recipient_id = p.id) AS gift_count
        FROM players p
-       WHERE p.username = $1
+       WHERE p.username = $1 AND p.deleted_at IS NULL
        LIMIT 1`,
       [username],
     );

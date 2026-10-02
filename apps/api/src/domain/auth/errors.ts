@@ -190,3 +190,30 @@ export class EmailAlreadyVerifiedError extends Error {
     this.name = 'EmailAlreadyVerifiedError';
   }
 }
+
+/** Hesap silme onayı (kullanıcı adı) eşleşmedi (400). */
+export class DeletionConfirmationMismatchError extends Error {
+  constructor() {
+    super('Onay için kullanıcı adını aynen yazmalısın.');
+    this.name = 'DeletionConfirmationMismatchError';
+  }
+}
+
+/**
+ * Hesap silmede şifre yanlış (403 — 401 DEĞİL: 401 istemcide "oturum
+ * geçersiz" demektir ve oturumu silerdi).
+ */
+export class DeletionPasswordInvalidError extends Error {
+  constructor() {
+    super('Şifre hatalı.');
+    this.name = 'DeletionPasswordInvalidError';
+  }
+}
+
+/** Parası emanette olan hesap silinemez (409); `blockers` neyin bitirilmesi gerektiğini söyler. */
+export class AccountDeletionBlockedError extends Error {
+  constructor(readonly blockers: readonly string[]) {
+    super(`Hesap şu an silinemez: ${blockers.join(', ')}. Önce bunları tamamla.`);
+    this.name = 'AccountDeletionBlockedError';
+  }
+}

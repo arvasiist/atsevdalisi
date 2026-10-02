@@ -35,6 +35,10 @@ export const ErrorCode = {
   InvalidVerificationToken: 'INVALID_VERIFICATION_TOKEN',
   NoAccountEmail: 'NO_ACCOUNT_EMAIL',
   EmailAlreadyVerified: 'EMAIL_ALREADY_VERIFIED',
+  // 02.10.2026 — hesap silme (migration 0059).
+  DeletionConfirmationMismatch: 'DELETION_CONFIRMATION_MISMATCH',
+  DeletionPasswordInvalid: 'DELETION_PASSWORD_INVALID',
+  AccountDeletionBlocked: 'ACCOUNT_DELETION_BLOCKED',
   NotFound: 'NOT_FOUND',
   // AUDIT_REPORT.md Bulgu S1/S2/S4 hardening (bu oturum) — brief §41/§50
   // Google/Apple Sign-In + IDOR sertleştirmesi. `Unauthorized` (401) daha

@@ -57,6 +57,8 @@ export interface PlayerContextValue {
   logout: () => Promise<void>;
   /** Tüm cihazlardan çıkış — hata FIRLATILIR (sunucu onaylamadan "çıkıldı" denmez). */
   logoutAll: () => Promise<void>;
+  /** Hesap sunucuda silindikten SONRA yerel oturumu siler (sunucuya istek atmaz). */
+  forgetSession: () => void;
 }
 
 const PlayerContext = createContext<PlayerContextValue | null>(null);
@@ -293,8 +295,19 @@ export function PlayerProvider({ children }: { children: React.ReactNode }): Rea
   }, []);
 
   const value = useMemo<PlayerContextValue>(
-    () => ({ player, isLoading, error, createPlayer, refresh, loginWithPassword, loginWithGoogle, logout, logoutAll }),
-    [player, isLoading, error, createPlayer, refresh, loginWithPassword, loginWithGoogle, logout, logoutAll],
+    () => ({
+      player,
+      isLoading,
+      error,
+      createPlayer,
+      refresh,
+      loginWithPassword,
+      loginWithGoogle,
+      logout,
+      logoutAll,
+      forgetSession: dropSession,
+    }),
+    [player, isLoading, error, createPlayer, refresh, loginWithPassword, loginWithGoogle, logout, logoutAll, dropSession],
   );
 
   return <PlayerContext.Provider value={value}>{children}</PlayerContext.Provider>;

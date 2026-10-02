@@ -48,6 +48,8 @@ const RECORDS_SQL = `
    WHERE e.finish_position IS NOT NULL
      AND e.performance_score IS NOT NULL
      AND r.start_time >= $1 AND r.start_time < $2
+     -- 02.10.2026 (migration 0059): silinmiş hesap sıralamaya ve ödüle girmez.
+     AND p.deleted_at IS NULL
    ORDER BY r.start_time ASC`;
 
 interface RecordRow {

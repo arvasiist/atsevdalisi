@@ -115,6 +115,8 @@ GET    /api/v1/auth/sessions             # AuthSessionInfo[] (yalnızca çağır
 DELETE /api/v1/auth/sessions/{id}        # başkasınınki/olmayan → 404 SESSION_NOT_FOUND
 POST   /api/v1/auth/email/verification   # doğrulama bağlantısı iste → 202 { sent }
 POST   /api/v1/auth/email/verify         # @Public, { token } → { verified: true }
+GET    /api/v1/account/deletion          # { blockers: [{code,label}], requiresPassword }
+POST   /api/v1/account/delete            # { confirmUsername, password? } — geri alınamaz
 ```
 
 `AuthSession` = `{ token, refreshToken, accessTokenExpiresAt, player }`.
@@ -2951,6 +2953,9 @@ dosyanın doc yorumu).
 | `INVALID_VERIFICATION_TOKEN` | E-posta doğrulama bağlantısı geçersiz, süresi dolmuş, kullanılmış ya da e-posta değişmiş — `POST /auth/email/verify` (400), tek kod (02.10.2026, migration 0058) |
 | `NO_ACCOUNT_EMAIL` | Misafir hesabın doğrulanacak e-postası yok — `POST /auth/email/verification` (409) |
 | `EMAIL_ALREADY_VERIFIED` | E-posta zaten doğrulanmış (409) |
+| `DELETION_CONFIRMATION_MISMATCH` | Hesap silme onayı (kullanıcı adı) eşleşmedi (400) |
+| `DELETION_PASSWORD_INVALID` | Hesap silmede şifre yanlış (403 — 401 değil; istemci 401'de oturumu siler) |
+| `ACCOUNT_DELETION_BLOCKED` | Parası emanette (müzayede, açık yarış, PvP) ya da üyeli kulüp lideri — önce bitir (409; mesaj nedenleri söyler) (02.10.2026, migration 0059) |
 | `SESSION_NOT_FOUND` | Oturum yok ya da çağırana ait değil — `DELETE /auth/sessions/:id` (404, varlık sızdırılmaz) |
 | `SESSION_UPGRADE_NOT_ALLOWED` | `POST /auth/session` yalnızca eski (`sid`siz) token'ı yükseltir (409) |
 | `CREDENTIALS_ALREADY_SET` | Bu hesap zaten e-posta + şifreyle kayıtlı — `POST /auth/credentials` (409) (30.09.2026) |

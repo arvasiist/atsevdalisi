@@ -32,13 +32,15 @@ import { loadAuthConfig } from '@at-sevdalisi/game-config';
 import { GlassPanel } from '../../components/ui/GlassPanel';
 import { GoogleSignInButton } from '../../features/auth/GoogleSignInButton';
 import { SessionsPanel } from '../../features/auth/SessionsPanel';
+import { DeleteAccountPanel } from '../../features/auth/DeleteAccountPanel';
 import { apiClient } from '../../lib/api-client';
 import { usePlayer } from '../../lib/player-context';
 
 const AUTH_CONFIG = loadAuthConfig();
 
 export default function AccountPage(): React.ReactElement {
-  const { player, isLoading, createPlayer, loginWithPassword, loginWithGoogle, logout, logoutAll } = usePlayer();
+  const { player, isLoading, createPlayer, loginWithPassword, loginWithGoogle, logout, logoutAll, forgetSession } =
+    usePlayer();
   const [accountEmail, setAccountEmail] = useState<string | null | undefined>(undefined);
   const [emailVerified, setEmailVerified] = useState(false);
   const [linkedProviders, setLinkedProviders] = useState<AccountProvider[]>([]);
@@ -376,6 +378,16 @@ export default function AccountPage(): React.ReactElement {
 
       {/* Misafirde "tüm cihazlardan çık" hesabı kalıcı kaybettirir — yalnızca kayıtlıya. */}
       {player && isRegistered ? <SessionsPanel onLogoutAll={confirmLogoutAll} /> : null}
+
+      {player?.username ? (
+        <DeleteAccountPanel
+          username={player.username}
+          onDeleted={() => {
+            forgetSession();
+            setNotice('Hesabın silindi.');
+          }}
+        />
+      ) : null}
 
       {player ? (
         <button type="button" onClick={confirmLogout} style={secondaryButtonStyle()}>

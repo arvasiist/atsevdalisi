@@ -44,6 +44,9 @@ import {
   InvalidVerificationTokenError,
   NoAccountEmailError,
   EmailAlreadyVerifiedError,
+  DeletionConfirmationMismatchError,
+  DeletionPasswordInvalidError,
+  AccountDeletionBlockedError,
 } from '../../domain/auth/errors';
 import {
   StaffAlreadyHiredError,
@@ -413,6 +416,14 @@ const DOMAIN_ERROR_MAP = new Map<ErrorClassConstructor, { status: number; code: 
   ],
   [NoAccountEmailError, { status: HttpStatus.CONFLICT, code: ErrorCode.NoAccountEmail }],
   [EmailAlreadyVerifiedError, { status: HttpStatus.CONFLICT, code: ErrorCode.EmailAlreadyVerified }],
+  // 02.10.2026 — hesap silme (migration 0059). Yanlış şifre 403'tür, 401
+  // DEĞİL: istemci 401'i "oturum geçersiz" sayar ve oturumu siler.
+  [
+    DeletionConfirmationMismatchError,
+    { status: HttpStatus.BAD_REQUEST, code: ErrorCode.DeletionConfirmationMismatch },
+  ],
+  [DeletionPasswordInvalidError, { status: HttpStatus.FORBIDDEN, code: ErrorCode.DeletionPasswordInvalid }],
+  [AccountDeletionBlockedError, { status: HttpStatus.CONFLICT, code: ErrorCode.AccountDeletionBlocked }],
   // Token GEÇERLİ ama sahiplik yok — kavramsal olarak 401'den FARKLI, bkz.
   // `ForbiddenError` doc yorumu.
   [ForbiddenError, { status: HttpStatus.FORBIDDEN, code: ErrorCode.Forbidden }],

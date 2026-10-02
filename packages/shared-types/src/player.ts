@@ -152,3 +152,11 @@ export type AccountProvider = 'google' | 'apple';
 export interface AuthProvidersView {
   googleClientId: string | null;
 }
+
+/** 02.10.2026 — `GET /account/deletion` (migration 0059): hesap silinebilir mi. */
+export interface AccountDeletionCheck {
+  /** Boşsa silinebilir; doluysa önce bitirilmesi gerekenler. */
+  blockers: { code: string; label: string }[];
+  /** E-postalı hesapta onay için şifre istenir. */
+  requiresPassword: boolean;
+}

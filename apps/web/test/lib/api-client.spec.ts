@@ -1210,3 +1210,25 @@ describe('E-POSTA DOĞRULAMA uçları (02.10.2026)', () => {
     expect(JSON.parse(String((fetchMock.mock.calls[1]![1] as RequestInit).body))).toEqual({ token: 'dogrulama-1' });
   });
 });
+
+describe('HESAP SİLME uçları (02.10.2026)', () => {
+  it('kontrol GET, silme POST; şifre yalnızca verilirse gövdeye girer', async () => {
+    setAuthToken('t');
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ success: true, data: {} }));
+    vi.stubGlobal('fetch', fetchMock);
+    await apiClient.getAccountDeletionCheck();
+    await apiClient.deleteAccount('harbi_seyis');
+    await apiClient.deleteAccount('harbi_seyis', 'sifre-12345');
+    const calls = fetchMock.mock.calls.map(([url, config]) => [String(url).replace(API_BASE_URL, ''), (config as RequestInit).method ?? 'GET']);
+    expect(calls).toEqual([
+      ['/account/deletion', 'GET'],
+      ['/account/delete', 'POST'],
+      ['/account/delete', 'POST'],
+    ]);
+    expect(JSON.parse(String((fetchMock.mock.calls[1]![1] as RequestInit).body))).toEqual({ confirmUsername: 'harbi_seyis' });
+    expect(JSON.parse(String((fetchMock.mock.calls[2]![1] as RequestInit).body))).toEqual({
+      confirmUsername: 'harbi_seyis',
+      password: 'sifre-12345',
+    });
+  });
+});

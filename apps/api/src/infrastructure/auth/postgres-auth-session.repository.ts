@@ -99,7 +99,7 @@ export class PostgresAuthSessionRepository implements AuthSessionRepository {
       `SELECT p.tokens_valid_after, s.id AS session_id, s.revoked_at, s.expires_at
        FROM players p
        LEFT JOIN auth_sessions s ON s.id = $2::uuid AND s.player_id = p.id
-       WHERE p.id = $1`,
+       WHERE p.id = $1 AND p.deleted_at IS NULL`,
       [playerId, sessionId],
     );
     const row = result.rows[0];

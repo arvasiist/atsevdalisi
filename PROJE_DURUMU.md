@@ -3842,6 +3842,35 @@ Karar: önce pratik yarış; kırbaç sınırsız, dayanıklılık bedelli.
 - Kanıt: `test/api/email-verification.e2e-spec.ts` (5 test); tarayıcıda uçtan
   uca (kayıt → e-postadaki bağlantı → doğrula → rozet).
 
+### 13.65 Hesap silme (02.10.2026, migration 0059)
+
+- **Satır fiziksel olarak silinemez:** `economy_transactions` değiştirilemez
+  (0038 tetikleyicisi; CASCADE de DELETE'tir), `pvp_matches`/`admin_audit_log`
+  kısıtlar. Silme = kişisel verinin silinmesi + anonimleştirme:
+  `players.username → silinmis_<id>`, görünen ad "Silinmiş oyuncu", avatar
+  NULL, `deleted_at`. Silinenler: e-posta/şifre, Google kimliği, bekleyen
+  bağlantılar, eşleştirme bileti, bildirimler (başkalarının bu oyuncuya atıf
+  yapan bildirimleri dahil), yarış sohbeti, özel mesajlar (iki yön),
+  arkadaşlık, davet, engeller; oturumlar kapanır + cihaz etiketi silinir.
+  Defter, yarış ve hediye kayıtları anonim olarak KALIR.
+- **Parası emanette olan hesap silinemez** (409 `ACCOUNT_DELETION_BLOCKED`):
+  lider müzayede teklifi, teklif almış müzayede, açık yarış katılımı, süren
+  kontrollü yarış, süren PvP maçı, üyesi olan kulübün liderliği. Engeller
+  `FOR UPDATE` altında yeniden denetlenir (kilit sırası ilan → oyuncu);
+  reddedilen silme hiçbir şey yazmaz. Teklifsiz ilanlar iptal olur, tek
+  başına liderin kulübü kapanır.
+- Onay: kullanıcı adı + e-postalı hesapta şifre. Yanlış şifre **403**
+  (`DELETION_PASSWORD_INVALID`) — 401 istemcide oturumu sildirirdi.
+- Silinmiş oyuncu: guard/soket 401 (`authorizationState` `deleted_at IS NULL`),
+  `findById`/`findByUsername`/profil bulunamaz, genel ve sezon sıralamasına
+  girmez. Eski kullanıcı adı ve e-posta serbest kalır.
+- Uçlar: `GET /account/deletion` (engeller + şifre gerekir mi), `POST
+  /account/delete`. Web: `/account` → "Hesabı sil" paneli.
+- Kanıt: `test/api/account-deletion.e2e-spec.ts` (5); tarayıcıda uçtan uca.
+- Bilinen sınır: verdiği şikâyetlerin metni (`player_reports`) moderasyon
+  kaydı olarak kalır; açık soket bağlantısı silmede koparılmaz (yeni
+  bağlantı reddedilir).
+
 ## 14. Kendime hatırlatmalar (kısa liste)
 
 1. **Race Engine'e dokunmadan önce iki kez düşün.** Denetim onu "KEEP, dokunma"

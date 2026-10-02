@@ -44,7 +44,7 @@ Rotalar: `/` (3D vitrin), `/stable`, `/training`, `/care`, `/equipment`,
 `/races/[id]/watch`, `/replays`, `/grandstand`, `/leaderboard`, `/club`,
 `/friends`, `/profile/[username]`, `/notifications`, `/wallet`, `/account`,
 `/admin`, `/online`. Altın-lacivert tema, mobil alt sekme çubuğu, PWA manifest.
-Eksik: e-posta doğrulama/hesap silme ekranı, avatar ekranı, sosyal hub, olay/duyuru ekranı.
+Eksik: avatar ekranı, sosyal hub, olay/duyuru ekranı.
 
 ## Backend Status — TESTED
 
@@ -69,7 +69,8 @@ token (özet saklanır, yeniden kullanımda oturum kapanır), sunucu tarafı
 logout / logout-all, cihaz listesi + cihaz kapatma, şifre sıfırlamada tüm
 oturumların kapanması, guard + soket oturum kapısı (çıkış ANINDA etkili).
 VAR (02.10.2026, Faz 1-B.2): e-posta doğrulama (bağlantı, yeniden gönderme, durum).
-YOK: **hesap silme / veri silme**, Apple girişi. Üretim için `GOOGLE_OAUTH_CLIENT_ID`, `RESEND_API_KEY`, güçlü `JWT_SECRET` gerekir.
+VAR (02.10.2026, Faz 1-B.3): hesap silme (kişisel veri silme + anonimleştirme, para emanetinde engel).
+YOK: Apple girişi; kişisel veri DIŞA AKTARMA. Üretim için `GOOGLE_OAUTH_CLIENT_ID`, `RESEND_API_KEY`, güçlü `JWT_SECRET` gerekir.
 
 ## Economy Status — TESTED (üretim değil)
 
@@ -216,7 +217,7 @@ CI'da değil). YOK: yük testi, CI'da tarayıcı E2E, mutasyon testi CI'da.
 
 ## Missing Features
 
-Refresh token + logout + e-posta doğrulama + hesap silme · AI avatar (tümü) ·
+Kişisel veri dışa aktarma · Apple girişi · AI avatar (tümü) ·
 gerçek ödeme + elmas harcama yolu · gerçek 3D/ses varlıkları · sosyal hub/emote ·
 kulüp sohbeti/yarışı · canlı etkinlik/duyuru sistemi · yönetim panelinin
 geri kalanı (at/pazar/config/etkinlik/rol) · gözlemlenebilirlik · dağıtım.
@@ -235,7 +236,7 @@ geri kalanı (at/pazar/config/etkinlik/rol) · gözlemlenebilirlik · dağıtım
 1. Gerçek 3D/ses varlıkları (satın alınacak).
 2. `mockDeposit` üretimde açık (sahte para yolu) — kapatılmalı ya da gerçek ödemeyle değiştirilmeli.
 3. ~~Oturum güvenliği: 30 günlük iptal edilemez JWT, logout/refresh yok.~~ **KAPANDI (02.10.2026, Faz 1-B.1).**
-4. E-posta doğrulama + hesap silme (KVKK/GDPR) yok.
+4. ~~E-posta doğrulama + hesap silme (KVKK/GDPR) yok.~~ **KAPANDI (02.10.2026, Faz 1-B.2/1-B.3)**; veri dışa aktarma hâlâ yok.
 5. Gözlemlenebilirlik (sağlık kontrolü DB/Redis, request id, hata izleme) yok.
 6. Dağıtım (Dockerfile, staging, gizli anahtar yönetimi, yedek/geri yükleme) yok.
 7. Kimlik bilgileri: `GOOGLE_OAUTH_CLIENT_ID`, `RESEND_API_KEY`.
@@ -262,7 +263,7 @@ Brief fazlarına göre gerçek durum:
 | Faz | Durum |
 |---|---|
 | 0 Audit | COMPLETE (bu dosya) |
-| 1 Core | PARTIAL — oyun çekirdeği TESTED, oturum + e-posta doğrulama TESTED (1-B.1/1-B.2); hesap silme eksik |
+| 1 Core | TESTED — oyun çekirdeği + oturum + e-posta doğrulama + hesap silme (1-B.1/2/3); Apple girişi ve veri dışa aktarma yok |
 | 2 Management | TESTED |
 | 3 Genetics | TESTED |
 | 4 Farm | TESTED |
@@ -395,3 +396,39 @@ TECHNICAL DEBT: doğrulanmamış e-postayla adres işgali (devralma kararı yok)
 PRODUCTION BLOCKERS: —
 REMAINING: 1-B.3 hesap silme, 13-A üretim temeli
 NEXT PHASE: 1-B.3 Hesap silme
+
+---
+
+PHASE: 1-B.3 — Hesap silme / veri yaşam döngüsü
+STATUS: TESTED
+COMPLETED: Kişisel veri silme + anonimleştirme (defter/maç geçmişi korunur);
+parası emanette olan hesapta engel (kilit altında); onay (kullanıcı adı +
+şifre); silinmiş oyuncu oturum açamaz, listelenmez; `/account` "Hesabı sil".
+FILES CREATED: database/migrations/0059_add_player_deleted_at.{up,down}.sql ·
+domain/account/account-deletion.ts · application/ports/account-deletion.repository.ts ·
+application/use-cases/delete-account.use-case.ts ·
+infrastructure/account/postgres-account-deletion.repository.ts · api/auth/account.controller.ts ·
+apps/web/src/features/auth/DeleteAccountPanel.tsx · test/api/account-deletion.e2e-spec.ts
+FILES MODIFIED: auth.module · domain/auth/errors · http-exception.filter · auth-session repo
+(deleted_at) · player repo (findById/findByUsername/profil) · leaderboard + sezon sorguları ·
+shared-types (AccountDeletionCheck, 3 kod) · web api-client, player-context (forgetSession),
+account sayfası · belgeler
+DATABASE CHANGES: `players.deleted_at` (eklemeli; veri bozmaz)
+API CHANGES: GET /account/deletion, POST /account/delete
+FRONTEND CHANGES: Hesabı sil paneli (engel listesi, onay, şifre)
+BACKEND CHANGES: DeleteAccountUseCase + tek transaction'lı silme
+GAMEPLAY CHANGES: silinmiş oyuncu sıralama/sezon ödülüne girmez
+3D CHANGES: —
+AI CHANGES: —
+SECURITY CHANGES: silinen hesabın tüm token'ları anında geçersiz; yanlış şifre 403
+ADMIN CHANGES: — (yönetim listesi silinmiş oyuncuyu anonim adıyla gösterir)
+DEPLOYMENT CHANGES: —
+TESTS ADDED: account-deletion.e2e-spec.ts (5), web api-client (+1)
+TESTS PASSED: API 159 dosya / 2362 (temiz şema), web 43 / 524; tarayıcıda uçtan uca
+TESTS FAILED: 0
+BUGS FOUND: —
+BUGS FIXED: —
+TECHNICAL DEBT: kişisel veri dışa aktarma yok; şikâyet metinleri moderasyon kaydı olarak kalır
+PRODUCTION BLOCKERS: "hesap/veri silme yok" KAPANDI
+REMAINING: 13-A üretim temeli (health DB/Redis, request id, mockDeposit üretimde kapalı, CI taramaları, Dockerfile)
+NEXT PHASE: 13-A Üretim temeli

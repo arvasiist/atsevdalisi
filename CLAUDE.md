@@ -391,6 +391,13 @@ tek kullanımlık, ÜRETİLDİĞİ e-postaya bağlı. `GET /auth/credentials`
 `emailVerified` taşır. ⚠️ Kayıt artık e-posta ürettiği için giden kutusunu
 SAYAN testleri konuya (`subject`) daralt (yaşandı: `password-reset.e2e-spec.ts`).
 Doğrulama bugün hiçbir özelliği kapatmaz.
+(39) **HESAP SİLME (02.10.2026, migration 0059, §13.65)** — satır SİLİNMEZ
+(değiştirilemez defter), kişisel veri silinir + anonimleşir (`deleted_at`).
+⚠️ Oyuncu listeleyen YENİ bir sorgu yazarken `p.deleted_at IS NULL` ekle
+(sıralama, sezon, profil, `findById` öyle). Parası emanette olan hesap 409.
+⚠️ Oyuncuya bağlı YENİ bir kişisel veri tablosu eklersen
+`postgres-account-deletion.repository.ts` silme listesine de ekle; yeni bir
+emanet/para bekleten durum eklersen `BLOCKERS_SQL`e ekle.
 
 **✅ ÜCRETLİ LOBİ YARIŞI ARTIK KOŞUYOR — ÖDÜL DAĞITIMI VAR (§13.14,
 28.09.2026).** `POST /races/:id/settle` yarışı koşar, ödülleri `top5`
