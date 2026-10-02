@@ -255,8 +255,8 @@ geri kalanı (at/pazar/config/etkinlik/rol) · gözlemlenebilirlik · dağıtım
 8. AI avatar (brief zorunlu kılıyor) — sağlayıcı + depolama kararı.
 9. **Next.js 14 kritik/yüksek açıklar** (GHSA-2xp9-vwfh-vxw4 ve GHSA-p293-qw3h-jr36 uzaktan kod
    çalıştırma, SSRF, DoS) + `@nestjs/platform-express`/multer DoS — düzeltme yalnızca büyük sürüm
-   (Next 16, Nest 12). `security/audit-allowlist.json` 2026-11-01'de sona erer → o tarihten sonra CI
-   kırılır. Faz 13-B: çerçeve yükseltmesi.
+   (Next 16). `security/audit-allowlist.json` 2026-11-01'de sona erer → o tarihten sonra CI
+   kırılır. **Nest/multer kısmı KAPANDI** (Faz 13-B.1: Nest 11.2.7, multer 2.4.0); kalan Next 16 (13-B.2).
 
 ## Recommended Priority
 
@@ -489,3 +489,27 @@ asıl çözüm Next yükseltmesi
 PRODUCTION BLOCKERS: Next 14 kritik açıklar (yeni, 9. madde) — Faz 13-B
 REMAINING: 13-B çerçeve yükseltmesi (Next 16 + React 19, Nest 12), staging, hata izleme, yedek provası
 NEXT PHASE: 13-B Next/Nest yükseltmesi (izin listesi 2026-11-01'de biter)
+
+---
+
+PHASE: 13-B.1 — Nest 10 → 11 (multer/express açıkları)
+STATUS: TESTED
+COMPLETED: @nestjs/* 11.2.7 (express 5.2.1, multer 2.4.0); multer'in 8 yüksek
+danışmanı kapandı ve izin listesinden çıkarıldı (kalan 12 kayıt: Next 14 + postcss).
+Nest 12 GEREKMEDİ: açık aralığı `<=11.1.14`; 11.2.7 güvenli.
+FILES MODIFIED: apps/api/package.json, package-lock.json, app.module.ts (`'{*path}'` —
+Express 5 adlandırılmış joker; `'*'` başlangıçta uyarı veriyordu),
+security/audit-allowlist.json, .github/workflows/ci.yml (gitleaks teşhisi),
+test/api/interactive-race.e2e-spec.ts
+DATABASE CHANGES: —
+API CHANGES: — (sorgu parametreleri düz `@Query('x')`; Express 5'in basit ayrıştırıcısı aynı sonucu verir)
+SECURITY CHANGES: 8 yüksek multer DoS danışmanı kapandı
+TESTS PASSED: API 161 dosya / 2383 (temiz şema; bir test kendi iddia hatası — aşağıda);
+derlenmiş sunucu Nest 11 ile açılıyor, /health/ready 200, X-Request-Id 404/401'de var, rota uyarısı yok
+BUGS FOUND: (1) `interactive-race` testine dün koyduğum üst sınır YANLIŞTI: sunucu komutu
+`commandSafetyMs` İLERİSİNE yazar; doğru değişmez "yanıt anında gösterilmiş segmente düşmez".
+(2) f6df133 CI'ında gitleaks adımı düştü; yerelde (tüm dallar + PR birleştirme simülasyonu)
+yeniden üretilemedi, log'a erişim yok → adım ayrıldı ve bulgular annotation olarak yazılıyor.
+BUGS FIXED: (1) düzeltildi, 3 ardışık koşu yeşil. (2) teşhis bekliyor.
+REMAINING: 13-B.2 Next 16 + React 19 + R3F 9 / drei 10
+NEXT PHASE: 13-B.2

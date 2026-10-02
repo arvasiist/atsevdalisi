@@ -406,6 +406,9 @@ bağımlılık açığı CI'ı KIRAR; izin eklemek karardır (gerekçe + son tar
 `security/audit-allowlist.json`). İzinler **2026-11-01'de biter** (Next 16 /
 Nest 12 yükseltmesi gerekir). Gitleaks tüm geçmişi tarar; yanlış pozitif
 `.gitleaksignore`a parmak iziyle. Docker yerelde YOK — imajlar CI'da derlenir.
+(41) **NEST 11 (02.10.2026, Faz 13-B.1)** — Express 5: rota jokeri ADLANDIRILIR
+(`'{*path}'`, `'*'` DEĞİL); sorgu dizesi basit ayrıştırılır (iç içe `a[b]=`
+nesneye dönmez — `@Query('x')` düz parametre kullan).
 
 **✅ ÜCRETLİ LOBİ YARIŞI ARTIK KOŞUYOR — ÖDÜL DAĞITIMI VAR (§13.14,
 28.09.2026).** `POST /races/:id/settle` yarışı koşar, ödülleri `top5`

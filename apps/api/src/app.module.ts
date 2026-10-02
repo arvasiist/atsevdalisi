@@ -184,6 +184,6 @@ export class AppModule implements NestModule {
   // 02.10.2026 (Faz 13-A) — istek kimliği HER rotada (hata zarfı + yanıt
   // başlığı). Modülde kaydedilir ki e2e önyüklemesi de aynısını alsın.
   configure(consumer: MiddlewareConsumer): void {
-    consumer.apply(RequestIdMiddleware).forRoutes('*');
+    consumer.apply(RequestIdMiddleware).forRoutes('{*path}');
   }
 }

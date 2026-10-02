@@ -18,35 +18,11 @@
       "expires": "2026-11-01"
     },
     {
-      "id": "GHSA-535w-7cp7-47q4",
-      "package": "multer",
-      "severity": "high",
-      "title": "multer vulnerable to Denial of Service via oversized array index in field names",
-      "reason": "API dosya yükleme (multipart) KULLANMAZ — multer @nestjs/platform-express'in dolaylı bağımlılığı; düzeltme Nest 12 (büyük sürüm). Faz 13-B: Nest yükseltmesi.",
-      "expires": "2026-11-01"
-    },
-    {
-      "id": "GHSA-5528-5vmv-3xc2",
-      "package": "multer",
-      "severity": "high",
-      "title": "Multer Vulnerable to Denial of Service via Uncontrolled Recursion",
-      "reason": "API dosya yükleme (multipart) KULLANMAZ — multer @nestjs/platform-express'in dolaylı bağımlılığı; düzeltme Nest 12 (büyük sürüm). Faz 13-B: Nest yükseltmesi.",
-      "expires": "2026-11-01"
-    },
-    {
       "id": "GHSA-6g55-p6wh-862q",
       "package": "postcss",
       "severity": "high",
       "title": "PostCSS: Arbitrary file read and information disclosure via attacker-controlled sourceMappingURL in CSS comments",
       "reason": "Yalnızca derleme zamanı CSS işleme (Next'in dolaylı bağımlılığı); kullanıcı girdisi işlemez. Next yükseltmesiyle kapanır.",
-      "expires": "2026-11-01"
-    },
-    {
-      "id": "GHSA-72gw-mp4g-v24j",
-      "package": "multer",
-      "severity": "high",
-      "title": "Multer vulnerable to Denial of Service via deeply nested field names",
-      "reason": "API dosya yükleme (multipart) KULLANMAZ — multer @nestjs/platform-express'in dolaylı bağımlılığı; düzeltme Nest 12 (büyük sürüm). Faz 13-B: Nest yükseltmesi.",
       "expires": "2026-11-01"
     },
     {
@@ -119,30 +95,6 @@
       "severity": "high",
       "title": "PostCSS: Path Traversal in Previous Source Map Auto-Loading (sourceMappingURL) leads to Arbitrary .map File Disclosure",
       "reason": "Yalnızca derleme zamanı CSS işleme (Next'in dolaylı bağımlılığı); kullanıcı girdisi işlemez. Next yükseltmesiyle kapanır.",
-      "expires": "2026-11-01"
-    },
-    {
-      "id": "GHSA-v52c-386h-88mc",
-      "package": "multer",
-      "severity": "high",
-      "title": "Multer vulnerable to Denial of Service via resource exhaustion",
-      "reason": "API dosya yükleme (multipart) KULLANMAZ — multer @nestjs/platform-express'in dolaylı bağımlılığı; düzeltme Nest 12 (büyük sürüm). Faz 13-B: Nest yükseltmesi.",
-      "expires": "2026-11-01"
-    },
-    {
-      "id": "GHSA-wc9g-mqfw-jrwm",
-      "package": "multer",
-      "severity": "high",
-      "title": "multer vulnerable to Denial of Service via crafted multipart field names",
-      "reason": "API dosya yükleme (multipart) KULLANMAZ — multer @nestjs/platform-express'in dolaylı bağımlılığı; düzeltme Nest 12 (büyük sürüm). Faz 13-B: Nest yükseltmesi.",
-      "expires": "2026-11-01"
-    },
-    {
-      "id": "GHSA-xf7r-hgr6-v32p",
-      "package": "multer",
-      "severity": "high",
-      "title": "Multer vulnerable to Denial of Service via incomplete cleanup",
-      "reason": "API dosya yükleme (multipart) KULLANMAZ — multer @nestjs/platform-express'in dolaylı bağımlılığı; düzeltme Nest 12 (büyük sürüm). Faz 13-B: Nest yükseltmesi.",
       "expires": "2026-11-01"
     }
   ]

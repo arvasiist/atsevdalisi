@@ -137,15 +137,35 @@ jobs:
         run: npm ci --ignore-scripts
       - name: Dependency audit gate
         run: node tools/security/audit-gate.mjs
-      - name: Secret scan (gitleaks)
+      - name: Install gitleaks (pinned + SHA-256)
         env:
           GITLEAKS_VERSION: 8.24.3
           GITLEAKS_SHA256: 9991e0b2903da4c8f6122b5c3186448b927a5da4deef1fe45271c3793f4ee29c
         run: |
-          curl -sSL -o gitleaks.tgz "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
-          echo "${GITLEAKS_SHA256}  gitleaks.tgz" | sha256sum -c -
-          tar xzf gitleaks.tgz gitleaks
-          ./gitleaks git --no-banner --redact --exit-code 1 .
+          curl -sSfL -o "$RUNNER_TEMP/gitleaks.tgz" "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          echo "${GITLEAKS_SHA256}  $RUNNER_TEMP/gitleaks.tgz" | sha256sum -c -
+          tar xzf "$RUNNER_TEMP/gitleaks.tgz" -C "$RUNNER_TEMP" gitleaks
+          "$RUNNER_TEMP/gitleaks" version
+      # Bulgular (değerler REDAKTE) annotation olarak da yazılır — log'a
+      # erişemeyen biri de neyin, nerede bulunduğunu görebilsin.
+      - name: Secret scan (gitleaks)
+        run: |
+          set +e
+          "$RUNNER_TEMP/gitleaks" git --no-banner --redact --exit-code 1 \
+            --report-format json --report-path "$RUNNER_TEMP/gitleaks.json" .
+          code=$?
+          set -e
+          if [ -s "$RUNNER_TEMP/gitleaks.json" ]; then
+            node -e '
+              const findings = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+              for (const f of findings) {
+                console.log(`::error file=${f.File},line=${f.StartLine}::gitleaks ${f.RuleID} (commit ${f.Commit.slice(0, 8)}, fingerprint ${f.Fingerprint})`);
+              }
+              console.log(`::notice::gitleaks bulgu sayısı: ${findings.length}`);
+            ' "$RUNNER_TEMP/gitleaks.json"
+          fi
+          echo "::notice::gitleaks çıkış kodu: $code"
+          exit $code
 
   # 02.10.2026 (Faz 13-A) — imajlar her değişiklikte DERLENİR (gönderilmez).
   # Duman testi: API imajı üretim modunda ortam değişkenleri olmadan
