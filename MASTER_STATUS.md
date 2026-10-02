@@ -253,7 +253,7 @@ geri kalanı (at/pazar/config/etkinlik/rol) · gözlemlenebilirlik · dağıtım
 6. Dağıtım: Dockerfile + CI imaj build VAR (13-A); staging, kayıt defteri, gizli anahtar yöneticisi, yedek/geri yükleme YOK.
 7. Kimlik bilgileri: `GOOGLE_OAUTH_CLIENT_ID`, `RESEND_API_KEY`.
 8. AI avatar (brief zorunlu kılıyor) — sağlayıcı + depolama kararı.
-9. **Next.js 14 kritik/yüksek açıklar** (GHSA-2xp9-vwfh-vxw4 ve GHSA-p293-qw3h-jr36 uzaktan kod
+9. ~~**Next.js 14 kritik/yüksek açıklar** (GHSA-2xp9-vwfh-vxw4 ve GHSA-p293-qw3h-jr36 uzaktan kod
    çalıştırma, SSRF, DoS) + `@nestjs/platform-express`/multer DoS — düzeltme yalnızca büyük sürüm
    (Next 16). `security/audit-allowlist.json` 2026-11-01'de sona erer → o tarihten sonra CI
    kırılır. **Nest/multer kısmı KAPANDI** (Faz 13-B.1: Nest 11.2.7, multer 2.4.0); kalan Next 16 (13-B.2).
@@ -513,3 +513,28 @@ yeniden üretilemedi, log'a erişim yok → adım ayrıldı ve bulgular annotati
 BUGS FIXED: (1) düzeltildi, 3 ardışık koşu yeşil. (2) teşhis bekliyor.
 REMAINING: 13-B.2 Next 16 + React 19 + R3F 9 / drei 10
 NEXT PHASE: 13-B.2
+
+---
+
+PHASE: 13-B.2 — Next 14 → 16 + React 19 + R3F 9 / drei 10 / postprocessing 3
+STATUS: TESTED
+COMPLETED: next 16.3.8, react/react-dom 19, @react-three/fiber 9.8, drei 10.7,
+postprocessing 3.1. Yüksek/kritik bağımlılık açığı: 0 (izin listesi BOŞ).
+Dinamik sayfalar `useParams()`, rota işleyici `await params` (Next 15+ Promise).
+Kökte eski React 18 kalıyordu (iki React → kırık JSX tipleri ve çalışma anında
+çift React riski): kök `overrides` + kilit dosyasından React girişleri ayıklandı → tek React 19.
+FILES MODIFIED: apps/web/package.json, package.json (overrides), package-lock.json,
+apps/web/next-env.d.ts (Next 16 üretir), replays/[raceId] + races/[raceId]/watch sayfaları,
+pwa-icon rota işleyicisi, next.config.mjs (yorum), security/audit-allowlist.json (boş),
+apps/api/Dockerfile + apps/web/Dockerfile (çalışma alanı node_modules), .gitleaks.toml, ci.yml
+BUGS FOUND: (1) API imajı Nest 11 ile açılmıyordu: Dockerfile yalnızca kök node_modules'u
+kopyalıyordu, express 5/Nest 11 apps/api/node_modules'teydi (`Cannot find module '@nestjs/core'`,
+yerelde birebir yeniden üretildi). (2) gitleaks: aynı yanlış pozitifler CI'ın çektiği başka
+commit'lerde (parmak izi tutmaz). İlk istisna denemesi (yol + AND) bu sürümde bütün dosyayı
+muaf tutuyordu — gerçek bir anahtarı gizledi; satır desenine daraltıldı ve sentetik depoda
+kanıtlandı.
+BUGS FIXED: ikisi de
+TESTS PASSED: web 43 / 524, next build, API 161 / 2383 (temiz şema), tarayıcıda ana sayfa/ahır/
+kontrollü yarış 3D sahneleri + 6 sayfa: sayfa hatası 0; yalnızca beklenen eksik-varlık HEAD 404'leri
+PRODUCTION BLOCKERS: 9. madde (Next 14 açıkları) KAPANDI
+REMAINING: staging, hata izleme, yedek provası (13-C)

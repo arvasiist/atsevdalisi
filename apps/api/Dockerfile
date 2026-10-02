@@ -30,7 +30,10 @@ COPY database database
 CMD ["npm", "run", "migrate"]
 
 FROM build AS prod-deps
-RUN npm prune --omit=dev --ignore-scripts
+# Sürüm çatışmasında npm paketleri ÇALIŞMA ALANININ kendi node_modules'üne
+# kurar (Nest 11: express 5 → apps/api/node_modules). Dizin her zaman var
+# olsun ki aşağıdaki COPY boşken de düşmesin.
+RUN npm prune --omit=dev --ignore-scripts && mkdir -p apps/api/node_modules
 
 FROM node:22-alpine AS runtime
 ENV NODE_ENV=production
@@ -44,6 +47,7 @@ COPY --from=build /app/packages/game-config/package.json packages/game-config/
 COPY --from=build /app/packages/game-config/dist packages/game-config/dist
 COPY --from=build /app/packages/shared-types/package.json packages/shared-types/
 COPY --from=build /app/packages/shared-types/dist packages/shared-types/dist
+COPY --from=prod-deps /app/apps/api/node_modules apps/api/node_modules
 COPY --from=build /app/apps/api/package.json apps/api/
 COPY --from=build /app/apps/api/dist apps/api/dist
 USER node

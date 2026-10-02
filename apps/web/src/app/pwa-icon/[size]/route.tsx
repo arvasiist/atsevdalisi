@@ -3,8 +3,9 @@ import { PwaIconImage } from '../../../features/pwa/PwaIconImage';
 import { parsePwaIconSize } from '../../../features/pwa/pwa';
 
 /** `/pwa-icon/192` ve `/pwa-icon/512` — başka ölçü 404. */
-export function GET(_request: Request, { params }: { params: { size: string } }): Response {
-  const size = parsePwaIconSize(params.size);
+export async function GET(_request: Request, { params }: { params: Promise<{ size: string }> }): Promise<Response> {
+  // Next 15+: rota parametreleri Promise'tir.
+  const size = parsePwaIconSize((await params).size);
   if (size === null) {
     return new Response('Bulunamadı', { status: 404 });
   }

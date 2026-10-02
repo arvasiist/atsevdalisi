@@ -5,10 +5,8 @@
  * "PHASE 12 — REPLAY" (bu sayfa bu turda EKLENDİ, `/replays/page.tsx`
  * listesinin açtığı detay/tekrar ekranı — bkz. o dosyanın doc yorumu).
  *
- * Bu proje `next@14.2` kullanıyor (bkz. `apps/web/package.json`) — bu
- * sürümde App Router `params` bir Promise DEĞİL, sayfa bileşenine
- * DOĞRUDAN (senkron) bir prop olarak geçer; bu yüzden burada gereksiz bir
- * `useParams()` hook'u/ek import YOKTUR.
+ * 02.10.2026 — Next 16'ya yükseltildi: App Router `params` artık bir
+ * Promise'tir; bu istemci sayfası rota parametresini `useParams()` ile okur.
  *
  * Veri akışı: `GET /races/:id/timeline` (`apiClient.getRaceTimeline`) →
  * `RaceTimelineView` → `adaptRaceTimelineViewToReplayData` (bkz. o
@@ -40,6 +38,7 @@
  * (bkz. adaptör dosyasının doc yorumu, bu tam olarak onun uyardığı şey).
  */
 
+import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { useEffect, useState } from 'react';
@@ -58,12 +57,10 @@ const RaceViewer = dynamic(
   },
 );
 
-interface ReplayDetailPageProps {
-  params: { raceId: string };
-}
-
-export default function ReplayDetailPage({ params }: ReplayDetailPageProps): React.ReactElement {
-  const { raceId } = params;
+export default function ReplayDetailPage(): React.ReactElement {
+  // Next 15+ (02.10.2026, Next 16 yükseltmesi): sayfa `params`ı bir Promise'tir;
+  // istemci bileşeninde rota parametresi `useParams()` ile okunur.
+  const { raceId } = useParams<{ raceId: string }>();
   const [replayData, setReplayData] = useState<ReplayTimelineData | null>(null);
   const [error, setError] = useState<string | null>(null);
 

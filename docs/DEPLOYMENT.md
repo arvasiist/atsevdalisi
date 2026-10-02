@@ -60,8 +60,7 @@ aynı kimlikle yazılır. Kullanıcı destek talebinde bu kimliği verir.
 
 - **Bağımlılık kapısı** (`tools/security/audit-gate.mjs`): yüksek/kritik
   her danışman `security/audit-allowlist.json`da gerekçeli ve süresi
-  dolmamış olmalı. ⚠️ Bugünkü kayıtlar Next 14 / Nest 10 açıklarıdır ve
-  **2026-11-01'de sona erer** — çerçeve yükseltmesi (Faz 13-B) o tarihe
-  kadar yapılmazsa CI kırılır. Bu bilinçlidir.
+  dolmamış olmalı. 02.10.2026 itibarıyla liste BOŞTUR (Nest 11 + Next 16
+  yükseltmeleriyle yüksek/kritik açık kalmadı).
 - **Gizli anahtar taraması**: gitleaks (sürüm sabit, SHA-256 doğrulamalı),
   tüm git geçmişi. İncelenmiş yanlış pozitifler `.gitleaksignore`da.

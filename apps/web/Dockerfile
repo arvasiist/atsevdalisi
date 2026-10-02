@@ -22,7 +22,7 @@ COPY config config
 COPY packages packages
 COPY apps/web apps/web
 RUN npm run build:packages && npm run build --workspace=apps/web
-RUN npm prune --omit=dev --ignore-scripts
+RUN npm prune --omit=dev --ignore-scripts && mkdir -p apps/web/node_modules
 
 FROM node:22-alpine AS runtime
 ENV NODE_ENV=production
@@ -35,6 +35,7 @@ COPY --from=build /app/packages/game-config/package.json packages/game-config/
 COPY --from=build /app/packages/game-config/dist packages/game-config/dist
 COPY --from=build /app/packages/shared-types/package.json packages/shared-types/
 COPY --from=build /app/packages/shared-types/dist packages/shared-types/dist
+COPY --from=build /app/apps/web/node_modules apps/web/node_modules
 COPY --from=build /app/apps/web/package.json /app/apps/web/next.config.mjs apps/web/
 COPY --from=build /app/apps/web/.next apps/web/.next
 COPY --from=build /app/apps/web/public apps/web/public

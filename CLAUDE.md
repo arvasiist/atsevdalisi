@@ -409,6 +409,12 @@ Nest 12 yükseltmesi gerekir). Gitleaks tüm geçmişi tarar; yanlış pozitif
 (41) **NEST 11 (02.10.2026, Faz 13-B.1)** — Express 5: rota jokeri ADLANDIRILIR
 (`'{*path}'`, `'*'` DEĞİL); sorgu dizesi basit ayrıştırılır (iç içe `a[b]=`
 nesneye dönmez — `@Query('x')` düz parametre kullan).
+(42) **NEXT 16 + REACT 19 + R3F 9 (02.10.2026, Faz 13-B.2)** — sayfa/rota
+`params` Promise'tir: istemci sayfasında `useParams()`, rota işleyicide
+`await params`. ⚠️ Kök `package.json` `overrides` React'i 19'a sabitler —
+KALDIRMA: aksi hâlde eski React 18 kökte kalır, iki React olur. ⚠️ Dockerfile
+çalışma katmanı `apps/*/node_modules`u da kopyalar (npm çatışan sürümleri
+oraya kurar). Bağımlılık izin listesi BOŞ — yeni yüksek/kritik açık CI'ı kırar.
 
 **✅ ÜCRETLİ LOBİ YARIŞI ARTIK KOŞUYOR — ÖDÜL DAĞITIMI VAR (§13.14,
 28.09.2026).** `POST /races/:id/settle` yarışı koşar, ödülleri `top5`

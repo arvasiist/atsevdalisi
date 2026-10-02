@@ -3890,6 +3890,22 @@ Karar: önce pratik yarış; kırbaç sınırsız, dayanıklılık bedelli.
 - Belge: `docs/DEPLOYMENT.md`. Kanıt: `test/security/production-env.spec.ts`,
   `test/api/ops.e2e-spec.ts`.
 
+### 13.67 Çerçeve yükseltmesi (02.10.2026, Faz 13-B)
+
+- **Nest 10 → 11.2.7** (express 5, multer 2.4.0) — 8 yüksek multer DoS açığı
+  kapandı. Rota jokeri `'{*path}'`.
+- **Next 14 → 16.3.8, React 19, R3F 9, drei 10, postprocessing 3** — Next'in
+  kritik uzaktan kod çalıştırma dahil tüm yüksek/kritik açıkları kapandı;
+  bağımlılık izin listesi BOŞ. `params` Promise (istemci sayfada
+  `useParams()`, rota işleyicide `await params`). Kökte eski React 18
+  kalıyordu → kök `overrides`.
+- Docker: çalışma katmanı `apps/*/node_modules`u da kopyalar (Nest 11
+  imajı `Cannot find module '@nestjs/core'` ile açılmıyordu).
+- Gitleaks: commit'ten bağımsız `.gitleaks.toml` (yalnızca
+  `Idempotency-Key: <uuid>` satırları); yol tabanlı istisna gerçek anahtarı
+  gizlediği için kullanılmadı.
+- Kanıt: tam API/web paketleri, next build, tarayıcıda üç 3D sahne + 6 sayfa.
+
 ## 14. Kendime hatırlatmalar (kısa liste)
 
 1. **Race Engine'e dokunmadan önce iki kez düşün.** Denetim onu "KEEP, dokunma"

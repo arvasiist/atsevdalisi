@@ -40,6 +40,7 @@
  * geçirmek, olmayan bir atı "benim atım" gibi gösterme riski taşırdı.
  */
 
+import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import type { InteractiveRaceView } from '@at-sevdalisi/shared-types';
@@ -52,12 +53,10 @@ import { usePlayer } from '../../../../lib/player-context';
 /** Kontrollü yarışın canlı tribününü arama aralığı (yarış kilitlenince açılır). */
 const LIVE_SPECTATE_POLL_MS = 5000;
 
-interface WatchRacePageProps {
-  params: { raceId: string };
-}
-
-export default function WatchRacePage({ params }: WatchRacePageProps): React.ReactElement {
-  const { raceId } = params;
+export default function WatchRacePage(): React.ReactElement {
+  // Next 15+ (02.10.2026, Next 16 yükseltmesi): sayfa `params`ı bir Promise'tir;
+  // istemci bileşeninde rota parametresi `useParams()` ile okunur.
+  const { raceId } = useParams<{ raceId: string }>();
   // `races/page.tsx`'teki AYNI desen: `getAuthToken()`'ın GERÇEK
   // sözleşmesi `null` dönebilir, bu yüzden `!` ile ZORLAMAK yerine açıkça
   // kontrol edilip dürüst bir durum gösterilir.
