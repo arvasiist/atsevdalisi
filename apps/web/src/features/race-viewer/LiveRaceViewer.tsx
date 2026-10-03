@@ -108,11 +108,13 @@ import {
 import {
   connectRaceSocket,
   sendRaceChatMessage,
+  sendRaceEmote,
   type LiveRaceFinishedEntrant,
 } from './live-race-socket';
 import { mergeSegments } from './segment-merge';
 import { mergeChatMessages } from './chat-history-merge';
 import { RaceChatPanel } from './RaceChatPanel';
+import { addBurst, type EmoteBurst } from './emote-logic';
 
 const RaceScene3D = dynamic(
   () => import('./RaceScene3D').then((imported) => imported.RaceScene3D),
@@ -234,6 +236,9 @@ export function LiveRaceViewer({
   const [chatMessages, setChatMessages] = useState<RaceChatMessageView[]>([]);
   const [spectatorCount, setSpectatorCount] = useState<number | null>(null);
   const [chatError, setChatError] = useState<string | null>(null);
+  // 02.10.2026 (Faz 9) — sunucunun yayınladığı tribün emote'ları (ekranda uçuşan).
+  const [emoteBursts, setEmoteBursts] = useState<EmoteBurst[]>([]);
+  const emoteIdRef = useRef(0);
 
   // Bkz. dosya başı doc yorumu madde 1 — "GERÇEK zaman = oynatma saati".
   const playbackStartedAtRef = useRef<number | null>(null);
@@ -328,6 +333,13 @@ export function LiveRaceViewer({
         setChatMessages(chatMessagesRef.current);
       },
       onChatError: (message) => setChatError(message),
+      onEmote: (event) => {
+        emoteIdRef.current += 1;
+        const id = emoteIdRef.current;
+        setEmoteBursts((current) =>
+          addBurst(current, event, chatConfig.emotes.list, Date.now(), chatConfig.emotes, id),
+        );
+      },
     });
     socketRef.current = socket;
 
@@ -597,6 +609,25 @@ export function LiveRaceViewer({
    * yalnızca iletilir; ekran, sunucunun `chat.message.received` ile
    * yayınladığı GERÇEK satırı gösterir.
    */
+  const handleSendEmote = useCallback(
+    (key: string) => {
+      const socket = socketRef.current;
+      if (socket) sendRaceEmote(socket, raceId, key);
+    },
+    [raceId],
+  );
+
+  // Süresi dolan emote'ları temizler (yeni emote gelmese de ekrandan kalksın).
+  useEffect(() => {
+    if (emoteBursts.length === 0) return undefined;
+    const soonest = Math.min(...emoteBursts.map((burst) => burst.expiresAtMs));
+    const timer = setTimeout(
+      () => setEmoteBursts((current) => current.filter((burst) => burst.expiresAtMs > Date.now())),
+      Math.max(0, soonest - Date.now()),
+    );
+    return () => clearTimeout(timer);
+  }, [emoteBursts]);
+
   const handleSendChatMessage = useCallback(
     (body: string) => {
       const socket = socketRef.current;
@@ -659,7 +690,16 @@ export function LiveRaceViewer({
         spectatorCount={spectatorCount}
         onSend={handleSendChatMessage}
         errorMessage={chatError}
+        emotes={chatConfig.emotes.list}
+        onEmote={handleSendEmote}
       />
+      <div className="emote-layer" aria-hidden="true">
+        {emoteBursts.map((burst) => (
+          <span key={burst.id} className="emote-burst" style={{ left: `${burst.leftPercent}%` }}>
+            {burst.symbol}
+          </span>
+        ))}
+      </div>
       {racePhase !== null && segments.length === 0 && (
         <div className="race-phase-banner" role="status">
           {racePhase === 'waiting'

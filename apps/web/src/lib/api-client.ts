@@ -2,6 +2,7 @@ import type {
   AccountDeletionCheck,
   AdminAnnouncementView,
   AdminLiveEventView,
+  ClubChatMessageView,
   AnomalyReport,
   AccountDataExport,
   QuestBoardView,
@@ -1450,6 +1451,14 @@ export const apiClient = {
 
   /** Çağıranın kulübü; üye değilse `null`. */
   getMyClub: () => request<ClubDetailView | null>('/clubs/mine'),
+  /** 02.10.2026 (Faz 9) — kulüp sohbeti (yalnızca üyeler). */
+  getClubMessages: (clubId: string) =>
+    request<ClubChatMessageView[]>(`/clubs/${encodeURIComponent(clubId)}/messages`),
+  sendClubMessage: (clubId: string, body: string) =>
+    request<ClubChatMessageView>(`/clubs/${encodeURIComponent(clubId)}/messages`, {
+      method: 'POST',
+      body: JSON.stringify({ body }),
+    }),
 
   getClub: (clubId: string) => request<ClubDetailView>(`/clubs/${clubId}`),
 

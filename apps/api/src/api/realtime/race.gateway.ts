@@ -21,8 +21,7 @@ import type {
   RaceRosterPayload,
   RaceSegmentSnapshot,
   RaceSpectatorCountPayload,
-  RaceTimelineView,
-} from '@at-sevdalisi/shared-types';
+  RaceTimelineView, RaceEmoteEvent } from '@at-sevdalisi/shared-types';
 import { GetRaceTimelineUseCase } from '../../application/use-cases/get-race-timeline.use-case';
 import { ListRaceMessagesUseCase } from '../../application/use-cases/list-race-messages.use-case';
 import { SendRaceMessageUseCase } from '../../application/use-cases/send-race-message.use-case';
@@ -825,6 +824,35 @@ export class RaceGateway
     }
 
     this.server.to(this.raceRoom(parsed.raceId)).emit('chat.message.received', saved);
+  }
+
+  /**
+   * `race.emote` (02.10.2026, Faz 9, brief §52 EMOTES) — tribünde anlık tepki.
+   * KALICI DEĞİL (DB'ye yazılmaz) ve ANONİMDİR: yayın yalnızca yarış + anahtar
+   * taşır (kimin attığı yok — taciz aracı olmasın, isim için DB sorgusu da
+   * gerekmez). Kapılar: kimlik, şekil, listedeki anahtar, abonelik, soket
+   * başına soğuma (`chat.emotes.cooldownMs`). Reddedilen emote sessizce düşer
+   * (`chat.error` sohbet hatası içindir; tepki için uyarı gürültü olurdu).
+   */
+  @SubscribeMessage('race.emote')
+  handleEmote(@ConnectedSocket() client: Socket, @MessageBody() body: unknown): void {
+    if (!client.data.playerId) {
+      client.disconnect(true);
+      return;
+    }
+    if (typeof body !== 'object' || body === null) return;
+    const raceId = (body as { raceId?: unknown }).raceId;
+    const key = (body as { key?: unknown }).key;
+    if (typeof raceId !== 'string' || !UUID_PATTERN.test(raceId) || typeof key !== 'string') return;
+    const emotes = this.config.chat.emotes;
+    if (!emotes.list.some((emote) => emote.key === key)) return;
+    if (!this.subscribedRaceIds(client).has(raceId)) return;
+    const nowMs = Date.now();
+    const last = client.data.lastEmoteAtMs as number | undefined;
+    if (last !== undefined && nowMs - last < emotes.cooldownMs) return;
+    client.data.lastEmoteAtMs = nowMs;
+    const event: RaceEmoteEvent = { raceId, key };
+    this.server.to(this.raceRoom(raceId)).emit('race.emote', event);
   }
 
   /**

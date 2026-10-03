@@ -79,6 +79,10 @@ const SECTION_SQL: Record<AccountExportSectionName, string> = {
     SELECT kind, reason, created_at AS "createdAt", expires_at AS "expiresAt",
            lifted_at AS "liftedAt", lift_reason AS "liftReason"
       FROM player_sanctions WHERE player_id = $1 ORDER BY created_at DESC LIMIT $2`,
+  clubMessages: `
+    SELECT c.name AS club, m.body, m.created_at AS "createdAt"
+      FROM club_messages m JOIN clubs c ON c.id = m.club_id
+     WHERE m.player_id = $1 ORDER BY m.created_at DESC LIMIT $2`,
   questClaims: `
     SELECT quest_key AS "questKey", period_start AS "periodStart", reward_money::float8 AS "rewardMoney",
            claimed_at AS "claimedAt"

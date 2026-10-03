@@ -1290,3 +1290,19 @@ describe('GÖREV + ETKİNLİK uçları (Faz 11-B)', () => {
     ]);
   });
 });
+
+describe('KULÜP SOHBETİ uçları (Faz 9)', () => {
+  it('doğru rota/yöntem/gövde', async () => {
+    setAuthToken('t');
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ success: true, data: [] }));
+    vi.stubGlobal('fetch', fetchMock);
+    await apiClient.getClubMessages('c1');
+    await apiClient.sendClubMessage('c1', 'selam');
+    const calls = fetchMock.mock.calls.map(([url, config]) => [String(url).replace(API_BASE_URL, ''), (config as RequestInit).method ?? 'GET']);
+    expect(calls).toEqual([
+      ['/clubs/c1/messages', 'GET'],
+      ['/clubs/c1/messages', 'POST'],
+    ]);
+    expect(JSON.parse(String((fetchMock.mock.calls[1]![1] as RequestInit).body))).toEqual({ body: 'selam' });
+  });
+});

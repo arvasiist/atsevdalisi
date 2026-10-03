@@ -488,6 +488,16 @@ this.tickNow())` ŞART — `scheduler-leader.e2e-spec.ts` kaynağı tarar ve
 (testler/elle tetikleme). Birim testleri zamanlayıcıya `alwaysLeader` saplaması
 verir. ⚠️ Çok örnek için İKİNCİ önkoşul hâlâ eksik: Socket.IO Redis
 adaptörü (sohbet/bildirim/izleyici sayısı örnekler arası yayılmaz).
+(50) **KULÜP SOHBETİ + TRİBÜN EMOTE (02.10.2026, Faz 9, migration 0062,
+§13.75)** — `GET/POST /clubs/:id/messages`: yalnızca ÜYE (403
+`NOT_CLUB_MEMBER`; yazma `INSERT … WHERE EXISTS üyelik` — kontrolle yazma
+arasında çıkarılan üye yazamaz); gövde yarış sohbetiyle AYNI kural
+(`normalizeMessageBody`), web `chat.clubChat.pollSeconds` ile yoklar.
+`club_messages` kişisel veri → hesap silme + dışa aktarma listelerinde.
+Emote: soket `race.emote` → odaya `{ raceId, key }` (ANONİM, kalıcı DEĞİL);
+kapılar: listedeki anahtar (`chat.emotes.list`, simge UNICODE — dosya değil),
+abonelik, soket başına `cooldownMs`. Ekran kendi bastığını yerelde ÇİZMEZ,
+sunucu yayınını bekler. Social Hub = avatar alanı (brief §50) → Faz 8 ile.
 
 **✅ ÜCRETLİ LOBİ YARIŞI ARTIK KOŞUYOR — ÖDÜL DAĞITIMI VAR (§13.14,
 28.09.2026).** `POST /races/:id/settle` yarışı koşar, ödülleri `top5`

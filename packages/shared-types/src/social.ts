@@ -240,3 +240,19 @@ export interface PlayerProfileStats {
   /** Bunlardan ilk üçte bitirilenler (birinciler DAHİL, `finish_position <= 3`). */
   podiumCount: number;
 }
+
+/** 02.10.2026 (Faz 9) — kulüp sohbeti mesajı (yalnızca üyelere görünür). */
+export interface ClubChatMessageView {
+  id: string;
+  playerId: string;
+  username: string;
+  displayName: string;
+  body: string;
+  createdAt: string;
+}
+
+/** 02.10.2026 (Faz 9) — tribün emote yayını (anonim: kimin attığı taşınmaz). */
+export interface RaceEmoteEvent {
+  raceId: string;
+  key: string;
+}

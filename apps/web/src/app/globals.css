@@ -2539,3 +2539,82 @@ button[style*='background: var(--color-accent-gold)'] {
     align-items: center;
   }
 }
+
+/* 02.10.2026 — Faz 9: tribün emote'ları */
+.emote-bar {
+  display: flex;
+  gap: 2px;
+  padding: 2px var(--space-sm, 8px);
+  flex-wrap: wrap;
+}
+.emote-button {
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  font-size: 16px;
+  line-height: 1;
+  padding: 3px 4px;
+  cursor: pointer;
+}
+.emote-button:hover,
+.emote-button:focus-visible {
+  border-color: var(--color-border, rgba(255, 255, 255, 0.2));
+}
+.emote-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+.emote-burst {
+  position: absolute;
+  bottom: 12%;
+  font-size: 28px;
+  animation: emote-rise 2.5s ease-out forwards;
+}
+@keyframes emote-rise {
+  from {
+    transform: translateY(0) scale(0.8);
+    opacity: 1;
+  }
+  to {
+    transform: translateY(-220px) scale(1.2);
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .emote-burst {
+    animation: none;
+    opacity: 0.9;
+  }
+}
+
+/* 02.10.2026 — Faz 9: kulüp sohbeti */
+.club-chat-list {
+  list-style: none;
+  margin: 0 0 10px;
+  padding: 0;
+  max-height: 280px;
+  overflow-y: auto;
+  display: grid;
+  gap: 8px;
+}
+.club-chat-list p {
+  margin: 2px 0 0;
+  overflow-wrap: anywhere;
+}
+.club-chat-author {
+  font-weight: 700;
+  color: var(--color-accent-gold, #d4a83a);
+}
+.club-chat-mine .club-chat-author {
+  color: var(--color-text-primary, #fff);
+}
+.club-chat-form {
+  display: flex;
+  gap: 8px;
+}
+.club-chat-form input {
+  flex: 1;
+  min-width: 0;
+}

@@ -1551,6 +1551,19 @@ export interface ChatConfig {
     /** Sabit pencere genişliği (saniye) — `RateLimitOptions.windowSeconds` ile aynı anlam. */
     windowSeconds: number;
   };
+  /** 02.10.2026 (Faz 9) — kulüp sohbeti: liste boyutu + istemcinin yoklama aralığı. */
+  clubChat: { historyLimit: number; pollSeconds: number };
+  /**
+   * 02.10.2026 (Faz 9) — tribün emote'ları. Simge bir UNICODE emojidir (dosya
+   * değil — sahte varlık yok). Sunucu yalnızca listedeki anahtarı yayınlar.
+   */
+  emotes: {
+    cooldownMs: number;
+    /** İstemci: bir emote'un ekranda kalma süresi ve aynı anda en fazla kaç tane (sunum). */
+    displayMs: number;
+    maxVisible: number;
+    list: Array<{ key: string; symbol: string; label: string }>;
+  };
 }
 
 /**

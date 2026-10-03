@@ -15,6 +15,7 @@
  * yazılır (sunucu, aynı transaction'da).
  */
 
+import { ClubChatPanel } from '../../features/club/ClubChatPanel';
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import type {
@@ -322,6 +323,8 @@ export default function ClubPage(): React.ReactElement {
               </p>
             ) : null}
           </GlassPanel>
+
+          {player ? <ClubChatPanel clubId={myClub.club.id} myPlayerId={player.id} /> : null}
 
           <GlassPanel style={{ padding: 'var(--space-lg)' }}>
             <h2 className="section-title" style={{ marginTop: 0 }}>

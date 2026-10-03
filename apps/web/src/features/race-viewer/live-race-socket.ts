@@ -41,8 +41,7 @@ import type {
   RaceChatMessageView,
   RaceRosterEntrant,
   RaceSegmentSnapshot,
-  SendRaceChatMessagePayload,
-} from '@at-sevdalisi/shared-types';
+  SendRaceChatMessagePayload, RaceEmoteEvent } from '@at-sevdalisi/shared-types';
 import { deriveSocketOrigin } from './live-race-url';
 
 /** `race.gateway.ts`'teki `RaceFinishedPayload` alanlarıyla BİREBİR aynı (bkz. o tipin `@at-sevdalisi/shared-types` tanımı). */
@@ -93,6 +92,8 @@ export interface LiveRaceSocketHandlers {
   onChatHistory: (messages: RaceChatMessageView[]) => void;
   /** `chat.message.received` — odaya yayınlanan KAYITLI mesaj (sunucunun kırptığı gövdeyle). */
   onChatMessage: (message: RaceChatMessageView) => void;
+  /** 02.10.2026 (Faz 9) — tribün emote yayını (anonim). İsteğe bağlı. */
+  onEmote?: (event: RaceEmoteEvent) => void;
   /**
    * `chat.error` — sohbet reddedildi. `onError`'DAN AYRI bir sınıftır:
    * sohbet reddedilse bile yarış yayını DEVAM EDER, ikisini tek olayda
@@ -120,6 +121,11 @@ export interface LiveRaceSocketHandlers {
  * bir yerel ekleme YAPILMAZ, ekran sunucunun gerçekten yazdığı satırı
  * gösterir.
  */
+/** 02.10.2026 (Faz 9) — tribün emote'u gönderir; sunucu anahtarı, aboneliği ve soğumayı denetler. */
+export function sendRaceEmote(socket: Socket, raceId: string, key: string): void {
+  socket.emit('race.emote', { raceId, key });
+}
+
 export function sendRaceChatMessage(socket: Socket, raceId: string, body: string): void {
   const payload: SendRaceChatMessagePayload = { raceId, body };
   socket.emit('chat.message', payload);
@@ -231,6 +237,12 @@ export function connectRaceSocket(
   socket.on('chat.message.received', (payload: RaceChatMessageView) => {
     if (payload.raceId === raceId) {
       handlers.onChatMessage(payload);
+    }
+  });
+
+  socket.on('race.emote', (payload: RaceEmoteEvent) => {
+    if (payload?.raceId === raceId) {
+      handlers.onEmote?.(payload);
     }
   });
 

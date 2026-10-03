@@ -1636,6 +1636,16 @@ yenilemede **403 `ACCOUNT_SUSPENDED`** alır (401 değil — istemci oturumu
 silmez). `GET /admin/players` satırı `isModerator` ve `activeSanction` taşır;
 `PlayerSummary` `isModerator` taşır.
 
+### Kulüp sohbeti + tribün emote (Faz 9, 02.10.2026, migration 0062)
+
+- `GET /clubs/:clubId/messages` — son `chat.clubChat.historyLimit` mesaj, eskiden yeniye. Yalnızca üye
+  (değilse 403 `NOT_CLUB_MEMBER`, kulüp yoksa da 403).
+- `POST /clubs/:clubId/messages` `{ body }` — 201; gövde yarış sohbetiyle aynı kural (400
+  `INVALID_MESSAGE_BODY`); 20 istek/60 sn.
+- Soket `race.emote` `{ raceId, key }` (yalnızca abone olunan yarış, `chat.emotes.list` anahtarı, soket
+  başına `cooldownMs`) → odaya `race.emote` `{ raceId, key }` (anonim, kalıcı değil). Reddedilen emote
+  sessizce düşer.
+
 ### Kişisel veri dışa aktarma (Faz 1, 02.10.2026)
 
 `GET /account/export` — yalnızca kendi verin (token'dan). 3 istek/saat, `Cache-Control: no-store`.

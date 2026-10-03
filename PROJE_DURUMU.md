@@ -3979,6 +3979,14 @@ Karar: önce pratik yarış; kırbaç sınırsız, dayanıklılık bedelli.
   öldürüldü → B 10 sn içinde lider).
 - Çok örnek için kalan önkoşul: Socket.IO Redis adaptörü.
 
+### 13.75 Kulüp sohbeti + tribün emote'ları (02.10.2026, Faz 9)
+
+- Migration 0062 `club_messages`; uçlar yalnızca üyeye; `/club` sayfasında
+  sohbet paneli (yoklama, sekme görünmezken durur).
+- `race.emote` soket olayı: anonim, kalıcı değil, listede olmayan anahtar /
+  abone olmayan soket / soğuma içindeki emote yayılmaz (e2e bariyerli).
+- Social Hub: brief §50'ye göre avatarlı alan — Faz 8 (AI avatar) ile.
+
 ## 14. Kendime hatırlatmalar (kısa liste)
 
 1. **Race Engine'e dokunmadan önce iki kez düşün.** Denetim onu "KEEP, dokunma"

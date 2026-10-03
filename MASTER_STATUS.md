@@ -152,8 +152,8 @@ tekrar), yeniden bağlanma (kopma DB'ye dokunmaz; süren yarış yeniden açıl�
 ## Social Status — TESTED
 
 Arkadaşlık, mesaj, hediye (para yolu), engelleme/şikâyet, profil, bildirimler,
-yarış daveti, kulüp (kur/katıl/lider devri/puan). YOK: emote, sosyal hub,
-kulüp sohbeti/kulüp yarışı.
+yarış daveti, kulüp (kur/katıl/lider devri/puan), **kulüp sohbeti + tribün emote'ları** (Faz 9).
+YOK: sosyal hub (avatarlı alan — Faz 8 ile), kulüp yarışı.
 
 ## AI Avatar Status — NOT_STARTED
 
@@ -292,7 +292,7 @@ Brief fazlarına göre gerçek durum:
 | 6 3D/Presentation | PARTIAL — kod tam, gerçek varlık yok |
 | 7 Online | TESTED — anti-cheat inceleme listesi + yük testi (CI bütçe kapısı) |
 | 8 AI Avatar | NOT_STARTED |
-| 9 Social | PARTIAL — hub/emote/kulüp sohbeti yok |
+| 9 Social | TESTED — kulüp sohbeti + emote eklendi; sosyal hub (avatar) Faz 8 ile |
 | 10 Admin | PARTIAL — roller + yaptırım + duyuru TESTED; at/pazar/config yönetimi yok |
 | 11 Live Ops | TESTED — duyurular (11-A) + görevler/etkinlikler (11-B); başarımlar yok |
 | 12 Monetization | NOT_STARTED (yalnızca sahte yatırma) |
@@ -717,3 +717,24 @@ TESTS FAILED: 0
 PRODUCTION BLOCKERS: çok örnek için Socket.IO Redis adaptörü
 REMAINING: Socket.IO Redis adaptörü (sahibi onaylarsa)
 NEXT PHASE: Faz 9 — Sosyal
+
+---
+
+PHASE: 9 — Sosyal (kulüp sohbeti + emote)
+STATUS: TESTED
+SUMMARY: Kulüp sohbeti (yalnızca üyeler, kalıcı) ve tribün emote'ları (anonim, kalıcı değil).
+Social Hub brief §50'de avatarlı alan olarak tanımlı → Faz 8 ile.
+FILES CREATED: migration 0062 · ports/club-chat.repository.ts · infrastructure/club/postgres-club-chat.repository.ts ·
+use-cases/club-chat.use-case.ts · api/club/club-chat.controller.ts · web features/club/{ClubChatPanel,club-chat-logic},
+features/race-viewer/emote-logic.ts · testler
+FILES MODIFIED: club.module · race.gateway (race.emote) · chat.config.json (clubChat, emotes) · game-config ·
+shared-types (social, player export bölümü) · hesap silme + dışa aktarma · web api-client, club/page,
+LiveRaceViewer, RaceChatPanel, live-race-socket, globals.css
+DATABASE CHANGES: 0062 — club_messages (yalnızca ekleme)
+API CHANGES: GET/POST /clubs/:clubId/messages · soket race.emote (istemci → sunucu → oda)
+SECURITY CHANGES: üyelik her istekte + yazma anında; emote anonim, anahtar listesi + abonelik + soğuma
+TESTS ADDED: club-chat.e2e-spec.ts (5), race-emote.e2e-spec.ts (1, bariyerli), web emote-logic (3), club-chat-logic (1), api-client (1)
+TESTS PASSED: API 172 / 2451 (temiz şema), web 50 / 547; tarayıcı: iki oyuncu kulüp sohbeti, emote ekranda
+TESTS FAILED: 0
+REMAINING: Social Hub (Faz 8), kulüp yarışı
+NEXT PHASE: Faz 10 — Yönetim (at, ekonomi, config, sezon, turnuva yönetimi)
