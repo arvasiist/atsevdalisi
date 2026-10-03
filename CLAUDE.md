@@ -435,6 +435,22 @@ bitince oyuncu aynı hesapla döner. Yasak bütün oturumları kapatır. Duyuru
 `GET /announcements` (`@Public`); aynı anda en fazla `maxLive` (advisory
 kilit altında sayılır). Yeni bir yönetim ucu: izni `STAFF_PERMISSIONS`e
 yaz, kapıyı `assertStaffPermission` ile VERİ OKUMADAN ÖNCE çağır.
+(45) **GÖREVLER + ETKİNLİKLER (02.10.2026, Faz 11-B, migration 0061, §13.70)**
+— `/quests` ekranı; görev listesi `config/quests.config.json` (gün/hafta
+Türkiye saatiyle, `timezoneOffsetMinutes`). İlerleme SAYAÇ TUTULMAZ,
+mevcut tablolardan pencere içinde TÜRETİLİR (yarış: `COALESCE(e.player_id,
+h.owner_id)` + `races.start_time` — sezonla aynı; antrenman `rest` hariç;
+bakım günlüğü (at, iş) başına son zamanı tuttuğu için "farklı bakım işi";
+at alımı = sabit fiyatlı alım + kazanılmış müzayede, `horsePurchaseMinPrice`
+altı sayılmaz). Ödül PARA YOLU: oyuncu `FOR UPDATE` + ilerleme KİLİT ALTINDA
+yeniden sayılır + `quest_claims (player_id, quest_key, period_start)` TEKİL
++ `quest_reward`/`event_reward` defter satırı aynı transaction'da. Etkinlik
+(`live_events`) yalnızca yönetici açar (`events.manage`, denetim kaydı aynı
+tx), en fazla `maxLive`; bitince `claimGraceHours` boyunca ödül alınabilir.
+⚠️ `economy_transactions.reference_id` METİNDİR (UUID değil) — UUID
+sütunla join'de `::text` şart (yaşandı: 500). ⚠️ Yeni ölçüt eklerken üç yer:
+`QUEST_METRICS`, `METRIC_SQL` (Record — eksikse tsc hatası) ve migration
+`live_events.metric` CHECK'i.
 
 **✅ ÜCRETLİ LOBİ YARIŞI ARTIK KOŞUYOR — ÖDÜL DAĞITIMI VAR (§13.14,
 28.09.2026).** `POST /races/:id/settle` yarışı koşar, ödülleri `top5`

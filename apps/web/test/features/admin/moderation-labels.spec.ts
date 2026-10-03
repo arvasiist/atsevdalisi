@@ -5,7 +5,7 @@ import { isAccountSuspended } from '../../../src/lib/session-logic';
 
 describe('yönetim sekmeleri role göre (Faz 10)', () => {
   it('moderatör yalnızca şikâyet + oyuncu sekmesini görür; yönetici hepsini', () => {
-    const tabs = ['reports', 'players', 'races', 'transactions', 'audit', 'announcements'];
+    const tabs = ['reports', 'players', 'races', 'transactions', 'audit', 'announcements', 'events'];
     expect(tabs.filter((tab) => canSeeTab('moderator', tab))).toEqual(['reports', 'players']);
     expect(tabs.filter((tab) => canSeeTab('admin', tab))).toEqual(tabs);
     expect(tabs.filter((tab) => canSeeTab('player', tab))).toEqual([]);

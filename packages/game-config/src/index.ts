@@ -20,6 +20,7 @@ import type {
   AuthConfig,
   OpsConfig,
   ModerationConfig,
+  QuestsConfig,
   AdminConfig,
   AudioConfig,
   CameraConfig,
@@ -81,6 +82,7 @@ import adminConfigJson from '../../../config/admin.config.json';
 import authConfigJson from '../../../config/auth.config.json';
 import opsConfigJson from '../../../config/ops.config.json';
 import moderationConfigJson from '../../../config/moderation.config.json';
+import questsConfigJson from '../../../config/quests.config.json';
 
 export function loadRaceConfig(): RaceBalanceConfig {
   return raceConfigJson as unknown as RaceBalanceConfig;
@@ -271,6 +273,11 @@ export function loadOpsConfig(): OpsConfig {
 /** 02.10.2026 — Faz 10 + 11-A: yaptırım ve duyuru sınırları. Yetki kapısı DEĞİLDİR. */
 export function loadModerationConfig(): ModerationConfig {
   return moderationConfigJson as unknown as ModerationConfig;
+}
+
+/** 02.10.2026 — Faz 11-B: günlük/haftalık görevler + etkinlik sınırları. */
+export function loadQuestsConfig(): QuestsConfig {
+  return questsConfigJson as unknown as QuestsConfig;
 }
 
 /** 01.10.2026 — atın durumu → 3D davranış (salt görsel). */

@@ -1,0 +1,25 @@
+{
+  "timezoneOffsetMinutes": 180,
+  "weekStartsOn": 1,
+  "horsePurchaseMinPrice": 1000,
+  "daily": [
+    { "key": "daily-train-2", "metric": "trainings", "target": 2, "rewardMoney": 150 },
+    { "key": "daily-race-1", "metric": "races_entered", "target": 1, "rewardMoney": 150 },
+    { "key": "daily-care-1", "metric": "care_actions", "target": 1, "rewardMoney": 100 }
+  ],
+  "weekly": [
+    { "key": "weekly-race-5", "metric": "races_entered", "target": 5, "rewardMoney": 600 },
+    { "key": "weekly-win-1", "metric": "race_wins", "target": 1, "rewardMoney": 500 },
+    { "key": "weekly-buy-1", "metric": "horse_purchases", "target": 1, "rewardMoney": 400 }
+  ],
+  "events": {
+    "titleMaxLength": 80,
+    "descriptionMaxLength": 500,
+    "maxTarget": 1000,
+    "maxRewardMoney": 10000,
+    "maxDurationDays": 31,
+    "maxLive": 5,
+    "claimGraceHours": 24,
+    "adminListLimit": 50
+  }
+}

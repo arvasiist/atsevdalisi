@@ -1,6 +1,10 @@
 import type {
   AccountDeletionCheck,
   AdminAnnouncementView,
+  AdminLiveEventView,
+  QuestBoardView,
+  QuestClaimResult,
+  QuestMetric,
   AnnouncementLevel,
   AnnouncementView,
   AssignableRole,
@@ -1393,6 +1397,25 @@ export const apiClient = {
     }),
   /** Oyunculara açık (oturumsuz da çalışır). */
   getAnnouncements: () => request<AnnouncementView[]>('/announcements'),
+
+  /** 02.10.2026 (Faz 11-B) — günlük/haftalık görevler + etkinlikler. İlerleme sunucuda türetilir. */
+  getQuests: () => request<QuestBoardView>('/quests'),
+  claimQuest: (questKey: string) =>
+    request<QuestClaimResult>(`/quests/${encodeURIComponent(questKey)}/claim`, { method: 'POST' }),
+  claimEvent: (eventId: string) =>
+    request<QuestClaimResult>(`/events/${encodeURIComponent(eventId)}/claim`, { method: 'POST' }),
+  listAdminEvents: () => request<AdminLiveEventView[]>('/admin/events'),
+  createEvent: (body: {
+    title: string;
+    description?: string;
+    metric: QuestMetric;
+    target: number;
+    rewardMoney: number;
+    startsAt?: string;
+    endsAt: string;
+  }) => request<AdminLiveEventView>('/admin/events', { method: 'POST', body: JSON.stringify(body) }),
+  archiveEvent: (eventId: string) =>
+    request<AdminLiveEventView>(`/admin/events/${encodeURIComponent(eventId)}/archive`, { method: 'POST' }),
 
   /** Users + Wallet ekranlarının ORTAK kaynağı (bakiye `players` kolonudur). */
   listAdminPlayers: () => request<AdminPlayerListResult>('/admin/players', { method: 'GET' }),

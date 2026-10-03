@@ -1636,6 +1636,23 @@ yenilemede **403 `ACCOUNT_SUSPENDED`** alır (401 değil — istemci oturumu
 silmez). `GET /admin/players` satırı `isModerator` ve `activeSanction` taşır;
 `PlayerSummary` `isModerator` taşır.
 
+### Görevler + etkinlikler (Faz 11-B, 02.10.2026, migration 0061)
+
+İlerleme sunucuda mevcut tablolardan türetilir; istemci yalnızca "hangi görev" der.
+
+| Uç | Kim | Not |
+|---|---|---|
+| `GET /quests` | oyuncu | `{ daily, weekly, events }` — her görevde `progress`, `target`, `rewardMoney`, `claimed` |
+| `POST /quests/:questKey/claim` | oyuncu | anahtar config listesinde aranır; 404 `QUEST_NOT_FOUND`, 409 `QUEST_NOT_COMPLETED` / `QUEST_ALREADY_CLAIMED`; başarıda `{ rewardMoney, balanceAfter }` + `quest_reward` defter satırı |
+| `POST /events/:eventId/claim` | oyuncu | aynı kurallar; arşivlenmiş/başlamamış/talep süresi geçmiş etkinlik 404; `event_reward` |
+| `POST /admin/events` | yönetici | `{ title, description?, metric, target, rewardMoney, startsAt?, endsAt }`; 400 `INVALID_LIVE_EVENT`, 409 `LIVE_EVENT_LIMIT_REACHED` |
+| `GET /admin/events` | yönetici | `claimCount` dahil |
+| `POST /admin/events/:eventId/archive` | yönetici | 404 `LIVE_EVENT_NOT_FOUND` |
+
+Ölçütler: `races_entered`, `race_wins`, `top3_finishes`, `trainings` (dinlenme hariç),
+`care_actions` (at+iş başına bir), `horse_purchases` (sabit fiyat + kazanılmış müzayede,
+`horsePurchaseMinPrice` ve üstü).
+
 ### Soy Ağacı (soy ağacı veri zinciri dilimi, 27.09.2026)
 
 ```http
@@ -3042,3 +3059,9 @@ dosyanın doc yorumu).
 | `INVALID_ANNOUNCEMENT` | 400 — başlık/metin/düzey/tarih geçersiz |
 | `ANNOUNCEMENT_NOT_FOUND` | 404 |
 | `ANNOUNCEMENT_LIMIT_REACHED` | 409 — aynı pencerede yayında olan duyuru sınırı dolu |
+| `QUEST_NOT_FOUND` | 404 — görev/etkinlik yok ya da şu an ödülü alınamaz (Faz 11-B) |
+| `QUEST_NOT_COMPLETED` | 409 — hedefe ulaşılmadı |
+| `QUEST_ALREADY_CLAIMED` | 409 — bu dönemin ödülü alındı |
+| `INVALID_LIVE_EVENT` | 400 — etkinlik gövdesi geçersiz |
+| `LIVE_EVENT_NOT_FOUND` | 404 — etkinlik yok ya da zaten arşivde |
+| `LIVE_EVENT_LIMIT_REACHED` | 409 — aynı pencerede açık etkinlik sınırı dolu |

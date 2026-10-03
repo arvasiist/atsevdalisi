@@ -3933,6 +3933,17 @@ Karar: önce pratik yarış; kırbaç sınırsız, dayanıklılık bedelli.
 - YOK: at/pazar/config/kulüp/turnuva yönetimi, zamanlanmış etkinlik
   (Faz 11-B), anormal davranış tespiti.
 
+### 13.70 Görevler + etkinlikler (02.10.2026, Faz 11-B)
+
+- Migration 0061: `live_events`, `quest_claims` (tekil talep = çift ödeme kapısı).
+- Görev tanımı config'te, ilerleme mevcut tablolardan türetilir (ikinci
+  sayaç yok). Ödül talebi kilit altında yeniden sayar; para + defter + talep
+  satırı aynı transaction'da.
+- Yönetim: `/admin` "Etkinlikler" (ölçüt × adet × ödül × pencere), arşiv.
+- Bilinen sınırlar: yarış sahibi pratik/PvP'de atın ŞİMDİKİ sahibidir (sezon
+  sıralamasıyla aynı kural); bakım ölçütü (at, iş) başına bir sayılır.
+- YOK: başarımlar (achievement), kulüp/sezon görevleri, etkinlik para birimi.
+
 ## 14. Kendime hatırlatmalar (kısa liste)
 
 1. **Race Engine'e dokunmadan önce iki kez düşün.** Denetim onu "KEEP, dokunma"

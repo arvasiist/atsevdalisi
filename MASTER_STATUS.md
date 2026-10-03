@@ -178,8 +178,9 @@ YOK: at/pazar/kulüp/turnuva/sezon yönetimi, config yönetimi, IP alanı.
 ## Live Operations Status — PARTIAL
 
 Zamanlayıcıyla açılan takvim yarışları, turnuvalar, sezon ve sezon ödülü,
-günlük ödül, **duyurular** (Faz 11-A: zamanlı, üst şerit). YOK: günlük/haftalık
-etkinlik, sınırlı ödül, yönetimden etkinlik planlama (Faz 11-B).
+günlük ödül, **duyurular** (Faz 11-A), **günlük/haftalık görevler + yönetimden
+süreli etkinlik ve ödülü** (Faz 11-B). YOK: başarımlar, kulüp/sezon görevleri,
+etkinlik para birimi.
 
 ## Observability Status — PARTIAL
 
@@ -235,7 +236,7 @@ CI'da değil). YOK: yük testi, CI'da tarayıcı E2E, mutasyon testi CI'da.
 
 Kişisel veri dışa aktarma · Apple girişi · AI avatar (tümü) ·
 gerçek ödeme + elmas harcama yolu · gerçek 3D/ses varlıkları · sosyal hub/emote ·
-kulüp sohbeti/yarışı · canlı etkinlik sistemi · yönetim panelinin
+kulüp sohbeti/yarışı · başarımlar · yönetim panelinin
 geri kalanı (at/pazar/config/etkinlik) · gözlemlenebilirlik · dağıtım.
 
 ## Technical Debt
@@ -293,7 +294,7 @@ Brief fazlarına göre gerçek durum:
 | 8 AI Avatar | NOT_STARTED |
 | 9 Social | PARTIAL — hub/emote/kulüp sohbeti yok |
 | 10 Admin | PARTIAL — roller + yaptırım + duyuru TESTED; at/pazar/config yönetimi yok |
-| 11 Live Ops | PARTIAL — duyurular (11-A) TESTED; etkinlik sistemi (11-B) yok |
+| 11 Live Ops | TESTED — duyurular (11-A) + görevler/etkinlikler (11-B); başarımlar yok |
 | 12 Monetization | NOT_STARTED (yalnızca sahte yatırma) |
 | 13 Production | PARTIAL — 13-A temel (sağlık, istek kimliği, ortam kapısı, taramalar, Dockerfile) TESTED; 13-B çerçeve yükseltmesi + staging/izleme yok |
 | 14 Final E2E | PARTIAL — `final.e2e-spec.ts` API yolculuğu var; avatar/ödeme yok |
@@ -607,3 +608,32 @@ TESTS FAILED: 0
 PRODUCTION BLOCKERS: değişmedi
 REMAINING: 11-B etkinlikler, at/pazar/config yönetimi, anormal davranış tespiti
 NEXT PHASE: sahibinin kararı (8 AI avatar / 12 ödeme sağlayıcı bekliyor; kodla yapılabilen: 11-B)
+
+---
+
+PHASE: 11-B — Günlük/haftalık görevler + yönetimden etkinlik
+STATUS: TESTED
+SUMMARY: Brief §68 görevleri (Bugün: 2 antrenman, 1 yarış, 1 bakım; Bu hafta: 5 yarış,
+1 galibiyet, 1 at alımı) config'ten; ilerleme mevcut tablolardan türetilir. Yönetici süreli
+etkinlik açar (ölçüt × adet × para ödülü). Ödül talebi para yolu, tek seferlik.
+FILES CREATED: migration 0061 · config/quests.config.json · shared-types quests.ts ·
+domain/quests/{quests,errors}.ts · ports/quest.repository.ts · infrastructure/quests/
+postgres-quest.repository.ts · use-cases/quest.use-case.ts · api/quests/{controller,module} ·
+web app/quests/page.tsx, features/quests/quest-labels.ts, features/admin/LiveEventsAdmin.tsx · testler
+FILES MODIFIED: app.module · http-exception.filter · staff.ts (events.manage) · economy.ts
+(quest_reward, event_reward) · error-codes · game-config · web api-client, nav-links/icons,
+admin/page, moderation-labels, ledger-labels, globals.css
+DATABASE CHANGES: 0061 — live_events, quest_claims (yalnızca ekleme)
+API CHANGES: GET /quests · POST /quests/:key/claim · POST /events/:id/claim ·
+POST/GET /admin/events · POST /admin/events/:id/archive
+SECURITY CHANGES: ilerleme/ödül istemciden alınmaz; talep kilit altında yeniden sayar;
+tekil talep kısıtı çift ödemeyi keser (eşzamanlı 4 talep → 1 ödeme, testli); yönetim yetkisi
+DB'den, 403 önce 404 sonra; asgari alım fiyatı 0 TL el değiştirmeyle görev tamamlatmaz
+TESTS ADDED: test/domain/quests/quests.spec.ts (18), test/api/quests.e2e-spec.ts (11),
+web quest-labels (4) + api-client rotaları (1)
+TESTS PASSED: API 166 / 2429 (temiz şema), web 47 / 540, next build, lint 0 hata; tarayıcı:
+etkinlik açıldı → bakım → görev + etkinlik ödülü alındı (+850, defter iki satır)
+TESTS FAILED: 0
+PRODUCTION BLOCKERS: değişmedi
+REMAINING: başarımlar, kulüp/sezon görevleri, at/pazar/config yönetimi
+NEXT PHASE: sahibinin kararı (8 AI avatar / 12 ödeme sağlayıcı bekliyor)

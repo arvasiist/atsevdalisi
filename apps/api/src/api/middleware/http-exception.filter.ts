@@ -1,3 +1,11 @@
+import {
+  InvalidLiveEventError,
+  LiveEventLimitReachedError,
+  LiveEventNotFoundError,
+  QuestAlreadyClaimedError,
+  QuestNotCompletedError,
+  QuestNotFoundError,
+} from '../../domain/quests/errors';
 import { ArgumentsHost, Catch, ExceptionFilter, HttpException, HttpStatus } from '@nestjs/common';
 import type { Response } from 'express';
 import type { RequestWithId } from './request-id.middleware';
@@ -444,6 +452,12 @@ const DOMAIN_ERROR_MAP = new Map<ErrorClassConstructor, { status: number; code: 
   [InvalidAnnouncementError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.InvalidAnnouncement }],
   [AnnouncementNotFoundError, { status: HttpStatus.NOT_FOUND, code: ErrorCode.AnnouncementNotFound }],
   [AnnouncementLimitReachedError, { status: HttpStatus.CONFLICT, code: ErrorCode.AnnouncementLimitReached }],
+  [QuestNotFoundError, { status: HttpStatus.NOT_FOUND, code: ErrorCode.QuestNotFound }],
+  [QuestNotCompletedError, { status: HttpStatus.CONFLICT, code: ErrorCode.QuestNotCompleted }],
+  [QuestAlreadyClaimedError, { status: HttpStatus.CONFLICT, code: ErrorCode.QuestAlreadyClaimed }],
+  [InvalidLiveEventError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.InvalidLiveEvent }],
+  [LiveEventNotFoundError, { status: HttpStatus.NOT_FOUND, code: ErrorCode.LiveEventNotFound }],
+  [LiveEventLimitReachedError, { status: HttpStatus.CONFLICT, code: ErrorCode.LiveEventLimitReached }],
   // Token GEÇERLİ ama sahiplik yok — kavramsal olarak 401'den FARKLI, bkz.
   // `ForbiddenError` doc yorumu.
   [ForbiddenError, { status: HttpStatus.FORBIDDEN, code: ErrorCode.Forbidden }],

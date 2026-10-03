@@ -32,6 +32,7 @@ export type NavIconName =
   | 'leaderboard'
   | 'friends'
   | 'club'
+  | 'quests'
   | 'staff'
   | 'replays'
   | 'equipment'
@@ -69,6 +70,7 @@ export const NAV_LINKS: ReadonlyArray<NavLink> = [
   { href: '/market', label: 'Pazar', icon: 'market', placement: 'primary', mobileTab: true },
   { href: '/leaderboard', label: 'Sıralama', icon: 'leaderboard', placement: 'primary' },
   { href: '/friends', label: 'Sosyal', icon: 'friends', placement: 'primary' },
+  { href: '/quests', label: 'Görevler', icon: 'quests', placement: 'more' },
   { href: '/club', label: 'Kulüp', icon: 'club', placement: 'more' },
   { href: '/staff', label: 'Personel', icon: 'staff', placement: 'more' },
   { href: '/replays', label: 'Yarış Geçmişi', icon: 'replays', placement: 'more' },

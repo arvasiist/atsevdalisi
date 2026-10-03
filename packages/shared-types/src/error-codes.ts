@@ -49,6 +49,15 @@ export const ErrorCode = {
   InvalidAnnouncement: 'INVALID_ANNOUNCEMENT',
   AnnouncementNotFound: 'ANNOUNCEMENT_NOT_FOUND',
   AnnouncementLimitReached: 'ANNOUNCEMENT_LIMIT_REACHED',
+  /** 02.10.2026 (Faz 11-B) — görev/etkinlik yok ya da şu an alınamaz (404). */
+  QuestNotFound: 'QUEST_NOT_FOUND',
+  /** Hedefe ulaşılmadı (409). */
+  QuestNotCompleted: 'QUEST_NOT_COMPLETED',
+  /** Ödül bu dönem için zaten alındı (409) — çift ödemenin kapısı tekil talep satırıdır. */
+  QuestAlreadyClaimed: 'QUEST_ALREADY_CLAIMED',
+  InvalidLiveEvent: 'INVALID_LIVE_EVENT',
+  LiveEventNotFound: 'LIVE_EVENT_NOT_FOUND',
+  LiveEventLimitReached: 'LIVE_EVENT_LIMIT_REACHED',
   NotFound: 'NOT_FOUND',
   // AUDIT_REPORT.md Bulgu S1/S2/S4 hardening (bu oturum) — brief §41/§50
   // Google/Apple Sign-In + IDOR sertleştirmesi. `Unauthorized` (401) daha

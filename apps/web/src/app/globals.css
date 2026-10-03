@@ -2456,3 +2456,86 @@ button[style*='background: var(--color-accent-gold)'] {
   font-size: 18px;
   cursor: pointer;
 }
+
+/* 02.10.2026 — Faz 11-B: görevler ekranı */
+.quest-grid {
+  display: grid;
+  gap: var(--space-md, 16px);
+}
+.quest-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.quest-head h2 {
+  margin: 0 0 8px;
+  font-size: 18px;
+}
+.quest-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+.quest-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border, rgba(255, 255, 255, 0.12));
+  border-radius: 10px;
+}
+.quest-row[data-state='ready'] {
+  border-color: var(--color-gold, #d4a83a);
+}
+.quest-row[data-state='claimed'] {
+  opacity: 0.65;
+}
+.quest-main {
+  flex: 1;
+  min-width: 0;
+}
+.quest-main p {
+  margin: 2px 0 0;
+}
+.quest-bar {
+  height: 6px;
+  margin-top: 8px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+}
+.quest-bar span {
+  display: block;
+  height: 100%;
+  background: var(--gradient-gold, #d4a83a);
+}
+.quest-side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.quest-reward {
+  font-weight: 700;
+  color: var(--color-gold, #d4a83a);
+}
+.quest-notice {
+  color: var(--color-status-success, #4caf50);
+}
+@media (max-width: 520px) {
+  .quest-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .quest-side {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+  }
+}

@@ -23,6 +23,7 @@ import { RateLimitModule } from './api/rate-limit/rate-limit.module';
 import { RaceModule } from './api/race/race.module';
 import { RealtimeModule } from './api/realtime/realtime.module';
 import { SeasonModule } from './api/season/season.module';
+import { QuestsModule } from './api/quests/quests.module';
 import { SocialModule } from './api/social/social.module';
 import { StableModule } from './api/stable/stable.module';
 import { StaffModule } from './api/staff/staff.module';
@@ -141,6 +142,7 @@ import { RedisModule } from './infrastructure/redis/redis.module';
     StaffModule,
     // SEZON (brief §69, 01.10.2026) — bkz. `api/season/season.module.ts`.
     SeasonModule,
+    QuestsModule,
     // ÇİFTLEŞTİRME (proje sahibinin talebi — soy ağacı veri zincirinin
     // ÜÇÜNCÜ parçası; okuma yolu `HorseModule`'deki
     // `GET /horses/:id/pedigree`). `HorseModule`'ün HEMEN ardında durması

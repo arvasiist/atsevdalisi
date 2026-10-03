@@ -142,6 +142,10 @@ export const LEDGER_TRANSACTION_TYPES = [
   'auction_bid_hold',
   'auction_bid_refund',
   'auction_sale_credit',
+  /** 02.10.2026 (Faz 11-B) — günlük/haftalık görev ödülü (tekil `quest_claims` satırına bağlı). */
+  'quest_reward',
+  /** 02.10.2026 (Faz 11-B) — yönetimin açtığı süreli etkinliğin ödülü. */
+  'event_reward',
 ] as const;
 
 export type LedgerTransactionType = (typeof LEDGER_TRANSACTION_TYPES)[number];
@@ -218,6 +222,8 @@ export const CANONICAL_BY_LEDGER_TYPE: Record<LedgerTransactionType, CanonicalTr
   auction_bid_hold: 'MARKET',
   auction_bid_refund: 'REFUND',
   auction_sale_credit: 'MARKET',
+  quest_reward: 'REWARD',
+  event_reward: 'REWARD',
 };
 
 /**

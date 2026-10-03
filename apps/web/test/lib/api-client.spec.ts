@@ -1265,3 +1265,28 @@ describe('MODERASYON + DUYURU uçları (02.10.2026)', () => {
     });
   });
 });
+
+describe('GÖREV + ETKİNLİK uçları (Faz 11-B)', () => {
+  it('doğru rota/yöntem; görev anahtarı kodlanır', async () => {
+    setAuthToken('t');
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ success: true, data: {} }));
+    vi.stubGlobal('fetch', fetchMock);
+    await apiClient.getQuests();
+    await apiClient.claimQuest('daily-race-1');
+    await apiClient.claimEvent('e1');
+    await apiClient.listAdminEvents();
+    await apiClient.createEvent({ title: 'Kupa', metric: 'race_wins', target: 1, rewardMoney: 100, endsAt: '2026-10-05T00:00:00Z' });
+    await apiClient.archiveEvent('e1');
+    await apiClient.claimQuest('a/b');
+    const calls = fetchMock.mock.calls.map(([url, config]) => [String(url).replace(API_BASE_URL, ''), (config as RequestInit).method ?? 'GET']);
+    expect(calls).toEqual([
+      ['/quests', 'GET'],
+      ['/quests/daily-race-1/claim', 'POST'],
+      ['/events/e1/claim', 'POST'],
+      ['/admin/events', 'GET'],
+      ['/admin/events', 'POST'],
+      ['/admin/events/e1/archive', 'POST'],
+      ['/quests/a%2Fb/claim', 'POST'],
+    ]);
+  });
+});

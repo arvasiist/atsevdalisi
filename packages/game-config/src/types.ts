@@ -1987,3 +1987,32 @@ export interface ModerationConfig {
     adminListLimit: number;
   };
 }
+
+/** 02.10.2026 — `config/quests.config.json` (Faz 11-B). Görev listesi + etkinlik sınırları. */
+export interface QuestDefinitionConfig {
+  key: string;
+  metric: string;
+  target: number;
+  rewardMoney: number;
+}
+
+export interface QuestsConfig {
+  /** Gün/hafta sınırının saat dilimi (UTC'ye göre dakika; Türkiye = 180). */
+  timezoneOffsetMinutes: number;
+  /** Haftanın ilk günü (0 = Pazar, 1 = Pazartesi). */
+  weekStartsOn: number;
+  /** `horse_purchases` yalnızca bu fiyat ve üstündeki alımları sayar (0 TL'lik el değiştirmeyle görev tamamlanmasın). */
+  horsePurchaseMinPrice: number;
+  daily: QuestDefinitionConfig[];
+  weekly: QuestDefinitionConfig[];
+  events: {
+    titleMaxLength: number;
+    descriptionMaxLength: number;
+    maxTarget: number;
+    maxRewardMoney: number;
+    maxDurationDays: number;
+    maxLive: number;
+    claimGraceHours: number;
+    adminListLimit: number;
+  };
+}
