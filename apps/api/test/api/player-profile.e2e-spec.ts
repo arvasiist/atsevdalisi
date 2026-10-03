@@ -190,9 +190,9 @@ describe('Oyuncu profili (e2e) — GET /players/profile/:username', () => {
 
     expect(profile.friendCount).toBe(1);
     expect(profile.giftCount).toBe(1);
-    // brief §24 "Achievements" — bilinçli olarak henüz yok (bkz.
-    // `PlayerProfileView` doc yorumu).
-    expect(profile.achievements).toBeNull();
+    // brief §24 "Achievements" (03.10.2026) — yalnızca ödülü ALINMIŞ
+    // başarımlar görünür; bu oyuncu hiç talep etmedi.
+    expect(profile.achievements).toEqual([]);
   });
 
   it('BAKİYE SIZDIRMAZ — `money`/`gems` yanıtta HİÇ yoktur', async () => {

@@ -2,6 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import type { PlayerProfileView } from '@at-sevdalisi/shared-types';
 import { PlayerNotFoundError } from '../../domain/player/errors';
 import { validateUsername } from '../../domain/player/validation';
+import { AchievementUseCase } from './achievement.use-case';
 import { PLAYER_REPOSITORY, type PlayerRepository } from '../ports/player.repository';
 
 /**
@@ -32,7 +33,10 @@ import { PLAYER_REPOSITORY, type PlayerRepository } from '../ports/player.reposi
  */
 @Injectable()
 export class GetPlayerProfileUseCase {
-  constructor(@Inject(PLAYER_REPOSITORY) private readonly playerRepository: PlayerRepository) {}
+  constructor(
+    @Inject(PLAYER_REPOSITORY) private readonly playerRepository: PlayerRepository,
+    @Inject(AchievementUseCase) private readonly achievements: AchievementUseCase,
+  ) {}
 
   /**
    * @param rawUsername YOL PARAMETRESİ — ham `string`. Tipi daraltılmaz:
@@ -61,10 +65,8 @@ export class GetPlayerProfileUseCase {
       },
       friendCount: profile.friendCount,
       giftCount: profile.giftCount,
-      // brief §24 "Achievements" — bilinçli olarak HENÜZ YOK (bkz.
-      // `PlayerProfileView.achievements` doc yorumu). Sabit `null` yazmak,
-      // "unutulmuş bir alan" ile "henüz gelmemiş bir alan"ı ayırır.
-      achievements: null,
+      // brief §24 "Achievements" (03.10.2026) — kazanılmış başarımlar.
+      achievements: await this.achievements.forProfile(profile.id),
     };
   }
 }

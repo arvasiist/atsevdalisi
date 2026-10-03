@@ -4031,6 +4031,17 @@ Karar: önce pratik yarış; kırbaç sınırsız, dayanıklılık bedelli.
   koşturan oyuncuya bakar; migration 0063 eski satırları defterden doldurur.
 - Avatar yolculuğu Faz 8 ile (sağlayıcıya bağlı) eklenecek.
 
+### 13.80 Başarımlar (03.10.2026, brief §24/§68)
+
+- 11 başarım (ilk yarış/zafer/kürsü/alım, 25/100 yarış, 10/50 zafer, seviye
+  5/15/30); ilerleme türetilir, ödül tek kez (PK + kilit + defter).
+- `/quests` ekranında "Başarımlar" bölümü; herkese açık profilde kazanılmış
+  rozetler (`PlayerProfileView.achievements` artık dizi).
+- Bilinen sınır (ayrı dilim): günlük görevlerin antrenman/bakım ölçütü ATA
+  bağlı tablolardan sayılır (oyuncu sütunu yok) — aynı gün antrenmanı yapılmış
+  at satılırsa alıcı da o günün görevini tamamlamış sayılır. Başarımlar bu
+  ölçütleri bilinçli olarak kullanmaz.
+
 ## 14. Kendime hatırlatmalar (kısa liste)
 
 1. **Race Engine'e dokunmadan önce iki kez düşün.** Denetim onu "KEEP, dokunma"

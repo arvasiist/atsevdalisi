@@ -51,6 +51,9 @@ export const ErrorCode = {
   AnnouncementLimitReached: 'ANNOUNCEMENT_LIMIT_REACHED',
   /** 02.10.2026 (Faz 11-B) — görev/etkinlik yok ya da şu an alınamaz (404). */
   QuestNotFound: 'QUEST_NOT_FOUND',
+  AchievementNotFound: 'ACHIEVEMENT_NOT_FOUND',
+  AchievementNotCompleted: 'ACHIEVEMENT_NOT_COMPLETED',
+  AchievementAlreadyClaimed: 'ACHIEVEMENT_ALREADY_CLAIMED',
   /** Hedefe ulaşılmadı (409). */
   QuestNotCompleted: 'QUEST_NOT_COMPLETED',
   /** Ödül bu dönem için zaten alındı (409) — çift ödemenin kapısı tekil talep satırıdır. */

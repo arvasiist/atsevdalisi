@@ -835,3 +835,23 @@ TESTS PASSED: API 179 / 2483 (temiz şema)
 TESTS FAILED: 0
 REMAINING: Avatar yolculuğu (Faz 8 ile)
 NEXT PHASE: Sona bırakılanlar — Faz 8 AI avatar, Faz 12 ödeme, gerçek 3D/ses varlıkları, Apple girişi
+
+---
+
+PHASE: 11/24 (kalan) — Başarımlar
+STATUS: TESTED
+SUMMARY: Brief §24 "Achievements" ve §68'in son açık maddesi. 11 yaşam boyu başarım; ilerleme mevcut
+tablolardan türetilir (görev sayım motoru), ödül tek kez ve para yoluyla; /quests'te bölüm, profilde rozet.
+FILES CREATED: config/achievements.config.json · shared-types achievements.ts · domain/achievements/* ·
+ports/achievement.repository.ts · infrastructure/achievements/* · use-cases/achievement.use-case.ts ·
+api/achievements/* · web features/quests/achievement-labels.ts · migration 0064
+FILES MODIFIED: profil use-case/tipi (achievements: dizi) · player.module · app.module · hata eşlemesi ·
+hesap silme + dışa aktarma · defter türü achievement_reward (REWARD) · web /quests, profil, api-client
+DATABASE CHANGES: 0064 achievement_claims (PK player_id + achievement_key)
+API CHANGES: GET /achievements · POST /achievements/:key/claim · PlayerProfileView.achievements
+SECURITY CHANGES: ataya bağlı ölçütler (antrenman/bakım) başarım olamaz (at alarak ödül açılmasın)
+TESTS ADDED: achievements.spec (5), achievements.e2e (5), web achievement-labels (3) + api-client (1)
+TESTS PASSED: API 181 / 2495 (temiz şema), web 52 / 556; tarayıcı: /quests başarımlar bölümü (11 satır)
+TESTS FAILED: 0
+REMAINING: görevlerde antrenman/bakım ölçütünün oyuncuya bağlanması (ayrı dilim)
+NEXT PHASE: Sona bırakılanlar (Faz 8 AI avatar, Faz 12 ödeme, varlıklar, Apple girişi)

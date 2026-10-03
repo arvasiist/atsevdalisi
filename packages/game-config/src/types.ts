@@ -2059,6 +2059,20 @@ export interface QuestDefinitionConfig {
   rewardMoney: number;
 }
 
+/** 03.10.2026 — başarım tanımı; ölçüt `ACHIEVEMENT_METRICS`ten (shared-types). */
+export interface AchievementDefinitionConfig {
+  key: string;
+  metric: string;
+  target: number;
+  rewardMoney: number;
+}
+
+export interface AchievementsConfig {
+  achievements: AchievementDefinitionConfig[];
+  /** Herkese açık profilde gösterilen en fazla kazanılmış başarım. */
+  profileLimit: number;
+}
+
 export interface QuestsConfig {
   /** Gün/hafta sınırının saat dilimi (UTC'ye göre dakika; Türkiye = 180). */
   timezoneOffsetMinutes: number;

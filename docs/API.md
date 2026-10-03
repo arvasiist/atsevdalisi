@@ -236,17 +236,18 @@ sahibine görünür). İki sözleşme çelişmez, farklı okuma yollarıdır.
     "stats": { "raceCount": 1, "winCount": 1, "podiumCount": 1 },
     "friendCount": 1,
     "giftCount": 1,
-    "achievements": null
+    "achievements": [
+      { "key": "first-win", "metric": "race_wins", "target": 1, "claimedAt": "2026-10-03T19:40:00.000Z" }
+    ]
   }
 }
 ```
 
 `stats` YALNIZCA **kesinleşmiş** (`races.status = 'finished'`) yarışları
 sayar — lobide bekleyen bir yarış istatistiğe girmez. `podiumCount`
-birincileri de kapsar (`finish_position <= 3`). `achievements` brief
-§24'ün istediği ama henüz VAR OLMAYAN alandır (kalıcı bir başarım veri
-modeli + migration gerektirir); sabit `null` dönmesi "unutulmuş alan" ile
-"henüz gelmemiş alan"ı ayırır ve dizi dolduğunda bu sözleşme değişmez.
+birincileri de kapsar (`finish_position <= 3`). `achievements` (03.10.2026)
+ödülü alınmış başarımlardır (`GET /achievements`, `POST /achievements/:key/claim`);
+bakiye türevi bir şey taşımaz.
 `careerTier` de yanıtta YOKTUR çünkü sunucuda saklanmaz — `level`'in saf
 sunum türevi olarak istemcide türetilir
 (`apps/web/src/features/career/career-tier.ts`).

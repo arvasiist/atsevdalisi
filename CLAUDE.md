@@ -547,6 +547,18 @@ okuma sorguları `COALESCE(e.player_id, h.owner_id)`. ⚠️ Yarışı oyuncuya
 bağlayan YENİ bir sorguda `h.owner_id` KULLANMA — koşturan oyuncu
 `e.player_id`dir. 0063 eski satırları DEFTERDEN doldurur (defteri olmayan
 ücretsiz eski satır NULL kalır, tahmin yazılmaz).
+(56) **BAŞARIMLAR (03.10.2026, migration 0064, §13.80)** — `GET
+/achievements`, `POST /achievements/:key/claim`; tanımlar
+`config/achievements.config.json`, ilerleme YAŞAM BOYU türetilir — yarış/alım
+ölçütleri görevlerin `countMetric`ini kullanır (ikinci sayım kodu YOK),
+`player_level` oyuncu satırından. Ödül PARA YOLU: oyuncu `FOR UPDATE` +
+ilerleme kilit altında yeniden sayılır + `achievement_claims` PK
+`(player_id, achievement_key)` + `achievement_reward` defter satırı tek
+transaction. Profil (`@Public`) yalnızca ÖDÜLÜ ALINMIŞ başarımları gösterir
+(`achievements` artık dizi, `null` değil). ⚠️ Antrenman/bakım ölçütü başarım
+YAPILMAZ: o tablolar oyuncuya değil ATA bağlıdır — at satın alarak
+başkasının emeğiyle ödül açılırdı (`achievements.spec.ts` kilitler).
+`achievement_claims` silme + dışa aktarma listelerinde.
 
 **✅ ÜCRETLİ LOBİ YARIŞI ARTIK KOŞUYOR — ÖDÜL DAĞITIMI VAR (§13.14,
 28.09.2026).** `POST /races/:id/settle` yarışı koşar, ödülleri `top5`

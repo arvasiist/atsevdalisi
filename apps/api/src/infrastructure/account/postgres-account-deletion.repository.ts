@@ -99,6 +99,9 @@ export class PostgresAccountDeletionRepository implements AccountDeletionReposit
       await client.query('DELETE FROM direct_messages WHERE sender_id = $1 OR recipient_id = $1', [playerId]);
       // 02.10.2026 (Faz 9) — kulüp sohbetindeki kendi mesajları (kişisel veri).
       await client.query('DELETE FROM club_messages WHERE player_id = $1', [playerId]);
+      // 03.10.2026 — kazanılmış başarımlar profilde herkese açıktı (kişisel veri);
+      // ödülün kendisi defterde kalır.
+      await client.query('DELETE FROM achievement_claims WHERE player_id = $1', [playerId]);
       await client.query('DELETE FROM friendships WHERE player_low_id = $1 OR player_high_id = $1', [playerId]);
       await client.query('DELETE FROM race_invites WHERE inviter_id = $1 OR invitee_id = $1', [playerId]);
       await client.query('DELETE FROM player_blocks WHERE blocker_id = $1 OR blocked_id = $1', [playerId]);

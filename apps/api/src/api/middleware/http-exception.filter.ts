@@ -1,4 +1,9 @@
 import {
+  AchievementAlreadyClaimedError,
+  AchievementNotCompletedError,
+  AchievementNotFoundError,
+} from '../../domain/achievements/errors';
+import {
   InvalidLiveEventError,
   LiveEventLimitReachedError,
   LiveEventNotFoundError,
@@ -459,6 +464,9 @@ const DOMAIN_ERROR_MAP = new Map<ErrorClassConstructor, { status: number; code: 
   [QuestNotFoundError, { status: HttpStatus.NOT_FOUND, code: ErrorCode.QuestNotFound }],
   [QuestNotCompletedError, { status: HttpStatus.CONFLICT, code: ErrorCode.QuestNotCompleted }],
   [QuestAlreadyClaimedError, { status: HttpStatus.CONFLICT, code: ErrorCode.QuestAlreadyClaimed }],
+  [AchievementNotFoundError, { status: HttpStatus.NOT_FOUND, code: ErrorCode.AchievementNotFound }],
+  [AchievementNotCompletedError, { status: HttpStatus.CONFLICT, code: ErrorCode.AchievementNotCompleted }],
+  [AchievementAlreadyClaimedError, { status: HttpStatus.CONFLICT, code: ErrorCode.AchievementAlreadyClaimed }],
   [InvalidLiveEventError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.InvalidLiveEvent }],
   [LiveEventNotFoundError, { status: HttpStatus.NOT_FOUND, code: ErrorCode.LiveEventNotFound }],
   [LiveEventLimitReachedError, { status: HttpStatus.CONFLICT, code: ErrorCode.LiveEventLimitReached }],

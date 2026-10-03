@@ -2,13 +2,20 @@
 
 /**
  * GÖREVLER (02.10.2026, Faz 11-B, brief §68). Günlük + haftalık görevler ve
- * yönetimin açtığı etkinlikler. İlerleme ve ödül SUNUCUDAN gelir; "Ödülü al"
+ * yönetimin açtığı etkinlikler; 03.10.2026'dan beri yaşam boyu başarımlar. İlerleme ve ödül SUNUCUDAN gelir; "Ödülü al"
  * yalnızca bir istektir — sunucu ilerlemeyi kilit altında yeniden sayar.
  */
 
 import { useCallback, useEffect, useState } from 'react';
-import type { LiveEventView, QuestBoardView, QuestPeriodView, QuestView } from '@at-sevdalisi/shared-types';
+import type {
+  AchievementBoardView,
+  LiveEventView,
+  QuestBoardView,
+  QuestPeriodView,
+  QuestView,
+} from '@at-sevdalisi/shared-types';
 import { GlassPanel } from '../../components/ui/GlassPanel';
+import { achievementProgressText, achievementTitle } from '../../features/quests/achievement-labels';
 import { questProgressText, questState, timeLeftText } from '../../features/quests/quest-labels';
 import { apiClient } from '../../lib/api-client';
 import { formatCurrency } from '../../lib/currency';
@@ -64,6 +71,7 @@ function QuestRow({
 export default function QuestsPage(): React.ReactElement {
   const { player, isLoading, createPlayer, refresh } = usePlayer();
   const [board, setBoard] = useState<QuestBoardView | null>(null);
+  const [achievements, setAchievements] = useState<AchievementBoardView | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [busyKey, setBusyKey] = useState<string | null>(null);
@@ -71,7 +79,9 @@ export default function QuestsPage(): React.ReactElement {
 
   const load = useCallback(async () => {
     try {
-      setBoard(await apiClient.getQuests());
+      const [quests, earned] = await Promise.all([apiClient.getQuests(), apiClient.getAchievements()]);
+      setBoard(quests);
+      setAchievements(earned);
       setNow(new Date());
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Görevler yüklenemedi.');
@@ -168,6 +178,32 @@ export default function QuestsPage(): React.ReactElement {
           ) : null}
           {period(board.daily)}
           {period(board.weekly)}
+          {achievements && achievements.achievements.length > 0 ? (
+            <GlassPanel>
+              <div className="quest-head">
+                <h2>Başarımlar</h2>
+                <span className="session-meta">
+                  {achievements.achievements.filter((a) => a.claimed).length}/{achievements.achievements.length} kazanıldı
+                </span>
+              </div>
+              <ul className="quest-list" data-testid="achievement-list">
+                {achievements.achievements.map((achievement) => (
+                  <QuestRow
+                    key={achievement.key}
+                    label={`${achievementTitle(achievement.metric, achievement.target)} · ${achievementProgressText(
+                      achievement.progress,
+                      achievement.target,
+                    )}`}
+                    item={achievement}
+                    busy={busyKey !== null}
+                    onClaim={() =>
+                      void claim(`achievement:${achievement.key}`, () => apiClient.claimAchievement(achievement.key))
+                    }
+                  />
+                ))}
+              </ul>
+            </GlassPanel>
+          ) : null}
         </div>
       )}
     </main>

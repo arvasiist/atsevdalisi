@@ -2631,3 +2631,13 @@ button[style*='background: var(--color-accent-gold)'] {
   overflow: auto;
   font-size: 12px;
 }
+
+/* 03.10.2026 — profilde kazanılmış başarım rozetleri. */
+.achievement-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}

@@ -13,6 +13,8 @@ import type {
   AnomalyReport,
   AccountDataExport,
   QuestBoardView,
+  AchievementBoardView,
+  AchievementClaimResult,
   QuestClaimResult,
   QuestMetric,
   AnnouncementLevel,
@@ -1417,6 +1419,10 @@ export const apiClient = {
   exportAccountData: () => request<AccountDataExport>('/account/export'),
   claimQuest: (questKey: string) =>
     request<QuestClaimResult>(`/quests/${encodeURIComponent(questKey)}/claim`, { method: 'POST' }),
+  /** 03.10.2026 — başarımlar (yaşam boyu, ödül tek kez). İlerleme sunucuda türetilir. */
+  getAchievements: () => request<AchievementBoardView>('/achievements'),
+  claimAchievement: (achievementKey: string) =>
+    request<AchievementClaimResult>(`/achievements/${encodeURIComponent(achievementKey)}/claim`, { method: 'POST' }),
   claimEvent: (eventId: string) =>
     request<QuestClaimResult>(`/events/${encodeURIComponent(eventId)}/claim`, { method: 'POST' }),
   listAdminEvents: () => request<AdminLiveEventView[]>('/admin/events'),

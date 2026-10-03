@@ -61,6 +61,7 @@ export const LEDGER_TYPE_LABELS: Record<LedgerTransactionType, string> = {
   staff_contract: 'Personel sözleşmesi',
   season_reward: 'Sezon ödülü',
   quest_reward: 'Görev ödülü',
+  achievement_reward: 'Başarım ödülü',
   event_reward: 'Etkinlik ödülü',
   admin_adjustment: 'Yönetim düzeltmesi',
   auction_bid_hold: 'Müzayede teklifi',

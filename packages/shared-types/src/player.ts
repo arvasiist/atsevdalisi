@@ -191,6 +191,7 @@ export const ACCOUNT_EXPORT_SECTIONS = [
   'sanctions',
   'questClaims',
   'clubMessages',
+  'achievementClaims',
 ] as const;
 
 export type AccountExportSectionName = (typeof ACCOUNT_EXPORT_SECTIONS)[number];

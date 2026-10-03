@@ -67,7 +67,7 @@ const METRIC_SQL: Record<QuestMetric, string> = {
     )::bigint AS count`,
 };
 
-async function countMetric(
+export async function countMetric(
   db: Pool | PoolClient,
   playerId: string,
   window: MetricWindow,

@@ -31,10 +31,9 @@
  * Eşikleri burada ikinci kez yazmak, iki kopyanın zamanla ayrışması
  * demekti.
  *
- * **`achievements` BİLİNÇLİ OLARAK `null` GELİR** (kalıcı bir başarım veri
- * modeli yok — yeni migration gerektirir). `null` gelen bir alanı boş
- * liste gibi göstermek "hiç başarımın yok" demek olurdu; bu ekran bunun
- * yerine durumu AÇIKÇA söyler.
+ * **BAŞARIMLAR (03.10.2026).** Yalnızca ödülü ALINMIŞ başarımlar gelir; ad
+ * ölçüt + hedeften `achievementTitle` ile üretilir (görev ekranıyla AYNI
+ * fonksiyon). Boş liste "henüz kazanılmış başarım yok" demektir.
  *
  * **BLOK / ŞİKÂYET (29.09.2026).** Dört uç nokta sunucuda hazırdı
  * (`PROJE_DURUMU.md` §13.16) ama hiçbir istemci tüketicisi yoktu; bu
@@ -64,6 +63,7 @@ import Link from 'next/link';
 import type { PlayerProfileView, ReportCategory } from '@at-sevdalisi/shared-types';
 import { GlassPanel } from '../../../components/ui/GlassPanel';
 import { getCareerProgress } from '../../../features/career/career-tier';
+import { achievementTitle } from '../../../features/quests/achievement-labels';
 import { apiClient } from '../../../lib/api-client';
 import { usePlayer } from '../../../lib/player-context';
 
@@ -269,17 +269,17 @@ export default function PlayerProfilePage(): React.ReactElement {
 
       <GlassPanel>
         <h2 style={sectionTitleStyle}>Başarımlar</h2>
-        {/* ⚠️ BURADA `if (profile.achievements === null)` YAZILMAZ — ve bu bir
-            eksiklik değil, tipin kendisidir: `PlayerProfileView.achievements`
-            `null` LİTERAL tipidir (`string[] | null` DEĞİL), çünkü başarım
-            veri modeli henüz yok. Bir koşul yazmak, `else` dalını `never`
-            yapardı (orada `map` çağrılamaz). Model eklendiğinde tip
-            genişleyecek ve derleyici TAM BU SATIRA gelip "artık bir dal
-            yazmalısın" diyecektir — sessizce boş kalan bir liste değil. */}
-        <p style={footnoteStyle}>
-          Başarım sistemi henüz kurulmadı. Bu alan bilinçli olarak boş bırakıldı — uydurma bir
-          rozet listesi gösterilmez.
-        </p>
+        {profile.achievements.length === 0 ? (
+          <p style={footnoteStyle}>Henüz kazanılmış başarım yok.</p>
+        ) : (
+          <ul className="achievement-badges" data-testid="profile-achievements">
+            {profile.achievements.map((achievement) => (
+              <li key={achievement.key} className="market-badge" title={formatMemberSince(achievement.claimedAt)}>
+                {achievementTitle(achievement.metric, achievement.target)}
+              </li>
+            ))}
+          </ul>
+        )}
       </GlassPanel>
 
       <GlassPanel>
