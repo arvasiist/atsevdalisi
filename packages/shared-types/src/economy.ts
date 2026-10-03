@@ -146,6 +146,12 @@ export const LEDGER_TRANSACTION_TYPES = [
   'quest_reward',
   /** 02.10.2026 (Faz 11-B) — yönetimin açtığı süreli etkinliğin ödülü. */
   'event_reward',
+  /**
+   * 02.10.2026 (Faz 10) — yönetimin gerekçeli bakiye düzeltmesi (destek,
+   * tazminat, hata telafisi). İşaretli; referansı aynı transaction'da yazılan
+   * `admin_audit_log` satırıdır (kim, neden).
+   */
+  'admin_adjustment',
 ] as const;
 
 export type LedgerTransactionType = (typeof LEDGER_TRANSACTION_TYPES)[number];
@@ -161,6 +167,7 @@ export const CANONICAL_TRANSACTION_TYPES = [
   'BREEDING',
   'UPKEEP',
   'REWARD',
+  'ADJUSTMENT',
 ] as const;
 
 export type CanonicalTransactionType = (typeof CANONICAL_TRANSACTION_TYPES)[number];
@@ -224,6 +231,7 @@ export const CANONICAL_BY_LEDGER_TYPE: Record<LedgerTransactionType, CanonicalTr
   auction_sale_credit: 'MARKET',
   quest_reward: 'REWARD',
   event_reward: 'REWARD',
+  admin_adjustment: 'ADJUSTMENT',
 };
 
 /**

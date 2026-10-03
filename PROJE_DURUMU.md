@@ -3987,6 +3987,13 @@ Karar: önce pratik yarış; kırbaç sınırsız, dayanıklılık bedelli.
   abone olmayan soket / soğuma içindeki emote yayılmaz (e2e bariyerli).
 - Social Hub: brief §50'ye göre avatarlı alan — Faz 8 (AI avatar) ile.
 
+### 13.76 Bakiye düzeltmesi + at araması (02.10.2026, Faz 10)
+
+- Yönetici gerekçeli bakiye düzeltmesi (para + elmas): kilit + defter + denetim
+  tek transaction'da, tekrar koruması (aynı anahtar ikinci kez ödemez), eksiye
+  düşüremez, kendine/personele yasak. Web: oyuncu yönetim panelinde.
+- `/admin` "Atlar" sekmesi: kimlik/sahip/ad ile arama.
+
 ## 14. Kendime hatırlatmalar (kısa liste)
 
 1. **Race Engine'e dokunmadan önce iki kez düşün.** Denetim onu "KEEP, dokunma"

@@ -14,6 +14,11 @@ import { ModerationUseCase } from '../../application/use-cases/moderation.use-ca
 import { MODERATION_REPOSITORY } from '../../application/ports/moderation.repository';
 import { PostgresModerationRepository } from '../../infrastructure/admin/postgres-moderation.repository';
 import { ANOMALY_REPOSITORY } from '../../application/ports/anomaly.repository';
+import { ADMIN_OPS_REPOSITORY } from '../../application/ports/admin-ops.repository';
+import { AdminOpsUseCase } from '../../application/use-cases/admin-ops.use-case';
+import { PostgresAdminOpsRepository } from '../../infrastructure/admin/postgres-admin-ops.repository';
+import { IdempotencyInterceptor } from '../idempotency/idempotency.interceptor';
+import { AdminOpsController } from './admin-ops.controller';
 import { ListAnomaliesUseCase } from '../../application/use-cases/list-anomalies.use-case';
 import { PostgresAnomalyRepository } from '../../infrastructure/anticheat/postgres-anomaly.repository';
 
@@ -60,7 +65,7 @@ import { PostgresAnomalyRepository } from '../../infrastructure/anticheat/postgr
  * portu yanlışlıkla enjekte etmesine kapı açardı.
  */
 @Module({
-  controllers: [AdminController, ModerationController, AnnouncementsController],
+  controllers: [AdminController, ModerationController, AnnouncementsController, AdminOpsController],
   providers: [
     ListAdminReportsUseCase,
     UpdateReportStatusUseCase,
@@ -76,6 +81,10 @@ import { PostgresAnomalyRepository } from '../../infrastructure/anticheat/postgr
     // 02.10.2026 — Faz 7: şüpheli desenler (yalnızca okuma).
     ListAnomaliesUseCase,
     { provide: ANOMALY_REPOSITORY, useClass: PostgresAnomalyRepository },
+    // 02.10.2026 — Faz 10: bakiye düzeltmesi (para yolu) + at araması.
+    AdminOpsUseCase,
+    { provide: ADMIN_OPS_REPOSITORY, useClass: PostgresAdminOpsRepository },
+    IdempotencyInterceptor,
   ],
 })
 export class AdminModule {}

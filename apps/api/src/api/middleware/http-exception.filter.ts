@@ -25,6 +25,8 @@ import {
   InvalidAnnouncementError,
   AnnouncementNotFoundError,
   AnnouncementLimitReachedError,
+  InvalidBalanceAdjustmentError,
+  AdjustmentTargetNotAllowedError,
 } from '../../domain/admin/errors';
 import {
   HorseInActiveRaceError,
@@ -452,6 +454,8 @@ const DOMAIN_ERROR_MAP = new Map<ErrorClassConstructor, { status: number; code: 
   [InvalidAnnouncementError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.InvalidAnnouncement }],
   [AnnouncementNotFoundError, { status: HttpStatus.NOT_FOUND, code: ErrorCode.AnnouncementNotFound }],
   [AnnouncementLimitReachedError, { status: HttpStatus.CONFLICT, code: ErrorCode.AnnouncementLimitReached }],
+  [InvalidBalanceAdjustmentError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.InvalidBalanceAdjustment }],
+  [AdjustmentTargetNotAllowedError, { status: HttpStatus.CONFLICT, code: ErrorCode.AdjustmentTargetNotAllowed }],
   [QuestNotFoundError, { status: HttpStatus.NOT_FOUND, code: ErrorCode.QuestNotFound }],
   [QuestNotCompletedError, { status: HttpStatus.CONFLICT, code: ErrorCode.QuestNotCompleted }],
   [QuestAlreadyClaimedError, { status: HttpStatus.CONFLICT, code: ErrorCode.QuestAlreadyClaimed }],

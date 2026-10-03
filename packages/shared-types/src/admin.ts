@@ -392,3 +392,29 @@ export interface AnomalyReport {
   newAccountDays: number;
   findings: AnomalyFinding[];
 }
+
+/** 02.10.2026 (Faz 10) — yönetimin bakiye düzeltmesi sonucu. */
+export interface BalanceAdjustmentResult {
+  transactionId: string;
+  auditId: string;
+  currency: 'money' | 'gems';
+  amount: number;
+  balanceBefore: number;
+  balanceAfter: number;
+}
+
+/** 02.10.2026 (Faz 10) — yönetimin at araması satırı. */
+export interface AdminHorseView {
+  id: string;
+  name: string;
+  owner: { playerId: string; username: string } | null;
+  gender: string;
+  breed: string | null;
+  birthDate: string | null;
+  level: number;
+  status: string;
+  health: number;
+  fitness: number;
+  energy: number;
+  createdAt: string;
+}

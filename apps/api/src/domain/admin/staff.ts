@@ -1,8 +1,10 @@
 import type { AnnouncementLevel, AssignableRole, SanctionKind, ModerationRole } from '@at-sevdalisi/shared-types';
 import type { ModerationConfig } from '@at-sevdalisi/game-config';
 import {
+  AdjustmentTargetNotAllowedError,
   AdminRequiredError,
   InvalidAnnouncementError,
+  InvalidBalanceAdjustmentError,
   InvalidRoleChangeError,
   InvalidSanctionError,
   SanctionTargetNotAllowedError,
@@ -25,10 +27,12 @@ export type StaffPermission =
   | 'announcements.manage'
   | 'events.manage'
   | 'anomalies.view'
+  | 'economy.adjust'
+  | 'horses.view'
   | 'admin.full';
 
 export const STAFF_PERMISSIONS: Readonly<Record<ModerationRole, readonly StaffPermission[]>> = {
-  moderator: ['reports.manage', 'players.view', 'sanctions.suspend', 'anomalies.view'],
+  moderator: ['reports.manage', 'players.view', 'sanctions.suspend', 'anomalies.view', 'horses.view'],
   admin: [
     'reports.manage',
     'players.view',
@@ -39,6 +43,8 @@ export const STAFF_PERMISSIONS: Readonly<Record<ModerationRole, readonly StaffPe
     'announcements.manage',
     'events.manage',
     'anomalies.view',
+    'economy.adjust',
+    'horses.view',
     'admin.full',
   ],
 };
@@ -206,4 +212,44 @@ export function isAnnouncementLive(
     a.startsAt.getTime() <= now.getTime() &&
     (a.endsAt === null || a.endsAt.getTime() > now.getTime())
   );
+}
+
+export interface BalanceAdjustmentDraft {
+  currency: 'money' | 'gems';
+  /** İşaretli: pozitif = ekleme, negatif = düşüm. Sıfır olamaz. */
+  amount: number;
+  reason: string;
+}
+
+/** Yönetimin bakiye düzeltmesi gövdesi (DTO doğrulaması esbuild altında atlanır — CLAUDE.md kural 5). */
+export function parseBalanceAdjustment(
+  raw: { currency?: unknown; amount?: unknown; reason?: unknown },
+  config: ModerationConfig['economyAdjustment'],
+): BalanceAdjustmentDraft {
+  if (raw.currency !== 'money' && raw.currency !== 'gems') {
+    throw new InvalidBalanceAdjustmentError("Para birimi 'money' ya da 'gems' olmalıdır.");
+  }
+  const max = config.maxAbsAmount[raw.currency];
+  if (typeof raw.amount !== 'number' || !Number.isInteger(raw.amount) || raw.amount === 0 || Math.abs(raw.amount) > max) {
+    throw new InvalidBalanceAdjustmentError(`Tutar sıfırdan farklı, mutlak değeri en fazla ${max} olan bir tam sayı olmalıdır.`);
+  }
+  const reason = typeof raw.reason === 'string' ? raw.reason.trim() : '';
+  if (reason.length < config.reasonMinLength || reason.length > config.reasonMaxLength) {
+    throw new InvalidBalanceAdjustmentError(
+      `Gerekçe ${config.reasonMinLength}-${config.reasonMaxLength} karakter olmalıdır.`,
+    );
+  }
+  return { currency: raw.currency, amount: raw.amount, reason };
+}
+
+/** Kendine ya da yönetim ekibine düzeltme yasak. */
+export function assertAdjustmentTarget(actorId: string, targetId: string, targetRole: ModerationRole | null): void {
+  if (actorId === targetId || targetRole !== null) throw new AdjustmentTargetNotAllowedError();
+}
+
+/** At araması sorgusu: kırpılır, sınırlanır; boşsa `null` (arama yapılmaz). */
+export function parseHorseQuery(raw: unknown, maxLength: number): string | null {
+  if (typeof raw !== 'string') return null;
+  const query = raw.trim().slice(0, maxLength);
+  return query === '' ? null : query;
 }

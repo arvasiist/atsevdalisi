@@ -1306,3 +1306,18 @@ describe('KULÜP SOHBETİ uçları (Faz 9)', () => {
     expect(JSON.parse(String((fetchMock.mock.calls[1]![1] as RequestInit).body))).toEqual({ body: 'selam' });
   });
 });
+
+describe('YÖNETİM: bakiye düzeltmesi + at araması (Faz 10)', () => {
+  it('düzeltme Idempotency-Key başlığını taşır; arama sorguyu kodlar', async () => {
+    setAuthToken('t');
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ success: true, data: [] }));
+    vi.stubGlobal('fetch', fetchMock);
+    await apiClient.adjustPlayerBalance('p1', { currency: 'money', amount: -5, reason: 'gerekçe metni' }, 'anahtar-1');
+    await apiClient.searchAdminHorses('Rüzgâr %');
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(String(url).replace(API_BASE_URL, '')).toBe('/admin/players/p1/balance-adjustments');
+    expect((init as RequestInit).method).toBe('POST');
+    expect(new Headers((init as RequestInit).headers).get('Idempotency-Key')).toBe('anahtar-1');
+    expect(String(fetchMock.mock.calls[1]![0]).replace(API_BASE_URL, '')).toBe('/admin/horses?q=R%C3%BCzg%C3%A2r+%25');
+  });
+});

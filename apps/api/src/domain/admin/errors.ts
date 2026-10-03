@@ -176,3 +176,19 @@ export class AnnouncementLimitReachedError extends Error {
     this.name = 'AnnouncementLimitReachedError';
   }
 }
+
+/** 02.10.2026 (Faz 10) — bakiye düzeltmesi gövdesi geçersiz (400). */
+export class InvalidBalanceAdjustmentError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'InvalidBalanceAdjustmentError';
+  }
+}
+
+/** Kendine ya da yönetim ekibine düzeltme yasak (409) — kendini zenginleştirme/danışıklı iş kapısı. */
+export class AdjustmentTargetNotAllowedError extends Error {
+  constructor() {
+    super('Kendine ya da yönetim ekibinden birine bakiye düzeltmesi yapılamaz.');
+    this.name = 'AdjustmentTargetNotAllowedError';
+  }
+}

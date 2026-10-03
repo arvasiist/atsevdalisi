@@ -2019,6 +2019,14 @@ export interface ModerationConfig {
     maxDurationDays: number;
     adminListLimit: number;
   };
+  /** 02.10.2026 (Faz 10) — yönetimin bakiye düzeltmesi: tutar tavanı (mutlak) + gerekçe uzunluğu. */
+  economyAdjustment: {
+    maxAbsAmount: { money: number; gems: number };
+    reasonMinLength: number;
+    reasonMaxLength: number;
+  };
+  /** 02.10.2026 (Faz 10) — yönetimin at araması. */
+  horseSearch: { limit: number; queryMaxLength: number };
 }
 
 /** 02.10.2026 — `config/quests.config.json` (Faz 11-B). Görev listesi + etkinlik sınırları. */

@@ -172,8 +172,8 @@ Gerçek cihaz testi YAPILMADI. Service worker bilinçli olarak yok.
 Roller `players.is_admin` + `is_moderator` (her istekte DB'den; izin tablosu
 `domain/admin/staff.ts`), denetim günlüğü (aynı transaction): şikâyet kuyruğu,
 oyuncu/yarış/işlem listeleri, yarış iptali (iade), **rol atama, askı/yasak +
-kaldırma, duyurular** (Faz 10, 02.10.2026). `/admin` sekmeleri role göre.
-YOK: at/pazar/kulüp/turnuva/sezon yönetimi, config yönetimi, IP alanı.
+kaldırma, duyurular** (Faz 10, 02.10.2026), **bakiye düzeltmesi (para yolu) + at araması**. `/admin`
+sekmeleri role göre. YOK: config/sezon/turnuva görünümü (sıradaki dilim), IP alanı.
 
 ## Live Operations Status — PARTIAL
 
@@ -738,3 +738,24 @@ TESTS PASSED: API 172 / 2451 (temiz şema), web 50 / 547; tarayıcı: iki oyuncu
 TESTS FAILED: 0
 REMAINING: Social Hub (Faz 8), kulüp yarışı
 NEXT PHASE: Faz 10 — Yönetim (at, ekonomi, config, sezon, turnuva yönetimi)
+
+---
+
+PHASE: 10 (parça) — Bakiye düzeltmesi + at araması
+STATUS: TESTED
+SUMMARY: Yönetici gerekçeli bakiye düzeltmesi (para yolu, idempotent, denetimli); moderatör +
+yönetici için at araması.
+FILES CREATED: ports/admin-ops.repository.ts · infrastructure/admin/postgres-admin-ops.repository.ts ·
+use-cases/admin-ops.use-case.ts · api/admin/admin-ops.controller.ts · web features/admin/{BalanceAdjustmentForm,
+HorsesAdmin}.tsx · testler
+FILES MODIFIED: staff.ts (economy.adjust, horses.view) · admin errors + filter · admin.module ·
+moderation.config.json · game-config · shared-types (economy: admin_adjustment/ADJUSTMENT; admin; error-codes) ·
+web api-client, ledger-labels, PlayerModerationPanel, admin/page
+DATABASE CHANGES: — (yeni defter türü serbest metin)
+API CHANGES: POST /admin/players/:id/balance-adjustments (Idempotency-Key zorunlu) · GET /admin/horses?q=
+SECURITY CHANGES: yalnızca yönetici; kendine/personele yasak; aynı anahtar ikinci kez ödemez; eksiye düşmez
+TESTS ADDED: admin-ops.e2e-spec.ts (5), web balance-adjustment-form (2), api-client (1)
+TESTS PASSED: API 173 / 2456 (temiz şema), web 51 / 550; tarayıcı: +1250 düzeltme + defter satırı, at araması
+TESTS FAILED: 0
+REMAINING: config/sezon/turnuva görünümleri
+NEXT PHASE: Faz 10 son parça

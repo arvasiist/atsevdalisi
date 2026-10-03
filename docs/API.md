@@ -1636,6 +1636,16 @@ yenilemede **403 `ACCOUNT_SUSPENDED`** alır (401 değil — istemci oturumu
 silmez). `GET /admin/players` satırı `isModerator` ve `activeSanction` taşır;
 `PlayerSummary` `isModerator` taşır.
 
+### Bakiye düzeltmesi + at araması (Faz 10, 02.10.2026)
+
+- `POST /admin/players/:playerId/balance-adjustments` — yalnızca yönetici; `Idempotency-Key` zorunlu.
+  Gövde `{ currency: 'money'|'gems', amount: (işaretli tam sayı, ≠0), reason }`. 201
+  `{ transactionId, auditId, currency, amount, balanceBefore, balanceAfter }`. Hatalar: 400
+  `INVALID_BALANCE_ADJUSTMENT`, 409 `ADJUSTMENT_TARGET_NOT_ALLOWED` (kendine/personele), 409
+  `INSUFFICIENT_FUNDS`, 404 (oyuncu yok). Defter türü `admin_adjustment` (kanonik `ADJUSTMENT`).
+- `GET /admin/horses?q=` — moderatör + yönetici; at kimliği, sahip kimliği, at adı (parça) ya da sahip
+  kullanıcı adı; en fazla `horseSearch.limit`.
+
 ### Kulüp sohbeti + tribün emote (Faz 9, 02.10.2026, migration 0062)
 
 - `GET /clubs/:clubId/messages` — son `chat.clubChat.historyLimit` mesaj, eskiden yeniye. Yalnızca üye
@@ -3092,3 +3102,5 @@ dosyanın doc yorumu).
 | `INVALID_LIVE_EVENT` | 400 — etkinlik gövdesi geçersiz |
 | `LIVE_EVENT_NOT_FOUND` | 404 — etkinlik yok ya da zaten arşivde |
 | `LIVE_EVENT_LIMIT_REACHED` | 409 — aynı pencerede açık etkinlik sınırı dolu |
+| `INVALID_BALANCE_ADJUSTMENT` | 400 — düzeltme gövdesi geçersiz (Faz 10) |
+| `ADJUSTMENT_TARGET_NOT_ALLOWED` | 409 — kendine ya da yönetim ekibine düzeltme |

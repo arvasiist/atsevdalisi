@@ -58,6 +58,10 @@ export const ErrorCode = {
   InvalidLiveEvent: 'INVALID_LIVE_EVENT',
   LiveEventNotFound: 'LIVE_EVENT_NOT_FOUND',
   LiveEventLimitReached: 'LIVE_EVENT_LIMIT_REACHED',
+  /** 02.10.2026 (Faz 10) — bakiye düzeltmesi gövdesi geçersiz (400). */
+  InvalidBalanceAdjustment: 'INVALID_BALANCE_ADJUSTMENT',
+  /** Kendine ya da yönetim ekibine düzeltme (409). */
+  AdjustmentTargetNotAllowed: 'ADJUSTMENT_TARGET_NOT_ALLOWED',
   NotFound: 'NOT_FOUND',
   // AUDIT_REPORT.md Bulgu S1/S2/S4 hardening (bu oturum) — brief §41/§50
   // Google/Apple Sign-In + IDOR sertleştirmesi. `Unauthorized` (401) daha

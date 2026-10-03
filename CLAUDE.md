@@ -498,6 +498,18 @@ Emote: soket `race.emote` → odaya `{ raceId, key }` (ANONİM, kalıcı DEĞİL
 kapılar: listedeki anahtar (`chat.emotes.list`, simge UNICODE — dosya değil),
 abonelik, soket başına `cooldownMs`. Ekran kendi bastığını yerelde ÇİZMEZ,
 sunucu yayınını bekler. Social Hub = avatar alanı (brief §50) → Faz 8 ile.
+(51) **BAKİYE DÜZELTMESİ + AT ARAMASI (02.10.2026, Faz 10, §13.76)** —
+`POST /admin/players/:id/balance-adjustments` (`economy.adjust`, YALNIZCA
+yönetici): PARA YOLU — oyuncu `FOR UPDATE` → bakiye → `admin_audit_log`
+(`player.balance_adjusted`, gerekçe + önce/sonra) → `admin_adjustment`
+defter satırı (referansı denetim kaydı, kanonik `ADJUSTMENT`) TEK
+transaction'da. `Idempotency-Key` ZORUNLU (kapsam: yönetici); web anahtarı
+BAŞARIYA kadar saklar (`BalanceAdjustmentForm`, testli). ⚠️ Kendine ve
+yönetim ekibine düzeltme 409 (kendini zenginleştirme/danışıklı iş); eksiye
+düşürmek 409 ve hiçbir satır bırakmaz. Tavan + gerekçe
+`moderation.config.json` → `economyAdjustment`. `GET /admin/horses?q=`
+(moderatör + yönetici): kimlik/sahip kimliği/ad/sahip adı; `LIKE` jokerleri
+kaçırılır. Kanonik `REWARD` etiketi artık "Ödül" (günlük ile sınırlı değil).
 
 **✅ ÜCRETLİ LOBİ YARIŞI ARTIK KOŞUYOR — ÖDÜL DAĞITIMI VAR (§13.14,
 28.09.2026).** `POST /races/:id/settle` yarışı koşar, ödülleri `top5`

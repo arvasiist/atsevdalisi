@@ -7,6 +7,7 @@
  * seçeneği gösterilmez, sunucu yine reddeder).
  */
 
+import { BalanceAdjustmentForm } from './BalanceAdjustmentForm';
 import { useCallback, useEffect, useState } from 'react';
 import type { AdminPlayerAccountView, AssignableRole, PlayerSanctionView, SanctionKind } from '@at-sevdalisi/shared-types';
 import { loadModerationConfig } from '@at-sevdalisi/game-config';
@@ -169,6 +170,10 @@ export function PlayerModerationPanel({
       ) : (
         <p className="session-meta">Personele yaptırım uygulanamaz; önce rolünü kaldır.</p>
       )}
+
+      {actorRole === 'admin' && targetRole === 'player' ? (
+        <BalanceAdjustmentForm player={player} onDone={onChanged} />
+      ) : null}
 
       {actorRole === 'admin' ? (
         <>

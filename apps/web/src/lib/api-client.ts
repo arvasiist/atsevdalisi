@@ -2,6 +2,8 @@ import type {
   AccountDeletionCheck,
   AdminAnnouncementView,
   AdminLiveEventView,
+  AdminHorseView,
+  BalanceAdjustmentResult,
   ClubChatMessageView,
   AnomalyReport,
   AccountDataExport,
@@ -1412,6 +1414,19 @@ export const apiClient = {
   listAdminEvents: () => request<AdminLiveEventView[]>('/admin/events'),
   /** Faz 7 — şüpheli desenler (yalnızca inceleme). */
   getAnomalies: () => request<AnomalyReport>('/admin/anomalies'),
+  /** Faz 10 — bakiye düzeltmesi (PARA YOLU: anahtar başarıya kadar korunur). */
+  adjustPlayerBalance: (
+    playerId: string,
+    body: { currency: 'money' | 'gems'; amount: number; reason: string },
+    idempotencyKey: string,
+  ) =>
+    request<BalanceAdjustmentResult>(`/admin/players/${encodeURIComponent(playerId)}/balance-adjustments`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+      headers: { 'Idempotency-Key': idempotencyKey },
+    }),
+  searchAdminHorses: (query: string) =>
+    request<AdminHorseView[]>(`/admin/horses?${new URLSearchParams({ q: query }).toString()}`),
   createEvent: (body: {
     title: string;
     description?: string;
