@@ -1,4 +1,5 @@
 import 'reflect-metadata';
+import { RedisIoAdapter } from './infrastructure/realtime/redis-io.adapter';
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { IoAdapter } from '@nestjs/platform-socket.io';
@@ -43,7 +44,20 @@ async function bootstrap(): Promise<void> {
   // ZIMNİ otomatik algılamaya BIRAKMAMAK için (bu sandbox'ta hiç
   // kurulup/çalıştırılamayan bir paket seti olduğundan, belirsizliği en
   // aza indirmek amacıyla).
-  app.useWebSocketAdapter(new IoAdapter(app));
+  // 02.10.2026 (Faz 13) — çok örnekte yayınlar Redis köprüsünden geçer
+  // (`ops.realtime.redisAdapter`; kapalıysa tek örnek davranışı).
+  const realtime = loadOpsConfig().realtime.redisAdapter;
+  if (realtime.enabled) {
+    const adapter = new RedisIoAdapter(app, {
+      redisUrl: process.env.REDIS_URL ?? 'redis://localhost:6379',
+      requestsTimeoutMs: realtime.requestsTimeoutMs,
+      channelPrefix: realtime.channelPrefix,
+    });
+    await adapter.connectToRedis();
+    app.useWebSocketAdapter(adapter);
+  } else {
+    app.useWebSocketAdapter(new IoAdapter(app));
+  }
 
   // AUDIT_REPORT.md Bulgu S5 (High) hardening — güvenlik başlıkları
   // (CSP/HSTS/X-Frame-Options/X-Content-Type-Options/Referrer-Policy vb.)

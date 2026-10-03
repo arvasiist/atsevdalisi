@@ -4006,6 +4006,19 @@ Karar: önce pratik yarış; kırbaç sınırsız, dayanıklılık bedelli.
 - Bulunan hata: öne çıkan yarış 20'lik liste sınırına takılıp görünmüyordu
   (önündeki 19 kısa takvim yarışı) → öne çıkanlar başa sıralanır (e2e kilitli).
 
+### 13.78 Socket.IO Redis köprüsü (02.10.2026, Faz 13)
+
+- Çok örnekli kurulumun ikinci önkoşulu (birincisi zamanlayıcı lider kilidi,
+  §13.74). `@socket.io/redis-adapter` (MIT) + `RedisIoAdapter`; config
+  `ops.realtime.redisAdapter`.
+- Yayınlar üç sınıf: küme geneli (sohbet, emote, bildirim, davet, lobi),
+  örneğe yerel (yarış oynatması — `server.local`), küme geneli sayım
+  (izleyici sayısı, `fetchSockets`).
+- Kanıt: iki uygulama örneği aynı süreçte, ortak Redis — sohbet/emote öbür
+  örneğe ulaşır, sayı iki tarafta 2, `race.finished` her izleyiciye tam bir kez.
+- Bulunan hata: kapanışta kopan soketlerin sayım isteği kapanmış Redis
+  bağlantısında askıda reddediliyordu → kapanış bayrağı.
+
 ## 14. Kendime hatırlatmalar (kısa liste)
 
 1. **Race Engine'e dokunmadan önce iki kez düşün.** Denetim onu "KEEP, dokunma"

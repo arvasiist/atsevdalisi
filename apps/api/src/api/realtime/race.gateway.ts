@@ -1,4 +1,4 @@
-import { Inject, Logger } from '@nestjs/common';
+import { Inject, Logger, type OnModuleDestroy } from '@nestjs/common';
 import {
   ConnectedSocket,
   MessageBody,
@@ -261,9 +261,16 @@ interface ChatRateWindow {
   cors: { origin: process.env.CORS_ORIGIN ?? 'http://localhost:3000', credentials: true },
 })
 export class RaceGateway
-  implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect, LobbyNotifier, NotificationNotifier
+  implements
+    OnGatewayInit,
+    OnGatewayConnection,
+    OnGatewayDisconnect,
+    OnModuleDestroy,
+    LobbyNotifier,
+    NotificationNotifier
 {
   private readonly logger = new Logger(RaceGateway.name);
+  private shuttingDown = false;
 
   /**
    * `raceId` → paylaşılan playback oturumu. Bir oturum, `race.finished`
@@ -373,6 +380,11 @@ export class RaceGateway
    * odalarından (`race:${raceId}` dahil) otomatik olarak çıkarır — burada
    * elle yapılacak bir temizlik YOK.
    */
+  /** Uygulama kapanırken (soket sunucusu kapanmadan ÖNCE çağrılır). */
+  onModuleDestroy(): void {
+    this.shuttingDown = true;
+  }
+
   handleDisconnect(client: Socket): void {
     // CANLI İZLEYİCİ SAYISI (brief §27, bu dilimde EKLENDİ) — bkz. dosya
     // başı doc yorumu. `handleDisconnect` (Socket.IO'nun `disconnect`
@@ -501,7 +513,8 @@ export class RaceGateway
     }
     this.stopWaitingPoll(raceId);
     if (playback.state === 'cancelled') {
-      this.server.to(room).emit('race.cancelled', { raceId });
+      // Yoklama örneğe yereldir (her örnek kendi bekleyen izleyicilerini yoklar).
+      this.server.local.to(room).emit('race.cancelled', { raceId });
       return;
     }
     if (!this.raceSessions.has(raceId)) {
@@ -743,14 +756,16 @@ export class RaceGateway
     for (const [scaledDelay, segments] of segmentsByScaledDelay) {
       const timer = setTimeout(() => {
         session.firedScaledDelays.add(scaledDelay);
-        this.server.to(room).emit('race.telemetry', { raceId: timeline.raceId, segments });
+        // ÖRNEĞE YEREL (02.10.2026): her API örneği kendi izleyicilerine kendi
+        // oynatmasını yapar; Redis köprüsünden geçseydi kareler kopyalanırdı.
+        this.server.local.to(room).emit('race.telemetry', { raceId: timeline.raceId, segments });
       }, scaledDelay);
       session.timers.push(timer);
     }
 
     const finishedTimer = setTimeout(() => {
       session.finished = true;
-      this.server.to(room).emit('race.finished', finishedPayload);
+      this.server.local.to(room).emit('race.finished', finishedPayload);
 
       // Geç katılan bir izleyicinin hâlâ TAM bir "yakalama" (bu durumda:
       // anında `race.finished`) alabilmesi için oturumu HEMEN silmiyoruz —
@@ -926,10 +941,27 @@ export class RaceGateway
    * (`notifyMatchFound` ile AYNI, İSTENEN davranış).
    */
   private broadcastSpectatorCount(raceId: string): void {
+    // Kapanışta soketler topluca kopar; Redis köprüsü o sırada kapanmış
+    // olabilir (sayım isteği askıda reddedilir). Kapanan örneğin izleyicileri
+    // başka örneğe bağlanınca sayı oradan yeniden yayınlanır.
+    if (this.shuttingDown) {
+      return;
+    }
+    void this.countAndBroadcastSpectators(raceId).catch((error: unknown) => {
+      this.logger.warn(
+        `İzleyici sayısı yayınlanamadı (yarış ${raceId}): ${error instanceof Error ? error.message : String(error)}`,
+      );
+    });
+  }
+
+  /**
+   * 02.10.2026 (Faz 13) — sayı TÜM örneklerdeki soketlerdir: `fetchSockets`
+   * Redis köprüsünde örnekler arası sorar (tek örnekte yerel odayla aynı
+   * sonucu verir). `server.adapter.rooms` YALNIZCA bu örneği sayardı.
+   */
+  private async countAndBroadcastSpectators(raceId: string): Promise<void> {
     const room = this.raceRoom(raceId);
-    // `server.sockets.adapter` DEĞİL `server.adapter` — gerekçe `server`
-    // alanının doc yorumundadır (Nest buraya Namespace atar).
-    const count = this.server.adapter.rooms.get(room)?.size ?? 0;
+    const count = (await this.server.in(room).fetchSockets()).length;
     const payload: RaceSpectatorCountPayload = { raceId, count };
     this.server.to(room).emit('race.spectators', payload);
   }

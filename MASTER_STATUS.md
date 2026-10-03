@@ -798,3 +798,20 @@ TESTS PASSED: API 176 / 2467 (temiz şema, ardından takvim e2e 5/5), web 51 / 5
 TESTS FAILED: 0
 REMAINING: başarımlar (achievement)
 NEXT PHASE: Faz 13 kalan (Socket.IO Redis köprüsü)
+
+---
+
+PHASE: 13 (kalan) — Socket.IO Redis köprüsü
+STATUS: TESTED
+SUMMARY: Çok örnekli kurulumun son önkoşulu. Sohbet/emote/bildirim/lobi yayınları ve izleyici sayısı
+örnekler arası yayılır; yarış oynatması örneğe yerel kalır (çift kare yok).
+FILES CREATED: infrastructure/realtime/redis-io.adapter.ts · test/api/multi-instance-realtime.e2e-spec.ts
+FILES MODIFIED: main.ts · race.gateway.ts · test-helpers.ts · ops.config.json · game-config types · apps/api/package.json
+DATABASE CHANGES: —
+API CHANGES: — (soket olayları aynı)
+SECURITY CHANGES: — (bağımlılık denetimi temiz)
+TESTS ADDED: multi-instance-realtime.e2e-spec.ts (1, iki örnek)
+TESTS PASSED: API 177 / 2469 (temiz şema); iki örnekli e2e 3 ardışık koşuda temiz
+TESTS FAILED: 0
+REMAINING: — (Faz 13 sağlayıcıdan bağımsız kısmı tamam)
+NEXT PHASE: Faz 14 — uçtan uca oyuncu yolculukları

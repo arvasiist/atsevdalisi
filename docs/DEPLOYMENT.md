@@ -124,5 +124,8 @@ node tools/ops/load-test.mjs http://localhost:4100/api/v1 [--users N] [--iterati
 Bütçe `config/ops.config.json` → `loadTest`. Sanal oyuncular kalıcı misafir hesaplardır;
 staging dışındaki bir adrese yalnızca `--allow-remote` ile gider — üretimde koşma.
 Yerel ölçüm: tek örnek ~350 istek/sn'de doyar (CPU). Zamanlayıcılar için lider kilidi VAR
-(`ops.schedulerLeader`, yalnızca lider örnek koşar). Birden çok örnek için kalan önkoşul:
-Socket.IO Redis adaptörü (yoksa sohbet/bildirim/izleyici sayısı örnekler arası yayılmaz).
+(`ops.schedulerLeader`, yalnızca lider örnek koşar). Socket.IO Redis köprüsü VAR
+(`ops.realtime.redisAdapter`, `REDIS_URL`): sohbet, emote, bildirim, lobi güncellemesi ve
+izleyici sayısı örnekler arası yayılır. Yarış oynatması örneğe YERELDİR (her örnek kendi
+izleyicisine oynatır). Yük dengeleyici WebSocket yükseltmesini geçirmelidir; istemci yalnızca
+`websocket` taşıması kullanmıyorsa (uzun yoklama) yapışkan oturum (sticky session) şarttır.

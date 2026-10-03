@@ -2007,6 +2007,13 @@ export interface OpsConfig {
    * (`hashtext` kilitleriyle çakışmasın).
    */
   schedulerLeader: { enabled: boolean; lockKey: number; retrySeconds: number; heartbeatSeconds: number };
+  /**
+   * 02.10.2026 — Socket.IO Redis köprüsü: birden çok API örneğinde sohbet,
+   * emote, bildirim ve izleyici sayısı tüm örneklere yayılır. Yarış OYNATMASI
+   * örneğe yereldir (`server.local`). `requestsTimeoutMs`: örnekler arası
+   * soket sayımı (`fetchSockets`) zaman aşımı.
+   */
+  realtime: { redisAdapter: { enabled: boolean; requestsTimeoutMs: number; channelPrefix: string } };
   loadTest: {
     virtualUsers: number;
     iterationsPerUser: number;

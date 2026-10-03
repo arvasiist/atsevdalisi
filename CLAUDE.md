@@ -486,8 +486,7 @@ zamanlayıcı yazarken `scheduleNext` içinde `this.leader.runIfLeader(() =>
 this.tickNow())` ŞART — `scheduler-leader.e2e-spec.ts` kaynağı tarar ve
 çıplak `void this.tickNow()` görürse kırılır. `tickNow()` kapıdan GEÇMEZ
 (testler/elle tetikleme). Birim testleri zamanlayıcıya `alwaysLeader` saplaması
-verir. ⚠️ Çok örnek için İKİNCİ önkoşul hâlâ eksik: Socket.IO Redis
-adaptörü (sohbet/bildirim/izleyici sayısı örnekler arası yayılmaz).
+verir. Socket.IO Redis köprüsü de VAR — bkz. (54).
 (50) **KULÜP SOHBETİ + TRİBÜN EMOTE (02.10.2026, Faz 9, migration 0062,
 §13.75)** — `GET/POST /clubs/:id/messages`: yalnızca ÜYE (403
 `NOT_CLUB_MEMBER`; yazma `INSERT … WHERE EXISTS üyelik` — kontrolle yazma
@@ -527,6 +526,16 @@ alabilir. ⚠️ `sunday-derby` ofseti UTC epoch'una (perşembe) göredir —
 `sunday-derby.spec.ts` pazar 20:00 TR'yi kilitler. ⚠️ Takvim programı
 eklerken tribün kapasitesi 500/1000/5000 olmalı (yaşandı: 10000 yazılmıştı,
 `race-calendar.spec.ts` yakaladı).
+(54) **SOCKET.IO REDIS KÖPRÜSÜ (02.10.2026, Faz 13, §13.78)** —
+`infrastructure/realtime/redis-io.adapter.ts` (`ops.realtime.redisAdapter`,
+`REDIS_URL`); `server.to(oda).emit` artık TÜM örneklere gider. ⚠️ Yarış
+OYNATMASI (`race.telemetry`, `race.finished`, bekleyen `race.cancelled`)
+`this.server.local.to(...)` ile YEREL yayılır — her örnek kendi izleyicisine
+kendi oturumuyla oynatır; köprüden geçseydi her kare iki kez gelirdi. Yeni bir
+oynatma olayı eklerken `local` kullan. İzleyici sayısı `fetchSockets` ile
+küme genelidir (`adapter.rooms` YALNIZCA bu örneği sayar). Kapanışta
+(`onModuleDestroy`) sayım yayını durur. Kanıt
+`multi-instance-realtime.e2e-spec.ts` (iki uygulama örneği, ortak Redis).
 
 **✅ ÜCRETLİ LOBİ YARIŞI ARTIK KOŞUYOR — ÖDÜL DAĞITIMI VAR (§13.14,
 28.09.2026).** `POST /races/:id/settle` yarışı koşar, ödülleri `top5`

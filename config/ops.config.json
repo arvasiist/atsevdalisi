@@ -28,5 +28,12 @@
     "lockKey": 9100000001,
     "retrySeconds": 10,
     "heartbeatSeconds": 15
+  },
+  "realtime": {
+    "redisAdapter": {
+      "enabled": true,
+      "requestsTimeoutMs": 3000,
+      "channelPrefix": "at-sevdalisi-io"
+    }
   }
 }
