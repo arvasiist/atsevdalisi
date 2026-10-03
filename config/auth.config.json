@@ -1,5 +1,7 @@
 {
-  "email": { "maxLength": 254 },
+  "email": {
+    "maxLength": 254
+  },
   "password": {
     "minLength": 8,
     "maxLength": 128
@@ -23,5 +25,12 @@
     "maxActiveSessionsPerPlayer": 20,
     "userAgentMaxLength": 200
   },
-  "emailVerification": { "tokenTtlHours": 48, "tokenBytes": 32, "minIntervalSeconds": 60 }
+  "emailVerification": {
+    "tokenTtlHours": 48,
+    "tokenBytes": 32,
+    "minIntervalSeconds": 60
+  },
+  "dataExport": {
+    "maxRowsPerSection": 5000
+  }
 }

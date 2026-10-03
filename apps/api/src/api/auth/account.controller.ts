@@ -1,6 +1,7 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Inject, Post } from '@nestjs/common';
-import type { AccountDeletionCheck, ApiSuccess } from '@at-sevdalisi/shared-types';
+import { Body, Controller, Get, Header, HttpCode, HttpStatus, Inject, Post } from '@nestjs/common';
+import type { AccountDataExport, AccountDeletionCheck, ApiSuccess } from '@at-sevdalisi/shared-types';
 import { DeleteAccountUseCase } from '../../application/use-cases/delete-account.use-case';
+import { ExportAccountDataUseCase } from '../../application/use-cases/export-account-data.use-case';
 import { RateLimit } from '../rate-limit/rate-limit.decorator';
 import { CurrentPlayer, type AuthenticatedPlayer } from './current-player.decorator';
 
@@ -11,7 +12,21 @@ import { CurrentPlayer, type AuthenticatedPlayer } from './current-player.decora
  */
 @Controller('account')
 export class AccountController {
-  constructor(@Inject(DeleteAccountUseCase) private readonly deleteAccount: DeleteAccountUseCase) {}
+  constructor(
+    @Inject(DeleteAccountUseCase) private readonly deleteAccount: DeleteAccountUseCase,
+    @Inject(ExportAccountDataUseCase) private readonly exportData: ExportAccountDataUseCase,
+  ) {}
+
+  /**
+   * KİŞİSEL VERİ DIŞA AKTARMA (02.10.2026, KVKK md. 11 / GDPR md. 15, 20).
+   * Ağır bir okuma olduğu için sık çağrılamaz; yanıt önbelleğe alınmaz.
+   */
+  @RateLimit({ name: 'account-export', limit: 3, windowSeconds: 3600, keyBy: 'player' })
+  @Get('export')
+  @Header('Cache-Control', 'no-store')
+  async export(@CurrentPlayer() currentPlayer: AuthenticatedPlayer): Promise<ApiSuccess<AccountDataExport>> {
+    return { success: true, data: await this.exportData.execute(currentPlayer.id) };
+  }
 
   @Get('deletion')
   @HttpCode(HttpStatus.OK)

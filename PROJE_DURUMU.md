@@ -3944,6 +3944,13 @@ Karar: önce pratik yarış; kırbaç sınırsız, dayanıklılık bedelli.
   sıralamasıyla aynı kural); bakım ölçütü (at, iş) başına bir sayılır.
 - YOK: başarımlar (achievement), kulüp/sezon görevleri, etkinlik para birimi.
 
+### 13.71 Kişisel veri dışa aktarma (02.10.2026, Faz 1)
+
+- `GET /account/export` (3/saat, `no-store`) → 15 bölüm JSON; web `/account`
+  "Verilerimi indir". Parola/token özeti, başkalarının iç kimliği, hakkımdaki
+  şikâyet ve yaptırımı veren yönetici girmez (e2e ham yanıtta arar).
+- Faz 1'de kalan: Apple girişi (kimlik bilgisi gerekir).
+
 ## 14. Kendime hatırlatmalar (kısa liste)
 
 1. **Race Engine'e dokunmadan önce iki kez düşün.** Denetim onu "KEEP, dokunma"

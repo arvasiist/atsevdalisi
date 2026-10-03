@@ -451,6 +451,15 @@ tx), en fazla `maxLive`; bitince `claimGraceHours` boyunca ödül alınabilir.
 sütunla join'de `::text` şart (yaşandı: 500). ⚠️ Yeni ölçüt eklerken üç yer:
 `QUEST_METRICS`, `METRIC_SQL` (Record — eksikse tsc hatası) ve migration
 `live_events.metric` CHECK'i.
+(46) **VERİ DIŞA AKTARMA (02.10.2026, Faz 1, §13.71)** — `GET /account/export`
+(KVKK md. 11 / GDPR md. 15, 20; `/account` → "Verilerimi indir"). Sütunlar
+AÇIKÇA seçilir (`SELECT *` YOK) → yeni bir özet/iç sütun kendiliğinden
+SIZMAZ. Diğer oyuncular yalnızca kullanıcı adıyla; hakkımdaki şikâyet ve
+yaptırımı veren yönetici GİRMEZ. Bölüm sınırı `auth.dataExport.
+maxRowsPerSection` (aşınca `truncated`). ⚠️ Oyuncuya bağlı YENİ bir kişisel
+veri tablosu eklersen silme listesine ((39)) EK OLARAK
+`postgres-account-export.repository.ts` → `SECTION_SQL` ve
+`ACCOUNT_EXPORT_SECTIONS`e de ekle.
 
 **✅ ÜCRETLİ LOBİ YARIŞI ARTIK KOŞUYOR — ÖDÜL DAĞITIMI VAR (§13.14,
 28.09.2026).** `POST /races/:id/settle` yarışı koşar, ödülleri `top5`

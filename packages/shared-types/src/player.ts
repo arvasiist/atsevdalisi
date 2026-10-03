@@ -162,3 +162,40 @@ export interface AccountDeletionCheck {
   /** E-postalı hesapta onay için şifre istenir. */
   requiresPassword: boolean;
 }
+
+/**
+ * KİŞİSEL VERİ DIŞA AKTARMA (02.10.2026, KVKK md. 11 / GDPR md. 15, 20).
+ * Her bölüm oyuncunun KENDİ verisidir; parola özeti, token özeti, başkasının
+ * iç kimliği ya da yaptırımı veren yöneticinin kimliği GİRMEZ. Bölüm
+ * `maxRowsPerSection`ı aşarsa en yeni satırlar verilir ve `truncated: true`.
+ */
+export interface AccountExportSection {
+  rows: Array<Record<string, unknown>>;
+  truncated: boolean;
+}
+
+export const ACCOUNT_EXPORT_SECTIONS = [
+  'account',
+  'loginMethods',
+  'sessions',
+  'horses',
+  'transactions',
+  'raceEntries',
+  'messages',
+  'friendships',
+  'blocks',
+  'reportsFiled',
+  'gifts',
+  'notifications',
+  'club',
+  'sanctions',
+  'questClaims',
+] as const;
+
+export type AccountExportSectionName = (typeof ACCOUNT_EXPORT_SECTIONS)[number];
+
+export interface AccountDataExport {
+  exportedAt: string;
+  playerId: string;
+  sections: Record<AccountExportSectionName, AccountExportSection>;
+}

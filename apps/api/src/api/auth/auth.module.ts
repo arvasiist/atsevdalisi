@@ -20,6 +20,9 @@ import { HorseModule } from '../horse/horse.module';
 import { PlayerModule } from '../player/player.module';
 import { AuthController } from './auth.controller';
 import { AccountController } from './account.controller';
+import { ACCOUNT_EXPORT_REPOSITORY } from '../../application/ports/account-export.repository';
+import { ExportAccountDataUseCase } from '../../application/use-cases/export-account-data.use-case';
+import { PostgresAccountExportRepository } from '../../infrastructure/account/postgres-account-export.repository';
 import { DeleteAccountUseCase } from '../../application/use-cases/delete-account.use-case';
 import { ACCOUNT_DELETION_REPOSITORY } from '../../application/ports/account-deletion.repository';
 import { PostgresAccountDeletionRepository } from '../../infrastructure/account/postgres-account-deletion.repository';
@@ -55,6 +58,9 @@ import { AuthGuard } from './auth.guard';
     // 02.10.2026 — hesap silme (migration 0059).
     DeleteAccountUseCase,
     { provide: ACCOUNT_DELETION_REPOSITORY, useClass: PostgresAccountDeletionRepository },
+    // 02.10.2026 — kişisel veri dışa aktarma (KVKK/GDPR).
+    ExportAccountDataUseCase,
+    { provide: ACCOUNT_EXPORT_REPOSITORY, useClass: PostgresAccountExportRepository },
     { provide: PASSWORD_HASHER, useClass: ScryptPasswordHasher },
     { provide: PLAYER_CREDENTIALS_REPOSITORY, useClass: PostgresPlayerCredentialsRepository },
     // Şifre sıfırlama e-postası (migration 0047): `RESEND_API_KEY` varsa

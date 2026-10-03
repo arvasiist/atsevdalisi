@@ -2,6 +2,7 @@ import type {
   AccountDeletionCheck,
   AdminAnnouncementView,
   AdminLiveEventView,
+  AccountDataExport,
   QuestBoardView,
   QuestClaimResult,
   QuestMetric,
@@ -1400,6 +1401,8 @@ export const apiClient = {
 
   /** 02.10.2026 (Faz 11-B) — günlük/haftalık görevler + etkinlikler. İlerleme sunucuda türetilir. */
   getQuests: () => request<QuestBoardView>('/quests'),
+  /** 02.10.2026 — kişisel veri dışa aktarma (KVKK/GDPR); yalnızca kendi verin. */
+  exportAccountData: () => request<AccountDataExport>('/account/export'),
   claimQuest: (questKey: string) =>
     request<QuestClaimResult>(`/quests/${encodeURIComponent(questKey)}/claim`, { method: 'POST' }),
   claimEvent: (eventId: string) =>

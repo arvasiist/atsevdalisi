@@ -70,7 +70,7 @@ logout / logout-all, cihaz listesi + cihaz kapatma, şifre sıfırlamada tüm
 oturumların kapanması, guard + soket oturum kapısı (çıkış ANINDA etkili).
 VAR (02.10.2026, Faz 1-B.2): e-posta doğrulama (bağlantı, yeniden gönderme, durum).
 VAR (02.10.2026, Faz 1-B.3): hesap silme (kişisel veri silme + anonimleştirme, para emanetinde engel).
-YOK: Apple girişi; kişisel veri DIŞA AKTARMA. Üretim için `GOOGLE_OAUTH_CLIENT_ID`, `RESEND_API_KEY`, güçlü `JWT_SECRET` gerekir.
+VAR (02.10.2026): kişisel veri dışa aktarma (`GET /account/export`, KVKK/GDPR). YOK: Apple girişi. Üretim için `GOOGLE_OAUTH_CLIENT_ID`, `RESEND_API_KEY`, güçlü `JWT_SECRET` gerekir.
 
 ## Economy Status — TESTED (üretim değil)
 
@@ -234,7 +234,7 @@ CI'da değil). YOK: yük testi, CI'da tarayıcı E2E, mutasyon testi CI'da.
 
 ## Missing Features
 
-Kişisel veri dışa aktarma · Apple girişi · AI avatar (tümü) ·
+Apple girişi · AI avatar (tümü) ·
 gerçek ödeme + elmas harcama yolu · gerçek 3D/ses varlıkları · sosyal hub/emote ·
 kulüp sohbeti/yarışı · başarımlar · yönetim panelinin
 geri kalanı (at/pazar/config/etkinlik) · gözlemlenebilirlik · dağıtım.
@@ -284,7 +284,7 @@ Brief fazlarına göre gerçek durum:
 | Faz | Durum |
 |---|---|
 | 0 Audit | COMPLETE (bu dosya) |
-| 1 Core | TESTED — oyun çekirdeği + oturum + e-posta doğrulama + hesap silme (1-B.1/2/3); Apple girişi ve veri dışa aktarma yok |
+| 1 Core | TESTED — oyun çekirdeği + oturum + e-posta doğrulama + hesap silme + veri dışa aktarma; Apple girişi yok (kimlik bilgisi) |
 | 2 Management | TESTED |
 | 3 Genetics | TESTED |
 | 4 Farm | TESTED |
@@ -637,3 +637,24 @@ TESTS FAILED: 0
 PRODUCTION BLOCKERS: değişmedi
 REMAINING: başarımlar, kulüp/sezon görevleri, at/pazar/config yönetimi
 NEXT PHASE: sahibinin kararı (8 AI avatar / 12 ödeme sağlayıcı bekliyor)
+
+---
+
+PHASE: 1 (kalan) — Kişisel veri dışa aktarma
+STATUS: TESTED
+SUMMARY: GET /account/export → hesap, giriş yöntemleri, oturumlar, atlar, para hareketleri,
+yarışlar, mesajlar, arkadaşlıklar, engeller, yaptığım şikâyetler, hediyeler, bildirimler,
+kulüp, yaptırımlar, görev ödülleri. Web: /account "Verilerimi indir" (JSON dosyası).
+FILES CREATED: ports/account-export.repository.ts · infrastructure/account/postgres-account-export.repository.ts ·
+use-cases/export-account-data.use-case.ts · web features/auth/{ExportDataPanel.tsx,data-export.ts} · testler
+FILES MODIFIED: account.controller · auth.module · auth.config.json (dataExport) · game-config ·
+shared-types player.ts · web api-client, account/page
+DATABASE CHANGES: —
+API CHANGES: GET /account/export (3/saat, Cache-Control: no-store)
+SECURITY CHANGES: sütunlar açıkça seçilir; özetler, başka oyuncu kimlikleri, şikâyetçi ve
+yaptırımı veren yönetici yanıta girmez (e2e ham JSON'da arar); silinmiş hesap dışa aktarılmaz
+TESTS ADDED: test/api/account-export.e2e-spec.ts (4), web data-export (2)
+TESTS PASSED: e2e 4/4, web 48 / 542; tarayıcı: indirilen dosya 15 bölüm
+TESTS FAILED: 0
+REMAINING: Apple girişi (sahibinin kimlik bilgisi)
+NEXT PHASE: Faz 5 — start kulvarı etkisi (motor; sahibinin kararı gerekir)

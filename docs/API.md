@@ -1636,6 +1636,15 @@ yenilemede **403 `ACCOUNT_SUSPENDED`** alır (401 değil — istemci oturumu
 silmez). `GET /admin/players` satırı `isModerator` ve `activeSanction` taşır;
 `PlayerSummary` `isModerator` taşır.
 
+### Kişisel veri dışa aktarma (Faz 1, 02.10.2026)
+
+`GET /account/export` — yalnızca kendi verin (token'dan). 3 istek/saat, `Cache-Control: no-store`.
+Yanıt `{ exportedAt, playerId, sections }`; her bölüm `{ rows, truncated }` (bölüm başına en fazla
+`auth.dataExport.maxRowsPerSection`, en yeniler). Bölümler: `account`, `loginMethods`, `sessions`,
+`horses`, `transactions`, `raceEntries`, `messages`, `friendships`, `blocks`, `reportsFiled`, `gifts`,
+`notifications`, `club`, `sanctions`, `questClaims`. Parola/token özeti, diğer oyuncuların iç
+kimlikleri, hakkındaki şikâyetler ve yaptırımı veren yönetici GİRMEZ.
+
 ### Görevler + etkinlikler (Faz 11-B, 02.10.2026, migration 0061)
 
 İlerleme sunucuda mevcut tablolardan türetilir; istemci yalnızca "hangi görev" der.

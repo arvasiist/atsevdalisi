@@ -1827,6 +1827,8 @@ export interface AuthConfig {
   };
   /** 02.10.2026 — e-posta doğrulama bağlantısı (migration 0058). */
   emailVerification: { tokenTtlHours: number; tokenBytes: number; minIntervalSeconds: number };
+  /** 02.10.2026 — kişisel veri dışa aktarma (KVKK md. 11 / GDPR md. 15, 20). Bölüm başına satır sınırı. */
+  dataExport: { maxRowsPerSection: number };
 }
 
 /**
