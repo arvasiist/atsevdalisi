@@ -1,3 +1,4 @@
+import { SchedulerLeaderService } from './scheduler-leader';
 import { Inject, Injectable, Logger, type OnModuleDestroy, type OnModuleInit } from '@nestjs/common';
 import {
   ScheduleTournamentsUseCase,
@@ -25,6 +26,7 @@ export class TournamentScheduler implements OnModuleInit, OnModuleDestroy {
   private isStopped = false;
 
   constructor(
+    @Inject(SchedulerLeaderService) private readonly leader: SchedulerLeaderService,
     @Inject(ScheduleTournamentsUseCase) private readonly useCase: ScheduleTournamentsUseCase,
     @Inject(AppConfigService) private readonly config: AppConfigService,
   ) {}
@@ -71,7 +73,9 @@ export class TournamentScheduler implements OnModuleInit, OnModuleDestroy {
   private scheduleNext(delayMs: number = this.config.online.tournament.schedule.tickSeconds * MS_PER_SECOND): void {
     this.timer = setTimeout(() => {
       this.timer = null;
-      void this.tickNow()
+      // Yalnızca lider örnek koşar (çok örnekte çift iş olmasın — `scheduler-leader.ts`).
+      void this.leader
+        .runIfLeader(() => this.tickNow())
         .catch((error: unknown) => {
           this.logger.error(`Turnuva takvimi turu düştü: ${error instanceof Error ? error.message : String(error)}`);
         })

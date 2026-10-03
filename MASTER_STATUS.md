@@ -241,8 +241,8 @@ geri kalanı (at/pazar/config/etkinlik) · gözlemlenebilirlik · dağıtım.
 
 ## Technical Debt
 
-- Zamanlayıcılar API sürecinde (ayrı worker/kuyruk yok) — yatay ölçeklemede
-  tekil çalışma kilidi (advisory lock / lider seçimi) gerekir.
+- Zamanlayıcılar API sürecinde (ayrı worker/kuyruk yok); **lider kilidi VAR** (02.10.2026) —
+  çok örnekte yalnızca lider koşar. Çok örnek için Socket.IO Redis adaptörü hâlâ YOK.
 - `in_progress` yarış durumu ölü (miras).
 - `PlayerDemoWidget` bağlı değil (bilinçli, kaldırılabilir).
 - `gemShopWhitelist` ölü config (okuyan kod yok).
@@ -697,3 +697,23 @@ TESTS FAILED: 0
 PRODUCTION BLOCKERS: yatay ölçek için zamanlayıcı lider kilidi (Faz 13)
 REMAINING: Faz 7 tamam (yük kapasitesi gerçek sunucuda yeniden ölçülmeli)
 NEXT PHASE: Faz 9 — Sosyal (emote, sosyal hub, kulüp sohbeti)
+
+---
+
+PHASE: 13 (parça) — Zamanlayıcı lider kilidi
+STATUS: TESTED
+SUMMARY: Birden çok API örneğinde zamanlanmış işleri (kilit, kesinleşme, takvim, turnuva, sezon,
+eşleştirme, müzayede, kontrollü yarış) yalnızca lider örnek koşar. Postgres oturum kilidi; lider ölünce
+izleyici devralır.
+FILES CREATED: infrastructure/scheduler/scheduler-leader.ts · test/api/scheduler-leader.e2e-spec.ts
+FILES MODIFIED: 7 zamanlayıcı (scheduleNext → runIfLeader) · app.module · ops.config.json
+(schedulerLeader) · game-config types · 3 zamanlayıcı birim testi
+DATABASE CHANGES: —
+API CHANGES: —
+SECURITY CHANGES: —
+TESTS ADDED: scheduler-leader.e2e-spec.ts (3)
+TESTS PASSED: API 170 / 2443 (temiz şema); yerel iki süreç: lider öldürüldü → izleyici 10 sn içinde devraldı
+TESTS FAILED: 0
+PRODUCTION BLOCKERS: çok örnek için Socket.IO Redis adaptörü
+REMAINING: Socket.IO Redis adaptörü (sahibi onaylarsa)
+NEXT PHASE: Faz 9 — Sosyal

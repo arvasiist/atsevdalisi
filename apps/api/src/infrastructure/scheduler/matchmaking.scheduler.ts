@@ -1,3 +1,4 @@
+import { SchedulerLeaderService } from './scheduler-leader';
 import { Inject, Injectable, Logger, type OnModuleDestroy, type OnModuleInit } from '@nestjs/common';
 import { JoinMatchmakingQueueUseCase } from '../../application/use-cases/join-matchmaking-queue.use-case';
 import { AppConfigService } from '../config/config.service';
@@ -29,6 +30,7 @@ export class MatchmakingScheduler implements OnModuleInit, OnModuleDestroy {
   private isStopped = false;
 
   constructor(
+    @Inject(SchedulerLeaderService) private readonly leader: SchedulerLeaderService,
     @Inject(JoinMatchmakingQueueUseCase) private readonly matchmaking: JoinMatchmakingQueueUseCase,
     @Inject(AppConfigService) private readonly config: AppConfigService,
   ) {}
@@ -79,7 +81,9 @@ export class MatchmakingScheduler implements OnModuleInit, OnModuleDestroy {
     const delayMs = this.config.online.matchmaking.queueScan.tickSeconds * MS_PER_SECOND;
     this.timer = setTimeout(() => {
       this.timer = null;
-      void this.tickNow()
+      // Yalnızca lider örnek koşar (çok örnekte çift iş olmasın — `scheduler-leader.ts`).
+      void this.leader
+        .runIfLeader(() => this.tickNow())
         .catch((error: unknown) => {
           this.logger.error(
             `Eşleştirme kuyruğu turu düştü: ${error instanceof Error ? error.message : String(error)}`,

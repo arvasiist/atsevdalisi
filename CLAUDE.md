@@ -476,6 +476,18 @@ sınırlayıcı ölçülür); yerel olmayan adrese yalnızca `--allow-remote`.
 ÖLÇÜLDÜ: tek süreç ~350-380 istek/sn'de doyar (CPU tek çekirdek, motor),
 200 eşzamanlı oyuncuda bile 0 hata; daha fazlası YATAY ölçek ister — ama
 zamanlayıcılar süreç içindedir, birden çok örnekte lider kilidi şart.
+(49) **ZAMANLAYICI LİDER KİLİDİ (02.10.2026, Faz 13, §13.74)** —
+`infrastructure/scheduler/scheduler-leader.ts`: ayrılmış havuz bağlantısında
+OTURUM düzeyinde `pg_try_advisory_lock` (`ops.schedulerLeader.lockKey`, int4
+dışı — `hashtext` kilitleriyle çakışmaz). Yalnızca lider örnek zamanlanmış
+turları koşar; lider ölünce kilit düşer, izleyici `retrySeconds` içinde
+devralır; lider `heartbeatSeconds`te kilidi `pg_locks`tan yoklar. ⚠️ YENİ bir
+zamanlayıcı yazarken `scheduleNext` içinde `this.leader.runIfLeader(() =>
+this.tickNow())` ŞART — `scheduler-leader.e2e-spec.ts` kaynağı tarar ve
+çıplak `void this.tickNow()` görürse kırılır. `tickNow()` kapıdan GEÇMEZ
+(testler/elle tetikleme). Birim testleri zamanlayıcıya `alwaysLeader` saplaması
+verir. ⚠️ Çok örnek için İKİNCİ önkoşul hâlâ eksik: Socket.IO Redis
+adaptörü (sohbet/bildirim/izleyici sayısı örnekler arası yayılmaz).
 
 **✅ ÜCRETLİ LOBİ YARIŞI ARTIK KOŞUYOR — ÖDÜL DAĞITIMI VAR (§13.14,
 28.09.2026).** `POST /races/:id/settle` yarışı koşar, ödülleri `top5`

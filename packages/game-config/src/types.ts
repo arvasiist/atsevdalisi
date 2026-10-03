@@ -1974,6 +1974,13 @@ export interface OpsConfig {
    * 02.10.2026 (Faz 7) — `tools/ops/load-test.mjs` varsayılanları ve bütçesi.
    * Bütçe aşılırsa araç (ve CI adımı) sıfırdan farklı kodla çıkar.
    */
+  /**
+   * 02.10.2026 — zamanlayıcı LİDER KİLİDİ. Birden çok API örneğinde
+   * zamanlanmış işleri yalnızca kilidi tutan örnek koşar. `enabled: false`
+   * = tek örnek davranışı (her örnek koşar). `lockKey` int4 dışında seçildi
+   * (`hashtext` kilitleriyle çakışmasın).
+   */
+  schedulerLeader: { enabled: boolean; lockKey: number; retrySeconds: number; heartbeatSeconds: number };
   loadTest: {
     virtualUsers: number;
     iterationsPerUser: number;

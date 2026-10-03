@@ -123,5 +123,6 @@ node tools/ops/load-test.mjs http://localhost:4100/api/v1 [--users N] [--iterati
 
 Bütçe `config/ops.config.json` → `loadTest`. Sanal oyuncular kalıcı misafir hesaplardır;
 staging dışındaki bir adrese yalnızca `--allow-remote` ile gider — üretimde koşma.
-Yerel ölçüm: tek örnek ~350 istek/sn'de doyar (CPU). Birden çok örnek çalıştırmadan önce
-zamanlayıcılar için lider kilidi gerekir (aynı iş her örnekte koşar).
+Yerel ölçüm: tek örnek ~350 istek/sn'de doyar (CPU). Zamanlayıcılar için lider kilidi VAR
+(`ops.schedulerLeader`, yalnızca lider örnek koşar). Birden çok örnek için kalan önkoşul:
+Socket.IO Redis adaptörü (yoksa sohbet/bildirim/izleyici sayısı örnekler arası yayılmaz).

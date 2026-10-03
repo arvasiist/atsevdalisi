@@ -3970,6 +3970,15 @@ Karar: önce pratik yarış; kırbaç sınırsız, dayanıklılık bedelli.
 - Sonuç: tek örnek ~350 istek/sn; ötesi yatay ölçek. Önkoşul: zamanlayıcılar
   için lider kilidi (Faz 13).
 
+### 13.74 Zamanlayıcı lider kilidi (02.10.2026, Faz 13)
+
+- 7 zamanlayıcının zamanlanmış turu `SchedulerLeaderService.runIfLeader`dan
+  geçer; Postgres oturum kilidi (bağlantı kopunca kendiliğinden düşer).
+- Kanıt: e2e (tek lider, izleyici işi koşmaz, bırakınca ve oturum
+  öldürülünce devir, kaynak taraması) + yerel iki süreç denemesi (A
+  öldürüldü → B 10 sn içinde lider).
+- Çok örnek için kalan önkoşul: Socket.IO Redis adaptörü.
+
 ## 14. Kendime hatırlatmalar (kısa liste)
 
 1. **Race Engine'e dokunmadan önce iki kez düşün.** Denetim onu "KEEP, dokunma"

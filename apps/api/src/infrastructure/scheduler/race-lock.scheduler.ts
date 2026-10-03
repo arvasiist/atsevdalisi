@@ -1,3 +1,4 @@
+import { SchedulerLeaderService } from './scheduler-leader';
 import { Inject, Injectable, Logger, type OnModuleDestroy, type OnModuleInit } from '@nestjs/common';
 import { LockRaceUseCase, type LockDueRacesResult } from '../../application/use-cases/lock-race.use-case';
 import { SettleDueRacesUseCase, type SettleDueRacesResult } from '../../application/use-cases/settle-due-races.use-case';
@@ -72,6 +73,7 @@ export class RaceLockScheduler implements OnModuleInit, OnModuleDestroy {
   private isStopped = false;
 
   constructor(
+    @Inject(SchedulerLeaderService) private readonly leader: SchedulerLeaderService,
     @Inject(LockRaceUseCase) private readonly lockRaceUseCase: LockRaceUseCase,
     @Inject(SettleDueRacesUseCase) private readonly settleDueRacesUseCase: SettleDueRacesUseCase,
     @Inject(AppConfigService) private readonly config: AppConfigService,
@@ -163,7 +165,9 @@ export class RaceLockScheduler implements OnModuleInit, OnModuleDestroy {
       // `tick()` hatayı kendi içinde yutar; buradaki `finally` benzeri akış
       // şu sırayla olur: tur biter → yeni tur kurulur. Turun bitişini
       // BEKLEMEK için `tickNow()`in sözü kullanılır.
-      void this.tickNow()
+      // Yalnızca lider örnek koşar (çok örnekte çift iş olmasın — `scheduler-leader.ts`).
+      void this.leader
+        .runIfLeader(() => this.tickNow())
         .catch((error: unknown) => {
           this.logger.error(
             `Yarış kilitleme turu düştü: ${error instanceof Error ? error.message : String(error)}`,

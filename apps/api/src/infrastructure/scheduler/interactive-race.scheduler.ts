@@ -1,3 +1,4 @@
+import { SchedulerLeaderService } from './scheduler-leader';
 import {
   Inject,
   Injectable,
@@ -27,6 +28,7 @@ export class InteractiveRaceScheduler implements OnModuleInit, OnModuleDestroy {
   private isStopped = false;
 
   constructor(
+    @Inject(SchedulerLeaderService) private readonly leader: SchedulerLeaderService,
     @Inject(InteractiveRaceUseCase) private readonly useCase: InteractiveRaceUseCase,
     @Inject(RACE_REPOSITORY) private readonly raceRepository: RaceRepository,
     @Inject(AppConfigService) private readonly config: AppConfigService,
@@ -92,7 +94,9 @@ export class InteractiveRaceScheduler implements OnModuleInit, OnModuleDestroy {
   ): void {
     this.timer = setTimeout(() => {
       this.timer = null;
-      void this.tickNow()
+      // Yalnızca lider örnek koşar (çok örnekte çift iş olmasın — `scheduler-leader.ts`).
+      void this.leader
+        .runIfLeader(() => this.tickNow())
         .catch((error: unknown) => {
           this.logger.error(
             `Kontrollü yarış turu düştü: ${error instanceof Error ? error.message : String(error)}`,
