@@ -3960,6 +3960,16 @@ Karar: önce pratik yarış; kırbaç sınırsız, dayanıklılık bedelli.
 - YOK: IP/cihaz parmak izi (saklanmıyor — kişisel veri kararı), satış
   anındaki piyasa değeri (saklanmıyor → "değerinin altında satış" ölçülemez).
 
+### 13.73 Yük testi (02.10.2026, Faz 7)
+
+- `tools/ops/load-test.mjs` + CI bütçe kapısı (15 oyuncu × 4 tur).
+- Yerel ölçüm (4 çekirdek, derlenmiş API, hız sınırı kapalı):
+  25 oyuncu → 321 istek/sn, p95 395 ms, 0 hata · 100 → 378 istek/sn, p95
+  1266 ms, 0 hata · 200 → 354 istek/sn, p95 2163 ms, 0 hata. API süreci tek
+  çekirdekte ~%82 CPU: darboğaz Node olay döngüsü (pratik yarış = motor).
+- Sonuç: tek örnek ~350 istek/sn; ötesi yatay ölçek. Önkoşul: zamanlayıcılar
+  için lider kilidi (Faz 13).
+
 ## 14. Kendime hatırlatmalar (kısa liste)
 
 1. **Race Engine'e dokunmadan önce iki kez düşün.** Denetim onu "KEEP, dokunma"

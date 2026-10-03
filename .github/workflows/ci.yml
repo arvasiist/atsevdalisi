@@ -116,6 +116,16 @@ jobs:
       - name: Build
         run: npm run build
 
+      # 02.10.2026 (Faz 7) — YÜK TESTİ (bütçe kapısı). Derlenmiş API'ye karşı
+      # (hız sınırı bu işte zaten kapalı: ölçülen sunucu, sınırlayıcı değil).
+      # Bütçe `config/ops.config.json` → `loadTest`; aşılırsa adım kırılır.
+      # CI makinesi yavaş olabilir diye kullanıcı sayısı yerel ölçümün altında.
+      - name: Load test (budget gate)
+        run: |
+          (cd apps/api && PORT=4100 node dist/main.js > /tmp/api-load.log 2>&1 &)
+          for i in $(seq 1 60); do curl -sf http://localhost:4100/api/v1/health > /dev/null && break; sleep 1; done
+          node tools/ops/load-test.mjs http://localhost:4100/api/v1 --users 15 --iterations 4 || (tail -50 /tmp/api-load.log; exit 1)
+
       # 02.10.2026 (Faz 13-C) — YEDEK / GERİ YÜKLEME PROVASI. Testlerin
       # bıraktığı GERÇEK veriyle: yedek → geçici boş veritabanına geri
       # yükleme → parmak izi karşılaştırması (satır sayıları, migration

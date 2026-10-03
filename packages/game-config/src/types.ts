@@ -1970,6 +1970,17 @@ export interface OpsConfig {
   productionEnv: { minJwtSecretLength: number; forbiddenJwtSecrets: string[] };
   /** 02.10.2026 (Faz 13-C) — `POST /client-errors` alan sınırları (aşan kırpılır). */
   clientErrors: { maxMessageLength: number; maxPathLength: number; maxDigestLength: number };
+  /**
+   * 02.10.2026 (Faz 7) — `tools/ops/load-test.mjs` varsayılanları ve bütçesi.
+   * Bütçe aşılırsa araç (ve CI adımı) sıfırdan farklı kodla çıkar.
+   */
+  loadTest: {
+    virtualUsers: number;
+    iterationsPerUser: number;
+    p95BudgetMs: number;
+    maxErrorRate: number;
+    requestTimeoutMs: number;
+  };
 }
 
 /** 02.10.2026 — `config/moderation.config.json` (Faz 10 + 11-A). Yalnızca sınırlar; yetki kodda/veritabanındadır. */

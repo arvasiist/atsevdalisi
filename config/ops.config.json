@@ -15,5 +15,12 @@
     "maxMessageLength": 500,
     "maxPathLength": 200,
     "maxDigestLength": 64
+  },
+  "loadTest": {
+    "virtualUsers": 25,
+    "iterationsPerUser": 6,
+    "p95BudgetMs": 800,
+    "maxErrorRate": 0.01,
+    "requestTimeoutMs": 15000
   }
 }

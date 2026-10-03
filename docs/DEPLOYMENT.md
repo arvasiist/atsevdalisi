@@ -113,3 +113,15 @@ DATABASE_URL=... tools/ops/backup-drill.sh                  # yedek → geçici 
   takılır — çağıranlar değişmez.
 - Web: `app/error.tsx` (sayfa) ve `app/global-error.tsx` (kök) hata
   sınırları; ekrana hata ayrıntısı basılmaz.
+
+## Yük testi (Faz 7)
+
+```
+DISABLE_RATE_LIMIT=true PORT=4100 node apps/api/dist/main.js   # ayrı bir test örneği
+node tools/ops/load-test.mjs http://localhost:4100/api/v1 [--users N] [--iterations N] [--report rapor.json]
+```
+
+Bütçe `config/ops.config.json` → `loadTest`. Sanal oyuncular kalıcı misafir hesaplardır;
+staging dışındaki bir adrese yalnızca `--allow-remote` ile gider — üretimde koşma.
+Yerel ölçüm: tek örnek ~350 istek/sn'de doyar (CPU). Birden çok örnek çalıştırmadan önce
+zamanlayıcılar için lider kilidi gerekir (aynı iş her örnekte koşar).

@@ -468,6 +468,14 @@ alım-satım çifti, yeni hesaptan yüksek hediye çıkışı. Eşikler
 `config/anticheat.config.json` (başlangıç değeri; sahibi ayarlar). ⚠️ Uç
 SALT OKUR — otomatik ceza/işaret YAZMA; karar yaptırım akışıyla (denetim
 kaydıyla) verilir. "Yeni hesap" = İŞLEM ANINDA hesabın yaşı.
+(48) **YÜK TESTİ (02.10.2026, Faz 7, §13.73)** — `tools/ops/load-test.mjs`
+(bağımlılıksız; misafir kayıt + okumalar + pratik yarış). Bütçe
+`ops.config.json` → `loadTest` (p95 + hata oranı); CI `build-and-test`
+derlenmiş API'ye karşı koşar. ⚠️ Hedef hız sınırı KAPALI olmalı (yoksa
+sınırlayıcı ölçülür); yerel olmayan adrese yalnızca `--allow-remote`.
+ÖLÇÜLDÜ: tek süreç ~350-380 istek/sn'de doyar (CPU tek çekirdek, motor),
+200 eşzamanlı oyuncuda bile 0 hata; daha fazlası YATAY ölçek ister — ama
+zamanlayıcılar süreç içindedir, birden çok örnekte lider kilidi şart.
 
 **✅ ÜCRETLİ LOBİ YARIŞI ARTIK KOŞUYOR — ÖDÜL DAĞITIMI VAR (§13.14,
 28.09.2026).** `POST /races/:id/settle` yarışı koşar, ödülleri `top5`

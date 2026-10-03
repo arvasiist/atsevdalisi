@@ -146,7 +146,7 @@ alınacak (sahibinin kararı, 02.10.2026).
 Lobi yarışı (katıl/hazır/ayrıl, kilit, kesinleşme, iade), eşleştirme (PvP),
 turnuva, takvim, kontrollü canlı yarış (çok oyunculu komutlar), tribün (canlı +
 tekrar), yeniden bağlanma (kopma DB'ye dokunmaz; süren yarış yeniden açılır).
-Şüpheli desen listesi VAR (Faz 7: çoklu hesapla değer aktarma — yalnızca inceleme). Yük testi YOK; tek süreçli zamanlayıcılar yatay ölçeklemede çift çalışır
+Şüpheli desen listesi VAR (Faz 7: çoklu hesapla değer aktarma — yalnızca inceleme). Yük testi VAR (Faz 7: tek örnek ~350 istek/sn'de doyar, 200 eşzamanlı oyuncuda 0 hata; CI bütçe kapısı). Tek süreçli zamanlayıcılar yatay ölçeklemede çift çalışır
 (satır kilitleri çift ödemeyi engelliyor ama iş tekrarlanır).
 
 ## Social Status — TESTED
@@ -290,7 +290,7 @@ Brief fazlarına göre gerçek durum:
 | 4 Farm | TESTED |
 | 5 Advanced Race | TESTED (kulvar etkisi hariç — karar bekliyor) |
 | 6 3D/Presentation | PARTIAL — kod tam, gerçek varlık yok |
-| 7 Online | TESTED (yük testi yok) |
+| 7 Online | TESTED — anti-cheat inceleme listesi + yük testi (CI bütçe kapısı) |
 | 8 AI Avatar | NOT_STARTED |
 | 9 Social | PARTIAL — hub/emote/kulüp sohbeti yok |
 | 10 Admin | PARTIAL — roller + yaptırım + duyuru TESTED; at/pazar/config yönetimi yok |
@@ -679,3 +679,21 @@ TESTS PASSED: 7/7, web 48 / 542; tarayıcı: moderatör sekmeleri Şikâyetler/O
 TESTS FAILED: 0
 REMAINING: Faz 7 yük testi; IP/cihaz sinyali (kişisel veri kararı)
 NEXT PHASE: Faz 7 — yük testi
+
+---
+
+PHASE: 7 (kalan) — Yük testi
+STATUS: TESTED
+SUMMARY: Bağımlılıksız yük aracı + CI bütçe kapısı. Tek API örneği ~350 istek/sn'de doyuyor
+(CPU tek çekirdek, yarış motoru); 200 eşzamanlı oyuncuda bile hata yok, yalnızca gecikme artıyor.
+FILES CREATED: tools/ops/load-test.mjs
+FILES MODIFIED: config/ops.config.json (loadTest) · game-config types · .github/workflows/ci.yml · docs/DEPLOYMENT.md
+DATABASE CHANGES: —
+API CHANGES: —
+SECURITY CHANGES: araç yerel olmayan hedefe yalnızca --allow-remote ile gider
+TESTS ADDED: CI "Load test (budget gate)" adımı
+TESTS PASSED: yerel 25 oyuncu p95 395 ms / 0 hata; 100 ve 200 oyuncu 0 hata (p95 1266 / 2163 ms — bütçe dışı, bilgi amaçlı)
+TESTS FAILED: 0
+PRODUCTION BLOCKERS: yatay ölçek için zamanlayıcı lider kilidi (Faz 13)
+REMAINING: Faz 7 tamam (yük kapasitesi gerçek sunucuda yeniden ölçülmeli)
+NEXT PHASE: Faz 9 — Sosyal (emote, sosyal hub, kulüp sohbeti)
