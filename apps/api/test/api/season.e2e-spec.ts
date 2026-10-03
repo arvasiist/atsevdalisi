@@ -137,9 +137,13 @@ describe('Sezon (e2e)', () => {
         finish_position: number;
         start_time: Date;
       }>(
-        `SELECT h.owner_id, e.performance_score, e.finish_position, r.start_time
+        // 03.10.2026 (migration 0063): yarış KOŞTURAN oyuncunundur — at sonradan
+        // satılmış olabilir (paylaşılan DB'de `player-journey` satıyor).
+        `SELECT COALESCE(e.player_id, h.owner_id) AS owner_id, e.performance_score, e.finish_position, r.start_time
            FROM race_entries e JOIN races r ON r.id = e.race_id JOIN horses h ON h.id = e.horse_id
+           JOIN players p ON p.id = COALESCE(e.player_id, h.owner_id)
           WHERE e.finish_position IS NOT NULL AND e.performance_score IS NOT NULL
+            AND p.deleted_at IS NULL
             AND r.start_time >= $1 AND r.start_time < $2`,
         [before.season.startsAt, before.season.endsAt],
       )

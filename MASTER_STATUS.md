@@ -815,3 +815,23 @@ TESTS PASSED: API 177 / 2469 (temiz şema); iki örnekli e2e 3 ardışık koşud
 TESTS FAILED: 0
 REMAINING: — (Faz 13 sağlayıcıdan bağımsız kısmı tamam)
 NEXT PHASE: Faz 14 — uçtan uca oyuncu yolculukları
+
+---
+
+PHASE: 14 — Final E2E (oyuncu yolculukları)
+STATUS: TESTED
+SUMMARY: İki oyuncu tek akışta oyunun bütün yüzeylerinden geçer (hesap, turnuva, yarış, görev, sosyal,
+kulüp, pazar, sezon, dışa aktarma, silme); sonunda bakiye = başlangıç + defter toplamı. Yolculuk gerçek
+bir hata buldu: yarış atın şimdiki sahibine yazılıyordu, at satışı sezon puanını/ödülünü alıcıya taşıyordu.
+FILES CREATED: test/api/player-journey.e2e-spec.ts · test/api/race-entry-ownership.e2e-spec.ts ·
+database/migrations/0063_backfill_practice_entry_player.{up,down}.sql
+FILES MODIFIED: postgres-race.repository (katılım player_id, son yarışlar, katılımcı) · postgres-season.repository ·
+postgres-leaderboard.repository · postgres-grandstand.repository · FINAL_ACCEPTANCE.md (madde 31)
+DATABASE CHANGES: 0063 — eski pratik katılımlarına defterden player_id (veri düzeltmesi, şema değişmez)
+API CHANGES: — (sıralama/sezon/son yarışlar artık koşturan oyuncuya göre)
+SECURITY CHANGES: sezon ödülü kazanmış at satın alınarak devralınamaz
+TESTS ADDED: player-journey (11 adım), race-entry-ownership (1)
+TESTS PASSED: API 179 / 2483 (temiz şema)
+TESTS FAILED: 0
+REMAINING: Avatar yolculuğu (Faz 8 ile)
+NEXT PHASE: Sona bırakılanlar — Faz 8 AI avatar, Faz 12 ödeme, gerçek 3D/ses varlıkları, Apple girişi

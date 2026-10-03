@@ -35,7 +35,7 @@ function rowToSeason(row: SeasonRow, now: Date): SeasonInfoView {
 }
 
 const RECORDS_SQL = `
-  SELECT h.owner_id          AS owner_id,
+  SELECT p.id                AS owner_id,
          p.username          AS username,
          p.display_name      AS display_name,
          e.performance_score AS performance_score,
@@ -44,7 +44,10 @@ const RECORDS_SQL = `
     FROM race_entries e
     JOIN races   r ON r.id = e.race_id
     JOIN horses  h ON h.id = e.horse_id
-    JOIN players p ON p.id = h.owner_id
+    -- 03.10.2026 (Faz 14): yarış KOŞTURAN oyuncunundur, atın şimdiki
+    -- sahibinin DEĞİL (at satılınca sezon puanı/ödülü alıcıya geçiyordu).
+    -- \`player_id\`i olmayan eski satırlar at sahibine düşer (migration 0063).
+    JOIN players p ON p.id = COALESCE(e.player_id, h.owner_id)
    WHERE e.finish_position IS NOT NULL
      AND e.performance_score IS NOT NULL
      AND r.start_time >= $1 AND r.start_time < $2

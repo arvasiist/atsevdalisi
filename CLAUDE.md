@@ -536,6 +536,17 @@ oynatma olayı eklerken `local` kullan. İzleyici sayısı `fetchSockets` ile
 küme genelidir (`adapter.rooms` YALNIZCA bu örneği sayar). Kapanışta
 (`onModuleDestroy`) sayım yayını durur. Kanıt
 `multi-instance-realtime.e2e-spec.ts` (iki uygulama örneği, ortak Redis).
+(55) **FAZ 14 YOLCULUK + YARIŞ SAHİPLİĞİ (03.10.2026, migration 0063,
+§13.79)** — `player-journey.e2e-spec.ts`: iki oyuncu bütün yüzeylerden geçer,
+sonunda `bakiye = başlangıç + defter toplamı` — defter satırı yazmayan yeni
+bir para yolu bu dosyayı KIRAR. Bulunan hata: pratik/PvP katılımı
+`player_id` yazmıyordu, sıralama/sezon/görev/son yarışlar/tribün yarışı atın
+ŞİMDİKİ sahibine yazıyordu (at satılınca sezon puanı + ÖDÜLÜ alıcıya
+geçiyordu). Artık `insertEntryWithSegments` koşu anındaki sahibi yazar;
+okuma sorguları `COALESCE(e.player_id, h.owner_id)`. ⚠️ Yarışı oyuncuya
+bağlayan YENİ bir sorguda `h.owner_id` KULLANMA — koşturan oyuncu
+`e.player_id`dir. 0063 eski satırları DEFTERDEN doldurur (defteri olmayan
+ücretsiz eski satır NULL kalır, tahmin yazılmaz).
 
 **✅ ÜCRETLİ LOBİ YARIŞI ARTIK KOŞUYOR — ÖDÜL DAĞITIMI VAR (§13.14,
 28.09.2026).** `POST /races/:id/settle` yarışı koşar, ödülleri `top5`

@@ -719,7 +719,8 @@ export class PostgresRaceRepository implements RaceRepository {
        FROM race_entries re
        JOIN races r ON r.id = re.race_id
        JOIN horses h ON h.id = re.horse_id
-       WHERE h.owner_id = $1 AND re.finish_position IS NOT NULL
+       -- 03.10.2026 (Faz 14): koşturan oyuncu (eski satır → at sahibi).
+       WHERE COALESCE(re.player_id, h.owner_id) = $1 AND re.finish_position IS NOT NULL
        ORDER BY r.created_at DESC
        LIMIT $2`,
       [ownerId, limit],
@@ -921,7 +922,7 @@ export class PostgresRaceRepository implements RaceRepository {
       `SELECT 1
        FROM race_entries re
        JOIN horses h ON h.id = re.horse_id
-       WHERE re.race_id = $1 AND h.owner_id = $2
+       WHERE re.race_id = $1 AND COALESCE(re.player_id, h.owner_id) = $2
        LIMIT 1`,
       [raceId, playerId],
     );
@@ -3004,8 +3005,14 @@ export class PostgresRaceRepository implements RaceRepository {
       // hardcoded `NULL` yazılıyordu ve `RaceEntry.jockeyId` alanı
       // (shared-types) ZATEN vardı — yani çağıranlar değeri geçiriyor,
       // repository onu SESSİZCE ATIYORDU. Artık gerçek bir parametre (`$5`).
-      `INSERT INTO race_entries (id, race_id, horse_id, bot_label, jockey_id, gate_position, tactical_style, risk_level, horse_snapshot, final_time_ms, finish_position, performance_score, created_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+      // 03.10.2026 (Faz 14, migration 0063) — `player_id` = atı KOŞTURAN
+      // oyuncu (koşu anındaki sahip, aynı transaction). Eskiden NULL kalıyordu
+      // ve sıralama/sezon/görev yarışı atın ŞİMDİKİ sahibine yazıyordu: at
+      // satılınca satıcının geçmişi (ve sezon ödülü) alıcıya geçiyordu. Bot
+      // satırında `horse_id` NULL → alt sorgu NULL döner.
+      `INSERT INTO race_entries (id, race_id, horse_id, bot_label, jockey_id, gate_position, tactical_style, risk_level, horse_snapshot, final_time_ms, finish_position, performance_score, created_at, player_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13,
+               (SELECT owner_id FROM horses WHERE id = $3))`,
       [
         entry.id,
         entry.raceId,

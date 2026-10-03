@@ -4019,6 +4019,18 @@ Karar: önce pratik yarış; kırbaç sınırsız, dayanıklılık bedelli.
 - Bulunan hata: kapanışta kopan soketlerin sayım isteği kapanmış Redis
   bağlantısında askıda reddediliyordu → kapanış bayrağı.
 
+### 13.79 Faz 14 — uçtan uca oyuncu yolculuğu (03.10.2026)
+
+- `player-journey.e2e-spec.ts`: hesap → turnuva → pratik yarış → antrenman/bakım
+  → görev → sosyal → kulüp → pazar → sezon → dışa aktarma → defter mutabakatı →
+  hesap silme; iki oyuncu, gerçek HTTP. Mutabakat iki para biriminde tuttu.
+- Bulunan hata: yarış atın şimdiki sahibine yazılıyordu (pratik/PvP katılımında
+  `player_id` yoktu). At satışı satıcının sezon puanını ve ödül hakkını alıcıya
+  taşıyordu. Düzeltme: katılım koşturan oyuncuyu yazar, altı okuma sorgusu
+  (genel sıralama, sezon/dönem, "son yarışlarım", katılımcı kontrolü, tribün)
+  koşturan oyuncuya bakar; migration 0063 eski satırları defterden doldurur.
+- Avatar yolculuğu Faz 8 ile (sağlayıcıya bağlı) eklenecek.
+
 ## 14. Kendime hatırlatmalar (kısa liste)
 
 1. **Race Engine'e dokunmadan önce iki kez düşün.** Denetim onu "KEEP, dokunma"

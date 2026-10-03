@@ -146,7 +146,7 @@ Aynı seed + aynı snapshot, farklı taktik → **farklı** sonuç; ve hiçbir s
 
 ---
 
-## G. Güvenlik, sosyal ve uçtan uca (26–30)
+## G. Güvenlik, sosyal ve uçtan uca (26–31)
 
 ### 26. Sosyal yazma rotaları hız sınırlı — kapsam testle kilitli
 `@RateLimit` **opt-in**'dir; işaretlenmeyen rota sınırsızdır. `SocialController` için **kapalı küme** iddiası vardır: yeni bir yazma rotası ekleyip `@RateLimit` koymazsan test **kırılır**. `RateLimitOptions.name` de sabitlenir (aynı `name` iki rota tek bütçeyi böler).
@@ -218,6 +218,20 @@ yarışların `race_entries.jockey_id`si o satıra işaret eder.
 **Kanıt:** `test/api/jockey.e2e-spec.ts` · `apps/web/test/lib/api-client.spec.ts` ·
 `apps/web/test/features/jockey/JockeyPanel.spec.tsx` — **PASS**
 
+### 31. Oyuncu yolculuğu bütün yüzeylerden geçer ve defter mutabakatı tutar (Faz 14)
+İki oyuncu tek akışta: kayıt → e-posta/şifre → şifreyle giriş → bronz turnuva
+finali (botsuz, ödül) → pratik yarış (XP) → antrenman + bakım → görev ödülü →
+arkadaşlık + mesaj + hediye + bildirim → kulüp (kur, katıl, sohbet, kulüp puanı)
+→ pazarda at satışı → sezon sıralaması → veri dışa aktarma → **bakiye =
+başlangıç + defter toplamı** (iki oyuncu, iki para birimi) → hesap silme.
+Mutabakat, defter satırı yazmayan HER para yolunu bütün özellikler için tek
+seferde yakalar.
+**Bulunan hata (düzeltildi, migration 0063):** pratik/PvP katılımı `player_id`
+yazmıyordu; sıralama, sezon (ödüllü), görev ve "son yarışlarım" yarışı atın
+ŞİMDİKİ sahibine yazıyordu → at satılınca satıcının geçmişi ve sezon puanı
+alıcıya geçiyordu.
+**Kanıt:** `test/api/player-journey.e2e-spec.ts` · `test/api/race-entry-ownership.e2e-spec.ts` — **PASS**
+
 ---
 
 ## Kapanış
@@ -230,8 +244,8 @@ yarışların `race_entries.jockey_id`si o satıra işaret eder.
 | D. Para zinciri | 13–18 | ✅ 6/6 |
 | E. İptal/kopma/iade | 19–22 | ✅ 4/4 |
 | F. Motor girdileri | 23–25 | ✅ 3/3 |
-| G. Güvenlik + uçtan uca | 26–30 | ✅ 5/5 |
-| **TOPLAM** | **30** | **✅ 30/30 PASS** |
+| G. Güvenlik + uçtan uca | 26–31 | ✅ 6/6 |
+| **TOPLAM** | **31** | **✅ 31/31 PASS** |
 
 **Kabul edilmeyen madde yoktur.** Ancak üretime hazır **olmayan** özellikler
 **vardır** — onlar kabul kriteri değil, **eksik iş**tir ve

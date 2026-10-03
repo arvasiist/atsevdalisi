@@ -120,7 +120,7 @@ export class PostgresGrandstandRepository implements GrandstandRepository {
          AND NOT EXISTS (
            SELECT 1 FROM race_entries re
            JOIN horses h ON h.id = re.horse_id
-           WHERE re.race_id = r.id AND h.owner_id = $1
+           WHERE re.race_id = r.id AND COALESCE(re.player_id, h.owner_id) = $1
          )
        ORDER BY r.created_at DESC
        LIMIT $3`,
@@ -186,7 +186,7 @@ export class PostgresGrandstandRepository implements GrandstandRepository {
               EXISTS (
                 SELECT 1 FROM race_entries re
                 JOIN horses h ON h.id = re.horse_id
-                WHERE re.race_id = r.id AND h.owner_id = $2
+                WHERE re.race_id = r.id AND COALESCE(re.player_id, h.owner_id) = $2
               ) AS is_own_race
        FROM races r
        WHERE r.id = $1`,
