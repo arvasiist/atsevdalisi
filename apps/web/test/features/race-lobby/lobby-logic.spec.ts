@@ -161,11 +161,19 @@ describe('describeTournament', () => {
     expect(describeCalendar(race())).toBeNull();
     expect(describePlayerControl(race())).toBeNull();
     expect(describePlayerControl(race({ playerControl: true }))).toContain('Kontrollü');
-    expect(describeCalendar(race({ calendar: { programId: 'dirt-sprint' } }))).toBe(
+    expect(describeCalendar(race({ calendar: { programId: 'dirt-sprint', featured: false } }))).toBe(
       'Takvim yarışı · sunucu açtı',
     );
     expect(describeTournament(race({ tournament: { tier: 'silver', minPlayerLevel: 15 } }))).toBe(
       'Gümüş Kupa · Seviye 15+ · Botsuz final, ödül ilk üçe',
+    );
+  });
+});
+
+describe('özel yarış etiketi (Faz 11)', () => {
+  it('öne çıkan program adıyla gösterilir', () => {
+    expect(describeCalendar(race({ calendar: { programId: 'sunday-derby', featured: true } }))).toBe(
+      '⭐ Özel yarış · Pazar Derbisi',
     );
   });
 });

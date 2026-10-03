@@ -295,7 +295,7 @@ Brief fazlarına göre gerçek durum:
 | 8 AI Avatar | NOT_STARTED |
 | 9 Social | TESTED — kulüp sohbeti + emote eklendi; sosyal hub (avatar) Faz 8 ile |
 | 10 Admin | TESTED — roller, yaptırım, duyuru, bakiye düzeltmesi, at araması, ayar/sezon/turnuva görünümü; AI Jobs Faz 8 ile |
-| 11 Live Ops | TESTED — duyurular (11-A) + görevler/etkinlikler (11-B); başarımlar yok |
+| 11 Live Ops | TESTED — duyurular, görevler/etkinlikler, haftalık/aylık sıralama, özel yarış (Pazar Derbisi); başarımlar yok |
 | 12 Monetization | NOT_STARTED (yalnızca sahte yatırma) |
 | 13 Production | PARTIAL — 13-A temel (sağlık, istek kimliği, ortam kapısı, taramalar, Dockerfile) TESTED; 13-B çerçeve yükseltmesi + staging/izleme yok |
 | 14 Final E2E | PARTIAL — `final.e2e-spec.ts` API yolculuğu var; avatar/ödeme yok |
@@ -778,3 +778,23 @@ TESTS PASSED: admin-ops 7/7, web 51 / 551; tarayıcı: Ayarlar 33 dosya, Sezon &
 TESTS FAILED: 0
 REMAINING: AI Jobs (Faz 8)
 NEXT PHASE: Faz 11 kalan (sezon olayları, özel yarışlar, sıralama sıfırlama kontrolü)
+
+---
+
+PHASE: 11 (kalan) — Dönemsel sıralama + özel yarış
+STATUS: TESTED
+SUMMARY: Haftalık/aylık sıralama (Leaderboard Resets) ve takvimde öne çıkan haftalık özel yarış
+(Special Races). Faz 11 brief maddeleri: Season Events (sezon + etkinlikler), Daily/Weekly Events (görevler),
+Special Races, Scheduled Jobs, Rewards, Announcements, Leaderboard Resets — hepsi VAR.
+FILES CREATED: domain/ranking/period-window.ts · use-cases/period-leaderboard.use-case.ts · testler
+FILES MODIFIED: season controller/module · race-lobby.config.json (sunday-derby) · online.config.json ·
+game-config types · shared-types (online, race) · schedule-race-calendar (program ufku) · race-calendar
+doğrulayıcı · race repository (featured + sıralama) · web leaderboard sayfası, lobby-logic, api-client
+DATABASE CHANGES: —
+API CHANGES: GET /leaderboard/period/:period · RaceLobbyListItem.calendar.featured
+SECURITY CHANGES: —
+TESTS ADDED: period-window.spec (4), period-leaderboard.e2e (2), sunday-derby.spec (3), race-calendar (+1 e2e, +1 doğrulama), web (+1)
+TESTS PASSED: API 176 / 2467 (temiz şema, ardından takvim e2e 5/5), web 51 / 552; tarayıcı: haftalık sekme, derbi lobide başta
+TESTS FAILED: 0
+REMAINING: başarımlar (achievement)
+NEXT PHASE: Faz 13 kalan (Socket.IO Redis köprüsü)

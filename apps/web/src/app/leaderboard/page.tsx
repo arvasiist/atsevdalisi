@@ -22,7 +22,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import type { LeaderboardRowView, SeasonView } from '@at-sevdalisi/shared-types';
+import type { LeaderboardRowView, SeasonView, LeaderboardPeriod, PeriodLeaderboardView } from '@at-sevdalisi/shared-types';
 import { GlassPanel } from '../../components/ui/GlassPanel';
 import { apiClient } from '../../lib/api-client';
 import { formatCurrency } from '../../lib/currency';
@@ -41,9 +41,16 @@ export default function LeaderboardPage(): React.ReactElement {
   const [globalRows, setGlobalRows] = useState<LeaderboardRowView[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   /** 01.10.2026 — Genel / Sezon sekmesi. Sezon ucu oturum ister; oyuncu yoksa sekme gösterilmez. */
-  const [tab, setTab] = useState<'global' | 'season'>('global');
+  const [tab, setTab] = useState<'global' | 'season' | LeaderboardPeriod>('global');
   const [season, setSeason] = useState<SeasonView | null>(null);
-  const rows = tab === 'season' ? (season?.standings ?? null) : globalRows;
+  // 02.10.2026 (Faz 11) — haftalık/aylık: sezonla aynı formül, dönem bitince kendiliğinden sıfırlanır.
+  const [periods, setPeriods] = useState<Partial<Record<LeaderboardPeriod, PeriodLeaderboardView>>>({});
+  const rows =
+    tab === 'season'
+      ? (season?.standings ?? null)
+      : tab === 'weekly' || tab === 'monthly'
+        ? (periods[tab]?.standings ?? null)
+        : globalRows;
   /** Satır bazlı "istek gönderiliyor" durumu — tek bir satır TÜM tabloyu kilitlemez. */
   const [pendingPlayerId, setPendingPlayerId] = useState<string | null>(null);
   /** Bu oturumda istek gönderilen oyuncular (`Arkadaş Ekle` → `İstek Gönderildi`). */
@@ -107,6 +114,15 @@ export default function LeaderboardPage(): React.ReactElement {
   }, []);
 
   useEffect(() => {
+    if ((tab !== 'weekly' && tab !== 'monthly') || !player || periods[tab]) return;
+    const period = tab;
+    apiClient
+      .getPeriodLeaderboard(period)
+      .then((view) => setPeriods((current) => ({ ...current, [period]: view })))
+      .catch((err: unknown) => setError(err instanceof Error ? err.message : 'Sıralama yüklenemedi'));
+  }, [tab, player, periods]);
+
+  useEffect(() => {
     if (tab !== 'season' || !player || season) return;
     apiClient
       .getCurrentSeason()
@@ -126,7 +142,11 @@ export default function LeaderboardPage(): React.ReactElement {
       >
         {tab === 'season'
           ? 'Yalnızca bu sezon koşulan yarışların puanı. Sezon bitince ilk sıralar çip ödülü alır.'
-          : 'Bitirilmiş yarışlardan biriken küresel puan tablosu.'}
+          : tab === 'weekly'
+            ? 'Bu hafta (pazartesi 00:00, Türkiye saati) koşulan yarışların puanı. Her hafta yeniden başlar.'
+            : tab === 'monthly'
+              ? 'Bu ay koşulan yarışların puanı. Her ayın 1’inde yeniden başlar.'
+              : 'Bitirilmiş yarışlardan biriken küresel puan tablosu.'}
       </p>
 
       {player ? (
@@ -154,6 +174,18 @@ export default function LeaderboardPage(): React.ReactElement {
           >
             Sezon
           </button>
+          {(['weekly', 'monthly'] as const).map((period) => (
+            <button
+              key={period}
+              type="button"
+              role="tab"
+              className="tab"
+              aria-selected={tab === period}
+              onClick={() => setTab(period)}
+            >
+              {period === 'weekly' ? 'Haftalık' : 'Aylık'}
+            </button>
+          ))}
         </div>
       ) : null}
 
@@ -169,8 +201,8 @@ export default function LeaderboardPage(): React.ReactElement {
       {rows && rows.length === 0 ? (
         <GlassPanel style={{ textAlign: 'center', padding: 'var(--space-xl)' }}>
           <p style={{ color: 'var(--color-text-secondary)', marginTop: 0, marginBottom: 0 }}>
-            {tab === 'season'
-              ? 'Bu sezon henüz yarış koşulmadı — ilk yarışını koşturan zirveye oturur.'
+            {tab === 'season' || tab === 'weekly' || tab === 'monthly'
+              ? 'Bu dönemde henüz yarış koşulmadı — ilk yarışını koşturan zirveye oturur.'
               : 'Henüz bitirilmiş yarış yok. İlk yarışını koşturan sporcu bu tabloya girer.'}
           </p>
         </GlassPanel>

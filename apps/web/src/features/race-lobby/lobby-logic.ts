@@ -18,6 +18,9 @@ import type {
 } from '@at-sevdalisi/shared-types';
 import type { RaceLobbyConfig } from '@at-sevdalisi/game-config';
 import type { CreateLobbyRaceBody } from '../../lib/api-client';
+import { loadRaceLobbyConfig } from '@at-sevdalisi/game-config';
+
+const lobbyConfig = loadRaceLobbyConfig();
 
 const SECONDS_PER_MINUTE = 60;
 const MS_PER_SECOND = 1000;
@@ -51,7 +54,13 @@ export function describeTournament(race: RaceLobbyListItem): string | null {
  * sıradan lobi yarışı; kuralı oyuncunun açtığı yarışla aynıdır.
  */
 export function describeCalendar(race: RaceLobbyListItem): string | null {
-  return race.calendar === null ? null : 'Takvim yarışı · sunucu açtı';
+  if (race.calendar === null) return null;
+  // 02.10.2026 (Faz 11) — öne çıkan program (ör. haftalık Pazar Derbisi).
+  if (race.calendar.featured) {
+    const program = lobbyConfig.calendar.programs.find((candidate) => candidate.id === race.calendar?.programId);
+    return `⭐ Özel yarış · ${program?.name ?? 'takvim'}`;
+  }
+  return 'Takvim yarışı · sunucu açtı';
 }
 
 /** 01.10.2026 — kontrollü yarış etiketi. */

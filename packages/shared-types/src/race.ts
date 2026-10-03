@@ -610,7 +610,8 @@ export interface RaceLobbyListItem extends RaceLobbyView {
    * 01.10.2026 — yarışı sunucu TAKVİMİ açtıysa programın kimliği
    * (`race_calendar_slots`, migration 0052); oyuncunun açtığı yarışta `null`.
    */
-  calendar: { programId: string } | null;
+  /** `featured` (02.10.2026, Faz 11): config programının öne çıkan (özel yarış) işareti. */
+  calendar: { programId: string; featured: boolean } | null;
 }
 
 /**

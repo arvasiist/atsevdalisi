@@ -83,10 +83,24 @@
   "season": {
     "durationDays": 30,
     "leaderboardSize": 50,
-    "rewardsByRank": [10000, 6000, 4000, 2500, 2500, 1500, 1500, 1500, 1500, 1500],
+    "rewardsByRank": [
+      10000,
+      6000,
+      4000,
+      2500,
+      2500,
+      1500,
+      1500,
+      1500,
+      1500,
+      1500
+    ],
     "schedule": {
       "enabled": true,
       "tickSeconds": 300
     }
+  },
+  "leaderboardPeriods": {
+    "limit": 100
   }
 }

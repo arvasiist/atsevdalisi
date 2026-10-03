@@ -516,6 +516,17 @@ kanonik JSON SHA-256 özeti, örnekler arası ayar farkı için), `GET
 /admin/seasons`, `GET /admin/tournaments` — yalnızca yönetici (`admin.full`).
 ⚠️ Config dosyasına GİZLİ değer koyma: bu uç onları yöneticiye gösterir
 (gizliler ortam değişkenindedir). Ayar çalışma anında DÜZENLENMEZ.
+(53) **HAFTALIK/AYLIK SIRALAMA + ÖZEL YARIŞ (02.10.2026, Faz 11, §13.77)** —
+`GET /leaderboard/period/:period` (`weekly`|`monthly`): sezonla AYNI kaynak
+(`findRecordsInWindow`) ve AYNI formül; pencere oyunun TEK takvim saat
+dilimi (`quests.timezoneOffsetMinutes`, hafta pazartesi) — "sıfırlama" veri
+silmeden yeni pencereyle olur, ödül YOK. Takvim programı `featured` (lobide
+"⭐ Özel yarış", liste sınırına takılmasın diye BAŞA sıralanır) ve
+`horizonHours` (program kendi ufku; haftalık derbi 48 sa önceden açılır)
+alabilir. ⚠️ `sunday-derby` ofseti UTC epoch'una (perşembe) göredir —
+`sunday-derby.spec.ts` pazar 20:00 TR'yi kilitler. ⚠️ Takvim programı
+eklerken tribün kapasitesi 500/1000/5000 olmalı (yaşandı: 10000 yazılmıştı,
+`race-calendar.spec.ts` yakaladı).
 
 **✅ ÜCRETLİ LOBİ YARIŞI ARTIK KOŞUYOR — ÖDÜL DAĞITIMI VAR (§13.14,
 28.09.2026).** `POST /races/:id/settle` yarışı koşar, ödülleri `top5`

@@ -305,3 +305,24 @@ export interface PvpMatchResult {
  * not — "eşleşme yok" burada bir HATA değil, bu birliğin bir dalıdır).
  */
 export type JoinMatchmakingQueueResult = { matched: false; ticket: MatchmakingTicket } | { matched: true; match: PvpMatchResult };
+
+/** 02.10.2026 (Faz 11) — haftalık/aylık sıralama (sezonla aynı formül, pencere içinde türetilir). */
+export type LeaderboardPeriod = 'weekly' | 'monthly';
+
+export interface PeriodStandingRow {
+  rank: number;
+  playerId: UUID;
+  username: string;
+  displayName: string;
+  score: number;
+  raceCount: number;
+}
+
+export interface PeriodLeaderboardView {
+  period: LeaderboardPeriod;
+  startsAt: ISODateTimeString;
+  endsAt: ISODateTimeString;
+  standings: PeriodStandingRow[];
+  /** Çağıranın satırı (listede olmasa da); hiç yarışmadıysa `null`. */
+  me: PeriodStandingRow | null;
+}

@@ -3996,6 +3996,16 @@ Karar: önce pratik yarış; kırbaç sınırsız, dayanıklılık bedelli.
 - Salt okuma: "Ayarlar" (etkin config + özet), "Sezon & Turnuva". Ayar düzenleme YOK
   (dağıtımla değişir); AI Jobs Faz 8 ile.
 
+### 13.77 Haftalık/aylık sıralama + Pazar Derbisi (02.10.2026, Faz 11)
+
+- `/leaderboard` "Haftalık" ve "Aylık" sekmeleri; sezonla aynı formül, dönem
+  bitince yeni pencere (veri silinmez).
+- Takvime haftalık özel yarış: Pazar Derbisi (pazar 20:00 TR, 12 at, 2400 m
+  çim, kontrollü, 48 sa önceden açılır, lobide başta). Ödül havuzu yine giriş
+  ücretlerinden — para basılmaz.
+- Bulunan hata: öne çıkan yarış 20'lik liste sınırına takılıp görünmüyordu
+  (önündeki 19 kısa takvim yarışı) → öne çıkanlar başa sıralanır (e2e kilitli).
+
 ## 14. Kendime hatırlatmalar (kısa liste)
 
 1. **Race Engine'e dokunmadan önce iki kez düşün.** Denetim onu "KEEP, dokunma"

@@ -2,6 +2,8 @@ import type {
   AccountDeletionCheck,
   AdminAnnouncementView,
   AdminLiveEventView,
+  LeaderboardPeriod,
+  PeriodLeaderboardView,
   AdminHorseView,
   AdminConfigEntry,
   AdminSeasonView,
@@ -637,6 +639,9 @@ export const apiClient = {
    * olduğu gibi gösterir.
    */
   getLeaderboard: () => request<LeaderboardRowView[]>('/leaderboard'),
+  /** 02.10.2026 (Faz 11) — haftalık/aylık sıralama (oturum ister). */
+  getPeriodLeaderboard: (period: LeaderboardPeriod) =>
+    request<PeriodLeaderboardView>(`/leaderboard/period/${period}`),
 
   /** Güncel sezon (brief §69, 01.10.2026) — oturum ister (`me` satırı için). */
   getCurrentSeason: () => request<SeasonView>('/seasons/current'),

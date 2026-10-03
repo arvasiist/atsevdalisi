@@ -1388,9 +1388,17 @@ export class PostgresRaceRepository implements RaceRepository {
        LEFT JOIN race_calendar_slots c ON c.race_id = r.id
        WHERE r.status = $1
        GROUP BY r.id, t.tier, t.min_player_level, c.program_id
-       ORDER BY r.start_time ASC
+       -- 02.10.2026 (Faz 11): öne çıkan (özel) program yarışları liste sınırına
+       -- takılmasın — günler önceden açılan derbi, sıradaki kısa yarışların
+       -- arkasında kaybolmasın diye başa alınır.
+       ORDER BY (c.program_id = ANY($4::text[])) DESC NULLS LAST, r.start_time ASC
        LIMIT $2`,
-      [input.status, input.limit, input.viewerId],
+      [
+        input.status,
+        input.limit,
+        input.viewerId,
+        this.config.raceLobby.calendar.programs.filter((program) => program.featured === true).map((program) => program.id),
+      ],
     );
 
     return result.rows.map((row) => ({
@@ -1403,7 +1411,15 @@ export class PostgresRaceRepository implements RaceRepository {
         row.tournament_tier !== null && row.tournament_min_level !== null
           ? { tier: row.tournament_tier, minPlayerLevel: row.tournament_min_level }
           : null,
-      calendar: row.calendar_program_id !== null ? { programId: row.calendar_program_id } : null,
+      calendar:
+        row.calendar_program_id !== null
+          ? {
+              programId: row.calendar_program_id,
+              featured:
+                this.config.raceLobby.calendar.programs.find((program) => program.id === row.calendar_program_id)
+                  ?.featured === true,
+            }
+          : null,
     }));
   }
 

@@ -54,15 +54,18 @@ describe('yarış takvimi — yuva hesabı (01.10.2026)', () => {
 
   it('gerçek config: HER programın HER yuvası oyuncunun yarış açma kuralından geçer', () => {
     for (const program of config.calendar.programs) {
-      const slots = computeCalendarSlotTimes(now, program, config.calendar);
-      expect(slots.length).toBeGreaterThan(0);
+      // Programın kendi ufku (yoksa genel); haftalık bir program 3 saatlik
+      // pencerede yuva bulamayabilir — en az bir tam aralığı kapsayan pencere.
+      const horizonHours = Math.max(program.horizonHours ?? config.calendar.horizonHours, program.intervalMinutes / 60);
+      const slots = computeCalendarSlotTimes(now, program, { ...config.calendar, horizonHours });
+      expect(slots.length, program.id).toBeGreaterThan(0);
       for (const slot of slots) {
         const { problems } = validateRaceCreation(
           calendarProgramToCreationInput(program, slot),
           config,
           now,
         );
-        expect(problems, program.id).toEqual([]);
+        expect(problems, `${program.id} ${slot.toISOString()}`).toEqual([]);
       }
     }
   });
@@ -77,5 +80,10 @@ describe('yarış takvimi — yuva hesabı (01.10.2026)', () => {
     expect(problems.some((problem) => problem.includes('tekrar'))).toBe(true);
     expect(problems.some((problem) => problem.includes('offsetMinutes'))).toBe(true);
     expect(problems.some((problem) => problem.includes('pencere'))).toBe(true);
+    expect(
+      validateCalendarPrograms({ ...config.calendar, programs: [{ ...base, horizonHours: 0 }] }).some((problem) =>
+        problem.includes('horizonHours'),
+      ),
+    ).toBe(true);
   });
 });

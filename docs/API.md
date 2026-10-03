@@ -1636,6 +1636,13 @@ yenilemede **403 `ACCOUNT_SUSPENDED`** alır (401 değil — istemci oturumu
 silmez). `GET /admin/players` satırı `isModerator` ve `activeSanction` taşır;
 `PlayerSummary` `isModerator` taşır.
 
+### Haftalık / aylık sıralama (Faz 11, 02.10.2026)
+
+`GET /leaderboard/period/:period` — `weekly` | `monthly` (oturum ister; başka değer 400).
+Yanıt `{ period, startsAt, endsAt, standings[], me }`; satır `{ rank, playerId, username, displayName,
+score, raceCount }`. Sezonla aynı formül; pencere Türkiye saatiyle (hafta pazartesi, ay 1'i). Ödül yok.
+`GET /races` satırında `calendar: { programId, featured }` — öne çıkan program yarışları listenin başında.
+
 ### Bakiye düzeltmesi + at araması (Faz 10, 02.10.2026)
 
 - `POST /admin/players/:playerId/balance-adjustments` — yalnızca yönetici; `Idempotency-Key` zorunlu.

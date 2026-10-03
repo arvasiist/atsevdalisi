@@ -911,6 +911,12 @@ export interface OnlineConfig {
     /** Sezon zamanlayıcısı (yeni sezonu açar, biteni öder). `NODE_ENV=test`te kapalı. */
     schedule: { enabled: boolean; tickSeconds: number };
   };
+  /**
+   * 02.10.2026 (Faz 11) — haftalık/aylık sıralama listesi boyutu. Dönem
+   * sınırı oyunun TEK takvim saat dilimidir (`quests.timezoneOffsetMinutes`,
+   * `weekStartsOn`) — ikinci bir saat dilimi ayarı açılmadı.
+   */
+  leaderboardPeriods: { limit: number };
 }
 
 /**
@@ -1803,6 +1809,13 @@ export interface RaceCalendarProgram {
   spectatorCapacity: number;
   /** 01.10.2026 — bu programın yarışları oyuncu kontrollü mü (varsayılan false). */
   playerControl?: boolean;
+  /**
+   * 02.10.2026 (Faz 11 "Special Races") — lobide öne çıkarılır (salt sunum;
+   * kural/ödül farkı YOK — havuz yine giriş ücretlerinden oluşur).
+   */
+  featured?: boolean;
+  /** Bu programın yarışları kaç saat önceden açılır (yoksa genel `horizonHours`). */
+  horizonHours?: number;
 }
 
 /**

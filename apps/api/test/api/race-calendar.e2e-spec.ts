@@ -8,7 +8,7 @@ import { computeCalendarSlotTimes } from '../../src/domain/race/race-calendar';
 import { AppConfigService } from '../../src/infrastructure/config/config.service';
 import { PG_POOL } from '../../src/infrastructure/database/database.module';
 import { RaceCalendarScheduler } from '../../src/infrastructure/scheduler/race-calendar.scheduler';
-import { bootstrapTestApp, registerTestPlayerWithStarterHorse } from './test-helpers';
+import { bootstrapTestApp, registerTestPlayer, registerTestPlayerWithStarterHorse } from './test-helpers';
 
 const MS_PER_HOUR = 60 * 60 * 1000;
 
@@ -65,7 +65,11 @@ describe('Yarış takvimi (e2e)', () => {
   function expectedSlotCount(now: Date): number {
     const { calendar } = config.raceLobby;
     return calendar.programs.reduce(
-      (sum, program) => sum + computeCalendarSlotTimes(now, program, calendar).length,
+      // Program kendi ufkunu verebilir (02.10.2026 — haftalık özel yarış).
+      (sum, program) =>
+        sum +
+        computeCalendarSlotTimes(now, program, { ...calendar, horizonHours: program.horizonHours ?? calendar.horizonHours })
+          .length,
       0,
     );
   }
@@ -130,6 +134,25 @@ describe('Yarış takvimi (e2e)', () => {
       [[...a.opened, ...b.opened]],
     );
     expect(Number(slots.rows[0].count)).toBe(expectedSlotCount(now));
+  });
+
+  it('öne çıkan (özel) program yarışı lobi listesinin BAŞINDA — liste sınırına takılmaz', async () => {
+    // GELECEKTE rastgele bir cumartesi 22:00 TR (19:00 UTC): derbi (pazar 20:00)
+    // kendi 48 saatlik ufkunda açılır, kısa programlar önümüzdeki 3 saati doldurur.
+    // Gelecek: çalışan başka bir zamanlayıcı "başlaması geçmiş boş yarış" diye
+    // iptal etmesin; rastgele hafta: önceki koşuların yuvalarıyla çakışmasın.
+    const base = new Date(Date.now() + randomInt(20, 2000) * 7 * 86_400_000);
+    base.setUTCHours(19, 0, 0, 0);
+    const saturday = new Date(base.getTime() + ((6 - base.getUTCDay() + 7) % 7) * 86_400_000);
+    const result = await useCase.execute(saturday);
+    openedHere.push(...result.opened);
+    const player = await registerTestPlayer(app, 'Derbi Bakan');
+    const list = await request(app.getHttpServer()).get('/api/v1/races').set('Authorization', player.authHeader).expect(200);
+    const rows = list.body.data as Array<{ calendar: { programId: string; featured: boolean } | null }>;
+    const firstNonFeatured = rows.findIndex((row) => row.calendar?.featured !== true);
+    const lastFeatured = rows.map((row) => row.calendar?.featured === true).lastIndexOf(true);
+    expect(lastFeatured).toBeGreaterThanOrEqual(0);
+    expect(firstNonFeatured === -1 || lastFeatured < firstNonFeatured).toBe(true);
   });
 
   it('başlangıcı geçmiş katılımsız takvim yarışı iptal edilir ve o yuva yeniden açılmaz', async () => {

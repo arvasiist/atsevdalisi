@@ -84,6 +84,13 @@ export function validateCalendarPrograms(calendar: RaceLobbyConfig['calendar']):
     ) {
       problems.push(`"${program.id}": offsetMinutes [0, intervalMinutes) aralığında olmalı.`);
     }
+    // 02.10.2026 — program ufku: pozitif ve genel pencerenin alt sınırından büyük.
+    if (
+      program.horizonHours !== undefined &&
+      !(Number.isFinite(program.horizonHours) && program.horizonHours * 60 > calendar.minLeadMinutes)
+    ) {
+      problems.push(`"${program.id}": horizonHours pozitif ve minLeadMinutes'tan uzun olmalı.`);
+    }
   }
   if (!(calendar.minLeadMinutes >= 0) || !(calendar.horizonHours * 60 > calendar.minLeadMinutes)) {
     problems.push(

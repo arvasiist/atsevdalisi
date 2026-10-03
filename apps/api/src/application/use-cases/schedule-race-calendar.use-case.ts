@@ -44,7 +44,11 @@ export class ScheduleRaceCalendarUseCase {
     let rejected = 0;
 
     for (const program of calendar.programs) {
-      const slots = computeCalendarSlotTimes(now, program, calendar);
+      // Program kendi ufkunu verebilir (haftalık özel yarış günler önceden görünsün).
+      const slots = computeCalendarSlotTimes(now, program, {
+        ...calendar,
+        horizonHours: program.horizonHours ?? calendar.horizonHours,
+      });
       const existing = new Set(
         (await this.raceRepository.findExistingCalendarSlots(program.id, slots)).map((time) =>
           time.getTime(),
