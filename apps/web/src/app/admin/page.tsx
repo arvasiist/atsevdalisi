@@ -47,6 +47,8 @@ import { usePlayer } from '../../lib/player-context';
 import { LiveEventsAdmin } from '../../features/admin/LiveEventsAdmin';
 import { AnomaliesAdmin } from '../../features/admin/AnomaliesAdmin';
 import { HorsesAdmin } from '../../features/admin/HorsesAdmin';
+import { SeasonsAdmin } from '../../features/admin/SeasonsAdmin';
+import { ConfigAdmin } from '../../features/admin/ConfigAdmin';
 import { AnnouncementsAdmin } from '../../features/admin/AnnouncementsAdmin';
 import { PlayerModerationPanel } from '../../features/admin/PlayerModerationPanel';
 import { ROLE_LABELS, SANCTION_LABELS, canSeeTab, roleOf } from '../../features/admin/moderation-labels';
@@ -67,6 +69,8 @@ const TABS = [
   ['anomalies', 'Şüpheli'],
   // 02.10.2026 — Faz 10 (moderatör de görür).
   ['horses', 'Atlar'],
+  ['seasons', 'Sezon & Turnuva'],
+  ['config', 'Ayarlar'],
 ] as const;
 
 type TabId = (typeof TABS)[number][0];
@@ -288,6 +292,8 @@ export default function AdminPage(): React.ReactElement {
       {tab === 'events' ? <LiveEventsAdmin onChanged={setNotice} /> : null}
       {tab === 'anomalies' ? <AnomaliesAdmin /> : null}
       {tab === 'horses' ? <HorsesAdmin /> : null}
+      {tab === 'seasons' ? <SeasonsAdmin /> : null}
+      {tab === 'config' ? <ConfigAdmin /> : null}
       {tab === 'races' ? <RacesTab rows={races} pending={pending} onCancel={cancelRace} /> : null}
       {tab === 'transactions' ? <TransactionsTab rows={transactions} /> : null}
       {tab === 'audit' ? <AuditTab rows={auditLog} /> : null}

@@ -1,5 +1,11 @@
 import { Inject, Injectable } from '@nestjs/common';
-import type { AdminHorseView, BalanceAdjustmentResult } from '@at-sevdalisi/shared-types';
+import type {
+  AdminConfigEntry,
+  AdminHorseView,
+  AdminSeasonView,
+  AdminTournamentView,
+  BalanceAdjustmentResult,
+} from '@at-sevdalisi/shared-types';
 import { loadModerationConfig } from '@at-sevdalisi/game-config';
 import {
   assertAdjustmentTarget,
@@ -8,6 +14,7 @@ import {
   parseHorseQuery,
 } from '../../domain/admin/staff';
 import { PlayerNotFoundError } from '../../domain/player/errors';
+import { configSnapshot } from '../../infrastructure/admin/config-snapshot';
 import { ADMIN_OPS_REPOSITORY, type AdminOpsRepository } from '../ports/admin-ops.repository';
 import { MODERATION_REPOSITORY, type ModerationRepository } from '../ports/moderation.repository';
 
@@ -43,5 +50,21 @@ export class AdminOpsUseCase {
     const query = parseHorseQuery(rawQuery, config.horseSearch.queryMaxLength);
     if (query === null) return [];
     return this.repository.searchHorses(query, config.horseSearch.limit);
+  }
+
+  /** Etkin ayarlar — yalnızca yönetici (değerler oyun dengesini açık eder). */
+  async listConfig(actorId: string): Promise<AdminConfigEntry[]> {
+    assertStaffPermission(await this.moderation.findRole(actorId), 'admin.full');
+    return configSnapshot();
+  }
+
+  async listSeasons(actorId: string, now: Date = new Date()): Promise<AdminSeasonView[]> {
+    assertStaffPermission(await this.moderation.findRole(actorId), 'admin.full');
+    return this.repository.listSeasons(config.adminViews.seasonListLimit, now);
+  }
+
+  async listTournaments(actorId: string): Promise<AdminTournamentView[]> {
+    assertStaffPermission(await this.moderation.findRole(actorId), 'admin.full');
+    return this.repository.listTournaments(config.adminViews.tournamentListLimit);
   }
 }

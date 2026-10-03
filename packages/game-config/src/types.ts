@@ -2027,6 +2027,8 @@ export interface ModerationConfig {
   };
   /** 02.10.2026 (Faz 10) — yönetimin at araması. */
   horseSearch: { limit: number; queryMaxLength: number };
+  /** 02.10.2026 (Faz 10) — yönetimin salt okuma sezon/turnuva listeleri (liste boyutu). */
+  adminViews: { seasonListLimit: number; tournamentListLimit: number };
 }
 
 /** 02.10.2026 — `config/quests.config.json` (Faz 11-B). Görev listesi + etkinlik sınırları. */

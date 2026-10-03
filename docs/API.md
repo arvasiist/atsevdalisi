@@ -1645,6 +1645,8 @@ silmez). `GET /admin/players` satırı `isModerator` ve `activeSanction` taşır
   `INSUFFICIENT_FUNDS`, 404 (oyuncu yok). Defter türü `admin_adjustment` (kanonik `ADJUSTMENT`).
 - `GET /admin/horses?q=` — moderatör + yönetici; at kimliği, sahip kimliği, at adı (parça) ya da sahip
   kullanıcı adı; en fazla `horseSearch.limit`.
+- `GET /admin/config` · `GET /admin/seasons` · `GET /admin/tournaments` — yalnızca yönetici, salt okuma.
+  Config girdisi `{ name, sha256, values }` (kanonik JSON özeti).
 
 ### Kulüp sohbeti + tribün emote (Faz 9, 02.10.2026, migration 0062)
 

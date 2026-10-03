@@ -12,7 +12,14 @@ import {
   Query,
   UseInterceptors,
 } from '@nestjs/common';
-import type { AdminHorseView, ApiSuccess, BalanceAdjustmentResult } from '@at-sevdalisi/shared-types';
+import type {
+  AdminConfigEntry,
+  AdminHorseView,
+  AdminSeasonView,
+  AdminTournamentView,
+  ApiSuccess,
+  BalanceAdjustmentResult,
+} from '@at-sevdalisi/shared-types';
 import { AdminOpsUseCase } from '../../application/use-cases/admin-ops.use-case';
 import { CurrentPlayer, type AuthenticatedPlayer } from '../auth/current-player.decorator';
 import { IdempotencyScope } from '../idempotency/idempotency-scope.decorator';
@@ -51,5 +58,20 @@ export class AdminOpsController {
     @CurrentPlayer() actor: AuthenticatedPlayer,
   ): Promise<ApiSuccess<AdminHorseView[]>> {
     return { success: true, data: await this.ops.searchHorses(actor.id, query) };
+  }
+
+  @Get('config')
+  async config(@CurrentPlayer() actor: AuthenticatedPlayer): Promise<ApiSuccess<AdminConfigEntry[]>> {
+    return { success: true, data: await this.ops.listConfig(actor.id) };
+  }
+
+  @Get('seasons')
+  async seasons(@CurrentPlayer() actor: AuthenticatedPlayer): Promise<ApiSuccess<AdminSeasonView[]>> {
+    return { success: true, data: await this.ops.listSeasons(actor.id) };
+  }
+
+  @Get('tournaments')
+  async tournaments(@CurrentPlayer() actor: AuthenticatedPlayer): Promise<ApiSuccess<AdminTournamentView[]>> {
+    return { success: true, data: await this.ops.listTournaments(actor.id) };
   }
 }

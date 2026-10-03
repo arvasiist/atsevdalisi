@@ -19,7 +19,7 @@ export const ANNOUNCEMENT_LEVEL_LABELS: Record<AnnouncementLevel, string> = {
 };
 
 /** Yönetim sekmeleri ve hangi rolün göreceği (sunucu kuralının ayna görüntüsü — kapı DEĞİL). */
-export const ADMIN_ONLY_TABS = ['races', 'transactions', 'audit', 'announcements', 'events'] as const;
+export const ADMIN_ONLY_TABS = ['races', 'transactions', 'audit', 'announcements', 'events', 'seasons', 'config'] as const;
 
 export function roleOf(player: { isAdmin: boolean; isModerator: boolean } | null): AssignableRole {
   if (player?.isAdmin) return 'admin';

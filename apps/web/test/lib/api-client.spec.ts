@@ -1321,3 +1321,19 @@ describe('YÖNETİM: bakiye düzeltmesi + at araması (Faz 10)', () => {
     expect(String(fetchMock.mock.calls[1]![0]).replace(API_BASE_URL, '')).toBe('/admin/horses?q=R%C3%BCzg%C3%A2r+%25');
   });
 });
+
+describe('YÖNETİM salt okuma: ayar/sezon/turnuva (Faz 10)', () => {
+  it('doğru rotalar', async () => {
+    setAuthToken('t');
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ success: true, data: [] }));
+    vi.stubGlobal('fetch', fetchMock);
+    await apiClient.getAdminConfig();
+    await apiClient.getAdminSeasons();
+    await apiClient.getAdminTournaments();
+    expect(fetchMock.mock.calls.map(([url]) => String(url).replace(API_BASE_URL, ''))).toEqual([
+      '/admin/config',
+      '/admin/seasons',
+      '/admin/tournaments',
+    ]);
+  });
+});

@@ -3,6 +3,9 @@ import type {
   AdminAnnouncementView,
   AdminLiveEventView,
   AdminHorseView,
+  AdminConfigEntry,
+  AdminSeasonView,
+  AdminTournamentView,
   BalanceAdjustmentResult,
   ClubChatMessageView,
   AnomalyReport,
@@ -1425,6 +1428,10 @@ export const apiClient = {
       body: JSON.stringify(body),
       headers: { 'Idempotency-Key': idempotencyKey },
     }),
+  /** Faz 10 — salt okuma: etkin ayarlar, sezonlar, turnuvalar (yalnızca yönetici). */
+  getAdminConfig: () => request<AdminConfigEntry[]>('/admin/config'),
+  getAdminSeasons: () => request<AdminSeasonView[]>('/admin/seasons'),
+  getAdminTournaments: () => request<AdminTournamentView[]>('/admin/tournaments'),
   searchAdminHorses: (query: string) =>
     request<AdminHorseView[]>(`/admin/horses?${new URLSearchParams({ q: query }).toString()}`),
   createEvent: (body: {

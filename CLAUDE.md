@@ -510,6 +510,12 @@ düşürmek 409 ve hiçbir satır bırakmaz. Tavan + gerekçe
 `moderation.config.json` → `economyAdjustment`. `GET /admin/horses?q=`
 (moderatör + yönetici): kimlik/sahip kimliği/ad/sahip adı; `LIKE` jokerleri
 kaçırılır. Kanonik `REWARD` etiketi artık "Ödül" (günlük ile sınırlı değil).
+(52) **SALT OKUMA YÖNETİM EKRANLARI (02.10.2026, Faz 10)** — `GET /admin/config`
+(game-config'in BÜTÜN `load*Config` yükleyicileri — liste elle tutulmaz;
+kanonik JSON SHA-256 özeti, örnekler arası ayar farkı için), `GET
+/admin/seasons`, `GET /admin/tournaments` — yalnızca yönetici (`admin.full`).
+⚠️ Config dosyasına GİZLİ değer koyma: bu uç onları yöneticiye gösterir
+(gizliler ortam değişkenindedir). Ayar çalışma anında DÜZENLENMEZ.
 
 **✅ ÜCRETLİ LOBİ YARIŞI ARTIK KOŞUYOR — ÖDÜL DAĞITIMI VAR (§13.14,
 28.09.2026).** `POST /races/:id/settle` yarışı koşar, ödülleri `top5`

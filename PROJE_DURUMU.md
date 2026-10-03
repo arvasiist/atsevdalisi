@@ -3993,6 +3993,8 @@ Karar: önce pratik yarış; kırbaç sınırsız, dayanıklılık bedelli.
   tek transaction'da, tekrar koruması (aynı anahtar ikinci kez ödemez), eksiye
   düşüremez, kendine/personele yasak. Web: oyuncu yönetim panelinde.
 - `/admin` "Atlar" sekmesi: kimlik/sahip/ad ile arama.
+- Salt okuma: "Ayarlar" (etkin config + özet), "Sezon & Turnuva". Ayar düzenleme YOK
+  (dağıtımla değişir); AI Jobs Faz 8 ile.
 
 ## 14. Kendime hatırlatmalar (kısa liste)
 

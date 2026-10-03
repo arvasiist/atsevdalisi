@@ -1,6 +1,11 @@
 import { Inject, Injectable } from '@nestjs/common';
 import type { Pool } from 'pg';
-import type { AdminHorseView, BalanceAdjustmentResult } from '@at-sevdalisi/shared-types';
+import type {
+  AdminHorseView,
+  AdminSeasonView,
+  AdminTournamentView,
+  BalanceAdjustmentResult,
+} from '@at-sevdalisi/shared-types';
 import type { AdminOpsRepository, BalanceAdjustmentInput } from '../../application/ports/admin-ops.repository';
 import { credit, debit } from '../../domain/economy/wallet';
 import { PG_POOL, withTransaction } from '../database/database.module';
@@ -116,6 +121,63 @@ export class PostgresAdminOpsRepository implements AdminOpsRepository {
       fitness: Number(row.fitness),
       energy: Number(row.energy),
       createdAt: row.created_at.toISOString(),
+    }));
+  }
+
+  async listSeasons(limit: number, now: Date): Promise<AdminSeasonView[]> {
+    const result = await this.pool.query<{
+      id: string;
+      number: number;
+      name: string;
+      starts_at: Date;
+      ends_at: Date;
+      rewards_paid_at: Date | null;
+    }>('SELECT id, number, name, starts_at, ends_at, rewards_paid_at FROM seasons ORDER BY number DESC LIMIT $1', [
+      limit,
+    ]);
+    return result.rows.map((row) => ({
+      id: row.id,
+      number: row.number,
+      name: row.name,
+      startsAt: row.starts_at.toISOString(),
+      endsAt: row.ends_at.toISOString(),
+      rewardsPaidAt: row.rewards_paid_at?.toISOString() ?? null,
+      state:
+        row.starts_at.getTime() > now.getTime() ? 'upcoming' : row.ends_at.getTime() > now.getTime() ? 'current' : 'ended',
+    }));
+  }
+
+  async listTournaments(limit: number): Promise<AdminTournamentView[]> {
+    const result = await this.pool.query<{
+      id: string;
+      race_id: string;
+      race_name: string;
+      tier: string;
+      min_player_level: number;
+      race_status: string;
+      start_time: Date;
+      participants: string;
+      prize_pool: string;
+    }>(
+      `SELECT t.id, t.race_id, r.name AS race_name, t.tier, t.min_player_level, r.status AS race_status,
+              r.start_time, r.prize_pool,
+              (SELECT COUNT(*) FROM race_entries e
+                WHERE e.race_id = r.id AND e.player_id IS NOT NULL AND e.status IS DISTINCT FROM 'cancelled') AS participants
+         FROM tournaments t JOIN races r ON r.id = t.race_id
+        ORDER BY r.start_time DESC LIMIT $1`,
+      [limit],
+    );
+    return result.rows.map((row) => ({
+      id: row.id,
+      raceId: row.race_id,
+      raceName: row.race_name,
+      tier: row.tier,
+      minPlayerLevel: row.min_player_level,
+      raceStatus: row.race_status,
+      startTime: row.start_time.toISOString(),
+      // BIGINT/COUNT metin döner (CLAUDE.md).
+      participants: Number(row.participants),
+      prizePool: Number(row.prize_pool),
     }));
   }
 }

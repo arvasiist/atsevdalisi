@@ -1,4 +1,9 @@
-import type { AdminHorseView, BalanceAdjustmentResult } from '@at-sevdalisi/shared-types';
+import type {
+  AdminHorseView,
+  AdminSeasonView,
+  AdminTournamentView,
+  BalanceAdjustmentResult,
+} from '@at-sevdalisi/shared-types';
 
 export const ADMIN_OPS_REPOSITORY = Symbol('ADMIN_OPS_REPOSITORY');
 
@@ -19,4 +24,6 @@ export interface AdminOpsRepository {
    */
   adjustBalance(input: BalanceAdjustmentInput): Promise<BalanceAdjustmentResult | null>;
   searchHorses(query: string, limit: number): Promise<AdminHorseView[]>;
+  listSeasons(limit: number, now: Date): Promise<AdminSeasonView[]>;
+  listTournaments(limit: number): Promise<AdminTournamentView[]>;
 }

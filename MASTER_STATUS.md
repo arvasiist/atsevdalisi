@@ -173,7 +173,8 @@ Roller `players.is_admin` + `is_moderator` (her istekte DB'den; izin tablosu
 `domain/admin/staff.ts`), denetim günlüğü (aynı transaction): şikâyet kuyruğu,
 oyuncu/yarış/işlem listeleri, yarış iptali (iade), **rol atama, askı/yasak +
 kaldırma, duyurular** (Faz 10, 02.10.2026), **bakiye düzeltmesi (para yolu) + at araması**. `/admin`
-sekmeleri role göre. YOK: config/sezon/turnuva görünümü (sıradaki dilim), IP alanı.
+sekmeleri role göre; salt okuma etkin ayarlar + sezon + turnuva. YOK: çalışma anında ayar düzenleme,
+AI Jobs (Faz 8), IP alanı.
 
 ## Live Operations Status — PARTIAL
 
@@ -293,7 +294,7 @@ Brief fazlarına göre gerçek durum:
 | 7 Online | TESTED — anti-cheat inceleme listesi + yük testi (CI bütçe kapısı) |
 | 8 AI Avatar | NOT_STARTED |
 | 9 Social | TESTED — kulüp sohbeti + emote eklendi; sosyal hub (avatar) Faz 8 ile |
-| 10 Admin | PARTIAL — roller + yaptırım + duyuru TESTED; at/pazar/config yönetimi yok |
+| 10 Admin | TESTED — roller, yaptırım, duyuru, bakiye düzeltmesi, at araması, ayar/sezon/turnuva görünümü; AI Jobs Faz 8 ile |
 | 11 Live Ops | TESTED — duyurular (11-A) + görevler/etkinlikler (11-B); başarımlar yok |
 | 12 Monetization | NOT_STARTED (yalnızca sahte yatırma) |
 | 13 Production | PARTIAL — 13-A temel (sağlık, istek kimliği, ortam kapısı, taramalar, Dockerfile) TESTED; 13-B çerçeve yükseltmesi + staging/izleme yok |
@@ -757,5 +758,23 @@ SECURITY CHANGES: yalnızca yönetici; kendine/personele yasak; aynı anahtar ik
 TESTS ADDED: admin-ops.e2e-spec.ts (5), web balance-adjustment-form (2), api-client (1)
 TESTS PASSED: API 173 / 2456 (temiz şema), web 51 / 550; tarayıcı: +1250 düzeltme + defter satırı, at araması
 TESTS FAILED: 0
-REMAINING: config/sezon/turnuva görünümleri
+REMAINING: (aşağıdaki son parça)
 NEXT PHASE: Faz 10 son parça
+
+---
+
+PHASE: 10 (son parça) — Salt okuma: etkin ayarlar, sezonlar, turnuvalar
+STATUS: TESTED
+SUMMARY: Yönetici etkin config'i (33 dosya, özetli) ve sezon/turnuva durumunu görür. Ayar düzenleme
+bilinçli olarak yok (dağıtımla değişir). Faz 10'da kalan: AI Jobs (Faz 8).
+FILES CREATED: infrastructure/admin/config-snapshot.ts · web features/admin/{ConfigAdmin,SeasonsAdmin}.tsx
+FILES MODIFIED: admin-ops (port/repo/use-case/controller) · moderation.config.json (adminViews) · game-config ·
+shared-types admin.ts · web api-client, admin/page, moderation-labels, globals.css
+DATABASE CHANGES: —
+API CHANGES: GET /admin/config · GET /admin/seasons · GET /admin/tournaments
+SECURITY CHANGES: yalnızca yönetici; config'te gizli değer yok kuralı CLAUDE.md'ye yazıldı
+TESTS ADDED: admin-ops.e2e-spec.ts (+2), web api-client (+1)
+TESTS PASSED: admin-ops 7/7, web 51 / 551; tarayıcı: Ayarlar 33 dosya, Sezon & Turnuva listesi
+TESTS FAILED: 0
+REMAINING: AI Jobs (Faz 8)
+NEXT PHASE: Faz 11 kalan (sezon olayları, özel yarışlar, sıralama sıfırlama kontrolü)

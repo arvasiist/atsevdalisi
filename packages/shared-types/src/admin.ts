@@ -418,3 +418,34 @@ export interface AdminHorseView {
   energy: number;
   createdAt: string;
 }
+
+/** 02.10.2026 (Faz 10) — etkin oyun ayarı dosyası (salt okuma; dağıtımla değişir). */
+export interface AdminConfigEntry {
+  /** Yükleyici adından türetilen ad (`loadRaceConfig` → `race`). */
+  name: string;
+  /** Kanonik JSON'un SHA-256 özeti — örnekler arası ayar farkını yakalamak için. */
+  sha256: string;
+  values: unknown;
+}
+
+export interface AdminSeasonView {
+  id: string;
+  number: number;
+  name: string;
+  startsAt: string;
+  endsAt: string;
+  rewardsPaidAt: string | null;
+  state: 'upcoming' | 'current' | 'ended';
+}
+
+export interface AdminTournamentView {
+  id: string;
+  raceId: string;
+  raceName: string;
+  tier: string;
+  minPlayerLevel: number;
+  raceStatus: string;
+  startTime: string;
+  participants: number;
+  prizePool: number;
+}

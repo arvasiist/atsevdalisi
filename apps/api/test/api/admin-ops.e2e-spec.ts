@@ -3,7 +3,8 @@ import { INestApplication } from '@nestjs/common';
 import type { Pool } from 'pg';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { loadModerationConfig } from '@at-sevdalisi/game-config';
+import { loadModerationConfig, loadRaceConfig } from '@at-sevdalisi/game-config';
+import { TournamentScheduler } from '../../src/infrastructure/scheduler/tournament.scheduler';
 import { PG_POOL } from '../../src/infrastructure/database/database.module';
 import {
   bootstrapTestApp,
@@ -166,5 +167,36 @@ describe('Yönetim işlemleri (e2e)', () => {
     expect((await search('   ').expect(200)).body.data).toEqual([]);
     const denied = await search(owner.horseId, await registerTestPlayer(app, 'Meraklı'));
     expect(denied.status).toBe(403);
+  });
+
+  it('etkin ayarlar: tüm yükleyiciler, özet + değer; yalnızca yönetici', async () => {
+    const moderator = await staff('is_moderator');
+    expect((await http().get('/api/v1/admin/config').set('Authorization', moderator.authHeader)).status).toBe(403);
+    const admin = await staff('is_admin');
+    const response = await http().get('/api/v1/admin/config').set('Authorization', admin.authHeader).expect(200);
+    const entries = response.body.data as Array<{ name: string; sha256: string; values: unknown }>;
+    const names = entries.map((entry) => entry.name);
+    for (const expected of ['race', 'economy', 'moderation', 'quests', 'anticheat', 'ops']) expect(names).toContain(expected);
+    expect(entries.every((entry) => /^[0-9a-f]{64}$/.test(entry.sha256))).toBe(true);
+    expect(entries.find((entry) => entry.name === 'race')!.values).toEqual(JSON.parse(JSON.stringify(loadRaceConfig())));
+    // Özet anahtar sırasından bağımsız (kanonik): iki çağrı aynı özeti verir.
+    const again = await http().get('/api/v1/admin/config').set('Authorization', admin.authHeader).expect(200);
+    expect(again.body.data.map((e: { sha256: string }) => e.sha256)).toEqual(entries.map((e) => e.sha256));
+  });
+
+  it('sezon ve turnuva listeleri: yönetici görür (sayılar sayı), moderatör 403', async () => {
+    const admin = await staff('is_admin');
+    const moderator = await staff('is_moderator');
+    await http().get('/api/v1/seasons/current').set('Authorization', admin.authHeader).expect(200);
+    const seasons = await http().get('/api/v1/admin/seasons').set('Authorization', admin.authHeader).expect(200);
+    expect(seasons.body.data.some((season: { state: string }) => season.state === 'current')).toBe(true);
+    await app.get(TournamentScheduler).tickNow();
+    const tournaments = await http().get('/api/v1/admin/tournaments').set('Authorization', admin.authHeader).expect(200);
+    expect(tournaments.body.data.length).toBeGreaterThan(0);
+    expect(typeof tournaments.body.data[0].participants).toBe('number');
+    expect(typeof tournaments.body.data[0].prizePool).toBe('number');
+    for (const path of ['seasons', 'tournaments']) {
+      expect((await http().get(`/api/v1/admin/${path}`).set('Authorization', moderator.authHeader)).status).toBe(403);
+    }
   });
 });
