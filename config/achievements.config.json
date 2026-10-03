@@ -1,0 +1,16 @@
+{
+  "achievements": [
+    { "key": "first-race", "metric": "races_entered", "target": 1, "rewardMoney": 200 },
+    { "key": "races-25", "metric": "races_entered", "target": 25, "rewardMoney": 1000 },
+    { "key": "races-100", "metric": "races_entered", "target": 100, "rewardMoney": 4000 },
+    { "key": "first-win", "metric": "race_wins", "target": 1, "rewardMoney": 500 },
+    { "key": "wins-10", "metric": "race_wins", "target": 10, "rewardMoney": 2500 },
+    { "key": "wins-50", "metric": "race_wins", "target": 50, "rewardMoney": 10000 },
+    { "key": "podiums-10", "metric": "top3_finishes", "target": 10, "rewardMoney": 1500 },
+    { "key": "first-purchase", "metric": "horse_purchases", "target": 1, "rewardMoney": 300 },
+    { "key": "level-5", "metric": "player_level", "target": 5, "rewardMoney": 1000 },
+    { "key": "level-15", "metric": "player_level", "target": 15, "rewardMoney": 3000 },
+    { "key": "level-30", "metric": "player_level", "target": 30, "rewardMoney": 8000 }
+  ],
+  "profileLimit": 20
+}

@@ -43,6 +43,15 @@ import type {
 } from '@at-sevdalisi/shared-types';
 import { GlassPanel } from '../../components/ui/GlassPanel';
 import { ApiError, apiClient } from '../../lib/api-client';
+import { usePlayer } from '../../lib/player-context';
+import { LiveEventsAdmin } from '../../features/admin/LiveEventsAdmin';
+import { AnomaliesAdmin } from '../../features/admin/AnomaliesAdmin';
+import { HorsesAdmin } from '../../features/admin/HorsesAdmin';
+import { SeasonsAdmin } from '../../features/admin/SeasonsAdmin';
+import { ConfigAdmin } from '../../features/admin/ConfigAdmin';
+import { AnnouncementsAdmin } from '../../features/admin/AnnouncementsAdmin';
+import { PlayerModerationPanel } from '../../features/admin/PlayerModerationPanel';
+import { ROLE_LABELS, SANCTION_LABELS, canSeeTab, roleOf } from '../../features/admin/moderation-labels';
 import { formatCurrency } from '../../lib/currency';
 
 /** Sekmeler — her biri kendi ucunu KENDİ açılışında çeker (tek istek yeter). */
@@ -52,6 +61,16 @@ const TABS = [
   ['races', 'Yarışlar'],
   ['transactions', 'İşlemler'],
   ['audit', 'Denetim Günlüğü'],
+  // 02.10.2026 — Faz 11-A.
+  ['announcements', 'Duyurular'],
+  // 02.10.2026 — Faz 11-B.
+  ['events', 'Etkinlikler'],
+  // 02.10.2026 — Faz 7 (moderatör de görür).
+  ['anomalies', 'Şüpheli'],
+  // 02.10.2026 — Faz 10 (moderatör de görür).
+  ['horses', 'Atlar'],
+  ['seasons', 'Sezon & Turnuva'],
+  ['config', 'Ayarlar'],
 ] as const;
 
 type TabId = (typeof TABS)[number][0];
@@ -99,6 +118,13 @@ const CANCEL_REFUSAL_LABELS: Record<RaceCancelRefusal, string> = {
 
 export default function AdminPage(): React.ReactElement {
   const [tab, setTab] = useState<TabId>('reports');
+  // 02.10.2026 (Faz 10) — sekmeler role göre süzülür: moderatör yalnızca
+  // şikâyetleri ve oyuncuları görür. Kapı SUNUCUDADIR; bu süzme yalnızca
+  // moderatörün yöneticiye özel bir sekmede 403 alıp paneli kilitlemesini önler.
+  const { player: me } = usePlayer();
+  const actorRole = roleOf(me);
+  const visibleTabs = TABS.filter(([id]) => canSeeTab(actorRole, id));
+  const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
   /** 403 `ADMIN_REQUIRED` görüldü mü — görülünce diğer sekmeler de denenmez. */
   const [denied, setDenied] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -134,7 +160,8 @@ export default function AdminPage(): React.ReactElement {
         else if (which === 'races') setRaces((await apiClient.listAdminRaces()).races);
         else if (which === 'transactions')
           setTransactions((await apiClient.listAdminTransactions()).transactions);
-        else setAuditLog((await apiClient.listAdminAuditLog()).entries);
+        else if (which === 'audit') setAuditLog((await apiClient.listAdminAuditLog()).entries);
+        // 'announcements' sekmesi kendi listesini kendisi çeker.
       } catch (err: unknown) {
         handleError(err, 'Liste yüklenemedi');
       }
@@ -204,10 +231,10 @@ export default function AdminPage(): React.ReactElement {
         <h1 style={titleStyle}>Yönetim</h1>
         <GlassPanel>
           <p style={{ color: 'var(--color-status-warning)', marginTop: 0, marginBottom: 'var(--space-sm)' }}>
-            Bu ekran yalnızca yöneticilere açıktır.
+            Bu ekran yalnızca yöneticilere ve moderatörlere açıktır.
           </p>
           <p style={{ color: 'var(--color-text-secondary)', marginTop: 0, marginBottom: 0, fontSize: '13px' }}>
-            Yönetici yetkisi hesabına tanımlı değil. Yetkinin verilmesi bir yönetim işlemidir ve
+            Hesabına yönetim rolü tanımlı değil. Rolü yalnızca bir yönetici verir ve bu işlem
             denetim günlüğüne yazılır; oyun içinden kendiliğinden alınabilecek bir şey değildir.
           </p>
         </GlassPanel>
@@ -223,7 +250,7 @@ export default function AdminPage(): React.ReactElement {
       </p>
 
       <nav aria-label="Yönetim sekmeleri" style={tabBarStyle}>
-        {TABS.map(([id, label]) => (
+        {visibleTabs.map(([id, label]) => (
           <button
             key={id}
             type="button"
@@ -245,7 +272,28 @@ export default function AdminPage(): React.ReactElement {
       {tab === 'reports' ? (
         <ReportsTab rows={reports} pending={pending} onChange={changeReportStatus} />
       ) : null}
-      {tab === 'players' ? <PlayersTab rows={players} /> : null}
+      {tab === 'players' ? (
+        <>
+          <PlayersTab rows={players} selectedId={selectedPlayerId} onSelect={setSelectedPlayerId} />
+          {selectedPlayerId !== null && players?.some((row) => row.playerId === selectedPlayerId) ? (
+            <PlayerModerationPanel
+              key={selectedPlayerId}
+              player={players.find((row) => row.playerId === selectedPlayerId)!}
+              actorRole={actorRole}
+              onChanged={(message) => {
+                setNotice(message);
+                void load('players');
+              }}
+            />
+          ) : null}
+        </>
+      ) : null}
+      {tab === 'announcements' ? <AnnouncementsAdmin onChanged={setNotice} /> : null}
+      {tab === 'events' ? <LiveEventsAdmin onChanged={setNotice} /> : null}
+      {tab === 'anomalies' ? <AnomaliesAdmin /> : null}
+      {tab === 'horses' ? <HorsesAdmin /> : null}
+      {tab === 'seasons' ? <SeasonsAdmin /> : null}
+      {tab === 'config' ? <ConfigAdmin /> : null}
       {tab === 'races' ? <RacesTab rows={races} pending={pending} onCancel={cancelRace} /> : null}
       {tab === 'transactions' ? <TransactionsTab rows={transactions} /> : null}
       {tab === 'audit' ? <AuditTab rows={auditLog} /> : null}
@@ -361,7 +409,15 @@ function ReportsTab({
   );
 }
 
-function PlayersTab({ rows }: { rows: AdminPlayerAccountView[] | null }): React.ReactElement {
+function PlayersTab({
+  rows,
+  selectedId,
+  onSelect,
+}: {
+  rows: AdminPlayerAccountView[] | null;
+  selectedId: string | null;
+  onSelect: (playerId: string | null) => void;
+}): React.ReactElement {
   return (
     <>
       <Loading rows={rows} />
@@ -377,6 +433,8 @@ function PlayersTab({ rows }: { rows: AdminPlayerAccountView[] | null }): React.
                 <th style={headerCellStyle('112px', 'right')}>Elmas</th>
                 <th style={headerCellStyle('96px', 'right')}>İtibar</th>
                 <th style={headerCellStyle('96px', 'right')}>Rol</th>
+                <th style={headerCellStyle('120px', 'right')}>Durum</th>
+                <th style={headerCellStyle('88px', 'right')}> </th>
               </tr>
             </thead>
             <tbody>
@@ -391,11 +449,32 @@ function PlayersTab({ rows }: { rows: AdminPlayerAccountView[] | null }): React.
                   <td style={bodyCellStyle('112px')}>{row.gems.toLocaleString('tr-TR')}</td>
                   <td style={bodyCellStyle('96px')}>{row.reputation}</td>
                   <td style={bodyCellStyle('96px')}>
-                    {row.isAdmin ? (
-                      <span style={{ color: 'var(--color-accent-gold)', fontWeight: 600 }}>Yönetici</span>
+                    {row.isAdmin || row.isModerator ? (
+                      <span style={{ color: 'var(--color-accent-gold)', fontWeight: 600 }}>
+                        {ROLE_LABELS[roleOf(row)]}
+                      </span>
                     ) : (
                       <span style={{ color: 'var(--color-text-muted)' }}>—</span>
                     )}
+                  </td>
+                  <td style={bodyCellStyle('120px')}>
+                    {row.activeSanction ? (
+                      <span style={{ color: 'var(--color-status-critical)', fontWeight: 600 }}>
+                        {SANCTION_LABELS[row.activeSanction.kind]}
+                      </span>
+                    ) : (
+                      <span style={{ color: 'var(--color-text-muted)' }}>Aktif</span>
+                    )}
+                  </td>
+                  <td style={bodyCellStyle('88px')}>
+                    <button
+                      type="button"
+                      className="session-revoke"
+                      aria-pressed={selectedId === row.playerId}
+                      onClick={() => onSelect(selectedId === row.playerId ? null : row.playerId)}
+                    >
+                      {selectedId === row.playerId ? 'Kapat' : 'Yönet'}
+                    </button>
                   </td>
                 </tr>
               ))}
@@ -406,8 +485,8 @@ function PlayersTab({ rows }: { rows: AdminPlayerAccountView[] | null }): React.
       {rows && rows.length > 0 ? (
         <p style={footnoteStyle}>
           Bu liste bakiye taşır ve yalnızca yöneticiye açıktır — herkese açık profil ucu
-          (`/profile/:username`) bakiyeyi bilinçli olarak göstermez. Rol vermenin bir arayüzü
-          yoktur; yetki değişikliği elle yapılır ve denetim günlüğüne yazılır.
+          (`/profile/:username`) bakiyeyi bilinçli olarak göstermez. Yaptırım ve rol
+          değişiklikleri denetim günlüğüne yazılır.
         </p>
       ) : null}
     </>

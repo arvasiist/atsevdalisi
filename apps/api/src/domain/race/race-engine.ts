@@ -37,7 +37,12 @@ import { applyDistanceWeightAdjustments, getDistanceCategory } from './distance-
 import { getEnvironmentModifier } from './environment';
 import { derivePaceEffect, derivePaceScore, deriveTacticEffect } from './pace';
 import { deriveTemperamentEffect } from './temperament';
-import { assignInitialLane, calculateAvailableSpace, calculateOvertakeProbability, deriveLaneChange } from './overtaking';
+import {
+  assignInitialLane,
+  calculateAvailableSpace,
+  calculateOvertakeProbability,
+  deriveLaneChange,
+} from './overtaking';
 import { decideJockeyAction, type JockeyDecision } from './jockey-decisions';
 import { deriveSprintBonus } from './sprint';
 import { accumulateRuntimeFatigue, deriveFatiguePerformancePenalty } from './fatigue';
@@ -55,6 +60,26 @@ export interface RaceSimulationInput {
   entries: RaceEntrantSnapshot[];
   raceConfig: RaceBalanceConfig;
   weatherConfig: WeatherConfig;
+  /**
+   * 01.10.2026 — OYUNCU KONTROLÜ (opsiyonel). Anahtar `horseId`, iç anahtar
+   * segment indeksi. Verilmeyen at/segmentte jokey yapay zekâsı karar verir.
+   * **Verilmezse ya da boşsa sonuç bit bit eskisiyle AYNIDIR** (tüm kollar
+   * `cmd === undefined` iken eski yoldan geçer) — `race-engine-player-
+   * control.spec.ts` bunu ve "komut yalnızca KENDİ segmentinden itibaren
+   * etkiler" (önek değişmezliği) kuralını kilitler. Canlı yarış bu ikinci
+   * kurala dayanır: gösterilmiş segmentler sonradan gelen komutla değişmez.
+   */
+  playerCommands?: ReadonlyMap<string, ReadonlyMap<number, PlayerSegmentCommand>>;
+}
+
+/** Bir atın bir segmentteki oyuncu komutu (01.10.2026). */
+export interface PlayerSegmentCommand {
+  /** Bu segmentte basılan kırbaç sayısı (≥ 0). */
+  whips: number;
+  /** -1 = içe (sol, kulvar 1'e doğru), +1 = dışa (sağ), 0 = yok. */
+  laneShift: -1 | 0 | 1;
+  /** Tempoyu düşür (yorgunluk daha yavaş birikir). */
+  ease: boolean;
 }
 
 /** Segment performans puanının altına düşemeyeceği taban (hız = 0/negatif olmasın diye). */
@@ -139,13 +164,25 @@ interface HorseRuntimeState {
   performanceScores: number[];
 }
 
-function deriveRandomFactor(seed: string, raceId: string, horseId: string, segmentIndex: number, config: RaceBalanceConfig): number {
+function deriveRandomFactor(
+  seed: string,
+  raceId: string,
+  horseId: string,
+  segmentIndex: number,
+  config: RaceBalanceConfig,
+): number {
   const rng = createSeededRandom(`${seed}:${raceId}:${horseId}:${segmentIndex}:performance`);
   const [min, max] = config.randomFactorRange;
   return seededRange(rng, min, max);
 }
 
-function rollOvertakeSuccess(seed: string, raceId: string, horseId: string, segmentIndex: number, probability: number): boolean {
+function rollOvertakeSuccess(
+  seed: string,
+  raceId: string,
+  horseId: string,
+  segmentIndex: number,
+  probability: number,
+): boolean {
   const rng = createSeededRandom(`${seed}:${raceId}:${horseId}:${segmentIndex}:overtake`);
   return rng() < probability;
 }
@@ -157,7 +194,10 @@ interface StandingInfo {
 }
 
 /** O segmentin BAŞINDAKİ (bir önceki segment sonu) `cumulativeTimeMs`'e göre sıralama ve komşuluk bilgisi. */
-function computeStandings(states: HorseRuntimeState[], raceConfig: RaceBalanceConfig): Map<string, StandingInfo> {
+function computeStandings(
+  states: HorseRuntimeState[],
+  raceConfig: RaceBalanceConfig,
+): Map<string, StandingInfo> {
   const ordered = [...states].sort((a, b) => a.cumulativeTimeMs - b.cumulativeTimeMs);
   const result = new Map<string, StandingInfo>();
 
@@ -178,9 +218,13 @@ function computeStandings(states: HorseRuntimeState[], raceConfig: RaceBalanceCo
       // üretiyordu: iki BİT BİT ÖZDEŞ atla ölçüldüğünde birinci at
       // koşumların %65.2'sini kazanıyordu (beklenen %50).
       // Aynı hizada olmak "arkada olmak" değildir; ikisi yan yanadır.
-      isBoxedIn: previous !== undefined && gapToAheadMs > 0 && gapToAheadMs <= raceConfig.overtaking.closeGapMs,
+      isBoxedIn:
+        previous !== undefined &&
+        gapToAheadMs > 0 &&
+        gapToAheadMs <= raceConfig.overtaking.closeGapMs,
       aheadHorseId: previous?.horseId ?? null,
-      isBeingChased: next !== undefined && gapToChaserMs <= raceConfig.jockeyDecision.opponentCloseGapMs,
+      isBeingChased:
+        next !== undefined && gapToChaserMs <= raceConfig.jockeyDecision.opponentCloseGapMs,
     });
   });
 
@@ -197,7 +241,12 @@ export function simulateRace(input: RaceSimulationInput): RaceTimeline {
     distanceCategory,
     raceConfig.distanceWeightAdjustments,
   );
-  const environmentModifier = getEnvironmentModifier(input.surface, input.weather, weatherConfig, input.temperatureC);
+  const environmentModifier = getEnvironmentModifier(
+    input.surface,
+    input.weather,
+    weatherConfig,
+    input.temperatureC,
+  );
   const baseStaminaConsumptionPerSegment = 100 / segmentCount;
 
   const runtimeStates: HorseRuntimeState[] = entries.map((entry) => ({
@@ -227,7 +276,7 @@ export function simulateRace(input: RaceSimulationInput): RaceTimeline {
       const standing = standings.get(state.horseId)!;
       const sprintAvailable = state.runtimeStamina > raceConfig.sprint.staminaReserveThreshold;
 
-      const decision = decideJockeyAction(
+      const aiDecision = decideJockeyAction(
         {
           runtimeStamina: state.runtimeStamina,
           positionFraction,
@@ -238,9 +287,23 @@ export function simulateRace(input: RaceSimulationInput): RaceTimeline {
         },
         raceConfig.jockeyDecision,
       );
+      // 01.10.2026 — oyuncu komutu yapay zekâ kararının YERİNE geçer: kırbaç
+      // → finişe zorla, sakin → tempo düşür; yalnızca yön verildiyse karar
+      // yapay zekânınkidir ama kulvarı oyuncu seçer.
+      const command = input.playerCommands?.get(state.horseId)?.get(segmentIndex);
+      const decision: JockeyDecision =
+        command === undefined
+          ? aiDecision
+          : command.whips > 0
+            ? 'push_for_finish'
+            : command.ease
+              ? 'reduce_pace'
+              : aiDecision;
       decisionByHorseId.set(state.horseId, decision);
 
-      if (decision === 'search_overtake_lane') {
+      if (command !== undefined && command.laneShift !== 0) {
+        state.lane = clamp(state.lane + command.laneShift, 1, raceConfig.lanes.count);
+      } else if (decision === 'search_overtake_lane') {
         state.lane = deriveLaneChange(state.lane, true, raceConfig.lanes);
       }
     }
@@ -263,9 +326,11 @@ export function simulateRace(input: RaceSimulationInput): RaceTimeline {
       const occupantCount = laneOccupantCounts.get(state.lane) ?? 1;
       const availableSpace = calculateAvailableSpace(occupantCount, raceConfig.overtaking);
       const attackerRecentScore = state.performanceScores.at(-1) ?? state.baseAbility;
-      const defenderRecentScore = defenderState.performanceScores.at(-1) ?? defenderState.baseAbility;
+      const defenderRecentScore =
+        defenderState.performanceScores.at(-1) ?? defenderState.baseAbility;
       const defenderDecision = decisionByHorseId.get(defenderState.horseId);
-      const defenderBlockBonus = defenderDecision === 'defend_position' ? raceConfig.overtaking.defendPositionBonus : 0;
+      const defenderBlockBonus =
+        defenderDecision === 'defend_position' ? raceConfig.overtaking.defendPositionBonus : 0;
 
       const probability = calculateOvertakeProbability(
         {
@@ -279,17 +344,34 @@ export function simulateRace(input: RaceSimulationInput): RaceTimeline {
         raceConfig.overtaking,
       );
 
-      const succeeded = rollOvertakeSuccess(simulationSeed, raceId, state.horseId, segmentIndex, probability);
+      const succeeded = rollOvertakeSuccess(
+        simulationSeed,
+        raceId,
+        state.horseId,
+        segmentIndex,
+        probability,
+      );
       blockedByHorseId.set(state.horseId, !succeeded);
     }
 
     // ---- Geçiş C: nihai segment performansı ----
     for (const state of runtimeStates) {
       const entry = entryByHorseId.get(state.horseId)!;
-      const pace = derivePaceEffect(state.racingStyle, positionFraction, distanceMeters, raceConfig.pace);
+      const pace = derivePaceEffect(
+        state.racingStyle,
+        positionFraction,
+        distanceMeters,
+        raceConfig.pace,
+      );
       // PHASE 6 — oyuncunun seçtiği `startApproach`/`finalStretchPlan` burada
       // motora girer (bkz. `pace.ts` → `deriveTacticEffect` doc yorumu).
-      const tacticEffect = deriveTacticEffect(entry.tactic, positionFraction, distanceMeters, raceConfig.tactic, raceConfig.pace);
+      const tacticEffect = deriveTacticEffect(
+        entry.tactic,
+        positionFraction,
+        distanceMeters,
+        raceConfig.tactic,
+        raceConfig.pace,
+      );
       // PHASE 6.3 — atın KALICI kişiliği (bkz. `temperament.ts`). `undefined`
       // (bu alanı hiç doldurmayan eski fixture) ve 50 (başlangıç atlarının
       // varsayılanı, botların sabiti) TAM nötrdür — yani bu satır mevcut
@@ -302,16 +384,27 @@ export function simulateRace(input: RaceSimulationInput): RaceTimeline {
         raceConfig.temperament,
       );
       const decision = decisionByHorseId.get(state.horseId)!;
+      const playerCommand = input.playerCommands?.get(state.horseId)?.get(segmentIndex);
+      const whips = playerCommand?.whips ?? 0;
+      // 01.10.2026 — oyuncunun "sakin" komutu bedelsiz değildir: at yavaşlar
+      // (`easeSpeedPenalty`) ama dayanıklılık biriktirir (`easeStaminaFactor`).
+      // Yapay zekânın kendi `reduce_pace` kararı ETKİLENMEZ (komutsuz yarış aynı).
+      const playerEase = playerCommand !== undefined && playerCommand.ease && whips === 0;
 
       const staminaBeforeSegment = state.runtimeStamina;
       const staminaDepletedAtStart = staminaBeforeSegment <= 0;
-      const staminaPenaltyFactor = staminaDepletedAtStart ? raceConfig.stamina.depletionPenaltyMultiplier : 1;
+      const staminaPenaltyFactor = staminaDepletedAtStart
+        ? raceConfig.stamina.depletionPenaltyMultiplier
+        : 1;
       state.runtimeStamina = clamp(
         staminaBeforeSegment -
           baseStaminaConsumptionPerSegment *
             pace.staminaConsumptionMultiplier *
             tacticEffect.staminaConsumptionMultiplier *
-            temperamentEffect.staminaConsumptionMultiplier,
+            temperamentEffect.staminaConsumptionMultiplier *
+            (playerEase ? raceConfig.playerControl.easeStaminaFactor : 1) -
+          // 01.10.2026 — kırbacın bedeli (komutsuz yarışta whips = 0 → 0).
+          whips * (whips > 0 ? raceConfig.playerControl.whipStaminaCost : 0),
         0,
         100,
       );
@@ -323,11 +416,50 @@ export function simulateRace(input: RaceSimulationInput): RaceTimeline {
 
       const blocked = blockedByHorseId.get(state.horseId) ?? false;
       const blockPenalty = blocked ? raceConfig.overtaking.blockPenalty : 0;
-      const randomFactor = deriveRandomFactor(simulationSeed, raceId, state.horseId, segmentIndex, raceConfig);
-      const sprintBonus = deriveSprintBonus(staminaBeforeSegment, decision, entry.jockeySkillComposite, raceConfig.sprint);
+      const randomFactor = deriveRandomFactor(
+        simulationSeed,
+        raceId,
+        state.horseId,
+        segmentIndex,
+        raceConfig,
+      );
+      const baseSprintBonus = deriveSprintBonus(
+        staminaBeforeSegment,
+        decision,
+        entry.jockeySkillComposite,
+        raceConfig.sprint,
+      );
+      // 01.10.2026 — OYUNCU KIRBACI: sprint rezervi şartı YOK (yorgun at da
+      // tepki verir ama dayanıklılığıyla orantılı zayıf), azalan getiri
+      // (`kırbaç^whipBonusExponent`). Komutsuz yarışta (`whips = 0`) eski formül aynen.
+      const sprintBonus =
+        whips > 0
+          ? raceConfig.sprint.bonusMultiplier *
+            (staminaBeforeSegment / 100) *
+            (entry.jockeySkillComposite / 100) *
+            whips ** raceConfig.playerControl.whipBonusExponent
+          : baseSprintBonus;
 
-      state.runtimeFatigue = accumulateRuntimeFatigue(state.runtimeFatigue, decision, raceConfig.fatigue);
-      const fatiguePenalty = deriveFatiguePerformancePenalty(state.runtimeFatigue, raceConfig.fatigue);
+      state.runtimeFatigue = accumulateRuntimeFatigue(
+        state.runtimeFatigue,
+        decision,
+        raceConfig.fatigue,
+      );
+      const fatiguePenalty = deriveFatiguePerformancePenalty(
+        state.runtimeFatigue,
+        raceConfig.fatigue,
+      );
+      if (whips > 0) {
+        // Her kırbaç KALICI yorgunluk ekler — bu segmentin cezası hesaplandıktan
+        // SONRA (at kırbaçla hemen hızlanır, yorgunluk sonra çıkar): erken kırbaç bütün yarışa pahalıya
+        // patlar, son düzlükteki kırbaç ucuzdur. Doğrusal bedel × azalan getiri
+        // = basmanın bir tavanı vardır.
+        state.runtimeFatigue = clamp(
+          state.runtimeFatigue + whips * raceConfig.playerControl.whipFatigue,
+          0,
+          raceConfig.fatigue.maxRuntimeFatigue,
+        );
+      }
 
       // AUDIT_AND_HARDENING Öncelik 6 (bu oturum) — bkz. `modifier-
       // combination.ts` doc yorumu: BEŞ çarpansal modifikatör artık ARKA
@@ -359,7 +491,8 @@ export function simulateRace(input: RaceSimulationInput): RaceTimeline {
           combinedConditionModifier +
         randomFactor -
         blockPenalty -
-        fatiguePenalty;
+        fatiguePenalty -
+        (playerEase ? raceConfig.playerControl.easeSpeedPenalty : 0);
 
       const performanceScore = Math.max(MIN_SEGMENT_PERFORMANCE_SCORE, rawScore);
       state.performanceScores.push(performanceScore);
@@ -426,7 +559,8 @@ export function simulateRace(input: RaceSimulationInput): RaceTimeline {
       horseId: state.horseId,
       finishTimeMs: Math.round(state.cumulativeTimeMs),
       finishPosition: index + 1,
-      performanceScore: state.performanceScores.reduce((sum, s) => sum + s, 0) / state.performanceScores.length,
+      performanceScore:
+        state.performanceScores.reduce((sum, s) => sum + s, 0) / state.performanceScores.length,
     }));
 
   return {

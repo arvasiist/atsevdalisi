@@ -6,5 +6,136 @@
     "closeFinishThresholdMs": 150,
     "slowMotionWindowMs": 3000,
     "slowMotionMinFactor": 0.25
+  },
+  "homeShowcase": {
+    "blendSeconds": 1.8,
+    "shots": [
+      {
+        "id": "wide",
+        "label": "Hipodrom",
+        "durationSeconds": 7,
+        "from": [
+          24,
+          7,
+          30
+        ],
+        "to": [
+          13,
+          6,
+          28
+        ],
+        "target": [
+          -4,
+          3.5,
+          -18
+        ],
+        "fov": 42
+      },
+      {
+        "id": "horse_medium",
+        "label": "At",
+        "durationSeconds": 6,
+        "from": [
+          5,
+          1.9,
+          6.5
+        ],
+        "to": [
+          3.5,
+          1.8,
+          7
+        ],
+        "target": [
+          0,
+          1.3,
+          0
+        ],
+        "fov": 34
+      },
+      {
+        "id": "horse_closeup",
+        "label": "Yakın Çekim",
+        "durationSeconds": 5,
+        "from": [
+          2.5,
+          2.4,
+          3.0
+        ],
+        "to": [
+          2.2,
+          2.35,
+          3.2
+        ],
+        "target": [
+          1.7,
+          2.0,
+          0
+        ],
+        "fov": 28
+      },
+      {
+        "id": "stable",
+        "label": "Ahır",
+        "durationSeconds": 6,
+        "from": [
+          -14,
+          3.5,
+          30
+        ],
+        "to": [
+          -18,
+          3.2,
+          31
+        ],
+        "target": [
+          -28,
+          3,
+          18
+        ],
+        "fov": 40
+      },
+      {
+        "id": "track",
+        "label": "Pist",
+        "durationSeconds": 6,
+        "from": [
+          14,
+          0.8,
+          3
+        ],
+        "to": [
+          11,
+          0.8,
+          3.5
+        ],
+        "target": [
+          0,
+          1.2,
+          -1
+        ],
+        "fov": 38
+      },
+      {
+        "id": "jockey",
+        "label": "Jokey",
+        "durationSeconds": 5,
+        "from": [
+          0.9,
+          3.1,
+          4.6
+        ],
+        "to": [
+          0.5,
+          3.0,
+          4.9
+        ],
+        "target": [
+          0.4,
+          2.2,
+          0
+        ],
+        "fov": 32
+      }
+    ]
   }
 }

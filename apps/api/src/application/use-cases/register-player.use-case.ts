@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { Inject, Injectable } from '@nestjs/common';
 import type { Player } from '@at-sevdalisi/shared-types';
 import { assertUsernameAvailable, createNewPlayer } from '../../domain/player/player';
+import { deriveAppearance } from '../../domain/horse/appearance';
 import { createStarterHorse, generateStarterHorseWeightKg, pickStarterHorseGender, pickStarterHorseName } from '../../domain/horse/horse';
 import { AppConfigService } from '../../infrastructure/config/config.service';
 import { HORSE_REPOSITORY, type HorseRepository } from '../ports/horse.repository';
@@ -74,9 +75,12 @@ export class RegisterPlayerUseCase {
 
     await this.playerRepository.save(player);
 
+    const starterHorseId = randomUUID();
     const starterHorse = createStarterHorse({
-      id: randomUUID(),
+      id: starterHorseId,
       ownerId: player.id,
+      // 01.10.2026 — görünüş kimlikten determinist türetilir (config ağırlıkları).
+      appearance: deriveAppearance(starterHorseId, this.config.horseAppearance),
       name: pickStarterHorseName(Math.random()),
       // R4 — Carried Weight (bu turda EKLENDİ): domain katmanı `Math.random()`
       // ÇAĞIRAMAYACAĞI için (bkz. `pickStarterHorseName` üstündeki AYNI

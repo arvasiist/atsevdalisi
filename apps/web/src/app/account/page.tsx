@@ -19,6 +19,9 @@
  * bildirirse (`GET /auth/providers`) görünür — kimlik bilgisi yokken hiç
  * çalışmayacak bir düğme göstermek yalan olurdu.
  *
+ * OTURUMLAR (02.10.2026): kayıtlı hesapta cihaz listesi + tek cihazı kapatma
+ * + tüm cihazlardan çıkış (`SessionsPanel`). Çıkış artık sunucuda da oturumu kapatır.
+ *
  * Şifre sınırları `auth.config.json`dan okunur; sunucu aynı kuralları
  * bağımsız uygular (istemci otorite değildir).
  */
@@ -28,14 +31,19 @@ import type { AccountProvider } from '@at-sevdalisi/shared-types';
 import { loadAuthConfig } from '@at-sevdalisi/game-config';
 import { GlassPanel } from '../../components/ui/GlassPanel';
 import { GoogleSignInButton } from '../../features/auth/GoogleSignInButton';
+import { SessionsPanel } from '../../features/auth/SessionsPanel';
+import { DeleteAccountPanel } from '../../features/auth/DeleteAccountPanel';
+import { ExportDataPanel } from '../../features/auth/ExportDataPanel';
 import { apiClient } from '../../lib/api-client';
 import { usePlayer } from '../../lib/player-context';
 
 const AUTH_CONFIG = loadAuthConfig();
 
 export default function AccountPage(): React.ReactElement {
-  const { player, isLoading, createPlayer, loginWithPassword, loginWithGoogle, logout } = usePlayer();
+  const { player, isLoading, createPlayer, loginWithPassword, loginWithGoogle, logout, logoutAll, forgetSession } =
+    usePlayer();
   const [accountEmail, setAccountEmail] = useState<string | null | undefined>(undefined);
+  const [emailVerified, setEmailVerified] = useState(false);
   const [linkedProviders, setLinkedProviders] = useState<AccountProvider[]>([]);
   const [googleClientId, setGoogleClientId] = useState<string | null>(null);
   const [email, setEmail] = useState('');
@@ -71,6 +79,7 @@ export default function AccountPage(): React.ReactElement {
         if (cancelled) return;
         setAccountEmail(status.email);
         setLinkedProviders(status.linkedProviders);
+        setEmailVerified(status.emailVerified);
       })
       .catch(() => {
         if (!cancelled) setAccountEmail(null);
@@ -107,8 +116,9 @@ export default function AccountPage(): React.ReactElement {
     try {
       const saved = await apiClient.saveAccount(email, password);
       setAccountEmail(saved.email);
+      setEmailVerified(false);
       setPassword('');
-      setNotice('Hesabın kaydedildi. Artık her cihazdan bu e-posta ve şifreyle giriş yapabilirsin.');
+      setNotice('Hesabın kaydedildi. Artık her cihazdan bu e-posta ve şifreyle giriş yapabilirsin. E-postana bir doğrulama bağlantısı gönderdik.');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Hesap kaydedilemedi.');
     } finally {
@@ -175,9 +185,30 @@ export default function AccountPage(): React.ReactElement {
     ) {
       return;
     }
-    logout();
-    setNotice('Çıkış yapıldı.');
+    void logout().then(() => setNotice('Çıkış yapıldı.'));
   }, [isGuest, logout]);
+
+  const sendVerification = useCallback(async () => {
+    setIsBusy(true);
+    setError(null);
+    try {
+      const result = await apiClient.requestEmailVerification();
+      setNotice(
+        result.sent
+          ? 'Doğrulama bağlantısı gönderildi. Gelen kutunu (ve gereksiz klasörünü) kontrol et.'
+          : 'Az önce bir bağlantı gönderildi; birkaç dakika sonra tekrar deneyebilirsin.',
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Bağlantı gönderilemedi.');
+    } finally {
+      setIsBusy(false);
+    }
+  }, []);
+
+  const confirmLogoutAll = useCallback(async () => {
+    await logoutAll();
+    setNotice('Tüm cihazlardan çıkış yapıldı.');
+  }, [logoutAll]);
 
   const form = (submit: () => Promise<void>, submitLabel: string, autoComplete: 'current-password' | 'new-password') => (
     <form
@@ -310,6 +341,27 @@ export default function AccountPage(): React.ReactElement {
               cihazda bu e-posta ve şifreyle giriş yapabilirsin.
             </p>
           ) : null}
+          {typeof accountEmail === 'string' ? (
+            emailVerified ? (
+              <p style={{ ...mutedStyle(), color: 'var(--color-status-positive)' }} data-testid="email-verified">
+                ✓ E-posta doğrulandı.
+              </p>
+            ) : (
+              <div style={{ marginTop: 'var(--space-sm)' }} data-testid="email-unverified">
+                <p style={mutedStyle()}>
+                  E-postan henüz doğrulanmadı. Kayıtta gönderilen bağlantıyı açarak adresin sana ait olduğunu kanıtla.
+                </p>
+                <button
+                  type="button"
+                  disabled={isBusy}
+                  onClick={() => void sendVerification()}
+                  style={{ ...secondaryButtonStyle(), marginTop: 'var(--space-sm)' }}
+                >
+                  Doğrulama bağlantısını tekrar gönder
+                </button>
+              </div>
+            )
+          ) : null}
           {isGoogleLinked ? (
             <p style={mutedStyle()}>
               <strong style={{ color: 'var(--color-text-primary)' }}>Google hesabın bağlı.</strong> Başka bir cihazda
@@ -323,6 +375,21 @@ export default function AccountPage(): React.ReactElement {
             </div>
           ) : null}
         </GlassPanel>
+      ) : null}
+
+      {/* Misafirde "tüm cihazlardan çık" hesabı kalıcı kaybettirir — yalnızca kayıtlıya. */}
+      {player && isRegistered ? <SessionsPanel onLogoutAll={confirmLogoutAll} /> : null}
+
+      {player ? <ExportDataPanel /> : null}
+
+      {player?.username ? (
+        <DeleteAccountPanel
+          username={player.username}
+          onDeleted={() => {
+            forgetSession();
+            setNotice('Hesabın silindi.');
+          }}
+        />
       ) : null}
 
       {player ? (

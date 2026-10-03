@@ -52,6 +52,10 @@ export interface PerformCareActionResult {
   newVitals: Pick<Horse, 'health' | 'fitness' | 'fatigue' | 'energy' | 'morale'>;
   newHealth: CareableHealthView;
   newStatus: HorseStatus;
+  /** 01.10.2026 — uygulanan personel çarpanı (seyis/veteriner/nalbant; 1 = personelsiz). */
+  staffMultiplier: number;
+  /** 01.10.2026 — uygulanan çiftlik tesisi çarpanı (padok → `rest`; 1 = etkisiz). */
+  farmMultiplier: number;
 }
 
 /**
@@ -100,6 +104,11 @@ export interface FeedItemView {
    * (`GET /horses/{id}/feed-status`) doludur; oyuncu bağlamında `null`.
    */
   fedInWindow: number | null;
+  /**
+   * 01.10.2026 — depo indirimi, yüzde (0 = yok). TOPLAM fiyata uygulanır ve
+   * yukarı yuvarlanır; ödenen tutar `BuyFeedResult.totalCost`tur.
+   */
+  discountPercent: number;
 }
 
 /** `GET /players/{id}/feed-inventory` yanıtı — oyuncunun yem envanteri + kalem kataloğu. */
@@ -124,4 +133,6 @@ export interface BuyFeedResult {
   /** Ödenen birim fiyat ve adet — makbuz niteliğinde. */
   price: CurrencyAmount;
   purchasedCount: number;
+  /** 01.10.2026 — gerçekten ödenen toplam (depo indirimi sonrası; defter satırıyla aynı). */
+  totalCost: number;
 }

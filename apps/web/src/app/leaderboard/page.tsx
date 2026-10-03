@@ -22,9 +22,11 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import type { LeaderboardRowView } from '@at-sevdalisi/shared-types';
+import type { LeaderboardRowView, SeasonView, LeaderboardPeriod, PeriodLeaderboardView } from '@at-sevdalisi/shared-types';
 import { GlassPanel } from '../../components/ui/GlassPanel';
 import { apiClient } from '../../lib/api-client';
+import { formatCurrency } from '../../lib/currency';
+import { formatTimeUntil } from '../../lib/format-time';
 import { usePlayer } from '../../lib/player-context';
 
 /** Podyum renkleri — 1./2./3. sıra görsel olarak ayrışsın diye. */
@@ -36,8 +38,19 @@ const PODIUM_COLORS: Record<number, string> = {
 
 export default function LeaderboardPage(): React.ReactElement {
   const { player } = usePlayer();
-  const [rows, setRows] = useState<LeaderboardRowView[] | null>(null);
+  const [globalRows, setGlobalRows] = useState<LeaderboardRowView[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  /** 01.10.2026 — Genel / Sezon sekmesi. Sezon ucu oturum ister; oyuncu yoksa sekme gösterilmez. */
+  const [tab, setTab] = useState<'global' | 'season' | LeaderboardPeriod>('global');
+  const [season, setSeason] = useState<SeasonView | null>(null);
+  // 02.10.2026 (Faz 11) — haftalık/aylık: sezonla aynı formül, dönem bitince kendiliğinden sıfırlanır.
+  const [periods, setPeriods] = useState<Partial<Record<LeaderboardPeriod, PeriodLeaderboardView>>>({});
+  const rows =
+    tab === 'season'
+      ? (season?.standings ?? null)
+      : tab === 'weekly' || tab === 'monthly'
+        ? (periods[tab]?.standings ?? null)
+        : globalRows;
   /** Satır bazlı "istek gönderiliyor" durumu — tek bir satır TÜM tabloyu kilitlemez. */
   const [pendingPlayerId, setPendingPlayerId] = useState<string | null>(null);
   /** Bu oturumda istek gönderilen oyuncular (`Arkadaş Ekle` → `İstek Gönderildi`). */
@@ -90,7 +103,7 @@ export default function LeaderboardPage(): React.ReactElement {
     void apiClient
       .getLeaderboard()
       .then((data) => {
-        if (!cancelled) setRows(data);
+        if (!cancelled) setGlobalRows(data);
       })
       .catch((err: unknown) => {
         if (!cancelled) setError(err instanceof Error ? err.message : 'Sıralama yüklenemedi');
@@ -100,28 +113,103 @@ export default function LeaderboardPage(): React.ReactElement {
     };
   }, []);
 
+  useEffect(() => {
+    if ((tab !== 'weekly' && tab !== 'monthly') || !player || periods[tab]) return;
+    const period = tab;
+    apiClient
+      .getPeriodLeaderboard(period)
+      .then((view) => setPeriods((current) => ({ ...current, [period]: view })))
+      .catch((err: unknown) => setError(err instanceof Error ? err.message : 'Sıralama yüklenemedi'));
+  }, [tab, player, periods]);
+
+  useEffect(() => {
+    if (tab !== 'season' || !player || season) return;
+    apiClient
+      .getCurrentSeason()
+      .then(setSeason)
+      .catch((err: unknown) => setError(err instanceof Error ? err.message : 'Sezon yüklenemedi'));
+  }, [tab, player, season]);
+
   return (
     <main className="page-container">
-      <h1 style={{ fontSize: '24px', color: 'var(--color-text-primary)', marginBottom: '4px' }}>Sıralama</h1>
-      <p style={{ color: 'var(--color-text-secondary)', marginTop: 0, marginBottom: 'var(--space-lg)' }}>
-        Bitirilmiş yarışlardan biriken küresel puan tablosu.
+      <h1 className="page-title">Sıralama</h1>
+      <p
+        style={{
+          color: 'var(--color-text-secondary)',
+          marginTop: 4,
+          marginBottom: 'var(--space-md)',
+        }}
+      >
+        {tab === 'season'
+          ? 'Yalnızca bu sezon koşulan yarışların puanı. Sezon bitince ilk sıralar çip ödülü alır.'
+          : tab === 'weekly'
+            ? 'Bu hafta (pazartesi 00:00, Türkiye saati) koşulan yarışların puanı. Her hafta yeniden başlar.'
+            : tab === 'monthly'
+              ? 'Bu ay koşulan yarışların puanı. Her ayın 1’inde yeniden başlar.'
+              : 'Bitirilmiş yarışlardan biriken küresel puan tablosu.'}
       </p>
+
+      {player ? (
+        <div
+          className="tabs"
+          role="tablist"
+          aria-label="Sıralama türü"
+          style={{ marginBottom: 'var(--space-md)' }}
+        >
+          <button
+            type="button"
+            role="tab"
+            className="tab"
+            aria-selected={tab === 'global'}
+            onClick={() => setTab('global')}
+          >
+            Genel
+          </button>
+          <button
+            type="button"
+            role="tab"
+            className="tab"
+            aria-selected={tab === 'season'}
+            onClick={() => setTab('season')}
+          >
+            Sezon
+          </button>
+          {(['weekly', 'monthly'] as const).map((period) => (
+            <button
+              key={period}
+              type="button"
+              role="tab"
+              className="tab"
+              aria-selected={tab === period}
+              onClick={() => setTab(period)}
+            >
+              {period === 'weekly' ? 'Haftalık' : 'Aylık'}
+            </button>
+          ))}
+        </div>
+      ) : null}
+
+      {tab === 'season' && season ? <SeasonHeader season={season} /> : null}
 
       {error ? <p style={{ color: 'var(--color-status-critical)' }}>{error}</p> : null}
       {actionError ? <p style={{ color: 'var(--color-status-critical)' }}>{actionError}</p> : null}
 
-      {rows === null && !error ? <p style={{ color: 'var(--color-text-muted)' }}>Sıralama yükleniyor…</p> : null}
+      {rows === null && !error ? (
+        <p style={{ color: 'var(--color-text-muted)' }}>Sıralama yükleniyor…</p>
+      ) : null}
 
       {rows && rows.length === 0 ? (
         <GlassPanel style={{ textAlign: 'center', padding: 'var(--space-xl)' }}>
           <p style={{ color: 'var(--color-text-secondary)', marginTop: 0, marginBottom: 0 }}>
-            Henüz bitirilmiş yarış yok. İlk yarışını koşturan sporcu bu tabloya girer.
+            {tab === 'season' || tab === 'weekly' || tab === 'monthly'
+              ? 'Bu dönemde henüz yarış koşulmadı — ilk yarışını koşturan zirveye oturur.'
+              : 'Henüz bitirilmiş yarış yok. İlk yarışını koşturan sporcu bu tabloya girer.'}
           </p>
         </GlassPanel>
       ) : null}
 
       {rows && rows.length > 0 ? (
-        <GlassPanel style={{ padding: 0, overflow: 'hidden' }}>
+        <GlassPanel style={{ padding: 0, overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr>
@@ -150,8 +238,15 @@ export default function LeaderboardPage(): React.ReactElement {
       ) : null}
 
       {rows && rows.length > 0 ? (
-        <p style={{ color: 'var(--color-text-muted)', fontSize: '13px', marginTop: 'var(--space-md)' }}>
-          İlk {rows.length} sporcu gösteriliyor. Puanlar her yarışta birikir (galibiyet ve ilk üç derece ek puan kazandırır).
+        <p
+          style={{
+            color: 'var(--color-text-muted)',
+            fontSize: '13px',
+            marginTop: 'var(--space-md)',
+          }}
+        >
+          İlk {rows.length} sporcu gösteriliyor. Puanlar her yarışta birikir (galibiyet ve ilk üç
+          derece ek puan kazandırır).
         </p>
       ) : null}
     </main>
@@ -184,7 +279,13 @@ function LeaderboardRow({
         backgroundColor: isCurrentPlayer ? 'var(--color-bg-surface-elevated)' : 'transparent',
       }}
     >
-      <td style={{ ...bodyCellStyle('56px'), color: PODIUM_COLORS[row.rank] ?? 'var(--color-text-muted)', fontWeight: 700 }}>
+      <td
+        style={{
+          ...bodyCellStyle('56px'),
+          color: PODIUM_COLORS[row.rank] ?? 'var(--color-text-muted)',
+          fontWeight: 700,
+        }}
+      >
         {row.rank}
       </td>
       <td style={bodyCellStyle(undefined, 'left')}>
@@ -202,9 +303,17 @@ function LeaderboardRow({
         >
           {row.displayName}
         </Link>
-        {isCurrentPlayer ? <span style={{ color: 'var(--color-text-muted)', fontSize: '12px' }}> (sen)</span> : null}
+        {isCurrentPlayer ? (
+          <span style={{ color: 'var(--color-text-muted)', fontSize: '12px' }}> (sen)</span>
+        ) : null}
       </td>
-      <td style={{ ...bodyCellStyle('96px', 'right'), color: 'var(--color-text-primary)', fontWeight: 600 }}>
+      <td
+        style={{
+          ...bodyCellStyle('96px', 'right'),
+          color: 'var(--color-text-primary)',
+          fontWeight: 600,
+        }}
+      >
         {row.score.toLocaleString('tr-TR')}
       </td>
       <td style={{ ...bodyCellStyle('96px', 'right'), color: 'var(--color-text-secondary)' }}>
@@ -264,7 +373,10 @@ const currentPlayerNameLinkStyle: React.CSSProperties = {
   textDecoration: 'none',
 };
 
-function headerCellStyle(width: string | undefined, align: 'left' | 'right' = 'right'): React.CSSProperties {
+function headerCellStyle(
+  width: string | undefined,
+  align: 'left' | 'right' = 'right',
+): React.CSSProperties {
   return {
     width,
     textAlign: align,
@@ -277,6 +389,68 @@ function headerCellStyle(width: string | undefined, align: 'left' | 'right' = 'r
   };
 }
 
-function bodyCellStyle(width: string | undefined, align: 'left' | 'right' = 'right'): React.CSSProperties {
+function bodyCellStyle(
+  width: string | undefined,
+  align: 'left' | 'right' = 'right',
+): React.CSSProperties {
   return { width, textAlign: align, padding: 'var(--space-md)', fontSize: '14px' };
+}
+
+/**
+ * Sezon başlığı (01.10.2026): kalan süre, oyuncunun sırası ve olası ödülü,
+ * ödül tablosu ve önceki sezonun podyumu. Bütün sayılar sunucudan gelir.
+ */
+function SeasonHeader({ season }: { season: SeasonView }): React.ReactElement {
+  const muted: React.CSSProperties = { color: 'var(--color-text-secondary)', fontSize: 13 };
+  return (
+    <GlassPanel style={{ padding: 'var(--space-lg)', marginBottom: 'var(--space-md)' }}>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: 8,
+          alignItems: 'baseline',
+        }}
+      >
+        <h2 className="section-title" style={{ margin: 0 }}>
+          {season.season.name}
+        </h2>
+        <span style={{ ...muted, color: 'var(--color-accent-gold)' }}>
+          Bitişe {formatTimeUntil(season.season.endsAt)}
+        </span>
+      </div>
+      <p style={{ ...muted, margin: 'var(--space-sm) 0' }}>
+        {season.me
+          ? `Sıran: ${season.me.rank}. · ${season.me.score.toLocaleString('tr-TR')} puan · ${season.me.raceCount} yarış${
+              season.me.reward > 0
+                ? ` · şu an ${formatCurrency('money', season.me.reward)} ödül sırasındasın`
+                : ''
+            }`
+          : 'Bu sezon henüz yarışmadın — bir yarış koş, tabloya gir.'}
+      </p>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+        {season.rewardsByRank.map((amount, index) => (
+          <span
+            key={index}
+            style={{
+              fontSize: 12,
+              padding: '3px 8px',
+              borderRadius: 999,
+              border: '1px solid var(--color-border-gold, rgba(212,175,55,0.35))',
+              color: index < 3 ? 'var(--color-accent-gold)' : 'var(--color-text-secondary)',
+            }}
+          >
+            {index + 1}. {formatCurrency('money', amount)}
+          </span>
+        ))}
+      </div>
+      {season.previous && season.previous.podium.length > 0 ? (
+        <p style={{ ...muted, marginBottom: 0, marginTop: 'var(--space-sm)' }}>
+          {season.previous.season.name} şampiyonları:{' '}
+          {season.previous.podium.map((row) => `${row.rank}. ${row.displayName}`).join(' · ')}
+        </p>
+      ) : null}
+    </GlassPanel>
+  );
 }

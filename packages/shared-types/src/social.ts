@@ -1,3 +1,4 @@
+import type { ProfileAchievementView } from './achievements';
 /**
  * Arkadaşlık + mesajlaşma görünümleri (proje sahibinin açık talebi,
  * 27.09.2026: "arkadaşlık + mesajlaşma").
@@ -168,13 +169,11 @@ export interface PlayerProfileView {
   /** Bu oyuncuya GÖNDERİLMİŞ hediye sayısı (`gift_sends.recipient_id`). */
   giftCount: number;
   /**
-   * brief §24 "Achievements" — HENÜZ YOKTUR ve bu bilinçli bir karardır:
-   * kalıcı bir başarım veri modeli + yeni migration gerektirir
-   * (`career-tier.ts`'in achievement notuyla AYNI karar). Alan ŞİMDİDEN
-   * vardır ki istemci "geldi mi gelmedi mi" diye tahmin yürütmesin; dizi
-   * DOLDUĞUNDA bu sözleşme değişmez.
+   * brief §24 "Achievements" (03.10.2026) — oyuncunun KAZANDIĞI (ödülü
+   * alınmış) başarımlar, en yeniden eskiye. Yalnızca anahtar/ölçüt/hedef ve
+   * tarih — bakiye türevi bir şey taşımaz (uç `@Public()`).
    */
-  achievements: null;
+  achievements: ProfileAchievementView[];
 }
 
 /**
@@ -239,4 +238,20 @@ export interface PlayerProfileStats {
   winCount: number;
   /** Bunlardan ilk üçte bitirilenler (birinciler DAHİL, `finish_position <= 3`). */
   podiumCount: number;
+}
+
+/** 02.10.2026 (Faz 9) — kulüp sohbeti mesajı (yalnızca üyelere görünür). */
+export interface ClubChatMessageView {
+  id: string;
+  playerId: string;
+  username: string;
+  displayName: string;
+  body: string;
+  createdAt: string;
+}
+
+/** 02.10.2026 (Faz 9) — tribün emote yayını (anonim: kimin attığı taşınmaz). */
+export interface RaceEmoteEvent {
+  raceId: string;
+  key: string;
 }

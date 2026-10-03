@@ -58,6 +58,8 @@ function lobbyRace(overrides: Partial<RaceLobbyListItem> = {}): RaceLobbyListIte
     prizeMultiplier: null,
     myEntry: null,
     tournament: null,
+    calendar: null,
+    playerControl: false,
     ...overrides,
   } as RaceLobbyListItem;
 }
@@ -103,7 +105,9 @@ describe('LobbyPanel', () => {
   });
 
   it('katıldıysa "Hazırım" + "Ayrıl"; Hazırım anahtar ÜRETMEZ ve listeyi yeniler', async () => {
-    mocks.listLobbyRaces.mockResolvedValue([lobbyRace({ myEntry: { status: 'waiting', horseId: 'horse-1' } })]);
+    mocks.listLobbyRaces.mockResolvedValue([
+      lobbyRace({ myEntry: { status: 'waiting', horseId: 'horse-1' } }),
+    ]);
     mocks.setLobbyEntryReady.mockResolvedValue({});
     render(<LobbyPanel horses={[horse]} onBalanceChanged={onBalanceChanged} />);
 
@@ -115,7 +119,9 @@ describe('LobbyPanel', () => {
   });
 
   it('ayrılma anahtarla gider ve bakiye tazelenir', async () => {
-    mocks.listLobbyRaces.mockResolvedValue([lobbyRace({ myEntry: { status: 'ready', horseId: 'horse-1' } })]);
+    mocks.listLobbyRaces.mockResolvedValue([
+      lobbyRace({ myEntry: { status: 'ready', horseId: 'horse-1' } }),
+    ]);
     mocks.leaveLobbyRace.mockResolvedValue({});
     render(<LobbyPanel horses={[horse]} onBalanceChanged={onBalanceChanged} />);
 
@@ -126,7 +132,9 @@ describe('LobbyPanel', () => {
   });
 
   it('ayrılmış (cancelled) katılımda hiçbir işlem düğmesi yoktur', async () => {
-    mocks.listLobbyRaces.mockResolvedValue([lobbyRace({ myEntry: { status: 'cancelled', horseId: 'horse-1' } })]);
+    mocks.listLobbyRaces.mockResolvedValue([
+      lobbyRace({ myEntry: { status: 'cancelled', horseId: 'horse-1' } }),
+    ]);
     render(<LobbyPanel horses={[horse]} onBalanceChanged={onBalanceChanged} />);
     expect(await screen.findByText('Ayrıldın')).toBeTruthy();
     for (const name of ['Katıl', 'Hazırım', 'Hazır değilim', 'Ayrıl (ücret iade)']) {

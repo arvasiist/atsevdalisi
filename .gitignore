@@ -14,6 +14,10 @@ out/
 .env
 .env.local
 .env.*.local
+# 02.10.2026 (Faz 13-C) — staging/production değerleri ASLA depoya girmez.
+.env.staging
+.env.production
+!.env.staging.example
 !.env.example
 
 # Logs
@@ -94,3 +98,8 @@ assets/**/*
 !assets/**/
 !assets/**/.gitkeep
 !assets/README.md
+
+# 01.10.2026 — 3D çözücüler (Draco/KTX2) `three` paketinden KOPYALANIR
+# (`apps/web/scripts/copy-3d-decoders.mjs`, predev/prebuild). Üretilmiş
+# dosyadır, sürüm kontrolüne girmez.
+apps/web/public/decoders/

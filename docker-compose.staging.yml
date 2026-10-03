@@ -1,0 +1,84 @@
+# STAGING YIĞINI (02.10.2026, Faz 13-C) — tüm sistem ÜRETİM modunda,
+# kapsayıcılarla. Barındırma sağlayıcısından bağımsızdır: aynı imajlar
+# herhangi bir kapsayıcı platformuna taşınır.
+#
+#   cp .env.staging.example .env.staging   # değerleri doldur (COMMIT ETME)
+#   docker compose -f docker-compose.staging.yml --env-file .env.staging up -d --build --wait
+#   node tools/ops/smoke.mjs http://localhost:4000/api/v1 http://localhost:3000
+#
+# Sıra: postgres + redis sağlıklı → migrate (tek seferlik) başarıyla biter →
+# api → web. CI aynı dosyayı koşar (`staging-smoke` işi).
+name: at-sevdalisi-staging
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:?POSTGRES_DB}
+    volumes:
+      - staging_postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U $${POSTGRES_USER}']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  migrate:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+      target: migrate
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: 'no'
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    environment:
+      NODE_ENV: production
+      PORT: '4000'
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET}
+      CORS_ORIGIN: ${PUBLIC_WEB_URL:?PUBLIC_WEB_URL}
+      WEB_BASE_URL: ${PUBLIC_WEB_URL}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      MAIL_FROM: ${MAIL_FROM:-}
+      GOOGLE_OAUTH_CLIENT_ID: ${GOOGLE_OAUTH_CLIENT_ID:-}
+    depends_on:
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    ports:
+      - '${API_PORT:-4000}:4000'
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${PUBLIC_API_URL:?PUBLIC_API_URL}
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - '${WEB_PORT:-3000}:3000'
+
+volumes:
+  staging_postgres:

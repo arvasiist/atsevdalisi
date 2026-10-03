@@ -26,6 +26,11 @@ export const NOTIFICATION_TYPES = [
   'race_starting',
   'race_finished',
   'prize_won',
+  'auction_outbid',
+  'auction_won',
+  'auction_sold',
+  'auction_unsold',
+  'auction_refunded',
 ] as const;
 
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
@@ -64,6 +69,17 @@ export interface NotificationPayloadByType {
   race_starting: { raceId: string; raceName: string; startTime: string };
   race_finished: { raceId: string; raceName: string; finishPosition: number };
   prize_won: { raceId: string; raceName: string; amount: number };
+  // 02.10.2026 — müzayede (`amount` her zaman pozitif; yönü tür söyler).
+  /** Teklifin geçildi; `amount` iade edilen tutar. */
+  auction_outbid: { listingId: string; horseName: string; amount: number; minimumNextBid: number };
+  /** Müzayedeyi kazandın; at ahırında. */
+  auction_won: { listingId: string; horseId: string; horseName: string; amount: number };
+  /** Atın satıldı; `amount` hesabına geçen tutar. */
+  auction_sold: { listingId: string; horseName: string; amount: number };
+  /** Müzayede teklifsiz ya da satış gerçekleşmeden bitti; at sende kaldı. */
+  auction_unsold: { listingId: string; horseName: string };
+  /** Kazandığın müzayedede satış gerçekleşemedi; emanetin iade edildi. */
+  auction_refunded: { listingId: string; horseName: string; amount: number };
 }
 
 /**

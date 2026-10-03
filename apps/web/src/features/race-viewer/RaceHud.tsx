@@ -4,6 +4,14 @@
  * Yarış ekranı HUD (heads-up display) — `docs/GAME_DESIGN.md` §6: sıralama
  * paneli, hız/zaman göstergesi, kamera seçim butonları, mini harita.
  *
+ * 01.10.2026 TASARIM YENİLEMESİ (sahibin paylaştığı yarış ekranı konsepti):
+ * sol üstte koşu bilgisi + saat, sağ üstte kamera, sağda renkli numara
+ * rozetli sıralama, sol altta odak atın kartı (hız, tempo, kalan mesafe),
+ * altta renkli at işaretli ilerleme şeridi, sağ altta pist çizgili mini
+ * harita. Yalnızca GERÇEK veri gösterilir — konseptteki sıcaklık/rüzgâr
+ * gibi sunucuda karşılığı olmayan bilgiler EKLENMEDİ. Yeni bilgiler
+ * opsiyonel prop'lardır; verilmezse ilgili parça çizilmez.
+ *
  * KASITLI OLARAK Three.js/`@react-three/fiber` içermez (sadece düz React +
  * CSS) — bu yüzden `RaceScene3D.tsx`'in aksine bu dosya, bu geliştirme
  * ortamında yerel `tsc` ile tip kontrolünden geçirilebilir OLABİLİRDİ;
@@ -50,25 +58,30 @@
 export type RaceLiveStatus = 'connecting' | 'live' | 'reconnecting' | 'finished';
 
 import { memo } from 'react';
+import { Flag, Gauge, Route, Timer } from 'lucide-react';
 import type { CameraMode } from './camera-presets';
 import { CAMERA_MODE_LABELS, CAMERA_MODE_ORDER } from './camera-presets';
 import type { LiveLeaderboardEntry } from './timeline-playback';
 import { formatFinishGap, isCloseFinish, type PhotoFinishRow } from './photo-finish';
 import { loadCameraConfig } from '@at-sevdalisi/game-config';
+import { HorseHeadIcon } from '../../components/ui/HorseHeadIcon';
 
-/**
- * Faz 6 "Config ayrımı" (bu turda EKLENDİ) — `isCloseFinish` artık
- * `CameraConfig.photoFinish.closeFinishThresholdMs`'i PARAMETRE olarak
- * ister (bkz. `photo-finish.ts` doc yorumu) — `RaceViewer.tsx`/
- * `LiveRaceViewer.tsx` ile AYNI modül-seviyesi tek-yükleme deseni.
- */
+/** `isCloseFinish` eşiği config'ten (modül seviyesinde tek yükleme). */
 const cameraConfig = loadCameraConfig();
+
+const MPS_TO_KMH = 3.6;
+const FALLBACK_BADGE_COLOR = '#64748b';
 
 export interface MiniMapMarker {
   horseId: string;
   xPercent: number;
   yPercent: number;
   isLeader: boolean;
+}
+
+export interface MiniMapPoint {
+  xPercent: number;
+  yPercent: number;
 }
 
 export interface RaceHudProps {
@@ -84,33 +97,24 @@ export interface RaceHudProps {
   onChangeSpeedMultiplier: (multiplier: number) => void;
   onChangeCameraMode: (mode: CameraMode) => void;
   onSeek: (timeMs: number) => void;
-  /** Bkz. dosya başı doc yorumu "F2 canlı yayın entegrasyonu". */
+  /** Canlı yayında oynatma kontrolleri yerine durum rozeti gösterilir. */
   liveStatus?: RaceLiveStatus;
-  /**
-   * Master Development Brief §23 "Photo Finish" sunumu (bu turda EKLENDİ) —
-   * yarış bittiğinde çağıran (`RaceViewer.tsx`/`LiveRaceViewer.tsx`)
-   * tarafından doldurulur (bkz. `photo-finish.ts`). `undefined`/boş dizi
-   * iken hiçbir şey render EDİLMEZ — yarış devam ederken bu prop
-   * VERİLMEMELİDİR.
-   */
+  /** Yarış bittiğinde doldurulur (§23 Photo Finish); devam ederken VERİLMEZ. */
   finishResult?: PhotoFinishRow[];
+  /** Atın forma rengi (3D sahnedeki jokey rengiyle aynı) — rozetler/ilerleme şeridi. */
+  horseColorsById?: Record<string, string>;
+  /** Sol alttaki kartta gösterilecek at (oyuncunun atı ya da odak at). */
+  focusHorseId?: string;
+  /** Yarış mesafesi — ilerleme şeridi ve "kalan mesafe" için. */
+  raceDistanceMeters?: number;
+  /** Sol üst bilgi paneli: başlık + alt satır (ör. "2000 m · Çim · Güneşli"). */
+  raceTitle?: string;
+  raceSubtitle?: string;
+  /** Mini haritada çizilecek pist çizgisi (kapalı çokgen). */
+  miniMapTrack?: MiniMapPoint[];
 }
 
-/**
- * "AT SEVDALISI — Master Development Brief" §22 "PHASE 12 — REPLAY" (bu
- * turda GENİŞLETİLDİ, AUDIT_REPORT.md'nin "Replay (bağımsız gözatma)"
- * bulgusuna karşı yapılan denetimde bulundu) — brief AÇIKÇA
- * `PLAY/PAUSE/0.5X/1X/2X/4X` ister, ama bu dizi daha önce yalnızca
- * `[1, 2, 4]` içeriyordu (canlı yayın/pratik yarış ekranlarının
- * KULLANIM ŞEKLİYLE hiç ÇAKIŞMADIĞI için `0.5×` fark edilmemişti).
- * `advancePlaybackTimeMs` (bkz. `timeline-playback.ts`) çarpanı SAF bir
- * çarpım olarak kullandığından (`deltaMs * speedMultiplier`) 1'den küçük
- * bir değer YENİ bir davranış İCAT ETMEZ, sadece MEVCUT matematiği
- * genişletir — hem yeni `/replays/[raceId]` ekranında (replay
- * senaryosunda ağır çekim GERÇEKTEN faydalıdır) HEM canlı/pratik yarış
- * ekranlarında (aynı `RaceHud`'u paylaştıkları için) kullanılabilir hale
- * gelir.
- */
+/** Brief §22: PLAY/PAUSE/0.5X/1X/2X/4X. */
 const SPEED_OPTIONS = [0.5, 1, 2, 4] as const;
 
 function RaceHudComponent(props: RaceHudProps): React.ReactElement {
@@ -129,116 +133,122 @@ function RaceHudComponent(props: RaceHudProps): React.ReactElement {
     onSeek,
     liveStatus,
     finishResult,
+    horseColorsById = {},
+    focusHorseId,
+    raceDistanceMeters,
+    raceTitle,
+    raceSubtitle,
+    miniMapTrack,
   } = props;
 
+  const focusEntry = focusHorseId
+    ? leaderboard.find((entry) => entry.horseId === focusHorseId)
+    : undefined;
+
   return (
-    <div
-      style={{
-        position: 'absolute',
-        inset: 0,
-        pointerEvents: 'none',
-        display: 'grid',
-        gridTemplateColumns: '1fr auto',
-        gridTemplateRows: 'auto 1fr auto',
-        padding: 'var(--space-md)',
-        gap: 'var(--space-md)',
-        fontFamily: 'var(--font-family)',
-      }}
-    >
-      <div
-        style={{
-          gridColumn: '1 / -1',
-          display: 'flex',
-          flexWrap: 'wrap',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          gap: 'var(--space-sm)',
-          pointerEvents: 'auto',
-        }}
-      >
-        <RaceTimeDisplay currentTimeMs={currentTimeMs} durationMs={durationMs} liveStatus={liveStatus} />
-        <CameraSwitcher cameraMode={cameraMode} onChangeCameraMode={onChangeCameraMode} />
+    <div className="hud">
+      <div className="hud-top">
+        <RaceInfoPanel
+          title={raceTitle}
+          subtitle={raceSubtitle}
+          currentTimeMs={currentTimeMs}
+          durationMs={durationMs}
+          liveStatus={liveStatus}
+        />
+        <div className="hud-top-right">
+          {liveStatus ? <LiveStatusBadge status={liveStatus} /> : null}
+          <CameraSwitcher cameraMode={cameraMode} onChangeCameraMode={onChangeCameraMode} />
+        </div>
       </div>
 
-      <LeaderboardPanel horseNamesById={horseNamesById} leaderboard={leaderboard} />
-
-      <MiniMap markers={miniMapMarkers} />
+      <LeaderboardPanel
+        horseNamesById={horseNamesById}
+        leaderboard={leaderboard}
+        horseColorsById={horseColorsById}
+      />
 
       {finishResult && finishResult.length > 0 ? <FinishResultOverlay rows={finishResult} /> : null}
 
-      <div style={{ gridColumn: '1 / -1', pointerEvents: 'auto' }}>
-        {liveStatus ? (
-          <LiveStatusBadge status={liveStatus} />
-        ) : (
-          <PlaybackControls
-            currentTimeMs={currentTimeMs}
-            durationMs={durationMs}
-            isPlaying={isPlaying}
-            speedMultiplier={speedMultiplier}
-            onTogglePlay={onTogglePlay}
-            onChangeSpeedMultiplier={onChangeSpeedMultiplier}
-            onSeek={onSeek}
+      <div className="hud-bottom">
+        {focusEntry ? (
+          <FocusHorseCard
+            entry={focusEntry}
+            name={horseNamesById[focusEntry.horseId] ?? focusEntry.horseId}
+            color={horseColorsById[focusEntry.horseId] ?? FALLBACK_BADGE_COLOR}
+            raceDistanceMeters={raceDistanceMeters}
           />
+        ) : (
+          <span />
         )}
+        <div className="hud-bottom-center">
+          {raceDistanceMeters !== undefined && raceDistanceMeters > 0 ? (
+            <ProgressStrip
+              leaderboard={leaderboard}
+              horseColorsById={horseColorsById}
+              raceDistanceMeters={raceDistanceMeters}
+            />
+          ) : null}
+          {liveStatus ? null : (
+            <PlaybackControls
+              currentTimeMs={currentTimeMs}
+              durationMs={durationMs}
+              isPlaying={isPlaying}
+              speedMultiplier={speedMultiplier}
+              onTogglePlay={onTogglePlay}
+              onChangeSpeedMultiplier={onChangeSpeedMultiplier}
+              onSeek={onSeek}
+            />
+          )}
+        </div>
+        <MiniMap markers={miniMapMarkers} track={miniMapTrack} horseColorsById={horseColorsById} />
       </div>
     </div>
   );
 }
 
 /**
- * Faz 2 "HUD Telemetri" düzeltmesi (bu turda EKLENDİ) — brief'in "HUD
- * performansını bozacak şekilde React state'i her frame güncelleme"
- * uyarısına karşı ikinci (ve asıl KALICI) savunma: `memo()`. `RaceViewer.tsx`
- * VE `LiveRaceViewer.tsx` artık `RaceHud`'a geçirdikleri TÜM türetilmiş veri
- * ve callback'leri throttle'lı bir zaman ekseninden (`hudTimeMs`) ve
- * `useCallback` ile SABİT kimlikte üretiyor (bkz. o dosyaların doc
- * yorumları) — ama üst bileşen (`RaceViewer`/`LiveRaceViewer`) YİNE DE her
- * rAF karesinde (60Hz) yeniden render OLUYOR (3D sahnenin `currentTimeMs`'i
- * yüzünden). `memo()` OLMADAN, React `RaceHud`'u YİNE DE her ebeveyn
- * render'ında ÇAĞIRIRDI ve JSX ağacını yeniden hesaplardı (gerçek DOM'a
- * commit ETMESE bile, bu hesaplama kendisi ZATEN gereksiz iştir). `memo()`
- * ile, prop'lar (sığ karşılaştırmayla) DEĞİŞMEDİĞİ sürece `RaceHud`'un
- * fonksiyon gövdesi HİÇ ÇALIŞMAZ — 60Hz'lik ebeveyn render'ı ile 10Hz'lik
- * (`HUD_SYNC_INTERVAL_MS`) HUD güncellemesi arasındaki AYRIM burada
- * TAMAMLANIR.
+ * `memo()`: üst bileşen her rAF karesinde render olur (3D sahne); HUD ise
+ * throttle'lı `hudTimeMs` ile beslenir — prop'lar değişmedikçe HUD gövdesi
+ * hiç çalışmaz.
  */
 export const RaceHud = memo(RaceHudComponent);
 
-function panelStyle(): React.CSSProperties {
-  return {
-    background: 'rgba(18, 27, 46, 0.82)',
-    border: '1px solid var(--color-border)',
-    borderRadius: 'var(--radius-md)',
-    padding: 'var(--space-sm) var(--space-md)',
-    backdropFilter: 'blur(4px)',
-  };
-}
-
-function RaceTimeDisplay({
+function RaceInfoPanel({
+  title,
+  subtitle,
   currentTimeMs,
   durationMs,
   liveStatus,
 }: {
+  title?: string;
+  subtitle?: string;
   currentTimeMs: number;
   durationMs: number;
   liveStatus?: RaceLiveStatus;
 }): React.ReactElement {
   return (
-    <div style={panelStyle()}>
-      <span style={{ color: 'var(--color-accent-gold)', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
-        {formatRaceClock(currentTimeMs)}
+    <div className="hud-panel hud-info">
+      <span className="hud-info-icon">
+        <HorseHeadIcon size={34} gradient withMane />
       </span>
-      {liveStatus ? null : <span style={{ color: 'var(--color-text-muted)' }}> / {formatRaceClock(durationMs)}</span>}
+      {title ? (
+        <span className="hud-info-text">
+          <strong className="hud-info-title">{title}</strong>
+          {subtitle ? <span className="hud-info-subtitle">{subtitle}</span> : null}
+        </span>
+      ) : null}
+      <span className="hud-clock">
+        <Timer size={16} aria-hidden="true" />
+        <span className="hud-clock-now">{formatRaceClock(currentTimeMs)}</span>
+        {liveStatus ? null : (
+          <span className="hud-clock-total"> / {formatRaceClock(durationMs)}</span>
+        )}
+      </span>
     </div>
   );
 }
 
-/**
- * F2 canlı yayın entegrasyonu (bu turda EKLENDİ) — `PlaybackControls`'un
- * (oynat/duraklat/hız/seek) CANLI bir yayında yerini alır (bkz. dosya
- * başı doc yorumu). Yalnızca DURUM gösterir, hiçbir etkileşim SUNMAZ —
- * canlı bir yayında "duraklat" gibi bir kavram YOKTUR.
- */
+/** Canlı yayında oynatma kontrollerinin yerini alır — yalnızca durum gösterir. */
 function LiveStatusBadge({ status }: { status: RaceLiveStatus }): React.ReactElement {
   const LABELS: Record<RaceLiveStatus, string> = {
     connecting: 'Bağlanıyor…',
@@ -253,18 +263,13 @@ function LiveStatusBadge({ status }: { status: RaceLiveStatus }): React.ReactEle
     finished: 'var(--color-status-positive)',
   };
   return (
-    <div style={{ ...panelStyle(), display: 'flex', alignItems: 'center', gap: '8px' }}>
+    <div className="hud-panel hud-live">
       <span
         aria-hidden="true"
-        style={{
-          width: '10px',
-          height: '10px',
-          borderRadius: '50%',
-          background: DOT_COLORS[status],
-          flexShrink: 0,
-        }}
+        className="hud-live-dot"
+        style={{ background: DOT_COLORS[status] }}
       />
-      <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text-primary)' }}>{LABELS[status]}</span>
+      <span>{LABELS[status]}</span>
     </div>
   );
 }
@@ -277,22 +282,14 @@ function CameraSwitcher({
   onChangeCameraMode: (mode: CameraMode) => void;
 }): React.ReactElement {
   return (
-    <div style={{ ...panelStyle(), display: 'flex', flexWrap: 'wrap', gap: 'var(--space-xs)' }}>
+    <div className="hud-panel hud-cameras">
       {CAMERA_MODE_ORDER.map((mode) => (
         <button
           key={mode}
           type="button"
+          className="hud-camera-button"
+          aria-pressed={mode === cameraMode}
           onClick={() => onChangeCameraMode(mode)}
-          style={{
-            minHeight: '44px',
-            padding: '6px 12px',
-            fontSize: '13px',
-            borderRadius: 'var(--radius-sm)',
-            border: mode === cameraMode ? '1px solid var(--color-accent-gold)' : '1px solid transparent',
-            background: mode === cameraMode ? 'rgba(227, 179, 65, 0.15)' : 'transparent',
-            color: mode === cameraMode ? 'var(--color-accent-gold)' : 'var(--color-text-secondary)',
-            cursor: 'pointer',
-          }}
         >
           {CAMERA_MODE_LABELS[mode]}
         </button>
@@ -301,7 +298,7 @@ function CameraSwitcher({
   );
 }
 
-/** Brief §20 "RACE HUD" — `RacingStyle` değerlerinin Türkçe kısa etiketleri (bkz. `packages/shared-types/src/race.ts`). */
+/** `RacingStyle` değerlerinin kısa Türkçe etiketleri. */
 const TACTICAL_STATE_LABELS: Record<string, string> = {
   front_runner: 'Öncü',
   tracker: 'Takipçi',
@@ -310,82 +307,81 @@ const TACTICAL_STATE_LABELS: Record<string, string> = {
 };
 
 /**
- * Stamina/fatigue çubuğu — brief §20'nin istediği STAMINA/FATIGUE
- * göstergesi. Veri Race Engine'den zaten geliyor (bkz.
- * `LiveLeaderboardEntry` doc yorumu); burada yalnızca GÖRSEL bir
- * ilerleme çubuğu olarak render ediliyor, yeni bir hesaplama YOK.
+ * Stamina/yorgunluk çubuğu (brief §20). Veri Race Engine'den gelir; burada
+ * yalnızca görselleştirilir. DOM yapısı (etiket `span` + iz `div` > dolgu
+ * `div`) testlerin okuduğu sözleşmedir.
  */
-function StatBar({ label, value, color }: { label: string; value: number; color: string }): React.ReactElement {
+function StatBar({
+  label,
+  value,
+  color,
+}: {
+  label: string;
+  value: number;
+  color: string;
+}): React.ReactElement {
   const clamped = Math.max(0, Math.min(100, value));
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '10px' }}>
-      <span style={{ color: 'var(--color-text-muted)', width: '24px', flexShrink: 0 }}>{label}</span>
-      <div
-        style={{
-          flex: 1,
-          height: '4px',
-          borderRadius: '2px',
-          background: 'rgba(255, 255, 255, 0.12)',
-          overflow: 'hidden',
-        }}
-      >
+    <div className="hud-statbar">
+      <span>{label}</span>
+      <div className="hud-statbar-track">
         <div style={{ width: `${clamped}%`, height: '100%', background: color }} />
       </div>
     </div>
   );
 }
 
+function RankBadge({ rank, color }: { rank: number; color: string }): React.ReactElement {
+  return (
+    <span className="hud-rank-badge" style={{ background: color }}>
+      {rank}
+    </span>
+  );
+}
+
 function LeaderboardPanel({
   horseNamesById,
   leaderboard,
+  horseColorsById,
 }: {
   horseNamesById: Record<string, string>;
   leaderboard: LiveLeaderboardEntry[];
+  horseColorsById: Record<string, string>;
 }): React.ReactElement {
   return (
-    <div style={{ ...panelStyle(), pointerEvents: 'auto', alignSelf: 'start', minWidth: 'min(200px, 42vw)', maxWidth: '260px' }}>
-      <div
-        style={{
-          fontSize: '11px',
-          textTransform: 'uppercase',
-          letterSpacing: '0.06em',
-          color: 'var(--color-text-muted)',
-          marginBottom: 'var(--space-xs)',
-        }}
-      >
-        Sıralama
-      </div>
-      <ol style={{ listStyle: 'none', margin: 0, padding: 0, display: 'grid', gap: '6px' }}>
+    <div className="hud-panel hud-standings">
+      <div className="hud-panel-title">Sıralama</div>
+      <ol className="hud-standings-list">
         {leaderboard.map((entry) => {
-          // `Yor` çubuğunun gösterdiği değer: CANLI (yarış içinde biriken)
-          // yorgunluk. `fatigueLevel` bu alan eklenmeden önce persist
-          // edilmiş kayıtlarda `undefined` olduğundan geriye dönük olarak
-          // statik `fatigue`'a düşülür (bkz. `timeline-playback.ts`
-          // `fatigueLevelOf`) — eski bir replay'de çubuk kaybolmasın diye.
+          // `Yor`: CANLI (yarış içinde biriken) yorgunluk; eski kayıtlarda
+          // `fatigueLevel` yoksa statik `fatigue`a düşülür.
           const liveFatigue = entry.fatigueLevel ?? entry.fatigue;
           return (
-            <li key={entry.horseId} style={{ display: 'grid', gap: '2px' }}>
-              <div
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  gap: 'var(--space-sm)',
-                  fontSize: '13px',
-                }}
-              >
-                <span style={{ color: 'var(--color-text-primary)' }}>
-                  {entry.rank}. {horseNamesById[entry.horseId] ?? entry.horseId}
+            <li
+              key={entry.horseId}
+              className="hud-standings-row"
+              data-leader={entry.rank === 1 || undefined}
+            >
+              <div className="hud-standings-line">
+                <RankBadge
+                  rank={entry.rank}
+                  color={horseColorsById[entry.horseId] ?? FALLBACK_BADGE_COLOR}
+                />
+                <span className="hud-standings-name">
+                  <span>{horseNamesById[entry.horseId] ?? entry.horseId}</span>
                   {entry.tacticalState || entry.paceScore !== undefined ? (
-                    <span style={{ color: 'var(--color-text-muted)', fontSize: '10px' }}>
-                      {' ('}
-                      {entry.tacticalState ? (TACTICAL_STATE_LABELS[entry.tacticalState] ?? entry.tacticalState) : null}
+                    <span className="hud-standings-meta">
+                      {entry.tacticalState
+                        ? (TACTICAL_STATE_LABELS[entry.tacticalState] ?? entry.tacticalState)
+                        : null}
                       {entry.tacticalState && entry.paceScore !== undefined ? ' · ' : null}
-                      {entry.paceScore !== undefined ? `Tempo ${Math.round(entry.paceScore)}` : null}
-                      {')'}
+                      {entry.paceScore !== undefined
+                        ? `Tempo ${Math.round(entry.paceScore)}`
+                        : null}
                     </span>
                   ) : null}
                 </span>
-                <span style={{ color: 'var(--color-text-muted)', fontVariantNumeric: 'tabular-nums' }}>
+                <span className="hud-standings-gap">
                   {entry.rank === 1 ? '—' : `-${entry.gapToLeaderMeters.toFixed(1)}m`}
                 </span>
               </div>
@@ -403,80 +399,112 @@ function LeaderboardPanel({
   );
 }
 
-/**
- * Master Development Brief §23 "Photo Finish" sunumu (bu turda EKLENDİ) —
- * yarış bittiğinde HUD'un ÜZERİNE (ortalanmış, `pointerEvents: 'auto'`)
- * bindirilen sonuç kartı. `RaceViewer.tsx`/`LiveRaceViewer.tsx` bu veriyi
- * `photo-finish.ts`'in `buildPhotoFinishRows()`'undan üretir — burada
- * SADECE zaten hesaplanmış `PhotoFinishRow[]`'u render eder, yeni bir
- * hesaplama YAPMAZ (bileşenin kendisi framework'e bağımlı olduğundan bu
- * dosya `tsconfig.logic.json` kapsamı DIŞINDA kalır, ama çağırdığı
- * `formatFinishGap`/`isCloseFinish` saf fonksiyonları ORADA doğrulanmıştır).
- */
+function FocusHorseCard({
+  entry,
+  name,
+  color,
+  raceDistanceMeters,
+}: {
+  entry: LiveLeaderboardEntry;
+  name: string;
+  color: string;
+  raceDistanceMeters?: number;
+}): React.ReactElement {
+  const remaining =
+    raceDistanceMeters !== undefined
+      ? Math.max(0, Math.round(raceDistanceMeters - entry.positionMeters))
+      : null;
+  return (
+    <div className="hud-panel hud-focus">
+      <div className="hud-focus-portrait" style={{ borderColor: color }}>
+        <HorseHeadIcon size={46} gradient withMane />
+      </div>
+      <div className="hud-focus-body">
+        <div className="hud-focus-name">
+          <RankBadge rank={entry.rank} color={color} />
+          <strong>{name}</strong>
+        </div>
+        <div className="hud-focus-stats">
+          <span className="hud-focus-stat">
+            <Gauge size={15} aria-hidden="true" />
+            <span className="hud-focus-stat-label">Hız</span>
+            <strong>{Math.round(entry.speedMps * MPS_TO_KMH)} km/s</strong>
+          </span>
+          {entry.paceScore !== undefined ? (
+            <span className="hud-focus-stat">
+              <Route size={15} aria-hidden="true" />
+              <span className="hud-focus-stat-label">Tempo</span>
+              <strong>{Math.round(entry.paceScore)}</strong>
+            </span>
+          ) : null}
+          {remaining !== null ? (
+            <span className="hud-focus-stat">
+              <Flag size={15} aria-hidden="true" />
+              <span className="hud-focus-stat-label">Kalan</span>
+              <strong>{remaining} m</strong>
+            </span>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Yarışın ilerleme şeridi: her at, katettiği mesafe oranında renkli rozetle. */
+function ProgressStrip({
+  leaderboard,
+  horseColorsById,
+  raceDistanceMeters,
+}: {
+  leaderboard: LiveLeaderboardEntry[];
+  horseColorsById: Record<string, string>;
+  raceDistanceMeters: number;
+}): React.ReactElement {
+  return (
+    <div className="hud-panel hud-progress" aria-label="Yarış ilerlemesi">
+      <div className="hud-progress-track">
+        <Flag size={14} className="hud-progress-finish" aria-hidden="true" />
+        {[...leaderboard].reverse().map((entry) => {
+          const ratio = Math.max(0, Math.min(1, entry.positionMeters / raceDistanceMeters));
+          return (
+            <span
+              key={entry.horseId}
+              className="hud-progress-marker"
+              style={{
+                left: `${ratio * 100}%`,
+                background: horseColorsById[entry.horseId] ?? FALLBACK_BADGE_COLOR,
+              }}
+              title={`${entry.rank}.`}
+            >
+              {entry.rank}
+            </span>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/** §23 Photo Finish sonuç kartı — yalnızca hesaplanmış satırları gösterir. */
 function FinishResultOverlay({ rows }: { rows: PhotoFinishRow[] }): React.ReactElement {
   const closeFinish = isCloseFinish(rows, cameraConfig);
   return (
-    <div
-      style={{
-        position: 'absolute',
-        inset: 0,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        pointerEvents: 'auto',
-        background: 'rgba(8, 12, 22, 0.55)',
-      }}
-    >
-      <div
-        style={{
-          ...panelStyle(),
-          minWidth: 'min(320px, 86vw)',
-          maxWidth: '420px',
-          padding: 'var(--space-lg, 20px) var(--space-md)',
-          background: 'rgba(14, 20, 34, 0.95)',
-        }}
-      >
-        <div
-          style={{
-            textAlign: 'center',
-            marginBottom: 'var(--space-sm)',
-          }}
-        >
-          {closeFinish ? (
-            <div
-              style={{
-                color: 'var(--color-accent-gold)',
-                fontWeight: 700,
-                fontSize: '13px',
-                letterSpacing: '0.08em',
-                textTransform: 'uppercase',
-                marginBottom: '4px',
-              }}
-            >
-              Foto Finiş!
-            </div>
-          ) : null}
-          <div style={{ color: 'var(--color-text-primary)', fontWeight: 700, fontSize: '18px' }}>Yarış Sonucu</div>
+    <div className="hud-finish-backdrop">
+      <div className="hud-panel hud-finish">
+        <div style={{ textAlign: 'center', marginBottom: 'var(--space-sm)' }}>
+          {closeFinish ? <div className="hud-finish-photo">Foto Finiş!</div> : null}
+          <div className="hud-finish-title">Yarış Sonucu</div>
         </div>
-        <ol style={{ listStyle: 'none', margin: 0, padding: 0, display: 'grid', gap: '6px' }}>
+        <ol className="hud-finish-list">
           {rows.map((row) => (
             <li
               key={`${row.finishPosition}-${row.horseId ?? row.displayName}`}
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                gap: 'var(--space-sm)',
-                fontSize: '14px',
-                padding: '4px 0',
-                borderBottom: '1px solid rgba(255,255,255,0.06)',
-              }}
+              data-winner={row.isWinner || undefined}
             >
-              <span style={{ color: row.isWinner ? 'var(--color-accent-gold)' : 'var(--color-text-primary)', fontWeight: row.isWinner ? 700 : 400 }}>
+              <span>
                 {row.finishPosition}. {row.displayName}
               </span>
-              <span style={{ color: 'var(--color-text-muted)', fontVariantNumeric: 'tabular-nums' }}>
-                {formatFinishGap(row.gapToWinnerMs)}
-              </span>
+              <span className="hud-finish-gap">{formatFinishGap(row.gapToWinnerMs)}</span>
             </li>
           ))}
         </ol>
@@ -485,35 +513,58 @@ function FinishResultOverlay({ rows }: { rows: PhotoFinishRow[] }): React.ReactE
   );
 }
 
-function MiniMap({ markers }: { markers: MiniMapMarker[] }): React.ReactElement {
+function MiniMap({
+  markers,
+  track,
+  horseColorsById,
+}: {
+  markers: MiniMapMarker[];
+  track?: MiniMapPoint[];
+  horseColorsById: Record<string, string>;
+}): React.ReactElement {
+  const trackPath =
+    track && track.length > 1
+      ? `${track.map((point) => `${point.xPercent},${point.yPercent}`).join(' ')}`
+      : null;
   return (
-    <div
-      style={{
-        ...panelStyle(),
-        gridColumn: 2,
-        alignSelf: 'end',
-        justifySelf: 'end',
-        // AUDIT_REPORT.md F1: sabit 160px genişlik, dar telefonlarda
-        // sıralama paneliyle (bkz. `LeaderboardPanel`) toplamda taşıyordu.
-        // `min()` ile viewport'un %38'ini aşmayacak şekilde küçülür;
-        // `aspectRatio` sabit 96px yüksekliğin yerine oranı KORUR, böylece
-        // panel küçülse de orantısız/basık görünmez.
-        width: 'min(160px, 38vw)',
-        aspectRatio: '5 / 3',
-        position: 'relative',
-        padding: 0,
-        overflow: 'hidden',
-      }}
-    >
-      <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ width: '100%', height: '100%' }}>
-        <rect x={2} y={2} width={96} height={96} rx={8} fill="rgba(255,255,255,0.03)" />
+    <div className="hud-panel hud-minimap">
+      <svg
+        viewBox="0 0 100 100"
+        preserveAspectRatio="none"
+        style={{ width: '100%', height: '100%' }}
+      >
+        {trackPath ? (
+          <>
+            <polygon
+              points={trackPath}
+              fill="none"
+              stroke="rgba(255,255,255,0.18)"
+              strokeWidth={9}
+              strokeLinejoin="round"
+            />
+            <polygon
+              points={trackPath}
+              fill="none"
+              stroke="rgba(214,180,130,0.9)"
+              strokeWidth={5}
+              strokeLinejoin="round"
+            />
+          </>
+        ) : (
+          <rect x={2} y={2} width={96} height={96} rx={8} fill="rgba(255,255,255,0.03)" />
+        )}
         {markers.map((marker) => (
           <circle
             key={marker.horseId}
             cx={marker.xPercent}
             cy={marker.yPercent}
-            r={marker.isLeader ? 3.2 : 2.4}
-            fill={marker.isLeader ? 'var(--color-accent-gold)' : 'var(--color-accent-focus)'}
+            r={marker.isLeader ? 3.6 : 2.8}
+            fill={
+              horseColorsById[marker.horseId] ??
+              (marker.isLeader ? 'var(--color-accent-gold)' : 'var(--color-accent-focus)')
+            }
+            stroke="#0b1220"
+            strokeWidth={0.8}
           />
         ))}
       </svg>
@@ -539,51 +590,26 @@ function PlaybackControls({
   onSeek: (timeMs: number) => void;
 }): React.ReactElement {
   return (
-    <div style={{ ...panelStyle(), display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 'var(--space-sm)' }}>
-      <button
-        type="button"
-        onClick={onTogglePlay}
-        style={{
-          width: '44px',
-          height: '44px',
-          flexShrink: 0,
-          borderRadius: '50%',
-          border: '1px solid var(--color-border)',
-          background: 'var(--color-bg-surface-elevated)',
-          color: 'var(--color-text-primary)',
-          fontSize: '16px',
-          cursor: 'pointer',
-        }}
-      >
+    <div className="hud-panel hud-playback">
+      <button type="button" onClick={onTogglePlay} className="hud-play-button">
         {isPlaying ? '❚❚' : '▶'}
       </button>
-
       <input
         type="range"
         min={0}
         max={durationMs}
         value={currentTimeMs}
         onChange={(event) => onSeek(Number(event.target.value))}
-        style={{ flex: '1 1 120px', minHeight: '44px' }}
+        className="hud-seek"
       />
-
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+      <div className="hud-speeds">
         {SPEED_OPTIONS.map((option) => (
           <button
             key={option}
             type="button"
+            className="hud-speed-button"
+            aria-pressed={option === speedMultiplier}
             onClick={() => onChangeSpeedMultiplier(option)}
-            style={{
-              minWidth: '44px',
-              minHeight: '44px',
-              padding: '4px 10px',
-              fontSize: '13px',
-              borderRadius: 'var(--radius-sm)',
-              border: option === speedMultiplier ? '1px solid var(--color-accent-gold)' : '1px solid var(--color-border)',
-              background: option === speedMultiplier ? 'rgba(227, 179, 65, 0.15)' : 'transparent',
-              color: option === speedMultiplier ? 'var(--color-accent-gold)' : 'var(--color-text-secondary)',
-              cursor: 'pointer',
-            }}
           >
             {option}×
           </button>

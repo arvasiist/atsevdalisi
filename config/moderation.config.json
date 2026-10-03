@@ -1,0 +1,32 @@
+{
+  "sanctions": {
+    "reasonMinLength": 5,
+    "reasonMaxLength": 500,
+    "moderatorMaxSuspendHours": 72,
+    "adminMaxSuspendHours": 8760,
+    "historyLimit": 50
+  },
+  "announcements": {
+    "titleMaxLength": 80,
+    "bodyMaxLength": 1000,
+    "maxLive": 5,
+    "maxDurationDays": 90,
+    "adminListLimit": 50
+  },
+  "economyAdjustment": {
+    "maxAbsAmount": {
+      "money": 1000000,
+      "gems": 10000
+    },
+    "reasonMinLength": 10,
+    "reasonMaxLength": 500
+  },
+  "horseSearch": {
+    "limit": 50,
+    "queryMaxLength": 60
+  },
+  "adminViews": {
+    "seasonListLimit": 24,
+    "tournamentListLimit": 50
+  }
+}

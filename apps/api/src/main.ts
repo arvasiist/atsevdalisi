@@ -1,9 +1,13 @@
 import 'reflect-metadata';
+import { RedisIoAdapter } from './infrastructure/realtime/redis-io.adapter';
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { IoAdapter } from '@nestjs/platform-socket.io';
 import helmet from 'helmet';
+import { loadOpsConfig } from '@at-sevdalisi/game-config';
 import { AppModule } from './app.module';
+import { checkEnvironment } from './infrastructure/ops/production-env';
+import { JsonLogger } from './infrastructure/ops/structured-log';
 import { HttpExceptionFilter } from './api/middleware/http-exception.filter';
 
 /**
@@ -12,7 +16,27 @@ import { HttpExceptionFilter } from './api/middleware/http-exception.filter';
  * eklenecektir.
  */
 async function bootstrap(): Promise<void> {
-  const app = await NestFactory.create(AppModule);
+  // 02.10.2026 (Faz 13-A) — üretimde eksik/zayıf ortam değişkeniyle AÇILMA
+  // (bkz. `production-env.ts`). Değerlerin kendisi ASLA loglanmaz.
+  const envCheck = checkEnvironment(process.env, loadOpsConfig().productionEnv);
+  for (const warning of envCheck.warnings) {
+    // eslint-disable-next-line no-console
+    console.warn(`[ortam] UYARI: ${warning}`);
+  }
+  if (envCheck.errors.length > 0) {
+    for (const error of envCheck.errors) {
+      // eslint-disable-next-line no-console
+      console.error(`[ortam] HATA: ${error}`);
+    }
+    process.exit(1);
+  }
+
+  // 02.10.2026 (Faz 13-C) — üretimde tek satır JSON log (log toplayıcı
+  // bağımsız); geliştirmede Nest'in okunur logu.
+  const app = await NestFactory.create(
+    AppModule,
+    process.env.NODE_ENV === 'production' ? { logger: new JsonLogger() } : {},
+  );
 
   // AUDIT_REPORT.md Bulgu F2 (bu oturum) — `RaceGateway`'in (bkz. o
   // dosyanın doc yorumu) kullandığı socket.io tabanlı WebSocket adaptörünü
@@ -20,7 +44,20 @@ async function bootstrap(): Promise<void> {
   // ZIMNİ otomatik algılamaya BIRAKMAMAK için (bu sandbox'ta hiç
   // kurulup/çalıştırılamayan bir paket seti olduğundan, belirsizliği en
   // aza indirmek amacıyla).
-  app.useWebSocketAdapter(new IoAdapter(app));
+  // 02.10.2026 (Faz 13) — çok örnekte yayınlar Redis köprüsünden geçer
+  // (`ops.realtime.redisAdapter`; kapalıysa tek örnek davranışı).
+  const realtime = loadOpsConfig().realtime.redisAdapter;
+  if (realtime.enabled) {
+    const adapter = new RedisIoAdapter(app, {
+      redisUrl: process.env.REDIS_URL ?? 'redis://localhost:6379',
+      requestsTimeoutMs: realtime.requestsTimeoutMs,
+      channelPrefix: realtime.channelPrefix,
+    });
+    await adapter.connectToRedis();
+    app.useWebSocketAdapter(adapter);
+  } else {
+    app.useWebSocketAdapter(new IoAdapter(app));
+  }
 
   // AUDIT_REPORT.md Bulgu S5 (High) hardening — güvenlik başlıkları
   // (CSP/HSTS/X-Frame-Options/X-Content-Type-Options/Referrer-Policy vb.)

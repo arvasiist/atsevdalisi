@@ -23,3 +23,9 @@ parametre olarak almaz).
 sistemi) — bu dosya sadece sezonun YAŞAM DÖNGÜSÜNÜ (durum + reset) yönetir.
 
 Testler: `apps/api/test/domain/season/season.spec.ts`.
+
+**01.10.2026 — BAĞLANDI.** `api/season` + `infrastructure/season` +
+`SeasonScheduler`. Sezon skoru saklanmaz; `PlayerSeasonState`/
+`applySeasonRaceResult` bu yüzden kullanılmaz (türetilmiş sıralama, ikinci
+bir sayaç tutmaktan güvenlidir). `getSeasonStatus` ve
+`calculateSeasonEndDate` kullanılır.

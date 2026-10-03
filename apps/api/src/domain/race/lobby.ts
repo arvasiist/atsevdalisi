@@ -61,6 +61,11 @@ export interface RaceCreationInput {
   tribuneFee: unknown;
   /** brief §11 izleyici kapasitesi. */
   spectatorCapacity: unknown;
+  /**
+   * 01.10.2026 — oyuncu kontrollü canlı yarış. OPSİYONEL: verilmezse `false`
+   * (eski davranış). Verilirse `boolean` OLMAK ZORUNDADIR (`"true"` metni reddedilir).
+   */
+  playerControl?: unknown;
 }
 
 /**
@@ -96,6 +101,7 @@ export interface ValidatedRaceCreation {
   tribuneFee: number;
   spectatorCapacity: number;
   prizePool: number;
+  playerControl: boolean;
 }
 
 /**
@@ -135,7 +141,11 @@ export function normalizeRaceName(name: string): string {
  * "Math.random() yasak" kuralının ZAMAN için olan karşılığıdır: saf
  * fonksiyonun gizli bir küresel kaynağı olmamalıdır.
  */
-export function validateRaceCreation(input: RaceCreationInput, config: RaceLobbyConfig, now: Date): RaceCreationValidation {
+export function validateRaceCreation(
+  input: RaceCreationInput,
+  config: RaceLobbyConfig,
+  now: Date,
+): RaceCreationValidation {
   const problems: string[] = [];
 
   // --- Ad (brief §1) ---
@@ -158,15 +168,23 @@ export function validateRaceCreation(input: RaceCreationInput, config: RaceLobby
   // --- At sayısı (brief §1/§7) ---
   let fieldSize: number | null = null;
   if (typeof input.fieldSize !== 'number' || !config.fieldSizes.includes(input.fieldSize)) {
-    problems.push(`At sayısı ${config.fieldSizes.join('/')} değerlerinden biri olmalıdır (verilen: ${describe(input.fieldSize)}).`);
+    problems.push(
+      `At sayısı ${config.fieldSizes.join('/')} değerlerinden biri olmalıdır (verilen: ${describe(input.fieldSize)}).`,
+    );
   } else {
     fieldSize = input.fieldSize;
   }
 
   // --- Oyuncu tavanı (brief §6) ---
   let maxPlayers: number | null = null;
-  if (typeof input.maxPlayers !== 'number' || !Number.isInteger(input.maxPlayers) || input.maxPlayers < 1) {
-    problems.push(`Maksimum oyuncu en az 1 olan bir tam sayı olmalıdır (verilen: ${describe(input.maxPlayers)}).`);
+  if (
+    typeof input.maxPlayers !== 'number' ||
+    !Number.isInteger(input.maxPlayers) ||
+    input.maxPlayers < 1
+  ) {
+    problems.push(
+      `Maksimum oyuncu en az 1 olan bir tam sayı olmalıdır (verilen: ${describe(input.maxPlayers)}).`,
+    );
   } else {
     // `fieldSize` GEÇERSİZSE bu karşılaştırma ANLAMSIZDIR ("12, geçersiz
     // bir at sayısını aşamaz" gibi bir cümle kullanıcıya hiçbir şey
@@ -179,7 +197,9 @@ export function validateRaceCreation(input: RaceCreationInput, config: RaceLobby
           "aşan oyuncunun atı start gate'te yer bulamaz (brief §6).",
       );
     } else if (input.maxPlayers > config.maxPlayers) {
-      problems.push(`Maksimum oyuncu ${config.maxPlayers}'ı aşamaz (verilen: ${input.maxPlayers}).`);
+      problems.push(
+        `Maksimum oyuncu ${config.maxPlayers}'ı aşamaz (verilen: ${input.maxPlayers}).`,
+      );
     } else if (input.maxPlayers < config.minPlayers) {
       // ALT SINIR KONTROLÜ BİLİNÇLİDİR: `minPlayers`'ın altında bir tavanla
       // açılan yarış HİÇBİR ZAMAN başlayamaz (brief §6 "Yarışın
@@ -198,15 +218,22 @@ export function validateRaceCreation(input: RaceCreationInput, config: RaceLobby
   let raceType: 'free' | 'paid' | null = null;
   let entryFee: number | null = null;
   if (input.raceType !== 'free' && input.raceType !== 'paid') {
-    problems.push(`Yarış tipi 'free' ya da 'paid' olmalıdır (verilen: ${describe(input.raceType)}).`);
+    problems.push(
+      `Yarış tipi 'free' ya da 'paid' olmalıdır (verilen: ${describe(input.raceType)}).`,
+    );
   } else if (input.raceType === 'free') {
     if (input.entryFee !== 0) {
-      problems.push(`Ücretsiz yarışta giriş ücreti 0 olmalıdır (verilen: ${describe(input.entryFee)}).`);
+      problems.push(
+        `Ücretsiz yarışta giriş ücreti 0 olmalıdır (verilen: ${describe(input.entryFee)}).`,
+      );
     } else {
       raceType = 'free';
       entryFee = 0;
     }
-  } else if (typeof input.entryFee !== 'number' || !config.paidEntryFeeOptions.includes(input.entryFee)) {
+  } else if (
+    typeof input.entryFee !== 'number' ||
+    !config.paidEntryFeeOptions.includes(input.entryFee)
+  ) {
     problems.push(
       `Giriş ücreti ${config.paidEntryFeeOptions.join('/')} değerlerinden biri olmalıdır (verilen: ${describe(input.entryFee)}).`,
     );
@@ -217,19 +244,39 @@ export function validateRaceCreation(input: RaceCreationInput, config: RaceLobby
 
   // --- Tribün (brief §10/§11) ---
   let tribuneFee: number | null = null;
-  if (typeof input.tribuneFee !== 'number' || !config.tribuneFeeOptions.includes(input.tribuneFee)) {
-    problems.push(`Tribün ücreti ${config.tribuneFeeOptions.join('/')} değerlerinden biri olmalıdır (verilen: ${describe(input.tribuneFee)}).`);
+  if (
+    typeof input.tribuneFee !== 'number' ||
+    !config.tribuneFeeOptions.includes(input.tribuneFee)
+  ) {
+    problems.push(
+      `Tribün ücreti ${config.tribuneFeeOptions.join('/')} değerlerinden biri olmalıdır (verilen: ${describe(input.tribuneFee)}).`,
+    );
   } else {
     tribuneFee = input.tribuneFee;
   }
 
   let spectatorCapacity: number | null = null;
-  if (typeof input.spectatorCapacity !== 'number' || !config.spectatorCapacityOptions.includes(input.spectatorCapacity)) {
+  if (
+    typeof input.spectatorCapacity !== 'number' ||
+    !config.spectatorCapacityOptions.includes(input.spectatorCapacity)
+  ) {
     problems.push(
       `Tribün kapasitesi ${config.spectatorCapacityOptions.join('/')} değerlerinden biri olmalıdır (verilen: ${describe(input.spectatorCapacity)}).`,
     );
   } else {
     spectatorCapacity = input.spectatorCapacity;
+  }
+
+  // --- Oyuncu kontrolü (01.10.2026) ---
+  let playerControl = false;
+  if (input.playerControl !== undefined && input.playerControl !== null) {
+    if (typeof input.playerControl !== 'boolean') {
+      problems.push(
+        `Oyuncu kontrolü true/false olmalıdır (verilen: ${describe(input.playerControl)}).`,
+      );
+    } else {
+      playerControl = input.playerControl;
+    }
   }
 
   // --- Mesafe (brief §1) ---
@@ -250,14 +297,18 @@ export function validateRaceCreation(input: RaceCreationInput, config: RaceLobby
   // --- Pist + hava (brief §1) ---
   let surface: string | null = null;
   if (typeof input.surface !== 'string' || !config.allowedSurfaces.includes(input.surface)) {
-    problems.push(`Pist yüzeyi ${config.allowedSurfaces.join('/')} değerlerinden biri olmalıdır (verilen: ${describe(input.surface)}).`);
+    problems.push(
+      `Pist yüzeyi ${config.allowedSurfaces.join('/')} değerlerinden biri olmalıdır (verilen: ${describe(input.surface)}).`,
+    );
   } else {
     surface = input.surface;
   }
 
   let weather: string | null = null;
   if (typeof input.weather !== 'string' || !config.allowedWeather.includes(input.weather)) {
-    problems.push(`Hava durumu ${config.allowedWeather.join('/')} değerlerinden biri olmalıdır (verilen: ${describe(input.weather)}).`);
+    problems.push(
+      `Hava durumu ${config.allowedWeather.join('/')} değerlerinden biri olmalıdır (verilen: ${describe(input.weather)}).`,
+    );
   } else {
     weather = input.weather;
   }
@@ -265,11 +316,15 @@ export function validateRaceCreation(input: RaceCreationInput, config: RaceLobby
   // --- Başlangıç zamanı (brief §1) ---
   let startTime: Date | null = null;
   if (typeof input.startTime !== 'string') {
-    problems.push(`Başlangıç zamanı bir ISO 8601 metni olmalıdır (verilen tip: ${describeType(input.startTime)}).`);
+    problems.push(
+      `Başlangıç zamanı bir ISO 8601 metni olmalıdır (verilen tip: ${describeType(input.startTime)}).`,
+    );
   } else {
     const startMs = Date.parse(input.startTime);
     if (Number.isNaN(startMs)) {
-      problems.push(`Başlangıç zamanı geçerli bir ISO 8601 tarihi olmalıdır (verilen: ${input.startTime}).`);
+      problems.push(
+        `Başlangıç zamanı geçerli bir ISO 8601 tarihi olmalıdır (verilen: ${input.startTime}).`,
+      );
     } else {
       // Saniye cinsinden fark — `Date.parse` milisaniye döndürdüğü için
       // config'teki saniye değerleriyle karşılaştırmadan önce bölünür.
@@ -319,6 +374,7 @@ export function validateRaceCreation(input: RaceCreationInput, config: RaceLobby
       // brief §3 — havuz katılımcılarla BÜYÜR; yarış açıldığı anda
       // katılımcı sayısı sıfırdır, dolayısıyla havuz da sıfırdır.
       prizePool: 0,
+      playerControl,
     },
   };
 }
@@ -388,7 +444,12 @@ export interface RaceJoinValidation {
  * kısıtını YANSITMAK zorundadır, tersi değil — tip genişleyip kısıt
  * genişlemezse `23514` ile 500 alınırdı.
  */
-const ALLOWED_TACTICAL_STYLES: readonly RacingStyle[] = ['front_runner', 'tracker', 'mid_pack', 'closer'];
+const ALLOWED_TACTICAL_STYLES: readonly RacingStyle[] = [
+  'front_runner',
+  'tracker',
+  'mid_pack',
+  'closer',
+];
 /** `race_entries.risk_level` CHECK kısıtı (migration 0006) ile BİREBİR aynı küme. */
 const ALLOWED_RISK_LEVELS: readonly RiskLevel[] = ['low', 'normal', 'high'];
 
@@ -448,7 +509,10 @@ export function validateRaceJoin(input: RaceJoinInput): RaceJoinValidation {
   let riskLevel: RiskLevel | null = null;
   if (input.riskLevel === undefined) {
     riskLevel = DEFAULT_RISK_LEVEL;
-  } else if (typeof input.riskLevel !== 'string' || !ALLOWED_RISK_LEVELS.includes(input.riskLevel as RiskLevel)) {
+  } else if (
+    typeof input.riskLevel !== 'string' ||
+    !ALLOWED_RISK_LEVELS.includes(input.riskLevel as RiskLevel)
+  ) {
     problems.push(
       `Risk seviyesi şunlardan biri olmalıdır: ${ALLOWED_RISK_LEVELS.join(', ')} (verilen: ${describe(input.riskLevel)}).`,
     );
@@ -462,7 +526,10 @@ export function validateRaceJoin(input: RaceJoinInput): RaceJoinValidation {
 
   // `problems` boşsa üç alan da yukarıdaki dallarda ATANMIŞTIR; `!` yalnızca
   // derleyiciyi ikna eder (bkz. `validateRaceCreation`'daki aynı not).
-  return { problems: [], value: { horseId: horseId!, tacticalStyle: tacticalStyle!, riskLevel: riskLevel! } };
+  return {
+    problems: [],
+    value: { horseId: horseId!, tacticalStyle: tacticalStyle!, riskLevel: riskLevel! },
+  };
 }
 
 /**
@@ -582,7 +649,9 @@ export function validateEntryReady(input: EntryReadyInput): EntryReadyValidation
   } else if (!READY_SETTABLE_STATUSES.includes(input.status as RaceEntryStatus)) {
     // `cancelled`/`waiting` burada AÇIKÇA reddedilir — sessizce yok saymak,
     // istemciye "durum değişti" dedirtip değiştirmemek olurdu.
-    problems.push(`Katılım durumu şunlardan biri olmalıdır: ${READY_SETTABLE_STATUSES.join(', ')}.`);
+    problems.push(
+      `Katılım durumu şunlardan biri olmalıdır: ${READY_SETTABLE_STATUSES.join(', ')}.`,
+    );
   } else {
     status = input.status as RaceEntryStatus;
   }

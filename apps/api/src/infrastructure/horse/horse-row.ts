@@ -34,6 +34,9 @@ export interface HorseRow {
   status: string;
   sire_id: string | null;
   dam_id: string | null;
+  coat_color: string;
+  face_marking: string;
+  leg_marking: string;
   created_at: Date;
   updated_at: Date;
 }
@@ -59,6 +62,12 @@ export function rowToHorse(row: HorseRow): Horse {
     status: row.status as Horse['status'],
     sireId: row.sire_id,
     damId: row.dam_id,
+    // CHECK kısıtları (migration 0051) union tipleriyle aynı kümeyi tutar.
+    appearance: {
+      coatColor: row.coat_color as Horse['appearance']['coatColor'],
+      faceMarking: row.face_marking as Horse['appearance']['faceMarking'],
+      legMarking: row.leg_marking as Horse['appearance']['legMarking'],
+    },
     createdAt: row.created_at.toISOString(),
     updatedAt: row.updated_at.toISOString(),
   };

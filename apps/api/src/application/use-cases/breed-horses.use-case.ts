@@ -5,6 +5,7 @@ import { assertBreedingConfigIsValid, pickFoalGender } from '../../domain/breedi
 import { validateHorseName } from '../../domain/horse/validation';
 import { AppConfigService } from '../../infrastructure/config/config.service';
 import { BREEDING_REPOSITORY, type BreedingRepository } from '../ports/breeding.repository';
+import { FarmEffectsService } from './farm-effects.service';
 
 /**
  * Çiftleştirme (proje sahibinin talebi — soy ağacı veri zincirinin ÜÇÜNCÜ
@@ -37,6 +38,7 @@ export class BreedHorsesUseCase {
   constructor(
     @Inject(BREEDING_REPOSITORY) private readonly breedingRepository: BreedingRepository,
     @Inject(AppConfigService) private readonly config: AppConfigService,
+    @Inject(FarmEffectsService) private readonly farmEffects: FarmEffectsService,
   ) {}
 
   async execute(
@@ -58,6 +60,9 @@ export class BreedHorsesUseCase {
     // `breeding_pairs.id` satırından yeniden üretilebilir kalır.
     const pairId = randomUUID();
 
+    // 01.10.2026 — üreme merkezi tayın doğum sağlık riskini düşürür (kısrak sahibi = çağıran).
+    const { birthHealthRiskMultiplier } = await this.farmEffects.effectsFor(playerId);
+
     return this.breedingRepository.breed({
       playerId,
       mareId,
@@ -68,6 +73,7 @@ export class BreedHorsesUseCase {
       foalGender: pickFoalGender(Math.random()),
       now: new Date(),
       idempotencyKey,
+      birthHealthRiskMultiplier,
     });
   }
 }

@@ -37,11 +37,19 @@
  * DEĞİL, gerçekten kullanılmayan bir alanın zararsız varsayılanıdır.
  */
 
-import type { RaceFinishEntry, RaceSegmentSnapshot, RaceTimeline, RaceTimelineView } from '@at-sevdalisi/shared-types';
+import type {
+  RaceSurface,
+  RaceFinishEntry,
+  RaceSegmentSnapshot,
+  RaceTimeline,
+  RaceTimelineView,
+} from '@at-sevdalisi/shared-types';
 
 export interface ReplayTimelineData {
   timeline: RaceTimeline;
   horseNamesById: Record<string, string>;
+  /** 01.10.2026 (3D adım 8) — yarış zemini (pist rengi + toz). */
+  surface: RaceSurface;
 }
 
 /**
@@ -64,7 +72,11 @@ function hasCompleteFinishData(
   finishPosition: number;
   performanceScore: number;
 } {
-  return entrant.finalTimeMs !== null && entrant.finishPosition !== null && entrant.performanceScore !== null;
+  return (
+    entrant.finalTimeMs !== null &&
+    entrant.finishPosition !== null &&
+    entrant.performanceScore !== null
+  );
 }
 
 /**
@@ -88,7 +100,8 @@ export function adaptRaceTimelineViewToReplayData(view: RaceTimelineView): Repla
 
   const horseNamesById: Record<string, string> = {};
   for (const entrant of completedEntrants) {
-    horseNamesById[entrant.entryId] = entrant.horseName ?? entrant.botLabel ?? 'Bilinmeyen katılımcı';
+    horseNamesById[entrant.entryId] =
+      entrant.horseName ?? entrant.botLabel ?? 'Bilinmeyen katılımcı';
   }
 
   return {
@@ -100,5 +113,6 @@ export function adaptRaceTimelineViewToReplayData(view: RaceTimelineView): Repla
       explanations: [],
     },
     horseNamesById,
+    surface: view.surface,
   };
 }

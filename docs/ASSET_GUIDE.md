@@ -13,8 +13,8 @@ Realistic Thoroughbred horse GLB, Gallop animation, Compatible skeleton`).
 ## Durum (2026-09-25 itibarıyla)
 
 **Aşağıdaki listedeki HİÇBİR varlık şu an repoda YOKTUR.**
-`apps/web/public/` klasörü boştur (yalnızca `manifest.json` PWA dosyası
-var). Bu BİLİNÇLİ bir kararın sonucudur: proje sahibi, gerçek varlık
+`apps/web/public/` klasörü boştur (PWA manifesti ve ikonları 02.10.2026'dan beri kodla üretilir — `app/manifest.ts`,
+`app/pwa-icon`). Bu BİLİNÇLİ bir kararın sonucudur: proje sahibi, gerçek varlık
 kaynağı seçimi (satın alma / lisanslı paket / özel üretim) konusunda
 **"şimdilik erteleyelim"** demiştir (bkz.
 `docs/IMPLEMENTATION_PLAN_MASTER_BRIEF.md`'nin "Grup 2" bölümü). Bu
@@ -173,6 +173,35 @@ fake GLB files or use unlicensed assets") burada mutlak bir çizgidir.
   bekleyen bir karardır** — gerçek `.ktx2` dosyası VE transcoder kurulumu
   birlikte eklendiğinde, SADECE `CrowdBillboards`in materyali (doku
   destekli) değişir, `RaceScene3DProps` arayüzü DEĞİŞMEZ.
+
+### STABLE_ENVIRONMENT_REQUIRED
+
+`public/models/stable-environment.glb` — ahır içi (bölme, saman, yemlik, su
+kabı, ekipman askısı), PBR ahşap/metal/taş. Yoksa: kart arayüzü + PLACEHOLDER
+rozetli at önizlemesi.
+
+### HDRI_SKY_REQUIRED
+
+`public/hdri/golden-hour.hdr` — gün batımı/altın saat HDRI (2K mobil, 4K
+masaüstü). Kendi sitemizden servis edilir; CDN'den indirme YASAK (sahne
+çökmesi yaşandı). Yoksa: drei `<Sky>` + Lightformer.
+
+### TRACK_DIRT_PBR_REQUIRED
+
+`public/textures/track-dirt-pbr.ktx2` — kum/toprak pist PBR (renk + normal +
+pürüzlülük), döşenebilir.
+
+### GRASS_PBR_REQUIRED
+
+`public/textures/grass-pbr.ktx2` — çim PBR, döşenebilir.
+
+### STABLE_WOOD_PBR_REQUIRED
+
+`public/textures/stable-wood-pbr.ktx2` — ahır ahşabı PBR.
+
+### STABLE_AMBIENCE_SFX_REQUIRED
+
+`public/audio/stable-ambience-loop.mp3` — ahır ortam sesi döngüsü.
 
 ### HOOFBEAT_SFX_REQUIRED
 
@@ -554,6 +583,23 @@ ihtiyaç duyuyor. Sessizce atlamak yerine burada AÇIKÇA listeleniyor:
   liste artık TEK bir yerde toplanıyor.
 
 ## Bir varlık eklendiğinde yapılması gerekenler
+
+**01.10.2026 — 3D modeli eklemek (adım 4):**
+1. Dosyayı `apps/web/public/<expectedPath>` altına koy (ör. `public/models/horse.glb`).
+2. `npm run assets:check` çalıştır: biçim, mesh/iskelet sayısı, animasyon
+   klipleri, renklendirilecek malzemeler ve mobil boyut bütçesi raporlanır.
+3. Rapordaki "not" satırlarına göre `asset-manifest.ts` → `binding`
+   (ileri eksen, hedef boy, malzeme adları, jokey kemiği) ve
+   `animationClips` (klip takma adları) güncellenir — kod değişmez.
+4. Sayfayı yenile: at/jokey her sahnede (ana sayfa, ahır önizlemesi, yarış)
+   `HorseAvatar3D` üzerinden gerçek modele geçer; PLACEHOLDER rozetinden düşer.
+
+**01.10.2026 — sıkıştırma:** GLB'ler Draco ya da Meshopt ile, dokular KTX2
+ile sıkıştırılabilir; çözücüler YEREL servis edilir (`/decoders/`,
+`apps/web/scripts/copy-3d-decoders.mjs`). Animasyon klip adları manifestteki
+`animationClips` takma adlarından biriyle eşleşmeli (ör. `Idle`, `Gallop`);
+eşleşmeyen rol prosedürel animasyona düşer.
+
 
 1. Dosyayı yukarıdaki TAM yola koy (`apps/web/public/...`).
 2. `asset-manifest.ts`'te İLGİLİ SATIRA DOKUNMA — yol zaten doğru

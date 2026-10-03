@@ -4,6 +4,7 @@ import { PlayerNotFoundError } from '../../domain/player/errors';
 import { normalizeWalletHistoryCursor, normalizeWalletHistoryLimit } from '../../domain/economy/wallet-history';
 import { AppConfigService } from '../../infrastructure/config/config.service';
 import { WALLET_REPOSITORY, type WalletRepository } from '../ports/wallet.repository';
+import { PAYMENT_PROVIDER, type PaymentProvider } from '../ports/payment-provider';
 
 /**
  * `GET /players/:id/wallet` — brief §20 "WALLET SYSTEM" ve §42 PHASE 4.
@@ -23,6 +24,7 @@ export class GetWalletUseCase {
   constructor(
     @Inject(WALLET_REPOSITORY) private readonly walletRepository: WalletRepository,
     @Inject(AppConfigService) private readonly config: AppConfigService,
+    @Inject(PAYMENT_PROVIDER) private readonly payments: PaymentProvider,
   ) {}
 
   async execute(playerId: string, rawLimit: unknown, rawBefore: unknown = undefined): Promise<WalletView> {
@@ -32,6 +34,9 @@ export class GetWalletUseCase {
     if (wallet === null) {
       throw new PlayerNotFoundError(playerId);
     }
-    return wallet;
+    // 02.10.2026 (Faz 13-A) — formu gösterip göstermemenin TEK kaynağı
+    // sunucudur: üretimde sahte yatırma kapalıdır ve config bayrağı açık
+    // olsa bile ekran "yükle" dememelidir.
+    return { ...wallet, depositAvailable: this.payments.isEnabled() };
   }
 }

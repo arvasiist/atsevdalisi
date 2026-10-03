@@ -33,12 +33,13 @@
  * deseniyle AYNI fikir.
  */
 
-import { useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { loadVfxConfig } from '@at-sevdalisi/game-config';
 import {
   advanceDustParticle,
+  dustSpawnRate,
   getDustParticleOpacity,
   isDustParticleExpired,
   spawnDustParticle,
@@ -51,7 +52,6 @@ import {
  */
 const vfxConfig = loadVfxConfig();
 const MAX_ACTIVE_PARTICLES = vfxConfig.dustParticles.maxActiveParticles;
-const PARTICLE_COLOR = new THREE.Color(vfxConfig.dustParticles.color);
 
 /**
  * Standart three.js "point sprite" boyutlandırma formülü (bkz. resmi
@@ -108,9 +108,19 @@ export interface DustParticlesProps {
   emitterPosition: { x: number; z: number };
   /** At hareket ETMİYORSA (yarış duraklatıldı/bitti) toz da DOĞMAMALIDIR — gerçekçilik (brief "çok gerçekçi" ilkesi). */
   isMoving: boolean;
+  /** 01.10.2026 — atın anlık hızı (m/s); toz oranı hızla ölçeklenir. Verilmezse referans hız. */
+  speedMps?: number;
+  /** 01.10.2026 — yarış zemini; toz miktarı ve rengi buna göre (`vfx.config.json` `dustBySurface`). */
+  surface?: 'dirt' | 'synthetic' | 'grass';
 }
 
-export function DustParticles({ horseId, emitterPosition, isMoving }: DustParticlesProps): React.ReactElement {
+export function DustParticles({
+  horseId,
+  emitterPosition,
+  isMoving,
+  speedMps = vfxConfig.dustSpeedReferenceMps,
+  surface = 'dirt',
+}: DustParticlesProps): React.ReactElement {
   const particlesRef = useRef<SeededDustParticle[]>([]);
   const spawnCounterRef = useRef(0);
   const accumulatedMsRef = useRef(0);
@@ -118,8 +128,14 @@ export function DustParticles({ horseId, emitterPosition, isMoving }: DustPartic
 
   const geometry = useMemo(() => {
     const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(MAX_ACTIVE_PARTICLES * 3), 3));
-    geo.setAttribute('opacity', new THREE.BufferAttribute(new Float32Array(MAX_ACTIVE_PARTICLES), 1));
+    geo.setAttribute(
+      'position',
+      new THREE.BufferAttribute(new Float32Array(MAX_ACTIVE_PARTICLES * 3), 3),
+    );
+    geo.setAttribute(
+      'opacity',
+      new THREE.BufferAttribute(new Float32Array(MAX_ACTIVE_PARTICLES), 1),
+    );
     return geo;
   }, []);
 
@@ -129,15 +145,19 @@ export function DustParticles({ horseId, emitterPosition, isMoving }: DustPartic
   // kalır), three.js'in `ShaderMaterial` için ÖNERDİĞİ desen budur.
   const uniforms = useMemo(
     () => ({
-      uColor: { value: PARTICLE_COLOR },
+      uColor: { value: new THREE.Color(vfxConfig.dustBySurface[surface].color) },
       uSize: { value: vfxConfig.dustParticles.size },
       uSizeScale: { value: vfxConfig.dustParticles.sizeScale },
       uBaseOpacity: { value: vfxConfig.dustParticles.baseOpacity },
     }),
+    // Renk zemine bağlıdır; zemin değişirse aşağıdaki efekt günceller.
     [],
   );
+  useEffect(() => {
+    uniforms.uColor.value.set(vfxConfig.dustBySurface[surface].color);
+  }, [surface, uniforms]);
 
-  useFrame((_state, deltaSeconds) => {
+  useFrame(({ camera }, deltaSeconds) => {
     const deltaMs = deltaSeconds * 1000;
     const particles = particlesRef.current;
 
@@ -156,12 +176,31 @@ export function DustParticles({ horseId, emitterPosition, isMoving }: DustPartic
     // 3) Yeni parçacık doğur (sadece at HAREKET EDİYORSA).
     if (isMoving) {
       accumulatedMsRef.current += deltaMs;
-      const spawnIntervalMs = 1000 / vfxConfig.dustParticles.spawnRatePerSecond;
-      while (accumulatedMsRef.current >= spawnIntervalMs && advanced.length < MAX_ACTIVE_PARTICLES) {
+      // 01.10.2026 — oran hız, zemin ve kamera uzaklığıyla ölçeklenir.
+      const rate = dustSpawnRate(
+        {
+          speedMps,
+          surface,
+          cameraDistanceMeters: Math.hypot(
+            camera.position.x - emitterPosition.x,
+            camera.position.z - emitterPosition.z,
+          ),
+        },
+        vfxConfig,
+      );
+      const spawnIntervalMs = rate > 0 ? 1000 / rate : Number.POSITIVE_INFINITY;
+      if (!Number.isFinite(spawnIntervalMs)) accumulatedMsRef.current = 0;
+      while (
+        accumulatedMsRef.current >= spawnIntervalMs &&
+        advanced.length < MAX_ACTIVE_PARTICLES
+      ) {
         accumulatedMsRef.current -= spawnIntervalMs;
         spawnCounterRef.current += 1;
         const seed = `${horseId}:${spawnCounterRef.current}`;
-        advanced.push({ particle: spawnDustParticle(emitterPosition.x, emitterPosition.z, seed, vfxConfig), seed });
+        advanced.push({
+          particle: spawnDustParticle(emitterPosition.x, emitterPosition.z, seed, vfxConfig),
+          seed,
+        });
       }
     }
 

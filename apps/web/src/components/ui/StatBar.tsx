@@ -14,6 +14,13 @@ export interface StatBarProps {
    * TERSİNE çevrilir (yüksek yorgunluk = kritik/kırmızı).
    */
   higherIsBetter?: boolean;
+  /** Etiketin solunda gösterilecek simge (01.10.2026 tasarım yenilemesi). */
+  icon?: React.ReactNode;
+  /**
+   * Sabit renk (01.10.2026). Doluluk gibi "iyi/kötü" olmayan ölçüler için:
+   * renk eşiğe göre değil bu değerle boyanır (ör. ahır kapasitesi altın).
+   */
+  color?: string;
 }
 
 const CRITICAL_THRESHOLD = 30;
@@ -26,21 +33,26 @@ function colorForValue(value: number, higherIsBetter: boolean): string {
   return 'var(--color-status-positive)';
 }
 
-export function StatBar({ label, value, higherIsBetter = true }: StatBarProps): React.ReactElement {
+export function StatBar({ label, value, higherIsBetter = true, icon, color }: StatBarProps): React.ReactElement {
   const clamped = Math.max(0, Math.min(100, value));
+  const fill = color ?? colorForValue(clamped, higherIsBetter);
   return (
     <div style={{ display: 'grid', gap: '4px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px' }}>
-        <span style={{ color: 'var(--color-text-secondary)' }}>{label}</span>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', color: 'var(--color-text-secondary)' }}>
+          {icon}
+          {label}
+        </span>
         <span style={{ color: 'var(--color-text-primary)', fontVariantNumeric: 'tabular-nums' }}>
           {Math.round(clamped)}
         </span>
       </div>
       <div
         style={{
-          height: '6px',
+          height: '7px',
           borderRadius: '999px',
-          background: 'rgba(255, 255, 255, 0.08)',
+          background: 'rgba(0, 0, 0, 0.45)',
+          boxShadow: 'inset 0 0 0 1px rgba(255, 255, 255, 0.06)',
           overflow: 'hidden',
         }}
       >
@@ -49,7 +61,10 @@ export function StatBar({ label, value, higherIsBetter = true }: StatBarProps): 
             width: `${clamped}%`,
             height: '100%',
             borderRadius: '999px',
-            background: colorForValue(clamped, higherIsBetter),
+            background: fill,
+            // Parlak üst kenar + hafif ışıma (01.10.2026 tasarım yenilemesi).
+            backgroundImage: 'linear-gradient(180deg, rgba(255,255,255,0.35), rgba(255,255,255,0) 60%)',
+            boxShadow: `0 0 8px ${fill}`,
             transition: 'width 0.3s ease',
           }}
         />

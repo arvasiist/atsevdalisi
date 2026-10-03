@@ -1,4 +1,31 @@
 import type {
+  AccountDeletionCheck,
+  AdminAnnouncementView,
+  AdminLiveEventView,
+  LeaderboardPeriod,
+  PeriodLeaderboardView,
+  AdminHorseView,
+  AdminConfigEntry,
+  AdminSeasonView,
+  AdminTournamentView,
+  BalanceAdjustmentResult,
+  ClubChatMessageView,
+  AnomalyReport,
+  AccountDataExport,
+  QuestBoardView,
+  AchievementBoardView,
+  AchievementClaimResult,
+  QuestClaimResult,
+  QuestMetric,
+  AnnouncementLevel,
+  AnnouncementView,
+  AssignableRole,
+  PlayerSanctionView,
+  SanctionKind,
+  AuthSessionInfo,
+  SessionTokens,
+  InteractiveRaceView,
+  PlayerControlInput,
   AccountCredentialsView,
   AccountProvider,
   AdminAuditLogResult,
@@ -29,6 +56,8 @@ import type {
   HireJockeyResultView,
   HorseEquipment,
   HorseMarketValueView,
+  MarketListing,
+  PlaceBidResult,
   HorsePedigreeView,
   Jockey,
   JoinMatchmakingQueueResult,
@@ -76,6 +105,13 @@ import type {
   WalletDepositResult,
   WalletView,
   WatchableRaceView,
+  ClubDetailView,
+  ClubRole,
+  ClubSummaryView,
+  SeasonView,
+  StaffHireResult,
+  StaffOverview,
+  StaffView,
 } from '@at-sevdalisi/shared-types';
 
 /**
@@ -110,6 +146,7 @@ export interface CreateLobbyRaceBody {
   distanceMeters: number;
   tribuneFee: number;
   spectatorCapacity: number;
+  playerControl?: boolean;
 }
 
 export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1';
@@ -185,11 +222,42 @@ export class ApiError extends Error {
   }
 }
 
-async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+/**
+ * OTURUM YENİLEME (02.10.2026, migration 0057). Erişim token'ı kısa
+ * ömürlüdür; korumalı bir istek 401 alırsa `PlayerProvider`ın kaydettiği
+ * yenileyici refresh token'la yeni bir erişim token'ı alır ve istek BİR
+ * KEZ tekrarlanır. Aynı anda düşen istekler TEK yenilemeyi paylaşır —
+ * refresh token her yenilemede değiştiği için ikinci bir paralel yenileme
+ * sunucuda "yeniden kullanım" sayılır ve oturumu KAPATIR.
+ */
+type SessionRefresher = () => Promise<string | null>;
+let sessionRefresher: SessionRefresher | null = null;
+let inflightRefresh: Promise<string | null> | null = null;
+
+export function setSessionRefresher(refresher: SessionRefresher | null): void {
+  sessionRefresher = refresher;
+}
+
+/** Tek uçuşlu yenileme — eşzamanlı çağıranlar aynı sözü bekler. */
+export function refreshSessionOnce(): Promise<string | null> {
+  if (sessionRefresher === null) return Promise.resolve(null);
+  if (inflightRefresh === null) {
+    inflightRefresh = sessionRefresher().finally(() => {
+      inflightRefresh = null;
+    });
+  }
+  return inflightRefresh;
+}
+
+/** Yenilemeyi tetiklememesi gereken uçlar (kendisi ya da token'sız giriş uçları). */
+const NO_REFRESH_ENDPOINTS = ['/auth/refresh', '/auth/login', '/auth/session'];
+
+async function request<T>(endpoint: string, options: RequestInit = {}, isRetry = false): Promise<T> {
   const headers = new Headers(options.headers || {});
   headers.set('Content-Type', 'application/json');
-  if (currentAuthToken) {
-    headers.set('Authorization', `Bearer ${currentAuthToken}`);
+  const sentToken = currentAuthToken;
+  if (sentToken) {
+    headers.set('Authorization', `Bearer ${sentToken}`);
   }
 
   const config: RequestInit = {
@@ -198,6 +266,20 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
   };
 
   const response = await fetch(`${API_BASE_URL}${endpoint}`, config);
+
+  if (
+    response.status === 401 &&
+    !isRetry &&
+    sentToken !== null &&
+    !NO_REFRESH_ENDPOINTS.some((path) => endpoint === path || endpoint.startsWith(`${path}/`))
+  ) {
+    // Başka bir istek token'ı ZATEN yenilediyse yenisiyle tekrar dene.
+    const next = currentAuthToken !== sentToken ? currentAuthToken : await refreshSessionOnce();
+    if (next !== null && next !== sentToken) {
+      return request<T>(endpoint, options, true);
+    }
+  }
+
   const result: ApiResponse<T> = await response.json();
 
   if (!response.ok || !result.success) {
@@ -261,6 +343,60 @@ export const apiClient = {
   getAuthProviders: () => request<AuthProvidersView>('/auth/providers'),
 
   /**
+   * İSTEMCİ HATA RAPORU (02.10.2026, Faz 13-C) — hata sınırları kullanır.
+   * Yalnızca mesaj/özet/yol gider (kişisel veri, token, girdi GİTMEZ).
+   * Raporun kendisi düşerse sessizce yutulur: hata ekranı ikinci bir hata
+   * üretmemeli.
+   */
+  reportClientError: (report: { message: string; digest?: string; path?: string }) =>
+    request<{ accepted: true }>('/client-errors', { method: 'POST', body: JSON.stringify(report) }).catch(
+      () => undefined,
+    ),
+
+  /** HESAP SİLME (02.10.2026, migration 0059) — silinebilir mi, neden değil. */
+  getAccountDeletionCheck: () => request<AccountDeletionCheck>('/account/deletion'),
+
+  /** Geri alınamaz. Yanlış şifre 403 (401 değil — oturum silinmesin). */
+  deleteAccount: (confirmUsername: string, password?: string) =>
+    request<{ deleted: true }>('/account/delete', {
+      method: 'POST',
+      body: JSON.stringify(password === undefined ? { confirmUsername } : { confirmUsername, password }),
+    }),
+
+  /** E-POSTA DOĞRULAMA (02.10.2026, migration 0058) — `sent: false` = kısa aralıkta tekrar, e-posta gitmedi. */
+  requestEmailVerification: () =>
+    request<{ sent: boolean }>('/auth/email/verification', { method: 'POST' }),
+
+  /** E-postadaki bağlantının `token`ı ile doğrulama — token'sız da çalışır. */
+  verifyEmail: (token: string) =>
+    request<{ verified: true }>('/auth/email/verify', { method: 'POST', body: JSON.stringify({ token }) }),
+
+  /**
+   * OTURUM (02.10.2026, migration 0057). `refreshSession` token'sız
+   * çağrılabilir (erişim token'ı dolmuşken); dönen refresh token ESKİSİNİN
+   * yerine yazılmalıdır — eskisi bir daha kullanılırsa oturum kapanır.
+   */
+  refreshSession: (refreshToken: string) =>
+    request<SessionTokens>('/auth/refresh', {
+      method: 'POST',
+      body: JSON.stringify({ refreshToken }),
+    }),
+
+  /** 02.10.2026 öncesi (oturumsuz) token'ı yenilenebilir oturuma taşır. */
+  upgradeSession: () => request<SessionTokens>('/auth/session', { method: 'POST' }),
+
+  /** Bu cihazdan çıkış — erişim token'ı sunucuda ANINDA geçersizleşir. */
+  logout: () => request<{ loggedOut: true }>('/auth/logout', { method: 'POST' }),
+
+  /** Tüm cihazlardan çıkış. */
+  logoutAll: () => request<{ loggedOut: true }>('/auth/logout-all', { method: 'POST' }),
+
+  listSessions: () => request<AuthSessionInfo[]>('/auth/sessions'),
+
+  revokeSession: (sessionId: string) =>
+    request<{ revoked: true }>(`/auth/sessions/${encodeURIComponent(sessionId)}`, { method: 'DELETE' }),
+
+  /**
    * GOOGLE İLE GİRİŞ — token'SIZ. `idToken`, Google'ın tarayıcıda verdiği
    * kimlik belgesidir; sunucu imzasını doğrular. İlk girişte yeni oyuncu
    * açılır, bağlı hesapta aynı oyuncuya dönülür.
@@ -318,7 +454,6 @@ export const apiClient = {
   getPlayerProfile: (username: string) =>
     request<PlayerProfileView>(`/players/profile/${encodeURIComponent(username)}`),
 
-
   // At & Ahır İşlemleri
   getHorsesByOwner: (ownerId: string) => request<PublicHorse[]>(`/horses?ownerId=${ownerId}`),
 
@@ -331,7 +466,8 @@ export const apiClient = {
    * olan ama HİÇBİR yerden çağrılmayan `calculateMarketValue`'yu artık
    * gerçekten kullanır. `@Public()` — `getHorseDetails` ile AYNI gerekçe.
    */
-  getHorseMarketValue: (horseId: string) => request<HorseMarketValueView>(`/horses/${horseId}/market-value`),
+  getHorseMarketValue: (horseId: string) =>
+    request<HorseMarketValueView>(`/horses/${horseId}/market-value`),
 
   /**
    * Soy ağacı (`GET /horses/:id/pedigree`, bu dilimde EKLENDİ) —
@@ -370,7 +506,13 @@ export const apiClient = {
    * satırlardan doğrulanır; tayın statları `pairId` seed'iyle sunucuda
    * üretilir. İstemci hiçbir sayı GÖNDERMEZ.
    */
-  breedHorses: (playerId: string, mareId: string, stallionId: string, foalName: string, idempotencyKey: string) =>
+  breedHorses: (
+    playerId: string,
+    mareId: string,
+    stallionId: string,
+    foalName: string,
+    idempotencyKey: string,
+  ) =>
     request<BreedingResultView>(`/players/${playerId}/breeding`, {
       method: 'POST',
       headers: { 'Idempotency-Key': idempotencyKey },
@@ -385,7 +527,8 @@ export const apiClient = {
    * TÜKETMEDİĞİ için fark edilmemişti. Artık gerçek rotayı ve gerçek
    * `StableSummaryView` şeklini kullanıyor.
    */
-  getStableSummary: (ownerId: string) => request<StableSummaryView>(`/players/${ownerId}/stable-summary`),
+  getStableSummary: (ownerId: string) =>
+    request<StableSummaryView>(`/players/${ownerId}/stable-summary`),
 
   /**
    * Kiralamaya AÇIK jokey vitrini — `GET /jockeys` (brief §13, PHASE 6.2;
@@ -411,7 +554,8 @@ export const apiClient = {
    * çarpmak formülün ikinci bir kopyasını doğururdu ve config değişince
    * gösterilen sayı ile motora giren sayı sessizce ayrışırdı.
    */
-  getPlayerJockey: (playerId: string) => request<PlayerJockeyView | null>(`/players/${playerId}/jockey`),
+  getPlayerJockey: (playerId: string) =>
+    request<PlayerJockeyView | null>(`/players/${playerId}/jockey`),
 
   /**
    * Jokey kiralar — `POST /jockeys/:jockeyId/hire` (PARA YOLU).
@@ -423,7 +567,8 @@ export const apiClient = {
    *
    * Ödeyen taraf GÖVDEDEN GELMEZ: kimlik token'dan çözülür. Gövde yoktur.
    */
-  hireJockey: (jockeyId: string) => request<HireJockeyResultView>(`/jockeys/${jockeyId}/hire`, { method: 'POST' }),
+  hireJockey: (jockeyId: string) =>
+    request<HireJockeyResultView>(`/jockeys/${jockeyId}/hire`, { method: 'POST' }),
 
   /**
    * Jokeyi serbest bırakır — `POST /jockeys/:jockeyId/release`
@@ -496,6 +641,12 @@ export const apiClient = {
    * olduğu gibi gösterir.
    */
   getLeaderboard: () => request<LeaderboardRowView[]>('/leaderboard'),
+  /** 02.10.2026 (Faz 11) — haftalık/aylık sıralama (oturum ister). */
+  getPeriodLeaderboard: (period: LeaderboardPeriod) =>
+    request<PeriodLeaderboardView>(`/leaderboard/period/${period}`),
+
+  /** Güncel sezon (brief §69, 01.10.2026) — oturum ister (`me` satırı için). */
+  getCurrentSeason: () => request<SeasonView>('/seasons/current'),
 
   /**
    * brief §32 "Çiftlik" (bu turda EKLENDİ) — `/farm` ekranı.
@@ -522,14 +673,42 @@ export const apiClient = {
     }),
 
   // Pazar (Market) İşlemleri
-  getMarketListings: (params: { minPrice?: number; maxPrice?: number; page?: number; pageSize?: number } = {}) => {
+  getMarketListings: (
+    params: { minPrice?: number; maxPrice?: number; page?: number; pageSize?: number } = {},
+  ) => {
     const query = new URLSearchParams();
     if (params.minPrice) query.set('minPrice', params.minPrice.toString());
     if (params.maxPrice) query.set('maxPrice', params.maxPrice.toString());
     if (params.page) query.set('page', params.page.toString());
     if (params.pageSize) query.set('pageSize', params.pageSize.toString());
-    return request<Array<{ id: string; horseId: string; price: number; status: string }>>(`/market/listings?${query}`);
+    return request<MarketListing[]>(`/market/listings?${query}`);
   },
+
+  /**
+   * 02.10.2026 — at satışa çıkar (sabit fiyat ya da müzayede). Müzayedede
+   * `price` başlangıç fiyatıdır ve `expiresInHours` zorunludur (sunucu kuralı).
+   */
+  createMarketListing: (body: {
+    horseId: string;
+    price: number;
+    listingType: 'fixed_price' | 'auction';
+    expiresInHours?: number;
+  }) =>
+    request<MarketListing>('/market/listings', { method: 'POST', body: JSON.stringify(body) }),
+
+  cancelMarketListing: (listingId: string) =>
+    request<MarketListing>(`/market/listings/${listingId}`, { method: 'DELETE' }),
+
+  /**
+   * 02.10.2026 — MÜZAYEDE TEKLİFİ (para emanete alınır). `Idempotency-Key`
+   * YOK: aynı teklifin tekrarı sunucuda `BID_TOO_LOW` ile düşer, ikinci
+   * emanet alınamaz.
+   */
+  placeMarketBid: (listingId: string, amount: number) =>
+    request<PlaceBidResult>(`/market/listings/${listingId}/bids`, {
+      method: 'POST',
+      body: JSON.stringify({ amount }),
+    }),
 
   /**
    * Antrenman ekranı (`apps/web/src/app/training/page.tsx`) — `POST
@@ -538,7 +717,10 @@ export const apiClient = {
    * `training.controller.ts` doc yorumu) — `setAuthToken` ile bir token
    * ayarlanmış olması ZORUNLUDUR, aksi halde 401.
    */
-  trainHorse: (horseId: string, input: { type: TrainingType; intensity: TrainingIntensity; durationMinutes?: number }) =>
+  trainHorse: (
+    horseId: string,
+    input: { type: TrainingType; intensity: TrainingIntensity; durationMinutes?: number },
+  ) =>
     request<TrainHorseResult>(`/horses/${horseId}/train`, {
       method: 'POST',
       body: JSON.stringify(input),
@@ -551,7 +733,8 @@ export const apiClient = {
    * ile AYNI `HorseOwnerGuardByParam` koruması altındadır, bu yüzden bu
    * çağrının da geçerli bir `Authorization` header'ı gerekir.
    */
-  getTrainingHistory: (horseId: string) => request<TrainingSession[]>(`/horses/${horseId}/training-history`),
+  getTrainingHistory: (horseId: string) =>
+    request<TrainingSession[]>(`/horses/${horseId}/training-history`),
 
   /**
    * Bakım ekranı (`apps/web/src/app/care/page.tsx`) — `POST /horses/:id/care`
@@ -687,6 +870,50 @@ export const apiClient = {
     }),
 
   /**
+   * 01.10.2026 — OYUNCU KONTROLLÜ PRATİK YARIŞ. Başlatma ücreti hemen düşer;
+   * Idempotency-Key gerekmez (tek süren oturum kuralı; yanıt kaybolursa
+   * `getCurrentInteractiveRace` oturumu geri bulur).
+   */
+  startInteractiveRace: (
+    horseId: string,
+    tactic: {
+      racingStyle?: RacingStyle;
+      riskLevel?: RiskLevel;
+      startApproach?: StartApproach;
+      finalStretchPlan?: FinalStretchPlan;
+      tierId?: string;
+    } = {},
+  ) =>
+    request<InteractiveRaceView>(`/horses/${horseId}/interactive-race`, {
+      method: 'POST',
+      body: JSON.stringify(tactic),
+    }),
+  getCurrentInteractiveRace: () =>
+    request<InteractiveRaceView | null>('/interactive-races/current'),
+  getInteractiveRace: (raceId: string) =>
+    request<InteractiveRaceView>(`/interactive-races/${raceId}`),
+  sendRaceControl: (raceId: string, control: PlayerControlInput) =>
+    request<InteractiveRaceView>(`/interactive-races/${raceId}/commands`, {
+      method: 'POST',
+      body: JSON.stringify({ control }),
+    }),
+  finishInteractiveRace: (raceId: string) =>
+    request<InteractiveRaceView>(`/interactive-races/${raceId}/finish`, { method: 'POST' }),
+
+  /** 01.10.2026 — kontrollü LOBİ yarışı (çok oyunculu canlı koşu). */
+  getCurrentLiveLobbyRace: () => request<InteractiveRaceView | null>('/races/live/current'),
+  getLiveLobbyRace: (raceId: string) => request<InteractiveRaceView>(`/races/${raceId}/live`),
+  getLiveLobbyRaceSpectate: (raceId: string) =>
+    request<InteractiveRaceView>(`/races/${raceId}/live/spectate`),
+  sendLiveLobbyControl: (raceId: string, control: PlayerControlInput) =>
+    request<InteractiveRaceView>(`/races/${raceId}/live/commands`, {
+      method: 'POST',
+      body: JSON.stringify({ control }),
+    }),
+  finishLiveLobbyRace: (raceId: string) =>
+    request<InteractiveRaceView>(`/races/${raceId}/live/finish`, { method: 'POST' }),
+
+  /**
    * Ekipman (`apps/web/src/app/equipment/page.tsx`, bu turda EKLENDİ —
    * `claude/hizli-bitirme-plani.md`'nin proje sahibi tarafından
    * önceliklendirdiği dilim) — `getTrainingHistory` ile AYNI
@@ -694,17 +921,24 @@ export const apiClient = {
    */
   getHorseEquipment: (horseId: string) => request<HorseEquipment[]>(`/horses/${horseId}/equipment`),
 
-  createHorseEquipment: (horseId: string, input: { equipmentType: EquipmentType; name: string; quality: number }) =>
+  createHorseEquipment: (
+    horseId: string,
+    input: { equipmentType: EquipmentType; name: string; quality: number },
+  ) =>
     request<HorseEquipment>(`/horses/${horseId}/equipment`, {
       method: 'POST',
       body: JSON.stringify(input),
     }),
 
   equipHorseEquipment: (horseId: string, equipmentId: string) =>
-    request<HorseEquipment>(`/horses/${horseId}/equipment/${equipmentId}/equip`, { method: 'POST' }),
+    request<HorseEquipment>(`/horses/${horseId}/equipment/${equipmentId}/equip`, {
+      method: 'POST',
+    }),
 
   unequipHorseEquipment: (horseId: string, equipmentId: string) =>
-    request<HorseEquipment>(`/horses/${horseId}/equipment/${equipmentId}/unequip`, { method: 'POST' }),
+    request<HorseEquipment>(`/horses/${horseId}/equipment/${equipmentId}/unequip`, {
+      method: 'POST',
+    }),
 
   /**
    * Tribün (proje sahibinin açık talebi, 27.09.2026 — "tribüne ücretli
@@ -849,10 +1083,13 @@ export const apiClient = {
    * CLAUDE.md'nin uyardığı "DTO dekoratörüne güven" tuzağını büyütürdü.
    */
   respondFriendRequest: (playerId: string, requestId: string, action: 'accept' | 'reject') =>
-    request<RespondFriendRequestResult>(`/players/${playerId}/friend-requests/${requestId}/respond`, {
-      method: 'POST',
-      body: JSON.stringify({ action }),
-    }),
+    request<RespondFriendRequestResult>(
+      `/players/${playerId}/friend-requests/${requestId}/respond`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ action }),
+      },
+    ),
 
   /**
    * Arkadaşlıktan çıkar VEYA bekleyen isteği geri çeker (iki anlam,
@@ -926,7 +1163,9 @@ export const apiClient = {
     request<ReportPlayerResult>(`/players/${playerId}/reports`, {
       method: 'POST',
       body: JSON.stringify(
-        reason !== undefined && reason.length > 0 ? { reportedId, category, reason } : { reportedId, category },
+        reason !== undefined && reason.length > 0
+          ? { reportedId, category, reason }
+          : { reportedId, category },
       ),
     }),
 
@@ -944,10 +1183,13 @@ export const apiClient = {
    * YAPMAZ.
    */
   getConversation: (playerId: string, otherPlayerId: string) =>
-    request<DirectMessageView[]>(`/players/${playerId}/messages/${otherPlayerId}`, { method: 'GET' }),
+    request<DirectMessageView[]>(`/players/${playerId}/messages/${otherPlayerId}`, {
+      method: 'GET',
+    }),
 
   /** Gelen kutusu — bana gelen son mesajlar (gönderen adıyla). Okundu işaretlemez. */
-  getInbox: (playerId: string) => request<DirectMessageView[]>(`/players/${playerId}/inbox`, { method: 'GET' }),
+  getInbox: (playerId: string) =>
+    request<DirectMessageView[]>(`/players/${playerId}/inbox`, { method: 'GET' }),
 
   /**
    * Hediye gönderimi (proje sahibinin açık talebi, 27.09.2026 — üç parçanın
@@ -969,7 +1211,13 @@ export const apiClient = {
    * yaşar (`minAmount`/`maxAmount`) ve istemcide tip daraltmak, CLAUDE.md'nin
    * uyardığı "DTO dekoratörüne güven" tuzağını büyütürdü.
    */
-  sendGift: (playerId: string, recipientId: string, amount: number, currency: string, idempotencyKey: string) =>
+  sendGift: (
+    playerId: string,
+    recipientId: string,
+    amount: number,
+    currency: string,
+    idempotencyKey: string,
+  ) =>
     request<SendGiftResult>(`/players/${playerId}/gifts`, {
       method: 'POST',
       headers: { 'Idempotency-Key': idempotencyKey },
@@ -982,7 +1230,8 @@ export const apiClient = {
    * `direction` taşır; liste ekranı "gönderdim/geldi" ayrımını ikinci bir
    * istek atmadan yapar.
    */
-  getMyGifts: (playerId: string) => request<GiftView[]>(`/players/${playerId}/gifts`, { method: 'GET' }),
+  getMyGifts: (playerId: string) =>
+    request<GiftView[]>(`/players/${playerId}/gifts`, { method: 'GET' }),
 
   /**
    * BİLDİRİMLER + YARIŞ DAVETİ (brief §28/§16, §35 `/notifications`).
@@ -1008,14 +1257,18 @@ export const apiClient = {
 
   /** Tüm bildirimleri okundu işaretler (200 + `markedCount`, 204 DEĞİL). */
   markAllNotificationsRead: (playerId: string) =>
-    request<MarkAllNotificationsReadResult>(`/players/${playerId}/notifications/read-all`, { method: 'POST' }),
+    request<MarkAllNotificationsReadResult>(`/players/${playerId}/notifications/read-all`, {
+      method: 'POST',
+    }),
 
   /**
    * Tek bildirimi okundu işaretler. **İdempotenttir:** zaten okunmuş bir
    * bildirim yine 200 döner, gövdesi değişmez.
    */
   markNotificationRead: (playerId: string, notificationId: string) =>
-    request<NotificationView>(`/players/${playerId}/notifications/${notificationId}/read`, { method: 'POST' }),
+    request<NotificationView>(`/players/${playerId}/notifications/${notificationId}/read`, {
+      method: 'POST',
+    }),
 
   /** Arkadaşı yarışa davet eder (201). Bekleyen davet tavanı sunucudadır (409). */
   sendRaceInvite: (playerId: string, inviteeId: string, raceId: string) =>
@@ -1052,7 +1305,9 @@ export const apiClient = {
     if (limit !== undefined) params.set('limit', String(limit));
     if (before !== undefined) params.set('before', before);
     const query = params.toString();
-    return request<WalletView>(`/players/${playerId}/wallet${query === '' ? '' : `?${query}`}`, { method: 'GET' });
+    return request<WalletView>(`/players/${playerId}/wallet${query === '' ? '' : `?${query}`}`, {
+      method: 'GET',
+    });
   },
 
   /**
@@ -1130,6 +1385,78 @@ export const apiClient = {
   /** Denetim günlüğü — "kim hangi yönetim işlemini ne zaman yaptı" (§13.17). */
   listAdminAuditLog: () => request<AdminAuditLogResult>('/admin/audit-log', { method: 'GET' }),
 
+  /* 02.10.2026 — Faz 10 + 11-A: moderasyon ve duyurular. Yetki SUNUCUDA. */
+  sanctionPlayer: (playerId: string, body: { kind: SanctionKind; reason: string; durationHours?: number }) =>
+    request<PlayerSanctionView>(`/admin/players/${encodeURIComponent(playerId)}/sanctions`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  getPlayerSanctions: (playerId: string) =>
+    request<PlayerSanctionView[]>(`/admin/players/${encodeURIComponent(playerId)}/sanctions`),
+  liftSanction: (sanctionId: string, reason: string) =>
+    request<PlayerSanctionView>(`/admin/sanctions/${encodeURIComponent(sanctionId)}/lift`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    }),
+  setPlayerRole: (playerId: string, role: AssignableRole) =>
+    request<{ from: AssignableRole; to: AssignableRole }>(`/admin/players/${encodeURIComponent(playerId)}/role`, {
+      method: 'PUT',
+      body: JSON.stringify({ role }),
+    }),
+  listAdminAnnouncements: () => request<AdminAnnouncementView[]>('/admin/announcements'),
+  createAnnouncement: (body: { title: string; body: string; level: AnnouncementLevel; startsAt?: string; endsAt?: string }) =>
+    request<AdminAnnouncementView>('/admin/announcements', { method: 'POST', body: JSON.stringify(body) }),
+  archiveAnnouncement: (announcementId: string) =>
+    request<AdminAnnouncementView>(`/admin/announcements/${encodeURIComponent(announcementId)}/archive`, {
+      method: 'POST',
+    }),
+  /** Oyunculara açık (oturumsuz da çalışır). */
+  getAnnouncements: () => request<AnnouncementView[]>('/announcements'),
+
+  /** 02.10.2026 (Faz 11-B) — günlük/haftalık görevler + etkinlikler. İlerleme sunucuda türetilir. */
+  getQuests: () => request<QuestBoardView>('/quests'),
+  /** 02.10.2026 — kişisel veri dışa aktarma (KVKK/GDPR); yalnızca kendi verin. */
+  exportAccountData: () => request<AccountDataExport>('/account/export'),
+  claimQuest: (questKey: string) =>
+    request<QuestClaimResult>(`/quests/${encodeURIComponent(questKey)}/claim`, { method: 'POST' }),
+  /** 03.10.2026 — başarımlar (yaşam boyu, ödül tek kez). İlerleme sunucuda türetilir. */
+  getAchievements: () => request<AchievementBoardView>('/achievements'),
+  claimAchievement: (achievementKey: string) =>
+    request<AchievementClaimResult>(`/achievements/${encodeURIComponent(achievementKey)}/claim`, { method: 'POST' }),
+  claimEvent: (eventId: string) =>
+    request<QuestClaimResult>(`/events/${encodeURIComponent(eventId)}/claim`, { method: 'POST' }),
+  listAdminEvents: () => request<AdminLiveEventView[]>('/admin/events'),
+  /** Faz 7 — şüpheli desenler (yalnızca inceleme). */
+  getAnomalies: () => request<AnomalyReport>('/admin/anomalies'),
+  /** Faz 10 — bakiye düzeltmesi (PARA YOLU: anahtar başarıya kadar korunur). */
+  adjustPlayerBalance: (
+    playerId: string,
+    body: { currency: 'money' | 'gems'; amount: number; reason: string },
+    idempotencyKey: string,
+  ) =>
+    request<BalanceAdjustmentResult>(`/admin/players/${encodeURIComponent(playerId)}/balance-adjustments`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+      headers: { 'Idempotency-Key': idempotencyKey },
+    }),
+  /** Faz 10 — salt okuma: etkin ayarlar, sezonlar, turnuvalar (yalnızca yönetici). */
+  getAdminConfig: () => request<AdminConfigEntry[]>('/admin/config'),
+  getAdminSeasons: () => request<AdminSeasonView[]>('/admin/seasons'),
+  getAdminTournaments: () => request<AdminTournamentView[]>('/admin/tournaments'),
+  searchAdminHorses: (query: string) =>
+    request<AdminHorseView[]>(`/admin/horses?${new URLSearchParams({ q: query }).toString()}`),
+  createEvent: (body: {
+    title: string;
+    description?: string;
+    metric: QuestMetric;
+    target: number;
+    rewardMoney: number;
+    startsAt?: string;
+    endsAt: string;
+  }) => request<AdminLiveEventView>('/admin/events', { method: 'POST', body: JSON.stringify(body) }),
+  archiveEvent: (eventId: string) =>
+    request<AdminLiveEventView>(`/admin/events/${encodeURIComponent(eventId)}/archive`, { method: 'POST' }),
+
   /** Users + Wallet ekranlarının ORTAK kaynağı (bakiye `players` kolonudur). */
   listAdminPlayers: () => request<AdminPlayerListResult>('/admin/players', { method: 'GET' }),
 
@@ -1150,4 +1477,61 @@ export const apiClient = {
    */
   cancelAdminRace: (raceId: string) =>
     request<AdminRaceCancelResult>(`/admin/races/${raceId}/cancel`, { method: 'POST' }),
+
+  // --- Kulüp (brief §44, 01.10.2026) -------------------------------------
+  listClubs: (search?: string) =>
+    request<ClubSummaryView[]>(`/clubs${search ? `?search=${encodeURIComponent(search)}` : ''}`),
+
+  /** Çağıranın kulübü; üye değilse `null`. */
+  getMyClub: () => request<ClubDetailView | null>('/clubs/mine'),
+  /** 02.10.2026 (Faz 9) — kulüp sohbeti (yalnızca üyeler). */
+  getClubMessages: (clubId: string) =>
+    request<ClubChatMessageView[]>(`/clubs/${encodeURIComponent(clubId)}/messages`),
+  sendClubMessage: (clubId: string, body: string) =>
+    request<ClubChatMessageView>(`/clubs/${encodeURIComponent(clubId)}/messages`, {
+      method: 'POST',
+      body: JSON.stringify({ body }),
+    }),
+
+  getClub: (clubId: string) => request<ClubDetailView>(`/clubs/${clubId}`),
+
+  createClub: (name: string, tag: string) =>
+    request<ClubDetailView>('/clubs', { method: 'POST', body: JSON.stringify({ name, tag }) }),
+
+  joinClub: (clubId: string) =>
+    request<ClubDetailView>(`/clubs/${clubId}/join`, { method: 'POST' }),
+
+  leaveClub: () => request<{ left: true }>('/clubs/leave', { method: 'POST' }),
+
+  kickClubMember: (clubId: string, playerId: string) =>
+    request<ClubDetailView>(`/clubs/${clubId}/members/${playerId}`, { method: 'DELETE' }),
+
+  /** `role: 'leader'` liderliği DEVREDER (çağıran subay olur). */
+  setClubMemberRole: (clubId: string, playerId: string, role: ClubRole) =>
+    request<ClubDetailView>(`/clubs/${clubId}/members/${playerId}/role`, {
+      method: 'POST',
+      body: JSON.stringify({ role }),
+    }),
+
+  disbandClub: (clubId: string) =>
+    request<{ disbanded: true }>(`/clubs/${clubId}`, { method: 'DELETE' }),
+
+  // --- Personel (brief §33, 01.10.2026) -----------------------------------
+  /** Kadro + aday pazarı + kapasite (oyuncu token'dan). */
+  getStaffOverview: () => request<StaffOverview>('/staff'),
+
+  /**
+   * PARA YOLU (peşin sözleşme). `Idempotency-Key` GÖNDERİLMEZ: tekrar
+   * DURUMLA engellenir — ikinci çağrı 409 `STAFF_ALREADY_HIRED`.
+   */
+  hireStaff: (staffId: string) =>
+    request<StaffHireResult>(`/staff/${staffId}/hire`, { method: 'POST' }),
+
+  /** PARA YOLU — yalnızca bitime yakın/bitmişse açılır; ikinci çağrı 409 `STAFF_RENEWAL_NOT_DUE`. */
+  renewStaff: (staffId: string) =>
+    request<StaffHireResult>(`/staff/${staffId}/renew`, { method: 'POST' }),
+
+  /** İade YOK — peşin sözleşme bir kiralama bedelidir. */
+  releaseStaff: (staffId: string) =>
+    request<StaffView>(`/staff/${staffId}/release`, { method: 'POST' }),
 };

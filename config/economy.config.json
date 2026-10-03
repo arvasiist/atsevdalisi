@@ -71,5 +71,14 @@
   "newPlayerStartingBalance": {
     "money": 5000,
     "gems": 50
+  },
+  "auction": {
+    "minIncrementPercent": 5,
+    "minIncrementAmount": 10,
+    "settleScheduler": {
+      "enabled": true,
+      "tickSeconds": 15,
+      "batchSize": 20
+    }
   }
 }

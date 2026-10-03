@@ -1,0 +1,23 @@
+# 02.10.2026 (Faz 13-A) — gitleaks yapılandırması: varsayılan kurallar +
+# DAR, commit'ten bağımsız bir yanlış-pozitif istisnası. gitleaks bu dosyayı
+# depo kökünde kendiliğinden bulur.
+#
+# Neden `.gitleaksignore` yetmedi: parmak izi commit kimliği içerir; CI'ın
+# çektiği başka referanslardaki AYNI satırlar farklı commit'le yeniden
+# çıktı. Buradaki istisna YALNIZCA `Idempotency-Key: <uuid>` biçimindeki
+# SATIRLARI kapsar (belgelerdeki örnek başlıklar, gizli değil).
+#
+# ⚠️ `paths` EKLEME: bu gitleaks sürümünde global istisnada `condition =
+# "AND"` işlemiyor ve yol eşleşmesi TEK BAŞINA bütün dosyayı muaf tutuyor
+# (denendi: docs/API.md'ye konan gerçek bir anahtar gizlendi). Mevcut hâli
+# sentetik depoda doğrulandı: örnek başlık muaf, aynı dosyadaki ve başka
+# dosyadaki gerçek anahtar YAKALANIYOR.
+title = "at-sevdalisi"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "örnek Idempotency-Key başlık satırları"
+regexTarget = "line"
+regexes = ['''Idempotency-Key:\s*[0-9a-fA-F-]{8,}''']

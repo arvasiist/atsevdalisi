@@ -59,7 +59,11 @@ export function spawnDustParticle(
   // gereken bir açı/mesafe DEĞİL). Burada sadece ömür (`lifetimeMs`)
   // belirlenir — bu, parçacığın DOĞUŞUNDA sabitlenen tek gerçek durumdur.
   const rng = createSeededRandom(seed);
-  const lifetimeMs = seededRange(rng, config.dustParticles.minLifetimeMs, config.dustParticles.maxLifetimeMs);
+  const lifetimeMs = seededRange(
+    rng,
+    config.dustParticles.minLifetimeMs,
+    config.dustParticles.maxLifetimeMs,
+  );
   return {
     originX,
     originZ,
@@ -117,4 +121,30 @@ export function isDustParticleExpired(particle: DustParticle): boolean {
 export function getDustParticleOpacity(particle: DustParticle): number {
   const progress = Math.max(0, Math.min(1, particle.ageMs / particle.lifetimeMs));
   return 1 - progress;
+}
+
+/**
+ * 01.10.2026 (3D adım 8) — saniyedeki toz doğum oranı: temel oran ×
+ * zemin çarpanı × hız oranı (referans hızda 1, durunca 0) × kamera
+ * uzaklık çarpanı (yakında 1, uzakta `minFactor`'a iner). Saf.
+ */
+export function dustSpawnRate(
+  input: {
+    speedMps: number;
+    surface: 'dirt' | 'synthetic' | 'grass';
+    cameraDistanceMeters: number;
+  },
+  config: VfxConfig,
+): number {
+  const surface = config.dustBySurface[input.surface];
+  const speedFactor = Math.min(1.5, Math.max(0, input.speedMps / config.dustSpeedReferenceMps));
+  const { nearMeters, farMeters, minFactor } = config.dustCameraFalloff;
+  const t = Math.min(
+    1,
+    Math.max(0, (input.cameraDistanceMeters - nearMeters) / Math.max(1, farMeters - nearMeters)),
+  );
+  const distanceFactor = 1 - t * (1 - minFactor);
+  return (
+    config.dustParticles.spawnRatePerSecond * surface.rateFactor * speedFactor * distanceFactor
+  );
 }

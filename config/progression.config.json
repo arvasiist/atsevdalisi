@@ -5,13 +5,57 @@
     "exponent": 1.5
   },
   "unlocks": [
-    { "level": 1,  "feature": "basic_stable" },
-    { "level": 5,  "feature": "horse_market" },
-    { "level": 10, "feature": "advanced_training" },
-    { "level": 15, "feature": "breeding" },
-    { "level": 20, "feature": "online_tournaments" },
-    { "level": 30, "feature": "advanced_farm" },
-    { "level": 40, "feature": "elite_races" },
-    { "level": 50, "feature": "legendary_content" }
-  ]
+    {
+      "level": 1,
+      "feature": "basic_stable"
+    },
+    {
+      "level": 5,
+      "feature": "horse_market"
+    },
+    {
+      "level": 10,
+      "feature": "advanced_training"
+    },
+    {
+      "level": 15,
+      "feature": "breeding"
+    },
+    {
+      "level": 20,
+      "feature": "online_tournaments"
+    },
+    {
+      "level": 30,
+      "feature": "advanced_farm"
+    },
+    {
+      "level": 40,
+      "feature": "elite_races"
+    },
+    {
+      "level": 50,
+      "feature": "legendary_content"
+    }
+  ],
+  "xpRewards": {
+    "player": {
+      "raceFinished": 80,
+      "placementBonus": [
+        150,
+        90,
+        50
+      ],
+      "trainingSession": 20
+    },
+    "horse": {
+      "raceFinished": 60,
+      "placementBonus": [
+        120,
+        70,
+        40
+      ],
+      "trainingSession": 30
+    }
+  }
 }

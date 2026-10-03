@@ -63,6 +63,7 @@ export function createNewPlayer(input: NewPlayerInput, economyConfig: EconomyCon
     // yoktur: kendini yönetici yapabilen bir uç, yönetim yetkisini
     // anlamsız kılardı (§13.17). Bugün tek yol elle SQL'dir.
     isAdmin: false,
+    isModerator: false,
     createdAt: now,
     updatedAt: now,
   };

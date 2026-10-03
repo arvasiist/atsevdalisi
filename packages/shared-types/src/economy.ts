@@ -137,6 +137,22 @@ export const LEDGER_TRANSACTION_TYPES = [
    * BULMAZ; kiralama gerçeğinin tek kaynağı `jockeys.owner_id`dir.
    */
   'jockey_hire',
+  'staff_contract',
+  'season_reward',
+  'auction_bid_hold',
+  'auction_bid_refund',
+  'auction_sale_credit',
+  /** 02.10.2026 (Faz 11-B) — günlük/haftalık görev ödülü (tekil `quest_claims` satırına bağlı). */
+  'quest_reward',
+  'achievement_reward',
+  /** 02.10.2026 (Faz 11-B) — yönetimin açtığı süreli etkinliğin ödülü. */
+  'event_reward',
+  /**
+   * 02.10.2026 (Faz 10) — yönetimin gerekçeli bakiye düzeltmesi (destek,
+   * tazminat, hata telafisi). İşaretli; referansı aynı transaction'da yazılan
+   * `admin_audit_log` satırıdır (kim, neden).
+   */
+  'admin_adjustment',
 ] as const;
 
 export type LedgerTransactionType = (typeof LEDGER_TRANSACTION_TYPES)[number];
@@ -152,6 +168,7 @@ export const CANONICAL_TRANSACTION_TYPES = [
   'BREEDING',
   'UPKEEP',
   'REWARD',
+  'ADJUSTMENT',
 ] as const;
 
 export type CanonicalTransactionType = (typeof CANONICAL_TRANSACTION_TYPES)[number];
@@ -206,6 +223,17 @@ export const CANONICAL_BY_LEDGER_TYPE: Record<LedgerTransactionType, CanonicalTr
   // kiralamak bir yarışa giriş değildir ve cüzdanda "giriş ücreti" başlığı
   // altında görünmesi oyuncuya yanlış bir tablo çizerdi.
   jockey_hire: 'UPKEEP',
+  staff_contract: 'UPKEEP',
+  season_reward: 'REWARD',
+  // 02.10.2026 — müzayede emaneti: teklif tutulur (MARKET), geçilince ya da
+  // satış gerçekleşmezse iade edilir (REFUND), satışta satıcıya geçer (MARKET).
+  auction_bid_hold: 'MARKET',
+  auction_bid_refund: 'REFUND',
+  auction_sale_credit: 'MARKET',
+  quest_reward: 'REWARD',
+  achievement_reward: 'REWARD',
+  event_reward: 'REWARD',
+  admin_adjustment: 'ADJUSTMENT',
 };
 
 /**
@@ -248,6 +276,12 @@ export interface WalletView {
    * `hasMore` ise bu sayfanın SON satırının `id`si, değilse `null`.
    */
   nextCursor: string | null;
+  /**
+   * 02.10.2026 (Faz 13-A) — bu sunucuda para yatırma açık mı (config bayrağı
+   * VE ortam; üretimde sahte yatırma her zaman kapalı). Ekran formu buna
+   * göre gösterir — istemci config'inden tahmin ETMEZ.
+   */
+  depositAvailable: boolean;
 }
 
 /**

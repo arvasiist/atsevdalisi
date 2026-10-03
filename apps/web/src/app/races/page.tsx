@@ -1,5 +1,7 @@
 'use client';
 
+import dynamic from 'next/dynamic';
+
 /**
  * 30.09.2026 — ÜCRETLİ LOBİ BAĞLANDI: sayfanın üstünde `LobbyPanel`
  * (`GET/POST /races`, `/join`, `/ready`, `/leave`). Aşağıdaki "`GET /races`
@@ -42,8 +44,10 @@
  */
 
 import { useEffect, useMemo, useState } from 'react';
+import { Activity, BatteryMedium, HeartPulse, Smile, Timer, Users, Zap } from 'lucide-react';
 import Link from 'next/link';
 import type {
+  InteractiveRaceView,
   FinalStretchPlan,
   PracticeRaceResult,
   PublicHorse,
@@ -54,6 +58,7 @@ import type {
 import { GlassPanel } from '../../components/ui/GlassPanel';
 import { HorseAvatar } from '../../components/ui/HorseAvatar';
 import { StatBar } from '../../components/ui/StatBar';
+import { Tabs } from '../../components/ui/Tabs';
 import { LiveRaceViewer } from '../../features/race-viewer/LiveRaceViewer';
 import { LobbyPanel } from '../../features/race-lobby/LobbyPanel';
 import {
@@ -116,8 +121,23 @@ const WEATHER_LABELS: Record<PracticeRaceResult['weather'], string> = {
   cold: 'Soğuk',
 };
 
+/** Kontrollü lobi yarışının başlayıp başlamadığını yoklama aralığı. */
+const LIVE_RACE_POLL_MS = 5000;
+
+const InteractiveRaceViewer = dynamic(
+  () =>
+    import('../../features/ride/InteractiveRaceViewer').then((mod) => mod.InteractiveRaceViewer),
+  { ssr: false },
+);
+
 export default function RacesPage(): React.ReactElement {
-  const { player, isLoading: isPlayerLoading, error: playerError, createPlayer, refresh } = usePlayer();
+  const {
+    player,
+    isLoading: isPlayerLoading,
+    error: playerError,
+    createPlayer,
+    refresh,
+  } = usePlayer();
   const [horses, setHorses] = useState<PublicHorse[] | null>(null);
   const [horsesError, setHorsesError] = useState<string | null>(null);
   const [selectedHorseId, setSelectedHorseId] = useState<string | null>(null);
@@ -129,13 +149,47 @@ export default function RacesPage(): React.ReactElement {
   const [isRacing, setIsRacing] = useState(false);
   const [result, setResult] = useState<PracticeRaceResult | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  // 01.10.2026 tasarım yenilemesi: lobi ve pratik yarış alt alta çok uzun
+  // bir sayfa oluşturuyordu — artık iki sekme.
+  const [tab, setTab] = useState<'lobby' | 'practice'>('lobby');
+  // 01.10.2026 — oyuncu kontrollü yarış (kırbaç/yön). Sayfa yenilenince süren oturum geri gelir.
+  const [ride, setRide] = useState<InteractiveRaceView | null>(null);
+  const [isStartingRide, setIsStartingRide] = useState(false);
+
+  useEffect(() => {
+    if (!player) return;
+    void apiClient
+      .getCurrentInteractiveRace()
+      .then((current) => {
+        if (current) setRide(current);
+      })
+      .catch(() => undefined);
+  }, [player?.id]);
+
+  // 01.10.2026 — kontrollü LOBİ yarışın kilitlenince ekran kendiliğinden açılır.
+  useEffect(() => {
+    if (!player || ride !== null) return undefined;
+    const check = (): void => {
+      void apiClient
+        .getCurrentLiveLobbyRace()
+        .then((live) => {
+          if (live) setRide(live);
+        })
+        .catch(() => undefined);
+    };
+    check();
+    const timer = window.setInterval(check, LIVE_RACE_POLL_MS);
+    return () => window.clearInterval(timer);
+  }, [player?.id, ride === null]);
 
   const loadHorses = async (ownerId: string) => {
     setHorsesError(null);
     try {
       const data = await apiClient.getHorsesByOwner(ownerId);
       setHorses(data);
-      setSelectedHorseId((current) => current ?? data.find((h) => h.status === 'active')?.id ?? null);
+      setSelectedHorseId(
+        (current) => current ?? data.find((h) => h.status === 'active')?.id ?? null,
+      );
     } catch (err: unknown) {
       setHorsesError(err instanceof Error ? err.message : 'Atlar yüklenemedi');
     }
@@ -166,7 +220,8 @@ export default function RacesPage(): React.ReactElement {
    * anlamsız bir hata mesajı görmesini engeller.
    */
   const entryBlocker = selectedHorse === null ? null : getRaceEntryBlocker(selectedHorse);
-  const canRace = selectedHorse !== null && entryBlocker === null && selectedTier !== null && !isRacing;
+  const canRace =
+    selectedHorse !== null && entryBlocker === null && selectedTier !== null && !isRacing;
 
   const handleRace = async () => {
     if (!selectedHorse || !player || !selectedTier) {
@@ -184,6 +239,8 @@ export default function RacesPage(): React.ReactElement {
       );
       setResult(raceResult);
       await loadHorses(player.id);
+      // Üst bardaki bakiye ve seviye (yarış XP'si) tazelensin.
+      await refresh();
     } catch (err: unknown) {
       setMessage(err instanceof Error ? err.message : 'Yarış başlatılamadı');
     } finally {
@@ -191,36 +248,93 @@ export default function RacesPage(): React.ReactElement {
     }
   };
 
+  const handleRide = async () => {
+    if (!selectedHorse || !player || !selectedTier) {
+      return;
+    }
+    setIsStartingRide(true);
+    setMessage(null);
+    setResult(null);
+    try {
+      setRide(
+        await apiClient.startInteractiveRace(selectedHorse.id, {
+          racingStyle,
+          riskLevel,
+          startApproach,
+          finalStretchPlan,
+          tierId: selectedTier.id,
+        }),
+      );
+      await refresh();
+    } catch (err: unknown) {
+      setMessage(err instanceof Error ? err.message : 'Yarış başlatılamadı');
+    } finally {
+      setIsStartingRide(false);
+    }
+  };
+
+  const closeRide = async () => {
+    setRide(null);
+    if (player) {
+      await loadHorses(player.id);
+      await refresh();
+    }
+  };
+
   const ownEntry = result?.finalResult.find((entry) => entry.horseId === selectedHorse?.id) ?? null;
-  const ownExplanation = result?.explanations.find((entry) => entry.horseId === selectedHorse?.id) ?? null;
+  const ownExplanation =
+    result?.explanations.find((entry) => entry.horseId === selectedHorse?.id) ?? null;
 
   return (
     <main className="page-container">
-      <h1 style={{ fontSize: '24px', color: 'var(--color-text-primary)', marginBottom: '4px' }}>Yarışlar</h1>
-      <p style={{ color: 'var(--color-text-secondary)', marginTop: 0, marginBottom: 'var(--space-md)' }}>
-        Bir kademe ve at seç, yarış taktiğini belirle — kademenin alanı kadar at (8–16) gerçek Race Engine ile
-        anında koşar. Giriş ücreti bakiyeden düşer, ödül havuzdan kazanıldığın sıraya göre dağıtılır.
+      {ride ? (
+        <div className="ride-overlay">
+          <InteractiveRaceViewer
+            initialView={ride}
+            horseName={horses?.find((horse) => horse.id === ride.playerLabel)?.name ?? 'Atın'}
+            key={ride.raceId}
+            onClose={() => void closeRide()}
+          />
+        </div>
+      ) : null}
+      <h1 style={{ marginBottom: '4px' }}>Yarışlar</h1>
+      <p
+        style={{
+          color: 'var(--color-text-secondary)',
+          marginTop: 0,
+          marginBottom: 'var(--space-md)',
+        }}
+      >
+        <strong>Ücretli lobi</strong> başka oyuncularla belirlenen saatte koşar;{' '}
+        <strong>pratik yarış</strong> hemen, botlarla koşar.{' '}
+        <Link href="/races/demo" style={{ color: 'var(--color-accent-focus)', fontWeight: 600 }}>
+          3D yarış demosunu izle
+        </Link>
       </p>
 
-      <GlassPanel style={{ marginBottom: 'var(--space-lg)', fontSize: '12px', color: 'var(--color-text-muted)' }}>
-        İki tür yarış var: aşağıdaki <strong>ücretli lobi</strong> (başka oyuncularla, belirlenen saatte koşar) ve
-        sayfanın altındaki <strong>anlık pratik yarış</strong>. Yarış Görüntüleyiciyi (3D) görsel bir demo olarak denemek
-        istersen:{' '}
-        <Link href="/races/demo" style={{ color: 'var(--color-accent-focus)', fontWeight: 600 }}>
-          buradan
-        </Link>
-        .
-      </GlassPanel>
+      <div style={{ marginBottom: 'var(--space-lg)' }}>
+        <Tabs
+          label="Yarış türü"
+          value={tab}
+          onChange={setTab}
+          items={[
+            { id: 'lobby', label: 'Ücretli Lobi', icon: <Users size={16} aria-hidden="true" /> },
+            { id: 'practice', label: 'Pratik Yarış', icon: <Timer size={16} aria-hidden="true" /> },
+          ]}
+        />
+      </div>
 
       {!player && !isPlayerLoading ? (
         <GlassPanel style={{ textAlign: 'center', padding: 'var(--space-xl)' }}>
           <p style={{ color: 'var(--color-text-secondary)', marginTop: 0 }}>
             Yarışabilmek için önce bir seyis/jokey hesabı oluştur.
           </p>
-          <button type="button" onClick={() => void createPlayer()} style={primaryButtonStyle()}>
+          <button type="button" onClick={() => void createPlayer()} className="btn-gold">
             Başlangıç Paketiyle Oyuncu Oluştur
           </button>
-          {playerError ? <p style={{ color: 'var(--color-status-critical)', marginBottom: 0 }}>{playerError}</p> : null}
+          {playerError ? (
+            <p style={{ color: 'var(--color-status-critical)', marginBottom: 0 }}>{playerError}</p>
+          ) : null}
         </GlassPanel>
       ) : null}
 
@@ -232,13 +346,19 @@ export default function RacesPage(): React.ReactElement {
 
       {player && horses && horses.length === 0 ? (
         <GlassPanel style={{ textAlign: 'center', padding: 'var(--space-xl)' }}>
-          <p style={{ color: 'var(--color-text-secondary)', margin: 0 }}>Yarıştırabileceğin bir at bulunamıyor.</p>
+          <p style={{ color: 'var(--color-text-secondary)', margin: 0 }}>
+            Yarıştırabileceğin bir at bulunamıyor.
+          </p>
         </GlassPanel>
       ) : null}
 
-      {player && horses && horses.length > 0 ? <LobbyPanel horses={horses} onBalanceChanged={refresh} /> : null}
+      {tab === 'lobby' && player && horses && horses.length > 0 ? (
+        <div role="tabpanel" id="tabpanel-lobby" aria-labelledby="tab-lobby">
+          <LobbyPanel horses={horses} onBalanceChanged={refresh} />
+        </div>
+      ) : null}
 
-      {result && selectedHorse ? (
+      {tab === 'practice' && result && selectedHorse ? (
         <GlassPanel style={{ marginBottom: 'var(--space-lg)', padding: 0, overflow: 'hidden' }}>
           <div style={{ width: '100%', height: '420px', position: 'relative' }}>
             {(() => {
@@ -251,7 +371,15 @@ export default function RacesPage(): React.ReactElement {
               // durumu gösteriyoruz.
               if (!authToken) {
                 return (
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--color-text-muted)' }}>
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      height: '100%',
+                      color: 'var(--color-text-muted)',
+                    }}
+                  >
                     Canlı görüntüleyici için oturum token'ı bulunamadı.
                   </div>
                 );
@@ -263,6 +391,12 @@ export default function RacesPage(): React.ReactElement {
                   token={authToken}
                   raceId={result.raceId}
                   ownHorseId={selectedHorse.id}
+                  raceInfo={{
+                    title: result.tierLabel,
+                    distanceMeters: result.distanceMeters,
+                    subtitle: `${result.distanceMeters} m · ${SURFACE_LABELS[result.surface]} · ${WEATHER_LABELS[result.weather]}`,
+                    surface: result.surface,
+                  }}
                 />
               );
             })()}
@@ -270,8 +404,14 @@ export default function RacesPage(): React.ReactElement {
         </GlassPanel>
       ) : null}
 
-      {player && horses && horses.length > 0 ? (
-        <div style={{ display: 'grid', gap: 'var(--space-lg)', gridTemplateColumns: 'minmax(0, 1fr)' }} className="races-grid">
+      {tab === 'practice' && player && horses && horses.length > 0 ? (
+        <div
+          role="tabpanel"
+          id="tabpanel-practice"
+          aria-labelledby="tab-practice"
+          style={{ display: 'grid', gap: 'var(--space-lg)', gridTemplateColumns: 'minmax(0, 1fr)' }}
+          className="races-grid"
+        >
           <GlassPanel>
             <h2 style={sectionTitleStyle()}>At Seç</h2>
             <div style={{ display: 'grid', gap: '8px' }}>
@@ -284,8 +424,18 @@ export default function RacesPage(): React.ReactElement {
                 >
                   <HorseAvatar horseId={horse.id} size={40} />
                   <div style={{ display: 'grid', gap: '2px', textAlign: 'left', flex: 1 }}>
-                    <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--color-text-primary)' }}>{horse.name}</span>
-                    <span style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>{horseStatusLabel(horse.status)}</span>
+                    <span
+                      style={{
+                        fontSize: '14px',
+                        fontWeight: 600,
+                        color: 'var(--color-text-primary)',
+                      }}
+                    >
+                      {horse.name}
+                    </span>
+                    <span style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>
+                      {horseStatusLabel(horse.status)}
+                    </span>
                   </div>
                 </button>
               ))}
@@ -297,14 +447,34 @@ export default function RacesPage(): React.ReactElement {
 
             {selectedHorse ? (
               <div style={{ display: 'grid', gap: '6px', marginBottom: 'var(--space-md)' }}>
-                <StatBar label="Sağlık" value={selectedHorse.health} />
-                <StatBar label="Enerji" value={selectedHorse.energy} />
-                <StatBar label="Yorgunluk" value={selectedHorse.fatigue} higherIsBetter={false} />
-                <StatBar label="Moral" value={selectedHorse.morale} />
+                <StatBar
+                  icon={<HeartPulse size={14} />}
+                  label="Sağlık"
+                  value={selectedHorse.health}
+                />
+                <StatBar
+                  icon={<BatteryMedium size={14} />}
+                  label="Enerji"
+                  value={selectedHorse.energy}
+                />
+                <StatBar
+                  icon={<Activity size={14} />}
+                  label="Kondisyon"
+                  value={selectedHorse.fitness}
+                />
+                <StatBar
+                  icon={<Zap size={14} />}
+                  label="Yorgunluk"
+                  value={selectedHorse.fatigue}
+                  higherIsBetter={false}
+                />
+                <StatBar icon={<Smile size={14} />} label="Moral" value={selectedHorse.morale} />
               </div>
             ) : null}
 
-            <div style={{ display: 'grid', gap: 'var(--space-sm)', marginBottom: 'var(--space-md)' }}>
+            <div
+              style={{ display: 'grid', gap: 'var(--space-sm)', marginBottom: 'var(--space-md)' }}
+            >
               <label style={labelStyle()}>Yarış Kademesi</label>
               <div style={{ display: 'grid', gap: '6px' }}>
                 {RACE_TIERS.map((tier) => (
@@ -315,14 +485,26 @@ export default function RacesPage(): React.ReactElement {
                     style={tierRowStyle(tier.id === tierId)}
                   >
                     <div style={{ display: 'grid', gap: '2px', textAlign: 'left', flex: 1 }}>
-                      <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text-primary)' }}>
+                      <span
+                        style={{
+                          fontSize: '13px',
+                          fontWeight: 600,
+                          color: 'var(--color-text-primary)',
+                        }}
+                      >
                         {tier.label}
                       </span>
                       <span style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>
                         {tier.fieldSize} at — giriş {formatCurrency('money', tier.entryFee)}
                       </span>
                     </div>
-                    <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-accent-gold)' }}>
+                    <span
+                      style={{
+                        fontSize: '12px',
+                        fontWeight: 700,
+                        color: 'var(--color-accent-gold)',
+                      }}
+                    >
                       1. sıra {formatMultiplier(getTopPayoutMultipliers(tier, 1)[0] ?? 0)}
                     </span>
                   </button>
@@ -330,8 +512,8 @@ export default function RacesPage(): React.ReactElement {
               </div>
               <p style={{ margin: 0, fontSize: '11px', color: 'var(--color-text-muted)' }}>
                 Havuz, koşan her atın giriş ücretinden oluşur (botlar dahil); dağıtılmayan{' '}
-                {formatRakePercent(RACE_RAKE)} kadarı kesinti olarak alınır. Ödül, ödediğin giriş ücretinin
-                yukarıdaki katıdır.
+                {formatRakePercent(RACE_RAKE)} kadarı kesinti olarak alınır. Ödül, ödediğin giriş
+                ücretinin yukarıdaki katıdır.
               </p>
             </div>
 
@@ -343,8 +525,20 @@ export default function RacesPage(): React.ReactElement {
               </p>
             ) : null}
 
-            <TacticGroup label="Yarış Stili" options={RACING_STYLES} labels={RACING_STYLE_LABELS} value={racingStyle} onChange={setRacingStyle} />
-            <TacticGroup label="Risk Seviyesi" options={RISK_LEVELS} labels={RISK_LEVEL_LABELS} value={riskLevel} onChange={setRiskLevel} />
+            <TacticGroup
+              label="Yarış Stili"
+              options={RACING_STYLES}
+              labels={RACING_STYLE_LABELS}
+              value={racingStyle}
+              onChange={setRacingStyle}
+            />
+            <TacticGroup
+              label="Risk Seviyesi"
+              options={RISK_LEVELS}
+              labels={RISK_LEVEL_LABELS}
+              value={riskLevel}
+              onChange={setRiskLevel}
+            />
             <TacticGroup
               label="Çıkış Yaklaşımı"
               options={START_APPROACHES}
@@ -361,15 +555,34 @@ export default function RacesPage(): React.ReactElement {
               last
             />
 
-            <button type="button" disabled={!canRace} onClick={() => void handleRace()} style={primaryButtonStyle(!canRace)}>
+            <button
+              type="button"
+              disabled={!canRace}
+              onClick={() => void handleRace()}
+              className="btn-gold"
+            >
               {isRacing
                 ? 'Yarışılıyor…'
                 : selectedTier
                   ? `${formatCurrency('money', selectedTier.entryFee)} Öde ve Yarışa Başla`
                   : 'Yarışa Başla'}
             </button>
+            <button
+              type="button"
+              disabled={!canRace || isStartingRide || ride !== null}
+              onClick={() => void handleRide()}
+              className="btn-outline"
+              style={{ marginLeft: 'var(--space-sm)' }}
+              title="Atı sen sür: kırbaç, sol/sağ, sakin"
+            >
+              {isStartingRide ? 'Hazırlanıyor…' : 'Atı Kendin Sür'}
+            </button>
 
-            {message ? <p style={{ marginTop: 'var(--space-md)', color: 'var(--color-status-critical)' }}>{message}</p> : null}
+            {message ? (
+              <p style={{ marginTop: 'var(--space-md)', color: 'var(--color-status-critical)' }}>
+                {message}
+              </p>
+            ) : null}
 
             {result ? (
               <RaceResultPanel
@@ -410,11 +623,22 @@ function TacticGroup<T extends string>({
   last?: boolean;
 }): React.ReactElement {
   return (
-    <div style={{ display: 'grid', gap: 'var(--space-sm)', marginBottom: last ? 'var(--space-lg)' : 'var(--space-md)' }}>
+    <div
+      style={{
+        display: 'grid',
+        gap: 'var(--space-sm)',
+        marginBottom: last ? 'var(--space-lg)' : 'var(--space-md)',
+      }}
+    >
       <label style={labelStyle()}>{label}</label>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
         {options.map((option) => (
-          <button key={option} type="button" onClick={() => onChange(option)} style={chipStyle(option === value)}>
+          <button
+            key={option}
+            type="button"
+            onClick={() => onChange(option)}
+            style={chipStyle(option === value)}
+          >
             {labels[option]}
           </button>
         ))}
@@ -436,23 +660,52 @@ function RaceResultPanel({
 }): React.ReactElement {
   const won = ownFinishPosition === 1;
   return (
-    <div style={{ marginTop: 'var(--space-lg)', paddingTop: 'var(--space-md)', borderTop: '1px solid var(--color-border)' }}>
-      <h3 style={{ margin: '0 0 4px 0', fontSize: '18px', color: won ? 'var(--color-status-positive)' : 'var(--color-text-primary)' }}>
+    <div
+      style={{
+        marginTop: 'var(--space-lg)',
+        paddingTop: 'var(--space-md)',
+        borderTop: '1px solid var(--color-border)',
+      }}
+    >
+      <h3
+        style={{
+          margin: '0 0 4px 0',
+          fontSize: '18px',
+          color: won ? 'var(--color-status-positive)' : 'var(--color-text-primary)',
+        }}
+      >
         {ownFinishPosition ? `${ownFinishPosition}. sırada bitirdin` : 'Yarış tamamlandı'}
       </h3>
       <p style={{ margin: '0 0 8px 0', fontSize: '12px', color: 'var(--color-text-muted)' }}>
-        {result.tierLabel} ({result.fieldSize} at) — {result.distanceMeters}m — {SURFACE_LABELS[result.surface]} —{' '}
-        {WEATHER_LABELS[result.weather]}
+        {result.tierLabel} ({result.fieldSize} at) — {result.distanceMeters}m —{' '}
+        {SURFACE_LABELS[result.surface]} — {WEATHER_LABELS[result.weather]}
       </p>
 
-      <div style={{ display: 'grid', gap: '4px', fontSize: '13px', color: 'var(--color-text-secondary)', marginBottom: 'var(--space-md)' }}>
+      <div
+        style={{
+          display: 'grid',
+          gap: '4px',
+          fontSize: '13px',
+          color: 'var(--color-text-secondary)',
+          marginBottom: 'var(--space-md)',
+        }}
+      >
         <span>Giriş ücreti: {formatCurrency('money', result.entryFee)}</span>
         <span>Ödül havuzu: {formatCurrency('money', result.prizePool)}</span>
-        <span style={{ color: result.prizeWon > 0 ? 'var(--color-status-positive)' : 'var(--color-text-secondary)' }}>
+        <span
+          style={{
+            color:
+              result.prizeWon > 0 ? 'var(--color-status-positive)' : 'var(--color-text-secondary)',
+          }}
+        >
           Kazanılan ödül: {formatCurrency('money', result.prizeWon)}
         </span>
         <span style={{ color: 'var(--color-text-primary)' }}>
-          Yeni bakiye: {formatCurrency('money', result.newBalance.money)} / {formatCurrency('gems', result.newBalance.gems)}
+          Yeni bakiye: {formatCurrency('money', result.newBalance.money)} /{' '}
+          {formatCurrency('gems', result.newBalance.gems)}
+        </span>
+        <span style={{ color: 'var(--color-accent-gold)' }}>
+          Kazanılan XP: oyuncu +{result.xpGained.player} · at +{result.xpGained.horse}
         </span>
       </div>
 
@@ -466,10 +719,16 @@ function RaceResultPanel({
                 display: 'flex',
                 justifyContent: 'space-between',
                 fontSize: '12px',
-                color: entry.horseId === ownHorseId ? 'var(--color-text-primary)' : 'var(--color-text-muted)',
+                color:
+                  entry.horseId === ownHorseId
+                    ? 'var(--color-text-primary)'
+                    : 'var(--color-text-muted)',
               }}
             >
-              <span>{entry.finishPosition}. {entry.horseId === ownHorseId ? 'Atın' : `Rakip (${entry.horseId.slice(0, 6)})`}</span>
+              <span>
+                {entry.finishPosition}.{' '}
+                {entry.horseId === ownHorseId ? 'Atın' : `Rakip (${entry.horseId.slice(0, 6)})`}
+              </span>
               <span>{(entry.finishTimeMs / 1000).toFixed(2)} sn</span>
             </div>
           ))}
@@ -478,10 +737,14 @@ function RaceResultPanel({
       {ownExplanation ? (
         <div style={{ display: 'grid', gap: '2px', fontSize: '12px' }}>
           {ownExplanation.positives.map((line, i) => (
-            <span key={`pos-${i}`} style={{ color: 'var(--color-status-positive)' }}>+ {line}</span>
+            <span key={`pos-${i}`} style={{ color: 'var(--color-status-positive)' }}>
+              + {line}
+            </span>
           ))}
           {ownExplanation.negatives.map((line, i) => (
-            <span key={`neg-${i}`} style={{ color: 'var(--color-status-critical)' }}>− {line}</span>
+            <span key={`neg-${i}`} style={{ color: 'var(--color-status-critical)' }}>
+              − {line}
+            </span>
           ))}
         </div>
       ) : null}
@@ -500,7 +763,12 @@ function horseStatusLabel(status: PublicHorse['status']): string {
 }
 
 function sectionTitleStyle(): React.CSSProperties {
-  return { fontSize: '15px', color: 'var(--color-text-primary)', marginTop: 0, marginBottom: 'var(--space-md)' };
+  return {
+    fontSize: '15px',
+    color: 'var(--color-text-primary)',
+    marginTop: 0,
+    marginBottom: 'var(--space-md)',
+  };
 }
 
 function labelStyle(): React.CSSProperties {
@@ -552,20 +820,5 @@ function chipStyle(selected: boolean): React.CSSProperties {
     fontSize: '13px',
     fontWeight: 600,
     cursor: 'pointer',
-  };
-}
-
-function primaryButtonStyle(disabled = false): React.CSSProperties {
-  return {
-    // AUDIT_REPORT.md F1: minHeight eklendi - 44px dokunma hedefi kuralini garanti eder.
-    minHeight: '44px',
-    padding: '12px 24px',
-    background: disabled ? 'var(--color-bg-surface-elevated)' : 'var(--color-accent-gold)',
-    color: disabled ? 'var(--color-text-muted)' : '#1a1405',
-    border: 'none',
-    borderRadius: 'var(--radius-md)',
-    fontWeight: 700,
-    fontSize: '14px',
-    cursor: disabled ? 'not-allowed' : 'pointer',
   };
 }

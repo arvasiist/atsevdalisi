@@ -13,8 +13,8 @@
 
 import dynamic from 'next/dynamic';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { RaceSegmentSnapshot, RaceTimeline } from '@at-sevdalisi/shared-types';
-import { loadCameraConfig } from '@at-sevdalisi/game-config';
+import type { RaceSurface, RaceSegmentSnapshot, RaceTimeline } from '@at-sevdalisi/shared-types';
+import { loadAtmosphereConfig, loadCameraConfig } from '@at-sevdalisi/game-config';
 import {
   DEFAULT_LAP_LENGTH_METERS,
   DEFAULT_TURN_RADIUS_METERS,
@@ -23,7 +23,11 @@ import {
   type StadiumTrackGeometry,
 } from './track-path';
 import { computeCameraPose, type CameraMode } from './camera-presets';
-import { selectAutomaticCameraMode, type RaceCameraEvent, classifyRaceCameraEvent } from './camera-director';
+import {
+  selectAutomaticCameraMode,
+  type RaceCameraEvent,
+  classifyRaceCameraEvent,
+} from './camera-director';
 import { buildPhotoFinishRows, getFinishSlowMotionFactor } from './photo-finish';
 import { projectToMiniMap } from './minimap-projection';
 import {
@@ -34,13 +38,20 @@ import {
   interpolateHorseStateAtTime,
   isAnyHorseBlockedAtTime,
 } from './timeline-playback';
-import { RaceHud, type MiniMapMarker } from './RaceHud';
+import { RaceHud, type MiniMapMarker, type MiniMapPoint } from './RaceHud';
+import { computeCrowdExcitement, useSecondsSinceFinish } from './race-atmosphere';
+import { AudioToggle } from './audio-vfx/AudioToggle';
+import { QualitySelect } from './QualitySelect';
+import { useAudioMuted, useRaceAudio } from './audio-vfx/use-race-audio';
 import type { HorseVisual } from './RaceScene3D';
 
-const RaceScene3D = dynamic(() => import('./RaceScene3D').then((imported) => imported.RaceScene3D), {
-  ssr: false,
-  loading: () => <ScenePlaceholder />,
-});
+const RaceScene3D = dynamic(
+  () => import('./RaceScene3D').then((imported) => imported.RaceScene3D),
+  {
+    ssr: false,
+    loading: () => <ScenePlaceholder />,
+  },
+);
 
 /**
  * Faz 6 "Config ayrımı" (bu turda EKLENDİ) — modül kapsamında BİR KEZ
@@ -51,12 +62,15 @@ const RaceScene3D = dynamic(() => import('./RaceScene3D').then((imported) => imp
  * sabit render döngüsünün DIŞINDA tutulur).
  */
 const cameraConfig = loadCameraConfig();
+const ATMOSPHERE = loadAtmosphereConfig();
 
 export interface RaceViewerProps {
   timeline: RaceTimeline;
   horseNamesById: Record<string, string>;
   /** brief §7 `Track.turnCount` — pist virajlı mı, düz mü. Varsayılan: virajlı (2). */
   turnCount?: number;
+  /** 01.10.2026 (3D adım 8) — yarış zemini; verilmezse kum. */
+  surface?: RaceSurface;
 }
 
 /**
@@ -64,7 +78,52 @@ export interface RaceViewerProps {
  * `LiveRaceViewer.tsx` AYNI paleti kullanır (iki ayrı renk listesi İCAT
  * ETMEK yerine tek bir kaynak — bkz. o dosyanın importu).
  */
-export const HORSE_COLORS = ['#e3b341', '#38bdf8', '#4ade80', '#f87171', '#a78bfa', '#fb923c'];
+// 01.10.2026: 16 atlık sahada formalar ayırt edilebilsin diye 6'dan 12'ye
+// çıkarıldı (yarış konseptindeki numara rozetleri gibi doygun renkler).
+export const HORSE_COLORS = [
+  '#1d6fe0',
+  '#d62f2f',
+  '#1f9d55',
+  '#e8b416',
+  '#7c3aed',
+  '#ea6a12',
+  '#0ea5a5',
+  '#db2777',
+  '#e5e7eb',
+  '#111827',
+  '#84cc16',
+  '#8b5a2b',
+];
+
+const MINI_MAP_TRACK_SAMPLES = 72;
+
+/** Mini haritada çizilecek pist çizgisi (kapalı çokgen) — saf hesap. */
+export function buildMiniMapTrack(
+  turnCount: number,
+  trackGeometry: StadiumTrackGeometry,
+): MiniMapPoint[] {
+  const lapLength = turnCount > 0 ? trackGeometry.lapLengthMeters : 0;
+  if (lapLength <= 0) return [];
+  return Array.from({ length: MINI_MAP_TRACK_SAMPLES }, (_, i) =>
+    projectToMiniMap(
+      getHorseTrackPosition((i / MINI_MAP_TRACK_SAMPLES) * lapLength, turnCount, trackGeometry),
+      trackGeometry,
+    ),
+  );
+}
+
+/**
+ * At kimliği → forma rengi. `computeHorseVisualsAt` ile AYNI sıra/indeks
+ * (3D sahnedeki jokey rengi = HUD rozeti). Kimlik listesine bağlıdır, kareye
+ * değil — HUD'un `memo`su her karede bozulmasın diye.
+ */
+export function colorsByHorseId(ids: string[]): Record<string, string> {
+  const map: Record<string, string> = {};
+  ids.forEach((id, index) => {
+    map[id] = pickHorseColor(index);
+  });
+  return map;
+}
 export const HORSE_VISUAL_HEIGHT_METERS = 1;
 
 /**
@@ -164,7 +223,12 @@ export function computeHorseVisualsAt(
  */
 export const HUD_SYNC_INTERVAL_MS = 100;
 
-export function RaceViewer({ timeline, horseNamesById, turnCount = 2 }: RaceViewerProps): React.ReactElement {
+export function RaceViewer({
+  timeline,
+  horseNamesById,
+  turnCount = 2,
+  surface = 'dirt',
+}: RaceViewerProps): React.ReactElement {
   const horseIds = useMemo(() => getHorseIdsFromTimeline(timeline), [timeline]);
   const durationMs = useMemo(() => getRaceDurationMs(timeline), [timeline]);
   const trackGeometry = useMemo(
@@ -211,8 +275,17 @@ export function RaceViewer({ timeline, horseNamesById, turnCount = 2 }: RaceView
         // Photo Finish sunumu (Master Brief §23, bkz. `photo-finish.ts`
         // dosya başı doc yorumu) — bitişe yaklaşırken kullanıcının
         // seçtiği hız kademeli olarak YAVAŞLAR, ani bir kesme OLMAZ.
-        const slowMotionFactor = getFinishSlowMotionFactor(currentTimeMsRef.current, durationMs, cameraConfig);
-        const next = advancePlaybackTimeMs(currentTimeMsRef.current, deltaMs, speedMultiplier * slowMotionFactor, durationMs);
+        const slowMotionFactor = getFinishSlowMotionFactor(
+          currentTimeMsRef.current,
+          durationMs,
+          cameraConfig,
+        );
+        const next = advancePlaybackTimeMs(
+          currentTimeMsRef.current,
+          deltaMs,
+          speedMultiplier * slowMotionFactor,
+          durationMs,
+        );
         currentTimeMsRef.current = next;
         setCurrentTimeMs(next);
         // Faz 2 düzeltmesi — HUD state'i HER karede DEĞİL, throttle
@@ -244,7 +317,8 @@ export function RaceViewer({ timeline, horseNamesById, turnCount = 2 }: RaceView
   // 3D sahne — HER rAF karesinde (60Hz) günceli kalır (bkz.
   // `HUD_SYNC_INTERVAL_MS` doc yorumu).
   const horseVisuals: HorseVisual[] = useMemo(
-    () => computeHorseVisualsAt(horseIds, timeline.segments, currentTimeMs, turnCount, trackGeometry),
+    () =>
+      computeHorseVisualsAt(horseIds, timeline.segments, currentTimeMs, turnCount, trackGeometry),
     [horseIds, timeline.segments, currentTimeMs, turnCount, trackGeometry],
   );
 
@@ -271,6 +345,42 @@ export function RaceViewer({ timeline, horseNamesById, turnCount = 2 }: RaceView
   // tercih edilir).
   const isRaceFinished = durationMs > 0 && currentTimeMs >= durationMs;
   const leaderPositionMeters = leaderboard[0]?.positionMeters ?? 0;
+  // 01.10.2026 (3D adım 8) — start kapısı mesafe 0'da.
+  const startPoint = useMemo(
+    () => getHorseTrackPosition(0, turnCount, trackGeometry),
+    [turnCount, trackGeometry],
+  );
+  // 01.10.2026 — kalabalık heyecanı (tribün hareketi; adım 9'da kalabalık sesi).
+  const secondsSinceFinish = useSecondsSinceFinish(
+    isRaceFinished,
+    ATMOSPHERE.crowd.finishCelebrationSeconds,
+  );
+  const crowdExcitement = computeCrowdExcitement(
+    {
+      leaderPositionMeters,
+      raceDistanceMeters,
+      finalStretchRemainingMeters: cameraConfig.finalStretchRemainingMeters,
+      isRaceFinished,
+      secondsSinceFinish,
+    },
+    ATMOSPHERE,
+  );
+  // 01.10.2026 (3D adım 9) — ses: olaylar ekrandaki durumdan türetilir.
+  const [audioMuted, setAudioMuted] = useAudioMuted();
+  useRaceAudio({
+    muted: audioMuted,
+    isPlaying: isPlaying,
+    surface: surface,
+    timeMs: hudTimeMs,
+    started: hudTimeMs > 0,
+    leaderHorseId: leaderboard[0]?.horseId,
+    inFinalStretch:
+      raceDistanceMeters > 0 &&
+      raceDistanceMeters - leaderPositionMeters <= cameraConfig.finalStretchRemainingMeters,
+    isFinished: isRaceFinished,
+    crowdExcitement,
+    leaderSpeedMps: leaderboard[0]?.speedMps ?? 0,
+  });
   const anyHorseBlocked = useMemo(
     () => isAnyHorseBlockedAtTime(timeline.segments, horseIds, hudTimeMs),
     [timeline.segments, horseIds, hudTimeMs],
@@ -279,7 +389,12 @@ export function RaceViewer({ timeline, horseNamesById, turnCount = 2 }: RaceView
   const lastAutoCameraEventRef = useRef<RaceCameraEvent | null>(null);
 
   useEffect(() => {
-    const cameraDirectorInput = { leaderPositionMeters, raceDistanceMeters, anyHorseBlocked, isFinished: isRaceFinished };
+    const cameraDirectorInput = {
+      leaderPositionMeters,
+      raceDistanceMeters,
+      anyHorseBlocked,
+      isFinished: isRaceFinished,
+    };
     const currentEvent = classifyRaceCameraEvent(cameraDirectorInput, cameraConfig);
     if (currentEvent !== lastAutoCameraEventRef.current) {
       // Yeni bir race event'ine geçildi (brief §17) — kullanıcının bir
@@ -313,12 +428,21 @@ export function RaceViewer({ timeline, horseNamesById, turnCount = 2 }: RaceView
     [timeline.finalResult, horseNamesById],
   );
 
+  const horseColorsById = useMemo(() => colorsByHorseId(horseIds), [horseIds]);
+  const miniMapTrack = useMemo(
+    () => buildMiniMapTrack(turnCount, trackGeometry),
+    [turnCount, trackGeometry],
+  );
+
   const miniMapMarkers: MiniMapMarker[] = useMemo(
     () =>
       hudHorseVisuals.map((horse) => ({
         horseId: horse.horseId,
         isLeader: horse.isLeader,
-        ...projectToMiniMap({ x: horse.x, z: horse.z, headingRadians: horse.headingRadians }, trackGeometry),
+        ...projectToMiniMap(
+          { x: horse.x, z: horse.z, headingRadians: horse.headingRadians },
+          trackGeometry,
+        ),
       })),
     [hudHorseVisuals, trackGeometry],
   );
@@ -329,7 +453,8 @@ export function RaceViewer({ timeline, horseNamesById, turnCount = 2 }: RaceView
   );
 
   const leaderVisual = horseVisuals.find((horse) => horse.isLeader) ?? horseVisuals[0];
-  const focusVisual = horseVisuals.find((horse) => horse.horseId === horseIds[0]) ?? horseVisuals[0];
+  const focusVisual =
+    horseVisuals.find((horse) => horse.horseId === horseIds[0]) ?? horseVisuals[0];
 
   const cameraPose = useMemo(() => {
     const leaderPosition = leaderVisual
@@ -344,6 +469,8 @@ export function RaceViewer({ timeline, horseNamesById, turnCount = 2 }: RaceView
       focusHorsePosition,
       trackCenter: { x: 0, y: 0, z: 0 },
       finishLinePosition: { x: finishLinePoint.x, y: 0, z: finishLinePoint.z },
+      leaderHeadingRadians: leaderVisual?.headingRadians ?? 0,
+      focusHeadingRadians: focusVisual?.headingRadians ?? 0,
     });
   }, [cameraMode, leaderVisual, focusVisual, finishLinePoint]);
 
@@ -375,10 +502,18 @@ export function RaceViewer({ timeline, horseNamesById, turnCount = 2 }: RaceView
     <div style={{ position: 'relative', width: '100%', height: '100%', minHeight: '480px' }}>
       <RaceScene3D
         horses={horseVisuals}
+        crowdExcitement={crowdExcitement}
+        surface={surface}
+        startPoint={startPoint}
+        gateOpen={currentTimeMs > 0}
         cameraPose={cameraPose}
         trackGeometry={trackGeometry}
         isPlaying={isPlaying}
       />
+      <div className="scene-controls" style={{ top: 156, left: 16 }}>
+        <AudioToggle muted={audioMuted} onChange={setAudioMuted} />
+        <QualitySelect />
+      </div>
       <RaceHud
         horseNamesById={horseNamesById}
         leaderboard={leaderboard}
@@ -389,6 +524,12 @@ export function RaceViewer({ timeline, horseNamesById, turnCount = 2 }: RaceView
         speedMultiplier={speedMultiplier}
         cameraMode={cameraMode}
         finishResult={isRaceFinished ? finishRows : undefined}
+        horseColorsById={horseColorsById}
+        focusHorseId={focusVisual?.horseId}
+        raceDistanceMeters={raceDistanceMeters}
+        raceTitle="Yarış"
+        raceSubtitle={`${Math.round(raceDistanceMeters)} m`}
+        miniMapTrack={miniMapTrack}
         onTogglePlay={handleTogglePlay}
         onChangeSpeedMultiplier={setSpeedMultiplier}
         onChangeCameraMode={handleChangeCameraMode}

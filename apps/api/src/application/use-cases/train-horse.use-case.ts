@@ -9,14 +9,32 @@ import type {
   TrainingType,
 } from '@at-sevdalisi/shared-types';
 import { calculateAgeInMonths } from '../../domain/horse/age-curve';
-import { HorseInjuredError, HorseListedInMarketError, HorseNotFoundError } from '../../domain/horse/errors';
+import {
+  HorseInjuredError,
+  HorseListedInMarketError,
+  HorseNotFoundError,
+} from '../../domain/horse/errors';
 import { applyVitalDelta } from '../../domain/horse/vital-signs';
-import { applyTraining, getPrimaryStatKey, rollInjuryOccurred } from '../../domain/training/training';
+import { applyXpGain } from '../../domain/progression/progression';
+import { ManageStaffUseCase } from './manage-staff.use-case';
+import { FarmEffectsService } from './farm-effects.service';
+import {
+  applyTraining,
+  getPrimaryStatKey,
+  rollInjuryOccurred,
+} from '../../domain/training/training';
 import { AppConfigService } from '../../infrastructure/config/config.service';
 import { HORSE_STATS_REPOSITORY, type HorseStatsRepository } from '../ports/horse-stats.repository';
 import { HORSE_REPOSITORY, type HorseRepository } from '../ports/horse.repository';
-import { TRAINING_SESSION_REPOSITORY, type TrainingSessionRepository } from '../ports/training-session.repository';
-import { MARKET_LISTING_REPOSITORY, type MarketListingRepository } from '../ports/market-listing.repository';
+import {
+  TRAINING_SESSION_REPOSITORY,
+  type TrainingSessionRepository,
+} from '../ports/training-session.repository';
+import {
+  MARKET_LISTING_REPOSITORY,
+  type MarketListingRepository,
+} from '../ports/market-listing.repository';
+import { PLAYER_REPOSITORY, type PlayerRepository } from '../ports/player.repository';
 
 export interface TrainHorseInput {
   type: TrainingType;
@@ -35,9 +53,14 @@ export class TrainHorseUseCase {
   constructor(
     @Inject(HORSE_REPOSITORY) private readonly horseRepository: HorseRepository,
     @Inject(HORSE_STATS_REPOSITORY) private readonly horseStatsRepository: HorseStatsRepository,
-    @Inject(TRAINING_SESSION_REPOSITORY) private readonly trainingSessionRepository: TrainingSessionRepository,
-    @Inject(MARKET_LISTING_REPOSITORY) private readonly marketListingRepository: MarketListingRepository,
+    @Inject(TRAINING_SESSION_REPOSITORY)
+    private readonly trainingSessionRepository: TrainingSessionRepository,
+    @Inject(MARKET_LISTING_REPOSITORY)
+    private readonly marketListingRepository: MarketListingRepository,
     @Inject(AppConfigService) private readonly config: AppConfigService,
+    @Inject(ManageStaffUseCase) private readonly staff: ManageStaffUseCase,
+    @Inject(FarmEffectsService) private readonly farmEffects: FarmEffectsService,
+    @Inject(PLAYER_REPOSITORY) private readonly playerRepository: PlayerRepository,
   ) {}
 
   async execute(horseId: string, input: TrainHorseInput): Promise<TrainHorseResult> {
@@ -63,6 +86,10 @@ export class TrainHorseUseCase {
     const statKey: NumericHorseStatField | null = getPrimaryStatKey(input.type);
     const currentStatValue: number = statKey === null ? 0 : stats[statKey];
     const now = new Date();
+    // 01.10.2026 — antrenör etkisi (domain/staff). Süresi dolmuş antrenör 1 (nötr) döner.
+    const trainerFactor = await this.staff.multiplierFor(horse.ownerId, 'trainer', now);
+    // 01.10.2026 — antrenman pisti × nalbant alanı sakatlık olasılığını düşürür.
+    const { trainingInjuryRiskMultiplier } = await this.farmEffects.effectsFor(horse.ownerId);
 
     // AUDIT_REPORT.md Bulgu C2 hardening (bu oturum) — `horseRepository.updateWithLock`
     // (bkz. o metodun doc yorumu, `PlayerRepository.updateWithLock` ile AYNI
@@ -89,30 +116,53 @@ export class TrainHorseUseCase {
         potential: lockedHorse.potential,
         vitals,
         ageMonths,
+        trainerFactor,
       });
 
       const sessionId = randomUUID();
-      const injuryOccurred = rollInjuryOccurred(outcome.injuryRisk, `${sessionId}:injury`);
+      const injuryRisk = Math.min(
+        1,
+        Math.max(0, outcome.injuryRisk * trainingInjuryRiskMultiplier),
+      );
+      const injuryOccurred = rollInjuryOccurred(injuryRisk, `${sessionId}:injury`);
       const newVitals = applyVitalDelta(vitals, { fatigue: outcome.fatigueGain });
+
+      // 01.10.2026 — XP: at, kilit altında, vitallerle AYNI yazımda ilerler.
+      const progression = this.config.progression;
+      const horseProgress = applyXpGain(
+        lockedHorse.level,
+        lockedHorse.xp,
+        progression.xpRewards.horse.trainingSession,
+        progression,
+      );
 
       const updatedHorse: Horse = {
         ...lockedHorse,
         fatigue: newVitals.fatigue,
         status: injuryOccurred ? 'injured' : lockedHorse.status,
+        level: horseProgress.level,
+        xp: horseProgress.xp,
         updatedAt: now.toISOString(),
       };
 
-      return { horse: updatedHorse, result: { sessionId, injuryOccurred, outcome, newVitals } };
+      return {
+        horse: updatedHorse,
+        result: { sessionId, injuryOccurred, injuryRisk, outcome, newVitals },
+      };
     });
 
     if (lockResult === null) {
       throw new HorseNotFoundError(horseId);
     }
-    const { sessionId, injuryOccurred, outcome, newVitals } = lockResult;
+    const { sessionId, injuryOccurred, injuryRisk, outcome, newVitals } = lockResult;
 
     const statChanges: Partial<Record<HorseStatField, number>> = {};
     if (statKey !== null && outcome.statGain > 0) {
-      await this.horseStatsRepository.updateStatValue(horseId, statKey, currentStatValue + outcome.statGain);
+      await this.horseStatsRepository.updateStatValue(
+        horseId,
+        statKey,
+        currentStatValue + outcome.statGain,
+      );
       statChanges[statKey] = outcome.statGain;
     }
 
@@ -124,9 +174,26 @@ export class TrainHorseUseCase {
       durationMinutes: input.durationMinutes,
       statGain: statChanges,
       fatigueGain: outcome.fatigueGain,
-      injuryRisk: outcome.injuryRisk,
+      // Kaydedilen risk, zarın GERÇEKTEN atıldığı (tesis sonrası) değerdir.
+      injuryRisk,
       injuryOccurred,
       createdAt: now.toISOString(),
+    });
+
+    // Oyuncu XP'si (01.10.2026). Antrenman bir para yolu değildir ve atın
+    // yazımı yukarıda ayrı bir kilitte tamamlandı; oyuncu satırı kendi
+    // kilidiyle güncellenir (eşzamanlı iki antrenman XP'yi ezmesin diye).
+    await this.playerRepository.updateWithLock(horse.ownerId, (player) => {
+      const progress = applyXpGain(
+        player.level,
+        player.xp,
+        this.config.progression.xpRewards.player.trainingSession,
+        this.config.progression,
+      );
+      return {
+        player: { ...player, level: progress.level, xp: progress.xp, updatedAt: now.toISOString() },
+        result: null,
+      };
     });
 
     return {
@@ -135,6 +202,7 @@ export class TrainHorseUseCase {
       fatigueGain: outcome.fatigueGain,
       injuryOccurred,
       newStatus: { fatigue: newVitals.fatigue, energy: newVitals.energy, morale: newVitals.morale },
+      staffMultiplier: trainerFactor,
     };
   }
 }

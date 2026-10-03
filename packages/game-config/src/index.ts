@@ -18,6 +18,11 @@
  */
 import type {
   AuthConfig,
+  OpsConfig,
+  ModerationConfig,
+  QuestsConfig,
+  AchievementsConfig,
+  AnticheatConfig,
   AdminConfig,
   AudioConfig,
   CameraConfig,
@@ -37,6 +42,12 @@ import type {
   SocialConfig,
   StableConfig,
   StaffConfig,
+  HorseAppearanceConfig,
+  HorsePresenceConfig,
+  AtmosphereConfig,
+  LightingConfig,
+  PerformanceConfig,
+  InteractiveRaceConfig,
   TrainingConfig,
   VfxConfig,
   WeatherConfig,
@@ -53,6 +64,12 @@ import careConfigJson from '../../../config/care.config.json';
 import stableConfigJson from '../../../config/stable.config.json';
 import jockeyConfigJson from '../../../config/jockey.config.json';
 import staffConfigJson from '../../../config/staff.config.json';
+import horseAppearanceConfigJson from '../../../config/horse-appearance.config.json';
+import horsePresenceConfigJson from '../../../config/horse-presence.config.json';
+import atmosphereConfigJson from '../../../config/atmosphere.config.json';
+import lightingConfigJson from '../../../config/lighting.config.json';
+import performanceConfigJson from '../../../config/performance.config.json';
+import interactiveRaceConfigJson from '../../../config/interactive-race.config.json';
 import farmConfigJson from '../../../config/farm.config.json';
 import onlineConfigJson from '../../../config/online.config.json';
 import cameraConfigJson from '../../../config/camera.config.json';
@@ -65,6 +82,11 @@ import chatConfigJson from '../../../config/chat.config.json';
 import raceLobbyConfigJson from '../../../config/race-lobby.config.json';
 import adminConfigJson from '../../../config/admin.config.json';
 import authConfigJson from '../../../config/auth.config.json';
+import opsConfigJson from '../../../config/ops.config.json';
+import moderationConfigJson from '../../../config/moderation.config.json';
+import questsConfigJson from '../../../config/quests.config.json';
+import anticheatConfigJson from '../../../config/anticheat.config.json';
+import achievementsConfigJson from '../../../config/achievements.config.json';
 
 export function loadRaceConfig(): RaceBalanceConfig {
   return raceConfigJson as unknown as RaceBalanceConfig;
@@ -108,6 +130,11 @@ export function loadJockeyConfig(): JockeyConfig {
 
 export function loadStaffConfig(): StaffConfig {
   return staffConfigJson as unknown as StaffConfig;
+}
+
+/** 01.10.2026 — atın görünüşü (don/işaret ağırlıkları + kalıtım). */
+export function loadHorseAppearanceConfig(): HorseAppearanceConfig {
+  return horseAppearanceConfigJson as unknown as HorseAppearanceConfig;
 }
 
 export function loadFarmConfig(): FarmConfig {
@@ -237,4 +264,55 @@ export * from './types';
  */
 export function loadAuthConfig(): AuthConfig {
   return authConfigJson as unknown as AuthConfig;
+}
+
+/**
+ * 02.10.2026 — işletim (Faz 13-A): hazırlık denetimi zaman aşımı, istek
+ * kimliği sınırı, üretim ortam doğrulaması. Oyun dengesi DEĞİLDİR.
+ */
+export function loadOpsConfig(): OpsConfig {
+  return opsConfigJson as unknown as OpsConfig;
+}
+
+/** 02.10.2026 — Faz 10 + 11-A: yaptırım ve duyuru sınırları. Yetki kapısı DEĞİLDİR. */
+export function loadModerationConfig(): ModerationConfig {
+  return moderationConfigJson as unknown as ModerationConfig;
+}
+
+/** 02.10.2026 — Faz 11-B: günlük/haftalık görevler + etkinlik sınırları. */
+export function loadQuestsConfig(): QuestsConfig {
+  return questsConfigJson as unknown as QuestsConfig;
+}
+
+/** 03.10.2026 — başarımlar (yaşam boyu hedefler, tek seferlik ödül). */
+export function loadAchievementsConfig(): AchievementsConfig {
+  return achievementsConfigJson as unknown as AchievementsConfig;
+}
+
+/** 02.10.2026 — Faz 7: şüpheli desen eşikleri (yalnızca inceleme listesi). */
+export function loadAnticheatConfig(): AnticheatConfig {
+  return anticheatConfigJson as unknown as AnticheatConfig;
+}
+
+/** 01.10.2026 — atın durumu → 3D davranış (salt görsel). */
+export function loadHorsePresenceConfig(): HorsePresenceConfig {
+  return horsePresenceConfigJson as unknown as HorsePresenceConfig;
+}
+
+/** 01.10.2026 — hipodrom atmosferi (kalabalık heyecanı, tribün animasyonu, LOD). */
+export function loadAtmosphereConfig(): AtmosphereConfig {
+  return atmosphereConfigJson as unknown as AtmosphereConfig;
+}
+
+/** 01.10.2026 — 3D sahnelerin ortak ışık ayarları (ton eşleme, HDRI, bloom, yumuşak gölge). */
+export function loadLightingConfig(): LightingConfig {
+  return lightingConfigJson as unknown as LightingConfig;
+}
+
+export function loadPerformanceConfig(): PerformanceConfig {
+  return performanceConfigJson as unknown as PerformanceConfig;
+}
+
+export function loadInteractiveRaceConfig(): InteractiveRaceConfig {
+  return interactiveRaceConfigJson as unknown as InteractiveRaceConfig;
 }

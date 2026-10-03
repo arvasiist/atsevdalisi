@@ -54,7 +54,10 @@ export function createHtmlAudioBackend(): AudioBackend {
       // konsolda GÖRÜNÜR kalır (üretim davranışını GİZLEMEMEK için).
       void element.play().catch((error: unknown) => {
         // eslint-disable-next-line no-console -- bkz. yukarıdaki doc yorumu.
-        console.warn(`[AudioManager] '${path}' oynatılamadı (tarayıcı otomatik oynatma politikası olabilir):`, error);
+        console.warn(
+          `[AudioManager] '${path}' oynatılamadı (tarayıcı otomatik oynatma politikası olabilir):`,
+          error,
+        );
       });
     },
     stop(path) {

@@ -22,23 +22,80 @@
  * 10 gereksiz istek oluşmasın diye.
  */
 
-import { useCallback, useEffect, useState } from 'react';
-import type { HorsePedigreeView, PublicHorse, StableSummaryView, StableUpgradeResult } from '@at-sevdalisi/shared-types';
+import dynamic from 'next/dynamic';
+import Link from 'next/link';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  Activity,
+  BatteryMedium,
+  Dumbbell,
+  HeartPulse,
+  Network,
+  Smile,
+  Warehouse,
+  Zap,
+} from 'lucide-react';
+import type {
+  HorsePedigreeView,
+  PublicHorse,
+  StableSummaryView,
+  StableUpgradeResult,
+} from '@at-sevdalisi/shared-types';
 import { GlassPanel } from '../../components/ui/GlassPanel';
-import { HorseAvatar } from '../../components/ui/HorseAvatar';
+import { HorseHeadIcon } from '../../components/ui/HorseHeadIcon';
 import { StarRating } from '../../components/ui/StarRating';
 import { StatBar } from '../../components/ui/StatBar';
 import { BreedingPanel } from '../../features/breeding/BreedingPanel';
 import { JockeyPanel } from '../../features/jockey/JockeyPanel';
 import { PedigreeTree } from '../../features/pedigree/PedigreeTree';
+import { pickFeaturedHorse } from '../../features/home-scene/featured-horse';
 import { apiClient } from '../../lib/api-client';
 import { formatCurrency, hasEnoughFunds } from '../../lib/currency';
 import { usePlayer } from '../../lib/player-context';
 
+/**
+ * 01.10.2026 — 3D AHIR SAHNESİ (adım 6). Tembel ve istemci tarafında
+ * yüklenir (three.js sunucuda çalışmaz). Sayfada TEK Canvas: kartlar sahneye
+ * at seçer — her kartta ayrı WebGL bağlamı tarayıcı sınırını aşardı.
+ */
+const StableScene3D = dynamic(
+  () => import('../../features/stable-scene/StableScene3D').then((mod) => mod.StableScene3D),
+  {
+    ssr: false,
+    loading: () => (
+      <div
+        className="stable3d"
+        style={{ display: 'grid', placeItems: 'center', color: 'var(--color-text-muted)' }}
+      >
+        3D ahır yükleniyor…
+      </div>
+    ),
+  },
+);
+
 export default function StablePage(): React.ReactElement {
-  const { player, isLoading: isPlayerLoading, error: playerError, createPlayer, refresh } = usePlayer();
+  const {
+    player,
+    isLoading: isPlayerLoading,
+    error: playerError,
+    createPlayer,
+    refresh,
+  } = usePlayer();
   const [horses, setHorses] = useState<PublicHorse[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  /** 3D ahırda gösterilen at; seçilmemişse öne çıkan at (ana sayfayla aynı kural). */
+  const [stageHorseId, setStageHorseId] = useState<string | null>(null);
+  const stageHorse = useMemo(
+    () =>
+      horses
+        ? (horses.find((item) => item.id === stageHorseId) ?? pickFeaturedHorse(horses))
+        : null,
+    [horses, stageHorseId],
+  );
+  const showInStable = useCallback((horseId: string) => {
+    setStageHorseId(horseId);
+    if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, []);
 
   useEffect(() => {
     if (!player) {
@@ -84,8 +141,16 @@ export default function StablePage(): React.ReactElement {
 
   return (
     <main className="page-container">
-      <h1 style={{ fontSize: '24px', color: 'var(--color-text-primary)', marginBottom: '4px' }}>Ahırım</h1>
-      <p style={{ color: 'var(--color-text-secondary)', marginTop: 0, marginBottom: 'var(--space-lg)' }}>
+      <h1 className="page-title" style={{ marginBottom: '4px' }}>
+        Ahırım
+      </h1>
+      <p
+        style={{
+          color: 'var(--color-text-secondary)',
+          marginTop: 0,
+          marginBottom: 'var(--space-lg)',
+        }}
+      >
         Atlarının durumunu takip et, en güçlülerini yarışa hazırla.
       </p>
 
@@ -94,18 +159,50 @@ export default function StablePage(): React.ReactElement {
           <p style={{ color: 'var(--color-text-secondary)', marginTop: 0 }}>
             Ahırını görebilmek için önce bir seyis/jokey hesabı oluştur.
           </p>
-          <button type="button" onClick={() => void createPlayer()} style={primaryButtonStyle()}>
+          <button type="button" onClick={() => void createPlayer()} className="btn-gold">
             Başlangıç Paketiyle Oyuncu Oluştur
           </button>
-          {playerError ? <p style={{ color: 'var(--color-status-critical)', marginBottom: 0 }}>{playerError}</p> : null}
+          {playerError ? (
+            <p style={{ color: 'var(--color-status-critical)', marginBottom: 0 }}>{playerError}</p>
+          ) : null}
         </GlassPanel>
       ) : null}
 
       {error ? <p style={{ color: 'var(--color-status-critical)' }}>{error}</p> : null}
 
+      {stageHorse ? <StableScene3D horse={stageHorse} /> : null}
+
       {player ? <StableUpgradeCard ownerId={player.id} onUpgraded={refresh} /> : null}
 
-      {player && horses !== null ? <BreedingPanel ownerId={player.id} horses={horses} onBred={handleBred} /> : null}
+      {player && horses === null && !error ? (
+        <p style={{ color: 'var(--color-text-muted)' }}>Ahır yükleniyor…</p>
+      ) : null}
+
+      {horses && horses.length === 0 ? (
+        <GlassPanel style={{ textAlign: 'center', padding: 'var(--space-xl)' }}>
+          <p style={{ color: 'var(--color-text-secondary)', margin: 0 }}>
+            Ahırında kayıtlı at bulunamadı.
+          </p>
+        </GlassPanel>
+      ) : null}
+
+      {horses && horses.length > 0 ? (
+        // 01.10.2026 tasarım yenilemesi: atlar sayfanın ASIL içeriğidir —
+        // yükseltme kartının hemen altında, yetiştirme/jokeyden ÖNCE gelir.
+        <div className="horse-grid">
+          {horses.map((horse) => (
+            <HorseCard
+              key={horse.id}
+              horse={horse}
+              isOnStage={stageHorse?.id === horse.id}
+              onShowInStable={showInStable}
+            />
+          ))}
+        </div>
+      ) : null}
+      {player && horses !== null ? (
+        <BreedingPanel ownerId={player.id} horses={horses} onBred={handleBred} />
+      ) : null}
 
       {/*
         JOKEY PANELİ (29.09.2026, FINAL_PROJECT_AUDIT #18) — `horses`e BAĞLI
@@ -115,24 +212,6 @@ export default function StablePage(): React.ReactElement {
         beklemez — yalnızca `player` yeterlidir.
       */}
       {player ? <JockeyPanel playerId={player.id} /> : null}
-
-      {player && horses === null && !error ? (
-        <p style={{ color: 'var(--color-text-muted)' }}>Ahır yükleniyor…</p>
-      ) : null}
-
-      {horses && horses.length === 0 ? (
-        <GlassPanel style={{ textAlign: 'center', padding: 'var(--space-xl)' }}>
-          <p style={{ color: 'var(--color-text-secondary)', margin: 0 }}>Ahırında kayıtlı at bulunamadı.</p>
-        </GlassPanel>
-      ) : null}
-
-      {horses && horses.length > 0 ? (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 'var(--space-md)' }}>
-          {horses.map((horse) => (
-            <HorseCard key={horse.id} horse={horse} />
-          ))}
-        </div>
-      ) : null}
     </main>
   );
 }
@@ -153,7 +232,13 @@ export default function StablePage(): React.ReactElement {
  * YOLU"). Düğmenin önden kapatılması yalnızca bir KOLAYLIKTIR — güvenlik
  * sınırı DEĞİLDİR; sunucu yetersiz bakiyeyi zaten 409 ile reddeder.
  */
-function StableUpgradeCard({ ownerId, onUpgraded }: { ownerId: string; onUpgraded: () => Promise<void> }): React.ReactElement {
+function StableUpgradeCard({
+  ownerId,
+  onUpgraded,
+}: {
+  ownerId: string;
+  onUpgraded: () => Promise<void>;
+}): React.ReactElement {
   const { player } = usePlayer();
   const [summary, setSummary] = useState<StableSummaryView | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -198,20 +283,37 @@ function StableUpgradeCard({ ownerId, onUpgraded }: { ownerId: string; onUpgrade
   if (summary === null) {
     return (
       <GlassPanel style={{ marginBottom: 'var(--space-lg)' }}>
-        <p style={{ color: 'var(--color-text-muted)', margin: 0 }}>{error ?? 'Ahır durumu yükleniyor…'}</p>
+        <p style={{ color: 'var(--color-text-muted)', margin: 0 }}>
+          {error ?? 'Ahır durumu yükleniyor…'}
+        </p>
       </GlassPanel>
     );
   }
 
   const offer = summary.nextUpgrade;
-  const isEnabled = offer !== null && player !== null && hasEnoughFunds(player, offer.cost) && !isUpgrading;
+  const isEnabled =
+    offer !== null && player !== null && hasEnoughFunds(player, offer.cost) && !isUpgrading;
 
   return (
     <GlassPanel style={{ marginBottom: 'var(--space-lg)' }}>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-lg)', alignItems: 'flex-start' }}>
+      <div
+        style={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          gap: 'var(--space-lg)',
+          alignItems: 'flex-start',
+        }}
+      >
         <div style={{ display: 'grid', gap: '4px', minWidth: '160px' }}>
           <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>Ahır Seviyesi</span>
-          <span style={{ fontSize: '28px', fontWeight: 700, color: 'var(--color-accent-gold)', lineHeight: 1.1 }}>
+          <span
+            style={{
+              fontSize: '28px',
+              fontWeight: 700,
+              color: 'var(--color-accent-gold)',
+              lineHeight: 1.1,
+            }}
+          >
             {summary.stableLevel}
           </span>
           <span style={{ fontSize: '12px', color: 'var(--color-text-secondary)' }}>
@@ -230,7 +332,9 @@ function StableUpgradeCard({ ownerId, onUpgraded }: { ownerId: string; onUpgrade
 
         <div style={{ display: 'grid', gap: '8px', minWidth: '240px' }}>
           {offer === null ? (
-            <span style={{ fontSize: '13px', color: 'var(--color-text-muted)' }}>En yüksek ahır seviyesine ulaştın.</span>
+            <span style={{ fontSize: '13px', color: 'var(--color-text-muted)' }}>
+              En yüksek ahır seviyesine ulaştın.
+            </span>
           ) : (
             <>
               <span style={{ fontSize: '13px', color: 'var(--color-text-primary)' }}>
@@ -245,7 +349,12 @@ function StableUpgradeCard({ ownerId, onUpgraded }: { ownerId: string; onUpgrade
               >
                 Maliyet: {formatCurrency(offer.cost.currency, offer.cost.amount)}
               </span>
-              <button type="button" onClick={() => void handleUpgrade()} disabled={!isEnabled} style={upgradeButtonStyle(isEnabled)}>
+              <button
+                type="button"
+                onClick={() => void handleUpgrade()}
+                disabled={!isEnabled}
+                className="btn-gold"
+              >
                 {isUpgrading ? 'Yükseltiliyor…' : 'Ahırı Yükselt'}
               </button>
               {!isEnabled && !isUpgrading ? (
@@ -259,39 +368,36 @@ function StableUpgradeCard({ ownerId, onUpgraded }: { ownerId: string; onUpgrade
       </div>
 
       {result !== null ? (
-        <p style={{ marginTop: 'var(--space-md)', marginBottom: 0, color: 'var(--color-status-positive)', fontSize: '13px' }}>
+        <p
+          style={{
+            marginTop: 'var(--space-md)',
+            marginBottom: 0,
+            color: 'var(--color-status-positive)',
+            fontSize: '13px',
+          }}
+        >
           Ahır seviye {result.newStableLevel} oldu · kapasite {result.newCapacity} · ödenen{' '}
           {formatCurrency(result.cost.currency, result.cost.amount)} · kalan bakiye{' '}
           {formatCurrency('money', result.newBalance.money)}
         </p>
       ) : null}
 
-      {error !== null ? <p style={{ color: 'var(--color-status-critical)', marginBottom: 0 }}>{error}</p> : null}
+      {error !== null ? (
+        <p style={{ color: 'var(--color-status-critical)', marginBottom: 0 }}>{error}</p>
+      ) : null}
     </GlassPanel>
   );
 }
 
-/**
- * Yalnızca GÖSTERİM amaçlı yeterlilik karşılaştırması. Sunucu otoritesini
- * DEĞİŞTİRMEZ: bu fonksiyon yanlış cevap verse bile harcama kararını
- * `POST .../stable/upgrade` içindeki `SELECT ... FOR UPDATE` verir.
- */
-function upgradeButtonStyle(enabled: boolean): React.CSSProperties {
-  return {
-    // AUDIT_REPORT.md F1 ile AYNI kural: 44px dokunma hedefi.
-    minHeight: '44px',
-    padding: '12px 24px',
-    background: enabled ? 'var(--color-accent-gold)' : 'transparent',
-    color: enabled ? '#1a1405' : 'var(--color-text-muted)',
-    border: enabled ? 'none' : '1px solid var(--color-border)',
-    borderRadius: 'var(--radius-md)',
-    fontWeight: 700,
-    fontSize: '14px',
-    cursor: enabled ? 'pointer' : 'not-allowed',
-  };
-}
-
-function HorseCard({ horse }: { horse: PublicHorse }): React.ReactElement {
+function HorseCard({
+  horse,
+  isOnStage,
+  onShowInStable,
+}: {
+  horse: PublicHorse;
+  isOnStage: boolean;
+  onShowInStable: (horseId: string) => void;
+}): React.ReactElement {
   // docs/AUDIT_REPORT.md "§25 Stable görsel yönetim ekranı" bulgusunun
   // "piyasa değeri tahmini ... ayrı dilim" notu (bu turda EKLENDİ) —
   // `calculateMarketValue()` brief §30'dan beri VARDI ama hiçbir yerden
@@ -343,12 +449,13 @@ function HorseCard({ horse }: { horse: PublicHorse }): React.ReactElement {
   }, [horse.id, isPedigreeOpen, pedigree]);
 
   return (
-    <GlassPanel>
-      <div style={{ display: 'flex', gap: 'var(--space-md)', alignItems: 'center', marginBottom: 'var(--space-md)' }}>
-        <HorseAvatar horseId={horse.id} size={64} />
-        <div style={{ display: 'grid', gap: '2px' }}>
-          <span style={{ fontSize: '16px', fontWeight: 700, color: 'var(--color-text-primary)' }}>{horse.name}</span>
-          <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
+    <GlassPanel style={{ padding: 0, overflow: 'hidden' }}>
+      {/* Sahne bandı — CSS degrade + projeye özgü at silüeti (görsel dosyası YOK). */}
+      <div className="horse-card-stage">
+        <HorseHeadIcon size={150} gradient withMane className="horse-card-silhouette" />
+        <div className="horse-card-title">
+          <span className="horse-card-name">{horse.name}</span>
+          <span className="featured-meta">
             {breedGenderLabel(horse.breed, horse.gender)} · Seviye {horse.level}
           </span>
           <StarRating score={horse.quality} />
@@ -356,77 +463,104 @@ function HorseCard({ horse }: { horse: PublicHorse }): React.ReactElement {
         <StatusBadge status={horse.status} />
       </div>
 
-      <div style={{ display: 'grid', gap: '8px' }}>
-        <StatBar label="Sağlık" value={horse.health} />
-        <StatBar label="Enerji" value={horse.energy} />
-        <StatBar label="Kondisyon" value={horse.fitness} />
-        <StatBar label="Yorgunluk" value={horse.fatigue} higherIsBetter={false} />
-        <StatBar label="Moral" value={horse.morale} />
-      </div>
+      <div style={{ padding: 'var(--space-lg)' }}>
+        <div style={{ display: 'grid', gap: '10px' }}>
+          <StatBar icon={<HeartPulse size={14} />} label="Sağlık" value={horse.health} />
+          <StatBar icon={<BatteryMedium size={14} />} label="Enerji" value={horse.energy} />
+          <StatBar icon={<Activity size={14} />} label="Kondisyon" value={horse.fitness} />
+          <StatBar
+            icon={<Zap size={14} />}
+            label="Yorgunluk"
+            value={horse.fatigue}
+            higherIsBetter={false}
+          />
+          <StatBar icon={<Smile size={14} />} label="Moral" value={horse.morale} />
+        </div>
 
-      <div
-        style={{
-          marginTop: 'var(--space-md)',
-          paddingTop: 'var(--space-sm)',
-          borderTop: '1px solid var(--color-border)',
-          display: 'flex',
-          justifyContent: 'space-between',
-          fontSize: '12px',
-          color: 'var(--color-text-muted)',
-        }}
-      >
-        <span>Potansiyel tahmini: {horse.potentialEstimate.min}–{horse.potentialEstimate.max}</span>
-        {marketValue !== null ? (
-          <span style={{ color: 'var(--color-accent-gold)', fontWeight: 600 }}>
-            Değer: {formatCurrency('money', marketValue)}
+        <div className="featured-actions" style={{ marginTop: 'var(--space-md)' }}>
+          <Link href="/training" className="btn-action btn-action-blue">
+            <Dumbbell size={18} aria-hidden="true" />
+            Antrenman
+          </Link>
+          <Link href="/care" className="btn-action btn-action-green">
+            <HeartPulse size={18} aria-hidden="true" />
+            Bakım
+          </Link>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => onShowInStable(horse.id)}
+          className="btn-outline"
+          style={{ width: '100%', marginTop: 'var(--space-md)' }}
+          disabled={isOnStage}
+        >
+          <Warehouse size={16} aria-hidden="true" />
+          {isOnStage ? 'Ahırda gösteriliyor' : 'Ahırda Göster'}
+        </button>
+
+        <div
+          style={{
+            marginTop: 'var(--space-md)',
+            paddingTop: 'var(--space-sm)',
+            borderTop: '1px solid var(--color-border)',
+            display: 'flex',
+            justifyContent: 'space-between',
+            fontSize: '12px',
+            color: 'var(--color-text-muted)',
+          }}
+        >
+          <span>
+            Potansiyel tahmini: {horse.potentialEstimate.min}–{horse.potentialEstimate.max}
           </span>
+          {marketValue !== null ? (
+            <span style={{ color: 'var(--color-accent-gold)', fontWeight: 600 }}>
+              Değer: {formatCurrency('money', marketValue)}
+            </span>
+          ) : null}
+        </div>
+
+        <button
+          type="button"
+          onClick={() => void togglePedigree()}
+          className="btn-outline"
+          style={{ width: '100%', marginTop: 'var(--space-md)' }}
+        >
+          <Network size={16} aria-hidden="true" />
+          {isPedigreeOpen ? 'Soy Ağacını Kapat' : 'Soy Ağacı'}
+        </button>
+
+        {isPedigreeOpen ? (
+          pedigreeError !== null ? (
+            <p style={{ color: 'var(--color-status-critical)', fontSize: '12px', marginBottom: 0 }}>
+              {pedigreeError}
+            </p>
+          ) : pedigree === null ? (
+            <p style={{ color: 'var(--color-text-muted)', fontSize: '12px', marginBottom: 0 }}>
+              Soy ağacı yükleniyor…
+            </p>
+          ) : (
+            // Soy kaydı OLMAYAN at da geçerli bir sonuçtur (başlangıç atları
+            // hiçbir zaman çiftleştirilmedi) — `PedigreeTree` bu durumda tüm
+            // düğümleri "Bilinmiyor" olarak gösterir, hata DEĞİL.
+            <div style={{ marginTop: 'var(--space-md)' }}>
+              <PedigreeTree pedigree={pedigree.pedigree} horseNamesById={pedigree.horseNamesById} />
+            </div>
+          )
         ) : null}
       </div>
-
-      <button type="button" onClick={() => void togglePedigree()} style={pedigreeToggleStyle()}>
-        {isPedigreeOpen ? 'Soy Ağacını Kapat' : 'Soy Ağacı'}
-      </button>
-
-      {isPedigreeOpen ? (
-        pedigreeError !== null ? (
-          <p style={{ color: 'var(--color-status-critical)', fontSize: '12px', marginBottom: 0 }}>{pedigreeError}</p>
-        ) : pedigree === null ? (
-          <p style={{ color: 'var(--color-text-muted)', fontSize: '12px', marginBottom: 0 }}>Soy ağacı yükleniyor…</p>
-        ) : (
-          // Soy kaydı OLMAYAN at da geçerli bir sonuçtur (başlangıç atları
-          // hiçbir zaman çiftleştirilmedi) — `PedigreeTree` bu durumda tüm
-          // düğümleri "Bilinmiyor" olarak gösterir, hata DEĞİL.
-          <div style={{ marginTop: 'var(--space-md)' }}>
-            <PedigreeTree pedigree={pedigree.pedigree} horseNamesById={pedigree.horseNamesById} />
-          </div>
-        )
-      ) : null}
     </GlassPanel>
   );
-}
-
-/** Soy ağacı açma/kapama düğmesi — `upgradeButtonStyle` ile AYNI 44px dokunma hedefi kuralı (AUDIT_REPORT.md F1). */
-function pedigreeToggleStyle(): React.CSSProperties {
-  return {
-    marginTop: 'var(--space-md)',
-    minHeight: '44px',
-    width: '100%',
-    padding: '10px 16px',
-    background: 'transparent',
-    color: 'var(--color-text-secondary)',
-    border: '1px solid var(--color-border)',
-    borderRadius: 'var(--radius-md)',
-    fontWeight: 600,
-    fontSize: '13px',
-    cursor: 'pointer',
-  };
 }
 
 function StatusBadge({ status }: { status: PublicHorse['status'] }): React.ReactElement | null {
   if (status === 'active') {
     return null;
   }
-  const labels: Record<Exclude<PublicHorse['status'], 'active'>, { text: string; color: string }> = {
+  const labels: Record<
+    Exclude<PublicHorse['status'], 'active'>,
+    { text: string; color: string }
+  > = {
     injured: { text: 'Sakat', color: 'var(--color-status-critical)' },
     retired: { text: 'Emekli', color: 'var(--color-text-muted)' },
     resting: { text: 'Dinleniyor', color: 'var(--color-status-warning)' },
@@ -456,19 +590,4 @@ function breedGenderLabel(breed: string, gender: PublicHorse['gender']): string 
     gelding: 'İğdiş',
   };
   return `${breed} · ${genderLabels[gender]}`;
-}
-
-function primaryButtonStyle(): React.CSSProperties {
-  return {
-    // AUDIT_REPORT.md F1: minHeight eklendi - 44px dokunma hedefi kuralini garanti eder.
-    minHeight: '44px',
-    padding: '12px 24px',
-    background: 'var(--color-accent-gold)',
-    color: '#1a1405',
-    border: 'none',
-    borderRadius: 'var(--radius-md)',
-    fontWeight: 700,
-    fontSize: '14px',
-    cursor: 'pointer',
-  };
 }

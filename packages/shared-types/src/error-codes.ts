@@ -25,6 +25,46 @@ export const ErrorCode = {
   CredentialsAlreadySet: 'CREDENTIALS_ALREADY_SET',
   // Şifre sıfırlama bağlantısı geçersiz/süresi dolmuş/kullanılmış (migration 0047).
   InvalidResetToken: 'INVALID_RESET_TOKEN',
+  // 02.10.2026 — oturum (migration 0057). Yenileme token'ı geçersiz/süresi
+  // dolmuş/iptal edilmiş/yeniden kullanılmış — BİLEREK tek kod.
+  InvalidRefreshToken: 'INVALID_REFRESH_TOKEN',
+  SessionNotFound: 'SESSION_NOT_FOUND',
+  // `POST /auth/session` yalnızca oturumsuz (eski) token'ı yükseltir.
+  SessionUpgradeNotAllowed: 'SESSION_UPGRADE_NOT_ALLOWED',
+  // 02.10.2026 — e-posta doğrulama (migration 0058).
+  InvalidVerificationToken: 'INVALID_VERIFICATION_TOKEN',
+  NoAccountEmail: 'NO_ACCOUNT_EMAIL',
+  EmailAlreadyVerified: 'EMAIL_ALREADY_VERIFIED',
+  // 02.10.2026 — hesap silme (migration 0059).
+  DeletionConfirmationMismatch: 'DELETION_CONFIRMATION_MISMATCH',
+  DeletionPasswordInvalid: 'DELETION_PASSWORD_INVALID',
+  AccountDeletionBlocked: 'ACCOUNT_DELETION_BLOCKED',
+  // 02.10.2026 — Faz 10 + 11-A (migration 0060).
+  /** Hesap askıda ya da yasaklı (403 — 401 DEĞİL: istemci oturumu silmesin). */
+  AccountSuspended: 'ACCOUNT_SUSPENDED',
+  InvalidSanction: 'INVALID_SANCTION',
+  SanctionTargetNotAllowed: 'SANCTION_TARGET_NOT_ALLOWED',
+  SanctionNotFound: 'SANCTION_NOT_FOUND',
+  InvalidRoleChange: 'INVALID_ROLE_CHANGE',
+  InvalidAnnouncement: 'INVALID_ANNOUNCEMENT',
+  AnnouncementNotFound: 'ANNOUNCEMENT_NOT_FOUND',
+  AnnouncementLimitReached: 'ANNOUNCEMENT_LIMIT_REACHED',
+  /** 02.10.2026 (Faz 11-B) — görev/etkinlik yok ya da şu an alınamaz (404). */
+  QuestNotFound: 'QUEST_NOT_FOUND',
+  AchievementNotFound: 'ACHIEVEMENT_NOT_FOUND',
+  AchievementNotCompleted: 'ACHIEVEMENT_NOT_COMPLETED',
+  AchievementAlreadyClaimed: 'ACHIEVEMENT_ALREADY_CLAIMED',
+  /** Hedefe ulaşılmadı (409). */
+  QuestNotCompleted: 'QUEST_NOT_COMPLETED',
+  /** Ödül bu dönem için zaten alındı (409) — çift ödemenin kapısı tekil talep satırıdır. */
+  QuestAlreadyClaimed: 'QUEST_ALREADY_CLAIMED',
+  InvalidLiveEvent: 'INVALID_LIVE_EVENT',
+  LiveEventNotFound: 'LIVE_EVENT_NOT_FOUND',
+  LiveEventLimitReached: 'LIVE_EVENT_LIMIT_REACHED',
+  /** 02.10.2026 (Faz 10) — bakiye düzeltmesi gövdesi geçersiz (400). */
+  InvalidBalanceAdjustment: 'INVALID_BALANCE_ADJUSTMENT',
+  /** Kendine ya da yönetim ekibine düzeltme (409). */
+  AdjustmentTargetNotAllowed: 'ADJUSTMENT_TARGET_NOT_ALLOWED',
   NotFound: 'NOT_FOUND',
   // AUDIT_REPORT.md Bulgu S1/S2/S4 hardening (bu oturum) — brief §41/§50
   // Google/Apple Sign-In + IDOR sertleştirmesi. `Unauthorized` (401) daha
@@ -45,9 +85,24 @@ export const ErrorCode = {
   // Google hesabı var.
   ProviderIdentityTaken: 'PROVIDER_IDENTITY_TAKEN',
   ProviderAlreadyLinked: 'PROVIDER_ALREADY_LINKED',
+  // 01.10.2026 — kulüp (brief §44, migration 0049).
+  ClubNotFound: 'CLUB_NOT_FOUND',
+  ClubNameTaken: 'CLUB_NAME_TAKEN',
+  ClubFull: 'CLUB_FULL',
+  AlreadyClubMember: 'ALREADY_CLUB_MEMBER',
+  NotClubMember: 'NOT_CLUB_MEMBER',
+  InsufficientClubPermission: 'INSUFFICIENT_CLUB_PERMISSION',
+  ClubLeaderCannotLeave: 'CLUB_LEADER_CANNOT_LEAVE',
   // Faz 2 — At Pazarı (domain/market)
   ListingNotActive: 'LISTING_NOT_ACTIVE',
   ListingExpired: 'LISTING_EXPIRED',
+  // 02.10.2026 — müzayede.
+  ListingIsAuction: 'LISTING_IS_AUCTION',
+  ListingNotAuction: 'LISTING_NOT_AUCTION',
+  BidTooLow: 'BID_TOO_LOW',
+  CannotBidOwnListing: 'CANNOT_BID_OWN_LISTING',
+  AuctionHasBids: 'AUCTION_HAS_BIDS',
+  AuctionRequiresEndTime: 'AUCTION_REQUIRES_END_TIME',
   CannotBuyOwnListing: 'CANNOT_BUY_OWN_LISTING',
   InvalidListingPrice: 'INVALID_LISTING_PRICE',
   // FAZ 1 wiring, on üçüncü dilim (bu oturum) — `InvalidListingPriceError`
@@ -65,6 +120,9 @@ export const ErrorCode = {
   // Faz 2 — Personel (domain/staff)
   StaffAlreadyHired: 'STAFF_ALREADY_HIRED',
   StaffContractExpired: 'STAFF_CONTRACT_EXPIRED',
+  StaffNotFound: 'STAFF_NOT_FOUND',
+  StaffNotOwned: 'STAFF_NOT_OWNED',
+  StaffRenewalNotDue: 'STAFF_RENEWAL_NOT_DUE',
   // Faz 2 — Ahır yükseltme (domain/stable)
   MaxStableLevelReached: 'MAX_STABLE_LEVEL_REACHED',
   // AUDIT_REPORT.md Bulgu C1 (bu oturum) — `StableCapacityExceededError`
@@ -89,6 +147,12 @@ export const ErrorCode = {
   NotEligibleForBreeding: 'NOT_ELIGIBLE_FOR_BREEDING',
   // Faz 4 — Çiftlik / Tesisler (domain/farm)
   MaxFacilityLevelReached: 'MAX_FACILITY_LEVEL_REACHED',
+  FacilityInactive: 'FACILITY_INACTIVE',
+  InvalidPlayerControl: 'INVALID_PLAYER_CONTROL',
+  InteractiveRaceNotFound: 'INTERACTIVE_RACE_NOT_FOUND',
+  InteractiveRaceInProgress: 'INTERACTIVE_RACE_IN_PROGRESS',
+  InteractiveRaceNotFinished: 'INTERACTIVE_RACE_NOT_FINISHED',
+  InteractiveRaceClosed: 'INTERACTIVE_RACE_CLOSED',
   StaffCapacityExceeded: 'STAFF_CAPACITY_EXCEEDED',
   // FAZ 1 wiring — Player (domain/player)
   UsernameAlreadyTaken: 'USERNAME_ALREADY_TAKEN',

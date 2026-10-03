@@ -1,7 +1,7 @@
 import { readdirSync, existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { NAV_LINKS } from '../../src/components/layout/nav-links';
+import { MAX_MOBILE_TABS, NAV_LINKS } from '../../src/components/layout/nav-links';
 
 /**
  * `TopBar`'ın gezinti şeridi (28.09.2026) — KIRIK BAĞLANTI KİLİDİ.
@@ -96,13 +96,13 @@ describe('TopBar gezinti şeridi', () => {
     // Bu, testin asıl iddiasıdır: 404'e götüren bir bağlantı, hiç
     // olmayan bir bağlantıdan DAHA KÖTÜDÜR — kullanıcıya çalıştığı
     // izlenimini verir.
-    for (const [href] of NAV_LINKS) {
+    for (const { href } of NAV_LINKS) {
       expect(STATIC_ROUTES.has(href), `Sayfası olmayan gezinti bağlantısı: ${href}`).toBe(true);
     }
   });
 
   it('şeritte aynı yol İKİ KEZ yoktur (React `key` çakışması ve yanlış "aktif" işaretlemesi)', () => {
-    const hrefs = NAV_LINKS.map(([href]) => href);
+    const hrefs = NAV_LINKS.map(({ href }) => href);
     expect(new Set(hrefs).size).toBe(hrefs.length);
   });
 
@@ -112,13 +112,13 @@ describe('TopBar gezinti şeridi', () => {
     // yorumu). Liste BÜYÜR: her yeni ekran buraya bir satır ekler, yoksa
     // sayfa derlenir, testler geçer ve kullanıcı ona HİÇ ULAŞAMAZ.
     for (const href of ['/notifications', '/wallet']) {
-      expect(NAV_LINKS.map(([linkHref]) => linkHref)).toContain(href);
+      expect(NAV_LINKS.map(({ href: linkHref }) => linkHref)).toContain(href);
       expect(STATIC_ROUTES.has(href), `Şeritte olmayan sayfa: ${href}`).toBe(true);
     }
   });
 
   it('şeritte HİÇBİR bağlantı boş etiket taşımaz', () => {
-    for (const [href, label] of NAV_LINKS) {
+    for (const { href, label } of NAV_LINKS) {
       expect(label.trim().length, `Boş etiket: ${href}`).toBeGreaterThan(0);
     }
   });
@@ -137,6 +137,12 @@ describe('TopBar gezinti şeridi', () => {
    */
   it('yönetim paneli VARDIR ama gezinti şeridine KONMAZ (yönetici olmayana 403)', () => {
     expect(STATIC_ROUTES.has('/admin'), '/admin sayfası yok').toBe(true);
-    expect(NAV_LINKS.map(([href]) => href)).not.toContain('/admin');
+    expect(NAV_LINKS.map(({ href }) => href)).not.toContain('/admin');
+  });
+
+  it('telefonda alt sekme çubuğuna en fazla MAX_MOBILE_TABS bağlantı girer (beşinci yuva "Menü")', () => {
+    const tabs = NAV_LINKS.filter((link) => link.mobileTab === true);
+    expect(tabs.length).toBeGreaterThan(0);
+    expect(tabs.length).toBeLessThanOrEqual(MAX_MOBILE_TABS);
   });
 });

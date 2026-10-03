@@ -1,76 +1,86 @@
 'use client';
 
 /**
- * Ana Sayfa / Dashboard — `docs/GAME_DESIGN.md` §2 (ekran haritası) ve §4
- * ("Ana Sayfa kartları": Oyuncu kartı, Ahır kartı, Son yarış kartı, Hızlı
- * işlemler) ile proje sahibinin paylaştığı UI mockup'ının birleşimi.
+ * Ana Sayfa / Dashboard — `docs/GAME_DESIGN.md` §2/§4. `(dashboard)` bir
+ * Next.js rota grubudur; sayfa `/`'de yaşar.
  *
- * `(dashboard)` bir Next.js ROTA GRUBUDUR (route group) — URL'yi
- * ETKİLEMEZ, bu sayfa hâlâ `/`'de yaşar; `docs/GAME_DESIGN.md` §4'ün
- * açıkça istediği dosya konumu budur ("... `apps/web/src/app/(dashboard)/
- * page.tsx` üzerinde korunacak").
+ * 01.10.2026 TASARIM YENİLEMESİ — sahibin paylaştığı konsept görsellerin
+ * düzeni: üstte başlık bandı, ortada öne çıkan at kartı (statlar +
+ * Antrenman/Bakım/Yarışa Katıl), solda ahır durumu + cüzdan + kariyer,
+ * sağda yaklaşan yarışlar + son sonuçlar, altta simgeli hızlı erişim.
  *
- * Eski `app/page.tsx` (SİLİNDİ, bu dosyayla ÇAKIŞIRDI — Next.js aynı
- * path'e çözülen iki sayfaya izin vermez) düz beyaz/açık temalıydı,
- * hiçbir tema token'ı KULLANMIYORDU, oyuncu kimliğini yalnızca yerel
- * state'te tutuyordu (sayfa değişince kayboluyordu) ve mockup'taki hero/
- * kart-tabanlı navigasyon/son yarış panelinin HİÇBİRİ yoktu.
- *
- * Hero arka planı: `docs/GAME_DESIGN.md` §4 "görsel varlıklar özgün
- * üretilecektir (birebir kopya olmayacak)" notuna ve projenin HENÜZ
- * VERİLMEMİŞ "asset üretim hattı" kararına (docs/ROADMAP.md "Açık
- * kararlar") uygun olarak, burada bir fotoğraf/AI-üretim görsel yerine
- * TAMAMEN CSS/gradyan tabanlı özgün bir kompozisyon kullanılır — sahte bir
- * "foto-gerçekçi" görsel iddiasında bulunmaz.
+ * Kurallar (değişmedi):
+ *  - Yalnızca GERÇEK veri gösterilir. Konseptteki "Günlük Görevler" gibi
+ *    sunucuda karşılığı olmayan bölümler EKLENMEDİ.
+ *  - Fotoğraf/görsel dosyası YOK (CLAUDE.md kural 8): başlık bandı ve at
+ *    kartının görsel alanı CSS degradeleri + projeye özgü SVG silüetlerdir.
  */
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
-import type { RecentRaceResultView, StableSummaryView } from '@at-sevdalisi/shared-types';
+import { useEffect, useMemo, useState } from 'react';
+import {
+  Activity,
+  BatteryMedium,
+  CalendarClock,
+  ChartColumn,
+  Clapperboard,
+  Coins,
+  Dumbbell,
+  Gem,
+  Globe,
+  HeartPulse,
+  Medal,
+  ShoppingCart,
+  Smile,
+  Ticket,
+  Trophy,
+  Users,
+  Warehouse,
+  Wheat,
+  Wrench,
+  Zap,
+} from 'lucide-react';
+import type {
+  PublicHorse,
+  RaceLobbyListItem,
+  RecentRaceResultView,
+  StableSummaryView,
+} from '@at-sevdalisi/shared-types';
 import { GlassPanel } from '../../components/ui/GlassPanel';
+import { HorseAvatar } from '../../components/ui/HorseAvatar';
+import { HorseHeadIcon } from '../../components/ui/HorseHeadIcon';
+import { StarRating } from '../../components/ui/StarRating';
 import { StatBar } from '../../components/ui/StatBar';
 import { getCareerProgress } from '../../features/career/career-tier';
+import { pickFeaturedHorse } from '../../features/home-scene/featured-horse';
+import { HomeHero } from '../../features/home-scene/HomeHero';
 import { apiClient } from '../../lib/api-client';
 import { CURRENCY_LABELS } from '../../lib/currency';
+import { formatRaceStart, formatTimeUntil } from '../../lib/format-time';
 import { usePlayer } from '../../lib/player-context';
 
-interface NavCardItem {
+interface QuickLink {
   href: string;
-  icon: string;
+  icon: React.ReactNode;
   label: string;
   description: string;
 }
 
-const NAV_ITEMS: NavCardItem[] = [
-  { href: '/', icon: '🏠', label: 'Ana Sayfa', description: 'Genel bakış' },
-  { href: '/stable', icon: '🐴', label: 'Ahırım', description: 'Atlarını yönet' },
-  { href: '/market', icon: '🛒', label: 'At Pazarı', description: 'Al & sat' },
-  { href: '/races', icon: '🏁', label: 'Yarışlar', description: 'Takvim & pratik yarış' },
-  // "AT SEVDALISI — Master Development Brief" §22 "PHASE 12 — REPLAY" (bu
-  // turda EKLENDİ) — `docs/AUDIT_REPORT.md`'nin "Replay (bağımsız gözatma)"
-  // bulgusunu kapatan `/replays` kütüphane ekranına giden ana navigasyon
-  // girişi (bkz. `apps/web/src/app/replays/page.tsx` doc yorumu).
-  { href: '/replays', icon: '🎬', label: 'Yarış Tekrarları', description: 'Geçmiş yarışları izle' },
-  // TRIBÜN (proje sahibinin açık talebi, 27.09.2026 — "tribüne ücretli
-  // girişler olsun insanlar yarışları izleyebilsin") — bkz.
-  // `apps/web/src/app/grandstand/page.tsx` doc yorumu. `/replays`'ten
-  // AYRI bir giriş: orası KENDİ yarışlarını gösterir (katılımcı olduğun
-  // yarışlar), burası BAŞKALARININ yarışlarını ücretle izleme yeridir.
-  { href: '/grandstand', icon: '🎟️', label: 'Tribün', description: 'Yarışları yerinden izle' },
-  // ARKADAŞLIK + MESAJLAŞMA (proje sahibinin açık talebi, 27.09.2026) —
-  // bkz. `apps/web/src/app/friends/page.tsx` doc yorumu. Yeni arkadaş
-  // keşfi `/leaderboard` üzerinden yapılır (oradaki "Arkadaş Ekle"
-  // düğmesi); bu kart istekleri, arkadaş listesini ve yazışmayı açar.
-  { href: '/friends', icon: '👥', label: 'Arkadaşlar', description: 'İstekler & mesajlar' },
-  { href: '/training', icon: '🏋️', label: 'Antrenman', description: 'Statları geliştir' },
-  // claude/hizli-bitirme-plani.md'nin proje sahibi tarafından önceliklendirdiği
-  // dilim (bu turda EKLENDİ) — bkz. `apps/web/src/app/equipment/page.tsx` doc yorumu.
-  { href: '/equipment', icon: '🧰', label: 'Ekipman', description: 'Eyer, dizgin, nal kuşandır' },
-  { href: '/care', icon: '🩺', label: 'Bakım', description: 'Sağlık & besleme' },
-  { href: '/farm', icon: '🌾', label: 'Çiftlik', description: 'Üretim & kaynaklar' },
-  { href: '/online', icon: '🌐', label: 'Online', description: 'PvP eşleşmeler' },
-  { href: '/leaderboard', icon: '🏆', label: 'Sıralama', description: 'Küresel sıralama' },
-  { href: '/club', icon: '🎽', label: 'Kulüp', description: 'Takımına katıl' },
+const ICON_SIZE = 26;
+
+const QUICK_LINKS: QuickLink[] = [
+  { href: '/stable', icon: <HorseHeadIcon size={ICON_SIZE + 4} />, label: 'Ahırım', description: 'Atlarını yönet' },
+  { href: '/training', icon: <Dumbbell size={ICON_SIZE} />, label: 'Antrenman', description: 'Statları geliştir' },
+  { href: '/care', icon: <HeartPulse size={ICON_SIZE} />, label: 'Bakım', description: 'Sağlık & besleme' },
+  { href: '/races', icon: <Trophy size={ICON_SIZE} />, label: 'Yarışlar', description: 'Lobi & pratik yarış' },
+  { href: '/grandstand', icon: <Ticket size={ICON_SIZE} />, label: 'Tribün', description: 'Yarışları izle' },
+  { href: '/replays', icon: <Clapperboard size={ICON_SIZE} />, label: 'Tekrarlar', description: 'Geçmiş yarışlar' },
+  { href: '/market', icon: <ShoppingCart size={ICON_SIZE} />, label: 'Pazar', description: 'Al & sat' },
+  { href: '/equipment', icon: <Wrench size={ICON_SIZE} />, label: 'Ekipman', description: 'Eyer, dizgin, nal' },
+  { href: '/farm', icon: <Wheat size={ICON_SIZE} />, label: 'Çiftlik', description: 'Üretim & kaynak' },
+  { href: '/online', icon: <Globe size={ICON_SIZE} />, label: 'Online', description: 'PvP eşleşme' },
+  { href: '/leaderboard', icon: <ChartColumn size={ICON_SIZE} />, label: 'Sıralama', description: 'Küresel tablo' },
+  { href: '/friends', icon: <Users size={ICON_SIZE} />, label: 'Sosyal', description: 'Arkadaş & mesaj' },
 ];
 
 export default function DashboardPage(): React.ReactElement {
@@ -78,25 +88,22 @@ export default function DashboardPage(): React.ReactElement {
 
   return (
     <main>
-      <Hero />
+      <HomeHero />
 
       <div className="page-container" style={{ display: 'grid', gap: 'var(--space-lg)' }}>
-        <NavCardGrid />
-
         {!player && !isLoading ? (
           <GlassPanel style={{ textAlign: 'center', padding: 'var(--space-xl)' }}>
             <p style={{ color: 'var(--color-text-secondary)', marginTop: 0 }}>
               Henüz giriş yapmış bir seyis/jokey hesabın yok.
             </p>
-            <button type="button" onClick={() => void createPlayer()} style={primaryButtonStyle()}>
+            <button type="button" onClick={() => void createPlayer()} className="btn-gold">
               Başlangıç Paketiyle Oyuncu Oluştur
             </button>
-            {/* 30.09.2026 — kayıtlı hesabı olan (yeni cihaz / silinmiş tarayıcı
-                verisi) oyuncunun geri dönüş yolu. */}
+            {/* 30.09.2026 — kayıtlı hesabı olan oyuncunun geri dönüş yolu. */}
             <p style={{ color: 'var(--color-text-secondary)', fontSize: '13px', marginBottom: 0 }}>
               Kayıtlı hesabın var mı?{' '}
               <Link href="/account" style={{ color: 'var(--color-accent-focus)', fontWeight: 600 }}>
-                E-posta ile giriş yap
+                Giriş yap
               </Link>
             </p>
             {error ? <p style={{ color: 'var(--color-status-critical)', marginBottom: 0 }}>{error}</p> : null}
@@ -104,204 +111,50 @@ export default function DashboardPage(): React.ReactElement {
         ) : null}
 
         {player ? (
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'minmax(0, 1fr)',
-              gap: 'var(--space-lg)',
-            }}
-            className="dashboard-grid"
-          >
-            <div style={{ display: 'grid', gap: 'var(--space-lg)', alignContent: 'start' }}>
-              <PlayerCard displayName={player.displayName} level={player.level} xp={player.xp} money={player.money} gems={player.gems} />
-              <StableSummaryCard ownerId={player.id} />
+          <div className="home-grid">
+            <div className="home-col">
+              <StableStatusCard ownerId={player.id} />
+              <EconomyCard money={player.money} gems={player.gems} />
+              <CareerCard level={player.level} xp={player.xp} />
             </div>
-            <RecentRacesPanel playerId={player.id} />
+            <FeaturedHorseCard ownerId={player.id} />
+            <div className="home-col">
+              <UpcomingRacesCard />
+              <RecentRacesPanel playerId={player.id} />
+            </div>
           </div>
         ) : null}
-      </div>
 
-      <style>{`
-        @media (min-width: 900px) {
-          .dashboard-grid {
-            grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) !important;
-          }
-        }
-      `}</style>
+        <QuickAccess />
+      </div>
     </main>
   );
 }
 
-function Hero(): React.ReactElement {
+function CardHeader({
+  icon,
+  title,
+  action,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  action?: React.ReactNode;
+}): React.ReactElement {
   return (
-    <section
-      style={{
-        position: 'relative',
-        overflow: 'hidden',
-        padding: '64px var(--space-md) 96px',
-        background:
-          'radial-gradient(120% 100% at 50% 0%, rgba(227, 179, 65, 0.16) 0%, transparent 55%), linear-gradient(180deg, #16233c 0%, var(--color-bg-base) 75%)',
-        borderBottom: '1px solid var(--color-border)',
-      }}
-    >
-      <TrackHorizon />
-      <div style={{ position: 'relative', maxWidth: '720px', margin: '0 auto', textAlign: 'center' }}>
-        <div
-          style={{
-            display: 'inline-block',
-            fontSize: '11px',
-            letterSpacing: '0.14em',
-            textTransform: 'uppercase',
-            color: 'var(--color-accent-gold)',
-            border: '1px solid var(--color-accent-gold)',
-            borderRadius: '999px',
-            padding: '4px 14px',
-            marginBottom: 'var(--space-md)',
-          }}
-        >
-          Hipodrom Yönetim Simülasyonu
-        </div>
-        <h1
-          style={{
-            margin: '0 0 12px 0',
-            fontSize: 'clamp(32px, 5vw, 48px)',
-            fontWeight: 800,
-            letterSpacing: '-0.01em',
-            color: 'var(--color-text-primary)',
-          }}
-        >
-          AT SEVDALISI
-        </h1>
-        <p style={{ color: 'var(--color-text-secondary)', fontSize: '16px', lineHeight: 1.6, margin: 0 }}>
-          Kendi ahırını kur, şampiyon kan hattını yetiştir, hipodromda zaferi yaşa.
-        </p>
-      </div>
-    </section>
-  );
-}
-
-/** Özgün, at/hipodrom fotoğrafı YERİNE geçen soyut bir pist-ufku kompozisyonu (yalnızca SVG şekiller + tema renkleri). */
-function TrackHorizon(): React.ReactElement {
-  return (
-    <svg
-      aria-hidden="true"
-      viewBox="0 0 1200 300"
-      preserveAspectRatio="none"
-      style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: 0.55 }}
-    >
-      <ellipse cx="600" cy="320" rx="560" ry="120" fill="none" stroke="var(--color-accent-gold)" strokeWidth="2" opacity="0.35" />
-      <ellipse cx="600" cy="320" rx="420" ry="80" fill="none" stroke="var(--color-accent-gold)" strokeWidth="1.5" opacity="0.25" />
-      <circle cx="600" cy="70" r="46" fill="var(--color-accent-gold)" opacity="0.18" />
-    </svg>
-  );
-}
-
-function NavCardGrid(): React.ReactElement {
-  return (
-    <div
-      style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))',
-        gap: 'var(--space-sm)',
-        marginTop: '-56px',
-        position: 'relative',
-        zIndex: 1,
-      }}
-    >
-      {NAV_ITEMS.map((item) => (
-        <Link key={item.href} href={item.href} style={{ textDecoration: 'none' }}>
-          <GlassPanel
-            style={{
-              padding: 'var(--space-md)',
-              display: 'grid',
-              gap: '6px',
-              justifyItems: 'center',
-              textAlign: 'center',
-              transition: 'transform 0.15s ease, border-color 0.15s ease',
-              cursor: 'pointer',
-            }}
-          >
-            <span style={{ fontSize: '26px' }} aria-hidden="true">
-              {item.icon}
-            </span>
-            <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text-primary)' }}>{item.label}</span>
-            <span style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>{item.description}</span>
-          </GlassPanel>
-        </Link>
-      ))}
+    <div className="card-header">
+      <span className="card-header-icon">{icon}</span>
+      <span className="section-title">{title}</span>
+      {action ? <span style={{ marginLeft: 'auto' }}>{action}</span> : null}
     </div>
   );
 }
 
-function PlayerCard({
-  displayName,
-  level,
-  xp,
-  money,
-  gems,
-}: {
-  displayName: string;
-  level: number;
-  xp: number;
-  money: number;
-  gems: number;
-}): React.ReactElement {
-  // "AT SEVDALISI — Master Development Brief" §27 "PHASE 16 — CAREER" (bu
-  // turda EKLENDİ) — bkz. `features/career/career-tier.ts` dosya başı doc
-  // yorumu: kademe sınırları `progression.config.json`'ın ZATEN VAR OLAN
-  // unlock seviyeleriyle hizalanır, yeni bir denge kararı İCAT EDİLMEZ.
-  const careerProgress = getCareerProgress(level);
-
-  return (
-    <GlassPanel>
-      <SectionLabel>Oyuncu</SectionLabel>
-      <p style={{ margin: '4px 0 12px 0', fontSize: '18px', fontWeight: 700, color: 'var(--color-text-primary)' }}>
-        {displayName}
-      </p>
-      <div style={{ display: 'flex', gap: 'var(--space-lg)', flexWrap: 'wrap', marginBottom: 'var(--space-md)' }}>
-        <StatLine label="Seviye" value={level} />
-        <StatLine label="XP" value={xp.toLocaleString('tr-TR')} />
-        <StatLine label={CURRENCY_LABELS.money} value={money.toLocaleString('tr-TR')} accent="gold" />
-        <StatLine label={CURRENCY_LABELS.gems} value={gems.toLocaleString('tr-TR')} accent="gem" />
-      </div>
-      <div
-        style={{
-          display: 'inline-block',
-          fontSize: '11px',
-          fontWeight: 700,
-          letterSpacing: '0.06em',
-          textTransform: 'uppercase',
-          color: 'var(--color-accent-gold)',
-          border: '1px solid var(--color-accent-gold)',
-          borderRadius: '999px',
-          padding: '3px 10px',
-          marginBottom: '8px',
-        }}
-      >
-        🏆 {careerProgress.tier.label}
-      </div>
-      {careerProgress.nextTier ? (
-        <StatBar
-          label={`Sonraki kademe: ${careerProgress.nextTier.label} (Sv. ${careerProgress.nextTier.minLevel})`}
-          value={careerProgress.progressToNextTier * 100}
-        />
-      ) : (
-        <p style={{ fontSize: '12px', color: 'var(--color-text-muted)', margin: 0 }}>
-          En üst kariyer kademesine ulaştın.
-        </p>
-      )}
-    </GlassPanel>
-  );
-}
-
-function StableSummaryCard({ ownerId }: { ownerId: string }): React.ReactElement {
+function StableStatusCard({ ownerId }: { ownerId: string }): React.ReactElement {
   const [summary, setSummary] = useState<StableSummaryView | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    setSummary(null);
-    setError(null);
     void apiClient
       .getStableSummary(ownerId)
       .then((data) => {
@@ -317,33 +170,269 @@ function StableSummaryCard({ ownerId }: { ownerId: string }): React.ReactElement
 
   return (
     <GlassPanel>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <SectionLabel>Ahır Özeti</SectionLabel>
-        <Link href="/stable" style={{ fontSize: '12px', color: 'var(--color-accent-focus)' }}>
-          Ahırıma git →
+      <CardHeader icon={<Warehouse size={18} />} title="Ahır Durumu" />
+      {error ? (
+        <p className="muted-text" style={{ color: 'var(--color-status-critical)' }}>{error}</p>
+      ) : !summary ? (
+        <p className="muted-text">Yükleniyor…</p>
+      ) : (
+        <div style={{ display: 'grid', gap: '12px' }}>
+          <StatBar
+            icon={<Warehouse size={14} />}
+            label={`Kapasite · Seviye ${summary.stableLevel}`}
+            value={summary.capacity === 0 ? 0 : (summary.horseCount / summary.capacity) * 100}
+            color="var(--color-accent-gold)"
+          />
+          <div className="kv-row">
+            <span>Atlar</span>
+            <strong>
+              {summary.horseCount} / {summary.capacity}
+            </strong>
+          </div>
+          <StatBar icon={<Activity size={14} />} label="Ortalama Kondisyon" value={summary.averageCondition} />
+          {summary.healthWarnings.map((warning) => (
+            <span key={warning} style={{ fontSize: '12px', color: 'var(--color-status-warning)' }}>
+              ⚠ {warning}
+            </span>
+          ))}
+          <Link href="/stable" className="btn-outline">
+            <Warehouse size={16} aria-hidden="true" />
+            Ahırı Yönet
+          </Link>
+        </div>
+      )}
+    </GlassPanel>
+  );
+}
+
+function EconomyCard({ money, gems }: { money: number; gems: number }): React.ReactElement {
+  return (
+    <GlassPanel>
+      <CardHeader icon={<Coins size={18} />} title="Cüzdan" />
+      <div className="economy-row">
+        <div className="economy-item">
+          <Coins size={26} color="var(--color-accent-gold)" aria-hidden="true" />
+          <div>
+            <span className="economy-label">{CURRENCY_LABELS.money}</span>
+            <span className="economy-value">{money.toLocaleString('tr-TR')}</span>
+          </div>
+        </div>
+        <div className="economy-item">
+          <Gem size={26} color="var(--color-accent-gem)" aria-hidden="true" />
+          <div>
+            <span className="economy-label">{CURRENCY_LABELS.gems}</span>
+            <span className="economy-value">{gems.toLocaleString('tr-TR')}</span>
+          </div>
+        </div>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginTop: '12px' }}>
+        <Link href="/wallet" className="btn-outline">
+          Cüzdan
+        </Link>
+        <Link href="/market" className="btn-outline">
+          <ShoppingCart size={16} aria-hidden="true" />
+          Pazar
         </Link>
       </div>
-      {error ? (
-        <p style={{ color: 'var(--color-status-critical)', fontSize: '13px' }}>{error}</p>
-      ) : !summary ? (
-        <p style={{ color: 'var(--color-text-muted)', fontSize: '13px' }}>Yükleniyor…</p>
+    </GlassPanel>
+  );
+}
+
+function CareerCard({ level, xp }: { level: number; xp: number }): React.ReactElement {
+  // Kariyer kademeleri `features/career/career-tier.ts`'ten (progression
+  // config ile hizalı); yeni bir denge kararı icat edilmez.
+  const careerProgress = getCareerProgress(level);
+  return (
+    <GlassPanel>
+      <CardHeader icon={<Medal size={18} />} title="Kariyer" />
+      <div className="kv-row" style={{ marginBottom: '10px' }}>
+        <span className="tier-chip">{careerProgress.tier.label}</span>
+        <span className="muted-text" style={{ margin: 0 }}>
+          Seviye {level} · {xp.toLocaleString('tr-TR')} XP
+        </span>
+      </div>
+      {careerProgress.nextTier ? (
+        <StatBar
+          label={`Sonraki: ${careerProgress.nextTier.label} (Sv. ${careerProgress.nextTier.minLevel})`}
+          value={careerProgress.progressToNextTier * 100}
+        />
       ) : (
-        <>
-          <div style={{ display: 'flex', gap: 'var(--space-lg)', margin: '8px 0 16px 0', flexWrap: 'wrap' }}>
-            <StatLine label="Ahır Seviyesi" value={summary.stableLevel} />
-            <StatLine label="Kapasite" value={`${summary.horseCount} / ${summary.capacity}`} />
+        <p className="muted-text">En üst kariyer kademesine ulaştın.</p>
+      )}
+    </GlassPanel>
+  );
+}
+
+const GENDER_LABELS: Record<PublicHorse['gender'], string> = {
+  mare: 'Kısrak',
+  stallion: 'Aygır',
+  gelding: 'İğdiş',
+};
+
+/** Öne çıkan at: en yüksek kaliteli olan (eşitlikte en yüksek seviye). */
+const pickFeatured = pickFeaturedHorse;
+
+function FeaturedHorseCard({ ownerId }: { ownerId: string }): React.ReactElement {
+  const [horses, setHorses] = useState<PublicHorse[] | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    void apiClient
+      .getHorsesByOwner(ownerId)
+      .then((data) => {
+        if (!cancelled) setHorses(data);
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) setError(err instanceof Error ? err.message : 'Atlar yüklenemedi');
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [ownerId]);
+
+  const horse = useMemo(() => {
+    if (!horses) return null;
+    return horses.find((item) => item.id === selectedId) ?? pickFeatured(horses);
+  }, [horses, selectedId]);
+
+  return (
+    <GlassPanel style={{ padding: 0, overflow: 'hidden' }}>
+      <div className="featured-stage">
+        <HorseHeadIcon size={220} gradient withMane className="featured-silhouette" />
+        {horse ? (
+          <div className="featured-title">
+            <span className="featured-name">{horse.name}</span>
+            <span className="featured-meta">
+              {horse.breed} · {GENDER_LABELS[horse.gender]} · Seviye {horse.level}
+            </span>
+            <StarRating score={horse.quality} />
           </div>
-          <StatBar label="Ortalama Kondisyon" value={summary.averageCondition} />
-          {summary.healthWarnings.length > 0 ? (
-            <div style={{ marginTop: 'var(--space-sm)', display: 'grid', gap: '4px' }}>
-              {summary.healthWarnings.map((warning) => (
-                <span key={warning} style={{ fontSize: '12px', color: 'var(--color-status-warning)' }}>
-                  ⚠ {warning}
-                </span>
-              ))}
+        ) : null}
+      </div>
+
+      <div style={{ padding: 'var(--space-lg)', display: 'grid', gap: 'var(--space-md)' }}>
+        {error ? (
+          <p className="muted-text" style={{ color: 'var(--color-status-critical)' }}>{error}</p>
+        ) : horses === null ? (
+          <p className="muted-text">Yükleniyor…</p>
+        ) : !horse ? (
+          <div style={{ textAlign: 'center', display: 'grid', gap: '12px', justifyItems: 'center' }}>
+            <p className="muted-text">Ahırında henüz at yok.</p>
+            <Link href="/market" className="btn-gold">
+              <ShoppingCart size={18} aria-hidden="true" />
+              Pazardan At Al
+            </Link>
+          </div>
+        ) : (
+          <>
+            <div style={{ display: 'grid', gap: '10px' }}>
+              <StatBar icon={<HeartPulse size={14} />} label="Sağlık" value={horse.health} />
+              <StatBar icon={<BatteryMedium size={14} />} label="Enerji" value={horse.energy} />
+              <StatBar icon={<Activity size={14} />} label="Kondisyon" value={horse.fitness} />
+              <StatBar icon={<Smile size={14} />} label="Moral" value={horse.morale} />
+              <StatBar icon={<Zap size={14} />} label="Yorgunluk" value={horse.fatigue} higherIsBetter={false} />
             </div>
-          ) : null}
-        </>
+            <div className="featured-actions">
+              <Link href="/training" className="btn-action btn-action-blue">
+                <Dumbbell size={18} aria-hidden="true" />
+                Antrenman
+              </Link>
+              <Link href="/care" className="btn-action btn-action-green">
+                <HeartPulse size={18} aria-hidden="true" />
+                Bakım
+              </Link>
+            </div>
+            <Link href="/races" className="btn-gold" style={{ width: '100%' }}>
+              <Trophy size={18} aria-hidden="true" />
+              Yarışa Katıl
+            </Link>
+            {horses.length > 1 ? (
+              <div className="horse-strip" role="list" aria-label="Atların">
+                {horses.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    role="listitem"
+                    className="horse-strip-item"
+                    aria-pressed={item.id === horse.id}
+                    onClick={() => setSelectedId(item.id)}
+                  >
+                    <HorseAvatar horseId={item.id} size={40} />
+                    <span>{item.name}</span>
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          </>
+        )}
+      </div>
+    </GlassPanel>
+  );
+}
+
+const UPCOMING_LIMIT = 3;
+
+function UpcomingRacesCard(): React.ReactElement {
+  const [races, setRaces] = useState<RaceLobbyListItem[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    void apiClient
+      .listLobbyRaces()
+      .then((data) => {
+        if (cancelled) return;
+        const open = data
+          .filter((race) => race.status === 'scheduled')
+          .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
+        setRaces(open.slice(0, UPCOMING_LIMIT));
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) setError(err instanceof Error ? err.message : 'Yarışlar yüklenemedi');
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  return (
+    <GlassPanel>
+      <CardHeader
+        icon={<CalendarClock size={18} />}
+        title="Yaklaşan Yarışlar"
+        action={
+          <Link href="/races" className="link-small">
+            Tümünü gör
+          </Link>
+        }
+      />
+      {error ? (
+        <p className="muted-text" style={{ color: 'var(--color-status-critical)' }}>{error}</p>
+      ) : races === null ? (
+        <p className="muted-text">Yükleniyor…</p>
+      ) : races.length === 0 ? (
+        <p className="muted-text">Şu an açık yarış yok. Yarışlar sayfasından kendin bir yarış açabilirsin.</p>
+      ) : (
+        <ul className="row-list">
+          {races.map((race) => (
+            <li key={race.id} className="row-item">
+              <span className="row-icon">
+                {race.tournament ? <Trophy size={18} /> : <CalendarClock size={18} />}
+              </span>
+              <span style={{ display: 'grid', gap: '2px', minWidth: 0 }}>
+                <strong className="row-title">{race.name}</strong>
+                <span className="row-meta">
+                  {race.distanceMeters} m · {formatRaceStart(race.startTime)} · {formatTimeUntil(race.startTime)}
+                </span>
+              </span>
+              <Link href="/races" className="btn-chip">
+                {race.myEntry && race.myEntry.status !== 'cancelled' ? 'Kayıtlı' : 'Katıl'}
+              </Link>
+            </li>
+          ))}
+        </ul>
       )}
     </GlassPanel>
   );
@@ -355,8 +444,6 @@ function RecentRacesPanel({ playerId }: { playerId: string }): React.ReactElemen
 
   useEffect(() => {
     let cancelled = false;
-    setRaces(null);
-    setError(null);
     void apiClient
       .getRecentRaces(playerId, 5)
       .then((data) => {
@@ -372,65 +459,42 @@ function RecentRacesPanel({ playerId }: { playerId: string }): React.ReactElemen
 
   return (
     <GlassPanel>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <SectionLabel>Son Yarış Sonuçları</SectionLabel>
-        {/* §22 Replay — bkz. `apps/web/src/app/replays/page.tsx` doc yorumu.
-            `StableSummaryCard`'daki "Ahırıma git →" kalıbıyla TUTARLI. */}
-        <Link href="/replays" style={{ fontSize: '12px', color: 'var(--color-accent-focus)' }}>
-          Tüm yarış geçmişini gör →
-        </Link>
-      </div>
+      <CardHeader
+        icon={<Clapperboard size={18} />}
+        title="Son Sonuçlar"
+        action={
+          <Link href="/replays" className="link-small">
+            Tüm geçmiş
+          </Link>
+        }
+      />
       {error ? (
-        <p style={{ color: 'var(--color-status-critical)', fontSize: '13px' }}>{error}</p>
+        <p className="muted-text" style={{ color: 'var(--color-status-critical)' }}>{error}</p>
       ) : races === null ? (
-        <p style={{ color: 'var(--color-text-muted)', fontSize: '13px' }}>Yükleniyor…</p>
+        <p className="muted-text">Yükleniyor…</p>
       ) : races.length === 0 ? (
-        <p style={{ color: 'var(--color-text-muted)', fontSize: '13px' }}>
-          Henüz bir yarış koşmadın. <Link href="/stable" style={{ color: 'var(--color-accent-focus)' }}>Ahırından bir atınla pratik yarışa çık.</Link>
+        <p className="muted-text">
+          Henüz bir yarış koşmadın.{' '}
+          <Link href="/races" style={{ color: 'var(--color-accent-focus)' }}>
+            Pratik yarışla başla.
+          </Link>
         </p>
       ) : (
-        <ol style={{ listStyle: 'none', margin: '8px 0 0 0', padding: 0, display: 'grid', gap: '10px' }}>
+        <ol className="row-list">
           {races.map((race) => (
-            // §22 Replay — bu turda `<li>` içeriği `/replays/[raceId]`'e
-            // bağlayan bir `Link`'e SARILDI (bkz. `replay-adapter.ts`/
-            // `app/replays/[raceId]/page.tsx` doc yorumları). `race.raceId`
-            // ZATEN var olan bir alan (`RecentRaceResultView`), yeni bir
-            // kimlik İCAT EDİLMEDİ.
+            // Her satır `/replays/[raceId]` tekrarına gider (§22 Replay).
             <li key={race.raceId}>
-              <Link href={`/replays/${race.raceId}`} style={{ textDecoration: 'none' }}>
-                <div
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    gap: 'var(--space-sm)',
-                    padding: '10px 12px',
-                    borderRadius: 'var(--radius-sm)',
-                    background: race.finishPosition === 1 ? 'rgba(227, 179, 65, 0.1)' : 'rgba(255, 255, 255, 0.03)',
-                    border: race.finishPosition === 1 ? '1px solid var(--color-accent-gold)' : '1px solid transparent',
-                    cursor: 'pointer',
-                  }}
-                >
-                  <div>
-                    <div style={{ fontSize: '14px', color: 'var(--color-text-primary)', fontWeight: 600 }}>
-                      {race.horseName}
-                      <span style={{ color: 'var(--color-text-muted)', fontWeight: 400 }}> · {race.raceName}</span>
-                    </div>
-                    <div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
-                      {race.distanceMeters}m · {surfaceLabel(race.surface)} · {formatRelativeDate(race.finishedAt)}
-                    </div>
-                  </div>
-                  <div
-                    style={{
-                      fontSize: '15px',
-                      fontWeight: 700,
-                      color: race.finishPosition === 1 ? 'var(--color-accent-gold)' : 'var(--color-text-secondary)',
-                      fontVariantNumeric: 'tabular-nums',
-                    }}
-                  >
-                    {race.finishPosition}.
-                  </div>
-                </div>
+              <Link href={`/replays/${race.raceId}`} className="row-item" data-winner={race.finishPosition === 1 || undefined}>
+                <span className="position-badge" data-place={race.finishPosition <= 3 ? race.finishPosition : undefined}>
+                  {race.finishPosition}
+                </span>
+                <span style={{ display: 'grid', gap: '2px', minWidth: 0 }}>
+                  <strong className="row-title">{race.horseName}</strong>
+                  <span className="row-meta">
+                    {race.raceName} · {race.distanceMeters} m · {surfaceLabel(race.surface)} ·{' '}
+                    {formatRelativeDate(race.finishedAt)}
+                  </span>
+                </span>
               </Link>
             </li>
           ))}
@@ -440,36 +504,22 @@ function RecentRacesPanel({ playerId }: { playerId: string }): React.ReactElemen
   );
 }
 
-function SectionLabel({ children }: { children: React.ReactNode }): React.ReactElement {
+function QuickAccess(): React.ReactElement {
   return (
-    <div
-      style={{
-        fontSize: '11px',
-        textTransform: 'uppercase',
-        letterSpacing: '0.08em',
-        color: 'var(--color-text-muted)',
-      }}
-    >
-      {children}
-    </div>
-  );
-}
-
-function StatLine({
-  label,
-  value,
-  accent,
-}: {
-  label: string;
-  value: string | number;
-  accent?: 'gold' | 'gem';
-}): React.ReactElement {
-  const color = accent === 'gold' ? 'var(--color-accent-gold)' : accent === 'gem' ? 'var(--color-accent-gem)' : 'var(--color-text-primary)';
-  return (
-    <div style={{ display: 'grid', gap: '2px' }}>
-      <span style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>{label}</span>
-      <span style={{ fontSize: '15px', fontWeight: 700, color, fontVariantNumeric: 'tabular-nums' }}>{value}</span>
-    </div>
+    <section aria-label="Hızlı erişim">
+      <div className="card-header" style={{ marginBottom: '12px' }}>
+        <span className="section-title">Hızlı Erişim</span>
+      </div>
+      <div className="quick-grid">
+        {QUICK_LINKS.map((item) => (
+          <Link key={item.href} href={item.href} className="quick-tile">
+            <span className="quick-tile-icon">{item.icon}</span>
+            <span className="quick-tile-label">{item.label}</span>
+            <span className="quick-tile-desc">{item.description}</span>
+          </Link>
+        ))}
+      </div>
+    </section>
   );
 }
 
@@ -496,19 +546,4 @@ function formatRelativeDate(iso: string): string {
   if (diffMs < MS_PER_HOUR) return `${Math.floor(diffMs / MS_PER_MINUTE)} dk önce`;
   if (diffMs < MS_PER_DAY) return `${Math.floor(diffMs / MS_PER_HOUR)} sa önce`;
   return `${Math.floor(diffMs / MS_PER_DAY)} gün önce`;
-}
-
-function primaryButtonStyle(): React.CSSProperties {
-  return {
-    // AUDIT_REPORT.md F1: minHeight eklendi - 44px dokunma hedefi kuralini garanti eder.
-    minHeight: '44px',
-    padding: '12px 24px',
-    background: 'var(--color-accent-gold)',
-    color: '#1a1405',
-    border: 'none',
-    borderRadius: 'var(--radius-md)',
-    fontWeight: 700,
-    fontSize: '14px',
-    cursor: 'pointer',
-  };
 }

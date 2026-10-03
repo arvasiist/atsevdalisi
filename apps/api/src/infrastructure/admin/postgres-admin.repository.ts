@@ -72,6 +72,10 @@ interface AdminPlayerAccountDbRow {
   gems: string;
   reputation: number;
   is_admin: boolean;
+  is_moderator: boolean;
+  sanction_id: string | null;
+  sanction_kind: 'suspend' | 'ban' | null;
+  sanction_expires_at: Date | null;
   created_at: Date;
 }
 
@@ -300,9 +304,19 @@ export class PostgresAdminRepository implements AdminRepository {
     // `LIMIT` hangi satırın kırpıldığını belirsizleştirirdi. İkincil
     // anahtar bu belirsizliği kapatır.
     const result = await this.pool.query<AdminPlayerAccountDbRow>(
-      `SELECT id, username, display_name, level, xp, money, gems, reputation, is_admin, created_at
-         FROM players
-        ORDER BY created_at DESC, id DESC
+      // 02.10.2026 (Faz 10) — etkin yaptırım LATERAL ile tek sorguda (N+1
+      // yok); birden fazlaysa en kısıtlayıcısı (yasak, sonra en geç biten).
+      `SELECT p.id, p.username, p.display_name, p.level, p.xp, p.money, p.gems, p.reputation,
+              p.is_admin, p.is_moderator, p.created_at,
+              s.id AS sanction_id, s.kind AS sanction_kind, s.expires_at AS sanction_expires_at
+         FROM players p
+         LEFT JOIN LATERAL (
+           SELECT id, kind, expires_at FROM player_sanctions
+            WHERE player_id = p.id AND lifted_at IS NULL AND (expires_at IS NULL OR expires_at > now())
+            ORDER BY expires_at DESC NULLS FIRST
+            LIMIT 1
+         ) s ON true
+        ORDER BY p.created_at DESC, p.id DESC
         LIMIT $1`,
       [limit],
     );
@@ -316,6 +330,11 @@ export class PostgresAdminRepository implements AdminRepository {
       gems: toNumber(row.gems),
       reputation: row.reputation,
       isAdmin: row.is_admin,
+      isModerator: row.is_moderator,
+      activeSanction:
+        row.sanction_id === null || row.sanction_kind === null
+          ? null
+          : { id: row.sanction_id, kind: row.sanction_kind, expiresAt: row.sanction_expires_at },
       createdAt: row.created_at,
     }));
   }

@@ -90,6 +90,27 @@ export interface RaceBalanceConfig {
     bonusMultiplier: number;
   };
   /**
+   * 01.10.2026 — OYUNCU KONTROLÜ (yalnızca `RaceSimulationInput.playerCommands`
+   * verildiğinde okunur; komutsuz yarışta HİÇBİR etkisi yoktur).
+   * Kırbaç sınırsızdır (proje sahibinin kararı) ama her biri
+   * `whipStaminaCost` dayanıklılık yakar; hız bonusu sprint bonusunun
+   * `kırbaç^whipBonusExponent` katıdır (azalan getiri). Dayanıklılık sprint
+   * rezervinin altındaysa kırbaç bonus VERMEZ, yalnızca yakar (yorgun at
+   * kırbaca cevap vermez). `maxWhipsPerSegment` oyun kuralı değil, kayıt
+   * sınırıdır (spam'in veritabanını şişirmesini önler).
+   */
+  playerControl: {
+    whipStaminaCost: number;
+    whipBonusExponent: number;
+    maxWhipsPerSegment: number;
+    /** Kırbaç başına eklenen KALICI yarış içi yorgunluk (performans cezası `fatigue.performancePenaltyPerFatiguePoint`). */
+    whipFatigue: number;
+    /** Oyuncunun "sakin" komutunda segment performansından düşülen puan (at yavaşlar). */
+    easeSpeedPenalty: number;
+    /** "Sakin" segmentinde dayanıklılık tüketim çarpanı (< 1 = biriktirir). */
+    easeStaminaFactor: number;
+  };
+  /**
    * PHASE 6 — `RaceTacticInput`'in motor tarafından OKUNAN iki alanı
    * (`startApproach`, `finalStretchPlan`). Bu ikisi daha önce yalnızca
    * `assertValidRaceTactic` ile DOĞRULANIYOR ama hiçbir yerde
@@ -119,7 +140,10 @@ export interface RaceBalanceConfig {
      */
     startApproach: Record<string, { earlyPerformanceBonus: number; latePerformanceBonus: number }>;
     /** Anahtar = `FinalStretchPlan`; aynı gerekçeyle genel `Record`. */
-    finalStretchPlan: Record<string, { bonusMultiplier: number; windowMultiplier: number; staminaConsumptionMultiplier: number }>;
+    finalStretchPlan: Record<
+      string,
+      { bonusMultiplier: number; windowMultiplier: number; staminaConsumptionMultiplier: number }
+    >;
   };
   /**
    * PHASE 6.3 — `horse_stats.temperament` (kişilik/mizaç) ekseninin motor
@@ -230,7 +254,10 @@ export interface TrainingTypeConfig {
 
 export interface TrainingConfig {
   diminishingExponent: number;
-  types: Record<'speed' | 'sprint' | 'stamina' | 'start' | 'cornering' | 'tempo' | 'rest', TrainingTypeConfig>;
+  types: Record<
+    'speed' | 'sprint' | 'stamina' | 'start' | 'cornering' | 'tempo' | 'rest',
+    TrainingTypeConfig
+  >;
   intensityMultipliers: Record<'low' | 'medium' | 'high', number>;
   durationMultiplier: {
     unitMinutes: number;
@@ -389,6 +416,17 @@ export interface EconomyConfig {
    * değişkeni olacaktır, config dosyası değil.
    */
   mockDeposit: MockDepositConfig;
+  /**
+   * 02.10.2026 — MÜZAYEDE. Bir sonraki teklif en az
+   * `max(mevcut × minIncrementPercent/100 (yukarı yuvarlanır), minIncrementAmount)`
+   * kadar yüksek olmalıdır; ilk teklif en az başlangıç fiyatıdır.
+   * `settleScheduler` süresi dolan müzayedeleri kapatır.
+   */
+  auction: {
+    minIncrementPercent: number;
+    minIncrementAmount: number;
+    settleScheduler: { enabled: boolean; tickSeconds: number; batchSize: number };
+  };
 }
 
 /**
@@ -528,6 +566,25 @@ export interface ProgressionConfig {
     baseXpPerLevel: number;
     exponent: number;
   };
+  /**
+   * 01.10.2026 — XP ÖDÜLLERİ. Bu tablo eklenene kadar XP/seviye mantığı
+   * (`domain/progression`) HİÇBİR yerden çağrılmıyordu: oyuncular ve atlar
+   * sonsuza dek Seviye 1'de kalıyor, seviye şartlı turnuvalar (Gümüş 15,
+   * Altın 30) kimseye açılamıyordu.
+   */
+  xpRewards: {
+    player: XpRewardTable;
+    horse: XpRewardTable;
+  };
+}
+
+export interface XpRewardTable {
+  /** Yarışı bitiren HER katılımcıya (sıradan bağımsız). */
+  raceFinished: number;
+  /** Dizinin `i` elemanı `i + 1`. sıranın EK ödülüdür; dışındaki sıralar 0. */
+  placementBonus: number[];
+  /** Tamamlanan her antrenman seansı. */
+  trainingSession: number;
 }
 
 /** brief §11 Bakım Sistemi — tımar/su/temizlik/veteriner/nalbant/dinlendir. */
@@ -668,6 +725,11 @@ export interface JockeyConfig {
   experienceForMaxScore: number;
   /** at-jokey ikilisinin hiç ortak geçmişi yoksa previous_pair_history_component için nötr varsayılan. */
   neutralHistoryScore: number;
+  /**
+   * 02.10.2026 — jokey-at uyumunun beceri puanına etkisi (0 = kapalı).
+   * `effectiveJockeySkill`: `beceri × (1 + etki × (uyum − 50) / 50)`.
+   */
+  compatibilityInfluence: number;
 }
 
 /**
@@ -704,6 +766,14 @@ export interface FarmConfig {
    * burada genel bir `Record<string, ...>` kullanılır.
    */
   facilities: Record<string, FacilityDefinition>;
+  /**
+   * 01.10.2026 — etkisi oyunda BAĞLANACAK bir yeri olmayan tesisler. Bunlar
+   * inşa edilemez/yükseltilemez (409 `FACILITY_INACTIVE`), ekranda "şu an
+   * etkisiz" görünür: oyuncuya işe yaramayan bir şey satılmaz. `vet_center`
+   * "tedavi maliyeti" düşürür ama bakım bugün ÜCRETSİZDİR — bakım ücretli
+   * olursa listeden çıkarılır ve etkisi bağlanır.
+   */
+  inactiveFacilities: string[];
   /** `staff_building` hiç inşa edilmemişken (level 0) bile geçerli olan taban personel kapasitesi. */
   baseStaffCapacityWithoutFacility: number;
 }
@@ -721,6 +791,20 @@ export interface StaffConfig {
   moraleSalaryPenaltyThreshold: number;
   /** Düşük moralde bonusun ne kadarının korunacağı (0-1). */
   lowMoraleBonusPenaltyMultiplier: number;
+  /**
+   * 01.10.2026 — pazarda kiralanabilen roller. Yalnızca etkisi oyuna BAĞLI
+   * olan roller listelenir (antrenör → antrenman, seyis/veteriner/nalbant →
+   * ilgili bakım eylemi); etkisiz bir personel satmak oyuncuyu kandırmak olurdu.
+   */
+  hireableRoles: string[];
+  /** Kiralama/yenileme başına peşin ödenen sözleşme süresi (ay). */
+  contractMonths: number;
+  /** Yenileme yalnızca bitime bu kadar gün kala (ya da bitmişse) açılır — çift ödemeyi durum engeller. */
+  renewWindowDays: number;
+  /** Bakım eylemi → etkisini güçlendiren personel rolü. */
+  careActionRoles: Record<string, string>;
+  /** Aday havuzu: rol başına en az bu kadar boşta aday tutulur. */
+  market: { candidatesPerRole: number; skillMin: number; skillMax: number; names: string[] };
 }
 
 /**
@@ -767,6 +851,11 @@ export interface OnlineConfig {
     maxMembers: number;
     /** Anahtar = ULAŞILACAK kulüp seviyesi, değer = o seviye için gereken TOPLAM (kümülatif) kulüp puanı. */
     levelThresholds: Record<string, number>;
+    /** 01.10.2026 — kulüp adı/etiketi uzunluk sınırları (`validateClubName`/`validateClubTag`). */
+    name: { minLength: number; maxLength: number };
+    tag: { minLength: number; maxLength: number };
+    /** `GET /clubs` sıralama listesinin en fazla satır sayısı. */
+    listLimit: number;
   };
   /** brief §35 YARIŞ TAKVİMİ "Özel kupalar/Büyük ödüllü yarışlar" turnuva karşılığı (bkz. `domain/tournament/tournament.ts`). */
   tournament: {
@@ -805,12 +894,29 @@ export interface OnlineConfig {
       weather: 'sunny' | 'rainy' | 'windy' | 'cloudy' | 'hot' | 'cold';
       tribuneFee: number;
       spectatorCapacity: number;
+      /** 01.10.2026 — turnuva finali oyuncu kontrollü canlı yarış mı. */
+      playerControl: boolean;
     };
   };
   /** brief §69 SEZON SİSTEMİ (bkz. `domain/season/season.ts`). */
   season: {
     durationDays: number;
+    /** 01.10.2026 — `GET /seasons/current` sıralamasında gösterilen satır sayısı. */
+    leaderboardSize: number;
+    /**
+     * Sezon sonu ödülü (çip), sıra başına: `[0]` = 1. Eşit puanlılar aynı
+     * sırayı paylaşır ve AYNI ödülü alır. Liste dışı sıralar ödül almaz.
+     */
+    rewardsByRank: number[];
+    /** Sezon zamanlayıcısı (yeni sezonu açar, biteni öder). `NODE_ENV=test`te kapalı. */
+    schedule: { enabled: boolean; tickSeconds: number };
   };
+  /**
+   * 02.10.2026 (Faz 11) — haftalık/aylık sıralama listesi boyutu. Dönem
+   * sınırı oyunun TEK takvim saat dilimidir (`quests.timezoneOffsetMinutes`,
+   * `weekStartsOn`) — ikinci bir saat dilimi ayarı açılmadı.
+   */
+  leaderboardPeriods: { limit: number };
 }
 
 /**
@@ -836,6 +942,24 @@ export interface CameraConfig {
     slowMotionWindowMs: number;
     /** Ağır çekimin ULAŞTIĞI en düşük oynatma hızı çarpanı (1 = normal, bu değer = en yavaş). */
     slowMotionMinFactor: number;
+  };
+  /**
+   * 01.10.2026 — ana sayfa 3D vitrininin sinematik çekimleri. Konumlar
+   * oyuncunun atına GÖRE (at yerel +X'e bakar, orijin toynak hizası).
+   * Her çekim `from`dan `to`ya yavaşça kayar (dolly); son `blendSeconds`
+   * saniyede bir sonraki çekime yumuşakça geçilir.
+   */
+  homeShowcase: {
+    blendSeconds: number;
+    shots: Array<{
+      id: string;
+      label: string;
+      durationSeconds: number;
+      from: [number, number, number];
+      to: [number, number, number];
+      target: [number, number, number];
+      fov: number;
+    }>;
   };
 }
 
@@ -866,6 +990,24 @@ export interface VfxConfig {
     sizeScale: number;
     /** Materyalin temel (henüz solmamış) opaklığı, [0, 1]. */
     baseOpacity: number;
+  };
+  /**
+   * 01.10.2026 (3D adım 8) — zemine göre toz: kum bol ve açık, sentetik
+   * orta ve koyu, çim çok az. `rateFactor` `spawnRatePerSecond`u çarpar.
+   */
+  dustBySurface: Record<'dirt' | 'synthetic' | 'grass', { rateFactor: number; color: string }>;
+  /** Bu hızda (m/s) toz tam oranda çıkar; yavaşta orantılı azalır. */
+  dustSpeedReferenceMps: number;
+  /** Kamera uzaklaştıkça toz seyrelir (performans + gerçekçilik). */
+  dustCameraFalloff: { nearMeters: number; farMeters: number; minFactor: number };
+  /** Pist yüzeyinin rengi yarışın zeminine göre (çim yarışı kum pistte koşulmaz). */
+  trackColorBySurface: Record<'dirt' | 'synthetic' | 'grass', string>;
+  /** Start kapısı: açılma süresi ve prosedürel boyutlar. */
+  startGate: {
+    openSeconds: number;
+    stallWidthMeters: number;
+    heightMeters: number;
+    depthMeters: number;
   };
 }
 
@@ -920,6 +1062,8 @@ export interface AudioConfig {
     baseVolume: number;
     /** Azami hızda taban hacme EKLENEN pay, [0, 1] (taban + bu ≤ 1 olmalı). */
     maxExtraVolume: number;
+    /** 01.10.2026 (3D adım 9) — yoğunluğun 1'e ulaştığı lider hızı (m/s). */
+    referenceSpeedMps: number;
   };
   /**
    * Brief §31 "HorseBreathing" (bu turda EKLENDİ) — `hoofbeat` ile AYNI
@@ -1045,6 +1189,15 @@ export interface AudioConfig {
     speedRatioThreshold: number;
     layerVolume: number;
   };
+  /**
+   * 01.10.2026 (3D adım 9) — kalabalık döngüsünün hacmi heyecanla ölçeklenir:
+   * çarpan = min + (1 − min) × heyecan (heyecan `computeCrowdExcitement`ten, [0, 1]).
+   */
+  crowdExcitementMinFactor: number;
+  /** Ahır ortam döngüsü (`STABLE_AMBIENCE_SFX_REQUIRED`), `environment` kanalı. */
+  stableAmbienceVolume: number;
+  /** Lider değişimi "overtake" sesinin en sık çalma aralığı (ms) — sürekli el değiştirmede spam olmasın. */
+  overtakeCooldownMs: number;
 }
 
 /**
@@ -1404,6 +1557,19 @@ export interface ChatConfig {
     /** Sabit pencere genişliği (saniye) — `RateLimitOptions.windowSeconds` ile aynı anlam. */
     windowSeconds: number;
   };
+  /** 02.10.2026 (Faz 9) — kulüp sohbeti: liste boyutu + istemcinin yoklama aralığı. */
+  clubChat: { historyLimit: number; pollSeconds: number };
+  /**
+   * 02.10.2026 (Faz 9) — tribün emote'ları. Simge bir UNICODE emojidir (dosya
+   * değil — sahte varlık yok). Sunucu yalnızca listedeki anahtarı yayınlar.
+   */
+  emotes: {
+    cooldownMs: number;
+    /** İstemci: bir emote'un ekranda kalma süresi ve aynı anda en fazla kaç tane (sunum). */
+    displayMs: number;
+    maxVisible: number;
+    list: Array<{ key: string; symbol: string; label: string }>;
+  };
 }
 
 /**
@@ -1582,6 +1748,12 @@ export interface RaceLobbyConfig {
    * pencere geri gelir). Yani bu anahtar bir güvenlik supabıdır, bir
    * tercih değil.
    */
+  /**
+   * Tribün soketi, henüz bitmemiş bir yarışa abone olan izleyici için yarışın
+   * kesinleşmesini/iptalini kaç saniyede bir yoklar (01.10.2026). Kontrollü
+   * yarışta bekleme dakikalar sürebilir; yarış bitince oynatma odaya başlar.
+   */
+  spectatorWaitPollSeconds: number;
   lockScheduler: {
     enabled: boolean;
     /**
@@ -1601,6 +1773,49 @@ export interface RaceLobbyConfig {
      */
     batchSize: number;
   };
+  /**
+   * 01.10.2026 — YARIŞ TAKVİMİ. Sunucu her programın bir sonraki
+   * yuvalarını (`intervalMinutes` adımlı, UTC çağından hizalı +
+   * `offsetMinutes`) `horizonHours` ileriye kadar lobi yarışı olarak açar.
+   * Yarış oyuncunun açtığı lobi yarışıyla AYNIDIR (giriş ücreti, READY,
+   * bot dolgusu, kilit, kesinleşme); yalnızca `created_by` NULL'dır. Her
+   * program `validateRaceCreation`dan geçmek zorundadır (test).
+   */
+  calendar: {
+    enabled: boolean;
+    tickSeconds: number;
+    horizonHours: number;
+    /** Başlangıcına bundan az kalan yuva açılmaz (kayıt için süre kalsın). */
+    minLeadMinutes: number;
+    programs: RaceCalendarProgram[];
+  };
+}
+
+export interface RaceCalendarProgram {
+  /** Kalıcı kimlik — `race_calendar_slots.program_id`. Değiştirmek yeni program demektir. */
+  id: string;
+  name: string;
+  intervalMinutes: number;
+  /** [0, intervalMinutes) — aynı aralıklı programlar çakışmasın. */
+  offsetMinutes: number;
+  fieldSize: number;
+  maxPlayers: number;
+  /** 0 → ücretsiz yarış. */
+  entryFee: number;
+  distanceMeters: number;
+  surface: string;
+  weather: string;
+  tribuneFee: number;
+  spectatorCapacity: number;
+  /** 01.10.2026 — bu programın yarışları oyuncu kontrollü mü (varsayılan false). */
+  playerControl?: boolean;
+  /**
+   * 02.10.2026 (Faz 11 "Special Races") — lobide öne çıkarılır (salt sunum;
+   * kural/ödül farkı YOK — havuz yine giriş ücretlerinden oluşur).
+   */
+  featured?: boolean;
+  /** Bu programın yarışları kaç saat önceden açılır (yoksa genel `horizonHours`). */
+  horizonHours?: number;
 }
 
 /**
@@ -1611,11 +1826,285 @@ export interface AuthConfig {
   email: { maxLength: number };
   password: { minLength: number; maxLength: number };
   /** Node `crypto.scrypt` parametreleri: `cost` (N, 2'nin kuvveti), `blockSize` (r), `parallelization` (p). */
-  scrypt: { cost: number; blockSize: number; parallelization: number; keyLength: number; saltBytes: number };
+  scrypt: {
+    cost: number;
+    blockSize: number;
+    parallelization: number;
+    keyLength: number;
+    saltBytes: number;
+  };
   /**
    * Şifre sıfırlama (migration 0047): bağlantı ömrü, rastgele bayt sayısı ve
    * aynı oyuncuya iki e-posta arasındaki en kısa süre (posta kutusunu
    * doldurmayı önler — yanıt yine aynıdır, enumerasyon yok).
    */
   passwordReset: { tokenTtlMinutes: number; tokenBytes: number; minIntervalSeconds: number };
+  /**
+   * 02.10.2026 — OTURUM (migration 0057). Erişim token'ı kısa ömürlüdür ve
+   * oturum kimliği (`sid`) taşır; refresh token her yenilemede değişir.
+   * `maxActiveSessionsPerPlayer` aşılırsa EN ESKİ oturum kapatılır.
+   */
+  session: {
+    accessTokenTtlSeconds: number;
+    refreshTokenTtlDays: number;
+    refreshTokenBytes: number;
+    maxActiveSessionsPerPlayer: number;
+    userAgentMaxLength: number;
+  };
+  /** 02.10.2026 — e-posta doğrulama bağlantısı (migration 0058). */
+  emailVerification: { tokenTtlHours: number; tokenBytes: number; minIntervalSeconds: number };
+  /** 02.10.2026 — kişisel veri dışa aktarma (KVKK md. 11 / GDPR md. 15, 20). Bölüm başına satır sınırı. */
+  dataExport: { maxRowsPerSection: number };
+}
+
+/**
+ * 01.10.2026 — atın GÖRÜNÜŞÜ (don rengi + işaretler). Ağırlıklar göreli
+ * sayılardır (toplamı 100 olmak zorunda değil). Kalıtım: tay, `parentCoatChance`
+ * olasılıkla bir ebeveynin donunu alır (`sireCoatShare` = babadan alma payı),
+ * aksi hâlde ağırlıklı rastgele bir don. Seçim seed'li PRNG ile determinist.
+ */
+export interface HorseAppearanceConfig {
+  coatWeights: Record<string, number>;
+  faceMarkingWeights: Record<string, number>;
+  legMarkingWeights: Record<string, number>;
+  inheritance: { parentCoatChance: number; sireCoatShare: number };
+}
+
+/**
+ * 01.10.2026 — atın durumunun 3D davranışa yansıması (salt GÖRSEL; oyun
+ * mantığı değildir). Eşikler `Horse` alanları (0-100) üzerindedir; her
+ * ruh hâli bir animasyon parametre seti seçer (1 = nötr hız/genlik).
+ */
+export interface HorsePresenceMoodParams {
+  breathRate: number;
+  headLift: number;
+  tailSwishRate: number;
+  weightShiftRate: number;
+  earPerk: number;
+}
+
+export interface HorsePresenceConfig {
+  thresholds: {
+    lowHealth: number;
+    lowEnergy: number;
+    highFatigue: number;
+    lowMorale: number;
+    highEnergy: number;
+    highMorale: number;
+  };
+  moods: Record<
+    'energetic' | 'neutral' | 'calm' | 'tired' | 'unwell' | 'injured',
+    HorsePresenceMoodParams
+  >;
+}
+
+/**
+ * 01.10.2026 — hipodrom atmosferi (salt GÖRSEL/İŞİTSEL; yarış sonucuna
+ * etkisi YOK). Kalabalık heyecanı 0..1: tribün hareketi ve (adım 9) kalabalık
+ * sesinin şiddeti aynı değerden beslenir.
+ */
+export interface AtmosphereConfig {
+  crowd: {
+    preRaceExcitement: number;
+    raceExcitement: number;
+    finalStretchExcitement: number;
+    finishExcitement: number;
+    /** Bitişten sonra coşkunun sürdüğü süre; sonra yarış seviyesine iner. */
+    finishCelebrationSeconds: number;
+    /** Kalabalık animasyonunun güncelleme sıklığı (performans). */
+    animationHz: number;
+    /** Heyecan 1 iken bir seyircinin en fazla zıplama yüksekliği. */
+    maxBobMeters: number;
+    /** Bu heyecanın üstünde seyirciler ayağa kalkar. */
+    standUpThreshold: number;
+    /** Kamera tribüne bundan uzaksa kalabalık animasyonu durur (LOD). */
+    lodDistanceMeters: number;
+    /** Kalite kademesine göre doldurulan koltuk oranı. */
+    densityByTier: Record<'low' | 'medium' | 'high' | 'ultra', number>;
+  };
+}
+
+/**
+ * 01.10.2026 — 3D sahnelerin ortak ışık ayarları (3D adım 7). Yarış, ana
+ * sayfa ve ahır AYNI değerleri okur (sahneler arası tutarlı görünüm).
+ * `bloom` bilinçli olarak ölçülüdür (yalnızca gerçekten parlak yüzeyler).
+ */
+export interface LightingConfig {
+  toneMappingExposure: number;
+  hdri: { environmentIntensity: number; backgroundIntensity: number };
+  bloom: { luminanceThreshold: number; luminanceSmoothing: number; intensity: number };
+  /** Yalnızca 'ultra' kalite kademesinde (PCSS, pahalı). */
+  softShadows: { size: number; samples: number; focus: number };
+}
+
+/**
+ * 01.10.2026 (3D adım 10) — çalışma anı performans izleme. "Otomatik"
+ * kalite seçiliyken kare hızı `lowerFps` altında kalırsa kademe bir
+ * düşürülür (en fazla `maxAutoDowngrades` kez); `flipflops` kez inip
+ * çıkan ölçümde izleme durur (drei `PerformanceMonitor`).
+ */
+export interface PerformanceConfig {
+  version: string;
+  monitor: {
+    lowerFps: number;
+    upperFps: number;
+    flipflops: number;
+  };
+  maxAutoDowngrades: number;
+}
+
+/**
+ * 01.10.2026 — OYUNCU KONTROLLÜ PRATİK YARIŞ (canlı oturum). Yarış sunucuda
+ * gerçek zamanlı akar: segment `j`, lider `j`'ye başlamadan `revealLeadMs`
+ * önce gösterilir ve o andan sonra o segmente komut verilemez (komut ilk
+ * gösterilmemiş segmente yazılır). `finishGraceMs` son atın bitişinden sonra
+ * kesinleşmeye izin verilmeden önce beklenen pay. Zamanlayıcı, oyuncu
+ * sayfayı kapatsa da yarışı kesinleştirir (terk ederek ücretten kaçılamaz).
+ */
+export interface InteractiveRaceConfig {
+  version: string;
+  startCountdownSeconds: number;
+  /**
+   * Yarış saatinin gerçek saate oranı (2 = iki kat hızlı). Motorun ürettiği
+   * süreler gerçekçi at hızına göredir ama yavaş bir başlangıç atıyla 1600 m
+   * gerçek zamanda ~3,5 dk sürer; canlı kontrol için bu çok uzun. Sonucu
+   * DEĞİŞTİRMEZ, yalnızca akış hızını. `revealLeadMs`/`finishGraceMs` YARIŞ
+   * saati cinsindendir.
+   */
+  timeScale: number;
+  revealLeadMs: number;
+  /**
+   * Komut hedefi gösterim sınırının bu kadar (yarış ms) İLERİSİNDEN seçilir:
+   * hesap ile yazım arasında sınır ilerlese de komut gösterilmiş bir
+   * segmente düşmez.
+   */
+  commandSafetyMs: number;
+  finishGraceMs: number;
+  /**
+   * Canlı lobi yarışı görünümünün simülasyon önbelleği (02.10.2026) — en
+   * fazla kaç (yarış × komut durumu) sonucu bellekte tutulur. Sürücü ve
+   * tribün her saniye yoklar; komutlar değişmedikçe sonuç aynıdır. 0 kapatır.
+   */
+  liveRunCacheEntries: number;
+  scheduler: { enabled: boolean; tickSeconds: number; batchSize: number };
+}
+
+/** 02.10.2026 — `config/ops.config.json` (Faz 13-A, işletim). */
+export interface OpsConfig {
+  readiness: { checkTimeoutMs: number };
+  requestId: { maxLength: number };
+  productionEnv: { minJwtSecretLength: number; forbiddenJwtSecrets: string[] };
+  /** 02.10.2026 (Faz 13-C) — `POST /client-errors` alan sınırları (aşan kırpılır). */
+  clientErrors: { maxMessageLength: number; maxPathLength: number; maxDigestLength: number };
+  /**
+   * 02.10.2026 (Faz 7) — `tools/ops/load-test.mjs` varsayılanları ve bütçesi.
+   * Bütçe aşılırsa araç (ve CI adımı) sıfırdan farklı kodla çıkar.
+   */
+  /**
+   * 02.10.2026 — zamanlayıcı LİDER KİLİDİ. Birden çok API örneğinde
+   * zamanlanmış işleri yalnızca kilidi tutan örnek koşar. `enabled: false`
+   * = tek örnek davranışı (her örnek koşar). `lockKey` int4 dışında seçildi
+   * (`hashtext` kilitleriyle çakışmasın).
+   */
+  schedulerLeader: { enabled: boolean; lockKey: number; retrySeconds: number; heartbeatSeconds: number };
+  /**
+   * 02.10.2026 — Socket.IO Redis köprüsü: birden çok API örneğinde sohbet,
+   * emote, bildirim ve izleyici sayısı tüm örneklere yayılır. Yarış OYNATMASI
+   * örneğe yereldir (`server.local`). `requestsTimeoutMs`: örnekler arası
+   * soket sayımı (`fetchSockets`) zaman aşımı.
+   */
+  realtime: { redisAdapter: { enabled: boolean; requestsTimeoutMs: number; channelPrefix: string } };
+  loadTest: {
+    virtualUsers: number;
+    iterationsPerUser: number;
+    p95BudgetMs: number;
+    maxErrorRate: number;
+    requestTimeoutMs: number;
+  };
+}
+
+/** 02.10.2026 — `config/moderation.config.json` (Faz 10 + 11-A). Yalnızca sınırlar; yetki kodda/veritabanındadır. */
+export interface ModerationConfig {
+  sanctions: {
+    reasonMinLength: number;
+    reasonMaxLength: number;
+    moderatorMaxSuspendHours: number;
+    adminMaxSuspendHours: number;
+    historyLimit: number;
+  };
+  announcements: {
+    titleMaxLength: number;
+    bodyMaxLength: number;
+    maxLive: number;
+    maxDurationDays: number;
+    adminListLimit: number;
+  };
+  /** 02.10.2026 (Faz 10) — yönetimin bakiye düzeltmesi: tutar tavanı (mutlak) + gerekçe uzunluğu. */
+  economyAdjustment: {
+    maxAbsAmount: { money: number; gems: number };
+    reasonMinLength: number;
+    reasonMaxLength: number;
+  };
+  /** 02.10.2026 (Faz 10) — yönetimin at araması. */
+  horseSearch: { limit: number; queryMaxLength: number };
+  /** 02.10.2026 (Faz 10) — yönetimin salt okuma sezon/turnuva listeleri (liste boyutu). */
+  adminViews: { seasonListLimit: number; tournamentListLimit: number };
+}
+
+/** 02.10.2026 — `config/quests.config.json` (Faz 11-B). Görev listesi + etkinlik sınırları. */
+export interface QuestDefinitionConfig {
+  key: string;
+  metric: string;
+  target: number;
+  rewardMoney: number;
+}
+
+/** 03.10.2026 — başarım tanımı; ölçüt `ACHIEVEMENT_METRICS`ten (shared-types). */
+export interface AchievementDefinitionConfig {
+  key: string;
+  metric: string;
+  target: number;
+  rewardMoney: number;
+}
+
+export interface AchievementsConfig {
+  achievements: AchievementDefinitionConfig[];
+  /** Herkese açık profilde gösterilen en fazla kazanılmış başarım. */
+  profileLimit: number;
+}
+
+export interface QuestsConfig {
+  /** Gün/hafta sınırının saat dilimi (UTC'ye göre dakika; Türkiye = 180). */
+  timezoneOffsetMinutes: number;
+  /** Haftanın ilk günü (0 = Pazar, 1 = Pazartesi). */
+  weekStartsOn: number;
+  /** `horse_purchases` yalnızca bu fiyat ve üstündeki alımları sayar (0 TL'lik el değiştirmeyle görev tamamlanmasın). */
+  horsePurchaseMinPrice: number;
+  daily: QuestDefinitionConfig[];
+  weekly: QuestDefinitionConfig[];
+  events: {
+    titleMaxLength: number;
+    descriptionMaxLength: number;
+    maxTarget: number;
+    maxRewardMoney: number;
+    maxDurationDays: number;
+    maxLive: number;
+    claimGraceHours: number;
+    adminListLimit: number;
+  };
+}
+
+/**
+ * 02.10.2026 — `config/anticheat.config.json` (Faz 7). Şüpheli desen EŞİKLERİ.
+ * Yalnızca yönetimin inceleme listesini belirler; otomatik ceza YOKTUR.
+ */
+export interface AnticheatConfig {
+  /** Geriye bakılan pencere (gün). */
+  windowDays: number;
+  /** Bu yaştan genç hesap "yeni" sayılır (gün). */
+  newAccountDays: number;
+  giftFunnel: { minDistinctNewSenders: number };
+  repeatTradePair: { minTrades: number };
+  newAccountOutflow: { minMoney: number };
+  maxFindingsPerRule: number;
 }

@@ -1,7 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import type { RaceEntrantSnapshot, RaceSurface, RaceTacticInput } from '@at-sevdalisi/shared-types';
 import { buildHorseEntrantSnapshot, FORM_SAMPLE_SIZE, type TrackFitInput } from '../../domain/race/entrant-snapshot';
-import { calculateJockeySkillComposite } from '../../domain/jockey/jockey';
+import { effectiveJockeySkill } from '../../domain/jockey/jockey';
 import { DEFAULT_RACE_TACTIC } from '../../domain/race/validation';
 import { HorseNotFoundError } from '../../domain/horse/errors';
 import { AppConfigService } from '../../infrastructure/config/config.service';
@@ -131,7 +131,20 @@ export class EntrantSnapshotBuilder {
     // buradaki, `jockeyId`i de `null` bırakarak "jokeyi yok" olgusunu
     // KAYDEDER; oradaki, parametreyi hiç vermeyen çağıranlar (botlar) için
     // güvenli varsayılandır.
-    const jockeySkillComposite = jockey === null ? null : calculateJockeySkillComposite(jockey, this.config.jockey);
+    // 02.10.2026 — jokey-at UYUMU beceriye işler (`effectiveJockeySkill`);
+    // dondurulan kadroya yazılır, motor değişmez.
+    const jockeySkillComposite =
+      jockey === null
+        ? null
+        : effectiveJockeySkill(
+            {
+              jockey,
+              horse: { temperament: stats.temperament, racingStyle: entrant.tacticalStyle },
+              previousPairAveragePerformance:
+                await this.raceRepository.findJockeyPairAveragePerformance(entrant.horseId, jockey.id),
+            },
+            this.config.jockey,
+          );
 
     return {
       snapshot: buildHorseEntrantSnapshot(

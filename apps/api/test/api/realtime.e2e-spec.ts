@@ -7,7 +7,7 @@ import { io, type Socket } from 'socket.io-client';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { PvpMatchResult, RaceRosterEntrant, RaceSegmentSnapshot } from '@at-sevdalisi/shared-types';
 import { PG_POOL } from '../../src/infrastructure/database/database.module';
-import { bootstrapTestApp, registerTestPlayerWithStarterHorse } from './test-helpers';
+import { bootstrapTestApp, registerTestPlayer, registerTestPlayerWithStarterHorse } from './test-helpers';
 
 /**
  * AUDIT_REPORT.md Bulgu F2 (bu oturum) — `RaceGateway` (bkz. o dosyanın
@@ -64,41 +64,46 @@ describe('Race WebSocket yayını (e2e) — AUDIT_REPORT.md Bulgu F2', () => {
   }
 
   /**
-   * CI #126 kirmizi araştırması (bu oturum) — socket.io'nun kendi iç
-   * sırası (`Namespace._add`): CONNECT paketi istemciye YAZILIR, SONRA
-   * `'connection'` olayı emit edilir (bu, NestJS'in `handleConnection`'ını
-   * TETİKLEYEN olay). Yani `handleConnection` içinde ÇAĞRILAN
-   * `client.disconnect(true)` her zaman istemcinin kendi 'connect'
-   * olayını ZATEN görmüş olmasından SONRA (TCP sırası korunduğundan
-   * neredeyse anında) gerçekleşir — istemci kısa bir an "bağlandım" gibi
-   * görünüp HEMEN ardından koparılır. İlk yazımda test 'connect' olayında
-   * ERKEN `resolve(false)` çağırıyordu — bu, GERÇEK bir güvenlik açığı
-   * DEĞİL, testin kendi yarış koşuluydu (CI #126'da yakalandı). Doğru
-   * doğrulama: yalnızca 'disconnect' olayını (veya zaman aşımını) bekle,
-   * 'connect' olayının kendisi bir hata SAYILMAZ — asıl garanti "sonunda
-   * kesin olarak koparılır" olmalı.
+   * 02.10.2026 (migration 0057) — kimlik doğrulama artık el sıkışmanın ARA
+   * KATMANINDADIR (`RaceGateway.afterInit`): reddedilen istemci HİÇ
+   * bağlanmaz, `connect_error` alır. Eskiden `handleConnection` içinde
+   * koparılıyordu (önce 'connect', sonra 'disconnect' — CI #126'daki yarış
+   * koşulunun kaynağı); oturum kapısı asenkron bir sorgu olunca o yol
+   * bağlanır bağlanmaz yollanan `race.subscribe`ı da reddettiriyordu.
+   * Test 'connect' görmeyi BAŞARISIZLIK sayar.
    */
-  it('Authorization token olmadan bağlantı ANINDA reddedilir', async () => {
+  function expectRejected(client: Socket): Promise<'rejected' | 'connected' | 'timeout'> {
+    return new Promise((resolve) => {
+      client.on('connect_error', () => resolve('rejected'));
+      client.on('connect', () => resolve('connected'));
+      setTimeout(() => resolve('timeout'), 2000);
+    });
+  }
+
+  it('Authorization token olmadan bağlantı reddedilir (hiç bağlanmaz)', async () => {
     const client = connect(undefined);
     try {
-      const disconnected = await new Promise<boolean>((resolve) => {
-        client.on('disconnect', () => resolve(true));
-        setTimeout(() => resolve(false), 2000);
-      });
-      expect(disconnected).toBe(true);
+      expect(await expectRejected(client)).toBe('rejected');
     } finally {
       client.disconnect();
     }
   });
 
-  it('geçersiz bir token ile bağlantı ANINDA reddedilir', async () => {
+  it('geçersiz bir token ile bağlantı reddedilir (hiç bağlanmaz)', async () => {
     const client = connect('bariz-sekilde-gecersiz-bir-token');
     try {
-      const disconnected = await new Promise<boolean>((resolve) => {
-        client.on('disconnect', () => resolve(true));
-        setTimeout(() => resolve(false), 2000);
-      });
-      expect(disconnected).toBe(true);
+      expect(await expectRejected(client)).toBe('rejected');
+    } finally {
+      client.disconnect();
+    }
+  });
+
+  it("çıkış yapılmış oturumun token'ı soket açamaz (oturum kapısı, migration 0057)", async () => {
+    const player = await registerTestPlayer(app, 'Soket Çıkış');
+    await request(app.getHttpServer()).post('/api/v1/auth/logout').set('Authorization', player.authHeader).expect(200);
+    const client = connect(player.token);
+    try {
+      expect(await expectRejected(client)).toBe('rejected');
     } finally {
       client.disconnect();
     }

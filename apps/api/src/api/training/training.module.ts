@@ -1,4 +1,6 @@
 import { Module } from '@nestjs/common';
+import { FarmModule } from '../farm/farm.module';
+import { StaffModule } from '../staff/staff.module';
 import { TRAINING_SESSION_REPOSITORY } from '../../application/ports/training-session.repository';
 import { GetTrainingHistoryUseCase } from '../../application/use-cases/get-training-history.use-case';
 import { TrainHorseUseCase } from '../../application/use-cases/train-horse.use-case';
@@ -7,10 +9,12 @@ import { PostgresTrainingSessionRepository } from '../../infrastructure/training
 import { HorseOwnerGuardByParam } from '../auth/horse-owner.guard';
 import { HorseModule } from '../horse/horse.module';
 import { MarketModule } from '../market/market.module';
+import { PlayerModule } from '../player/player.module';
 import { TrainingController } from './training.controller';
 
 @Module({
-  imports: [DatabaseModule, HorseModule, MarketModule],
+  // PlayerModule: antrenman oyuncuya da XP verir (01.10.2026).
+  imports: [DatabaseModule, HorseModule, MarketModule, PlayerModule, StaffModule, FarmModule],
   controllers: [TrainingController],
   providers: [
     TrainHorseUseCase,

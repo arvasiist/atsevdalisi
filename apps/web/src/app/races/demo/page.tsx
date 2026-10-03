@@ -29,7 +29,7 @@ export default function RaceDemoPage(): React.ReactElement {
     // Faz 2: yükseklik artık TopBar'ın piksel cinsinden TAHMİN EDİLMİŞ bir
     // sabitiyle değil, `globals.css`teki `.app-main` flex kabuğunun (bkz.
     // `app/layout.tsx`) doldurduğu GERÇEK kalan alanla belirlenir.
-    <main style={{ width: '100%', height: '100%', background: '#0b1220', position: 'relative' }}>
+    <main className="viewer-page" style={{ width: '100%', height: '100%', background: '#0b1220', position: 'relative' }}>
       <RaceViewer timeline={timeline} horseNamesById={horseNamesById} />
     </main>
   );

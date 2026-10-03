@@ -1,0 +1,39 @@
+{
+  "readiness": {
+    "checkTimeoutMs": 2000
+  },
+  "requestId": {
+    "maxLength": 128
+  },
+  "productionEnv": {
+    "minJwtSecretLength": 32,
+    "forbiddenJwtSecrets": [
+      "ci-test-only-jwt-secret-never-use-in-production"
+    ]
+  },
+  "clientErrors": {
+    "maxMessageLength": 500,
+    "maxPathLength": 200,
+    "maxDigestLength": 64
+  },
+  "loadTest": {
+    "virtualUsers": 25,
+    "iterationsPerUser": 6,
+    "p95BudgetMs": 800,
+    "maxErrorRate": 0.01,
+    "requestTimeoutMs": 15000
+  },
+  "schedulerLeader": {
+    "enabled": true,
+    "lockKey": 9100000001,
+    "retrySeconds": 10,
+    "heartbeatSeconds": 15
+  },
+  "realtime": {
+    "redisAdapter": {
+      "enabled": true,
+      "requestsTimeoutMs": 3000,
+      "channelPrefix": "at-sevdalisi-io"
+    }
+  }
+}

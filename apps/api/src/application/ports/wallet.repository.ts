@@ -38,7 +38,7 @@ export interface WalletRepository {
    * fazlalığı düşer — istemcinin "length === limit ise daha vardır"
    * tahminine bırakılmaz (tam bölünen sonuçlarda bu tahmin yanlış çıkar).
    */
-  findWallet(playerId: string, limit: number, before?: string | null): Promise<WalletView | null>;
+  findWallet(playerId: string, limit: number, before?: string | null): Promise<Omit<WalletView, 'depositAvailable'> | null>;
 }
 
 /** NestJS DI için token (interface'ler runtime'da yok olduğundan bir Symbol gerekir). */

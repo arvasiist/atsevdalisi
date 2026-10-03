@@ -476,6 +476,37 @@ function describe(notification: NotificationView): { title: string; detail: stri
         detail: `Kazanılan ödül: ${formatCurrency('money', notification.payload.amount)}`,
         href: '/replays',
       };
+    // 02.10.2026 — müzayede. Yön metne değil türe bağlı; tutar hep pozitif.
+    case 'auction_outbid':
+      return {
+        title: `${notification.payload.horseName} müzayedesinde teklifin geçildi`,
+        detail: `${formatCurrency('money', notification.payload.amount)} hesabına iade edildi. Yeniden teklif için en az ${formatCurrency('money', notification.payload.minimumNextBid)}.`,
+        href: '/market',
+      };
+    case 'auction_won':
+      return {
+        title: `${notification.payload.horseName} müzayedesini kazandın`,
+        detail: `${formatCurrency('money', notification.payload.amount)} karşılığında at ahırında.`,
+        href: '/stable',
+      };
+    case 'auction_sold':
+      return {
+        title: `${notification.payload.horseName} müzayedede satıldı`,
+        detail: `${formatCurrency('money', notification.payload.amount)} hesabına geçti.`,
+        href: '/wallet',
+      };
+    case 'auction_unsold':
+      return {
+        title: `${notification.payload.horseName} müzayedesi satışsız bitti`,
+        detail: 'At sende kaldı; yeniden satışa çıkarabilirsin.',
+        href: '/market',
+      };
+    case 'auction_refunded':
+      return {
+        title: `${notification.payload.horseName} satışı gerçekleşemedi`,
+        detail: `Teklifin (${formatCurrency('money', notification.payload.amount)}) hesabına iade edildi.`,
+        href: '/wallet',
+      };
   }
 }
 
@@ -493,6 +524,14 @@ function hrefLabel(notification: NotificationView): string {
     case 'race_finished':
     case 'prize_won':
       return 'yarış geçmişi →';
+    case 'auction_outbid':
+    case 'auction_unsold':
+      return 'pazar →';
+    case 'auction_won':
+      return 'ahır →';
+    case 'auction_sold':
+    case 'auction_refunded':
+      return 'cüzdan →';
   }
 }
 

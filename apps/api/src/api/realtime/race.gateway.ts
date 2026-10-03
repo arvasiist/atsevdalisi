@@ -1,8 +1,9 @@
-import { Inject, Logger } from '@nestjs/common';
+import { Inject, Logger, type OnModuleDestroy } from '@nestjs/common';
 import {
   ConnectedSocket,
   MessageBody,
   OnGatewayConnection,
+  OnGatewayInit,
   OnGatewayDisconnect,
   SubscribeMessage,
   WebSocketGateway,
@@ -20,12 +21,12 @@ import type {
   RaceRosterPayload,
   RaceSegmentSnapshot,
   RaceSpectatorCountPayload,
-  RaceTimelineView,
-} from '@at-sevdalisi/shared-types';
+  RaceTimelineView, RaceEmoteEvent } from '@at-sevdalisi/shared-types';
 import { GetRaceTimelineUseCase } from '../../application/use-cases/get-race-timeline.use-case';
 import { ListRaceMessagesUseCase } from '../../application/use-cases/list-race-messages.use-case';
 import { SendRaceMessageUseCase } from '../../application/use-cases/send-race-message.use-case';
 import { TOKEN_SERVICE, type TokenService } from '../../application/ports/token.service';
+import { AuthSessionUseCase } from '../../application/use-cases/auth-session.use-case';
 import type { LobbyNotifier } from '../../application/ports/lobby-notifier';
 import type { NotificationNotifier } from '../../application/ports/notification-notifier';
 import { AppConfigService } from '../../infrastructure/config/config.service';
@@ -260,9 +261,16 @@ interface ChatRateWindow {
   cors: { origin: process.env.CORS_ORIGIN ?? 'http://localhost:3000', credentials: true },
 })
 export class RaceGateway
-  implements OnGatewayConnection, OnGatewayDisconnect, LobbyNotifier, NotificationNotifier
+  implements
+    OnGatewayInit,
+    OnGatewayConnection,
+    OnGatewayDisconnect,
+    OnModuleDestroy,
+    LobbyNotifier,
+    NotificationNotifier
 {
   private readonly logger = new Logger(RaceGateway.name);
+  private shuttingDown = false;
 
   /**
    * `raceId` → paylaşılan playback oturumu. Bir oturum, `race.finished`
@@ -270,6 +278,16 @@ export class RaceGateway
    * (bkz. dosya başı doc yorumu) — bu Map süresiz büyümez.
    */
   private readonly raceSessions = new Map<string, RacePlaybackSession>();
+
+  /**
+   * BEKLEYEN TRİBÜN (01.10.2026) — henüz bitmemiş bir yarışa abone olunan
+   * odalar için yoklama zamanlayıcıları. Eskiden bitmemiş yarışa abone olmak
+   * BOŞ bir oynatma oturumu kuruyordu: 4 sn sonra sıra bilgisi olmayan
+   * `race.finished` yayınlanıyor ve oturum 60 sn önbellekte kalıyordu — o
+   * sürede gelen izleyici de yarışı hiç göremiyordu. Kontrollü yarışta
+   * (kilit → canlı koşu → kesinleşme) bu pencere dakikalar sürer.
+   */
+  private readonly waitingRaces = new Map<string, ReturnType<typeof setInterval>>();
 
   /** Bkz. dosya başı doc yorumu "Senkronize çoklu-izleyici" bölümü. */
   private static readonly SESSION_RETENTION_AFTER_FINISH_MS = 60_000;
@@ -298,6 +316,7 @@ export class RaceGateway
 
   constructor(
     @Inject(TOKEN_SERVICE) private readonly tokenService: TokenService,
+    @Inject(AuthSessionUseCase) private readonly authSessions: AuthSessionUseCase,
     @Inject(GetRaceTimelineUseCase) private readonly getRaceTimelineUseCase: GetRaceTimelineUseCase,
     // YARIŞ SOHBETİ (brief §13, bu dilimde EKLENDİ) — bkz. dosya başı doc
     // yorumu. `@Inject()` AÇIKÇA yazılır (CLAUDE.md: Vitest/esbuild
@@ -308,25 +327,48 @@ export class RaceGateway
     @Inject(AppConfigService) private readonly config: AppConfigService,
   ) {}
 
-  async handleConnection(client: Socket): Promise<void> {
+  /**
+   * KİMLİK DOĞRULAMA EL SIKIŞMADA (02.10.2026, migration 0057). Oturum kapısı
+   * bir veritabanı sorgusudur (asenkron); `handleConnection`da beklenseydi
+   * istemcinin bağlanır bağlanmaz yolladığı `race.subscribe`,
+   * `client.data.playerId` dolmadan işlenip reddedilirdi (yaşandı: soket
+   * e2e'leri zaman aşımına düştü). Ara katman bağlantı KURULMADAN önce koşar;
+   * reddedilen istemci `connect_error` alır, hiç bağlanmaz.
+   */
+  afterInit(server: Namespace): void {
+    server.use((client, next) => {
+      void this.authenticate(client).then(
+        () => next(),
+        () => next(new Error('Geçersiz ya da kapatılmış oturum.')),
+      );
+    });
+  }
+
+  private async authenticate(client: Socket): Promise<void> {
     const token = client.handshake.auth?.token as string | undefined;
     if (!token) {
+      throw new Error('token yok');
+    }
+    const payload = this.tokenService.verify(token);
+    // HTTP guard'ıyla AYNI oturum kapısı: kapatılmış oturum ya da silinmiş
+    // hesap soket de açamaz.
+    await this.authSessions.authorize(payload);
+    client.data.playerId = payload.sub;
+  }
+
+  async handleConnection(client: Socket): Promise<void> {
+    const playerId = client.data.playerId as string | undefined;
+    if (!playerId) {
       client.disconnect(true);
       return;
     }
-    try {
-      const payload = this.tokenService.verify(token);
-      client.data.playerId = payload.sub;
-      // `lobby.update` (bu turda EKLENDİ) — bkz. dosya başı doc yorumu
-      // "`lobby.update`" bölümü. HER istemci, kendi `race.subscribe`
-      // çağrısından BAĞIMSIZ olarak (yani bağlantı kurulur kurulmaz,
-      // hiçbir yarışa abone olmadan ÖNCE) kendi oyuncu-bazlı odasına
-      // katılır — `notifyMatchFound`'un bu istemciye ulaşabilmesi için
-      // TEK ön koşul budur.
-      await client.join(this.playerRoom(payload.sub));
-    } catch {
-      client.disconnect(true);
-    }
+    // `lobby.update` (bu turda EKLENDİ) — bkz. dosya başı doc yorumu
+    // "`lobby.update`" bölümü. HER istemci, kendi `race.subscribe`
+    // çağrısından BAĞIMSIZ olarak (yani bağlantı kurulur kurulmaz,
+    // hiçbir yarışa abone olmadan ÖNCE) kendi oyuncu-bazlı odasına
+    // katılır — `notifyMatchFound`'un bu istemciye ulaşabilmesi için
+    // TEK ön koşul budur.
+    await client.join(this.playerRoom(playerId));
   }
 
   /**
@@ -338,6 +380,11 @@ export class RaceGateway
    * odalarından (`race:${raceId}` dahil) otomatik olarak çıkarır — burada
    * elle yapılacak bir temizlik YOK.
    */
+  /** Uygulama kapanırken (soket sunucusu kapanmadan ÖNCE çağrılır). */
+  onModuleDestroy(): void {
+    this.shuttingDown = true;
+  }
+
   handleDisconnect(client: Socket): void {
     // CANLI İZLEYİCİ SAYISI (brief §27, bu dilimde EKLENDİ) — bkz. dosya
     // başı doc yorumu. `handleDisconnect` (Socket.IO'nun `disconnect`
@@ -382,7 +429,99 @@ export class RaceGateway
       return;
     }
 
-    await this.joinSharedPlayback(client, timeline);
+    // Oturum zaten varsa (bitmiş yarış ya da kesinleşmeyle başlamış oynatma)
+    // ona katıl; yoksa yarışın gerçekten bitip bitmediğine bak.
+    if (this.raceSessions.has(raceId)) {
+      await this.joinSharedPlayback(client, timeline);
+      return;
+    }
+    let playback: Awaited<ReturnType<GetRaceTimelineUseCase['pollForPlayback']>>;
+    try {
+      playback = await this.getRaceTimelineUseCase.pollForPlayback(raceId);
+    } catch (error) {
+      client.emit('race.error', { message: error instanceof Error ? error.message : 'Beklenmeyen hata.' });
+      return;
+    }
+    if (playback.state === 'finished') {
+      await this.joinSharedPlayback(client, playback.timeline);
+      return;
+    }
+    await this.joinWaitingRoom(client, timeline, playback.state);
+  }
+
+  /**
+   * Bitmemiş (ya da iptal edilmiş) yarışın odası: izleyici sayılır, sohbet
+   * eder, kadroyu görür — ama oynatma oturumu KURULMAZ. Bekleyen yarış
+   * yoklanır; kesinleşince oynatma odanın tamamına başlar.
+   */
+  private async joinWaitingRoom(
+    client: Socket,
+    timeline: RaceTimelineView,
+    state: 'pending' | 'cancelled',
+  ): Promise<void> {
+    await client.join(this.raceRoom(timeline.raceId));
+    this.trackSubscription(client, timeline.raceId);
+    this.broadcastSpectatorCount(timeline.raceId);
+    await this.emitChatHistory(client, timeline.raceId);
+    const rosterPayload: RaceRosterPayload = { raceId: timeline.raceId, entrants: toRoster(timeline) };
+    client.emit('race.roster', rosterPayload);
+    if (state === 'cancelled') {
+      client.emit('race.cancelled', { raceId: timeline.raceId });
+      return;
+    }
+    client.emit('race.waiting', { raceId: timeline.raceId });
+    this.ensureWaitingPoll(timeline.raceId);
+  }
+
+  private ensureWaitingPoll(raceId: string): void {
+    if (this.waitingRaces.has(raceId)) {
+      return;
+    }
+    const timer = setInterval(() => {
+      void this.checkWaitingRace(raceId);
+    }, this.config.raceLobby.spectatorWaitPollSeconds * 1000);
+    timer.unref?.();
+    this.waitingRaces.set(raceId, timer);
+  }
+
+  private stopWaitingPoll(raceId: string): void {
+    const timer = this.waitingRaces.get(raceId);
+    if (timer !== undefined) {
+      clearInterval(timer);
+      this.waitingRaces.delete(raceId);
+    }
+  }
+
+  /** Bekleyen yarışın tek yoklama turu — boş oda yoklamayı durdurur. */
+  async checkWaitingRace(raceId: string): Promise<void> {
+    const room = this.raceRoom(raceId);
+    if ((this.server.adapter.rooms.get(room)?.size ?? 0) === 0) {
+      this.stopWaitingPoll(raceId);
+      return;
+    }
+    let playback: Awaited<ReturnType<GetRaceTimelineUseCase['pollForPlayback']>>;
+    try {
+      playback = await this.getRaceTimelineUseCase.pollForPlayback(raceId);
+    } catch (error) {
+      this.logger.warn(
+        `Bekleyen tribün yoklanamadı (yarış ${raceId}): ${error instanceof Error ? error.message : String(error)}`,
+      );
+      return;
+    }
+    if (playback.state === 'pending') {
+      return;
+    }
+    this.stopWaitingPoll(raceId);
+    if (playback.state === 'cancelled') {
+      // Yoklama örneğe yereldir (her örnek kendi bekleyen izleyicilerini yoklar).
+      this.server.local.to(room).emit('race.cancelled', { raceId });
+      return;
+    }
+    if (!this.raceSessions.has(raceId)) {
+      // Oturumun zamanlayıcıları odanın TAMAMINA yayın yapar — bekleyen
+      // izleyiciler oynatmayı birlikte izler.
+      this.raceSessions.set(raceId, this.createPlaybackSession(playback.timeline));
+    }
   }
 
   private extractRaceId(body: unknown): string | null {
@@ -487,16 +626,7 @@ export class RaceGateway
     // geçmiş okunamazsa (ör. geçici bir DB hatası) yarış yayını YİNE DE
     // devam eder; sohbet geçmişi yüzünden bir yarışı izleyememek kabul
     // edilemez bir davranış olurdu.
-    try {
-      const history = await this.listRaceMessagesUseCase.execute(timeline.raceId);
-      client.emit('chat.history', history);
-    } catch (error) {
-      this.logger.warn(
-        `chat.history okunamadı (yarış ${timeline.raceId}): ${error instanceof Error ? error.message : String(error)}`,
-      );
-      const empty: RaceChatHistoryPayload = { raceId: timeline.raceId, messages: [] };
-      client.emit('chat.history', empty);
-    }
+    await this.emitChatHistory(client, timeline.raceId);
 
     // `race.roster` — bkz. dosya başı doc yorumu. Catch-up `race.telemetry`'den
     // ÖNCE gönderilir ki istemci ilk segment görüntülenmeden ÖNCE isim/
@@ -557,6 +687,19 @@ export class RaceGateway
    * odaya yayınlanır ve bir eviction zamanlayıcısı, oturumu bir süre sonra
    * (`SESSION_RETENTION_AFTER_FINISH_MS`) bellekten temizler.
    */
+  private async emitChatHistory(client: Socket, raceId: string): Promise<void> {
+    try {
+      const history = await this.listRaceMessagesUseCase.execute(raceId);
+      client.emit('chat.history', history);
+    } catch (error) {
+      this.logger.warn(
+        `chat.history okunamadı (yarış ${raceId}): ${error instanceof Error ? error.message : String(error)}`,
+      );
+      const empty: RaceChatHistoryPayload = { raceId, messages: [] };
+      client.emit('chat.history', empty);
+    }
+  }
+
   private createPlaybackSession(timeline: RaceTimelineView): RacePlaybackSession {
     const room = this.raceRoom(timeline.raceId);
     const allSegments = timeline.entrants.flatMap((entrant) => entrant.segments);
@@ -597,15 +740,7 @@ export class RaceGateway
     // Bkz. dosya başı doc yorumu "`race.roster`" bölümü — `segments`/
     // final-sonuç alanları BİLEREK dışarıda bırakılır (roster yarış
     // BAŞLARKEN gönderilir, o alanlar henüz/asla roster'a ait değildir).
-    const roster: RaceRosterEntrant[] = timeline.entrants.map((entrant) => ({
-      entryId: entrant.entryId,
-      isBot: entrant.isBot,
-      horseId: entrant.horseId,
-      horseName: entrant.horseName,
-      botLabel: entrant.botLabel,
-      tacticalStyle: entrant.tacticalStyle,
-      gatePosition: entrant.gatePosition,
-    }));
+    const roster: RaceRosterEntrant[] = toRoster(timeline);
 
     const session: RacePlaybackSession = {
       raceId: timeline.raceId,
@@ -621,14 +756,16 @@ export class RaceGateway
     for (const [scaledDelay, segments] of segmentsByScaledDelay) {
       const timer = setTimeout(() => {
         session.firedScaledDelays.add(scaledDelay);
-        this.server.to(room).emit('race.telemetry', { raceId: timeline.raceId, segments });
+        // ÖRNEĞE YEREL (02.10.2026): her API örneği kendi izleyicilerine kendi
+        // oynatmasını yapar; Redis köprüsünden geçseydi kareler kopyalanırdı.
+        this.server.local.to(room).emit('race.telemetry', { raceId: timeline.raceId, segments });
       }, scaledDelay);
       session.timers.push(timer);
     }
 
     const finishedTimer = setTimeout(() => {
       session.finished = true;
-      this.server.to(room).emit('race.finished', finishedPayload);
+      this.server.local.to(room).emit('race.finished', finishedPayload);
 
       // Geç katılan bir izleyicinin hâlâ TAM bir "yakalama" (bu durumda:
       // anında `race.finished`) alabilmesi için oturumu HEMEN silmiyoruz —
@@ -705,6 +842,35 @@ export class RaceGateway
   }
 
   /**
+   * `race.emote` (02.10.2026, Faz 9, brief §52 EMOTES) — tribünde anlık tepki.
+   * KALICI DEĞİL (DB'ye yazılmaz) ve ANONİMDİR: yayın yalnızca yarış + anahtar
+   * taşır (kimin attığı yok — taciz aracı olmasın, isim için DB sorgusu da
+   * gerekmez). Kapılar: kimlik, şekil, listedeki anahtar, abonelik, soket
+   * başına soğuma (`chat.emotes.cooldownMs`). Reddedilen emote sessizce düşer
+   * (`chat.error` sohbet hatası içindir; tepki için uyarı gürültü olurdu).
+   */
+  @SubscribeMessage('race.emote')
+  handleEmote(@ConnectedSocket() client: Socket, @MessageBody() body: unknown): void {
+    if (!client.data.playerId) {
+      client.disconnect(true);
+      return;
+    }
+    if (typeof body !== 'object' || body === null) return;
+    const raceId = (body as { raceId?: unknown }).raceId;
+    const key = (body as { key?: unknown }).key;
+    if (typeof raceId !== 'string' || !UUID_PATTERN.test(raceId) || typeof key !== 'string') return;
+    const emotes = this.config.chat.emotes;
+    if (!emotes.list.some((emote) => emote.key === key)) return;
+    if (!this.subscribedRaceIds(client).has(raceId)) return;
+    const nowMs = Date.now();
+    const last = client.data.lastEmoteAtMs as number | undefined;
+    if (last !== undefined && nowMs - last < emotes.cooldownMs) return;
+    client.data.lastEmoteAtMs = nowMs;
+    const event: RaceEmoteEvent = { raceId, key };
+    this.server.to(this.raceRoom(raceId)).emit('race.emote', event);
+  }
+
+  /**
    * Sohbet hız sınırı (brief §32) — sabit pencere, soket başına (bkz.
    * dosya başı doc yorumu). Sınır AŞILDIYSA kullanıcıya gösterilecek
    * metni, aksi hâlde `null` döner. Sayaç AŞILDIĞINDA DA artmaya devam
@@ -775,11 +941,40 @@ export class RaceGateway
    * (`notifyMatchFound` ile AYNI, İSTENEN davranış).
    */
   private broadcastSpectatorCount(raceId: string): void {
+    // Kapanışta soketler topluca kopar; Redis köprüsü o sırada kapanmış
+    // olabilir (sayım isteği askıda reddedilir). Kapanan örneğin izleyicileri
+    // başka örneğe bağlanınca sayı oradan yeniden yayınlanır.
+    if (this.shuttingDown) {
+      return;
+    }
+    void this.countAndBroadcastSpectators(raceId).catch((error: unknown) => {
+      this.logger.warn(
+        `İzleyici sayısı yayınlanamadı (yarış ${raceId}): ${error instanceof Error ? error.message : String(error)}`,
+      );
+    });
+  }
+
+  /**
+   * 02.10.2026 (Faz 13) — sayı TÜM örneklerdeki soketlerdir: `fetchSockets`
+   * Redis köprüsünde örnekler arası sorar (tek örnekte yerel odayla aynı
+   * sonucu verir). `server.adapter.rooms` YALNIZCA bu örneği sayardı.
+   */
+  private async countAndBroadcastSpectators(raceId: string): Promise<void> {
     const room = this.raceRoom(raceId);
-    // `server.sockets.adapter` DEĞİL `server.adapter` — gerekçe `server`
-    // alanının doc yorumundadır (Nest buraya Namespace atar).
-    const count = this.server.adapter.rooms.get(room)?.size ?? 0;
+    const count = (await this.server.in(room).fetchSockets()).length;
     const payload: RaceSpectatorCountPayload = { raceId, count };
     this.server.to(room).emit('race.spectators', payload);
   }
+}
+
+function toRoster(timeline: RaceTimelineView): RaceRosterEntrant[] {
+  return timeline.entrants.map((entrant) => ({
+    entryId: entrant.entryId,
+    isBot: entrant.isBot,
+    horseId: entrant.horseId,
+    horseName: entrant.horseName,
+    botLabel: entrant.botLabel,
+    tacticalStyle: entrant.tacticalStyle,
+    gatePosition: entrant.gatePosition,
+  }));
 }

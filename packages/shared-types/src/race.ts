@@ -249,7 +249,8 @@ export interface RaceEntrantSnapshot {
  * (bağımlılık yönü tersine döner) — aynı gerekçe `RacingStyle` gibi diğer
  * union tipler için de geçerlidir.
  */
-export type RaceJockeyDecision = 'reduce_pace' | 'push_for_finish' | 'search_overtake_lane' | 'defend_position' | 'hold';
+export type RaceJockeyDecision =
+  'reduce_pace' | 'push_for_finish' | 'search_overtake_lane' | 'defend_position' | 'hold';
 
 /** brief §24 Race Telemetry / §19 Segment sistemi */
 export interface RaceSegmentSnapshot {
@@ -374,6 +375,11 @@ export interface PracticeRaceResult {
   prizePool: number;
   prizeWon: number;
   newBalance: Pick<Player, 'money' | 'gems'>;
+  /**
+   * 01.10.2026 — bu yarışın kazandırdığı XP (oyuncu + at). Yazım, para ile
+   * AYNI transaction'dadır; burası yalnızca gösterim içindir.
+   */
+  xpGained: { player: number; horse: number };
 }
 
 /**
@@ -575,6 +581,8 @@ export interface RaceLobbyView {
   prizeMultiplier: number | null;
   /** Kazananın alacağı Çip (brief §3) — `prizePool`'un en yüksek payı, yuvarlanmış. */
   topPrize: number;
+  /** 01.10.2026 — oyuncu kontrollü canlı yarış (kilitten sonra canlı akar, oyuncular atını yönetir). */
+  playerControl: boolean;
 }
 
 /**
@@ -598,6 +606,12 @@ export interface RaceLobbyListItem extends RaceLobbyView {
    * botsuz koşulur ve ödül ilk üçe dağıtılır (`online.config.json`).
    */
   tournament: { tier: 'bronze' | 'silver' | 'gold'; minPlayerLevel: number } | null;
+  /**
+   * 01.10.2026 — yarışı sunucu TAKVİMİ açtıysa programın kimliği
+   * (`race_calendar_slots`, migration 0052); oyuncunun açtığı yarışta `null`.
+   */
+  /** `featured` (02.10.2026, Faz 11): config programının öne çıkan (özel yarış) işareti. */
+  calendar: { programId: string; featured: boolean } | null;
 }
 
 /**
@@ -721,4 +735,60 @@ export interface RaceSettlementResult {
   settledAt: ISODateTimeString;
   /** Sıralı sonuç listesi — 1. sıradan itibaren, botlar dahil. */
   places: RaceSettlementPlace[];
+}
+
+/** 01.10.2026 — oyuncu kontrollü yarışın düğmeleri. */
+export type PlayerControlInput = 'whip' | 'left' | 'right' | 'ease';
+
+/** Bir segmentteki oyuncu komutu (sunucunun kaydettiği hâliyle). */
+export interface PlayerSegmentCommandView {
+  whips: number;
+  laneShift: -1 | 0 | 1;
+  ease: boolean;
+}
+
+export interface InteractiveRaceEntrantView {
+  /** Segmentlerdeki `raceEntryId` ile aynı etiket (oyuncu atı için at kimliği, botlar için `bot-N`). */
+  label: string;
+  displayName: string;
+  isPlayer: boolean;
+}
+
+/**
+ * 01.10.2026 — `GET /interactive-races/:id`. Yalnızca GÖSTERİLMİŞ segmentler
+ * gelir; sonuç ve ileri segmentler yarış bitmeden gönderilmez (tohum hiç).
+ * Saatler sunucudandır: istemci `serverNow` ile kendi saat farkını bulur.
+ */
+export interface InteractiveRaceView {
+  raceId: UUID;
+  status: 'running' | 'finished';
+  serverNow: string;
+  /** Başlangıç işareti (kapılar açılır). Öncesi geri sayımdır. */
+  startsAt: string;
+  /** Yarış saati / gerçek saat (segment zamanları yarış saatindedir). */
+  timeScale: number;
+  distanceMeters: number;
+  surface: RaceSurface;
+  weather: RaceWeather;
+  segmentCount: number;
+  revealedSegments: number;
+  /** Komutun bir sonraki etki edeceği segment (yarış bitince `null`). */
+  nextCommandSegment: number | null;
+  playerLabel: string;
+  entrants: InteractiveRaceEntrantView[];
+  segments: RaceSegmentSnapshot[];
+  myCommands: Record<string, PlayerSegmentCommandView>;
+  /** Yarış bitti, kesinleştirilebilir (`POST .../finish`). */
+  canFinish: boolean;
+  /** Kesinleşmişse sonuç (para + XP dahil); değilse `null`. Yalnızca pratik yarışta dolu. */
+  result: PracticeRaceResult | null;
+  /** Kesinleşmişse oyuncunun özeti (pratik ve lobi ortak); değilse `null`. */
+  outcome: { finishPosition: number; prizeWon: number; entryFee: number; xpGained: number } | null;
+  /** 01.10.2026 — `practice` = tek oyunculu kontrollü pratik, `lobby` = çok oyunculu kontrollü lobi/turnuva. */
+  kind: 'practice' | 'lobby';
+  /**
+   * 01.10.2026 — `rider`: atı süren oyuncu; `spectator`: kontrollü lobi
+   * yarışını tribünden canlı izleyen (komut yok, `playerLabel` boş).
+   */
+  role: 'rider' | 'spectator';
 }

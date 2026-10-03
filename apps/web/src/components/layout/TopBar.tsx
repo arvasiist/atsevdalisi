@@ -1,213 +1,251 @@
 'use client';
 
 /**
- * `docs/GAME_DESIGN.md` §3 "Top bar" — eski `components/Header.tsx`'in
- * yerini alır (o dosya açık bir placeholder'dı: beyaz/açık tema, sabit
- * `#2563eb` renk, sadece iki metin linki, koyu tema token'larıyla hiç
- * UYUMLU değildi ve "Ahırım" linki yanlışlıkla `/`'ye gidiyordu).
+ * ÜST BAR + GEZİNTİ (01.10.2026 tasarım yenilemesi).
  *
- * Kapsam notu: brief'in tam top bar tasarımı (saat/hava durumu/konum,
- * bildirim/mesaj ikonları) burada YOK — gerçek bir veri kaynağı olmayan
- * unsurlar (ör. sahte "hava durumu") EKLENMEDİ. Yalnızca gerçek veriye
- * sahip olanlar gösterilir: oyuncu adı/seviyesi/bakiyesi (`PlayerContext`,
- * gerçek `GET /players/:id` verisi).
+ * Önceki sürüm 11 bağlantıyı ikinci bir satırda hap düğmeler olarak
+ * diziyordu; telefonda bu şerit 3 satır tutuyor ve içerik ekranın ortasından
+ * başlıyordu. Şimdi:
+ *  - **Masaüstü (≥1280px):** tek satır — logo · simgeli ana bağlantılar ·
+ *    "Daha fazla" · bildirim zili · bakiye · profil.
+ *  - **Telefon/tablet:** üstte ince şerit (logo · bakiye · profil), altta
+ *    sabit sekme çubuğu (4 sekme + "Menü"; menü HER bağlantıyı açar).
  *
- * AUDIT_REPORT.md Bulgu F1 (Medium) hardening (bu oturum): logo + iki
- * para birimi rozeti + avatar/isim/seviye grubu tek bir satırda sabit
- * `justify-content: space-between` ile diziliyordu — HER sayfada görünen
- * bu satır, dar bir telefonda (360px) taşma riski taşıyordu. `flexWrap:
- * 'wrap'` eklendi: taşmak yerine gerekirse ikinci satıra sarar (sticky
- * header'ın yüksekliği bu durumda büyür, ama içerik KIRPILMAZ/TAŞMAZ).
+ * Kurallar (değişmedi):
+ *  - Yalnızca gerçek veri gösterilir (oyuncu adı/seviyesi/bakiyesi —
+ *    `PlayerContext`). Sahte hava durumu/saat EKLENMEZ.
+ *  - Bağlantı listesi `nav-links.ts`'tedir; kırık bağlantı kilidi
+ *    `test/components/top-bar-nav.spec.ts`.
+ *  - Avatar + ad oyuncunun KENDİ profiline gider (`/profile/:username`
+ *    dinamik rotadır, statik listeye giremez — tek keşif yolu budur).
+ *  - Yönetim bağlantısı `player.isAdmin` ile KOŞULLUDUR ve `NAV_LINKS`te
+ *    DEĞİLDİR. Bu bir yetki kontrolü DEĞİLDİR: karar sunucuda, her istekte
+ *    verilir (§13.17).
  */
 
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+import { useEffect, useRef, useState } from 'react';
+import { ChevronDown, Coins, Gem, Menu, ShieldCheck, X } from 'lucide-react';
 import { CURRENCY_LABELS } from '../../lib/currency';
 import { usePlayer } from '../../lib/player-context';
 import { HorseAvatar } from '../ui/HorseAvatar';
-import { NAV_LINKS } from './nav-links';
+import { HorseHeadIcon } from '../ui/HorseHeadIcon';
+import { NavIcon } from './nav-icons';
+import { MAX_MOBILE_TABS, NAV_LINKS, type NavLink } from './nav-links';
 
-/**
- * ÜST BAR GEZİNME ŞERİDİ (28.09.2026).
- *
- * **NEDEN EKLENDİ:** projede hiçbir gezinti yoktu — her sayfa yalnızca
- * başka bir sayfanın içindeki tek tük bağlantıdan bulunabiliyordu. Brief
- * §35'in istediği `/notifications` sayfası bu koşullarda ULAŞILAMAZ
- * olurdu: var olan ama kimsenin açamadığı bir ekran, ölü koddur.
- *
- * Listenin kendisi (`NAV_LINKS`) `nav-links.ts`'tedir — gerekçesi o
- * dosyanın doc yorumunda (React'ten ayrılmış saf veri, test edilebilirlik).
- * Kırık bağlantı kilidi: `test/components/top-bar-nav.spec.ts`.
- */
+function isActive(pathname: string, href: string): boolean {
+  return href === '/' ? pathname === '/' : pathname === href || pathname.startsWith(`${href}/`);
+}
 
 export function TopBar(): React.ReactElement {
   const { player } = usePlayer();
+  const pathname = usePathname() ?? '/';
+  const [isMoreOpen, setIsMoreOpen] = useState(false);
+  const [isSheetOpen, setIsSheetOpen] = useState(false);
+  const moreRef = useRef<HTMLDivElement | null>(null);
+
+  // Sayfa değişince açık menüler kapanır.
+  useEffect(() => {
+    setIsMoreOpen(false);
+    setIsSheetOpen(false);
+  }, [pathname]);
+
+  // "Daha fazla" dışına tıklayınca kapanır.
+  useEffect(() => {
+    if (!isMoreOpen) return;
+    const onPointerDown = (event: PointerEvent) => {
+      if (moreRef.current && !moreRef.current.contains(event.target as Node)) {
+        setIsMoreOpen(false);
+      }
+    };
+    document.addEventListener('pointerdown', onPointerDown);
+    return () => document.removeEventListener('pointerdown', onPointerDown);
+  }, [isMoreOpen]);
+
+  const primary = NAV_LINKS.filter((link) => link.placement === 'primary');
+  const more = NAV_LINKS.filter((link) => link.placement === 'more');
+  const notifications = NAV_LINKS.find((link) => link.placement === 'utility');
+  const mobileTabs = NAV_LINKS.filter((link) => link.mobileTab === true).slice(0, MAX_MOBILE_TABS);
+  const isMoreActive = more.some((link) => isActive(pathname, link.href));
 
   return (
-    <header
-      style={{
-        display: 'flex',
-        flexWrap: 'wrap',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        gap: 'var(--space-sm)',
-        padding: '12px var(--space-md)',
-        borderBottom: '1px solid var(--color-border)',
-        background: 'var(--color-bg-surface-elevated)',
-        position: 'sticky',
-        top: 0,
-        zIndex: 10,
-      }}
-    >
-      <Link
-        href="/"
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '8px',
-          fontWeight: 700,
-          fontSize: '18px',
-          color: 'var(--color-text-primary)',
-          letterSpacing: '0.02em',
-        }}
-      >
-        <span aria-hidden="true">🏇</span>
-        AT SEVDALISI
-      </Link>
-
-      {player ? (
-        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 'var(--space-sm)' }}>
-          <CurrencyPill icon="💰" label={CURRENCY_LABELS.money} value={player.money} />
-          <CurrencyPill icon="💎" label={CURRENCY_LABELS.gems} value={player.gems} />
-          {/* Avatar + ad, oyuncunun KENDİ profiline götürür (`/profile/:username`,
-              brief §24). **NEDEN BURADAN:** `/profile/:username` DİNAMİK bir
-              rotadır ve `nav-links.ts`'teki statik listeye giremez — ama
-              profilin görülebilmesi için bir keşif yolu şarttır, yoksa sayfa
-              ÖLÜ KOD olur (bkz. `TopBar` doc yorumu). Buradaki bağlantı
-              her sayfada görünür ve hedefi her zaman geçerlidir: oyuncunun
-              kendi `username`'i `PlayerContext`'te zaten vardır, yani ek bir
-              istek gerekmez. */}
-          <Link href={`/profile/${encodeURIComponent(player.username)}`} style={profileLinkStyle}>
-            <HorseAvatar horseId={player.id} size={32} />
-            <div style={{ display: 'grid', lineHeight: 1.25 }}>
-              <span style={{ fontSize: '13px', color: 'var(--color-text-primary)', fontWeight: 600 }}>
-                {player.displayName}
-              </span>
-              <span style={{ fontSize: '11px', color: 'var(--color-accent-gold)' }}>Seviye {player.level}</span>
-            </div>
+    <>
+      <header className="topbar">
+        <div className="topbar-inner">
+          <Link href="/" className="brand" aria-label="At Sevdalısı ana sayfa">
+            <HorseHeadIcon size={34} gradient withMane />
+            <span className="brand-text">
+              <span className="brand-title">AT SEVDALISI</span>
+              <span className="brand-tagline hide-below-wide">Sadece bir oyun değil, bir tutku</span>
+            </span>
           </Link>
-        </div>
-      ) : (
-        <span style={{ fontSize: '13px', color: 'var(--color-text-muted)' }}>Misafir</span>
-      )}
 
-      {/* `width: '100%'` üst barın `flexWrap`'iyle birlikte şeridi HER ZAMAN
-          yeni bir satıra indirir — dar ekranda logo/oyuncu grubuyla aynı
-          satırda sıkışıp taşmaz (AUDIT_REPORT.md Bulgu F1'in taşma kuralı). */}
-      <nav
-        aria-label="Ana gezinti"
-        style={{
-          width: '100%',
-          display: 'flex',
-          flexWrap: 'wrap',
-          gap: '4px',
-          borderTop: '1px solid var(--color-border)',
-          paddingTop: '8px',
-        }}
-      >
-        {NAV_LINKS.map(([href, label]) => (
-          <Link key={href} href={href} style={navLinkStyle}>
-            {label}
+          <nav aria-label="Ana gezinti" className="nav-desktop">
+            {primary.map((link) => (
+              <NavItem key={link.href} link={link} active={isActive(pathname, link.href)} />
+            ))}
+            <div className="nav-more" ref={moreRef}>
+              <button
+                type="button"
+                className="nav-item"
+                aria-expanded={isMoreOpen}
+                aria-haspopup="menu"
+                data-active={isMoreActive || undefined}
+                onClick={() => setIsMoreOpen((open) => !open)}
+              >
+                Daha fazla
+                <ChevronDown size={16} aria-hidden="true" />
+              </button>
+              {isMoreOpen ? (
+                <div className="nav-more-menu" role="menu">
+                  {more.map((link) => (
+                    <Link
+                      key={link.href}
+                      href={link.href}
+                      role="menuitem"
+                      className="nav-more-item"
+                      aria-current={isActive(pathname, link.href) ? 'page' : undefined}
+                    >
+                      <NavIcon name={link.icon} />
+                      {link.label}
+                    </Link>
+                  ))}
+                  {player?.isAdmin || player?.isModerator ? <AdminLink /> : null}
+                </div>
+              ) : null}
+            </div>
+          </nav>
+
+          <div className="topbar-right">
+            {notifications ? (
+              <Link
+                href={notifications.href}
+                className="icon-button hide-mobile"
+                aria-label={notifications.label}
+                title={notifications.label}
+                aria-current={isActive(pathname, notifications.href) ? 'page' : undefined}
+              >
+                <NavIcon name={notifications.icon} />
+              </Link>
+            ) : null}
+            {player ? (
+              <>
+                <CurrencyPill kind="money" label={CURRENCY_LABELS.money} value={player.money} />
+                <CurrencyPill kind="gems" label={CURRENCY_LABELS.gems} value={player.gems} />
+                <Link href={`/profile/${encodeURIComponent(player.username)}`} className="profile-chip">
+                  <HorseAvatar horseId={player.id} size={34} />
+                  <span className="profile-name hide-mobile hide-below-wide">{player.displayName}</span>
+                  <span className="level-badge" title={`Seviye ${player.level}`}>
+                    {player.level}
+                  </span>
+                </Link>
+              </>
+            ) : (
+              <span className="guest-label">Misafir</span>
+            )}
+          </div>
+        </div>
+      </header>
+
+      <nav aria-label="Alt gezinti" className="bottom-nav">
+        {mobileTabs.map((link) => (
+          <Link
+            key={link.href}
+            href={link.href}
+            className="bottom-nav-item"
+            aria-current={isActive(pathname, link.href) ? 'page' : undefined}
+          >
+            <NavIcon name={link.icon} size={22} />
+            <span>{link.label}</span>
           </Link>
         ))}
-
-        {/* brief §34 — YÖNETİM BAĞLANTISI KOŞULLUDUR ve `NAV_LINKS`te
-            DEĞİLDİR. O liste her oyuncuya çizilir; `/admin` oraya girseydi
-            yönetici olmayan herkes 403 alan bir bağlantı görürdü.
-
-            ⚠️ BU BİR YETKİ KONTROLÜ DEĞİLDİR. Bağlantıyı gizlemek kimseyi
-            durdurmaz: `/admin` adresini elle açan oyuncu 403 `ADMIN_REQUIRED`
-            alır, çünkü karar sunucuda ve HER istekte verilir (§13.17).
-            `player.isAdmin` yalnızca kişinin KENDİ bayrağıdır
-            (`PlayerSummary` hiçbir zaman başka bir oyuncu için üretilmez). */}
-        {player?.isAdmin ? (
-          <Link href="/admin" style={adminLinkStyle}>
-            Yönetim
-          </Link>
-        ) : null}
+        <button
+          type="button"
+          className="bottom-nav-item"
+          aria-expanded={isSheetOpen}
+          onClick={() => setIsSheetOpen(true)}
+        >
+          <Menu size={22} aria-hidden="true" />
+          <span>Menü</span>
+        </button>
       </nav>
-    </header>
+
+      {isSheetOpen ? (
+        <div className="nav-sheet-backdrop" onClick={() => setIsSheetOpen(false)}>
+          <div
+            className="nav-sheet"
+            role="dialog"
+            aria-label="Tüm menü"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="nav-sheet-header">
+              <span className="section-title">Menü</span>
+              <button type="button" className="icon-button" aria-label="Kapat" onClick={() => setIsSheetOpen(false)}>
+                <X size={20} aria-hidden="true" />
+              </button>
+            </div>
+            <div className="nav-sheet-grid">
+              {NAV_LINKS.map((link) => (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  className="nav-sheet-item"
+                  aria-current={isActive(pathname, link.href) ? 'page' : undefined}
+                >
+                  <NavIcon name={link.icon} size={24} />
+                  <span>{link.label}</span>
+                </Link>
+              ))}
+              {player?.isAdmin ? <AdminLink sheet /> : null}
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </>
+  );
+}
+
+function NavItem({ link, active }: { link: NavLink; active: boolean }): React.ReactElement {
+  return (
+    <Link href={link.href} className="nav-item" aria-current={active ? 'page' : undefined}>
+      <NavIcon name={link.icon} />
+      {link.label}
+    </Link>
+  );
+}
+
+/** Yönetim bağlantısı — oyunun parçası değil, moderasyon aracıdır; altın renkle ayrılır. */
+function AdminLink({ sheet = false }: { sheet?: boolean }): React.ReactElement {
+  return (
+    <Link href="/admin" className={sheet ? 'nav-sheet-item admin-link' : 'nav-more-item admin-link'}>
+      <ShieldCheck size={sheet ? 24 : 18} aria-hidden="true" />
+      <span>Yönetim</span>
+    </Link>
   );
 }
 
 /**
- * Avatar + oyuncu adı bloğunun görünümü — bir BAĞLANTI olduğu için
- * `textDecoration: 'none'` taşır; `color` verilmez, içindeki iki `span`
- * kendi rengini korur (aksi halde bağlantı rengi ikisini de ezerdi).
+ * Bakiye rozeti. Birim adı görünmez metin olarak verilir (`aria-label` +
+ * `title`); adlar `lib/currency.ts`'ten gelir (iki yerde tutulmaz).
  */
-const profileLinkStyle: React.CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: '8px',
-  textDecoration: 'none',
-};
-
-/**
- * Gezinti bağlantısı görünümü. `minHeight: 36px` — `friends/page.tsx`'teki
- * ikincil düğmeyle AYNI. Bu bir FORM düğmesi değil, bir bağlantıdır; yine
- * de sabit bir `minHeight` taşır ki satır içi metin olarak kalmasın ve
- * dokunulabilir bir hedef olsun.
- */
-const navLinkStyle: React.CSSProperties = {
-  display: 'inline-flex',
-  alignItems: 'center',
-  minHeight: '36px',
-  padding: '6px 12px',
-  borderRadius: '999px',
-  border: '1px solid var(--color-border)',
-  color: 'var(--color-text-secondary)',
-  fontSize: '13px',
-  fontWeight: 600,
-  textDecoration: 'none',
-  whiteSpace: 'nowrap',
-};
-
-/**
- * Yönetim bağlantısı — diğerlerinden AYRI renktedir (altın), çünkü
- * yanındaki on bağlantı oyunun parçasıdır, bu ise bir MODERASYON aracıdır.
- * Rolü görsel olarak da ayırmamak, yöneticinin kendi hesabıyla normal bir
- * ekranı karıştırmasını kolaylaştırırdı.
- */
-const adminLinkStyle: React.CSSProperties = {
-  ...navLinkStyle,
-  border: '1px solid var(--color-accent-gold)',
-  color: 'var(--color-accent-gold)',
-};
-
-/**
- * Rozet dar olduğu için birim adı GÖRÜNMEZ metin olarak verilir
- * (`aria-label` + `title`): ekran okuyucu "Çip bakiyesi: 5.000" der, fare
- * üzerine gelince ipucu çıkar. Adlar `lib/currency.ts`'ten gelir — burada
- * satır içi 'Çip'/'Elmas' yazmak, adı iki yerde tutmak olurdu.
- */
-function CurrencyPill({ icon, label, value }: { icon: string; label: string; value: number }): React.ReactElement {
+function CurrencyPill({
+  kind,
+  label,
+  value,
+}: {
+  kind: 'money' | 'gems';
+  label: string;
+  value: number;
+}): React.ReactElement {
+  const Icon = kind === 'money' ? Coins : Gem;
   return (
     <div
+      className={`currency-pill currency-${kind}`}
       title={`${label} bakiyesi`}
       aria-label={`${label} bakiyesi: ${value.toLocaleString('tr-TR')}`}
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: '6px',
-        padding: '4px 10px',
-        borderRadius: '999px',
-        background: 'rgba(255, 255, 255, 0.06)',
-        border: '1px solid var(--color-border)',
-        fontSize: '13px',
-        fontVariantNumeric: 'tabular-nums',
-        color: 'var(--color-text-primary)',
-      }}
     >
-      <span aria-hidden="true">{icon}</span>
+      <Icon size={16} aria-hidden="true" />
       {value.toLocaleString('tr-TR')}
     </div>
   );

@@ -1,4 +1,4 @@
-import { IsString } from 'class-validator';
+import { IsOptional, IsString } from 'class-validator';
 
 /**
  * `POST /races/:id/join` gövde şeması (brief §2/§3/§14.2, §42 PHASE 1b).
@@ -52,11 +52,18 @@ export class JoinRaceDto {
    * `?:` yazılsaydı DTO `RaceJoinInput`'a ATANAMAZDI (`TS2345`, yaşandı) —
    * ve `exactOptionalPropertyTypes` kapalı olduğu için `!:` ile gelen
    * `undefined` çalışma anında aynı sonucu verir.
+   *
+   * **`@IsOptional()` ŞART (01.10.2026, tarayıcıda yaşandı):** onsuz gerçek
+   * HTTP sunucusu (tsc derlemesi, `design:paramtypes` var) alanı göndermeyen
+   * `LobbyPanel` katılımını 400 ile reddediyordu; e2e esbuild altında
+   * doğrulamayı atladığı için CI bunu görmedi.
    */
+  @IsOptional()
   @IsString()
   tacticalStyle!: unknown;
 
   /** brief §14.2 risk — isteğe bağlı, verilmezse `normal` (`DEFAULT_RISK_LEVEL`). */
+  @IsOptional()
   @IsString()
   riskLevel!: unknown;
 }

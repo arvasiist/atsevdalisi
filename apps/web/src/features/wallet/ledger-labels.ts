@@ -58,6 +58,15 @@ export const LEDGER_TYPE_LABELS: Record<LedgerTransactionType, string> = {
   // deftere hiç yazılmadığı için pratikte yalnızca) ödeme anlamına gelir,
   // ama etiket kuralı gereği yön metne gömülmez.
   jockey_hire: 'Jokey kiralama',
+  staff_contract: 'Personel sözleşmesi',
+  season_reward: 'Sezon ödülü',
+  quest_reward: 'Görev ödülü',
+  achievement_reward: 'Başarım ödülü',
+  event_reward: 'Etkinlik ödülü',
+  admin_adjustment: 'Yönetim düzeltmesi',
+  auction_bid_hold: 'Müzayede teklifi',
+  auction_bid_refund: 'Müzayede teklifi iadesi',
+  auction_sale_credit: 'Müzayede satışı',
 };
 
 /**
@@ -77,7 +86,9 @@ export const CANONICAL_TYPE_LABELS: Record<CanonicalTransactionType, string> = {
   MARKET: 'Pazar',
   BREEDING: 'Damızlık',
   UPKEEP: 'Bakım',
-  REWARD: 'Ödül (günlük)',
+  // 02.10.2026 — artık günlük ödülle sınırlı değil (sezon/görev/etkinlik de REWARD).
+  REWARD: 'Ödül',
+  ADJUSTMENT: 'Yönetim düzeltmesi',
 };
 
 /**

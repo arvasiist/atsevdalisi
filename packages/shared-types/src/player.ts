@@ -52,6 +52,8 @@ export interface Player {
    * `assertSelf` ile korunur) — yani kişi yalnızca KENDİ bayrağını görür.
    */
   isAdmin: boolean;
+  /** 02.10.2026 (Faz 10, migration 0060) — moderatör mü. Yetki kapısı DEĞİLDİR (bkz. `isAdmin`). */
+  isModerator: boolean;
   createdAt: ISODateTimeString;
   updatedAt: ISODateTimeString;
 }
@@ -82,7 +84,7 @@ export interface Player {
  */
 export type PlayerSummary = Pick<
   Player,
-  'id' | 'username' | 'displayName' | 'avatarId' | 'level' | 'xp' | 'money' | 'gems' | 'isAdmin'
+  'id' | 'username' | 'displayName' | 'avatarId' | 'level' | 'xp' | 'money' | 'gems' | 'isAdmin' | 'isModerator'
 >;
 
 /**
@@ -95,9 +97,32 @@ export type PlayerSummary = Pick<
  * token'ı DEĞİL) — sağlayıcı token'ı yalnızca `/auth/login` isteğinde BİR
  * KEZ kullanılır, saklanmaz.
  */
-export interface AuthSession {
-  token: string;
+export interface AuthSession extends SessionTokens {
   player: PlayerSummary;
+}
+
+/**
+ * 02.10.2026 — OTURUM (migration 0057). `token` kısa ömürlü erişim JWT'sidir
+ * (`auth.session.accessTokenTtlSeconds`); `refreshToken` HER yenilemede
+ * DEĞİŞİR ve eskisi bir daha kullanılırsa oturum kapatılır (çalıntı tespiti).
+ * Sunucu refresh token'ın yalnızca SHA-256 özetini saklar.
+ */
+export interface SessionTokens {
+  token: string;
+  refreshToken: string;
+  /** ISO — erişim token'ının bitişi; istemci bundan önce yeniler. */
+  accessTokenExpiresAt: string;
+}
+
+/** `GET /auth/sessions` satırı — aktif oturumlar (cihazlar). */
+export interface AuthSessionInfo {
+  id: string;
+  userAgent: string | null;
+  createdAt: string;
+  lastUsedAt: string;
+  expiresAt: string;
+  /** Bu isteği yapan oturum mu. */
+  current: boolean;
 }
 
 /**
@@ -107,6 +132,8 @@ export interface AuthSession {
  */
 export interface AccountCredentialsView {
   email: string | null;
+  /** 02.10.2026 (migration 0058) — kayıtlı e-posta doğrulandı mı; e-posta yoksa `false`. */
+  emailVerified: boolean;
   /**
    * 01.10.2026 — hesaba bağlı dış giriş sağlayıcıları (`POST /auth/link`).
    * E-postası olmayan ama Google bağlı bir hesap da kalıcıdır; "misafir" =
@@ -126,4 +153,51 @@ export type AccountProvider = 'google' | 'apple';
  */
 export interface AuthProvidersView {
   googleClientId: string | null;
+}
+
+/** 02.10.2026 — `GET /account/deletion` (migration 0059): hesap silinebilir mi. */
+export interface AccountDeletionCheck {
+  /** Boşsa silinebilir; doluysa önce bitirilmesi gerekenler. */
+  blockers: { code: string; label: string }[];
+  /** E-postalı hesapta onay için şifre istenir. */
+  requiresPassword: boolean;
+}
+
+/**
+ * KİŞİSEL VERİ DIŞA AKTARMA (02.10.2026, KVKK md. 11 / GDPR md. 15, 20).
+ * Her bölüm oyuncunun KENDİ verisidir; parola özeti, token özeti, başkasının
+ * iç kimliği ya da yaptırımı veren yöneticinin kimliği GİRMEZ. Bölüm
+ * `maxRowsPerSection`ı aşarsa en yeni satırlar verilir ve `truncated: true`.
+ */
+export interface AccountExportSection {
+  rows: Array<Record<string, unknown>>;
+  truncated: boolean;
+}
+
+export const ACCOUNT_EXPORT_SECTIONS = [
+  'account',
+  'loginMethods',
+  'sessions',
+  'horses',
+  'transactions',
+  'raceEntries',
+  'messages',
+  'friendships',
+  'blocks',
+  'reportsFiled',
+  'gifts',
+  'notifications',
+  'club',
+  'sanctions',
+  'questClaims',
+  'clubMessages',
+  'achievementClaims',
+] as const;
+
+export type AccountExportSectionName = (typeof ACCOUNT_EXPORT_SECTIONS)[number];
+
+export interface AccountDataExport {
+  exportedAt: string;
+  playerId: string;
+  sections: Record<AccountExportSectionName, AccountExportSection>;
 }

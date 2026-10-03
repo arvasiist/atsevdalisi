@@ -292,6 +292,11 @@ export default function TrainingPage(): React.ReactElement {
                   </span>
                 ))}
                 <span style={{ color: 'var(--color-text-secondary)' }}>Yorgunluk artışı: +{result.fatigueGain}</span>
+                {result.staffMultiplier > 1 ? (
+                  <span style={{ color: 'var(--color-accent-gold)' }}>
+                    Antrenör etkisi: +%{Math.round((result.staffMultiplier - 1) * 100)}
+                  </span>
+                ) : null}
               </div>
             ) : null}
           </GlassPanel>

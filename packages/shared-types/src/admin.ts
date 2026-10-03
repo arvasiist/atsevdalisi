@@ -144,6 +144,10 @@ export interface AdminPlayerAccountView {
    * alan, o işlem yapılana kadar tek görünürlük kaynağıdır.
    */
   isAdmin: boolean;
+  /** 02.10.2026 (Faz 10) — moderatör mü (`is_moderator`). */
+  isModerator: boolean;
+  /** 02.10.2026 (Faz 10) — şu an etkin yaptırım (en kısıtlayıcı); yoksa `null`. */
+  activeSanction: AdminActiveSanction | null;
   createdAt: string;
 }
 
@@ -297,4 +301,151 @@ export interface AdminTransactionView {
 /** `GET /admin/transactions` yanıtı. */
 export interface AdminTransactionListResult {
   transactions: AdminTransactionView[];
+}
+
+/* ------------------------------------------------------------------ */
+/* 02.10.2026 — FAZ 10 + 11-A: roller, yaptırımlar, duyurular           */
+/* ------------------------------------------------------------------ */
+
+/** Yönetim rolü (moderasyon); oyuncu için `null`. Personel (seyis vb.) `StaffRole` İLE KARIŞTIRMA. */
+export type ModerationRole = 'admin' | 'moderator';
+/** `PUT /admin/players/:id/role` gövdesi. */
+export type AssignableRole = 'player' | ModerationRole;
+
+/** Askı SÜRELİ, yasak SÜRESİZ (migration 0060 CHECK). */
+export type SanctionKind = 'suspend' | 'ban';
+
+export interface PlayerSanctionView {
+  id: string;
+  playerId: string;
+  kind: SanctionKind;
+  reason: string;
+  createdBy: string;
+  createdAt: string;
+  /** Askıda bitiş; yasakta `null`. */
+  expiresAt: string | null;
+  liftedAt: string | null;
+  liftedBy: string | null;
+  liftReason: string | null;
+  /** Sunucunun "şu an" ile hesapladığı durum (istemci saatine güvenilmez). */
+  active: boolean;
+}
+
+export interface AdminActiveSanction {
+  id: string;
+  kind: SanctionKind;
+  expiresAt: string | null;
+}
+
+export type AnnouncementLevel = 'info' | 'warning' | 'maintenance';
+
+/** Oyuncuya görünen duyuru (`GET /announcements`). */
+export interface AnnouncementView {
+  id: string;
+  title: string;
+  body: string;
+  level: AnnouncementLevel;
+  startsAt: string;
+  endsAt: string | null;
+}
+
+/** Yönetim listesi satırı — arşiv bilgisiyle. */
+export interface AdminAnnouncementView extends AnnouncementView {
+  createdBy: string;
+  createdAt: string;
+  archivedAt: string | null;
+  /** Şu an oyunculara görünüyor mu (sunucu hesaplar). */
+  live: boolean;
+}
+
+/**
+ * ŞÜPHELİ DESENLER (02.10.2026, Faz 7 anti-cheat). Sunucu otoriter olduğu
+ * için istemci sonucu değiştiremez; geriye kalan risk çoklu hesapla değer
+ * AKTARMAKTIR. Bulgular yalnızca İNCELEME içindir — otomatik ceza yok.
+ */
+export const ANOMALY_RULES = ['gift_funnel', 'repeat_trade_pair', 'new_account_outflow'] as const;
+export type AnomalyRule = (typeof ANOMALY_RULES)[number];
+
+export interface AnomalyPlayerRef {
+  playerId: string;
+  username: string;
+  /** Hesabın yaşı (gün, aşağı yuvarlanmış). */
+  accountAgeDays: number;
+}
+
+export interface AnomalyFinding {
+  rule: AnomalyRule;
+  /** Kuralın ODAĞI (huni: alıcı; çift: satıcı; çıkış: yeni hesap). */
+  subject: AnomalyPlayerRef;
+  /** Karşı taraflar (huni: gönderenler; çift: alıcı; çıkış: alıcılar). */
+  counterparts: AnomalyPlayerRef[];
+  count: number;
+  totalMoney: number;
+  totalGems: number;
+  firstAt: string;
+  lastAt: string;
+}
+
+export interface AnomalyReport {
+  generatedAt: string;
+  windowDays: number;
+  newAccountDays: number;
+  findings: AnomalyFinding[];
+}
+
+/** 02.10.2026 (Faz 10) — yönetimin bakiye düzeltmesi sonucu. */
+export interface BalanceAdjustmentResult {
+  transactionId: string;
+  auditId: string;
+  currency: 'money' | 'gems';
+  amount: number;
+  balanceBefore: number;
+  balanceAfter: number;
+}
+
+/** 02.10.2026 (Faz 10) — yönetimin at araması satırı. */
+export interface AdminHorseView {
+  id: string;
+  name: string;
+  owner: { playerId: string; username: string } | null;
+  gender: string;
+  breed: string | null;
+  birthDate: string | null;
+  level: number;
+  status: string;
+  health: number;
+  fitness: number;
+  energy: number;
+  createdAt: string;
+}
+
+/** 02.10.2026 (Faz 10) — etkin oyun ayarı dosyası (salt okuma; dağıtımla değişir). */
+export interface AdminConfigEntry {
+  /** Yükleyici adından türetilen ad (`loadRaceConfig` → `race`). */
+  name: string;
+  /** Kanonik JSON'un SHA-256 özeti — örnekler arası ayar farkını yakalamak için. */
+  sha256: string;
+  values: unknown;
+}
+
+export interface AdminSeasonView {
+  id: string;
+  number: number;
+  name: string;
+  startsAt: string;
+  endsAt: string;
+  rewardsPaidAt: string | null;
+  state: 'upcoming' | 'current' | 'ended';
+}
+
+export interface AdminTournamentView {
+  id: string;
+  raceId: string;
+  raceName: string;
+  tier: string;
+  minPlayerLevel: number;
+  raceStatus: string;
+  startTime: string;
+  participants: number;
+  prizePool: number;
 }

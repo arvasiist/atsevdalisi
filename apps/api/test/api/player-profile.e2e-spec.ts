@@ -1,3 +1,5 @@
+import { loadProgressionConfig } from '@at-sevdalisi/game-config';
+import { applyXpGain, computeRaceXp } from '../../src/domain/progression/progression';
 import type { INestApplication } from '@nestjs/common';
 import type { Pool } from 'pg';
 import request from 'supertest';
@@ -167,8 +169,15 @@ describe('Oyuncu profili (e2e) — GET /players/profile/:username', () => {
     expect(profile.playerId).toBe(target.playerId);
     expect(profile.username).toBe(username);
     expect(profile.displayName).toBe('Profil Sahibi');
-    expect(profile.level).toBe(1);
-    expect(profile.xp).toBe(0);
+    // 01.10.2026 — yarış XP kazandırır; beklenen değer kuraldan hesaplanır.
+    const progress = applyXpGain(
+      1,
+      0,
+      computeRaceXp(finishPosition, loadProgressionConfig().xpRewards.player),
+      loadProgressionConfig(),
+    );
+    expect(profile.level).toBe(progress.level);
+    expect(profile.xp).toBe(progress.xp);
     expect(profile.memberSince).toEqual(expect.any(String));
 
     // YARIŞ SAYILARI: sıra simülasyonun sonucudur, bu yüzden iddia
@@ -181,9 +190,9 @@ describe('Oyuncu profili (e2e) — GET /players/profile/:username', () => {
 
     expect(profile.friendCount).toBe(1);
     expect(profile.giftCount).toBe(1);
-    // brief §24 "Achievements" — bilinçli olarak henüz yok (bkz.
-    // `PlayerProfileView` doc yorumu).
-    expect(profile.achievements).toBeNull();
+    // brief §24 "Achievements" (03.10.2026) — yalnızca ödülü ALINMIŞ
+    // başarımlar görünür; bu oyuncu hiç talep etmedi.
+    expect(profile.achievements).toEqual([]);
   });
 
   it('BAKİYE SIZDIRMAZ — `money`/`gems` yanıtta HİÇ yoktur', async () => {

@@ -9,6 +9,18 @@ import { ListAdminTransactionsUseCase } from '../../application/use-cases/list-a
 import { UpdateReportStatusUseCase } from '../../application/use-cases/update-report-status.use-case';
 import { PostgresAdminRepository } from '../../infrastructure/admin/postgres-admin.repository';
 import { AdminController } from './admin.controller';
+import { AnnouncementsController, ModerationController } from './moderation.controller';
+import { ModerationUseCase } from '../../application/use-cases/moderation.use-case';
+import { MODERATION_REPOSITORY } from '../../application/ports/moderation.repository';
+import { PostgresModerationRepository } from '../../infrastructure/admin/postgres-moderation.repository';
+import { ANOMALY_REPOSITORY } from '../../application/ports/anomaly.repository';
+import { ADMIN_OPS_REPOSITORY } from '../../application/ports/admin-ops.repository';
+import { AdminOpsUseCase } from '../../application/use-cases/admin-ops.use-case';
+import { PostgresAdminOpsRepository } from '../../infrastructure/admin/postgres-admin-ops.repository';
+import { IdempotencyInterceptor } from '../idempotency/idempotency.interceptor';
+import { AdminOpsController } from './admin-ops.controller';
+import { ListAnomaliesUseCase } from '../../application/use-cases/list-anomalies.use-case';
+import { PostgresAnomalyRepository } from '../../infrastructure/anticheat/postgres-anomaly.repository';
 
 /**
  * Yönetim (admin) modülü — brief §34, §42 PHASE 15-B.
@@ -53,7 +65,7 @@ import { AdminController } from './admin.controller';
  * portu yanlışlıkla enjekte etmesine kapı açardı.
  */
 @Module({
-  controllers: [AdminController],
+  controllers: [AdminController, ModerationController, AnnouncementsController, AdminOpsController],
   providers: [
     ListAdminReportsUseCase,
     UpdateReportStatusUseCase,
@@ -63,6 +75,16 @@ import { AdminController } from './admin.controller';
     ListAdminTransactionsUseCase,
     CancelAdminRaceUseCase,
     { provide: ADMIN_REPOSITORY, useClass: PostgresAdminRepository },
+    // 02.10.2026 — Faz 10 + 11-A (migration 0060).
+    ModerationUseCase,
+    { provide: MODERATION_REPOSITORY, useClass: PostgresModerationRepository },
+    // 02.10.2026 — Faz 7: şüpheli desenler (yalnızca okuma).
+    ListAnomaliesUseCase,
+    { provide: ANOMALY_REPOSITORY, useClass: PostgresAnomalyRepository },
+    // 02.10.2026 — Faz 10: bakiye düzeltmesi (para yolu) + at araması.
+    AdminOpsUseCase,
+    { provide: ADMIN_OPS_REPOSITORY, useClass: PostgresAdminOpsRepository },
+    IdempotencyInterceptor,
   ],
 })
 export class AdminModule {}

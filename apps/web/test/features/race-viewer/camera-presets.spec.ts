@@ -14,10 +14,21 @@ const context: CameraContext = {
 };
 
 describe('computeCameraPose', () => {
-  it('track modunda pist merkezine bakar ve yüksekten kuşbakışı çeker', () => {
-    const pose = computeCameraPose('track', context);
-    expect(pose.lookAt).toEqual(context.trackCenter);
+  it('track (yayın) modunda lideri iç saha tarafından, alçaktan takip eder ve gruba bakar', () => {
+    // Alt düzlük: heading 0 (+X), iç saha +Z (dışarıda tribün var).
+    const pose = computeCameraPose('track', { ...context, leaderHeadingRadians: 0 });
+    expect(pose.position.z).toBeGreaterThan(context.leaderPosition.z);
+    expect(pose.position.x).toBeGreaterThan(context.leaderPosition.x);
     expect(pose.position.y).toBeGreaterThan(0);
+    expect(pose.position.y).toBeLessThan(20);
+    expect(pose.lookAt.x).toBeLessThan(context.leaderPosition.x);
+  });
+
+  it('track modu atın yönüyle döner — üst düzlükte (heading π) iç saha -Z, ileri -X', () => {
+    const leaderPosition = { x: 0, y: 1, z: 60 };
+    const pose = computeCameraPose('track', { ...context, leaderPosition, leaderHeadingRadians: Math.PI });
+    expect(pose.position.z).toBeLessThan(leaderPosition.z);
+    expect(pose.position.x).toBeLessThan(leaderPosition.x);
   });
 
   it('jockey modunda odaklanılan atı takip eder', () => {

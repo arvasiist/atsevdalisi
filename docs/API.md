@@ -100,32 +100,30 @@ koleksiyon değildir.
 
 ## 2. Auth
 
+> Bu bölüm 02.10.2026'da gerçek uçlara göre yeniden yazıldı (eski taslak
+> `register`/`accessToken` adlarını kullanıyordu; öyle bir uç yoktu).
+
 ```http
-POST /api/v1/auth/register
-POST /api/v1/auth/login
-POST /api/v1/auth/refresh
-POST /api/v1/auth/logout
+POST   /api/v1/players                   # misafir kaydı (@Public) → AuthSession
+POST   /api/v1/auth/login                # Google (@Public) → AuthSession
+POST   /api/v1/auth/login/password       # e-posta + şifre (@Public) → AuthSession
+POST   /api/v1/auth/refresh              # @Public, { refreshToken } → SessionTokens
+POST   /api/v1/auth/session              # yalnızca eski (sid'siz) token'ı yükseltir; aksi 409
+POST   /api/v1/auth/logout               # bu cihaz — token ANINDA geçersiz
+POST   /api/v1/auth/logout-all           # tüm cihazlar + eski token'lar
+GET    /api/v1/auth/sessions             # AuthSessionInfo[] (yalnızca çağıranın)
+DELETE /api/v1/auth/sessions/{id}        # başkasınınki/olmayan → 404 SESSION_NOT_FOUND
+POST   /api/v1/auth/email/verification   # doğrulama bağlantısı iste → 202 { sent }
+POST   /api/v1/auth/email/verify         # @Public, { token } → { verified: true }
+GET    /api/v1/account/deletion          # { blockers: [{code,label}], requiresPassword }
+POST   /api/v1/account/delete            # { confirmUsername, password? } — geri alınamaz
 ```
 
-`POST /api/v1/auth/register` — örnek istek/yanıt:
-
-```json
-// İstek
-{ "username": "atsevdalisi", "email": "user@example.com", "password": "..." }
-
-// Yanıt (201)
-{
-  "success": true,
-  "data": {
-    "player": { "id": "...", "username": "atsevdalisi", "level": 1 },
-    "accessToken": "...",
-    "refreshToken": "..."
-  }
-}
-```
-
-> **Açık karar (bkz. ARCHITECTURE.md §10.1):** Sosyal giriş (Google/Apple) ve
-> misafir modu desteği proje sahibinin onayına sunulmuştur.
+`AuthSession` = `{ token, refreshToken, accessTokenExpiresAt, player }`.
+Erişim token'ı kısa ömürlüdür (`auth.session.accessTokenTtlSeconds`);
+refresh token HER yenilemede değişir ve eskisi tekrar sunulursa oturum
+kapanır (`INVALID_REFRESH_TOKEN`, 401). Sunucu yalnızca SHA-256 özetini
+saklar (migration 0057). Şifre sıfırlama tüm oturumları kapatır.
 
 ## 3. Player
 
@@ -238,17 +236,18 @@ sahibine görünür). İki sözleşme çelişmez, farklı okuma yollarıdır.
     "stats": { "raceCount": 1, "winCount": 1, "podiumCount": 1 },
     "friendCount": 1,
     "giftCount": 1,
-    "achievements": null
+    "achievements": [
+      { "key": "first-win", "metric": "race_wins", "target": 1, "claimedAt": "2026-10-03T19:40:00.000Z" }
+    ]
   }
 }
 ```
 
 `stats` YALNIZCA **kesinleşmiş** (`races.status = 'finished'`) yarışları
 sayar — lobide bekleyen bir yarış istatistiğe girmez. `podiumCount`
-birincileri de kapsar (`finish_position <= 3`). `achievements` brief
-§24'ün istediği ama henüz VAR OLMAYAN alandır (kalıcı bir başarım veri
-modeli + migration gerektirir); sabit `null` dönmesi "unutulmuş alan" ile
-"henüz gelmemiş alan"ı ayırır ve dizi dolduğunda bu sözleşme değişmez.
+birincileri de kapsar (`finish_position <= 3`). `achievements` (03.10.2026)
+ödülü alınmış başarımlardır (`GET /achievements`, `POST /achievements/:key/claim`);
+bakiye türevi bir şey taşımaz.
 `careerTier` de yanıtta YOKTUR çünkü sunucuda saklanmaz — `level`'in saf
 sunum türevi olarak istemcide türetilir
 (`apps/web/src/features/career/career-tier.ts`).
@@ -1615,6 +1614,92 @@ döner ve **ne durum ne denetim kaydı değişir** (rollback kanıtı);
 CHECK'iyle **dosya okunarak** karşılaştırılması, geçiş çizgesinin kapalılığı
 ve terminal durumları, aynı-durum reddi, `assertAdmin`, config sabitlemesi).
 
+### Roller, yaptırımlar, duyurular (Faz 10 + 11-A, 02.10.2026, migration 0060)
+
+Yetki her istekte DB'den okunur (`is_admin`, `is_moderator`); izinler
+`domain/admin/staff.ts`. Yetkisiz çağıran 403 `ADMIN_REQUIRED` alır, var olmayan
+kimlikte bile (404'ten ÖNCE). Her yazma `admin_audit_log` satırıyla aynı
+transaction'dadır.
+
+| Uç | Kim | Not |
+|---|---|---|
+| `POST /admin/players/:id/sanctions` | moderatör (yalnızca `suspend`, ≤ `moderatorMaxSuspendHours`) / yönetici | gövde `{ kind: 'suspend'\|'ban', reason, durationHours? }`; kendine/personele 409 `SANCTION_TARGET_NOT_ALLOWED`; yasak oturumları kapatır |
+| `GET /admin/players/:id/sanctions` | moderatör / yönetici | geçmiş (`historyLimit`) |
+| `POST /admin/sanctions/:id/lift` | askı: moderatör / yönetici; yasak: yönetici | gövde `{ reason }` |
+| `PUT /admin/players/:id/role` | yönetici | gövde `{ role: 'player'\|'moderator'\|'admin' }`; kendine 400 `INVALID_ROLE_CHANGE` |
+| `POST /admin/announcements` | yönetici | `{ title, body, level, startsAt?, endsAt? }`; yayında `maxLive` aşılırsa 409 `ANNOUNCEMENT_LIMIT_REACHED` |
+| `GET /admin/announcements` | yönetici | arşiv dahil |
+| `POST /admin/announcements/:id/archive` | yönetici | |
+| `GET /announcements` | herkes (`@Public`) | yalnızca şu an yayında olanlar |
+
+Askıdaki/yasaklı hesap her istekte, soket bağlantısında, girişte ve token
+yenilemede **403 `ACCOUNT_SUSPENDED`** alır (401 değil — istemci oturumu
+silmez). `GET /admin/players` satırı `isModerator` ve `activeSanction` taşır;
+`PlayerSummary` `isModerator` taşır.
+
+### Haftalık / aylık sıralama (Faz 11, 02.10.2026)
+
+`GET /leaderboard/period/:period` — `weekly` | `monthly` (oturum ister; başka değer 400).
+Yanıt `{ period, startsAt, endsAt, standings[], me }`; satır `{ rank, playerId, username, displayName,
+score, raceCount }`. Sezonla aynı formül; pencere Türkiye saatiyle (hafta pazartesi, ay 1'i). Ödül yok.
+`GET /races` satırında `calendar: { programId, featured }` — öne çıkan program yarışları listenin başında.
+
+### Bakiye düzeltmesi + at araması (Faz 10, 02.10.2026)
+
+- `POST /admin/players/:playerId/balance-adjustments` — yalnızca yönetici; `Idempotency-Key` zorunlu.
+  Gövde `{ currency: 'money'|'gems', amount: (işaretli tam sayı, ≠0), reason }`. 201
+  `{ transactionId, auditId, currency, amount, balanceBefore, balanceAfter }`. Hatalar: 400
+  `INVALID_BALANCE_ADJUSTMENT`, 409 `ADJUSTMENT_TARGET_NOT_ALLOWED` (kendine/personele), 409
+  `INSUFFICIENT_FUNDS`, 404 (oyuncu yok). Defter türü `admin_adjustment` (kanonik `ADJUSTMENT`).
+- `GET /admin/horses?q=` — moderatör + yönetici; at kimliği, sahip kimliği, at adı (parça) ya da sahip
+  kullanıcı adı; en fazla `horseSearch.limit`.
+- `GET /admin/config` · `GET /admin/seasons` · `GET /admin/tournaments` — yalnızca yönetici, salt okuma.
+  Config girdisi `{ name, sha256, values }` (kanonik JSON özeti).
+
+### Kulüp sohbeti + tribün emote (Faz 9, 02.10.2026, migration 0062)
+
+- `GET /clubs/:clubId/messages` — son `chat.clubChat.historyLimit` mesaj, eskiden yeniye. Yalnızca üye
+  (değilse 403 `NOT_CLUB_MEMBER`, kulüp yoksa da 403).
+- `POST /clubs/:clubId/messages` `{ body }` — 201; gövde yarış sohbetiyle aynı kural (400
+  `INVALID_MESSAGE_BODY`); 20 istek/60 sn.
+- Soket `race.emote` `{ raceId, key }` (yalnızca abone olunan yarış, `chat.emotes.list` anahtarı, soket
+  başına `cooldownMs`) → odaya `race.emote` `{ raceId, key }` (anonim, kalıcı değil). Reddedilen emote
+  sessizce düşer.
+
+### Kişisel veri dışa aktarma (Faz 1, 02.10.2026)
+
+`GET /account/export` — yalnızca kendi verin (token'dan). 3 istek/saat, `Cache-Control: no-store`.
+Yanıt `{ exportedAt, playerId, sections }`; her bölüm `{ rows, truncated }` (bölüm başına en fazla
+`auth.dataExport.maxRowsPerSection`, en yeniler). Bölümler: `account`, `loginMethods`, `sessions`,
+`horses`, `transactions`, `raceEntries`, `messages`, `friendships`, `blocks`, `reportsFiled`, `gifts`,
+`notifications`, `club`, `sanctions`, `questClaims`. Parola/token özeti, diğer oyuncuların iç
+kimlikleri, hakkındaki şikâyetler ve yaptırımı veren yönetici GİRMEZ.
+
+### Şüpheli desenler (Faz 7, 02.10.2026)
+
+`GET /admin/anomalies` — moderatör + yönetici (yoksa 403 `ADMIN_REQUIRED`). Salt okuma; otomatik
+işlem yok. Yanıt `{ generatedAt, windowDays, newAccountDays, findings[] }`; her bulgu `rule`
+(`gift_funnel` | `repeat_trade_pair` | `new_account_outflow`), `subject`, `counterparts`
+(`playerId`, `username`, `accountAgeDays`), `count`, `totalMoney`, `totalGems`, `firstAt`, `lastAt`.
+Eşikler `config/anticheat.config.json`.
+
+### Görevler + etkinlikler (Faz 11-B, 02.10.2026, migration 0061)
+
+İlerleme sunucuda mevcut tablolardan türetilir; istemci yalnızca "hangi görev" der.
+
+| Uç | Kim | Not |
+|---|---|---|
+| `GET /quests` | oyuncu | `{ daily, weekly, events }` — her görevde `progress`, `target`, `rewardMoney`, `claimed` |
+| `POST /quests/:questKey/claim` | oyuncu | anahtar config listesinde aranır; 404 `QUEST_NOT_FOUND`, 409 `QUEST_NOT_COMPLETED` / `QUEST_ALREADY_CLAIMED`; başarıda `{ rewardMoney, balanceAfter }` + `quest_reward` defter satırı |
+| `POST /events/:eventId/claim` | oyuncu | aynı kurallar; arşivlenmiş/başlamamış/talep süresi geçmiş etkinlik 404; `event_reward` |
+| `POST /admin/events` | yönetici | `{ title, description?, metric, target, rewardMoney, startsAt?, endsAt }`; 400 `INVALID_LIVE_EVENT`, 409 `LIVE_EVENT_LIMIT_REACHED` |
+| `GET /admin/events` | yönetici | `claimCount` dahil |
+| `POST /admin/events/:eventId/archive` | yönetici | 404 `LIVE_EVENT_NOT_FOUND` |
+
+Ölçütler: `races_entered`, `race_wins`, `top3_finishes`, `trainings` (dinlenme hariç),
+`care_actions` (at+iş başına bir), `horse_purchases` (sabit fiyat + kazanılmış müzayede,
+`horsePurchaseMinPrice` ve üstü).
+
 ### Soy Ağacı (soy ağacı veri zinciri dilimi, 27.09.2026)
 
 ```http
@@ -2951,6 +3036,15 @@ dosyanın doc yorumu).
 | `INVALID_CREDENTIALS` | E-posta ya da şifre hatalı — `POST /auth/login/password` (401). Kayıtlı olmayan e-posta ile yanlış şifre BİLEREK aynı kod ve aynı mesajdır (enumerasyon yok) (30.09.2026) |
 | `EMAIL_ALREADY_REGISTERED` | Bu e-posta başka bir hesaba bağlı — `POST /auth/credentials` (409); karşılaştırma büyük/küçük harf duyarsız (30.09.2026) |
 | `INVALID_RESET_TOKEN` | Şifre sıfırlama bağlantısı geçersiz, süresi dolmuş ya da kullanılmış — `POST /auth/password-reset/confirm` (400). Üç durum BİLEREK tek koddur (30.09.2026, migration 0047) |
+| `INVALID_REFRESH_TOKEN` | Refresh token geçersiz, süresi dolmuş, kapatılmış ya da YENİDEN kullanılmış — `POST /auth/refresh` (401). Dört durum BİLEREK tek koddur; yeniden kullanım oturumu kapatır (02.10.2026, migration 0057) |
+| `INVALID_VERIFICATION_TOKEN` | E-posta doğrulama bağlantısı geçersiz, süresi dolmuş, kullanılmış ya da e-posta değişmiş — `POST /auth/email/verify` (400), tek kod (02.10.2026, migration 0058) |
+| `NO_ACCOUNT_EMAIL` | Misafir hesabın doğrulanacak e-postası yok — `POST /auth/email/verification` (409) |
+| `EMAIL_ALREADY_VERIFIED` | E-posta zaten doğrulanmış (409) |
+| `DELETION_CONFIRMATION_MISMATCH` | Hesap silme onayı (kullanıcı adı) eşleşmedi (400) |
+| `DELETION_PASSWORD_INVALID` | Hesap silmede şifre yanlış (403 — 401 değil; istemci 401'de oturumu siler) |
+| `ACCOUNT_DELETION_BLOCKED` | Parası emanette (müzayede, açık yarış, PvP) ya da üyeli kulüp lideri — önce bitir (409; mesaj nedenleri söyler) (02.10.2026, migration 0059) |
+| `SESSION_NOT_FOUND` | Oturum yok ya da çağırana ait değil — `DELETE /auth/sessions/:id` (404, varlık sızdırılmaz) |
+| `SESSION_UPGRADE_NOT_ALLOWED` | `POST /auth/session` yalnızca eski (`sid`siz) token'ı yükseltir (409) |
 | `CREDENTIALS_ALREADY_SET` | Bu hesap zaten e-posta + şifreyle kayıtlı — `POST /auth/credentials` (409) (30.09.2026) |
 | `PLAYER_LEVEL_TOO_LOW` | Turnuvanın seviye şartı karşılanmadı — `POST /races/:id/join` (409), para hareket etmez (30.09.2026, migration 0045) |
 | `HORSE_IN_ACTIVE_RACE` | At henüz koşulmamış (`scheduled`/`locking`) bir lobi yarışına kayıtlı: ikinci bir açık yarışa yazılamaz (`POST /races/:id/join`), pazara çıkarılamaz (`POST /market/listings`) ve satın alınamaz (`POST /market/listings/:id/buy`). Yarış bitince, iptal edilince ya da oyuncu ayrılınca kalkar (30.09.2026) |
@@ -3004,3 +3098,19 @@ dosyanın doc yorumu).
 | `RACE_ENTRY_NOT_LEAVABLE` | Ayrılma penceresi kapalı: yarış `scheduled` değil, başlangıç zamanı gelmiş (sınırda kapalı) ya da katılım zaten `cancelled` — `POST /races/:id/leave`. `RACE_ENTRY_NOT_READYABLE` ile AYNI sınırdadır; ayrılma geri alınamaz biçimde ücret iadesi doğurduğu için "önce uygun duruma getir" yolu YOKTUR (Ücretli yarış lobisi + iade, 28.09.2026) |
 | `RACE_ENTRY_CANCELLED` | Aynı yarışa yeniden katılma denemesi ama katılım daha önce İPTAL edilmiş — `POST /races/:id/join`. **`ALREADY_JOINED_RACE` DEĞİL:** oyuncu yarışta değildir, iptal etmiştir; ayrıl-katıl döngüsü READY bayrağını sıfırlayıp oyuncuya havuzu oynama imkânı verirdi. Boşalan koltuk BAŞKALARINA açıktır (Ücretli yarış lobisi + iade, 28.09.2026) |
 | `RACE_NOT_SETTLEABLE` | Ödül dağıtımı bu durumda yapılamaz: yarış `scheduled` değil (zaten koştu/iptal), başlangıç zamanı gelmemiş ya da hiç GERÇEK katılımcı yok — `POST /races/:id/settle`. **BU KOD AYNI ZAMANDA İDEMPOTENCY'NİN TA KENDİSİDİR:** uç `Idempotency-Key` kullanmaz, ikinci çağrı buraya çarpar ve ikinci bir ödeme yapısal olarak imkânsız olur (Ödül dağıtımı, 28.09.2026) |
+| `ACCOUNT_SUSPENDED` | 403 — hesap askıda ya da yasaklı; mesaj gerekçe + bitişi taşır (Faz 10, 02.10.2026) |
+| `INVALID_SANCTION` | 400 — yaptırım gövdesi geçersiz (tür, gerekçe uzunluğu, süre; moderatörün yasak/uzun askı denemesi 403 `ADMIN_REQUIRED`) |
+| `SANCTION_TARGET_NOT_ALLOWED` | 409 — kendine ya da personele yaptırım |
+| `SANCTION_NOT_FOUND` | 404 — yaptırım yok ya da zaten kalkmış |
+| `INVALID_ROLE_CHANGE` | 400 — bilinmeyen rol ya da kendi rolünü değiştirme |
+| `INVALID_ANNOUNCEMENT` | 400 — başlık/metin/düzey/tarih geçersiz |
+| `ANNOUNCEMENT_NOT_FOUND` | 404 |
+| `ANNOUNCEMENT_LIMIT_REACHED` | 409 — aynı pencerede yayında olan duyuru sınırı dolu |
+| `QUEST_NOT_FOUND` | 404 — görev/etkinlik yok ya da şu an ödülü alınamaz (Faz 11-B) |
+| `QUEST_NOT_COMPLETED` | 409 — hedefe ulaşılmadı |
+| `QUEST_ALREADY_CLAIMED` | 409 — bu dönemin ödülü alındı |
+| `INVALID_LIVE_EVENT` | 400 — etkinlik gövdesi geçersiz |
+| `LIVE_EVENT_NOT_FOUND` | 404 — etkinlik yok ya da zaten arşivde |
+| `LIVE_EVENT_LIMIT_REACHED` | 409 — aynı pencerede açık etkinlik sınırı dolu |
+| `INVALID_BALANCE_ADJUSTMENT` | 400 — düzeltme gövdesi geçersiz (Faz 10) |
+| `ADJUSTMENT_TARGET_NOT_ALLOWED` | 409 — kendine ya da yönetim ekibine düzeltme |

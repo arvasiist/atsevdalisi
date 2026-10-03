@@ -1,5 +1,20 @@
+import {
+  AchievementAlreadyClaimedError,
+  AchievementNotCompletedError,
+  AchievementNotFoundError,
+} from '../../domain/achievements/errors';
+import {
+  InvalidLiveEventError,
+  LiveEventLimitReachedError,
+  LiveEventNotFoundError,
+  QuestAlreadyClaimedError,
+  QuestNotCompletedError,
+  QuestNotFoundError,
+} from '../../domain/quests/errors';
 import { ArgumentsHost, Catch, ExceptionFilter, HttpException, HttpStatus } from '@nestjs/common';
 import type { Response } from 'express';
+import type { RequestWithId } from './request-id.middleware';
+import { reportError } from '../../infrastructure/ops/error-reporting';
 import { ErrorCode } from '@at-sevdalisi/shared-types';
 import { PlayerLevelTooLowError } from '../../domain/tournament/errors';
 import {
@@ -7,6 +22,16 @@ import {
   InvalidReportStatusError,
   RaceNotCancelableError,
   ReportNotFoundError,
+  AccountSuspendedError,
+  InvalidSanctionError,
+  SanctionTargetNotAllowedError,
+  SanctionNotFoundError,
+  InvalidRoleChangeError,
+  InvalidAnnouncementError,
+  AnnouncementNotFoundError,
+  AnnouncementLimitReachedError,
+  InvalidBalanceAdjustmentError,
+  AdjustmentTargetNotAllowedError,
 } from '../../domain/admin/errors';
 import {
   HorseInActiveRaceError,
@@ -37,10 +62,42 @@ import {
   ProviderAlreadyLinkedError,
   ProviderIdentityTakenError,
   InvalidResetTokenError,
+  InvalidRefreshTokenError,
   MissingAuthTokenError,
+  SessionNotFoundError,
+  SessionUpgradeNotAllowedError,
+  InvalidVerificationTokenError,
+  NoAccountEmailError,
+  EmailAlreadyVerifiedError,
+  DeletionConfirmationMismatchError,
+  DeletionPasswordInvalidError,
+  AccountDeletionBlockedError,
 } from '../../domain/auth/errors';
-import { HorseNotReadyForTrainingError, InvalidTrainingInputError } from '../../domain/training/errors';
-import { HorseEquipmentNotFoundError, InvalidEquipmentInputError } from '../../domain/equipment/errors';
+import {
+  StaffAlreadyHiredError,
+  StaffNotFoundError,
+  StaffNotOwnedError,
+  StaffRenewalNotDueError,
+  StaffRoleNotHireableError,
+} from '../../domain/staff/errors';
+import {
+  AlreadyClubMemberError,
+  ClubFullError,
+  ClubLeaderCannotLeaveError,
+  ClubNameTakenError,
+  ClubNotFoundError,
+  InsufficientClubPermissionError,
+  InvalidClubInputError,
+  NotClubMemberError,
+} from '../../domain/club/errors';
+import {
+  HorseNotReadyForTrainingError,
+  InvalidTrainingInputError,
+} from '../../domain/training/errors';
+import {
+  HorseEquipmentNotFoundError,
+  InvalidEquipmentInputError,
+} from '../../domain/equipment/errors';
 import {
   CareActionOnCooldownError,
   DailyFeedLimitReachedError,
@@ -50,8 +107,16 @@ import {
   InvalidFeedPurchaseCountError,
   InvalidFeedTypeError,
 } from '../../domain/care/errors';
-import { MaxStableLevelReachedError, StableCapacityExceededError } from '../../domain/stable/errors';
-import { InvalidFacilityTypeError, MaxFacilityLevelReachedError } from '../../domain/farm/errors';
+import {
+  MaxStableLevelReachedError,
+  StableCapacityExceededError,
+} from '../../domain/stable/errors';
+import {
+  FacilityInactiveError,
+  InvalidFacilityTypeError,
+  MaxFacilityLevelReachedError,
+  StaffCapacityExceededError,
+} from '../../domain/farm/errors';
 import {
   DailyRewardAlreadyClaimedError,
   InsufficientFundsError,
@@ -78,7 +143,17 @@ import {
   RaceNotFoundError,
   RaceNotSettleableError,
 } from '../../domain/race/errors';
-import { AlreadyInMatchmakingQueueError, NotInMatchmakingQueueError } from '../../domain/online/errors';
+import {
+  InteractiveRaceClosedError,
+  InteractiveRaceInProgressError,
+  InteractiveRaceNotFinishedError,
+  InteractiveRaceNotFoundError,
+  InvalidPlayerControlError,
+} from '../../domain/race/errors';
+import {
+  AlreadyInMatchmakingQueueError,
+  NotInMatchmakingQueueError,
+} from '../../domain/online/errors';
 import {
   JockeyAlreadyHiredError,
   JockeyAlreadyOwnedError,
@@ -126,6 +201,12 @@ import {
   SocialLimitReachedError,
 } from '../../domain/social/errors';
 import {
+  AuctionHasBidsError,
+  AuctionRequiresEndTimeError,
+  BidTooLowError,
+  CannotBidOwnListingError,
+  ListingIsAuctionError,
+  ListingNotAuctionError,
   CannotBuyOwnListingError,
   HorseAlreadyListedError,
   InvalidListingExpiryError,
@@ -135,7 +216,10 @@ import {
   ListingNotFoundError,
   ListingStaleOwnerError,
 } from '../../domain/market/errors';
-import { IdempotencyKeyInProgressError, IdempotencyKeyRequiredError } from '../idempotency/idempotency.errors';
+import {
+  IdempotencyKeyInProgressError,
+  IdempotencyKeyRequiredError,
+} from '../idempotency/idempotency.errors';
 import { RateLimitExceededError } from '../rate-limit/rate-limit.errors';
 
 /**
@@ -155,7 +239,10 @@ type ErrorClassConstructor = new (...args: never[]) => Error;
  * docs/ARCHITECTURE.md §4), bu eşleme yalnızca API katmanında yaşar.
  */
 const DOMAIN_ERROR_MAP = new Map<ErrorClassConstructor, { status: number; code: string }>([
-  [UsernameAlreadyTakenError, { status: HttpStatus.CONFLICT, code: ErrorCode.UsernameAlreadyTaken }],
+  [
+    UsernameAlreadyTakenError,
+    { status: HttpStatus.CONFLICT, code: ErrorCode.UsernameAlreadyTaken },
+  ],
   [PlayerNotFoundError, { status: HttpStatus.NOT_FOUND, code: ErrorCode.PlayerNotFound }],
   [InvalidUsernameError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.ValidationError }],
   [InvalidDisplayNameError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.ValidationError }],
@@ -181,7 +268,10 @@ const DOMAIN_ERROR_MAP = new Map<ErrorClassConstructor, { status: number; code: 
   // FAZ 1 wiring, beşinci dilim — Bakım (brief §11). "Cooldown dolmadı"
   // GEÇİCİDİR — `HorseInjuredError`/`HorseNotReadyForTrainingError` ile
   // AYNI gerekçeyle 409 Conflict.
-  [CareActionOnCooldownError, { status: HttpStatus.CONFLICT, code: ErrorCode.CareActionOnCooldown }],
+  [
+    CareActionOnCooldownError,
+    { status: HttpStatus.CONFLICT, code: ErrorCode.CareActionOnCooldown },
+  ],
   // Hata 7'nin (bkz. domain/care/errors.ts InvalidCareInputError) BAŞTAN
   // uygulanmış hali — gerçek bir DOĞRULAMA hatasıdır, 400.
   [InvalidCareInputError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.ValidationError }],
@@ -189,14 +279,20 @@ const DOMAIN_ERROR_MAP = new Map<ErrorClassConstructor, { status: number; code: 
   // yüksek seviyede" mevcut duruma bağlı bir engeldir (yeni bir seviye
   // config'e eklenirse değişebilir) — kalıcı bir doğrulama hatası DEĞİL,
   // `HorseInjuredError` ile AYNI gerekçeyle 409 Conflict.
-  [MaxStableLevelReachedError, { status: HttpStatus.CONFLICT, code: ErrorCode.MaxStableLevelReached }],
+  [
+    MaxStableLevelReachedError,
+    { status: HttpStatus.CONFLICT, code: ErrorCode.MaxStableLevelReached },
+  ],
   // "Yetersiz bakiye" de GEÇİCİDİR (oyuncu daha fazla para kazanınca
   // çözülür) — `HorseNotReadyForTrainingError`'ın INSUFFICIENT_ENERGY
   // dalıyla AYNI gerekçeyle 409 Conflict, 402/400 DEĞİL.
   [InsufficientFundsError, { status: HttpStatus.CONFLICT, code: ErrorCode.InsufficientFunds }],
   // FAZ 1 wiring, yedinci dilim — Günlük Ödül (brief §37).
   // `CareActionOnCooldownError` ile AYNI gerekçeyle 409 Conflict.
-  [DailyRewardAlreadyClaimedError, { status: HttpStatus.CONFLICT, code: ErrorCode.DailyRewardAlreadyClaimed }],
+  [
+    DailyRewardAlreadyClaimedError,
+    { status: HttpStatus.CONFLICT, code: ErrorCode.DailyRewardAlreadyClaimed },
+  ],
   // FAZ 1 wiring, sekizinci dilim — Pratik Yarış (brief §6). Geçersiz bir
   // taktik alanı `InvalidTrainingInputError`/`InvalidCareInputError` ile
   // AYNI gerekçeyle gerçek bir DOĞRULAMA hatasıdır, 400.
@@ -225,7 +321,10 @@ const DOMAIN_ERROR_MAP = new Map<ErrorClassConstructor, { status: number; code: 
   // istemcinin her hata için "acaba details var mı" diye sormasına yol
   // açardı. Bir form alan-alan vurgulama gerektirirse doğru adım bu
   // satırı değiştirmek DEĞİL, zarfı sürümlemektir (ayrı bir iş).
-  [InvalidRaceDefinitionError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.InvalidRaceDefinition }],
+  [
+    InvalidRaceDefinitionError,
+    { status: HttpStatus.BAD_REQUEST, code: ErrorCode.InvalidRaceDefinition },
+  ],
   // brief §42 PHASE 1 — `maxOpenRacesPerPlayer` tavanı aşıldı.
   // `SocialLimitReachedError`/`DailyGiftLimitReachedError` ile AYNI
   // gerekçeyle 409 Conflict, 400 DEĞİL: engelleyen şey isteğin BİÇİMİ
@@ -237,41 +336,73 @@ const DOMAIN_ERROR_MAP = new Map<ErrorClassConstructor, { status: number; code: 
   // header GERÇEK bir doğrulama hatası DEĞİLDİR (DTO/gövde şeklini
   // ilgilendirmez) — kendi özel `ErrorCode.IdempotencyKeyRequired`'ı
   // FAZ 0'dan beri taslakta duruyordu, ilk kez burada kullanılıyor.
-  [IdempotencyKeyRequiredError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.IdempotencyKeyRequired }],
+  [
+    IdempotencyKeyRequiredError,
+    { status: HttpStatus.BAD_REQUEST, code: ErrorCode.IdempotencyKeyRequired },
+  ],
   // AUDIT_AND_HARDENING Öncelik 3 (bu oturum) — GEÇİCİ/duruma bağlı bir
   // engeldir (kısa süre sonra tekrar denenebilir), `HorseInjuredError`
   // ile AYNI gerekçeyle 409 Conflict, 400 DEĞİL.
-  [IdempotencyKeyInProgressError, { status: HttpStatus.CONFLICT, code: ErrorCode.IdempotencyKeyInProgress }],
+  [
+    IdempotencyKeyInProgressError,
+    { status: HttpStatus.CONFLICT, code: ErrorCode.IdempotencyKeyInProgress },
+  ],
   // FAZ 1 wiring, on birinci dilim — At Pazarı (brief §30). `errors.ts`'teki
   // dört sınıf FAZ 0'dan beri TASLAKTA duruyordu, burada İLK KEZ gerçekten
   // fırlatılabilir hale geliyor. `InvalidListingPriceError` gerçek bir
   // DOĞRULAMA hatasıdır (Hata 7 ilkesiyle AYNI, 400); `CannotBuyOwnListingError`
   // da yapısal bir istek hatasıdır (kalıcı, tekrar denemekle DÜZELMEZ), 400.
-  [InvalidListingPriceError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.InvalidListingPrice }],
+  [
+    InvalidListingPriceError,
+    { status: HttpStatus.BAD_REQUEST, code: ErrorCode.InvalidListingPrice },
+  ],
   // FAZ 1 wiring, on üçüncü dilim — `InvalidListingPriceError` ile AYNI
   // gerekçe/desen (gerçek bir DOĞRULAMA hatası, 400), kendi bespoke
   // `ErrorCode.InvalidListingExpiry`'siyle (sibling hata sınıfıyla AYNI
   // dosyada, AYNI kategori).
-  [InvalidListingExpiryError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.InvalidListingExpiry }],
-  [CannotBuyOwnListingError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.CannotBuyOwnListing }],
+  [
+    InvalidListingExpiryError,
+    { status: HttpStatus.BAD_REQUEST, code: ErrorCode.InvalidListingExpiry },
+  ],
+  [
+    CannotBuyOwnListingError,
+    { status: HttpStatus.BAD_REQUEST, code: ErrorCode.CannotBuyOwnListing },
+  ],
   [ListingNotFoundError, { status: HttpStatus.NOT_FOUND, code: ErrorCode.ListingNotFound }],
   // "Aktif değil"/"süresi dolmuş" GEÇİCİ/duruma-bağlı engellerdir —
   // `MaxStableLevelReachedError`/`HorseInjuredError` ile AYNI gerekçeyle
   // 409 Conflict, 400/404 DEĞİL.
   [ListingNotActiveError, { status: HttpStatus.CONFLICT, code: ErrorCode.ListingNotActive }],
   [ListingExpiredError, { status: HttpStatus.CONFLICT, code: ErrorCode.ListingExpired }],
+  // 02.10.2026 — müzayede. Kendi ilanına teklif `CannotBuyOwnListing` ile
+  // aynı sınıf (400); diğerleri duruma bağlı (409), bitişsiz müzayede 400.
+  [CannotBidOwnListingError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.CannotBidOwnListing }],
+  [AuctionRequiresEndTimeError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.AuctionRequiresEndTime }],
+  [ListingIsAuctionError, { status: HttpStatus.CONFLICT, code: ErrorCode.ListingIsAuction }],
+  [ListingNotAuctionError, { status: HttpStatus.CONFLICT, code: ErrorCode.ListingNotAuction }],
+  [BidTooLowError, { status: HttpStatus.CONFLICT, code: ErrorCode.BidTooLow }],
+  [AuctionHasBidsError, { status: HttpStatus.CONFLICT, code: ErrorCode.AuctionHasBids }],
   [HorseAlreadyListedError, { status: HttpStatus.CONFLICT, code: ErrorCode.HorseAlreadyListed }],
   // AUDIT_REPORT.md Bulgu D2 (bu oturum) — bkz. domain/market/errors.ts `ListingStaleOwnerError`.
   [ListingStaleOwnerError, { status: HttpStatus.CONFLICT, code: ErrorCode.ListingStaleOwner }],
   // AUDIT_REPORT.md Bulgu C1 (bu oturum) — bkz. domain/stable/errors.ts `StableCapacityExceededError`.
-  [StableCapacityExceededError, { status: HttpStatus.CONFLICT, code: ErrorCode.StableCapacityExceeded }],
+  [
+    StableCapacityExceededError,
+    { status: HttpStatus.CONFLICT, code: ErrorCode.StableCapacityExceeded },
+  ],
   // FAZ 1 wiring, on dördüncü dilim — PvP Eşleştirme (brief §41).
   // `HorseAlreadyListedError` ile AYNI gerekçeyle (duruma bağlı, geçici —
   // önce kuyruktan çıkılırsa çözülür) 409 Conflict.
-  [AlreadyInMatchmakingQueueError, { status: HttpStatus.CONFLICT, code: ErrorCode.AlreadyInMatchmakingQueue }],
+  [
+    AlreadyInMatchmakingQueueError,
+    { status: HttpStatus.CONFLICT, code: ErrorCode.AlreadyInMatchmakingQueue },
+  ],
   // `ListingNotFoundError` ile AYNI kategori (bulunamayan bir kaynak —
   // burada "bilet"), 404.
-  [NotInMatchmakingQueueError, { status: HttpStatus.NOT_FOUND, code: ErrorCode.NotInMatchmakingQueue }],
+  [
+    NotInMatchmakingQueueError,
+    { status: HttpStatus.NOT_FOUND, code: ErrorCode.NotInMatchmakingQueue },
+  ],
   // AUDIT_REPORT.md Bulgu S1/S2/S4 hardening (bu oturum) — bkz.
   // `domain/auth/errors.ts` doc yorumu. İKİSİ de 401: token hiç YOK ya da
   // GEÇERSİZ — istemci için pratik fark yoktur (ikisinde de yeniden
@@ -279,11 +410,66 @@ const DOMAIN_ERROR_MAP = new Map<ErrorClassConstructor, { status: number; code: 
   [MissingAuthTokenError, { status: HttpStatus.UNAUTHORIZED, code: ErrorCode.Unauthorized }],
   [InvalidAuthTokenError, { status: HttpStatus.UNAUTHORIZED, code: ErrorCode.Unauthorized }],
   // 30.09.2026 — e-posta + şifre girişi (migration 0046).
-  [InvalidCredentialsError, { status: HttpStatus.UNAUTHORIZED, code: ErrorCode.InvalidCredentials }],
-  [InvalidCredentialsInputError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.ValidationError }],
-  [EmailAlreadyRegisteredError, { status: HttpStatus.CONFLICT, code: ErrorCode.EmailAlreadyRegistered }],
-  [CredentialsAlreadySetError, { status: HttpStatus.CONFLICT, code: ErrorCode.CredentialsAlreadySet }],
+  [
+    InvalidCredentialsError,
+    { status: HttpStatus.UNAUTHORIZED, code: ErrorCode.InvalidCredentials },
+  ],
+  [
+    InvalidCredentialsInputError,
+    { status: HttpStatus.BAD_REQUEST, code: ErrorCode.ValidationError },
+  ],
+  [
+    EmailAlreadyRegisteredError,
+    { status: HttpStatus.CONFLICT, code: ErrorCode.EmailAlreadyRegistered },
+  ],
+  [
+    CredentialsAlreadySetError,
+    { status: HttpStatus.CONFLICT, code: ErrorCode.CredentialsAlreadySet },
+  ],
   [InvalidResetTokenError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.InvalidResetToken }],
+  // 02.10.2026 — oturum (migration 0057).
+  [InvalidRefreshTokenError, { status: HttpStatus.UNAUTHORIZED, code: ErrorCode.InvalidRefreshToken }],
+  [SessionNotFoundError, { status: HttpStatus.NOT_FOUND, code: ErrorCode.SessionNotFound }],
+  [
+    SessionUpgradeNotAllowedError,
+    { status: HttpStatus.CONFLICT, code: ErrorCode.SessionUpgradeNotAllowed },
+  ],
+  // 02.10.2026 — e-posta doğrulama (migration 0058).
+  [
+    InvalidVerificationTokenError,
+    { status: HttpStatus.BAD_REQUEST, code: ErrorCode.InvalidVerificationToken },
+  ],
+  [NoAccountEmailError, { status: HttpStatus.CONFLICT, code: ErrorCode.NoAccountEmail }],
+  [EmailAlreadyVerifiedError, { status: HttpStatus.CONFLICT, code: ErrorCode.EmailAlreadyVerified }],
+  // 02.10.2026 — hesap silme (migration 0059). Yanlış şifre 403'tür, 401
+  // DEĞİL: istemci 401'i "oturum geçersiz" sayar ve oturumu siler.
+  [
+    DeletionConfirmationMismatchError,
+    { status: HttpStatus.BAD_REQUEST, code: ErrorCode.DeletionConfirmationMismatch },
+  ],
+  [DeletionPasswordInvalidError, { status: HttpStatus.FORBIDDEN, code: ErrorCode.DeletionPasswordInvalid }],
+  [AccountDeletionBlockedError, { status: HttpStatus.CONFLICT, code: ErrorCode.AccountDeletionBlocked }],
+  // 02.10.2026 — Faz 10 + 11-A (migration 0060). Askı 403'tür, 401 DEĞİL:
+  // istemci 401'de oturumu siler; askıdaki oyuncu nedenini görmeli.
+  [AccountSuspendedError, { status: HttpStatus.FORBIDDEN, code: ErrorCode.AccountSuspended }],
+  [InvalidSanctionError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.InvalidSanction }],
+  [SanctionTargetNotAllowedError, { status: HttpStatus.CONFLICT, code: ErrorCode.SanctionTargetNotAllowed }],
+  [SanctionNotFoundError, { status: HttpStatus.NOT_FOUND, code: ErrorCode.SanctionNotFound }],
+  [InvalidRoleChangeError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.InvalidRoleChange }],
+  [InvalidAnnouncementError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.InvalidAnnouncement }],
+  [AnnouncementNotFoundError, { status: HttpStatus.NOT_FOUND, code: ErrorCode.AnnouncementNotFound }],
+  [AnnouncementLimitReachedError, { status: HttpStatus.CONFLICT, code: ErrorCode.AnnouncementLimitReached }],
+  [InvalidBalanceAdjustmentError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.InvalidBalanceAdjustment }],
+  [AdjustmentTargetNotAllowedError, { status: HttpStatus.CONFLICT, code: ErrorCode.AdjustmentTargetNotAllowed }],
+  [QuestNotFoundError, { status: HttpStatus.NOT_FOUND, code: ErrorCode.QuestNotFound }],
+  [QuestNotCompletedError, { status: HttpStatus.CONFLICT, code: ErrorCode.QuestNotCompleted }],
+  [QuestAlreadyClaimedError, { status: HttpStatus.CONFLICT, code: ErrorCode.QuestAlreadyClaimed }],
+  [AchievementNotFoundError, { status: HttpStatus.NOT_FOUND, code: ErrorCode.AchievementNotFound }],
+  [AchievementNotCompletedError, { status: HttpStatus.CONFLICT, code: ErrorCode.AchievementNotCompleted }],
+  [AchievementAlreadyClaimedError, { status: HttpStatus.CONFLICT, code: ErrorCode.AchievementAlreadyClaimed }],
+  [InvalidLiveEventError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.InvalidLiveEvent }],
+  [LiveEventNotFoundError, { status: HttpStatus.NOT_FOUND, code: ErrorCode.LiveEventNotFound }],
+  [LiveEventLimitReachedError, { status: HttpStatus.CONFLICT, code: ErrorCode.LiveEventLimitReached }],
   // Token GEÇERLİ ama sahiplik yok — kavramsal olarak 401'den FARKLI, bkz.
   // `ForbiddenError` doc yorumu.
   [ForbiddenError, { status: HttpStatus.FORBIDDEN, code: ErrorCode.Forbidden }],
@@ -291,7 +477,10 @@ const DOMAIN_ERROR_MAP = new Map<ErrorClassConstructor, { status: number; code: 
   // `DOMAIN_ERROR_MAP`'e girebilir çünkü kodları hatanın `reason` alanına
   // BAĞLI DEĞİLDİR (`RaceNotWatchableError`'ın üç nedeni de tek kod
   // `RACE_NOT_WATCHABLE` altında döner — gerekçe `domain/grandstand/errors.ts`).
-  [RaceTicketAlreadyOwnedError, { status: HttpStatus.CONFLICT, code: ErrorCode.RaceTicketAlreadyOwned }],
+  [
+    RaceTicketAlreadyOwnedError,
+    { status: HttpStatus.CONFLICT, code: ErrorCode.RaceTicketAlreadyOwned },
+  ],
   [RaceNotWatchableError, { status: HttpStatus.CONFLICT, code: ErrorCode.RaceNotWatchable }],
   // 403 — `ForbiddenError` ile AYNI durum, FARKLI kod: istemci "Bilet Al"
   // akışına yönlendirebilsin diye (bkz. `RaceTicketRequiredError` doc yorumu).
@@ -315,7 +504,10 @@ const DOMAIN_ERROR_MAP = new Map<ErrorClassConstructor, { status: number; code: 
   [CannotFriendSelfError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.CannotFriendSelf }],
   [CannotMessageSelfError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.CannotMessageSelf }],
   [InvalidMessageBodyError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.InvalidMessageBody }],
-  [InvalidFriendshipActionError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.InvalidFriendshipAction }],
+  [
+    InvalidFriendshipActionError,
+    { status: HttpStatus.BAD_REQUEST, code: ErrorCode.InvalidFriendshipAction },
+  ],
   // 404 — "yok" ile "senin değil" ile "bana gelmemiş" TEK kodda birleşir
   // (bilgi sızıntısını önlemek için, bkz. `FriendshipNotFoundError` doc yorumu).
   [FriendshipNotFoundError, { status: HttpStatus.NOT_FOUND, code: ErrorCode.FriendshipNotFound }],
@@ -323,7 +515,10 @@ const DOMAIN_ERROR_MAP = new Map<ErrorClassConstructor, { status: number; code: 
   // istemci "arkadaş ekle" akışına yönlendirebilsin diye.
   [NotFriendsError, { status: HttpStatus.FORBIDDEN, code: ErrorCode.NotFriends }],
   // 409 — duruma bağlı, GEÇİCİ engeller (biri kalıcı durum, diğeri sayım).
-  [FriendshipAlreadyExistsError, { status: HttpStatus.CONFLICT, code: ErrorCode.FriendshipAlreadyExists }],
+  [
+    FriendshipAlreadyExistsError,
+    { status: HttpStatus.CONFLICT, code: ErrorCode.FriendshipAlreadyExists },
+  ],
   [SocialLimitReachedError, { status: HttpStatus.CONFLICT, code: ErrorCode.SocialLimitReached }],
   // HEDİYE GÖNDERİMİ (proje sahibinin açık talebi, 27.09.2026 — üç parçanın
   // üçüncüsü). Beş hata da `DOMAIN_ERROR_MAP`'e girebilir çünkü kodları
@@ -338,33 +533,57 @@ const DOMAIN_ERROR_MAP = new Map<ErrorClassConstructor, { status: number; code: 
   // "duplicate economy implementation oluşturma").
   [CannotGiftSelfError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.CannotGiftSelf }],
   [InvalidGiftAmountError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.InvalidGiftAmount }],
-  [GiftCurrencyNotAllowedError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.GiftCurrencyNotAllowed }],
+  [
+    GiftCurrencyNotAllowedError,
+    { status: HttpStatus.BAD_REQUEST, code: ErrorCode.GiftCurrencyNotAllowed },
+  ],
   // 403 — `NotFriendsError` ile AYNI kategori (yetki yok) ama FARKLI kod:
   // hediye ekranı "önce arkadaş ekle" akışına yönlendirebilsin diye.
-  [GiftRequiresFriendshipError, { status: HttpStatus.FORBIDDEN, code: ErrorCode.GiftRequiresFriendship }],
+  [
+    GiftRequiresFriendshipError,
+    { status: HttpStatus.FORBIDDEN, code: ErrorCode.GiftRequiresFriendship },
+  ],
   // 409 — gövde geçerli, engel o anki SAYIMA bağlı ve pencere kaydıkça
   // kendiliğinden kalkar (`SocialLimitReachedError` ile AYNI kategori).
-  [DailyGiftLimitReachedError, { status: HttpStatus.CONFLICT, code: ErrorCode.DailyGiftLimitReached }],
+  [
+    DailyGiftLimitReachedError,
+    { status: HttpStatus.CONFLICT, code: ErrorCode.DailyGiftLimitReached },
+  ],
   // BİLDİRİM + YARIŞ DAVETİ (brief §16/§28, §42 PHASE 11) — sekiz hata da
   // `DOMAIN_ERROR_MAP`'e girebilir çünkü kodları hatanın `reason`/`status`
   // alanına BAĞLI DEĞİLDİR (yukarıdaki tribün/sosyal notlarla AYNI gerekçe).
   // Durum kodları `domain/social/errors.ts`'teki doc yorumlarında tek tek
   // gerekçelendirilmiştir.
   [CannotInviteSelfError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.CannotInviteSelf }],
-  [InvalidRaceInviteActionError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.InvalidRaceInviteAction }],
+  [
+    InvalidRaceInviteActionError,
+    { status: HttpStatus.BAD_REQUEST, code: ErrorCode.InvalidRaceInviteAction },
+  ],
   // 403 — `NotFriendsError`/`GiftRequiresFriendshipError` ile AYNI kategori
   // (yetki yok) ama FARKLI kod: davet ekranı "önce arkadaş ekle" akışına
   // yönlendirebilsin diye.
-  [InviteRequiresFriendshipError, { status: HttpStatus.FORBIDDEN, code: ErrorCode.InviteRequiresFriendship }],
+  [
+    InviteRequiresFriendshipError,
+    { status: HttpStatus.FORBIDDEN, code: ErrorCode.InviteRequiresFriendship },
+  ],
   // 404 — "yok" ile "senin değil" TEK kodda birleşir (bilgi sızıntısını
   // önlemek için, bkz. `RaceInviteNotFoundError` doc yorumu).
   [RaceInviteNotFoundError, { status: HttpStatus.NOT_FOUND, code: ErrorCode.RaceInviteNotFound }],
-  [NotificationNotFoundError, { status: HttpStatus.NOT_FOUND, code: ErrorCode.NotificationNotFound }],
+  [
+    NotificationNotFoundError,
+    { status: HttpStatus.NOT_FOUND, code: ErrorCode.NotificationNotFound },
+  ],
   // 409 — üçü de gövdesi geçerli ama DURUMA bağlı engeller: yarış artık
   // davet edilebilir değil, davet zaten var ya da zaten yanıtlanmış.
   [RaceNotInvitableError, { status: HttpStatus.CONFLICT, code: ErrorCode.RaceNotInvitable }],
-  [RaceInviteAlreadyExistsError, { status: HttpStatus.CONFLICT, code: ErrorCode.RaceInviteAlreadyExists }],
-  [RaceInviteNotRespondableError, { status: HttpStatus.CONFLICT, code: ErrorCode.RaceInviteNotRespondable }],
+  [
+    RaceInviteAlreadyExistsError,
+    { status: HttpStatus.CONFLICT, code: ErrorCode.RaceInviteAlreadyExists },
+  ],
+  [
+    RaceInviteNotRespondableError,
+    { status: HttpStatus.CONFLICT, code: ErrorCode.RaceInviteNotRespondable },
+  ],
   // BLOCK / REPORT (brief §33, §42 PHASE 15) — altı hata da
   // `DOMAIN_ERROR_MAP`'e girebilir çünkü kodları hatanın
   // `reason`/`value` alanına BAĞLI DEĞİLDİR (`InvalidReportReasonError` iki
@@ -379,8 +598,14 @@ const DOMAIN_ERROR_MAP = new Map<ErrorClassConstructor, { status: number; code: 
   // kategori).
   [CannotBlockSelfError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.CannotBlockSelf }],
   [CannotReportSelfError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.CannotReportSelf }],
-  [InvalidReportCategoryError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.InvalidReportCategory }],
-  [InvalidReportReasonError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.InvalidReportReason }],
+  [
+    InvalidReportCategoryError,
+    { status: HttpStatus.BAD_REQUEST, code: ErrorCode.InvalidReportCategory },
+  ],
+  [
+    InvalidReportReasonError,
+    { status: HttpStatus.BAD_REQUEST, code: ErrorCode.InvalidReportReason },
+  ],
   // 403 — `NotFriendsError`/`GiftRequiresFriendshipError`/
   // `InviteRequiresFriendshipError` ile AYNI kategori (yetki yok) ama
   // FARKLI kod. TEK kod, İKİ YÖN İÇİN: engelleyen de engellenen de aynı
@@ -405,7 +630,10 @@ const DOMAIN_ERROR_MAP = new Map<ErrorClassConstructor, { status: number; code: 
   // 404 — şikâyet yok. Bu kontrol yetki kapısından SONRA yapılır, böylece
   // yönetici olmayan biri kuyruktaki kimlikleri yoklayamaz (IDOR).
   [ReportNotFoundError, { status: HttpStatus.NOT_FOUND, code: ErrorCode.ReportNotFound }],
-  [InvalidReportStatusError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.InvalidReportStatus }],
+  [
+    InvalidReportStatusError,
+    { status: HttpStatus.BAD_REQUEST, code: ErrorCode.InvalidReportStatus },
+  ],
   // 409 — yarış bu durumdan iptal edilemez (28.09.2026). `RaceNotSettleable`/
   // `RaceEntryNotLeavable` ile AYNI kategori: istek kusurlu değil, kaynağın
   // DURUMU uygun değil. Dört `reason` da tek koda düşer (yukarıdaki
@@ -433,24 +661,65 @@ const DOMAIN_ERROR_MAP = new Map<ErrorClassConstructor, { status: number; code: 
   // vardır ve kimliği herkese açık vitrinde görünür.
   [JockeyNotOwnedError, { status: HttpStatus.CONFLICT, code: ErrorCode.JockeyNotOwned }],
   // `POST /auth/login`'e özgü — bkz. `InvalidProviderTokenError` doc yorumu.
-  [InvalidProviderTokenError, { status: HttpStatus.UNAUTHORIZED, code: ErrorCode.InvalidProviderToken }],
+  [
+    InvalidProviderTokenError,
+    { status: HttpStatus.UNAUTHORIZED, code: ErrorCode.InvalidProviderToken },
+  ],
   // 01.10.2026 — Google hesabı bağlama (migration 0048).
-  [ProviderIdentityTakenError, { status: HttpStatus.CONFLICT, code: ErrorCode.ProviderIdentityTaken }],
-  [ProviderAlreadyLinkedError, { status: HttpStatus.CONFLICT, code: ErrorCode.ProviderAlreadyLinked }],
+  [
+    ProviderIdentityTakenError,
+    { status: HttpStatus.CONFLICT, code: ErrorCode.ProviderIdentityTaken },
+  ],
+  [
+    ProviderAlreadyLinkedError,
+    { status: HttpStatus.CONFLICT, code: ErrorCode.ProviderAlreadyLinked },
+  ],
+  // 01.10.2026 — kulüp (migration 0049).
+  [ClubNotFoundError, { status: HttpStatus.NOT_FOUND, code: ErrorCode.ClubNotFound }],
+  [ClubNameTakenError, { status: HttpStatus.CONFLICT, code: ErrorCode.ClubNameTaken }],
+  [ClubFullError, { status: HttpStatus.CONFLICT, code: ErrorCode.ClubFull }],
+  [AlreadyClubMemberError, { status: HttpStatus.CONFLICT, code: ErrorCode.AlreadyClubMember }],
+  [NotClubMemberError, { status: HttpStatus.FORBIDDEN, code: ErrorCode.NotClubMember }],
+  [
+    InsufficientClubPermissionError,
+    { status: HttpStatus.FORBIDDEN, code: ErrorCode.InsufficientClubPermission },
+  ],
+  [
+    ClubLeaderCannotLeaveError,
+    { status: HttpStatus.CONFLICT, code: ErrorCode.ClubLeaderCannotLeave },
+  ],
+  [InvalidClubInputError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.ValidationError }],
+  // 01.10.2026 — personel (brief §33).
+  [StaffNotFoundError, { status: HttpStatus.NOT_FOUND, code: ErrorCode.StaffNotFound }],
+  [StaffAlreadyHiredError, { status: HttpStatus.CONFLICT, code: ErrorCode.StaffAlreadyHired }],
+  [StaffNotOwnedError, { status: HttpStatus.CONFLICT, code: ErrorCode.StaffNotOwned }],
+  [StaffRenewalNotDueError, { status: HttpStatus.CONFLICT, code: ErrorCode.StaffRenewalNotDue }],
+  [StaffRoleNotHireableError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.ValidationError }],
+  [
+    StaffCapacityExceededError,
+    { status: HttpStatus.CONFLICT, code: ErrorCode.StaffCapacityExceeded },
+  ],
   // claude/hizli-bitirme-plani.md'nin proje sahibi tarafından
   // önceliklendirdiği Ekipman dilimi (bu turda EKLENDİ) — `InvalidTraining
   // InputError` ile AYNI gerekçe (Hata 7 savunması, gerçek bir DOĞRULAMA
   // hatası), 400.
   [InvalidEquipmentInputError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.ValidationError }],
   // `HorseNotFoundError`/`ListingNotFoundError` ile AYNI kategori (bulunamayan bir kaynak), 404.
-  [HorseEquipmentNotFoundError, { status: HttpStatus.NOT_FOUND, code: ErrorCode.HorseEquipmentNotFound }],
+  [
+    HorseEquipmentNotFoundError,
+    { status: HttpStatus.NOT_FOUND, code: ErrorCode.HorseEquipmentNotFound },
+  ],
   // brief §32 "Çiftlik" (bu turda EKLENDİ) — bkz. `domain/farm/errors.ts`.
   // `MaxStableLevelReachedError` ile AYNI gerekçe: "zaten en yüksek
   // seviyede" mevcut duruma bağlı, GEÇİCİ bir engeldir (config'e yeni bir
   // seviye eklenirse ortadan kalkar) — kalıcı bir doğrulama hatası DEĞİL,
   // 409 Conflict. `ErrorCode.MaxFacilityLevelReached` FAZ 0'dan beri
   // taslakta duruyordu, ilk kez burada gerçekten kullanılıyor.
-  [MaxFacilityLevelReachedError, { status: HttpStatus.CONFLICT, code: ErrorCode.MaxFacilityLevelReached }],
+  [
+    MaxFacilityLevelReachedError,
+    { status: HttpStatus.CONFLICT, code: ErrorCode.MaxFacilityLevelReached },
+  ],
+  [FacilityInactiveError, { status: HttpStatus.CONFLICT, code: ErrorCode.FacilityInactive }],
   // `InvalidTrainingInputError`/`InvalidCareInputError`/`InvalidEquipmentInputError`
   // ile AYNI kategori — gerçek bir DOĞRULAMA hatası (Hata 7 ilkesi), 400.
   [InvalidFacilityTypeError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.ValidationError }],
@@ -461,12 +730,21 @@ const DOMAIN_ERROR_MAP = new Map<ErrorClassConstructor, { status: number; code: 
   // "Stok bitti" ve "günlük sınır doldu" GEÇİCİDİR (satın alarak / pencere
   // kayarak çözülür) — `InsufficientFundsError`/`CareActionOnCooldownError`
   // ile AYNI gerekçeyle 409 Conflict, 400 DEĞİL.
-  [InsufficientFeedStockError, { status: HttpStatus.CONFLICT, code: ErrorCode.InsufficientFeedStock }],
-  [DailyFeedLimitReachedError, { status: HttpStatus.CONFLICT, code: ErrorCode.DailyFeedLimitReached }],
+  [
+    InsufficientFeedStockError,
+    { status: HttpStatus.CONFLICT, code: ErrorCode.InsufficientFeedStock },
+  ],
+  [
+    DailyFeedLimitReachedError,
+    { status: HttpStatus.CONFLICT, code: ErrorCode.DailyFeedLimitReached },
+  ],
   // Bunlar ise KALICI istemci hatalarıdır (var olmayan bir işlem / bozuk
   // gövde alanı) — 400.
   [FeedNotPurchasableError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.FeedNotPurchasable }],
-  [InvalidFeedPurchaseCountError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.InvalidFeedPurchaseCount }],
+  [
+    InvalidFeedPurchaseCountError,
+    { status: HttpStatus.BAD_REQUEST, code: ErrorCode.InvalidFeedPurchaseCount },
+  ],
   // ÇİFTLEŞTİRME (proje sahibinin talebi, 27.09.2026 — soy ağacı veri
   // zincirinin ÜÇÜNCÜ parçası). `NotEligibleForBreeding` kodu
   // `packages/shared-types`'ta FAZ 3'ten beri taslakta duruyordu, ilk kez
@@ -479,7 +757,10 @@ const DOMAIN_ERROR_MAP = new Map<ErrorClassConstructor, { status: number; code: 
   // kendiliğinden ya da atın durumu değişince kalkar. Bu yüzden 409
   // Conflict, 400 DEĞİL (`HorseInjuredError`/`CareActionOnCooldownError`
   // ile AYNI gerekçe).
-  [NotEligibleForBreedingError, { status: HttpStatus.CONFLICT, code: ErrorCode.NotEligibleForBreeding }],
+  [
+    NotEligibleForBreedingError,
+    { status: HttpStatus.CONFLICT, code: ErrorCode.NotEligibleForBreeding },
+  ],
   // 403 — `ForbiddenError` ile AYNI kategori (kimlik doğrulandı, yetki
   // yok): istek GEÇERLİ, at VAR, ama kısrak çağıranın değil. `MareNotOwnedError`
   // doc yorumu bu durumun neden YALNIZCA kısrak için geçerli olduğunu
@@ -497,7 +778,10 @@ const DOMAIN_ERROR_MAP = new Map<ErrorClassConstructor, { status: number; code: 
   //
   // 400 — `InvalidRaceDefinitionError` ile AYNI kategori: istek KALICI
   // olarak bozuk (aynı isteği tekrarlamak düzeltmez).
-  [InvalidRaceJoinInputError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.InvalidRaceJoinInput }],
+  [
+    InvalidRaceJoinInputError,
+    { status: HttpStatus.BAD_REQUEST, code: ErrorCode.InvalidRaceJoinInput },
+  ],
   // 403 — `ForbiddenError`/`MareNotOwnedError` ile AYNI kategori: istek
   // kusursuz, at VAR, ama oyuncunun değil. At kimliği bu uçta URL'de
   // DEĞİL gövdede olduğu için `HorseOwnerGuardByParam` devrede DEĞİLDİR;
@@ -513,13 +797,19 @@ const DOMAIN_ERROR_MAP = new Map<ErrorClassConstructor, { status: number; code: 
   //
   // 400 — `InvalidRaceJoinInputError` ile AYNI kategori (istek kalıcı
   // olarak bozuk; `status` alanı `ready`/`not_ready` değil).
-  [InvalidEntryReadyInputError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.InvalidEntryReadyInput }],
+  [
+    InvalidEntryReadyInputError,
+    { status: HttpStatus.BAD_REQUEST, code: ErrorCode.InvalidEntryReadyInput },
+  ],
   // 404 — `RaceNotFoundError`/`ListingNotFoundError` ile AYNI kategori:
   // üzerinde işlem yapılacak KAYNAK yok (burada: oyuncunun katılım satırı).
   // 403 DEĞİL — gerekçe `RaceEntryNotFoundError` doc yorumunda.
   [RaceEntryNotFoundError, { status: HttpStatus.NOT_FOUND, code: ErrorCode.RaceEntryNotFound }],
   // 409 — `RaceNotJoinableError` ile AYNI gerekçe: engelleyen şey DURUM.
-  [RaceEntryNotReadyableError, { status: HttpStatus.CONFLICT, code: ErrorCode.RaceEntryNotReadyable }],
+  [
+    RaceEntryNotReadyableError,
+    { status: HttpStatus.CONFLICT, code: ErrorCode.RaceEntryNotReadyable },
+  ],
   // PHASE 4c (yarıştan AYRILMA + iade, brief §20 REFUND) — ikisi de
   // yukarıdaki 409 kategorisinin TEKRARIDIR, yeni bir sınıflandırma
   // getirmez:
@@ -527,7 +817,10 @@ const DOMAIN_ERROR_MAP = new Map<ErrorClassConstructor, { status: number; code: 
   // `RaceEntryNotLeavableError` — engelleyen şey yarışın/katılımın
   // DURUMUdur (başladı, iptal edilmiş ya da `scheduled` değil). İstek
   // biçimsel olarak kusursuz ve kaynak vardır → 400/404 DEĞİL.
-  [RaceEntryNotLeavableError, { status: HttpStatus.CONFLICT, code: ErrorCode.RaceEntryNotLeavable }],
+  [
+    RaceEntryNotLeavableError,
+    { status: HttpStatus.CONFLICT, code: ErrorCode.RaceEntryNotLeavable },
+  ],
   // `RaceEntryCancelledError` — katılım DAHA ÖNCE iptal edilmiş, yani
   // yeniden katılma engeli KALICI bir durumdur (`AlreadyJoinedRaceError`
   // ile AYNI 409 ailesi, farklı ve daha doğru mesaj).
@@ -539,6 +832,26 @@ const DOMAIN_ERROR_MAP = new Map<ErrorClassConstructor, { status: number; code: 
   // (ikinci çağrı `NOT_SCHEDULED` alır) — bkz. `ErrorCode.RaceNotSettleable`
   // doc yorumu.
   [RaceNotSettleableError, { status: HttpStatus.CONFLICT, code: ErrorCode.RaceNotSettleable }],
+  [
+    InvalidPlayerControlError,
+    { status: HttpStatus.BAD_REQUEST, code: ErrorCode.InvalidPlayerControl },
+  ],
+  [
+    InteractiveRaceNotFoundError,
+    { status: HttpStatus.NOT_FOUND, code: ErrorCode.InteractiveRaceNotFound },
+  ],
+  [
+    InteractiveRaceInProgressError,
+    { status: HttpStatus.CONFLICT, code: ErrorCode.InteractiveRaceInProgress },
+  ],
+  [
+    InteractiveRaceNotFinishedError,
+    { status: HttpStatus.CONFLICT, code: ErrorCode.InteractiveRaceNotFinished },
+  ],
+  [
+    InteractiveRaceClosedError,
+    { status: HttpStatus.CONFLICT, code: ErrorCode.InteractiveRaceClosed },
+  ],
   // SANAL PARA YATIRMA (brief §20 DEPOSIT, §21/§41, §42 PHASE 4b) — iki
   // hata da yeni bir sınıflandırma getirmez, mevcut kategorilerin
   // tekrarıdır (gerekçeler `packages/shared-types/src/error-codes.ts`'te
@@ -552,7 +865,10 @@ const DOMAIN_ERROR_MAP = new Map<ErrorClassConstructor, { status: number; code: 
   // 400 — `InvalidGiftAmountError` ile AYNI kategori (gerçek, KALICI bir
   // doğrulama hatası; aynı isteği tekrarlamak düzeltmez) ve AYNI desen
   // (üç neden → tek kod; ayrım yalnızca mesajdadır).
-  [InvalidDepositAmountError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.InvalidDepositAmount }],
+  [
+    InvalidDepositAmountError,
+    { status: HttpStatus.BAD_REQUEST, code: ErrorCode.InvalidDepositAmount },
+  ],
   // 30.09.2026 — bozuk sayfa imleci (varsayılana DÜŞÜLMEZ, bkz. sınıf doc yorumu).
   [InvalidWalletCursorError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.ValidationError }],
 ]);
@@ -566,10 +882,20 @@ export class HttpExceptionFilter implements ExceptionFilter {
   catch(exception: unknown, host: ArgumentsHost): void {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
+    // 02.10.2026 (Faz 13-A) — her hata zarfı istek kimliğini taşır
+    // (`RequestIdMiddleware`); kullanıcı destek talebinde bunu verir.
+    const requestId = ctx.getRequest<RequestWithId | undefined>()?.requestId;
+    const withId = <T extends object>(error: T): T & { requestId?: string } =>
+      requestId === undefined ? error : { ...error, requestId };
 
     if (exception instanceof HorseNotReadyForTrainingError) {
-      const code = exception.reason === 'INSUFFICIENT_ENERGY' ? ErrorCode.InsufficientEnergy : ErrorCode.HorseTooTired;
-      response.status(HttpStatus.CONFLICT).json({ success: false, error: { code, message: exception.message } });
+      const code =
+        exception.reason === 'INSUFFICIENT_ENERGY'
+          ? ErrorCode.InsufficientEnergy
+          : ErrorCode.HorseTooTired;
+      response
+        .status(HttpStatus.CONFLICT)
+        .json({ success: false, error: withId({ code, message: exception.message }) });
       return;
     }
 
@@ -589,7 +915,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
       } as const;
       response.status(HttpStatus.CONFLICT).json({
         success: false,
-        error: { code: codeByReason[exception.reason], message: exception.message },
+        error: withId({ code: codeByReason[exception.reason], message: exception.message }),
       });
       return;
     }
@@ -601,7 +927,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
       response.setHeader('Retry-After', String(exception.retryAfterSeconds));
       response.status(HttpStatus.TOO_MANY_REQUESTS).json({
         success: false,
-        error: { code: ErrorCode.RateLimitExceeded, message: exception.message },
+        error: withId({ code: ErrorCode.RateLimitExceeded, message: exception.message }),
       });
       return;
     }
@@ -610,7 +936,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
       if (exception instanceof ErrorClass) {
         response.status(mapping.status).json({
           success: false,
-          error: { code: mapping.code, message: (exception as Error).message },
+          error: withId({ code: mapping.code, message: (exception as Error).message }),
         });
         return;
       }
@@ -626,22 +952,30 @@ export class HttpExceptionFilter implements ExceptionFilter {
 
       response.status(status).json({
         success: false,
-        error: {
+        error: withId({
           code: status === HttpStatus.BAD_REQUEST ? ErrorCode.ValidationError : ErrorCode.NotFound,
           message: Array.isArray(message) ? message.join(', ') : message,
-        },
+        }),
       });
       return;
     }
 
-    // eslint-disable-next-line no-console
-    console.error('Beklenmeyen hata:', exception);
+    // Yığın izi YALNIZCA raporlayıcıya gider, istemciye ASLA (genel mesaj +
+    // istek kimliği). Raporlayıcı varsayılan olarak yapılandırılmış log
+    // yazar; hata izleme hizmeti seçilince oraya takılır (Faz 13-C).
+    const request = ctx.getRequest<RequestWithId | undefined>();
+    reportError(exception, {
+      source: 'server',
+      requestId,
+      method: request?.method,
+      path: request?.originalUrl?.split('?')[0],
+    });
     response.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
       success: false,
-      error: {
+      error: withId({
         code: 'INTERNAL_ERROR',
         message: 'Beklenmeyen bir hata oluştu.',
-      },
+      }),
     });
   }
 }

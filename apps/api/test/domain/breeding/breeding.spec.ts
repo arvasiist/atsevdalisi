@@ -9,7 +9,11 @@ import {
   type BreedHorsesInput,
   type BreedingCandidate,
 } from '../../../src/domain/breeding/breeding';
-import { HORSE_WEIGHT_MAX_KG, HORSE_WEIGHT_MIN_KG, HORSE_WEIGHT_POPULATION_MEAN_KG } from '../../../src/domain/horse/weight';
+import {
+  HORSE_WEIGHT_MAX_KG,
+  HORSE_WEIGHT_MIN_KG,
+  HORSE_WEIGHT_POPULATION_MEAN_KG,
+} from '../../../src/domain/horse/weight';
 import { NotEligibleForBreedingError } from '../../../src/domain/breeding/errors';
 import geneticsConfigJson from '../../../../../config/genetics.config.json';
 import horseGrowthConfigJson from '../../../../../config/horse-growth.config.json';
@@ -65,7 +69,11 @@ describe('breedHorses', () => {
 
   it('farklı seed farklı bir sonuç üretir', () => {
     const resultA = breedHorses(baseInput, geneticsConfig, growthConfig);
-    const resultC = breedHorses({ ...baseInput, seed: 'different-seed' }, geneticsConfig, growthConfig);
+    const resultC = breedHorses(
+      { ...baseInput, seed: 'different-seed' },
+      geneticsConfig,
+      growthConfig,
+    );
     expect(resultA.foalStats).not.toEqual(resultC.foalStats);
   });
 
@@ -83,7 +91,8 @@ describe('breedHorses', () => {
 
   it('tayın potansiyeli ebeveyn ortalamasının üst sınırını asla aşmaz', () => {
     const result = breedHorses(baseInput, geneticsConfig, growthConfig);
-    const cap = ((mare.potential + stallion.potential) / 2) * geneticsConfig.maxPotentialGainOverParents;
+    const cap =
+      ((mare.potential + stallion.potential) / 2) * geneticsConfig.maxPotentialGainOverParents;
     expect(result.foalPotential).toBeLessThanOrEqual(cap + 1e-9);
   });
 
@@ -97,10 +106,22 @@ describe('breedHorses', () => {
   });
 
   it('ortak ataya sahip bir çift için inbreeding tespit eder ve riski artırır', () => {
-    const shared = { horseId: 'x', sireId: 'common-ancestor', damId: null, grandSireId: null, grandDamId: null, bloodline: null };
+    const shared = {
+      horseId: 'x',
+      sireId: 'common-ancestor',
+      damId: null,
+      grandSireId: null,
+      grandDamId: null,
+      bloodline: null,
+    };
     const normal = breedHorses(baseInput, geneticsConfig, growthConfig);
     const inbred = breedHorses(
-      { ...baseInput, foalId: 'foal-inbred', marePedigree: shared, stallionPedigree: { ...shared, horseId: 'y' } },
+      {
+        ...baseInput,
+        foalId: 'foal-inbred',
+        marePedigree: shared,
+        stallionPedigree: { ...shared, horseId: 'y' },
+      },
       geneticsConfig,
       growthConfig,
     );
@@ -114,7 +135,11 @@ describe('breedHorses', () => {
   ])('uygun olmayan çift için %s hatası fırlatır', (reason, testMare, testStallion) => {
     let thrown: unknown;
     try {
-      breedHorses({ ...baseInput, mare: testMare, stallion: testStallion }, geneticsConfig, growthConfig);
+      breedHorses(
+        { ...baseInput, mare: testMare, stallion: testStallion },
+        geneticsConfig,
+        growthConfig,
+      );
     } catch (err) {
       thrown = err;
     }
@@ -124,14 +149,16 @@ describe('breedHorses', () => {
 
   it('kısrak cooldown süresindeyse hata fırlatır', () => {
     const recentFoaling = new Date(now.getTime() - 10 * 24 * 60 * 60 * 1000); // 10 gün önce, cooldown 180 gün
-    expect(() => breedHorses({ ...baseInput, mareLastFoaledAt: recentFoaling }, geneticsConfig, growthConfig)).toThrow(
-      NotEligibleForBreedingError,
-    );
+    expect(() =>
+      breedHorses({ ...baseInput, mareLastFoaledAt: recentFoaling }, geneticsConfig, growthConfig),
+    ).toThrow(NotEligibleForBreedingError);
   });
 
   it('cooldown süresi geçtiyse tekrar üremeye izin verir', () => {
     const oldFoaling = new Date(now.getTime() - 200 * 24 * 60 * 60 * 1000); // 200 gün önce, cooldown 180 gün
-    expect(() => breedHorses({ ...baseInput, mareLastFoaledAt: oldFoaling }, geneticsConfig, growthConfig)).not.toThrow();
+    expect(() =>
+      breedHorses({ ...baseInput, mareLastFoaledAt: oldFoaling }, geneticsConfig, growthConfig),
+    ).not.toThrow();
   });
 
   /** R4 — Carried Weight, tay ağırlığı kalıtımı (bu turda EKLENDİ). */
@@ -149,16 +176,26 @@ describe('breedHorses', () => {
       // GEREKMEDEN doğrudan bu bilinen değerler kullanılır.
       const parentAverage = (470 + 530) / 2; // 500
       // Bates(3) dağılımı [meanKg - stdDevKg*3, meanKg + stdDevKg*3] pratik aralığının DIŞINA neredeyse hiç çıkmaz.
-      expect(result.foalWeightKg).toBeGreaterThanOrEqual(parentAverage - FOAL_WEIGHT_STD_DEV_KG * 3);
+      expect(result.foalWeightKg).toBeGreaterThanOrEqual(
+        parentAverage - FOAL_WEIGHT_STD_DEV_KG * 3,
+      );
       expect(result.foalWeightKg).toBeLessThanOrEqual(parentAverage + FOAL_WEIGHT_STD_DEV_KG * 3);
     });
 
     it('bir ebeveynin weightKg değeri null ise (eski/legacy veri) nüfus ortalamasını (495kg) yedek değer olarak kullanır (! non-null assertion kullanılmadan gerçek bir guard ile)', () => {
       const mareWithNullWeight: BreedingCandidate = { ...mare, weightKg: null };
-      const result = breedHorses({ ...baseInput, mare: mareWithNullWeight }, geneticsConfig, growthConfig);
+      const result = breedHorses(
+        { ...baseInput, mare: mareWithNullWeight },
+        geneticsConfig,
+        growthConfig,
+      );
       const expectedParentAverage = (HORSE_WEIGHT_POPULATION_MEAN_KG + 530) / 2;
-      expect(result.foalWeightKg).toBeGreaterThanOrEqual(expectedParentAverage - FOAL_WEIGHT_STD_DEV_KG * 3);
-      expect(result.foalWeightKg).toBeLessThanOrEqual(expectedParentAverage + FOAL_WEIGHT_STD_DEV_KG * 3);
+      expect(result.foalWeightKg).toBeGreaterThanOrEqual(
+        expectedParentAverage - FOAL_WEIGHT_STD_DEV_KG * 3,
+      );
+      expect(result.foalWeightKg).toBeLessThanOrEqual(
+        expectedParentAverage + FOAL_WEIGHT_STD_DEV_KG * 3,
+      );
     });
 
     it('aynı seed + aynı ebeveyn çifti her zaman aynı foalWeightKg üretir (determinism)', () => {
@@ -181,7 +218,9 @@ describe('breedHorses', () => {
 describe('calculateStudFee', () => {
   it('aygırın kalite+potansiyel ortalamasına göre ücret hesaplar', () => {
     const fee = calculateStudFee(stallion, geneticsConfig);
-    expect(fee).toBe(Math.round(((stallion.quality + stallion.potential) / 2) * geneticsConfig.studFeeMultiplier));
+    expect(fee).toBe(
+      Math.round(((stallion.quality + stallion.potential) / 2) * geneticsConfig.studFeeMultiplier),
+    );
     expect(fee).toBeGreaterThan(0);
   });
 });
@@ -223,22 +262,44 @@ describe('assertBreedingConfigIsValid', () => {
 
   it('minBreedingAgeMonths > maxBreedingAgeMonths ise fırlatır (hiçbir at üreyemezdi)', () => {
     expect(() =>
-      assertBreedingConfigIsValid({ ...geneticsConfig, minBreedingAgeMonths: 200, maxBreedingAgeMonths: 100 }),
+      assertBreedingConfigIsValid({
+        ...geneticsConfig,
+        minBreedingAgeMonths: 200,
+        maxBreedingAgeMonths: 100,
+      }),
     ).toThrow(/minBreedingAgeMonths/);
   });
 
-  it.each([0, -1, 1.5])('breedingCooldownDays = %s ise fırlatır (cooldown sessizce kapanırdı)', (value) => {
-    expect(() => assertBreedingConfigIsValid({ ...geneticsConfig, breedingCooldownDays: value })).toThrow(
-      /breedingCooldownDays/,
-    );
-  });
+  it.each([0, -1, 1.5])(
+    'breedingCooldownDays = %s ise fırlatır (cooldown sessizce kapanırdı)',
+    (value) => {
+      expect(() =>
+        assertBreedingConfigIsValid({ ...geneticsConfig, breedingCooldownDays: value }),
+      ).toThrow(/breedingCooldownDays/);
+    },
+  );
 
   it.each([Number.NaN, Number.POSITIVE_INFINITY, -1])(
     'studFeeMultiplier = %s ise fırlatır (damızlık ücreti NaN olur, defter satırı yazılamazdı)',
     (value) => {
-      expect(() => assertBreedingConfigIsValid({ ...geneticsConfig, studFeeMultiplier: value })).toThrow(
-        /studFeeMultiplier/,
-      );
+      expect(() =>
+        assertBreedingConfigIsValid({ ...geneticsConfig, studFeeMultiplier: value }),
+      ).toThrow(/studFeeMultiplier/);
     },
   );
+});
+
+describe('üreme merkezi çarpanı (01.10.2026)', () => {
+  it('doğum sağlık riski çarpanla ölçeklenir; geri kalan sonuç aynen kalır', () => {
+    const plain = breedHorses(baseInput, geneticsConfig, growthConfig);
+    const helped = breedHorses(
+      { ...baseInput, birthHealthRiskMultiplier: 0.85 },
+      geneticsConfig,
+      growthConfig,
+    );
+    expect(plain.birthHealthRisk).toBeGreaterThan(0);
+    expect(helped.birthHealthRisk).toBeCloseTo(plain.birthHealthRisk * 0.85, 12);
+    expect(helped.foalStats).toEqual(plain.foalStats);
+    expect(helped.foalQuality).toBe(plain.foalQuality);
+  });
 });

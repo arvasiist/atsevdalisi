@@ -1,9 +1,10 @@
 import { BadRequestException, Body, Controller, Delete, Get, Headers, HttpCode, HttpStatus, Inject, Param, ParseUUIDPipe, Post, Query, UseGuards, UseInterceptors } from '@nestjs/common';
 import { isUUID } from 'class-validator';
-import type { ApiSuccess, ListingStatus, MarketListing } from '@at-sevdalisi/shared-types';
+import type { ApiSuccess, ListingStatus, MarketListing, PlaceBidResult } from '@at-sevdalisi/shared-types';
 import { BuyMarketListingUseCase, type BuyMarketListingResult } from '../../application/use-cases/buy-market-listing.use-case';
 import { CancelMarketListingUseCase } from '../../application/use-cases/cancel-market-listing.use-case';
 import { CreateMarketListingUseCase } from '../../application/use-cases/create-market-listing.use-case';
+import { MarketAuctionUseCase } from '../../application/use-cases/market-auction.use-case';
 import { GetMarketListingUseCase } from '../../application/use-cases/get-market-listing.use-case';
 import { ListMarketListingsBySellerUseCase } from '../../application/use-cases/list-market-listings-by-seller.use-case';
 import { ListMarketListingsUseCase } from '../../application/use-cases/list-market-listings.use-case';
@@ -83,6 +84,7 @@ export class MarketController {
     @Inject(ListMarketListingsUseCase) private readonly listMarketListingsUseCase: ListMarketListingsUseCase,
     @Inject(ListMarketListingsBySellerUseCase)
     private readonly listMarketListingsBySellerUseCase: ListMarketListingsBySellerUseCase,
+    @Inject(MarketAuctionUseCase) private readonly marketAuctionUseCase: MarketAuctionUseCase,
   ) {}
 
   // `PlayerController.register` ile AYNI gerekçeyle 201 Created — bu,
@@ -110,6 +112,7 @@ export class MarketController {
       horseId: dto.horseId,
       price: dto.price,
       expiresInHours: dto.expiresInHours,
+      listingType: dto.listingType,
     });
     return { success: true, data: listing };
   }
@@ -217,6 +220,22 @@ export class MarketController {
 
   // AUDIT_REPORT.md Bulgu S4 hardening (bu oturum) — `ListingOwnerGuard`
   // (bkz. o dosyanın doc yorumu): yalnızca KENDİ ilanını iptal edebilir.
+  /**
+   * 02.10.2026 — MÜZAYEDE TEKLİFİ (PARA YOLU). `Idempotency-Key` YOK: aynı
+   * teklifin tekrarı kendi teklifinin altında kalır ve `BID_TOO_LOW` ile düşer.
+   */
+  @RateLimit({ name: 'market-bid', limit: 30, windowSeconds: 60, keyBy: 'player' })
+  @Post('listings/:id/bids')
+  @HttpCode(HttpStatus.OK)
+  async placeBid(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() body: { amount?: unknown },
+    @CurrentPlayer() currentPlayer: AuthenticatedPlayer,
+  ): Promise<ApiSuccess<PlaceBidResult>> {
+    const result = await this.marketAuctionUseCase.placeBid(id, currentPlayer.id, body?.amount);
+    return { success: true, data: result };
+  }
+
   @UseGuards(ListingOwnerGuard)
   @Delete('listings/:id')
   @HttpCode(HttpStatus.OK)

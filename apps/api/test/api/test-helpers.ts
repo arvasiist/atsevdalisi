@@ -1,3 +1,5 @@
+import { loadOpsConfig } from '@at-sevdalisi/game-config';
+import { RedisIoAdapter } from '../../src/infrastructure/realtime/redis-io.adapter';
 import { randomUUID } from 'node:crypto';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test, type TestingModuleBuilder } from '@nestjs/testing';
@@ -22,6 +24,8 @@ export async function bootstrapTestApp(
   // 01.10.2026 — bir sağlayıcıyı sahtesiyle değiştirmek için (örn. Google'ın
   // belge doğrulayıcısı: testte gerçek Google belgesi üretilemez).
   configure: (builder: TestingModuleBuilder) => TestingModuleBuilder = (builder) => builder,
+  // 02.10.2026 — çok örnekli testler: Socket.IO Redis köprüsüyle kur (main.ts ile aynı sınıf).
+  options: { redisAdapter?: boolean } = {},
 ): Promise<INestApplication> {
   const moduleRef = await configure(
     Test.createTestingModule({
@@ -37,7 +41,18 @@ export async function bootstrapTestApp(
   // kaydı burada da yapılır (bkz. o dosyanın doc yorumu) — yalnızca
   // `realtime.e2e-spec.ts` bunu GERÇEKTEN kullanır (`app.listen(0)` ile),
   // diğer e2e dosyaları için etkisizdir.
-  app.useWebSocketAdapter(new IoAdapter(app));
+  if (options.redisAdapter) {
+    const realtime = loadOpsConfig().realtime.redisAdapter;
+    const adapter = new RedisIoAdapter(app, {
+      redisUrl: process.env.REDIS_URL ?? 'redis://localhost:6379',
+      requestsTimeoutMs: realtime.requestsTimeoutMs,
+      channelPrefix: realtime.channelPrefix,
+    });
+    await adapter.connectToRedis();
+    app.useWebSocketAdapter(adapter);
+  } else {
+    app.useWebSocketAdapter(new IoAdapter(app));
+  }
   await app.init();
 
   // CI #106 kırmızı araştırması (bu oturum) — `race.e2e-spec.ts`'in n=100

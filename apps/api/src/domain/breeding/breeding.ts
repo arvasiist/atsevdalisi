@@ -8,7 +8,12 @@
 import { createSeededRandom } from '@at-sevdalisi/shared-types';
 import type { GeneticsConfig, HorseGrowthConfig } from '@at-sevdalisi/game-config';
 import type { HorseGender, HorseStatus, Pedigree } from '@at-sevdalisi/shared-types';
-import { calculateChildPotential, calculateChildStat, calculateMutation, generateInheritanceSplit } from './genetics';
+import {
+  calculateChildPotential,
+  calculateChildStat,
+  calculateMutation,
+  generateInheritanceSplit,
+} from './genetics';
 import {
   calculateBirthHealthRisk,
   calculateParentAgeFactor,
@@ -63,14 +68,22 @@ export function assertBreedingEligibility(
   if (mare.status !== 'active' || stallion.status !== 'active') {
     throw new NotEligibleForBreedingError('NOT_ACTIVE');
   }
-  if (mare.ageMonths < config.minBreedingAgeMonths || stallion.ageMonths < config.minBreedingAgeMonths) {
+  if (
+    mare.ageMonths < config.minBreedingAgeMonths ||
+    stallion.ageMonths < config.minBreedingAgeMonths
+  ) {
     throw new NotEligibleForBreedingError('TOO_YOUNG');
   }
-  if (mare.ageMonths > config.maxBreedingAgeMonths || stallion.ageMonths > config.maxBreedingAgeMonths) {
+  if (
+    mare.ageMonths > config.maxBreedingAgeMonths ||
+    stallion.ageMonths > config.maxBreedingAgeMonths
+  ) {
     throw new NotEligibleForBreedingError('TOO_OLD');
   }
   if (mareLastFoaledAt !== null) {
-    const cooldownEndsAt = new Date(mareLastFoaledAt.getTime() + config.breedingCooldownDays * 24 * 60 * 60 * 1000);
+    const cooldownEndsAt = new Date(
+      mareLastFoaledAt.getTime() + config.breedingCooldownDays * 24 * 60 * 60 * 1000,
+    );
     if (now.getTime() < cooldownEndsAt.getTime()) {
       throw new NotEligibleForBreedingError('MARE_ON_COOLDOWN');
     }
@@ -78,7 +91,10 @@ export function assertBreedingEligibility(
 }
 
 /** Damızlık ücreti = ((aygır kalitesi + potansiyeli) / 2) × `studFeeMultiplier` (brief §31 "Yetiştiricilik" gider kalemi). */
-export function calculateStudFee(stallion: Pick<BreedingCandidate, 'quality' | 'potential'>, config: GeneticsConfig): number {
+export function calculateStudFee(
+  stallion: Pick<BreedingCandidate, 'quality' | 'potential'>,
+  config: GeneticsConfig,
+): number {
   return Math.round(((stallion.quality + stallion.potential) / 2) * config.studFeeMultiplier);
 }
 
@@ -92,6 +108,12 @@ export interface BreedHorsesInput {
   now: Date;
   /** Determinizm için (brief §18, GENETICS.md §8): aynı seed + aynı ebeveyn çifti → aynı sonuç. */
   seed: string;
+  /**
+   * 01.10.2026 — kısrak sahibinin üreme merkezi çarpanı
+   * (`FarmEffects.birthHealthRiskMultiplier`, [0.5, 1]); verilmezse 1.
+   * Formülün kendi çarpanlarını DEĞİŞTİRMEZ, sonuca ek bir çarpandır.
+   */
+  birthHealthRiskMultiplier?: number;
 }
 
 export interface BreedHorsesResult {
@@ -128,7 +150,10 @@ export const FOAL_GENDERS = ['mare', 'stallion'] as const;
  * üretip geçirir).
  */
 export function pickFoalGender(randomValue: number): HorseGender {
-  const index = Math.min(FOAL_GENDERS.length - 1, Math.max(0, Math.floor(randomValue * FOAL_GENDERS.length)));
+  const index = Math.min(
+    FOAL_GENDERS.length - 1,
+    Math.max(0, Math.floor(randomValue * FOAL_GENDERS.length)),
+  );
   return FOAL_GENDERS[index]!;
 }
 
@@ -191,8 +216,18 @@ export function assertBreedingConfigIsValid(config: GeneticsConfig): void {
  * (bkz. `domain/horse/weight.ts` `generateBellCurveWeightKg`,
  * `FOAL_WEIGHT_STD_DEV_KG`).
  */
-export function breedHorses(input: BreedHorsesInput, geneticsConfig: GeneticsConfig, growthConfig: HorseGrowthConfig): BreedHorsesResult {
-  assertBreedingEligibility(input.mare, input.stallion, input.mareLastFoaledAt, input.now, geneticsConfig);
+export function breedHorses(
+  input: BreedHorsesInput,
+  geneticsConfig: GeneticsConfig,
+  growthConfig: HorseGrowthConfig,
+): BreedHorsesResult {
+  assertBreedingEligibility(
+    input.mare,
+    input.stallion,
+    input.mareLastFoaledAt,
+    input.now,
+    geneticsConfig,
+  );
 
   const rng = createSeededRandom(`${input.seed}:breeding:${input.mare.id}:${input.stallion.id}`);
 
@@ -207,10 +242,20 @@ export function breedHorses(input: BreedHorsesInput, geneticsConfig: GeneticsCon
 
   const qualitySplit = generateInheritanceSplit(rng, geneticsConfig);
   const qualityMutation = calculateMutation(rng, geneticsConfig);
-  const foalQuality = calculateChildStat(input.mare.quality, input.stallion.quality, qualitySplit, qualityMutation);
+  const foalQuality = calculateChildStat(
+    input.mare.quality,
+    input.stallion.quality,
+    qualitySplit,
+    qualityMutation,
+  );
 
   const potentialMutation = calculateMutation(rng, geneticsConfig);
-  const foalPotential = calculateChildPotential(input.mare.potential, input.stallion.potential, potentialMutation, geneticsConfig);
+  const foalPotential = calculateChildPotential(
+    input.mare.potential,
+    input.stallion.potential,
+    potentialMutation,
+    geneticsConfig,
+  );
 
   // `weightKg` `null` olabilir (eski/legacy veri, backfill'den ÖNCEki
   // teorik bir ebeveyn) — bkz. `BreedingCandidate.weightKg` doc yorumu.
@@ -219,17 +264,48 @@ export function breedHorses(input: BreedHorsesInput, geneticsConfig: GeneticsCon
   const mareWeightKg = input.mare.weightKg ?? HORSE_WEIGHT_POPULATION_MEAN_KG;
   const stallionWeightKg = input.stallion.weightKg ?? HORSE_WEIGHT_POPULATION_MEAN_KG;
   const parentAverageWeightKg = (mareWeightKg + stallionWeightKg) / 2;
-  const foalWeightKg = generateBellCurveWeightKg([rng(), rng(), rng()], parentAverageWeightKg, FOAL_WEIGHT_STD_DEV_KG);
-
-  const inbreeding = checkInbreeding(input.mare.id, input.marePedigree, input.stallion.id, input.stallionPedigree, geneticsConfig);
-  const parentAgeFactor = calculateParentAgeFactor(input.mare.ageMonths, input.stallion.ageMonths, growthConfig, geneticsConfig);
-  const parentHealthFactor = calculateParentHealthFactor(input.mare.health, input.stallion.health, geneticsConfig);
-  const birthHealthRisk = calculateBirthHealthRisk(
-    { parentAgeFactor, inbreedingFactor: inbreeding.factor, parentHealthFactor },
-    geneticsConfig,
+  const foalWeightKg = generateBellCurveWeightKg(
+    [rng(), rng(), rng()],
+    parentAverageWeightKg,
+    FOAL_WEIGHT_STD_DEV_KG,
   );
 
-  const foalPedigree = createFoalPedigree(input.foalId, input.mare.id, input.marePedigree, input.stallion.id, input.stallionPedigree);
+  const inbreeding = checkInbreeding(
+    input.mare.id,
+    input.marePedigree,
+    input.stallion.id,
+    input.stallionPedigree,
+    geneticsConfig,
+  );
+  const parentAgeFactor = calculateParentAgeFactor(
+    input.mare.ageMonths,
+    input.stallion.ageMonths,
+    growthConfig,
+    geneticsConfig,
+  );
+  const parentHealthFactor = calculateParentHealthFactor(
+    input.mare.health,
+    input.stallion.health,
+    geneticsConfig,
+  );
+  const birthHealthRisk = Math.min(
+    1,
+    Math.max(
+      0,
+      calculateBirthHealthRisk(
+        { parentAgeFactor, inbreedingFactor: inbreeding.factor, parentHealthFactor },
+        geneticsConfig,
+      ) * (input.birthHealthRiskMultiplier ?? 1),
+    ),
+  );
+
+  const foalPedigree = createFoalPedigree(
+    input.foalId,
+    input.mare.id,
+    input.marePedigree,
+    input.stallion.id,
+    input.stallionPedigree,
+  );
 
   return {
     foalStats,

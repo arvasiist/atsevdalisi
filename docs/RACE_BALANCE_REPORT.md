@@ -324,3 +324,78 @@ sonuca hiç girmemesi demek olurdu.
 | Kişilik (temperament) etkiliyor mu? | **Evet, ama KAPALI ödünleşimle** — erken kalkış ve final düzlüğü simetrik puan uygular, nötr rakibe karşı galibiyet payı kaymaz (PHASE 6.3, §7.4). Etkisi `temperament.spec.ts`te ölçülür |
 | `startApproach` / `finalStretchPlan` etkiliyor mu? | **Evet — `simulateRace` ikisini de okur** (PHASE 6.1, §7.3). Etkisi `tactic-effect.spec.ts`te ölçülür |
 
+
+---
+
+## 9. Oyuncu kontrolü (kırbaç / sakin) — 01.10.2026
+
+Oyuncu kontrollü pratik yarışın (§13.55) kuralları ölçülerek ayarlandı.
+Oyuncunun atı 8 atlık bot sahasında 1. at; deterministik tohumlar. Ölçüm
+kodu harness'ta (`measurePlayerControlPlan`), CI kilitleri
+`race-engine-player-control.spec.ts`te.
+
+**İlk sürümde bulunan iki açık (düzeltildi):** (1) "sakin" bedavaydı
+(yorgunluğu yarıya indiriyor, hızı düşürmüyordu) — "ilk yarı sakin + sonda
+kırbaç" yapay zekâya göre ortalama 1 sıra kazandırıyordu; (2) kırbaç ucuzdu
+— "baştan sona kırbaç" yapay zekâdan iyiydi, son düzlükte kırbaç ise sprint
+rezervi (%25) yüzünden hiç etki etmiyordu.
+
+**Yeni kurallar (`race.config.json` → `playerControl`):** sakin = −4 puan
+hız, dayanıklılık tüketimi ×0.6 · kırbaç = rezerv şartı YOK, bonus
+dayanıklılıkla orantılı ve `kırbaç^0.5` (azalan), her kırbaç 4 dayanıklılık
++ 6 KALICI yorgunluk (bir sonraki segmentten itibaren).
+
+| Strateji (1500 yarış) | 1200 m | 1600 m | 2400 m |
+|---|---|---|---|
+| Hiç dokunma (yapay zekâ) | 4.49 | 4.50 | 4.48 |
+| Son bölümde ×5 kırbaç | 4.39 | 4.44 | 4.47 |
+| Son bölümde ×20 kırbaç | 4.30 | 4.38 | 4.42 |
+| İlk yarı sakin | 4.64 | 4.23 | 3.85 |
+| Baştan sona ×1 kırbaç | 5.11 | 5.63 | 6.28 |
+| İlk 3 bölümde ×3 kırbaç | 6.77 | 7.04 | 7.19 |
+
+(ortalama bitiş sırası, düşük = iyi.) Okuma: kırbaç yalnızca sonda işe yarar;
+erken/aralıksız kırbaç ağır cezalı; tempo yönetimi uzun yarışta değerli,
+sprintte zararlı. Hiçbir basit strateji statları ezmez (en iyi kazanç
+≈ 0.6 sıra, 2400 m). **Komutsuz yarış değişmedi** (parmak izi testi).
+
+### 9.1 Yön komutu ve çok oyunculu kontrol — 02.10.2026
+
+1000 yarış, 8 atlık bot sahası, 1600 m (`measurePlayerControlPlan`,
+`measureMultiPlayerControl`; ortalama bitiş sırası, düşük = iyi):
+
+| Plan | Sıra |
+|---|---|
+| Komutsuz (yapay zekâ) | 4.49 |
+| Her bölüm sol | 4.42 |
+| Her bölüm sağ | 4.44 |
+| Zikzak | 4.47 |
+| İlk yarı sakin + sonda kırbaç | 4.20 |
+
+| Sahadaki "akıllı" sürücü sayısı | Sürücülerin ortalaması | Aynı atlar komutsuz |
+|---|---|---|
+| 1 | 4.20 | 4.49 |
+| 2 | 4.22 | 4.49 |
+| 3 | 4.29 | 4.50 |
+| 4 | 4.36 | 4.52 |
+
+Aynı sahada akıllı sürücü 3.82, erken kırbaçlayan 7.11.
+
+Okuma: yön komutu bedava hız DEĞİLDİR (±0.07). Kontrol avantajı birden çok
+sürücüde küçülür (sıfır toplamlı sıralama, beklenen) ama kaybolmaz; beceri
+farkı belirgin ödüllendirilir. Düzeltme gerekmedi. CI kilitleri:
+`race-engine-player-control.spec.ts` (yön > yapay zekâ − 0.25; dört akıllı
+sürücü komutsuzdan iyi; akıllı, pervasızdan en az 1 sıra iyi).
+
+## 10. Jokey-at uyumu — 02.10.2026
+
+`calculateJockeyHorseCompatibility` (mizaç + stil + deneyim + ortak geçmiş,
+0-100, 50 nötr) artık kadro dondurulurken jokey beceri puanını ölçekler:
+`beceri × (1 + 0.15 × (uyum − 50) / 50)` (`jockey.compatibilityInfluence`).
+Motor DEĞİŞMEDİ (parmak izi aynı); eski dondurulmuş kadrolar aynen kalır.
+
+Ölçüm (1000 yarış, 8 at, 1600 m): jokey puanının her 1 puanı ≈ 0.043 sıra
+(44 → 4.73, 50 → 4.47, 62 → 3.97, 74 → 3.53). Gerçekçi uyum aralığında
+(35-75) etki ≈ ±4.5 puan ≈ ±0.2 sıra — kırbaç stratejisinin kazancından
+(≈0.3, §9.1) küçük: hissedilir, baskın değil. Botlar nötr kalır.
+

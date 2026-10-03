@@ -1,8 +1,11 @@
-import { Module } from '@nestjs/common';
+import { Module, type MiddlewareConsumer, type NestModule } from '@nestjs/common';
+import { RequestIdMiddleware } from './api/middleware/request-id.middleware';
+import { OpsModule } from './api/ops/ops.module';
 import { AdminModule } from './api/admin/admin.module';
 import { AuthModule } from './api/auth/auth.module';
 import { BreedingModule } from './api/breeding/breeding.module';
 import { CareModule } from './api/care/care.module';
+import { ClubModule } from './api/club/club.module';
 import { EconomyModule } from './api/economy/economy.module';
 import { EquipmentModule } from './api/equipment/equipment.module';
 import { FarmModule } from './api/farm/farm.module';
@@ -19,8 +22,13 @@ import { PlayerModule } from './api/player/player.module';
 import { RateLimitModule } from './api/rate-limit/rate-limit.module';
 import { RaceModule } from './api/race/race.module';
 import { RealtimeModule } from './api/realtime/realtime.module';
+import { SeasonModule } from './api/season/season.module';
+import { QuestsModule } from './api/quests/quests.module';
+import { AchievementsModule } from './api/achievements/achievements.module';
+import { SchedulerLeaderModule } from './infrastructure/scheduler/scheduler-leader';
 import { SocialModule } from './api/social/social.module';
 import { StableModule } from './api/stable/stable.module';
+import { StaffModule } from './api/staff/staff.module';
 import { TrainingModule } from './api/training/training.module';
 import { AppConfigModule } from './infrastructure/config/config.module';
 import { TokenModule } from './infrastructure/auth/token.module';
@@ -87,6 +95,8 @@ import { RedisModule } from './infrastructure/redis/redis.module';
  */
 @Module({
   imports: [
+    // 02.10.2026 (Faz 13-C) — istemci hata raporu.
+    OpsModule,
     AppConfigModule,
     DatabaseModule,
     RedisModule,
@@ -128,6 +138,16 @@ import { RedisModule } from './infrastructure/redis/redis.module';
     // Nest modül grafiğini sıraya bakmadan çözer, bu komşuluk yalnızca
     // okunabilirlik içindir.
     GiftModule,
+    // KULÜP (brief §44, 01.10.2026) — bkz. `api/club/club.module.ts`.
+    ClubModule,
+    // PERSONEL (brief §33, 01.10.2026) — bkz. `api/staff/staff.module.ts`.
+    StaffModule,
+    // SEZON (brief §69, 01.10.2026) — bkz. `api/season/season.module.ts`.
+    SeasonModule,
+    QuestsModule,
+    AchievementsModule,
+    // 02.10.2026 — zamanlayıcı lider kilidi (çok örnekte tek koşucu).
+    SchedulerLeaderModule,
     // ÇİFTLEŞTİRME (proje sahibinin talebi — soy ağacı veri zincirinin
     // ÜÇÜNCÜ parçası; okuma yolu `HorseModule`'deki
     // `GET /horses/:id/pedigree`). `HorseModule`'ün HEMEN ardında durması
@@ -170,4 +190,10 @@ import { RedisModule } from './infrastructure/redis/redis.module';
     AdminModule,
   ],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  // 02.10.2026 (Faz 13-A) — istek kimliği HER rotada (hata zarfı + yanıt
+  // başlığı). Modülde kaydedilir ki e2e önyüklemesi de aynısını alsın.
+  configure(consumer: MiddlewareConsumer): void {
+    consumer.apply(RequestIdMiddleware).forRoutes('{*path}');
+  }
+}

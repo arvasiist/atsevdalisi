@@ -1,0 +1,8 @@
+{
+  "windowDays": 7,
+  "newAccountDays": 3,
+  "giftFunnel": { "minDistinctNewSenders": 3 },
+  "repeatTradePair": { "minTrades": 3 },
+  "newAccountOutflow": { "minMoney": 5000 },
+  "maxFindingsPerRule": 50
+}

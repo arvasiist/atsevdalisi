@@ -7,6 +7,21 @@ export type HorseGender = 'mare' | 'stallion' | 'gelding';
 export type HorseStatus = 'active' | 'injured' | 'retired' | 'resting';
 
 /** brief §7 Horse */
+/** 01.10.2026 — don rengi (3D görünüşün kaynağı; migration 0051 CHECK ile aynı küme). */
+export const HORSE_COAT_COLORS = ['bay', 'dark_bay', 'chestnut', 'black', 'grey', 'palomino'] as const;
+export type HorseCoatColor = (typeof HORSE_COAT_COLORS)[number];
+export const HORSE_FACE_MARKINGS = ['none', 'star', 'stripe', 'blaze', 'snip'] as const;
+export type HorseFaceMarking = (typeof HORSE_FACE_MARKINGS)[number];
+export const HORSE_LEG_MARKINGS = ['none', 'socks', 'stockings'] as const;
+export type HorseLegMarking = (typeof HORSE_LEG_MARKINGS)[number];
+
+/** Atın görünüşü — veritabanında saklanır, at yaşadıkça DEĞİŞMEZ. */
+export interface HorseAppearance {
+  coatColor: HorseCoatColor;
+  faceMarking: HorseFaceMarking;
+  legMarking: HorseLegMarking;
+}
+
 export interface Horse {
   id: UUID;
   ownerId: UUID;
@@ -27,6 +42,8 @@ export interface Horse {
   status: HorseStatus;
   sireId: UUID | null;
   damId: UUID | null;
+  /** 01.10.2026 — 3D sahnedeki görünüşün kaynağı (migration 0051). */
+  appearance: HorseAppearance;
   createdAt: ISODateTimeString;
   updatedAt: ISODateTimeString;
 }
@@ -157,6 +174,8 @@ export interface TrainHorseResult {
   fatigueGain: number;
   injuryOccurred: boolean;
   newStatus: Pick<Horse, 'fatigue' | 'energy' | 'morale'>;
+  /** 01.10.2026 — uygulanan antrenör çarpanı (1 = antrenörsüz). */
+  staffMultiplier: number;
 }
 
 /** brief §39 Ahır ekranı kartı için minimal görünüm. */

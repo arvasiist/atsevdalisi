@@ -1,24 +1,139 @@
 {
-  "fieldSizes": [8, 10, 12, 14, 16],
+  "fieldSizes": [
+    8,
+    10,
+    12,
+    14,
+    16
+  ],
   "minPlayers": 8,
   "maxPlayers": 16,
   "aiFillEnabled": true,
-  "paidEntryFeeOptions": [50, 100, 250, 500, 1000],
-  "tribuneFeeOptions": [0, 10, 25, 50],
-  "spectatorCapacityOptions": [500, 1000, 5000],
-  "distanceMeters": { "min": 800, "max": 3200 },
-  "nameLength": { "min": 3, "max": 60 },
-  "startDelaySeconds": { "min": 60, "max": 604800 },
+  "paidEntryFeeOptions": [
+    50,
+    100,
+    250,
+    500,
+    1000
+  ],
+  "tribuneFeeOptions": [
+    0,
+    10,
+    25,
+    50
+  ],
+  "spectatorCapacityOptions": [
+    500,
+    1000,
+    5000
+  ],
+  "distanceMeters": {
+    "min": 800,
+    "max": 3200
+  },
+  "nameLength": {
+    "min": 3,
+    "max": 60
+  },
+  "startDelaySeconds": {
+    "min": 60,
+    "max": 604800
+  },
   "maxOpenRacesPerPlayer": 3,
-  "allowedSurfaces": ["grass", "dirt", "synthetic"],
-  "allowedWeather": ["sunny", "rainy", "windy", "cloudy", "hot", "cold"],
-  "entryStatuses": ["waiting", "ready", "not_ready", "cancelled"],
+  "allowedSurfaces": [
+    "grass",
+    "dirt",
+    "synthetic"
+  ],
+  "allowedWeather": [
+    "sunny",
+    "rainy",
+    "windy",
+    "cloudy",
+    "hot",
+    "cold"
+  ],
+  "entryStatuses": [
+    "waiting",
+    "ready",
+    "not_ready",
+    "cancelled"
+  ],
   "prizeDistributionId": "top5",
   "lobbyListDefaultLimit": 20,
   "lobbyListMaxLimit": 100,
+  "spectatorWaitPollSeconds": 2,
   "lockScheduler": {
     "enabled": true,
     "tickSeconds": 5,
     "batchSize": 20
+  },
+  "calendar": {
+    "enabled": true,
+    "tickSeconds": 60,
+    "horizonHours": 3,
+    "minLeadMinutes": 10,
+    "programs": [
+      {
+        "id": "dirt-sprint",
+        "name": "Kum Sprint",
+        "intervalMinutes": 30,
+        "offsetMinutes": 0,
+        "fieldSize": 8,
+        "maxPlayers": 8,
+        "entryFee": 100,
+        "distanceMeters": 1200,
+        "surface": "dirt",
+        "weather": "sunny",
+        "tribuneFee": 10,
+        "spectatorCapacity": 1000
+      },
+      {
+        "id": "grass-mile",
+        "name": "Çim Mil (Kontrollü)",
+        "intervalMinutes": 60,
+        "offsetMinutes": 15,
+        "fieldSize": 10,
+        "maxPlayers": 10,
+        "entryFee": 250,
+        "distanceMeters": 1600,
+        "surface": "grass",
+        "weather": "sunny",
+        "tribuneFee": 25,
+        "spectatorCapacity": 5000,
+        "playerControl": true
+      },
+      {
+        "id": "open-run",
+        "name": "Açık Koşu",
+        "intervalMinutes": 20,
+        "offsetMinutes": 5,
+        "fieldSize": 8,
+        "maxPlayers": 8,
+        "entryFee": 0,
+        "distanceMeters": 1000,
+        "surface": "synthetic",
+        "weather": "cloudy",
+        "tribuneFee": 0,
+        "spectatorCapacity": 500
+      },
+      {
+        "id": "sunday-derby",
+        "name": "Pazar Derbisi",
+        "intervalMinutes": 10080,
+        "offsetMinutes": 5340,
+        "fieldSize": 12,
+        "maxPlayers": 12,
+        "entryFee": 500,
+        "distanceMeters": 2400,
+        "surface": "grass",
+        "weather": "sunny",
+        "tribuneFee": 50,
+        "spectatorCapacity": 5000,
+        "playerControl": true,
+        "featured": true,
+        "horizonHours": 48
+      }
+    ]
   }
 }

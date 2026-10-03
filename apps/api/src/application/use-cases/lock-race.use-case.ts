@@ -131,20 +131,36 @@ export class LockRaceUseCase {
     }
 
     const rejection = checkRaceLockable(
-      { status: context.status, startTime: context.startTime, joinedPlayers: context.joinedPlayers },
+      {
+        status: context.status,
+        startTime: context.startTime,
+        joinedPlayers: context.joinedPlayers,
+      },
       now,
     );
     if (rejection !== null) {
       return rejection;
     }
 
-    const entrantSnapshots: { entryId: string; snapshot: RaceEntrantSnapshot; jockeyId: string | null }[] = [];
+    const entrantSnapshots: {
+      entryId: string;
+      snapshot: RaceEntrantSnapshot;
+      jockeyId: string | null;
+    }[] = [];
     for (const entrant of context.entrants) {
       // PHASE 6.2 — builder jokeyi de çözer ve `jockeyId`yi AYNI sonuçta
       // döner: snapshot'a giren `jockeySkillComposite` ile `race_entries.
       // jockey_id`nin iki ayrı okumadan doğması imkânsız hâle gelir.
-      const built = await this.entrantSnapshotBuilder.build(entrant, context.surface, context.distanceMeters);
-      entrantSnapshots.push({ entryId: entrant.entryId, snapshot: built.snapshot, jockeyId: built.jockeyId });
+      const built = await this.entrantSnapshotBuilder.build(
+        entrant,
+        context.surface,
+        context.distanceMeters,
+      );
+      entrantSnapshots.push({
+        entryId: entrant.entryId,
+        snapshot: built.snapshot,
+        jockeyId: built.jockeyId,
+      });
     }
 
     const locked = await this.raceRepository.lockLobbyRace({
@@ -162,6 +178,7 @@ export class LockRaceUseCase {
       configVersion: this.config.race.version,
       weatherConfigVersion: this.config.weather.version,
       entrantSnapshots,
+      liveCountdownSeconds: this.config.interactiveRace.startCountdownSeconds,
     });
 
     // `false` = kilit altında durum uygun değildi (başka bir örnek önce
