@@ -460,6 +460,14 @@ maxRowsPerSection` (aşınca `truncated`). ⚠️ Oyuncuya bağlı YENİ bir ki�
 veri tablosu eklersen silme listesine ((39)) EK OLARAK
 `postgres-account-export.repository.ts` → `SECTION_SQL` ve
 `ACCOUNT_EXPORT_SECTIONS`e de ekle.
+(47) **ŞÜPHELİ DESENLER (02.10.2026, Faz 7 anti-cheat, §13.72)** — `GET
+/admin/anomalies` + `/admin` "Şüpheli" sekmesi (moderatör + yönetici,
+`anomalies.view`). Sunucu otoriter olduğu için kalan risk ÇOKLU HESAPLA DEĞER
+AKTARMAKTIR: hediye hunisi (çok sayıda YENİ hesaptan hediye), tekrarlayan
+alım-satım çifti, yeni hesaptan yüksek hediye çıkışı. Eşikler
+`config/anticheat.config.json` (başlangıç değeri; sahibi ayarlar). ⚠️ Uç
+SALT OKUR — otomatik ceza/işaret YAZMA; karar yaptırım akışıyla (denetim
+kaydıyla) verilir. "Yeni hesap" = İŞLEM ANINDA hesabın yaşı.
 
 **✅ ÜCRETLİ LOBİ YARIŞI ARTIK KOŞUYOR — ÖDÜL DAĞITIMI VAR (§13.14,
 28.09.2026).** `POST /races/:id/settle` yarışı koşar, ödülleri `top5`
@@ -875,8 +883,8 @@ Requests/Gift/Race Join → hız sınırı) **CI'da kilitlendi**:
 `apps/api/test/security/phase16-hardening.spec.ts`. Ayrıca §32'nin "spam
 engelle" maddesinin açıkta bıraktığı **üç sosyal yazma rotası** kapatıldı
 (`respondToFriendRequest`, `removeFriend`, `unblockPlayer`).
-**KALAN TEK MADDE:** anormal davranış tespiti (hız sınırı istek SAYAR,
-desen TANIMAZ) — eşikler sahibinin kararı, uydurulmadı.
+**Anormal davranış tespiti 02.10.2026'da EKLENDİ** ((47)): yalnızca
+inceleme listesi, otomatik ceza yok; eşikler config'te, sahibi ayarlar.
 
 **⚠️ `@RateLimit` OPT-IN'DİR — İŞARETLENMEYEN ROTA SINIRSIZDIR.**
 `RateLimitGuard` yalnızca `@RateLimit(...)` konmuş rotalarda devreye girer

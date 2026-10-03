@@ -2,6 +2,7 @@ import type {
   AccountDeletionCheck,
   AdminAnnouncementView,
   AdminLiveEventView,
+  AnomalyReport,
   AccountDataExport,
   QuestBoardView,
   QuestClaimResult,
@@ -1408,6 +1409,8 @@ export const apiClient = {
   claimEvent: (eventId: string) =>
     request<QuestClaimResult>(`/events/${encodeURIComponent(eventId)}/claim`, { method: 'POST' }),
   listAdminEvents: () => request<AdminLiveEventView[]>('/admin/events'),
+  /** Faz 7 — şüpheli desenler (yalnızca inceleme). */
+  getAnomalies: () => request<AnomalyReport>('/admin/anomalies'),
   createEvent: (body: {
     title: string;
     description?: string;

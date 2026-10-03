@@ -357,3 +357,38 @@ export interface AdminAnnouncementView extends AnnouncementView {
   /** Şu an oyunculara görünüyor mu (sunucu hesaplar). */
   live: boolean;
 }
+
+/**
+ * ŞÜPHELİ DESENLER (02.10.2026, Faz 7 anti-cheat). Sunucu otoriter olduğu
+ * için istemci sonucu değiştiremez; geriye kalan risk çoklu hesapla değer
+ * AKTARMAKTIR. Bulgular yalnızca İNCELEME içindir — otomatik ceza yok.
+ */
+export const ANOMALY_RULES = ['gift_funnel', 'repeat_trade_pair', 'new_account_outflow'] as const;
+export type AnomalyRule = (typeof ANOMALY_RULES)[number];
+
+export interface AnomalyPlayerRef {
+  playerId: string;
+  username: string;
+  /** Hesabın yaşı (gün, aşağı yuvarlanmış). */
+  accountAgeDays: number;
+}
+
+export interface AnomalyFinding {
+  rule: AnomalyRule;
+  /** Kuralın ODAĞI (huni: alıcı; çift: satıcı; çıkış: yeni hesap). */
+  subject: AnomalyPlayerRef;
+  /** Karşı taraflar (huni: gönderenler; çift: alıcı; çıkış: alıcılar). */
+  counterparts: AnomalyPlayerRef[];
+  count: number;
+  totalMoney: number;
+  totalGems: number;
+  firstAt: string;
+  lastAt: string;
+}
+
+export interface AnomalyReport {
+  generatedAt: string;
+  windowDays: number;
+  newAccountDays: number;
+  findings: AnomalyFinding[];
+}

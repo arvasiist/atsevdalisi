@@ -24,10 +24,11 @@ export type StaffPermission =
   | 'roles.manage'
   | 'announcements.manage'
   | 'events.manage'
+  | 'anomalies.view'
   | 'admin.full';
 
 export const STAFF_PERMISSIONS: Readonly<Record<ModerationRole, readonly StaffPermission[]>> = {
-  moderator: ['reports.manage', 'players.view', 'sanctions.suspend'],
+  moderator: ['reports.manage', 'players.view', 'sanctions.suspend', 'anomalies.view'],
   admin: [
     'reports.manage',
     'players.view',
@@ -37,6 +38,7 @@ export const STAFF_PERMISSIONS: Readonly<Record<ModerationRole, readonly StaffPe
     'roles.manage',
     'announcements.manage',
     'events.manage',
+    'anomalies.view',
     'admin.full',
   ],
 };

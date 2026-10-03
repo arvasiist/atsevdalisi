@@ -21,6 +21,7 @@ import type {
   OpsConfig,
   ModerationConfig,
   QuestsConfig,
+  AnticheatConfig,
   AdminConfig,
   AudioConfig,
   CameraConfig,
@@ -83,6 +84,7 @@ import authConfigJson from '../../../config/auth.config.json';
 import opsConfigJson from '../../../config/ops.config.json';
 import moderationConfigJson from '../../../config/moderation.config.json';
 import questsConfigJson from '../../../config/quests.config.json';
+import anticheatConfigJson from '../../../config/anticheat.config.json';
 
 export function loadRaceConfig(): RaceBalanceConfig {
   return raceConfigJson as unknown as RaceBalanceConfig;
@@ -278,6 +280,11 @@ export function loadModerationConfig(): ModerationConfig {
 /** 02.10.2026 — Faz 11-B: günlük/haftalık görevler + etkinlik sınırları. */
 export function loadQuestsConfig(): QuestsConfig {
   return questsConfigJson as unknown as QuestsConfig;
+}
+
+/** 02.10.2026 — Faz 7: şüpheli desen eşikleri (yalnızca inceleme listesi). */
+export function loadAnticheatConfig(): AnticheatConfig {
+  return anticheatConfigJson as unknown as AnticheatConfig;
 }
 
 /** 01.10.2026 — atın durumu → 3D davranış (salt görsel). */

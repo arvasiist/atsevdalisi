@@ -146,7 +146,7 @@ alınacak (sahibinin kararı, 02.10.2026).
 Lobi yarışı (katıl/hazır/ayrıl, kilit, kesinleşme, iade), eşleştirme (PvP),
 turnuva, takvim, kontrollü canlı yarış (çok oyunculu komutlar), tribün (canlı +
 tekrar), yeniden bağlanma (kopma DB'ye dokunmaz; süren yarış yeniden açılır).
-Yük testi YOK; tek süreçli zamanlayıcılar yatay ölçeklemede çift çalışır
+Şüpheli desen listesi VAR (Faz 7: çoklu hesapla değer aktarma — yalnızca inceleme). Yük testi YOK; tek süreçli zamanlayıcılar yatay ölçeklemede çift çalışır
 (satır kilitleri çift ödemeyi engelliyor ama iş tekrarlanır).
 
 ## Social Status — TESTED
@@ -658,3 +658,24 @@ TESTS PASSED: e2e 4/4, web 48 / 542; tarayıcı: indirilen dosya 15 bölüm
 TESTS FAILED: 0
 REMAINING: Apple girişi (sahibinin kimlik bilgisi)
 NEXT PHASE: Faz 5 — start kulvarı etkisi (motor; sahibinin kararı gerekir)
+
+---
+
+PHASE: 7 (kalan) — Anti-cheat: şüpheli desenler
+STATUS: TESTED
+SUMMARY: Sunucu otoriter (istemci sonuç/para belirleyemez); kalan risk çoklu hesapla değer
+aktarma. Üç desen yönetime inceleme listesi olarak: hediye hunisi, tekrarlayan alım-satım
+çifti, yeni hesaptan para çıkışı. Otomatik ceza yok.
+FILES CREATED: config/anticheat.config.json · domain/anticheat/anomaly.ts · ports/anomaly.repository.ts ·
+infrastructure/anticheat/postgres-anomaly.repository.ts · use-cases/list-anomalies.use-case.ts ·
+web features/admin/AnomaliesAdmin.tsx · testler
+FILES MODIFIED: staff.ts (anomalies.view: moderatör + yönetici) · moderation.controller · admin.module ·
+shared-types admin.ts · game-config · web api-client, admin/page, moderation-labels
+DATABASE CHANGES: —
+API CHANGES: GET /admin/anomalies
+SECURITY CHANGES: yetki DB'den, 403 önce; uç salt okur (testle kilitli)
+TESTS ADDED: test/api/anomalies.e2e-spec.ts (4), test/domain/anticheat/anomaly.spec.ts (3)
+TESTS PASSED: 7/7, web 48 / 542; tarayıcı: moderatör sekmeleri Şikâyetler/Oyuncular/Şüpheli, bulgular listelendi
+TESTS FAILED: 0
+REMAINING: Faz 7 yük testi; IP/cihaz sinyali (kişisel veri kararı)
+NEXT PHASE: Faz 7 — yük testi

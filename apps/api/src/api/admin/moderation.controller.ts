@@ -1,11 +1,13 @@
 import { Body, Controller, Get, HttpCode, HttpStatus, Inject, Param, ParseUUIDPipe, Post, Put } from '@nestjs/common';
 import type {
   AdminAnnouncementView,
+  AnomalyReport,
   AnnouncementView,
   ApiSuccess,
   AssignableRole,
   PlayerSanctionView,
 } from '@at-sevdalisi/shared-types';
+import { ListAnomaliesUseCase } from '../../application/use-cases/list-anomalies.use-case';
 import { ModerationUseCase } from '../../application/use-cases/moderation.use-case';
 import { CurrentPlayer, type AuthenticatedPlayer } from '../auth/current-player.decorator';
 import { Public } from '../auth/public.decorator';
@@ -18,7 +20,10 @@ import { RateLimit } from '../rate-limit/rate-limit.decorator';
  */
 @Controller('admin')
 export class ModerationController {
-  constructor(@Inject(ModerationUseCase) private readonly moderation: ModerationUseCase) {}
+  constructor(
+    @Inject(ModerationUseCase) private readonly moderation: ModerationUseCase,
+    @Inject(ListAnomaliesUseCase) private readonly anomalyList: ListAnomaliesUseCase,
+  ) {}
 
   @RateLimit({ name: 'admin-sanction', limit: 30, windowSeconds: 300, keyBy: 'player' })
   @Post('players/:playerId/sanctions')
@@ -79,6 +84,12 @@ export class ModerationController {
     @CurrentPlayer() actor: AuthenticatedPlayer,
   ): Promise<ApiSuccess<AdminAnnouncementView>> {
     return { success: true, data: await this.moderation.archiveAnnouncement(actor.id, announcementId) };
+  }
+
+  /** Şüpheli desenler (Faz 7) — yalnızca inceleme; otomatik ceza yok. */
+  @Get('anomalies')
+  async anomalies(@CurrentPlayer() actor: AuthenticatedPlayer): Promise<ApiSuccess<AnomalyReport>> {
+    return { success: true, data: await this.anomalyList.execute(actor.id) };
   }
 
   @Get('announcements')

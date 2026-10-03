@@ -3951,6 +3951,15 @@ Karar: önce pratik yarış; kırbaç sınırsız, dayanıklılık bedelli.
   şikâyet ve yaptırımı veren yönetici girmez (e2e ham yanıtta arar).
 - Faz 1'de kalan: Apple girişi (kimlik bilgisi gerekir).
 
+### 13.72 Şüpheli desenler — anti-cheat (02.10.2026, Faz 7)
+
+- `GET /admin/anomalies` (moderatör + yönetici): hediye hunisi, tekrarlayan
+  alım-satım çifti, yeni hesaptan para çıkışı. Kayıtlı olgulardan sayılır.
+- Salt okuma; otomatik ceza YOK (e2e denetim günlüğü ve yaptırım sayısının
+  değişmediğini iddia eder). Eşikler `config/anticheat.config.json`.
+- YOK: IP/cihaz parmak izi (saklanmıyor — kişisel veri kararı), satış
+  anındaki piyasa değeri (saklanmıyor → "değerinin altında satış" ölçülemez).
+
 ## 14. Kendime hatırlatmalar (kısa liste)
 
 1. **Race Engine'e dokunmadan önce iki kez düşün.** Denetim onu "KEEP, dokunma"

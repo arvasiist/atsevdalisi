@@ -13,6 +13,9 @@ import { AnnouncementsController, ModerationController } from './moderation.cont
 import { ModerationUseCase } from '../../application/use-cases/moderation.use-case';
 import { MODERATION_REPOSITORY } from '../../application/ports/moderation.repository';
 import { PostgresModerationRepository } from '../../infrastructure/admin/postgres-moderation.repository';
+import { ANOMALY_REPOSITORY } from '../../application/ports/anomaly.repository';
+import { ListAnomaliesUseCase } from '../../application/use-cases/list-anomalies.use-case';
+import { PostgresAnomalyRepository } from '../../infrastructure/anticheat/postgres-anomaly.repository';
 
 /**
  * Yönetim (admin) modülü — brief §34, §42 PHASE 15-B.
@@ -70,6 +73,9 @@ import { PostgresModerationRepository } from '../../infrastructure/admin/postgre
     // 02.10.2026 — Faz 10 + 11-A (migration 0060).
     ModerationUseCase,
     { provide: MODERATION_REPOSITORY, useClass: PostgresModerationRepository },
+    // 02.10.2026 — Faz 7: şüpheli desenler (yalnızca okuma).
+    ListAnomaliesUseCase,
+    { provide: ANOMALY_REPOSITORY, useClass: PostgresAnomalyRepository },
   ],
 })
 export class AdminModule {}

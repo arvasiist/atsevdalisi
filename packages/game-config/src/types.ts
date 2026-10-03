@@ -2018,3 +2018,18 @@ export interface QuestsConfig {
     adminListLimit: number;
   };
 }
+
+/**
+ * 02.10.2026 — `config/anticheat.config.json` (Faz 7). Şüpheli desen EŞİKLERİ.
+ * Yalnızca yönetimin inceleme listesini belirler; otomatik ceza YOKTUR.
+ */
+export interface AnticheatConfig {
+  /** Geriye bakılan pencere (gün). */
+  windowDays: number;
+  /** Bu yaştan genç hesap "yeni" sayılır (gün). */
+  newAccountDays: number;
+  giftFunnel: { minDistinctNewSenders: number };
+  repeatTradePair: { minTrades: number };
+  newAccountOutflow: { minMoney: number };
+  maxFindingsPerRule: number;
+}

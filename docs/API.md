@@ -1645,6 +1645,14 @@ Yanıt `{ exportedAt, playerId, sections }`; her bölüm `{ rows, truncated }` (
 `notifications`, `club`, `sanctions`, `questClaims`. Parola/token özeti, diğer oyuncuların iç
 kimlikleri, hakkındaki şikâyetler ve yaptırımı veren yönetici GİRMEZ.
 
+### Şüpheli desenler (Faz 7, 02.10.2026)
+
+`GET /admin/anomalies` — moderatör + yönetici (yoksa 403 `ADMIN_REQUIRED`). Salt okuma; otomatik
+işlem yok. Yanıt `{ generatedAt, windowDays, newAccountDays, findings[] }`; her bulgu `rule`
+(`gift_funnel` | `repeat_trade_pair` | `new_account_outflow`), `subject`, `counterparts`
+(`playerId`, `username`, `accountAgeDays`), `count`, `totalMoney`, `totalGems`, `firstAt`, `lastAt`.
+Eşikler `config/anticheat.config.json`.
+
 ### Görevler + etkinlikler (Faz 11-B, 02.10.2026, migration 0061)
 
 İlerleme sunucuda mevcut tablolardan türetilir; istemci yalnızca "hangi görev" der.

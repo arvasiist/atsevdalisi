@@ -1,4 +1,4 @@
-import type { AnnouncementLevel, AssignableRole, SanctionKind } from '@at-sevdalisi/shared-types';
+import type { AnnouncementLevel, AssignableRole, SanctionKind, AnomalyRule } from '@at-sevdalisi/shared-types';
 
 /** Kapalı kümeler — sunucuya yeni değer eklenirse derleme kırılır. */
 export const ROLE_LABELS: Record<AssignableRole, string> = {
@@ -32,3 +32,10 @@ export function canSeeTab(role: AssignableRole, tab: string): boolean {
   if (role === 'moderator') return !(ADMIN_ONLY_TABS as readonly string[]).includes(tab);
   return false;
 }
+
+/** Faz 7 — şüpheli desen adları (yönsüz, suçlamasız: inceleme listesidir). */
+export const ANOMALY_RULE_LABELS: Record<AnomalyRule, string> = {
+  gift_funnel: 'Çok sayıda yeni hesaptan hediye',
+  repeat_trade_pair: 'Aynı alıcıya tekrar tekrar satış',
+  new_account_outflow: 'Yeni hesaptan yüksek hediye çıkışı',
+};
