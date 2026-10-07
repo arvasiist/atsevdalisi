@@ -4,7 +4,7 @@ import {
   type AvatarAppearance,
   type AvatarField,
 } from '@at-sevdalisi/shared-types';
-import type { AvatarConfig } from '@at-sevdalisi/game-config';
+import type { AvatarCatalogKey, AvatarConfig } from '@at-sevdalisi/game-config';
 import { InvalidAvatarError } from './errors';
 
 /**
@@ -16,7 +16,7 @@ import { InvalidAvatarError } from './errors';
  *   `Math.random()` YOK — CLAUDE.md kural 3): oyuncu hiç seçim yapmasa da
  *   her yerde aynı avatarla görünür.
  */
-export const AVATAR_CATALOG_KEYS: Record<AvatarField, keyof AvatarConfig> = {
+export const AVATAR_CATALOG_KEYS: Record<AvatarField, AvatarCatalogKey> = {
   skinTone: 'skinTones',
   hairStyle: 'hairStyles',
   hairColor: 'hairColors',

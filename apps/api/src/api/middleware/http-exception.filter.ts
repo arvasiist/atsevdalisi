@@ -1,4 +1,12 @@
-import { InvalidAvatarError } from '../../domain/avatar/errors';
+import {
+  AiAvatarNotFoundError,
+  AvatarConsentRequiredError,
+  AvatarGenerationUnavailableError,
+  AvatarJobInProgressError,
+  AvatarJobNotFoundError,
+  InvalidAvatarError,
+  SelfieRejectedError,
+} from '../../domain/avatar/errors';
 import {
   AchievementAlreadyClaimedError,
   AchievementNotCompletedError,
@@ -466,6 +474,12 @@ const DOMAIN_ERROR_MAP = new Map<ErrorClassConstructor, { status: number; code: 
   [QuestNotCompletedError, { status: HttpStatus.CONFLICT, code: ErrorCode.QuestNotCompleted }],
   [QuestAlreadyClaimedError, { status: HttpStatus.CONFLICT, code: ErrorCode.QuestAlreadyClaimed }],
   [InvalidAvatarError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.InvalidAvatar }],
+  [AvatarGenerationUnavailableError, { status: HttpStatus.SERVICE_UNAVAILABLE, code: ErrorCode.AvatarGenerationUnavailable }],
+  [AvatarConsentRequiredError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.AvatarConsentRequired }],
+  [SelfieRejectedError, { status: HttpStatus.UNPROCESSABLE_ENTITY, code: ErrorCode.SelfieRejected }],
+  [AvatarJobInProgressError, { status: HttpStatus.CONFLICT, code: ErrorCode.AvatarJobInProgress }],
+  [AvatarJobNotFoundError, { status: HttpStatus.NOT_FOUND, code: ErrorCode.AvatarJobNotFound }],
+  [AiAvatarNotFoundError, { status: HttpStatus.NOT_FOUND, code: ErrorCode.AiAvatarNotFound }],
   [AchievementNotFoundError, { status: HttpStatus.NOT_FOUND, code: ErrorCode.AchievementNotFound }],
   [AchievementNotCompletedError, { status: HttpStatus.CONFLICT, code: ErrorCode.AchievementNotCompleted }],
   [AchievementAlreadyClaimedError, { status: HttpStatus.CONFLICT, code: ErrorCode.AchievementAlreadyClaimed }],

@@ -2663,3 +2663,6 @@ button[style*='background: var(--color-accent-gold)'] {
 .avatar-actions { display: flex; gap: 10px; margin-top: 8px; }
 .avatar-portrait-row { display: flex; align-items: center; gap: 12px; margin-top: 8px; }
 .avatar-portrait { border-radius: 50%; flex-shrink: 0; }
+.avatar-section-title { margin: 0 0 8px; font-size: 1.05rem; }
+.ai-avatar-panel form { display: grid; gap: 10px; margin: 8px 0; }
+.ai-avatar-consent { display: flex; gap: 8px; align-items: flex-start; font-size: 0.9rem; }

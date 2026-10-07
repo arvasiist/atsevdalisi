@@ -1308,6 +1308,34 @@ describe('AVATAR uçları (07.10.2026)', () => {
   });
 });
 
+describe('AI AVATAR uçları (07.10.2026)', () => {
+  it('selfie çok parçalı gider (Content-Type tarayıcıya bırakılır); diğer uçlar doğru rota/yöntem', async () => {
+    setAuthToken('t');
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ success: true, data: {} }));
+    vi.stubGlobal('fetch', fetchMock);
+    await apiClient.getAvatarGeneration();
+    await apiClient.requestAvatarGeneration(new Blob([new Uint8Array([1])], { type: 'image/png' }), 'v1');
+    await apiClient.cancelAvatarGeneration('j/1');
+    await apiClient.deleteAiAvatar();
+    await apiClient.listAvatarJobs();
+    const calls = fetchMock.mock.calls.map(([url, config]) => [String(url).replace(API_BASE_URL, ''), (config as RequestInit).method ?? 'GET']);
+    expect(calls).toEqual([
+      ['/avatar/generation', 'GET'],
+      ['/avatar/generation', 'POST'],
+      ['/avatar/generation/j%2F1/cancel', 'POST'],
+      ['/avatar/ai', 'DELETE'],
+      ['/admin/avatar-jobs', 'GET'],
+    ]);
+    const upload = fetchMock.mock.calls[1]![1] as RequestInit;
+    expect(upload.body).toBeInstanceOf(FormData);
+    expect((upload.body as FormData).get('consentVersion')).toBe('v1');
+    expect(new Headers(upload.headers).get('Content-Type')).toBeNull();
+    expect(new Headers(upload.headers).get('Authorization')).toBe('Bearer t');
+    // JSON uçları başlığı korur.
+    expect(new Headers((fetchMock.mock.calls[0]![1] as RequestInit).headers).get('Content-Type')).toBe('application/json');
+  });
+});
+
 describe('BAŞARIM uçları (03.10.2026)', () => {
   it('doğru rota/yöntem; anahtar kodlanır', async () => {
     setAuthToken('t');

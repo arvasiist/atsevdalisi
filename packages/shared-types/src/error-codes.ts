@@ -52,6 +52,12 @@ export const ErrorCode = {
   /** 02.10.2026 (Faz 11-B) — görev/etkinlik yok ya da şu an alınamaz (404). */
   QuestNotFound: 'QUEST_NOT_FOUND',
   InvalidAvatar: 'INVALID_AVATAR',
+  AvatarGenerationUnavailable: 'AVATAR_GENERATION_UNAVAILABLE',
+  AvatarConsentRequired: 'AVATAR_CONSENT_REQUIRED',
+  SelfieRejected: 'SELFIE_REJECTED',
+  AvatarJobInProgress: 'AVATAR_JOB_IN_PROGRESS',
+  AvatarJobNotFound: 'AVATAR_JOB_NOT_FOUND',
+  AiAvatarNotFound: 'AI_AVATAR_NOT_FOUND',
   AchievementNotFound: 'ACHIEVEMENT_NOT_FOUND',
   AchievementNotCompleted: 'ACHIEVEMENT_NOT_COMPLETED',
   AchievementAlreadyClaimed: 'ACHIEVEMENT_ALREADY_CLAIMED',

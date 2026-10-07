@@ -2075,7 +2075,32 @@ export interface AvatarConfig {
   accessories: string[];
   raceOutfits: string[];
   silkColors: Record<string, string>;
+  /**
+   * 07.10.2026 (Faz 8-B) — selfie → AI avatar hattı sınırları. Sağlayıcı
+   * ortam değişkeniyle seçilir (`AVATAR_PROVIDER`); burada yalnızca oyunun
+   * kuralları vardır, gizli değer YOK.
+   */
+  generation: {
+    /** Rıza metninin sürümü — istemci kabul ettiği sürümü gönderir; değişince yeniden rıza gerekir. */
+    consentVersion: string;
+    maxUploadBytes: number;
+    acceptedTypes: string[];
+    minDimension: number;
+    maxDimension: number;
+    /** Sağlayıcıdan gelen GLB için üst sınır. */
+    maxModelBytes: number;
+    /** Zamanlayıcının işleri ilerletme aralığı. */
+    pollSeconds: number;
+    /** Bu süreyi aşan iş `failed` (TIMEOUT) olur. */
+    jobTimeoutMinutes: number;
+    /** Bir turda ilerletilen en fazla iş. */
+    batchSize: number;
+    adminListLimit: number;
+  };
 }
+
+/** Avatar kataloğunun alanları (`generation` sınırları HARİÇ). */
+export type AvatarCatalogKey = Exclude<keyof AvatarConfig, 'generation'>;
 
 /** 03.10.2026 — başarım tanımı; ölçüt `ACHIEVEMENT_METRICS`ten (shared-types). */
 export interface AchievementDefinitionConfig {

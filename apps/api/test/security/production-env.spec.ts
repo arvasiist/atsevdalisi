@@ -37,9 +37,17 @@ describe('checkEnvironment — üretim ortamı', () => {
     ['CORS_ORIGIN localhost', { CORS_ORIGIN: 'http://localhost:3000' }],
     ['WEB_BASE_URL 127.0.0.1', { WEB_BASE_URL: 'http://127.0.0.1:3000' }],
     ['hız sınırı kapalı', { DISABLE_RATE_LIMIT: 'true' }],
+    // 07.10.2026 (Faz 8-B): sağlayıcı açık ama depo dizini yok → selfie geçici dizine düşerdi.
+    ['AI avatar sağlayıcısı var, depo dizini yok', { AVATAR_PROVIDER: 'acme-3d', AVATAR_STORAGE_DIR: '' }],
   ])('%s → açılış HATASI', (_label, patch) => {
     const result = checkEnvironment({ ...healthyProduction, ...patch }, rules);
     expect(result.errors).toHaveLength(1);
+  });
+
+  it('AI avatar sağlayıcısı yoksa açılış etkilenmez (manuel avatar çalışır)', () => {
+    expect(checkEnvironment({ ...healthyProduction, AVATAR_PROVIDER: undefined }, rules)).toEqual({ errors: [], warnings: [] });
+    const withStorage = { ...healthyProduction, AVATAR_PROVIDER: 'acme-3d', AVATAR_STORAGE_DIR: '/var/lib/at/avatars' };
+    expect(checkEnvironment(withStorage, rules).errors).toEqual([]);
   });
 
   it('e-posta / Google anahtarı yoksa yalnızca UYARI (açılır)', () => {

@@ -159,9 +159,11 @@ YOK: sosyal hub (avatarlı alan — Faz 8 ile), kulüp yarışı.
 
 **Manuel avatar VAR (07.10.2026, Faz 8-A):** katalogdan özelleştirme (§44),
 kimlikten türetilen varsayılan + manuel oluşturucu (§49 yedek), profilde portre,
-`/avatar`ta prosedürel 3D figür. **AI avatar YOK:** selfie yükleme, sağlayıcı
-soyutlaması, iş kuyruğu, nesne depolama, rıza/silme akışı. Ön koşullar:
-sağlayıcı seçimi + API anahtarı, nesne depolama (S3 uyumlu), gizlilik metni.
+`/avatar`ta prosedürel 3D figür. **AI hattı altyapısı VAR (8-B):** rıza, yükleme
+doğrulaması, asenkron iş + zamanlayıcı, sağlayıcı/depo soyutlaması, yenileme
+güvenliği, gizlilik silmesi, yönetimde AI işleri. **Gerçek sağlayıcı YOK** →
+özellik kapalı. Ön koşullar: sağlayıcı seçimi + API anahtarı, çok örnekte S3
+uyumlu depo, AI modelinin 3D sahnede gösterimi.
 
 ## Mobile/PWA Status — IMPLEMENTED
 
@@ -294,7 +296,7 @@ Brief fazlarına göre gerçek durum:
 | 5 Advanced Race | TESTED (kulvar etkisi hariç — karar bekliyor) |
 | 6 3D/Presentation | PARTIAL — kod tam, gerçek varlık yok |
 | 7 Online | TESTED — anti-cheat inceleme listesi + yük testi (CI bütçe kapısı) |
-| 8 AI Avatar | PARTIAL — manuel avatar + özelleştirme (8-A); AI selfie sağlayıcı bekliyor |
+| 8 AI Avatar | PARTIAL — manuel avatar + özelleştirme (8-A), AI hattı altyapısı (8-B); gerçek sağlayıcı bekliyor |
 | 9 Social | TESTED — kulüp sohbeti + emote eklendi; sosyal hub (avatar) Faz 8 ile |
 | 10 Admin | TESTED — roller, yaptırım, duyuru, bakiye düzeltmesi, at araması, ayar/sezon/turnuva görünümü; AI Jobs Faz 8 ile |
 | 11 Live Ops | TESTED — duyurular, görevler/etkinlikler, haftalık/aylık sıralama, özel yarış (Pazar Derbisi); başarımlar yok |
@@ -895,3 +897,28 @@ TESTS PASSED: API 183 / 2509 (temiz şema), web 53 / 560; tarayıcı: /avatar se
 TESTS FAILED: 0
 REMAINING: 8-B selfie hattı altyapısı (sağlayıcısız), AI üretimi (sağlayıcı kararı), sosyal alan (§50)
 NEXT PHASE: Faz 8-B
+
+---
+
+PHASE: 8-B — Selfie → AI avatar hattı altyapısı (sağlayıcısız)
+STATUS: TESTED (sahte sağlayıcıyla); gerçek sağlayıcı YOK → özellik kapalı
+SUMMARY: Brief §38–49'un sağlayıcıdan bağımsız kısmı. Sağlayıcı yokken 503 + hiçbir şey saklanmaz; varken
+rıza → doğrulama → iş → zamanlayıcı → doğrulanmış GLB → avatar değişimi; selfie iş bitince silinir.
+FILES CREATED: domain/avatar/{selfie,generation-job}.ts · ports/{avatar-generation.provider,avatar-storage,avatar-job.repository}.ts ·
+infrastructure/avatar/{postgres-avatar-job.repository,local-avatar-storage,avatar-generation.providers}.ts ·
+use-cases/avatar-generation.use-case.ts · scheduler/avatar-generation.scheduler.ts · api/avatar/avatar-generation.controller.ts ·
+web features/avatar/{AiAvatarPanel,ai-avatar-labels}, features/admin/AvatarJobsAdmin · migration 0067
+FILES MODIFIED: avatar.module, auth.module (hesap silme → dosya silme), delete-account use-case, staff izinleri,
+hata eşlemesi, production-env, silme + dışa aktarma, web api-client (FormData), /avatar, /admin, DEPLOYMENT.md
+DATABASE CHANGES: 0067 avatar_generation_jobs (oyuncu başına tek etkin iş), player_ai_avatars
+API CHANGES: GET/POST /avatar/generation · POST /avatar/generation/:jobId/cancel · DELETE /avatar/ai ·
+GET /avatar/ai/model · GET /admin/avatar-jobs
+SECURITY CHANGES: dosya adı yol olmaz (sunucu anahtarı + kök kontrolü), biçim baytlardan, boyut sınırı,
+sağlayıcı yokken gövde okunmaz, model yalnızca sahibine (no-store), yönetim listesi anahtar sızdırmaz,
+AVATAR_PROVIDER varken AVATAR_STORAGE_DIR zorunlu
+TESTS ADDED: avatar-generation.spec (8), avatar-generation.e2e (8; sahte sağlayıcı), production-env (+2),
+web ai-avatar-panel (3) + api-client (1)
+TESTS PASSED: API 185 / 2529 (temiz şema), web 54 / 564, tam lint 0 hata; tarayıcı: /avatar AI paneli "kapalı" durumu
+TESTS FAILED: 0
+REMAINING: gerçek sağlayıcı (sahibinin kararı), S3 uyumlu depo, AI modelinin 3D gösterimi, sosyal alan (§50)
+NEXT PHASE: sahibinin sağlayıcı kararı / Faz 12 ödeme

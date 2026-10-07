@@ -40,6 +40,8 @@ docker build -f apps/web/Dockerfile --build-arg NEXT_PUBLIC_API_URL=https://api.
 | `DISABLE_RATE_LIMIT` | `true` YASAK | yalnızca test |
 | `RESEND_API_KEY` | uyarı | yoksa e-posta gitmez |
 | `GOOGLE_OAUTH_CLIENT_ID` | uyarı | yoksa Google düğmesi gizli |
+| `AVATAR_PROVIDER` | isteğe bağlı | fotoğraftan AI avatar sağlayıcısının adı; boşsa özellik KAPALI (selfie kabul edilmez, manuel avatar çalışır). Bugün kodda tanımlı sağlayıcı YOK — bilinmeyen ad açılışta hata verir. Sağlayıcının API anahtarı da ortam değişkenidir, istemciye gitmez. |
+| `AVATAR_STORAGE_DIR` | `AVATAR_PROVIDER` varsa ZORUNLU | selfie (geçici), GLB ve küçük resimlerin yerel dizini. Tek örnekli kurulum içindir; çok örnekte paylaşılan nesne deposu (S3 uyumlu) gerekir. **Kişisel veri** içerir: yedekleme/erişim buna göre. |
 
 Sahte para yatırma üretimde HER ZAMAN kapalıdır (`MockPaymentProvider`);
 web formu sunucunun `depositAvailable` bayrağına uyar.

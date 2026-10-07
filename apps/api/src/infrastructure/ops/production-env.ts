@@ -20,6 +20,8 @@ export interface EnvCheckInput {
   DISABLE_RATE_LIMIT?: string;
   RESEND_API_KEY?: string;
   GOOGLE_OAUTH_CLIENT_ID?: string;
+  AVATAR_PROVIDER?: string;
+  AVATAR_STORAGE_DIR?: string;
 }
 
 export interface EnvCheckRules {
@@ -73,6 +75,10 @@ export function checkEnvironment(env: EnvCheckInput, rules: EnvCheckRules): EnvC
     }
     if (isBlank(env.GOOGLE_OAUTH_CLIENT_ID)) {
       warnings.push('GOOGLE_OAUTH_CLIENT_ID yok — Google girişi gizli kalır.');
+    }
+    // 07.10.2026 (Faz 8-B): sağlayıcı açıksa selfie/model geçici dizine düşmesin.
+    if (!isBlank(env.AVATAR_PROVIDER) && isBlank(env.AVATAR_STORAGE_DIR)) {
+      errors.push('AVATAR_PROVIDER tanımlı ama AVATAR_STORAGE_DIR yok — selfie/modeller geçici dizine yazılırdı.');
     }
   }
   return { errors, warnings };

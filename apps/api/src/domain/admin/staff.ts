@@ -29,6 +29,7 @@ export type StaffPermission =
   | 'anomalies.view'
   | 'economy.adjust'
   | 'horses.view'
+  | 'avatar_jobs.view'
   | 'admin.full';
 
 export const STAFF_PERMISSIONS: Readonly<Record<ModerationRole, readonly StaffPermission[]>> = {
@@ -45,6 +46,7 @@ export const STAFF_PERMISSIONS: Readonly<Record<ModerationRole, readonly StaffPe
     'anomalies.view',
     'economy.adjust',
     'horses.view',
+    'avatar_jobs.view',
     'admin.full',
   ],
 };

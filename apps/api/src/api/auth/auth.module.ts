@@ -1,3 +1,4 @@
+import { AvatarModule } from '../avatar/avatar.module';
 import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { IDENTITY_PROVIDER_VERIFIER } from '../../application/ports/identity-provider';
@@ -45,7 +46,7 @@ import { AuthGuard } from './auth.guard';
  * gerekir, `stable.module.ts`/`matchmaking.module.ts` ile AYNI desen).
  */
 @Module({
-  imports: [PlayerModule, HorseModule],
+  imports: [PlayerModule, HorseModule, AvatarModule],
   controllers: [AuthController, AccountController],
   providers: [
     LoginWithProviderUseCase,

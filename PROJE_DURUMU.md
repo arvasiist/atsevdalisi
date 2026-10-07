@@ -4060,6 +4060,19 @@ Karar: önce pratik yarış; kırbaç sınırsız, dayanıklılık bedelli.
   nesne depolama, rıza/silme akışı (brief §38–48) → Faz 8-B altyapısı +
   sahibinin sağlayıcı kararı. Sosyal alan (§50) avatarları kullanacak.
 
+### 13.83 Faz 8-B — selfie → AI avatar hattı altyapısı (07.10.2026, migration 0067)
+
+- Rıza (sürümlü), yükleme doğrulaması (biçim baytlardan, tür uyumu, boyut,
+  çözünürlük), asenkron iş + zamanlayıcı, sağlayıcı ve depo soyutlaması,
+  §45 yeniden üretim (başarısızsa eski korunur), §48 gizlilik (selfie iş
+  bitince silinir, `DELETE /avatar/ai`, hesap silme dosyaları da siler),
+  yönetimde "AI İşleri".
+- **Gerçek sağlayıcı YOK** → özellik kapalı ve ekranda öyle yazar. Uçtan uca
+  akış sahte sağlayıcıyla e2e'de kanıtlı (`avatar-generation.e2e-spec.ts`).
+- Açık: sağlayıcı seçimi + API anahtarı, çok örnek için S3 uyumlu depo
+  uygulaması, AI modelinin 3D sahnede gösterimi (model yalnızca sahibine
+  yetkili uçtan verilir), sosyal alan (§50).
+
 ## 14. Kendime hatırlatmalar (kısa liste)
 
 1. **Race Engine'e dokunmadan önce iki kez düşün.** Denetim onu "KEEP, dokunma"

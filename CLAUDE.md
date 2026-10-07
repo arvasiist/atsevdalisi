@@ -576,6 +576,26 @@ kaldırılmış eski seçim varsayılana düşer (500 değil). Profil (`@Public`
 ekranda ÖYLE yazar; listelerde 2B SVG portre (`AvatarPortrait`, WebGL bağlam
 sınırı). ⚠️ AI selfie avatarı (§38–48) bir sağlayıcı ister ve YOKTUR — sahte
 "AI avatarın hazır" gösterme. `player_avatars` silme + dışa aktarma listelerinde.
+(59) **SELFIE → AI AVATAR HATTI (07.10.2026, Faz 8-B, migration 0067, §13.83)**
+— sağlayıcıdan BAĞIMSIZ altyapı; gerçek sağlayıcı YOK (`AVATAR_PROVIDER` boş →
+`POST /avatar/generation` 503, guard dosyayı OKUMADAN keser, hiçbir şey
+saklanmaz). Port `AvatarGenerationProvider` (generate/getStatus/download/
+cancel), depo `AvatarStorage` (yerel: `AVATAR_STORAGE_DIR`; anahtarı YALNIZCA
+sunucu üretir, kalıp + kök dizin kontrolü). İş durumları YALNIZCA yazılanlar
+(requested→analyzing→generating→processing→ready | failed | cancelled);
+OPTIMIZING/RIGGING sağlayıcının işi, UYDURULMADI. İş HTTP'de koşmaz:
+`AvatarGenerationScheduler` (lider kilidi, test'te `tickNow`). Selfie ön
+kontrolü baytlardan (biçim, tür uyumu, çözünürlük); yüz/ışık/bulanıklık
+sağlayıcı analizinde. `ready` geçişi AI avatarı aynı transaction'da değiştirir,
+eski dosya commit SONRASI silinir; başarısız yenileme eskiyi KORUR (§45).
+Selfie iş bitince silinir. Gizlilik silmesi `DELETE /avatar/ai`; hesap
+silme dosyaları da siler. Yönetim `GET /admin/avatar-jobs` (`avatar_jobs.view`,
+depo anahtarı/sağlayıcı iş kimliği DÖNMEZ). ⚠️ SQL'de aynı parametreyi iki
+türde kullanma — `$6` hem `updated_at` hem `CASE` içinde olunca "inconsistent
+types" (yaşandı); açık `::tip` yaz. ⚠️ Yeni bir sağlayıcı: arayüzü uygula,
+`avatar-generation.providers.ts` → `PROVIDERS`a ekle; e2e
+`FakeAvatarProvider` ile tüm akışı zaten sınar. ⚠️ `request()` FormData
+gövdesinde `Content-Type` KOYMAZ (sınır ayıracını tarayıcı yazar).
 
 **✅ ÜCRETLİ LOBİ YARIŞI ARTIK KOŞUYOR — ÖDÜL DAĞITIMI VAR (§13.14,
 28.09.2026).** `POST /races/:id/settle` yarışı koşar, ödülleri `top5`

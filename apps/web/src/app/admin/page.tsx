@@ -46,6 +46,7 @@ import { ApiError, apiClient } from '../../lib/api-client';
 import { usePlayer } from '../../lib/player-context';
 import { LiveEventsAdmin } from '../../features/admin/LiveEventsAdmin';
 import { AnomaliesAdmin } from '../../features/admin/AnomaliesAdmin';
+import { AvatarJobsAdmin } from '../../features/admin/AvatarJobsAdmin';
 import { HorsesAdmin } from '../../features/admin/HorsesAdmin';
 import { SeasonsAdmin } from '../../features/admin/SeasonsAdmin';
 import { ConfigAdmin } from '../../features/admin/ConfigAdmin';
@@ -71,6 +72,8 @@ const TABS = [
   ['horses', 'Atlar'],
   ['seasons', 'Sezon & Turnuva'],
   ['config', 'Ayarlar'],
+  // 07.10.2026 — Faz 8-B (yalnızca yönetici).
+  ['avatarJobs', 'AI İşleri'],
 ] as const;
 
 type TabId = (typeof TABS)[number][0];
@@ -294,6 +297,7 @@ export default function AdminPage(): React.ReactElement {
       {tab === 'horses' ? <HorsesAdmin /> : null}
       {tab === 'seasons' ? <SeasonsAdmin /> : null}
       {tab === 'config' ? <ConfigAdmin /> : null}
+      {tab === 'avatarJobs' ? <AvatarJobsAdmin /> : null}
       {tab === 'races' ? <RacesTab rows={races} pending={pending} onCancel={cancelRace} /> : null}
       {tab === 'transactions' ? <TransactionsTab rows={transactions} /> : null}
       {tab === 'audit' ? <AuditTab rows={auditLog} /> : null}

@@ -16,6 +16,9 @@ import type {
   AchievementBoardView,
   AvatarAppearance,
   AvatarView,
+  AvatarGenerationJobView,
+  AvatarGenerationStatusView,
+  AdminAvatarJobView,
   AchievementClaimResult,
   QuestClaimResult,
   QuestMetric,
@@ -256,7 +259,11 @@ const NO_REFRESH_ENDPOINTS = ['/auth/refresh', '/auth/login', '/auth/session'];
 
 async function request<T>(endpoint: string, options: RequestInit = {}, isRetry = false): Promise<T> {
   const headers = new Headers(options.headers || {});
-  headers.set('Content-Type', 'application/json');
+  // 07.10.2026 — çok parçalı yüklemede (selfie) sınır ayıracını tarayıcı yazar;
+  // elle `Content-Type` koymak gövdeyi okunamaz yapardı.
+  if (!(typeof FormData !== 'undefined' && options.body instanceof FormData)) {
+    headers.set('Content-Type', 'application/json');
+  }
   const sentToken = currentAuthToken;
   if (sentToken) {
     headers.set('Authorization', `Bearer ${sentToken}`);
@@ -1421,6 +1428,18 @@ export const apiClient = {
   getAvatar: () => request<AvatarView>('/avatar'),
   saveAvatar: (appearance: AvatarAppearance) =>
     request<AvatarView>('/avatar', { method: 'PUT', body: JSON.stringify({ appearance }) }),
+  /** 07.10.2026 (Faz 8-B) — selfie → AI avatar. `available: false` ise sunucuda sağlayıcı yok. */
+  getAvatarGeneration: () => request<AvatarGenerationStatusView>('/avatar/generation'),
+  requestAvatarGeneration: (selfie: Blob, consentVersion: string) => {
+    const form = new FormData();
+    form.append('consentVersion', consentVersion);
+    form.append('selfie', selfie);
+    return request<AvatarGenerationJobView>('/avatar/generation', { method: 'POST', body: form });
+  },
+  cancelAvatarGeneration: (jobId: string) =>
+    request<AvatarGenerationJobView>(`/avatar/generation/${encodeURIComponent(jobId)}/cancel`, { method: 'POST' }),
+  deleteAiAvatar: () => request<{ deletedObjects: number }>('/avatar/ai', { method: 'DELETE' }),
+  listAvatarJobs: () => request<AdminAvatarJobView[]>('/admin/avatar-jobs'),
   /** 02.10.2026 — kişisel veri dışa aktarma (KVKK/GDPR); yalnızca kendi verin. */
   exportAccountData: () => request<AccountDataExport>('/account/export'),
   claimQuest: (questKey: string) =>

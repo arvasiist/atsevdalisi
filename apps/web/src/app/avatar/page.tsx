@@ -21,6 +21,7 @@ import {
   optionLabel,
 } from '../../features/avatar/avatar-catalog';
 import type { AvatarOutfitMode, AvatarPose } from '../../features/avatar/AvatarFigure3D';
+import { AiAvatarPanel } from '../../features/avatar/AiAvatarPanel';
 import { AvatarPortrait } from '../../features/avatar/AvatarPortrait';
 import { apiClient } from '../../lib/api-client';
 import { usePlayer } from '../../lib/player-context';
@@ -126,7 +127,7 @@ export default function AvatarPage(): React.ReactElement {
               </div>
             </div>
             <p className="session-meta">
-              Basit (prosedürel) 3D model — fotoğraftan AI avatar henüz yok. Profilinde bu görünüşle yer alırsın.
+              Basit (prosedürel) 3D model. Profilinde bu görünüşle yer alırsın.
             </p>
             <div className="avatar-portrait-row">
               <AvatarPortrait appearance={draft} label="Profil portresi önizlemesi" />
@@ -173,6 +174,10 @@ export default function AvatarPage(): React.ReactElement {
                 Geri al
               </button>
             </div>
+          </GlassPanel>
+          <GlassPanel>
+            <h2 className="avatar-section-title">Fotoğraftan AI avatar</h2>
+            <AiAvatarPanel />
           </GlassPanel>
         </div>
       )}

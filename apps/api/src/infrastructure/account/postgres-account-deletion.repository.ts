@@ -103,6 +103,10 @@ export class PostgresAccountDeletionRepository implements AccountDeletionReposit
       // ödülün kendisi defterde kalır.
       await client.query('DELETE FROM achievement_claims WHERE player_id = $1', [playerId]);
       await client.query('DELETE FROM player_avatars WHERE player_id = $1', [playerId]);
+      // AI avatar kayıtları — depodaki DOSYALARI use-case bu transaction'dan ÖNCE
+      // siler (`AvatarGenerationUseCase.purge`); burası satırlar için yedek kapıdır.
+      await client.query('DELETE FROM player_ai_avatars WHERE player_id = $1', [playerId]);
+      await client.query('DELETE FROM avatar_generation_jobs WHERE player_id = $1', [playerId]);
       await client.query('DELETE FROM friendships WHERE player_low_id = $1 OR player_high_id = $1', [playerId]);
       await client.query('DELETE FROM race_invites WHERE inviter_id = $1 OR invitee_id = $1', [playerId]);
       await client.query('DELETE FROM player_blocks WHERE blocker_id = $1 OR blocked_id = $1', [playerId]);

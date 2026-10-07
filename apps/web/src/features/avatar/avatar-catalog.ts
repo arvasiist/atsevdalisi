@@ -5,11 +5,11 @@
  * yeniden doğrular — buradaki liste yalnızca seçim arayüzü içindir.
  */
 import { AVATAR_FIELDS, type AvatarAppearance, type AvatarField } from '@at-sevdalisi/shared-types';
-import { loadAvatarConfig, type AvatarConfig } from '@at-sevdalisi/game-config';
+import { loadAvatarConfig, type AvatarCatalogKey } from '@at-sevdalisi/game-config';
 
 export const AVATAR_CONFIG = loadAvatarConfig();
 
-const CATALOG_KEYS: Record<AvatarField, keyof AvatarConfig> = {
+const CATALOG_KEYS: Record<AvatarField, AvatarCatalogKey> = {
   skinTone: 'skinTones',
   hairStyle: 'hairStyles',
   hairColor: 'hairColors',

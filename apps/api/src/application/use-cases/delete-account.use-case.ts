@@ -1,4 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
+import { AvatarGenerationUseCase } from './avatar-generation.use-case';
 import type { AccountDeletionCheck } from '@at-sevdalisi/shared-types';
 import {
   ACCOUNT_DELETION_BLOCKER_LABELS,
@@ -33,6 +34,7 @@ export class DeleteAccountUseCase {
     @Inject(PLAYER_REPOSITORY) private readonly players: PlayerRepository,
     @Inject(PLAYER_CREDENTIALS_REPOSITORY) private readonly credentials: PlayerCredentialsRepository,
     @Inject(PASSWORD_HASHER) private readonly hasher: PasswordHasher,
+    @Inject(AvatarGenerationUseCase) private readonly avatarGeneration: AvatarGenerationUseCase,
   ) {}
 
   async check(playerId: string): Promise<AccountDeletionCheck> {
@@ -65,6 +67,15 @@ export class DeleteAccountUseCase {
         throw new DeletionPasswordInvalidError();
       }
     }
+    // 07.10.2026 (Faz 8-B, brief §48) — AI avatar verisi DEPODA da yaşar;
+    // SQL transaction'ı dosya silemez. Engel yoksa ÖNCE iş iptal + dosyalar +
+    // kayıtlar temizlenir, sonra hesap anonimleşir. (Arada bir engel doğarsa
+    // hesap kalır ama AI avatar silinmiş olur — silme isteyen oyuncu için kabul.)
+    const preBlockers = await this.deletion.findBlockers(playerId);
+    if (preBlockers.length > 0) {
+      throw new AccountDeletionBlockedError(preBlockers.map((code) => ACCOUNT_DELETION_BLOCKER_LABELS[code]));
+    }
+    await this.avatarGeneration.purge(playerId, now);
     const blockers = await this.deletion.deleteAccount({
       playerId,
       anonymousUsername: deletedUsername(playerId),
