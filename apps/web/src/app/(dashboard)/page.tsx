@@ -58,6 +58,7 @@ import { apiClient } from '../../lib/api-client';
 import { CURRENCY_LABELS } from '../../lib/currency';
 import { formatRaceStart, formatTimeUntil } from '../../lib/format-time';
 import { usePlayer } from '../../lib/player-context';
+import { breedLabel } from '../../features/breeds/breed-catalog';
 
 interface QuickLink {
   href: string;
@@ -305,7 +306,7 @@ function FeaturedHorseCard({ ownerId }: { ownerId: string }): React.ReactElement
           <div className="featured-title">
             <span className="featured-name">{horse.name}</span>
             <span className="featured-meta">
-              {horse.breed} · {GENDER_LABELS[horse.gender]} · Seviye {horse.level}
+              {breedLabel(horse.breed)} · {GENDER_LABELS[horse.gender]} · Seviye {horse.level}
             </span>
             <StarRating score={horse.quality} />
           </div>

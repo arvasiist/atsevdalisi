@@ -614,6 +614,20 @@ yatırma (`mock_deposit`, `PaymentProvider`) AYRI ve geliştirmeye özeldir —
 gerçek ödeme portu `PaymentGateway`. Yeni sağlayıcı: arayüzü uygula (imza
 doğrulaması ŞART), `payment-gateways.ts` → `GATEWAYS`. Bekleyen ödeme hesap
 silmeyi engeller (`payment_pending`); siparişler silinmez (mali kayıt).
+(61) **AT IRKLARI + IRK MAĞAZASI (07.10.2026, migration 0069, §13.85)** —
+11 ırk `config/breeds.config.json`; `horses.breed` artık ANAHTAR (CHECK
+`horses_breed_valid` — ırk eklerken kısıtı ADIYLA düşürüp yeniden yaz,
+`breeds.spec.ts` en son migration'ı okur). SAHİBİNİN KURALI: ücretsiz
+başlangıç atı EN ZAYIF ırk (`starterBreed`), güçlü ırklar `POST
+/breeds/:breedKey/purchase` ile OYUN PARASIYLA + seviye şartıyla —
+`validateBreedsConfig` (API açılışı + test) başlangıçtan zayıf ya da gücüne
+göre ucuz ırkı REDDEDER. Irk yalnızca DOĞUŞ statlarını verir (taban ±
+`statJitter`, at kimliğinden determinist); motor ırk OKUMAZ. ⚠️ Irka GİZLİ
+stat (mizaç vb.) koyma — config istemci paketine girer. Yeni at yazan her yol
+`insertNewHorse` (horse-row.ts) kullanır; başlangıç atı `newStarterHorse`.
+Mağaza PARA YOLU (oyuncu `FOR UPDATE`, `breed_horse_purchase` defter satırı,
+`Idempotency-Key`). Tay ırkı `resolveFoalBreed` (melez kuralı config'te).
+⚠️ SQL fikstürü at eklerken `breed` bir ANAHTAR olmalı (`'hinis'`), `'Arap'` CHECK'e takılır.
 
 **✅ ÜCRETLİ LOBİ YARIŞI ARTIK KOŞUYOR — ÖDÜL DAĞITIMI VAR (§13.14,
 28.09.2026).** `POST /races/:id/settle` yarışı koşar, ödülleri `top5`

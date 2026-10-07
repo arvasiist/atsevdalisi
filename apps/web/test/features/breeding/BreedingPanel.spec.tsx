@@ -63,7 +63,7 @@ afterEach(() => {
 function horse(overrides: Partial<PublicHorse> & Pick<PublicHorse, 'id' | 'gender' | 'name'>): PublicHorse {
   return {
     ownerId: 'player-1',
-    breed: 'Arap',
+    breed: 'hinis',
     birthDate: '2024-01-01T00:00:00.000Z',
     level: 3,
     xp: 0,

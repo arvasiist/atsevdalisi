@@ -2,8 +2,9 @@ import type { INestApplication } from '@nestjs/common';
 import type { Pool } from 'pg';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { loadHorseAppearanceConfig } from '@at-sevdalisi/game-config';
+import { loadBreedsConfig, loadHorseAppearanceConfig } from '@at-sevdalisi/game-config';
 import { deriveAppearance } from '../../src/domain/horse/appearance';
+import { getStarterBreed } from '../../src/domain/horse/breeds';
 import { PG_POOL } from '../../src/infrastructure/database/database.module';
 import { bootstrapTestApp, registerTestPlayerWithStarterHorse } from './test-helpers';
 
@@ -19,6 +20,7 @@ describe('At görünüşü (e2e)', () => {
   let app: INestApplication;
   let pool: Pool;
   const config = loadHorseAppearanceConfig();
+  const starterBreed = getStarterBreed(loadBreedsConfig());
 
   beforeAll(async () => {
     app = await bootstrapTestApp();
@@ -33,7 +35,8 @@ describe('At görünüşü (e2e)', () => {
     const seen = new Set<string>();
     for (let i = 0; i < 8; i += 1) {
       const player = await registerTestPlayerWithStarterHorse(app, `Görünüş ${i}`);
-      const expected = deriveAppearance(player.horseId, config);
+      // 07.10.2026 — başlangıç atının donu IRKININ ağırlıklarıyla seçilir.
+      const expected = deriveAppearance(player.horseId, config, starterBreed.coatWeights);
 
       const row = await pool.query<{
         coat_color: string;

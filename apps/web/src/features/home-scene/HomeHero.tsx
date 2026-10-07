@@ -24,6 +24,7 @@ import { usePlayer } from '../../lib/player-context';
 import { HORSE_MOOD_LABELS, deriveHorseDemeanor } from '../horse-stage/horse-demeanor';
 import { PlaceholderBadge } from '../race-viewer/assets/PlaceholderBadge';
 import { pickFeaturedHorse } from './featured-horse';
+import { breedLabel } from '../breeds/breed-catalog';
 
 const HomeScene3D = dynamic(() => import('./HomeScene3D').then((mod) => mod.HomeScene3D), {
   ssr: false,
@@ -164,7 +165,7 @@ export function HomeHero(): React.ReactElement {
           <div className="home3d-horse">
             <div className="home3d-horse-name">{horse.name}</div>
             <div className="home3d-horse-meta">
-              {horse.breed} · {GENDER_LABELS[horse.gender]} · Seviye {horse.level}
+              {breedLabel(horse.breed)} · {GENDER_LABELS[horse.gender]} · Seviye {horse.level}
               {mood ? <span className="home3d-mood">{HORSE_MOOD_LABELS[mood]}</span> : null}
             </div>
             <div className="home3d-stats">

@@ -2672,3 +2672,18 @@ button[style*='background: var(--color-accent-gold)'] {
 .store-product { display: grid; gap: 8px; justify-items: start; }
 .store-gems { font-size: 1.2rem; color: var(--gold, #c9a227); }
 .store-price { font-size: 1rem; }
+
+/* 07.10.2026 — at yetiştiricisi (ırk mağazası) */
+.breed-grid { display: grid; gap: 12px; margin-top: 12px; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
+.breed-card { display: grid; gap: 6px; }
+.breed-card-head { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; }
+.breed-name { font-size: 1.1rem; }
+.breed-badge { font-size: 0.75rem; padding: 2px 8px; border-radius: 999px; background: rgba(232, 184, 74, 0.18); color: var(--color-accent-gold); }
+.breed-description { margin: 0; font-size: 0.9rem; opacity: 0.9; }
+.breed-stats { list-style: none; margin: 4px 0; padding: 0; display: grid; gap: 4px; font-size: 0.85rem; }
+.breed-stats li { display: grid; grid-template-columns: 92px 1fr 28px; gap: 8px; align-items: center; }
+.breed-bar { display: block; height: 6px; border-radius: 3px; background: rgba(255, 255, 255, 0.12); overflow: hidden; }
+.breed-bar > span { display: block; height: 100%; background: var(--color-accent-gold); }
+.breed-price { font-weight: 600; font-size: 1rem; }
+.breed-form { display: grid; gap: 8px; }
+.breed-form label { display: grid; gap: 4px; font-size: 0.85rem; }

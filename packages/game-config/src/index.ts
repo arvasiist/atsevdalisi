@@ -24,6 +24,7 @@ import type {
   AchievementsConfig,
   AvatarConfig,
   StoreConfig,
+  BreedsConfig,
   AnticheatConfig,
   AdminConfig,
   AudioConfig,
@@ -91,6 +92,7 @@ import anticheatConfigJson from '../../../config/anticheat.config.json';
 import achievementsConfigJson from '../../../config/achievements.config.json';
 import avatarConfigJson from '../../../config/avatar.config.json';
 import storeConfigJson from '../../../config/store.config.json';
+import breedsConfigJson from '../../../config/breeds.config.json';
 
 export function loadRaceConfig(): RaceBalanceConfig {
   return raceConfigJson as unknown as RaceBalanceConfig;
@@ -291,6 +293,11 @@ export function loadQuestsConfig(): QuestsConfig {
 /** 07.10.2026 — Faz 12: mağaza kataloğu + ödeme sınırları. */
 export function loadStoreConfig(): StoreConfig {
   return storeConfigJson as unknown as StoreConfig;
+}
+
+/** 07.10.2026 — at ırkları (başlangıç ırkı, ırk mağazası, melez kuralları). */
+export function loadBreedsConfig(): BreedsConfig {
+  return breedsConfigJson as unknown as BreedsConfig;
 }
 
 /** 07.10.2026 — avatar kataloğu (manuel oluşturucu + özelleştirme). */

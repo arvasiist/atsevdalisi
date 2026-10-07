@@ -43,11 +43,19 @@ export function pickWeighted<T extends string>(
   return entries[entries.length - 1]![0];
 }
 
-/** Ebeveynsiz bir atın (başlangıç atı vb.) görünüşü — config ağırlıklarıyla. */
-export function deriveAppearance(horseId: string, config: HorseAppearanceConfig): HorseAppearance {
+/**
+ * Ebeveynsiz bir atın (başlangıç atı, ırk mağazası) görünüşü — config
+ * ağırlıklarıyla. `breedCoatWeights` verilirse don ırka özgü ağırlıklarla
+ * seçilir (07.10.2026 — Safkan Arap çoğunlukla kır, Ahalteke altın vb.).
+ */
+export function deriveAppearance(
+  horseId: string,
+  config: HorseAppearanceConfig,
+  breedCoatWeights?: Record<string, number>,
+): HorseAppearance {
   return {
     coatColor: pickWeighted(
-      config.coatWeights,
+      breedCoatWeights ?? config.coatWeights,
       HORSE_COAT_COLORS,
       createSeededRandom(`${horseId}:appearance:coat`)(),
     ),

@@ -78,6 +78,7 @@ export const NAV_LINKS: ReadonlyArray<NavLink> = [
   { href: '/replays', label: 'Yarış Geçmişi', icon: 'replays', placement: 'more' },
   { href: '/equipment', label: 'Ekipman', icon: 'equipment', placement: 'more' },
   { href: '/farm', label: 'Çiftlik', icon: 'farm', placement: 'more' },
+  { href: '/breeds', label: 'Yetiştirici', icon: 'horse', placement: 'more' },
   { href: '/online', label: 'Online', icon: 'online', placement: 'more' },
   { href: '/store', label: 'Mağaza', icon: 'store', placement: 'more' },
   { href: '/wallet', label: 'Cüzdan', icon: 'wallet', placement: 'more' },

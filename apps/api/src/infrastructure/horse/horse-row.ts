@@ -1,5 +1,12 @@
 import type { Pool, PoolClient } from 'pg';
 import type { Horse } from '@at-sevdalisi/shared-types';
+import {
+  BREED_DISTANCE_COLUMNS,
+  BREED_DISTANCE_KEYS,
+  BREED_STAT_KEYS,
+  BREED_SURFACE_KEYS,
+  type BreedInitialStats,
+} from '../../domain/horse/breeds';
 
 /**
  * `horses` tablosunun satır şekli + okuma/yazma yardımcıları.
@@ -103,4 +110,89 @@ export async function writeHorseRow(executor: Pool | PoolClient, horse: Horse): 
       new Date(horse.updatedAt),
     ],
   );
+}
+
+/**
+ * 07.10.2026 — YENİ bir atı (ana satır + dört eşlik eden tablo) yazar. Başlangıç
+ * atı (`PostgresHorseRepository.save`) ve ırk mağazası AYNI fonksiyonu kullanır;
+ * iki ayrı INSERT metni bir gün ayrışırdı. Çağıran transaction açar.
+ *
+ * `initial` verilmezse statlar DB varsayılanlarında kalır (migration 0003).
+ * Verilirse yalnızca ırkın tanımladığı sütunlar yazılır; sütun adları kapalı
+ * kümeden (`BREED_*_KEYS`) gelir, kullanıcı girdisi DEĞİLDİR.
+ */
+export async function insertNewHorse(client: PoolClient, horse: Horse, initial?: BreedInitialStats): Promise<void> {
+  await client.query(
+    `INSERT INTO horses (id, owner_id, name, gender, breed, birth_date, level, xp, quality, potential, health, fitness, fatigue, energy, morale, weight_kg, status, sire_id, dam_id, created_at, updated_at, coat_color, face_marking, leg_marking)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24)`,
+    [
+      horse.id,
+      horse.ownerId,
+      horse.name,
+      horse.gender,
+      horse.breed,
+      horse.birthDate.slice(0, 10),
+      horse.level,
+      horse.xp,
+      horse.quality,
+      horse.potential,
+      horse.health,
+      horse.fitness,
+      horse.fatigue,
+      horse.energy,
+      horse.morale,
+      horse.weightKg,
+      horse.status,
+      horse.sireId,
+      horse.damId,
+      new Date(horse.createdAt),
+      new Date(horse.updatedAt),
+      horse.appearance.coatColor,
+      horse.appearance.faceMarking,
+      horse.appearance.legMarking,
+    ],
+  );
+  await insertWithValues(client, 'horse_stats', horse.id, columnValues(initial?.stats, BREED_STAT_KEYS, (key) => key));
+  await client.query('INSERT INTO horse_health (horse_id) VALUES ($1)', [horse.id]);
+  await insertNewHorseTrackStats(client, horse.id, initial);
+}
+
+/** Zemin + mesafe uyumu satırları — tay da (statları genetikten gelse bile) ırkından alır. */
+export async function insertNewHorseTrackStats(
+  client: PoolClient,
+  horseId: string,
+  initial?: BreedInitialStats,
+): Promise<void> {
+  await insertWithValues(client, 'horse_surface_stats', horseId, columnValues(initial?.surface, BREED_SURFACE_KEYS, (key) => key));
+  await insertWithValues(
+    client,
+    'horse_distance_stats',
+    horseId,
+    columnValues(initial?.distance, BREED_DISTANCE_KEYS, (key) => BREED_DISTANCE_COLUMNS[key]),
+  );
+}
+
+function columnValues<K extends string>(
+  values: Partial<Record<K, number>> | undefined,
+  keys: readonly K[],
+  column: (key: K) => string,
+): Array<[string, number]> {
+  if (!values) {
+    return [];
+  }
+  return keys.flatMap((key) => (values[key] === undefined ? [] : [[column(key), values[key] as number] as [string, number]]));
+}
+
+async function insertWithValues(
+  client: PoolClient,
+  table: 'horse_stats' | 'horse_surface_stats' | 'horse_distance_stats',
+  horseId: string,
+  entries: Array<[string, number]>,
+): Promise<void> {
+  const columns = ['horse_id', ...entries.map(([column]) => column)];
+  const placeholders = columns.map((_, index) => `$${index + 1}`);
+  await client.query(`INSERT INTO ${table} (${columns.join(', ')}) VALUES (${placeholders.join(', ')})`, [
+    horseId,
+    ...entries.map(([, value]) => value),
+  ]);
 }

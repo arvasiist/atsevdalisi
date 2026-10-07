@@ -25,6 +25,7 @@ import { RealtimeModule } from './api/realtime/realtime.module';
 import { SeasonModule } from './api/season/season.module';
 import { QuestsModule } from './api/quests/quests.module';
 import { AchievementsModule } from './api/achievements/achievements.module';
+import { BreedsModule } from './api/breeds/breeds.module';
 import { AvatarModule } from './api/avatar/avatar.module';
 import { PaymentsModule } from './api/payments/payments.module';
 import { SchedulerLeaderModule } from './infrastructure/scheduler/scheduler-leader';
@@ -148,6 +149,7 @@ import { RedisModule } from './infrastructure/redis/redis.module';
     SeasonModule,
     QuestsModule,
     AchievementsModule,
+    BreedsModule,
     AvatarModule,
     PaymentsModule,
     // 02.10.2026 — zamanlayıcı lider kilidi (çok örnekte tek koşucu).

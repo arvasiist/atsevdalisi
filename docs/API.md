@@ -317,9 +317,12 @@ istemciden gelir. Yanıt zarfı `data` alanı doğrudan bir `Horse[]` dizisidir
 (sayfalama/filtre henüz yok).
 
 `POST /players` ile kayıt olan her yeni oyuncu, otomatik olarak bir
-**başlangıç atı** alır ("Arap" cinsi, sabit isim havuzundan seçilmiş bir
-isim, kalite/potansiyel sabit başlangıç değerleri, "prime" yaşam evresinde —
-bkz. `domain/horse/horse.ts` `createStarterHorse`). Bu, brief'te açıkça
+**başlangıç atı** alır (07.10.2026'dan beri `config/breeds.config.json` →
+`starterBreed` — EN ZAYIF ırk, bugün Hınıs; kalite/potansiyel ve statlar
+ırktan, sabit isim havuzundan seçilmiş bir isim, "prime" yaşam evresinde —
+bkz. `application/horse/new-starter-horse.ts`). Güçlü ırklar `POST
+/breeds/:breedKey/purchase` ile (gövde `{ name, gender }`, `Idempotency-Key`
+zorunlu, oyun parası, seviye şartı) alınır; `horses.breed` ırk ANAHTARIDIR. Bu, brief'te açıkça
 yazmayan ama at yetiştiriciliği oyununda gerekli bir tasarım kararıdır (at
 olmadan Antrenman/Bakım/Yarış ekranları gösterilemez).
 

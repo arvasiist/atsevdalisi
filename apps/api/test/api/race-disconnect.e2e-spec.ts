@@ -353,7 +353,7 @@ describe('Bağlantı kopması / yeniden başlatma güvenliği (e2e) — brief §
     const secondHorseId = randomUUID();
     await pool.query(
       `INSERT INTO horses (id, owner_id, name, gender, breed, birth_date, quality, potential)
-       VALUES ($1, $2, 'Kopma İkinci At', 'mare', 'Arap', CURRENT_DATE - INTERVAL '5 years', 70, 80)`,
+       VALUES ($1, $2, 'Kopma İkinci At', 'mare', 'hinis', CURRENT_DATE - INTERVAL '5 years', 70, 80)`,
       [secondHorseId, player.playerId],
     );
     await pool.query('INSERT INTO horse_stats (horse_id) VALUES ($1)', [secondHorseId]);

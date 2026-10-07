@@ -4088,6 +4088,29 @@ Karar: önce pratik yarış; kırbaç sınırsız, dayanıklılık bedelli.
 - Açık: sağlayıcı seçimi + sözleşme + anahtarlar, yasal inceleme (mesafeli
   satış, KDV, fatura, iade politikası, yaş), mağaza (App Store/Play) kuralları.
 
+### 13.85 At ırkları + ırk mağazası (07.10.2026, migration 0069)
+
+- 11 ırk `config/breeds.config.json`da: Hınıs, Malakan, Rahvan, Uzunyayla,
+  Çukurova, Standardbred, Quarter Horse, Ahalteke, Anglo-Arap, Safkan Arap,
+  Safkan İngiliz. `horses.breed` artık ırk ANAHTARI (CHECK `horses_breed_valid`);
+  görünen ad config'te.
+- **Sahibinin kuralı:** ücretsiz başlangıç atı EN ZAYIF ırktır (Hınıs — gücü
+  eski başlangıç atıyla aynı, ~50); güçlü ırklar `/breeds` mağazasından OYUN
+  PARASIYLA (elmasla değil) ve seviye şartıyla alınır. `validateBreedsConfig`
+  bunu kilitler: başlangıçtan zayıf ırk ya da gücüne göre ucuz ırk yazılırsa API
+  açılmaz, `breeds.spec.ts` kırılır. Güç = hız/ivme/dayanıklılık ortalaması.
+- Irk YALNIZCA doğuş statlarını belirler (taban ± `statJitter`, at kimliğinden
+  determinist); motor ırkı okumaz, MOTOR DEĞİŞMEDİ. Gizli statlar ırkta YOK.
+- Mağaza PARA YOLU: oyuncu `FOR UPDATE` → seviye + ahır + bakiye kilit altında →
+  at + 4 eşlik tablosu → bakiye → `breed_horse_purchase` defter satırı (MARKET),
+  tek transaction; `Idempotency-Key` zorunlu (tekrar = ikinci at + ödeme).
+- Yetiştirme: aynı ırk → o ırk; Safkan Arap × Safkan İngiliz (ve Anglo ile
+  geri çaprazlar) → Anglo-Arap; diğer melezde tay kısrağın ırkını alır. Tayın
+  zemin/mesafe uyumu ırkından (eskiden hep 50).
+- Migration: 0069 öncesi bütün atlar ('Arap', statları 50) → `hinis`; asıl metin
+  `horse_breed_legacy`de, down birebir geri yazar (yerelde gidiş-dönüş denendi).
+- Açık: ırka özgü 3D oranlar (gerçek modeller gelince), ırka özel yarışlar.
+
 ## 14. Kendime hatırlatmalar (kısa liste)
 
 1. **Race Engine'e dokunmadan önce iki kez düşün.** Denetim onu "KEEP, dokunma"

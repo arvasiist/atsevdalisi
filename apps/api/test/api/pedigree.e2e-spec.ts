@@ -49,7 +49,7 @@ describe('Soy ağacı (e2e)', () => {
     const horseId = randomUUID();
     await pool.query(
       `INSERT INTO horses (id, owner_id, name, gender, breed, birth_date, quality, potential)
-       VALUES ($1, $2, $3, 'stallion', 'Arap', '2018-01-01', 70, 75)`,
+       VALUES ($1, $2, $3, 'stallion', 'hinis', '2018-01-01', 70, 75)`,
       [horseId, ownerId, name],
     );
     return horseId;

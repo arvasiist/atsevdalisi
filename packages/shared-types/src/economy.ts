@@ -147,6 +147,8 @@ export const LEDGER_TRANSACTION_TYPES = [
   'achievement_reward',
   'gem_purchase',
   'gem_purchase_refund',
+  /** 07.10.2026 — ırk mağazasından yeni at alımı (referansı alınan at). */
+  'breed_horse_purchase',
   /** 02.10.2026 (Faz 11-B) — yönetimin açtığı süreli etkinliğin ödülü. */
   'event_reward',
   /**
@@ -237,6 +239,8 @@ export const CANONICAL_BY_LEDGER_TYPE: Record<LedgerTransactionType, CanonicalTr
   // 07.10.2026 (Faz 12) — gerçek para ile alınan elmas ve iadesinde geri alınan elmas.
   gem_purchase: 'DEPOSIT',
   gem_purchase_refund: 'REFUND',
+  // 07.10.2026 — yetiştiriciden at alımı bir pazar harcamasıdır (satıcı oyuncu değil, para batar).
+  breed_horse_purchase: 'MARKET',
   event_reward: 'REWARD',
   admin_adjustment: 'ADJUSTMENT',
 };

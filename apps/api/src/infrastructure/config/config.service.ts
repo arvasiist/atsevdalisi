@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import {
   loadAdminConfig,
+  loadBreedsConfig,
   loadCareConfig,
   loadChatConfig,
   loadEconomyConfig,
@@ -23,6 +24,7 @@ import {
   loadTrainingConfig,
   loadWeatherConfig,
 } from '@at-sevdalisi/game-config';
+import { validateBreedsConfig } from '../../domain/horse/breeds';
 
 /**
  * Ortam değişkenleri + oyun dengesi config'lerine tek noktadan erişim.
@@ -143,4 +145,12 @@ export class AppConfigService {
   readonly horseAppearance = loadHorseAppearanceConfig();
   // 01.10.2026 — oyuncu kontrollü pratik yarışın canlı oturum ayarları.
   readonly interactiveRace = loadInteractiveRaceConfig();
+  /** 07.10.2026 — at ırkları: ücretsiz başlangıç ırkı (en zayıf) + ırk mağazası. */
+  readonly breeds = loadBreedsConfig();
+
+  constructor() {
+    // Irk kuralı (ücretsiz at en zayıf, güçlü ırk ucuz olamaz) açılışta
+    // denetlenir — bozuk config ile API AÇILMAZ.
+    validateBreedsConfig(this.breeds, this.progression.maxLevel);
+  }
 }

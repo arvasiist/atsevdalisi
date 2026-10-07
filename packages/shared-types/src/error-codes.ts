@@ -64,6 +64,10 @@ export const ErrorCode = {
   AvatarJobInProgress: 'AVATAR_JOB_IN_PROGRESS',
   AvatarJobNotFound: 'AVATAR_JOB_NOT_FOUND',
   AiAvatarNotFound: 'AI_AVATAR_NOT_FOUND',
+  /** 07.10.2026 — ırk kataloğunda olmayan ırk (404). */
+  BreedNotFound: 'BREED_NOT_FOUND',
+  /** 07.10.2026 — ırkın seviye şartı karşılanmadı (409). */
+  BreedLevelLocked: 'BREED_LEVEL_LOCKED',
   AchievementNotFound: 'ACHIEVEMENT_NOT_FOUND',
   AchievementNotCompleted: 'ACHIEVEMENT_NOT_COMPLETED',
   AchievementAlreadyClaimed: 'ACHIEVEMENT_ALREADY_CLAIMED',

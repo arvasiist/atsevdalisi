@@ -52,6 +52,7 @@ import { pickFeaturedHorse } from '../../features/home-scene/featured-horse';
 import { apiClient } from '../../lib/api-client';
 import { formatCurrency, hasEnoughFunds } from '../../lib/currency';
 import { usePlayer } from '../../lib/player-context';
+import { breedLabel } from '../../features/breeds/breed-catalog';
 
 /**
  * 01.10.2026 — 3D AHIR SAHNESİ (adım 6). Tembel ve istemci tarafında
@@ -589,5 +590,5 @@ function breedGenderLabel(breed: string, gender: PublicHorse['gender']): string 
     stallion: 'Aygır',
     gelding: 'İğdiş',
   };
-  return `${breed} · ${genderLabels[gender]}`;
+  return `${breedLabel(breed)} · ${genderLabels[gender]}`;
 }

@@ -19,11 +19,13 @@ import { BreedingHorseListedError, MareNotOwnedError } from '../../domain/breedi
 import { HorseNotFoundError } from '../../domain/horse/errors';
 import { calculateAgeInMonths } from '../../domain/horse/age-curve';
 import { inheritAppearance } from '../../domain/horse/appearance';
+import { deriveBreedInitialStats, findBreed, resolveFoalBreed } from '../../domain/horse/breeds';
 import { transfer } from '../../domain/economy/wallet';
 import { PlayerNotFoundError } from '../../domain/player/errors';
 import { assertCanAddHorseToStable, getStableCapacity } from '../../domain/stable/stable';
 import { AppConfigService } from '../config/config.service';
 import { PG_POOL, withTransaction } from '../database/database.module';
+import { insertNewHorseTrackStats } from '../horse/horse-row';
 import { writeLedgerEntries } from '../player/player-row';
 
 /**
@@ -309,7 +311,10 @@ export class PostgresBreedingRepository implements BreedingRepository {
         );
       }
 
-      const foal = this.buildFoal(input, result, mareRow.breed, now, {
+      // 07.10.2026 — tayın ırkı: aynı ırk → o ırk, config melez kuralı
+      // (Safkan Arap × Safkan İngiliz → Anglo-Arap), aksi hâlde kısrağınki.
+      const foalBreedKey = resolveFoalBreed(this.config.breeds, stallionRow.breed, mareRow.breed);
+      const foal = this.buildFoal(input, result, foalBreedKey, now, {
         sireCoat: stallionRow.coat_color as HorseCoatColor,
         damCoat: mareRow.coat_color as HorseCoatColor,
       });
@@ -360,8 +365,14 @@ export class PostgresBreedingRepository implements BreedingRepository {
         foal.id,
         Math.round(result.birthHealthRisk * 100 * 100) / 100,
       ]);
-      await client.query('INSERT INTO horse_surface_stats (horse_id) VALUES ($1)', [foal.id]);
-      await client.query('INSERT INTO horse_distance_stats (horse_id) VALUES ($1)', [foal.id]);
+      // Statlar genetikten gelir; zemin/mesafe uyumu ise tayın IRKINDAN
+      // (07.10.2026 — eskiden varsayılan 50'de kalıyordu).
+      const foalBreed = findBreed(this.config.breeds, foalBreedKey);
+      await insertNewHorseTrackStats(
+        client,
+        foal.id,
+        foalBreed ? deriveBreedInitialStats(foal.id, foalBreed, this.config.breeds.statJitter) : undefined,
+      );
 
       await client.query(
         `INSERT INTO pedigrees (horse_id, sire_id, dam_id, grand_sire_id, grand_dam_id, bloodline)

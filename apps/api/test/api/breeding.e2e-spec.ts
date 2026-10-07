@@ -5,7 +5,7 @@ import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { PG_POOL } from '../../src/infrastructure/database/database.module';
 import { AppConfigService } from '../../src/infrastructure/config/config.service';
-import { STARTER_HORSE_POTENTIAL, STARTER_HORSE_QUALITY } from '../../src/domain/horse/horse';
+import { getBreed, getStarterBreed } from '../../src/domain/horse/breeds';
 import { inheritAppearance } from '../../src/domain/horse/appearance';
 import { loadHorseAppearanceConfig } from '@at-sevdalisi/game-config';
 import {
@@ -70,7 +70,8 @@ describe('Çiftleştirme (e2e) — PARA YOLU', () => {
    * modül seviyesinde hesaplanan bir sabit `undefined` okurdu.
    */
   function starterStudFee(): number {
-    return Math.round(((STARTER_HORSE_QUALITY + STARTER_HORSE_POTENTIAL) / 2) * config.genetics.studFeeMultiplier);
+    const starter = getStarterBreed(config.breeds);
+    return Math.round(((starter.quality + starter.potential) / 2) * config.genetics.studFeeMultiplier);
   }
 
   /**
@@ -111,14 +112,15 @@ describe('Çiftleştirme (e2e) — PARA YOLU', () => {
     gender: 'mare' | 'stallion' | 'gelding',
     quality = 70,
     potential = 80,
+    breed = 'hinis',
   ): Promise<string> {
     const horseId = randomUUID();
     const birthDate = new Date();
     birthDate.setMonth(birthDate.getMonth() - 60);
     await pool.query(
       `INSERT INTO horses (id, owner_id, name, gender, breed, birth_date, quality, potential)
-       VALUES ($1, $2, $3, $4, 'Arap', $5, $6, $7)`,
-      [horseId, ownerId, name, gender, birthDate.toISOString().slice(0, 10), quality, potential],
+       VALUES ($1, $2, $3, $4, $8, $5, $6, $7)`,
+      [horseId, ownerId, name, gender, birthDate.toISOString().slice(0, 10), quality, potential, breed],
     );
     await pool.query('INSERT INTO horse_stats (horse_id) VALUES ($1)', [horseId]);
     return horseId;
@@ -255,6 +257,36 @@ describe('Çiftleştirme (e2e) — PARA YOLU', () => {
       // yazılmayan ölü bir çıktı olurdu.
       const healthRow = await pool.query('SELECT injury_risk FROM horse_health WHERE horse_id = $1', [foalId]);
       expect(Number(healthRow.rows[0].injury_risk)).toBe(Math.round(response.body.data.birthHealthRisk * 100 * 100) / 100);
+    });
+
+    it('07.10.2026 — IRK: Safkan Arap × Safkan İngiliz → Anglo-Arap; zemin/mesafe uyumu tayın ırkından', async () => {
+      const payer = await registerTestPlayerWithStarterHorse(app, 'Melez Yetiştirici');
+      // Başlangıç atı + 2 ebeveyn + 2 tay + ikinci kısrak = 6 at → 1. seviye ahır (5) yetmez.
+      await pool.query('UPDATE players SET stable_level = 2 WHERE id = $1', [payer.playerId]);
+      const mareId = await insertAdultHorse(payer.playerId, 'Çöl Kısrağı', 'mare', 70, 80, 'arabian');
+      const stallionId = await insertAdultHorse(payer.playerId, 'Hipodrom Aygırı', 'stallion', 70, 80, 'thoroughbred');
+
+      const response = await breed(payer, mareId, stallionId, 'Melez Tay', 201);
+      const foalId = response.body.data.foalId as string;
+
+      const foal = await pool.query<{ breed: string }>('SELECT breed FROM horses WHERE id = $1', [foalId]);
+      expect(foal.rows[0]!.breed).toBe('anglo_arab');
+      const anglo = getBreed(config.breeds, 'anglo_arab');
+      const distance = await pool.query<{ middle_distance: string }>(
+        'SELECT middle_distance FROM horse_distance_stats WHERE horse_id = $1',
+        [foalId],
+      );
+      expect(Math.abs(Number(distance.rows[0]!.middle_distance) - anglo.distance.middle!)).toBeLessThanOrEqual(
+        config.breeds.statJitter,
+      );
+
+      // Eşleşmeyen melez: tay kısrağın ırkını alır (eski davranış korunur).
+      const otherMare = await insertAdultHorse(payer.playerId, 'Hınıs Kısrağı', 'mare');
+      const second = await breed(payer, otherMare, stallionId, 'Hınıs Tayı', 201);
+      const secondFoal = await pool.query<{ breed: string }>('SELECT breed FROM horses WHERE id = $1', [
+        second.body.data.foalId,
+      ]);
+      expect(secondFoal.rows[0]!.breed).toBe('hinis');
     });
 
     it('tayın potansiyeli ebeveyn ortalamasının `maxPotentialGainOverParents` katını AŞMAZ (domain gerçekten koştu)', async () => {

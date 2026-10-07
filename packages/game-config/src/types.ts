@@ -2116,6 +2116,49 @@ export interface StoreConfig {
   adminListLimit: number;
 }
 
+/** 07.10.2026 — bir ırkın statlarına yazılan `horse_stats` sütunları (yalnızca GÖRÜNEN statlar). */
+export type BreedStatKey =
+  | 'speed'
+  | 'acceleration'
+  | 'stamina'
+  | 'strength'
+  | 'agility'
+  | 'balance'
+  | 'sprint'
+  | 'endurance';
+
+export type BreedSurfaceKey = 'grass' | 'dirt' | 'wet' | 'heavy' | 'dry' | 'mud';
+export type BreedDistanceKey = 'short' | 'middle' | 'long';
+
+/** 07.10.2026 — tek bir at ırkı. Statlar yeni atın BAŞLANGIÇ değeridir (± `statJitter`). */
+export interface BreedDefinitionConfig {
+  key: string;
+  name: string;
+  origin: string;
+  description: string;
+  /** Irk mağazasındaki fiyat (oyun parası). Elmasla SATILMAZ. */
+  priceMoney: number;
+  minPlayerLevel: number;
+  quality: number;
+  potential: number;
+  stats: Partial<Record<BreedStatKey, number>>;
+  surface: Partial<Record<BreedSurfaceKey, number>>;
+  distance: Partial<Record<BreedDistanceKey, number>>;
+  /** Yoksa genel `horse-appearance.config.json → coatWeights`. */
+  coatWeights?: Record<string, number>;
+}
+
+export interface BreedsConfig {
+  /** Yeni oyuncuya ÜCRETSİZ verilen ırk — EN ZAYIF ırk olmak zorundadır (doğrulanır). */
+  starterBreed: string;
+  /** Her stat `taban ± statJitter` aralığında, atın kimliğinden türetilir. */
+  statJitter: number;
+  shopHorseAgeMonths: number;
+  breeds: BreedDefinitionConfig[];
+  /** Sırasız ebeveyn çifti → tayın ırkı; eşleşmeyen melezde tay kısrağın ırkını alır. */
+  crossbreeds: Array<{ parents: [string, string]; foal: string }>;
+}
+
 /** Avatar kataloğunun alanları (`generation` sınırları HARİÇ). */
 export type AvatarCatalogKey = Exclude<keyof AvatarConfig, 'generation'>;
 

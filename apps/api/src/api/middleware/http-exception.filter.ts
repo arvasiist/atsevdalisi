@@ -34,6 +34,7 @@ import type { RequestWithId } from './request-id.middleware';
 import { reportError } from '../../infrastructure/ops/error-reporting';
 import { ErrorCode } from '@at-sevdalisi/shared-types';
 import { PlayerLevelTooLowError } from '../../domain/tournament/errors';
+import { BreedLevelLockedError, BreedNotFoundError, InvalidHorseGenderError } from '../../domain/horse/breeds';
 import {
   AdminRequiredError,
   InvalidReportStatusError,
@@ -495,6 +496,10 @@ const DOMAIN_ERROR_MAP = new Map<ErrorClassConstructor, { status: number; code: 
   [AvatarJobNotFoundError, { status: HttpStatus.NOT_FOUND, code: ErrorCode.AvatarJobNotFound }],
   [AiAvatarNotFoundError, { status: HttpStatus.NOT_FOUND, code: ErrorCode.AiAvatarNotFound }],
   [AchievementNotFoundError, { status: HttpStatus.NOT_FOUND, code: ErrorCode.AchievementNotFound }],
+  // 07.10.2026 — ırk mağazası.
+  [BreedNotFoundError, { status: HttpStatus.NOT_FOUND, code: ErrorCode.BreedNotFound }],
+  [BreedLevelLockedError, { status: HttpStatus.CONFLICT, code: ErrorCode.BreedLevelLocked }],
+  [InvalidHorseGenderError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.ValidationError }],
   [AchievementNotCompletedError, { status: HttpStatus.CONFLICT, code: ErrorCode.AchievementNotCompleted }],
   [AchievementAlreadyClaimedError, { status: HttpStatus.CONFLICT, code: ErrorCode.AchievementAlreadyClaimed }],
   [InvalidLiveEventError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.InvalidLiveEvent }],

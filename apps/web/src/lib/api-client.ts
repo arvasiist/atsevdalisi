@@ -1,4 +1,6 @@
 import type {
+  BuyBreedHorseRequest,
+  BuyBreedHorseResult,
   AccountDeletionCheck,
   AdminAnnouncementView,
   AdminLiveEventView,
@@ -519,6 +521,18 @@ export const apiClient = {
    * satırlardan doğrulanır; tayın statları `pairId` seed'iyle sunucuda
    * üretilir. İstemci hiçbir sayı GÖNDERMEZ.
    */
+  /**
+   * 07.10.2026 — IRK MAĞAZASI. PARA YOLU: `Idempotency-Key` ZORUNLU ve
+   * BAŞARIYA kadar korunur (tekrar = ikinci at + ikinci ödeme). Fiyat
+   * GÖNDERİLMEZ; sunucu config'ten okur.
+   */
+  buyBreedHorse: (breedKey: string, body: BuyBreedHorseRequest, idempotencyKey: string) =>
+    request<BuyBreedHorseResult>(`/breeds/${encodeURIComponent(breedKey)}/purchase`, {
+      method: 'POST',
+      headers: { 'Idempotency-Key': idempotencyKey },
+      body: JSON.stringify(body),
+    }),
+
   breedHorses: (
     playerId: string,
     mareId: string,

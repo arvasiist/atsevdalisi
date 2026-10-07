@@ -1,4 +1,5 @@
 import type { Horse } from '@at-sevdalisi/shared-types';
+import type { BreedInitialStats } from '../../domain/horse/breeds';
 
 /**
  * `HorseRepository` — Application katmanının Infrastructure'a bağlandığı
@@ -8,8 +9,12 @@ import type { Horse } from '@at-sevdalisi/shared-types';
 export interface HorseRepository {
   findById(id: string): Promise<Horse | null>;
   findByOwnerId(ownerId: string): Promise<Horse[]>;
-  /** Yeni bir at kaydı ekler (ve ona eşlik eden `horse_stats` satırını, bkz. postgres implementasyonu). */
-  save(horse: Horse): Promise<void>;
+  /**
+   * Yeni bir at kaydı ekler (ve ona eşlik eden `horse_stats` satırını, bkz.
+   * postgres implementasyonu). `initial` — ırktan gelen başlangıç statları
+   * (07.10.2026); verilmezse DB varsayılanları.
+   */
+  save(horse: Horse, initial?: BreedInitialStats): Promise<void>;
   /**
    * FAZ 1 wiring, dördüncü dilim — var olan bir atın DEĞİŞKEN alanlarını
    * (health/fitness/fatigue/energy/morale/weightKg/status/level/xp) günceller.
