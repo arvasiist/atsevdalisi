@@ -2666,3 +2666,9 @@ button[style*='background: var(--color-accent-gold)'] {
 .avatar-section-title { margin: 0 0 8px; font-size: 1.05rem; }
 .ai-avatar-panel form { display: grid; gap: 10px; margin: 8px 0; }
 .ai-avatar-consent { display: flex; gap: 8px; align-items: flex-start; font-size: 0.9rem; }
+
+/* 07.10.2026 — Mağaza (Faz 12). */
+.store-grid { display: grid; gap: 12px; margin-top: 12px; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); margin-bottom: 16px; }
+.store-product { display: grid; gap: 8px; justify-items: start; }
+.store-gems { font-size: 1.2rem; color: var(--gold, #c9a227); }
+.store-price { font-size: 1rem; }

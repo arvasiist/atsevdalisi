@@ -4073,6 +4073,21 @@ Karar: önce pratik yarış; kırbaç sınırsız, dayanıklılık bedelli.
   uygulaması, AI modelinin 3D sahnede gösterimi (model yalnızca sahibine
   yetkili uçtan verilir), sosyal alan (§50).
 
+### 13.84 Faz 12 — ödeme altyapısı (07.10.2026, migration 0068)
+
+- Mağaza kataloğu (`store.config.json`, TRY, kuruş), sipariş → sağlayıcının
+  ödeme sayfası → imzalı webhook → elmas (tek transaction, defter satırıyla).
+- Korumalar: istemci fiyat/elmas/sonuç belirleyemez; webhook olayı tekil
+  (tekrar saldırısı no-op); ikinci başarı olayı çift elmas vermez; tutar/para
+  birimi uyuşmazlığı elmas vermez; bekleyen sipariş + günlük harcama sınırı;
+  iade elması geri alır, harcanmışsa açık incelemeye kaydedilir.
+- Oyuncu: `/store` (paketler + makbuzlar, dönüşte sipariş yoklanır);
+  yönetici: "Ödemeler" sekmesi + iade talebi (denetim kaydı).
+- **Gerçek sağlayıcı YOK** → satın alma kapalı ve ekranda öyle yazar. Akış
+  sahte sağlayıcıyla (HMAC imzalı webhook) e2e'de kanıtlı.
+- Açık: sağlayıcı seçimi + sözleşme + anahtarlar, yasal inceleme (mesafeli
+  satış, KDV, fatura, iade politikası, yaş), mağaza (App Store/Play) kuralları.
+
 ## 14. Kendime hatırlatmalar (kısa liste)
 
 1. **Race Engine'e dokunmadan önce iki kez düşün.** Denetim onu "KEEP, dokunma"

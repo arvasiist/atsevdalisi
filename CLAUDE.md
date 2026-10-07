@@ -596,6 +596,24 @@ types" (yaşandı); açık `::tip` yaz. ⚠️ Yeni bir sağlayıcı: arayüzü 
 `avatar-generation.providers.ts` → `PROVIDERS`a ekle; e2e
 `FakeAvatarProvider` ile tüm akışı zaten sınar. ⚠️ `request()` FormData
 gövdesinde `Content-Type` KOYMAZ (sınır ayıracını tarayıcı yazar).
+(60) **ÖDEME ALTYAPISI (07.10.2026, Faz 12, migration 0068, §13.84)** —
+gerçek sağlayıcı YOK (`PAYMENT_PROVIDER` boş → mağaza kapalı, sipariş 503).
+Gerçek para OYUN İÇİ DEFTERDEN AYRI: tutar (kuruş) `payment_orders`ta,
+defter yalnızca elması görür (`gem_purchase` / `gem_purchase_refund`).
+Akış: `POST /store/orders` (yalnızca SKU, `Idempotency-Key`, sınırlar
+`store.config.json`) → sağlayıcının ödeme sayfası → `POST
+/payments/webhook/:provider` (`@Public`, güven HAM GÖVDE İMZASINDAN —
+`rawBody: true` main.ts + test-helpers). Webhook TEK transaction'da: olay
+kaydı `(provider, event_id)` PK (tekrar = no-op) → sipariş `FOR UPDATE` →
+`decideWebhookEffect` (saf; tutar + para birimi BİREBİR değilse elmas YOK,
+`AMOUNT_MISMATCH`) → oyuncu `FOR UPDATE` + elmas + defter. İade: yönetici
+yalnızca TALEP eder (denetim kaydı), elmas geri alma iade webhook'uyla;
+harcanmışsa `clawback_shortfall_gems` (bakiye eksiye düşmez). ⚠️ "Ödendi"
+diyen bir istemci ucu YAZMA (`api-client.spec` adlarını tarar). ⚠️ Sahte
+yatırma (`mock_deposit`, `PaymentProvider`) AYRI ve geliştirmeye özeldir —
+gerçek ödeme portu `PaymentGateway`. Yeni sağlayıcı: arayüzü uygula (imza
+doğrulaması ŞART), `payment-gateways.ts` → `GATEWAYS`. Bekleyen ödeme hesap
+silmeyi engeller (`payment_pending`); siparişler silinmez (mali kayıt).
 
 **✅ ÜCRETLİ LOBİ YARIŞI ARTIK KOŞUYOR — ÖDÜL DAĞITIMI VAR (§13.14,
 28.09.2026).** `POST /races/:id/settle` yarışı koşar, ödülleri `top5`

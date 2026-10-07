@@ -52,6 +52,12 @@ export const ErrorCode = {
   /** 02.10.2026 (Faz 11-B) — görev/etkinlik yok ya da şu an alınamaz (404). */
   QuestNotFound: 'QUEST_NOT_FOUND',
   InvalidAvatar: 'INVALID_AVATAR',
+  PaymentUnavailable: 'PAYMENT_UNAVAILABLE',
+  StoreProductNotFound: 'STORE_PRODUCT_NOT_FOUND',
+  PaymentLimitReached: 'PAYMENT_LIMIT_REACHED',
+  PaymentOrderNotFound: 'PAYMENT_ORDER_NOT_FOUND',
+  InvalidWebhook: 'INVALID_WEBHOOK',
+  PaymentRefundNotAllowed: 'PAYMENT_REFUND_NOT_ALLOWED',
   AvatarGenerationUnavailable: 'AVATAR_GENERATION_UNAVAILABLE',
   AvatarConsentRequired: 'AVATAR_CONSENT_REQUIRED',
   SelfieRejected: 'SELFIE_REJECTED',

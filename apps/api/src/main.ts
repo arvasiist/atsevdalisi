@@ -33,10 +33,12 @@ async function bootstrap(): Promise<void> {
 
   // 02.10.2026 (Faz 13-C) — üretimde tek satır JSON log (log toplayıcı
   // bağımsız); geliştirmede Nest'in okunur logu.
-  const app = await NestFactory.create(
-    AppModule,
-    process.env.NODE_ENV === 'production' ? { logger: new JsonLogger() } : {},
-  );
+  // `rawBody: true` (07.10.2026, Faz 12): ödeme webhook'unun imzası HAM
+  // gövde üzerinden doğrulanır; JSON'a çevrilip yeniden üretilen gövde imzayı bozar.
+  const app = await NestFactory.create(AppModule, {
+    rawBody: true,
+    ...(process.env.NODE_ENV === 'production' ? { logger: new JsonLogger() } : {}),
+  });
 
   // AUDIT_REPORT.md Bulgu F2 (bu oturum) — `RaceGateway`'in (bkz. o
   // dosyanın doc yorumu) kullandığı socket.io tabanlı WebSocket adaptörünü

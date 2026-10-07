@@ -19,6 +19,10 @@ import type {
   AvatarGenerationJobView,
   AvatarGenerationStatusView,
   AdminAvatarJobView,
+  StoreView,
+  CheckoutView,
+  PaymentOrderView,
+  AdminPaymentOrderView,
   AchievementClaimResult,
   QuestClaimResult,
   QuestMetric,
@@ -1440,6 +1444,20 @@ export const apiClient = {
     request<AvatarGenerationJobView>(`/avatar/generation/${encodeURIComponent(jobId)}/cancel`, { method: 'POST' }),
   deleteAiAvatar: () => request<{ deletedObjects: number }>('/avatar/ai', { method: 'DELETE' }),
   listAvatarJobs: () => request<AdminAvatarJobView[]>('/admin/avatar-jobs'),
+  /** 07.10.2026 (Faz 12) — mağaza. Ödeme sonucu YALNIZCA sağlayıcının webhook'uyla kabul edilir. */
+  getStore: () => request<StoreView>('/store'),
+  /** Anahtar başarıya kadar korunur (ağ kopmasında ikinci ödeme oturumu açılmasın). */
+  createCheckout: (sku: string, idempotencyKey: string) =>
+    request<CheckoutView>('/store/orders', {
+      method: 'POST',
+      headers: { 'Idempotency-Key': idempotencyKey },
+      body: JSON.stringify({ sku }),
+    }),
+  listPaymentOrders: () => request<PaymentOrderView[]>('/store/orders'),
+  getPaymentOrder: (orderId: string) => request<PaymentOrderView>(`/store/orders/${encodeURIComponent(orderId)}`),
+  listAdminPayments: () => request<AdminPaymentOrderView[]>('/admin/payments'),
+  requestPaymentRefund: (orderId: string) =>
+    request<{ requested: true }>(`/admin/payments/${encodeURIComponent(orderId)}/refund`, { method: 'POST' }),
   /** 02.10.2026 — kişisel veri dışa aktarma (KVKK/GDPR); yalnızca kendi verin. */
   exportAccountData: () => request<AccountDataExport>('/account/export'),
   claimQuest: (questKey: string) =>

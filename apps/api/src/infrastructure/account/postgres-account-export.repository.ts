@@ -98,6 +98,11 @@ const SECTION_SQL: Record<AccountExportSectionName, string> = {
     SELECT status, provider, error_code AS "errorCode", consent_version AS "consentVersion",
            consented_at AS "consentedAt", created_at AS "createdAt", finished_at AS "finishedAt"
       FROM avatar_generation_jobs WHERE player_id = $1 ORDER BY created_at DESC LIMIT $2`,
+  // Makbuzlar (Faz 12) — sağlayıcı oturum/ödeme kimliği dışa aktarılmaz.
+  payments: `
+    SELECT sku, gems::float8 AS gems, amount_minor::float8 AS "amountMinor", currency, status,
+           failure_code AS "failureCode", created_at AS "createdAt", paid_at AS "paidAt", refunded_at AS "refundedAt"
+      FROM payment_orders WHERE player_id = $1 ORDER BY created_at DESC LIMIT $2`,
 };
 
 @Injectable()

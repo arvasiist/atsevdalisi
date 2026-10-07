@@ -41,6 +41,7 @@ docker build -f apps/web/Dockerfile --build-arg NEXT_PUBLIC_API_URL=https://api.
 | `RESEND_API_KEY` | uyarı | yoksa e-posta gitmez |
 | `GOOGLE_OAUTH_CLIENT_ID` | uyarı | yoksa Google düğmesi gizli |
 | `AVATAR_PROVIDER` | isteğe bağlı | fotoğraftan AI avatar sağlayıcısının adı; boşsa özellik KAPALI (selfie kabul edilmez, manuel avatar çalışır). Bugün kodda tanımlı sağlayıcı YOK — bilinmeyen ad açılışta hata verir. Sağlayıcının API anahtarı da ortam değişkenidir, istemciye gitmez. |
+| `PAYMENT_PROVIDER` | isteğe bağlı | gerçek para ödeme sağlayıcısının adı; boşsa mağaza KAPALI. Bugün kodda tanımlı sağlayıcı YOK — bilinmeyen ad açılışta hata verir. Webhook adresi: `POST {API}/api/v1/payments/webhook/{PAYMENT_PROVIDER}` (sağlayıcı panelinde tanımlanır). Sağlayıcının gizli anahtarı ve webhook imza sırrı ortam değişkenidir; loglanmaz, istemciye gitmez. Açmadan önce yasal inceleme şart. |
 | `AVATAR_STORAGE_DIR` | `AVATAR_PROVIDER` varsa ZORUNLU | selfie (geçici), GLB ve küçük resimlerin yerel dizini. Tek örnekli kurulum içindir; çok örnekte paylaşılan nesne deposu (S3 uyumlu) gerekir. **Kişisel veri** içerir: yedekleme/erişim buna göre. |
 
 Sahte para yatırma üretimde HER ZAMAN kapalıdır (`MockPaymentProvider`);

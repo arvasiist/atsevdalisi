@@ -2099,6 +2099,23 @@ export interface AvatarConfig {
   };
 }
 
+/**
+ * 07.10.2026 (Faz 12) — mağaza kataloğu + ödeme sınırları. Fiyatlar EN KÜÇÜK
+ * para biriminde (kuruş). Sağlayıcı ve anahtarları ortam değişkenindedir.
+ */
+export interface StoreConfig {
+  currency: string;
+  products: Array<{ sku: string; gems: number; priceMinor: number }>;
+  /** Oyuncu başına son 24 saatte ödenmiş + bekleyen siparişlerin üst sınırı (kuruş). */
+  maxDailySpendMinor: number;
+  /** Aynı anda bekleyen (ödeme sayfasında) sipariş sınırı. */
+  maxPendingOrders: number;
+  /** Bu süreden eski bekleyen sipariş limit hesabında sayılmaz ve iptal edilebilir. */
+  pendingOrderTtlMinutes: number;
+  historyLimit: number;
+  adminListLimit: number;
+}
+
 /** Avatar kataloğunun alanları (`generation` sınırları HARİÇ). */
 export type AvatarCatalogKey = Exclude<keyof AvatarConfig, 'generation'>;
 

@@ -300,7 +300,7 @@ Brief fazlarına göre gerçek durum:
 | 9 Social | TESTED — kulüp sohbeti + emote eklendi; sosyal hub (avatar) Faz 8 ile |
 | 10 Admin | TESTED — roller, yaptırım, duyuru, bakiye düzeltmesi, at araması, ayar/sezon/turnuva görünümü; AI Jobs Faz 8 ile |
 | 11 Live Ops | TESTED — duyurular, görevler/etkinlikler, haftalık/aylık sıralama, özel yarış (Pazar Derbisi); başarımlar yok |
-| 12 Monetization | NOT_STARTED (yalnızca sahte yatırma) |
+| 12 Monetization | PARTIAL — altyapı + mağaza + makbuz + iade (sahte sağlayıcıyla test); gerçek sağlayıcı yok |
 | 13 Production | PARTIAL — 13-A temel (sağlık, istek kimliği, ortam kapısı, taramalar, Dockerfile) TESTED; 13-B çerçeve yükseltmesi + staging/izleme yok |
 | 14 Final E2E | PARTIAL — `final.e2e-spec.ts` API yolculuğu var; avatar/ödeme yok |
 
@@ -922,3 +922,25 @@ TESTS PASSED: API 185 / 2529 (temiz şema), web 54 / 564, tam lint 0 hata; taray
 TESTS FAILED: 0
 REMAINING: gerçek sağlayıcı (sahibinin kararı), S3 uyumlu depo, AI modelinin 3D gösterimi, sosyal alan (§50)
 NEXT PHASE: sahibinin sağlayıcı kararı / Faz 12 ödeme
+
+---
+
+PHASE: 12 — Ödeme altyapısı (sağlayıcısız)
+STATUS: TESTED (sahte sağlayıcıyla); gerçek sağlayıcı YOK → satın alma kapalı
+SUMMARY: Premium para (elmas) paketleri, sipariş → sağlayıcı ödeme sayfası → imzalı webhook → elmas;
+makbuzlar, iade (talep + webhook), sahtekârlık korumaları. Gerçek para oyun içi defterden ayrı.
+FILES CREATED: config/store.config.json · shared-types payments.ts · domain/payments/* · ports/{payment-gateway,
+payment-order.repository}.ts · infrastructure/payments/{postgres-payment-order.repository,payment-gateways}.ts ·
+use-cases/payments.use-case.ts · api/payments/* · web app/store, features/store, features/admin/PaymentsAdmin · migration 0068
+FILES MODIFIED: main.ts + test-helpers (rawBody), app.module, hata eşlemesi, staff izinleri (payments.manage),
+hesap silme engeli (payment_pending), dışa aktarma (payments), defter türleri, web api-client/nav/admin, DEPLOYMENT.md
+DATABASE CHANGES: 0068 payment_orders, payment_events (provider, event_id PK)
+API CHANGES: GET /store · POST/GET /store/orders · GET /store/orders/:id · POST /payments/webhook/:provider ·
+GET /admin/payments · POST /admin/payments/:id/refund
+SECURITY CHANGES: istemci yalnızca SKU gönderir; webhook imzası ham gövdeyle; olay tekilliği; tutar eşleşmesi;
+sınırlar; iade talep≠sonuç; sağlayıcı kimlikleri oyuncuya/yöneticiye dönmez
+TESTS ADDED: store.spec (7), payments.e2e (7; HMAC imzalı sahte sağlayıcı), web store-labels (2) + api-client (1)
+TESTS PASSED: API 187 / 2545 (temiz şema), web 55 / 567, tam lint 0 hata; tarayıcı: /store "kapalı" durumu
+TESTS FAILED: 0
+REMAINING: gerçek sağlayıcı + yasal inceleme (sahibinin kararı)
+NEXT PHASE: sahibinin sağlayıcı kararları (AI avatar, ödeme) / gerçek 3D varlıkların bağlanması

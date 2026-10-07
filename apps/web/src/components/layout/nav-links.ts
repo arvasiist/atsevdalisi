@@ -41,7 +41,8 @@ export type NavIconName =
   | 'wallet'
   | 'notifications'
   | 'account'
-  | 'avatar';
+  | 'avatar'
+  | 'store';
 
 /**
  * Yerleşim (01.10.2026 tasarım yenilemesi):
@@ -78,6 +79,7 @@ export const NAV_LINKS: ReadonlyArray<NavLink> = [
   { href: '/equipment', label: 'Ekipman', icon: 'equipment', placement: 'more' },
   { href: '/farm', label: 'Çiftlik', icon: 'farm', placement: 'more' },
   { href: '/online', label: 'Online', icon: 'online', placement: 'more' },
+  { href: '/store', label: 'Mağaza', icon: 'store', placement: 'more' },
   { href: '/wallet', label: 'Cüzdan', icon: 'wallet', placement: 'more' },
   { href: '/avatar', label: 'Avatarım', icon: 'avatar', placement: 'more' },
   { href: '/account', label: 'Hesap', icon: 'account', placement: 'more' },

@@ -1336,6 +1336,33 @@ describe('AI AVATAR uçları (07.10.2026)', () => {
   });
 });
 
+describe('MAĞAZA uçları (07.10.2026, Faz 12)', () => {
+  it('sipariş Idempotency-Key + yalnızca SKU taşır; "ödendi" gönderen bir istemci yöntemi YOK', async () => {
+    setAuthToken('t');
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ success: true, data: {} }));
+    vi.stubGlobal('fetch', fetchMock);
+    await apiClient.getStore();
+    await apiClient.createCheckout('gems-100', 'k-1');
+    await apiClient.listPaymentOrders();
+    await apiClient.getPaymentOrder('o/1');
+    await apiClient.listAdminPayments();
+    await apiClient.requestPaymentRefund('o1');
+    const calls = fetchMock.mock.calls.map(([url, config]) => [String(url).replace(API_BASE_URL, ''), (config as RequestInit).method ?? 'GET']);
+    expect(calls).toEqual([
+      ['/store', 'GET'],
+      ['/store/orders', 'POST'],
+      ['/store/orders', 'GET'],
+      ['/store/orders/o%2F1', 'GET'],
+      ['/admin/payments', 'GET'],
+      ['/admin/payments/o1/refund', 'POST'],
+    ]);
+    const checkout = fetchMock.mock.calls[1]![1] as RequestInit;
+    expect(new Headers(checkout.headers).get('Idempotency-Key')).toBe('k-1');
+    expect(JSON.parse(String(checkout.body))).toEqual({ sku: 'gems-100' });
+    expect(Object.keys(apiClient).filter((name) => /(confirm|mark)(Payment|Order|Paid)|paymentSuccess|markPaid/i.test(name))).toEqual([]);
+  });
+});
+
 describe('BAŞARIM uçları (03.10.2026)', () => {
   it('doğru rota/yöntem; anahtar kodlanır', async () => {
     setAuthToken('t');

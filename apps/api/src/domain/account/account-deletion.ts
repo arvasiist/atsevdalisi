@@ -14,6 +14,7 @@ export const ACCOUNT_DELETION_BLOCKERS = [
   'interactive_race_running',
   'pvp_match_active',
   'club_leader_with_members',
+  'payment_pending',
 ] as const;
 
 export type AccountDeletionBlocker = (typeof ACCOUNT_DELETION_BLOCKERS)[number];
@@ -42,4 +43,5 @@ export const ACCOUNT_DELETION_BLOCKER_LABELS: Record<AccountDeletionBlocker, str
   interactive_race_running: 'süren bir kontrollü yarışın var',
   pvp_match_active: 'süren bir eşleşmeli maçın var',
   club_leader_with_members: 'üyesi olan bir kulübün liderisin (önce liderliği devret)',
+  payment_pending: 'tamamlanmamış bir ödemen var (sonuçlanmasını bekle)',
 };

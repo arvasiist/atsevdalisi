@@ -33,7 +33,8 @@ export async function bootstrapTestApp(
     }),
   ).compile();
 
-  const app = moduleRef.createNestApplication();
+  // `rawBody` main.ts ile AYNI (ödeme webhook imzası ham gövdeyle doğrulanır).
+  const app = moduleRef.createNestApplication({ rawBody: true });
   app.setGlobalPrefix('api/v1');
   app.useGlobalFilters(new HttpExceptionFilter());
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }));

@@ -11,6 +11,7 @@ import {
   Clapperboard,
   ListChecks,
   Dumbbell,
+  Gem,
   Globe,
   HeartPulse,
   House,
@@ -49,6 +50,7 @@ const LUCIDE_ICONS: Record<Exclude<NavIconName, 'horse'>, typeof House> = {
   notifications: Bell,
   account: User,
   avatar: Shirt,
+  store: Gem,
 };
 
 export function NavIcon({ name, size = 18 }: { name: NavIconName; size?: number }): React.ReactElement {

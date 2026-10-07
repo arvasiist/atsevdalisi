@@ -1,3 +1,4 @@
+import { loadStoreConfig } from '@at-sevdalisi/game-config';
 import { Inject, Injectable } from '@nestjs/common';
 import type { Pool, PoolClient } from 'pg';
 import type { AccountDeletionRepository } from '../../application/ports/account-deletion.repository';
@@ -27,6 +28,12 @@ const BLOCKERS_SQL = `
   UNION ALL
   SELECT 'pvp_match_active' WHERE EXISTS (
     SELECT 1 FROM pvp_matches WHERE (player_a_id = $1 OR player_b_id = $1) AND status IN ('matched', 'in_progress'))
+  UNION ALL
+  SELECT 'payment_pending' WHERE EXISTS (
+    -- 07.10.2026 (Faz 12): ödeme sayfasındaki sipariş sonuçlanmadan hesap
+    -- anonimleşirse sağlayıcının webhook'u elmasları anonim hesaba yazardı.
+    SELECT 1 FROM payment_orders WHERE player_id = $1 AND status IN ('created', 'pending')
+       AND created_at > now() - interval '${loadStoreConfig().pendingOrderTtlMinutes} minutes')
   UNION ALL
   SELECT 'club_leader_with_members' WHERE EXISTS (
     SELECT 1 FROM club_members m

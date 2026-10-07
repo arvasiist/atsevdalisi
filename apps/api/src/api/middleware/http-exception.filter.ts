@@ -1,4 +1,12 @@
 import {
+  InvalidWebhookError,
+  PaymentLimitReachedError,
+  PaymentOrderNotFoundError,
+  PaymentRefundNotAllowedError,
+  PaymentUnavailableError,
+  StoreProductNotFoundError,
+} from '../../domain/payments/errors';
+import {
   AiAvatarNotFoundError,
   AvatarConsentRequiredError,
   AvatarGenerationUnavailableError,
@@ -474,6 +482,12 @@ const DOMAIN_ERROR_MAP = new Map<ErrorClassConstructor, { status: number; code: 
   [QuestNotCompletedError, { status: HttpStatus.CONFLICT, code: ErrorCode.QuestNotCompleted }],
   [QuestAlreadyClaimedError, { status: HttpStatus.CONFLICT, code: ErrorCode.QuestAlreadyClaimed }],
   [InvalidAvatarError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.InvalidAvatar }],
+  [PaymentUnavailableError, { status: HttpStatus.SERVICE_UNAVAILABLE, code: ErrorCode.PaymentUnavailable }],
+  [StoreProductNotFoundError, { status: HttpStatus.NOT_FOUND, code: ErrorCode.StoreProductNotFound }],
+  [PaymentLimitReachedError, { status: HttpStatus.CONFLICT, code: ErrorCode.PaymentLimitReached }],
+  [PaymentOrderNotFoundError, { status: HttpStatus.NOT_FOUND, code: ErrorCode.PaymentOrderNotFound }],
+  [InvalidWebhookError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.InvalidWebhook }],
+  [PaymentRefundNotAllowedError, { status: HttpStatus.CONFLICT, code: ErrorCode.PaymentRefundNotAllowed }],
   [AvatarGenerationUnavailableError, { status: HttpStatus.SERVICE_UNAVAILABLE, code: ErrorCode.AvatarGenerationUnavailable }],
   [AvatarConsentRequiredError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.AvatarConsentRequired }],
   [SelfieRejectedError, { status: HttpStatus.UNPROCESSABLE_ENTITY, code: ErrorCode.SelfieRejected }],

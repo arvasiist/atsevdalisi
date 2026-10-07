@@ -145,6 +145,8 @@ export const LEDGER_TRANSACTION_TYPES = [
   /** 02.10.2026 (Faz 11-B) — günlük/haftalık görev ödülü (tekil `quest_claims` satırına bağlı). */
   'quest_reward',
   'achievement_reward',
+  'gem_purchase',
+  'gem_purchase_refund',
   /** 02.10.2026 (Faz 11-B) — yönetimin açtığı süreli etkinliğin ödülü. */
   'event_reward',
   /**
@@ -232,6 +234,9 @@ export const CANONICAL_BY_LEDGER_TYPE: Record<LedgerTransactionType, CanonicalTr
   auction_sale_credit: 'MARKET',
   quest_reward: 'REWARD',
   achievement_reward: 'REWARD',
+  // 07.10.2026 (Faz 12) — gerçek para ile alınan elmas ve iadesinde geri alınan elmas.
+  gem_purchase: 'DEPOSIT',
+  gem_purchase_refund: 'REFUND',
   event_reward: 'REWARD',
   admin_adjustment: 'ADJUSTMENT',
 };
