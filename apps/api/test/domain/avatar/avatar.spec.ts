@@ -34,7 +34,8 @@ describe('avatar kuralları (saf)', () => {
     reject(null);
     reject([]);
     reject('saç');
-    const { hat: _hat, ...missing } = valid;
+    const missing: Partial<typeof valid> = { ...valid };
+    delete missing.hat;
     reject(missing);
     reject({ ...valid, cape: 'red' });
     reject({ ...valid, hairColor: '#ff0000' });

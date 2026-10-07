@@ -53,7 +53,7 @@ describe('Avatar (e2e)', () => {
     for (const bad of [
       { ...base, hairColor: '#ff0000' },
       { ...base, extra: 'x' },
-      (({ hat: _hat, ...rest }) => rest)(base),
+      Object.fromEntries(Object.entries(base).filter(([field]) => field !== 'hat')),
       'metin',
       undefined,
     ]) {
