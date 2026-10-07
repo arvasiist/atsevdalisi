@@ -855,3 +855,20 @@ TESTS PASSED: API 181 / 2495 (temiz şema), web 52 / 556; tarayıcı: /quests ba
 TESTS FAILED: 0
 REMAINING: görevlerde antrenman/bakım ölçütünün oyuncuya bağlanması (ayrı dilim)
 NEXT PHASE: Sona bırakılanlar (Faz 8 AI avatar, Faz 12 ödeme, varlıklar, Apple girişi)
+
+---
+
+PHASE: 11 (düzeltme) — Görevlerde antrenman/bakım sahipliği
+STATUS: TESTED
+SUMMARY: Antrenman/bakım görevi atın şimdiki sahibine sayılıyordu; at satılınca aynı günün görevi iki
+oyuncuya ödenebiliyordu. Satırlar artık işi yapan oyuncuyu yazar, görev sorgusu ona bakar.
+FILES MODIFIED: postgres-training-session.repository · postgres-care-log.repository · postgres-quest.repository ·
+quests.e2e-spec (regresyon)
+DATABASE CHANGES: 0065 — training_sessions.player_id, horse_care_log.performed_by (nullable, yalnızca ekleme)
+API CHANGES: —
+SECURITY CHANGES: görev ödülü at satışıyla çoğaltılamaz
+TESTS ADDED: quests.e2e (+1; düzeltmesiz kırıldığı doğrulandı)
+TESTS PASSED: API 181 / 2498 (temiz şema)
+TESTS FAILED: 0
+REMAINING: —
+NEXT PHASE: Sona bırakılanlar (Faz 8 AI avatar, Faz 12 ödeme, varlıklar, Apple girişi)

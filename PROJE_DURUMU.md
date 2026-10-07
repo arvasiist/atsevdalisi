@@ -4037,10 +4037,17 @@ Karar: önce pratik yarış; kırbaç sınırsız, dayanıklılık bedelli.
   5/15/30); ilerleme türetilir, ödül tek kez (PK + kilit + defter).
 - `/quests` ekranında "Başarımlar" bölümü; herkese açık profilde kazanılmış
   rozetler (`PlayerProfileView.achievements` artık dizi).
-- Bilinen sınır (ayrı dilim): günlük görevlerin antrenman/bakım ölçütü ATA
-  bağlı tablolardan sayılır (oyuncu sütunu yok) — aynı gün antrenmanı yapılmış
-  at satılırsa alıcı da o günün görevini tamamlamış sayılır. Başarımlar bu
-  ölçütleri bilinçli olarak kullanmaz.
+- Görevlerin antrenman/bakım ölçütü ATA bağlı sayılıyordu (aynı gün antrenmanı
+  yapılmış at satılınca görev iki kez ödenebiliyordu) — 07.10.2026'da
+  kapatıldı, bkz. §13.81. Başarımlar bu ölçütleri yine kullanmaz (0065 öncesi
+  satırlar at sahibine düşer).
+
+### 13.81 Antrenman/bakım yapana sayılır (07.10.2026, migration 0065)
+
+- `training_sessions.player_id`, `horse_care_log.performed_by` (işlem anındaki
+  sahip); görev sorgusu bunlara bakar, eski satır at sahibine düşer.
+- Regresyon: `quests.e2e-spec.ts` "antrenman/bakım YAPANA sayılır" — düzeltme
+  olmadan kırıldığı doğrulandı.
 
 ## 14. Kendime hatırlatmalar (kısa liste)
 

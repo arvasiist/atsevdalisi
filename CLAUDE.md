@@ -559,6 +559,12 @@ transaction. Profil (`@Public`) yalnızca ÖDÜLÜ ALINMIŞ başarımları göst
 YAPILMAZ: o tablolar oyuncuya değil ATA bağlıdır — at satın alarak
 başkasının emeğiyle ödül açılırdı (`achievements.spec.ts` kilitler).
 `achievement_claims` silme + dışa aktarma listelerinde.
+(57) **ANTRENMAN/BAKIM YAPANA SAYILIR (07.10.2026, migration 0065)** —
+`training_sessions.player_id` ve `horse_care_log.performed_by` işlem anındaki
+sahibi yazar; görev sorgusu `COALESCE(<sütun>, h.owner_id)`. Önceden bugün
+antrenmanı yapılmış at satılınca aynı günün görevi hem satıcıya hem alıcıya
+ödenebiliyordu. Eski satırlar NULL (tahmin yazılmaz). ⚠️ Antrenman/bakımı
+oyuncuya bağlayan YENİ bir sorguda `h.owner_id` tek başına KULLANMA.
 
 **✅ ÜCRETLİ LOBİ YARIŞI ARTIK KOŞUYOR — ÖDÜL DAĞITIMI VAR (§13.14,
 28.09.2026).** `POST /races/:id/settle` yarışı koşar, ödülleri `top5`

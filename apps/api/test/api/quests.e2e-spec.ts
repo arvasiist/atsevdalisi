@@ -154,6 +154,40 @@ describe('Görevler + etkinlikler (e2e)', () => {
     expect((await board(other)).daily.quests.find((q) => q.metric === 'trainings')!.progress).toBe(0);
   });
 
+  it('antrenman/bakım YAPANA sayılır: at satılınca alıcıya geçmez, satıcıda kalır (migration 0065)', async () => {
+    // Regresyon (07.10.2026): ölçüt atın ŞİMDİKİ sahibine bakıyordu — bugün
+    // antrenmanı yapılmış at satılınca aynı günün görevi iki kez ödenebiliyordu.
+    const seller = await registerTestPlayerWithStarterHorse(app, 'Görev Antrenör Satıcı');
+    const buyer = await registerTestPlayerWithStarterHorse(app, 'Görev Antrenör Alıcı');
+    await http()
+      .post(`/api/v1/horses/${seller.horseId}/train`)
+      .set('Authorization', seller.authHeader)
+      .send({ type: 'speed', intensity: 'low', durationMinutes: 30 })
+      .expect(200);
+    await http()
+      .post(`/api/v1/horses/${seller.horseId}/care`)
+      .set('Authorization', seller.authHeader)
+      .send({ actionType: 'groom' })
+      .expect(200);
+    const listing = await http()
+      .post('/api/v1/market/listings')
+      .set('Authorization', seller.authHeader)
+      .send({ horseId: seller.horseId, price: config.horsePurchaseMinPrice })
+      .expect(201);
+    await http()
+      .post(`/api/v1/market/listings/${listing.body.data.id}/buy`)
+      .set('Authorization', buyer.authHeader)
+      .set('Idempotency-Key', randomUUID())
+      .send({})
+      .expect(200);
+    const progressOf = async (player: RegisteredTestPlayer, metric: string) =>
+      (await board(player)).daily.quests.find((q) => q.metric === metric)!.progress;
+    expect(await progressOf(seller, 'trainings')).toBe(1);
+    expect(await progressOf(seller, 'care_actions')).toBe(1);
+    expect(await progressOf(buyer, 'trainings')).toBe(0);
+    expect(await progressOf(buyer, 'care_actions')).toBe(0);
+  });
+
   it('at alımı: asgari fiyatın altındaki el değiştirme sayılmaz, üstündeki sayılır', async () => {
     const buy = findQuest('horse_purchases', 'weekly');
     const sellerCheap = await registerTestPlayerWithStarterHorse(app, 'Görev Ucuz Satıcı');

@@ -20,8 +20,11 @@ export class PostgresTrainingSessionRepository implements TrainingSessionReposit
 
   async save(session: TrainingSession): Promise<void> {
     await this.pool.query(
-      `INSERT INTO training_sessions (id, horse_id, type, intensity, duration_minutes, stat_gain, fatigue_gain, injury_risk, injury_occurred, created_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+      // 07.10.2026 (migration 0065) — `player_id` = antrenmanı YAPAN oyuncu
+      // (işlem anındaki sahip). Görev sayımı ata değil oyuncuya bakar; at
+      // sonradan satılsa da antrenman alıcıya geçmez.
+      `INSERT INTO training_sessions (id, horse_id, type, intensity, duration_minutes, stat_gain, fatigue_gain, injury_risk, injury_occurred, created_at, player_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, (SELECT owner_id FROM horses WHERE id = $2))`,
       [
         session.id,
         session.horseId,

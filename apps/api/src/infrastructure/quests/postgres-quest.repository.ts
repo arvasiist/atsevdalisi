@@ -42,7 +42,8 @@ const METRIC_SQL: Record<QuestMetric, string> = {
     SELECT COUNT(*)::bigint AS count
       FROM training_sessions t
       JOIN horses h ON h.id = t.horse_id
-     WHERE h.owner_id = $1 AND t.type <> 'rest'
+     -- 07.10.2026 (0065): antrenmanı YAPAN oyuncu; eski satır at sahibine düşer.
+     WHERE COALESCE(t.player_id, h.owner_id) = $1 AND t.type <> 'rest'
        AND t.created_at >= $2 AND t.created_at < $3 AND $4::bigint IS NOT NULL`,
   // Bakım günlüğü yalnızca (at, iş) başına SON zamanı tutar: aynı atta aynı
   // iş pencerede bir kez sayılır. Görev metni bu yüzden "farklı bakım işi"dir.
@@ -50,7 +51,8 @@ const METRIC_SQL: Record<QuestMetric, string> = {
     SELECT COUNT(*)::bigint AS count
       FROM horse_care_log c
       JOIN horses h ON h.id = c.horse_id
-     WHERE h.owner_id = $1
+     -- 07.10.2026 (0065): bakımı YAPAN oyuncu; eski satır at sahibine düşer.
+     WHERE COALESCE(c.performed_by, h.owner_id) = $1
        AND c.last_performed_at >= $2 AND c.last_performed_at < $3 AND $4::bigint IS NOT NULL`,
   // Sabit fiyatlı alım (alıcının defter satırı) + kazanılmış müzayede
   // (satıcının satış satırı, kazanan teklif sahibi oyuncu).
