@@ -4049,6 +4049,17 @@ Karar: önce pratik yarış; kırbaç sınırsız, dayanıklılık bedelli.
 - Regresyon: `quests.e2e-spec.ts` "antrenman/bakım YAPANA sayılır" — düzeltme
   olmadan kırıldığı doğrulandı.
 
+### 13.82 Faz 8-A — manuel avatar oluşturucu (07.10.2026, migration 0066)
+
+- Katalog (`avatar.config.json`): ten, saç, saç rengi, sosyal kıyafet + renk,
+  ayakkabı, şapka, aksesuar, yarış forması deseni + iki renk (brief §44).
+- Varsayılan avatar oyuncu kimliğinden türetilir; oyuncu `/avatar`ta seçip
+  kaydeder; profil başlığında SVG portre, `/avatar`ta prosedürel 3D figür
+  (bekle / el salla / tezahürat, sosyal / yarış kıyafeti).
+- YOK (sağlayıcı ister): selfie → AI avatar, kalite kontrolü, iş kuyruğu,
+  nesne depolama, rıza/silme akışı (brief §38–48) → Faz 8-B altyapısı +
+  sahibinin sağlayıcı kararı. Sosyal alan (§50) avatarları kullanacak.
+
 ## 14. Kendime hatırlatmalar (kısa liste)
 
 1. **Race Engine'e dokunmadan önce iki kez düşün.** Denetim onu "KEEP, dokunma"

@@ -14,6 +14,8 @@ import type {
   AccountDataExport,
   QuestBoardView,
   AchievementBoardView,
+  AvatarAppearance,
+  AvatarView,
   AchievementClaimResult,
   QuestClaimResult,
   QuestMetric,
@@ -1415,6 +1417,10 @@ export const apiClient = {
 
   /** 02.10.2026 (Faz 11-B) — günlük/haftalık görevler + etkinlikler. İlerleme sunucuda türetilir. */
   getQuests: () => request<QuestBoardView>('/quests'),
+  /** 07.10.2026 — manuel avatar (katalog kimlikleri; sunucu doğrular). */
+  getAvatar: () => request<AvatarView>('/avatar'),
+  saveAvatar: (appearance: AvatarAppearance) =>
+    request<AvatarView>('/avatar', { method: 'PUT', body: JSON.stringify({ appearance }) }),
   /** 02.10.2026 — kişisel veri dışa aktarma (KVKK/GDPR); yalnızca kendi verin. */
   exportAccountData: () => request<AccountDataExport>('/account/export'),
   claimQuest: (questKey: string) =>

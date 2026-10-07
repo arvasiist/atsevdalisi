@@ -90,6 +90,9 @@ const SECTION_SQL: Record<AccountExportSectionName, string> = {
   achievementClaims: `
     SELECT achievement_key AS "achievementKey", reward_money::float8 AS "rewardMoney", claimed_at AS "claimedAt"
       FROM achievement_claims WHERE player_id = $1 ORDER BY claimed_at DESC LIMIT $2`,
+  avatar: `
+    SELECT appearance, updated_at AS "updatedAt"
+      FROM player_avatars WHERE player_id = $1 LIMIT $2`,
 };
 
 @Injectable()

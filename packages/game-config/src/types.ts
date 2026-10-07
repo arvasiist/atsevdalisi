@@ -2059,6 +2059,24 @@ export interface QuestDefinitionConfig {
   rewardMoney: number;
 }
 
+/**
+ * 07.10.2026 — avatar kataloğu (brief §44/§49). Liste alanları seçenek
+ * kimlikleri, sözlük alanları kimlik → hex renk. Alan → katalog eşlemesi
+ * `apps/api/src/domain/avatar/avatar.ts` → `AVATAR_CATALOG_KEYS`.
+ */
+export interface AvatarConfig {
+  skinTones: Record<string, string>;
+  hairStyles: string[];
+  hairColors: Record<string, string>;
+  socialOutfits: string[];
+  outfitColors: Record<string, string>;
+  shoes: string[];
+  hats: string[];
+  accessories: string[];
+  raceOutfits: string[];
+  silkColors: Record<string, string>;
+}
+
 /** 03.10.2026 — başarım tanımı; ölçüt `ACHIEVEMENT_METRICS`ten (shared-types). */
 export interface AchievementDefinitionConfig {
   key: string;

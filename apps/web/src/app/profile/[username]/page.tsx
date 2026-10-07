@@ -63,6 +63,7 @@ import Link from 'next/link';
 import type { PlayerProfileView, ReportCategory } from '@at-sevdalisi/shared-types';
 import { GlassPanel } from '../../../components/ui/GlassPanel';
 import { getCareerProgress } from '../../../features/career/career-tier';
+import { AvatarPortrait } from '../../../features/avatar/AvatarPortrait';
 import { achievementTitle } from '../../../features/quests/achievement-labels';
 import { apiClient } from '../../../lib/api-client';
 import { usePlayer } from '../../../lib/player-context';
@@ -221,9 +222,8 @@ export default function PlayerProfilePage(): React.ReactElement {
     <main style={{ display: 'grid', gap: 'var(--space-md)', maxWidth: '880px', margin: '0 auto', padding: 'var(--space-md)' }}>
       <GlassPanel>
         <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 'var(--space-md)' }}>
-          <div style={avatarStyle} aria-hidden="true">
-            {profile.displayName.slice(0, 1).toLocaleUpperCase('tr-TR')}
-          </div>
+          {/* 07.10.2026 — oyuncunun avatarı (kayıtlı ya da kimlikten türetilen varsayılan). */}
+          <AvatarPortrait appearance={profile.avatar} size={64} label={`${profile.displayName} avatarı`} />
           <div style={{ display: 'grid', gap: '4px', minWidth: 0 }}>
             <h1 style={{ margin: 0, fontSize: '22px', color: 'var(--color-text-primary)' }}>{profile.displayName}</h1>
             <span style={{ fontSize: '13px', color: 'var(--color-text-muted)' }}>@{profile.username}</span>
@@ -413,20 +413,6 @@ function CenteredMessage({ children }: { children: React.ReactNode }): React.Rea
     </main>
   );
 }
-
-const avatarStyle: React.CSSProperties = {
-  display: 'grid',
-  placeItems: 'center',
-  width: '64px',
-  height: '64px',
-  borderRadius: '999px',
-  background: 'rgba(255, 255, 255, 0.08)',
-  border: '1px solid var(--color-border)',
-  fontSize: '26px',
-  fontWeight: 700,
-  color: 'var(--color-text-primary)',
-  flexShrink: 0,
-};
 
 const selfBadgeStyle: React.CSSProperties = {
   marginLeft: 'auto',

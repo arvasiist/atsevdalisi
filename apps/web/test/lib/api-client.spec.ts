@@ -1291,6 +1291,23 @@ describe('GÖREV + ETKİNLİK uçları (Faz 11-B)', () => {
   });
 });
 
+describe('AVATAR uçları (07.10.2026)', () => {
+  it('GET /avatar; PUT /avatar gövdesi { appearance }', async () => {
+    setAuthToken('t');
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ success: true, data: {} }));
+    vi.stubGlobal('fetch', fetchMock);
+    await apiClient.getAvatar();
+    const appearance = { hat: 'cap' } as unknown as Parameters<typeof apiClient.saveAvatar>[0];
+    await apiClient.saveAvatar(appearance);
+    const calls = fetchMock.mock.calls.map(([url, config]) => [String(url).replace(API_BASE_URL, ''), (config as RequestInit).method ?? 'GET']);
+    expect(calls).toEqual([
+      ['/avatar', 'GET'],
+      ['/avatar', 'PUT'],
+    ]);
+    expect(JSON.parse(String((fetchMock.mock.calls[1]![1] as RequestInit).body))).toEqual({ appearance: { hat: 'cap' } });
+  });
+});
+
 describe('BAŞARIM uçları (03.10.2026)', () => {
   it('doğru rota/yöntem; anahtar kodlanır', async () => {
     setAuthToken('t');

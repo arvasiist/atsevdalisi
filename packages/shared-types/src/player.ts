@@ -192,6 +192,7 @@ export const ACCOUNT_EXPORT_SECTIONS = [
   'questClaims',
   'clubMessages',
   'achievementClaims',
+  'avatar',
 ] as const;
 
 export type AccountExportSectionName = (typeof ACCOUNT_EXPORT_SECTIONS)[number];

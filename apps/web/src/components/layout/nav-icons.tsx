@@ -15,6 +15,7 @@ import {
   HeartPulse,
   House,
   Shield,
+  Shirt,
   ShoppingCart,
   Ticket,
   Trophy,
@@ -47,6 +48,7 @@ const LUCIDE_ICONS: Record<Exclude<NavIconName, 'horse'>, typeof House> = {
   wallet: Wallet,
   notifications: Bell,
   account: User,
+  avatar: Shirt,
 };
 
 export function NavIcon({ name, size = 18 }: { name: NavIconName; size?: number }): React.ReactElement {

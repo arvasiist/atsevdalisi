@@ -155,10 +155,12 @@ Arkadaşlık, mesaj, hediye (para yolu), engelleme/şikâyet, profil, bildirimle
 yarış daveti, kulüp (kur/katıl/lider devri/puan), **kulüp sohbeti + tribün emote'ları** (Faz 9).
 YOK: sosyal hub (avatarlı alan — Faz 8 ile), kulüp yarışı.
 
-## AI Avatar Status — NOT_STARTED
+## AI Avatar Status — PARTIAL
 
-`players.avatar_id` yalnızca hazır görsel kimliği. Selfie yükleme, sağlayıcı
-soyutlaması, iş kuyruğu, nesne depolama, rıza/silme akışı YOK. Ön koşullar:
+**Manuel avatar VAR (07.10.2026, Faz 8-A):** katalogdan özelleştirme (§44),
+kimlikten türetilen varsayılan + manuel oluşturucu (§49 yedek), profilde portre,
+`/avatar`ta prosedürel 3D figür. **AI avatar YOK:** selfie yükleme, sağlayıcı
+soyutlaması, iş kuyruğu, nesne depolama, rıza/silme akışı. Ön koşullar:
 sağlayıcı seçimi + API anahtarı, nesne depolama (S3 uyumlu), gizlilik metni.
 
 ## Mobile/PWA Status — IMPLEMENTED
@@ -292,7 +294,7 @@ Brief fazlarına göre gerçek durum:
 | 5 Advanced Race | TESTED (kulvar etkisi hariç — karar bekliyor) |
 | 6 3D/Presentation | PARTIAL — kod tam, gerçek varlık yok |
 | 7 Online | TESTED — anti-cheat inceleme listesi + yük testi (CI bütçe kapısı) |
-| 8 AI Avatar | NOT_STARTED |
+| 8 AI Avatar | PARTIAL — manuel avatar + özelleştirme (8-A); AI selfie sağlayıcı bekliyor |
 | 9 Social | TESTED — kulüp sohbeti + emote eklendi; sosyal hub (avatar) Faz 8 ile |
 | 10 Admin | TESTED — roller, yaptırım, duyuru, bakiye düzeltmesi, at araması, ayar/sezon/turnuva görünümü; AI Jobs Faz 8 ile |
 | 11 Live Ops | TESTED — duyurular, görevler/etkinlikler, haftalık/aylık sıralama, özel yarış (Pazar Derbisi); başarımlar yok |
@@ -872,3 +874,24 @@ TESTS PASSED: API 181 / 2498 (temiz şema)
 TESTS FAILED: 0
 REMAINING: —
 NEXT PHASE: Sona bırakılanlar (Faz 8 AI avatar, Faz 12 ödeme, varlıklar, Apple girişi)
+
+---
+
+PHASE: 8-A — Manuel avatar oluşturucu + özelleştirme
+STATUS: TESTED
+SUMMARY: Brief §44 (özelleştirme) ve §49 (AI yokken/başarısızken manuel avatar). Katalog config'te, sunucu
+doğrular; kaydı olmayan oyuncu kimlikten türetilen varsayılanla görünür. /avatar ekranı (prosedürel 3D,
+el salla/tezahürat, sosyal/yarış kıyafeti), profilde SVG portre. AI selfie avatarı bilinçli olarak YOK.
+FILES CREATED: config/avatar.config.json · shared-types avatar.ts · domain/avatar/* · ports/avatar.repository.ts ·
+infrastructure/avatar/* · use-cases/avatar.use-case.ts · api/avatar/* · web features/avatar/*, app/avatar/page.tsx ·
+migration 0066
+FILES MODIFIED: profil use-case/tipi (avatar), player.module, app.module, hata eşlemesi, silme + dışa aktarma,
+web profil başlığı, gezinti (Avatarım), api-client, globals.css
+DATABASE CHANGES: 0066 player_avatars (player_id PK, appearance JSONB)
+API CHANGES: GET /avatar · PUT /avatar · PlayerProfileView.avatar
+SECURITY CHANGES: katalog dışı değer 400; kimlik yalnızca token'dan; PUT hız sınırlı
+TESTS ADDED: avatar.spec (4), avatar.e2e (5), web avatar-catalog (3) + api-client (1)
+TESTS PASSED: API 183 / 2509 (temiz şema), web 53 / 560; tarayıcı: /avatar seçim + kaydet + el salla + yarış forması, profilde portre
+TESTS FAILED: 0
+REMAINING: 8-B selfie hattı altyapısı (sağlayıcısız), AI üretimi (sağlayıcı kararı), sosyal alan (§50)
+NEXT PHASE: Faz 8-B

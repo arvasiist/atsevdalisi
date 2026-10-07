@@ -210,6 +210,7 @@ describe('Oyuncu profili (e2e) — GET /players/profile/:username', () => {
     expect(Object.keys(response.body.data).sort()).toEqual(
       [
         'achievements',
+        'avatar',
         'avatarId',
         'displayName',
         'friendCount',

@@ -565,6 +565,17 @@ sahibi yazar; görev sorgusu `COALESCE(<sütun>, h.owner_id)`. Önceden bugün
 antrenmanı yapılmış at satılınca aynı günün görevi hem satıcıya hem alıcıya
 ödenebiliyordu. Eski satırlar NULL (tahmin yazılmaz). ⚠️ Antrenman/bakımı
 oyuncuya bağlayan YENİ bir sorguda `h.owner_id` tek başına KULLANMA.
+(58) **MANUEL AVATAR (07.10.2026, Faz 8-A, migration 0066, §13.82)** —
+`GET/PUT /avatar` + `/avatar` ekranı; brief §44 özelleştirme + §49 yedek
+oluşturucu. Seçimler `config/avatar.config.json` kataloğunun KİMLİKLERİdir
+(renk dahil, hex config'te) — sunucu tam alan kümesini katalogla doğrular
+(400 `INVALID_AVATAR`). Kaydı olmayan oyuncu kimlikten TÜRETİLEN varsayılanla
+görünür (`deriveDefaultAvatar`, seed'li — `Math.random` YOK); katalogdan
+kaldırılmış eski seçim varsayılana düşer (500 değil). Profil (`@Public`)
+`avatar` taşır (yalnızca katalog kimlikleri). 3D figür prosedüreldir ve
+ekranda ÖYLE yazar; listelerde 2B SVG portre (`AvatarPortrait`, WebGL bağlam
+sınırı). ⚠️ AI selfie avatarı (§38–48) bir sağlayıcı ister ve YOKTUR — sahte
+"AI avatarın hazır" gösterme. `player_avatars` silme + dışa aktarma listelerinde.
 
 **✅ ÜCRETLİ LOBİ YARIŞI ARTIK KOŞUYOR — ÖDÜL DAĞITIMI VAR (§13.14,
 28.09.2026).** `POST /races/:id/settle` yarışı koşar, ödülleri `top5`

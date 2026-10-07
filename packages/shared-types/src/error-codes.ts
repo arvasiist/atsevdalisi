@@ -51,6 +51,7 @@ export const ErrorCode = {
   AnnouncementLimitReached: 'ANNOUNCEMENT_LIMIT_REACHED',
   /** 02.10.2026 (Faz 11-B) — görev/etkinlik yok ya da şu an alınamaz (404). */
   QuestNotFound: 'QUEST_NOT_FOUND',
+  InvalidAvatar: 'INVALID_AVATAR',
   AchievementNotFound: 'ACHIEVEMENT_NOT_FOUND',
   AchievementNotCompleted: 'ACHIEVEMENT_NOT_COMPLETED',
   AchievementAlreadyClaimed: 'ACHIEVEMENT_ALREADY_CLAIMED',

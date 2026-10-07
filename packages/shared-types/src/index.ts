@@ -22,3 +22,4 @@ export * from './notification';
 export * from './admin';
 export * from './quests';
 export * from './achievements';
+export * from './avatar';

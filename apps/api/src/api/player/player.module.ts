@@ -1,3 +1,4 @@
+import { AvatarModule } from '../avatar/avatar.module';
 import { AchievementsModule } from '../achievements/achievements.module';
 import { Module } from '@nestjs/common';
 import { HorseModule } from '../horse/horse.module';
@@ -23,7 +24,7 @@ import { PlayerController } from './player.controller';
  * exports etmesiyle AYNI desen.
  */
 @Module({
-  imports: [HorseModule, AchievementsModule],
+  imports: [HorseModule, AchievementsModule, AvatarModule],
   controllers: [PlayerController],
   providers: [
     RegisterPlayerUseCase,

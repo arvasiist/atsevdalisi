@@ -1,4 +1,5 @@
 import type { ProfileAchievementView } from './achievements';
+import type { AvatarAppearance } from './avatar';
 /**
  * Arkadaşlık + mesajlaşma görünümleri (proje sahibinin açık talebi,
  * 27.09.2026: "arkadaşlık + mesajlaşma").
@@ -174,6 +175,11 @@ export interface PlayerProfileView {
    * tarih — bakiye türevi bir şey taşımaz (uç `@Public()`).
    */
   achievements: ProfileAchievementView[];
+  /**
+   * 07.10.2026 — avatar görünüşü (katalog kimlikleri; kaydı yoksa kimlikten
+   * türetilen varsayılan). Kişisel/gizli bir şey taşımaz — uç `@Public()`.
+   */
+  avatar: AvatarAppearance;
 }
 
 /**

@@ -1,0 +1,20 @@
+{
+  "skinTones": { "light": "#f1c9a5", "medium": "#d39a6a", "tan": "#b07a4c", "dark": "#6b4228" },
+  "hairStyles": ["short", "long", "curly", "ponytail", "bald"],
+  "hairColors": { "black": "#1b1410", "brown": "#4a2e1b", "auburn": "#7a3a1c", "blonde": "#d8b26a", "gray": "#9a9a9a" },
+  "socialOutfits": ["casual", "jacket", "suit"],
+  "outfitColors": { "navy": "#1d2b4f", "burgundy": "#6b1f2a", "forest": "#1f4d33", "charcoal": "#2f2f33", "cream": "#e8dcc0" },
+  "shoes": ["boots", "sneakers", "loafers"],
+  "hats": ["none", "cap", "fedora", "flatcap"],
+  "accessories": ["none", "glasses", "scarf", "medal"],
+  "raceOutfits": ["solid", "stripes", "hoops", "halves"],
+  "silkColors": {
+    "gold": "#c9a227",
+    "red": "#b3202a",
+    "blue": "#1f4fa3",
+    "green": "#1e7a3c",
+    "white": "#f2f2f2",
+    "black": "#151515",
+    "purple": "#5b2a86"
+  }
+}

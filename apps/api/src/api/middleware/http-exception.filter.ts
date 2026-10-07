@@ -1,3 +1,4 @@
+import { InvalidAvatarError } from '../../domain/avatar/errors';
 import {
   AchievementAlreadyClaimedError,
   AchievementNotCompletedError,
@@ -464,6 +465,7 @@ const DOMAIN_ERROR_MAP = new Map<ErrorClassConstructor, { status: number; code: 
   [QuestNotFoundError, { status: HttpStatus.NOT_FOUND, code: ErrorCode.QuestNotFound }],
   [QuestNotCompletedError, { status: HttpStatus.CONFLICT, code: ErrorCode.QuestNotCompleted }],
   [QuestAlreadyClaimedError, { status: HttpStatus.CONFLICT, code: ErrorCode.QuestAlreadyClaimed }],
+  [InvalidAvatarError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.InvalidAvatar }],
   [AchievementNotFoundError, { status: HttpStatus.NOT_FOUND, code: ErrorCode.AchievementNotFound }],
   [AchievementNotCompletedError, { status: HttpStatus.CONFLICT, code: ErrorCode.AchievementNotCompleted }],
   [AchievementAlreadyClaimedError, { status: HttpStatus.CONFLICT, code: ErrorCode.AchievementAlreadyClaimed }],

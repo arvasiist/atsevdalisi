@@ -22,6 +22,7 @@ import type {
   ModerationConfig,
   QuestsConfig,
   AchievementsConfig,
+  AvatarConfig,
   AnticheatConfig,
   AdminConfig,
   AudioConfig,
@@ -87,6 +88,7 @@ import moderationConfigJson from '../../../config/moderation.config.json';
 import questsConfigJson from '../../../config/quests.config.json';
 import anticheatConfigJson from '../../../config/anticheat.config.json';
 import achievementsConfigJson from '../../../config/achievements.config.json';
+import avatarConfigJson from '../../../config/avatar.config.json';
 
 export function loadRaceConfig(): RaceBalanceConfig {
   return raceConfigJson as unknown as RaceBalanceConfig;
@@ -282,6 +284,11 @@ export function loadModerationConfig(): ModerationConfig {
 /** 02.10.2026 — Faz 11-B: günlük/haftalık görevler + etkinlik sınırları. */
 export function loadQuestsConfig(): QuestsConfig {
   return questsConfigJson as unknown as QuestsConfig;
+}
+
+/** 07.10.2026 — avatar kataloğu (manuel oluşturucu + özelleştirme). */
+export function loadAvatarConfig(): AvatarConfig {
+  return avatarConfigJson as unknown as AvatarConfig;
 }
 
 /** 03.10.2026 — başarımlar (yaşam boyu hedefler, tek seferlik ödül). */

@@ -3,6 +3,7 @@ import type { PlayerProfileView } from '@at-sevdalisi/shared-types';
 import { PlayerNotFoundError } from '../../domain/player/errors';
 import { validateUsername } from '../../domain/player/validation';
 import { AchievementUseCase } from './achievement.use-case';
+import { AvatarUseCase } from './avatar.use-case';
 import { PLAYER_REPOSITORY, type PlayerRepository } from '../ports/player.repository';
 
 /**
@@ -36,6 +37,7 @@ export class GetPlayerProfileUseCase {
   constructor(
     @Inject(PLAYER_REPOSITORY) private readonly playerRepository: PlayerRepository,
     @Inject(AchievementUseCase) private readonly achievements: AchievementUseCase,
+    @Inject(AvatarUseCase) private readonly avatars: AvatarUseCase,
   ) {}
 
   /**
@@ -67,6 +69,8 @@ export class GetPlayerProfileUseCase {
       giftCount: profile.giftCount,
       // brief §24 "Achievements" (03.10.2026) — kazanılmış başarımlar.
       achievements: await this.achievements.forProfile(profile.id),
+      // 07.10.2026 — manuel/varsayılan avatar görünüşü (yalnızca katalog kimlikleri).
+      avatar: await this.avatars.appearanceOf(profile.id),
     };
   }
 }
