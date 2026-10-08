@@ -192,9 +192,13 @@ describe('Yarış takvimi (e2e)', () => {
     const now = new Date(Date.now() + randomInt(30, 3000) * 24 * MS_PER_HOUR);
     const result = await useCase.execute(now);
     openedHere.push(...result.opened);
+    // Herkese açık yarış seçilir: seviye aralıklı (0073) ya da ırk sınıflı
+    // (0070) bir program en erken yuvayı alırsa başlangıç atı 409 alırdı —
+    // rastgele güne bağlı kırmızı CI (yaşandı: c7c3e13).
     const paid = await pool.query<{ id: string; entry_fee: string }>(
       `SELECT r.id, r.entry_fee FROM races r
        WHERE r.id = ANY($1::uuid[]) AND r.entry_fee > 0
+         AND r.horse_level_bracket IS NULL AND r.breed_class IS NULL
        ORDER BY r.start_time ASC LIMIT 1`,
       [result.opened],
     );
