@@ -56,19 +56,25 @@ if errorlevel 1 (
 echo       Veritabani hazir (port %PGPORT_LOCAL%).
 
 REM --- Redis ---------------------------------------------------------------
+REM PowerShell bazi bilgisayarlarda engelli ("Erisim engellendi"), bu yuzden
+REM yoklama redis-cli ya da Windows'un kendi curl'u ile yapilir.
 echo [2/6] Redis kontrol ediliyor (127.0.0.1:6379)...
-powershell -NoProfile -Command "try { $c = New-Object Net.Sockets.TcpClient; $c.Connect('127.0.0.1', 6379); $c.Close(); exit 0 } catch { exit 1 }"
-if errorlevel 1 (
-  where redis-server >nul 2>&1
-  if not errorlevel 1 (
-    echo       Redis kapali; baslatiliyor...
-    start "Redis" /min redis-server
-    timeout /t 2 >nul
-  ) else (
-    echo [HATA] Redis 6379'da calismiyor. Redis/Memurai kurup baslat, sonra tekrar dene.
-    goto :fail
-  )
+call :redis_probe
+if "%REDIS_STATE%"=="up" goto :redis_ok
+if "%REDIS_STATE%"=="unknown" (
+  echo       [UYARI] Redis yoklanamadi; calistigi varsayiliyor. API penceresinde
+  echo       Redis hatasi gorursen Redis/Memurai'yi baslat.
+  goto :redis_ok
 )
+where redis-server >nul 2>&1
+if errorlevel 1 (
+  echo [HATA] Redis 6379'da calismiyor. Redis/Memurai kurup baslat, sonra tekrar dene.
+  goto :fail
+)
+echo       Redis kapali; baslatiliyor...
+start "Redis" /min redis-server
+ping -n 3 127.0.0.1 >nul
+:redis_ok
 
 REM --- Ortam degiskenleri (alt pencereler devralir) ------------------------
 set "NODE_ENV=development"
@@ -95,7 +101,15 @@ start "At Sevdalisi API (4000)" cmd /k "npm run dev:api"
 start "At Sevdalisi Web (3000)" cmd /k "npm run dev:web"
 
 echo       Web hazir olunca tarayici acilacak (ilk derleme 1-2 dakika surebilir)...
-powershell -NoProfile -Command "for ($i = 0; $i -lt 120; $i++) { try { Invoke-WebRequest -UseBasicParsing -TimeoutSec 5 http://localhost:3000 | Out-Null; exit 0 } catch { Start-Sleep -Seconds 2 } }; exit 1"
+set /a WAITED=0
+:wait_web
+curl -s -o nul --max-time 5 http://localhost:3000 >nul 2>&1
+if not errorlevel 1 goto :web_ready
+set /a WAITED+=1
+if %WAITED% GEQ 120 goto :web_ready
+ping -n 3 127.0.0.1 >nul
+goto :wait_web
+:web_ready
 start "" http://localhost:3000
 echo.
 echo Hazir: http://localhost:3000  -  "Misafir olarak basla" ile hesap acabilirsin.
@@ -109,3 +123,27 @@ echo Baslatma tamamlanamadi. Yukaridaki mesaja bak.
 endlocal
 pause
 exit /b 1
+
+REM --- Redis yoklamasi: REDIS_STATE = up / down / unknown -------------------
+:redis_probe
+set "REDIS_STATE=unknown"
+where redis-cli >nul 2>&1
+if not errorlevel 1 (
+  redis-cli -h 127.0.0.1 -p 6379 ping 2>nul | findstr /i "PONG" >nul
+  if not errorlevel 1 (
+    set "REDIS_STATE=up"
+  ) else (
+    set "REDIS_STATE=down"
+  )
+  goto :eof
+)
+where curl >nul 2>&1
+if errorlevel 1 goto :eof
+REM curl telnet: 7 = baglanti reddedildi (kapali); diger kodlar = port acik.
+curl -s --max-time 2 telnet://127.0.0.1:6379 <nul >nul 2>&1
+if errorlevel 7 if not errorlevel 8 (
+  set "REDIS_STATE=down"
+  goto :eof
+)
+set "REDIS_STATE=up"
+goto :eof
