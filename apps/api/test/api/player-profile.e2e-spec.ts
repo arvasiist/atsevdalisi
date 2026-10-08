@@ -9,6 +9,7 @@ import {
   bootstrapTestApp,
   registerTestPlayerWithStarterHorse,
   type RegisteredTestPlayer,
+  recordSharedFinishedRace,
 } from './test-helpers';
 
 /**
@@ -75,6 +76,9 @@ describe('Oyuncu profili (e2e) — GET /players/profile/:username', () => {
 
   /** Arkadaşlığı GERÇEK uçlarla kurar (istek → kabul). */
   async function befriend(requester: RegisteredTestPlayer, addressee: RegisteredTestPlayer): Promise<void> {
+    // Arkadaşlık kuralı (08.10.2026) fikstürü; profil yarış SAYDIĞI için
+    // arkadaşlık kurulunca silinir (sayılar yalnızca gerçek yarıştan gelsin).
+    const sharedRaceId = await recordSharedFinishedRace(app, [requester, addressee]);
     const created = await request(app.getHttpServer())
       .post(`/api/v1/players/${requester.playerId}/friend-requests`)
       .set('Authorization', requester.authHeader)
@@ -86,6 +90,7 @@ describe('Oyuncu profili (e2e) — GET /players/profile/:username', () => {
       .set('Authorization', addressee.authHeader)
       .send({ action: 'accept' })
       .expect(200);
+    await pool.query('DELETE FROM races WHERE id = $1', [sharedRaceId]);
   }
 
   /**

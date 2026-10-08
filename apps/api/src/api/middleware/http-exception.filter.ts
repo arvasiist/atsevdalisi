@@ -208,6 +208,7 @@ import {
   CannotReportSelfError,
   FriendshipAlreadyExistsError,
   FriendshipNotFoundError,
+  FriendshipRequiresSharedRaceError,
   InvalidFriendshipActionError,
   InvalidMessageBodyError,
   InvalidRaceInviteActionError,
@@ -561,6 +562,10 @@ const DOMAIN_ERROR_MAP = new Map<ErrorClassConstructor, { status: number; code: 
     { status: HttpStatus.CONFLICT, code: ErrorCode.FriendshipAlreadyExists },
   ],
   [SocialLimitReachedError, { status: HttpStatus.CONFLICT, code: ErrorCode.SocialLimitReached }],
+  [
+    FriendshipRequiresSharedRaceError,
+    { status: HttpStatus.CONFLICT, code: ErrorCode.FriendshipRequiresSharedRace },
+  ],
   // HEDİYE GÖNDERİMİ (proje sahibinin açık talebi, 27.09.2026 — üç parçanın
   // üçüncüsü). Beş hata da `DOMAIN_ERROR_MAP`'e girebilir çünkü kodları
   // hatanın `reason` alanına BAĞLI DEĞİLDİR: `InvalidGiftAmountError` üç

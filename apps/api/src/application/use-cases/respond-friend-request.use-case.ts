@@ -1,6 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import type { RespondFriendRequestResult } from '@at-sevdalisi/shared-types';
-import { FriendshipNotFoundError } from '../../domain/social/errors';
+import { FriendshipNotFoundError, FriendshipRequiresSharedRaceError } from '../../domain/social/errors';
 import { otherParty } from '../../domain/social/friendship';
 import { parseFriendshipAction } from '../../domain/social/validation';
 import { PlayerNotFoundError } from '../../domain/player/errors';
@@ -53,6 +53,13 @@ export class RespondFriendRequestUseCase {
     const other = await this.playerRepository.findById(otherId);
     if (other === null) {
       throw new PlayerNotFoundError(otherId);
+    }
+
+    // YARIŞ KAPISI KABULDE DE (08.10.2026): kural öncesinden kalan bekleyen
+    // bir istek, birlikte yarışmamış iki oyuncuyu arkadaş yapamasın. Ret
+    // her zaman serbesttir.
+    if (parsed === 'accept' && !(await this.socialRepository.haveRacedTogether(playerId, otherId))) {
+      throw new FriendshipRequiresSharedRaceError();
     }
 
     const updated = await this.socialRepository.respondToRequest({

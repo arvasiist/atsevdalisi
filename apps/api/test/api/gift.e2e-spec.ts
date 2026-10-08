@@ -5,7 +5,12 @@ import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { PG_POOL } from '../../src/infrastructure/database/database.module';
 import { AppConfigService } from '../../src/infrastructure/config/config.service';
-import { bootstrapTestApp, registerTestPlayer, type RegisteredTestPlayer } from './test-helpers';
+import {
+  bootstrapTestApp,
+  registerTestPlayer,
+  type RegisteredTestPlayer,
+  recordSharedFinishedRace,
+} from './test-helpers';
 
 /**
  * HEDİYE GÖNDERİMİ — proje sahibinin açık talebi (27.09.2026 — üç parçanın
@@ -49,6 +54,8 @@ describe('Hediye gönderimi (e2e) — PARA YOLU', () => {
 
   /** İki oyuncuyu arkadaş yapar (istek + kabul) — hediye ön koşulu. */
   async function makeFriends(a: RegisteredTestPlayer, b: RegisteredTestPlayer): Promise<void> {
+    // Arkadaşlık kuralı (08.10.2026): istek yalnızca birlikte yarışmışlar arasında.
+    await recordSharedFinishedRace(app, [a, b]);
     const created = await request(app.getHttpServer())
       .post(requestsUrl(a.playerId))
       .set('Authorization', a.authHeader)

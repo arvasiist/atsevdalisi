@@ -410,3 +410,17 @@ export class NotificationNotFoundError extends Error {
     this.name = 'NotificationNotFoundError';
   }
 }
+
+/**
+ * Arkadaşlık YALNIZCA birlikte yarışmış oyuncular arasında kurulur
+ * (08.10.2026, proje sahibinin kuralı: "sadece yarışmış kişiler arkadaş
+ * olabilsin"). 409 — GEÇİCİ bir durumdur: iki oyuncu aynı (bitmiş) yarışta
+ * koşunca istek serbest kalır. Hem istekte hem KABULDE uygulanır (kural
+ * öncesinden kalan bekleyen istek de arkadaşlığa dönüşemesin).
+ */
+export class FriendshipRequiresSharedRaceError extends Error {
+  constructor() {
+    super('Arkadaşlık için önce bu oyuncuyla aynı yarışta koşmuş olmalısın.');
+    this.name = 'FriendshipRequiresSharedRaceError';
+  }
+}

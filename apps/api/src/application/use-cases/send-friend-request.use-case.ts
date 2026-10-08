@@ -1,6 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import type { FriendRequestView } from '@at-sevdalisi/shared-types';
-import { FriendshipAlreadyExistsError } from '../../domain/social/errors';
+import { FriendshipAlreadyExistsError, FriendshipRequiresSharedRaceError } from '../../domain/social/errors';
 import {
   assertFriendRequestAllowed,
   assertNotSelf,
@@ -29,6 +29,8 @@ import { SOCIAL_REPOSITORY, type SocialRepository } from '../ports/social.reposi
  *   4. `assertUnderSocialLimit` — gönderenin bekleyen istek TAVANI (409).
  *      Neden burada (kabulde değil): tavanın amacı BİLDİRİM spam'ini
  *      engellemektir, isteği GÖNDEREN tarafı sınırlar.
+ *   4b. Yarış kapısı — iki oyuncu bitmiş bir yarışta birlikte koşmamışsa
+ *      409 `FRIENDSHIP_REQUIRES_SHARED_RACE` (08.10.2026).
  *   5. `saveFriendRequest` — satır yoksa ekler, `rejected` ise yeniden
  *      `pending` yapar. `null` dönerse araya giren eşzamanlı bir istek
  *      vardır → 409.
@@ -78,6 +80,13 @@ export class SendFriendRequestUseCase {
 
     const existing = await this.socialRepository.findPair(lowId, highId);
     assertFriendRequestAllowed(existing?.status ?? null);
+
+    // YARIŞ KAPISI (08.10.2026, sahibinin kuralı: "sadece yarışmış kişiler
+    // arkadaş olabilsin"). Mevcut kayıt kapısından SONRA: zaten arkadaş
+    // olan (kural öncesi) bir çifte "önce yarışın" demek yanıltıcı olurdu.
+    if (!(await this.socialRepository.haveRacedTogether(playerId, addresseeId))) {
+      throw new FriendshipRequiresSharedRaceError();
+    }
 
     const pendingCount = await this.socialRepository.countOutgoingPending(playerId);
     assertUnderSocialLimit(pendingCount, this.config.social.pendingRequestsLimit, 'PENDING_REQUESTS');

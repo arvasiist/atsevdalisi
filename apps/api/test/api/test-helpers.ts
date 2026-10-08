@@ -7,6 +7,8 @@ import { IoAdapter } from '@nestjs/platform-socket.io';
 import request from 'supertest';
 import { AppModule } from '../../src/app.module';
 import { HttpExceptionFilter } from '../../src/api/middleware/http-exception.filter';
+import type { Pool } from 'pg';
+import { PG_POOL } from '../../src/infrastructure/database/database.module';
 
 /**
  * AUDIT_REPORT.md Bulgu S1 (Critical) hardening (bu oturum) — brief §41/§50
@@ -266,4 +268,46 @@ export async function registerTestPlayerWithStarterHorse(
     .set('Authorization', player.authHeader)
     .expect(200);
   return { ...player, horseId: listResponse.body.data[0].id };
+}
+
+/**
+ * ARKADAŞLIK KURALI ÖN KOŞULU (08.10.2026). Arkadaşlık isteği ve kabulü
+ * yalnızca BİTMİŞ bir yarışta birlikte koşmuş oyuncular arasında geçer
+ * (`SendFriendRequestUseCase` yarış kapısı). Konusu yarış OLMAYAN testler
+ * (sosyal, hediye, davet, engel, bildirim) bu olguyu SQL fikstürüyle kurar:
+ * `finished` bir yarış + her oyuncu için kendi atıyla bir katılım
+ * (`player_id` = koşturan oyuncu). Para, ödül, XP, bildirim YAZMAZ.
+ *
+ * ⚠️ Yarış SAYAN bir iddia (profil `raceCount`, görev, sezon) aynı oyuncular
+ * üzerindeyse dönen yarış kimliğiyle fikstürü kurulumdan sonra SİL
+ * (`DELETE FROM races WHERE id = $1` — katılımlar CASCADE ile gider).
+ * Kuralın KENDİSİNİ sınayan test (`friendship-race-gate.e2e-spec.ts`)
+ * yarışı gerçek uçlarla koşar.
+ */
+export async function recordSharedFinishedRace(
+  app: INestApplication,
+  players: ReadonlyArray<{ playerId: string }>,
+): Promise<string> {
+  const pool = app.get<Pool>(PG_POOL);
+  const race = await pool.query<{ id: string }>(
+    `INSERT INTO races
+       (name, distance_m, surface, weather, start_time, max_players, race_type, entry_fee,
+        participant_limit, status, engine_version, ruleset_version, config_version, weather_config_version)
+     VALUES ('e2e ortak yarış', 1200, 'grass', 'sunny', now() - interval '1 hour', 8, 'free', 0,
+             12, 'finished', 'test-engine', 'test-ruleset', 'test-config', 'test-weather-config')
+     RETURNING id`,
+  );
+  const raceId = race.rows[0]!.id;
+  for (const [index, player] of players.entries()) {
+    const horse = await pool.query<{ id: string }>(
+      'SELECT id FROM horses WHERE owner_id = $1 ORDER BY created_at, id LIMIT 1',
+      [player.playerId],
+    );
+    await pool.query(
+      `INSERT INTO race_entries (race_id, horse_id, player_id, gate_position, finish_position)
+       VALUES ($1, $2, $3, $4, $4)`,
+      [raceId, horse.rows[0]!.id, player.playerId, index + 1],
+    );
+  }
+  return raceId;
 }

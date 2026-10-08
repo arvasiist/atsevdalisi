@@ -704,7 +704,16 @@ DELETE /api/v1/players/{id}/friends/{friendId}                  # 200
 POST   /api/v1/players/{id}/messages                            # 201
 GET    /api/v1/players/{id}/messages/{otherPlayerId}
 GET    /api/v1/players/{id}/inbox
+GET    /api/v1/players/{id}/race-companions                     # 08.10.2026
 ```
+
+**ARKADAŞLIK YALNIZCA BİRLİKTE YARIŞANLAR ARASINDA (08.10.2026).** İstek ve
+KABUL, iki oyuncu BİTMİŞ bir yarışta birlikte koşmamışsa 409
+`FRIENDSHIP_REQUIRES_SHARED_RACE` döner (koşturan oyuncu `race_entries.
+player_id`; iptal edilen katılım sayılmaz). Ret her zaman serbesttir; mevcut
+arkadaşlıklar silinmez. `race-companions` birlikte koşulan oyuncuları (en
+son önce, engelliler hariç) `sharedRaces`, `lastRacedAt` ve `relation`
+(`friend`/`outgoing`/`incoming`/`none`) ile döner — bakiye taşımaz.
 
 **Yedi uç noktanın TAMAMI `assertSelf` ile korunur** — yoldaki `:id` her
 zaman İŞLEMİ YAPAN oyuncudur, hedef DEĞİLDİR (hedef gövdede ya da ikinci

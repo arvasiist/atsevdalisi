@@ -198,6 +198,21 @@ export interface SocialRepository {
    * `SELECT ... FOR UPDATE` GEREKMEZ (bu portun genel kuralı).
    */
   saveReport(input: SaveReportInput): Promise<ReportRow>;
+
+  /**
+   * İki oyuncu BİTMİŞ bir yarışta birlikte koştu mu (08.10.2026 — arkadaşlık
+   * kuralı). Koşturan oyuncu `race_entries.player_id`dir (CLAUDE.md (55):
+   * `h.owner_id` KULLANILMAZ — at satılınca alıcı, satıcının yarışlarında
+   * "koşmuş" sayılırdı). İptal edilen katılım sayılmaz.
+   */
+  haveRacedTogether(aId: string, bId: string): Promise<boolean>;
+
+  /**
+   * Birlikte bitmiş bir yarışta koşulan oyuncular, en son koşulan önce.
+   * Silinmiş hesaplar ve aralarında (herhangi yönde) engel olanlar
+   * DÖNMEZ. `relation`, `friendships` satırının bu oyuncuya göre durumu.
+   */
+  findRaceCompanions(playerId: string, limit: number): Promise<RaceCompanionRow[]>;
 }
 
 /** `player_blocks` satırı + `players` JOIN'inden gelen görünen ad/seviye. */
@@ -328,3 +343,13 @@ export interface SaveMessageInput {
 
 /** NestJS DI için token (interface'ler runtime'da yok olduğundan bir Symbol gerekir). */
 export const SOCIAL_REPOSITORY = Symbol('SOCIAL_REPOSITORY');
+
+export interface RaceCompanionRow {
+  playerId: string;
+  username: string;
+  displayName: string;
+  level: number;
+  sharedRaces: number;
+  lastRacedAt: Date;
+  relation: 'friend' | 'outgoing' | 'incoming' | 'none';
+}

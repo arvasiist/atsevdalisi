@@ -12,6 +12,7 @@ import type {
   FriendFacts,
   FriendRequestFacts,
   FriendshipRow,
+  RaceCompanionRow,
   RemoveFriendshipInput,
   ReportRow,
   RespondToRequestInput,
@@ -331,6 +332,85 @@ export class PostgresSocialRepository implements SocialRepository {
       [input.lowId, input.highId],
     );
     return result.rowCount !== null && result.rowCount > 0;
+  }
+
+  /**
+   * Arkadaşlık kuralı (08.10.2026). Koşturan oyuncu `e.player_id`dir —
+   * `h.owner_id` KULLANILMAZ (CLAUDE.md (55)); yalnızca `finished` yarış
+   * ve iptal edilmemiş katılım sayılır. `status IS DISTINCT FROM`
+   * (pratik/PvP satırlarında `status` NULL'dır, `<>` onları düşürürdü).
+   */
+  async haveRacedTogether(aId: string, bId: string): Promise<boolean> {
+    const result = await this.pool.query(
+      `SELECT 1
+         FROM race_entries a
+         JOIN races r ON r.id = a.race_id AND r.status = 'finished'
+         JOIN race_entries b ON b.race_id = a.race_id
+        WHERE a.player_id = $1
+          AND b.player_id = $2
+          AND a.status IS DISTINCT FROM 'cancelled'
+          AND b.status IS DISTINCT FROM 'cancelled'
+        LIMIT 1`,
+      [aId, bId],
+    );
+    return result.rowCount !== null && result.rowCount > 0;
+  }
+
+  async findRaceCompanions(playerId: string, limit: number): Promise<RaceCompanionRow[]> {
+    const result = await this.pool.query<{
+      id: string;
+      username: string;
+      display_name: string;
+      level: number;
+      shared_races: string;
+      last_raced_at: Date;
+      relation: RaceCompanionRow['relation'];
+    }>(
+      `WITH companions AS (
+         SELECT b.player_id AS other_id,
+                COUNT(DISTINCT r.id) AS shared_races,
+                MAX(r.start_time) AS last_raced_at
+           FROM race_entries a
+           JOIN races r ON r.id = a.race_id AND r.status = 'finished'
+           JOIN race_entries b ON b.race_id = a.race_id
+          WHERE a.player_id = $1
+            AND b.player_id IS NOT NULL
+            AND b.player_id <> $1
+            AND a.status IS DISTINCT FROM 'cancelled'
+            AND b.status IS DISTINCT FROM 'cancelled'
+          GROUP BY b.player_id
+       )
+       SELECT p.id, p.username, p.display_name, p.level,
+              c.shared_races, c.last_raced_at,
+              CASE
+                WHEN f.status = 'accepted' THEN 'friend'
+                WHEN f.status = 'pending' AND f.requested_by_id = $1 THEN 'outgoing'
+                WHEN f.status = 'pending' THEN 'incoming'
+                ELSE 'none'
+              END AS relation
+         FROM companions c
+         JOIN players p ON p.id = c.other_id AND p.deleted_at IS NULL
+         LEFT JOIN friendships f
+           ON f.player_low_id = LEAST($1::uuid, c.other_id)
+          AND f.player_high_id = GREATEST($1::uuid, c.other_id)
+        WHERE NOT EXISTS (
+                SELECT 1 FROM player_blocks pb
+                 WHERE (pb.blocker_id = $1 AND pb.blocked_id = c.other_id)
+                    OR (pb.blocker_id = c.other_id AND pb.blocked_id = $1)
+              )
+        ORDER BY c.last_raced_at DESC, p.id
+        LIMIT $2`,
+      [playerId, limit],
+    );
+    return result.rows.map((row) => ({
+      playerId: row.id,
+      username: row.username,
+      displayName: row.display_name,
+      level: Number(row.level),
+      sharedRaces: Number(row.shared_races),
+      lastRacedAt: row.last_raced_at,
+      relation: row.relation,
+    }));
   }
 
   async areFriends(lowId: string, highId: string): Promise<boolean> {

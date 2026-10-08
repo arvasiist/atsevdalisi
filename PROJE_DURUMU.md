@@ -4150,6 +4150,23 @@ Karar: önce pratik yarış; kırbaç sınırsız, dayanıklılık bedelli.
 - Testler: `stable-layout.spec.ts`, `stable-actions.spec.ts`,
   `showcase-camera.spec.ts` (çekim kimlikleri), `top-bar-nav.spec.ts`.
 
+### 13.88 Arkadaşlık yalnızca birlikte yarışanlar arasında (08.10.2026)
+
+- Sahibinin kuralı: "sadece yarışmış kişiler arkadaş olabilsin".
+- `SendFriendRequestUseCase` + `RespondFriendRequestUseCase` (`accept`):
+  `SocialRepository.haveRacedTogether` — iki oyuncunun `finished` bir yarışta
+  iptal edilmemiş katılımı (`race_entries.player_id`). Yoksa 409
+  `FRIENDSHIP_REQUIRES_SHARED_RACE`. Ret serbest; mevcut arkadaşlıklar
+  korunur (veri silinmez). Pratik yarış tek gerçek oyunculu olduğu için
+  kimseyi tanıştırmaz; lobi/turnuva/PvP yarışları tanıştırır.
+- `GET /players/:id/race-companions` (assertSelf, engelliler hariç, silinmiş
+  hesaplar hariç, sınır `social.raceCompanionsLimit`) + `/friends` ekranında
+  "Birlikte Yarıştıkların" bölümü (ilişki durumuna göre "Arkadaş Ekle").
+- Testler: `friendship-race-gate.e2e-spec.ts` (gerçek yarış: kapalı/bitmemiş/
+  açık, kabul kapısı, engel, IDOR), `race-companions.spec.ts` (config okunur),
+  web `race-companions.spec.ts`. Sosyal/hediye/davet/engel/bildirim/profil
+  e2e'leri ön koşulu `recordSharedFinishedRace` fikstürüyle kurar.
+
 ## 14. Kendime hatırlatmalar (kısa liste)
 
 1. **Race Engine'e dokunmadan önce iki kez düşün.** Denetim onu "KEEP, dokunma"

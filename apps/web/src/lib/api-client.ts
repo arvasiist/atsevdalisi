@@ -96,6 +96,7 @@ import type {
   RecentRaceResultView,
   ReleaseJockeyResultView,
   RemoveBlockResult,
+  RaceCompanionView,
   RemoveFriendResult,
   ReportCategory,
   ReportPlayerResult,
@@ -1095,6 +1096,13 @@ export const apiClient = {
    */
   getSocialOverview: (playerId: string) =>
     request<SocialOverviewView>(`/players/${playerId}/social`, { method: 'GET' }),
+
+  /**
+   * Birlikte bitmiş bir yarışta koştuğun oyuncular (08.10.2026). Arkadaşlık
+   * yalnızca bunlarla kurulabilir (sunucu kuralı).
+   */
+  getRaceCompanions: (playerId: string) =>
+    request<RaceCompanionView[]>(`/players/${playerId}/race-companions`, { method: 'GET' }),
 
   /** Arkadaşlık isteği gönderir (`POST`, 201). Karşı taraf kabul edene kadar `pending`. */
   sendFriendRequest: (playerId: string, addresseeId: string) =>

@@ -1398,6 +1398,11 @@ export interface SocialConfig {
    * `normalizeReportReason`dır ve değer ONA parametre olarak geçer.
    */
   reportReasonMaxLength: number;
+  /**
+   * `GET /players/:id/race-companions` yanıtındaki azami oyuncu sayısı
+   * (08.10.2026) — bir LİSTE sınırıdır (en son birlikte koşulanlar önce).
+   */
+  raceCompanionsLimit: number;
 }
 
 /**

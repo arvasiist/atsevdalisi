@@ -281,6 +281,8 @@ export const ErrorCode = {
   FriendshipNotFound: 'FRIENDSHIP_NOT_FOUND',
   /** Mesaj göndermek için arkadaş olmak gerekir (403). */
   NotFriends: 'NOT_FRIENDS',
+  /** Arkadaşlık yalnızca bitmiş bir yarışta birlikte koşmuş oyuncular arasında kurulur (409, 08.10.2026). */
+  FriendshipRequiresSharedRace: 'FRIENDSHIP_REQUIRES_SHARED_RACE',
   /** Mesaj gövdesi boş, yalnızca boşluk ya da azami uzunluğu aşıyor (400). */
   InvalidMessageBody: 'INVALID_MESSAGE_BODY',
   /** Arkadaşlık isteği yanıtı `accept`/`reject` dışında bir değer (400). */

@@ -44,6 +44,20 @@ export interface SocialPlayerView {
   level: number;
 }
 
+/**
+ * Birlikte yarıştığın bir oyuncu (08.10.2026) — `GET /players/:id/race-companions`.
+ * Arkadaşlık yalnızca bu listedeki oyuncularla kurulabilir (sunucu kuralı).
+ * `relation` arkadaşlık satırının bana göre durumudur; engel olan çiftler
+ * listede YER ALMAZ.
+ */
+export interface RaceCompanionView extends SocialPlayerView {
+  /** Birlikte koşulan BİTMİŞ yarış sayısı. */
+  sharedRaces: number;
+  /** Son birlikte koşulan yarışın başlangıcı (ISO). */
+  lastRacedAt: string;
+  relation: 'friend' | 'outgoing' | 'incoming' | 'none';
+}
+
 /** Kabul edilmiş bir arkadaşlık. */
 export interface FriendView extends SocialPlayerView {
   friendshipId: string;

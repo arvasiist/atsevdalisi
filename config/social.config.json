@@ -9,5 +9,6 @@
   "pendingInvitesLimit": 25,
   "notificationPreviewLength": 120,
   "blockListLimit": 200,
-  "reportReasonMaxLength": 500
+  "reportReasonMaxLength": 500,
+  "raceCompanionsLimit": 50
 }

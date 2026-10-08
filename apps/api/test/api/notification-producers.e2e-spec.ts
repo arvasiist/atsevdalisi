@@ -6,6 +6,7 @@ import {
   bootstrapTestApp,
   registerTestPlayer,
   type RegisteredTestPlayer,
+  recordSharedFinishedRace,
 } from './test-helpers';
 
 /**
@@ -52,6 +53,8 @@ describe('Bildirim üreticileri (e2e)', () => {
 
   /** İstek gönderir ve dönen `requestId`'yi verir. */
   async function sendRequest(from: RegisteredTestPlayer, to: RegisteredTestPlayer): Promise<string> {
+    // Arkadaşlık kuralı (08.10.2026): istek yalnızca birlikte yarışmışlar arasında.
+    await recordSharedFinishedRace(app, [from, to]);
     const response = await request(app.getHttpServer())
       .post(requestsUrl(from.playerId))
       .set('Authorization', from.authHeader)

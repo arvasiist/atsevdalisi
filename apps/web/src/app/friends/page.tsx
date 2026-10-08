@@ -51,6 +51,7 @@ import type {
   FriendRequestView,
   FriendView,
   GiftView,
+  RaceCompanionView,
   SocialOverviewView,
 } from '@at-sevdalisi/shared-types';
 import { CURRENCIES } from '@at-sevdalisi/shared-types';
@@ -58,6 +59,7 @@ import { GlassPanel } from '../../components/ui/GlassPanel';
 import { apiClient } from '../../lib/api-client';
 import { CURRENCY_LABELS, formatCurrency, hasEnoughFunds } from '../../lib/currency';
 import { usePlayer } from '../../lib/player-context';
+import { companionAction, describeSharedRaces } from '../../features/social/race-companions';
 
 /** Gelen kutusunda gösterilecek en fazla satır — sunucu zaten `inboxLimit` uygular. */
 const INBOX_PREVIEW_LIMIT = 5;
@@ -105,9 +107,14 @@ export default function FriendsPage(): React.ReactElement {
    * döner — "beni engelleyenler" diye bir liste yoktur ve istenemez.
    */
   const [blocked, setBlocked] = useState<BlockedPlayerView[] | null>(null);
+  /**
+   * Birlikte yarıştığın oyuncular (08.10.2026). Arkadaşlık YALNIZCA
+   * bunlarla kurulabilir — kural sunucuda (`FRIENDSHIP_REQUIRES_SHARED_RACE`).
+   */
+  const [companions, setCompanions] = useState<RaceCompanionView[] | null>(null);
 
   const loadOverview = useCallback(async (playerId: string) => {
-    const [social, myInbox, myGifts, myBlocked] = await Promise.all([
+    const [social, myInbox, myGifts, myBlocked, myCompanions] = await Promise.all([
       apiClient.getSocialOverview(playerId),
       apiClient.getInbox(playerId),
       apiClient.getMyGifts(playerId),
@@ -117,8 +124,9 @@ export default function FriendsPage(): React.ReactElement {
       // Ayrı bir `/settings/blocks` rotası, aynı veriyi ikinci bir yerde
       // göstermek ve gezinti şeridine yeni bir bağlantı eklemek olurdu.
       apiClient.listBlockedPlayers(playerId),
+      apiClient.getRaceCompanions(playerId),
     ]);
-    return { social, myInbox, myGifts, myBlocked };
+    return { social, myInbox, myGifts, myBlocked, myCompanions };
   }, []);
 
   useEffect(() => {
@@ -130,14 +138,16 @@ export default function FriendsPage(): React.ReactElement {
     setInbox(null);
     setGifts(null);
     setBlocked(null);
+    setCompanions(null);
     setError(null);
     void loadOverview(player.id)
-      .then(({ social, myInbox, myGifts, myBlocked }) => {
+      .then(({ social, myInbox, myGifts, myBlocked, myCompanions }) => {
         if (cancelled) return;
         setOverview(social);
         setInbox(myInbox);
         setGifts(myGifts);
         setBlocked(myBlocked);
+        setCompanions(myCompanions);
       })
       .catch((err: unknown) => {
         if (!cancelled) setError(err instanceof Error ? err.message : 'Sosyal ekran yüklenemedi');
@@ -155,11 +165,12 @@ export default function FriendsPage(): React.ReactElement {
   const refresh = useCallback(
     async (options: { keepConversation?: boolean } = {}): Promise<void> => {
       if (!player) return;
-      const { social, myInbox, myGifts, myBlocked } = await loadOverview(player.id);
+      const { social, myInbox, myGifts, myBlocked, myCompanions } = await loadOverview(player.id);
       setOverview(social);
       setInbox(myInbox);
       setGifts(myGifts);
       setBlocked(myBlocked);
+      setCompanions(myCompanions);
       if (options.keepConversation && activeFriend) {
         setMessages(await apiClient.getConversation(player.id, activeFriend.playerId));
       }
@@ -182,6 +193,16 @@ export default function FriendsPage(): React.ReactElement {
     },
     [],
   );
+
+  const addCompanion = (companion: RaceCompanionView): Promise<void> =>
+    runAction(
+      `companion-${companion.playerId}`,
+      async () => {
+        await apiClient.sendFriendRequest(player?.id ?? '', companion.playerId);
+        await refresh();
+      },
+      'Arkadaşlık isteği gönderilemedi',
+    );
 
   const respond = (request: FriendRequestView, action: 'accept' | 'reject'): Promise<void> =>
     runAction(
@@ -324,11 +345,9 @@ export default function FriendsPage(): React.ReactElement {
     <main className="page-container">
       <h1 style={{ fontSize: '24px', color: 'var(--color-text-primary)', marginBottom: '4px' }}>Arkadaşlar</h1>
       <p style={{ color: 'var(--color-text-secondary)', marginTop: 0, marginBottom: 'var(--space-lg)' }}>
-        Arkadaş ekle, istekleri yanıtla, arkadaşlarınla yazış ve Çip/Elmas hediye gönder. Yeni arkadaş bulmak için{' '}
-        <a href="/leaderboard" style={{ color: 'var(--color-accent-gold)' }}>
-          sıralama tablosuna
-        </a>{' '}
-        göz at.
+        Arkadaş ekle, istekleri yanıtla, arkadaşlarınla yazış ve Çip/Elmas hediye gönder. Yalnızca aynı yarışta
+        birlikte koştuğun oyuncuları arkadaş ekleyebilirsin — onlar aşağıda &quot;Birlikte Yarıştıkların&quot;
+        listesindedir.
       </p>
 
       {!player && !isPlayerLoading ? (
@@ -410,7 +429,7 @@ export default function FriendsPage(): React.ReactElement {
           <Section title={`Arkadaşlar (${overview.friends.length})`}>
             {overview.friends.length === 0 ? (
               <p style={{ color: 'var(--color-text-muted)', margin: 0, fontSize: '13px' }}>
-                Henüz arkadaşın yok. Sıralama tablosundan bir sporcuya istek gönderebilirsin.
+                Henüz arkadaşın yok. Bir yarışta birlikte koştuğun oyuncuya aşağıdan istek gönderebilirsin.
               </p>
             ) : (
               overview.friends.map((friend) => (
@@ -452,6 +471,54 @@ export default function FriendsPage(): React.ReactElement {
                   </RowActions>
                 </Row>
               ))
+            )}
+          </Section>
+
+          {/*
+            Birlikte Yarıştıkların (08.10.2026) — arkadaşlık YALNIZCA bitmiş bir
+            yarışta birlikte koşulan oyuncularla kurulur (sunucu kuralı). Bu
+            liste yeni arkadaş bulmanın yoludur; durum metni saf modülden
+            (`race-companions.ts`), karar sunucudan gelir.
+          */}
+          <Section title={`Birlikte Yarıştıkların (${companions?.length ?? 0})`}>
+            {companions === null ? (
+              <p style={{ color: 'var(--color-text-muted)', margin: 0, fontSize: '13px' }}>Yükleniyor…</p>
+            ) : companions.length === 0 ? (
+              <p style={{ color: 'var(--color-text-muted)', margin: 0, fontSize: '13px' }}>
+                Henüz başka bir oyuncuyla aynı yarışta koşmadın.{' '}
+                <Link href="/races" style={{ color: 'var(--color-accent-gold)' }}>
+                  Bir lobi yarışına katıl
+                </Link>
+                ; yarış bitince rakiplerin burada görünür.
+              </p>
+            ) : (
+              companions.map((companion) => {
+                const action = companionAction(companion.relation);
+                const key = `companion-${companion.playerId}`;
+                return (
+                  <Row key={companion.playerId}>
+                    <RowLabel
+                      primary={companion.displayName}
+                      secondary={`Seviye ${companion.level} · ${describeSharedRaces(companion.sharedRaces)} · ${formatRelativeDate(companion.lastRacedAt)}`}
+                      profileUsername={companion.username}
+                    />
+                    <RowActions>
+                      {action.canRequest ? (
+                        <button
+                          type="button"
+                          disabled={pendingKey === key}
+                          onClick={() => void addCompanion(companion)}
+                          style={primaryButtonStyle()}
+                        >
+                          {action.label}
+                        </button>
+                      ) : (
+                        <span style={{ color: 'var(--color-text-muted)', fontSize: '12px' }}>{action.label}</span>
+                      )}
+                    </RowActions>
+                  </Row>
+                );
+              })
             )}
           </Section>
 

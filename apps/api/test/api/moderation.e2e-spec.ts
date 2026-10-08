@@ -9,6 +9,7 @@ import {
   registerTestPlayer,
   registerTestPlayerWithStarterHorse,
   type RegisteredTestPlayer,
+  recordSharedFinishedRace,
 } from './test-helpers';
 
 /**
@@ -60,6 +61,8 @@ describe('Block / Report — moderasyon (e2e)', () => {
 
   /** İki oyuncuyu arkadaş yapar (istek + kabul). */
   async function makeFriends(a: RegisteredTestPlayer, b: RegisteredTestPlayer): Promise<void> {
+    // Arkadaşlık kuralı (08.10.2026): istek yalnızca birlikte yarışmışlar arasında.
+    await recordSharedFinishedRace(app, [a, b]);
     const created = await request(app.getHttpServer())
       .post(requestsUrl(a.playerId))
       .set('Authorization', a.authHeader)

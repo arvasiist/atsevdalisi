@@ -4,6 +4,7 @@ import { BlockPlayerUseCase } from '../../application/use-cases/block-player.use
 import { GetConversationUseCase } from '../../application/use-cases/get-conversation.use-case';
 import { GetInboxUseCase } from '../../application/use-cases/get-inbox.use-case';
 import { GetSocialOverviewUseCase } from '../../application/use-cases/get-social-overview.use-case';
+import { ListRaceCompanionsUseCase } from '../../application/use-cases/list-race-companions.use-case';
 import { ListBlockedPlayersUseCase } from '../../application/use-cases/list-blocked-players.use-case';
 import { RemoveFriendUseCase } from '../../application/use-cases/remove-friend.use-case';
 import { ReportPlayerUseCase } from '../../application/use-cases/report-player.use-case';
@@ -48,6 +49,7 @@ import { SocialController } from './social.controller';
   controllers: [SocialController],
   providers: [
     GetSocialOverviewUseCase,
+    ListRaceCompanionsUseCase,
     SendFriendRequestUseCase,
     RespondFriendRequestUseCase,
     RemoveFriendUseCase,

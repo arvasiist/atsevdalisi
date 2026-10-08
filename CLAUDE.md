@@ -653,6 +653,17 @@ kurallar DEĞİŞMEDİ. Ana sayfadaki iç saha ahırı kaldırıldı ("Ahır" ç
 yörüngesi sınırlıdır ve `stable-layout.spec.ts` bütün sınır kutusunun duvar/
 çatı/lamba/makas dışında kaldığını tarar — ahıra parça eklerken kameranın
 gezdiği alana (`isCameraInOpenSpace`) koyma.
+(64) **ARKADAŞLIK YALNIZCA BİRLİKTE YARIŞANLAR (08.10.2026, §13.88)** —
+sahibinin kuralı. İstek VE kabul `haveRacedTogether` ister (bitmiş yarış +
+iptal edilmemiş iki katılım, `e.player_id` — `h.owner_id` YOK); yoksa 409
+`FRIENDSHIP_REQUIRES_SHARED_RACE`. Kapı mevcut-kayıt kapısından SONRA (eski
+arkadaşa "önce yarışın" denmez); ret serbest; eski arkadaşlıklar silinmedi.
+`GET /players/:id/race-companions` (`social.raceCompanionsLimit`) →
+`/friends` "Birlikte Yarıştıkların". ⚠️ Arkadaşlık kuran YENİ bir e2e yazarken
+önce `recordSharedFinishedRace(app, [a, b])` (test-helpers; SQL fikstürü,
+para/XP yazmaz) — yarış SAYAN iddia aynı oyuncularda ise fikstürü sil
+(`player-profile.e2e-spec.ts` örneği). Kuralın kendisi gerçek yarışla:
+`friendship-race-gate.e2e-spec.ts`.
 
 **✅ ÜCRETLİ LOBİ YARIŞI ARTIK KOŞUYOR — ÖDÜL DAĞITIMI VAR (§13.14,
 28.09.2026).** `POST /races/:id/settle` yarışı koşar, ödülleri `top5`
