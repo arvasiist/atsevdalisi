@@ -95,6 +95,7 @@ describe('Yarış takvimi (e2e)', () => {
         entryFee: number;
         distanceMeters: number;
         surface: string;
+        hippodrome: string;
         calendar: { programId: string } | null;
         tournament: unknown;
       }>
@@ -110,6 +111,8 @@ describe('Yarış takvimi (e2e)', () => {
       expect(typeof race.entryFee).toBe('number');
       expect(race.distanceMeters).toBe(program?.distanceMeters);
       expect(race.surface).toBe(program?.surface);
+      // 08.10.2026 — programın hipodromu (migration 0072) yarışa yazılır.
+      expect(race.hippodrome).toBe(program?.hippodrome ?? config.hippodromes.defaultKey);
       expect(race.tournament).toBeNull();
     }
 

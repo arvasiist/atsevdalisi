@@ -27,6 +27,7 @@ import {
 } from '../../domain/race/interactive-race';
 import { PRACTICE_RACE_DISTANCE_METERS } from '../../domain/race/validation';
 import { AppConfigService } from '../../infrastructure/config/config.service';
+import { pickHippodromeForRace } from '../../domain/race/hippodrome';
 import {
   RACE_REPOSITORY,
   type InteractiveRaceRecord,
@@ -264,6 +265,8 @@ export class InteractiveRaceUseCase {
       distanceMeters: record.distanceMeters,
       surface: record.surface as RaceSurface,
       weather: record.weather as RaceWeather,
+      // Kesinleşen pratik yarış aynı kimlikle kaydedilir → tekrarı da aynı hipodromda.
+      hippodrome: pickHippodromeForRace(this.config.hippodromes, record.id).key,
       segmentCount: total,
       revealedSegments: revealed,
       nextCommandSegment: finished || revealed >= total ? null : revealed,

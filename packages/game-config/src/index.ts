@@ -25,6 +25,7 @@ import type {
   AvatarConfig,
   StoreConfig,
   BreedsConfig,
+  HippodromesConfig,
   AnticheatConfig,
   AdminConfig,
   AudioConfig,
@@ -93,6 +94,7 @@ import achievementsConfigJson from '../../../config/achievements.config.json';
 import avatarConfigJson from '../../../config/avatar.config.json';
 import storeConfigJson from '../../../config/store.config.json';
 import breedsConfigJson from '../../../config/breeds.config.json';
+import hippodromesConfigJson from '../../../config/hippodromes.config.json';
 
 export function loadRaceConfig(): RaceBalanceConfig {
   return raceConfigJson as unknown as RaceBalanceConfig;
@@ -298,6 +300,11 @@ export function loadStoreConfig(): StoreConfig {
 /** 07.10.2026 — at ırkları (başlangıç ırkı, ırk mağazası, melez kuralları). */
 export function loadBreedsConfig(): BreedsConfig {
   return breedsConfigJson as unknown as BreedsConfig;
+}
+
+/** 08.10.2026 — hipodromlar (`tracks` satırları + 3D sahne teması). */
+export function loadHippodromesConfig(): HippodromesConfig {
+  return hippodromesConfigJson as unknown as HippodromesConfig;
 }
 
 /** 07.10.2026 — avatar kataloğu (manuel oluşturucu + özelleştirme). */

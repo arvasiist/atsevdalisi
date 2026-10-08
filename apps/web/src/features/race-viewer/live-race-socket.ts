@@ -56,7 +56,8 @@ export interface LiveRaceFinishedEntrant {
 }
 
 export interface LiveRaceSocketHandlers {
-  onRoster: (entrants: RaceRosterEntrant[]) => void;
+  /** 08.10.2026 — `hippodrome`: yarışın hipodrom anahtarı (eski sunucuda yoksa `null`). */
+  onRoster: (entrants: RaceRosterEntrant[], hippodrome: string | null) => void;
   onTelemetry: (segments: RaceSegmentSnapshot[]) => void;
   onFinished: (entrants: LiveRaceFinishedEntrant[]) => void;
   /** `race.error` — yarış bulunamadı/yetkisiz (bkz. `race.gateway.ts` "bilgi sızdırmama" notu). */
@@ -182,9 +183,9 @@ export function connectRaceSocket(
     handlers.onDisconnected(reason);
   });
 
-  socket.on('race.roster', (payload: { raceId: string; entrants: RaceRosterEntrant[] }) => {
+  socket.on('race.roster', (payload: { raceId: string; hippodrome?: string; entrants: RaceRosterEntrant[] }) => {
     if (payload.raceId === raceId) {
-      handlers.onRoster(payload.entrants);
+      handlers.onRoster(payload.entrants, payload.hippodrome ?? null);
     }
   });
 

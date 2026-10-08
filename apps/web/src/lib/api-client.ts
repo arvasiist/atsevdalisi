@@ -162,6 +162,8 @@ export interface CreateLobbyRaceBody {
   playerControl?: boolean;
   /** 08.10.2026 — ırk sınıfı (`breeds.raceClasses`); verilmezse her ırka açık. */
   breedClass?: string;
+  /** 08.10.2026 — hipodrom anahtarı; yoksa varsayılan hipodrom. */
+  hippodrome?: string;
 }
 
 export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1';

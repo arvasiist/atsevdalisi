@@ -91,7 +91,7 @@ import { DustParticles } from './audio-vfx/DustParticles';
 import { HorseAvatar3D } from './HorseAvatar3D';
 import { SkyAndLighting } from './TrackScenery';
 import { laneOffsetMeters, lanePosition } from './lanes';
-import { loadCameraConfig } from '@at-sevdalisi/game-config';
+import { loadCameraConfig, type HippodromeConfig } from '@at-sevdalisi/game-config';
 import { HippodromeSurroundings } from './HippodromeSurroundings';
 import { StartGate } from './StartGate';
 import type { RaceSurface } from '@at-sevdalisi/shared-types';
@@ -127,6 +127,11 @@ export interface RaceScene3DProps {
   gateOpen?: boolean;
   cameraPose: CameraPose;
   trackGeometry: StadiumTrackGeometry;
+  /**
+   * 08.10.2026 — yarışın hipodromu (tribün, ağaç, çim, uzak siluet). Verilmezse
+   * varsayılan. `trackGeometry` bu hipodromun ölçüsünden üretilmiş olmalıdır.
+   */
+  hippodrome?: HippodromeConfig;
   /** Bkz. dosya başı doc yorumu "FAZ 4 (kalite kademeleri)". Verilmezse `detectQualityTier()` ile otomatik algılanır. */
   qualityTierOverride?: QualityTier;
   /**
@@ -155,6 +160,7 @@ export function RaceScene3D({
   gateOpen = true,
   cameraPose,
   trackGeometry,
+  hippodrome,
   qualityTierOverride,
   isPlaying = true,
 }: RaceScene3DProps): React.ReactElement {
@@ -234,6 +240,7 @@ export function RaceScene3D({
         crowdExcitement={crowdExcitement}
         qualityTier={settings.tier}
         surface={surface}
+        hippodrome={hippodrome}
       />
       {startPoint ? (
         <StartGate

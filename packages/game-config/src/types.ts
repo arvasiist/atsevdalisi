@@ -1849,6 +1849,8 @@ export interface RaceCalendarProgram {
   horizonHours?: number;
   /** 08.10.2026 — ırk sınıfı (`breeds.raceClasses`); yoksa her ırka açık. */
   breedClass?: string;
+  /** 08.10.2026 — hipodrom anahtarı (`hippodromes.config.json`); yoksa varsayılan. */
+  hippodrome?: string;
 }
 
 /**
@@ -2266,3 +2268,42 @@ export interface AnticheatConfig {
   newAccountOutflow: { minMoney: number };
   maxFindingsPerRule: number;
 }
+
+/**
+ * HİPODROMLAR (08.10.2026, sahibinin isteği: "sadece Veliefendi değil başka
+ * koşu alanları da"). Her hipodrom bir `tracks` satırıdır (migration 0072,
+ * `trackId` + `key` BİREBİR aynı); yarış `races.track_id` ile bağlanır.
+ * Ölçüler OYUN değerleridir (gerçek hipodromlardan esinlenilmiştir, birebir
+ * değildir) ve yalnızca 3D sahneyi etkiler — motor pist ölçüsü OKUMAZ.
+ */
+export type HippodromeBackdrop = 'city' | 'steppe' | 'sea' | 'plains' | 'mountains';
+
+export interface HippodromeConfig {
+  key: string;
+  trackId: string;
+  name: string;
+  /** Dar alanlar (seçim kutusu) için kısa ad. */
+  shortName: string;
+  city: string;
+  lapLengthMeters: number;
+  turnRadiusMeters: number;
+  theme: {
+    backdrop: HippodromeBackdrop;
+    standFrontColor: string;
+    roofColor: string;
+    seatColors: [string, string];
+    /** Ağaç halkasında çam oranı (0-1). */
+    coniferShare: number;
+    /** Yapraklılarda sonbahar tonu oranı (0-1). */
+    autumnShare: number;
+    /** Çim zemin rengi (bozkırda sarımsı, kıyıda yeşil). */
+    grassColor: string;
+  };
+}
+
+export interface HippodromesConfig {
+  /** Hipodromu olmayan (eski) yarışlar ve seçim yapılmayan lobi yarışı bunu kullanır. */
+  defaultKey: string;
+  hippodromes: HippodromeConfig[];
+}
+

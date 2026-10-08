@@ -103,4 +103,13 @@ export class CreateRaceDto {
   @IsOptional()
   @IsString()
   breedClass?: unknown;
+
+  /**
+   * 08.10.2026 — hipodrom anahtarı (`hippodromes.config.json`). `whitelist:
+   * true` altında DTO'da olmasaydı sessizce silinir ve yarış varsayılan
+   * hipodromda açılırdı; küme doğrulaması domain'dedir.
+   */
+  @IsOptional()
+  @IsString()
+  hippodrome?: unknown;
 }

@@ -15,13 +15,8 @@ import dynamic from 'next/dynamic';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { RaceSurface, RaceSegmentSnapshot, RaceTimeline } from '@at-sevdalisi/shared-types';
 import { loadAtmosphereConfig, loadCameraConfig } from '@at-sevdalisi/game-config';
-import {
-  DEFAULT_LAP_LENGTH_METERS,
-  DEFAULT_TURN_RADIUS_METERS,
-  createStadiumTrackGeometry,
-  getHorseTrackPosition,
-  type StadiumTrackGeometry,
-} from './track-path';
+import { getHorseTrackPosition, type StadiumTrackGeometry } from './track-path';
+import { hippodromeTrackGeometry, resolveHippodrome } from './hippodrome-theme';
 import { computeCameraPose, type CameraMode } from './camera-presets';
 import { renderedPositionOf } from './lanes';
 import {
@@ -72,6 +67,8 @@ export interface RaceViewerProps {
   turnCount?: number;
   /** 01.10.2026 (3D adım 8) — yarış zemini; verilmezse kum. */
   surface?: RaceSurface;
+  /** 08.10.2026 — hipodrom anahtarı (`RaceTimelineView.hippodrome`); verilmezse varsayılan. */
+  hippodrome?: string | null;
 }
 
 /**
@@ -229,13 +226,12 @@ export function RaceViewer({
   horseNamesById,
   turnCount = 2,
   surface = 'dirt',
+  hippodrome: hippodromeKey = null,
 }: RaceViewerProps): React.ReactElement {
+  const hippodrome = useMemo(() => resolveHippodrome(hippodromeKey), [hippodromeKey]);
   const horseIds = useMemo(() => getHorseIdsFromTimeline(timeline), [timeline]);
   const durationMs = useMemo(() => getRaceDurationMs(timeline), [timeline]);
-  const trackGeometry = useMemo(
-    () => createStadiumTrackGeometry(DEFAULT_LAP_LENGTH_METERS, DEFAULT_TURN_RADIUS_METERS),
-    [],
-  );
+  const trackGeometry = useMemo(() => hippodromeTrackGeometry(hippodrome), [hippodrome]);
   const raceDistanceMeters = useMemo(() => {
     let max = 0;
     for (const segment of timeline.segments) {
@@ -528,6 +524,7 @@ export function RaceViewer({
         gateOpen={currentTimeMs > 0}
         cameraPose={cameraPose}
         trackGeometry={trackGeometry}
+        hippodrome={hippodrome}
         isPlaying={isPlaying}
       />
       <div className="scene-controls" style={{ top: 156, left: 16 }}>
@@ -548,7 +545,7 @@ export function RaceViewer({
         focusHorseId={focusVisual?.horseId}
         raceDistanceMeters={raceDistanceMeters}
         raceTitle="Yarış"
-        raceSubtitle={`${Math.round(raceDistanceMeters)} m`}
+        raceSubtitle={`${Math.round(raceDistanceMeters)} m · ${hippodrome.name}`}
         miniMapTrack={miniMapTrack}
         onTogglePlay={handleTogglePlay}
         onChangeSpeedMultiplier={setSpeedMultiplier}

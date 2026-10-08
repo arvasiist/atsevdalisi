@@ -71,6 +71,11 @@ export interface RaceCreationInput {
    * OPSİYONEL: verilmezse/`null` ise yarış her ırka açıktır.
    */
   breedClass?: unknown;
+  /**
+   * 08.10.2026 — hipodrom anahtarı (`config/hippodromes.config.json`).
+   * OPSİYONEL: verilmezse/`null` ise varsayılan hipodrom (görsel; sonuç değişmez).
+   */
+  hippodrome?: unknown;
 }
 
 /**
@@ -109,6 +114,8 @@ export interface ValidatedRaceCreation {
   playerControl: boolean;
   /** `null` = her ırka açık. */
   breedClass: string | null;
+  /** `null` = varsayılan hipodrom. */
+  hippodrome: string | null;
 }
 
 /**
@@ -154,6 +161,8 @@ export function validateRaceCreation(
   now: Date,
   /** 08.10.2026 — geçerli ırk sınıfı anahtarları (`breeds.raceClasses`); boşsa sınıflı yarış açılamaz. */
   raceClassKeys: readonly string[] = [],
+  /** 08.10.2026 — geçerli hipodrom anahtarları; boşsa hipodrom seçilemez (varsayılan kullanılır). */
+  hippodromeKeys: readonly string[] = [],
 ): RaceCreationValidation {
   const problems: string[] = [];
 
@@ -300,6 +309,18 @@ export function validateRaceCreation(
     }
   }
 
+  // --- Hipodrom (08.10.2026) ---
+  let hippodrome: string | null = null;
+  if (input.hippodrome !== undefined && input.hippodrome !== null) {
+    if (typeof input.hippodrome !== 'string' || !hippodromeKeys.includes(input.hippodrome)) {
+      problems.push(
+        `Hipodrom ${hippodromeKeys.length > 0 ? hippodromeKeys.join('/') : '(tanımlı hipodrom yok)'} değerlerinden biri olmalıdır (verilen: ${describe(input.hippodrome)}).`,
+      );
+    } else {
+      hippodrome = input.hippodrome;
+    }
+  }
+
   // --- Mesafe (brief §1) ---
   let distanceMeters: number | null = null;
   if (
@@ -397,6 +418,7 @@ export function validateRaceCreation(
       prizePool: 0,
       playerControl,
       breedClass,
+      hippodrome,
     },
   };
 }

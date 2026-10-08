@@ -35,10 +35,12 @@ import { formatCurrency } from '../../lib/currency';
 import { formatRaceStart } from '../../lib/format-time';
 import { formatMultiplier } from '../race/race-entry';
 import { RACE_CLASSES, breedLabel, horseFitsRaceClass } from '../breeds/breed-catalog';
+import { HIPPODROME_OPTIONS } from '../race-viewer/hippodrome-theme';
 import {
   ENTRY_STATUS_LABELS,
   describeBreedClass,
   describeCalendar,
+  describeHippodrome,
   describePlayerControl,
   describeTournament,
   SURFACE_LABELS,
@@ -384,6 +386,21 @@ export function LobbyPanel({ horses, onBalanceChanged }: LobbyPanelProps): React
             </select>
           </label>
           <label style={labelStyle()}>
+            Hipodrom
+            <select
+              aria-label="Hipodrom"
+              value={form.hippodrome}
+              onChange={(event) => updateForm({ hippodrome: event.target.value })}
+              style={inputStyle()}
+            >
+              {HIPPODROME_OPTIONS.map((hippodrome) => (
+                <option key={hippodrome.key} value={hippodrome.key}>
+                  {hippodrome.shortName} · {hippodrome.city}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label style={labelStyle()}>
             Irk sınıfı
             <select
               aria-label="Irk sınıfı"
@@ -487,6 +504,11 @@ export function LobbyPanel({ horses, onBalanceChanged }: LobbyPanelProps): React
                       }}
                     >
                       {describePlayerControl(race)}
+                    </span>
+                  ) : null}
+                  {describeHippodrome(race) !== null ? (
+                    <span data-testid={`lobby-hippodrome-${race.id}`} style={smallStyle()}>
+                      {describeHippodrome(race)}
                     </span>
                   ) : null}
                   {describeBreedClass(race) !== null ? (

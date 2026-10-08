@@ -1,6 +1,8 @@
 'use client';
 
 import dynamic from 'next/dynamic';
+import { useState } from 'react';
+import { DEFAULT_HIPPODROME_KEY, HIPPODROME_OPTIONS } from '../../../features/race-viewer/hippodrome-theme';
 import demoRaceFixture from '../../../features/race-viewer/fixtures/demo-race-timeline.json';
 import type { RaceTimeline } from '@at-sevdalisi/shared-types';
 
@@ -24,13 +26,25 @@ export default function RaceDemoPage(): React.ReactElement {
     timeline: RaceTimeline;
     horseNamesById: Record<string, string>;
   };
+  // 08.10.2026 — gösterimde hipodrom seçilebilir (aynı koşu, farklı mekân).
+  const [hippodrome, setHippodrome] = useState(DEFAULT_HIPPODROME_KEY);
 
   return (
     // Faz 2: yükseklik artık TopBar'ın piksel cinsinden TAHMİN EDİLMİŞ bir
     // sabitiyle değil, `globals.css`teki `.app-main` flex kabuğunun (bkz.
     // `app/layout.tsx`) doldurduğu GERÇEK kalan alanla belirlenir.
     <main className="viewer-page" style={{ width: '100%', height: '100%', background: '#0b1220', position: 'relative' }}>
-      <RaceViewer timeline={timeline} horseNamesById={horseNamesById} />
+      <RaceViewer key={hippodrome} timeline={timeline} horseNamesById={horseNamesById} hippodrome={hippodrome} />
+      <label className="demo-hippodrome-select">
+        Hipodrom
+        <select aria-label="Hipodrom" value={hippodrome} onChange={(event) => setHippodrome(event.target.value)}>
+          {HIPPODROME_OPTIONS.map((option) => (
+            <option key={option.key} value={option.key}>
+              {option.name}
+            </option>
+          ))}
+        </select>
+      </label>
     </main>
   );
 }

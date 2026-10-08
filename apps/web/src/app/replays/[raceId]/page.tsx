@@ -135,6 +135,7 @@ export default function ReplayDetailPage(): React.ReactElement {
         timeline={replayData.timeline}
         horseNamesById={replayData.horseNamesById}
         surface={replayData.surface}
+        hippodrome={replayData.hippodrome}
       />
     </main>
   );

@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { RACE_ENGINE_VERSION, RACE_RULESET_VERSION } from '../../domain/race/race-engine';
 import { validateRaceCreation } from '../../domain/race/lobby';
+import { hippodromeKeys } from '../../domain/race/hippodrome';
 import {
   calendarProgramToCreationInput,
   computeCalendarSlotTimes,
@@ -63,6 +64,7 @@ export class ScheduleRaceCalendarUseCase {
           raceLobby,
           now,
           this.config.breeds.raceClasses.map((raceClass) => raceClass.key),
+          hippodromeKeys(this.config.hippodromes),
         );
         if (value === null) {
           rejected += 1;
@@ -85,6 +87,7 @@ export class ScheduleRaceCalendarUseCase {
           spectatorCapacity: value.spectatorCapacity,
           playerControl: value.playerControl,
           breedClass: value.breedClass,
+          hippodrome: value.hippodrome,
           engineVersion: RACE_ENGINE_VERSION,
           rulesetVersion: RACE_RULESET_VERSION,
           configVersion: this.config.race.version,

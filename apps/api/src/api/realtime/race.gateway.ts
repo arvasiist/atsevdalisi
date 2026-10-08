@@ -463,7 +463,11 @@ export class RaceGateway
     this.trackSubscription(client, timeline.raceId);
     this.broadcastSpectatorCount(timeline.raceId);
     await this.emitChatHistory(client, timeline.raceId);
-    const rosterPayload: RaceRosterPayload = { raceId: timeline.raceId, entrants: toRoster(timeline) };
+    const rosterPayload: RaceRosterPayload = {
+      raceId: timeline.raceId,
+      hippodrome: timeline.hippodrome,
+      entrants: toRoster(timeline),
+    };
     client.emit('race.roster', rosterPayload);
     if (state === 'cancelled') {
       client.emit('race.cancelled', { raceId: timeline.raceId });
@@ -647,7 +651,11 @@ export class RaceGateway
     // dizi kopyası oluştur — `session.roster`'ın kendisi hâlâ salt-okunur
     // kalır (mutasyona uğramaz), yalnızca bu tek olay payload'ı için ayrı
     // bir kopya üretilir.
-    const rosterPayload: RaceRosterPayload = { raceId: timeline.raceId, entrants: [...session.roster] };
+    const rosterPayload: RaceRosterPayload = {
+      raceId: timeline.raceId,
+      hippodrome: timeline.hippodrome,
+      entrants: [...session.roster],
+    };
     client.emit('race.roster', rosterPayload);
 
     // "Yakalama" — bu oturumda GERÇEKTEN ateşlenmiş (tahmini DEĞİL,

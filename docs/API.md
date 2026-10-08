@@ -2446,6 +2446,16 @@ Gövde: `name`, `fieldSize` (8/10/12/14/16), `maxPlayers`, `entryFee`,
 `thoroughbred`; verilmezse yarış her ırka açık). Sınıflı yarışa sınıf dışı
 atla `POST /races/{id}/join` → 409 `HORSE_BREED_NOT_ALLOWED`. Lobi satırı
 `breedClass` taşır.
+İsteğe bağlı `hippodrome` (08.10.2026, migration 0072 —
+`config/hippodromes.config.json` anahtarı: `veliefendi`/`ankara`/`izmir`/
+`adana`/`bursa`; verilmezse varsayılan Veliefendi; bilinmeyen anahtar 400
+`INVALID_RACE_DEFINITION`). Yarış `races.track_id` ile `tracks` satırına
+bağlanır. Lobi satırı (`RaceLobbyView`), zaman çizelgesi
+(`GET /races/:id/timeline`), canlı/kontrollü görünüm (`InteractiveRaceView`)
+ve `race.roster` olayı `hippodrome` anahtarını taşır (hipodromu yazılmamış
+eski yarışta varsayılan). Pratik, eşleşme ve turnuva yarışının hipodromu
+yarış kimliğinden determinist seçilir; takvim programı kendi hipodromunu
+config'ten alır. Salt sahne — sonuca etkisi YOK.
 
 **`Idempotency-Key` YOKTUR ve bu bilinçlidir:** bu uç hiçbir bakiye/ödül/
 envanter değiştirmez (ücret yarışa KATILIRKEN alınır) — brief §54'ün zorunlu

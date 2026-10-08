@@ -4202,6 +4202,31 @@ Karar: önce pratik yarış; kırbaç sınırsız, dayanıklılık bedelli.
   (`spectatorArmRaise`), `dust-particle-sim.spec.ts` (arkadan doğum,
   büyüme). Tarayıcıda gözle doğrulandı (yazılımsal GPU, Orta kalite).
 
+### 13.91 Hipodromlar: Veliefendi dışında dört koşu alanı (08.10.2026, migration 0072)
+
+- Sahibinin isteği: "sadece Veliefendi değil başka koşu alanları da ekleyelim".
+- Beş hipodrom (`config/hippodromes.config.json`): Veliefendi (İstanbul,
+  varsayılan, eski pist ölçüsü), Ankara 75. Yıl, İzmir Şirinyer, Adana
+  Yeşiloba, Bursa Osmangazi. Ölçüler oyun değeridir (esinlenme, birebir değil).
+- Veri: 0002'den beri boş duran `tracks` tablosu doldu (`track_key` + beş
+  satır), yarış `races.track_id` ile bağlanır. Eski yarışlar NULL kalır →
+  varsayılan hipodrom (veri değişmedi).
+- Kural: lobi yarışını açan hipodrom seçer (bilinmeyen 400); takvim
+  programlarının her birinin hipodromu var (Pazar Derbisi Veliefendi'de);
+  pratik/eşleşme/turnuva yarışı kimlikten determinist bir hipodroma düşer.
+  Motor pist ölçüsünü okumaz — sonuç değişmez.
+- Görünüm: her hipodromun tribün renkleri, çam/sonbahar oranı, çim rengi ve
+  uzak silueti var — İstanbul'da apartmanlar + kubbeli/minareli camiler,
+  Ankara'da bozkır tepeleri, İzmir'de körfez + karşı kıyı, Adana'da palmiyeler
+  + uzak Toroslar, Bursa'da karlı Uludağ zirveleri. Pist geometrisi
+  hipodromun tur/viraj ölçüsünden; HUD/kontrollü yarış rozeti hipodrom adını
+  yazar, lobi satırında 📍 rozeti, yarış açma formunda seçim.
+- Testler: `hippodromes.spec.ts` (API: config ↔ migration, doğrulama,
+  determinist seçim), `hippodrome.e2e-spec.ts` (lobi/pratik/tekrar),
+  `race-calendar.e2e-spec.ts` (program hipodromu), web `hippodromes.spec.ts`
+  (siluet ağaç halkasına girmez, zeminde, determinist; form). Tarayıcıda
+  beş hipodrom gözle doğrulandı (yazılımsal GPU, Orta kalite).
+
 ## 14. Kendime hatırlatmalar (kısa liste)
 
 1. **Race Engine'e dokunmadan önce iki kez düşün.** Denetim onu "KEEP, dokunma"

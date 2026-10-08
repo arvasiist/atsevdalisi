@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import {
   loadAdminConfig,
   loadBreedsConfig,
+  loadHippodromesConfig,
   loadCareConfig,
   loadChatConfig,
   loadEconomyConfig,
@@ -25,6 +26,7 @@ import {
   loadWeatherConfig,
 } from '@at-sevdalisi/game-config';
 import { validateBreedsConfig } from '../../domain/horse/breeds';
+import { validateHippodromesConfig } from '../../domain/race/hippodrome';
 
 /**
  * Ortam değişkenleri + oyun dengesi config'lerine tek noktadan erişim.
@@ -147,10 +149,16 @@ export class AppConfigService {
   readonly interactiveRace = loadInteractiveRaceConfig();
   /** 07.10.2026 — at ırkları: ücretsiz başlangıç ırkı (en zayıf) + ırk mağazası. */
   readonly breeds = loadBreedsConfig();
+  /** 08.10.2026 — hipodromlar (`tracks` satırları, migration 0072). */
+  readonly hippodromes = loadHippodromesConfig();
 
   constructor() {
     // Irk kuralı (ücretsiz at en zayıf, güçlü ırk ucuz olamaz) açılışta
     // denetlenir — bozuk config ile API AÇILMAZ.
     validateBreedsConfig(this.breeds, this.progression.maxLevel);
+    const hippodromeProblems = validateHippodromesConfig(this.hippodromes);
+    if (hippodromeProblems.length > 0) {
+      throw new Error(`Hipodrom config'i geçersiz (config/hippodromes.config.json): ${hippodromeProblems.join(' ')}`);
+    }
   }
 }

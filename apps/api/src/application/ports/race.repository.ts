@@ -728,6 +728,8 @@ export interface CreateLobbyRaceInput {
   playerControl: boolean;
   /** 08.10.2026 — ırk sınıfı (migration 0070); `null` = her ırka açık. */
   breedClass: string | null;
+  /** 08.10.2026 — hipodrom anahtarı (migration 0072); `null` = varsayılan. */
+  hippodrome: string | null;
 }
 
 /**
@@ -901,6 +903,8 @@ export interface CreateCalendarRaceInput {
   playerControl: boolean;
   /** 08.10.2026 — programın ırk sınıfı; `null` = her ırka açık. */
   breedClass: string | null;
+  /** 08.10.2026 — programın hipodromu; `null` = varsayılan. */
+  hippodrome: string | null;
 }
 
 /** `dropUnreadyLobbyEntries` sonucu. */
@@ -1001,6 +1005,8 @@ export interface LobbySettlementContext {
   liveStartsAt: Date | null;
   /** 08.10.2026 — ırk sınıfı; botların stat aralığı buradan türetilir. `null` = açık yarış. */
   breedClass: string | null;
+  /** 08.10.2026 — hipodrom anahtarı (salt sahne; eski yarışta varsayılan). */
+  hippodrome: string;
 }
 
 /**

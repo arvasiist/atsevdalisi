@@ -77,12 +77,8 @@ import type {
   RaceSegmentSnapshot,
 } from '@at-sevdalisi/shared-types';
 import { loadAtmosphereConfig, loadCameraConfig, loadChatConfig } from '@at-sevdalisi/game-config';
-import {
-  DEFAULT_LAP_LENGTH_METERS,
-  DEFAULT_TURN_RADIUS_METERS,
-  createStadiumTrackGeometry,
-  getHorseTrackPosition,
-} from './track-path';
+import { getHorseTrackPosition } from './track-path';
+import { hippodromeTrackGeometry, resolveHippodrome } from './hippodrome-theme';
 import { computeCameraPose, type CameraMode } from './camera-presets';
 import { renderedPositionOf } from './lanes';
 import {
@@ -199,10 +195,11 @@ export function LiveRaceViewer({
   raceInfo,
   turnCount = 2,
 }: LiveRaceViewerProps): React.ReactElement {
-  const trackGeometry = useMemo(
-    () => createStadiumTrackGeometry(DEFAULT_LAP_LENGTH_METERS, DEFAULT_TURN_RADIUS_METERS),
-    [],
-  );
+  // 08.10.2026 — hipodrom `race.roster` ile gelir (yarış başlarken bir kez);
+  // gelene kadar varsayılan.
+  const [hippodromeKey, setHippodromeKey] = useState<string | null>(null);
+  const hippodrome = useMemo(() => resolveHippodrome(hippodromeKey), [hippodromeKey]);
+  const trackGeometry = useMemo(() => hippodromeTrackGeometry(hippodrome), [hippodrome]);
 
   const [roster, setRoster] = useState<RaceRosterEntrant[] | null>(null);
   const [segments, setSegments] = useState<RaceSegmentSnapshot[]>([]);
@@ -280,7 +277,8 @@ export function LiveRaceViewer({
     setRacePhase(null);
 
     const socket = connectRaceSocket(apiBaseUrl, token, raceId, {
-      onRoster: (entrants) => {
+      onRoster: (entrants, rosterHippodrome) => {
+        setHippodromeKey(rosterHippodrome);
         // Roster her (yeniden) bağlanmada TEKRAR gelir (bkz. `race.
         // gateway.ts`'in `joinSharedPlayback`'i — idempotent) — bunun
         // alınması bağlantının GERÇEKTEN kurulduğunun kanıtıdır, bu
@@ -668,6 +666,7 @@ export function LiveRaceViewer({
         gateOpen={leaderPositionMeters > 0 || isRaceFinished}
         cameraPose={cameraPose}
         trackGeometry={trackGeometry}
+        hippodrome={hippodrome}
       />
       <div className="scene-controls" style={{ top: 156, left: 16 }}>
         <AudioToggle muted={audioMuted} onChange={setAudioMuted} />
@@ -692,7 +691,9 @@ export function LiveRaceViewer({
         focusHorseId={focusVisual?.horseId}
         raceDistanceMeters={raceInfo?.distanceMeters}
         raceTitle={raceInfo?.title}
-        raceSubtitle={raceInfo?.subtitle}
+        raceSubtitle={
+          raceInfo ? [raceInfo.subtitle, hippodromeKey ? hippodrome.name : null].filter(Boolean).join(' · ') : undefined
+        }
         miniMapTrack={miniMapTrack}
       />
       <RaceChatPanel

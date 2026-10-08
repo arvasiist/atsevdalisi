@@ -1,0 +1,95 @@
+{
+  "defaultKey": "veliefendi",
+  "hippodromes": [
+    {
+      "key": "veliefendi",
+      "trackId": "6d0c8a0e-1b11-4c51-9a01-000000000001",
+      "name": "Veliefendi Hipodromu",
+      "shortName": "Veliefendi",
+      "city": "İstanbul",
+      "lapLengthMeters": 2000,
+      "turnRadiusMeters": 60,
+      "theme": {
+        "backdrop": "city",
+        "standFrontColor": "#1f3a5f",
+        "roofColor": "#b9c0c8",
+        "seatColors": ["#b9bec6", "#a9aeb7"],
+        "coniferShare": 0.38,
+        "autumnShare": 0.12,
+        "grassColor": "#4f8a3c"
+      }
+    },
+    {
+      "key": "ankara",
+      "trackId": "6d0c8a0e-1b11-4c51-9a01-000000000002",
+      "name": "Ankara 75. Yıl Hipodromu",
+      "shortName": "Ankara 75. Yıl",
+      "city": "Ankara",
+      "lapLengthMeters": 1800,
+      "turnRadiusMeters": 55,
+      "theme": {
+        "backdrop": "steppe",
+        "standFrontColor": "#7a1f2b",
+        "roofColor": "#d6d0c4",
+        "seatColors": ["#c8c2b6", "#b8b2a6"],
+        "coniferShare": 0.55,
+        "autumnShare": 0.2,
+        "grassColor": "#7f8a47"
+      }
+    },
+    {
+      "key": "izmir",
+      "trackId": "6d0c8a0e-1b11-4c51-9a01-000000000003",
+      "name": "İzmir Şirinyer Hipodromu",
+      "shortName": "İzmir Şirinyer",
+      "city": "İzmir",
+      "lapLengthMeters": 1900,
+      "turnRadiusMeters": 58,
+      "theme": {
+        "backdrop": "sea",
+        "standFrontColor": "#1d5f8a",
+        "roofColor": "#e4e9ec",
+        "seatColors": ["#d2dbe1", "#c2ccd3"],
+        "coniferShare": 0.25,
+        "autumnShare": 0.05,
+        "grassColor": "#568c3c"
+      }
+    },
+    {
+      "key": "adana",
+      "trackId": "6d0c8a0e-1b11-4c51-9a01-000000000004",
+      "name": "Adana Yeşiloba Hipodromu",
+      "shortName": "Adana Yeşiloba",
+      "city": "Adana",
+      "lapLengthMeters": 1800,
+      "turnRadiusMeters": 52,
+      "theme": {
+        "backdrop": "plains",
+        "standFrontColor": "#2f6b3a",
+        "roofColor": "#ddd3ad",
+        "seatColors": ["#d6ceb4", "#c7bfa4"],
+        "coniferShare": 0.1,
+        "autumnShare": 0.04,
+        "grassColor": "#679341"
+      }
+    },
+    {
+      "key": "bursa",
+      "trackId": "6d0c8a0e-1b11-4c51-9a01-000000000005",
+      "name": "Bursa Osmangazi Hipodromu",
+      "shortName": "Bursa Osmangazi",
+      "city": "Bursa",
+      "lapLengthMeters": 1700,
+      "turnRadiusMeters": 50,
+      "theme": {
+        "backdrop": "mountains",
+        "standFrontColor": "#5b2a86",
+        "roofColor": "#cfd5dc",
+        "seatColors": ["#c4cad2", "#b3bac3"],
+        "coniferShare": 0.6,
+        "autumnShare": 0.15,
+        "grassColor": "#437f38"
+      }
+    }
+  ]
+}

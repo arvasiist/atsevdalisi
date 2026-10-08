@@ -1,5 +1,6 @@
-import { loadBreedsConfig, loadRaceLobbyConfig } from '@at-sevdalisi/game-config';
+import { loadBreedsConfig, loadHippodromesConfig, loadRaceLobbyConfig } from '@at-sevdalisi/game-config';
 import { describe, expect, it } from 'vitest';
+import { hippodromeKeys } from '../../../src/domain/race/hippodrome';
 import { validateRaceCreation } from '../../../src/domain/race/lobby';
 import {
   calendarProgramToCreationInput,
@@ -66,6 +67,8 @@ describe('yarış takvimi — yuva hesabı (01.10.2026)', () => {
           now,
           // 08.10.2026 — ırk sınıflı programlar (ör. "Yerli Irklar") gerçek sınıf listesiyle doğrulanır.
           loadBreedsConfig().raceClasses.map((raceClass) => raceClass.key),
+          // 08.10.2026 — programın hipodromu gerçek hipodrom listesinde olmalı.
+          hippodromeKeys(loadHippodromesConfig()),
         );
         expect(problems, `${program.id} ${slot.toISOString()}`).toEqual([]);
       }

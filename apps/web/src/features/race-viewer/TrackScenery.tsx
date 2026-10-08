@@ -148,11 +148,11 @@ export function SkyAndLighting({
   );
 }
 
-export function Grass(): React.ReactElement {
+export function Grass({ color = '#4f8a3c' }: { color?: string }): React.ReactElement {
   return (
     <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.05, 0]} receiveShadow>
       <planeGeometry args={[GROUND_SIZE_METERS, GROUND_SIZE_METERS]} />
-      <meshStandardMaterial color="#4f8a3c" roughness={0.95} metalness={0} />
+      <meshStandardMaterial color={color} roughness={0.95} metalness={0} />
     </mesh>
   );
 }
@@ -305,12 +305,27 @@ const CROWD_COLORS = [
  * basamaklı oturma + kalabalık + çatı + kolonlar. Kalabalık tek bir
  * `InstancedMesh` (tek draw call).
  */
+/** 08.10.2026 — hipodromun tribün renkleri (`hippodromes.config.json` → `theme`). */
+export interface GrandstandColors {
+  standFrontColor: string;
+  roofColor: string;
+  seatColors: readonly [string, string];
+}
+
+const DEFAULT_STAND_COLORS: GrandstandColors = {
+  standFrontColor: '#1f3a5f',
+  roofColor: '#b9c0c8',
+  seatColors: ['#b9bec6', '#a9aeb7'],
+};
+
 export function Grandstand({
   geometry,
   excitement = ATMOSPHERE.crowd.preRaceExcitement,
   density = 1,
+  colors = DEFAULT_STAND_COLORS,
 }: {
   geometry: StadiumTrackGeometry;
+  colors?: GrandstandColors;
   /**
    * 01.10.2026 — kalabalık heyecanı 0..1 (`race-atmosphere.ts`). Seyirciler
    * eşiğin üstünde ayağa kalkar ve heyecanla orantılı dalgalanır.
@@ -448,13 +463,13 @@ export function Grandstand({
           castShadow
         >
           <boxGeometry args={[length, (row + 1) * STAND_ROW_RISE, STAND_ROW_DEPTH]} />
-          <meshStandardMaterial color={row % 2 === 0 ? '#b9bec6' : '#a9aeb7'} roughness={0.9} />
+          <meshStandardMaterial color={colors.seatColors[row % 2]} roughness={0.9} />
         </mesh>
       ))}
       {/* Ön duvar */}
       <mesh position={[0, 0.9, frontZ + 0.3]} castShadow>
         <boxGeometry args={[length, 1.8, 0.5]} />
-        <meshStandardMaterial color="#1f3a5f" roughness={0.6} />
+        <meshStandardMaterial color={colors.standFrontColor} roughness={0.6} />
       </mesh>
       {/* Arka duvar */}
       <mesh position={[0, roofHeight / 2, frontZ - standDepth - 0.5]} castShadow receiveShadow>
@@ -468,7 +483,7 @@ export function Grandstand({
         castShadow
       >
         <boxGeometry args={[length + 8, 0.6, standDepth + 12]} />
-        <meshStandardMaterial color="#b9c0c8" roughness={0.6} metalness={0.25} />
+        <meshStandardMaterial color={colors.roofColor} roughness={0.6} metalness={0.25} />
       </mesh>
       {/* Kolonlar */}
       {Array.from({ length: Math.floor(length / 40) + 1 }, (_, i) => (
@@ -588,7 +603,7 @@ export function TrackFurniture({
 
 const TREE_COUNT = 260;
 const TREE_RING_MARGIN_METERS = 120;
-/** Çam oranı ve sonbahar tonlu yapraklı oranı (görsel çeşitlilik). */
+/** Varsayılan çam oranı ve sonbahar tonlu yapraklı oranı (hipodrom teması ezer). */
 const CONIFER_SHARE = 0.38;
 const AUTUMN_SHARE = 0.12;
 
@@ -600,8 +615,15 @@ const AUTUMN_SHARE = 0.12;
  */
 export function TreeLine({
   geometry,
+  coniferShare = CONIFER_SHARE,
+  autumnShare = AUTUMN_SHARE,
+  maxZ = null,
 }: {
   geometry: StadiumTrackGeometry;
+  coniferShare?: number;
+  autumnShare?: number;
+  /** 08.10.2026 — bu z'nin ötesine ağaç dikilmez (deniz kıyısı açık kalsın); `null` = sınır yok. */
+  maxZ?: number | null;
 }): React.ReactElement | null {
   const trees = useMemo(() => {
     if (geometry.lapLengthMeters <= 0) return [];
@@ -610,17 +632,18 @@ export function TreeLine({
       const distance = (i / TREE_COUNT) * geometry.lapLengthMeters;
       const offset = TREE_RING_MARGIN_METERS + seeded(i, 17) * 90;
       const p = getOutwardBoundaryPoint(distance, TRACK_TURN_COUNT_FOR_VISUAL, geometry, offset);
+      if (maxZ !== null && p.z > maxZ) continue;
       result.push({
         x: p.x,
         z: p.z,
         scale: 0.8 + seeded(i, 19) * 0.9,
         yaw: seeded(i, 37) * Math.PI * 2,
-        conifer: seeded(i, 31) < CONIFER_SHARE,
+        conifer: seeded(i, 31) < coniferShare,
         index: i,
       });
     }
     return result;
-  }, [geometry]);
+  }, [geometry, coniferShare, maxZ]);
 
   const crowns = useMemo(() => ({ deciduous: createDeciduousCrown(), conifer: createConiferCrown() }), []);
   useEffect(
@@ -652,7 +675,7 @@ export function TreeLine({
       scale.setScalar(tree.scale);
       position.set(tree.x, 9 * tree.scale, tree.z);
       deciduous.setMatrixAt(index, matrix.compose(position, quaternion, scale));
-      const autumn = seeded(tree.index, 41) < AUTUMN_SHARE;
+      const autumn = seeded(tree.index, 41) < autumnShare;
       deciduous.setColorAt(
         index,
         autumn
@@ -686,7 +709,7 @@ export function TreeLine({
       if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
       mesh.computeBoundingSphere();
     }
-  }, [trees, deciduousTrees, coniferTrees]);
+  }, [trees, deciduousTrees, coniferTrees, autumnShare]);
 
   if (trees.length === 0) return null;
   return (

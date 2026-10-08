@@ -16,13 +16,16 @@
  */
 
 import { useMemo } from 'react';
-import { loadAtmosphereConfig, loadVfxConfig } from '@at-sevdalisi/game-config';
+import { loadAtmosphereConfig, loadVfxConfig, type HippodromeConfig } from '@at-sevdalisi/game-config';
 import type { RaceSurface } from '@at-sevdalisi/shared-types';
 import { GltfAssetLoader } from './assets/GltfAssetLoader';
 import { getAssetById } from './assets/asset-manifest';
 import { forwardAxisRotation } from './assets/model-fit';
 import type { QualityTier } from './quality-tier';
 import { DirtTrack, Grandstand, Grass, Rails, TrackFurniture, TreeLine } from './TrackScenery';
+import { HippodromeBackdrop } from './HippodromeBackdrop';
+import { treeLineMaxZ } from './hippodrome-backdrop';
+import { resolveHippodrome } from './hippodrome-theme';
 import type { StadiumTrackGeometry } from './track-path';
 
 const ENVIRONMENT_ASSET = getAssetById('HIPPODROME_ENVIRONMENT_REQUIRED');
@@ -36,6 +39,12 @@ export interface HippodromeSurroundingsProps {
   qualityTier: QualityTier;
   /** 01.10.2026 (adım 8) — yarışın zemini; pist yüzeyinin rengi buna göre. */
   surface?: RaceSurface;
+  /**
+   * 08.10.2026 — hipodrom (tribün renkleri, ağaç türleri, çim, uzak siluet).
+   * Verilmezse varsayılan (Veliefendi). `geometry` çağıranın sorumluluğundadır
+   * (`hippodromeTrackGeometry`) — atların konumu da aynı geometriye bağlıdır.
+   */
+  hippodrome?: HippodromeConfig;
 }
 
 export function HippodromeSurroundings({
@@ -43,13 +52,21 @@ export function HippodromeSurroundings({
   crowdExcitement,
   qualityTier,
   surface = 'dirt',
+  hippodrome = resolveHippodrome(null),
 }: HippodromeSurroundingsProps): React.ReactElement {
   const density = ATMOSPHERE.crowd.densityByTier[qualityTier];
+  const { theme } = hippodrome;
   const procedural = (
     <>
-      <Grandstand geometry={geometry} excitement={crowdExcitement} density={density} />
+      <Grandstand geometry={geometry} excitement={crowdExcitement} density={density} colors={theme} />
       <TrackFurniture geometry={geometry} />
-      <TreeLine geometry={geometry} />
+      <TreeLine
+        geometry={geometry}
+        coniferShare={theme.coniferShare}
+        autumnShare={theme.autumnShare}
+        maxZ={treeLineMaxZ(theme.backdrop, geometry)}
+      />
+      <HippodromeBackdrop backdrop={theme.backdrop} geometry={geometry} />
     </>
   );
   const rotationY = useMemo(
@@ -59,7 +76,7 @@ export function HippodromeSurroundings({
   );
   return (
     <>
-      <Grass />
+      <Grass color={theme.grassColor} />
       <DirtTrack geometry={geometry} color={VFX.trackColorBySurface[surface]} />
       <Rails geometry={geometry} />
       {ENVIRONMENT_ASSET ? (

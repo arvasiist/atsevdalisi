@@ -685,6 +685,22 @@ ARKA ayaklarından (`dustSpawnOffset`), büyüyen yumuşak bulutçuk; ⚠️
 (eski `sizeScale` kaldırıldı: çözünürlüğü yok sayıp uzakta tozu görünmez
 yapıyordu). ⚠️ Kalabalığa poligon eklerken 8 bin figürle çarp: yazılımsal
 GPU'da "Yüksek" kalite sayfayı kilitlemişti.
+(67) **HİPODROMLAR (08.10.2026, migration 0072, §13.91)** — Veliefendi,
+Ankara, İzmir, Adana, Bursa: `config/hippodromes.config.json` (pist ölçüsü +
+tema). Yarış `races.track_id` → `tracks` (0002'den beri boştu; 0072 `track_key`
++ beş satır). ⚠️ Config `trackId`/`key` ile 0072 satırları BİREBİR aynı olmalı
+(`hippodromes.spec.ts` migration'ı okur) — hipodrom eklerken yeni migration +
+config birlikte. Lobi yarışı `hippodrome` seçer (`validateRaceCreation` 5.
+argüman; listesi verilmeyen çağıran hipodrom SEÇEMEZ), takvim programı
+`hippodrome` alır, pratik/eşleşme/turnuva `pickHippodromeForRace(raceId)`
+(determinist; canlı ve tekrar aynı mekânda). Görünümler anahtarı taşır,
+NULL → `defaultKey`. Salt sahne: motor pist ölçüsü OKUMAZ. Web:
+`hippodrome-theme.ts` (geometri = hipodromun tur/viraj ölçüsü — atlar da aynı
+geometride), `HippodromeBackdrop` (şehir+cami / bozkır / körfez / palmiye /
+karlı dağ; saf yerleşim `hippodrome-backdrop.ts`, taban ağaç halkasına
+GİRMEZ — spec tarar), tribün renkleri, ağaç oranı, çim rengi. İzmir'de kıyı
+tarafına ağaç dikilmez (`treeLineMaxZ`), yoksa deniz görünmez. `/races/demo`
+hipodrom seçici taşır (aynı koşu, farklı mekân).
 
 **✅ ÜCRETLİ LOBİ YARIŞI ARTIK KOŞUYOR — ÖDÜL DAĞITIMI VAR (§13.14,
 28.09.2026).** `POST /races/:id/settle` yarışı koşar, ödülleri `top5`

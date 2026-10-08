@@ -452,6 +452,8 @@ export interface RaceTimelineView {
   surface: RaceSurface;
   weather: RaceWeather;
   simulationSeed: string | null;
+  /** 08.10.2026 — hipodrom anahtarı (salt sahne; eski yarışta varsayılan). */
+  hippodrome: string;
   entrants: RaceTimelineEntrantView[];
 }
 
@@ -483,6 +485,8 @@ export interface RaceRosterEntrant {
 /** `race.roster` (sunucu → istemci, `race.subscribe` sonrası TAM OLARAK bir kez) yanıt şekli. */
 export interface RaceRosterPayload {
   raceId: UUID;
+  /** 08.10.2026 — hipodrom anahtarı (salt sahne). */
+  hippodrome: string;
   entrants: RaceRosterEntrant[];
 }
 
@@ -588,6 +592,12 @@ export interface RaceLobbyView {
    * `null` = her ırka açık; doluysa yalnızca sınıftaki ırklar katılabilir.
    */
   breedClass: string | null;
+  /**
+   * 08.10.2026 — hipodrom anahtarı (`config/hippodromes.config.json`). Hipodromu
+   * yazılmamış eski yarışta varsayılan anahtar gelir. Yalnızca sahne/kimlik —
+   * sonuca etkisi YOK.
+   */
+  hippodrome: string;
 }
 
 /**
@@ -775,6 +785,8 @@ export interface InteractiveRaceView {
   distanceMeters: number;
   surface: RaceSurface;
   weather: RaceWeather;
+  /** 08.10.2026 — hipodrom anahtarı (salt sahne). */
+  hippodrome: string;
   segmentCount: number;
   revealedSegments: number;
   /** Komutun bir sonraki etki edeceği segment (yarış bitince `null`). */

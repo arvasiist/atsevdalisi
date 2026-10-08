@@ -20,6 +20,7 @@ import type { RaceLobbyConfig } from '@at-sevdalisi/game-config';
 import type { CreateLobbyRaceBody } from '../../lib/api-client';
 import { loadRaceLobbyConfig } from '@at-sevdalisi/game-config';
 import { breedLabel, findRaceClass } from '../breeds/breed-catalog';
+import { DEFAULT_HIPPODROME_KEY, hippodromeLabel } from '../race-viewer/hippodrome-theme';
 
 const lobbyConfig = loadRaceLobbyConfig();
 
@@ -71,6 +72,14 @@ export function describePlayerControl(
   return race.playerControl ? 'Kontrollü · atı sen sürersin (kırbaç, yön)' : null;
 }
 
+/** 08.10.2026 — hipodrom rozeti ("📍 İzmir Şirinyer Hipodromu"); alan yoksa (eski sunucu) `null`. */
+export function describeHippodrome(race: Pick<RaceLobbyListItem, 'hippodrome'>): string | null {
+  if (race.hippodrome === null || race.hippodrome === undefined) {
+    return null;
+  }
+  return `📍 ${hippodromeLabel(race.hippodrome)}`;
+}
+
 /**
  * 08.10.2026 — ırk sınıfı rozeti ("Yerli Irklar · Hınıs, Malakan, …").
  * Sınıf adı ve ırk adları `config/breeds.config.json`dan; katalogda olmayan
@@ -120,6 +129,8 @@ export interface LobbyRaceForm {
   playerControl: boolean;
   /** 08.10.2026 — ırk sınıfı anahtarı; `''` = her ırka açık. */
   breedClass: string;
+  /** 08.10.2026 — hipodrom anahtarı (`hippodromes.config.json`). */
+  hippodrome: string;
 }
 
 /**
@@ -164,6 +175,7 @@ export function defaultLobbyRaceForm(config: RaceLobbyConfig): LobbyRaceForm {
     spectatorCapacity: config.spectatorCapacityOptions[0] ?? 0,
     playerControl: false,
     breedClass: '',
+    hippodrome: DEFAULT_HIPPODROME_KEY,
   };
 }
 
@@ -222,6 +234,7 @@ export function buildCreateRaceBody(
       playerControl: form.playerControl,
       // Boş = açık yarış: alan hiç GÖNDERİLMEZ (sunucu `null` kabul eder).
       ...(form.breedClass !== '' ? { breedClass: form.breedClass } : {}),
+      hippodrome: form.hippodrome,
     },
   };
 }

@@ -2292,6 +2292,11 @@ button.btn-action {
   font-size: 16px;
 }
 
+.ride-badge .ride-venue {
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
 .ride-stamina {
   height: 6px;
   border-radius: 999px;
@@ -3011,3 +3016,31 @@ button.btn-action {
   min-width: 220px;
 }
 
+
+/* 08.10.2026 — gösterim yarışında hipodrom seçimi (ses/kalite düğmelerinin altı). */
+.demo-hippodrome-select {
+  position: absolute;
+  top: 204px;
+  left: 16px;
+  z-index: 12;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 12px;
+  background: rgba(6, 10, 20, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: var(--color-text-secondary);
+  font-size: 13px;
+}
+
+.demo-hippodrome-select select {
+  background: transparent;
+  color: var(--color-text-primary);
+  border: none;
+  font: inherit;
+}
+
+.demo-hippodrome-select option {
+  color: #111;
+}

@@ -50,6 +50,8 @@ export interface ReplayTimelineData {
   horseNamesById: Record<string, string>;
   /** 01.10.2026 (3D adım 8) — yarış zemini (pist rengi + toz). */
   surface: RaceSurface;
+  /** 08.10.2026 — hipodrom anahtarı (eski sunucu yanıtında yoksa `null` → varsayılan). */
+  hippodrome: string | null;
 }
 
 /**
@@ -114,5 +116,6 @@ export function adaptRaceTimelineViewToReplayData(view: RaceTimelineView): Repla
     },
     horseNamesById,
     surface: view.surface,
+    hippodrome: view.hippodrome ?? null,
   };
 }

@@ -246,6 +246,7 @@ export class LobbyLiveRaceUseCase {
       distanceMeters: context.distanceMeters,
       surface: context.surface as RaceSurface,
       weather: context.weather as RaceWeather,
+      hippodrome: context.hippodrome,
       segmentCount: total,
       revealedSegments: revealed,
       nextCommandSegment: me === null || finished || revealed >= total ? null : revealed,

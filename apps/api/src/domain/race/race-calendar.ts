@@ -60,6 +60,7 @@ export function calendarProgramToCreationInput(
     spectatorCapacity: program.spectatorCapacity,
     playerControl: program.playerControl ?? false,
     breedClass: program.breedClass ?? null,
+    hippodrome: program.hippodrome ?? null,
   };
 }
 

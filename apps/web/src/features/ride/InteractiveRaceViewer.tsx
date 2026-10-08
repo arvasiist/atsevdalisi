@@ -15,12 +15,8 @@ import { ArrowDown, ArrowLeft, ArrowRight, Zap } from 'lucide-react';
 import type { InteractiveRaceView, PlayerControlInput } from '@at-sevdalisi/shared-types';
 import { loadAtmosphereConfig, loadCameraConfig } from '@at-sevdalisi/game-config';
 import { apiClient } from '../../lib/api-client';
-import {
-  DEFAULT_LAP_LENGTH_METERS,
-  DEFAULT_TURN_RADIUS_METERS,
-  createStadiumTrackGeometry,
-  getHorseTrackPosition,
-} from '../race-viewer/track-path';
+import { getHorseTrackPosition } from '../race-viewer/track-path';
+import { hippodromeTrackGeometry, resolveHippodrome } from '../race-viewer/hippodrome-theme';
 import { computeCameraPose, type CameraMode } from '../race-viewer/camera-presets';
 import { renderedPositionOf } from '../race-viewer/lanes';
 import { getLiveLeaderboard } from '../race-viewer/timeline-playback';
@@ -184,10 +180,9 @@ export function InteractiveRaceViewer({
   }, [send]);
 
   // ---- 3D sahne verisi ----
-  const trackGeometry = useMemo(
-    () => createStadiumTrackGeometry(DEFAULT_LAP_LENGTH_METERS, DEFAULT_TURN_RADIUS_METERS),
-    [],
-  );
+  // 08.10.2026 — yarışın hipodromu (sunucudan; eski yanıtta yoksa varsayılan).
+  const hippodrome = useMemo(() => resolveHippodrome(view.hippodrome), [view.hippodrome]);
+  const trackGeometry = useMemo(() => hippodromeTrackGeometry(hippodrome), [hippodrome]);
   const turnCount = 2;
   const entryIds = useMemo(() => view.entrants.map((entrant) => entrant.label), [view.entrants]);
   const clampedTime = Math.max(0, raceTimeMs);
@@ -289,11 +284,13 @@ export function InteractiveRaceViewer({
         gateOpen={raceTimeMs > 0}
         cameraPose={cameraPose}
         trackGeometry={trackGeometry}
+        hippodrome={hippodrome}
       />
 
       <div className="ride-top">
         <div className="ride-badge">
           <strong>{horseName}</strong>
+          <span className="ride-venue">📍 {hippodrome.name}</span>
           {spectator ? (
             <span>
               Lider: {leaderName} · {Math.round(Math.min(view.distanceMeters, leaderPositionMeters))}{' '}

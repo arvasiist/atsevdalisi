@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { Inject, Injectable } from '@nestjs/common';
 import type { RaceLobbyView } from '@at-sevdalisi/shared-types';
 import { validateRaceCreation, type RaceCreationInput } from '../../domain/race/lobby';
+import { hippodromeKeys } from '../../domain/race/hippodrome';
 import { InvalidRaceDefinitionError, RaceLimitReachedError } from '../../domain/race/errors';
 import { RACE_ENGINE_VERSION, RACE_RULESET_VERSION } from '../../domain/race/race-engine';
 import { AppConfigService } from '../../infrastructure/config/config.service';
@@ -64,6 +65,7 @@ export class CreateRaceUseCase {
       raceLobby,
       new Date(),
       this.config.breeds.raceClasses.map((raceClass) => raceClass.key),
+      hippodromeKeys(this.config.hippodromes),
     );
     if (value === null) {
       throw new InvalidRaceDefinitionError(problems);
@@ -88,6 +90,7 @@ export class CreateRaceUseCase {
       prizePool: value.prizePool,
       playerControl: value.playerControl,
       breedClass: value.breedClass,
+      hippodrome: value.hippodrome,
       // **`null` — VE BU BİLİNÇLİDİR.** Lobi yarışının seed'i, yarış
       // KOŞARKEN üretilir. Erken üretilseydi yarışı açan kişi seed'i
       // okuyup (bkz. `GET /races/:id/timeline` yanıtı) sonucu önceden
