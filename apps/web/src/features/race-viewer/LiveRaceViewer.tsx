@@ -75,6 +75,7 @@ import type {
   RaceChatMessageView,
   RaceRosterEntrant,
   RaceSegmentSnapshot,
+  TribuneGiftEvent,
 } from '@at-sevdalisi/shared-types';
 import { loadAtmosphereConfig, loadCameraConfig, loadChatConfig } from '@at-sevdalisi/game-config';
 import { getHorseTrackPosition } from './track-path';
@@ -185,6 +186,8 @@ export interface LiveRaceViewerProps {
   ownHorseId?: string;
   /** brief §7 `Track.turnCount`. Varsayılan: virajlı (2) — `RaceViewer.tsx` ile AYNI varsayılan. */
   turnCount?: number;
+  /** 08.10.2026 — tribün hediyesi yayını; izleme sayfası hediye panelini besler. */
+  onTribuneGift?: (event: TribuneGiftEvent) => void;
 }
 
 export function LiveRaceViewer({
@@ -194,7 +197,13 @@ export function LiveRaceViewer({
   ownHorseId = '',
   raceInfo,
   turnCount = 2,
+  onTribuneGift,
 }: LiveRaceViewerProps): React.ReactElement {
+  // Soket yalnızca yarış değişince yeniden kurulur — geri çağrı ref'ten okunur.
+  const onTribuneGiftRef = useRef(onTribuneGift);
+  useEffect(() => {
+    onTribuneGiftRef.current = onTribuneGift;
+  }, [onTribuneGift]);
   // 08.10.2026 — hipodrom `race.roster` ile gelir (yarış başlarken bir kez);
   // gelene kadar varsayılan.
   const [hippodromeKey, setHippodromeKey] = useState<string | null>(null);
@@ -339,6 +348,7 @@ export function LiveRaceViewer({
           addBurst(current, event, chatConfig.emotes.list, Date.now(), chatConfig.emotes, id),
         );
       },
+      onTribuneGift: (event) => onTribuneGiftRef.current?.(event),
     });
     socketRef.current = socket;
 

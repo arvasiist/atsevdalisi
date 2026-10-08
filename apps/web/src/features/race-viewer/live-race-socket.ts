@@ -41,7 +41,8 @@ import type {
   RaceChatMessageView,
   RaceRosterEntrant,
   RaceSegmentSnapshot,
-  SendRaceChatMessagePayload, RaceEmoteEvent } from '@at-sevdalisi/shared-types';
+  SendRaceChatMessagePayload, RaceEmoteEvent,
+  TribuneGiftEvent } from '@at-sevdalisi/shared-types';
 import { deriveSocketOrigin } from './live-race-url';
 
 /** `race.gateway.ts`'teki `RaceFinishedPayload` alanlarıyla BİREBİR aynı (bkz. o tipin `@at-sevdalisi/shared-types` tanımı). */
@@ -95,6 +96,8 @@ export interface LiveRaceSocketHandlers {
   onChatMessage: (message: RaceChatMessageView) => void;
   /** 02.10.2026 (Faz 9) — tribün emote yayını (anonim). İsteğe bağlı. */
   onEmote?: (event: RaceEmoteEvent) => void;
+  /** 08.10.2026 — tribün hediyesi yayını (gönderen adı + at). İsteğe bağlı. */
+  onTribuneGift?: (event: TribuneGiftEvent) => void;
   /**
    * `chat.error` — sohbet reddedildi. `onError`'DAN AYRI bir sınıftır:
    * sohbet reddedilse bile yarış yayını DEVAM EDER, ikisini tek olayda
@@ -244,6 +247,12 @@ export function connectRaceSocket(
   socket.on('race.emote', (payload: RaceEmoteEvent) => {
     if (payload?.raceId === raceId) {
       handlers.onEmote?.(payload);
+    }
+  });
+
+  socket.on('race.tribuneGift', (payload: TribuneGiftEvent) => {
+    if (payload?.raceId === raceId) {
+      handlers.onTribuneGift?.(payload);
     }
   });
 

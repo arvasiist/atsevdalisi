@@ -43,10 +43,11 @@
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
-import type { InteractiveRaceView } from '@at-sevdalisi/shared-types';
+import type { InteractiveRaceView, TribuneGiftEvent } from '@at-sevdalisi/shared-types';
 import { GlassPanel } from '../../../../components/ui/GlassPanel';
 import { LiveRaceViewer } from '../../../../features/race-viewer/LiveRaceViewer';
 import { InteractiveRaceViewer } from '../../../../features/ride/InteractiveRaceViewer';
+import { TribuneGiftPanel } from '../../../../features/grandstand/TribuneGiftPanel';
 import { API_BASE_URL, ApiError, apiClient, getAuthToken } from '../../../../lib/api-client';
 import { usePlayer } from '../../../../lib/player-context';
 
@@ -71,6 +72,8 @@ export default function WatchRacePage(): React.ReactElement {
   // yarış kontrollü değilse) soket oynatması (`LiveRaceViewer`) gösterilir.
   const [liveView, setLiveView] = useState<InteractiveRaceView | null>(null);
   const [liveDismissed, setLiveDismissed] = useState(false);
+  // 08.10.2026 — tribün hediyesi: yarış odası yayını panele aktarılır.
+  const [tribuneGiftEvent, setTribuneGiftEvent] = useState<TribuneGiftEvent | null>(null);
 
   useEffect(() => {
     if (!authToken || liveDismissed || liveView !== null) return undefined;
@@ -155,8 +158,15 @@ export default function WatchRacePage(): React.ReactElement {
             onClose={() => setLiveDismissed(true)}
           />
         ) : (
-          <LiveRaceViewer key={raceId} apiBaseUrl={API_BASE_URL} token={authToken} raceId={raceId} />
+          <LiveRaceViewer
+            key={raceId}
+            apiBaseUrl={API_BASE_URL}
+            token={authToken}
+            raceId={raceId}
+            onTribuneGift={setTribuneGiftEvent}
+          />
         )}
+        <TribuneGiftPanel raceId={raceId} liveEvent={tribuneGiftEvent} />
       </div>
     </main>
   );

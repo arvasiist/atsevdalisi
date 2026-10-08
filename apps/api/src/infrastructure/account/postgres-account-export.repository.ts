@@ -95,6 +95,16 @@ const SECTION_SQL: Record<AccountExportSectionName, string> = {
       FROM friend_gifts g
       JOIN players o ON o.id = CASE WHEN g.sender_id = $1 THEN g.recipient_id ELSE g.sender_id END
      WHERE g.sender_id = $1 OR g.recipient_id = $1 ORDER BY g.created_at DESC LIMIT $2`,
+  // 08.10.2026 — tribün hediyeleri (iki yön; karşı taraf yalnızca kullanıcı adıyla).
+  tribuneGifts: `
+    SELECT CASE WHEN g.sender_id = $1 THEN 'sent' ELSE 'received' END AS direction,
+           o.username AS "otherPlayer", h.name AS horse, g.gift_key AS "giftKey",
+           CASE WHEN g.sender_id = $1 THEN g.price ELSE g.owner_amount END::float8 AS amount,
+           g.created_at AS "createdAt"
+      FROM tribune_gifts g
+      JOIN horses h ON h.id = g.horse_id
+      JOIN players o ON o.id = CASE WHEN g.sender_id = $1 THEN g.recipient_id ELSE g.sender_id END
+     WHERE g.sender_id = $1 OR g.recipient_id = $1 ORDER BY g.created_at DESC LIMIT $2`,
   achievementClaims: `
     SELECT achievement_key AS "achievementKey", reward_money::float8 AS "rewardMoney", claimed_at AS "claimedAt"
       FROM achievement_claims WHERE player_id = $1 ORDER BY claimed_at DESC LIMIT $2`,

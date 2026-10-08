@@ -4276,6 +4276,24 @@ Karar: önce pratik yarış; kırbaç sınırsız, dayanıklılık bedelli.
   `QUEST_METRICS`), web `friend-gift.spec.ts`; tarayıcıda panel (masaüstü +
   telefon) toplama ve gönderim gözle doğrulandı.
 
+### 13.95 Tribünden at sahibine hediye
+
+- İzleme ekranında "🎁 Hediye" düğmesi: at seç → hediye seç → gönder.
+  Katalog: Havuç (10), Elma (20), Nazar Boncuğu (30), Altın Nal (50), Gül
+  Çelengi (100), Şampiyon Kupası (250) çip (`config/grandstand.config.json`).
+- Gönderen fiyatı öder; atı o yarışta koşturan oyuncu %70'ini alır, kalan
+  ekonomiden çıkar. Gönderen başına günde 50 hediye; yarış başladıktan 48
+  saat sonrasına kadar (iptal edilen yarışa gönderilemez).
+- Hediye yarış odasına canlı yayılır (izleyiciler balon olarak görür), at
+  sahibine bildirim gider; atın bu yarışta aldığı hediyeler sayılır.
+- Kanıt: `tribune-gift.e2e-spec.ts` (biletsiz 403, para + iki defter satırı +
+  bildirim + soket yayını, aynı anahtarla tekrar tahsil yok, anahtarsız 400,
+  kendi atı / yarışta olmayan at / bilinmeyen hediye / bakiye / engel /
+  pencere / günlük sınır), `tribune-gift.spec.ts` (config, CHECK ↔ config,
+  pay, pencere), `send-tribune-gift-dto.spec.ts` (fiyat/alıcı gönderilemez),
+  web `tribune-gifts.spec.ts`; tarayıcıda gönderim, canlı balon ve bildirim
+  (masaüstü + telefon) gözle doğrulandı.
+
 ## 14. Kendime hatırlatmalar (kısa liste)
 
 1. **Race Engine'e dokunmadan önce iki kez düşün.** Denetim onu "KEEP, dokunma"

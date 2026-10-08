@@ -3220,3 +3220,200 @@ button.btn-action {
   color: var(--color-status-critical);
   font-size: 13px;
 }
+
+/* 08.10.2026 — tribün hediyesi (izleme ekranı). */
+.tribune-gift-fab {
+  position: absolute;
+  right: var(--space-sm);
+  bottom: 72px;
+  z-index: 12;
+  padding: 10px 16px;
+  border-radius: 999px;
+  border: 1px solid var(--color-border-gold);
+  background: linear-gradient(135deg, var(--color-accent-gold-light), var(--color-accent-gold-dark));
+  color: #1a1405;
+  font-weight: 800;
+  font-size: 14px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+  cursor: pointer;
+}
+
+.tribune-gift-drawer {
+  position: absolute;
+  right: var(--space-sm);
+  bottom: 124px;
+  z-index: 12;
+  width: min(360px, calc(100% - 2 * var(--space-sm)));
+  max-height: min(70vh, 560px);
+  overflow-y: auto;
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border-radius: 16px;
+  border: 1px solid var(--color-border-gold);
+  background: rgba(10, 16, 30, 0.94);
+  color: var(--color-text-primary);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.55);
+}
+
+.tribune-gift-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--color-accent-gold);
+}
+
+.tribune-gift-close {
+  background: none;
+  border: none;
+  color: var(--color-text-secondary);
+  font-size: 16px;
+  cursor: pointer;
+}
+
+.tribune-gift-muted {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: 12px;
+}
+
+.tribune-gift-horses {
+  display: grid;
+  gap: 6px;
+}
+
+.tribune-gift-horse {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-surface);
+  color: var(--color-text-primary);
+  text-align: left;
+  cursor: pointer;
+}
+
+.tribune-gift-horse.is-selected {
+  border-color: var(--color-accent-gold);
+  box-shadow: 0 0 0 1px var(--color-accent-gold) inset;
+}
+
+.tribune-gift-horse-name {
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.tribune-gift-counts {
+  display: inline-flex;
+  gap: 8px;
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+.tribune-gift-counts > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.tribune-gift-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.tribune-gift-item {
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  padding: 10px 4px;
+  border-radius: 12px;
+  border: 1px solid var(--color-border-gold);
+  background: linear-gradient(160deg, rgba(232, 184, 74, 0.12), rgba(10, 16, 30, 0.7));
+  color: var(--color-text-primary);
+  cursor: pointer;
+}
+
+.tribune-gift-item:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.tribune-gift-item-name {
+  font-size: 12px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.tribune-gift-item-price {
+  font-size: 11px;
+  color: var(--color-accent-gold-light);
+}
+
+.tribune-gift-notice {
+  margin: 0;
+  color: var(--color-status-positive);
+  font-size: 12px;
+}
+
+.tribune-gift-error {
+  margin: 0;
+  color: var(--color-status-critical);
+  font-size: 12px;
+}
+
+.tribune-gift-feed {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+.tribune-gift-feed li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tribune-gift-toast {
+  position: absolute;
+  left: 50%;
+  top: 64px;
+  z-index: 13;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--color-border-gold);
+  background: rgba(10, 16, 30, 0.9);
+  color: var(--color-text-primary);
+  font-size: 13px;
+  pointer-events: none;
+  animation: tribune-gift-pop 0.25s ease-out;
+}
+
+@keyframes tribune-gift-pop {
+  from {
+    transform: translate(-50%, -8px);
+    opacity: 0;
+  }
+  to {
+    transform: translate(-50%, 0);
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tribune-gift-toast {
+    animation: none;
+  }
+}

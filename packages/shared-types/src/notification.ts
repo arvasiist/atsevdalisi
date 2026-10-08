@@ -31,6 +31,7 @@ export const NOTIFICATION_TYPES = [
   'auction_sold',
   'auction_unsold',
   'auction_refunded',
+  'tribune_gift_received',
 ] as const;
 
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
@@ -80,6 +81,18 @@ export interface NotificationPayloadByType {
   auction_unsold: { listingId: string; horseName: string };
   /** Kazandığın müzayedede satış gerçekleşemedi; emanetin iade edildi. */
   auction_refunded: { listingId: string; horseName: string; amount: number };
+  /** 08.10.2026 — tribünden atına hediye geldi; `amount` hesabına geçen pay. */
+  tribune_gift_received: {
+    tribuneGiftId: string;
+    raceId: string;
+    raceName: string;
+    horseId: string;
+    horseName: string;
+    giftKey: string;
+    playerId: string;
+    displayName: string;
+    amount: number;
+  };
 }
 
 /**

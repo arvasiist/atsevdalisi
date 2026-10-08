@@ -17,6 +17,11 @@ import {
   ProfilePhotoNotFoundError,
 } from '../../domain/avatar/errors';
 import { HorseLevelNotAllowedError } from '../../domain/race/level-bracket';
+import {
+  InvalidTribuneGiftError,
+  TribuneGiftDailyLimitError,
+  TribuneGiftNotAllowedError,
+} from '../../domain/grandstand/tribune-gift';
 import { PhotoRejectedError } from '../../domain/avatar/profile-photo';
 import {
   AchievementAlreadyClaimedError,
@@ -513,6 +518,9 @@ const DOMAIN_ERROR_MAP = new Map<ErrorClassConstructor, { status: number; code: 
   [InvalidHorseGenderError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.ValidationError }],
   [HorseBreedNotAllowedError, { status: HttpStatus.CONFLICT, code: ErrorCode.HorseBreedNotAllowed }],
   [HorseLevelNotAllowedError, { status: HttpStatus.CONFLICT, code: ErrorCode.HorseLevelNotAllowed }],
+  [InvalidTribuneGiftError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.InvalidTribuneGift }],
+  [TribuneGiftNotAllowedError, { status: HttpStatus.CONFLICT, code: ErrorCode.TribuneGiftNotAllowed }],
+  [TribuneGiftDailyLimitError, { status: HttpStatus.CONFLICT, code: ErrorCode.TribuneGiftDailyLimit }],
   [AchievementNotCompletedError, { status: HttpStatus.CONFLICT, code: ErrorCode.AchievementNotCompleted }],
   [AchievementAlreadyClaimedError, { status: HttpStatus.CONFLICT, code: ErrorCode.AchievementAlreadyClaimed }],
   [InvalidLiveEventError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.InvalidLiveEvent }],

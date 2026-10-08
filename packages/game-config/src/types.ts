@@ -1297,6 +1297,34 @@ export interface GrandstandConfig {
   watchableRacesLimit: number;
   /** `GET /players/:id/tickets` yanıtındaki azami bilet sayısı. */
   myTicketsLimit: number;
+  /**
+   * 08.10.2026 — TRİBÜN HEDİYESİ (sahibinin isteği: "tribündeki kişiler
+   * istedikleri at sahiplerine hediye gönderebilsinler"). PARA YOLU: gönderen
+   * `price` öder, atı o yarışta KOŞTURAN oyuncu `ownerSharePercent`ini alır;
+   * kalan oyun ekonomisinden çıkar (yabancılar arası değer aktarımını
+   * pahalılaştırır — çoklu hesap kalkanı). Anahtar listesi migration CHECK'i
+   * (`tribune_gifts_gift_key_valid`) ile BİREBİR.
+   */
+  tribuneGifts: TribuneGiftsConfig;
+}
+
+export interface TribuneGiftItemConfig {
+  key: string;
+  name: string;
+  /** Unicode simge; boşsa istemci kendi çizer (ör. nal — Unicode'da yok). Dosya DEĞİL. */
+  emoji: string;
+  price: number;
+}
+
+export interface TribuneGiftsConfig {
+  ownerSharePercent: number;
+  /** Gönderen başına oyun gününde (Türkiye saati) en fazla hediye. */
+  dailyLimit: number;
+  /** Yarışın başlangıcından sonra kaç saat hediye gönderilebilir (tekrar izleyenler dahil). */
+  giftWindowHours: number;
+  /** Yarışın hediye akışında gösterilen son hediye sayısı. */
+  recentLimit: number;
+  items: TribuneGiftItemConfig[];
 }
 
 /**

@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { LOBBY_NOTIFIER } from '../../application/ports/lobby-notifier';
 import { NOTIFICATION_NOTIFIER } from '../../application/ports/notification-notifier';
+import { TRIBUNE_GIFT_NOTIFIER } from '../../application/ports/tribune-gift-notifier';
 import { ChatModule } from '../chat/chat.module';
 import { RaceModule } from '../race/race.module';
 import { RaceGateway } from './race.gateway';
@@ -41,7 +42,9 @@ import { RaceGateway } from './race.gateway';
     RaceGateway,
     { provide: LOBBY_NOTIFIER, useExisting: RaceGateway },
     { provide: NOTIFICATION_NOTIFIER, useExisting: RaceGateway },
+    // 08.10.2026 — tribün hediyesi yayını (yarış odasına).
+    { provide: TRIBUNE_GIFT_NOTIFIER, useExisting: RaceGateway },
   ],
-  exports: [LOBBY_NOTIFIER, NOTIFICATION_NOTIFIER],
+  exports: [LOBBY_NOTIFIER, NOTIFICATION_NOTIFIER, TRIBUNE_GIFT_NOTIFIER],
 })
 export class RealtimeModule {}

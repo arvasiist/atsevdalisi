@@ -29,6 +29,7 @@ import { validateBreedsConfig } from '../../domain/horse/breeds';
 import { validateHippodromesConfig } from '../../domain/race/hippodrome';
 import { validateHorseLevelBrackets } from '../../domain/race/level-bracket';
 import { validateFriendGiftConfig } from '../../domain/social/friend-gift';
+import { validateTribuneGiftsConfig } from '../../domain/grandstand/tribune-gift';
 
 /**
  * Ortam değişkenleri + oyun dengesi config'lerine tek noktadan erişim.
@@ -165,6 +166,10 @@ export class AppConfigService {
     const friendGiftProblems = validateFriendGiftConfig(this.gift.friendGift);
     if (friendGiftProblems.length > 0) {
       throw new Error(`Dostluk hediyesi config'i geçersiz (config/gift.config.json): ${friendGiftProblems.join(' ')}`);
+    }
+    const tribuneGiftProblems = validateTribuneGiftsConfig(this.grandstand.tribuneGifts);
+    if (tribuneGiftProblems.length > 0) {
+      throw new Error(`Tribün hediyesi config'i geçersiz (config/grandstand.config.json): ${tribuneGiftProblems.join(' ')}`);
     }
     const hippodromeProblems = validateHippodromesConfig(this.hippodromes);
     if (hippodromeProblems.length > 0) {

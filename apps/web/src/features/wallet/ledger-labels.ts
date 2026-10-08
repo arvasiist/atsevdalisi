@@ -68,6 +68,8 @@ export const LEDGER_TYPE_LABELS: Record<LedgerTransactionType, string> = {
   event_reward: 'Etkinlik ödülü',
   admin_adjustment: 'Yönetim düzeltmesi',
   friend_gift_collect: 'Dostluk hediyesi',
+  tribune_gift_debit: 'Tribün hediyesi',
+  tribune_gift_credit: 'Tribünden gelen hediye',
   auction_bid_hold: 'Müzayede teklifi',
   auction_bid_refund: 'Müzayede teklifi iadesi',
   auction_sale_credit: 'Müzayede satışı',

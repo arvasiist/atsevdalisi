@@ -3,5 +3,19 @@
   "defaultSpectatorCapacity": 500,
   "watchWindowHours": 48,
   "watchableRacesLimit": 50,
-  "myTicketsLimit": 50
+  "myTicketsLimit": 50,
+  "tribuneGifts": {
+    "ownerSharePercent": 70,
+    "dailyLimit": 50,
+    "giftWindowHours": 48,
+    "recentLimit": 20,
+    "items": [
+      { "key": "carrot", "name": "Havuç", "emoji": "🥕", "price": 10 },
+      { "key": "apple", "name": "Elma", "emoji": "🍎", "price": 20 },
+      { "key": "evil-eye", "name": "Nazar Boncuğu", "emoji": "🧿", "price": 30 },
+      { "key": "horseshoe", "name": "Altın Nal", "emoji": "", "price": 50 },
+      { "key": "rose-garland", "name": "Gül Çelengi", "emoji": "🌹", "price": 100 },
+      { "key": "trophy", "name": "Şampiyon Kupası", "emoji": "🏆", "price": 250 }
+    ]
+  }
 }

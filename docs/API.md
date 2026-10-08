@@ -905,6 +905,27 @@ Arkadaş başarımı: `GET /achievements` ölçütü `friend_count` (anlık kabu
 edilmiş arkadaş sayısı) — `friends-5` … `friends-50`, her biri 100 çip.
 Günlük görev `daily-friend-gift-1` (ölçüt `friend_gifts_sent`).
 
+### Tribün Hediyesi (08.10.2026, migration 0075)
+
+İzleyici, yarışta koşan bir oyuncu atına katalogdan hediye gönderir. Yetki
+tribünle AYNI (`assertCanWatch`: katılımcı / ücretsiz tribün / bilet → yoksa
+403 `RACE_TICKET_REQUIRED`). Katalog `config/grandstand.config.json` →
+`tribuneGifts`.
+
+| Uç | Açıklama |
+| --- | --- |
+| `GET /races/{raceId}/tribune-gifts` | `open`, `items[]` (`key`, `name`, `emoji`, `price`, `ownerAmount`), `recipients[]` (oyuncu atları; çağıranın kendi atı hariç), `perHorse[]` (`giftKey` → adet), `recent[]`, `sentToday`, `dailyLimit` |
+| `POST /races/{raceId}/tribune-gifts` | Gövde `{ horseId, giftKey }` — başka alan YOK. `Idempotency-Key` ZORUNLU. 201 `{ tribuneGiftId, giftKey, price, ownerAmount, balanceAfter }`. `@RateLimit` |
+
+Hatalar: 400 `INVALID_TRIBUNE_GIFT` (katalogda yok) · 409
+`TRIBUNE_GIFT_NOT_ALLOWED` (kendi atı, bot, yarışta olmayan at, iptal/pencere
+dışı yarış) · 409 `TRIBUNE_GIFT_DAILY_LIMIT` · 409 `INSUFFICIENT_FUNDS` · 403
+`PLAYER_BLOCKED`. Defter: gönderen `tribune_gift_debit`, alıcı
+`tribune_gift_credit` (referans `tribune_gifts.id`); alıcıya
+`tribune_gift_received` bildirimi. Soket: yarış odasına `race.tribuneGift`
+(`raceId`, `tribuneGiftId`, `giftKey`, `horseId`, `horseName`,
+`senderDisplayName`, `createdAt`).
+
 ### Bildirimler + Yarış Daveti (brief §16, §28 — §42 PHASE 11 + PHASE 13)
 
 Brief §16: *"Arkadaşlar birbirlerini yarışa davet edebilsin. Örneğin: 'Ömer

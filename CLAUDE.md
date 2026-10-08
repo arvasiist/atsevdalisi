@@ -744,6 +744,22 @@ tekrar istek sıfır toplar. Yeni görev ölçütü `friend_gifts_sent` →
 `friend-gift.spec.ts` en son migration'ı `QUEST_METRICS` ile karşılaştırır).
 Hesap silme TOPLANMAMIŞ hediyeleri siler (toplanmış olan defteri açıklar);
 dışa aktarmada `friendGifts`. Web: `/friends` → `FriendGiftPanel`.
+(71) **TRİBÜN HEDİYESİ (08.10.2026, migration 0075, §13.95)** — `GET/POST
+/races/:raceId/tribune-gifts`. Katalog `grandstand.tribuneGifts.items` (havuç,
+elma, nazar boncuğu, Altın Nal, gül çelengi, kupa); anahtar listesi
+`tribune_gifts_gift_key_valid` ile BİREBİR (`tribune-gift.spec.ts` en son
+migration'ı okur — hediye eklerken kısıtı ADIYLA düşür). Yetki
+`assertCanWatch` (tribünle AYNI kapı). ALICI = atı o yarışta KOŞTURAN oyuncu
+(`e.player_id`; bot/kendi atı/yarışta olmayan at 409 `TRIBUNE_GIFT_NOT_ALLOWED`).
+PARA YOLU: yarış `FOR SHARE` → iki oyuncu id sırasıyla `FOR UPDATE` → engel →
+günlük sınır KİLİT ALTINDA → `tribune_gift_debit` (fiyat) + `tribune_gift_credit`
+(`ownerSharePercent`, aşağı yuvarlanır; kalan ekonomiden ÇIKAR — yabancılar
+arası değer aktarımını pahalılaştırır) + `tribune_gift_received` bildirimi TEK
+transaction. `Idempotency-Key` ZORUNLU; web anahtarı (at, hediye) başına
+BAŞARIYA kadar saklar. Yayın `race.tribuneGift` COMMIT'ten sonra, köprüden
+(`server.to` — oynatma karesi değil). Nal Unicode'da yok → istemci SVG çizer
+(`CLIENT_DRAWN_TRIBUNE_GIFTS`; dosya DEĞİL). Satırlar silinmez (mali kayıt);
+dışa aktarmada `tribuneGifts`. Web: izleme ekranı → "🎁 Hediye".
 
 **✅ ÜCRETLİ LOBİ YARIŞI ARTIK KOŞUYOR — ÖDÜL DAĞITIMI VAR (§13.14,
 28.09.2026).** `POST /races/:id/settle` yarışı koşar, ödülleri `top5`

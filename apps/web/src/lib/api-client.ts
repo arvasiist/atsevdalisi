@@ -18,6 +18,8 @@ import type {
   FriendGiftBoardView,
   FriendGiftCollectResult,
   FriendGiftSendAllResult,
+  RaceTribuneGiftsView,
+  SendTribuneGiftResult,
   AvatarAppearance,
   AvatarView,
   AvatarGenerationJobView,
@@ -1526,6 +1528,19 @@ export const apiClient = {
   getFriendGifts: () => request<FriendGiftBoardView>('/friend-gifts'),
   sendFriendGiftsToAll: () => request<FriendGiftSendAllResult>('/friend-gifts/send-all', { method: 'POST' }),
   collectFriendGifts: () => request<FriendGiftCollectResult>('/friend-gifts/collect', { method: 'POST' }),
+  /**
+   * 08.10.2026 — tribün hediyesi. PARA YOLU: anahtar BAŞARIYA kadar saklanır
+   * (ağda kaybolan yanıtın tekrarı ikinci kez tahsil etmesin); gövdede yalnızca
+   * at + hediye anahtarı (fiyat/alıcı sunucuda).
+   */
+  getTribuneGifts: (raceId: string) =>
+    request<RaceTribuneGiftsView>(`/races/${encodeURIComponent(raceId)}/tribune-gifts`),
+  sendTribuneGift: (raceId: string, body: { horseId: string; giftKey: string }, idempotencyKey: string) =>
+    request<SendTribuneGiftResult>(`/races/${encodeURIComponent(raceId)}/tribune-gifts`, {
+      method: 'POST',
+      headers: { 'Idempotency-Key': idempotencyKey },
+      body: JSON.stringify(body),
+    }),
   claimEvent: (eventId: string) =>
     request<QuestClaimResult>(`/events/${encodeURIComponent(eventId)}/claim`, { method: 'POST' }),
   listAdminEvents: () => request<AdminLiveEventView[]>('/admin/events'),

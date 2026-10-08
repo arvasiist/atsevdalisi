@@ -21,7 +21,8 @@ import type {
   RaceRosterPayload,
   RaceSegmentSnapshot,
   RaceSpectatorCountPayload,
-  RaceTimelineView, RaceEmoteEvent } from '@at-sevdalisi/shared-types';
+  RaceTimelineView, RaceEmoteEvent,
+  TribuneGiftEvent } from '@at-sevdalisi/shared-types';
 import { GetRaceTimelineUseCase } from '../../application/use-cases/get-race-timeline.use-case';
 import { ListRaceMessagesUseCase } from '../../application/use-cases/list-race-messages.use-case';
 import { SendRaceMessageUseCase } from '../../application/use-cases/send-race-message.use-case';
@@ -29,6 +30,7 @@ import { TOKEN_SERVICE, type TokenService } from '../../application/ports/token.
 import { AuthSessionUseCase } from '../../application/use-cases/auth-session.use-case';
 import type { LobbyNotifier } from '../../application/ports/lobby-notifier';
 import type { NotificationNotifier } from '../../application/ports/notification-notifier';
+import type { TribuneGiftNotifier } from '../../application/ports/tribune-gift-notifier';
 import { AppConfigService } from '../../infrastructure/config/config.service';
 
 /** `race_entries.id` gibi bir UUID metni — gövdede gelen `raceId`'nin kabaca şekil kontrolü (bkz. bu dosyanın doc yorumu). */
@@ -267,7 +269,8 @@ export class RaceGateway
     OnGatewayDisconnect,
     OnModuleDestroy,
     LobbyNotifier,
-    NotificationNotifier
+    NotificationNotifier,
+    TribuneGiftNotifier
 {
   private readonly logger = new Logger(RaceGateway.name);
   private shuttingDown = false;
@@ -578,6 +581,15 @@ export class RaceGateway
    */
   notifyNotification(playerId: string, notification: NotificationView): void {
     this.server.to(this.playerRoom(playerId)).emit('notification.created', notification);
+  }
+
+  /**
+   * 08.10.2026 — tribün hediyesi yarış odasına (`race.tribuneGift`). Köprüden
+   * geçer (`server.to`): oynatma karesi değil, bir kez gelen olay — her
+   * örnekteki izleyici görmeli.
+   */
+  notifyTribuneGift(event: TribuneGiftEvent): void {
+    this.server.to(this.raceRoom(event.raceId)).emit('race.tribuneGift', event);
   }
 
   /** Bkz. `notifyNotification` doc yorumu — ALICI: davet EDİLEN. */

@@ -60,6 +60,7 @@ import { connectNotificationSocket } from '../../features/notifications/notifica
 import { API_BASE_URL, apiClient, getAuthToken } from '../../lib/api-client';
 import { CURRENCY_LABELS, formatCurrency } from '../../lib/currency';
 import { usePlayer } from '../../lib/player-context';
+import { tribuneGiftName } from '../../features/grandstand/tribune-gifts';
 
 export default function NotificationsPage(): React.ReactElement {
   const { player, isLoading: isPlayerLoading, error: playerError, createPlayer } = usePlayer();
@@ -507,6 +508,13 @@ function describe(notification: NotificationView): { title: string; detail: stri
         detail: `Teklifin (${formatCurrency('money', notification.payload.amount)}) hesabına iade edildi.`,
         href: '/wallet',
       };
+    // 08.10.2026 — tribünden atına hediye.
+    case 'tribune_gift_received':
+      return {
+        title: `${notification.payload.displayName}, ${notification.payload.horseName} için ${tribuneGiftName(notification.payload.giftKey)} gönderdi`,
+        detail: `${notification.payload.raceName} · ${formatCurrency('money', notification.payload.amount)} hesabına geçti.`,
+        href: '/wallet',
+      };
   }
 }
 
@@ -531,6 +539,7 @@ function hrefLabel(notification: NotificationView): string {
       return 'ahır →';
     case 'auction_sold':
     case 'auction_refunded':
+    case 'tribune_gift_received':
       return 'cüzdan →';
   }
 }

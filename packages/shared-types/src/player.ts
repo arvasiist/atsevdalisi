@@ -197,6 +197,7 @@ export const ACCOUNT_EXPORT_SECTIONS = [
   'avatarJobs',
   'payments',
   'friendGifts',
+  'tribuneGifts',
 ] as const;
 
 export type AccountExportSectionName = (typeof ACCOUNT_EXPORT_SECTIONS)[number];
