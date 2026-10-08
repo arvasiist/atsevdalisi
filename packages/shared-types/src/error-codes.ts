@@ -64,6 +64,10 @@ export const ErrorCode = {
   AvatarJobInProgress: 'AVATAR_JOB_IN_PROGRESS',
   AvatarJobNotFound: 'AVATAR_JOB_NOT_FOUND',
   AiAvatarNotFound: 'AI_AVATAR_NOT_FOUND',
+  /** Profil fotoğrafı biçim/boyut/çözünürlük kontrolünden geçmedi ya da hareketli (422, 08.10.2026). */
+  PhotoRejected: 'PHOTO_REJECTED',
+  /** Profil fotoğrafı yok ya da artık sunulmuyor (404). */
+  ProfilePhotoNotFound: 'PROFILE_PHOTO_NOT_FOUND',
   /** 07.10.2026 — ırk kataloğunda olmayan ırk (404). */
   BreedNotFound: 'BREED_NOT_FOUND',
   /** 07.10.2026 — ırkın seviye şartı karşılanmadı (409). */

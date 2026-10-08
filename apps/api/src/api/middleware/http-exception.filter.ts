@@ -14,7 +14,9 @@ import {
   AvatarJobNotFoundError,
   InvalidAvatarError,
   SelfieRejectedError,
+  ProfilePhotoNotFoundError,
 } from '../../domain/avatar/errors';
+import { PhotoRejectedError } from '../../domain/avatar/profile-photo';
 import {
   AchievementAlreadyClaimedError,
   AchievementNotCompletedError,
@@ -501,6 +503,8 @@ const DOMAIN_ERROR_MAP = new Map<ErrorClassConstructor, { status: number; code: 
   [AvatarJobInProgressError, { status: HttpStatus.CONFLICT, code: ErrorCode.AvatarJobInProgress }],
   [AvatarJobNotFoundError, { status: HttpStatus.NOT_FOUND, code: ErrorCode.AvatarJobNotFound }],
   [AiAvatarNotFoundError, { status: HttpStatus.NOT_FOUND, code: ErrorCode.AiAvatarNotFound }],
+  [PhotoRejectedError, { status: HttpStatus.UNPROCESSABLE_ENTITY, code: ErrorCode.PhotoRejected }],
+  [ProfilePhotoNotFoundError, { status: HttpStatus.NOT_FOUND, code: ErrorCode.ProfilePhotoNotFound }],
   [AchievementNotFoundError, { status: HttpStatus.NOT_FOUND, code: ErrorCode.AchievementNotFound }],
   // 07.10.2026 — ırk mağazası.
   [BreedNotFoundError, { status: HttpStatus.NOT_FOUND, code: ErrorCode.BreedNotFound }],

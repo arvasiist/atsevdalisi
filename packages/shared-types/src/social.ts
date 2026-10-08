@@ -194,6 +194,11 @@ export interface PlayerProfileView {
    * türetilen varsayılan). Kişisel/gizli bir şey taşımaz — uç `@Public()`.
    */
   avatar: AvatarAppearance;
+  /**
+   * 08.10.2026 — profil fotoğrafının kimliği (`GET /avatar/photos/:photoId`);
+   * yoksa `null`. Oyuncunun KENDİ yüklediği, meta verisi silinmiş görüntüdür.
+   */
+  photoId: string | null;
 }
 
 /**

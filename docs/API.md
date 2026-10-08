@@ -2856,6 +2856,29 @@ geçirmeli; `race.enter` gibi uç noktalarda client bir snapshot da
 gönderirse `assertSnapshotMatchesAuthoritative` ile server'ın kendi DB
 değerleriyle karşılaştırılıp uyuşmazlık reddedilmelidir.
 
+## 9.1 Profil fotoğrafı (08.10.2026, migration 0071)
+
+```http
+POST   /api/v1/avatar/photo                  # 201, multipart alan `photo` (JPEG/PNG/WebP)
+DELETE /api/v1/avatar/photo                  # 200 (yoksa 404 PROFILE_PHOTO_NOT_FOUND)
+GET    /api/v1/avatar/photos/{photoId}       # @Public — görüntünün kendisi
+DELETE /api/v1/admin/players/{id}/photo      # moderatör + yönetici, gövde { reason }
+```
+
+Yükleme baytlardan doğrulanır (biçim, tür uyumu, boyut, çözünürlük —
+`avatar.config.json` → `photo`); geçmezse 422 `PHOTO_REJECTED`. Hareketli
+görüntü reddedilir. Saklamadan önce meta veri SİLİNİR (JPEG EXIF/XMP/IPTC/
+yorum, PNG metin/`eXIf`/`tIME`, WebP `EXIF`/`XMP `); yalnızca JPEG yön bilgisi
+yeniden yazılır. Dosyanın sonuna eklenmiş baytlar atılır. Depo anahtarı
+sunucu üretir (`photos/<photoId>.<uzantı>`). `photoId` her yüklemede değişir;
+eski adres 404 döner ve eski dosya silinir. Sunum başlıkları: doğru
+`Content-Type`, `X-Content-Type-Options: nosniff`, `Content-Security-Policy:
+default-src 'none'; sandbox`, uzun önbellek. `GET /avatar` → `photo`, profil →
+`photoId`. Yönetim kaldırması `photos.moderate` izni ister ve
+`admin_audit_log`a (`player.photo_removed`) aynı transaction'da yazar. Hesap
+silme fotoğrafı (satır + dosya) siler; dışa aktarma `profilePhoto` bölümünü
+taşır (depo anahtarı hariç).
+
 ## 10. WebSocket olayları
 
 Brief'te WebSocket "gerektiğinde" kullanılacağı belirtilmiş (§6).

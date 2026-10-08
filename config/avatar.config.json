@@ -78,5 +78,16 @@
     "jobTimeoutMinutes": 30,
     "batchSize": 20,
     "adminListLimit": 50
+  },
+  "photo": {
+    "maxUploadBytes": 5242880,
+    "acceptedTypes": [
+      "image/jpeg",
+      "image/png",
+      "image/webp"
+    ],
+    "minDimension": 128,
+    "maxDimension": 4096,
+    "cacheMaxAgeSeconds": 31536000
   }
 }

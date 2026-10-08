@@ -18,4 +18,4 @@ export interface AvatarStorage {
 }
 
 /** Sunucunun ürettiği anahtar biçimi — depo uygulamaları bunun dışını REDDEDER. */
-export const AVATAR_STORAGE_KEY_PATTERN = /^(selfies|models|thumbnails)\/[0-9a-f-]{36}\.(jpg|png|webp|glb)$/;
+export const AVATAR_STORAGE_KEY_PATTERN = /^(selfies|models|thumbnails|photos)\/[0-9a-f-]{36}\.(jpg|png|webp|glb)$/;

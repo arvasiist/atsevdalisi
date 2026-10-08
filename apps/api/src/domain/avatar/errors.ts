@@ -78,3 +78,11 @@ export class InvalidAvatarJobTransitionError extends Error {
     this.name = 'InvalidAvatarJobTransitionError';
   }
 }
+
+/** Profil fotoğrafı yok (404) — kaldırılmış/değiştirilmiş fotoğrafın eski adresi de buraya düşer. */
+export class ProfilePhotoNotFoundError extends Error {
+  constructor() {
+    super('Profil fotoğrafı bulunamadı.');
+    this.name = 'ProfilePhotoNotFoundError';
+  }
+}

@@ -664,6 +664,16 @@ arkadaşa "önce yarışın" denmez); ret serbest; eski arkadaşlıklar silinmed
 para/XP yazmaz) — yarış SAYAN iddia aynı oyuncularda ise fikstürü sil
 (`player-profile.e2e-spec.ts` örneği). Kuralın kendisi gerçek yarışla:
 `friendship-race-gate.e2e-spec.ts`.
+(65) **PROFİL FOTOĞRAFI (08.10.2026, migration 0071, §13.89)** — `POST/DELETE
+/avatar/photo`, `GET /avatar/photos/:photoId` (`@Public`), yönetim `DELETE
+/admin/players/:id/photo` (`photos.moderate`: moderatör + yönetici, denetim
+kaydı aynı tx). Saf `domain/avatar/profile-photo.ts`: baytlardan doğrulama +
+META VERİ SİLME (EXIF/GPS herkese açık profilde ev adresini sızdırırdı; yalnızca
+JPEG yönü yeniden yazılır) + sona eklenen baytı atma; hareketli görüntü 422.
+Satır sunumun tek kaynağı: satır yoksa dosya kalsa bile 404. ⚠️ Görüntü yeniden
+KODLANMAZ (bağımlılık yok) — piksel verisi aynen saklanır; meta veri parçalarını
+ekleyen yeni bir biçim kabul edersen ayıklayıcıyı da yaz. `player_photos` silme
++ dışa aktarma listelerinde; profil anahtar listesi `photoId` taşır.
 
 **✅ ÜCRETLİ LOBİ YARIŞI ARTIK KOŞUYOR — ÖDÜL DAĞITIMI VAR (§13.14,
 28.09.2026).** `POST /races/:id/settle` yarışı koşar, ödülleri `top5`

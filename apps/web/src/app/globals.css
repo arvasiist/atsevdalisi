@@ -2969,3 +2969,45 @@ button.btn-action {
   text-align: right;
   pointer-events: none;
 }
+
+/* ---- Profil fotoğrafı (08.10.2026) ---- */
+.profile-photo-panel {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-md);
+}
+
+.profile-photo-preview {
+  display: grid;
+  place-items: center;
+  width: 112px;
+  height: 112px;
+  border-radius: 999px;
+  overflow: hidden;
+  border: 2px solid var(--color-border-gold);
+  background: var(--color-bg-surface-elevated);
+  flex-shrink: 0;
+}
+
+.profile-photo-preview img,
+.profile-photo-avatar {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.profile-photo-avatar {
+  width: 64px;
+  height: 64px;
+  border-radius: 999px;
+  border: 2px solid var(--color-border-gold);
+}
+
+.profile-photo-actions {
+  display: grid;
+  gap: 8px;
+  flex: 1;
+  min-width: 220px;
+}
+

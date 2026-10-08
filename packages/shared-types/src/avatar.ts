@@ -31,6 +31,20 @@ export interface AvatarView {
   /** `default` = oyuncu henüz seçmedi (kimlikten türetilir); `manual` = oyuncu kaydetti. */
   source: 'default' | 'manual';
   updatedAt: string | null;
+  /** Profil fotoğrafı (08.10.2026); yüklenmemişse `null`. */
+  photo: ProfilePhotoView | null;
+}
+
+/**
+ * PROFİL FOTOĞRAFI (08.10.2026). Görüntü `GET /avatar/photos/:photoId`
+ * adresinden HERKESE AÇIK sunulur (profil de herkese açıktır); `photoId`
+ * her yüklemede değişir. Meta verisi (EXIF/GPS) sunucuda silinmiştir.
+ */
+export interface ProfilePhotoView {
+  photoId: string;
+  width: number;
+  height: number;
+  updatedAt: string;
 }
 
 /**

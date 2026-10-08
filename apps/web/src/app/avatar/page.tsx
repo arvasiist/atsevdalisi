@@ -23,6 +23,7 @@ import {
 import type { AvatarOutfitMode, AvatarPose } from '../../features/avatar/AvatarFigure3D';
 import { AiAvatarPanel } from '../../features/avatar/AiAvatarPanel';
 import { AvatarPortrait } from '../../features/avatar/AvatarPortrait';
+import { ProfilePhotoPanel } from '../../features/avatar/ProfilePhotoPanel';
 import { apiClient } from '../../lib/api-client';
 import { usePlayer } from '../../lib/player-context';
 
@@ -174,6 +175,13 @@ export default function AvatarPage(): React.ReactElement {
                 Geri al
               </button>
             </div>
+          </GlassPanel>
+          <GlassPanel>
+            <h2 className="avatar-section-title">Profil fotoğrafı</h2>
+            <ProfilePhotoPanel
+              photo={saved?.photo ?? null}
+              onChange={(photo) => setSaved((current) => (current ? { ...current, photo } : current))}
+            />
           </GlassPanel>
           <GlassPanel>
             <h2 className="avatar-section-title">Fotoğraftan AI avatar</h2>

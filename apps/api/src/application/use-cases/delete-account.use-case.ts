@@ -1,5 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { AvatarGenerationUseCase } from './avatar-generation.use-case';
+import { ProfilePhotoUseCase } from './profile-photo.use-case';
 import type { AccountDeletionCheck } from '@at-sevdalisi/shared-types';
 import {
   ACCOUNT_DELETION_BLOCKER_LABELS,
@@ -35,6 +36,7 @@ export class DeleteAccountUseCase {
     @Inject(PLAYER_CREDENTIALS_REPOSITORY) private readonly credentials: PlayerCredentialsRepository,
     @Inject(PASSWORD_HASHER) private readonly hasher: PasswordHasher,
     @Inject(AvatarGenerationUseCase) private readonly avatarGeneration: AvatarGenerationUseCase,
+    @Inject(ProfilePhotoUseCase) private readonly profilePhotos: ProfilePhotoUseCase,
   ) {}
 
   async check(playerId: string): Promise<AccountDeletionCheck> {
@@ -76,6 +78,8 @@ export class DeleteAccountUseCase {
       throw new AccountDeletionBlockedError(preBlockers.map((code) => ACCOUNT_DELETION_BLOCKER_LABELS[code]));
     }
     await this.avatarGeneration.purge(playerId, now);
+    // 08.10.2026 — profil fotoğrafı da depoda yaşar (dosya + satır).
+    await this.profilePhotos.purge(playerId);
     const blockers = await this.deletion.deleteAccount({
       playerId,
       anonymousUsername: deletedUsername(playerId),

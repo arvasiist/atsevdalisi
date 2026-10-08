@@ -44,3 +44,46 @@ export function glbBytes(json: object = { asset: { version: '2.0' } }): Uint8Arr
   bytes.set(new TextEncoder().encode(text), 20);
   return bytes;
 }
+
+/**
+ * Telefon fotoğrafı gibi bir JPEG (08.10.2026, profil fotoğrafı): JFIF + EXIF
+ * (Orientation + içinde `secret` geçen GPS benzeri metin) + niceleme + SOF0 +
+ * SOS + veri + EOI. Meta veri temizliğinin `secret`i sildiği bayt düzeyinde
+ * sınanır.
+ */
+export function phoneJpegBytes(width: number, height: number, secret: string, orientation = 6): Uint8Array {
+  const enc = (text: string) => Array.from(text, (c) => c.charCodeAt(0));
+  const segment = (marker: number, body: number[]) => [0xff, marker, (body.length + 2) >> 8, (body.length + 2) & 0xff, ...body];
+  const tiff = [
+    ...enc('II'), 0x2a, 0x00, 0x08, 0x00, 0x00, 0x00,
+    0x01, 0x00,
+    0x12, 0x01, 0x03, 0x00, 0x01, 0x00, 0x00, 0x00, orientation, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00,
+    ...enc(secret),
+  ];
+  return Uint8Array.from([
+    0xff, 0xd8,
+    ...segment(0xe0, [...enc('JFIF'), 0, 1, 1, 0, 0, 1, 0, 1, 0, 0]),
+    ...segment(0xe1, [...enc('Exif'), 0, 0, ...tiff]),
+    ...segment(0xdb, [0, ...new Array(64).fill(1)]),
+    ...segment(0xc0, [8, height >> 8, height & 0xff, width >> 8, width & 0xff, 1, 1, 0x11, 0]),
+    ...segment(0xda, [1, 1, 0, 0, 0x3f, 0]),
+    0x12, 0x34, 0xff, 0x00, 0x56,
+    0xff, 0xd9,
+  ]);
+}
+
+/** Eksiksiz PNG (IHDR + IDAT + IEND) — profil fotoğrafı IEND'siz (kesik) dosyayı reddeder. */
+export function completePngBytes(width: number, height: number): Uint8Array {
+  const chunk = (type: string, data: number[]) => [
+    (data.length >>> 24) & 0xff, (data.length >>> 16) & 0xff, (data.length >>> 8) & 0xff, data.length & 0xff,
+    ...Array.from(type, (c) => c.charCodeAt(0)), ...data, 0, 0, 0, 0,
+  ];
+  const be = (n: number) => [(n >>> 24) & 0xff, (n >>> 16) & 0xff, (n >>> 8) & 0xff, n & 0xff];
+  return Uint8Array.from([
+    0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
+    ...chunk('IHDR', [...be(width), ...be(height), 8, 2, 0, 0, 0]),
+    ...chunk('IDAT', [0x78, 0x9c, 0x01, 0x00]),
+    ...chunk('IEND', []),
+  ]);
+}

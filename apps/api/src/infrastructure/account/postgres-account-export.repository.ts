@@ -93,6 +93,11 @@ const SECTION_SQL: Record<AccountExportSectionName, string> = {
   avatar: `
     SELECT appearance, updated_at AS "updatedAt"
       FROM player_avatars WHERE player_id = $1 LIMIT $2`,
+  // 08.10.2026 — profil fotoğrafı: kimlik (görüntünün adresi) + boyut; depo anahtarı iç ayrıntıdır.
+  profilePhoto: `
+    SELECT photo_id AS "photoId", content_type AS "contentType", width, height,
+           byte_size AS "byteSize", updated_at AS "updatedAt"
+      FROM player_photos WHERE player_id = $1 LIMIT $2`,
   // Depo anahtarları ve sağlayıcı iş kimliği dışa aktarılmaz (iç ayrıntı).
   avatarJobs: `
     SELECT status, provider, error_code AS "errorCode", consent_version AS "consentVersion",

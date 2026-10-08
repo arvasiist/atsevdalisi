@@ -222,6 +222,8 @@ describe('Oyuncu profili (e2e) — GET /players/profile/:username', () => {
         'giftCount',
         'level',
         'memberSince',
+        // 08.10.2026 — profil fotoğrafının adresi (fotoğraf zaten herkese açık profilde görünür).
+        'photoId',
         'playerId',
         'stats',
         'username',

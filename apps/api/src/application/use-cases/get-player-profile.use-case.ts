@@ -71,6 +71,7 @@ export class GetPlayerProfileUseCase {
       achievements: await this.achievements.forProfile(profile.id),
       // 07.10.2026 — manuel/varsayılan avatar görünüşü (yalnızca katalog kimlikleri).
       avatar: await this.avatars.appearanceOf(profile.id),
+      photoId: (await this.avatars.photoOf(profile.id))?.photoId ?? null,
     };
   }
 }

@@ -96,6 +96,7 @@ import type {
   RecentRaceResultView,
   ReleaseJockeyResultView,
   RemoveBlockResult,
+  ProfilePhotoView,
   RaceCompanionView,
   RemoveFriendResult,
   ReportCategory,
@@ -164,6 +165,14 @@ export interface CreateLobbyRaceBody {
 }
 
 export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1';
+
+/**
+ * Profil fotoğrafının herkese açık adresi (08.10.2026). Kimlik her yüklemede
+ * değişir; kimlik URL'ye kodlanarak eklenir (sunucu yine UUID ister).
+ */
+export function profilePhotoUrl(photoId: string): string {
+  return `${API_BASE_URL}/avatar/photos/${encodeURIComponent(photoId)}`;
+}
 
 interface ApiResponse<T> {
   success: boolean;
@@ -1467,6 +1476,22 @@ export const apiClient = {
   cancelAvatarGeneration: (jobId: string) =>
     request<AvatarGenerationJobView>(`/avatar/generation/${encodeURIComponent(jobId)}/cancel`, { method: 'POST' }),
   deleteAiAvatar: () => request<{ deletedObjects: number }>('/avatar/ai', { method: 'DELETE' }),
+  /**
+   * 08.10.2026 — profil fotoğrafı. Sunucu baytlardan doğrular ve meta veriyi
+   * (EXIF/GPS) siler; `Content-Type` FormData'da KONMAZ (sınırı tarayıcı yazar).
+   */
+  uploadProfilePhoto: (photo: Blob) => {
+    const form = new FormData();
+    form.append('photo', photo);
+    return request<ProfilePhotoView>('/avatar/photo', { method: 'POST', body: form });
+  },
+  deleteProfilePhoto: () => request<{ removed: true }>('/avatar/photo', { method: 'DELETE' }),
+  /** Yönetim: uygunsuz fotoğrafı kaldırır (moderatör + yönetici; gerekçe denetim kaydına yazılır). */
+  removePlayerPhoto: (playerId: string, reason: string) =>
+    request<{ removed: true }>(`/admin/players/${encodeURIComponent(playerId)}/photo`, {
+      method: 'DELETE',
+      body: JSON.stringify({ reason }),
+    }),
   listAvatarJobs: () => request<AdminAvatarJobView[]>('/admin/avatar-jobs'),
   /** 07.10.2026 (Faz 12) — mağaza. Ödeme sonucu YALNIZCA sağlayıcının webhook'uyla kabul edilir. */
   getStore: () => request<StoreView>('/store'),

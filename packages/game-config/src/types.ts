@@ -2121,6 +2121,18 @@ export interface AvatarConfig {
     batchSize: number;
     adminListLimit: number;
   };
+  /**
+   * Profil fotoğrafı (08.10.2026). Herkese açık profilde görünür; yükleme
+   * baytlardan doğrulanır ve meta verisi (EXIF/GPS) silinerek saklanır.
+   */
+  photo: {
+    maxUploadBytes: number;
+    acceptedTypes: string[];
+    minDimension: number;
+    maxDimension: number;
+    /** Sunulan fotoğrafın önbellek süresi — adres her yüklemede değiştiği için uzun olabilir. */
+    cacheMaxAgeSeconds: number;
+  };
 }
 
 /**
@@ -2190,7 +2202,7 @@ export interface BreedsConfig {
 }
 
 /** Avatar kataloğunun alanları (`generation` sınırları HARİÇ). */
-export type AvatarCatalogKey = Exclude<keyof AvatarConfig, 'generation'>;
+export type AvatarCatalogKey = Exclude<keyof AvatarConfig, 'generation' | 'photo'>;
 
 /** 03.10.2026 — başarım tanımı; ölçüt `ACHIEVEMENT_METRICS`ten (shared-types). */
 export interface AchievementDefinitionConfig {

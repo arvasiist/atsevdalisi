@@ -3,9 +3,11 @@ import { AVATAR_GENERATION_PROVIDER } from '../../application/ports/avatar-gener
 import { AVATAR_JOB_REPOSITORY } from '../../application/ports/avatar-job.repository';
 import { AVATAR_REPOSITORY } from '../../application/ports/avatar.repository';
 import { AVATAR_STORAGE } from '../../application/ports/avatar-storage';
+import { PROFILE_PHOTO_REPOSITORY } from '../../application/ports/profile-photo.repository';
 import { MODERATION_REPOSITORY } from '../../application/ports/moderation.repository';
 import { AvatarGenerationUseCase } from '../../application/use-cases/avatar-generation.use-case';
 import { AvatarUseCase } from '../../application/use-cases/avatar.use-case';
+import { ProfilePhotoUseCase } from '../../application/use-cases/profile-photo.use-case';
 import { PostgresModerationRepository } from '../../infrastructure/admin/postgres-moderation.repository';
 import {
   createAvatarGenerationProvider,
@@ -13,6 +15,7 @@ import {
 } from '../../infrastructure/avatar/avatar-generation.providers';
 import { PostgresAvatarJobRepository } from '../../infrastructure/avatar/postgres-avatar-job.repository';
 import { PostgresAvatarRepository } from '../../infrastructure/avatar/postgres-avatar.repository';
+import { PostgresProfilePhotoRepository } from '../../infrastructure/avatar/postgres-profile-photo.repository';
 import { AvatarGenerationScheduler } from '../../infrastructure/scheduler/avatar-generation.scheduler';
 import {
   AdminAvatarJobsController,
@@ -20,6 +23,7 @@ import {
   AvatarGenerationController,
 } from './avatar-generation.controller';
 import { AvatarController } from './avatar.controller';
+import { AdminProfilePhotoController, ProfilePhotoController } from './profile-photo.controller';
 
 /**
  * Avatar (07.10.2026): manuel avatar (8-A, migration 0066) + selfie → AI
@@ -28,18 +32,26 @@ import { AvatarController } from './avatar.controller';
  * `overrideProvider(AVATAR_GENERATION_PROVIDER)` ile verir.
  */
 @Module({
-  controllers: [AvatarController, AvatarGenerationController, AdminAvatarJobsController],
+  controllers: [
+    AvatarController,
+    AvatarGenerationController,
+    AdminAvatarJobsController,
+    ProfilePhotoController,
+    AdminProfilePhotoController,
+  ],
   providers: [
     AvatarUseCase,
     AvatarGenerationUseCase,
+    ProfilePhotoUseCase,
     AvatarGenerationScheduler,
     AvatarGenerationAvailableGuard,
     { provide: AVATAR_REPOSITORY, useClass: PostgresAvatarRepository },
+    { provide: PROFILE_PHOTO_REPOSITORY, useClass: PostgresProfilePhotoRepository },
     { provide: AVATAR_JOB_REPOSITORY, useClass: PostgresAvatarJobRepository },
     { provide: MODERATION_REPOSITORY, useClass: PostgresModerationRepository },
     { provide: AVATAR_GENERATION_PROVIDER, useFactory: () => createAvatarGenerationProvider(process.env) },
     { provide: AVATAR_STORAGE, useFactory: () => createAvatarStorage(process.env) },
   ],
-  exports: [AvatarUseCase, AvatarGenerationUseCase],
+  exports: [AvatarUseCase, AvatarGenerationUseCase, ProfilePhotoUseCase],
 })
 export class AvatarModule {}

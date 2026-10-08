@@ -65,7 +65,7 @@ import { GlassPanel } from '../../../components/ui/GlassPanel';
 import { getCareerProgress } from '../../../features/career/career-tier';
 import { AvatarPortrait } from '../../../features/avatar/AvatarPortrait';
 import { achievementTitle } from '../../../features/quests/achievement-labels';
-import { apiClient } from '../../../lib/api-client';
+import { apiClient, profilePhotoUrl } from '../../../lib/api-client';
 import { usePlayer } from '../../../lib/player-context';
 
 export default function PlayerProfilePage(): React.ReactElement {
@@ -222,8 +222,22 @@ export default function PlayerProfilePage(): React.ReactElement {
     <main style={{ display: 'grid', gap: 'var(--space-md)', maxWidth: '880px', margin: '0 auto', padding: 'var(--space-md)' }}>
       <GlassPanel>
         <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 'var(--space-md)' }}>
-          {/* 07.10.2026 — oyuncunun avatarı (kayıtlı ya da kimlikten türetilen varsayılan). */}
-          <AvatarPortrait appearance={profile.avatar} size={64} label={`${profile.displayName} avatarı`} />
+          {/*
+            07.10.2026 — oyuncunun avatarı (kayıtlı ya da kimlikten türetilen
+            varsayılan). 08.10.2026 — profil fotoğrafı yüklediyse fotoğrafı.
+          */}
+          {profile.photoId ? (
+            <img
+              src={profilePhotoUrl(profile.photoId)}
+              alt={`${profile.displayName} profil fotoğrafı`}
+              width={64}
+              height={64}
+              className="profile-photo-avatar"
+              data-testid="profile-photo"
+            />
+          ) : (
+            <AvatarPortrait appearance={profile.avatar} size={64} label={`${profile.displayName} avatarı`} />
+          )}
           <div style={{ display: 'grid', gap: '4px', minWidth: 0 }}>
             <h1 style={{ margin: 0, fontSize: '22px', color: 'var(--color-text-primary)' }}>{profile.displayName}</h1>
             <span style={{ fontSize: '13px', color: 'var(--color-text-muted)' }}>@{profile.username}</span>

@@ -1,9 +1,10 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import type { AvatarAppearance, AvatarView } from '@at-sevdalisi/shared-types';
+import type { AvatarAppearance, AvatarView, ProfilePhotoView } from '@at-sevdalisi/shared-types';
 import { loadAvatarConfig } from '@at-sevdalisi/game-config';
 import { deriveDefaultAvatar, validateAvatarAppearance } from '../../domain/avatar/avatar';
 import { InvalidAvatarError } from '../../domain/avatar/errors';
 import { AVATAR_REPOSITORY, type AvatarRepository } from '../ports/avatar.repository';
+import { PROFILE_PHOTO_REPOSITORY, type ProfilePhotoRepository } from '../ports/profile-photo.repository';
 
 const config = loadAvatarConfig();
 
@@ -16,16 +17,20 @@ const config = loadAvatarConfig();
 export class AvatarUseCase {
   private readonly logger = new Logger(AvatarUseCase.name);
 
-  constructor(@Inject(AVATAR_REPOSITORY) private readonly repository: AvatarRepository) {}
+  constructor(
+    @Inject(AVATAR_REPOSITORY) private readonly repository: AvatarRepository,
+    @Inject(PROFILE_PHOTO_REPOSITORY) private readonly photos: ProfilePhotoRepository,
+  ) {}
 
   async get(playerId: string): Promise<AvatarView> {
-    const stored = await this.repository.find(playerId);
+    const [stored, photo] = await Promise.all([this.repository.find(playerId), this.photoOf(playerId)]);
     if (stored) {
       try {
         return {
           appearance: validateAvatarAppearance(stored.appearance, config),
           source: 'manual',
           updatedAt: stored.updatedAt.toISOString(),
+          photo,
         };
       } catch (error) {
         // Katalogdan bir seçenek kaldırılmışsa eski kayıt geçersizleşir: oyuncu
@@ -34,7 +39,15 @@ export class AvatarUseCase {
         this.logger.warn(`Kayıtlı avatar artık katalogla uyuşmuyor (oyuncu ${playerId}); varsayılan gösteriliyor.`);
       }
     }
-    return { appearance: deriveDefaultAvatar(playerId, config), source: 'default', updatedAt: null };
+    return { appearance: deriveDefaultAvatar(playerId, config), source: 'default', updatedAt: null, photo };
+  }
+
+  /** Profil fotoğrafı (08.10.2026); yoksa `null`. */
+  async photoOf(playerId: string): Promise<ProfilePhotoView | null> {
+    const photo = await this.photos.findByPlayer(playerId);
+    return photo
+      ? { photoId: photo.photoId, width: photo.width, height: photo.height, updatedAt: photo.updatedAt.toISOString() }
+      : null;
   }
 
   /** Herkese açık profil için yalnızca görünüş. */
@@ -45,6 +58,6 @@ export class AvatarUseCase {
   async save(playerId: string, raw: unknown, now: Date = new Date()): Promise<AvatarView> {
     const appearance = validateAvatarAppearance(raw, config);
     const stored = await this.repository.save(playerId, appearance, now);
-    return { appearance, source: 'manual', updatedAt: stored.updatedAt.toISOString() };
+    return { appearance, source: 'manual', updatedAt: stored.updatedAt.toISOString(), photo: await this.photoOf(playerId) };
   }
 }

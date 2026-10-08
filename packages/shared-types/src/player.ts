@@ -193,6 +193,7 @@ export const ACCOUNT_EXPORT_SECTIONS = [
   'clubMessages',
   'achievementClaims',
   'avatar',
+  'profilePhoto',
   'avatarJobs',
   'payments',
 ] as const;

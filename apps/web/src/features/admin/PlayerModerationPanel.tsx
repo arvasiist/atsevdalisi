@@ -30,6 +30,7 @@ export function PlayerModerationPanel({
   const [hours, setHours] = useState('24');
   const [reason, setReason] = useState('');
   const [liftReason, setLiftReason] = useState('');
+  const [photoReason, setPhotoReason] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const targetRole = roleOf(player);
@@ -170,6 +171,38 @@ export function PlayerModerationPanel({
       ) : (
         <p className="session-meta">Personele yaptırım uygulanamaz; önce rolünü kaldır.</p>
       )}
+
+      {/*
+        08.10.2026 — profil fotoğrafı herkese açıktır; uygunsuz olanı moderatör
+        de kaldırır (sunucu `photos.moderate` izni + denetim kaydı). Fotoğraf
+        yoksa sunucu 404 döner ve mesaj aşağıda görünür.
+      */}
+      <h4>Profil fotoğrafı</h4>
+      <div className="moderation-form">
+        <label className="moderation-field moderation-field-wide">
+          Kaldırma gerekçesi (denetim kaydına yazılır)
+          <input
+            aria-label="Fotoğraf kaldırma gerekçesi"
+            value={photoReason}
+            maxLength={LIMITS.reasonMaxLength}
+            onChange={(event) => setPhotoReason(event.target.value)}
+          />
+        </label>
+        <button
+          type="button"
+          className="moderation-danger"
+          disabled={busy || photoReason.trim().length < LIMITS.reasonMinLength}
+          onClick={() =>
+            void run(async () => {
+              await apiClient.removePlayerPhoto(player.playerId, photoReason.trim());
+              setPhotoReason('');
+              return `${player.displayName}: profil fotoğrafı kaldırıldı.`;
+            })
+          }
+        >
+          Fotoğrafı kaldır
+        </button>
+      </div>
 
       {actorRole === 'admin' && targetRole === 'player' ? (
         <BalanceAdjustmentForm player={player} onDone={onChanged} />

@@ -4167,6 +4167,25 @@ Karar: önce pratik yarış; kırbaç sınırsız, dayanıklılık bedelli.
   web `race-companions.spec.ts`. Sosyal/hediye/davet/engel/bildirim/profil
   e2e'leri ön koşulu `recordSharedFinishedRace` fikstürüyle kurar.
 
+### 13.89 Profil fotoğrafı (08.10.2026, migration 0071)
+
+- Sahibinin isteği: "avatar kısmına kişi fotoğrafını ekleyebilsin".
+- `/avatar` → "Profil fotoğrafı" (yükle / değiştir / kaldır); profilde avatar
+  portresinin yerinde fotoğraf görünür.
+- Sunucu: baytlardan doğrulama (selfie kuralıyla aynı), hareketli görüntü
+  reddi, META VERİ SİLME (EXIF/GPS, XMP, IPTC, yorum, PNG metin/zaman, WebP
+  EXIF/XMP; JPEG yönü korunur), sona eklenmiş bayt atma. Depo anahtarını
+  sunucu üretir; `photoId` her yüklemede değişir, eski dosya silinir.
+  Görüntü yeniden kodlanmaz (yeni bağımlılık yok).
+- Güvenlik: sunum `nosniff` + boş CSP + doğru tür; satır yoksa 404; hız
+  sınırı (saatte 10 yükleme). Moderatör/yönetici uygunsuz fotoğrafı gerekçe
+  ve denetim kaydıyla kaldırır (`/admin` → oyuncu → "Fotoğrafı kaldır").
+- Hesap silme dosya + satırı siler; dışa aktarmada `profilePhoto` bölümü.
+- Testler: `profile-photo.spec.ts` (meta veri, yön, polyglot, APNG/hareketli
+  WebP, ret nedenleri), `profile-photo.e2e-spec.ts` (yükle/sun/başlıklar/
+  değiştir/sil/422/401/moderatör + denetim/hesap silme), web
+  `profile-photo.spec.ts`.
+
 ## 14. Kendime hatırlatmalar (kısa liste)
 
 1. **Race Engine'e dokunmadan önce iki kez düşün.** Denetim onu "KEEP, dokunma"
