@@ -176,9 +176,14 @@ export interface StableScene3DProps {
   horse: StableSceneHorse;
   /** Sahnenin üstüne yerleşen arayüz (ahır işlem simgeleri + panel). */
   children?: React.ReactNode;
+  /**
+   * 08.10.2026 (sahibinin isteği) — ahır üst bar hariç ekranı kaplar; ahır
+   * artık oyuncunun ana sayfasıdır.
+   */
+  fullscreen?: boolean;
 }
 
-export function StableScene3D({ horse, children }: StableScene3DProps): React.ReactElement {
+export function StableScene3D({ horse, children, fullscreen = false }: StableScene3DProps): React.ReactElement {
   // 01.10.2026 (3D adım 10) — ortak kalite tercihi + otomatik düşürme.
   const quality = useQualityTier();
   const settings = quality.settings;
@@ -189,7 +194,7 @@ export function StableScene3D({ horse, children }: StableScene3DProps): React.Re
   const [audioMuted, setAudioMuted] = useAudioMuted();
   useStableAmbience(audioMuted);
   return (
-    <div className="stable3d">
+    <div className={fullscreen ? 'stable3d stable3d-full' : 'stable3d'}>
       <Canvas
         key={settings.tier}
         shadows={settings.shadowsEnabled}

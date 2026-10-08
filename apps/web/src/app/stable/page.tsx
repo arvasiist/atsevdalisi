@@ -55,6 +55,7 @@ import { formatCurrency, hasEnoughFunds } from '../../lib/currency';
 import { usePlayer } from '../../lib/player-context';
 import { breedLabel } from '../../features/breeds/breed-catalog';
 import { StableActionDock } from '../../features/stable-actions/StableActionDock';
+import { PlayerOverview } from '../../features/home/PlayerOverview';
 import {
   parseStableActionParam,
   type StableActionKey,
@@ -178,89 +179,120 @@ export default function StablePage(): React.ReactElement {
     await refresh();
   }, [player, refresh]);
 
+  // 08.10.2026 — ahır ana sayfadır: sahne üst bar hariç ekranı kaplar,
+  // atlar ve paneller kaydırınca altta. Sahnede at değiştirme + "Atlarım".
+  const stageIndex =
+    horses && stageHorse ? horses.findIndex((item) => item.id === stageHorse.id) : -1;
+  const stepStage = (delta: number) => {
+    if (!horses || horses.length < 2 || stageIndex < 0) return;
+    const next = horses[(stageIndex + delta + horses.length) % horses.length];
+    if (next) setStageHorseId(next.id);
+  };
+
   return (
-    <main className="page-container">
-      <h1 className="page-title" style={{ marginBottom: '4px' }}>
-        Ahırım
-      </h1>
-      <p
-        style={{
-          color: 'var(--color-text-secondary)',
-          marginTop: 0,
-          marginBottom: 'var(--space-lg)',
-        }}
-      >
-        Atlarının durumunu takip et, en güçlülerini yarışa hazırla.
-      </p>
-
-      {!player && !isPlayerLoading ? (
-        <GlassPanel style={{ textAlign: 'center', padding: 'var(--space-xl)' }}>
-          <p style={{ color: 'var(--color-text-secondary)', marginTop: 0 }}>
-            Ahırını görebilmek için önce bir seyis/jokey hesabı oluştur.
-          </p>
-          <button type="button" onClick={() => void createPlayer()} className="btn-gold">
-            Başlangıç Paketiyle Oyuncu Oluştur
-          </button>
-          {playerError ? (
-            <p style={{ color: 'var(--color-status-critical)', marginBottom: 0 }}>{playerError}</p>
-          ) : null}
-        </GlassPanel>
-      ) : null}
-
-      {error ? <p style={{ color: 'var(--color-status-critical)' }}>{error}</p> : null}
-
+    <main>
       {stageHorse ? (
-        <StableScene3D horse={stageHorse}>
+        <StableScene3D horse={stageHorse} fullscreen>
           <StableActionDock
             horse={stageHorse}
             active={activeAction}
             onSelect={setActiveAction}
             onHorseChanged={reloadHorses}
           />
+          <div className="stable3d-switcher" data-testid="stable-switcher">
+            {horses && horses.length > 1 ? (
+              <button type="button" onClick={() => stepStage(-1)} aria-label="Önceki at">
+                ‹
+              </button>
+            ) : null}
+            <a href="#stable-horses">Atlarım{horses ? ` (${horses.length})` : ''} ↓</a>
+            {horses && horses.length > 1 ? (
+              <button type="button" onClick={() => stepStage(1)} aria-label="Sonraki at">
+                ›
+              </button>
+            ) : null}
+          </div>
         </StableScene3D>
+      ) : player || isPlayerLoading ? (
+        <div className="stable3d stable3d-full stable3d-loading">Ahır yükleniyor…</div>
       ) : null}
 
-      {player ? <StableUpgradeCard ownerId={player.id} onUpgraded={refresh} /> : null}
+      <div className="page-container" id="stable-horses">
+        <h1 className="page-title" style={{ marginBottom: '4px' }}>
+          Ahırım
+        </h1>
+        <p
+          style={{
+            color: 'var(--color-text-secondary)',
+            marginTop: 0,
+            marginBottom: 'var(--space-lg)',
+          }}
+        >
+          Atlarının durumunu takip et, en güçlülerini yarışa hazırla.
+        </p>
 
-      {player && horses === null && !error ? (
-        <p style={{ color: 'var(--color-text-muted)' }}>Ahır yükleniyor…</p>
-      ) : null}
+        {!player && !isPlayerLoading ? (
+          <GlassPanel style={{ textAlign: 'center', padding: 'var(--space-xl)' }}>
+            <p style={{ color: 'var(--color-text-secondary)', marginTop: 0 }}>
+              Ahırını görebilmek için önce bir seyis/jokey hesabı oluştur.
+            </p>
+            <button type="button" onClick={() => void createPlayer()} className="btn-gold">
+              Başlangıç Paketiyle Oyuncu Oluştur
+            </button>
+            {playerError ? (
+              <p style={{ color: 'var(--color-status-critical)', marginBottom: 0 }}>
+                {playerError}
+              </p>
+            ) : null}
+          </GlassPanel>
+        ) : null}
 
-      {horses && horses.length === 0 ? (
-        <GlassPanel style={{ textAlign: 'center', padding: 'var(--space-xl)' }}>
-          <p style={{ color: 'var(--color-text-secondary)', margin: 0 }}>
-            Ahırında kayıtlı at bulunamadı.
-          </p>
-        </GlassPanel>
-      ) : null}
+        {error ? <p style={{ color: 'var(--color-status-critical)' }}>{error}</p> : null}
 
-      {horses && horses.length > 0 ? (
-        // 01.10.2026 tasarım yenilemesi: atlar sayfanın ASIL içeriğidir —
-        // yükseltme kartının hemen altında, yetiştirme/jokeyden ÖNCE gelir.
-        <div className="horse-grid">
-          {horses.map((horse) => (
-            <HorseCard
-              key={horse.id}
-              horse={horse}
-              isOnStage={stageHorse?.id === horse.id}
-              onShowInStable={showInStable}
-              onOpenAction={openStableAction}
-            />
-          ))}
-        </div>
-      ) : null}
-      {player && horses !== null ? (
-        <BreedingPanel ownerId={player.id} horses={horses} onBred={handleBred} />
-      ) : null}
+        {player ? <StableUpgradeCard ownerId={player.id} onUpgraded={refresh} /> : null}
 
-      {/*
+        {player && horses === null && !error ? (
+          <p style={{ color: 'var(--color-text-muted)' }}>Ahır yükleniyor…</p>
+        ) : null}
+
+        {horses && horses.length === 0 ? (
+          <GlassPanel style={{ textAlign: 'center', padding: 'var(--space-xl)' }}>
+            <p style={{ color: 'var(--color-text-secondary)', margin: 0 }}>
+              Ahırında kayıtlı at bulunamadı.
+            </p>
+          </GlassPanel>
+        ) : null}
+
+        {horses && horses.length > 0 ? (
+          // 01.10.2026 tasarım yenilemesi: atlar sayfanın ASIL içeriğidir —
+          // yükseltme kartının hemen altında, yetiştirme/jokeyden ÖNCE gelir.
+          <div className="horse-grid">
+            {horses.map((horse) => (
+              <HorseCard
+                key={horse.id}
+                horse={horse}
+                isOnStage={stageHorse?.id === horse.id}
+                onShowInStable={showInStable}
+                onOpenAction={openStableAction}
+              />
+            ))}
+          </div>
+        ) : null}
+        {player && horses !== null ? (
+          <BreedingPanel ownerId={player.id} horses={horses} onBred={handleBred} />
+        ) : null}
+
+        {/*
         JOKEY PANELİ (29.09.2026, FINAL_PROJECT_AUDIT #18) — `horses`e BAĞLI
         DEĞİLDİR: jokey oyuncunun kendisine aittir, tek bir ata değil
         (`jockeys.owner_id`), ve ahırı boş bir oyuncu da jokey kiralamak
         isteyebilir. Bu yüzden `BreedingPanel`in aksine at listesini
         beklemez — yalnızca `player` yeterlidir.
       */}
-      {player ? <JockeyPanel playerId={player.id} /> : null}
+        {player ? <JockeyPanel playerId={player.id} /> : null}
+
+        {player ? <PlayerOverview player={player} /> : null}
+      </div>
     </main>
   );
 }
@@ -528,7 +560,10 @@ function HorseCard({
           <StatBar icon={<Smile size={14} />} label="Moral" value={horse.morale} />
         </div>
 
-        <div className="featured-actions featured-actions-3" style={{ marginTop: 'var(--space-md)' }}>
+        <div
+          className="featured-actions featured-actions-3"
+          style={{ marginTop: 'var(--space-md)' }}
+        >
           <Link href="/training" className="btn-action btn-action-blue">
             <Dumbbell size={18} aria-hidden="true" />
             Antrenman

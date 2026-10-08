@@ -1,7 +1,7 @@
 import { BadRequestException, Inject, Injectable } from '@nestjs/common';
 import type { PeriodLeaderboardView, PeriodStandingRow } from '@at-sevdalisi/shared-types';
 import { loadQuestsConfig } from '@at-sevdalisi/game-config';
-import { buildLeaderboard, sumRankingScores } from '../../domain/ranking/leaderboard';
+import { rankPlayerTotals, sumRankingScores } from '../../domain/ranking/leaderboard';
 import { isLeaderboardPeriod, periodWindow } from '../../domain/ranking/period-window';
 import { AppConfigService } from '../../infrastructure/config/config.service';
 import { SEASON_REPOSITORY, type SeasonRepository } from '../ports/season.repository';
@@ -29,22 +29,14 @@ export class PeriodLeaderboardUseCase {
     const records = await this.seasons.findRecordsInWindow(window.start.toISOString(), window.end.toISOString());
     const totals = sumRankingScores(records, this.config.online);
     const names = new Map(records.map((record) => [record.playerId, record]));
-    const counts = new Map(totals.map((total) => [total.playerId, total.raceCount]));
-    const ranked: PeriodStandingRow[] = buildLeaderboard(
-      totals.map((total) => ({
-        playerId: total.playerId,
-        scope: 'season' as const,
-        scopeKey: null,
-        score: total.score,
-        updatedAt: total.lastFinishedAt,
-      })),
-    ).map((entry) => ({
+    const ranked: PeriodStandingRow[] = rankPlayerTotals(totals).map((entry) => ({
       rank: entry.rank,
       playerId: entry.playerId,
       username: names.get(entry.playerId)?.username ?? '',
       displayName: names.get(entry.playerId)?.displayName ?? '',
       score: entry.score,
-      raceCount: counts.get(entry.playerId) ?? 0,
+      raceCount: entry.raceCount,
+      wins: entry.wins,
     }));
     return {
       period: rawPeriod,

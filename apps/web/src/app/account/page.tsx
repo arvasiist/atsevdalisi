@@ -33,7 +33,6 @@ import { GlassPanel } from '../../components/ui/GlassPanel';
 import { GoogleSignInButton } from '../../features/auth/GoogleSignInButton';
 import { SessionsPanel } from '../../features/auth/SessionsPanel';
 import { DeleteAccountPanel } from '../../features/auth/DeleteAccountPanel';
-import { ExportDataPanel } from '../../features/auth/ExportDataPanel';
 import { apiClient } from '../../lib/api-client';
 import { usePlayer } from '../../lib/player-context';
 
@@ -379,8 +378,6 @@ export default function AccountPage(): React.ReactElement {
 
       {/* Misafirde "tüm cihazlardan çık" hesabı kalıcı kaybettirir — yalnızca kayıtlıya. */}
       {player && isRegistered ? <SessionsPanel onLogoutAll={confirmLogoutAll} /> : null}
-
-      {player ? <ExportDataPanel /> : null}
 
       {player?.username ? (
         <DeleteAccountPanel

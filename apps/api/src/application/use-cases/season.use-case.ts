@@ -1,6 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import type { SeasonInfoView, SeasonStandingRow, SeasonView } from '@at-sevdalisi/shared-types';
-import { buildLeaderboard, sumRankingScores } from '../../domain/ranking/leaderboard';
+import { rankPlayerTotals, sumRankingScores } from '../../domain/ranking/leaderboard';
 import { AppConfigService } from '../../infrastructure/config/config.service';
 import type { PlayerRaceRecord } from '../ports/leaderboard.repository';
 import { SEASON_REPOSITORY, type SeasonRepository } from '../ports/season.repository';
@@ -64,22 +64,14 @@ export class SeasonUseCase {
     const rewardsByRank = this.config.online.season.rewardsByRank;
     const totals = sumRankingScores(records, this.config.online);
     const names = new Map(records.map((record) => [record.playerId, record]));
-    const totalsByPlayer = new Map(totals.map((total) => [total.playerId, total]));
-    return buildLeaderboard(
-      totals.map((total) => ({
-        playerId: total.playerId,
-        scope: 'season' as const,
-        scopeKey: null,
-        score: total.score,
-        updatedAt: total.lastFinishedAt,
-      })),
-    ).map((entry) => ({
+    return rankPlayerTotals(totals).map((entry) => ({
       rank: entry.rank,
       playerId: entry.playerId,
       username: names.get(entry.playerId)?.username ?? '',
       displayName: names.get(entry.playerId)?.displayName ?? '',
       score: entry.score,
-      raceCount: totalsByPlayer.get(entry.playerId)?.raceCount ?? 0,
+      raceCount: entry.raceCount,
+      wins: entry.wins,
       reward: rewardsByRank[entry.rank - 1] ?? 0,
     }));
   }

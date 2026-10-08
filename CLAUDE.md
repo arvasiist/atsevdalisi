@@ -453,7 +453,9 @@ sütunla join'de `::text` şart (yaşandı: 500). ⚠️ Yeni ölçüt eklerken 
 `QUEST_METRICS`, `METRIC_SQL` (Record — eksikse tsc hatası) ve migration
 `live_events.metric` CHECK'i.
 (46) **VERİ DIŞA AKTARMA (02.10.2026, Faz 1, §13.71)** — `GET /account/export`
-(KVKK md. 11 / GDPR md. 15, 20; `/account` → "Verilerimi indir"). Sütunlar
+(KVKK md. 11 / GDPR md. 15, 20). ⚠️ 08.10.2026: `/account`taki "Verilerimi
+indir" bölümü sahibinin isteğiyle KALDIRILDI — uç duruyor (talep destekle
+karşılanır), istemci çağrısı yok. Sütunlar
 AÇIKÇA seçilir (`SELECT *` YOK) → yeni bir özet/iç sütun kendiliğinden
 SIZMAZ. Diğer oyuncular yalnızca kullanıcı adıyla; hakkımdaki şikâyet ve
 yaptırımı veren yönetici GİRMEZ. Bölüm sınırı `auth.dataExport.
@@ -701,6 +703,18 @@ karlı dağ; saf yerleşim `hippodrome-backdrop.ts`, taban ağaç halkasına
 GİRMEZ — spec tarar), tribün renkleri, ağaç oranı, çim rengi. İzmir'de kıyı
 tarafına ağaç dikilmez (`treeLineMaxZ`), yoksa deniz görünmez. `/races/demo`
 hipodrom seçici taşır (aynı koşu, farklı mekân).
+(68) **SAHİBİNİN 08.10.2026 LİSTESİ — 1. DİLİM (§13.92)** — (a) SIRALAMA
+önce BİRİNCİLİK sayısına, eşitlikte puana göre: `rankPlayerTotals` (genel,
+sezon, haftalık, aylık hepsi; sezon ÖDÜLÜ de bu sırayı izler). Satırlar
+`wins` taşır. ⚠️ `buildLeaderboard` (yalnız puan) artık sıralama tablolarında
+KULLANILMAZ. (b) ANA SAYFA = AHIR: hesabı olan oyuncu `/`dan `/stable`a
+yönlenir (`HOME_FOR_PLAYERS`); misafir 3D tanıtımı görür. Eski ana sayfa
+kartları `features/home/PlayerOverview.tsx` → ahırın altında. Ahır sahnesi
+üst bar (telefonda alt sekme) hariç EKRANI KAPLAR (`.stable3d-full`), sahnede
+at değiştirme + "Atlarım ↓". (c) Bakiye yanında belirgin "+" (çip → `/wallet`,
+elmas → `/store`; `TOP_UP_HREF`, sayfa varlığı `top-bar-nav.spec.ts`ta);
+elmas artık her genişlikte görünür (dar telefonda logo yazısı gizlenir).
+(d) "Verilerimi indir" arayüzü kaldırıldı (bkz. (46)).
 
 **✅ ÜCRETLİ LOBİ YARIŞI ARTIK KOŞUYOR — ÖDÜL DAĞITIMI VAR (§13.14,
 28.09.2026).** `POST /races/:id/settle` yarışı koşar, ödülleri `top5`

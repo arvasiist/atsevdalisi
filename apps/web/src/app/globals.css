@@ -359,6 +359,37 @@ a {
   color: var(--color-accent-gold);
 }
 
+/* 08.10.2026 — bakiye yanındaki belirgin "+" (çip → cüzdan, elmas → mağaza). */
+.currency-pill:has(.currency-plus) {
+  padding-right: 3px;
+}
+
+.currency-plus {
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  margin-left: 2px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #ffd86b, #e0a92a);
+  box-shadow: 0 0 0 2px rgba(255, 216, 107, 0.25), 0 2px 6px rgba(0, 0, 0, 0.45);
+  transition: transform 0.15s ease;
+}
+
+.currency-pill .currency-plus svg {
+  color: #1a1206;
+}
+
+.currency-gems .currency-plus {
+  background: linear-gradient(180deg, #8fe3ff, #3fa7d9);
+  box-shadow: 0 0 0 2px rgba(143, 227, 255, 0.25), 0 2px 6px rgba(0, 0, 0, 0.45);
+}
+
+.currency-plus:hover,
+.currency-plus:focus-visible {
+  transform: scale(1.12);
+}
+
 .currency-gems svg {
   color: var(--color-accent-gem);
 }
@@ -560,9 +591,18 @@ a {
   }
 }
 
-@media (max-width: 400px) {
-  .currency-gems {
+/*
+ * 08.10.2026 — iki bakiye ve "+" düğmeleri her genişlikte görünür (sahibinin
+ * isteği). Dar telefonda yer, logonun yazısından açılır (simge kalır).
+ */
+@media (max-width: 460px) {
+  .brand-title {
     display: none;
+  }
+
+  .currency-pill {
+    gap: 4px;
+    padding: 0 3px 0 7px;
   }
 }
 
@@ -1026,6 +1066,13 @@ a {
   }
 }
 
+/* 08.10.2026 — ahırın altındaki oyuncu özeti: iki sütun. */
+@media (min-width: 900px) {
+  .home-grid.home-grid-2 {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+}
+
 .economy-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -1307,10 +1354,6 @@ a {
 
   .brand-title {
     font-size: 19px;
-  }
-
-  .currency-gems {
-    display: none;
   }
 }
 
@@ -1958,6 +2001,77 @@ button[style*='background: var(--color-accent-gold)'] {
   overflow: hidden;
   border: 1px solid var(--color-border-gold);
   background: #120d09;
+}
+
+/*
+ * 08.10.2026 — ahır ana sayfadır ve sahne üst bar (telefonda alt sekme
+ * çubuğu da) hariç ekranı kaplar; atlar ve paneller kaydırınca altta.
+ */
+.stable3d-full {
+  height: calc(
+    100dvh - var(--topbar-height) - var(--bottom-nav-height) - env(safe-area-inset-bottom, 0px)
+  );
+  min-height: 420px;
+  margin-bottom: 0;
+  border-radius: 0;
+  border: none;
+  border-bottom: 1px solid var(--color-border-gold);
+}
+
+@media (min-width: 1280px) {
+  .stable3d-full {
+    height: calc(100dvh - var(--topbar-height));
+  }
+}
+
+.stable3d-switcher {
+  position: absolute;
+  left: 50%;
+  bottom: 16px;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transform: translateX(-50%);
+}
+
+.stable3d-switcher button,
+.stable3d-switcher a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 38px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid var(--color-border-gold);
+  background: rgba(8, 10, 16, 0.72);
+  color: var(--color-text-primary);
+  font-weight: 700;
+  font-size: 13px;
+  cursor: pointer;
+  backdrop-filter: blur(6px);
+}
+
+.stable3d-switcher button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.stable3d-loading {
+  display: grid;
+  place-items: center;
+  color: var(--color-text-muted);
+}
+
+/* Telefonda alt köşelerde ses/kalite düğmeleri var: at değiştirici ve ad yukarı. */
+@media (max-width: 760px) {
+  .stable3d-full .stable3d-switcher {
+    bottom: 62px;
+  }
+
+  .stable3d-full .stable3d-caption {
+    bottom: 110px;
+  }
 }
 
 .stable3d-caption {

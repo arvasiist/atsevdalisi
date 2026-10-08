@@ -26,13 +26,13 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
-import { ChevronDown, Coins, Gem, Menu, ShieldCheck, X } from 'lucide-react';
+import { ChevronDown, Coins, Gem, Menu, Plus, ShieldCheck, X } from 'lucide-react';
 import { CURRENCY_LABELS } from '../../lib/currency';
 import { usePlayer } from '../../lib/player-context';
 import { HorseAvatar } from '../ui/HorseAvatar';
 import { HorseHeadIcon } from '../ui/HorseHeadIcon';
 import { NavIcon } from './nav-icons';
-import { MAX_MOBILE_TABS, NAV_LINKS, type NavLink } from './nav-links';
+import { MAX_MOBILE_TABS, NAV_LINKS, TOP_UP_HREF, type NavLink } from './nav-links';
 
 function isActive(pathname: string, href: string): boolean {
   return href === '/' ? pathname === '/' : pathname === href || pathname.startsWith(`${href}/`);
@@ -131,8 +131,8 @@ export function TopBar(): React.ReactElement {
             ) : null}
             {player ? (
               <>
-                <CurrencyPill kind="money" label={CURRENCY_LABELS.money} value={player.money} />
-                <CurrencyPill kind="gems" label={CURRENCY_LABELS.gems} value={player.gems} />
+                <CurrencyPill kind="money" label={CURRENCY_LABELS.money} value={player.money} topUpHref={TOP_UP_HREF.money} />
+                <CurrencyPill kind="gems" label={CURRENCY_LABELS.gems} value={player.gems} topUpHref={TOP_UP_HREF.gems} />
                 <Link href={`/profile/${encodeURIComponent(player.username)}`} className="profile-chip">
                   <HorseAvatar horseId={player.id} size={34} />
                   <span className="profile-name hide-mobile hide-below-wide">{player.displayName}</span>
@@ -233,20 +233,21 @@ function CurrencyPill({
   kind,
   label,
   value,
+  topUpHref,
 }: {
   kind: 'money' | 'gems';
   label: string;
   value: number;
+  topUpHref: string;
 }): React.ReactElement {
   const Icon = kind === 'money' ? Coins : Gem;
   return (
-    <div
-      className={`currency-pill currency-${kind}`}
-      title={`${label} bakiyesi`}
-      aria-label={`${label} bakiyesi: ${value.toLocaleString('tr-TR')}`}
-    >
+    <div className={`currency-pill currency-${kind}`} title={`${label} bakiyesi`}>
       <Icon size={16} aria-hidden="true" />
-      {value.toLocaleString('tr-TR')}
+      <span aria-label={`${label} bakiyesi: ${value.toLocaleString('tr-TR')}`}>{value.toLocaleString('tr-TR')}</span>
+      <Link href={topUpHref} className="currency-plus" aria-label={`${label} satın al`} title={`${label} satın al`}>
+        <Plus size={14} strokeWidth={3.2} aria-hidden="true" />
+      </Link>
     </div>
   );
 }

@@ -5,7 +5,7 @@ import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { loadOnlineConfig } from '@at-sevdalisi/game-config';
 import type { SeasonView } from '@at-sevdalisi/shared-types';
-import { buildLeaderboard, sumRankingScores } from '../../src/domain/ranking/leaderboard';
+import { rankPlayerTotals, sumRankingScores } from '../../src/domain/ranking/leaderboard';
 import { calculateRankingScore } from '../../src/domain/ranking/ranking-score';
 import { PG_POOL } from '../../src/infrastructure/database/database.module';
 import { SeasonScheduler } from '../../src/infrastructure/scheduler/season.scheduler';
@@ -153,15 +153,8 @@ describe('Sezon (e2e)', () => {
       finishPosition: row.finish_position,
       finishedAt: row.start_time.toISOString(),
     }));
-    const ranked = buildLeaderboard(
-      sumRankingScores(records, online).map((t) => ({
-        playerId: t.playerId,
-        scope: 'season' as const,
-        scopeKey: null,
-        score: t.score,
-        updatedAt: t.lastFinishedAt,
-      })),
-    );
+    // 08.10.2026 — sıralama önce birinciliğe, eşitlikte puana göre (`rankPlayerTotals`).
+    const ranked = rankPlayerTotals(sumRankingScores(records, online));
     const expected = new Map(
       ranked
         .map((entry) => [entry.playerId, online.season.rewardsByRank[entry.rank - 1] ?? 0] as const)

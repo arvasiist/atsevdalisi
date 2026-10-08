@@ -85,3 +85,13 @@ export const NAV_LINKS: ReadonlyArray<NavLink> = [
 
 /** En fazla bu kadar bağlantı alt sekme çubuğuna girer (beşinci yuva "Menü"). */
 export const MAX_MOBILE_TABS = 4;
+
+/**
+ * 08.10.2026 — bakiyenin yanındaki belirgin "+" (sahibinin isteği): çip →
+ * cüzdan (yükleme), elmas → mağaza. Yalnızca yönlendirir; satın alma kararı
+ * ve tutar her zaman o sayfada ve sunucuda.
+ */
+export const TOP_UP_HREF: Record<'money' | 'gems', string> = {
+  money: '/wallet',
+  gems: '/store',
+};

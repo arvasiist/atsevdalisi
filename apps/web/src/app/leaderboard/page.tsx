@@ -215,6 +215,9 @@ export default function LeaderboardPage(): React.ReactElement {
               <tr>
                 <th style={headerCellStyle('56px')}>#</th>
                 <th style={headerCellStyle(undefined, 'left')}>Sporcu</th>
+                <th style={headerCellStyle('104px', 'right')} title="Yarışlarda birincilik sayısı — sıralamanın ilk ölçütü">
+                  🏆 Birincilik
+                </th>
                 <th style={headerCellStyle('96px', 'right')}>Puan</th>
                 <th style={headerCellStyle('96px', 'right')}>Yarış</th>
                 <th style={headerCellStyle('128px', 'right')}>Arkadaş</th>
@@ -245,8 +248,8 @@ export default function LeaderboardPage(): React.ReactElement {
             marginTop: 'var(--space-md)',
           }}
         >
-          İlk {rows.length} sporcu gösteriliyor. Puanlar her yarışta birikir (galibiyet ve ilk üç
-          derece ek puan kazandırır).
+          İlk {rows.length} sporcu gösteriliyor. Sıralama önce yarış birinciliklerine göre yapılır;
+          birincilik sayısı eşitse puan ayırır (puan her yarışta birikir, ilk üç derece ek puan kazandırır).
         </p>
       ) : null}
     </main>
@@ -308,9 +311,20 @@ function LeaderboardRow({
         ) : null}
       </td>
       <td
+        data-testid="leaderboard-wins"
+        style={{
+          ...bodyCellStyle('104px', 'right'),
+          color: 'var(--color-accent-gold)',
+          fontWeight: 800,
+          fontSize: '15px',
+        }}
+      >
+        {row.wins.toLocaleString('tr-TR')}
+      </td>
+      <td
         style={{
           ...bodyCellStyle('96px', 'right'),
-          color: 'var(--color-text-primary)',
+          color: 'var(--color-text-secondary)',
           fontWeight: 600,
         }}
       >
@@ -422,7 +436,7 @@ function SeasonHeader({ season }: { season: SeasonView }): React.ReactElement {
       </div>
       <p style={{ ...muted, margin: 'var(--space-sm) 0' }}>
         {season.me
-          ? `Sıran: ${season.me.rank}. · ${season.me.score.toLocaleString('tr-TR')} puan · ${season.me.raceCount} yarış${
+          ? `Sıran: ${season.me.rank}. · ${season.me.wins} birincilik · ${season.me.score.toLocaleString('tr-TR')} puan · ${season.me.raceCount} yarış${
               season.me.reward > 0
                 ? ` · şu an ${formatCurrency('money', season.me.reward)} ödül sırasındasın`
                 : ''

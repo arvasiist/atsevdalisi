@@ -13,7 +13,6 @@ import type {
   BalanceAdjustmentResult,
   ClubChatMessageView,
   AnomalyReport,
-  AccountDataExport,
   QuestBoardView,
   AchievementBoardView,
   AvatarAppearance,
@@ -1509,8 +1508,6 @@ export const apiClient = {
   listAdminPayments: () => request<AdminPaymentOrderView[]>('/admin/payments'),
   requestPaymentRefund: (orderId: string) =>
     request<{ requested: true }>(`/admin/payments/${encodeURIComponent(orderId)}/refund`, { method: 'POST' }),
-  /** 02.10.2026 — kişisel veri dışa aktarma (KVKK/GDPR); yalnızca kendi verin. */
-  exportAccountData: () => request<AccountDataExport>('/account/export'),
   claimQuest: (questKey: string) =>
     request<QuestClaimResult>(`/quests/${encodeURIComponent(questKey)}/claim`, { method: 'POST' }),
   /** 03.10.2026 — başarımlar (yaşam boyu, ödül tek kez). İlerleme sunucuda türetilir. */

@@ -1,7 +1,7 @@
 import { readdirSync, existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { MAX_MOBILE_TABS, NAV_LINKS } from '../../src/components/layout/nav-links';
+import { MAX_MOBILE_TABS, NAV_LINKS, TOP_UP_HREF } from '../../src/components/layout/nav-links';
 
 /**
  * `TopBar`'ın gezinti şeridi (28.09.2026) — KIRIK BAĞLANTI KİLİDİ.
@@ -98,6 +98,13 @@ describe('TopBar gezinti şeridi', () => {
     // izlenimini verir.
     for (const { href } of NAV_LINKS) {
       expect(STATIC_ROUTES.has(href), `Sayfası olmayan gezinti bağlantısı: ${href}`).toBe(true);
+    }
+  });
+
+  it('bakiye yanındaki "+" düğmeleri gerçek sayfalara gider (çip → cüzdan, elmas → mağaza)', () => {
+    expect(TOP_UP_HREF).toEqual({ money: '/wallet', gems: '/store' });
+    for (const href of Object.values(TOP_UP_HREF)) {
+      expect(STATIC_ROUTES.has(href), `Sayfası olmayan "+" bağlantısı: ${href}`).toBe(true);
     }
   });
 

@@ -71,6 +71,8 @@ export interface LeaderboardRowView {
   displayName: string;
   score: number;
   raceCount: number;
+  /** 08.10.2026 — birincilik sayısı; sıralamanın İLK ölçütü (eşitlikte puan). */
+  wins: number;
 }
 
 /** brief §43 RankingScore bileşenleri (hesaplama: `domain/ranking/ranking-score.ts`). */
@@ -316,6 +318,8 @@ export interface PeriodStandingRow {
   displayName: string;
   score: number;
   raceCount: number;
+  /** 08.10.2026 — birincilik sayısı (ilk sıralama ölçütü). */
+  wins: number;
 }
 
 export interface PeriodLeaderboardView {

@@ -4227,6 +4227,21 @@ Karar: önce pratik yarış; kırbaç sınırsız, dayanıklılık bedelli.
   (siluet ağaç halkasına girmez, zeminde, determinist; form). Tarayıcıda
   beş hipodrom gözle doğrulandı (yazılımsal GPU, Orta kalite).
 
+### 13.92 Sahibinin 08.10.2026 listesi — 1. dilim
+
+- Sıralama tablosu artık yarış BİRİNCİLİKLERİNE göre (eşitlikte puan):
+  genel, sezon, haftalık ve aylık aynı kuralla (`rankPlayerTotals`); sezon
+  ödülü ekrandaki sırayı izler. Tabloya "🏆 Birincilik" sütunu eklendi.
+- Ana sayfa ahırdır: hesabı olan oyuncu `/`dan ahıra yönlenir; ahır 3D
+  sahnesi üst bar hariç ekranı kaplar, at değiştirme okları ve "Atlarım"
+  düğmesi sahnede. Eski ana sayfa kartları (cüzdan, kariyer, yaklaşan ve son
+  yarışlar, hızlı erişim) ahırın altında.
+- Çip ve elmas bakiyesinin yanında belirgin "+" (cüzdan / mağaza).
+- `/account`taki "Verilerimi indir" bölümü kaldırıldı (sunucu ucu duruyor).
+- Kanıt: `leaderboard.spec.ts` (birincilik önce, eşitlik), `season.e2e-spec.ts`
+  (ödül yeni sırayla), `top-bar-nav.spec.ts` ("+" bağlantıları), tarayıcıda
+  ahır tam ekran + yönlendirme (masaüstü + telefon) gözle doğrulandı.
+
 ## 14. Kendime hatırlatmalar (kısa liste)
 
 1. **Race Engine'e dokunmadan önce iki kez düşün.** Denetim onu "KEEP, dokunma"
