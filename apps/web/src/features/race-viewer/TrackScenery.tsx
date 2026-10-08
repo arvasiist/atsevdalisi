@@ -31,8 +31,10 @@ import {
   getOutwardBoundaryPoint,
   type StadiumTrackGeometry,
 } from './track-path';
+import { TRACK_WIDTH_METERS } from './track-dimensions';
 
-export const TRACK_WIDTH_METERS = 20;
+// 08.10.2026 — saf modüle taşındı (şerit hesabı three.js çekmesin).
+export { TRACK_WIDTH_METERS };
 const ATMOSPHERE = loadAtmosphereConfig();
 const HDRI_ASSET = getAssetById('HDRI_SKY_REQUIRED');
 const HDRI_URL = HDRI_ASSET ? assetUrl(HDRI_ASSET.expectedPath) : '';

@@ -112,6 +112,11 @@ export interface RaceHudProps {
   raceSubtitle?: string;
   /** Mini haritada çizilecek pist çizgisi (kapalı çokgen). */
   miniMapTrack?: MiniMapPoint[];
+  /**
+   * 08.10.2026 — verilirse sıralama satırına tıklamak o atı Jokey
+   * Kamerası'yla takip ettirir (tekrar/demo; canlı yarışta kendi atın sabit).
+   */
+  onSelectHorse?: (horseId: string) => void;
 }
 
 /** Brief §22: PLAY/PAUSE/0.5X/1X/2X/4X. */
@@ -139,6 +144,7 @@ function RaceHudComponent(props: RaceHudProps): React.ReactElement {
     raceTitle,
     raceSubtitle,
     miniMapTrack,
+    onSelectHorse,
   } = props;
 
   const focusEntry = focusHorseId
@@ -165,6 +171,8 @@ function RaceHudComponent(props: RaceHudProps): React.ReactElement {
         horseNamesById={horseNamesById}
         leaderboard={leaderboard}
         horseColorsById={horseColorsById}
+        focusHorseId={focusHorseId}
+        onSelectHorse={onSelectHorse}
       />
 
       {finishResult && finishResult.length > 0 ? <FinishResultOverlay rows={finishResult} /> : null}
@@ -274,6 +282,14 @@ function LiveStatusBadge({ status }: { status: RaceLiveStatus }): React.ReactEle
   );
 }
 
+/**
+ * 08.10.2026 — bu ekran bir İZLEME ekranıdır (tekrar/canlı yayın): kırbaç ve
+ * yön yalnızca oyuncunun atı SÜRDÜĞÜ yarışta vardır. Jokey Kamerası'nda bunu
+ * söylemezsek oyuncu kırbacı burada arıyor.
+ */
+export const JOCKEY_CAMERA_CONTROL_HINT =
+  'Kırbaç için: Yarışlar → Pratik → Atı Kendin Sür';
+
 function CameraSwitcher({
   cameraMode,
   onChangeCameraMode,
@@ -294,6 +310,11 @@ function CameraSwitcher({
           {CAMERA_MODE_LABELS[mode]}
         </button>
       ))}
+      {cameraMode === 'jockey' ? (
+        <p className="hud-camera-hint" data-testid="jockey-control-hint">
+          {JOCKEY_CAMERA_CONTROL_HINT}
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -343,10 +364,14 @@ function LeaderboardPanel({
   horseNamesById,
   leaderboard,
   horseColorsById,
+  focusHorseId,
+  onSelectHorse,
 }: {
   horseNamesById: Record<string, string>;
   leaderboard: LiveLeaderboardEntry[];
   horseColorsById: Record<string, string>;
+  focusHorseId?: string;
+  onSelectHorse?: (horseId: string) => void;
 }): React.ReactElement {
   return (
     <div className="hud-panel hud-standings">
@@ -361,6 +386,22 @@ function LeaderboardPanel({
               key={entry.horseId}
               className="hud-standings-row"
               data-leader={entry.rank === 1 || undefined}
+              data-focus={entry.horseId === focusHorseId || undefined}
+              data-selectable={onSelectHorse ? true : undefined}
+              title={onSelectHorse ? 'Bu atı Jokey Kamerası ile takip et' : undefined}
+              role={onSelectHorse ? 'button' : undefined}
+              tabIndex={onSelectHorse ? 0 : undefined}
+              onClick={onSelectHorse ? () => onSelectHorse(entry.horseId) : undefined}
+              onKeyDown={
+                onSelectHorse
+                  ? (event) => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        onSelectHorse(entry.horseId);
+                      }
+                    }
+                  : undefined
+              }
             >
               <div className="hud-standings-line">
                 <RankBadge

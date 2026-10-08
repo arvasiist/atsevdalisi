@@ -84,6 +84,7 @@ import {
   getHorseTrackPosition,
 } from './track-path';
 import { computeCameraPose, type CameraMode } from './camera-presets';
+import { renderedPositionOf } from './lanes';
 import {
   selectAutomaticCameraMode,
   classifyRaceCameraEvent,
@@ -553,6 +554,9 @@ export function LiveRaceViewer({
     [segments, entryIds, hudTimeMs],
   );
   const manualCameraOverrideRef = useRef(false);
+  // 08.10.2026 — oyuncu Jokey Kamerası'nı SEÇTİYSE otomatik yönetmen onu bir
+  // sonraki yarış olayında geri almaz (atını sürerken kamera zıplıyordu).
+  const stickyJockeyCameraRef = useRef(false);
   const lastAutoCameraEventRef = useRef<RaceCameraEvent | null>(null);
 
   useEffect(() => {
@@ -564,7 +568,7 @@ export function LiveRaceViewer({
     };
     const currentEvent = classifyRaceCameraEvent(cameraDirectorInput, cameraConfig);
     if (currentEvent !== lastAutoCameraEventRef.current) {
-      manualCameraOverrideRef.current = false;
+      manualCameraOverrideRef.current = stickyJockeyCameraRef.current;
       lastAutoCameraEventRef.current = currentEvent;
     }
     if (!manualCameraOverrideRef.current) {
@@ -573,11 +577,16 @@ export function LiveRaceViewer({
   }, [leaderPositionMeters, raceDistanceMeters, anyHorseBlocked, isRaceFinished]);
 
   const cameraPose = useMemo(() => {
-    const leaderPosition = leaderVisual
-      ? { x: leaderVisual.x, y: HORSE_VISUAL_HEIGHT_METERS, z: leaderVisual.z }
+    // 08.10.2026 — kamera atın sahnede ÇİZİLDİĞİ (şeride kaydırılmış)
+    // konumu takip eder; eskiden merkez çizgiyi izliyordu ve at kadrajın
+    // kenarına düşüyordu.
+    const leaderAt = renderedPositionOf(horseVisuals, leaderVisual?.horseId);
+    const focusAt = renderedPositionOf(horseVisuals, focusVisual?.horseId) ?? leaderAt;
+    const leaderPosition = leaderAt
+      ? { x: leaderAt.x, y: HORSE_VISUAL_HEIGHT_METERS, z: leaderAt.z }
       : { x: 0, y: HORSE_VISUAL_HEIGHT_METERS, z: 0 };
-    const focusHorsePosition = focusVisual
-      ? { x: focusVisual.x, y: HORSE_VISUAL_HEIGHT_METERS, z: focusVisual.z }
+    const focusHorsePosition = focusAt
+      ? { x: focusAt.x, y: HORSE_VISUAL_HEIGHT_METERS, z: focusAt.z }
       : leaderPosition;
 
     return computeCameraPose(cameraMode, {
@@ -588,7 +597,7 @@ export function LiveRaceViewer({
       leaderHeadingRadians: leaderVisual?.headingRadians ?? 0,
       focusHeadingRadians: focusVisual?.headingRadians ?? 0,
     });
-  }, [cameraMode, leaderVisual, focusVisual, finishLinePoint]);
+  }, [cameraMode, leaderVisual, focusVisual, finishLinePoint, horseVisuals]);
 
   // Faz 2 düzeltmesi (bkz. `RaceViewer.tsx`'in AYNI deseni) — `useCallback`
   // ile SABİT kimlikte, aksi halde her render'da YENİ bir fonksiyon
@@ -596,6 +605,7 @@ export function LiveRaceViewer({
   // karşılaştırmasını KIRAR.
   const handleChangeCameraMode = useCallback((mode: CameraMode) => {
     manualCameraOverrideRef.current = true;
+    stickyJockeyCameraRef.current = mode === 'jockey';
     setCameraMode(mode);
   }, []);
 

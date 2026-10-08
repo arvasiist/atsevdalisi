@@ -31,11 +31,14 @@ describe('computeCameraPose', () => {
     expect(pose.position.x).toBeLessThan(leaderPosition.x);
   });
 
-  it('jockey modunda odaklanılan atı takip eder', () => {
+  it('jockey modunda odaklanılan atı arkasından takip eder ve atın İLERİSİNE bakar', () => {
+    // 08.10.2026 — eskiden kamera ata bakıyordu (at kadrajı dolduruyor, pist
+    // görünmüyordu); artık yarış oyunlarındaki gibi atın önüne bakar.
     const pose = computeCameraPose('jockey', context);
-    expect(pose.lookAt).toEqual(context.focusHorsePosition);
     expect(pose.position.z).toBe(context.focusHorsePosition.z);
     expect(pose.position.x).toBeLessThan(context.focusHorsePosition.x);
+    expect(pose.lookAt.x).toBeGreaterThan(context.focusHorsePosition.x);
+    expect(pose.lookAt.z).toBe(context.focusHorsePosition.z);
   });
 
   it('final_straight modunda bitiş çizgisine bakar', () => {

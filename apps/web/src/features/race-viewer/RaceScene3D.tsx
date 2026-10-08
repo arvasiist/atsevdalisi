@@ -89,7 +89,9 @@ import { Bloom, EffectComposer, SSAO } from '@react-three/postprocessing';
 import * as THREE from 'three';
 import { DustParticles } from './audio-vfx/DustParticles';
 import { HorseAvatar3D } from './HorseAvatar3D';
-import { SkyAndLighting, TRACK_WIDTH_METERS } from './TrackScenery';
+import { SkyAndLighting } from './TrackScenery';
+import { laneOffsetMeters, lanePosition } from './lanes';
+import { loadCameraConfig } from '@at-sevdalisi/game-config';
 import { HippodromeSurroundings } from './HippodromeSurroundings';
 import { StartGate } from './StartGate';
 import type { RaceSurface } from '@at-sevdalisi/shared-types';
@@ -142,26 +144,8 @@ export interface RaceScene3DProps {
   isPlaying?: boolean;
 }
 
-const CAMERA_LERP_FACTOR = 0.06;
-/** `CAMERA_LERP_FACTOR`ın ayarlandığı kare hızı. */
-const REFERENCE_FPS = 60;
-/** Atlar arası yanal şerit aralığı — pist genişliğine sığacak şekilde daraltılır. */
-const MAX_LANE_SPACING_METERS = 1.7;
-const LANE_MARGIN_METERS = 3;
-
-/**
- * Atlara yanal şerit verir (01.10.2026). Zaman çizelgesi yalnızca pist
- * üzerindeki MESAFEYİ taşır; hepsi merkez çizgide çizilince yakın atlar iç
- * içe geçiyordu. Şerit yalnızca GÖRSELDİR — sonucu, sırayı ya da HUD'u
- * etkilemez (sunucu otoritesi).
- */
-function laneOffsetMeters(index: number, count: number): number {
-  const spacing = Math.min(
-    MAX_LANE_SPACING_METERS,
-    (TRACK_WIDTH_METERS - LANE_MARGIN_METERS * 2) / Math.max(1, count - 1),
-  );
-  return (index - (count - 1) / 2) * spacing;
-}
+/** Kamera takip gecikmesi (sn) — poz kendi değerini vermezse (`camera.config.json`). */
+const DEFAULT_FOLLOW_SECONDS = loadCameraConfig().defaultFollowSeconds;
 
 export function RaceScene3D({
   horses,
@@ -267,10 +251,8 @@ export function RaceScene3D({
        * ve toz yanlış yerde görünürdü.
        */}
       {horses.map((horse, index) => {
-        const lane = laneOffsetMeters(index, horses.length);
-        // Pist dışına doğru birim normal (heading 0 = +X → dış = -Z).
-        const x = horse.x + Math.sin(horse.headingRadians) * lane;
-        const z = horse.z - Math.cos(horse.headingRadians) * lane;
+        // Şerit TEK KAYNAKTAN (`lanes.ts`) — kamera da aynı konumu takip eder.
+        const { x, z } = lanePosition(horse, index, horses.length);
         return (
           <Fragment key={horse.horseId}>
             <HorseRig
@@ -412,10 +394,11 @@ function CameraRig({ pose }: { pose: CameraPose }): null {
   useFrame((_, deltaSeconds) => {
     targetPosition.current.set(pose.position.x, pose.position.y, pose.position.z);
     targetLookAt.current.set(pose.lookAt.x, pose.lookAt.y, pose.lookAt.z);
-    // Kare hızından bağımsız yumuşatma (01.10.2026): 60 fps'te eski sabit
-    // `CAMERA_LERP_FACTOR` ile AYNI sonucu verir; düşük fps'li bir cihazda
-    // kamera artık geride kalmaz (eskiden 5 fps'te hedefe ~12 kat yavaş varıyordu).
-    const alpha = 1 - Math.pow(1 - CAMERA_LERP_FACTOR, Math.min(deltaSeconds, 1) * REFERENCE_FPS);
+    // Kare hızından bağımsız üstel yumuşatma (01.10.2026; 08.10.2026'dan beri
+    // zaman sabiti pozdan gelir — jokey kamerası çok kısa tutar ki at kadrajda
+    // kaymasın). Varsayılan, eski 60 fps'te 0.06 adımıyla aynı (~0.27 sn).
+    const followSeconds = pose.followSeconds ?? DEFAULT_FOLLOW_SECONDS;
+    const alpha = 1 - Math.exp(-Math.min(deltaSeconds, 1) / Math.max(0.001, followSeconds));
     camera.position.lerp(targetPosition.current, alpha);
     currentLookAt.current.lerp(targetLookAt.current, alpha);
     camera.lookAt(currentLookAt.current);

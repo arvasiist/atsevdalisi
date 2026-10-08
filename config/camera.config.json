@@ -137,5 +137,13 @@
         "fov": 32
       }
     ]
-  }
+  },
+  "jockeyCamera": {
+    "backMeters": 5.5,
+    "heightMeters": 3.2,
+    "lookAheadMeters": 16,
+    "lookHeightMeters": 1.3,
+    "followSeconds": 0.08
+  },
+  "defaultFollowSeconds": 0.27
 }

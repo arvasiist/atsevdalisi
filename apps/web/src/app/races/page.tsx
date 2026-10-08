@@ -555,27 +555,33 @@ export default function RacesPage(): React.ReactElement {
               last
             />
 
-            <button
-              type="button"
-              disabled={!canRace}
-              onClick={() => void handleRace()}
-              className="btn-gold"
-            >
-              {isRacing
-                ? 'Yarışılıyor…'
-                : selectedTier
-                  ? `${formatCurrency('money', selectedTier.entryFee)} Öde ve Yarışa Başla`
-                  : 'Yarışa Başla'}
-            </button>
+            {/* 08.10.2026 — "Atı Kendin Sür" öne alındı: kırbaç ve yön burada
+                (oyuncu kırbacı otomatik yarışın izleme ekranında arıyordu). */}
             <button
               type="button"
               disabled={!canRace || isStartingRide || ride !== null}
               onClick={() => void handleRide()}
+              className="btn-gold"
+              title="Atı sen sür: kırbaç (Boşluk), sol/sağ (← →), sakin (↓)"
+            >
+              {isStartingRide
+                ? 'Hazırlanıyor…'
+                : selectedTier
+                  ? `${formatCurrency('money', selectedTier.entryFee)} Öde, Atı Kendin Sür`
+                  : 'Atı Kendin Sür'}
+            </button>
+            <button
+              type="button"
+              disabled={!canRace}
+              onClick={() => void handleRace()}
               className="btn-outline"
               style={{ marginLeft: 'var(--space-sm)' }}
-              title="Atı sen sür: kırbaç, sol/sağ, sakin"
             >
-              {isStartingRide ? 'Hazırlanıyor…' : 'Atı Kendin Sür'}
+              {isRacing
+                ? 'Yarışılıyor…'
+                : selectedTier
+                  ? `${formatCurrency('money', selectedTier.entryFee)} Öde, Otomatik Koşsun`
+                  : 'Otomatik Koşsun'}
             </button>
 
             {message ? (

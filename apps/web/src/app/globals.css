@@ -1592,6 +1592,11 @@ button[style*='background: var(--color-accent-gold)'] {
   background: linear-gradient(90deg, rgba(232, 184, 74, 0.2), rgba(232, 184, 74, 0.03));
 }
 
+/* 08.10.2026 — takip edilen at + tıklanabilir satır (Jokey Kamerası seçimi). */
+.hud-standings-row[data-selectable] { cursor: pointer; }
+.hud-standings-row[data-selectable]:hover { background: rgba(255, 255, 255, 0.08); }
+.hud-standings-row[data-focus] { outline: 1px solid rgba(96, 165, 250, 0.7); }
+
 .hud-standings-line {
   display: flex;
   align-items: center;
@@ -2687,3 +2692,22 @@ button[style*='background: var(--color-accent-gold)'] {
 .breed-price { font-weight: 600; font-size: 1rem; }
 .breed-form { display: grid; gap: 8px; }
 .breed-form label { display: grid; gap: 4px; font-size: 0.85rem; }
+
+/* 08.10.2026 — Jokey Kamerası'nda kırbacın nerede olduğunu söyleyen ipucu. */
+.hud-cameras { position: relative; }
+.hud-camera-hint {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  margin: 0;
+  padding: 2px 8px;
+  white-space: nowrap;
+  max-width: min(420px, 90vw);
+  border-radius: 6px;
+  background: rgba(11, 18, 32, 0.78);
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--color-text-secondary, #b8c2d6);
+  text-align: right;
+  pointer-events: none;
+}

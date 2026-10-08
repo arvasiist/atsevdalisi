@@ -22,6 +22,7 @@ import {
   getHorseTrackPosition,
 } from '../race-viewer/track-path';
 import { computeCameraPose, type CameraMode } from '../race-viewer/camera-presets';
+import { renderedPositionOf } from '../race-viewer/lanes';
 import { getLiveLeaderboard } from '../race-viewer/timeline-playback';
 import { computeCrowdExcitement, useSecondsSinceFinish } from '../race-viewer/race-atmosphere';
 import { AudioToggle } from '../race-viewer/audio-vfx/AudioToggle';
@@ -214,10 +215,14 @@ export function InteractiveRaceViewer({
     [trackGeometry],
   );
   const cameraPose = useMemo(() => {
-    const at = (horse: typeof mine) =>
-      horse
-        ? { x: horse.x, y: HORSE_VISUAL_HEIGHT_METERS, z: horse.z }
+    // 08.10.2026 — sahnede ÇİZİLEN (şeride kaydırılmış) konum; kamera kendi
+    // atını kadrajın ortasında tutar.
+    const at = (horse: typeof mine) => {
+      const drawn = renderedPositionOf(horses, horse?.horseId);
+      return drawn
+        ? { x: drawn.x, y: HORSE_VISUAL_HEIGHT_METERS, z: drawn.z }
         : { x: 0, y: HORSE_VISUAL_HEIGHT_METERS, z: 0 };
+    };
     return computeCameraPose(cameraMode, {
       leaderPosition: at(leader),
       focusHorsePosition: at(mine ?? leader),
@@ -226,7 +231,7 @@ export function InteractiveRaceViewer({
       leaderHeadingRadians: leader?.headingRadians ?? 0,
       focusHeadingRadians: (mine ?? leader)?.headingRadians ?? 0,
     });
-  }, [cameraMode, leader, mine, finishPoint]);
+  }, [cameraMode, leader, mine, finishPoint, horses]);
 
   const finished = view.status === 'finished';
   const leaderPositionMeters = leaderboard[0]?.positionMeters ?? 0;

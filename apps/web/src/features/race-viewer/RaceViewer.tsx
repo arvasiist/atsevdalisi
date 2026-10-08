@@ -23,6 +23,7 @@ import {
   type StadiumTrackGeometry,
 } from './track-path';
 import { computeCameraPose, type CameraMode } from './camera-presets';
+import { renderedPositionOf } from './lanes';
 import {
   selectAutomaticCameraMode,
   type RaceCameraEvent,
@@ -252,6 +253,7 @@ export function RaceViewer({
   const [isPlaying, setIsPlaying] = useState(true);
   const [speedMultiplier, setSpeedMultiplier] = useState(1);
   const [cameraMode, setCameraMode] = useState<CameraMode>('track');
+  const [followHorseId, setFollowHorseId] = useState<string | null>(null);
 
   const lastFrameTimestampRef = useRef<number | null>(null);
   // `setCurrentTimeMs`'in fonksiyonel güncelleme deseni yerine (aynı
@@ -386,6 +388,9 @@ export function RaceViewer({
     [timeline.segments, horseIds, hudTimeMs],
   );
   const manualCameraOverrideRef = useRef(false);
+  // 08.10.2026 — oyuncu Jokey Kamerası'nı SEÇTİYSE otomatik yönetmen onu bir
+  // sonraki yarış olayında geri almaz (atını sürerken kamera zıplıyordu).
+  const stickyJockeyCameraRef = useRef(false);
   const lastAutoCameraEventRef = useRef<RaceCameraEvent | null>(null);
 
   useEffect(() => {
@@ -400,7 +405,7 @@ export function RaceViewer({
       // Yeni bir race event'ine geçildi (brief §17) — kullanıcının bir
       // önceki event boyunca yaptığı manuel seçim burada sona erer,
       // otomatik yönetmen tekrar devreye girer.
-      manualCameraOverrideRef.current = false;
+      manualCameraOverrideRef.current = stickyJockeyCameraRef.current;
       lastAutoCameraEventRef.current = currentEvent;
     }
     if (!manualCameraOverrideRef.current) {
@@ -453,15 +458,22 @@ export function RaceViewer({
   );
 
   const leaderVisual = horseVisuals.find((horse) => horse.isLeader) ?? horseVisuals[0];
+  // 08.10.2026 — takip edilen at: sıralama listesinden seçilir (kendi atını
+  // izlemek için); seçilmediyse ilk at.
   const focusVisual =
-    horseVisuals.find((horse) => horse.horseId === horseIds[0]) ?? horseVisuals[0];
+    horseVisuals.find((horse) => horse.horseId === (followHorseId ?? horseIds[0])) ?? horseVisuals[0];
 
   const cameraPose = useMemo(() => {
-    const leaderPosition = leaderVisual
-      ? { x: leaderVisual.x, y: HORSE_VISUAL_HEIGHT_METERS, z: leaderVisual.z }
+    // 08.10.2026 — kamera atın sahnede ÇİZİLDİĞİ (şeride kaydırılmış)
+    // konumu takip eder; eskiden merkez çizgiyi izliyordu ve at kadrajın
+    // kenarına düşüyordu.
+    const leaderAt = renderedPositionOf(horseVisuals, leaderVisual?.horseId);
+    const focusAt = renderedPositionOf(horseVisuals, focusVisual?.horseId) ?? leaderAt;
+    const leaderPosition = leaderAt
+      ? { x: leaderAt.x, y: HORSE_VISUAL_HEIGHT_METERS, z: leaderAt.z }
       : { x: 0, y: HORSE_VISUAL_HEIGHT_METERS, z: 0 };
-    const focusHorsePosition = focusVisual
-      ? { x: focusVisual.x, y: HORSE_VISUAL_HEIGHT_METERS, z: focusVisual.z }
+    const focusHorsePosition = focusAt
+      ? { x: focusAt.x, y: HORSE_VISUAL_HEIGHT_METERS, z: focusAt.z }
       : leaderPosition;
 
     return computeCameraPose(cameraMode, {
@@ -472,7 +484,7 @@ export function RaceViewer({
       leaderHeadingRadians: leaderVisual?.headingRadians ?? 0,
       focusHeadingRadians: focusVisual?.headingRadians ?? 0,
     });
-  }, [cameraMode, leaderVisual, focusVisual, finishLinePoint]);
+  }, [cameraMode, leaderVisual, focusVisual, finishLinePoint, horseVisuals]);
 
   // Faz 2 düzeltmesi (bkz. `HUD_SYNC_INTERVAL_MS` doc yorumu) — bu
   // callback'ler `useCallback` ile SABİT kimlikte tutulur, aksi halde her
@@ -480,10 +492,18 @@ export function RaceViewer({
   // sarmalayıcısı) sığ prop karşılaştırmasını KIRAR ve throttle'ın tüm
   // amacını boşa çıkarır.
   const handleTogglePlay = useCallback(() => setIsPlaying((previous) => !previous), []);
+  const handleSelectHorse = useCallback((horseId: string) => {
+    setFollowHorseId(horseId);
+    manualCameraOverrideRef.current = true;
+    stickyJockeyCameraRef.current = true;
+    setCameraMode('jockey');
+  }, []);
+
   const handleChangeCameraMode = useCallback((mode: CameraMode) => {
     // Kullanıcı manuel seçti — Camera Director bir sonraki race
     // event'ine kadar bu seçime dokunmaz (bkz. yukarıdaki useEffect).
     manualCameraOverrideRef.current = true;
+    stickyJockeyCameraRef.current = mode === 'jockey';
     setCameraMode(mode);
   }, []);
   const handleSeek = useCallback((timeMs: number) => {
@@ -534,6 +554,7 @@ export function RaceViewer({
         onChangeSpeedMultiplier={setSpeedMultiplier}
         onChangeCameraMode={handleChangeCameraMode}
         onSeek={handleSeek}
+        onSelectHorse={handleSelectHorse}
       />
     </div>
   );

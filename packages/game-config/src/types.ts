@@ -931,6 +931,23 @@ export interface OnlineConfig {
  */
 export interface CameraConfig {
   version: string;
+  /**
+   * 08.10.2026 — Jokey Kamerası: oyuncunun KENDİ atının arkasından ve
+   * üstünden, ileriye bakan takip kamerası (yarış oyunlarındaki gibi). Eski
+   * kamera atın 8 m arkasından alçaktan ata bakıyordu ve şerit kayması yüzünden
+   * at kadrajın kenarına düşüyordu.
+   */
+  jockeyCamera: {
+    backMeters: number;
+    heightMeters: number;
+    /** Kamera atın bu kadar önündeki noktaya bakar (pist ileride görünsün). */
+    lookAheadMeters: number;
+    lookHeightMeters: number;
+    /** Takip gecikmesinin zaman sabiti (sn) — küçük = at kadrajda kaymaz. */
+    followSeconds: number;
+  };
+  /** Diğer kameraların takip gecikmesi (sn). */
+  defaultFollowSeconds: number;
   /** Liderin bu mesafenin ALTINDA olduğu süre "start" event'i sayılır (metre). */
   startPhaseMeters: number;
   /** Bitişe bu mesafeden AZ kaldığında "final_stretch" event'i tetiklenir (metre). */

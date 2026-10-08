@@ -6,6 +6,8 @@
  * `camera.lookAt` değerlerine uygular; bkz. `RaceScene3D.tsx`).
  */
 
+import { loadCameraConfig } from '@at-sevdalisi/game-config';
+
 export type CameraMode = 'track' | 'jockey' | 'final_straight' | 'photo_finish';
 
 export interface Vector3Like {
@@ -17,6 +19,12 @@ export interface Vector3Like {
 export interface CameraPose {
   position: Vector3Like;
   lookAt: Vector3Like;
+  /**
+   * 08.10.2026 — takip gecikmesinin zaman sabiti (sn). Verilmezse
+   * `camera.config.json → defaultFollowSeconds`. Jokey kamerası çok kısa
+   * tutar: uzun gecikmede hızlı koşan at kadrajda ileri-geri "kayıyordu".
+   */
+  followSeconds?: number;
 }
 
 export interface CameraContext {
@@ -45,8 +53,7 @@ const BROADCAST_CAMERA_HEIGHT_METERS = 5.5;
 const BROADCAST_CAMERA_SIDE_OFFSET_METERS = 24;
 const BROADCAST_CAMERA_AHEAD_OFFSET_METERS = 8;
 const BROADCAST_CAMERA_LOOK_BEHIND_METERS = 9;
-const JOCKEY_CAMERA_HEIGHT_METERS = 3;
-const JOCKEY_CAMERA_BACK_OFFSET_METERS = 8;
+const JOCKEY_CAMERA = loadCameraConfig().jockeyCamera;
 const FINAL_STRAIGHT_CAMERA_HEIGHT_METERS = 6;
 const FINAL_STRAIGHT_CAMERA_BACK_OFFSET_METERS = 24;
 const FINAL_STRAIGHT_CAMERA_SIDE_OFFSET_METERS = 12;
@@ -93,15 +100,25 @@ export function computeCameraPose(mode: CameraMode, context: CameraContext): Cam
     }
 
     case 'jockey': {
+      // 08.10.2026 — yarış oyunlarındaki takip kamerası: atın arkasından ve
+      // üstünden, atın İLERİSİNE bakar (at kadrajın alt-ortasında, pist
+      // önde). Eskisi atın 8 m arkasından alçaktan ata bakıyordu.
       const focus = context.focusHorsePosition;
       const heading = context.focusHeadingRadians ?? 0;
+      const forwardX = Math.cos(heading);
+      const forwardZ = Math.sin(heading);
       return {
         position: {
-          x: focus.x - Math.cos(heading) * JOCKEY_CAMERA_BACK_OFFSET_METERS,
-          y: JOCKEY_CAMERA_HEIGHT_METERS,
-          z: focus.z - Math.sin(heading) * JOCKEY_CAMERA_BACK_OFFSET_METERS,
+          x: focus.x - forwardX * JOCKEY_CAMERA.backMeters,
+          y: JOCKEY_CAMERA.heightMeters,
+          z: focus.z - forwardZ * JOCKEY_CAMERA.backMeters,
         },
-        lookAt: focus,
+        lookAt: {
+          x: focus.x + forwardX * JOCKEY_CAMERA.lookAheadMeters,
+          y: JOCKEY_CAMERA.lookHeightMeters,
+          z: focus.z + forwardZ * JOCKEY_CAMERA.lookAheadMeters,
+        },
+        followSeconds: JOCKEY_CAMERA.followSeconds,
       };
     }
 
