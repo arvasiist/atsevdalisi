@@ -300,7 +300,17 @@ export function RaceScene3D({
        * yalnızca gerçek `Effect` elemanları içerir, asla `null` DEĞİL —
        * bkz. `effects` değişkeninin doc yorumu.
        */}
-      {hasPostProcessing ? <EffectComposer>{effects}</EffectComposer> : null}
+      {/*
+       * 08.10.2026 — SSAO normal tamponu ister: `enableNormalPass` olmadan
+       * kütüphane "Please enable the NormalPass in the EffectComposer in order
+       * to use SSAO" der ve efekt çalışmaz (yalnızca 'ultra' kademede SSAO
+       * açık olduğu için uzun süre görünmedi). Normal geçişi YALNIZCA SSAO
+       * açıkken açılır — gereksiz bir ek render geçişi olmasın.
+       * `postprocessing.spec.ts` kaynağı tarar.
+       */}
+      {hasPostProcessing ? (
+        <EffectComposer enableNormalPass={settings.ssaoEnabled}>{effects}</EffectComposer>
+      ) : null}
     </Canvas>
   );
 }
