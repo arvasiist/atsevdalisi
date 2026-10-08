@@ -427,6 +427,13 @@ export interface EconomyConfig {
     minIncrementAmount: number;
     settleScheduler: { enabled: boolean; tickSeconds: number; batchSize: number };
   };
+  /**
+   * 08.10.2026 — sabit fiyatlı ilanların süre dolumu zamanlayıcısı
+   * (`MarketListingExpiryScheduler`). Okuma anındaki süpürme de aynı atomik
+   * ifadeyi kullanır; zamanlayıcı, hiç okunmayan ilanın da `expired`
+   * olmasını ve satıcıya `listing_expired` bildiriminin gitmesini sağlar.
+   */
+  listingExpiry: { enabled: boolean; tickSeconds: number };
 }
 
 /**

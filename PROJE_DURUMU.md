@@ -4310,6 +4310,21 @@ Karar: önce pratik yarış; kırbaç sınırsız, dayanıklılık bedelli.
   kuralları), `purchase-horse-equipment-dto.spec.ts`, web
   `equipment-catalog.spec.ts`.
 
+### 13.97 Pazar ilanı süre dolumu zamanlayıcıda + SSAO düzeltmesi
+
+- Sabit fiyatlı ilanların süresi artık bir zamanlayıcıyla da dolar (dakikada
+  bir); eskiden yalnızca biri pazara bakınca yazılıyordu. Satıcıya "ilanının
+  süresi doldu, at sende" bildirimi gider (bir kez).
+- Eski süpürme "önce oku, sonra koşulsuz yaz" yapıyordu: aynı anda satılan
+  bir ilan `expired`a geri yazılabilirdi. Artık geçiş tek atomik ifadede,
+  yalnızca `active` satırda olur.
+- Yarış ekranı "Ultra" kalitede SSAO hatası veriyordu (sahibinin ekran
+  görüntüsü): `EffectComposer` normal geçişi açık değildi. Düzeltildi.
+- Kanıt: `market-listing-expiry.e2e-spec.ts` (okunmadan dolum + tek bildirim,
+  ikinci tur no-op, satılmış ilan geri yazılmaz, müzayede dokunulmaz, okuma
+  anı süpürmesi), `notification-types.spec.ts` (0077),
+  `postprocessing.spec.ts`; tarayıcıda Ultra'da konsol temiz.
+
 ## 14. Kendime hatırlatmalar (kısa liste)
 
 1. **Race Engine'e dokunmadan önce iki kez düşün.** Denetim onu "KEEP, dokunma"

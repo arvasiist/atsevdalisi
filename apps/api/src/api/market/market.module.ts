@@ -11,6 +11,8 @@ import { ListMarketListingsUseCase } from '../../application/use-cases/list-mark
 import { MarketAuctionUseCase } from '../../application/use-cases/market-auction.use-case';
 import { PostgresMarketAuctionRepository } from '../../infrastructure/market/postgres-market-auction.repository';
 import { AuctionSettleScheduler } from '../../infrastructure/scheduler/auction-settle.scheduler';
+import { MarketListingExpiryScheduler } from '../../infrastructure/scheduler/market-listing-expiry.scheduler';
+import { ExpireMarketListingsUseCase } from '../../application/use-cases/expire-market-listings.use-case';
 import { PostgresMarketListingRepository } from '../../infrastructure/market/postgres-market-listing.repository';
 import { PostgresMarketPurchaseRepository } from '../../infrastructure/market/postgres-market-purchase.repository';
 import { HorseOwnerGuardByBodyField } from '../auth/horse-owner.guard';
@@ -31,6 +33,9 @@ import { MarketController } from './market.controller';
     ListMarketListingsBySellerUseCase,
     MarketAuctionUseCase,
     AuctionSettleScheduler,
+    // 08.10.2026 — sabit fiyatlı ilan süre dolumu (+ satıcıya bildirim).
+    ExpireMarketListingsUseCase,
+    MarketListingExpiryScheduler,
     IdempotencyInterceptor,
     { provide: MARKET_LISTING_REPOSITORY, useClass: PostgresMarketListingRepository },
     { provide: MARKET_PURCHASE_REPOSITORY, useClass: PostgresMarketPurchaseRepository },

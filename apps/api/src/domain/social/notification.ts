@@ -51,6 +51,7 @@ export const NOTIFICATION_TYPES = [
   'auction_unsold',
   'auction_refunded',
   'tribune_gift_received',
+  'listing_expired',
 ] as const;
 
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];

@@ -107,9 +107,10 @@ describe('NOTIFICATION_TYPES — üç kopya birebir aynı olmalı', () => {
     }
   });
 
-  it('tribün hediyesi bildirimi (08.10.2026) — CHECK\'i yazan en son migration 0075', () => {
+  it('tribün hediyesi + ilan süre dolumu bildirimleri (08.10.2026) — CHECK\'i yazan en son migration 0077', () => {
     expect(NOTIFICATION_TYPES).toContain('tribune_gift_received');
-    expect(NOTIFICATION_MIGRATION).toBe('0075_create_tribune_gifts.up.sql');
+    expect(NOTIFICATION_TYPES).toContain('listing_expired');
+    expect(NOTIFICATION_MIGRATION).toBe('0077_market_listing_expiry.up.sql');
   });
 
   it('brief §28in SEKİZ türünü eksiksiz içerir', () => {

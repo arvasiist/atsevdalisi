@@ -32,6 +32,7 @@ export const NOTIFICATION_TYPES = [
   'auction_unsold',
   'auction_refunded',
   'tribune_gift_received',
+  'listing_expired',
 ] as const;
 
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
@@ -93,6 +94,8 @@ export interface NotificationPayloadByType {
     displayName: string;
     amount: number;
   };
+  /** 08.10.2026 — sabit fiyatlı ilanın süresi doldu; at satılmadı, sende. */
+  listing_expired: { listingId: string; horseId: string; horseName: string; price: number };
 }
 
 /**

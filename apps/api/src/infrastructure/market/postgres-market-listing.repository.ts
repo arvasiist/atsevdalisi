@@ -2,11 +2,11 @@ import { Inject, Injectable } from '@nestjs/common';
 import type { Pool } from 'pg';
 import type { ListingStatus, ListingType, MarketListing, PaginatedResult } from '@at-sevdalisi/shared-types';
 import type { MarketListingRepository, MarketListingSearchFilter } from '../../application/ports/market-listing.repository';
-import { expireListingIfNeeded } from '../../domain/market/market';
 import { HorseAlreadyListedError, ListingNotActiveError } from '../../domain/market/errors';
 import { minimumNextBid } from '../../domain/market/auction';
 import { AppConfigService } from '../config/config.service';
 import { PG_POOL } from '../database/database.module';
+import { expireDueFixedPriceListings } from './listing-expiry';
 
 /** Postgres `unique_violation` hata kodu (bkz. PostgreSQL "Error Codes" §22.6 sınıf 23). */
 const POSTGRES_UNIQUE_VIOLATION = '23505';
@@ -97,28 +97,18 @@ export class PostgresMarketListingRepository implements MarketListingRepository 
     });
   }
 
+  /**
+   * Okuma anında süpürme — 08.10.2026'dan beri TEK atomik ifade
+   * (`expireDueFixedPriceListings`); zamanlayıcı da aynı ifadeyi kullanır.
+   * Eski "önce oku, sonra koşulsuz yaz" deseni eşzamanlı satılan ilanı
+   * `expired`a geri yazabiliyordu.
+   */
   private async sweepExpiredListings(): Promise<void> {
-    const dueResult = await this.pool.query<MarketListingRow>(
-      // 02.10.2026 — müzayede BURADA süpürülmez: teklifli bir müzayede
-      // `expired` yapılsaydı emanet askıda kalırdı. Onu kapanış kapatır.
-      "SELECT * FROM market_listings WHERE status = 'active' AND listing_type = 'fixed_price' AND expires_at IS NOT NULL AND expires_at <= NOW()",
-    );
-    if (dueResult.rows.length === 0) {
-      return;
-    }
-    const now = new Date();
-    for (const row of dueResult.rows) {
-      const listing = rowToListing(row);
-      const expired = expireListingIfNeeded(listing, now);
-      if (expired.status !== listing.status) {
-        await this.pool.query(
-          `UPDATE market_listings
-           SET status = $2, expires_at = $3
-           WHERE id = $1`,
-          [expired.id, expired.status, expired.expiresAt ? new Date(expired.expiresAt) : null],
-        );
-      }
-    }
+    await expireDueFixedPriceListings(this.pool, new Date());
+  }
+
+  async expireDueListings(now: Date): Promise<string[]> {
+    return expireDueFixedPriceListings(this.pool, now);
   }
 
   async findById(id: string): Promise<MarketListing | null> {

@@ -2394,6 +2394,15 @@ ile reddeder (süpürme, `purchaseListing`'in kendi süre kontrolünden ÖNCE
 status'ü zaten `expired`'a çevirmiş olur) — hata mesajı yine de "durum:
 expired" der, bilgi kaybı yoktur.
 
+**08.10.2026 — ZAMANLAYICI + BİLDİRİM (migration 0077).** Süre dolumu artık
+`MarketListingExpiryScheduler` ile de yazılır (`economy.listingExpiry`,
+`tickSeconds`; hiç okunmayan ilan da `expired` olur). Okuma anındaki süpürme
+ve zamanlayıcı AYNI tek atomik ifadeyi kullanır (`UPDATE … WHERE status =
+'active' … RETURNING`): eski "önce oku, sonra koşulsuz yaz" süpürmesi
+eşzamanlı satılan bir ilanı `expired`a GERİ yazabiliyordu. Satıcıya aynı
+ifadede `listing_expired` bildirimi düşer (`{ listingId, horseId, horseName,
+price }`, yalnızca bir kez). Müzayede bu yoldan süpürülmez.
+
 **KAPSAM (bu oturum, bilinçli):** `listingType` her zaman `fixed_price`'tır
 (`auction`'ın teklif verme/kazanma mantığı domain katmanında hiç yok,
 bkz. domain/market/README.md). Tarama ekranının ata özgü filtreleri (`?breed=&

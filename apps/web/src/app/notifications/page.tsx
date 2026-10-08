@@ -515,6 +515,13 @@ function describe(notification: NotificationView): { title: string; detail: stri
         detail: `${notification.payload.raceName} · ${formatCurrency('money', notification.payload.amount)} hesabına geçti.`,
         href: '/wallet',
       };
+    // 08.10.2026 — sabit fiyatlı ilanın süresi doldu (at satılmadı).
+    case 'listing_expired':
+      return {
+        title: `${notification.payload.horseName || 'Atının'} ilanının süresi doldu`,
+        detail: `${formatCurrency('money', notification.payload.price)} fiyatlı ilan satılmadan kapandı; at sende. Yeniden satışa çıkarabilirsin.`,
+        href: '/market',
+      };
   }
 }
 
@@ -534,6 +541,7 @@ function hrefLabel(notification: NotificationView): string {
       return 'yarış geçmişi →';
     case 'auction_outbid':
     case 'auction_unsold':
+    case 'listing_expired':
       return 'pazar →';
     case 'auction_won':
       return 'ahır →';

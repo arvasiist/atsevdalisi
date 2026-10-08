@@ -80,5 +80,9 @@
       "tickSeconds": 15,
       "batchSize": 20
     }
+  },
+  "listingExpiry": {
+    "enabled": true,
+    "tickSeconds": 60
   }
 }

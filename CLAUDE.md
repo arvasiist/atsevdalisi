@@ -770,6 +770,16 @@ parça + `equipment_purchase` defter satırı (UPKEEP) tek transaction;
 `Idempotency-Key` ZORUNLU, web kalem başına BAŞARIYA kadar saklar. Eski
 parçalar `catalog_key` NULL, kaliteleri DOKUNULMADAN durur (ne yapılacağı
 sahibinin kararı). Web: ahır → Ekipman → katalog listesi.
+(73) **İLAN SÜRE DOLUMU ZAMANLAYICISI (08.10.2026, migration 0077, §13.97)** —
+`MarketListingExpiryScheduler` (`economy.listingExpiry`, lider kilidi, test'te
+`tickNow`). Okuma anı süpürmesi + zamanlayıcı TEK atomik ifade
+(`infrastructure/market/listing-expiry.ts` → `UPDATE … WHERE status =
+'active' AND listing_type = 'fixed_price' … RETURNING` + aynı ifadede
+`listing_expired` bildirimi). ⚠️ "Önce SELECT, sonra koşulsuz UPDATE"
+deseni YAZMA: eşzamanlı satılan ilanı `expired`a geri yazıyordu. Müzayede
+BURADAN süpürülmez (emanet). Bildirim CHECK'i artık 0077'dedir.
+⚠️ 08.10.2026 — `<SSAO>` kullanan her `EffectComposer` `enableNormalPass`
+ister (`postprocessing.spec.ts` tarar); yoksa "Ultra"da konsol hatası.
 
 **✅ ÜCRETLİ LOBİ YARIŞI ARTIK KOŞUYOR — ÖDÜL DAĞITIMI VAR (§13.14,
 28.09.2026).** `POST /races/:id/settle` yarışı koşar, ödülleri `top5`
