@@ -68,6 +68,8 @@ export const ErrorCode = {
   BreedNotFound: 'BREED_NOT_FOUND',
   /** 07.10.2026 — ırkın seviye şartı karşılanmadı (409). */
   BreedLevelLocked: 'BREED_LEVEL_LOCKED',
+  /** 08.10.2026 — ırk sınıflı yarışa sınıf dışı at (409). */
+  HorseBreedNotAllowed: 'HORSE_BREED_NOT_ALLOWED',
   AchievementNotFound: 'ACHIEVEMENT_NOT_FOUND',
   AchievementNotCompleted: 'ACHIEVEMENT_NOT_COMPLETED',
   AchievementAlreadyClaimed: 'ACHIEVEMENT_ALREADY_CLAIMED',

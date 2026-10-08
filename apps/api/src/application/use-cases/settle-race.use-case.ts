@@ -10,6 +10,7 @@ import type {
   RaceWeather,
 } from '@at-sevdalisi/shared-types';
 import { generateBotEntrants } from '../../domain/race/bot-generator';
+import { raceClassBotStatRange } from '../../domain/horse/breeds';
 import { resolveFieldComposition } from '../../domain/race/field-composition';
 import { checkRaceSettleable, nextGatePosition } from '../../domain/race/lobby';
 import {
@@ -305,7 +306,14 @@ export class SettleRaceUseCase {
       );
     }
 
-    const botEntrants = generateBotEntrants(composition.composition.bots, simulationSeed);
+    // 08.10.2026 — ırk sınıflı yarışta botlar sınıfın ırkları gücündedir
+    // (`raceClassBotStatRange`); açık yarışta `null` → genel aralık, yani
+    // açık yarışların botları aynı seed'le BİT BİT eskisi gibi üretilir.
+    const botStatRange = raceClassBotStatRange(this.config.breeds, context.breedClass);
+    const botEntrants =
+      botStatRange === null
+        ? generateBotEntrants(composition.composition.bots, simulationSeed)
+        : generateBotEntrants(composition.composition.bots, simulationSeed, botStatRange);
     const botEntries: RaceEntry[] = botEntrants.map((bot) => {
       const gatePosition = nextGatePosition(usedGatePositions);
       usedGatePositions.push(gatePosition);

@@ -82,6 +82,20 @@ afterEach(() => {
 });
 
 describe('LobbyPanel', () => {
+  it('08.10.2026 — ırk sınıflı yarış: rozet görünür; seçili at sınıf dışıysa "Katıl" yerine ipucu', async () => {
+    mocks.listLobbyRaces.mockResolvedValue([lobbyRace({ breedClass: 'native' })]);
+    const thoroughbred = { ...horse, breed: 'thoroughbred' } as PublicHorse;
+    render(<LobbyPanel horses={[thoroughbred]} onBalanceChanged={onBalanceChanged} />);
+    expect((await screen.findByTestId('lobby-breed-class-race-1')).textContent).toContain('Yerli Irklar');
+    expect(screen.getByText('Seçili atının ırkı bu yarışa uygun değil')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Katıl' })).toBeNull();
+    cleanup();
+
+    const hinis = { ...horse, breed: 'hinis' } as PublicHorse;
+    render(<LobbyPanel horses={[hinis]} onBalanceChanged={onBalanceChanged} />);
+    expect(await screen.findByRole('button', { name: 'Katıl' })).toBeTruthy();
+  });
+
   it('katılım yokken yalnızca "Katıl" görünür', async () => {
     mocks.listLobbyRaces.mockResolvedValue([lobbyRace()]);
     render(<LobbyPanel horses={[horse]} onBalanceChanged={onBalanceChanged} />);

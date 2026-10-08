@@ -1,4 +1,4 @@
-import { loadRaceLobbyConfig } from '@at-sevdalisi/game-config';
+import { loadBreedsConfig, loadRaceLobbyConfig } from '@at-sevdalisi/game-config';
 import { describe, expect, it } from 'vitest';
 import { validateRaceCreation } from '../../../src/domain/race/lobby';
 import {
@@ -64,6 +64,8 @@ describe('yarış takvimi — yuva hesabı (01.10.2026)', () => {
           calendarProgramToCreationInput(program, slot),
           config,
           now,
+          // 08.10.2026 — ırk sınıflı programlar (ör. "Yerli Irklar") gerçek sınıf listesiyle doğrulanır.
+          loadBreedsConfig().raceClasses.map((raceClass) => raceClass.key),
         );
         expect(problems, `${program.id} ${slot.toISOString()}`).toEqual([]);
       }

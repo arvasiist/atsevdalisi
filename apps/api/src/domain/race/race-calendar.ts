@@ -59,6 +59,7 @@ export function calendarProgramToCreationInput(
     tribuneFee: program.tribuneFee,
     spectatorCapacity: program.spectatorCapacity,
     playerControl: program.playerControl ?? false,
+    breedClass: program.breedClass ?? null,
   };
 }
 

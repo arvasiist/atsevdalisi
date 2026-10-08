@@ -232,7 +232,7 @@ yazmıyordu; sıralama, sezon (ödüllü), görev ve "son yarışlarım" yarış
 alıcıya geçiyordu.
 **Kanıt:** `test/api/player-journey.e2e-spec.ts` · `test/api/race-entry-ownership.e2e-spec.ts` — **PASS**
 
-## H. İlerleme ekonomisi (32)
+## H. İlerleme ekonomisi (32–33)
 
 ### 32. Ücretsiz at en zayıf ırktır; güçlü ırk yalnızca parayla ve seviyeyle alınır (07.10.2026)
 Yeni oyuncunun başlangıç atı `starterBreed`dan doğar ve o ırk her ırktan
@@ -244,6 +244,15 @@ doğuş statlarını verir.
 **Kanıt:** `test/domain/horse/breeds.spec.ts` · `test/api/breeds.e2e-spec.ts` ·
 `test/api/breeding.e2e-spec.ts` (melez → Anglo-Arap) ·
 `apps/web/test/features/breeds/breed-catalog.spec.ts` — **PASS**
+
+### 33. Irka özel yarış: sınıf dışı at giremez, botlar sınıfın gücündedir (08.10.2026)
+Yarış bir ırk sınıfıyla açılabilir (Yerli Irklar / Safkan Arap / Safkan
+İngiliz). Sınıf dışı at 409 alır; reddedilen katılımda ne para düşer ne
+katılım yazılır. Sınıflı yarışın botları aynı seed ile yeniden üretilip
+yanıttaki sayılarla birebir karşılaştırılır (gizli bonus yok) ve sınıfın
+aralığında kalır; açık yarışların botları değişmez.
+**Kanıt:** `test/api/race-breed-class.e2e-spec.ts` · `test/domain/horse/breeds.spec.ts` ·
+`test/api/create-race-dto.spec.ts` · `apps/web/test/features/race-lobby/LobbyPanel.spec.tsx` — **PASS**
 
 ---
 
@@ -258,8 +267,8 @@ doğuş statlarını verir.
 | E. İptal/kopma/iade | 19–22 | ✅ 4/4 |
 | F. Motor girdileri | 23–25 | ✅ 3/3 |
 | G. Güvenlik + uçtan uca | 26–31 | ✅ 6/6 |
-| H. İlerleme ekonomisi | 32 | ✅ 1/1 |
-| **TOPLAM** | **32** | **✅ 32/32 PASS** |
+| H. İlerleme ekonomisi | 32–33 | ✅ 2/2 |
+| **TOPLAM** | **33** | **✅ 33/33 PASS** |
 
 **Kabul edilmeyen madde yoktur.** Ancak üretime hazır **olmayan** özellikler
 **vardır** — onlar kabul kriteri değil, **eksik iş**tir ve

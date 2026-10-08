@@ -19,6 +19,7 @@ import type {
 import type { RaceLobbyConfig } from '@at-sevdalisi/game-config';
 import type { CreateLobbyRaceBody } from '../../lib/api-client';
 import { loadRaceLobbyConfig } from '@at-sevdalisi/game-config';
+import { breedLabel, findRaceClass } from '../breeds/breed-catalog';
 
 const lobbyConfig = loadRaceLobbyConfig();
 
@@ -70,6 +71,22 @@ export function describePlayerControl(
   return race.playerControl ? 'Kontrollü · atı sen sürersin (kırbaç, yön)' : null;
 }
 
+/**
+ * 08.10.2026 — ırk sınıfı rozeti ("Yerli Irklar · Hınıs, Malakan, …").
+ * Sınıf adı ve ırk adları `config/breeds.config.json`dan; katalogda olmayan
+ * sınıf anahtarı olduğu gibi gösterilir (sessizce "açık" denmez).
+ */
+export function describeBreedClass(race: Pick<RaceLobbyListItem, 'breedClass'>): string | null {
+  if (race.breedClass === null || race.breedClass === undefined) {
+    return null;
+  }
+  const raceClass = findRaceClass(race.breedClass);
+  if (raceClass === null) {
+    return `Irk sınıfı: ${race.breedClass}`;
+  }
+  return `Yalnızca ${raceClass.name} · ${raceClass.breeds.map(breedLabel).join(', ')}`;
+}
+
 export const WEATHER_LABELS: Record<RaceWeather, string> = {
   sunny: 'Güneşli',
   rainy: 'Yağmurlu',
@@ -101,6 +118,8 @@ export interface LobbyRaceForm {
   spectatorCapacity: number;
   /** 01.10.2026 — atı oyuncular sürer (kırbaç/yön); yarış kilitten sonra canlı akar. */
   playerControl: boolean;
+  /** 08.10.2026 — ırk sınıfı anahtarı; `''` = her ırka açık. */
+  breedClass: string;
 }
 
 /**
@@ -144,6 +163,7 @@ export function defaultLobbyRaceForm(config: RaceLobbyConfig): LobbyRaceForm {
     tribuneFee: config.tribuneFeeOptions[0] ?? 0,
     spectatorCapacity: config.spectatorCapacityOptions[0] ?? 0,
     playerControl: false,
+    breedClass: '',
   };
 }
 
@@ -200,6 +220,8 @@ export function buildCreateRaceBody(
       tribuneFee: form.tribuneFee,
       spectatorCapacity: form.spectatorCapacity,
       playerControl: form.playerControl,
+      // Boş = açık yarış: alan hiç GÖNDERİLMEZ (sunucu `null` kabul eder).
+      ...(form.breedClass !== '' ? { breedClass: form.breedClass } : {}),
     },
   };
 }

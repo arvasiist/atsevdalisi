@@ -3,6 +3,7 @@ import { loadRaceLobbyConfig } from '@at-sevdalisi/game-config';
 import type { RaceLobbyListItem } from '@at-sevdalisi/shared-types';
 import {
   buildCreateRaceBody,
+  describeBreedClass,
   describeCalendar,
   describePlayerControl,
   describeTournament,
@@ -175,5 +176,25 @@ describe('özel yarış etiketi (Faz 11)', () => {
     expect(describeCalendar(race({ calendar: { programId: 'sunday-derby', featured: true } }))).toBe(
       '⭐ Özel yarış · Pazar Derbisi',
     );
+  });
+});
+
+describe('ırk sınıfı (08.10.2026)', () => {
+  it('rozet: açık yarışta null, sınıflı yarışta sınıf adı + ırk adları', () => {
+    expect(describeBreedClass(race())).toBeNull();
+    expect(describeBreedClass(race({ breedClass: null }))).toBeNull();
+    const text = describeBreedClass(race({ breedClass: 'native' }));
+    expect(text).toContain('Yerli Irklar');
+    expect(text).toContain('Hınıs');
+    expect(describeBreedClass(race({ breedClass: 'eski-sinif' }))).toContain('eski-sinif');
+  });
+
+  it('form: boş sınıf gönderilmez, seçilen sınıf gövdeye girer', () => {
+    const now = new Date();
+    const base = { ...defaultLobbyRaceForm(config), name: 'Yerli Koşu' };
+    const open = buildCreateRaceBody(base, now, config);
+    expect(open.ok && 'breedClass' in open.body).toBe(false);
+    const native = buildCreateRaceBody({ ...base, breedClass: 'native' }, now, config);
+    expect(native.ok && native.body.breedClass).toBe('native');
   });
 });

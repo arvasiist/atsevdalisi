@@ -69,6 +69,17 @@ export class BreedLevelLockedError extends Error {
   }
 }
 
+/** 08.10.2026 — ırk sınıflı yarışa sınıf dışı bir atla katılma (409). */
+export class HorseBreedNotAllowedError extends Error {
+  constructor(
+    public readonly breed: string,
+    public readonly raceClass: string,
+  ) {
+    super('Bu yarış yalnızca belirli ırklara açık; atının ırkı bu sınıfta değil.');
+    this.name = 'HorseBreedNotAllowedError';
+  }
+}
+
 export class InvalidHorseGenderError extends Error {
   constructor() {
     super('Cinsiyet mare, stallion ya da gelding olmalıdır.');
@@ -170,6 +181,53 @@ function isStatValue(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 100;
 }
 
+export type BreedRaceClass = BreedsConfig['raceClasses'][number];
+
+export function findRaceClass(config: BreedsConfig, key: unknown): BreedRaceClass | null {
+  if (typeof key !== 'string') {
+    return null;
+  }
+  return config.raceClasses.find((raceClass) => raceClass.key === key) ?? null;
+}
+
+/**
+ * Atın ırkı yarışın ırk sınıfına uyuyor mu? `raceClassKey` `null` ise yarış
+ * herkese açıktır. Katalogda olmayan bir sınıf (config'ten kaldırılmış, DB'de
+ * kalmış) KAPALI sayılır — bilinmeyen kural "herkes girsin" diye yorumlanmaz.
+ */
+export function isBreedAllowedInRaceClass(config: BreedsConfig, raceClassKey: string | null, breed: string): boolean {
+  if (raceClassKey === null) {
+    return true;
+  }
+  return findRaceClass(config, raceClassKey)?.breeds.includes(breed) ?? false;
+}
+
+/**
+ * Irk sınıflı yarışta botların hız/ivme/dayanıklılık aralığı: sınıftaki
+ * ırkların bu üç statının en küçüğü − sapma ile en büyüğü + sapma. Böylece
+ * "Yerli Irklar" koşusunda botlar yerli atlar gücünde olur; açık yarışın
+ * genel bot aralığı Hınıs'la başlayan oyuncuyu ezerdi. Sınıf yoksa `null`
+ * → genel aralık (açık yarışların botları BİT BİT eskisi gibi).
+ */
+export function raceClassBotStatRange(
+  config: BreedsConfig,
+  raceClassKey: string | null,
+): readonly [number, number] | null {
+  const raceClass = raceClassKey === null ? null : findRaceClass(config, raceClassKey);
+  if (raceClass === null) {
+    return null;
+  }
+  const values = raceClass.breeds.flatMap((key) => {
+    const breed = findBreed(config, key);
+    return breed ? POWER_STATS.map((stat) => breed.stats[stat] ?? BREED_UNSPECIFIED_STAT) : [];
+  });
+  if (values.length === 0) {
+    return null;
+  }
+  const clamp = (value: number) => Math.min(100, Math.max(0, value));
+  return [clamp(Math.min(...values) - config.statJitter), clamp(Math.max(...values) + config.statJitter)];
+}
+
 /**
  * Config'in tutarlılığı — API açılışında ve testte koşar. Sahibinin kuralı
  * burada kilitlidir: başlangıç ırkı seviye 1'de, EN ZAYIF ve TEK en zayıf;
@@ -258,6 +316,22 @@ export function validateBreedsConfig(config: BreedsConfig, maxPlayerLevel: numbe
     const [a, b] = rule.parents;
     if (!keys.has(a) || !keys.has(b) || !keys.has(rule.foal) || a === b) {
       fail(`melez kuralı ${a} × ${b} → ${rule.foal} geçersiz.`);
+    }
+  }
+
+  const classKeys = new Set<string>();
+  for (const raceClass of config.raceClasses ?? []) {
+    if (!BREED_KEY_PATTERN.test(raceClass.key) || classKeys.has(raceClass.key)) {
+      fail(`yarış sınıfı "${raceClass.key}" geçersiz ya da iki kez tanımlı.`);
+    }
+    classKeys.add(raceClass.key);
+    if (!raceClass.name || raceClass.breeds.length === 0) {
+      fail(`yarış sınıfı "${raceClass.key}" için ad ve en az bir ırk zorunlu.`);
+    }
+    for (const breed of raceClass.breeds) {
+      if (!keys.has(breed)) {
+        fail(`yarış sınıfı "${raceClass.key}" bilinmeyen ırk içeriyor: ${breed}.`);
+      }
     }
   }
 }

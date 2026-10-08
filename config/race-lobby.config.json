@@ -118,6 +118,21 @@
         "spectatorCapacity": 500
       },
       {
+        "id": "native-breeds",
+        "name": "Yerli Irklar Koşusu",
+        "intervalMinutes": 60,
+        "offsetMinutes": 40,
+        "fieldSize": 8,
+        "maxPlayers": 8,
+        "entryFee": 100,
+        "distanceMeters": 1400,
+        "surface": "dirt",
+        "weather": "sunny",
+        "tribuneFee": 10,
+        "spectatorCapacity": 1000,
+        "breedClass": "native"
+      },
+      {
         "id": "sunday-derby",
         "name": "Pazar Derbisi",
         "intervalMinutes": 10080,

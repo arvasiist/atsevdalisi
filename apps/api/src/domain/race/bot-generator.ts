@@ -21,7 +21,16 @@ const BOT_FATIGUE = 0;
  * `RunPracticeRaceUseCase` üstündeki not); `horseId` alanları yalnızca
  * simülasyon içi tekil birer etiket olarak kullanılır.
  */
-export function generateBotEntrants(count: number, seedBase: string): RaceEntrantSnapshot[] {
+/**
+ * `statRange` (08.10.2026) — ırk sınıflı yarışta sınıfın ırklarından türetilen
+ * aralık (`raceClassBotStatRange`). Verilmezse genel aralık: açık yarışların
+ * ve pratik yarışın botları değişmeden aynı seed → aynı stat üretir.
+ */
+export function generateBotEntrants(
+  count: number,
+  seedBase: string,
+  statRange: readonly [number, number] = BOT_STAT_RANGE,
+): RaceEntrantSnapshot[] {
   const bots: RaceEntrantSnapshot[] = [];
 
   for (let index = 0; index < count; index += 1) {
@@ -36,9 +45,9 @@ export function generateBotEntrants(count: number, seedBase: string): RaceEntran
 
     bots.push({
       horseId: botId,
-      speed: seededRange(speedRng, BOT_STAT_RANGE[0], BOT_STAT_RANGE[1]),
-      stamina: seededRange(staminaRng, BOT_STAT_RANGE[0], BOT_STAT_RANGE[1]),
-      acceleration: seededRange(accelerationRng, BOT_STAT_RANGE[0], BOT_STAT_RANGE[1]),
+      speed: seededRange(speedRng, statRange[0], statRange[1]),
+      stamina: seededRange(staminaRng, statRange[0], statRange[1]),
+      acceleration: seededRange(accelerationRng, statRange[0], statRange[1]),
       fitness: seededRange(fitnessRng, BOT_STAT_RANGE[0], BOT_STAT_RANGE[1]),
       fatigue: BOT_FATIGUE,
       health: BOT_HEALTH,

@@ -34,8 +34,10 @@ import { apiClient } from '../../lib/api-client';
 import { formatCurrency } from '../../lib/currency';
 import { formatRaceStart } from '../../lib/format-time';
 import { formatMultiplier } from '../race/race-entry';
+import { RACE_CLASSES, breedLabel, horseFitsRaceClass } from '../breeds/breed-catalog';
 import {
   ENTRY_STATUS_LABELS,
+  describeBreedClass,
   describeCalendar,
   describePlayerControl,
   describeTournament,
@@ -75,6 +77,7 @@ export function LobbyPanel({ horses, onBalanceChanged }: LobbyPanelProps): React
   const leaveKeysRef = useRef(new Map<string, string>());
 
   const effectiveHorseId = horseId !== '' ? horseId : (horses[0]?.id ?? '');
+  const effectiveHorse = horses.find((horse) => horse.id === effectiveHorseId) ?? null;
 
   const refresh = useCallback(async (): Promise<void> => {
     try {
@@ -380,6 +383,22 @@ export function LobbyPanel({ horses, onBalanceChanged }: LobbyPanelProps): React
               ))}
             </select>
           </label>
+          <label style={labelStyle()}>
+            Irk sınıfı
+            <select
+              aria-label="Irk sınıfı"
+              value={form.breedClass}
+              onChange={(event) => updateForm({ breedClass: event.target.value })}
+              style={inputStyle()}
+            >
+              <option value="">Her ırka açık</option>
+              {RACE_CLASSES.map((raceClass) => (
+                <option key={raceClass.key} value={raceClass.key}>
+                  Yalnızca {raceClass.name}
+                </option>
+              ))}
+            </select>
+          </label>
           <label style={{ ...labelStyle(), display: 'flex', alignItems: 'center', gap: '8px' }}>
             <input
               type="checkbox"
@@ -411,7 +430,7 @@ export function LobbyPanel({ horses, onBalanceChanged }: LobbyPanelProps): React
           >
             {horses.map((horse) => (
               <option key={horse.id} value={horse.id}>
-                {horse.name} · Seviye {horse.level}
+                {horse.name} · {breedLabel(horse.breed)} · Seviye {horse.level}
               </option>
             ))}
           </select>
@@ -470,6 +489,18 @@ export function LobbyPanel({ horses, onBalanceChanged }: LobbyPanelProps): React
                       {describePlayerControl(race)}
                     </span>
                   ) : null}
+                  {describeBreedClass(race) !== null ? (
+                    <span
+                      data-testid={`lobby-breed-class-${race.id}`}
+                      style={{
+                        ...smallStyle(),
+                        color: 'var(--color-accent-gold)',
+                        fontWeight: 600,
+                      }}
+                    >
+                      {describeBreedClass(race)}
+                    </span>
+                  ) : null}
                   {describeCalendar(race) !== null ? (
                     <span
                       style={{
@@ -509,7 +540,11 @@ export function LobbyPanel({ horses, onBalanceChanged }: LobbyPanelProps): React
                   ) : null}
                 </div>
                 <div style={{ display: 'flex', gap: 'var(--space-sm)', flexWrap: 'wrap' }}>
-                  {actions.canJoin ? (
+                  {actions.canJoin &&
+                  effectiveHorse !== null &&
+                  !horseFitsRaceClass(race.breedClass ?? null, effectiveHorse.breed) ? (
+                    <span style={smallStyle()}>Seçili atının ırkı bu yarışa uygun değil</span>
+                  ) : actions.canJoin ? (
                     <button
                       type="button"
                       disabled={isBusy || effectiveHorseId === ''}

@@ -628,6 +628,19 @@ stat (mizaç vb.) koyma — config istemci paketine girer. Yeni at yazan her yol
 Mağaza PARA YOLU (oyuncu `FOR UPDATE`, `breed_horse_purchase` defter satırı,
 `Idempotency-Key`). Tay ırkı `resolveFoalBreed` (melez kuralı config'te).
 ⚠️ SQL fikstürü at eklerken `breed` bir ANAHTAR olmalı (`'hinis'`), `'Arap'` CHECK'e takılır.
+(62) **IRKA ÖZEL YARIŞLAR (08.10.2026, migration 0070, §13.86)** —
+`races.breed_class` (NULL = her ırka açık; CHECK `races_breed_class_valid` =
+`breeds.raceClasses` anahtarları, `breeds.spec.ts` en son migration'ı okur).
+Sınıflar: Yerli Irklar (Hınıs dahil — ücretsiz atın adil yarışı), Safkan Arap,
+Safkan İngiliz. Açılış `validateRaceCreation(..., raceClassKeys)` — anahtar
+listesi verilmeyen çağıran sınıflı yarış AÇAMAZ. ⚠️ `CreateRaceDto.breedClass`
+şart: `whitelist: true` alanı silerdi ve yarış sessizce HERKESE açılırdı
+(`create-race-dto.spec.ts`). Katılım kapısı `joinLobbyRace` içinde at satırı
+kilitliyken, para hareketinden ÖNCE → 409 `HORSE_BREED_NOT_ALLOWED`;
+bilinmeyen sınıf KAPALIDIR. Botlar sınıfın ırkları gücünde
+(`raceClassBotStatRange` → `generateBotEntrants(n, seed, range)`); açık
+yarışta üçüncü argüman YOK → botlar bit bit eskisi gibi. Takvim programı
+`breedClass` alabilir (`native-breeds`).
 
 **✅ ÜCRETLİ LOBİ YARIŞI ARTIK KOŞUYOR — ÖDÜL DAĞITIMI VAR (§13.14,
 28.09.2026).** `POST /races/:id/settle` yarışı koşar, ödülleri `top5`

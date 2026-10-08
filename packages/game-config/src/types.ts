@@ -1816,6 +1816,8 @@ export interface RaceCalendarProgram {
   featured?: boolean;
   /** Bu programın yarışları kaç saat önceden açılır (yoksa genel `horizonHours`). */
   horizonHours?: number;
+  /** 08.10.2026 — ırk sınıfı (`breeds.raceClasses`); yoksa her ırka açık. */
+  breedClass?: string;
 }
 
 /**
@@ -2157,6 +2159,12 @@ export interface BreedsConfig {
   breeds: BreedDefinitionConfig[];
   /** Sırasız ebeveyn çifti → tayın ırkı; eşleşmeyen melezde tay kısrağın ırkını alır. */
   crossbreeds: Array<{ parents: [string, string]; foal: string }>;
+  /**
+   * 08.10.2026 — ırka özel yarış sınıfları (`races.breed_class`, migration
+   * 0070 CHECK ile AYNI küme). Sınıflı yarışa yalnızca listedeki ırklar
+   * girer; botların statları da sınıfın ırklarından türetilir.
+   */
+  raceClasses: Array<{ key: string; name: string; breeds: string[] }>;
 }
 
 /** Avatar kataloğunun alanları (`generation` sınırları HARİÇ). */

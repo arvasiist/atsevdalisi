@@ -8,12 +8,17 @@ import {
   type BreedsConfig,
 } from '@at-sevdalisi/game-config';
 import { deriveAppearance } from '../../../src/domain/horse/appearance';
+import { generateBotEntrants } from '../../../src/domain/race/bot-generator';
+import { validateRaceCreation } from '../../../src/domain/race/lobby';
+import { loadRaceLobbyConfig } from '@at-sevdalisi/game-config';
 import {
   BreedLevelLockedError,
   BreedNotFoundError,
   assertCanBuyBreed,
   breedRacingPower,
   deriveBreedInitialStats,
+  isBreedAllowedInRaceClass,
+  raceClassBotStatRange,
   getBreed,
   getStarterBreed,
   resolveFoalBreed,
@@ -177,5 +182,83 @@ describe('ırk kuralları', () => {
       const { coatColor } = deriveAppearance(`horse-${index}`, appearanceConfig, breed.coatWeights);
       expect(allowed).toContain(coatColor);
     }
+  });
+});
+
+describe('ırka özel yarışlar (08.10.2026)', () => {
+  const classKeys = config.raceClasses.map((raceClass) => raceClass.key);
+
+  it('migration CHECK kümesi config sınıflarıyla aynıdır', () => {
+    const root = findRepoRoot(process.cwd());
+    const dir = join(root, 'database', 'migrations');
+    const latest = readdirSync(dir)
+      .filter((name) => name.endsWith('.up.sql'))
+      .sort()
+      .filter((name) => readFileSync(join(dir, name), 'utf-8').includes('races_breed_class_valid CHECK'))
+      .pop();
+    expect(latest).toBeDefined();
+    const sql = readFileSync(join(dir, latest!), 'utf-8');
+    const block = sql.slice(sql.indexOf('races_breed_class_valid CHECK'));
+    const inList = block.slice(block.indexOf('IN (') + 4, block.indexOf(')'));
+    const keys = [...inList.matchAll(/'([a-z_]+)'/g)].map((match) => match[1]);
+    expect(keys.sort()).toEqual([...classKeys].sort());
+  });
+
+  it('ücretsiz başlangıç ırkının yarışabileceği bir sınıf vardır (Yerli Irklar)', () => {
+    expect(config.raceClasses.some((raceClass) => raceClass.breeds.includes(config.starterBreed))).toBe(true);
+  });
+
+  it('sınıf kapısı: açık yarış herkese, sınıflı yarış yalnızca listedeki ırka, bilinmeyen sınıf kimseye', () => {
+    expect(isBreedAllowedInRaceClass(config, null, 'thoroughbred')).toBe(true);
+    expect(isBreedAllowedInRaceClass(config, 'native', 'hinis')).toBe(true);
+    expect(isBreedAllowedInRaceClass(config, 'native', 'thoroughbred')).toBe(false);
+    expect(isBreedAllowedInRaceClass(config, 'arabian', 'anglo_arab')).toBe(false);
+    expect(isBreedAllowedInRaceClass(config, 'unicorn', 'hinis')).toBe(false);
+  });
+
+  it('bot aralığı sınıfın ırklarından; açık yarışta null (genel aralık, botlar değişmez)', () => {
+    expect(raceClassBotStatRange(config, null)).toBeNull();
+    const native = raceClassBotStatRange(config, 'native')!;
+    const thoroughbred = raceClassBotStatRange(config, 'thoroughbred')!;
+    expect(native[0]).toBeLessThan(native[1]);
+    expect(native[1]).toBeLessThan(thoroughbred[1]);
+    for (const bot of generateBotEntrants(7, 'seed-x', native)) {
+      for (const value of [bot.speed, bot.stamina, bot.acceleration]) {
+        expect(value).toBeGreaterThanOrEqual(native[0]);
+        expect(value).toBeLessThanOrEqual(native[1]);
+      }
+    }
+    // Varsayılan yol: üçüncü argüman verilmeyen çağrı eski davranış.
+    expect(generateBotEntrants(5, 'seed-y')).toEqual(generateBotEntrants(5, 'seed-y'));
+  });
+
+  it('yarış açma doğrulaması: geçerli sınıf, verilmeyen sınıf (null), bilinmeyen sınıf (sorun)', () => {
+    const lobby = loadRaceLobbyConfig();
+    const now = new Date('2026-10-08T10:00:00Z');
+    const input = {
+      name: 'Yerli Koşu',
+      fieldSize: 8,
+      maxPlayers: 8,
+      entryFee: 0,
+      raceType: 'free',
+      startTime: new Date(now.getTime() + 60 * 60 * 1000).toISOString(),
+      surface: 'dirt',
+      weather: 'sunny',
+      distanceMeters: 1400,
+      tribuneFee: 0,
+      spectatorCapacity: 500,
+    };
+    expect(validateRaceCreation({ ...input, breedClass: 'native' }, lobby, now, classKeys).value?.breedClass).toBe('native');
+    expect(validateRaceCreation(input, lobby, now, classKeys).value?.breedClass).toBeNull();
+    expect(validateRaceCreation({ ...input, breedClass: 'unicorn' }, lobby, now, classKeys).problems).toHaveLength(1);
+    expect(validateRaceCreation({ ...input, breedClass: 42 }, lobby, now, classKeys).value).toBeNull();
+    // Sınıf listesi verilmeyen çağıran sınıflı yarış açamaz (sessizce açık yarışa dönmez).
+    expect(validateRaceCreation({ ...input, breedClass: 'native' }, lobby, now).value).toBeNull();
+  });
+
+  it('config doğrulaması bilinmeyen ırk içeren sınıfı reddeder', () => {
+    const broken = clone();
+    broken.raceClasses[0]!.breeds.push('unicorn');
+    expect(() => validateBreedsConfig(broken, maxLevel)).toThrow(/yarış sınıfı/);
   });
 });

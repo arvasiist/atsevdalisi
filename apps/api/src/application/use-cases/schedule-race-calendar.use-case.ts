@@ -62,6 +62,7 @@ export class ScheduleRaceCalendarUseCase {
           calendarProgramToCreationInput(program, startTime),
           raceLobby,
           now,
+          this.config.breeds.raceClasses.map((raceClass) => raceClass.key),
         );
         if (value === null) {
           rejected += 1;
@@ -83,6 +84,7 @@ export class ScheduleRaceCalendarUseCase {
           tribuneFee: value.tribuneFee,
           spectatorCapacity: value.spectatorCapacity,
           playerControl: value.playerControl,
+          breedClass: value.breedClass,
           engineVersion: RACE_ENGINE_VERSION,
           rulesetVersion: RACE_RULESET_VERSION,
           configVersion: this.config.race.version,

@@ -37,3 +37,14 @@ describe('ırk kataloğu (istemci)', () => {
     expect(bestDistance(arabian)).toBe('long');
   });
 });
+
+describe('ırka özel yarış sınıfları (istemci ipucu)', () => {
+  it('açık yarış herkese; sınıflı yarış yalnızca listedeki ırka; bilinmeyen sınıf kapalı', async () => {
+    const { horseFitsRaceClass, RACE_CLASSES } = await import('../../../src/features/breeds/breed-catalog');
+    expect(RACE_CLASSES.map((raceClass) => raceClass.key)).toContain('native');
+    expect(horseFitsRaceClass(null, 'thoroughbred')).toBe(true);
+    expect(horseFitsRaceClass('native', 'hinis')).toBe(true);
+    expect(horseFitsRaceClass('native', 'thoroughbred')).toBe(false);
+    expect(horseFitsRaceClass('unicorn', 'hinis')).toBe(false);
+  });
+});

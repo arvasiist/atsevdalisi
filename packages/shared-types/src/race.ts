@@ -583,6 +583,11 @@ export interface RaceLobbyView {
   topPrize: number;
   /** 01.10.2026 — oyuncu kontrollü canlı yarış (kilitten sonra canlı akar, oyuncular atını yönetir). */
   playerControl: boolean;
+  /**
+   * 08.10.2026 — ırk sınıfı (`config/breeds.config.json` → `raceClasses`).
+   * `null` = her ırka açık; doluysa yalnızca sınıftaki ırklar katılabilir.
+   */
+  breedClass: string | null;
 }
 
 /**

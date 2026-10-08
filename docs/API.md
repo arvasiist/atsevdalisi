@@ -2432,6 +2432,11 @@ Gövde: `name`, `fieldSize` (8/10/12/14/16), `maxPlayers`, `entryFee`,
 `raceType` (`free`|`paid`), `startTime` (ISO 8601), `surface`, `weather`,
 `distanceMeters`, `tribuneFee`, `spectatorCapacity`. Tümü
 `config/race-lobby.config.json`'daki seçeneklerden biri olmalıdır.
+İsteğe bağlı: `playerControl` (boolean) ve `breedClass` (08.10.2026 —
+`config/breeds.config.json` → `raceClasses` anahtarı: `native`/`arabian`/
+`thoroughbred`; verilmezse yarış her ırka açık). Sınıflı yarışa sınıf dışı
+atla `POST /races/{id}/join` → 409 `HORSE_BREED_NOT_ALLOWED`. Lobi satırı
+`breedClass` taşır.
 
 **`Idempotency-Key` YOKTUR ve bu bilinçlidir:** bu uç hiçbir bakiye/ödül/
 envanter değiştirmez (ücret yarışa KATILIRKEN alınır) — brief §54'ün zorunlu

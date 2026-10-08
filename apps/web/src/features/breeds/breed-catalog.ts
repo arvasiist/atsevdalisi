@@ -47,3 +47,22 @@ export function breedAvailability(breed: BreedDefinitionConfig, level: number, m
   if (money < breed.priceMoney) return 'money';
   return 'ok';
 }
+
+export type BreedRaceClass = (typeof BREEDS_CONFIG.raceClasses)[number];
+
+/** 08.10.2026 — ırka özel yarış sınıfları (`races.breed_class`). */
+export const RACE_CLASSES: readonly BreedRaceClass[] = BREEDS_CONFIG.raceClasses;
+
+export function findRaceClass(key: string): BreedRaceClass | null {
+  return BREEDS_CONFIG.raceClasses.find((raceClass) => raceClass.key === key) ?? null;
+}
+
+/**
+ * Atın ırkı yarışın sınıfına uyuyor mu — yalnızca düğme ipucu; kapıyı
+ * sunucu kilit altında uygular (409 `HORSE_BREED_NOT_ALLOWED`). Bilinmeyen
+ * sınıf KAPALI sayılır (sunucuyla aynı).
+ */
+export function horseFitsRaceClass(breedClass: string | null, breed: string): boolean {
+  if (breedClass === null) return true;
+  return findRaceClass(breedClass)?.breeds.includes(breed) ?? false;
+}

@@ -59,7 +59,12 @@ export class CreateRaceUseCase {
 
     // `now` ÇAĞIRAN tarafından geçirilir — bkz. `validateRaceCreation` doc
     // yorumu (saf fonksiyonun gizli bir zaman kaynağı olmaması ilkesi).
-    const { problems, value } = validateRaceCreation(input, raceLobby, new Date());
+    const { problems, value } = validateRaceCreation(
+      input,
+      raceLobby,
+      new Date(),
+      this.config.breeds.raceClasses.map((raceClass) => raceClass.key),
+    );
     if (value === null) {
       throw new InvalidRaceDefinitionError(problems);
     }
@@ -82,6 +87,7 @@ export class CreateRaceUseCase {
       spectatorCapacity: value.spectatorCapacity,
       prizePool: value.prizePool,
       playerControl: value.playerControl,
+      breedClass: value.breedClass,
       // **`null` — VE BU BİLİNÇLİDİR.** Lobi yarışının seed'i, yarış
       // KOŞARKEN üretilir. Erken üretilseydi yarışı açan kişi seed'i
       // okuyup (bkz. `GET /races/:id/timeline` yanıtı) sonucu önceden

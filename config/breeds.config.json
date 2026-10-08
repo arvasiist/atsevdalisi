@@ -158,6 +158,11 @@
       "coatWeights": { "bay": 40, "dark_bay": 25, "chestnut": 25, "black": 5, "grey": 5 }
     }
   ],
+  "raceClasses": [
+    { "key": "native", "name": "Yerli Irklar", "breeds": ["hinis", "malakan", "rahvan", "uzunyayla", "cukurova"] },
+    { "key": "arabian", "name": "Safkan Arap", "breeds": ["arabian"] },
+    { "key": "thoroughbred", "name": "Safkan İngiliz", "breeds": ["thoroughbred"] }
+  ],
   "crossbreeds": [
     { "parents": ["arabian", "thoroughbred"], "foal": "anglo_arab" },
     { "parents": ["anglo_arab", "arabian"], "foal": "anglo_arab" },

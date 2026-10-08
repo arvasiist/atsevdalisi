@@ -726,6 +726,8 @@ export interface CreateLobbyRaceInput {
   maxOpenRaces: number;
   /** 01.10.2026 — oyuncu kontrollü canlı yarış (migration 0054). */
   playerControl: boolean;
+  /** 08.10.2026 — ırk sınıfı (migration 0070); `null` = her ırka açık. */
+  breedClass: string | null;
 }
 
 /**
@@ -897,6 +899,8 @@ export interface CreateCalendarRaceInput {
   weatherConfigVersion: string;
   /** 01.10.2026 — oyuncu kontrollü canlı yarış (migration 0054). */
   playerControl: boolean;
+  /** 08.10.2026 — programın ırk sınıfı; `null` = her ırka açık. */
+  breedClass: string | null;
 }
 
 /** `dropUnreadyLobbyEntries` sonucu. */
@@ -995,6 +999,8 @@ export interface LobbySettlementContext {
   playerControl: boolean;
   /** Kontrollü yarışta kapıların açıldığı an (kilitte yazılır); diğerlerinde `null`. */
   liveStartsAt: Date | null;
+  /** 08.10.2026 — ırk sınıfı; botların stat aralığı buradan türetilir. `null` = açık yarış. */
+  breedClass: string | null;
 }
 
 /**

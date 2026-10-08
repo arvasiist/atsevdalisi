@@ -94,4 +94,13 @@ export class CreateRaceDto {
   @IsOptional()
   @IsBoolean()
   playerControl?: unknown;
+
+  /**
+   * 08.10.2026 — ırk sınıfı (`breeds.raceClasses`). `whitelist: true`
+   * altında DTO'da olmasaydı üretimde sessizce silinir ve yarış HERKESE açık
+   * açılırdı; küme doğrulaması domain'dedir (`validateRaceCreation`).
+   */
+  @IsOptional()
+  @IsString()
+  breedClass?: unknown;
 }

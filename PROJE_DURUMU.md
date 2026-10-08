@@ -4111,6 +4111,22 @@ Karar: önce pratik yarış; kırbaç sınırsız, dayanıklılık bedelli.
   `horse_breed_legacy`de, down birebir geri yazar (yerelde gidiş-dönüş denendi).
 - Açık: ırka özgü 3D oranlar (gerçek modeller gelince), ırka özel yarışlar.
 
+### 13.86 Irka özel yarışlar (08.10.2026, migration 0070)
+
+- `races.breed_class` + `breeds.config.json` → `raceClasses`: **Yerli Irklar**
+  (Hınıs, Malakan, Rahvan, Uzunyayla, Çukurova), **Safkan Arap**, **Safkan
+  İngiliz**. NULL = açık yarış (mevcut bütün yarışlar; veri değişmedi).
+- Neden: ücretsiz başlangıç atı en zayıf ırk; açık yarışların botları (45-75)
+  onu ezerdi. Yerli sınıfta botlar yerli ırklar gücünde (sınıfın hız/ivme/
+  dayanıklılık en küçüğü − sapma … en büyüğü + sapma).
+- Kapı: sınıf dışı at 409 `HORSE_BREED_NOT_ALLOWED` (kilit altında, para
+  düşmeden). Yarış açma formu sınıf seçer; lobide rozet; uygun olmayan atla
+  "Katıl" yerine ipucu (karar sunucuda).
+- Takvim: saatlik "Yerli Irklar Koşusu" (`native-breeds`, 1400 m kum, 100 çip).
+- Testler: `race-breed-class.e2e-spec.ts` (kapı + para + bot kâhini),
+  `breeds.spec.ts` (CHECK eşleşmesi, kapı, bot aralığı, doğrulama),
+  `create-race-dto.spec.ts`, web `lobby-logic`/`LobbyPanel`/`breed-catalog`.
+
 ## 14. Kendime hatırlatmalar (kısa liste)
 
 1. **Race Engine'e dokunmadan önce iki kez düşün.** Denetim onu "KEEP, dokunma"

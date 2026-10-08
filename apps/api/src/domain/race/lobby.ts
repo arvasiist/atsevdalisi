@@ -66,6 +66,11 @@ export interface RaceCreationInput {
    * (eski davranış). Verilirse `boolean` OLMAK ZORUNDADIR (`"true"` metni reddedilir).
    */
   playerControl?: unknown;
+  /**
+   * 08.10.2026 — ırk sınıfı (`config/breeds.config.json` → `raceClasses`).
+   * OPSİYONEL: verilmezse/`null` ise yarış her ırka açıktır.
+   */
+  breedClass?: unknown;
 }
 
 /**
@@ -102,6 +107,8 @@ export interface ValidatedRaceCreation {
   spectatorCapacity: number;
   prizePool: number;
   playerControl: boolean;
+  /** `null` = her ırka açık. */
+  breedClass: string | null;
 }
 
 /**
@@ -145,6 +152,8 @@ export function validateRaceCreation(
   input: RaceCreationInput,
   config: RaceLobbyConfig,
   now: Date,
+  /** 08.10.2026 — geçerli ırk sınıfı anahtarları (`breeds.raceClasses`); boşsa sınıflı yarış açılamaz. */
+  raceClassKeys: readonly string[] = [],
 ): RaceCreationValidation {
   const problems: string[] = [];
 
@@ -279,6 +288,18 @@ export function validateRaceCreation(
     }
   }
 
+  // --- Irk sınıfı (08.10.2026) ---
+  let breedClass: string | null = null;
+  if (input.breedClass !== undefined && input.breedClass !== null) {
+    if (typeof input.breedClass !== 'string' || !raceClassKeys.includes(input.breedClass)) {
+      problems.push(
+        `Irk sınıfı ${raceClassKeys.length > 0 ? raceClassKeys.join('/') : '(tanımlı sınıf yok)'} değerlerinden biri olmalıdır (verilen: ${describe(input.breedClass)}).`,
+      );
+    } else {
+      breedClass = input.breedClass;
+    }
+  }
+
   // --- Mesafe (brief §1) ---
   let distanceMeters: number | null = null;
   if (
@@ -375,6 +396,7 @@ export function validateRaceCreation(
       // katılımcı sayısı sıfırdır, dolayısıyla havuz da sıfırdır.
       prizePool: 0,
       playerControl,
+      breedClass,
     },
   };
 }

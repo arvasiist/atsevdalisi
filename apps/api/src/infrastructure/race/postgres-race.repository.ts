@@ -103,6 +103,7 @@ import { isHorseInActiveRace } from '../horse/active-race-entry';
 import type { PlayerCommandLog } from '../../domain/race/interactive-race';
 import { PlayerLevelTooLowError } from '../../domain/tournament/errors';
 import { checkRaceReadiness } from '../../domain/race/readiness';
+import { HorseBreedNotAllowedError, isBreedAllowedInRaceClass } from '../../domain/horse/breeds';
 
 /** Postgres `unique_violation` hata kodu (bkz. PostgreSQL "Error Codes" §22.6 sınıf 23). */
 const POSTGRES_UNIQUE_VIOLATION = '23505';
@@ -219,6 +220,8 @@ interface LobbyRaceRow {
   created_by: string | null;
   created_at: Date;
   player_control: boolean;
+  /** 08.10.2026 (migration 0070) — `null` = her ırka açık. */
+  breed_class: string | null;
 }
 
 /**
@@ -257,6 +260,8 @@ interface SettlementRaceRow {
   /** 01.10.2026 (migration 0054). Kilit sorgusu bu iki sütunu seçmez → opsiyonel. */
   player_control?: boolean;
   live_starts_at?: Date | null;
+  /** 08.10.2026 (migration 0070). Kilit sorgusu seçmez → opsiyonel. */
+  breed_class?: string | null;
 }
 
 /** `findLobbySettlementContext`'in `race_entries` satır şekli. */
@@ -335,6 +340,7 @@ function rowToLobbyRaceView(
     prizeMultiplier: economics.multiplier,
     topPrize: economics.topPrize,
     playerControl: row.player_control,
+    breedClass: row.breed_class ?? null,
   };
 }
 
@@ -984,11 +990,11 @@ export class PostgresRaceRepository implements RaceRepository {
            id, created_by, name, distance_m, surface, weather,
            participant_limit, max_players, entry_fee, prize_pool, race_type,
            tribune_fee, spectator_capacity, start_time, status, simulation_seed,
-           engine_version, ruleset_version, config_version, weather_config_version, player_control
+           engine_version, ruleset_version, config_version, weather_config_version, player_control, breed_class
          )
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, 'scheduled', $15, $16, $17, $18, $19, $20)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, 'scheduled', $15, $16, $17, $18, $19, $20, $21)
          RETURNING id, name, participant_limit, max_players, entry_fee, prize_pool, start_time, status,
-                   race_type, surface, weather, distance_m, tribune_fee, spectator_capacity, created_by, created_at, player_control`,
+                   race_type, surface, weather, distance_m, tribune_fee, spectator_capacity, created_by, created_at, player_control, breed_class`,
         [
           input.id,
           input.createdBy,
@@ -1010,6 +1016,7 @@ export class PostgresRaceRepository implements RaceRepository {
           input.configVersion,
           input.weatherConfigVersion,
           input.playerControl,
+          input.breedClass,
         ],
       );
 
@@ -1061,7 +1068,7 @@ export class PostgresRaceRepository implements RaceRepository {
       //    yarışın eşzamanlı bir katılımla değişmesinden etkilenmez.
       const raceResult = await client.query<LobbyRaceRow>(
         `SELECT id, name, participant_limit, max_players, entry_fee, prize_pool, start_time, status,
-                race_type, surface, weather, distance_m, tribune_fee, spectator_capacity, created_by, created_at, player_control
+                race_type, surface, weather, distance_m, tribune_fee, spectator_capacity, created_by, created_at, player_control, breed_class
          FROM races
          WHERE id = $1
          FOR UPDATE`,
@@ -1142,8 +1149,9 @@ export class PostgresRaceRepository implements RaceRepository {
         fatigue: number;
         energy: number;
         morale: number;
+        breed: string;
       }>(
-        'SELECT owner_id, status, health, fitness, fatigue, energy, morale FROM horses WHERE id = $1 FOR UPDATE',
+        'SELECT owner_id, status, health, fitness, fatigue, energy, morale, breed FROM horses WHERE id = $1 FOR UPDATE',
         [input.horseId],
       );
       const horse = horseResult.rows[0];
@@ -1155,6 +1163,12 @@ export class PostgresRaceRepository implements RaceRepository {
       }
       if (horse.status === 'injured') {
         throw new HorseInjuredError(input.horseId);
+      }
+      // IRK SINIFI (08.10.2026, migration 0070) — "Yerli Irklar" gibi bir
+      // yarışa sınıf dışı at giremez. Para hareketinden ÖNCE; ırk değişmez
+      // ama kural yine de at satırı kilitliyken, tek yerde uygulanır.
+      if (!isBreedAllowedInRaceClass(this.config.breeds, raceRow.breed_class ?? null, horse.breed)) {
+        throw new HorseBreedNotAllowedError(horse.breed, raceRow.breed_class ?? '');
       }
       // HAZIRLIK KAPISI (30.09.2026, `FINAL_PROJECT_AUDIT.md` #8) —
       // `domain/race/readiness.ts` kendini "yarışa girebilir mi"nin TEK
@@ -1314,7 +1328,7 @@ export class PostgresRaceRepository implements RaceRepository {
       //     okunmuştu; istemciye BAYAT bir havuz dönmemelidir).
       const finalResult = await client.query<LobbyRaceRow>(
         `SELECT id, name, participant_limit, max_players, entry_fee, prize_pool, start_time, status,
-                race_type, surface, weather, distance_m, tribune_fee, spectator_capacity, created_by, created_at, player_control
+                race_type, surface, weather, distance_m, tribune_fee, spectator_capacity, created_by, created_at, player_control, breed_class
          FROM races
          WHERE id = $1`,
         [input.raceId],
@@ -1376,7 +1390,7 @@ export class PostgresRaceRepository implements RaceRepository {
     >(
       `SELECT r.id, r.name, r.participant_limit, r.max_players, r.entry_fee, r.prize_pool,
               r.start_time, r.status, r.race_type, r.surface, r.weather, r.distance_m,
-              r.tribune_fee, r.spectator_capacity, r.created_by, r.created_at, r.player_control,
+              r.tribune_fee, r.spectator_capacity, r.created_by, r.created_at, r.player_control, r.breed_class,
               COUNT(e.player_id) FILTER (WHERE e.status IS DISTINCT FROM 'cancelled') AS joined_players,
               MAX(e.status) FILTER (WHERE e.player_id = $3) AS my_status,
               MAX(e.horse_id::text) FILTER (WHERE e.player_id = $3) AS my_horse_id,
@@ -1444,7 +1458,7 @@ export class PostgresRaceRepository implements RaceRepository {
       //    bu transaction boyunca değişmez.
       const raceResult = await client.query<LobbyRaceRow>(
         `SELECT id, name, participant_limit, max_players, entry_fee, prize_pool, start_time, status,
-                race_type, surface, weather, distance_m, tribune_fee, spectator_capacity, created_by, created_at, player_control
+                race_type, surface, weather, distance_m, tribune_fee, spectator_capacity, created_by, created_at, player_control, breed_class
          FROM races
          WHERE id = $1
          FOR UPDATE`,
@@ -1532,7 +1546,7 @@ export class PostgresRaceRepository implements RaceRepository {
       //    transaction boyunca değişmez (`setEntryReady` ile AYNI gerekçe).
       const raceResult = await client.query<LobbyRaceRow>(
         `SELECT id, name, participant_limit, max_players, entry_fee, prize_pool, start_time, status,
-                race_type, surface, weather, distance_m, tribune_fee, spectator_capacity, created_by, created_at, player_control
+                race_type, surface, weather, distance_m, tribune_fee, spectator_capacity, created_by, created_at, player_control, breed_class
          FROM races
          WHERE id = $1
          FOR UPDATE`,
@@ -1658,7 +1672,7 @@ export class PostgresRaceRepository implements RaceRepository {
       //    ile AYNI gerekçe).
       const finalResult = await client.query<LobbyRaceRow>(
         `SELECT id, name, participant_limit, max_players, entry_fee, prize_pool, start_time, status,
-                race_type, surface, weather, distance_m, tribune_fee, spectator_capacity, created_by, created_at, player_control
+                race_type, surface, weather, distance_m, tribune_fee, spectator_capacity, created_by, created_at, player_control, breed_class
          FROM races
          WHERE id = $1`,
         [input.raceId],
@@ -1969,9 +1983,9 @@ export class PostgresRaceRepository implements RaceRepository {
            id, created_by, name, distance_m, surface, weather,
            participant_limit, max_players, entry_fee, prize_pool, race_type,
            tribune_fee, spectator_capacity, start_time, status, simulation_seed,
-           engine_version, ruleset_version, config_version, weather_config_version, player_control
+           engine_version, ruleset_version, config_version, weather_config_version, player_control, breed_class
          )
-         VALUES ($1, NULL, $2, $3, $4, $5, $6, $7, $8, 0, $9, $10, $11, $12, 'scheduled', NULL, $13, $14, $15, $16, $17)`,
+         VALUES ($1, NULL, $2, $3, $4, $5, $6, $7, $8, 0, $9, $10, $11, $12, 'scheduled', NULL, $13, $14, $15, $16, $17, $18)`,
         [
           input.raceId,
           input.name,
@@ -1990,6 +2004,7 @@ export class PostgresRaceRepository implements RaceRepository {
           input.configVersion,
           input.weatherConfigVersion,
           input.playerControl,
+          input.breedClass,
         ],
       );
       await client.query(
@@ -2256,7 +2271,7 @@ export class PostgresRaceRepository implements RaceRepository {
     const raceResult = await this.pool.query<SettlementRaceRow>(
       `SELECT id, name, participant_limit, max_players, entry_fee, prize_pool, start_time, status,
               surface, weather, distance_m, temperature_c, wind_kmh, humidity_pct, created_by, created_at,
-              simulation_seed, player_control, live_starts_at
+              simulation_seed, player_control, live_starts_at, breed_class
        FROM races
        WHERE id = $1`,
       [raceId],
@@ -2326,6 +2341,7 @@ export class PostgresRaceRepository implements RaceRepository {
       simulationSeed: raceRow.simulation_seed,
       playerControl: raceRow.player_control ?? false,
       liveStartsAt: raceRow.live_starts_at ?? null,
+      breedClass: raceRow.breed_class ?? null,
     };
   }
 
