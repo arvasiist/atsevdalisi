@@ -91,6 +91,7 @@ export class CreateRaceUseCase {
       playerControl: value.playerControl,
       breedClass: value.breedClass,
       hippodrome: value.hippodrome,
+      horseLevelBracket: value.horseLevelBracket,
       // **`null` — VE BU BİLİNÇLİDİR.** Lobi yarışının seed'i, yarış
       // KOŞARKEN üretilir. Erken üretilseydi yarışı açan kişi seed'i
       // okuyup (bkz. `GET /races/:id/timeline` yanıtı) sonucu önceden

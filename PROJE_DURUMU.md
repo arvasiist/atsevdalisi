@@ -4242,6 +4242,24 @@ Karar: önce pratik yarış; kırbaç sınırsız, dayanıklılık bedelli.
   (ödül yeni sırayla), `top-bar-nav.spec.ts` ("+" bağlantıları), tarayıcıda
   ahır tam ekran + yönlendirme (masaüstü + telefon) gözle doğrulandı.
 
+### 13.93 At seviyesine göre yarışlar + "Hemen Katıl"
+
+- Lobi yarışı isteğe bağlı bir at seviyesi aralığı taşır (migration 0073,
+  `races.horse_level_bracket`): Çaylak 1–4, Gelişen 5–9, Usta 10–19,
+  Şampiyon 20–50 (`race-lobby.horseLevelBrackets`). Aralık dışı at 409
+  `HORSE_LEVEL_NOT_ALLOWED` alır; para düşmez, katılım yazılmaz.
+- Aralıklı yarışın botları aralığın gücündedir (çaylak yarışında yeni at adil
+  yarışır); ırk sınıfıyla birlikteyse iki aralığın kesişimi. Açık yarışın
+  botları değişmedi.
+- Takvim her aralık için düzenli yarış açar.
+- `/races` lobisi: seçili ata göre sıralı liste ("✓ Atına uygun" rozeti),
+  yarış açma formunda "At seviyesi" seçimi ve "⚡ Hemen Katıl" kartı (en uygun
+  yarışa katılım + hazır tek tuşta).
+- Kanıt: `level-bracket.spec.ts` (config, CHECK ↔ config, kural, bot gücü),
+  `horse-level-bracket.e2e-spec.ts` (400/409/para/katılım, botlar yeniden
+  üretimle birebir), web `quick-join.spec.ts`; tarayıcıda Hemen Katıl ile
+  katılım + bakiye düşüşü gözle doğrulandı.
+
 ## 14. Kendime hatırlatmalar (kısa liste)
 
 1. **Race Engine'e dokunmadan önce iki kez düşün.** Denetim onu "KEEP, dokunma"

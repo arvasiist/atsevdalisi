@@ -27,6 +27,7 @@ import {
 } from '@at-sevdalisi/game-config';
 import { validateBreedsConfig } from '../../domain/horse/breeds';
 import { validateHippodromesConfig } from '../../domain/race/hippodrome';
+import { validateHorseLevelBrackets } from '../../domain/race/level-bracket';
 
 /**
  * Ortam değişkenleri + oyun dengesi config'lerine tek noktadan erişim.
@@ -156,6 +157,10 @@ export class AppConfigService {
     // Irk kuralı (ücretsiz at en zayıf, güçlü ırk ucuz olamaz) açılışta
     // denetlenir — bozuk config ile API AÇILMAZ.
     validateBreedsConfig(this.breeds, this.progression.maxLevel);
+    const bracketProblems = validateHorseLevelBrackets(this.raceLobby.horseLevelBrackets, this.progression.maxLevel);
+    if (bracketProblems.length > 0) {
+      throw new Error(`At seviyesi aralıkları geçersiz (config/race-lobby.config.json): ${bracketProblems.join(' ')}`);
+    }
     const hippodromeProblems = validateHippodromesConfig(this.hippodromes);
     if (hippodromeProblems.length > 0) {
       throw new Error(`Hipodrom config'i geçersiz (config/hippodromes.config.json): ${hippodromeProblems.join(' ')}`);

@@ -76,6 +76,11 @@ export interface RaceCreationInput {
    * OPSİYONEL: verilmezse/`null` ise varsayılan hipodrom (görsel; sonuç değişmez).
    */
   hippodrome?: unknown;
+  /**
+   * 08.10.2026 — at seviyesi aralığı (`config.horseLevelBrackets` anahtarı).
+   * OPSİYONEL: verilmezse/`null` ise her seviyeye açık.
+   */
+  horseLevelBracket?: unknown;
 }
 
 /**
@@ -116,6 +121,8 @@ export interface ValidatedRaceCreation {
   breedClass: string | null;
   /** `null` = varsayılan hipodrom. */
   hippodrome: string | null;
+  /** `null` = her seviyeye açık. */
+  horseLevelBracket: string | null;
 }
 
 /**
@@ -321,6 +328,19 @@ export function validateRaceCreation(
     }
   }
 
+  // --- At seviyesi aralığı (08.10.2026) — küme config'in kendisinden ---
+  let horseLevelBracket: string | null = null;
+  if (input.horseLevelBracket !== undefined && input.horseLevelBracket !== null) {
+    const bracketKeys = (config.horseLevelBrackets ?? []).map((bracket) => bracket.key);
+    if (typeof input.horseLevelBracket !== 'string' || !bracketKeys.includes(input.horseLevelBracket)) {
+      problems.push(
+        `At seviyesi aralığı ${bracketKeys.length > 0 ? bracketKeys.join('/') : '(tanımlı aralık yok)'} değerlerinden biri olmalıdır (verilen: ${describe(input.horseLevelBracket)}).`,
+      );
+    } else {
+      horseLevelBracket = input.horseLevelBracket;
+    }
+  }
+
   // --- Mesafe (brief §1) ---
   let distanceMeters: number | null = null;
   if (
@@ -419,6 +439,7 @@ export function validateRaceCreation(
       playerControl,
       breedClass,
       hippodrome,
+      horseLevelBracket,
     },
   };
 }

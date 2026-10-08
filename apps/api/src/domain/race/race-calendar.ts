@@ -61,6 +61,7 @@ export function calendarProgramToCreationInput(
     playerControl: program.playerControl ?? false,
     breedClass: program.breedClass ?? null,
     hippodrome: program.hippodrome ?? null,
+    horseLevelBracket: program.horseLevelBracket ?? null,
   };
 }
 

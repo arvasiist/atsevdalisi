@@ -16,6 +16,7 @@ import {
   SelfieRejectedError,
   ProfilePhotoNotFoundError,
 } from '../../domain/avatar/errors';
+import { HorseLevelNotAllowedError } from '../../domain/race/level-bracket';
 import { PhotoRejectedError } from '../../domain/avatar/profile-photo';
 import {
   AchievementAlreadyClaimedError,
@@ -511,6 +512,7 @@ const DOMAIN_ERROR_MAP = new Map<ErrorClassConstructor, { status: number; code: 
   [BreedLevelLockedError, { status: HttpStatus.CONFLICT, code: ErrorCode.BreedLevelLocked }],
   [InvalidHorseGenderError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.ValidationError }],
   [HorseBreedNotAllowedError, { status: HttpStatus.CONFLICT, code: ErrorCode.HorseBreedNotAllowed }],
+  [HorseLevelNotAllowedError, { status: HttpStatus.CONFLICT, code: ErrorCode.HorseLevelNotAllowed }],
   [AchievementNotCompletedError, { status: HttpStatus.CONFLICT, code: ErrorCode.AchievementNotCompleted }],
   [AchievementAlreadyClaimedError, { status: HttpStatus.CONFLICT, code: ErrorCode.AchievementAlreadyClaimed }],
   [InvalidLiveEventError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.InvalidLiveEvent }],

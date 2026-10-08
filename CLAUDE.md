@@ -715,6 +715,20 @@ at değiştirme + "Atlarım ↓". (c) Bakiye yanında belirgin "+" (çip → `/w
 elmas → `/store`; `TOP_UP_HREF`, sayfa varlığı `top-bar-nav.spec.ts`ta);
 elmas artık her genişlikte görünür (dar telefonda logo yazısı gizlenir).
 (d) "Verilerimi indir" arayüzü kaldırıldı (bkz. (46)).
+(69) **AT SEVİYESİ ARALIKLI YARIŞ + HEMEN KATIL (08.10.2026, migration 0073,
+§13.93)** — `races.horse_level_bracket` (NULL = her seviyeye açık; CHECK
+`races_horse_level_bracket_valid` = `race-lobby.horseLevelBrackets` anahtarları,
+`level-bracket.spec.ts` en son migration'ı okur — aralık eklerken kısıtı ADIYLA
+düşür). Aralıklar 1..`progression.maxLevel` BOŞLUKSUZ (`validateHorseLevelBrackets`,
+API açılışında). Kapı ırk sınıfıyla AYNI yerde (`joinLobbyRace`, at kilitliyken,
+paradan ÖNCE) → 409 `HORSE_LEVEL_NOT_ALLOWED`; bilinmeyen aralık KAPALI. Botlar
+aralığın gücünde; ırk sınıfıyla birlikteyse KESİŞİM (`combineBotStatRanges`),
+ikisi de yoksa üçüncü argüman YOK → açık yarış botları bit bit eskisi gibi.
+Takvim: `rookie-run`/`developing-run`/`master-run`/`champion-run`. Web: lobi
+listesi seçili ata göre sıralanır (ata özel → açık → giremez), "⚡ Hemen Katıl"
+`pickQuickJoinRace` (giremeyeceği/dolu/parası yetmeyen/45 sn içinde başlayan
+yarışı ÖNERMEZ) → katıl + `ready` tek tuşta. ⚠️ Öneri yalnızca kolaylıktır;
+kural sunucudadır.
 
 **✅ ÜCRETLİ LOBİ YARIŞI ARTIK KOŞUYOR — ÖDÜL DAĞITIMI VAR (§13.14,
 28.09.2026).** `POST /races/:id/settle` yarışı koşar, ödülleri `top5`

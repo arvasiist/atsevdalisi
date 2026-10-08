@@ -112,4 +112,9 @@ export class CreateRaceDto {
   @IsOptional()
   @IsString()
   hippodrome?: unknown;
+
+  /** 08.10.2026 — at seviyesi aralığı; DTO'da olmasaydı `whitelist` siler ve yarış her seviyeye açılırdı. */
+  @IsOptional()
+  @IsString()
+  horseLevelBracket?: unknown;
 }

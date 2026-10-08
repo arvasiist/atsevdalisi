@@ -19,7 +19,7 @@ import type {
 import type { RaceLobbyConfig } from '@at-sevdalisi/game-config';
 import type { CreateLobbyRaceBody } from '../../lib/api-client';
 import { loadRaceLobbyConfig } from '@at-sevdalisi/game-config';
-import { breedLabel, findRaceClass } from '../breeds/breed-catalog';
+import { breedLabel, findRaceClass, horseFitsRaceClass } from '../breeds/breed-catalog';
 import { DEFAULT_HIPPODROME_KEY, hippodromeLabel } from '../race-viewer/hippodrome-theme';
 
 const lobbyConfig = loadRaceLobbyConfig();
@@ -131,6 +131,8 @@ export interface LobbyRaceForm {
   breedClass: string;
   /** 08.10.2026 — hipodrom anahtarı (`hippodromes.config.json`). */
   hippodrome: string;
+  /** 08.10.2026 — at seviyesi aralığı anahtarı; `''` = her seviyeye açık. */
+  horseLevelBracket: string;
 }
 
 /**
@@ -176,6 +178,7 @@ export function defaultLobbyRaceForm(config: RaceLobbyConfig): LobbyRaceForm {
     playerControl: false,
     breedClass: '',
     hippodrome: DEFAULT_HIPPODROME_KEY,
+    horseLevelBracket: '',
   };
 }
 
@@ -235,6 +238,7 @@ export function buildCreateRaceBody(
       // Boş = açık yarış: alan hiç GÖNDERİLMEZ (sunucu `null` kabul eder).
       ...(form.breedClass !== '' ? { breedClass: form.breedClass } : {}),
       hippodrome: form.hippodrome,
+      ...(form.horseLevelBracket !== '' ? { horseLevelBracket: form.horseLevelBracket } : {}),
     },
   };
 }
@@ -287,4 +291,101 @@ export function formatStartsIn(startTime: string, now: Date): string {
   const hours = Math.floor(minutes / SECONDS_PER_MINUTE);
   const rest = minutes % SECONDS_PER_MINUTE;
   return hours > 0 ? `${hours} sa ${rest} dk sonra` : `${rest} dk sonra`;
+}
+
+// ---------------------------------------------------------------------------
+// 08.10.2026 — AT SEVİYESİNE GÖRE YARIŞLAR + HEMEN KATIL (sahibinin isteği).
+// Kural sunucudadır (`HORSE_LEVEL_NOT_ALLOWED`); burası yalnızca gösterir,
+// sıralar ve "hemen katıl" için en uygun yarışı ÖNERİR.
+// ---------------------------------------------------------------------------
+
+/** Seçim listesi: "Çaylak (Sv 1–4)". */
+export const LEVEL_BRACKET_OPTIONS = (lobbyConfig.horseLevelBrackets ?? []).map((bracket) => ({
+  key: bracket.key,
+  label: `${bracket.name} (Sv ${bracket.minLevel}–${bracket.maxLevel})`,
+}));
+
+function findBracket(key: string | null | undefined) {
+  return (lobbyConfig.horseLevelBrackets ?? []).find((bracket) => bracket.key === key) ?? null;
+}
+
+/** Rozet: "🎯 Çaylak atlar · Sv 1–4"; aralıksız yarışta `null`. */
+export function describeLevelBracket(race: Pick<RaceLobbyListItem, 'horseLevelBracket'>): string | null {
+  if (race.horseLevelBracket === null || race.horseLevelBracket === undefined) return null;
+  const bracket = findBracket(race.horseLevelBracket);
+  return bracket
+    ? `🎯 ${bracket.name} atlar · Sv ${bracket.minLevel}–${bracket.maxLevel}`
+    : `🎯 Seviye aralığı: ${race.horseLevelBracket}`;
+}
+
+/** Sunucu kuralının aynısı: aralıksız yarış açık, bilinmeyen aralık kapalı. */
+export function horseFitsLevelBracket(bracketKey: string | null | undefined, horseLevel: number): boolean {
+  if (bracketKey === null || bracketKey === undefined) return true;
+  const bracket = findBracket(bracketKey);
+  return bracket !== null && horseLevel >= bracket.minLevel && horseLevel <= bracket.maxLevel;
+}
+
+export interface LobbyHorse {
+  id: string;
+  breed: string;
+  level: number;
+}
+
+/**
+ * Yarışın seçili ata uygunluğu: 0 = atın seviyesine ÖZEL yarış (en uygun),
+ * 1 = herkese açık yarış, 2 = at giremez (ırk ya da seviye dışı).
+ */
+export function raceFitForHorse(
+  race: Pick<RaceLobbyListItem, 'breedClass' | 'horseLevelBracket'>,
+  horse: LobbyHorse,
+): 0 | 1 | 2 {
+  if (!horseFitsRaceClass(race.breedClass ?? null, horse.breed)) return 2;
+  if (!horseFitsLevelBracket(race.horseLevelBracket, horse.level)) return 2;
+  return race.horseLevelBracket ? 0 : 1;
+}
+
+/** Listeyi seçili ata göre sıralar (uygun olan önce); eşitlikte sunucunun sırası korunur. */
+export function sortRacesForHorse<T extends Pick<RaceLobbyListItem, 'breedClass' | 'horseLevelBracket'>>(
+  races: readonly T[],
+  horse: LobbyHorse | null,
+): T[] {
+  if (horse === null) return [...races];
+  return races
+    .map((race, index) => ({ race, index, fit: raceFitForHorse(race, horse) }))
+    .sort((a, b) => a.fit - b.fit || a.index - b.index)
+    .map((item) => item.race);
+}
+
+/**
+ * HEMEN KATIL — seçili at için katılınabilir en uygun yarış: katılımı yok,
+ * dolu değil, ırk + seviye uygun, ücret bakiyeye yetiyor, başlamasına en az
+ * `minLeadMs` var (katıl + hazırım sığsın). Önce ata özel aralık, sonra en
+ * yakın başlangıç, sonra düşük ücret. At zaten açık bir yarıştaysa `null`.
+ */
+export function pickQuickJoinRace(
+  races: readonly RaceLobbyListItem[],
+  horse: LobbyHorse | null,
+  money: number,
+  now: Date,
+  minLeadMs: number,
+): RaceLobbyListItem | null {
+  if (horse === null) return null;
+  const horseBusy = races.some(
+    (race) => race.myEntry !== null && race.myEntry.horseId === horse.id && race.myEntry.status !== 'cancelled',
+  );
+  if (horseBusy) return null;
+  const candidates = races.filter(
+    (race) =>
+      lobbyEntryActions(race).canJoin &&
+      raceFitForHorse(race, horse) < 2 &&
+      race.entryFee <= money &&
+      new Date(race.startTime).getTime() - now.getTime() >= minLeadMs,
+  );
+  candidates.sort(
+    (a, b) =>
+      raceFitForHorse(a, horse) - raceFitForHorse(b, horse) ||
+      new Date(a.startTime).getTime() - new Date(b.startTime).getTime() ||
+      a.entryFee - b.entryFee,
+  );
+  return candidates[0] ?? null;
 }

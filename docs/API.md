@@ -2446,6 +2446,11 @@ Gövde: `name`, `fieldSize` (8/10/12/14/16), `maxPlayers`, `entryFee`,
 `thoroughbred`; verilmezse yarış her ırka açık). Sınıflı yarışa sınıf dışı
 atla `POST /races/{id}/join` → 409 `HORSE_BREED_NOT_ALLOWED`. Lobi satırı
 `breedClass` taşır.
+İsteğe bağlı `horseLevelBracket` (08.10.2026, migration 0073 —
+`config/race-lobby.config.json` → `horseLevelBrackets` anahtarı: `rookie`/
+`developing`/`master`/`champion`; verilmezse her seviyeye açık; bilinmeyen
+anahtar 400 `INVALID_RACE_DEFINITION`). Aralık dışı atla katılım → 409
+`HORSE_LEVEL_NOT_ALLOWED`. Lobi satırı `horseLevelBracket` taşır.
 İsteğe bağlı `hippodrome` (08.10.2026, migration 0072 —
 `config/hippodromes.config.json` anahtarı: `veliefendi`/`ankara`/`izmir`/
 `adana`/`bursa`; verilmezse varsayılan Veliefendi; bilinmeyen anahtar 400

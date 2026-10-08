@@ -3158,3 +3158,22 @@ button.btn-action {
 .demo-hippodrome-select option {
   color: #111;
 }
+
+/* 08.10.2026 — lobide "⚡ Hemen Katıl" kartı (seçili ata en uygun yarış). */
+.quick-join {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+  flex-wrap: wrap;
+  margin-top: var(--space-md);
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid var(--color-border-gold);
+  background: linear-gradient(135deg, rgba(201, 162, 39, 0.16), rgba(10, 16, 30, 0.6));
+}
+
+.quick-join-title {
+  color: var(--color-accent-gold);
+  font-size: 15px;
+}

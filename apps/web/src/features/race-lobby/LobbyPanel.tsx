@@ -52,19 +52,29 @@ import {
   maxPlayersOptions,
   startDelayMinuteBounds,
   type LobbyRaceForm,
+  LEVEL_BRACKET_OPTIONS,
+  describeLevelBracket,
+  horseFitsLevelBracket,
+  pickQuickJoinRace,
+  raceFitForHorse,
+  sortRacesForHorse,
 } from './lobby-logic';
 
 const LOBBY_CONFIG = loadRaceLobbyConfig();
+/** Hemen katılda başlangıca en az bu kadar kalmalı (katıl + hazırım sığsın, kilit öncesi). */
+const QUICK_JOIN_MIN_LEAD_MS = 45_000;
 const START_DELAY_BOUNDS = startDelayMinuteBounds(LOBBY_CONFIG);
 
 export interface LobbyPanelProps {
   /** Oyuncunun atları — katılım için seçim listesi. Sakat atlar sunucuda reddedilir. */
   horses: PublicHorse[];
+  /** 08.10.2026 — bakiye (Hemen Katıl ücreti yetmeyen yarışı önermesin); bilinmiyorsa süzülmez, sunucu reddeder. */
+  money?: number;
   /** Para hareketinden sonra üst bar bakiyesi tazelensin diye. */
   onBalanceChanged: () => Promise<void>;
 }
 
-export function LobbyPanel({ horses, onBalanceChanged }: LobbyPanelProps): React.ReactElement {
+export function LobbyPanel({ horses, money, onBalanceChanged }: LobbyPanelProps): React.ReactElement {
   const [races, setRaces] = useState<RaceLobbyListItem[] | null>(null);
   const [horseId, setHorseId] = useState('');
   const [busyRaceId, setBusyRaceId] = useState<string | null>(null);
@@ -140,6 +150,33 @@ export function LobbyPanel({ horses, onBalanceChanged }: LobbyPanelProps): React
     },
     [effectiveHorseId, runAction],
   );
+
+  // 08.10.2026 — HEMEN KATIL: seçili at için en uygun yarışa tek tuşla katıl +
+  // hazır ol. Seçim önerisidir; kurallar (ırk, seviye, ücret, dolu) sunucuda.
+  const quickJoinRace = useMemo(
+    () =>
+      races === null || effectiveHorse === null
+        ? null
+        : pickQuickJoinRace(races, effectiveHorse, money ?? Number.MAX_SAFE_INTEGER, new Date(), QUICK_JOIN_MIN_LEAD_MS),
+    [races, effectiveHorse, money],
+  );
+  const quickJoin = useCallback(() => {
+    if (quickJoinRace === null || effectiveHorseId === '') return;
+    const race = quickJoinRace;
+    const keys = joinKeysRef.current;
+    const key = keys.get(race.id) ?? crypto.randomUUID();
+    keys.set(race.id, key);
+    void runAction(
+      race.id,
+      async () => {
+        await apiClient.joinLobbyRace(race.id, { horseId: effectiveHorseId }, key);
+        keys.delete(race.id);
+        await apiClient.setLobbyEntryReady(race.id, 'ready');
+      },
+      `⚡ "${race.name}" yarışına katıldın ve hazırsın — ${formatStartsIn(race.startTime, new Date())} başlıyor.`,
+      true,
+    );
+  }, [quickJoinRace, effectiveHorseId, runAction]);
 
   const leave = useCallback(
     (race: RaceLobbyListItem) => {
@@ -416,6 +453,22 @@ export function LobbyPanel({ horses, onBalanceChanged }: LobbyPanelProps): React
               ))}
             </select>
           </label>
+          <label style={labelStyle()}>
+            At seviyesi
+            <select
+              aria-label="At seviyesi"
+              value={form.horseLevelBracket}
+              onChange={(event) => updateForm({ horseLevelBracket: event.target.value })}
+              style={inputStyle()}
+            >
+              <option value="">Her seviyeye açık</option>
+              {LEVEL_BRACKET_OPTIONS.map((option) => (
+                <option key={option.key} value={option.key}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
           <label style={{ ...labelStyle(), display: 'flex', alignItems: 'center', gap: '8px' }}>
             <input
               type="checkbox"
@@ -454,6 +507,35 @@ export function LobbyPanel({ horses, onBalanceChanged }: LobbyPanelProps): React
         </label>
       ) : null}
 
+      {effectiveHorse !== null && races !== null ? (
+        <div className="quick-join" data-testid="quick-join">
+          <div style={{ display: 'grid', gap: '2px' }}>
+            <strong className="quick-join-title">⚡ Hemen Katıl</strong>
+            {quickJoinRace !== null ? (
+              <span style={smallStyle()}>
+                {effectiveHorse.name} için en uygun yarış: <strong>{quickJoinRace.name}</strong> ·{' '}
+                {formatStartsIn(quickJoinRace.startTime, now)} · Giriş{' '}
+                {quickJoinRace.entryFee > 0 ? formatCurrency('money', quickJoinRace.entryFee) : 'ücretsiz'}
+                {describeLevelBracket(quickJoinRace) !== null ? ` · ${describeLevelBracket(quickJoinRace)}` : ''}
+              </span>
+            ) : (
+              <span style={smallStyle()}>
+                Şu an {effectiveHorse.name} için katılınabilir uygun yarış yok (at başka bir yarışta olabilir) — yeni
+                yarış açabilirsin.
+              </span>
+            )}
+          </div>
+          <button
+            type="button"
+            className="btn-gold"
+            disabled={quickJoinRace === null || busyRaceId !== null}
+            onClick={quickJoin}
+          >
+            ⚡ Hemen Katıl
+          </button>
+        </div>
+      ) : null}
+
       {notice !== null ? (
         <p style={{ ...mutedStyle(), color: 'var(--color-status-positive)' }}>{notice}</p>
       ) : null}
@@ -475,9 +557,10 @@ export function LobbyPanel({ horses, onBalanceChanged }: LobbyPanelProps): React
             gap: 'var(--space-sm)',
           }}
         >
-          {races.map((race) => {
+          {sortRacesForHorse(races, effectiveHorse).map((race) => {
             const actions = lobbyEntryActions(race);
             const isBusy = busyRaceId === race.id;
+            const fit = effectiveHorse !== null ? raceFitForHorse(race, effectiveHorse) : 1;
             return (
               <li key={race.id} data-testid={`lobby-race-${race.id}`} style={rowStyle()}>
                 <div style={{ display: 'grid', gap: '2px' }}>
@@ -509,6 +592,15 @@ export function LobbyPanel({ horses, onBalanceChanged }: LobbyPanelProps): React
                   {describeHippodrome(race) !== null ? (
                     <span data-testid={`lobby-hippodrome-${race.id}`} style={smallStyle()}>
                       {describeHippodrome(race)}
+                    </span>
+                  ) : null}
+                  {describeLevelBracket(race) !== null ? (
+                    <span
+                      data-testid={`lobby-level-${race.id}`}
+                      style={{ ...smallStyle(), color: 'var(--color-accent-gold)', fontWeight: 600 }}
+                    >
+                      {describeLevelBracket(race)}
+                      {fit === 0 ? ' · ✓ Atına uygun' : ''}
                     </span>
                   ) : null}
                   {describeBreedClass(race) !== null ? (
@@ -566,6 +658,10 @@ export function LobbyPanel({ horses, onBalanceChanged }: LobbyPanelProps): React
                   effectiveHorse !== null &&
                   !horseFitsRaceClass(race.breedClass ?? null, effectiveHorse.breed) ? (
                     <span style={smallStyle()}>Seçili atının ırkı bu yarışa uygun değil</span>
+                  ) : actions.canJoin &&
+                    effectiveHorse !== null &&
+                    !horseFitsLevelBracket(race.horseLevelBracket, effectiveHorse.level) ? (
+                    <span style={smallStyle()}>Seçili atının seviyesi bu yarışa uygun değil</span>
                   ) : actions.canJoin ? (
                     <button
                       type="button"

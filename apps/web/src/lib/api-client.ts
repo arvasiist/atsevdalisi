@@ -163,6 +163,8 @@ export interface CreateLobbyRaceBody {
   breedClass?: string;
   /** 08.10.2026 — hipodrom anahtarı; yoksa varsayılan hipodrom. */
   hippodrome?: string;
+  /** 08.10.2026 — at seviyesi aralığı; yoksa her seviyeye açık. */
+  horseLevelBracket?: string;
 }
 
 export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1';

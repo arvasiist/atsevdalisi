@@ -11,6 +11,7 @@ import type {
 } from '@at-sevdalisi/shared-types';
 import { generateBotEntrants } from '../../domain/race/bot-generator';
 import { raceClassBotStatRange } from '../../domain/horse/breeds';
+import { combineBotStatRanges, levelBracketBotStatRange } from '../../domain/race/level-bracket';
 import { resolveFieldComposition } from '../../domain/race/field-composition';
 import { checkRaceSettleable, nextGatePosition } from '../../domain/race/lobby';
 import {
@@ -309,7 +310,12 @@ export class SettleRaceUseCase {
     // 08.10.2026 — ırk sınıflı yarışta botlar sınıfın ırkları gücündedir
     // (`raceClassBotStatRange`); açık yarışta `null` → genel aralık, yani
     // açık yarışların botları aynı seed'le BİT BİT eskisi gibi üretilir.
-    const botStatRange = raceClassBotStatRange(this.config.breeds, context.breedClass);
+    // 08.10.2026 — at seviyesi aralıklı yarışta botlar aralığın gücündedir;
+    // ırk sınıfıyla birlikteyse ikisinin kesişimi (`combineBotStatRanges`).
+    const botStatRange = combineBotStatRanges(
+      raceClassBotStatRange(this.config.breeds, context.breedClass),
+      levelBracketBotStatRange(this.config.raceLobby.horseLevelBrackets, context.horseLevelBracket),
+    );
     const botEntrants =
       botStatRange === null
         ? generateBotEntrants(composition.composition.bots, simulationSeed)

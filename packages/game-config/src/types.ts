@@ -1628,7 +1628,24 @@ export interface ChatConfig {
  * doğrulaması YOK) bu değerlerin iç tutarlılığı bir TESTLE garanti edilir
  * (bkz. `apps/api/test/domain/race/race-lobby-config.spec.ts`).
  */
+/**
+ * 08.10.2026 — AT SEVİYESİ ARALIĞI (sahibinin isteği: "kişinin at seviyesine
+ * göre yarışlar olsun"). Aralıklı yarışa yalnızca seviyesi aralıktaki at
+ * katılır (409 `HORSE_LEVEL_NOT_ALLOWED`); botlar `botStatRange` gücündedir
+ * (çaylak yarışında yeni at adil yarışsın). Aralıklar 1'den `maxLevel`e
+ * boşluksuz ve çakışmasız (`validateHorseLevelBrackets`).
+ */
+export interface HorseLevelBracketConfig {
+  key: string;
+  name: string;
+  minLevel: number;
+  maxLevel: number;
+  botStatRange: [number, number];
+}
+
 export interface RaceLobbyConfig {
+  /** 08.10.2026 — at seviyesi aralıkları (aralıklı yarış + bot gücü). */
+  horseLevelBrackets: HorseLevelBracketConfig[];
   /**
    * Bir yarışta KOŞABİLECEK at sayısı (brief §1/§7: "At sayısı sadece 8 10
    * 12 14 16 olabilir").
@@ -1851,6 +1868,8 @@ export interface RaceCalendarProgram {
   breedClass?: string;
   /** 08.10.2026 — hipodrom anahtarı (`hippodromes.config.json`); yoksa varsayılan. */
   hippodrome?: string;
+  /** 08.10.2026 — at seviyesi aralığı (`horseLevelBrackets` anahtarı); yoksa her seviyeye açık. */
+  horseLevelBracket?: string;
 }
 
 /**

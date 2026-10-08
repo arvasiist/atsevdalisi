@@ -730,6 +730,8 @@ export interface CreateLobbyRaceInput {
   breedClass: string | null;
   /** 08.10.2026 — hipodrom anahtarı (migration 0072); `null` = varsayılan. */
   hippodrome: string | null;
+  /** 08.10.2026 — at seviyesi aralığı (migration 0073); `null` = her seviyeye açık. */
+  horseLevelBracket: string | null;
 }
 
 /**
@@ -905,6 +907,8 @@ export interface CreateCalendarRaceInput {
   breedClass: string | null;
   /** 08.10.2026 — programın hipodromu; `null` = varsayılan. */
   hippodrome: string | null;
+  /** 08.10.2026 — programın at seviyesi aralığı; `null` = her seviyeye açık. */
+  horseLevelBracket: string | null;
 }
 
 /** `dropUnreadyLobbyEntries` sonucu. */
@@ -1007,6 +1011,8 @@ export interface LobbySettlementContext {
   breedClass: string | null;
   /** 08.10.2026 — hipodrom anahtarı (salt sahne; eski yarışta varsayılan). */
   hippodrome: string;
+  /** 08.10.2026 — at seviyesi aralığı; botların gücü buradan da türetilir. `null` = açık. */
+  horseLevelBracket: string | null;
 }
 
 /**

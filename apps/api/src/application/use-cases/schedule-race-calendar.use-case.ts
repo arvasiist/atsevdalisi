@@ -88,6 +88,7 @@ export class ScheduleRaceCalendarUseCase {
           playerControl: value.playerControl,
           breedClass: value.breedClass,
           hippodrome: value.hippodrome,
+          horseLevelBracket: value.horseLevelBracket,
           engineVersion: RACE_ENGINE_VERSION,
           rulesetVersion: RACE_RULESET_VERSION,
           configVersion: this.config.race.version,

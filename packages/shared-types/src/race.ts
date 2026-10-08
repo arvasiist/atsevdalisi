@@ -598,6 +598,11 @@ export interface RaceLobbyView {
    * sonuca etkisi YOK.
    */
   hippodrome: string;
+  /**
+   * 08.10.2026 — at seviyesi aralığı (`race-lobby.config.json` →
+   * `horseLevelBrackets`). `null` = her seviyeye açık.
+   */
+  horseLevelBracket: string | null;
 }
 
 /**
