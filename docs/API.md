@@ -419,7 +419,7 @@ gönderilirse üretimde `forbidNonWhitelisted` 400) · 409
 `EQUIPMENT_LEVEL_LOCKED` (oyuncu seviyesi yetmiyor) · 409
 `INSUFFICIENT_FUNDS`. Defter: `equipment_purchase` (kanonik `UPKEEP`,
 referans parça kimliği). Katalogdan önceki eski parçalar `catalogKey: null`
-taşır ve kaliteleri olduğu gibi kalır.
+taşır ve kaliteleri olduğu gibi kalır (sahibinin kararı, 08.10.2026).
 
 `GET /api/v1/horses/{id}/equipment` — atın TÜM envanterini döner (`data`,
 doğrudan bir `HorseEquipment[]`, en yeniden en eskiye sıralı).

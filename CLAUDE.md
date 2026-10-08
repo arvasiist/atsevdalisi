@@ -768,8 +768,8 @@ tipte daha kaliteli kalem DAHA UCUZ olamaz). Eskiden kalite istemcideydi ve
 UPDATE` → seviye (409 `EQUIPMENT_LEVEL_LOCKED`) + bakiye kilit altında →
 parça + `equipment_purchase` defter satırı (UPKEEP) tek transaction;
 `Idempotency-Key` ZORUNLU, web kalem başına BAŞARIYA kadar saklar. Eski
-parçalar `catalog_key` NULL, kaliteleri DOKUNULMADAN durur (ne yapılacağı
-sahibinin kararı). Web: ahır → Ekipman → katalog listesi.
+parçalar `catalog_key` NULL, kaliteleri DOKUNULMADAN durur — SAHİBİNİN
+KARARI (08.10.2026: "kalsın"); onları silen/düşüren migration YAZMA. Web: ahır → Ekipman → katalog listesi.
 (73) **İLAN SÜRE DOLUMU ZAMANLAYICISI (08.10.2026, migration 0077, §13.97)** —
 `MarketListingExpiryScheduler` (`economy.listingExpiry`, lider kilidi, test'te
 `tickNow`). Okuma anı süpürmesi + zamanlayıcı TEK atomik ifade

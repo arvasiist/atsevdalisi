@@ -4303,7 +4303,7 @@ Karar: önce pratik yarış; kırbaç sınırsız, dayanıklılık bedelli.
   her at bedavaya azami yarış bonusunu alabiliyordu (istemci envanteri
   belirliyordu). Artık istemci yalnızca kalem anahtarını gönderir.
 - Katalogdan önce yaratılmış eski parçalar olduğu gibi duruyor (`catalog_key`
-  boş); onlara ne yapılacağı sahibinin kararı.
+  boş) — sahibinin kararı (08.10.2026: "kalsın").
 - Kanıt: `equipment.e2e-spec.ts` (para + defter satırı, aynı anahtarla ikinci
   parça alınmaz, anahtarsız 400, kalite gönderilemez, seviye/bakiye 409 ve
   parça yazılmaz, kuşanma akışı + pratik yarış), `catalog.spec.ts` (katalog
