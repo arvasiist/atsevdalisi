@@ -2105,7 +2105,18 @@ export interface InteractiveRaceConfig {
 export interface OpsConfig {
   readiness: { checkTimeoutMs: number };
   requestId: { maxLength: number };
-  productionEnv: { minJwtSecretLength: number; forbiddenJwtSecrets: string[] };
+  productionEnv: { minJwtSecretLength: number; forbiddenJwtSecrets: string[]; minMetricsTokenLength: number };
+  /**
+   * 08.10.2026 — `GET /metrics` (Prometheus metin biçimi). Kova sınırları
+   * saniye; gösterge sorgusu zaman aşımı aşılırsa gösterge `up 0` yazılır.
+   */
+  metrics: { durationBucketsSeconds: number[]; gaugeQueryTimeoutMs: number };
+  /**
+   * 08.10.2026 — alarm kancası (`ALERT_WEBHOOK_URL`, sağlayıcıdan bağımsız).
+   * Sunucu hatası (500) en fazla `cooldownSeconds`te bir bildirilir; arada
+   * bastırılanlar sonraki mesajda sayılır.
+   */
+  alerts: { cooldownSeconds: number; requestTimeoutMs: number };
   /** 02.10.2026 (Faz 13-C) — `POST /client-errors` alan sınırları (aşan kırpılır). */
   clientErrors: { maxMessageLength: number; maxPathLength: number; maxDigestLength: number };
   /**

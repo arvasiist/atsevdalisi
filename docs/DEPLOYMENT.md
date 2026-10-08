@@ -42,6 +42,8 @@ docker build -f apps/web/Dockerfile --build-arg NEXT_PUBLIC_API_URL=https://api.
 | `GOOGLE_OAUTH_CLIENT_ID` | uyarı | yoksa Google düğmesi gizli |
 | `AVATAR_PROVIDER` | isteğe bağlı | fotoğraftan AI avatar sağlayıcısının adı; boşsa özellik KAPALI (selfie kabul edilmez, manuel avatar çalışır). Bugün kodda tanımlı sağlayıcı YOK — bilinmeyen ad açılışta hata verir. Sağlayıcının API anahtarı da ortam değişkenidir, istemciye gitmez. |
 | `PAYMENT_PROVIDER` | isteğe bağlı | gerçek para ödeme sağlayıcısının adı; boşsa mağaza KAPALI. Bugün kodda tanımlı sağlayıcı YOK — bilinmeyen ad açılışta hata verir. Webhook adresi: `POST {API}/api/v1/payments/webhook/{PAYMENT_PROVIDER}` (sağlayıcı panelinde tanımlanır). Sağlayıcının gizli anahtarı ve webhook imza sırrı ortam değişkenidir; loglanmaz, istemciye gitmez. Açmadan önce yasal inceleme şart. |
+| `METRICS_TOKEN` | uyarı; verilirse ≥24 karakter | `GET /api/v1/metrics` (Prometheus) için Bearer token. Yoksa uç 404 — izleme verisi toplanmaz. `openssl rand -hex 32` |
+| `ALERT_WEBHOOK_URL` | uyarı; verilirse `https://` | beklenmeyen sunucu hatalarında (500) JSON POST — Slack (`text`) ve Discord (`content`) uyumlu. Adresin kendisi gizli anahtardır; loglanmaz. |
 | `AVATAR_STORAGE_DIR` | `AVATAR_PROVIDER` varsa ZORUNLU | selfie (geçici), GLB ve küçük resimlerin yerel dizini. Tek örnekli kurulum içindir; çok örnekte paylaşılan nesne deposu (S3 uyumlu) gerekir. **Kişisel veri** içerir: yedekleme/erişim buna göre. |
 
 Sahte para yatırma üretimde HER ZAMAN kapalıdır (`MockPaymentProvider`);
@@ -116,6 +118,29 @@ DATABASE_URL=... tools/ops/backup-drill.sh                  # yedek → geçici 
   takılır — çağıranlar değişmez.
 - Web: `app/error.tsx` (sayfa) ve `app/global-error.tsx` (kök) hata
   sınırları; ekrana hata ayrıntısı basılmaz.
+
+## Metrikler ve alarm (08.10.2026)
+
+- `GET /api/v1/metrics` — Prometheus metin biçimi; `METRICS_TOKEN` ile
+  (`Authorization: Bearer …`). Toplayıcı örneği:
+  ```yaml
+  scrape_configs:
+    - job_name: at-sevdalisi-api
+      metrics_path: /api/v1/metrics
+      authorization: { type: Bearer, credentials_file: /etc/prometheus/at-metrics-token }
+      static_configs: [{ targets: ['api:4000'] }]
+  ```
+  Sayaçlar SÜREÇ başınadır: birden çok örnekte her örnek ayrı kazınır,
+  toplama Prometheus'ta (`sum by (route)`) yapılır. Önerilen alarm kuralları:
+  `rate(http_requests_total{status=~"5.."}[5m])` artışı,
+  `histogram_quantile(0.95, …http_request_duration_seconds_bucket…)`
+  `ops.loadTest` bütçesini aşması, `game_gauge_query_up == 0`,
+  `db_pool_connections{state="waiting"} > 0` uzun süre.
+- `ALERT_WEBHOOK_URL` — beklenmeyen sunucu hatası (500) anında POST; en
+  fazla `ops.alerts.cooldownSeconds`te bir mesaj, aradakiler sonraki mesajda
+  sayılır. Gövde yalnızca hata ADI, yöntem, yol (sorgu dizesi atılır) ve
+  istek kimliği taşır — mesaj/yığın/girdi YOK; ayrıntı loglarda istek
+  kimliğiyle bulunur. İstemci hata raporları alarm üretmez.
 
 ## Yük testi (Faz 7)
 

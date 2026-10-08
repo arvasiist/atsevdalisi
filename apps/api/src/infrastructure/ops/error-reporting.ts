@@ -1,3 +1,4 @@
+import { metrics } from './metrics';
 import { writeLog } from './structured-log';
 
 /**
@@ -38,6 +39,8 @@ export function setErrorReporter(reporter: ErrorReporter): void {
 }
 
 export function reportError(error: unknown, context: ErrorContext): void {
+  // 08.10.2026 — `/metrics` hata sayacı (raporlayıcıdan bağımsız).
+  metrics.incCounter('app_errors_total', { source: context.source });
   try {
     current.report(error, context);
   } catch {

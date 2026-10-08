@@ -60,6 +60,8 @@ services:
       RESEND_API_KEY: ${RESEND_API_KEY:-}
       MAIL_FROM: ${MAIL_FROM:-}
       GOOGLE_OAUTH_CLIENT_ID: ${GOOGLE_OAUTH_CLIENT_ID:-}
+      METRICS_TOKEN: ${METRICS_TOKEN:-}
+      ALERT_WEBHOOK_URL: ${ALERT_WEBHOOK_URL:-}
     depends_on:
       redis:
         condition: service_healthy

@@ -4325,6 +4325,23 @@ Karar: önce pratik yarış; kırbaç sınırsız, dayanıklılık bedelli.
   anı süpürmesi), `notification-types.spec.ts` (0077),
   `postprocessing.spec.ts`; tarayıcıda Ultra'da konsol temiz.
 
+### 13.98 Metrik ucu + alarm kancası
+
+- Üretimde ne olduğunu görmek için `GET /api/v1/metrics` (Prometheus metin
+  biçimi): istek sayısı/süresi (rota kalıbına göre), hata sayısı, bellek,
+  veritabanı havuzu, oyuncu/açık yarış/aktif ilan/bekleyen ödeme sayıları.
+  Ek bağımlılık yok; Prometheus, Grafana Agent, OTel toplayıcısı kazır.
+- Uç yalnızca `METRICS_TOKEN` ile açılır (yoksa 404, yanlış token 401);
+  oyuncu kimliği, sorgu dizesi, bakiye içermez.
+- `ALERT_WEBHOOK_URL` verilirse beklenmeyen sunucu hatası Slack/Discord
+  uyumlu bir mesaja dönüşür (soğumalı; mesajda hata ayrıntısı yok, yalnızca
+  istek kimliği — ayrıntı loglarda).
+- Sağlayıcı (Grafana Cloud, Datadog, Sentry…) hâlâ sahibinin kararıdır; bu
+  dilim hangisi seçilirse seçilsin bağlanacak yeri hazırlar.
+- Kanıt: `ops-metrics.e2e-spec.ts` (404/401, kalıp etiketi + `unmatched`,
+  oyun göstergeleri, 500'de webhook gövdesinde mesaj/sorgu yok),
+  `metrics-alerting.spec.ts` (biçim, kaçış, soğuma), `production-env.spec.ts`.
+
 ## 14. Kendime hatırlatmalar (kısa liste)
 
 1. **Race Engine'e dokunmadan önce iki kez düşün.** Denetim onu "KEEP, dokunma"

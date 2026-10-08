@@ -9,7 +9,8 @@
     "minJwtSecretLength": 32,
     "forbiddenJwtSecrets": [
       "ci-test-only-jwt-secret-never-use-in-production"
-    ]
+    ],
+    "minMetricsTokenLength": 24
   },
   "clientErrors": {
     "maxMessageLength": 500,
@@ -35,5 +36,22 @@
       "requestsTimeoutMs": 3000,
       "channelPrefix": "at-sevdalisi-io"
     }
+  },
+  "metrics": {
+    "durationBucketsSeconds": [
+      0.025,
+      0.05,
+      0.1,
+      0.25,
+      0.5,
+      1,
+      2.5,
+      5
+    ],
+    "gaugeQueryTimeoutMs": 1500
+  },
+  "alerts": {
+    "cooldownSeconds": 300,
+    "requestTimeoutMs": 3000
   }
 }

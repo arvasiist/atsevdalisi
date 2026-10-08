@@ -780,6 +780,18 @@ deseni YAZMA: eşzamanlı satılan ilanı `expired`a geri yazıyordu. Müzayede
 BURADAN süpürülmez (emanet). Bildirim CHECK'i artık 0077'dedir.
 ⚠️ 08.10.2026 — `<SSAO>` kullanan her `EffectComposer` `enableNormalPass`
 ister (`postprocessing.spec.ts` tarar); yoksa "Ultra"da konsol hatası.
+(74) **METRİK UCU + ALARM KANCASI (08.10.2026, §13.98)** — sağlayıcıdan
+bağımsız. `GET /metrics` (`@Public`, Prometheus metni) YALNIZCA
+`METRICS_TOKEN` ile: değişken yoksa 404, yanlış token 401. Kayıt süreç içi
+(`infrastructure/ops/metrics.ts`), HTTP sayaç/süre `HttpMetricsMiddleware`.
+⚠️ Etiket SINIRLI kümedir: rota KALIBI (`routeLabel`), yöntem, durum, kaynak
+— kimlik/sorgu dizesi/oyuncu verisi etiket YAPMA (kardinalite + kişisel
+veri). Eşleşmeyen istekte Express `route`u ara katman jokeri
+(`/api/v1/{*path}`) bırakır → `unmatched`. `ALERT_WEBHOOK_URL` →
+`AlertingErrorReporter` yalnızca `source: 'server'` hatalarda, soğumalı
+(`ops.alerts`); ⚠️ alarm gövdesine hata MESAJI/yığın/sorgu dizesi KOYMA
+(yalnızca ad + yöntem + yol + istek kimliği). Üretimde ikisi de uyarıdır;
+verilirse token ≥ `minMetricsTokenLength`, URL `https://`.
 
 **✅ ÜCRETLİ LOBİ YARIŞI ARTIK KOŞUYOR — ÖDÜL DAĞITIMI VAR (§13.14,
 28.09.2026).** `POST /races/:id/settle` yarışı koşar, ödülleri `top5`

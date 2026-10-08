@@ -20,6 +20,8 @@ const healthyProduction: EnvCheckInput = {
   WEB_BASE_URL: 'https://atsevdalisi.example',
   RESEND_API_KEY: 're_x',
   GOOGLE_OAUTH_CLIENT_ID: 'id.apps.googleusercontent.com',
+  METRICS_TOKEN: 'm'.repeat(rules.minMetricsTokenLength),
+  ALERT_WEBHOOK_URL: 'https://hooks.example/alert',
 };
 
 describe('checkEnvironment — üretim ortamı', () => {
@@ -39,6 +41,9 @@ describe('checkEnvironment — üretim ortamı', () => {
     ['hız sınırı kapalı', { DISABLE_RATE_LIMIT: 'true' }],
     // 07.10.2026 (Faz 8-B): sağlayıcı açık ama depo dizini yok → selfie geçici dizine düşerdi.
     ['AI avatar sağlayıcısı var, depo dizini yok', { AVATAR_PROVIDER: 'acme-3d', AVATAR_STORAGE_DIR: '' }],
+    // 08.10.2026 — gözlemlenebilirlik değerleri verilirse güvenli olmalı.
+    ['METRICS_TOKEN kısa', { METRICS_TOKEN: 'kisa' }],
+    ['ALERT_WEBHOOK_URL https değil', { ALERT_WEBHOOK_URL: 'http://hooks.example/alert' }],
   ])('%s → açılış HATASI', (_label, patch) => {
     const result = checkEnvironment({ ...healthyProduction, ...patch }, rules);
     expect(result.errors).toHaveLength(1);
@@ -52,6 +57,12 @@ describe('checkEnvironment — üretim ortamı', () => {
 
   it('e-posta / Google anahtarı yoksa yalnızca UYARI (açılır)', () => {
     const result = checkEnvironment({ ...healthyProduction, RESEND_API_KEY: '', GOOGLE_OAUTH_CLIENT_ID: undefined }, rules);
+    expect(result.errors).toEqual([]);
+    expect(result.warnings).toHaveLength(2);
+  });
+
+  it('metrik token\'ı / alarm adresi yoksa yalnızca UYARI (açılır)', () => {
+    const result = checkEnvironment({ ...healthyProduction, METRICS_TOKEN: undefined, ALERT_WEBHOOK_URL: '' }, rules);
     expect(result.errors).toEqual([]);
     expect(result.warnings).toHaveLength(2);
   });

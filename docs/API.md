@@ -2954,6 +2954,26 @@ default-src 'none'; sandbox`, uzun önbellek. `GET /avatar` → `photo`, profil 
 silme fotoğrafı (satır + dosya) siler; dışa aktarma `profilePhoto` bölümünü
 taşır (depo anahtarı hariç).
 
+## 9.2 Metrikler (08.10.2026)
+
+```http
+GET /api/v1/metrics      # Authorization: Bearer <METRICS_TOKEN>; text/plain (Prometheus 0.0.4)
+```
+
+`METRICS_TOKEN` tanımlı DEĞİLSE uç yoktur (404); token eksik/yanlışsa 401
+(karşılaştırma özetle, sabit sürede). Oturum kapısı dışındadır, token
+toplayıcının (Prometheus, Grafana Agent, OTel) kazıma ayarına yazılır.
+İçerik: `http_requests_total{method,route,status}`,
+`http_request_duration_seconds{method,route}` (kova sınırları
+`ops.metrics.durationBucketsSeconds`), `app_errors_total{source}`, süreç
+(çalışma süresi, RSS, heap), Postgres havuzu (`db_pool_connections{state}`)
+ve oyun göstergeleri (`game_players`, `game_open_races`,
+`game_active_listings`, `game_pending_payments`,
+`game_gauge_query_up` — sorgu `ops.metrics.gaugeQueryTimeoutMs`i aşarsa 0).
+`route` Express'in eşleştirdiği KALIPTIR (`/api/v1/races/:raceId`);
+eşleşmeyen istek `unmatched`. Kimlik, sorgu dizesi, oyuncu verisi etiket
+olmaz, bakiye dönmez.
+
 ## 10. WebSocket olayları
 
 Brief'te WebSocket "gerektiğinde" kullanılacağı belirtilmiş (§6).
