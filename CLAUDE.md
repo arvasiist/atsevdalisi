@@ -211,7 +211,8 @@ uydurulmadı. 3D önizleme `/stable` kartında DÜĞMEYLE açılır (her kartta
 Canvas = WebGL bağlam sınırı).
 (19) **ANA SAYFA 3D VİTRİN (01.10.2026, §13.45)** — `features/home-scene`.
 Eski CSS/SVG hero KALDIRILDI; ekranın üstü 3D hipodrom + OYUNCUNUN atı
-(`pickFeaturedHorse`, kartla aynı kural) + jokey + PLACEHOLDER ahır. 6
+(`pickFeaturedHorse`, kartla aynı kural) + jokey (iç sahadaki ahır 08.10.2026'da
+KALDIRILDI — ahır ayrı mekândır, bkz. (63)). 6
 sinematik çekim `config/camera.config.json` → `homeShowcase` (ata göre
 konum, `from→to` dolly, `blendSeconds` yumuşak geçiş; saf
 `evaluateShowcaseCamera`, sınırda sıçrama testle kilitli). Dar ekranda
@@ -641,6 +642,17 @@ bilinmeyen sınıf KAPALIDIR. Botlar sınıfın ırkları gücünde
 (`raceClassBotStatRange` → `generateBotEntrants(n, seed, range)`); açık
 yarışta üçüncü argüman YOK → botlar bit bit eskisi gibi. Takvim programı
 `breedClass` alabilir (`native-breeds`).
+(63) **AHIR AYRI MEKÂN + BAKIM/EKİPMAN AHIRIN İÇİNDE (08.10.2026, §13.87)** —
+sahibinin isteği. `/care` ve `/equipment` menüden KALKTI; eski adresler
+`/stable?panel=care|equipment`e YÖNLENİR (sunucu `redirect`). Ahır sahnesinde
+"Bakım"/"Ekipman" simgeleri + sahnenin içinde panel (`features/stable-actions`,
+telefonda alttan çekmece); kartlardaki düğmeler aynı paneli açar. Uçlar ve
+kurallar DEĞİŞMEDİ. Ana sayfadaki iç saha ahırı kaldırıldı ("Ahır" çekimi →
+"Tribün"). `PlaceholderStall` artık koridorlu prosedürel ahır (dokular
+`<canvas>`ta çizilir, dosya YOK; PLACEHOLDER rozeti durur). ⚠️ Kamera
+yörüngesi sınırlıdır ve `stable-layout.spec.ts` bütün sınır kutusunun duvar/
+çatı/lamba/makas dışında kaldığını tarar — ahıra parça eklerken kameranın
+gezdiği alana (`isCameraInOpenSpace`) koyma.
 
 **✅ ÜCRETLİ LOBİ YARIŞI ARTIK KOŞUYOR — ÖDÜL DAĞITIMI VAR (§13.14,
 28.09.2026).** `POST /races/:id/settle` yarışı koşar, ödülleri `top5`

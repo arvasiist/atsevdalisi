@@ -24,7 +24,7 @@ describe('homeShowcase config (01.10.2026)', () => {
       'wide',
       'horse_medium',
       'horse_closeup',
-      'stable',
+      'grandstand',
       'track',
       'jockey',
     ]);

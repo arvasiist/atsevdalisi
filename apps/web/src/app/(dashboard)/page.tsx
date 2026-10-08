@@ -37,7 +37,6 @@ import {
   Users,
   Warehouse,
   Wheat,
-  Wrench,
   Zap,
 } from 'lucide-react';
 import type {
@@ -59,6 +58,7 @@ import { CURRENCY_LABELS } from '../../lib/currency';
 import { formatRaceStart, formatTimeUntil } from '../../lib/format-time';
 import { usePlayer } from '../../lib/player-context';
 import { breedLabel } from '../../features/breeds/breed-catalog';
+import { stableActionHref } from '../../features/stable-actions/stable-actions';
 
 interface QuickLink {
   href: string;
@@ -72,12 +72,10 @@ const ICON_SIZE = 26;
 const QUICK_LINKS: QuickLink[] = [
   { href: '/stable', icon: <HorseHeadIcon size={ICON_SIZE + 4} />, label: 'Ahırım', description: 'Atlarını yönet' },
   { href: '/training', icon: <Dumbbell size={ICON_SIZE} />, label: 'Antrenman', description: 'Statları geliştir' },
-  { href: '/care', icon: <HeartPulse size={ICON_SIZE} />, label: 'Bakım', description: 'Sağlık & besleme' },
   { href: '/races', icon: <Trophy size={ICON_SIZE} />, label: 'Yarışlar', description: 'Lobi & pratik yarış' },
   { href: '/grandstand', icon: <Ticket size={ICON_SIZE} />, label: 'Tribün', description: 'Yarışları izle' },
   { href: '/replays', icon: <Clapperboard size={ICON_SIZE} />, label: 'Tekrarlar', description: 'Geçmiş yarışlar' },
   { href: '/market', icon: <ShoppingCart size={ICON_SIZE} />, label: 'Pazar', description: 'Al & sat' },
-  { href: '/equipment', icon: <Wrench size={ICON_SIZE} />, label: 'Ekipman', description: 'Eyer, dizgin, nal' },
   { href: '/farm', icon: <Wheat size={ICON_SIZE} />, label: 'Çiftlik', description: 'Üretim & kaynak' },
   { href: '/online', icon: <Globe size={ICON_SIZE} />, label: 'Online', description: 'PvP eşleşme' },
   { href: '/leaderboard', icon: <ChartColumn size={ICON_SIZE} />, label: 'Sıralama', description: 'Küresel tablo' },
@@ -340,7 +338,7 @@ function FeaturedHorseCard({ ownerId }: { ownerId: string }): React.ReactElement
                 <Dumbbell size={18} aria-hidden="true" />
                 Antrenman
               </Link>
-              <Link href="/care" className="btn-action btn-action-green">
+              <Link href={stableActionHref('care')} className="btn-action btn-action-green">
                 <HeartPulse size={18} aria-hidden="true" />
                 Bakım
               </Link>

@@ -4127,6 +4127,29 @@ Karar: önce pratik yarış; kırbaç sınırsız, dayanıklılık bedelli.
   `breeds.spec.ts` (CHECK eşleşmesi, kapı, bot aralığı, doğrulama),
   `create-race-dto.spec.ts`, web `lobby-logic`/`LobbyPanel`/`breed-catalog`.
 
+### 13.87 Ahır ayrı mekân + bakım/ekipman ahırın içinde (08.10.2026)
+
+- Sahibinin geri bildirimi: "ahır pistin ortasında olmaz", "bakımı/ekipmanı
+  ahırın içinde ikon olarak ver", "ahıra gerçekçilik kat".
+- Ana sayfa 3D vitrininde iç sahadaki yer tutucu ahır kaldırıldı; "Ahır"
+  çekimi yerine "Tribün" çekimi (`camera.config.json` → `homeShowcase`).
+- `/care`, `/equipment` menüden çıktı, `/stable?panel=…`a yönlenir. Ahır
+  sahnesinde iki simge + sahnenin içinde panel (`CarePanel`, `EquipmentPanel`,
+  `StableActionDock`); at kartlarında "Bakım"/"Ekipman" düğmeleri aynı paneli
+  açar. API ve kurallar değişmedi.
+- `PlaceholderStall`: koridorlu ahır binası — iki sıra bölme (ahşap + demir
+  parmaklık, sürgülü kapılar), beşik çatı + makaslar, pencereler (gölgeli gün
+  ışığı yalnızca pencere boşluklarından girer, ışık hüzmesi + toz), asma
+  lambalar, beton koridor, saman yatak + saman telleri, köşe yemliği, suluk,
+  tuz taşı, battaniye, isim levhası (atın adı), el arabası, balyalar, eyer
+  askısı; koridor ucunda açık kapı + padok. Dokular çalışma anında `<canvas>`a
+  çizilir (dosya yok). Hâlâ PLACEHOLDER: gerçek `stable-environment.glb` gelince
+  yerini o alır.
+- Kamera: yörünge sınırlı (koridordan/bölmeden atı yandan görür), sınırda yön
+  değiştirerek gidip gelir. `stable-layout.spec.ts` sınır kutusunu tarar.
+- Testler: `stable-layout.spec.ts`, `stable-actions.spec.ts`,
+  `showcase-camera.spec.ts` (çekim kimlikleri), `top-bar-nav.spec.ts`.
+
 ## 14. Kendime hatırlatmalar (kısa liste)
 
 1. **Race Engine'e dokunmadan önce iki kez düşün.** Denetim onu "KEEP, dokunma"

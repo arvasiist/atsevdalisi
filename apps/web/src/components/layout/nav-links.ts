@@ -25,7 +25,6 @@ export type NavIconName =
   | 'home'
   | 'horse'
   | 'training'
-  | 'care'
   | 'races'
   | 'grandstand'
   | 'market'
@@ -35,7 +34,6 @@ export type NavIconName =
   | 'quests'
   | 'staff'
   | 'replays'
-  | 'equipment'
   | 'farm'
   | 'online'
   | 'wallet'
@@ -66,7 +64,6 @@ export const NAV_LINKS: ReadonlyArray<NavLink> = [
   { href: '/', label: 'Ana Sayfa', icon: 'home', placement: 'primary', mobileTab: true },
   { href: '/stable', label: 'Ahır', icon: 'horse', placement: 'primary', mobileTab: true },
   { href: '/training', label: 'Antrenman', icon: 'training', placement: 'primary' },
-  { href: '/care', label: 'Bakım', icon: 'care', placement: 'primary' },
   { href: '/races', label: 'Yarışlar', icon: 'races', placement: 'primary', mobileTab: true },
   { href: '/grandstand', label: 'Tribün', icon: 'grandstand', placement: 'more' },
   { href: '/market', label: 'Pazar', icon: 'market', placement: 'primary', mobileTab: true },
@@ -76,7 +73,6 @@ export const NAV_LINKS: ReadonlyArray<NavLink> = [
   { href: '/club', label: 'Kulüp', icon: 'club', placement: 'more' },
   { href: '/staff', label: 'Personel', icon: 'staff', placement: 'more' },
   { href: '/replays', label: 'Yarış Geçmişi', icon: 'replays', placement: 'more' },
-  { href: '/equipment', label: 'Ekipman', icon: 'equipment', placement: 'more' },
   { href: '/farm', label: 'Çiftlik', icon: 'farm', placement: 'more' },
   { href: '/breeds', label: 'Yetiştirici', icon: 'horse', placement: 'more' },
   { href: '/online', label: 'Online', icon: 'online', placement: 'more' },

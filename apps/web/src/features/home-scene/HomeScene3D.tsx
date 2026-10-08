@@ -5,11 +5,15 @@
  *
  * Oyuncunun ilk gördüğü şey bir 3D dünya: hipodrom (pist, korkuluk, tribün +
  * kalabalık, kuleler, ağaçlar — `TrackScenery`), önde OYUNCUNUN atı (görünüş
- * ve davranış veritabanındaki gerçek kayıttan), sırtında jokey, iç sahada
- * bir ahır. Kamera `config/camera.config.json` → `homeShowcase` çekimlerini
- * sırayla, yumuşak geçişlerle oynatır.
+ * ve davranış veritabanındaki gerçek kayıttan), sırtında jokey. Kamera
+ * `config/camera.config.json` → `homeShowcase` çekimlerini sırayla, yumuşak
+ * geçişlerle oynatır.
  *
- * ⚠️ PLACEHOLDER: at, jokey, ahır ve tribün bugün prosedürel geometridir
+ * 08.10.2026 — iç sahadaki ahır KALDIRILDI (sahibi: "ahır pistin ortasında
+ * olmaz"). Ahır ayrı bir mekândır (`/stable`, `StableScene3D`); o çekimin
+ * yerini tribün çekimi aldı.
+ *
+ * ⚠️ PLACEHOLDER: at, jokey ve tribün bugün prosedürel geometridir
  * (gerçek GLB yok — `PlaceholderBadge` bunu ekranda söyler). `public/models/
  * horse.glb` / `jockey.glb` konunca `HorseAvatar3D` gerçek modellere geçer.
  * Sahne hiçbir dosyayı CDN'den indirmez.
@@ -66,8 +70,6 @@ const HORSE_HEADING = 0;
 /** Çekim açıları 16:9 için yazıldı; dar ekranda yatay kapsam korunur (en fazla bu açıya kadar). */
 const REFERENCE_ASPECT = 16 / 9;
 const MAX_PORTRAIT_FOV = 72;
-/** İç sahadaki ahırın ata göre konumu — `homeShowcase` "stable" çekimi buraya bakar. */
-const BARN_LOCAL: Vec3 = [-28, 0, 18];
 
 export type ShowcaseSceneHorse = Pick<
   PublicHorse,
@@ -165,54 +167,6 @@ function PlayerHorse({
   );
 }
 
-/**
- * PLACEHOLDER ahır (gerçek `stable-environment.glb` yok): ahşap gövde,
- * beşik çatı, iki bölme kapısı, saman balyaları. Yalnızca "Ahır" çekiminin
- * neye baktığını göstermek için; manifestte `STABLE_ENVIRONMENT_REQUIRED`.
- */
-function PlaceholderBarn({ castShadow }: { castShadow: boolean }): React.ReactElement {
-  const world = toWorld(BARN_LOCAL, HORSE_ANCHOR, HORSE_HEADING);
-  return (
-    <group position={world} rotation={[0, 0.5, 0]}>
-      <mesh position={[0, 2, 0]} castShadow={castShadow} receiveShadow>
-        <boxGeometry args={[12, 4, 7]} />
-        <meshStandardMaterial color="#6e4a2e" roughness={0.85} />
-      </mesh>
-      {/* Beşik çatı: iki eğik levha */}
-      <mesh position={[0, 4.9, 1.85]} rotation={[0.62, 0, 0]} castShadow={castShadow}>
-        <boxGeometry args={[12.6, 0.18, 4.4]} />
-        <meshStandardMaterial color="#3b2a22" roughness={0.7} />
-      </mesh>
-      <mesh position={[0, 4.9, -1.85]} rotation={[-0.62, 0, 0]} castShadow={castShadow}>
-        <boxGeometry args={[12.6, 0.18, 4.4]} />
-        <meshStandardMaterial color="#3b2a22" roughness={0.7} />
-      </mesh>
-      {[-2.6, 2.6].map((x) => (
-        <group key={x} position={[x, 1.4, 3.52]}>
-          <mesh>
-            <boxGeometry args={[2.2, 2.8, 0.08]} />
-            <meshStandardMaterial color="#4a3020" roughness={0.8} />
-          </mesh>
-          <mesh position={[0, 0, 0.05]}>
-            <boxGeometry args={[2.2, 0.12, 0.04]} />
-            <meshStandardMaterial color="#d8c9a8" roughness={0.6} />
-          </mesh>
-        </group>
-      ))}
-      {[
-        [-5, 0.45, 5],
-        [-3.8, 0.45, 5.4],
-        [-4.4, 1.25, 5.2],
-      ].map(([x, y, z]) => (
-        <mesh key={`${x}-${y}`} position={[x!, y!, z!]} castShadow={castShadow}>
-          <boxGeometry args={[1.1, 0.8, 0.8]} />
-          <meshStandardMaterial color="#c9a85a" roughness={1} />
-        </mesh>
-      ))}
-    </group>
-  );
-}
-
 export function HomeScene3D({
   horse,
   requestedShot,
@@ -249,7 +203,6 @@ export function HomeScene3D({
         crowdExcitement={ATMOSPHERE.crowd.preRaceExcitement}
         qualityTier={settings.tier}
       />
-      <PlaceholderBarn castShadow={settings.shadowsEnabled} />
       {horse ? <PlayerHorse horse={horse} settings={settings} /> : null}
       {/* Atın altındaki temas gölgesi — sabit sahnede ucuz, zemine "oturma" hissi verir. */}
       <ContactShadows

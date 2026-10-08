@@ -74,25 +74,25 @@
         "fov": 28
       },
       {
-        "id": "stable",
-        "label": "Ahır",
+        "id": "grandstand",
+        "label": "Tribün",
         "durationSeconds": 6,
         "from": [
-          -14,
-          3.5,
-          30
+          -6,
+          2.4,
+          -14
         ],
         "to": [
-          -18,
-          3.2,
-          31
+          -12,
+          2.5,
+          -14.5
         ],
         "target": [
-          -28,
-          3,
-          18
+          -46,
+          5,
+          -34
         ],
-        "fov": 40
+        "fov": 44
       },
       {
         "id": "track",

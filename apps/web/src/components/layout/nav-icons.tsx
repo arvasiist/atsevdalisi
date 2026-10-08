@@ -13,7 +13,6 @@ import {
   Dumbbell,
   Gem,
   Globe,
-  HeartPulse,
   House,
   Shield,
   Shirt,
@@ -25,7 +24,6 @@ import {
   Users,
   Wallet,
   Wheat,
-  Wrench,
 } from 'lucide-react';
 import { HorseHeadIcon } from '../ui/HorseHeadIcon';
 import type { NavIconName } from './nav-links';
@@ -33,7 +31,6 @@ import type { NavIconName } from './nav-links';
 const LUCIDE_ICONS: Record<Exclude<NavIconName, 'horse'>, typeof House> = {
   home: House,
   training: Dumbbell,
-  care: HeartPulse,
   races: Trophy,
   grandstand: Ticket,
   market: ShoppingCart,
@@ -43,7 +40,6 @@ const LUCIDE_ICONS: Record<Exclude<NavIconName, 'horse'>, typeof House> = {
   quests: ListChecks,
   staff: UserCog,
   replays: Clapperboard,
-  equipment: Wrench,
   farm: Wheat,
   online: Globe,
   wallet: Wallet,

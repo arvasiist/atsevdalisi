@@ -33,6 +33,7 @@ import {
   Network,
   Smile,
   Warehouse,
+  Wrench,
   Zap,
 } from 'lucide-react';
 import type {
@@ -53,6 +54,11 @@ import { apiClient } from '../../lib/api-client';
 import { formatCurrency, hasEnoughFunds } from '../../lib/currency';
 import { usePlayer } from '../../lib/player-context';
 import { breedLabel } from '../../features/breeds/breed-catalog';
+import { StableActionDock } from '../../features/stable-actions/StableActionDock';
+import {
+  parseStableActionParam,
+  type StableActionKey,
+} from '../../features/stable-actions/stable-actions';
 
 /**
  * 01.10.2026 — 3D AHIR SAHNESİ (adım 6). Tembel ve istemci tarafında
@@ -97,6 +103,26 @@ export default function StablePage(): React.ReactElement {
     setStageHorseId(horseId);
     if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' });
   }, []);
+  /**
+   * 08.10.2026 — bakım ve ekipman ahırın İÇİNDE: sahnedeki simgelerden ya da
+   * kartlardaki düğmelerden açılır. Eski `/care`, `/equipment` adresleri
+   * `?panel=` ile buraya yönlenir (sorgu dizesi `useEffect`te okunur —
+   * `store` sayfasıyla aynı; `useSearchParams` Suspense sınırı isterdi).
+   */
+  const [activeAction, setActiveAction] = useState<StableActionKey | null>(null);
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    setActiveAction(parseStableActionParam(params.get('panel')));
+    const requestedHorse = params.get('horse');
+    if (requestedHorse) setStageHorseId(requestedHorse);
+  }, []);
+  const openStableAction = useCallback(
+    (horseId: string, action: StableActionKey) => {
+      setActiveAction(action);
+      showInStable(horseId);
+    },
+    [showInStable],
+  );
 
   useEffect(() => {
     if (!player) {
@@ -127,6 +153,18 @@ export default function StablePage(): React.ReactElement {
    * eylemiyle tetiklenen bir tazelemedir — bileşen kaldırılırsa React
    * uyarı verir ama sızıntı olmaz; yarışan iki tazeleme de aynı veriyi yazar.
    */
+  /** Bakım/besleme sonrası: kartlar ve sahnedeki at sunucudaki son değeri gösterir. */
+  const reloadHorses = useCallback(async (): Promise<void> => {
+    if (!player) {
+      return;
+    }
+    try {
+      setHorses(await apiClient.getHorsesByOwner(player.id));
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Atlar yüklenemedi');
+    }
+  }, [player]);
+
   const handleBred = useCallback(async (): Promise<void> => {
     if (!player) {
       return;
@@ -171,7 +209,16 @@ export default function StablePage(): React.ReactElement {
 
       {error ? <p style={{ color: 'var(--color-status-critical)' }}>{error}</p> : null}
 
-      {stageHorse ? <StableScene3D horse={stageHorse} /> : null}
+      {stageHorse ? (
+        <StableScene3D horse={stageHorse}>
+          <StableActionDock
+            horse={stageHorse}
+            active={activeAction}
+            onSelect={setActiveAction}
+            onHorseChanged={reloadHorses}
+          />
+        </StableScene3D>
+      ) : null}
 
       {player ? <StableUpgradeCard ownerId={player.id} onUpgraded={refresh} /> : null}
 
@@ -197,6 +244,7 @@ export default function StablePage(): React.ReactElement {
               horse={horse}
               isOnStage={stageHorse?.id === horse.id}
               onShowInStable={showInStable}
+              onOpenAction={openStableAction}
             />
           ))}
         </div>
@@ -394,10 +442,12 @@ function HorseCard({
   horse,
   isOnStage,
   onShowInStable,
+  onOpenAction,
 }: {
   horse: PublicHorse;
   isOnStage: boolean;
   onShowInStable: (horseId: string) => void;
+  onOpenAction: (horseId: string, action: StableActionKey) => void;
 }): React.ReactElement {
   // docs/AUDIT_REPORT.md "§25 Stable görsel yönetim ekranı" bulgusunun
   // "piyasa değeri tahmini ... ayrı dilim" notu (bu turda EKLENDİ) —
@@ -478,15 +528,27 @@ function HorseCard({
           <StatBar icon={<Smile size={14} />} label="Moral" value={horse.morale} />
         </div>
 
-        <div className="featured-actions" style={{ marginTop: 'var(--space-md)' }}>
+        <div className="featured-actions featured-actions-3" style={{ marginTop: 'var(--space-md)' }}>
           <Link href="/training" className="btn-action btn-action-blue">
             <Dumbbell size={18} aria-hidden="true" />
             Antrenman
           </Link>
-          <Link href="/care" className="btn-action btn-action-green">
+          <button
+            type="button"
+            className="btn-action btn-action-green"
+            onClick={() => onOpenAction(horse.id, 'care')}
+          >
             <HeartPulse size={18} aria-hidden="true" />
             Bakım
-          </Link>
+          </button>
+          <button
+            type="button"
+            className="btn-action btn-action-blue"
+            onClick={() => onOpenAction(horse.id, 'equipment')}
+          >
+            <Wrench size={18} aria-hidden="true" />
+            Ekipman
+          </button>
         </div>
 
         <button
