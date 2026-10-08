@@ -59,3 +59,47 @@ export interface GiftView {
   amount: number;
   createdAt: string;
 }
+
+/**
+ * 08.10.2026 — DOSTLUK HEDİYESİ. Gönderen hiçbir şey ödemez; alıcı
+ * toplayınca çip `friend_gift_collect` defter satırıyla girer.
+ */
+export interface FriendGiftPendingView {
+  giftId: string;
+  sender: { playerId: string; username: string; displayName: string };
+  amount: number;
+  createdAt: string;
+}
+
+export interface FriendGiftBoardView {
+  /** Bir hediyenin tutarı (config). */
+  amount: number;
+  dailyCollectLimit: number;
+  /** Bugün (oyun saat dilimi) toplanan hediye sayısı. */
+  collectedToday: number;
+  remainingCollectsToday: number;
+  /** Süresi geçmemiş, toplanmamış hediyeler (sayı + toplam tutar). */
+  pendingCount: number;
+  pendingAmount: number;
+  pending: FriendGiftPendingView[];
+  /** Hediye gönderilebilecek arkadaş sayısı (engel/silinmiş hesap hariç). */
+  friendCount: number;
+  /** Bugün hediye gönderilmiş arkadaş sayısı. */
+  sentToday: number;
+}
+
+export interface FriendGiftSendAllResult {
+  /** Bu istekte hediye gönderilen arkadaş sayısı. */
+  sent: number;
+  /** Bugün zaten hediye gönderilmiş olan arkadaş sayısı. */
+  alreadySentToday: number;
+}
+
+export interface FriendGiftCollectResult {
+  collected: number;
+  amount: number;
+  balanceAfter: number;
+  remainingCollectsToday: number;
+  /** Günlük sınır yüzünden bekleyen (yarın toplanabilir) hediye sayısı. */
+  stillPending: number;
+}

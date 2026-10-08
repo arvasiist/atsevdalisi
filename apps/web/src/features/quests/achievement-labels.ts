@@ -18,6 +18,7 @@ const COUNT_TITLES: Record<AchievementMetric, (target: number) => string> = {
   top3_finishes: (n) => `${n} kez ilk üç`,
   horse_purchases: (n) => `${n} at alımı`,
   player_level: (n) => `Seviye ${n}`,
+  friend_count: (n) => `${n} arkadaş edin`,
 };
 
 export function achievementTitle(metric: AchievementMetric, target: number): string {

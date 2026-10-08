@@ -87,6 +87,14 @@ const SECTION_SQL: Record<AccountExportSectionName, string> = {
     SELECT quest_key AS "questKey", period_start AS "periodStart", reward_money::float8 AS "rewardMoney",
            claimed_at AS "claimedAt"
       FROM quest_claims WHERE player_id = $1 ORDER BY claimed_at DESC LIMIT $2`,
+  // 08.10.2026 — dostluk hediyeleri (iki yön; karşı taraf yalnızca kullanıcı adıyla).
+  friendGifts: `
+    SELECT CASE WHEN g.sender_id = $1 THEN 'sent' ELSE 'received' END AS direction,
+           o.username AS "otherPlayer", g.amount::float8 AS amount, g.gift_day AS "giftDay",
+           g.created_at AS "createdAt", g.collected_at AS "collectedAt"
+      FROM friend_gifts g
+      JOIN players o ON o.id = CASE WHEN g.sender_id = $1 THEN g.recipient_id ELSE g.sender_id END
+     WHERE g.sender_id = $1 OR g.recipient_id = $1 ORDER BY g.created_at DESC LIMIT $2`,
   achievementClaims: `
     SELECT achievement_key AS "achievementKey", reward_money::float8 AS "rewardMoney", claimed_at AS "claimedAt"
       FROM achievement_claims WHERE player_id = $1 ORDER BY claimed_at DESC LIMIT $2`,

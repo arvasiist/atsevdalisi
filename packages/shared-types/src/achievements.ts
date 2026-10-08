@@ -13,6 +13,8 @@ export const ACHIEVEMENT_METRICS = [
   'top3_finishes',
   'horse_purchases',
   'player_level',
+  /** 08.10.2026 — kabul edilmiş arkadaş sayısı (ANLIK değer, oyuncu satırı gibi). */
+  'friend_count',
 ] as const;
 
 export type AchievementMetric = (typeof ACHIEVEMENT_METRICS)[number];

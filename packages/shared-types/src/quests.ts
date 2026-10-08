@@ -12,6 +12,8 @@ export const QUEST_METRICS = [
   'trainings',
   'care_actions',
   'horse_purchases',
+  /** 08.10.2026 — gönderilen dostluk hediyesi (`friend_gifts`, gönderen). */
+  'friend_gifts_sent',
 ] as const;
 
 export type QuestMetric = (typeof QUEST_METRICS)[number];

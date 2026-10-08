@@ -60,6 +60,7 @@ import { apiClient } from '../../lib/api-client';
 import { CURRENCY_LABELS, formatCurrency, hasEnoughFunds } from '../../lib/currency';
 import { usePlayer } from '../../lib/player-context';
 import { companionAction, describeSharedRaces } from '../../features/social/race-companions';
+import { FriendGiftPanel } from '../../features/social/FriendGiftPanel';
 
 /** Gelen kutusunda gösterilecek en fazla satır — sunucu zaten `inboxLimit` uygular. */
 const INBOX_PREVIEW_LIMIT = 5;
@@ -425,6 +426,8 @@ export default function FriendsPage(): React.ReactElement {
               ))}
             </Section>
           ) : null}
+
+          <FriendGiftPanel refreshKey={overview.friends.length} onBalanceChanged={refreshPlayerBalance} />
 
           <Section title={`Arkadaşlar (${overview.friends.length})`}>
             {overview.friends.length === 0 ? (

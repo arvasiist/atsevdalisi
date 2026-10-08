@@ -28,6 +28,7 @@ import {
 import { validateBreedsConfig } from '../../domain/horse/breeds';
 import { validateHippodromesConfig } from '../../domain/race/hippodrome';
 import { validateHorseLevelBrackets } from '../../domain/race/level-bracket';
+import { validateFriendGiftConfig } from '../../domain/social/friend-gift';
 
 /**
  * Ortam değişkenleri + oyun dengesi config'lerine tek noktadan erişim.
@@ -160,6 +161,10 @@ export class AppConfigService {
     const bracketProblems = validateHorseLevelBrackets(this.raceLobby.horseLevelBrackets, this.progression.maxLevel);
     if (bracketProblems.length > 0) {
       throw new Error(`At seviyesi aralıkları geçersiz (config/race-lobby.config.json): ${bracketProblems.join(' ')}`);
+    }
+    const friendGiftProblems = validateFriendGiftConfig(this.gift.friendGift);
+    if (friendGiftProblems.length > 0) {
+      throw new Error(`Dostluk hediyesi config'i geçersiz (config/gift.config.json): ${friendGiftProblems.join(' ')}`);
     }
     const hippodromeProblems = validateHippodromesConfig(this.hippodromes);
     if (hippodromeProblems.length > 0) {

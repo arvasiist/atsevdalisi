@@ -67,6 +67,11 @@ const METRIC_SQL: Record<QuestMetric, string> = {
         WHERE b.bidder_id = $1::uuid AND t.type = 'auction_sale_credit'
           AND t.amount >= $4 AND t.created_at >= $2 AND t.created_at < $3)
     )::bigint AS count`,
+  // 08.10.2026 — gönderilen dostluk hediyesi (gönderen ödemez; günde kişi başı bir).
+  friend_gifts_sent: `
+    SELECT COUNT(*)::bigint AS count
+      FROM friend_gifts g
+     WHERE g.sender_id = $1 AND g.created_at >= $2 AND g.created_at < $3 AND $4::bigint IS NOT NULL`,
 };
 
 export async function countMetric(

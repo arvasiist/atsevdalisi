@@ -15,6 +15,9 @@ import type {
   AnomalyReport,
   QuestBoardView,
   AchievementBoardView,
+  FriendGiftBoardView,
+  FriendGiftCollectResult,
+  FriendGiftSendAllResult,
   AvatarAppearance,
   AvatarView,
   AvatarGenerationJobView,
@@ -1516,6 +1519,13 @@ export const apiClient = {
   getAchievements: () => request<AchievementBoardView>('/achievements'),
   claimAchievement: (achievementKey: string) =>
     request<AchievementClaimResult>(`/achievements/${encodeURIComponent(achievementKey)}/claim`, { method: 'POST' }),
+  /**
+   * 08.10.2026 — dostluk hediyesi: gönderen ödemez; toplanınca çip defter
+   * satırıyla girer. Gövde YOK — tutar ve alıcılar sunucuda belirlenir.
+   */
+  getFriendGifts: () => request<FriendGiftBoardView>('/friend-gifts'),
+  sendFriendGiftsToAll: () => request<FriendGiftSendAllResult>('/friend-gifts/send-all', { method: 'POST' }),
+  collectFriendGifts: () => request<FriendGiftCollectResult>('/friend-gifts/collect', { method: 'POST' }),
   claimEvent: (eventId: string) =>
     request<QuestClaimResult>(`/events/${encodeURIComponent(eventId)}/claim`, { method: 'POST' }),
   listAdminEvents: () => request<AdminLiveEventView[]>('/admin/events'),

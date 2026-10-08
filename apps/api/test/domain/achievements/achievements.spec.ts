@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { ACHIEVEMENT_METRICS, QUEST_METRICS } from '@at-sevdalisi/shared-types';
 import { loadAchievementsConfig } from '@at-sevdalisi/game-config';
-import { resolveAchievement, validateAchievementConfig } from '../../../src/domain/achievements/achievements';
+import {
+  SNAPSHOT_ACHIEVEMENT_METRICS,
+  resolveAchievement,
+  validateAchievementConfig,
+} from '../../../src/domain/achievements/achievements';
 
 describe('başarım kuralları (saf)', () => {
   const config = loadAchievementsConfig();
@@ -11,8 +15,8 @@ describe('başarım kuralları (saf)', () => {
     expect(config.achievements.length).toBeGreaterThan(0);
   });
 
-  it('player_level dışındaki her ölçüt görev sayım motorunda VARDIR (ikinci sayım kodu yok)', () => {
-    for (const metric of ACHIEVEMENT_METRICS.filter((m) => m !== 'player_level')) {
+  it('anlık ölçütler (seviye, arkadaş sayısı) dışındaki her ölçüt görev sayım motorunda VARDIR (ikinci sayım kodu yok)', () => {
+    for (const metric of ACHIEVEMENT_METRICS.filter((m) => !SNAPSHOT_ACHIEVEMENT_METRICS.includes(m))) {
       expect(QUEST_METRICS as readonly string[]).toContain(metric);
     }
   });

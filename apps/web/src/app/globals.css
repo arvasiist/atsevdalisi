@@ -3177,3 +3177,46 @@ button.btn-action {
   color: var(--color-accent-gold);
   font-size: 15px;
 }
+
+/* 08.10.2026 — dostluk hediyesi paneli (/friends). */
+.friend-gift {
+  display: grid;
+  gap: var(--space-md);
+  margin-bottom: var(--space-xl);
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 1px solid var(--color-border-gold);
+  background: linear-gradient(135deg, rgba(201, 162, 39, 0.14), rgba(10, 16, 30, 0.6));
+}
+
+.friend-gift-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+  flex-wrap: wrap;
+}
+
+.friend-gift-title {
+  color: var(--color-accent-gold);
+  font-size: 15px;
+}
+
+.friend-gift-hint,
+.friend-gift-senders {
+  margin: 4px 0 0;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+}
+
+.friend-gift-notice {
+  margin: 0;
+  color: var(--color-status-positive);
+  font-size: 13px;
+}
+
+.friend-gift-error {
+  margin: 0;
+  color: var(--color-status-critical);
+  font-size: 13px;
+}

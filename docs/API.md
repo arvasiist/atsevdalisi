@@ -889,6 +889,22 @@ sayılmaması; `assertSelf` 403'ü; `GET .../gifts` yön ayrımı ve gizlilik) �
 `domain/gift/gift.spec.ts` · `domain/gift/validation.spec.ts` ·
 `domain/gift/gift-config.spec.ts`.
 
+### Dostluk Hediyesi (08.10.2026, migration 0074)
+
+Gönderen HİÇBİR ŞEY ödemez; alıcı topladığında çip `friend_gift_collect`
+defter satırıyla girer (referans `friend_gifts.collect_id`). Tutar ve sınırlar
+`config/gift.config.json` → `friendGift`. Oyuncu kimliği token'dan; gövde YOK.
+
+| Uç | Açıklama |
+| --- | --- |
+| `GET /friend-gifts` | Pano: `amount`, `dailyCollectLimit`, `collectedToday`, `remainingCollectsToday`, `pendingCount`, `pendingAmount`, `pending[]` (gönderen adı), `friendCount`, `sentToday` |
+| `POST /friend-gifts/send-all` | Uygun her arkadaşa bugünün hediyesi (engel/silinmiş hesap hariç). Yanıt `{ sent, alreadySentToday }`. Aynı kişiye oyun gününde (Türkiye saati) bir hediye. `@RateLimit` |
+| `POST /friend-gifts/collect` | Bekleyenleri toplar (en eskiden, günlük sınıra kadar; `expiryDays`tan eskisi toplanmaz). Yanıt `{ collected, amount, balanceAfter, remainingCollectsToday, stillPending }`. Tekrar çağrı sıfır toplar. `@RateLimit` |
+
+Arkadaş başarımı: `GET /achievements` ölçütü `friend_count` (anlık kabul
+edilmiş arkadaş sayısı) — `friends-5` … `friends-50`, her biri 100 çip.
+Günlük görev `daily-friend-gift-1` (ölçüt `friend_gifts_sent`).
+
 ### Bildirimler + Yarış Daveti (brief §16, §28 — §42 PHASE 11 + PHASE 13)
 
 Brief §16: *"Arkadaşlar birbirlerini yarışa davet edebilsin. Örneğin: 'Ömer

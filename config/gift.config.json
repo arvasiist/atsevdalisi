@@ -4,5 +4,14 @@
   "dailyLimit": 20,
   "dailyWindowHours": 24,
   "historyLimit": 50,
-  "allowedCurrencies": ["money", "gems"]
+  "allowedCurrencies": [
+    "money",
+    "gems"
+  ],
+  "friendGift": {
+    "amount": 10,
+    "dailyCollectLimit": 20,
+    "expiryDays": 7,
+    "pendingListLimit": 50
+  }
 }

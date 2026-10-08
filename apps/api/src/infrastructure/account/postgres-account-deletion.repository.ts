@@ -119,6 +119,12 @@ export class PostgresAccountDeletionRepository implements AccountDeletionReposit
       await client.query('DELETE FROM friendships WHERE player_low_id = $1 OR player_high_id = $1', [playerId]);
       await client.query('DELETE FROM race_invites WHERE inviter_id = $1 OR invitee_id = $1', [playerId]);
       await client.query('DELETE FROM player_blocks WHERE blocker_id = $1 OR blocked_id = $1', [playerId]);
+      // 08.10.2026 — TOPLANMAMIŞ dostluk hediyeleri (iki yön). Toplanmış olanlar
+      // alıcının defter satırını açıklar (`collect_id`), kalır.
+      await client.query(
+        'DELETE FROM friend_gifts WHERE (sender_id = $1 OR recipient_id = $1) AND collected_at IS NULL',
+        [playerId],
+      );
 
       // Oturumlar kapanır; cihaz etiketi (kullanıcı aracısı) de silinir.
       await revokeAllInTransaction(client, playerId, 'account_deleted', now);

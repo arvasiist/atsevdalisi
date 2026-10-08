@@ -11,6 +11,7 @@ export const QUEST_METRIC_LABELS: Record<QuestMetric, string> = {
   trainings: 'Antrenman yap',
   care_actions: 'Farklı bakım işi yap',
   horse_purchases: 'At satın al',
+  friend_gifts_sent: 'Arkadaşına dostluk hediyesi gönder',
 };
 
 /** "Yarış koş 1/2" gibi; ilerleme hedefi aşsa da hedefte kırpılır. */

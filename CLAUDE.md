@@ -729,6 +729,21 @@ listesi seçili ata göre sıralanır (ata özel → açık → giremez), "⚡ H
 `pickQuickJoinRace` (giremeyeceği/dolu/parası yetmeyen/45 sn içinde başlayan
 yarışı ÖNERMEZ) → katıl + `ready` tek tuşta. ⚠️ Öneri yalnızca kolaylıktır;
 kural sunucudadır.
+(70) **ARKADAŞ BAŞARIMI + DOSTLUK HEDİYESİ (08.10.2026, migration 0074,
+§13.94)** — başarım ölçütü `friend_count` (ANLIK kabul edilmiş arkadaş, silinmiş
+hesap sayılmaz; `player_level` gibi `SNAPSHOT_ACHIEVEMENT_METRICS`):
+`friends-5`…`friends-50` her biri 100 çip. `friend_gifts`: "Hepsine gönder"
+gönderenden PARA DÜŞÜRMEZ (oyunun verdiği hediye), aynı kişiye oyun gününde bir
+(`(sender, recipient, gift_day)` TEKİL), engelli/silinmiş arkadaş atlanır.
+Toplama PARA YOLU: oyuncu `FOR UPDATE` → günlük sınır (`friendGift.
+dailyCollectLimit`) KİLİT ALTINDA → işaretle → TEK `friend_gift_collect`
+defter satırı (kanonik REWARD — oyuncudan oyuncuya transfer DEĞİL; referans
+`collect_id`). `expiryDays`tan eski hediye toplanmaz. Idempotency-Key YOK:
+tekrar istek sıfır toplar. Yeni görev ölçütü `friend_gifts_sent` →
+`live_events_metric_valid` (0061'in adsız CHECK'i ADIYLA düşürüldü;
+`friend-gift.spec.ts` en son migration'ı `QUEST_METRICS` ile karşılaştırır).
+Hesap silme TOPLANMAMIŞ hediyeleri siler (toplanmış olan defteri açıklar);
+dışa aktarmada `friendGifts`. Web: `/friends` → `FriendGiftPanel`.
 
 **✅ ÜCRETLİ LOBİ YARIŞI ARTIK KOŞUYOR — ÖDÜL DAĞITIMI VAR (§13.14,
 28.09.2026).** `POST /races/:id/settle` yarışı koşar, ödülleri `top5`

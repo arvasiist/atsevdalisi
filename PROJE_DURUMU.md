@@ -4260,6 +4260,22 @@ Karar: önce pratik yarış; kırbaç sınırsız, dayanıklılık bedelli.
   üretimle birebir), web `quick-join.spec.ts`; tarayıcıda Hemen Katıl ile
   katılım + bakiye düşüşü gözle doğrulandı.
 
+### 13.94 Arkadaş başarımları + dostluk hediyesi
+
+- Yeni başarımlar: her 5 arkadaşa 100 çip (5, 10 … 50 arkadaş; ölçüt anlık
+  kabul edilmiş arkadaş sayısı). Arkadaşlıktan çıkıp yeniden eklemek sayıyı
+  artırmaz, ödül anahtar başına bir kez.
+- Dostluk hediyesi (migration 0074, `friend_gifts`): `/friends`te "Hepsine
+  Gönder" bütün arkadaşlara 10'ar çip gönderir — gönderenden para DÜŞMEZ;
+  aynı kişiye günde bir. "Hepsini Topla" bekleyenleri toplar (günde en fazla
+  20 hediye, 7 günden eskisi toplanmaz) ve tek defter satırı yazar.
+- Yeni günlük görev: "Arkadaşına dostluk hediyesi gönder" (50 çip).
+- Kanıt: `friend-gift.e2e-spec.ts` (gönderen ödemez, günde bir, engel,
+  toplama + defter + `collect_id`, günlük sınır, süre, görev, 5 arkadaş
+  başarımı), `friend-gift.spec.ts` (gün sınırı, config, CHECK ↔
+  `QUEST_METRICS`), web `friend-gift.spec.ts`; tarayıcıda panel (masaüstü +
+  telefon) toplama ve gönderim gözle doğrulandı.
+
 ## 14. Kendime hatırlatmalar (kısa liste)
 
 1. **Race Engine'e dokunmadan önce iki kez düşün.** Denetim onu "KEEP, dokunma"

@@ -1535,6 +1535,25 @@ export interface GiftConfig {
    * yazılır; uyum `gift-config.spec.ts` tarafından kanıtlanır.
    */
   allowedCurrencies: string[];
+  /**
+   * 08.10.2026 — DOSTLUK HEDİYESİ (sahibinin isteği: "arkadaşlar tek tuşla
+   * bütün listesindekilere çok cüzi bir çip hediye edebilsin ve toplayabilsin").
+   * Gönderen HİÇBİR ŞEY ödemez (oyunun verdiği küçük hediyedir); para alıcı
+   * TOPLADIĞINDA `friend_gift_collect` defter satırıyla girer. Aynı kişiye
+   * günde (oyun saat dilimi, `quests.timezoneOffsetMinutes`) bir hediye;
+   * alıcı günde en fazla `dailyCollectLimit` hediye toplar (çoklu hesapla
+   * çip basmayı sınırlar), `expiryDays` günden eski hediye toplanamaz.
+   */
+  friendGift: FriendGiftConfig;
+}
+
+export interface FriendGiftConfig {
+  /** Tek hediyenin çip tutarı (gönderim anında satıra yazılır). */
+  amount: number;
+  dailyCollectLimit: number;
+  expiryDays: number;
+  /** Ekrandaki bekleyen hediye listesinin boyu. */
+  pendingListLimit: number;
 }
 
 /**

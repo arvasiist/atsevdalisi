@@ -1,11 +1,15 @@
 import { Module } from '@nestjs/common';
+import { FRIEND_GIFT_REPOSITORY } from '../../application/ports/friend-gift.repository';
 import { GIFT_REPOSITORY } from '../../application/ports/gift.repository';
+import { FriendGiftUseCase } from '../../application/use-cases/friend-gift.use-case';
 import { ListMyGiftsUseCase } from '../../application/use-cases/list-my-gifts.use-case';
 import { SendGiftUseCase } from '../../application/use-cases/send-gift.use-case';
 import { PostgresGiftRepository } from '../../infrastructure/gift/postgres-gift.repository';
+import { PostgresFriendGiftRepository } from '../../infrastructure/social/postgres-friend-gift.repository';
 import { IdempotencyInterceptor } from '../idempotency/idempotency.interceptor';
 import { PlayerModule } from '../player/player.module';
 import { SocialModule } from '../social/social.module';
+import { FriendGiftController } from './friend-gift.controller';
 import { GiftController } from './gift.controller';
 
 /**
@@ -37,12 +41,15 @@ import { GiftController } from './gift.controller';
  */
 @Module({
   imports: [PlayerModule, SocialModule],
-  controllers: [GiftController],
+  // 08.10.2026 — dostluk hediyesi (gönderen ödemez; toplama defter satırı yazar).
+  controllers: [GiftController, FriendGiftController],
   providers: [
     SendGiftUseCase,
     ListMyGiftsUseCase,
     IdempotencyInterceptor,
     { provide: GIFT_REPOSITORY, useClass: PostgresGiftRepository },
+    FriendGiftUseCase,
+    { provide: FRIEND_GIFT_REPOSITORY, useClass: PostgresFriendGiftRepository },
   ],
 })
 export class GiftModule {}

@@ -67,6 +67,7 @@ export const LEDGER_TYPE_LABELS: Record<LedgerTransactionType, string> = {
   breed_horse_purchase: 'Yetiştiriciden at alımı',
   event_reward: 'Etkinlik ödülü',
   admin_adjustment: 'Yönetim düzeltmesi',
+  friend_gift_collect: 'Dostluk hediyesi',
   auction_bid_hold: 'Müzayede teklifi',
   auction_bid_refund: 'Müzayede teklifi iadesi',
   auction_sale_credit: 'Müzayede satışı',

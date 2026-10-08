@@ -10,6 +10,13 @@ import type { AchievementDefinitionConfig, AchievementsConfig } from '@at-sevdal
  */
 const ACHIEVEMENT_KEY_PATTERN = /^[a-z0-9-]{3,40}$/;
 
+/**
+ * Pencere içinde SAYILMAYAN, oyuncunun ŞİMDİKİ durumundan okunan ölçütler
+ * (seviye, arkadaş sayısı). Geri kalan her ölçüt görevlerin sayım motorunu
+ * (`countMetric`) kullanır — ikinci sayım kodu yazılmaz.
+ */
+export const SNAPSHOT_ACHIEVEMENT_METRICS: readonly AchievementMetric[] = ['player_level', 'friend_count'];
+
 export type ResolvedAchievement = AchievementDefinitionConfig & { metric: AchievementMetric };
 
 export function isAchievementMetric(value: unknown): value is AchievementMetric {

@@ -157,6 +157,12 @@ export const LEDGER_TRANSACTION_TYPES = [
    * `admin_audit_log` satırıdır (kim, neden).
    */
   'admin_adjustment',
+  /**
+   * 08.10.2026 — toplanan dostluk hediyeleri (oyunun verdiği küçük hediye;
+   * gönderenden para DÜŞMEZ). Tek satır = bir toplama; referansı
+   * `friend_gifts.collect_id`dir (hangi hediyelerin toplandığı oradan okunur).
+   */
+  'friend_gift_collect',
 ] as const;
 
 export type LedgerTransactionType = (typeof LEDGER_TRANSACTION_TYPES)[number];
@@ -243,6 +249,8 @@ export const CANONICAL_BY_LEDGER_TYPE: Record<LedgerTransactionType, CanonicalTr
   breed_horse_purchase: 'MARKET',
   event_reward: 'REWARD',
   admin_adjustment: 'ADJUSTMENT',
+  // Oyuncudan oyuncuya TRANSFER değildir (gönderen ödemez) → GIFT değil REWARD.
+  friend_gift_collect: 'REWARD',
 };
 
 /**
