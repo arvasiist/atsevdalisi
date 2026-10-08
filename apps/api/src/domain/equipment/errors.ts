@@ -1,12 +1,10 @@
 /** Ekipman domain'ine özgü hata tipleri (`domain/training/errors.ts` ile AYNI desen). */
 
 /**
- * `docs/ARCHITECTURE.md` §9.1 Hata 7 ile AYNI savunma — DTO'nun
- * `@IsIn(EQUIPMENT_TYPES)`/`@Min`/`@Max`/`@Length` kontrolleri
- * Vitest/esbuild altında (üst veri yayınlanmadığından) sessizce
- * atlanabilir; domain katmanı (`assertValidEquipmentInput`,
- * `create-horse-equipment.use-case.ts`) bunu KENDİSİ de bağımsız olarak
- * doğrular.
+ * Geçersiz ekipman girdisi (400). 08.10.2026'dan beri tek girdi katalog
+ * anahtarıdır: metin olmayan ya da katalogda bulunmayan anahtar
+ * (`findEquipmentItem`). DTO dekoratörü esbuild altında atlanabildiği için
+ * kontrol domain'de bağımsız yapılır (`docs/ARCHITECTURE.md` §9.1 Hata 7).
  */
 export class InvalidEquipmentInputError extends Error {
   constructor(message: string) {

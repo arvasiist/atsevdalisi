@@ -4294,6 +4294,22 @@ Karar: önce pratik yarış; kırbaç sınırsız, dayanıklılık bedelli.
   web `tribune-gifts.spec.ts`; tarayıcıda gönderim, canlı balon ve bildirim
   (masaüstü + telefon) gözle doğrulandı.
 
+### 13.96 Ekipman katalogdan, oyun parasıyla
+
+- Ekipman artık ahırdaki "Ekipman" panelinde katalogdan satın alınır: her tip
+  (eyer, dizgin, nal, göz siperi, bandaj) için Temel (kalite 35, 150 çip, Sv.
+  1), Yarış (65, 600 çip, Sv. 3), Şampiyon (95, 1800 çip, Sv. 6).
+- Önceden kalite kaydırıcıyla seçiliyor ve parça ücretsiz yaratılıyordu —
+  her at bedavaya azami yarış bonusunu alabiliyordu (istemci envanteri
+  belirliyordu). Artık istemci yalnızca kalem anahtarını gönderir.
+- Katalogdan önce yaratılmış eski parçalar olduğu gibi duruyor (`catalog_key`
+  boş); onlara ne yapılacağı sahibinin kararı.
+- Kanıt: `equipment.e2e-spec.ts` (para + defter satırı, aynı anahtarla ikinci
+  parça alınmaz, anahtarsız 400, kalite gönderilemez, seviye/bakiye 409 ve
+  parça yazılmaz, kuşanma akışı + pratik yarış), `catalog.spec.ts` (katalog
+  kuralları), `purchase-horse-equipment-dto.spec.ts`, web
+  `equipment-catalog.spec.ts`.
+
 ## 14. Kendime hatırlatmalar (kısa liste)
 
 1. **Race Engine'e dokunmadan önce iki kez düşün.** Denetim onu "KEEP, dokunma"

@@ -76,6 +76,7 @@ export const ErrorCode = {
   InvalidTribuneGift: 'INVALID_TRIBUNE_GIFT',
   TribuneGiftNotAllowed: 'TRIBUNE_GIFT_NOT_ALLOWED',
   TribuneGiftDailyLimit: 'TRIBUNE_GIFT_DAILY_LIMIT',
+  EquipmentLevelLocked: 'EQUIPMENT_LEVEL_LOCKED',
   /** 08.10.2026 — ırk sınıflı yarışa sınıf dışı at (409). */
   HorseBreedNotAllowed: 'HORSE_BREED_NOT_ALLOWED',
   AchievementNotFound: 'ACHIEVEMENT_NOT_FOUND',

@@ -2373,3 +2373,26 @@ export interface HippodromesConfig {
   hippodromes: HippodromeConfig[];
 }
 
+
+/**
+ * EKİPMAN KATALOĞU (08.10.2026) — `config/equipment.config.json`. Eskiden
+ * `POST /horses/:id/equipment` kaliteyi (0-100) istemciden alıyor ve ücret
+ * kesmiyordu: her oyuncu bedavaya azami yarış bonusu yaratabiliyordu. Artık
+ * oyuncu yalnızca kalem ANAHTARINI seçer; ad, tip, kalite ve fiyat buradan.
+ * Değerler başlangıç değeridir, sahibi ayarlar (`validateEquipmentConfig`
+ * aynı tipte daha kaliteli kalemin daha ucuz olmasını reddeder).
+ */
+export interface EquipmentCatalogItemConfig {
+  key: string;
+  /** `saddle` | `bridle` | `horseshoe` | `blinkers` | `leg_wraps`. */
+  equipmentType: string;
+  name: string;
+  /** 0-100 (motor etkisi `computeEquipmentPerformanceModifier`). */
+  quality: number;
+  priceMoney: number;
+  requiredLevel: number;
+}
+
+export interface EquipmentCatalogConfig {
+  catalog: EquipmentCatalogItemConfig[];
+}

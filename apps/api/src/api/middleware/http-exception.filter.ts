@@ -17,6 +17,7 @@ import {
   ProfilePhotoNotFoundError,
 } from '../../domain/avatar/errors';
 import { HorseLevelNotAllowedError } from '../../domain/race/level-bracket';
+import { EquipmentLevelLockedError } from '../../domain/equipment/catalog';
 import {
   InvalidTribuneGiftError,
   TribuneGiftDailyLimitError,
@@ -521,6 +522,7 @@ const DOMAIN_ERROR_MAP = new Map<ErrorClassConstructor, { status: number; code: 
   [InvalidTribuneGiftError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.InvalidTribuneGift }],
   [TribuneGiftNotAllowedError, { status: HttpStatus.CONFLICT, code: ErrorCode.TribuneGiftNotAllowed }],
   [TribuneGiftDailyLimitError, { status: HttpStatus.CONFLICT, code: ErrorCode.TribuneGiftDailyLimit }],
+  [EquipmentLevelLockedError, { status: HttpStatus.CONFLICT, code: ErrorCode.EquipmentLevelLocked }],
   [AchievementNotCompletedError, { status: HttpStatus.CONFLICT, code: ErrorCode.AchievementNotCompleted }],
   [AchievementAlreadyClaimedError, { status: HttpStatus.CONFLICT, code: ErrorCode.AchievementAlreadyClaimed }],
   [InvalidLiveEventError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.InvalidLiveEvent }],

@@ -239,4 +239,16 @@ export interface HorseEquipment {
    */
   equipped: boolean;
   createdAt: ISODateTimeString;
+  /**
+   * 08.10.2026 (migration 0076) — katalog kalemi (`config/equipment.config.json`).
+   * `null` = katalogdan önce oyuncunun kendi tanımladığı eski parça.
+   */
+  catalogKey: string | null;
+}
+
+/** `POST /horses/:id/equipment` yanıtı (08.10.2026) — alınan parça + ödenen + yeni bakiye. */
+export interface PurchaseHorseEquipmentResult {
+  item: HorseEquipment;
+  price: number;
+  money: number;
 }

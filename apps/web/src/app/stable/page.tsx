@@ -125,15 +125,20 @@ export default function StablePage(): React.ReactElement {
     [showInStable],
   );
 
+  // Atlar oyuncu KİMLİĞİNE bağlı yüklenir, nesnesine değil: bakiye tazelemesi
+  // (`refresh` — ekipman alımı, ahır yükseltme, tay) yeni bir oyuncu nesnesi
+  // üretir; nesneye bağlı efekt atları sıfırlayıp 3D ahırı ve açık paneli
+  // baştan kuruyordu (08.10.2026'da yaşandı: alım mesajı kayboluyordu).
+  const playerId = player?.id ?? null;
   useEffect(() => {
-    if (!player) {
+    if (!playerId) {
       return;
     }
     let cancelled = false;
     setHorses(null);
     setError(null);
     void apiClient
-      .getHorsesByOwner(player.id)
+      .getHorsesByOwner(playerId)
       .then((data) => {
         if (!cancelled) setHorses(data);
       })
@@ -143,7 +148,7 @@ export default function StablePage(): React.ReactElement {
     return () => {
       cancelled = true;
     };
-  }, [player]);
+  }, [playerId]);
 
   /**
    * Tay doğduktan SONRA çağrılır (`BreedingPanel`): ahır listesi tazelenir

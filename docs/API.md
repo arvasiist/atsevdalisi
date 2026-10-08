@@ -274,7 +274,7 @@ POST   /api/v1/horses/{id}/care        # tımar/su/temizlik/veteriner/nalbant/di
 POST   /api/v1/horses/{id}/feed        # besleme (brief §12, `feedType` alanı)
 GET    /api/v1/horses/{id}/training-history  # antrenman geçmişi (bu turda EKLENDİ, aşağıya bkz.)
 GET    /api/v1/horses/{id}/equipment                     # ekipman envanteri (bu turda EKLENDİ, aşağıya bkz.)
-POST   /api/v1/horses/{id}/equipment                     # yeni bir ekipman parçası oluştur
+POST   /api/v1/horses/{id}/equipment                     # katalogdan ekipman satın al (08.10.2026)
 POST   /api/v1/horses/{id}/equipment/{equipmentId}/equip    # kuşandır
 POST   /api/v1/horses/{id}/equipment/{equipmentId}/unequip  # çıkar
 ```
@@ -381,31 +381,45 @@ yorumu). Beş sabit `equipmentType` desteklenir: `saddle`, `bridle`,
 `horseshoe`, `blinkers`, `leg_wraps`. Dört rota da `HorseOwnerGuardByParam`
 ile korunur (`train`/`training-history` ile AYNI yetkilendirme).
 
-`POST /api/v1/horses/{id}/equipment` — yeni bir parça oluşturur (HER ZAMAN
-`equipped: false` başlar — oluşturma ≠ kuşanma, iki AYRI adımdır), örnek
-istek:
+`POST /api/v1/horses/{id}/equipment` — **KATALOGDAN ALIM (08.10.2026,
+migration 0076)**. Gövdede YALNIZCA katalog anahtarı vardır; ad, tip, kalite,
+fiyat ve seviye şartı `config/equipment.config.json`ten okunur (eskiden
+kalite istemciden geliyordu ve ücret yoktu). PARA YOLU: `Idempotency-Key`
+ZORUNLU (yoksa 400), `@RateLimit`. Parça HER ZAMAN `equipped: false` başlar
+(alım ≠ kuşanma).
 
 ```json
-{ "equipmentType": "saddle", "name": "Deri Eyer", "quality": 80 }
+{ "catalogKey": "saddle-race" }
 ```
 
-`quality` 0-100 ölçeğindedir (`Horse.quality` ile AYNI). Örnek yanıt (201
-Created — yeni bir KAYNAK yaratır):
+Örnek yanıt (201 Created):
 
 ```json
 {
   "success": true,
   "data": {
-    "id": "...",
-    "horseId": "...",
-    "equipmentType": "saddle",
-    "name": "Deri Eyer",
-    "quality": 80,
-    "equipped": false,
-    "createdAt": "2026-09-26T18:00:00.000Z"
+    "item": {
+      "id": "...",
+      "horseId": "...",
+      "equipmentType": "saddle",
+      "name": "Yarış Eyeri",
+      "quality": 65,
+      "equipped": false,
+      "createdAt": "2026-10-08T18:00:00.000Z",
+      "catalogKey": "saddle-race"
+    },
+    "price": 600,
+    "money": 4400
   }
 }
 ```
+
+Hatalar: 400 `VALIDATION_ERROR` (bilinmeyen/eksik `catalogKey`; kalite/ad
+gönderilirse üretimde `forbidNonWhitelisted` 400) · 409
+`EQUIPMENT_LEVEL_LOCKED` (oyuncu seviyesi yetmiyor) · 409
+`INSUFFICIENT_FUNDS`. Defter: `equipment_purchase` (kanonik `UPKEEP`,
+referans parça kimliği). Katalogdan önceki eski parçalar `catalogKey: null`
+taşır ve kaliteleri olduğu gibi kalır.
 
 `GET /api/v1/horses/{id}/equipment` — atın TÜM envanterini döner (`data`,
 doğrudan bir `HorseEquipment[]`, en yeniden en eskiye sıralı).

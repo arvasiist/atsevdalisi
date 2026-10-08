@@ -3,6 +3,7 @@ import {
   loadAdminConfig,
   loadBreedsConfig,
   loadHippodromesConfig,
+  loadEquipmentConfig,
   loadCareConfig,
   loadChatConfig,
   loadEconomyConfig,
@@ -30,6 +31,7 @@ import { validateHippodromesConfig } from '../../domain/race/hippodrome';
 import { validateHorseLevelBrackets } from '../../domain/race/level-bracket';
 import { validateFriendGiftConfig } from '../../domain/social/friend-gift';
 import { validateTribuneGiftsConfig } from '../../domain/grandstand/tribune-gift';
+import { validateEquipmentConfig } from '../../domain/equipment/catalog';
 
 /**
  * Ortam değişkenleri + oyun dengesi config'lerine tek noktadan erişim.
@@ -167,6 +169,8 @@ export class AppConfigService {
     if (friendGiftProblems.length > 0) {
       throw new Error(`Dostluk hediyesi config'i geçersiz (config/gift.config.json): ${friendGiftProblems.join(' ')}`);
     }
+    // 08.10.2026 — ekipman kataloğu (bozuksa API AÇILMAZ).
+    validateEquipmentConfig(loadEquipmentConfig(), this.progression.maxLevel);
     const tribuneGiftProblems = validateTribuneGiftsConfig(this.grandstand.tribuneGifts);
     if (tribuneGiftProblems.length > 0) {
       throw new Error(`Tribün hediyesi config'i geçersiz (config/grandstand.config.json): ${tribuneGiftProblems.join(' ')}`);

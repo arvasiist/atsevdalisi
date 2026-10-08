@@ -57,7 +57,6 @@ import type {
   CareActionType,
   ClaimDailyRewardResult,
   DirectMessageView,
-  EquipmentType,
   FacilityType,
   FacilityUpgradeResult,
   FarmSummaryView,
@@ -70,6 +69,7 @@ import type {
   GiftView,
   HireJockeyResultView,
   HorseEquipment,
+  PurchaseHorseEquipmentResult,
   HorseMarketValueView,
   MarketListing,
   PlaceBidResult,
@@ -968,13 +968,15 @@ export const apiClient = {
    */
   getHorseEquipment: (horseId: string) => request<HorseEquipment[]>(`/horses/${horseId}/equipment`),
 
-  createHorseEquipment: (
-    horseId: string,
-    input: { equipmentType: EquipmentType; name: string; quality: number },
-  ) =>
-    request<HorseEquipment>(`/horses/${horseId}/equipment`, {
+  /**
+   * 08.10.2026 — katalogdan ekipman alımı. PARA YOLU: gövdede yalnızca
+   * `catalogKey` (kalite/fiyat sunucuda); anahtar başarıya kadar saklanır.
+   */
+  purchaseHorseEquipment: (horseId: string, catalogKey: string, idempotencyKey: string) =>
+    request<PurchaseHorseEquipmentResult>(`/horses/${horseId}/equipment`, {
       method: 'POST',
-      body: JSON.stringify(input),
+      headers: { 'Idempotency-Key': idempotencyKey },
+      body: JSON.stringify({ catalogKey }),
     }),
 
   equipHorseEquipment: (horseId: string, equipmentId: string) =>

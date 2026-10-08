@@ -1,0 +1,124 @@
+{
+  "catalog": [
+    {
+      "key": "saddle-basic",
+      "equipmentType": "saddle",
+      "name": "Antrenman Eyeri",
+      "quality": 35,
+      "priceMoney": 150,
+      "requiredLevel": 1
+    },
+    {
+      "key": "saddle-race",
+      "equipmentType": "saddle",
+      "name": "Yarış Eyeri",
+      "quality": 65,
+      "priceMoney": 600,
+      "requiredLevel": 3
+    },
+    {
+      "key": "saddle-champion",
+      "equipmentType": "saddle",
+      "name": "Şampiyon Eyeri",
+      "quality": 95,
+      "priceMoney": 1800,
+      "requiredLevel": 6
+    },
+    {
+      "key": "bridle-basic",
+      "equipmentType": "bridle",
+      "name": "Basit Dizgin",
+      "quality": 35,
+      "priceMoney": 150,
+      "requiredLevel": 1
+    },
+    {
+      "key": "bridle-race",
+      "equipmentType": "bridle",
+      "name": "Yarış Dizgini",
+      "quality": 65,
+      "priceMoney": 600,
+      "requiredLevel": 3
+    },
+    {
+      "key": "bridle-champion",
+      "equipmentType": "bridle",
+      "name": "Şampiyon Dizgini",
+      "quality": 95,
+      "priceMoney": 1800,
+      "requiredLevel": 6
+    },
+    {
+      "key": "horseshoe-basic",
+      "equipmentType": "horseshoe",
+      "name": "Demir Nal",
+      "quality": 35,
+      "priceMoney": 150,
+      "requiredLevel": 1
+    },
+    {
+      "key": "horseshoe-race",
+      "equipmentType": "horseshoe",
+      "name": "Alüminyum Yarış Nalı",
+      "quality": 65,
+      "priceMoney": 600,
+      "requiredLevel": 3
+    },
+    {
+      "key": "horseshoe-champion",
+      "equipmentType": "horseshoe",
+      "name": "Titanyum Nal",
+      "quality": 95,
+      "priceMoney": 1800,
+      "requiredLevel": 6
+    },
+    {
+      "key": "blinkers-basic",
+      "equipmentType": "blinkers",
+      "name": "Kumaş Göz Siperi",
+      "quality": 35,
+      "priceMoney": 150,
+      "requiredLevel": 1
+    },
+    {
+      "key": "blinkers-race",
+      "equipmentType": "blinkers",
+      "name": "Yarış Göz Siperi",
+      "quality": 65,
+      "priceMoney": 600,
+      "requiredLevel": 3
+    },
+    {
+      "key": "blinkers-champion",
+      "equipmentType": "blinkers",
+      "name": "Şampiyon Göz Siperi",
+      "quality": 95,
+      "priceMoney": 1800,
+      "requiredLevel": 6
+    },
+    {
+      "key": "leg-wraps-basic",
+      "equipmentType": "leg_wraps",
+      "name": "Pamuk Bandaj",
+      "quality": 35,
+      "priceMoney": 150,
+      "requiredLevel": 1
+    },
+    {
+      "key": "leg-wraps-race",
+      "equipmentType": "leg_wraps",
+      "name": "Destek Bandajı",
+      "quality": 65,
+      "priceMoney": 600,
+      "requiredLevel": 3
+    },
+    {
+      "key": "leg-wraps-champion",
+      "equipmentType": "leg_wraps",
+      "name": "Şampiyon Bandajı",
+      "quality": 95,
+      "priceMoney": 1800,
+      "requiredLevel": 6
+    }
+  ]
+}

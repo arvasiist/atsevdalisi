@@ -760,6 +760,16 @@ BAŞARIYA kadar saklar. Yayın `race.tribuneGift` COMMIT'ten sonra, köprüden
 (`server.to` — oynatma karesi değil). Nal Unicode'da yok → istemci SVG çizer
 (`CLIENT_DRAWN_TRIBUNE_GIFTS`; dosya DEĞİL). Satırlar silinmez (mali kayıt);
 dışa aktarmada `tribuneGifts`. Web: izleme ekranı → "🎁 Hediye".
+(72) **EKİPMAN KATALOĞU (08.10.2026, migration 0076, §13.96)** — `POST
+/horses/:id/equipment` gövdesi YALNIZCA `catalogKey`; ad/tip/kalite/fiyat/seviye
+`config/equipment.config.json` (`validateEquipmentConfig` API açılışında: aynı
+tipte daha kaliteli kalem DAHA UCUZ olamaz). Eskiden kalite istemcideydi ve
+ücretsizdi (bedavaya azami ×1.05). PARA YOLU: at (sahibiyle) → oyuncu `FOR
+UPDATE` → seviye (409 `EQUIPMENT_LEVEL_LOCKED`) + bakiye kilit altında →
+parça + `equipment_purchase` defter satırı (UPKEEP) tek transaction;
+`Idempotency-Key` ZORUNLU, web kalem başına BAŞARIYA kadar saklar. Eski
+parçalar `catalog_key` NULL, kaliteleri DOKUNULMADAN durur (ne yapılacağı
+sahibinin kararı). Web: ahır → Ekipman → katalog listesi.
 
 **✅ ÜCRETLİ LOBİ YARIŞI ARTIK KOŞUYOR — ÖDÜL DAĞITIMI VAR (§13.14,
 28.09.2026).** `POST /races/:id/settle` yarışı koşar, ödülleri `top5`
