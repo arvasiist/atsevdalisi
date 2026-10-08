@@ -674,6 +674,17 @@ Satır sunumun tek kaynağı: satır yoksa dosya kalsa bile 404. ⚠️ Görünt
 KODLANMAZ (bağımlılık yok) — piksel verisi aynen saklanır; meta veri parçalarını
 ekleyen yeni bir biçim kabul edersen ayıklayıcıyı da yaz. `player_photos` silme
 + dışa aktarma listelerinde; profil anahtar listesi `photoId` taşır.
+(66) **ORTAM GERÇEKÇİLİĞİ (08.10.2026, §13.90)** — tribünde seyirciler kutu
+değil figür (`crowd-figures.ts`: gövde + baş + saç + kollar, parça başına tek
+InstancedMesh, figür başına ~86 üçgen, kalabalık gölge DÜŞÜRMEZ); coşkuda
+kollar kalkar (`spectatorArmRaise`, `atmosphere.crowd.armRaiseShare/
+maxArmRaiseRadians`), sakinken kol matrisi yüklenmez. Ağaçlar iki tür
+(`tree-geometry.ts`: yapraklı + çam, köşe rengi, sonbahar tonları). Toz atın
+ARKA ayaklarından (`dustSpawnOffset`), büyüyen yumuşak bulutçuk; ⚠️
+`dustParticles.size` artık METRE — piksel kameranın gerçek perspektifinden
+(eski `sizeScale` kaldırıldı: çözünürlüğü yok sayıp uzakta tozu görünmez
+yapıyordu). ⚠️ Kalabalığa poligon eklerken 8 bin figürle çarp: yazılımsal
+GPU'da "Yüksek" kalite sayfayı kilitlemişti.
 
 **✅ ÜCRETLİ LOBİ YARIŞI ARTIK KOŞUYOR — ÖDÜL DAĞITIMI VAR (§13.14,
 28.09.2026).** `POST /races/:id/settle` yarışı koşar, ödülleri `top5`

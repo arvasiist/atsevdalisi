@@ -1001,12 +1001,21 @@ export interface VfxConfig {
     maxActiveParticles: number;
     /** Hex renk kodu (ör. `"#c9b28a"`). */
     color: string;
-    /** `gl_PointSize` hesabındaki temel boyut. */
+    /**
+     * Toz bulutçuğunun doğumdaki çapı (METRE, 08.10.2026). Ekrandaki piksel
+     * boyutu kameranın gerçek perspektifiyle (görüş açısı + çözünürlük)
+     * hesaplanır; eski sabit piksel ölçeği uzakta tozu 1-3 piksele indirip
+     * görünmez yapıyordu.
+     */
     size: number;
-    /** `gl_PointSize` hesabındaki perspektif ölçek faktörü. */
-    sizeScale: number;
     /** Materyalin temel (henüz solmamış) opaklığı, [0, 1]. */
     baseOpacity: number;
+    /** 08.10.2026 — toz atın merkezinin bu kadar ARKASINDAN (arka ayaklar) kalkar (metre). */
+    emitterBehindMeters: number;
+    /** 08.10.2026 — doğum noktasının yana/geriye rastgele saçılması (metre). */
+    spawnSpreadMeters: number;
+    /** 08.10.2026 — parçacık ömrü boyunca büyür: boyut çarpanı `1 + growth × ilerleme`. */
+    growth: number;
   };
   /**
    * 01.10.2026 (3D adım 8) — zemine göre toz: kum bol ve açık, sentetik
@@ -1945,6 +1954,10 @@ export interface AtmosphereConfig {
     lodDistanceMeters: number;
     /** Kalite kademesine göre doldurulan koltuk oranı. */
     densityByTier: Record<'low' | 'medium' | 'high' | 'ultra', number>;
+    /** 08.10.2026 — ayağa kalkan seyircilerden kollarını kaldıranların oranı (0-1). */
+    armRaiseShare: number;
+    /** 08.10.2026 — kolun aşağıdan en fazla kalkış açısı (radyan; ~2.6 = başın üstünde, hafif önde). */
+    maxArmRaiseRadians: number;
   };
 }
 

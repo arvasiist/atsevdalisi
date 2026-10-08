@@ -1,16 +1,18 @@
 {
   "version": "1.0.0",
   "dustParticles": {
-    "riseSpeedMps": 0.6,
-    "maxHorizontalDriftMeters": 0.4,
-    "minLifetimeMs": 400,
-    "maxLifetimeMs": 900,
-    "spawnRatePerSecond": 12,
-    "maxActiveParticles": 40,
+    "riseSpeedMps": 0.35,
+    "maxHorizontalDriftMeters": 0.8,
+    "minLifetimeMs": 500,
+    "maxLifetimeMs": 1100,
+    "spawnRatePerSecond": 26,
+    "maxActiveParticles": 64,
     "color": "#c9b28a",
-    "size": 0.15,
-    "sizeScale": 300,
-    "baseOpacity": 0.6
+    "size": 0.45,
+    "baseOpacity": 0.45,
+    "emitterBehindMeters": 0.9,
+    "spawnSpreadMeters": 0.35,
+    "growth": 1.6
   },
   "dustBySurface": {
     "dirt": {
@@ -18,12 +20,12 @@
       "color": "#c9b28a"
     },
     "synthetic": {
-      "rateFactor": 0.45,
+      "rateFactor": 0.55,
       "color": "#7a6a5c"
     },
     "grass": {
-      "rateFactor": 0.12,
-      "color": "#8a9a6a"
+      "rateFactor": 0.4,
+      "color": "#8c8458"
     }
   },
   "dustSpeedReferenceMps": 16,

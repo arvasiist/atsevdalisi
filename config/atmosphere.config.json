@@ -9,6 +9,13 @@
     "maxBobMeters": 0.22,
     "standUpThreshold": 0.7,
     "lodDistanceMeters": 260,
-    "densityByTier": { "low": 0.35, "medium": 0.65, "high": 1.0, "ultra": 1.0 }
+    "densityByTier": {
+      "low": 0.35,
+      "medium": 0.65,
+      "high": 1.0,
+      "ultra": 1.0
+    },
+    "armRaiseShare": 0.65,
+    "maxArmRaiseRadians": 2.6
   }
 }

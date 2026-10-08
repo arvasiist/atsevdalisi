@@ -4186,6 +4186,22 @@ Karar: önce pratik yarış; kırbaç sınırsız, dayanıklılık bedelli.
   değiştir/sil/422/401/moderatör + denetim/hesap silme), web
   `profile-photo.spec.ts`.
 
+### 13.90 Ortam gerçekçiliği: seyirci, ağaç, toz (08.10.2026)
+
+- Sahibinin geri bildirimi: "ağaçlar, tribündeki insanları gerçekçi yapalım,
+  koşarken ufak toz kalksın".
+- Seyirci: tek renk kutu yerine gövde + ten rengi baş + saç + kollar; boy,
+  duruş açısı ve renk çeşitliliği (tohumlu); coşkuda bir kısmı kollarını
+  kaldırır. Düşük poligon, gölgesiz; kollar yalnızca coşkuda güncellenir.
+- Ağaç: yapraklı (düzensiz dört küme) + çam (üç kat koni); alttan üste
+  açılan köşe rengi; yön/boy/renk farkı, birkaç sonbahar tonu.
+- Toz: arka ayaklardan, yana saçılarak; ömrü boyunca büyüyen yumuşak
+  kenarlı bulutçuk; boyut metre cinsinden ve gerçek perspektifle (önceden
+  uzakta 1-3 piksele inip görünmüyordu). Çim/sentetik zeminde de az miktar.
+- Testler: `crowd-trees.spec.ts`, `race-atmosphere.spec.ts`
+  (`spectatorArmRaise`), `dust-particle-sim.spec.ts` (arkadan doğum,
+  büyüme). Tarayıcıda gözle doğrulandı (yazılımsal GPU, Orta kalite).
+
 ## 14. Kendime hatırlatmalar (kısa liste)
 
 1. **Race Engine'e dokunmadan önce iki kez düşün.** Denetim onu "KEEP, dokunma"

@@ -3,6 +3,7 @@ import { loadAtmosphereConfig, loadCameraConfig } from '@at-sevdalisi/game-confi
 import {
   computeCrowdExcitement,
   keepSpectator,
+  spectatorArmRaise,
   spectatorLift,
 } from '../../../src/features/race-viewer/race-atmosphere';
 
@@ -80,3 +81,22 @@ describe('tribün hareketi', () => {
     expect(seeds.every((seed) => keepSpectator(seed, 1))).toBe(true);
   });
 });
+
+describe('spectatorArmRaise (08.10.2026)', () => {
+  const atmosphere = loadAtmosphereConfig();
+  const { standUpThreshold, armRaiseShare, maxArmRaiseRadians } = atmosphere.crowd;
+
+  it('ayağa kalkılmayan heyecanda kimse kol kaldırmaz', () => {
+    expect(spectatorArmRaise(standUpThreshold - 0.01, 0.1, 3, atmosphere)).toBe(0);
+  });
+
+  it('coşkuda seyircilerin yalnızca bir kısmı kol kaldırır; açı sınırı aşılmaz', () => {
+    expect(spectatorArmRaise(1, armRaiseShare + 0.01, 3, atmosphere)).toBe(0);
+    for (let t = 0; t < 5; t += 0.37) {
+      const angle = spectatorArmRaise(1, armRaiseShare / 2, t, atmosphere);
+      expect(angle).toBeGreaterThan(0);
+      expect(angle).toBeLessThanOrEqual(maxArmRaiseRadians);
+    }
+  });
+});
+

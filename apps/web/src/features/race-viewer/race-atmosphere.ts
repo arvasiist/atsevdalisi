@@ -61,6 +61,25 @@ export function spectatorLift(
   return standing + bob * crowd.maxBobMeters * excitement * excitement;
 }
 
+/**
+ * Saf (08.10.2026): seyircinin kol kaldırma açısı (radyan, 0 = kollar
+ * aşağıda). Yalnızca ayağa kalkılan heyecanda ve seyircilerin
+ * `armRaiseShare` kadarında (`phase` ile seçilir); kollar heyecanla orantılı
+ * kalkar ve kişiye özgü ritimle sallanır.
+ */
+export function spectatorArmRaise(
+  excitement: number,
+  phase: number,
+  timeSeconds: number,
+  config: AtmosphereConfig,
+): number {
+  const crowd = config.crowd;
+  if (excitement < crowd.standUpThreshold || phase >= crowd.armRaiseShare) return 0;
+  const strength = Math.min(1, (excitement - crowd.standUpThreshold) / Math.max(0.01, 1 - crowd.standUpThreshold));
+  const wave = 0.75 + 0.25 * Math.sin(timeSeconds * (3 + 3 * phase) + phase * Math.PI * 2);
+  return crowd.maxArmRaiseRadians * Math.max(0.35, strength) * wave;
+}
+
 /** Saf: deterministik seyrekleştirme — `density` oranında koltuk dolu kalır. */
 export function keepSpectator(seed: number, density: number): boolean {
   return seed < density;

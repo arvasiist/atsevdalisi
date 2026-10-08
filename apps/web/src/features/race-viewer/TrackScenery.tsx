@@ -20,7 +20,15 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { loadAtmosphereConfig } from '@at-sevdalisi/game-config';
-import { keepSpectator, spectatorLift } from './race-atmosphere';
+import { keepSpectator, spectatorArmRaise, spectatorLift } from './race-atmosphere';
+import { createConiferCrown, createDeciduousCrown } from './tree-geometry';
+import {
+  HAIR_COLORS,
+  SKIN_TONES,
+  createCrowdFigureGeometries,
+  writeCrowdFigure,
+  type CrowdPose,
+} from './crowd-figures';
 import { HdriEnvironment } from './assets/HdriEnvironment';
 import { getAssetById } from './assets/asset-manifest';
 import { assetUrl, useAssetAvailability } from './assets/asset-pipeline';
@@ -316,7 +324,7 @@ export function Grandstand({
     const length = Math.min(geometry.straightLengthMeters * 0.75, 520);
     const frontZ = -geometry.turnRadiusMeters - TRACK_WIDTH_METERS / 2 - 14;
     const seatsPerRow = Math.floor(length / STAND_SEAT_SPACING);
-    const crowd: Array<{ x: number; y: number; z: number; color: number; phase: number }> = [];
+    const crowd: Array<CrowdPose & { color: number; skin: number; hair: number; phase: number }> = [];
     for (let row = 0; row < STAND_ROWS; row += 1) {
       for (let seat = 0; seat < seatsPerRow; seat += 1) {
         const index = row * seatsPerRow + seat;
@@ -325,29 +333,58 @@ export function Grandstand({
         crowd.push({
           phase: seeded(index, 17),
           x: -length / 2 + seat * STAND_SEAT_SPACING + (seeded(index, 5) - 0.5) * 0.2,
-          y: (row + 1) * STAND_ROW_RISE + 0.45,
+          // Gövde merkezi: oturağın (basamak üstü) bir gövde yarısı yukarısı.
+          y: (row + 1) * STAND_ROW_RISE + 0.33,
           z: frontZ - row * STAND_ROW_DEPTH - 0.4,
+          yaw: (seeded(index, 7) - 0.5) * 0.5,
+          scale: 0.9 + seeded(index, 9) * 0.2,
           color: Math.floor(seeded(index, 11) * CROWD_COLORS.length),
+          skin: Math.floor(seeded(index, 19) * SKIN_TONES.length),
+          hair: Math.floor(seeded(index, 23) * HAIR_COLORS.length),
         });
       }
     }
     return { length, frontZ, crowd };
   }, [geometry, density]);
 
-  const crowdRef = useRef<THREE.InstancedMesh>(null);
+  // 08.10.2026 — seyirci kutu değil figürdür: gövde + baş + saç + kollar
+  // (`crowd-figures.ts`), her parça tek InstancedMesh.
+  const figure = useMemo(() => createCrowdFigureGeometries(), []);
+  useEffect(
+    () => () => {
+      for (const part of Object.values(figure)) part.dispose();
+    },
+    [figure],
+  );
+  const bodyRef = useRef<THREE.InstancedMesh>(null);
+  const headRef = useRef<THREE.InstancedMesh>(null);
+  const hairRef = useRef<THREE.InstancedMesh>(null);
+  const armsRef = useRef<THREE.InstancedMesh>(null);
+  const meshesOf = () => {
+    const body = bodyRef.current;
+    const head = headRef.current;
+    const hair = hairRef.current;
+    const arms = armsRef.current;
+    return body && head && hair && arms ? { body, head, hair, arms } : null;
+  };
   useEffect(() => {
-    const instanced = crowdRef.current;
-    if (!instanced || !layout) return;
-    const matrix = new THREE.Matrix4();
+    const meshes = meshesOf();
+    if (!meshes || !layout) return;
     const color = new THREE.Color();
     layout.crowd.forEach((person, index) => {
-      matrix.makeTranslation(person.x, person.y, person.z);
-      instanced.setMatrixAt(index, matrix);
-      instanced.setColorAt(index, color.set(CROWD_COLORS[person.color] ?? '#888888'));
+      writeCrowdFigure(meshes, index, person, 0, 0);
+      const outfit = CROWD_COLORS[person.color] ?? '#888888';
+      meshes.body.setColorAt(index, color.set(outfit));
+      meshes.arms.setColorAt(index, color.set(outfit));
+      meshes.head.setColorAt(index, color.set(SKIN_TONES[person.skin] ?? SKIN_TONES[0]!));
+      meshes.hair.setColorAt(index, color.set(HAIR_COLORS[person.hair] ?? HAIR_COLORS[0]!));
     });
-    instanced.instanceMatrix.needsUpdate = true;
-    if (instanced.instanceColor) instanced.instanceColor.needsUpdate = true;
-    instanced.computeBoundingSphere();
+    for (const mesh of Object.values(meshes)) {
+      mesh.instanceMatrix.needsUpdate = true;
+      if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+      mesh.computeBoundingSphere();
+    }
+    // `meshesOf` ref okur; bağımlılık yalnızca yerleşim.
   }, [layout]);
 
   // KALABALIK ANİMASYONU (01.10.2026) — `animationHz` ile seyreltilmiş
@@ -355,10 +392,11 @@ export function Grandstand({
   const excitementRef = useRef(excitement);
   excitementRef.current = excitement;
   const lastUpdateRef = useRef(0);
-  const matrix = useMemo(() => new THREE.Matrix4(), []);
+  /** Kollar yalnızca coşkuda hareket eder; sakinken kol matrisleri yeniden yüklenmez. */
+  const armsRaisedRef = useRef(false);
   useFrame(({ clock, camera }) => {
-    const instanced = crowdRef.current;
-    if (!instanced || !layout) return;
+    const meshes = meshesOf();
+    if (!meshes || !layout) return;
     const now = clock.elapsedTime;
     if (now - lastUpdateRef.current < 1 / ATMOSPHERE.crowd.animationHz) return;
     lastUpdateRef.current = now;
@@ -370,15 +408,23 @@ export function Grandstand({
     );
     if (distance > ATMOSPHERE.crowd.lodDistanceMeters) return;
     const level = excitementRef.current;
+    const cheering = level >= ATMOSPHERE.crowd.standUpThreshold;
+    const includeArms = cheering || armsRaisedRef.current;
     layout.crowd.forEach((person, index) => {
-      matrix.makeTranslation(
-        person.x,
-        person.y + spectatorLift(level, person.phase, now, ATMOSPHERE),
-        person.z,
+      writeCrowdFigure(
+        meshes,
+        index,
+        person,
+        spectatorLift(level, person.phase, now, ATMOSPHERE),
+        spectatorArmRaise(level, person.phase, now, ATMOSPHERE),
+        includeArms,
       );
-      instanced.setMatrixAt(index, matrix);
     });
-    instanced.instanceMatrix.needsUpdate = true;
+    meshes.body.instanceMatrix.needsUpdate = true;
+    meshes.head.instanceMatrix.needsUpdate = true;
+    meshes.hair.instanceMatrix.needsUpdate = true;
+    if (includeArms) meshes.arms.instanceMatrix.needsUpdate = true;
+    armsRaisedRef.current = cheering;
   });
 
   if (!layout) return null;
@@ -436,15 +482,21 @@ export function Grandstand({
         </mesh>
       ))}
       {crowd.length > 0 ? (
-        <instancedMesh
-          key={crowd.length}
-          ref={crowdRef}
-          args={[undefined, undefined, crowd.length]}
-          castShadow
-        >
-          <boxGeometry args={[0.42, 0.78, 0.34]} />
-          <meshStandardMaterial roughness={0.9} />
-        </instancedMesh>
+        <group key={crowd.length}>
+          {/* Kalabalık gölge DÜŞÜRMEZ: çatı altındadır ve gölge geçişi binlerce figürü ikinci kez çizerdi. */}
+          <instancedMesh ref={bodyRef} args={[figure.body, undefined, crowd.length]}>
+            <meshStandardMaterial roughness={0.85} />
+          </instancedMesh>
+          <instancedMesh ref={armsRef} args={[figure.arms, undefined, crowd.length]}>
+            <meshStandardMaterial roughness={0.85} />
+          </instancedMesh>
+          <instancedMesh ref={headRef} args={[figure.head, undefined, crowd.length]}>
+            <meshStandardMaterial roughness={0.6} />
+          </instancedMesh>
+          <instancedMesh ref={hairRef} args={[figure.hair, undefined, crowd.length]}>
+            <meshStandardMaterial roughness={0.75} />
+          </instancedMesh>
+        </group>
       ) : null}
     </group>
   );
@@ -536,10 +588,15 @@ export function TrackFurniture({
 
 const TREE_COUNT = 260;
 const TREE_RING_MARGIN_METERS = 120;
+/** Çam oranı ve sonbahar tonlu yapraklı oranı (görsel çeşitlilik). */
+const CONIFER_SHARE = 0.38;
+const AUTUMN_SHARE = 0.12;
 
 /**
  * Uzak ağaç sırası — pistin çevresinde düzensiz bir halka (derinlik hissi).
- * Tek `InstancedMesh` gövde + tek `InstancedMesh` taç.
+ * 08.10.2026 — iki tür (yapraklı + çam, `tree-geometry.ts`), ağaç başına
+ * yön, boy ve renk farkı (birkaç sonbahar tonu). Tür başına tek
+ * `InstancedMesh` taç + ortak gövde.
  */
 export function TreeLine({
   geometry,
@@ -548,63 +605,110 @@ export function TreeLine({
 }): React.ReactElement | null {
   const trees = useMemo(() => {
     if (geometry.lapLengthMeters <= 0) return [];
-    const result: Array<{ x: number; z: number; scale: number }> = [];
+    const result: Array<{ x: number; z: number; scale: number; yaw: number; conifer: boolean; index: number }> = [];
     for (let i = 0; i < TREE_COUNT; i += 1) {
       const distance = (i / TREE_COUNT) * geometry.lapLengthMeters;
       const offset = TREE_RING_MARGIN_METERS + seeded(i, 17) * 90;
       const p = getOutwardBoundaryPoint(distance, TRACK_TURN_COUNT_FOR_VISUAL, geometry, offset);
-      result.push({ x: p.x, z: p.z, scale: 0.8 + seeded(i, 19) * 0.9 });
+      result.push({
+        x: p.x,
+        z: p.z,
+        scale: 0.8 + seeded(i, 19) * 0.9,
+        yaw: seeded(i, 37) * Math.PI * 2,
+        conifer: seeded(i, 31) < CONIFER_SHARE,
+        index: i,
+      });
     }
     return result;
   }, [geometry]);
 
-  const crownRef = useRef<THREE.InstancedMesh>(null);
+  const crowns = useMemo(() => ({ deciduous: createDeciduousCrown(), conifer: createConiferCrown() }), []);
+  useEffect(
+    () => () => {
+      crowns.deciduous.dispose();
+      crowns.conifer.dispose();
+    },
+    [crowns],
+  );
+  const deciduousTrees = useMemo(() => trees.filter((tree) => !tree.conifer), [trees]);
+  const coniferTrees = useMemo(() => trees.filter((tree) => tree.conifer), [trees]);
+
+  const deciduousRef = useRef<THREE.InstancedMesh>(null);
+  const coniferRef = useRef<THREE.InstancedMesh>(null);
   const trunkRef = useRef<THREE.InstancedMesh>(null);
   useEffect(() => {
-    const crown = crownRef.current;
+    const deciduous = deciduousRef.current;
+    const conifer = coniferRef.current;
     const trunk = trunkRef.current;
-    if (!crown || !trunk) return;
+    if (!deciduous || !conifer || !trunk) return;
     const matrix = new THREE.Matrix4();
     const scale = new THREE.Vector3();
     const position = new THREE.Vector3();
     const quaternion = new THREE.Quaternion();
+    const euler = new THREE.Euler();
     const color = new THREE.Color();
-    trees.forEach((tree, index) => {
+    deciduousTrees.forEach((tree, index) => {
+      quaternion.setFromEuler(euler.set(0, tree.yaw, 0));
       scale.setScalar(tree.scale);
       position.set(tree.x, 9 * tree.scale, tree.z);
-      crown.setMatrixAt(index, matrix.compose(position, quaternion, scale));
-      crown.setColorAt(
+      deciduous.setMatrixAt(index, matrix.compose(position, quaternion, scale));
+      const autumn = seeded(tree.index, 41) < AUTUMN_SHARE;
+      deciduous.setColorAt(
         index,
-        color.setHSL(0.27 + seeded(index, 23) * 0.06, 0.35, 0.22 + seeded(index, 29) * 0.08),
+        autumn
+          ? color.setHSL(0.08 + seeded(tree.index, 23) * 0.05, 0.55, 0.36)
+          : color.setHSL(0.24 + seeded(tree.index, 23) * 0.08, 0.4, 0.3 + seeded(tree.index, 29) * 0.1),
       );
-      position.set(tree.x, 2.5 * tree.scale, tree.z);
+    });
+    coniferTrees.forEach((tree, index) => {
+      quaternion.setFromEuler(euler.set(0, tree.yaw, 0));
+      scale.setScalar(tree.scale);
+      position.set(tree.x, 8 * tree.scale, tree.z);
+      conifer.setMatrixAt(index, matrix.compose(position, quaternion, scale));
+      conifer.setColorAt(index, color.setHSL(0.36 + seeded(tree.index, 23) * 0.06, 0.38, 0.18 + seeded(tree.index, 29) * 0.06));
+    });
+    trees.forEach((tree, index) => {
+      quaternion.identity();
+      if (tree.conifer) {
+        scale.set(0.7 * tree.scale, 0.6 * tree.scale, 0.7 * tree.scale);
+        position.set(tree.x, 1.5 * tree.scale, tree.z);
+      } else {
+        scale.setScalar(tree.scale);
+        position.set(tree.x, 2.5 * tree.scale, tree.z);
+      }
       trunk.setMatrixAt(index, matrix.compose(position, quaternion, scale));
     });
-    crown.instanceMatrix.needsUpdate = true;
-    trunk.instanceMatrix.needsUpdate = true;
-    if (crown.instanceColor) crown.instanceColor.needsUpdate = true;
-    crown.computeBoundingSphere();
-    trunk.computeBoundingSphere();
-  }, [trees]);
+    // Bir tür boşsa (args en az 1 örnek ister) hiçbir örnek çizilmez.
+    deciduous.count = deciduousTrees.length;
+    conifer.count = coniferTrees.length;
+    for (const mesh of [deciduous, conifer, trunk]) {
+      mesh.instanceMatrix.needsUpdate = true;
+      if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+      mesh.computeBoundingSphere();
+    }
+  }, [trees, deciduousTrees, coniferTrees]);
 
   if (trees.length === 0) return null;
   return (
     <group>
       <instancedMesh
-        key={`c${trees.length}`}
-        ref={crownRef}
-        args={[undefined, undefined, trees.length]}
+        key={`d${deciduousTrees.length}`}
+        ref={deciduousRef}
+        args={[crowns.deciduous, undefined, Math.max(1, deciduousTrees.length)]}
         castShadow
       >
-        <icosahedronGeometry args={[6, 1]} />
-        <meshStandardMaterial roughness={0.95} flatShading />
+        <meshStandardMaterial roughness={0.95} vertexColors flatShading />
       </instancedMesh>
       <instancedMesh
-        key={`t${trees.length}`}
-        ref={trunkRef}
-        args={[undefined, undefined, trees.length]}
+        key={`c${coniferTrees.length}`}
+        ref={coniferRef}
+        args={[crowns.conifer, undefined, Math.max(1, coniferTrees.length)]}
+        castShadow
       >
-        <cylinderGeometry args={[0.4, 0.6, 5, 6]} />
+        <meshStandardMaterial roughness={0.95} vertexColors flatShading />
+      </instancedMesh>
+      <instancedMesh key={`t${trees.length}`} ref={trunkRef} args={[undefined, undefined, trees.length]}>
+        <cylinderGeometry args={[0.35, 0.6, 5, 7]} />
         <meshStandardMaterial color="#4a3626" roughness={1} />
       </instancedMesh>
     </group>

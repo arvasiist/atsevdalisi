@@ -263,7 +263,14 @@ export function RaceScene3D({
               isMoving={isPlaying}
               castShadow={settings.shadowsEnabled}
             />
-            <HorseDust horseId={horse.horseId} x={x} z={z} isMoving={isPlaying} surface={surface} />
+            <HorseDust
+              horseId={horse.horseId}
+              x={x}
+              z={z}
+              headingRadians={horse.headingRadians}
+              isMoving={isPlaying}
+              surface={surface}
+            />
           </Fragment>
         );
       })}
@@ -301,12 +308,14 @@ function HorseDust({
   horseId,
   x,
   z,
+  headingRadians,
   isMoving,
   surface,
 }: {
   horseId: string;
   x: number;
   z: number;
+  headingRadians: number;
   isMoving: boolean;
   surface: RaceSurface;
 }): React.ReactElement {
@@ -329,6 +338,7 @@ function HorseDust({
       isMoving={isMoving && speed > 0.5}
       speedMps={speed}
       surface={surface}
+      headingRadians={headingRadians}
     />
   );
 }

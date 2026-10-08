@@ -148,3 +148,33 @@ export function dustSpawnRate(
     config.dustParticles.spawnRatePerSecond * surface.rateFactor * speedFactor * distanceFactor
   );
 }
+
+/**
+ * 08.10.2026 — toz atın ORTASINDAN değil ARKA AYAKLARINDAN kalkar: doğum
+ * noktası atın yönünün (`headingRadians`; ileri = (cos h, sin h)) tersine
+ * `emitterBehindMeters` (+ biraz) ve yana `spawnSpreadMeters` kadar saçılır.
+ * Tohumlu (aynı tohum → aynı nokta). Saf.
+ */
+export function dustSpawnOffset(
+  seed: string,
+  headingRadians: number,
+  config: VfxConfig,
+): { dx: number; dz: number } {
+  const rng = createSeededRandom(`${seed}:spawn`);
+  const spread = config.dustParticles.spawnSpreadMeters;
+  const behind = config.dustParticles.emitterBehindMeters + seededRange(rng, 0, spread);
+  const lateral = seededRange(rng, -spread, spread);
+  const forwardX = Math.cos(headingRadians);
+  const forwardZ = Math.sin(headingRadians);
+  return {
+    dx: -forwardX * behind + forwardZ * lateral,
+    dz: -forwardZ * behind - forwardX * lateral,
+  };
+}
+
+/** 08.10.2026 — toz bulutçuğu ömrü boyunca büyür (doğumda 1, sonunda `1 + growth`). Saf. */
+export function getDustParticleScale(particle: DustParticle, config: VfxConfig): number {
+  const progress = Math.max(0, Math.min(1, particle.ageMs / particle.lifetimeMs));
+  return 1 + config.dustParticles.growth * progress;
+}
+

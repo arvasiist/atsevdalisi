@@ -39,8 +39,10 @@ import * as THREE from 'three';
 import { loadVfxConfig } from '@at-sevdalisi/game-config';
 import {
   advanceDustParticle,
+  dustSpawnOffset,
   dustSpawnRate,
   getDustParticleOpacity,
+  getDustParticleScale,
   isDustParticleExpired,
   spawnDustParticle,
   type DustParticle,
@@ -56,18 +58,24 @@ const MAX_ACTIVE_PARTICLES = vfxConfig.dustParticles.maxActiveParticles;
 /**
  * Standart three.js "point sprite" boyutlandırma formülü (bkz. resmi
  * `webgl_custom_attributes_points` örneği) — perspektife göre uzaktaki
- * parçacıklar KÜÇÜK, yakındakiler BÜYÜK görünür. `uSizeScale`, `size`
- * uniform'unun piksel karşılığını belirleyen sabit bir ölçek faktörüdür.
+ * parçacıklar KÜÇÜK, yakındakiler BÜYÜK görünür. 08.10.2026'dan beri `size`
+ * METREDİR: piksel = çap × (1 / tan(fov/2)) × (tampon yüksekliği / 2) / derinlik
+ * — eski sabit `uSizeScale` çözünürlüğü ve görüş açısını yok saydığı için
+ * uzaktaki toz 1-3 piksele inip görünmüyordu.
  */
 const DUST_VERTEX_SHADER = `
   attribute float opacity;
+  attribute float scale;
   varying float vOpacity;
   uniform float uSize;
-  uniform float uSizeScale;
+  uniform float uViewportHalfHeight;
   void main() {
     vOpacity = opacity;
     vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
-    gl_PointSize = uSize * (uSizeScale / -mvPosition.z);
+    // 08.10.2026 — dünya ölçüsünde (metre) çap → piksel: gerçek perspektif
+    // (projectionMatrix[1][1] = 1 / tan(fov/2)) ve çizim tamponu yüksekliği.
+    // Bulutçuk ömrü boyunca büyür (getDustParticleScale).
+    gl_PointSize = uSize * scale * projectionMatrix[1][1] * uViewportHalfHeight / -mvPosition.z;
     gl_Position = projectionMatrix * mvPosition;
   }
 `;
@@ -81,10 +89,14 @@ const DUST_FRAGMENT_SHADER = `
     // İÇİNDEKİ [0,1] konumdur, merkeze göre uzaklık 0.5'i AŞARSA piksel
     // ATILIR (discard) — doku GEREKTİRMEDEN dairesel bir görünüm sağlar.
     vec2 coord = gl_PointCoord - vec2(0.5);
-    if (length(coord) > 0.5) {
+    float radius = length(coord);
+    if (radius > 0.5) {
       discard;
     }
-    gl_FragColor = vec4(uColor, vOpacity * uBaseOpacity);
+    // 08.10.2026 — sert kenarlı disk yerine yumuşak toz bulutçuğu: merkezden
+    // kenara saydamlaşır.
+    float soft = 1.0 - smoothstep(0.12, 0.5, radius);
+    gl_FragColor = vec4(uColor, vOpacity * uBaseOpacity * soft);
   }
 `;
 
@@ -112,6 +124,8 @@ export interface DustParticlesProps {
   speedMps?: number;
   /** 01.10.2026 — yarış zemini; toz miktarı ve rengi buna göre (`vfx.config.json` `dustBySurface`). */
   surface?: 'dirt' | 'synthetic' | 'grass';
+  /** 08.10.2026 — atın yönü (radyan; ileri = (cos h, sin h)); toz arka ayaklardan kalkar. */
+  headingRadians?: number;
 }
 
 export function DustParticles({
@@ -120,6 +134,7 @@ export function DustParticles({
   isMoving,
   speedMps = vfxConfig.dustSpeedReferenceMps,
   surface = 'dirt',
+  headingRadians = 0,
 }: DustParticlesProps): React.ReactElement {
   const particlesRef = useRef<SeededDustParticle[]>([]);
   const spawnCounterRef = useRef(0);
@@ -136,6 +151,7 @@ export function DustParticles({
       'opacity',
       new THREE.BufferAttribute(new Float32Array(MAX_ACTIVE_PARTICLES), 1),
     );
+    geo.setAttribute('scale', new THREE.BufferAttribute(new Float32Array(MAX_ACTIVE_PARTICLES).fill(1), 1));
     return geo;
   }, []);
 
@@ -147,7 +163,7 @@ export function DustParticles({
     () => ({
       uColor: { value: new THREE.Color(vfxConfig.dustBySurface[surface].color) },
       uSize: { value: vfxConfig.dustParticles.size },
-      uSizeScale: { value: vfxConfig.dustParticles.sizeScale },
+      uViewportHalfHeight: { value: 400 },
       uBaseOpacity: { value: vfxConfig.dustParticles.baseOpacity },
     }),
     // Renk zemine bağlıdır; zemin değişirse aşağıdaki efekt günceller.
@@ -157,7 +173,9 @@ export function DustParticles({
     uniforms.uColor.value.set(vfxConfig.dustBySurface[surface].color);
   }, [surface, uniforms]);
 
-  useFrame(({ camera }, deltaSeconds) => {
+  useFrame(({ camera, gl }, deltaSeconds) => {
+    // Çizim tamponunun gerçek yüksekliği (CSS boyutu × piksel oranı).
+    uniforms.uViewportHalfHeight.value = gl.domElement.height / 2;
     const deltaMs = deltaSeconds * 1000;
     const particles = particlesRef.current;
 
@@ -197,8 +215,9 @@ export function DustParticles({
         accumulatedMsRef.current -= spawnIntervalMs;
         spawnCounterRef.current += 1;
         const seed = `${horseId}:${spawnCounterRef.current}`;
+        const offset = dustSpawnOffset(seed, headingRadians, vfxConfig);
         advanced.push({
-          particle: spawnDustParticle(emitterPosition.x, emitterPosition.z, seed, vfxConfig),
+          particle: spawnDustParticle(emitterPosition.x + offset.dx, emitterPosition.z + offset.dz, seed, vfxConfig),
           seed,
         });
       }
@@ -209,12 +228,14 @@ export function DustParticles({
     // 4) BufferGeometry'yi güncelle.
     const positionAttribute = geometry.getAttribute('position') as THREE.BufferAttribute;
     const opacityAttribute = geometry.getAttribute('opacity') as THREE.BufferAttribute;
+    const scaleAttribute = geometry.getAttribute('scale') as THREE.BufferAttribute;
     for (let i = 0; i < MAX_ACTIVE_PARTICLES; i += 1) {
       const entry = advanced[i];
       if (entry) {
         const { particle } = entry;
         positionAttribute.setXYZ(i, particle.x, particle.y, particle.z);
         opacityAttribute.setX(i, getDustParticleOpacity(particle));
+        scaleAttribute.setX(i, getDustParticleScale(particle, vfxConfig));
       } else {
         // Kullanılmayan slot'ları görünmez (opaklık 0) yap — geometriyi
         // her karede YENİDEN ALLOCATE etmek yerine SABİT boyutlu bir
@@ -225,6 +246,7 @@ export function DustParticles({
     }
     positionAttribute.needsUpdate = true;
     opacityAttribute.needsUpdate = true;
+    scaleAttribute.needsUpdate = true;
     geometry.setDrawRange(0, MAX_ACTIVE_PARTICLES);
   });
 
