@@ -66,27 +66,35 @@ at-sevdalisi/
 
 ## 4. Kurulum (yerel geliştirme ortamı)
 
-> ⚠️ **Önemli:** Bu iskelet, bağımlılıkları **kurulu olmadan** teslim edilmiştir çünkü
-> bu depo geliştirme ortamının dış npm registry erişimi güvenlik politikasıyla
-> kısıtlanmıştır. Kendi makinenizde veya CI ortamınızda aşağıdaki adımları
-> çalıştırarak bağımlılıkları kurabilirsiniz.
+Gereken: Node.js 22, PostgreSQL (16+), Redis (6379).
+
+### Windows — tek komut
+
+Proje klasöründe `cmd` açıp:
+
+```bat
+tools\dev\yerel-baslat.cmd
+```
+
+Betik projeye özel bir PostgreSQL kümesi kurar (`%LOCALAPPDATA%\at-sevdalisi\pgdata`,
+port **5433**, kurulu PostgreSQL servisiyle çakışmaz), Redis'i kontrol eder,
+`npm install` + paket derleme + migration yapar, API (4000) ve web (3000)
+sunucularını ayrı pencerelerde açar ve tarayıcıyı getirir. Durdurmak için
+pencereleri kapatıp `tools\dev\yerel-durdur.cmd` (veriler silinmez).
+
+### Elle (her işletim sistemi)
+
+> ⚠️ API `.env` dosyasını **okumaz** (dotenv yok): değişkenler terminalde
+> verilmelidir. Tam liste `apps/api/.env.example`te.
 
 ```bash
-# 1) Bağımlılıkları kurun (Node.js 20+ gereklidir)
 npm install
-
-# 2) Ortam değişkenlerini ayarlayın
-cp apps/api/.env.example apps/api/.env
-cp apps/web/.env.example apps/web/.env.local
-
-# 3) PostgreSQL ve Redis'i ayağa kaldırın (Docker öneriliyor)
-docker compose up -d postgres redis
-
-# 4) Veritabanı migration'larını çalıştırın
+npm run build:packages          # shared-types + game-config (dist/ gitignore'lu)
+export DATABASE_URL=postgres://at_sevdalisi:at_sevdalisi@localhost:5432/at_sevdalisi
+export REDIS_URL=redis://localhost:6379
+export JWT_SECRET=yerel-gelistirme-anahtari
 npm run migrate
-
-# 5) Geliştirme sunucularını başlatın
-npm run dev:api    # http://localhost:4000
+npm run dev:api    # http://localhost:4000  (aynı değişkenlerle)
 npm run dev:web    # http://localhost:3000
 ```
 
