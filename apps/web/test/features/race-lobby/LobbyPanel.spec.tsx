@@ -172,4 +172,40 @@ describe('LobbyPanel', () => {
     await waitFor(() => expect(mocks.createLobbyRace).toHaveBeenCalledTimes(1));
     expect(mocks.createLobbyRace.mock.calls[0][0]).toMatchObject({ name: 'Yeni Kupa' });
   });
+
+  it('09.10.2026 — masalı yarış satırı masa kurallarını; start anında kesilen masada tahmini havuzu gösterir', async () => {
+    mocks.listLobbyRaces.mockResolvedValue([
+      lobbyRace({
+        prizePool: 0,
+        joinedPlayers: 2,
+        entryFee: 500,
+        table: {
+          id: 'national',
+          label: 'Ulusal Koşu',
+          feeTiming: 'on_start',
+          paidPlaces: 7,
+          rakePercent: 10,
+          loserRefund: { percent: 25, maxPosition: 9 },
+        },
+      }),
+    ]);
+    render(<LobbyPanel horses={[horse]} onBalanceChanged={onBalanceChanged} />);
+    const row = await screen.findByTestId('race-table');
+    expect(row.textContent).toContain('Ulusal Koşu masası');
+    expect(row.textContent).toContain('start anında');
+    expect(row.textContent).toContain('8–9. sıraya giriş bedelinin %25 iadesi');
+    expect(screen.getByText(/Havuz start'ta oluşur/)).toBeTruthy();
+  });
+
+  it('09.10.2026 — form ilk masayla açılır ve gövdeye tableId koyar', async () => {
+    mocks.listLobbyRaces.mockResolvedValue([]);
+    mocks.createLobbyRace.mockResolvedValue(lobbyRace({ name: 'Masa Kupası' }));
+    render(<LobbyPanel horses={[horse]} onBalanceChanged={onBalanceChanged} />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Yarış Aç' }));
+    expect(screen.getByTestId('table-rules').textContent).toContain('katılırken');
+    fireEvent.change(screen.getByLabelText('Yarış adı'), { target: { value: 'Masa Kupası' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Yarışı Aç' }));
+    await waitFor(() => expect(mocks.createLobbyRace).toHaveBeenCalledTimes(1));
+    expect(mocks.createLobbyRace.mock.calls[0][0]).toMatchObject({ tableId: 'local', entryFee: 100, fieldSize: 8 });
+  });
 });

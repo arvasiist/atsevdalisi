@@ -1,0 +1,2 @@
+ALTER TABLE races DROP CONSTRAINT IF EXISTS races_table_id_valid;
+ALTER TABLE races DROP COLUMN IF EXISTS table_id;

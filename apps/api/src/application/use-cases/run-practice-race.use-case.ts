@@ -26,6 +26,7 @@ import {
   getRacePrize,
   getRaceTierById,
 } from '../../domain/race/prize';
+import { isLoserRefundEligible, loserRefundAmount, paidPlacesOf } from '../../domain/race/table-rules';
 import { checkRaceReadiness } from '../../domain/race/readiness';
 import {
   RACE_ENGINE_VERSION,
@@ -355,6 +356,15 @@ export class RunPracticeRaceUseCase {
     const entryFee = tier.entryFee;
     const prizePool = computeRacePool(tier);
     const prizeWon = getRacePrize(this.config.economy, tier, playerFinish.finishPosition);
+    // 09.10.2026 — MASA KURALI: ödül alamayan ama iade bandında biten
+    // oyuncuya ödediği bedelin yüzdesi iade edilir (`table-rules.ts`).
+    const loserRefund = isLoserRefundEligible(
+      playerFinish.finishPosition,
+      paidPlacesOf(this.config.economy, tier),
+      tier.loserRefund,
+    )
+      ? loserRefundAmount(entryFee, tier.loserRefund)
+      : 0;
 
     // AUDIT_REPORT.md Bulgu R3 (bu oturum) — "Draw/post-position" artık
     // gerçek bir çekilişten türetiliyor (bkz. `gate-assignment.ts` doc
@@ -475,6 +485,7 @@ export class RunPracticeRaceUseCase {
         playerId: prepared.ownerId,
         entryFee,
         prizeWon,
+        loserRefund,
       },
     };
   }
@@ -488,6 +499,7 @@ export class RunPracticeRaceUseCase {
     const { tier, raceId, horseId } = prepared;
     const { playerFinish, prizePool } = built;
     const { entryFee, prizeWon } = built.saveInput;
+    const loserRefund = built.saveInput.loserRefund ?? 0;
     return {
       raceId,
       horseId,
@@ -502,6 +514,7 @@ export class RunPracticeRaceUseCase {
       entryFee,
       prizePool,
       prizeWon,
+      loserRefund,
       newBalance,
       xpGained: {
         player: computeRaceXp(

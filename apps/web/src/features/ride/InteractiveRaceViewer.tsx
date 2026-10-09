@@ -391,7 +391,9 @@ export function InteractiveRaceViewer({
           <h2>{outcome.finishPosition}. oldun</h2>
           <p>
             Ödül: <strong>{outcome.prizeWon.toLocaleString('tr-TR')}</strong> · Giriş:{' '}
-            {outcome.entryFee.toLocaleString('tr-TR')} · XP +{outcome.xpGained}
+            {outcome.entryFee.toLocaleString('tr-TR')}
+            {outcome.loserRefund > 0 ? ` · Masa iadesi: ${outcome.loserRefund.toLocaleString('tr-TR')}` : ''} · XP +
+            {outcome.xpGained}
           </p>
           <button type="button" className="btn-gold" onClick={onClose}>
             Tamam

@@ -256,7 +256,9 @@ describe('Oyuncu kontrollü pratik yarış (e2e)', () => {
     const result = finished.result;
     expect(result.raceId).toBe(raceId);
     expect(typeof result.prizeWon).toBe('number');
-    expect((await moneyOf(player.playerId)) - afterStart).toBe(result.prizeWon);
+    // 09.10.2026 — masa kuralı: ödül alamayan iade bandındaki sıraya kısmi iade.
+    expect(typeof result.loserRefund).toBe('number');
+    expect((await moneyOf(player.playerId)) - afterStart).toBe(result.prizeWon + result.loserRefund);
     expect(result.newBalance.money).toBe(await moneyOf(player.playerId));
 
     const race = await pool.query<{ status: string; entry_fee: string }>(

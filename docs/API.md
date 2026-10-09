@@ -2487,6 +2487,26 @@ kazandım/kaybettim" özetini de içerir):
 }
 ```
 
+### Masa kuralları (09.10.2026, migration 0079)
+
+`POST /races` gövdesi `tableId?` alır (`economy.raceTiers[].id`: `local`,
+`regional`, `national`, `elite`, `championship`). Verilirse yarış ücretli,
+`entryFee` ve `fieldSize` masanınki olmak zorundadır (aksi 400
+`INVALID_RACE_DEFINITION`). Lobi görünümü `table: { id, label, feeTiming,
+paidPlaces, rakePercent, loserRefund: { percent, maxPosition } } | null`
+taşır.
+- `feeTiming: "on_join"` — bedel katılırken düşer (ayrılınca defterden iade).
+- `feeTiming: "on_start"` — katılımda para düşmez (bakiye yetmiyorsa 409
+  `INSUFFICIENT_FUNDS`); start anında (kilit/kesinleşme) kesilir, o an
+  yetmeyenin katılımı `cancelled` olur. Bu masada `prizePool` start'a kadar
+  0'dır; `topPrize`/`prizeMultiplier` katılanların ödeyeceği bedelden
+  tahmin edilir.
+- Ödül: masanın dağılımı (`paidPlaces` sıra; komisyon = `rakePercent`).
+- Kaybeden iadesi: ödül alamayan ama `maxPosition`a kadar bitirene ödediği
+  bedelin `percent`i (aşağı yuvarlanır), havuzdan ÖNCE ayrılır; sonuçta
+  `places[].loserRefundAmount`, defterde `lobby_race_loser_refund`.
+Pratik yarış sonucu `loserRefund` taşır (`practice_race_loser_refund`).
+
 ### Ücretli Yarış Lobi — oluştur / listele / katıl / hazır (brief §1-§7, §42 PHASE 1 + 3)
 
 **Oyuncunun kendi açtığı yarış** — sunucunun ürettiği pratik yarıştan

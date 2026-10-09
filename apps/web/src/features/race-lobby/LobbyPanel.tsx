@@ -58,9 +58,18 @@ import {
   pickQuickJoinRace,
   raceFitForHorse,
   sortRacesForHorse,
+  RACE_TABLES,
+  applyRaceTable,
+  describeTableRules,
+  tableRulesFromConfig,
 } from './lobby-logic';
 
 const LOBBY_CONFIG = loadRaceLobbyConfig();
+
+/** Yeni yarış formu: ilk masa seçili gelir (masasız yarış listede "Serbest"). */
+function initialLobbyForm(): LobbyRaceForm {
+  return applyRaceTable(defaultLobbyRaceForm(LOBBY_CONFIG), RACE_TABLES[0]?.id ?? '', LOBBY_CONFIG);
+}
 /** Hemen katılda başlangıca en az bu kadar kalmalı (katıl + hazırım sığsın, kilit öncesi). */
 const QUICK_JOIN_MIN_LEAD_MS = 45_000;
 const START_DELAY_BOUNDS = startDelayMinuteBounds(LOBBY_CONFIG);
@@ -81,7 +90,8 @@ export function LobbyPanel({ horses, money, onBalanceChanged }: LobbyPanelProps)
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
-  const [form, setForm] = useState<LobbyRaceForm>(() => defaultLobbyRaceForm(LOBBY_CONFIG));
+  // 09.10.2026 — form ilk masayla açılır (sahibinin kararı: yarışı açan masa seçer).
+  const [form, setForm] = useState<LobbyRaceForm>(() => initialLobbyForm());
   const [isCreating, setIsCreating] = useState(false);
 
   /** Yarış başına bekleyen para-yolu anahtarları — bkz. dosya başı doc yorumu. */
@@ -223,7 +233,7 @@ export function LobbyPanel({ horses, money, onBalanceChanged }: LobbyPanelProps)
       const race = await apiClient.createLobbyRace(built.body);
       setNotice(`"${race.name}" açıldı. Açmak katılmak değildir — yarışmak için listeden "Katıl".`);
       setIsFormOpen(false);
-      setForm(defaultLobbyRaceForm(LOBBY_CONFIG));
+      setForm(initialLobbyForm());
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Yarış açılamadı.');
     } finally {
@@ -238,6 +248,7 @@ export function LobbyPanel({ horses, money, onBalanceChanged }: LobbyPanelProps)
   );
   const updateForm = (patch: Partial<LobbyRaceForm>): void =>
     setForm((current) => ({ ...current, ...patch }));
+  const selectedTable = RACE_TABLES.find((table) => table.id === form.tableId);
   const now = new Date();
 
   return (
@@ -284,6 +295,30 @@ export function LobbyPanel({ horses, money, onBalanceChanged }: LobbyPanelProps)
             />
           </label>
           <label style={labelStyle()}>
+            Masa
+            <select
+              aria-label="Masa"
+              value={form.tableId ?? ''}
+              onChange={(event) => setForm((current) => applyRaceTable(current, event.target.value, LOBBY_CONFIG))}
+              style={inputStyle()}
+            >
+              {RACE_TABLES.map((table) => (
+                <option key={table.id} value={table.id}>
+                  {table.label} · {table.fieldSize} at · {formatCurrency('money', table.entryFee)}
+                </option>
+              ))}
+              <option value="">Serbest (masasız)</option>
+            </select>
+          </label>
+          {selectedTable !== undefined ? (
+            <ul data-testid="table-rules" style={{ ...smallStyle(), margin: 0, paddingLeft: '18px', gridColumn: '1 / -1' }}>
+              {describeTableRules(tableRulesFromConfig(selectedTable)).map((line) => (
+                <li key={line}>{line}</li>
+              ))}
+            </ul>
+          ) : null}
+          {selectedTable === undefined ? (
+          <label style={labelStyle()}>
             At sayısı
             <select
               aria-label="At sayısı"
@@ -307,6 +342,7 @@ export function LobbyPanel({ horses, money, onBalanceChanged }: LobbyPanelProps)
               ))}
             </select>
           </label>
+          ) : null}
           <label style={labelStyle()}>
             Oyuncu tavanı
             <select
@@ -322,6 +358,7 @@ export function LobbyPanel({ horses, money, onBalanceChanged }: LobbyPanelProps)
               ))}
             </select>
           </label>
+          {selectedTable === undefined ? (
           <label style={labelStyle()}>
             Giriş ücreti
             <select
@@ -338,6 +375,7 @@ export function LobbyPanel({ horses, money, onBalanceChanged }: LobbyPanelProps)
               ))}
             </select>
           </label>
+          ) : null}
           <label style={labelStyle()}>
             Kaç dakika sonra başlasın
             <input
@@ -631,10 +669,17 @@ export function LobbyPanel({ horses, money, onBalanceChanged }: LobbyPanelProps)
                     {race.distanceMeters} m · {formatRaceStart(race.startTime, now)} ·{' '}
                     {formatStartsIn(race.startTime, now)}
                   </span>
+                  {race.table ? (
+                    <span data-testid="race-table" style={{ ...smallStyle(), color: 'var(--color-text-secondary)' }}>
+                      <strong>{race.table.label} masası</strong> · {describeTableRules(race.table).join(' · ')}
+                    </span>
+                  ) : null}
                   <span style={smallStyle()}>
                     Oyuncu {race.joinedPlayers}/{race.maxPlayers} · {race.fieldSize} at · Giriş{' '}
                     {race.entryFee > 0 ? formatCurrency('money', race.entryFee) : 'ücretsiz'} ·
-                    Havuz {formatCurrency('money', race.prizePool)}
+                    {race.table?.feeTiming === 'on_start' && race.status === 'scheduled'
+                      ? `Havuz start'ta oluşur (tahmini ${formatCurrency('money', race.entryFee * race.joinedPlayers)})`
+                      : `Havuz ${formatCurrency('money', race.prizePool)}`}
                     {race.prizeMultiplier !== null
                       ? ` · Kazanana ${formatMultiplier(race.prizeMultiplier)}`
                       : ''}

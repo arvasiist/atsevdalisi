@@ -66,6 +66,7 @@ export class CreateRaceUseCase {
       new Date(),
       this.config.breeds.raceClasses.map((raceClass) => raceClass.key),
       hippodromeKeys(this.config.hippodromes),
+      this.config.economy.raceTiers,
     );
     if (value === null) {
       throw new InvalidRaceDefinitionError(problems);
@@ -92,6 +93,7 @@ export class CreateRaceUseCase {
       breedClass: value.breedClass,
       hippodrome: value.hippodrome,
       horseLevelBracket: value.horseLevelBracket,
+      tableId: value.tableId,
       // **`null` — VE BU BİLİNÇLİDİR.** Lobi yarışının seed'i, yarış
       // KOŞARKEN üretilir. Erken üretilseydi yarışı açan kişi seed'i
       // okuyup (bkz. `GET /races/:id/timeline` yanıtı) sonucu önceden

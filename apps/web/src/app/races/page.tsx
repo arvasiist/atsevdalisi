@@ -61,6 +61,7 @@ import { StatBar } from '../../components/ui/StatBar';
 import { Tabs } from '../../components/ui/Tabs';
 import { LiveRaceViewer } from '../../features/race-viewer/LiveRaceViewer';
 import { LobbyPanel } from '../../features/race-lobby/LobbyPanel';
+import { describeTableRules, tableRulesFromConfig } from '../../features/race-lobby/lobby-logic';
 import {
   DEFAULT_RACE_TIER_ID,
   findRaceTier,
@@ -495,7 +496,8 @@ export default function RacesPage(): React.ReactElement {
                         {tier.label}
                       </span>
                       <span style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>
-                        {tier.fieldSize} at — giriş {formatCurrency('money', tier.entryFee)}
+                        {tier.fieldSize} at — giriş {formatCurrency('money', tier.entryFee)} ·{' '}
+                        {describeTableRules(tableRulesFromConfig(tier))[2]}
                       </span>
                     </div>
                     <span
@@ -706,6 +708,11 @@ function RaceResultPanel({
         >
           Kazanılan ödül: {formatCurrency('money', result.prizeWon)}
         </span>
+        {result.loserRefund > 0 ? (
+          <span style={{ color: 'var(--color-status-positive)' }}>
+            Masa iadesi: {formatCurrency('money', result.loserRefund)}
+          </span>
+        ) : null}
         <span style={{ color: 'var(--color-text-primary)' }}>
           Yeni bakiye: {formatCurrency('money', result.newBalance.money)} /{' '}
           {formatCurrency('gems', result.newBalance.gems)}

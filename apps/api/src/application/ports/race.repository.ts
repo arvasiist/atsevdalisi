@@ -320,6 +320,9 @@ export interface RaceRepository {
    * satırı `FOR UPDATE`; yarış `scheduled` değilse ya da başlangıç zamanı
    * gelmemişse HİÇBİR ŞEY yapmaz (idempotent — ikinci çağrı boş döner).
    */
+  /** 09.10.2026 — aktif katılım → defterden ödenen giriş bedeli (ödenmemişse 0). */
+  findLobbyPaidFees(raceId: string): Promise<Map<string, number>>;
+
   dropUnreadyLobbyEntries(input: {
     raceId: string;
     now: Date;
@@ -401,7 +404,7 @@ export interface RaceRepository {
   findLobbyOutcome(
     raceId: string,
     playerId: string,
-  ): Promise<{ finishPosition: number; prizeWon: number; entryFee: number } | null>;
+  ): Promise<{ finishPosition: number; prizeWon: number; entryFee: number; loserRefund: number } | null>;
 
   findRunningInteractiveRaceId(playerId: string): Promise<string | null>;
 
@@ -732,6 +735,8 @@ export interface CreateLobbyRaceInput {
   hippodrome: string | null;
   /** 08.10.2026 — at seviyesi aralığı (migration 0073); `null` = her seviyeye açık. */
   horseLevelBracket: string | null;
+  /** 09.10.2026 — masa (migration 0079); `null` = masasız (eski kurallar). */
+  tableId: string | null;
 }
 
 /**
@@ -771,6 +776,12 @@ export interface SavePracticeRaceWithStakesInput {
   entryFee: number;
   /** `getRacePrize`'dan — 0 ise ekleme/ledger girişi hiç yazılmaz. */
   prizeWon: number;
+  /**
+   * 09.10.2026 — masanın kaybeden iadesi (`table-rules.ts`). 0 ise satır
+   * yazılmaz; > 0 ise `practice_race_loser_refund` defter satırı AYNI
+   * transaction'da. Opsiyonel: eski çağıranlar için 0.
+   */
+  loserRefund?: number;
 }
 
 /** `RaceRepository.savePracticeRaceWithStakes` sonucu — `WalletBalance` ile AYNI şekil (`domain/economy/wallet.ts`). */
@@ -1013,6 +1024,8 @@ export interface LobbySettlementContext {
   hippodrome: string;
   /** 08.10.2026 — at seviyesi aralığı; botların gücü buradan da türetilir. `null` = açık. */
   horseLevelBracket: string | null;
+  /** 09.10.2026 — masa: ödül dağılımı + kaybeden iadesi buradan. `null` = masasız. */
+  tableId: string | null;
 }
 
 /**
@@ -1119,6 +1132,11 @@ export interface SettleLobbyRaceInput {
    * AYNEN geçirilir, böylece havuz aritmetiği tek bir yerde kalır.
    */
   payouts: number[];
+  /**
+   * 09.10.2026 — masanın kaybeden iadeleri (`computeTableSettlement`).
+   * `paidFee` kilit altında defterle KARŞILAŞTIRILIR. Yoksa iade yok.
+   */
+  loserRefunds?: Array<{ entryId: string; amount: number; paidFee: number }>;
   /** Şu an — kilit altındaki durum denetimine ve tüm yazımlara geçirilir. */
   now: Date;
 }

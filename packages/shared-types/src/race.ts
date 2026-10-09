@@ -374,6 +374,8 @@ export interface PracticeRaceResult {
   /** Tüm katılımcıların giriş ücretlerinin toplamı — ödüller buradan dağıtılır. */
   prizePool: number;
   prizeWon: number;
+  /** 09.10.2026 — masanın kaybeden iadesi (ödül alamayan ama iade bandında biten). 0 = yok. */
+  loserRefund: number;
   newBalance: Pick<Player, 'money' | 'gems'>;
   /**
    * 01.10.2026 — bu yarışın kazandırdığı XP (oyuncu + at). Yazım, para ile
@@ -603,6 +605,11 @@ export interface RaceLobbyView {
    * `horseLevelBrackets`). `null` = her seviyeye açık.
    */
   horseLevelBracket: string | null;
+  /**
+   * 09.10.2026 — MASA kuralları (`economy.raceTiers`). `null` = masasız:
+   * bedel katılırken kesilir, genel dağılım, iade yok.
+   */
+  table: RaceTableView | null;
 }
 
 /**
@@ -728,6 +735,8 @@ export interface RaceSettlementPlace {
   finalTimeMs: number | null;
   /** Kazanılan Çip; AI kolonları ve ödül sırası dışındakiler için 0. */
   prizeAmount: number;
+  /** 09.10.2026 — masanın kaybeden iadesi (ödül alamayan ama iade bandında biten); yoksa 0. */
+  loserRefundAmount: number;
 }
 
 /**
@@ -805,7 +814,14 @@ export interface InteractiveRaceView {
   /** Kesinleşmişse sonuç (para + XP dahil); değilse `null`. Yalnızca pratik yarışta dolu. */
   result: PracticeRaceResult | null;
   /** Kesinleşmişse oyuncunun özeti (pratik ve lobi ortak); değilse `null`. */
-  outcome: { finishPosition: number; prizeWon: number; entryFee: number; xpGained: number } | null;
+  outcome: {
+    finishPosition: number;
+    prizeWon: number;
+    entryFee: number;
+    /** 09.10.2026 — masanın kaybeden iadesi (yoksa 0). */
+    loserRefund: number;
+    xpGained: number;
+  } | null;
   /** 01.10.2026 — `practice` = tek oyunculu kontrollü pratik, `lobby` = çok oyunculu kontrollü lobi/turnuva. */
   kind: 'practice' | 'lobby';
   /**
@@ -813,4 +829,21 @@ export interface InteractiveRaceView {
    * yarışını tribünden canlı izleyen (komut yok, `playerLabel` boş).
    */
   role: 'rider' | 'spectator';
+}
+
+/**
+ * 09.10.2026 — bir masanın oyuncuya gösterilen kuralları. Sunucu config'ten
+ * türetir; istemci hesaplamaz.
+ */
+export interface RaceTableView {
+  id: string;
+  label: string;
+  /** `on_join` = katılırken, `on_start` = start anında (parası yetmeyen düşer). */
+  feeTiming: 'on_join' | 'on_start';
+  /** Ödül alan sıra sayısı. */
+  paidPlaces: number;
+  /** Komisyon yüzdesi (dağılımdan türetilir). */
+  rakePercent: number;
+  /** Ödül alamayan ama `maxPosition`a kadar bitirene ödediği bedelin `percent`i. */
+  loserRefund: { percent: number; maxPosition: number };
 }

@@ -117,4 +117,12 @@ export class CreateRaceDto {
   @IsOptional()
   @IsString()
   horseLevelBracket?: unknown;
+
+  /**
+   * 09.10.2026 — masa (`economy.raceTiers[].id`). DTO'da olmasaydı `whitelist`
+   * siler ve yarış sessizce MASASIZ (eski kurallarla) açılırdı.
+   */
+  @IsOptional()
+  @IsString()
+  tableId?: unknown;
 }

@@ -6,6 +6,7 @@ import {
   resolvePrizeDistribution,
   validatePrizeDistributions,
 } from './prize-distribution';
+import { validateRaceTableRules } from './table-rules';
 
 /**
  * Yarış ekonomisi — giriş ücreti, ödül havuzu ve ödül dağıtımı
@@ -220,6 +221,9 @@ export function validateRaceTiers(config: EconomyConfig): string[] {
       continue;
     }
 
+    // 09.10.2026 — masa kuralları (ücret anı + kaybeden iadesi).
+    problems.push(...validateRaceTableRules(tier, distribution.shares.length));
+
     if (distribution.shares.length > tier.fieldSize) {
       problems.push(
         `${where}: dağıtım "${distribution.id}" (${distribution.shares.length} sıra) fieldSize'dan ` +
@@ -271,7 +275,14 @@ export function validateRaceTiers(config: EconomyConfig): string[] {
  * tetiklenir (her kademede ödül almayan sıralar vardır) — yani bu
  * koruma artık bir istisna değil, olağan yolun parçasıdır.
  */
-export function applyPracticeRaceStakes(balance: WalletBalance, entryFee: number, prizeWon: number): WalletBalance {
+export function applyPracticeRaceStakes(
+  balance: WalletBalance,
+  entryFee: number,
+  prizeWon: number,
+  /** 09.10.2026 — masanın kaybeden iadesi (ödül alamayan sıra; ikisi aynı anda > 0 olmaz). */
+  loserRefund = 0,
+): WalletBalance {
   const afterEntryFee = entryFee > 0 ? debit(balance, entryFee, 'money') : balance;
-  return prizeWon > 0 ? credit(afterEntryFee, prizeWon, 'money') : afterEntryFee;
+  const afterPrize = prizeWon > 0 ? credit(afterEntryFee, prizeWon, 'money') : afterEntryFee;
+  return loserRefund > 0 ? credit(afterPrize, loserRefund, 'money') : afterPrize;
 }

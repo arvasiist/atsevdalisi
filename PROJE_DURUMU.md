@@ -4380,6 +4380,32 @@ Karar: önce pratik yarış; kırbaç sınırsız, dayanıklılık bedelli.
   dışı yorgunluk düşer, form kalır), web `jockey-condition.spec.ts`;
   tarayıcıda panel.
 
+### 13.101 Masa kuralları (sahibinin isteği, 09.10.2026)
+
+- Sahibi: "Giriş bedelinin ne zaman kesildiği, ödülün nasıl hesaplandığı ve
+  kaybedenlerden hangi tutarların alındığı seçilen masanın kurallarına
+  bağlıdır." Kararlar: masa = kademe (Mahalli/Bölgesel/Ulusal/Elit/
+  Şampiyona); ücret anı masaya göre; ödül = gerçek ücretler − masanın
+  komisyonu, masanın dağılımıyla; kaybedene masaya göre kısmi iade.
+- Başlangıç değerleri (`config/economy.config.json`, sahibi ayarlar):
+  Mahalli katılırken + 6. sıraya %50 iade · Bölgesel katılırken + 7–8.
+  sıraya %25 · Ulusal start anında + 8–9. sıraya %25 · Elit ve Şampiyona
+  start anında, iade yok. Komisyon hepsinde %10.
+- Lobide yarış açan masa seçer (form ilk masayla açılır, "Serbest" masasız
+  eski kurallar); listede masa kuralları yazar; start anında kesilen masada
+  havuz start'a kadar "tahmini" görünür.
+- Start anında kesilen masada o an parası yetmeyen yarıştan düşer (borç
+  yazılmaz). Kaybeden iadesi havuzdan önce ayrılır; oyun para basmaz.
+- Pratik yarışta da masanın iadesi uygulanır (sonuçta "Masa iadesi").
+- Takvim/turnuva yarışları şimdilik masasız (eski kurallar) — istenirse
+  programlara masa eklenebilir.
+- Kanıt: `table-rules.spec.ts` (config + migration CHECK, iade bandı/tutarı,
+  bütün masalarda Σödül + Σiade ≤ havuz, bozuk kural, masalı yarış açma),
+  `race-table-rules.e2e-spec.ts` (8 gerçek oyunculu masada dağılım + iade +
+  mutabakat; start anında kesilen masada yetmeyenin düşmesi; pratik yarış
+  iadesi = defter), web `table-rules.spec.ts` + `LobbyPanel.spec.tsx`;
+  tarayıcıda form + pratik kademe listesi (masaüstü + telefon).
+
 ## 14. Kendime hatırlatmalar (kısa liste)
 
 1. **Race Engine'e dokunmadan önce iki kez düşün.** Denetim onu "KEEP, dokunma"

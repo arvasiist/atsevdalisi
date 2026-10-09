@@ -142,6 +142,14 @@ tablodan değil, bir havuzdan** dağıtılır. Kaynak
 > Değişmezler: `apps/api/test/domain/race/prize.spec.ts` (33 test) ve
 > uçtan uca `apps/api/test/api/race.e2e-spec.ts`.
 
+### 4.1.1a Masa kuralları (09.10.2026)
+
+Her kademe bir MASADIR ve kendi kuralını taşır (`raceTiers[].feeTiming`,
+`loserRefund`). Kaybeden iadesi havuzdan önce ayrılır, ödül payları kalan
+üzerinden hesaplanır: Σödül + Σiade = Σpay·(H − İ) + İ ≤ H. Lobide havuz
+yalnızca gerçek ücretlerdir; pratik yarışta havuz modeli (botlar ödemiş
+sayılır) değişmedi, iade oyuncunun ödediği bedelin yüzdesidir.
+
 ### 4.1.2 Mutabakat — para nereden gelir, nereye gider (28.09.2026, §13.26)
 
 Bir yarışın parası **ya dağıtılır ya iade edilir**; ikisi aynı anda olmaz.

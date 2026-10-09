@@ -1,4 +1,4 @@
-import type { RaceLobbyConfig } from '@at-sevdalisi/game-config';
+import type { RaceLobbyConfig, RaceTierConfig } from '@at-sevdalisi/game-config';
 // Katılım (PHASE 1b) taktik/risk alanları — `RacingStyle`/`RiskLevel`
 // `race_entries` CHECK kısıtlarının (migration 0006) TS karşılığıdır.
 import type { RaceEntryStatus, RacingStyle, RiskLevel } from '@at-sevdalisi/shared-types';
@@ -81,6 +81,12 @@ export interface RaceCreationInput {
    * OPSİYONEL: verilmezse/`null` ise her seviyeye açık.
    */
   horseLevelBracket?: unknown;
+  /**
+   * 09.10.2026 — MASA (`economy.raceTiers[].id`). Verilirse yarış ücretli,
+   * giriş bedeli ve at sayısı MASANINKİ olmak zorundadır; ücret anı, ödül
+   * dağılımı ve kaybeden iadesi masadan gelir. `null`/verilmezse masasız.
+   */
+  tableId?: unknown;
 }
 
 /**
@@ -123,6 +129,8 @@ export interface ValidatedRaceCreation {
   hippodrome: string | null;
   /** `null` = her seviyeye açık. */
   horseLevelBracket: string | null;
+  /** `null` = masasız (eski kurallar). */
+  tableId: string | null;
 }
 
 /**
@@ -170,6 +178,8 @@ export function validateRaceCreation(
   raceClassKeys: readonly string[] = [],
   /** 08.10.2026 — geçerli hipodrom anahtarları; boşsa hipodrom seçilemez (varsayılan kullanılır). */
   hippodromeKeys: readonly string[] = [],
+  /** 09.10.2026 — masalar (`economy.raceTiers`); boşsa masalı yarış açılamaz. */
+  tables: readonly Pick<RaceTierConfig, 'id' | 'label' | 'entryFee' | 'fieldSize'>[] = [],
 ): RaceCreationValidation {
   const problems: string[] = [];
 
@@ -240,6 +250,12 @@ export function validateRaceCreation(
   }
 
   // --- Yarış tipi + giriş ücreti (brief §1/§2, §41) ---
+  // 09.10.2026 — masalı yarışın bedeli masanındır (ör. Şampiyona 2000);
+  // serbest seçenek listesinde olmasa da geçerlidir. Eşleşme aşağıdaki
+  // "Masa" bölümünde ayrıca denetlenir.
+  const requestedTable =
+    typeof input.tableId === 'string' ? tables.find((candidate) => candidate.id === input.tableId) : undefined;
+  const isTableFee = requestedTable !== undefined && input.entryFee === requestedTable.entryFee;
   let raceType: 'free' | 'paid' | null = null;
   let entryFee: number | null = null;
   if (input.raceType !== 'free' && input.raceType !== 'paid') {
@@ -257,7 +273,7 @@ export function validateRaceCreation(
     }
   } else if (
     typeof input.entryFee !== 'number' ||
-    !config.paidEntryFeeOptions.includes(input.entryFee)
+    (!config.paidEntryFeeOptions.includes(input.entryFee) && !isTableFee)
   ) {
     problems.push(
       `Giriş ücreti ${config.paidEntryFeeOptions.join('/')} değerlerinden biri olmalıdır (verilen: ${describe(input.entryFee)}).`,
@@ -338,6 +354,27 @@ export function validateRaceCreation(
       );
     } else {
       horseLevelBracket = input.horseLevelBracket;
+    }
+  }
+
+  // --- Masa (09.10.2026) — ücret ve at sayısı masanınki olmalı ---
+  let tableId: string | null = null;
+  if (input.tableId !== undefined && input.tableId !== null) {
+    const table = requestedTable;
+    if (table === undefined) {
+      problems.push(
+        `Masa ${tables.length > 0 ? tables.map((candidate) => candidate.id).join('/') : '(tanımlı masa yok)'} değerlerinden biri olmalıdır (verilen: ${describe(input.tableId)}).`,
+      );
+    } else {
+      const tableProblems: string[] = [];
+      if (input.raceType !== 'paid' || input.entryFee !== table.entryFee) {
+        tableProblems.push(`${table.label} masasında yarış ücretli ve giriş bedeli ${table.entryFee} olmalıdır (verilen: ${describe(input.entryFee)}).`);
+      }
+      if (input.fieldSize !== table.fieldSize) {
+        tableProblems.push(`${table.label} masasında at sayısı ${table.fieldSize} olmalıdır (verilen: ${describe(input.fieldSize)}).`);
+      }
+      problems.push(...tableProblems);
+      if (tableProblems.length === 0) tableId = table.id;
     }
   }
 
@@ -440,6 +477,7 @@ export function validateRaceCreation(
       breedClass,
       hippodrome,
       horseLevelBracket,
+      tableId,
     },
   };
 }

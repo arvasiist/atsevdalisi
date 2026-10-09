@@ -820,6 +820,25 @@ saatteki biniş − `freeRidesInWindow`, tavanlı. Çarpan `effectiveJockeySkill
 `GET /players/:id/jockey` aynı fonksiyonu kullanır — ekrandaki çarpan =
 donan çarpan). ⚠️ Aynı jokeyle çok sayıda pratik yarış koşan e2e, kadro
 puanını formsuz `effectiveJockeySkill` ile kıyaslarsa kırılır — çarpanı ekle.
+(77) **MASA KURALLARI (09.10.2026, migration 0079, §13.101)** — sahibinin
+kararı: masa = kademe (`economy.raceTiers`), her masa `feeTiming`
+(`on_join`|`on_start`), dağılım (komisyon = 1 − Σpay, ayrı sayı YOK) ve
+`loserRefund {percent, maxPosition}` taşır; saf kurallar
+`domain/race/table-rules.ts`, `validateRaceTiers` API açılışında koşar.
+Lobi yarışı `races.table_id` (NULL = masasız/eski kurallar; CHECK
+`races_table_id_valid` = masa kimlikleri, `table-rules.spec.ts` en son
+migration'ı okur — masa eklerken kısıtı ADIYLA düşür). Masalı yarışın bedeli
+ve at sayısı MASANINKİ olmak zorunda (`validateRaceCreation` 6. argüman;
+verilmeyen çağıran masalı yarış AÇAMAZ). ⚠️ `on_start`: katılımda para/defter
+YOK (yalnızca bakiye yeterliliği denetlenir); bedel `dropUnreadyLobbyEntries`
+transaction'ında (`chargeOnStartFees`) kesilir, yetmeyen `cancelled` olur —
+borç yok, iade yok; defter satırı yine `lobby_race_entry_fee` (iade yolları
+aynen çalışır). ⚠️ Kaybeden iadesi havuzdan ÖNCE ayrılır, ödül payları KALAN
+üzerinden (`computeTableSettlement`) → Σödül + Σiade ≤ havuz; tutar defterden
+okunan bedelden, kilit altında yeniden karşılaştırılır; defter
+`lobby_race_loser_refund` / pratik `practice_race_loser_refund` (REFUND).
+Pratik yarış da masanın iadesini uygular (havuz modeli değişmedi). Takvim ve
+turnuva yarışları şimdilik masasız.
 
 **✅ ÜCRETLİ LOBİ YARIŞI ARTIK KOŞUYOR — ÖDÜL DAĞITIMI VAR (§13.14,
 28.09.2026).** `POST /races/:id/settle` yarışı koşar, ödülleri `top5`

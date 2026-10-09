@@ -16,9 +16,9 @@ import type {
   RaceSurface,
   RaceWeather,
 } from '@at-sevdalisi/shared-types';
-import type { RaceLobbyConfig } from '@at-sevdalisi/game-config';
+import type { RaceLobbyConfig, RaceTierConfig } from '@at-sevdalisi/game-config';
 import type { CreateLobbyRaceBody } from '../../lib/api-client';
-import { loadRaceLobbyConfig } from '@at-sevdalisi/game-config';
+import { loadEconomyConfig, loadRaceLobbyConfig } from '@at-sevdalisi/game-config';
 import { breedLabel, findRaceClass, horseFitsRaceClass } from '../breeds/breed-catalog';
 import { DEFAULT_HIPPODROME_KEY, hippodromeLabel } from '../race-viewer/hippodrome-theme';
 
@@ -133,6 +133,8 @@ export interface LobbyRaceForm {
   hippodrome: string;
   /** 08.10.2026 — at seviyesi aralığı anahtarı; `''` = her seviyeye açık. */
   horseLevelBracket: string;
+  /** 09.10.2026 — masa (`raceTiers[].id`); `''` = serbest (masasız). */
+  tableId?: string;
 }
 
 /**
@@ -220,6 +222,13 @@ export function buildCreateRaceBody(
   if (form.startDelayMinutes < bounds.min || form.startDelayMinutes > bounds.max) {
     return { ok: false, problem: `Başlangıç ${bounds.min}–${bounds.max} dakika sonra olmalıdır.` };
   }
+  const table = form.tableId ? RACE_TABLES.find((candidate) => candidate.id === form.tableId) : undefined;
+  if (form.tableId && table === undefined) {
+    return { ok: false, problem: 'Seçilen masa bulunamadı.' };
+  }
+  if (table !== undefined && (form.fieldSize !== table.fieldSize || form.entryFee !== table.entryFee)) {
+    return { ok: false, problem: `${table.label} masasında ${table.fieldSize} at ve ${table.entryFee} çip giriş bedeli zorunludur.` };
+  }
   return {
     ok: true,
     body: {
@@ -239,8 +248,66 @@ export function buildCreateRaceBody(
       ...(form.breedClass !== '' ? { breedClass: form.breedClass } : {}),
       hippodrome: form.hippodrome,
       ...(form.horseLevelBracket !== '' ? { horseLevelBracket: form.horseLevelBracket } : {}),
+      ...(table !== undefined ? { tableId: table.id } : {}),
     },
   };
+}
+
+/**
+ * 09.10.2026 — MASALAR (`economy.raceTiers`, sunucu ile AYNI dosya). Masa
+ * seçilince at sayısı ve giriş bedeli masanınkine çekilir; oyuncu tavanı
+ * yeni at sayısına sığdırılır. Kural sunucuda yeniden denetlenir.
+ */
+export const RACE_TABLES: readonly RaceTierConfig[] = loadEconomyConfig().raceTiers;
+
+export function applyRaceTable(form: LobbyRaceForm, tableId: string, config: RaceLobbyConfig): LobbyRaceForm {
+  const table = RACE_TABLES.find((candidate) => candidate.id === tableId);
+  if (table === undefined) return { ...form, tableId: '' };
+  const caps = maxPlayersOptions(table.fieldSize, config);
+  return {
+    ...form,
+    tableId,
+    fieldSize: table.fieldSize,
+    entryFee: table.entryFee,
+    maxPlayers: caps.includes(form.maxPlayers) ? form.maxPlayers : (caps.at(-1) ?? form.maxPlayers),
+  };
+}
+
+/** Masanın oyuncuya gösterilen kural özeti (sunucunun `RaceTableView`i ya da config'ten). */
+export interface TableRulesSummary {
+  feeTiming: 'on_join' | 'on_start';
+  paidPlaces: number;
+  rakePercent: number;
+  loserRefund: { percent: number; maxPosition: number };
+}
+
+/** Form için: config'teki masadan özet (dağılım payları `prizeDistributions`tan). */
+export function tableRulesFromConfig(table: RaceTierConfig): TableRulesSummary {
+  const economy = loadEconomyConfig();
+  const shares = economy.prizeDistributions.find((distribution) => distribution.id === table.distributionId)?.shares ?? [];
+  const total = shares.reduce((sum, share) => sum + share, 0);
+  return {
+    feeTiming: table.feeTiming,
+    paidPlaces: shares.length,
+    rakePercent: Math.round((1 - total) * 100),
+    loserRefund: { ...table.loserRefund },
+  };
+}
+
+/** Kural satırları — yön/tutar sunucu kuralıyla aynı dilde. */
+export function describeTableRules(rules: TableRulesSummary): string[] {
+  const fee =
+    rules.feeTiming === 'on_start'
+      ? 'Giriş bedeli start anında kesilir (o an bakiyesi yetmeyen yarıştan düşer)'
+      : 'Giriş bedeli katılırken kesilir (start öncesi ayrılırsan iade)';
+  const prize = `Ödül: ilk ${rules.paidPlaces} sıra · komisyon %${rules.rakePercent}`;
+  const { percent, maxPosition } = rules.loserRefund;
+  const firstRefunded = rules.paidPlaces + 1;
+  const refund =
+    percent > 0
+      ? `Kaybedene: ${firstRefunded === maxPosition ? `${maxPosition}.` : `${firstRefunded}–${maxPosition}.`} sıraya giriş bedelinin %${percent} iadesi`
+      : 'Kaybedene iade yok';
+  return [fee, prize, refund];
 }
 
 /** Bir lobi satırında oyuncuya hangi düğmelerin açık olduğu — TEK kaynak. */

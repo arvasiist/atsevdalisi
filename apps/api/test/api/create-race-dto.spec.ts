@@ -36,4 +36,12 @@ describe('CreateRaceDto — ırk sınıfı', () => {
     const errors = await validate(plainToInstance(CreateRaceDto, { ...base, breedClass: 7 }));
     expect(errors.map((error) => error.property)).toEqual(['breedClass']);
   });
+
+  it('09.10.2026 — masa (tableId) whitelist\'te kalır; metin olmayan reddedilir', async () => {
+    const dto = plainToInstance(CreateRaceDto, { ...base, tableId: 'local' });
+    expect(await validate(dto, { whitelist: true, forbidNonWhitelisted: true })).toEqual([]);
+    expect(dto.tableId).toBe('local');
+    const errors = await validate(plainToInstance(CreateRaceDto, { ...base, tableId: 3 }));
+    expect(errors.map((error) => error.property)).toEqual(['tableId']);
+  });
 });

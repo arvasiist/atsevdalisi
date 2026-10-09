@@ -9,6 +9,8 @@ import economyConfigJson from '../../../../config/economy.config.json';
 import { PG_POOL } from '../../src/infrastructure/database/database.module';
 import { AppConfigService } from '../../src/infrastructure/config/config.service';
 import { getDefaultRaceTier, getRacePrize } from '../../src/domain/race/prize';
+import { isLoserRefundEligible, loserRefundAmount } from '../../src/domain/race/table-rules';
+import { resolvePrizeDistribution } from '../../src/domain/race/prize-distribution';
 import { RACE_REPOSITORY, type RaceRepository } from '../../src/application/ports/race.repository';
 import { RACE_ENGINE_VERSION, RACE_RULESET_VERSION } from '../../src/domain/race/race-engine';
 import {
@@ -179,7 +181,7 @@ describe('Race — Pratik Yarış (e2e)', () => {
       .send({})
       .expect(200);
 
-    const { entryFee, prizeWon, newBalance } = response.body.data;
+    const { entryFee, prizeWon, loserRefund, newBalance } = response.body.data;
     // Giriş ücreti artık kademeden gelir (sabit `baseEntryFee × çarpan`
     // yerine) — bkz. `domain/race/prize.ts`.
     expect(entryFee).toBe(defaultTier.entryFee);
@@ -190,7 +192,15 @@ describe('Race — Pratik Yarış (e2e)', () => {
       (entry: { horseId: string }) => entry.horseId === horseId,
     );
     expect(prizeWon).toBe(getRacePrize(economyConfig, defaultTier, playerFinish.finishPosition));
-    expect(newBalance.money).toBe(moneyBefore - entryFee + prizeWon);
+    // 09.10.2026 — masa kuralı: ödül alamayan ama iade bandında biten oyuncuya
+    // bedelin yüzdesi geri döner (`table-rules.ts`); bant dışında 0.
+    const shares = resolvePrizeDistribution(economyConfig, defaultTier.distributionId)?.shares ?? [];
+    expect(loserRefund).toBe(
+      isLoserRefundEligible(playerFinish.finishPosition, shares.length, defaultTier.loserRefund)
+        ? loserRefundAmount(entryFee, defaultTier.loserRefund)
+        : 0,
+    );
+    expect(newBalance.money).toBe(moneyBefore - entryFee + prizeWon + loserRefund);
 
     const afterRow = await pool.query('SELECT money FROM players WHERE id = $1', [playerId]);
     expect(Number(afterRow.rows[0].money)).toBe(newBalance.money);
@@ -667,7 +677,11 @@ describe('Race — Pratik Yarış (e2e)', () => {
       expect(raceIds.size).toBe(50);
 
       const netChange = responses.reduce(
-        (sum, response) => sum + (response.body.data.prizeWon as number) - (response.body.data.entryFee as number),
+        (sum, response) =>
+          sum +
+          (response.body.data.prizeWon as number) +
+          (response.body.data.loserRefund as number) -
+          (response.body.data.entryFee as number),
         0,
       );
 
@@ -705,7 +719,11 @@ describe('Race — Pratik Yarış (e2e)', () => {
       expect(raceIds.size).toBe(100);
 
       const netChange = responses.reduce(
-        (sum, response) => sum + (response.body.data.prizeWon as number) - (response.body.data.entryFee as number),
+        (sum, response) =>
+          sum +
+          (response.body.data.prizeWon as number) +
+          (response.body.data.loserRefund as number) -
+          (response.body.data.entryFee as number),
         0,
       );
 

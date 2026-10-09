@@ -35,6 +35,7 @@ import { validateTribuneGiftsConfig } from '../../domain/grandstand/tribune-gift
 import { validateEquipmentConfig } from '../../domain/equipment/catalog';
 import { validateHorsePersonalityConfig } from '../../domain/horse/personality';
 import { validateJockeyConditionConfig } from '../../domain/jockey/condition';
+import { validateRaceTiers } from '../../domain/race/prize';
 
 /**
  * Ortam değişkenleri + oyun dengesi config'lerine tek noktadan erişim.
@@ -179,6 +180,12 @@ export class AppConfigService {
     const tribuneGiftProblems = validateTribuneGiftsConfig(this.grandstand.tribuneGifts);
     if (tribuneGiftProblems.length > 0) {
       throw new Error(`Tribün hediyesi config'i geçersiz (config/grandstand.config.json): ${tribuneGiftProblems.join(' ')}`);
+    }
+    // 09.10.2026 — masalar (kademeler) + ödül dağılımları: bozuk masa
+    // kuralıyla (ücret anı, kaybeden iadesi) API AÇILMAZ.
+    const tableProblems = validateRaceTiers(this.economy);
+    if (tableProblems.length > 0) {
+      throw new Error(`Masa/kademe config'i geçersiz (config/economy.config.json): ${tableProblems.join(' ')}`);
     }
     const jockeyConditionProblems = validateJockeyConditionConfig(this.jockey.condition);
     if (jockeyConditionProblems.length > 0) {

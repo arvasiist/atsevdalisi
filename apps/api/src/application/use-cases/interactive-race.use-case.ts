@@ -289,6 +289,8 @@ export class InteractiveRaceUseCase {
                   ?.finishPosition ?? 0,
               prizeWon: record.result.prizeWon,
               entryFee: record.result.entryFee,
+              // 09.10.2026 öncesi kayıtlarda alan yok → 0.
+              loserRefund: record.result.loserRefund ?? 0,
               xpGained: record.result.xpGained.player,
             },
       kind: 'practice',

@@ -172,6 +172,9 @@ export const LEDGER_TRANSACTION_TYPES = [
    */
   'tribune_gift_debit',
   'tribune_gift_credit',
+  // 09.10.2026 — masanın kaybeden iadesi (pratik + lobi).
+  'practice_race_loser_refund',
+  'lobby_race_loser_refund',
 ] as const;
 
 export type LedgerTransactionType = (typeof LEDGER_TRANSACTION_TYPES)[number];
@@ -264,6 +267,9 @@ export const CANONICAL_BY_LEDGER_TYPE: Record<LedgerTransactionType, CanonicalTr
   friend_gift_collect: 'REWARD',
   tribune_gift_debit: 'GIFT',
   tribune_gift_credit: 'GIFT',
+  // 09.10.2026 — masa kuralı: ödül alamayan sıraya ödenen bedelin bir kısmı geri.
+  practice_race_loser_refund: 'REFUND',
+  lobby_race_loser_refund: 'REFUND',
 };
 
 /**

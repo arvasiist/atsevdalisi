@@ -18,6 +18,7 @@ import {
   computePrizePayouts,
   resolvePrizeDistribution,
 } from '../../domain/race/prize-distribution';
+import { computeTableSettlement, findRaceTable } from '../../domain/race/table-rules';
 import {
   RACE_ENGINE_VERSION,
   RACE_RULESET_VERSION,
@@ -184,12 +185,38 @@ export class SettleRaceUseCase {
       }
     }
 
+    // 09.10.2026 — MASA: dağılım masanındır; kaybeden iadesi havuzdan ÖNCE
+    // ayrılır, ödül payları kalan üzerinden (`computeTableSettlement`).
+    // Turnuva kendi dağılımıyla koşar (masası yoktur).
+    const table = tournament === null ? findRaceTable(this.config.economy, context.tableId) : null;
     const shares =
       tournament === null
-        ? (resolvePrizeDistribution(this.config.economy, this.config.raceLobby.prizeDistributionId)
-            ?.shares ?? [])
+        ? (resolvePrizeDistribution(
+            this.config.economy,
+            table?.distributionId ?? this.config.raceLobby.prizeDistributionId,
+          )?.shares ?? [])
         : tournamentShares(this.config.online.tournament.prizeDistributionByPlacement);
-    const payouts = computePrizePayouts(context.prizePool, shares);
+    let payouts = computePrizePayouts(context.prizePool, shares);
+    let loserRefunds: Array<{ entryId: string; amount: number; paidFee: number }> = [];
+    if (table !== null && table.loserRefund.percent > 0) {
+      const paidFees = await this.raceRepository.findLobbyPaidFees(raceId);
+      const settlement = computeTableSettlement(
+        context.prizePool,
+        shares,
+        realEntryResults.map((entry) => ({
+          entryId: entry.entryId,
+          finishPosition: entry.finishPosition,
+          paidFee: paidFees.get(entry.entryId) ?? 0,
+        })),
+        table.loserRefund,
+      );
+      payouts = settlement.payouts;
+      loserRefunds = [...settlement.loserRefunds].map(([entryId, amount]) => ({
+        entryId,
+        amount,
+        paidFee: paidFees.get(entryId) ?? 0,
+      }));
+    }
 
     return this.raceRepository.settleLobbyRace({
       raceId,
@@ -204,6 +231,7 @@ export class SettleRaceUseCase {
       botEntries,
       segments,
       payouts,
+      loserRefunds,
       now,
     });
   }

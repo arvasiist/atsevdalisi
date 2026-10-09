@@ -300,7 +300,23 @@ export interface RaceTierConfig {
    * `RaceLobbyConfig.prizeDistributionId`) ona İSİMLE başvurur.
    */
   distributionId: string;
+  /**
+   * 09.10.2026 — MASA KURALI (sahibinin kararı): giriş bedeli ne zaman
+   * kesilir. `on_join` = katılırken (ayrılınca defterden iade), `on_start`
+   * = start anında (kilitte; o an parası yetmeyen yarıştan düşer, borç
+   * yazılmaz). Pratik yarışta ikisi aynıdır (katılım = start).
+   */
+  feeTiming: RaceTableFeeTiming;
+  /**
+   * 09.10.2026 — MASA KURALI: ödül alamayan ama `maxPosition`a kadar
+   * (dahil) bitiren oyuncuya ÖDEDİĞİ bedelin `percent`i iade edilir (aşağı
+   * yuvarlanır). İade HAVUZDAN önce ayrılır, ödül payları kalan üzerinden
+   * hesaplanır → oyun para basmaz. `percent = 0` = iade yok.
+   */
+  loserRefund: { percent: number; maxPosition: number };
 }
+
+export type RaceTableFeeTiming = 'on_join' | 'on_start';
 
 /**
  * Adlandırılmış ödül dağıtım şablonu — brief §3 "PRIZE POOL" +
