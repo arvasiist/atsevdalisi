@@ -920,6 +920,8 @@ export interface CreateCalendarRaceInput {
   hippodrome: string | null;
   /** 08.10.2026 — programın at seviyesi aralığı; `null` = her seviyeye açık. */
   horseLevelBracket: string | null;
+  /** 09.10.2026 — programın masası; `null` = masasız. */
+  tableId: string | null;
 }
 
 /** `dropUnreadyLobbyEntries` sonucu. */

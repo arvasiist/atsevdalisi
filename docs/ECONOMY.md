@@ -150,6 +150,11 @@ Her kademe bir MASADIR ve kendi kuralını taşır (`raceTiers[].feeTiming`,
 yalnızca gerçek ücretlerdir; pratik yarışta havuz modeli (botlar ödemiş
 sayılır) değişmedi, iade oyuncunun ödediği bedelin yüzdesidir.
 
+Takvim yarışları da (09.10.2026) programın `tableId`'si varsa masanın
+kurallarıyla koşar: Mahalli/Bölgesel bedeli katılımda, Ulusal (derbi,
+şampiyon koşusu) start anında keser. Ücretsiz ve 50 çiplik programlar
+masasızdır. Turnuvalar masasızdır: rake yok, ödül ilk üçe 50/30/20.
+
 ### 4.1.2 Mutabakat — para nereden gelir, nereye gider (28.09.2026, §13.26)
 
 Bir yarışın parası **ya dağıtılır ya iade edilir**; ikisi aynı anda olmaz.

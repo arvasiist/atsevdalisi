@@ -260,8 +260,8 @@ kodla birlikte dağıtılır.)
 - `PlayerDemoWidget` bağlı değil (bilinçli, kaldırılabilir).
 - `gemShopWhitelist` ölü config (okuyan kod yok).
 - README/ROADMAP faz tabloları bayat.
-- Takvim ve turnuva yarışları masasız (masa kuralları yalnızca oyuncunun
-  açtığı lobi yarışında + pratikte).
+- Turnuvalar masasız (kendi kuralları var: rake yok, ilk üçe 50/30/20);
+  takvim programları 09.10.2026'dan beri masaya bağlı.
 
 ## Production Blockers
 
@@ -306,7 +306,7 @@ Brief fazlarına göre gerçek durum:
 
 Kodla kapanabilecek büyük bir eksik kalmadı; kalanların çoğu sahibinin dış
 kararına bağlı (yukarıdaki öncelik 1). Arada yapılabilecekler: kulüp yarışı,
-takvim/turnuva yarışlarına masa, sosyal hub (avatar sonrası).
+sosyal hub (avatar sonrası).
 
 ---
 

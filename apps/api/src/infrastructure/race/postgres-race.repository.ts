@@ -2183,9 +2183,9 @@ export class PostgresRaceRepository implements RaceRepository {
            participant_limit, max_players, entry_fee, prize_pool, race_type,
            tribune_fee, spectator_capacity, start_time, status, simulation_seed,
            engine_version, ruleset_version, config_version, weather_config_version, player_control, breed_class, track_id,
-           horse_level_bracket
+           horse_level_bracket, table_id
          )
-         VALUES ($1, NULL, $2, $3, $4, $5, $6, $7, $8, 0, $9, $10, $11, $12, 'scheduled', NULL, $13, $14, $15, $16, $17, $18, $19, $20)`,
+         VALUES ($1, NULL, $2, $3, $4, $5, $6, $7, $8, 0, $9, $10, $11, $12, 'scheduled', NULL, $13, $14, $15, $16, $17, $18, $19, $20, $21)`,
         [
           input.raceId,
           input.name,
@@ -2207,6 +2207,7 @@ export class PostgresRaceRepository implements RaceRepository {
           input.breedClass,
           trackIdForHippodrome(this.config.hippodromes, input.hippodrome),
           input.horseLevelBracket,
+          input.tableId,
         ],
       );
       await client.query(

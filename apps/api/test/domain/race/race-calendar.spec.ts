@@ -1,4 +1,4 @@
-import { loadBreedsConfig, loadHippodromesConfig, loadRaceLobbyConfig } from '@at-sevdalisi/game-config';
+import { loadBreedsConfig, loadEconomyConfig, loadHippodromesConfig, loadRaceLobbyConfig } from '@at-sevdalisi/game-config';
 import { describe, expect, it } from 'vitest';
 import { hippodromeKeys } from '../../../src/domain/race/hippodrome';
 import { validateRaceCreation } from '../../../src/domain/race/lobby';
@@ -69,10 +69,45 @@ describe('yarış takvimi — yuva hesabı (01.10.2026)', () => {
           loadBreedsConfig().raceClasses.map((raceClass) => raceClass.key),
           // 08.10.2026 — programın hipodromu gerçek hipodrom listesinde olmalı.
           hippodromeKeys(loadHippodromesConfig()),
+          // 09.10.2026 — masalı program masanın bedeli + at sayısıyla açılmalı.
+          loadEconomyConfig().raceTiers,
         );
         expect(problems, `${program.id} ${slot.toISOString()}`).toEqual([]);
       }
     }
+  });
+
+  it('masalı programlar (09.10.2026): masa var, bedel ve at sayısı masanınkiyle aynı; uymayan reddedilir', () => {
+    const tables = loadEconomyConfig().raceTiers;
+    const tabled = config.calendar.programs.filter((program) => program.tableId !== undefined);
+    expect(tabled.length).toBeGreaterThan(0);
+    for (const program of tabled) {
+      const table = tables.find((candidate) => candidate.id === program.tableId);
+      expect(table, program.id).toBeDefined();
+      expect(program.entryFee, program.id).toBe(table!.entryFee);
+      expect(program.fieldSize, program.id).toBe(table!.fieldSize);
+      expect(calendarProgramToCreationInput(program, now).tableId).toBe(program.tableId);
+    }
+    // Masasız program masasız açılır (eski kurallar).
+    const untabled = config.calendar.programs.find((program) => program.tableId === undefined)!;
+    expect(calendarProgramToCreationInput(untabled, now).tableId).toBeNull();
+    // Masanın at sayısından sapan masalı program açılamaz — sapma tek başına
+    // geçerli bir yarış tanımıdır (masasız hâli geçer), onu masa kuralı keser.
+    const source = tabled[0]!;
+    const otherSize = config.fieldSizes.find((size) => size !== source.fieldSize)!;
+    const broken = { ...source, fieldSize: otherSize, maxPlayers: otherSize };
+    const slot = computeCalendarSlotTimes(now, broken, { ...config.calendar, horizonHours: broken.intervalMinutes / 60 })[0]!;
+    const validate = (program: typeof broken) =>
+      validateRaceCreation(
+        calendarProgramToCreationInput(program, slot),
+        config,
+        now,
+        loadBreedsConfig().raceClasses.map((raceClass) => raceClass.key),
+        hippodromeKeys(loadHippodromesConfig()),
+        tables,
+      );
+    expect(validate({ ...broken, tableId: undefined }).problems).toEqual([]);
+    expect(validate(broken).value).toBeNull();
   });
 
   it('bozuk program yakalanır: tekrar eden kimlik, aralık dışı ofset, boş pencere', () => {

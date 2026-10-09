@@ -4397,8 +4397,8 @@ Karar: önce pratik yarış; kırbaç sınırsız, dayanıklılık bedelli.
 - Start anında kesilen masada o an parası yetmeyen yarıştan düşer (borç
   yazılmaz). Kaybeden iadesi havuzdan önce ayrılır; oyun para basmaz.
 - Pratik yarışta da masanın iadesi uygulanır (sonuçta "Masa iadesi").
-- Takvim/turnuva yarışları şimdilik masasız (eski kurallar) — istenirse
-  programlara masa eklenebilir.
+- Takvim/turnuva yarışları ilk dilimde masasızdı; takvim programları
+  09.10.2026'da masaya bağlandı (§13.104). Turnuvalar kendi kurallarıyla kalır.
 - Kanıt: `table-rules.spec.ts` (config + migration CHECK, iade bandı/tutarı,
   bütün masalarda Σödül + Σiade ≤ havuz, bozuk kural, masalı yarış açma),
   `race-table-rules.e2e-spec.ts` (8 gerçek oyunculu masada dağılım + iade +
@@ -4447,6 +4447,24 @@ Karar: önce pratik yarış; kırbaç sınırsız, dayanıklılık bedelli.
 - Kanıt: `race-lobby-list-order.e2e-spec.ts` (gerçek takvim turu; düzeltme
   geri alınınca iki test de kırılıyor — doğrulandı) + listeyi okuyan beş e2e
   dosyası yeşil.
+
+### 13.104 Takvim yarışları masaya bağlandı (09.10.2026)
+
+- Takvim programı `tableId` alır (`race-lobby.config.json`); yarış masanın
+  kurallarıyla açılır ve koşar (ücret anı, dağılım, kaybeden iadesi). Program
+  oyuncu yarışıyla AYNI kapıdan geçer: masalı programın bedeli ve at sayısı
+  masanınkiyle aynı olmak zorunda (`validateRaceCreation` 6. argüman).
+- Eşleme bedel + at sayısına göre (sayılar DEĞİŞMEDİ): `dirt-sprint`,
+  `native-breeds`, `developing-run` → Mahalli; `grass-mile`, `master-run` →
+  Bölgesel; `sunday-derby`, `champion-run` → Ulusal (bedel start anında).
+  `open-run` (ücretsiz) ve `rookie-run` (50 çip — eşi olan masa yok) masasız.
+- Turnuvalar masaya BAĞLANMADI: zaten kendi kuralları var (rake yok, botsuz,
+  ilk üçe 50/30/20, `online.tournament`); masaya çevirmek onaylı turnuva
+  ekonomisini değiştirirdi.
+- Kanıt: `race-calendar.spec.ts` (masalı her program masayla birebir; masa
+  kuralının tek başına yakaladığı sapma reddedilir), `race-calendar.e2e-spec.ts`
+  (açılan yarış programın masasını taşır; katılım testi start'ta kesen
+  masayı seçmez — derbi en erken yuvaya düşerse kararsız olurdu).
 
 ## 14. Kendime hatırlatmalar (kısa liste)
 

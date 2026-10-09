@@ -65,6 +65,8 @@ export class ScheduleRaceCalendarUseCase {
           now,
           this.config.breeds.raceClasses.map((raceClass) => raceClass.key),
           hippodromeKeys(this.config.hippodromes),
+          // 09.10.2026 — masalı program masanın bedeli ve at sayısıyla açılmak zorunda.
+          this.config.economy.raceTiers,
         );
         if (value === null) {
           rejected += 1;
@@ -89,6 +91,7 @@ export class ScheduleRaceCalendarUseCase {
           breedClass: value.breedClass,
           hippodrome: value.hippodrome,
           horseLevelBracket: value.horseLevelBracket,
+          tableId: value.tableId,
           engineVersion: RACE_ENGINE_VERSION,
           rulesetVersion: RACE_RULESET_VERSION,
           configVersion: this.config.race.version,

@@ -129,7 +129,8 @@
         "surface": "dirt",
         "weather": "sunny",
         "tribuneFee": 10,
-        "spectatorCapacity": 1000
+        "spectatorCapacity": 1000,
+        "tableId": "local"
       },
       {
         "id": "grass-mile",
@@ -145,7 +146,8 @@
         "weather": "sunny",
         "tribuneFee": 25,
         "spectatorCapacity": 5000,
-        "playerControl": true
+        "playerControl": true,
+        "tableId": "regional"
       },
       {
         "id": "open-run",
@@ -176,7 +178,8 @@
         "weather": "sunny",
         "tribuneFee": 10,
         "spectatorCapacity": 1000,
-        "breedClass": "native"
+        "breedClass": "native",
+        "tableId": "local"
       },
       {
         "id": "sunday-derby",
@@ -194,7 +197,8 @@
         "spectatorCapacity": 5000,
         "playerControl": true,
         "featured": true,
-        "horizonHours": 48
+        "horizonHours": 48,
+        "tableId": "national"
       },
       {
         "id": "rookie-run",
@@ -226,7 +230,8 @@
         "weather": "sunny",
         "tribuneFee": 10,
         "spectatorCapacity": 1000,
-        "horseLevelBracket": "developing"
+        "horseLevelBracket": "developing",
+        "tableId": "local"
       },
       {
         "id": "master-run",
@@ -242,7 +247,8 @@
         "weather": "sunny",
         "tribuneFee": 25,
         "spectatorCapacity": 1000,
-        "horseLevelBracket": "master"
+        "horseLevelBracket": "master",
+        "tableId": "regional"
       },
       {
         "id": "champion-run",
@@ -258,7 +264,8 @@
         "weather": "sunny",
         "tribuneFee": 50,
         "spectatorCapacity": 5000,
-        "horseLevelBracket": "champion"
+        "horseLevelBracket": "champion",
+        "tableId": "national"
       }
     ]
   }

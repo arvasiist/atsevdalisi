@@ -98,6 +98,7 @@ describe('Yarış takvimi (e2e)', () => {
         hippodrome: string;
         calendar: { programId: string } | null;
         tournament: unknown;
+        table: { id: string; feeTiming: string } | null;
       }>
     ).filter((race) => result?.opened.includes(race.id));
     expect(listed.length).toBeGreaterThan(0);
@@ -114,7 +115,12 @@ describe('Yarış takvimi (e2e)', () => {
       // 08.10.2026 — programın hipodromu (migration 0072) yarışa yazılır.
       expect(race.hippodrome).toBe(program?.hippodrome ?? config.hippodromes.defaultKey);
       expect(race.tournament).toBeNull();
+      // 09.10.2026 — programın masası yarışa yazılır (masasız program masasız).
+      expect(race.table?.id ?? null).toBe(program?.tableId ?? null);
     }
+    // Hem masalı hem masasız program bu turda yarış açtı (iddia boş kalmasın).
+    expect(listed.some((race) => race.table !== null)).toBe(true);
+    expect(listed.some((race) => race.table === null)).toBe(true);
 
     const created = await pool.query<{ created_by: string | null }>(
       'SELECT created_by FROM races WHERE id = ANY($1::uuid[])',
@@ -195,12 +201,16 @@ describe('Yarış takvimi (e2e)', () => {
     // Herkese açık yarış seçilir: seviye aralıklı (0073) ya da ırk sınıflı
     // (0070) bir program en erken yuvayı alırsa başlangıç atı 409 alırdı —
     // rastgele güne bağlı kırmızı CI (yaşandı: c7c3e13).
+    // 09.10.2026 — masası bedeli START anında kesen program (ör. derbi =
+    // Ulusal masa) da seçilmez: katılımda defter satırı yoktur.
+    const onStartTables = config.economy.raceTiers.filter((table) => table.feeTiming === 'on_start').map((table) => table.id);
     const paid = await pool.query<{ id: string; entry_fee: string }>(
       `SELECT r.id, r.entry_fee FROM races r
        WHERE r.id = ANY($1::uuid[]) AND r.entry_fee > 0
          AND r.horse_level_bracket IS NULL AND r.breed_class IS NULL
+         AND (r.table_id IS NULL OR r.table_id <> ALL($2::text[]))
        ORDER BY r.start_time ASC LIMIT 1`,
-      [result.opened],
+      [result.opened, onStartTables],
     );
     expect(paid.rows).toHaveLength(1);
     const raceId = paid.rows[0].id;

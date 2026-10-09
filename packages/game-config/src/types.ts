@@ -1968,6 +1968,12 @@ export interface RaceCalendarProgram {
   hippodrome?: string;
   /** 08.10.2026 — at seviyesi aralığı (`horseLevelBrackets` anahtarı); yoksa her seviyeye açık. */
   horseLevelBracket?: string;
+  /**
+   * 09.10.2026 — masa (`economy.raceTiers` kimliği); yoksa masasız (eski
+   * kurallar). Verilirse programın `entryFee` ve `fieldSize`ı masanınkiyle
+   * AYNI olmalıdır (`validateRaceCreation` oyuncu yarışıyla aynı kuralla reddeder).
+   */
+  tableId?: string;
 }
 
 /**

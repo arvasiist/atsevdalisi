@@ -837,8 +837,11 @@ aynen çalışır). ⚠️ Kaybeden iadesi havuzdan ÖNCE ayrılır, ödül payl
 üzerinden (`computeTableSettlement`) → Σödül + Σiade ≤ havuz; tutar defterden
 okunan bedelden, kilit altında yeniden karşılaştırılır; defter
 `lobby_race_loser_refund` / pratik `practice_race_loser_refund` (REFUND).
-Pratik yarış da masanın iadesini uygular (havuz modeli değişmedi). Takvim ve
-turnuva yarışları şimdilik masasız.
+Pratik yarış da masanın iadesini uygular (havuz modeli değişmedi). Takvim
+programı `tableId` alır (09.10.2026, §13.104) — bedeli ve at sayısı masanınki
+olmalı, `race-calendar.spec.ts` dener; ⚠️ takvim e2e'sinde "katılımda ücret
+düşer" iddiası `on_start` masalı yarışı SEÇMEMELİ. Turnuva masasızdır
+(kendi kuralları).
 (78) **KULÜP DAVETİ (09.10.2026, migration 0080, §13.102)** — `POST
 /clubs/:clubId/invites` (`{ username }`, yalnızca subay/lider), `GET
 /clubs/invites`, `POST /clubs/invites/:inviteId/accept|decline`; `/club`
