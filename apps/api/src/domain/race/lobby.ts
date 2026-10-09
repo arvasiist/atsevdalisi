@@ -87,6 +87,12 @@ export interface RaceCreationInput {
    * dağılımı ve kaybeden iadesi masadan gelir. `null`/verilmezse masasız.
    */
   tableId?: unknown;
+  /**
+   * 09.10.2026 — KULÜP İÇİ YARIŞ: `true` ise yarışa yalnızca açanın kulübünün
+   * üyeleri katılır. Kulübü İSTEMCİ seçmez — sunucu açanın üyeliğinden bulur
+   * (açan lider/subay olmalı; kapı deponun transaction'ında).
+   */
+  clubOnly?: unknown;
 }
 
 /**
@@ -131,6 +137,8 @@ export interface ValidatedRaceCreation {
   horseLevelBracket: string | null;
   /** `null` = masasız (eski kurallar). */
   tableId: string | null;
+  /** Yalnızca açanın kulübüne açık mı (kulüp sunucuda çözülür). */
+  clubOnly: boolean;
 }
 
 /**
@@ -320,6 +328,16 @@ export function validateRaceCreation(
     }
   }
 
+  // --- Kulüp içi yarış (09.10.2026) ---
+  let clubOnly = false;
+  if (input.clubOnly !== undefined && input.clubOnly !== null) {
+    if (typeof input.clubOnly !== 'boolean') {
+      problems.push(`Kulüp içi yarış true/false olmalıdır (verilen: ${describe(input.clubOnly)}).`);
+    } else {
+      clubOnly = input.clubOnly;
+    }
+  }
+
   // --- Irk sınıfı (08.10.2026) ---
   let breedClass: string | null = null;
   if (input.breedClass !== undefined && input.breedClass !== null) {
@@ -478,6 +496,7 @@ export function validateRaceCreation(
       hippodrome,
       horseLevelBracket,
       tableId,
+      clubOnly,
     },
   };
 }

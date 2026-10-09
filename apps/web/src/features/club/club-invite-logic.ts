@@ -11,8 +11,13 @@ export function normalizeInviteUsername(raw: string): string {
   return raw.trim().replace(/^@/, '').toLowerCase();
 }
 
-export function canInviteToClub(role: ClubRole | null | undefined): boolean {
+/** Lider ve subay kulüp adına iş yapar (davet, kulüp içi yarış). Karar sunucuda. */
+export function isClubOfficerOrLeader(role: ClubRole | null | undefined): boolean {
   return role === 'leader' || role === 'officer';
+}
+
+export function canInviteToClub(role: ClubRole | null | undefined): boolean {
+  return isClubOfficerOrLeader(role);
 }
 
 const MS_PER_HOUR = 60 * 60 * 1_000;

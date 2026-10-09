@@ -737,6 +737,11 @@ export interface CreateLobbyRaceInput {
   horseLevelBracket: string | null;
   /** 09.10.2026 — masa (migration 0079); `null` = masasız (eski kurallar). */
   tableId: string | null;
+  /**
+   * 09.10.2026 — kulüp içi yarış (migration 0081). `true` ise depo açanın
+   * kulübünü KİLİTLİ transaction'da bulur (lider/subay şartı) ve yarışa yazar.
+   */
+  clubOnly: boolean;
 }
 
 /**

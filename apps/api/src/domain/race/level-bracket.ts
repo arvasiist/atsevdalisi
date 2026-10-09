@@ -8,6 +8,17 @@ import type { HorseLevelBracketConfig } from '@at-sevdalisi/game-config';
  * açıktır ve botlar eskisi gibi üretilir.
  */
 
+/**
+ * 09.10.2026 — kulüp içi yarışa kulübün üyesi olmayan oyuncu (409). Irk
+ * sınıfı ve seviye kapısıyla AYNI yerde, paradan önce fırlatılır.
+ */
+export class RaceClubOnlyError extends Error {
+  constructor() {
+    super('Bu yarış bir kulübün iç yarışıdır; yalnızca o kulübün üyeleri katılabilir.');
+    this.name = 'RaceClubOnlyError';
+  }
+}
+
 /** Aralık dışı at (409) — ırk sınıfı kapısıyla aynı sınıf. */
 export class HorseLevelNotAllowedError extends Error {
   constructor(

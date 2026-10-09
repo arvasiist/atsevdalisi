@@ -859,6 +859,13 @@ yarışları → öne çıkan program → turnuva → kalan (başlangıca göre)
 Başka oyuncuların yarışlarını takvimin ÖNÜNE alan bir katman ekleme — çok
 oyunculu anda takvim listeden tamamen silinir; ⚠️ katılınan yarışın listede
 kalması "hazır" düğmesinin tek yoludur.
+(80) **KULÜP İÇİ YARIŞ (09.10.2026, migration 0081, §13.105)** — `POST /races`
+`clubOnly: true`; kulübü SUNUCU bulur (lider/subay), `races.club_id`.
+Katılım kapısı ırk/seviye kapısıyla aynı yerde → 409 `RACE_CLUB_ONLY`; davet
+de aynı kural. ⚠️ `club_id`ye yabancı anahtar EKLEME (SET NULL yarışı herkese
+açar, CASCADE parayı siler) — feshedilen kulübün yarışı yeni katılıma
+kapalıdır. Listede yalnızca üyeler + açan + katılmış olan görür. Ek ödül YOK
+(sahibinin kararı).
 
 **✅ ÜCRETLİ LOBİ YARIŞI ARTIK KOŞUYOR — ÖDÜL DAĞITIMI VAR (§13.14,
 28.09.2026).** `POST /races/:id/settle` yarışı koşar, ödülleri `top5`

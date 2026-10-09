@@ -36,6 +36,7 @@ import { formatRaceStart } from '../../lib/format-time';
 import { formatMultiplier } from '../race/race-entry';
 import { RACE_CLASSES, breedLabel, horseFitsRaceClass } from '../breeds/breed-catalog';
 import { HIPPODROME_OPTIONS } from '../race-viewer/hippodrome-theme';
+import { isClubOfficerOrLeader } from '../club/club-invite-logic';
 import {
   ENTRY_STATUS_LABELS,
   describeBreedClass,
@@ -93,6 +94,9 @@ export function LobbyPanel({ horses, money, onBalanceChanged }: LobbyPanelProps)
   // 09.10.2026 — form ilk masayla açılır (sahibinin kararı: yarışı açan masa seçer).
   const [form, setForm] = useState<LobbyRaceForm>(() => initialLobbyForm());
   const [isCreating, setIsCreating] = useState(false);
+  // 09.10.2026 — kulüp içi yarış: kulüp adı rozet için, rol formdaki seçenek için.
+  // Yalnızca ipucu; kulübü ve yetkiyi sunucu belirler.
+  const [myClub, setMyClub] = useState<{ id: string; name: string; canOpenRace: boolean } | null>(null);
 
   /** Yarış başına bekleyen para-yolu anahtarları — bkz. dosya başı doc yorumu. */
   const joinKeysRef = useRef(new Map<string, string>());
@@ -112,6 +116,19 @@ export function LobbyPanel({ horses, money, onBalanceChanged }: LobbyPanelProps)
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  useEffect(() => {
+    apiClient
+      .getMyClub()
+      .then((detail) =>
+        setMyClub(
+          detail === null
+            ? null
+            : { id: detail.club.id, name: detail.club.name, canOpenRace: isClubOfficerOrLeader(detail.myRole) },
+        ),
+      )
+      .catch(() => setMyClub(null));
+  }, []);
 
   const runAction = useCallback(
     async (
@@ -516,6 +533,17 @@ export function LobbyPanel({ horses, money, onBalanceChanged }: LobbyPanelProps)
             />
             Kontrollü yarış (atı oyuncular sürer: kırbaç, yön)
           </label>
+          {myClub?.canOpenRace ? (
+            <label style={{ ...labelStyle(), display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <input
+                type="checkbox"
+                aria-label="Yalnızca kulübüm"
+                checked={form.clubOnly === true}
+                onChange={(event) => updateForm({ clubOnly: event.target.checked })}
+              />
+              Yalnızca kulübüm ({myClub.name}) — yalnızca üyeler görür ve katılır
+            </label>
+          ) : null}
           <button
             type="button"
             onClick={() => void createRace()}
@@ -651,6 +679,15 @@ export function LobbyPanel({ horses, money, onBalanceChanged }: LobbyPanelProps)
                       }}
                     >
                       {describeBreedClass(race)}
+                    </span>
+                  ) : null}
+                  {race.clubId ? (
+                    <span
+                      data-testid={`lobby-club-only-${race.id}`}
+                      style={{ ...smallStyle(), color: 'var(--color-accent-gold)', fontWeight: 600 }}
+                    >
+                      🛡 Kulüp içi yarış
+                      {myClub !== null && myClub.id === race.clubId ? ` · ${myClub.name}` : ''}
                     </span>
                   ) : null}
                   {describeCalendar(race) !== null ? (

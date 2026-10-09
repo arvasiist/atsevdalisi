@@ -4,6 +4,7 @@ import type { NotificationView, RaceInviteView } from '@at-sevdalisi/shared-type
 import { PlayerNotFoundError } from '../../domain/player/errors';
 import { assertUnderSocialLimit, canonicalPair } from '../../domain/social/friendship';
 import { RaceNotFoundError } from '../../domain/race/errors';
+import { RaceClubOnlyError } from '../../domain/race/level-bracket';
 import {
   InviteRequiresFriendshipError,
   RaceInviteAlreadyExistsError,
@@ -98,7 +99,7 @@ export class SendRaceInviteUseCase {
       throw new PlayerNotFoundError(inviteeId);
     }
 
-    const race = await this.inviteRepository.findRaceForInvite(raceId);
+    const race = await this.inviteRepository.findRaceForInvite(raceId, inviteeId);
     if (race === null) {
       throw new RaceNotFoundError(raceId);
     }
@@ -109,6 +110,11 @@ export class SendRaceInviteUseCase {
     const rejection = checkInviteable(race, new Date());
     if (rejection !== null) {
       throw new RaceNotInvitableError(rejection);
+    }
+    // 09.10.2026 — kulüp içi yarışa yalnızca o kulübün üyesi davet edilir
+    // (katılamayacağı yarışın bildirimi boşa düşmesin; katılım kapısıyla aynı kod).
+    if (!race.inviteeClubAllowed) {
+      throw new RaceClubOnlyError();
     }
 
     const { lowId, highId } = canonicalPair(inviterId, inviteeId);

@@ -170,7 +170,8 @@ yük testi (CI bütçe kapısı) VAR.
 Arkadaşlık (yalnızca birlikte yarışanlar), mesaj, hediye (para yolu), dostluk
 hediyesi, engelleme/şikâyet, profil (+ fotoğraf, avatar, başarımlar),
 bildirimler, yarış daveti, kulüp (kur/katıl/davet/lider devri/puan/sohbet),
-tribün emote + hediyesi. YOK: sosyal hub (avatarlı alan), kulüp yarışı.
+tribün emote + hediyesi, kulüp içi yarış (09.10.2026). YOK: sosyal hub (avatarlı alan),
+kulüpler arası yarış (sahibi kulüp içini seçti).
 
 ## AI Avatar Status — PARTIAL
 
@@ -249,7 +250,7 @@ raporu, varlık rehberi). `README.md`/`ROADMAP.md` faz tabloları BAYAT
 ## Missing Features
 
 Apple girişi · gerçek AI avatar sağlayıcısı · gerçek ödeme + elmas harcama
-yolu · gerçek 3D/ses varlıkları · sosyal hub · kulüp yarışı · etkinlik para
+yolu · gerçek 3D/ses varlıkları · sosyal hub · etkinlik para
 birimi. (Çalışma anında ayar düzenleme bilinçli olarak YOK — ayar dosyası
 kodla birlikte dağıtılır.)
 
@@ -277,8 +278,7 @@ kodla birlikte dağıtılır.)
 1. Sahibinin dış kararları: 3D/ses varlıkları, ödeme sağlayıcısı, AI avatar
    sağlayıcısı, izleme hizmeti, Apple kimlik bilgileri.
 2. Gerçek staging ortamı (compose dosyası + duman testi hazır).
-3. Açık oyun tasarımı soruları (kulvar etkisi, sürpriz payı, takvim/turnuva
-   masaları, kulüp yarışı).
+3. Açık oyun tasarımı soruları (kulvar etkisi, sürpriz payı).
 
 ## Current Phase
 
@@ -305,8 +305,8 @@ Brief fazlarına göre gerçek durum:
 ## Next Phase
 
 Kodla kapanabilecek büyük bir eksik kalmadı; kalanların çoğu sahibinin dış
-kararına bağlı (yukarıdaki öncelik 1). Arada yapılabilecekler: kulüp yarışı,
-sosyal hub (avatar sonrası).
+kararına bağlı (yukarıdaki öncelik 1). Arada yapılabilecek: sosyal hub (avatar
+sonrası).
 
 ---
 

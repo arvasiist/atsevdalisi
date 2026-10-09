@@ -610,6 +610,12 @@ export interface RaceLobbyView {
    * bedel katılırken kesilir, genel dağılım, iade yok.
    */
   table: RaceTableView | null;
+  /**
+   * 09.10.2026 — KULÜP İÇİ YARIŞ: yalnızca bu kulübün üyeleri katılır
+   * (migration 0081). `null` = herkese açık. Liste bunu yalnızca o kulübün
+   * üyelerine (ve zaten içinde olana) gösterir.
+   */
+  clubId: UUID | null;
 }
 
 /**

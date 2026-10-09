@@ -173,6 +173,8 @@ export interface CreateLobbyRaceBody {
   horseLevelBracket?: string;
   /** 09.10.2026 — masa (`economy.raceTiers[].id`); bedel/at sayısı masanınki olmalı. */
   tableId?: string;
+  /** 09.10.2026 — yalnızca açanın kulübü katılır; kulübü SUNUCU bulur (lider/subay şartı). */
+  clubOnly?: boolean;
 }
 
 export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1';

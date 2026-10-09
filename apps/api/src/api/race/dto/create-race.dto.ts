@@ -125,4 +125,12 @@ export class CreateRaceDto {
   @IsOptional()
   @IsString()
   tableId?: unknown;
+
+  /**
+   * 09.10.2026 — kulüp içi yarış. DTO'da olmasaydı `whitelist` siler ve
+   * yarış sessizce HERKESE açılırdı. Kulübü istemci değil sunucu belirler.
+   */
+  @IsOptional()
+  @IsBoolean()
+  clubOnly?: unknown;
 }

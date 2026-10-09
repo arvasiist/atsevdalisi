@@ -4466,6 +4466,25 @@ Karar: önce pratik yarış; kırbaç sınırsız, dayanıklılık bedelli.
   (açılan yarış programın masasını taşır; katılım testi start'ta kesen
   masayı seçmez — derbi en erken yuvaya düşerse kararsız olurdu).
 
+### 13.105 Kulüp içi yarış (09.10.2026, migration 0081)
+
+- Sahibinin kararı: "Kulüp içi yarış", ek ödül yok. Lider/subay yarış
+  açarken "Yalnızca kulübüm" seçer; ücret, masa, ödül kuralları normal lobi
+  yarışıyla aynı (kulüp puanı zaten her yarışın XP'sinden yazılıyor).
+- `races.club_id` (NULL = açık). Kulübü istemci SEÇMEZ (`clubOnly: true`
+  gönderir); sunucu açanın üyeliğini oyuncu kilidi altında okur (üyelik
+  satırı `FOR SHARE`), lider/subay şartı `assertHasClubPermission`.
+- Katılım kapısı ırk sınıfı / seviye kapısıyla AYNI yerde (at kilitliyken,
+  paradan önce) → 409 `RACE_CLUB_ONLY`. Davet kapısı da aynı kuralı uygular.
+- Yabancı anahtar BİLİNÇLİ OLARAK YOK: SET NULL yarışı sessizce herkese
+  açardı, CASCADE parası ödenmiş yarışı silerdi, RESTRICT geçmişi olan
+  kulübün feshini engellerdi. Feshedilen kulübün yarışına yeni katılım
+  KAPALI; katılmış olanlar yarışını görür ve koşar.
+- Liste: kulüp yarışını üyeler + açan + katılmış olan görür.
+- Kanıt: `race-club-only.e2e-spec.ts` (4 senaryo), `lobby.spec.ts`,
+  `create-race-dto.spec.ts`, web `LobbyPanel.spec.tsx`; tarayıcıda form
+  seçeneği + rozet (masaüstü + telefon), dışarıdaki listede görmüyor.
+
 ## 14. Kendime hatırlatmalar (kısa liste)
 
 1. **Race Engine'e dokunmadan önce iki kez düşün.** Denetim onu "KEEP, dokunma"

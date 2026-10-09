@@ -44,4 +44,12 @@ describe('CreateRaceDto — ırk sınıfı', () => {
     const errors = await validate(plainToInstance(CreateRaceDto, { ...base, tableId: 3 }));
     expect(errors.map((error) => error.property)).toEqual(['tableId']);
   });
+
+  it('09.10.2026 — kulüp içi yarış (clubOnly) whitelist\'te kalır; boolean olmayan reddedilir', async () => {
+    const dto = plainToInstance(CreateRaceDto, { ...base, clubOnly: true });
+    expect(await validate(dto, { whitelist: true, forbidNonWhitelisted: true })).toEqual([]);
+    expect(dto.clubOnly).toBe(true);
+    const errors = await validate(plainToInstance(CreateRaceDto, { ...base, clubOnly: 'evet' }));
+    expect(errors.map((error) => error.property)).toEqual(['clubOnly']);
+  });
 });

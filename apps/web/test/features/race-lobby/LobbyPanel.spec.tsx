@@ -22,6 +22,7 @@ const mocks = vi.hoisted(() => ({
   leaveLobbyRace: vi.fn(),
   setLobbyEntryReady: vi.fn(),
   createLobbyRace: vi.fn(),
+  getMyClub: vi.fn(),
 }));
 
 vi.mock('../../../src/lib/api-client', () => ({
@@ -31,6 +32,7 @@ vi.mock('../../../src/lib/api-client', () => ({
     leaveLobbyRace: (...args: unknown[]) => mocks.leaveLobbyRace(...args),
     setLobbyEntryReady: (...args: unknown[]) => mocks.setLobbyEntryReady(...args),
     createLobbyRace: (...args: unknown[]) => mocks.createLobbyRace(...args),
+    getMyClub: (...args: unknown[]) => mocks.getMyClub(...args),
   },
 }));
 
@@ -72,6 +74,8 @@ beforeEach(() => {
   for (const mock of Object.values(mocks)) {
     mock.mockReset();
   }
+  // Varsayılan: kulübü yok (kulüp içi yarış seçeneği görünmez).
+  mocks.getMyClub.mockResolvedValue(null);
   onBalanceChanged.mockClear();
   vi.stubGlobal('crypto', { randomUUID: () => `key-${++keyCounter}` });
 });
@@ -207,5 +211,35 @@ describe('LobbyPanel', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Yarışı Aç' }));
     await waitFor(() => expect(mocks.createLobbyRace).toHaveBeenCalledTimes(1));
     expect(mocks.createLobbyRace.mock.calls[0][0]).toMatchObject({ tableId: 'local', entryFee: 100, fieldSize: 8 });
+    // Kulübü olmayan oyuncuya "Yalnızca kulübüm" seçeneği gösterilmez, gövdede de yok.
+    expect(screen.queryByLabelText('Yalnızca kulübüm')).toBeNull();
+    expect(mocks.createLobbyRace.mock.calls[0][0]).not.toHaveProperty('clubOnly');
+  });
+
+  it('09.10.2026 — kulüp içi yarış: subay seçeneği görür, gövdeye yalnızca clubOnly gider (kulüp kimliği DEĞİL)', async () => {
+    mocks.getMyClub.mockResolvedValue({ club: { id: 'club-1', name: 'Rüzgar Atlıları' }, myRole: 'officer' });
+    mocks.listLobbyRaces.mockResolvedValue([lobbyRace({ id: 'race-club', clubId: 'club-1' }), lobbyRace({ id: 'race-open', clubId: null })]);
+    mocks.createLobbyRace.mockResolvedValue(lobbyRace({ name: 'Kulüp Kupası' }));
+    render(<LobbyPanel horses={[horse]} onBalanceChanged={onBalanceChanged} />);
+    expect((await screen.findByTestId('lobby-club-only-race-club')).textContent).toContain('Rüzgar Atlıları');
+    expect(screen.queryByTestId('lobby-club-only-race-open')).toBeNull();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Yarış Aç' }));
+    fireEvent.click(await screen.findByLabelText('Yalnızca kulübüm'));
+    fireEvent.change(screen.getByLabelText('Yarış adı'), { target: { value: 'Kulüp Kupası' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Yarışı Aç' }));
+    await waitFor(() => expect(mocks.createLobbyRace).toHaveBeenCalledTimes(1));
+    const body = mocks.createLobbyRace.mock.calls[0][0] as Record<string, unknown>;
+    expect(body.clubOnly).toBe(true);
+    expect(body).not.toHaveProperty('clubId');
+  });
+
+  it('09.10.2026 — sıradan üye kulüp içi yarış seçeneğini görmez (yetki sunucuda)', async () => {
+    mocks.getMyClub.mockResolvedValue({ club: { id: 'club-1', name: 'Rüzgar Atlıları' }, myRole: 'member' });
+    mocks.listLobbyRaces.mockResolvedValue([]);
+    render(<LobbyPanel horses={[horse]} onBalanceChanged={onBalanceChanged} />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Yarış Aç' }));
+    await waitFor(() => expect(mocks.getMyClub).toHaveBeenCalled());
+    expect(screen.queryByLabelText('Yalnızca kulübüm')).toBeNull();
   });
 });

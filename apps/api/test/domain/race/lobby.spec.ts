@@ -549,3 +549,17 @@ describe('checkRaceLockable — kilit kapısı (§42 PHASE 1)', () => {
     expect(JSON.stringify(input)).toBe(snapshot);
   });
 });
+
+describe('validateRaceCreation — kulüp içi yarış (09.10.2026)', () => {
+  it('verilmezse herkese açıktır; true/false olduğu gibi geçer', () => {
+    expect(expectValid(validInput()).clubOnly).toBe(false);
+    expect(expectValid({ ...validInput(), clubOnly: true }).clubOnly).toBe(true);
+    expect(expectValid({ ...validInput(), clubOnly: false }).clubOnly).toBe(false);
+    expect(expectValid({ ...validInput(), clubOnly: null }).clubOnly).toBe(false);
+  });
+
+  it('boolean olmayan değer reddedilir ("true" metni kulübe kapatmaz, sessizce açmaz da)', () => {
+    expectInvalid({ ...validInput(), clubOnly: 'true' }, 'Kulüp içi yarış');
+    expectInvalid({ ...validInput(), clubOnly: 1 }, 'Kulüp içi yarış');
+  });
+});

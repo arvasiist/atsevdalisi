@@ -135,6 +135,8 @@ export interface LobbyRaceForm {
   horseLevelBracket: string;
   /** 09.10.2026 — masa (`raceTiers[].id`); `''` = serbest (masasız). */
   tableId?: string;
+  /** 09.10.2026 — yalnızca kulübüm (kulübü sunucu bulur). */
+  clubOnly?: boolean;
 }
 
 /**
@@ -249,6 +251,8 @@ export function buildCreateRaceBody(
       hippodrome: form.hippodrome,
       ...(form.horseLevelBracket !== '' ? { horseLevelBracket: form.horseLevelBracket } : {}),
       ...(table !== undefined ? { tableId: table.id } : {}),
+      // Kulübün kimliği GÖNDERİLMEZ — sunucu açanın üyeliğinden bulur.
+      ...(form.clubOnly === true ? { clubOnly: true } : {}),
     },
   };
 }

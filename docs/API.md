@@ -1737,6 +1737,16 @@ eskiden listeden düşebiliyordu.
 - `GET /admin/config` · `GET /admin/seasons` · `GET /admin/tournaments` — yalnızca yönetici, salt okuma.
   Config girdisi `{ name, sha256, values }` (kanonik JSON özeti).
 
+### Kulüp içi yarış (09.10.2026, migration 0081)
+
+- `POST /races` gövdesinde `clubOnly: true` (boolean; değilse 400). Kulübü İSTEMCİ seçmez: sunucu
+  açanın üyeliğinden bulur. Kulübü yoksa 403 `NOT_CLUB_MEMBER`, sıradan üyeyse 403
+  `INSUFFICIENT_CLUB_PERMISSION` (lider/subay açar). Yanıt ve liste satırı `clubId` taşır (`null` = açık).
+- `POST /races/:id/join` — kulübün üyesi değilse 409 `RACE_CLUB_ONLY` (para/defter dokunulmadan).
+  Kulüp feshedilmişse kimse yeni katılamaz.
+- `GET /races` — kulüp içi yarışı yalnızca o kulübün üyeleri, açan ve zaten katılmış olan görür.
+- `POST /players/:id/race-invites` — kulüp içi yarışa kulüp dışından davet 409 `RACE_CLUB_ONLY`.
+
 ### Kulüp daveti (09.10.2026, migration 0080)
 
 - `POST /clubs/:clubId/invites` `{ username }` — yalnızca subay/lider; 201 `{ invited: true }`.
