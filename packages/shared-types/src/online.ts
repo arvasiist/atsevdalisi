@@ -150,6 +150,17 @@ export interface ClubDetailView {
   myRole: ClubRole | null;
 }
 
+/** 09.10.2026 — oyuncuya gelen, bekleyen ve süresi dolmamış kulüp daveti. */
+export interface ClubInviteView {
+  id: UUID;
+  clubId: UUID;
+  clubName: string;
+  clubTag: string | null;
+  inviterName: string;
+  createdAt: ISODateTimeString;
+  expiresAt: ISODateTimeString;
+}
+
 // ---------------------------------------------------------------------------
 // Sezon (brief §69 SEZON SİSTEMİ)
 // ---------------------------------------------------------------------------

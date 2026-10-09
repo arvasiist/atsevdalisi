@@ -191,6 +191,7 @@ export const ACCOUNT_EXPORT_SECTIONS = [
   'sanctions',
   'questClaims',
   'clubMessages',
+  'clubInvites',
   'achievementClaims',
   'avatar',
   'profilePhoto',

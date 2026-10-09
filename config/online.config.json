@@ -40,7 +40,12 @@
       "minLength": 2,
       "maxLength": 5
     },
-    "listLimit": 50
+    "listLimit": 50,
+    "invites": {
+      "expiryDays": 7,
+      "maxPendingPerClub": 20,
+      "listLimit": 20
+    }
   },
   "tournament": {
     "tiers": {

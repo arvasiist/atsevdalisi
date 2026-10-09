@@ -4406,6 +4406,33 @@ Karar: önce pratik yarış; kırbaç sınırsız, dayanıklılık bedelli.
   iadesi = defter), web `table-rules.spec.ts` + `LobbyPanel.spec.tsx`;
   tarayıcıda form + pratik kademe listesi (masaüstü + telefon).
 
+### 13.102 Kulüp daveti (09.10.2026, migration 0080)
+
+- Eskiden kulübe yalnızca listeden "Katıl" ile girilebiliyordu; lider/subay
+  birini çağıramıyordu. Artık subay ve lider `/club` → "Oyuncu Davet Et"
+  formuyla kullanıcı adıyla davet eder; davetliye `club_invite` bildirimi
+  gider, kulübü olmayan oyuncu `/club` → "Gelen Davetler"den kabul eder ya
+  da reddeder.
+- Kabul = katılım: kapasite + tek kulüp kuralı katılımla AYNI kilitli yoldan
+  (`insertMembershipLocked`); kabulde oyuncunun diğer bekleyen davetleri
+  `cancelled` olur. Ret yalnızca daveti kapatır; reddedilen oyuncu yeniden
+  davet edilebilir (tekil indeks yalnızca bekleyende).
+- Kapılar (kulüp kilidi altında): yetki (üye 403), davetlinin kulübü (409),
+  aynı oyuncuya ikinci bekleyen davet (409 `CLUB_INVITE_EXISTS`), kulüp
+  başına bekleyen sınırı (409 `CLUB_INVITE_LIMIT`), engel iki yönde (403
+  `PLAYER_BLOCKED`, yön sızmaz), kendini/olmayanı davet (404). Süre
+  `online.club.invites.expiryDays`; süresi dolan davet listeden düşer, kabulü
+  409 `CLUB_INVITE_EXPIRED`. Başkasının davetine yanıt 404 (varlık sızmaz).
+- Kilit: kulüp → (kabulde oyuncunun bütün bekleyen davetleri, kimlik
+  sırasıyla) → üyelik. Aynı oyuncunun iki daveti eşzamanlı kabul edilirse
+  ikincisi birincinin commit'ini bekler ve `cancelled` görür — kilitlenme
+  döngüsü yok (e2e kilitler).
+- `club_invites` kişisel veri: hesap silme listesinde, dışa aktarmada
+  `clubInvites` (karşı taraf yalnızca kullanıcı adıyla).
+- Kanıt: `club-invite.e2e-spec.ts` (6 senaryo), `notification-types.spec.ts`
+  (CHECK artık 0080'de), web `club-invite-logic.spec.ts`; tarayıcıda lider
+  formu (masaüstü) + gelen davet + bildirim + kabul (telefon).
+
 ## 14. Kendime hatırlatmalar (kısa liste)
 
 1. **Race Engine'e dokunmadan önce iki kez düşün.** Denetim onu "KEEP, dokunma"

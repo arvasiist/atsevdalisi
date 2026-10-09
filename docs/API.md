@@ -1731,6 +1731,20 @@ score, raceCount }`. Sezonla aynı formül; pencere Türkiye saatiyle (hafta paz
 - `GET /admin/config` · `GET /admin/seasons` · `GET /admin/tournaments` — yalnızca yönetici, salt okuma.
   Config girdisi `{ name, sha256, values }` (kanonik JSON özeti).
 
+### Kulüp daveti (09.10.2026, migration 0080)
+
+- `POST /clubs/:clubId/invites` `{ username }` — yalnızca subay/lider; 201 `{ invited: true }`.
+  Davetliye `club_invite` bildirimi (`{ inviteId, clubId, clubName, inviterId, inviterName }`) aynı
+  transaction'da. Hatalar: 400 (kullanıcı adı), 403 `INSUFFICIENT_CLUB_PERMISSION` / `NOT_CLUB_MEMBER`,
+  403 `PLAYER_BLOCKED` (iki yön), 404 `PLAYER_NOT_FOUND` (kendisi/olmayan), 409 `ALREADY_CLUB_MEMBER`,
+  409 `CLUB_INVITE_EXISTS`, 409 `CLUB_INVITE_LIMIT` (`online.club.invites.maxPendingPerClub`). 20/60 sn.
+- `GET /clubs/invites` — çağırana gelen, süresi dolmamış bekleyen davetler (`ClubInviteView[]`, en fazla
+  `online.club.invites.listLimit`).
+- `POST /clubs/invites/:inviteId/accept` — 200 `ClubDetailView` (üye olarak). Diğer bekleyen davetler
+  `cancelled`. Hatalar: 404 `CLUB_INVITE_NOT_FOUND` (başkasının/kapanmış), 409 `CLUB_INVITE_EXPIRED`,
+  409 `CLUB_FULL`, 409 `ALREADY_CLUB_MEMBER`.
+- `POST /clubs/invites/:inviteId/decline` — 200 `{ declined: true }`; 404 `CLUB_INVITE_NOT_FOUND`.
+
 ### Kulüp sohbeti + tribün emote (Faz 9, 02.10.2026, migration 0062)
 
 - `GET /clubs/:clubId/messages` — son `chat.clubChat.historyLimit` mesaj, eskiden yeniye. Yalnızca üye

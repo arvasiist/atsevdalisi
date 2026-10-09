@@ -83,6 +83,15 @@ const SECTION_SQL: Record<AccountExportSectionName, string> = {
     SELECT c.name AS club, m.body, m.created_at AS "createdAt"
       FROM club_messages m JOIN clubs c ON c.id = m.club_id
      WHERE m.player_id = $1 ORDER BY m.created_at DESC LIMIT $2`,
+  // 09.10.2026 — kulüp davetleri (iki yön; karşı taraf yalnızca kullanıcı adıyla).
+  clubInvites: `
+    SELECT CASE WHEN i.inviter_id = $1 THEN 'sent' ELSE 'received' END AS direction,
+           c.name AS club, o.username AS "otherPlayer", i.status,
+           i.created_at AS "createdAt", i.expires_at AS "expiresAt", i.responded_at AS "respondedAt"
+      FROM club_invites i
+      JOIN clubs c ON c.id = i.club_id
+      JOIN players o ON o.id = CASE WHEN i.inviter_id = $1 THEN i.invitee_id ELSE i.inviter_id END
+     WHERE i.inviter_id = $1 OR i.invitee_id = $1 ORDER BY i.created_at DESC LIMIT $2`,
   questClaims: `
     SELECT quest_key AS "questKey", period_start AS "periodStart", reward_money::float8 AS "rewardMoney",
            claimed_at AS "claimedAt"

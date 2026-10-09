@@ -118,6 +118,11 @@ export const ErrorCode = {
   ClubNameTaken: 'CLUB_NAME_TAKEN',
   ClubFull: 'CLUB_FULL',
   AlreadyClubMember: 'ALREADY_CLUB_MEMBER',
+  // 09.10.2026 — kulüp daveti.
+  ClubInviteNotFound: 'CLUB_INVITE_NOT_FOUND',
+  ClubInviteExists: 'CLUB_INVITE_EXISTS',
+  ClubInviteLimit: 'CLUB_INVITE_LIMIT',
+  ClubInviteExpired: 'CLUB_INVITE_EXPIRED',
   NotClubMember: 'NOT_CLUB_MEMBER',
   InsufficientClubPermission: 'INSUFFICIENT_CLUB_PERMISSION',
   ClubLeaderCannotLeave: 'CLUB_LEADER_CANNOT_LEAVE',

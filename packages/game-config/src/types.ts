@@ -902,6 +902,11 @@ export interface OnlineConfig {
     tag: { minLength: number; maxLength: number };
     /** `GET /clubs` sıralama listesinin en fazla satır sayısı. */
     listLimit: number;
+    /**
+     * 09.10.2026 — kulüp daveti: süre (gün), kulüp başına en fazla bekleyen
+     * davet, oyuncunun gelen davet listesi sınırı.
+     */
+    invites: { expiryDays: number; maxPendingPerClub: number; listLimit: number };
   };
   /** brief §35 YARIŞ TAKVİMİ "Özel kupalar/Büyük ödüllü yarışlar" turnuva karşılığı (bkz. `domain/tournament/tournament.ts`). */
   tournament: {

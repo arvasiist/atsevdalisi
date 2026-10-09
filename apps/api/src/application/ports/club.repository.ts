@@ -1,4 +1,4 @@
-import type { ClubDetailView, ClubMembership, ClubSummaryView } from '@at-sevdalisi/shared-types';
+import type { ClubDetailView, ClubInviteView, ClubMembership, ClubSummaryView } from '@at-sevdalisi/shared-types';
 
 /**
  * Kulüp deposu (01.10.2026, migration 0049). Durum kuralları
@@ -26,6 +26,30 @@ export interface ClubRepository {
   changeRole(actorId: string, clubId: string, targetId: string, rawRole: unknown): Promise<void>;
   /** Yalnızca lider; kulüp ve tüm üyelikler silinir. */
   disbandClub(actorId: string, clubId: string): Promise<void>;
+
+  /**
+   * 09.10.2026 — kulüp daveti. TEK transaction: kulüp `FOR UPDATE` →
+   * davet edenin subay+ üyeliği → davetli var, silinmemiş, kulüpsüz,
+   * engel yok → bekleyen davet yok + kulüp sınırı → satır + `club_invite`
+   * bildirimi. Davetli kullanıcı adıyla gelir (gövdede UUID yok).
+   */
+  inviteToClub(input: {
+    inviteId: string;
+    clubId: string;
+    inviterId: string;
+    inviteeUsername: string;
+    now: Date;
+    expiresAt: Date;
+    maxPendingPerClub: number;
+  }): Promise<void>;
+  /** Oyuncunun bekleyen, süresi dolmamış davetleri (yeniden eskiye). */
+  listInvitesForPlayer(playerId: string, now: Date, limit: number): Promise<ClubInviteView[]>;
+  /**
+   * Kabul/ret. Kilit sırası `clubs → club_invites → club_members` (katılımla
+   * aynı). Kabul, katılımın tek kulüp + kapasite kuralından geçer; başarıda
+   * oyuncunun diğer bekleyen davetleri `cancelled` olur. Döner: kulüp kimliği.
+   */
+  respondToInvite(input: { inviteId: string; playerId: string; accept: boolean; now: Date }): Promise<string>;
 }
 
 export const CLUB_REPOSITORY = Symbol('CLUB_REPOSITORY');

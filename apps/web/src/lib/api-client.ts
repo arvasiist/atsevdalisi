@@ -123,6 +123,7 @@ import type {
   WalletView,
   WatchableRaceView,
   ClubDetailView,
+  ClubInviteView,
   ClubRole,
   ClubSummaryView,
   SeasonView,
@@ -1637,6 +1638,21 @@ export const apiClient = {
 
   disbandClub: (clubId: string) =>
     request<{ disbanded: true }>(`/clubs/${clubId}`, { method: 'DELETE' }),
+
+  /** 09.10.2026 — kulüp daveti: subay/lider kullanıcı adıyla davet eder. */
+  inviteToClub: (clubId: string, username: string) =>
+    request<{ invited: true }>(`/clubs/${clubId}/invites`, {
+      method: 'POST',
+      body: JSON.stringify({ username }),
+    }),
+
+  getClubInvites: () => request<ClubInviteView[]>('/clubs/invites'),
+
+  acceptClubInvite: (inviteId: string) =>
+    request<ClubDetailView>(`/clubs/invites/${inviteId}/accept`, { method: 'POST' }),
+
+  declineClubInvite: (inviteId: string) =>
+    request<{ declined: true }>(`/clubs/invites/${inviteId}/decline`, { method: 'POST' }),
 
   // --- Personel (brief §33, 01.10.2026) -----------------------------------
   /** Kadro + aday pazarı + kapasite (oyuncu token'dan). */

@@ -522,6 +522,13 @@ function describe(notification: NotificationView): { title: string; detail: stri
         detail: `${formatCurrency('money', notification.payload.price)} fiyatlı ilan satılmadan kapandı; at sende. Yeniden satışa çıkarabilirsin.`,
         href: '/market',
       };
+    // 09.10.2026 — kulüp daveti (kabul/ret kulüp ekranında).
+    case 'club_invite':
+      return {
+        title: `${notification.payload.inviterName} seni ${notification.payload.clubName} kulübüne davet etti`,
+        detail: 'Kulüp ekranından kabul edebilir ya da reddedebilirsin.',
+        href: '/club',
+      };
   }
 }
 
@@ -549,6 +556,8 @@ function hrefLabel(notification: NotificationView): string {
     case 'auction_refunded':
     case 'tribune_gift_received':
       return 'cüzdan →';
+    case 'club_invite':
+      return 'kulüp →';
   }
 }
 

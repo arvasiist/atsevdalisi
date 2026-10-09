@@ -1,10 +1,13 @@
 import { randomUUID } from 'node:crypto';
 import { Inject, Injectable } from '@nestjs/common';
-import type { ClubDetailView, ClubSummaryView } from '@at-sevdalisi/shared-types';
+import type { ClubDetailView, ClubInviteView, ClubSummaryView } from '@at-sevdalisi/shared-types';
 import { validateClubName, validateClubTag } from '../../domain/club/club';
-import { ClubNotFoundError, NotClubMemberError } from '../../domain/club/errors';
+import { ClubNotFoundError, InvalidClubInputError, NotClubMemberError } from '../../domain/club/errors';
+import { validateUsername } from '../../domain/player/validation';
 import { AppConfigService } from '../../infrastructure/config/config.service';
 import { CLUB_REPOSITORY, type ClubRepository } from '../ports/club.repository';
+
+const MS_PER_DAY = 24 * 60 * 60 * 1_000;
 
 /**
  * Kulüp (brief §44) — 01.10.2026'ya kadar `domain/club` yalnızca birim
@@ -81,5 +84,46 @@ export class ManageClubUseCase {
 
   async disband(actorId: string, clubId: string): Promise<void> {
     await this.clubs.disbandClub(actorId, clubId);
+  }
+
+  /**
+   * Davet (09.10.2026): yalnızca subay/lider, kullanıcı adıyla. Kapılar
+   * (yetki, davetlinin kulübü, engel, kapasite, bekleyen sınırı) deponun
+   * kulüp KİLİDİ altındaki transaction'ındadır; bildirim aynı transaction'da.
+   */
+  async invite(actorId: string, clubId: string, rawUsername: unknown): Promise<{ invited: true }> {
+    if (typeof rawUsername !== 'string') {
+      throw new InvalidClubInputError('Davet edilecek oyuncunun kullanıcı adı gerekli.');
+    }
+    const username = rawUsername.trim().replace(/^@/, '').toLowerCase();
+    validateUsername(username);
+    const { expiryDays, maxPendingPerClub } = this.config.online.club.invites;
+    const now = new Date();
+    await this.clubs.inviteToClub({
+      inviteId: randomUUID(),
+      clubId,
+      inviterId: actorId,
+      inviteeUsername: username,
+      now,
+      expiresAt: new Date(now.getTime() + expiryDays * MS_PER_DAY),
+      maxPendingPerClub,
+    });
+    return { invited: true };
+  }
+
+  /** Çağırana gelen, süresi dolmamış bekleyen davetler. */
+  invites(playerId: string): Promise<ClubInviteView[]> {
+    return this.clubs.listInvitesForPlayer(playerId, new Date(), this.config.online.club.invites.listLimit);
+  }
+
+  /** Kabul = katılım: kapasite + tek kulüp kuralı aynı kilitli yoldan. */
+  async acceptInvite(playerId: string, inviteId: string): Promise<ClubDetailView> {
+    const clubId = await this.clubs.respondToInvite({ inviteId, playerId, accept: true, now: new Date() });
+    return this.detail(clubId, playerId);
+  }
+
+  async declineInvite(playerId: string, inviteId: string): Promise<{ declined: true }> {
+    await this.clubs.respondToInvite({ inviteId, playerId, accept: false, now: new Date() });
+    return { declined: true };
   }
 }

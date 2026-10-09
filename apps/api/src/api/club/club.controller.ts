@@ -11,7 +11,7 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
-import type { ApiSuccess, ClubDetailView, ClubSummaryView } from '@at-sevdalisi/shared-types';
+import type { ApiSuccess, ClubDetailView, ClubInviteView, ClubSummaryView } from '@at-sevdalisi/shared-types';
 import { ManageClubUseCase } from '../../application/use-cases/manage-club.use-case';
 import { CurrentPlayer, type AuthenticatedPlayer } from '../auth/current-player.decorator';
 import { RateLimit } from '../rate-limit/rate-limit.decorator';
@@ -40,6 +40,32 @@ export class ClubController {
     return { success: true, data: await this.clubs.mine(player.id) };
   }
 
+  /** Çağırana gelen bekleyen kulüp davetleri (`:clubId`den ÖNCE — yoksa rota yutulur). */
+  @Get('invites')
+  async invites(@CurrentPlayer() player: AuthenticatedPlayer): Promise<ApiSuccess<ClubInviteView[]>> {
+    return { success: true, data: await this.clubs.invites(player.id) };
+  }
+
+  @Post('invites/:inviteId/accept')
+  @HttpCode(HttpStatus.OK)
+  @RateLimit({ name: 'club-invite-accept', limit: 20, windowSeconds: 60, keyBy: 'player' })
+  async acceptInvite(
+    @Param('inviteId', ParseUUIDPipe) inviteId: string,
+    @CurrentPlayer() player: AuthenticatedPlayer,
+  ): Promise<ApiSuccess<ClubDetailView>> {
+    return { success: true, data: await this.clubs.acceptInvite(player.id, inviteId) };
+  }
+
+  @Post('invites/:inviteId/decline')
+  @HttpCode(HttpStatus.OK)
+  @RateLimit({ name: 'club-invite-decline', limit: 30, windowSeconds: 60, keyBy: 'player' })
+  async declineInvite(
+    @Param('inviteId', ParseUUIDPipe) inviteId: string,
+    @CurrentPlayer() player: AuthenticatedPlayer,
+  ): Promise<ApiSuccess<{ declined: true }>> {
+    return { success: true, data: await this.clubs.declineInvite(player.id, inviteId) };
+  }
+
   @Get(':clubId')
   async detail(
     @Param('clubId', ParseUUIDPipe) clubId: string,
@@ -65,6 +91,16 @@ export class ClubController {
     @CurrentPlayer() player: AuthenticatedPlayer,
   ): Promise<ApiSuccess<ClubDetailView>> {
     return { success: true, data: await this.clubs.join(player.id, clubId) };
+  }
+
+  @Post(':clubId/invites')
+  @RateLimit({ name: 'club-invite', limit: 20, windowSeconds: 60, keyBy: 'player' })
+  async invite(
+    @Param('clubId', ParseUUIDPipe) clubId: string,
+    @Body() body: { username?: unknown },
+    @CurrentPlayer() player: AuthenticatedPlayer,
+  ): Promise<ApiSuccess<{ invited: true }>> {
+    return { success: true, data: await this.clubs.invite(player.id, clubId, body?.username) };
   }
 
   @Post('leave')

@@ -115,6 +115,10 @@ import {
 import {
   AlreadyClubMemberError,
   ClubFullError,
+  ClubInviteExistsError,
+  ClubInviteExpiredError,
+  ClubInviteLimitError,
+  ClubInviteNotFoundError,
   ClubLeaderCannotLeaveError,
   ClubNameTakenError,
   ClubNotFoundError,
@@ -751,6 +755,11 @@ const DOMAIN_ERROR_MAP = new Map<ErrorClassConstructor, { status: number; code: 
     { status: HttpStatus.CONFLICT, code: ErrorCode.ClubLeaderCannotLeave },
   ],
   [InvalidClubInputError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.ValidationError }],
+  // 09.10.2026 — kulüp daveti (migration 0080).
+  [ClubInviteNotFoundError, { status: HttpStatus.NOT_FOUND, code: ErrorCode.ClubInviteNotFound }],
+  [ClubInviteExistsError, { status: HttpStatus.CONFLICT, code: ErrorCode.ClubInviteExists }],
+  [ClubInviteLimitError, { status: HttpStatus.CONFLICT, code: ErrorCode.ClubInviteLimit }],
+  [ClubInviteExpiredError, { status: HttpStatus.CONFLICT, code: ErrorCode.ClubInviteExpired }],
   // 01.10.2026 — personel (brief §33).
   [StaffNotFoundError, { status: HttpStatus.NOT_FOUND, code: ErrorCode.StaffNotFound }],
   [StaffAlreadyHiredError, { status: HttpStatus.CONFLICT, code: ErrorCode.StaffAlreadyHired }],

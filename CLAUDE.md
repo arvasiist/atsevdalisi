@@ -839,6 +839,17 @@ okunan bedelden, kilit altında yeniden karşılaştırılır; defter
 `lobby_race_loser_refund` / pratik `practice_race_loser_refund` (REFUND).
 Pratik yarış da masanın iadesini uygular (havuz modeli değişmedi). Takvim ve
 turnuva yarışları şimdilik masasız.
+(78) **KULÜP DAVETİ (09.10.2026, migration 0080, §13.102)** — `POST
+/clubs/:clubId/invites` (`{ username }`, yalnızca subay/lider), `GET
+/clubs/invites`, `POST /clubs/invites/:inviteId/accept|decline`; `/club`
+ekranında form + "Gelen Davetler". Kabul = katılım: kapasite + tek kulüp
+kuralı `insertMembershipLocked` (katılımla AYNI yol — ikinci kopya YAZMA).
+`club_invite` bildirimi davetle aynı transaction'da (CHECK artık 0080'de).
+Tekrar koruması `club_invites_pending_uq` (kulüp, davetli) WHERE pending.
+⚠️ Kilit sırası kulüp → (kabulde) oyuncunun BÜTÜN bekleyen davetleri kimlik
+sırasıyla → üyelik; yalnızca kabul edilen satırı kilitlemek eşzamanlı iki
+kabulde kilitlenme döngüsü yaratırdı. Başkasının davetine yanıt 404.
+`club_invites` silme + dışa aktarma (`clubInvites`) listelerinde.
 
 **✅ ÜCRETLİ LOBİ YARIŞI ARTIK KOŞUYOR — ÖDÜL DAĞITIMI VAR (§13.14,
 28.09.2026).** `POST /races/:id/settle` yarışı koşar, ödülleri `top5`

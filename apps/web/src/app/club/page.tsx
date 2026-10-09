@@ -13,13 +13,23 @@
  *
  * Kulüp puanı yarışlardan gelir: üyenin kazandığı oyuncu XP'si kulübe de
  * yazılır (sunucu, aynı transaction'da).
+ *
+ * 09.10.2026 — DAVET: subay/lider kullanıcı adıyla davet eder; kulübü olmayan
+ * oyuncu gelen davetleri kabul eder (kabul = katılım, aynı kapasite kuralı)
+ * ya da reddeder.
  */
 
 import { ClubChatPanel } from '../../features/club/ClubChatPanel';
+import {
+  canInviteToClub,
+  describeInviteExpiry,
+  normalizeInviteUsername,
+} from '../../features/club/club-invite-logic';
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import type {
   ClubDetailView,
+  ClubInviteView,
   ClubMemberView,
   ClubRole,
   ClubSummaryView,
@@ -110,6 +120,8 @@ export default function ClubPage(): React.ReactElement {
   const [search, setSearch] = useState('');
   const [name, setName] = useState('');
   const [tag, setTag] = useState('');
+  const [inviteName, setInviteName] = useState('');
+  const [invites, setInvites] = useState<ClubInviteView[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -121,6 +133,8 @@ export default function ClubPage(): React.ReactElement {
   const reload = useCallback(async () => {
     const [mine] = await Promise.all([apiClient.getMyClub(), loadClubs('')]);
     setMyClub(mine);
+    // Davetler yalnızca kulübü olmayana anlamlıdır (kabul tek kulüp kuralına takılır).
+    setInvites(mine ? [] : await apiClient.getClubInvites());
   }, [loadClubs]);
 
   useEffect(() => {
@@ -163,6 +177,38 @@ export default function ClubPage(): React.ReactElement {
       `join-${club.id}`,
       async () => setMyClub(await apiClient.joinClub(club.id)),
       `${club.name} kulübüne katıldın.`,
+    );
+
+  const sendInvite = (clubId: string) => {
+    const username = normalizeInviteUsername(inviteName);
+    void run(
+      'invite',
+      async () => {
+        await apiClient.inviteToClub(clubId, username);
+        setInviteName('');
+      },
+      `@${username} kulübe davet edildi — bildirim gönderildi.`,
+    );
+  };
+
+  const acceptInvite = (invite: ClubInviteView) =>
+    run(
+      `accept-${invite.id}`,
+      async () => {
+        setMyClub(await apiClient.acceptClubInvite(invite.id));
+        setInvites([]);
+      },
+      `${invite.clubName} kulübüne katıldın.`,
+    );
+
+  const declineInvite = (invite: ClubInviteView) =>
+    run(
+      `decline-${invite.id}`,
+      async () => {
+        await apiClient.declineClubInvite(invite.id);
+        setInvites((current) => current.filter((item) => item.id !== invite.id));
+      },
+      `${invite.clubName} davetini reddettin.`,
     );
 
   const leaveClub = () => {
@@ -324,6 +370,41 @@ export default function ClubPage(): React.ReactElement {
             ) : null}
           </GlassPanel>
 
+          {canInviteToClub(myClub.myRole) ? (
+            <GlassPanel style={{ padding: 'var(--space-lg)' }}>
+              <h2 className="section-title" style={{ marginTop: 0 }}>
+                Oyuncu Davet Et
+              </h2>
+              <form
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  sendInvite(myClub.club.id);
+                }}
+                style={{ display: 'flex', gap: 'var(--space-sm)', flexWrap: 'wrap' }}
+              >
+                <input
+                  aria-label="Davet edilecek kullanıcı adı"
+                  placeholder="Kullanıcı adı (ör. yarisci_42)"
+                  value={inviteName}
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  onChange={(event) => setInviteName(event.target.value)}
+                  style={{ ...inputStyle, flex: '1 1 200px' }}
+                />
+                <button
+                  type="submit"
+                  className="btn-gold"
+                  disabled={busy !== null || normalizeInviteUsername(inviteName) === ''}
+                >
+                  {busy === 'invite' ? 'Gönderiliyor…' : 'Davet Et'}
+                </button>
+              </form>
+              <p style={{ ...mutedText, marginBottom: 0 }}>
+                Davet edilen oyuncuya bildirim gider; kulübü yoksa kabul edip doğrudan katılır.
+              </p>
+            </GlassPanel>
+          ) : null}
+
           {player ? <ClubChatPanel clubId={myClub.club.id} myPlayerId={player.id} /> : null}
 
           <GlassPanel style={{ padding: 'var(--space-lg)' }}>
@@ -397,6 +478,62 @@ export default function ClubPage(): React.ReactElement {
 
       {player && myClub === null ? (
         <div style={{ display: 'grid', gap: 'var(--space-lg)' }}>
+          {invites.length > 0 ? (
+            <GlassPanel style={{ padding: 'var(--space-lg)' }}>
+              <h2 className="section-title" style={{ marginTop: 0 }}>
+                Gelen Davetler
+              </h2>
+              <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: 8 }}>
+                {invites.map((invite) => (
+                  <li
+                    key={invite.id}
+                    style={{
+                      display: 'flex',
+                      flexWrap: 'wrap',
+                      alignItems: 'center',
+                      gap: 8,
+                      padding: '10px 12px',
+                      borderRadius: 'var(--radius-md)',
+                      background: 'rgba(212,175,55,0.08)',
+                    }}
+                  >
+                    <ClubBadge club={{ name: invite.clubName, tag: invite.clubTag }} />
+                    <div style={{ flex: '1 1 160px', minWidth: 0 }}>
+                      <div style={{ fontWeight: 600, overflowWrap: 'anywhere' }}>
+                        {invite.clubName}
+                        {invite.clubTag ? (
+                          <span style={{ color: 'var(--color-accent-gold)' }}> [{invite.clubTag}]</span>
+                        ) : null}
+                      </div>
+                      <div style={mutedText}>
+                        {invite.inviterName} davet etti ·{' '}
+                        {describeInviteExpiry(invite.expiresAt, new Date())}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      className="btn-gold"
+                      style={{ minHeight: 38 }}
+                      disabled={busy !== null}
+                      onClick={() => void acceptInvite(invite)}
+                    >
+                      {busy === `accept-${invite.id}` ? 'Katılınıyor…' : 'Kabul Et'}
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-outline"
+                      style={{ minHeight: 38 }}
+                      disabled={busy !== null}
+                      onClick={() => void declineInvite(invite)}
+                    >
+                      Reddet
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </GlassPanel>
+          ) : null}
+
           <GlassPanel style={{ padding: 'var(--space-lg)' }}>
             <h2 className="section-title" style={{ marginTop: 0 }}>
               Kulüp Kur
