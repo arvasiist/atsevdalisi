@@ -1037,8 +1037,10 @@ güvenliği, §13.27) · **5 (denge ölçümü — 265.125 simülasyon, §13.28 
 birleştirme, §13.32)** · **8 (`docs/FINAL_PROJECT_AUDIT.md` — 51 özellik ×
 12 kolon)**.
 
-**SONUÇ BELGELERİ:** `docs/PROJECT_STATUS.md` (kısa "bugün neredeyiz") ·
-`docs/FINAL_PROJECT_AUDIT.md` (özellik-özellik denetim) ·
+**SONUÇ BELGELERİ:** `MASTER_STATUS.md` (kısa "bugün neredeyiz" — 09.10.2026'da
+koda göre yenilendi; `docs/PROJECT_STATUS.md`, `docs/FINAL_PROJECT_AUDIT.md`
+ve iki `AUDIT_REPORT.md` artık TARİHLİ ANLIK GÖRÜNTÜDÜR, başlarında yazar) ·
+`docs/FINAL_PROJECT_AUDIT.md` (29.09.2026 özellik-özellik denetim) ·
 `docs/FINAL_ACCEPTANCE.md` (27 maddelik kapanış kapısı) ·
 `docs/RACE_BALANCE_REPORT.md` (ölçüm). **51 özelliğin 32'si üretime hazır;
 `MISSING`/`BROKEN`/`UI ONLY`/`NOT WIRED` sayısı SIFIR.**

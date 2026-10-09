@@ -1,286 +1,284 @@
 # AT SEVDALISI MASTER STATUS
 
-> Son güncelleme: 02.10.2026 · Dal: `claude/project-review-gaps-j1hb2l` (PR #2)
+> Son güncelleme: 09.10.2026 · Dal: `claude/project-review-gaps-j1hb2l` (PR #2)
 > Kaynak: KOD (migration, use-case, controller, ekran, test) — belgeler değil.
-> Ayrıntılı tarihçe `PROJE_DURUMU.md` §13'te; bu dosya brief'in istediği
-> özet sözleşmedir. Sınıflar: NOT_STARTED · PLANNED · PARTIAL · IMPLEMENTED ·
-> TESTED · PRODUCTION_READY · BROKEN · NEEDS_REFACTOR.
+> Ayrıntılı tarihçe `PROJE_DURUMU.md` §13'te (13.1–13.102); bu dosya brief'in
+> istediği özet sözleşmedir. Sınıflar: NOT_STARTED · PLANNED · PARTIAL ·
+> IMPLEMENTED · TESTED · PRODUCTION_READY · BROKEN · NEEDS_REFACTOR.
 >
-> ⚠️ Hiçbir özellik PRODUCTION_READY DEĞİLDİR: staging, izleme, yedek/geri
-> yükleme ve gerçek dağıtım doğrulanmadı (brief §121). "TESTED" = veritabanı +
-> backend + API + ekran + otomatik test (birim/e2e) var ve yerelde + CI'da geçiyor.
+> ⚠️ Hiçbir özellik PRODUCTION_READY DEĞİLDİR: gerçek staging/üretim ortamı,
+> seçilmiş izleme hizmeti ve gerçek dağıtım doğrulanmadı (brief §121).
+> "TESTED" = veritabanı + backend + API + ekran + otomatik test (birim/e2e) var
+> ve yerelde + CI'da geçiyor.
+>
+> **Belge haritası (tekrar etmesin diye):** kurallar + tuzaklar `CLAUDE.md` ·
+> tarihçe `PROJE_DURUMU.md` §13 · uçlar `docs/API.md` · bu dosya özet.
+> Kökteki `AUDIT_REPORT.md` (14.09.2026 güvenlik/kalite denetimi) ve
+> `docs/AUDIT_REPORT.md` (3D brief Phase 0 boşluk analizi) **tarihli
+> anlık görüntülerdir**; bugünkü durum için bu dosyaya bakılır.
 
 ## Repository
 
-- Monorepo (npm workspaces): `apps/api` (NestJS 10), `apps/web` (Next.js 14),
-  `packages/shared-types`, `packages/game-config`, `config/*.json`,
-  `database/migrations` (0001–0056, `up`/`down`), `database/seeds/001_dev_seed.sql`,
-  `tools/` (migrate, seed, demo timeline), `docker-compose.yml` (yalnızca
-  Postgres 16 + Redis 7 — uygulama imajı YOK).
+- Monorepo (npm workspaces): `apps/api` (NestJS 11), `apps/web` (Next.js 16 +
+  React 19 + R3F 9), `packages/shared-types`, `packages/game-config`,
+  `config/*.json`, `database/migrations` (0001–0080, hepsi `up`/`down`),
+  `database/seeds/001_dev_seed.sql`, `tools/` (migrate, seed, ops: duman/yük
+  testi, yedek/geri yükleme), `docker-compose.yml` + `docker-compose.staging.yml`.
 - CI: `.github/workflows/ci.yml` → `npm ci` → lint → typecheck → migrate →
-  test (api + web + paketler) → build. Postgres/Redis servis konteyneri.
-- Test: API 155 dosya / 2331 test, web 42 dosya / 509 test (02.10.2026).
+  test (api + web + paketler) → build → imaj + duman testi + yük testi bütçesi
+  + yedek provası; `security` işi (bağımlılık açığı + gitleaks, tüm geçmiş).
+- Test dosyaları: API 216 (97 e2e + 119 birim/güvenlik/denge), web 71
+  (09.10.2026 yerel koşu: web 643/643, API birim+güvenlik 1596/1596).
 - Kökte gitignore'lu eski scratch dosyaları (`*.bundle`, `*.bat`, `*-log.txt`) — zararsız.
 
 ## Current Architecture
 
-- Backend katmanları uygulanıyor: `domain/` (saf TS, Nest/ORM yok) →
-  `application/` (use-case + port) → `infrastructure/` (Postgres repo,
-  zamanlayıcılar, config) → `api/` (controller, guard, gateway). Para yolu
-  `SELECT … FOR UPDATE` + aynı transaction'da `economy_transactions`.
+- Backend katmanları: `domain/` (saf TS, Nest/ORM yok) → `application/`
+  (use-case + port) → `infrastructure/` (Postgres repo, zamanlayıcılar, config)
+  → `api/` (controller, guard, gateway). Para yolu `SELECT … FOR UPDATE` +
+  aynı transaction'da `economy_transactions`.
 - Defter DEĞİŞTİRİLEMEZ (DB tetikleyicisi UPDATE/DELETE'i reddeder).
 - Yarış motoru `domain/race/race-engine.ts`: seed'li PRNG, deterministik,
-  config güdümlü; komutsuz çıktı SHA-256 parmak iziyle kilitli.
-- Gerçek zamanlı: Socket.IO `RaceGateway` (`/races` namespace) — yarış
-  oynatma, tribün sohbeti, izleyici sayısı, bildirim, eşleştirme.
-- Zamanlayıcılar (Nest içi, ayrı worker YOK): kilit, kesinleşme, takvim,
-  turnuva, sezon, eşleştirme taraması, etkileşimli yarış, müzayede kapanışı.
-- Config: `config/*.config.json` + `packages/game-config` (tipli yükleyiciler).
+  config güdümlü; komutsuz çıktı SHA-256 parmak iziyle kilitli. Jokey uyumu,
+  jokey formu/yorgunluğu ve ırk/seviye sınıfları motor DIŞINDA kadroya donar.
+- Gerçek zamanlı: Socket.IO `RaceGateway` (`/races`) + Redis köprüsü (çok
+  örnek; oynatma kareleri yerel yayılır).
+- Zamanlayıcılar (Nest içi): kilit, kesinleşme, takvim, turnuva, sezon,
+  eşleştirme taraması, etkileşimli yarış, müzayede kapanışı, ilan süre dolumu,
+  avatar işleri — hepsi lider kilidi arkasında (`scheduler-leader.ts`).
+- Config: `config/*.config.json` + `packages/game-config` (tipli yükleyiciler,
+  açılışta doğrulayıcılar: ırk, masa, ekipman, kişilik, jokey durumu, seviye aralığı).
 
 ## Frontend Status — TESTED (üretim değil)
 
-Rotalar: `/` (3D vitrin), `/stable`, `/training`, `/care`, `/equipment`,
-`/farm`, `/staff`, `/market`, `/races` (lobi + pratik + kontrollü sürüş),
-`/races/[id]/watch`, `/replays`, `/grandstand`, `/leaderboard`, `/club`,
-`/friends`, `/profile/[username]`, `/notifications`, `/wallet`, `/account`,
-`/admin`, `/online`. Altın-lacivert tema, mobil alt sekme çubuğu, PWA manifest.
-Eksik: avatar ekranı, sosyal hub, olay/duyuru ekranı.
+Rotalar: `/` (misafire 3D vitrin, oyuncuya → `/stable`), `/stable` (tam ekran
+3D ahır; bakım/ekipman paneli içinde — `/care`, `/equipment` buraya yönlenir),
+`/training`, `/farm`, `/staff`, `/breeds`, `/market`, `/races` (lobi + Hemen
+Katıl + pratik + kontrollü sürüş + masa kuralları), `/races/[raceId]/watch`,
+`/races/demo`, `/replays`, `/grandstand`, `/leaderboard`, `/club` (sohbet +
+davet), `/friends`, `/profile/[username]`, `/notifications`, `/quests`,
+`/avatar`, `/store`, `/wallet`, `/account` (+ reset/verify), `/admin`,
+`/online`. Altın-lacivert tema, mobil alt sekme çubuğu, PWA manifest.
+Eksik: sosyal hub (avatarlı alan).
 
 ## Backend Status — TESTED
 
-28 API modülü (auth, player, horse, stable, training, care, feed, equipment,
-farm, staff, jockey, market, breeding, race, matchmaking, grandstand, chat,
-social, gift, notification, leaderboard, club, season, economy, admin,
-health, idempotency, rate-limit, realtime). Doğrulama controller + domain'de
-çift katman (esbuild altında DTO dekoratörleri atlandığı için).
+36 API modülü (achievements, admin, auth, avatar, breeding, breeds, care,
+chat, club, economy, equipment, farm, feed, gift, grandstand, health, horse,
+idempotency, jockey, leaderboard, market, matchmaking, notification, ops,
+payments, player, quests, race, rate-limit, realtime, season, social, stable,
+staff, training, tribune-gift). Doğrulama controller + domain'de çift katman
+(esbuild altında DTO dekoratörleri atlandığı için).
 
 ## Database Status — TESTED
 
-56 migration (hepsi `down` dosyalı), FK/CHECK/kısmi tekil indeksler, değişmez
-defter tetikleyicisi. Eksik: üretim yedek/geri yükleme prosedürü ve testi;
-migration'ların üretim verisinde prova ortamı (staging) yok.
+80 migration (hepsi `down` dosyalı), FK/CHECK/kısmi tekil indeksler, değişmez
+defter tetikleyicisi. CHECK ↔ config eşleşmesi testlerde EN SON migration
+okunarak denetlenir (bildirim türü, ırk, ırk sınıfı, seviye aralığı, masa,
+tribün hediyesi, görev ölçütü). Yedek/geri yükleme betikleri + CI provası VAR;
+üretim verisinde prova ortamı (gerçek staging) YOK.
 
 ## Authentication Status — PARTIAL
 
-VAR: misafir kayıt (JWT), e-posta + şifre (`scrypt`), şifre sıfırlama (tek
-kullanımlık, 30 dk, özet saklanır), Google girişi + hesap bağlama, hız sınırı.
-VAR (02.10.2026, Faz 1-B.1): kısa ömürlü erişim JWT'si + dönen refresh
-token (özet saklanır, yeniden kullanımda oturum kapanır), sunucu tarafı
-logout / logout-all, cihaz listesi + cihaz kapatma, şifre sıfırlamada tüm
-oturumların kapanması, guard + soket oturum kapısı (çıkış ANINDA etkili).
-VAR (02.10.2026, Faz 1-B.2): e-posta doğrulama (bağlantı, yeniden gönderme, durum).
-VAR (02.10.2026, Faz 1-B.3): hesap silme (kişisel veri silme + anonimleştirme, para emanetinde engel).
-VAR (02.10.2026): kişisel veri dışa aktarma (`GET /account/export`, KVKK/GDPR). YOK: Apple girişi. Üretim için `GOOGLE_OAUTH_CLIENT_ID`, `RESEND_API_KEY`, güçlü `JWT_SECRET` gerekir.
+VAR: misafir kayıt, e-posta + şifre (`scrypt`), şifre sıfırlama, Google girişi
++ hesap bağlama, kısa ömürlü JWT + dönen refresh token (yeniden kullanım
+tespiti), çıkış / tüm cihazlardan çıkış / cihaz listesi, e-posta doğrulama,
+hesap silme (anonimleştirme), veri dışa aktarma ucu (arayüzü sahibinin
+isteğiyle kaldırıldı), askı/yasak oturum kapısında (403). YOK: Apple girişi
+(kimlik bilgisi). Üretim için `GOOGLE_OAUTH_CLIENT_ID`, `RESEND_API_KEY`,
+güçlü `JWT_SECRET` gerekir.
 
 ## Economy Status — TESTED (üretim değil)
 
 Sunucu otoriteli; her hareket defterde (tür, tutar, önce/sonra bakiye,
-referans). Idempotency: satın alma, hediye, para yatırma, bilet (anahtar);
-yarış ödülü/iade/müzayede durum geçişiyle. Mutabakat e2e testi var.
-**DÜZELTME (02.10.2026, Faz 13-A):** Faz 0 denetimi "mockDeposit üretimde
-açık" demişti — YANLIŞTI: `MockPaymentProvider.isEnabled()` config bayrağı
-VE `NODE_ENV !== 'production'` ister, yani üretimde sahte yatırma zaten
-kapalıydı. Gerçek açık web'deydi: form istemci config'ine bakıyordu ve
-üretimde de "Yükle" gösteriyordu; artık sunucunun `depositAvailable`
-bayrağına bağlı. Elmas
-(premium) birimi var ama **harcama yolu yok** (`gemShopWhitelist` ölü config).
-Gerçek ödeme sağlayıcısı YOK (NOT_STARTED).
+referans); `player-journey.e2e-spec.ts` "bakiye = başlangıç + defter" ile
+kilitli. Para yolları: pazar (sabit + müzayede emanet), ırk mağazası, ekipman
+kataloğu, yem, tesis, personel, bilet, hediye, dostluk/tribün hediyesi,
+görev/başarım/sezon ödülü, yönetici düzeltmesi, masa kuralları (ücret anı +
+kaybeden iadesi). Gerçek para (`payment_orders`) defterden AYRI; defter
+yalnızca elması görür. Elmasın oyun içi HARCAMA yolu yok
+(`gemShopWhitelist` hâlâ okunmuyor). Gerçek ödeme sağlayıcısı YOK.
 
 ## Horse Status — TESTED
 
-8 görünür + 6 gizli stat (mizaç, odak, cesaret, rekabet, stres direnci,
-itaat), sağlık 6 boyut, yaş/gelişim, görünüş (don/sakarlık), zemin/mesafe
-uygunluğu, ekipman, yarış geçmişi, piyasa değeri, sahiplik kilitleri
-(açık yarışta/pazarda at satılamaz). Kişilik (brief §14 CALM/BRAVE…) ayrı
-etiket olarak YOK; gizli statlar motor/antrenman/jokey uyumuna bağlı.
-"Açlık" ve "stres" canlı durum alanı YOK (stres direnci statı var).
+11 ırk (ücretsiz başlangıç atı en zayıf ırk), 8 görünür + 6 gizli stat,
+sağlık, yaş/gelişim, görünüş (don/sakarlık, kalıtım), zemin/mesafe uygunluğu,
+ekipman, yarış geçmişi, seviye/XP, sahiplik kilitleri. Kişilik doğuşta
+kimlikten determinist; etkisi antrenmanda; sahibine yalnızca ETİKET gösterilir.
+"Açlık" ve "stres" canlı durum alanı YOK (uydurulmadı).
 
 ## Stable Status — TESTED
 
-Ahır seviyesi/kapasitesi, yükseltme (para yolu), 3D ahır sahnesi (prosedürel yedek).
+Ahır seviyesi/kapasitesi, yükseltme (para yolu), tam ekran 3D ahır sahnesi
+(prosedürel yedek + PLACEHOLDER rozeti), bakım/ekipman sahnenin içinde.
 
 ## Training Status — TESTED
 
-Tür/yoğunluk/süre; kazanç potansiyel, mevcut stat, canlılık, antrenör ve
-tesis çarpanına bağlı; yorgunluk/sakatlık riski; geçmiş.
+Tür/yoğunluk/süre; kazanç potansiyel, mevcut stat, canlılık, antrenör, tesis
+ve kişilik çarpanına bağlı; yorgunluk/sakatlık riski; geçmiş; antrenmanı
+yapan oyuncu kaydedilir (görev sayımı).
 
 ## Care Status — TESTED
 
-Bakım eylemleri (dinlenme, tımar, veteriner, nalbant…), bekleme süreleri,
-sakatlıktan çıkış, personel ve padok etkisi, yem envanteri ve besleme.
+Bakım eylemleri, bekleme süreleri, sakatlıktan çıkış, personel ve padok
+etkisi, yem envanteri ve besleme.
 
 ## Race Engine Status — TESTED
 
 Deterministik, 8/10/12/14/16 at, tempo/sollama/blok/pozisyon/dayanıklılık,
-zemin/hava/mesafe, jokey etkisi (beceri + 02.10.2026'dan beri at uyumu),
-taktik, oyuncu kontrolü (kırbaç/yön/sakin), tekrar oynatma (telemetri).
-Denge ölçümü CI'da kilitli (`RACE_BALANCE_REPORT.md`). Bilinen ölçülmüş
-risk: sürpriz payı dar (favori çok sık kazanıyor) — bilinçli düzeltilmedi.
-Start kulvarı (`gatePosition`) motorda okunmuyor — sahibinin kararı bekliyor.
+zemin/hava/mesafe, jokey etkisi (beceri + at uyumu + form/yorgunluk), taktik,
+oyuncu kontrolü (kırbaç/yön/sakin), tekrar oynatma. Denge ölçümü CI'da kilitli
+(`RACE_BALANCE_REPORT.md`). Bilinen ölçülmüş risk: sürpriz payı dar —
+bilinçli düzeltilmedi. Start kulvarı (`gatePosition`) motorda okunmuyor —
+sahibinin kararı bekliyor.
 
 ## Genetics Status — TESTED
 
-Kalıtım, mutasyon, soy ağacı okuma (`PedigreeTree`), görünüş kalıtımı.
+Kalıtım, mutasyon, soy ağacı, görünüş kalıtımı, tay ırkı (melez kuralı config'te).
 
 ## Management Status — TESTED
 
-Jokey (kiralama/bırakma, beceri, at uyumu), personel (antrenör, seyis,
-veteriner, nalbant; sözleşme peşin, süre dolumu), pazar (sabit fiyat +
-müzayede/emanet, bildirimler).
+Jokey (kiralama/bırakma, beceri, at uyumu, form/yorgunluk), personel (sözleşme
+peşin, süre dolumu, etkiler), pazar (sabit fiyat + müzayede/emanet, süre dolumu
+zamanlayıcısı, bildirimler).
 
 ## Farm Status — TESTED
 
 Yedi tesis tipi, inşa/yükseltme (para yolu), etkiler bağlı (padok, pist,
-depo, üreme merkezi); veteriner merkezi bilinçli olarak etkisiz/kapalı.
+depo, üreme merkezi, personel binası); veteriner merkezi bilinçli olarak kapalı.
 
 ## 3D Status — PARTIAL
 
-Kod hattı TAM (R3F): yarış, ana sayfa vitrini, ahır; GLB bağlama, LOD,
-kalite kademesi, ışık/HDRI, start kapısı, toz, kamera yönetmeni, foto-finiş.
-**Gerçek varlık YOK** — prosedürel at/jokey/hipodrom + ekranda "PLACEHOLDER"
-rozeti. Brief §30 gereği bu hâli üretime hazır SAYILMAZ. Varlıklar ÜCRETLİ
-alınacak (sahibinin kararı, 02.10.2026).
+Kod hattı TAM (R3F): yarış, misafir vitrini, ahır; beş hipodrom (Veliefendi,
+Ankara, İzmir, Adana, Bursa) temalı arka planla; GLB bağlama, LOD, kalite
+kademesi + otomatik düşürme, ışık/HDRI (yerel), start kapısı, toz, figürlü
+kalabalık, jokey kamerası, foto-finiş, ses (dosya yoksa sessiz).
+**Gerçek varlık YOK** — prosedürel at/jokey/hipodrom + "PLACEHOLDER" rozeti.
+Brief §30 gereği bu hâli üretime hazır SAYILMAZ. Varlıklar ÜCRETLİ alınacak.
 
 ## Multiplayer Status — TESTED (üretim değil)
 
-Lobi yarışı (katıl/hazır/ayrıl, kilit, kesinleşme, iade), eşleştirme (PvP),
-turnuva, takvim, kontrollü canlı yarış (çok oyunculu komutlar), tribün (canlı +
-tekrar), yeniden bağlanma (kopma DB'ye dokunmaz; süren yarış yeniden açılır).
-Şüpheli desen listesi VAR (Faz 7: çoklu hesapla değer aktarma — yalnızca inceleme). Yük testi VAR (Faz 7: tek örnek ~350 istek/sn'de doyar, 200 eşzamanlı oyuncuda 0 hata; CI bütçe kapısı). Tek süreçli zamanlayıcılar yatay ölçeklemede çift çalışır
-(satır kilitleri çift ödemeyi engelliyor ama iş tekrarlanır).
+Lobi yarışı (katıl/hazır/ayrıl, kilit, kesinleşme, iade, masa kuralları,
+ırk sınıfı, at seviyesi aralığı, Hemen Katıl), eşleştirme, turnuva, takvim
+(özel yarış dahil), kontrollü canlı yarış, tribün (canlı + tekrar + hediye +
+emote), yeniden bağlanma. Çok örnek: zamanlayıcı lider kilidi + Socket.IO
+Redis köprüsü (e2e: iki örnek). Şüpheli desen listesi (yalnızca inceleme) ve
+yük testi (CI bütçe kapısı) VAR.
 
 ## Social Status — TESTED
 
-Arkadaşlık, mesaj, hediye (para yolu), engelleme/şikâyet, profil, bildirimler,
-yarış daveti, kulüp (kur/katıl/lider devri/puan), **kulüp sohbeti + tribün emote'ları** (Faz 9).
-YOK: sosyal hub (avatarlı alan — Faz 8 ile), kulüp yarışı.
+Arkadaşlık (yalnızca birlikte yarışanlar), mesaj, hediye (para yolu), dostluk
+hediyesi, engelleme/şikâyet, profil (+ fotoğraf, avatar, başarımlar),
+bildirimler, yarış daveti, kulüp (kur/katıl/davet/lider devri/puan/sohbet),
+tribün emote + hediyesi. YOK: sosyal hub (avatarlı alan), kulüp yarışı.
 
 ## AI Avatar Status — PARTIAL
 
-**Manuel avatar VAR (07.10.2026, Faz 8-A):** katalogdan özelleştirme (§44),
-kimlikten türetilen varsayılan + manuel oluşturucu (§49 yedek), profilde portre,
-`/avatar`ta prosedürel 3D figür. **AI hattı altyapısı VAR (8-B):** rıza, yükleme
-doğrulaması, asenkron iş + zamanlayıcı, sağlayıcı/depo soyutlaması, yenileme
-güvenliği, gizlilik silmesi, yönetimde AI işleri. **Gerçek sağlayıcı YOK** →
-özellik kapalı. Ön koşullar: sağlayıcı seçimi + API anahtarı, çok örnekte S3
-uyumlu depo, AI modelinin 3D sahnede gösterimi.
+Manuel avatar (katalog, kimlikten türetilen varsayılan, 2B portre + prosedürel
+3D figür) ve profil fotoğrafı (meta veri silinir, moderasyon) VAR. AI hattı
+altyapısı VAR (rıza, yükleme doğrulaması, asenkron iş + zamanlayıcı,
+sağlayıcı/depo soyutlaması, gizlilik silmesi, yönetimde AI işleri).
+**Gerçek sağlayıcı YOK** → özellik kapalı (503, dosya okunmadan).
 
 ## Mobile/PWA Status — IMPLEMENTED
 
 Duyarlı arayüz, alt sekme çubuğu, 3D kalite kademesi/otomatik düşürme,
-manifest + üretilen ikonlar (Chromium kurulabilirlik denetimi hatasız).
-Gerçek cihaz testi YAPILMADI. Service worker bilinçli olarak yok.
+manifest + üretilen ikonlar. Gerçek cihaz testi YAPILMADI. Service worker
+bilinçli olarak yok.
 
-## Admin Status — PARTIAL
+## Admin Status — TESTED
 
-Roller `players.is_admin` + `is_moderator` (her istekte DB'den; izin tablosu
-`domain/admin/staff.ts`), denetim günlüğü (aynı transaction): şikâyet kuyruğu,
-oyuncu/yarış/işlem listeleri, yarış iptali (iade), **rol atama, askı/yasak +
-kaldırma, duyurular** (Faz 10, 02.10.2026), **bakiye düzeltmesi (para yolu) + at araması**. `/admin`
-sekmeleri role göre; salt okuma etkin ayarlar + sezon + turnuva. YOK: çalışma anında ayar düzenleme,
-AI Jobs (Faz 8), IP alanı.
+Roller (`is_admin`, `is_moderator`; her istekte DB'den, izin tablosu
+`domain/admin/staff.ts`), denetim günlüğü aynı transaction'da: şikâyet
+kuyruğu, oyuncu/yarış/işlem listeleri, yarış iptali (iade), rol atama,
+askı/yasak, duyurular, etkinlikler, bakiye düzeltmesi, at araması, şüpheli
+desenler, AI işleri, fotoğraf kaldırma, salt okuma ayar/sezon/turnuva.
+YOK: çalışma anında ayar düzenleme (bilinçli), IP alanı.
 
-## Live Operations Status — PARTIAL
+## Live Operations Status — TESTED
 
-Zamanlayıcıyla açılan takvim yarışları, turnuvalar, sezon ve sezon ödülü,
-günlük ödül, **duyurular** (Faz 11-A), **günlük/haftalık görevler + yönetimden
-süreli etkinlik ve ödülü** (Faz 11-B). YOK: başarımlar, kulüp/sezon görevleri,
-etkinlik para birimi.
+Takvim yarışları (özel/ırka/seviyeye özel programlar), turnuvalar, sezon +
+ödülü, haftalık/aylık sıralama (birincilik sayısına göre), günlük ödül,
+duyurular, görevler + süreli etkinlikler, başarımlar (arkadaş başarımları
+dahil). YOK: etkinlik para birimi, kulüp/sezon görevleri.
 
 ## Observability Status — PARTIAL
 
-VAR (02.10.2026, Faz 13-A): `GET /health` (canlılık) + `GET /health/ready`
-(PostgreSQL + Redis, zaman aşımlı, 503); her yanıtta `X-Request-Id`, hata
-zarfında `error.requestId`, beklenmeyen hata logu istek kimliğiyle (yığın
-izi istemciye gitmez). YOK: yapılandırılmış (JSON) log, hata izleme
-(Sentry vb.), metrik.
-VAR (02.10.2026, Faz 13-C): üretimde tek satır JSON log, değiştirilebilir hata
-raporlayıcı (varsayılan: log), web hata sınırları + `POST /client-errors`.
-YOK: seçilmiş bir hata izleme hizmeti (Sentry vb.) ve metrik/uyarı.
+VAR: `/health` + `/health/ready` (DB + Redis), `X-Request-Id`, hata zarfında
+`requestId`, üretimde JSON log, değiştirilebilir hata raporlayıcı, web hata
+sınırları + `POST /client-errors`, `GET /metrics` (Prometheus, token'lı) +
+alarm webhook'u (soğumalı). YOK: seçilmiş hata izleme hizmeti (Sentry vb.)
+ve metrik toplayan/gösteren altyapı (sağlayıcı kararı).
 
 ## Deployment Status — PARTIAL
 
-VAR (02.10.2026, Faz 13-A): `apps/api/Dockerfile` (runtime + `migrate`
-hedefi, root olmayan kullanıcı, HEALTHCHECK), `apps/web/Dockerfile`,
-`.dockerignore`, CI'da imaj build + "eksik ortamla açılmaz" duman testi,
-üretim ortam doğrulaması (açılışta), `docs/DEPLOYMENT.md`. YOK: staging/
-production ortamı, imaj kayıt defteri + dağıtım hattı, gizli anahtar
-yöneticisi. VAR (Faz 13-C): `docker-compose.staging.yml` + uçtan uca duman
-testi (CI'da), yedek/geri yükleme betikleri + CI provası.
+VAR: API/web Dockerfile'ları, CI'da imaj build + duman testi, üretim ortam
+doğrulaması (açılışta), `docker-compose.staging.yml`, yedek/geri yükleme
+betikleri + CI provası, `docs/DEPLOYMENT.md`. YOK: gerçek staging/production
+ortamı, imaj kayıt defteri + dağıtım hattı, gizli anahtar yöneticisi.
 
 ## Security Status — PARTIAL (iyi temel)
 
-Sunucu otoritesi, sahiplik kapıları, IDOR (403 önce 404 sonra), hız sınırı
-(sosyal/para/yarış/müzayede), idempotency, değişmez defter, gizli statların
-sızmaması, tohum gizliliği, helmet, CI'da bağımlılık kapısı (gerekçeli +
-süreli izin listesi) ve gizli anahtar taraması (gitleaks, tüm geçmiş).
-⚠️ **Next.js 14'te kritik açıklar** (bkz. Production Blockers 9). YOK: SAST,
-anormal davranış tespiti, dosya
-yükleme güvenliği (henüz yükleme yok).
+Sunucu otoritesi, sahiplik kapıları, IDOR (403 önce 404 sonra), hız sınırı,
+idempotency, değişmez defter, gizli statların ve tohumun sızmaması, helmet,
+yükleme güvenliği (baytlardan biçim doğrulaması, meta veri silme, sunucu
+üretimli depo anahtarı), imzalı ödeme webhook'u, CI'da bağımlılık kapısı
+(izin listesi BOŞ) + gitleaks. YOK: SAST, dış sızma testi.
 
 ## Testing Status — TESTED
 
 Birim (domain), entegrasyon/e2e (gerçek Postgres + Redis, supertest +
-socket.io-client), güvenlik (`test/security`), denge (265k simülasyon),
-determinizm parmak izi, para mutabakatı, tarayıcı testleri (yerel Playwright,
-CI'da değil). YOK: yük testi, CI'da tarayıcı E2E, mutasyon testi CI'da.
+socket.io-client, iki uygulama örneği), güvenlik (`test/security`), denge
+(265k simülasyon), determinizm parmak izi, para mutabakatı, yük testi (CI),
+tarayıcı kontrolleri (yerel Playwright). YOK: CI'da tarayıcı E2E, mutasyon testi.
 
 ## Documentation Status — IMPLEMENTED
 
-`CLAUDE.md` (kurallar + tuzaklar), `PROJE_DURUMU.md` (tarihçe §13.1–13.62),
-`docs/*` (API, DB, motor, ekonomi, güvenlik, denge raporu, varlık rehberi).
-`README.md`/`ROADMAP.md` faz tabloları BAYAT (CLAUDE.md kural 9).
+`CLAUDE.md` (kurallar + tuzaklar, madde 1–78), `PROJE_DURUMU.md` (tarihçe
+§13.1–13.102), `docs/*` (API, DB, motor, ekonomi, güvenlik, dağıtım, denge
+raporu, varlık rehberi). `README.md`/`ROADMAP.md` faz tabloları BAYAT
+(CLAUDE.md kural 9). İki `AUDIT_REPORT.md` tarihli anlık görüntüdür (yukarı bak).
 
 ## Existing Bugs
 
-- Bilinen açık hata YOK. 02.10.2026'da düzeltilen: CI'ı rastgele düşüren iki
-  kararsız antrenman testi (`staff.e2e`, `training.e2e`).
+- Bilinen açık hata YOK.
 - Ölçülmüş tasarım riski: yarış sürpriz payı dar (`RACE_BALANCE_REPORT.md` §2c).
+- Küçük arayüz notu: yeni açılan lobi yarışı, takvim yarışları listenin başına
+  sıralandığı için ilk sayfada görünmeyebilir (liste sınırı 20).
 
 ## Missing Features
 
-Apple girişi · AI avatar (tümü) ·
-gerçek ödeme + elmas harcama yolu · gerçek 3D/ses varlıkları · sosyal hub/emote ·
-kulüp sohbeti/yarışı · başarımlar · yönetim panelinin
-geri kalanı (at/pazar/config/etkinlik) · gözlemlenebilirlik · dağıtım.
+Apple girişi · gerçek AI avatar sağlayıcısı · gerçek ödeme + elmas harcama
+yolu · gerçek 3D/ses varlıkları · sosyal hub · kulüp yarışı · etkinlik para
+birimi. (Çalışma anında ayar düzenleme bilinçli olarak YOK — ayar dosyası
+kodla birlikte dağıtılır.)
 
 ## Technical Debt
 
-- Zamanlayıcılar API sürecinde (ayrı worker/kuyruk yok); **lider kilidi VAR** (02.10.2026) —
-  çok örnekte yalnızca lider koşar. Çok örnek için Socket.IO Redis adaptörü hâlâ YOK.
+- Zamanlayıcılar API sürecinde (ayrı worker/kuyruk yok); lider kilidi var.
 - `in_progress` yarış durumu ölü (miras).
 - `PlayerDemoWidget` bağlı değil (bilinçli, kaldırılabilir).
 - `gemShopWhitelist` ölü config (okuyan kod yok).
 - README/ROADMAP faz tabloları bayat.
+- Takvim ve turnuva yarışları masasız (masa kuralları yalnızca oyuncunun
+  açtığı lobi yarışında + pratikte).
 
 ## Production Blockers
 
 1. Gerçek 3D/ses varlıkları (satın alınacak).
-2. ~~`mockDeposit` üretimde açık~~ **YANLIŞ TESPİTTİ** (sunucu üretimde zaten kapalı); web formu artık sunucu bayrağına bağlı (Faz 13-A). Gerçek ödeme sağlayıcısı hâlâ yok.
-3. ~~Oturum güvenliği: 30 günlük iptal edilemez JWT, logout/refresh yok.~~ **KAPANDI (02.10.2026, Faz 1-B.1).**
-4. ~~E-posta doğrulama + hesap silme (KVKK/GDPR) yok.~~ **KAPANDI (02.10.2026, Faz 1-B.2/1-B.3)**; veri dışa aktarma hâlâ yok.
-5. Gözlemlenebilirlik: sağlık + istek kimliği VAR (13-A); hata izleme/metrik/yapılandırılmış log YOK.
-6. Dağıtım: Dockerfile + CI imaj build VAR (13-A); staging, kayıt defteri, gizli anahtar yöneticisi, yedek/geri yükleme YOK.
-7. Kimlik bilgileri: `GOOGLE_OAUTH_CLIENT_ID`, `RESEND_API_KEY`.
-8. AI avatar (brief zorunlu kılıyor) — sağlayıcı + depolama kararı.
-9. ~~**Next.js 14 kritik/yüksek açıklar** (GHSA-2xp9-vwfh-vxw4 ve GHSA-p293-qw3h-jr36 uzaktan kod
-   çalıştırma, SSRF, DoS) + `@nestjs/platform-express`/multer DoS — düzeltme yalnızca büyük sürüm
-   (Next 16). `security/audit-allowlist.json` 2026-11-01'de sona erer → o tarihten sonra CI
-   kırılır. **Nest/multer kısmı KAPANDI** (Faz 13-B.1: Nest 11.2.7, multer 2.4.0); kalan Next 16 (13-B.2).
+2. Gerçek ödeme sağlayıcısı + yasal inceleme (altyapı hazır, kapalı).
+3. AI avatar sağlayıcısı + çok örnekte S3 uyumlu depo (altyapı hazır, kapalı).
+4. Kimlik bilgileri: `GOOGLE_OAUTH_CLIENT_ID`, `RESEND_API_KEY`, Apple.
+5. İzleme hizmeti seçimi (metrik ucu + alarm kancası hazır).
+6. Dağıtım: gerçek staging/production, kayıt defteri, gizli anahtar yöneticisi.
 
 ## Recommended Priority
 
-1. **PHASE 1-B — Hesap/oturum tamamlama** (refresh token + logout + e-posta
-   doğrulama + hesap silme) — CORE, en düşük risk, sahip kararı gerektirmez.
-2. **PHASE 13-A — Üretim temeli (kodla yapılabilen)**: sağlık kontrolü
-   (DB/Redis), request id + yapılandırılmış hata yanıtı, `mockDeposit`
-   üretimde kapalı (ortam kapısı), CI'a bağımlılık + gizli anahtar taraması,
-   Dockerfile'lar.
-3. PHASE 10 — Yönetim panelini genişletme (at/pazar/config/duyuru, roller).
-4. PHASE 11 — Canlı etkinlik + duyuru sistemi.
-5. PHASE 8 — AI avatar (sağlayıcı + depolama kararından SONRA).
-6. PHASE 12 — Ödeme (sağlayıcı + yasal inceleme kararından SONRA).
-7. PHASE 6 — Gerçek varlık entegrasyonu (satın alma SONRASI; kod hazır).
+1. Sahibinin dış kararları: 3D/ses varlıkları, ödeme sağlayıcısı, AI avatar
+   sağlayıcısı, izleme hizmeti, Apple kimlik bilgileri.
+2. Gerçek staging ortamı (compose dosyası + duman testi hazır).
+3. Açık oyun tasarımı soruları (kulvar etkisi, sürpriz payı, takvim/turnuva
+   masaları, kulüp yarışı).
 
 ## Current Phase
 
@@ -288,32 +286,34 @@ Brief fazlarına göre gerçek durum:
 
 | Faz | Durum |
 |---|---|
-| 0 Audit | COMPLETE (bu dosya) |
-| 1 Core | TESTED — oyun çekirdeği + oturum + e-posta doğrulama + hesap silme + veri dışa aktarma; Apple girişi yok (kimlik bilgisi) |
+| 0 Audit | COMPLETE |
+| 1 Core | TESTED — Apple girişi yok (kimlik bilgisi) |
 | 2 Management | TESTED |
 | 3 Genetics | TESTED |
 | 4 Farm | TESTED |
 | 5 Advanced Race | TESTED (kulvar etkisi hariç — karar bekliyor) |
 | 6 3D/Presentation | PARTIAL — kod tam, gerçek varlık yok |
-| 7 Online | TESTED — anti-cheat inceleme listesi + yük testi (CI bütçe kapısı) |
-| 8 AI Avatar | PARTIAL — manuel avatar + özelleştirme (8-A), AI hattı altyapısı (8-B); gerçek sağlayıcı bekliyor |
-| 9 Social | TESTED — kulüp sohbeti + emote eklendi; sosyal hub (avatar) Faz 8 ile |
-| 10 Admin | TESTED — roller, yaptırım, duyuru, bakiye düzeltmesi, at araması, ayar/sezon/turnuva görünümü; AI Jobs Faz 8 ile |
-| 11 Live Ops | TESTED — duyurular, görevler/etkinlikler, haftalık/aylık sıralama, özel yarış (Pazar Derbisi); başarımlar yok |
-| 12 Monetization | PARTIAL — altyapı + mağaza + makbuz + iade (sahte sağlayıcıyla test); gerçek sağlayıcı yok |
-| 13 Production | PARTIAL — 13-A temel (sağlık, istek kimliği, ortam kapısı, taramalar, Dockerfile) TESTED; 13-B çerçeve yükseltmesi + staging/izleme yok |
-| 14 Final E2E | PARTIAL — `final.e2e-spec.ts` API yolculuğu var; avatar/ödeme yok |
+| 7 Online | TESTED — çok örnek (lider kilidi + Redis köprüsü), anti-cheat inceleme, yük testi |
+| 8 AI Avatar | PARTIAL — manuel avatar + fotoğraf + AI altyapısı; gerçek sağlayıcı bekliyor |
+| 9 Social | TESTED — sosyal hub yok |
+| 10 Admin | TESTED |
+| 11 Live Ops | TESTED — etkinlik para birimi yok |
+| 12 Monetization | PARTIAL — altyapı + mağaza + makbuz + iade; gerçek sağlayıcı yok |
+| 13 Production | PARTIAL — temel + Nest 11/Next 16 + staging compose + yedek provası + metrik/alarm; gerçek ortam yok |
+| 14 Final E2E | TESTED — `final.e2e-spec.ts` + `player-journey.e2e-spec.ts` |
 
 ## Next Phase
 
-**PHASE 1-B — Hesap ve oturum tamamlama**, ardından **PHASE 13-A — üretim
-temeli**. Gerekçe: ikisi de sahibin dış kararına (sağlayıcı, satın alma)
-bağlı değil, mevcut mimariye eklenir (yeni framework yok), üretim
-engellerinden 3, 4, 5 ve 2'yi kapatır ve mevcut oyun akışını riske atmaz.
+Kodla kapanabilecek büyük bir eksik kalmadı; kalanların çoğu sahibinin dış
+kararına bağlı (yukarıdaki öncelik 1). Arada yapılabilecekler: kulüp yarışı,
+takvim/turnuva yarışlarına masa, sosyal hub (avatar sonrası).
 
 ---
 
 ## Faz Raporu
+
+> Aşağıdaki raporlar YAZILDIKLARI GÜNÜN durumudur (değiştirilmez). 07.10.2026
+> sonrası dilimlerin raporu `PROJE_DURUMU.md` §13.85–13.102'dedir.
 
 PHASE: 0 — Audit / Architecture
 STATUS: COMPLETE

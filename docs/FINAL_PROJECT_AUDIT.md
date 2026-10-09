@@ -1,5 +1,9 @@
 # AT SEVDALISI — FİNAL PROJE DENETİMİ
 
+> ⚠️ **TARİHLİ ANLIK GÖRÜNTÜ (29.09.2026).** Sonraki dilimler (01–09.10.2026)
+> burada yok; bugünkü özet `MASTER_STATUS.md`. `docs/FINAL_ACCEPTANCE.md`nin
+> kabul maddeleri test dosyalarına dayandığı için hâlâ geçerlidir.
+
 **Tarih:** 29.09.2026
 **Kapsam:** brief §42'nin 8 kritik sistemi + bunların zincirdeki (DATABASE ↓
 BACKEND ↓ API ↓ BUSINESS LOGIC ↓ RACE ENGINE ↓ WEBSOCKET ↓ FRONTEND ↓ USER

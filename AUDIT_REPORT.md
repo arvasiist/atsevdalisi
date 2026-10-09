@@ -1,5 +1,10 @@
 # AUDIT_REPORT.md — AT SEVDALISI Full Repo Audit
 
+> ⚠️ **TARİHLİ ANLIK GÖRÜNTÜ (14.09.2026).** Bulguların durumu aşağıda o
+> günden sonra işaretlenmiş olabilir ama bu dosya bugünkü durumu ANLATMAZ —
+> güncel özet `MASTER_STATUS.md`, tarihçe `PROJE_DURUMU.md` §13. Aynı adlı
+> `docs/AUDIT_REPORT.md` AYRI bir rapordur (3D brief boşluk analizi).
+
 > Master Plan §1/§66 kapsamında yapılan tam repo denetimi. **Bu doküman salt
 > tespit raporudur — bu turda hiçbir kod değiştirilmedi.** Tarih: 2026-09-14.
 > Kapsam: `apps/api` (NestJS, domain/application/infrastructure/api katmanları),
