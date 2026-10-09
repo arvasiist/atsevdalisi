@@ -101,7 +101,8 @@ görünüş + kolaylık. Bu tarihe kadar notlarda "elmasın harcama yolu yok"
 yazıyordu ve YANLIŞTI: stoklu yem elmasla satılıyordu (yem kondisyon/sağlık
 verir, motor ikisini okur → parayla yarış performansı) ve elmas arkadaşa
 hediye edilebiliyordu. İkisi kapatıldı (yem çiple; `validateGemPolicy`
-açılışta kilitler). Kozmetik mağaza yapım aşamasında. Gerçek ödeme
+açılışta kilitler). Kozmetik mağaza: altyapı + ilk ürünler (forma renkleri)
+VAR (`/cosmetics`, migration 0082); yarışta görünmesi ve ekranı sırada. Gerçek ödeme
 sağlayıcısı YOK.
 
 ## Horse Status — TESTED

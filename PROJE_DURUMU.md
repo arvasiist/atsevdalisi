@@ -4503,6 +4503,30 @@ Karar: önce pratik yarış; kırbaç sınırsız, dayanıklılık bedelli.
   hediyesi 400 + bakiye/defter dokunulmaz), `farm-effects.e2e-spec.ts` (yem
   çipten düşer, elmas dokunulmaz), web `gift-currencies.spec.ts`.
 
+### 13.107 Kozmetik mağaza altyapısı (09.10.2026, migration 0082)
+
+- Elmas politikasının 2. adımı: elmasla yalnızca görünüş. Ürün tanımı
+  `config/cosmetics.config.json` — her ürün avatar kataloğunun BİR seçeneğini
+  açar (`catalog` + `optionId`). İlk ürünler: avatarın forma (ipek) renk
+  kataloğuna eklenen dört yeni renk (turkuaz, turuncu, pembe 40; gümüş 60).
+- Sahiplik `player_cosmetics` (PK oyuncu + ürün). Satın alma PARA YOLU:
+  oyuncu `FOR UPDATE` → sahiplik + bakiye kilit altında → sahiplik + elmas +
+  `cosmetic_purchase` defter satırı (kanonik MARKET) tek transaction;
+  `Idempotency-Key` zorunlu.
+- `PUT /avatar` kilitli seçeneği sahibine bırakır (409 `COSMETIC_NOT_OWNED`).
+  Varsayılan avatar kilitli seçenekleri havuzdan çıkarır: yeni renk eklemek
+  mevcut oyuncuların varsayılanını DEĞİŞTİRMEDİ (500 oyuncu için birebir
+  aynı olduğu test edildi).
+- `validateCosmeticsConfig` API açılışında: ürün kataloğun var olan bir
+  seçeneği olmalı, anahtar/seçenek tekil, fiyat pozitif, her katalogda en az
+  bir ücretsiz seçenek kalmalı.
+- `player_cosmetics` hesap silme + dışa aktarma (`cosmetics`) listelerinde.
+- Sırada (adım 3): forma renginin yarışta görünmesi (bugün yarıştaki jokey
+  rengi atın palet renginden), mağaza ekranı, avatar düzenleyicide kilit.
+- Kanıt: `cosmetics.spec.ts` (config, varsayılan değişmezliği, sahiplik),
+  `cosmetics.e2e-spec.ts` (alım + defter, tekrar 409, eşzamanlı tek alım,
+  yetersiz elmas, avatar kilidi), `avatar.e2e-spec.ts` güncellendi.
+
 ## 14. Kendime hatırlatmalar (kısa liste)
 
 1. **Race Engine'e dokunmadan önce iki kez düşün.** Denetim onu "KEEP, dokunma"

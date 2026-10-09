@@ -872,6 +872,14 @@ enerji, jokey, at) elmasla fiyatlama; elmas hediye/transfer yazma; elmastan
 çipe dönüşüm yazma (çip ücretli yarış havuzuna girer). `validateGemPolicy`
 (`domain/economy/gem-policy.ts`) açılışta yem fiyatı + hediye birimini
 denetler — yeni bir elmaslı fiyat ekliyorsan oraya da kural yaz.
+(82) **KOZMETİK MAĞAZA (09.10.2026, migration 0082, §13.107)** — `GET
+/cosmetics`, `POST /cosmetics/:key/purchase` (`Idempotency-Key`); ürün =
+avatar kataloğunun bir seçeneği (`config/cosmetics.config.json`). ⚠️ Kilitli
+seçenek varsayılan avatar havuzundan ÇIKAR (`deriveDefaultAvatar(..., isLocked)`)
+— yeni kilitli seçeneği kataloğun SONUNA ekle ve `cosmetics.spec.ts`
+"varsayılan değişmedi" testine güven; kilitsiz seçeneği kaldırmak/araya
+eklemek herkesin varsayılan görünüşünü değiştirir. ⚠️ Avatar düzenleyen testte
+"son seçenek" kilitli olabilir (yaşandı: `avatar.e2e-spec.ts`).
 
 **✅ ÜCRETLİ LOBİ YARIŞI ARTIK KOŞUYOR — ÖDÜL DAĞITIMI VAR (§13.14,
 28.09.2026).** `POST /races/:id/settle` yarışı koşar, ödülleri `top5`

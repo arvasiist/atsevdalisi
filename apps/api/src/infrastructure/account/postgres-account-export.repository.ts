@@ -121,6 +121,10 @@ const SECTION_SQL: Record<AccountExportSectionName, string> = {
     SELECT appearance, updated_at AS "updatedAt"
       FROM player_avatars WHERE player_id = $1 LIMIT $2`,
   // 08.10.2026 — profil fotoğrafı: kimlik (görüntünün adresi) + boyut; depo anahtarı iç ayrıntıdır.
+  // 09.10.2026 — kozmetik sahipliği (elmasla açılan görünüşler).
+  cosmetics: `
+    SELECT item_key AS "itemKey", price_gems AS "priceGems", acquired_at AS "acquiredAt"
+      FROM player_cosmetics WHERE player_id = $1 ORDER BY acquired_at DESC LIMIT $2`,
   profilePhoto: `
     SELECT photo_id AS "photoId", content_type AS "contentType", width, height,
            byte_size AS "byteSize", updated_at AS "updatedAt"

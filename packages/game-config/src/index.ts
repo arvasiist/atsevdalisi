@@ -23,6 +23,7 @@ import type {
   QuestsConfig,
   AchievementsConfig,
   AvatarConfig,
+  CosmeticsConfig,
   StoreConfig,
   BreedsConfig,
   HippodromesConfig,
@@ -94,6 +95,7 @@ import questsConfigJson from '../../../config/quests.config.json';
 import anticheatConfigJson from '../../../config/anticheat.config.json';
 import achievementsConfigJson from '../../../config/achievements.config.json';
 import avatarConfigJson from '../../../config/avatar.config.json';
+import cosmeticsConfigJson from '../../../config/cosmetics.config.json';
 import storeConfigJson from '../../../config/store.config.json';
 import breedsConfigJson from '../../../config/breeds.config.json';
 import hippodromesConfigJson from '../../../config/hippodromes.config.json';
@@ -324,6 +326,11 @@ export function loadHorsePersonalityConfig(): HorsePersonalityConfig {
 /** 07.10.2026 — avatar kataloğu (manuel oluşturucu + özelleştirme). */
 export function loadAvatarConfig(): AvatarConfig {
   return avatarConfigJson as unknown as AvatarConfig;
+}
+
+/** 09.10.2026 — kozmetik mağaza (elmasla yalnızca görünüş). */
+export function loadCosmeticsConfig(): CosmeticsConfig {
+  return cosmeticsConfigJson as unknown as CosmeticsConfig;
 }
 
 /** 03.10.2026 — başarımlar (yaşam boyu hedefler, tek seferlik ödül). */

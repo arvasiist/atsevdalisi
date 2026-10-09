@@ -4,6 +4,8 @@ import {
   loadBreedsConfig,
   loadHippodromesConfig,
   loadEquipmentConfig,
+  loadAvatarConfig,
+  loadCosmeticsConfig,
   loadCareConfig,
   loadChatConfig,
   loadEconomyConfig,
@@ -32,6 +34,7 @@ import { validateHippodromesConfig } from '../../domain/race/hippodrome';
 import { validateHorseLevelBrackets } from '../../domain/race/level-bracket';
 import { validateFriendGiftConfig } from '../../domain/social/friend-gift';
 import { validateGemPolicy } from '../../domain/economy/gem-policy';
+import { validateCosmeticsConfig } from '../../domain/cosmetics/cosmetics';
 import { validateTribuneGiftsConfig } from '../../domain/grandstand/tribune-gift';
 import { validateEquipmentConfig } from '../../domain/equipment/catalog';
 import { validateHorsePersonalityConfig } from '../../domain/horse/personality';
@@ -201,6 +204,12 @@ export class AppConfigService {
     const gemProblems = validateGemPolicy(this.care, this.gift);
     if (gemProblems.length > 0) {
       throw new Error(`Elmas politikası ihlali (config/care.config.json, config/gift.config.json): ${gemProblems.join(' ')}`);
+    }
+    // 09.10.2026 — kozmetik mağaza: ürün avatar kataloğunda olmalı, her
+    // katalogda ücretsiz seçenek kalmalı (bozuksa API AÇILMAZ).
+    const cosmeticProblems = validateCosmeticsConfig(loadCosmeticsConfig(), loadAvatarConfig());
+    if (cosmeticProblems.length > 0) {
+      throw new Error(`Kozmetik mağaza config'i geçersiz (config/cosmetics.config.json): ${cosmeticProblems.join(' ')}`);
     }
     const hippodromeProblems = validateHippodromesConfig(this.hippodromes);
     if (hippodromeProblems.length > 0) {

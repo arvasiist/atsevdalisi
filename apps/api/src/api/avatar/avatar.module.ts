@@ -2,6 +2,10 @@ import { Module } from '@nestjs/common';
 import { AVATAR_GENERATION_PROVIDER } from '../../application/ports/avatar-generation.provider';
 import { AVATAR_JOB_REPOSITORY } from '../../application/ports/avatar-job.repository';
 import { AVATAR_REPOSITORY } from '../../application/ports/avatar.repository';
+import { COSMETICS_REPOSITORY } from '../../application/ports/cosmetics.repository';
+import { CosmeticsUseCase } from '../../application/use-cases/cosmetics.use-case';
+import { PostgresCosmeticsRepository } from '../../infrastructure/cosmetics/postgres-cosmetics.repository';
+import { CosmeticsController } from '../cosmetics/cosmetics.controller';
 import { AVATAR_STORAGE } from '../../application/ports/avatar-storage';
 import { PROFILE_PHOTO_REPOSITORY } from '../../application/ports/profile-photo.repository';
 import { MODERATION_REPOSITORY } from '../../application/ports/moderation.repository';
@@ -38,9 +42,13 @@ import { AdminProfilePhotoController, ProfilePhotoController } from './profile-p
     AdminAvatarJobsController,
     ProfilePhotoController,
     AdminProfilePhotoController,
+    // 09.10.2026 — kozmetik mağaza avatarın seçeneklerini açar (aynı modül).
+    CosmeticsController,
   ],
   providers: [
     AvatarUseCase,
+    CosmeticsUseCase,
+    { provide: COSMETICS_REPOSITORY, useClass: PostgresCosmeticsRepository },
     AvatarGenerationUseCase,
     ProfilePhotoUseCase,
     AvatarGenerationScheduler,

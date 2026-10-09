@@ -1719,6 +1719,15 @@ Yanıt `{ period, startsAt, endsAt, standings[], me }`; satır `{ rank, playerId
 score, raceCount }`. Sezonla aynı formül; pencere Türkiye saatiyle (hafta pazartesi, ay 1'i). Ödül yok.
 `GET /races` satırında `calendar: { programId, featured }` — öne çıkan program yarışları listenin başında.
 
+**Kozmetik mağaza (09.10.2026, migration 0082):**
+- `GET /cosmetics` — `{ gems, items: CosmeticItemView[] }` (ürün config'ten: anahtar, ad, avatar kataloğu +
+  seçenek, renk önizlemesi, `priceGems`, `owned`).
+- `POST /cosmetics/:key/purchase` — `Idempotency-Key` ZORUNLU; 200 `{ item, gems }`. Elmas düşer +
+  `player_cosmetics` + `cosmetic_purchase` defter satırı (elmas) tek transaction. 404 `COSMETIC_NOT_FOUND`,
+  409 `COSMETIC_ALREADY_OWNED`, 409 `INSUFFICIENT_FUNDS`.
+- `PUT /avatar` — mağazadan açılan seçenek (ör. kilitli forma rengi) sahibi değilse 409 `COSMETIC_NOT_OWNED`.
+  Varsayılan avatar kilitli seçenek SEÇMEZ.
+
 **Elmas politikası (09.10.2026):** elmas yalnızca görünüş/kolaylık. Yem çiple satılır; hediyede
 `currency: "gems"` 400 `GIFT_CURRENCY_NOT_ALLOWED` (`gift.allowedCurrencies` yalnızca `money`). Kural
 `validateGemPolicy` ile API açılışında denetlenir.

@@ -66,6 +66,7 @@ export const LEDGER_TYPE_LABELS: Record<LedgerTransactionType, string> = {
   gem_purchase_refund: 'Elmas satın alımı iadesi',
   breed_horse_purchase: 'Yetiştiriciden at alımı',
   equipment_purchase: 'Ekipman alımı',
+  cosmetic_purchase: 'Kozmetik alımı',
   event_reward: 'Etkinlik ödülü',
   admin_adjustment: 'Yönetim düzeltmesi',
   friend_gift_collect: 'Dostluk hediyesi',

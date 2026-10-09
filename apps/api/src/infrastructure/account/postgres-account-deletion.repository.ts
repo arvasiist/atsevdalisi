@@ -112,6 +112,8 @@ export class PostgresAccountDeletionRepository implements AccountDeletionReposit
       await client.query('DELETE FROM player_avatars WHERE player_id = $1', [playerId]);
       // 08.10.2026 — profil fotoğrafı satırı (dosyayı use-case transaction'dan ÖNCE siler).
       await client.query('DELETE FROM player_photos WHERE player_id = $1', [playerId]);
+      // 09.10.2026 — kozmetik sahipliği (mali iz `cosmetic_purchase` defterde kalır).
+      await client.query('DELETE FROM player_cosmetics WHERE player_id = $1', [playerId]);
       // AI avatar kayıtları — depodaki DOSYALARI use-case bu transaction'dan ÖNCE
       // siler (`AvatarGenerationUseCase.purge`); burası satırlar için yedek kapıdır.
       await client.query('DELETE FROM player_ai_avatars WHERE player_id = $1', [playerId]);

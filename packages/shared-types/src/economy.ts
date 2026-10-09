@@ -151,6 +151,8 @@ export const LEDGER_TRANSACTION_TYPES = [
   'breed_horse_purchase',
   /** 08.10.2026 — katalogdan ekipman alımı (referansı alınan `horse_equipment` satırı). */
   'equipment_purchase',
+  /** 09.10.2026 — elmasla kozmetik alımı (referansı ürün anahtarı; yalnızca görünüş). */
+  'cosmetic_purchase',
   /** 02.10.2026 (Faz 11-B) — yönetimin açtığı süreli etkinliğin ödülü. */
   'event_reward',
   /**
@@ -261,6 +263,8 @@ export const CANONICAL_BY_LEDGER_TYPE: Record<LedgerTransactionType, CanonicalTr
   breed_horse_purchase: 'MARKET',
   // 08.10.2026 — ekipman bir bakım/donanım gideridir (yem ile aynı aile).
   equipment_purchase: 'UPKEEP',
+  // 09.10.2026 — mağazadan görünüş alımı (ırk mağazası gibi bir pazar harcaması).
+  cosmetic_purchase: 'MARKET',
   event_reward: 'REWARD',
   admin_adjustment: 'ADJUSTMENT',
   // Oyuncudan oyuncuya TRANSFER değildir (gönderen ödemez) → GIFT değil REWARD.

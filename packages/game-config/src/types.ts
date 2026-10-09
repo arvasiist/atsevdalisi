@@ -2353,6 +2353,24 @@ export interface BreedsConfig {
 /** Avatar kataloğunun alanları (`generation` sınırları HARİÇ). */
 export type AvatarCatalogKey = Exclude<keyof AvatarConfig, 'generation' | 'photo'>;
 
+/**
+ * 09.10.2026 — KOZMETİK MAĞAZA (elmas politikası: yalnızca görünüş). Her ürün
+ * avatar kataloğundaki BİR seçeneği (katalog + seçenek kimliği) açar; o seçenek
+ * sahibi olmayan için kilitlidir. Varsayılan avatar kilitli seçeneği seçmez.
+ */
+export interface CosmeticItemConfig {
+  /** Kalıcı kimlik — `player_cosmetics.item_key`. Değiştirmek yeni ürün demektir. */
+  key: string;
+  name: string;
+  catalog: AvatarCatalogKey;
+  optionId: string;
+  priceGems: number;
+}
+
+export interface CosmeticsConfig {
+  items: CosmeticItemConfig[];
+}
+
 /** 03.10.2026 — başarım tanımı; ölçüt `ACHIEVEMENT_METRICS`ten (shared-types). */
 export interface AchievementDefinitionConfig {
   key: string;

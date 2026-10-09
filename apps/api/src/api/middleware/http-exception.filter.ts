@@ -1,3 +1,4 @@
+import { CosmeticAlreadyOwnedError, CosmeticNotFoundError, CosmeticNotOwnedError } from '../../domain/cosmetics/errors';
 import {
   InvalidWebhookError,
   PaymentLimitReachedError,
@@ -502,6 +503,10 @@ const DOMAIN_ERROR_MAP = new Map<ErrorClassConstructor, { status: number; code: 
   [QuestNotCompletedError, { status: HttpStatus.CONFLICT, code: ErrorCode.QuestNotCompleted }],
   [QuestAlreadyClaimedError, { status: HttpStatus.CONFLICT, code: ErrorCode.QuestAlreadyClaimed }],
   [InvalidAvatarError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.InvalidAvatar }],
+  // 09.10.2026 — kozmetik mağaza (elmas politikası).
+  [CosmeticNotFoundError, { status: HttpStatus.NOT_FOUND, code: ErrorCode.CosmeticNotFound }],
+  [CosmeticAlreadyOwnedError, { status: HttpStatus.CONFLICT, code: ErrorCode.CosmeticAlreadyOwned }],
+  [CosmeticNotOwnedError, { status: HttpStatus.CONFLICT, code: ErrorCode.CosmeticNotOwned }],
   [PaymentUnavailableError, { status: HttpStatus.SERVICE_UNAVAILABLE, code: ErrorCode.PaymentUnavailable }],
   [StoreProductNotFoundError, { status: HttpStatus.NOT_FOUND, code: ErrorCode.StoreProductNotFound }],
   [PaymentLimitReachedError, { status: HttpStatus.CONFLICT, code: ErrorCode.PaymentLimitReached }],

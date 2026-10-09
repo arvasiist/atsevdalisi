@@ -3,9 +3,9 @@ import type { Pool } from 'pg';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { AvatarView, PlayerProfileView } from '@at-sevdalisi/shared-types';
-import { loadAvatarConfig } from '@at-sevdalisi/game-config';
+import { loadAvatarConfig, loadCosmeticsConfig } from '@at-sevdalisi/game-config';
 import { PG_POOL } from '../../src/infrastructure/database/database.module';
-import { avatarOptions } from '../../src/domain/avatar/avatar';
+import { AVATAR_CATALOG_KEYS, avatarOptions } from '../../src/domain/avatar/avatar';
 import { bootstrapTestApp, registerTestPlayer, type RegisteredTestPlayer } from './test-helpers';
 
 /**
@@ -69,7 +69,14 @@ describe('Avatar (e2e)', () => {
     const otherBefore = await get(other);
     const choice = Object.fromEntries(
       Object.keys((await get(player)).appearance).map((field) => {
-        const options = avatarOptions(field as never, config);
+        // 09.10.2026 — mağazadan açılan (kilitli) seçenekler hariç: onlar
+        // `cosmetics.e2e-spec.ts`in konusu (sahip olmadan 409).
+        const locked = new Set(
+          loadCosmeticsConfig()
+            .items.filter((item) => item.catalog === AVATAR_CATALOG_KEYS[field as keyof typeof AVATAR_CATALOG_KEYS])
+            .map((item) => item.optionId),
+        );
+        const options = avatarOptions(field as never, config).filter((option) => !locked.has(option));
         return [field, options[options.length - 1]];
       }),
     );

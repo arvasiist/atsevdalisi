@@ -75,6 +75,10 @@ export const ErrorCode = {
   HorseLevelNotAllowed: 'HORSE_LEVEL_NOT_ALLOWED',
   /** 09.10.2026 — kulüp içi yarışa kulüp üyesi olmayan katılamaz (409). */
   RaceClubOnly: 'RACE_CLUB_ONLY',
+  /** 09.10.2026 — kozmetik mağaza: ürün yok (404), zaten sahip (409), sahip olunmayan seçenek (409). */
+  CosmeticNotFound: 'COSMETIC_NOT_FOUND',
+  CosmeticAlreadyOwned: 'COSMETIC_ALREADY_OWNED',
+  CosmeticNotOwned: 'COSMETIC_NOT_OWNED',
   InvalidTribuneGift: 'INVALID_TRIBUNE_GIFT',
   TribuneGiftNotAllowed: 'TRIBUNE_GIFT_NOT_ALLOWED',
   TribuneGiftDailyLimit: 'TRIBUNE_GIFT_DAILY_LIMIT',

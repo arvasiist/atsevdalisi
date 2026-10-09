@@ -1,12 +1,19 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import type { AvatarAppearance, AvatarView, ProfilePhotoView } from '@at-sevdalisi/shared-types';
-import { loadAvatarConfig } from '@at-sevdalisi/game-config';
-import { deriveDefaultAvatar, validateAvatarAppearance } from '../../domain/avatar/avatar';
+import { loadAvatarConfig, loadCosmeticsConfig } from '@at-sevdalisi/game-config';
+import { AVATAR_CATALOG_KEYS, deriveDefaultAvatar, validateAvatarAppearance } from '../../domain/avatar/avatar';
 import { InvalidAvatarError } from '../../domain/avatar/errors';
+import { assertAvatarCosmeticsOwned, optionRef, premiumOptionIndex } from '../../domain/cosmetics/cosmetics';
 import { AVATAR_REPOSITORY, type AvatarRepository } from '../ports/avatar.repository';
+import { COSMETICS_REPOSITORY, type CosmeticsRepository } from '../ports/cosmetics.repository';
 import { PROFILE_PHOTO_REPOSITORY, type ProfilePhotoRepository } from '../ports/profile-photo.repository';
 
 const config = loadAvatarConfig();
+const cosmetics = loadCosmeticsConfig();
+const premiumOptions = premiumOptionIndex(cosmetics);
+/** 09.10.2026 — mağazadan açılan seçenekler varsayılan avatarda seçilmez. */
+const isLocked = (catalog: Parameters<typeof optionRef>[0], optionId: string): boolean =>
+  premiumOptions.has(optionRef(catalog, optionId));
 
 /**
  * MANUEL AVATAR (07.10.2026, brief §44/§49). Oyuncu kataloğdan seçer; sunucu
@@ -20,6 +27,7 @@ export class AvatarUseCase {
   constructor(
     @Inject(AVATAR_REPOSITORY) private readonly repository: AvatarRepository,
     @Inject(PROFILE_PHOTO_REPOSITORY) private readonly photos: ProfilePhotoRepository,
+    @Inject(COSMETICS_REPOSITORY) private readonly cosmeticsRepository: CosmeticsRepository,
   ) {}
 
   async get(playerId: string): Promise<AvatarView> {
@@ -39,7 +47,7 @@ export class AvatarUseCase {
         this.logger.warn(`Kayıtlı avatar artık katalogla uyuşmuyor (oyuncu ${playerId}); varsayılan gösteriliyor.`);
       }
     }
-    return { appearance: deriveDefaultAvatar(playerId, config), source: 'default', updatedAt: null, photo };
+    return { appearance: deriveDefaultAvatar(playerId, config, isLocked), source: 'default', updatedAt: null, photo };
   }
 
   /** Profil fotoğrafı (08.10.2026); yoksa `null`. */
@@ -57,6 +65,9 @@ export class AvatarUseCase {
 
   async save(playerId: string, raw: unknown, now: Date = new Date()): Promise<AvatarView> {
     const appearance = validateAvatarAppearance(raw, config);
+    // 09.10.2026 — mağazadan açılan seçenek yalnızca sahibine (sahiplik geri
+    // alınmadığı için kilitsiz okuma yeterli).
+    assertAvatarCosmeticsOwned(appearance, AVATAR_CATALOG_KEYS, await this.cosmeticsRepository.listOwnedKeys(playerId), cosmetics);
     const stored = await this.repository.save(playerId, appearance, now);
     return { appearance, source: 'manual', updatedAt: stored.updatedAt.toISOString(), photo: await this.photoOf(playerId) };
   }

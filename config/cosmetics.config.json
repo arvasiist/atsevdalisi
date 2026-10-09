@@ -1,0 +1,8 @@
+{
+  "items": [
+    { "key": "silk-turquoise", "name": "Turkuaz Forma", "catalog": "silkColors", "optionId": "turquoise", "priceGems": 40 },
+    { "key": "silk-orange", "name": "Turuncu Forma", "catalog": "silkColors", "optionId": "orange", "priceGems": 40 },
+    { "key": "silk-pink", "name": "Pembe Forma", "catalog": "silkColors", "optionId": "pink", "priceGems": 40 },
+    { "key": "silk-silver", "name": "Gümüş Forma", "catalog": "silkColors", "optionId": "silver", "priceGems": 60 }
+  ]
+}

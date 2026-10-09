@@ -48,6 +48,8 @@ const OPTION_LABELS: Record<string, string> = {
   glasses: 'Gözlük', scarf: 'Atkı', medal: 'Madalya',
   solid: 'Düz', stripes: 'Dikey çizgili', hoops: 'Yatay çizgili', halves: 'İki renk',
   gold: 'Altın', red: 'Kırmızı', blue: 'Mavi', green: 'Yeşil', white: 'Beyaz', purple: 'Mor',
+  // 09.10.2026 — kozmetik mağazadan açılan forma renkleri.
+  turquoise: 'Turkuaz', orange: 'Turuncu', pink: 'Pembe', silver: 'Gümüş',
 };
 
 export function avatarOptions(field: AvatarField): string[] {

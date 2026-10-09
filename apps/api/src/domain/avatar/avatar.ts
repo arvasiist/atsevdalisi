@@ -36,10 +36,20 @@ export function avatarOptions(field: AvatarField, config: AvatarConfig): string[
   return Array.isArray(entry) ? [...entry] : Object.keys(entry);
 }
 
-export function deriveDefaultAvatar(playerId: string, config: AvatarConfig): AvatarAppearance {
+/**
+ * `isLocked` (09.10.2026): mağazadan açılan seçenekler varsayılan havuzdan
+ * çıkarılır — kimse ödemeden kilitli görünüşe sahip olmaz ve kataloğa yeni
+ * kilitli seçenek eklemek mevcut oyuncuların varsayılanını DEĞİŞTİRMEZ.
+ */
+export function deriveDefaultAvatar(
+  playerId: string,
+  config: AvatarConfig,
+  isLocked: (catalog: AvatarCatalogKey, optionId: string) => boolean = () => false,
+): AvatarAppearance {
   const appearance = {} as AvatarAppearance;
   for (const field of AVATAR_FIELDS) {
-    const options = avatarOptions(field, config);
+    const catalog = AVATAR_CATALOG_KEYS[field];
+    const options = avatarOptions(field, config).filter((option) => !isLocked(catalog, option));
     const roll = createSeededRandom(`${playerId}:avatar:${field}`)();
     appearance[field] = options[Math.min(options.length - 1, Math.floor(roll * options.length))]!;
   }

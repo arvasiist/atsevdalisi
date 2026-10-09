@@ -25,3 +25,4 @@ export * from './achievements';
 export * from './avatar';
 export * from './payments';
 export * from './breeds';
+export * from './cosmetics';
