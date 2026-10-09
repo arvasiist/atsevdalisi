@@ -850,6 +850,12 @@ Tekrar koruması `club_invites_pending_uq` (kulüp, davetli) WHERE pending.
 sırasıyla → üyelik; yalnızca kabul edilen satırı kilitlemek eşzamanlı iki
 kabulde kilitlenme döngüsü yaratırdı. Başkasının davetine yanıt 404.
 `club_invites` silme + dışa aktarma (`clubInvites`) listelerinde.
+(79) **LOBİ LİSTESİ SIRASI (09.10.2026, §13.103)** — `GET /races` sınırlıdır
+ve takvim sınırdan fazla yarış açık tutar; sıra katmanlıdır: çağıranın
+yarışları → öne çıkan program → turnuva → kalan (başlangıca göre). ⚠️
+Başka oyuncuların yarışlarını takvimin ÖNÜNE alan bir katman ekleme — çok
+oyunculu anda takvim listeden tamamen silinir; ⚠️ katılınan yarışın listede
+kalması "hazır" düğmesinin tek yoludur.
 
 **✅ ÜCRETLİ LOBİ YARIŞI ARTIK KOŞUYOR — ÖDÜL DAĞITIMI VAR (§13.14,
 28.09.2026).** `POST /races/:id/settle` yarışı koşar, ödülleri `top5`

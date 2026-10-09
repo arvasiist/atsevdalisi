@@ -4433,6 +4433,21 @@ Karar: önce pratik yarış; kırbaç sınırsız, dayanıklılık bedelli.
   (CHECK artık 0080'de), web `club-invite-logic.spec.ts`; tarayıcıda lider
   formu (masaüstü) + gelen davet + bildirim + kabul (telefon).
 
+### 13.103 Lobi listesi: kendi yarışın takvim yığınında kaybolmaz (09.10.2026)
+
+- Hata: takvim aynı anda ~35 yarış açık tutar, `GET /races` varsayılan 20
+  satır döner ve salt başlangıç saatine göre kesiyordu. Oyuncunun açtığı ya
+  da KATILDIĞI geç başlayan yarış listeden düşebiliyordu — katıldığı yarışı
+  göremeyen oyuncu "hazır" diyemez, katılımı start'ta iptal olur.
+- Düzeltme (yalnızca sıralama, `listLobbyRaces`): katmanlar (0) çağıranın
+  yarışları, (1) öne çıkan program, (2) turnuva, (3) kalan; katman içinde
+  başlangıç saati. "Başka oyuncunun yarışı" ayrı bir katman YAPILMADI: çok
+  oyuncu yarış açınca takvimi listeden tamamen silerdi (`race-calendar`
+  e2e'si bu denemeyi yakaladı).
+- Kanıt: `race-lobby-list-order.e2e-spec.ts` (gerçek takvim turu; düzeltme
+  geri alınınca iki test de kırılıyor — doğrulandı) + listeyi okuyan beş e2e
+  dosyası yeşil.
+
 ## 14. Kendime hatırlatmalar (kısa liste)
 
 1. **Race Engine'e dokunmadan önce iki kez düşün.** Denetim onu "KEEP, dokunma"

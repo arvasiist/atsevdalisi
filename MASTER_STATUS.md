@@ -243,8 +243,8 @@ raporu, varlık rehberi). `README.md`/`ROADMAP.md` faz tabloları BAYAT
 
 - Bilinen açık hata YOK.
 - Ölçülmüş tasarım riski: yarış sürpriz payı dar (`RACE_BALANCE_REPORT.md` §2c).
-- Küçük arayüz notu: yeni açılan lobi yarışı, takvim yarışları listenin başına
-  sıralandığı için ilk sayfada görünmeyebilir (liste sınırı 20).
+- 09.10.2026'da kapatılan: takvim liste sınırından fazla yarış açık tuttuğu için
+  oyuncunun açtığı/katıldığı geç yarış lobi listesinden düşebiliyordu (artık başta).
 
 ## Missing Features
 

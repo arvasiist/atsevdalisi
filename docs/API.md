@@ -1719,6 +1719,12 @@ Yanıt `{ period, startsAt, endsAt, standings[], me }`; satır `{ rank, playerId
 score, raceCount }`. Sezonla aynı formül; pencere Türkiye saatiyle (hafta pazartesi, ay 1'i). Ödül yok.
 `GET /races` satırında `calendar: { programId, featured }` — öne çıkan program yarışları listenin başında.
 
+**`GET /races` sırası (09.10.2026):** liste sınırlıdır (`limit`, varsayılan `lobbyListDefaultLimit`),
+katmanlar sırayla — (0) çağıranın yarışları (iptal edilmemiş katılımı var ya da o açtı), (1) öne çıkan
+takvim programı, (2) turnuva, (3) kalan (başka oyuncuların yarışları + takvim, karışık); her katmanda
+`startTime` artan. Takvim aynı anda sınırdan fazla yarış açık tuttuğu için çağıranın katıldığı geç yarış
+eskiden listeden düşebiliyordu.
+
 ### Bakiye düzeltmesi + at araması (Faz 10, 02.10.2026)
 
 - `POST /admin/players/:playerId/balance-adjustments` — yalnızca yönetici; `Idempotency-Key` zorunlu.

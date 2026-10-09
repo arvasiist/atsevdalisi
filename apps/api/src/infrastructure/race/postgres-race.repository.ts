@@ -1476,10 +1476,25 @@ export class PostgresRaceRepository implements RaceRepository {
        LEFT JOIN race_calendar_slots c ON c.race_id = r.id
        WHERE r.status = $1
        GROUP BY r.id, t.tier, t.min_player_level, c.program_id
-       -- 02.10.2026 (Faz 11): öne çıkan (özel) program yarışları liste sınırına
-       -- takılmasın — günler önceden açılan derbi, sıradaki kısa yarışların
-       -- arkasında kaybolmasın diye başa alınır.
-       ORDER BY (c.program_id = ANY($4::text[])) DESC NULLS LAST, r.start_time ASC
+       -- Liste SINIRLIDIR (varsayılan 20) ama takvim aynı anda bundan fazla
+       -- yarış açık tutar; salt başlangıç saatine göre kesmek oyuncunun
+       -- açtığı ya da KATILDIĞI geç yarışı listeden düşürüyordu (katıldığı
+       -- yarışı göremeyen oyuncu "hazır" diyemez → katılımı start'ta iptal).
+       -- Katmanlar (09.10.2026), her katmanda başlangıç saatine göre:
+       --   0 çağıranın yarışı (iptal edilmemiş katılımı var ya da o açtı)
+       --   1 öne çıkan takvim programı (02.10.2026, Faz 11 — derbi)
+       --   2 turnuva
+       --   3 kalan: başka oyuncuların yarışları + sıradan takvim yuvaları
+       --     KARIŞIK. Oyuncu yarışlarını takvimin önüne almak, çok oyuncu
+       --     yarış açtığında takvimi listeden tamamen silerdi.
+       ORDER BY CASE
+                  WHEN COALESCE(BOOL_OR(e.player_id = $3 AND e.status IS DISTINCT FROM 'cancelled'), false)
+                       OR r.created_by = $3 THEN 0
+                  WHEN c.program_id = ANY($4::text[]) THEN 1
+                  WHEN t.tier IS NOT NULL THEN 2
+                  ELSE 3
+                END,
+                r.start_time ASC
        LIMIT $2`,
       [
         input.status,
