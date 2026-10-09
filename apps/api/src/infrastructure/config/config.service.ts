@@ -13,6 +13,7 @@ import {
   loadGrandstandConfig,
   loadHorseGrowthConfig,
   loadHorseAppearanceConfig,
+  loadHorsePersonalityConfig,
   loadInteractiveRaceConfig,
   loadJockeyConfig,
   loadOnlineConfig,
@@ -32,6 +33,7 @@ import { validateHorseLevelBrackets } from '../../domain/race/level-bracket';
 import { validateFriendGiftConfig } from '../../domain/social/friend-gift';
 import { validateTribuneGiftsConfig } from '../../domain/grandstand/tribune-gift';
 import { validateEquipmentConfig } from '../../domain/equipment/catalog';
+import { validateHorsePersonalityConfig } from '../../domain/horse/personality';
 
 /**
  * Ortam değişkenleri + oyun dengesi config'lerine tek noktadan erişim.
@@ -150,6 +152,8 @@ export class AppConfigService {
   readonly staff = loadStaffConfig();
   /** 01.10.2026 — atın görünüşü (don/işaret ağırlıkları + kalıtım). */
   readonly horseAppearance = loadHorseAppearanceConfig();
+  /** 08.10.2026 — atın kişiliği (doğuş çeşitliliği, antrenman etkileri, etiket). */
+  readonly horsePersonality = loadHorsePersonalityConfig();
   // 01.10.2026 — oyuncu kontrollü pratik yarışın canlı oturum ayarları.
   readonly interactiveRace = loadInteractiveRaceConfig();
   /** 07.10.2026 — at ırkları: ücretsiz başlangıç ırkı (en zayıf) + ırk mağazası. */
@@ -174,6 +178,10 @@ export class AppConfigService {
     const tribuneGiftProblems = validateTribuneGiftsConfig(this.grandstand.tribuneGifts);
     if (tribuneGiftProblems.length > 0) {
       throw new Error(`Tribün hediyesi config'i geçersiz (config/grandstand.config.json): ${tribuneGiftProblems.join(' ')}`);
+    }
+    const personalityProblems = validateHorsePersonalityConfig(this.horsePersonality);
+    if (personalityProblems.length > 0) {
+      throw new Error(`Kişilik config'i geçersiz (config/horse-personality.config.json): ${personalityProblems.join(' ')}`);
     }
     const hippodromeProblems = validateHippodromesConfig(this.hippodromes);
     if (hippodromeProblems.length > 0) {

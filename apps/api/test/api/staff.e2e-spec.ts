@@ -236,7 +236,12 @@ describe('Personel (e2e)', () => {
     expect(expectedMultiplier).toBeGreaterThan(1);
 
     const reset = async () => {
-      await pool.query('UPDATE horse_stats SET speed = 50 WHERE horse_id = $1', [player.horseId]);
+      // Kişilik nötr (08.10.2026): başlangıç atı odak/rekabetçilik/stres
+      // dayanımını kimliğinden alır; ölçülen şey yalnızca antrenör çarpanı.
+      await pool.query(
+        'UPDATE horse_stats SET speed = 50, focus = 50, competitiveness = 50, stress_resistance = 50, obedience = 50 WHERE horse_id = $1',
+        [player.horseId],
+      );
       // `status` de sıfırlanır: antrenman rastgele sakatlık üretebilir
       // (`rollInjuryOccurred`) ve sakat at ikinci antrenmanı 409 ile reddeder —
       // CI'da yaşandı (02.10.2026, kararsız düşüş). Ölçülen şey kazanç

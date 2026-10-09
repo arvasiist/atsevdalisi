@@ -1,4 +1,5 @@
 import type { Pool, PoolClient } from 'pg';
+import { loadHorsePersonalityConfig } from '@at-sevdalisi/game-config';
 import type { Horse } from '@at-sevdalisi/shared-types';
 import {
   BREED_DISTANCE_COLUMNS,
@@ -7,6 +8,9 @@ import {
   BREED_SURFACE_KEYS,
   type BreedInitialStats,
 } from '../../domain/horse/breeds';
+import { PERSONALITY_TRAIT_COLUMNS, PERSONALITY_TRAIT_KEYS, deriveBirthPersonality } from '../../domain/horse/personality';
+
+const personalityConfig = loadHorsePersonalityConfig();
 
 /**
  * `horses` tablosunun satır şekli + okuma/yazma yardımcıları.
@@ -120,6 +124,10 @@ export async function writeHorseRow(executor: Pool | PoolClient, horse: Horse): 
  * `initial` verilmezse statlar DB varsayılanlarında kalır (migration 0003).
  * Verilirse yalnızca ırkın tanımladığı sütunlar yazılır; sütun adları kapalı
  * kümeden (`BREED_*_KEYS`) gelir, kullanıcı girdisi DEĞİLDİR.
+ *
+ * 08.10.2026 — gizli kişilik özellikleri (`temperament` HARİÇ) at kimliğinden
+ * determinist doğar (`deriveBirthPersonality`); önceden her at 50'deydi.
+ * Tay bu yoldan geçmez — kişiliğini ebeveynlerinden alır (genetik).
  */
 export async function insertNewHorse(client: PoolClient, horse: Horse, initial?: BreedInitialStats): Promise<void> {
   await client.query(
@@ -152,7 +160,10 @@ export async function insertNewHorse(client: PoolClient, horse: Horse, initial?:
       horse.appearance.legMarking,
     ],
   );
-  await insertWithValues(client, 'horse_stats', horse.id, columnValues(initial?.stats, BREED_STAT_KEYS, (key) => key));
+  await insertWithValues(client, 'horse_stats', horse.id, [
+    ...columnValues(initial?.stats, BREED_STAT_KEYS, (key) => key),
+    ...columnValues(deriveBirthPersonality(horse.id, personalityConfig), PERSONALITY_TRAIT_KEYS, (key) => PERSONALITY_TRAIT_COLUMNS[key]),
+  ]);
   await client.query('INSERT INTO horse_health (horse_id) VALUES ($1)', [horse.id]);
   await insertNewHorseTrackStats(client, horse.id, initial);
 }

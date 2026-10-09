@@ -2414,3 +2414,42 @@ export interface EquipmentCatalogItemConfig {
 export interface EquipmentCatalogConfig {
   catalog: EquipmentCatalogItemConfig[];
 }
+
+/**
+ * 08.10.2026 — atın kişiliği (`horse_stats` gizli özellikleri). Yalnızca
+ * MOTOR DIŞI yollara etki eder (antrenman); `temperament` motordadır ve
+ * doğuşta nötr kalır (`birth.traits`ta YOK). Etkiler `neutral`dan sapma
+ * başına çarpandır: `1 + perPoint × (değer − neutral)` — 50 = tam no-op.
+ * Etiketler sayılardan TÜRETİLİR (ikinci doğruluk kaynağı yok); ham değer
+ * istemciye GİTMEZ.
+ */
+export type HorsePersonalityTraitKey =
+  | 'temperament'
+  | 'focus'
+  | 'courage'
+  | 'competitiveness'
+  | 'stressResistance'
+  | 'obedience';
+
+export interface HorsePersonalityLabelText {
+  label: string;
+  hint: string;
+}
+
+export interface HorsePersonalityConfig {
+  neutral: number;
+  birth: { traits: HorsePersonalityTraitKey[]; spread: number };
+  effects: {
+    focusTrainingGainPerPoint: number;
+    stressResistanceFatiguePerPoint: number;
+    obedienceInjuryRiskPerPoint: number;
+    competitivenessIntensityGainPerPoint: Record<'low' | 'medium' | 'high', number>;
+  };
+  labels: {
+    highThreshold: number;
+    lowThreshold: number;
+    maxLabels: number;
+    balanced: HorsePersonalityLabelText;
+    traits: Record<HorsePersonalityTraitKey, { high: HorsePersonalityLabelText; low: HorsePersonalityLabelText }>;
+  };
+}

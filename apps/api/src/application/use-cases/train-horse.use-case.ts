@@ -14,6 +14,7 @@ import {
   HorseListedInMarketError,
   HorseNotFoundError,
 } from '../../domain/horse/errors';
+import { computePersonalityTrainingEffects } from '../../domain/horse/personality';
 import { applyVitalDelta } from '../../domain/horse/vital-signs';
 import { applyXpGain } from '../../domain/progression/progression';
 import { ManageStaffUseCase } from './manage-staff.use-case';
@@ -48,6 +49,9 @@ export interface TrainHorseInput {
  * AUDIT_REPORT.md Bulgu H2 (Medium):
  * Pazarda aktif ilanı olan bir at antrenmana sokulamaz.
  */
+/** `horses` vital sütunlarının ölçeği (NUMERIC(5,2) → 2 ondalık). */
+const VITAL_SCALE = 100;
+
 @Injectable()
 export class TrainHorseUseCase {
   constructor(
@@ -90,6 +94,9 @@ export class TrainHorseUseCase {
     const trainerFactor = await this.staff.multiplierFor(horse.ownerId, 'trainer', now);
     // 01.10.2026 — antrenman pisti × nalbant alanı sakatlık olasılığını düşürür.
     const { trainingInjuryRiskMultiplier } = await this.farmEffects.effectsFor(horse.ownerId);
+    // 08.10.2026 — atın kişiliği (gizli statlar): odak/rekabetçilik → kazanç,
+    // stres dayanımı → yorgunluk, itaat → sakatlık. Nötr (50) at = çarpanlar 1.
+    const personality = computePersonalityTrainingEffects(stats, input.intensity, this.config.horsePersonality);
 
     // AUDIT_REPORT.md Bulgu C2 hardening (bu oturum) — `horseRepository.updateWithLock`
     // (bkz. o metodun doc yorumu, `PlayerRepository.updateWithLock` ile AYNI
@@ -117,15 +124,23 @@ export class TrainHorseUseCase {
         vitals,
         ageMonths,
         trainerFactor,
+        personalityFactor: personality.gainMultiplier,
       });
+      // Yorgunluk çarpanı yalnızca ARTIŞA uygulanır; dinlenmenin (negatif)
+      // toparlaması kişilikle değişmez. Sütun NUMERIC(5,2): yanıt, DB'ye
+      // yazılanla aynı olsun diye 2 haneye yuvarlanır.
+      const fatigueGain =
+        outcome.fatigueGain > 0
+          ? Math.round(outcome.fatigueGain * personality.fatigueMultiplier * VITAL_SCALE) / VITAL_SCALE
+          : outcome.fatigueGain;
 
       const sessionId = randomUUID();
       const injuryRisk = Math.min(
         1,
-        Math.max(0, outcome.injuryRisk * trainingInjuryRiskMultiplier),
+        Math.max(0, outcome.injuryRisk * trainingInjuryRiskMultiplier * personality.injuryRiskMultiplier),
       );
       const injuryOccurred = rollInjuryOccurred(injuryRisk, `${sessionId}:injury`);
-      const newVitals = applyVitalDelta(vitals, { fatigue: outcome.fatigueGain });
+      const newVitals = applyVitalDelta(vitals, { fatigue: fatigueGain });
 
       // 01.10.2026 — XP: at, kilit altında, vitallerle AYNI yazımda ilerler.
       const progression = this.config.progression;
@@ -147,7 +162,7 @@ export class TrainHorseUseCase {
 
       return {
         horse: updatedHorse,
-        result: { sessionId, injuryOccurred, injuryRisk, outcome, newVitals },
+        result: { sessionId, injuryOccurred, injuryRisk, outcome: { ...outcome, fatigueGain }, newVitals },
       };
     });
 

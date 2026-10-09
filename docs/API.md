@@ -337,6 +337,18 @@ dağılımla rastgele** seçilir (`pickStarterHorseGender`, `gelding`
 havuzdan çıkarılmadı). Rastgelelik Application katmanında üretilir, domain
 saf kalır (`pickStarterHorseName` ile AYNI desen).
 
+**KİŞİLİK (08.10.2026).** `GET /api/v1/horses?ownerId=` satırları
+`personality: { traits: [{ trait, pole }] }` taşır (`trait` ∈ temperament,
+focus, courage, competitiveness, stressResistance, obedience; `pole` ∈ high,
+low; en fazla `labels.maxLabels`, boş liste = "Dengeli"). Sunucu gizli
+sayılardan türetir; ham değer DÖNMEZ. Herkese açık `GET /horses/{id}`
+kişilik taşımaz. Metinler `config/horse-personality.config.json`. Yeni at
+(başlangıç + ırk mağazası) odak/cesaret/rekabetçilik/stres dayanımı/itaati
+at kimliğinden determinist `50 ± birth.spread` alır (`temperament` 50).
+Antrenman: odak → kazanç, rekabetçilik → yoğun antrenmanda kazanç artı /
+hafifte eksi, stres dayanımı → yorgunluk artışı, itaat → sakatlık
+olasılığı (nötr = etkisiz; yanıt sözleşmesi değişmedi).
+
 `GET /api/v1/horses/{id}/training-history` (bu turda EKLENDİ —
 docs/AUDIT_REPORT.md "Antrenman geçmişi gösterimi" bulgusunun kapatılması):
 `training_sessions` tablosundan (`train` çağrıldığında zaten yazılıyordu,

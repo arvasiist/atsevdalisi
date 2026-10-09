@@ -1,0 +1,45 @@
+{
+  "neutral": 50,
+  "birth": {
+    "traits": ["focus", "courage", "competitiveness", "stressResistance", "obedience"],
+    "spread": 20
+  },
+  "effects": {
+    "focusTrainingGainPerPoint": 0.004,
+    "stressResistanceFatiguePerPoint": -0.004,
+    "obedienceInjuryRiskPerPoint": -0.006,
+    "competitivenessIntensityGainPerPoint": { "low": -0.003, "medium": 0, "high": 0.003 }
+  },
+  "labels": {
+    "highThreshold": 62,
+    "lowThreshold": 38,
+    "maxLabels": 2,
+    "balanced": { "label": "Dengeli", "hint": "Belirgin bir huyu yok; her işte ortalama." },
+    "traits": {
+      "temperament": {
+        "high": { "label": "Ateşli", "hint": "Yarışa hızlı kalkar, çabuk yorulur." },
+        "low": { "label": "Sakin", "hint": "Ağır kalkar, enerjisini son düzlüğe saklar." }
+      },
+      "focus": {
+        "high": { "label": "Odaklı", "hint": "Antrenmandan daha çok gelişir." },
+        "low": { "label": "Dalgın", "hint": "Antrenmandan daha az gelişir." }
+      },
+      "courage": {
+        "high": { "label": "Cesur", "hint": "Gözü kara bir at." },
+        "low": { "label": "Çekingen", "hint": "Ürkek bir at." }
+      },
+      "competitiveness": {
+        "high": { "label": "Hırslı", "hint": "Yoğun antrenmanda parlar, hafif antrenmanda sıkılır." },
+        "low": { "label": "Rahat", "hint": "Hafif antrenmanda iyi gelişir, yoğun antrenmanda zorlanır." }
+      },
+      "stressResistance": {
+        "high": { "label": "Soğukkanlı", "hint": "Antrenmanda daha az yorulur." },
+        "low": { "label": "Gergin", "hint": "Antrenmanda daha çabuk yorulur." }
+      },
+      "obedience": {
+        "high": { "label": "Uysal", "hint": "Söz dinler; antrenmanda sakatlanma riski düşük." },
+        "low": { "label": "İnatçı", "hint": "Kendini zorlar; antrenmanda sakatlanma riski yüksek." }
+      }
+    }
+  }
+}

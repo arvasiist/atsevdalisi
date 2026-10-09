@@ -76,11 +76,21 @@ export interface HorseStats {
   obedience: number;
 }
 
+/** Gizli kişilik özellikleri (brief §8.2) — ham değerleri istemciye GİTMEZ. */
+export type HiddenHorseTraitKey = 'temperament' | 'focus' | 'courage' | 'competitiveness' | 'stressResistance' | 'obedience';
+
 /** Oyuncuya gösterilen, gizli stat'ları çıkarılmış görünüm (docs/SECURITY.md §9). */
-export type VisibleHorseStats = Omit<
-  HorseStats,
-  'temperament' | 'focus' | 'courage' | 'competitiveness' | 'stressResistance' | 'obedience'
->;
+export type VisibleHorseStats = Omit<HorseStats, HiddenHorseTraitKey>;
+
+/**
+ * 08.10.2026 — atın kişilik ETİKETİ. Sunucu gizli sayılardan türetir
+ * (`domain/horse/personality.ts`); istemci yalnızca hangi özelliğin hangi
+ * uçta belirgin olduğunu görür, sayıyı DEĞİL. Boş liste = "Dengeli".
+ * Metin (`label`/`hint`) `config/horse-personality.config.json`dadır.
+ */
+export interface HorsePersonalityView {
+  traits: Array<{ trait: HiddenHorseTraitKey; pole: 'high' | 'low' }>;
+}
 
 /** brief §7 HorseSurfaceStats */
 export interface HorseSurfaceStats {
@@ -131,6 +141,8 @@ export interface HorseHealth {
  */
 export type PublicHorse = Omit<Horse, 'potential'> & {
   potentialEstimate: { min: number; max: number };
+  /** 08.10.2026 — YALNIZCA sahibinin at listesinde (`GET /horses?ownerId=`) dolar. */
+  personality?: HorsePersonalityView;
 };
 
 /** `HorseStats`'ın `horseId` DIŞINDAKİ alanları — tek bir stat'a atıfta bulunmak

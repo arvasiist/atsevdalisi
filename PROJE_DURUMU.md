@@ -4342,6 +4342,28 @@ Karar: önce pratik yarış; kırbaç sınırsız, dayanıklılık bedelli.
   oyun göstergeleri, 500'de webhook gövdesinde mesaj/sorgu yok),
   `metrics-alerting.spec.ts` (biçim, kaçış, soğuma), `production-env.spec.ts`.
 
+### 13.99 Atın kişiliği oyuna bağlandı + kişilik etiketi
+
+- Atların gizli huyları (odak, cesaret, rekabetçilik, stres dayanımı, itaat)
+  vardı ama hiçbir şeyi değiştirmiyordu ve her at 50'de doğuyordu. Artık
+  yeni atlar farklı huylarla doğar (at kimliğinden, tekrarlanabilir).
+- Huy antrenmanda işe yarar: odaklı at daha çok gelişir, hırslı at yoğun
+  antrenmanda parlar ama hafifte sıkılır (rahat at tersi), soğukkanlı at
+  daha az yorulur, uysal at daha az sakatlanır. Yarış motoru DEĞİŞMEDİ;
+  mizaç (`temperament`) zaten motordaydı ve doğuşta nötr kalır.
+- Ahır kartında "Odaklı · Gergin" gibi en fazla iki etiket (üstüne gelince
+  ne işe yaradığı). Sayı gösterilmez; etiket sunucuda sayılardan türetilir.
+- Eski atlar (hepsi 50) "Dengeli" görünür ve davranışları değişmez; taylar
+  huyu ebeveynlerinden alır (mevcut genetik).
+- Ek: 1280 px masaüstünde üst bar 7 px taşıyordu (bakiye "+" düğmeleri
+  sonrası); menü aralığı sıkılaştırıldı, 900–1600 px arası taşma yok.
+- Kanıt: `personality.spec.ts` (determinizm, aralık, çeşitlilik, nötr = no-op,
+  yönler, rekabetçilik ödünleşimi, tavan, etiket, bozuk config),
+  `horse-personality.e2e-spec.ts` (doğuş = türetilen değer, liste etiketi =
+  DB'den türetilen, sayı/herkese açık uçta etiket yok, antrenman formülle
+  birebir), web `personality-labels.spec.ts`; tarayıcıda ahır kartı
+  (masaüstü + telefon).
+
 ## 14. Kendime hatırlatmalar (kısa liste)
 
 1. **Race Engine'e dokunmadan önce iki kez düşün.** Denetim onu "KEEP, dokunma"

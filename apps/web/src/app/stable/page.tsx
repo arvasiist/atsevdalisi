@@ -54,6 +54,7 @@ import { apiClient } from '../../lib/api-client';
 import { formatCurrency, hasEnoughFunds } from '../../lib/currency';
 import { usePlayer } from '../../lib/player-context';
 import { breedLabel } from '../../features/breeds/breed-catalog';
+import { PersonalityChips } from '../../features/personality/PersonalityChips';
 import { StableActionDock } from '../../features/stable-actions/StableActionDock';
 import { PlayerOverview } from '../../features/home/PlayerOverview';
 import {
@@ -552,6 +553,7 @@ function HorseCard({
       </div>
 
       <div style={{ padding: 'var(--space-lg)' }}>
+        <PersonalityChips personality={horse.personality} />
         <div style={{ display: 'grid', gap: '10px' }}>
           <StatBar icon={<HeartPulse size={14} />} label="Sağlık" value={horse.health} />
           <StatBar icon={<BatteryMedium size={14} />} label="Enerji" value={horse.energy} />

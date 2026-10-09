@@ -67,7 +67,14 @@ export class HorseController {
     }
     assertSelf(currentPlayer.id, ownerId);
     const horses = await this.listHorsesByOwnerUseCase.execute(ownerId);
-    return { success: true, data: horses.map(toPublicHorse) };
+    // Kişilik etiketi YALNIZCA burada (sahibine) eklenir; `GET :id` herkese
+    // açıktır ve etiket taşımaz.
+    return {
+      success: true,
+      data: horses.map(({ horse, personality }) =>
+        personality ? { ...toPublicHorse(horse), personality } : toPublicHorse(horse),
+      ),
+    };
   }
 
   @Public()

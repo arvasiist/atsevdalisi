@@ -27,6 +27,7 @@ import type {
   BreedsConfig,
   HippodromesConfig,
   EquipmentCatalogConfig,
+  HorsePersonalityConfig,
   AnticheatConfig,
   AdminConfig,
   AudioConfig,
@@ -97,6 +98,7 @@ import storeConfigJson from '../../../config/store.config.json';
 import breedsConfigJson from '../../../config/breeds.config.json';
 import hippodromesConfigJson from '../../../config/hippodromes.config.json';
 import equipmentConfigJson from '../../../config/equipment.config.json';
+import horsePersonalityConfigJson from '../../../config/horse-personality.config.json';
 
 export function loadRaceConfig(): RaceBalanceConfig {
   return raceConfigJson as unknown as RaceBalanceConfig;
@@ -312,6 +314,11 @@ export function loadHippodromesConfig(): HippodromesConfig {
 /** 08.10.2026 — ekipman kataloğu (kalite + fiyat SUNUCUDAN; istemci seçemez). */
 export function loadEquipmentConfig(): EquipmentCatalogConfig {
   return equipmentConfigJson as unknown as EquipmentCatalogConfig;
+}
+
+/** 08.10.2026 — atın kişiliği: doğuş çeşitliliği, antrenman etkileri, etiketler. */
+export function loadHorsePersonalityConfig(): HorsePersonalityConfig {
+  return horsePersonalityConfigJson as unknown as HorsePersonalityConfig;
 }
 
 /** 07.10.2026 — avatar kataloğu (manuel oluşturucu + özelleştirme). */

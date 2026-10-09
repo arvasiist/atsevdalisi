@@ -32,6 +32,11 @@ export interface TrainingContext {
    * adı geçer ama FAZ 1 kapsamında ayrı bir eğitmen varlığı yoktur.
    */
   trainerFactor?: number;
+  /**
+   * 08.10.2026 — atın kişiliğinden gelen kazanç çarpanı (odak × rekabetçilik/
+   * yoğunluk, `domain/horse/personality.ts`). Varsayılan 1.0 (nötr).
+   */
+  personalityFactor?: number;
 }
 
 export interface TrainingOutcome {
@@ -97,7 +102,14 @@ export function calculateStatGain(
   config: TrainingConfig,
   ctx: Pick<
     TrainingContext,
-    'trainingType' | 'intensity' | 'durationMinutes' | 'currentStatValue' | 'potential' | 'vitals' | 'trainerFactor'
+    | 'trainingType'
+    | 'intensity'
+    | 'durationMinutes'
+    | 'currentStatValue'
+    | 'potential'
+    | 'vitals'
+    | 'trainerFactor'
+    | 'personalityFactor'
   >,
 ): number {
   const typeConfig = getTypeConfig(config, ctx.trainingType);
@@ -116,9 +128,16 @@ export function calculateStatGain(
   // recovery_factor: yüksek fatigue ile başlanan antrenmanda kazanç düşer.
   const recoveryFactor = 1 - 0.5 * (ctx.vitals.fatigue / MAX_VITAL);
   const trainerFactor = ctx.trainerFactor ?? 1.0;
+  const personalityFactor = ctx.personalityFactor ?? 1.0;
 
   const gain =
-    effectiveGain * intensityMultiplier * durationMultiplier * healthFactor * recoveryFactor * trainerFactor;
+    effectiveGain *
+    intensityMultiplier *
+    durationMultiplier *
+    healthFactor *
+    recoveryFactor *
+    trainerFactor *
+    personalityFactor;
 
   const cappedGain = Math.min(gain, ceiling - ctx.currentStatValue);
   return Math.max(0, cappedGain);

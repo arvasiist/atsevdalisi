@@ -1340,14 +1340,15 @@ a {
   color: var(--color-text-muted);
 }
 
-/* 1280–1439px: masaüstü menüsü sığsın diye sıkılaştırılır. */
+/* 1280–1439px: masaüstü menüsü sığsın diye sıkılaştırılır (08.10.2026:
+   bakiye "+" düğmeleriyle 1280'de 7px taşıyordu). */
 @media (min-width: 1280px) and (max-width: 1439px) {
   .topbar-inner {
     gap: 10px;
   }
 
   .nav-item {
-    padding: 0 7px;
+    padding: 0 5px;
     gap: 5px;
     font-size: 12.5px;
   }
@@ -1394,6 +1395,27 @@ a {
   display: grid;
   gap: 3px;
   max-width: 65%;
+}
+
+/* At kişiliği (08.10.2026): sunucunun türettiği etiket, ayrıntı `title`da. */
+.personality-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: var(--space-md);
+}
+
+.personality-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--color-border);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: help;
 }
 
 .horse-card-name {

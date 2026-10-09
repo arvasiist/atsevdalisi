@@ -792,6 +792,22 @@ veri). Eşleşmeyen istekte Express `route`u ara katman jokeri
 (`ops.alerts`); ⚠️ alarm gövdesine hata MESAJI/yığın/sorgu dizesi KOYMA
 (yalnızca ad + yöntem + yol + istek kimliği). Üretimde ikisi de uyarıdır;
 verilirse token ≥ `minMetricsTokenLength`, URL `https://`.
+(75) **AT KİŞİLİĞİ (08.10.2026, §13.99)** — `domain/horse/personality.ts`
++ `config/horse-personality.config.json`. Gizli beş özellik (odak, cesaret,
+rekabetçilik, stres dayanımı, itaat) eskiden yalnızca kalıtımla taşınıyor,
+HİÇBİR ŞEYİ değiştirmiyordu ve her at 50'de doğuyordu. Artık yeni at
+(`insertNewHorse`) at kimliğinden determinist `50 ± spread` alır;
+⚠️ `temperament` doğuşta 50 KALIR (motora girer — `validateHorsePersonalityConfig`
+listeye eklenmesini REDDEDER). Etki YALNIZCA antrenmanda (motor DIŞI):
+odak/rekabetçilik → `personalityFactor` (tavan yine potansiyel), stres
+dayanımı → yorgunluk ARTIŞI (dinlenme değil; 2 haneye yuvarlanır =
+NUMERIC(5,2)), itaat → sakatlık. 50 = tam no-op. Etiket
+`describePersonality` ile sayılardan türetilir, YALNIZCA sahibinin at
+listesinde döner (`PublicHorse.personality`), sayı dönmez. ⚠️ Antrenman
+kazancını domain formülüyle kıyaslayan e2e yazarken atın kişiliğini SQL ile
+nötrle (`focus/competitiveness/stress_resistance/obedience = 50`) — başlangıç
+atı artık nötr DEĞİL (yaşandı: `staff.e2e-spec.ts`). Cesaret bugün yalnızca
+etikette.
 
 **✅ ÜCRETLİ LOBİ YARIŞI ARTIK KOŞUYOR — ÖDÜL DAĞITIMI VAR (§13.14,
 28.09.2026).** `POST /races/:id/settle` yarışı koşar, ödülleri `top5`
