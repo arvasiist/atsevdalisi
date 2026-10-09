@@ -866,6 +866,12 @@ de aynı kural. ⚠️ `club_id`ye yabancı anahtar EKLEME (SET NULL yarışı h
 açar, CASCADE parayı siler) — feshedilen kulübün yarışı yeni katılıma
 kapalıdır. Listede yalnızca üyeler + açan + katılmış olan görür. Ek ödül YOK
 (sahibinin kararı).
+(81) **ELMAS POLİTİKASI (09.10.2026, §13.106)** — sahibinin onayı: elmas
+YALNIZCA görünüş + kolaylık. ⚠️ Yarışı etkileyen hiçbir şeyi (yem, stat,
+enerji, jokey, at) elmasla fiyatlama; elmas hediye/transfer yazma; elmastan
+çipe dönüşüm yazma (çip ücretli yarış havuzuna girer). `validateGemPolicy`
+(`domain/economy/gem-policy.ts`) açılışta yem fiyatı + hediye birimini
+denetler — yeni bir elmaslı fiyat ekliyorsan oraya da kural yaz.
 
 **✅ ÜCRETLİ LOBİ YARIŞI ARTIK KOŞUYOR — ÖDÜL DAĞITIMI VAR (§13.14,
 28.09.2026).** `POST /races/:id/settle` yarışı koşar, ödülleri `top5`

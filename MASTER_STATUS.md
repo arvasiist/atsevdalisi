@@ -96,8 +96,13 @@ kilitli. Para yolları: pazar (sabit + müzayede emanet), ırk mağazası, ekipm
 kataloğu, yem, tesis, personel, bilet, hediye, dostluk/tribün hediyesi,
 görev/başarım/sezon ödülü, yönetici düzeltmesi, masa kuralları (ücret anı +
 kaybeden iadesi). Gerçek para (`payment_orders`) defterden AYRI; defter
-yalnızca elması görür. Elmasın oyun içi HARCAMA yolu yok
-(`gemShopWhitelist` hâlâ okunmuyor). Gerçek ödeme sağlayıcısı YOK.
+yalnızca elması görür. **Elmas politikası (09.10.2026):** elmas yalnızca
+görünüş + kolaylık. Bu tarihe kadar notlarda "elmasın harcama yolu yok"
+yazıyordu ve YANLIŞTI: stoklu yem elmasla satılıyordu (yem kondisyon/sağlık
+verir, motor ikisini okur → parayla yarış performansı) ve elmas arkadaşa
+hediye edilebiliyordu. İkisi kapatıldı (yem çiple; `validateGemPolicy`
+açılışta kilitler). Kozmetik mağaza yapım aşamasında. Gerçek ödeme
+sağlayıcısı YOK.
 
 ## Horse Status — TESTED
 
@@ -249,8 +254,8 @@ raporu, varlık rehberi). `README.md`/`ROADMAP.md` faz tabloları BAYAT
 
 ## Missing Features
 
-Apple girişi · gerçek AI avatar sağlayıcısı · gerçek ödeme + elmas harcama
-yolu · gerçek 3D/ses varlıkları · sosyal hub · etkinlik para
+Apple girişi · gerçek AI avatar sağlayıcısı · gerçek ödeme · elmasla kozmetik
+mağaza (yapım aşamasında) · gerçek 3D/ses varlıkları · sosyal hub · etkinlik para
 birimi. (Çalışma anında ayar düzenleme bilinçli olarak YOK — ayar dosyası
 kodla birlikte dağıtılır.)
 

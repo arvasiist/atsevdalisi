@@ -5,8 +5,7 @@
   "dailyWindowHours": 24,
   "historyLimit": 50,
   "allowedCurrencies": [
-    "money",
-    "gems"
+    "money"
   ],
   "friendGift": {
     "amount": 10,

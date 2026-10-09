@@ -1719,6 +1719,10 @@ Yanıt `{ period, startsAt, endsAt, standings[], me }`; satır `{ rank, playerId
 score, raceCount }`. Sezonla aynı formül; pencere Türkiye saatiyle (hafta pazartesi, ay 1'i). Ödül yok.
 `GET /races` satırında `calendar: { programId, featured }` — öne çıkan program yarışları listenin başında.
 
+**Elmas politikası (09.10.2026):** elmas yalnızca görünüş/kolaylık. Yem çiple satılır; hediyede
+`currency: "gems"` 400 `GIFT_CURRENCY_NOT_ALLOWED` (`gift.allowedCurrencies` yalnızca `money`). Kural
+`validateGemPolicy` ile API açılışında denetlenir.
+
 **`GET /races` sırası (09.10.2026):** liste sınırlıdır (`limit`, varsayılan `lobbyListDefaultLimit`),
 katmanlar sırayla — (0) çağıranın yarışları (iptal edilmemiş katılımı var ya da o açtı), (1) öne çıkan
 takvim programı, (2) turnuva, (3) kalan (başka oyuncuların yarışları + takvim, karışık); her katmanda
@@ -2103,7 +2107,8 @@ cooldown takibi için bir satır yazar/günceller (migration 0015).
 >
 > - `saman` — **BEDAVA**, stoklanmaz (`stocked: false`), at başına günde
 >   3 kez (`dailyLimit: 3`).
-> - `arpa` / `mama` / `havuc` / `vitamin` — **Elmasla** satın alınır
+> - `arpa` / `mama` / `havuc` / `vitamin` — **Çiple** satın alınır (09.10.2026'ya
+>   kadar elmasla; elmas politikası: yarışı etkileyen yem elmasla satılmaz)
 >   (`POST /players/{id}/feed-inventory/{type}/buy`; envanteri okumak için
 >   `GET /players/{id}/feed-inventory`, atın bugünkü hakkı/durumu için
 >   `GET /horses/{id}/feed-status`). Stoktan düşer; stok yoksa besleme

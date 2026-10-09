@@ -54,7 +54,7 @@ import type {
   RaceCompanionView,
   SocialOverviewView,
 } from '@at-sevdalisi/shared-types';
-import { CURRENCIES } from '@at-sevdalisi/shared-types';
+import { GIFT_CURRENCIES } from '../../features/social/gift-currencies';
 import { GlassPanel } from '../../components/ui/GlassPanel';
 import { apiClient } from '../../lib/api-client';
 import { CURRENCY_LABELS, formatCurrency, hasEnoughFunds } from '../../lib/currency';
@@ -634,11 +634,10 @@ export default function FriendsPage(): React.ReactElement {
                   onChange={(event) => setGiftCurrency(event.target.value as Currency)}
                   style={{ ...inputStyle(), flex: '0 0 140px' }}
                 >
-                  {/* Liste `CURRENCIES`'ten gelir — hediye BAŞINA izinli
-                      birimler (`config/gift.config.json → allowedCurrencies`)
-                      sunucudadır ve istemcide TAKLİT EDİLMEZ; izinli
-                      olmayan bir birim seçilirse sunucu 400 döner. */}
-                  {CURRENCIES.map((currency) => (
+                  {/* 09.10.2026 — liste sunucuyla AYNI config'ten süzülür
+                      (`allowedCurrencies`): elmas hediye edilemez, her zaman
+                      400 alan bir seçenek gösterilmez. Kural sunucudadır. */}
+                  {GIFT_CURRENCIES.map((currency) => (
                     <option key={currency} value={currency}>
                       {CURRENCY_LABELS[currency]}
                     </option>

@@ -70,8 +70,8 @@ ama henüz uygulanmamış kalemler ayrıca işaretlenmiştir.
 
 | Birim | Source (gelir) | Sink (gider) |
 |---|---|---|
-| **Çip** (`money`) | Yeni oyuncu başlangıç bakiyesi (5.000) · günlük ödül (500) · yarış ödülü (havuzdan pay) · pazar satışı (satıcı payı) | Yarış giriş ücreti (kademeye göre 100–2000) · ahır yükseltmesi · tesis yükseltmesi · pazar alımı (alıcı) |
-| **Elmas** (`gems`) | Yeni oyuncu başlangıç bakiyesi (50) — **başka kaynak YOK** | Yem satın alma (`arpa`/`mama`/`havuc`/`vitamin`) — **tek sink** |
+| **Çip** (`money`) | Yeni oyuncu başlangıç bakiyesi (5.000) · günlük ödül (500) · yarış ödülü (havuzdan pay) · pazar satışı (satıcı payı) | Yarış giriş ücreti (kademeye göre 100–2000) · ahır yükseltmesi · tesis yükseltmesi · pazar alımı (alıcı) · yem (`arpa` 40, `mama` 60, `havuc` 20, `vitamin` 80 — 09.10.2026'dan beri) |
+| **Elmas** (`gems`) | Yeni oyuncu başlangıç bakiyesi (50) · mağaza (gerçek ödeme, sağlayıcı bağlanınca) | **ELMAS POLİTİKASI (09.10.2026, sahibinin onayı):** yalnızca görünüş + kolaylık. Yarışı etkileyen hiçbir şey (yem dahil) elmasla satılmaz; elmas hediye edilmez; elmas çipe dönmez. Kozmetik mağaza ayrı dilimde. |
 
 **Henüz uygulanmamış (brief'te var, kodda yok):** gerçek yarış ödülü
 (`ClaimRaceRewardUseCase` YOKTUR — bugün tek ödül yolu anında koşulan

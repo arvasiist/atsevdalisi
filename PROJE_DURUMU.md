@@ -4485,6 +4485,24 @@ Karar: önce pratik yarış; kırbaç sınırsız, dayanıklılık bedelli.
   `create-race-dto.spec.ts`, web `LobbyPanel.spec.tsx`; tarayıcıda form
   seçeneği + rozet (masaüstü + telefon), dışarıdaki listede görmüyor.
 
+### 13.106 Elmas politikası — elmaslı yem çipe, elmas hediyesi kapandı (09.10.2026)
+
+- Sahibinin onayı: elmas yalnızca görünüş ve kolaylık satın alır.
+- Bulgu (notlar yanlıştı): stoklu yem (`arpa`, `mama`, `havuc`, `vitamin`)
+  ELMASLA satılıyordu. Yem kondisyon/sağlık/enerji verir ve motor kondisyon
+  + sağlığı doğrudan okur (`conditionModifier`, 0.6–1.0) → gerçek parayla
+  ücretli yarışta performans alınabiliyordu. Ayrıca elmas arkadaşa hediye
+  edilebiliyordu (gerçek parayı hesaplar arasında taşıma).
+- Değişiklik: yem çiple (arpa 40, mama 60, havuç 20, vitamin 80 — eski
+  elmas fiyatı × 20; sıralama korunur); `gift.allowedCurrencies` yalnızca
+  `money`; `validateGemPolicy` API açılışında ihlali reddeder. Web hediye
+  formu birimleri config'ten süzer. Eski elmaslı alımların defter satırları
+  ve stok DEĞİŞMEDİ (mali kayıt).
+- Sırada: kozmetik mağaza altyapısı, ilk ürünler (jokey forması, avatar).
+- Kanıt: `gem-policy.spec.ts`, `care.spec.ts`, `gift.e2e-spec.ts` (elmas
+  hediyesi 400 + bakiye/defter dokunulmaz), `farm-effects.e2e-spec.ts` (yem
+  çipten düşer, elmas dokunulmaz), web `gift-currencies.spec.ts`.
+
 ## 14. Kendime hatırlatmalar (kısa liste)
 
 1. **Race Engine'e dokunmadan önce iki kez düşün.** Denetim onu "KEEP, dokunma"

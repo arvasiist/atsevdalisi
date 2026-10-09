@@ -31,6 +31,7 @@ import { validateBreedsConfig } from '../../domain/horse/breeds';
 import { validateHippodromesConfig } from '../../domain/race/hippodrome';
 import { validateHorseLevelBrackets } from '../../domain/race/level-bracket';
 import { validateFriendGiftConfig } from '../../domain/social/friend-gift';
+import { validateGemPolicy } from '../../domain/economy/gem-policy';
 import { validateTribuneGiftsConfig } from '../../domain/grandstand/tribune-gift';
 import { validateEquipmentConfig } from '../../domain/equipment/catalog';
 import { validateHorsePersonalityConfig } from '../../domain/horse/personality';
@@ -194,6 +195,12 @@ export class AppConfigService {
     const personalityProblems = validateHorsePersonalityConfig(this.horsePersonality);
     if (personalityProblems.length > 0) {
       throw new Error(`Kişilik config'i geçersiz (config/horse-personality.config.json): ${personalityProblems.join(' ')}`);
+    }
+    // 09.10.2026 — elmas yalnızca görünüş/kolaylık: yarışı etkileyen yem
+    // elmasla satılmaz, elmas hediye edilmez (sahibinin onayı).
+    const gemProblems = validateGemPolicy(this.care, this.gift);
+    if (gemProblems.length > 0) {
+      throw new Error(`Elmas politikası ihlali (config/care.config.json, config/gift.config.json): ${gemProblems.join(' ')}`);
     }
     const hippodromeProblems = validateHippodromesConfig(this.hippodromes);
     if (hippodromeProblems.length > 0) {

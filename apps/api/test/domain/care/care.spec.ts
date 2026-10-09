@@ -96,8 +96,8 @@ describe('applyFeed (brief §12)', () => {
   });
 
   /**
-   * "Pahalı = her zaman iyi" DEĞİLDİR (brief §12): `mama` elmas olarak
-   * `arpa`'dan pahalıdır (3 > 2) ama enerji katkısı daha azdır — karşılığında
+   * "Pahalı = her zaman iyi" DEĞİLDİR (brief §12): `mama` `arpa`'dan
+   * pahalıdır ama enerji katkısı daha azdır — karşılığında
    * fitness verir. Bu, kalem seçiminin duruma göre anlamlı olmasını sağlar.
    */
   it("mama, arpa'dan pahalı olduğu hâlde enerji katkısı daha azdır (fitness verir)", () => {
@@ -160,7 +160,8 @@ describe('canRecoverFromInjury (AUDIT_REPORT.md H1)', () => {
 describe('maliyet/fiyat okuma', () => {
   it('getCareActionCost ve getFeedPrice doğru değerleri döner', () => {
     expect(getCareActionCost(config, 'vet')).toEqual({ currency: 'money', amount: 250 });
-    expect(getFeedPrice(config, 'arpa')).toEqual({ currency: 'gems', amount: 2 });
+    // 09.10.2026 — yem artık ÇİPLE satılır (elmas yalnızca görünüş/kolaylık).
+    expect(getFeedPrice(config, 'arpa')).toEqual({ currency: 'money', amount: 40 });
   });
 
   /**
@@ -270,7 +271,7 @@ describe('buildFeedItemView', () => {
   it('stoklanan kalemde adedi olduğu gibi döner, stoklanmayanda null', () => {
     expect(buildFeedItemView(config, 'arpa', 5, null)).toEqual({
       type: 'arpa',
-      price: { currency: 'gems', amount: 2 },
+      price: { currency: 'money', amount: 40 },
       stocked: true,
       dailyLimit: null,
       quantity: 5,

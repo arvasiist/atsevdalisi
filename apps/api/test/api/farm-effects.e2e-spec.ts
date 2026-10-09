@@ -90,7 +90,10 @@ describe('Çiftlik tesisi etkileri (e2e)', () => {
     const after = await balance(player.playerId);
 
     expect(response.body.data.totalCost).toBe(expected);
-    expect(before.gems - after.gems).toBe(expected);
+    // 09.10.2026 — yem çiple satılır; elmas bakiyesine dokunulmaz.
+    expect(config.care.feedTypes.arpa.price!.currency).toBe('money');
+    expect(before.money - after.money).toBe(expected);
+    expect(after.gems).toBe(before.gems);
     const ledger = await pool.query<{ amount: string }>(
       `SELECT amount FROM economy_transactions WHERE player_id = $1 AND type = 'feed_purchase' ORDER BY created_at DESC LIMIT 1`,
       [player.playerId],

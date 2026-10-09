@@ -51,27 +51,27 @@
       "vitalDelta": { "energy": 18, "fitness": 2 },
       "weightConditionDelta": 1,
       "stocked": true,
-      "price": { "currency": "gems", "amount": 2 }
+      "price": { "currency": "money", "amount": 40 }
     },
     "mama": {
       "vitalDelta": { "energy": 8, "fitness": 4 },
       "weightConditionDelta": 1,
       "stocked": true,
-      "price": { "currency": "gems", "amount": 3 }
+      "price": { "currency": "money", "amount": 60 }
     },
     "havuc": {
       "vitalDelta": { "morale": 6, "health": 2 },
       "recoveryRateDelta": 2,
       "weightConditionDelta": 0,
       "stocked": true,
-      "price": { "currency": "gems", "amount": 1 }
+      "price": { "currency": "money", "amount": 20 }
     },
     "vitamin": {
       "vitalDelta": { "health": 4 },
       "recoveryRateDelta": 3,
       "weightConditionDelta": 0,
       "stocked": true,
-      "price": { "currency": "gems", "amount": 4 }
+      "price": { "currency": "money", "amount": 80 }
     }
   },
   "feedWindowHours": 24,
