@@ -1,6 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import type { Pool } from 'pg';
 import type { Jockey } from '@at-sevdalisi/shared-types';
+import type { JockeyRideHistory } from '../../domain/jockey/condition';
 import {
   JockeyAlreadyHiredError,
   JockeyAlreadyOwnedError,
@@ -107,6 +108,47 @@ export class PostgresJockeyRepository implements JockeyRepository {
     );
     return result.rows[0] ? rowToJockey(result.rows[0]) : null;
   }
+  async findRideHistory(jockeyId: string, now: Date, sampleSize: number, windowHours: number): Promise<JockeyRideHistory> {
+    // Biniş = bitmiş yarışta iptal edilmemiş, sırası yazılmış katılım. Saha
+    // büyüklüğü AYNI kuralla sayılır (botlar dahil — pratik yarışta da sıra
+    // botlarla birlikte belirlenir). `status` NULL olabilir (pratik/PvP).
+    const placements = await this.pool.query<{ finish_position: number; field_size: string }>(
+      `SELECT e.finish_position,
+              (SELECT COUNT(*) FROM race_entries x
+                WHERE x.race_id = e.race_id
+                  AND x.finish_position IS NOT NULL
+                  AND x.status IS DISTINCT FROM 'cancelled') AS field_size
+         FROM race_entries e
+         JOIN races r ON r.id = e.race_id
+        WHERE e.jockey_id = $1::uuid
+          AND r.status = 'finished'
+          AND r.start_time <= $2
+          AND e.finish_position IS NOT NULL
+          AND e.status IS DISTINCT FROM 'cancelled'
+        ORDER BY r.start_time DESC, e.id
+        LIMIT $3`,
+      [jockeyId, now, sampleSize],
+    );
+    const window = await this.pool.query<{ rides: string }>(
+      `SELECT COUNT(*) AS rides
+         FROM race_entries e
+         JOIN races r ON r.id = e.race_id
+        WHERE e.jockey_id = $1::uuid
+          AND r.status = 'finished'
+          AND e.status IS DISTINCT FROM 'cancelled'
+          AND r.start_time <= $2
+          AND r.start_time > $2::timestamptz - ($3::double precision * interval '1 hour')`,
+      [jockeyId, now, windowHours],
+    );
+    return {
+      recentPlacements: placements.rows.map((row) => ({
+        finishPosition: Number(row.finish_position),
+        fieldSize: Number(row.field_size),
+      })),
+      ridesInWindow: Number(window.rows[0]?.rides ?? 0),
+    };
+  }
+
 
   async hire(input: HireJockeyInput): Promise<HireJockeyResult> {
     return withTransaction(this.pool, async (client) => {

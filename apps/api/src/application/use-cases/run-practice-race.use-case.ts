@@ -55,6 +55,7 @@ import {
   HORSE_EQUIPMENT_REPOSITORY,
   type HorseEquipmentRepository,
 } from '../ports/horse-equipment.repository';
+import { loadJockeyCondition } from '../services/jockey-condition';
 import { JOCKEY_REPOSITORY, type JockeyRepository } from '../ports/jockey.repository';
 import {
   RACE_REPOSITORY,
@@ -264,6 +265,9 @@ export class RunPracticeRaceUseCase {
               horse: { temperament: stats.temperament, racingStyle: input.tactic.racingStyle },
               previousPairAveragePerformance:
                 await this.raceRepository.findJockeyPairAveragePerformance(horseId, jockey.id),
+              // 08.10.2026 — jokeyin formu × yorgunluğu.
+              conditionMultiplier: (await loadJockeyCondition(this.jockeyRepository, jockey.id, new Date(), this.config.jockey))
+                .multiplier,
             },
             this.config.jockey,
           ),

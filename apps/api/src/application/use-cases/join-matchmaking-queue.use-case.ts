@@ -28,6 +28,7 @@ import { HORSE_STATS_REPOSITORY, type HorseStatsRepository } from '../ports/hors
 import { HORSE_SURFACE_STATS_REPOSITORY, type HorseSurfaceStatsRepository } from '../ports/horse-surface-stats.repository';
 import { HORSE_DISTANCE_STATS_REPOSITORY, type HorseDistanceStatsRepository } from '../ports/horse-distance-stats.repository';
 import { HORSE_EQUIPMENT_REPOSITORY, type HorseEquipmentRepository } from '../ports/horse-equipment.repository';
+import { loadJockeyCondition } from '../services/jockey-condition';
 import { JOCKEY_REPOSITORY, type JockeyRepository } from '../ports/jockey.repository';
 import { LOBBY_NOTIFIER, type LobbyNotifier } from '../ports/lobby-notifier';
 import { MATCHMAKING_TICKET_REPOSITORY, type MatchmakingTicketRepository } from '../ports/matchmaking-ticket.repository';
@@ -447,6 +448,9 @@ export class JoinMatchmakingQueueUseCase {
               jockey: myJockey,
               horse: { temperament: stats.temperament, racingStyle: DEFAULT_RACE_TACTIC.racingStyle },
               previousPairAveragePerformance: null,
+              // 08.10.2026 — jokeyin formu × yorgunluğu.
+              conditionMultiplier: (await loadJockeyCondition(this.jockeyRepository, myJockey.id, now, this.config.jockey))
+                .multiplier,
             },
             this.config.jockey,
           );
@@ -458,6 +462,9 @@ export class JoinMatchmakingQueueUseCase {
               jockey: opponentJockey,
               horse: { temperament: opponentStats.temperament, racingStyle: DEFAULT_RACE_TACTIC.racingStyle },
               previousPairAveragePerformance: null,
+              conditionMultiplier: (
+                await loadJockeyCondition(this.jockeyRepository, opponentJockey.id, now, this.config.jockey)
+              ).multiplier,
             },
             this.config.jockey,
           );

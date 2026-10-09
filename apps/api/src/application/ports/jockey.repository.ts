@@ -1,4 +1,5 @@
 import type { Jockey } from '@at-sevdalisi/shared-types';
+import type { JockeyRideHistory } from '../../domain/jockey/condition';
 
 /**
  * `JockeyRepository` — Application katmanının Infrastructure'a bağlandığı
@@ -40,6 +41,13 @@ export interface JockeyRepository {
    * bir liste döndürmek, "hangisi koşacak" sorusunu cevapsız bırakırdı.
    */
   findByOwnerId(ownerId: string): Promise<Jockey | null>;
+
+  /**
+   * 08.10.2026 — jokeyin son binişleri (form) ve `now`dan geriye
+   * `windowHours` içindeki biniş sayısı (yorgunluk). Yalnızca BİTMİŞ yarış
+   * ve iptal edilmemiş katılım sayılır; `now` sonrası yarış sayılmaz.
+   */
+  findRideHistory(jockeyId: string, now: Date, sampleSize: number, windowHours: number): Promise<JockeyRideHistory>;
 
   /**
    * **PARA YOLU.** Jokeyi kiralar: `jockeys.salary` tutarını oyuncudan

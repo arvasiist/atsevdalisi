@@ -808,6 +808,18 @@ kazancını domain formülüyle kıyaslayan e2e yazarken atın kişiliğini SQL 
 nötrle (`focus/competitiveness/stress_resistance/obedience = 50`) — başlangıç
 atı artık nötr DEĞİL (yaşandı: `staff.e2e-spec.ts`). Cesaret bugün yalnızca
 etikette.
+(76) **JOKEY FORMU + YORGUNLUĞU (08.10.2026, migration 0078 yalnızca indeks,
+§13.100)** — `domain/jockey/condition.ts` + `jockey.condition` config. SAYAÇ
+YOK: son binişlerden (`findRideHistory`: bitmiş yarış, iptal edilmemiş
+katılım, `now` öncesi) türetilir. Form = son `formSampleSize` binişin sıra
+yüzdeliği (`formMinRides` altında nötr), yorgunluk = son `fatigueWindowHours`
+saatteki biniş − `freeRidesInWindow`, tavanlı. Çarpan `effectiveJockeySkill`
+`conditionMultiplier`ında — MOTOR DEĞİŞMEDİ, kadroya donar (uyum deseni).
+⚠️ Kadro donduran YENİ bir yol yazarsan `loadJockeyCondition` çağır
+(`application/services/jockey-condition.ts`; lobi kilidi, pratik, eşleşme ve
+`GET /players/:id/jockey` aynı fonksiyonu kullanır — ekrandaki çarpan =
+donan çarpan). ⚠️ Aynı jokeyle çok sayıda pratik yarış koşan e2e, kadro
+puanını formsuz `effectiveJockeySkill` ile kıyaslarsa kırılır — çarpanı ekle.
 
 **✅ ÜCRETLİ LOBİ YARIŞI ARTIK KOŞUYOR — ÖDÜL DAĞITIMI VAR (§13.14,
 28.09.2026).** `POST /races/:id/settle` yarışı koşar, ödülleri `top5`

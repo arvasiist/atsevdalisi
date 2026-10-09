@@ -2,6 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import type { RaceEntrantSnapshot, RaceSurface, RaceTacticInput } from '@at-sevdalisi/shared-types';
 import { buildHorseEntrantSnapshot, FORM_SAMPLE_SIZE, type TrackFitInput } from '../../domain/race/entrant-snapshot';
 import { effectiveJockeySkill } from '../../domain/jockey/jockey';
+import { loadJockeyCondition } from './jockey-condition';
 import { DEFAULT_RACE_TACTIC } from '../../domain/race/validation';
 import { HorseNotFoundError } from '../../domain/horse/errors';
 import { AppConfigService } from '../../infrastructure/config/config.service';
@@ -142,6 +143,9 @@ export class EntrantSnapshotBuilder {
               horse: { temperament: stats.temperament, racingStyle: entrant.tacticalStyle },
               previousPairAveragePerformance:
                 await this.raceRepository.findJockeyPairAveragePerformance(entrant.horseId, jockey.id),
+              // 08.10.2026 — jokeyin formu × yorgunluğu (dondurma anına göre).
+              conditionMultiplier: (await loadJockeyCondition(this.jockeyRepository, jockey.id, new Date(), this.config.jockey))
+                .multiplier,
             },
             this.config.jockey,
           );

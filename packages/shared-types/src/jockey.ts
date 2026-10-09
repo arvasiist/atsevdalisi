@@ -41,6 +41,30 @@ export interface PlayerJockeyView {
    * o yarışı etkilemez (bkz. `RaceEntrantSnapshot.jockeySkillComposite`).
    */
   composite: number;
+  /**
+   * 08.10.2026 — jokeyin DURUMU (form + yorgunluk). Bir sonraki yarışta
+   * beceriye çarpan olarak işler; sunucu son binişlerden türetir.
+   */
+  condition: JockeyConditionView;
+}
+
+/** `form`: son binişlerin sıra yüzdeliği; `unknown` = yeterli biniş yok (nötr). */
+export type JockeyFormLabel = 'hot' | 'good' | 'average' | 'poor' | 'cold' | 'unknown';
+
+export interface JockeyConditionView {
+  form: JockeyFormLabel;
+  /** Formu hesaplamada sayılan biniş (en fazla `formSampleSize`). */
+  formRides: number;
+  /** Formun beceriye etkisi, yüzde (ör. +3.6 / −2.4). */
+  formPercent: number;
+  /** Son `fatigueWindowHours` saatteki biniş. */
+  ridesInWindow: number;
+  fatigueWindowHours: number;
+  freeRidesInWindow: number;
+  /** Yorgunluğun beceriden düşürdüğü, yüzde (≥ 0). */
+  fatiguePercent: number;
+  /** Toplam çarpan (form × yorgunluk). */
+  multiplier: number;
 }
 
 /**

@@ -3,6 +3,7 @@ import type { PlayerJockeyView } from '@at-sevdalisi/shared-types';
 import { calculateJockeySkillComposite } from '../../domain/jockey/jockey';
 import { AppConfigService } from '../../infrastructure/config/config.service';
 import { JOCKEY_REPOSITORY, type JockeyRepository } from '../ports/jockey.repository';
+import { loadJockeyCondition } from '../services/jockey-condition';
 
 /**
  * `GET /players/:id/jockey` (brief §13, §42 PHASE 6.2) — oyuncunun kiralı
@@ -30,6 +31,11 @@ export class GetPlayerJockeyUseCase {
     if (jockey === null) {
       return null;
     }
-    return { jockey, composite: calculateJockeySkillComposite(jockey, this.config.jockey) };
+    return {
+      jockey,
+      composite: calculateJockeySkillComposite(jockey, this.config.jockey),
+      // 08.10.2026 — bir sonraki yarışta dondurulacak durum (form × yorgunluk).
+      condition: await loadJockeyCondition(this.jockeyRepository, jockey.id, new Date(), this.config.jockey),
+    };
   }
 }

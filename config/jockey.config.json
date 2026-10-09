@@ -15,5 +15,20 @@
   },
   "experienceForMaxScore": 150,
   "neutralHistoryScore": 50,
-  "compatibilityInfluence": 0.15
+  "compatibilityInfluence": 0.15,
+  "condition": {
+    "formSampleSize": 10,
+    "formMinRides": 3,
+    "formInfluence": 0.06,
+    "formBands": {
+      "hot": 75,
+      "good": 58,
+      "poor": 42,
+      "cold": 25
+    },
+    "fatigueWindowHours": 6,
+    "freeRidesInWindow": 6,
+    "fatiguePenaltyPerRide": 0.015,
+    "maxFatiguePenalty": 0.06
+  }
 }

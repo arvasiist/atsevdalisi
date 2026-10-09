@@ -123,6 +123,9 @@ export function calculateJockeyHorseCompatibility(input: JockeyCompatibilityInpu
  * MOTORA DOKUNULMAZ: sonuç kadro dondurulurken `jockeySkillComposite`e yazılır.
  * Eski dondurulmuş kadrolar aynen kalır (yeniden oynatma bozulmaz), komutsuz
  * motor parmak izi değişmez. `compatibilityInfluence = 0` eski davranıştır.
+ *
+ * 08.10.2026 — `conditionMultiplier` (jokeyin formu × yorgunluğu,
+ * `domain/jockey/condition.ts`) aynı noktada çarpılır; verilmezse 1 (nötr).
  */
 export function effectiveJockeySkill(
   input: {
@@ -138,13 +141,14 @@ export function effectiveJockeySkill(
     >;
     horse: JockeyCompatibilityHorseInput;
     previousPairAveragePerformance: number | null;
+    conditionMultiplier?: number;
   },
   config: JockeyConfig,
 ): number {
   const composite = calculateJockeySkillComposite(input.jockey, config);
   const compatibility = calculateJockeyHorseCompatibility(input, config);
   return clamp(
-    composite * (1 + (config.compatibilityInfluence * (compatibility - 50)) / 50),
+    composite * (1 + (config.compatibilityInfluence * (compatibility - 50)) / 50) * (input.conditionMultiplier ?? 1),
     0,
     100,
   );

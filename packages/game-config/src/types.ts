@@ -711,6 +711,22 @@ export interface CareConfig {
  * `RaceEntrantSnapshot.jockeySkillComposite` (bkz. domain/race/base-ability.ts)
  * için tek bir "yetenek bileşimi" puanına indirgenmesi.
  */
+export interface JockeyConditionConfig {
+  /** Formu belirleyen en son biniş sayısı. */
+  formSampleSize: number;
+  /** Bu kadar biniş yoksa form nötr (bilinmiyor). */
+  formMinRides: number;
+  /** `1 + etki × (form − 50) / 50`. */
+  formInfluence: number;
+  /** Etiket eşikleri (form puanı): ≥hot, ≥good, ≤poor, ≤cold; arası "average". */
+  formBands: { hot: number; good: number; poor: number; cold: number };
+  fatigueWindowHours: number;
+  /** Pencerede bu kadar binişe kadar yorgunluk yok. */
+  freeRidesInWindow: number;
+  fatiguePenaltyPerRide: number;
+  maxFatiguePenalty: number;
+}
+
 export interface JockeyConfig {
   /** Toplamı 1.0 olmalıdır — jockeys tablosundaki tekil yetenek alanlarının ağırlıkları. */
   skillCompositeWeights: {
@@ -737,6 +753,13 @@ export interface JockeyConfig {
    * `effectiveJockeySkill`: `beceri × (1 + etki × (uyum − 50) / 50)`.
    */
   compatibilityInfluence: number;
+  /**
+   * 08.10.2026 — jokeyin DURUMU: son binişlerden türetilen form (sıra
+   * yüzdeliği ortalaması, 0-100, 50 nötr) ve yakın zamandaki biniş sayısından
+   * yorgunluk. Sayaç TUTULMAZ; kadro dondurulurken `race_entries`ten okunur.
+   * `formInfluence = 0` ve `maxFatiguePenalty = 0` eski davranıştır.
+   */
+  condition: JockeyConditionConfig;
 }
 
 /**

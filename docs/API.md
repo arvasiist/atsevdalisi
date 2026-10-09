@@ -2986,6 +2986,17 @@ ve oyun göstergeleri (`game_players`, `game_open_races`,
 eşleşmeyen istek `unmatched`. Kimlik, sorgu dizesi, oyuncu verisi etiket
 olmaz, bakiye dönmez.
 
+## 9.3 Jokey durumu (08.10.2026)
+
+`GET /api/v1/players/{id}/jockey` (yalnızca kendi kimliğin) yanıtı
+`{ jockey, composite, condition }` taşır. `condition`: `form`
+(`hot|good|average|poor|cold|unknown`), `formRides`, `formPercent`
+(beceriye etkisi, yüzde, işaretli), `ridesInWindow`, `fatigueWindowHours`,
+`freeRidesInWindow`, `fatiguePercent` (≥ 0), `multiplier` (form ×
+yorgunluk). Son binişlerden türetilir (bitmiş yarış, iptal edilmemiş
+katılım); bir sonraki yarışta jokey puanına çarpan olarak uygulanır ve kadro
+kilitlenirken donar. Ayarlar `config/jockey.config.json` → `condition`.
+
 ## 10. WebSocket olayları
 
 Brief'te WebSocket "gerektiğinde" kullanılacağı belirtilmiş (§6).

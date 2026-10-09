@@ -4364,6 +4364,22 @@ Karar: önce pratik yarış; kırbaç sınırsız, dayanıklılık bedelli.
   birebir), web `personality-labels.spec.ts`; tarayıcıda ahır kartı
   (masaüstü + telefon).
 
+### 13.100 Jokey formu ve yorgunluğu
+
+- Jokeyin kendi durumu artık var: son 10 binişteki sıralarından **form**
+  (iyi giden jokey biraz daha iyi, kötü giden biraz daha kötü sürer; en fazla
+  ±%6) ve son 6 saatte 6'dan fazla binişte **yorgunluk** (her ek biniş −%1,5,
+  en fazla −%6; zaman geçince kendiliğinden geçer).
+- Sayaç tutulmaz; her şey yarış kayıtlarından türetilir. Yarış motoru
+  değişmedi: çarpan jokey puanına uygulanır ve yarış kilitlenirken donar.
+- Ahırdaki jokey panelinde "Form: Formda · son 8 biniş · +2,1%" ve
+  "Yorgunluk: son 6 saatte 3 biniş · Dinç" gösterilir.
+- Kanıt: `condition.spec.ts` (yüzdelik, nötr, eşik, simetri, tavan, bantlar,
+  bozuk config), `jockey-condition.e2e-spec.ts` (gerçek pratik yarışlarla:
+  uç = bağımsız hesap, sonraki yarışın donan puanı çarpanı içerir, pencere
+  dışı yorgunluk düşer, form kalır), web `jockey-condition.spec.ts`;
+  tarayıcıda panel.
+
 ## 14. Kendime hatırlatmalar (kısa liste)
 
 1. **Race Engine'e dokunmadan önce iki kez düşün.** Denetim onu "KEEP, dokunma"

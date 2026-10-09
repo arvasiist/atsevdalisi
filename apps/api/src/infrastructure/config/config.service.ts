@@ -34,6 +34,7 @@ import { validateFriendGiftConfig } from '../../domain/social/friend-gift';
 import { validateTribuneGiftsConfig } from '../../domain/grandstand/tribune-gift';
 import { validateEquipmentConfig } from '../../domain/equipment/catalog';
 import { validateHorsePersonalityConfig } from '../../domain/horse/personality';
+import { validateJockeyConditionConfig } from '../../domain/jockey/condition';
 
 /**
  * Ortam değişkenleri + oyun dengesi config'lerine tek noktadan erişim.
@@ -178,6 +179,10 @@ export class AppConfigService {
     const tribuneGiftProblems = validateTribuneGiftsConfig(this.grandstand.tribuneGifts);
     if (tribuneGiftProblems.length > 0) {
       throw new Error(`Tribün hediyesi config'i geçersiz (config/grandstand.config.json): ${tribuneGiftProblems.join(' ')}`);
+    }
+    const jockeyConditionProblems = validateJockeyConditionConfig(this.jockey.condition);
+    if (jockeyConditionProblems.length > 0) {
+      throw new Error(`Jokey durumu config'i geçersiz (config/jockey.config.json → condition): ${jockeyConditionProblems.join(' ')}`);
     }
     const personalityProblems = validateHorsePersonalityConfig(this.horsePersonality);
     if (personalityProblems.length > 0) {
