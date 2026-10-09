@@ -62,7 +62,7 @@ describe('gift.config.json — migrasyonla uyum', () => {
     expect(GIFT_MIGRATION).toBeDefined();
   });
 
-  it('allowedCurrencies, `gift_sends.currency` CHECK kısıtıyla AYNI kümeyi söyler', () => {
+  it('allowedCurrencies, `gift_sends.currency` CHECK kümesinin ALT kümesidir (elmas DB\'de geçmiş için kalır)', () => {
     const sql = readFileSync(join(repoRoot, 'database', 'migrations', GIFT_MIGRATION as string), 'utf-8');
     const match = /currency\s+TEXT\s+NOT\s+NULL\s+CHECK\s*\(\s*currency\s+IN\s*\(([^)]*)\)/i.exec(sql);
     expect(match).not.toBeNull();
@@ -71,11 +71,15 @@ describe('gift.config.json — migrasyonla uyum', () => {
       .map((value) => value.trim().replace(/^'|'$/g, ''))
       .filter((value) => value.length > 0);
 
-    // EŞİTLİK (kapsama değil): DB'nin kabul ettiği ama config'in
-    // yasakladığı bir birim zararsızdır ama KARMAŞIKTIR; config'in kabul
-    // edip DB'nin reddettiği bir birim ise 500'dür. İkisini de kapatmak
-    // için kümeler birebir karşılaştırılır.
-    expect([...config.allowedCurrencies].sort()).toEqual([...dbCurrencies].sort());
+    // 09.10.2026 — EŞİTLİK yerine KAPSAMA: elmas politikası elması hediyeden
+    // çıkardı (config yalnızca `money`), ama DB CHECK'i daraltılamaz — eski
+    // elmas hediyesi satırları var ("mevcut veriyi bozan migration yok").
+    // Kalan tehlike yön tektir: config'in izin verip DB'nin reddettiği birim
+    // 500 olurdu → config ⊆ DB. Elmasın config'te OLMAMASI ayrıca kilitli.
+    for (const currency of config.allowedCurrencies) {
+      expect(dbCurrencies).toContain(currency);
+    }
+    expect(config.allowedCurrencies).not.toContain('gems');
   });
 
   it('allowedCurrencies ⊆ CURRENCIES (bilinmeyen bir birim hediye edilemez)', () => {
