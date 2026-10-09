@@ -125,6 +125,8 @@ import type {
   ClubDetailView,
   ClubInviteView,
   ClubRole,
+  CosmeticPurchaseResult,
+  CosmeticsCatalogView,
   ClubSummaryView,
   SeasonView,
   StaffHireResult,
@@ -1649,6 +1651,16 @@ export const apiClient = {
     }),
 
   getClubInvites: () => request<ClubInviteView[]>('/clubs/invites'),
+
+  /** 09.10.2026 — kozmetik mağaza (elmasla yalnızca görünüş). */
+  getCosmetics: () => request<CosmeticsCatalogView>('/cosmetics'),
+
+  /** PARA YOLU (elmas): anahtar BAŞARIYA kadar saklanır (çağıran tutar). */
+  purchaseCosmetic: (key: string, idempotencyKey: string) =>
+    request<CosmeticPurchaseResult>(`/cosmetics/${encodeURIComponent(key)}/purchase`, {
+      method: 'POST',
+      headers: { 'Idempotency-Key': idempotencyKey },
+    }),
 
   acceptClubInvite: (inviteId: string) =>
     request<ClubDetailView>(`/clubs/invites/${inviteId}/accept`, { method: 'POST' }),

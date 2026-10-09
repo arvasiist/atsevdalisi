@@ -58,6 +58,11 @@ export function avatarOptions(field: AvatarField): string[] {
 }
 
 /** Renk alanıysa seçeneğin hex değeri, değilse `null`. */
+/** 09.10.2026 — alanın avatar kataloğu (kozmetik kilidi için). */
+export function catalogOfField(field: AvatarField): AvatarCatalogKey {
+  return CATALOG_KEYS[field];
+}
+
 export function avatarSwatch(field: AvatarField, option: string): string | null {
   const entry = AVATAR_CONFIG[CATALOG_KEYS[field]];
   return Array.isArray(entry) ? null : (entry[option] ?? null);

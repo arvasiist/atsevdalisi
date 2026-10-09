@@ -12,6 +12,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { PaymentOrderView, StoreView } from '@at-sevdalisi/shared-types';
 import { GlassPanel } from '../../components/ui/GlassPanel';
 import { PAYMENT_STATUS_LABELS, formatPrice, isFinalPaymentStatus } from '../../features/store/store-labels';
+import { CosmeticShopPanel } from '../../features/cosmetics/CosmeticShopPanel';
+import { useCosmetics } from '../../features/cosmetics/use-cosmetics';
 import { apiClient } from '../../lib/api-client';
 import { usePlayer } from '../../lib/player-context';
 
@@ -33,6 +35,8 @@ function StoreContent(): React.ReactElement {
   // Anahtar BAŞARIYA kadar korunur (cüzdan deseni): yanıt ağda kaybolursa
   // yeniden basış ikinci bir ödeme oturumu açmaz.
   const pendingKey = useRef<{ sku: string; key: string } | null>(null);
+  // 09.10.2026 — elmasla görünüş (kozmetik); alımdan sonra üst bar bakiyesi tazelenir.
+  const cosmetics = useCosmetics(player !== null, refresh);
 
   const load = useCallback(async () => {
     try {
@@ -106,6 +110,7 @@ function StoreContent(): React.ReactElement {
     <main className="page-container" data-testid="store-page">
       <h1 className="page-title">Mağaza</h1>
       {error ? <p className="moderation-error">{error}</p> : null}
+      {cosmetics.error ? <p className="moderation-error">{cosmetics.error}</p> : null}
       {returned ? (
         <GlassPanel>
           <p data-testid="store-returned">
@@ -144,6 +149,13 @@ function StoreContent(): React.ReactElement {
               </GlassPanel>
             ))}
           </div>
+          {cosmetics.catalog !== null ? (
+            <CosmeticShopPanel
+              catalog={cosmetics.catalog}
+              busyKey={cosmetics.busyKey}
+              onBuy={(key) => void cosmetics.purchase(key)}
+            />
+          ) : null}
           <GlassPanel>
             <h2 className="avatar-section-title">Makbuzlarım</h2>
             {orders.length === 0 ? (

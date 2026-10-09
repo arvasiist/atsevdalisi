@@ -10,6 +10,7 @@
  */
 
 import dynamic from 'next/dynamic';
+import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import type { AvatarAppearance, AvatarField, AvatarView } from '@at-sevdalisi/shared-types';
 import { GlassPanel } from '../../components/ui/GlassPanel';
@@ -18,8 +19,11 @@ import {
   AVATAR_FIELD_LABELS,
   avatarOptions,
   avatarSwatch,
+  catalogOfField,
   optionLabel,
 } from '../../features/avatar/avatar-catalog';
+import { cosmeticForOption, lockedSelections } from '../../features/cosmetics/cosmetic-logic';
+import { useCosmetics } from '../../features/cosmetics/use-cosmetics';
 import type { AvatarOutfitMode, AvatarPose } from '../../features/avatar/AvatarFigure3D';
 import { AiAvatarPanel } from '../../features/avatar/AiAvatarPanel';
 import { AvatarPortrait } from '../../features/avatar/AvatarPortrait';
@@ -35,7 +39,7 @@ const AvatarScene3D = dynamic(() => import('../../features/avatar/AvatarScene3D'
 const RACE_FIELDS: ReadonlySet<AvatarField> = new Set(['raceOutfit', 'silksPrimary', 'silksSecondary']);
 
 export default function AvatarPage(): React.ReactElement {
-  const { player, isLoading, createPlayer } = usePlayer();
+  const { player, isLoading, createPlayer, refresh } = usePlayer();
   const [saved, setSaved] = useState<AvatarView | null>(null);
   const [draft, setDraft] = useState<AvatarAppearance | null>(null);
   const [outfit, setOutfit] = useState<AvatarOutfitMode>('social');
@@ -43,9 +47,16 @@ export default function AvatarPage(): React.ReactElement {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  // 09.10.2026 — mağazadan açılan seçenekler (kilit yalnızca gösterim; kural sunucuda).
+  const cosmetics = useCosmetics(player !== null, refresh);
+  const cosmeticItems = useMemo(() => cosmetics.catalog?.items ?? [], [cosmetics.catalog]);
 
+  // Oyuncu KİMLİĞİNE bağlı: bakiye tazelenince (`refresh` — ör. kozmetik
+  // alımından sonra) `player` nesnesi değişir; efekt ona bağlı olsaydı avatar
+  // yeniden yüklenir ve oyuncunun denediği taslak sıfırlanırdı (yaşandı).
+  const playerId = player?.id ?? null;
   useEffect(() => {
-    if (!player) return;
+    if (playerId === null) return;
     apiClient
       .getAvatar()
       .then((view) => {
@@ -53,11 +64,15 @@ export default function AvatarPage(): React.ReactElement {
         setDraft(view.appearance);
       })
       .catch((err: unknown) => setError(err instanceof Error ? err.message : 'Avatar yüklenemedi.'));
-  }, [player]);
+  }, [playerId]);
 
   const dirty = useMemo(
     () => saved !== null && draft !== null && JSON.stringify(saved.appearance) !== JSON.stringify(draft),
     [saved, draft],
+  );
+  const locked = useMemo(
+    () => (draft === null ? [] : lockedSelections(draft, cosmeticItems, catalogOfField)),
+    [draft, cosmeticItems],
   );
 
   if (!player) {
@@ -103,6 +118,7 @@ export default function AvatarPage(): React.ReactElement {
     <main className="page-container" data-testid="avatar-page">
       <h1 className="page-title">Avatarım</h1>
       {error ? <p className="moderation-error">{error}</p> : null}
+      {cosmetics.error ? <p className="moderation-error">{cosmetics.error}</p> : null}
       {notice ? <p className="quest-notice">{notice}</p> : null}
       {draft === null ? (
         <p className="session-meta">Yükleniyor…</p>
@@ -145,15 +161,17 @@ export default function AvatarPage(): React.ReactElement {
                   {avatarOptions(field).map((option) => {
                     const swatch = avatarSwatch(field, option);
                     const selected = draft[field] === option;
+                    const item = cosmeticForOption(cosmeticItems, catalogOfField(field), option);
+                    const isLocked = item !== null && !item.owned;
                     return (
                       <button
                         key={option}
                         type="button"
                         aria-pressed={selected}
-                        className={swatch ? 'avatar-swatch' : 'avatar-chip'}
+                        className={`${swatch ? 'avatar-swatch' : 'avatar-chip'}${isLocked ? ' avatar-swatch-locked' : ''}`}
                         style={swatch ? { background: swatch } : undefined}
-                        title={optionLabel(option)}
-                        aria-label={`${AVATAR_FIELD_LABELS[field]}: ${optionLabel(option)}`}
+                        title={isLocked ? `${optionLabel(option)} — mağazadan (${item.priceGems} elmas)` : optionLabel(option)}
+                        aria-label={`${AVATAR_FIELD_LABELS[field]}: ${optionLabel(option)}${isLocked ? ' (kilitli)' : ''}`}
                         onClick={() => choose(field, option)}
                       >
                         {swatch ? null : optionLabel(option)}
@@ -163,8 +181,34 @@ export default function AvatarPage(): React.ReactElement {
                 </div>
               </fieldset>
             ))}
+            {locked.length > 0 ? (
+              <div className="cosmetic-locked-notice" data-testid="cosmetic-locked">
+                <span className="session-meta">Denediğin renk mağazadan açılır; kaydetmek için önce al:</span>
+                {locked.map((item) => (
+                  <button
+                    key={item.key}
+                    type="button"
+                    className="moderation-primary"
+                    disabled={cosmetics.busyKey !== null || (cosmetics.catalog?.gems ?? 0) < item.priceGems}
+                    onClick={() => void cosmetics.purchase(item.key)}
+                  >
+                    {cosmetics.busyKey === item.key ? 'Alınıyor…' : `${item.name} — ${item.priceGems} 💎`}
+                  </button>
+                ))}
+                {(cosmetics.catalog?.gems ?? 0) < Math.min(...locked.map((item) => item.priceGems)) ? (
+                  <Link href="/store" className="session-meta">
+                    Elmasın yetmiyor — mağaza
+                  </Link>
+                ) : null}
+              </div>
+            ) : null}
             <div className="avatar-actions">
-              <button type="button" className="moderation-primary" disabled={busy || !dirty} onClick={() => void save()}>
+              <button
+                type="button"
+                className="moderation-primary"
+                disabled={busy || !dirty || locked.length > 0}
+                onClick={() => void save()}
+              >
                 Kaydet
               </button>
               <button

@@ -4521,8 +4521,13 @@ Karar: önce pratik yarış; kırbaç sınırsız, dayanıklılık bedelli.
   seçeneği olmalı, anahtar/seçenek tekil, fiyat pozitif, her katalogda en az
   bir ücretsiz seçenek kalmalı.
 - `player_cosmetics` hesap silme + dışa aktarma (`cosmetics`) listelerinde.
-- Sırada (adım 3): forma renginin yarışta görünmesi (bugün yarıştaki jokey
-  rengi atın palet renginden), mağaza ekranı, avatar düzenleyicide kilit.
+- Adım 3a (aynı gün): `/store` → "Forma renkleri" listesi; `/avatar`ta kilitli
+  renk 🔒 ile denenebilir, kaydetmeden önce satın alma düğmesi çıkar ve
+  Kaydet kapalı kalır. Satın alma mantığı tek hook'ta (`useCosmetics`,
+  anahtar BAŞARIYA kadar saklanır). Bulunan hata: alımdan sonra bakiye
+  tazelenince avatar yeniden yükleniyor ve denenen taslak SIFIRLANIYORDU —
+  yükleme artık oyuncu kimliğine bağlı. Sırada (3b): forma renginin yarışta
+  görünmesi (bugün yarıştaki jokey rengi atın palet renginden).
 - Kanıt: `cosmetics.spec.ts` (config, varsayılan değişmezliği, sahiplik),
   `cosmetics.e2e-spec.ts` (alım + defter, tekrar 409, eşzamanlı tek alım,
   yetersiz elmas, avatar kilidi), `avatar.e2e-spec.ts` güncellendi.

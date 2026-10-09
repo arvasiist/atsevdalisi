@@ -3074,6 +3074,15 @@ button.btn-action {
 /* 07.10.2026 — Mağaza (Faz 12). */
 .store-grid { display: grid; gap: 12px; margin-top: 12px; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); margin-bottom: 16px; }
 .store-product { display: grid; gap: 8px; justify-items: start; }
+/* 09.10.2026 — kozmetik mağaza (forma renkleri) + avatar düzenleyicide kilit. */
+.cosmetic-list { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 8px; }
+.cosmetic-item { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 8px 10px; border-radius: var(--radius-md); background: rgba(255, 255, 255, 0.03); }
+.cosmetic-swatch { width: 28px; height: 28px; border-radius: 50%; border: 2px solid rgba(255, 255, 255, 0.35); flex-shrink: 0; }
+.cosmetic-name { flex: 1 1 140px; min-width: 0; font-weight: 600; }
+.cosmetic-owned { color: var(--color-status-positive); font-weight: 600; font-size: 13px; }
+.avatar-swatch-locked { position: relative; }
+.avatar-swatch-locked::after { content: '🔒'; position: absolute; right: -6px; bottom: -6px; font-size: 11px; line-height: 1; }
+.cosmetic-locked-notice { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
 .store-gems { font-size: 1.2rem; color: var(--gold, #c9a227); }
 .store-price { font-size: 1rem; }
 
