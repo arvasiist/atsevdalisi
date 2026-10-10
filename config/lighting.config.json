@@ -13,5 +13,11 @@
     "size": 20,
     "samples": 12,
     "focus": 0.6
+  },
+  "proceduralSky": {
+    "turbidity": 3.2,
+    "rayleigh": 2.2,
+    "mieCoefficient": 0.004,
+    "mieDirectionalG": 0.82
   }
 }

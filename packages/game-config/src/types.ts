@@ -1086,6 +1086,26 @@ export interface VfxConfig {
     heightMeters: number;
     depthMeters: number;
   };
+  /**
+   * 10.10.2026 — zemin ayrıntısı (prosedürel `<canvas>` dokuları; gerçek PBR
+   * dokusu gelene kadar). Dokular NÖTR tonludur, hipodrom/yüzey rengiyle
+   * çarpılır. Biçme şeritleri dünya koordinatında, merkezden uzaklaştıkça
+   * söner (uzakta tekrar deseni görünmesin).
+   */
+  ground: {
+    /** Çim dokusunun bir karesinin dünyadaki boyu (m). */
+    grassTileMeters: number;
+    /** Pist dokusunun bir karesinin dünyadaki boyu (m). */
+    trackTileMeters: number;
+    /** Biçme şeridi genişliği (m). */
+    mowingStripeMeters: number;
+    /** Şeritler arası parlaklık farkı (0 = şerit yok). */
+    mowingContrast: number;
+    /** Şeritlerin tamamen söndüğü merkez uzaklığı (m). */
+    mowingFadeMeters: number;
+    /** Pist kenarında çim/kum geçişi: kenardan içe koyulaşan bant (m). */
+    trackEdgeBandMeters: number;
+  };
 }
 
 /**
@@ -2097,6 +2117,11 @@ export interface LightingConfig {
   bloom: { luminanceThreshold: number; luminanceSmoothing: number; intensity: number };
   /** Yalnızca 'ultra' kalite kademesinde (PCSS, pahalı). */
   softShadows: { size: number; samples: number; focus: number };
+  /**
+   * 10.10.2026 — HDRI yokken drei `<Sky>` (atmosfer saçılımı) parametreleri.
+   * Eskiden kodda sabitti (rayleigh 0.9 → soluk, beyazımsı gökyüzü).
+   */
+  proceduralSky: { turbidity: number; rayleigh: number; mieCoefficient: number; mieDirectionalG: number };
 }
 
 /**

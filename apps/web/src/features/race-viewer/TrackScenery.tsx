@@ -19,7 +19,7 @@
 
 import { useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { loadAtmosphereConfig } from '@at-sevdalisi/game-config';
+import { loadAtmosphereConfig, loadLightingConfig, loadVfxConfig } from '@at-sevdalisi/game-config';
 import { keepSpectator, spectatorArmRaise, spectatorLift } from './race-atmosphere';
 import { createConiferCrown, createDeciduousCrown } from './tree-geometry';
 import {
@@ -40,10 +40,14 @@ import {
   type StadiumTrackGeometry,
 } from './track-path';
 import { TRACK_WIDTH_METERS } from './track-dimensions';
+import { createGrassDetailTexture, createTrackDetailTexture } from './ground-textures';
+import { MOWING_GLSL, textureRepeat, trackCrossSection } from './ground-detail';
 
 // 08.10.2026 — saf modüle taşındı (şerit hesabı three.js çekmesin).
 export { TRACK_WIDTH_METERS };
 const ATMOSPHERE = loadAtmosphereConfig();
+const GROUND = loadVfxConfig().ground;
+const SKY = loadLightingConfig().proceduralSky;
 const HDRI_ASSET = getAssetById('HDRI_SKY_REQUIRED');
 const HDRI_URL = HDRI_ASSET ? assetUrl(HDRI_ASSET.expectedPath) : '';
 const TRACK_TURN_COUNT_FOR_VISUAL = 2;
@@ -98,10 +102,10 @@ export function SkyAndLighting({
       <Sky
         distance={4500}
         sunPosition={SUN_POSITION}
-        turbidity={5}
-        rayleigh={0.9}
-        mieCoefficient={0.004}
-        mieDirectionalG={0.85}
+        turbidity={SKY.turbidity}
+        rayleigh={SKY.rayleigh}
+        mieCoefficient={SKY.mieCoefficient}
+        mieDirectionalG={SKY.mieDirectionalG}
       />
       <fog attach="fog" args={['#c9dcef', 380, 1900]} />
       <hemisphereLight args={['#cfe3ff', '#4a6b35', environmentEnabled ? 0.55 : 0.9]} />
@@ -148,11 +152,52 @@ export function SkyAndLighting({
   );
 }
 
+/**
+ * Çim zemin. 10.10.2026 (görsel B2): düz renk yerine döşenen prosedürel ot
+ * dokusu + biçme şeritleri (dünya koordinatında, merkezden uzaklaştıkça
+ * söner — `ground-detail.ts` ile aynı formül). Renk hâlâ hipodrom temasından.
+ */
 export function Grass({ color = '#4f8a3c' }: { color?: string }): React.ReactElement {
+  const texture = useMemo(() => {
+    const created = createGrassDetailTexture();
+    const repeat = textureRepeat(GROUND_SIZE_METERS, GROUND.grassTileMeters);
+    created?.repeat.set(repeat, repeat);
+    return created;
+  }, []);
+  useEffect(() => () => texture?.dispose(), [texture]);
+  const onBeforeCompile = useMemo(
+    () => (shader: THREE.WebGLProgramParametersWithUniforms) => {
+      shader.uniforms.uMowingStripe = { value: GROUND.mowingStripeMeters };
+      shader.uniforms.uMowingContrast = { value: GROUND.mowingContrast };
+      shader.uniforms.uMowingFade = { value: GROUND.mowingFadeMeters };
+      shader.vertexShader = shader.vertexShader
+        .replace('#include <common>', '#include <common>\nvarying vec3 vGroundWorld;')
+        .replace(
+          '#include <begin_vertex>',
+          '#include <begin_vertex>\nvGroundWorld = (modelMatrix * vec4(transformed, 1.0)).xyz;',
+        );
+      shader.fragmentShader = shader.fragmentShader
+        .replace(
+          '#include <common>',
+          `#include <common>\nvarying vec3 vGroundWorld;\nuniform float uMowingStripe;\nuniform float uMowingContrast;\nuniform float uMowingFade;\n${MOWING_GLSL}`,
+        )
+        .replace(
+          '#include <map_fragment>',
+          '#include <map_fragment>\ndiffuseColor.rgb *= mowingStripeFactor(vGroundWorld);',
+        );
+    },
+    [],
+  );
   return (
     <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.05, 0]} receiveShadow>
       <planeGeometry args={[GROUND_SIZE_METERS, GROUND_SIZE_METERS]} />
-      <meshStandardMaterial color={color} roughness={0.95} metalness={0} />
+      <meshStandardMaterial
+        color={color}
+        map={texture ?? undefined}
+        roughness={0.95}
+        metalness={0}
+        onBeforeCompile={onBeforeCompile}
+      />
     </mesh>
   );
 }
@@ -169,38 +214,57 @@ export function DirtTrack({
   const mesh = useMemo(() => {
     if (geometry.lapLengthMeters <= 0) return null;
     const half = TRACK_WIDTH_METERS / 2;
+    // 10.10.2026 (görsel B2): kesit kenar bantlarıyla (çim/korkuluk dibinde
+    // sıkışmış koyu toprak) + UV (u = pist boyunca, v = enine; doku tırmık
+    // izleri pist yönünde uzanır).
+    const section = trackCrossSection(half, GROUND.trackEdgeBandMeters);
+    const columns = section.length;
     const positions: number[] = [];
     const colors: number[] = [];
+    const uvs: number[] = [];
     const indices: number[] = [];
     const base = new THREE.Color(color);
     for (let i = 0; i <= TRACK_SAMPLES; i += 1) {
       const distance = (i / TRACK_SAMPLES) * geometry.lapLengthMeters;
-      const inner = getOutwardBoundaryPoint(distance, TRACK_TURN_COUNT_FOR_VISUAL, geometry, -half);
-      const outer = getOutwardBoundaryPoint(distance, TRACK_TURN_COUNT_FOR_VISUAL, geometry, half);
-      positions.push(inner.x, 0.02, inner.z, outer.x, 0.02, outer.z);
-      for (let side = 0; side < 2; side += 1) {
-        const shade = 0.86 + seeded(i * 2 + side, 7) * 0.2;
-        colors.push(base.r * shade, base.g * shade, base.b * shade);
-      }
+      const variation = 0.9 + seeded(i, 7) * 0.14;
+      section.forEach(({ offset, shade }) => {
+        const point = getOutwardBoundaryPoint(distance, TRACK_TURN_COUNT_FOR_VISUAL, geometry, offset);
+        positions.push(point.x, 0.02, point.z);
+        const tone = shade * variation;
+        colors.push(base.r * tone, base.g * tone, base.b * tone);
+        uvs.push(distance / GROUND.trackTileMeters, (offset + half) / GROUND.trackTileMeters);
+      });
       if (i < TRACK_SAMPLES) {
-        const a = i * 2;
-        indices.push(a, a + 1, a + 2, a + 1, a + 3, a + 2);
+        for (let column = 0; column < columns - 1; column += 1) {
+          const a = i * columns + column;
+          const b = a + columns;
+          indices.push(a, a + 1, b, a + 1, b + 1, b);
+        }
       }
     }
     const bufferGeometry = new THREE.BufferGeometry();
     bufferGeometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
     bufferGeometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+    bufferGeometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
     bufferGeometry.setIndex(indices);
     bufferGeometry.computeVertexNormals();
     return bufferGeometry;
   }, [geometry, color]);
+  const texture = useMemo(() => createTrackDetailTexture(), []);
+  useEffect(() => () => texture?.dispose(), [texture]);
 
   useEffect(() => () => mesh?.dispose(), [mesh]);
 
   if (!mesh) return null;
   return (
     <mesh geometry={mesh} receiveShadow>
-      <meshStandardMaterial vertexColors roughness={1} metalness={0} side={THREE.DoubleSide} />
+      <meshStandardMaterial
+        vertexColors
+        map={texture ?? undefined}
+        roughness={1}
+        metalness={0}
+        side={THREE.DoubleSide}
+      />
     </mesh>
   );
 }

@@ -44,5 +44,13 @@
     "stallWidthMeters": 1.6,
     "heightMeters": 2.6,
     "depthMeters": 3.4
+  },
+  "ground": {
+    "grassTileMeters": 7,
+    "trackTileMeters": 5,
+    "mowingStripeMeters": 9,
+    "mowingContrast": 0.16,
+    "mowingFadeMeters": 520,
+    "trackEdgeBandMeters": 0.9
   }
 }

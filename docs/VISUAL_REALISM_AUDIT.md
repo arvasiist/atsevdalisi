@@ -171,3 +171,20 @@ lisans seçimi sahibindedir.
   404 kalmadı. Rozet üretimde yolsuz kısa not, geliştirmede yol listesi +
   tek `console.info` (`placeholder-badge.spec.tsx`).
 - Ölçüm değişmedi (bu dilim çizim yüküne dokunmadı) — aynı sayılar §3.
+
+### B2 — zemin, pist, gökyüzü (10.10.2026)
+
+- **Çim:** düz renk yerine döşenen prosedürel ot dokusu (`ground-textures.ts`,
+  tohumlu, `<canvas>` — dosya yok) + biçme şeritleri (çim malzemesine
+  `onBeforeCompile` ile eklenen GLSL; merkezden uzaklaştıkça söner, uzakta
+  tekrar deseni görünmez). Renk hâlâ hipodrom temasından.
+- **Pist:** UV'li kesit (pist boyunca u), tırmık izi + kum tanesi + nal izi
+  dokusu; korkuluk/çim kenarında koyu sıkışmış toprak bandı. Renk hâlâ
+  yarış yüzeyinden (`trackColorBySurface`).
+- **Gökyüzü:** `<Sky>` değerleri koddan `lighting.config.json` →
+  `proceduralSky`a taşındı ve daha mavi/derin ayarlandı (rayleigh 0.9 → 2.2).
+- Yeni ayarlar `vfx.config.json` → `ground`; saf kararlar `ground-detail.ts`
+  (doku tekrarı, şerit formülü = GLSL, pist kesiti) `ground-detail.spec.ts`
+  ile kilitli. Eksik: gerçek PBR dokuları (`textures/grass-pbr.ktx2`,
+  `textures/track-dirt-pbr.ktx2`) — prosedürel doku geçicidir.
+
