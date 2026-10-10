@@ -37,7 +37,7 @@ import {
   SceneRenderSettings,
 } from '../race-viewer/SceneRenderSettings';
 import { SceneQualityMonitor } from '../race-viewer/SceneQualityMonitor';
-import { useQualityTier } from '../race-viewer/use-quality-tier';
+import { PERFORMANCE, useQualityTier } from '../race-viewer/use-quality-tier';
 import { ContactShadows } from '@react-three/drei';
 import { Bloom, EffectComposer } from '@react-three/postprocessing';
 import type { QualityTierRenderSettings } from '../race-viewer/quality-tier';
@@ -77,7 +77,7 @@ export type ShowcaseSceneHorse = Pick<
 >;
 
 export interface HomeScene3DProps {
-  /** Oyuncunun öne çıkan atı; yoksa (henüz oyuncu yok) sahne atsız kurulur. */
+  /** Oyuncunun öne çıkan atı; yoksa (misafir) sabit bir gösterim atı çizilir. */
   horse: ShowcaseSceneHorse | null;
   /** Elle seçilen çekim — verilirse otomatik sıra o çekimden devam eder. */
   requestedShot: number | null;
@@ -142,6 +142,33 @@ function CameraRig({
   return null;
 }
 
+/**
+ * 10.10.2026 (görsel P0-5) — misafirin atı yok; vitrin kameraları ata göre
+ * kurulduğundan eskiden boş pisti gösteriyordu. Misafire SABİT görünüşlü bir
+ * gösterim atı çizilir: yalnızca sahne süsüdür, hiçbir oyuncu verisi iddia
+ * etmez (yanındaki panel "AT SEVDALISI" der, değer göstermez).
+ */
+const SHOWCASE_APPEARANCE = { coatColor: 'bay', faceMarking: 'star', legMarking: 'socks' } as const;
+const SHOWCASE_DEMEANOR = { mood: 'neutral' as const, ...PRESENCE_CONFIG.moods.neutral };
+
+function ShowcaseHorse({ settings }: { settings: QualityTierRenderSettings }): React.ReactElement {
+  return (
+    <group position={HORSE_ANCHOR} rotation={[0, -HORSE_HEADING, 0]}>
+      <HorseAvatar3D
+        horseId="vitrin"
+        silkColor="#c9a227"
+        saddleNumber={1}
+        gait="idle"
+        castShadow={settings.shadowsEnabled}
+        appearance={SHOWCASE_APPEARANCE}
+        demeanor={SHOWCASE_DEMEANOR}
+        showJockey
+        showSaddleCloth={false}
+      />
+    </group>
+  );
+}
+
 function PlayerHorse({
   horse,
   settings,
@@ -203,9 +230,13 @@ export function HomeScene3D({
         crowdExcitement={ATMOSPHERE.crowd.preRaceExcitement}
         qualityTier={settings.tier}
       />
-      {horse ? <PlayerHorse horse={horse} settings={settings} /> : null}
-      {/* Atın altındaki temas gölgesi — sabit sahnede ucuz, zemine "oturma" hissi verir. */}
+      {horse ? <PlayerHorse horse={horse} settings={settings} /> : <ShowcaseHorse settings={settings} />}
+      {/* Atın altındaki temas gölgesi — zemine "oturma" hissi. At yerinde durduğu
+          için yalnızca birkaç kare çizilir (her karede bütün sahneyi yeniden
+          çiziyordu); at değişince `key` ile yeniden oluşur. */}
       <ContactShadows
+        key={horse?.id ?? 'vitrin'}
+        frames={PERFORMANCE.staticContactShadowFrames}
         position={[HORSE_ANCHOR[0], 0.02, HORSE_ANCHOR[2]]}
         opacity={0.55}
         scale={6}

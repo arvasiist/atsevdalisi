@@ -2138,6 +2138,14 @@ export interface PerformanceConfig {
     flipflops: number;
   };
   maxAutoDowngrades: number;
+  /**
+   * 10.10.2026 — duran atın (vitrin, ahır) temas gölgesi kaç kare çizilir.
+   * drei `ContactShadows` her karede BÜTÜN sahneyi yeniden çizer (tribündeki
+   * toplu örnekli kalabalık kırpılamaz → ana sayfada kare başına ~570 bin
+   * üçgen ek); duran atın gölgesi birkaç karede oluşup sabit kalır. At
+   * değişince (React `key`) yeniden çizilir.
+   */
+  staticContactShadowFrames: number;
 }
 
 /**

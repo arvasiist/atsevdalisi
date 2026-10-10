@@ -26,7 +26,7 @@ import { HdriEnvironment } from '../race-viewer/assets/HdriEnvironment';
 import { assetUrl, useAssetAvailability } from '../race-viewer/assets/asset-pipeline';
 import { SCENE_GL_OPTIONS, SceneRenderSettings } from '../race-viewer/SceneRenderSettings';
 import { SceneQualityMonitor } from '../race-viewer/SceneQualityMonitor';
-import { useQualityTier } from '../race-viewer/use-quality-tier';
+import { PERFORMANCE, useQualityTier } from '../race-viewer/use-quality-tier';
 import { HORSE_MOOD_LABELS, deriveHorseDemeanor } from '../horse-stage/horse-demeanor';
 import { PlaceholderStall, STABLE_SUN_POSITION, type StableDetail } from './PlaceholderStall';
 import { STABLE_LAMPS, STABLE_ORBIT, orbitPosition } from './stable-layout';
@@ -156,7 +156,17 @@ function StableSceneContents({
         shadow-bias={-0.0004}
       />
       <StableEnvironment castShadow={shadows} horseName={horse.name} detail={detail} />
-      <ContactShadows position={[0, 0.02, 0]} opacity={0.55} scale={5} blur={2.4} far={2.2} resolution={256} />
+      {/* Duran at: gölge birkaç karede oluşur ve sabit kalır (bkz. `staticContactShadowFrames`). */}
+      <ContactShadows
+        key={horse.id}
+        frames={PERFORMANCE.staticContactShadowFrames}
+        position={[0, 0.02, 0]}
+        opacity={0.55}
+        scale={5}
+        blur={2.4}
+        far={2.2}
+        resolution={256}
+      />
       <HorseAvatar3D
         horseId={horse.id}
         silkColor="#c9a227"

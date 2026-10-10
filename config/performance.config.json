@@ -5,5 +5,6 @@
     "upperFps": 55,
     "flipflops": 3
   },
-  "maxAutoDowngrades": 2
+  "maxAutoDowngrades": 2,
+  "staticContactShadowFrames": 2
 }

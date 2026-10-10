@@ -188,3 +188,33 @@ lisans seçimi sahibindedir.
   ile kilitli. Eksik: gerçek PBR dokuları (`textures/grass-pbr.ktx2`,
   `textures/track-dirt-pbr.ktx2`) — prosedürel doku geçicidir.
 
+### C1 — at + jokey, misafir vitrin atı (10.10.2026)
+
+- **At (P1-6):** gövde, boyun, baş ve kuyruk anatomik kesitlerden loft
+  (Catmull-Rom ile yumuşatılmış elips kesitler); but ve omuz kasları;
+  bacaklar omuz/kalça + diz/sekiz eklemli, dörtnalda salınım evresinde
+  diz toynağı geri, sekiz ileri katlar (`gallopLegPose`); destekte bacak
+  düz. Toynak tabanları y = 0 (testli). Eyer, kolan, yular (tepelik,
+  yanaklık, burunluk, gem) ve dizgin. Jokey kısa üzengide öne eğik; elleri
+  dizgin ucunda (testli), kask siperli. Bacaklar gövde grubunun DIŞINDA:
+  gövde dörtnalda iner-kalkar, toynaklar zeminde kalır.
+- Geometri `horse-geometry.ts`te ve bütün atlar arasında PAYLAŞILIR; aynı
+  malzemeli parçalar birleştirildi → yarışta çizim çağrısı DEĞİŞMEDİ
+  (358), üçgen +%8 (690 bin → 744 bin).
+- Bekleme davranışı (nefes, baş, kuyruk, kulak, dinlenen arka bacak)
+  korunuyor; kulaklar `earPerk` için ayrı tutuldu (ölü config olmasın).
+- **P0-5 kapandı:** misafir vitrininde sabit görünüşlü gösterim atı
+  (yalnızca sahne; panel değer göstermez).
+- Hâlâ PLACEHOLDER: iskeletli gerçek model (`models/horse.glb`,
+  `models/jockey.glb`) gelince `HorseAvatar3D` ona geçer.
+
+### B3 — temas gölgesi (10.10.2026)
+
+- **P1-12 (kısmen):** drei `ContactShadows` her karede BÜTÜN sahneyi
+  (tribündeki 5 bin figürlük kalabalık dahil) yeniden çiziyordu. Duran
+  atlı sahnelerde (vitrin, ahır) gölge `performance.staticContactShadowFrames`
+  kare çizilip sabit kalır, at değişince `key` ile yenilenir
+  (`contact-shadows.spec.ts`).
+- Ölçüm (ana sayfa, tek kare): 257 çağrı / 1,35 M üçgen → **132 çağrı /
+  0,68 M üçgen**. Kalan yükün çoğu kalabalık (~450 bin üçgen, "Orta").
+
