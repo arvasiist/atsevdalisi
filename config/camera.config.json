@@ -145,5 +145,10 @@
     "lookHeightMeters": 1.3,
     "followSeconds": 0.08
   },
-  "defaultFollowSeconds": 0.27
+  "defaultFollowSeconds": 0.27,
+  "stableScene": {
+    "fov": 42,
+    "referenceAspect": 1.7778,
+    "maxPortraitFov": 76
+  }
 }

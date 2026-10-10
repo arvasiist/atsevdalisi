@@ -36,7 +36,7 @@ export default function RaceDemoPage(): React.ReactElement {
     <main className="viewer-page" style={{ width: '100%', height: '100%', background: '#0b1220', position: 'relative' }}>
       <RaceViewer key={hippodrome} timeline={timeline} horseNamesById={horseNamesById} hippodrome={hippodrome} />
       <label className="demo-hippodrome-select">
-        Hipodrom
+        <span className="demo-hippodrome-select-label">Hipodrom</span>
         <select aria-label="Hipodrom" value={hippodrome} onChange={(event) => setHippodrome(event.target.value)}>
           {HIPPODROME_OPTIONS.map((option) => (
             <option key={option.key} value={option.key}>

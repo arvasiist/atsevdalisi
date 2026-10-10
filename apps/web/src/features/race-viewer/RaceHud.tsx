@@ -57,7 +57,7 @@
  */
 export type RaceLiveStatus = 'connecting' | 'live' | 'reconnecting' | 'finished';
 
-import { memo } from 'react';
+import { memo, useState } from 'react';
 import { Flag, Gauge, Route, Timer } from 'lucide-react';
 import type { CameraMode } from './camera-presets';
 import { CAMERA_MODE_LABELS, CAMERA_MODE_ORDER } from './camera-presets';
@@ -69,6 +69,8 @@ import { HorseHeadIcon } from '../../components/ui/HorseHeadIcon';
 /** `isCloseFinish` eşiği config'ten (modül seviyesinde tek yükleme). */
 const cameraConfig = loadCameraConfig();
 
+/** Telefonda kapalı sıralama panelinin gösterdiği at sayısı (CSS `nth-child` ile aynı). */
+const MOBILE_STANDINGS_ROWS = 3;
 const MPS_TO_KMH = 3.6;
 const FALLBACK_BADGE_COLOR = '#64748b';
 
@@ -373,9 +375,24 @@ function LeaderboardPanel({
   focusHorseId?: string;
   onSelectHorse?: (horseId: string) => void;
 }): React.ReactElement {
+  // 10.10.2026 (görsel P0-4) — telefonda panel sahneyi örtmesin: varsayılan
+  // ilk 3 at (CSS), "Tümü" ile açılır. Masaüstünde düğme gizli, liste tam.
+  const [expanded, setExpanded] = useState(false);
   return (
-    <div className="hud-panel hud-standings">
-      <div className="hud-panel-title">Sıralama</div>
+    <div className="hud-panel hud-standings" data-expanded={expanded ? 'true' : 'false'}>
+      <div className="hud-standings-head">
+        <div className="hud-panel-title">Sıralama</div>
+        {leaderboard.length > MOBILE_STANDINGS_ROWS ? (
+          <button
+            type="button"
+            className="hud-standings-toggle"
+            aria-expanded={expanded}
+            onClick={() => setExpanded((value) => !value)}
+          >
+            {expanded ? 'Daralt' : `Tümü (${leaderboard.length})`}
+          </button>
+        ) : null}
+      </div>
       <ol className="hud-standings-list">
         {leaderboard.map((entry) => {
           // `Yor`: CANLI (yarış içinde biriken) yorgunluk; eski kayıtlarda

@@ -199,4 +199,28 @@ describe('RaceHud', () => {
     render(<RaceHud {...buildProps({ leaderboard: withoutPace, horseNamesById: { h1: 'Yıldırım' } })} />);
     expect(screen.queryByText(/Tempo/)).toBeNull();
   });
+
+  it('sıralama: 3 attan fazlasında "Tümü (N)" düğmesi paneli açar/kapatır; 3 ve altında düğme yok', () => {
+    const many = Array.from({ length: 5 }, (_, index) => ({
+      horseId: `h${index + 1}`,
+      rank: index + 1,
+      positionMeters: 800 - index * 10,
+      speedMps: 16,
+      gapToLeaderMeters: index * 10,
+    }));
+    const { container, unmount } = render(<RaceHud {...buildProps({ leaderboard: many })} />);
+    const panel = container.querySelector('.hud-standings') as HTMLElement;
+    expect(panel.dataset.expanded).toBe('false');
+    const toggle = screen.getByRole('button', { name: 'Tümü (5)' });
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    fireEvent.click(toggle);
+    expect(panel.dataset.expanded).toBe('true');
+    expect(screen.getByRole('button', { name: 'Daralt' }).getAttribute('aria-expanded')).toBe('true');
+    // Masaüstünde liste her zaman tam: satırlar DOM'da kalır (gizleme yalnızca CSS).
+    expect(container.querySelectorAll('.hud-standings-row')).toHaveLength(5);
+    unmount();
+
+    render(<RaceHud {...buildProps()} />);
+    expect(screen.queryByRole('button', { name: /Tümü/ })).toBeNull();
+  });
 });

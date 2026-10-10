@@ -11,11 +11,12 @@
  * bağlamı tarayıcı sınırını aşardı). Sahne dışarıdan dosya indirmez.
  */
 
-import { Suspense, useMemo, useRef } from 'react';
-import { Canvas, useFrame } from '@react-three/fiber';
+import { Suspense, useEffect, useMemo, useRef } from 'react';
+import { Canvas, useFrame, useThree } from '@react-three/fiber';
+import type * as THREE from 'three';
 import { ContactShadows, OrbitControls } from '@react-three/drei';
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
-import { loadHorsePresenceConfig } from '@at-sevdalisi/game-config';
+import { loadCameraConfig, loadHorsePresenceConfig } from '@at-sevdalisi/game-config';
 import type { PublicHorse } from '@at-sevdalisi/shared-types';
 import { HorseAvatar3D } from '../race-viewer/HorseAvatar3D';
 import { GltfAssetLoader } from '../race-viewer/assets/GltfAssetLoader';
@@ -28,6 +29,7 @@ import { SCENE_GL_OPTIONS, SceneRenderSettings } from '../race-viewer/SceneRende
 import { SceneQualityMonitor } from '../race-viewer/SceneQualityMonitor';
 import { PERFORMANCE, useQualityTier } from '../race-viewer/use-quality-tier';
 import { HORSE_MOOD_LABELS, deriveHorseDemeanor } from '../horse-stage/horse-demeanor';
+import { fitFovToAspect } from '../home-scene/showcase-camera';
 import { PlaceholderStall, STABLE_SUN_POSITION, type StableDetail } from './PlaceholderStall';
 import { STABLE_LAMPS, STABLE_ORBIT, orbitPosition } from './stable-layout';
 import { AudioToggle } from '../race-viewer/audio-vfx/AudioToggle';
@@ -44,6 +46,7 @@ export type StableSceneHorse = Pick<
   'id' | 'name' | 'health' | 'energy' | 'fatigue' | 'morale' | 'status' | 'appearance'
 >;
 
+const STABLE_CAMERA = loadCameraConfig().stableScene;
 const INITIAL_CAMERA = orbitPosition(
   STABLE_ORBIT.target,
   STABLE_ORBIT.initial.distance,
@@ -193,6 +196,23 @@ export interface StableScene3DProps {
   fullscreen?: boolean;
 }
 
+/**
+ * 10.10.2026 (görsel P1-9) — dar (dikey) ekranda yatay görüş korunur: sabit
+ * 42° ile telefonda at kadraja sığmıyordu (baş dışarıda kalıyordu).
+ */
+function FitStableFov(): null {
+  const camera = useThree((state) => state.camera) as THREE.PerspectiveCamera;
+  const aspect = useThree((state) => state.size.width / Math.max(1, state.size.height));
+  useEffect(() => {
+    const fov = fitFovToAspect(STABLE_CAMERA.fov, aspect, STABLE_CAMERA.referenceAspect, STABLE_CAMERA.maxPortraitFov);
+    if (Math.abs(camera.fov - fov) > 0.01) {
+      camera.fov = fov;
+      camera.updateProjectionMatrix();
+    }
+  }, [camera, aspect]);
+  return null;
+}
+
 export function StableScene3D({ horse, children, fullscreen = false }: StableScene3DProps): React.ReactElement {
   // 01.10.2026 (3D adım 10) — ortak kalite tercihi + otomatik düşürme.
   const quality = useQualityTier();
@@ -209,9 +229,10 @@ export function StableScene3D({ horse, children, fullscreen = false }: StableSce
         key={settings.tier}
         shadows={settings.shadowsEnabled}
         dpr={[1, settings.pixelRatioCap]}
-        camera={{ position: INITIAL_CAMERA, fov: 42 }}
+        camera={{ position: INITIAL_CAMERA, fov: STABLE_CAMERA.fov }}
         gl={SCENE_GL_OPTIONS}
       >
+        <FitStableFov />
         <SceneQualityMonitor
           enabled={quality.preference === 'auto'}
           onDecline={quality.reportPerformanceDecline}

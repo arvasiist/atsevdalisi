@@ -999,6 +999,12 @@ export interface CameraConfig {
   };
   /** Diğer kameraların takip gecikmesi (sn). */
   defaultFollowSeconds: number;
+  /**
+   * 10.10.2026 — ahır kamerası: `fov` 16:9 için yazıldı; dar (dikey) ekranda
+   * yatay kapsam korunur (`fitFovToAspect`), en fazla `maxPortraitFov`a kadar
+   * (telefonda at kadraja sığsın; kamera ahır duvarlarına çarpmadan).
+   */
+  stableScene: { fov: number; referenceAspect: number; maxPortraitFov: number };
   /** Liderin bu mesafenin ALTINDA olduğu süre "start" event'i sayılır (metre). */
   startPhaseMeters: number;
   /** Bitişe bu mesafeden AZ kaldığında "final_stretch" event'i tetiklenir (metre). */

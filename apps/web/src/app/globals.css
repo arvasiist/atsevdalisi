@@ -1035,7 +1035,7 @@ a {
   top: 10px;
   left: 10px;
   z-index: 2;
-  max-width: min(280px, calc(100% - 140px));
+  max-width: min(280px, calc(100% - 180px));
   padding: 4px 9px;
   border-radius: 8px;
   background: rgba(5, 8, 18, 0.6);
@@ -1654,6 +1654,26 @@ button[style*='background: var(--color-accent-gold)'] {
   margin-bottom: 8px;
 }
 
+.hud-standings-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+/* Masaüstünde liste tam; düğme yalnızca telefonda (aşağıdaki @media). */
+.hud-standings-toggle {
+  display: none;
+  min-height: 28px;
+  padding: 0 8px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--color-accent-gold);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
 .hud-standings-list {
   list-style: none;
   margin: 0;
@@ -2015,6 +2035,44 @@ button[style*='background: var(--color-accent-gold)'] {
 
   .hud-standings-list {
     max-height: 34vh;
+  }
+
+  /* 10.10.2026 (görsel P0-4) — kapalıyken ilk 3 at; sahne görünür kalsın. */
+  .hud-standings-toggle {
+    display: inline-flex;
+    align-items: center;
+  }
+
+  .hud-standings[data-expanded='false'] .hud-standings-row:nth-child(n + 4) {
+    display: none;
+  }
+
+  .hud-standings[data-expanded='false'] .hud-statbar {
+    display: none;
+  }
+
+  /* Sahne kontrolleri (ses + kalite) ve demo hipodrom seçici üst bölümün
+     hemen altına, sola; sıralama paneli sağda kalır. */
+  .scene-controls-race {
+    top: 128px !important;
+    left: 8px !important;
+  }
+
+  .demo-hippodrome-select {
+    top: 172px;
+    left: 8px;
+    max-width: calc(100% - 200px);
+    padding: 4px 8px;
+    font-size: 12px;
+  }
+
+  .demo-hippodrome-select select {
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  .demo-hippodrome-select-label {
+    display: none;
   }
 
   .hud-standings-meta,

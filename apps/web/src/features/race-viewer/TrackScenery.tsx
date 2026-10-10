@@ -42,6 +42,7 @@ import {
 import { TRACK_WIDTH_METERS } from './track-dimensions';
 import { createGrassDetailTexture, createTrackDetailTexture } from './ground-textures';
 import { MOWING_GLSL, textureRepeat, trackCrossSection } from './ground-detail';
+import { lightTowerPositions } from './track-furniture-layout';
 
 // 08.10.2026 — saf modüle taşındı (şerit hesabı three.js çekmesin).
 export { TRACK_WIDTH_METERS };
@@ -621,15 +622,8 @@ export function TrackFurniture({
   }, []);
 
   if (geometry.lapLengthMeters <= 0) return null;
-  const half = geometry.straightLengthMeters / 2;
-  const innerZ = geometry.turnRadiusMeters - TRACK_WIDTH_METERS / 2 - 8;
-  const towers: Array<[number, number]> = [
-    [-half * 0.6, -innerZ],
-    [0, -innerZ],
-    [half * 0.6, -innerZ],
-    [-half * 0.6, innerZ],
-    [half * 0.6, innerZ],
-  ];
+  // 10.10.2026 — kuleler yayın kamerasının koridorunun gerisinde (P1-8).
+  const towers = lightTowerPositions(geometry);
   const finish = getHorseTrackPosition(0, TRACK_TURN_COUNT_FOR_VISUAL, geometry);
 
   return (

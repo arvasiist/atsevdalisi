@@ -218,3 +218,25 @@ lisans seçimi sahibindedir.
 - Ölçüm (ana sayfa, tek kare): 257 çağrı / 1,35 M üçgen → **132 çağrı /
   0,68 M üçgen**. Kalan yükün çoğu kalabalık (~450 bin üçgen, "Orta").
 
+
+### D1 — kamera + mobil arayüz (10.10.2026)
+
+- **P1-8 kapandı:** iç saha ışık kuleleri yayın kamerasının ("Pist
+  Kamerası", lideri `BROADCAST_CAMERA_SIDE_OFFSET_METERS` = 24 m içeriden
+  izler) koridorunun GERİSİNE alındı (`track-furniture-layout.ts`; lider
+  pistin herhangi bir şeridindeyken kamera–kule arasında ≥ 6 m pay;
+  iç saha çok darsa kule dikilmez). `track-furniture-layout.spec.ts`
+  beş hipodromun hepsinde bunu dener.
+- **P1-9 kapandı:** ahır kamerası dar ekranda `fitFovToAspect` ile yatay
+  kapsamı korur (`camera.config.json` → `stableScene`: 42°, referans
+  16:9, dikey tavan 76°). Telefonda (390 px) at artık baştan kuyruğa
+  kadrajda (`stable-camera-fov.spec.ts`).
+- **P0-4 kapandı:** mobilde (≤ 760 px) sıralama paneli ilk 3 atı gösterir,
+  "Tümü (N)" / "Daralt" düğmesiyle açılır (masaüstünde düğme yok, panel
+  eskisi gibi tam). Sahne kontrolleri (kalite/ses) kamera şeridinin altına,
+  hipodrom seçici dar etiketsiz biçime alındı — sahnenin ortası açık.
+  `RaceHud.spec.tsx` düğmeyi ve 3 attan az sahada yokluğunu dener.
+- PLACEHOLDER rozeti dar ekranda Bakım/Ekipman düğmelerine taşmaz
+  (`max-width` sınırı).
+- Ölçüm (mobil yarış, 390×844): konsol hatası yok; daraltılmış panel 3
+  satır, açık 5 satır. Gerçek cihazda dokunmatik denenmedi (headless).

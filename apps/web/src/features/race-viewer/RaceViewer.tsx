@@ -520,7 +520,7 @@ export function RaceViewer({
         hippodrome={hippodrome}
         isPlaying={isPlaying}
       />
-      <div className="scene-controls" style={{ top: 156, left: 16 }}>
+      <div className="scene-controls scene-controls-race" style={{ top: 156, left: 16 }}>
         <AudioToggle muted={audioMuted} onChange={setAudioMuted} />
         <QualitySelect />
       </div>

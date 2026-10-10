@@ -50,7 +50,8 @@ export interface CameraContext {
  * kalır (dış tarafta tribün olduğu için kamera oraya konamaz).
  */
 const BROADCAST_CAMERA_HEIGHT_METERS = 5.5;
-const BROADCAST_CAMERA_SIDE_OFFSET_METERS = 24;
+/** 10.10.2026 — dışa açık: iç saha ışık kuleleri bu koridorun gerisine dikilir (`track-furniture-layout.ts`). */
+export const BROADCAST_CAMERA_SIDE_OFFSET_METERS = 24;
 const BROADCAST_CAMERA_AHEAD_OFFSET_METERS = 8;
 const BROADCAST_CAMERA_LOOK_BEHIND_METERS = 9;
 const JOCKEY_CAMERA = loadCameraConfig().jockeyCamera;
