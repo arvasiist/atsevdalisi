@@ -240,3 +240,43 @@ lisans seçimi sahibindedir.
   (`max-width` sınırı).
 - Ölçüm (mobil yarış, 390×844): konsol hatası yok; daraltılmış panel 3
   satır, açık 5 satır. Gerçek cihazda dokunmatik denenmedi (headless).
+
+### E — son ölçüm, öncesi/sonrası (10.10.2026)
+
+Aynı betik, aynı koşul (headless Chromium + SwiftShader, kalite "Orta",
+1440×900 ve 390×844, aynı demo verisi). Kare hızı yazılımsal GPU'da
+ölçüldüğü için **gerçek cihaz FPS'i DEĞİLDİR** ve burada verilmez;
+karşılaştırılabilir olanlar kare başına çizim çağrısı ve üçgendir.
+
+| Sayfa | Çizim çağrısı (önce → sonra) | Üçgen / kare (önce → sonra) | Uygulama konsol hatası |
+|---|---|---|---|
+| Ana sayfa, masaüstü | 153 → 132 | 1,31 M → 0,68 M | 8 → 0 |
+| Ana sayfa, mobil | 149 → 128 | 1,31 M → 0,68 M | 8 → 0 |
+| Ahır, masaüstü | 508 → 261 | 92 bin → 55 bin | 8 → 0 |
+| Ahır, mobil | 462 → 234 | 91 bin → 54 bin | 8 → 0 |
+| Yarış, masaüstü | 358 → 357 | 690 bin → 744 bin | 10 → 0 |
+| Yarış, mobil | 302 → 305 | 634 bin → 728 bin | 11 → 0 |
+
+- Kalan tek konsol satırı Chromium'un "yazılımsal WebGL'e düşüş" uyarısıdır
+  (tarayıcının kendisi; gerçek GPU'da çıkmaz).
+- **Yarışta üçgen +%8–15:** yeni at + jokey (at başına ~8,7 bin, jokey ~1,7
+  bin üçgen; gölge geçişiyle ikiye katlanır). Çizim çağrısı değişmedi.
+  Yükün çoğu hâlâ tribün kalabalığı (~450 bin, "Orta").
+- Geliştirme rozeti de üretim rozetiyle aynı sağ payı bırakır (ahır
+  mobilde Bakım/Ekipman düğmelerinin altına giriyordu;
+  `placeholder-badge.spec.tsx` iki rozetin payını eşitler).
+
+**Kalan eksikler (dürüst liste):**
+
+1. **Gerçek varlık yok** — at, jokey, hipodrom, ahır, start kapısı GLB'leri
+   ve HDRI (§6). Bütün sahneler prosedüreldir, PLACEHOLDER rozeti durur.
+   Bu ortamın ağ politikası lisanslı kaynakları engelliyor.
+2. **Tribün yapısı basit** — düz yeşil çatı, tek kademe; çatı kirişi,
+   korkuluk, merdiven ve aydınlatma yok (P1, yapılmadı).
+3. **Kalabalık maliyeti** — "Orta"da ~450 bin üçgen; düşük kademede figür
+   sayısı azalıyor ama orta kademede LOD/impostor yok.
+4. **At animasyonu prosedürel** — eklemli dörtnal döngüsü var ama kas
+   deformasyonu, yele/kuyruk fiziği, gerçek hareket yakalama yok.
+5. **Gerçek cihazda ölçülmedi** — telefon/tablet GPU'sunda FPS ve dokunmatik
+   kamera kontrolleri denenmedi (headless).
+6. **Sahibine soru açık** — oyuncunun ana sayfası (bugün: ahır) §5.

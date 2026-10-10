@@ -61,7 +61,8 @@ export function PlaceholderBadge({
         top: 10,
         left: 10,
         zIndex: 2,
-        maxWidth: 'min(320px, calc(100% - 20px))',
+        // Üretim rozetiyle aynı sağ pay: sağ üstteki düğmelerin (ahırda Bakım/Ekipman) altına girmesin.
+        maxWidth: 'min(320px, calc(100% - 180px))',
         padding: '6px 10px',
         borderRadius: 8,
         background: 'rgba(5, 8, 18, 0.72)',
