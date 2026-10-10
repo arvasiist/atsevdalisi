@@ -45,9 +45,35 @@ export function AvatarPortrait({
         </g>
       ) : appearance.hat === 'cap' || appearance.hat === 'flatcap' ? (
         <path d="M27 30 Q50 6 73 30 L84 32 L27 32 Z" fill={c.outfit} />
+      ) : appearance.hat === 'tophat' ? (
+        <g>
+          <rect x="24" y="23" width="52" height="4" rx="2" fill="#16161c" />
+          <rect x="34" y="2" width="32" height="23" rx="2" fill="#16161c" />
+          <rect x="34" y="19" width="32" height="4" fill={c.outfit} />
+        </g>
+      ) : appearance.hat === 'bowler' ? (
+        <g fill="#1d1a17">
+          <rect x="25" y="25" width="50" height="4" rx="2" />
+          <path d="M31 27 Q31 8 50 8 Q69 8 69 27 Z" />
+        </g>
       ) : null}
       {appearance.accessory === 'medal' ? <circle cx="50" cy="84" r="5" fill="#d4af37" /> : null}
       {appearance.accessory === 'scarf' ? <rect x="34" y="64" width="32" height="7" rx="3" fill="#e8dcc0" /> : null}
+      {appearance.accessory === 'bowtie' ? (
+        <g fill="#7a1424">
+          <path d="M50 70 L38 64 L38 76 Z" />
+          <path d="M50 70 L62 64 L62 76 Z" />
+          <circle cx="50" cy="70" r="2.6" />
+        </g>
+      ) : null}
+      {appearance.accessory === 'binoculars' ? (
+        <g>
+          <path d="M40 66 Q50 74 60 66" fill="none" stroke="#3a2a1a" strokeWidth="1.4" />
+          <rect x="40" y="76" width="8" height="11" rx="2" fill="#2b2b30" />
+          <rect x="52" y="76" width="8" height="11" rx="2" fill="#2b2b30" />
+          <rect x="47" y="79" width="6" height="3" fill="#2b2b30" />
+        </g>
+      ) : null}
     </svg>
   );
 }

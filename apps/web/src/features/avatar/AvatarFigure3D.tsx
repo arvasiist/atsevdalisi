@@ -225,6 +225,39 @@ function Hat({ kind, color }: { kind: string; color: string }): React.ReactEleme
       </group>
     );
   }
+  // 09.10.2026 — kozmetik mağazadan açılan şapkalar.
+  if (kind === 'tophat') {
+    return (
+      <group position={[0, 1.84, 0]}>
+        <mesh>
+          <cylinderGeometry args={[0.26, 0.26, 0.02, 24]} />
+          <meshStandardMaterial color="#16161c" roughness={0.5} />
+        </mesh>
+        <mesh position={[0, 0.16, 0]}>
+          <cylinderGeometry args={[0.15, 0.15, 0.3, 24]} />
+          <meshStandardMaterial color="#16161c" roughness={0.5} />
+        </mesh>
+        <mesh position={[0, 0.04, 0]}>
+          <cylinderGeometry args={[0.153, 0.153, 0.05, 24]} />
+          <meshStandardMaterial color={color} roughness={0.6} />
+        </mesh>
+      </group>
+    );
+  }
+  if (kind === 'bowler') {
+    return (
+      <group position={[0, 1.83, 0]}>
+        <mesh>
+          <cylinderGeometry args={[0.235, 0.235, 0.016, 24]} />
+          <meshStandardMaterial color="#1d1a17" roughness={0.55} />
+        </mesh>
+        <mesh>
+          <sphereGeometry args={[0.172, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2]} />
+          <meshStandardMaterial color="#1d1a17" roughness={0.55} />
+        </mesh>
+      </group>
+    );
+  }
   // cap / flatcap: kubbe + siperlik
   return (
     <group position={[0, 1.78, 0]}>
@@ -259,6 +292,39 @@ function Accessory({ kind, color }: { kind: string; color: string }): React.Reac
         <torusGeometry args={[0.12, 0.045, 10, 20]} />
         <meshStandardMaterial color={color === '#e8dcc0' ? '#6b1f2a' : '#e8dcc0'} roughness={0.9} />
       </mesh>
+    );
+  }
+  // 09.10.2026 — kozmetik mağazadan açılan aksesuarlar.
+  if (kind === 'bowtie') {
+    return (
+      <group position={[0, 1.4, 0.19]}>
+        {[-1, 1].map((side) => (
+          <mesh key={side} position={[side * 0.04, 0, 0]} rotation={[0, 0, side * 0.35]}>
+            <boxGeometry args={[0.07, 0.05, 0.02]} />
+            <meshStandardMaterial color="#7a1424" roughness={0.6} />
+          </mesh>
+        ))}
+        <mesh position={[0, 0, 0.008]}>
+          <sphereGeometry args={[0.018, 10, 10]} />
+          <meshStandardMaterial color="#7a1424" roughness={0.6} />
+        </mesh>
+      </group>
+    );
+  }
+  if (kind === 'binoculars') {
+    return (
+      <group position={[0, 1.2, 0.23]}>
+        {[-0.04, 0.04].map((x) => (
+          <mesh key={x} position={[x, 0, 0]} rotation={[Math.PI / 2, 0, 0]}>
+            <cylinderGeometry args={[0.03, 0.034, 0.09, 14]} />
+            <meshStandardMaterial color="#2b2b30" roughness={0.4} metalness={0.3} />
+          </mesh>
+        ))}
+        <mesh>
+          <boxGeometry args={[0.05, 0.025, 0.04]} />
+          <meshStandardMaterial color="#2b2b30" roughness={0.4} metalness={0.3} />
+        </mesh>
+      </group>
     );
   }
   if (kind === 'medal') {

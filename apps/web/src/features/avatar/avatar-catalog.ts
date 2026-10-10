@@ -50,6 +50,8 @@ const OPTION_LABELS: Record<string, string> = {
   gold: 'Altın', red: 'Kırmızı', blue: 'Mavi', green: 'Yeşil', white: 'Beyaz', purple: 'Mor',
   // 09.10.2026 — kozmetik mağazadan açılan forma renkleri.
   turquoise: 'Turkuaz', orange: 'Turuncu', pink: 'Pembe', silver: 'Gümüş',
+  // 09.10.2026 — kozmetik mağazadan açılan şapka ve aksesuarlar.
+  tophat: 'Silindir', bowler: 'Melon', bowtie: 'Papyon', binoculars: 'Dürbün',
 };
 
 export function avatarOptions(field: AvatarField): string[] {
@@ -57,12 +59,28 @@ export function avatarOptions(field: AvatarField): string[] {
   return Array.isArray(entry) ? [...entry] : Object.keys(entry);
 }
 
-/** Renk alanıysa seçeneğin hex değeri, değilse `null`. */
 /** 09.10.2026 — alanın avatar kataloğu (kozmetik kilidi için). */
 export function catalogOfField(field: AvatarField): AvatarCatalogKey {
   return CATALOG_KEYS[field];
 }
 
+/** 09.10.2026 — kataloğu kullanan İLK alan (forma renkleri → ana renk); bilinmeyen → `null`. */
+export function fieldOfCatalog(catalog: string): AvatarField | null {
+  return AVATAR_FIELDS.find((field) => CATALOG_KEYS[field] === catalog) ?? null;
+}
+
+/**
+ * 09.10.2026 — mağaza önizlemesi: her alanın İLK seçeneği + ürünün seçeneği.
+ * Sabittir (oyuncudan bağımsız) — kimin baktığına göre değişmez.
+ */
+export function previewAppearance(field: AvatarField, option: string): AvatarAppearance {
+  const appearance = {} as AvatarAppearance;
+  for (const each of AVATAR_FIELDS) appearance[each] = avatarOptions(each)[0]!;
+  appearance[field] = option;
+  return appearance;
+}
+
+/** Renk alanıysa seçeneğin hex değeri, değilse `null`. */
 export function avatarSwatch(field: AvatarField, option: string): string | null {
   const entry = AVATAR_CONFIG[CATALOG_KEYS[field]];
   return Array.isArray(entry) ? null : (entry[option] ?? null);

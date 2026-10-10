@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import type { AvatarAppearance, AvatarField, CosmeticItemView } from '@at-sevdalisi/shared-types';
-import { cosmeticForOption, lockedSelections } from '../../../src/features/cosmetics/cosmetic-logic';
+import {
+  cosmeticForOption,
+  groupCosmeticsByCatalog,
+  lockedSelections,
+} from '../../../src/features/cosmetics/cosmetic-logic';
+import { fieldOfCatalog, previewAppearance } from '../../../src/features/avatar/avatar-catalog';
 
 const item = (key: string, optionId: string, owned: boolean): CosmeticItemView => ({
   key,
@@ -34,5 +39,24 @@ describe('kozmetik kilidi', () => {
     expect(lockedSelections(both, items, catalogOf).map((locked) => locked.key)).toEqual(['silk-pink']);
     const owned = { ...base, silksPrimary: 'silver' };
     expect(lockedSelections(owned, items, catalogOf)).toEqual([]);
+  });
+
+  it('mağaza bölümleri kataloğa göre, config sırası korunarak', () => {
+    const hat = { ...item('hat-tophat', 'tophat', false), catalog: 'hats', color: null };
+    const groups = groupCosmeticsByCatalog([item('silk-a', 'a', false), hat, item('silk-b', 'b', true)]);
+    expect(groups.map(([catalog, items]) => [catalog, items.map((entry) => entry.key)])).toEqual([
+      ['silkColors', ['silk-a', 'silk-b']],
+      ['hats', ['hat-tophat']],
+    ]);
+  });
+
+  it('önizleme: kataloğun alanı + sabit taban (oyuncudan bağımsız)', () => {
+    expect(fieldOfCatalog('hats')).toBe('hat');
+    expect(fieldOfCatalog('silkColors')).toBe('silksPrimary');
+    expect(fieldOfCatalog('yok')).toBeNull();
+    const preview = previewAppearance('hat', 'tophat');
+    expect(preview.hat).toBe('tophat');
+    expect(preview.accessory).toBe('none');
+    expect(previewAppearance('hat', 'tophat')).toEqual(preview);
   });
 });

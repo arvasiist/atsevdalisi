@@ -29,3 +29,16 @@ export function lockedSelections(
   }
   return [...locked.values()];
 }
+
+/** Mağaza bölümleri: ürünler kataloğa göre, config sırası korunarak gruplanır. */
+export function groupCosmeticsByCatalog(
+  items: readonly CosmeticItemView[],
+): Array<[string, CosmeticItemView[]]> {
+  const groups = new Map<string, CosmeticItemView[]>();
+  for (const item of items) {
+    const group = groups.get(item.catalog) ?? [];
+    group.push(item);
+    groups.set(item.catalog, group);
+  }
+  return [...groups.entries()];
+}

@@ -102,9 +102,9 @@ yazıyordu ve YANLIŞTI: stoklu yem elmasla satılıyordu (yem kondisyon/sağlı
 verir, motor ikisini okur → parayla yarış performansı) ve elmas arkadaşa
 hediye edilebiliyordu. İkisi kapatıldı (yem çiple; `validateGemPolicy`
 açılışta kilitler). Kozmetik mağaza: altyapı + ilk ürünler (forma renkleri)
-VAR (`/cosmetics`, migration 0082) — mağaza ekranı (`/store`), avatar
-düzenleyicide kilit ve forma renginin yarışta görünmesi dahil. Sırada avatar
-parçaları (şapka/aksesuar). Gerçek ödeme sağlayıcısı YOK.
+VAR (`/cosmetics`, migration 0082) — forma renkleri (yarışta jokeyde
+görünür), şapkalar ve aksesuarlar; mağaza ekranı (`/store`) ve avatar
+düzenleyicide kilit dahil. Gerçek ödeme sağlayıcısı YOK.
 
 ## Horse Status — TESTED
 
@@ -256,8 +256,7 @@ raporu, varlık rehberi). `README.md`/`ROADMAP.md` faz tabloları BAYAT
 
 ## Missing Features
 
-Apple girişi · gerçek AI avatar sağlayıcısı · gerçek ödeme · kozmetik mağazada
-avatar parçaları (forma renkleri VAR) · gerçek 3D/ses varlıkları · sosyal hub · etkinlik para
+Apple girişi · gerçek AI avatar sağlayıcısı · gerçek ödeme · gerçek 3D/ses varlıkları · sosyal hub · etkinlik para
 birimi. (Çalışma anında ayar düzenleme bilinçli olarak YOK — ayar dosyası
 kodla birlikte dağıtılır.)
 

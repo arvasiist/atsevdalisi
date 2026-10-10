@@ -183,7 +183,7 @@ export default function AvatarPage(): React.ReactElement {
             ))}
             {locked.length > 0 ? (
               <div className="cosmetic-locked-notice" data-testid="cosmetic-locked">
-                <span className="session-meta">Denediğin renk mağazadan açılır; kaydetmek için önce al:</span>
+                <span className="session-meta">Denediğin parça mağazadan açılır; kaydetmek için önce al:</span>
                 {locked.map((item) => (
                   <button
                     key={item.key}

@@ -116,4 +116,23 @@ describe('Kozmetik mağaza (e2e)', () => {
     const saved = await http().put('/api/v1/avatar').set('Authorization', player.authHeader).send({ appearance: wanted }).expect(200);
     expect(saved.body.data.appearance.silksPrimary).toBe(silk.optionId);
   });
+
+  it('parça ürünü (şapka/aksesuar): renk yok; sahip olmadan 409, aldıktan sonra giyilir', async () => {
+    const part = cosmetics.items.find((item) => item.catalog === 'hats' || item.catalog === 'accessories')!;
+    const field = part.catalog === 'hats' ? 'hat' : 'accessory';
+    const player = await registerTestPlayer(app, 'Şapkacı');
+    const catalog = await http().get('/api/v1/cosmetics').set('Authorization', player.authHeader).expect(200);
+    expect((catalog.body.data.items as Array<{ key: string; color: string | null }>).find((item) => item.key === part.key)!.color).toBeNull();
+
+    const current = await http().get('/api/v1/avatar').set('Authorization', player.authHeader).expect(200);
+    expect(current.body.data.appearance[field]).not.toBe(part.optionId);
+    const wanted = { ...current.body.data.appearance, [field]: part.optionId };
+    const rejected = await http().put('/api/v1/avatar').set('Authorization', player.authHeader).send({ appearance: wanted }).expect(409);
+    expect(rejected.body.error.code).toBe('COSMETIC_NOT_OWNED');
+
+    await setGems(player.playerId, part.priceGems);
+    await buy(player, part.key).expect(200);
+    const saved = await http().put('/api/v1/avatar').set('Authorization', player.authHeader).send({ appearance: wanted }).expect(200);
+    expect(saved.body.data.appearance[field]).toBe(part.optionId);
+  });
 });

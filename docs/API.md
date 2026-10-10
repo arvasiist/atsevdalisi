@@ -1723,7 +1723,8 @@ score, raceCount }`. Sezonla aynı formül; pencere Türkiye saatiyle (hafta paz
 
 **Kozmetik mağaza (09.10.2026, migration 0082):**
 - `GET /cosmetics` — `{ gems, items: CosmeticItemView[] }` (ürün config'ten: anahtar, ad, avatar kataloğu +
-  seçenek, renk önizlemesi, `priceGems`, `owned`).
+  seçenek, renk önizlemesi — parça ürününde (şapka/aksesuar) `color: null` —, `priceGems`, `owned`).
+  Ürünler: forma renkleri (`silkColors`), şapkalar (`hats`), aksesuarlar (`accessories`).
 - `POST /cosmetics/:key/purchase` — `Idempotency-Key` ZORUNLU; 200 `{ item, gems }`. Elmas düşer +
   `player_cosmetics` + `cosmetic_purchase` defter satırı (elmas) tek transaction. 404 `COSMETIC_NOT_FOUND`,
   409 `COSMETIC_ALREADY_OWNED`, 409 `INSUFFICIENT_FUNDS`.

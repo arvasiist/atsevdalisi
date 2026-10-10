@@ -889,6 +889,10 @@ Türetilmiş varsayılan yarışta GÖSTERİLMEZ. İstemci ataması saf
 gibi; formaya benzeyen palet rengi atlanır (`MIN_DISTINCT_COLOR_DISTANCE`).
 ⚠️ Forma kataloğuna renk eklerken `horse-colors.spec.ts` renklerin eşik
 kadar ayrık olmasını ister. Salt görünüş — motora girmez.
+Aynı gün avatar PARÇALARI da mağazada (§13.109): silindir/melon şapka,
+papyon/dürbün — çizimi `AvatarPortrait` (SVG) + `AvatarFigure3D` (prosedürel).
+⚠️ Mağazaya yeni parça eklerken İKİ çizime de dal ekle: `Hat`ın son dalı
+"kep/kasket" yedeğidir — eklenmeyen şapka sessizce kasket görünür.
 
 **✅ ÜCRETLİ LOBİ YARIŞI ARTIK KOŞUYOR — ÖDÜL DAĞITIMI VAR (§13.14,
 28.09.2026).** `POST /races/:id/settle` yarışı koşar, ödülleri `top5`

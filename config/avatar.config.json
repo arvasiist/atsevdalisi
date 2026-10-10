@@ -40,13 +40,17 @@
     "none",
     "cap",
     "fedora",
-    "flatcap"
+    "flatcap",
+    "tophat",
+    "bowler"
   ],
   "accessories": [
     "none",
     "glasses",
     "scarf",
-    "medal"
+    "medal",
+    "bowtie",
+    "binoculars"
   ],
   "raceOutfits": [
     "solid",

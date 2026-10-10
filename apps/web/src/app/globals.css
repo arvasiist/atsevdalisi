@@ -3080,6 +3080,9 @@ button.btn-action {
 .cosmetic-swatch { width: 28px; height: 28px; border-radius: 50%; border: 2px solid rgba(255, 255, 255, 0.35); flex-shrink: 0; }
 .cosmetic-name { flex: 1 1 140px; min-width: 0; font-weight: 600; }
 .cosmetic-owned { color: var(--color-status-positive); font-weight: 600; font-size: 13px; }
+.cosmetic-section + .cosmetic-section { margin-top: 14px; }
+.cosmetic-section-title { margin: 12px 0 0; font-size: 0.95rem; color: var(--color-text-muted); font-weight: 600; }
+.cosmetic-preview { width: 52px; height: 52px; flex-shrink: 0; display: inline-flex; }
 .avatar-swatch-locked { position: relative; }
 .avatar-swatch-locked::after { content: '🔒'; position: absolute; right: -6px; bottom: -6px; font-size: 11px; line-height: 1; }
 .cosmetic-locked-notice { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 8px; }

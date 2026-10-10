@@ -4555,8 +4555,27 @@ Karar: önce pratik yarış; kırbaç sınırsız, dayanıklılık bedelli.
   (tribün görünümü), `realtime.e2e-spec.ts` (roster alanı),
   `horse-colors.spec.ts`, `replay-adapter.spec.ts`, `avatar.spec.ts`
   (`silkColorHex`).
-- Sırada: avatar parçaları (şapka/aksesuar) mağazası — çizim kodu
-  (`AvatarPortrait`/`AvatarFigure3D`) yeni parçaları bilmeli.
+- Avatar parçaları → §13.109.
+
+### 13.109 Avatar parçaları mağazada (09.10.2026, kozmetik adım 3 sonu)
+
+- Elmas planının son ürünleri: iki şapka (Silindir 60, Melon 50) ve iki
+  aksesuar (Papyon 40, Dürbün 50). Kimlikler avatar kataloğunun SONUNA
+  eklendi (`tophat`, `bowler`, `bowtie`, `binoculars`) — varsayılan avatar
+  kilitli seçenek seçmediği için mevcut oyuncuların görünüşü değişmedi
+  (`cosmetics.spec.ts` 500 oyuncuyla dener).
+- Çizim: 2B portre (`AvatarPortrait`, SVG) ve 3D figür (`AvatarFigure3D`,
+  prosedürel geometri) — dosya yok, uydurma varlık yok.
+- Mağaza ekranı "Görünüş mağazası": Forma renkleri / Şapkalar / Aksesuarlar
+  bölümleri (`groupCosmeticsByCatalog`); renk ürünü renk örneğiyle, parça
+  ürünü oyuncudan bağımsız sabit bir portre önizlemesiyle
+  (`previewAppearance`). Düzenleyicideki kilit notu artık "parça" der.
+- Tarayıcıda doğrulandı: mağaza üç bölüm, düzenleyicide kilitli silindir +
+  papyon denenince Kaydet kapalı ve satın alma düğmeleri çıktı, 3D figürde
+  ikisi de görünüyor; konsol hatası yok.
+- Kanıt: `cosmetics.e2e-spec.ts` (parça ürünü: renk yok, sahip olmadan 409,
+  aldıktan sonra giyilir), `cosmetic-logic.spec.ts` (bölümleme + önizleme),
+  `avatar-catalog.spec.tsx` (her seçeneğin Türkçe adı).
 
 ## 14. Kendime hatırlatmalar (kısa liste)
 
