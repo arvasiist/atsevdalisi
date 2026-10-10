@@ -40,6 +40,10 @@
 
   --topbar-height: 68px;
   --bottom-nav-height: 64px;
+  /* Duyuru şeridinin gerçek yüksekliği (`AnnouncementStrip` yazar; yoksa 0). */
+  --announcement-height: 0px;
+  /* Yatay telefonda soldaki dikey menünün genişliği (aşağıdaki "YATAY TELEFON"). */
+  --side-nav-width: 76px;
 
   --font-family: var(--font-inter), 'Segoe UI', system-ui, -apple-system, sans-serif;
   /* Başlık/logo yazı tipi: Cinzel (OFL), `layout.tsx`'te self-host edilir. */
@@ -1029,6 +1033,12 @@ a {
   }
 }
 
+/* Geliştirme rozeti (dosya yolları): sağ pay üretim rozetiyle aynı — sağ
+   üstteki düğmelerin (ahırda Bakım/Ekipman) altına girmesin. */
+.placeholder-badge-dev {
+  max-width: min(320px, calc(100% - 180px));
+}
+
 /* 10.10.2026 — üretimdeki kısa PLACEHOLDER notu (dosya yolu yok). */
 .placeholder-badge-compact {
   position: absolute;
@@ -2003,14 +2013,23 @@ button[style*='background: var(--color-accent-gold)'] {
  */
 .viewer-page {
   height: calc(
-    100dvh - var(--topbar-height) - var(--bottom-nav-height) - env(safe-area-inset-bottom, 0px)
+    100dvh - var(--topbar-height) - var(--announcement-height) - var(--bottom-nav-height) -
+      env(safe-area-inset-bottom, 0px)
   ) !important;
   min-height: 420px;
 }
 
+/* Yarış görüntüleyicinin kökü (10.10.2026'ya kadar satır içi stildi; yatay telefonda alt sınır kalkar). */
+.race-viewer-root {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 480px;
+}
+
 @media (min-width: 1280px) {
   .viewer-page {
-    height: calc(100dvh - var(--topbar-height)) !important;
+    height: calc(100dvh - var(--topbar-height) - var(--announcement-height)) !important;
   }
 }
 
@@ -2108,7 +2127,8 @@ button[style*='background: var(--color-accent-gold)'] {
  */
 .stable3d-full {
   height: calc(
-    100dvh - var(--topbar-height) - var(--bottom-nav-height) - env(safe-area-inset-bottom, 0px)
+    100dvh - var(--topbar-height) - var(--announcement-height) - var(--bottom-nav-height) -
+      env(safe-area-inset-bottom, 0px)
   );
   min-height: 420px;
   margin-bottom: 0;
@@ -2119,7 +2139,7 @@ button[style*='background: var(--color-accent-gold)'] {
 
 @media (min-width: 1280px) {
   .stable3d-full {
-    height: calc(100dvh - var(--topbar-height));
+    height: calc(100dvh - var(--topbar-height) - var(--announcement-height));
   }
 }
 
@@ -3564,5 +3584,478 @@ button.btn-action {
 @media (prefers-reduced-motion: reduce) {
   .tribune-gift-toast {
     animation: none;
+  }
+}
+
+/*
+ * ===== TELEFON YATAY OYNANIR (10.10.2026, sahibinin isteği) =====
+ *
+ * Dikey telefon: `.rotate-prompt` oyunun üstünü kaplar ve yan çevirmeye
+ * çağırır (`features/orientation`). "Telefon" = dokunmatik, fare yok, dar
+ * kenar ≤ 600 px — masaüstü pencereleri ve tabletler etkilenmez.
+ * Yatay telefon: dikey alan ~320-430 px. Üst bar incelir, alt sekme çubuğu
+ * SOLDA dikey şeride döner (yatayda yer genişlikte), duyuru şeridi sıkışır,
+ * tam ekran sahneler (ahır, yarış izleme, vitrin) kalan yüksekliği TAM
+ * doldurur ve yarış HUD'u küçülür.
+ * ⚠️ Bu iki medya sorgusu `orientation-layout.spec.ts`te kilitlidir.
+ */
+.rotate-prompt {
+  display: none;
+}
+
+@media (orientation: portrait) and (hover: none) and (pointer: coarse) and (max-width: 600px) {
+  .rotate-prompt {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background:
+      radial-gradient(600px 400px at 50% 20%, rgba(232, 150, 60, 0.18), transparent 70%),
+      linear-gradient(180deg, #0b1426 0%, #070b14 60%, #05080f 100%);
+  }
+
+  /* Arkadaki sayfa kaymasın ve 3D sahne boşuna çizilmesin. */
+  body > :not(.rotate-prompt) {
+    visibility: hidden;
+  }
+
+  body {
+    overflow: hidden;
+  }
+}
+
+.rotate-prompt-card {
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+  max-width: 320px;
+  text-align: center;
+  color: var(--color-text-primary);
+}
+
+.rotate-prompt-card h2 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 22px;
+  letter-spacing: 0.04em;
+  color: var(--color-accent-gold-light);
+}
+
+.rotate-prompt-card p {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: 15px;
+}
+
+.rotate-prompt-card .rotate-prompt-hint {
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+
+.rotate-prompt-icon {
+  color: var(--color-accent-gold);
+  animation: rotate-prompt-turn 2.4s ease-in-out infinite;
+}
+
+@keyframes rotate-prompt-turn {
+  0%,
+  25% {
+    transform: rotate(0deg);
+  }
+  55%,
+  100% {
+    transform: rotate(-90deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rotate-prompt-icon {
+    animation: none;
+    transform: rotate(-90deg);
+  }
+}
+
+@media (orientation: landscape) and (max-height: 500px) {
+  :root {
+    --topbar-height: 48px;
+  }
+
+  /* Üst bar: tek ince satır; alt kenarlık (1 px) dahil TAM `--topbar-height`
+     — sahne yükseklikleri bu değişkenden hesaplanır, fazlası sayfayı kaydırır. */
+  .topbar-inner {
+    gap: var(--space-sm);
+    min-height: 0;
+    height: calc(var(--topbar-height) - 1px);
+    padding-block: 3px;
+  }
+
+  .profile-chip {
+    padding-block: 1px;
+  }
+
+  .brand-tagline {
+    display: none;
+  }
+
+  .brand-title {
+    font-size: 17px;
+  }
+
+  .brand svg {
+    width: 28px;
+    height: 28px;
+  }
+
+  .icon-button {
+    width: 36px;
+    height: 36px;
+  }
+
+  .currency-pill {
+    height: 30px;
+    padding: 0 9px;
+    font-size: 12.5px;
+  }
+
+  /* PLACEHOLDER rozeti: yalnızca başlık + sayı, sahnenin sol üst köşesinde dar
+     (ana sayfanın kamera düğmeleri ve ahırın Bakım/Ekipman'ı sağda). */
+  .placeholder-badge-dev,
+  .placeholder-badge-compact {
+    max-width: min(240px, 34%);
+  }
+
+  .placeholder-badge-list {
+    display: none;
+  }
+
+  .placeholder-badge-count {
+    display: inline;
+  }
+
+  .home3d-shots {
+    max-width: 60%;
+  }
+
+  .page-container {
+    padding-block: var(--space-md);
+  }
+
+  /* Duyuru şeridi: ince tek satır. */
+  .announcement-strip {
+    padding: 3px 12px;
+  }
+
+  .announcement-strip[data-expanded='false'] .announcement-item {
+    padding: 0 2px 0 12px;
+  }
+
+  .announcement-dismiss {
+    min-width: 34px;
+    min-height: 34px;
+  }
+
+  .announcement-more {
+    min-height: 28px;
+  }
+
+  /* Tam ekran sahneler: telefon yüksekliği 420 px'ten kısa — alt sınır yok. */
+  .viewer-page,
+  .race-viewer-root {
+    min-height: 0;
+  }
+
+  .stable3d-full {
+    min-height: 0;
+  }
+
+  .home3d {
+    height: calc(
+      100dvh - var(--topbar-height) - var(--announcement-height) - var(--bottom-nav-height) -
+        env(safe-area-inset-bottom, 0px)
+    );
+    min-height: 0;
+  }
+
+  .home3d-hud {
+    padding: 0 16px 12px;
+  }
+
+  .home3d-horse-name {
+    font-size: 26px;
+  }
+
+  .home3d-stats {
+    margin-top: 6px;
+  }
+
+  /* Yarış HUD'u: üstte tek satır (bilgi + kameralar), sağda 3 atlık sıralama.
+     Orta satır `minmax(0, 1fr)`: içerik sığmazsa HUD sahnenin dışına taşmaz,
+     sıralama paneli kendi içinde kayar. */
+  .hud {
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    gap: 6px;
+    padding: 6px;
+  }
+
+  .hud-top {
+    flex-wrap: nowrap;
+  }
+
+  .hud-top-right {
+    flex-wrap: nowrap;
+    min-width: 0;
+  }
+
+  .hud-info {
+    gap: 8px;
+    padding: 4px 10px;
+  }
+
+  .hud-info-text {
+    display: none;
+  }
+
+  .hud-cameras {
+    flex-wrap: nowrap;
+    min-width: 0;
+    overflow-x: auto;
+  }
+
+  .hud-camera-button {
+    min-height: 30px;
+    padding: 0 9px;
+    font-size: 12px;
+    white-space: nowrap;
+  }
+
+  .hud-standings {
+    width: 190px;
+    max-height: 100%;
+    padding: 6px 8px;
+    overflow-y: auto;
+  }
+
+  .hud-standings-row {
+    padding: 2px 6px;
+  }
+
+  .hud-progress {
+    padding: 6px 12px 4px;
+  }
+
+  .hud-progress-track {
+    height: 22px;
+  }
+
+  .hud-panel-title {
+    font-size: 11px;
+    margin-bottom: 4px;
+  }
+
+  .hud-standings-list {
+    max-height: none;
+  }
+
+  .hud-standings-toggle {
+    display: inline-flex;
+    align-items: center;
+  }
+
+  .hud-standings[data-expanded='false'] .hud-standings-row:nth-child(n + 4) {
+    display: none;
+  }
+
+  .hud-statbar,
+  .hud-standings-meta,
+  .hud-focus-portrait {
+    display: none;
+  }
+
+  .hud-clock {
+    white-space: nowrap;
+  }
+
+  .hud-clock-now {
+    font-size: 16px;
+  }
+
+  /* Alt bölüm TEK satır (dar telefondaki "odak kartı üstte" kuralını da ezer). */
+  .hud-bottom {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: 6px;
+  }
+
+  .hud-bottom > :first-child {
+    grid-column: auto;
+  }
+
+  .hud-bottom-center {
+    gap: 4px;
+  }
+
+  .hud-focus {
+    gap: 8px;
+    padding: 4px 10px 4px 8px;
+  }
+
+  .hud-focus-name {
+    font-size: 13px;
+  }
+
+  .hud-focus-stats {
+    gap: 10px;
+  }
+
+  .hud-focus-stat {
+    font-size: 13px;
+  }
+
+  /* Etiket ekrandan kalkar ama ekran okuyucuda kalır (simge + değer tek satır). */
+  .hud-focus-stat-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+
+  .hud-minimap {
+    width: 110px;
+    padding: 4px;
+  }
+
+  .hud-playback {
+    flex-wrap: nowrap;
+    gap: 6px;
+    padding: 4px 8px;
+  }
+
+  .hud-seek {
+    flex: 1 1 60px;
+    min-width: 60px;
+  }
+
+  .hud-speeds {
+    flex-shrink: 0;
+  }
+
+  .hud-play-button {
+    width: 34px;
+    height: 34px;
+  }
+
+  .hud-seek {
+    min-height: 30px;
+  }
+
+  .hud-speed-button {
+    min-height: 30px;
+    padding: 0 7px;
+    font-size: 12px;
+  }
+
+  /* Ses/kalite ve demo hipodrom seçici üst satırın hemen altında, solda. */
+  .scene-controls-race {
+    top: 50px !important;
+    left: 6px !important;
+  }
+
+  .demo-hippodrome-select {
+    top: 92px;
+    left: 6px;
+    padding: 3px 8px;
+    font-size: 12px;
+  }
+
+  .demo-hippodrome-select-label {
+    display: none;
+  }
+
+  /* Ahır: Bakım/Ekipman sağda dikey; panel onların solunda, sahne boyunca. */
+  .stable-dock {
+    top: 8px;
+    right: 8px;
+    flex-direction: column;
+  }
+
+  .stable-dock-button {
+    min-height: 48px;
+    padding: 5px 8px;
+  }
+
+  /* Dar telefonda (≤767 px) devreye giren "alttan çekmece" kuralını da ezer. */
+  .stable-drawer {
+    position: absolute;
+    z-index: 6;
+    top: 8px;
+    left: auto;
+    right: 84px;
+    bottom: 8px;
+    width: min(360px, calc(100% - 100px));
+    max-height: none;
+    border-radius: var(--radius-md);
+  }
+
+  .stable3d-full .stable3d-switcher {
+    bottom: 10px;
+  }
+
+  .stable3d-full .stable3d-caption {
+    bottom: 12px;
+  }
+
+  .stable3d-switcher button,
+  .stable3d-switcher a {
+    height: 34px;
+  }
+}
+
+/* Alt sekme çubuğu → soldaki dikey menü (masaüstü menüsü 1280 px'ten itibaren). */
+@media (orientation: landscape) and (max-height: 500px) and (max-width: 1279px) {
+  :root {
+    --bottom-nav-height: 0px;
+  }
+
+  .bottom-nav {
+    top: var(--topbar-height);
+    right: auto;
+    width: calc(var(--side-nav-width) + env(safe-area-inset-left, 0px));
+    height: auto;
+    grid-template-columns: 1fr;
+    grid-template-rows: repeat(5, minmax(0, 1fr));
+    padding: 4px 0 env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
+    border-top: none;
+    border-right: 1px solid var(--color-border-gold);
+    box-shadow: 6px 0 24px rgba(0, 0, 0, 0.5);
+  }
+
+  .bottom-nav-item {
+    font-size: 10.5px;
+  }
+
+  .app-main,
+  .announcement-strip {
+    margin-left: calc(var(--side-nav-width) + env(safe-area-inset-left, 0px));
+  }
+
+  .app-main {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  /* "Menü" sayfası: yatayda daha çok sütun, daha kısa kutular. */
+  .nav-sheet {
+    max-height: 92vh;
+  }
+
+  .nav-sheet-grid {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+
+  .nav-sheet-item {
+    min-height: 64px;
   }
 }

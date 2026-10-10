@@ -3,6 +3,7 @@ import type { Metadata, Viewport } from 'next';
 import type { ReactNode } from 'react';
 import { TopBar } from '../components/layout/TopBar';
 import { AnnouncementStrip } from '../features/announcements/AnnouncementStrip';
+import { RotateDevicePrompt } from '../features/orientation/RotateDevicePrompt';
 import { PlayerProvider } from '../lib/player-context';
 import './globals.css';
 
@@ -43,6 +44,8 @@ export default function RootLayout({ children }: { children: ReactNode }): React
           <AnnouncementStrip />
           <div className="app-main">{children}</div>
         </PlayerProvider>
+        {/* 10.10.2026 — telefonda oyun yatay oynanır; dikeyde "yan çevir" katmanı (yalnızca CSS ile görünür). */}
+        <RotateDevicePrompt />
       </body>
     </html>
   );

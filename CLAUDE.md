@@ -893,6 +893,19 @@ Aynı gün avatar PARÇALARI da mağazada (§13.109): silindir/melon şapka,
 papyon/dürbün — çizimi `AvatarPortrait` (SVG) + `AvatarFigure3D` (prosedürel).
 ⚠️ Mağazaya yeni parça eklerken İKİ çizime de dal ekle: `Hat`ın son dalı
 "kep/kasket" yedeğidir — eklenmeyen şapka sessizce kasket görünür.
+(84) **TELEFON YATAY OYNANIR (10.10.2026, sahibinin isteği)** — dikey telefonda
+(dokunmatik, fare yok, genişlik ≤ 600 px) `RotateDevicePrompt` oyunun üstünü
+kaplar ("Telefonunu yan çevir"; Android'de "Tam ekran + yatay" düğmesi yönü
+kilitler, iPhone'da düğme yok — Safari izin vermez). Masaüstü ve tablet
+etkilenmez. PWA `orientation: 'landscape'`. Yatay telefonda (`max-height:
+500px`) üst bar 48 px, alt sekme çubuğu SOLDA dikey menü (`--side-nav-width`),
+duyuru şeridi ince, yarış HUD'u tek satırlık alt bölüm + 3 atlık sıralama.
+Düzen CSS'tedir, medya sorguları `orientation-layout.spec.ts`te kilitli.
+⚠️ Tam ekran YENİ bir sahne yazarken yüksekliği `100dvh - --topbar-height -
+--announcement-height - --bottom-nav-height` ile ver (şerit yüksekliğini
+`AnnouncementStrip` yazar) ve yatayda `min-height`ı kaldır — telefon 420 px'ten
+kısadır. Yarış görüntüleyicinin kökü `.race-viewer-root` (eski satır içi
+`minHeight: 480px` kaldırıldı; satır içi stil medya sorgusunu ezer).
 
 **✅ ÜCRETLİ LOBİ YARIŞI ARTIK KOŞUYOR — ÖDÜL DAĞITIMI VAR (§13.14,
 28.09.2026).** `POST /races/:id/settle` yarışı koşar, ödülleri `top5`

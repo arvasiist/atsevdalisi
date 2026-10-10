@@ -50,9 +50,13 @@ describe('PlaceholderBadge', () => {
   it('geliştirme rozeti üretim rozetiyle aynı sağ payı bırakır (ahırda Bakım/Ekipman düğmelerinin altına girmez)', async () => {
     vi.spyOn(console, 'info').mockImplementation(() => undefined);
     const note = await renderBadge('development');
+    // Genişlik CSS sınıfındadır; satır içi `maxWidth` sınıfı ezerdi (yaşandı: 10.10.2026).
+    expect(note.classList.contains('placeholder-badge-dev')).toBe(true);
+    expect(note.style.maxWidth).toBe('');
     const css = readFileSync(resolve(__dirname, '../../../src/app/globals.css'), 'utf8');
-    const compact = /\.placeholder-badge-compact\s*\{[^}]*max-width:\s*min\(\d+px,\s*calc\(100% - (\d+)px\)\)/.exec(css);
-    expect(compact).not.toBeNull();
-    expect(note.style.maxWidth).toContain(`calc(100% - ${compact![1]}px)`);
+    const gutter = (selector: string): string | undefined =>
+      new RegExp(`\\${selector}\\s*\\{[^}]*max-width:\\s*min\\(\\d+px,\\s*calc\\(100% - (\\d+)px\\)\\)`).exec(css)?.[1];
+    expect(gutter('.placeholder-badge-compact')).toBeDefined();
+    expect(gutter('.placeholder-badge-dev')).toBe(gutter('.placeholder-badge-compact'));
   });
 });

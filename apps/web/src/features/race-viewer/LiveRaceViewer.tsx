@@ -681,7 +681,7 @@ export function LiveRaceViewer({
   }
 
   return (
-    <div style={{ position: 'relative', width: '100%', height: '100%', minHeight: '480px' }}>
+    <div className="race-viewer-root">
       <RaceScene3D
         horses={horseVisuals}
         crowdExcitement={crowdExcitement}
@@ -755,10 +755,10 @@ function ScenePlaceholder({
 }): React.ReactElement {
   return (
     <div
+      className="race-viewer-root"
       style={{
         width: '100%',
         height: '100%',
-        minHeight: '480px',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',

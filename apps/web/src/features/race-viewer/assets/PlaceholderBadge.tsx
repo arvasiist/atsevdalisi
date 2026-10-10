@@ -56,13 +56,14 @@ export function PlaceholderBadge({
     <div
       role="note"
       aria-label="Placeholder görüntü"
+      // Genişlik sınırı CSS'te (`.placeholder-badge-dev`): üretim rozetiyle aynı sağ pay,
+      // yatay telefonda ikisi birlikte daralır.
+      className="placeholder-badge-dev"
       style={{
         position: 'absolute',
         top: 10,
         left: 10,
         zIndex: 2,
-        // Üretim rozetiyle aynı sağ pay: sağ üstteki düğmelerin (ahırda Bakım/Ekipman) altına girmesin.
-        maxWidth: 'min(320px, calc(100% - 180px))',
         padding: '6px 10px',
         borderRadius: 8,
         background: 'rgba(5, 8, 18, 0.72)',

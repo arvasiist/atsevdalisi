@@ -25,7 +25,8 @@ export function buildManifest(): MetadataRoute.Manifest {
     start_url: '/',
     scope: '/',
     display: 'standalone',
-    orientation: 'any',
+    // 10.10.2026 — kurulu uygulama yatay açılır (telefonda oyun yatay oynanır).
+    orientation: 'landscape',
     background_color: PWA_BACKGROUND,
     theme_color: PWA_THEME,
     icons: PWA_ICON_SIZES.flatMap((size) => [
