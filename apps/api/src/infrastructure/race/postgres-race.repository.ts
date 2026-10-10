@@ -3,6 +3,7 @@ import { awardXpInTransaction } from '../progression/award-xp';
 import { addClubPointsInTransaction } from '../club/postgres-club.repository';
 import { assertHasClubPermission } from '../../domain/club/club';
 import { NotClubMemberError } from '../../domain/club/errors';
+import { silkColorHex } from '../../domain/avatar/avatar';
 import { Inject, Injectable } from '@nestjs/common';
 import type { Pool, PoolClient } from 'pg';
 import type {
@@ -885,11 +886,16 @@ export class PostgresRaceRepository implements RaceRepository {
       final_time_ms: number | null;
       finish_position: number | null;
       performance_score: string | null;
+      silk_option: string | null;
     }>(
+      // 09.10.2026 — forma rengi KOŞTURAN oyuncunun (`re.player_id`, atın
+      // şimdiki sahibi DEĞİL — CLAUDE.md (55)) kaydettiği avatardan.
       `SELECT re.id AS entry_id, re.horse_id, re.bot_label, h.name AS horse_name,
-              re.tactical_style, re.risk_level, re.gate_position, re.final_time_ms, re.finish_position, re.performance_score
+              re.tactical_style, re.risk_level, re.gate_position, re.final_time_ms, re.finish_position, re.performance_score,
+              pa.appearance->>'silksPrimary' AS silk_option
        FROM race_entries re
        LEFT JOIN horses h ON h.id = re.horse_id
+       LEFT JOIN player_avatars pa ON pa.player_id = re.player_id
        WHERE re.race_id = $1
        ORDER BY (re.finish_position IS NULL), re.finish_position, re.created_at`,
       [raceId],
@@ -959,6 +965,7 @@ export class PostgresRaceRepository implements RaceRepository {
       tacticalStyle: row.tactical_style as RaceTimelineEntrantView['tacticalStyle'],
       riskLevel: row.risk_level as RaceTimelineEntrantView['riskLevel'],
       gatePosition: row.gate_position,
+      silkColor: silkColorHex(row.silk_option, this.config.avatar),
       finalTimeMs: row.final_time_ms,
       finishPosition: row.finish_position,
       performanceScore: row.performance_score === null ? null : Number(row.performance_score),
@@ -2533,6 +2540,21 @@ export class PostgresRaceRepository implements RaceRepository {
       );
       return { status: 'finished' as const, balance };
     });
+  }
+
+  async findSilkColors(playerIds: readonly string[]): Promise<Map<string, string>> {
+    const colors = new Map<string, string>();
+    if (playerIds.length === 0) return colors;
+    const result = await this.pool.query<{ player_id: string; silk_option: string | null }>(
+      `SELECT player_id, appearance->>'silksPrimary' AS silk_option
+       FROM player_avatars WHERE player_id = ANY($1::uuid[])`,
+      [[...playerIds]],
+    );
+    for (const row of result.rows) {
+      const hex = silkColorHex(row.silk_option, this.config.avatar);
+      if (hex !== null) colors.set(row.player_id, hex);
+    }
+    return colors;
   }
 
   async findLobbySettlementContext(raceId: string): Promise<LobbySettlementContext | null> {

@@ -37,6 +37,7 @@ function makeView(overrides: Partial<RaceTimelineView> = {}): RaceTimelineView {
         tacticalStyle: 'front_runner',
         riskLevel: 'normal',
         gatePosition: 1,
+        silkColor: '#e06a1b',
         finalTimeMs: 95000,
         finishPosition: 1,
         performanceScore: 88.5,
@@ -51,6 +52,7 @@ function makeView(overrides: Partial<RaceTimelineView> = {}): RaceTimelineView {
         tacticalStyle: 'closer',
         riskLevel: 'low',
         gatePosition: 2,
+        silkColor: null,
         finalTimeMs: 96500,
         finishPosition: 2,
         performanceScore: 84.1,
@@ -118,6 +120,15 @@ describe('adaptRaceTimelineViewToReplayData', () => {
     expect(result.timeline.finalResult).toHaveLength(0);
     expect(result.timeline.segments).toHaveLength(0);
     expect(Object.keys(result.horseNamesById)).toHaveLength(0);
+  });
+
+  it('silkColorsById kayıtlı forma rengini taşır; bot/eski yanıt null', () => {
+    const result = adaptRaceTimelineViewToReplayData(makeView());
+    expect(result.silkColorsById).toEqual({ 'entry-1': '#e06a1b', 'entry-2': null });
+    const legacy = makeView();
+    // Eski sunucu yanıtı alanı hiç taşımaz.
+    delete (legacy.entrants[0] as Partial<RaceTimelineView['entrants'][number]>).silkColor;
+    expect(adaptRaceTimelineViewToReplayData(legacy).silkColorsById['entry-1']).toBeNull();
   });
 
   it('raceId doğrudan view.raceId olur', () => {

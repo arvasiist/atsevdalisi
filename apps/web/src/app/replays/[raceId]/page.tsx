@@ -136,6 +136,7 @@ export default function ReplayDetailPage(): React.ReactElement {
         horseNamesById={replayData.horseNamesById}
         surface={replayData.surface}
         hippodrome={replayData.hippodrome}
+        silkColorsById={replayData.silkColorsById}
       />
     </main>
   );

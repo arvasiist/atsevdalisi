@@ -52,6 +52,8 @@ export interface ReplayTimelineData {
   surface: RaceSurface;
   /** 08.10.2026 — hipodrom anahtarı (eski sunucu yanıtında yoksa `null` → varsayılan). */
   hippodrome: string | null;
+  /** 09.10.2026 — katılım → kayıtlı forma rengi (eski yanıtta alan yoksa `null`). */
+  silkColorsById: Record<string, string | null>;
 }
 
 /**
@@ -101,9 +103,11 @@ export function adaptRaceTimelineViewToReplayData(view: RaceTimelineView): Repla
   }));
 
   const horseNamesById: Record<string, string> = {};
+  const silkColorsById: Record<string, string | null> = {};
   for (const entrant of completedEntrants) {
     horseNamesById[entrant.entryId] =
       entrant.horseName ?? entrant.botLabel ?? 'Bilinmeyen katılımcı';
+    silkColorsById[entrant.entryId] = entrant.silkColor ?? null;
   }
 
   return {
@@ -117,5 +121,6 @@ export function adaptRaceTimelineViewToReplayData(view: RaceTimelineView): Repla
     horseNamesById,
     surface: view.surface,
     hippodrome: view.hippodrome ?? null,
+    silkColorsById,
   };
 }

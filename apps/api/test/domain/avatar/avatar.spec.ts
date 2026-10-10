@@ -6,6 +6,7 @@ import {
   deriveDefaultAvatar,
   validateAvatarAppearance,
   validateAvatarConfig,
+  silkColorHex,
 } from '../../../src/domain/avatar/avatar';
 import { InvalidAvatarError } from '../../../src/domain/avatar/errors';
 
@@ -58,5 +59,14 @@ describe('avatar kuralları (saf)', () => {
         'silkColors.gold: hex değil',
       ]),
     );
+  });
+
+  it('silkColorHex: kayıtlı forma kimliği → hex; bilinmeyen/boş/prototip anahtarı → null', () => {
+    const config = loadAvatarConfig();
+    const [firstId, firstHex] = Object.entries(config.silkColors)[0]!;
+    expect(silkColorHex(firstId, config)).toBe(firstHex);
+    for (const missing of ['kaldirilmis-renk', 'constructor', '__proto__', null, undefined]) {
+      expect(silkColorHex(missing, config)).toBeNull();
+    }
   });
 });

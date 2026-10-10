@@ -24,7 +24,11 @@ import { computeCrowdExcitement, useSecondsSinceFinish } from '../race-viewer/ra
 import { AudioToggle } from '../race-viewer/audio-vfx/AudioToggle';
 import { QualitySelect } from '../race-viewer/QualitySelect';
 import { useAudioMuted, useRaceAudio } from '../race-viewer/audio-vfx/use-race-audio';
-import { HORSE_VISUAL_HEIGHT_METERS, computeHorseVisualsAt } from '../race-viewer/RaceViewer';
+import {
+  HORSE_VISUAL_HEIGHT_METERS,
+  colorsByHorseId,
+  computeHorseVisualsAt,
+} from '../race-viewer/RaceViewer';
 import {
   controlForKey,
   finishOrder,
@@ -186,9 +190,19 @@ export function InteractiveRaceViewer({
   const turnCount = 2;
   const entryIds = useMemo(() => view.entrants.map((entrant) => entrant.label), [view.entrants]);
   const clampedTime = Math.max(0, raceTimeMs);
+  // 09.10.2026 — oyuncunun kayıtlı forma rengi (botlarda `null` → palet).
+  const horseColorsById = useMemo(
+    () =>
+      colorsByHorseId(
+        entryIds,
+        Object.fromEntries(view.entrants.map((entrant) => [entrant.label, entrant.silkColor ?? null])),
+      ),
+    [entryIds, view.entrants],
+  );
   const horses = useMemo(
-    () => computeHorseVisualsAt(entryIds, view.segments, clampedTime, turnCount, trackGeometry),
-    [entryIds, view.segments, clampedTime, trackGeometry],
+    () =>
+      computeHorseVisualsAt(entryIds, view.segments, clampedTime, turnCount, trackGeometry, horseColorsById),
+    [entryIds, view.segments, clampedTime, trackGeometry, horseColorsById],
   );
   const leaderboard = useMemo(
     () => getLiveLeaderboard(view.segments, entryIds, clampedTime),

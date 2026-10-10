@@ -996,5 +996,6 @@ function toRoster(timeline: RaceTimelineView): RaceRosterEntrant[] {
     botLabel: entrant.botLabel,
     tacticalStyle: entrant.tacticalStyle,
     gatePosition: entrant.gatePosition,
+    silkColor: entrant.silkColor,
   }));
 }

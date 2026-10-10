@@ -40,6 +40,7 @@ import { AudioToggle } from './audio-vfx/AudioToggle';
 import { QualitySelect } from './QualitySelect';
 import { useAudioMuted, useRaceAudio } from './audio-vfx/use-race-audio';
 import type { HorseVisual } from './RaceScene3D';
+import { assignHorseColors, pickHorseColor } from './horse-colors';
 
 const RaceScene3D = dynamic(
   () => import('./RaceScene3D').then((imported) => imported.RaceScene3D),
@@ -69,29 +70,13 @@ export interface RaceViewerProps {
   surface?: RaceSurface;
   /** 08.10.2026 — hipodrom anahtarı (`RaceTimelineView.hippodrome`); verilmezse varsayılan. */
   hippodrome?: string | null;
+  /** 09.10.2026 — katılımcı → kayıtlı forma rengi (yoksa palet). */
+  silkColorsById?: Readonly<Record<string, string | null>>;
 }
 
-/**
- * F2 canlı yayın entegrasyonu (bu turda EKLENDİ) — `export` edildi çünkü
- * `LiveRaceViewer.tsx` AYNI paleti kullanır (iki ayrı renk listesi İCAT
- * ETMEK yerine tek bir kaynak — bkz. o dosyanın importu).
- */
-// 01.10.2026: 16 atlık sahada formalar ayırt edilebilsin diye 6'dan 12'ye
-// çıkarıldı (yarış konseptindeki numara rozetleri gibi doygun renkler).
-export const HORSE_COLORS = [
-  '#1d6fe0',
-  '#d62f2f',
-  '#1f9d55',
-  '#e8b416',
-  '#7c3aed',
-  '#ea6a12',
-  '#0ea5a5',
-  '#db2777',
-  '#e5e7eb',
-  '#111827',
-  '#84cc16',
-  '#8b5a2b',
-];
+// Palet + forma ataması `horse-colors.ts`te (saf, testli); eski içe aktarma
+// yolları bozulmasın diye buradan yeniden ihraç edilir.
+export { HORSE_COLORS, pickHorseColor } from './horse-colors';
 
 const MINI_MAP_TRACK_SAMPLES = 72;
 
@@ -111,35 +96,18 @@ export function buildMiniMapTrack(
 }
 
 /**
- * At kimliği → forma rengi. `computeHorseVisualsAt` ile AYNI sıra/indeks
+ * At kimliği → forma rengi. `computeHorseVisualsAt`e AYNI harita verilir
  * (3D sahnedeki jokey rengi = HUD rozeti). Kimlik listesine bağlıdır, kareye
- * değil — HUD'un `memo`su her karede bozulmasın diye.
+ * değil — HUD'un `memo`su her karede bozulmasın diye. `silkById` (09.10.2026):
+ * oyuncunun kayıtlı forma rengi (bkz. `horse-colors.ts`).
  */
-export function colorsByHorseId(ids: string[]): Record<string, string> {
-  const map: Record<string, string> = {};
-  ids.forEach((id, index) => {
-    map[id] = pickHorseColor(index);
-  });
-  return map;
+export function colorsByHorseId(
+  ids: string[],
+  silkById?: Readonly<Record<string, string | null | undefined>>,
+): Record<string, string> {
+  return assignHorseColors(ids, silkById);
 }
 export const HORSE_VISUAL_HEIGHT_METERS = 1;
-
-/**
- * `HORSE_COLORS[index % HORSE_COLORS.length]` matematiksel olarak HER ZAMAN
- * dizinin sınırları içindedir (`%` operatörü bunu garanti eder), ama
- * `noUncheckedIndexedAccess` bunu `string | undefined` olarak tipler.
- * `LiveRaceViewer.tsx`'in kendi `pickHorseColor`'ı (bu turda BURAYA
- * TAŞINDI — ikisi BİREBİR AYNI mantığı taşıyordu, tek bir kopya kalsın
- * diye) ile AYNI prensip: `!` tip zorlaması KULLANILMADAN gerçek bir
- * çalışma zamanı guard'ı.
- */
-export function pickHorseColor(index: number): string {
-  const color = HORSE_COLORS[index % HORSE_COLORS.length];
-  if (color === undefined) {
-    throw new Error('pickHorseColor: HORSE_COLORS boş olmamalıydı.');
-  }
-  return color;
-}
 
 /**
  * Faz 2 "HUD Telemetri" düzeltmesi (bu turda EKLENDİ) — `RaceViewer.tsx`
@@ -164,6 +132,8 @@ export function computeHorseVisualsAt(
   timeMs: number,
   turnCount: number,
   trackGeometry: StadiumTrackGeometry,
+  /** `colorsByHorseId` haritası; verilmezse palet sırası (eski davranış). */
+  colorsById?: Readonly<Record<string, string>>,
 ): HorseVisual[] {
   const states = ids.map((id, index) => {
     const state = interpolateHorseStateAtTime(segments, id, timeMs);
@@ -173,7 +143,7 @@ export function computeHorseVisualsAt(
       x: point.x,
       z: point.z,
       headingRadians: point.headingRadians,
-      color: pickHorseColor(index),
+      color: colorsById?.[id] ?? pickHorseColor(index),
       positionMeters: state.positionMeters,
     };
   });
@@ -227,9 +197,14 @@ export function RaceViewer({
   turnCount = 2,
   surface = 'dirt',
   hippodrome: hippodromeKey = null,
+  silkColorsById,
 }: RaceViewerProps): React.ReactElement {
   const hippodrome = useMemo(() => resolveHippodrome(hippodromeKey), [hippodromeKey]);
   const horseIds = useMemo(() => getHorseIdsFromTimeline(timeline), [timeline]);
+  const horseColorsById = useMemo(
+    () => colorsByHorseId(horseIds, silkColorsById),
+    [horseIds, silkColorsById],
+  );
   const durationMs = useMemo(() => getRaceDurationMs(timeline), [timeline]);
   const trackGeometry = useMemo(() => hippodromeTrackGeometry(hippodrome), [hippodrome]);
   const raceDistanceMeters = useMemo(() => {
@@ -316,16 +291,31 @@ export function RaceViewer({
   // `HUD_SYNC_INTERVAL_MS` doc yorumu).
   const horseVisuals: HorseVisual[] = useMemo(
     () =>
-      computeHorseVisualsAt(horseIds, timeline.segments, currentTimeMs, turnCount, trackGeometry),
-    [horseIds, timeline.segments, currentTimeMs, turnCount, trackGeometry],
+      computeHorseVisualsAt(
+        horseIds,
+        timeline.segments,
+        currentTimeMs,
+        turnCount,
+        trackGeometry,
+        horseColorsById,
+      ),
+    [horseIds, timeline.segments, currentTimeMs, turnCount, trackGeometry, horseColorsById],
   );
 
   // HUD (DOM) — throttle'lı `hudTimeMs`'ten türetilir; minimap DAHİL,
   // `RaceHud`'a giden HİÇBİR türetilmiş veri 60Hz'de YENİLENMEZ (bkz.
   // `HUD_SYNC_INTERVAL_MS` doc yorumu).
   const hudHorseVisuals: HorseVisual[] = useMemo(
-    () => computeHorseVisualsAt(horseIds, timeline.segments, hudTimeMs, turnCount, trackGeometry),
-    [horseIds, timeline.segments, hudTimeMs, turnCount, trackGeometry],
+    () =>
+      computeHorseVisualsAt(
+        horseIds,
+        timeline.segments,
+        hudTimeMs,
+        turnCount,
+        trackGeometry,
+        horseColorsById,
+      ),
+    [horseIds, timeline.segments, hudTimeMs, turnCount, trackGeometry, horseColorsById],
   );
 
   const leaderboard = useMemo(
@@ -429,7 +419,6 @@ export function RaceViewer({
     [timeline.finalResult, horseNamesById],
   );
 
-  const horseColorsById = useMemo(() => colorsByHorseId(horseIds), [horseIds]);
   const miniMapTrack = useMemo(
     () => buildMiniMapTrack(turnCount, trackGeometry),
     [turnCount, trackGeometry],

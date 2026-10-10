@@ -3,6 +3,7 @@ import type { INestApplication } from '@nestjs/common';
 import type { Pool } from 'pg';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { loadAvatarConfig } from '@at-sevdalisi/game-config';
 import { PG_POOL } from '../../src/infrastructure/database/database.module';
 import { RaceLockScheduler } from '../../src/infrastructure/scheduler/race-lock.scheduler';
 import {
@@ -293,6 +294,13 @@ describe('Lobi yarışında oyuncu kontrolü (e2e)', () => {
   it('CANLI TRİBÜN: katılımcı olmayan izler (komutsuz, yalnızca gösterilmiş segmentler); bilet kapısı ve 404', async () => {
     const rider = await player('Tribün Jokeyi');
     const outsider = await player('Tribün Seyircisi');
+    // 09.10.2026 — jokey forması: sürücü avatarını kaydeder, canlı görünüm rengi taşır.
+    const avatar = await http().get('/api/v1/avatar').set('Authorization', rider.authHeader).expect(200);
+    await http()
+      .put('/api/v1/avatar')
+      .set('Authorization', rider.authHeader)
+      .send({ appearance: { ...avatar.body.data.appearance, silksPrimary: 'green' } })
+      .expect(200);
     const raceId = await createRace(rider, true);
     await joinReady(rider, raceId);
 
@@ -328,6 +336,7 @@ describe('Lobi yarışında oyuncu kontrolü (e2e)', () => {
     type Named = { label: string; displayName: string };
     const spectatorRow = view.entrants.find((entrant: Named) => entrant.label === rider.horseId);
     expect(spectatorRow.displayName).toBe(horseName);
+    expect(spectatorRow.silkColor).toBe(loadAvatarConfig().silkColors.green);
     const riderRow = riderView.body.data.entrants.find(
       (entrant: Named) => entrant.label === rider.horseId,
     );
@@ -335,6 +344,7 @@ describe('Lobi yarışında oyuncu kontrolü (e2e)', () => {
     for (const bot of view.entrants.filter((entrant: Named) => entrant.label !== rider.horseId)) {
       expect(bot.displayName).toBe(bot.label);
       expect(bot.label).toMatch(/^bot-\d+$/);
+      expect(bot.silkColor).toBeNull();
     }
     // Tribün, oyuncunun henüz görmediği bölümü göremez.
     expect(view.revealedSegments).toBeGreaterThan(0);

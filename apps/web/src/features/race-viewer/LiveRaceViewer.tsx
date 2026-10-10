@@ -413,6 +413,15 @@ export function LiveRaceViewer({
   }, [raceId]);
 
   const entryIds = useMemo(() => (roster ?? []).map((entrant) => entrant.entryId), [roster]);
+  // 09.10.2026 — oyuncunun kayıtlı forma rengi (eski sunucuda alan yok → palet).
+  const horseColorsById = useMemo(
+    () =>
+      colorsByHorseId(
+        entryIds,
+        Object.fromEntries((roster ?? []).map((entrant) => [entrant.entryId, entrant.silkColor ?? null])),
+      ),
+    [entryIds, roster],
+  );
 
   const horseNamesById = useMemo(() => {
     const map: Record<string, string> = {};
@@ -436,15 +445,17 @@ export function LiveRaceViewer({
   // yorumu madde 3 (`RaceViewer.tsx`'in demo-fixture-özel `horseId ===
   // raceEntryId` varsayımı burada TEKRARLANMAZ).
   const horseVisuals: HorseVisual[] = useMemo(
-    () => computeHorseVisualsAt(entryIds, segments, currentTimeMs, turnCount, trackGeometry),
-    [entryIds, segments, currentTimeMs, turnCount, trackGeometry],
+    () =>
+      computeHorseVisualsAt(entryIds, segments, currentTimeMs, turnCount, trackGeometry, horseColorsById),
+    [entryIds, segments, currentTimeMs, turnCount, trackGeometry, horseColorsById],
   );
 
   // HUD (DOM) — throttle'lı `hudTimeMs`'ten türetilir; minimap DAHİL,
   // `RaceHud`'a giden HİÇBİR türetilmiş veri 60Hz'de YENİLENMEZ.
   const hudHorseVisuals: HorseVisual[] = useMemo(
-    () => computeHorseVisualsAt(entryIds, segments, hudTimeMs, turnCount, trackGeometry),
-    [entryIds, segments, hudTimeMs, turnCount, trackGeometry],
+    () =>
+      computeHorseVisualsAt(entryIds, segments, hudTimeMs, turnCount, trackGeometry, horseColorsById),
+    [entryIds, segments, hudTimeMs, turnCount, trackGeometry, horseColorsById],
   );
 
   const leaderboard = useMemo(
@@ -482,7 +493,6 @@ export function LiveRaceViewer({
     );
   }, [finishedEntrants]);
 
-  const horseColorsById = useMemo(() => colorsByHorseId(entryIds), [entryIds]);
   const miniMapTrack = useMemo(
     () => buildMiniMapTrack(turnCount, trackGeometry),
     [turnCount, trackGeometry],

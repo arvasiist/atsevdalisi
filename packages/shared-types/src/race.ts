@@ -441,6 +441,12 @@ export interface RaceTimelineEntrantView {
    * yarış migration'ından (0006) beri VARDI ama hiç doldurulmuyordu.
    */
   gatePosition: number | null;
+  /**
+   * 09.10.2026 — jokey forması: katılımı koşturan oyuncunun KAYDETTİĞİ avatarın
+   * forma ana rengi (hex). Bot, avatarını kaydetmemiş oyuncu ya da katalogdan
+   * kalkmış renk → `null` (istemci paleti). Salt görünüş — sonuca etkisi yok.
+   */
+  silkColor: string | null;
   finalTimeMs: number | null;
   finishPosition: number | null;
   performanceScore: number | null;
@@ -482,6 +488,8 @@ export interface RaceRosterEntrant {
   botLabel: string | null;
   tacticalStyle: RacingStyle | null;
   gatePosition: number | null;
+  /** 09.10.2026 — bkz. `RaceTimelineEntrantView.silkColor`. */
+  silkColor: string | null;
 }
 
 /** `race.roster` (sunucu → istemci, `race.subscribe` sonrası TAM OLARAK bir kez) yanıt şekli. */
@@ -787,6 +795,8 @@ export interface InteractiveRaceEntrantView {
   label: string;
   displayName: string;
   isPlayer: boolean;
+  /** 09.10.2026 — bkz. `RaceTimelineEntrantView.silkColor` (botlarda `null`). */
+  silkColor: string | null;
 }
 
 /**

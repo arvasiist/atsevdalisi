@@ -4526,11 +4526,37 @@ Karar: önce pratik yarış; kırbaç sınırsız, dayanıklılık bedelli.
   Kaydet kapalı kalır. Satın alma mantığı tek hook'ta (`useCosmetics`,
   anahtar BAŞARIYA kadar saklanır). Bulunan hata: alımdan sonra bakiye
   tazelenince avatar yeniden yükleniyor ve denenen taslak SIFIRLANIYORDU —
-  yükleme artık oyuncu kimliğine bağlı. Sırada (3b): forma renginin yarışta
-  görünmesi (bugün yarıştaki jokey rengi atın palet renginden).
+  yükleme artık oyuncu kimliğine bağlı. Adım 3b → §13.108.
 - Kanıt: `cosmetics.spec.ts` (config, varsayılan değişmezliği, sahiplik),
   `cosmetics.e2e-spec.ts` (alım + defter, tekrar 409, eşzamanlı tek alım,
   yetersiz elmas, avatar kilidi), `avatar.e2e-spec.ts` güncellendi.
+
+### 13.108 Forma rengi yarışta (09.10.2026, kozmetik adım 3b)
+
+- Satın alınan (ya da ücretsiz seçilen) forma rengi artık yarışta görünür:
+  tekrar (`GET /races/:id/timeline`), canlı yayın (`race.roster`), kontrollü
+  pratik yarış ve lobi canlı/tribün görünümünün katılımcıları `silkColor`
+  (hex) taşır. Kaynak, atı KOŞTURAN oyuncunun (`race_entries.player_id`)
+  kaydedilmiş avatarıdır; kayıt yoksa, bot ise ya da renk katalogdan
+  kalkmışsa `null` → istemci eski paleti kullanır. Türetilmiş varsayılan
+  avatar yarışta gösterilmez (oyuncu seçmediği renge "sahip" görünmesin,
+  eski yarışların görünüşü değişmesin).
+- İstemci ataması saf `apps/web/src/features/race-viewer/horse-colors.ts`
+  (`assignHorseColors`): formalar kimlik sırasıyla yerleşir (canlı ve tekrar
+  aynı atı aynı renge boyar), aynı/çok benzer ikinci forma palete düşer,
+  palet rengi bir formaya benziyorsa atlanır (eşik 60 RGB — paletin en yakın
+  iki rengi 69, forma kataloğunun 62). Formasız sahada atama eskisiyle
+  birebir aynıdır (16 atlık saha dahil test edildi).
+- Salt görünüş: motor, sonuç ve para yolları değişmedi. Tarayıcıda
+  doğrulandı: tekrar ekranında oyuncunun atı kendi yeşil formasıyla, paletteki
+  benzer yeşil başka ata verilmeden göründü.
+- Kanıt: `race-silks.e2e-spec.ts` (premium forma tekrarda + kontrollü pratik
+  canlı görünümde; formasız oyuncu ve botlar `null`), `lobby-live-race.e2e-spec.ts`
+  (tribün görünümü), `realtime.e2e-spec.ts` (roster alanı),
+  `horse-colors.spec.ts`, `replay-adapter.spec.ts`, `avatar.spec.ts`
+  (`silkColorHex`).
+- Sırada: avatar parçaları (şapka/aksesuar) mağazası — çizim kodu
+  (`AvatarPortrait`/`AvatarFigure3D`) yeni parçaları bilmeli.
 
 ## 14. Kendime hatırlatmalar (kısa liste)
 

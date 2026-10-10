@@ -464,6 +464,13 @@ export interface RaceRepository {
   findLobbySettlementContext(raceId: string): Promise<LobbySettlementContext | null>;
 
   /**
+   * 09.10.2026 — jokey forması: oyuncu kimliği → KAYDEDİLMİŞ avatarın forma
+   * ana rengi (hex). Kaydı olmayan / rengi katalogdan kalkmış oyuncu haritada
+   * YOKTUR (istemci paletine düşer). Salt görünüş.
+   */
+  findSilkColors(playerIds: readonly string[]): Promise<Map<string, string>>;
+
+  /**
    * KİLİTLENMEYİ BEKLEYEN yarışların kimliklerini döner (brief §42 PHASE 1,
    * migration 0042) — zamanlayıcının (`race-lock.scheduler.ts`) tek okuma
    * kapısı.

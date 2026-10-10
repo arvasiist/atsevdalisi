@@ -97,3 +97,15 @@ export function validateAvatarConfig(config: AvatarConfig): string[] {
   }
   return problems;
 }
+
+/**
+ * 09.10.2026 — yarış ekranında jokey forması: KAYDEDİLMİŞ avatarın forma ana
+ * rengi (hex). Kayıt yoksa ya da seçenek katalogdan kalkmışsa `null` → istemci
+ * eski paletine düşer (türetilmiş varsayılan yarışta GÖSTERİLMEZ: oyuncu
+ * seçmediği bir renge "sahip" görünmesin, eski yarışlar değişmesin).
+ */
+export function silkColorHex(optionId: string | null | undefined, config: AvatarConfig): string | null {
+  if (typeof optionId !== 'string') return null;
+  const colors = config.silkColors;
+  return Object.prototype.hasOwnProperty.call(colors, optionId) ? (colors[optionId] ?? null) : null;
+}

@@ -243,8 +243,11 @@ export class InteractiveRaceUseCase {
     );
   }
 
-  private toView(record: InteractiveRaceRecord, now: Date): InteractiveRaceView {
+  private async toView(record: InteractiveRaceRecord, now: Date): Promise<InteractiveRaceView> {
     const timeline = this.simulate(record);
+    // Forma rengi oyuncunun kayıtlı avatarından; botlar paletle.
+    const playerSilk =
+      (await this.raceRepository.findSilkColors([record.playerId])).get(record.playerId) ?? null;
     const entryCount = record.entrants.length;
     const total = segmentCountOf(timeline, entryCount);
     const finished = record.status === 'finished';
@@ -275,6 +278,7 @@ export class InteractiveRaceUseCase {
         label: entrant.horseId,
         displayName: index === 0 ? 'Senin atın' : `Rakip ${index}`,
         isPlayer: index === 0,
+        silkColor: index === 0 ? playerSilk : null,
       })),
       segments: timeline.segments.slice(0, revealed * entryCount),
       myCommands: record.commands,

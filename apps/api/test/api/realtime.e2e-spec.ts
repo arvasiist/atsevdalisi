@@ -168,6 +168,10 @@ describe('Race WebSocket yayını (e2e) — AUDIT_REPORT.md Bulgu F2', () => {
       }
       expect(botEntrant.horseId).toBeNull();
       expect(botEntrant.botLabel).not.toBeNull();
+      // 09.10.2026 — forma rengi roster'da da taşınır (avatarı kaydedilmemiş
+      // oyuncu ve botlar `null` → istemci paleti).
+      expect(ownEntrant).toHaveProperty('silkColor', null);
+      expect(botEntrant).toHaveProperty('silkColor', null);
       // `race.telemetry`'nin `raceEntryId`'si roster'daki `entryId` ile AYNI
       // isim uzayında olmalı (`postgres-race.repository.ts`'te ikisi de
       // `race_entries.id`'den gelir) — istemci bu ikisini eşleyebilmelidir.

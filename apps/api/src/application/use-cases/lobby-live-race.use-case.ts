@@ -224,13 +224,25 @@ export class LobbyLiveRaceUseCase {
     const horseNames = new Map(
       context.entrants.map((entrant) => [entrant.horseId, entrant.horseName]),
     );
+    // Forma rengi atı KOŞTURAN oyuncunun kayıtlı avatarından (botlarda yok).
+    const silks = await this.raceRepository.findSilkColors(
+      context.entrants.map((entrant) => entrant.playerId),
+    );
+    const silkByLabel = new Map(
+      context.entrants.map((entrant) => [entrant.horseId, silks.get(entrant.playerId) ?? null]),
+    );
     const entrants = timeline.finalResult
       .map((entry) => entry.horseId)
       .sort()
       .map((label) => {
         const isPlayer = me !== null && label === me.horseId;
         const name = horseNames.get(label) || label;
-        return { label, displayName: isPlayer ? `${name} (sen)` : name, isPlayer };
+        return {
+          label,
+          displayName: isPlayer ? `${name} (sen)` : name,
+          isPlayer,
+          silkColor: silkByLabel.get(label) ?? null,
+        };
       });
 
     const outcome =

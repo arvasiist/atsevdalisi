@@ -595,6 +595,7 @@ bir "start numarası" sağlar (`race_entries.gate_position` sütunu projenin
         "tacticalStyle": "closer",
         "riskLevel": "normal",
         "gatePosition": 4,
+        "silkColor": "#1e7a3c",
         "finalTimeMs": 94820,
         "finishPosition": 2,
         "performanceScore": 87.5,
@@ -611,6 +612,7 @@ bir "start numarası" sağlar (`race_entries.gate_position` sütunu projenin
         "tacticalStyle": "front_runner",
         "riskLevel": "normal",
         "gatePosition": 1,
+        "silkColor": null,
         "finalTimeMs": 93110,
         "finishPosition": 1,
         "performanceScore": 91.2,
@@ -1727,6 +1729,10 @@ score, raceCount }`. Sezonla aynı formül; pencere Türkiye saatiyle (hafta paz
   409 `COSMETIC_ALREADY_OWNED`, 409 `INSUFFICIENT_FUNDS`.
 - `PUT /avatar` — mağazadan açılan seçenek (ör. kilitli forma rengi) sahibi değilse 409 `COSMETIC_NOT_OWNED`.
   Varsayılan avatar kilitli seçenek SEÇMEZ.
+- Forma yarışta: tekrar (`GET /races/:id/timeline` → `entrants[].silkColor`), `race.roster`
+  (`entrants[].silkColor`) ve canlı görünümler (`GET /interactive-races/:id`, `GET /races/:id/live`,
+  `.../live/spectate` → `entrants[].silkColor`) atı koşturan oyuncunun KAYDETTİĞİ avatarın forma ana rengini
+  (hex) taşır; kayıt yok / bot / katalogdan kalkmış renk → `null` (istemci paleti). Salt görünüş.
 
 **Elmas politikası (09.10.2026):** elmas yalnızca görünüş/kolaylık. Yem çiple satılır; hediyede
 `currency: "gems"` 400 `GIFT_CURRENCY_NOT_ALLOWED` (`gift.allowedCurrencies` yalnızca `money`). Kural

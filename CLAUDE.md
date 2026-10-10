@@ -880,6 +880,15 @@ seçenek varsayılan avatar havuzundan ÇIKAR (`deriveDefaultAvatar(..., isLocke
 "varsayılan değişmedi" testine güven; kilitsiz seçeneği kaldırmak/araya
 eklemek herkesin varsayılan görünüşünü değiştirir. ⚠️ Avatar düzenleyen testte
 "son seçenek" kilitli olabilir (yaşandı: `avatar.e2e-spec.ts`).
+(83) **FORMA YARIŞTA (09.10.2026, §13.108)** — tekrar (`timeline` +
+`race.roster`), pratik ve lobi canlı görünüm katılımcıları `silkColor` (hex)
+taşır: atı KOŞTURAN oyuncunun (`re.player_id`) KAYDETTİĞİ avatarın forma ana
+rengi; kayıt yoksa/bot/katalogdan kalkmış renk → `null` (eski palet).
+Türetilmiş varsayılan yarışta GÖSTERİLMEZ. İstemci ataması saf
+`horse-colors.ts` → `assignHorseColors`: formasız sahada palet BİREBİR eskisi
+gibi; formaya benzeyen palet rengi atlanır (`MIN_DISTINCT_COLOR_DISTANCE`).
+⚠️ Forma kataloğuna renk eklerken `horse-colors.spec.ts` renklerin eşik
+kadar ayrık olmasını ister. Salt görünüş — motora girmez.
 
 **✅ ÜCRETLİ LOBİ YARIŞI ARTIK KOŞUYOR — ÖDÜL DAĞITIMI VAR (§13.14,
 28.09.2026).** `POST /races/:id/settle` yarışı koşar, ödülleri `top5`

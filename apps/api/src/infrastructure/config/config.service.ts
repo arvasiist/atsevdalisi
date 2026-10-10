@@ -166,6 +166,8 @@ export class AppConfigService {
   readonly breeds = loadBreedsConfig();
   /** 08.10.2026 — hipodromlar (`tracks` satırları, migration 0072). */
   readonly hippodromes = loadHippodromesConfig();
+  /** 09.10.2026 — avatar kataloğu (yarışta forma rengi + kozmetik doğrulaması). */
+  readonly avatar = loadAvatarConfig();
 
   constructor() {
     // Irk kuralı (ücretsiz at en zayıf, güçlü ırk ucuz olamaz) açılışta
@@ -207,7 +209,7 @@ export class AppConfigService {
     }
     // 09.10.2026 — kozmetik mağaza: ürün avatar kataloğunda olmalı, her
     // katalogda ücretsiz seçenek kalmalı (bozuksa API AÇILMAZ).
-    const cosmeticProblems = validateCosmeticsConfig(loadCosmeticsConfig(), loadAvatarConfig());
+    const cosmeticProblems = validateCosmeticsConfig(loadCosmeticsConfig(), this.avatar);
     if (cosmeticProblems.length > 0) {
       throw new Error(`Kozmetik mağaza config'i geçersiz (config/cosmetics.config.json): ${cosmeticProblems.join(' ')}`);
     }

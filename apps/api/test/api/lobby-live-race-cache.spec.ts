@@ -68,6 +68,7 @@ function setup(context: { current: LobbySettlementContext }, cacheEntries?: numb
     {
       findLobbySettlementContext: async () => context.current,
       findTournamentInfo: async () => null,
+      findSilkColors: async () => new Map<string, string>(),
     } as never,
     {
       buildRun: async () => {
