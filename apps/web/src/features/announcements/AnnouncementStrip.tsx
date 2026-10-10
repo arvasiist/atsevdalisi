@@ -5,13 +5,22 @@
  * duyurular. Oturumsuz da çalışır (bakım duyurusu herkese). Kapatılan
  * duyuru bu tarayıcıda bir daha gösterilmez. Ağ hatasında sessizce boş kalır
  * (duyuru oyunu engellemez).
+ *
+ * 10.10.2026 — kompakt: kapalıyken yalnızca en önemli duyuru TEK SATIR
+ * (metin kısaltılır, tamamı açınca görünür); "N duyuru daha" düğmesi açar.
  */
 
 import { useEffect, useState } from 'react';
 import type { AnnouncementView } from '@at-sevdalisi/shared-types';
 import { apiClient } from '../../lib/api-client';
 import { ANNOUNCEMENT_LEVEL_LABELS } from '../admin/moderation-labels';
-import { DISMISSED_STORAGE_KEY, addDismissed, parseDismissed, visibleAnnouncements } from './announcement-logic';
+import {
+  DISMISSED_STORAGE_KEY,
+  addDismissed,
+  announcementStripLayout,
+  parseDismissed,
+  visibleAnnouncements,
+} from './announcement-logic';
 
 function readDismissed(): string[] {
   try {
@@ -24,6 +33,7 @@ function readDismissed(): string[] {
 export function AnnouncementStrip(): React.ReactElement | null {
   const [items, setItems] = useState<AnnouncementView[]>([]);
   const [dismissed, setDismissed] = useState<string[]>([]);
+  const [expanded, setExpanded] = useState(false);
 
   useEffect(() => {
     setDismissed(readDismissed());
@@ -41,6 +51,7 @@ export function AnnouncementStrip(): React.ReactElement | null {
 
   const visible = visibleAnnouncements(items, dismissed);
   if (visible.length === 0) return null;
+  const { shown, hiddenCount } = announcementStripLayout(visible, expanded);
 
   const dismiss = (id: string): void => {
     const next = addDismissed(dismissed, id);
@@ -53,10 +64,15 @@ export function AnnouncementStrip(): React.ReactElement | null {
   };
 
   return (
-    <div className="announcement-strip" role="region" aria-label="Duyurular">
-      {visible.map((item) => (
+    <div
+      className="announcement-strip"
+      data-expanded={expanded ? 'true' : 'false'}
+      role="region"
+      aria-label="Duyurular"
+    >
+      {shown.map((item) => (
         <div key={item.id} className="announcement-item" data-level={item.level} data-testid={`announcement-${item.id}`}>
-          <div>
+          <div className="announcement-text" title={expanded ? undefined : `${item.title} — ${item.body}`}>
             <strong>
               {ANNOUNCEMENT_LEVEL_LABELS[item.level]}: {item.title}
             </strong>
@@ -67,6 +83,16 @@ export function AnnouncementStrip(): React.ReactElement | null {
           </button>
         </div>
       ))}
+      {visible.length > 1 ? (
+        <button
+          type="button"
+          className="announcement-more"
+          aria-expanded={expanded}
+          onClick={() => setExpanded((value) => !value)}
+        >
+          {expanded ? 'Duyuruları daralt' : `${hiddenCount} duyuru daha`}
+        </button>
+      ) : null}
     </div>
   );
 }

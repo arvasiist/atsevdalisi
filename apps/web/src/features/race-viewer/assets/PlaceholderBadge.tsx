@@ -6,10 +6,19 @@
  * bir "gerçekçi" iddiası kurulmasın diye (CLAUDE.md kural 8). Canvas'ın
  * DIŞINDA, üzerine konumlanan bir DOM etiketidir. İzlenen varlıkların
  * hepsi `public/` altına konunca kendiliğinden kaybolur.
+ *
+ * 10.10.2026 — oyuncuya teknik dosya yolu GÖSTERİLMEZ: üretimde yalnızca
+ * kısa bir "geçici görsel" notu (eksiklik gizlenmez, yalnızca dili
+ * oyuncuya göre). Geliştirmede bekleyen yolların listesi + konsola bir kez
+ * bilgi satırı (geliştirici neyin eksik olduğunu görür).
  */
 
+import { useEffect } from 'react';
 import { getAssetById } from './asset-manifest';
 import { assetUrl, useMissingAssetPaths } from './asset-pipeline';
+
+/** Dosya yolları yalnızca geliştirmede gösterilir (üretim derlemesinde sabit `false`). */
+const SHOW_DEVELOPER_DETAILS = process.env.NODE_ENV !== 'production';
 
 export interface PlaceholderBadgeProps {
   /** İzlenen manifest kimlikleri — HEPSİ mevcutsa rozet gösterilmez. */
@@ -26,8 +35,22 @@ export function PlaceholderBadge({
     .filter((asset) => asset !== undefined)
     .map((asset) => assetUrl(asset.expectedPath));
   const missing = useMissingAssetPaths(urls);
+  const developer = SHOW_DEVELOPER_DETAILS;
+  const missingKey = missing?.join('|') ?? '';
+  useEffect(() => {
+    if (!developer || missingKey === '') return;
+    // Geliştirme: eksik varlıkları bir kez konsola yaz (üretimde sessiz).
+    console.info(`[3D varlık] Bekleyen dosyalar (public/): ${missingKey.split('|').join(', ')}`);
+  }, [developer, missingKey]);
   if (missing === null || missing.length === 0) {
     return null;
+  }
+  if (!developer) {
+    return (
+      <div role="note" aria-label="Placeholder görüntü" className="placeholder-badge-compact" style={style}>
+        <strong>PLACEHOLDER</strong> · Geçici görsel — nihai 3D modeller henüz eklenmedi
+      </div>
+    );
   }
   return (
     <div

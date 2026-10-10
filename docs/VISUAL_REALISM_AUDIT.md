@@ -157,4 +157,17 @@ lisans seçimi sahibindedir.
 
 ## 7. Faz sonuçları
 
-(Fazlar ilerledikçe doldurulur: değişen dosyalar, testler, ölçüm, kalanlar.)
+### B1 — hata + düzen (10.10.2026)
+
+- **P0-3 kapandı:** kamera yönetmeni modu yalnızca DEĞİŞİNCE yazar
+  (`RaceViewer`, `LiveRaceViewer`). Aynı mobil yarış 32 sn izlendi:
+  uyarı tekrarlanmadı.
+- **P0-2 kapandı:** duyuru şeridi kapalıyken tek satır (en önemli duyuru:
+  bakım > uyarı > bilgi) + aynı satırda "N duyuru daha"; ~360 px → ~50 px.
+  Saf karar `announcementStripLayout` (testli).
+- **P1-10/11 kapandı:** varlık durumu tek uçtan (`GET /asset-availability`,
+  yalnızca manifest'in sabit yolları, `public/` dışına çıkan yol "yok");
+  HEAD yalnızca manifest dışı yol için. Altı sayfanın hiçbirinde konsolda
+  404 kalmadı. Rozet üretimde yolsuz kısa not, geliştirmede yol listesi +
+  tek `console.info` (`placeholder-badge.spec.tsx`).
+- Ölçüm değişmedi (bu dilim çizim yüküne dokunmadı) — aynı sayılar §3.

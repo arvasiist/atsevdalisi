@@ -395,9 +395,13 @@ export function RaceViewer({
       lastAutoCameraEventRef.current = currentEvent;
     }
     if (!manualCameraOverrideRef.current) {
-      setCameraMode(selectAutomaticCameraMode(cameraDirectorInput, cameraConfig));
+      // 10.10.2026 — yalnızca mod DEĞİŞİNCE: aynı değerle her HUD adımında
+      // setState, yavaş cihazda (uzun kare) React'in "Maximum update depth"
+      // uyarısını tetikliyor ve her adımda boşa bir render daha yapıyordu.
+      const nextMode = selectAutomaticCameraMode(cameraDirectorInput, cameraConfig);
+      if (nextMode !== cameraMode) setCameraMode(nextMode);
     }
-  }, [leaderPositionMeters, raceDistanceMeters, anyHorseBlocked, isRaceFinished]);
+  }, [leaderPositionMeters, raceDistanceMeters, anyHorseBlocked, isRaceFinished, cameraMode]);
 
   // Photo Finish sunumu (Master Brief §23) — `timeline.finalResult` PEŞİNEN
   // var (fixture/practice race verisi hazır yüklenir, `LiveRaceViewer.tsx`

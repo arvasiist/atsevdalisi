@@ -590,9 +590,13 @@ export function LiveRaceViewer({
       lastAutoCameraEventRef.current = currentEvent;
     }
     if (!manualCameraOverrideRef.current) {
-      setCameraMode(selectAutomaticCameraMode(cameraDirectorInput, cameraConfig));
+      // 10.10.2026 — yalnızca mod DEĞİŞİNCE: aynı değerle her HUD adımında
+      // setState, yavaş cihazda (uzun kare) React'in "Maximum update depth"
+      // uyarısını tetikliyor ve her adımda boşa bir render daha yapıyordu.
+      const nextMode = selectAutomaticCameraMode(cameraDirectorInput, cameraConfig);
+      if (nextMode !== cameraMode) setCameraMode(nextMode);
     }
-  }, [leaderPositionMeters, raceDistanceMeters, anyHorseBlocked, isRaceFinished]);
+  }, [leaderPositionMeters, raceDistanceMeters, anyHorseBlocked, isRaceFinished, cameraMode]);
 
   const cameraPose = useMemo(() => {
     // 08.10.2026 — kamera atın sahnede ÇİZİLDİĞİ (şeride kaydırılmış)

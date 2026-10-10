@@ -9,34 +9,56 @@
  *    KTX2 yükleyicisi `ktx2-loader.ts`tedir (three.js'i bu dosyadan
  *    uzak tutmak için — rozet/yoklama ana pakete three çekmesin).
  * 2. **Varlık yoklaması.** Dosya `public/` altında yoksa yüklemeyi hiç
- *    denemeyiz (404 + hata sınırı yerine doğrudan PLACEHOLDER). Sonuç oturum
+ *    denemeyiz (404 + hata sınırı yerine doğrudan PLACEHOLDER). Manifest
+ *    yolları tek bir rapordan (`/asset-availability`) okunur; sonuç oturum
  *    boyunca önbelleklenir.
  */
 
 import { useEffect, useState } from 'react';
+import { ASSET_AVAILABILITY_URL, parseAssetAvailability } from './asset-availability';
+
+export {
+  ASSET_AVAILABILITY_URL,
+  assetUrl,
+  buildAssetAvailabilityReport,
+  parseAssetAvailability,
+  type AssetAvailabilityReport,
+} from './asset-availability';
 
 export const DRACO_DECODER_PATH = '/decoders/draco/';
 export const BASIS_TRANSCODER_PATH = '/decoders/basis/';
 
-/** `public/`e göreli manifest yolunu URL'ye çevirir. */
-export function assetUrl(expectedPath: string): string {
-  return `/${expectedPath.replace(/^\/+/, '')}`;
-}
 
 export type AssetAvailability = 'checking' | 'available' | 'missing';
 
 const probeCache = new Map<string, Promise<boolean>>();
 
+let availabilityReport: Promise<ReturnType<typeof parseAssetAvailability>> | null = null;
+
+function loadAvailabilityReport(fetchImpl: typeof fetch) {
+  if (!availabilityReport) {
+    availabilityReport = fetchImpl(ASSET_AVAILABILITY_URL)
+      .then((response) => (response.ok ? response.json() : null))
+      .then((body: unknown) => parseAssetAvailability(body))
+      .catch(() => null);
+  }
+  return availabilityReport;
+}
+
 /**
- * Dosya var mı (HEAD isteği). Ağ hatası da "yok" sayılır — sahne
+ * Dosya var mı. Önce tek availability raporu; manifest DIŞI bir yol ya da
+ * rapor alınamazsa HEAD isteği. Ağ hatası da "yok" sayılır — sahne
  * PLACEHOLDER ile çalışmaya devam eder. Sonuç yol başına önbelleklenir.
  */
 export function probeAsset(url: string, fetchImpl: typeof fetch = fetch): Promise<boolean> {
   let pending = probeCache.get(url);
   if (!pending) {
-    pending = fetchImpl(url, { method: 'HEAD' })
-      .then((response) => response.ok)
-      .catch(() => false);
+    pending = loadAvailabilityReport(fetchImpl).then((report) => {
+      if (report && report.checked.has(url)) return report.available.has(url);
+      return fetchImpl(url, { method: 'HEAD' })
+        .then((response) => response.ok)
+        .catch(() => false);
+    });
     probeCache.set(url, pending);
   }
   return pending;
@@ -45,6 +67,7 @@ export function probeAsset(url: string, fetchImpl: typeof fetch = fetch): Promis
 /** Yalnızca testler için: yoklama önbelleğini temizler. */
 export function resetAssetProbeCache(): void {
   probeCache.clear();
+  availabilityReport = null;
 }
 
 export function useAssetAvailability(url: string): AssetAvailability {

@@ -3,6 +3,7 @@ import type { AnnouncementView } from '@at-sevdalisi/shared-types';
 import {
   DISMISSED_MAX,
   addDismissed,
+  announcementStripLayout,
   parseDismissed,
   visibleAnnouncements,
 } from '../../../src/features/announcements/announcement-logic';
@@ -25,5 +26,22 @@ describe('duyuru şeridi kararları (Faz 11-A)', () => {
     expect(parseDismissed(null)).toEqual([]);
     expect(parseDismissed('{bozuk')).toEqual([]);
     expect(parseDismissed('[1,"a",null]')).toEqual(['a']);
+  });
+});
+
+describe('kompakt duyuru şeridi (10.10.2026)', () => {
+  const withLevel = (id: string, level: AnnouncementView['level']): AnnouncementView => ({ ...item(id), level });
+  it('kapalıyken yalnızca en önemli duyuru; kalanı sayılır', () => {
+    const list = [withLevel('a', 'info'), withLevel('b', 'maintenance'), withLevel('c', 'warning'), withLevel('d', 'info')];
+    const closed = announcementStripLayout(list, false);
+    expect(closed.shown.map((x) => x.id)).toEqual(['b']);
+    expect(closed.hiddenCount).toBe(3);
+    const open = announcementStripLayout(list, true);
+    expect(open.shown.map((x) => x.id)).toEqual(['b', 'c', 'a', 'd']);
+    expect(open.hiddenCount).toBe(0);
+  });
+  it('tek duyuru ya da boş liste: gizlenen yok', () => {
+    expect(announcementStripLayout([item('x')], false)).toEqual({ shown: [item('x')], hiddenCount: 0 });
+    expect(announcementStripLayout([], false)).toEqual({ shown: [], hiddenCount: 0 });
   });
 });

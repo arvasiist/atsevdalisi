@@ -26,3 +26,23 @@ export function parseDismissed(raw: string | null): string[] {
     return [];
   }
 }
+
+/** Önem sırası: bakım > uyarı > bilgi (aynı düzeyde sunucu sırası korunur). */
+const LEVEL_PRIORITY: Record<AnnouncementView['level'], number> = { maintenance: 0, warning: 1, info: 2 };
+
+/**
+ * 10.10.2026 — şerit kapalıyken YALNIZCA en önemli duyuru tek satır görünür;
+ * kalanlar "N duyuru daha" ile açılır. Eskiden her duyuru tam genişlik bir
+ * kart oluyordu ve 5 duyuruda 3D sahne ekranın altına itiliyordu.
+ */
+export function announcementStripLayout(
+  visible: readonly AnnouncementView[],
+  expanded: boolean,
+): { shown: AnnouncementView[]; hiddenCount: number } {
+  const ordered = visible
+    .map((item, index) => ({ item, index }))
+    .sort((a, b) => LEVEL_PRIORITY[a.item.level] - LEVEL_PRIORITY[b.item.level] || a.index - b.index)
+    .map((entry) => entry.item);
+  if (expanded || ordered.length <= 1) return { shown: ordered, hiddenCount: 0 };
+  return { shown: ordered.slice(0, 1), hiddenCount: ordered.length - 1 };
+}

@@ -1029,6 +1029,25 @@ a {
   }
 }
 
+/* 10.10.2026 — üretimdeki kısa PLACEHOLDER notu (dosya yolu yok). */
+.placeholder-badge-compact {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 2;
+  max-width: min(280px, calc(100% - 140px));
+  padding: 4px 9px;
+  border-radius: 8px;
+  background: rgba(5, 8, 18, 0.6);
+  border: 1px dashed rgba(255, 196, 64, 0.55);
+  color: #f3d58a;
+  font-size: 10.5px;
+  line-height: 1.35;
+  pointer-events: none;
+}
+.placeholder-badge-compact strong {
+  letter-spacing: 0.08em;
+}
 /* PLACEHOLDER rozeti: mobilde yalnızca başlık + sayı (sahneyi örtmesin). */
 .placeholder-badge-count {
   display: none;
@@ -2827,7 +2846,45 @@ button.btn-action {
 .announcement-strip {
   display: grid;
   gap: 6px;
-  padding: 8px 16px;
+  padding: 6px 16px;
+}
+/* 10.10.2026 — kapalı şerit: tek satır, metin kısaltılır (sahneyi itmesin);
+   "N duyuru daha" aynı satırın sonunda. */
+.announcement-strip[data-expanded='false'] {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+}
+.announcement-strip[data-expanded='false'] .announcement-item {
+  align-items: center;
+  padding: 4px 6px 4px 14px;
+}
+.announcement-strip[data-expanded='false'] .announcement-text {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.announcement-strip[data-expanded='false'] .announcement-text p {
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.announcement-text {
+  min-width: 0;
+}
+.announcement-more {
+  justify-self: end;
+  min-height: 32px;
+  padding: 2px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--color-accent-gold);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
 }
 .announcement-item {
   display: flex;
