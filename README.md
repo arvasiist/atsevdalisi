@@ -14,16 +14,13 @@ nereden devam edeceğini anlaması için hazırlanmıştır.
 
 ## 1. Proje durumu
 
-| Faz | Açıklama | Durum |
-|---|---|---|
-| **FAZ 0** | Teknik keşif, mimari kararlar, repo iskeleti, dokümantasyon | 🟡 Devam ediyor |
-| FAZ 1 | Core (Player, Auth, Economy, Horse, Stable, Training, Care, Basic Race Engine) | ⏳ Planlandı |
-| FAZ 2 | Management (Market, Vet, Farrier, Nutrition, Jockey, Staff) | ⏳ Planlandı |
-| FAZ 3 | Genetics (Pedigree, Breeding, Inheritance, Mutation) | ⏳ Planlandı |
-| FAZ 4 | Farm (Tesis yükseltmeleri) | ⏳ Planlandı |
-| FAZ 5 | Advanced Race Engine (Pace, Overtaking, Blocking, Replay) | ⏳ Planlandı |
-| FAZ 6 | 3D/Web Sunum Katmanı (Three.js, kamera, VFX, ses) | ⏳ Planlandı |
-| FAZ 7 | Online (Matchmaking, PvP, Kulüpler, Turnuvalar, Anti-cheat) | ⏳ Planlandı |
+> **14.10.2026:** Buradaki eski faz tablosu ("FAZ 0 devam ediyor") projenin ilk
+> gününden beri güncellenmediği için kaldırıldı. Gerçek ve koda göre doğrulanmış durum
+> [`MASTER_STATUS.md`](MASTER_STATUS.md) ve [`PROJE_DURUMU.md`](PROJE_DURUMU.md)
+> §5'tedir. Kısaca: sunucu (oyuncu, at, ahır, antrenman, bakım, ekonomi,
+> pazar/müzayede, yetiştirme, yarış motoru, lobi/turnuva/takvim, kulüp, sezon,
+> sosyal, yönetim) ve web arayüzü çalışır durumdadır; 3D at/jokey/hipodrom
+> görüntüleri hâlâ prosedüreldir (gerçek model dosyası yok).
 
 Detaylı yol haritası için bkz. [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
@@ -34,9 +31,9 @@ Detaylı yol haritası için bkz. [`docs/ROADMAP.md`](docs/ROADMAP.md).
 ## 2. Teknoloji yığını
 
 ```text
-Frontend   : Next.js 14+ (React, TypeScript) — responsive, PWA-uyumlu, mobil-öncelikli
-3D/Görsel  : Three.js (react-three-fiber) — yarış sahnesi görselleştirme
-Backend    : NestJS (Node.js, TypeScript) — katmanlı mimari (Domain/Application/Infra/API)
+Frontend   : Next.js 16 + React 19 (TypeScript) — responsive, PWA-uyumlu, mobil-öncelikli
+3D/Görsel  : Three.js (react-three-fiber 9) — yarış sahnesi görselleştirme
+Backend    : NestJS 11 (Node.js, TypeScript) — katmanlı mimari (Domain/Application/Infra/API)
 Veritabanı : PostgreSQL — authoritative oyun verisi
 Cache      : Redis — session, leaderboard, aktif yarış lobisi
 Realtime   : WebSocket (Socket.IO / Nest Gateways) — canlı yarış ve online lobi

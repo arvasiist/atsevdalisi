@@ -10,8 +10,8 @@ belge haritası, dürüst boşluk listesi orada. Buradaki liste yalnızca
 ## Proje
 
 **AT SEVDALISI** — tarayıcıda çalışan **3D at yarışı + at sahipliği/yetiştiricilik
-simülasyonu + ekonomi yönetimi** oyunu. Monorepo: Next.js 14 (`apps/web`) +
-NestJS 10 (`apps/api`) + PostgreSQL + Redis + Socket.IO + Three.js.
+simülasyonu + ekonomi yönetimi** oyunu. Monorepo: Next.js 16 + React 19 (`apps/web`) +
+NestJS 11 (`apps/api`) + PostgreSQL + Redis + Socket.IO + Three.js.
 Kullanıcı Türkçe konuşur, Türkçe yanıt veririm. Kod yorumları ve hata mesajları Türkçedir.
 
 ## Dokunulmaz kurallar
@@ -922,6 +922,26 @@ ARKASINA alındı (tribün önden aydınlık; eskiden tribünün arkasındaydı 
 çekim ters ışıktaydı). ⚠️ HDR'yi Blender `image.save()` ile YAZMA — değerleri
 dönüştürüp kırpıyor; betik RGBE'yi kendisi yazar. HDRI ortam ışığı
 `lighting.hdri.environmentIntensity` (2.0) gökyüzü arka planından ayrıdır.
+
+(86) **DENETİM DÜZELTMELERİ (14.10.2026, dal `fix/project-audit`)** — (a)
+**Ölü oyuncu yarışı:** katılımsız yarış başlangıcı geçince ne kilitleniyor ne
+iptal ediliyordu ve `maxOpenRacesPerPlayer`ı KALICI dolduruyordu (canlı API'de
+doğrulandı: 3 yarıştan sonra sürekli `RACE_LIMIT_REACHED`; dev DB'de 222 ölü
+yarış). Artık kilit turu önce `cancelEmptyDuePlayerRaces`i koşar (yarış başına
+transaction: yarış `FOR UPDATE` → SONRA katılım denetimi; ⚠️ tek `UPDATE …
+WHERE NOT EXISTS` YAZMA — kilit sonrası yeniden denetim alt sorguyu eski
+görüntüyle koşar, başlangıçtan hemen önce ödenmiş katılımı göremezdi) ve tavan
+sayımı başlangıcı geçmiş + katılımsız yarışı saymaz. (b) **Kilit kuyruğu:**
+hata veren yarış `lockScheduler.failureBackoffSeconds` (30 sn → ×2 → 600 sn)
+boyunca aday listesinden çıkar (süreç belleği); eskiden en eski 20 bozuk yarış
+kuyruğu kalıcı tıkayabilirdi. (c) **Kendi yarışını iptal:** `POST
+/races/:id/cancel` — yalnızca açan, yarış açıkken ve AKTİF KATILIM YOKKEN
+(katılan önce ayrılır; iade ayrılma yolunda) → para hareketi YOK; başkası 403
+`NOT_RACE_OWNER`, durum engeli 409 `OWN_RACE_NOT_CANCELABLE`. Lobi listesinde
+"Yarışı iptal et". (d) `/admin` istekleri oturum yüklendikten SONRA atılır
+(eskiden ilk istek tokensız gidip 401 alıyordu). E2E artık geliştirme DB'sinde
+DEĞİL ayrı bir test veritabanında koşulur (`at_sevdalisi_test`) — dev DB'deki
+binlerce test oyuncusu oradan kalmıştı.
 
 **✅ ÜCRETLİ LOBİ YARIŞI ARTIK KOŞUYOR — ÖDÜL DAĞITIMI VAR (§13.14,
 28.09.2026).** `POST /races/:id/settle` yarışı koşar, ödülleri `top5`

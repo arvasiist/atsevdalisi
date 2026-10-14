@@ -21,7 +21,7 @@
 
 - Monorepo (npm workspaces): `apps/api` (NestJS 11), `apps/web` (Next.js 16 +
   React 19 + R3F 9), `packages/shared-types`, `packages/game-config`,
-  `config/*.json`, `database/migrations` (0001–0080, hepsi `up`/`down`),
+  `config/*.json`, `database/migrations` (0001–0082, hepsi `up`/`down`),
   `database/seeds/001_dev_seed.sql`, `tools/` (migrate, seed, ops: duman/yük
   testi, yedek/geri yükleme), `docker-compose.yml` + `docker-compose.staging.yml`.
 - CI: `.github/workflows/ci.yml` → `npm ci` → lint → typecheck → migrate →
@@ -72,7 +72,7 @@ staff, training, tribune-gift). Doğrulama controller + domain'de çift katman
 
 ## Database Status — TESTED
 
-80 migration (hepsi `down` dosyalı), FK/CHECK/kısmi tekil indeksler, değişmez
+82 migration (hepsi `down` dosyalı), FK/CHECK/kısmi tekil indeksler, değişmez
 defter tetikleyicisi. CHECK ↔ config eşleşmesi testlerde EN SON migration
 okunarak denetlenir (bildirim türü, ırk, ırk sınıfı, seviye aralığı, masa,
 tribün hediyesi, görev ölçütü). Yedek/geri yükleme betikleri + CI provası VAR;
@@ -249,7 +249,12 @@ raporu, varlık rehberi). `README.md`/`ROADMAP.md` faz tabloları BAYAT
 
 ## Existing Bugs
 
-- Bilinen açık hata YOK.
+- Bilinen açık hata YOK (14.10.2026 denetiminden sonra).
+- 14.10.2026'da kapatılan (dal `fix/project-audit`, CLAUDE.md (86)): katılımsız
+  oyuncu yarışı başlangıçtan sonra ölü kalıp açık yarış tavanını kalıcı
+  dolduruyordu (oyuncu bir daha yarış açamıyordu); kilitlenirken hata veren
+  yarışlar kuyruğu tıkayabiliyordu; oyuncu kendi yarışını iptal edemiyordu;
+  `/admin` ilk isteği tokensız gidiyordu.
 - Ölçülmüş tasarım riski: yarış sürpriz payı dar (`RACE_BALANCE_REPORT.md` §2c).
 - 09.10.2026'da kapatılan: takvim liste sınırından fazla yarış açık tuttuğu için
   oyuncunun açtığı/katıldığı geç yarış lobi listesinden düşebiliyordu (artık başta).
@@ -266,7 +271,7 @@ kodla birlikte dağıtılır.)
 - `in_progress` yarış durumu ölü (miras).
 - `PlayerDemoWidget` bağlı değil (bilinçli, kaldırılabilir).
 - `gemShopWhitelist` ölü config (okuyan kod yok).
-- README/ROADMAP faz tabloları bayat.
+- ROADMAP faz tablosu bayat (README'deki 14.10.2026'da kaldırıldı).
 - Turnuvalar masasız (kendi kuralları var: rake yok, ilk üçe 50/30/20);
   takvim programları 09.10.2026'dan beri masaya bağlı.
 
