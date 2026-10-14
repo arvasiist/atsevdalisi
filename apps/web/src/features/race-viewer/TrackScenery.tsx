@@ -56,7 +56,8 @@ const TRACK_SAMPLES = 320;
 const RAIL_HEIGHT_METERS = 1.1;
 const RAIL_POST_SPACING_METERS = 5;
 const GROUND_SIZE_METERS = 2400;
-const SUN_POSITION: [number, number, number] = [-300, 160, -500];
+// 14.10.2026 — config'ten: Blender HDRI'sindeki güneş de aynı değerden üretilir.
+const SUN_POSITION = loadLightingConfig().sun.position;
 
 function seeded(index: number, salt: number): number {
   let h = (index * 374761393 + salt * 668265263) | 0;

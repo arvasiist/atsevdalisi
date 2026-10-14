@@ -103,3 +103,8 @@ assets/**/*
 # (`apps/web/scripts/copy-3d-decoders.mjs`, predev/prebuild). Üretilmiş
 # dosyadır, sürüm kontrolüne girmez.
 apps/web/public/decoders/
+
+# Blender betik hattı (tools/blender): Python önbelleği ve yerel bpy ortamı
+__pycache__/
+*.pyc
+.venv-blender/

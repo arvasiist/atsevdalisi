@@ -2128,6 +2128,13 @@ export interface LightingConfig {
    * Eskiden kodda sabitti (rayleigh 0.9 → soluk, beyazımsı gökyüzü).
    */
   proceduralSky: { turbidity: number; rayleigh: number; mieCoefficient: number; mieDirectionalG: number };
+  /**
+   * 14.10.2026 — dış mekân güneşinin konumu (three.js, metre; yön önemli).
+   * Gölgeyi atan ışık VE Blender'da üretilen gökyüzü HDRI'sindeki güneş
+   * (`tools/blender/build_hdri.py`) bu tek değerden gelir — ayrışırsa
+   * gölgeler gökyüzündeki güneşle çelişir (`hdri-sun.spec.ts` denetler).
+   */
+  sun: { position: [number, number, number] };
 }
 
 /**

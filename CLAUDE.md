@@ -39,8 +39,11 @@ Kullanıcı Türkçe konuşur, Türkçe yanıt veririm. Kod yorumları ve hata m
 7. **PARA/MUTASYON YOLU.** `SELECT ... FOR UPDATE` + aynı transaction'da
    `economy_transactions` defter kaydı olmadan kod yazılmaz.
 8. **SAHTE ASSET YASAK.** Placeholder `.glb`/ses dosyası **uydurma**, lisanssız
-   varlık kullanma. `apps/web/public/` boştur — bu bilinçli bir karardır, kod
-   "dosya yoksa fallback'e düş" diye tasarlandı. Mixamo da yasak.
+   varlık kullanma. Kod "dosya yoksa fallback'e düş" diye tasarlandı. Mixamo da
+   yasak. **14.10.2026 — sahibinin kararı:** varlıklar Blender'da, depodaki
+   betiklerle ÖZGÜN üretilir (`tools/blender/`, bkz. (85)); at/jokey/insan için
+   sahibi lisanslı model alır. Dışarıdan indirilmiş, lisansı belgesiz dosya
+   `public/`e GİRMEZ.
 9. **`README.md` / `ROADMAP.md` faz tablosuna GÜVENME** — bayat. Gerçek durum
    `PROJE_DURUMU.md` §5'te.
 
@@ -906,6 +909,19 @@ Düzen CSS'tedir, medya sorguları `orientation-layout.spec.ts`te kilitli.
 `AnnouncementStrip` yazar) ve yatayda `min-height`ı kaldır — telefon 420 px'ten
 kısadır. Yarış görüntüleyicinin kökü `.race-viewer-root` (eski satır içi
 `minHeight: 480px` kaldırıldı; satır içi stil medya sorgusunu ezer).
+
+(85) **BLENDER VARLIK HATTI (14.10.2026, sahibinin kararı)** — `tools/blender/`:
+her `build_*.py` bir varlığı sıfırdan üretir (Blender 4.5 LTS; `blender -b -P` ya
+da `pip install bpy==4.5.*`), çıktı `apps/web/public/…`, düzenlenebilir kaynak
+`tools/blender/sources/*.blend`. Betikler oyunun `config/*.json`unu okur. İlk
+varlık: altın saat gökyüzü HDRI'si (`build_hdri.py`, Nishita + gölgelendiricide
+bulut katmanı). ⚠️ Güneş yönü `lighting.config.json` → `sun.position` — gölge
+ışığı ve HDRI aynı değerden; değiştirirsen HDRI'yi yeniden üret
+(`hdri-sun.spec.ts` uyumsuzluğu yakalar). Güneş 14.10.2026'da kameranın
+ARKASINA alındı (tribün önden aydınlık; eskiden tribünün arkasındaydı ve her
+çekim ters ışıktaydı). ⚠️ HDR'yi Blender `image.save()` ile YAZMA — değerleri
+dönüştürüp kırpıyor; betik RGBE'yi kendisi yazar. HDRI ortam ışığı
+`lighting.hdri.environmentIntensity` (2.0) gökyüzü arka planından ayrıdır.
 
 **✅ ÜCRETLİ LOBİ YARIŞI ARTIK KOŞUYOR — ÖDÜL DAĞITIMI VAR (§13.14,
 28.09.2026).** `POST /races/:id/settle` yarışı koşar, ödülleri `top5`

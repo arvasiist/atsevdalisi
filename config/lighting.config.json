@@ -1,7 +1,7 @@
 {
   "toneMappingExposure": 1.0,
   "hdri": {
-    "environmentIntensity": 0.9,
+    "environmentIntensity": 2.0,
     "backgroundIntensity": 1.0
   },
   "bloom": {
@@ -19,5 +19,12 @@
     "rayleigh": 2.2,
     "mieCoefficient": 0.004,
     "mieDirectionalG": 0.82
+  },
+  "sun": {
+    "position": [
+      -320,
+      160,
+      480
+    ]
   }
 }
