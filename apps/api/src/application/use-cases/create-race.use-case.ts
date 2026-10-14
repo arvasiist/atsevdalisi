@@ -57,13 +57,14 @@ export class CreateRaceUseCase {
    */
   async execute(playerId: string, input: RaceCreationInput): Promise<RaceLobbyView> {
     const { raceLobby } = this.config;
+    const now = new Date();
 
     // `now` ÇAĞIRAN tarafından geçirilir — bkz. `validateRaceCreation` doc
     // yorumu (saf fonksiyonun gizli bir zaman kaynağı olmaması ilkesi).
     const { problems, value } = validateRaceCreation(
       input,
       raceLobby,
-      new Date(),
+      now,
       this.config.breeds.raceClasses.map((raceClass) => raceClass.key),
       hippodromeKeys(this.config.hippodromes),
       this.config.economy.raceTiers,
@@ -73,6 +74,7 @@ export class CreateRaceUseCase {
     }
 
     const result = await this.raceRepository.createLobbyRace({
+      now,
       // `id` BURADA doğar — `run-practice-race.use-case.ts` ile AYNI desen
       // (repository kimlik üretmez, bkz. `CreateLobbyRaceInput` doc yorumu).
       id: randomUUID(),

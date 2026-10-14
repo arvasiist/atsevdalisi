@@ -59,6 +59,7 @@ import {
   pickQuickJoinRace,
   raceFitForHorse,
   sortRacesForHorse,
+  canCancelOwnRace,
   RACE_TABLES,
   applyRaceTable,
   describeTableRules,
@@ -82,9 +83,11 @@ export interface LobbyPanelProps {
   money?: number;
   /** Para hareketinden sonra üst bar bakiyesi tazelensin diye. */
   onBalanceChanged: () => Promise<void>;
+  /** 14.10.2026 — oturumdaki oyuncu: kendi açtığı yarışta "Yarışı iptal et" düğmesi için. */
+  playerId?: string | null;
 }
 
-export function LobbyPanel({ horses, money, onBalanceChanged }: LobbyPanelProps): React.ReactElement {
+export function LobbyPanel({ horses, money, onBalanceChanged, playerId = null }: LobbyPanelProps): React.ReactElement {
   const [races, setRaces] = useState<RaceLobbyListItem[] | null>(null);
   const [horseId, setHorseId] = useState('');
   const [busyRaceId, setBusyRaceId] = useState<string | null>(null);
@@ -218,6 +221,19 @@ export function LobbyPanel({ horses, money, onBalanceChanged }: LobbyPanelProps)
         },
         `"${race.name}" yarışından ayrıldın; giriş ücretin iade edildi.`,
         true,
+      );
+    },
+    [runAction],
+  );
+
+  const cancelOwn = useCallback(
+    (race: RaceLobbyListItem) => {
+      if (!window.confirm(`"${race.name}" yarışını iptal etmek istiyor musun? Bu geri alınamaz.`)) return;
+      void runAction(
+        race.id,
+        () => apiClient.cancelOwnLobbyRace(race.id),
+        `"${race.name}" iptal edildi; yeni yarış açma hakkın geri geldi.`,
+        false,
       );
     },
     [runAction],
@@ -785,6 +801,16 @@ export function LobbyPanel({ horses, money, onBalanceChanged }: LobbyPanelProps)
                       style={secondaryButtonStyle()}
                     >
                       Ayrıl (ücret iade)
+                    </button>
+                  ) : null}
+                  {canCancelOwnRace(race, playerId) ? (
+                    <button
+                      type="button"
+                      disabled={isBusy}
+                      onClick={() => cancelOwn(race)}
+                      style={secondaryButtonStyle()}
+                    >
+                      Yarışı iptal et
                     </button>
                   ) : null}
                 </div>

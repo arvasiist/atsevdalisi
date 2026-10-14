@@ -3,6 +3,7 @@ import { loadRaceLobbyConfig } from '@at-sevdalisi/game-config';
 import type { RaceLobbyListItem } from '@at-sevdalisi/shared-types';
 import {
   buildCreateRaceBody,
+  canCancelOwnRace,
   describeBreedClass,
   describeCalendar,
   describePlayerControl,
@@ -198,3 +199,19 @@ describe('ırk sınıfı (08.10.2026)', () => {
     expect(native.ok && native.body.breedClass).toBe('native');
   });
 });
+
+describe('canCancelOwnRace (14.10.2026)', () => {
+  it('yalnızca açan oyuncu, açık ve katılımsız yarışta', () => {
+    const own = race({ createdBy: 'ben', status: 'scheduled', joinedPlayers: 0 });
+    expect(canCancelOwnRace(own, 'ben')).toBe(true);
+    expect(canCancelOwnRace(own, 'baskasi')).toBe(false);
+    expect(canCancelOwnRace(own, null)).toBe(false);
+    expect(canCancelOwnRace(race({ createdBy: null, joinedPlayers: 0 }), 'ben')).toBe(false);
+  });
+
+  it('aktif katılım varken ya da yarış açık değilken düğme yok (sunucu kuralıyla aynı)', () => {
+    expect(canCancelOwnRace(race({ createdBy: 'ben', status: 'scheduled', joinedPlayers: 1 }), 'ben')).toBe(false);
+    expect(canCancelOwnRace(race({ createdBy: 'ben', status: 'locking', joinedPlayers: 0 }), 'ben')).toBe(false);
+  });
+});
+

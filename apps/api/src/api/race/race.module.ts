@@ -7,6 +7,7 @@ import { PostgresJockeyRepository } from '../../infrastructure/jockey/postgres-j
 import { CreateRaceUseCase } from '../../application/use-cases/create-race.use-case';
 import { JoinRaceUseCase } from '../../application/use-cases/join-race.use-case';
 import { LeaveRaceUseCase } from '../../application/use-cases/leave-race.use-case';
+import { CancelOwnRaceUseCase } from '../../application/use-cases/cancel-own-race.use-case';
 import { ListLobbyRacesUseCase } from '../../application/use-cases/list-lobby-races.use-case';
 import { SetEntryReadyUseCase } from '../../application/use-cases/set-entry-ready.use-case';
 import { InteractiveRaceUseCase } from '../../application/use-cases/interactive-race.use-case';
@@ -98,6 +99,7 @@ import { RecentRacesController } from './recent-races.controller';
     // ve interceptor'ın kendi bağımlılıkları (`REDIS_CLIENT`, `PG_POOL`,
     // `AppConfigService`) kök modülden çözülür (`join` ile AYNI desen).
     LeaveRaceUseCase,
+    CancelOwnRaceUseCase,
     // §42 PHASE 13.14 — ücretli lobi yarışını KOŞTURAN ve ödülleri
     // dağıtan use-case (`POST /races/:id/settle`). Bağımlılık profili
     // `RunPracticeRaceUseCase` ile AYNIdır (at + istatistik + ekipman +

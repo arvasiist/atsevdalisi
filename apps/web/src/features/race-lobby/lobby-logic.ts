@@ -351,6 +351,21 @@ export function lobbyEntryActions(race: RaceLobbyListItem): LobbyEntryActions {
   };
 }
 
+/**
+ * 14.10.2026 — "Yarışı iptal et" düğmesi: yarışı BU oyuncu açtıysa, yarış
+ * açıksa ve aktif katılımı yoksa (katıldıysan önce "Ayrıl" — iade ayrılma
+ * yolundadır). Sunucu kuralının (`checkOwnRaceCancelable`) aynısı; karar yine
+ * sunucudadır, bu yalnızca düğmeyi gösterir.
+ */
+export function canCancelOwnRace(race: RaceLobbyListItem, playerId: string | null): boolean {
+  return (
+    playerId !== null &&
+    race.createdBy === playerId &&
+    race.status === 'scheduled' &&
+    race.joinedPlayers === 0
+  );
+}
+
 /** "12 dk sonra" / "1 sa 5 dk sonra" / "başlıyor". Saniye hassasiyeti bilinçli olarak yok. */
 export function formatStartsIn(startTime: string, now: Date): string {
   const minutes = Math.floor(

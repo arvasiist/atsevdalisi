@@ -391,6 +391,13 @@ export const ErrorCode = {
    * ortadan kalkar.
    */
   RaceLimitReached: 'RACE_LIMIT_REACHED',
+  /** 14.10.2026 — yarışı yalnızca açan oyuncu iptal edebilir (403). */
+  NotRaceOwner: 'NOT_RACE_OWNER',
+  /**
+   * 14.10.2026 — kendi yarışın iptal edilemez (409): açık değil ya da aktif
+   * katılımı var (iade gerektirir; katılan önce ayrılır).
+   */
+  OwnRaceNotCancelable: 'OWN_RACE_NOT_CANCELABLE',
   /**
    * Katılım gövdesi geçersiz: `horseId` yok, UUID değil ya da yanlış tipte;
    * `tacticalStyle`/`riskLevel` bilinen bir değer değil (400).

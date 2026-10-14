@@ -1039,9 +1039,25 @@ export class PostgresRaceRepository implements RaceRepository {
       // koşuyor, `finished`/`cancelled` ise kapanmıştır — hiçbiri tavanı
       // işgal ETMEZ (oyuncu yarışı iptal ederek ya da yarışı koşturarak
       // hakkını geri kazanır; bu, tavanı bir çıkmaz sokak olmaktan çıkarır).
+      //
+      // 14.10.2026 — başlangıcı GEÇMİŞ ve aktif katılımı OLMAYAN yarış da
+      // sayılmaz: o yarış artık hiç koşmayacak (kilit onu seçmez) ve kilit
+      // zamanlayıcısının temizliğini (`cancelEmptyDuePlayerRaces`) beklerken
+      // oyuncuyu `RACE_LIMIT_REACHED`e kilitlememeli. Aktif katılımı olan
+      // geçmiş yarış SAYILIR: kilitlenip koşmak üzeredir.
       const open = await client.query<{ count: string }>(
-        "SELECT COUNT(*) AS count FROM races WHERE created_by = $1 AND status = 'scheduled'",
-        [input.createdBy],
+        `SELECT COUNT(*) AS count
+         FROM races r
+         WHERE r.created_by = $1
+           AND r.status = 'scheduled'
+           AND (
+             r.start_time > $2
+             OR EXISTS (
+               SELECT 1 FROM race_entries e
+               WHERE e.race_id = r.id AND e.player_id IS NOT NULL AND e.status IS DISTINCT FROM 'cancelled'
+             )
+           )`,
+        [input.createdBy, input.now],
       );
       // `COUNT(*)` HER ZAMAN tek satır döndürür (gruplama yok, satır
       // olmasa bile `0` gelir), bu yüzden `rows[0]` garantidir — `?.` ve
@@ -1669,6 +1685,34 @@ export class PostgresRaceRepository implements RaceRepository {
       const joinedPlayers = Number(joinedResult.rows[0]?.count ?? '0');
 
       return rowToLobbyRaceView(this.config, raceRow, joinedPlayers);
+    });
+  }
+
+  /** Port doc yorumu: `RaceRepository.cancelOwnLobbyRace`. */
+  async cancelOwnLobbyRace(
+    input: { raceId: string; now: Date },
+    check: (race: { createdBy: string | null; status: string; activeEntries: number }) => void,
+  ): Promise<boolean> {
+    return withTransaction(this.pool, async (client) => {
+      const raceResult = await client.query<{ created_by: string | null; status: string }>(
+        'SELECT created_by, status FROM races WHERE id = $1 FOR UPDATE',
+        [input.raceId],
+      );
+      const race = raceResult.rows[0];
+      if (race === undefined) {
+        return false;
+      }
+      const active = await client.query<{ count: string }>(
+        `SELECT COUNT(*) AS count FROM race_entries
+         WHERE race_id = $1 AND player_id IS NOT NULL AND status IS DISTINCT FROM 'cancelled'`,
+        [input.raceId],
+      );
+      check({ createdBy: race.created_by, status: race.status, activeEntries: Number(active.rows[0]?.count ?? '0') });
+      await client.query("UPDATE races SET status = 'cancelled', updated_at = $2 WHERE id = $1", [
+        input.raceId,
+        input.now,
+      ]);
+      return true;
     });
   }
 
@@ -2309,6 +2353,61 @@ export class PostgresRaceRepository implements RaceRepository {
     return result.rowCount ?? 0;
   }
 
+  /**
+   * Port doc yorumu: `RaceRepository.cancelEmptyDuePlayerRaces`.
+   *
+   * Tek bir `UPDATE … WHERE NOT EXISTS` YAZILMAZ: Postgres kilit beklemesinden
+   * sonra satırı yeniden denetlerken alt sorguyu ESKİ anlık görüntüyle koşar
+   * ve başlangıçtan hemen önce commit edilen (ücreti ödenmiş) bir katılımı
+   * göremeyebilirdi — o yarış iptal edilir, para askıda kalırdı. Bu yüzden
+   * her aday katılımla AYNI sırayla işlenir: önce yarış satırı `FOR UPDATE`,
+   * SONRA (yeni bir ifadeyle, güncel görüntüyle) katılım denetimi.
+   */
+  async cancelEmptyDuePlayerRaces(now: Date, limit: number): Promise<number> {
+    const candidates = await this.pool.query<{ id: string }>(
+      `SELECT r.id
+       FROM races r
+       WHERE r.created_by IS NOT NULL
+         AND r.status = 'scheduled'
+         AND r.start_time <= $1
+         AND NOT EXISTS (
+           SELECT 1 FROM race_entries e
+           WHERE e.race_id = r.id AND e.player_id IS NOT NULL AND e.status IS DISTINCT FROM 'cancelled'
+         )
+       ORDER BY r.start_time ASC, r.id ASC
+       LIMIT $2`,
+      [now, limit],
+    );
+    let cancelled = 0;
+    for (const { id } of candidates.rows) {
+      const done = await withTransaction(this.pool, async (client) => {
+        const locked = await client.query<{ status: string; start_time: Date }>(
+          'SELECT status, start_time FROM races WHERE id = $1 FOR UPDATE',
+          [id],
+        );
+        const race = locked.rows[0];
+        if (race === undefined || race.status !== 'scheduled' || race.start_time > now) {
+          return false;
+        }
+        const active = await client.query(
+          `SELECT 1 FROM race_entries e
+           WHERE e.race_id = $1 AND e.player_id IS NOT NULL AND e.status IS DISTINCT FROM 'cancelled'
+           LIMIT 1`,
+          [id],
+        );
+        if (active.rows.length > 0) {
+          return false;
+        }
+        await client.query("UPDATE races SET status = 'cancelled', updated_at = $2 WHERE id = $1", [id, now]);
+        return true;
+      });
+      if (done) {
+        cancelled += 1;
+      }
+    }
+    return cancelled;
+  }
+
   // ---------------------------------------------------------------------
   // 01.10.2026 — OYUNCU KONTROLLÜ PRATİK YARIŞ (migration 0053)
   // ---------------------------------------------------------------------
@@ -2643,7 +2742,11 @@ export class PostgresRaceRepository implements RaceRepository {
    * Gerekçe ve güvenlik kanıtı: `RaceRepository.findRacesDueForLock` port
    * doc yorumu. Burada yalnızca SQL vardır.
    */
-  async findRacesDueForLock(input: { now: Date; limit: number }): Promise<string[]> {
+  async findRacesDueForLock(input: {
+    now: Date;
+    limit: number;
+    excludeIds?: readonly string[];
+  }): Promise<string[]> {
     // `EXISTS` KULLANILIR, `JOIN + GROUP BY` DEĞİL: yarışın kaç katılımcısı
     // olduğu SORULMAZ, yalnızca "en az bir tane var mı" sorulur. `EXISTS`
     // ilk satırı bulduğunda durur; `COUNT` ise tüm satırları okurdu —
@@ -2665,9 +2768,10 @@ export class PostgresRaceRepository implements RaceRepository {
              AND e.player_id IS NOT NULL
              AND e.status IS DISTINCT FROM 'cancelled'
          )
+         AND NOT (r.id = ANY($3::uuid[]))
        ORDER BY r.start_time ASC, r.id ASC
        LIMIT $2`,
-      [input.now, input.limit],
+      [input.now, input.limit, [...(input.excludeIds ?? [])]],
     );
     return result.rows.map((row) => row.id);
   }

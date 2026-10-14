@@ -302,6 +302,19 @@ export interface RaceRepository {
    * kısıtı sıfır tutarlı bir satırı zaten reddederdi.
    */
   leaveLobbyRace(input: LeaveLobbyRaceInput): Promise<RaceLobbyView>;
+
+  /**
+   * 14.10.2026 — oyuncunun KENDİ yarışını iptali. Yarış satırı katılımla
+   * AYNI kilitle (`FOR UPDATE`) okunur, aktif katılım sayısı KİLİTTEN SONRA
+   * sayılır ve `check` (domain kuralı `checkOwnRaceCancelable`) kilit
+   * altında koşar — "iptal edilebilir mi" ile yazma arasında eşzamanlı bir
+   * katılım araya giremez. Para hareketi YOKTUR (aktif katılım yokken
+   * iptal edilir). Yarış yoksa `false`.
+   */
+  cancelOwnLobbyRace(
+    input: { raceId: string; now: Date },
+    check: (race: { createdBy: string | null; status: string; activeEntries: number }) => void,
+  ): Promise<boolean>;
   /**
    * READY ŞARTI (30.09.2026) — brief §6 / proje sahibinin talebi: "HAZIR
    * OLAN kişiler yarışabilsinler". Başlangıç zamanı gelmiş `scheduled` bir
@@ -367,6 +380,17 @@ export interface RaceRepository {
 
   /** 01.10.2026 — başlangıcı geçmiş, hiç katılımı olmayan takvim yarışlarını iptal eder; iptal sayısını döner. */
   cancelEmptyDueCalendarRaces(now: Date): Promise<number>;
+
+  /**
+   * 14.10.2026 — başlangıcı geçmiş, hiç (iptal edilmemiş) katılımı olmayan
+   * OYUNCU yarışlarını iptal eder; iptal sayısını döner. Kilit zamanlayıcısı
+   * katılımsız yarışı seçmez (`findRacesDueForLock` `EXISTS` ister); bu
+   * temizlik olmadan yarış `scheduled`da sonsuza dek kalır ve açanın
+   * `maxOpenRacesPerPlayer` hakkını KALICI olarak işgal ederdi. Para yoktur
+   * (aktif katılım yok; ayrılanın ücreti ayrılırken iade edilmiştir). Tur
+   * başına en fazla `limit` yarış (kalanlar sonraki turda).
+   */
+  cancelEmptyDuePlayerRaces(now: Date, limit: number): Promise<number>;
 
   /**
    * 01.10.2026 — OYUNCU KONTROLLÜ PRATİK YARIŞ başlatır: TEK transaction'da
@@ -493,7 +517,15 @@ export interface RaceRepository {
    * kilitlenir — `listLobbyRaces`'in sıralamasıyla AYNI gerekçe. `limit`
    * çağırandan gelir (`RaceLobbyConfig.lockScheduler.batchSize`).
    */
-  findRacesDueForLock(input: { now: Date; limit: number }): Promise<string[]>;
+  findRacesDueForLock(input: {
+    now: Date;
+    limit: number;
+    /**
+     * 14.10.2026 — bu turda ATLANACAK yarışlar (kilitlenirken hata verip
+     * bekleme süresindekiler). Verilmezse hiçbiri atlanmaz.
+     */
+    excludeIds?: readonly string[];
+  }): Promise<string[]>;
 
   /**
    * Kesinleşmeyi bekleyen (`locking`) yarışların kimlikleri, en eski
@@ -682,6 +714,12 @@ export interface JoinLobbyRaceInput {
  */
 export interface CreateLobbyRaceInput {
   id: string;
+  /**
+   * 14.10.2026 — açık yarış tavanının "şimdi"si: başlangıcı geçmiş,
+   * katılımsız yarış tavana sayılmaz (`createLobbyRace` doc yorumu).
+   * Doğrulamayla AYNI an (`CreateRaceUseCase`).
+   */
+  now: Date;
   /** Yarışı açan oyuncu — `CurrentPlayer()`'dan gelir, gövdeden ASLA (CLAUDE.md "SUNUCU OTORİTESİ"). */
   createdBy: string;
   name: string;

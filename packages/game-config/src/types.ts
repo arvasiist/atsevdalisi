@@ -1944,6 +1944,15 @@ export interface RaceLobbyConfig {
      * yalnızca birkaç saniyedir.
      */
     batchSize: number;
+    /**
+     * 14.10.2026 — kilitlenirken HATA veren yarışın (bozuk katılım verisi
+     * gibi) bekleme süresi: ilk hatada `initial`, sonraki her hatada iki
+     * katı, en fazla `max` saniye. Bu sürede yarış aday listesinden
+     * çıkarılır. Olmasaydı en eski `batchSize` yarış hep hata verdiğinde
+     * kuyruk her turda AYNI yarışları dener ve arkadaki sağlıklı yarışlar
+     * hiç kilitlenmezdi.
+     */
+    failureBackoffSeconds: { initial: number; max: number };
   };
   /**
    * 01.10.2026 — YARIŞ TAKVİMİ. Sunucu her programın bir sonraki

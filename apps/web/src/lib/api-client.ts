@@ -1103,6 +1103,10 @@ export const apiClient = {
       headers: { 'Idempotency-Key': idempotencyKey },
     }),
 
+  /** 14.10.2026 — KENDİ yarışını iptal (yalnızca açan, katılımsızken; para hareketi yok). */
+  cancelOwnLobbyRace: (raceId: string) =>
+    request<{ raceId: string; status: 'cancelled' }>(`/races/${raceId}/cancel`, { method: 'POST' }),
+
   /** "Biletlerim" — `GET /players/:id/tickets` (`assertSelf`: yalnızca kendi listem). */
   getMyTickets: (playerId: string) => request<RaceTicketView[]>(`/players/${playerId}/tickets`),
 

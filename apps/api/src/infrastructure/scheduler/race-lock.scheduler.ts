@@ -121,6 +121,9 @@ export class RaceLockScheduler implements OnModuleInit, OnModuleDestroy {
       if (result.locked.length > 0) {
         this.logger.log(`Kilitlenen yarışlar: ${result.locked.join(', ')}`);
       }
+      if (result.cancelledEmpty > 0) {
+        this.logger.log(`Katılımsız geçmiş oyuncu yarışı iptal edildi: ${result.cancelledEmpty}`);
+      }
       // OTOMATİK KESİNLEŞME (30.09.2026) — kilidin ARDINDAN, aynı turda.
       // Bu adım olmadan kilitlenen yarışlar `locking`de kalıyor ve giriş
       // ücretleri havuzda süresiz bekliyordu (bkz. `SettleDueRacesUseCase`).

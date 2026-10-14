@@ -355,7 +355,7 @@ export default function RacesPage(): React.ReactElement {
 
       {tab === 'lobby' && player && horses && horses.length > 0 ? (
         <div role="tabpanel" id="tabpanel-lobby" aria-labelledby="tab-lobby">
-          <LobbyPanel horses={horses} money={player?.money} onBalanceChanged={refresh} />
+          <LobbyPanel horses={horses} money={player?.money} onBalanceChanged={refresh} playerId={player?.id ?? null} />
         </div>
       ) : null}
 

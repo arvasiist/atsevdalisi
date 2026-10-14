@@ -66,7 +66,11 @@
   "lockScheduler": {
     "enabled": true,
     "tickSeconds": 5,
-    "batchSize": 20
+    "batchSize": 20,
+    "failureBackoffSeconds": {
+      "initial": 30,
+      "max": 600
+    }
   },
   "horseLevelBrackets": [
     {

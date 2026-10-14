@@ -871,6 +871,37 @@ export function checkRaceLeavable(
   return null;
 }
 
+/** `checkOwnRaceCancelable`ın ret nedenleri. */
+export type OwnRaceCancelRejection = 'NOT_OWNER' | 'NOT_SCHEDULED' | 'HAS_PARTICIPANTS';
+
+/**
+ * 14.10.2026 — oyuncu KENDİ açtığı yarışı iptal edebilir mi; engel yoksa
+ * `null`. Eskiden bu yol yoktu: 7 gün sonrasına açılmış üç yarış, oyuncuyu
+ * 7 gün boyunca `RACE_LIMIT_REACHED`e kilitliyordu.
+ *
+ * **AKTİF KATILIM VARKEN İPTAL YOK** — bu bir PARA kuralıdır: iptal ücret
+ * iadesi demektir ve iade yolu yöneticinin iptalidir (defterden okunan
+ * tutar). Açan yarışa katıldıysa önce "Ayrıl" der (ayrılma kendi ücretini
+ * iade eder); başka bir oyuncu katıldıysa yarışı onun elinden alamaz.
+ * Böylece bu yolda para HİÇ hareket etmez. Ayrılmış (`cancelled`)
+ * katılımlar sayılmaz.
+ */
+export function checkOwnRaceCancelable(
+  race: { createdBy: string | null; status: string; activeEntries: number },
+  playerId: string,
+): OwnRaceCancelRejection | null {
+  if (race.createdBy === null || race.createdBy !== playerId) {
+    return 'NOT_OWNER';
+  }
+  if (race.status !== 'scheduled') {
+    return 'NOT_SCHEDULED';
+  }
+  if (race.activeEntries > 0) {
+    return 'HAS_PARTICIPANTS';
+  }
+  return null;
+}
+
 /** `checkRaceSettleable`'ın ret nedenleri. */
 export type RaceSettleRejection = 'NOT_SCHEDULED' | 'NOT_STARTED' | 'NO_PARTICIPANTS';
 

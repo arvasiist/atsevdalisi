@@ -127,7 +127,11 @@ export default function AdminPage(): React.ReactElement {
   // 02.10.2026 (Faz 10) — sekmeler role göre süzülür: moderatör yalnızca
   // şikâyetleri ve oyuncuları görür. Kapı SUNUCUDADIR; bu süzme yalnızca
   // moderatörün yöneticiye özel bir sekmede 403 alıp paneli kilitlemesini önler.
-  const { player: me } = usePlayer();
+  const { player: me, isLoading: sessionLoading } = usePlayer();
+  // 14.10.2026 — istekler oturum yüklendikten SONRA atılır. Eskiden ilk
+  // render'da token henüz okunmadan istek gidiyordu: sunucu 401 dönüyordu ve
+  // panel "liste yüklenemedi" gösteriyordu (sunucu kapısı doğruydu, ekran yanlış).
+  const signedIn = me !== null;
   const actorRole = roleOf(me);
   const visibleTabs = TABS.filter(([id]) => canSeeTab(actorRole, id));
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
@@ -176,9 +180,9 @@ export default function AdminPage(): React.ReactElement {
   );
 
   useEffect(() => {
-    if (denied) return;
+    if (denied || sessionLoading || !signedIn) return;
     void load(tab);
-  }, [tab, denied, load]);
+  }, [tab, denied, load, sessionLoading, signedIn]);
 
   /**
    * Şikâyet durumunu ilerletir. Geçiş kuralı SUNUCUDA; burada yalnızca
@@ -230,6 +234,19 @@ export default function AdminPage(): React.ReactElement {
     },
     [handleError, load],
   );
+
+  if (!sessionLoading && !signedIn) {
+    return (
+      <main className="page-container">
+        <h1 style={titleStyle}>Yönetim</h1>
+        <GlassPanel>
+          <p style={{ color: 'var(--color-text-secondary)', margin: 0 }}>
+            Yönetim paneli için önce giriş yapmalısın.
+          </p>
+        </GlassPanel>
+      </main>
+    );
+  }
 
   if (denied) {
     return (

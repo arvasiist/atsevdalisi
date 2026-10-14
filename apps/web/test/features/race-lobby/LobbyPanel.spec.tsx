@@ -20,6 +20,7 @@ const mocks = vi.hoisted(() => ({
   listLobbyRaces: vi.fn(),
   joinLobbyRace: vi.fn(),
   leaveLobbyRace: vi.fn(),
+  cancelOwnLobbyRace: vi.fn(),
   setLobbyEntryReady: vi.fn(),
   createLobbyRace: vi.fn(),
   getMyClub: vi.fn(),
@@ -30,6 +31,7 @@ vi.mock('../../../src/lib/api-client', () => ({
     listLobbyRaces: (...args: unknown[]) => mocks.listLobbyRaces(...args),
     joinLobbyRace: (...args: unknown[]) => mocks.joinLobbyRace(...args),
     leaveLobbyRace: (...args: unknown[]) => mocks.leaveLobbyRace(...args),
+    cancelOwnLobbyRace: (...args: unknown[]) => mocks.cancelOwnLobbyRace(...args),
     setLobbyEntryReady: (...args: unknown[]) => mocks.setLobbyEntryReady(...args),
     createLobbyRace: (...args: unknown[]) => mocks.createLobbyRace(...args),
     getMyClub: (...args: unknown[]) => mocks.getMyClub(...args),
@@ -158,6 +160,24 @@ describe('LobbyPanel', () => {
     for (const name of ['Katıl', 'Hazırım', 'Hazır değilim', 'Ayrıl (ücret iade)']) {
       expect(screen.queryByRole('button', { name })).toBeNull();
     }
+  });
+
+  it('14.10.2026 — kendi katılımsız yarışında "Yarışı iptal et"; onayla sunucuya gider, başkasında görünmez', async () => {
+    mocks.listLobbyRaces.mockResolvedValue([lobbyRace({ createdBy: 'ben', joinedPlayers: 0 })]);
+    mocks.cancelOwnLobbyRace.mockResolvedValue({ raceId: 'race-1', status: 'cancelled' });
+    vi.stubGlobal('confirm', () => true);
+    render(<LobbyPanel horses={[horse]} onBalanceChanged={onBalanceChanged} playerId="ben" />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Yarışı iptal et' }));
+    await waitFor(() => expect(mocks.cancelOwnLobbyRace).toHaveBeenCalledWith('race-1'));
+    // Para yolu değil: bakiye tazelenmez, anahtar üretilmez.
+    expect(onBalanceChanged).not.toHaveBeenCalled();
+    expect(keyCounter).toBe(0);
+    cleanup();
+
+    render(<LobbyPanel horses={[horse]} onBalanceChanged={onBalanceChanged} playerId="baskasi" />);
+    expect(await screen.findByRole('button', { name: 'Katıl' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Yarışı iptal et' })).toBeNull();
   });
 
   it('yarış açma formu geçerli bir gövdeyle POST eder; kısa ad sunucuya GİTMEZ', async () => {

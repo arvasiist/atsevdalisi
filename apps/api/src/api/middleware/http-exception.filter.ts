@@ -176,6 +176,8 @@ import {
   RaceEntryNotReadyableError,
   RaceFullError,
   RaceLimitReachedError,
+  NotRaceOwnerError,
+  OwnRaceNotCancelableError,
   RaceNotJoinableError,
   RaceNotFoundError,
   RaceNotSettleableError,
@@ -370,6 +372,10 @@ const DOMAIN_ERROR_MAP = new Map<ErrorClassConstructor, { status: number; code: 
   // kusursuz biçimde geçerlidir, yalnızca şu an yapılamaz (bir yarışı
   // iptal etmek ya da koşturmak tavanı kendiliğinden boşaltır).
   [RaceLimitReachedError, { status: HttpStatus.CONFLICT, code: ErrorCode.RaceLimitReached }],
+  // 14.10.2026 — oyuncunun kendi yarışını iptali: başkasının yarışı 403,
+  // durum engeli (açık değil / aktif katılım var) 409.
+  [NotRaceOwnerError, { status: HttpStatus.FORBIDDEN, code: ErrorCode.NotRaceOwner }],
+  [OwnRaceNotCancelableError, { status: HttpStatus.CONFLICT, code: ErrorCode.OwnRaceNotCancelable }],
   // FAZ 1 wiring, dokuzuncu dilim — brief §54 Idempotency-Key. Eksik
   // header GERÇEK bir doğrulama hatası DEĞİLDİR (DTO/gövde şeklini
   // ilgilendirmez) — kendi özel `ErrorCode.IdempotencyKeyRequired`'ı

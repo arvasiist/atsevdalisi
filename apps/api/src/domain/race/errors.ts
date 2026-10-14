@@ -112,6 +112,36 @@ export class InvalidRaceDefinitionError extends Error {
  * kaydı açabilir — hem depolama hem de "keşif listesini çöple doldurma"
  * (brief §26) vektörü.
  */
+/**
+ * 14.10.2026 — yarışı açan bu oyuncu değil (403). Sunucu üretimi (takvim,
+ * turnuva) yarışların sahibi yoktur; onlar da buraya düşer.
+ */
+export class NotRaceOwnerError extends Error {
+  constructor(public readonly raceId: string) {
+    super('Bu yarışı yalnızca açan oyuncu iptal edebilir.');
+    this.name = 'NotRaceOwnerError';
+  }
+}
+
+/**
+ * 14.10.2026 — kendi yarışın şu an iptal edilemez (409): yarış artık açık
+ * değil ya da aktif katılımı var (para iadesi gerektirir — bkz.
+ * `checkOwnRaceCancelable`).
+ */
+export class OwnRaceNotCancelableError extends Error {
+  constructor(
+    public readonly reason: 'NOT_SCHEDULED' | 'HAS_PARTICIPANTS',
+    public readonly raceId: string,
+  ) {
+    super(
+      reason === 'HAS_PARTICIPANTS'
+        ? 'Yarışa katılan oyuncular var; iptal edilemez. Sen katıldıysan önce yarıştan ayrıl.'
+        : 'Yarış artık açık değil; iptal edilemez.',
+    );
+    this.name = 'OwnRaceNotCancelableError';
+  }
+}
+
 export class RaceLimitReachedError extends Error {
   constructor(public readonly limit: number) {
     super(`Aynı anda en fazla ${limit} açık yarış oluşturabilirsiniz.`);
