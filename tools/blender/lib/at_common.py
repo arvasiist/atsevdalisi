@@ -74,6 +74,7 @@ def normalized(v: Sequence[float]) -> Vec3:
 def save_source(name: str) -> Path:
     """Düzenlenebilir `.blend` kaynağını kaydeder (sıkıştırılmış, göreli yollar)."""
     path = source_path(name)
+    bpy.context.preferences.filepaths.save_version = 0  # `.blend1` yedeği üretme
     bpy.ops.wm.save_as_mainfile(filepath=str(path), compress=True, relative_remap=True)
     return path
 
