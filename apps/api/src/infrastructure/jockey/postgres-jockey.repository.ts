@@ -2,6 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import type { Pool } from 'pg';
 import type { Jockey } from '@at-sevdalisi/shared-types';
 import type { JockeyRideHistory } from '../../domain/jockey/condition';
+import type { JockeyCandidate } from '../../domain/jockey/market';
 import {
   JockeyAlreadyHiredError,
   JockeyAlreadyOwnedError,
@@ -66,6 +67,11 @@ function rowToJockey(row: JockeyRow): Jockey {
 const JOCKEY_COLUMNS =
   'id, name, experience, start_skill, tactical_skill, sprint_skill, horse_control, risk_management, track_knowledge, salary, owner_id, created_at, updated_at';
 
+/** Jokey pazarı dolum kilidi — sabit anahtarlı `pg_advisory_xact_lock` (transaction bitince düşer). */
+const JOCKEY_MARKET_LOCK_KEY = 60_003;
+
+const AVAILABLE_SQL = `SELECT ${JOCKEY_COLUMNS} FROM jockeys WHERE owner_id IS NULL ORDER BY salary ASC, name ASC`;
+
 /**
  * `JockeyRepository`nin PostgreSQL implementasyonu (PHASE 6.2).
  *
@@ -89,9 +95,39 @@ export class PostgresJockeyRepository implements JockeyRepository {
     const result = await this.pool.query<JockeyRow>(
       // `salary` ARTAN: ucuz jokey önce görünür — liste bir "vitrin"dir ve
       // alfabetik sıralama oyuncuyu fiyat hakkında kör bırakırdı.
-      `SELECT ${JOCKEY_COLUMNS} FROM jockeys WHERE owner_id IS NULL ORDER BY salary ASC, name ASC`,
+      AVAILABLE_SQL,
     );
     return result.rows.map(rowToJockey);
+  }
+
+  async refillMarket(build: (available: Jockey[]) => JockeyCandidate[]): Promise<number> {
+    return withTransaction(this.pool, async (client) => {
+      await client.query('SELECT pg_advisory_xact_lock($1)', [JOCKEY_MARKET_LOCK_KEY]);
+      // Kilit ALINDIKTAN SONRA yeniden okunur: bekleyen ikinci istek, ilkinin
+      // yazdıklarını görür ve eksik kalmadıysa hiçbir şey üretmez.
+      const available = await client.query<JockeyRow>(AVAILABLE_SQL);
+      const candidates = build(available.rows.map(rowToJockey));
+      for (const jockey of candidates) {
+        await client.query(
+          `INSERT INTO jockeys (id, name, experience, start_skill, tactical_skill, sprint_skill,
+                                horse_control, risk_management, track_knowledge, salary, owner_id)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NULL)`,
+          [
+            jockey.id,
+            jockey.name,
+            jockey.experience,
+            jockey.startSkill,
+            jockey.tacticalSkill,
+            jockey.sprintSkill,
+            jockey.horseControl,
+            jockey.riskManagement,
+            jockey.trackKnowledge,
+            jockey.salary,
+          ],
+        );
+      }
+      return candidates.length;
+    });
   }
 
   async findById(jockeyId: string): Promise<Jockey | null> {

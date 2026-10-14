@@ -1,5 +1,6 @@
 import type { Jockey } from '@at-sevdalisi/shared-types';
 import type { JockeyRideHistory } from '../../domain/jockey/condition';
+import type { JockeyCandidate } from '../../domain/jockey/market';
 
 /**
  * `JockeyRepository` — Application katmanının Infrastructure'a bağlandığı
@@ -28,6 +29,15 @@ export interface JockeyRepository {
    * migration 0004). Sıralama `salary` artan — ucuz olan önce görünür.
    */
   findAvailable(): Promise<Jockey[]>;
+
+  /**
+   * 14.10.2026 — vitrin ARZI. Tek bir pazar kilidi (transaction düzeyinde
+   * advisory lock) altında kiralamaya açık jokeyleri yeniden okur, `build`
+   * eksik bantlar için adayları üretir ve hepsi aynı transaction'da yazılır.
+   * Kilit, eşzamanlı iki vitrin isteğinin aynı eksiği İKİ KEZ üretmesini
+   * engeller. Dönen sayı yazılan jokey sayısıdır.
+   */
+  refillMarket(build: (available: Jockey[]) => JockeyCandidate[]): Promise<number>;
 
   findById(jockeyId: string): Promise<Jockey | null>;
 

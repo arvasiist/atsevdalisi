@@ -39,6 +39,7 @@ import { validateTribuneGiftsConfig } from '../../domain/grandstand/tribune-gift
 import { validateEquipmentConfig } from '../../domain/equipment/catalog';
 import { validateHorsePersonalityConfig } from '../../domain/horse/personality';
 import { validateJockeyConditionConfig } from '../../domain/jockey/condition';
+import { validateJockeyMarketConfig } from '../../domain/jockey/market';
 import { validateRaceTiers } from '../../domain/race/prize';
 
 /**
@@ -196,6 +197,10 @@ export class AppConfigService {
     const jockeyConditionProblems = validateJockeyConditionConfig(this.jockey.condition);
     if (jockeyConditionProblems.length > 0) {
       throw new Error(`Jokey durumu config'i geçersiz (config/jockey.config.json → condition): ${jockeyConditionProblems.join(' ')}`);
+    }
+    const jockeyMarketProblems = validateJockeyMarketConfig(this.jockey.market);
+    if (jockeyMarketProblems.length > 0) {
+      throw new Error(`Jokey pazarı config'i geçersiz (config/jockey.config.json → market): ${jockeyMarketProblems.join(' ')}`);
     }
     const personalityProblems = validateHorsePersonalityConfig(this.horsePersonality);
     if (personalityProblems.length > 0) {

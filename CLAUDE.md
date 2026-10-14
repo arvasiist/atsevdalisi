@@ -943,6 +943,17 @@ kuyruğu kalıcı tıkayabilirdi. (c) **Kendi yarışını iptal:** `POST
 DEĞİL ayrı bir test veritabanında koşulur (`at_sevdalisi_test`) — dev DB'deki
 binlerce test oyuncusu oradan kalmıştı.
 
+(87) **JOKEY PAZARI ARZI (14.10.2026, `docs/OYUN_DONGUSU_DENETIMI.md` S1)** —
+eskiden jokey satırı yalnızca geliştirme seed'indeydi; üretimde vitrin BOŞTU.
+`GET /jockeys` artık her beceri bandında (`jockey.market.bands`, kompozit
+`[skillMin, skillMax)`) en az `available` sahipsiz jokey bırakır: eksik varsa
+`pg_advisory_xact_lock(60_003)` altında yeniden sayar ve üretir (saf kurallar
+`domain/jockey/market.ts`; ücret kompozitten). ⚠️ Üretilen jokeyin kompoziti
+KENDİ BANDINDA kalmalı — kalmazsa sonraki sayım onu başka banda yazar ve vitrin
+her istekte şişer (`jockey-market.spec.ts` kilitler). ⚠️ Vitrini sayan bir e2e
+EN DÜŞÜK bandı kullanmalı: diğer dosyaların test jokeyleri (beceri 50/70/95)
+paralel koşar ve başka banttadır.
+
 **✅ ÜCRETLİ LOBİ YARIŞI ARTIK KOŞUYOR — ÖDÜL DAĞITIMI VAR (§13.14,
 28.09.2026).** `POST /races/:id/settle` yarışı koşar, ödülleri `top5`
 paylarıyla dağıtır ve `races.status = 'finished'` yazar. Uç bir

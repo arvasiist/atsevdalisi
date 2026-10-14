@@ -776,6 +776,35 @@ export interface JockeyConfig {
    * `formInfluence = 0` ve `maxFatiguePenalty = 0` eski davranıştır.
    */
   condition: JockeyConditionConfig;
+  /**
+   * 14.10.2026 — kiralık jokey ARZI. Eskiden jokey satırı yalnızca
+   * geliştirme seed'inde vardı; üretimde vitrin boştu. Kiralamaya açık
+   * jokeylerin her beceri bandında en az `available` tane kalması sağlanır.
+   */
+  market: JockeyMarketConfig;
+}
+
+/** Vitrinde her zaman bulunacak bir beceri bandı — kompozit `[skillMin, skillMax)`. */
+export interface JockeyMarketBand {
+  skillMin: number;
+  skillMax: number;
+  /** Bu bantta kiralamaya açık jokey sayısının alt sınırı. */
+  available: number;
+}
+
+export interface JockeyMarketConfig {
+  /** Artan, çakışmayan bantlar. En düşük bant yeni oyuncunun bütçesine uygun olmalı. */
+  bands: JockeyMarketBand[];
+  /** Tekil becerilerin bant tabanından en fazla sapması (± puan). */
+  skillSpread: number;
+  /**
+   * Kiralama bedeli kompozitten türetilir:
+   * `min + (max − min) × t^curve`, `t` = kompozitin bantlar boyunca konumu
+   * (0 en düşük bandın tabanı, 1 en yüksek bandın tavanı); `roundTo`ya yuvarlanır.
+   */
+  salary: { min: number; max: number; curve: number; roundTo: number };
+  firstNames: string[];
+  lastNames: string[];
 }
 
 /**
