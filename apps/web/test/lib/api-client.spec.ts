@@ -881,6 +881,23 @@ describe('apiClient çiftleştirme (brief §18 — istemci tarafı, 29.09.2026)'
     const [, config] = requestArgs(fetchMock);
     expect((config.headers as Headers).get('Idempotency-Key')).toBe('key-42');
   });
+
+  it('15.10.2026 — listStuds damızlık pazarını GET eder', async () => {
+    const fetchMock = stubFetchOnce({ success: true, data: [] });
+    await apiClient.listStuds();
+    const [url, config] = requestArgs(fetchMock);
+    expect(url).toBe(`${API_BASE_URL}/breeding/studs`);
+    expect(config.method ?? 'GET').toBe('GET');
+  });
+
+  it('15.10.2026 — retireHorse yalnızca at kimliğiyle POST eder (gövdede durum/tarih YOK: kararı sunucu verir)', async () => {
+    const fetchMock = stubFetchOnce({ success: true, data: {} });
+    await apiClient.retireHorse('h-1');
+    const [url, config] = requestArgs(fetchMock);
+    expect(url).toBe(`${API_BASE_URL}/horses/h-1/retire`);
+    expect(config.method).toBe('POST');
+    expect(JSON.parse(config.body as string)).toEqual({});
+  });
 });
 
 describe('apiClient jokey (brief §13 — istemci tarafı, 29.09.2026)', () => {

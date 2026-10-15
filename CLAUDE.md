@@ -981,6 +981,40 @@ YENİ bir yol (`writeHorseRow` dışı) yazıyorsan damgayı düşün: dolu atı
 damgası bir sonraki turda en fazla `maxCreditSeconds` kadar bedava toparlanma
 verir (sınırlı, belgeli).
 
+(90) **YAŞAM DÖNGÜSÜ: OYUN YAŞI + EMEKLİLİK + DAMIZLIK (15.10.2026, migration
+0084, S5)** — sahibinin iki kararı: (a) **1 gerçek gün = 1 oyun ayı**
+(`horse-growth.gameMonthsPerRealDay`). Yaş SAYAÇ değil:
+`computeHorseAgeMonths` = `aging_started_at` anındaki takvim yaşı + o andan
+beri geçen gün × ölçek. Mevcut atlar migration anını aldı → yaşları KORUNDU,
+`birth_date`e dokunulmadı. ⚠️ Yaşı `calculateAgeInMonths(birthDate)` ile tek
+başına HESAPLAMA (takvim yaşıdır, hızlanmayı görmez) — `horseAgeMonths(horse,
+now, config)` kullan. ⚠️ e2e'de zamanı ilerletmek için `aging_started_at` İLE
+`birth_date`i BİRLİKTE geri al; yalnızca çıpayı almak çıpa anındaki takvim
+yaşını küçültür (yaşandı). Kısrak beklemesi artık OYUN AYI
+(`breedingCooldownMonths`, gerçek süre `gameMonthsToRealMs`). (b) **Damızlık
+için iki ebeveyn de EMEKLİ olmalı** (`NOT_RETIRED`). `POST /horses/:id/retire`
+geri alınmaz: kilit sırası at → oyuncu (çiftleştirmeyle aynı), ilandaki at 409
+`HORSE_LISTED_IN_MARKET`, açık yarıştaki at 409 `HORSE_IN_ACTIVE_RACE`, oyuncunun
+SON emekli olmayan atı 409 `LAST_RACING_HORSE`. DB kısıtı
+`horses_retired_at_requires_status`: `retired_at` yazılmış at başka duruma
+DÖNEMEZ — emekli atın durumunu değiştiren bir yol 500 alır; antrenman bu yüzden
+emekli atı 409 `HORSE_RETIRED` ile keser (sakatlık durumu yazardı). Emekli at
+yarışamaz (`HORSE_NOT_ACTIVE`), toparlanma turu onu atlar. Ayrıca: ömür boyu
+tay sınırı `lifetimeFoalLimit` (kısrak 5, aygır 12; SAYAÇ YOK, `breeding_pairs`
+iki at kilitliyken sayılır → `FOAL_LIMIT_REACHED`); damızlık ücretinin
+`studFeeOwnerSharePercent`i (80) aygır sahibine geçer, kalanı ekonomiden ÇIKAR
+(defter: borç = ücret, alacak = pay; karşılık satırı YOK). Damızlık pazarı
+`GET /breeding/studs` (başkalarının emekli, üreme yaşında, ilansız, tay sınırı
+dolmamış aygırları; engelli/silinmiş sahip süzülür; ücret ÖNCEDEN görünür).
+⚠️ Ücret kalite + potansiyelden türediği için emekli aygırın potansiyeli
+ücretten çıkarılabilir — BİLİNÇLİ (Photo Finish: statlar emeklilikte açılır);
+yarışan atın potansiyeli yine gizli. ⚠️ `NotEligibleForBreedingError` mesajı
+artık Türkçe cümledir (eskiden kodun kendisiydi). ⚠️ Damızlık e2e'si yazarken
+atı emekli et (`breeding.e2e-spec.ts` → `retireForBreeding`); emeklilik ucunun
+kendisi `horse-retirement.e2e-spec.ts`te. Bilinen açık uçlar: yarış için asgari
+yaş YOK (tay doğar doğmaz koşabilir), çiftleştirme yolu engel denetlemez
+(liste süzer), aygır sahibine "tay verdi" bildirimi yok.
+
 **✅ ÜCRETLİ LOBİ YARIŞI ARTIK KOŞUYOR — ÖDÜL DAĞITIMI VAR (§13.14,
 28.09.2026).** `POST /races/:id/settle` yarışı koşar, ödülleri `top5`
 paylarıyla dağıtır ve `races.status = 'finished'` yazar. Uç bir

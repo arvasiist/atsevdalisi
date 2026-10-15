@@ -1,7 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import type { HorseMarketValueView } from '@at-sevdalisi/shared-types';
 import { calculateMarketValue, type MarketValueInput } from '../../domain/market/market';
-import { calculateAgeInMonths, getGrowthFactor } from '../../domain/horse/age-curve';
+import { getGrowthFactor, horseAgeMonths } from '../../domain/horse/age-curve';
 import { FORM_SAMPLE_SIZE } from '../../domain/race/entrant-snapshot';
 import { HorseNotFoundError } from '../../domain/horse/errors';
 import { AppConfigService } from '../../infrastructure/config/config.service';
@@ -63,7 +63,7 @@ export class GetHorseMarketValueUseCase {
     }
 
     const recentResults = await this.raceRepository.findRecentResultsByHorseId(horseId, FORM_SAMPLE_SIZE);
-    const ageMonths = calculateAgeInMonths(new Date(horse.birthDate));
+    const ageMonths = horseAgeMonths(horse, new Date(), this.appConfig.horseGrowth);
     const ageGrowthFactor = getGrowthFactor(ageMonths, this.appConfig.horseGrowth);
 
     const input: MarketValueInput = {

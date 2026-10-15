@@ -8,11 +8,12 @@ import type {
   TrainingIntensity,
   TrainingType,
 } from '@at-sevdalisi/shared-types';
-import { calculateAgeInMonths } from '../../domain/horse/age-curve';
+import { horseAgeMonths } from '../../domain/horse/age-curve';
 import {
   HorseInjuredError,
   HorseListedInMarketError,
   HorseNotFoundError,
+  HorseRetiredError,
 } from '../../domain/horse/errors';
 import { computePersonalityTrainingEffects } from '../../domain/horse/personality';
 import { applyVitalDelta } from '../../domain/horse/vital-signs';
@@ -75,6 +76,10 @@ export class TrainHorseUseCase {
     if (horse.status === 'injured') {
       throw new HorseInjuredError(horseId);
     }
+    // 15.10.2026 — S5: emekli at antrenman yapamaz (yarış kariyeri bitti).
+    if (horse.status === 'retired') {
+      throw new HorseRetiredError(horseId);
+    }
 
     // H2 KONTROLÜ: Pazarda aktif bir ilanı var mı?
     const activeListing = await this.marketListingRepository.findActiveByHorseId(horseId);
@@ -106,7 +111,11 @@ export class TrainHorseUseCase {
     // mı) için kullanıldı. İki eşzamanlı antrenman isteği artık birbirinin
     // fatigue/status yazımını SESSİZCE EZEMEZ.
     const lockResult = await this.horseRepository.updateWithLock(horseId, (lockedHorse) => {
-      const ageMonths = calculateAgeInMonths(new Date(lockedHorse.birthDate), now);
+      // Kilit öncesi okumadan sonra emekli edilmiş olabilir — kilit altında yeniden.
+      if (lockedHorse.status === 'retired') {
+        throw new HorseRetiredError(horseId);
+      }
+      const ageMonths = horseAgeMonths(lockedHorse, now, this.config.horseGrowth);
       const vitals = {
         health: lockedHorse.health,
         fitness: lockedHorse.fitness,

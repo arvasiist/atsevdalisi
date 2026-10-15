@@ -3,6 +3,7 @@ import type { Horse, HorsePersonalityView } from '@at-sevdalisi/shared-types';
 import { describePersonality } from '../../domain/horse/personality';
 import { horseRacingPower } from '../../domain/race/practice-class';
 import { estimateRaceReadyAt } from '../../domain/care/race-condition';
+import { horseAgeMonths } from '../../domain/horse/age-curve';
 import { AppConfigService } from '../../infrastructure/config/config.service';
 import { HORSE_STATS_REPOSITORY, type HorseStatsRepository } from '../ports/horse-stats.repository';
 import { HORSE_REPOSITORY, type HorseRepository } from '../ports/horse.repository';
@@ -33,7 +34,14 @@ export class ListHorsesByOwnerUseCase {
     ownerId: string,
     now: Date = new Date(),
   ): Promise<
-    Array<{ horse: Horse; personality: HorsePersonalityView | null; racingPower: number | null; raceReadyAt: string | null }>
+    Array<{
+      horse: Horse;
+      personality: HorsePersonalityView | null;
+      racingPower: number | null;
+      raceReadyAt: string | null;
+      /** 15.10.2026 — oyun yaşı (ay), sunucuda hesaplanır. */
+      ageMonths: number;
+    }>
   > {
     const horses = await this.horseRepository.findByOwnerId(ownerId);
     const ids = horses.map((horse) => horse.id);
@@ -51,6 +59,7 @@ export class ListHorsesByOwnerUseCase {
         raceReadyAt:
           estimateRaceReadyAt(horse.status, horse, this.config.race.readiness, this.config.care.passiveRecovery, now)?.toISOString() ??
           null,
+        ageMonths: horseAgeMonths(horse, now, this.config.horseGrowth),
       };
     });
   }

@@ -1,9 +1,23 @@
-import { BadRequestException, Controller, Get, Inject, Param, ParseUUIDPipe, Query } from '@nestjs/common';
+import {
+  BadRequestException,
+  Controller,
+  Get,
+  HttpCode,
+  Inject,
+  Param,
+  ParseUUIDPipe,
+  Post,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import { isUUID } from 'class-validator';
 import type { ApiSuccess, HorsePedigreeView, PublicHorse } from '@at-sevdalisi/shared-types';
 import { GetHorsePedigreeUseCase } from '../../application/use-cases/get-horse-pedigree.use-case';
 import { GetHorseUseCase } from '../../application/use-cases/get-horse.use-case';
 import { ListHorsesByOwnerUseCase } from '../../application/use-cases/list-horses-by-owner.use-case';
+import { RetireHorseUseCase } from '../../application/use-cases/retire-horse.use-case';
+import { HorseOwnerGuardByParam } from '../auth/horse-owner.guard';
+import { RateLimit } from '../rate-limit/rate-limit.decorator';
 import { assertSelf } from '../auth/assert-self';
 import { CurrentPlayer, type AuthenticatedPlayer } from '../auth/current-player.decorator';
 import { Public } from '../auth/public.decorator';
@@ -47,6 +61,7 @@ export class HorseController {
     @Inject(GetHorseUseCase) private readonly getHorseUseCase: GetHorseUseCase,
     @Inject(ListHorsesByOwnerUseCase) private readonly listHorsesByOwnerUseCase: ListHorsesByOwnerUseCase,
     @Inject(GetHorsePedigreeUseCase) private readonly getHorsePedigreeUseCase: GetHorsePedigreeUseCase,
+    @Inject(RetireHorseUseCase) private readonly retireHorseUseCase: RetireHorseUseCase,
   ) {}
 
   @Get()
@@ -71,13 +86,32 @@ export class HorseController {
     // (sahibine) eklenir; `GET :id` herkese açıktır ve bunları taşımaz.
     return {
       success: true,
-      data: horses.map(({ horse, personality, racingPower, raceReadyAt }) => ({
+      data: horses.map(({ horse, personality, racingPower, raceReadyAt, ageMonths }) => ({
         ...toPublicHorse(horse),
+        ageMonths,
         ...(personality ? { personality } : {}),
         ...(racingPower !== null ? { racingPower } : {}),
         ...(raceReadyAt !== null ? { raceReadyAt } : {}),
       })),
     };
+  }
+
+  /**
+   * 15.10.2026 — S5: atı yarıştan emekli eder (GERİ ALINMAZ). Damızlık için
+   * şarttır. Sahiplik guard'la + depoda kilit altında yeniden denetlenir; ilan,
+   * açık yarış ve "son yarış atı" engelleri 409 döner. Para hareketi yok;
+   * tekrar koruması durumun kendisidir (ikinci istek `HORSE_ALREADY_RETIRED`).
+   */
+  @RateLimit({ name: 'horse-retire', limit: 10, windowSeconds: 60, keyBy: 'player' })
+  @UseGuards(HorseOwnerGuardByParam)
+  @Post(':id/retire')
+  @HttpCode(200)
+  async retire(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentPlayer() currentPlayer: AuthenticatedPlayer,
+  ): Promise<ApiSuccess<PublicHorse>> {
+    const horse = await this.retireHorseUseCase.execute(currentPlayer.id, id);
+    return { success: true, data: toPublicHorse(horse) };
   }
 
   @Public()

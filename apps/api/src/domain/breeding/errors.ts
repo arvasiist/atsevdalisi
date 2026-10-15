@@ -3,14 +3,30 @@
 export type BreedingIneligibilityReason =
   | 'SAME_HORSE'
   | 'INVALID_GENDER'
-  | 'NOT_ACTIVE'
+  | 'NOT_RETIRED'
   | 'TOO_YOUNG'
   | 'TOO_OLD'
+  | 'FOAL_LIMIT_REACHED'
   | 'MARE_ON_COOLDOWN';
+
+/**
+ * 15.10.2026 — oyuncuya giden mesaj (eskiden kodun kendisiydi: "…uygun değil:
+ * NOT_ACTIVE."). Kod yine tektir (`NOT_ELIGIBLE_FOR_BREEDING`); ayrım mesajda
+ * ve `reason` alanındadır.
+ */
+const BREEDING_INELIGIBILITY_MESSAGES: Record<BreedingIneligibilityReason, string> = {
+  SAME_HORSE: 'Aynı at hem kısrak hem aygır olamaz.',
+  INVALID_GENDER: 'Çiftleştirme için bir kısrak ve bir aygır gerekir.',
+  NOT_RETIRED: 'Damızlık için iki at da emekli olmalı (önce atı yarıştan emekli et).',
+  TOO_YOUNG: 'Atlardan biri üremek için henüz çok genç.',
+  TOO_OLD: 'Atlardan biri üremek için fazla yaşlı.',
+  FOAL_LIMIT_REACHED: 'Atlardan biri ömrü boyunca verebileceği tay sınırına ulaştı.',
+  MARE_ON_COOLDOWN: 'Kısrak son doğumundan sonra henüz dinlenmedi.',
+};
 
 export class NotEligibleForBreedingError extends Error {
   constructor(public readonly reason: BreedingIneligibilityReason) {
-    super(`Bu çift üreme için uygun değil: ${reason}.`);
+    super(BREEDING_INELIGIBILITY_MESSAGES[reason]);
     this.name = 'NotEligibleForBreedingError';
   }
 }

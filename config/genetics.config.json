@@ -14,6 +14,9 @@
   "baseBirthHealthRisk": 0.05,
   "minBreedingAgeMonths": 36,
   "maxBreedingAgeMonths": 180,
-  "breedingCooldownDays": 180,
-  "studFeeMultiplier": 25
+  "breedingCooldownMonths": 11,
+  "studFeeMultiplier": 25,
+  "lifetimeFoalLimit": { "mare": 5, "stallion": 12 },
+  "studFeeOwnerSharePercent": 80,
+  "studMarket": { "listLimit": 50, "scanLimit": 500 }
 }

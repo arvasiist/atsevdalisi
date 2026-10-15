@@ -751,7 +751,7 @@ yolu yazıldı.
 
 Soy ağacı veri zincirinin **üçüncü ve son parçası**. `POST /players/:id/breeding`
 ile çiftleştirme yapılır ve **tay ANINDA doğar** (gebelik süresi modellenmez;
-`breedingCooldownDays` kısrağın BİR SONRAKİ çiftleştirmesine kadar geçen
+`breedingCooldownMonths` kısrağın BİR SONRAKİ çiftleştirmesine kadar geçen
 süredir). `domain/breeding/breeding.ts`'teki `breedHorses` bugüne kadar
 yalnızca testlerden çağrılıyordu; artık gerçek bir çağıranı var.
 

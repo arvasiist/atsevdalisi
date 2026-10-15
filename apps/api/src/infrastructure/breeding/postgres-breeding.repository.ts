@@ -1,5 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import type { Pool, PoolClient } from 'pg';
+import type { HorseGrowthConfig } from '@at-sevdalisi/game-config';
 import type {
   BreedingResultView,
   Horse,
@@ -9,18 +10,21 @@ import type {
 import type {
   BreedingRepository,
   ExecuteBreedingInput,
+  StudCandidate,
 } from '../../application/ports/breeding.repository';
+import type { EconomyLedgerEntryInput } from '../../application/ports/economy-ledger';
 import {
   breedHorses,
   calculateStudFee,
+  studFeeOwnerShare,
   type BreedingCandidate,
 } from '../../domain/breeding/breeding';
 import { BreedingHorseListedError, MareNotOwnedError } from '../../domain/breeding/errors';
 import { HorseNotFoundError } from '../../domain/horse/errors';
-import { calculateAgeInMonths } from '../../domain/horse/age-curve';
+import { computeHorseAgeMonths } from '../../domain/horse/age-curve';
 import { inheritAppearance } from '../../domain/horse/appearance';
 import { deriveBreedInitialStats, findBreed, resolveFoalBreed } from '../../domain/horse/breeds';
-import { transfer } from '../../domain/economy/wallet';
+import { credit, debit } from '../../domain/economy/wallet';
 import { PlayerNotFoundError } from '../../domain/player/errors';
 import { assertCanAddHorseToStable, getStableCapacity } from '../../domain/stable/stable';
 import { AppConfigService } from '../config/config.service';
@@ -65,6 +69,7 @@ interface BreedableHorseRow {
   gender: string;
   breed: string;
   birth_date: Date;
+  aging_started_at: Date;
   quality: string;
   potential: string;
   health: string;
@@ -94,17 +99,21 @@ function rowToCandidate(
   row: BreedableHorseRow,
   stats: Record<string, number>,
   now: Date,
+  growth: HorseGrowthConfig,
+  foalCount: number,
 ): BreedingCandidate {
   return {
     id: row.id,
     gender: row.gender as BreedingCandidate['gender'],
     status: row.status as BreedingCandidate['status'],
-    ageMonths: calculateAgeInMonths(row.birth_date, now),
+    // 15.10.2026 — OYUN yaşı (1 gerçek gün = `gameMonthsPerRealDay` ay).
+    ageMonths: computeHorseAgeMonths({ birthDate: row.birth_date, agingStartedAt: row.aging_started_at }, now, growth),
     health: Number(row.health),
     quality: Number(row.quality),
     potential: Number(row.potential),
     stats,
     weightKg: row.weight_kg === null ? null : Number(row.weight_kg),
+    foalCount,
   };
 }
 
@@ -125,6 +134,57 @@ export class PostgresBreedingRepository implements BreedingRepository {
     @Inject(AppConfigService) private readonly config: AppConfigService,
   ) {}
 
+  async listStudCandidates(input: { viewerId: string; foalLimit: number; scanLimit: number }): Promise<StudCandidate[]> {
+    const result = await this.pool.query<{
+      id: string;
+      name: string;
+      breed: string;
+      owner_id: string;
+      username: string | null;
+      birth_date: Date;
+      aging_started_at: Date;
+      quality: string;
+      potential: string;
+      foal_count: string;
+    }>(
+      `SELECT h.id, h.name, h.breed, h.owner_id, p.username, h.birth_date, h.aging_started_at,
+              h.quality, h.potential, fc.foal_count
+       FROM horses h
+       JOIN players p ON p.id = h.owner_id
+       CROSS JOIN LATERAL (
+         SELECT COUNT(*) AS foal_count FROM breeding_pairs bp
+         WHERE bp.stallion_id = h.id AND bp.foal_id IS NOT NULL
+       ) fc
+       WHERE h.status = 'retired' AND h.gender = 'stallion'
+         AND h.owner_id <> $1
+         AND p.deleted_at IS NULL
+         AND fc.foal_count < $2
+         AND NOT EXISTS (
+           SELECT 1 FROM market_listings ml WHERE ml.horse_id = h.id AND ml.status = 'active'
+         )
+         AND NOT EXISTS (
+           SELECT 1 FROM player_blocks b
+           WHERE (b.blocker_id = $1 AND b.blocked_id = h.owner_id)
+              OR (b.blocker_id = h.owner_id AND b.blocked_id = $1)
+         )
+       ORDER BY h.quality DESC, h.id
+       LIMIT $3`,
+      [input.viewerId, input.foalLimit, input.scanLimit],
+    );
+    return result.rows.map((row) => ({
+      horseId: row.id,
+      name: row.name,
+      breed: row.breed,
+      ownerId: row.owner_id,
+      ownerUsername: row.username,
+      birthDate: row.birth_date,
+      agingStartedAt: row.aging_started_at,
+      quality: Number(row.quality),
+      potential: Number(row.potential),
+      foalCount: Number(row.foal_count),
+    }));
+  }
+
   async breed(input: ExecuteBreedingInput): Promise<BreedingResultView> {
     // `noUncheckedIndexedAccess` altında dizi indekslemeden kaçınmak için
     // `updateTwoWithLock`/`executePurchase` ile AYNI doğrudan karşılaştırma.
@@ -135,7 +195,7 @@ export class PostgresBreedingRepository implements BreedingRepository {
       const horsesById = new Map<string, BreedableHorseRow>();
       for (const horseId of [firstHorseId, secondHorseId]) {
         const result = await client.query<BreedableHorseRow>(
-          `SELECT h.id, h.owner_id, h.name, h.gender, h.breed, h.birth_date, h.quality, h.potential,
+          `SELECT h.id, h.owner_id, h.name, h.gender, h.breed, h.birth_date, h.aging_started_at, h.quality, h.potential,
                   h.health, h.weight_kg, h.status, h.coat_color,
                   EXISTS (
                     SELECT 1 FROM market_listings ml
@@ -181,7 +241,7 @@ export class PostgresBreedingRepository implements BreedingRepository {
 
       // KISRAK COOLDOWN'I — son DOĞUM (`foal_id IS NOT NULL`) tarihinden
       // ölçülür. Tay bu projede ANINDA doğduğu için gebelik süresi
-      // modellenmez; `breedingCooldownDays` iki çiftleştirme arası bekleme
+      // modellenmez; `breedingCooldownMonths` iki çiftleştirme arası bekleme
       // süresidir (bkz. `assertBreedingEligibility`).
       const lastFoaledResult = await client.query<{ last_foaled_at: Date | null }>(
         `SELECT MAX(created_at) AS last_foaled_at FROM breeding_pairs
@@ -189,6 +249,19 @@ export class PostgresBreedingRepository implements BreedingRepository {
         [input.mareId],
       );
       const mareLastFoaledAt = lastFoaledResult.rows[0]?.last_foaled_at ?? null;
+
+      // 15.10.2026 — S5: ömür boyu tay sayısı. Sayaç YOK, çift kayıtlarından
+      // sayılır; iki at da yukarıda KİLİTLİ olduğundan aynı ata eşzamanlı iki
+      // çiftleştirme serileşir ve sınır aşılamaz.
+      const foalCounts = await client.query<{ mare_foals: string; stallion_foals: string }>(
+        `SELECT COUNT(*) FILTER (WHERE mare_id = $1) AS mare_foals,
+                COUNT(*) FILTER (WHERE stallion_id = $2) AS stallion_foals
+         FROM breeding_pairs
+         WHERE foal_id IS NOT NULL AND (mare_id = $1 OR stallion_id = $2)`,
+        [input.mareId, input.stallionId],
+      );
+      const mareFoalCount = Number(foalCounts.rows[0]?.mare_foals ?? 0);
+      const stallionFoalCount = Number(foalCounts.rows[0]?.stallion_foals ?? 0);
 
       // SOY — domain'in inbreeding kontrolü ve tayın pedigrisi için.
       const pedigreeByHorseId = new Map<string, Pedigree | null>();
@@ -218,8 +291,8 @@ export class PostgresBreedingRepository implements BreedingRepository {
       const mareStats = await this.readStats(client, input.mareId);
       const stallionStats = await this.readStats(client, input.stallionId);
 
-      const mare = rowToCandidate(mareRow, mareStats, now);
-      const stallion = rowToCandidate(stallionRow, stallionStats, now);
+      const mare = rowToCandidate(mareRow, mareStats, now, this.config.horseGrowth, mareFoalCount);
+      const stallion = rowToCandidate(stallionRow, stallionStats, now, this.config.horseGrowth, stallionFoalCount);
 
       // OYUNCULAR — horses'tan SONRA (global sıra: horses → players).
       const stallionOwnerId = stallionRow.owner_id;
@@ -267,16 +340,20 @@ export class PostgresBreedingRepository implements BreedingRepository {
       // yorumu); bu durumda `breeding_pairs.fee` de 0 kalır.
       const sameOwner = stallionOwnerId === input.playerId;
       const fee = sameOwner ? 0 : calculateStudFee(stallion, this.config.genetics);
+      // 15.10.2026 — S5 (B10): aygır sahibine ücretin `studFeeOwnerSharePercent`i
+      // geçer, kalanı ekonomiden ÇIKAR (eskiden ücretin TAMAMI geçiyordu: yan
+      // hesaplar arasında bedava değer aktarma kanalı).
+      const ownerShare = fee > 0 ? studFeeOwnerShare(fee, this.config.genetics) : 0;
 
       const payerBalance = { money: Number(payerRow.money), gems: Number(payerRow.gems) };
       const stallionOwnerBalance = {
         money: Number(stallionOwnerRow.money),
         gems: Number(stallionOwnerRow.gems),
       };
-      const moved =
-        fee > 0
-          ? transfer(payerBalance, stallionOwnerBalance, fee, 'money')
-          : { from: payerBalance, to: stallionOwnerBalance };
+      const moved = {
+        from: fee > 0 ? debit(payerBalance, fee, 'money') : payerBalance,
+        to: ownerShare > 0 ? credit(stallionOwnerBalance, ownerShare, 'money') : stallionOwnerBalance,
+      };
 
       // DOMAIN — satırlar HÂLÂ kilitliyken, EN GÜNCEL değerlerle.
       // `NotEligibleForBreedingError` (yaş/cinsiyet/durum/cooldown) burada
@@ -305,6 +382,8 @@ export class PostgresBreedingRepository implements BreedingRepository {
           'UPDATE players SET money = $2, gems = $3, updated_at = $4 WHERE id = $1',
           [input.playerId, moved.from.money, moved.from.gems, now],
         );
+      }
+      if (ownerShare > 0) {
         await client.query(
           'UPDATE players SET money = $2, gems = $3, updated_at = $4 WHERE id = $1',
           [stallionOwnerId, moved.to.money, moved.to.gems, now],
@@ -321,8 +400,8 @@ export class PostgresBreedingRepository implements BreedingRepository {
       await client.query(
         `INSERT INTO horses (id, owner_id, name, gender, breed, birth_date, level, xp, quality, potential,
                              health, fitness, fatigue, energy, morale, weight_kg, status, sire_id, dam_id,
-                             created_at, updated_at, coat_color, face_marking, leg_marking)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24)`,
+                             created_at, updated_at, coat_color, face_marking, leg_marking, aging_started_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25)`,
         [
           foal.id,
           foal.ownerId,
@@ -348,6 +427,7 @@ export class PostgresBreedingRepository implements BreedingRepository {
           foal.appearance.coatColor,
           foal.appearance.faceMarking,
           foal.appearance.legMarking,
+          new Date(foal.agingStartedAt),
         ],
       );
 
@@ -403,12 +483,11 @@ export class PostgresBreedingRepository implements BreedingRepository {
         );
       }
 
-      // DEFTER — AYNI transaction'da İKİ satır. Damızlık ücreti bir
-      // TRANSFER'dir (SINK değil), bu yüzden iki satır ZORUNLUDUR: yalnızca
-      // borç yazmak toplam arzın azaldığını iddia ederdi
-      // (`PostgresGiftRepository` ile AYNI gerekçe).
+      // DEFTER — AYNI transaction'da. Borç ücretin TAMAMI, alacak yalnızca
+      // aygır sahibinin payı: aradaki fark ekonomiden çıkan kesintidir ve
+      // karşılığında hesap satırı YOKTUR (platform payıyla aynı, CLAUDE.md).
       if (fee > 0) {
-        await writeLedgerEntries(client, [
+        const entries: EconomyLedgerEntryInput[] = [
           {
             playerId: input.playerId,
             type: 'breeding_stud_fee_debit',
@@ -420,18 +499,21 @@ export class PostgresBreedingRepository implements BreedingRepository {
             balanceAfter: moved.from.money,
             idempotencyKey: input.idempotencyKey,
           },
-          {
+        ];
+        if (ownerShare > 0) {
+          entries.push({
             playerId: stallionOwnerId,
             type: 'breeding_stud_fee_credit',
-            amount: fee,
+            amount: ownerShare,
             currency: 'money',
             referenceType: 'breeding_pair',
             referenceId: input.pairId,
             balanceBefore: stallionOwnerBalance.money,
             balanceAfter: moved.to.money,
             idempotencyKey: input.idempotencyKey,
-          },
-        ]);
+          });
+        }
+        await writeLedgerEntries(client, entries);
       }
 
       return {
@@ -497,6 +579,9 @@ export class PostgresBreedingRepository implements BreedingRepository {
         parentCoats.damCoat,
         this.config.horseAppearance,
       ),
+      // Tay 0 aydan başlar ve doğduğu andan itibaren hızlı yaşlanır.
+      agingStartedAt: now.toISOString(),
+      retiredAt: null,
       createdAt: now.toISOString(),
       updatedAt: now.toISOString(),
     };

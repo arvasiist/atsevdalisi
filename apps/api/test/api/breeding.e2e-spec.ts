@@ -84,6 +84,17 @@ describe('Çiftleştirme (e2e) — PARA YOLU', () => {
    */
   async function forceGender(horseId: string, gender: 'mare' | 'stallion' | 'gelding'): Promise<void> {
     await pool.query('UPDATE horses SET gender = $2 WHERE id = $1', [horseId, gender]);
+    // 15.10.2026 — S5: damızlık için at EMEKLİ olmalı. Bu dosyadaki atlar
+    // damızlık içindir; emeklilik ucunun kendisi `horse-retirement.e2e-spec.ts`te.
+    await retireForBreeding(horseId);
+  }
+
+  /** Test kısayolu: atı emekli yazar (uç, son-at korumasını ayrıca sınar). */
+  async function retireForBreeding(horseId: string): Promise<void> {
+    await pool.query(
+      "UPDATE horses SET status = 'retired', retired_at = COALESCE(retired_at, now()) WHERE id = $1",
+      [horseId],
+    );
   }
 
   /** Test için bakiyeyi doğrudan yazar (kayıt akışı 0 Çip verir). */
@@ -113,14 +124,25 @@ describe('Çiftleştirme (e2e) — PARA YOLU', () => {
     quality = 70,
     potential = 80,
     breed = 'hinis',
+    retired = true,
   ): Promise<string> {
     const horseId = randomUUID();
     const birthDate = new Date();
     birthDate.setMonth(birthDate.getMonth() - 60);
     await pool.query(
-      `INSERT INTO horses (id, owner_id, name, gender, breed, birth_date, quality, potential)
-       VALUES ($1, $2, $3, $4, $8, $5, $6, $7)`,
-      [horseId, ownerId, name, gender, birthDate.toISOString().slice(0, 10), quality, potential, breed],
+      `INSERT INTO horses (id, owner_id, name, gender, breed, birth_date, quality, potential, status, retired_at)
+       VALUES ($1, $2, $3, $4, $8, $5, $6, $7, $9, CASE WHEN $9 = 'retired' THEN now() END)`,
+      [
+        horseId,
+        ownerId,
+        name,
+        gender,
+        birthDate.toISOString().slice(0, 10),
+        quality,
+        potential,
+        breed,
+        retired ? 'retired' : 'active',
+      ],
     );
     await pool.query('INSERT INTO horse_stats (horse_id) VALUES ($1)', [horseId]);
     return horseId;
@@ -313,7 +335,7 @@ describe('Çiftleştirme (e2e) — PARA YOLU', () => {
   });
 
   describe('mutlu yol — ÇAPRAZ SAHİP (damızlık ücreti TRANSFERİ)', () => {
-    it('ödeyenin Çipi düşer, aygır sahibininki AYNI miktarda artar ve İKİ defter satırı yazılır', async () => {
+    it('ödeyenin Çipi düşer, aygır sahibine ücretin PAYI geçer (kalan ekonomiden çıkar) ve İKİ defter satırı yazılır', async () => {
       const payer = await registerTestPlayerWithStarterHorse(app, 'Kısrak Sahibi');
       const stallionOwner = await registerTestPlayerWithStarterHorse(app, 'Aygır Sahibi');
       await forceGender(payer.horseId, 'mare');
@@ -333,8 +355,12 @@ describe('Çiftleştirme (e2e) — PARA YOLU', () => {
       // (1) İki oyuncu satırı GERÇEKTEN güncellendi mi?
       const payerRow = await pool.query('SELECT money FROM players WHERE id = $1', [payer.playerId]);
       const ownerRow = await pool.query('SELECT money FROM players WHERE id = $1', [stallionOwner.playerId]);
+      // 15.10.2026 — S5 (B10): sahibe `studFeeOwnerSharePercent` geçer.
+      const ownerShare = Math.floor((starterStudFee() * config.genetics.studFeeOwnerSharePercent) / 100);
+      expect(ownerShare).toBeGreaterThan(0);
+      expect(ownerShare).toBeLessThan(starterStudFee());
       expect(Number(payerRow.rows[0].money)).toBe(5_000 - starterStudFee());
-      expect(Number(ownerRow.rows[0].money)).toBe(100 + starterStudFee());
+      expect(Number(ownerRow.rows[0].money)).toBe(100 + ownerShare);
 
       // (2) Çift kaydı ücreti TAŞIR (0 değil).
       const pairRow = await pool.query('SELECT fee FROM breeding_pairs WHERE id = $1', [response.body.data.pairId]);
@@ -353,9 +379,11 @@ describe('Çiftleştirme (e2e) — PARA YOLU', () => {
       expect(Number(debit.balance_after)).toBe(5_000 - starterStudFee());
       expect(credit.player_id).toBe(stallionOwner.playerId);
       expect(credit.type).toBe('breeding_stud_fee_credit');
-      expect(Number(credit.amount)).toBe(starterStudFee());
+      expect(Number(credit.amount)).toBe(ownerShare);
       expect(Number(credit.balance_before)).toBe(100);
-      expect(Number(credit.balance_after)).toBe(100 + starterStudFee());
+      expect(Number(credit.balance_after)).toBe(100 + ownerShare);
+      // Kesinti: borç + alacak toplamı = −(ücret − pay); karşılık satırı YOK.
+      expect(Number(debit.amount) + Number(credit.amount)).toBe(-(starterStudFee() - ownerShare));
     });
 
     it('tay AY GİBİ KISRAK SAHİBİNİN ahırına doğar (ücreti ödeyen tayı alır)', async () => {
@@ -532,6 +560,75 @@ describe('Çiftleştirme (e2e) — PARA YOLU', () => {
       expect(await countHorses(payer.playerId)).toBe(horsesBefore + 1);
     });
 
+    it('15.10.2026 — kısrak beklemesi OYUN AYIdır: süre (gerçek gün) geçince aynı kısrak yeniden doğurur', async () => {
+      const payer = await registerTestPlayerWithStarterHorse(app, 'Bekleyen Kısrak');
+      await forceGender(payer.horseId, 'mare');
+      const stallionId = await insertAdultHorse(payer.playerId, 'Bekleyen Aygır', 'stallion');
+      await breed(payer, payer.horseId, stallionId, 'İlk Tay', 201);
+      await breed(payer, payer.horseId, stallionId, 'Erken Tay', 409);
+
+      const waitDays =
+        config.genetics.breedingCooldownMonths / config.horseGrowth.gameMonthsPerRealDay + 1;
+      await pool.query(
+        `UPDATE breeding_pairs SET created_at = now() - make_interval(days => $2) WHERE mare_id = $1`,
+        [payer.horseId, Math.ceil(waitDays)],
+      );
+      await breed(payer, payer.horseId, stallionId, 'Zamanında Tay', 201);
+      expect(await countPairs(payer.horseId)).toBe(2);
+    });
+
+    it('15.10.2026 — EMEKLİ OLMAYAN at damızlık yapamaz: 409 + Türkçe neden', async () => {
+      const payer = await registerTestPlayerWithStarterHorse(app, 'Yarışan Kısrak');
+      const activeMareId = await insertAdultHorse(payer.playerId, 'Aktif Kısrak', 'mare', 70, 80, 'hinis', false);
+      const stallionId = await insertAdultHorse(payer.playerId, 'Emekli Aygır', 'stallion');
+
+      const response = await breed(payer, activeMareId, stallionId, 'Olmayacak Tay', 409);
+      expect(response.body.error.code).toBe('NOT_ELIGIBLE_FOR_BREEDING');
+      expect(response.body.error.message).toMatch(/emekli/i);
+      expect(await countPairs(activeMareId)).toBe(0);
+    });
+
+    it('15.10.2026 — ÖMÜR BOYU TAY SINIRI: sınıra ulaşan kısrak 409, tay doğmaz', async () => {
+      const payer = await registerTestPlayerWithStarterHorse(app, 'Yorgun Damızlık');
+      await forceGender(payer.horseId, 'mare');
+      const stallionId = await insertAdultHorse(payer.playerId, 'Sınır Aygırı', 'stallion');
+      // Geçmiş doğumlar (bekleme süresi çoktan geçmiş) — fikstür, para/XP yazmaz.
+      const pastFoalId = await insertAdultHorse(payer.playerId, 'Eski Tay', 'gelding');
+      for (let i = 0; i < config.genetics.lifetimeFoalLimit.mare; i++) {
+        await pool.query(
+          `INSERT INTO breeding_pairs (mare_id, stallion_id, fee, foal_id, created_at)
+           VALUES ($1, $2, 0, $3, now() - interval '400 days')`,
+          [payer.horseId, stallionId, pastFoalId],
+        );
+      }
+      const horsesBefore = await countHorses(payer.playerId);
+
+      const response = await breed(payer, payer.horseId, stallionId, 'Fazla Tay', 409);
+      expect(response.body.error.code).toBe('NOT_ELIGIBLE_FOR_BREEDING');
+      expect(response.body.error.message).toMatch(/tay sınırı/i);
+      expect(await countHorses(payer.playerId)).toBe(horsesBefore);
+    });
+
+    it('15.10.2026 — OYUN YAŞI: yaşlanma çıpası geride kalan aygır fazla yaşlıdır (TOO_OLD)', async () => {
+      const payer = await registerTestPlayerWithStarterHorse(app, 'Genç Kısrak');
+      await forceGender(payer.horseId, 'mare');
+      const stallionId = await insertAdultHorse(payer.playerId, 'Yaşlı Aygır', 'stallion');
+      // 60 aylık aygırın çıpasını (max − 60 + 1) gerçek gün geriye al.
+      const days = Math.ceil(
+        (config.genetics.maxBreedingAgeMonths - 60 + 1) / config.horseGrowth.gameMonthsPerRealDay,
+      );
+      await pool.query(
+        `UPDATE horses SET aging_started_at = now() - make_interval(days => $2),
+                           birth_date = (now() - make_interval(days => $2) - interval '60 months')::date
+         WHERE id = $1`,
+        [stallionId, days],
+      );
+
+      const response = await breed(payer, payer.horseId, stallionId, 'Geç Tay', 409);
+      expect(response.body.error.code).toBe('NOT_ELIGIBLE_FOR_BREEDING');
+      expect(response.body.error.message).toMatch(/yaşlı/i);
+    });
+
     it('AYNI AT hem kısrak hem aygır olamaz: 409 NOT_ELIGIBLE_FOR_BREEDING', async () => {
       const payer = await registerTestPlayerWithStarterHorse(app, 'Kendisiyle');
       await forceGender(payer.horseId, 'mare');
@@ -587,6 +684,97 @@ describe('Çiftleştirme (e2e) — PARA YOLU', () => {
       const response = await breed(payer, payer.horseId, stallionId, 'Sığmayan Tay', 409);
       expect(response.body.error.code).toBe('STABLE_CAPACITY_EXCEEDED');
       expect(await countPairs(payer.horseId)).toBe(0);
+    });
+  });
+
+  /** 15.10.2026 — S5 damızlık pazarı: `GET /breeding/studs`. */
+  describe('damızlık pazarı', () => {
+    async function studs(player: RegisteredTestPlayer): Promise<Array<Record<string, unknown>>> {
+      const response = await request(app.getHttpServer())
+        .get('/api/v1/breeding/studs')
+        .set('Authorization', player.authHeader)
+        .expect(200);
+      return response.body.data as Array<Record<string, unknown>>;
+    }
+
+    it('başkasının emekli aygırı ÜCRETİYLE listelenir; o ücret çiftleştirmede ödenen ücrettir', async () => {
+      const viewer = await registerTestPlayerWithStarterHorse(app, 'Damızlık Arayan');
+      const owner = await registerTestPlayerWithStarterHorse(app, 'Damızlık Sahibi');
+      await forceGender(viewer.horseId, 'mare');
+      // Listenin üstüne çıksın diye kalitesi yüksek; potansiyeli ücretten okunur.
+      const studId = await insertAdultHorse(owner.playerId, 'Pazar Aygırı', 'stallion', 99, 99);
+      await setBalance(viewer.playerId, 50_000);
+
+      const listed = (await studs(viewer)).find((row) => row.horseId === studId);
+      expect(listed).toBeDefined();
+      const expectedFee = Math.round(((99 + 99) / 2) * config.genetics.studFeeMultiplier);
+      expect(listed).toMatchObject({
+        name: 'Pazar Aygırı',
+        ownerId: owner.playerId,
+        ageMonths: 60,
+        quality: 99,
+        fee: expectedFee,
+        foalCount: 0,
+        foalLimit: config.genetics.lifetimeFoalLimit.stallion,
+      });
+      expect(listed).not.toHaveProperty('potential');
+
+      const bred = await breed(viewer, viewer.horseId, studId, 'Pazar Tayı', 201);
+      expect(bred.body.data.fee).toBe(expectedFee);
+      const after = (await studs(viewer)).find((row) => row.horseId === studId);
+      expect(after?.foalCount).toBe(1);
+    });
+
+    it('kendi aygırın, emekli olmayan aygır, kısrak, ilandaki ve engelli oyuncunun aygırı LİSTELENMEZ', async () => {
+      const viewer = await registerTestPlayerWithStarterHorse(app, 'Seçici Arayan');
+      const owner = await registerTestPlayerWithStarterHorse(app, 'Karışık Sahip');
+      const blocker = await registerTestPlayerWithStarterHorse(app, 'Engelleyen Sahip');
+      const own = await insertAdultHorse(viewer.playerId, 'Kendi Damızlığım', 'stallion', 98, 98);
+      const active = await insertAdultHorse(owner.playerId, 'Yarışan Aygır', 'stallion', 98, 98, 'hinis', false);
+      const mare = await insertAdultHorse(owner.playerId, 'Emekli Kısrak', 'mare', 98, 98);
+      const listedStud = await insertAdultHorse(owner.playerId, 'Satılık Aygır', 'stallion', 98, 98);
+      await pool.query(
+        `INSERT INTO market_listings (seller_id, horse_id, price, listing_type, status)
+         VALUES ($1, $2, 1000, 'fixed_price', 'active')`,
+        [owner.playerId, listedStud],
+      );
+      const blockedStud = await insertAdultHorse(blocker.playerId, 'Engelli Aygır', 'stallion', 98, 98);
+      await pool.query('INSERT INTO player_blocks (blocker_id, blocked_id) VALUES ($1, $2)', [
+        blocker.playerId,
+        viewer.playerId,
+      ]);
+
+      const ids = (await studs(viewer)).map((row) => row.horseId);
+      for (const hidden of [own, active, mare, listedStud, blockedStud]) {
+        expect(ids).not.toContain(hidden);
+      }
+    });
+
+    it('tay sınırı dolmuş ya da üreme yaşını geçmiş aygır listelenmez', async () => {
+      const viewer = await registerTestPlayerWithStarterHorse(app, 'Sınır Arayan');
+      const owner = await registerTestPlayerWithStarterHorse(app, 'Yaşlı Sahip');
+      const spent = await insertAdultHorse(owner.playerId, 'Tükenmiş Aygır', 'stallion', 97, 97);
+      const dummyMare = await insertAdultHorse(owner.playerId, 'Fikstür Kısrak', 'mare');
+      for (let i = 0; i < config.genetics.lifetimeFoalLimit.stallion; i++) {
+        await pool.query(
+          `INSERT INTO breeding_pairs (mare_id, stallion_id, fee, foal_id, created_at)
+           VALUES ($1, $2, 0, $1, now() - interval '400 days')`,
+          [dummyMare, spent],
+        );
+      }
+      const old = await insertAdultHorse(owner.playerId, 'İhtiyar Aygır', 'stallion', 97, 97);
+      await pool.query(
+        "UPDATE horses SET aging_started_at = now() - make_interval(days => $2) WHERE id = $1",
+        [old, Math.ceil(config.genetics.maxBreedingAgeMonths / config.horseGrowth.gameMonthsPerRealDay)],
+      );
+
+      const ids = (await studs(viewer)).map((row) => row.horseId);
+      expect(ids).not.toContain(spent);
+      expect(ids).not.toContain(old);
+    });
+
+    it('kimlik doğrulanmadan 401', async () => {
+      await request(app.getHttpServer()).get('/api/v1/breeding/studs').expect(401);
     });
   });
 

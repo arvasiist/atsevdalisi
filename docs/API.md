@@ -1938,7 +1938,7 @@ bakiyesinden damızlık ücreti ödenemez ve tay başkasının ahırına doğama
 defter satırı YAZILMAZ (migration 0019 `CHECK (amount <> 0)`).
 
 **Tay ANINDA doğar.** Bu projede gebelik süresi modellenmez;
-`breedingCooldownDays` kısrağın BİR SONRAKİ çiftleştirmesine kadar geçen
+`breedingCooldownMonths` kısrağın BİR SONRAKİ çiftleştirmesine kadar geçen
 süredir. Tay `horses` + `horse_stats` + `horse_health` +
 `horse_surface_stats` + `horse_distance_stats` + `pedigrees` satırlarıyla
 birlikte, AYNI transaction'da doğar; `breeding_pairs` satırı da (ücret +

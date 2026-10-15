@@ -1,4 +1,5 @@
 {
+  "gameMonthsPerRealDay": 1,
   "stages": [
     { "name": "foal",        "minAgeMonths": 0,   "maxAgeMonths": 12,  "growthFactor": 0.5 },
     { "name": "development", "minAgeMonths": 12,  "maxAgeMonths": 36,  "growthFactor": 0.8 },

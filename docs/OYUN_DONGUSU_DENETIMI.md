@@ -53,7 +53,7 @@ belge. Yarış motoruna dokunulmaz (botların gücü motorun DIŞINDA üretilir)
 | **S2** ✅ | **Sınıfa uygun pratik yarış:** botlar atın gücüne göre bir sınıf bandından üretilir (bant tablosu config'te); güçlü at zayıf sınıfı sömüremez. | B1/B1a | Başlangıç atının pratik yarış beklenen kazancı ölçülür (harness); hedef: ortalama oyuncu için yaklaşık başa baş. |
 | **S3** ✅ | **Yarış yorgunluğu + zamanla toparlanma:** yarış enerji düşürür, yorgunluk ekler (mesafeye göre, config); zamanlayıcı (lider kilidiyle) her turda toparlar. Arayüz "ne zaman hazır" gösterir. | B2/B3 | Ardışık yarış hazırlık kapısına takılır; süre geçince açılır. |
 | S4 | Ekonomi yeniden ölçümü (kademelere göre EV), gerekirse config ayarı | B1 | Ölçüm tablosu |
-| S5 | Emeklilik → damızlık evresi, ömür boyu yetiştirme sınırı, damızlık ücretinde kesinti; yaş ölçeği kararı | B7, B10, B11 | e2e (yaş ölçeği sahibinin kararı) |
+| **S5** ✅ | Emeklilik → damızlık evresi, ömür boyu yetiştirme sınırı, damızlık ücretinde kesinti; yaş ölçeği kararı | B7, B10, B11 | e2e (yaş ölçeği sahibinin kararı) |
 | S6 | "Sıradaki adım" paneli (ilk oturum yolu) | B9 | Web testi + ekran görüntüsü |
 | S7 | Az oyuncuda "hayalet" rakipler (gerçek oyuncu atlarının dondurulmuş kayıtları) | B8 | Tasarım kararı gerekir |
 
@@ -123,3 +123,46 @@ Bu dosya her dilimden sonra güncellenir.
 - Bilinen sınır: antrenman/bakım gibi vitali `writeHorseRow` ile yazan yollar
   damgayı yenilemez; dolu atta bu en fazla `maxCreditSeconds` (15 dk) kadar
   bedava toparlanma demektir (sınırlı, belgeli).
+
+### S5 — Yaşam döngüsü: oyun yaşı, emeklilik, damızlık (15.10.2026)
+
+Sahibinin kararları (15.10.2026): damızlık için emeklilik **şart**; yaş
+**1 gerçek gün = 1 oyun ayı**.
+
+- **Oyun yaşı (B11):** `horse-growth.gameMonthsPerRealDay: 1`. Migration 0084
+  `horses.aging_started_at` (mevcut atlarda migration anı) — yaş = o andaki
+  takvim yaşı + geçen gün × ölçek. Mevcut atların yaşı korundu, `birth_date`
+  değişmedi. Başlangıç atı 48 aydan başlar ve 132 günde üreme yaşı sınırına
+  (180 ay) gelir; tay 36 günde üreme yaşına girer. Antrenman (evre katsayısı),
+  pazar değeri ve yetiştirme aynı fonksiyonu kullanır. Kısrak beklemesi oyun
+  ayıyla yazılır (`breedingCooldownMonths: 11` = 11 gerçek gün; eskiden
+  180 GERÇEK gündü).
+- **Emeklilik (B7):** `POST /horses/:id/retire`, geri alınmaz. İlandaki,
+  açık yarıştaki at ve oyuncunun son yarış atı emekli edilemez (yeni oyuncu
+  geri dönüşsüz bir hatayla atsız kalmasın). Emekli at yarışamaz, antrenman
+  yapamaz; veritabanı kısıtı emekli atın başka duruma dönmesini reddeder.
+- **Damızlık:** iki ebeveyn de emekli olmalı; ömür boyu tay sınırı kısrak 5,
+  aygır 12 (çift kayıtlarından kilit altında sayılır). Bu sınır + ahır
+  kapasitesi at arzını sınırlar (ZED RUN dersi).
+- **Kesinti (B10):** başka oyuncunun aygırı için ödenen ücretin %80'i sahibine
+  geçer, %20'si ekonomiden çıkar (Photo Finish %20–25). Yan hesaplar arası
+  değer aktarımı artık bedava değil.
+- **Damızlık pazarı:** `GET /breeding/studs` — başkalarının emekli aygırları
+  ücretiyle; yetiştirme paneli ücreti ödemeden önce gösterir (eskiden aygır
+  yalnızca kimlik yazılarak seçiliyor, ücret ödendikten sonra öğreniliyordu).
+- Arayüz: ahır kartında yaş + "Emekli et (damızlığa ayır)" (onay sorulur);
+  yetiştirme paneli yalnızca emekli atları listeler ve yarışan kısrağı
+  "Emekli et"e yönlendirir.
+- Kanıt: `breeding.spec.ts` (+13: emeklilik, tay sınırı, oyun ayı beklemesi,
+  kesinti, config), `age-curve.spec.ts` (+8), `breeding.e2e-spec.ts` (33:
+  kesinti defteri, bekleme, tay sınırı, yaşlı aygır, pazar listesi),
+  `horse-retirement.e2e-spec.ts` (7: emeklilik, eşzamanlı son at, ilan/yarış/
+  yabancı, DB kısıtı, oyun yaşı), web `BreedingPanel.spec` (+2),
+  `horse-lifecycle.spec` (3), `api-client.spec` (+2).
+- **Yeni bulgular (sonraki dilim):** B12 — yarış için asgari yaş yok (tay
+  doğar doğmaz koşar, hızlı yaşla birlikte "tay → yarış atı" bekleme süresi
+  anlamsız kalıyor); B13 — yaşlanma statları düşürmüyor (yaşlı at yarışta
+  zayıflamıyor, emeklilik baskısı yalnızca damızlık isteğinden geliyor);
+  çiftleştirme yolu engel denetlemiyor (liste süzüyor), aygır sahibine
+  "aygırın tay verdi" bildirimi yok.
+

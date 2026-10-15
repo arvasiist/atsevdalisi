@@ -1,6 +1,7 @@
 import type {
   BuyBreedHorseRequest,
   BuyBreedHorseResult,
+  StudListingView,
   AccountDeletionCheck,
   AdminAnnouncementView,
   AdminLiveEventView,
@@ -572,6 +573,16 @@ export const apiClient = {
       headers: { 'Idempotency-Key': idempotencyKey },
       body: JSON.stringify({ mareId, stallionId, foalName }),
     }),
+
+  /** 15.10.2026 — S5 damızlık pazarı: başka oyuncuların emekli aygırları + ücretleri. */
+  listStuds: () => request<StudListingView[]>('/breeding/studs'),
+
+  /**
+   * 15.10.2026 — S5: atı yarıştan emekli eder (GERİ ALINMAZ). Para hareketi
+   * yok; tekrar koruması durumun kendisi (ikinci istek 409).
+   */
+  retireHorse: (horseId: string) =>
+    request<PublicHorse>(`/horses/${horseId}/retire`, { method: 'POST', body: JSON.stringify({}) }),
 
   /**
    * DÜZELTME (Faz 2, görsel kalite planı) — önceden `GET /stable/summary

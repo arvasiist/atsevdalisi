@@ -44,6 +44,14 @@ export interface Horse {
   damId: UUID | null;
   /** 01.10.2026 — 3D sahnedeki görünüşün kaynağı (migration 0051). */
   appearance: HorseAppearance;
+  /**
+   * 15.10.2026 — hızlı yaşlanmanın başladığı an (migration 0084). Oyun yaşı
+   * `birthDate` + bu an + `gameMonthsPerRealDay` ile SUNUCUDA hesaplanır
+   * (`computeHorseAgeMonths`); istemciye bu alan değil `ageMonths` gider.
+   */
+  agingStartedAt: ISODateTimeString;
+  /** 15.10.2026 — emeklilik anı; emekli değilse `null`. Emeklilik geri alınmaz. */
+  retiredAt: ISODateTimeString | null;
   createdAt: ISODateTimeString;
   updatedAt: ISODateTimeString;
 }
@@ -139,8 +147,13 @@ export interface HorseHealth {
  * AUDIT_AND_HARDENING Mutlak Kural 1) — sadece ham değerin SIZMASI
  * engellenir (bkz. `apps/api/src/api/dto/horse.mapper.ts`).
  */
-export type PublicHorse = Omit<Horse, 'potential'> & {
+export type PublicHorse = Omit<Horse, 'potential' | 'agingStartedAt'> & {
   potentialEstimate: { min: number; max: number };
+  /**
+   * 15.10.2026 — oyun yaşı (ay; 1 gerçek gün = `gameMonthsPerRealDay` ay).
+   * Sahibinin listesinde ve damızlık listesinde dolar; hesap sunucudadır.
+   */
+  ageMonths?: number;
   /** 08.10.2026 — YALNIZCA sahibinin at listesinde (`GET /horses?ownerId=`) dolar. */
   personality?: HorsePersonalityView;
   /**

@@ -42,6 +42,8 @@ import { validateJockeyConditionConfig } from '../../domain/jockey/condition';
 import { validateJockeyMarketConfig } from '../../domain/jockey/market';
 import { validatePracticeRaceClasses } from '../../domain/race/practice-class';
 import { validateRaceConditionConfig } from '../../domain/care/race-condition';
+import { validateHorseGrowthConfig } from '../../domain/horse/age-curve';
+import { assertBreedingConfigIsValid } from '../../domain/breeding/breeding';
 import { validateRaceTiers } from '../../domain/race/prize';
 
 /**
@@ -212,6 +214,13 @@ export class AppConfigService {
     if (jockeyMarketProblems.length > 0) {
       throw new Error(`Jokey pazarı config'i geçersiz (config/jockey.config.json → market): ${jockeyMarketProblems.join(' ')}`);
     }
+    // 15.10.2026 — S5: oyun yaşı ölçeği + üreme kuralları açılışta denetlenir
+    // (eskiden üreme config'i yalnızca ilk çiftleştirme isteğinde patlıyordu).
+    const growthProblems = validateHorseGrowthConfig(this.horseGrowth);
+    if (growthProblems.length > 0) {
+      throw new Error(`Yaş config'i geçersiz (config/horse-growth.config.json): ${growthProblems.join(' ')}`);
+    }
+    assertBreedingConfigIsValid(this.genetics);
     const personalityProblems = validateHorsePersonalityConfig(this.horsePersonality);
     if (personalityProblems.length > 0) {
       throw new Error(`Kişilik config'i geçersiz (config/horse-personality.config.json): ${personalityProblems.join(' ')}`);

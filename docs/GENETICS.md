@@ -135,6 +135,6 @@ eklenmesi önerilir.
   (`config/genetics.config.json` → `parentAgeRiskMultipliers`) — foal/aging
   evrelerinde risk artar, prime'da en düşüktür.
 - **Üreme uygunluğu sınırları** (`minBreedingAgeMonths: 36`,
-  `maxBreedingAgeMonths: 180`, `breedingCooldownDays: 180`) brief'te
+  `maxBreedingAgeMonths: 180`, `breedingCooldownMonths: 11` oyun ayı — 15.10.2026 öncesi `breedingCooldownDays: 180` gerçek gün) brief'te
   sayısal olarak belirtilmemiştir — proje-içi, dengelenebilir (config'ten)
   kararlardır.

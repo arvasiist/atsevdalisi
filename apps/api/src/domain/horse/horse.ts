@@ -187,6 +187,9 @@ export function createStarterHorse(input: NewStarterHorseInput): Horse {
     sireId: null,
     damId: null,
     appearance: input.appearance,
+    // 15.10.2026 — yaş bu andan itibaren hızlı akar (takvim yaşı = `ageMonths`).
+    agingStartedAt: now.toISOString(),
+    retiredAt: null,
     createdAt: now.toISOString(),
     updatedAt: now.toISOString(),
   };

@@ -527,10 +527,30 @@ export interface GeneticsConfig {
   /** Üreme için minimum/maksimum yaş (ay). `docs/GENETICS.md`'de sayısal olarak belirtilmemiştir — proje-içi karar. */
   minBreedingAgeMonths: number;
   maxBreedingAgeMonths: number;
-  /** Bir kısrağın iki doğum arası beklemesi gereken gün sayısı. */
-  breedingCooldownDays: number;
+  /**
+   * Bir kısrağın iki doğum arası beklemesi gereken OYUN AYI (15.10.2026'ya
+   * kadar gerçek gündü: `breedingCooldownDays: 180`). Gerçek süre
+   * `horseGrowth.gameMonthsPerRealDay` ile çevrilir.
+   */
+  breedingCooldownMonths: number;
   /** Damızlık ücreti = aygırın (quality+potential)/2 ortalaması × bu çarpan (brief §31 "Yetiştiricilik" gider kalemi). */
   studFeeMultiplier: number;
+  /**
+   * 15.10.2026 — S5: atın ömrü boyunca verebileceği tay sayısı. Sınırsız üreme
+   * at arzını sınırsız büyütür (ZED RUN dersi; `docs/OYUN_DONGUSU_DENETIMI.md` B7).
+   */
+  lifetimeFoalLimit: { mare: number; stallion: number };
+  /**
+   * 15.10.2026 — S5 (B10): başka oyuncunun aygırı için ödenen ücretin aygır
+   * sahibine geçen yüzdesi; kalan ekonomiden çıkar (Photo Finish ~%20–25 keser).
+   */
+  studFeeOwnerSharePercent: number;
+  /**
+   * 15.10.2026 — `GET /breeding/studs`: en fazla `listLimit` aygır döner;
+   * yaş uygunluğu uygulamada hesaplandığı için önce en fazla `scanLimit`
+   * emekli aygır (kaliteye göre) okunur, sonra süzülür.
+   */
+  studMarket: { listLimit: number; scanLimit: number };
 }
 
 export interface WeatherCombinationEffect {
@@ -566,6 +586,13 @@ export interface HorseGrowthStage {
 }
 
 export interface HorseGrowthConfig {
+  /**
+   * 15.10.2026 — sahibinin kararı (S5): oyun yaşı gerçek takvimden HIZLI akar.
+   * 1 = bir gerçek gün bir oyun ayıdır. Yaş `aging_started_at` anından
+   * (migration 0084) itibaren bu ölçekle ilerler; o anki takvim yaşı korunur.
+   * ⚠️ Değiştirirsen bütün atların yaşı geriye dönük değişir.
+   */
+  gameMonthsPerRealDay: number;
   stages: HorseGrowthStage[];
 }
 

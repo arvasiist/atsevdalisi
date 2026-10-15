@@ -17,6 +17,10 @@ import { HORSE_RECOVERY_REPOSITORY } from '../../application/ports/horse-recover
 import { RecoverHorseVitalsUseCase } from '../../application/use-cases/recover-horse-vitals.use-case';
 import { PostgresHorseRecoveryRepository } from '../../infrastructure/horse/postgres-horse-recovery.repository';
 import { HorseRecoveryScheduler } from '../../infrastructure/scheduler/horse-recovery.scheduler';
+import { HORSE_RETIREMENT_REPOSITORY } from '../../application/ports/horse-retirement.repository';
+import { RetireHorseUseCase } from '../../application/use-cases/retire-horse.use-case';
+import { PostgresHorseRetirementRepository } from '../../infrastructure/horse/postgres-horse-retirement.repository';
+import { HorseOwnerGuardByParam } from '../auth/horse-owner.guard';
 
 /**
  * R3 — Track Fit (bu turda EKLENDİ) — `HORSE_SURFACE_STATS_REPOSITORY`/
@@ -45,6 +49,10 @@ import { HorseRecoveryScheduler } from '../../infrastructure/scheduler/horse-rec
     { provide: HORSE_RECOVERY_REPOSITORY, useClass: PostgresHorseRecoveryRepository },
     RecoverHorseVitalsUseCase,
     HorseRecoveryScheduler,
+    // 15.10.2026 — S5 emeklilik.
+    { provide: HORSE_RETIREMENT_REPOSITORY, useClass: PostgresHorseRetirementRepository },
+    RetireHorseUseCase,
+    HorseOwnerGuardByParam,
   ],
   exports: [
     HORSE_REPOSITORY,

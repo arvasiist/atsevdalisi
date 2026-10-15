@@ -48,6 +48,8 @@ export interface HorseRow {
   coat_color: string;
   face_marking: string;
   leg_marking: string;
+  aging_started_at: Date;
+  retired_at: Date | null;
   created_at: Date;
   updated_at: Date;
 }
@@ -79,6 +81,8 @@ export function rowToHorse(row: HorseRow): Horse {
       faceMarking: row.face_marking as Horse['appearance']['faceMarking'],
       legMarking: row.leg_marking as Horse['appearance']['legMarking'],
     },
+    agingStartedAt: row.aging_started_at.toISOString(),
+    retiredAt: row.retired_at ? row.retired_at.toISOString() : null,
     createdAt: row.created_at.toISOString(),
     updatedAt: row.updated_at.toISOString(),
   };
@@ -131,8 +135,8 @@ export async function writeHorseRow(executor: Pool | PoolClient, horse: Horse): 
  */
 export async function insertNewHorse(client: PoolClient, horse: Horse, initial?: BreedInitialStats): Promise<void> {
   await client.query(
-    `INSERT INTO horses (id, owner_id, name, gender, breed, birth_date, level, xp, quality, potential, health, fitness, fatigue, energy, morale, weight_kg, status, sire_id, dam_id, created_at, updated_at, coat_color, face_marking, leg_marking)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24)`,
+    `INSERT INTO horses (id, owner_id, name, gender, breed, birth_date, level, xp, quality, potential, health, fitness, fatigue, energy, morale, weight_kg, status, sire_id, dam_id, created_at, updated_at, coat_color, face_marking, leg_marking, aging_started_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25)`,
     [
       horse.id,
       horse.ownerId,
@@ -158,6 +162,7 @@ export async function insertNewHorse(client: PoolClient, horse: Horse, initial?:
       horse.appearance.coatColor,
       horse.appearance.faceMarking,
       horse.appearance.legMarking,
+      new Date(horse.agingStartedAt),
     ],
   );
   await insertWithValues(client, 'horse_stats', horse.id, [

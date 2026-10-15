@@ -27,6 +27,7 @@ import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Activity,
+  Award,
   BatteryMedium,
   Dumbbell,
   HeartPulse,
@@ -58,6 +59,11 @@ import { PersonalityChips } from '../../features/personality/PersonalityChips';
 import { StableActionDock } from '../../features/stable-actions/StableActionDock';
 import { PlayerOverview } from '../../features/home/PlayerOverview';
 import { formatRaceReadyIn } from '../../features/race/race-entry';
+import {
+  RETIREMENT_CONFIRM_MESSAGE,
+  canOfferRetirement,
+  formatHorseAge,
+} from '../../features/breeding/horse-lifecycle';
 import {
   parseStableActionParam,
   type StableActionKey,
@@ -281,6 +287,8 @@ export default function StablePage(): React.ReactElement {
                 isOnStage={stageHorse?.id === horse.id}
                 onShowInStable={showInStable}
                 onOpenAction={openStableAction}
+                canRetire={canOfferRetirement(horse, horses)}
+                onRetired={reloadHorses}
               />
             ))}
           </div>
@@ -482,12 +490,33 @@ function HorseCard({
   isOnStage,
   onShowInStable,
   onOpenAction,
+  canRetire,
+  onRetired,
 }: {
   horse: PublicHorse;
   isOnStage: boolean;
   onShowInStable: (horseId: string) => void;
   onOpenAction: (horseId: string, action: StableActionKey) => void;
+  /** 15.10.2026 — S5: emekli olmayan ve son yarış atı olmayan atta "Emekli et". */
+  canRetire: boolean;
+  onRetired: () => Promise<void>;
 }): React.ReactElement {
+  const [isRetiring, setIsRetiring] = useState(false);
+  const [retireError, setRetireError] = useState<string | null>(null);
+  const retire = useCallback(async (): Promise<void> => {
+    if (!window.confirm(`${horse.name}: ${RETIREMENT_CONFIRM_MESSAGE}`)) return;
+    setIsRetiring(true);
+    setRetireError(null);
+    try {
+      await apiClient.retireHorse(horse.id);
+      await onRetired();
+    } catch (err: unknown) {
+      setRetireError(err instanceof Error ? err.message : 'At emekli edilemedi');
+    } finally {
+      setIsRetiring(false);
+    }
+  }, [horse.id, horse.name, onRetired]);
+
   // docs/AUDIT_REPORT.md "§25 Stable görsel yönetim ekranı" bulgusunun
   // "piyasa değeri tahmini ... ayrı dilim" notu (bu turda EKLENDİ) —
   // `calculateMarketValue()` brief §30'dan beri VARDI ama hiçbir yerden
@@ -547,6 +576,7 @@ function HorseCard({
           <span className="horse-card-name">{horse.name}</span>
           <span className="featured-meta">
             {breedGenderLabel(horse.breed, horse.gender)} · Seviye {horse.level}
+            {horse.ageMonths !== undefined ? ` · ${formatHorseAge(horse.ageMonths)}` : null}
           </span>
           <StarRating score={horse.quality} />
         </div>
@@ -615,6 +645,26 @@ function HorseCard({
           <Warehouse size={16} aria-hidden="true" />
           {isOnStage ? 'Ahırda gösteriliyor' : 'Ahırda Göster'}
         </button>
+
+        {horse.status === 'retired' ? (
+          <p style={{ margin: 'var(--space-sm) 0 0', fontSize: '12px', color: 'var(--color-text-muted)' }}>
+            Emekli — yarışmaz, damızlık yapar (aşağıdaki Yetiştirme bölümü).
+          </p>
+        ) : canRetire ? (
+          <button
+            type="button"
+            onClick={() => void retire()}
+            className="btn-outline"
+            style={{ width: '100%', marginTop: 'var(--space-sm)' }}
+            disabled={isRetiring}
+          >
+            <Award size={16} aria-hidden="true" />
+            {isRetiring ? 'Emekli ediliyor…' : 'Emekli et (damızlığa ayır)'}
+          </button>
+        ) : null}
+        {retireError !== null ? (
+          <p style={{ color: 'var(--color-status-critical)', fontSize: '12px', margin: '6px 0 0' }}>{retireError}</p>
+        ) : null}
 
         <div
           style={{

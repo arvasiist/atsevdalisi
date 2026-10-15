@@ -182,6 +182,15 @@ export const ErrorCode = {
   // `locking`) bir lobi yarışına kayıtlıyken satılamaz, pazara çıkarılamaz ve
   // ikinci bir açık yarışa yazılamaz (bkz. `domain/horse/errors.ts`).
   HorseInActiveRace: 'HORSE_IN_ACTIVE_RACE',
+  /**
+   * 15.10.2026 — S5 emeklilik: emekli at antrenman yapamaz (409
+   * `HORSE_RETIRED`), zaten emekli at ikinci kez emekli edilemez (409
+   * `HORSE_ALREADY_RETIRED`), oyuncu yarışabilecek SON atını emekli edemez
+   * (409 `LAST_RACING_HORSE` — geri dönüşsüz bir hatayla atsız kalmasın).
+   */
+  HorseRetired: 'HORSE_RETIRED',
+  HorseAlreadyRetired: 'HORSE_ALREADY_RETIRED',
+  LastRacingHorse: 'LAST_RACING_HORSE',
   // 30.09.2026 — turnuvanın seviye şartı karşılanmadı (`PlayerLevelTooLowError`).
   PlayerLevelTooLow: 'PLAYER_LEVEL_TOO_LOW',
   // Faz 3 — Yetiştiricilik (domain/breeding)

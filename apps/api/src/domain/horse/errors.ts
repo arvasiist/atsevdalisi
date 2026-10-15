@@ -59,3 +59,17 @@ export class HorseInActiveRaceError extends Error {
     this.name = 'HorseInActiveRaceError';
   }
 }
+
+/**
+ * 15.10.2026 — S5: emekli at antrenmana alınamaz (409 `HORSE_RETIRED`). Emekli
+ * atın sakatlanıp başka bir duruma geçmesi emekliliği bozardı; veritabanı
+ * kısıtı da reddeder (migration 0084), bu kapı 500 yerine anlaşılır bir 409 verir.
+ */
+export class HorseRetiredError extends Error {
+  readonly code = ErrorCode.HorseRetired;
+
+  constructor(public readonly horseId: string) {
+    super('Bu at emekli; antrenman yapamaz.');
+    this.name = 'HorseRetiredError';
+  }
+}

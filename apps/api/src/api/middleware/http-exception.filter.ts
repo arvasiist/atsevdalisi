@@ -67,11 +67,13 @@ import {
   InvalidBalanceAdjustmentError,
   AdjustmentTargetNotAllowedError,
 } from '../../domain/admin/errors';
+import { HorseAlreadyRetiredError, LastRacingHorseError } from '../../domain/horse/retirement';
 import {
   HorseInActiveRaceError,
   HorseInjuredError,
   HorseListedInMarketError,
   HorseNotFoundError,
+  HorseRetiredError,
   InvalidHorseNameError,
 } from '../../domain/horse/errors';
 import {
@@ -299,6 +301,11 @@ const DOMAIN_ERROR_MAP = new Map<ErrorClassConstructor, { status: number; code: 
   [HorseListedInMarketError, { status: HttpStatus.CONFLICT, code: ErrorCode.HorseListedInMarket }],
   // 30.09.2026 — açık bir lobi yarışına kayıtlı at satılamaz/pazara çıkamaz/ikinci yarışa yazılamaz.
   [HorseInActiveRaceError, { status: HttpStatus.CONFLICT, code: ErrorCode.HorseInActiveRace }],
+  // 15.10.2026 — S5 emeklilik: emekli at antrenman yapamaz, ikinci kez emekli
+  // edilemez; oyuncu yarışabilecek son atını emekli edemez. Üçü de durum çatışması.
+  [HorseRetiredError, { status: HttpStatus.CONFLICT, code: ErrorCode.HorseRetired }],
+  [HorseAlreadyRetiredError, { status: HttpStatus.CONFLICT, code: ErrorCode.HorseAlreadyRetired }],
+  [LastRacingHorseError, { status: HttpStatus.CONFLICT, code: ErrorCode.LastRacingHorse }],
   // 30.09.2026 — turnuva seviye şartı (migration 0045).
   [PlayerLevelTooLowError, { status: HttpStatus.CONFLICT, code: ErrorCode.PlayerLevelTooLow }],
   // CI Hata 7 (bkz. domain/training/errors.ts InvalidTrainingInputError) —
