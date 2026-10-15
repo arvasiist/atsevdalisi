@@ -51,7 +51,7 @@ belge. Yarış motoruna dokunulmaz (botların gücü motorun DIŞINDA üretilir)
 |---|---|---|---|
 | **S1** ✅ | **Jokey pazarı arzı:** kiralamaya açık jokey sayısı hedefin altına düşünce sistem yeni jokey üretir (beceri aralığı + beceriye göre ücret config'te). | B4 | Boş veritabanında `GET /jockeys` dolu döner; kiralanınca yenisi gelir. |
 | **S2** ✅ | **Sınıfa uygun pratik yarış:** botlar atın gücüne göre bir sınıf bandından üretilir (bant tablosu config'te); güçlü at zayıf sınıfı sömüremez. | B1/B1a | Başlangıç atının pratik yarış beklenen kazancı ölçülür (harness); hedef: ortalama oyuncu için yaklaşık başa baş. |
-| **S3** | **Yarış yorgunluğu + zamanla toparlanma:** yarış enerji düşürür, yorgunluk ekler (mesafeye göre, config); zamanlayıcı (lider kilidiyle) her turda toparlar. Arayüz "ne zaman hazır" gösterir. | B2/B3 | Ardışık yarış hazırlık kapısına takılır; süre geçince açılır. |
+| **S3** ✅ | **Yarış yorgunluğu + zamanla toparlanma:** yarış enerji düşürür, yorgunluk ekler (mesafeye göre, config); zamanlayıcı (lider kilidiyle) her turda toparlar. Arayüz "ne zaman hazır" gösterir. | B2/B3 | Ardışık yarış hazırlık kapısına takılır; süre geçince açılır. |
 | S4 | Ekonomi yeniden ölçümü (kademelere göre EV), gerekirse config ayarı | B1 | Ölçüm tablosu |
 | S5 | Emeklilik → damızlık evresi, ömür boyu yetiştirme sınırı, damızlık ücretinde kesinti; yaş ölçeği kararı | B7, B10, B11 | e2e (yaş ölçeği sahibinin kararı) |
 | S6 | "Sıradaki adım" paneli (ilk oturum yolu) | B9 | Web testi + ekran görüntüsü |
@@ -96,3 +96,30 @@ Bu dosya her dilimden sonra güncellenir.
   kademeyi kilitler ve rakip gücünü yazar.
 - Kanıt: `practice-class.spec.ts` (8), `practice-class.e2e-spec.ts` (3),
   `race-entry.spec.ts` (+3); tam API 228/2800, web 85/710.
+
+### S3 — Yarış bedeli + zamanla toparlanma (15.10.2026)
+
+- `care.config.json` → `raceCondition` (km başına enerji −15, yorgunluk +15;
+  1.600 m pratik yarış = −24 / +24) ve `passiveRecovery` (saatte +10 enerji,
+  −10 yorgunluk, tur 5 dk, tur başına en fazla 15 dk sayılır). Migration 0083
+  `horses.vitals_recovered_at`.
+- Bedel sonuçla AYNI transaction'da: pratik (kontrollü dahil), lobi
+  kesinleşmesi, iki PvP yolu. Bedel önce bekleyen toparlanmayı hesaba katar.
+  Motor değişmedi — yarış öncesi yorgunluğu zaten okuyordu (yorgunluk 25 →
+  %5 yavaş), yani "hemen tekrar koş ya da dinlendir" artık gerçek bir karar.
+- Oyun ritmi (birim testte kilitli): dinlenmiş at art arda 3 pratik yarış
+  koşar, sonra hazırlık kapısına takılır; bir gecede (≤ 12 sa) tamamen toparlanır.
+- **Bulunan açık:** hazırlık kontrolü kilitsizdi; aynı ata aynı anda N istek
+  yorgunluk kapısını aşabiliyordu. Artık para transaction'ında at kilitliyken
+  yeniden denetlenir. `race.e2e-spec.ts` eşzamanlılık testleri (50 ve 100 istek)
+  bunu kanıtlar: koşan yarış = dinlenmiş atın sınırı, bakiye ve vital kayıpsız.
+- Ahır listesi `raceReadyAt` taşır; yarış ekranı ve ahır kartı "yaklaşık X dk
+  sonra hazır" yazar. Tahmin, veritabanının her turdaki yuvarlamasını taklit
+  eder (düz çizgi hesabı bir tur erken "hazır" diyordu — testte yakalandı).
+- Kanıt: `race-condition.spec.ts` (10), `race-condition.e2e-spec.ts` (3),
+  `race.e2e-spec.ts` (24), web `race-entry.spec.ts` (+2). Temiz DB'de tam API
+  230 dosya: 228 geçti, kalan 2 dosya bilinen ve düzeltilen testlerdi, yeniden
+  koşuda geçti; web 85/712; typecheck + lint temiz.
+- Bilinen sınır: antrenman/bakım gibi vitali `writeHorseRow` ile yazan yollar
+  damgayı yenilemez; dolu atta bu en fazla `maxCreditSeconds` (15 dk) kadar
+  bedava toparlanma demektir (sınırlı, belgeli).
