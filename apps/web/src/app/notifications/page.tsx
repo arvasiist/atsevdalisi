@@ -539,6 +539,16 @@ function describe(notification: NotificationView): { title: string; detail: stri
             : 'Ödenmiş bir giriş ücretin yoktu; hesabından para düşmedi.',
         href: '/races',
       };
+    // 15.10.2026 — aygırın başka bir oyuncunun kısrağıyla tay verdi.
+    case 'stud_service':
+      return {
+        title: `${notification.payload.stallionName} bir tay verdi`,
+        detail:
+          notification.payload.amount > 0
+            ? `Damızlık payın (${formatCurrency('money', notification.payload.amount)}) hesabına geçti.`
+            : 'Bu çiftleştirmeden damızlık payı doğmadı.',
+        href: '/wallet',
+      };
   }
 }
 
@@ -574,6 +584,7 @@ function hrefLabel(notification: NotificationView): string {
     case 'auction_sold':
     case 'auction_refunded':
     case 'tribune_gift_received':
+    case 'stud_service':
       return 'cüzdan →';
     case 'club_invite':
       return 'kulüp →';

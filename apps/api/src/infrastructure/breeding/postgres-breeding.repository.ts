@@ -6,6 +6,7 @@ import type {
   Horse,
   HorseCoatColor,
   Pedigree,
+  NotificationPayloadByType,
 } from '@at-sevdalisi/shared-types';
 import type {
   BreedingRepository,
@@ -26,6 +27,7 @@ import { inheritAppearance } from '../../domain/horse/appearance';
 import { deriveBreedInitialStats, findBreed, resolveFoalBreed } from '../../domain/horse/breeds';
 import { credit, debit } from '../../domain/economy/wallet';
 import { PlayerNotFoundError } from '../../domain/player/errors';
+import { PlayerBlockedError } from '../../domain/social/errors';
 import { assertCanAddHorseToStable, getStableCapacity } from '../../domain/stable/stable';
 import { AppConfigService } from '../config/config.service';
 import { PG_POOL, withTransaction } from '../database/database.module';
@@ -93,6 +95,8 @@ interface PlayerRow {
   money: string;
   gems: string;
   stable_level: number;
+  /** 15.10.2026 — silinmiş hesabın aygırı hizmete kapalıdır (damızlık listesiyle aynı kural). */
+  deleted_at: Date | null;
 }
 
 function rowToCandidate(
@@ -302,7 +306,7 @@ export class PostgresBreedingRepository implements BreedingRepository {
       const playersById = new Map<string, PlayerRow>();
       for (const playerId of [firstPlayerId, secondPlayerId]) {
         const result = await client.query<PlayerRow>(
-          'SELECT id, money, gems, stable_level FROM players WHERE id = $1 FOR UPDATE',
+          'SELECT id, money, gems, stable_level, deleted_at FROM players WHERE id = $1 FOR UPDATE',
           [playerId],
         );
         const row = result.rows[0];
@@ -318,6 +322,26 @@ export class PostgresBreedingRepository implements BreedingRepository {
       const stallionOwnerRow = playersById.get(stallionOwnerId);
       if (!stallionOwnerRow) {
         throw new PlayerNotFoundError(stallionOwnerId);
+      }
+
+      // 15.10.2026 — damızlık pazarının (`GET /breeding/studs`) iki süzgeci
+      // artık çiftleştirmenin KENDİSİNDE de geçerli: liste yalnızca
+      // kolaylıktır, aygır kimliğini bilen istemci onu atlayabiliyordu.
+      // Oyuncular KİLİTLİYKEN, para hareketinden ÖNCE. Silinmiş hesabın aygırı
+      // yokmuş gibi davranır (404); engel YÖN SIZDIRMADAN 403 (`PLAYER_BLOCKED`).
+      if (stallionOwnerId !== input.playerId) {
+        if (stallionOwnerRow.deleted_at !== null) {
+          throw new HorseNotFoundError(input.stallionId);
+        }
+        const blocked = await client.query(
+          `SELECT 1 FROM player_blocks
+            WHERE (blocker_id = $1 AND blocked_id = $2) OR (blocker_id = $2 AND blocked_id = $1)
+            LIMIT 1`,
+          [input.playerId, stallionOwnerId],
+        );
+        if (blocked.rows.length > 0) {
+          throw new PlayerBlockedError();
+        }
       }
 
       // AHIR KAPASİTESİ — tay KISRAK SAHİBİNİN ahırına doğar. Ödeyenin
@@ -514,6 +538,24 @@ export class PostgresBreedingRepository implements BreedingRepository {
           });
         }
         await writeLedgerEntries(client, entries);
+      }
+
+      // 15.10.2026 — aygır sahibine haber: aygırı tay verdi ve payı hesabına
+      // geçti. Defterle AYNI transaction (geri alınan çiftleştirmenin haberi
+      // kalmasın). Kendi atlarını çiftleştirene gitmez.
+      if (stallionOwnerId !== input.playerId) {
+        const payload: NotificationPayloadByType['stud_service'] = {
+          pairId: input.pairId,
+          stallionId: input.stallionId,
+          stallionName: stallionRow.name,
+          foalId: foal.id,
+          amount: ownerShare,
+        };
+        await client.query('INSERT INTO notifications (player_id, type, payload) VALUES ($1, $2, $3::jsonb)', [
+          stallionOwnerId,
+          'stud_service',
+          JSON.stringify(payload),
+        ]);
       }
 
       return {

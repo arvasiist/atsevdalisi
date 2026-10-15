@@ -1011,9 +1011,11 @@ dolmamış aygırları; engelli/silinmiş sahip süzülür; ücret ÖNCEDEN gör
 yarışan atın potansiyeli yine gizli. ⚠️ `NotEligibleForBreedingError` mesajı
 artık Türkçe cümledir (eskiden kodun kendisiydi). ⚠️ Damızlık e2e'si yazarken
 atı emekli et (`breeding.e2e-spec.ts` → `retireForBreeding`); emeklilik ucunun
-kendisi `horse-retirement.e2e-spec.ts`te. Bilinen açık uçlar: çiftleştirme yolu
-engel denetlemez (liste süzer), aygır sahibine "tay verdi" bildirimi yok,
-yaşlanma statları düşürmez.
+kendisi `horse-retirement.e2e-spec.ts`te. 15.10.2026: çiftleştirmenin KENDİSİ
+de damızlık listesinin süzgeçlerini uygular (oyuncular kilitliyken, paradan
+önce): aradaki engel → 403 `PLAYER_BLOCKED` (yönsüz), silinmiş hesabın aygırı →
+404; aygır sahibine `stud_service` bildirimi (pay + aygır, defterle aynı tx;
+CHECK artık 0086'da). Yaşlanmanın yarış etkisi için bkz. (93).
 
 (91) **YARIŞ YAŞI (15.10.2026, B12)** — `race.readiness.minAgeMonths` (24 =
 2 yaş, oyun ayı). `checkRaceReadiness`ın 4. parametresi `ageMonths`
@@ -1042,6 +1044,21 @@ yarışı reddeder. ⚠️ Tek gerçek oyunculu ÜCRETLİ lobi yarışı koşan 
 olur); kuralın kendisi `race-field-rule.e2e-spec.ts`te (8–16 saha + 5
 eşzamanlı kesinleştirme de orada). ⚠️ Eski yarışlar varsayılan `1/true`
 (eski kural) ile kaldı.
+
+(93) **YAŞIN YARIŞ ETKİSİ (15.10.2026, B13)** — `horse-growth.stages[].
+racingFactor` (gelişim 0,96 · zirve 1 · olgun 0,97 · yaşlı 0,92; 0 < x ≤ 1,
+en az bir evre 1 — `validateHorseGrowthConfig` açılışta). Hız/ivme/
+dayanıklılığa KADRO DONDURULURKEN uygulanır: `buildHorseEntrantSnapshot`ın
+4. parametresi `racingAgeFactor` ZORUNLUDUR (yeni bir kadro yolu yaşı unutursa
+tsc durdurur); pratik, lobi kilidi (`EntrantSnapshotBuilder`) ve eşleştirmenin
+iki atı aynı kuralı kullanır. MOTOR DEĞİŞMEDİ, canlı `horse_stats` YAZILMAZ
+(etki geri alınabilir; gösterilen `startingStats` = motora giden). Pratik
+sınıf kapısı ve ahır listesindeki `racingPower` ETKİN güçtür (ham × çarpan);
+liste `lifeStage { name, racingFactor }` taşır, kartta "Yaşlı · yarışta −%8".
+⚠️ Değerler ÖLÇÜLDÜ: motor stat farkına çok duyarlı (%5 düşüş sınıfın en iyi
+atının kazanma oranını ~%78'den ~%55'e indirir) — çarpanı büyütmeden önce
+`measurePracticeEv` ile ölç. ⚠️ Yaşlı atla yarış koşan e2e başlangıç statını
+ham statla kıyaslarsa kırılır (`race-age.e2e-spec.ts` örneği).
 
 **✅ ÜCRETLİ LOBİ YARIŞI ARTIK KOŞUYOR — ÖDÜL DAĞITIMI VAR (§13.14,
 28.09.2026).** `POST /races/:id/settle` yarışı koşar, ödülleri `top5`

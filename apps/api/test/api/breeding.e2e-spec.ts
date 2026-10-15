@@ -386,6 +386,69 @@ describe('Çiftleştirme (e2e) — PARA YOLU', () => {
       expect(Number(debit.amount) + Number(credit.amount)).toBe(-(starterStudFee() - ownerShare));
     });
 
+    it('15.10.2026 — aygır sahibine `stud_service` bildirimi: aygır adı + hesabına geçen pay; kısrak sahibine gitmez', async () => {
+      const payer = await registerTestPlayerWithStarterHorse(app, 'Haber Veren');
+      const stallionOwner = await registerTestPlayerWithStarterHorse(app, 'Haber Alan');
+      await forceGender(payer.horseId, 'mare');
+      await forceGender(stallionOwner.horseId, 'stallion');
+      await setBalance(payer.playerId, 5_000);
+
+      const response = await breed(payer, payer.horseId, stallionOwner.horseId, 'Haberli Tay', 201);
+      const ownerShare = Math.floor((starterStudFee() * config.genetics.studFeeOwnerSharePercent) / 100);
+      const notifications = await pool.query<{ player_id: string; payload: Record<string, unknown> }>(
+        "SELECT player_id, payload FROM notifications WHERE type = 'stud_service' AND payload->>'pairId' = $1",
+        [response.body.data.pairId],
+      );
+      expect(notifications.rows).toHaveLength(1);
+      const [row] = notifications.rows;
+      expect(row!.player_id).toBe(stallionOwner.playerId);
+      const stallionName = (await pool.query('SELECT name FROM horses WHERE id = $1', [stallionOwner.horseId])).rows[0].name;
+      expect(row!.payload).toEqual({
+        pairId: response.body.data.pairId,
+        stallionId: stallionOwner.horseId,
+        stallionName,
+        foalId: response.body.data.foalId,
+        amount: ownerShare,
+      });
+    });
+
+    it('15.10.2026 — ENGEL varsa (her iki yönde) 403 PLAYER_BLOCKED; para düşmez, tay doğmaz (liste süzgeci atlanamaz)', async () => {
+      for (const direction of ['owner-blocks-payer', 'payer-blocks-owner'] as const) {
+        const payer = await registerTestPlayerWithStarterHorse(app, 'Engelli Kısrakçı');
+        const stallionOwner = await registerTestPlayerWithStarterHorse(app, 'Engelli Aygırcı');
+        await forceGender(payer.horseId, 'mare');
+        await forceGender(stallionOwner.horseId, 'stallion');
+        await setBalance(payer.playerId, 5_000);
+        const [blocker, blocked] =
+          direction === 'owner-blocks-payer' ? [stallionOwner, payer] : [payer, stallionOwner];
+        await pool.query('INSERT INTO player_blocks (blocker_id, blocked_id) VALUES ($1, $2)', [
+          blocker.playerId,
+          blocked.playerId,
+        ]);
+        const before = await countHorses(payer.playerId);
+
+        const response = await breed(payer, payer.horseId, stallionOwner.horseId, 'Engelli Tay', 403);
+        expect(response.body.error.code).toBe('PLAYER_BLOCKED');
+        expect(Number((await pool.query('SELECT money FROM players WHERE id = $1', [payer.playerId])).rows[0].money)).toBe(5_000);
+        expect(await countHorses(payer.playerId)).toBe(before);
+        expect(await countPairs(payer.horseId)).toBe(0);
+      }
+    });
+
+    it('15.10.2026 — hesabı SİLİNMİŞ oyuncunun aygırı yokmuş gibi davranır: 404, para düşmez', async () => {
+      const payer = await registerTestPlayerWithStarterHorse(app, 'Silinmişe Giden');
+      const stallionOwner = await registerTestPlayerWithStarterHorse(app, 'Silinen Aygırcı');
+      await forceGender(payer.horseId, 'mare');
+      await forceGender(stallionOwner.horseId, 'stallion');
+      await setBalance(payer.playerId, 5_000);
+      await pool.query('UPDATE players SET deleted_at = now() WHERE id = $1', [stallionOwner.playerId]);
+
+      const response = await breed(payer, payer.horseId, stallionOwner.horseId, 'Sahipsiz Tay', 404);
+      expect(response.body.error.code).toBe('HORSE_NOT_FOUND');
+      expect(Number((await pool.query('SELECT money FROM players WHERE id = $1', [payer.playerId])).rows[0].money)).toBe(5_000);
+      expect(await countPairs(payer.horseId)).toBe(0);
+    });
+
     it('tay AY GİBİ KISRAK SAHİBİNİN ahırına doğar (ücreti ödeyen tayı alır)', async () => {
       const payer = await registerTestPlayerWithStarterHorse(app, 'Tayı Alan');
       const stallionOwner = await registerTestPlayerWithStarterHorse(app, 'Tayı Vermeyen');

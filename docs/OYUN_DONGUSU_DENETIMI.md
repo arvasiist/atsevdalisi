@@ -192,3 +192,31 @@ Sahibinin kararları (15.10.2026): damızlık için emeklilik **şart**; yaş
 - Kanıt: `race-field-rule.e2e-spec.ts` (14 test: kural, botsuz yarış,
   bildirim, 8/10/12/14/16 saha, 5 eşzamanlı kesinleştirme, yönetici iptali),
   `field-rule.spec.ts` (11), web `lobby-logic.spec.ts` (+3).
+
+### B13 — Yaşın yarış etkisi (15.10.2026)
+
+- Eskiden yaş eğrisi (`growthFactor`) yalnızca pazar değerinde okunuyordu;
+  15 yaşındaki at zirvedeki at kadar hızlı koşuyordu ve emekliliğin tek
+  sebebi damızlık isteğiydi. Artık her evrenin `racingFactor`ü hız/ivme/
+  dayanıklılığa kadro dondurulurken uygulanıyor: gelişim 0,96 · zirve 1 ·
+  olgun 0,97 · yaşlı 0,92. Motor değişmedi, canlı statlar yazılmıyor.
+- Oyun yaşıyla (1 gün = 1 ay) başlangıç atı (48 ay) ~36 gün zirvede kalır,
+  ~84. günde yaşlı evreye girer: oyuncuya emeklilik → damızlık → yeni kuşak
+  döngüsü için doğal bir baskı.
+- Değerler ölçüldü (motor çok duyarlı; ayrıntı `docs/ALGORITHMS.md` §9).
+  Pratik sınıf kapısı ve ahırdaki güç etkin güçtür; kartta evre rozeti var.
+- Kanıt: `age-curve.spec.ts` (+3), `entrant-snapshot.spec.ts` (+1, 17 çağrı
+  yeni zorunlu parametreyle), `race-age.e2e-spec.ts` (+1: yaşlı at kadroya
+  çarpanla donar, zirvedeki at donmaz, canlı stat değişmez), web
+  `horse-lifecycle.spec.ts` (+1).
+
+### S5 açık uçları — damızlık engeli + aygır sahibi bildirimi (15.10.2026)
+
+- Damızlık pazarı engelli ve silinmiş oyuncuların aygırlarını listelemiyordu.
+  Ama aygır kimliğini bilen istemci çiftleştirme ucunu doğrudan çağırıp bu
+  süzgeci atlayabiliyordu. Kapı artık çiftleştirmenin içinde, oyuncular
+  kilitliyken ve paradan önce: engel 403 `PLAYER_BLOCKED`, silinmiş hesap 404.
+- Aygır sahibine `stud_service` bildirimi gidiyor: aygırın adı ve hesabına
+  geçen pay. Defter satırıyla aynı transaction'da yazılıyor (migration 0086).
+- Kanıt: `breeding.e2e-spec.ts` (+3: bildirim yükü, iki yönlü engel, silinmiş
+  hesap; hiçbirinde para düşmüyor, tay doğmuyor), `notification-types.spec.ts`.

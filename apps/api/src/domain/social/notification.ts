@@ -54,6 +54,7 @@ export const NOTIFICATION_TYPES = [
   'listing_expired',
   'club_invite',
   'race_cancelled',
+  'stud_service',
 ] as const;
 
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];

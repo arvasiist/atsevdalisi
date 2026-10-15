@@ -35,6 +35,7 @@ export const NOTIFICATION_TYPES = [
   'listing_expired',
   'club_invite',
   'race_cancelled',
+  'stud_service',
 ] as const;
 
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
@@ -107,6 +108,11 @@ export interface NotificationPayloadByType {
    * `insufficient_funds`: yarış diğerleriyle koşar).
    */
   race_cancelled: { raceId: string; raceName: string; reason: RaceCancelledReason; refundedAmount: number };
+  /**
+   * 15.10.2026 — aygırın başka bir oyuncunun kısrağıyla tay verdi; `amount`
+   * hesabına geçen damızlık payı (`studFeeOwnerSharePercent`, 0 olabilir).
+   */
+  stud_service: { pairId: string; stallionId: string; stallionName: string; foalId: string; amount: number };
 }
 
 /**
