@@ -343,6 +343,15 @@ export interface PrizeDistributionConfig {
   shares: number[];
 }
 
+export interface PracticeRaceClassConfig {
+  /** `raceTiers[].id` — her kademenin TAM bir sınıfı olmalı. */
+  tierId: string;
+  /** Botların hız/ivme/dayanıklılık aralığı (`generateBotEntrants`). */
+  botStatRange: [number, number];
+  /** Bu güce ULAŞAN at bu kademeye giremez; `null` = tavan yok (en üst sınıf). */
+  maxHorsePower: number | null;
+}
+
 export interface EconomyConfig {
   marketValueWeights: {
     quality: number;
@@ -397,6 +406,15 @@ export interface EconomyConfig {
    * ödül tanımlanmış olur — `validateRaceTiers` bunu hata sayar).
    */
   raceTiers: RaceTierConfig[];
+  /**
+   * 14.10.2026 — PRATİK YARIŞ SINIFLARI (`docs/OYUN_DONGUSU_DENETIMI.md` S2).
+   * Her pratik kademenin (masa) botları kendi güç aralığındadır ve kademenin
+   * bir GÜÇ TAVANI vardır: gücü (hız + ivme + dayanıklılık ortalaması)
+   * tavana ulaşan at o kademede koşamaz — "üst sınıfta koşabilirsin, alt
+   * sınıfta asla". Eskiden bütün kademelerin botları 45–75'ti ve ücretsiz
+   * başlangıç atı (güç ≈ 50) hiç kazanamıyordu. Lobi yarışları bunu OKUMAZ.
+   */
+  practiceRaceClasses: PracticeRaceClassConfig[];
   /** brief §31/§42 — yeni oyuncu hesabı oluşturulunca verilen başlangıç bakiyesi. */
   newPlayerStartingBalance: {
     money: number;

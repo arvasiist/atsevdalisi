@@ -78,6 +78,13 @@
       "loserRefund": { "percent": 0, "maxPosition": 0 }
     }
   ],
+  "practiceRaceClasses": [
+    { "tierId": "local", "botStatRange": [41, 61], "maxHorsePower": 55 },
+    { "tierId": "regional", "botStatRange": [46, 66], "maxHorsePower": 60 },
+    { "tierId": "national", "botStatRange": [51, 71], "maxHorsePower": 65 },
+    { "tierId": "elite", "botStatRange": [56, 76], "maxHorsePower": 70 },
+    { "tierId": "championship", "botStatRange": [61, 81], "maxHorsePower": null }
+  ],
   "newPlayerStartingBalance": {
     "money": 5000,
     "gems": 50

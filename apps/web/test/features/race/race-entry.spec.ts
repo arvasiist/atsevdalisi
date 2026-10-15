@@ -2,7 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { loadEconomyConfig, loadRaceConfig, type RaceTierConfig } from '@at-sevdalisi/game-config';
 import {
   DEFAULT_RACE_TIER_ID,
+  describePracticeClass,
   findRaceTier,
+  isPracticeTierOpen,
+  pickOpenPracticeTierId,
   formatMultiplier,
   formatRakePercent,
   getPayoutMultiplier,
@@ -209,5 +212,32 @@ describe('getRaceEntryBlocker — "hazır olan kişiler yarışabilsinler"', () 
   it('yarış eşikleri antrenman eşiklerinden DAHA SIKIdır (yorgun at antrenmana girebilir, yarışa giremez)', () => {
     expect(raceConfig.readiness.minEnergy).toBeGreaterThan(15);
     expect(raceConfig.readiness.maxFatigue).toBeLessThan(90);
+  });
+});
+
+describe('pratik yarış sınıfı ön izlemesi (14.10.2026)', () => {
+  const classes = loadEconomyConfig().practiceRaceClasses;
+  const local = classes.find((entry) => entry.tierId === RACE_TIERS[0]!.id)!;
+  const open = classes.find((entry) => entry.maxHorsePower === null)!;
+
+  it('tavana ULAŞAN at kademeye giremez; güç bilinmiyorsa kademe kapatılmaz', () => {
+    expect(isPracticeTierOpen(local.tierId, local.maxHorsePower! - 0.1)).toBe(true);
+    expect(isPracticeTierOpen(local.tierId, local.maxHorsePower!)).toBe(false);
+    expect(isPracticeTierOpen(open.tierId, 100)).toBe(true);
+    expect(isPracticeTierOpen(local.tierId, undefined)).toBe(true);
+  });
+
+  it('kapalı kademe seçiliyse atın girebildiği ilk kademeye geçilir', () => {
+    expect(pickOpenPracticeTierId(local.tierId, 50)).toBe(local.tierId);
+    const strong = pickOpenPracticeTierId(local.tierId, local.maxHorsePower!);
+    expect(strong).not.toBe(local.tierId);
+    expect(isPracticeTierOpen(strong!, local.maxHorsePower!)).toBe(true);
+    expect(pickOpenPracticeTierId(local.tierId, 100)).toBe(open.tierId);
+  });
+
+  it('her kademe rakip gücünü ve tavanı yazar', () => {
+    const [low, high] = local.botStatRange;
+    expect(describePracticeClass(local.tierId)).toBe(`Rakipler güç ${low}–${high} · güç ${local.maxHorsePower} altı atlar`);
+    expect(describePracticeClass(open.tierId)).toContain('güç sınırı yok');
   });
 });

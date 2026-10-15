@@ -29,6 +29,12 @@ import {
 import { isLoserRefundEligible, loserRefundAmount, paidPlacesOf } from '../../domain/race/table-rules';
 import { checkRaceReadiness } from '../../domain/race/readiness';
 import {
+  findPracticeRaceClass,
+  horseRacingPower,
+  HorseTooStrongForTierError,
+  isHorseAllowedInPracticeClass,
+} from '../../domain/race/practice-class';
+import {
   RACE_ENGINE_VERSION,
   RACE_RULESET_VERSION,
   simulateRace,
@@ -211,6 +217,16 @@ export class RunPracticeRaceUseCase {
     if (stats === null) {
       throw new HorseNotFoundError(horseId);
     }
+    // 14.10.2026 — SINIF KAPISI (`domain/race/practice-class.ts`): kademe =
+    // sınıf; gücü tavana ulaşan at alt sınıfı sömüremez. Para hareketinden
+    // ÖNCE. Sınıfı olmayan kademe açılışta reddedilir (`validatePracticeRaceClasses`).
+    const practiceClass = findPracticeRaceClass(this.config.economy, tier.id);
+    if (practiceClass === null) {
+      throw new InvalidRaceTierError(tier.id);
+    }
+    if (practiceClass.maxHorsePower !== null && !isHorseAllowedInPracticeClass(horseRacingPower(stats), practiceClass)) {
+      throw new HorseTooStrongForTierError(tier.id, practiceClass.maxHorsePower);
+    }
 
     // AUDIT_REPORT.md Bulgu R3 (önceki oturum) — `form` alanı artık bu atın
     // KENDİ son `FORM_SAMPLE_SIZE` sonuçlanmış yarışından türetiliyor (bkz.
@@ -279,7 +295,8 @@ export class RunPracticeRaceUseCase {
     // (8/10/12/14/16 at → 7/9/11/13/15 bot). `generateBotEntrants` sayıyı
     // ZATEN parametre olarak alıyordu (eski sabit çağıran taraftaydı), yani
     // bu değişiklik motor/bot üretim mantığına DOKUNMAZ.
-    const botEntrants = generateBotEntrants(tier.fieldSize - 1, raceId);
+    // 14.10.2026 — botlar kademenin SINIF gücünde (eskiden her kademede 45–75).
+    const botEntrants = generateBotEntrants(tier.fieldSize - 1, raceId, practiceClass.botStatRange);
 
     return {
       raceId,

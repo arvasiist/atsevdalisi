@@ -40,6 +40,7 @@ import { validateEquipmentConfig } from '../../domain/equipment/catalog';
 import { validateHorsePersonalityConfig } from '../../domain/horse/personality';
 import { validateJockeyConditionConfig } from '../../domain/jockey/condition';
 import { validateJockeyMarketConfig } from '../../domain/jockey/market';
+import { validatePracticeRaceClasses } from '../../domain/race/practice-class';
 import { validateRaceTiers } from '../../domain/race/prize';
 
 /**
@@ -193,6 +194,10 @@ export class AppConfigService {
     const tableProblems = validateRaceTiers(this.economy);
     if (tableProblems.length > 0) {
       throw new Error(`Masa/kademe config'i geçersiz (config/economy.config.json): ${tableProblems.join(' ')}`);
+    }
+    const practiceClassProblems = validatePracticeRaceClasses(this.economy);
+    if (practiceClassProblems.length > 0) {
+      throw new Error(`Pratik yarış sınıfları geçersiz (config/economy.config.json → practiceRaceClasses): ${practiceClassProblems.join(' ')}`);
     }
     const jockeyConditionProblems = validateJockeyConditionConfig(this.jockey.condition);
     if (jockeyConditionProblems.length > 0) {

@@ -64,11 +64,15 @@ import { LobbyPanel } from '../../features/race-lobby/LobbyPanel';
 import { describeTableRules, tableRulesFromConfig } from '../../features/race-lobby/lobby-logic';
 import {
   DEFAULT_RACE_TIER_ID,
+  describePracticeClass,
   findRaceTier,
   formatMultiplier,
+  formatRacingPower,
   formatRakePercent,
   getRaceEntryBlocker,
   getTopPayoutMultipliers,
+  isPracticeTierOpen,
+  pickOpenPracticeTierId,
   RACE_ENTRY_BLOCKER_LABELS,
   RACE_RAKE,
   RACE_TIERS,
@@ -214,6 +218,16 @@ export default function RacesPage(): React.ReactElement {
 
   const selectedTier = useMemo(() => findRaceTier(tierId), [tierId]);
 
+  // 14.10.2026 — seçili kademe atın sınıfına kapalıysa (at fazla güçlü)
+  // atın girebildiği ilk kademeye geçilir; kural sunucudadır.
+  const selectedPower = selectedHorse?.racingPower;
+  useEffect(() => {
+    const next = pickOpenPracticeTierId(tierId, selectedPower);
+    if (next !== tierId) {
+      setTierId(next);
+    }
+  }, [selectedPower, tierId]);
+
   /**
    * Düğmeyi kilitleyen TEK gerekçe. `null` ise at yarışa hazırdır. Sunucu
    * yine de son sözü söyler (bkz. dosya başı doc yorumu) — bu kontrol
@@ -222,7 +236,11 @@ export default function RacesPage(): React.ReactElement {
    */
   const entryBlocker = selectedHorse === null ? null : getRaceEntryBlocker(selectedHorse);
   const canRace =
-    selectedHorse !== null && entryBlocker === null && selectedTier !== null && !isRacing;
+    selectedHorse !== null &&
+    entryBlocker === null &&
+    selectedTier !== null &&
+    isPracticeTierOpen(selectedTier.id, selectedPower) &&
+    !isRacing;
 
   const handleRace = async () => {
     if (!selectedHorse || !player || !selectedTier) {
@@ -355,7 +373,12 @@ export default function RacesPage(): React.ReactElement {
 
       {tab === 'lobby' && player && horses && horses.length > 0 ? (
         <div role="tabpanel" id="tabpanel-lobby" aria-labelledby="tab-lobby">
-          <LobbyPanel horses={horses} money={player?.money} onBalanceChanged={refresh} playerId={player?.id ?? null} />
+          <LobbyPanel
+            horses={horses}
+            money={player?.money}
+            onBalanceChanged={refresh}
+            playerId={player?.id ?? null}
+          />
         </div>
       ) : null}
 
@@ -448,6 +471,12 @@ export default function RacesPage(): React.ReactElement {
 
             {selectedHorse ? (
               <div style={{ display: 'grid', gap: '6px', marginBottom: 'var(--space-md)' }}>
+                {selectedPower !== undefined ? (
+                  <span style={{ fontSize: '12px', color: 'var(--color-text-secondary)' }}>
+                    Sınıf gücü: <strong>{formatRacingPower(selectedPower)}</strong> (hız, ivme ve
+                    dayanıklılık ortalaması)
+                  </span>
+                ) : null}
                 <StatBar
                   icon={<HeartPulse size={14} />}
                   label="Sağlık"
@@ -478,39 +507,55 @@ export default function RacesPage(): React.ReactElement {
             >
               <label style={labelStyle()}>Yarış Kademesi</label>
               <div style={{ display: 'grid', gap: '6px' }}>
-                {RACE_TIERS.map((tier) => (
-                  <button
-                    key={tier.id}
-                    type="button"
-                    onClick={() => setTierId(tier.id)}
-                    style={tierRowStyle(tier.id === tierId)}
-                  >
-                    <div style={{ display: 'grid', gap: '2px', textAlign: 'left', flex: 1 }}>
-                      <span
-                        style={{
-                          fontSize: '13px',
-                          fontWeight: 600,
-                          color: 'var(--color-text-primary)',
-                        }}
-                      >
-                        {tier.label}
-                      </span>
-                      <span style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>
-                        {tier.fieldSize} at — giriş {formatCurrency('money', tier.entryFee)} ·{' '}
-                        {describeTableRules(tableRulesFromConfig(tier))[2]}
-                      </span>
-                    </div>
-                    <span
+                {RACE_TIERS.map((tier) => {
+                  const open = isPracticeTierOpen(tier.id, selectedPower);
+                  const classLine = describePracticeClass(tier.id);
+                  return (
+                    <button
+                      key={tier.id}
+                      type="button"
+                      onClick={() => setTierId(tier.id)}
+                      disabled={!open}
+                      title={
+                        open ? undefined : 'Atın bu kademe için fazla güçlü — üst kademede koş.'
+                      }
                       style={{
-                        fontSize: '12px',
-                        fontWeight: 700,
-                        color: 'var(--color-accent-gold)',
+                        ...tierRowStyle(tier.id === tierId),
+                        ...(open ? {} : { opacity: 0.45, cursor: 'not-allowed' }),
                       }}
                     >
-                      1. sıra {formatMultiplier(getTopPayoutMultipliers(tier, 1)[0] ?? 0)}
-                    </span>
-                  </button>
-                ))}
+                      <div style={{ display: 'grid', gap: '2px', textAlign: 'left', flex: 1 }}>
+                        <span
+                          style={{
+                            fontSize: '13px',
+                            fontWeight: 600,
+                            color: 'var(--color-text-primary)',
+                          }}
+                        >
+                          {tier.label}
+                        </span>
+                        <span style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>
+                          {tier.fieldSize} at — giriş {formatCurrency('money', tier.entryFee)} ·{' '}
+                          {describeTableRules(tableRulesFromConfig(tier))[2]}
+                        </span>
+                        {classLine ? (
+                          <span style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>
+                            {open ? classLine : `${classLine} — atın bu kademe için fazla güçlü`}
+                          </span>
+                        ) : null}
+                      </div>
+                      <span
+                        style={{
+                          fontSize: '12px',
+                          fontWeight: 700,
+                          color: 'var(--color-accent-gold)',
+                        }}
+                      >
+                        1. sıra {formatMultiplier(getTopPayoutMultipliers(tier, 1)[0] ?? 0)}
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
               <p style={{ margin: 0, fontSize: '11px', color: 'var(--color-text-muted)' }}>
                 Havuz, koşan her atın giriş ücretinden oluşur (botlar dahil); dağıtılmayan{' '}

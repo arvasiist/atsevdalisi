@@ -142,6 +142,25 @@ export class PostgresHorseStatsRepository implements HorseStatsRepository {
     return result;
   }
 
+  async findPowerStatsByHorseIds(
+    horseIds: readonly string[],
+  ): Promise<Map<string, Pick<HorseStats, 'speed' | 'acceleration' | 'stamina'>>> {
+    const result = new Map<string, Pick<HorseStats, 'speed' | 'acceleration' | 'stamina'>>();
+    if (horseIds.length === 0) return result;
+    const rows = await this.pool.query<{ horse_id: string; speed: string; acceleration: string; stamina: string }>(
+      'SELECT horse_id, speed, acceleration, stamina FROM horse_stats WHERE horse_id = ANY($1::uuid[])',
+      [horseIds],
+    );
+    for (const row of rows.rows) {
+      result.set(row.horse_id, {
+        speed: Number(row.speed),
+        acceleration: Number(row.acceleration),
+        stamina: Number(row.stamina),
+      });
+    }
+    return result;
+  }
+
   async updateStatValue(horseId: string, statKey: HorseStatField, newValue: number): Promise<void> {
     const column = STAT_COLUMN_MAP[statKey];
     await this.pool.query(`UPDATE horse_stats SET ${column} = $2, updated_at = now() WHERE horse_id = $1`, [

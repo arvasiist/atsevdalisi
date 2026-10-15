@@ -143,6 +143,12 @@ export type PublicHorse = Omit<Horse, 'potential'> & {
   potentialEstimate: { min: number; max: number };
   /** 08.10.2026 — YALNIZCA sahibinin at listesinde (`GET /horses?ownerId=`) dolar. */
   personality?: HorsePersonalityView;
+  /**
+   * 14.10.2026 — pratik yarış sınıf gücü (hız + ivme + dayanıklılık ortalaması);
+   * YALNIZCA sahibinin at listesinde. Kademe tavanı (`practiceRaceClasses`) ile
+   * karşılaştırılır — kapı sunucudadır, bu alan yalnızca ekran içindir.
+   */
+  racingPower?: number;
 };
 
 /** `HorseStats`'ın `horseId` DIŞINDAKİ alanları — tek bir stat'a atıfta bulunmak

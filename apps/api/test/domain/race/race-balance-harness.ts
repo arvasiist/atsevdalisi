@@ -101,6 +101,9 @@ import { RACING_STYLES } from '../../../src/domain/race/validation';
 import raceConfigJson from '../../../../../config/race.config.json';
 import weatherConfigJson from '../../../../../config/weather.config.json';
 import raceLobbyConfigJson from '../../../../../config/race-lobby.config.json';
+import type { EconomyConfig, RaceTierConfig } from '@at-sevdalisi/game-config';
+import { getRacePrize } from '../../../src/domain/race/prize';
+import { isLoserRefundEligible, loserRefundAmount, paidPlacesOf } from '../../../src/domain/race/table-rules';
 
 export const raceBalanceConfig = raceConfigJson as unknown as RaceBalanceConfig;
 export const raceBalanceWeatherConfig = weatherConfigJson as unknown as WeatherConfig;
@@ -727,3 +730,69 @@ export function measureMultiPlayerControl(
   return sums.map((sum) => sum / trials);
 }
 
+
+/**
+ * 14.10.2026 — PRATİK YARIŞ BEKLENEN KAZANCI (`docs/OYUN_DONGUSU_DENETIMI.md`
+ * B1/S2). Oyuncunun atı (`player`) `fieldSize − 1` botla, üretimdeki pratik
+ * yarışın koşullarında (1600 m çim, güneşli, sıcaklık yok) koşar; ödül ve
+ * kaybeden iadesi üretimin AYNI fonksiyonlarıyla hesaplanır. `botStatRange`
+ * `null` → genel bot aralığı (eski davranış).
+ */
+export interface PracticeEvMeasurement {
+  races: number;
+  /** Yarış başına ortalama net kazanç (ödül + iade − giriş). */
+  meanNet: number;
+  winRate: number;
+  top3Rate: number;
+  meanPosition: number;
+}
+
+export function measurePracticeEv(input: {
+  player: RaceEntrantSnapshot;
+  botStatRange: readonly [number, number] | null;
+  tier: RaceTierConfig;
+  economy: EconomyConfig;
+  trials: number;
+  seedPrefix?: string;
+}): PracticeEvMeasurement {
+  const { player, botStatRange, tier, economy, trials } = input;
+  const paidPlaces = paidPlacesOf(economy, tier);
+  let net = 0;
+  let wins = 0;
+  let top3 = 0;
+  let positionSum = 0;
+  for (let trial = 0; trial < trials; trial += 1) {
+    const seed = `${input.seedPrefix ?? 'practice-ev'}-${trial}`;
+    const bots =
+      botStatRange === null
+        ? generateBotEntrants(tier.fieldSize - 1, seed)
+        : generateBotEntrants(tier.fieldSize - 1, seed, botStatRange);
+    const timeline = simulateRace({
+      raceId: seed,
+      simulationSeed: seed,
+      distanceMeters: CANONICAL_DISTANCE_METERS,
+      surface: CANONICAL_SURFACE,
+      weather: CANONICAL_WEATHER,
+      temperatureC: null,
+      entries: [player, ...bots],
+      raceConfig: raceBalanceConfig,
+      weatherConfig: raceBalanceWeatherConfig,
+    });
+    const position = timeline.finalResult.find((entry) => entry.horseId === player.horseId)!.finishPosition;
+    const prize = getRacePrize(economy, tier, position);
+    const refund = isLoserRefundEligible(position, paidPlaces, tier.loserRefund)
+      ? loserRefundAmount(tier.entryFee, tier.loserRefund)
+      : 0;
+    net += prize + refund - tier.entryFee;
+    if (position === 1) wins += 1;
+    if (position <= 3) top3 += 1;
+    positionSum += position;
+  }
+  return {
+    races: trials,
+    meanNet: net / trials,
+    winRate: wins / trials,
+    top3Rate: top3 / trials,
+    meanPosition: positionSum / trials,
+  };
+}

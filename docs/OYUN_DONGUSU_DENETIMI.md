@@ -50,7 +50,7 @@ belge. Yarış motoruna dokunulmaz (botların gücü motorun DIŞINDA üretilir)
 | Sıra | Dilim | Gidereceği | Ölçüt (kanıt) |
 |---|---|---|---|
 | **S1** ✅ | **Jokey pazarı arzı:** kiralamaya açık jokey sayısı hedefin altına düşünce sistem yeni jokey üretir (beceri aralığı + beceriye göre ücret config'te). | B4 | Boş veritabanında `GET /jockeys` dolu döner; kiralanınca yenisi gelir. |
-| **S2** | **Sınıfa uygun pratik yarış:** botlar atın gücüne göre bir sınıf bandından üretilir (bant tablosu config'te); güçlü at zayıf sınıfı sömüremez. | B1/B1a | Başlangıç atının pratik yarış beklenen kazancı ölçülür (harness); hedef: ortalama oyuncu için yaklaşık başa baş. |
+| **S2** ✅ | **Sınıfa uygun pratik yarış:** botlar atın gücüne göre bir sınıf bandından üretilir (bant tablosu config'te); güçlü at zayıf sınıfı sömüremez. | B1/B1a | Başlangıç atının pratik yarış beklenen kazancı ölçülür (harness); hedef: ortalama oyuncu için yaklaşık başa baş. |
 | **S3** | **Yarış yorgunluğu + zamanla toparlanma:** yarış enerji düşürür, yorgunluk ekler (mesafeye göre, config); zamanlayıcı (lider kilidiyle) her turda toparlar. Arayüz "ne zaman hazır" gösterir. | B2/B3 | Ardışık yarış hazırlık kapısına takılır; süre geçince açılır. |
 | S4 | Ekonomi yeniden ölçümü (kademelere göre EV), gerekirse config ayarı | B1 | Ölçüm tablosu |
 | S5 | Emeklilik → damızlık evresi, ömür boyu yetiştirme sınırı, damızlık ücretinde kesinti; yaş ölçeği kararı | B7, B10, B11 | e2e (yaş ölçeği sahibinin kararı) |
@@ -79,3 +79,20 @@ Bu dosya her dilimden sonra güncellenir.
   (4 test: vitrin dolu, boşalan bant dolar, 6 eşzamanlı istekte çift üretim
   yok, yeni oyuncu en ucuz jokeyi kiralar + defter satırı). Mevcut
   `jockey.e2e-spec.ts` (22) ve `jockey-condition.e2e-spec.ts` geçiyor.
+
+### S2 — Sınıfa uygun pratik yarış (14–15.10.2026)
+
+- Kademe = sınıf: `economy.config.json` → `practiceRaceClasses` (her kademenin
+  bot aralığı + güç tavanı). Güç = hız + ivme + dayanıklılık ortalaması (ırk
+  gücüyle aynı tanım). Gücü tavana ULAŞAN at alt kademeye giremez (409
+  `HORSE_TOO_STRONG_FOR_TIER`, paradan önce) — "üst sınıfta koşabilirsin,
+  alt sınıfta asla". Motor değişmedi; botlar `generateBotEntrants(…, aralık)`.
+- Ölçüm (harness `measurePracticeEv`, gerçek atların ağırlık uyumu ~100 ile):
+  başlangıç atı (güç 50) Mahalli Koşu'da yarış başına girişin **−%86**sı →
+  **−%9**; güç 53 → +%40; tavanda bir üst kademeye geçen at −%17…−%40 (umutsuz
+  değil). İlk denemede ağırlık uyumu 50 alınmıştı ve canlı API çok cömert
+  çıkmıştı (+%26…+%74) — aralık buna göre 4 puan yukarı alındı.
+- Ahır listesi `racingPower` taşır (yalnızca sahibine); yarış ekranı kapalı
+  kademeyi kilitler ve rakip gücünü yazar.
+- Kanıt: `practice-class.spec.ts` (8), `practice-class.e2e-spec.ts` (3),
+  `race-entry.spec.ts` (+3); tam API 228/2800, web 85/710.

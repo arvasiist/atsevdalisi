@@ -73,6 +73,8 @@ export const ErrorCode = {
   /** 07.10.2026 — ırkın seviye şartı karşılanmadı (409). */
   BreedLevelLocked: 'BREED_LEVEL_LOCKED',
   HorseLevelNotAllowed: 'HORSE_LEVEL_NOT_ALLOWED',
+  /** 14.10.2026 — pratik yarışta gücü kademe tavanına ulaşmış at (409). */
+  HorseTooStrongForTier: 'HORSE_TOO_STRONG_FOR_TIER',
   /** 09.10.2026 — kulüp içi yarışa kulüp üyesi olmayan katılamaz (409). */
   RaceClubOnly: 'RACE_CLUB_ONLY',
   /** 09.10.2026 — kozmetik mağaza: ürün yok (404), zaten sahip (409), sahip olunmayan seçenek (409). */

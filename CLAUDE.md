@@ -954,6 +954,15 @@ her istekte şişer (`jockey-market.spec.ts` kilitler). ⚠️ Vitrini sayan bir
 EN DÜŞÜK bandı kullanmalı: diğer dosyaların test jokeyleri (beceri 50/70/95)
 paralel koşar ve başka banttadır.
 
+(88) **PRATİK YARIŞ SINIFLARI (15.10.2026, `docs/OYUN_DONGUSU_DENETIMI.md` S2)** —
+kademe = sınıf: `economy.practiceRaceClasses` (bot aralığı + `maxHorsePower`);
+güç `horseRacingPower` (hız+ivme+dayanıklılık, ırk gücüyle aynı). Tavana
+ulaşan at 409 `HORSE_TOO_STRONG_FOR_TIER` (paradan önce). Lobi BUNU OKUMAZ.
+Değerler ölçüldü (`measurePracticeEv`). ⚠️ Gerçek atların ağırlık uyumu ~100
+(botlar 50) — denge ölçerken oyuncu atını 50 ile kurma, canlı oyunla tutmaz
+(yaşandı). ⚠️ Pratik yarışı GÜÇLÜ atla koşan yeni e2e varsayılan (en ucuz)
+kademeyi SEÇEMEZ — tavansız kademeyi ver.
+
 **✅ ÜCRETLİ LOBİ YARIŞI ARTIK KOŞUYOR — ÖDÜL DAĞITIMI VAR (§13.14,
 28.09.2026).** `POST /races/:id/settle` yarışı koşar, ödülleri `top5`
 paylarıyla dağıtır ve `races.status = 'finished'` yazar. Uç bir

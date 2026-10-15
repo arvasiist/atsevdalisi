@@ -70,7 +70,10 @@ export function findRaceTier(tierId: string | null): RaceTierConfig | null {
  * hatası olarak `apps/api` testlerinde yakalanır.
  */
 function getTierShares(tier: RaceTierConfig): readonly number[] {
-  return economyConfig.prizeDistributions.find((distribution) => distribution.id === tier.distributionId)?.shares ?? [];
+  return (
+    economyConfig.prizeDistributions.find((distribution) => distribution.id === tier.distributionId)
+      ?.shares ?? []
+  );
 }
 
 /**
@@ -114,8 +117,56 @@ export function formatRakePercent(rake: number): string {
   return `%${Math.round(rake * 100)}`;
 }
 
+/**
+ * 14.10.2026 — PRATİK YARIŞ SINIFI (`apps/api/src/domain/race/practice-class.ts`).
+ * Kademe = sınıf: botlar kademenin güç aralığındadır ve gücü kademe tavanına
+ * ULAŞMIŞ at o kademeye giremez. Burası sunucudaki
+ * `isHorseAllowedInPracticeClass`ın ÖN İZLEMESİDİR (düğmeyi kilitler);
+ * kural sunucudadır. Güç bilinmiyorsa (eski yanıt) kademe kapatılmaz.
+ */
+export function findPracticeClass(tierId: string) {
+  return economyConfig.practiceRaceClasses.find((entry) => entry.tierId === tierId) ?? null;
+}
+
+export function isPracticeTierOpen(tierId: string, racingPower: number | undefined): boolean {
+  const practiceClass = findPracticeClass(tierId);
+  if (practiceClass === null || practiceClass.maxHorsePower === null || racingPower === undefined) {
+    return true;
+  }
+  return racingPower < practiceClass.maxHorsePower;
+}
+
+/** Seçili kademe ata kapalıysa, atın girebildiği İLK (en ucuz) kademe. */
+export function pickOpenPracticeTierId(
+  currentTierId: string | null,
+  racingPower: number | undefined,
+): string | null {
+  if (currentTierId !== null && isPracticeTierOpen(currentTierId, racingPower)) {
+    return currentTierId;
+  }
+  return RACE_TIERS.find((tier) => isPracticeTierOpen(tier.id, racingPower))?.id ?? null;
+}
+
+export function describePracticeClass(tierId: string): string | null {
+  const practiceClass = findPracticeClass(tierId);
+  if (practiceClass === null) {
+    return null;
+  }
+  const [low, high] = practiceClass.botStatRange;
+  const limit =
+    practiceClass.maxHorsePower === null
+      ? 'güç sınırı yok'
+      : `güç ${practiceClass.maxHorsePower} altı atlar`;
+  return `Rakipler güç ${low}–${high} · ${limit}`;
+}
+
+export function formatRacingPower(racingPower: number): string {
+  return racingPower.toFixed(1);
+}
+
 /** `apps/api/src/domain/race/readiness.ts`'teki `RaceNotReadyReason` ile AYNI değerler. */
-export type RaceEntryBlocker = 'HORSE_NOT_ACTIVE' | 'INSUFFICIENT_HEALTH' | 'HORSE_TOO_TIRED' | 'INSUFFICIENT_ENERGY';
+export type RaceEntryBlocker =
+  'HORSE_NOT_ACTIVE' | 'INSUFFICIENT_HEALTH' | 'HORSE_TOO_TIRED' | 'INSUFFICIENT_ENERGY';
 
 export const RACE_ENTRY_BLOCKER_LABELS: Record<RaceEntryBlocker, string> = {
   HORSE_NOT_ACTIVE: 'At yarışabilir durumda değil',

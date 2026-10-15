@@ -22,6 +22,10 @@ export interface HorseStatsRepository {
    * değerler YALNIZCA sunucuda etikete çevrilir; istemciye dönmez.
    */
   findPersonalityByHorseIds(horseIds: readonly string[]): Promise<Map<string, Record<HiddenHorseTraitKey, number>>>;
+  /** 14.10.2026 — sınıf gücünün üç statı (tek sorgu; `horseRacingPower` ile birleşir). */
+  findPowerStatsByHorseIds(
+    horseIds: readonly string[],
+  ): Promise<Map<string, Pick<HorseStats, 'speed' | 'acceleration' | 'stamina'>>>;
 }
 
 /** NestJS DI için token (interface'ler runtime'da yok olduğundan bir Symbol gerekir). */
