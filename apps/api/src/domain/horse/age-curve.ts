@@ -66,11 +66,35 @@ export function gameMonthsToRealMs(months: number, config: HorseGrowthConfig): n
   return (months / config.gameMonthsPerRealDay) * MS_PER_DAY;
 }
 
+/**
+ * 15.10.2026 — B13 (`docs/ALGORITHMS.md` §9): yaşın YARIŞ etkisi. Evrenin
+ * `racingFactor`ü hız/ivme/dayanıklılığa uygulanır (zirve 1). Saf; kadro
+ * dondurulurken çağıranlar bu değeri `buildHorseEntrantSnapshot`a verir.
+ */
+export function racingAgeFactor(ageMonths: number, config: HorseGrowthConfig): number {
+  return getLifeStage(ageMonths, config).racingFactor;
+}
+
+/** Yaşa göre YARIŞTA kullanılan fiziksel stat — 2 haneye yuvarlanır (stat sütunu NUMERIC(5,2)). */
+export function applyRacingAgeFactor(value: number, factor: number): number {
+  return Math.round(value * factor * 100) / 100;
+}
+
 /** API açılışında koşar — bozuk ölçekle yaş NaN ya da sonsuz olurdu. */
 export function validateHorseGrowthConfig(config: HorseGrowthConfig): string[] {
   const problems: string[] = [];
   if (!(Number.isFinite(config.gameMonthsPerRealDay) && config.gameMonthsPerRealDay > 0)) {
     problems.push('horse-growth.gameMonthsPerRealDay > 0 sonlu bir sayı olmalı.');
+  }
+  // B13 — yaş yarışta yalnızca GERİLETİR (bonus yok): 0 < çarpan ≤ 1 ve en az
+  // bir evre (zirve) tam güçtedir; aksi hâlde hiçbir at gerçek statıyla koşmazdı.
+  for (const stage of config.stages) {
+    if (!(Number.isFinite(stage.racingFactor) && stage.racingFactor > 0 && stage.racingFactor <= 1)) {
+      problems.push(`horse-growth: "${stage.name}" racingFactor 0 < x ≤ 1 olmalı.`);
+    }
+  }
+  if (!config.stages.some((stage) => stage.racingFactor === 1)) {
+    problems.push('horse-growth: en az bir evrenin (zirve) racingFactor değeri 1 olmalı.');
   }
   return problems;
 }

@@ -7,6 +7,8 @@ import {
   getLifeStage,
   horseAgeMonths,
   validateHorseGrowthConfig,
+  racingAgeFactor,
+  applyRacingAgeFactor,
 } from '../../../src/domain/horse/age-curve';
 import growthConfig from '../../../../../config/horse-growth.config.json';
 import type { HorseGrowthConfig } from '@at-sevdalisi/game-config';
@@ -97,5 +99,39 @@ describe('computeHorseAgeMonths (oyun yaşı)', () => {
     for (const value of [0, -1, Number.NaN, Number.POSITIVE_INFINITY]) {
       expect(validateHorseGrowthConfig({ ...config, gameMonthsPerRealDay: value })).not.toEqual([]);
     }
+  });
+});
+
+describe('racingAgeFactor — B13 (yaşın yarış etkisi)', () => {
+  it('zirve tam güç; gelişim ve olgunlukta hafif, yaşlılıkta belirgin düşüş', () => {
+    const at = (months: number) => racingAgeFactor(months, config);
+    expect(at(24)).toBeLessThan(1);
+    expect(at(48)).toBe(1);
+    expect(at(83)).toBe(1);
+    expect(at(84)).toBeLessThan(1);
+    expect(at(140)).toBeLessThan(at(100));
+    // Yaş yarışta YALNIZCA geriletir (bonus yok).
+    for (const stage of config.stages) {
+      expect(stage.racingFactor).toBeGreaterThan(0);
+      expect(stage.racingFactor).toBeLessThanOrEqual(1);
+    }
+  });
+
+  it('applyRacingAgeFactor 2 haneye yuvarlar; çarpan 1 değeri değiştirmez', () => {
+    expect(applyRacingAgeFactor(61, 0.92)).toBe(56.12);
+    expect(applyRacingAgeFactor(57.37, 1)).toBe(57.37);
+  });
+
+  it('validateHorseGrowthConfig: depodaki config geçerli; bonus, sıfır ve zirvesiz eğri reddedilir', () => {
+    expect(validateHorseGrowthConfig(config)).toEqual([]);
+    const withFactor = (racingFactor: number) => ({
+      ...config,
+      stages: config.stages.map((stage) => (stage.name === 'aging' ? { ...stage, racingFactor } : stage)),
+    });
+    expect(validateHorseGrowthConfig(withFactor(1.1))).not.toEqual([]);
+    expect(validateHorseGrowthConfig(withFactor(0))).not.toEqual([]);
+    expect(
+      validateHorseGrowthConfig({ ...config, stages: config.stages.map((stage) => ({ ...stage, racingFactor: 0.9 })) }),
+    ).not.toEqual([]);
   });
 });

@@ -154,6 +154,12 @@ export type PublicHorse = Omit<Horse, 'potential' | 'agingStartedAt'> & {
    * Sahibinin listesinde ve damızlık listesinde dolar; hesap sunucudadır.
    */
   ageMonths?: number;
+  /**
+   * 15.10.2026 — B13: yaş evresi (`foal`/`development`/`prime`/`mature`/`aging`)
+   * ve o evrenin yarış çarpanı (hız/ivme/dayanıklılık; zirve 1). Yalnızca
+   * sahibinin listesinde; çarpan kadro dondurulurken uygulanır.
+   */
+  lifeStage?: { name: string; racingFactor: number };
   /** 08.10.2026 — YALNIZCA sahibinin at listesinde (`GET /horses?ownerId=`) dolar. */
   personality?: HorsePersonalityView;
   /**

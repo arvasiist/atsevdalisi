@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { PublicHorse } from '@at-sevdalisi/shared-types';
-import { canOfferRetirement, formatHorseAge } from '../../../src/features/breeding/horse-lifecycle';
+import { canOfferRetirement, formatHorseAge, describeLifeStage } from '../../../src/features/breeding/horse-lifecycle';
 
 /** 15.10.2026 — S5: yaş metni + "Emekli et" düğmesinin görünürlüğü (kural sunucuda). */
 describe('formatHorseAge', () => {
@@ -24,5 +24,14 @@ describe('canOfferRetirement', () => {
 
   it('başka bir emekli olmayan at varsa düğme var (sakat at da sayılır)', () => {
     expect(canOfferRetirement(horse('a', 'active'), [horse('a', 'active'), horse('b', 'injured')])).toBe(true);
+  });
+});
+
+describe('describeLifeStage (B13)', () => {
+  it('zirvede yalnızca evre adı; düşüşte yüzde kaybı yazar; alan yoksa null', () => {
+    expect(describeLifeStage({ name: 'prime', racingFactor: 1 })).toBe('Zirve');
+    expect(describeLifeStage({ name: 'aging', racingFactor: 0.92 })).toBe('Yaşlı · yarışta −%8');
+    expect(describeLifeStage({ name: 'mature', racingFactor: 0.97 })).toBe('Olgun · yarışta −%3');
+    expect(describeLifeStage(undefined)).toBeNull();
   });
 });

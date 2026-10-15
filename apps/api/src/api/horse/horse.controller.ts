@@ -86,9 +86,10 @@ export class HorseController {
     // (sahibine) eklenir; `GET :id` herkese açıktır ve bunları taşımaz.
     return {
       success: true,
-      data: horses.map(({ horse, personality, racingPower, raceReadyAt, ageMonths }) => ({
+      data: horses.map(({ horse, personality, racingPower, raceReadyAt, ageMonths, lifeStage }) => ({
         ...toPublicHorse(horse),
         ageMonths,
+        lifeStage,
         ...(personality ? { personality } : {}),
         ...(racingPower !== null ? { racingPower } : {}),
         ...(raceReadyAt !== null ? { raceReadyAt } : {}),

@@ -62,6 +62,7 @@ import { formatRaceReadyIn } from '../../features/race/race-entry';
 import {
   RETIREMENT_CONFIRM_MESSAGE,
   canOfferRetirement,
+  describeLifeStage,
   formatHorseAge,
 } from '../../features/breeding/horse-lifecycle';
 import {
@@ -577,6 +578,11 @@ function HorseCard({
           <span className="featured-meta">
             {breedGenderLabel(horse.breed, horse.gender)} · Seviye {horse.level}
             {horse.ageMonths !== undefined ? ` · ${formatHorseAge(horse.ageMonths)}` : null}
+            {describeLifeStage(horse.lifeStage) !== null ? (
+              <span data-testid={`life-stage-${horse.id}`} title="Yaş evresi: yarışta hız, ivme ve dayanıklılığa uygulanır">
+                {` · ${describeLifeStage(horse.lifeStage)}`}
+              </span>
+            ) : null}
           </span>
           <StarRating score={horse.quality} />
         </div>

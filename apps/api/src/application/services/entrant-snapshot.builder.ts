@@ -5,6 +5,7 @@ import { effectiveJockeySkill } from '../../domain/jockey/jockey';
 import { loadJockeyCondition } from './jockey-condition';
 import { DEFAULT_RACE_TACTIC } from '../../domain/race/validation';
 import { HorseNotFoundError } from '../../domain/horse/errors';
+import { horseAgeMonths, racingAgeFactor } from '../../domain/horse/age-curve';
 import { AppConfigService } from '../../infrastructure/config/config.service';
 import { HORSE_REPOSITORY, type HorseRepository } from '../ports/horse.repository';
 import { HORSE_STATS_REPOSITORY, type HorseStatsRepository } from '../ports/horse-stats.repository';
@@ -155,6 +156,8 @@ export class EntrantSnapshotBuilder {
         horse,
         stats,
         tactic,
+        // 15.10.2026 — B13: dondurma anındaki yaş evresi (jokey formuyla aynı an).
+        racingAgeFactor(horseAgeMonths(horse, new Date(), this.config.horseGrowth), this.config.horseGrowth),
         recentResults,
         trackFit,
         equippedItems,

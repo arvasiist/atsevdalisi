@@ -20,7 +20,7 @@ import { HorseInjuredError, HorseNotFoundError } from '../../domain/horse/errors
 import type { VitalSigns } from '../../domain/horse/vital-signs';
 import { HorseNotReadyToRaceError } from '../../domain/race/errors';
 import { checkRaceReadiness } from '../../domain/race/readiness';
-import { horseAgeMonths } from '../../domain/horse/age-curve';
+import { horseAgeMonths, racingAgeFactor } from '../../domain/horse/age-curve';
 import { AlreadyInMatchmakingQueueError } from '../../domain/online/errors';
 import { PlayerNotFoundError } from '../../domain/player/errors';
 import { AppConfigService } from '../../infrastructure/config/config.service';
@@ -480,13 +480,23 @@ export class JoinMatchmakingQueueUseCase {
             this.config.jockey,
           );
 
+    // 15.10.2026 — B13: iki atın yaş evresi aynı andan (`now`).
+    const growth = this.config.horseGrowth;
     const mySnapshot = buildHorseEntrantSnapshot(
-      horse, stats, DEFAULT_RACE_TACTIC, recentResults, myTrackFit, equippedItems, myJockeySkillComposite,
+      horse,
+      stats,
+      DEFAULT_RACE_TACTIC,
+      racingAgeFactor(horseAgeMonths(horse, now, growth), growth),
+      recentResults,
+      myTrackFit,
+      equippedItems,
+      myJockeySkillComposite,
     );
     const opponentSnapshot = buildHorseEntrantSnapshot(
       opponentHorse,
       opponentStats,
       DEFAULT_RACE_TACTIC,
+      racingAgeFactor(horseAgeMonths(opponentHorse, now, growth), growth),
       opponentRecentResults,
       opponentTrackFit,
       opponentEquippedItems,

@@ -26,5 +26,26 @@ export function canOfferRetirement(horse: PublicHorse, allHorses: readonly Publi
   return allHorses.some((other) => other.id !== horse.id && other.status !== 'retired');
 }
 
+/** 15.10.2026 — B13: yaş evrelerinin Türkçe adı (sunucu `horse-growth.stages[].name`). */
+const LIFE_STAGE_LABELS: Record<string, string> = {
+  foal: 'Tay',
+  development: 'Gelişim',
+  prime: 'Zirve',
+  mature: 'Olgun',
+  aging: 'Yaşlı',
+};
+
+/**
+ * Yaş evresi rozeti: "Zirve" ya da "Yaşlı · yarışta −%8". Çarpan sunucudan
+ * gelir ve kadroya öyle donar; bu metin yalnızca açıklamadır. Alan yoksa
+ * (eski sunucu) `null`.
+ */
+export function describeLifeStage(lifeStage: PublicHorse['lifeStage']): string | null {
+  if (lifeStage === undefined) return null;
+  const label = LIFE_STAGE_LABELS[lifeStage.name] ?? lifeStage.name;
+  const lossPercent = Math.round((1 - lifeStage.racingFactor) * 100);
+  return lossPercent > 0 ? `${label} · yarışta −%${lossPercent}` : label;
+}
+
 export const RETIREMENT_CONFIRM_MESSAGE =
   'Emeklilik GERİ ALINAMAZ: at bir daha yarışamaz ve antrenman yapamaz, yalnızca damızlık yapar. Emekli edilsin mi?';

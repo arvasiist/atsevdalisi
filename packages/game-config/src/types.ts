@@ -589,6 +589,14 @@ export interface HorseGrowthStage {
   minAgeMonths: number;
   maxAgeMonths: number | null;
   growthFactor: number;
+  /**
+   * 15.10.2026 — B13: bu evredeki atın YARIŞ fiziksel statlarına (hız, ivme,
+   * dayanıklılık) uygulanan çarpan, 0 < x ≤ 1; zirve evresi 1. Kadro
+   * dondurulurken snapshot'a yazılır — motor değişmez, gösterilen stat =
+   * motora giden stat. Değerler ÖLÇÜLDÜ (motor stat farkına çok duyarlı:
+   * %5 düşüş sınıfın en iyi atının kazanma oranını ~%78'den ~%55'e indirir).
+   */
+  racingFactor: number;
 }
 
 export interface HorseGrowthConfig {

@@ -11,6 +11,9 @@ import {
 } from '../../../src/domain/race/entrant-snapshot';
 import { InvalidRaceTacticError } from '../../../src/domain/race/errors';
 
+/** Zirve evresi (B13): yaş çarpanı yok — eski davranış. */
+const NEUTRAL_RACING_AGE_FACTOR = 1;
+
 function makeSurfaceStats(overrides: Partial<HorseSurfaceStats> = {}): HorseSurfaceStats {
   return {
     horseId: 'horse-1',
@@ -152,7 +155,7 @@ describe('buildHorseEntrantSnapshot', () => {
     const horse = makeHorse();
     const stats = makeStats();
 
-    const snapshot = buildHorseEntrantSnapshot(horse, stats, validTactic);
+    const snapshot = buildHorseEntrantSnapshot(horse, stats, validTactic, NEUTRAL_RACING_AGE_FACTOR);
 
     expect(snapshot.horseId).toBe(horse.id);
     expect(snapshot.speed).toBe(stats.speed);
@@ -174,24 +177,24 @@ describe('buildHorseEntrantSnapshot', () => {
    * değeri doğru İLETTİĞİ doğrulanır).
    */
   it("weightCompatibility, horse.weightKg'den computeWeightCompatibility ile türetilir", () => {
-    const snapshot = buildHorseEntrantSnapshot(makeHorse({ weightKg: 495 }), makeStats(), validTactic);
+    const snapshot = buildHorseEntrantSnapshot(makeHorse({ weightKg: 495 }), makeStats(), validTactic, NEUTRAL_RACING_AGE_FACTOR);
     expect(snapshot.weightCompatibility).toBe(100);
   });
 
   it('horse.weightKg null ise (eski/legacy veri) weightCompatibility nötr (50) kalır', () => {
-    const snapshot = buildHorseEntrantSnapshot(makeHorse({ weightKg: null }), makeStats(), validTactic);
+    const snapshot = buildHorseEntrantSnapshot(makeHorse({ weightKg: null }), makeStats(), validTactic, NEUTRAL_RACING_AGE_FACTOR);
     expect(snapshot.weightCompatibility).toBe(50);
   });
 
   it('trackFit verilmeden çağrılırsa surfaceCompatibility/distanceCompatibility nötr kalır (GERİYE DÖNÜK UYUMLU)', () => {
-    const snapshot = buildHorseEntrantSnapshot(makeHorse(), makeStats(), validTactic);
+    const snapshot = buildHorseEntrantSnapshot(makeHorse(), makeStats(), validTactic, NEUTRAL_RACING_AGE_FACTOR);
 
     expect(snapshot.surfaceCompatibility).toBe(NEUTRAL_UNMODELED_TRAIT_SCORE);
     expect(snapshot.distanceCompatibility).toBe(NEUTRAL_UNMODELED_TRAIT_SCORE);
   });
 
   it('henüz modellenmeyen jockeySkillComposite alanını nötr değere ayarlar', () => {
-    const snapshot = buildHorseEntrantSnapshot(makeHorse(), makeStats(), validTactic);
+    const snapshot = buildHorseEntrantSnapshot(makeHorse(), makeStats(), validTactic, NEUTRAL_RACING_AGE_FACTOR);
 
     expect(snapshot.jockeySkillComposite).toBe(NEUTRAL_UNMODELED_TRAIT_SCORE);
   });
@@ -210,14 +213,14 @@ describe('buildHorseEntrantSnapshot', () => {
       surface: 'grass',
       distanceMeters: 1600,
     });
-    const snapshot = buildHorseEntrantSnapshot(makeHorse(), makeStats(), validTactic, [], trackFit);
+    const snapshot = buildHorseEntrantSnapshot(makeHorse(), makeStats(), validTactic, NEUTRAL_RACING_AGE_FACTOR, [], trackFit);
 
     expect(snapshot.surfaceCompatibility).toBe(82);
     expect(snapshot.distanceCompatibility).toBe(67);
   });
 
   it('trackFit açıkça null verilirse (ör. henüz backfill edilmemiş bir at) nötr kalır', () => {
-    const snapshot = buildHorseEntrantSnapshot(makeHorse(), makeStats(), validTactic, [], null);
+    const snapshot = buildHorseEntrantSnapshot(makeHorse(), makeStats(), validTactic, NEUTRAL_RACING_AGE_FACTOR, [], null);
 
     expect(snapshot.surfaceCompatibility).toBe(NEUTRAL_UNMODELED_TRAIT_SCORE);
     expect(snapshot.distanceCompatibility).toBe(NEUTRAL_UNMODELED_TRAIT_SCORE);
@@ -231,12 +234,12 @@ describe('buildHorseEntrantSnapshot', () => {
    * `deriveFormFromRecentResults` testleri gerçek geçmişle davranışı.
    */
   it('recentResults verilmeden çağrılırsa form nötr (50) kalır', () => {
-    const snapshot = buildHorseEntrantSnapshot(makeHorse(), makeStats(), validTactic);
+    const snapshot = buildHorseEntrantSnapshot(makeHorse(), makeStats(), validTactic, NEUTRAL_RACING_AGE_FACTOR);
     expect(snapshot.form).toBe(NEUTRAL_UNMODELED_TRAIT_SCORE);
   });
 
   it('recentResults verilirse form bu geçmişten türetilir', () => {
-    const snapshot = buildHorseEntrantSnapshot(makeHorse(), makeStats(), validTactic, [
+    const snapshot = buildHorseEntrantSnapshot(makeHorse(), makeStats(), validTactic, NEUTRAL_RACING_AGE_FACTOR, [
       makeRecentResult({ performanceScore: 80 }),
       makeRecentResult({ performanceScore: 60 }),
     ]);
@@ -266,7 +269,7 @@ describe('buildHorseEntrantSnapshot', () => {
    * — ikisi arasındaki fark tam olarak bu dilimin konusudur.
    */
   it('[TRIPWIRE] UNMODELED_SNAPSHOT_FIELDS listesindeki HER alan GERÇEKTEN nötr değer döner', () => {
-    const snapshot = buildHorseEntrantSnapshot(makeHorse(), makeStats(), validTactic);
+    const snapshot = buildHorseEntrantSnapshot(makeHorse(), makeStats(), validTactic, NEUTRAL_RACING_AGE_FACTOR);
 
     for (const field of UNMODELED_SNAPSHOT_FIELDS) {
       expect(snapshot[field]).toBe(NEUTRAL_UNMODELED_TRAIT_SCORE);
@@ -283,6 +286,7 @@ describe('buildHorseEntrantSnapshot', () => {
       makeHorse(),
       makeStats(),
       validTactic,
+      NEUTRAL_RACING_AGE_FACTOR,
       [],
       null,
       [],
@@ -292,11 +296,11 @@ describe('buildHorseEntrantSnapshot', () => {
   });
 
   it('jokey verilmezse (botlar ve jokeyi olmayan oyuncular) nötr 50 kalır — gizli AI bonusu YOK', () => {
-    expect(buildHorseEntrantSnapshot(makeHorse(), makeStats(), validTactic).jockeySkillComposite).toBe(
+    expect(buildHorseEntrantSnapshot(makeHorse(), makeStats(), validTactic, NEUTRAL_RACING_AGE_FACTOR).jockeySkillComposite).toBe(
       NEUTRAL_UNMODELED_TRAIT_SCORE,
     );
     expect(
-      buildHorseEntrantSnapshot(makeHorse(), makeStats(), validTactic, [], null, [], null).jockeySkillComposite,
+      buildHorseEntrantSnapshot(makeHorse(), makeStats(), validTactic, NEUTRAL_RACING_AGE_FACTOR, [], null, [], null).jockeySkillComposite,
     ).toBe(NEUTRAL_UNMODELED_TRAIT_SCORE);
   });
 
@@ -312,16 +316,16 @@ describe('buildHorseEntrantSnapshot', () => {
    * da bu testi geçemez, çünkü aşağıda 50'den FARKLI bir değer verilir.
    */
   it('temperament `stats`ten AYNEN okunur (PHASE 6.3) — sabit 50 DEĞİL', () => {
-    expect(buildHorseEntrantSnapshot(makeHorse(), makeStats({ temperament: 82 }), validTactic).temperament).toBe(82);
-    expect(buildHorseEntrantSnapshot(makeHorse(), makeStats({ temperament: 17 }), validTactic).temperament).toBe(17);
+    expect(buildHorseEntrantSnapshot(makeHorse(), makeStats({ temperament: 82 }), validTactic, NEUTRAL_RACING_AGE_FACTOR).temperament).toBe(82);
+    expect(buildHorseEntrantSnapshot(makeHorse(), makeStats({ temperament: 17 }), validTactic, NEUTRAL_RACING_AGE_FACTOR).temperament).toBe(17);
     // Başlangıç atları (DB varsayılanı) nötr 50 alır.
-    expect(buildHorseEntrantSnapshot(makeHorse(), makeStats(), validTactic).temperament).toBe(
+    expect(buildHorseEntrantSnapshot(makeHorse(), makeStats(), validTactic, NEUTRAL_RACING_AGE_FACTOR).temperament).toBe(
       NEUTRAL_UNMODELED_TRAIT_SCORE,
     );
   });
 
   it('geçersiz bir taktikle çağrılırsa InvalidRaceTacticError fırlatır (DTO doğrulaması atlanırsa bile)', () => {
-    expect(() => buildHorseEntrantSnapshot(makeHorse(), makeStats(), { ...validTactic, riskLevel: 'extreme' as never })).toThrow(
+    expect(() => buildHorseEntrantSnapshot(makeHorse(), makeStats(), { ...validTactic, riskLevel: 'extreme' as never }, NEUTRAL_RACING_AGE_FACTOR)).toThrow(
       InvalidRaceTacticError,
     );
   });
@@ -351,5 +355,18 @@ describe('deriveFormFromRecentResults (AUDIT_REPORT.md Bulgu R3, bu oturum)', ()
   it('0-100 aralığında clamp eder (performanceScore teorik olarak aralık dışına taşsa bile)', () => {
     expect(deriveFormFromRecentResults([makeRecentResult({ performanceScore: 150 })])).toBe(100);
     expect(deriveFormFromRecentResults([makeRecentResult({ performanceScore: -20 })])).toBe(0);
+  });
+});
+
+describe('B13 — yaşın yarış etkisi (15.10.2026)', () => {
+  it('çarpan YALNIZCA hız/ivme/dayanıklılığa uygulanır, 2 haneye yuvarlanır; diğer alanlar dokunulmaz', () => {
+    const stats = makeStats({ speed: 61, stamina: 57.5, acceleration: 70, temperament: 64 });
+    const prime = buildHorseEntrantSnapshot(makeHorse(), stats, validTactic, NEUTRAL_RACING_AGE_FACTOR);
+    const aging = buildHorseEntrantSnapshot(makeHorse(), stats, validTactic, 0.92);
+    expect(aging.speed).toBe(56.12);
+    expect(aging.stamina).toBe(52.9);
+    expect(aging.acceleration).toBe(64.4);
+    expect({ ...aging, speed: 0, stamina: 0, acceleration: 0 }).toEqual({ ...prime, speed: 0, stamina: 0, acceleration: 0 });
+    expect(prime.speed).toBe(61);
   });
 });

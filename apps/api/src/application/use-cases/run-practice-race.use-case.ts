@@ -28,7 +28,7 @@ import {
 } from '../../domain/race/prize';
 import { isLoserRefundEligible, loserRefundAmount, paidPlacesOf } from '../../domain/race/table-rules';
 import { checkRaceReadiness } from '../../domain/race/readiness';
-import { horseAgeMonths } from '../../domain/horse/age-curve';
+import { horseAgeMonths, racingAgeFactor } from '../../domain/horse/age-curve';
 import {
   findPracticeRaceClass,
   horseRacingPower,
@@ -189,6 +189,9 @@ export class RunPracticeRaceUseCase {
     // sağlık, aşırı yorgunluk ve yetersiz enerji de engeldir. Bu kontrol
     // para hareketinden ÖNCE çalışır, yani hazır olmayan bir at için
     // HİÇBİR Çip hareket etmez.
+    // 15.10.2026 — oyun yaşı: hazırlık kapısı (B12) ve yaş evresinin yarış çarpanı (B13) aynı andan.
+    const ageMonths = horseAgeMonths(horse, new Date(), this.config.horseGrowth);
+    const ageFactor = racingAgeFactor(ageMonths, this.config.horseGrowth);
     const readiness = checkRaceReadiness(
       horse.status,
       // `train-horse.use-case.ts` ile AYNI açık kurulum: `Horse` yapısal
@@ -204,7 +207,7 @@ export class RunPracticeRaceUseCase {
       },
       this.config.race.readiness,
       // 15.10.2026 — B12: yarış yaşı (oyun yaşı, hızlı akar).
-      horseAgeMonths(horse, new Date(), this.config.horseGrowth),
+      ageMonths,
     );
     if (!readiness.ready && readiness.reason !== null) {
       throw new HorseNotReadyToRaceError(readiness.reason);
@@ -227,7 +230,12 @@ export class RunPracticeRaceUseCase {
     if (practiceClass === null) {
       throw new InvalidRaceTierError(tier.id);
     }
-    if (practiceClass.maxHorsePower !== null && !isHorseAllowedInPracticeClass(horseRacingPower(stats), practiceClass)) {
+    // B13 — sınıf gücü YAŞA GÖRE etkin güçtür (yarışta koşacak statlar);
+    // gerileyen yaşlı at alt sınıfa inebilir, genç at sömüremez.
+    if (
+      practiceClass.maxHorsePower !== null &&
+      !isHorseAllowedInPracticeClass(horseRacingPower(stats) * ageFactor, practiceClass)
+    ) {
       throw new HorseTooStrongForTierError(tier.id, practiceClass.maxHorsePower);
     }
 
@@ -271,6 +279,7 @@ export class RunPracticeRaceUseCase {
       horse,
       stats,
       input.tactic,
+      ageFactor,
       recentResults,
       trackFit,
       equippedItems,

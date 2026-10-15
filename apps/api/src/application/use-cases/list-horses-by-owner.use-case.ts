@@ -3,7 +3,7 @@ import type { Horse, HorsePersonalityView } from '@at-sevdalisi/shared-types';
 import { describePersonality } from '../../domain/horse/personality';
 import { horseRacingPower } from '../../domain/race/practice-class';
 import { estimateRaceReadyAt } from '../../domain/care/race-condition';
-import { horseAgeMonths } from '../../domain/horse/age-curve';
+import { getLifeStage, horseAgeMonths } from '../../domain/horse/age-curve';
 import { AppConfigService } from '../../infrastructure/config/config.service';
 import { HORSE_STATS_REPOSITORY, type HorseStatsRepository } from '../ports/horse-stats.repository';
 import { HORSE_REPOSITORY, type HorseRepository } from '../ports/horse.repository';
@@ -41,6 +41,8 @@ export class ListHorsesByOwnerUseCase {
       raceReadyAt: string | null;
       /** 15.10.2026 — oyun yaşı (ay), sunucuda hesaplanır. */
       ageMonths: number;
+      /** 15.10.2026 — B13: yaş evresi + yarış çarpanı (kadroya donan değerle aynı kural). */
+      lifeStage: { name: string; racingFactor: number };
     }>
   > {
     const horses = await this.horseRepository.findByOwnerId(ownerId);
@@ -53,10 +55,12 @@ export class ListHorsesByOwnerUseCase {
       const values = traits.get(horse.id);
       const power = powerStats.get(horse.id);
       const ageMonths = horseAgeMonths(horse, now, this.config.horseGrowth);
+      const stage = getLifeStage(ageMonths, this.config.horseGrowth);
       return {
         horse,
         personality: values ? describePersonality(values, this.config.horsePersonality) : null,
-        racingPower: power ? horseRacingPower(power) : null,
+        // B13 — yaşa göre ETKİN güç: pratik sınıf kapısı da bunu kullanır.
+        racingPower: power ? horseRacingPower(power) * stage.racingFactor : null,
         raceReadyAt:
           estimateRaceReadyAt(
             horse.status,
@@ -67,6 +71,7 @@ export class ListHorsesByOwnerUseCase {
             ageMonths,
           )?.toISOString() ?? null,
         ageMonths,
+        lifeStage: { name: stage.name, racingFactor: stage.racingFactor },
       };
     });
   }
