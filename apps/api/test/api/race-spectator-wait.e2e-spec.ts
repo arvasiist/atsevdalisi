@@ -13,6 +13,7 @@ import {
   bootstrapTestApp,
   registerTestPlayerWithStarterHorse,
   type RegisteredTestPlayer,
+  allowSoloLobbyRace,
 } from './test-helpers';
 
 /**
@@ -85,6 +86,9 @@ describe('Bekleyen tribün (e2e)', () => {
       })
       .expect(201);
     const raceId = created.body.data.id as string;
+    // 15.10.2026 (Aşama 3) — bu dosyanın yarışları tek gerçek oyuncuyla da
+    // koşar (eski saha kuralı ön koşul; kuralın kendisi `race-field-rule.e2e-spec.ts`te).
+    await allowSoloLobbyRace(app, raceId);
     await http()
       .post(`${racesUrl}/${raceId}/join`)
       .set('Authorization', p.authHeader)

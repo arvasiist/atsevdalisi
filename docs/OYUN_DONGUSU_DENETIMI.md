@@ -178,3 +178,17 @@ Sahibinin kararları (15.10.2026): damızlık için emeklilik **şart**; yaş
   `race-age.e2e-spec.ts` (2: pratik ve lobi, para düşmez; yaşı dolunca
   pratik yarış açılır), web `race-entry.spec.ts` (+1).
 
+
+### Aşama 3 — B8 kısmen: az oyunculu ücretli yarış (15.10.2026)
+
+- B8'in en kötü hâli kapatıldı: **tek gerçek oyunculu ücretli lobi yarışı artık
+  koşmuyor**. Kilitte iptal ediliyor, ücret defterden iade ediliyor ve
+  `race_cancelled` bildirimi gidiyor. Eskiden oyuncu birinci gelse bile
+  ücretinin yalnızca %37,5'ini geri alıyordu. Yarış başına kural
+  (`min_real_players`, `ai_fill`), yarış açan oyuncu "botsuz yarış"
+  seçebiliyor. 2–7 gerçek oyunculu botlu yarışta bot payı yine yanıyor
+  (CLAUDE.md "BOT PAYI YANAR" kuralı değişmedi).
+- Ayrıntı ve 15 maddelik yarış sistemi matrisi: `docs/DENETIM_ASAMA3_YARIS.md`.
+- Kanıt: `race-field-rule.e2e-spec.ts` (14 test: kural, botsuz yarış,
+  bildirim, 8/10/12/14/16 saha, 5 eşzamanlı kesinleştirme, yönetici iptali),
+  `field-rule.spec.ts` (11), web `lobby-logic.spec.ts` (+3).

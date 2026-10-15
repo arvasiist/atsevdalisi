@@ -7,7 +7,7 @@ import { computePrizePayouts, resolvePrizeDistribution } from '../../src/domain/
 import { findRaceTable, loserRefundAmount } from '../../src/domain/race/table-rules';
 import { AppConfigService } from '../../src/infrastructure/config/config.service';
 import { PG_POOL } from '../../src/infrastructure/database/database.module';
-import { bootstrapTestApp, registerTestPlayerWithStarterHorse, type RegisteredTestPlayer } from './test-helpers';
+import { allowSoloLobbyRace, bootstrapTestApp, registerTestPlayerWithStarterHorse, type RegisteredTestPlayer } from './test-helpers';
 
 /**
  * MASA KURALLARI (09.10.2026, migration 0079). Kanıtlananlar:
@@ -178,6 +178,8 @@ describe('Masa kuralları (e2e)', () => {
     // Start öncesi parasını kaybeden oyuncu start anında düşer.
     await pool.query('UPDATE players SET money = 0 WHERE id = $1', [broke.playerId]);
     await startNow(raceId);
+    // Yetmeyen düşünce tek ödeyen kalır: eski saha kuralı ön koşul (bkz. `allowSoloLobbyRace`).
+    await allowSoloLobbyRace(app, raceId);
     const settled = await http().post(`/api/v1/races/${raceId}/settle`).set('Authorization', payer.authHeader).expect(200);
 
     expect(await ledgerOf(broke.playerId, raceId)).toEqual([]);

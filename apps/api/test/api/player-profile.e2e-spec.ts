@@ -10,6 +10,7 @@ import {
   registerTestPlayerWithStarterHorse,
   type RegisteredTestPlayer,
   recordSharedFinishedRace,
+  allowSoloLobbyRace,
 } from './test-helpers';
 
 /**
@@ -139,6 +140,8 @@ describe('Oyuncu profili (e2e) — GET /players/profile/:username', () => {
     // `startDelaySeconds.min` 60'tır — yarışı "başlamış" duruma getirmenin
     // başka yolu yoktur (üretimde bunu bir zamanlayıcı yapar).
     await pool.query("UPDATE races SET start_time = now() - interval '1 minute' WHERE id = $1", [raceId]);
+    // Tek gerçek oyuncu: eski saha kuralı ön koşul olarak kurulur (bkz. `allowSoloLobbyRace`).
+    await allowSoloLobbyRace(app, raceId);
 
     await request(app.getHttpServer())
       .post(`/api/v1/races/${raceId}/settle`)

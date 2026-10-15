@@ -7,7 +7,7 @@ import { loadRaceLobbyConfig } from '@at-sevdalisi/game-config';
 import { generateBotEntrants } from '../../src/domain/race/bot-generator';
 import { findLevelBracket } from '../../src/domain/race/level-bracket';
 import { PG_POOL } from '../../src/infrastructure/database/database.module';
-import { bootstrapTestApp, registerTestPlayerWithStarterHorse, type RegisteredTestPlayer } from './test-helpers';
+import { allowSoloLobbyRace, bootstrapTestApp, registerTestPlayerWithStarterHorse, type RegisteredTestPlayer } from './test-helpers';
 
 /**
  * AT SEVİYESİ ARALIKLI YARIŞLAR (08.10.2026, migration 0073). Kanıtlananlar:
@@ -136,6 +136,8 @@ describe('At seviyesi aralıklı yarışlar (e2e)', () => {
       .send({ status: 'ready' })
       .expect(200);
     await pool.query("UPDATE races SET start_time = now() - interval '1 minute' WHERE id = $1", [raceId]);
+    // Tek gerçek oyuncu: eski saha kuralı ön koşul olarak kurulur (bkz. `allowSoloLobbyRace`).
+    await allowSoloLobbyRace(app, raceId);
 
     const crank = await registerTestPlayerWithStarterHorse(app, 'Çaylak Krank');
     const settled = await http().post(`/api/v1/races/${raceId}/settle`).set('Authorization', crank.authHeader).expect(200);

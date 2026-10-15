@@ -311,3 +311,16 @@ export async function recordSharedFinishedRace(
   }
   return raceId;
 }
+
+/**
+ * 15.10.2026 (Aşama 3) — yarışı ESKİ saha kuralına çeker: tek gerçek oyuncu
+ * yeter (`races.min_real_players = 1`). Ücretli lobi yarışı artık en az
+ * `fieldRules.paidMinRealPlayers` gerçek oyuncuyla koşar; tek oyuncuyla
+ * kilit/kesinleşme/dondurma/kopma gibi BAŞKA bir kuralı sınayan testler bu ön
+ * koşulu AÇIKÇA kurar (kural test EDİLMEZ, ön koşul kurulur —
+ * `makeRaceStarted` ile aynı desen). Yetersiz oyuncu kuralının KENDİSİ
+ * `race-field-rule.e2e-spec.ts`te sınanır; orada bu yardımcı KULLANILMAZ.
+ */
+export async function allowSoloLobbyRace(app: INestApplication, raceId: string): Promise<void> {
+  await app.get<Pool>(PG_POOL).query('UPDATE races SET min_real_players = 1 WHERE id = $1', [raceId]);
+}

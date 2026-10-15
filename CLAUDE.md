@@ -1026,6 +1026,23 @@ engelinde `null` döner; web `daysUntilRaceAge` ile "yaklaşık N gün sonra"
 yazar. ⚠️ Yarış koşan yeni bir e2e SQL ile at yazıyorsa `birth_date`i yetişkin
 ver (çıpa varsayılanı `now()`); tay testi `race-age.e2e-spec.ts`.
 
+(92) **YETERSİZ OYUNCU KURALI + BOT İZNİ (15.10.2026, Aşama 3, migration 0085,
+`docs/DENETIM_ASAMA3_YARIS.md`)** — `races.min_real_players` + `races.ai_fill`
+yarış AÇILIRKEN yazılır (`defaultFieldRule`/`calendarFieldRule`, config
+`race-lobby.fieldRules`: ücretli 2, ücretsiz 1, botsuz ≥ 2; turnuva
+`minParticipants` + botsuz). Kilit/kesinleşmedeki `dropUnreadyLobbyEntries`
+eşiği yarış satırından okur (turnuva kendi eşiğini geçirir); altında kalınırsa
+yarış İPTAL + defterden iade + `race_cancelled` bildirimi (`not_enough_players`
+/ `not_ready` / `insufficient_funds` / `admin`, aynı transaction; CHECK artık
+0085'te). Bot YALNIZCA `ai_fill && aiFillEnabled` ise koşar — kesinleşme ve
+canlı görünüm aynı ifadeyi kullanır. `POST /races` `aiFill` alır (DTO şart,
+`whitelist` silerdi). `validateRaceCreation` asgari oyuncu > `maxPlayers`
+yarışı reddeder. ⚠️ Tek gerçek oyunculu ÜCRETLİ lobi yarışı koşan YENİ bir e2e
+`allowSoloLobbyRace(app, raceId)` ön koşulunu kurmalı (yoksa yarış iptal
+olur); kuralın kendisi `race-field-rule.e2e-spec.ts`te (8–16 saha + 5
+eşzamanlı kesinleştirme de orada). ⚠️ Eski yarışlar varsayılan `1/true`
+(eski kural) ile kaldı.
+
 **✅ ÜCRETLİ LOBİ YARIŞI ARTIK KOŞUYOR — ÖDÜL DAĞITIMI VAR (§13.14,
 28.09.2026).** `POST /races/:id/settle` yarışı koşar, ödülleri `top5`
 paylarıyla dağıtır ve `races.status = 'finished'` yazar. Uç bir
@@ -1047,7 +1064,8 @@ yapılandırmasına bağlıdır.
 düşen ödül KİMSEYE ödenmez ve havuzda kalır. Bu bilinçlidir: aksi hâlde
 bir oyuncu kendi yarışını açıp tek gerçek katılımcı olarak havuzun çoğunu
 geri alabilirdi. Sonucu: gerçek oyuncu sayısı azken yarış oyuncu için
-KAYIPTIR.
+KAYIPTIR — bu yüzden 15.10.2026'dan beri ücretli lobi yarışı tek gerçek
+oyuncuyla KOŞMAZ, iptal + iade edilir (bkz. (92)).
 
 **⚠️ `fieldSize` ≠ GERÇEK OYUNCU SAYISI — KURAL SAF FONKSİYONDADIR
 (§13.25).** `domain/race/field-composition.ts` → `resolveFieldComposition`.

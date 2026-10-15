@@ -10,6 +10,7 @@ import {
   bootstrapTestApp,
   registerTestPlayerWithStarterHorse,
   type RegisteredTestPlayer,
+  allowSoloLobbyRace,
 } from './test-helpers';
 
 /**
@@ -86,6 +87,9 @@ describe('Saha kompozisyonu (e2e) — fieldSize ≠ gerçek oyuncu sayısı', ()
         ...override,
       })
       .expect(201);
+    // 15.10.2026 (Aşama 3) — bu dosyanın yarışları tek gerçek oyuncuyla da
+    // koşar (eski saha kuralı ön koşul; kuralın kendisi `race-field-rule.e2e-spec.ts`te).
+    await allowSoloLobbyRace(app, response.body.data.id as string);
     return response.body.data.id as string;
   }
 

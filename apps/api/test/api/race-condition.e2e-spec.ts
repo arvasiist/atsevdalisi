@@ -9,7 +9,7 @@ import { HorseRecoveryScheduler } from '../../src/infrastructure/scheduler/horse
 import { RaceLockScheduler } from '../../src/infrastructure/scheduler/race-lock.scheduler';
 import { computeRaceConditionCost } from '../../src/domain/care/race-condition';
 import { PRACTICE_RACE_DISTANCE_METERS } from '../../src/domain/race/validation';
-import { bootstrapTestApp, registerTestPlayerWithStarterHorse, type RegisteredTestPlayer } from './test-helpers';
+import { allowSoloLobbyRace, bootstrapTestApp, registerTestPlayerWithStarterHorse, type RegisteredTestPlayer } from './test-helpers';
 
 /**
  * 15.10.2026 — S3 (`docs/OYUN_DONGUSU_DENETIMI.md` B2/B3). Eskiden 12 ardışık
@@ -164,6 +164,8 @@ describe('Yarış bedeli + zamanla toparlanma (e2e)', () => {
       .send({ status: 'ready' })
       .expect(200);
     await pool.query("UPDATE races SET start_time = now() - interval '1 minute' WHERE id = $1", [raceId]);
+    // Tek gerçek oyuncu: eski saha kuralı ön koşul olarak kurulur (bkz. `allowSoloLobbyRace`).
+    await allowSoloLobbyRace(app, raceId);
     const before = await vitals(racer.horseId);
 
     for (let tick = 0; tick < 25; tick += 1) {

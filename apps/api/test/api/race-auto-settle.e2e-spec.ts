@@ -5,7 +5,7 @@ import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { PG_POOL } from '../../src/infrastructure/database/database.module';
 import { RaceLockScheduler } from '../../src/infrastructure/scheduler/race-lock.scheduler';
-import { bootstrapTestApp, registerTestPlayerWithStarterHorse, type RegisteredTestPlayer } from './test-helpers';
+import { allowSoloLobbyRace, bootstrapTestApp, registerTestPlayerWithStarterHorse, type RegisteredTestPlayer } from './test-helpers';
 
 /**
  * OTOMATİK KESİNLEŞME (30.09.2026) — `RaceLockScheduler.tickNow()`.
@@ -61,6 +61,9 @@ describe('Otomatik kesinleşme (e2e) — zamanlayıcı kilitler VE kesinleştiri
       })
       .expect(201);
     const raceId = response.body.data.id as string;
+    // 15.10.2026 (Aşama 3) — bu dosyanın yarışları tek gerçek oyuncuyla da
+    // koşar (eski saha kuralı ön koşul; kuralın kendisi `race-field-rule.e2e-spec.ts`te).
+    await allowSoloLobbyRace(app, raceId);
     for (const racer of racers) {
       await request(app.getHttpServer())
         .post(`${racesUrl}/${raceId}/join`)

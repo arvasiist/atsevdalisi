@@ -8,7 +8,9 @@ import {
   describeCalendar,
   describePlayerControl,
   describeTournament,
+  describeFieldRule,
   defaultLobbyRaceForm,
+  minRealPlayersFor,
   formatStartsIn,
   lobbyEntryActions,
   maxPlayersOptions,
@@ -215,3 +217,33 @@ describe('canCancelOwnRace (14.10.2026)', () => {
   });
 });
 
+
+describe('yetersiz oyuncu kuralı (15.10.2026, Aşama 3)', () => {
+  const now = new Date('2026-10-15T12:00:00.000Z');
+  const rules = config.fieldRules;
+
+  it('asgari gerçek oyuncu sunucudaki varsayılanla aynı: ücretli / ücretsiz / botsuz', () => {
+    expect(minRealPlayersFor(100, true, config)).toBe(rules.paidMinRealPlayers);
+    expect(minRealPlayersFor(0, true, config)).toBe(rules.freeMinRealPlayers);
+    expect(minRealPlayersFor(0, false, config)).toBe(Math.max(rules.freeMinRealPlayers, rules.botlessMinRealPlayers));
+  });
+
+  it('botsuz seçimi gövdeye yalnızca `aiFill: false` olarak gider; varsayılan alan GÖNDERMEZ', () => {
+    const base = { ...defaultLobbyRaceForm(config), name: 'Botsuz Kupa' };
+    const plain = buildCreateRaceBody(base, now, config);
+    expect(plain.ok && 'aiFill' in plain.body).toBe(false);
+    const botless = buildCreateRaceBody({ ...base, aiFill: false }, now, config);
+    expect(botless.ok && botless.body.aiFill).toBe(false);
+  });
+
+  it('liste etiketi kuralı söyler; alan yoksa (eski sunucu) etiket yok', () => {
+    expect(describeFieldRule(race({ fieldRule: { minRealPlayers: 2, aiFill: true } }))).toBe(
+      '👥 En az 2 oyuncu · boş koltuklar botla dolar · yoksa iptal + iade',
+    );
+    expect(describeFieldRule(race({ fieldRule: { minRealPlayers: 2, aiFill: false } }))).toContain('botsuz');
+    expect(describeFieldRule(race({ fieldRule: { minRealPlayers: 1, aiFill: true } }))).toBe(
+      '👥 boş koltuklar botla dolar',
+    );
+    expect(describeFieldRule({ fieldRule: undefined as never })).toBeNull();
+  });
+});
