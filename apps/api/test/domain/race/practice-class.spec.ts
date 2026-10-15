@@ -10,6 +10,8 @@ import {
 } from '../../../src/domain/race/practice-class';
 import { DEFAULT_RACE_TACTIC } from '../../../src/domain/race/validation';
 import { computeSurfaceCompatibility } from '../../../src/domain/race/track-fit';
+import { computeWeightCompatibility } from '../../../src/domain/race/carried-weight';
+import { HORSE_WEIGHT_POPULATION_MEAN_KG } from '../../../src/domain/horse/weight';
 import { measurePracticeEv } from './race-balance-harness';
 
 /**
@@ -24,6 +26,12 @@ const TRIALS = 400;
 function tier(id: string) {
   return ECONOMY.raceTiers.find((entry) => entry.id === id)!;
 }
+
+/**
+ * Gerçek atların ağırlık uyumu ~100'dür (botlar nötr 50). Sınıflar bu değerle
+ * ölçülüp seçildi; 50 ile kurulan at canlı oyunla TUTMAZ (yaşandı: CI'da −%62).
+ */
+const REAL_HORSE_WEIGHT_COMPATIBILITY = computeWeightCompatibility(HORSE_WEIGHT_POPULATION_MEAN_KG);
 
 /** Güç `power`, başlangıç atı vitalleri (sağlık 100, kondisyon 50, moral 80). */
 function entrant(power: number, surfaceCompatibility = 50): RaceEntrantSnapshot {
@@ -40,7 +48,7 @@ function entrant(power: number, surfaceCompatibility = 50): RaceEntrantSnapshot 
     distanceCompatibility: 50,
     jockeySkillComposite: 50,
     form: 50,
-    weightCompatibility: 50,
+    weightCompatibility: REAL_HORSE_WEIGHT_COMPATIBILITY,
     temperament: 50,
     tactic: DEFAULT_RACE_TACTIC,
     equipmentModifier: 1,
