@@ -137,6 +137,31 @@ export interface LobbyRaceForm {
   tableId?: string;
   /** 09.10.2026 — yalnızca kulübüm (kulübü sunucu bulur). */
   clubOnly?: boolean;
+  /** 15.10.2026 — `false` = botsuz yarış; verilmezse boş koltuklar botla dolar. */
+  aiFill?: boolean;
+}
+
+/**
+ * 15.10.2026 (Aşama 3) — yarışın koşması için gereken en az gerçek oyuncu.
+ * Sunucudaki `defaultFieldRule` ile AYNI kural (aynı config); kural yine
+ * sunucuda denetlenir, bu yalnızca oyuncuyu gereksiz bir 400'den korur.
+ */
+export function minRealPlayersFor(entryFee: number, aiFill: boolean, config: RaceLobbyConfig): number {
+  const rules = config.fieldRules;
+  const base = entryFee > 0 ? rules.paidMinRealPlayers : rules.freeMinRealPlayers;
+  return aiFill ? base : Math.max(base, rules.botlessMinRealPlayers);
+}
+
+/**
+ * 15.10.2026 (Aşama 3) — listede yetersiz oyuncu kuralı: "👥 En az 2 oyuncu ·
+ * yoksa iptal + iade". Alan yoksa (eski sunucu) `null`.
+ */
+export function describeFieldRule(race: Pick<RaceLobbyListItem, 'fieldRule'>): string | null {
+  const rule = race.fieldRule;
+  if (rule === undefined || rule === null) return null;
+  const bots = rule.aiFill ? 'boş koltuklar botla dolar' : 'botsuz';
+  if (rule.minRealPlayers <= 1) return `👥 ${bots}`;
+  return `👥 En az ${rule.minRealPlayers} oyuncu · ${bots} · yoksa iptal + iade`;
 }
 
 /**
@@ -231,6 +256,10 @@ export function buildCreateRaceBody(
   if (table !== undefined && (form.fieldSize !== table.fieldSize || form.entryFee !== table.entryFee)) {
     return { ok: false, problem: `${table.label} masasında ${table.fieldSize} at ve ${table.entryFee} çip giriş bedeli zorunludur.` };
   }
+  const minReal = minRealPlayersFor(form.entryFee, form.aiFill !== false, config);
+  if (minReal > form.maxPlayers) {
+    return { ok: false, problem: `Bu yarış en az ${minReal} gerçek oyuncuyla koşar; oyuncu tavanını artır.` };
+  }
   return {
     ok: true,
     body: {
@@ -253,6 +282,8 @@ export function buildCreateRaceBody(
       ...(table !== undefined ? { tableId: table.id } : {}),
       // Kulübün kimliği GÖNDERİLMEZ — sunucu açanın üyeliğinden bulur.
       ...(form.clubOnly === true ? { clubOnly: true } : {}),
+      // Varsayılan (botla dolar) için alan GÖNDERİLMEZ.
+      ...(form.aiFill === false ? { aiFill: false } : {}),
     },
   };
 }

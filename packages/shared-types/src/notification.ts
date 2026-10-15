@@ -34,6 +34,7 @@ export const NOTIFICATION_TYPES = [
   'tribune_gift_received',
   'listing_expired',
   'club_invite',
+  'race_cancelled',
 ] as const;
 
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
@@ -99,7 +100,23 @@ export interface NotificationPayloadByType {
   listing_expired: { listingId: string; horseId: string; horseName: string; price: number };
   /** 09.10.2026 — bir kulüp subayı/lideri seni kulübüne davet etti. */
   club_invite: { inviteId: string; clubId: string; clubName: string; inviterId: string; inviterName: string };
+  /**
+   * 15.10.2026 (Aşama 3) — yarış katılımın iptal edildi. `refundedAmount`
+   * DEFTERE yazılan iade (0 = ödenmiş ücret yoktu, ör. `on_start` masasında
+   * bakiyesi yetmeyen). Yarışın kendisi iptal olmamış olabilir (`not_ready`,
+   * `insufficient_funds`: yarış diğerleriyle koşar).
+   */
+  race_cancelled: { raceId: string; raceName: string; reason: RaceCancelledReason; refundedAmount: number };
 }
+
+/**
+ * `race_cancelled` sebebi: `not_enough_players` (asgari gerçek oyuncu sayısı
+ * dolmadı — yarış iptal), `not_ready` (başlangıçta hazır değildin),
+ * `insufficient_funds` (`on_start` masasında bedeli karşılayamadın),
+ * `admin` (yönetici yarışı iptal etti).
+ */
+export const RACE_CANCELLED_REASONS = ['not_enough_players', 'not_ready', 'insufficient_funds', 'admin'] as const;
+export type RaceCancelledReason = (typeof RACE_CANCELLED_REASONS)[number];
 
 /**
  * Tek bir bildirim — `type`e göre AYRIKLAŞTIRILMIŞ (discriminated) birlik.

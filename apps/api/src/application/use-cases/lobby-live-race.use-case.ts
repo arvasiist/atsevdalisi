@@ -189,7 +189,8 @@ export class LobbyLiveRaceUseCase {
     const { timeline } = await this.settleRace.buildRun(
       context.raceId,
       context,
-      tournament === null,
+      // Kesinleşmeyle AYNI kural (`SettleRaceUseCase.execute`).
+      tournament === null && context.aiFill,
       now,
     );
     if (key !== null) this.runCache.set(key, timeline);

@@ -1,4 +1,5 @@
 import type { RaceLobbyConfig, RaceTierConfig } from '@at-sevdalisi/game-config';
+import { defaultFieldRule } from './field-rule';
 // Katılım (PHASE 1b) taktik/risk alanları — `RacingStyle`/`RiskLevel`
 // `race_entries` CHECK kısıtlarının (migration 0006) TS karşılığıdır.
 import type { RaceEntryStatus, RacingStyle, RiskLevel } from '@at-sevdalisi/shared-types';
@@ -93,6 +94,12 @@ export interface RaceCreationInput {
    * (açan lider/subay olmalı; kapı deponun transaction'ında).
    */
   clubOnly?: unknown;
+  /**
+   * 15.10.2026 — Aşama 3: `false` ise yarış BOTSUZ koşar (yalnızca gerçek
+   * oyuncular); asgari gerçek oyuncu sayısı o zaman
+   * `fieldRules.botlessMinRealPlayers`tır. Verilmezse `true` (botla tamamlanır).
+   */
+  aiFill?: unknown;
 }
 
 /**
@@ -139,6 +146,8 @@ export interface ValidatedRaceCreation {
   tableId: string | null;
   /** Yalnızca açanın kulübüne açık mı (kulüp sunucuda çözülür). */
   clubOnly: boolean;
+  /** Boş koltuklar botla tamamlanır mı (`false` = botsuz yarış). */
+  aiFill: boolean;
 }
 
 /**
@@ -338,6 +347,16 @@ export function validateRaceCreation(
     }
   }
 
+  // --- Bot doldurma (15.10.2026, Aşama 3) ---
+  let aiFill = true;
+  if (input.aiFill !== undefined && input.aiFill !== null) {
+    if (typeof input.aiFill !== 'boolean') {
+      problems.push(`Bot doldurma true/false olmalıdır (verilen: ${describe(input.aiFill)}).`);
+    } else {
+      aiFill = input.aiFill;
+    }
+  }
+
   // --- Irk sınıfı (08.10.2026) ---
   let breedClass: string | null = null;
   if (input.breedClass !== undefined && input.breedClass !== null) {
@@ -462,6 +481,20 @@ export function validateRaceCreation(
     }
   }
 
+  // --- Yetersiz oyuncu kuralı (15.10.2026, Aşama 3) ---
+  // Asgari gerçek oyuncu `maxPlayers`ı aşarsa yarış hiçbir zaman koşamaz:
+  // dolsa bile kilit anında iptal edilir. Böyle bir yarışı açtırmak, oyuncuya
+  // "her zaman iade edilecek" bir yarış satmak olur.
+  if (maxPlayers !== null && entryFee !== null && config.fieldRules) {
+    const rule = defaultFieldRule(entryFee, aiFill, config.fieldRules);
+    if (rule.minRealPlayers > maxPlayers) {
+      problems.push(
+        `Bu yarış en az ${rule.minRealPlayers} gerçek oyuncuyla koşar; maksimum oyuncu ` +
+          `(${maxPlayers}) bundan az olamaz.`,
+      );
+    }
+  }
+
   if (problems.length > 0) {
     return { problems, value: null };
   }
@@ -497,6 +530,7 @@ export function validateRaceCreation(
       horseLevelBracket,
       tableId,
       clubOnly,
+      aiFill,
     },
   };
 }

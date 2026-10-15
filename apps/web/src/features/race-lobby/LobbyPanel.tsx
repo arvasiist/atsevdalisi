@@ -64,6 +64,8 @@ import {
   applyRaceTable,
   describeTableRules,
   tableRulesFromConfig,
+  describeFieldRule,
+  minRealPlayersFor,
 } from './lobby-logic';
 
 const LOBBY_CONFIG = loadRaceLobbyConfig();
@@ -549,6 +551,23 @@ export function LobbyPanel({ horses, money, onBalanceChanged, playerId = null }:
             />
             Kontrollü yarış (atı oyuncular sürer: kırbaç, yön)
           </label>
+          <label style={{ ...labelStyle(), display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <input
+              type="checkbox"
+              aria-label="Botsuz yarış"
+              checked={form.aiFill === false}
+              onChange={(event) => updateForm({ aiFill: !event.target.checked })}
+            />
+            Botsuz yarış (yalnızca gerçek oyuncular)
+          </label>
+          <p data-testid="lobby-field-rule-hint" style={{ ...smallStyle(), margin: 0 }}>
+            {(() => {
+              const minReal = minRealPlayersFor(form.entryFee, form.aiFill !== false, LOBBY_CONFIG);
+              return minReal > 1
+                ? `Başlangıçta en az ${minReal} gerçek oyuncu olmazsa yarış iptal edilir ve giriş ücretleri iade edilir.`
+                : 'Tek oyuncuyla da koşar; boş koltuklar botla dolar.';
+            })()}
+          </p>
           {myClub?.canOpenRace ? (
             <label style={{ ...labelStyle(), display: 'flex', alignItems: 'center', gap: '8px' }}>
               <input
@@ -695,6 +714,11 @@ export function LobbyPanel({ horses, money, onBalanceChanged, playerId = null }:
                       }}
                     >
                       {describeBreedClass(race)}
+                    </span>
+                  ) : null}
+                  {describeFieldRule(race) !== null ? (
+                    <span data-testid={`lobby-field-rule-${race.id}`} style={smallStyle()}>
+                      {describeFieldRule(race)}
                     </span>
                   ) : null}
                   {race.clubId ? (

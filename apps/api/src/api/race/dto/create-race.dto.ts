@@ -133,4 +133,12 @@ export class CreateRaceDto {
   @IsOptional()
   @IsBoolean()
   clubOnly?: unknown;
+
+  /**
+   * 15.10.2026 — Aşama 3: `false` = botsuz yarış. DTO'da olmasaydı `whitelist`
+   * siler ve yarış sessizce botla tamamlanırdı.
+   */
+  @IsOptional()
+  @IsBoolean()
+  aiFill?: unknown;
 }

@@ -179,7 +179,9 @@ export class LockRaceUseCase {
     const dropped = await this.raceRepository.dropUnreadyLobbyEntries({
       raceId,
       now,
-      minRemaining: tournament === null ? 1 : this.config.online.tournament.minParticipants,
+      // 15.10.2026 (Aşama 3) — lobi yarışında eşik yarışın kendi kuralıdır
+      // (`races.min_real_players`, depo okur); turnuva kendi eşiğini verir.
+      minRemaining: tournament === null ? undefined : this.config.online.tournament.minParticipants,
     });
     if (dropped.raceCancelled) {
       return 'NO_READY_PARTICIPANTS';

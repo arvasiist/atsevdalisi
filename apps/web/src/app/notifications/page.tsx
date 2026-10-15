@@ -54,7 +54,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import type { NotificationListResult, NotificationView } from '@at-sevdalisi/shared-types';
+import type { NotificationListResult, NotificationView, RaceCancelledReason } from '@at-sevdalisi/shared-types';
 import { GlassPanel } from '../../components/ui/GlassPanel';
 import { connectNotificationSocket } from '../../features/notifications/notification-socket';
 import { API_BASE_URL, apiClient, getAuthToken } from '../../lib/api-client';
@@ -529,8 +529,26 @@ function describe(notification: NotificationView): { title: string; detail: stri
         detail: 'Kulüp ekranından kabul edebilir ya da reddedebilirsin.',
         href: '/club',
       };
+    // 15.10.2026 (Aşama 3) — yarış katılımı iptal edildi (iade deftere yazıldı).
+    case 'race_cancelled':
+      return {
+        title: `${notification.payload.raceName} — ${RACE_CANCELLED_TITLES[notification.payload.reason]}`,
+        detail:
+          notification.payload.refundedAmount > 0
+            ? `Giriş ücretin (${formatCurrency('money', notification.payload.refundedAmount)}) hesabına iade edildi.`
+            : 'Ödenmiş bir giriş ücretin yoktu; hesabından para düşmedi.',
+        href: '/races',
+      };
   }
 }
+
+/** `race_cancelled` sebebinin başlığı — sunucunun `reason` kümesiyle BİREBİR (Record, eksik anahtar tsc hatası). */
+const RACE_CANCELLED_TITLES: Record<RaceCancelledReason, string> = {
+  not_enough_players: 'yeterli oyuncu katılmadığı için yarış iptal edildi',
+  not_ready: 'başlangıçta hazır olmadığın için yarıştan çıkarıldın',
+  insufficient_funds: 'başlangıçta bakiyen giriş ücretine yetmediği için yarıştan çıkarıldın',
+  admin: 'yarış yönetim tarafından iptal edildi',
+};
 
 /** Link etiketi — `describe` ile AYNI `switch` yerine tür bazlı tek satırlık eşleme. */
 function hrefLabel(notification: NotificationView): string {
@@ -542,6 +560,7 @@ function hrefLabel(notification: NotificationView): string {
       return 'arkadaşlar ekranı →';
     case 'race_invite':
     case 'race_starting':
+    case 'race_cancelled':
       return 'yarışlar ekranı →';
     case 'race_finished':
     case 'prize_won':

@@ -517,6 +517,12 @@ export class PostgresAdminRepository implements AdminRepository {
         );
         const paidRow = paidResult.rows[0];
         const refund = paidRow === undefined ? 0 : Math.max(0, -Number(paidRow.amount));
+        // 15.10.2026 (Aşama 3) — oyuncuya haber: iadeyle AYNI transaction.
+        await client.query('INSERT INTO notifications (player_id, type, payload) VALUES ($1, $2, $3::jsonb)', [
+          playerId,
+          'race_cancelled',
+          JSON.stringify({ raceId: input.raceId, raceName: raceRow.name, reason: 'admin', refundedAmount: refund }),
+        ]);
         if (refund === 0) {
           // Ücretsiz yarış (ya da ödeme satırı olmayan katılım): `players`
           // satırına HİÇ dokunulmaz, gereksiz kilit de alınmaz.

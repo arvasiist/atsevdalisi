@@ -9,6 +9,11 @@
   "minPlayers": 8,
   "maxPlayers": 16,
   "aiFillEnabled": true,
+  "fieldRules": {
+    "paidMinRealPlayers": 2,
+    "freeMinRealPlayers": 1,
+    "botlessMinRealPlayers": 2
+  },
   "paidEntryFeeOptions": [
     50,
     100,

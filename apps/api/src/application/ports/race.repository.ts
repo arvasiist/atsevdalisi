@@ -1,3 +1,4 @@
+import type { RaceFieldRule } from '../../domain/race/field-rule';
 import type { RaceReadinessThresholds } from '../../domain/race/readiness';
 import type {
   PracticeRaceResult,
@@ -788,6 +789,8 @@ export interface CreateLobbyRaceInput {
    * kulübünü KİLİTLİ transaction'da bulur (lider/subay şartı) ve yarışa yazar.
    */
   clubOnly: boolean;
+  /** 15.10.2026 — Aşama 3: yarışın saha kuralı (`domain/race/field-rule.ts`), satıra yazılır. */
+  fieldRule: RaceFieldRule;
 }
 
 /**
@@ -922,6 +925,8 @@ export interface CreateTournamentRaceInput {
   weatherConfigVersion: string;
   /** 01.10.2026 — oyuncu kontrollü canlı yarış (migration 0054). */
   playerControl: boolean;
+  /** 15.10.2026 — turnuvanın kuralı (botsuz, `minParticipants`) satıra da yazılır. */
+  fieldRule: RaceFieldRule;
 }
 
 /** 01.10.2026 — oyuncu kontrollü pratik yarış oturumu (migration 0053). */
@@ -981,6 +986,8 @@ export interface CreateCalendarRaceInput {
   horseLevelBracket: string | null;
   /** 09.10.2026 — programın masası; `null` = masasız. */
   tableId: string | null;
+  /** 15.10.2026 — programın saha kuralı (`calendarFieldRule`). */
+  fieldRule: RaceFieldRule;
 }
 
 /** `dropUnreadyLobbyEntries` sonucu. */
@@ -1087,6 +1094,13 @@ export interface LobbySettlementContext {
   horseLevelBracket: string | null;
   /** 09.10.2026 — masa: ödül dağılımı + kaybeden iadesi buradan. `null` = masasız. */
   tableId: string | null;
+  /**
+   * 15.10.2026 (migration 0085) — yarışın yetersiz oyuncu kuralı: boş
+   * koltuklar botla tamamlanır mı. Eski satırlar `true` (eski davranış).
+   */
+  aiFill: boolean;
+  /** 15.10.2026 (migration 0085) — kilitte en az bu kadar gerçek oyuncu kalmalı. */
+  minRealPlayers: number;
 }
 
 /**

@@ -624,6 +624,12 @@ export interface RaceLobbyView {
    * üyelerine (ve zaten içinde olana) gösterir.
    */
   clubId: UUID | null;
+  /**
+   * 15.10.2026 (Aşama 3) — yetersiz oyuncu kuralı: başlangıçta en az
+   * `minRealPlayers` gerçek oyuncu kalmazsa yarış İPTAL edilir ve ücretler
+   * iade edilir; `aiFill` boş koltukların botla dolup dolmayacağı.
+   */
+  fieldRule: { minRealPlayers: number; aiFill: boolean };
 }
 
 /**

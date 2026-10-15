@@ -45,6 +45,7 @@ import { validateRaceConditionConfig } from '../../domain/care/race-condition';
 import { validateHorseGrowthConfig } from '../../domain/horse/age-curve';
 import { assertBreedingConfigIsValid } from '../../domain/breeding/breeding';
 import { validateRaceTiers } from '../../domain/race/prize';
+import { validateFieldRulesConfig } from '../../domain/race/field-rule';
 
 /**
  * Ortam değişkenleri + oyun dengesi config'lerine tek noktadan erişim.
@@ -197,6 +198,11 @@ export class AppConfigService {
     const tableProblems = validateRaceTiers(this.economy);
     if (tableProblems.length > 0) {
       throw new Error(`Masa/kademe config'i geçersiz (config/economy.config.json): ${tableProblems.join(' ')}`);
+    }
+    // 15.10.2026 (Aşama 3) — yetersiz oyuncu kuralı (asgari gerçek oyuncu + bot izni).
+    const fieldRuleProblems = validateFieldRulesConfig(this.raceLobby, this.raceLobby.calendar.programs);
+    if (fieldRuleProblems.length > 0) {
+      throw new Error(`Saha kuralı config'i geçersiz (config/race-lobby.config.json): ${fieldRuleProblems.join(' ')}`);
     }
     const raceConditionProblems = validateRaceConditionConfig(this.care);
     if (raceConditionProblems.length > 0) {

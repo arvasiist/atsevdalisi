@@ -133,7 +133,9 @@ export class SettleRaceUseCase {
     await this.raceRepository.dropUnreadyLobbyEntries({
       raceId,
       now,
-      minRemaining: tournament === null ? 1 : this.config.online.tournament.minParticipants,
+      // 15.10.2026 (Aşama 3) — lobi yarışında eşik yarışın kendi kuralıdır
+      // (`races.min_real_players`, depo okur); turnuva kendi eşiğini verir.
+      minRemaining: tournament === null ? undefined : this.config.online.tournament.minParticipants,
     });
 
     const context = await this.raceRepository.findLobbySettlementContext(raceId);
@@ -170,8 +172,10 @@ export class SettleRaceUseCase {
     // "dondurma yapılmadıysa" geçerlidir. `raceId`'yi seed yapmak YASAK
     // olurdu: `raceId` herkese açıktır, dolayısıyla sonuç önceden
     // hesaplanabilirdi.
-    const tournamentAiFill = tournament === null;
-    const run = await this.buildRun(raceId, context, tournamentAiFill, now);
+    // 15.10.2026 (Aşama 3) — bot YALNIZCA yarışın kuralı izin verirse koşar
+    // (turnuva finali botsuz; `races.ai_fill = false` botsuz yarış).
+    const allowAiFill = tournament === null && context.aiFill;
+    const run = await this.buildRun(raceId, context, allowAiFill, now);
     const { simulationSeed, realEntryResults, botEntries, segments, timeline } = run;
 
     // 01.10.2026 — kontrollü yarış ANCAK canlı koşu bitince kesinleşir (bkz.

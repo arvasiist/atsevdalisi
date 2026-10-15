@@ -3,6 +3,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import type { RaceLobbyView } from '@at-sevdalisi/shared-types';
 import { validateRaceCreation, type RaceCreationInput } from '../../domain/race/lobby';
 import { hippodromeKeys } from '../../domain/race/hippodrome';
+import { defaultFieldRule } from '../../domain/race/field-rule';
 import { InvalidRaceDefinitionError, RaceLimitReachedError } from '../../domain/race/errors';
 import { RACE_ENGINE_VERSION, RACE_RULESET_VERSION } from '../../domain/race/race-engine';
 import { AppConfigService } from '../../infrastructure/config/config.service';
@@ -97,6 +98,9 @@ export class CreateRaceUseCase {
       horseLevelBracket: value.horseLevelBracket,
       tableId: value.tableId,
       clubOnly: value.clubOnly,
+      // 15.10.2026 — Aşama 3: yetersiz oyuncu kuralı yarışla birlikte YAZILIR
+      // (kilit anında config'ten yeniden hesaplanmaz — açıldığı kuralla koşar).
+      fieldRule: defaultFieldRule(value.entryFee, value.aiFill, raceLobby.fieldRules),
       // **`null` — VE BU BİLİNÇLİDİR.** Lobi yarışının seed'i, yarış
       // KOŞARKEN üretilir. Erken üretilseydi yarışı açan kişi seed'i
       // okuyup (bkz. `GET /races/:id/timeline` yanıtı) sonucu önceden

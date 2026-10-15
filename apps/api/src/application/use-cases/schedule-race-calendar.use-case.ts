@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { RACE_ENGINE_VERSION, RACE_RULESET_VERSION } from '../../domain/race/race-engine';
 import { validateRaceCreation } from '../../domain/race/lobby';
+import { calendarFieldRule } from '../../domain/race/field-rule';
 import { hippodromeKeys } from '../../domain/race/hippodrome';
 import {
   calendarProgramToCreationInput,
@@ -92,6 +93,7 @@ export class ScheduleRaceCalendarUseCase {
           hippodrome: value.hippodrome,
           horseLevelBracket: value.horseLevelBracket,
           tableId: value.tableId,
+          fieldRule: calendarFieldRule(program, raceLobby.fieldRules),
           engineVersion: RACE_ENGINE_VERSION,
           rulesetVersion: RACE_RULESET_VERSION,
           configVersion: this.config.race.version,

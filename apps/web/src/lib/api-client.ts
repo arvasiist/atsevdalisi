@@ -178,6 +178,8 @@ export interface CreateLobbyRaceBody {
   tableId?: string;
   /** 09.10.2026 — yalnızca açanın kulübü katılır; kulübü SUNUCU bulur (lider/subay şartı). */
   clubOnly?: boolean;
+  /** 15.10.2026 — `false` = botsuz yarış (en az `fieldRules.botlessMinRealPlayers` gerçek oyuncu). */
+  aiFill?: boolean;
 }
 
 export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1';

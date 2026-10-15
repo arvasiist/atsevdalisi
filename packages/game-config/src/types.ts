@@ -1912,6 +1912,19 @@ export interface RaceLobbyConfig {
    */
   aiFillEnabled: boolean;
   /**
+   * 15.10.2026 — Aşama 3: yarış başına SAHA KURALI (kilit anında uygulanır).
+   * Hazır gerçek oyuncu sayısı yarışın `min_real_players`ının altındaysa yarış
+   * İPTAL edilir ve herkes iade alır (bildirimle). Ücretli yarışta varsayılan 2:
+   * tek gerçek oyuncu botlara karşı ücretini asla geri alamazdı (havuz yalnızca
+   * onun ücreti, birincilik payı %37,5). Botsuz yarış (`aiFill: false`) en az
+   * `botlessMinRealPlayers` ister. Turnuva kendi kuralını kullanır.
+   */
+  fieldRules: {
+    paidMinRealPlayers: number;
+    freeMinRealPlayers: number;
+    botlessMinRealPlayers: number;
+  };
+  /**
    * `raceType = 'paid'` bir yarış için seçilebilecek giriş ücretleri
    * (brief §2: "50 coin, 100 coin, 250 coin, 500 coin, 1000 coin").
    *
@@ -2112,6 +2125,11 @@ export interface RaceCalendarProgram {
    * AYNI olmalıdır (`validateRaceCreation` oyuncu yarışıyla aynı kuralla reddeder).
    */
   tableId?: string;
+  /**
+   * 15.10.2026 — Aşama 3: programın saha kuralı; verilmezse ücrete göre
+   * `raceLobby.fieldRules` varsayılanı. `aiFill: false` = botsuz program.
+   */
+  fieldRule?: { minRealPlayers?: number; aiFill?: boolean };
 }
 
 /**

@@ -77,6 +77,8 @@ export class ScheduleTournamentsUseCase {
         tribuneFee: tournamentConfig.race.tribuneFee,
         spectatorCapacity: tournamentConfig.race.spectatorCapacity,
         playerControl: tournamentConfig.race.playerControl,
+        // 15.10.2026 — Aşama 3: final BOTSUZ, `minParticipants` altında iptal + iade.
+        fieldRule: { minRealPlayers: tournamentConfig.minParticipants, aiFill: false },
         engineVersion: RACE_ENGINE_VERSION,
         rulesetVersion: RACE_RULESET_VERSION,
         configVersion: this.config.race.version,
