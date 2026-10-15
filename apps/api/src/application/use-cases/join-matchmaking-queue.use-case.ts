@@ -20,6 +20,7 @@ import { HorseInjuredError, HorseNotFoundError } from '../../domain/horse/errors
 import type { VitalSigns } from '../../domain/horse/vital-signs';
 import { HorseNotReadyToRaceError } from '../../domain/race/errors';
 import { checkRaceReadiness } from '../../domain/race/readiness';
+import { horseAgeMonths } from '../../domain/horse/age-curve';
 import { AlreadyInMatchmakingQueueError } from '../../domain/online/errors';
 import { PlayerNotFoundError } from '../../domain/player/errors';
 import { AppConfigService } from '../../infrastructure/config/config.service';
@@ -188,7 +189,12 @@ export class JoinMatchmakingQueueUseCase {
     // lobi yarışıyla AYNI tek karar noktası (`domain/race/readiness.ts`).
     // Önceden yalnızca sakatlık kontrol ediliyordu; enerjisi bitmiş at
     // kuyruğa girip eşleşme koşabiliyordu.
-    const readiness = checkRaceReadiness(horse.status, vitalsOf(horse), this.config.race.readiness);
+    const readiness = checkRaceReadiness(
+      horse.status,
+      vitalsOf(horse),
+      this.config.race.readiness,
+      horseAgeMonths(horse, new Date(), this.config.horseGrowth),
+    );
     if (!readiness.ready && readiness.reason !== null) {
       throw new HorseNotReadyToRaceError(readiness.reason);
     }
@@ -333,7 +339,12 @@ export class JoinMatchmakingQueueUseCase {
     return (
       horse !== null &&
       horse.ownerId === ticket.playerId &&
-      checkRaceReadiness(horse.status, vitalsOf(horse), this.config.race.readiness).ready
+      checkRaceReadiness(
+        horse.status,
+        vitalsOf(horse),
+        this.config.race.readiness,
+        horseAgeMonths(horse, new Date(), this.config.horseGrowth),
+      ).ready
     );
   }
 

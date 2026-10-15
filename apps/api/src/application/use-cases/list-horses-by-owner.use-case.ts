@@ -52,14 +52,21 @@ export class ListHorsesByOwnerUseCase {
     return horses.map((horse) => {
       const values = traits.get(horse.id);
       const power = powerStats.get(horse.id);
+      const ageMonths = horseAgeMonths(horse, now, this.config.horseGrowth);
       return {
         horse,
         personality: values ? describePersonality(values, this.config.horsePersonality) : null,
         racingPower: power ? horseRacingPower(power) : null,
         raceReadyAt:
-          estimateRaceReadyAt(horse.status, horse, this.config.race.readiness, this.config.care.passiveRecovery, now)?.toISOString() ??
-          null,
-        ageMonths: horseAgeMonths(horse, now, this.config.horseGrowth),
+          estimateRaceReadyAt(
+            horse.status,
+            horse,
+            this.config.race.readiness,
+            this.config.care.passiveRecovery,
+            now,
+            ageMonths,
+          )?.toISOString() ?? null,
+        ageMonths,
       };
     });
   }

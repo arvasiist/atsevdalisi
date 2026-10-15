@@ -189,6 +189,8 @@ export const ErrorCode = {
    * (409 `LAST_RACING_HORSE` — geri dönüşsüz bir hatayla atsız kalmasın).
    */
   HorseRetired: 'HORSE_RETIRED',
+  /** 15.10.2026 — B12: at yarış yaşına (`race.readiness.minAgeMonths`) gelmedi (409). */
+  HorseTooYoung: 'HORSE_TOO_YOUNG',
   HorseAlreadyRetired: 'HORSE_ALREADY_RETIRED',
   LastRacingHorse: 'LAST_RACING_HORSE',
   // 30.09.2026 — turnuvanın seviye şartı karşılanmadı (`PlayerLevelTooLowError`).

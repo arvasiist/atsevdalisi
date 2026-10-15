@@ -243,6 +243,12 @@ export interface RaceBalanceConfig {
     maxFatigue: number;
     /** Yarışa girmek için gereken en düşük sağlık (0-100). */
     minHealth: number;
+    /**
+     * 15.10.2026 — B12: yarışa girmek için en düşük OYUN yaşı (ay;
+     * `horse-growth.gameMonthsPerRealDay` ile akar). Gerçek yarışçılıkta
+     * atlar 2 yaşında koşmaya başlar; eskiden tay doğar doğmaz koşabiliyordu.
+     */
+    minAgeMonths: number;
   };
 }
 

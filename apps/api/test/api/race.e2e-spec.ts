@@ -15,6 +15,7 @@ import { RACE_REPOSITORY, type RaceRepository } from '../../src/application/port
 import { RACE_ENGINE_VERSION, RACE_RULESET_VERSION } from '../../src/domain/race/race-engine';
 import { applyRaceConditionCost, computeRaceConditionCost } from '../../src/domain/care/race-condition';
 import { checkRaceReadiness } from '../../src/domain/race/readiness';
+import { STARTER_HORSE_AGE_MONTHS } from '../../src/domain/horse/horse';
 import { PRACTICE_RACE_DISTANCE_METERS } from '../../src/domain/race/validation';
 import {
   bootstrapTestApp,
@@ -603,7 +604,7 @@ describe('Race — Pratik Yarış (e2e)', () => {
       const cost = computeRaceConditionCost(PRACTICE_RACE_DISTANCE_METERS, appConfig.care.raceCondition);
       let vitals = { health: 100, fitness: 50, fatigue: 0, energy: 100, morale: 80 };
       let allowed = 0;
-      while (checkRaceReadiness('active', vitals, appConfig.race.readiness).ready) {
+      while (checkRaceReadiness('active', vitals, appConfig.race.readiness, STARTER_HORSE_AGE_MONTHS).ready) {
         vitals = { ...vitals, ...applyRaceConditionCost(vitals, cost) };
         allowed += 1;
       }

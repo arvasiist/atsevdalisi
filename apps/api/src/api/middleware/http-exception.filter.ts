@@ -1001,6 +1001,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
     if (exception instanceof HorseNotReadyToRaceError) {
       const codeByReason = {
         HORSE_NOT_ACTIVE: ErrorCode.HorseNotActive,
+        HORSE_TOO_YOUNG: ErrorCode.HorseTooYoung,
         INSUFFICIENT_HEALTH: ErrorCode.InsufficientHealth,
         HORSE_TOO_TIRED: ErrorCode.HorseTooTired,
         INSUFFICIENT_ENERGY: ErrorCode.InsufficientEnergy,

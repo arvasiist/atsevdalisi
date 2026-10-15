@@ -17,7 +17,7 @@ import type {
   RecentRaceResultView,
   RiskLevel,
 } from '@at-sevdalisi/shared-types';
-import type { OnlineConfig } from '@at-sevdalisi/game-config';
+import type { HorseGrowthConfig, OnlineConfig } from '@at-sevdalisi/game-config';
 import type { PlayerCommandLog } from '../../domain/race/interactive-race';
 
 /**
@@ -840,7 +840,7 @@ export interface SavePracticeRaceWithStakesInput {
    * kapısını aşan N "taze" yarış). Kontrollü yarışın kesinleşmesi VERMEZ:
    * ücreti başta ödenmiş oturum hazırlık yüzünden kesinleşemez olmamalı.
    */
-  readinessGate?: RaceReadinessThresholds;
+  readinessGate?: { thresholds: RaceReadinessThresholds; growth: HorseGrowthConfig };
 }
 
 /** `RaceRepository.savePracticeRaceWithStakes` sonucu — `WalletBalance` ile AYNI şekil (`domain/economy/wallet.ts`). */

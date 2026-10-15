@@ -75,6 +75,7 @@ import {
   isPracticeTierOpen,
   pickOpenPracticeTierId,
   RACE_ENTRY_BLOCKER_LABELS,
+  daysUntilRaceAge,
   RACE_RAKE,
   RACE_TIERS,
 } from '../../features/race/race-entry';
@@ -569,7 +570,9 @@ export default function RacesPage(): React.ReactElement {
               <p style={{ color: 'var(--color-status-warning)', fontSize: '13px' }}>
                 {entryBlocker === 'HORSE_NOT_ACTIVE'
                   ? `${horseStatusLabel(selectedHorse.status)} durumundaki bir at yarışamaz.`
-                  : `${RACE_ENTRY_BLOCKER_LABELS[entryBlocker]} — bu at yarışa hazır değil.${
+                  : entryBlocker === 'HORSE_TOO_YOUNG' && selectedHorse.ageMonths !== undefined
+                    ? `${RACE_ENTRY_BLOCKER_LABELS[entryBlocker]} — tay yaklaşık ${daysUntilRaceAge(selectedHorse.ageMonths)} gün sonra yarışabilir.`
+                    : `${RACE_ENTRY_BLOCKER_LABELS[entryBlocker]} — bu at yarışa hazır değil.${
                       selectedHorse.raceReadyAt
                         ? ` Dinleniyor: ${formatRaceReadyIn(selectedHorse.raceReadyAt, new Date())} hazır.`
                         : ''

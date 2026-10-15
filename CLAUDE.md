@@ -1011,9 +1011,20 @@ dolmamış aygırları; engelli/silinmiş sahip süzülür; ücret ÖNCEDEN gör
 yarışan atın potansiyeli yine gizli. ⚠️ `NotEligibleForBreedingError` mesajı
 artık Türkçe cümledir (eskiden kodun kendisiydi). ⚠️ Damızlık e2e'si yazarken
 atı emekli et (`breeding.e2e-spec.ts` → `retireForBreeding`); emeklilik ucunun
-kendisi `horse-retirement.e2e-spec.ts`te. Bilinen açık uçlar: yarış için asgari
-yaş YOK (tay doğar doğmaz koşabilir), çiftleştirme yolu engel denetlemez
-(liste süzer), aygır sahibine "tay verdi" bildirimi yok.
+kendisi `horse-retirement.e2e-spec.ts`te. Bilinen açık uçlar: çiftleştirme yolu
+engel denetlemez (liste süzer), aygır sahibine "tay verdi" bildirimi yok,
+yaşlanma statları düşürmez.
+
+(91) **YARIŞ YAŞI (15.10.2026, B12)** — `race.readiness.minAgeMonths` (24 =
+2 yaş, oyun ayı). `checkRaceReadiness`ın 4. parametresi `ageMonths`
+ZORUNLUDUR (yeni çağıran unutursa tsc durdurur) ve durumdan hemen sonra
+denetlenir → 409 `HORSE_TOO_YOUNG`. Beş kapının hepsi yaşı sorar: pratik ön
+kontrol, pratik para transaction'ındaki kilitli kapı (`readinessGate` artık
+`{ thresholds, growth }`), lobi katılımı (kilit altında, paradan önce),
+eşleştirme katılımı ve kuyruk bileti geçerliliği. `estimateRaceReadyAt` yaş
+engelinde `null` döner; web `daysUntilRaceAge` ile "yaklaşık N gün sonra"
+yazar. ⚠️ Yarış koşan yeni bir e2e SQL ile at yazıyorsa `birth_date`i yetişkin
+ver (çıpa varsayılanı `now()`); tay testi `race-age.e2e-spec.ts`.
 
 **✅ ÜCRETLİ LOBİ YARIŞI ARTIK KOŞUYOR — ÖDÜL DAĞITIMI VAR (§13.14,
 28.09.2026).** `POST /races/:id/settle` yarışı koşar, ödülleri `top5`

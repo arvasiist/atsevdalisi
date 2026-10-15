@@ -166,3 +166,15 @@ Sahibinin kararları (15.10.2026): damızlık için emeklilik **şart**; yaş
   çiftleştirme yolu engel denetlemiyor (liste süzüyor), aygır sahibine
   "aygırın tay verdi" bildirimi yok.
 
+### B12 — Yarış için asgari yaş (15.10.2026)
+
+- `race.readiness.minAgeMonths: 24` (2 yaş; oyun yaşı, 1 gün = 1 ay ile tay
+  doğumdan 24 gün sonra yarışır). Ortak hazırlık kapısı yaşı da sorar; beş
+  yarış yolunun hepsi (pratik ön kontrol + kilitli kapı, lobi katılımı,
+  eşleştirme katılımı + kuyruk bileti) paradan önce 409 `HORSE_TOO_YOUNG`
+  verir. Hazırlık hata mesajları da Türkçe cümle oldu (eskiden kodun kendisi).
+- Web: yarış ekranı tayın yarışa kalan gününü yazar.
+- Kanıt: `readiness.spec.ts` (+3), `race-condition.spec.ts` (+1),
+  `race-age.e2e-spec.ts` (2: pratik ve lobi, para düşmez; yaşı dolunca
+  pratik yarış açılır), web `race-entry.spec.ts` (+1).
+

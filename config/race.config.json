@@ -90,7 +90,8 @@
   "readiness": {
     "minEnergy": 30,
     "maxFatigue": 70,
-    "minHealth": 50
+    "minHealth": 50,
+    "minAgeMonths": 24
   },
   "playerControl": {
     "whipStaminaCost": 4,

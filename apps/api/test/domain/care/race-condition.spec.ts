@@ -21,6 +21,8 @@ const READINESS = loadRaceConfig().readiness;
 const RECOVERY = CARE.passiveRecovery;
 const FRESH = { health: 100, fitness: 50, fatigue: 0, energy: 100, morale: 80 };
 const NOW = new Date(Date.UTC(2026, 9, 15, 12, 0, 0));
+/** 15.10.2026 — B12: yetişkin at (yarış yaşı engeli bu dosyanın konusu değil). */
+const ADULT = 48;
 
 describe('yarış bedeli + toparlanma — config', () => {
   it('config geçerli (API açılışı aynı denetimi koşar)', () => {
@@ -51,7 +53,7 @@ describe('yarış bedeli', () => {
     const cost = computeRaceConditionCost(PRACTICE_RACE_DISTANCE_METERS, CARE.raceCondition);
     let vitals = { ...FRESH };
     let races = 0;
-    while (checkRaceReadiness('active', vitals, READINESS).ready && races < 50) {
+    while (checkRaceReadiness('active', vitals, READINESS, ADULT).ready && races < 50) {
       vitals = { ...vitals, ...applyRaceConditionCost(vitals, cost) };
       races += 1;
     }
@@ -77,7 +79,7 @@ describe('zamanla toparlanma', () => {
   it('OYUN KURALI: art arda yarışlardan bitmiş at bir gecede (≤ 12 sa) tamamen toparlanır', () => {
     const cost = computeRaceConditionCost(PRACTICE_RACE_DISTANCE_METERS, CARE.raceCondition);
     let vitals = { ...FRESH };
-    while (checkRaceReadiness('active', vitals, READINESS).ready) vitals = { ...vitals, ...applyRaceConditionCost(vitals, cost) };
+    while (checkRaceReadiness('active', vitals, READINESS, ADULT).ready) vitals = { ...vitals, ...applyRaceConditionCost(vitals, cost) };
     let seconds = 0;
     let state = { energy: vitals.energy, fatigue: vitals.fatigue };
     while ((state.energy < 100 || state.fatigue > 0) && seconds < 48 * 3600) {
@@ -90,15 +92,17 @@ describe('zamanla toparlanma', () => {
 
 describe('ne zaman hazır olur', () => {
   it('hazır at, sağlık/durum engeli ve kapalı toparlanma için `null`', () => {
-    expect(estimateRaceReadyAt('active', FRESH, READINESS, RECOVERY, NOW)).toBeNull();
-    expect(estimateRaceReadyAt('injured', { ...FRESH, fatigue: 90 }, READINESS, RECOVERY, NOW)).toBeNull();
-    expect(estimateRaceReadyAt('active', { ...FRESH, health: 10, fatigue: 90 }, READINESS, RECOVERY, NOW)).toBeNull();
-    expect(estimateRaceReadyAt('active', { ...FRESH, fatigue: 90 }, READINESS, { ...RECOVERY, enabled: false }, NOW)).toBeNull();
+    expect(estimateRaceReadyAt('active', FRESH, READINESS, RECOVERY, NOW, ADULT)).toBeNull();
+    expect(estimateRaceReadyAt('injured', { ...FRESH, fatigue: 90 }, READINESS, RECOVERY, NOW, ADULT)).toBeNull();
+    expect(estimateRaceReadyAt('active', { ...FRESH, health: 10, fatigue: 90 }, READINESS, RECOVERY, NOW, ADULT)).toBeNull();
+    expect(estimateRaceReadyAt('active', { ...FRESH, fatigue: 90 }, READINESS, { ...RECOVERY, enabled: false }, NOW, ADULT)).toBeNull();
+    // Yaş engeli toparlanmayla geçmez → tahmin yok (ekran yaşı ayrıca gösterir).
+    expect(estimateRaceReadyAt('active', { ...FRESH, fatigue: 90 }, READINESS, RECOVERY, NOW, 0)).toBeNull();
   });
 
   it('yorgunluk ve enerjiden geç olanını alır, tur aralığına yukarı yuvarlar; o anda at gerçekten hazırdır', () => {
     const tired = { ...FRESH, fatigue: READINESS.maxFatigue + 5, energy: READINESS.minEnergy - 1 };
-    const readyAt = estimateRaceReadyAt('active', tired, READINESS, RECOVERY, NOW)!;
+    const readyAt = estimateRaceReadyAt('active', tired, READINESS, RECOVERY, NOW, ADULT)!;
     const waitSeconds = (readyAt.getTime() - NOW.getTime()) / 1000;
     expect(waitSeconds % RECOVERY.tickSeconds).toBe(0);
     expect(waitSeconds).toBeGreaterThanOrEqual((5 / RECOVERY.fatiguePerHour) * 3600);
@@ -107,6 +111,6 @@ describe('ne zaman hazır olur', () => {
     for (let elapsed = 0; elapsed < waitSeconds; elapsed += RECOVERY.tickSeconds) {
       state = applyPassiveRecovery(state, RECOVERY.tickSeconds, RECOVERY);
     }
-    expect(checkRaceReadiness('active', { ...tired, ...state }, READINESS).ready).toBe(true);
+    expect(checkRaceReadiness('active', { ...tired, ...state }, READINESS, ADULT).ready).toBe(true);
   });
 });

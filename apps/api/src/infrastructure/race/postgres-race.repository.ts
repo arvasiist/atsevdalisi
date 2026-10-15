@@ -109,6 +109,7 @@ import { isHorseInActiveRace } from '../horse/active-race-entry';
 import type { PlayerCommandLog } from '../../domain/race/interactive-race';
 import { PlayerLevelTooLowError } from '../../domain/tournament/errors';
 import { checkRaceReadiness } from '../../domain/race/readiness';
+import { computeHorseAgeMonths } from '../../domain/horse/age-curve';
 import { HorseBreedNotAllowedError, isBreedAllowedInRaceClass } from '../../domain/horse/breeds';
 import { pickHippodromeForRace, resolveHippodromeKey, trackIdForHippodrome } from '../../domain/race/hippodrome';
 import { findLevelBracket, HorseLevelNotAllowedError, isHorseLevelAllowed, RaceClubOnlyError } from '../../domain/race/level-bracket';
@@ -517,7 +518,7 @@ export class PostgresRaceRepository implements RaceRepository {
       // 15.10.2026 — S3: hazırlık kilit altında yeniden (kilit sırası oyuncu → at).
       const ownHorseId = input.entries[0]?.horseId;
       if (input.readinessGate && ownHorseId) {
-        await assertHorseRaceReadyLocked(client, ownHorseId, input.readinessGate);
+        await assertHorseRaceReadyLocked(client, ownHorseId, input.readinessGate, new Date(input.race.startTime));
       }
 
       const balanceBefore = { money: Number(playerRow.money), gems: Number(playerRow.gems) };
@@ -1294,8 +1295,11 @@ export class PostgresRaceRepository implements RaceRepository {
         morale: number;
         breed: string;
         level: number;
+        birth_date: Date;
+        aging_started_at: Date;
       }>(
-        'SELECT owner_id, status, health, fitness, fatigue, energy, morale, breed, level FROM horses WHERE id = $1 FOR UPDATE',
+        `SELECT owner_id, status, health, fitness, fatigue, energy, morale, breed, level, birth_date, aging_started_at
+         FROM horses WHERE id = $1 FOR UPDATE`,
         [input.horseId],
       );
       const horse = horseResult.rows[0];
@@ -1350,6 +1354,12 @@ export class PostgresRaceRepository implements RaceRepository {
           morale: Number(horse.morale),
         },
         this.config.race.readiness,
+        // 15.10.2026 — B12: yarış yaşı kilit altında, paradan önce.
+        computeHorseAgeMonths(
+          { birthDate: horse.birth_date, agingStartedAt: horse.aging_started_at },
+          input.now,
+          this.config.horseGrowth,
+        ),
       );
       if (!readiness.ready && readiness.reason !== null) {
         throw new HorseNotReadyToRaceError(readiness.reason);

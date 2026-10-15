@@ -11,6 +11,7 @@ import {
   formatRakePercent,
   getPayoutMultiplier,
   getRaceEntryBlocker,
+  daysUntilRaceAge,
   getTopPayoutMultipliers,
   RACE_ENTRY_BLOCKER_LABELS,
   RACE_RAKE,
@@ -204,8 +205,20 @@ describe('getRaceEntryBlocker — "hazır olan kişiler yarışabilsinler"', () 
     expect(getRaceEntryBlocker({ ...allBad, status: 'active', health: 100, fatigue: 0 })).toBe('INSUFFICIENT_ENERGY');
   });
 
+  it('15.10.2026 — B12: yarış yaşına gelmemiş tay kilitlenir; yaş bilinmiyorsa önizlenmez (sunucu keser)', () => {
+    const minAge = raceConfig.readiness.minAgeMonths;
+    expect(getRaceEntryBlocker({ ...healthy, ageMonths: minAge - 1 })).toBe('HORSE_TOO_YOUNG');
+    expect(getRaceEntryBlocker({ ...healthy, ageMonths: minAge })).toBeNull();
+    expect(getRaceEntryBlocker(healthy)).toBeNull();
+    // Sıra sunucuyla aynı: durum önce, yaş sonra, sağlık daha sonra.
+    expect(getRaceEntryBlocker({ ...healthy, status: 'injured', ageMonths: 0 })).toBe('HORSE_NOT_ACTIVE');
+    expect(getRaceEntryBlocker({ ...healthy, health: 0, ageMonths: 0 })).toBe('HORSE_TOO_YOUNG');
+    expect(daysUntilRaceAge(minAge)).toBe(0);
+    expect(daysUntilRaceAge(minAge - 3)).toBeGreaterThanOrEqual(1);
+  });
+
   it('her engelin Türkçe bir etiketi vardır (ekranda boş mesaj çıkmaz)', () => {
-    for (const blocker of ['HORSE_NOT_ACTIVE', 'INSUFFICIENT_HEALTH', 'HORSE_TOO_TIRED', 'INSUFFICIENT_ENERGY'] as const) {
+    for (const blocker of ['HORSE_NOT_ACTIVE', 'HORSE_TOO_YOUNG', 'INSUFFICIENT_HEALTH', 'HORSE_TOO_TIRED', 'INSUFFICIENT_ENERGY'] as const) {
       expect(RACE_ENTRY_BLOCKER_LABELS[blocker].length).toBeGreaterThan(0);
     }
   });

@@ -25,7 +25,7 @@
  * Hazır olma kontrolü de öyle: sunucu reddederse (`409`) ekrandaki ipucu ne
  * derse desin yarış BAŞLAMAZ.
  */
-import { loadEconomyConfig, loadRaceConfig, type RaceTierConfig } from '@at-sevdalisi/game-config';
+import { loadEconomyConfig, loadHorseGrowthConfig, loadRaceConfig, type RaceTierConfig } from '@at-sevdalisi/game-config';
 import type { HorseStatus } from '@at-sevdalisi/shared-types';
 
 const economyConfig = loadEconomyConfig();
@@ -188,10 +188,17 @@ export function formatRaceReadyIn(raceReadyAt: string, now: Date): string {
 
 /** `apps/api/src/domain/race/readiness.ts`'teki `RaceNotReadyReason` ile AYNI değerler. */
 export type RaceEntryBlocker =
-  'HORSE_NOT_ACTIVE' | 'INSUFFICIENT_HEALTH' | 'HORSE_TOO_TIRED' | 'INSUFFICIENT_ENERGY';
+  | 'HORSE_NOT_ACTIVE'
+  | 'HORSE_TOO_YOUNG'
+  | 'INSUFFICIENT_HEALTH'
+  | 'HORSE_TOO_TIRED'
+  | 'INSUFFICIENT_ENERGY';
+
+const MONTHS_PER_YEAR = 12;
 
 export const RACE_ENTRY_BLOCKER_LABELS: Record<RaceEntryBlocker, string> = {
   HORSE_NOT_ACTIVE: 'At yarışabilir durumda değil',
+  HORSE_TOO_YOUNG: `Yarış yaşı (${raceConfig.readiness.minAgeMonths / MONTHS_PER_YEAR} yaş) dolmadı`,
   INSUFFICIENT_HEALTH: `Sağlık ${raceConfig.readiness.minHealth} altında`,
   HORSE_TOO_TIRED: `Yorgunluk ${raceConfig.readiness.maxFatigue} üstünde`,
   INSUFFICIENT_ENERGY: `Enerji ${raceConfig.readiness.minEnergy} altında`,
@@ -210,10 +217,15 @@ export function getRaceEntryBlocker(horse: {
   health: number;
   fatigue: number;
   energy: number;
+  /** 15.10.2026 — B12: sunucunun hesapladığı oyun yaşı; yoksa yaş önizlenmez (sunucu yine keser). */
+  ageMonths?: number;
 }): RaceEntryBlocker | null {
-  const { minHealth, maxFatigue, minEnergy } = raceConfig.readiness;
+  const { minHealth, maxFatigue, minEnergy, minAgeMonths } = raceConfig.readiness;
   if (horse.status !== 'active') {
     return 'HORSE_NOT_ACTIVE';
+  }
+  if (horse.ageMonths !== undefined && horse.ageMonths < minAgeMonths) {
+    return 'HORSE_TOO_YOUNG';
   }
   if (horse.health < minHealth) {
     return 'INSUFFICIENT_HEALTH';
@@ -225,4 +237,15 @@ export function getRaceEntryBlocker(horse: {
     return 'INSUFFICIENT_ENERGY';
   }
   return null;
+}
+
+const horseGrowthConfig = loadHorseGrowthConfig();
+
+/**
+ * 15.10.2026 — B12: tay yarış yaşına kaç GERÇEK gün sonra gelir (oyun yaşı
+ * `gameMonthsPerRealDay` ile akar). Yaşını doldurmuş atta 0.
+ */
+export function daysUntilRaceAge(ageMonths: number): number {
+  const missing = raceConfig.readiness.minAgeMonths - ageMonths;
+  return missing <= 0 ? 0 : Math.ceil(missing / horseGrowthConfig.gameMonthsPerRealDay);
 }

@@ -1,3 +1,5 @@
+import type { RaceNotReadyReason } from './readiness';
+
 /**
  * Race domain'ine özgü hata tipleri (brief §6, §14.2 — oyuncu taktik
  * kararları: racingStyle/riskLevel/startApproach/finalStretchPlan).
@@ -47,12 +49,18 @@ export class RaceNotFoundError extends Error {
  * (`http-exception.filter.ts`): bu GEÇİCİ bir engeldir — dinlenme/bakım
  * ile düzelir, kalıcı bir doğrulama hatası DEĞİLDİR (400 olmaz).
  */
+/** 15.10.2026 — oyuncuya giden cümle (eskiden kodun kendisi mesajdaydı). */
+const RACE_NOT_READY_MESSAGES: Record<RaceNotReadyReason, string> = {
+  HORSE_NOT_ACTIVE: 'At yarışa hazır değil: yarışabilir durumda değil.',
+  HORSE_TOO_YOUNG: 'At yarışa hazır değil: henüz yarış yaşına gelmedi.',
+  INSUFFICIENT_HEALTH: 'At yarışa hazır değil: sağlığı yetersiz.',
+  HORSE_TOO_TIRED: 'At yarışa hazır değil: çok yorgun.',
+  INSUFFICIENT_ENERGY: 'At yarışa hazır değil: enerjisi yetersiz.',
+};
+
 export class HorseNotReadyToRaceError extends Error {
-  constructor(
-    public readonly reason:
-      'HORSE_NOT_ACTIVE' | 'INSUFFICIENT_HEALTH' | 'HORSE_TOO_TIRED' | 'INSUFFICIENT_ENERGY',
-  ) {
-    super(`At yarışa hazır değil: ${reason}`);
+  constructor(public readonly reason: RaceNotReadyReason) {
+    super(RACE_NOT_READY_MESSAGES[reason]);
     this.name = 'HorseNotReadyToRaceError';
   }
 }

@@ -1,5 +1,6 @@
 import type { PoolClient } from 'pg';
-import type { CareConfig } from '@at-sevdalisi/game-config';
+import type { CareConfig, HorseGrowthConfig } from '@at-sevdalisi/game-config';
+import { computeHorseAgeMonths } from '../../domain/horse/age-curve';
 import { computeRaceConditionCost, VITAL_MAX, VITAL_MIN } from '../../domain/care/race-condition';
 import { HorseNotFoundError } from '../../domain/horse/errors';
 import { HorseNotReadyToRaceError } from '../../domain/race/errors';
@@ -84,7 +85,8 @@ export async function recoverHorseVitals(
 export async function assertHorseRaceReadyLocked(
   client: PoolClient,
   horseId: string,
-  thresholds: RaceReadinessThresholds,
+  gate: { thresholds: RaceReadinessThresholds; growth: HorseGrowthConfig },
+  now: Date,
 ): Promise<void> {
   const result = await client.query<{
     status: HorseStatus;
@@ -93,7 +95,13 @@ export async function assertHorseRaceReadyLocked(
     fatigue: string;
     energy: string;
     morale: string;
-  }>('SELECT status, health, fitness, fatigue, energy, morale FROM horses WHERE id = $1 FOR UPDATE', [horseId]);
+    birth_date: Date;
+    aging_started_at: Date;
+  }>(
+    `SELECT status, health, fitness, fatigue, energy, morale, birth_date, aging_started_at
+     FROM horses WHERE id = $1 FOR UPDATE`,
+    [horseId],
+  );
   const row = result.rows[0];
   if (!row) {
     throw new HorseNotFoundError(horseId);
@@ -107,7 +115,8 @@ export async function assertHorseRaceReadyLocked(
       energy: Number(row.energy),
       morale: Number(row.morale),
     },
-    thresholds,
+    gate.thresholds,
+    computeHorseAgeMonths({ birthDate: row.birth_date, agingStartedAt: row.aging_started_at }, now, gate.growth),
   );
   if (!readiness.ready && readiness.reason !== null) {
     throw new HorseNotReadyToRaceError(readiness.reason);

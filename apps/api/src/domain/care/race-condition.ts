@@ -76,7 +76,7 @@ const MAX_ESTIMATE_SECONDS = 7 * 24 * SECONDS_PER_HOUR;
 
 /**
  * Atın yarışa ne zaman hazır olacağı (yalnızca yorgunluk/enerji engeliyse).
- * `null`: zaten hazır YA DA engel zamanla geçmez (durum, sağlık) YA DA
+ * `null`: zaten hazır YA DA engel zamanla geçmez (durum, sağlık, yaş) YA DA
  * toparlanma kapalı. Zamanlayıcının turları TEK TEK taklit edilir: veritabanı
  * her turdan sonra iki haneye yuvarlar ve düz çizgi hesabı bir tur erken
  * "hazır" derdi (yaşandı: 6 turda 75 → 70,02, kapı 70).
@@ -87,14 +87,16 @@ export function estimateRaceReadyAt(
   thresholds: RaceBalanceConfig['readiness'],
   config: CareConfig['passiveRecovery'],
   now: Date,
+  ageMonths: number,
 ): Date | null {
-  const readiness = checkRaceReadiness(status, vitals, thresholds);
+  // Yaş engeli (B12) bu tahminin konusu değil: `null` döner, ekran yaşı ayrıca gösterir.
+  const readiness = checkRaceReadiness(status, vitals, thresholds, ageMonths);
   if (readiness.ready || !config.enabled) return null;
   if (readiness.reason !== 'HORSE_TOO_TIRED' && readiness.reason !== 'INSUFFICIENT_ENERGY') return null;
   let state: RaceConditionVitals = { energy: vitals.energy, fatigue: vitals.fatigue };
   for (let seconds = config.tickSeconds; seconds <= MAX_ESTIMATE_SECONDS; seconds += config.tickSeconds) {
     state = applyPassiveRecovery(state, config.tickSeconds, config);
-    if (checkRaceReadiness(status, { ...vitals, ...state }, thresholds).ready) {
+    if (checkRaceReadiness(status, { ...vitals, ...state }, thresholds, ageMonths).ready) {
       return new Date(now.getTime() + seconds * MS_PER_SECOND);
     }
   }

@@ -28,6 +28,7 @@ import {
 } from '../../domain/race/prize';
 import { isLoserRefundEligible, loserRefundAmount, paidPlacesOf } from '../../domain/race/table-rules';
 import { checkRaceReadiness } from '../../domain/race/readiness';
+import { horseAgeMonths } from '../../domain/horse/age-curve';
 import {
   findPracticeRaceClass,
   horseRacingPower,
@@ -202,6 +203,8 @@ export class RunPracticeRaceUseCase {
         morale: horse.morale,
       },
       this.config.race.readiness,
+      // 15.10.2026 — B12: yarış yaşı (oyun yaşı, hızlı akar).
+      horseAgeMonths(horse, new Date(), this.config.horseGrowth),
     );
     if (!readiness.ready && readiness.reason !== null) {
       throw new HorseNotReadyToRaceError(readiness.reason);
@@ -318,7 +321,7 @@ export class RunPracticeRaceUseCase {
     // 15.10.2026 — S3: hazırlık para transaction'ında, at kilitliyken yeniden denetlenir.
     const newBalance = await this.raceRepository.savePracticeRaceWithStakes({
       ...built.saveInput,
-      readinessGate: this.config.race.readiness,
+      readinessGate: { thresholds: this.config.race.readiness, growth: this.config.horseGrowth },
     });
     return this.toResult(prepared, timeline, built, newBalance);
   }
