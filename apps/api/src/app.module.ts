@@ -25,6 +25,7 @@ import { RealtimeModule } from './api/realtime/realtime.module';
 import { SeasonModule } from './api/season/season.module';
 import { QuestsModule } from './api/quests/quests.module';
 import { AchievementsModule } from './api/achievements/achievements.module';
+import { OnboardingModule } from './api/onboarding/onboarding.module';
 import { TribuneGiftModule } from './api/tribune-gift/tribune-gift.module';
 import { BreedsModule } from './api/breeds/breeds.module';
 import { AvatarModule } from './api/avatar/avatar.module';
@@ -150,6 +151,7 @@ import { RedisModule } from './infrastructure/redis/redis.module';
     SeasonModule,
     QuestsModule,
     AchievementsModule,
+    OnboardingModule,
     TribuneGiftModule,
     BreedsModule,
     AvatarModule,

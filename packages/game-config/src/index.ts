@@ -17,6 +17,7 @@
  * etkilemeyen bir iç değişiklik olur.
  */
 import type {
+  OnboardingConfig,
   AuthConfig,
   OpsConfig,
   ModerationConfig,
@@ -101,6 +102,7 @@ import breedsConfigJson from '../../../config/breeds.config.json';
 import hippodromesConfigJson from '../../../config/hippodromes.config.json';
 import equipmentConfigJson from '../../../config/equipment.config.json';
 import horsePersonalityConfigJson from '../../../config/horse-personality.config.json';
+import onboardingConfigJson from '../../../config/onboarding.config.json';
 
 export function loadRaceConfig(): RaceBalanceConfig {
   return raceConfigJson as unknown as RaceBalanceConfig;
@@ -364,4 +366,9 @@ export function loadPerformanceConfig(): PerformanceConfig {
 
 export function loadInteractiveRaceConfig(): InteractiveRaceConfig {
   return interactiveRaceConfigJson as unknown as InteractiveRaceConfig;
+}
+
+/** 15.10.2026 — S6: "Sıradaki adım" (ilk oturum yolu) adımlarının sırası ve metni. */
+export function loadOnboardingConfig(): OnboardingConfig {
+  return onboardingConfigJson as unknown as OnboardingConfig;
 }

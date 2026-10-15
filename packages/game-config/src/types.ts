@@ -2705,3 +2705,20 @@ export interface HorsePersonalityConfig {
     traits: Record<HorsePersonalityTraitKey, { high: HorsePersonalityLabelText; low: HorsePersonalityLabelText }>;
   };
 }
+
+/**
+ * 15.10.2026 — S6: `config/onboarding.config.json`. Sıra = gösterim sırası.
+ * `key` sunucunun kapalı kümesinden olmalı (`ONBOARDING_STEP_KEYS`);
+ * `validateOnboardingConfig` API açılışında denetler.
+ */
+export interface OnboardingStepConfig {
+  key: string;
+  title: string;
+  hint: string;
+  /** Oyun içi yol ("/" ile başlar). */
+  href: string;
+}
+
+export interface OnboardingConfig {
+  steps: OnboardingStepConfig[];
+}

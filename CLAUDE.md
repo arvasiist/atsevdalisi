@@ -1060,6 +1060,17 @@ atının kazanma oranını ~%78'den ~%55'e indirir) — çarpanı büyütmeden �
 `measurePracticeEv` ile ölç. ⚠️ Yaşlı atla yarış koşan e2e başlangıç statını
 ham statla kıyaslarsa kırılır (`race-age.e2e-spec.ts` örneği).
 
+(94) **SIRADAKİ ADIM (15.10.2026, S6)** — `GET /onboarding` (yalnızca
+çağıranın kendi ilerlemesi) + ahır sahnesinin sol üstünde `OnboardingPanel`
+(`.onboarding-overlay`; bütün adımlar bitince gizlenir). Sıra ve metin
+`config/onboarding.config.json` (`validateOnboardingConfig` açılışta: bilinmeyen
+anahtar, tekrar, boş metin, oyun dışı bağlantı reddedilir). Adım anahtarları
+KAPALI küme `ONBOARDING_STEP_KEYS`; "yapıldı" SAYAÇ TUTULMADAN mevcut
+tablolardan türetilir (`postgres-onboarding.repository.ts` → `STEP_SQL`
+`Record` — eksik anahtar tsc hatası; işi YAPAN oyuncu `COALESCE(<yapan>,
+h.owner_id)`). Ödül YOK (ekonomiye para basmaz). ⚠️ Yeni adım eklerken üç yer:
+`ONBOARDING_STEP_KEYS`, `STEP_SQL`, config.
+
 **✅ ÜCRETLİ LOBİ YARIŞI ARTIK KOŞUYOR — ÖDÜL DAĞITIMI VAR (§13.14,
 28.09.2026).** `POST /races/:id/settle` yarışı koşar, ödülleri `top5`
 paylarıyla dağıtır ve `races.status = 'finished'` yazar. Uç bir

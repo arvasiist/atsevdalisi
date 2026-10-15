@@ -54,7 +54,7 @@ belge. Yarış motoruna dokunulmaz (botların gücü motorun DIŞINDA üretilir)
 | **S3** ✅ | **Yarış yorgunluğu + zamanla toparlanma:** yarış enerji düşürür, yorgunluk ekler (mesafeye göre, config); zamanlayıcı (lider kilidiyle) her turda toparlar. Arayüz "ne zaman hazır" gösterir. | B2/B3 | Ardışık yarış hazırlık kapısına takılır; süre geçince açılır. |
 | S4 | Ekonomi yeniden ölçümü (kademelere göre EV), gerekirse config ayarı | B1 | Ölçüm tablosu |
 | **S5** ✅ | Emeklilik → damızlık evresi, ömür boyu yetiştirme sınırı, damızlık ücretinde kesinti; yaş ölçeği kararı | B7, B10, B11 | e2e (yaş ölçeği sahibinin kararı) |
-| S6 | "Sıradaki adım" paneli (ilk oturum yolu) | B9 | Web testi + ekran görüntüsü |
+| **S6** ✅ | "Sıradaki adım" paneli (ilk oturum yolu) | B9 | Web testi + e2e |
 | S7 | Az oyuncuda "hayalet" rakipler (gerçek oyuncu atlarının dondurulmuş kayıtları) | B8 | Tasarım kararı gerekir |
 
 Bu dosya her dilimden sonra güncellenir.
@@ -220,3 +220,17 @@ Sahibinin kararları (15.10.2026): damızlık için emeklilik **şart**; yaş
   geçen pay. Defter satırıyla aynı transaction'da yazılıyor (migration 0086).
 - Kanıt: `breeding.e2e-spec.ts` (+3: bildirim yükü, iki yönlü engel, silinmiş
   hesap; hiçbirinde para düşmüyor, tay doğmuyor), `notification-types.spec.ts`.
+
+### S6 — "Sıradaki adım" (15.10.2026)
+
+- Yeni oyuncuya ilk oturum yolu: bakım → antrenman → jokey → ilk yarış →
+  günlük ödül → görev ödülü → çok oyunculu yarış. Sıra ve metin config'te.
+  Her adımın tamamlanıp tamamlanmadığı mevcut tablolardan türetiliyor
+  (görev/başarımla aynı kaynaklar); sayaç ya da migration yok.
+- Kart ahır sahnesinin üstünde (sahne ekranı kapladığı için altta kalsaydı
+  görünmezdi); "Hadi yapalım →" ilgili ekrana götürür, liste açılabilir,
+  bütün adımlar bitince kart kaybolur. Ödül yok (bilinçli: ekonomi kararı).
+- Kanıt: `onboarding.spec.ts` (3: config kapsamı/doğrulama, sıra, atlama),
+  `onboarding.e2e-spec.ts` (3: yeni oyuncu, gerçek bakım + pratik yarış adımı
+  tamamlar, başkasının işi sayılmaz, 401), web `onboarding-logic.spec.ts` (3).
+- Görsel doğrulama yapılmadı (tarayıcıda gözle görülmedi).

@@ -58,6 +58,7 @@ import { breedLabel } from '../../features/breeds/breed-catalog';
 import { PersonalityChips } from '../../features/personality/PersonalityChips';
 import { StableActionDock } from '../../features/stable-actions/StableActionDock';
 import { PlayerOverview } from '../../features/home/PlayerOverview';
+import { OnboardingPanel } from '../../features/onboarding/OnboardingPanel';
 import { formatRaceReadyIn } from '../../features/race/race-entry';
 import {
   RETIREMENT_CONFIRM_MESSAGE,
@@ -207,6 +208,7 @@ export default function StablePage(): React.ReactElement {
     <main>
       {stageHorse ? (
         <StableScene3D horse={stageHorse} fullscreen>
+          {player ? <OnboardingPanel /> : null}
           <StableActionDock
             horse={stageHorse}
             active={activeAction}
@@ -305,7 +307,11 @@ export default function StablePage(): React.ReactElement {
         isteyebilir. Bu yüzden `BreedingPanel`in aksine at listesini
         beklemez — yalnızca `player` yeterlidir.
       */}
-        {player ? <JockeyPanel playerId={player.id} /> : null}
+        {player ? (
+          <div id="jockey">
+            <JockeyPanel playerId={player.id} />
+          </div>
+        ) : null}
 
         {player ? <PlayerOverview player={player} /> : null}
       </div>

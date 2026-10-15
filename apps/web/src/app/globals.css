@@ -2176,6 +2176,97 @@ button[style*='background: var(--color-accent-gold)'] {
   cursor: default;
 }
 
+/* 15.10.2026 — S6: "Sıradaki adım" kartı ahır sahnesinin üstünde (sol üst,
+   PLACEHOLDER rozetinin altı; sağ üst Bakım/Ekipman simgelerinindir). */
+.onboarding-overlay {
+  position: absolute;
+  top: 52px;
+  left: 12px;
+  z-index: 6;
+  width: min(320px, calc(100% - 96px));
+  display: grid;
+  gap: 6px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid var(--color-border-gold);
+  background: rgba(8, 10, 16, 0.82);
+  color: var(--color-text-primary);
+  backdrop-filter: blur(6px);
+}
+
+.onboarding-overlay-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 0.82rem;
+}
+
+.onboarding-overlay-head strong {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--color-accent-gold);
+}
+
+.onboarding-overlay-head span {
+  color: var(--color-text-secondary);
+}
+
+.onboarding-overlay-title {
+  font-weight: 700;
+}
+
+.onboarding-overlay-hint {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: 0.85rem;
+}
+
+.onboarding-overlay-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.onboarding-overlay-actions .btn-gold,
+.onboarding-overlay-actions .btn-outline {
+  padding: 6px 12px;
+  font-size: 0.85rem;
+}
+
+.onboarding-overlay-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 4px;
+  font-size: 0.85rem;
+}
+
+.onboarding-overlay-list li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.onboarding-overlay-list li[data-done='true'] {
+  opacity: 0.65;
+}
+
+/* Yatay telefon (kısa ekran): ipucu gizlenir, kart daralır. */
+@media (max-height: 500px) {
+  .onboarding-overlay {
+    top: 44px;
+    padding: 8px 10px;
+    width: min(260px, calc(100% - 96px));
+  }
+
+  .onboarding-overlay-hint {
+    display: none;
+  }
+}
+
 .stable3d-loading {
   display: grid;
   place-items: center;

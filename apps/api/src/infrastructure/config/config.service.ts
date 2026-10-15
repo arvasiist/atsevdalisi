@@ -5,6 +5,7 @@ import {
   loadHippodromesConfig,
   loadEquipmentConfig,
   loadAvatarConfig,
+  loadOnboardingConfig,
   loadCosmeticsConfig,
   loadCareConfig,
   loadChatConfig,
@@ -46,6 +47,7 @@ import { validateHorseGrowthConfig } from '../../domain/horse/age-curve';
 import { assertBreedingConfigIsValid } from '../../domain/breeding/breeding';
 import { validateRaceTiers } from '../../domain/race/prize';
 import { validateFieldRulesConfig } from '../../domain/race/field-rule';
+import { validateOnboardingConfig } from '../../domain/onboarding/onboarding';
 
 /**
  * Ortam değişkenleri + oyun dengesi config'lerine tek noktadan erişim.
@@ -174,6 +176,8 @@ export class AppConfigService {
   readonly hippodromes = loadHippodromesConfig();
   /** 09.10.2026 — avatar kataloğu (yarışta forma rengi + kozmetik doğrulaması). */
   readonly avatar = loadAvatarConfig();
+  /** 15.10.2026 — S6: "Sıradaki adım" adımları. */
+  readonly onboarding = loadOnboardingConfig();
 
   constructor() {
     // Irk kuralı (ücretsiz at en zayıf, güçlü ırk ucuz olamaz) açılışta
@@ -198,6 +202,11 @@ export class AppConfigService {
     const tableProblems = validateRaceTiers(this.economy);
     if (tableProblems.length > 0) {
       throw new Error(`Masa/kademe config'i geçersiz (config/economy.config.json): ${tableProblems.join(' ')}`);
+    }
+    // 15.10.2026 — S6: ilk oturum yolu (bilinmeyen adım / dış bağlantı ile API AÇILMAZ).
+    const onboardingProblems = validateOnboardingConfig(this.onboarding);
+    if (onboardingProblems.length > 0) {
+      throw new Error(`Sıradaki adım config'i geçersiz (config/onboarding.config.json): ${onboardingProblems.join(' ')}`);
     }
     // 15.10.2026 (Aşama 3) — yetersiz oyuncu kuralı (asgari gerçek oyuncu + bot izni).
     const fieldRuleProblems = validateFieldRulesConfig(this.raceLobby, this.raceLobby.calendar.programs);

@@ -133,6 +133,7 @@ import type {
   StaffHireResult,
   StaffOverview,
   StaffView,
+  OnboardingView,
 } from '@at-sevdalisi/shared-types';
 
 /**
@@ -1545,6 +1546,8 @@ export const apiClient = {
     request<QuestClaimResult>(`/quests/${encodeURIComponent(questKey)}/claim`, { method: 'POST' }),
   /** 03.10.2026 — başarımlar (yaşam boyu, ödül tek kez). İlerleme sunucuda türetilir. */
   getAchievements: () => request<AchievementBoardView>('/achievements'),
+  /** 15.10.2026 — S6: "Sıradaki adım" (yalnızca çağıranın kendi ilerlemesi). */
+  getOnboarding: () => request<OnboardingView>('/onboarding'),
   claimAchievement: (achievementKey: string) =>
     request<AchievementClaimResult>(`/achievements/${encodeURIComponent(achievementKey)}/claim`, { method: 'POST' }),
   /**
