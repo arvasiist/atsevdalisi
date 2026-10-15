@@ -2,6 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import type { Horse, HorsePersonalityView } from '@at-sevdalisi/shared-types';
 import { describePersonality } from '../../domain/horse/personality';
 import { horseRacingPower } from '../../domain/race/practice-class';
+import { estimateRaceReadyAt } from '../../domain/care/race-condition';
 import { AppConfigService } from '../../infrastructure/config/config.service';
 import { HORSE_STATS_REPOSITORY, type HorseStatsRepository } from '../ports/horse-stats.repository';
 import { HORSE_REPOSITORY, type HorseRepository } from '../ports/horse.repository';
@@ -16,6 +17,9 @@ import { HORSE_REPOSITORY, type HorseRepository } from '../ports/horse.repositor
  *
  * 14.10.2026 — her at pratik yarış SINIF GÜCÜYLE döner (`horseRacingPower`);
  * yarış ekranı girebileceği kademeyi bununla gösterir (kural sunucuda).
+ *
+ * 15.10.2026 — yorgunluk/enerji yüzünden yarışa hazır değilse ne zaman
+ * hazır olacağı (`raceReadyAt`, zamanla toparlanma hızından; S3).
  */
 @Injectable()
 export class ListHorsesByOwnerUseCase {
@@ -27,7 +31,10 @@ export class ListHorsesByOwnerUseCase {
 
   async execute(
     ownerId: string,
-  ): Promise<Array<{ horse: Horse; personality: HorsePersonalityView | null; racingPower: number | null }>> {
+    now: Date = new Date(),
+  ): Promise<
+    Array<{ horse: Horse; personality: HorsePersonalityView | null; racingPower: number | null; raceReadyAt: string | null }>
+  > {
     const horses = await this.horseRepository.findByOwnerId(ownerId);
     const ids = horses.map((horse) => horse.id);
     const [traits, powerStats] = await Promise.all([
@@ -41,6 +48,9 @@ export class ListHorsesByOwnerUseCase {
         horse,
         personality: values ? describePersonality(values, this.config.horsePersonality) : null,
         racingPower: power ? horseRacingPower(power) : null,
+        raceReadyAt:
+          estimateRaceReadyAt(horse.status, horse, this.config.race.readiness, this.config.care.passiveRecovery, now)?.toISOString() ??
+          null,
       };
     });
   }

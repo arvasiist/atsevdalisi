@@ -57,6 +57,7 @@ import { breedLabel } from '../../features/breeds/breed-catalog';
 import { PersonalityChips } from '../../features/personality/PersonalityChips';
 import { StableActionDock } from '../../features/stable-actions/StableActionDock';
 import { PlayerOverview } from '../../features/home/PlayerOverview';
+import { formatRaceReadyIn } from '../../features/race/race-entry';
 import {
   parseStableActionParam,
   type StableActionKey,
@@ -566,6 +567,17 @@ function HorseCard({
           />
           <StatBar icon={<Smile size={14} />} label="Moral" value={horse.morale} />
         </div>
+        {horse.raceReadyAt ? (
+          <p
+            style={{
+              margin: 'var(--space-sm) 0 0',
+              fontSize: '12px',
+              color: 'var(--color-text-muted)',
+            }}
+          >
+            Dinleniyor — yarışa {formatRaceReadyIn(horse.raceReadyAt, new Date())} hazır.
+          </p>
+        ) : null}
 
         <div
           className="featured-actions featured-actions-3"

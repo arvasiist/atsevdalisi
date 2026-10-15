@@ -1,5 +1,6 @@
 import { computeRaceXp } from '../../domain/progression/progression';
 import { awardXpInTransaction } from '../progression/award-xp';
+import { applyRaceConditionInTransaction, assertHorseRaceReadyLocked } from '../horse/race-condition';
 import { addClubPointsInTransaction } from '../club/postgres-club.repository';
 import { assertHasClubPermission } from '../../domain/club/club';
 import { NotClubMemberError } from '../../domain/club/errors';
@@ -513,6 +514,11 @@ export class PostgresRaceRepository implements RaceRepository {
       if (!playerRow) {
         throw new PlayerNotFoundError(input.playerId);
       }
+      // 15.10.2026 — S3: hazırlık kilit altında yeniden (kilit sırası oyuncu → at).
+      const ownHorseId = input.entries[0]?.horseId;
+      if (input.readinessGate && ownHorseId) {
+        await assertHorseRaceReadyLocked(client, ownHorseId, input.readinessGate);
+      }
 
       const balanceBefore = { money: Number(playerRow.money), gems: Number(playerRow.gems) };
       const loserRefund = input.loserRefund ?? 0;
@@ -595,6 +601,8 @@ export class PostgresRaceRepository implements RaceRepository {
           computeRaceXp(ownEntry.finishPosition ?? null, progression.xpRewards.horse),
           progression,
         );
+        // 15.10.2026 — yarışın ata bedeli (S3): enerji yanar, yorgunluk artar; aynı transaction.
+        await applyRaceConditionInTransaction(client, [ownEntry.horseId], input.race.distanceMeters, this.config.care, new Date());
       }
 
       // AUDIT_REPORT.md Bulgu R2 (Medium, bu oturum) — `input.entry`/
@@ -655,6 +663,14 @@ export class PostgresRaceRepository implements RaceRepository {
         const entrySegments = segments.filter((segment) => segment.raceEntryId === entry.id);
         await this.insertEntryWithSegments(client, entry, entrySegments);
       }
+      // 15.10.2026 — yarışın ata bedeli (S3), sonuçla aynı transaction.
+      await applyRaceConditionInTransaction(
+        client,
+        entries.flatMap((entry) => (entry.horseId ? [entry.horseId] : [])),
+        race.distanceMeters,
+        this.config.care,
+        new Date(),
+      );
 
       await client.query(
         `INSERT INTO pvp_matches (id, race_id, player_a_id, player_b_id, winner_id, status, created_at)
@@ -745,6 +761,14 @@ export class PostgresRaceRepository implements RaceRepository {
         const entrySegments = input.segments.filter((segment) => segment.raceEntryId === entry.id);
         await this.insertEntryWithSegments(client, entry, entrySegments);
       }
+      // 15.10.2026 — yarışın ata bedeli (S3), sonuç ve reytingle aynı transaction.
+      await applyRaceConditionInTransaction(
+        client,
+        input.entries.flatMap((entry) => (entry.horseId ? [entry.horseId] : [])),
+        input.race.distanceMeters,
+        this.config.care,
+        updatedAt,
+      );
 
       await client.query(
         `INSERT INTO pvp_matches (id, race_id, player_a_id, player_b_id, winner_id, status, created_at)
@@ -3214,6 +3238,8 @@ export class PostgresRaceRepository implements RaceRepository {
             progression,
             input.now,
           );
+          // 15.10.2026 — yarışın ata bedeli (S3): ödemelerle aynı transaction.
+          await applyRaceConditionInTransaction(client, [horseId], raceRow.distance_m, this.config.care, input.now);
         }
       }
 

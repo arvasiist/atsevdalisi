@@ -315,7 +315,11 @@ export class RunPracticeRaceUseCase {
     const timeline = this.simulate(prepared);
 
     const built = this.buildPracticeRaceRecords(prepared, timeline, new Date());
-    const newBalance = await this.raceRepository.savePracticeRaceWithStakes(built.saveInput);
+    // 15.10.2026 — S3: hazırlık para transaction'ında, at kilitliyken yeniden denetlenir.
+    const newBalance = await this.raceRepository.savePracticeRaceWithStakes({
+      ...built.saveInput,
+      readinessGate: this.config.race.readiness,
+    });
     return this.toResult(prepared, timeline, built, newBalance);
   }
 

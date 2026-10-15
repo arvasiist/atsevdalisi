@@ -67,6 +67,7 @@ import {
   describePracticeClass,
   findRaceTier,
   formatMultiplier,
+  formatRaceReadyIn,
   formatRacingPower,
   formatRakePercent,
   getRaceEntryBlocker,
@@ -568,7 +569,11 @@ export default function RacesPage(): React.ReactElement {
               <p style={{ color: 'var(--color-status-warning)', fontSize: '13px' }}>
                 {entryBlocker === 'HORSE_NOT_ACTIVE'
                   ? `${horseStatusLabel(selectedHorse.status)} durumundaki bir at yarışamaz.`
-                  : `${RACE_ENTRY_BLOCKER_LABELS[entryBlocker]} — bu at yarışa hazır değil.`}
+                  : `${RACE_ENTRY_BLOCKER_LABELS[entryBlocker]} — bu at yarışa hazır değil.${
+                      selectedHorse.raceReadyAt
+                        ? ` Dinleniyor: ${formatRaceReadyIn(selectedHorse.raceReadyAt, new Date())} hazır.`
+                        : ''
+                    }`}
               </p>
             ) : null}
 

@@ -41,6 +41,7 @@ import { validateHorsePersonalityConfig } from '../../domain/horse/personality';
 import { validateJockeyConditionConfig } from '../../domain/jockey/condition';
 import { validateJockeyMarketConfig } from '../../domain/jockey/market';
 import { validatePracticeRaceClasses } from '../../domain/race/practice-class';
+import { validateRaceConditionConfig } from '../../domain/care/race-condition';
 import { validateRaceTiers } from '../../domain/race/prize';
 
 /**
@@ -194,6 +195,10 @@ export class AppConfigService {
     const tableProblems = validateRaceTiers(this.economy);
     if (tableProblems.length > 0) {
       throw new Error(`Masa/kademe config'i geçersiz (config/economy.config.json): ${tableProblems.join(' ')}`);
+    }
+    const raceConditionProblems = validateRaceConditionConfig(this.care);
+    if (raceConditionProblems.length > 0) {
+      throw new Error(`Yarış bedeli / toparlanma config'i geçersiz (config/care.config.json): ${raceConditionProblems.join(' ')}`);
     }
     const practiceClassProblems = validatePracticeRaceClasses(this.economy);
     if (practiceClassProblems.length > 0) {

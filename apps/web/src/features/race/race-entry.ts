@@ -164,6 +164,28 @@ export function formatRacingPower(racingPower: number): string {
   return racingPower.toFixed(1);
 }
 
+/**
+ * 15.10.2026 — at yorgun/enerjisizse sunucunun hesapladığı `raceReadyAt`
+ * (zamanla toparlanma) okunur metne çevrilir: "yaklaşık 35 dk sonra",
+ * "yaklaşık 2 sa 10 dk sonra". Süre geçtiyse "birazdan" (bir sonraki
+ * toparlanma turunda). Hesap sunucudadır; burada yalnızca biçim var.
+ */
+const MS_PER_MINUTE = 60_000;
+const MINUTES_PER_HOUR = 60;
+
+export function formatRaceReadyIn(raceReadyAt: string, now: Date): string {
+  const minutes = Math.ceil((new Date(raceReadyAt).getTime() - now.getTime()) / MS_PER_MINUTE);
+  if (!(minutes > 0)) {
+    return 'birazdan';
+  }
+  if (minutes < MINUTES_PER_HOUR) {
+    return `yaklaşık ${minutes} dk sonra`;
+  }
+  const hours = Math.floor(minutes / MINUTES_PER_HOUR);
+  const rest = minutes % MINUTES_PER_HOUR;
+  return rest === 0 ? `yaklaşık ${hours} sa sonra` : `yaklaşık ${hours} sa ${rest} dk sonra`;
+}
+
 /** `apps/api/src/domain/race/readiness.ts`'teki `RaceNotReadyReason` ile AYNI değerler. */
 export type RaceEntryBlocker =
   'HORSE_NOT_ACTIVE' | 'INSUFFICIENT_HEALTH' | 'HORSE_TOO_TIRED' | 'INSUFFICIENT_ENERGY';

@@ -1,3 +1,4 @@
+import type { RaceReadinessThresholds } from '../../domain/race/readiness';
 import type {
   PracticeRaceResult,
   PvpMatch,
@@ -832,6 +833,14 @@ export interface SavePracticeRaceWithStakesInput {
    * transaction'da. Opsiyonel: eski çağıranlar için 0.
    */
   loserRefund?: number;
+  /**
+   * 15.10.2026 — S3: verilirse atın hazırlığı, para hareketinden ÖNCE at
+   * satırı `FOR UPDATE` kilitliyken YENİDEN denetlenir. Kilitsiz ön kontrol
+   * eşzamanlı isteklerde aşılabiliyordu (aynı anda N istek → yorgunluk
+   * kapısını aşan N "taze" yarış). Kontrollü yarışın kesinleşmesi VERMEZ:
+   * ücreti başta ödenmiş oturum hazırlık yüzünden kesinleşemez olmamalı.
+   */
+  readinessGate?: RaceReadinessThresholds;
 }
 
 /** `RaceRepository.savePracticeRaceWithStakes` sonucu — `WalletBalance` ile AYNI şekil (`domain/economy/wallet.ts`). */

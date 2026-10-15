@@ -4,6 +4,7 @@ import {
   DEFAULT_RACE_TIER_ID,
   describePracticeClass,
   findRaceTier,
+  formatRaceReadyIn,
   isPracticeTierOpen,
   pickOpenPracticeTierId,
   formatMultiplier,
@@ -239,5 +240,22 @@ describe('pratik yarış sınıfı ön izlemesi (14.10.2026)', () => {
     const [low, high] = local.botStatRange;
     expect(describePracticeClass(local.tierId)).toBe(`Rakipler güç ${low}–${high} · güç ${local.maxHorsePower} altı atlar`);
     expect(describePracticeClass(open.tierId)).toContain('güç sınırı yok');
+  });
+});
+
+describe('hazır olma süresi metni (15.10.2026)', () => {
+  const now = new Date(Date.UTC(2026, 9, 15, 12, 0, 0));
+  const at = (minutes: number) => new Date(now.getTime() + minutes * 60_000).toISOString();
+
+  it('dakika ve saat biçimi, yukarı yuvarlanır', () => {
+    expect(formatRaceReadyIn(at(35), now)).toBe('yaklaşık 35 dk sonra');
+    expect(formatRaceReadyIn(at(34.2), now)).toBe('yaklaşık 35 dk sonra');
+    expect(formatRaceReadyIn(at(60), now)).toBe('yaklaşık 1 sa sonra');
+    expect(formatRaceReadyIn(at(130), now)).toBe('yaklaşık 2 sa 10 dk sonra');
+  });
+
+  it('süre geçtiyse "birazdan" (bir sonraki toparlanma turu)', () => {
+    expect(formatRaceReadyIn(at(0), now)).toBe('birazdan');
+    expect(formatRaceReadyIn(at(-5), now)).toBe('birazdan');
   });
 });

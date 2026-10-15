@@ -738,6 +738,29 @@ export interface CareConfig {
    * domain katmanına aittir).
    */
   feedDailyGift: Partial<Record<FeedType, number>>;
+  /**
+   * 15.10.2026 — YARIŞIN ATA BEDELİ (S3, `docs/OYUN_DONGUSU_DENETIMI.md` B2/B3).
+   * Eskiden yarış atın enerjisine ve yorgunluğuna hiç dokunmuyordu: sınırsız
+   * ardışık yarış, anlamsız dinlenme/yem kararı. Bedel mesafeyle orantılıdır
+   * (`distanceMeters / 1000 × perKm`) ve sonuçla AYNI transaction'da yazılır.
+   */
+  raceCondition: {
+    energyPerKm: number;
+    fatiguePerKm: number;
+  };
+  /**
+   * 15.10.2026 — ZAMANLA TOPARLANMA. Lider kilitli zamanlayıcı her
+   * `tickSeconds`te geçen süre kadar enerji ekler, yorgunluk düşer. Bir tur
+   * en fazla `maxCreditSeconds` kadar süre sayar (dolu atın eski zaman
+   * damgası yarıştan hemen sonra bedava toparlanma vermesin).
+   */
+  passiveRecovery: {
+    enabled: boolean;
+    tickSeconds: number;
+    maxCreditSeconds: number;
+    energyPerHour: number;
+    fatiguePerHour: number;
+  };
 }
 
 /**

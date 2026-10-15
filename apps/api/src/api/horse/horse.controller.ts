@@ -67,14 +67,15 @@ export class HorseController {
     }
     assertSelf(currentPlayer.id, ownerId);
     const horses = await this.listHorsesByOwnerUseCase.execute(ownerId);
-    // Kişilik etiketi ve sınıf gücü YALNIZCA burada (sahibine) eklenir;
-    // `GET :id` herkese açıktır ve ikisini de taşımaz.
+    // Kişilik etiketi, sınıf gücü ve hazır olma zamanı YALNIZCA burada
+    // (sahibine) eklenir; `GET :id` herkese açıktır ve bunları taşımaz.
     return {
       success: true,
-      data: horses.map(({ horse, personality, racingPower }) => ({
+      data: horses.map(({ horse, personality, racingPower, raceReadyAt }) => ({
         ...toPublicHorse(horse),
         ...(personality ? { personality } : {}),
         ...(racingPower !== null ? { racingPower } : {}),
+        ...(raceReadyAt !== null ? { raceReadyAt } : {}),
       })),
     };
   }

@@ -963,6 +963,24 @@ Değerler ölçüldü (`measurePracticeEv`). ⚠️ Gerçek atların ağırlık 
 (yaşandı). ⚠️ Pratik yarışı GÜÇLÜ atla koşan yeni e2e varsayılan (en ucuz)
 kademeyi SEÇEMEZ — tavansız kademeyi ver.
 
+(89) **YARIŞ BEDELİ + ZAMANLA TOPARLANMA (15.10.2026, migration 0083, S3)** —
+eskiden yarış atın enerjisine/yorgunluğuna HİÇ dokunmuyordu (sınırsız ardışık
+yarış). Artık pratik, lobi kesinleşmesi ve iki PvP kayıt yolu sonuçla AYNI
+transaction'da `applyRaceConditionInTransaction` çağırır (bedel
+`care.raceCondition` × mesafe/1000; önce bekleyen toparlanmayı hesaba katar,
+sonra düşer, `vitals_recovered_at`i yeniler). `HorseRecoveryScheduler` (lider
+kilidi, test'te `tickNow`) `care.passiveRecovery` hızıyla toparlar; bir tur en
+fazla `maxCreditSeconds` sayar, aynı `now` ikinci kez sayılmaz. Motor
+DEĞİŞMEDİ (yarış öncesi yorgunluğu zaten okuyordu). Ahır listesi
+`raceReadyAt` taşır (tahmin turları yuvarlamayla birlikte taklit eder —
+düz çizgi bir tur erken "hazır" diyordu). ⚠️ Aynı atla art arda 3'ten fazla
+yarış koşan YENİ e2e hazırlık kapısına takılır (`HORSE_TOO_TIRED`) — kurulumda
+atı SQL ile dinlendir. ⚠️ `tickNow` BÜTÜN atları toparlar; API paketi
+`--no-file-parallelism` ile koştuğu için güvenli. ⚠️ Atın vitalini yazan
+YENİ bir yol (`writeHorseRow` dışı) yazıyorsan damgayı düşün: dolu atın eski
+damgası bir sonraki turda en fazla `maxCreditSeconds` kadar bedava toparlanma
+verir (sınırlı, belgeli).
+
 **✅ ÜCRETLİ LOBİ YARIŞI ARTIK KOŞUYOR — ÖDÜL DAĞITIMI VAR (§13.14,
 28.09.2026).** `POST /races/:id/settle` yarışı koşar, ödülleri `top5`
 paylarıyla dağıtır ve `races.status = 'finished'` yazar. Uç bir

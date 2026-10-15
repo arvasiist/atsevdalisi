@@ -79,5 +79,16 @@
   "feedDailyGift": {
     "arpa": 2,
     "havuc": 1
+  },
+  "raceCondition": {
+    "energyPerKm": 15,
+    "fatiguePerKm": 15
+  },
+  "passiveRecovery": {
+    "enabled": true,
+    "tickSeconds": 300,
+    "maxCreditSeconds": 900,
+    "energyPerHour": 10,
+    "fatiguePerHour": 10
   }
 }

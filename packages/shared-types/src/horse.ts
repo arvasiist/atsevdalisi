@@ -149,6 +149,12 @@ export type PublicHorse = Omit<Horse, 'potential'> & {
    * karşılaştırılır — kapı sunucudadır, bu alan yalnızca ekran içindir.
    */
   racingPower?: number;
+  /**
+   * 15.10.2026 — at yorgunluk/enerji yüzünden yarışa hazır değilse, zamanla
+   * toparlanarak ne zaman hazır olacağı (ISO). Yalnızca sahibinin listesinde;
+   * hazırsa ya da engel zamanla geçmiyorsa (sağlık, durum) alan yoktur.
+   */
+  raceReadyAt?: ISODateTimeString;
 };
 
 /** `HorseStats`'ın `horseId` DIŞINDAKİ alanları — tek bir stat'a atıfta bulunmak
