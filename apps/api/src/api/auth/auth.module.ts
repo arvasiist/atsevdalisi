@@ -70,7 +70,7 @@ import { AuthGuard } from './auth.guard';
       provide: EMAIL_SENDER,
       useFactory: (config: AppConfigService) =>
         config.env.resendApiKey !== ''
-          ? new ResendEmailSender(config.env.resendApiKey, config.env.mailFrom)
+          ? new ResendEmailSender(config.env.resendApiKey, config.env.mailFrom, config.auth.email.deliveryTimeoutMs)
           : new OutboxEmailSender(config.env.nodeEnv),
       inject: [AppConfigService],
     },

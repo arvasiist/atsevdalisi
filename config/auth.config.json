@@ -1,6 +1,7 @@
 {
   "email": {
-    "maxLength": 254
+    "maxLength": 254,
+    "deliveryTimeoutMs": 10000
   },
   "password": {
     "minLength": 8,

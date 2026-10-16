@@ -95,6 +95,8 @@ import {
   InvalidCredentialsError,
   InvalidCredentialsInputError,
   InvalidProviderTokenError,
+  EmailDeliveryError,
+  EmailNotConfiguredError,
   ProviderAlreadyLinkedError,
   ProviderIdentityTakenError,
   InvalidResetTokenError,
@@ -764,6 +766,9 @@ const DOMAIN_ERROR_MAP = new Map<ErrorClassConstructor, { status: number; code: 
     InvalidProviderTokenError,
     { status: HttpStatus.UNAUTHORIZED, code: ErrorCode.InvalidProviderToken },
   ],
+  // 16.10.2026 — e-posta sağlayıcısı: 503 + anlaşılır mesaj (500 yerine).
+  [EmailDeliveryError, { status: HttpStatus.SERVICE_UNAVAILABLE, code: ErrorCode.EmailDeliveryFailed }],
+  [EmailNotConfiguredError, { status: HttpStatus.SERVICE_UNAVAILABLE, code: ErrorCode.EmailNotConfigured }],
   // 01.10.2026 — Google hesabı bağlama (migration 0048).
   [
     ProviderIdentityTakenError,

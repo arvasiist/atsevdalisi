@@ -217,3 +217,22 @@ export class AccountDeletionBlockedError extends Error {
     this.name = 'AccountDeletionBlockedError';
   }
 }
+
+/**
+ * 16.10.2026 — e-posta sağlayıcısı isteği reddetti / zaman aşımı / ağ hatası.
+ * Mesaj kullanıcıya gider: alıcı, içerik ve sağlayıcı yanıtı İÇERMEZ.
+ */
+export class EmailDeliveryError extends Error {
+  constructor() {
+    super('E-posta şu an gönderilemedi. Birkaç dakika sonra tekrar dene.');
+    this.name = 'EmailDeliveryError';
+  }
+}
+
+/** 16.10.2026 — üretimde `RESEND_API_KEY` yok: e-posta gönderilmedi (sahte "gönderildi" denmez). */
+export class EmailNotConfiguredError extends Error {
+  constructor() {
+    super('Bu sunucuda e-posta gönderimi yapılandırılmadı.');
+    this.name = 'EmailNotConfiguredError';
+  }
+}

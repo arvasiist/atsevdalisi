@@ -116,6 +116,8 @@ export const ErrorCode = {
   // JWT'imiz) kasıtlı olarak AYRI bir koddur (bkz. `domain/auth/errors.ts`
   // `InvalidProviderTokenError`).
   InvalidProviderToken: 'INVALID_PROVIDER_TOKEN',
+  EmailDeliveryFailed: 'EMAIL_DELIVERY_FAILED',
+  EmailNotConfigured: 'EMAIL_NOT_CONFIGURED',
   // 01.10.2026 — Google hesabı bağlama (`POST /auth/link`, migration 0048).
   // Bu Google hesabı BAŞKA bir oyuncuya bağlı / bu oyuncunun zaten başka bir
   // Google hesabı var.

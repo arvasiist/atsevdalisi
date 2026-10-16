@@ -1134,6 +1134,18 @@ bağlı YENİ bir veri bölümü (`ACCOUNT_EXPORT_SECTIONS`) eklersen
 `DATA_CATEGORY_BY_EXPORT_SECTION` (Record — tsc durdurur) aydınlatmaya yazdırır.
 Metin hukuki incelemeden GEÇMEDİ; `status: 'final'`ı yalnızca sahibi yapar.
 
+(99) **E-POSTA + GOOGLE YAPILANDIRMASI (16.10.2026, `docs/EPOSTA_GOOGLE_KURULUM.md`)**
+— üretim kapısı (`production-env.ts`): `RESEND_API_KEY` verilirse `re_` biçimi +
+`MAIL_FROM` ZORUNLU (yer tutucu/ayrılmış alan adı reddedilir), `WEB_BASE_URL`
+`https://`, `GOOGLE_OAUTH_CLIENT_ID` verilirse `….apps.googleusercontent.com`.
+Resend `auth.email.deliveryTimeoutMs` ile sınırlı; hata → 503
+`EMAIL_DELIVERY_FAILED`, üretimde anahtar yoksa `OutboxEmailSender` FIRLATIR
+(503 `EMAIL_NOT_CONFIGURED`, içerik bellekte tutulmaz) — sahte "gönderildi" yok.
+⚠️ `google-auth-library` hata mesajına TOKEN'ı ekler ("…segments in token: <jwt>"):
+log yalnızca ilk ':' öncesi; kullanıcıya `GOOGLE_TOKEN_REJECTED_MESSAGE`.
+Gerçek anahtarla deneme: elle tetiklenen `.github/workflows/integration-check.yml`
+(secrets) / `apps/api/tools/check-integrations.ts`; normal CI gerçek servise dokunmaz.
+
 **✅ ÜCRETLİ LOBİ YARIŞI ARTIK KOŞUYOR — ÖDÜL DAĞITIMI VAR (§13.14,
 28.09.2026).** `POST /races/:id/settle` yarışı koşar, ödülleri `top5`
 paylarıyla dağıtır ve `races.status = 'finished'` yazar. Uç bir

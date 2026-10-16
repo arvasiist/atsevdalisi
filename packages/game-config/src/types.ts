@@ -2201,7 +2201,8 @@ export interface RaceCalendarProgram {
  * `email.maxLength` `player_credentials.email` CHECK'iyle (254) eşleşmelidir.
  */
 export interface AuthConfig {
-  email: { maxLength: number };
+  /** `deliveryTimeoutMs`: e-posta sağlayıcısına (Resend) tek istek için bekleme sınırı (16.10.2026). */
+  email: { maxLength: number; deliveryTimeoutMs: number };
   password: { minLength: number; maxLength: number };
   /** Node `crypto.scrypt` parametreleri: `cost` (N, 2'nin kuvveti), `blockSize` (r), `parallelization` (p). */
   scrypt: {
