@@ -86,6 +86,30 @@ export interface FriendGiftBoardView {
   friendCount: number;
   /** Bugün hediye gönderilmiş arkadaş sayısı. */
   sentToday: number;
+  /** 16.10.2026 — gönderen öder: bir hediyenin gönderene maliyeti (= `amount`). */
+  sendCost: number;
+  dailySendBudget: number;
+  /** Bugün hediyeye harcanan çip. */
+  spentToday: number;
+  remainingSendBudget: number;
+  /** Şimdi "Hepsine Gönder"e basılırsa hediye gidecek arkadaşlar (bütçe + bakiye sınırlı). */
+  nextRecipients: FriendGiftRecipientView[];
+  /** Bugün henüz hediye gönderilmemiş uygun arkadaş sayısı. */
+  unsentEligibleCount: number;
+  /** Önizlemenin neden herkesi kapsamadığı: bütçe ya da bakiye. */
+  limitedBy: 'none' | 'budget' | 'funds';
+}
+
+export interface FriendGiftRecipientView {
+  playerId: string;
+  username: string;
+  displayName: string;
+}
+
+export type FriendGiftRecipientStatus = 'sent' | 'already_sent' | 'budget_exhausted' | 'insufficient_funds';
+
+export interface FriendGiftRecipientResult extends FriendGiftRecipientView {
+  status: FriendGiftRecipientStatus;
 }
 
 export interface FriendGiftSendAllResult {
@@ -93,6 +117,13 @@ export interface FriendGiftSendAllResult {
   sent: number;
   /** Bugün zaten hediye gönderilmiş olan arkadaş sayısı. */
   alreadySentToday: number;
+  /** Bu istekte gönderenden düşen çip (`sent × amount`). */
+  cost: number;
+  /** Süresi dolmuş, toplanmamış ödenmiş hediyelerden gönderene dönen çip. */
+  refunded: number;
+  balanceAfter: number;
+  /** Kişi başı sonuç: kime gitti, kim neden atlandı. */
+  recipients: FriendGiftRecipientResult[];
 }
 
 export interface FriendGiftCollectResult {

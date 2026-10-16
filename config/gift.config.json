@@ -8,7 +8,8 @@
     "money"
   ],
   "friendGift": {
-    "amount": 10,
+    "amount": 2,
+    "dailySendBudget": 20,
     "dailyCollectLimit": 20,
     "expiryDays": 7,
     "pendingListLimit": 50

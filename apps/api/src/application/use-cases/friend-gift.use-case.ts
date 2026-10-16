@@ -2,6 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import type {
   FriendGiftBoardView,
   FriendGiftCollectResult,
+  FriendGiftRecipientStatus,
   FriendGiftSendAllResult,
 } from '@at-sevdalisi/shared-types';
 import { loadGiftConfig, loadQuestsConfig } from '@at-sevdalisi/game-config';
@@ -10,9 +11,14 @@ import {
   friendGiftDay,
   friendGiftDayStart,
   friendGiftExpiryCutoff,
+  planFriendGiftSend,
   remainingCollects,
 } from '../../domain/social/friend-gift';
-import { FRIEND_GIFT_REPOSITORY, type FriendGiftRepository } from '../ports/friend-gift.repository';
+import {
+  FRIEND_GIFT_REPOSITORY,
+  type FriendGiftBoardFacts,
+  type FriendGiftRepository,
+} from '../ports/friend-gift.repository';
 
 const config = loadGiftConfig().friendGift;
 /** Oyunun TEK takvim saat dilimi (görevler, haftalık sıralama ile aynı). */
@@ -49,16 +55,54 @@ export class FriendGiftUseCase {
       })),
       friendCount: facts.friendCount,
       sentToday: facts.sentToday,
+      ...this.sendPreview(facts),
+    };
+  }
+
+  /** Önizleme gönderimle AYNI kuralı (`planFriendGiftSend`) ve sırayı kullanır. */
+  private sendPreview(facts: FriendGiftBoardFacts) {
+    const plan = planFriendGiftSend({
+      amount: config.amount,
+      dailySendBudget: config.dailySendBudget,
+      spentToday: facts.spentToday,
+      balance: facts.balance,
+      candidates: facts.unsent.length,
+    });
+    return {
+      sendCost: config.amount,
+      dailySendBudget: config.dailySendBudget,
+      spentToday: facts.spentToday,
+      remainingSendBudget: plan.remainingBudget,
+      nextRecipients: facts.unsent.slice(0, plan.maxRecipients),
+      unsentEligibleCount: facts.unsent.length,
+      limitedBy: plan.limitedBy,
     };
   }
 
   async sendAll(playerId: string, now: Date = new Date()): Promise<FriendGiftSendAllResult> {
-    return this.repository.sendToAllFriends({
+    const outcome = await this.repository.sendToAllFriends({
       senderId: playerId,
       dayKey: friendGiftDay(now, TIMEZONE_OFFSET_MINUTES),
       amount: config.amount,
+      dailySendBudget: config.dailySendBudget,
+      expiryCutoff: friendGiftExpiryCutoff(now, config.expiryDays),
       now,
     });
+    if (outcome.kind === 'not_found') throw new PlayerNotFoundError(playerId);
+    const skippedStatus: FriendGiftRecipientStatus =
+      outcome.limitedBy === 'funds' ? 'insufficient_funds' : 'budget_exhausted';
+    return {
+      sent: outcome.sent.length,
+      alreadySentToday: outcome.alreadySent.length,
+      cost: outcome.cost,
+      refunded: outcome.refunded,
+      balanceAfter: outcome.balanceAfter,
+      recipients: [
+        ...outcome.sent.map((friend) => ({ ...friend, status: 'sent' as const })),
+        ...outcome.alreadySent.map((friend) => ({ ...friend, status: 'already_sent' as const })),
+        ...outcome.skipped.map((friend) => ({ ...friend, status: skippedStatus })),
+      ],
+    };
   }
 
   async collect(playerId: string, now: Date = new Date()): Promise<FriendGiftCollectResult> {

@@ -3473,6 +3473,36 @@ button.btn-action {
   font-size: 13px;
 }
 
+.friend-gift-results,
+.friend-gift-milestones ul {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+.friend-gift-results li[data-status='sent'] {
+  color: var(--color-status-positive);
+}
+
+.friend-gift-milestones {
+  display: grid;
+  gap: 4px;
+  padding-top: 8px;
+  border-top: 1px solid var(--color-border-subtle, rgba(255, 255, 255, 0.08));
+}
+
+.friend-gift-milestones li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+}
+
+.friend-gift-milestones li[data-state='claimed'] {
+  color: var(--color-status-positive);
+}
+
 .friend-gift-notice {
   margin: 0;
   color: var(--color-status-positive);

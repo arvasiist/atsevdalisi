@@ -1771,8 +1771,13 @@ export interface GiftConfig {
 }
 
 export interface FriendGiftConfig {
-  /** Tek hediyenin çip tutarı (gönderim anında satıra yazılır). */
+  /**
+   * Tek hediyenin çip tutarı (gönderim anında satıra yazılır). 16.10.2026'dan
+   * beri GÖNDEREN ÖDER (brief §6.3): gönderimde düşer, alıcı toplayınca alır.
+   */
   amount: number;
+  /** Bir oyuncunun oyun gününde hediyeye harcayabileceği en çok çip (sunucuda). */
+  dailySendBudget: number;
   dailyCollectLimit: number;
   expiryDays: number;
   /** Ekrandaki bekleyen hediye listesinin boyu. */

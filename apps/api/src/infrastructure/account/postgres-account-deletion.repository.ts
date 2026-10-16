@@ -124,9 +124,13 @@ export class PostgresAccountDeletionRepository implements AccountDeletionReposit
       await client.query('DELETE FROM club_invites WHERE inviter_id = $1 OR invitee_id = $1', [playerId]);
       await client.query('DELETE FROM player_blocks WHERE blocker_id = $1 OR blocked_id = $1', [playerId]);
       // 08.10.2026 — TOPLANMAMIŞ dostluk hediyeleri (iki yön). Toplanmış olanlar
-      // alıcının defter satırını açıklar (`collect_id`), kalır.
+      // alıcının defter satırını açıklar (`collect_id`), kalır. 16.10.2026 —
+      // silinen hesaba BAŞKASININ ÖDEDİĞİ hediye silinmez: süresi dolunca
+      // gönderene iade edilir (`friend_gift_refund`); silmek gönderenin parasını yakardı.
       await client.query(
-        'DELETE FROM friend_gifts WHERE (sender_id = $1 OR recipient_id = $1) AND collected_at IS NULL',
+        `DELETE FROM friend_gifts
+          WHERE collected_at IS NULL
+            AND (sender_id = $1 OR (recipient_id = $1 AND sender_paid = 0))`,
         [playerId],
       );
 

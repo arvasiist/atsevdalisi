@@ -31,14 +31,20 @@ async function measure(
     return result.rows[0]?.level ?? 0;
   }
   if (metric === 'friend_count') {
-    // 08.10.2026 — ANLIK kabul edilmiş arkadaş sayısı (silinmiş hesap sayılmaz).
+    // 08.10.2026 — ANLIK kabul edilmiş arkadaş sayısı (silinmiş/engelli hesap sayılmaz).
     // Arkadaşlıktan çıkıp yeniden eklemek sayıyı artırmaz; ödül anahtar başına tek.
     const result = await db.query<{ count: string }>(
       `SELECT COUNT(*)::bigint AS count
          FROM friendships f
          JOIN players o ON o.id = CASE WHEN f.player_low_id = $1::uuid THEN f.player_high_id ELSE f.player_low_id END
         WHERE (f.player_low_id = $1::uuid OR f.player_high_id = $1::uuid)
-          AND f.status = 'accepted' AND o.deleted_at IS NULL`,
+          AND f.status = 'accepted' AND o.deleted_at IS NULL
+          -- 16.10.2026 (brief §6.2): engel (iki yön) arkadaşı geçersiz kılar —
+          -- dostluk hediyesinin uygunluk kuralıyla AYNI.
+          AND NOT EXISTS (
+            SELECT 1 FROM player_blocks b
+             WHERE (b.blocker_id = $1::uuid AND b.blocked_id = o.id)
+                OR (b.blocker_id = o.id AND b.blocked_id = $1::uuid))`,
       [playerId],
     );
     return Number(result.rows[0]?.count ?? 0);

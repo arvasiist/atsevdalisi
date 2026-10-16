@@ -7,6 +7,7 @@ import {
   friendGiftDay,
   friendGiftDayStart,
   friendGiftExpiryCutoff,
+  planFriendGiftSend,
   remainingCollects,
   validateFriendGiftConfig,
 } from '../../../src/domain/social/friend-gift';
@@ -41,6 +42,33 @@ describe('dostluk hediyesi — gün ve sınırlar', () => {
     expect(config.amount).toBeLessThanOrEqual(25);
     expect(validateFriendGiftConfig({ ...config, amount: 0 })).toHaveLength(1);
     expect(validateFriendGiftConfig({ ...config, dailyCollectLimit: 1.5, expiryDays: -1 })).toHaveLength(2);
+    expect(validateFriendGiftConfig({ ...config, dailySendBudget: config.amount - 1 })).not.toEqual([]);
+  });
+
+  it('16.10.2026 — brief başlangıç dengesi: 2 çip, günlük 20 çip bütçe (10 arkadaş)', () => {
+    const config = loadGiftConfig().friendGift;
+    expect(config.amount).toBe(2);
+    expect(config.dailySendBudget).toBe(20);
+  });
+});
+
+describe('gönderen öder — gönderim planı (bütçe + bakiye)', () => {
+  const base = { amount: 2, dailySendBudget: 20, spentToday: 0, balance: 1_000, candidates: 3 };
+
+  it('bütçe ve bakiye yeterse herkese gider', () => {
+    expect(planFriendGiftSend(base)).toEqual({ maxRecipients: 3, remainingBudget: 20, limitedBy: 'none' });
+  });
+
+  it('bütçe sınırlar: 20 çip / 2 = en çok 10 kişi; harcanan düşülür', () => {
+    expect(planFriendGiftSend({ ...base, candidates: 15 })).toMatchObject({ maxRecipients: 10, limitedBy: 'budget' });
+    expect(planFriendGiftSend({ ...base, spentToday: 18 })).toMatchObject({ maxRecipients: 1, remainingBudget: 2, limitedBy: 'budget' });
+    expect(planFriendGiftSend({ ...base, spentToday: 20 })).toMatchObject({ maxRecipients: 0, remainingBudget: 0 });
+    expect(planFriendGiftSend({ ...base, spentToday: 25 }).remainingBudget).toBe(0);
+  });
+
+  it('bakiye sınırlar; eksi bakiye hiçbir şey göndermez', () => {
+    expect(planFriendGiftSend({ ...base, balance: 3 })).toEqual({ maxRecipients: 1, remainingBudget: 20, limitedBy: 'funds' });
+    expect(planFriendGiftSend({ ...base, balance: -5 }).maxRecipients).toBe(0);
   });
 });
 

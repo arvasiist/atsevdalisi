@@ -16,6 +16,17 @@ export interface FriendGiftBoardFacts {
   pending: FriendGiftPendingFacts[];
   friendCount: number;
   sentToday: number;
+  /** Bugün hediyeye harcanan çip (`sender_paid` toplamı). */
+  spentToday: number;
+  balance: number;
+  /** Bugün henüz hediye gönderilmemiş uygun arkadaşlar (gönderim sırasıyla). */
+  unsent: FriendGiftRecipientFacts[];
+}
+
+export interface FriendGiftRecipientFacts {
+  playerId: string;
+  username: string;
+  displayName: string;
 }
 
 export interface FriendGiftBoardQuery {
@@ -30,8 +41,24 @@ export interface FriendGiftSendAllInput {
   senderId: string;
   dayKey: string;
   amount: number;
+  dailySendBudget: number;
+  /** Bu andan eski, toplanmamış ÖDENMİŞ hediyeler gönderene iade edilir. */
+  expiryCutoff: Date;
   now: Date;
 }
+
+export type FriendGiftSendAllOutcome =
+  | {
+      kind: 'ok';
+      sent: FriendGiftRecipientFacts[];
+      alreadySent: FriendGiftRecipientFacts[];
+      skipped: FriendGiftRecipientFacts[];
+      limitedBy: 'none' | 'budget' | 'funds';
+      cost: number;
+      refunded: number;
+      balanceAfter: number;
+    }
+  | { kind: 'not_found' };
 
 export interface FriendGiftCollectInput {
   playerId: string;
@@ -61,6 +88,6 @@ export type FriendGiftCollectOutcome =
 export interface FriendGiftRepository {
   board(query: FriendGiftBoardQuery): Promise<FriendGiftBoardFacts>;
   /** Uygun her arkadaşa bugünün hediyesi (zaten gönderilmişse atlanır). */
-  sendToAllFriends(input: FriendGiftSendAllInput): Promise<{ sent: number; alreadySentToday: number }>;
+  sendToAllFriends(input: FriendGiftSendAllInput): Promise<FriendGiftSendAllOutcome>;
   collect(input: FriendGiftCollectInput): Promise<FriendGiftCollectOutcome>;
 }

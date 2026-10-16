@@ -925,8 +925,8 @@ defter satırıyla girer (referans `friend_gifts.collect_id`). Tutar ve sınırl
 
 | Uç | Açıklama |
 | --- | --- |
-| `GET /friend-gifts` | Pano: `amount`, `dailyCollectLimit`, `collectedToday`, `remainingCollectsToday`, `pendingCount`, `pendingAmount`, `pending[]` (gönderen adı), `friendCount`, `sentToday` |
-| `POST /friend-gifts/send-all` | Uygun her arkadaşa bugünün hediyesi (engel/silinmiş hesap hariç). Yanıt `{ sent, alreadySentToday }`. Aynı kişiye oyun gününde (Türkiye saati) bir hediye. `@RateLimit` |
+| `GET /friend-gifts` | Pano: `amount`, `dailyCollectLimit`, `collectedToday`, `remainingCollectsToday`, `pendingCount`, `pendingAmount`, `pending[]` (gönderen adı), `friendCount`, `sentToday`; 16.10.2026 gönderen öder: `sendCost`, `dailySendBudget`, `spentToday`, `remainingSendBudget`, `nextRecipients[]` (basılırsa gidecekler), `unsentEligibleCount`, `limitedBy` (`none`/`budget`/`funds`) |
+| `POST /friend-gifts/send-all` | PARA YOLU (16.10.2026): gönderen `FOR UPDATE` → süresi dolmuş ödenmiş hediyelerin iadesi (`friend_gift_refund`) → günlük bütçe + bakiye kilit altında → hediyeler + tek `friend_gift_send` defter satırı. Uygun arkadaşlar kullanıcı adı sırasıyla (engel/silinmiş hesap hariç), aynı kişiye oyun gününde bir. Yanıt `{ sent, alreadySentToday, cost, refunded, balanceAfter, recipients[] }` (`status`: `sent`/`already_sent`/`budget_exhausted`/`insufficient_funds`). `@RateLimit` |
 | `POST /friend-gifts/collect` | Bekleyenleri toplar (en eskiden, günlük sınıra kadar; `expiryDays`tan eskisi toplanmaz). Yanıt `{ collected, amount, balanceAfter, remainingCollectsToday, stillPending }`. Tekrar çağrı sıfır toplar. `@RateLimit` |
 
 Arkadaş başarımı: `GET /achievements` ölçütü `friend_count` (anlık kabul

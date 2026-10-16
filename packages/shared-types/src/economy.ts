@@ -162,11 +162,18 @@ export const LEDGER_TRANSACTION_TYPES = [
    */
   'admin_adjustment',
   /**
-   * 08.10.2026 — toplanan dostluk hediyeleri (oyunun verdiği küçük hediye;
-   * gönderenden para DÜŞMEZ). Tek satır = bir toplama; referansı
+   * 08.10.2026 — toplanan dostluk hediyeleri. 16.10.2026'dan beri parayı
+   * GÖNDEREN öder (`friend_gift_send`); eski satırlar oyunun hediyesiydi. Tek satır = bir toplama; referansı
    * `friend_gifts.collect_id`dir (hangi hediyelerin toplandığı oradan okunur).
    */
   'friend_gift_collect',
+  /**
+   * 16.10.2026 — dostluk hediyesini GÖNDEREN öder (brief §6.3): tek satır = bir
+   * "hepsine gönder" (referans `friend_gifts.send_id`). Süresi dolup
+   * toplanmamış ödenmiş hediye gönderene `friend_gift_refund` ile döner.
+   */
+  'friend_gift_send',
+  'friend_gift_refund',
   /**
    * 08.10.2026 — tribün hediyesi: gönderenin ödediği fiyat (debit) ve atı
    * koşturan oyuncuya geçen pay (credit). Fark oyun ekonomisinden çıkar
@@ -268,7 +275,9 @@ export const CANONICAL_BY_LEDGER_TYPE: Record<LedgerTransactionType, CanonicalTr
   event_reward: 'REWARD',
   admin_adjustment: 'ADJUSTMENT',
   // Oyuncudan oyuncuya TRANSFER değildir (gönderen ödemez) → GIFT değil REWARD.
-  friend_gift_collect: 'REWARD',
+  friend_gift_collect: 'GIFT',
+  friend_gift_send: 'GIFT',
+  friend_gift_refund: 'REFUND',
   tribune_gift_debit: 'GIFT',
   tribune_gift_credit: 'GIFT',
   // 09.10.2026 — masa kuralı: ödül alamayan sıraya ödenen bedelin bir kısmı geri.

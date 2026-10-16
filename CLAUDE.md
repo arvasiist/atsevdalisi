@@ -735,8 +735,12 @@ kural sunucudadır.
 (70) **ARKADAŞ BAŞARIMI + DOSTLUK HEDİYESİ (08.10.2026, migration 0074,
 §13.94)** — başarım ölçütü `friend_count` (ANLIK kabul edilmiş arkadaş, silinmiş
 hesap sayılmaz; `player_level` gibi `SNAPSHOT_ACHIEVEMENT_METRICS`):
-`friends-5`…`friends-50` her biri 100 çip. `friend_gifts`: "Hepsine gönder"
-gönderenden PARA DÜŞÜRMEZ (oyunun verdiği hediye), aynı kişiye oyun gününde bir
+`friends-5`…`friends-50` her biri 100 çip. `friend_gifts`: "Hepsine gönder" — ⚠️ 16.10.2026'dan beri (migration 0087,
+brief §6.3) GÖNDEREN ÖDER: `amount` 2 çip, günlük `dailySendBudget` 20, gönderen
+`FOR UPDATE` altında bütçe + bakiye, tek `friend_gift_send` satırı, kişi başı
+sonuç; süresi dolan ödenmiş hediye gönderene `friend_gift_refund` ile döner;
+silinen alıcıya ödenmiş hediye SİLİNMEZ (iade için); `friend_count` engelliyi
+saymaz. Aynı kişiye oyun gününde bir
 (`(sender, recipient, gift_day)` TEKİL), engelli/silinmiş arkadaş atlanır.
 Toplama PARA YOLU: oyuncu `FOR UPDATE` → günlük sınır (`friendGift.
 dailyCollectLimit`) KİLİT ALTINDA → işaretle → TEK `friend_gift_collect`
