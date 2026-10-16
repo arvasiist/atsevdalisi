@@ -2539,7 +2539,11 @@ export interface AvatarConfig {
  */
 export interface StoreConfig {
   currency: string;
-  products: Array<{ sku: string; gems: number; priceMinor: number }>;
+  /**
+   * 16.10.2026 — paket ya elmas (`gems`) ya çip (`chips`) verir; tam olarak biri
+   * pozitif olmalı (`validateStoreConfig` + DB CHECK `payment_orders_one_reward`).
+   */
+  products: Array<{ sku: string; gems?: number; chips?: number; priceMinor: number }>;
   /** Oyuncu başına son 24 saatte ödenmiş + bekleyen siparişlerin üst sınırı (kuruş). */
   maxDailySpendMinor: number;
   /** Aynı anda bekleyen (ödeme sayfasında) sipariş sınırı. */

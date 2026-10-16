@@ -294,8 +294,8 @@ export default function WalletPage(): React.ReactElement {
             <GlassPanel style={{ padding: 'var(--space-lg)' }}>
               <h2 style={sectionTitleStyle}>Sanal Para Yükle</h2>
               <p style={{ color: 'var(--color-text-secondary)', margin: 0, fontSize: '13px' }}>
-                Bu sunucuda para yükleme kapalıdır. Çip gerçek parayla satılmaz (yarış havuzlarına girdiği
-                için); oyunda kazanılır:
+                Bu sunucuda deneme yüklemesi kapalıdır. Çip oyunda kazanılır ya da mağazadan paket olarak
+                alınır (satın alınan çip arkadaşa gönderilemez):
               </p>
               {/* 16.10.2026 — brief §4: "+" boş bir ekrana çıkmasın; çipin gerçek kaynakları. */}
               <ul data-testid="chip-sources" style={{ margin: 'var(--space-sm) 0 0', paddingLeft: '18px', fontSize: '13px' }}>
@@ -310,7 +310,7 @@ export default function WalletPage(): React.ReactElement {
                   <Link href="/friends">Dostluk hediyeleri ve arkadaş başarımları</Link>
                 </li>
                 <li>
-                  Elmas (görünüş ürünleri) için <Link href="/store">Mağaza</Link>
+                  <Link href="/store">Mağaza</Link> — çip paketleri ve elmas (görünüş ürünleri)
                 </li>
               </ul>
             </GlassPanel>

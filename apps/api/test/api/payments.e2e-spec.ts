@@ -8,7 +8,13 @@ import { loadEconomyConfig, loadStoreConfig } from '@at-sevdalisi/game-config';
 import { PAYMENT_GATEWAY, type PaymentGateway, type PaymentWebhookEvent } from '../../src/application/ports/payment-gateway';
 import { InvalidWebhookError } from '../../src/domain/payments/errors';
 import { PG_POOL } from '../../src/infrastructure/database/database.module';
-import { bootstrapTestApp, registerTestPlayer, type RegisteredTestPlayer } from './test-helpers';
+import {
+  bootstrapTestApp,
+  matureAccounts,
+  recordSharedFinishedRace,
+  registerTestPlayer,
+  type RegisteredTestPlayer,
+} from './test-helpers';
 
 /**
  * GERÇEK PARA ÖDEMESİ (07.10.2026, Faz 12, migration 0068). Gerçek sağlayıcı
@@ -48,6 +54,8 @@ class FakeGateway implements PaymentGateway {
 
 const store = loadStoreConfig();
 const product = store.products[0]!;
+// 16.10.2026 — çip paketi (satın alınan çip arkadaşa gönderilemez).
+const chipProduct = store.products.find((item) => (item.chips ?? 0) > 0)!;
 
 describe('Mağaza — sağlayıcı YOK (e2e)', () => {
   let app: INestApplication;
@@ -224,6 +232,74 @@ describe('Mağaza — sahte sağlayıcıyla (e2e)', () => {
     expect(Object.keys(row)).not.toContain('providerSessionId');
     // İade edilmiş sipariş yeniden iade edilemez.
     await http().post(`/api/v1/admin/payments/${order.id}/refund`).set('Authorization', admin.authHeader).expect(409);
+  });
+
+  it('çip paketi (16.10.2026): başarı bir kez ÇİP verir (elmas değil); iade geri alır, açık kaydedilir; satın alınan çip hediye edilemez', async () => {
+    expect(chipProduct).toBeDefined();
+    const player = await registerTestPlayer(app, 'Mağaza Çip');
+    const friend = await registerTestPlayer(app, 'Mağaza Çip Arkadaş');
+    const admin = await registerTestPlayer(app, 'Mağaza Çip Yönetici');
+    await pool.query('UPDATE players SET is_admin = true WHERE id = $1', [admin.playerId]);
+    const moneyOf = async (playerId: string) =>
+      Number((await pool.query('SELECT money FROM players WHERE id = $1', [playerId])).rows[0].money);
+
+    const order = ((await checkout(player, chipProduct.sku).expect(201)).body.data as CheckoutView).order;
+    expect(order).toMatchObject({ sku: chipProduct.sku, chips: chipProduct.chips, gems: 0 });
+    const session = await sessionOf(order.id);
+    const moneyBefore = await moneyOf(player.playerId);
+    const gemsBefore = await gems(player.playerId);
+    const paid = (extra: Partial<PaymentWebhookEvent> = {}) =>
+      succeeded(session, { amountMinor: chipProduct.priceMinor, ...extra });
+    await paid().expect(200);
+    await paid().expect(200);
+    expect(await moneyOf(player.playerId)).toBe(moneyBefore + chipProduct.chips!);
+    expect(await gems(player.playerId)).toBe(gemsBefore);
+    const ledger = await pool.query<{ type: string; currency: string; amount: string }>(
+      "SELECT type, currency, amount FROM economy_transactions WHERE player_id = $1 AND reference_id = $2",
+      [player.playerId, order.id],
+    );
+    expect(ledger.rows).toEqual([{ type: 'chip_purchase', currency: 'money', amount: String(chipProduct.chips) }]);
+
+    // Satın alınan çip arkadaşa gönderilemez; kazanılmış kısım gönderilebilir.
+    await recordSharedFinishedRace(app, [player, friend]);
+    const created = await http()
+      .post(`/api/v1/players/${player.playerId}/friend-requests`)
+      .set('Authorization', player.authHeader)
+      .send({ addresseeId: friend.playerId })
+      .expect(201);
+    await http()
+      .post(`/api/v1/players/${friend.playerId}/friend-requests/${created.body.data.requestId as string}/respond`)
+      .set('Authorization', friend.authHeader)
+      .send({ action: 'accept' })
+      .expect(200);
+    await matureAccounts(app, [player, friend]);
+    const earned = 50;
+    await pool.query('UPDATE players SET money = $2 WHERE id = $1', [player.playerId, chipProduct.chips! + earned]);
+    const gift = (amount: number) =>
+      http()
+        .post(`/api/v1/players/${player.playerId}/gifts`)
+        .set('Authorization', player.authHeader)
+        .set('Idempotency-Key', randomUUID())
+        .send({ recipientId: friend.playerId, amount, currency: 'money' });
+    const refused = await gift(earned + 1).expect(409);
+    expect(refused.body.error.code).toBe('GIFT_LIMIT_EXCEEDED');
+    await gift(earned).expect(201);
+
+    // İade: harcanmış çip açığı ayrı sütunda; bakiye eksiye düşmez.
+    await pool.query('UPDATE players SET money = 100 WHERE id = $1', [player.playerId]);
+    await http().post(`/api/v1/admin/payments/${order.id}/refund`).set('Authorization', admin.authHeader).expect(202);
+    await send({
+      type: 'payment_refunded',
+      sessionId: session,
+      paymentId: `pi_${session}`,
+      amountMinor: chipProduct.priceMinor,
+      currency: store.currency,
+    }).expect(200);
+    expect(await moneyOf(player.playerId)).toBe(0);
+    const row = (await pool.query('SELECT status, clawback_shortfall_chips, clawback_shortfall_gems FROM payment_orders WHERE id = $1', [order.id])).rows[0];
+    expect(row).toMatchObject({ status: 'refunded', clawback_shortfall_chips: String(chipProduct.chips! - 100), clawback_shortfall_gems: '0' });
+    const list = (await http().get('/api/v1/admin/payments').set('Authorization', admin.authHeader).expect(200)).body.data as Array<Record<string, unknown>>;
+    expect(list.find((r) => r.id === order.id)).toMatchObject({ chips: chipProduct.chips, clawbackShortfallChips: chipProduct.chips! - 100 });
   });
 
   it('sınırlar: bekleyen sipariş sayısı; bekleyen ödeme hesap silmeyi engeller', async () => {

@@ -7,7 +7,6 @@ import type {
   PaymentOrderRepository,
   WebhookApplyResult,
 } from '../../application/ports/payment-order.repository';
-import { credit, debit } from '../../domain/economy/wallet';
 import { computeClawback, type WebhookEffect } from '../../domain/payments/store';
 import { PG_POOL, withTransaction } from '../database/database.module';
 
@@ -16,6 +15,7 @@ interface OrderRow {
   player_id: string;
   sku: string;
   gems: string;
+  chips: string;
   amount_minor: string;
   currency: string;
   status: PaymentOrderStatus;
@@ -24,13 +24,14 @@ interface OrderRow {
   provider_payment_id: string | null;
   failure_code: string | null;
   clawback_shortfall_gems: string;
+  clawback_shortfall_chips: string;
   created_at: Date;
   paid_at: Date | null;
   refunded_at: Date | null;
 }
 
-const COLUMNS = `id, player_id, sku, gems, amount_minor, currency, status, provider, provider_session_id,
-  provider_payment_id, failure_code, clawback_shortfall_gems, created_at, paid_at, refunded_at`;
+const COLUMNS = `id, player_id, sku, gems, chips, amount_minor, currency, status, provider, provider_session_id,
+  provider_payment_id, failure_code, clawback_shortfall_gems, clawback_shortfall_chips, created_at, paid_at, refunded_at`;
 
 // BIGINT metin döner (CLAUDE.md) — `Number(...)` şart.
 function toOrder(row: OrderRow): PaymentOrderRecord {
@@ -39,6 +40,7 @@ function toOrder(row: OrderRow): PaymentOrderRecord {
     playerId: row.player_id,
     sku: row.sku,
     gems: Number(row.gems),
+    chips: Number(row.chips),
     amountMinor: Number(row.amount_minor),
     currency: row.currency,
     status: row.status,
@@ -47,6 +49,7 @@ function toOrder(row: OrderRow): PaymentOrderRecord {
     providerPaymentId: row.provider_payment_id,
     failureCode: row.failure_code,
     clawbackShortfallGems: Number(row.clawback_shortfall_gems),
+    clawbackShortfallChips: Number(row.clawback_shortfall_chips),
     createdAt: row.created_at,
     paidAt: row.paid_at,
     refundedAt: row.refunded_at,
@@ -76,15 +79,16 @@ export class PostgresPaymentOrderRepository implements PaymentOrderRepository {
     playerId: string;
     sku: string;
     gems: number;
+    chips: number;
     amountMinor: number;
     currency: string;
     provider: string;
     now: Date;
   }): Promise<PaymentOrderRecord> {
     const result = await this.pool.query<OrderRow>(
-      `INSERT INTO payment_orders (id, player_id, sku, gems, amount_minor, currency, status, provider, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, $5, $6, 'created', $7, $8, $8) RETURNING ${COLUMNS}`,
-      [input.id, input.playerId, input.sku, input.gems, input.amountMinor, input.currency, input.provider, input.now],
+      `INSERT INTO payment_orders (id, player_id, sku, gems, chips, amount_minor, currency, status, provider, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $9, $5, $6, 'created', $7, $8, $8) RETURNING ${COLUMNS}`,
+      [input.id, input.playerId, input.sku, input.gems, input.amountMinor, input.currency, input.provider, input.now, input.chips],
     );
     return toOrder(result.rows[0]!);
   }
@@ -140,6 +144,7 @@ export class PostgresPaymentOrderRepository implements PaymentOrderRepository {
         id: order.id,
         sku: order.sku,
         gems: order.gems,
+        chips: order.chips,
         amountMinor: order.amountMinor,
         currency: order.currency,
         status: order.status,
@@ -151,6 +156,7 @@ export class PostgresPaymentOrderRepository implements PaymentOrderRepository {
         username: row.username,
         provider: order.provider,
         clawbackShortfallGems: order.clawbackShortfallGems,
+        clawbackShortfallChips: order.clawbackShortfallChips,
       };
     });
   }
@@ -186,11 +192,13 @@ export class PostgresPaymentOrderRepository implements PaymentOrderRepository {
       const effect = decide(order);
       let updated = order;
 
+      // 16.10.2026 — sipariş ya elmas ya çip verir (`payment_orders_one_reward`).
+      const reward = rewardOf(order);
       if (effect.kind === 'mark_paid') {
-        const balance = await lockPlayer(client, order.playerId);
-        const after = credit({ money: 0, gems: balance }, order.gems, 'gems').gems;
-        await client.query('UPDATE players SET gems = $2, updated_at = $3 WHERE id = $1', [order.playerId, after, now]);
-        await writeLedger(client, order.playerId, 'gem_purchase', order.gems, order.id, balance, after);
+        const balance = await lockPlayer(client, order.playerId, reward.currency);
+        const after = balance + reward.amount;
+        await client.query(`UPDATE players SET ${reward.column} = $2, updated_at = $3 WHERE id = $1`, [order.playerId, after, now]);
+        await writeLedger(client, order.playerId, reward.purchaseType, reward.amount, order.id, balance, after, reward.currency);
         updated = await updateOrder(
           client,
           order.id,
@@ -199,17 +207,17 @@ export class PostgresPaymentOrderRepository implements PaymentOrderRepository {
           now,
         );
       } else if (effect.kind === 'mark_refunded') {
-        const balance = await lockPlayer(client, order.playerId);
-        const { debit: take, shortfall } = computeClawback(balance, order.gems);
+        const balance = await lockPlayer(client, order.playerId, reward.currency);
+        const { debit: take, shortfall } = computeClawback(balance, reward.amount);
         if (take > 0) {
-          const after = debit({ money: 0, gems: balance }, take, 'gems').gems;
-          await client.query('UPDATE players SET gems = $2, updated_at = $3 WHERE id = $1', [order.playerId, after, now]);
-          await writeLedger(client, order.playerId, 'gem_purchase_refund', -take, order.id, balance, after);
+          const after = balance - take;
+          await client.query(`UPDATE players SET ${reward.column} = $2, updated_at = $3 WHERE id = $1`, [order.playerId, after, now]);
+          await writeLedger(client, order.playerId, reward.refundType, -take, order.id, balance, after, reward.currency);
         }
         updated = await updateOrder(
           client,
           order.id,
-          `status = 'refunded', refunded_at = $2::timestamptz, clawback_shortfall_gems = $3::bigint`,
+          `status = 'refunded', refunded_at = $2::timestamptz, ${reward.shortfallColumn} = $3::bigint`,
           [now, shortfall],
           now,
         );
@@ -230,25 +238,60 @@ export class PostgresPaymentOrderRepository implements PaymentOrderRepository {
   }
 }
 
-async function lockPlayer(client: PoolClient, playerId: string): Promise<number> {
-  const result = await client.query<{ gems: string }>('SELECT gems FROM players WHERE id = $1 FOR UPDATE', [playerId]);
-  return Number(result.rows[0]!.gems);
+/**
+ * Siparişin verdiği kaynak. Sütun adları SABİT bir eşlemeden gelir (girdi değil),
+ * SQL'e yalnızca bu iki değerden biri yazılır.
+ */
+function rewardOf(order: PaymentOrderRecord): {
+  currency: 'money' | 'gems';
+  column: 'money' | 'gems';
+  shortfallColumn: 'clawback_shortfall_chips' | 'clawback_shortfall_gems';
+  amount: number;
+  purchaseType: 'chip_purchase' | 'gem_purchase';
+  refundType: 'chip_purchase_refund' | 'gem_purchase_refund';
+} {
+  return order.chips > 0
+    ? {
+        currency: 'money',
+        column: 'money',
+        shortfallColumn: 'clawback_shortfall_chips',
+        amount: order.chips,
+        purchaseType: 'chip_purchase',
+        refundType: 'chip_purchase_refund',
+      }
+    : {
+        currency: 'gems',
+        column: 'gems',
+        shortfallColumn: 'clawback_shortfall_gems',
+        amount: order.gems,
+        purchaseType: 'gem_purchase',
+        refundType: 'gem_purchase_refund',
+      };
+}
+
+async function lockPlayer(client: PoolClient, playerId: string, currency: 'money' | 'gems'): Promise<number> {
+  const result = await client.query<{ money: string; gems: string }>(
+    'SELECT money, gems FROM players WHERE id = $1 FOR UPDATE',
+    [playerId],
+  );
+  return Number(result.rows[0]![currency]);
 }
 
 async function writeLedger(
   client: PoolClient,
   playerId: string,
-  type: 'gem_purchase' | 'gem_purchase_refund',
+  type: 'gem_purchase' | 'gem_purchase_refund' | 'chip_purchase' | 'chip_purchase_refund',
   amount: number,
   orderId: string,
   before: number,
   after: number,
+  currency: 'money' | 'gems',
 ): Promise<void> {
   await client.query(
     `INSERT INTO economy_transactions
        (player_id, type, amount, currency, reference_type, reference_id, balance_before, balance_after)
-     VALUES ($1, $2, $3, 'gems', 'payment_orders', $4, $5, $6)`,
-    [playerId, type, amount, orderId, before, after],
+     VALUES ($1, $2, $3, $7, 'payment_orders', $4, $5, $6)`,
+    [playerId, type, amount, orderId, before, after, currency],
   );
 }
 

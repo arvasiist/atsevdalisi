@@ -12,7 +12,9 @@ export type PaymentOrderStatus = (typeof PAYMENT_ORDER_STATUSES)[number];
 
 export interface StoreProductView {
   sku: string;
+  /** 16.10.2026 — paket ya elmas ya çip verir (diğeri 0). */
   gems: number;
+  chips: number;
   /** En küçük para birimi (kuruş). Gösterimde 100'e bölünür. */
   priceMinor: number;
   currency: string;
@@ -29,6 +31,8 @@ export interface PaymentOrderView {
   id: string;
   sku: string;
   gems: number;
+  /** 16.10.2026 — çip paketi siparişinde verilen çip (elmas paketinde 0). */
+  chips: number;
   amountMinor: number;
   currency: string;
   status: PaymentOrderStatus;
@@ -50,4 +54,6 @@ export interface AdminPaymentOrderView extends PaymentOrderView {
   provider: string;
   /** İade anında oyuncunun harcamış olduğu, geri alınamayan elmas (sahtekârlık incelemesi). */
   clawbackShortfallGems: number;
+  /** 16.10.2026 — çip paketi iadesinde geri alınamayan (harcanmış) çip. */
+  clawbackShortfallChips: number;
 }

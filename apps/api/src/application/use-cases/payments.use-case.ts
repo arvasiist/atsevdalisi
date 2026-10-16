@@ -32,6 +32,7 @@ function toView(order: PaymentOrderRecord): PaymentOrderView {
     id: order.id,
     sku: order.sku,
     gems: order.gems,
+    chips: order.chips,
     amountMinor: order.amountMinor,
     currency: order.currency,
     status: order.status,
@@ -67,7 +68,13 @@ export class PaymentsUseCase {
   store(): StoreView {
     return {
       available: this.gateway !== null,
-      products: store.products.map((product) => ({ ...product, currency: store.currency })),
+      products: store.products.map((product) => ({
+        sku: product.sku,
+        gems: product.gems ?? 0,
+        chips: product.chips ?? 0,
+        priceMinor: product.priceMinor,
+        currency: store.currency,
+      })),
     };
   }
 
@@ -82,6 +89,7 @@ export class PaymentsUseCase {
       playerId,
       sku: product.sku,
       gems: product.gems,
+      chips: product.chips,
       amountMinor: product.priceMinor,
       currency: store.currency,
       provider: gateway.name,
@@ -94,7 +102,7 @@ export class PaymentsUseCase {
         orderId: order.id,
         amountMinor: order.amountMinor,
         currency: order.currency,
-        description: `${product.gems} elmas`,
+        description: product.chips > 0 ? `${product.chips} çip` : `${product.gems} elmas`,
         successUrl: `${base}/store?order=${order.id}`,
         cancelUrl: `${base}/store?order=${order.id}&cancelled=1`,
       });
@@ -142,6 +150,9 @@ export class PaymentsUseCase {
     }
     if (result.kind === 'applied' && result.order.clawbackShortfallGems > 0) {
       this.logger.warn(`İadede elmas açığı (${result.order.clawbackShortfallGems}) — inceleme gerekli (sipariş ${result.order.id}).`);
+    }
+    if (result.kind === 'applied' && result.order.clawbackShortfallChips > 0) {
+      this.logger.warn(`İadede çip açığı (${result.order.clawbackShortfallChips}) — inceleme gerekli (sipariş ${result.order.id}).`);
     }
     return { received: true };
   }

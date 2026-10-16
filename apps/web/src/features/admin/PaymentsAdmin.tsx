@@ -46,10 +46,11 @@ export function PaymentsAdmin({ onChanged }: { onChanged: (message: string) => v
     <ul className="session-list" data-testid="payments-admin">
       {rows.map((row) => (
         <li key={row.id}>
-          <strong>{row.username}</strong> · {row.gems} elmas · {formatPrice(row.amountMinor, row.currency)} ·{' '}
+          <strong>{row.username}</strong> · {row.chips > 0 ? `${row.chips} çip` : `${row.gems} elmas`} · {formatPrice(row.amountMinor, row.currency)} ·{' '}
           {PAYMENT_STATUS_LABELS[row.status]}
           {row.failureCode ? ` (${row.failureCode})` : ''}
-          {row.clawbackShortfallGems > 0 ? ` · geri alınamayan ${row.clawbackShortfallGems} elmas — incele` : ''} ·{' '}
+          {row.clawbackShortfallGems > 0 ? ` · geri alınamayan ${row.clawbackShortfallGems} elmas — incele` : ''}
+          {row.clawbackShortfallChips > 0 ? ` · geri alınamayan ${row.clawbackShortfallChips} çip — incele` : ''} ·{' '}
           {new Date(row.createdAt).toLocaleString('tr-TR')}
           {row.status === 'paid' ? (
             <button type="button" disabled={busy !== null} onClick={() => void refund(row.id)} style={{ marginLeft: 8 }}>

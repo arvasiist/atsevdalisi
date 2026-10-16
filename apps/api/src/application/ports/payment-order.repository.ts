@@ -9,6 +9,7 @@ export interface PaymentOrderRecord {
   playerId: string;
   sku: string;
   gems: number;
+  chips: number;
   amountMinor: number;
   currency: string;
   status: PaymentOrderStatus;
@@ -17,6 +18,7 @@ export interface PaymentOrderRecord {
   providerPaymentId: string | null;
   failureCode: string | null;
   clawbackShortfallGems: number;
+  clawbackShortfallChips: number;
   createdAt: Date;
   paidAt: Date | null;
   refundedAt: Date | null;
@@ -35,6 +37,7 @@ export interface PaymentOrderRepository {
     playerId: string;
     sku: string;
     gems: number;
+  chips: number;
     amountMinor: number;
     currency: string;
     provider: string;

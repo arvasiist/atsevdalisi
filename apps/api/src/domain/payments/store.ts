@@ -14,13 +14,16 @@ const SKU_PATTERN = /^[a-z0-9-]{3,40}$/;
 
 export interface StoreProduct {
   sku: string;
+  /** 16.10.2026 — tam olarak biri pozitif (elmas paketi ya da çip paketi). */
   gems: number;
+  chips: number;
   priceMinor: number;
 }
 
 export function resolveStoreProduct(rawSku: unknown, config: Pick<StoreConfig, 'products'>): StoreProduct | null {
   if (typeof rawSku !== 'string' || !SKU_PATTERN.test(rawSku)) return null;
-  return config.products.find((product) => product.sku === rawSku) ?? null;
+  const product = config.products.find((candidate) => candidate.sku === rawSku);
+  return product ? { sku: product.sku, gems: product.gems ?? 0, chips: product.chips ?? 0, priceMinor: product.priceMinor } : null;
 }
 
 export function validateStoreConfig(config: StoreConfig): string[] {
@@ -31,7 +34,12 @@ export function validateStoreConfig(config: StoreConfig): string[] {
     if (!SKU_PATTERN.test(product.sku)) problems.push(`${product.sku}: SKU kalıba uymuyor`);
     if (seen.has(product.sku)) problems.push(`${product.sku}: SKU tekrar ediyor`);
     seen.add(product.sku);
-    if (!Number.isInteger(product.gems) || product.gems < 1) problems.push(`${product.sku}: elmas pozitif tam sayı olmalı`);
+    const gems = product.gems ?? 0;
+    const chips = product.chips ?? 0;
+    if (!Number.isInteger(gems) || !Number.isInteger(chips) || gems < 0 || chips < 0) {
+      problems.push(`${product.sku}: elmas/çip negatif olmayan tam sayı olmalı`);
+    }
+    if ((gems > 0) === (chips > 0)) problems.push(`${product.sku}: paket ya elmas ya çip vermeli (tam olarak biri)`);
     if (!Number.isInteger(product.priceMinor) || product.priceMinor < 1) problems.push(`${product.sku}: fiyat pozitif tam sayı olmalı`);
     if (product.priceMinor > config.maxDailySpendMinor) problems.push(`${product.sku}: fiyat günlük sınırı aşıyor`);
   }

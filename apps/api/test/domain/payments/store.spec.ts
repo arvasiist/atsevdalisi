@@ -18,7 +18,10 @@ describe('mağaza kuralları (saf)', () => {
   it('üretim kataloğu geçerli; ürün yalnızca SKU ile çözülür', () => {
     expect(validateStoreConfig(config)).toEqual([]);
     const first = config.products[0]!;
-    expect(resolveStoreProduct(first.sku, config)).toEqual(first);
+    expect(resolveStoreProduct(first.sku, config)).toEqual({ chips: 0, ...first, gems: first.gems ?? 0 });
+    // 16.10.2026 — çip paketi de SKU ile çözülür, elması 0'dır.
+    const chipPack = config.products.find((product) => (product.chips ?? 0) > 0)!;
+    expect(resolveStoreProduct(chipPack.sku, config)).toMatchObject({ gems: 0, chips: chipPack.chips });
     expect(resolveStoreProduct('gems-999999', config)).toBeNull();
     expect(resolveStoreProduct({ sku: first.sku, priceMinor: 1 }, config)).toBeNull();
   });
@@ -31,13 +34,15 @@ describe('mağaza kuralları (saf)', () => {
         { sku: 'x', gems: 0, priceMinor: 0 },
         { sku: 'dup-1', gems: 1, priceMinor: config.maxDailySpendMinor + 1 },
         { sku: 'dup-1', gems: 1, priceMinor: 1 },
+        { sku: 'both-1', gems: 5, chips: 5, priceMinor: 1 },
       ],
     });
     expect(problems).toEqual(
       expect.arrayContaining([
         'currency ISO 4217 (3 büyük harf) olmalı',
         'x: SKU kalıba uymuyor',
-        'x: elmas pozitif tam sayı olmalı',
+        'x: paket ya elmas ya çip vermeli (tam olarak biri)',
+        'both-1: paket ya elmas ya çip vermeli (tam olarak biri)',
         'dup-1: fiyat günlük sınırı aşıyor',
         'dup-1: SKU tekrar ediyor',
       ]),

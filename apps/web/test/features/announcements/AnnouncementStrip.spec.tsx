@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import type { AnnouncementView } from '@at-sevdalisi/shared-types';
 
 /**
@@ -37,7 +37,11 @@ describe('AnnouncementStrip yüksekliği', () => {
     getAnnouncementsMock.mockResolvedValue([ITEM]);
     const { unmount } = render(<AnnouncementStrip />);
     await screen.findByRole('region', { name: 'Duyurular' });
-    expect(document.documentElement.style.getPropertyValue(ANNOUNCEMENT_HEIGHT_VAR)).toBe(`${STRIP_HEIGHT_PX}px`);
+    // Yükseklik commit SONRASI etkide yazılır; CI'da öğe görünüp etki henüz
+    // koşmamış olabiliyordu (16.10.2026'da yaşandı: '0px') → bekleyerek iddia et.
+    await waitFor(() =>
+      expect(document.documentElement.style.getPropertyValue(ANNOUNCEMENT_HEIGHT_VAR)).toBe(`${STRIP_HEIGHT_PX}px`),
+    );
     unmount();
     expect(document.documentElement.style.getPropertyValue(ANNOUNCEMENT_HEIGHT_VAR)).toBe('0px');
   });

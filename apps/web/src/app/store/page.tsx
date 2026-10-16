@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * MAĞAZA (07.10.2026, Faz 12, brief §20/§88). Elmas paketleri; ödeme
+ * MAĞAZA (07.10.2026, Faz 12, brief §20/§88). Elmas + çip paketleri (16.10.2026); ödeme
  * SAĞLAYICININ sayfasında yapılır (kart bilgisi bu siteye hiç girmez).
  * Dönüşte sipariş sunucudan yoklanır — "ödendi" bilgisi yalnızca sağlayıcının
  * imzalı bildirimiyle gelir; bu ekran onu yalnızca GÖSTERİR. Sağlayıcı
@@ -11,7 +11,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { PaymentOrderView, StoreView } from '@at-sevdalisi/shared-types';
 import { GlassPanel } from '../../components/ui/GlassPanel';
-import { PAYMENT_STATUS_LABELS, formatPrice, isFinalPaymentStatus } from '../../features/store/store-labels';
+import { PAYMENT_STATUS_LABELS, describeStoreReward, formatPrice, isFinalPaymentStatus } from '../../features/store/store-labels';
 import { CosmeticShopPanel } from '../../features/cosmetics/CosmeticShopPanel';
 import { useCosmetics } from '../../features/cosmetics/use-cosmetics';
 import { apiClient } from '../../lib/api-client';
@@ -115,7 +115,7 @@ function StoreContent(): React.ReactElement {
         <GlassPanel>
           <p data-testid="store-returned">
             Siparişin: <strong>{PAYMENT_STATUS_LABELS[returned.status]}</strong>
-            {returned.status === 'paid' ? ` — ${returned.gems} elmas hesabına eklendi.` : ''}
+            {returned.status === 'paid' ? ` — ${describeStoreReward(returned)} hesabına eklendi.` : ''}
             {returned.status === 'pending' ? ' — ödeme sağlayıcısından onay bekleniyor…' : ''}
           </p>
         </GlassPanel>
@@ -131,11 +131,20 @@ function StoreContent(): React.ReactElement {
               </p>
             </GlassPanel>
           ) : null}
+          {(['gems', 'chips'] as const).map((kind) => {
+            const products = store.products.filter((product) => (kind === 'chips' ? product.chips > 0 : product.gems > 0));
+            if (products.length === 0) return null;
+            return (
+              <section key={kind} data-testid={`store-${kind}`}>
+                <h2 className="avatar-section-title">{kind === 'chips' ? 'Çip paketleri' : 'Elmas paketleri'}</h2>
+                {kind === 'chips' ? (
+                  <p className="session-meta">Satın alınan çip yarışta ve alışverişte kullanılır; arkadaşa gönderilemez.</p>
+                ) : null}
           <div className="store-grid">
-            {store.products.map((product) => (
+            {products.map((product) => (
               <GlassPanel key={product.sku}>
                 <div className="store-product">
-                  <strong className="store-gems">{product.gems.toLocaleString('tr-TR')} elmas</strong>
+                  <strong className="store-gems">{describeStoreReward(product)}</strong>
                   <span className="store-price">{formatPrice(product.priceMinor, product.currency)}</span>
                   <button
                     type="button"
@@ -149,6 +158,9 @@ function StoreContent(): React.ReactElement {
               </GlassPanel>
             ))}
           </div>
+              </section>
+            );
+          })}
           {cosmetics.catalog !== null ? (
             <CosmeticShopPanel
               catalog={cosmetics.catalog}
@@ -164,7 +176,7 @@ function StoreContent(): React.ReactElement {
               <ul className="session-list" data-testid="store-orders">
                 {orders.map((order) => (
                   <li key={order.id}>
-                    {new Date(order.createdAt).toLocaleString('tr-TR')} · {order.gems} elmas ·{' '}
+                    {new Date(order.createdAt).toLocaleString('tr-TR')} · {describeStoreReward(order)} ·{' '}
                     {formatPrice(order.amountMinor, order.currency)} · <strong>{PAYMENT_STATUS_LABELS[order.status]}</strong>
                   </li>
                 ))}
