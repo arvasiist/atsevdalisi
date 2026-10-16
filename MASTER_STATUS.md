@@ -39,6 +39,7 @@ Her satır kod + test ile kontrol edildi. "Durum" denetim anındaki durumdur;
 | 11 | Ekonomi bütünlüğü | TESTED | `player-journey.e2e-spec.ts` (bakiye = başlangıç + defter) | G2 yeni para yolu → yolculuk testine girer | P1 | G2 ile |
 | 12 | Canlı bildirim | PARTIAL → TESTED | `notification-stream.e2e-spec.ts`, `notification-stream.spec.ts`, `unread-badge.spec.ts` | G9: 12 üreticinin bildirimi DB'ye yazılıyor ama canlı (`notification.created`) yalnızca yarış davetinde gidiyordu; zilde okunmamış sayısı yoktu (brief'teki `notification.new` adı kodda YOK — gerçek olay `notification.created`) | P2 | G9 ✅ migration 0088 tetikleyici + `NotificationStreamListener` (COMMIT'te, örnek başına yerel yayın), zil/Menü rozeti |
 | 12–14 | Sosyal, soket, güvenlik | TESTED | `phase16-hardening.spec.ts`, `multi-instance-realtime.e2e-spec.ts`, `production-env.ts` (`DISABLE_RATE_LIMIT` üretimde reddedilir) | — | — | değişmedi |
+| 11/16 | Veritabanı bağlantı havuzu | BROKEN → TESTED | `with-transaction-listeners.e2e-spec.ts` | G10 (denetimde bulundu): `withTransaction` her çağrıda havuz client'ına `error` dinleyicisi ekleyip bırakıyordu (bellek sızıntısı) | P1 | G10 ✅ |
 | — | 3D | kapsam DIŞI (brief) | — | — | — | dokunulmadı |
 
 ## Repository
