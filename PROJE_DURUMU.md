@@ -4675,3 +4675,11 @@ sahibinin onayı olmadan anında tay üretiyor (teklif/anlaşma yok); doğurganl
 döllenme olasılığı ve gebelik süresi yok; tay yemi ve yetiştirme etkisi yok;
 ekipmanın ömrü/zemin farkı, kozmetik aksesuar ve envanterden ilaç/takviye yok.
 Dilimler K2–K6 olarak uygulanır (aşağıdaki alt bölümler).
+
+**K2 — at profili + kariyer.** `GET /horses?ownerId=` satırları görünür 8
+stat taşır (yalnızca sahibine; gizli kişilik sayıları/potansiyel yok).
+`GET /horses/:id/career` (`@Public`): koşu, derece, ilk üç, en iyi derece,
+kazanç (defterdeki ödül satırları; kaybeden iadesi sayılmaz), tay sayısı ve son
+koşular (`stable.careerRecentRaceLimit`). Soy ağacı `recordsById` ile ataların
+başarılarını gösterir. Boş ahırda ırk mağazası + pazar düğmeleri. Testler:
+`horse-career.e2e-spec.ts` (3), web `horse-profile.spec.ts` (3).

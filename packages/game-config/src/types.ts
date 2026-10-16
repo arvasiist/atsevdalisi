@@ -640,6 +640,8 @@ export interface StableConfig {
   capacityByLevel: Record<string, number>;
   /** Bu değerin altındaki health, "Ahır Özeti" ekranında uyarı olarak gösterilir (brief §38). */
   healthWarningThreshold: number;
+  /** 16.10.2026 — `GET /horses/:id/career` son koşu listesinin uzunluğu. */
+  careerRecentRaceLimit: number;
   /**
    * FAZ 2 — brief §32 "Upgrade örneği" listesinin devamı. Anahtar = ULAŞILACAK
    * seviye (örn. "2" → seviye 1'den 2'ye yükseltme maliyeti). En yüksek

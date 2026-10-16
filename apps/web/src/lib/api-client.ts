@@ -81,6 +81,7 @@ import type {
   HorseMarketValueView,
   MarketListing,
   PlaceBidResult,
+  HorseCareerView,
   HorsePedigreeView,
   Jockey,
   JoinMatchmakingQueueResult,
@@ -532,6 +533,9 @@ export const apiClient = {
    * ataları `null` olan bir ağaç döner (404 DEĞİL), bkz. `HorsePedigreeView`.
    */
   getHorsePedigree: (horseId: string) => request<HorsePedigreeView>(`/horses/${horseId}/pedigree`),
+
+  /** 16.10.2026 — atın yarış geçmişi + kazancı + tay sayısı (`@Public`, brief §3). */
+  getHorseCareer: (horseId: string) => request<HorseCareerView>(`/horses/${horseId}/career`),
 
   /**
    * Çiftleştirme — `POST /players/:id/breeding` (brief §18). Soy ağacı veri

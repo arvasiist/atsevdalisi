@@ -34,6 +34,7 @@ import {
   HeartPulse,
   Network,
   Smile,
+  Trophy,
   Warehouse,
   Wrench,
   Zap,
@@ -51,6 +52,8 @@ import { StatBar } from '../../components/ui/StatBar';
 import { BreedingPanel } from '../../features/breeding/BreedingPanel';
 import { JockeyPanel } from '../../features/jockey/JockeyPanel';
 import { PedigreeTree } from '../../features/pedigree/PedigreeTree';
+import { HorseCareerPanel } from '../../features/horse-profile/HorseCareerPanel';
+import { statRows } from '../../features/horse-profile/horse-profile';
 import { pickFeaturedHorse } from '../../features/home-scene/featured-horse';
 import { apiClient } from '../../lib/api-client';
 import { formatCurrency, hasEnoughFunds } from '../../lib/currency';
@@ -291,8 +294,19 @@ export default function StablePage(): React.ReactElement {
         {horses && horses.length === 0 ? (
           <GlassPanel style={{ textAlign: 'center', padding: 'var(--space-xl)' }}>
             <p style={{ color: 'var(--color-text-secondary)', margin: 0 }}>
-              Ahırında kayıtlı at bulunamadı.
+              Ahırında kayıtlı at yok. Yarışmak için bir at edin:
             </p>
+            <div
+              data-testid="empty-stable-actions"
+              style={{ display: 'flex', gap: 'var(--space-sm)', justifyContent: 'center', marginTop: 'var(--space-md)', flexWrap: 'wrap' }}
+            >
+              <Link href="/breeds" className="btn-action btn-action-green">
+                Irk mağazası
+              </Link>
+              <Link href="/market" className="btn-action btn-action-blue">
+                At pazarı
+              </Link>
+            </div>
           </GlassPanel>
         ) : null}
 
@@ -582,6 +596,8 @@ function HorseCard({
   // tek farkla: bu KULLANICI ETKİLEŞİMİYLE tetiklenir (ahırdaki her at için
   // otomatik istek atmak gereksiz yük olurdu).
   const [pedigree, setPedigree] = useState<HorsePedigreeView | null>(null);
+  // 16.10.2026 — kariyer paneli (brief §3); açıldığında kendisi yükler.
+  const [isCareerOpen, setIsCareerOpen] = useState(false);
   const [isPedigreeOpen, setIsPedigreeOpen] = useState(false);
   const [pedigreeError, setPedigreeError] = useState<string | null>(null);
 
@@ -637,6 +653,33 @@ function HorseCard({
           />
           <StatBar icon={<Smile size={14} />} label="Moral" value={horse.morale} />
         </div>
+        {horse.stats ? (
+          <div
+            data-testid={`horse-stats-${horse.id}`}
+            className="horse-stat-grid"
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
+              gap: '6px',
+              marginTop: 'var(--space-sm)',
+            }}
+          >
+            {statRows(horse.stats).map((row) => (
+              <div
+                key={row.key}
+                style={{
+                  textAlign: 'center',
+                  padding: '4px 2px',
+                  borderRadius: '8px',
+                  border: '1px solid var(--color-border)',
+                }}
+              >
+                <div style={{ fontSize: '10px', color: 'var(--color-text-muted)' }}>{row.label}</div>
+                <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--color-text-primary)' }}>{row.value}</div>
+              </div>
+            ))}
+          </div>
+        ) : null}
         {horse.raceReadyAt ? (
           <p
             style={{
@@ -729,6 +772,22 @@ function HorseCard({
 
         <button
           type="button"
+          onClick={() => setIsCareerOpen((open) => !open)}
+          className="btn-outline"
+          style={{ width: '100%', marginTop: 'var(--space-md)' }}
+          aria-expanded={isCareerOpen}
+        >
+          <Trophy size={16} aria-hidden="true" />
+          {isCareerOpen ? 'Kariyeri Kapat' : 'Kariyer ve Geçmiş'}
+        </button>
+        {isCareerOpen ? (
+          <div style={{ marginTop: 'var(--space-sm)' }}>
+            <HorseCareerPanel horseId={horse.id} />
+          </div>
+        ) : null}
+
+        <button
+          type="button"
           onClick={() => void togglePedigree()}
           className="btn-outline"
           style={{ width: '100%', marginTop: 'var(--space-md)' }}
@@ -751,7 +810,11 @@ function HorseCard({
             // hiçbir zaman çiftleştirilmedi) — `PedigreeTree` bu durumda tüm
             // düğümleri "Bilinmiyor" olarak gösterir, hata DEĞİL.
             <div style={{ marginTop: 'var(--space-md)' }}>
-              <PedigreeTree pedigree={pedigree.pedigree} horseNamesById={pedigree.horseNamesById} />
+              <PedigreeTree
+                pedigree={pedigree.pedigree}
+                horseNamesById={pedigree.horseNamesById}
+                recordsById={pedigree.recordsById}
+              />
             </div>
           )
         ) : null}

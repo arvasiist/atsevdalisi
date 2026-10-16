@@ -28,7 +28,7 @@ import { PG_POOL } from '../database/database.module';
 export class PostgresPedigreeRepository implements PedigreeRepository {
   constructor(@Inject(PG_POOL) private readonly pool: Pool) {}
 
-  async findByHorseId(horseId: string): Promise<HorsePedigreeView | null> {
+  async findByHorseId(horseId: string): Promise<Omit<HorsePedigreeView, 'recordsById'> | null> {
     // `horses`'tan başlanır (LEFT JOIN) — böylece "at yok" ile "at var ama
     // soy kaydı yok" tek sorguda ayırt edilir: ilkinde HİÇ satır dönmez,
     // ikincisinde `pedigree_horse_id` NULL olan bir satır döner.

@@ -22,7 +22,7 @@ export interface PedigreeRepository {
    * olmayan at"ın HTTP'de karışmaması için kritiktir (bkz.
    * `HorsePedigreeView` doc yorumu).
    */
-  findByHorseId(horseId: string): Promise<HorsePedigreeView | null>;
+  findByHorseId(horseId: string): Promise<Omit<HorsePedigreeView, 'recordsById'> | null>;
 }
 
 /** NestJS DI için token (interface'ler runtime'da yok olduğundan bir Symbol gerekir). */

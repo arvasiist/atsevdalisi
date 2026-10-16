@@ -1,4 +1,4 @@
-import type { HiddenHorseTraitKey, HorseStatField, HorseStats } from '@at-sevdalisi/shared-types';
+import type { HiddenHorseTraitKey, HorseStatField, HorseStats, HorseVisibleStats } from '@at-sevdalisi/shared-types';
 
 /**
  * `HorseStatsRepository` — Application katmanının Infrastructure'a
@@ -22,10 +22,12 @@ export interface HorseStatsRepository {
    * değerler YALNIZCA sunucuda etikete çevrilir; istemciye dönmez.
    */
   findPersonalityByHorseIds(horseIds: readonly string[]): Promise<Map<string, Record<HiddenHorseTraitKey, number>>>;
-  /** 14.10.2026 — sınıf gücünün üç statı (tek sorgu; `horseRacingPower` ile birleşir). */
-  findPowerStatsByHorseIds(
-    horseIds: readonly string[],
-  ): Promise<Map<string, Pick<HorseStats, 'speed' | 'acceleration' | 'stamina'>>>;
+  /**
+   * 16.10.2026 — sahibinin at listesindeki görünür statlar (brief §3). Gizli
+   * kişilik sütunları OKUNMAZ; tek sorgu, N at için N okuma yok. Sınıf gücü
+   * (`horseRacingPower`, 14.10.2026) de bunun hız/ivme/dayanıklılığından.
+   */
+  findVisibleStatsByHorseIds(horseIds: readonly string[]): Promise<Map<string, HorseVisibleStats>>;
 }
 
 /** NestJS DI için token (interface'ler runtime'da yok olduğundan bir Symbol gerekir). */

@@ -1,6 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import type { Pool } from 'pg';
-import type { HiddenHorseTraitKey, HorseStatField, HorseStats } from '@at-sevdalisi/shared-types';
+import type { HiddenHorseTraitKey, HorseStatField, HorseStats, HorseVisibleStats } from '@at-sevdalisi/shared-types';
 import type { HorseStatsRepository } from '../../application/ports/horse-stats.repository';
 import { PG_POOL } from '../database/database.module';
 
@@ -142,13 +142,12 @@ export class PostgresHorseStatsRepository implements HorseStatsRepository {
     return result;
   }
 
-  async findPowerStatsByHorseIds(
-    horseIds: readonly string[],
-  ): Promise<Map<string, Pick<HorseStats, 'speed' | 'acceleration' | 'stamina'>>> {
-    const result = new Map<string, Pick<HorseStats, 'speed' | 'acceleration' | 'stamina'>>();
+  async findVisibleStatsByHorseIds(horseIds: readonly string[]): Promise<Map<string, HorseVisibleStats>> {
+    const result = new Map<string, HorseVisibleStats>();
     if (horseIds.length === 0) return result;
-    const rows = await this.pool.query<{ horse_id: string; speed: string; acceleration: string; stamina: string }>(
-      'SELECT horse_id, speed, acceleration, stamina FROM horse_stats WHERE horse_id = ANY($1::uuid[])',
+    const rows = await this.pool.query<Record<string, string> & { horse_id: string }>(
+      `SELECT horse_id, speed, acceleration, stamina, sprint, endurance, start_speed, finish_speed, cornering
+       FROM horse_stats WHERE horse_id = ANY($1::uuid[])`,
       [horseIds],
     );
     for (const row of rows.rows) {
@@ -156,6 +155,11 @@ export class PostgresHorseStatsRepository implements HorseStatsRepository {
         speed: Number(row.speed),
         acceleration: Number(row.acceleration),
         stamina: Number(row.stamina),
+        sprint: Number(row.sprint),
+        endurance: Number(row.endurance),
+        startSpeed: Number(row.start_speed),
+        finishSpeed: Number(row.finish_speed),
+        cornering: Number(row.cornering),
       });
     }
     return result;

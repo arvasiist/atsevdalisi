@@ -174,7 +174,63 @@ export type PublicHorse = Omit<Horse, 'potential' | 'agingStartedAt'> & {
    * hazırsa ya da engel zamanla geçmiyorsa (sağlık, durum) alan yoktur.
    */
   raceReadyAt?: ISODateTimeString;
+  /**
+   * 16.10.2026 — atın görünür yarış statları (0–100). YALNIZCA sahibinin
+   * listesinde; gizli kişilik sayıları ve potansiyel burada YOKTUR.
+   */
+  stats?: HorseVisibleStats;
 };
+
+/** Sahibine gösterilen yarış statları (gizli kişilik alanları HARİÇ). */
+export const HORSE_VISIBLE_STAT_KEYS = [
+  'speed',
+  'acceleration',
+  'stamina',
+  'sprint',
+  'endurance',
+  'startSpeed',
+  'finishSpeed',
+  'cornering',
+] as const satisfies readonly (keyof HorseStats)[];
+export type HorseVisibleStatKey = (typeof HORSE_VISIBLE_STAT_KEYS)[number];
+export type HorseVisibleStats = Pick<HorseStats, HorseVisibleStatKey>;
+
+/** Yarış + yetiştirme özeti (kariyer ve soy ağacındaki atalar için). */
+export interface HorseRecordSummary {
+  starts: number;
+  wins: number;
+  /** İlk üç (birincilik dahil). */
+  places: number;
+  /** Atın koşusundan, koşturan oyuncuya ödenen ödül toplamı (iade HARİÇ). */
+  earnings: number;
+  /** Doğmuş tay sayısı (kısrak ya da aygır olarak). */
+  foals: number;
+}
+
+/** `GET /horses/:id/career` satırı — tek bir bitmiş koşu. */
+export interface HorseCareerRaceView {
+  raceId: UUID;
+  raceName: string;
+  ranAt: ISODateTimeString;
+  distanceMeters: number;
+  surface: 'grass' | 'dirt' | 'synthetic';
+  /** Hipodrom anahtarı; eski yarışta NULL (varsayılan hipodrom). */
+  hippodromeKey: string | null;
+  /** Bitiren at sayısı (botlar dahil). */
+  fieldSize: number;
+  finishPosition: number;
+  /** Bu koşudan kazanılan ödül (yoksa 0). */
+  prize: number;
+}
+
+/** `GET /horses/:id/career` — herkese açık yarış/yetiştirme geçmişi. */
+export interface HorseCareerView extends HorseRecordSummary {
+  horseId: UUID;
+  seconds: number;
+  thirds: number;
+  bestPosition: number | null;
+  recentRaces: HorseCareerRaceView[];
+}
 
 /** `HorseStats`'ın `horseId` DIŞINDAKİ alanları — tek bir stat'a atıfta bulunmak
  * için (örn. antrenmanın hangi stat'ı güncellediği) kullanılır. */

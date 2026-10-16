@@ -28,15 +28,15 @@ kapsamında yapılan iştir. 3D işi kapsam dışı (brief kuralı 7). Brief met
 | 2 | Giriş → kendi ahırı, ahır ana merkez, tam ekran | TESTED | `HOME_FOR_PLAYERS`, `.stable3d-full`, `orientation-layout.spec.ts` | değişmedi |
 | 2 | Üst menü yalnızca Ana Sayfa/Ahır/Antrenman/Bakım | TESTED | `nav-links.ts`, `top-bar-nav.spec.ts` | değişmedi |
 | 2 | Gerçek veri: at, kapasite, bakım, kondisyon, enerji, yaklaşan yarışlar | TESTED | `/stable` (vital çubukları, `Kapasite`), `PlayerOverview` "Yaklaşan Yarışlar" | değişmedi |
-| 2 | Boş ahır / ilk at alma akışı | PARTIAL | son at pazarda satılabiliyor → ahır boş kalabiliyor; boş ahırda yalnızca "at bulunamadı" yazıyor, at alma yolu yok | K2 |
+| 2 | Boş ahır / ilk at alma akışı | PARTIAL | son at pazarda satılabiliyor → ahır boş kalabiliyor; boş ahırda yalnızca "at bulunamadı" yazıyor, at alma yolu yok | ✅ K2: boş ahırda Irk mağazası + At pazarı düğmeleri |
 | 2 | Onboarding | TESTED | `OnboardingPanel`, `onboarding.e2e-spec.ts` | değişmedi |
 | 2 | Çip/elmas "+" → satın alma | TESTED | `TOP_UP_HREF`, `top-bar-nav.spec.ts` (gerçek ödeme sağlayıcısı YOK) | değişmedi |
 | 2 | "Verilerimi indir" kaldırıldı | TESTED | `/account` | değişmedi |
 | 3 | Satın alma, sahiplik, ad/ırk/cinsiyet/yaş/seviye/soy | TESTED | ırk mağazası, pazar (sabit + müzayede), `PedigreeTree` | değişmedi |
-| 3 | Hız, dayanıklılık, sprint statları sahibine görünür | NOT_STARTED | `PublicHorse` stat taşımıyor; sahibi kendi atının statlarını hiçbir ekranda göremiyor (potansiyel gizli kalmalı) | K2 |
+| 3 | Hız, dayanıklılık, sprint statları sahibine görünür | NOT_STARTED | `PublicHorse` stat taşımıyor; sahibi kendi atının statlarını hiçbir ekranda göremiyor (potansiyel gizli kalmalı) | ✅ K2 TESTED: sahibinin listesinde 8 görünür stat, kartta ızgara; gizli kişilik + potansiyel sızmaz (`horse-career.e2e-spec.ts`) |
 | 3 | Enerji/sağlık/moral/yorgunluk, XP/seviye, yaşlanma, emeklilik, dinlenme/hazırlık | TESTED | `race-condition`, `race-age`, `horse-retirement` e2e | değişmedi |
 | 3 | Satış / transfer | IMPLEMENTED | pazar + müzayede; doğrudan at transferi bilinçli YOK (çoklu hesap değer aktarımı) | değişmedi |
-| 3 | At profili + geçmiş (yarışlar, dereceler, kazanç) | NOT_STARTED | atın yarış geçmişi/kazanç ucu yok (`findRecentResultsByHorseId` yalnızca iç kullanım) | K2 |
+| 3 | At profili + geçmiş (yarışlar, dereceler, kazanç) | NOT_STARTED | atın yarış geçmişi/kazanç ucu yok (`findRecentResultsByHorseId` yalnızca iç kullanım) | ✅ K2 TESTED: `GET /horses/:id/career` (kazanç defterden), kartta "Kariyer ve Geçmiş" (`horse-career.e2e-spec.ts`, web `horse-profile.spec.ts`) |
 | 3 | Ekonomik değer tek skordan değil | IMPLEMENTED | `calculateMarketValue` (kalite, potansiyel, yaş, yarış geçmişi, sağlık; soy puanı `null`) | değişmedi |
 | 4 | Ayrı çiftleştirme merkezi | PARTIAL | `BreedingPanel` ahırın içinde; damızlık listesi `GET /breeding/studs` | K3 |
 | 4 | Aygır sahibi kendi ücretiyle ilan verir | NOT_STARTED | ücret formülden (`calculateStudFee`), ilan kavramı yok — emekli her aygır listede | K3 |
@@ -49,7 +49,7 @@ kapsamında yapılan iştir. 3D işi kapsam dışı (brief kuralı 7). Brief met
 | 5 | Gebelikte bakım/beslenme/veteriner, risk takibi | NOT_STARTED | — | K4 |
 | 5 | Tek tay, yeniden başlatmaya dayanıklı, istemci saatinden bağımsız, çift doğum yok | PARTIAL | tek tay + tek transaction var; zamanlanmış doğum yok | K4 |
 | 6 | Kalıcı ebeveyn bağı, görsel soy ağacı | TESTED | `pedigrees`, `GET /horses/:id/pedigree`, `PedigreeTree` | değişmedi |
-| 6 | Ataların yarış/yetiştirme başarıları | NOT_STARTED | soy ağacı yalnızca ad gösteriyor | K2 |
+| 6 | Ataların yarış/yetiştirme başarıları | NOT_STARTED | soy ağacı yalnızca ad gösteriyor | ✅ K2 TESTED: `recordsById` — her atanın koşu/birincilik/kazanç/tay özeti ağaçta |
 | 6 | Dengeli kalıtım, test edilebilir rastgelelik, kardeşler farklı | TESTED | `genetics.config.json` (`inheritanceRange`, `mutationBounds`, potansiyel tavanı), tohum = çift kimliği, `genetics.spec.ts` | değişmedi |
 | 7 | Tay evreleri oyun zamanına bağlı, yetişkin yarışına yaş şartı | TESTED | `horse-growth.config.json` evreleri, `race.readiness.minAgeMonths`, `race-age.e2e-spec.ts` | değişmedi |
 | 7 | Tay yemi / bakım ürünleri, yetiştirmenin performansa dengeli etkisi, tay maliyeti | NOT_STARTED | tay yemi yok; tayın büyütülmesi statlara etki etmiyor | K5 |

@@ -21,6 +21,9 @@ import { HORSE_RETIREMENT_REPOSITORY } from '../../application/ports/horse-retir
 import { RetireHorseUseCase } from '../../application/use-cases/retire-horse.use-case';
 import { PostgresHorseRetirementRepository } from '../../infrastructure/horse/postgres-horse-retirement.repository';
 import { HorseOwnerGuardByParam } from '../auth/horse-owner.guard';
+import { HORSE_CAREER_REPOSITORY } from '../../application/ports/horse-career.repository';
+import { GetHorseCareerUseCase } from '../../application/use-cases/get-horse-career.use-case';
+import { PostgresHorseCareerRepository } from '../../infrastructure/horse/postgres-horse-career.repository';
 
 /**
  * R3 — Track Fit (bu turda EKLENDİ) — `HORSE_SURFACE_STATS_REPOSITORY`/
@@ -53,6 +56,9 @@ import { HorseOwnerGuardByParam } from '../auth/horse-owner.guard';
     { provide: HORSE_RETIREMENT_REPOSITORY, useClass: PostgresHorseRetirementRepository },
     RetireHorseUseCase,
     HorseOwnerGuardByParam,
+    // 16.10.2026 — kariyer + soy ağacındaki ataların başarıları (brief §3, §6).
+    { provide: HORSE_CAREER_REPOSITORY, useClass: PostgresHorseCareerRepository },
+    GetHorseCareerUseCase,
   ],
   exports: [
     HORSE_REPOSITORY,

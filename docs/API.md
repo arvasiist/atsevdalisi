@@ -266,6 +266,7 @@ Hız sınırı **IP başınadır** (dakikada 60) — `@Public()` olduğundan
 GET    /api/v1/horses                  # oyuncunun ahırındaki atlar
 GET    /api/v1/horses/{id}             # at detayı (brief §40)
 GET    /api/v1/horses/{id}/pedigree    # soy ağacı + ataların adları (bu dilimde EKLENDİ, aşağıya bkz.)
+GET    /api/v1/horses/{id}/career      # yarış geçmişi + kazanç + tay sayısı (16.10.2026, aşağıya bkz.)
 POST   /api/v1/players/{id}/breeding   # çiftleştirme + tay doğumu (27.09.2026 EKLENDİ, aşağıya bkz.)
 POST   /api/v1/horses/{id}/train       # antrenman (brief §10)
 POST   /api/v1/horses/{id}/care        # tımar/su/temizlik/veteriner/nalbant/dinlendirme
@@ -2297,6 +2298,24 @@ Tasarım kararları (bkz. `application/use-cases/run-practice-race.use-case.ts`
   Idempotency-Key koruması OLMADAN çalışıyor~~ — **onuncu dilimde
   KAPATILDI** (bkz. yukarıdaki "Ahır Yükseltme" bölümü ve
   docs/ROADMAP.md).
+
+
+### At profili + kariyer (16.10.2026, brief §3 + §6)
+
+- `GET /horses?ownerId=` satırları artık `stats` taşır (yalnızca sahibine):
+  `speed, acceleration, stamina, sprint, endurance, startSpeed, finishSpeed,
+  cornering` (0–100). Gizli kişilik sayıları ve potansiyel DÖNMEZ; `GET
+  /horses/{id}` (herkese açık) stat taşımaz.
+- `GET /horses/{id}/career` (`@Public`) → `HorseCareerView`: `starts`, `wins`,
+  `seconds`, `thirds`, `places` (ilk üç), `bestPosition`, `earnings`, `foals`,
+  `recentRaces[]` (`raceId, raceName, ranAt, distanceMeters, surface,
+  hippodromeKey, fieldSize, finishPosition, prize`; uzunluk
+  `stable.careerRecentRaceLimit`). Sayaç YOK: koşular `race_entries`ten
+  (bitmiş, iptal edilmemiş), kazanç defterdeki `practice_race_prize` +
+  `lobby_race_prize` satırlarından (koşturan oyuncu = `e.player_id`), tay sayısı
+  `breeding_pairs`ten. Kaybeden iadesi kazanç sayılmaz. Bilinmeyen at 404.
+- `GET /horses/{id}/pedigree` yanıtına `recordsById` eklendi: ağaçtaki her atın
+  (kendisi dahil) aynı özeti.
 
 ## 5. Market (At Pazarı)
 

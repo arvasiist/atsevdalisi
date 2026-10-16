@@ -20,7 +20,8 @@
  * RENDER EDİLMEZ (bkz. `pedigree-tree.ts`'in doc yorumu).
  */
 
-import type { Pedigree } from '@at-sevdalisi/shared-types';
+import type { HorseRecordSummary, Pedigree } from '@at-sevdalisi/shared-types';
+import { describeRecord } from '../horse-profile/horse-profile';
 import { GlassPanel } from '../../components/ui/GlassPanel';
 import { buildPedigreeTree, getPedigreeCompleteness, type PedigreeTreeNode } from './pedigree-tree';
 
@@ -35,9 +36,17 @@ const ROLE_LABELS: Record<PedigreeTreeNode['role'], string> = {
 export interface PedigreeTreeProps {
   pedigree: Pedigree;
   horseNamesById: Record<string, string>;
+  /** 16.10.2026 — her atın yarış + yetiştirme özeti (brief §6); yoksa yazılmaz. */
+  recordsById?: Record<string, HorseRecordSummary>;
 }
 
-function PedigreeNodeCard({ node }: { node: PedigreeTreeNode }): React.ReactElement {
+function PedigreeNodeCard({
+  node,
+  record,
+}: {
+  node: PedigreeTreeNode;
+  record?: HorseRecordSummary;
+}): React.ReactElement {
   return (
     <GlassPanel
       style={{
@@ -60,11 +69,18 @@ function PedigreeNodeCard({ node }: { node: PedigreeTreeNode }): React.ReactElem
       >
         {node.displayName}
       </div>
+      {record ? (
+        <div style={{ marginTop: '2px', fontSize: '11px', color: 'var(--color-text-secondary)' }}>
+          {describeRecord(record)}
+        </div>
+      ) : null}
     </GlassPanel>
   );
 }
 
-export function PedigreeTree({ pedigree, horseNamesById }: PedigreeTreeProps): React.ReactElement {
+export function PedigreeTree({ pedigree, horseNamesById, recordsById }: PedigreeTreeProps): React.ReactElement {
+  const recordOf = (node: PedigreeTreeNode): HorseRecordSummary | undefined =>
+    node.horseId !== null ? recordsById?.[node.horseId] : undefined;
   const tree = buildPedigreeTree(pedigree, horseNamesById);
   const selfNode = tree.find((node) => node.role === 'self');
   const sireNode = tree.find((node) => node.role === 'sire');
@@ -100,16 +116,16 @@ export function PedigreeTree({ pedigree, horseNamesById }: PedigreeTreeProps): R
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 'var(--space-md)' }}>
-        <PedigreeNodeCard node={selfNode} />
+        <PedigreeNodeCard node={selfNode} record={recordOf(selfNode)} />
 
         <div style={{ display: 'flex', gap: 'var(--space-lg)', flexWrap: 'wrap', justifyContent: 'center' }}>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 'var(--space-sm)' }}>
-            <PedigreeNodeCard node={sireNode} />
-            <PedigreeNodeCard node={paternalGrandSireNode} />
+            <PedigreeNodeCard node={sireNode} record={recordOf(sireNode)} />
+            <PedigreeNodeCard node={paternalGrandSireNode} record={recordOf(paternalGrandSireNode)} />
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 'var(--space-sm)' }}>
-            <PedigreeNodeCard node={damNode} />
-            <PedigreeNodeCard node={maternalGrandDamNode} />
+            <PedigreeNodeCard node={damNode} record={recordOf(damNode)} />
+            <PedigreeNodeCard node={maternalGrandDamNode} record={recordOf(maternalGrandDamNode)} />
           </div>
         </div>
       </div>

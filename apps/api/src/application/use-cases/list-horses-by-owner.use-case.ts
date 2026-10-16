@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import type { Horse, HorsePersonalityView } from '@at-sevdalisi/shared-types';
+import type { Horse, HorsePersonalityView, HorseVisibleStats } from '@at-sevdalisi/shared-types';
 import { describePersonality } from '../../domain/horse/personality';
 import { horseRacingPower } from '../../domain/race/practice-class';
 import { estimateRaceReadyAt } from '../../domain/care/race-condition';
@@ -21,6 +21,9 @@ import { HORSE_REPOSITORY, type HorseRepository } from '../ports/horse.repositor
  *
  * 15.10.2026 — yorgunluk/enerji yüzünden yarışa hazır değilse ne zaman
  * hazır olacağı (`raceReadyAt`, zamanla toparlanma hızından; S3).
+ *
+ * 16.10.2026 — görünür yarış statları (`stats`; brief §3). Sınıf gücü aynı
+ * satırdan hesaplanır (ikinci sorgu yok).
  */
 @Injectable()
 export class ListHorsesByOwnerUseCase {
@@ -43,17 +46,18 @@ export class ListHorsesByOwnerUseCase {
       ageMonths: number;
       /** 15.10.2026 — B13: yaş evresi + yarış çarpanı (kadroya donan değerle aynı kural). */
       lifeStage: { name: string; racingFactor: number };
+      stats: HorseVisibleStats | null;
     }>
   > {
     const horses = await this.horseRepository.findByOwnerId(ownerId);
     const ids = horses.map((horse) => horse.id);
-    const [traits, powerStats] = await Promise.all([
+    const [traits, visibleStats] = await Promise.all([
       this.horseStatsRepository.findPersonalityByHorseIds(ids),
-      this.horseStatsRepository.findPowerStatsByHorseIds(ids),
+      this.horseStatsRepository.findVisibleStatsByHorseIds(ids),
     ]);
     return horses.map((horse) => {
       const values = traits.get(horse.id);
-      const power = powerStats.get(horse.id);
+      const power = visibleStats.get(horse.id);
       const ageMonths = horseAgeMonths(horse, now, this.config.horseGrowth);
       const stage = getLifeStage(ageMonths, this.config.horseGrowth);
       return {
@@ -72,6 +76,7 @@ export class ListHorsesByOwnerUseCase {
           )?.toISOString() ?? null,
         ageMonths,
         lifeStage: { name: stage.name, racingFactor: stage.racingFactor },
+        stats: power ?? null,
       };
     });
   }

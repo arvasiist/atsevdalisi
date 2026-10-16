@@ -1,5 +1,5 @@
 import type { ISODateTimeString, UUID } from './common';
-import type { HorseGender } from './horse';
+import type { HorseGender, HorseRecordSummary } from './horse';
 
 /** brief §7 BreedingPair, §28 */
 export interface BreedingPrediction {
@@ -45,6 +45,8 @@ export interface Pedigree {
 export interface HorsePedigreeView {
   pedigree: Pedigree;
   horseNamesById: Record<string, string>;
+  /** 16.10.2026 — soy ağacındaki her atın yarış + yetiştirme özeti (brief §6). */
+  recordsById: Record<string, HorseRecordSummary>;
 }
 
 /**
