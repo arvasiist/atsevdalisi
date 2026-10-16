@@ -68,6 +68,7 @@
   "lobbyListDefaultLimit": 20,
   "lobbyListMaxLimit": 100,
   "spectatorWaitPollSeconds": 2,
+  "lobbyListRefreshSeconds": 15,
   "lockScheduler": {
     "enabled": true,
     "tickSeconds": 5,

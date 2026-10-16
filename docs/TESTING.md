@@ -128,4 +128,7 @@ ilk kez çalıştırılması gerekir.
 | 13 | Başkasının kaynağına erişim yok | `apps/api/test/security/phase16-hardening.spec.ts`, `wallet.e2e-spec.ts`, `horse.e2e-spec.ts`, `gift.e2e-spec.ts` (403/404) |
 
 Ek (bu brief'te yazıldı): canlı bildirim akışı `notification-stream.e2e-spec.ts`
-(COMMIT'te bir kez, ROLLBACK'te hiç), Şampiyona handikapı `practice-class.spec.ts`.
+(COMMIT'te bir kez, ROLLBACK'te hiç), Şampiyona handikapı `practice-class.spec.ts`,
+arkadaş hediyesi bildirimi `friend-gift.e2e-spec.ts` (alıcıya bir kez, gönderene yok),
+lobi listesinin kendiliğinden yenilenmesi `apps/web/test/features/race-lobby/lobby-refresh.spec.ts`,
+bota pay düşmez `table-rules.spec.ts` + `race-settlement`/`economy-reconciliation`/`final` e2e.

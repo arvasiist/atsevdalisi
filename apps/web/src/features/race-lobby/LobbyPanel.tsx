@@ -29,6 +29,7 @@ import type {
   RaceWeather,
 } from '@at-sevdalisi/shared-types';
 import { loadRaceLobbyConfig } from '@at-sevdalisi/game-config';
+import { usePeriodicLobbyRefresh } from './lobby-refresh';
 import { GlassPanel } from '../../components/ui/GlassPanel';
 import { apiClient } from '../../lib/api-client';
 import { formatCurrency } from '../../lib/currency';
@@ -128,6 +129,8 @@ export function LobbyPanel({ horses, money, onBalanceChanged, playerId = null }:
   useEffect(() => {
     void refresh();
   }, [refresh]);
+  // 16.10.2026 — başkasının katılımı / kilit / kalan süre ekranda bayat kalmasın.
+  usePeriodicLobbyRefresh(refresh, LOBBY_CONFIG.lobbyListRefreshSeconds);
 
   useEffect(() => {
     apiClient

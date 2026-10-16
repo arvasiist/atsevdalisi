@@ -4641,3 +4641,14 @@ gerçek oyuncu kuralı korundu. Testler: `table-rules.spec.ts` (+6),
 `field-rule.spec.ts` gerekçe kilidi, `race-settlement`/`economy-reconciliation`/
 `final` e2e (iki gerçek oyuncu da ödül alır, önde bitiren fazla alır,
 defter = −komisyon). Pratik yarış ve turnuva değişmedi.
+
+### 13.112 Brief tekrar kontrolü (16.10.2026)
+
+Brief ikinci kez koda karşı tarandı. **G14:** arkadaş çip hediyesi alıcıya
+bildirim üretmiyordu (brief §6.4) → migration 0089 `friend_gift_received`,
+`postgres-friend-gift.repository.ts` hediye satırlarıyla aynı transaction'da
+yazar (canlı yayın 0088 tetikleyicisi), `/notifications` metni + "arkadaşlar
+ekranı →". **G15:** `/races` lobi listesi yalnızca açılışta/elle okunuyordu →
+`features/race-lobby/lobby-refresh.ts` (`race-lobby.lobbyListRefreshSeconds`,
+sekme gizliyken durur, üst üste istek yok). Testler: `friend-gift.e2e-spec.ts`
+(+1), `notification-types.spec.ts` (0089), `lobby-refresh.spec.ts` (+3).

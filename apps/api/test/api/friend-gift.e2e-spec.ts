@@ -269,6 +269,38 @@ describe('Dostluk hediyesi (e2e)', () => {
     expect(await progress()).toBe(1);
   });
 
+  it('alıcıya friend_gift_received bildirimi hediyeyle aynı işlemde düşer; aynı gün tekrar gönderim yeni bildirim üretmez (brief §6.4)', async () => {
+    const sender = await registerTestPlayer(app, 'Bildiren');
+    const recipient = await registerTestPlayer(app, 'Haber Alan');
+    await makeFriends(sender, recipient);
+    await sendAll(sender);
+    await sendAll(sender);
+
+    const giftNotifications = async (player: RegisteredTestPlayer) =>
+      (
+        await http()
+          .get(`/api/v1/players/${player.playerId}/notifications`)
+          .set('Authorization', player.authHeader)
+          .expect(200)
+      ).body.data.notifications.filter((item: { type: string }) => item.type === 'friend_gift_received');
+
+    const received = await giftNotifications(recipient);
+    expect(received).toHaveLength(1);
+    const gift = (
+      await pool.query('SELECT id FROM friend_gifts WHERE sender_id = $1 AND recipient_id = $2', [
+        sender.playerId,
+        recipient.playerId,
+      ])
+    ).rows[0];
+    expect(received[0].payload).toMatchObject({
+      giftId: gift.id,
+      senderId: sender.playerId,
+      amount: friendGift.amount,
+    });
+    expect(typeof received[0].payload.senderName).toBe('string');
+    expect(await giftNotifications(sender)).toHaveLength(0);
+  });
+
   it('topla: bakiye + tek defter satırı; ikinci toplama sıfır', async () => {
     const sender = await registerTestPlayer(app, 'Gönderen');
     const recipient = await registerTestPlayer(app, 'Toplayan');

@@ -742,6 +742,7 @@ sonuç; süresi dolan ödenmiş hediye gönderene `friend_gift_refund` ile döne
 silinen alıcıya ödenmiş hediye SİLİNMEZ (iade için); `friend_count` engelliyi
 saymaz. Aynı kişiye oyun gününde bir
 (`(sender, recipient, gift_day)` TEKİL), engelli/silinmiş arkadaş atlanır.
+Her alıcıya hediyeyle AYNI transaction'da `friend_gift_received` bildirimi (migration 0089; CHECK artık 0089'da).
 Toplama PARA YOLU: oyuncu `FOR UPDATE` → günlük sınır (`friendGift.
 dailyCollectLimit`) KİLİT ALTINDA → işaretle → TEK `friend_gift_collect`
 defter satırı (kanonik REWARD — oyuncudan oyuncuya transfer DEĞİL; referans

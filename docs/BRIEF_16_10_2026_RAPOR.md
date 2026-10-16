@@ -97,6 +97,13 @@ madde), ödeme altyapısı (sağlayıcısız, sahte başarı yok). Denetim kod +
 - Tribün hediye kataloğu brief'in örnek listesiyle birebir değil; mevcut katalog aynı fiyat aralığında, kod değişmedi.
 - Alınan hediyelerin ayrı bir "geçmiş" ekranı yok; cüzdan geçmişi ve bildirimlerde görünür.
 
+### Brief tekrar kontrolü (16.10.2026, ikinci tur)
+
+Brief yeniden madde madde koda karşı tarandı; iki gerçek açık bulundu ve kapatıldı:
+- **G14 (§6.4):** arkadaşa gönderilen çip hediyesi alıcıya bildirim üretmiyordu → migration 0089 `friend_gift_received` (hediyeyle aynı transaction, canlı akış).
+- **G15 (§7.2/§14):** `/races` lobi listesi kendiliğinden yenilenmiyordu → `race-lobby.lobbyListRefreshSeconds` (15 sn, sekme görünürken).
+- Bilinçli farklar: tribün kataloğu brief'in fiyat merdivenini izler ama kalemleri farklıdır; gerçek parayla çip satılmaz (yalnızca elmas — çip ücretli havuza girer, sahibinin kararı gerekir); arkadaş başarımı 50 arkadaşta biter.
+
 ## 11. Production'a geçişi engelleyen eksikler
 
 Ödeme sağlayıcısı + anahtarları; Google OAuth ve e-posta (Resend) anahtarları;

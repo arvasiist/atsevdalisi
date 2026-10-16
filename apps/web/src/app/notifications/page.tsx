@@ -549,6 +549,13 @@ function describe(notification: NotificationView): { title: string; detail: stri
             : 'Bu çiftleştirmeden damızlık payı doğmadı.',
         href: '/wallet',
       };
+    // 16.10.2026 — arkadaşından çip hediyesi (brief §6.4).
+    case 'friend_gift_received':
+      return {
+        title: `${notification.payload.senderName} sana ${formatCurrency('money', notification.payload.amount)} hediye gönderdi`,
+        detail: 'Arkadaşlar ekranında "Tüm hediyeleri topla" ile hesabına geçir.',
+        href: '/friends',
+      };
   }
 }
 
@@ -567,6 +574,7 @@ function hrefLabel(notification: NotificationView): string {
     case 'friend_accepted':
     case 'gift_received':
     case 'message_received':
+    case 'friend_gift_received':
       return 'arkadaşlar ekranı →';
     case 'race_invite':
     case 'race_starting':

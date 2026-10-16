@@ -155,8 +155,8 @@ export class PostgresFriendGiftRepository implements FriendGiftRepository {
     // ikincisi bütçeyi ve "bugün gönderildi"yi yeniden okur → çift tahsilat
     // yok. `(sender, recipient, gift_day)` tekilliği ikinci savunma hattıdır.
     return withTransaction(this.pool, async (client) => {
-      const locked = await client.query<{ money: string }>(
-        'SELECT money FROM players WHERE id = $1 AND deleted_at IS NULL FOR UPDATE',
+      const locked = await client.query<{ money: string; username: string; display_name: string }>(
+        'SELECT money, username, display_name FROM players WHERE id = $1 AND deleted_at IS NULL FOR UPDATE',
         [input.senderId],
       );
       const row = locked.rows[0];
@@ -227,6 +227,18 @@ export class PostgresFriendGiftRepository implements FriendGiftRepository {
             [input.senderId, after - balance, sendId, balance, after],
           );
           balance = after;
+          // 16.10.2026 (brief §6.4) — alıcıya haber, hediye satırlarıyla AYNI
+          // transaction'da (geri alınan gönderimin bildirimi kalmasın). Canlı
+          // yayını COMMIT'teki tetikleyici yapar (migration 0088).
+          await client.query(
+            `INSERT INTO notifications (player_id, type, payload)
+             SELECT g.recipient_id, 'friend_gift_received',
+                    jsonb_build_object('giftId', g.id, 'senderId', $2::text, 'senderUsername', $3::text,
+                                       'senderName', $4::text, 'amount', g.amount)
+               FROM friend_gifts g
+              WHERE g.send_id = $1`,
+            [sendId, input.senderId, row.username, row.display_name],
+          );
         }
       }
       return {

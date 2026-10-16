@@ -36,6 +36,7 @@ export const NOTIFICATION_TYPES = [
   'club_invite',
   'race_cancelled',
   'stud_service',
+  'friend_gift_received',
 ] as const;
 
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
@@ -113,6 +114,11 @@ export interface NotificationPayloadByType {
    * hesabına geçen damızlık payı (`studFeeOwnerSharePercent`, 0 olabilir).
    */
   stud_service: { pairId: string; stallionId: string; stallionName: string; foalId: string; amount: number };
+  /**
+   * 16.10.2026 — bir arkadaşın sana çip hediyesi gönderdi (brief §6.4); çip
+   * hesaba "Tüm hediyeleri topla" ile geçer (`/friends`).
+   */
+  friend_gift_received: { giftId: string; senderId: string; senderUsername: string; senderName: string; amount: number };
 }
 
 /**

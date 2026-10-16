@@ -2074,6 +2074,12 @@ export interface RaceLobbyConfig {
    * yarışta bekleme dakikalar sürebilir; yarış bitince oynatma odaya başlar.
    */
   spectatorWaitPollSeconds: number;
+  /**
+   * 16.10.2026 — `/races` lobi listesi sekme GÖRÜNÜRKEN kaç saniyede bir
+   * kendiliğinden yenilenir (katılımcı sayısı, durum, kalan süre). 0 = kapalı
+   * (yalnızca elle "Yenile"). Liste sunucudan okunur; istemci hesaplamaz.
+   */
+  lobbyListRefreshSeconds: number;
   lockScheduler: {
     enabled: boolean;
     /**
