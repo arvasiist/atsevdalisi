@@ -1090,6 +1090,14 @@ YAZMAZ: satırı transaction'da yazmak yeter (geri alınan iş yayınlanmaz).
 `race.invite` kart olayı duruyor. Web: üst bar zili + telefonda Menü rozeti
 (`useUnreadNotifications`).
 
+(96) **ANTRENMAN ENERJİ HARCAR + KONDİSYON GELİŞTİRİR (16.10.2026, brief §9)** —
+`training.types[].baseEnergyCost` / `baseFitnessGain` (× yoğunluk × süre;
+kondisyon ayrıca × sağlık × kalan pay). Eskiden antrenman enerjiye ve
+kondisyona HİÇ dokunmuyordu (enerji eşiği antrenmanda anlamsızdı). Yanıt
+`energyCost`, `fitnessGain`, `newStatus.fitness` taşır. ⚠️ Aynı atla çok
+sayıda antrenman koşan YENİ e2e enerjiye takılabilir (`INSUFFICIENT_ENERGY`) —
+kurulumda enerjiyi SQL ile doldur. Kondisyon motora girer (motor DEĞİŞMEDİ).
+
 **✅ ÜCRETLİ LOBİ YARIŞI ARTIK KOŞUYOR — ÖDÜL DAĞITIMI VAR (§13.14,
 28.09.2026).** `POST /races/:id/settle` yarışı koşar, ödülleri `top5`
 paylarıyla dağıtır ve `races.status = 'finished'` yazar. Uç bir

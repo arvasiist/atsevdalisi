@@ -209,14 +209,19 @@ export interface TrainingSession {
 /**
  * `POST /horses/{id}/train` yanıtı (docs/API.md §4). FAZ 1 wiring,
  * dördüncü dilim — bkz. `application/use-cases/train-horse.use-case.ts`
- * üstündeki KAPSAM notu (yalnızca birincil stat, energy/morale değişmez).
+ * üstündeki KAPSAM notu. 16.10.2026: antrenman enerji harcar ve kondisyonu
+ * geliştirir (`energyCost`, `fitnessGain`; config `training.types`).
  */
 export interface TrainHorseResult {
   horseId: UUID;
   statChanges: Partial<Record<HorseStatField, number>>;
   fatigueGain: number;
+  /** 16.10.2026 — düşülen enerji. */
+  energyCost: number;
+  /** 16.10.2026 — eklenen kondisyon. */
+  fitnessGain: number;
   injuryOccurred: boolean;
-  newStatus: Pick<Horse, 'fatigue' | 'energy' | 'morale'>;
+  newStatus: Pick<Horse, 'fatigue' | 'energy' | 'morale' | 'fitness'>;
   /** 01.10.2026 — uygulanan antrenör çarpanı (1 = antrenörsüz). */
   staffMultiplier: number;
 }

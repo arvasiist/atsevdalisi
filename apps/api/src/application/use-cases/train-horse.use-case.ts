@@ -149,7 +149,11 @@ export class TrainHorseUseCase {
         Math.max(0, outcome.injuryRisk * trainingInjuryRiskMultiplier * personality.injuryRiskMultiplier),
       );
       const injuryOccurred = rollInjuryOccurred(injuryRisk, `${sessionId}:injury`);
-      const newVitals = applyVitalDelta(vitals, { fatigue: fatigueGain });
+      // 16.10.2026 (brief §9) — antrenman enerji harcar ve kondisyonu geliştirir;
+      // sütunlar NUMERIC(5,2) → yazılanla dönen aynı olsun diye 2 haneye yuvarlanır.
+      const energyCost = Math.round(outcome.energyCost * VITAL_SCALE) / VITAL_SCALE;
+      const fitnessGain = Math.round(outcome.fitnessGain * VITAL_SCALE) / VITAL_SCALE;
+      const newVitals = applyVitalDelta(vitals, { fatigue: fatigueGain, energy: -energyCost, fitness: fitnessGain });
 
       // 01.10.2026 — XP: at, kilit altında, vitallerle AYNI yazımda ilerler.
       const progression = this.config.progression;
@@ -163,6 +167,8 @@ export class TrainHorseUseCase {
       const updatedHorse: Horse = {
         ...lockedHorse,
         fatigue: newVitals.fatigue,
+        energy: newVitals.energy,
+        fitness: newVitals.fitness,
         status: injuryOccurred ? 'injured' : lockedHorse.status,
         level: horseProgress.level,
         xp: horseProgress.xp,
@@ -171,7 +177,7 @@ export class TrainHorseUseCase {
 
       return {
         horse: updatedHorse,
-        result: { sessionId, injuryOccurred, injuryRisk, outcome: { ...outcome, fatigueGain }, newVitals },
+        result: { sessionId, injuryOccurred, injuryRisk, outcome: { ...outcome, fatigueGain, energyCost, fitnessGain }, newVitals },
       };
     });
 
@@ -224,8 +230,15 @@ export class TrainHorseUseCase {
       horseId,
       statChanges,
       fatigueGain: outcome.fatigueGain,
+      energyCost: outcome.energyCost,
+      fitnessGain: outcome.fitnessGain,
       injuryOccurred,
-      newStatus: { fatigue: newVitals.fatigue, energy: newVitals.energy, morale: newVitals.morale },
+      newStatus: {
+        fatigue: newVitals.fatigue,
+        energy: newVitals.energy,
+        morale: newVitals.morale,
+        fitness: newVitals.fitness,
+      },
       staffMultiplier: trainerFactor,
     };
   }

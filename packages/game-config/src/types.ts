@@ -256,6 +256,18 @@ export interface TrainingTypeConfig {
   baseGain: number;
   baseFatigue: number;
   baseInjuryRisk: number;
+  /**
+   * 16.10.2026 (brief §9) — antrenman enerji HARCAR (orta yoğunluk, 15 dk'lık
+   * birim başına; yoğunluk ve süre çarpanlarıyla ölçeklenir). Eskiden
+   * antrenman enerjiye hiç dokunmuyordu. `rest` = 0.
+   */
+  baseEnergyCost: number;
+  /**
+   * 16.10.2026 — antrenman KONDİSYONU (fitness) da geliştirir; kazanç sağlıkla
+   * ve kondisyon 100'e yaklaştıkça azalır. Eskiden kondisyon yalnızca yemle
+   * artıyordu. `rest` = 0.
+   */
+  baseFitnessGain: number;
 }
 
 export interface TrainingConfig {

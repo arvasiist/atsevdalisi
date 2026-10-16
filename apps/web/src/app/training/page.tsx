@@ -292,6 +292,16 @@ export default function TrainingPage(): React.ReactElement {
                   </span>
                 ))}
                 <span style={{ color: 'var(--color-text-secondary)' }}>Yorgunluk artışı: +{result.fatigueGain}</span>
+                {result.fitnessGain > 0 ? (
+                  <span data-testid="training-fitness-gain" style={{ color: 'var(--color-status-positive)' }}>
+                    Kondisyon: +{result.fitnessGain.toFixed(2)}
+                  </span>
+                ) : null}
+                {result.energyCost > 0 ? (
+                  <span data-testid="training-energy-cost" style={{ color: 'var(--color-status-warning)' }}>
+                    Enerji: −{result.energyCost.toFixed(2)} (kalan {Math.round(result.newStatus.energy)})
+                  </span>
+                ) : null}
                 {result.staffMultiplier > 1 ? (
                   <span style={{ color: 'var(--color-accent-gold)' }}>
                     Antrenör etkisi: +%{Math.round((result.staffMultiplier - 1) * 100)}

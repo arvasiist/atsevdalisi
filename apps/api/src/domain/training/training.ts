@@ -46,6 +46,10 @@ export interface TrainingOutcome {
   fatigueGain: number;
   /** [0, 1] aralığında sakatlanma olasılığı. */
   injuryRisk: number;
+  /** 16.10.2026 — enerjiden düşülecek miktar (>= 0). */
+  energyCost: number;
+  /** 16.10.2026 — kondisyona (fitness) eklenecek miktar (>= 0). */
+  fitnessGain: number;
 }
 
 const MAX_STAT = 100;
@@ -157,6 +161,42 @@ export function calculateFatigueGain(
   return typeConfig.baseFatigue * intensityMultiplier * durationMultiplier * currentFatigueModifier;
 }
 
+/**
+ * 16.10.2026 (brief §9) — antrenmanın enerji maliyeti: tür tabanı × yoğunluk ×
+ * süre. Sağlık/yorgunluk maliyeti DEĞİŞTİRMEZ (yorgun at zaten daha az kazanır).
+ */
+export function calculateEnergyCost(
+  config: TrainingConfig,
+  ctx: Pick<TrainingContext, 'trainingType' | 'intensity' | 'durationMinutes'>,
+): number {
+  const typeConfig = getTypeConfig(config, ctx.trainingType);
+  return (
+    typeConfig.baseEnergyCost *
+    getIntensityMultiplier(config, ctx.intensity) *
+    getDurationMultiplier(config, ctx.durationMinutes)
+  );
+}
+
+/**
+ * 16.10.2026 — kondisyon kazancı: tür tabanı × yoğunluk × süre × sağlık
+ * çarpanı × kalan pay ((100 − kondisyon) / 100). Kondisyon 100'ü aşmaz.
+ */
+export function calculateFitnessGain(
+  config: TrainingConfig,
+  ctx: Pick<TrainingContext, 'trainingType' | 'intensity' | 'durationMinutes' | 'vitals'>,
+): number {
+  const typeConfig = getTypeConfig(config, ctx.trainingType);
+  const healthFactor = 0.5 + 0.5 * (ctx.vitals.health / MAX_VITAL);
+  const room = Math.max(0, MAX_VITAL - ctx.vitals.fitness) / MAX_VITAL;
+  const gain =
+    typeConfig.baseFitnessGain *
+    getIntensityMultiplier(config, ctx.intensity) *
+    getDurationMultiplier(config, ctx.durationMinutes) *
+    healthFactor *
+    room;
+  return Math.max(0, Math.min(gain, MAX_VITAL - ctx.vitals.fitness));
+}
+
 /** docs/ALGORITHMS.md §1: injury_risk formülü. Sonuç [0, 1] aralığına clamp edilir. */
 export function calculateInjuryRisk(
   config: TrainingConfig,
@@ -192,6 +232,8 @@ export function applyTraining(config: TrainingConfig, ctx: TrainingContext): Tra
     statGain: calculateStatGain(config, ctx),
     fatigueGain: calculateFatigueGain(config, ctx),
     injuryRisk: calculateInjuryRisk(config, ctx),
+    energyCost: calculateEnergyCost(config, ctx),
+    fitnessGain: calculateFitnessGain(config, ctx),
   };
 }
 

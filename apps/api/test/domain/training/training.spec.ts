@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
+  calculateEnergyCost,
+  calculateFitnessGain,
   applyTraining,
   calculateFatigueGain,
   calculateInjuryRisk,
@@ -223,3 +225,43 @@ describe('geçersiz antrenman girdisi (CI Hata 7)', () => {
     ).toThrow(InvalidTrainingInputError);
   });
 });
+
+describe('16.10.2026 — antrenman enerji harcar, kondisyonu geliştirir (brief §9)', () => {
+  const base = { trainingType: 'speed' as const, durationMinutes: 15, vitals: goodVitals };
+
+  it('enerji maliyeti yoğunluk ve süreyle artar; dinlenme enerji harcamaz', () => {
+    const low = calculateEnergyCost(config, { ...base, intensity: 'low' });
+    const medium = calculateEnergyCost(config, { ...base, intensity: 'medium' });
+    const high = calculateEnergyCost(config, { ...base, intensity: 'high' });
+    expect(low).toBeLessThan(medium);
+    expect(medium).toBeLessThan(high);
+    expect(medium).toBeCloseTo(config.types.speed!.baseEnergyCost, 10);
+    expect(calculateEnergyCost(config, { ...base, intensity: 'medium', durationMinutes: 60 })).toBeGreaterThan(medium);
+    expect(calculateEnergyCost(config, { ...base, trainingType: 'rest', intensity: 'medium' })).toBe(0);
+  });
+
+  it('kondisyon kazancı sağlıkla ve kalan payla ölçeklenir; 100ü aşmaz; dinlenme kazandırmaz', () => {
+    const fresh = calculateFitnessGain(config, { ...base, intensity: 'medium', trainingType: 'stamina', vitals: { ...goodVitals, fitness: 50 } });
+    const fit = calculateFitnessGain(config, { ...base, intensity: 'medium', trainingType: 'stamina', vitals: { ...goodVitals, fitness: 90 } });
+    const sick = calculateFitnessGain(config, {
+      ...base,
+      intensity: 'medium',
+      trainingType: 'stamina',
+      vitals: { ...goodVitals, fitness: 50, health: 20 },
+    });
+    expect(fresh).toBeGreaterThan(0);
+    expect(fit).toBeLessThan(fresh);
+    expect(sick).toBeLessThan(fresh);
+    expect(calculateFitnessGain(config, { ...base, intensity: 'high', vitals: { ...goodVitals, fitness: 100 } })).toBe(0);
+    expect(calculateFitnessGain(config, { ...base, trainingType: 'rest', intensity: 'medium' })).toBe(0);
+  });
+
+  it('config: her türün enerji maliyeti ve kondisyon kazancı tanımlı ve negatif değil', () => {
+    for (const [type, typeConfig] of Object.entries(config.types)) {
+      expect(typeConfig.baseEnergyCost, type).toBeGreaterThanOrEqual(0);
+      expect(typeConfig.baseFitnessGain, type).toBeGreaterThanOrEqual(0);
+    }
+    expect(config.types.rest!.baseEnergyCost).toBe(0);
+  });
+});
+
