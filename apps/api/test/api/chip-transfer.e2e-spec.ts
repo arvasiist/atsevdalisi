@@ -157,6 +157,64 @@ describe('Çip transferi — limitler ve güvenlik (e2e)', () => {
     expect(await money(recipient.playerId)).toBe(1_000 + 100 - 150);
   });
 
+  it('mutabakat: hediye geçmişi = gift_sends = defter çiftleri; tekrar ve başarısız istek iz bırakmaz; bakiye zinciri tutar', async () => {
+    const [a, b] = await pair('Mutabakat');
+    await setMoney(b.playerId, 1_000);
+    const key = randomUUID();
+    await send(a, b.playerId, 120).expect(201);
+    await send(b, a.playerId, 40).expect(201);
+    await send(a, b.playerId, 300, key).expect(201);
+    await send(a, b.playerId, 300, key).expect(201); // aynı anahtar → aynı yanıt, ikinci hareket YOK
+    await send(a, b.playerId, 999_999).expect((res) => expect([400, 409]).toContain(res.status));
+
+    const history = (await http().get(`/api/v1/players/${a.playerId}/gifts`).set('Authorization', a.authHeader).expect(200)).body.data as Array<{
+      giftId: string;
+      direction: 'incoming' | 'outgoing';
+      amount: number;
+    }>;
+    const rows = await pool.query<{ id: string; sender_id: string; recipient_id: string; amount: string }>(
+      'SELECT id, sender_id, recipient_id, amount FROM gift_sends WHERE sender_id = $1 OR recipient_id = $1',
+      [a.playerId],
+    );
+    expect(rows.rows).toHaveLength(3);
+    expect(history.map((g) => g.giftId).sort()).toEqual(rows.rows.map((r) => r.id).sort());
+    expect(history.map((g) => `${g.direction}:${g.amount}`).sort()).toEqual(['incoming:40', 'outgoing:120', 'outgoing:300']);
+
+    for (const gift of rows.rows) {
+      const ledger = await pool.query<{ player_id: string; amount: string }>(
+        "SELECT player_id, amount FROM economy_transactions WHERE reference_type = 'gift_send' AND reference_id = $1",
+        [gift.id],
+      );
+      expect(ledger.rows).toHaveLength(2);
+      expect(ledger.rows.find((r) => r.player_id === gift.sender_id)!.amount).toBe(String(-Number(gift.amount)));
+      expect(ledger.rows.find((r) => r.player_id === gift.recipient_id)!.amount).toBe(gift.amount);
+    }
+    // Yetim defter satırı yok: her gift_send satırının hediyesi var.
+    const orphans = await pool.query(
+      `SELECT 1 FROM economy_transactions t
+        WHERE t.player_id = ANY($1::uuid[]) AND t.reference_type = 'gift_send'
+          AND NOT EXISTS (SELECT 1 FROM gift_sends g WHERE g.id::text = t.reference_id)`,
+      [[a.playerId, b.playerId]],
+    );
+    expect(orphans.rowCount).toBe(0);
+
+    // Bakiye zinciri: her satır önce + tutar = sonra, satırlar birbirini izler, son satır = bakiye.
+    for (const player of [a, b]) {
+      const chain = await pool.query<{ amount: string; balance_before: string; balance_after: string }>(
+        `SELECT amount, balance_before, balance_after FROM economy_transactions
+          WHERE player_id = $1 AND currency = 'money' AND reference_type = 'gift_send' ORDER BY created_at, id`,
+        [player.playerId],
+      );
+      chain.rows.forEach((row, index) => {
+        expect(Number(row.balance_before) + Number(row.amount)).toBe(Number(row.balance_after));
+        if (index > 0) expect(row.balance_before).toBe(chain.rows[index - 1]!.balance_after);
+      });
+      expect(Number(chain.rows.at(-1)!.balance_after)).toBe(await money(player.playerId));
+    }
+    expect(await money(a.playerId)).toBe(20_000 - 120 + 40 - 300);
+    expect(await money(b.playerId)).toBe(1_000 + 120 - 40 + 300);
+  });
+
   it('transfer sırasında veritabanı hatası: bakiyeler, defter ve bildirim geri alınır', async () => {
     const [sender, recipient] = await pair('Hata');
     const recipientBefore = await money(recipient.playerId);

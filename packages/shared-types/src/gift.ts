@@ -61,8 +61,9 @@ export interface GiftView {
 }
 
 /**
- * 08.10.2026 — DOSTLUK HEDİYESİ. Gönderen hiçbir şey ödemez; alıcı
- * toplayınca çip `friend_gift_collect` defter satırıyla girer.
+ * 08.10.2026 — DOSTLUK HEDİYESİ. 16.10.2026'dan beri (migration 0087)
+ * gönderen öder (`friend_gift_send`); alıcı toplayınca çip
+ * `friend_gift_collect` defter satırıyla girer.
  */
 export interface FriendGiftPendingView {
   giftId: string;

@@ -389,6 +389,36 @@ describe('Block / Report — moderasyon (e2e)', () => {
     });
   });
 
+  describe('engel + arkadaş listesi (16.10.2026)', () => {
+    it('ENGELLEYENİN listesinden arkadaş ve bekleyen istek düşer; engellenenin listesi değişmez; engel kalkınca geri gelir', async () => {
+      const a = await registerTestPlayer(app, 'Liste Engelleyen');
+      const b = await registerTestPlayer(app, 'Liste Engellenen');
+      const c = await registerTestPlayer(app, 'Liste İstekçi');
+      await makeFriends(a, b);
+      await recordSharedFinishedRace(app, [a, c]);
+      await request(app.getHttpServer())
+        .post(`/api/v1/players/${c.playerId}/friend-requests`)
+        .set('Authorization', c.authHeader)
+        .send({ addresseeId: a.playerId })
+        .expect(201);
+      const overview = async (player: RegisteredTestPlayer) =>
+        (await request(app.getHttpServer()).get(`/api/v1/players/${player.playerId}/social`).set('Authorization', player.authHeader).expect(200))
+          .body.data;
+      expect((await overview(a)).friends).toHaveLength(1);
+      expect((await overview(a)).incomingRequests).toHaveLength(1);
+
+      await block(a, b.playerId, 201);
+      await block(a, c.playerId, 201);
+      expect((await overview(a)).friends).toHaveLength(0);
+      expect((await overview(a)).incomingRequests).toHaveLength(0);
+      // Engellenen taraf yön öğrenmez: listesi aynı kalır (işlemleri sunucuda 403).
+      expect((await overview(b)).friends.map((f: { playerId: string }) => f.playerId)).toEqual([a.playerId]);
+
+      await request(app.getHttpServer()).delete(unblockUrl(a.playerId, b.playerId)).set('Authorization', a.authHeader).expect(200);
+      expect((await overview(a)).friends.map((f: { playerId: string }) => f.playerId)).toEqual([b.playerId]);
+    });
+  });
+
   describe('POST /players/:id/reports', () => {
     it('şikâyeti `open` durumunda kaydeder ve VERİTABANINA yazar', async () => {
       const reporter = await registerTestPlayer(app, 'Şikâyet Eden');

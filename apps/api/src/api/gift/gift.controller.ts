@@ -100,12 +100,6 @@ export class GiftController {
     return { success: true, data: result };
   }
 
-  /**
-   * Oyuncunun hediye geçmişi (gelen + giden, tek akış). Salt okunur —
-   * `Idempotency-Key` GEREKMEZ ve `@RateLimit` de uygulanmaz (okuma, para
-   * hareketi üretmez; `GetSocialOverviewUseCase`'in uç noktasıyla AYNI
-   * durum).
-   */
   /** 16.10.2026 — çip gönderme onay ekranının hakkı (salt okuma). */
   @Get('players/:id/gifts/quota')
   async quota(
@@ -116,6 +110,12 @@ export class GiftController {
     return { success: true, data: await this.sendGiftUseCase.quota(id) };
   }
 
+  /**
+   * Oyuncunun hediye geçmişi (gelen + giden, tek akış). Salt okunur —
+   * `Idempotency-Key` GEREKMEZ ve `@RateLimit` de uygulanmaz (okuma, para
+   * hareketi üretmez; `GetSocialOverviewUseCase`'in uç noktasıyla AYNI
+   * durum).
+   */
   @Get('players/:id/gifts')
   @HttpCode(HttpStatus.OK)
   async listGifts(

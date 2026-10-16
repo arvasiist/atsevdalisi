@@ -256,6 +256,27 @@ export default function FriendsPage(): React.ReactElement {
       'Engel kaldırılamadı',
     );
 
+  /**
+   * 16.10.2026 — arkadaş satırından engelleme (önceden yalnızca profilde).
+   * Engel arkadaşlığı SİLMEZ; sunucu engellediğin kişiyi listenden çıkarır,
+   * "Engellenenler"de görünür ve oradan geri alınır. Yanlış basışa karşı onay.
+   */
+  const block = (friend: FriendView): Promise<void> =>
+    runAction(
+      `block-${friend.playerId}`,
+      async () => {
+        if (!window.confirm(`${friend.displayName} engellensin mi? Mesaj, hediye ve davet iki yönde de kapanır.`)) return;
+        await apiClient.blockPlayer(player?.id ?? '', friend.playerId);
+        if (activeFriend?.playerId === friend.playerId) {
+          setActiveFriend(null);
+          setMessages(null);
+        }
+        if (activeGiftFriend?.playerId === friend.playerId) setActiveGiftFriend(null);
+        await refresh();
+      },
+      'Oyuncu engellenemedi',
+    );
+
   const openConversation = (friend: FriendView): Promise<void> =>
     runAction(
       `open-${friend.playerId}`,
@@ -450,6 +471,14 @@ export default function FriendsPage(): React.ReactElement {
                       style={secondaryButtonStyle()}
                     >
                       Çıkar
+                    </button>
+                    <button
+                      type="button"
+                      disabled={pendingKey === `block-${friend.playerId}`}
+                      onClick={() => void block(friend)}
+                      style={secondaryButtonStyle()}
+                    >
+                      Engelle
                     </button>
                   </RowActions>
                 </Row>

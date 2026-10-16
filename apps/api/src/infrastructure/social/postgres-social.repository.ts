@@ -183,6 +183,11 @@ export class PostgresSocialRepository implements SocialRepository {
          FROM friendships f
          JOIN players p ON p.id = CASE WHEN f.player_low_id = $1 THEN f.player_high_id ELSE f.player_low_id END
          WHERE f.status = 'accepted' AND (f.player_low_id = $1 OR f.player_high_id = $1)
+           -- 16.10.2026 — ENGELLEDİĞİM arkadaş listemde görünmez ("Engellenenler"
+           -- bölümündedir); arkadaşlık satırı SİLİNMEZ, engel kalkınca geri gelir.
+           -- Yalnızca ENGELLEYENİN yönü: engellenene listeden kaybolmak engeli
+           -- ele verirdi (PLAYER_BLOCKED yön sızdırmaz kuralı).
+           AND NOT EXISTS (SELECT 1 FROM player_blocks b WHERE b.blocker_id = $1 AND b.blocked_id = p.id)
          ORDER BY COALESCE(f.responded_at, f.created_at) DESC
          LIMIT $2`,
         [input.playerId, input.friendsLimit],
@@ -193,6 +198,7 @@ export class PostgresSocialRepository implements SocialRepository {
          FROM friendships f
          JOIN players p ON p.id = CASE WHEN f.player_low_id = $1 THEN f.player_high_id ELSE f.player_low_id END
          WHERE f.status = 'pending' AND (f.player_low_id = $1 OR f.player_high_id = $1)
+           AND NOT EXISTS (SELECT 1 FROM player_blocks b WHERE b.blocker_id = $1 AND b.blocked_id = p.id)
          ORDER BY f.created_at DESC
          LIMIT $2`,
         [input.playerId, input.requestsLimit],

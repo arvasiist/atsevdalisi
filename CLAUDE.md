@@ -1107,7 +1107,10 @@ kullanıcı adı ön eki; engelli çift + silinmiş gizli), ilişki `GET
 /players/:id/relationship/:otherId`, çevrimiçi `POST /presence/heartbeat` +
 `GET/PUT /players/:id/privacy` (gizleyen herkese çevrimdışı, son görülme
 DÖNMEZ). (b) Arkadaşlık kapısı `meetsFriendshipGate` = birlikte yarış VEYA
-davet çifti (sahibinin kararı) — yeni bir arkadaşlık yolu bunu kullanır. (c)
+davet çifti (sahibinin kararı) — yeni bir arkadaşlık yolu bunu kullanır.
+ENGELLEDİĞİN arkadaş + bekleyen isteği `/players/:id/social` listesinden düşer
+(yalnızca ENGELLEYENİN yönü — engellenenin listesi değişmez, yön sızmaz);
+satır silinmez, engel kalkınca geri gelir (`docs/ARKADASLIK_HEDIYE_DENETIMI.md`). (c)
 Transfer limitleri `gift.config.json` (günlük tutar, alıcı günlük, yeni hesap)
 KİLİT ALTINDA → 409 `GIFT_LIMIT_EXCEEDED`; ⚠️ transfer e2e'si yazarken
 `matureAccounts(app, [a, b])` — yoksa yeni hesap tavanına takılır. `gift_sent`

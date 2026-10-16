@@ -58,4 +58,11 @@ describe('çip gönderme onay ekranı (16.10.2026)', () => {
     expect(panel).toContain('Onayla ve Gönder');
     expect(panel).toContain('transferKeyFor(pendingKey.current');
   });
+
+  it('arkadaş satırından engelleme (16.10.2026): onay sorulur, panel ve sohbet kapanır', () => {
+    const page = readFileSync(join(SRC, 'app/friends/page.tsx'), 'utf8');
+    expect(page).toContain('apiClient.blockPlayer(player?.id');
+    expect(page).toContain('window.confirm(');
+    expect(page).toContain('onClick={() => void block(friend)}');
+  });
 });
