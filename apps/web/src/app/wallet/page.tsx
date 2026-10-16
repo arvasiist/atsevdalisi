@@ -35,6 +35,7 @@
  * düşürürdü (sunucu reddederken ekran "geçerli" derdi).
  */
 
+import Link from 'next/link';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { loadEconomyConfig } from '@at-sevdalisi/game-config';
 import type { ClaimDailyRewardResult, WalletTransaction, WalletView } from '@at-sevdalisi/shared-types';
@@ -293,8 +294,25 @@ export default function WalletPage(): React.ReactElement {
             <GlassPanel style={{ padding: 'var(--space-lg)' }}>
               <h2 style={sectionTitleStyle}>Sanal Para Yükle</h2>
               <p style={{ color: 'var(--color-text-secondary)', margin: 0, fontSize: '13px' }}>
-                Bu sunucuda para yükleme kapalıdır. Var olan bakiyenle oynamaya devam edebilirsin.
+                Bu sunucuda para yükleme kapalıdır. Çip gerçek parayla satılmaz (yarış havuzlarına girdiği
+                için); oyunda kazanılır:
               </p>
+              {/* 16.10.2026 — brief §4: "+" boş bir ekrana çıkmasın; çipin gerçek kaynakları. */}
+              <ul data-testid="chip-sources" style={{ margin: 'var(--space-sm) 0 0', paddingLeft: '18px', fontSize: '13px' }}>
+                <li>Günlük ödül (bu sayfada, yukarıda)</li>
+                <li>
+                  <Link href="/quests">Günlük ve haftalık görevler</Link>
+                </li>
+                <li>
+                  <Link href="/races">Yarış ödülleri</Link>
+                </li>
+                <li>
+                  <Link href="/friends">Dostluk hediyeleri ve arkadaş başarımları</Link>
+                </li>
+                <li>
+                  Elmas (görünüş ürünleri) için <Link href="/store">Mağaza</Link>
+                </li>
+              </ul>
             </GlassPanel>
           )}
 
