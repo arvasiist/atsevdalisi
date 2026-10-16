@@ -316,6 +316,11 @@ export const ErrorCode = {
   NotFriends: 'NOT_FRIENDS',
   /** Arkadaşlık yalnızca bitmiş bir yarışta birlikte koşmuş oyuncular arasında kurulur (409, 08.10.2026). */
   FriendshipRequiresSharedRace: 'FRIENDSHIP_REQUIRES_SHARED_RACE',
+  /** 16.10.2026 — davet sistemi (sosyal brief §7). */
+  ReferralCodeNotFound: 'REFERRAL_CODE_NOT_FOUND',
+  ReferralSelf: 'REFERRAL_SELF',
+  ReferralAlreadyAttached: 'REFERRAL_ALREADY_ATTACHED',
+  ReferralAttachWindowClosed: 'REFERRAL_ATTACH_WINDOW_CLOSED',
   /** Mesaj gövdesi boş, yalnızca boşluk ya da azami uzunluğu aşıyor (400). */
   InvalidMessageBody: 'INVALID_MESSAGE_BODY',
   /** Arkadaşlık isteği yanıtı `accept`/`reject` dışında bir değer (400). */

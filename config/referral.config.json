@@ -1,0 +1,15 @@
+{
+  "codeLength": 8,
+  "attachWindowHours": 72,
+  "conditions": {
+    "requireEmailVerified": true,
+    "minFinishedRaces": 3
+  },
+  "rewards": {
+    "inviter": 300,
+    "invitee": 200
+  },
+  "maxRewardedPerInviter": 20,
+  "maxRewardedPerInviterPerDay": 3,
+  "historyLimit": 50
+}

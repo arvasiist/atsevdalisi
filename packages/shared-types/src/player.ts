@@ -200,6 +200,7 @@ export const ACCOUNT_EXPORT_SECTIONS = [
   'payments',
   'friendGifts',
   'tribuneGifts',
+  'referrals',
 ] as const;
 
 export type AccountExportSectionName = (typeof ACCOUNT_EXPORT_SECTIONS)[number];

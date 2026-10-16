@@ -34,6 +34,7 @@ import { HorseHeadIcon } from '../ui/HorseHeadIcon';
 import { formatUnreadBadge, notificationsAriaLabel } from '../../features/notifications/unread-badge';
 import { useUnreadNotifications } from '../../features/notifications/use-unread-notifications';
 import { usePresenceHeartbeat } from '../../features/social/use-presence-heartbeat';
+import { useReferralCapture } from '../../features/social/use-referral-capture';
 import { NavIcon } from './nav-icons';
 import { MAX_MOBILE_TABS, NAV_LINKS, TOP_UP_HREF, type NavLink } from './nav-links';
 
@@ -51,6 +52,8 @@ export function TopBar(): React.ReactElement {
   const unread = useUnreadNotifications(player?.id ?? null, pathname);
   // 16.10.2026 — çevrimiçi durumu (arkadaşlara): oturum varken nabız.
   usePresenceHeartbeat(player !== null);
+  // 16.10.2026 — davet bağlantısı (`?ref=`) yakalanır, oturumla bir kez bağlanır.
+  useReferralCapture(player?.id ?? null);
   const unreadBadge = formatUnreadBadge(unread);
 
   // Sayfa değişince açık menüler kapanır.

@@ -318,3 +318,52 @@ export interface RaceEmoteEvent {
   raceId: string;
   key: string;
 }
+
+/**
+ * 16.10.2026 — arkadaş daveti + davet ödülü (sosyal brief §7). `GET /referrals`.
+ * Kod sunucuda üretilir; paylaşım bağlantısını istemci kendi adresinden kurar
+ * (`/?ref=KOD`). İlerleme SAYAÇ değil, mevcut tablolardan türetilir.
+ */
+export type ReferralStatus = 'pending' | 'ready' | 'rewarded' | 'capped';
+
+export interface ReferralRowView {
+  referralId: string;
+  invitee: SocialPlayerView;
+  joinedAt: string;
+  status: ReferralStatus;
+  emailVerified: boolean;
+  finishedRaces: number;
+  requiredRaces: number;
+  emailRequired: boolean;
+  rewardedAt: string | null;
+  inviterReward: number | null;
+}
+
+export interface ReferralOverviewView {
+  code: string;
+  rewards: { inviter: number; invitee: number };
+  conditions: { requireEmailVerified: boolean; minFinishedRaces: number };
+  maxRewardedPerInviter: number;
+  maxRewardedPerInviterPerDay: number;
+  rewardedCount: number;
+  rewardedToday: number;
+  claimableCount: number;
+  referrals: ReferralRowView[];
+  /** Beni davet eden (yoksa null) ve benim davetle gelme ödülüm. */
+  invitedBy: (SocialPlayerView & { rewarded: boolean }) | null;
+  /** Bu hesap hâlâ bir davet kodu bağlayabilir mi (pencere + bağlı değil). */
+  canAttach: boolean;
+  attachDeadline: string | null;
+}
+
+export interface AttachReferralResult {
+  inviter: SocialPlayerView;
+}
+
+export interface ClaimReferralRewardsResult {
+  claimed: number;
+  amount: number;
+  balanceAfter: number;
+  /** Koşulu sağlayan ama tavan yüzünden bugün ödenmeyenler. */
+  capped: number;
+}

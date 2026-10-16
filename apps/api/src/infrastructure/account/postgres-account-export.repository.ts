@@ -105,6 +105,18 @@ const SECTION_SQL: Record<AccountExportSectionName, string> = {
       FROM friend_gifts g
       JOIN players o ON o.id = CASE WHEN g.sender_id = $1 THEN g.recipient_id ELSE g.sender_id END
      WHERE g.sender_id = $1 OR g.recipient_id = $1 ORDER BY g.created_at DESC LIMIT $2`,
+  // 16.10.2026 — davet: kodum + davet ettiklerim / beni davet eden (karşı taraf yalnızca kullanıcı adıyla).
+  referrals: `
+    SELECT 'code' AS role, c.code AS "code", NULL AS "otherPlayer", c.created_at AS "createdAt",
+           NULL::timestamptz AS "rewardedAt", NULL::float8 AS reward
+      FROM player_referral_codes c WHERE c.player_id = $1
+    UNION ALL
+    SELECT CASE WHEN r.inviter_id = $1 THEN 'invited' ELSE 'invited_by' END, r.code, o.username, r.created_at,
+           r.rewarded_at, (CASE WHEN r.inviter_id = $1 THEN r.inviter_reward ELSE r.invitee_reward END)::float8
+      FROM referrals r
+      JOIN players o ON o.id = CASE WHEN r.inviter_id = $1 THEN r.invitee_id ELSE r.inviter_id END
+     WHERE r.inviter_id = $1 OR r.invitee_id = $1
+     ORDER BY "createdAt" DESC LIMIT $2`,
   // 08.10.2026 — tribün hediyeleri (iki yön; karşı taraf yalnızca kullanıcı adıyla).
   tribuneGifts: `
     SELECT CASE WHEN g.sender_id = $1 THEN 'sent' ELSE 'received' END AS direction,

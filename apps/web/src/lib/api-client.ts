@@ -1,4 +1,7 @@
 import type {
+  AttachReferralResult,
+  ClaimReferralRewardsResult,
+  ReferralOverviewView,
   GiftQuotaView,
   PlayerPrivacyView,
   PlayerRelationshipView,
@@ -1144,6 +1147,16 @@ export const apiClient = {
    */
   getSocialOverview: (playerId: string) =>
     request<SocialOverviewView>(`/players/${playerId}/social`, { method: 'GET' }),
+
+  /** 16.10.2026 — davet: kodum, davet ettiklerim, beni davet eden (sosyal brief §7). */
+  getReferrals: () => request<ReferralOverviewView>('/referrals', { method: 'GET' }),
+
+  /** Davet kodunu bağlar (yalnızca yeni hesapta, bir kez). */
+  attachReferral: (code: string) =>
+    request<AttachReferralResult>('/referrals/attach', { method: 'POST', body: JSON.stringify({ code }) }),
+
+  /** Koşulu sağlayan davetlerin ödülünü alır (iki tarafa; tavan sunucuda). */
+  claimReferralRewards: () => request<ClaimReferralRewardsResult>('/referrals/claim', { method: 'POST' }),
 
   /** 16.10.2026 — oyuncu ara: kimlik tam eşleşme ya da kullanıcı adı ön eki. */
   searchPlayers: (q: string) =>

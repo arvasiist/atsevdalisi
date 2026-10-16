@@ -184,6 +184,19 @@ export const LEDGER_TRANSACTION_TYPES = [
   // 09.10.2026 — masanın kaybeden iadesi (pratik + lobi).
   'practice_race_loser_refund',
   'lobby_race_loser_refund',
+  /**
+   * 16.10.2026 — davet ödülü (sosyal brief §7): davet edene `referral_reward`,
+   * davetle gelene `referral_welcome_reward`; referans `referrals.id`.
+   */
+  'referral_reward',
+  'referral_welcome_reward',
+  /**
+   * 16.10.2026 — mağazadan ÇİP paketi (sahibinin kararı; gerçek para yalnızca
+   * imzalı webhook'la). Satın alınan çip HEDİYE EDİLEMEZ (bkz. `giftableBalance`).
+   * Referans `payment_orders.id`.
+   */
+  'chip_purchase',
+  'chip_purchase_refund',
 ] as const;
 
 export type LedgerTransactionType = (typeof LEDGER_TRANSACTION_TYPES)[number];
@@ -283,6 +296,10 @@ export const CANONICAL_BY_LEDGER_TYPE: Record<LedgerTransactionType, CanonicalTr
   // 09.10.2026 — masa kuralı: ödül alamayan sıraya ödenen bedelin bir kısmı geri.
   practice_race_loser_refund: 'REFUND',
   lobby_race_loser_refund: 'REFUND',
+  referral_reward: 'REWARD',
+  referral_welcome_reward: 'REWARD',
+  chip_purchase: 'DEPOSIT',
+  chip_purchase_refund: 'REFUND',
 };
 
 /**

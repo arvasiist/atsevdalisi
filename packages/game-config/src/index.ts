@@ -18,6 +18,7 @@
  */
 import type {
   OnboardingConfig,
+  ReferralConfig,
   AuthConfig,
   OpsConfig,
   ModerationConfig,
@@ -103,6 +104,7 @@ import hippodromesConfigJson from '../../../config/hippodromes.config.json';
 import equipmentConfigJson from '../../../config/equipment.config.json';
 import horsePersonalityConfigJson from '../../../config/horse-personality.config.json';
 import onboardingConfigJson from '../../../config/onboarding.config.json';
+import referralConfigJson from '../../../config/referral.config.json';
 
 export function loadRaceConfig(): RaceBalanceConfig {
   return raceConfigJson as unknown as RaceBalanceConfig;
@@ -371,4 +373,9 @@ export function loadInteractiveRaceConfig(): InteractiveRaceConfig {
 /** 15.10.2026 — S6: "Sıradaki adım" (ilk oturum yolu) adımlarının sırası ve metni. */
 export function loadOnboardingConfig(): OnboardingConfig {
   return onboardingConfigJson as unknown as OnboardingConfig;
+}
+
+/** 16.10.2026 — arkadaş daveti + davet ödülü. */
+export function loadReferralConfig(): ReferralConfig {
+  return referralConfigJson as unknown as ReferralConfig;
 }

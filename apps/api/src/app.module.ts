@@ -11,6 +11,7 @@ import { EquipmentModule } from './api/equipment/equipment.module';
 import { FarmModule } from './api/farm/farm.module';
 import { FeedModule } from './api/feed/feed.module';
 import { GiftModule } from './api/gift/gift.module';
+import { ReferralModule } from './api/referral/referral.module';
 import { GrandstandModule } from './api/grandstand/grandstand.module';
 import { HealthModule } from './api/health/health.module';
 import { HorseModule } from './api/horse/horse.module';
@@ -143,6 +144,7 @@ import { RedisModule } from './infrastructure/redis/redis.module';
     // Nest modül grafiğini sıraya bakmadan çözer, bu komşuluk yalnızca
     // okunabilirlik içindir.
     GiftModule,
+    ReferralModule,
     // KULÜP (brief §44, 01.10.2026) — bkz. `api/club/club.module.ts`.
     ClubModule,
     // PERSONEL (brief §33, 01.10.2026) — bkz. `api/staff/staff.module.ts`.

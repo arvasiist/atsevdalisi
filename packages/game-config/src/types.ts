@@ -2793,3 +2793,21 @@ export interface OnboardingStepConfig {
 export interface OnboardingConfig {
   steps: OnboardingStepConfig[];
 }
+
+/**
+ * 16.10.2026 — arkadaş daveti + davet ödülü (`config/referral.config.json`).
+ * Davetle gelen hesap kod/bağlantıyı yalnızca açılıştan sonraki
+ * `attachWindowHours` içinde bağlayabilir (eski hesaplar sonradan "davetli"
+ * olamaz). Ödül YALNIZCA `conditions` sağlanınca, davet edene ve davetliye
+ * bir kez; davet eden ömür boyu `maxRewardedPerInviter`, günde
+ * `maxRewardedPerInviterPerDay` ödül alabilir (sahte hesap çiftliğini sınırlar).
+ */
+export interface ReferralConfig {
+  codeLength: number;
+  attachWindowHours: number;
+  conditions: { requireEmailVerified: boolean; minFinishedRaces: number };
+  rewards: { inviter: number; invitee: number };
+  maxRewardedPerInviter: number;
+  maxRewardedPerInviterPerDay: number;
+  historyLimit: number;
+}

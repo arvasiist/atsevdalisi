@@ -133,6 +133,13 @@ export class PostgresAccountDeletionRepository implements AccountDeletionReposit
             AND (sender_id = $1 OR (recipient_id = $1 AND sender_paid = 0))`,
         [playerId],
       );
+      // 16.10.2026 — davet kodu silinir; ÖDENMEMİŞ davet bağlantıları (iki yön)
+      // silinir. Ödenmiş bağlantı kalır: iki tarafın defter satırını açıklar.
+      await client.query('DELETE FROM player_referral_codes WHERE player_id = $1', [playerId]);
+      await client.query(
+        'DELETE FROM referrals WHERE rewarded_at IS NULL AND (invitee_id = $1 OR inviter_id = $1)',
+        [playerId],
+      );
 
       // Oturumlar kapanır; cihaz etiketi (kullanıcı aracısı) de silinir.
       await revokeAllInTransaction(client, playerId, 'account_deleted', now);

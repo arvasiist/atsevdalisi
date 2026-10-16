@@ -429,7 +429,15 @@ export class PostgresSocialRepository implements SocialRepository {
   }
 
   async meetsFriendshipGate(aId: string, bId: string): Promise<boolean> {
-    return this.haveRacedTogether(aId, bId);
+    if (await this.haveRacedTogether(aId, bId)) return true;
+    // 16.10.2026 — sahibinin istisnası: davet bağlantısıyla gelen oyuncu ile
+    // davet eden, birlikte yarışmadan arkadaş olabilir.
+    const referral = await this.pool.query(
+      `SELECT 1 FROM referrals
+        WHERE (invitee_id = $1 AND inviter_id = $2) OR (invitee_id = $2 AND inviter_id = $1) LIMIT 1`,
+      [aId, bId],
+    );
+    return (referral.rowCount ?? 0) > 0;
   }
 
   async findRaceCompanions(playerId: string, limit: number): Promise<RaceCompanionRow[]> {

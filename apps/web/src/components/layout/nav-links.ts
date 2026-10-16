@@ -78,6 +78,8 @@ export const NAV_LINKS: ReadonlyArray<NavLink> = [
   { href: '/grandstand', label: 'Tribün', icon: 'grandstand', placement: 'more' },
   { href: '/leaderboard', label: 'Sıralama', icon: 'leaderboard', placement: 'more' },
   { href: '/friends', label: 'Sosyal', icon: 'friends', placement: 'more' },
+  // 16.10.2026 — sosyal brief §7: arkadaş daveti + davet ödülü.
+  { href: '/invite', label: 'Arkadaş Davet Et', icon: 'friends', placement: 'more' },
   { href: '/quests', label: 'Görevler', icon: 'quests', placement: 'more' },
   { href: '/club', label: 'Kulüp', icon: 'club', placement: 'more' },
   { href: '/staff', label: 'Personel', icon: 'staff', placement: 'more' },

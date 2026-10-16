@@ -229,6 +229,10 @@ import {
   FriendshipAlreadyExistsError,
   FriendshipNotFoundError,
   FriendshipRequiresSharedRaceError,
+  ReferralAlreadyAttachedError,
+  ReferralAttachWindowClosedError,
+  ReferralCodeNotFoundError,
+  ReferralSelfError,
   InvalidFriendshipActionError,
   InvalidMessageBodyError,
   InvalidRaceInviteActionError,
@@ -608,6 +612,11 @@ const DOMAIN_ERROR_MAP = new Map<ErrorClassConstructor, { status: number; code: 
     FriendshipRequiresSharedRaceError,
     { status: HttpStatus.CONFLICT, code: ErrorCode.FriendshipRequiresSharedRace },
   ],
+  // 16.10.2026 — davet sistemi.
+  [ReferralCodeNotFoundError, { status: HttpStatus.NOT_FOUND, code: ErrorCode.ReferralCodeNotFound }],
+  [ReferralSelfError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.ReferralSelf }],
+  [ReferralAlreadyAttachedError, { status: HttpStatus.CONFLICT, code: ErrorCode.ReferralAlreadyAttached }],
+  [ReferralAttachWindowClosedError, { status: HttpStatus.CONFLICT, code: ErrorCode.ReferralAttachWindowClosed }],
   // HEDİYE GÖNDERİMİ (proje sahibinin açık talebi, 27.09.2026 — üç parçanın
   // üçüncüsü). Beş hata da `DOMAIN_ERROR_MAP`'e girebilir çünkü kodları
   // hatanın `reason` alanına BAĞLI DEĞİLDİR: `InvalidGiftAmountError` üç
