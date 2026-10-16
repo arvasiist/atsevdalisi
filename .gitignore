@@ -109,3 +109,6 @@ __pycache__/
 *.pyc
 .venv-blender/
 *.blend1
+
+# Redis anlık görüntüsü (yerel test Redis'i çalışma dizinine yazar)
+*.rdb

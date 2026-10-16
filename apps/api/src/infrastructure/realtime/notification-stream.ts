@@ -71,17 +71,21 @@ export class NotificationStreamListener implements OnModuleInit, OnModuleDestroy
     try {
       const client = await this.pool.connect();
       this.client = client;
-      client.on('notification', (message) => {
-        if (message.channel !== this.settings.channel) return;
-        void this.deliver(message.payload);
-      });
-      client.on('error', (error) => this.scheduleReconnect(error));
+      client.on('notification', this.onNotification);
+      client.on('error', this.onError);
       // Kanal adı config'ten; tanımlayıcı olarak tırnaklanır.
       await client.query(`LISTEN "${this.settings.channel.replace(/"/g, '')}"`);
     } catch (error) {
       this.scheduleReconnect(error);
     }
   }
+
+  private readonly onNotification = (message: { channel: string; payload?: string }): void => {
+    if (message.channel !== this.settings.channel) return;
+    void this.deliver(message.payload);
+  };
+
+  private readonly onError = (error: Error): void => this.scheduleReconnect(error);
 
   private scheduleReconnect(error: unknown): void {
     if (this.stopped || this.retry !== null) return;
@@ -104,15 +108,23 @@ export class NotificationStreamListener implements OnModuleInit, OnModuleDestroy
     }
   }
 
+  /**
+   * Ayrılmış bağlantı havuza GERİ KONMAZ (`release(true)` = kapat): LISTEN
+   * durumu ve dinleyiciler başka bir işe sızmasın.
+   */
   private async release(broken = false): Promise<void> {
     const client = this.client;
     this.client = null;
     if (client === null) return;
+    client.removeListener('notification', this.onNotification);
     try {
       if (!broken) await client.query('UNLISTEN *');
     } catch {
       // bağlantı zaten kopmuş olabilir
     }
-    client.release(broken);
+    client.removeListener('error', this.onError);
+    // Kapatılırken gelen geç 'error' süreci çökertmesin.
+    client.on('error', () => undefined);
+    client.release(true);
   }
 }

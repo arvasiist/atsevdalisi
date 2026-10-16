@@ -63,6 +63,9 @@ function delay(ms: number): Promise<void> {
 
 const MAX_TRANSACTION_ATTEMPTS = 3;
 
+/** Kullanımdaki client'ın 'error' olayını yutar (aşağıdaki açıklama); tek referans → kaldırılabilir. */
+const IGNORE_CLIENT_ERROR = (): void => undefined;
+
 export async function withTransaction<T>(pool: Pool, fn: (client: PoolClient) => Promise<T>): Promise<T> {
   let lastError: unknown;
   for (let attempt = 1; attempt <= MAX_TRANSACTION_ATTEMPTS; attempt++) {
@@ -99,11 +102,15 @@ export async function withTransaction<T>(pool: Pool, fn: (client: PoolClient) =>
     // yine de normal şekilde reddedilmesini ENGELLEMEZ — sadece
     // EventEmitter'ın kendi başına süreci çökertmesini önler; asıl hata
     // aşağıdaki `catch`'e düzgünce düşer.
-    client.on('error', () => undefined);
+    // 16.10.2026 — dinleyici transaction bitince KALDIRILIR: havuz client'ı
+    // yeniden kullanır; her transaction'da eklenip bırakılan dinleyici aynı
+    // bağlantıda birikiyordu (MaxListenersExceededWarning, uzun süreçte bellek).
+    client.on('error', IGNORE_CLIENT_ERROR);
     try {
       await client.query('BEGIN');
       const result = await fn(client);
       await client.query('COMMIT');
+      client.removeListener('error', IGNORE_CLIENT_ERROR);
       client.release();
       return result;
     } catch (error) {
