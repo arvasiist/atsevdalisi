@@ -3655,6 +3655,45 @@ button.btn-action {
   border: 1px solid var(--color-text-muted);
 }
 
+.chip-transfer {
+  display: grid;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-lg);
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 1px solid var(--color-border-gold);
+  background: linear-gradient(135deg, rgba(201, 162, 39, 0.12), rgba(10, 16, 30, 0.6));
+}
+
+.chip-transfer-presets {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.chip-transfer-presets button {
+  min-width: 64px;
+  min-height: 40px;
+}
+
+.chip-transfer-confirm dl {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 12px;
+  margin: 0;
+  font-size: 14px;
+}
+
+.chip-transfer-confirm dt {
+  color: var(--color-text-muted);
+}
+
+.chip-transfer-confirm dd {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-weight: 700;
+}
+
 .profile-friend-actions {
   display: flex;
   align-items: center;

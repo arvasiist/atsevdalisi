@@ -1,4 +1,5 @@
 import type {
+  GiftQuotaView,
   PlayerPrivacyView,
   PlayerRelationshipView,
   PlayerSearchResultView,
@@ -1314,6 +1315,9 @@ export const apiClient = {
    * yaşar (`minAmount`/`maxAmount`) ve istemcide tip daraltmak, CLAUDE.md'nin
    * uyardığı "DTO dekoratörüne güven" tuzağını büyütürdü.
    */
+  /** 16.10.2026 — çip gönderme onay ekranının hakkı (sunucu kapısıyla aynı kurallar). */
+  getGiftQuota: (playerId: string) => request<GiftQuotaView>(`/players/${playerId}/gifts/quota`, { method: 'GET' }),
+
   sendGift: (
     playerId: string,
     recipientId: string,

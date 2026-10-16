@@ -1,4 +1,5 @@
 import type { Currency } from '@at-sevdalisi/shared-types';
+import type { GiftAmountLimits } from '../../domain/gift/gift';
 
 /**
  * `GiftRepository` — Hediye gönderimi diliminin Application →
@@ -66,6 +67,7 @@ export interface GiftRepository {
    * gerekçe).
    */
   listGifts(playerId: string, limit: number): Promise<GiftFacts[]>;
+  findGiftQuota(playerId: string, dailyWindowHours: number): Promise<GiftQuotaFacts | null>;
 }
 
 /**
@@ -95,6 +97,20 @@ export interface SendGiftInput {
   allowedCurrencies: readonly string[];
   /** `IdempotencyInterceptor`'ın header'ından — ledger satırlarında iz olarak tutulur. */
   idempotencyKey: string | null;
+  /** 16.10.2026 — tutar tavanları; kullanım KİLİT ALTINDA sayılır. */
+  amountLimits: GiftAmountLimits;
+  /** `false` → satın alınan çip gönderilemez (`store.purchasedChipsGiftable`). */
+  purchasedChipsGiftable: boolean;
+}
+
+/** 16.10.2026 — `GET /players/:id/gifts/quota` ham verisi. */
+export interface GiftQuotaFacts {
+  balance: number;
+  /** Satın alınmış − geri alınmış çip (defterden). */
+  purchasedNet: number;
+  sentCount: number;
+  sentAmount: number;
+  accountCreatedAt: Date;
 }
 
 /**

@@ -107,14 +107,16 @@ describe('NOTIFICATION_TYPES — üç kopya birebir aynı olmalı', () => {
     }
   });
 
-  it('tribün hediyesi + ilan süre dolumu + kulüp daveti + yarış iptali + damızlık hizmeti + arkadaş çip hediyesi — CHECK\'i yazan en son migration 0089', () => {
+  it('tribün hediyesi + ilan süre dolumu + kulüp daveti + yarış iptali + damızlık hizmeti + arkadaş çip hediyesi + transfer + davet ödülü — CHECK\'i yazan en son migration 0091', () => {
     expect(NOTIFICATION_TYPES).toContain('tribune_gift_received');
     expect(NOTIFICATION_TYPES).toContain('listing_expired');
     expect(NOTIFICATION_TYPES).toContain('club_invite');
     expect(NOTIFICATION_TYPES).toContain('race_cancelled');
     expect(NOTIFICATION_TYPES).toContain('stud_service');
     expect(NOTIFICATION_TYPES).toContain('friend_gift_received');
-    expect(NOTIFICATION_MIGRATION).toBe('0089_friend_gift_notification.up.sql');
+    expect(NOTIFICATION_TYPES).toContain('gift_sent');
+    expect(NOTIFICATION_TYPES).toContain('referral_reward');
+    expect(NOTIFICATION_MIGRATION).toBe('0091_transfer_and_referral_notifications.up.sql');
   });
 
   it('brief §28in SEKİZ türünü eksiksiz içerir', () => {

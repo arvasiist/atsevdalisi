@@ -9,6 +9,7 @@ import {
   bootstrapTestApp,
   registerTestPlayer,
   type RegisteredTestPlayer,
+  matureAccounts,
   recordSharedFinishedRace,
 } from './test-helpers';
 
@@ -55,6 +56,7 @@ describe('Hediye gönderimi (e2e) — PARA YOLU', () => {
   /** İki oyuncuyu arkadaş yapar (istek + kabul) — hediye ön koşulu. */
   async function makeFriends(a: RegisteredTestPlayer, b: RegisteredTestPlayer): Promise<void> {
     // Arkadaşlık kuralı (08.10.2026): istek yalnızca birlikte yarışmışlar arasında.
+    await matureAccounts(app, [a, b]);
     await recordSharedFinishedRace(app, [a, b]);
     const created = await request(app.getHttpServer())
       .post(requestsUrl(a.playerId))

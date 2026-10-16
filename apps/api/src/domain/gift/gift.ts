@@ -25,6 +25,7 @@ import {
   DailyGiftLimitReachedError,
   GiftCurrencyNotAllowedError,
   GiftRequiresFriendshipError,
+  GiftLimitExceededError,
   InvalidGiftAmountError,
 } from './errors';
 
@@ -180,4 +181,108 @@ export function assertGiftConfigIsValid(config: GiftRules): void {
       `Hediye config'i geçersiz (config/gift.config.json): bilinmeyen para birimi(leri): ${unknown.join(', ')}.`,
     );
   }
+}
+
+/** 16.10.2026 — sosyal brief §4: tutar tavanları (config `gift.*`). */
+export interface GiftAmountLimits {
+  maxAmount: number;
+  dailyAmountLimit: number;
+  dailyReceiveAmountLimit: number;
+  newAccount: { minAccountAgeDays: number; maxAmount: number; dailyAmountLimit: number };
+}
+
+export interface GiftAmountUsage {
+  /** Gönderenin pencere içinde gönderdiği toplam. */
+  sentAmount: number;
+  /** Alıcının pencere içinde aldığı toplam. */
+  receivedAmount: number;
+  /** Gönderenin hesap yaşı (gün, kesirli). */
+  senderAccountAgeDays: number;
+}
+
+export interface EffectiveGiftAllowance {
+  newAccountLimited: boolean;
+  /** İşlem başı tavan (yeni hesapta daha düşük). */
+  maxAmount: number;
+  /** Günlük gönderim tavanı (yeni hesapta daha düşük). */
+  dailyAmountLimit: number;
+  /** Bugün gönderilebilecek kalan (alıcı tavanı hariç). */
+  remainingToday: number;
+}
+
+/** Gönderenin bugünkü hakkı — kota ucu ve kapı AYNI fonksiyonu kullanır. */
+export function effectiveGiftAllowance(limits: GiftAmountLimits, usage: Pick<GiftAmountUsage, 'sentAmount' | 'senderAccountAgeDays'>): EffectiveGiftAllowance {
+  const newAccountLimited = usage.senderAccountAgeDays < limits.newAccount.minAccountAgeDays;
+  const maxAmount = newAccountLimited ? Math.min(limits.maxAmount, limits.newAccount.maxAmount) : limits.maxAmount;
+  const dailyAmountLimit = newAccountLimited
+    ? Math.min(limits.dailyAmountLimit, limits.newAccount.dailyAmountLimit)
+    : limits.dailyAmountLimit;
+  return { newAccountLimited, maxAmount, dailyAmountLimit, remainingToday: Math.max(0, dailyAmountLimit - usage.sentAmount) };
+}
+
+/**
+ * Tutar tavanlarını KİLİT ALTINDA okunan kullanımla denetler; aşılırsa
+ * `GiftLimitExceededError` (409). Sıra: işlem başı (yeni hesap) → günlük
+ * gönderim → alıcının günlük aldığı.
+ */
+export function assertGiftWithinAmountLimits(amount: number, limits: GiftAmountLimits, usage: GiftAmountUsage): void {
+  const allowance = effectiveGiftAllowance(limits, usage);
+  if (allowance.newAccountLimited && amount > allowance.maxAmount) {
+    throw new GiftLimitExceededError('NEW_ACCOUNT_AMOUNT', allowance.maxAmount, allowance.maxAmount);
+  }
+  if (amount > allowance.remainingToday) {
+    throw new GiftLimitExceededError(
+      allowance.newAccountLimited ? 'NEW_ACCOUNT_DAILY_AMOUNT' : 'DAILY_AMOUNT',
+      allowance.dailyAmountLimit,
+      allowance.remainingToday,
+    );
+  }
+  const recipientRemaining = Math.max(0, limits.dailyReceiveAmountLimit - usage.receivedAmount);
+  if (amount > recipientRemaining) {
+    throw new GiftLimitExceededError('RECIPIENT_DAILY_AMOUNT', limits.dailyReceiveAmountLimit, recipientRemaining);
+  }
+}
+
+/**
+ * 16.10.2026 — sahibinin kuralı: SATIN ALINAN ÇİP HEDİYE EDİLEMEZ. Gönderilebilir
+ * tutar = bakiye − (satın alınmış − iadesi geri alınmış) çip; satın alınmış çip
+ * en son harcanmış sayılır (en temkinli yorum — gerçek parayla çip ticaretini keser).
+ */
+export function giftableBalance(balance: number, purchasedNet: number): number {
+  return Math.max(0, balance - Math.max(0, purchasedNet));
+}
+
+export function assertGiftableAmount(amount: number, balance: number, purchasedNet: number): void {
+  const giftable = giftableBalance(balance, purchasedNet);
+  if (purchasedNet > 0 && amount > giftable) {
+    throw new GiftLimitExceededError('PURCHASED_CHIPS_NOT_GIFTABLE', giftable, giftable);
+  }
+}
+
+/** Açılışta: tavanlar pozitif tam sayı, yeni hesap tavanları genelden büyük değil, hazır tutarlar geçerli. */
+export function validateGiftAmountLimits(
+  limits: GiftAmountLimits & { minAmount: number; presetAmounts: readonly number[] },
+): string[] {
+  const problems: string[] = [];
+  const values = {
+    dailyAmountLimit: limits.dailyAmountLimit,
+    dailyReceiveAmountLimit: limits.dailyReceiveAmountLimit,
+    'newAccount.minAccountAgeDays': limits.newAccount.minAccountAgeDays,
+    'newAccount.maxAmount': limits.newAccount.maxAmount,
+    'newAccount.dailyAmountLimit': limits.newAccount.dailyAmountLimit,
+  };
+  for (const [name, value] of Object.entries(values)) {
+    if (!Number.isInteger(value) || value <= 0) problems.push(`gift.${name} pozitif tam sayı olmalı (verilen: ${value}).`);
+  }
+  if (limits.newAccount.maxAmount > limits.maxAmount) problems.push('gift.newAccount.maxAmount genel maxAmount\'tan büyük olamaz.');
+  if (limits.newAccount.dailyAmountLimit > limits.dailyAmountLimit) {
+    problems.push('gift.newAccount.dailyAmountLimit genel dailyAmountLimit\'ten büyük olamaz.');
+  }
+  if (limits.presetAmounts.length === 0) problems.push('gift.presetAmounts boş olamaz.');
+  for (const preset of limits.presetAmounts) {
+    if (!Number.isInteger(preset) || preset < limits.minAmount || preset > limits.maxAmount) {
+      problems.push(`gift.presetAmounts: ${preset} minAmount..maxAmount aralığında tam sayı olmalı.`);
+    }
+  }
+  return problems;
 }

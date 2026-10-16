@@ -379,6 +379,8 @@ export const ErrorCode = {
   GiftRequiresFriendship: 'GIFT_REQUIRES_FRIENDSHIP',
   /** Son 24 saatteki hediye SAYISI tavanı aşıldı (409) — bkz. `GiftConfig.dailyLimit`. */
   DailyGiftLimitReached: 'DAILY_GIFT_LIMIT_REACHED',
+  /** 16.10.2026 — çip transferi tutar tavanı (günlük / alıcı günlük / yeni hesap / satın alınmış çip) (409). */
+  GiftLimitExceeded: 'GIFT_LIMIT_EXCEEDED',
   /**
    * Oyuncunun oluşturduğu ücretli yarış (brief §1-§7, §42 PHASE 1) —
    * aşağıdaki iki kod `domain/race/lobby.ts`'in ürettikleridir.

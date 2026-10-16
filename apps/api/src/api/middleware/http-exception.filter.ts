@@ -215,6 +215,7 @@ import {
   CannotGiftSelfError,
   DailyGiftLimitReachedError,
   GiftCurrencyNotAllowedError,
+  GiftLimitExceededError,
   GiftRequiresFriendshipError,
   InvalidGiftAmountError,
 } from '../../domain/gift/errors';
@@ -636,6 +637,8 @@ const DOMAIN_ERROR_MAP = new Map<ErrorClassConstructor, { status: number; code: 
     DailyGiftLimitReachedError,
     { status: HttpStatus.CONFLICT, code: ErrorCode.DailyGiftLimitReached },
   ],
+  // 16.10.2026 — tutar tavanları (günlük gönderim / alıcı günlük / yeni hesap).
+  [GiftLimitExceededError, { status: HttpStatus.CONFLICT, code: ErrorCode.GiftLimitExceeded }],
   // BİLDİRİM + YARIŞ DAVETİ (brief §16/§28, §42 PHASE 11) — sekiz hata da
   // `DOMAIN_ERROR_MAP`'e girebilir çünkü kodları hatanın `reason`/`status`
   // alanına BAĞLI DEĞİLDİR (yukarıdaki tribün/sosyal notlarla AYNI gerekçe).

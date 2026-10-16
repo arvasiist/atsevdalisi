@@ -134,3 +134,25 @@ export interface FriendGiftCollectResult {
   /** Günlük sınır yüzünden bekleyen (yarın toplanabilir) hediye sayısı. */
   stillPending: number;
 }
+
+/**
+ * 16.10.2026 — `GET /players/:id/gifts/quota`: çip gönderme onay ekranı.
+ * Değerler sunucu kapısıyla AYNI fonksiyonlardan gelir; alıcının günlük
+ * tavanı gönderimde ayrıca denetlenir. `purchasedChipsLocked` = satın
+ * alınmış olduğu için gönderilemeyen kısım.
+ */
+export interface GiftQuotaView {
+  currency: 'money';
+  minAmount: number;
+  maxAmount: number;
+  presetAmounts: number[];
+  dailyCountLimit: number;
+  sentCountToday: number;
+  dailyAmountLimit: number;
+  sentAmountToday: number;
+  remainingAmountToday: number;
+  newAccountLimited: boolean;
+  balance: number;
+  giftableBalance: number;
+  purchasedChipsLocked: number;
+}

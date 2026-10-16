@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import type { Pool } from 'pg';
+import type { Pool, PoolClient } from 'pg';
 import type { Currency } from '@at-sevdalisi/shared-types';
 import type {
   GiftCounterpartyFacts,
@@ -7,6 +7,7 @@ import type {
   GiftRepository,
   SendGiftExecutionResult,
   SendGiftInput,
+  GiftQuotaFacts,
 } from '../../application/ports/gift.repository';
 import {
   assertGiftAllowedByFriendship,
@@ -14,6 +15,8 @@ import {
   assertUnderDailyGiftLimit,
   assertValidGiftAmount,
   resolveGiftCurrency,
+  assertGiftWithinAmountLimits,
+  assertGiftableAmount,
 } from '../../domain/gift/gift';
 import { transfer } from '../../domain/economy/wallet';
 import { PlayerNotFoundError } from '../../domain/player/errors';
@@ -31,6 +34,39 @@ interface PlayerBalanceRow {
   username: string;
   display_name: string;
   level: number;
+  created_at: Date;
+}
+
+const MS_PER_DAY = 86_400_000;
+
+/** 16.10.2026 — pencere içinde gönderenin gönderdiği ve alıcının aldığı toplam (transaction içinde). */
+async function readGiftUsage(
+  client: PoolClient,
+  senderId: string,
+  recipientId: string,
+  currency: string,
+  windowHours: number,
+): Promise<{ sentAmount: number; receivedAmount: number }> {
+  const result = await client.query<{ sent: string; received: string }>(
+    `SELECT
+       COALESCE(SUM(amount) FILTER (WHERE sender_id = $1), 0)::bigint AS sent,
+       COALESCE(SUM(amount) FILTER (WHERE recipient_id = $2), 0)::bigint AS received
+     FROM gift_sends
+     WHERE (sender_id = $1 OR recipient_id = $2) AND currency = $3
+       AND created_at >= now() - ($4::int * interval '1 hour')`,
+    [senderId, recipientId, currency, windowHours],
+  );
+  return { sentAmount: Number(result.rows[0]?.sent ?? 0), receivedAmount: Number(result.rows[0]?.received ?? 0) };
+}
+
+/** 16.10.2026 — satın alınmış net çip (defterden): `chip_purchase` + `chip_purchase_refund` (eksi). */
+async function readPurchasedChipsNet(client: Pick<PoolClient, 'query'>, playerId: string): Promise<number> {
+  const result = await client.query<{ net: string }>(
+    `SELECT COALESCE(SUM(amount), 0)::bigint AS net FROM economy_transactions
+      WHERE player_id = $1 AND currency = 'money' AND type IN ('chip_purchase', 'chip_purchase_refund')`,
+    [playerId],
+  );
+  return Number(result.rows[0]?.net ?? 0);
 }
 
 /** `gift_sends` + karşı tarafın JOIN'inden gelen görünür alanları. */
@@ -126,7 +162,7 @@ export class PostgresGiftRepository implements GiftRepository {
       const balancesById = new Map<string, PlayerBalanceRow>();
       for (const id of [firstId, secondId]) {
         const result = await client.query<PlayerBalanceRow>(
-          'SELECT id, money, gems, username, display_name, level FROM players WHERE id = $1 FOR UPDATE',
+          'SELECT id, money, gems, username, display_name, level, created_at FROM players WHERE id = $1 AND deleted_at IS NULL FOR UPDATE',
           [id],
         );
         const row = result.rows[0];
@@ -207,13 +243,25 @@ export class PostgresGiftRepository implements GiftRepository {
       const sentCount = Number(sentCountResult.rows[0]?.count ?? '0');
       assertUnderDailyGiftLimit(sentCount, input.dailyLimit);
 
+      // 16.10.2026 — sosyal brief §4 tutar tavanları + satın alınan çip kuralı,
+      // hepsi KİLİT ALTINDA (iki eşzamanlı transfer tavanı ikiye katlayamaz).
+      const usage = await readGiftUsage(client, senderId, recipientId, currency, input.dailyWindowHours);
+      const now = new Date();
+      assertGiftWithinAmountLimits(input.amount, input.amountLimits, {
+        sentAmount: usage.sentAmount,
+        receivedAmount: usage.receivedAmount,
+        senderAccountAgeDays: (now.getTime() - new Date(senderRow.created_at).getTime()) / MS_PER_DAY,
+      });
+      if (currency === 'money' && !input.purchasedChipsGiftable) {
+        assertGiftableAmount(input.amount, senderBalance.money, await readPurchasedChipsNet(client, senderId));
+      }
+
       // PARA HESABI — satırlar HÂLÂ kilitliyken, EN GÜNCEL bakiyelerle
       // (docs/SECURITY.md §5). Yetersiz bakiyede `InsufficientFundsError`
       // fırlar (`domain/economy/errors.ts`) ve `withTransaction` ROLLBACK
       // yapar — hiçbir satır yazılmaz.
       const moved = transfer(senderBalance, recipientBalance, input.amount, currency);
 
-      const now = new Date();
       await client.query('UPDATE players SET money = $2, gems = $3, updated_at = $4 WHERE id = $1', [
         senderId,
         moved.from.money,
@@ -309,6 +357,21 @@ export class PostgresGiftRepository implements GiftRepository {
         ],
       );
 
+      // 16.10.2026 (sosyal brief §8) — gönderene "transfer başarılı" bildirimi,
+      // aynı transaction'da (geri alınan transferin haberi kalmaz).
+      await client.query('INSERT INTO notifications (player_id, type, payload) VALUES ($1, $2, $3::jsonb)', [
+        senderId,
+        'gift_sent',
+        JSON.stringify({
+          giftSendId: gift.id,
+          playerId: recipientId,
+          displayName: recipientRow.display_name,
+          currency,
+          amount: input.amount,
+          balanceAfter: moved.from[currency],
+        }),
+      ]);
+
       const recipient: GiftCounterpartyFacts = {
         playerId: recipientId,
         username: recipientRow.username,
@@ -322,6 +385,27 @@ export class PostgresGiftRepository implements GiftRepository {
         recipient,
       };
     });
+  }
+
+  async findGiftQuota(playerId: string, dailyWindowHours: number): Promise<GiftQuotaFacts | null> {
+    const player = await this.pool.query<{ money: string; created_at: Date }>(
+      'SELECT money, created_at FROM players WHERE id = $1 AND deleted_at IS NULL',
+      [playerId],
+    );
+    const row = player.rows[0];
+    if (!row) return null;
+    const sent = await this.pool.query<{ count: string; amount: string }>(
+      `SELECT COUNT(*)::bigint AS count, COALESCE(SUM(amount), 0)::bigint AS amount FROM gift_sends
+        WHERE sender_id = $1 AND currency = 'money' AND created_at >= now() - ($2::int * interval '1 hour')`,
+      [playerId, dailyWindowHours],
+    );
+    return {
+      balance: Number(row.money),
+      purchasedNet: await readPurchasedChipsNet(this.pool, playerId),
+      sentCount: Number(sent.rows[0]?.count ?? 0),
+      sentAmount: Number(sent.rows[0]?.amount ?? 0),
+      accountCreatedAt: row.created_at,
+    };
   }
 
   async listGifts(playerId: string, limit: number): Promise<GiftFacts[]> {

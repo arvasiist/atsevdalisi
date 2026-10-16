@@ -346,3 +346,19 @@ export function expectedLobbyPayouts(
     null,
   ).payouts;
 }
+
+/**
+ * 16.10.2026 — çip transferinin "yeni hesap" tavanı (`gift.newAccount`) taze
+ * test hesaplarını da kapsar. Transferin KENDİSİNİ sınamayan testler gönderen
+ * hesabı `days` gün yaşlandırır (SQL fikstürü; para/defter yazmaz).
+ */
+export async function matureAccounts(
+  app: INestApplication,
+  players: ReadonlyArray<{ playerId: string }>,
+  days = 30,
+): Promise<void> {
+  await app.get<Pool>(PG_POOL).query(
+    "UPDATE players SET created_at = now() - make_interval(days => $2) WHERE id = ANY($1::uuid[])",
+    [players.map((player) => player.playerId), days],
+  );
+}

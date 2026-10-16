@@ -42,11 +42,10 @@
  * göre gösterir/gizler.
  */
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import type {
   BlockedPlayerView,
-  Currency,
   DirectMessageView,
   FriendRequestView,
   FriendView,
@@ -54,12 +53,12 @@ import type {
   RaceCompanionView,
   SocialOverviewView,
 } from '@at-sevdalisi/shared-types';
-import { GIFT_CURRENCIES } from '../../features/social/gift-currencies';
 import { GlassPanel } from '../../components/ui/GlassPanel';
 import { apiClient } from '../../lib/api-client';
-import { CURRENCY_LABELS, formatCurrency, hasEnoughFunds } from '../../lib/currency';
+import { formatCurrency } from '../../lib/currency';
 import { usePlayer } from '../../lib/player-context';
 import { companionAction, describeSharedRaces } from '../../features/social/race-companions';
+import { ChipTransferPanel } from '../../features/social/ChipTransferPanel';
 import { FriendGiftPanel } from '../../features/social/FriendGiftPanel';
 import { OnlineStatusToggle } from '../../features/social/OnlineStatusToggle';
 import { PlayerSearchPanel } from '../../features/social/PlayerSearchPanel';
@@ -102,10 +101,7 @@ export default function FriendsPage(): React.ReactElement {
    */
   const [activeGiftFriend, setActiveGiftFriend] = useState<FriendView | null>(null);
   /** Ham metin: `input type="number"` bile boş bırakılabilir; ayrıştırma sunucudadır. */
-  const [giftAmount, setGiftAmount] = useState('');
-  const [giftCurrency, setGiftCurrency] = useState<Currency>('money');
   const [gifts, setGifts] = useState<GiftView[] | null>(null);
-  const [isSendingGift, setIsSendingGift] = useState(false);
 
   /**
    * KENDİ engel listem (29.09.2026, brief §33). Sunucu YALNIZCA tek yön
@@ -239,8 +235,7 @@ export default function FriendsPage(): React.ReactElement {
         // anlamsız bir form görürdü.
         if (activeGiftFriend?.playerId === targetId) {
           setActiveGiftFriend(null);
-          setGiftAmount('');
-        }
+              }
         await refresh();
       },
       fallbackMessage,
@@ -276,6 +271,20 @@ export default function FriendsPage(): React.ReactElement {
       'Yazışma açılamadı',
     );
 
+  // 16.10.2026 — profildeki "Çip Hediye Et" (`/friends?gift=<oyuncuId>`) paneli o arkadaş için açar.
+  const giftTargetHandled = useRef(false);
+  useEffect(() => {
+    if (giftTargetHandled.current || overview === null || typeof window === 'undefined') return;
+    const target = new URLSearchParams(window.location.search).get('gift');
+    if (target === null) return;
+    giftTargetHandled.current = true;
+    const friend = overview.friends.find((candidate) => candidate.playerId === target);
+    if (friend) {
+      setActiveGiftFriend(friend);
+      setActiveFriend(null);
+    }
+  }, [overview]);
+
   /**
    * Hediye panelini açar. Gerekli tek "iş kuralı" burada YOKTUR — tutar
    * sınırı, birim izni, arkadaşlık ve günlük tavan sunucudadır.
@@ -284,48 +293,8 @@ export default function FriendsPage(): React.ReactElement {
     setActiveGiftFriend(friend);
     setActiveFriend(null);
     setMessages(null);
-    setGiftAmount('');
     setError(null);
   };
-
-  /**
-   * HEDİYE GÖNDERİMİ — PARA YOLU.
-   *
-   * `Idempotency-Key` İSTEK BAŞINA bir kez üretilir ve çağrı tamamlanana
-   * kadar DEĞİŞMEZ: ağ hatası sonrası kullanıcı düğmeye tekrar basarsa yeni
-   * bir anahtar üretilir, ama sunucu zaten yazdıysa ikinci istek AYNI
-   * anahtarla değil — bu yüzden burada anahtar `runAction`'ın DIŞINDA,
-   * eylemin başında üretilir ve yalnızca bu tek deneme için geçerlidir
-   * (kullanıcı gerçekten yeni bir hediye göndermek istiyor olabilir).
-   *
-   * Gönderim sonrası bakiye `refresh()` ile tazelenir — üst bardaki Çip
-   * göstergesi aksi halde eski değeri gösterirdi.
-   */
-  const sendGift = (): Promise<void> =>
-    runAction(
-      'gift-send',
-      async () => {
-        if (!player || !activeGiftFriend) return;
-        const parsed = Number(giftAmount);
-        if (giftAmount.trim().length === 0 || !Number.isFinite(parsed)) return;
-        setIsSendingGift(true);
-        try {
-          await apiClient.sendGift(
-            player.id,
-            activeGiftFriend.playerId,
-            parsed,
-            giftCurrency,
-            crypto.randomUUID(),
-          );
-          setGiftAmount('');
-          await refresh();
-          refreshPlayerBalance();
-        } finally {
-          setIsSendingGift(false);
-        }
-      },
-      'Hediye gönderilemedi',
-    );
 
   const send = (): Promise<void> =>
     runAction(
@@ -633,54 +602,16 @@ export default function FriendsPage(): React.ReactElement {
             </Section>
           ) : null}
 
-          {activeGiftFriend ? (
-            <Section title={`${activeGiftFriend.displayName} kişisine hediye gönder`}>
-              <p style={{ color: 'var(--color-text-muted)', margin: 0, fontSize: '13px' }}>
-                Hediye bir <strong>transferdir</strong>: düşülen tutar arkadaşının bakiyesine eklenir. Tutar sınırları
-                ve günlük gönderim tavanı sunucuda uygulanır.
-              </p>
-              <div style={{ display: 'flex', gap: 'var(--space-sm)', flexWrap: 'wrap' }}>
-                <select
-                  value={giftCurrency}
-                  onChange={(event) => setGiftCurrency(event.target.value as Currency)}
-                  style={{ ...inputStyle(), flex: '0 0 140px' }}
-                >
-                  {/* 09.10.2026 — liste sunucuyla AYNI config'ten süzülür
-                      (`allowedCurrencies`): elmas hediye edilemez, her zaman
-                      400 alan bir seçenek gösterilmez. Kural sunucudadır. */}
-                  {GIFT_CURRENCIES.map((currency) => (
-                    <option key={currency} value={currency}>
-                      {CURRENCY_LABELS[currency]}
-                    </option>
-                  ))}
-                </select>
-                <input
-                  type="number"
-                  inputMode="numeric"
-                  min={1}
-                  value={giftAmount}
-                  onChange={(event) => setGiftAmount(event.target.value)}
-                  placeholder="Tutar"
-                  style={inputStyle()}
-                />
-                <button
-                  type="button"
-                  disabled={isSendingGift || giftAmount.trim().length === 0}
-                  onClick={() => void sendGift()}
-                  style={{
-                    ...primaryButtonStyle(),
-                    opacity: isSendingGift || giftAmount.trim().length === 0 ? 0.55 : 1,
-                  }}
-                >
-                  {isSendingGift ? 'Gönderiliyor…' : 'Hediye Gönder'}
-                </button>
-              </div>
-              {player && !canAffordGift(player, giftCurrency, giftAmount) ? (
-                <p style={{ color: 'var(--color-status-critical)', margin: 0, fontSize: '13px' }}>
-                  Bakiyen bu hediyeyi karşılamıyor. (Ön kontrol — asıl kontrol sunucudadır.)
-                </p>
-              ) : null}
-            </Section>
+          {activeGiftFriend && player ? (
+            <ChipTransferPanel
+              playerId={player.id}
+              recipient={{ playerId: activeGiftFriend.playerId, displayName: activeGiftFriend.displayName }}
+              onClose={() => setActiveGiftFriend(null)}
+              onSent={async () => {
+                await refresh();
+                refreshPlayerBalance();
+              }}
+            />
           ) : null}
 
           <Section title={`Hediye Geçmişi${gifts && gifts.length > 0 ? ` (${gifts.length})` : ''}`}>
@@ -853,19 +784,6 @@ function formatRelativeDate(iso: string): string {
   if (diffMs < MS_PER_HOUR) return `${Math.floor(diffMs / MS_PER_MINUTE)} dk önce`;
   if (diffMs < MS_PER_DAY) return `${Math.floor(diffMs / MS_PER_HOUR)} sa önce`;
   return `${Math.floor(diffMs / MS_PER_DAY)} gün önce`;
-}
-
-/**
- * Hediye formundaki "bakiye yetmiyor" uyarısı — YALNIZCA bir kullanılabilirlik
- * ön kontrolüdür (`hasEnoughFunds`'un kendi doc yorumu). Tutar henüz geçerli
- * bir sayı değilse (boş/yarım yazılmış) UYARI GÖSTERİLMEZ: kullanıcı daha
- * yazarken kırmızı bir satır görmek, hatayı değil gürültüyü büyütürdü.
- */
-function canAffordGift(player: { money: number; gems: number }, currency: Currency, rawAmount: string): boolean {
-  if (rawAmount.trim().length === 0) return true;
-  const amount = Number(rawAmount);
-  if (!Number.isFinite(amount)) return true;
-  return hasEnoughFunds(player, { currency, amount });
 }
 
 function primaryButtonStyle(): React.CSSProperties {

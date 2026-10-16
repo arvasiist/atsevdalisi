@@ -549,6 +549,23 @@ function describe(notification: NotificationView): { title: string; detail: stri
             : 'Bu çiftleştirmeden damızlık payı doğmadı.',
         href: '/wallet',
       };
+    // 16.10.2026 — gönderdiğin çip transferi tamamlandı (sosyal brief §8).
+    case 'gift_sent':
+      return {
+        title: `${notification.payload.displayName} kişisine ${formatCurrency(notification.payload.currency, notification.payload.amount)} gönderildi`,
+        detail: `İşlem tamamlandı · kalan bakiyen ${formatCurrency(notification.payload.currency, notification.payload.balanceAfter)}.`,
+        href: '/wallet',
+      };
+    // 16.10.2026 — davet ödülü.
+    case 'referral_reward':
+      return {
+        title:
+          notification.payload.role === 'inviter'
+            ? `Davet ödülü: ${notification.payload.otherName} davetinle katıldı`
+            : `Hoş geldin ödülü: ${notification.payload.otherName} seni davet etti`,
+        detail: `${formatCurrency('money', notification.payload.amount)} hesabına geçti.`,
+        href: '/invite',
+      };
     // 16.10.2026 — arkadaşından çip hediyesi (brief §6.4).
     case 'friend_gift_received':
       return {
@@ -593,7 +610,10 @@ function hrefLabel(notification: NotificationView): string {
     case 'auction_refunded':
     case 'tribune_gift_received':
     case 'stud_service':
+    case 'gift_sent':
       return 'cüzdan →';
+    case 'referral_reward':
+      return 'davet ekranı →';
     case 'club_invite':
       return 'kulüp →';
   }

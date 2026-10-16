@@ -29,12 +29,14 @@ import {
   loadStaffConfig,
   loadTrainingConfig,
   loadWeatherConfig,
+  loadStoreConfig,
 } from '@at-sevdalisi/game-config';
 import { validateBreedsConfig } from '../../domain/horse/breeds';
 import { validateHippodromesConfig } from '../../domain/race/hippodrome';
 import { validateHorseLevelBrackets } from '../../domain/race/level-bracket';
 import { validateFriendGiftConfig } from '../../domain/social/friend-gift';
 import { validatePresenceConfig } from '../../domain/social/presence';
+import { validateGiftAmountLimits } from '../../domain/gift/gift';
 import { validateGemPolicy } from '../../domain/economy/gem-policy';
 import { validateCosmeticsConfig } from '../../domain/cosmetics/cosmetics';
 import { validateTribuneGiftsConfig } from '../../domain/grandstand/tribune-gift';
@@ -179,6 +181,8 @@ export class AppConfigService {
   readonly avatar = loadAvatarConfig();
   /** 15.10.2026 — S6: "Sıradaki adım" adımları. */
   readonly onboarding = loadOnboardingConfig();
+  /** 16.10.2026 — mağaza (elmas + çip paketleri, satın alınan çipin hediye kuralı). */
+  readonly store = loadStoreConfig();
 
   constructor() {
     // Irk kuralı (ücretsiz at en zayıf, güçlü ırk ucuz olamaz) açılışta
@@ -208,6 +212,11 @@ export class AppConfigService {
     const onboardingProblems = validateOnboardingConfig(this.onboarding);
     if (onboardingProblems.length > 0) {
       throw new Error(`Sıradaki adım config'i geçersiz (config/onboarding.config.json): ${onboardingProblems.join(' ')}`);
+    }
+    // 16.10.2026 — çip transferi tutar tavanları + hazır tutarlar.
+    const giftLimitProblems = validateGiftAmountLimits(this.gift);
+    if (giftLimitProblems.length > 0) {
+      throw new Error(`Hediye config'i geçersiz (config/gift.config.json): ${giftLimitProblems.join(' ')}`);
     }
     // 16.10.2026 — çevrimiçi durumu + oyuncu arama (pencere nabızdan büyük olmalı).
     const presenceProblems = validatePresenceConfig(this.social);

@@ -1794,6 +1794,18 @@ export interface GiftConfig {
    * çip basmayı sınırlar), `expiryDays` günden eski hediye toplanamaz.
    */
   friendGift: FriendGiftConfig;
+  /**
+   * 16.10.2026 — sosyal brief §4 transfer limitleri (hepsi `dailyWindowHours`
+   * penceresinde, kilit altında sayılır): gönderenin günlük TOPLAM tutarı,
+   * alıcının günlük ALDIĞI toplam (çok hesaptan tek hesaba huni), hesabı
+   * `newAccount.minAccountAgeDays` günden genç gönderenin işlem başı ve günlük
+   * daha düşük tavanı. `presetAmounts` ekrandaki hazır tutarlardır (maxAmount'u
+   * aşamaz — açılışta doğrulanır).
+   */
+  dailyAmountLimit: number;
+  dailyReceiveAmountLimit: number;
+  newAccount: { minAccountAgeDays: number; maxAmount: number; dailyAmountLimit: number };
+  presetAmounts: number[];
 }
 
 export interface FriendGiftConfig {
@@ -2536,6 +2548,12 @@ export interface StoreConfig {
   pendingOrderTtlMinutes: number;
   historyLimit: number;
   adminListLimit: number;
+  /**
+   * 16.10.2026 — sahibinin kararı: mağazadan SATIN ALINAN çip arkadaşa
+   * gönderilemez (`false`). Gönderilebilir = bakiye − satın alınmış net çip
+   * (`giftableBalance`); kural tek yerde (`domain/gift/gift.ts`).
+   */
+  purchasedChipsGiftable: boolean;
 }
 
 /** 07.10.2026 — bir ırkın statlarına yazılan `horse_stats` sütunları (yalnızca GÖRÜNEN statlar). */

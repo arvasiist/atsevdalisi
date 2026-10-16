@@ -37,6 +37,8 @@ export const NOTIFICATION_TYPES = [
   'race_cancelled',
   'stud_service',
   'friend_gift_received',
+  'gift_sent',
+  'referral_reward',
 ] as const;
 
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
@@ -119,6 +121,20 @@ export interface NotificationPayloadByType {
    * hesaba "Tüm hediyeleri topla" ile geçer (`/friends`).
    */
   friend_gift_received: { giftId: string; senderId: string; senderUsername: string; senderName: string; amount: number };
+  /** 16.10.2026 — gönderdiğin çip transferi tamamlandı (sosyal brief §8). */
+  gift_sent: {
+    giftSendId: string;
+    playerId: string;
+    displayName: string;
+    currency: 'money' | 'gems';
+    amount: number;
+    balanceAfter: number;
+  };
+  /**
+   * 16.10.2026 — davet ödülü hesabına geçti. `role`: `inviter` (davet eden) /
+   * `invitee` (davetle gelen); `otherName` karşı tarafın görünen adı.
+   */
+  referral_reward: { referralId: string; role: 'inviter' | 'invitee'; otherName: string; amount: number };
 }
 
 /**
