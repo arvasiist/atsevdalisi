@@ -18,7 +18,7 @@ import {
   computePrizePayouts,
   resolvePrizeDistribution,
 } from '../../domain/race/prize-distribution';
-import { computeTableSettlement, findRaceTable } from '../../domain/race/table-rules';
+import { computeLobbySettlement, findRaceTable } from '../../domain/race/table-rules';
 import {
   RACE_ENGINE_VERSION,
   RACE_RULESET_VERSION,
@@ -190,21 +190,22 @@ export class SettleRaceUseCase {
     }
 
     // 09.10.2026 — MASA: dağılım masanındır; kaybeden iadesi havuzdan ÖNCE
-    // ayrılır, ödül payları kalan üzerinden (`computeTableSettlement`).
-    // Turnuva kendi dağılımıyla koşar (masası yoktur).
+    // ayrılır, ödül payları kalan üzerinden. 16.10.2026 (sahibinin kararı):
+    // lobide ödül sırası GERÇEK OYUNCULAR arasındaki sıradır, bota pay düşmez
+    // (`computeLobbySettlement`). Turnuva kendi dağılımıyla, mutlak sırayla
+    // koşar (botsuzdur, masası yoktur).
     const table = tournament === null ? findRaceTable(this.config.economy, context.tableId) : null;
-    const shares =
-      tournament === null
-        ? (resolvePrizeDistribution(
-            this.config.economy,
-            table?.distributionId ?? this.config.raceLobby.prizeDistributionId,
-          )?.shares ?? [])
-        : tournamentShares(this.config.online.tournament.prizeDistributionByPlacement);
-    let payouts = computePrizePayouts(context.prizePool, shares);
+    let payouts: number[];
     let loserRefunds: Array<{ entryId: string; amount: number; paidFee: number }> = [];
-    if (table !== null && table.loserRefund.percent > 0) {
-      const paidFees = await this.raceRepository.findLobbyPaidFees(raceId);
-      const settlement = computeTableSettlement(
+    if (tournament === null) {
+      const shares =
+        resolvePrizeDistribution(
+          this.config.economy,
+          table?.distributionId ?? this.config.raceLobby.prizeDistributionId,
+        )?.shares ?? [];
+      const refundRule = table !== null && table.loserRefund.percent > 0 ? table.loserRefund : null;
+      const paidFees = refundRule !== null ? await this.raceRepository.findLobbyPaidFees(raceId) : new Map<string, number>();
+      const settlement = computeLobbySettlement(
         context.prizePool,
         shares,
         realEntryResults.map((entry) => ({
@@ -212,7 +213,7 @@ export class SettleRaceUseCase {
           finishPosition: entry.finishPosition,
           paidFee: paidFees.get(entry.entryId) ?? 0,
         })),
-        table.loserRefund,
+        refundRule,
       );
       payouts = settlement.payouts;
       loserRefunds = [...settlement.loserRefunds].map(([entryId, amount]) => ({
@@ -220,6 +221,11 @@ export class SettleRaceUseCase {
         amount,
         paidFee: paidFees.get(entryId) ?? 0,
       }));
+    } else {
+      payouts = computePrizePayouts(
+        context.prizePool,
+        tournamentShares(this.config.online.tournament.prizeDistributionByPlacement),
+      );
     }
 
     return this.raceRepository.settleLobbyRace({

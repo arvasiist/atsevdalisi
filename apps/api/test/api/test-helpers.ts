@@ -9,6 +9,7 @@ import { AppModule } from '../../src/app.module';
 import { HttpExceptionFilter } from '../../src/api/middleware/http-exception.filter';
 import type { Pool } from 'pg';
 import { PG_POOL } from '../../src/infrastructure/database/database.module';
+import { computeLobbySettlement } from '../../src/domain/race/table-rules';
 
 /**
  * AUDIT_REPORT.md Bulgu S1 (Critical) hardening (bu oturum) — brief §41/§50
@@ -323,4 +324,25 @@ export async function recordSharedFinishedRace(
  */
 export async function allowSoloLobbyRace(app: INestApplication, raceId: string): Promise<void> {
   await app.get<Pool>(PG_POOL).query('UPDATE races SET min_real_players = 1 WHERE id = $1', [raceId]);
+}
+
+/**
+ * 16.10.2026 — lobi kesinleşmesinin BEKLENEN ödülleri (mutlak sıraya göre;
+ * botun sırası 0). Bota pay düşmez: gerçek oyuncular kendi aralarındaki
+ * sırayla öder (`computeLobbySettlement`). Testler sabit sayı ya da eski
+ * mutlak sıra payı (`computePrizePayouts`) yazmaz — kural değişirse yalan olur.
+ */
+export function expectedLobbyPayouts(
+  prizePool: number,
+  shares: readonly number[],
+  places: ReadonlyArray<{ participantType: 'human' | 'ai'; finishPosition: number }>,
+): number[] {
+  return computeLobbySettlement(
+    prizePool,
+    shares,
+    places
+      .filter((place) => place.participantType === 'human')
+      .map((place) => ({ entryId: `p${place.finishPosition}`, finishPosition: place.finishPosition, paidFee: 0 })),
+    null,
+  ).payouts;
 }

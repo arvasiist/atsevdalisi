@@ -177,6 +177,7 @@ describe('16.10.2026 — brief §7.1/§7.2: seçenekli Hemen Katıl + ödül kur
     const text = describePrizeSplit(race())!;
     expect(text).toContain(`ilk ${shares.length} sıraya`);
     expect(text).toContain('komisyon %10');
+    expect(text).toContain('bota pay düşmez');
     expect(describePrizeSplit(race({ entryFee: 0 }))).toBeNull();
     expect(describePrizeSplit(race({ tournament: { tier: 'bronze', minPlayerLevel: 1 } }))).toBeNull();
     expect(describePrizeSplit(race({ table: { id: 'local' } as never }))).toBeNull();

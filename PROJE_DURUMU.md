@@ -4622,3 +4622,22 @@ bulunan gerçek açıklar kapatıldı:
 - Kanıt testleri: tribün sahiplik değişimi, "Verilerimi indir" yokluğu, ana
   sayfa = ahır yönlendirmesi. Regresyon eşlemesi `docs/TESTING.md` §9.
 
+### 13.111 Bot payı gerçek oyunculara (16.10.2026, sahibinin kararı)
+
+Lobide (turnuva hariç) ödül sırası artık gerçek oyuncular arasındaki sıradır;
+bot sıralamada görünür ama ödül almaz ve payı da yakılmaz. Gerçek oyuncu sayısı
+ödül alan sıradan azsa boş paylar kullanılanlara orantılı eklenir
+(`lobbyPrizeShares`). Saf hesap `domain/race/table-rules.ts` →
+`computeLobbySettlement` (kaybeden iadesi aynı sırayla, çıktı mutlak sıraya
+göre → repository değişmedi); `settle-race.use-case.ts` lobide bunu,
+turnuvada eski `computePrizePayouts`u kullanır. Lobi listesinin "Kazanana ×"
+değeri şu anki gerçek oyuncu sayısıyla hesaplanır; web kural metinleri "bota
+pay düşmez" der. Botsuz ve ödül sırası kadar oyunculu sahada sonuç eskisiyle
+birebir. Ölçüm (`tools/economy-ev-report.ts 400`, `RACE_BALANCE_REPORT.md`
+§11): eşit güçte oyuncunun kaybı her masada yalnızca komisyon (−%9…−%10);
+önceden 2 oyunculu botlu masada −%71…−%91'di. Para basılmaz (dönen ≤ havuz ×
+Σpay) → çoklu hesapla havuzu geri almak yine kârsız; ücretli lobi en az 2
+gerçek oyuncu kuralı korundu. Testler: `table-rules.spec.ts` (+6),
+`field-rule.spec.ts` gerekçe kilidi, `race-settlement`/`economy-reconciliation`/
+`final` e2e (iki gerçek oyuncu da ödül alır, önde bitiren fazla alır,
+defter = −komisyon). Pratik yarış ve turnuva değişmedi.

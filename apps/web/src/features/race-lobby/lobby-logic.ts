@@ -335,7 +335,8 @@ export function describeTableRules(rules: TableRulesSummary): string[] {
     rules.feeTiming === 'on_start'
       ? 'Giriş bedeli start anında kesilir (o an bakiyesi yetmeyen yarıştan düşer)'
       : 'Giriş bedeli katılırken kesilir (start öncesi ayrılırsan iade)';
-  const prize = `Ödül: ilk ${rules.paidPlaces} sıra · komisyon %${rules.rakePercent}`;
+  // 16.10.2026 — sıra gerçek oyuncular arasındaki sıradır; bota pay düşmez.
+  const prize = `Ödül: gerçek oyuncular arasında ilk ${rules.paidPlaces} sıra (bota pay düşmez) · komisyon %${rules.rakePercent}`;
   const { percent, maxPosition } = rules.loserRefund;
   const firstRefunded = rules.paidPlaces + 1;
   const refund =
@@ -543,5 +544,5 @@ export function describePrizeSplit(race: Pick<RaceLobbyListItem, 'table' | 'tour
     .map((share, index) => `${index + 1}. ${percent(share)}`)
     .join(' · ');
   const rake = 1 - shares.reduce((sum, share) => sum + share, 0);
-  return `Ödül ilk ${shares.length} sıraya (havuzdan ${top}${shares.length > 3 ? ' …' : ''}) · komisyon ${percent(rake)}`;
+  return `Ödül gerçek oyuncular arasındaki ilk ${shares.length} sıraya (havuzdan ${top}${shares.length > 3 ? ' …' : ''}; bota pay düşmez, az oyuncuda paylar büyür) · komisyon ${percent(rake)}`;
 }

@@ -104,7 +104,7 @@ import raceLobbyConfigJson from '../../../../../config/race-lobby.config.json';
 import type { EconomyConfig, RaceTierConfig } from '@at-sevdalisi/game-config';
 import { getRacePrize } from '../../../src/domain/race/prize';
 import {
-  computeTableSettlement,
+  computeLobbySettlement,
   isLoserRefundEligible,
   loserRefundAmount,
   paidPlacesOf,
@@ -805,16 +805,17 @@ export function measurePracticeEv(input: {
 /**
  * 16.10.2026 — S4 (`docs/OYUN_DONGUSU_DENETIMI.md`): LOBİ (masalı) yarışın
  * gerçek oyuncu başına beklenen neti. Lobi havuzu YALNIZCA gerçek oyuncuların
- * ücretidir (botlar ödemez, bota düşen ödül yanar); kaybeden iadesi ve ödül
- * payları üretimin `computeTableSettlement`ıyla hesaplanır. `aiFill: false` →
+ * ücretidir (botlar ödemez); 16.10.2026'dan beri bota pay DÜŞMEZ — kaybeden
+ * iadesi ve ödül payları üretimin `computeLobbySettlement`ıyla (gerçek
+ * oyuncular arasındaki sıra) hesaplanır. `aiFill: false` →
  * saha yalnızca gerçek oyunculardır (botsuz yarış).
  */
 export interface LobbyEvMeasurement {
   races: number;
   /** Gerçek oyuncu başına yarış başına ortalama net (ödül + iade − giriş). */
   meanNetPerPlayer: number;
-  /** Havuzun bota düşüp yanan ortalama payı (0..1). */
-  burnedShare: number;
+  /** Havuzun gerçek oyunculara dönen ortalama payı (ödül + iade, 0..1). */
+  paidOutShare: number;
 }
 
 export function measureLobbyEv(input: {
@@ -830,7 +831,7 @@ export function measureLobbyEv(input: {
   const shares = economy.prizeDistributions.find((entry) => entry.id === table.distributionId)!.shares;
   const pool = table.entryFee * players.length;
   let net = 0;
-  let burned = 0;
+  let paidOut = 0;
   for (let trial = 0; trial < trials; trial += 1) {
     const seed = `${input.seedPrefix ?? 'lobby-ev'}-${trial}`;
     const botCount = aiFill ? table.fieldSize - players.length : 0;
@@ -853,16 +854,10 @@ export function measureLobbyEv(input: {
       finishPosition: positionOf.get(player.horseId)!,
       paidFee: table.entryFee,
     }));
-    const settlement = computeTableSettlement(pool, shares, entries, table.loserRefund);
-    let paidToPlayers = 0;
-    for (const entry of entries) {
-      paidToPlayers +=
-        (settlement.payouts[entry.finishPosition - 1] ?? 0) + (settlement.loserRefunds.get(entry.entryId) ?? 0);
-    }
-    const totalPaid = settlement.payouts.reduce((sum, amount) => sum + amount, 0) + settlement.refundTotal;
-    const humanPrizes = paidToPlayers - settlement.refundTotal;
-    burned += (totalPaid - settlement.refundTotal - humanPrizes) / pool;
+    const settlement = computeLobbySettlement(pool, shares, entries, table.loserRefund);
+    const paidToPlayers = settlement.payouts.reduce((sum, amount) => sum + amount, 0) + settlement.refundTotal;
+    paidOut += paidToPlayers / pool;
     net += (paidToPlayers - pool) / players.length;
   }
-  return { races: trials, meanNetPerPlayer: net / trials, burnedShare: burned / trials };
+  return { races: trials, meanNetPerPlayer: net / trials, paidOutShare: paidOut / trials };
 }

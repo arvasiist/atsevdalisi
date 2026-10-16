@@ -93,7 +93,7 @@ madde), ödeme altyapısı (sağlayıcısız, sahte başarı yok). Denetim kod +
 ## 10. Çözülemeyen sorunlar ve nedenleri
 
 - Gerçek ödeme sağlayıcısı yok: sahte başarı kabul edilmediği için mağaza 503 döner (sahibinin sağlayıcı seçimi gerekiyor).
-- Az oyunculu (2–7) botlu ücretli lobide bota düşen ödül yanıyor; ortalama oyuncu kaybediyor. Bu bir ekonomi kararı (sahibinin).
+- ~~Az oyunculu botlu ücretli lobide bota düşen ödül yanıyor~~ — **kapandı (16.10.2026, sahibinin kararı):** bota pay düşmez, ödül gerçek oyuncular arasındaki sırayla dağılır (`computeLobbySettlement`); eşit güçte beklenen kayıp her sahada yalnızca komisyon (−%9…−%10).
 - Tribün hediye kataloğu brief'in örnek listesiyle birebir değil; mevcut katalog aynı fiyat aralığında, kod değişmedi.
 - Alınan hediyelerin ayrı bir "geçmiş" ekranı yok; cüzdan geçmişi ve bildirimlerde görünür.
 
@@ -105,7 +105,7 @@ gerçek 3D/ses varlıkları; staging/üretim ortamında dağıtım doğrulaması
 
 ## 12. Sonraki mantıklı adımlar
 
-1. Az oyunculu ücretli lobi kuralına karar ver (yansın / gerçek oyunculara dağıtılsın / yalnızca botsuz).
+1. ~~Az oyunculu ücretli lobi kuralı~~ — karar verildi ve uygulandı: bot payı gerçek oyunculara.
 2. Ödeme sağlayıcısını seç; `PaymentGateway` uygulaması + imza doğrulaması.
 3. OAuth/e-posta anahtarlarıyla staging dağıtımı; `tools/dev/acceptance-journey.mjs`'i staging'e karşı koş.
 4. Next 16 / Nest 12 yükseltmesi (izin süresi dolmadan).

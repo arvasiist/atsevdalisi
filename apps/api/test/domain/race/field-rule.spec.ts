@@ -7,7 +7,7 @@ import {
   validateFieldRulesConfig,
 } from '../../../src/domain/race/field-rule';
 import { validateRaceCreation } from '../../../src/domain/race/lobby';
-import { computePrizePayouts } from '../../../src/domain/race/prize-distribution';
+import { computeLobbySettlement } from '../../../src/domain/race/table-rules';
 import { loadEconomyConfig } from '@at-sevdalisi/game-config';
 
 /**
@@ -30,14 +30,24 @@ describe('defaultFieldRule', () => {
     expect(defaultFieldRule(100, false, RULES).aiFill).toBe(false);
   });
 
-  it('GEREKÇE KİLİDİ: ücretli lobide tek gerçek oyuncu birinci gelse bile ücretini geri ALAMAZ', () => {
-    // Havuz yalnızca gerçek oyuncunun ücreti; bota düşen pay yanar. Bu yüzden
-    // ücretli varsayılan 1 olamaz — olursa bu test kırılmalı ve kural yeniden
-    // tartışılmalı (oyuncudan güvenceli para almak).
+  it('GEREKÇE KİLİDİ: ücretli lobide gerçek oyuncular (çoklu hesap dahil) havuzdan ödediklerinden FAZLASINI alamaz', () => {
+    // 16.10.2026'dan beri bota pay düşmez: tek gerçek oyuncu hangi sırada
+    // bitirirse bitirsin havuzun komisyon dışını alır, ama ücretini TAMAMEN
+    // geri alamaz (yarış para basmaz). Tek oyunculu ücretli yarış yine de
+    // rekabetsiz bir komisyon kesintisi olurdu → ücretli varsayılan en az 2.
     const fee = 100;
     const top5 = loadEconomyConfig().prizeDistributions.find((distribution) => distribution.id === 'top5')!;
-    const [firstPrize] = computePrizePayouts(fee, top5.shares);
-    expect(firstPrize!).toBeLessThan(fee);
+    const solo = computeLobbySettlement(fee, top5.shares, [{ entryId: 'tek', finishPosition: 8, paidFee: fee }], null);
+    expect(solo.payouts[7]!).toBeLessThan(fee);
+    for (let humans = 2; humans <= 8; humans += 1) {
+      const entries = Array.from({ length: humans }, (_, index) => ({
+        entryId: `e${index}`,
+        finishPosition: index * 2 + 1,
+        paidFee: fee,
+      }));
+      const result = computeLobbySettlement(fee * humans, top5.shares, entries, null);
+      expect(result.payouts.reduce((sum, value) => sum + value, 0)).toBeLessThan(fee * humans);
+    }
     expect(RULES.paidMinRealPlayers).toBeGreaterThanOrEqual(2);
   });
 });

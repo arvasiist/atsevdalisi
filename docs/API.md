@@ -2810,9 +2810,11 @@ açıktır ve sonucu önceden hesaplanabilir kılardı), simülasyon
 `finished` diye bir değer kabul etmez; sonuç `finish_position`/
 `final_time_ms`/`horse_snapshot` sütunlarında yaşar.
 
-**Bot payı YANAR (bilinçli):** botların `player_id`'si yoktur, bota düşen
-ödül kimseye ödenmez. Aksi hâlde bir oyuncu kendi yarışını açıp tek
-gerçek katılımcı olarak havuzun çoğunu geri alabilirdi.
+**Bota pay düşmez (16.10.2026, sahibinin kararı):** ödül sırası gerçek
+oyuncular arasındaki sıradır; bot `places` listesinde görünür, `prizeAmount`ı
+0'dır ve payı gerçek oyunculara orantılı dağılır (`computeLobbySettlement`).
+Dönen toplam ≤ havuz × Σpay — tek başına ya da çoklu hesapla havuzu geri
+almak komisyon kadar zarardır (ücretli lobi yine en az 2 gerçek oyuncu ister).
 
 **Bilinen açık pencere:** at snapshot'ı `startTime`'da değil, kesinleşme
 anında alınır — oyuncu aradaki sürede atını çalıştırabilir. Kapatmak

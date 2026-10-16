@@ -64,7 +64,7 @@ for (const tier of ECONOMY.raceTiers) {
   console.log(`| ${tier.id} (${tier.entryFee}, ${raceClass.maxHorsePower ?? 'yok'}) | ${cells.join(' | ')} |`);
 }
 
-console.log('\n### Lobi (masalı) — eşit güçte (60) oyuncu başına net / giriş, bota yanan pay\n');
+console.log('\n### Lobi (masalı) — eşit güçte (60) oyuncu başına net / giriş (bota pay düşmez)\n');
 const counts = [2, 3, 4, 6, 8];
 console.log(`| Masa | Botlu: ${counts.join(' / ')} | Botsuz: ${counts.join(' / ')} |`);
 console.log('|---|---|---|');
@@ -83,8 +83,7 @@ for (const table of ECONOMY.raceTiers) {
           trials: TRIALS,
           seedPrefix: `s4-lobby-${table.id}-${count}-${aiFill}`,
         });
-        const burned = aiFill ? ` (yanan ${(result.burnedShare * 100).toFixed(0)}%)` : '';
-        return `${pct(result.meanNetPerPlayer / table.entryFee)}${burned}`;
+        return pct(result.meanNetPerPlayer / table.entryFee);
       })
       .join(' / '),
   );

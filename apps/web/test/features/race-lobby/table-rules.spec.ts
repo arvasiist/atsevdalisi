@@ -42,7 +42,7 @@ describe('masa seçimi (09.10.2026)', () => {
     const local = RACE_TABLES.find((table) => table.id === 'local')!;
     const lines = describeTableRules(tableRulesFromConfig(local));
     expect(lines[0]).toMatch(/katılırken/);
-    expect(lines[1]).toMatch(/ilk 5 sıra · komisyon %10/);
+    expect(lines[1]).toMatch(/gerçek oyuncular arasında ilk 5 sıra \(bota pay düşmez\) · komisyon %10/);
     expect(lines[2]).toBe(`Kaybedene: 6. sıraya giriş bedelinin %${local.loserRefund.percent} iadesi`);
     const national = RACE_TABLES.find((table) => table.id === 'national')!;
     expect(describeTableRules(tableRulesFromConfig(national))[0]).toMatch(/start anında/);

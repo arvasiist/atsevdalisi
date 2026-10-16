@@ -416,15 +416,25 @@ Araç: `apps/api/tools/economy-ev-report.ts` (ölçüm kodu harness: `measurePra
 | elite (1000, 70) | -100% | -99% | -90% | -29% | — | — | — | — | — |
 | championship (2000, yok) | -100% | -100% | -99% | -89% | -40% | +27% | +33% | +25% | +9% |
 
-### Lobi (masalı) — eşit güçte (60) oyuncu başına net / giriş, bota yanan pay
+### Lobi (masalı) — eşit güçte (60) oyuncu başına net / giriş (bota pay düşmez, 16.10.2026)
 
 | Masa | Botlu: 2 / 3 / 4 / 6 / 8 | Botsuz: 2 / 3 / 4 / 6 / 8 |
 |---|---|---|
-| local (100) | -71% (yanan 62%) / -61% (yanan 52%) / -50% (yanan 41%) / -31% (yanan 21%) / -9% (yanan 0%) | -40% / -25% / -15% / -9% / -9% |
-| regional (250) | -79% (yanan 69%) / -70% (yanan 61%) / -62% (yanan 52%) / -47% (yanan 38%) / -28% (yanan 19%) | -42% / -28% / -18% / -10% / -9% |
-| national (500) | -82% (yanan 73%) / -77% (yanan 67%) / -69% (yanan 60%) / -56% (yanan 46%) / -43% (yanan 34%) | -45% / -31% / -21% / -12% / -10% |
-| elite (1000) | -89% (yanan 79%) / -83% (yanan 73%) / -78% (yanan 68%) / -67% (yanan 57%) / -55% (yanan 45%) | -47% / -33% / -23% / -13% / -10% |
-| championship (2000) | -91% (yanan 81%) / -85% (yanan 75%) / -81% (yanan 71%) / -74% (yanan 64%) / -62% (yanan 52%) | -50% / -37% / -27% / -16% / -11% |
+| local (100) | -10% / -10% / -10% / -9% / -9% | -10% / -10% / -10% / -9% / -9% |
+| regional (250) | -10% / -10% / -10% / -10% / -9% | -10% / -10% / -10% / -10% / -9% |
+| national (500) | -10% / -10% / -10% / -10% / -10% | -10% / -10% / -10% / -10% / -10% |
+| elite (1000) | -10% / -10% / -10% / -10% / -10% | -10% / -10% / -10% / -10% / -10% |
+| championship (2000) | -10% / -10% / -10% / -10% / -10% | -10% / -10% / -10% / -10% / -10% |
 
-**Yorum:** Her tavanlı sınıfın tepesindeki at kârlıdır (tavan − ε: +%83…+%93), tavana ulaşınca üst sınıfa çıkar ve orada zararla başlar — merdiven bilinçli (S2). Lobide havuz yalnızca gerçek ücretlerdir: botlu sahada oyuncu sayısı azaldıkça bota yanan pay büyür (2 oyuncu yerelde %62). Bu yüzden ücretli lobi en az 2 gerçek oyuncu ister (Aşama 3); botsuz eşit sahada kayıp yalnızca komisyondur (−%9…−%11, 8 oyuncu). Az oyunculu botlu ücretli lobinin dengesi sahibinin kararıdır (bot payını yakmak, tek başına havuzu geri almayı engeller).
+Önceki kural (bota düşen pay yanıyordu) aynı ölçümde 2 oyunculu botlu yerel
+masada −%71, şampiyonada −%91 veriyordu; botsuz 2 oyuncuda boş kalan 3–5.
+sıra payları da yanıyordu (−%40…−%50). Sahibinin kararıyla (16.10.2026)
+ödül sırası artık gerçek oyuncular arasındaki sıradır ve kullanılmayan paylar
+kullanılanlara orantılı eklenir (`computeLobbySettlement`): eşit güçte
+oyuncunun beklenen kaybı her sahada yalnızca komisyondur (−%9…−%10; 6–8
+oyunculu yerel masada kaybeden iadesi farkı kapatır). Botlar sahayı doldurur
+ama ödülü etkilemez. Çoklu hesapla havuzu geri almak yine kârsızdır: gerçek
+oyunculara dönen toplam havuzun en çok Σpay'ıdır (%90).
+
+**Yorum:** Her tavanlı sınıfın tepesindeki at kârlıdır (tavan − ε: +%83…+%93), tavana ulaşınca üst sınıfa çıkar ve orada zararla başlar — merdiven bilinçli (S2). Lobide havuz yalnızca gerçek ücretlerdir ve 16.10.2026'dan beri tamamı (komisyon hariç) gerçek oyunculara döner; ücretli lobi yine en az 2 gerçek oyuncu ister (Aşama 3) — tek oyunculu ücretli yarış rekabetsiz bir komisyon kesintisi olurdu.
 

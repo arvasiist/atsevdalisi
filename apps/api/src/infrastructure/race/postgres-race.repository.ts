@@ -69,7 +69,7 @@ import {
   describeRacePrizeEconomics,
   resolvePrizeDistribution,
 } from '../../domain/race/prize-distribution';
-import { findRaceTable, tableRakePercent } from '../../domain/race/table-rules';
+import { findRaceTable, lobbyPrizeShares, tableRakePercent } from '../../domain/race/table-rules';
 import { AppConfigService } from '../config/config.service';
 import {
   checkEntryReadyable,
@@ -351,11 +351,13 @@ function rowToLobbyRaceView(
     table?.feeTiming === 'on_start' && row.status === 'scheduled'
       ? Number(row.entry_fee) * joinedPlayers
       : Number(row.prize_pool);
+  // 16.10.2026 — bota pay düşmez: gösterilen birincilik ödülü, ŞU ANKİ gerçek
+  // oyuncu sayısıyla kesinleşmenin ödeyeceği paydır (`lobbyPrizeShares`).
   const economics = describeRacePrizeEconomics({
     entryFee: Number(row.entry_fee),
     participantCount: joinedPlayers,
     pool: projectedPool,
-    shares,
+    shares: lobbyPrizeShares(shares, joinedPlayers),
   });
 
   return {
@@ -3135,7 +3137,7 @@ export class PostgresRaceRepository implements RaceRepository {
       }
 
       // 09.10.2026 — MASA KURALI: kaybeden iadesi. Tutarlar use-case'te
-      // (saf `computeTableSettlement`) hesaplandı; burada her birinin
+      // (saf `computeLobbySettlement`) hesaplandı; burada her birinin
       // dayandığı ÖDENEN bedel KİLİT ALTINDA defterden yeniden okunur ve
       // karşılaştırılır — ayrışırsa iade yanlış kişiye/tutara giderdi.
       const refundByEntryId = new Map<string, number>();

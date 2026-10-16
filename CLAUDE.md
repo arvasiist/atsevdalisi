@@ -1114,13 +1114,21 @@ lobi yarışlarını `locking`e geçirir; bildirim AYNI transaction'da yazılır
 iken KAPALIDIR** (e2e saati kendi sürer: `tickNow()`), yani üretim
 yapılandırmasına bağlıdır.
 
-**⚠️ BOT PAYI YANAR.** Kadro `fieldSize`a botlarla tamamlanır
-(`aiFillEnabled`, bkz. §13.25) ve botların `player_id`'si yoktur — bota
-düşen ödül KİMSEYE ödenmez ve havuzda kalır. Bu bilinçlidir: aksi hâlde
-bir oyuncu kendi yarışını açıp tek gerçek katılımcı olarak havuzun çoğunu
-geri alabilirdi. Sonucu: gerçek oyuncu sayısı azken yarış oyuncu için
-KAYIPTIR — bu yüzden 15.10.2026'dan beri ücretli lobi yarışı tek gerçek
-oyuncuyla KOŞMAZ, iptal + iade edilir (bkz. (92)).
+**✅ BOT PAYI GERÇEK OYUNCULARA (16.10.2026, sahibinin kararı).** Eskiden
+bota düşen ödül KİMSEYE ödenmez, yanardı. Artık lobide (turnuva HARİÇ) ödül
+sırası GERÇEK OYUNCULAR ARASINDAKİ sıradır: bot sıralamada görünür ama ödül
+sırasında atlanır; gerçek oyuncu sayısı ödül alan sıradan azsa boş paylar
+kullanılanlara ORANTILI eklenir (`lobbyPrizeShares`). Saf hesap
+`domain/race/table-rules.ts` → `computeLobbySettlement` (kaybeden iadesi de
+aynı sırayla; çıktı mutlak sıraya göre, botun sırası 0 → repository
+değişmedi). Botsuz ve ödül sırası kadar oyunculu sahada sonuç eskisiyle BİT
+BİT aynı. Para basılmaz: dönen toplam ≤ havuz × Σpay (yuvarlama fazlası en
+alttaki ödülden düşülür) → çoklu hesapla havuzu geri almak yine komisyon
+kadar zarardır; ücretli lobi yine en az 2 gerçek oyuncu ister (bkz. (92)).
+Lobi listesindeki "Kazanana ×" şu anki gerçek oyuncu sayısıyla hesaplanır.
+⚠️ Lobi ödülünü `computePrizePayouts(havuz, pay)[sıra-1]` ile bekleyen YENİ
+e2e yazma — `expectedLobbyPayouts` (test-helpers) kullan. Pratik yarış
+(havuz evin parası) ve turnuva (botsuz, kendi dağılımı) DEĞİŞMEDİ.
 
 **⚠️ `fieldSize` ≠ GERÇEK OYUNCU SAYISI — KURAL SAF FONKSİYONDADIR
 (§13.25).** `domain/race/field-composition.ts` → `resolveFieldComposition`.
@@ -1189,17 +1197,17 @@ havuz = `entryFee × GERÇEK oyuncu sayısı`, botlar hiçbir şey ödemez.
 `docs/ECONOMY.md` §4.1.1'in tablosu **pratik** modeli anlatır; lobi için
 ona bakmak yanıltıcıdır. İkisi de bilinçli, ikisi de **korunur**.
 
-**⚠️ PLATFORM PAYI VE BOT ARTĞI İÇİN HESAP SATIRI YOKTUR (§13.26).**
-`raceRake` payı ve bota düşen ödül oyuncu ekonomisinden **çıkar**, başka bir
-hesaba **girmez**; mutabakatta `−(platformPayı + botArtğı)` olarak görünür.
+**⚠️ PLATFORM PAYI İÇİN HESAP SATIRI YOKTUR (§13.26).**
+`raceRake` payı oyuncu ekonomisinden **çıkar**, başka bir hesaba **girmez**;
+mutabakatta `−platformPayı` olarak görünür (16.10.2026'dan beri bot artığı
+YOK — bota pay düşmez).
 "Kesilen para nerede" sorusunun bugünkü cevabı budur — uydurma bir "ev
 hesabı" açmak, bakiyesi olmayan bir satır uydurmak olurdu.
 
 **⚠️ ÖDÜL SIRASI SİMÜLASYON SONUCUDUR — TESTİ KARARSIZ KURMA (§13.26).**
-"En az bir oyuncu ödül aldı" gibi bir iddia **botlu** sahada kurulamaz: 2
-gerçek oyuncu 8 atlık sahada ilk beşe girmeyebilir ve seed her koşuda
-yenidir. O iddia yalnızca **botsuz** sahada kararlıdır (orada ödül sırasının
-tamamı gerçek oyuncudur).
+"A birinci geldi" gibi bir iddia kurulamaz (seed her koşuda yenidir). 16.10.2026'dan
+beri bota pay düşmediği için "ödül sırası kadar ya da daha az gerçek oyuncunun
+HEPSİ ödül alır" iddiası botlu sahada da kararlıdır.
 
 **⚠️ `locking` DURUMU — ÜÇ KAPI AYNI ANDA AÇIK OLMALI (migration 0042,
 §13.24).** Zamanlayıcı `startTime`da yarışı `locking`e alır ve kadroyu +

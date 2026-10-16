@@ -7,12 +7,11 @@ import { AppConfigService } from '../../src/infrastructure/config/config.service
 import { PG_POOL } from '../../src/infrastructure/database/database.module';
 import { LockRaceUseCase } from '../../src/application/use-cases/lock-race.use-case';
 import {
-  computePrizePayouts,
-  computePrizePayoutTotal,
   resolvePrizeDistribution,
 } from '../../src/domain/race/prize-distribution';
 import {
   bootstrapTestApp,
+  expectedLobbyPayouts,
   registerTestPlayerWithStarterHorse,
   type RegisteredTestPlayer,
 } from './test-helpers';
@@ -401,7 +400,9 @@ describe('FINAL E2E — tam otomatik senaryo (uçtan uca)', () => {
     expect(places.filter((place) => place.participantType === 'ai')).toHaveLength(6);
 
     const prizePool = settleBody.data.prizePool;
-    const payouts = computePrizePayouts(prizePool, SHARES);
+    // 16.10.2026 — bota pay düşmez: gerçek oyuncular kendi aralarındaki
+    // sırayla öder (`expectedLobbyPayouts`).
+    const payouts = expectedLobbyPayouts(prizePool, SHARES, places);
 
     // ⚠️ SIRA SİMÜLASYONUN SONUCUDUR: "ilk sırada A vardır" gibi bir iddia
     // KURULMAZ. Kurulan iddia sıraya GÖRE tutardır — her sıra, config'teki
@@ -505,23 +506,21 @@ describe('FINAL E2E — tam otomatik senaryo (uçtan uca)', () => {
     // (1) GİRİŞ ÜCRETLERİ = ÖDÜL HAVUZU (botlar ödemez).
     expect(entryFees).toBe(prizePool);
 
-    // (2) HAVUZ = ÖDÜLLER + BOT ARTĞI + PLATFORM PAYI. Botlar sıra
-    //     kapabildiğinden havuzun bir kısmı hiç kimseye ödenmez (bilinçli);
-    //     platform payı ve bot artığı için ayrı bir hesap satırı YOKTUR —
-    //     ikisi de oyuncu ekonomisinden çıkar, başka hesaba girmez.
-    const payouts = computePrizePayouts(prizePool, SHARES);
-    const botResidue = settleBody.data.places
-      .filter((place) => place.participantType === 'ai')
-      .reduce((total, place) => total + (payouts[place.finishPosition - 1] ?? 0), 0);
-    const platformFee = prizePool - computePrizePayoutTotal(prizePool, SHARES);
-
-    expect(paidTotal + botResidue + platformFee).toBe(prizePool);
+    // (2) HAVUZ = ÖDÜLLER + PLATFORM PAYI. 16.10.2026'dan beri bota pay
+    //     düşmez: havuzdan yalnızca komisyon (yuvarlama payıyla) çıkar;
+    //     platform payı için ayrı bir hesap satırı YOKTUR.
+    const payouts = expectedLobbyPayouts(prizePool, SHARES, settleBody.data.places);
+    const expectedPaid = payouts.reduce((total, amount) => total + amount, 0);
+    const platformFee = prizePool - paidTotal;
+    expect(paidTotal).toBe(expectedPaid);
+    const rake = 1 - SHARES.reduce((total, share) => total + share, 0);
+    expect(Math.abs(platformFee - prizePool * rake)).toBeLessThanOrEqual(SHARES.length / 2);
 
     // (3) DEFTER = GERÇEK PARA DEĞİŞİMİ. Yoktan para var olmaz, var olan yok
     //     olmaz: iki bağımsız ölçüm birebir eşleşmelidir.
     const netRows = sumAmounts(rowsForRace);
     expect(netRows).toBe(moneyAfterA + moneyAfterB - (moneyBeforeA + moneyBeforeB));
-    expect(netRows).toBe(-(platformFee + botResidue));
+    expect(netRows).toBe(-platformFee);
 
     // (4) Yanıttaki `prizeAmount` toplamı, deftere yazılan ödül toplamının
     //     AYNISI olmalı (istemci kendi hesabını yapmaz).

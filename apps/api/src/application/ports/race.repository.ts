@@ -1202,13 +1202,14 @@ export interface SettleLobbyRaceInput {
   segments: RaceSegmentSnapshot[];
   /**
    * Sıra → Çip. Dizinin `i` elemanı `i + 1`. sıranın ödülüdür; dizinin
-   * dışında kalan sıralar 0 alır. **TUTARLAR BURADA HESAPLANMAZ** —
-   * `domain/race/prize-distribution.ts` → `computePrizePayouts` çıktısı
-   * AYNEN geçirilir, böylece havuz aritmetiği tek bir yerde kalır.
+   * dışında kalan sıralar 0 alır. **TUTARLAR BURADA HESAPLANMAZ** — lobide
+   * `computeLobbySettlement` (botun sırası 0, bot payı gerçek oyunculara),
+   * turnuvada `computePrizePayouts` çıktısı AYNEN geçirilir, böylece havuz
+   * aritmetiği tek bir yerde kalır.
    */
   payouts: number[];
   /**
-   * 09.10.2026 — masanın kaybeden iadeleri (`computeTableSettlement`).
+   * 09.10.2026 — masanın kaybeden iadeleri (`computeLobbySettlement`).
    * `paidFee` kilit altında defterle KARŞILAŞTIRILIR. Yoksa iade yok.
    */
   loserRefunds?: Array<{ entryId: string; amount: number; paidFee: number }>;

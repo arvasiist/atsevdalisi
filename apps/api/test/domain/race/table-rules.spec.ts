@@ -6,9 +6,10 @@ import { validateRaceCreation } from '../../../src/domain/race/lobby';
 import { applyPracticeRaceStakes, validateRaceTiers } from '../../../src/domain/race/prize';
 import { computePrizePayouts, resolvePrizeDistribution } from '../../../src/domain/race/prize-distribution';
 import {
-  computeTableSettlement,
+  computeLobbySettlement,
   findRaceTable,
   isLoserRefundEligible,
+  lobbyPrizeShares,
   loserRefundAmount,
   paidPlacesOf,
   tableRakePercent,
@@ -67,10 +68,13 @@ describe('masa kuralları (09.10.2026)', () => {
           paidFee: table.entryFee,
         }));
         const pool = table.entryFee * humans;
-        const result = computeTableSettlement(pool, shares, entries, table.loserRefund);
-        const paidPrizes = result.payouts.slice(0, humans).reduce((sum, value) => sum + value, 0);
+        const result = computeLobbySettlement(pool, shares, entries, table.loserRefund);
+        const paidPrizes = result.payouts.reduce((sum, value) => sum + value, 0);
         expect(paidPrizes + result.refundTotal).toBeLessThanOrEqual(pool);
-        expect(result.payouts).toEqual(computePrizePayouts(pool - result.refundTotal, shares));
+        if (humans >= shares.length) {
+          // Botsuz, ödül sırası kadar oyunculu saha: eski davranış BİREBİR.
+          expect(result.payouts.slice(0, shares.length)).toEqual(computePrizePayouts(pool - result.refundTotal, shares));
+        }
         for (const [entryId, amount] of result.loserRefunds) {
           const position = entries.find((entry) => entry.entryId === entryId)!.finishPosition;
           expect(position).toBeGreaterThan(shares.length);
@@ -83,13 +87,102 @@ describe('masa kuralları (09.10.2026)', () => {
 
   it('iade havuzu aşarsa sessizce kırpılmaz, fırlatır', () => {
     expect(() =>
-      computeTableSettlement(10, [0.5, 0.4], [{ entryId: 'a', finishPosition: 3, paidFee: 100 }], {
-        percent: 50,
-        maxPosition: 3,
-      }),
+      computeLobbySettlement(
+        10,
+        [0.5, 0.4],
+        [
+          { entryId: 'a', finishPosition: 1, paidFee: 100 },
+          { entryId: 'b', finishPosition: 2, paidFee: 100 },
+          { entryId: 'c', finishPosition: 3, paidFee: 100 },
+        ],
+        { percent: 50, maxPosition: 3 },
+      ),
     ).toThrow(/havuzu/);
   });
+});
 
+describe('bot payı gerçek oyunculara (16.10.2026, sahibinin kararı)', () => {
+  const shares = resolvePrizeDistribution(economy, lobby.prizeDistributionId)!.shares;
+  const total = shares.reduce((sum, share) => sum + share, 0);
+
+  it('pay toplamı korunur; oyuncu ödül sırası kadar ya da fazlaysa paylar AYNEN döner', () => {
+    expect(lobbyPrizeShares(shares, 0)).toEqual([]);
+    for (let humans = 1; humans <= 16; humans += 1) {
+      const effective = lobbyPrizeShares(shares, humans);
+      expect(effective).toHaveLength(Math.min(humans, shares.length));
+      expect(effective.reduce((sum, share) => sum + share, 0)).toBeCloseTo(total, 12);
+      for (let index = 1; index < effective.length; index += 1) {
+        expect(effective[index]!).toBeLessThan(effective[index - 1]!);
+      }
+      if (humans >= shares.length) expect(effective).toEqual([...shares]);
+    }
+  });
+
+  it('botun sırası ödülsüz; gerçek oyuncular kendi aralarındaki sırayla öder, yalnızca komisyon kesilir', () => {
+    const pool = 200; // 2 gerçek oyuncu × 100
+    const result = computeLobbySettlement(
+      pool,
+      shares,
+      [
+        { entryId: 'geride', finishPosition: 7, paidFee: 100 },
+        { entryId: 'onde', finishPosition: 3, paidFee: 100 },
+      ],
+      null,
+    );
+    const scale = total / (shares[0]! + shares[1]!);
+    expect(result.payouts).toHaveLength(7);
+    expect(result.payouts[2]).toBe(Math.round(pool * shares[0]! * scale));
+    expect(result.payouts[6]).toBe(Math.round(pool * shares[1]! * scale));
+    for (const botPosition of [0, 1, 3, 4, 5]) expect(result.payouts[botPosition]).toBe(0);
+    // Dağıtılan = havuz × Σpay (yuvarlama sırası başına en çok yarım çip).
+    const paid = result.payouts.reduce((sum, value) => sum + value, 0);
+    expect(Math.abs(paid - pool * total)).toBeLessThanOrEqual(1);
+    expect(paid).toBeLessThanOrEqual(pool);
+  });
+
+  it('tek gerçek oyuncu havuzun komisyon dışını alır (para basılmaz)', () => {
+    const result = computeLobbySettlement(100, shares, [{ entryId: 'tek', finishPosition: 8, paidFee: 100 }], null);
+    expect(result.payouts[7]).toBe(Math.round(100 * total));
+    expect(result.payouts.reduce((sum, value) => sum + value, 0)).toBeLessThan(100);
+  });
+
+  it('kaybeden iadesi de gerçek oyuncu sırasıyla; botlu sahada ödül alan oyuncu iade almaz', () => {
+    const table = economy.raceTiers.find((tier) => tier.loserRefund.percent > 0)!;
+    const tableShares = resolvePrizeDistribution(economy, table.distributionId)!.shares;
+    const humans = tableShares.length + 1;
+    // Her gerçek oyuncunun arasına bir bot: mutlak sıralar 2, 4, 6…
+    const entries = Array.from({ length: humans }, (_, index) => ({
+      entryId: `e${index}`,
+      finishPosition: (index + 1) * 2,
+      paidFee: table.entryFee,
+    }));
+    const result = computeLobbySettlement(table.entryFee * humans, tableShares, entries, table.loserRefund);
+    expect([...result.loserRefunds.keys()]).toEqual([`e${tableShares.length}`]);
+    for (const [index, entry] of entries.entries()) {
+      const prize = result.payouts[entry.finishPosition - 1]!;
+      expect(prize > 0).toBe(index < tableShares.length);
+    }
+  });
+
+  it('yuvarlama havuzu aşarsa fazla çip en alttaki ödülden düşülür', () => {
+    const result = computeLobbySettlement(
+      2,
+      [0.25, 0.25, 0.25, 0.24],
+      [1, 2, 3, 4].map((position) => ({ entryId: `e${position}`, finishPosition: position, paidFee: 0 })),
+      null,
+    );
+    expect(result.payouts.reduce((sum, value) => sum + value, 0)).toBe(2);
+    expect(result.payouts).toEqual([1, 1, 0, 0]);
+  });
+
+  it('aynı ya da geçersiz bitiş sırası fırlatır', () => {
+    const entry = (entryId: string, finishPosition: number) => ({ entryId, finishPosition, paidFee: 100 });
+    expect(() => computeLobbySettlement(200, shares, [entry('a', 2), entry('b', 2)], null)).toThrow(/Aynı/);
+    expect(() => computeLobbySettlement(100, shares, [entry('a', 0)], null)).toThrow(/Geçersiz/);
+  });
+});
+
+describe('masa kuralları — doğrulama', () => {
   it('bozuk masa kuralı reddedilir', () => {
     const table = findRaceTable(economy, 'local')!;
     const broken = (patch: Partial<RaceTierConfig>) => validateRaceTableRules({ ...table, ...patch }, 5);
