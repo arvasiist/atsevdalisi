@@ -4665,3 +4665,13 @@ davet ödülü + davet istisnalı arkadaşlık kapısı (F4), mağazada çip pak
 çip "+" → `/store` (F5). Gerçek ödeme sağlayıcısı YOK (mağaza kapalı yazar).
 CI: F4 commit'inde `AnnouncementStrip.spec.tsx` CI'da etki yarışıyla düştü
 (`0px`); test artık etkiyi bekler.
+
+### 13.114 Kapsamlı oyun geliştirme brief'i (16.10.2026)
+
+§1 denetimi koddan yapıldı; sınıflandırma tablosu `MASTER_STATUS.md` →
+"Kapsamlı oyun geliştirme" bölümündedir. Bulunan ana açıklar: sahibi kendi
+atının statlarını ve yarış geçmişini/kazancını göremiyor; çiftleştirme aygır
+sahibinin onayı olmadan anında tay üretiyor (teklif/anlaşma yok); doğurganlık,
+döllenme olasılığı ve gebelik süresi yok; tay yemi ve yetiştirme etkisi yok;
+ekipmanın ömrü/zemin farkı, kozmetik aksesuar ve envanterden ilaç/takviye yok.
+Dilimler K2–K6 olarak uygulanır (aşağıdaki alt bölümler).

@@ -17,6 +17,57 @@
 > `docs/AUDIT_REPORT.md` (3D brief Phase 0 boşluk analizi) **tarihli
 > anlık görüntülerdir**; bugünkü durum için bu dosyaya bakılır.
 
+## Brief 16.10.2026 — Kapsamlı oyun geliştirme (§2–§8, koddan doğrulandı)
+
+"Durum" denetim anındaki durumdur (kod + test okunarak); "Sonuç" bu brief
+kapsamında yapılan iştir. 3D işi kapsam dışı (brief kuralı 7). Brief metni §9'un
+("Uluslararası hipodrom sistemi") ortasında kesik geldi; §9 ve sonrası bekliyor.
+
+| § | Konu | Durum (denetim) | Kanıt / açık | Sonuç |
+|---|---|---|---|---|
+| 2 | Giriş → kendi ahırı, ahır ana merkez, tam ekran | TESTED | `HOME_FOR_PLAYERS`, `.stable3d-full`, `orientation-layout.spec.ts` | değişmedi |
+| 2 | Üst menü yalnızca Ana Sayfa/Ahır/Antrenman/Bakım | TESTED | `nav-links.ts`, `top-bar-nav.spec.ts` | değişmedi |
+| 2 | Gerçek veri: at, kapasite, bakım, kondisyon, enerji, yaklaşan yarışlar | TESTED | `/stable` (vital çubukları, `Kapasite`), `PlayerOverview` "Yaklaşan Yarışlar" | değişmedi |
+| 2 | Boş ahır / ilk at alma akışı | PARTIAL | son at pazarda satılabiliyor → ahır boş kalabiliyor; boş ahırda yalnızca "at bulunamadı" yazıyor, at alma yolu yok | K2 |
+| 2 | Onboarding | TESTED | `OnboardingPanel`, `onboarding.e2e-spec.ts` | değişmedi |
+| 2 | Çip/elmas "+" → satın alma | TESTED | `TOP_UP_HREF`, `top-bar-nav.spec.ts` (gerçek ödeme sağlayıcısı YOK) | değişmedi |
+| 2 | "Verilerimi indir" kaldırıldı | TESTED | `/account` | değişmedi |
+| 3 | Satın alma, sahiplik, ad/ırk/cinsiyet/yaş/seviye/soy | TESTED | ırk mağazası, pazar (sabit + müzayede), `PedigreeTree` | değişmedi |
+| 3 | Hız, dayanıklılık, sprint statları sahibine görünür | NOT_STARTED | `PublicHorse` stat taşımıyor; sahibi kendi atının statlarını hiçbir ekranda göremiyor (potansiyel gizli kalmalı) | K2 |
+| 3 | Enerji/sağlık/moral/yorgunluk, XP/seviye, yaşlanma, emeklilik, dinlenme/hazırlık | TESTED | `race-condition`, `race-age`, `horse-retirement` e2e | değişmedi |
+| 3 | Satış / transfer | IMPLEMENTED | pazar + müzayede; doğrudan at transferi bilinçli YOK (çoklu hesap değer aktarımı) | değişmedi |
+| 3 | At profili + geçmiş (yarışlar, dereceler, kazanç) | NOT_STARTED | atın yarış geçmişi/kazanç ucu yok (`findRecentResultsByHorseId` yalnızca iç kullanım) | K2 |
+| 3 | Ekonomik değer tek skordan değil | IMPLEMENTED | `calculateMarketValue` (kalite, potansiyel, yaş, yarış geçmişi, sağlık; soy puanı `null`) | değişmedi |
+| 4 | Ayrı çiftleştirme merkezi | PARTIAL | `BreedingPanel` ahırın içinde; damızlık listesi `GET /breeding/studs` | K3 |
+| 4 | Aygır sahibi kendi ücretiyle ilan verir | NOT_STARTED | ücret formülden (`calculateStudFee`), ilan kavramı yok — emekli her aygır listede | K3 |
+| 4 | Kısrak sahibi teklif gönderir, aygır sahibi kabul/ret | NOT_STARTED | çiftleştirme tek tuş, aygır sahibinin onayı YOK | K3 |
+| 4 | Anlaşmasız çiftleştirme yapılamaz | BROKEN (brief kuralına göre) | `POST /players/:id/breeding` başkasının aygırıyla anında tay üretiyor | K3 |
+| 4 | Ücret/ödeme zamanı/iptal/iade, çift kabul/ödeme engeli, geçmiş | PARTIAL | ücret anında düşer (defter + bildirim var); iptal/iade/teklif geçmişi yok | K3 |
+| 5 | Doğurganlık özelliği | NOT_STARTED | `horses` doğurganlık sütunu yok | K4 |
+| 5 | Döllenme olasılığı < %100 | NOT_STARTED | her çiftleştirme tay verir | K4 |
+| 5 | Gebelik süresi (config, ≈ gerçeğin 1/5'i ≈ 67 gün), takvim, kalan süre | NOT_STARTED | tay ANINDA doğuyor | K4 |
+| 5 | Gebelikte bakım/beslenme/veteriner, risk takibi | NOT_STARTED | — | K4 |
+| 5 | Tek tay, yeniden başlatmaya dayanıklı, istemci saatinden bağımsız, çift doğum yok | PARTIAL | tek tay + tek transaction var; zamanlanmış doğum yok | K4 |
+| 6 | Kalıcı ebeveyn bağı, görsel soy ağacı | TESTED | `pedigrees`, `GET /horses/:id/pedigree`, `PedigreeTree` | değişmedi |
+| 6 | Ataların yarış/yetiştirme başarıları | NOT_STARTED | soy ağacı yalnızca ad gösteriyor | K2 |
+| 6 | Dengeli kalıtım, test edilebilir rastgelelik, kardeşler farklı | TESTED | `genetics.config.json` (`inheritanceRange`, `mutationBounds`, potansiyel tavanı), tohum = çift kimliği, `genetics.spec.ts` | değişmedi |
+| 7 | Tay evreleri oyun zamanına bağlı, yetişkin yarışına yaş şartı | TESTED | `horse-growth.config.json` evreleri, `race.readiness.minAgeMonths`, `race-age.e2e-spec.ts` | değişmedi |
+| 7 | Tay yemi / bakım ürünleri, yetiştirmenin performansa dengeli etkisi, tay maliyeti | NOT_STARTED | tay yemi yok; tayın büyütülmesi statlara etki etmiyor | K5 |
+| 8 | Nal: standart/hafif/dayanıklı/zemine özel, ömür + değişim | PARTIAL | 3 kalite nal var; ömür, aşınma, zemin farkı yok | K6 |
+| 8 | Eyer: yarış/antrenman, ağırlık/dayanıklılık, örtü/aksesuar | PARTIAL | 3 kalite eyer; antrenman eyeri antrenmana etki etmiyor | K6 |
+| 8 | Aksesuar (yular, örtü, battaniye, bandaj, fırça, isimlik, koleksiyon) | PARTIAL | dizgin + göz siperi + bandaj var; kozmetik aksesuar yok | K6 |
+| 8 | Yem: standart, yulaf, enerji, kondisyon, tay; kalite/fiyat, stok, plan | PARTIAL | saman/arpa/mama/havuç/vitamin stoklu; yulaf, kondisyon yemi, tay yemi, besleme planı yok | K5 + K6 |
+| 8 | İlaç/takviye, veteriner kontrolü, sağlık kuralı yarışa etki | PARTIAL | bakımda `vet` var; envanterden ilaç/takviye ve yarışa etkisi yok | K6 |
+| 8 | Teknik: tekil kimlik/fiyat/kategori, merkezi config, sunucu doğrulaması, atomik bakiye + envanter, çift alım yok, alım geçmişi | TESTED | `equipment.config.json` + `validateEquipmentConfig`, `Idempotency-Key`, `equipment_purchase`/`feed_purchase` defteri | değişmedi |
+| 8 | Kozmetik ile performans ayrı; pahalı ürün otomatik kazandırmaz | PARTIAL | performans tavanı ×1,05 (`performance.ts`); kozmetik ekipman kategorisi yok | K6 |
+| 9 | Uluslararası hipodromlar (ülke/şehir) | PARTIAL | 5 Türk hipodromu (`hippodromes.config.json`, migration 0072) | brief metni kesik — bekliyor |
+
+**Bilinen çelişki (sahibinin dikkatine):** gebelik ≈ 67 gerçek gün, mevcut
+"1 gerçek gün = 1 oyun ayı" kuralıyla birlikte kısrağın bir gebelikte ~67 oyun
+ayı (5,5 yaş) yaşlanması demek. Üreme penceresi 36–180 oyun ayı olduğu için bir
+kısrak ömründe en fazla ~2 tay verir (`lifetimeFoalLimit.mare = 5`e
+ulaşılamaz). İki değer de config'te; hangisinin değişeceği sahibinin kararı.
+
 ## Brief 16.10.2026 — Sosyal + çip ekonomisi (koddan doğrulandı)
 
 Ayrıntı ve 12 maddelik tamamlanma raporu: `docs/SOSYAL_CIP_DENETIMI.md`.
