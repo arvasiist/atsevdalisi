@@ -20,7 +20,8 @@
 ## Brief 16.10.2026 — "Master Audit" eşlemesi (koddan doğrulandı)
 
 Her satır kod + test ile kontrol edildi. "Durum" denetim anındaki durumdur;
-"Sonuç" bu brief kapsamında yapılan iştir.
+"Sonuç" bu brief kapsamında yapılan iştir. 12 başlıklı son rapor:
+`docs/BRIEF_16_10_2026_RAPOR.md`.
 
 | Aşama | Konu | Durum (denetim) | Kanıt | Açık | Öncelik | Sonuç |
 |---|---|---|---|---|---|---|

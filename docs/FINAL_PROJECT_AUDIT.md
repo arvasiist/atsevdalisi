@@ -5,6 +5,14 @@
 > eşlemesi dahil), regresyon eşlemesi `docs/TESTING.md` §9. `docs/FINAL_ACCEPTANCE.md`nin
 > kabul maddeleri test dosyalarına dayandığı için hâlâ geçerlidir.
 
+## Ek — 16.10.2026 "Master Audit" brief'i
+
+Brief'in 17 aşaması koda karşı yeniden denetlendi; bulunan 13 açık
+(ekonomi P0, bağlantı havuzu sızıntısı, antrenman enerji/kondisyon, Hemen
+Katıl, gönderen öder dostluk hediyesi, canlı bildirim, gezinme, mobil düzen…)
+kapatıldı. 12 başlıklı son rapor: `docs/BRIEF_16_10_2026_RAPOR.md`. Aşağıdaki
+29.09.2026 tablosu tarihli olarak korunur.
+
 **Tarih:** 29.09.2026
 **Kapsam:** brief §42'nin 8 kritik sistemi + bunların zincirdeki (DATABASE ↓
 BACKEND ↓ API ↓ BUSINESS LOGIC ↓ RACE ENGINE ↓ WEBSOCKET ↓ FRONTEND ↓ USER
