@@ -58,11 +58,49 @@ export interface RaceCompanionView extends SocialPlayerView {
   relation: 'friend' | 'outgoing' | 'incoming' | 'none';
 }
 
+/**
+ * 16.10.2026 — çevrimiçi durumu. YALNIZCA arkadaşa gösterilir; `hidden` =
+ * oyuncu durumunu gizledi (son görülme de dönmez).
+ */
+export type PresenceState = 'online' | 'offline' | 'hidden';
+export interface PresenceView {
+  state: PresenceState;
+  lastSeenAt: string | null;
+}
+
 /** Kabul edilmiş bir arkadaşlık. */
 export interface FriendView extends SocialPlayerView {
   friendshipId: string;
   /** Arkadaşlığın KABUL edildiği an (`friendships.responded_at`). */
   friendsSince: string;
+  /** 16.10.2026 — liste çevrimiçi → çevrimdışı (son görülen önce) → gizli sıralıdır. */
+  presence: PresenceView;
+}
+
+/** 16.10.2026 — `GET /social/search?q=` satırı; `relation` arayana göredir. */
+export interface PlayerSearchResultView extends SocialPlayerView {
+  relation: 'self' | 'friend' | 'outgoing' | 'incoming' | 'none';
+}
+
+/**
+ * 16.10.2026 — `GET /players/:id/relationship/:otherId`: profil düğmeleri.
+ * `canSendFriendRequest` sunucunun kapısını önceden söyler (asıl karar yine
+ * isteğin kendisinde); `friendRequestBlockedReason` neden olmadığını.
+ */
+export interface PlayerRelationshipView {
+  playerId: string;
+  status: 'self' | 'friend' | 'outgoing' | 'incoming' | 'none' | 'blocked';
+  /** Bekleyen isteğin kimliği (gelen istekte kabul/ret için). */
+  requestId: string | null;
+  canSendFriendRequest: boolean;
+  friendRequestBlockedReason: 'needs_shared_race' | null;
+  /** Yalnızca arkadaşsa. */
+  presence: PresenceView | null;
+}
+
+/** 16.10.2026 — `GET/PUT /players/:id/privacy`. */
+export interface PlayerPrivacyView {
+  showOnlineStatus: boolean;
 }
 
 /**

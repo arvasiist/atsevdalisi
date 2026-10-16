@@ -1,4 +1,7 @@
 import type {
+  PlayerPrivacyView,
+  PlayerRelationshipView,
+  PlayerSearchResultView,
   BuyBreedHorseRequest,
   BuyBreedHorseResult,
   StudListingView,
@@ -1140,6 +1143,25 @@ export const apiClient = {
    */
   getSocialOverview: (playerId: string) =>
     request<SocialOverviewView>(`/players/${playerId}/social`, { method: 'GET' }),
+
+  /** 16.10.2026 — oyuncu ara: kimlik tam eşleşme ya da kullanıcı adı ön eki. */
+  searchPlayers: (q: string) =>
+    request<PlayerSearchResultView[]>(`/social/search?q=${encodeURIComponent(q)}`, { method: 'GET' }),
+
+  /** 16.10.2026 — profil düğmeleri için arayana göre ilişki. */
+  getRelationship: (playerId: string, otherId: string) =>
+    request<PlayerRelationshipView>(`/players/${playerId}/relationship/${otherId}`, { method: 'GET' }),
+
+  /** 16.10.2026 — çevrimiçi nabzı (sekme görünürken, config aralığıyla). */
+  sendPresenceHeartbeat: () => request<{ ok: true }>('/presence/heartbeat', { method: 'POST' }),
+
+  getPrivacy: (playerId: string) => request<PlayerPrivacyView>(`/players/${playerId}/privacy`, { method: 'GET' }),
+
+  setPrivacy: (playerId: string, showOnlineStatus: boolean) =>
+    request<PlayerPrivacyView>(`/players/${playerId}/privacy`, {
+      method: 'PUT',
+      body: JSON.stringify({ showOnlineStatus }),
+    }),
 
   /**
    * Birlikte bitmiş bir yarışta koştuğun oyuncular (08.10.2026). Arkadaşlık

@@ -15,6 +15,8 @@ import { UnblockPlayerUseCase } from '../../application/use-cases/unblock-player
 import { PostgresSocialRepository } from '../../infrastructure/social/postgres-social.repository';
 import { PlayerModule } from '../player/player.module';
 import { SocialController } from './social.controller';
+import { PlayerDiscoveryController } from './player-discovery.controller';
+import { PlayerDiscoveryUseCase } from '../../application/use-cases/player-discovery.use-case';
 
 /**
  * Arkadaşlık + mesajlaşma modülü (proje sahibinin açık talebi, 27.09.2026).
@@ -46,9 +48,10 @@ import { SocialController } from './social.controller';
  */
 @Module({
   imports: [PlayerModule],
-  controllers: [SocialController],
+  controllers: [SocialController, PlayerDiscoveryController],
   providers: [
     GetSocialOverviewUseCase,
+    PlayerDiscoveryUseCase,
     ListRaceCompanionsUseCase,
     SendFriendRequestUseCase,
     RespondFriendRequestUseCase,

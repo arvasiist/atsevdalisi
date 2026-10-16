@@ -34,6 +34,7 @@ import { validateBreedsConfig } from '../../domain/horse/breeds';
 import { validateHippodromesConfig } from '../../domain/race/hippodrome';
 import { validateHorseLevelBrackets } from '../../domain/race/level-bracket';
 import { validateFriendGiftConfig } from '../../domain/social/friend-gift';
+import { validatePresenceConfig } from '../../domain/social/presence';
 import { validateGemPolicy } from '../../domain/economy/gem-policy';
 import { validateCosmeticsConfig } from '../../domain/cosmetics/cosmetics';
 import { validateTribuneGiftsConfig } from '../../domain/grandstand/tribune-gift';
@@ -207,6 +208,11 @@ export class AppConfigService {
     const onboardingProblems = validateOnboardingConfig(this.onboarding);
     if (onboardingProblems.length > 0) {
       throw new Error(`Sıradaki adım config'i geçersiz (config/onboarding.config.json): ${onboardingProblems.join(' ')}`);
+    }
+    // 16.10.2026 — çevrimiçi durumu + oyuncu arama (pencere nabızdan büyük olmalı).
+    const presenceProblems = validatePresenceConfig(this.social);
+    if (presenceProblems.length > 0) {
+      throw new Error(`Sosyal config'i geçersiz (config/social.config.json): ${presenceProblems.join(' ')}`);
     }
     // 15.10.2026 (Aşama 3) — yetersiz oyuncu kuralı (asgari gerçek oyuncu + bot izni).
     const fieldRuleProblems = validateFieldRulesConfig(this.raceLobby, this.raceLobby.calendar.programs);

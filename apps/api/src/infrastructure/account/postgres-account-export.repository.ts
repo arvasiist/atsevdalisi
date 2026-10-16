@@ -16,6 +16,7 @@ const SECTION_SQL: Record<AccountExportSectionName, string> = {
     SELECT p.username, p.display_name AS "displayName", p.level, p.xp::float8 AS xp,
            p.money::float8 AS money, p.gems::float8 AS gems, p.reputation, p.rating,
            p.stable_level AS "stableLevel", p.created_at AS "createdAt",
+           p.last_seen_at AS "lastSeenAt", p.show_online_status AS "showOnlineStatus",
            c.email, c.email_verified_at AS "emailVerifiedAt"
       FROM players p LEFT JOIN player_credentials c ON c.player_id = p.id
      WHERE p.id = $1 LIMIT $2`,

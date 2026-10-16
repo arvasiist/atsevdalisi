@@ -58,7 +58,7 @@ export class RespondFriendRequestUseCase {
     // YARIŞ KAPISI KABULDE DE (08.10.2026): kural öncesinden kalan bekleyen
     // bir istek, birlikte yarışmamış iki oyuncuyu arkadaş yapamasın. Ret
     // her zaman serbesttir.
-    if (parsed === 'accept' && !(await this.socialRepository.haveRacedTogether(playerId, otherId))) {
+    if (parsed === 'accept' && !(await this.socialRepository.meetsFriendshipGate(playerId, otherId))) {
       throw new FriendshipRequiresSharedRaceError();
     }
 

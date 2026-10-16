@@ -67,6 +67,7 @@ import { AvatarPortrait } from '../../../features/avatar/AvatarPortrait';
 import { achievementTitle } from '../../../features/quests/achievement-labels';
 import { apiClient, profilePhotoUrl } from '../../../lib/api-client';
 import { usePlayer } from '../../../lib/player-context';
+import { ProfileFriendActions } from '../../../features/social/ProfileFriendActions';
 
 export default function PlayerProfilePage(): React.ReactElement {
   const params = useParams<{ username: string }>();
@@ -249,6 +250,10 @@ export default function PlayerProfilePage(): React.ReactElement {
             <span style={selfBadgeStyle}>Bu sensin</span>
           ) : null}
         </div>
+        {/* 16.10.2026 — sosyal brief §3: Arkadaş Ekle / Kabul Et / Çip Hediye Et / Yarışa Davet. */}
+        {player !== null && !isSelf ? (
+          <ProfileFriendActions playerId={player.id} otherId={profile.playerId} otherName={profile.displayName} />
+        ) : null}
 
         {/* Kademe çubuğu — `getCareerProgress` son kademede `1` döner
             ("daha fazla ilerleme yok"), bu yüzden dolu görünür; etiket

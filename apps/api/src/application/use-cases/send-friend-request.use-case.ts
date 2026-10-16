@@ -84,7 +84,7 @@ export class SendFriendRequestUseCase {
     // YARIŞ KAPISI (08.10.2026, sahibinin kuralı: "sadece yarışmış kişiler
     // arkadaş olabilsin"). Mevcut kayıt kapısından SONRA: zaten arkadaş
     // olan (kural öncesi) bir çifte "önce yarışın" demek yanıltıcı olurdu.
-    if (!(await this.socialRepository.haveRacedTogether(playerId, addresseeId))) {
+    if (!(await this.socialRepository.meetsFriendshipGate(playerId, addresseeId))) {
       throw new FriendshipRequiresSharedRaceError();
     }
 

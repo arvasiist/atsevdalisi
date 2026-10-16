@@ -33,6 +33,7 @@ import { HorseAvatar } from '../ui/HorseAvatar';
 import { HorseHeadIcon } from '../ui/HorseHeadIcon';
 import { formatUnreadBadge, notificationsAriaLabel } from '../../features/notifications/unread-badge';
 import { useUnreadNotifications } from '../../features/notifications/use-unread-notifications';
+import { usePresenceHeartbeat } from '../../features/social/use-presence-heartbeat';
 import { NavIcon } from './nav-icons';
 import { MAX_MOBILE_TABS, NAV_LINKS, TOP_UP_HREF, type NavLink } from './nav-links';
 
@@ -48,6 +49,8 @@ export function TopBar(): React.ReactElement {
   const moreRef = useRef<HTMLDivElement | null>(null);
   // 16.10.2026 — zilde okunmamış sayısı (canlı akışla tazelenir).
   const unread = useUnreadNotifications(player?.id ?? null, pathname);
+  // 16.10.2026 — çevrimiçi durumu (arkadaşlara): oturum varken nabız.
+  usePresenceHeartbeat(player !== null);
   const unreadBadge = formatUnreadBadge(unread);
 
   // Sayfa değişince açık menüler kapanır.

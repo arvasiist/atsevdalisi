@@ -61,6 +61,10 @@ import { CURRENCY_LABELS, formatCurrency, hasEnoughFunds } from '../../lib/curre
 import { usePlayer } from '../../lib/player-context';
 import { companionAction, describeSharedRaces } from '../../features/social/race-companions';
 import { FriendGiftPanel } from '../../features/social/FriendGiftPanel';
+import { OnlineStatusToggle } from '../../features/social/OnlineStatusToggle';
+import { PlayerSearchPanel } from '../../features/social/PlayerSearchPanel';
+import { PresenceBadge } from '../../features/social/PresenceBadge';
+import { RaceInvitePicker } from '../../features/social/RaceInvitePicker';
 
 /** Gelen kutusunda gösterilecek en fazla satır — sunucu zaten `inboxLimit` uygular. */
 const INBOX_PREVIEW_LIMIT = 5;
@@ -369,8 +373,11 @@ export default function FriendsPage(): React.ReactElement {
         <p style={{ color: 'var(--color-text-muted)' }}>Yükleniyor…</p>
       ) : null}
 
-      {overview ? (
+      {overview && player ? (
         <>
+          {/* 16.10.2026 — sosyal brief §3: oyuncu arama + çevrimiçi gizliliği. */}
+          <PlayerSearchPanel playerId={player.id} onRequestSent={() => refresh()} />
+          <OnlineStatusToggle playerId={player.id} />
           {overview.incomingRequests.length > 0 ? (
             <Section title={`Gelen İstekler (${overview.incomingRequests.length})`}>
               {overview.incomingRequests.map((request) => (
@@ -432,7 +439,7 @@ export default function FriendsPage(): React.ReactElement {
           <Section title={`Arkadaşlar (${overview.friends.length})`}>
             {overview.friends.length === 0 ? (
               <p style={{ color: 'var(--color-text-muted)', margin: 0, fontSize: '13px' }}>
-                Henüz arkadaşın yok. Bir yarışta birlikte koştuğun oyuncuya aşağıdan istek gönderebilirsin.
+                Henüz arkadaşın yok. Yukarıdan oyuncu ara ya da birlikte koştuğun bir oyuncuya aşağıdan istek gönder.
               </p>
             ) : (
               overview.friends.map((friend) => (
@@ -447,6 +454,7 @@ export default function FriendsPage(): React.ReactElement {
                     secondary={`Seviye ${friend.level} · ${formatRelativeDate(friend.friendsSince)} arkadaş`}
                     profileUsername={friend.username}
                   />
+                  <PresenceBadge presence={friend.presence} now={new Date()} />
                   <RowActions>
                     <button
                       type="button"
@@ -461,8 +469,11 @@ export default function FriendsPage(): React.ReactElement {
                       onClick={() => openGiftPanel(friend)}
                       style={secondaryButtonStyle()}
                     >
-                      Hediye
+                      Çip Hediye Et
                     </button>
+                    {player ? (
+                      <RaceInvitePicker playerId={player.id} friendId={friend.playerId} friendName={friend.displayName} />
+                    ) : null}
                     <button
                       type="button"
                       disabled={pendingKey === friend.friendshipId}

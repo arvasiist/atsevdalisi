@@ -1,4 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
+import { type PlayerSearchQuery, type PresenceFacts, usernamePrefixLikePattern } from '../../domain/social/presence';
 import type { Pool, PoolClient } from 'pg';
 import type {
   FriendshipStatus,
@@ -12,6 +13,7 @@ import type {
   FriendFacts,
   FriendRequestFacts,
   FriendshipRow,
+  PlayerSearchRow,
   RaceCompanionRow,
   RemoveFriendshipInput,
   ReportRow,
@@ -53,6 +55,8 @@ interface SocialListRow {
   username: string;
   display_name: string;
   level: number;
+  last_seen_at?: Date | null;
+  show_online_status?: boolean;
 }
 
 /** `direct_messages` + gönderen adı JOIN sonucu. */
@@ -175,7 +179,7 @@ export class PostgresSocialRepository implements SocialRepository {
     const [friendsResult, requestsResult, unreadResult] = await Promise.all([
       this.pool.query<SocialListRow>(
         `SELECT f.id AS friendship_id, f.requested_by_id, f.created_at, f.responded_at,
-                p.id AS player_id, p.username, p.display_name, p.level
+                p.id AS player_id, p.username, p.display_name, p.level, p.last_seen_at, p.show_online_status
          FROM friendships f
          JOIN players p ON p.id = CASE WHEN f.player_low_id = $1 THEN f.player_high_id ELSE f.player_low_id END
          WHERE f.status = 'accepted' AND (f.player_low_id = $1 OR f.player_high_id = $1)
@@ -209,6 +213,8 @@ export class PostgresSocialRepository implements SocialRepository {
       // diye `created_at`e düşülür (sorgudaki `COALESCE` ile aynı kural —
       // API sözleşmesi `friendsSince`'i ASLA null yapmaz).
       friendsSince: row.responded_at ?? row.created_at,
+      lastSeenAt: row.last_seen_at ?? null,
+      showOnlineStatus: row.show_online_status ?? true,
     }));
 
     // `direction` BURADA türetilir: satırda "ben" bilgisi olmadığı için
@@ -340,6 +346,72 @@ export class PostgresSocialRepository implements SocialRepository {
    * ve iptal edilmemiş katılım sayılır. `status IS DISTINCT FROM`
    * (pratik/PvP satırlarında `status` NULL'dır, `<>` onları düşürürdü).
    */
+  async searchPlayers(input: { callerId: string; query: PlayerSearchQuery; limit: number }): Promise<PlayerSearchRow[]> {
+    const match =
+      input.query.kind === 'id'
+        ? { sql: 'p.id = $2::uuid', value: input.query.playerId, exact: input.query.playerId }
+        : { sql: "p.username LIKE $2 ESCAPE '\\'", value: usernamePrefixLikePattern(input.query.prefix), exact: input.query.prefix };
+    const result = await this.pool.query<{
+      player_id: string;
+      username: string;
+      display_name: string;
+      level: number;
+      relation: PlayerSearchRow['relation'];
+    }>(
+      `SELECT p.id AS player_id, p.username, p.display_name, p.level,
+              CASE WHEN p.id = $1 THEN 'self'
+                   WHEN f.status = 'accepted' THEN 'friend'
+                   WHEN f.status = 'pending' AND f.requested_by_id = $1 THEN 'outgoing'
+                   WHEN f.status = 'pending' THEN 'incoming'
+                   ELSE 'none' END AS relation
+         FROM players p
+         LEFT JOIN friendships f
+           ON (f.player_low_id = p.id AND f.player_high_id = $1) OR (f.player_low_id = $1 AND f.player_high_id = p.id)
+        WHERE p.deleted_at IS NULL
+          AND ${match.sql}
+          AND NOT EXISTS (
+            SELECT 1 FROM player_blocks b
+             WHERE (b.blocker_id = $1 AND b.blocked_id = p.id) OR (b.blocker_id = p.id AND b.blocked_id = $1))
+        ORDER BY (p.username = $3) DESC, p.username
+        LIMIT $4`,
+      [input.callerId, match.value, match.exact, input.limit],
+    );
+    return result.rows.map((row) => ({
+      playerId: row.player_id,
+      username: row.username,
+      displayName: row.display_name,
+      level: row.level,
+      relation: row.relation,
+    }));
+  }
+
+  async touchPresence(playerId: string, now: Date, minIntervalSeconds: number): Promise<void> {
+    // `updated_at`e dokunulmaz: çevrimiçi olmak profil değişikliği değildir.
+    await this.pool.query(
+      `UPDATE players SET last_seen_at = $2
+        WHERE id = $1 AND deleted_at IS NULL
+          AND (last_seen_at IS NULL OR last_seen_at < $2::timestamptz - make_interval(secs => $3))`,
+      [playerId, now, minIntervalSeconds],
+    );
+  }
+
+  async findPresence(playerId: string): Promise<PresenceFacts | null> {
+    const result = await this.pool.query<{ last_seen_at: Date | null; show_online_status: boolean }>(
+      'SELECT last_seen_at, show_online_status FROM players WHERE id = $1 AND deleted_at IS NULL',
+      [playerId],
+    );
+    const row = result.rows[0];
+    return row ? { lastSeenAt: row.last_seen_at, showOnlineStatus: row.show_online_status } : null;
+  }
+
+  async setShowOnlineStatus(playerId: string, value: boolean): Promise<boolean> {
+    const result = await this.pool.query<{ show_online_status: boolean }>(
+      'UPDATE players SET show_online_status = $2 WHERE id = $1 AND deleted_at IS NULL RETURNING show_online_status',
+      [playerId, value],
+    );
+    return result.rows[0]?.show_online_status ?? value;
+  }
+
   async haveRacedTogether(aId: string, bId: string): Promise<boolean> {
     const result = await this.pool.query(
       `SELECT 1
@@ -354,6 +426,10 @@ export class PostgresSocialRepository implements SocialRepository {
       [aId, bId],
     );
     return result.rowCount !== null && result.rowCount > 0;
+  }
+
+  async meetsFriendshipGate(aId: string, bId: string): Promise<boolean> {
+    return this.haveRacedTogether(aId, bId);
   }
 
   async findRaceCompanions(playerId: string, limit: number): Promise<RaceCompanionRow[]> {

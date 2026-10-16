@@ -1647,6 +1647,20 @@ export interface SocialConfig {
    * (08.10.2026) — bir LİSTE sınırıdır (en son birlikte koşulanlar önce).
    */
   raceCompanionsLimit: number;
+  /**
+   * 16.10.2026 — oyuncu arama (`GET /social/search?q=`): oyuncu kimliği tam
+   * eşleşme ya da kullanıcı adı ÖN EKİ. `minQueryLength` kullanıcı adı ön eki
+   * içindir (kısa sorgu herkesi listelerdi); `limit` bir LİSTE sınırıdır.
+   */
+  playerSearch: { minQueryLength: number; limit: number };
+  /**
+   * 16.10.2026 — çevrimiçi durumu. İstemci görünürken `heartbeatSeconds`te
+   * bir nabız yollar; `last_seen_at` son `onlineWindowSeconds` içindeyse
+   * "çevrimiçi". Sunucu aynı oyuncunun `touchMinIntervalSeconds`ten sık
+   * nabzını yazmaz (gereksiz UPDATE). Pencere nabız aralığından BÜYÜK
+   * olmalıdır (`validatePresenceConfig`), yoksa açık sekme "çevrimdışı" görünürdü.
+   */
+  presence: { heartbeatSeconds: number; onlineWindowSeconds: number; touchMinIntervalSeconds: number };
 }
 
 /**

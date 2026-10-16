@@ -141,6 +141,7 @@ export class PostgresAccountDeletionRepository implements AccountDeletionReposit
       await client.query(
         `UPDATE players
             SET username = $2, display_name = $3, avatar_id = NULL, is_admin = false,
+                last_seen_at = NULL, show_online_status = false,
                 deleted_at = $4, updated_at = $4
           WHERE id = $1`,
         [playerId, input.anonymousUsername, input.anonymousDisplayName, now],
