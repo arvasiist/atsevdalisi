@@ -1,0 +1,3 @@
+# Windows cmd betikleri CRLF olmalı (LF ile etiket/goto bozulabilir).
+*.cmd text eol=crlf
+*.bat text eol=crlf

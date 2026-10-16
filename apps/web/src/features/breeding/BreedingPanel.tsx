@@ -28,6 +28,13 @@
  * başarılı olup yanıt ağda kaybolduysa, tekrar AYNI anahtarla gider ve
  * sunucu SAKLANAN yanıtı döner — ikinci bir tay doğmaz.
  *
+ * **15.10.2026 — S5:** damızlık için iki ebeveyn de EMEKLİ olmalı (sahibinin
+ * kararı); listeler yalnızca emekli kısrak/aygırları gösterir, kural yine
+ * sunucudadır. Başka oyuncuların emekli aygırları damızlık pazarından
+ * (`GET /breeding/studs`) ÜCRETİYLE gelir — ücret sunucunun hesapladığı
+ * değerdir, istemci yine hiçbir tutar hesaplamaz; çiftleştirme anında sunucu
+ * ücreti kilit altında yeniden hesaplar.
+ *
  * **Aygır seçimi:** kendi aygırların listelenir; ayrıca başka bir oyuncunun
  * aygırı için kimlik (UUID) girilebilir. Bu, icat edilmiş bir "aygır pazarı"
  * uç noktası DEĞİLDİR — `GET /horses/:id` zaten `@Public()`tir ve pazar
@@ -36,8 +43,8 @@
  * SÖYLER (kararı yine sunucu verir).
  */
 
-import { useCallback, useRef, useState } from 'react';
-import type { BreedingResultView, HorseGender, PublicHorse } from '@at-sevdalisi/shared-types';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import type { BreedingResultView, HorseGender, PublicHorse, StudListingView } from '@at-sevdalisi/shared-types';
 import { GlassPanel } from '../../components/ui/GlassPanel';
 import { apiClient } from '../../lib/api-client';
 import { formatCurrency } from '../../lib/currency';
@@ -60,8 +67,27 @@ export interface BreedingPanelProps {
 }
 
 export function BreedingPanel({ ownerId, horses, onBred }: BreedingPanelProps): React.ReactElement {
-  const mares = horses.filter((horse) => horse.gender === 'mare');
-  const ownStallions = horses.filter((horse) => horse.gender === 'stallion');
+  const mares = horses.filter((horse) => horse.gender === 'mare' && horse.status === 'retired');
+  const ownStallions = horses.filter((horse) => horse.gender === 'stallion' && horse.status === 'retired');
+  const racingMareCount = horses.filter((horse) => horse.gender === 'mare' && horse.status !== 'retired').length;
+
+  /** Damızlık pazarı — başka oyuncuların emekli aygırları (ücretleri sunucudan). */
+  const [studs, setStuds] = useState<StudListingView[]>([]);
+  const [studsError, setStudsError] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    apiClient
+      .listStuds()
+      .then((rows) => {
+        if (!cancelled) setStuds(rows);
+      })
+      .catch(() => {
+        if (!cancelled) setStudsError('Damızlık pazarı yüklenemedi.');
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const [mareId, setMareId] = useState('');
   const [stallionChoice, setStallionChoice] = useState('');
@@ -96,6 +122,7 @@ export function BreedingPanel({ ownerId, horses, onBred }: BreedingPanelProps): 
   /** Kısrak/aygır seçiminden çözülen GERÇEK aygır kimliği. */
   const resolvedStallionId =
     stallionChoice === FOREIGN_STALLION_OPTION ? foreignStallionId.trim() : stallionChoice;
+  const selectedStud = studs.find((stud) => stud.horseId === stallionChoice) ?? null;
 
   const lookupForeignStallion = useCallback(async (): Promise<void> => {
     const horseId = foreignStallionId.trim();
@@ -155,9 +182,15 @@ export function BreedingPanel({ ownerId, horses, onBred }: BreedingPanelProps): 
       <GlassPanel style={{ marginBottom: 'var(--space-lg)' }}>
         <h2 style={panelTitleStyle()}>Yetiştirme</h2>
         <p style={{ color: 'var(--color-text-secondary)', margin: 0, fontSize: '13px' }}>
-          Çiftleştirme yapabilmek için ahırında en az bir <strong>kısrak</strong> olmalı — tay, kısrağın sahibinin
-          ahırına doğar ve damızlık ücretini kısrağın sahibi öder.
+          Çiftleştirme yapabilmek için ahırında en az bir <strong>emekli kısrak</strong> olmalı — tay, kısrağın
+          sahibinin ahırına doğar ve damızlık ücretini kısrağın sahibi öder.
         </p>
+        {racingMareCount > 0 ? (
+          <p style={mutedStyle()}>
+            Yarışan kısrağını ahır kartındaki <strong>“Emekli et”</strong> düğmesiyle damızlığa ayırabilirsin. Emeklilik
+            geri alınmaz: emekli at yarışamaz ve antrenman yapamaz.
+          </p>
+        ) : null}
       </GlassPanel>
     );
   }
@@ -168,8 +201,9 @@ export function BreedingPanel({ ownerId, horses, onBred }: BreedingPanelProps): 
     <GlassPanel style={{ marginBottom: 'var(--space-lg)' }}>
       <h2 style={panelTitleStyle()}>Yetiştirme</h2>
       <p style={{ color: 'var(--color-text-secondary)', marginTop: 0, marginBottom: 'var(--space-md)', fontSize: '13px' }}>
-        Bir kısrağı aygırla çiftleştir; tay <strong>anında</strong> doğar ve kısrağın sahibinin ahırına katılır. Damızlık
-        ücreti, aygır başka bir oyuncunun ise sahibine aktarılır.
+        Emekli bir kısrağı emekli bir aygırla çiftleştir; tay <strong>anında</strong> doğar ve kısrağın sahibinin ahırına
+        katılır. Aygır başka bir oyuncunun ise damızlık ücretinin bir kısmı sahibine aktarılır. Her atın ömür boyu tay
+        sınırı vardır; kısrak doğumdan sonra bir süre dinlenir.
       </p>
 
       <div style={{ display: 'grid', gap: 'var(--space-md)', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
@@ -210,6 +244,16 @@ export function BreedingPanel({ ownerId, horses, onBred }: BreedingPanelProps): 
                 {horse.name} · Seviye {horse.level} (kendi aygırın)
               </option>
             ))}
+            {studs.length > 0 ? (
+              <optgroup label="Damızlık pazarı">
+                {studs.map((stud) => (
+                  <option key={stud.horseId} value={stud.horseId}>
+                    {stud.name} · {stud.ownerUsername ?? 'oyuncu'} · {formatCurrency('money', stud.fee)} · {stud.foalCount}/
+                    {stud.foalLimit} tay
+                  </option>
+                ))}
+              </optgroup>
+            ) : null}
             <option value={FOREIGN_STALLION_OPTION}>Başka bir oyuncunun aygırı (kimlik gir)…</option>
           </select>
         </label>
@@ -229,6 +273,14 @@ export function BreedingPanel({ ownerId, horses, onBred }: BreedingPanelProps): 
           />
         </label>
       </div>
+
+      {selectedStud !== null ? (
+        <p style={mutedStyle()}>
+          Ödeyeceğin damızlık ücreti: <strong>{formatCurrency('money', selectedStud.fee)}</strong> · Kalite{' '}
+          {selectedStud.quality} · {Math.floor(selectedStud.ageMonths / 12)} yaş
+        </p>
+      ) : null}
+      {studsError !== null ? <p style={mutedStyle()}>{studsError}</p> : null}
 
       {stallionChoice === FOREIGN_STALLION_OPTION ? (
         <div style={{ marginTop: 'var(--space-md)' }}>
@@ -280,7 +332,7 @@ export function BreedingPanel({ ownerId, horses, onBred }: BreedingPanelProps): 
           </p>
           <p style={{ ...mutedStyle(), marginTop: '4px' }}>
             {result.fee > 0
-              ? `Damızlık ücreti: ${formatCurrency('money', result.fee)} (aygır sahibine aktarıldı)`
+              ? `Damızlık ücreti: ${formatCurrency('money', result.fee)} (bir kısmı aygır sahibine aktarıldı)`
               : 'Damızlık ücreti alınmadı (aygır senin).'}
           </p>
           {result.payerBalance !== null ? (

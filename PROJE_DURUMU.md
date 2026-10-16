@@ -448,18 +448,18 @@ doğrulama ancak GitHub Actions'ta gerçek Postgres/Redis ile yapılabiliyor.
 | **Gerçek 3D/ses varlığı yok** | §8.3 — en büyük görsel engel; sahibinin kararını bekliyor |
 | **OAuth kimlik bilgisi yok** | Kod tam (§13.38: Google düğmesi + bağlama); `GOOGLE_OAUTH_CLIENT_ID` boşken düğme gizlenir ve `POST /auth/login` `InvalidProviderTokenError` döner. Apple: istemci yok, ücretli üyelik bekliyor |
 | ~~Frontend'de gerçek giriş yok~~ | **KAPANDI** — `/account`: e-posta + şifre (§13.36), sıfırlama (§13.37), Google (§13.38), çıkış |
-| **Yarış takvimi yok** | Planlı, çok katılımcılı `GET /races` takvimi yok; yalnızca practice race + PvP |
-| **Matchmaking senkron** | `JoinMatchmakingQueueUseCase.playMatch` eşleşmeyi **HTTP isteği içinde** yapar. `@nestjs/schedule`/cron/worker YOK → arka plan işi yok |
+| ~~**Yarış takvimi yok**~~ | **KAPANDI (01.10.2026, §13.53)** — sunucu config programıyla lobi yarışı açar |
+| **Matchmaking senkron** | `JoinMatchmakingQueueUseCase.playMatch` eşleşmeyi HTTP isteği içinde yapar; 30.09.2026'dan beri `MatchmakingScheduler` kuyruğu ayrıca tarar (§13.33). Projede artık beş zamanlayıcı var (kilit, turnuva, sezon, eşleştirme, takvim) |
 | **Pazar süresi dolması tembel** | `PostgresMarketListingRepository.sweepExpiredListings` — lazy sweep, zamanlanmış iş değil |
-| **Müzayede ilanı yok** | Yalnızca `fixed_price` |
-| ~~**Jokey bağlanmamış**~~ **KAPANDI (§13.30, PHASE 6.2, 29.09.2026)** | `calculateJockeySkillComposite` artık motora girer; `race_entries.jockey_id` kilit anında yazılır. **AÇIK KALAN:** `calculateJockeyHorseCompatibility` ve `domain/jockey/jockey.ts`'teki `calculateTemperamentComponent` hâlâ **çağıransız**; `gatePosition` hâlâ okunmuyor |
-| **Jokey serbest bırakma yolu yok** | Bir jokeyi attan ayıran uç nokta yok; `race_entries.jockey_id` yazılır ama geri alınmaz |
-| **Çiftlik/personel çarpanları bağlanmamış** | `domain/farm/farm.ts`'teki tüm `get*Multiplier` fonksiyonlarının çağıranı yok; `domain/staff/` tamamen bağlanmamış |
-| **Bağlanmamış domain modülleri** | tournament, club, ranking, season, progression, breeding/genetics — mantık + spec var, controller/use-case/repository yok |
-| **Placeholder sayfalar** | `/club`, `/farm`, `/leaderboard` yalnızca `<ComingSoon>` render eder |
-| **Bağlanmamış iskeletler** | `RaceAudioManager`/`html-audio-backend`, `GltfAssetLoader` — hiçbir yerden import edilmiyor; `PlayerDemoWidget.tsx` hiçbir sayfada mount edilmiyor. (**`DustParticles` ve `PedigreeTree` artık BAĞLI** — 27.09.2026, bkz. §13 ve §13.2) |
-| **PWA nominal** | `public/manifest.json` → `icons: []`, `layout.tsx`'ten link'lenmiyor, `next-pwa` yok |
-| **`notification.new`** | WebSocket olayı planlandı, uygulanmadı |
+| ~~**Müzayede ilanı yok**~~ | **KAPANDI (02.10.2026, §13.60)** |
+| ~~**Jokey bağlanmamış**~~ **KAPANDI (§13.30, PHASE 6.2, 29.09.2026)** | `calculateJockeySkillComposite` artık motora girer; `race_entries.jockey_id` kilit anında yazılır. **02.10.2026:** `calculateJockeyHorseCompatibility` (mizaç bileşeni dahil) BAĞLANDI (§13.62). **AÇIK KALAN:** `gatePosition` hâlâ okunmuyor |
+| ~~**Jokey serbest bırakma yolu yok**~~ | **KAPANDI (29.09.2026)** — `POST /jockeys/:jockeyId/release` |
+| ~~**Çiftlik/personel çarpanları bağlanmamış**~~ | **KAPANDI (01.10.2026)** — personel §13.42, tesisler §13.54 (veteriner merkezi bilinçli etkisiz: bakım ücretsiz) |
+| ~~**Bağlanmamış domain modülleri**~~ | **KAPANDI (30.09–01.10.2026):** turnuva §13.35, kulüp §13.41, sezon §13.43, ilerleme §13.40, yetiştirme §13.4 — hepsi uç + ekranla bağlı |
+| ~~**Placeholder sayfalar**~~ | **KAPANDI** — `/club`, `/farm`, `/leaderboard` gerçek ekranlar |
+| **Bağlanmamış iskeletler** | ~~`RaceAudioManager`/`html-audio-backend`, `GltfAssetLoader`~~ **01.10.2026'da BAĞLANDI** (§13.46, §13.51); `PlayerDemoWidget.tsx` hiçbir sayfada mount edilmiyor. (**`DustParticles` ve `PedigreeTree` artık BAĞLI** — 27.09.2026, bkz. §13 ve §13.2) |
+| ~~**PWA nominal**~~ | **KAPANDI (02.10.2026, §13.61)** — `app/manifest.ts` + logo yolundan üretilen ikonlar; Chromium kurulabilirlik denetimi hatasız. Service worker YOK (bilinçli: oyun çevrimiçi) |
+| ~~**`notification.new`**~~ | **KAPANDI** — olay adı `notification.created` (`race.gateway.ts`), istemci `notification-socket.ts` dinler |
 
 ### 10.2 Yapılandırma tutarsızlıkları
 
@@ -751,7 +751,7 @@ yolu yazıldı.
 
 Soy ağacı veri zincirinin **üçüncü ve son parçası**. `POST /players/:id/breeding`
 ile çiftleştirme yapılır ve **tay ANINDA doğar** (gebelik süresi modellenmez;
-`breedingCooldownDays` kısrağın BİR SONRAKİ çiftleştirmesine kadar geçen
+`breedingCooldownMonths` kısrağın BİR SONRAKİ çiftleştirmesine kadar geçen
 süredir). `domain/breeding/breeding.ts`'teki `breedHorses` bugüne kadar
 yalnızca testlerden çağrılıyordu; artık gerçek bir çağıranı var.
 
@@ -1650,7 +1650,7 @@ değer yalnızca liste boyutudur. Config dosyaları kaynak kodla birlikte
 dağıtılır; bir yetki kararını oraya koymak onu bir dağıtım hatasıyla açığa
 çıkarılabilir hâle getirirdi.
 
-**⚠️ YÖNETİCİ ATAMANIN ARAYÜZÜ YOKTUR (bilinçli).** Kendini yönetici
+**(02.10.2026 notu: rol ataması artık var — §13.69; ilk yönetici hâlâ SQL ile.)** **⚠️ YÖNETİCİ ATAMANIN ARAYÜZÜ YOKTUR (bilinçli).** Kendini yönetici
 yapabilen bir uç nokta yönetim yetkisini anlamsız kılardı. Kolon şimdilik
 elle açılır; **testler de `UPDATE players SET is_admin = true` ile yapar**
 (`gift.e2e-spec.ts`in bakiyeyi `UPDATE` ile kurmasıyla aynı yöntem).
@@ -3352,6 +3352,35 @@ oyuncunun tüm bekleyen bağlantılarını kapatır. E-posta: Resend (yerleşik
 üretimde içerik loglanmaz. **Bilinen sınır:** JWT durumsuzdur; şifre
 değişince mevcut oturumlar süreleri dolana kadar geçerli kalır.
 
+#### 13.40 XP / SEVİYE İLERLEMESİ BAĞLANDI — 01.10.2026
+
+**Bulgu:** `applyXpGain` yazılmıştı ama hiçbir yerden çağrılmıyordu —
+oyuncular ve atlar sonsuza dek Seviye 1'deydi; seviye şartlı turnuvalar
+(Gümüş 15, Altın 30) ve kariyer kademeleri ölüydü. **Çözüm:**
+`progression.xpRewards` (oyuncu/at: yarışı bitirme + ilk üç bonusu +
+antrenman). Pratik yarış (`savePracticeRaceWithStakes`) ve lobi
+kesinleşmesi (`settleLobbyRace` adım 7) XP'yi para ile aynı transaction'da
+yazar; antrenman ata `updateWithLock` içinde, oyuncuya kendi kilidiyle.
+Pratik yarış yanıtı `xpGained` taşır. Test: `progression.e2e-spec.ts` (4;
+yazım kapatılınca 2'si düşüyor). **Denge notu:** XP eğrisi
+(`100·L^1.5`) ile Sv. 15 ≈ 300 yarış — sahibin ayarlayacağı bir değer.
+
+#### 13.39 TASARIM YENİLEMESİ — tema, menü, ana sayfa, yarış ekranı — 01.10.2026
+
+Sahibin paylaştığı konsept görsellere göre. **Arayüz:** altın-lacivert tema
+(Cinzel başlık, altın çerçeveli paneller), tek satır simgeli üst bar +
+telefonda alt sekme çubuğu, ana sayfa (öne çıkan at, ahır/cüzdan/kariyer,
+yaklaşan yarışlar), ahırda atlar üstte, yarışlar sekmeli. **Yarış ekranı:**
+gökyüzü shader'ı, kum pist, beyaz korkuluk, çatılı tribün + kalabalık,
+ağaçlar, bayrak; kapsül yerine bacakları dörtnal salınan, numaralı eyer
+örtülü, formalı jokeyli prosedürel at; yayın kamerası (iç sahadan lideri
+takip); HUD: koşu bilgisi, renkli rozetli sıralama, odak at kartı (gerçek
+hız/tempo/kalan), ilerleme şeridi, pist çizgili mini harita. **Düzeltilen
+hata:** drei `<Environment preset="sunset">` HDR'yi CDN'den indiriyordu;
+indirme başarısız olunca yarış ekranı çöküyordu — artık yerel
+`<Lightformer>` ortamı. **Fotoğraf gerçekliği YOK:** gerçek at/hipodrom
+görüntüsü lisanslı `.glb`/görsel ister (CLAUDE.md kural 8).
+
 #### 13.38 GOOGLE GİRİŞİ + HESAP BAĞLAMA (migration 0048) — 01.10.2026
 
 Sunucu doğrulayıcısı (`GoogleAppleIdentityProvider`) ve `POST /auth/login`
@@ -3367,6 +3396,1186 @@ Web: `GoogleSignInButton` (GIS betiği yalnızca gerektiğinde yüklenir) →
 `/account`. **Canlıya almak için:** Google Cloud Console'da OAuth istemci
 kimliği + "Yetkili JavaScript kaynakları"na web adresi; sunucuda
 `GOOGLE_OAUTH_CLIENT_ID`. Apple: ücretli üyelik bekliyor.
+
+#### 13.41 KULÜP BAĞLANDI — 01.10.2026
+
+`domain/club` (brief §44) yalnızca birim testinden çağrılıyordu; `/club`
+"Yakında" yer tutucusuydu. **Migration 0049:** `clubs` (+`name_key` tekil) ve
+`club_members` (`player_id` BİRİNCİL ANAHTAR = tek kulüp kuralı DB'de).
+**Uçlar** (`api/club`): `GET /clubs?search=` (puana göre sıralama, LIKE
+jokerleri kaçırılır, `club.listLimit`), `GET /clubs/mine`, `GET /clubs/:id`,
+`POST /clubs` (ad/etiket DOMAIN'de doğrulanır, `club.name`/`club.tag`),
+`POST /clubs/:id/join` (kulüp satırı `FOR UPDATE` → son koltuğu iki kişi
+dolduramaz), `POST /clubs/leave` (lider ayrılamaz), `DELETE
+/clubs/:id/members/:playerId` (subay+), `POST .../role` (yalnızca lider;
+`leader` = devir, eski lider subay, `clubs.leader_id` aynı transaction'da),
+`DELETE /clubs/:id` (fesih, lider). Bütün yazma rotaları `@RateLimit`.
+**Puan:** yarış XP'si (pratik + lobi kesinleşmesi) kulüp puanına ve üyenin
+katkısına aynı transaction'da yazılır; seviye `levelThresholds`ten.
+**Bulunan hata:** ad tekilliği ilk sürümde `lower(name)` idi — `C` yerel
+ayarında Türkçe büyük harfler küçülmediği için "IŞIK ÜÇLÜSÜ" ile "Işık
+Üçlüsü" iki ayrı kulüp olabiliyordu; e2e yakaladı, `clubNameKey`e geçildi.
+Kanıt: `club.e2e-spec.ts` (7), `test/domain/club/club.spec.ts` (21); tam
+paket temiz DB'de 138 dosya / 2225 test.
+
+#### 13.42 PERSONEL BAĞLANDI — 01.10.2026
+
+`staff` tablosu (migration 0012) ve `domain/staff` DOMAIN ONLY idi; yeni
+migration GEREKMEDİ. **Uçlar** (`api/staff`, oyuncu token'dan): `GET /staff`
+(kadro + aday pazarı + kapasite; havuz rol başına `market.candidatesPerRole`
+adaya tamamlanır), `POST /staff/:id/hire`, `POST /staff/:id/renew`,
+`POST /staff/:id/release`. **Para:** sözleşme peşin (`salary ×
+contractMonths`), `staff_contract` defter satırı aynı transaction'da; kilit
+sırası `staff` → `players`; kapasite (`staff_building`) `players` kilidinden
+SONRA sayılır (aynı oyuncunun eşzamanlı iki kiralaması kapasiteyi aşamaz).
+Tekrar koruması durumla: sahipli aday 409 `STAFF_ALREADY_HIRED`, erken
+yenileme 409 `STAFF_RENEWAL_NOT_DUE`; süresi dolmuş sözleşme yenilenince
+yeni dönem ŞİMDİ başlar (ölü günlere ödeme yok). Bırakma iade etmez, deftere
+yazmaz. **Etkiler:** antrenör → antrenman `trainerFactor` (motor kancası
+FAZ 1'den beri hazırdı, hep 1'di); seyis/veteriner/nalbant → ilgili bakım
+eyleminin bütün deltaları. Yanıtlara `staffMultiplier` eklendi, ekranlar
+gösterir. Kanıt: `staff.e2e-spec.ts` (7; antrenör bağlantısı koparılınca
+test düşüyor — doğrulandı), domain `staff.spec.ts` + `care.spec.ts`; tam
+paket temiz DB'de 139 dosya / 2237 test.
+
+#### 13.43 SEZON BAĞLANDI — 01.10.2026
+
+`domain/season` DOMAIN ONLY idi. **Migration 0050:** `seasons` (numara,
+pencere, `rewards_paid_at`). Sezon skoru için tablo YOK: sıralama genel
+sıralamanın formülüyle (`sumRankingScores` + `buildLeaderboard`), yalnızca
+`races.start_time` pencere içindeki dereceli kayıtlardan türetilir.
+`GET /seasons/current` güncel sezonu (yoksa ardışık olarak açar), ilk
+`season.leaderboardSize` satırı, çağıranın satırını, ödül tablosunu ve
+önceki sezonun podyumunu döner. **Ödül (PARA YOLU):** `SeasonScheduler`
+(`season.schedule`) bitmiş ve ödenmemiş sezonu `FOR UPDATE` kilitler,
+`rewardsByRank`e göre (eşit puan = eşit sıra = eşit ödül) bakiye + `season_reward`
+defter satırı + `rewards_paid_at`i aynı transaction'da yazar; ikinci tur
+hiçbir şey ödemez. Web: `/leaderboard` "Genel / Sezon" sekmeleri, kalan
+süre, sıran ve olası ödülün; tablo mobilde yatay kaydırılır. Kanıt:
+`season.e2e-spec.ts` (3); tam paket temiz DB'de 140 dosya / 2242 test.
+
+#### 13.44 3D YOL HARİTASI ADIM 1-2 — VARLIK HATTI + OYUNCUNUN ATI (01.10.2026)
+
+Varlık denetimi: depoda HİÇBİR 3D/doku/HDRI/ses dosyası yok; at, jokey,
+tribün prosedürel PLACEHOLDER. **Adım 1 (hat):** yerel Draco/KTX2 çözücüleri
+(drei'nin gstatic CDN varsayılanı kapatıldı), `asset-pipeline.ts`
+(yoklama + önbellek + `useMissingAssetPaths`), `GltfAssetLoader` (dosya
+yoksa denemez; `children(gltf, clips)`), manifest'e ahır ortamı, HDRI, üç
+PBR doku ve ahır sesi eklendi; `resolveAnimationClips` rol → klip adı;
+`PlaceholderBadge`. **Adım 2 (oyuncunun atı):** migration 0051 görünüş
+sütunları (CHECK = shared-types sabitleri, test migration'ı okur); eski
+atlar özetten tekdüze, yeni atlar config ağırlıklarıyla, taylar ebeveyn
+donundan. `Horse.appearance` API'de döner. `deriveHorseDemeanor` (sakat >
+keyifsiz > yorgun > durgun > enerjik > nötr) → `HorseModel` bekleme
+davranışı (nefes, baş, kuyruk, ağırlık aktarma, kulak) + don/işaret
+renkleri. `/stable` kartında "3D Önizle" (`HorseShowcase`, yörünge kamera,
+dışarıya istek YOK — tarayıcıda doğrulandı). Kanıt: `appearance.spec.ts`,
+`horse-appearance.e2e-spec.ts`, `breeding.e2e-spec.ts` kalıtım iddiası,
+web `horse-demeanor`/`coat-palette`/`asset-pipeline`/`asset-manifest`
+testleri; API 142/2253, web 32/452, `next build` geçti. **Görsel sıçrama
+gerçek GLB'lere bağlıdır** (adım 4+).
+
+#### 13.45 3D YOL HARİTASI ADIM 3 — ANA SAYFA 3D VİTRİN (01.10.2026)
+
+Ana sayfanın CSS degrade + SVG pist çizgili hero'su kaldırıldı; yerine
+`HomeHero` + `HomeScene3D`: hipodrom (`TrackScenery` — pist, korkuluk,
+instanced tribün kalabalığı, kuleler, ağaçlar), önde oyuncunun atı (görünüş
++ durum → bekleme davranışı, jokeyli, numarasız), iç sahada PLACEHOLDER
+ahır. Kamera 6 çekim (Hipodrom, At, Yakın Çekim, Ahır, Pist, Jokey) —
+config'ten, yumuşak geçişli; HUD'da çekim seçici + durdur/başlat. HUD:
+atın adı, ırk/cinsiyet/seviye, ruh hâli, 4 değer; "Yarışa Katıl" / "Ahır"
+(oyuncu yoksa "Oyuna Başla"). PLACEHOLDER rozeti 5 bekleyen varlığı
+listeler (mobilde yalnızca sayı). Kalite kademesi yarış sahnesiyle aynı
+algılayıcıdan (`detect-quality-tier.ts`). Bulunan iki hata: prosedürel atın
+başı geriye bakıyordu (düzeltildi); ışık kulesi ve ahır genel planı
+kapatıyordu (at kuleler arasına alındı). Tarayıcıda 1440 ve 390 px'de
+doğrulandı: dışarıya istek yok, konsol hatası yok, yatay taşma yok. Kanıt:
+`showcase-camera.spec.ts` (10); web 33/462; `next build` (ana sayfa 15.3 kB).
+
+#### 13.46 3D ADIM 4 — AT + JOKEY GLB BAĞLAMA (01.10.2026)
+
+Gerçek varlık hâlâ yok (lisans kararı sahipte); bu adım dosya konduğu anda
+her sahnenin gerçek modele geçmesini sağlar. `HorseAvatar3D` üç sahnenin
+ortak bileşeni oldu. Manifest'e `binding` sözleşmesi (ileri eksen, hedef
+boy, renklendirilecek malzemeler, jokey kemikleri/oturma noktası).
+`model-fit.ts` (saf), `asset-inspect.ts` (saf GLB/HDR/KTX2/MP3 doğrulama) +
+`npm run assets:check`. Tarayıcıda GEÇİCİ bir test GLB'si (Z'ye bakan kutu,
+"Coat" malzemesi, "Idle" klibi — testten sonra silindi, repoya girmedi) ile
+doğrulandı: model döndürüldü, 2.5 m'ye ölçeklendi, zemine oturdu, don rengi
+uygulandı, rozetten düştü. Kanıt: `model-binding.spec.ts` (10; sentetik GLB
+bellekte üretilir); web 34/472.
+
+#### 13.47 3D ADIM 5 — HİPODROM ORTAMI + TRİBÜN KALABALIĞI (01.10.2026)
+
+`HippodromeSurroundings` (yarış + ana sayfa): `hippodrome-environment.glb`
+varsa kendi koordinatıyla (manifest `keepOrigin`) yerleşir ve prosedürel
+tribün/kule/ağaçların yerini alır; pist/korkuluk/çim her durumda oyunun.
+Kalabalık artık yarışın gerçek ilerlemesine tepki verir:
+`computeCrowdExcitement` (öncesi sakin → koşu → final düzlüğü → bitiş
+coşkusu, sonra söner), `spectatorLift` (eşik üstünde ayağa kalkma +
+heyecanla büyüyen zıplama). Performans: güncelleme `animationHz` ile
+seyreltilir, kamera tribünden uzaksa durur (LOD), kalite kademesi koltuk
+yoğunluğunu düşürür (low %35). Kanıt: `race-atmosphere.spec.ts` (5);
+demo yarışta tarayıcıda doğrulandı. Billboard dokusu (`crowd-billboard.
+ktx2`) bu adımda BAĞLANMADI: dokunun atlas düzeni paket gelmeden
+bilinemez; kalabalık bugün instanced kutulardır (PLACEHOLDER).
+
+#### 13.48 3D ADIM 6 — AHIR SAHNESİ (01.10.2026)
+
+`/stable` artık bir 3D ahır bölmesiyle açılır: seçili at (varsayılan öne
+çıkan at) bölmesinde, gerçek görünüş + durumdan gelen bekleme davranışıyla
+durur; sıcak fener + kapı ışığı, temas gölgesi, sınırlı yörünge kamera.
+Ortam GLB'si yoksa `PlaceholderStall` (ahşap duvar, yarım kapı, saman,
+yemlik, kova, eyer askısı, balyalar) + PLACEHOLDER rozeti. Kart başına
+Canvas açan eski "3D Önizle" kaldırıldı; kartlardaki "Ahırda Göster"
+sahneye at seçer (sayfada tek WebGL bağlamı). Tarayıcıda 1440/390 px
+doğrulandı: dışarıya istek yok, hata yok, taşma yok.
+
+#### 13.49 3D ADIM 7 — IŞIK (01.10.2026)
+
+Ortak `SceneRenderSettings` (ACES ton eşleme, `lighting.config.json`
+pozlaması, ultra'da PCSS yumuşak gölge) + `SCENE_GL_OPTIONS` üç sahnede.
+Bloom değerleri config'ten, ölçülü (eşik 0.85, yoğunluk 0.3); ana sayfaya
+yüksek/ultra kademede bloom ve atın altına temas gölgesi eklendi.
+`HdriEnvironment`: `public/hdri/golden-hour.hdr` varsa dış mekânda gökyüzü +
+ortam ışığı, ahırda yalnızca ortam/yansıma; yerel, yoklanmış, hata sınırlı
+(CDN `preset` yasağı `lighting.spec.ts` ile kaynak taranarak kilitli).
+Geçici bir test HDR'si ile tarayıcıda doğrulandı (sonra silindi).
+
+#### 13.50 3D ADIM 8 — YARIŞ ENTEGRASYONU (01.10.2026)
+
+`StartGate`: `start_gate.glb` varsa `open` klibiyle, yoksa şerit ofsetlerine
+dizilmiş prosedürel bölmeler; kapılar yarış başlayınca açılır (`gateOpen`,
+süre `vfx.config.json` `startGate.openSeconds`). Toz artık yüzeye bağlı
+(çim < sentetik < kum), atın gerçek hızıyla (`HorseDust`, konum farkından)
+ve kamera uzaklığıyla ölçeklenir (`dustSpawnRate`, saf + test). Pist rengi
+de yüzeye göre. `/races/demo`da tarayıcıda görüldü (kapı + kalabalık);
+toz yazılımsal GPU'da düşük kademede seyrek görünür.
+
+#### 13.51 3D ADIM 9 — SES (01.10.2026)
+
+`RaceAudioManager` (önceden hiçbir yerden çağrılmıyordu) artık iki yarış
+izleyicisine ve ahıra bağlı. Olaylar (`race_start`/`gate_open`/
+`start_signal`/`overtake`/`final_stretch`/`finish`/`winner`) oynatma
+durumundan saf `deriveRaceAudioCues` ile türetilir; ses yarış ortasında
+açılırsa geçmiş tek seferlik sesler çalınmaz, geri sarma döngüleri susturur,
+lider değişimi `overtakeCooldownMs`ten sık çalmaz. Kalabalık döngüsü
+heyecanla ölçeklenir (`crowdExcitementMinFactor`), nal sesi lider hızıyla
+(`hoofbeat.referenceSpeedMps`). Arka uç her yolu HEAD ile yoklar — `public/`
+boş olduğu için bugün her ses sessizce düşer (tarayıcıda doğrulandı: yalnızca
+HEAD istekleri, GET/uyarı yok). Varsayılan sessiz; düğme tercihi saklar.
+**Ses dosyası YOK (PLACEHOLDER)** — manifestteki yollara konunca çalar.
+
+#### 13.52 3D ADIM 10 — PERFORMANS + MOBİL + CİLA (01.10.2026)
+
+Ortak kalite kaynağı `useQualityTier` (ana sayfa, yarış, ahır): oyuncu
+seçimi tarayıcıda saklanır ve açık sahneler arasında eşitlenir; "Otomatik"te
+cihaz algılamasıyla başlar, kare hızı `lowerFps` altına düşerse çalışma
+anında kademe iner (`performance.config.json`; saf mantık
+`resolveQualityTier`, test `quality-preference.spec.ts`). Yarış ve ahırda
+ses + kalite düğmeleri (`scene-controls`). 390 px genişlikte yarış/ahır/ana
+sayfa yatay taşma yok, dış istek yok (tarayıcıda doğrulandı); `next build`
+temiz.
+
+**3D YOL HARİTASI (10 ADIM) KOD OLARAK TAMAM.** Görüntü hâlâ prosedürel
+PLACEHOLDER'dır: gerçek `.glb`/HDRI/ses dosyaları `asset-manifest.ts`teki
+yollara konunca kod değişmeden devreye girer (`npm run assets:check`
+boyut/üçgen/klip denetler). **Bekleyen karar: varlık kaynağı (CC0 mi,
+ücretli/özel üretim mi).**
+
+#### 13.53 YARIŞ TAKVİMİ (01.10.2026, migration 0052)
+
+Oyuncu yarış açmasa da lobi boş kalmasın: `race-lobby.config.json` →
+`calendar` (`horizonHours` 3, `minLeadMinutes` 10, üç program: Kum Sprint
+30 dk, Çim Mil 60 dk, ücretsiz Açık Koşu 20 dk). `RaceCalendarScheduler`
+(`TournamentScheduler` deseni, testte kapalı) her tur
+`ScheduleRaceCalendarUseCase`i çağırır: başlangıcı geçmiş katılımsız takvim
+yarışlarını iptal eder, sonra penceredeki açılmamış yuvaları açar. Yarış
+sıradan lobi yarışıdır — giriş ücreti, READY, bot dolgusu, kilit ve
+kesinleşme değişmedi. Her yuva oyuncunun kuralından
+(`validateRaceCreation`) geçer; geçemeyen program loglanır ve açılmaz.
+Tekrar koruması yuva PK'sı + `pg_advisory_xact_lock` (eşzamanlı iki tur
+testte). Lobi satırı `calendar.programId` taşır; `LobbyPanel` "Takvim
+yarışı" etiketi gösterir. Test: `race-calendar.spec.ts` (saf),
+`race-calendar.e2e-spec.ts` (4 senaryo; iptal adımı kapatılınca düştüğü
+doğrulandı), `race-calendar-scheduler.spec.ts` (`enabled` okunuyor).
+
+#### 13.54 ÇİFTLİK TESİSİ ETKİLERİ (01.10.2026)
+
+Bulgu: `domain/farm`taki altı çarpanın hiçbiri çağrılmıyordu; yalnızca
+personel binası (kapasite) işliyordu. Oyuncu 4.000–55.000 para ödeyip etkisiz
+tesis alıyordu — personeldeki "işe yaramayan şey satma" sorununun aynısı.
+Bağlandı: padok → `rest` bakım deltaları (`farmMultiplier` yanıtta), antrenman
+pisti × nalbant alanı → antrenman sakatlık olasılığı (kaydedilen risk de
+tesis sonrası değer), depo → yem satın alma TOPLAMI (`discountedTotal`:
+yukarı yuvarlama, kayan nokta artığı temizlenir; `totalCost` yanıtta ve
+defterde aynı; yem listesinde `discountPercent`), üreme merkezi → tayın doğum
+sağlık riski. **Veteriner merkezi bağlanamaz:** "tedavi maliyeti" düşürür
+ama bakım ücretsizdir → `inactiveFacilities`, inşa 409 `FACILITY_INACTIVE`,
+ekranda "şu an etkisiz". Bakım ücretli yapılırsa (sahibin kararı) listeden
+çıkarılıp bağlanır. Test: `farm.spec.ts` (+ kapalı küme), `breeding.spec.ts`,
+`farm-effects.e2e-spec.ts` (depo/padok/veteriner; depo ve padok bağlantısı
+kapatılınca düştüğü doğrulandı).
+
+#### 13.55 OYUNCU KONTROLLÜ PRATİK YARIŞ (01.10.2026, migration 0053)
+
+Sahibinin talebi: "atı kullanıcı kendisi koştursun — yön verme, kırbaçlama".
+Karar: önce pratik yarış; kırbaç sınırsız, dayanıklılık bedelli.
+
+- **Motor:** her 200 m'lik segmentte jokey kararı zaten vardı; oyuncu komutu
+  bu kararın yerine geçer (kırbaç → finişe zorla, bonus dayanıklılıkla
+  orantılı × `kırbaç^0.5`, bedel dayanıklılık + kalıcı yorgunluk; sakin →
+  −4 hız, dayanıklılık ×0.6; sol/sağ → kulvar ±1). Denge ölçüldü:
+  `RACE_BALANCE_REPORT.md` §9. Komutsuz yarış bit bit eskisiyle aynı (120 yarışlık parmak izi
+  testi); `race.config.json` 1.3.0 (`playerControl`).
+- **Canlı oturum:** `POST /horses/:id/interactive-race` (ücret hemen,
+  defter), `GET /interactive-races/current|:id` (yalnızca gösterilmiş
+  segmentler; sonuç ve tohum yarış bitmeden GİTMEZ), `POST .../commands`
+  (`{control}`), `POST .../finish`. Segment `j`, lider ona başlamadan
+  `revealLeadMs` önce gösterilir; komut ilk gösterilmemiş segmente düşer
+  (kilit altında hesaplanır). `interactive-race.config.json`: geri sayım,
+  `timeScale` 2, zamanlayıcı.
+- **Ekran:** `features/ride/InteractiveRaceViewer` — tam ekran 3D, sunucu
+  saatine göre oynatma, dört düğme + klavye, dayanıklılık çubuğu, kamera
+  seçimi, sonuç kartı. Sayfa yenilenince süren yarış geri gelir.
+- **Kanıt:** motor testleri (parmak izi, önek, kırbaç/kulvar/sakin), e2e 5
+  senaryo (ücret, tek oturum, at kilidi, komut hedefi, geçmiş değişmez,
+  erken kesinleşme 409, ödül tek sefer, terk → zamanlayıcı). Komut gösterilmiş
+  segmente yazdırılınca "geçmiş değişmez" testinin düştüğü doğrulandı.
+  Tarayıcıda masaüstü + 390 px uçtan uca koşuldu (sonuç ekranı dahil).
+- **Açık:** ~~lobi/turnuva yarışları kontrollü değil~~ → §13.56. Kırbaç
+  dengesi config'ten ayarlanır.
+
+### 13.56 Kontrollü lobi/turnuva yarışı (01.10.2026, migration 0054)
+
+- **Veri:** `races.player_control` + `races.live_starts_at`;
+  `race_entries.player_commands` (JSONB, segment → komut).
+- **Akış:** kilit kadroyu + tohumu dondurur ve kontrollü yarışta
+  `live_starts_at = kilit + startCountdownSeconds` yazar. Katılımcı
+  `GET /races/live/current` ile canlı yarışını bulur (`/races` 5 sn'de bir
+  yoklar ve sürüş ekranını açar), komutlarını gönderir; segmentler pratik
+  yarışla AYNI açıklama kuralıyla gösterilir. Koşu bitince `…/live/finish`,
+  crank ya da zamanlayıcı kesinleştirir; motor herkesin komutlarını
+  `playerCommands` olarak alır. Kopan oyuncunun atını AI jokey sürer.
+- **Kurallar:** uçlar yalnızca katılımcıya (yoksa 404, varlık sızdırmaz);
+  canlı koşu bitmeden kesinleşme 409 `InteractiveRaceNotFinishedError`;
+  `GET /races/:id/timeline` tohumu yalnızca `finished` yarışta döner
+  (önceden kilitli yarışın tohumu sızıyordu).
+- **Yan düzeltmeler:** `JoinRaceDto` taktik alanları `@IsOptional()` (gerçek
+  sunucu taktiksiz katılımı 400'lüyordu; esbuild e2e'de görünmez —
+  `test/api/join-race-dto.spec.ts`), lobi formunun en kısa gecikmesi sunucu
+  alt sınırına hizalandı.
+- **Kanıt:** `lobby-live-race.e2e-spec.ts` (kalan-süre kapısı kapatılınca
+  düştüğü doğrulandı), `tournament.e2e-spec.ts` (canlı başlangıç geriye
+  çekilerek), web `lobby-logic.spec`. Tarayıcıda form → katıl → hazır →
+  kilit → sürüş ekranı → sonuç kartı uçtan uca koşuldu.
+
+### 13.57 Bekleyen tribün — bitmemiş yarışa abonelik (01.10.2026)
+
+- **Hata:** `race.subscribe` bitmemiş yarışta boş bir oynatma oturumu
+  kuruyordu; 4 sn sonra sıra bilgisi olmayan `race.finished` yayınlanıyor ve
+  oturum 60 sn önbellekte kalıyordu. O sürede (kesinleşmeden sonra bile)
+  gelen izleyici yarışı göremiyordu. Kontrollü yarışta (§13.56) pencere
+  dakikalar sürdüğü için görünür hâle geldi.
+- **Düzeltme:** gateway önce `GetRaceTimelineUseCase.pollForPlayback` ile
+  durumu sorar (`findRaceStatus`). Bitmemiş yarışta oda + sohbet + kadro +
+  `race.waiting`; `spectatorWaitPollSeconds` (race-lobby config) aralığıyla
+  yoklanır; kesinleşince `createPlaybackSession` odaya yayınlar; iptalde
+  `race.cancelled`. İzleme ekranı iki durumu bir bildirimle gösterir.
+- **Kanıt:** `race-spectator-wait.e2e-spec.ts` (eski abonelik koduyla iki
+  test de düşüyor; iptal senaryosu gerçek zamanlayıcıyla).
+- **Açık:** ~~kontrollü yarış canlı koşarken tribün segmentleri ANINDA görmez~~
+  → §13.58.
+
+### 13.58 Canlı tribün — kontrollü yarışı izlemek (01.10.2026)
+
+- **Uç:** `GET /races/:id/live/spectate` → `LobbyLiveRaceUseCase.spectate`.
+  Kontrollü + `locking`/`finished` değilse 404; yetki `assertCanWatch`
+  (zaman çizelgesinden ÇIKARILDI, iki uç aynı kapıyı kullanır: katılımcı /
+  ücretsiz tribün / bilet → yoksa 403 `RACE_TICKET_REQUIRED`).
+- **Görünüm:** `InteractiveRaceView.role` (`rider` | `spectator`). Tribün
+  görünümü komut, `canFinish` ve sonuç taşımaz; segmentler oyuncunun
+  gördüğü sınırla AYNIDIR.
+- **Ekran:** `/races/:id/watch` canlı yarışta sürüş ekranını tribün modunda
+  açar (kontrol düğmesi yok, rozet lideri gösterir, sonda kazanan + "Tekrarı
+  izle"). Kazanan `finishOrder` (son segment zamanı) ile bulunur — bitişte
+  mesafe eşittir.
+- **Yan düzeltme:** izleme sayfası doğrudan açılınca girişli oyuncuya "hesap
+  oluştur" diyordu (token ilk render'da okunuyordu) → `usePlayer`.
+- **Kanıt:** `lobby-live-race.e2e-spec.ts` "CANLI TRİBÜN" (yetki kapısı
+  kaldırılınca düştüğü doğrulandı), web `ride-logic.spec` `finishOrder`.
+  Tarayıcıda: bekleme bildirimi → kilit → canlı tribün (kontrol yok) →
+  kazanan kartı → tekrar oynatma (aynı kazanan).
+- **At adları (02.10.2026):** canlı görünüm (sürücü + tribün) "Oyuncu 1 /
+  Rakip 2" yerine gerçek at adlarını (`horses.name`, bağlam sorgusunda JOIN)
+  ve botların tekrar oynatmadaki etiketlerini (`bot-2`) gösterir — canlı
+  ekran ile tekrar aynı adları kullanır. Kanıt: aynı e2e'de ad iddiaları.
+- **Not:** her yoklama yarışı yeniden simüle eder (oyuncu görünümüyle aynı);
+  çok kalabalık tribünde önbellek gerekebilir.
+
+### 13.59 Canlı görünüm önbelleği + çok oyunculu kontrol dengesi (02.10.2026)
+
+- **Önbellek:** sürücü ve tribün saniyede bir yoklar; her yoklama yarışı
+  baştan koşturuyordu. `LobbyLiveRaceUseCase.liveTimeline` sonucu
+  `BoundedCache`te (LRU, `liveRunCacheEntries`) tutar; anahtar yarış + tohum
+  + tüm katılımların komutları. Tohumsuz/dondurulmamış kadroda önbellek yok.
+  Kesinleşme kendi simülasyonunu koşar (önbellekten okumaz).
+  Kanıt: `test/api/lobby-live-race-cache.spec.ts` (anahtardan komutlar
+  çıkarılınca düştüğü doğrulandı; 0 → kapalı).
+- **Denge:** yön komutu ve 1–4 sürücülü saha ölçüldü — sömürü yok, avantaj
+  birden çok sürücüde küçülüp kalıyor, beceri ödüllendiriliyor
+  (`RACE_BALANCE_REPORT.md` §9.1). Kilitler `race-engine-player-control.spec.ts`.
+
+### 13.60 Müzayede + pazarda satış ekranı (02.10.2026, migration 0055)
+
+- **Model:** `market_bids` emanet modeli. Teklif anında para düşer
+  (`auction_bid_hold`), geçilen teklif aynı transaction'da iade edilir
+  (`auction_bid_refund`), kapanışta satıcıya geçer (`auction_sale_credit`).
+  Kanonik türler: hold/credit → MARKET, refund → REFUND.
+- **Kurallar (saf, `domain/market/auction.ts`):** ilk teklif ≥ başlangıç
+  fiyatı; sonraki ≥ mevcut + max(⌈mevcut × %5⌉, 10) (`economy.auction`).
+  Satıcı kendi ilanına teklif veremez; sabit fiyatlıya teklif, müzayedeye
+  "hemen al" yok; müzayede bitişsiz açılamaz; teklif almışsa iptal edilemez.
+- **Kapanış:** `AuctionSettleScheduler` (`economy.auction.settleScheduler`).
+  Satış gerçekleşemezse (at el değiştirmiş, alıcının ahırı dolu, at açık
+  yarışta) emanet iade + `expired`; teklifsizse `expired`. Kapanış satır
+  kilidiyle korunur — ikinci tur ikinci ödeme yapmaz.
+- **Tuzak kapatıldı:** pazarın tembel süre süpürmesi ve satın alma yolu
+  müzayedeyi `expired` yapsaydı teklif emaneti askıda kalırdı; ikisi de
+  artık müzayedeyi atlar.
+- **Ekran:** `/market` — bu tarihe kadar web'de ilan AÇMA yolu YOKTU
+  (yalnızca satın alma). Artık "Atımı Sat" (sabit fiyat / müzayede, süre),
+  teklif kutusu (varsayılan sunucunun `minimumNextBid`i), "Öndesin" rozeti,
+  ilan kaldırma ve at adları (`horseName`; eskiden "At ID: uuid").
+- **Kanıt:** `market-auction.e2e-spec.ts` (5 senaryo: kurallar, emanet/iade/
+  tekrar, süpürme kapalı, kapanış + defter mutabakatı, iade yolu, eşzamanlı
+  teklif) — süpürme koruması ve iade satırı ayrı ayrı bozulunca düştüğü
+  doğrulandı; `test/domain/market/auction.spec.ts`; web `market-logic.spec`.
+  Tarayıcıda: satıcı formla müzayede açtı, alıcı (390 px) teklif verdi,
+  bakiye emanet kadar düştü, "Öndesin" göründü.
+- **Bildirimler (migration 0056):** geçilen teklif sahibine `auction_outbid`
+  (iade tutarı + yeni en düşük teklif; kendi teklifini yükseltene gitmez),
+  kapanışta `auction_won`/`auction_sold`, satışsız bitişte satıcıya
+  `auction_unsold`, iade yolunda alıcıya `auction_refunded`. Hepsi para
+  hareketiyle aynı transaction'da; `/notifications` metinleri ve bağlantıları
+  (pazar/ahır/cüzdan) eklendi. CHECK kısıtı adıyla düşürülüp genişletildi;
+  kapalı küme testi artık CHECK'i yazan EN SON migration'ı okur.
+
+### 13.61 PWA — ana ekrana kurulabilir (02.10.2026)
+
+- `public/manifest.json` hiçbir sayfaya bağlı değildi ve ikonu yoktu (silindi).
+  Yerine `app/manifest.ts` (`/manifest.webmanifest`, Next `<head>`e bağlar).
+- İkonlar DOSYA DEĞİL: `HorseHeadIcon`un `HEAD_PATH`/`MANE_PATH` yolları
+  `next/og` ile PNG'ye çevrilir — `/pwa-icon/192|512` (any + maskable, logo
+  %62 → güvenli bölge), `app/icon.tsx` (favicon), `app/apple-icon.tsx` (iOS).
+  Uydurma/lisanssız görsel yok (kural 8); logo değişirse ikon da değişir.
+- iOS: `metadata.appleWebApp`. Service worker bilinçli olarak YOK (sunucu
+  otoritesi — çevrimdışı oyun anlamsız; önbellek bayat bakiye gösterirdi).
+- Kanıt: web `pwa.spec.ts`; üretim sunucusunda manifest + ikonlar 200,
+  yanlış ölçü 404; Chromium `Page.getInstallabilityErrors` → boş.
+
+### 13.62 Jokey-at uyumu bağlandı (02.10.2026)
+
+- `effectiveJockeySkill` (saf): beceri × (1 + `compatibilityInfluence` ×
+  (uyum − 50)/50). Üç yerde kadro kurulurken kullanılır: lobi
+  (`EntrantSnapshotBuilder`, ortak geçmiş `findJockeyPairAveragePerformance`),
+  pratik yarış (ortak geçmiş dahil), hızlı eşleşme (geçmiş nötr).
+- **Motor değişmedi**; değer dondurulan kadroya yazılır → eski yarışların
+  yeniden oynatması bozulmaz. Etki 0 = eski davranış.
+- Ölçüm ve gerekçe: `RACE_BALANCE_REPORT.md` §10 (≈ ±0.2 sıra).
+- Ekran salt beceri puanını göstermeye devam eder: uyum gizli mizaca bağlıdır,
+  sayısal göstermek gizli stat'ı sızdırırdı.
+- Kanıt: `test/domain/jockey/effective-jockey-skill.spec.ts`; `jockey.e2e-spec.ts`
+  motora giren değeri bağımsız girdilerle yeniden hesaplar ve salt beceriden
+  farklı olduğunu iddia eder (mizaç sabitlenerek).
+
+### 13.63 Oturum: refresh token + çıkış + tüm cihazlardan çıkış (02.10.2026, migration 0057)
+
+- Eskiden tek bir 30 günlük JWT vardı: iptal edilemiyordu, sunucuda çıkış
+  yoktu, şifre sıfırlama çalınmış token'ı öldürmüyordu.
+- Şimdi erişim JWT'si kısa (`auth.session.accessTokenTtlSeconds` = 1 sa) ve
+  `sid` taşır; refresh token rastgeledir, DB'de yalnızca SHA-256 özeti
+  (`auth_sessions`), HER yenilemede döner. Önceki token tekrar sunulursa
+  oturum `reuse_detected` ile kapanır (çalıntı tespiti).
+- `AuthGuard` ve soket el sıkışması TEK sorguyla (`players` ⟕ `auth_sessions`)
+  oturumun açık ve hesabın var olduğunu denetler → çıkış ANINDA etkilidir.
+  Var olmayan oyuncunun token'ı artık 401 (eskiden 404'e kadar iniyordu).
+- Eski (`sid`siz) token'lar reddedilmez (misafirin hesabı onda); web açılışta
+  `POST /auth/session` ile yükseltir. `players.tokens_valid_after` tüm
+  cihazlardan çıkışta ve şifre sıfırlamada eski token'ları da keser.
+  Şifre sıfırlama tüm oturumları AYNI transaction'da kapatır.
+- Uçlar: `POST /auth/refresh` (`@Public`), `/auth/session`, `/auth/logout`,
+  `/auth/logout-all`, `GET /auth/sessions`, `DELETE /auth/sessions/:id`
+  (başkasınınki 404). `maxActiveSessionsPerPlayer` aşılınca en eski kapanır.
+- Soket kimlik doğrulaması `afterInit` ara katmanına taşındı: async kapı
+  `handleConnection`da beklenince bağlanır bağlanmaz gelen `race.subscribe`
+  reddediliyordu (yaşandı). Reddedilen istemci artık `connect_error` alır.
+- Web: 401 → tek uçuşlu yenileme + bir kez tekrar; bitişten 60 sn önce
+  proaktif yenileme; sekmeler arası `navigator.locks`. **Oturum yalnızca 401'de
+  silinir** — eskiden HER hata (ağ kopması dahil) misafir hesabını
+  kaybettiriyordu; "Oyuncu oluştur" depodaki çözülmemiş oturumu ezmez.
+  `/account` → "Oturumlar" paneli (kayıtlı hesapta).
+- Kanıt: `test/api/auth-session.e2e-spec.ts`, `test/domain/auth/session.spec.ts`,
+  `realtime.e2e-spec.ts` (çıkmış token soket açamaz), web
+  `player-context.spec.tsx` / `session-logic.spec.ts` / `api-client.spec.ts`;
+  tarayıcıda yerel Playwright ile uçtan uca denendi.
+
+### 13.64 E-posta doğrulama (02.10.2026, migration 0058)
+
+- `player_credentials.email_verified_at` + `email_verification_tokens`
+  (yalnızca SHA-256 özet, hedef e-posta, tek kullanımlık, 48 sa —
+  `auth.emailVerification`). 0058 öncesi kayıtlar doğrulanmamış görünür ve
+  bağlantı isteyebilir; veri bozulmaz.
+- Kayıt (`POST /auth/credentials`) doğrulama e-postasını kendiliğinden yollar;
+  gönderim hatası kaydı BOZMAZ (yalnızca loglanır, bağlantı loglanmaz).
+- `POST /auth/email/verification` (oturumlu; `sent: false` = kısa aralıkta
+  tekrar; misafir 409 `NO_ACCOUNT_EMAIL`, doğrulanmış 409
+  `EMAIL_ALREADY_VERIFIED`) · `POST /auth/email/verify` (`@Public`; geçersiz /
+  süresi dolmuş / kullanılmış / e-posta değişmiş → TEK 400
+  `INVALID_VERIFICATION_TOKEN`). `GET /auth/credentials` → `emailVerified`.
+- Web: `/account` rozeti + "tekrar gönder"; `/account/verify` doğrulamayı
+  DÜĞMEYLE yapar (JS çalıştıran e-posta tarayıcıları tek kullanımlık
+  bağlantıyı tüketmesin).
+- **Bugün hiçbir özelliği kapatmaz** — yalnızca sahipliği kaydeder. Bilinen
+  açık: başkasının e-postasıyla doğrulanmamış kayıt o adresi meşgul eder
+  (sahibi kaydolamaz); "doğrulanmamış kaydı devralma" ayrı bir karar.
+- Kanıt: `test/api/email-verification.e2e-spec.ts` (5 test); tarayıcıda uçtan
+  uca (kayıt → e-postadaki bağlantı → doğrula → rozet).
+
+### 13.65 Hesap silme (02.10.2026, migration 0059)
+
+- **Satır fiziksel olarak silinemez:** `economy_transactions` değiştirilemez
+  (0038 tetikleyicisi; CASCADE de DELETE'tir), `pvp_matches`/`admin_audit_log`
+  kısıtlar. Silme = kişisel verinin silinmesi + anonimleştirme:
+  `players.username → silinmis_<id>`, görünen ad "Silinmiş oyuncu", avatar
+  NULL, `deleted_at`. Silinenler: e-posta/şifre, Google kimliği, bekleyen
+  bağlantılar, eşleştirme bileti, bildirimler (başkalarının bu oyuncuya atıf
+  yapan bildirimleri dahil), yarış sohbeti, özel mesajlar (iki yön),
+  arkadaşlık, davet, engeller; oturumlar kapanır + cihaz etiketi silinir.
+  Defter, yarış ve hediye kayıtları anonim olarak KALIR.
+- **Parası emanette olan hesap silinemez** (409 `ACCOUNT_DELETION_BLOCKED`):
+  lider müzayede teklifi, teklif almış müzayede, açık yarış katılımı, süren
+  kontrollü yarış, süren PvP maçı, üyesi olan kulübün liderliği. Engeller
+  `FOR UPDATE` altında yeniden denetlenir (kilit sırası ilan → oyuncu);
+  reddedilen silme hiçbir şey yazmaz. Teklifsiz ilanlar iptal olur, tek
+  başına liderin kulübü kapanır.
+- Onay: kullanıcı adı + e-postalı hesapta şifre. Yanlış şifre **403**
+  (`DELETION_PASSWORD_INVALID`) — 401 istemcide oturumu sildirirdi.
+- Silinmiş oyuncu: guard/soket 401 (`authorizationState` `deleted_at IS NULL`),
+  `findById`/`findByUsername`/profil bulunamaz, genel ve sezon sıralamasına
+  girmez. Eski kullanıcı adı ve e-posta serbest kalır.
+- Uçlar: `GET /account/deletion` (engeller + şifre gerekir mi), `POST
+  /account/delete`. Web: `/account` → "Hesabı sil" paneli.
+- Kanıt: `test/api/account-deletion.e2e-spec.ts` (5); tarayıcıda uçtan uca.
+- Bilinen sınır: verdiği şikâyetlerin metni (`player_reports`) moderasyon
+  kaydı olarak kalır; açık soket bağlantısı silmede koparılmaz (yeni
+  bağlantı reddedilir).
+
+### 13.66 Üretim temeli (02.10.2026, Faz 13-A)
+
+- **Ortam kapısı:** `NODE_ENV=production`da eksik/zayıf `JWT_SECRET`,
+  `DATABASE_URL`, `REDIS_URL`, localhost `CORS_ORIGIN`/`WEB_BASE_URL` ya da
+  `DISABLE_RATE_LIMIT=true` → açılış durur (`production-env.ts`, saf).
+- **Sağlık:** `/health` canlılık (değişmedi) + `/health/ready` (DB + Redis,
+  zaman aşımlı, 503, ayrıntı sızdırmaz).
+- **İstek kimliği:** `RequestIdMiddleware` (AppModule'de → e2e de alır);
+  `X-Request-Id` başlığı + `error.requestId` + log.
+- **Sahte yatırma:** Faz 0'ın "üretimde açık" tespiti YANLIŞTI (sunucu zaten
+  kapalıydı); web formu artık `WalletView.depositAvailable`a bağlı.
+- **CI:** `security` işi (bağımlılık kapısı + gitleaks), `docker` işi
+  (üç imaj + "eksik ortamla açılmaz" duman testi). Docker yerelde YOK.
+- ⚠️ **Next 14 / Nest 10 açıkları** (Next'te uzaktan kod çalıştırma dahil)
+  yalnızca büyük sürümle kapanır; izin listesi 2026-11-01'de biter.
+  `images.unoptimized` savunma katmanıdır, etkisi yerelde gösterilemedi.
+- Belge: `docs/DEPLOYMENT.md`. Kanıt: `test/security/production-env.spec.ts`,
+  `test/api/ops.e2e-spec.ts`.
+
+### 13.67 Çerçeve yükseltmesi (02.10.2026, Faz 13-B)
+
+- **Nest 10 → 11.2.7** (express 5, multer 2.4.0) — 8 yüksek multer DoS açığı
+  kapandı. Rota jokeri `'{*path}'`.
+- **Next 14 → 16.3.8, React 19, R3F 9, drei 10, postprocessing 3** — Next'in
+  kritik uzaktan kod çalıştırma dahil tüm yüksek/kritik açıkları kapandı;
+  bağımlılık izin listesi BOŞ. `params` Promise (istemci sayfada
+  `useParams()`, rota işleyicide `await params`). Kökte eski React 18
+  kalıyordu → kök `overrides`.
+- Docker: çalışma katmanı `apps/*/node_modules`u da kopyalar (Nest 11
+  imajı `Cannot find module '@nestjs/core'` ile açılmıyordu).
+- Gitleaks: commit'ten bağımsız `.gitleaks.toml` (yalnızca
+  `Idempotency-Key: <uuid>` satırları); yol tabanlı istisna gerçek anahtarı
+  gizlediği için kullanılmadı.
+- Kanıt: tam API/web paketleri, next build, tarayıcıda üç 3D sahne + 6 sayfa.
+
+### 13.68 Yedek provası + staging + hata izleme temeli (02.10.2026, Faz 13-C)
+
+- Yedek/geri yükleme betikleri + parmak izi (satır sayıları, migration
+  listesi, defter SHA-256, bakiye toplamı); CI testlerin verisiyle prova eder.
+  Geri yükleme boş olmayan hedefi reddeder.
+- `docker-compose.staging.yml` (üretim modu, migrate → api → web) +
+  `tools/ops/smoke.mjs`; CI'da koşar.
+- Üretimde JSON log; `reportError` (değiştirilebilir raporlayıcı); web hata
+  sınırları + `POST /client-errors`.
+- Sağlayıcı seçimleri (barındırma, kayıt defteri, gizli anahtar yöneticisi,
+  Sentry, zamanlanmış yedek) SAHİBİNİN kararıdır; hiçbiri uydurulmadı.
+
+### 13.69 Roller, yaptırımlar, duyurular (02.10.2026, Faz 10 + 11-A)
+
+- Migration 0060: `players.is_moderator`, `player_sanctions` (askı süreli,
+  yasak süresiz; kaldırma `lifted_*`, silme yok), `announcements`.
+- İzinler saf `domain/admin/staff.ts`; moderatör şikâyet + oyuncu listesi +
+  süreli askı, geri kalanı yönetici. Her yazma denetim kaydıyla AYNI
+  transaction'da.
+- Askı/yasak oturum kapısında: istek, soket, giriş, yenileme → 403
+  `ACCOUNT_SUSPENDED`; yasak bütün oturumları kapatır. Web oturumu silmez,
+  sunucu mesajını gösterir.
+- Duyurular: `/admin` "Duyurular" sekmesi, üst şerit (`AnnouncementStrip`,
+  kapatılan yerel olarak hatırlanır), en fazla `maxLive` yayında.
+- YOK: at/pazar/config/kulüp/turnuva yönetimi, zamanlanmış etkinlik
+  (Faz 11-B), anormal davranış tespiti.
+
+### 13.70 Görevler + etkinlikler (02.10.2026, Faz 11-B)
+
+- Migration 0061: `live_events`, `quest_claims` (tekil talep = çift ödeme kapısı).
+- Görev tanımı config'te, ilerleme mevcut tablolardan türetilir (ikinci
+  sayaç yok). Ödül talebi kilit altında yeniden sayar; para + defter + talep
+  satırı aynı transaction'da.
+- Yönetim: `/admin` "Etkinlikler" (ölçüt × adet × ödül × pencere), arşiv.
+- Bilinen sınırlar: yarış sahibi pratik/PvP'de atın ŞİMDİKİ sahibidir (sezon
+  sıralamasıyla aynı kural); bakım ölçütü (at, iş) başına bir sayılır.
+- YOK: başarımlar (achievement), kulüp/sezon görevleri, etkinlik para birimi.
+
+### 13.71 Kişisel veri dışa aktarma (02.10.2026, Faz 1)
+
+- `GET /account/export` (3/saat, `no-store`) → 15 bölüm JSON; web `/account`
+  "Verilerimi indir". Parola/token özeti, başkalarının iç kimliği, hakkımdaki
+  şikâyet ve yaptırımı veren yönetici girmez (e2e ham yanıtta arar).
+- Faz 1'de kalan: Apple girişi (kimlik bilgisi gerekir).
+
+### 13.72 Şüpheli desenler — anti-cheat (02.10.2026, Faz 7)
+
+- `GET /admin/anomalies` (moderatör + yönetici): hediye hunisi, tekrarlayan
+  alım-satım çifti, yeni hesaptan para çıkışı. Kayıtlı olgulardan sayılır.
+- Salt okuma; otomatik ceza YOK (e2e denetim günlüğü ve yaptırım sayısının
+  değişmediğini iddia eder). Eşikler `config/anticheat.config.json`.
+- YOK: IP/cihaz parmak izi (saklanmıyor — kişisel veri kararı), satış
+  anındaki piyasa değeri (saklanmıyor → "değerinin altında satış" ölçülemez).
+
+### 13.73 Yük testi (02.10.2026, Faz 7)
+
+- `tools/ops/load-test.mjs` + CI bütçe kapısı (15 oyuncu × 4 tur).
+- Yerel ölçüm (4 çekirdek, derlenmiş API, hız sınırı kapalı):
+  25 oyuncu → 321 istek/sn, p95 395 ms, 0 hata · 100 → 378 istek/sn, p95
+  1266 ms, 0 hata · 200 → 354 istek/sn, p95 2163 ms, 0 hata. API süreci tek
+  çekirdekte ~%82 CPU: darboğaz Node olay döngüsü (pratik yarış = motor).
+- Sonuç: tek örnek ~350 istek/sn; ötesi yatay ölçek. Önkoşul: zamanlayıcılar
+  için lider kilidi (Faz 13).
+
+### 13.74 Zamanlayıcı lider kilidi (02.10.2026, Faz 13)
+
+- 7 zamanlayıcının zamanlanmış turu `SchedulerLeaderService.runIfLeader`dan
+  geçer; Postgres oturum kilidi (bağlantı kopunca kendiliğinden düşer).
+- Kanıt: e2e (tek lider, izleyici işi koşmaz, bırakınca ve oturum
+  öldürülünce devir, kaynak taraması) + yerel iki süreç denemesi (A
+  öldürüldü → B 10 sn içinde lider).
+- Çok örnek için kalan önkoşul: Socket.IO Redis adaptörü.
+
+### 13.75 Kulüp sohbeti + tribün emote'ları (02.10.2026, Faz 9)
+
+- Migration 0062 `club_messages`; uçlar yalnızca üyeye; `/club` sayfasında
+  sohbet paneli (yoklama, sekme görünmezken durur).
+- `race.emote` soket olayı: anonim, kalıcı değil, listede olmayan anahtar /
+  abone olmayan soket / soğuma içindeki emote yayılmaz (e2e bariyerli).
+- Social Hub: brief §50'ye göre avatarlı alan — Faz 8 (AI avatar) ile.
+
+### 13.76 Bakiye düzeltmesi + at araması (02.10.2026, Faz 10)
+
+- Yönetici gerekçeli bakiye düzeltmesi (para + elmas): kilit + defter + denetim
+  tek transaction'da, tekrar koruması (aynı anahtar ikinci kez ödemez), eksiye
+  düşüremez, kendine/personele yasak. Web: oyuncu yönetim panelinde.
+- `/admin` "Atlar" sekmesi: kimlik/sahip/ad ile arama.
+- Salt okuma: "Ayarlar" (etkin config + özet), "Sezon & Turnuva". Ayar düzenleme YOK
+  (dağıtımla değişir); AI Jobs Faz 8 ile.
+
+### 13.77 Haftalık/aylık sıralama + Pazar Derbisi (02.10.2026, Faz 11)
+
+- `/leaderboard` "Haftalık" ve "Aylık" sekmeleri; sezonla aynı formül, dönem
+  bitince yeni pencere (veri silinmez).
+- Takvime haftalık özel yarış: Pazar Derbisi (pazar 20:00 TR, 12 at, 2400 m
+  çim, kontrollü, 48 sa önceden açılır, lobide başta). Ödül havuzu yine giriş
+  ücretlerinden — para basılmaz.
+- Bulunan hata: öne çıkan yarış 20'lik liste sınırına takılıp görünmüyordu
+  (önündeki 19 kısa takvim yarışı) → öne çıkanlar başa sıralanır (e2e kilitli).
+
+### 13.78 Socket.IO Redis köprüsü (02.10.2026, Faz 13)
+
+- Çok örnekli kurulumun ikinci önkoşulu (birincisi zamanlayıcı lider kilidi,
+  §13.74). `@socket.io/redis-adapter` (MIT) + `RedisIoAdapter`; config
+  `ops.realtime.redisAdapter`.
+- Yayınlar üç sınıf: küme geneli (sohbet, emote, bildirim, davet, lobi),
+  örneğe yerel (yarış oynatması — `server.local`), küme geneli sayım
+  (izleyici sayısı, `fetchSockets`).
+- Kanıt: iki uygulama örneği aynı süreçte, ortak Redis — sohbet/emote öbür
+  örneğe ulaşır, sayı iki tarafta 2, `race.finished` her izleyiciye tam bir kez.
+- Bulunan hata: kapanışta kopan soketlerin sayım isteği kapanmış Redis
+  bağlantısında askıda reddediliyordu → kapanış bayrağı.
+
+### 13.79 Faz 14 — uçtan uca oyuncu yolculuğu (03.10.2026)
+
+- `player-journey.e2e-spec.ts`: hesap → turnuva → pratik yarış → antrenman/bakım
+  → görev → sosyal → kulüp → pazar → sezon → dışa aktarma → defter mutabakatı →
+  hesap silme; iki oyuncu, gerçek HTTP. Mutabakat iki para biriminde tuttu.
+- Bulunan hata: yarış atın şimdiki sahibine yazılıyordu (pratik/PvP katılımında
+  `player_id` yoktu). At satışı satıcının sezon puanını ve ödül hakkını alıcıya
+  taşıyordu. Düzeltme: katılım koşturan oyuncuyu yazar, altı okuma sorgusu
+  (genel sıralama, sezon/dönem, "son yarışlarım", katılımcı kontrolü, tribün)
+  koşturan oyuncuya bakar; migration 0063 eski satırları defterden doldurur.
+- Avatar yolculuğu Faz 8 ile (sağlayıcıya bağlı) eklenecek.
+
+### 13.80 Başarımlar (03.10.2026, brief §24/§68)
+
+- 11 başarım (ilk yarış/zafer/kürsü/alım, 25/100 yarış, 10/50 zafer, seviye
+  5/15/30); ilerleme türetilir, ödül tek kez (PK + kilit + defter).
+- `/quests` ekranında "Başarımlar" bölümü; herkese açık profilde kazanılmış
+  rozetler (`PlayerProfileView.achievements` artık dizi).
+- Görevlerin antrenman/bakım ölçütü ATA bağlı sayılıyordu (aynı gün antrenmanı
+  yapılmış at satılınca görev iki kez ödenebiliyordu) — 07.10.2026'da
+  kapatıldı, bkz. §13.81. Başarımlar bu ölçütleri yine kullanmaz (0065 öncesi
+  satırlar at sahibine düşer).
+
+### 13.81 Antrenman/bakım yapana sayılır (07.10.2026, migration 0065)
+
+- `training_sessions.player_id`, `horse_care_log.performed_by` (işlem anındaki
+  sahip); görev sorgusu bunlara bakar, eski satır at sahibine düşer.
+- Regresyon: `quests.e2e-spec.ts` "antrenman/bakım YAPANA sayılır" — düzeltme
+  olmadan kırıldığı doğrulandı.
+
+### 13.82 Faz 8-A — manuel avatar oluşturucu (07.10.2026, migration 0066)
+
+- Katalog (`avatar.config.json`): ten, saç, saç rengi, sosyal kıyafet + renk,
+  ayakkabı, şapka, aksesuar, yarış forması deseni + iki renk (brief §44).
+- Varsayılan avatar oyuncu kimliğinden türetilir; oyuncu `/avatar`ta seçip
+  kaydeder; profil başlığında SVG portre, `/avatar`ta prosedürel 3D figür
+  (bekle / el salla / tezahürat, sosyal / yarış kıyafeti).
+- YOK (sağlayıcı ister): selfie → AI avatar, kalite kontrolü, iş kuyruğu,
+  nesne depolama, rıza/silme akışı (brief §38–48) → Faz 8-B altyapısı +
+  sahibinin sağlayıcı kararı. Sosyal alan (§50) avatarları kullanacak.
+
+### 13.83 Faz 8-B — selfie → AI avatar hattı altyapısı (07.10.2026, migration 0067)
+
+- Rıza (sürümlü), yükleme doğrulaması (biçim baytlardan, tür uyumu, boyut,
+  çözünürlük), asenkron iş + zamanlayıcı, sağlayıcı ve depo soyutlaması,
+  §45 yeniden üretim (başarısızsa eski korunur), §48 gizlilik (selfie iş
+  bitince silinir, `DELETE /avatar/ai`, hesap silme dosyaları da siler),
+  yönetimde "AI İşleri".
+- **Gerçek sağlayıcı YOK** → özellik kapalı ve ekranda öyle yazar. Uçtan uca
+  akış sahte sağlayıcıyla e2e'de kanıtlı (`avatar-generation.e2e-spec.ts`).
+- Açık: sağlayıcı seçimi + API anahtarı, çok örnek için S3 uyumlu depo
+  uygulaması, AI modelinin 3D sahnede gösterimi (model yalnızca sahibine
+  yetkili uçtan verilir), sosyal alan (§50).
+
+### 13.84 Faz 12 — ödeme altyapısı (07.10.2026, migration 0068)
+
+- Mağaza kataloğu (`store.config.json`, TRY, kuruş), sipariş → sağlayıcının
+  ödeme sayfası → imzalı webhook → elmas (tek transaction, defter satırıyla).
+- Korumalar: istemci fiyat/elmas/sonuç belirleyemez; webhook olayı tekil
+  (tekrar saldırısı no-op); ikinci başarı olayı çift elmas vermez; tutar/para
+  birimi uyuşmazlığı elmas vermez; bekleyen sipariş + günlük harcama sınırı;
+  iade elması geri alır, harcanmışsa açık incelemeye kaydedilir.
+- Oyuncu: `/store` (paketler + makbuzlar, dönüşte sipariş yoklanır);
+  yönetici: "Ödemeler" sekmesi + iade talebi (denetim kaydı).
+- **Gerçek sağlayıcı YOK** → satın alma kapalı ve ekranda öyle yazar. Akış
+  sahte sağlayıcıyla (HMAC imzalı webhook) e2e'de kanıtlı.
+- Açık: sağlayıcı seçimi + sözleşme + anahtarlar, yasal inceleme (mesafeli
+  satış, KDV, fatura, iade politikası, yaş), mağaza (App Store/Play) kuralları.
+
+### 13.85 At ırkları + ırk mağazası (07.10.2026, migration 0069)
+
+- 11 ırk `config/breeds.config.json`da: Hınıs, Malakan, Rahvan, Uzunyayla,
+  Çukurova, Standardbred, Quarter Horse, Ahalteke, Anglo-Arap, Safkan Arap,
+  Safkan İngiliz. `horses.breed` artık ırk ANAHTARI (CHECK `horses_breed_valid`);
+  görünen ad config'te.
+- **Sahibinin kuralı:** ücretsiz başlangıç atı EN ZAYIF ırktır (Hınıs — gücü
+  eski başlangıç atıyla aynı, ~50); güçlü ırklar `/breeds` mağazasından OYUN
+  PARASIYLA (elmasla değil) ve seviye şartıyla alınır. `validateBreedsConfig`
+  bunu kilitler: başlangıçtan zayıf ırk ya da gücüne göre ucuz ırk yazılırsa API
+  açılmaz, `breeds.spec.ts` kırılır. Güç = hız/ivme/dayanıklılık ortalaması.
+- Irk YALNIZCA doğuş statlarını belirler (taban ± `statJitter`, at kimliğinden
+  determinist); motor ırkı okumaz, MOTOR DEĞİŞMEDİ. Gizli statlar ırkta YOK.
+- Mağaza PARA YOLU: oyuncu `FOR UPDATE` → seviye + ahır + bakiye kilit altında →
+  at + 4 eşlik tablosu → bakiye → `breed_horse_purchase` defter satırı (MARKET),
+  tek transaction; `Idempotency-Key` zorunlu (tekrar = ikinci at + ödeme).
+- Yetiştirme: aynı ırk → o ırk; Safkan Arap × Safkan İngiliz (ve Anglo ile
+  geri çaprazlar) → Anglo-Arap; diğer melezde tay kısrağın ırkını alır. Tayın
+  zemin/mesafe uyumu ırkından (eskiden hep 50).
+- Migration: 0069 öncesi bütün atlar ('Arap', statları 50) → `hinis`; asıl metin
+  `horse_breed_legacy`de, down birebir geri yazar (yerelde gidiş-dönüş denendi).
+- Açık: ırka özgü 3D oranlar (gerçek modeller gelince), ırka özel yarışlar.
+
+### 13.86 Irka özel yarışlar (08.10.2026, migration 0070)
+
+- `races.breed_class` + `breeds.config.json` → `raceClasses`: **Yerli Irklar**
+  (Hınıs, Malakan, Rahvan, Uzunyayla, Çukurova), **Safkan Arap**, **Safkan
+  İngiliz**. NULL = açık yarış (mevcut bütün yarışlar; veri değişmedi).
+- Neden: ücretsiz başlangıç atı en zayıf ırk; açık yarışların botları (45-75)
+  onu ezerdi. Yerli sınıfta botlar yerli ırklar gücünde (sınıfın hız/ivme/
+  dayanıklılık en küçüğü − sapma … en büyüğü + sapma).
+- Kapı: sınıf dışı at 409 `HORSE_BREED_NOT_ALLOWED` (kilit altında, para
+  düşmeden). Yarış açma formu sınıf seçer; lobide rozet; uygun olmayan atla
+  "Katıl" yerine ipucu (karar sunucuda).
+- Takvim: saatlik "Yerli Irklar Koşusu" (`native-breeds`, 1400 m kum, 100 çip).
+- Testler: `race-breed-class.e2e-spec.ts` (kapı + para + bot kâhini),
+  `breeds.spec.ts` (CHECK eşleşmesi, kapı, bot aralığı, doğrulama),
+  `create-race-dto.spec.ts`, web `lobby-logic`/`LobbyPanel`/`breed-catalog`.
+
+### 13.87 Ahır ayrı mekân + bakım/ekipman ahırın içinde (08.10.2026)
+
+- Sahibinin geri bildirimi: "ahır pistin ortasında olmaz", "bakımı/ekipmanı
+  ahırın içinde ikon olarak ver", "ahıra gerçekçilik kat".
+- Ana sayfa 3D vitrininde iç sahadaki yer tutucu ahır kaldırıldı; "Ahır"
+  çekimi yerine "Tribün" çekimi (`camera.config.json` → `homeShowcase`).
+- `/care`, `/equipment` menüden çıktı, `/stable?panel=…`a yönlenir. Ahır
+  sahnesinde iki simge + sahnenin içinde panel (`CarePanel`, `EquipmentPanel`,
+  `StableActionDock`); at kartlarında "Bakım"/"Ekipman" düğmeleri aynı paneli
+  açar. API ve kurallar değişmedi.
+- `PlaceholderStall`: koridorlu ahır binası — iki sıra bölme (ahşap + demir
+  parmaklık, sürgülü kapılar), beşik çatı + makaslar, pencereler (gölgeli gün
+  ışığı yalnızca pencere boşluklarından girer, ışık hüzmesi + toz), asma
+  lambalar, beton koridor, saman yatak + saman telleri, köşe yemliği, suluk,
+  tuz taşı, battaniye, isim levhası (atın adı), el arabası, balyalar, eyer
+  askısı; koridor ucunda açık kapı + padok. Dokular çalışma anında `<canvas>`a
+  çizilir (dosya yok). Hâlâ PLACEHOLDER: gerçek `stable-environment.glb` gelince
+  yerini o alır.
+- Kamera: yörünge sınırlı (koridordan/bölmeden atı yandan görür), sınırda yön
+  değiştirerek gidip gelir. `stable-layout.spec.ts` sınır kutusunu tarar.
+- Testler: `stable-layout.spec.ts`, `stable-actions.spec.ts`,
+  `showcase-camera.spec.ts` (çekim kimlikleri), `top-bar-nav.spec.ts`.
+
+### 13.88 Arkadaşlık yalnızca birlikte yarışanlar arasında (08.10.2026)
+
+- Sahibinin kuralı: "sadece yarışmış kişiler arkadaş olabilsin".
+- `SendFriendRequestUseCase` + `RespondFriendRequestUseCase` (`accept`):
+  `SocialRepository.haveRacedTogether` — iki oyuncunun `finished` bir yarışta
+  iptal edilmemiş katılımı (`race_entries.player_id`). Yoksa 409
+  `FRIENDSHIP_REQUIRES_SHARED_RACE`. Ret serbest; mevcut arkadaşlıklar
+  korunur (veri silinmez). Pratik yarış tek gerçek oyunculu olduğu için
+  kimseyi tanıştırmaz; lobi/turnuva/PvP yarışları tanıştırır.
+- `GET /players/:id/race-companions` (assertSelf, engelliler hariç, silinmiş
+  hesaplar hariç, sınır `social.raceCompanionsLimit`) + `/friends` ekranında
+  "Birlikte Yarıştıkların" bölümü (ilişki durumuna göre "Arkadaş Ekle").
+- Testler: `friendship-race-gate.e2e-spec.ts` (gerçek yarış: kapalı/bitmemiş/
+  açık, kabul kapısı, engel, IDOR), `race-companions.spec.ts` (config okunur),
+  web `race-companions.spec.ts`. Sosyal/hediye/davet/engel/bildirim/profil
+  e2e'leri ön koşulu `recordSharedFinishedRace` fikstürüyle kurar.
+
+### 13.89 Profil fotoğrafı (08.10.2026, migration 0071)
+
+- Sahibinin isteği: "avatar kısmına kişi fotoğrafını ekleyebilsin".
+- `/avatar` → "Profil fotoğrafı" (yükle / değiştir / kaldır); profilde avatar
+  portresinin yerinde fotoğraf görünür.
+- Sunucu: baytlardan doğrulama (selfie kuralıyla aynı), hareketli görüntü
+  reddi, META VERİ SİLME (EXIF/GPS, XMP, IPTC, yorum, PNG metin/zaman, WebP
+  EXIF/XMP; JPEG yönü korunur), sona eklenmiş bayt atma. Depo anahtarını
+  sunucu üretir; `photoId` her yüklemede değişir, eski dosya silinir.
+  Görüntü yeniden kodlanmaz (yeni bağımlılık yok).
+- Güvenlik: sunum `nosniff` + boş CSP + doğru tür; satır yoksa 404; hız
+  sınırı (saatte 10 yükleme). Moderatör/yönetici uygunsuz fotoğrafı gerekçe
+  ve denetim kaydıyla kaldırır (`/admin` → oyuncu → "Fotoğrafı kaldır").
+- Hesap silme dosya + satırı siler; dışa aktarmada `profilePhoto` bölümü.
+- Testler: `profile-photo.spec.ts` (meta veri, yön, polyglot, APNG/hareketli
+  WebP, ret nedenleri), `profile-photo.e2e-spec.ts` (yükle/sun/başlıklar/
+  değiştir/sil/422/401/moderatör + denetim/hesap silme), web
+  `profile-photo.spec.ts`.
+
+### 13.90 Ortam gerçekçiliği: seyirci, ağaç, toz (08.10.2026)
+
+- Sahibinin geri bildirimi: "ağaçlar, tribündeki insanları gerçekçi yapalım,
+  koşarken ufak toz kalksın".
+- Seyirci: tek renk kutu yerine gövde + ten rengi baş + saç + kollar; boy,
+  duruş açısı ve renk çeşitliliği (tohumlu); coşkuda bir kısmı kollarını
+  kaldırır. Düşük poligon, gölgesiz; kollar yalnızca coşkuda güncellenir.
+- Ağaç: yapraklı (düzensiz dört küme) + çam (üç kat koni); alttan üste
+  açılan köşe rengi; yön/boy/renk farkı, birkaç sonbahar tonu.
+- Toz: arka ayaklardan, yana saçılarak; ömrü boyunca büyüyen yumuşak
+  kenarlı bulutçuk; boyut metre cinsinden ve gerçek perspektifle (önceden
+  uzakta 1-3 piksele inip görünmüyordu). Çim/sentetik zeminde de az miktar.
+- Testler: `crowd-trees.spec.ts`, `race-atmosphere.spec.ts`
+  (`spectatorArmRaise`), `dust-particle-sim.spec.ts` (arkadan doğum,
+  büyüme). Tarayıcıda gözle doğrulandı (yazılımsal GPU, Orta kalite).
+
+### 13.91 Hipodromlar: Veliefendi dışında dört koşu alanı (08.10.2026, migration 0072)
+
+- Sahibinin isteği: "sadece Veliefendi değil başka koşu alanları da ekleyelim".
+- Beş hipodrom (`config/hippodromes.config.json`): Veliefendi (İstanbul,
+  varsayılan, eski pist ölçüsü), Ankara 75. Yıl, İzmir Şirinyer, Adana
+  Yeşiloba, Bursa Osmangazi. Ölçüler oyun değeridir (esinlenme, birebir değil).
+- Veri: 0002'den beri boş duran `tracks` tablosu doldu (`track_key` + beş
+  satır), yarış `races.track_id` ile bağlanır. Eski yarışlar NULL kalır →
+  varsayılan hipodrom (veri değişmedi).
+- Kural: lobi yarışını açan hipodrom seçer (bilinmeyen 400); takvim
+  programlarının her birinin hipodromu var (Pazar Derbisi Veliefendi'de);
+  pratik/eşleşme/turnuva yarışı kimlikten determinist bir hipodroma düşer.
+  Motor pist ölçüsünü okumaz — sonuç değişmez.
+- Görünüm: her hipodromun tribün renkleri, çam/sonbahar oranı, çim rengi ve
+  uzak silueti var — İstanbul'da apartmanlar + kubbeli/minareli camiler,
+  Ankara'da bozkır tepeleri, İzmir'de körfez + karşı kıyı, Adana'da palmiyeler
+  + uzak Toroslar, Bursa'da karlı Uludağ zirveleri. Pist geometrisi
+  hipodromun tur/viraj ölçüsünden; HUD/kontrollü yarış rozeti hipodrom adını
+  yazar, lobi satırında 📍 rozeti, yarış açma formunda seçim.
+- Testler: `hippodromes.spec.ts` (API: config ↔ migration, doğrulama,
+  determinist seçim), `hippodrome.e2e-spec.ts` (lobi/pratik/tekrar),
+  `race-calendar.e2e-spec.ts` (program hipodromu), web `hippodromes.spec.ts`
+  (siluet ağaç halkasına girmez, zeminde, determinist; form). Tarayıcıda
+  beş hipodrom gözle doğrulandı (yazılımsal GPU, Orta kalite).
+
+### 13.92 Sahibinin 08.10.2026 listesi — 1. dilim
+
+- Sıralama tablosu artık yarış BİRİNCİLİKLERİNE göre (eşitlikte puan):
+  genel, sezon, haftalık ve aylık aynı kuralla (`rankPlayerTotals`); sezon
+  ödülü ekrandaki sırayı izler. Tabloya "🏆 Birincilik" sütunu eklendi.
+- Ana sayfa ahırdır: hesabı olan oyuncu `/`dan ahıra yönlenir; ahır 3D
+  sahnesi üst bar hariç ekranı kaplar, at değiştirme okları ve "Atlarım"
+  düğmesi sahnede. Eski ana sayfa kartları (cüzdan, kariyer, yaklaşan ve son
+  yarışlar, hızlı erişim) ahırın altında.
+- Çip ve elmas bakiyesinin yanında belirgin "+" (cüzdan / mağaza).
+- `/account`taki "Verilerimi indir" bölümü kaldırıldı (sunucu ucu duruyor).
+- Kanıt: `leaderboard.spec.ts` (birincilik önce, eşitlik), `season.e2e-spec.ts`
+  (ödül yeni sırayla), `top-bar-nav.spec.ts` ("+" bağlantıları), tarayıcıda
+  ahır tam ekran + yönlendirme (masaüstü + telefon) gözle doğrulandı.
+
+### 13.93 At seviyesine göre yarışlar + "Hemen Katıl"
+
+- Lobi yarışı isteğe bağlı bir at seviyesi aralığı taşır (migration 0073,
+  `races.horse_level_bracket`): Çaylak 1–4, Gelişen 5–9, Usta 10–19,
+  Şampiyon 20–50 (`race-lobby.horseLevelBrackets`). Aralık dışı at 409
+  `HORSE_LEVEL_NOT_ALLOWED` alır; para düşmez, katılım yazılmaz.
+- Aralıklı yarışın botları aralığın gücündedir (çaylak yarışında yeni at adil
+  yarışır); ırk sınıfıyla birlikteyse iki aralığın kesişimi. Açık yarışın
+  botları değişmedi.
+- Takvim her aralık için düzenli yarış açar.
+- `/races` lobisi: seçili ata göre sıralı liste ("✓ Atına uygun" rozeti),
+  yarış açma formunda "At seviyesi" seçimi ve "⚡ Hemen Katıl" kartı (en uygun
+  yarışa katılım + hazır tek tuşta).
+- Kanıt: `level-bracket.spec.ts` (config, CHECK ↔ config, kural, bot gücü),
+  `horse-level-bracket.e2e-spec.ts` (400/409/para/katılım, botlar yeniden
+  üretimle birebir), web `quick-join.spec.ts`; tarayıcıda Hemen Katıl ile
+  katılım + bakiye düşüşü gözle doğrulandı.
+
+### 13.94 Arkadaş başarımları + dostluk hediyesi
+
+- Yeni başarımlar: her 5 arkadaşa 100 çip (5, 10 … 50 arkadaş; ölçüt anlık
+  kabul edilmiş arkadaş sayısı). Arkadaşlıktan çıkıp yeniden eklemek sayıyı
+  artırmaz, ödül anahtar başına bir kez.
+- Dostluk hediyesi (migration 0074, `friend_gifts`): `/friends`te "Hepsine
+  Gönder" bütün arkadaşlara 10'ar çip gönderir — gönderenden para DÜŞMEZ;
+  aynı kişiye günde bir. "Hepsini Topla" bekleyenleri toplar (günde en fazla
+  20 hediye, 7 günden eskisi toplanmaz) ve tek defter satırı yazar.
+- Yeni günlük görev: "Arkadaşına dostluk hediyesi gönder" (50 çip).
+- Kanıt: `friend-gift.e2e-spec.ts` (gönderen ödemez, günde bir, engel,
+  toplama + defter + `collect_id`, günlük sınır, süre, görev, 5 arkadaş
+  başarımı), `friend-gift.spec.ts` (gün sınırı, config, CHECK ↔
+  `QUEST_METRICS`), web `friend-gift.spec.ts`; tarayıcıda panel (masaüstü +
+  telefon) toplama ve gönderim gözle doğrulandı.
+
+### 13.95 Tribünden at sahibine hediye
+
+- İzleme ekranında "🎁 Hediye" düğmesi: at seç → hediye seç → gönder.
+  Katalog: Havuç (10), Elma (20), Nazar Boncuğu (30), Altın Nal (50), Gül
+  Çelengi (100), Şampiyon Kupası (250) çip (`config/grandstand.config.json`).
+- Gönderen fiyatı öder; atı o yarışta koşturan oyuncu %70'ini alır, kalan
+  ekonomiden çıkar. Gönderen başına günde 50 hediye; yarış başladıktan 48
+  saat sonrasına kadar (iptal edilen yarışa gönderilemez).
+- Hediye yarış odasına canlı yayılır (izleyiciler balon olarak görür), at
+  sahibine bildirim gider; atın bu yarışta aldığı hediyeler sayılır.
+- Kanıt: `tribune-gift.e2e-spec.ts` (biletsiz 403, para + iki defter satırı +
+  bildirim + soket yayını, aynı anahtarla tekrar tahsil yok, anahtarsız 400,
+  kendi atı / yarışta olmayan at / bilinmeyen hediye / bakiye / engel /
+  pencere / günlük sınır), `tribune-gift.spec.ts` (config, CHECK ↔ config,
+  pay, pencere), `send-tribune-gift-dto.spec.ts` (fiyat/alıcı gönderilemez),
+  web `tribune-gifts.spec.ts`; tarayıcıda gönderim, canlı balon ve bildirim
+  (masaüstü + telefon) gözle doğrulandı.
+
+### 13.96 Ekipman katalogdan, oyun parasıyla
+
+- Ekipman artık ahırdaki "Ekipman" panelinde katalogdan satın alınır: her tip
+  (eyer, dizgin, nal, göz siperi, bandaj) için Temel (kalite 35, 150 çip, Sv.
+  1), Yarış (65, 600 çip, Sv. 3), Şampiyon (95, 1800 çip, Sv. 6).
+- Önceden kalite kaydırıcıyla seçiliyor ve parça ücretsiz yaratılıyordu —
+  her at bedavaya azami yarış bonusunu alabiliyordu (istemci envanteri
+  belirliyordu). Artık istemci yalnızca kalem anahtarını gönderir.
+- Katalogdan önce yaratılmış eski parçalar olduğu gibi duruyor (`catalog_key`
+  boş) — sahibinin kararı (08.10.2026: "kalsın").
+- Kanıt: `equipment.e2e-spec.ts` (para + defter satırı, aynı anahtarla ikinci
+  parça alınmaz, anahtarsız 400, kalite gönderilemez, seviye/bakiye 409 ve
+  parça yazılmaz, kuşanma akışı + pratik yarış), `catalog.spec.ts` (katalog
+  kuralları), `purchase-horse-equipment-dto.spec.ts`, web
+  `equipment-catalog.spec.ts`.
+
+### 13.97 Pazar ilanı süre dolumu zamanlayıcıda + SSAO düzeltmesi
+
+- Sabit fiyatlı ilanların süresi artık bir zamanlayıcıyla da dolar (dakikada
+  bir); eskiden yalnızca biri pazara bakınca yazılıyordu. Satıcıya "ilanının
+  süresi doldu, at sende" bildirimi gider (bir kez).
+- Eski süpürme "önce oku, sonra koşulsuz yaz" yapıyordu: aynı anda satılan
+  bir ilan `expired`a geri yazılabilirdi. Artık geçiş tek atomik ifadede,
+  yalnızca `active` satırda olur.
+- Yarış ekranı "Ultra" kalitede SSAO hatası veriyordu (sahibinin ekran
+  görüntüsü): `EffectComposer` normal geçişi açık değildi. Düzeltildi.
+- Kanıt: `market-listing-expiry.e2e-spec.ts` (okunmadan dolum + tek bildirim,
+  ikinci tur no-op, satılmış ilan geri yazılmaz, müzayede dokunulmaz, okuma
+  anı süpürmesi), `notification-types.spec.ts` (0077),
+  `postprocessing.spec.ts`; tarayıcıda Ultra'da konsol temiz.
+
+### 13.98 Metrik ucu + alarm kancası
+
+- Üretimde ne olduğunu görmek için `GET /api/v1/metrics` (Prometheus metin
+  biçimi): istek sayısı/süresi (rota kalıbına göre), hata sayısı, bellek,
+  veritabanı havuzu, oyuncu/açık yarış/aktif ilan/bekleyen ödeme sayıları.
+  Ek bağımlılık yok; Prometheus, Grafana Agent, OTel toplayıcısı kazır.
+- Uç yalnızca `METRICS_TOKEN` ile açılır (yoksa 404, yanlış token 401);
+  oyuncu kimliği, sorgu dizesi, bakiye içermez.
+- `ALERT_WEBHOOK_URL` verilirse beklenmeyen sunucu hatası Slack/Discord
+  uyumlu bir mesaja dönüşür (soğumalı; mesajda hata ayrıntısı yok, yalnızca
+  istek kimliği — ayrıntı loglarda).
+- Sağlayıcı (Grafana Cloud, Datadog, Sentry…) hâlâ sahibinin kararıdır; bu
+  dilim hangisi seçilirse seçilsin bağlanacak yeri hazırlar.
+- Kanıt: `ops-metrics.e2e-spec.ts` (404/401, kalıp etiketi + `unmatched`,
+  oyun göstergeleri, 500'de webhook gövdesinde mesaj/sorgu yok),
+  `metrics-alerting.spec.ts` (biçim, kaçış, soğuma), `production-env.spec.ts`.
+
+### 13.99 Atın kişiliği oyuna bağlandı + kişilik etiketi
+
+- Atların gizli huyları (odak, cesaret, rekabetçilik, stres dayanımı, itaat)
+  vardı ama hiçbir şeyi değiştirmiyordu ve her at 50'de doğuyordu. Artık
+  yeni atlar farklı huylarla doğar (at kimliğinden, tekrarlanabilir).
+- Huy antrenmanda işe yarar: odaklı at daha çok gelişir, hırslı at yoğun
+  antrenmanda parlar ama hafifte sıkılır (rahat at tersi), soğukkanlı at
+  daha az yorulur, uysal at daha az sakatlanır. Yarış motoru DEĞİŞMEDİ;
+  mizaç (`temperament`) zaten motordaydı ve doğuşta nötr kalır.
+- Ahır kartında "Odaklı · Gergin" gibi en fazla iki etiket (üstüne gelince
+  ne işe yaradığı). Sayı gösterilmez; etiket sunucuda sayılardan türetilir.
+- Eski atlar (hepsi 50) "Dengeli" görünür ve davranışları değişmez; taylar
+  huyu ebeveynlerinden alır (mevcut genetik).
+- Ek: 1280 px masaüstünde üst bar 7 px taşıyordu (bakiye "+" düğmeleri
+  sonrası); menü aralığı sıkılaştırıldı, 900–1600 px arası taşma yok.
+- Kanıt: `personality.spec.ts` (determinizm, aralık, çeşitlilik, nötr = no-op,
+  yönler, rekabetçilik ödünleşimi, tavan, etiket, bozuk config),
+  `horse-personality.e2e-spec.ts` (doğuş = türetilen değer, liste etiketi =
+  DB'den türetilen, sayı/herkese açık uçta etiket yok, antrenman formülle
+  birebir), web `personality-labels.spec.ts`; tarayıcıda ahır kartı
+  (masaüstü + telefon).
+
+### 13.100 Jokey formu ve yorgunluğu
+
+- Jokeyin kendi durumu artık var: son 10 binişteki sıralarından **form**
+  (iyi giden jokey biraz daha iyi, kötü giden biraz daha kötü sürer; en fazla
+  ±%6) ve son 6 saatte 6'dan fazla binişte **yorgunluk** (her ek biniş −%1,5,
+  en fazla −%6; zaman geçince kendiliğinden geçer).
+- Sayaç tutulmaz; her şey yarış kayıtlarından türetilir. Yarış motoru
+  değişmedi: çarpan jokey puanına uygulanır ve yarış kilitlenirken donar.
+- Ahırdaki jokey panelinde "Form: Formda · son 8 biniş · +2,1%" ve
+  "Yorgunluk: son 6 saatte 3 biniş · Dinç" gösterilir.
+- Kanıt: `condition.spec.ts` (yüzdelik, nötr, eşik, simetri, tavan, bantlar,
+  bozuk config), `jockey-condition.e2e-spec.ts` (gerçek pratik yarışlarla:
+  uç = bağımsız hesap, sonraki yarışın donan puanı çarpanı içerir, pencere
+  dışı yorgunluk düşer, form kalır), web `jockey-condition.spec.ts`;
+  tarayıcıda panel.
+
+### 13.101 Masa kuralları (sahibinin isteği, 09.10.2026)
+
+- Sahibi: "Giriş bedelinin ne zaman kesildiği, ödülün nasıl hesaplandığı ve
+  kaybedenlerden hangi tutarların alındığı seçilen masanın kurallarına
+  bağlıdır." Kararlar: masa = kademe (Mahalli/Bölgesel/Ulusal/Elit/
+  Şampiyona); ücret anı masaya göre; ödül = gerçek ücretler − masanın
+  komisyonu, masanın dağılımıyla; kaybedene masaya göre kısmi iade.
+- Başlangıç değerleri (`config/economy.config.json`, sahibi ayarlar):
+  Mahalli katılırken + 6. sıraya %50 iade · Bölgesel katılırken + 7–8.
+  sıraya %25 · Ulusal start anında + 8–9. sıraya %25 · Elit ve Şampiyona
+  start anında, iade yok. Komisyon hepsinde %10.
+- Lobide yarış açan masa seçer (form ilk masayla açılır, "Serbest" masasız
+  eski kurallar); listede masa kuralları yazar; start anında kesilen masada
+  havuz start'a kadar "tahmini" görünür.
+- Start anında kesilen masada o an parası yetmeyen yarıştan düşer (borç
+  yazılmaz). Kaybeden iadesi havuzdan önce ayrılır; oyun para basmaz.
+- Pratik yarışta da masanın iadesi uygulanır (sonuçta "Masa iadesi").
+- Takvim/turnuva yarışları ilk dilimde masasızdı; takvim programları
+  09.10.2026'da masaya bağlandı (§13.104). Turnuvalar kendi kurallarıyla kalır.
+- Kanıt: `table-rules.spec.ts` (config + migration CHECK, iade bandı/tutarı,
+  bütün masalarda Σödül + Σiade ≤ havuz, bozuk kural, masalı yarış açma),
+  `race-table-rules.e2e-spec.ts` (8 gerçek oyunculu masada dağılım + iade +
+  mutabakat; start anında kesilen masada yetmeyenin düşmesi; pratik yarış
+  iadesi = defter), web `table-rules.spec.ts` + `LobbyPanel.spec.tsx`;
+  tarayıcıda form + pratik kademe listesi (masaüstü + telefon).
+
+### 13.102 Kulüp daveti (09.10.2026, migration 0080)
+
+- Eskiden kulübe yalnızca listeden "Katıl" ile girilebiliyordu; lider/subay
+  birini çağıramıyordu. Artık subay ve lider `/club` → "Oyuncu Davet Et"
+  formuyla kullanıcı adıyla davet eder; davetliye `club_invite` bildirimi
+  gider, kulübü olmayan oyuncu `/club` → "Gelen Davetler"den kabul eder ya
+  da reddeder.
+- Kabul = katılım: kapasite + tek kulüp kuralı katılımla AYNI kilitli yoldan
+  (`insertMembershipLocked`); kabulde oyuncunun diğer bekleyen davetleri
+  `cancelled` olur. Ret yalnızca daveti kapatır; reddedilen oyuncu yeniden
+  davet edilebilir (tekil indeks yalnızca bekleyende).
+- Kapılar (kulüp kilidi altında): yetki (üye 403), davetlinin kulübü (409),
+  aynı oyuncuya ikinci bekleyen davet (409 `CLUB_INVITE_EXISTS`), kulüp
+  başına bekleyen sınırı (409 `CLUB_INVITE_LIMIT`), engel iki yönde (403
+  `PLAYER_BLOCKED`, yön sızmaz), kendini/olmayanı davet (404). Süre
+  `online.club.invites.expiryDays`; süresi dolan davet listeden düşer, kabulü
+  409 `CLUB_INVITE_EXPIRED`. Başkasının davetine yanıt 404 (varlık sızmaz).
+- Kilit: kulüp → (kabulde oyuncunun bütün bekleyen davetleri, kimlik
+  sırasıyla) → üyelik. Aynı oyuncunun iki daveti eşzamanlı kabul edilirse
+  ikincisi birincinin commit'ini bekler ve `cancelled` görür — kilitlenme
+  döngüsü yok (e2e kilitler).
+- `club_invites` kişisel veri: hesap silme listesinde, dışa aktarmada
+  `clubInvites` (karşı taraf yalnızca kullanıcı adıyla).
+- Kanıt: `club-invite.e2e-spec.ts` (6 senaryo), `notification-types.spec.ts`
+  (CHECK artık 0080'de), web `club-invite-logic.spec.ts`; tarayıcıda lider
+  formu (masaüstü) + gelen davet + bildirim + kabul (telefon).
+
+### 13.103 Lobi listesi: kendi yarışın takvim yığınında kaybolmaz (09.10.2026)
+
+- Hata: takvim aynı anda ~35 yarış açık tutar, `GET /races` varsayılan 20
+  satır döner ve salt başlangıç saatine göre kesiyordu. Oyuncunun açtığı ya
+  da KATILDIĞI geç başlayan yarış listeden düşebiliyordu — katıldığı yarışı
+  göremeyen oyuncu "hazır" diyemez, katılımı start'ta iptal olur.
+- Düzeltme (yalnızca sıralama, `listLobbyRaces`): katmanlar (0) çağıranın
+  yarışları, (1) öne çıkan program, (2) turnuva, (3) kalan; katman içinde
+  başlangıç saati. "Başka oyuncunun yarışı" ayrı bir katman YAPILMADI: çok
+  oyuncu yarış açınca takvimi listeden tamamen silerdi (`race-calendar`
+  e2e'si bu denemeyi yakaladı).
+- Kanıt: `race-lobby-list-order.e2e-spec.ts` (gerçek takvim turu; düzeltme
+  geri alınınca iki test de kırılıyor — doğrulandı) + listeyi okuyan beş e2e
+  dosyası yeşil.
+
+### 13.104 Takvim yarışları masaya bağlandı (09.10.2026)
+
+- Takvim programı `tableId` alır (`race-lobby.config.json`); yarış masanın
+  kurallarıyla açılır ve koşar (ücret anı, dağılım, kaybeden iadesi). Program
+  oyuncu yarışıyla AYNI kapıdan geçer: masalı programın bedeli ve at sayısı
+  masanınkiyle aynı olmak zorunda (`validateRaceCreation` 6. argüman).
+- Eşleme bedel + at sayısına göre (sayılar DEĞİŞMEDİ): `dirt-sprint`,
+  `native-breeds`, `developing-run` → Mahalli; `grass-mile`, `master-run` →
+  Bölgesel; `sunday-derby`, `champion-run` → Ulusal (bedel start anında).
+  `open-run` (ücretsiz) ve `rookie-run` (50 çip — eşi olan masa yok) masasız.
+- Turnuvalar masaya BAĞLANMADI: zaten kendi kuralları var (rake yok, botsuz,
+  ilk üçe 50/30/20, `online.tournament`); masaya çevirmek onaylı turnuva
+  ekonomisini değiştirirdi.
+- Kanıt: `race-calendar.spec.ts` (masalı her program masayla birebir; masa
+  kuralının tek başına yakaladığı sapma reddedilir), `race-calendar.e2e-spec.ts`
+  (açılan yarış programın masasını taşır; katılım testi start'ta kesen
+  masayı seçmez — derbi en erken yuvaya düşerse kararsız olurdu).
+
+### 13.105 Kulüp içi yarış (09.10.2026, migration 0081)
+
+- Sahibinin kararı: "Kulüp içi yarış", ek ödül yok. Lider/subay yarış
+  açarken "Yalnızca kulübüm" seçer; ücret, masa, ödül kuralları normal lobi
+  yarışıyla aynı (kulüp puanı zaten her yarışın XP'sinden yazılıyor).
+- `races.club_id` (NULL = açık). Kulübü istemci SEÇMEZ (`clubOnly: true`
+  gönderir); sunucu açanın üyeliğini oyuncu kilidi altında okur (üyelik
+  satırı `FOR SHARE`), lider/subay şartı `assertHasClubPermission`.
+- Katılım kapısı ırk sınıfı / seviye kapısıyla AYNI yerde (at kilitliyken,
+  paradan önce) → 409 `RACE_CLUB_ONLY`. Davet kapısı da aynı kuralı uygular.
+- Yabancı anahtar BİLİNÇLİ OLARAK YOK: SET NULL yarışı sessizce herkese
+  açardı, CASCADE parası ödenmiş yarışı silerdi, RESTRICT geçmişi olan
+  kulübün feshini engellerdi. Feshedilen kulübün yarışına yeni katılım
+  KAPALI; katılmış olanlar yarışını görür ve koşar.
+- Liste: kulüp yarışını üyeler + açan + katılmış olan görür.
+- Kanıt: `race-club-only.e2e-spec.ts` (4 senaryo), `lobby.spec.ts`,
+  `create-race-dto.spec.ts`, web `LobbyPanel.spec.tsx`; tarayıcıda form
+  seçeneği + rozet (masaüstü + telefon), dışarıdaki listede görmüyor.
+
+### 13.106 Elmas politikası — elmaslı yem çipe, elmas hediyesi kapandı (09.10.2026)
+
+- Sahibinin onayı: elmas yalnızca görünüş ve kolaylık satın alır.
+- Bulgu (notlar yanlıştı): stoklu yem (`arpa`, `mama`, `havuc`, `vitamin`)
+  ELMASLA satılıyordu. Yem kondisyon/sağlık/enerji verir ve motor kondisyon
+  + sağlığı doğrudan okur (`conditionModifier`, 0.6–1.0) → gerçek parayla
+  ücretli yarışta performans alınabiliyordu. Ayrıca elmas arkadaşa hediye
+  edilebiliyordu (gerçek parayı hesaplar arasında taşıma).
+- Değişiklik: yem çiple (arpa 40, mama 60, havuç 20, vitamin 80 — eski
+  elmas fiyatı × 20; sıralama korunur); `gift.allowedCurrencies` yalnızca
+  `money`; `validateGemPolicy` API açılışında ihlali reddeder. Web hediye
+  formu birimleri config'ten süzer. Eski elmaslı alımların defter satırları
+  ve stok DEĞİŞMEDİ (mali kayıt).
+- Sırada: kozmetik mağaza altyapısı, ilk ürünler (jokey forması, avatar).
+- Kanıt: `gem-policy.spec.ts`, `care.spec.ts`, `gift.e2e-spec.ts` (elmas
+  hediyesi 400 + bakiye/defter dokunulmaz), `farm-effects.e2e-spec.ts` (yem
+  çipten düşer, elmas dokunulmaz), web `gift-currencies.spec.ts`.
+
+### 13.107 Kozmetik mağaza altyapısı (09.10.2026, migration 0082)
+
+- Elmas politikasının 2. adımı: elmasla yalnızca görünüş. Ürün tanımı
+  `config/cosmetics.config.json` — her ürün avatar kataloğunun BİR seçeneğini
+  açar (`catalog` + `optionId`). İlk ürünler: avatarın forma (ipek) renk
+  kataloğuna eklenen dört yeni renk (turkuaz, turuncu, pembe 40; gümüş 60).
+- Sahiplik `player_cosmetics` (PK oyuncu + ürün). Satın alma PARA YOLU:
+  oyuncu `FOR UPDATE` → sahiplik + bakiye kilit altında → sahiplik + elmas +
+  `cosmetic_purchase` defter satırı (kanonik MARKET) tek transaction;
+  `Idempotency-Key` zorunlu.
+- `PUT /avatar` kilitli seçeneği sahibine bırakır (409 `COSMETIC_NOT_OWNED`).
+  Varsayılan avatar kilitli seçenekleri havuzdan çıkarır: yeni renk eklemek
+  mevcut oyuncuların varsayılanını DEĞİŞTİRMEDİ (500 oyuncu için birebir
+  aynı olduğu test edildi).
+- `validateCosmeticsConfig` API açılışında: ürün kataloğun var olan bir
+  seçeneği olmalı, anahtar/seçenek tekil, fiyat pozitif, her katalogda en az
+  bir ücretsiz seçenek kalmalı.
+- `player_cosmetics` hesap silme + dışa aktarma (`cosmetics`) listelerinde.
+- Adım 3a (aynı gün): `/store` → "Forma renkleri" listesi; `/avatar`ta kilitli
+  renk 🔒 ile denenebilir, kaydetmeden önce satın alma düğmesi çıkar ve
+  Kaydet kapalı kalır. Satın alma mantığı tek hook'ta (`useCosmetics`,
+  anahtar BAŞARIYA kadar saklanır). Bulunan hata: alımdan sonra bakiye
+  tazelenince avatar yeniden yükleniyor ve denenen taslak SIFIRLANIYORDU —
+  yükleme artık oyuncu kimliğine bağlı. Adım 3b → §13.108.
+- Kanıt: `cosmetics.spec.ts` (config, varsayılan değişmezliği, sahiplik),
+  `cosmetics.e2e-spec.ts` (alım + defter, tekrar 409, eşzamanlı tek alım,
+  yetersiz elmas, avatar kilidi), `avatar.e2e-spec.ts` güncellendi.
+
+### 13.108 Forma rengi yarışta (09.10.2026, kozmetik adım 3b)
+
+- Satın alınan (ya da ücretsiz seçilen) forma rengi artık yarışta görünür:
+  tekrar (`GET /races/:id/timeline`), canlı yayın (`race.roster`), kontrollü
+  pratik yarış ve lobi canlı/tribün görünümünün katılımcıları `silkColor`
+  (hex) taşır. Kaynak, atı KOŞTURAN oyuncunun (`race_entries.player_id`)
+  kaydedilmiş avatarıdır; kayıt yoksa, bot ise ya da renk katalogdan
+  kalkmışsa `null` → istemci eski paleti kullanır. Türetilmiş varsayılan
+  avatar yarışta gösterilmez (oyuncu seçmediği renge "sahip" görünmesin,
+  eski yarışların görünüşü değişmesin).
+- İstemci ataması saf `apps/web/src/features/race-viewer/horse-colors.ts`
+  (`assignHorseColors`): formalar kimlik sırasıyla yerleşir (canlı ve tekrar
+  aynı atı aynı renge boyar), aynı/çok benzer ikinci forma palete düşer,
+  palet rengi bir formaya benziyorsa atlanır (eşik 60 RGB — paletin en yakın
+  iki rengi 69, forma kataloğunun 62). Formasız sahada atama eskisiyle
+  birebir aynıdır (16 atlık saha dahil test edildi).
+- Salt görünüş: motor, sonuç ve para yolları değişmedi. Tarayıcıda
+  doğrulandı: tekrar ekranında oyuncunun atı kendi yeşil formasıyla, paletteki
+  benzer yeşil başka ata verilmeden göründü.
+- Kanıt: `race-silks.e2e-spec.ts` (premium forma tekrarda + kontrollü pratik
+  canlı görünümde; formasız oyuncu ve botlar `null`), `lobby-live-race.e2e-spec.ts`
+  (tribün görünümü), `realtime.e2e-spec.ts` (roster alanı),
+  `horse-colors.spec.ts`, `replay-adapter.spec.ts`, `avatar.spec.ts`
+  (`silkColorHex`).
+- Avatar parçaları → §13.109.
+
+### 13.109 Avatar parçaları mağazada (09.10.2026, kozmetik adım 3 sonu)
+
+- Elmas planının son ürünleri: iki şapka (Silindir 60, Melon 50) ve iki
+  aksesuar (Papyon 40, Dürbün 50). Kimlikler avatar kataloğunun SONUNA
+  eklendi (`tophat`, `bowler`, `bowtie`, `binoculars`) — varsayılan avatar
+  kilitli seçenek seçmediği için mevcut oyuncuların görünüşü değişmedi
+  (`cosmetics.spec.ts` 500 oyuncuyla dener).
+- Çizim: 2B portre (`AvatarPortrait`, SVG) ve 3D figür (`AvatarFigure3D`,
+  prosedürel geometri) — dosya yok, uydurma varlık yok.
+- Mağaza ekranı "Görünüş mağazası": Forma renkleri / Şapkalar / Aksesuarlar
+  bölümleri (`groupCosmeticsByCatalog`); renk ürünü renk örneğiyle, parça
+  ürünü oyuncudan bağımsız sabit bir portre önizlemesiyle
+  (`previewAppearance`). Düzenleyicideki kilit notu artık "parça" der.
+- Tarayıcıda doğrulandı: mağaza üç bölüm, düzenleyicide kilitli silindir +
+  papyon denenince Kaydet kapalı ve satın alma düğmeleri çıktı, 3D figürde
+  ikisi de görünüyor; konsol hatası yok.
+- Kanıt: `cosmetics.e2e-spec.ts` (parça ürünü: renk yok, sahip olmadan 409,
+  aldıktan sonra giyilir), `cosmetic-logic.spec.ts` (bölümleme + önizleme),
+  `avatar-catalog.spec.tsx` (her seçeneğin Türkçe adı).
 
 ## 14. Kendime hatırlatmalar (kısa liste)
 
@@ -3392,3 +4601,67 @@ kimliği + "Yetkili JavaScript kaynakları"na web adresi; sunucuda
 
 *Bu dosya bir kavrayış aracıdır, sözleşme değil. Proje ilerledikçe güncellenmelidir —
 özellikle §5 (gerçek durum), §10 (boşluklar) ve §13 (sıradaki iş).*
+
+### 13.110 Brief "Master Audit" (16.10.2026)
+
+Brief'in 17 aşaması koda karşı denetlendi (`MASTER_STATUS.md` → "Brief
+16.10.2026" tablosu). Çoğu madde önceki dilimlerde yapılmış ve testliydi;
+bulunan gerçek açıklar kapatıldı:
+
+- **S4 ekonomi:** tavansız Şampiyona pratik sınıfında güçlü at girişin
+  +%357'sini kazanıyordu → handikap (`practiceBotStatRange`), `RACE_BALANCE_REPORT.md` §11.
+- **Gezinme:** üst menü Ana Sayfa · Ahır · Antrenman · Bakım; ahır `?panel`i
+  değişince de okunur; ahırdan Yarışlar/Pazar kısayolu.
+- **Dostluk hediyesi:** gönderen öder (2 çip, günlük 20 çip bütçe), önizleme,
+  kişi başı sonuç, süresi dolanın iadesi (migration 0087); arkadaş eşikleri
+  arkadaş ekranında (alındı/al/kilitli); `friend_count` engelliyi saymaz.
+- **Hemen Katıl:** at hazır değilse sebep + süre, en uygun 3 seçenek, ücret ve
+  ödül kuralı katılmadan önce; masasız yarışta ödül dağılımı.
+- **Canlı bildirim:** her bildirim COMMIT'te soketten (migration 0088,
+  `NotificationStreamListener`); zil rozeti.
+- Kanıt testleri: tribün sahiplik değişimi, "Verilerimi indir" yokluğu, ana
+  sayfa = ahır yönlendirmesi. Regresyon eşlemesi `docs/TESTING.md` §9.
+
+### 13.111 Bot payı gerçek oyunculara (16.10.2026, sahibinin kararı)
+
+Lobide (turnuva hariç) ödül sırası artık gerçek oyuncular arasındaki sıradır;
+bot sıralamada görünür ama ödül almaz ve payı da yakılmaz. Gerçek oyuncu sayısı
+ödül alan sıradan azsa boş paylar kullanılanlara orantılı eklenir
+(`lobbyPrizeShares`). Saf hesap `domain/race/table-rules.ts` →
+`computeLobbySettlement` (kaybeden iadesi aynı sırayla, çıktı mutlak sıraya
+göre → repository değişmedi); `settle-race.use-case.ts` lobide bunu,
+turnuvada eski `computePrizePayouts`u kullanır. Lobi listesinin "Kazanana ×"
+değeri şu anki gerçek oyuncu sayısıyla hesaplanır; web kural metinleri "bota
+pay düşmez" der. Botsuz ve ödül sırası kadar oyunculu sahada sonuç eskisiyle
+birebir. Ölçüm (`tools/economy-ev-report.ts 400`, `RACE_BALANCE_REPORT.md`
+§11): eşit güçte oyuncunun kaybı her masada yalnızca komisyon (−%9…−%10);
+önceden 2 oyunculu botlu masada −%71…−%91'di. Para basılmaz (dönen ≤ havuz ×
+Σpay) → çoklu hesapla havuzu geri almak yine kârsız; ücretli lobi en az 2
+gerçek oyuncu kuralı korundu. Testler: `table-rules.spec.ts` (+6),
+`field-rule.spec.ts` gerekçe kilidi, `race-settlement`/`economy-reconciliation`/
+`final` e2e (iki gerçek oyuncu da ödül alır, önde bitiren fazla alır,
+defter = −komisyon). Pratik yarış ve turnuva değişmedi.
+
+### 13.112 Brief tekrar kontrolü (16.10.2026)
+
+Brief ikinci kez koda karşı tarandı. **G14:** arkadaş çip hediyesi alıcıya
+bildirim üretmiyordu (brief §6.4) → migration 0089 `friend_gift_received`,
+`postgres-friend-gift.repository.ts` hediye satırlarıyla aynı transaction'da
+yazar (canlı yayın 0088 tetikleyicisi), `/notifications` metni + "arkadaşlar
+ekranı →". **G15:** `/races` lobi listesi yalnızca açılışta/elle okunuyordu →
+`features/race-lobby/lobby-refresh.ts` (`race-lobby.lobbyListRefreshSeconds`,
+sekme gizliyken durur, üst üste istek yok). Testler: `friend-gift.e2e-spec.ts`
+(+1), `notification-types.spec.ts` (0089), `lobby-refresh.spec.ts` (+3).
+
+### 13.113 Sosyal + çip brief'i (16.10.2026, migration 0090–0093)
+
+"101 Okey Plus benzeri arkadaşlık, çip ekonomisi ve hediye" brief'i yedi fazda
+uygulandı; denetim, uç listesi, migration'lar, §11 senaryo → test eşlemesi,
+güvenlik önlemleri ve gerçek servis bağımlılıkları
+`docs/SOSYAL_CIP_DENETIMI.md`'dedir. Özet: oyuncu arama + profilde ilişki
+düğmeleri + çevrimiçi/gizlilik (F2), limitli ve onay ekranlı çip transferi,
+gönderene bildirim, satın alınan çip hediye edilemez (F3), davet kodu + koşullu
+davet ödülü + davet istisnalı arkadaşlık kapısı (F4), mağazada çip paketleri,
+çip "+" → `/store` (F5). Gerçek ödeme sağlayıcısı YOK (mağaza kapalı yazar).
+CI: F4 commit'inde `AnnouncementStrip.spec.tsx` CI'da etki yarışıyla düştü
+(`0px`); test artık etkiyi bekler.

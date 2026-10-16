@@ -61,6 +61,12 @@ export interface FacilitySummaryView {
   bonusValue: number;
   /** Tesis tavana ulaştıysa `null` — bu bir HATA değil, normal bir durumdur. */
   nextUpgrade: FacilityUpgradeOfferView | null;
+  /**
+   * 01.10.2026 — `false` ise etkisi oyunda bağlı DEĞİLDİR
+   * (`farm.config.json` → `inactiveFacilities`); inşa/yükseltme kapalıdır
+   * ve `nextUpgrade` `null` gelir.
+   */
+  isActive: boolean;
 }
 
 /** Bir sonraki seviyeye geçmenin sunucuda hesaplanmış maliyeti. */

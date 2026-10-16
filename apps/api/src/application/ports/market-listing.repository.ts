@@ -76,6 +76,12 @@ export interface MarketListingRepository {
    * sıralı döner.
    */
   findBySellerId(sellerId: string, status?: ListingStatus): Promise<MarketListing[]>;
+  /**
+   * 08.10.2026 — süresi dolan SABİT FİYATLI ilanları tek atomik ifadeyle
+   * `expired` yapar ve satıcıya `listing_expired` bildirimi yazar (müzayede
+   * hariç). Dönen dizi bu çağrıda süresi dolan ilan kimlikleridir.
+   */
+  expireDueListings(now: Date): Promise<string[]>;
 }
 
 /** NestJS DI için token (interface'ler runtime'da yok olduğundan bir Symbol gerekir). */

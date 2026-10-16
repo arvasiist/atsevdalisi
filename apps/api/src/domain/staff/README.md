@@ -14,7 +14,13 @@ Personel Sistemi (brief §33) — `jockey` rolü HARİÇTİR (bkz.
 
 Config: `staff.config.json`.
 
-**Kapsam dışı:** `calculateStaffBonusMultiplier`'ın hangi formüle
+**01.10.2026 — BAĞLANDI.** Kiralama/yenileme/bırakma `api/staff` +
+`infrastructure/staff` üzerinden çalışır; çarpan antrenmana
+(`trainerFactor`) ve bakıma (`applyCareAction` `effectMultiplier`,
+`staff.careActionRoles`) uygulanır. Yalnızca `hireableRoles` (etkisi bağlı
+roller) pazarda görünür. Aşağıdaki not tarihseldir.
+
+**(Tarihsel) Kapsam dışı:** `calculateStaffBonusMultiplier`'ın hangi formüle
 uygulanacağı (örn. antrenörün `training.config.json`'daki `baseGain`'i mi
 etkileyeceği, veterinerin `care.config.json`'daki `injuryRiskDelta`'yı mı
 güçlendireceği) rol bazlı bir wiring kararıdır ve bu teslimatın kapsamı

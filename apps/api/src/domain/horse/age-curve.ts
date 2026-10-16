@@ -30,3 +30,71 @@ export function calculateAgeInMonths(birthDate: Date, now: Date = new Date()): n
   const dayAdjustment = now.getDate() < birthDate.getDate() ? -1 : 0;
   return Math.max(0, months + dayAdjustment);
 }
+
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+/** Atın yaşını belirleyen iki kimlik alanı (`horses.birth_date` + `aging_started_at`). */
+export interface HorseAgeAnchor {
+  birthDate: Date;
+  /** Hızlı yaşlanmanın başladığı an — yeni atta oluşturulma anı (migration 0084). */
+  agingStartedAt: Date;
+}
+
+/**
+ * 15.10.2026 — S5, sahibinin kararı: OYUN YAŞI (ay). `agingStartedAt` anındaki
+ * takvim yaşı + o andan beri geçen gerçek gün × `gameMonthsPerRealDay`.
+ * Mevcut atlar migration anındaki yaşlarını korur, sonra hızlanır; tay 0'dan,
+ * başlangıç atı 48 aydan başlar. Saat geriye giderse yaş düşmez.
+ */
+export function computeHorseAgeMonths(anchor: HorseAgeAnchor, now: Date, config: HorseGrowthConfig): number {
+  const anchorAgeMonths = calculateAgeInMonths(anchor.birthDate, anchor.agingStartedAt);
+  const elapsedDays = Math.max(0, now.getTime() - anchor.agingStartedAt.getTime()) / MS_PER_DAY;
+  return anchorAgeMonths + Math.floor(elapsedDays * config.gameMonthsPerRealDay);
+}
+
+/** `Horse` (ISO metinli) için kısayol — use-case'ler bunu kullanır. */
+export function horseAgeMonths(
+  horse: { birthDate: string; agingStartedAt: string },
+  now: Date,
+  config: HorseGrowthConfig,
+): number {
+  return computeHorseAgeMonths({ birthDate: new Date(horse.birthDate), agingStartedAt: new Date(horse.agingStartedAt) }, now, config);
+}
+
+/** Oyun ayını gerçek süreye (ms) çevirir — bekleme süreleri oyun ayıyla yazılır. */
+export function gameMonthsToRealMs(months: number, config: HorseGrowthConfig): number {
+  return (months / config.gameMonthsPerRealDay) * MS_PER_DAY;
+}
+
+/**
+ * 15.10.2026 — B13 (`docs/ALGORITHMS.md` §9): yaşın YARIŞ etkisi. Evrenin
+ * `racingFactor`ü hız/ivme/dayanıklılığa uygulanır (zirve 1). Saf; kadro
+ * dondurulurken çağıranlar bu değeri `buildHorseEntrantSnapshot`a verir.
+ */
+export function racingAgeFactor(ageMonths: number, config: HorseGrowthConfig): number {
+  return getLifeStage(ageMonths, config).racingFactor;
+}
+
+/** Yaşa göre YARIŞTA kullanılan fiziksel stat — 2 haneye yuvarlanır (stat sütunu NUMERIC(5,2)). */
+export function applyRacingAgeFactor(value: number, factor: number): number {
+  return Math.round(value * factor * 100) / 100;
+}
+
+/** API açılışında koşar — bozuk ölçekle yaş NaN ya da sonsuz olurdu. */
+export function validateHorseGrowthConfig(config: HorseGrowthConfig): string[] {
+  const problems: string[] = [];
+  if (!(Number.isFinite(config.gameMonthsPerRealDay) && config.gameMonthsPerRealDay > 0)) {
+    problems.push('horse-growth.gameMonthsPerRealDay > 0 sonlu bir sayı olmalı.');
+  }
+  // B13 — yaş yarışta yalnızca GERİLETİR (bonus yok): 0 < çarpan ≤ 1 ve en az
+  // bir evre (zirve) tam güçtedir; aksi hâlde hiçbir at gerçek statıyla koşmazdı.
+  for (const stage of config.stages) {
+    if (!(Number.isFinite(stage.racingFactor) && stage.racingFactor > 0 && stage.racingFactor <= 1)) {
+      problems.push(`horse-growth: "${stage.name}" racingFactor 0 < x ≤ 1 olmalı.`);
+    }
+  }
+  if (!config.stages.some((stage) => stage.racingFactor === 1)) {
+    problems.push('horse-growth: en az bir evrenin (zirve) racingFactor değeri 1 olmalı.');
+  }
+  return problems;
+}

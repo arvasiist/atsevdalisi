@@ -116,6 +116,9 @@ describe('kademe değişmezleri (yapay bozuk config ile)', () => {
     fieldSize: 8,
     entryFee: 100,
     distributionId: 'test-dist',
+    // 09.10.2026 — masa kuralları (iadesiz, katılırken).
+    feeTiming: 'on_join',
+    loserRefund: { percent: 0, maxPosition: 0 },
   };
 
   /**

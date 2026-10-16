@@ -33,15 +33,17 @@ import { BreedingPanel } from '../../../src/features/breeding/BreedingPanel';
  * sınanır (bu dosya onu TEKRARLAMAZ).
  */
 
-const { breedHorsesMock, getHorseDetailsMock } = vi.hoisted(() => ({
+const { breedHorsesMock, getHorseDetailsMock, listStudsMock } = vi.hoisted(() => ({
   breedHorsesMock: vi.fn(),
   getHorseDetailsMock: vi.fn(),
+  listStudsMock: vi.fn(),
 }));
 
 vi.mock('../../../src/lib/api-client', () => ({
   apiClient: {
     breedHorses: (...args: unknown[]) => breedHorsesMock(...args),
     getHorseDetails: (...args: unknown[]) => getHorseDetailsMock(...args),
+    listStuds: (...args: unknown[]) => listStudsMock(...args),
   },
 }));
 
@@ -52,6 +54,8 @@ beforeEach(() => {
   keyCounter = 0;
   breedHorsesMock.mockReset();
   getHorseDetailsMock.mockReset();
+  listStudsMock.mockReset();
+  listStudsMock.mockResolvedValue([]);
   vi.stubGlobal('crypto', { randomUUID: () => `key-${++keyCounter}` });
 });
 
@@ -63,7 +67,7 @@ afterEach(() => {
 function horse(overrides: Partial<PublicHorse> & Pick<PublicHorse, 'id' | 'gender' | 'name'>): PublicHorse {
   return {
     ownerId: 'player-1',
-    breed: 'Arap',
+    breed: 'hinis',
     birthDate: '2024-01-01T00:00:00.000Z',
     level: 3,
     xp: 0,
@@ -84,8 +88,9 @@ function horse(overrides: Partial<PublicHorse> & Pick<PublicHorse, 'id' | 'gende
   };
 }
 
-const MARE = horse({ id: 'mare-1', gender: 'mare', name: 'İnci' });
-const STALLION = horse({ id: 'stallion-1', gender: 'stallion', name: 'Şimşek' });
+// 15.10.2026 — S5: damızlık için iki ebeveyn de EMEKLİ olmalı.
+const MARE = horse({ id: 'mare-1', gender: 'mare', name: 'İnci', status: 'retired' });
+const STALLION = horse({ id: 'stallion-1', gender: 'stallion', name: 'Şimşek', status: 'retired' });
 
 function breedingResult(overrides: Partial<BreedingResultView> = {}): BreedingResultView {
   return {
@@ -212,5 +217,41 @@ describe('BreedingPanel — sunucu otoritesi ve gösterim', () => {
     await submit();
 
     await waitFor(() => expect(onBred).toHaveBeenCalledTimes(1));
+  });
+
+  it('15.10.2026 — yarışan (emekli olmayan) kısrak listelenmez; panel "Emekli et"e yönlendirir', () => {
+    renderPanel([horse({ id: 'mare-2', gender: 'mare', name: 'Yarışçı', status: 'active' }), STALLION]);
+    expect(screen.queryByRole('button', { name: 'Çiftleştir' })).toBeNull();
+    expect(screen.getByText(/emekli kısrak/i)).toBeTruthy();
+    expect(screen.getByText(/Emekli et/)).toBeTruthy();
+  });
+
+  it('15.10.2026 — damızlık pazarı ücretiyle listelenir; seçilen aygırın kimliği gider', async () => {
+    listStudsMock.mockResolvedValue([
+      {
+        horseId: 'stud-9',
+        name: 'Karayel',
+        breed: 'arap',
+        ownerId: 'player-2',
+        ownerUsername: 'ahmet',
+        ageMonths: 72,
+        quality: 90,
+        fee: 2300,
+        foalCount: 1,
+        foalLimit: 12,
+      },
+    ]);
+    breedHorsesMock.mockResolvedValueOnce(breedingResult({ stallionId: 'stud-9', fee: 2300 }));
+    renderPanel([MARE]);
+    await screen.findByRole('option', { name: /Karayel/ });
+
+    fireEvent.change(screen.getByLabelText('Kısrak'), { target: { value: 'mare-1' } });
+    fireEvent.change(screen.getByLabelText('Aygır'), { target: { value: 'stud-9' } });
+    fireEvent.change(screen.getByLabelText('Tay adı'), { target: { value: 'Rüzgâr' } });
+    expect(screen.getByText(/Ödeyeceğin damızlık ücreti/)).toBeTruthy();
+    await submit();
+
+    await waitFor(() => expect(breedHorsesMock).toHaveBeenCalledTimes(1));
+    expect(breedHorsesMock.mock.calls[0]?.[2]).toBe('stud-9');
   });
 });

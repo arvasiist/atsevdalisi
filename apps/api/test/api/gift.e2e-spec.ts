@@ -5,7 +5,13 @@ import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { PG_POOL } from '../../src/infrastructure/database/database.module';
 import { AppConfigService } from '../../src/infrastructure/config/config.service';
-import { bootstrapTestApp, registerTestPlayer, type RegisteredTestPlayer } from './test-helpers';
+import {
+  bootstrapTestApp,
+  registerTestPlayer,
+  type RegisteredTestPlayer,
+  matureAccounts,
+  recordSharedFinishedRace,
+} from './test-helpers';
 
 /**
  * HEDİYE GÖNDERİMİ — proje sahibinin açık talebi (27.09.2026 — üç parçanın
@@ -49,6 +55,9 @@ describe('Hediye gönderimi (e2e) — PARA YOLU', () => {
 
   /** İki oyuncuyu arkadaş yapar (istek + kabul) — hediye ön koşulu. */
   async function makeFriends(a: RegisteredTestPlayer, b: RegisteredTestPlayer): Promise<void> {
+    // Arkadaşlık kuralı (08.10.2026): istek yalnızca birlikte yarışmışlar arasında.
+    await matureAccounts(app, [a, b]);
+    await recordSharedFinishedRace(app, [a, b]);
     const created = await request(app.getHttpServer())
       .post(requestsUrl(a.playerId))
       .set('Authorization', a.authHeader)
@@ -182,7 +191,7 @@ describe('Hediye gönderimi (e2e) — PARA YOLU', () => {
       expect(Number(credit.balance_after)).toBe(100 + amount);
     });
 
-    it('Elmas da hediye edilebilir (config: allowedCurrencies)', async () => {
+    it('09.10.2026 — Elmas hediye EDİLEMEZ (elmas politikası): 400, iki bakiye de dokunulmaz', async () => {
       const sender = await registerTestPlayer(app, 'Elmas Gönderen');
       const recipient = await registerTestPlayer(app, 'Elmas Alan');
       await makeFriends(sender, recipient);
@@ -190,12 +199,18 @@ describe('Hediye gönderimi (e2e) — PARA YOLU', () => {
       await setBalance(sender.playerId, 0, 40);
       await setBalance(recipient.playerId, 0, 5);
 
-      await sendGift(sender, recipient.playerId, 15, 'gems', 201);
+      const response = await sendGift(sender, recipient.playerId, 15, 'gems', 400);
+      expect(response.body.error.code).toBe('GIFT_CURRENCY_NOT_ALLOWED');
 
       const senderRow = await pool.query('SELECT gems FROM players WHERE id = $1', [sender.playerId]);
       const recipientRow = await pool.query('SELECT gems FROM players WHERE id = $1', [recipient.playerId]);
-      expect(Number(senderRow.rows[0].gems)).toBe(25);
-      expect(Number(recipientRow.rows[0].gems)).toBe(20);
+      expect(Number(senderRow.rows[0].gems)).toBe(40);
+      expect(Number(recipientRow.rows[0].gems)).toBe(5);
+      const ledger = await pool.query('SELECT 1 FROM economy_transactions WHERE player_id = ANY($1::uuid[]) AND currency = $2', [
+        [sender.playerId, recipient.playerId],
+        'gems',
+      ]);
+      expect(ledger.rowCount).toBe(0);
     });
 
     it('Çip hediyesi Elmas bakiyesine DOKUNMAZ (bakiye zinciri tek birim üzerindendir)', async () => {
@@ -610,18 +625,18 @@ describe('Hediye gönderimi (e2e) — PARA YOLU', () => {
       expect(await giftNotifications(sender)).toHaveLength(0);
     });
 
-    it('Elmas hediyesinin bildirimi birimi `gems` olarak taşır', async () => {
-      const sender = await registerTestPlayer(app, 'Elmas Bildirim Gönderen');
-      const recipient = await registerTestPlayer(app, 'Elmas Bildirim Alan');
+    it('Hediye bildirimi birimi taşır (`money`)', async () => {
+      const sender = await registerTestPlayer(app, 'Birim Bildirim Gönderen');
+      const recipient = await registerTestPlayer(app, 'Birim Bildirim Alan');
       await makeFriends(sender, recipient);
-      await setBalance(sender.playerId, 0, 40);
+      await setBalance(sender.playerId, 40, 0);
 
-      await sendGift(sender, recipient.playerId, 15, 'gems', 201);
+      await sendGift(sender, recipient.playerId, 15, 'money', 201);
 
       const received = await giftNotifications(recipient);
       expect(received).toHaveLength(1);
-      // Birim payload'da OLMASAYDI istemci "15"i Çip sanırdı.
-      expect((received[0]?.payload as { currency: string }).currency).toBe('gems');
+      // Birim payload'da OLMASAYDI istemci tutarın birimini tahmin etmek zorunda kalırdı.
+      expect((received[0]?.payload as { currency: string }).currency).toBe('money');
     });
 
     it('AYNI Idempotency-Key ile iki istek → TEK hediye, TEK bildirim', async () => {

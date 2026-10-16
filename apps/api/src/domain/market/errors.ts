@@ -103,3 +103,54 @@ export class ListingStaleOwnerError extends Error {
     this.name = 'ListingStaleOwnerError';
   }
 }
+
+// ---------------------------------------------------------------------------
+// 02.10.2026 — MÜZAYEDE
+// ---------------------------------------------------------------------------
+
+/** Müzayede ilanı "hemen al" ile satın alınamaz (teklif yolu zorunlu). */
+export class ListingIsAuctionError extends Error {
+  constructor(public readonly listingId: string) {
+    super(`İlan (${listingId}) bir müzayededir — satın almak için teklif ver.`);
+    this.name = 'ListingIsAuctionError';
+  }
+}
+
+/** Sabit fiyatlı ilana teklif verilemez. */
+export class ListingNotAuctionError extends Error {
+  constructor(public readonly listingId: string) {
+    super(`İlan (${listingId}) müzayede değil — teklif verilemez.`);
+    this.name = 'ListingNotAuctionError';
+  }
+}
+
+export class BidTooLowError extends Error {
+  constructor(public readonly amount: number, public readonly minimum: number) {
+    super(`Teklif (${amount}) çok düşük — en az ${minimum} olmalıdır.`);
+    this.name = 'BidTooLowError';
+  }
+}
+
+export class CannotBidOwnListingError extends Error {
+  constructor() {
+    super('Kendi ilanına teklif veremezsin.');
+    this.name = 'CannotBidOwnListingError';
+  }
+}
+
+/** Teklif almış müzayede iptal edilemez — teklif verenin emaneti askıda kalırdı. */
+export class AuctionHasBidsError extends Error {
+  constructor(public readonly listingId: string) {
+    super(`Müzayede (${listingId}) teklif aldı — artık iptal edilemez.`);
+    this.name = 'AuctionHasBidsError';
+  }
+}
+
+/** Müzayedenin bir bitiş anı OLMALIDIR — yoksa hiç kapanmaz ve emanet sonsuza kadar kalır. */
+export class AuctionRequiresEndTimeError extends Error {
+  constructor() {
+    super('Müzayede için bitiş süresi (expiresInHours) zorunludur.');
+    this.name = 'AuctionRequiresEndTimeError';
+  }
+}
+

@@ -1,4 +1,7 @@
+import type { RaceFieldRule } from '../../domain/race/field-rule';
+import type { RaceReadinessThresholds } from '../../domain/race/readiness';
 import type {
+  PracticeRaceResult,
   PvpMatch,
   Race,
   RaceEntrantSnapshot,
@@ -9,12 +12,14 @@ import type {
   RaceSegmentSnapshot,
   RaceSettlementResult,
   RaceStatus,
+  RaceTacticInput,
   RaceTimelineView,
   RacingStyle,
   RecentRaceResultView,
   RiskLevel,
 } from '@at-sevdalisi/shared-types';
-import type { OnlineConfig } from '@at-sevdalisi/game-config';
+import type { HorseGrowthConfig, OnlineConfig } from '@at-sevdalisi/game-config';
+import type { PlayerCommandLog } from '../../domain/race/interactive-race';
 
 /**
  * `RaceRepository` — Application katmanının Infrastructure'a bağlandığı
@@ -82,7 +87,9 @@ export interface RaceRepository {
    * DEĞİLDİR, yalnızca `RunPracticeRaceUseCase`'in dönüş değerini oluştururken
    * kullanışlıdır.
    */
-  savePracticeRaceWithStakes(input: SavePracticeRaceWithStakesInput): Promise<SavePracticeRaceWithStakesResult>;
+  savePracticeRaceWithStakes(
+    input: SavePracticeRaceWithStakesInput,
+  ): Promise<SavePracticeRaceWithStakesResult>;
 
   /**
    * FAZ 1 wiring, on dördüncü dilim (bu oturum) — PvP Eşleştirme (brief
@@ -131,7 +138,9 @@ export interface RaceRepository {
    * (reytingler dahil) ROLLBACK eder — artık Elo'nun maç kaydından
    * BAĞIMSIZ bir duruma düşmesi mümkün DEĞİL.
    */
-  savePvpMatchWithRatings(input: SavePvpMatchWithRatingsInput): Promise<SavePvpMatchWithRatingsResult>;
+  savePvpMatchWithRatings(
+    input: SavePvpMatchWithRatingsInput,
+  ): Promise<SavePvpMatchWithRatingsResult>;
 
   /**
    * Faz 2 (görsel kalite planı) — Ana Sayfa "Son Yarış Sonuçları" paneli
@@ -167,6 +176,18 @@ export interface RaceRepository {
    * ile AYNI gerekçe).
    */
   findTimelineByRaceId(raceId: string): Promise<RaceTimelineView | null>;
+
+  /**
+   * Yarışın yalnızca durumu (01.10.2026) — tribün soketi, bitmemiş bir
+   * yarışın kesinleşmesini ya da iptalini beklerken yoklar. Satır yoksa `null`.
+   */
+  findRaceStatus(raceId: string): Promise<RaceStatus | null>;
+
+  /**
+   * 02.10.2026 — bu at-jokey ikilisinin geçmiş yarışlarındaki ortalama
+   * `performance_score`u (0-100); ortak geçmiş yoksa `null` (uyumda nötr).
+   */
+  findJockeyPairAveragePerformance(horseId: string, jockeyId: string): Promise<number | null>;
 
   /**
    * AUDIT_REPORT.md Bulgu R2 (Medium, bu oturum) — `GET /races/:id/timeline`
@@ -283,6 +304,19 @@ export interface RaceRepository {
    * kısıtı sıfır tutarlı bir satırı zaten reddederdi.
    */
   leaveLobbyRace(input: LeaveLobbyRaceInput): Promise<RaceLobbyView>;
+
+  /**
+   * 14.10.2026 — oyuncunun KENDİ yarışını iptali. Yarış satırı katılımla
+   * AYNI kilitle (`FOR UPDATE`) okunur, aktif katılım sayısı KİLİTTEN SONRA
+   * sayılır ve `check` (domain kuralı `checkOwnRaceCancelable`) kilit
+   * altında koşar — "iptal edilebilir mi" ile yazma arasında eşzamanlı bir
+   * katılım araya giremez. Para hareketi YOKTUR (aktif katılım yokken
+   * iptal edilir). Yarış yoksa `false`.
+   */
+  cancelOwnLobbyRace(
+    input: { raceId: string; now: Date },
+    check: (race: { createdBy: string | null; status: string; activeEntries: number }) => void,
+  ): Promise<boolean>;
   /**
    * READY ŞARTI (30.09.2026) — brief §6 / proje sahibinin talebi: "HAZIR
    * OLAN kişiler yarışabilsinler". Başlangıç zamanı gelmiş `scheduled` bir
@@ -301,6 +335,9 @@ export interface RaceRepository {
    * satırı `FOR UPDATE`; yarış `scheduled` değilse ya da başlangıç zamanı
    * gelmemişse HİÇBİR ŞEY yapmaz (idempotent — ikinci çağrı boş döner).
    */
+  /** 09.10.2026 — aktif katılım → defterden ödenen giriş bedeli (ödenmemişse 0). */
+  findLobbyPaidFees(raceId: string): Promise<Map<string, number>>;
+
   dropUnreadyLobbyEntries(input: {
     raceId: string;
     now: Date;
@@ -330,6 +367,106 @@ export interface RaceRepository {
   cancelEmptyDueTournaments(now: Date): Promise<number>;
 
   /**
+   * 01.10.2026 — YARIŞ TAKVİMİ: verilen yuvalardan HANGİLERİ zaten açılmış
+   * (`race_calendar_slots`). Yuvanın yarışı iptal edilmiş olsa bile açılmış
+   * sayılır — iptal edilen yuva yeniden açılmaz.
+   */
+  findExistingCalendarSlots(programId: string, startTimes: Date[]): Promise<Date[]>;
+
+  /**
+   * 01.10.2026 — takvim yuvası için bir lobi yarışı + `race_calendar_slots`
+   * satırı, TEK transaction. `created_by` NULL'dır. Yuva zaten açıksa
+   * (eşzamanlı ikinci çağrı) hiçbir şey yazmaz ve `null` döner.
+   */
+  createCalendarRace(input: CreateCalendarRaceInput): Promise<string | null>;
+
+  /** 01.10.2026 — başlangıcı geçmiş, hiç katılımı olmayan takvim yarışlarını iptal eder; iptal sayısını döner. */
+  cancelEmptyDueCalendarRaces(now: Date): Promise<number>;
+
+  /**
+   * 14.10.2026 — başlangıcı geçmiş, hiç (iptal edilmemiş) katılımı olmayan
+   * OYUNCU yarışlarını iptal eder; iptal sayısını döner. Kilit zamanlayıcısı
+   * katılımsız yarışı seçmez (`findRacesDueForLock` `EXISTS` ister); bu
+   * temizlik olmadan yarış `scheduled`da sonsuza dek kalır ve açanın
+   * `maxOpenRacesPerPlayer` hakkını KALICI olarak işgal ederdi. Para yoktur
+   * (aktif katılım yok; ayrılanın ücreti ayrılırken iade edilmiştir). Tur
+   * başına en fazla `limit` yarış (kalanlar sonraki turda).
+   */
+  cancelEmptyDuePlayerRaces(now: Date, limit: number): Promise<number>;
+
+  /**
+   * 01.10.2026 — OYUNCU KONTROLLÜ PRATİK YARIŞ başlatır: TEK transaction'da
+   * `players` `FOR UPDATE` + giriş ücreti (`practice_race_entry_fee` defter
+   * satırı, reference_id = oturum id) + oturum satırı. Oyuncunun süren bir
+   * oturumu varsa HİÇBİR şey yazmaz ve onun kimliğini döner.
+   */
+  startInteractiveRace(
+    input: StartInteractiveRaceInput,
+  ): Promise<
+    { ok: true; balance: { money: number; gems: number } } | { ok: false; runningRaceId: string }
+  >;
+
+  findInteractiveRace(raceId: string): Promise<InteractiveRaceRecord | null>;
+
+  /**
+   * 01.10.2026 — oyuncunun şu an CANLI koşan (kontrollü, `locking`) lobi
+   * yarışı; yoksa `null`.
+   */
+  findLiveLobbyRaceIdForPlayer(playerId: string): Promise<string | null>;
+
+  /**
+   * 01.10.2026 — oyuncunun kendi katılımına komut yazar. `races` satırı
+   * `FOR SHARE` (kesinleşme onu `FOR UPDATE` aldığından iki yazım
+   * çakışmaz), katılım satırı `FOR UPDATE`. `mutate` fırlatırsa hiçbir şey
+   * yazılmaz. Katılım yoksa `null`.
+   */
+  updateLobbyEntryCommands(
+    raceId: string,
+    playerId: string,
+    mutate: (current: PlayerCommandLog, raceStatus: string) => PlayerCommandLog,
+  ): Promise<PlayerCommandLog | null>;
+
+  /** 01.10.2026 — kesinleşmiş lobi yarışında oyuncunun sırası ve aldığı ödül; yoksa `null`. */
+  findLobbyOutcome(
+    raceId: string,
+    playerId: string,
+  ): Promise<{ finishPosition: number; prizeWon: number; entryFee: number; loserRefund: number } | null>;
+
+  findRunningInteractiveRaceId(playerId: string): Promise<string | null>;
+
+  /** Zamanlayıcı için: süren oturumlar, en eski başlangıç önce. */
+  findRunningInteractiveRaceIds(limit: number): Promise<string[]>;
+
+  /**
+   * Oturum satırı `FOR UPDATE` altında yeni komut kaydını hesaplatır ve
+   * yazar (`mutate` fırlatırsa hiçbir şey yazılmaz). Oturum yoksa `null`.
+   */
+  updateInteractiveRaceCommands(
+    raceId: string,
+    mutate: (record: InteractiveRaceRecord) => PlayerCommandLog,
+  ): Promise<InteractiveRaceRecord | null>;
+
+  /**
+   * Oturum satırı `FOR UPDATE` altında kesinleştirir: `build` kayıt girdisini
+   * üretir (yarış henüz bitmediyse `null`), pratik yarış kayıt yolu AYNI
+   * transaction'da koşar ve oturum `finished` olur. Tekrar koruması durum
+   * geçişidir (`running → finished`).
+   */
+  finishInteractiveRace(
+    raceId: string,
+    build: (record: InteractiveRaceRecord) => {
+      saveInput: SavePracticeRaceWithStakesInput;
+      /** Kesinleşme sonucu (yeni bakiyeyle) — oturum satırına AYNI transaction'da yazılır. */
+      result: (balance: { money: number; gems: number }) => PracticeRaceResult;
+    } | null,
+  ): Promise<
+    | { status: 'finished'; balance: { money: number; gems: number } }
+    | { status: 'not_due' }
+    | { status: 'already_finished' }
+    | null
+  >;
+
+  /**
    * Bir lobi yarışının KESİNLEŞME BAĞLAMINI okur (salt okuma, §42 PHASE
    * 13.14): yarışın simülasyon parametreleri + koşacak GERÇEK katılımcılar.
    *
@@ -351,6 +488,13 @@ export interface RaceRepository {
    * kendisi kurar.
    */
   findLobbySettlementContext(raceId: string): Promise<LobbySettlementContext | null>;
+
+  /**
+   * 09.10.2026 — jokey forması: oyuncu kimliği → KAYDEDİLMİŞ avatarın forma
+   * ana rengi (hex). Kaydı olmayan / rengi katalogdan kalkmış oyuncu haritada
+   * YOKTUR (istemci paletine düşer). Salt görünüş.
+   */
+  findSilkColors(playerIds: readonly string[]): Promise<Map<string, string>>;
 
   /**
    * KİLİTLENMEYİ BEKLEYEN yarışların kimliklerini döner (brief §42 PHASE 1,
@@ -375,7 +519,15 @@ export interface RaceRepository {
    * kilitlenir — `listLobbyRaces`'in sıralamasıyla AYNI gerekçe. `limit`
    * çağırandan gelir (`RaceLobbyConfig.lockScheduler.batchSize`).
    */
-  findRacesDueForLock(input: { now: Date; limit: number }): Promise<string[]>;
+  findRacesDueForLock(input: {
+    now: Date;
+    limit: number;
+    /**
+     * 14.10.2026 — bu turda ATLANACAK yarışlar (kilitlenirken hata verip
+     * bekleme süresindekiler). Verilmezse hiçbiri atlanmaz.
+     */
+    excludeIds?: readonly string[];
+  }): Promise<string[]>;
 
   /**
    * Kesinleşmeyi bekleyen (`locking`) yarışların kimlikleri, en eski
@@ -564,6 +716,12 @@ export interface JoinLobbyRaceInput {
  */
 export interface CreateLobbyRaceInput {
   id: string;
+  /**
+   * 14.10.2026 — açık yarış tavanının "şimdi"si: başlangıcı geçmiş,
+   * katılımsız yarış tavana sayılmaz (`createLobbyRace` doc yorumu).
+   * Doğrulamayla AYNI an (`CreateRaceUseCase`).
+   */
+  now: Date;
   /** Yarışı açan oyuncu — `CurrentPlayer()`'dan gelir, gövdeden ASLA (CLAUDE.md "SUNUCU OTORİTESİ"). */
   createdBy: string;
   name: string;
@@ -616,6 +774,23 @@ export interface CreateLobbyRaceInput {
    * (aşağıdaki `CreateLobbyRaceResult`'ın doc yorumu).
    */
   maxOpenRaces: number;
+  /** 01.10.2026 — oyuncu kontrollü canlı yarış (migration 0054). */
+  playerControl: boolean;
+  /** 08.10.2026 — ırk sınıfı (migration 0070); `null` = her ırka açık. */
+  breedClass: string | null;
+  /** 08.10.2026 — hipodrom anahtarı (migration 0072); `null` = varsayılan. */
+  hippodrome: string | null;
+  /** 08.10.2026 — at seviyesi aralığı (migration 0073); `null` = her seviyeye açık. */
+  horseLevelBracket: string | null;
+  /** 09.10.2026 — masa (migration 0079); `null` = masasız (eski kurallar). */
+  tableId: string | null;
+  /**
+   * 09.10.2026 — kulüp içi yarış (migration 0081). `true` ise depo açanın
+   * kulübünü KİLİTLİ transaction'da bulur (lider/subay şartı) ve yarışa yazar.
+   */
+  clubOnly: boolean;
+  /** 15.10.2026 — Aşama 3: yarışın saha kuralı (`domain/race/field-rule.ts`), satıra yazılır. */
+  fieldRule: RaceFieldRule;
 }
 
 /**
@@ -639,7 +814,6 @@ export type CreateLobbyRaceResult =
   | { ok: true; race: RaceLobbyView }
   | { ok: false; reason: 'RACE_LIMIT_REACHED'; openRaces: number };
 
-
 /** `RaceRepository.savePracticeRaceWithStakes` (AUDIT_REPORT.md E1) girdi şekli. */
 export interface SavePracticeRaceWithStakesInput {
   race: Race;
@@ -656,6 +830,20 @@ export interface SavePracticeRaceWithStakesInput {
   entryFee: number;
   /** `getRacePrize`'dan — 0 ise ekleme/ledger girişi hiç yazılmaz. */
   prizeWon: number;
+  /**
+   * 09.10.2026 — masanın kaybeden iadesi (`table-rules.ts`). 0 ise satır
+   * yazılmaz; > 0 ise `practice_race_loser_refund` defter satırı AYNI
+   * transaction'da. Opsiyonel: eski çağıranlar için 0.
+   */
+  loserRefund?: number;
+  /**
+   * 15.10.2026 — S3: verilirse atın hazırlığı, para hareketinden ÖNCE at
+   * satırı `FOR UPDATE` kilitliyken YENİDEN denetlenir. Kilitsiz ön kontrol
+   * eşzamanlı isteklerde aşılabiliyordu (aynı anda N istek → yorgunluk
+   * kapısını aşan N "taze" yarış). Kontrollü yarışın kesinleşmesi VERMEZ:
+   * ücreti başta ödenmiş oturum hazırlık yüzünden kesinleşemez olmamalı.
+   */
+  readinessGate?: { thresholds: RaceReadinessThresholds; growth: HorseGrowthConfig };
 }
 
 /** `RaceRepository.savePracticeRaceWithStakes` sonucu — `WalletBalance` ile AYNI şekil (`domain/economy/wallet.ts`). */
@@ -735,6 +923,71 @@ export interface CreateTournamentRaceInput {
   rulesetVersion: string;
   configVersion: string;
   weatherConfigVersion: string;
+  /** 01.10.2026 — oyuncu kontrollü canlı yarış (migration 0054). */
+  playerControl: boolean;
+  /** 15.10.2026 — turnuvanın kuralı (botsuz, `minParticipants`) satıra da yazılır. */
+  fieldRule: RaceFieldRule;
+}
+
+/** 01.10.2026 — oyuncu kontrollü pratik yarış oturumu (migration 0053). */
+export interface InteractiveRaceRecord {
+  id: string;
+  playerId: string;
+  horseId: string;
+  tierId: string;
+  /** GİZLİ — istemciye gönderilmez. */
+  simulationSeed: string;
+  tactic: RaceTacticInput;
+  /** [oyuncu atı, ...botlar] — başlangıçta donmuş. */
+  entrants: RaceEntrantSnapshot[];
+  jockeyId: string | null;
+  entryFee: number;
+  distanceMeters: number;
+  surface: string;
+  weather: string;
+  commands: PlayerCommandLog;
+  startsAt: Date;
+  status: 'running' | 'finished';
+  finishedAt: Date | null;
+  result: PracticeRaceResult | null;
+}
+
+export type StartInteractiveRaceInput = Omit<
+  InteractiveRaceRecord,
+  'commands' | 'status' | 'finishedAt' | 'result'
+>;
+
+/** 01.10.2026 — takvim yarışı girdisi: doğrulanmış yarış tanımı + yuva. */
+export interface CreateCalendarRaceInput {
+  raceId: string;
+  programId: string;
+  name: string;
+  startTime: Date;
+  fieldSize: number;
+  maxPlayers: number;
+  entryFee: number;
+  raceType: 'free' | 'paid';
+  distanceMeters: number;
+  surface: string;
+  weather: string;
+  tribuneFee: number;
+  spectatorCapacity: number;
+  engineVersion: string;
+  rulesetVersion: string;
+  configVersion: string;
+  weatherConfigVersion: string;
+  /** 01.10.2026 — oyuncu kontrollü canlı yarış (migration 0054). */
+  playerControl: boolean;
+  /** 08.10.2026 — programın ırk sınıfı; `null` = her ırka açık. */
+  breedClass: string | null;
+  /** 08.10.2026 — programın hipodromu; `null` = varsayılan. */
+  hippodrome: string | null;
+  /** 08.10.2026 — programın at seviyesi aralığı; `null` = her seviyeye açık. */
+  horseLevelBracket: string | null;
+  /** 09.10.2026 — programın masası; `null` = masasız. */
+  tableId: string | null;
+  /** 15.10.2026 — programın saha kuralı (`calendarFieldRule`). */
+  fieldRule: RaceFieldRule;
 }
 
 /** `dropUnreadyLobbyEntries` sonucu. */
@@ -778,6 +1031,10 @@ export interface LobbySettlementEntrant {
    * jokeyi gösterirdi.
    */
   jockeyId: string | null;
+  /** 01.10.2026 — oyuncunun segment komutları (kontrollü yarış; diğerlerinde boş). */
+  playerCommands: PlayerCommandLog;
+  /** `horses.name` — canlı görünümde (oyuncu + tribün) at adı (01.10.2026). */
+  horseName: string;
 }
 
 /**
@@ -825,6 +1082,25 @@ export interface LobbySettlementContext {
    * doğururdu.
    */
   simulationSeed: string | null;
+  /** 01.10.2026 (migration 0054). */
+  playerControl: boolean;
+  /** Kontrollü yarışta kapıların açıldığı an (kilitte yazılır); diğerlerinde `null`. */
+  liveStartsAt: Date | null;
+  /** 08.10.2026 — ırk sınıfı; botların stat aralığı buradan türetilir. `null` = açık yarış. */
+  breedClass: string | null;
+  /** 08.10.2026 — hipodrom anahtarı (salt sahne; eski yarışta varsayılan). */
+  hippodrome: string;
+  /** 08.10.2026 — at seviyesi aralığı; botların gücü buradan da türetilir. `null` = açık. */
+  horseLevelBracket: string | null;
+  /** 09.10.2026 — masa: ödül dağılımı + kaybeden iadesi buradan. `null` = masasız. */
+  tableId: string | null;
+  /**
+   * 15.10.2026 (migration 0085) — yarışın yetersiz oyuncu kuralı: boş
+   * koltuklar botla tamamlanır mı. Eski satırlar `true` (eski davranış).
+   */
+  aiFill: boolean;
+  /** 15.10.2026 (migration 0085) — kilitte en az bu kadar gerçek oyuncu kalmalı. */
+  minRealPlayers: number;
 }
 
 /**
@@ -863,6 +1139,8 @@ export interface LockLobbyRaceInput {
    * koşmuş olurdu. `null` = oyuncunun kiralı jokeyi yok.
    */
   entrantSnapshots: { entryId: string; snapshot: RaceEntrantSnapshot; jockeyId: string | null }[];
+  /** 01.10.2026 — kontrollü yarışta kilit ile kapıların açılması arasındaki geri sayım (sn). */
+  liveCountdownSeconds: number;
 }
 
 /**
@@ -924,11 +1202,17 @@ export interface SettleLobbyRaceInput {
   segments: RaceSegmentSnapshot[];
   /**
    * Sıra → Çip. Dizinin `i` elemanı `i + 1`. sıranın ödülüdür; dizinin
-   * dışında kalan sıralar 0 alır. **TUTARLAR BURADA HESAPLANMAZ** —
-   * `domain/race/prize-distribution.ts` → `computePrizePayouts` çıktısı
-   * AYNEN geçirilir, böylece havuz aritmetiği tek bir yerde kalır.
+   * dışında kalan sıralar 0 alır. **TUTARLAR BURADA HESAPLANMAZ** — lobide
+   * `computeLobbySettlement` (botun sırası 0, bot payı gerçek oyunculara),
+   * turnuvada `computePrizePayouts` çıktısı AYNEN geçirilir, böylece havuz
+   * aritmetiği tek bir yerde kalır.
    */
   payouts: number[];
+  /**
+   * 09.10.2026 — masanın kaybeden iadeleri (`computeLobbySettlement`).
+   * `paidFee` kilit altında defterle KARŞILAŞTIRILIR. Yoksa iade yok.
+   */
+  loserRefunds?: Array<{ entryId: string; amount: number; paidFee: number }>;
   /** Şu an — kilit altındaki durum denetimine ve tüm yazımlara geçirilir. */
   now: Date;
 }

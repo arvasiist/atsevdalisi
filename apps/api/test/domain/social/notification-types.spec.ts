@@ -50,9 +50,16 @@ function findRepoRoot(startDir: string): string {
 
 const repoRoot = findRepoRoot(process.cwd());
 
-const NOTIFICATION_MIGRATION = readdirSync(join(repoRoot, 'database', 'migrations')).find((name) =>
-  name.endsWith('create_notifications_and_race_invites.up.sql'),
-);
+// 02.10.2026 — kısıt 0056'da genişletildi: yürürlükteki tanım, `notifications`
+// CHECK'ini yazan EN SON `up` migration'ıdır (dosya adı sırası = uygulama sırası).
+const NOTIFICATION_MIGRATION = readdirSync(join(repoRoot, 'database', 'migrations'))
+  .filter((name) => name.endsWith('.up.sql'))
+  .sort()
+  .filter((name) => {
+    const sql = readFileSync(join(repoRoot, 'database', 'migrations', name), 'utf-8');
+    return sql.includes('notifications') && sql.includes('CHECK (type IN (');
+  })
+  .at(-1);
 
 /**
  * Migration dosyasındaki `CHECK (type IN (...))` listesini okur.
@@ -94,22 +101,41 @@ describe('NOTIFICATION_TYPES — üç kopya birebir aynı olmalı', () => {
     expect(fromMigration).toHaveLength(NOTIFICATION_TYPES.length);
   });
 
+  it('müzayede bildirimleri (02.10.2026) eksiksiz', () => {
+    for (const type of ['auction_outbid', 'auction_won', 'auction_sold', 'auction_unsold', 'auction_refunded']) {
+      expect(NOTIFICATION_TYPES).toContain(type);
+    }
+  });
+
+  it('tribün hediyesi + ilan süre dolumu + kulüp daveti + yarış iptali + damızlık hizmeti + arkadaş çip hediyesi + transfer + davet ödülü — CHECK\'i yazan en son migration 0091', () => {
+    expect(NOTIFICATION_TYPES).toContain('tribune_gift_received');
+    expect(NOTIFICATION_TYPES).toContain('listing_expired');
+    expect(NOTIFICATION_TYPES).toContain('club_invite');
+    expect(NOTIFICATION_TYPES).toContain('race_cancelled');
+    expect(NOTIFICATION_TYPES).toContain('stud_service');
+    expect(NOTIFICATION_TYPES).toContain('friend_gift_received');
+    expect(NOTIFICATION_TYPES).toContain('gift_sent');
+    expect(NOTIFICATION_TYPES).toContain('referral_reward');
+    expect(NOTIFICATION_MIGRATION).toBe('0091_transfer_and_referral_notifications.up.sql');
+  });
+
   it('brief §28in SEKİZ türünü eksiksiz içerir', () => {
     // Sabit yazılır (listenin kendisinden türetilmez): liste bir gün
     // yanlışlıkla kısaltılırsa test kırılsın — kendi kendini doğrulayan
     // bir test hiçbir şeyi korumaz.
-    expect(new Set(NOTIFICATION_TYPES)).toEqual(
-      new Set([
-        'friend_request',
-        'friend_accepted',
-        'race_invite',
-        'gift_received',
-        'message_received',
-        'race_starting',
-        'race_finished',
-        'prize_won',
-      ]),
-    );
+    const brief = [
+      'friend_request',
+      'friend_accepted',
+      'race_invite',
+      'gift_received',
+      'message_received',
+      'race_starting',
+      'race_finished',
+      'prize_won',
+    ];
+    for (const type of brief) {
+      expect(NOTIFICATION_TYPES).toContain(type);
+    }
   });
 
   it('türler `snake_case`tir (CHECK deseni yalnızca `[a-z_]` kabul eder)', () => {

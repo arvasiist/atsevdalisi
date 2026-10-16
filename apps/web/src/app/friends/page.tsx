@@ -42,22 +42,28 @@
  * göre gösterir/gizler.
  */
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import type {
   BlockedPlayerView,
-  Currency,
   DirectMessageView,
   FriendRequestView,
   FriendView,
   GiftView,
+  RaceCompanionView,
   SocialOverviewView,
 } from '@at-sevdalisi/shared-types';
-import { CURRENCIES } from '@at-sevdalisi/shared-types';
 import { GlassPanel } from '../../components/ui/GlassPanel';
 import { apiClient } from '../../lib/api-client';
-import { CURRENCY_LABELS, formatCurrency, hasEnoughFunds } from '../../lib/currency';
+import { formatCurrency } from '../../lib/currency';
 import { usePlayer } from '../../lib/player-context';
+import { companionAction, describeSharedRaces } from '../../features/social/race-companions';
+import { ChipTransferPanel } from '../../features/social/ChipTransferPanel';
+import { FriendGiftPanel } from '../../features/social/FriendGiftPanel';
+import { OnlineStatusToggle } from '../../features/social/OnlineStatusToggle';
+import { PlayerSearchPanel } from '../../features/social/PlayerSearchPanel';
+import { PresenceBadge } from '../../features/social/PresenceBadge';
+import { RaceInvitePicker } from '../../features/social/RaceInvitePicker';
 
 /** Gelen kutusunda gösterilecek en fazla satır — sunucu zaten `inboxLimit` uygular. */
 const INBOX_PREVIEW_LIMIT = 5;
@@ -95,19 +101,21 @@ export default function FriendsPage(): React.ReactElement {
    */
   const [activeGiftFriend, setActiveGiftFriend] = useState<FriendView | null>(null);
   /** Ham metin: `input type="number"` bile boş bırakılabilir; ayrıştırma sunucudadır. */
-  const [giftAmount, setGiftAmount] = useState('');
-  const [giftCurrency, setGiftCurrency] = useState<Currency>('money');
   const [gifts, setGifts] = useState<GiftView[] | null>(null);
-  const [isSendingGift, setIsSendingGift] = useState(false);
 
   /**
    * KENDİ engel listem (29.09.2026, brief §33). Sunucu YALNIZCA tek yön
    * döner — "beni engelleyenler" diye bir liste yoktur ve istenemez.
    */
   const [blocked, setBlocked] = useState<BlockedPlayerView[] | null>(null);
+  /**
+   * Birlikte yarıştığın oyuncular (08.10.2026). Arkadaşlık YALNIZCA
+   * bunlarla kurulabilir — kural sunucuda (`FRIENDSHIP_REQUIRES_SHARED_RACE`).
+   */
+  const [companions, setCompanions] = useState<RaceCompanionView[] | null>(null);
 
   const loadOverview = useCallback(async (playerId: string) => {
-    const [social, myInbox, myGifts, myBlocked] = await Promise.all([
+    const [social, myInbox, myGifts, myBlocked, myCompanions] = await Promise.all([
       apiClient.getSocialOverview(playerId),
       apiClient.getInbox(playerId),
       apiClient.getMyGifts(playerId),
@@ -117,8 +125,9 @@ export default function FriendsPage(): React.ReactElement {
       // Ayrı bir `/settings/blocks` rotası, aynı veriyi ikinci bir yerde
       // göstermek ve gezinti şeridine yeni bir bağlantı eklemek olurdu.
       apiClient.listBlockedPlayers(playerId),
+      apiClient.getRaceCompanions(playerId),
     ]);
-    return { social, myInbox, myGifts, myBlocked };
+    return { social, myInbox, myGifts, myBlocked, myCompanions };
   }, []);
 
   useEffect(() => {
@@ -130,14 +139,16 @@ export default function FriendsPage(): React.ReactElement {
     setInbox(null);
     setGifts(null);
     setBlocked(null);
+    setCompanions(null);
     setError(null);
     void loadOverview(player.id)
-      .then(({ social, myInbox, myGifts, myBlocked }) => {
+      .then(({ social, myInbox, myGifts, myBlocked, myCompanions }) => {
         if (cancelled) return;
         setOverview(social);
         setInbox(myInbox);
         setGifts(myGifts);
         setBlocked(myBlocked);
+        setCompanions(myCompanions);
       })
       .catch((err: unknown) => {
         if (!cancelled) setError(err instanceof Error ? err.message : 'Sosyal ekran yüklenemedi');
@@ -155,11 +166,12 @@ export default function FriendsPage(): React.ReactElement {
   const refresh = useCallback(
     async (options: { keepConversation?: boolean } = {}): Promise<void> => {
       if (!player) return;
-      const { social, myInbox, myGifts, myBlocked } = await loadOverview(player.id);
+      const { social, myInbox, myGifts, myBlocked, myCompanions } = await loadOverview(player.id);
       setOverview(social);
       setInbox(myInbox);
       setGifts(myGifts);
       setBlocked(myBlocked);
+      setCompanions(myCompanions);
       if (options.keepConversation && activeFriend) {
         setMessages(await apiClient.getConversation(player.id, activeFriend.playerId));
       }
@@ -182,6 +194,16 @@ export default function FriendsPage(): React.ReactElement {
     },
     [],
   );
+
+  const addCompanion = (companion: RaceCompanionView): Promise<void> =>
+    runAction(
+      `companion-${companion.playerId}`,
+      async () => {
+        await apiClient.sendFriendRequest(player?.id ?? '', companion.playerId);
+        await refresh();
+      },
+      'Arkadaşlık isteği gönderilemedi',
+    );
 
   const respond = (request: FriendRequestView, action: 'accept' | 'reject'): Promise<void> =>
     runAction(
@@ -213,8 +235,7 @@ export default function FriendsPage(): React.ReactElement {
         // anlamsız bir form görürdü.
         if (activeGiftFriend?.playerId === targetId) {
           setActiveGiftFriend(null);
-          setGiftAmount('');
-        }
+              }
         await refresh();
       },
       fallbackMessage,
@@ -235,6 +256,27 @@ export default function FriendsPage(): React.ReactElement {
       'Engel kaldırılamadı',
     );
 
+  /**
+   * 16.10.2026 — arkadaş satırından engelleme (önceden yalnızca profilde).
+   * Engel arkadaşlığı SİLMEZ; sunucu engellediğin kişiyi listenden çıkarır,
+   * "Engellenenler"de görünür ve oradan geri alınır. Yanlış basışa karşı onay.
+   */
+  const block = (friend: FriendView): Promise<void> =>
+    runAction(
+      `block-${friend.playerId}`,
+      async () => {
+        if (!window.confirm(`${friend.displayName} engellensin mi? Mesaj, hediye ve davet iki yönde de kapanır.`)) return;
+        await apiClient.blockPlayer(player?.id ?? '', friend.playerId);
+        if (activeFriend?.playerId === friend.playerId) {
+          setActiveFriend(null);
+          setMessages(null);
+        }
+        if (activeGiftFriend?.playerId === friend.playerId) setActiveGiftFriend(null);
+        await refresh();
+      },
+      'Oyuncu engellenemedi',
+    );
+
   const openConversation = (friend: FriendView): Promise<void> =>
     runAction(
       `open-${friend.playerId}`,
@@ -250,6 +292,20 @@ export default function FriendsPage(): React.ReactElement {
       'Yazışma açılamadı',
     );
 
+  // 16.10.2026 — profildeki "Çip Hediye Et" (`/friends?gift=<oyuncuId>`) paneli o arkadaş için açar.
+  const giftTargetHandled = useRef(false);
+  useEffect(() => {
+    if (giftTargetHandled.current || overview === null || typeof window === 'undefined') return;
+    const target = new URLSearchParams(window.location.search).get('gift');
+    if (target === null) return;
+    giftTargetHandled.current = true;
+    const friend = overview.friends.find((candidate) => candidate.playerId === target);
+    if (friend) {
+      setActiveGiftFriend(friend);
+      setActiveFriend(null);
+    }
+  }, [overview]);
+
   /**
    * Hediye panelini açar. Gerekli tek "iş kuralı" burada YOKTUR — tutar
    * sınırı, birim izni, arkadaşlık ve günlük tavan sunucudadır.
@@ -258,48 +314,8 @@ export default function FriendsPage(): React.ReactElement {
     setActiveGiftFriend(friend);
     setActiveFriend(null);
     setMessages(null);
-    setGiftAmount('');
     setError(null);
   };
-
-  /**
-   * HEDİYE GÖNDERİMİ — PARA YOLU.
-   *
-   * `Idempotency-Key` İSTEK BAŞINA bir kez üretilir ve çağrı tamamlanana
-   * kadar DEĞİŞMEZ: ağ hatası sonrası kullanıcı düğmeye tekrar basarsa yeni
-   * bir anahtar üretilir, ama sunucu zaten yazdıysa ikinci istek AYNI
-   * anahtarla değil — bu yüzden burada anahtar `runAction`'ın DIŞINDA,
-   * eylemin başında üretilir ve yalnızca bu tek deneme için geçerlidir
-   * (kullanıcı gerçekten yeni bir hediye göndermek istiyor olabilir).
-   *
-   * Gönderim sonrası bakiye `refresh()` ile tazelenir — üst bardaki Çip
-   * göstergesi aksi halde eski değeri gösterirdi.
-   */
-  const sendGift = (): Promise<void> =>
-    runAction(
-      'gift-send',
-      async () => {
-        if (!player || !activeGiftFriend) return;
-        const parsed = Number(giftAmount);
-        if (giftAmount.trim().length === 0 || !Number.isFinite(parsed)) return;
-        setIsSendingGift(true);
-        try {
-          await apiClient.sendGift(
-            player.id,
-            activeGiftFriend.playerId,
-            parsed,
-            giftCurrency,
-            crypto.randomUUID(),
-          );
-          setGiftAmount('');
-          await refresh();
-          refreshPlayerBalance();
-        } finally {
-          setIsSendingGift(false);
-        }
-      },
-      'Hediye gönderilemedi',
-    );
 
   const send = (): Promise<void> =>
     runAction(
@@ -324,11 +340,9 @@ export default function FriendsPage(): React.ReactElement {
     <main className="page-container">
       <h1 style={{ fontSize: '24px', color: 'var(--color-text-primary)', marginBottom: '4px' }}>Arkadaşlar</h1>
       <p style={{ color: 'var(--color-text-secondary)', marginTop: 0, marginBottom: 'var(--space-lg)' }}>
-        Arkadaş ekle, istekleri yanıtla, arkadaşlarınla yazış ve Çip/Elmas hediye gönder. Yeni arkadaş bulmak için{' '}
-        <a href="/leaderboard" style={{ color: 'var(--color-accent-gold)' }}>
-          sıralama tablosuna
-        </a>{' '}
-        göz at.
+        Arkadaş ekle, istekleri yanıtla, arkadaşlarınla yazış ve Çip/Elmas hediye gönder. Yalnızca aynı yarışta
+        birlikte koştuğun oyuncuları arkadaş ekleyebilirsin — onlar aşağıda &quot;Birlikte Yarıştıkların&quot;
+        listesindedir.
       </p>
 
       {!player && !isPlayerLoading ? (
@@ -349,8 +363,11 @@ export default function FriendsPage(): React.ReactElement {
         <p style={{ color: 'var(--color-text-muted)' }}>Yükleniyor…</p>
       ) : null}
 
-      {overview ? (
+      {overview && player ? (
         <>
+          {/* 16.10.2026 — sosyal brief §3: oyuncu arama + çevrimiçi gizliliği. */}
+          <PlayerSearchPanel playerId={player.id} onRequestSent={() => refresh()} />
+          <OnlineStatusToggle playerId={player.id} />
           {overview.incomingRequests.length > 0 ? (
             <Section title={`Gelen İstekler (${overview.incomingRequests.length})`}>
               {overview.incomingRequests.map((request) => (
@@ -407,10 +424,12 @@ export default function FriendsPage(): React.ReactElement {
             </Section>
           ) : null}
 
+          <FriendGiftPanel refreshKey={overview.friends.length} onBalanceChanged={refreshPlayerBalance} />
+
           <Section title={`Arkadaşlar (${overview.friends.length})`}>
             {overview.friends.length === 0 ? (
               <p style={{ color: 'var(--color-text-muted)', margin: 0, fontSize: '13px' }}>
-                Henüz arkadaşın yok. Sıralama tablosundan bir sporcuya istek gönderebilirsin.
+                Henüz arkadaşın yok. Yukarıdan oyuncu ara ya da birlikte koştuğun bir oyuncuya aşağıdan istek gönder.
               </p>
             ) : (
               overview.friends.map((friend) => (
@@ -425,6 +444,7 @@ export default function FriendsPage(): React.ReactElement {
                     secondary={`Seviye ${friend.level} · ${formatRelativeDate(friend.friendsSince)} arkadaş`}
                     profileUsername={friend.username}
                   />
+                  <PresenceBadge presence={friend.presence} now={new Date()} />
                   <RowActions>
                     <button
                       type="button"
@@ -439,8 +459,11 @@ export default function FriendsPage(): React.ReactElement {
                       onClick={() => openGiftPanel(friend)}
                       style={secondaryButtonStyle()}
                     >
-                      Hediye
+                      Çip Hediye Et
                     </button>
+                    {player ? (
+                      <RaceInvitePicker playerId={player.id} friendId={friend.playerId} friendName={friend.displayName} />
+                    ) : null}
                     <button
                       type="button"
                       disabled={pendingKey === friend.friendshipId}
@@ -449,9 +472,65 @@ export default function FriendsPage(): React.ReactElement {
                     >
                       Çıkar
                     </button>
+                    <button
+                      type="button"
+                      disabled={pendingKey === `block-${friend.playerId}`}
+                      onClick={() => void block(friend)}
+                      style={secondaryButtonStyle()}
+                    >
+                      Engelle
+                    </button>
                   </RowActions>
                 </Row>
               ))
+            )}
+          </Section>
+
+          {/*
+            Birlikte Yarıştıkların (08.10.2026) — arkadaşlık YALNIZCA bitmiş bir
+            yarışta birlikte koşulan oyuncularla kurulur (sunucu kuralı). Bu
+            liste yeni arkadaş bulmanın yoludur; durum metni saf modülden
+            (`race-companions.ts`), karar sunucudan gelir.
+          */}
+          <Section title={`Birlikte Yarıştıkların (${companions?.length ?? 0})`}>
+            {companions === null ? (
+              <p style={{ color: 'var(--color-text-muted)', margin: 0, fontSize: '13px' }}>Yükleniyor…</p>
+            ) : companions.length === 0 ? (
+              <p style={{ color: 'var(--color-text-muted)', margin: 0, fontSize: '13px' }}>
+                Henüz başka bir oyuncuyla aynı yarışta koşmadın.{' '}
+                <Link href="/races" style={{ color: 'var(--color-accent-gold)' }}>
+                  Bir lobi yarışına katıl
+                </Link>
+                ; yarış bitince rakiplerin burada görünür.
+              </p>
+            ) : (
+              companions.map((companion) => {
+                const action = companionAction(companion.relation);
+                const key = `companion-${companion.playerId}`;
+                return (
+                  <Row key={companion.playerId}>
+                    <RowLabel
+                      primary={companion.displayName}
+                      secondary={`Seviye ${companion.level} · ${describeSharedRaces(companion.sharedRaces)} · ${formatRelativeDate(companion.lastRacedAt)}`}
+                      profileUsername={companion.username}
+                    />
+                    <RowActions>
+                      {action.canRequest ? (
+                        <button
+                          type="button"
+                          disabled={pendingKey === key}
+                          onClick={() => void addCompanion(companion)}
+                          style={primaryButtonStyle()}
+                        >
+                          {action.label}
+                        </button>
+                      ) : (
+                        <span style={{ color: 'var(--color-text-muted)', fontSize: '12px' }}>{action.label}</span>
+                      )}
+                    </RowActions>
+                  </Row>
+                );
+              })
             )}
           </Section>
 
@@ -552,55 +631,16 @@ export default function FriendsPage(): React.ReactElement {
             </Section>
           ) : null}
 
-          {activeGiftFriend ? (
-            <Section title={`${activeGiftFriend.displayName} kişisine hediye gönder`}>
-              <p style={{ color: 'var(--color-text-muted)', margin: 0, fontSize: '13px' }}>
-                Hediye bir <strong>transferdir</strong>: düşülen tutar arkadaşının bakiyesine eklenir. Tutar sınırları
-                ve günlük gönderim tavanı sunucuda uygulanır.
-              </p>
-              <div style={{ display: 'flex', gap: 'var(--space-sm)', flexWrap: 'wrap' }}>
-                <select
-                  value={giftCurrency}
-                  onChange={(event) => setGiftCurrency(event.target.value as Currency)}
-                  style={{ ...inputStyle(), flex: '0 0 140px' }}
-                >
-                  {/* Liste `CURRENCIES`'ten gelir — hediye BAŞINA izinli
-                      birimler (`config/gift.config.json → allowedCurrencies`)
-                      sunucudadır ve istemcide TAKLİT EDİLMEZ; izinli
-                      olmayan bir birim seçilirse sunucu 400 döner. */}
-                  {CURRENCIES.map((currency) => (
-                    <option key={currency} value={currency}>
-                      {CURRENCY_LABELS[currency]}
-                    </option>
-                  ))}
-                </select>
-                <input
-                  type="number"
-                  inputMode="numeric"
-                  min={1}
-                  value={giftAmount}
-                  onChange={(event) => setGiftAmount(event.target.value)}
-                  placeholder="Tutar"
-                  style={inputStyle()}
-                />
-                <button
-                  type="button"
-                  disabled={isSendingGift || giftAmount.trim().length === 0}
-                  onClick={() => void sendGift()}
-                  style={{
-                    ...primaryButtonStyle(),
-                    opacity: isSendingGift || giftAmount.trim().length === 0 ? 0.55 : 1,
-                  }}
-                >
-                  {isSendingGift ? 'Gönderiliyor…' : 'Hediye Gönder'}
-                </button>
-              </div>
-              {player && !canAffordGift(player, giftCurrency, giftAmount) ? (
-                <p style={{ color: 'var(--color-status-critical)', margin: 0, fontSize: '13px' }}>
-                  Bakiyen bu hediyeyi karşılamıyor. (Ön kontrol — asıl kontrol sunucudadır.)
-                </p>
-              ) : null}
-            </Section>
+          {activeGiftFriend && player ? (
+            <ChipTransferPanel
+              playerId={player.id}
+              recipient={{ playerId: activeGiftFriend.playerId, displayName: activeGiftFriend.displayName }}
+              onClose={() => setActiveGiftFriend(null)}
+              onSent={async () => {
+                await refresh();
+                refreshPlayerBalance();
+              }}
+            />
           ) : null}
 
           <Section title={`Hediye Geçmişi${gifts && gifts.length > 0 ? ` (${gifts.length})` : ''}`}>
@@ -773,19 +813,6 @@ function formatRelativeDate(iso: string): string {
   if (diffMs < MS_PER_HOUR) return `${Math.floor(diffMs / MS_PER_MINUTE)} dk önce`;
   if (diffMs < MS_PER_DAY) return `${Math.floor(diffMs / MS_PER_HOUR)} sa önce`;
   return `${Math.floor(diffMs / MS_PER_DAY)} gün önce`;
-}
-
-/**
- * Hediye formundaki "bakiye yetmiyor" uyarısı — YALNIZCA bir kullanılabilirlik
- * ön kontrolüdür (`hasEnoughFunds`'un kendi doc yorumu). Tutar henüz geçerli
- * bir sayı değilse (boş/yarım yazılmış) UYARI GÖSTERİLMEZ: kullanıcı daha
- * yazarken kırmızı bir satır görmek, hatayı değil gürültüyü büyütürdü.
- */
-function canAffordGift(player: { money: number; gems: number }, currency: Currency, rawAmount: string): boolean {
-  if (rawAmount.trim().length === 0) return true;
-  const amount = Number(rawAmount);
-  if (!Number.isFinite(amount)) return true;
-  return hasEnoughFunds(player, { currency, amount });
 }
 
 function primaryButtonStyle(): React.CSSProperties {

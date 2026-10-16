@@ -70,8 +70,8 @@ ama henüz uygulanmamış kalemler ayrıca işaretlenmiştir.
 
 | Birim | Source (gelir) | Sink (gider) |
 |---|---|---|
-| **Çip** (`money`) | Yeni oyuncu başlangıç bakiyesi (5.000) · günlük ödül (500) · yarış ödülü (havuzdan pay) · pazar satışı (satıcı payı) | Yarış giriş ücreti (kademeye göre 100–2000) · ahır yükseltmesi · tesis yükseltmesi · pazar alımı (alıcı) |
-| **Elmas** (`gems`) | Yeni oyuncu başlangıç bakiyesi (50) — **başka kaynak YOK** | Yem satın alma (`arpa`/`mama`/`havuc`/`vitamin`) — **tek sink** |
+| **Çip** (`money`) | Yeni oyuncu başlangıç bakiyesi (5.000) · günlük ödül (500) · yarış ödülü (havuzdan pay) · pazar satışı (satıcı payı) | Yarış giriş ücreti (kademeye göre 100–2000) · ahır yükseltmesi · tesis yükseltmesi · pazar alımı (alıcı) · yem (`arpa` 40, `mama` 60, `havuc` 20, `vitamin` 80 — 09.10.2026'dan beri) |
+| **Elmas** (`gems`) | Yeni oyuncu başlangıç bakiyesi (50) · mağaza (gerçek ödeme, sağlayıcı bağlanınca) | **ELMAS POLİTİKASI (09.10.2026, sahibinin onayı):** yalnızca görünüş + kolaylık. Yarışı etkileyen hiçbir şey (yem dahil) elmasla satılmaz; elmas hediye edilmez; elmas çipe dönmez. Kozmetik mağaza ayrı dilimde. |
 
 **Henüz uygulanmamış (brief'te var, kodda yok):** gerçek yarış ödülü
 (`ClaimRaceRewardUseCase` YOKTUR — bugün tek ödül yolu anında koşulan
@@ -102,9 +102,10 @@ tablodan değil, bir havuzdan** dağıtılır. Kaynak
 
 > **⚠️ LOBİ YARIŞI FARKLI BİR HAVUZ MODELİ KULLANIR (28.09.2026, §13.26).**
 > Ücretli **lobi** yarışında havuz `entryFee × GERÇEK oyuncu sayısı`dır ve
-> **botlar hiçbir şey ödemez**. Bu yüzden botların kapabildiği ödül sırası
-> **kimseye ödenmez** ve havuzda kalır (`CLAUDE.md` "BOT PAYI YANAR") —
-> gerçek oyuncu sayısı azken yarış oyuncu için **kayıptır**. Yukarıdaki
+> **botlar hiçbir şey ödemez**. 16.10.2026'dan beri (sahibinin kararı)
+> **bota pay düşmez**: ödül sırası gerçek oyuncular arasındaki sıradır, boş
+> kalan paylar kullanılanlara orantılı eklenir (`computeLobbySettlement`) —
+> eşit güçte oyuncunun beklenen kaybı yalnızca komisyondur. Yukarıdaki
 > tablo yalnızca **pratik** (kademeli) yarışı anlatır; lobi için o tabloya
 > bakmak yanıltıcıdır. İki model bilinçli olarak yan yana yaşar ve
 > **değiştirilmemiştir** (brief §42 PHASE 3: "mevcut ekonomi farklı bir
@@ -142,6 +143,19 @@ tablodan değil, bir havuzdan** dağıtılır. Kaynak
 > Değişmezler: `apps/api/test/domain/race/prize.spec.ts` (33 test) ve
 > uçtan uca `apps/api/test/api/race.e2e-spec.ts`.
 
+### 4.1.1a Masa kuralları (09.10.2026)
+
+Her kademe bir MASADIR ve kendi kuralını taşır (`raceTiers[].feeTiming`,
+`loserRefund`). Kaybeden iadesi havuzdan önce ayrılır, ödül payları kalan
+üzerinden hesaplanır: Σödül + Σiade = Σpay·(H − İ) + İ ≤ H. Lobide havuz
+yalnızca gerçek ücretlerdir; pratik yarışta havuz modeli (botlar ödemiş
+sayılır) değişmedi, iade oyuncunun ödediği bedelin yüzdesidir.
+
+Takvim yarışları da (09.10.2026) programın `tableId`'si varsa masanın
+kurallarıyla koşar: Mahalli/Bölgesel bedeli katılımda, Ulusal (derbi,
+şampiyon koşusu) start anında keser. Ücretsiz ve 50 çiplik programlar
+masasızdır. Turnuvalar masasızdır: rake yok, ödül ilk üçe 50/30/20.
+
 ### 4.1.2 Mutabakat — para nereden gelir, nereye gider (28.09.2026, §13.26)
 
 Bir yarışın parası **ya dağıtılır ya iade edilir**; ikisi aynı anda olmaz.
@@ -161,9 +175,9 @@ PostgreSQL; tutarlar config'ten türetilir, koda gömülmez).
 İki sayı ayrışırsa ya defter yalan söylüyordur ya para yoktan var/dan yok
 oluyordur; ikisi de hiçbir yerde hata üretmez.
 
-**Platform payı ve bot artığı için bir hesap satırı YOKTUR.** İkisi de oyuncu
-ekonomisinden çıkar ve başka bir hesaba girmez; mutabakatta
-`−(platformPayı + botArtğı)` olarak görünürler. Uydurma bir "ev hesabı"
+**Platform payı için bir hesap satırı YOKTUR.** Oyuncu ekonomisinden çıkar ve
+başka bir hesaba girmez; mutabakatta `−platformPayı` olarak görünür
+(16.10.2026'dan beri bot artığı yok — bota pay düşmez). Uydurma bir "ev hesabı"
 açmak, bakiyesi olmayan bir satır uydurmak olurdu. Bir gelir tablosu
 isteniyorsa bu ayrı bir iştir.
 

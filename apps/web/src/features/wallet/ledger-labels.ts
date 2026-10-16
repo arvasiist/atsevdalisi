@@ -58,6 +58,31 @@ export const LEDGER_TYPE_LABELS: Record<LedgerTransactionType, string> = {
   // deftere hiç yazılmadığı için pratikte yalnızca) ödeme anlamına gelir,
   // ama etiket kuralı gereği yön metne gömülmez.
   jockey_hire: 'Jokey kiralama',
+  staff_contract: 'Personel sözleşmesi',
+  season_reward: 'Sezon ödülü',
+  quest_reward: 'Görev ödülü',
+  achievement_reward: 'Başarım ödülü',
+  gem_purchase: 'Elmas satın alımı',
+  gem_purchase_refund: 'Elmas satın alımı iadesi',
+  breed_horse_purchase: 'Yetiştiriciden at alımı',
+  equipment_purchase: 'Ekipman alımı',
+  cosmetic_purchase: 'Kozmetik alımı',
+  event_reward: 'Etkinlik ödülü',
+  admin_adjustment: 'Yönetim düzeltmesi',
+  friend_gift_collect: 'Dostluk hediyesi',
+  friend_gift_send: 'Dostluk hediyesi gönderimi',
+  friend_gift_refund: 'Dostluk hediyesi iadesi',
+  tribune_gift_debit: 'Tribün hediyesi',
+  tribune_gift_credit: 'Tribünden gelen hediye',
+  practice_race_loser_refund: 'Masa iadesi (pratik yarış)',
+  lobby_race_loser_refund: 'Masa iadesi (yarış)',
+  referral_reward: 'Davet ödülü',
+  referral_welcome_reward: 'Davetle hoş geldin ödülü',
+  chip_purchase: 'Çip satın alımı',
+  chip_purchase_refund: 'Çip satın alımı iadesi',
+  auction_bid_hold: 'Müzayede teklifi',
+  auction_bid_refund: 'Müzayede teklifi iadesi',
+  auction_sale_credit: 'Müzayede satışı',
 };
 
 /**
@@ -77,7 +102,9 @@ export const CANONICAL_TYPE_LABELS: Record<CanonicalTransactionType, string> = {
   MARKET: 'Pazar',
   BREEDING: 'Damızlık',
   UPKEEP: 'Bakım',
-  REWARD: 'Ödül (günlük)',
+  // 02.10.2026 — artık günlük ödülle sınırlı değil (sezon/görev/etkinlik de REWARD).
+  REWARD: 'Ödül',
+  ADJUSTMENT: 'Yönetim düzeltmesi',
 };
 
 /**

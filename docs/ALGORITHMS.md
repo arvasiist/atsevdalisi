@@ -261,6 +261,14 @@ evresinde `recovery_rate` düşer, `injury_risk` artar, bazı fiziksel
 statlar hafifçe geriler — ancak `tactical_skill`/deneyim gibi jokey
 tarafı özellikler farklı (düşmeyen veya artan) bir eğri izleyebilir.
 
+**Uygulama (15.10.2026, B13):** yarış etkisi `growthFactor`dan AYRI bir
+`racingFactor` ile verilir (`growthFactor` pazar değerinde kalır). Çarpan
+hız/ivme/dayanıklılığa, kadro dondurulurken uygulanır (motor değişmez):
+gelişim 0,96 · zirve 1 · olgun 0,97 · yaşlı 0,92. Ölçüm (sınıf üst ucundaki
+at, 400 pratik yarış, `measurePracticeEv`): çarpan 1 → 0,97 → 0,95 → 0,92 →
+0,90 iken kazanma oranı yerel sınıfta %78,5 → %69 → %54,5 → %43,8 → %32,8;
+şampiyona sınıfında %59,5 → %39,8 → %28,2 → %9,8 → %6,5.
+
 ## 10. Genetik kalıtım (brief §28)
 
 Her kalıtsal stat için:

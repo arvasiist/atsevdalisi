@@ -1,0 +1,197 @@
+'use client';
+
+/**
+ * MAĞAZA (07.10.2026, Faz 12, brief §20/§88). Elmas + çip paketleri (16.10.2026); ödeme
+ * SAĞLAYICININ sayfasında yapılır (kart bilgisi bu siteye hiç girmez).
+ * Dönüşte sipariş sunucudan yoklanır — "ödendi" bilgisi yalnızca sağlayıcının
+ * imzalı bildirimiyle gelir; bu ekran onu yalnızca GÖSTERİR. Sağlayıcı
+ * yapılandırılmamışsa satın alma kapalıdır ve öyle yazar.
+ */
+
+import { useCallback, useEffect, useRef, useState } from 'react';
+import Link from 'next/link';
+import type { PaymentOrderView, StoreView } from '@at-sevdalisi/shared-types';
+import { GlassPanel } from '../../components/ui/GlassPanel';
+import { PAYMENT_STATUS_LABELS, describeStoreReward, formatPrice, isFinalPaymentStatus } from '../../features/store/store-labels';
+import { CosmeticShopPanel } from '../../features/cosmetics/CosmeticShopPanel';
+import { useCosmetics } from '../../features/cosmetics/use-cosmetics';
+import { apiClient } from '../../lib/api-client';
+import { usePlayer } from '../../lib/player-context';
+
+const POLL_MS = 3000;
+
+function StoreContent(): React.ReactElement {
+  const { player, isLoading, createPlayer, refresh } = usePlayer();
+  // Sorgu dizesi `useEffect`te okunur (`account/reset` ile aynı): `useSearchParams`
+  // sayfa düzeyinde Suspense sınırı ister, yoksa statik derleme kırılır.
+  const [returnedOrderId, setReturnedOrderId] = useState<string | null>(null);
+  useEffect(() => {
+    setReturnedOrderId(new URLSearchParams(window.location.search).get('order'));
+  }, []);
+  const [store, setStore] = useState<StoreView | null>(null);
+  const [orders, setOrders] = useState<PaymentOrderView[]>([]);
+  const [returned, setReturned] = useState<PaymentOrderView | null>(null);
+  const [busySku, setBusySku] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  // Anahtar BAŞARIYA kadar korunur (cüzdan deseni): yanıt ağda kaybolursa
+  // yeniden basış ikinci bir ödeme oturumu açmaz.
+  const pendingKey = useRef<{ sku: string; key: string } | null>(null);
+  // 09.10.2026 — elmasla görünüş (kozmetik); alımdan sonra üst bar bakiyesi tazelenir.
+  const cosmetics = useCosmetics(player !== null, refresh);
+
+  const load = useCallback(async () => {
+    try {
+      const [view, history] = await Promise.all([apiClient.getStore(), apiClient.listPaymentOrders()]);
+      setStore(view);
+      setOrders(history);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Mağaza yüklenemedi.');
+    }
+  }, []);
+
+  useEffect(() => {
+    if (player) void load();
+  }, [player, load]);
+
+  useEffect(() => {
+    if (!player || !returnedOrderId) return;
+    let stopped = false;
+    const poll = async () => {
+      try {
+        const order = await apiClient.getPaymentOrder(returnedOrderId);
+        if (stopped) return;
+        setReturned(order);
+        if (isFinalPaymentStatus(order.status)) {
+          await Promise.all([load(), refresh()]);
+          return;
+        }
+      } catch (err) {
+        if (!stopped) setError(err instanceof Error ? err.message : 'Sipariş okunamadı.');
+        return;
+      }
+      if (!stopped) setTimeout(() => void poll(), POLL_MS);
+    };
+    void poll();
+    return () => {
+      stopped = true;
+    };
+  }, [player, returnedOrderId, load, refresh]);
+
+  if (!player) {
+    return (
+      <main className="page-container">
+        <h1 className="page-title">Mağaza</h1>
+        {isLoading ? null : (
+          <GlassPanel>
+            <p>Mağazayı görmek için önce bir oyuncu oluştur.</p>
+            <button type="button" className="moderation-primary" onClick={() => void createPlayer()}>
+              Oyuncu oluştur
+            </button>
+          </GlassPanel>
+        )}
+      </main>
+    );
+  }
+
+  const buy = async (sku: string) => {
+    setBusySku(sku);
+    setError(null);
+    if (pendingKey.current?.sku !== sku) pendingKey.current = { sku, key: crypto.randomUUID() };
+    try {
+      const checkout = await apiClient.createCheckout(sku, pendingKey.current.key);
+      pendingKey.current = null;
+      window.location.assign(checkout.checkoutUrl);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Ödeme başlatılamadı.');
+      setBusySku(null);
+    }
+  };
+
+  return (
+    <main className="page-container" data-testid="store-page">
+      <h1 className="page-title">Mağaza</h1>
+      {error ? <p className="moderation-error">{error}</p> : null}
+      {cosmetics.error ? <p className="moderation-error">{cosmetics.error}</p> : null}
+      {returned ? (
+        <GlassPanel>
+          <p data-testid="store-returned">
+            Siparişin: <strong>{PAYMENT_STATUS_LABELS[returned.status]}</strong>
+            {returned.status === 'paid' ? ` — ${describeStoreReward(returned)} hesabına eklendi.` : ''}
+            {returned.status === 'pending' ? ' — ödeme sağlayıcısından onay bekleniyor…' : ''}
+          </p>
+        </GlassPanel>
+      ) : null}
+      {store === null ? (
+        <p className="session-meta">Yükleniyor…</p>
+      ) : (
+        <>
+          <p className="legal-consent">
+            Satın alma koşulları: <Link href="/yasal/kullanim-sartlari">Kullanım Şartları</Link> · kişisel veriler:{' '}
+            <Link href="/yasal/kvkk-aydinlatma">KVKK Aydınlatma Metni</Link>
+          </p>
+          {!store.available ? (
+            <GlassPanel>
+              <p className="session-meta" data-testid="store-unavailable">
+                Satın alma şu an kapalı: sunucuda bir ödeme sağlayıcısı yapılandırılmadı.
+              </p>
+            </GlassPanel>
+          ) : null}
+          {(['chips', 'gems'] as const).map((kind) => {
+            const products = store.products.filter((product) => (kind === 'chips' ? product.chips > 0 : product.gems > 0));
+            if (products.length === 0) return null;
+            return (
+              <section key={kind} data-testid={`store-${kind}`}>
+                <h2 className="avatar-section-title">{kind === 'chips' ? 'Çip paketleri' : 'Elmas paketleri'}</h2>
+                {kind === 'chips' ? (
+                  <p className="session-meta">Satın alınan çip yarışta ve alışverişte kullanılır; arkadaşa gönderilemez.</p>
+                ) : null}
+          <div className="store-grid">
+            {products.map((product) => (
+              <GlassPanel key={product.sku}>
+                <div className="store-product">
+                  <strong className="store-gems">{describeStoreReward(product)}</strong>
+                  <span className="store-price">{formatPrice(product.priceMinor, product.currency)}</span>
+                  <button
+                    type="button"
+                    className="moderation-primary"
+                    disabled={!store.available || busySku !== null}
+                    onClick={() => void buy(product.sku)}
+                  >
+                    Satın al
+                  </button>
+                </div>
+              </GlassPanel>
+            ))}
+          </div>
+              </section>
+            );
+          })}
+          {cosmetics.catalog !== null ? (
+            <CosmeticShopPanel
+              catalog={cosmetics.catalog}
+              busyKey={cosmetics.busyKey}
+              onBuy={(key) => void cosmetics.purchase(key)}
+            />
+          ) : null}
+          <GlassPanel>
+            <h2 className="avatar-section-title">Makbuzlarım</h2>
+            {orders.length === 0 ? (
+              <p className="session-meta">Henüz satın alma yok.</p>
+            ) : (
+              <ul className="session-list" data-testid="store-orders">
+                {orders.map((order) => (
+                  <li key={order.id}>
+                    {new Date(order.createdAt).toLocaleString('tr-TR')} · {describeStoreReward(order)} ·{' '}
+                    {formatPrice(order.amountMinor, order.currency)} · <strong>{PAYMENT_STATUS_LABELS[order.status]}</strong>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </GlassPanel>
+        </>
+      )}
+    </main>
+  );
+}
+
+export default StoreContent;

@@ -25,7 +25,11 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
-import type { FacilitySummaryView, FacilityType, FarmSummaryView } from '@at-sevdalisi/shared-types';
+import type {
+  FacilitySummaryView,
+  FacilityType,
+  FarmSummaryView,
+} from '@at-sevdalisi/shared-types';
 import { GlassPanel } from '../../components/ui/GlassPanel';
 import { apiClient } from '../../lib/api-client';
 import { formatCost, hasEnoughFunds } from '../../lib/currency';
@@ -42,12 +46,27 @@ import { usePlayer } from '../../lib/player-context';
  * sayı (`getMaxStaffCapacity`). Yeni bir tesis tipi eklenirse buranın
  * güncellenmesi gerekir.
  */
-const FACILITY_LABELS: Record<FacilityType, { name: string; effect: string; direction: 'increase' | 'reduction' | 'absolute' }> = {
+const FACILITY_LABELS: Record<
+  FacilityType,
+  { name: string; effect: string; direction: 'increase' | 'reduction' | 'absolute' }
+> = {
   paddock: { name: 'Paddock', effect: 'Dinlenme sonrası toparlanma', direction: 'increase' },
-  training_track: { name: 'Antrenman Pisti', effect: 'Antrenmanda sakatlık riski', direction: 'reduction' },
+  training_track: {
+    name: 'Antrenman Pisti',
+    effect: 'Antrenmanda sakatlık riski',
+    direction: 'reduction',
+  },
   vet_center: { name: 'Veteriner Merkezi', effect: 'Tedavi maliyeti', direction: 'reduction' },
-  farrier_area: { name: 'Nalbant Alanı', effect: 'Nal/eklem kaynaklı sakatlık riski', direction: 'reduction' },
-  breeding_center: { name: 'Üreme Merkezi', effect: 'Doğumda sağlık riski', direction: 'reduction' },
+  farrier_area: {
+    name: 'Nalbant Alanı',
+    effect: 'Nal/eklem kaynaklı sakatlık riski',
+    direction: 'reduction',
+  },
+  breeding_center: {
+    name: 'Üreme Merkezi',
+    effect: 'Doğumda sağlık riski',
+    direction: 'reduction',
+  },
   warehouse: { name: 'Depo', effect: 'Yem maliyeti', direction: 'reduction' },
   staff_building: { name: 'Personel Binası', effect: 'Personel kapasitesi', direction: 'absolute' },
 };
@@ -56,7 +75,13 @@ const FACILITY_LABELS: Record<FacilityType, { name: string; effect: string; dire
 const PERCENT = 100;
 
 export default function FarmPage(): React.ReactElement {
-  const { player, isLoading: isPlayerLoading, error: playerError, createPlayer, refresh } = usePlayer();
+  const {
+    player,
+    isLoading: isPlayerLoading,
+    error: playerError,
+    createPlayer,
+    refresh,
+  } = usePlayer();
   const [summary, setSummary] = useState<FarmSummaryView | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busyType, setBusyType] = useState<FacilityType | null>(null);
@@ -103,8 +128,16 @@ export default function FarmPage(): React.ReactElement {
 
   return (
     <main className="page-container">
-      <h1 style={{ fontSize: '24px', color: 'var(--color-text-primary)', marginBottom: '4px' }}>Çiftlik</h1>
-      <p style={{ color: 'var(--color-text-secondary)', marginTop: 0, marginBottom: 'var(--space-lg)' }}>
+      <h1 style={{ fontSize: '24px', color: 'var(--color-text-primary)', marginBottom: '4px' }}>
+        Çiftlik
+      </h1>
+      <p
+        style={{
+          color: 'var(--color-text-secondary)',
+          marginTop: 0,
+          marginBottom: 'var(--space-lg)',
+        }}
+      >
         Tesislerini inşa et ve yükselt; her seviye bir bonusu güçlendirir.
       </p>
 
@@ -113,10 +146,16 @@ export default function FarmPage(): React.ReactElement {
           <p style={{ color: 'var(--color-text-secondary)', marginTop: 0 }}>
             Çiftliğini kurabilmek için önce bir seyis/jokey hesabı oluştur.
           </p>
-          <button type="button" onClick={() => void createPlayer()} style={upgradeButtonStyle(true)}>
+          <button
+            type="button"
+            onClick={() => void createPlayer()}
+            style={upgradeButtonStyle(true)}
+          >
             Başlangıç Paketiyle Oyuncu Oluştur
           </button>
-          {playerError ? <p style={{ color: 'var(--color-status-critical)', marginBottom: 0 }}>{playerError}</p> : null}
+          {playerError ? (
+            <p style={{ color: 'var(--color-status-critical)', marginBottom: 0 }}>{playerError}</p>
+          ) : null}
         </GlassPanel>
       ) : null}
 
@@ -129,11 +168,21 @@ export default function FarmPage(): React.ReactElement {
       {player && summary ? (
         <>
           <GlassPanel style={{ marginBottom: 'var(--space-lg)' }}>
-            <span style={{ color: 'var(--color-text-secondary)', fontSize: '14px' }}>Personel kapasitesi: </span>
-            <span style={{ color: 'var(--color-text-primary)', fontWeight: 700 }}>{summary.staffCapacity}</span>
+            <span style={{ color: 'var(--color-text-secondary)', fontSize: '14px' }}>
+              Personel kapasitesi:{' '}
+            </span>
+            <span style={{ color: 'var(--color-text-primary)', fontWeight: 700 }}>
+              {summary.staffCapacity}
+            </span>
           </GlassPanel>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 'var(--space-md)' }}>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
+              gap: 'var(--space-md)',
+            }}
+          >
             {summary.facilities.map((facility) => (
               <FacilityCard
                 key={facility.type}
@@ -163,34 +212,77 @@ function FacilityCard({
 }): React.ReactElement {
   const label = FACILITY_LABELS[facility.type];
   const isBuilt = facility.level > 0;
+  // 01.10.2026 — etkisi oyunda bağlı olmayan tesis satılmaz (sunucu 409 `FACILITY_INACTIVE`).
+  if (!facility.isActive) {
+    return (
+      <GlassPanel
+        style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)', opacity: 0.7 }}
+      >
+        <div>
+          <span style={{ color: 'var(--color-text-primary)', fontWeight: 700, fontSize: '16px' }}>
+            {label.name}
+          </span>
+          <span style={{ color: 'var(--color-text-muted)', fontSize: '13px' }}>
+            {' '}
+            · seviye {facility.level}/{facility.maxLevel}
+          </span>
+        </div>
+        <span style={{ color: 'var(--color-text-muted)', fontSize: '13px' }}>
+          Şu an etkisiz: bakım ücretsiz olduğu için düşürülecek bir tedavi maliyeti yok. İnşa
+          kapalı.
+        </span>
+      </GlassPanel>
+    );
+  }
   const isMaxed = facility.nextUpgrade === null;
-  const affordable = facility.nextUpgrade !== null && hasEnoughFunds(player, facility.nextUpgrade.cost);
+  const affordable =
+    facility.nextUpgrade !== null && hasEnoughFunds(player, facility.nextUpgrade.cost);
   const canUpgrade = !isMaxed && affordable && !isBusy;
 
   return (
     <GlassPanel style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>
       <div>
-        <span style={{ color: 'var(--color-text-primary)', fontWeight: 700, fontSize: '16px' }}>{label.name}</span>
-        <span style={{ color: 'var(--color-text-muted)', fontSize: '13px' }}> · seviye {facility.level}/{facility.maxLevel}</span>
+        <span style={{ color: 'var(--color-text-primary)', fontWeight: 700, fontSize: '16px' }}>
+          {label.name}
+        </span>
+        <span style={{ color: 'var(--color-text-muted)', fontSize: '13px' }}>
+          {' '}
+          · seviye {facility.level}/{facility.maxLevel}
+        </span>
       </div>
 
       <div style={{ color: 'var(--color-text-secondary)', fontSize: '13px' }}>
-        {label.effect}: <span style={{ color: 'var(--color-status-positive)' }}>{formatBonus(facility, label.direction)}</span>
+        {label.effect}:{' '}
+        <span style={{ color: 'var(--color-status-positive)' }}>
+          {formatBonus(facility, label.direction)}
+        </span>
       </div>
 
       {isMaxed ? (
-        <span style={{ color: 'var(--color-text-muted)', fontSize: '13px' }}>En yüksek seviyede.</span>
+        <span style={{ color: 'var(--color-text-muted)', fontSize: '13px' }}>
+          En yüksek seviyede.
+        </span>
       ) : (
         <span style={{ color: 'var(--color-text-secondary)', fontSize: '13px' }}>
-          {isBuilt ? 'Yükseltme' : 'İnşa'}: <span style={{ color: 'var(--color-text-primary)' }}>{formatCost(facility.nextUpgrade!.cost)}</span>
+          {isBuilt ? 'Yükseltme' : 'İnşa'}:{' '}
+          <span style={{ color: 'var(--color-text-primary)' }}>
+            {formatCost(facility.nextUpgrade!.cost)}
+          </span>
         </span>
       )}
 
       {!isMaxed && !affordable ? (
-        <span style={{ color: 'var(--color-status-warning)', fontSize: '12px' }}>Bakiye yetersiz.</span>
+        <span style={{ color: 'var(--color-status-warning)', fontSize: '12px' }}>
+          Bakiye yetersiz.
+        </span>
       ) : null}
 
-      <button type="button" disabled={!canUpgrade} onClick={onUpgrade} style={upgradeButtonStyle(canUpgrade)}>
+      <button
+        type="button"
+        disabled={!canUpgrade}
+        onClick={onUpgrade}
+        style={upgradeButtonStyle(canUpgrade)}
+      >
         {isBusy ? 'İşleniyor…' : isBuilt ? 'Yükselt' : 'İnşa Et'}
       </button>
     </GlassPanel>
@@ -202,7 +294,10 @@ function FacilityCard({
  * `FACILITY_LABELS` doc yorumu) — değerin kendisi SUNUCUDAN gelir, burada
  * yalnızca okunabilir hâle getirilir.
  */
-function formatBonus(facility: FacilitySummaryView, direction: 'increase' | 'reduction' | 'absolute'): string {
+function formatBonus(
+  facility: FacilitySummaryView,
+  direction: 'increase' | 'reduction' | 'absolute',
+): string {
   if (facility.level === 0) {
     return 'inşa edilmedi';
   }

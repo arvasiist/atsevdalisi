@@ -26,7 +26,7 @@ Yetiştiricilik ve Kalıtım Sistemi (brief §28-29, §34, §86 — bkz.
 Config: `genetics.config.json` (inheritanceRange, mutationBounds,
 maxPotentialGainOverParents, inbreedingRiskMultiplier,
 parentAgeRiskMultipliers, healthRiskWeight, baseBirthHealthRisk,
-minBreedingAgeMonths, maxBreedingAgeMonths, breedingCooldownDays,
+minBreedingAgeMonths, maxBreedingAgeMonths, breedingCooldownMonths,
 studFeeMultiplier).
 
 Gizlilik prensibi (brief §29, GENETICS.md §2): oyuncuya tam DNA verisi

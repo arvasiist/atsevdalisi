@@ -36,7 +36,7 @@ export interface RaceInviteRepository {
    * (durum, başlangıç zamanı, ad) buraya özgüdür ve burada okunur; lobi
    * portuna eklemek, onu kullanmayan çağıranlara da bir metot eklerdi.
    */
-  findRaceForInvite(raceId: string): Promise<InvitableRaceFacts | null>;
+  findRaceForInvite(raceId: string, inviteeId: string): Promise<InvitableRaceFacts | null>;
 
   /**
    * Davet EDEN'in hâlâ `pending` olan davet sayısı — `pendingInvitesLimit`
@@ -97,6 +97,12 @@ export interface InvitableRaceFacts {
   raceName: string;
   status: string;
   startTime: Date;
+  /**
+   * 09.10.2026 — davetli bu yarışa katılabilir mi (kulüp içi yarışta o
+   * kulübün üyesi mi; açık yarışta her zaman `true`). Katılım kapısı yine
+   * `joinLobbyRace`tedir — bu yalnızca boşa bildirim düşmesini önler.
+   */
+  inviteeClubAllowed: boolean;
 }
 
 /** `RaceInviteRepository.saveInvite` girdisi. */

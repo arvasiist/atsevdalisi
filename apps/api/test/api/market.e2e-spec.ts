@@ -842,7 +842,7 @@ describe('Market — At Pazarı (e2e)', () => {
       for (let i = 0; i < 4; i += 1) {
         await pool.query(
           `INSERT INTO horses (owner_id, name, gender, breed, birth_date, quality, potential)
-           VALUES ($1, $2, 'mare', 'Arap', '2023-01-01', 50, 50)`,
+           VALUES ($1, $2, 'mare', 'hinis', '2023-01-01', 50, 50)`,
           [buyer.playerId, `Dolgu At ${i}`],
         );
       }

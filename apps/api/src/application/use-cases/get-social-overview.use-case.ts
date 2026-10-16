@@ -1,6 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import type { SocialOverviewView } from '@at-sevdalisi/shared-types';
 import { PlayerNotFoundError } from '../../domain/player/errors';
+import { resolvePresence, sortByPresence } from '../../domain/social/presence';
 import { AppConfigService } from '../../infrastructure/config/config.service';
 import { PLAYER_REPOSITORY, type PlayerRepository } from '../ports/player.repository';
 import { SOCIAL_REPOSITORY, type SocialPlayerFacts, type SocialRepository } from '../ports/social.repository';
@@ -23,7 +24,7 @@ export class GetSocialOverviewUseCase {
     @Inject(AppConfigService) private readonly config: AppConfigService,
   ) {}
 
-  async execute(playerId: string): Promise<SocialOverviewView> {
+  async execute(playerId: string, now: Date = new Date()): Promise<SocialOverviewView> {
     const player = await this.playerRepository.findById(playerId);
     if (player === null) {
       throw new PlayerNotFoundError(playerId);
@@ -49,11 +50,15 @@ export class GetSocialOverviewUseCase {
     });
 
     return {
-      friends: facts.friends.map((row) => ({
-        ...toPlayer(row),
-        friendshipId: row.friendshipId,
-        friendsSince: row.friendsSince.toISOString(),
-      })),
+      // 16.10.2026 — çevrimiçi → çevrimdışı (son görülen önce) → gizli.
+      friends: sortByPresence(
+        facts.friends.map((row) => ({
+          ...toPlayer(row),
+          friendshipId: row.friendshipId,
+          friendsSince: row.friendsSince.toISOString(),
+          presence: resolvePresence(row, now, this.config.social.presence.onlineWindowSeconds),
+        })),
+      ),
       incomingRequests: facts.incomingRequests.map((row) => ({
         ...toPlayer(row),
         requestId: row.requestId,

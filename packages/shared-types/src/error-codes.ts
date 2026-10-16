@@ -25,6 +25,82 @@ export const ErrorCode = {
   CredentialsAlreadySet: 'CREDENTIALS_ALREADY_SET',
   // Şifre sıfırlama bağlantısı geçersiz/süresi dolmuş/kullanılmış (migration 0047).
   InvalidResetToken: 'INVALID_RESET_TOKEN',
+  // 02.10.2026 — oturum (migration 0057). Yenileme token'ı geçersiz/süresi
+  // dolmuş/iptal edilmiş/yeniden kullanılmış — BİLEREK tek kod.
+  InvalidRefreshToken: 'INVALID_REFRESH_TOKEN',
+  SessionNotFound: 'SESSION_NOT_FOUND',
+  // `POST /auth/session` yalnızca oturumsuz (eski) token'ı yükseltir.
+  SessionUpgradeNotAllowed: 'SESSION_UPGRADE_NOT_ALLOWED',
+  // 02.10.2026 — e-posta doğrulama (migration 0058).
+  InvalidVerificationToken: 'INVALID_VERIFICATION_TOKEN',
+  NoAccountEmail: 'NO_ACCOUNT_EMAIL',
+  EmailAlreadyVerified: 'EMAIL_ALREADY_VERIFIED',
+  // 02.10.2026 — hesap silme (migration 0059).
+  DeletionConfirmationMismatch: 'DELETION_CONFIRMATION_MISMATCH',
+  DeletionPasswordInvalid: 'DELETION_PASSWORD_INVALID',
+  AccountDeletionBlocked: 'ACCOUNT_DELETION_BLOCKED',
+  // 02.10.2026 — Faz 10 + 11-A (migration 0060).
+  /** Hesap askıda ya da yasaklı (403 — 401 DEĞİL: istemci oturumu silmesin). */
+  AccountSuspended: 'ACCOUNT_SUSPENDED',
+  InvalidSanction: 'INVALID_SANCTION',
+  SanctionTargetNotAllowed: 'SANCTION_TARGET_NOT_ALLOWED',
+  SanctionNotFound: 'SANCTION_NOT_FOUND',
+  InvalidRoleChange: 'INVALID_ROLE_CHANGE',
+  InvalidAnnouncement: 'INVALID_ANNOUNCEMENT',
+  AnnouncementNotFound: 'ANNOUNCEMENT_NOT_FOUND',
+  AnnouncementLimitReached: 'ANNOUNCEMENT_LIMIT_REACHED',
+  /** 02.10.2026 (Faz 11-B) — görev/etkinlik yok ya da şu an alınamaz (404). */
+  QuestNotFound: 'QUEST_NOT_FOUND',
+  InvalidAvatar: 'INVALID_AVATAR',
+  PaymentUnavailable: 'PAYMENT_UNAVAILABLE',
+  StoreProductNotFound: 'STORE_PRODUCT_NOT_FOUND',
+  PaymentLimitReached: 'PAYMENT_LIMIT_REACHED',
+  PaymentOrderNotFound: 'PAYMENT_ORDER_NOT_FOUND',
+  InvalidWebhook: 'INVALID_WEBHOOK',
+  PaymentRefundNotAllowed: 'PAYMENT_REFUND_NOT_ALLOWED',
+  AvatarGenerationUnavailable: 'AVATAR_GENERATION_UNAVAILABLE',
+  AvatarConsentRequired: 'AVATAR_CONSENT_REQUIRED',
+  SelfieRejected: 'SELFIE_REJECTED',
+  AvatarJobInProgress: 'AVATAR_JOB_IN_PROGRESS',
+  AvatarJobNotFound: 'AVATAR_JOB_NOT_FOUND',
+  AiAvatarNotFound: 'AI_AVATAR_NOT_FOUND',
+  /** Profil fotoğrafı biçim/boyut/çözünürlük kontrolünden geçmedi ya da hareketli (422, 08.10.2026). */
+  PhotoRejected: 'PHOTO_REJECTED',
+  /** Profil fotoğrafı yok ya da artık sunulmuyor (404). */
+  ProfilePhotoNotFound: 'PROFILE_PHOTO_NOT_FOUND',
+  /** 07.10.2026 — ırk kataloğunda olmayan ırk (404). */
+  BreedNotFound: 'BREED_NOT_FOUND',
+  /** 07.10.2026 — ırkın seviye şartı karşılanmadı (409). */
+  BreedLevelLocked: 'BREED_LEVEL_LOCKED',
+  HorseLevelNotAllowed: 'HORSE_LEVEL_NOT_ALLOWED',
+  /** 14.10.2026 — pratik yarışta gücü kademe tavanına ulaşmış at (409). */
+  HorseTooStrongForTier: 'HORSE_TOO_STRONG_FOR_TIER',
+  /** 09.10.2026 — kulüp içi yarışa kulüp üyesi olmayan katılamaz (409). */
+  RaceClubOnly: 'RACE_CLUB_ONLY',
+  /** 09.10.2026 — kozmetik mağaza: ürün yok (404), zaten sahip (409), sahip olunmayan seçenek (409). */
+  CosmeticNotFound: 'COSMETIC_NOT_FOUND',
+  CosmeticAlreadyOwned: 'COSMETIC_ALREADY_OWNED',
+  CosmeticNotOwned: 'COSMETIC_NOT_OWNED',
+  InvalidTribuneGift: 'INVALID_TRIBUNE_GIFT',
+  TribuneGiftNotAllowed: 'TRIBUNE_GIFT_NOT_ALLOWED',
+  TribuneGiftDailyLimit: 'TRIBUNE_GIFT_DAILY_LIMIT',
+  EquipmentLevelLocked: 'EQUIPMENT_LEVEL_LOCKED',
+  /** 08.10.2026 — ırk sınıflı yarışa sınıf dışı at (409). */
+  HorseBreedNotAllowed: 'HORSE_BREED_NOT_ALLOWED',
+  AchievementNotFound: 'ACHIEVEMENT_NOT_FOUND',
+  AchievementNotCompleted: 'ACHIEVEMENT_NOT_COMPLETED',
+  AchievementAlreadyClaimed: 'ACHIEVEMENT_ALREADY_CLAIMED',
+  /** Hedefe ulaşılmadı (409). */
+  QuestNotCompleted: 'QUEST_NOT_COMPLETED',
+  /** Ödül bu dönem için zaten alındı (409) — çift ödemenin kapısı tekil talep satırıdır. */
+  QuestAlreadyClaimed: 'QUEST_ALREADY_CLAIMED',
+  InvalidLiveEvent: 'INVALID_LIVE_EVENT',
+  LiveEventNotFound: 'LIVE_EVENT_NOT_FOUND',
+  LiveEventLimitReached: 'LIVE_EVENT_LIMIT_REACHED',
+  /** 02.10.2026 (Faz 10) — bakiye düzeltmesi gövdesi geçersiz (400). */
+  InvalidBalanceAdjustment: 'INVALID_BALANCE_ADJUSTMENT',
+  /** Kendine ya da yönetim ekibine düzeltme (409). */
+  AdjustmentTargetNotAllowed: 'ADJUSTMENT_TARGET_NOT_ALLOWED',
   NotFound: 'NOT_FOUND',
   // AUDIT_REPORT.md Bulgu S1/S2/S4 hardening (bu oturum) — brief §41/§50
   // Google/Apple Sign-In + IDOR sertleştirmesi. `Unauthorized` (401) daha
@@ -45,9 +121,29 @@ export const ErrorCode = {
   // Google hesabı var.
   ProviderIdentityTaken: 'PROVIDER_IDENTITY_TAKEN',
   ProviderAlreadyLinked: 'PROVIDER_ALREADY_LINKED',
+  // 01.10.2026 — kulüp (brief §44, migration 0049).
+  ClubNotFound: 'CLUB_NOT_FOUND',
+  ClubNameTaken: 'CLUB_NAME_TAKEN',
+  ClubFull: 'CLUB_FULL',
+  AlreadyClubMember: 'ALREADY_CLUB_MEMBER',
+  // 09.10.2026 — kulüp daveti.
+  ClubInviteNotFound: 'CLUB_INVITE_NOT_FOUND',
+  ClubInviteExists: 'CLUB_INVITE_EXISTS',
+  ClubInviteLimit: 'CLUB_INVITE_LIMIT',
+  ClubInviteExpired: 'CLUB_INVITE_EXPIRED',
+  NotClubMember: 'NOT_CLUB_MEMBER',
+  InsufficientClubPermission: 'INSUFFICIENT_CLUB_PERMISSION',
+  ClubLeaderCannotLeave: 'CLUB_LEADER_CANNOT_LEAVE',
   // Faz 2 — At Pazarı (domain/market)
   ListingNotActive: 'LISTING_NOT_ACTIVE',
   ListingExpired: 'LISTING_EXPIRED',
+  // 02.10.2026 — müzayede.
+  ListingIsAuction: 'LISTING_IS_AUCTION',
+  ListingNotAuction: 'LISTING_NOT_AUCTION',
+  BidTooLow: 'BID_TOO_LOW',
+  CannotBidOwnListing: 'CANNOT_BID_OWN_LISTING',
+  AuctionHasBids: 'AUCTION_HAS_BIDS',
+  AuctionRequiresEndTime: 'AUCTION_REQUIRES_END_TIME',
   CannotBuyOwnListing: 'CANNOT_BUY_OWN_LISTING',
   InvalidListingPrice: 'INVALID_LISTING_PRICE',
   // FAZ 1 wiring, on üçüncü dilim (bu oturum) — `InvalidListingPriceError`
@@ -65,6 +161,9 @@ export const ErrorCode = {
   // Faz 2 — Personel (domain/staff)
   StaffAlreadyHired: 'STAFF_ALREADY_HIRED',
   StaffContractExpired: 'STAFF_CONTRACT_EXPIRED',
+  StaffNotFound: 'STAFF_NOT_FOUND',
+  StaffNotOwned: 'STAFF_NOT_OWNED',
+  StaffRenewalNotDue: 'STAFF_RENEWAL_NOT_DUE',
   // Faz 2 — Ahır yükseltme (domain/stable)
   MaxStableLevelReached: 'MAX_STABLE_LEVEL_REACHED',
   // AUDIT_REPORT.md Bulgu C1 (bu oturum) — `StableCapacityExceededError`
@@ -83,12 +182,29 @@ export const ErrorCode = {
   // `locking`) bir lobi yarışına kayıtlıyken satılamaz, pazara çıkarılamaz ve
   // ikinci bir açık yarışa yazılamaz (bkz. `domain/horse/errors.ts`).
   HorseInActiveRace: 'HORSE_IN_ACTIVE_RACE',
+  /**
+   * 15.10.2026 — S5 emeklilik: emekli at antrenman yapamaz (409
+   * `HORSE_RETIRED`), zaten emekli at ikinci kez emekli edilemez (409
+   * `HORSE_ALREADY_RETIRED`), oyuncu yarışabilecek SON atını emekli edemez
+   * (409 `LAST_RACING_HORSE` — geri dönüşsüz bir hatayla atsız kalmasın).
+   */
+  HorseRetired: 'HORSE_RETIRED',
+  /** 15.10.2026 — B12: at yarış yaşına (`race.readiness.minAgeMonths`) gelmedi (409). */
+  HorseTooYoung: 'HORSE_TOO_YOUNG',
+  HorseAlreadyRetired: 'HORSE_ALREADY_RETIRED',
+  LastRacingHorse: 'LAST_RACING_HORSE',
   // 30.09.2026 — turnuvanın seviye şartı karşılanmadı (`PlayerLevelTooLowError`).
   PlayerLevelTooLow: 'PLAYER_LEVEL_TOO_LOW',
   // Faz 3 — Yetiştiricilik (domain/breeding)
   NotEligibleForBreeding: 'NOT_ELIGIBLE_FOR_BREEDING',
   // Faz 4 — Çiftlik / Tesisler (domain/farm)
   MaxFacilityLevelReached: 'MAX_FACILITY_LEVEL_REACHED',
+  FacilityInactive: 'FACILITY_INACTIVE',
+  InvalidPlayerControl: 'INVALID_PLAYER_CONTROL',
+  InteractiveRaceNotFound: 'INTERACTIVE_RACE_NOT_FOUND',
+  InteractiveRaceInProgress: 'INTERACTIVE_RACE_IN_PROGRESS',
+  InteractiveRaceNotFinished: 'INTERACTIVE_RACE_NOT_FINISHED',
+  InteractiveRaceClosed: 'INTERACTIVE_RACE_CLOSED',
   StaffCapacityExceeded: 'STAFF_CAPACITY_EXCEEDED',
   // FAZ 1 wiring — Player (domain/player)
   UsernameAlreadyTaken: 'USERNAME_ALREADY_TAKEN',
@@ -198,6 +314,13 @@ export const ErrorCode = {
   FriendshipNotFound: 'FRIENDSHIP_NOT_FOUND',
   /** Mesaj göndermek için arkadaş olmak gerekir (403). */
   NotFriends: 'NOT_FRIENDS',
+  /** Arkadaşlık yalnızca bitmiş bir yarışta birlikte koşmuş oyuncular arasında kurulur (409, 08.10.2026). */
+  FriendshipRequiresSharedRace: 'FRIENDSHIP_REQUIRES_SHARED_RACE',
+  /** 16.10.2026 — davet sistemi (sosyal brief §7). */
+  ReferralCodeNotFound: 'REFERRAL_CODE_NOT_FOUND',
+  ReferralSelf: 'REFERRAL_SELF',
+  ReferralAlreadyAttached: 'REFERRAL_ALREADY_ATTACHED',
+  ReferralAttachWindowClosed: 'REFERRAL_ATTACH_WINDOW_CLOSED',
   /** Mesaj gövdesi boş, yalnızca boşluk ya da azami uzunluğu aşıyor (400). */
   InvalidMessageBody: 'INVALID_MESSAGE_BODY',
   /** Arkadaşlık isteği yanıtı `accept`/`reject` dışında bir değer (400). */
@@ -261,6 +384,8 @@ export const ErrorCode = {
   GiftRequiresFriendship: 'GIFT_REQUIRES_FRIENDSHIP',
   /** Son 24 saatteki hediye SAYISI tavanı aşıldı (409) — bkz. `GiftConfig.dailyLimit`. */
   DailyGiftLimitReached: 'DAILY_GIFT_LIMIT_REACHED',
+  /** 16.10.2026 — çip transferi tutar tavanı (günlük / alıcı günlük / yeni hesap / satın alınmış çip) (409). */
+  GiftLimitExceeded: 'GIFT_LIMIT_EXCEEDED',
   /**
    * Oyuncunun oluşturduğu ücretli yarış (brief §1-§7, §42 PHASE 1) —
    * aşağıdaki iki kod `domain/race/lobby.ts`'in ürettikleridir.
@@ -286,6 +411,13 @@ export const ErrorCode = {
    * ortadan kalkar.
    */
   RaceLimitReached: 'RACE_LIMIT_REACHED',
+  /** 14.10.2026 — yarışı yalnızca açan oyuncu iptal edebilir (403). */
+  NotRaceOwner: 'NOT_RACE_OWNER',
+  /**
+   * 14.10.2026 — kendi yarışın iptal edilemez (409): açık değil ya da aktif
+   * katılımı var (iade gerektirir; katılan önce ayrılır).
+   */
+  OwnRaceNotCancelable: 'OWN_RACE_NOT_CANCELABLE',
   /**
    * Katılım gövdesi geçersiz: `horseId` yok, UUID değil ya da yanlış tipte;
    * `tacticalStyle`/`riskLevel` bilinen bir değer değil (400).

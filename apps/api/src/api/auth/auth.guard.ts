@@ -2,6 +2,7 @@ import { CanActivate, ExecutionContext, Inject, Injectable } from '@nestjs/commo
 import { Reflector } from '@nestjs/core';
 import type { Request } from 'express';
 import { TOKEN_SERVICE, type TokenService } from '../../application/ports/token.service';
+import { AuthSessionUseCase } from '../../application/use-cases/auth-session.use-case';
 import { MissingAuthTokenError } from '../../domain/auth/errors';
 import { IS_PUBLIC_KEY } from './public.decorator';
 import type { AuthenticatedRequest } from './current-player.decorator';
@@ -29,9 +30,10 @@ export class AuthGuard implements CanActivate {
   constructor(
     @Inject(Reflector) private readonly reflector: Reflector,
     @Inject(TOKEN_SERVICE) private readonly tokenService: TokenService,
+    @Inject(AuthSessionUseCase) private readonly sessions: AuthSessionUseCase,
   ) {}
 
-  canActivate(context: ExecutionContext): boolean {
+  async canActivate(context: ExecutionContext): Promise<boolean> {
     const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
       context.getHandler(),
       context.getClass(),
@@ -47,7 +49,10 @@ export class AuthGuard implements CanActivate {
     }
 
     const payload = this.tokenService.verify(token);
-    request.player = { id: payload.sub };
+    // 02.10.2026 — imza yetmez: oturum kapatıldıysa (çıkış, tüm cihazlar,
+    // şifre sıfırlama) ya da hesap yoksa token ANINDA reddedilir. Tek sorgu.
+    const access = await this.sessions.authorize(payload);
+    request.player = { id: access.playerId, sessionId: access.sessionId };
     return true;
   }
 

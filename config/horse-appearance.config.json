@@ -1,0 +1,26 @@
+{
+  "coatWeights": {
+    "bay": 34,
+    "dark_bay": 20,
+    "chestnut": 26,
+    "black": 6,
+    "grey": 10,
+    "palomino": 4
+  },
+  "faceMarkingWeights": {
+    "none": 35,
+    "star": 25,
+    "stripe": 12,
+    "blaze": 20,
+    "snip": 8
+  },
+  "legMarkingWeights": {
+    "none": 45,
+    "socks": 35,
+    "stockings": 20
+  },
+  "inheritance": {
+    "parentCoatChance": 0.9,
+    "sireCoatShare": 0.5
+  }
+}

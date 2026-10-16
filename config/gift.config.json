@@ -3,6 +3,28 @@
   "maxAmount": 10000,
   "dailyLimit": 20,
   "dailyWindowHours": 24,
+  "dailyAmountLimit": 2000,
+  "dailyReceiveAmountLimit": 4000,
+  "newAccount": {
+    "minAccountAgeDays": 7,
+    "maxAmount": 100,
+    "dailyAmountLimit": 200
+  },
+  "presetAmounts": [
+    10,
+    50,
+    100,
+    500
+  ],
   "historyLimit": 50,
-  "allowedCurrencies": ["money", "gems"]
+  "allowedCurrencies": [
+    "money"
+  ],
+  "friendGift": {
+    "amount": 2,
+    "dailySendBudget": 20,
+    "dailyCollectLimit": 20,
+    "expiryDays": 7,
+    "pendingListLimit": 50
+  }
 }

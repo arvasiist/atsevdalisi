@@ -52,7 +52,7 @@ export interface HorsePedigreeView {
  *
  * **Tay ANINDA doğar** — bu projede gebelik süresi modellenmez (bkz.
  * `domain/breeding/breeding.ts`: `breedHorses` sonucu doğrudan bir tay
- * üretir). `breedingCooldownDays` kısrağın BİR SONRAKİ çiftleştirmesine
+ * üretir). `breedingCooldownMonths` kısrağın BİR SONRAKİ çiftleştirmesine
  * kadar geçen süredir, gebelik süresi değildir.
  *
  * **`seed` BİLİNÇLİ OLARAK DÖNMEZ.** Tayın statları deterministiktir
@@ -79,4 +79,29 @@ export interface BreedingResultView {
    * bakiyesi; ücret 0 ise `null` (hiçbir para hareketi olmadı).
    */
   payerBalance: { money: number; gems: number } | null;
+}
+
+/**
+ * 15.10.2026 — S5 damızlık pazarı (`GET /breeding/studs`): başka oyuncuların
+ * EMEKLİ, üreme yaşında ve tay sınırı dolmamış aygırları. Ücret ödemeden ÖNCE
+ * görünür (eskiden yalnızca ödedikten sonra yanıtta okunuyordu).
+ *
+ * ⚠️ `fee` aygırın kalite + potansiyelinden türetilir; yani emekli aygırın
+ * potansiyeli ücretten çıkarılabilir. Bu bilinçlidir (Photo Finish: statlar
+ * emeklilikte açılır) — yarışan atın potansiyeli yine gizlidir.
+ */
+export interface StudListingView {
+  horseId: UUID;
+  name: string;
+  breed: string;
+  ownerId: UUID;
+  ownerUsername: string | null;
+  /** Oyun yaşı (ay). */
+  ageMonths: number;
+  quality: number;
+  /** Ödenecek damızlık ücretinin TAMAMI (sunucu hesaplar). */
+  fee: number;
+  /** Ömür boyu verdiği tay sayısı ve sınırı. */
+  foalCount: number;
+  foalLimit: number;
 }

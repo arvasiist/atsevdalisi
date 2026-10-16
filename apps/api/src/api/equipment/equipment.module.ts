@@ -1,12 +1,13 @@
 import { Module } from '@nestjs/common';
 import { HORSE_EQUIPMENT_REPOSITORY } from '../../application/ports/horse-equipment.repository';
-import { CreateHorseEquipmentUseCase } from '../../application/use-cases/create-horse-equipment.use-case';
 import { EquipHorseEquipmentUseCase } from '../../application/use-cases/equip-horse-equipment.use-case';
 import { ListHorseEquipmentUseCase } from '../../application/use-cases/list-horse-equipment.use-case';
+import { PurchaseHorseEquipmentUseCase } from '../../application/use-cases/purchase-horse-equipment.use-case';
 import { UnequipHorseEquipmentUseCase } from '../../application/use-cases/unequip-horse-equipment.use-case';
 import { DatabaseModule } from '../../infrastructure/database/database.module';
 import { PostgresHorseEquipmentRepository } from '../../infrastructure/equipment/postgres-horse-equipment.repository';
 import { HorseOwnerGuardByParam } from '../auth/horse-owner.guard';
+import { IdempotencyInterceptor } from '../idempotency/idempotency.interceptor';
 import { HorseModule } from '../horse/horse.module';
 import { EquipmentController } from './equipment.controller';
 
@@ -24,7 +25,8 @@ import { EquipmentController } from './equipment.controller';
   imports: [DatabaseModule, HorseModule],
   controllers: [EquipmentController],
   providers: [
-    CreateHorseEquipmentUseCase,
+    PurchaseHorseEquipmentUseCase,
+    IdempotencyInterceptor,
     ListHorseEquipmentUseCase,
     EquipHorseEquipmentUseCase,
     UnequipHorseEquipmentUseCase,

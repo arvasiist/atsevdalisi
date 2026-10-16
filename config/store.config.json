@@ -1,0 +1,46 @@
+{
+  "currency": "TRY",
+  "products": [
+    {
+      "sku": "gems-100",
+      "gems": 100,
+      "priceMinor": 2999
+    },
+    {
+      "sku": "gems-550",
+      "gems": 550,
+      "priceMinor": 14999
+    },
+    {
+      "sku": "gems-1200",
+      "gems": 1200,
+      "priceMinor": 29999
+    },
+    {
+      "sku": "gems-2600",
+      "gems": 2600,
+      "priceMinor": 59999
+    },
+    {
+      "sku": "chips-1000",
+      "chips": 1000,
+      "priceMinor": 1999
+    },
+    {
+      "sku": "chips-5500",
+      "chips": 5500,
+      "priceMinor": 9999
+    },
+    {
+      "sku": "chips-12000",
+      "chips": 12000,
+      "priceMinor": 19999
+    }
+  ],
+  "maxDailySpendMinor": 150000,
+  "maxPendingOrders": 3,
+  "pendingOrderTtlMinutes": 60,
+  "historyLimit": 50,
+  "adminListLimit": 100,
+  "purchasedChipsGiftable": false
+}

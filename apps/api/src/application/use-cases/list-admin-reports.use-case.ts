@@ -1,6 +1,8 @@
+import { assertStaffPermission } from '../../domain/admin/staff';
+import { MODERATION_REPOSITORY, type ModerationRepository } from '../ports/moderation.repository';
 import { Inject, Injectable } from '@nestjs/common';
 import type { AdminReportListResult, AdminReportView } from '@at-sevdalisi/shared-types';
-import { assertAdmin, REPORT_STATUS_TRANSITIONS } from '../../domain/admin/moderation-queue';
+import { REPORT_STATUS_TRANSITIONS } from '../../domain/admin/moderation-queue';
 import { AppConfigService } from '../../infrastructure/config/config.service';
 import { ADMIN_REPOSITORY, type AdminRepository } from '../ports/admin.repository';
 
@@ -23,11 +25,13 @@ import { ADMIN_REPOSITORY, type AdminRepository } from '../ports/admin.repositor
 export class ListAdminReportsUseCase {
   constructor(
     @Inject(ADMIN_REPOSITORY) private readonly adminRepository: AdminRepository,
+    @Inject(MODERATION_REPOSITORY) private readonly moderationRepository: ModerationRepository,
     @Inject(AppConfigService) private readonly config: AppConfigService,
   ) {}
 
   async execute(adminId: string): Promise<AdminReportListResult> {
-    assertAdmin(await this.adminRepository.isAdmin(adminId));
+    // 02.10.2026 (Faz 10) — moderatör de yetkili; rol her çağrıda DB'den.
+    assertStaffPermission(await this.moderationRepository.findRole(adminId), 'reports.manage');
 
     const records = await this.adminRepository.listReports(this.config.admin.reportQueueLimit);
 

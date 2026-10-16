@@ -1,3 +1,5 @@
+import type { RaceNotReadyReason } from './readiness';
+
 /**
  * Race domain'ine özgü hata tipleri (brief §6, §14.2 — oyuncu taktik
  * kararları: racingStyle/riskLevel/startApproach/finalStretchPlan).
@@ -47,9 +49,18 @@ export class RaceNotFoundError extends Error {
  * (`http-exception.filter.ts`): bu GEÇİCİ bir engeldir — dinlenme/bakım
  * ile düzelir, kalıcı bir doğrulama hatası DEĞİLDİR (400 olmaz).
  */
+/** 15.10.2026 — oyuncuya giden cümle (eskiden kodun kendisi mesajdaydı). */
+const RACE_NOT_READY_MESSAGES: Record<RaceNotReadyReason, string> = {
+  HORSE_NOT_ACTIVE: 'At yarışa hazır değil: yarışabilir durumda değil.',
+  HORSE_TOO_YOUNG: 'At yarışa hazır değil: henüz yarış yaşına gelmedi.',
+  INSUFFICIENT_HEALTH: 'At yarışa hazır değil: sağlığı yetersiz.',
+  HORSE_TOO_TIRED: 'At yarışa hazır değil: çok yorgun.',
+  INSUFFICIENT_ENERGY: 'At yarışa hazır değil: enerjisi yetersiz.',
+};
+
 export class HorseNotReadyToRaceError extends Error {
-  constructor(public readonly reason: 'HORSE_NOT_ACTIVE' | 'INSUFFICIENT_HEALTH' | 'HORSE_TOO_TIRED' | 'INSUFFICIENT_ENERGY') {
-    super(`At yarışa hazır değil: ${reason}`);
+  constructor(public readonly reason: RaceNotReadyReason) {
+    super(RACE_NOT_READY_MESSAGES[reason]);
     this.name = 'HorseNotReadyToRaceError';
   }
 }
@@ -109,6 +120,36 @@ export class InvalidRaceDefinitionError extends Error {
  * kaydı açabilir — hem depolama hem de "keşif listesini çöple doldurma"
  * (brief §26) vektörü.
  */
+/**
+ * 14.10.2026 — yarışı açan bu oyuncu değil (403). Sunucu üretimi (takvim,
+ * turnuva) yarışların sahibi yoktur; onlar da buraya düşer.
+ */
+export class NotRaceOwnerError extends Error {
+  constructor(public readonly raceId: string) {
+    super('Bu yarışı yalnızca açan oyuncu iptal edebilir.');
+    this.name = 'NotRaceOwnerError';
+  }
+}
+
+/**
+ * 14.10.2026 — kendi yarışın şu an iptal edilemez (409): yarış artık açık
+ * değil ya da aktif katılımı var (para iadesi gerektirir — bkz.
+ * `checkOwnRaceCancelable`).
+ */
+export class OwnRaceNotCancelableError extends Error {
+  constructor(
+    public readonly reason: 'NOT_SCHEDULED' | 'HAS_PARTICIPANTS',
+    public readonly raceId: string,
+  ) {
+    super(
+      reason === 'HAS_PARTICIPANTS'
+        ? 'Yarışa katılan oyuncular var; iptal edilemez. Sen katıldıysan önce yarıştan ayrıl.'
+        : 'Yarış artık açık değil; iptal edilemez.',
+    );
+    this.name = 'OwnRaceNotCancelableError';
+  }
+}
+
 export class RaceLimitReachedError extends Error {
   constructor(public readonly limit: number) {
     super(`Aynı anda en fazla ${limit} açık yarış oluşturabilirsiniz.`);
@@ -163,7 +204,11 @@ export class HorseNotOwnedError extends Error {
  */
 export class RaceNotJoinableError extends Error {
   constructor(public readonly reason: 'NOT_SCHEDULED' | 'ALREADY_STARTED') {
-    super(reason === 'ALREADY_STARTED' ? 'Yarış başladı, artık katılınamaz.' : 'Bu yarış katılıma açık değil.');
+    super(
+      reason === 'ALREADY_STARTED'
+        ? 'Yarış başladı, artık katılınamaz.'
+        : 'Bu yarış katılıma açık değil.',
+    );
     this.name = 'RaceNotJoinableError';
   }
 }
@@ -225,7 +270,10 @@ export class InvalidEntryReadyInputError extends Error {
  * bir çıkarım için zemin olmamalıdır.
  */
 export class RaceEntryNotFoundError extends Error {
-  constructor(public readonly raceId: string, public readonly playerId: string) {
+  constructor(
+    public readonly raceId: string,
+    public readonly playerId: string,
+  ) {
     super('Bu yarışta size ait bir katılım bulunamadı.');
     this.name = 'RaceEntryNotFoundError';
   }
@@ -356,5 +404,45 @@ export class InvalidRaceTransitionError extends Error {
   ) {
     super(`Geçersiz yarış durumu geçişi: ${from} → ${to}`);
     this.name = 'InvalidRaceTransitionError';
+  }
+}
+
+/** 01.10.2026 — oyuncu kontrolü: bilinmeyen düğme (400). */
+export class InvalidPlayerControlError extends Error {
+  constructor(public readonly value: unknown) {
+    super(`Geçersiz yarış komutu: "${String(value)}".`);
+    this.name = 'InvalidPlayerControlError';
+  }
+}
+
+/** 01.10.2026 — oyuncu kontrollü yarış bulunamadı ya da çağıranın değil (404 — varlık sızdırmaz). */
+export class InteractiveRaceNotFoundError extends Error {
+  constructor(public readonly raceId: string) {
+    super('Yarış bulunamadı.');
+    this.name = 'InteractiveRaceNotFoundError';
+  }
+}
+
+/** 01.10.2026 — oyuncunun bitmemiş bir kontrollü yarışı var (409). */
+export class InteractiveRaceInProgressError extends Error {
+  constructor(public readonly raceId: string) {
+    super('Devam eden bir yarışın var; önce onu bitir.');
+    this.name = 'InteractiveRaceInProgressError';
+  }
+}
+
+/** 01.10.2026 — yarış henüz bitmedi; kesinleşemez (409). */
+export class InteractiveRaceNotFinishedError extends Error {
+  constructor(public readonly remainingMs: number) {
+    super(`Yarış henüz bitmedi (${Math.ceil(remainingMs / 1000)} sn kaldı).`);
+    this.name = 'InteractiveRaceNotFinishedError';
+  }
+}
+
+/** 01.10.2026 — yarış bitti/kesinleşti; komut alınmaz (409). */
+export class InteractiveRaceClosedError extends Error {
+  constructor(public readonly raceId: string) {
+    super('Yarış bitti; artık komut verilemez.');
+    this.name = 'InteractiveRaceClosedError';
   }
 }

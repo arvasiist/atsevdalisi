@@ -1,9 +1,13 @@
 import { Inject, Injectable } from '@nestjs/common';
 import type { FeedInventoryView } from '@at-sevdalisi/shared-types';
 import { buildFeedItemView } from '../../domain/care/care';
+import { FarmEffectsService } from './farm-effects.service';
 import { FEED_TYPES } from '../../domain/care/validation';
 import { AppConfigService } from '../../infrastructure/config/config.service';
-import { FEED_INVENTORY_REPOSITORY, type FeedInventoryRepository } from '../ports/feed-inventory.repository';
+import {
+  FEED_INVENTORY_REPOSITORY,
+  type FeedInventoryRepository,
+} from '../ports/feed-inventory.repository';
 
 /**
  * `GET /players/:id/feed-inventory` — bu turda EKLENDİ.
@@ -27,14 +31,26 @@ export class GetFeedInventoryUseCase {
   constructor(
     @Inject(FEED_INVENTORY_REPOSITORY) private readonly feedRepository: FeedInventoryRepository,
     @Inject(AppConfigService) private readonly config: AppConfigService,
+    @Inject(FarmEffectsService) private readonly farmEffects: FarmEffectsService,
   ) {}
 
   async execute(playerId: string): Promise<FeedInventoryView> {
-    const quantities = await this.feedRepository.findQuantities(playerId);
+    const [quantities, effects] = await Promise.all([
+      this.feedRepository.findQuantities(playerId),
+      this.farmEffects.effectsFor(playerId),
+    ]);
 
     return {
       playerId,
-      items: FEED_TYPES.map((type) => buildFeedItemView(this.config.care, type, quantities.get(type) ?? 0, null)),
+      items: FEED_TYPES.map((type) =>
+        buildFeedItemView(
+          this.config.care,
+          type,
+          quantities.get(type) ?? 0,
+          null,
+          effects.feedCostMultiplier,
+        ),
+      ),
     };
   }
 }

@@ -2,6 +2,7 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import { AppConfigService } from '../../infrastructure/config/config.service';
 import { RACE_REPOSITORY, type RaceRepository } from '../ports/race.repository';
 import { SettleRaceUseCase } from './settle-race.use-case';
+import { InteractiveRaceNotFinishedError } from '../../domain/race/errors';
 
 export interface SettleDueRacesResult {
   settled: string[];
@@ -44,6 +45,10 @@ export class SettleDueRacesUseCase {
         await this.settleRaceUseCase.execute(raceId);
         result.settled.push(raceId);
       } catch (error) {
+        // 01.10.2026 — kontrollü yarış hâlâ koşuyor: hata değil, sırası gelmedi.
+        if (error instanceof InteractiveRaceNotFinishedError) {
+          continue;
+        }
         const message = error instanceof Error ? error.message : String(error);
         result.skipped.push({ raceId, reason: message });
         this.logger.error(`Yarış ${raceId} kesinleştirilemedi: ${message}`);

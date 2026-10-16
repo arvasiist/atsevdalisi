@@ -4,7 +4,8 @@ import type { Horse } from '@at-sevdalisi/shared-types';
 import type { HorseRepository } from '../../application/ports/horse.repository';
 import { PG_POOL, withTransaction } from '../database/database.module';
 import { isHorseInActiveRace } from './active-race-entry';
-import { rowToHorse, writeHorseRow, type HorseRow } from './horse-row';
+import type { BreedInitialStats } from '../../domain/horse/breeds';
+import { insertNewHorse, rowToHorse, writeHorseRow, type HorseRow } from './horse-row';
 
 /**
  * NOT — `HorseRow`/`rowToHorse`/`writeHorseRow` bu turda `horse-row.ts`'e
@@ -41,50 +42,14 @@ export class PostgresHorseRepository implements HorseRepository {
     return result.rows.map(rowToHorse);
   }
 
-  async save(horse: Horse): Promise<void> {
+  async save(horse: Horse, initial?: BreedInitialStats): Promise<void> {
     // Bir at, `horse_stats`/`horse_health`/`horse_surface_stats`/
-    // `horse_distance_stats` satırları olmadan var olamamalıdır (Antrenman
-    // `horse_stats`'ı, Bakım `horse_health`'i okur/günceller; Race Engine'in
-    // Track Fit hesaplaması (`domain/race/track-fit.ts`) diğer ikisini
-    // yalnızca OKUR — güncelleme/scout mekaniği bilinçli olarak kapsam
-    // dışı, bkz. `HorseSurfaceStatsRepository` doc yorumu) — bu yüzden BEŞ
-    // INSERT tek bir transaction'da yapılır
-    // (bkz. `database.module.ts` `withTransaction`). Dördü için de sütun
-    // listesi VERİLMEZ: DEFAULT değerler (migration 0003) TEK doğruluk
-    // kaynağıdır, burada TEKRAR yazılmaz.
+    // `horse_distance_stats` satırları olmadan var olamamalıdır — BEŞ INSERT
+    // tek transaction'da (`insertNewHorse`, ırk mağazasıyla ORTAK). Irk
+    // statları (07.10.2026) verilmezse DB varsayılanları (migration 0003)
+    // TEK doğruluk kaynağı olarak kalır.
     await withTransaction(this.pool, async (client) => {
-      await client.query(
-        `INSERT INTO horses (id, owner_id, name, gender, breed, birth_date, level, xp, quality, potential, health, fitness, fatigue, energy, morale, weight_kg, status, sire_id, dam_id, created_at, updated_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)`,
-        [
-          horse.id,
-          horse.ownerId,
-          horse.name,
-          horse.gender,
-          horse.breed,
-          horse.birthDate.slice(0, 10),
-          horse.level,
-          horse.xp,
-          horse.quality,
-          horse.potential,
-          horse.health,
-          horse.fitness,
-          horse.fatigue,
-          horse.energy,
-          horse.morale,
-          horse.weightKg,
-          horse.status,
-          horse.sireId,
-          horse.damId,
-          new Date(horse.createdAt),
-          new Date(horse.updatedAt),
-        ],
-      );
-      await client.query('INSERT INTO horse_stats (horse_id) VALUES ($1)', [horse.id]);
-      await client.query('INSERT INTO horse_health (horse_id) VALUES ($1)', [horse.id]);
-      // R3 — Track Fit (bu turda EKLENDİ) — bkz. bu metodun üstündeki doc yorumu.
-      await client.query('INSERT INTO horse_surface_stats (horse_id) VALUES ($1)', [horse.id]);
-      await client.query('INSERT INTO horse_distance_stats (horse_id) VALUES ($1)', [horse.id]);
+      await insertNewHorse(client, horse, initial);
     });
   }
 

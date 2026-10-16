@@ -141,3 +141,53 @@ export interface RaceTicketRefundResult {
   currency: Currency;
   newBalance: Pick<Player, 'money' | 'gems'>;
 }
+
+/**
+ * 08.10.2026 — TRİBÜN HEDİYESİ. Katalog `config/grandstand.config.json` →
+ * `tribuneGifts.items`; istemci yalnızca anahtar gönderir.
+ */
+export interface TribuneGiftItemView {
+  key: string;
+  name: string;
+  /** Boşsa istemci kendi çizer (nal). */
+  emoji: string;
+  price: number;
+  /** Atı koşturan oyuncuya geçen pay. */
+  ownerAmount: number;
+}
+
+export interface TribuneGiftFeedItem {
+  tribuneGiftId: string;
+  giftKey: string;
+  horseId: string;
+  horseName: string;
+  senderDisplayName: string;
+  createdAt: string;
+}
+
+export interface RaceTribuneGiftsView {
+  raceId: string;
+  /** Şu an hediye gönderilebilir mi (yarış iptal değil, pencere açık). */
+  open: boolean;
+  items: TribuneGiftItemView[];
+  /** Hediye gönderilebilecek atlar: oyuncu atı (bot değil), çağıranın kendi atı hariç. */
+  recipients: Array<{ horseId: string; horseName: string; ownerDisplayName: string }>;
+  /** At başına bu yarışta gelen hediye sayıları (`giftKey` → adet). */
+  perHorse: Array<{ horseId: string; counts: Record<string, number> }>;
+  recent: TribuneGiftFeedItem[];
+  sentToday: number;
+  dailyLimit: number;
+}
+
+export interface SendTribuneGiftResult {
+  tribuneGiftId: string;
+  giftKey: string;
+  price: number;
+  ownerAmount: number;
+  balanceAfter: number;
+}
+
+/** Soket `race.tribuneGift` — yarış odasındaki herkese. */
+export interface TribuneGiftEvent extends TribuneGiftFeedItem {
+  raceId: string;
+}

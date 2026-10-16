@@ -5,7 +5,12 @@ import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { PG_POOL } from '../../src/infrastructure/database/database.module';
 import { AppConfigService } from '../../src/infrastructure/config/config.service';
-import { bootstrapTestApp, registerTestPlayer, type RegisteredTestPlayer } from './test-helpers';
+import {
+  bootstrapTestApp,
+  registerTestPlayer,
+  type RegisteredTestPlayer,
+  recordSharedFinishedRace,
+} from './test-helpers';
 
 /**
  * ARKADAŞLIK + MESAJLAŞMA — proje sahibinin açık talebi (27.09.2026:
@@ -53,6 +58,8 @@ describe('Arkadaşlık + mesajlaşma (e2e)', () => {
 
   /** İstek gönderir ve dönen `requestId`'yi verir. */
   async function sendRequest(from: RegisteredTestPlayer, to: RegisteredTestPlayer): Promise<string> {
+    // Arkadaşlık kuralı (08.10.2026): istek yalnızca birlikte yarışmışlar arasında.
+    await recordSharedFinishedRace(app, [from, to]);
     const response = await request(app.getHttpServer())
       .post(requestsUrl(from.playerId))
       .set('Authorization', from.authHeader)
@@ -115,6 +122,7 @@ describe('Arkadaşlık + mesajlaşma (e2e)', () => {
     it('istek gönderir; gönderen GİDEN, alan GELEN listesinde görür', async () => {
       const sender = await registerTestPlayer(app, 'İstek Gönderen');
       const addressee = await registerTestPlayer(app, 'İstek Alan');
+      await recordSharedFinishedRace(app, [sender, addressee]);
 
       const response = await request(app.getHttpServer())
         .post(requestsUrl(sender.playerId))

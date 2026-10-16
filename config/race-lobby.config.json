@@ -1,24 +1,282 @@
 {
-  "fieldSizes": [8, 10, 12, 14, 16],
+  "fieldSizes": [
+    8,
+    10,
+    12,
+    14,
+    16
+  ],
   "minPlayers": 8,
   "maxPlayers": 16,
   "aiFillEnabled": true,
-  "paidEntryFeeOptions": [50, 100, 250, 500, 1000],
-  "tribuneFeeOptions": [0, 10, 25, 50],
-  "spectatorCapacityOptions": [500, 1000, 5000],
-  "distanceMeters": { "min": 800, "max": 3200 },
-  "nameLength": { "min": 3, "max": 60 },
-  "startDelaySeconds": { "min": 60, "max": 604800 },
+  "fieldRules": {
+    "paidMinRealPlayers": 2,
+    "freeMinRealPlayers": 1,
+    "botlessMinRealPlayers": 2
+  },
+  "paidEntryFeeOptions": [
+    50,
+    100,
+    250,
+    500,
+    1000
+  ],
+  "tribuneFeeOptions": [
+    0,
+    10,
+    25,
+    50
+  ],
+  "spectatorCapacityOptions": [
+    500,
+    1000,
+    5000
+  ],
+  "distanceMeters": {
+    "min": 800,
+    "max": 3200
+  },
+  "nameLength": {
+    "min": 3,
+    "max": 60
+  },
+  "startDelaySeconds": {
+    "min": 60,
+    "max": 604800
+  },
   "maxOpenRacesPerPlayer": 3,
-  "allowedSurfaces": ["grass", "dirt", "synthetic"],
-  "allowedWeather": ["sunny", "rainy", "windy", "cloudy", "hot", "cold"],
-  "entryStatuses": ["waiting", "ready", "not_ready", "cancelled"],
+  "allowedSurfaces": [
+    "grass",
+    "dirt",
+    "synthetic"
+  ],
+  "allowedWeather": [
+    "sunny",
+    "rainy",
+    "windy",
+    "cloudy",
+    "hot",
+    "cold"
+  ],
+  "entryStatuses": [
+    "waiting",
+    "ready",
+    "not_ready",
+    "cancelled"
+  ],
   "prizeDistributionId": "top5",
   "lobbyListDefaultLimit": 20,
   "lobbyListMaxLimit": 100,
+  "spectatorWaitPollSeconds": 2,
+  "lobbyListRefreshSeconds": 15,
   "lockScheduler": {
     "enabled": true,
     "tickSeconds": 5,
-    "batchSize": 20
+    "batchSize": 20,
+    "failureBackoffSeconds": {
+      "initial": 30,
+      "max": 600
+    }
+  },
+  "horseLevelBrackets": [
+    {
+      "key": "rookie",
+      "name": "Çaylak",
+      "minLevel": 1,
+      "maxLevel": 4,
+      "botStatRange": [
+        36,
+        54
+      ]
+    },
+    {
+      "key": "developing",
+      "name": "Gelişen",
+      "minLevel": 5,
+      "maxLevel": 9,
+      "botStatRange": [
+        44,
+        62
+      ]
+    },
+    {
+      "key": "master",
+      "name": "Usta",
+      "minLevel": 10,
+      "maxLevel": 19,
+      "botStatRange": [
+        52,
+        72
+      ]
+    },
+    {
+      "key": "champion",
+      "name": "Şampiyon",
+      "minLevel": 20,
+      "maxLevel": 50,
+      "botStatRange": [
+        60,
+        82
+      ]
+    }
+  ],
+  "calendar": {
+    "enabled": true,
+    "tickSeconds": 60,
+    "horizonHours": 3,
+    "minLeadMinutes": 10,
+    "programs": [
+      {
+        "id": "dirt-sprint",
+        "hippodrome": "ankara",
+        "name": "Kum Sprint",
+        "intervalMinutes": 30,
+        "offsetMinutes": 0,
+        "fieldSize": 8,
+        "maxPlayers": 8,
+        "entryFee": 100,
+        "distanceMeters": 1200,
+        "surface": "dirt",
+        "weather": "sunny",
+        "tribuneFee": 10,
+        "spectatorCapacity": 1000,
+        "tableId": "local"
+      },
+      {
+        "id": "grass-mile",
+        "hippodrome": "izmir",
+        "name": "Çim Mil (Kontrollü)",
+        "intervalMinutes": 60,
+        "offsetMinutes": 15,
+        "fieldSize": 10,
+        "maxPlayers": 10,
+        "entryFee": 250,
+        "distanceMeters": 1600,
+        "surface": "grass",
+        "weather": "sunny",
+        "tribuneFee": 25,
+        "spectatorCapacity": 5000,
+        "playerControl": true,
+        "tableId": "regional"
+      },
+      {
+        "id": "open-run",
+        "hippodrome": "adana",
+        "name": "Açık Koşu",
+        "intervalMinutes": 20,
+        "offsetMinutes": 5,
+        "fieldSize": 8,
+        "maxPlayers": 8,
+        "entryFee": 0,
+        "distanceMeters": 1000,
+        "surface": "synthetic",
+        "weather": "cloudy",
+        "tribuneFee": 0,
+        "spectatorCapacity": 500
+      },
+      {
+        "id": "native-breeds",
+        "hippodrome": "bursa",
+        "name": "Yerli Irklar Koşusu",
+        "intervalMinutes": 60,
+        "offsetMinutes": 40,
+        "fieldSize": 8,
+        "maxPlayers": 8,
+        "entryFee": 100,
+        "distanceMeters": 1400,
+        "surface": "dirt",
+        "weather": "sunny",
+        "tribuneFee": 10,
+        "spectatorCapacity": 1000,
+        "breedClass": "native",
+        "tableId": "local"
+      },
+      {
+        "id": "sunday-derby",
+        "hippodrome": "veliefendi",
+        "name": "Pazar Derbisi",
+        "intervalMinutes": 10080,
+        "offsetMinutes": 5340,
+        "fieldSize": 12,
+        "maxPlayers": 12,
+        "entryFee": 500,
+        "distanceMeters": 2400,
+        "surface": "grass",
+        "weather": "sunny",
+        "tribuneFee": 50,
+        "spectatorCapacity": 5000,
+        "playerControl": true,
+        "featured": true,
+        "horizonHours": 48,
+        "tableId": "national"
+      },
+      {
+        "id": "rookie-run",
+        "hippodrome": "ankara",
+        "name": "Çaylak Koşusu",
+        "intervalMinutes": 30,
+        "offsetMinutes": 10,
+        "fieldSize": 8,
+        "maxPlayers": 8,
+        "entryFee": 50,
+        "distanceMeters": 1200,
+        "surface": "dirt",
+        "weather": "sunny",
+        "tribuneFee": 0,
+        "spectatorCapacity": 500,
+        "horseLevelBracket": "rookie"
+      },
+      {
+        "id": "developing-run",
+        "hippodrome": "izmir",
+        "name": "Gelişen Atlar Koşusu",
+        "intervalMinutes": 60,
+        "offsetMinutes": 25,
+        "fieldSize": 8,
+        "maxPlayers": 8,
+        "entryFee": 100,
+        "distanceMeters": 1400,
+        "surface": "grass",
+        "weather": "sunny",
+        "tribuneFee": 10,
+        "spectatorCapacity": 1000,
+        "horseLevelBracket": "developing",
+        "tableId": "local"
+      },
+      {
+        "id": "master-run",
+        "hippodrome": "bursa",
+        "name": "Usta Atlar Koşusu",
+        "intervalMinutes": 60,
+        "offsetMinutes": 50,
+        "fieldSize": 10,
+        "maxPlayers": 10,
+        "entryFee": 250,
+        "distanceMeters": 1600,
+        "surface": "dirt",
+        "weather": "sunny",
+        "tribuneFee": 25,
+        "spectatorCapacity": 1000,
+        "horseLevelBracket": "master",
+        "tableId": "regional"
+      },
+      {
+        "id": "champion-run",
+        "hippodrome": "veliefendi",
+        "name": "Şampiyonlar Koşusu",
+        "intervalMinutes": 120,
+        "offsetMinutes": 35,
+        "fieldSize": 12,
+        "maxPlayers": 12,
+        "entryFee": 500,
+        "distanceMeters": 2000,
+        "surface": "grass",
+        "weather": "sunny",
+        "tribuneFee": 50,
+        "spectatorCapacity": 5000,
+        "horseLevelBracket": "champion",
+        "tableId": "national"
+      }
+    ]
   }
 }

@@ -6,18 +6,35 @@ import type {
   RaceSegmentSnapshot,
   RaceSettlementResult,
   RaceSurface,
+  RaceTimeline,
   RaceWeather,
 } from '@at-sevdalisi/shared-types';
 import { generateBotEntrants } from '../../domain/race/bot-generator';
+import { raceClassBotStatRange } from '../../domain/horse/breeds';
+import { combineBotStatRanges, levelBracketBotStatRange } from '../../domain/race/level-bracket';
 import { resolveFieldComposition } from '../../domain/race/field-composition';
 import { checkRaceSettleable, nextGatePosition } from '../../domain/race/lobby';
-import { computePrizePayouts, resolvePrizeDistribution } from '../../domain/race/prize-distribution';
-import { RACE_ENGINE_VERSION, RACE_RULESET_VERSION, simulateRace } from '../../domain/race/race-engine';
-import { RaceNotFoundError, RaceNotSettleableError } from '../../domain/race/errors';
+import {
+  computePrizePayouts,
+  resolvePrizeDistribution,
+} from '../../domain/race/prize-distribution';
+import { computeLobbySettlement, findRaceTable } from '../../domain/race/table-rules';
+import {
+  RACE_ENGINE_VERSION,
+  RACE_RULESET_VERSION,
+  simulateRace,
+} from '../../domain/race/race-engine';
+import {
+  InteractiveRaceNotFinishedError,
+  RaceNotFoundError,
+  RaceNotSettleableError,
+} from '../../domain/race/errors';
+import { liveRemainingMs, toPlayerCommandMaps } from '../../domain/race/interactive-race';
 import { AppConfigService } from '../../infrastructure/config/config.service';
 import { EntrantSnapshotBuilder } from '../services/entrant-snapshot.builder';
 import {
   RACE_REPOSITORY,
+  type LobbySettlementContext,
   type RaceRepository,
   type SettleLobbyRealEntryResult,
 } from '../ports/race.repository';
@@ -116,7 +133,9 @@ export class SettleRaceUseCase {
     await this.raceRepository.dropUnreadyLobbyEntries({
       raceId,
       now,
-      minRemaining: tournament === null ? 1 : this.config.online.tournament.minParticipants,
+      // 15.10.2026 (Aşama 3) — lobi yarışında eşik yarışın kendi kuralıdır
+      // (`races.min_real_players`, depo okur); turnuva kendi eşiğini verir.
+      minRemaining: tournament === null ? undefined : this.config.online.tournament.minParticipants,
     });
 
     const context = await this.raceRepository.findLobbySettlementContext(raceId);
@@ -130,7 +149,11 @@ export class SettleRaceUseCase {
     // `RunPracticeRaceUseCase`'in kademe doğrulamasını en başa almasıyla
     // AYNI gerekçe. Asıl garanti repository'dedir; burası bir kapıdır.
     const rejection = checkRaceSettleable(
-      { status: context.status, startTime: context.startTime, joinedPlayers: context.joinedPlayers },
+      {
+        status: context.status,
+        startTime: context.startTime,
+        joinedPlayers: context.joinedPlayers,
+      },
       now,
     );
     if (rejection !== null) {
@@ -149,6 +172,99 @@ export class SettleRaceUseCase {
     // "dondurma yapılmadıysa" geçerlidir. `raceId`'yi seed yapmak YASAK
     // olurdu: `raceId` herkese açıktır, dolayısıyla sonuç önceden
     // hesaplanabilirdi.
+    // 15.10.2026 (Aşama 3) — bot YALNIZCA yarışın kuralı izin verirse koşar
+    // (turnuva finali botsuz; `races.ai_fill = false` botsuz yarış).
+    const allowAiFill = tournament === null && context.aiFill;
+    const run = await this.buildRun(raceId, context, allowAiFill, now);
+    const { simulationSeed, realEntryResults, botEntries, segments, timeline } = run;
+
+    // 01.10.2026 — kontrollü yarış ANCAK canlı koşu bitince kesinleşir (bkz.
+    // `LobbyLiveRaceUseCase`). Erken çağrı (crank ya da zamanlayıcı) 409.
+    if (context.playerControl) {
+      const remaining = liveRemainingMs(context, timeline, now, this.config.interactiveRace);
+      if (remaining > 0) {
+        throw new InteractiveRaceNotFinishedError(
+          remaining / this.config.interactiveRace.timeScale,
+        );
+      }
+    }
+
+    // 09.10.2026 — MASA: dağılım masanındır; kaybeden iadesi havuzdan ÖNCE
+    // ayrılır, ödül payları kalan üzerinden. 16.10.2026 (sahibinin kararı):
+    // lobide ödül sırası GERÇEK OYUNCULAR arasındaki sıradır, bota pay düşmez
+    // (`computeLobbySettlement`). Turnuva kendi dağılımıyla, mutlak sırayla
+    // koşar (botsuzdur, masası yoktur).
+    const table = tournament === null ? findRaceTable(this.config.economy, context.tableId) : null;
+    let payouts: number[];
+    let loserRefunds: Array<{ entryId: string; amount: number; paidFee: number }> = [];
+    if (tournament === null) {
+      const shares =
+        resolvePrizeDistribution(
+          this.config.economy,
+          table?.distributionId ?? this.config.raceLobby.prizeDistributionId,
+        )?.shares ?? [];
+      const refundRule = table !== null && table.loserRefund.percent > 0 ? table.loserRefund : null;
+      const paidFees = refundRule !== null ? await this.raceRepository.findLobbyPaidFees(raceId) : new Map<string, number>();
+      const settlement = computeLobbySettlement(
+        context.prizePool,
+        shares,
+        realEntryResults.map((entry) => ({
+          entryId: entry.entryId,
+          finishPosition: entry.finishPosition,
+          paidFee: paidFees.get(entry.entryId) ?? 0,
+        })),
+        refundRule,
+      );
+      payouts = settlement.payouts;
+      loserRefunds = [...settlement.loserRefunds].map(([entryId, amount]) => ({
+        entryId,
+        amount,
+        paidFee: paidFees.get(entryId) ?? 0,
+      }));
+    } else {
+      payouts = computePrizePayouts(
+        context.prizePool,
+        tournamentShares(this.config.online.tournament.prizeDistributionByPlacement),
+      );
+    }
+
+    return this.raceRepository.settleLobbyRace({
+      raceId,
+      expectedPrizePool: context.prizePool,
+      simulationSeed,
+      engineVersion: RACE_ENGINE_VERSION,
+      rulesetVersion: RACE_RULESET_VERSION,
+      configVersion: this.config.race.version,
+      weatherConfigVersion: this.config.weather.version,
+      raceName: context.raceName,
+      realEntries: realEntryResults,
+      botEntries,
+      segments,
+      payouts,
+      loserRefunds,
+      now,
+    });
+  }
+
+  /**
+   * 01.10.2026 — kesinleşmenin "yarışı kur ve koştur" kısmı (yazmaz). Canlı
+   * kontrollü yarışın görüntüsü (`LobbyLiveRaceUseCase`) AYNI fonksiyonu
+   * kullanır: ekranda koşan yarış ile kesinleşen yarış ayrışamaz. Kilitli
+   * bir yarışta (tohum + snapshot donmuş) sonuç yalnızca oyuncu komutlarına
+   * bağlıdır.
+   */
+  async buildRun(
+    raceId: string,
+    context: LobbySettlementContext,
+    aiFillEnabled: boolean,
+    now: Date,
+  ): Promise<{
+    simulationSeed: string;
+    realEntryResults: SettleLobbyRealEntryResult[];
+    botEntries: RaceEntry[];
+    segments: RaceSegmentSnapshot[];
+    timeline: RaceTimeline;
+  }> {
     const simulationSeed = context.simulationSeed ?? randomUUID();
 
     // KULVARLAR — gerçek katılımcılarınki katılım anında çekilmişti
@@ -173,7 +289,11 @@ export class SettleRaceUseCase {
       let jockeyId: string | null;
       let snapshot: RaceEntrantSnapshot;
       if (entrant.horseSnapshot === null) {
-        const built = await this.entrantSnapshotBuilder.build(entrant, context.surface, context.distanceMeters);
+        const built = await this.entrantSnapshotBuilder.build(
+          entrant,
+          context.surface,
+          context.distanceMeters,
+        );
         snapshot = built.snapshot;
         jockeyId = built.jockeyId;
       } else {
@@ -211,7 +331,7 @@ export class SettleRaceUseCase {
       { fieldSize: context.fieldSize, humanCount: context.entrants.length },
       {
         fieldSizes: this.config.raceLobby.fieldSizes,
-        aiFillEnabled: tournament === null ? this.config.raceLobby.aiFillEnabled : false,
+        aiFillEnabled: aiFillEnabled ? this.config.raceLobby.aiFillEnabled : false,
       },
     );
     if (!composition.ok) {
@@ -225,7 +345,19 @@ export class SettleRaceUseCase {
       );
     }
 
-    const botEntrants = generateBotEntrants(composition.composition.bots, simulationSeed);
+    // 08.10.2026 — ırk sınıflı yarışta botlar sınıfın ırkları gücündedir
+    // (`raceClassBotStatRange`); açık yarışta `null` → genel aralık, yani
+    // açık yarışların botları aynı seed'le BİT BİT eskisi gibi üretilir.
+    // 08.10.2026 — at seviyesi aralıklı yarışta botlar aralığın gücündedir;
+    // ırk sınıfıyla birlikteyse ikisinin kesişimi (`combineBotStatRanges`).
+    const botStatRange = combineBotStatRanges(
+      raceClassBotStatRange(this.config.breeds, context.breedClass),
+      levelBracketBotStatRange(this.config.raceLobby.horseLevelBrackets, context.horseLevelBracket),
+    );
+    const botEntrants =
+      botStatRange === null
+        ? generateBotEntrants(composition.composition.bots, simulationSeed)
+        : generateBotEntrants(composition.composition.bots, simulationSeed, botStatRange);
     const botEntries: RaceEntry[] = botEntrants.map((bot) => {
       const gatePosition = nextGatePosition(usedGatePositions);
       usedGatePositions.push(gatePosition);
@@ -269,6 +401,13 @@ export class SettleRaceUseCase {
       entries: [...entrantSnapshots, ...botEntrants],
       raceConfig: this.config.race,
       weatherConfig: this.config.weather,
+      // 01.10.2026 — oyuncu komutları (kontrollü yarış; diğerlerinde hepsi boş → etkisiz).
+      playerCommands: toPlayerCommandMaps(
+        context.entrants.map((entrant) => ({
+          horseId: entrant.horseId,
+          commands: entrant.playerCommands,
+        })),
+      ),
     });
 
     // SİMÜLASYON ETİKETİ → KALICI `race_entries.id` EŞLEMESİ
@@ -294,7 +433,9 @@ export class SettleRaceUseCase {
     }
 
     for (const entry of botEntries) {
-      const finish = timeline.finalResult.find((finishEntry) => finishEntry.horseId === entry.botLabel);
+      const finish = timeline.finalResult.find(
+        (finishEntry) => finishEntry.horseId === entry.botLabel,
+      );
       entry.finalTimeMs = finish?.finishTimeMs ?? null;
       entry.finishPosition = finish?.finishPosition ?? null;
       entry.performanceScore = finish?.performanceScore ?? null;
@@ -308,27 +449,6 @@ export class SettleRaceUseCase {
     // ÖDÜL TUTARLARI — `pool` DIŞARIDAN verilir ve burada `races.prize_pool`
     // sütunudur (kademe yarışındaki `entryFee × fieldSize` DEĞİL; bkz.
     // `prize-distribution.ts` doc yorumu). Paylar config'ten gelir.
-    const shares =
-      tournament === null
-        ? (resolvePrizeDistribution(this.config.economy, this.config.raceLobby.prizeDistributionId)?.shares ?? [])
-        : tournamentShares(this.config.online.tournament.prizeDistributionByPlacement);
-    const payouts = computePrizePayouts(context.prizePool, shares);
-
-    return this.raceRepository.settleLobbyRace({
-      raceId,
-      expectedPrizePool: context.prizePool,
-      simulationSeed,
-      engineVersion: RACE_ENGINE_VERSION,
-      rulesetVersion: RACE_RULESET_VERSION,
-      configVersion: this.config.race.version,
-      weatherConfigVersion: this.config.weather.version,
-      raceName: context.raceName,
-      realEntries: realEntryResults,
-      botEntries,
-      segments,
-      payouts,
-      now,
-    });
+    return { simulationSeed, realEntryResults, botEntries, segments, timeline };
   }
-
 }

@@ -3,6 +3,8 @@ import type { Request } from 'express';
 
 export interface AuthenticatedPlayer {
   id: string;
+  /** Oturum kimliği (migration 0057); eski `sid`siz token'da `null`. */
+  sessionId: string | null;
 }
 
 export interface AuthenticatedRequest extends Request {

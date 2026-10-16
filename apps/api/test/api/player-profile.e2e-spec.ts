@@ -1,3 +1,5 @@
+import { loadProgressionConfig } from '@at-sevdalisi/game-config';
+import { applyXpGain, computeRaceXp } from '../../src/domain/progression/progression';
 import type { INestApplication } from '@nestjs/common';
 import type { Pool } from 'pg';
 import request from 'supertest';
@@ -7,6 +9,8 @@ import {
   bootstrapTestApp,
   registerTestPlayerWithStarterHorse,
   type RegisteredTestPlayer,
+  recordSharedFinishedRace,
+  allowSoloLobbyRace,
 } from './test-helpers';
 
 /**
@@ -73,6 +77,9 @@ describe('Oyuncu profili (e2e) — GET /players/profile/:username', () => {
 
   /** Arkadaşlığı GERÇEK uçlarla kurar (istek → kabul). */
   async function befriend(requester: RegisteredTestPlayer, addressee: RegisteredTestPlayer): Promise<void> {
+    // Arkadaşlık kuralı (08.10.2026) fikstürü; profil yarış SAYDIĞI için
+    // arkadaşlık kurulunca silinir (sayılar yalnızca gerçek yarıştan gelsin).
+    const sharedRaceId = await recordSharedFinishedRace(app, [requester, addressee]);
     const created = await request(app.getHttpServer())
       .post(`/api/v1/players/${requester.playerId}/friend-requests`)
       .set('Authorization', requester.authHeader)
@@ -84,6 +91,7 @@ describe('Oyuncu profili (e2e) — GET /players/profile/:username', () => {
       .set('Authorization', addressee.authHeader)
       .send({ action: 'accept' })
       .expect(200);
+    await pool.query('DELETE FROM races WHERE id = $1', [sharedRaceId]);
   }
 
   /**
@@ -132,6 +140,8 @@ describe('Oyuncu profili (e2e) — GET /players/profile/:username', () => {
     // `startDelaySeconds.min` 60'tır — yarışı "başlamış" duruma getirmenin
     // başka yolu yoktur (üretimde bunu bir zamanlayıcı yapar).
     await pool.query("UPDATE races SET start_time = now() - interval '1 minute' WHERE id = $1", [raceId]);
+    // Tek gerçek oyuncu: eski saha kuralı ön koşul olarak kurulur (bkz. `allowSoloLobbyRace`).
+    await allowSoloLobbyRace(app, raceId);
 
     await request(app.getHttpServer())
       .post(`/api/v1/races/${raceId}/settle`)
@@ -167,8 +177,15 @@ describe('Oyuncu profili (e2e) — GET /players/profile/:username', () => {
     expect(profile.playerId).toBe(target.playerId);
     expect(profile.username).toBe(username);
     expect(profile.displayName).toBe('Profil Sahibi');
-    expect(profile.level).toBe(1);
-    expect(profile.xp).toBe(0);
+    // 01.10.2026 — yarış XP kazandırır; beklenen değer kuraldan hesaplanır.
+    const progress = applyXpGain(
+      1,
+      0,
+      computeRaceXp(finishPosition, loadProgressionConfig().xpRewards.player),
+      loadProgressionConfig(),
+    );
+    expect(profile.level).toBe(progress.level);
+    expect(profile.xp).toBe(progress.xp);
     expect(profile.memberSince).toEqual(expect.any(String));
 
     // YARIŞ SAYILARI: sıra simülasyonun sonucudur, bu yüzden iddia
@@ -181,9 +198,9 @@ describe('Oyuncu profili (e2e) — GET /players/profile/:username', () => {
 
     expect(profile.friendCount).toBe(1);
     expect(profile.giftCount).toBe(1);
-    // brief §24 "Achievements" — bilinçli olarak henüz yok (bkz.
-    // `PlayerProfileView` doc yorumu).
-    expect(profile.achievements).toBeNull();
+    // brief §24 "Achievements" (03.10.2026) — yalnızca ödülü ALINMIŞ
+    // başarımlar görünür; bu oyuncu hiç talep etmedi.
+    expect(profile.achievements).toEqual([]);
   });
 
   it('BAKİYE SIZDIRMAZ — `money`/`gems` yanıtta HİÇ yoktur', async () => {
@@ -201,12 +218,15 @@ describe('Oyuncu profili (e2e) — GET /players/profile/:username', () => {
     expect(Object.keys(response.body.data).sort()).toEqual(
       [
         'achievements',
+        'avatar',
         'avatarId',
         'displayName',
         'friendCount',
         'giftCount',
         'level',
         'memberSince',
+        // 08.10.2026 — profil fotoğrafının adresi (fotoğraf zaten herkese açık profilde görünür).
+        'photoId',
         'playerId',
         'stats',
         'username',

@@ -1,3 +1,4 @@
+import type { SchedulerLeaderService } from '../../src/infrastructure/scheduler/scheduler-leader';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { JoinMatchmakingQueueUseCase } from '../../src/application/use-cases/join-matchmaking-queue.use-case';
 import type { AppConfigService } from '../../src/infrastructure/config/config.service';
@@ -9,13 +10,16 @@ import { MatchmakingScheduler } from '../../src/infrastructure/scheduler/matchma
  * onu DÜŞÜREN bir testle aynı dilimde gelir — `enabled=false` hiçbir şeyi
  * kapatmasaydı bu test kırmızıya döner.
  */
+
+/** Tek örnek: lider kapısı her zaman açık (kapının kendisi `scheduler-leader.e2e-spec.ts`te). */
+const alwaysLeader = { runIfLeader: <T>(work: () => Promise<T>) => work() } as unknown as SchedulerLeaderService;
 function makeScheduler(enabled: boolean, nodeEnv: string): MatchmakingScheduler {
   const config = {
     env: { nodeEnv },
     online: { matchmaking: { queueScan: { enabled, tickSeconds: 60 } } },
   } as unknown as AppConfigService;
   const useCase = { scanQueue: async () => ({ matched: 0 }) } as unknown as JoinMatchmakingQueueUseCase;
-  return new MatchmakingScheduler(useCase, config);
+  return new MatchmakingScheduler(alwaysLeader, useCase, config);
 }
 
 describe('MatchmakingScheduler — config kararı', () => {

@@ -69,6 +69,17 @@ export class GetRaceTimelineUseCase {
       throw new RaceNotFoundError(raceId);
     }
 
+    await this.assertCanWatch(raceId, requestingPlayerId);
+
+    return timeline;
+  }
+
+  /**
+   * İzleme yetki kapısı (katılımcı VEYA ücretsiz tribün VEYA bilet). Kontrollü
+   * yarışın canlı tribün görünümü de (01.10.2026) AYNI kapıyı kullanır —
+   * ikinci bir yetki kuralı yazılmaz.
+   */
+  async assertCanWatch(raceId: string, requestingPlayerId: string): Promise<void> {
     const isParticipant = await this.raceRepository.isPlayerParticipant(raceId, requestingPlayerId);
     if (!isParticipant) {
       // Tribün sorgusu YALNIZCA katılımcı DEĞİLSE yapılır — katılımcı için
@@ -91,7 +102,25 @@ export class GetRaceTimelineUseCase {
         throw new RaceTicketRequiredError(raceId);
       }
     }
+  }
 
-    return timeline;
+  /**
+   * Tribün soketinin BEKLEME yoklaması (01.10.2026) — yetki kapısı YOKTUR,
+   * çünkü yalnızca `execute`ten zaten geçmiş bir abonelik adına çağrılır.
+   * Yarış bittiyse zaman çizelgesini, iptal edildiyse `cancelled`ı, hâlâ
+   * sürüyorsa `pending`i döner.
+   */
+  async pollForPlayback(
+    raceId: string,
+  ): Promise<{ state: 'finished'; timeline: RaceTimelineView } | { state: 'pending' } | { state: 'cancelled' }> {
+    const status = await this.raceRepository.findRaceStatus(raceId);
+    if (status === null || status === 'cancelled') {
+      return { state: 'cancelled' };
+    }
+    if (status !== 'finished') {
+      return { state: 'pending' };
+    }
+    const timeline = await this.raceRepository.findTimelineByRaceId(raceId);
+    return timeline === null ? { state: 'cancelled' } : { state: 'finished', timeline };
   }
 }

@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { Inject, Injectable } from '@nestjs/common';
 import type { Player } from '@at-sevdalisi/shared-types';
 import { assertUsernameAvailable, createNewPlayer } from '../../domain/player/player';
-import { createStarterHorse, generateStarterHorseWeightKg, pickStarterHorseGender, pickStarterHorseName } from '../../domain/horse/horse';
+import { newStarterHorse } from '../horse/new-starter-horse';
 import { AppConfigService } from '../../infrastructure/config/config.service';
 import { HORSE_REPOSITORY, type HorseRepository } from '../ports/horse.repository';
 import { PLAYER_REPOSITORY, type PlayerRepository } from '../ports/player.repository';
@@ -74,22 +74,10 @@ export class RegisterPlayerUseCase {
 
     await this.playerRepository.save(player);
 
-    const starterHorse = createStarterHorse({
-      id: randomUUID(),
-      ownerId: player.id,
-      name: pickStarterHorseName(Math.random()),
-      // R4 — Carried Weight (bu turda EKLENDİ): domain katmanı `Math.random()`
-      // ÇAĞIRAMAYACAĞI için (bkz. `pickStarterHorseName` üstündeki AYNI
-      // kural), üç bağımsız rastgelelik değeri burada üretilip
-      // `generateStarterHorseWeightKg`'e parametre olarak geçirilir.
-      weightKg: generateStarterHorseWeightKg([Math.random(), Math.random(), Math.random()]),
-      // 27.09.2026 — başlangıç atı artık HER ZAMAN `gelding` DEĞİL; bkz.
-      // `STARTER_HORSE_GENDERS` doc yorumu (o karar yetiştiriciliği
-      // ulaşılamaz kılıyordu). Rastgelelik yine Application katmanında
-      // üretilir, domain saf kalır.
-      gender: pickStarterHorseGender(Math.random()),
-    });
-    await this.horseRepository.save(starterHorse);
+    // 07.10.2026 — başlangıç atı ortak yardımcıdan: EN ZAYIF ırk (ücretsiz),
+    // statları ırktan; bkz. `new-starter-horse.ts`.
+    const starter = newStarterHorse(player.id, this.config);
+    await this.horseRepository.save(starter.horse, starter.initial);
 
     return player;
   }

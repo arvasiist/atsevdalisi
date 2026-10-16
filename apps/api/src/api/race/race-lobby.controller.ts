@@ -16,6 +16,7 @@ import type { ApiSuccess, RaceLobbyListItem, RaceLobbyView, RaceSettlementResult
 import { CreateRaceUseCase } from '../../application/use-cases/create-race.use-case';
 import { JoinRaceUseCase } from '../../application/use-cases/join-race.use-case';
 import { LeaveRaceUseCase } from '../../application/use-cases/leave-race.use-case';
+import { CancelOwnRaceUseCase } from '../../application/use-cases/cancel-own-race.use-case';
 import { ListLobbyRacesUseCase } from '../../application/use-cases/list-lobby-races.use-case';
 import { SetEntryReadyUseCase } from '../../application/use-cases/set-entry-ready.use-case';
 import { SettleRaceUseCase } from '../../application/use-cases/settle-race.use-case';
@@ -49,6 +50,7 @@ export class RaceLobbyController {
     @Inject(ListLobbyRacesUseCase) private readonly listLobbyRacesUseCase: ListLobbyRacesUseCase,
     @Inject(SetEntryReadyUseCase) private readonly setEntryReadyUseCase: SetEntryReadyUseCase,
     @Inject(LeaveRaceUseCase) private readonly leaveRaceUseCase: LeaveRaceUseCase,
+    @Inject(CancelOwnRaceUseCase) private readonly cancelOwnRaceUseCase: CancelOwnRaceUseCase,
     @Inject(SettleRaceUseCase) private readonly settleRaceUseCase: SettleRaceUseCase,
   ) {}
 
@@ -253,6 +255,23 @@ export class RaceLobbyController {
   ): Promise<ApiSuccess<RaceLobbyView>> {
     const race = await this.leaveRaceUseCase.execute(id, currentPlayer.id, idempotencyKey ?? null);
     return { success: true, data: race };
+  }
+
+  /**
+   * 14.10.2026 — KENDİ yarışını iptal et. Yalnızca açan oyuncu, yalnızca
+   * yarış açıkken ve aktif katılım YOKKEN (katıldıysan önce ayrıl — iade
+   * ayrılma yolundadır). Para hareketi yoktur; tekrar koruması durumun
+   * kendisidir (`scheduled → cancelled`, ikinci çağrı 409).
+   */
+  @RateLimit({ name: 'race-cancel-own', limit: 30, windowSeconds: 60, keyBy: 'player' })
+  @Post(':id/cancel')
+  @HttpCode(HttpStatus.OK)
+  async cancelOwn(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentPlayer() currentPlayer: AuthenticatedPlayer,
+  ): Promise<ApiSuccess<{ raceId: string; status: 'cancelled' }>> {
+    await this.cancelOwnRaceUseCase.execute(id, currentPlayer.id);
+    return { success: true, data: { raceId: id, status: 'cancelled' } };
   }
 
   /**

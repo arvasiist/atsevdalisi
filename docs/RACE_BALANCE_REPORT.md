@@ -324,3 +324,117 @@ sonuca hiç girmemesi demek olurdu.
 | Kişilik (temperament) etkiliyor mu? | **Evet, ama KAPALI ödünleşimle** — erken kalkış ve final düzlüğü simetrik puan uygular, nötr rakibe karşı galibiyet payı kaymaz (PHASE 6.3, §7.4). Etkisi `temperament.spec.ts`te ölçülür |
 | `startApproach` / `finalStretchPlan` etkiliyor mu? | **Evet — `simulateRace` ikisini de okur** (PHASE 6.1, §7.3). Etkisi `tactic-effect.spec.ts`te ölçülür |
 
+
+---
+
+## 9. Oyuncu kontrolü (kırbaç / sakin) — 01.10.2026
+
+Oyuncu kontrollü pratik yarışın (§13.55) kuralları ölçülerek ayarlandı.
+Oyuncunun atı 8 atlık bot sahasında 1. at; deterministik tohumlar. Ölçüm
+kodu harness'ta (`measurePlayerControlPlan`), CI kilitleri
+`race-engine-player-control.spec.ts`te.
+
+**İlk sürümde bulunan iki açık (düzeltildi):** (1) "sakin" bedavaydı
+(yorgunluğu yarıya indiriyor, hızı düşürmüyordu) — "ilk yarı sakin + sonda
+kırbaç" yapay zekâya göre ortalama 1 sıra kazandırıyordu; (2) kırbaç ucuzdu
+— "baştan sona kırbaç" yapay zekâdan iyiydi, son düzlükte kırbaç ise sprint
+rezervi (%25) yüzünden hiç etki etmiyordu.
+
+**Yeni kurallar (`race.config.json` → `playerControl`):** sakin = −4 puan
+hız, dayanıklılık tüketimi ×0.6 · kırbaç = rezerv şartı YOK, bonus
+dayanıklılıkla orantılı ve `kırbaç^0.5` (azalan), her kırbaç 4 dayanıklılık
++ 6 KALICI yorgunluk (bir sonraki segmentten itibaren).
+
+| Strateji (1500 yarış) | 1200 m | 1600 m | 2400 m |
+|---|---|---|---|
+| Hiç dokunma (yapay zekâ) | 4.49 | 4.50 | 4.48 |
+| Son bölümde ×5 kırbaç | 4.39 | 4.44 | 4.47 |
+| Son bölümde ×20 kırbaç | 4.30 | 4.38 | 4.42 |
+| İlk yarı sakin | 4.64 | 4.23 | 3.85 |
+| Baştan sona ×1 kırbaç | 5.11 | 5.63 | 6.28 |
+| İlk 3 bölümde ×3 kırbaç | 6.77 | 7.04 | 7.19 |
+
+(ortalama bitiş sırası, düşük = iyi.) Okuma: kırbaç yalnızca sonda işe yarar;
+erken/aralıksız kırbaç ağır cezalı; tempo yönetimi uzun yarışta değerli,
+sprintte zararlı. Hiçbir basit strateji statları ezmez (en iyi kazanç
+≈ 0.6 sıra, 2400 m). **Komutsuz yarış değişmedi** (parmak izi testi).
+
+### 9.1 Yön komutu ve çok oyunculu kontrol — 02.10.2026
+
+1000 yarış, 8 atlık bot sahası, 1600 m (`measurePlayerControlPlan`,
+`measureMultiPlayerControl`; ortalama bitiş sırası, düşük = iyi):
+
+| Plan | Sıra |
+|---|---|
+| Komutsuz (yapay zekâ) | 4.49 |
+| Her bölüm sol | 4.42 |
+| Her bölüm sağ | 4.44 |
+| Zikzak | 4.47 |
+| İlk yarı sakin + sonda kırbaç | 4.20 |
+
+| Sahadaki "akıllı" sürücü sayısı | Sürücülerin ortalaması | Aynı atlar komutsuz |
+|---|---|---|
+| 1 | 4.20 | 4.49 |
+| 2 | 4.22 | 4.49 |
+| 3 | 4.29 | 4.50 |
+| 4 | 4.36 | 4.52 |
+
+Aynı sahada akıllı sürücü 3.82, erken kırbaçlayan 7.11.
+
+Okuma: yön komutu bedava hız DEĞİLDİR (±0.07). Kontrol avantajı birden çok
+sürücüde küçülür (sıfır toplamlı sıralama, beklenen) ama kaybolmaz; beceri
+farkı belirgin ödüllendirilir. Düzeltme gerekmedi. CI kilitleri:
+`race-engine-player-control.spec.ts` (yön > yapay zekâ − 0.25; dört akıllı
+sürücü komutsuzdan iyi; akıllı, pervasızdan en az 1 sıra iyi).
+
+## 10. Jokey-at uyumu — 02.10.2026
+
+`calculateJockeyHorseCompatibility` (mizaç + stil + deneyim + ortak geçmiş,
+0-100, 50 nötr) artık kadro dondurulurken jokey beceri puanını ölçekler:
+`beceri × (1 + 0.15 × (uyum − 50) / 50)` (`jockey.compatibilityInfluence`).
+Motor DEĞİŞMEDİ (parmak izi aynı); eski dondurulmuş kadrolar aynen kalır.
+
+Ölçüm (1000 yarış, 8 at, 1600 m): jokey puanının her 1 puanı ≈ 0.043 sıra
+(44 → 4.73, 50 → 4.47, 62 → 3.97, 74 → 3.53). Gerçekçi uyum aralığında
+(35-75) etki ≈ ±4.5 puan ≈ ±0.2 sıra — kırbaç stratejisinin kazancından
+(≈0.3, §9.1) küçük: hissedilir, baskın değil. Botlar nötr kalır.
+
+
+## 11. Ekonomi yeniden ölçümü (S4) — 16.10.2026
+
+Araç: `apps/api/tools/economy-ev-report.ts` (ölçüm kodu harness: `measurePracticeEv`, `measureLobbyEv`; 400 deneme/hücre; at güç = hız = ivme = dayanıklılık, gerçek ağırlık uyumu, jokey 50). Değer = yarış başına net ÷ giriş ücreti.
+
+**Bulgu:** tavansız Şampiyona sınıfında güçlü at evin parasını sınırsız topluyordu (önce: güç 75 → +%99, 85 → +%357, 90 → +%375; 2.000 çip girişte yarış başına ~7.500 çip). **Düzeltme:** sınıfa handikap (`practiceRaceClasses[].handicap`: `powerOffsetBelow 12`, `powerOffsetAbove 8`) — bot aralığı atın etkin gücüyle yükselir, sınıfın aralığının altına inmez (`practiceBotStatRange`). Motor değişmedi. Kilit: `practice-class.spec.ts`.
+
+### Pratik yarış — net / giriş (kademe × at gücü)
+
+| Kademe (ücret, tavan) | 50 | 55 | 60 | 65 | 70 | 75 | 80 | 85 | 90 |
+|---|---|---|---|---|---|---|---|---|---|
+| local (100, 55) | -10% | — | — | — | — | — | — | — | — |
+| regional (250, 60) | -72% | -18% | — | — | — | — | — | — | — |
+| national (500, 65) | -96% | -80% | -18% | — | — | — | — | — | — |
+| elite (1000, 70) | -100% | -99% | -90% | -29% | — | — | — | — | — |
+| championship (2000, yok) | -100% | -100% | -99% | -89% | -40% | +27% | +33% | +25% | +9% |
+
+### Lobi (masalı) — eşit güçte (60) oyuncu başına net / giriş (bota pay düşmez, 16.10.2026)
+
+| Masa | Botlu: 2 / 3 / 4 / 6 / 8 | Botsuz: 2 / 3 / 4 / 6 / 8 |
+|---|---|---|
+| local (100) | -10% / -10% / -10% / -9% / -9% | -10% / -10% / -10% / -9% / -9% |
+| regional (250) | -10% / -10% / -10% / -10% / -9% | -10% / -10% / -10% / -10% / -9% |
+| national (500) | -10% / -10% / -10% / -10% / -10% | -10% / -10% / -10% / -10% / -10% |
+| elite (1000) | -10% / -10% / -10% / -10% / -10% | -10% / -10% / -10% / -10% / -10% |
+| championship (2000) | -10% / -10% / -10% / -10% / -10% | -10% / -10% / -10% / -10% / -10% |
+
+Önceki kural (bota düşen pay yanıyordu) aynı ölçümde 2 oyunculu botlu yerel
+masada −%71, şampiyonada −%91 veriyordu; botsuz 2 oyuncuda boş kalan 3–5.
+sıra payları da yanıyordu (−%40…−%50). Sahibinin kararıyla (16.10.2026)
+ödül sırası artık gerçek oyuncular arasındaki sıradır ve kullanılmayan paylar
+kullanılanlara orantılı eklenir (`computeLobbySettlement`): eşit güçte
+oyuncunun beklenen kaybı her sahada yalnızca komisyondur (−%9…−%10; 6–8
+oyunculu yerel masada kaybeden iadesi farkı kapatır). Botlar sahayı doldurur
+ama ödülü etkilemez. Çoklu hesapla havuzu geri almak yine kârsızdır: gerçek
+oyunculara dönen toplam havuzun en çok Σpay'ıdır (%90).
+
+**Yorum:** Her tavanlı sınıfın tepesindeki at kârlıdır (tavan − ε: +%83…+%93), tavana ulaşınca üst sınıfa çıkar ve orada zararla başlar — merdiven bilinçli (S2). Lobide havuz yalnızca gerçek ücretlerdir ve 16.10.2026'dan beri tamamı (komisyon hariç) gerçek oyunculara döner; ücretli lobi yine en az 2 gerçek oyuncu ister (Aşama 3) — tek oyunculu ücretli yarış rekabetsiz bir komisyon kesintisi olurdu.
+

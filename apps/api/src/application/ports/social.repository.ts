@@ -1,4 +1,5 @@
 import type { FriendshipStatus, ReportCategory, ReportStatus } from '@at-sevdalisi/shared-types';
+import type { PlayerSearchQuery, PresenceFacts } from '../../domain/social/presence';
 
 /**
  * `SocialRepository` — Arkadaşlık + mesajlaşma diliminin Application →
@@ -198,6 +199,38 @@ export interface SocialRepository {
    * `SELECT ... FOR UPDATE` GEREKMEZ (bu portun genel kuralı).
    */
   saveReport(input: SaveReportInput): Promise<ReportRow>;
+
+  /**
+   * İki oyuncu BİTMİŞ bir yarışta birlikte koştu mu (08.10.2026 — arkadaşlık
+   * kuralı). Koşturan oyuncu `race_entries.player_id`dir (CLAUDE.md (55):
+   * `h.owner_id` KULLANILMAZ — at satılınca alıcı, satıcının yarışlarında
+   * "koşmuş" sayılırdı). İptal edilen katılım sayılmaz.
+   */
+  haveRacedTogether(aId: string, bId: string): Promise<boolean>;
+  /**
+   * 16.10.2026 — arkadaşlık kapısının TEK tanımı: birlikte yarışmış olmak
+   * (sahibinin 08.10 kuralı) ya da aralarında davet bağlantısı ilişkisi
+   * olmak (sahibinin 16.10 istisnası). İstek, kabul ve profil aynı yöntemi sorar.
+   */
+  meetsFriendshipGate(aId: string, bId: string): Promise<boolean>;
+
+  /**
+   * 16.10.2026 — oyuncu arama: kimlik tam eşleşme ya da kullanıcı adı ön eki.
+   * Silinmiş hesaplar ve aralarında (herhangi yönde) engel olan oyuncular
+   * DÖNMEZ; sıra: tam eşleşme önce, sonra kullanıcı adı.
+   */
+  searchPlayers(input: { callerId: string; query: PlayerSearchQuery; limit: number }): Promise<PlayerSearchRow[]>;
+  /** Nabız: `last_seen_at` yalnızca `minIntervalSeconds`ten eskiyse yazılır. */
+  touchPresence(playerId: string, now: Date, minIntervalSeconds: number): Promise<void>;
+  findPresence(playerId: string): Promise<PresenceFacts | null>;
+  setShowOnlineStatus(playerId: string, value: boolean): Promise<boolean>;
+
+  /**
+   * Birlikte bitmiş bir yarışta koşulan oyuncular, en son koşulan önce.
+   * Silinmiş hesaplar ve aralarında (herhangi yönde) engel olanlar
+   * DÖNMEZ. `relation`, `friendships` satırının bu oyuncuya göre durumu.
+   */
+  findRaceCompanions(playerId: string, limit: number): Promise<RaceCompanionRow[]>;
 }
 
 /** `player_blocks` satırı + `players` JOIN'inden gelen görünen ad/seviye. */
@@ -265,6 +298,14 @@ export interface FriendFacts extends SocialPlayerFacts {
   friendshipId: string;
   /** `friendships.responded_at` — kabul anı. */
   friendsSince: Date;
+  /** 16.10.2026 — çevrimiçi durumu ham verisi (`resolvePresence` türetir). */
+  lastSeenAt: Date | null;
+  showOnlineStatus: boolean;
+}
+
+/** 16.10.2026 — oyuncu arama satırı; ilişki SQL'de arayana göre türetilir. */
+export interface PlayerSearchRow extends SocialPlayerFacts {
+  relation: 'self' | 'friend' | 'outgoing' | 'incoming' | 'none';
 }
 
 /** Bekleyen istek satırı. `direction` sunucuda `requested_by_id`'den TÜRETİLİR. */
@@ -328,3 +369,13 @@ export interface SaveMessageInput {
 
 /** NestJS DI için token (interface'ler runtime'da yok olduğundan bir Symbol gerekir). */
 export const SOCIAL_REPOSITORY = Symbol('SOCIAL_REPOSITORY');
+
+export interface RaceCompanionRow {
+  playerId: string;
+  username: string;
+  displayName: string;
+  level: number;
+  sharedRaces: number;
+  lastRacedAt: Date;
+  relation: 'friend' | 'outgoing' | 'incoming' | 'none';
+}

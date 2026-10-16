@@ -1,7 +1,10 @@
 import { randomUUID } from 'node:crypto';
 import { INestApplication } from '@nestjs/common';
+import type { Pool } from 'pg';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { loadEquipmentConfig } from '@at-sevdalisi/game-config';
+import { PG_POOL } from '../../src/infrastructure/database/database.module';
 import { bootstrapTestApp, registerTestPlayer, registerTestPlayerWithStarterHorse } from './test-helpers';
 
 /** `race.e2e-spec.ts`'in "varsayılan taktikle" testiyle AYNI istek şekli (boş gövde = varsayılan taktik) ve `Idempotency-Key` gereksinimi. */
@@ -18,10 +21,25 @@ import { bootstrapTestApp, registerTestPlayer, registerTestPlayerWithStarterHors
  */
 describe('Equipment (e2e)', () => {
   let app: INestApplication;
+  let pool: Pool;
+  const catalog = loadEquipmentConfig().catalog;
+  const item = (key: string) => catalog.find((candidate) => candidate.key === key)!;
 
   beforeAll(async () => {
     app = await bootstrapTestApp();
+    pool = app.get<Pool>(PG_POOL);
   });
+
+  const money = async (playerId: string) =>
+    Number((await pool.query('SELECT money FROM players WHERE id = $1', [playerId])).rows[0].money);
+
+  /** Katalogdan alım (08.10.2026) — PARA YOLU, `Idempotency-Key` zorunlu. */
+  const buy = (horseId: string, authHeader: string, catalogKey: string, key: string = randomUUID()) =>
+    request(app.getHttpServer())
+      .post(`/api/v1/horses/${horseId}/equipment`)
+      .set('Authorization', authHeader)
+      .set('Idempotency-Key', key)
+      .send({ catalogKey });
 
   afterAll(async () => {
     await app.close();
@@ -38,45 +56,80 @@ describe('Equipment (e2e)', () => {
     expect(response.body.data).toEqual([]);
   });
 
-  it('/api/v1/horses/:id/equipment (POST) geçerli bir ekipman parçası oluşturur — HER ZAMAN equipped: false başlar', async () => {
-    const { horseId, authHeader } = await registerTestPlayerWithStarterHorse(app, 'Ekipman Sahibi');
+  it('katalogdan alım: kalite/ad/fiyat katalogdan, para düşer, defter satırı yazılır, equipped: false başlar', async () => {
+    const { horseId, authHeader, playerId } = await registerTestPlayerWithStarterHorse(app, 'Ekipman Sahibi');
+    const saddle = item('saddle-basic');
+    const before = await money(playerId);
 
-    const response = await request(app.getHttpServer())
-      .post(`/api/v1/horses/${horseId}/equipment`)
-      .set('Authorization', authHeader)
-      .send({ equipmentType: 'saddle', name: 'Deri Eyer', quality: 80 })
-      .expect(201);
+    const response = await buy(horseId, authHeader, saddle.key).expect(201);
 
-    expect(response.body.success).toBe(true);
-    expect(response.body.data.horseId).toBe(horseId);
-    expect(response.body.data.equipmentType).toBe('saddle');
-    expect(response.body.data.name).toBe('Deri Eyer');
-    expect(response.body.data.quality).toBe(80);
-    expect(response.body.data.equipped).toBe(false);
-    expect(typeof response.body.data.id).toBe('string');
-    expect(typeof response.body.data.createdAt).toBe('string');
+    expect(response.body.data.price).toBe(saddle.priceMoney);
+    expect(response.body.data.money).toBe(before - saddle.priceMoney);
+    const bought = response.body.data.item;
+    expect(bought).toMatchObject({
+      horseId,
+      equipmentType: saddle.equipmentType,
+      name: saddle.name,
+      quality: saddle.quality,
+      equipped: false,
+      catalogKey: saddle.key,
+    });
+    expect(await money(playerId)).toBe(before - saddle.priceMoney);
+    const ledger = await pool.query(
+      "SELECT amount, reference_id, balance_before, balance_after FROM economy_transactions WHERE player_id = $1 AND type = 'equipment_purchase'",
+      [playerId],
+    );
+    expect(ledger.rows).toHaveLength(1);
+    expect(Number(ledger.rows[0].amount)).toBe(-saddle.priceMoney);
+    expect(ledger.rows[0].reference_id).toBe(bought.id);
+    expect(Number(ledger.rows[0].balance_before) - Number(ledger.rows[0].balance_after)).toBe(saddle.priceMoney);
   });
 
-  it('/api/v1/horses/:id/equipment (POST) geçersiz bir ekipman tipi için 400 döner', async () => {
-    const { horseId, authHeader } = await registerTestPlayerWithStarterHorse(app, 'Geçersiz Tip');
-
-    const response = await request(app.getHttpServer())
+  it('aynı Idempotency-Key ikinci parçayı ALMAZ; anahtarsız istek 400', async () => {
+    const { horseId, authHeader, playerId } = await registerTestPlayerWithStarterHorse(app, 'Tekrar Basan');
+    const key = randomUUID();
+    const before = await money(playerId);
+    const first = await buy(horseId, authHeader, 'bridle-basic', key).expect(201);
+    const replay = await buy(horseId, authHeader, 'bridle-basic', key);
+    expect(replay.body.data.item.id).toBe(first.body.data.item.id);
+    expect(await money(playerId)).toBe(before - item('bridle-basic').priceMoney);
+    await request(app.getHttpServer())
       .post(`/api/v1/horses/${horseId}/equipment`)
       .set('Authorization', authHeader)
-      .send({ equipmentType: 'not-a-real-type', name: 'X', quality: 50 });
-
-    expect(response.status).toBe(400);
+      .send({ catalogKey: 'bridle-basic' })
+      .expect(400);
   });
 
-  it('/api/v1/horses/:id/equipment (POST) aralık dışı bir kalite için 400 döner', async () => {
-    const { horseId, authHeader } = await registerTestPlayerWithStarterHorse(app, 'Geçersiz Kalite');
-
-    const response = await request(app.getHttpServer())
+  it('istemci kalite seçemez: bilinmeyen/eksik katalog anahtarı 400, para düşmez', async () => {
+    const { horseId, authHeader, playerId } = await registerTestPlayerWithStarterHorse(app, 'Geçersiz Kalem');
+    const before = await money(playerId);
+    const unknown = await buy(horseId, authHeader, 'altin-eyer').expect(400);
+    expect(unknown.body.error.code).toBe('VALIDATION_ERROR');
+    await request(app.getHttpServer())
       .post(`/api/v1/horses/${horseId}/equipment`)
       .set('Authorization', authHeader)
-      .send({ equipmentType: 'saddle', name: 'X', quality: 150 });
+      .set('Idempotency-Key', randomUUID())
+      .send({ equipmentType: 'saddle', name: 'Bedava Eyer', quality: 100 })
+      .expect(400);
+    expect(await money(playerId)).toBe(before);
+  });
 
-    expect(response.status).toBe(400);
+  it('seviye şartı 409 EQUIPMENT_LEVEL_LOCKED; yetersiz bakiye 409 INSUFFICIENT_FUNDS — parça yazılmaz', async () => {
+    const { horseId, authHeader, playerId } = await registerTestPlayerWithStarterHorse(app, 'Kilitli Kalem');
+    const race = item('saddle-race');
+    const locked = await buy(horseId, authHeader, race.key).expect(409);
+    expect(locked.body.error.code).toBe('EQUIPMENT_LEVEL_LOCKED');
+
+    await pool.query('UPDATE players SET level = $2, money = $3 WHERE id = $1', [
+      playerId,
+      race.requiredLevel,
+      race.priceMoney - 1,
+    ]);
+    const poor = await buy(horseId, authHeader, race.key).expect(409);
+    expect(poor.body.error.code).toBe('INSUFFICIENT_FUNDS');
+    const rows = await pool.query('SELECT COUNT(*) FROM horse_equipment WHERE horse_id = $1', [horseId]);
+    expect(Number(rows.rows[0].count)).toBe(0);
+    expect(await money(playerId)).toBe(race.priceMoney - 1);
   });
 
   it('/api/v1/horses/:id/equipment (POST) Authorization header olmadan 401 döner', async () => {
@@ -84,7 +137,8 @@ describe('Equipment (e2e)', () => {
 
     const response = await request(app.getHttpServer())
       .post(`/api/v1/horses/${horseId}/equipment`)
-      .send({ equipmentType: 'saddle', name: 'X', quality: 50 });
+      .set('Idempotency-Key', randomUUID())
+      .send({ catalogKey: 'saddle-basic' });
 
     expect(response.status).toBe(401);
   });
@@ -96,7 +150,8 @@ describe('Equipment (e2e)', () => {
     const response = await request(app.getHttpServer())
       .post(`/api/v1/horses/${owner.horseId}/equipment`)
       .set('Authorization', attacker.authHeader)
-      .send({ equipmentType: 'saddle', name: 'X', quality: 50 });
+      .set('Idempotency-Key', randomUUID())
+      .send({ catalogKey: 'saddle-basic' });
 
     expect(response.status).toBe(403);
     expect(response.body.error.code).toBe('FORBIDDEN');
@@ -108,7 +163,8 @@ describe('Equipment (e2e)', () => {
     const response = await request(app.getHttpServer())
       .post(`/api/v1/horses/${randomUUID()}/equipment`)
       .set('Authorization', someone.authHeader)
-      .send({ equipmentType: 'saddle', name: 'X', quality: 50 });
+      .set('Idempotency-Key', randomUUID())
+      .send({ catalogKey: 'saddle-basic' });
 
     expect(response.status).toBe(404);
     expect(response.body.error.code).toBe('HORSE_NOT_FOUND');
@@ -121,9 +177,10 @@ describe('Equipment (e2e)', () => {
       const created = await request(app.getHttpServer())
         .post(`/api/v1/horses/${horseId}/equipment`)
         .set('Authorization', authHeader)
-        .send({ equipmentType: 'horseshoe', name: 'Çelik Nal', quality: 90 })
+        .set('Idempotency-Key', randomUUID())
+        .send({ catalogKey: 'horseshoe-basic' })
         .expect(201);
-      const equipmentId = created.body.data.id;
+      const equipmentId = created.body.data.item.id;
 
       const equipResponse = await request(app.getHttpServer())
         .post(`/api/v1/horses/${horseId}/equipment/${equipmentId}/equip`)
@@ -145,20 +202,22 @@ describe('Equipment (e2e)', () => {
       const first = await request(app.getHttpServer())
         .post(`/api/v1/horses/${horseId}/equipment`)
         .set('Authorization', authHeader)
-        .send({ equipmentType: 'bridle', name: 'Eski Dizgin', quality: 40 })
+        .set('Idempotency-Key', randomUUID())
+        .send({ catalogKey: 'bridle-basic' })
         .expect(201);
       const second = await request(app.getHttpServer())
         .post(`/api/v1/horses/${horseId}/equipment`)
         .set('Authorization', authHeader)
-        .send({ equipmentType: 'bridle', name: 'Yeni Dizgin', quality: 95 })
+        .set('Idempotency-Key', randomUUID())
+        .send({ catalogKey: 'bridle-basic' })
         .expect(201);
 
       await request(app.getHttpServer())
-        .post(`/api/v1/horses/${horseId}/equipment/${first.body.data.id}/equip`)
+        .post(`/api/v1/horses/${horseId}/equipment/${first.body.data.item.id}/equip`)
         .set('Authorization', authHeader)
         .expect(200);
       await request(app.getHttpServer())
-        .post(`/api/v1/horses/${horseId}/equipment/${second.body.data.id}/equip`)
+        .post(`/api/v1/horses/${horseId}/equipment/${second.body.data.item.id}/equip`)
         .set('Authorization', authHeader)
         .expect(200);
 
@@ -167,8 +226,8 @@ describe('Equipment (e2e)', () => {
         .set('Authorization', authHeader)
         .expect(200);
 
-      const firstRow = listResponse.body.data.find((item: { id: string }) => item.id === first.body.data.id);
-      const secondRow = listResponse.body.data.find((item: { id: string }) => item.id === second.body.data.id);
+      const firstRow = listResponse.body.data.find((item: { id: string }) => item.id === first.body.data.item.id);
+      const secondRow = listResponse.body.data.find((item: { id: string }) => item.id === second.body.data.item.id);
       expect(firstRow.equipped).toBe(false);
       expect(secondRow.equipped).toBe(true);
     });
@@ -179,15 +238,16 @@ describe('Equipment (e2e)', () => {
       const created = await request(app.getHttpServer())
         .post(`/api/v1/horses/${horseId}/equipment`)
         .set('Authorization', authHeader)
-        .send({ equipmentType: 'blinkers', name: 'Göz Siperi', quality: 60 })
+        .set('Idempotency-Key', randomUUID())
+        .send({ catalogKey: 'blinkers-basic' })
         .expect(201);
       await request(app.getHttpServer())
-        .post(`/api/v1/horses/${horseId}/equipment/${created.body.data.id}/equip`)
+        .post(`/api/v1/horses/${horseId}/equipment/${created.body.data.item.id}/equip`)
         .set('Authorization', authHeader)
         .expect(200);
 
       const unequipResponse = await request(app.getHttpServer())
-        .post(`/api/v1/horses/${horseId}/equipment/${created.body.data.id}/unequip`)
+        .post(`/api/v1/horses/${horseId}/equipment/${created.body.data.item.id}/unequip`)
         .set('Authorization', authHeader)
         .expect(200);
 
@@ -201,11 +261,12 @@ describe('Equipment (e2e)', () => {
       const created = await request(app.getHttpServer())
         .post(`/api/v1/horses/${owner.horseId}/equipment`)
         .set('Authorization', owner.authHeader)
-        .send({ equipmentType: 'leg_wraps', name: 'Bandaj', quality: 70 })
+        .set('Idempotency-Key', randomUUID())
+        .send({ catalogKey: 'leg-wraps-basic' })
         .expect(201);
 
       const response = await request(app.getHttpServer())
-        .post(`/api/v1/horses/${other.horseId}/equipment/${created.body.data.id}/equip`)
+        .post(`/api/v1/horses/${other.horseId}/equipment/${created.body.data.item.id}/equip`)
         .set('Authorization', other.authHeader);
 
       expect(response.status).toBe(404);
@@ -230,10 +291,11 @@ describe('Equipment (e2e)', () => {
     const created = await request(app.getHttpServer())
       .post(`/api/v1/horses/${horseId}/equipment`)
       .set('Authorization', authHeader)
-      .send({ equipmentType: 'saddle', name: 'Yarış Eyeri', quality: 100 })
+      .set('Idempotency-Key', randomUUID())
+        .send({ catalogKey: 'saddle-basic' })
       .expect(201);
     await request(app.getHttpServer())
-      .post(`/api/v1/horses/${horseId}/equipment/${created.body.data.id}/equip`)
+      .post(`/api/v1/horses/${horseId}/equipment/${created.body.data.item.id}/equip`)
       .set('Authorization', authHeader)
       .expect(200);
 

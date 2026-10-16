@@ -24,7 +24,12 @@ import type { VitalSigns } from '../horse/vital-signs';
  */
 
 /** Atın yarışa girmesini engelleyen ilk neden — sırayla kontrol edilir, İLK uyan döner. */
-export type RaceNotReadyReason = 'HORSE_NOT_ACTIVE' | 'INSUFFICIENT_HEALTH' | 'HORSE_TOO_TIRED' | 'INSUFFICIENT_ENERGY';
+export type RaceNotReadyReason =
+  | 'HORSE_NOT_ACTIVE'
+  | 'HORSE_TOO_YOUNG'
+  | 'INSUFFICIENT_HEALTH'
+  | 'HORSE_TOO_TIRED'
+  | 'INSUFFICIENT_ENERGY';
 
 export interface RaceReadiness {
   ready: boolean;
@@ -51,9 +56,18 @@ export function checkRaceReadiness(
   status: HorseStatus,
   vitals: VitalSigns,
   thresholds: RaceReadinessThresholds,
+  /**
+   * 15.10.2026 — B12: atın OYUN yaşı (`horseAgeMonths`). Zorunlu parametre:
+   * yeni bir çağıran yaşı unutursa derleyici durdurur (tay kapıdan sızmasın).
+   */
+  ageMonths: number,
 ): RaceReadiness {
   if (status !== 'active') {
     return { ready: false, reason: 'HORSE_NOT_ACTIVE' };
+  }
+  // Yaş zamanla geçer ama sağlık/yorgunluktan uzun sürer — durumdan hemen sonra.
+  if (ageMonths < thresholds.minAgeMonths) {
+    return { ready: false, reason: 'HORSE_TOO_YOUNG' };
   }
   if (vitals.health < thresholds.minHealth) {
     return { ready: false, reason: 'INSUFFICIENT_HEALTH' };

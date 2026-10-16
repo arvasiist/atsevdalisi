@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
+import { FarmModule } from '../farm/farm.module';
 import { BREEDING_REPOSITORY } from '../../application/ports/breeding.repository';
 import { BreedHorsesUseCase } from '../../application/use-cases/breed-horses.use-case';
+import { ListStudsUseCase } from '../../application/use-cases/list-studs.use-case';
 import { PostgresBreedingRepository } from '../../infrastructure/breeding/postgres-breeding.repository';
 import { IdempotencyInterceptor } from '../idempotency/idempotency.interceptor';
 import { BreedingController } from './breeding.controller';
@@ -29,9 +31,11 @@ import { BreedingController } from './breeding.controller';
  * ÇÖZÜLEBİLMESİ için bir modülde kayıtlı olması gerekir.
  */
 @Module({
+  imports: [FarmModule],
   controllers: [BreedingController],
   providers: [
     BreedHorsesUseCase,
+    ListStudsUseCase,
     IdempotencyInterceptor,
     { provide: BREEDING_REPOSITORY, useClass: PostgresBreedingRepository },
   ],

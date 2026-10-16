@@ -4,6 +4,7 @@ import {
   getAssetById,
   getAssetsByKind,
   getMissingAssets,
+  resolveAnimationClips,
 } from '../../../src/features/race-viewer/assets/asset-manifest';
 
 describe('ASSET_MANIFEST', () => {
@@ -45,10 +46,10 @@ describe('getAssetsByKind', () => {
   });
 
   it('hiç eşleşme yoksa boş dizi döner', () => {
-    // 'texture' türünde tam olarak bir giriş olduğunu biliyoruz (crowd billboard) —
-    // burada olmayan bir kombinasyonu test etmek yerine gerçek listeyle tutarlılığı doğruluyoruz.
+    // 'texture' türünde dört giriş vardır (kalabalık billboard + 01.10.2026'da
+    // eklenen pist/çim/ahır PBR dokuları) — gerçek listeyle tutarlılık.
     const textures = getAssetsByKind('texture');
-    expect(textures.length).toBe(1);
+    expect(textures.length).toBe(4);
   });
 });
 
@@ -67,5 +68,24 @@ describe('getMissingAssets', () => {
   it('manifestte olmayan bir yol verilirse hiçbir etkisi olmaz', () => {
     const missing = getMissingAssets(['models/hic-var-olmayan-dosya.glb']);
     expect(missing.length).toBe(ASSET_MANIFEST.length);
+  });
+});
+
+describe('resolveAnimationClips (01.10.2026)', () => {
+  const horse = getAssetById('HORSE_MODEL_REQUIRED')!;
+
+  it('GLB klip adlarını büyük/küçük harf duyarsız ROLLERE eşler; eksik rol null', () => {
+    const clips = resolveAnimationClips(horse, ['GALLOP', 'idle', 'Something_Else']);
+    expect(clips.gallop).toBe('GALLOP');
+    expect(clips.idle).toBe('idle');
+    expect(clips.trot).toBeNull();
+  });
+
+  it('manifestteki sıra önceliktir', () => {
+    expect(resolveAnimationClips(horse, ['Run', 'Gallop']).gallop).toBe('Gallop');
+  });
+
+  it('animasyonsuz varlık boş eşleme döner', () => {
+    expect(resolveAnimationClips(getAssetById('HDRI_SKY_REQUIRED')!, ['Idle'])).toEqual({});
   });
 });

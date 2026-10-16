@@ -19,10 +19,13 @@ export function GlassPanel({ children, style, as = 'div' }: GlassPanelProps): Re
   return (
     <Tag
       style={{
-        background: 'rgba(18, 27, 46, 0.72)',
-        border: '1px solid var(--color-border)',
+        // 01.10.2026 tasarım yenilemesi: yukarıdan aydınlanan koyu panel +
+        // ince altın kenarlık + derinlik gölgesi (konsept görsellerin dili).
+        background: 'var(--gradient-panel)',
+        border: '1px solid var(--color-border-gold)',
         borderRadius: 'var(--radius-lg)',
         padding: 'var(--space-lg)',
+        boxShadow: 'var(--shadow-panel)',
         backdropFilter: 'blur(6px)',
         ...style,
       }}

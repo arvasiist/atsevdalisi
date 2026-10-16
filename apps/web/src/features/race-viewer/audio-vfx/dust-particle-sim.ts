@@ -59,7 +59,11 @@ export function spawnDustParticle(
   // gereken bir açı/mesafe DEĞİL). Burada sadece ömür (`lifetimeMs`)
   // belirlenir — bu, parçacığın DOĞUŞUNDA sabitlenen tek gerçek durumdur.
   const rng = createSeededRandom(seed);
-  const lifetimeMs = seededRange(rng, config.dustParticles.minLifetimeMs, config.dustParticles.maxLifetimeMs);
+  const lifetimeMs = seededRange(
+    rng,
+    config.dustParticles.minLifetimeMs,
+    config.dustParticles.maxLifetimeMs,
+  );
   return {
     originX,
     originZ,
@@ -118,3 +122,59 @@ export function getDustParticleOpacity(particle: DustParticle): number {
   const progress = Math.max(0, Math.min(1, particle.ageMs / particle.lifetimeMs));
   return 1 - progress;
 }
+
+/**
+ * 01.10.2026 (3D adım 8) — saniyedeki toz doğum oranı: temel oran ×
+ * zemin çarpanı × hız oranı (referans hızda 1, durunca 0) × kamera
+ * uzaklık çarpanı (yakında 1, uzakta `minFactor`'a iner). Saf.
+ */
+export function dustSpawnRate(
+  input: {
+    speedMps: number;
+    surface: 'dirt' | 'synthetic' | 'grass';
+    cameraDistanceMeters: number;
+  },
+  config: VfxConfig,
+): number {
+  const surface = config.dustBySurface[input.surface];
+  const speedFactor = Math.min(1.5, Math.max(0, input.speedMps / config.dustSpeedReferenceMps));
+  const { nearMeters, farMeters, minFactor } = config.dustCameraFalloff;
+  const t = Math.min(
+    1,
+    Math.max(0, (input.cameraDistanceMeters - nearMeters) / Math.max(1, farMeters - nearMeters)),
+  );
+  const distanceFactor = 1 - t * (1 - minFactor);
+  return (
+    config.dustParticles.spawnRatePerSecond * surface.rateFactor * speedFactor * distanceFactor
+  );
+}
+
+/**
+ * 08.10.2026 — toz atın ORTASINDAN değil ARKA AYAKLARINDAN kalkar: doğum
+ * noktası atın yönünün (`headingRadians`; ileri = (cos h, sin h)) tersine
+ * `emitterBehindMeters` (+ biraz) ve yana `spawnSpreadMeters` kadar saçılır.
+ * Tohumlu (aynı tohum → aynı nokta). Saf.
+ */
+export function dustSpawnOffset(
+  seed: string,
+  headingRadians: number,
+  config: VfxConfig,
+): { dx: number; dz: number } {
+  const rng = createSeededRandom(`${seed}:spawn`);
+  const spread = config.dustParticles.spawnSpreadMeters;
+  const behind = config.dustParticles.emitterBehindMeters + seededRange(rng, 0, spread);
+  const lateral = seededRange(rng, -spread, spread);
+  const forwardX = Math.cos(headingRadians);
+  const forwardZ = Math.sin(headingRadians);
+  return {
+    dx: -forwardX * behind + forwardZ * lateral,
+    dz: -forwardZ * behind - forwardX * lateral,
+  };
+}
+
+/** 08.10.2026 — toz bulutçuğu ömrü boyunca büyür (doğumda 1, sonunda `1 + growth`). Saf. */
+export function getDustParticleScale(particle: DustParticle, config: VfxConfig): number {
+  const progress = Math.max(0, Math.min(1, particle.ageMs / particle.lifetimeMs));
+  return 1 + config.dustParticles.growth * progress;
+}
+

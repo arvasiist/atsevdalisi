@@ -34,3 +34,59 @@ export class ClubLeaderCannotLeaveError extends Error {
     this.name = 'ClubLeaderCannotLeaveError';
   }
 }
+
+/** Kulüp bulunamadı (404). */
+export class ClubNotFoundError extends Error {
+  constructor(public readonly clubId: string) {
+    super(`Kulüp bulunamadı (${clubId}).`);
+    this.name = 'ClubNotFoundError';
+  }
+}
+
+/** Bu adla bir kulüp zaten var (409) — ad harf duyarsız tekildir. */
+export class ClubNameTakenError extends Error {
+  constructor() {
+    super('Bu adla bir kulüp zaten var.');
+    this.name = 'ClubNameTakenError';
+  }
+}
+
+/** Kulüp adı/etiketi/rolü biçimsel olarak geçersiz (400). */
+export class InvalidClubInputError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'InvalidClubInputError';
+  }
+}
+
+/** 09.10.2026 — davet yok, davetliye ait değil ya da artık bekleyen değil (404; varlık sızdırılmaz). */
+export class ClubInviteNotFoundError extends Error {
+  constructor(public readonly inviteId: string) {
+    super('Kulüp daveti bulunamadı.');
+    this.name = 'ClubInviteNotFoundError';
+  }
+}
+
+/** Aynı oyuncuya bu kulüpten zaten bekleyen bir davet var (409). */
+export class ClubInviteExistsError extends Error {
+  constructor() {
+    super('Bu oyuncuya zaten bekleyen bir davetin var.');
+    this.name = 'ClubInviteExistsError';
+  }
+}
+
+/** Kulübün bekleyen davet sınırı doldu (409). */
+export class ClubInviteLimitError extends Error {
+  constructor(public readonly limit: number) {
+    super(`Kulübün en fazla ${limit} bekleyen daveti olabilir.`);
+    this.name = 'ClubInviteLimitError';
+  }
+}
+
+/** Davetin süresi doldu (409). */
+export class ClubInviteExpiredError extends Error {
+  constructor() {
+    super('Bu davetin süresi doldu.');
+    this.name = 'ClubInviteExpiredError';
+  }
+}

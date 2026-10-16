@@ -26,6 +26,19 @@ export const NOTIFICATION_TYPES = [
   'race_starting',
   'race_finished',
   'prize_won',
+  'auction_outbid',
+  'auction_won',
+  'auction_sold',
+  'auction_unsold',
+  'auction_refunded',
+  'tribune_gift_received',
+  'listing_expired',
+  'club_invite',
+  'race_cancelled',
+  'stud_service',
+  'friend_gift_received',
+  'gift_sent',
+  'referral_reward',
 ] as const;
 
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
@@ -64,7 +77,74 @@ export interface NotificationPayloadByType {
   race_starting: { raceId: string; raceName: string; startTime: string };
   race_finished: { raceId: string; raceName: string; finishPosition: number };
   prize_won: { raceId: string; raceName: string; amount: number };
+  // 02.10.2026 — müzayede (`amount` her zaman pozitif; yönü tür söyler).
+  /** Teklifin geçildi; `amount` iade edilen tutar. */
+  auction_outbid: { listingId: string; horseName: string; amount: number; minimumNextBid: number };
+  /** Müzayedeyi kazandın; at ahırında. */
+  auction_won: { listingId: string; horseId: string; horseName: string; amount: number };
+  /** Atın satıldı; `amount` hesabına geçen tutar. */
+  auction_sold: { listingId: string; horseName: string; amount: number };
+  /** Müzayede teklifsiz ya da satış gerçekleşmeden bitti; at sende kaldı. */
+  auction_unsold: { listingId: string; horseName: string };
+  /** Kazandığın müzayedede satış gerçekleşemedi; emanetin iade edildi. */
+  auction_refunded: { listingId: string; horseName: string; amount: number };
+  /** 08.10.2026 — tribünden atına hediye geldi; `amount` hesabına geçen pay. */
+  tribune_gift_received: {
+    tribuneGiftId: string;
+    raceId: string;
+    raceName: string;
+    horseId: string;
+    horseName: string;
+    giftKey: string;
+    playerId: string;
+    displayName: string;
+    amount: number;
+  };
+  /** 08.10.2026 — sabit fiyatlı ilanın süresi doldu; at satılmadı, sende. */
+  listing_expired: { listingId: string; horseId: string; horseName: string; price: number };
+  /** 09.10.2026 — bir kulüp subayı/lideri seni kulübüne davet etti. */
+  club_invite: { inviteId: string; clubId: string; clubName: string; inviterId: string; inviterName: string };
+  /**
+   * 15.10.2026 (Aşama 3) — yarış katılımın iptal edildi. `refundedAmount`
+   * DEFTERE yazılan iade (0 = ödenmiş ücret yoktu, ör. `on_start` masasında
+   * bakiyesi yetmeyen). Yarışın kendisi iptal olmamış olabilir (`not_ready`,
+   * `insufficient_funds`: yarış diğerleriyle koşar).
+   */
+  race_cancelled: { raceId: string; raceName: string; reason: RaceCancelledReason; refundedAmount: number };
+  /**
+   * 15.10.2026 — aygırın başka bir oyuncunun kısrağıyla tay verdi; `amount`
+   * hesabına geçen damızlık payı (`studFeeOwnerSharePercent`, 0 olabilir).
+   */
+  stud_service: { pairId: string; stallionId: string; stallionName: string; foalId: string; amount: number };
+  /**
+   * 16.10.2026 — bir arkadaşın sana çip hediyesi gönderdi (brief §6.4); çip
+   * hesaba "Tüm hediyeleri topla" ile geçer (`/friends`).
+   */
+  friend_gift_received: { giftId: string; senderId: string; senderUsername: string; senderName: string; amount: number };
+  /** 16.10.2026 — gönderdiğin çip transferi tamamlandı (sosyal brief §8). */
+  gift_sent: {
+    giftSendId: string;
+    playerId: string;
+    displayName: string;
+    currency: 'money' | 'gems';
+    amount: number;
+    balanceAfter: number;
+  };
+  /**
+   * 16.10.2026 — davet ödülü hesabına geçti. `role`: `inviter` (davet eden) /
+   * `invitee` (davetle gelen); `otherName` karşı tarafın görünen adı.
+   */
+  referral_reward: { referralId: string; role: 'inviter' | 'invitee'; otherName: string; amount: number };
 }
+
+/**
+ * `race_cancelled` sebebi: `not_enough_players` (asgari gerçek oyuncu sayısı
+ * dolmadı — yarış iptal), `not_ready` (başlangıçta hazır değildin),
+ * `insufficient_funds` (`on_start` masasında bedeli karşılayamadın),
+ * `admin` (yönetici yarışı iptal etti).
+ */
+export const RACE_CANCELLED_REASONS = ['not_enough_players', 'not_ready', 'insufficient_funds', 'admin'] as const;
+export type RaceCancelledReason = (typeof RACE_CANCELLED_REASONS)[number];
 
 /**
  * Tek bir bildirim — `type`e göre AYRIKLAŞTIRILMIŞ (discriminated) birlik.

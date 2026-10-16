@@ -6,12 +6,12 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { AppConfigService } from '../../src/infrastructure/config/config.service';
 import { PG_POOL } from '../../src/infrastructure/database/database.module';
 import {
-  computePrizePayouts,
   computePrizePayoutTotal,
   resolvePrizeDistribution,
 } from '../../src/domain/race/prize-distribution';
 import {
   bootstrapTestApp,
+  expectedLobbyPayouts,
   registerTestPlayerWithStarterHorse,
   type RegisteredTestPlayer,
 } from './test-helpers';
@@ -46,11 +46,12 @@ import {
  * yalnızca "havuz − ödenen = rake" diyordu; **iadeler ve bot artığı o
  * mutabakatta YOKTU**, yani iptal yolu defterle hiç karşılaştırılmamıştı.
  *
- * **PLATFORM PAYI VE BOT ARTĞI KİMSEYE YAZILMAZ.** Projede bir "platform
- * hesabı" satırı yoktur; ikisi de oyuncu ekonomisinden ÇIKAR ve başka bir
- * hesaba GİRMEZ. Bu, mutabakatta `-(platformPayı + botArtığı)` olarak
- * görünür ve bilinçli bir tasarımdır (uydurma bir "ev hesabı" açmak,
- * bakiyesi olmayan bir satır uydurmak olurdu).
+ * **PLATFORM PAYI KİMSEYE YAZILMAZ.** Projede bir "platform hesabı" satırı
+ * yoktur; komisyon oyuncu ekonomisinden ÇIKAR ve başka bir hesaba GİRMEZ. Bu,
+ * mutabakatta `-platformPayı` olarak görünür ve bilinçli bir tasarımdır
+ * (uydurma bir "ev hesabı" açmak, bakiyesi olmayan bir satır uydurmak olurdu).
+ * 16.10.2026'dan beri bota pay düşmez (sahibinin kararı) — eskiden burada
+ * `-(platformPayı + botArtığı)` yazıyordu.
  *
  * **⚠️ BAKİYE ÖLÇÜMÜ KATILIMDAN ÖNCE ALINIR.** Katılımdan SONRA alınan bir
  * "önce" ölçümü, oyuncuların ödediği giriş ücretini gizler: defter `-200`
@@ -198,12 +199,25 @@ describe('Ekonomik mutabakat (e2e) — brief §42 PHASE 3', () => {
     return rows.filter((row) => row.type === type).reduce((total, row) => total + row.amount, 0);
   }
 
-  /** `computePrizePayouts` çıktısı — sabit sayı yazmak config değişince yalan olurdu. */
-  function payoutsOf(prizePool: number): number[] {
-    return computePrizePayouts(prizePool, SHARES);
+  /**
+   * Beklenen ödüller (mutlak sıraya göre) — sabit sayı yazmak config değişince
+   * yalan olurdu. 16.10.2026'dan beri bota pay düşmez (`expectedLobbyPayouts`).
+   */
+  function payoutsOf(
+    prizePool: number,
+    places: ReadonlyArray<{ participantType: string; finishPosition: number }>,
+  ): number[] {
+    return expectedLobbyPayouts(
+      prizePool,
+      SHARES,
+      places.map((place) => ({
+        participantType: place.participantType === 'ai' ? ('ai' as const) : ('human' as const),
+        finishPosition: place.finishPosition,
+      })),
+    );
   }
 
-  it('kesinleşen yarış (botlu): havuz = ödüller + bot artığı + platform payı ve defter toplamı para değişimine eşittir', async () => {
+  it('kesinleşen yarış (botlu): bota pay düşmez — havuz = ödüller + platform payı ve defter toplamı para değişimine eşittir', async () => {
     const a = await registerTestPlayerWithStarterHorse(app, 'Mutabakat Bir');
     const b = await registerTestPlayerWithStarterHorse(app, 'Mutabakat İki');
     // Uç bir "crank"tir: koşturan kişi katılımcı olmak zorunda değildir.
@@ -241,28 +255,26 @@ describe('Ekonomik mutabakat (e2e) — brief §42 PHASE 3', () => {
     // (1) GİRİŞ ÜCRETLERİ = ÖDÜL HAVUZU.
     expect(entryFees).toBe(prizePool);
 
-    // (2) HAVUZ = ÖDÜLLER + BOT ARTĞI + PLATFORM PAYI.
-    const payouts = payoutsOf(prizePool);
+    // (2) HAVUZ = ÖDÜLLER + PLATFORM PAYI. 16.10.2026'dan beri bota pay
+    //     düşmez: iki gerçek oyuncu kendi aralarındaki sırayla öder, havuzdan
+    //     yalnızca komisyon çıkar (yuvarlama payıyla).
     const places = response.body.data.places as Array<{ participantType: string; finishPosition: number; prizeAmount: number }>;
-    const botResidue = places
-      .filter((place) => place.participantType === 'ai')
-      .reduce((total, place) => total + (payouts[place.finishPosition - 1] ?? 0), 0);
-    const platformFee = prizePool - computePrizePayoutTotal(prizePool, SHARES);
-
-    expect(paidTotal + botResidue + platformFee).toBe(prizePool);
+    const payouts = payoutsOf(prizePool, places);
+    const platformFee = prizePool - paidTotal;
+    const rake = 1 - SHARES.reduce((total, share) => total + share, 0);
+    expect(paidTotal).toBe(payouts.reduce((total, amount) => total + amount, 0));
+    expect(Math.abs(platformFee - prizePool * rake)).toBeLessThanOrEqual(SHARES.length / 2);
 
     // (3) DEFTER = GERÇEK PARA DEĞİŞİMİ. Yoktan para var olmaz, var olan yok olmaz.
     expect(netOf(rows)).toBe(moneyAfter - moneyBefore);
-    expect(netOf(rows)).toBe(-(platformFee + botResidue));
+    expect(netOf(rows)).toBe(-platformFee);
 
     // (4) Yanıttaki `prizeAmount` DEFTERİN AYNISI olmalı (istemci kendi
     //     hesabını yapmaz). Botlara hiçbir zaman ödeme yapılmaz.
     //
-    //     ⚠️ Burada "en az bir oyuncu ödül aldı" GİBİ bir iddia KURULMAZ:
-    //     8 atlık sahada 2 gerçek oyuncu ilk beşe girmeyebilir ve ödül
-    //     sırası simülasyonun SONUCUDUR (seed her koşuda yenidir) — öyle bir
-    //     iddia testi KARARSIZ yapardı. "Ödül gerçekten ödeniyor" iddiası
-    //     kararlı biçimde bir SONRAKİ testte, botsuz sahada kurulur.
+    //     Bota pay düşmediği için iki gerçek oyuncu da HER ZAMAN ödül alır
+    //     (gerçek oyuncu sırası 1 ve 2) — sıra simülasyonun sonucu olsa da
+    //     bu iddia kararlıdır.
     let humanPrizeTotal = 0;
     for (const place of places) {
       if (place.participantType === 'ai') {
@@ -271,6 +283,7 @@ describe('Ekonomik mutabakat (e2e) — brief §42 PHASE 3', () => {
       }
       const expected = payouts[place.finishPosition - 1] ?? 0;
       expect(place.prizeAmount).toBe(expected);
+      expect(expected).toBeGreaterThan(0);
       humanPrizeTotal += expected;
     }
     // Yanıt ile defter BİRBİRİNİ DOĞRULAR: sunucunun ödediği toplam, yanıtta
@@ -328,7 +341,7 @@ describe('Ekonomik mutabakat (e2e) — brief §42 PHASE 3', () => {
     expect(netOf(rows)).toBe(-platformFee);
 
     // Yanıt defteri doğrular (sıra → tutar eşlemesi paylardan türetilir).
-    const payouts = payoutsOf(prizePool);
+    const payouts = payoutsOf(prizePool, places);
     for (const place of places) {
       expect(place.prizeAmount).toBe(payouts[place.finishPosition - 1] ?? 0);
     }

@@ -31,10 +31,9 @@
  * Eşikleri burada ikinci kez yazmak, iki kopyanın zamanla ayrışması
  * demekti.
  *
- * **`achievements` BİLİNÇLİ OLARAK `null` GELİR** (kalıcı bir başarım veri
- * modeli yok — yeni migration gerektirir). `null` gelen bir alanı boş
- * liste gibi göstermek "hiç başarımın yok" demek olurdu; bu ekran bunun
- * yerine durumu AÇIKÇA söyler.
+ * **BAŞARIMLAR (03.10.2026).** Yalnızca ödülü ALINMIŞ başarımlar gelir; ad
+ * ölçüt + hedeften `achievementTitle` ile üretilir (görev ekranıyla AYNI
+ * fonksiyon). Boş liste "henüz kazanılmış başarım yok" demektir.
  *
  * **BLOK / ŞİKÂYET (29.09.2026).** Dört uç nokta sunucuda hazırdı
  * (`PROJE_DURUMU.md` §13.16) ama hiçbir istemci tüketicisi yoktu; bu
@@ -64,8 +63,11 @@ import Link from 'next/link';
 import type { PlayerProfileView, ReportCategory } from '@at-sevdalisi/shared-types';
 import { GlassPanel } from '../../../components/ui/GlassPanel';
 import { getCareerProgress } from '../../../features/career/career-tier';
-import { apiClient } from '../../../lib/api-client';
+import { AvatarPortrait } from '../../../features/avatar/AvatarPortrait';
+import { achievementTitle } from '../../../features/quests/achievement-labels';
+import { apiClient, profilePhotoUrl } from '../../../lib/api-client';
 import { usePlayer } from '../../../lib/player-context';
+import { ProfileFriendActions } from '../../../features/social/ProfileFriendActions';
 
 export default function PlayerProfilePage(): React.ReactElement {
   const params = useParams<{ username: string }>();
@@ -221,9 +223,22 @@ export default function PlayerProfilePage(): React.ReactElement {
     <main style={{ display: 'grid', gap: 'var(--space-md)', maxWidth: '880px', margin: '0 auto', padding: 'var(--space-md)' }}>
       <GlassPanel>
         <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 'var(--space-md)' }}>
-          <div style={avatarStyle} aria-hidden="true">
-            {profile.displayName.slice(0, 1).toLocaleUpperCase('tr-TR')}
-          </div>
+          {/*
+            07.10.2026 — oyuncunun avatarı (kayıtlı ya da kimlikten türetilen
+            varsayılan). 08.10.2026 — profil fotoğrafı yüklediyse fotoğrafı.
+          */}
+          {profile.photoId ? (
+            <img
+              src={profilePhotoUrl(profile.photoId)}
+              alt={`${profile.displayName} profil fotoğrafı`}
+              width={64}
+              height={64}
+              className="profile-photo-avatar"
+              data-testid="profile-photo"
+            />
+          ) : (
+            <AvatarPortrait appearance={profile.avatar} size={64} label={`${profile.displayName} avatarı`} />
+          )}
           <div style={{ display: 'grid', gap: '4px', minWidth: 0 }}>
             <h1 style={{ margin: 0, fontSize: '22px', color: 'var(--color-text-primary)' }}>{profile.displayName}</h1>
             <span style={{ fontSize: '13px', color: 'var(--color-text-muted)' }}>@{profile.username}</span>
@@ -235,6 +250,10 @@ export default function PlayerProfilePage(): React.ReactElement {
             <span style={selfBadgeStyle}>Bu sensin</span>
           ) : null}
         </div>
+        {/* 16.10.2026 — sosyal brief §3: Arkadaş Ekle / Kabul Et / Çip Hediye Et / Yarışa Davet. */}
+        {player !== null && !isSelf ? (
+          <ProfileFriendActions playerId={player.id} otherId={profile.playerId} otherName={profile.displayName} />
+        ) : null}
 
         {/* Kademe çubuğu — `getCareerProgress` son kademede `1` döner
             ("daha fazla ilerleme yok"), bu yüzden dolu görünür; etiket
@@ -269,17 +288,17 @@ export default function PlayerProfilePage(): React.ReactElement {
 
       <GlassPanel>
         <h2 style={sectionTitleStyle}>Başarımlar</h2>
-        {/* ⚠️ BURADA `if (profile.achievements === null)` YAZILMAZ — ve bu bir
-            eksiklik değil, tipin kendisidir: `PlayerProfileView.achievements`
-            `null` LİTERAL tipidir (`string[] | null` DEĞİL), çünkü başarım
-            veri modeli henüz yok. Bir koşul yazmak, `else` dalını `never`
-            yapardı (orada `map` çağrılamaz). Model eklendiğinde tip
-            genişleyecek ve derleyici TAM BU SATIRA gelip "artık bir dal
-            yazmalısın" diyecektir — sessizce boş kalan bir liste değil. */}
-        <p style={footnoteStyle}>
-          Başarım sistemi henüz kurulmadı. Bu alan bilinçli olarak boş bırakıldı — uydurma bir
-          rozet listesi gösterilmez.
-        </p>
+        {profile.achievements.length === 0 ? (
+          <p style={footnoteStyle}>Henüz kazanılmış başarım yok.</p>
+        ) : (
+          <ul className="achievement-badges" data-testid="profile-achievements">
+            {profile.achievements.map((achievement) => (
+              <li key={achievement.key} className="market-badge" title={formatMemberSince(achievement.claimedAt)}>
+                {achievementTitle(achievement.metric, achievement.target)}
+              </li>
+            ))}
+          </ul>
+        )}
       </GlassPanel>
 
       <GlassPanel>
@@ -413,20 +432,6 @@ function CenteredMessage({ children }: { children: React.ReactNode }): React.Rea
     </main>
   );
 }
-
-const avatarStyle: React.CSSProperties = {
-  display: 'grid',
-  placeItems: 'center',
-  width: '64px',
-  height: '64px',
-  borderRadius: '999px',
-  background: 'rgba(255, 255, 255, 0.08)',
-  border: '1px solid var(--color-border)',
-  fontSize: '26px',
-  fontWeight: 700,
-  color: 'var(--color-text-primary)',
-  flexShrink: 0,
-};
 
 const selfBadgeStyle: React.CSSProperties = {
   marginLeft: 'auto',

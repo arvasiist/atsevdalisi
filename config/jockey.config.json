@@ -14,5 +14,41 @@
     "history": 0.25
   },
   "experienceForMaxScore": 150,
-  "neutralHistoryScore": 50
+  "neutralHistoryScore": 50,
+  "compatibilityInfluence": 0.15,
+  "condition": {
+    "formSampleSize": 10,
+    "formMinRides": 3,
+    "formInfluence": 0.06,
+    "formBands": {
+      "hot": 75,
+      "good": 58,
+      "poor": 42,
+      "cold": 25
+    },
+    "fatigueWindowHours": 6,
+    "freeRidesInWindow": 6,
+    "fatiguePenaltyPerRide": 0.015,
+    "maxFatiguePenalty": 0.06
+  },
+  "market": {
+    "bands": [
+      { "skillMin": 30, "skillMax": 45, "available": 2 },
+      { "skillMin": 45, "skillMax": 60, "available": 2 },
+      { "skillMin": 60, "skillMax": 72, "available": 2 },
+      { "skillMin": 72, "skillMax": 85, "available": 1 }
+    ],
+    "skillSpread": 8,
+    "salary": { "min": 300, "max": 9000, "curve": 2, "roundTo": 50 },
+    "firstNames": [
+      "Ahmet", "Mehmet", "Ali", "Hasan", "Hüseyin", "Mustafa", "Murat", "Emre",
+      "Burak", "Serkan", "Halis", "Gökhan", "Selim", "Kadir", "Cem", "Onur",
+      "Ayşe", "Elif", "Zeynep", "Merve", "Esra", "Derya", "Seda", "Gizem"
+    ],
+    "lastNames": [
+      "Kaya", "Demir", "Şahin", "Çelik", "Yıldız", "Yıldırım", "Öztürk", "Aydın",
+      "Özdemir", "Arslan", "Doğan", "Kılıç", "Aslan", "Çetin", "Kara", "Koç",
+      "Kurt", "Özkan", "Şimşek", "Polat", "Erdem", "Güneş", "Aksoy", "Karaca"
+    ]
+  }
 }

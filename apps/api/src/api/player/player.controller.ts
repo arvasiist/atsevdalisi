@@ -1,9 +1,9 @@
-import { Body, Controller, Get, Inject, Param, ParseUUIDPipe, Post } from '@nestjs/common';
+import { Body, Controller, Get, Headers, Inject, Param, ParseUUIDPipe, Post } from '@nestjs/common';
 import type { ApiSuccess, AuthSession, PlayerProfileView, PlayerSummary } from '@at-sevdalisi/shared-types';
 import { GetPlayerProfileUseCase } from '../../application/use-cases/get-player-profile.use-case';
 import { GetPlayerUseCase } from '../../application/use-cases/get-player.use-case';
 import { RegisterPlayerUseCase } from '../../application/use-cases/register-player.use-case';
-import { TOKEN_SERVICE, type TokenService } from '../../application/ports/token.service';
+import { AuthSessionUseCase } from '../../application/use-cases/auth-session.use-case';
 import { assertSelf } from '../auth/assert-self';
 import { CurrentPlayer, type AuthenticatedPlayer } from '../auth/current-player.decorator';
 import { Public } from '../auth/public.decorator';
@@ -40,7 +40,7 @@ export class PlayerController {
     @Inject(RegisterPlayerUseCase) private readonly registerPlayerUseCase: RegisterPlayerUseCase,
     @Inject(GetPlayerUseCase) private readonly getPlayerUseCase: GetPlayerUseCase,
     @Inject(GetPlayerProfileUseCase) private readonly getPlayerProfileUseCase: GetPlayerProfileUseCase,
-    @Inject(TOKEN_SERVICE) private readonly tokenService: TokenService,
+    @Inject(AuthSessionUseCase) private readonly sessions: AuthSessionUseCase,
   ) {}
 
   // AUDIT_REPORT.md Bulgu S5 (High) hardening (bu oturum) — `@Public()`
@@ -50,10 +50,13 @@ export class PlayerController {
   @RateLimit({ name: 'register', limit: 10, windowSeconds: 300, keyBy: 'ip' })
   @Public()
   @Post()
-  async register(@Body() dto: RegisterPlayerDto): Promise<ApiSuccess<AuthSession>> {
+  async register(
+    @Body() dto: RegisterPlayerDto,
+    @Headers('user-agent') userAgent: string | undefined,
+  ): Promise<ApiSuccess<AuthSession>> {
     const player = await this.registerPlayerUseCase.execute(dto);
-    const token = this.tokenService.sign({ sub: player.id });
-    return { success: true, data: { token, player: toPlayerSummary(player) } };
+    const session = await this.sessions.issue(player.id, userAgent);
+    return { success: true, data: { ...session, player: toPlayerSummary(player) } };
   }
 
   /**

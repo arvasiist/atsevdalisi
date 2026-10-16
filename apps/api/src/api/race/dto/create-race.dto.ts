@@ -1,4 +1,4 @@
-import { IsInt, IsString } from 'class-validator';
+import { IsBoolean, IsInt, IsOptional, IsString } from 'class-validator';
 
 /**
  * `POST /races` gövde şeması (brief §1, §42 PHASE 1).
@@ -85,4 +85,60 @@ export class CreateRaceDto {
   /** brief §11 izleyici kapasitesi — seçenekler config'te (`spectatorCapacityOptions`). */
   @IsInt()
   spectatorCapacity!: unknown;
+
+  /**
+   * 01.10.2026 — oyuncu kontrollü canlı yarış. `main.ts` `whitelist: true`
+   * olduğundan DTO'da OLMAYAN alan üretimde sessizce silinirdi; doğrulamanın
+   * kendisi domain'dedir (`validateRaceCreation`).
+   */
+  @IsOptional()
+  @IsBoolean()
+  playerControl?: unknown;
+
+  /**
+   * 08.10.2026 — ırk sınıfı (`breeds.raceClasses`). `whitelist: true`
+   * altında DTO'da olmasaydı üretimde sessizce silinir ve yarış HERKESE açık
+   * açılırdı; küme doğrulaması domain'dedir (`validateRaceCreation`).
+   */
+  @IsOptional()
+  @IsString()
+  breedClass?: unknown;
+
+  /**
+   * 08.10.2026 — hipodrom anahtarı (`hippodromes.config.json`). `whitelist:
+   * true` altında DTO'da olmasaydı sessizce silinir ve yarış varsayılan
+   * hipodromda açılırdı; küme doğrulaması domain'dedir.
+   */
+  @IsOptional()
+  @IsString()
+  hippodrome?: unknown;
+
+  /** 08.10.2026 — at seviyesi aralığı; DTO'da olmasaydı `whitelist` siler ve yarış her seviyeye açılırdı. */
+  @IsOptional()
+  @IsString()
+  horseLevelBracket?: unknown;
+
+  /**
+   * 09.10.2026 — masa (`economy.raceTiers[].id`). DTO'da olmasaydı `whitelist`
+   * siler ve yarış sessizce MASASIZ (eski kurallarla) açılırdı.
+   */
+  @IsOptional()
+  @IsString()
+  tableId?: unknown;
+
+  /**
+   * 09.10.2026 — kulüp içi yarış. DTO'da olmasaydı `whitelist` siler ve
+   * yarış sessizce HERKESE açılırdı. Kulübü istemci değil sunucu belirler.
+   */
+  @IsOptional()
+  @IsBoolean()
+  clubOnly?: unknown;
+
+  /**
+   * 15.10.2026 — Aşama 3: `false` = botsuz yarış. DTO'da olmasaydı `whitelist`
+   * siler ve yarış sessizce botla tamamlanırdı.
+   */
+  @IsOptional()
+  @IsBoolean()
+  aiFill?: unknown;
 }

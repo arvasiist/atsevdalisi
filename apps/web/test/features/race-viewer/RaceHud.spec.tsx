@@ -62,12 +62,42 @@ function barWidthFor(container: HTMLElement, label: string): string | undefined 
 }
 
 describe('RaceHud', () => {
-  it('sıralama panelinde at isimlerini ve lidere farkı gösterir', () => {
-    render(<RaceHud {...buildProps()} />);
+  /** Sıralama satırı: renkli numara rozeti + isim (01.10.2026 yayın tarzı). */
+  function standingsRows(container: HTMLElement): Array<{ rank: string; name: string; color: string }> {
+    return [...container.querySelectorAll('.hud-standings-line')].map((line) => {
+      const badge = line.querySelector('.hud-rank-badge') as HTMLElement | null;
+      return {
+        rank: badge?.textContent ?? '',
+        name: line.querySelector('.hud-standings-name > span')?.textContent ?? '',
+        color: badge?.style.background ?? '',
+      };
+    });
+  }
 
-    expect(screen.getByText('1. Yıldırım')).toBeTruthy();
-    expect(screen.getByText('2. Rüzgar')).toBeTruthy();
+  it('sıralama panelinde sıra rozeti, at isimleri ve lidere farkı gösterir', () => {
+    const { container } = render(<RaceHud {...buildProps()} />);
+
+    expect(standingsRows(container).map(({ rank, name }) => `${rank}. ${name}`)).toEqual(['1. Yıldırım', '2. Rüzgar']);
     expect(screen.getByText('-20.0m')).toBeTruthy();
+  });
+
+  it('sıra rozeti atın forma rengini taşır (3D sahnedeki jokey rengiyle aynı)', () => {
+    const { container } = render(
+      <RaceHud {...buildProps({ horseColorsById: { h1: 'rgb(29, 111, 224)', h2: 'rgb(214, 47, 47)' } })} />,
+    );
+    expect(standingsRows(container).map(({ color }) => color)).toEqual(['rgb(29, 111, 224)', 'rgb(214, 47, 47)']);
+  });
+
+  it('odak at kartı gerçek hızı (km/s) ve kalan mesafeyi gösterir; mesafe yoksa ilerleme şeridi çizilmez', () => {
+    const withDistance = render(<RaceHud {...buildProps({ focusHorseId: 'h2', raceDistanceMeters: 1000 })} />);
+    expect(screen.getByText('55 km/s')).toBeTruthy(); // 15.4 m/s × 3.6
+    expect(screen.getByText('220 m')).toBeTruthy(); // 1000 − 780
+    expect(screen.getByLabelText('Yarış ilerlemesi')).toBeTruthy();
+    withDistance.unmount();
+
+    render(<RaceHud {...buildProps({ focusHorseId: 'h2' })} />);
+    expect(screen.queryByLabelText('Yarış ilerlemesi')).toBeNull();
+    expect(screen.queryByText(/ m$/)).toBeNull();
   });
 
   it('lider satırında mesafe farkı yerine "—" gösterir', () => {
@@ -76,9 +106,8 @@ describe('RaceHud', () => {
   });
 
   it('horseNamesById içinde ismi olmayan bir at için horseId\'ye geri döner (fallback)', () => {
-    render(<RaceHud {...buildProps({ horseNamesById: {} })} />);
-    expect(screen.getByText('1. h1')).toBeTruthy();
-    expect(screen.getByText('2. h2')).toBeTruthy();
+    const { container } = render(<RaceHud {...buildProps({ horseNamesById: {} })} />);
+    expect(standingsRows(container).map(({ rank, name }) => `${rank}. ${name}`)).toEqual(['1. h1', '2. h2']);
   });
 
   it('oynat/duraklat düğmesine tıklanınca onTogglePlay tam olarak bir kez çağrılır', () => {
@@ -169,5 +198,29 @@ describe('RaceHud', () => {
     ];
     render(<RaceHud {...buildProps({ leaderboard: withoutPace, horseNamesById: { h1: 'Yıldırım' } })} />);
     expect(screen.queryByText(/Tempo/)).toBeNull();
+  });
+
+  it('sıralama: 3 attan fazlasında "Tümü (N)" düğmesi paneli açar/kapatır; 3 ve altında düğme yok', () => {
+    const many = Array.from({ length: 5 }, (_, index) => ({
+      horseId: `h${index + 1}`,
+      rank: index + 1,
+      positionMeters: 800 - index * 10,
+      speedMps: 16,
+      gapToLeaderMeters: index * 10,
+    }));
+    const { container, unmount } = render(<RaceHud {...buildProps({ leaderboard: many })} />);
+    const panel = container.querySelector('.hud-standings') as HTMLElement;
+    expect(panel.dataset.expanded).toBe('false');
+    const toggle = screen.getByRole('button', { name: 'Tümü (5)' });
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    fireEvent.click(toggle);
+    expect(panel.dataset.expanded).toBe('true');
+    expect(screen.getByRole('button', { name: 'Daralt' }).getAttribute('aria-expanded')).toBe('true');
+    // Masaüstünde liste her zaman tam: satırlar DOM'da kalır (gizleme yalnızca CSS).
+    expect(container.querySelectorAll('.hud-standings-row')).toHaveLength(5);
+    unmount();
+
+    render(<RaceHud {...buildProps()} />);
+    expect(screen.queryByRole('button', { name: /Tümü/ })).toBeNull();
   });
 });

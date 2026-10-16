@@ -69,6 +69,8 @@ export interface PlayerRankingTotal {
   playerId: string;
   score: number;
   raceCount: number;
+  /** 08.10.2026 — birincilik sayısı (sıralamanın ilk ölçütü, `rankPlayerTotals`). */
+  wins: number;
   lastFinishedAt: string;
 }
 
@@ -109,6 +111,7 @@ export function sumRankingScores(outcomes: PlayerRaceOutcome[], config: OnlineCo
         playerId: outcome.playerId,
         score: raceScore,
         raceCount: 1,
+        wins: outcome.finishPosition === 1 ? 1 : 0,
         lastFinishedAt: outcome.finishedAt,
       });
       continue;
@@ -116,6 +119,9 @@ export function sumRankingScores(outcomes: PlayerRaceOutcome[], config: OnlineCo
 
     existing.score += raceScore;
     existing.raceCount += 1;
+    if (outcome.finishPosition === 1) {
+      existing.wins += 1;
+    }
     // ISO 8601 UTC dizgileri sözlük sırasına göre de kronolojiktir
     // (sabit genişlikli, aynı zaman dilimi) — `Date`'e çevirmeye gerek yok.
     if (outcome.finishedAt > existing.lastFinishedAt) {
@@ -124,4 +130,27 @@ export function sumRankingScores(outcomes: PlayerRaceOutcome[], config: OnlineCo
   }
 
   return [...totals.values()];
+}
+
+export interface RankedPlayerTotal extends PlayerRankingTotal {
+  /** 1 = zirve; birincilik VE puanı eşit olanlar aynı sırayı paylaşır. */
+  rank: number;
+}
+
+/**
+ * 08.10.2026 — SIRALAMA KURALI (sahibinin isteği: "yarışlarda birinci olan
+ * kişiler sırayla görünsün"). İlk ölçüt BİRİNCİLİK sayısıdır; eşitlikte
+ * toplam puan (`sumRankingScores`) ayırır. Genel, sezon, haftalık ve aylık
+ * tablonun HEPSİ bu fonksiyondan sıralanır — sezon ödülü de ekrandaki sırayı
+ * izler (CLAUDE.md (17): ödül sırası ile ekrandaki sıra aynı fonksiyondan).
+ */
+export function rankPlayerTotals(totals: PlayerRankingTotal[]): RankedPlayerTotal[] {
+  const sorted = [...totals].sort((a, b) => b.wins - a.wins || b.score - a.score);
+  const ranked: RankedPlayerTotal[] = [];
+  sorted.forEach((total, index) => {
+    const previous = ranked[index - 1];
+    const tied = previous !== undefined && previous.wins === total.wins && previous.score === total.score;
+    ranked.push({ ...total, rank: tied ? previous.rank : index + 1 });
+  });
+  return ranked;
 }

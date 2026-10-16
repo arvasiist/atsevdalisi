@@ -22,14 +22,34 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { PublicHorse, RaceLobbyListItem, RaceSurface, RaceWeather } from '@at-sevdalisi/shared-types';
+import type {
+  PublicHorse,
+  RaceLobbyListItem,
+  RaceSurface,
+  RaceWeather,
+} from '@at-sevdalisi/shared-types';
 import { loadRaceLobbyConfig } from '@at-sevdalisi/game-config';
+import { usePeriodicLobbyRefresh } from './lobby-refresh';
 import { GlassPanel } from '../../components/ui/GlassPanel';
 import { apiClient } from '../../lib/api-client';
 import { formatCurrency } from '../../lib/currency';
-import { formatMultiplier } from '../race/race-entry';
+import { formatRaceStart } from '../../lib/format-time';
+import {
+  RACE_ENTRY_BLOCKER_LABELS,
+  daysUntilRaceAge,
+  formatMultiplier,
+  formatRaceReadyIn,
+  getRaceEntryBlocker,
+} from '../race/race-entry';
+import { RACE_CLASSES, breedLabel, horseFitsRaceClass } from '../breeds/breed-catalog';
+import { HIPPODROME_OPTIONS } from '../race-viewer/hippodrome-theme';
+import { isClubOfficerOrLeader } from '../club/club-invite-logic';
 import {
   ENTRY_STATUS_LABELS,
+  describeBreedClass,
+  describeCalendar,
+  describeHippodrome,
+  describePlayerControl,
   describeTournament,
   SURFACE_LABELS,
   WEATHER_LABELS,
@@ -40,33 +60,63 @@ import {
   maxPlayersOptions,
   startDelayMinuteBounds,
   type LobbyRaceForm,
+  LEVEL_BRACKET_OPTIONS,
+  describeLevelBracket,
+  horseFitsLevelBracket,
+  describePrizeSplit,
+  pickQuickJoinRaces,
+  raceFitForHorse,
+  sortRacesForHorse,
+  canCancelOwnRace,
+  RACE_TABLES,
+  applyRaceTable,
+  describeTableRules,
+  tableRulesFromConfig,
+  describeFieldRule,
+  minRealPlayersFor,
 } from './lobby-logic';
 
 const LOBBY_CONFIG = loadRaceLobbyConfig();
+
+/** Yeni yarış formu: ilk masa seçili gelir (masasız yarış listede "Serbest"). */
+function initialLobbyForm(): LobbyRaceForm {
+  return applyRaceTable(defaultLobbyRaceForm(LOBBY_CONFIG), RACE_TABLES[0]?.id ?? '', LOBBY_CONFIG);
+}
+/** Hemen katılda başlangıca en az bu kadar kalmalı (katıl + hazırım sığsın, kilit öncesi). */
+const QUICK_JOIN_MIN_LEAD_MS = 45_000;
 const START_DELAY_BOUNDS = startDelayMinuteBounds(LOBBY_CONFIG);
 
 export interface LobbyPanelProps {
   /** Oyuncunun atları — katılım için seçim listesi. Sakat atlar sunucuda reddedilir. */
   horses: PublicHorse[];
+  /** 08.10.2026 — bakiye (Hemen Katıl ücreti yetmeyen yarışı önermesin); bilinmiyorsa süzülmez, sunucu reddeder. */
+  money?: number;
   /** Para hareketinden sonra üst bar bakiyesi tazelensin diye. */
   onBalanceChanged: () => Promise<void>;
+  /** 14.10.2026 — oturumdaki oyuncu: kendi açtığı yarışta "Yarışı iptal et" düğmesi için. */
+  playerId?: string | null;
 }
 
-export function LobbyPanel({ horses, onBalanceChanged }: LobbyPanelProps): React.ReactElement {
+export function LobbyPanel({ horses, money, onBalanceChanged, playerId = null }: LobbyPanelProps): React.ReactElement {
   const [races, setRaces] = useState<RaceLobbyListItem[] | null>(null);
   const [horseId, setHorseId] = useState('');
   const [busyRaceId, setBusyRaceId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
-  const [form, setForm] = useState<LobbyRaceForm>(() => defaultLobbyRaceForm(LOBBY_CONFIG));
+  // 09.10.2026 — form ilk masayla açılır (sahibinin kararı: yarışı açan masa seçer).
+  const [form, setForm] = useState<LobbyRaceForm>(() => initialLobbyForm());
   const [isCreating, setIsCreating] = useState(false);
+  // 09.10.2026 — kulüp içi yarış: kulüp adı rozet için, rol formdaki seçenek için.
+  // Yalnızca ipucu; kulübü ve yetkiyi sunucu belirler.
+  const [myClub, setMyClub] = useState<{ id: string; name: string; canOpenRace: boolean } | null>(null);
 
   /** Yarış başına bekleyen para-yolu anahtarları — bkz. dosya başı doc yorumu. */
   const joinKeysRef = useRef(new Map<string, string>());
   const leaveKeysRef = useRef(new Map<string, string>());
 
   const effectiveHorseId = horseId !== '' ? horseId : (horses[0]?.id ?? '');
+  const effectiveHorse = horses.find((horse) => horse.id === effectiveHorseId) ?? null;
 
   const refresh = useCallback(async (): Promise<void> => {
     try {
@@ -79,9 +129,29 @@ export function LobbyPanel({ horses, onBalanceChanged }: LobbyPanelProps): React
   useEffect(() => {
     void refresh();
   }, [refresh]);
+  // 16.10.2026 — başkasının katılımı / kilit / kalan süre ekranda bayat kalmasın.
+  usePeriodicLobbyRefresh(refresh, LOBBY_CONFIG.lobbyListRefreshSeconds);
+
+  useEffect(() => {
+    apiClient
+      .getMyClub()
+      .then((detail) =>
+        setMyClub(
+          detail === null
+            ? null
+            : { id: detail.club.id, name: detail.club.name, canOpenRace: isClubOfficerOrLeader(detail.myRole) },
+        ),
+      )
+      .catch(() => setMyClub(null));
+  }, []);
 
   const runAction = useCallback(
-    async (raceId: string, action: () => Promise<unknown>, successNotice: string, movesMoney: boolean) => {
+    async (
+      raceId: string,
+      action: () => Promise<unknown>,
+      successNotice: string,
+      movesMoney: boolean,
+    ) => {
       setBusyRaceId(raceId);
       setError(null);
       setNotice(null);
@@ -123,6 +193,39 @@ export function LobbyPanel({ horses, onBalanceChanged }: LobbyPanelProps): React
     [effectiveHorseId, runAction],
   );
 
+  // 08.10.2026 — HEMEN KATIL: seçili at için en uygun yarışa tek tuşla katıl +
+  // hazır ol. Seçim önerisidir; kurallar (ırk, seviye, ücret, dolu) sunucuda.
+  // 16.10.2026 — brief §7.1: önce atın kendisi hazır mı (enerji/yorgunluk/
+  // sağlık/yaş — sunucunun `checkRaceReadiness` sırası), sonra uygun yarışlar
+  // arasından SEÇİM (en uygunu başta). Ücret ve ödül kuralı düğmenin yanında.
+  const quickJoinBlocker = effectiveHorse === null ? null : getRaceEntryBlocker(effectiveHorse);
+  const quickJoinRaces = useMemo(
+    () =>
+      races === null || effectiveHorse === null
+        ? []
+        : pickQuickJoinRaces(races, effectiveHorse, money ?? Number.MAX_SAFE_INTEGER, new Date(), QUICK_JOIN_MIN_LEAD_MS),
+    [races, effectiveHorse, money],
+  );
+  const quickJoin = useCallback(
+    (race: RaceLobbyListItem) => {
+      if (effectiveHorseId === '') return;
+      const keys = joinKeysRef.current;
+      const key = keys.get(race.id) ?? crypto.randomUUID();
+      keys.set(race.id, key);
+      void runAction(
+        race.id,
+        async () => {
+          await apiClient.joinLobbyRace(race.id, { horseId: effectiveHorseId }, key);
+          keys.delete(race.id);
+          await apiClient.setLobbyEntryReady(race.id, 'ready');
+        },
+        `⚡ "${race.name}" yarışına katıldın ve hazırsın — ${formatStartsIn(race.startTime, new Date())} başlıyor.`,
+        true,
+      );
+    },
+    [effectiveHorseId, runAction],
+  );
+
   const leave = useCallback(
     (race: RaceLobbyListItem) => {
       const keys = leaveKeysRef.current;
@@ -141,12 +244,27 @@ export function LobbyPanel({ horses, onBalanceChanged }: LobbyPanelProps): React
     [runAction],
   );
 
+  const cancelOwn = useCallback(
+    (race: RaceLobbyListItem) => {
+      if (!window.confirm(`"${race.name}" yarışını iptal etmek istiyor musun? Bu geri alınamaz.`)) return;
+      void runAction(
+        race.id,
+        () => apiClient.cancelOwnLobbyRace(race.id),
+        `"${race.name}" iptal edildi; yeni yarış açma hakkın geri geldi.`,
+        false,
+      );
+    },
+    [runAction],
+  );
+
   const setReady = useCallback(
     (race: RaceLobbyListItem, status: 'ready' | 'not_ready') => {
       void runAction(
         race.id,
         () => apiClient.setLobbyEntryReady(race.id, status),
-        status === 'ready' ? 'Hazırsın — başlangıçta yarışacaksın.' : 'Hazır değilsin — başlangıçta düşürülürsün.',
+        status === 'ready'
+          ? 'Hazırsın — başlangıçta yarışacaksın.'
+          : 'Hazır değilsin — başlangıçta düşürülürsün.',
         false,
       );
     },
@@ -166,7 +284,7 @@ export function LobbyPanel({ horses, onBalanceChanged }: LobbyPanelProps): React
       const race = await apiClient.createLobbyRace(built.body);
       setNotice(`"${race.name}" açıldı. Açmak katılmak değildir — yarışmak için listeden "Katıl".`);
       setIsFormOpen(false);
-      setForm(defaultLobbyRaceForm(LOBBY_CONFIG));
+      setForm(initialLobbyForm());
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Yarış açılamadı.');
     } finally {
@@ -175,25 +293,42 @@ export function LobbyPanel({ horses, onBalanceChanged }: LobbyPanelProps): React
     }
   }, [form, refresh]);
 
-  const playerCapOptions = useMemo(() => maxPlayersOptions(form.fieldSize, LOBBY_CONFIG), [form.fieldSize]);
-  const updateForm = (patch: Partial<LobbyRaceForm>): void => setForm((current) => ({ ...current, ...patch }));
+  const playerCapOptions = useMemo(
+    () => maxPlayersOptions(form.fieldSize, LOBBY_CONFIG),
+    [form.fieldSize],
+  );
+  const updateForm = (patch: Partial<LobbyRaceForm>): void =>
+    setForm((current) => ({ ...current, ...patch }));
+  const selectedTable = RACE_TABLES.find((table) => table.id === form.tableId);
   const now = new Date();
 
   return (
     <GlassPanel style={{ marginBottom: 'var(--space-lg)' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 'var(--space-sm)' }}>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          gap: 'var(--space-sm)',
+        }}
+      >
         <h2 style={titleStyle()}>Ücretli Yarış Lobisi</h2>
         <div style={{ display: 'flex', gap: 'var(--space-sm)' }}>
           <button type="button" onClick={() => void refresh()} style={secondaryButtonStyle()}>
             Yenile
           </button>
-          <button type="button" onClick={() => setIsFormOpen((open) => !open)} style={secondaryButtonStyle()}>
+          <button
+            type="button"
+            onClick={() => setIsFormOpen((open) => !open)}
+            style={secondaryButtonStyle()}
+          >
             {isFormOpen ? 'Vazgeç' : 'Yarış Aç'}
           </button>
         </div>
       </div>
       <p style={mutedStyle()}>
-        Giriş ücretleri ödül havuzunu oluşturur; kadro botlarla at sayısına tamamlanır. Yalnızca başlangıçta
+        Giriş ücretleri ödül havuzunu oluşturur; kadro botlarla at sayısına tamamlanır. Yalnızca
+        başlangıçta
         <strong> hazır</strong> olan oyuncular koşar — hazır olmayanın ücreti iade edilir.
       </p>
 
@@ -211,6 +346,30 @@ export function LobbyPanel({ horses, onBalanceChanged }: LobbyPanelProps): React
             />
           </label>
           <label style={labelStyle()}>
+            Masa
+            <select
+              aria-label="Masa"
+              value={form.tableId ?? ''}
+              onChange={(event) => setForm((current) => applyRaceTable(current, event.target.value, LOBBY_CONFIG))}
+              style={inputStyle()}
+            >
+              {RACE_TABLES.map((table) => (
+                <option key={table.id} value={table.id}>
+                  {table.label} · {table.fieldSize} at · {formatCurrency('money', table.entryFee)}
+                </option>
+              ))}
+              <option value="">Serbest (masasız)</option>
+            </select>
+          </label>
+          {selectedTable !== undefined ? (
+            <ul data-testid="table-rules" style={{ ...smallStyle(), margin: 0, paddingLeft: '18px', gridColumn: '1 / -1' }}>
+              {describeTableRules(tableRulesFromConfig(selectedTable)).map((line) => (
+                <li key={line}>{line}</li>
+              ))}
+            </ul>
+          ) : null}
+          {selectedTable === undefined ? (
+          <label style={labelStyle()}>
             At sayısı
             <select
               aria-label="At sayısı"
@@ -218,7 +377,12 @@ export function LobbyPanel({ horses, onBalanceChanged }: LobbyPanelProps): React
               onChange={(event) => {
                 const fieldSize = Number(event.target.value);
                 const caps = maxPlayersOptions(fieldSize, LOBBY_CONFIG);
-                updateForm({ fieldSize, maxPlayers: caps.includes(form.maxPlayers) ? form.maxPlayers : (caps.at(-1) ?? form.maxPlayers) });
+                updateForm({
+                  fieldSize,
+                  maxPlayers: caps.includes(form.maxPlayers)
+                    ? form.maxPlayers
+                    : (caps.at(-1) ?? form.maxPlayers),
+                });
               }}
               style={inputStyle()}
             >
@@ -229,6 +393,7 @@ export function LobbyPanel({ horses, onBalanceChanged }: LobbyPanelProps): React
               ))}
             </select>
           </label>
+          ) : null}
           <label style={labelStyle()}>
             Oyuncu tavanı
             <select
@@ -244,6 +409,7 @@ export function LobbyPanel({ horses, onBalanceChanged }: LobbyPanelProps): React
               ))}
             </select>
           </label>
+          {selectedTable === undefined ? (
           <label style={labelStyle()}>
             Giriş ücreti
             <select
@@ -260,6 +426,7 @@ export function LobbyPanel({ horses, onBalanceChanged }: LobbyPanelProps): React
               ))}
             </select>
           </label>
+          ) : null}
           <label style={labelStyle()}>
             Kaç dakika sonra başlasın
             <input
@@ -344,7 +511,96 @@ export function LobbyPanel({ horses, onBalanceChanged }: LobbyPanelProps): React
               ))}
             </select>
           </label>
-          <button type="button" onClick={() => void createRace()} disabled={isCreating} style={primaryButtonStyle(!isCreating)}>
+          <label style={labelStyle()}>
+            Hipodrom
+            <select
+              aria-label="Hipodrom"
+              value={form.hippodrome}
+              onChange={(event) => updateForm({ hippodrome: event.target.value })}
+              style={inputStyle()}
+            >
+              {HIPPODROME_OPTIONS.map((hippodrome) => (
+                <option key={hippodrome.key} value={hippodrome.key}>
+                  {hippodrome.shortName} · {hippodrome.city}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label style={labelStyle()}>
+            Irk sınıfı
+            <select
+              aria-label="Irk sınıfı"
+              value={form.breedClass}
+              onChange={(event) => updateForm({ breedClass: event.target.value })}
+              style={inputStyle()}
+            >
+              <option value="">Her ırka açık</option>
+              {RACE_CLASSES.map((raceClass) => (
+                <option key={raceClass.key} value={raceClass.key}>
+                  Yalnızca {raceClass.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label style={labelStyle()}>
+            At seviyesi
+            <select
+              aria-label="At seviyesi"
+              value={form.horseLevelBracket}
+              onChange={(event) => updateForm({ horseLevelBracket: event.target.value })}
+              style={inputStyle()}
+            >
+              <option value="">Her seviyeye açık</option>
+              {LEVEL_BRACKET_OPTIONS.map((option) => (
+                <option key={option.key} value={option.key}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label style={{ ...labelStyle(), display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <input
+              type="checkbox"
+              aria-label="Kontrollü yarış"
+              checked={form.playerControl}
+              onChange={(event) => updateForm({ playerControl: event.target.checked })}
+            />
+            Kontrollü yarış (atı oyuncular sürer: kırbaç, yön)
+          </label>
+          <label style={{ ...labelStyle(), display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <input
+              type="checkbox"
+              aria-label="Botsuz yarış"
+              checked={form.aiFill === false}
+              onChange={(event) => updateForm({ aiFill: !event.target.checked })}
+            />
+            Botsuz yarış (yalnızca gerçek oyuncular)
+          </label>
+          <p data-testid="lobby-field-rule-hint" style={{ ...smallStyle(), margin: 0 }}>
+            {(() => {
+              const minReal = minRealPlayersFor(form.entryFee, form.aiFill !== false, LOBBY_CONFIG);
+              return minReal > 1
+                ? `Başlangıçta en az ${minReal} gerçek oyuncu olmazsa yarış iptal edilir ve giriş ücretleri iade edilir.`
+                : 'Tek oyuncuyla da koşar; boş koltuklar botla dolar.';
+            })()}
+          </p>
+          {myClub?.canOpenRace ? (
+            <label style={{ ...labelStyle(), display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <input
+                type="checkbox"
+                aria-label="Yalnızca kulübüm"
+                checked={form.clubOnly === true}
+                onChange={(event) => updateForm({ clubOnly: event.target.checked })}
+              />
+              Yalnızca kulübüm ({myClub.name}) — yalnızca üyeler görür ve katılır
+            </label>
+          ) : null}
+          <button
+            type="button"
+            onClick={() => void createRace()}
+            disabled={isCreating}
+            style={primaryButtonStyle(!isCreating)}
+          >
             {isCreating ? 'Açılıyor…' : 'Yarışı Aç'}
           </button>
         </div>
@@ -361,50 +617,206 @@ export function LobbyPanel({ horses, onBalanceChanged }: LobbyPanelProps): React
           >
             {horses.map((horse) => (
               <option key={horse.id} value={horse.id}>
-                {horse.name} · Seviye {horse.level}
+                {horse.name} · {breedLabel(horse.breed)} · Seviye {horse.level}
               </option>
             ))}
           </select>
         </label>
       ) : null}
 
-      {notice !== null ? <p style={{ ...mutedStyle(), color: 'var(--color-status-positive)' }}>{notice}</p> : null}
-      {error !== null ? <p style={{ ...mutedStyle(), color: 'var(--color-status-critical)' }}>{error}</p> : null}
+      {effectiveHorse !== null && races !== null ? (
+        <div className="quick-join" data-testid="quick-join">
+          <div style={{ display: 'grid', gap: '4px', width: '100%' }}>
+            <strong className="quick-join-title">⚡ Hemen Katıl</strong>
+            {quickJoinBlocker !== null ? (
+              <span data-testid="quick-join-blocked" style={{ ...smallStyle(), color: 'var(--color-status-warning)' }}>
+                {effectiveHorse.name} şu an yarışamaz: {RACE_ENTRY_BLOCKER_LABELS[quickJoinBlocker]}
+                {quickJoinBlocker === 'HORSE_TOO_YOUNG' && effectiveHorse.ageMonths !== undefined
+                  ? ` — yaklaşık ${daysUntilRaceAge(effectiveHorse.ageMonths)} gün sonra`
+                  : effectiveHorse.raceReadyAt
+                    ? ` — ${formatRaceReadyIn(effectiveHorse.raceReadyAt, now)} hazır`
+                    : ''}
+                . Ahırda bakım/dinlenme ile hızlanır.
+              </span>
+            ) : quickJoinRaces.length === 0 ? (
+              <span data-testid="quick-join-empty" style={smallStyle()}>
+                Şu an {effectiveHorse.name} için katılınabilir uygun yarış yok (at başka bir yarışta olabilir, ya da
+                bakiye/sınıf uymuyor) — yeni yarış açabilirsin.
+              </span>
+            ) : (
+              <ol className="quick-join-choices" data-testid="quick-join-choices">
+                {quickJoinRaces.map((race, index) => (
+                  <li key={race.id} data-testid={`quick-join-choice-${race.id}`}>
+                    <div style={{ display: 'grid', gap: '2px', minWidth: 0 }}>
+                      <strong>
+                        {index === 0 ? 'En uygun · ' : ''}
+                        {race.name}
+                      </strong>
+                      <span style={smallStyle()}>
+                        {formatStartsIn(race.startTime, now)} · {race.distanceMeters} m {SURFACE_LABELS[race.surface]} ·
+                        Oyuncu {race.joinedPlayers}/{race.maxPlayers} · Giriş{' '}
+                        {race.entryFee > 0 ? formatCurrency('money', race.entryFee) : 'ücretsiz'}
+                        {describeLevelBracket(race) !== null ? ` · ${describeLevelBracket(race)}` : ''}
+                      </span>
+                      <span style={smallStyle()}>
+                        {race.table
+                          ? describeTableRules(race.table).join(' · ')
+                          : (describeTournament(race) ?? describePrizeSplit(race) ?? 'Ücretsiz yarış')}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      className={index === 0 ? 'btn-gold' : 'btn-outline'}
+                      disabled={busyRaceId !== null}
+                      onClick={() => quickJoin(race)}
+                    >
+                      {race.entryFee > 0 ? `Katıl (${formatCurrency('money', race.entryFee)})` : 'Katıl'}
+                    </button>
+                  </li>
+                ))}
+              </ol>
+            )}
+          </div>
+        </div>
+      ) : null}
+
+      {notice !== null ? (
+        <p style={{ ...mutedStyle(), color: 'var(--color-status-positive)' }}>{notice}</p>
+      ) : null}
+      {error !== null ? (
+        <p style={{ ...mutedStyle(), color: 'var(--color-status-critical)' }}>{error}</p>
+      ) : null}
 
       {races === null ? (
         <p style={mutedStyle()}>Lobi yükleniyor…</p>
       ) : races.length === 0 ? (
         <p style={mutedStyle()}>Şu an katılınabilir bir yarış yok — ilkini sen aç.</p>
       ) : (
-        <ul style={{ listStyle: 'none', padding: 0, margin: 'var(--space-md) 0 0 0', display: 'grid', gap: 'var(--space-sm)' }}>
-          {races.map((race) => {
+        <ul
+          style={{
+            listStyle: 'none',
+            padding: 0,
+            margin: 'var(--space-md) 0 0 0',
+            display: 'grid',
+            gap: 'var(--space-sm)',
+          }}
+        >
+          {sortRacesForHorse(races, effectiveHorse).map((race) => {
             const actions = lobbyEntryActions(race);
             const isBusy = busyRaceId === race.id;
+            const fit = effectiveHorse !== null ? raceFitForHorse(race, effectiveHorse) : 1;
             return (
               <li key={race.id} data-testid={`lobby-race-${race.id}`} style={rowStyle()}>
                 <div style={{ display: 'grid', gap: '2px' }}>
-                  <strong style={{ color: 'var(--color-text-primary)', fontSize: '14px' }}>{race.name}</strong>
+                  <strong style={{ color: 'var(--color-text-primary)', fontSize: '14px' }}>
+                    {race.name}
+                  </strong>
                   {describeTournament(race) !== null ? (
-                    <span style={{ ...smallStyle(), color: 'var(--color-accent-gold)', fontWeight: 600 }}>
+                    <span
+                      style={{
+                        ...smallStyle(),
+                        color: 'var(--color-accent-gold)',
+                        fontWeight: 600,
+                      }}
+                    >
                       {describeTournament(race)}
                     </span>
                   ) : null}
+                  {describePlayerControl(race) !== null ? (
+                    <span
+                      style={{
+                        ...smallStyle(),
+                        color: 'var(--color-accent-gold)',
+                        fontWeight: 600,
+                      }}
+                    >
+                      {describePlayerControl(race)}
+                    </span>
+                  ) : null}
+                  {describeHippodrome(race) !== null ? (
+                    <span data-testid={`lobby-hippodrome-${race.id}`} style={smallStyle()}>
+                      {describeHippodrome(race)}
+                    </span>
+                  ) : null}
+                  {describeLevelBracket(race) !== null ? (
+                    <span
+                      data-testid={`lobby-level-${race.id}`}
+                      style={{ ...smallStyle(), color: 'var(--color-accent-gold)', fontWeight: 600 }}
+                    >
+                      {describeLevelBracket(race)}
+                      {fit === 0 ? ' · ✓ Atına uygun' : ''}
+                    </span>
+                  ) : null}
+                  {describeBreedClass(race) !== null ? (
+                    <span
+                      data-testid={`lobby-breed-class-${race.id}`}
+                      style={{
+                        ...smallStyle(),
+                        color: 'var(--color-accent-gold)',
+                        fontWeight: 600,
+                      }}
+                    >
+                      {describeBreedClass(race)}
+                    </span>
+                  ) : null}
+                  {describeFieldRule(race) !== null ? (
+                    <span data-testid={`lobby-field-rule-${race.id}`} style={smallStyle()}>
+                      {describeFieldRule(race)}
+                    </span>
+                  ) : null}
+                  {race.clubId ? (
+                    <span
+                      data-testid={`lobby-club-only-${race.id}`}
+                      style={{ ...smallStyle(), color: 'var(--color-accent-gold)', fontWeight: 600 }}
+                    >
+                      🛡 Kulüp içi yarış
+                      {myClub !== null && myClub.id === race.clubId ? ` · ${myClub.name}` : ''}
+                    </span>
+                  ) : null}
+                  {describeCalendar(race) !== null ? (
+                    <span
+                      style={{
+                        ...smallStyle(),
+                        color: 'var(--color-text-secondary)',
+                        fontWeight: 600,
+                      }}
+                    >
+                      {describeCalendar(race)}
+                    </span>
+                  ) : null}
                   <span style={smallStyle()}>
-                    {SURFACE_LABELS[race.surface]} · {WEATHER_LABELS[race.weather]} · {race.distanceMeters} m ·{' '}
+                    {SURFACE_LABELS[race.surface]} · {WEATHER_LABELS[race.weather]} ·{' '}
+                    {race.distanceMeters} m · {formatRaceStart(race.startTime, now)} ·{' '}
                     {formatStartsIn(race.startTime, now)}
                   </span>
+                  {describePrizeSplit(race) !== null ? (
+                    <span data-testid={`race-prize-split-${race.id}`} style={smallStyle()}>
+                      {describePrizeSplit(race)}
+                    </span>
+                  ) : null}
+                  {race.table ? (
+                    <span data-testid="race-table" style={{ ...smallStyle(), color: 'var(--color-text-secondary)' }}>
+                      <strong>{race.table.label} masası</strong> · {describeTableRules(race.table).join(' · ')}
+                    </span>
+                  ) : null}
                   <span style={smallStyle()}>
                     Oyuncu {race.joinedPlayers}/{race.maxPlayers} · {race.fieldSize} at · Giriş{' '}
-                    {race.entryFee > 0 ? formatCurrency('money', race.entryFee) : 'ücretsiz'} · Havuz{' '}
-                    {formatCurrency('money', race.prizePool)}
-                    {race.prizeMultiplier !== null ? ` · Kazanana ${formatMultiplier(race.prizeMultiplier)}` : ''}
+                    {race.entryFee > 0 ? formatCurrency('money', race.entryFee) : 'ücretsiz'} ·
+                    {race.table?.feeTiming === 'on_start' && race.status === 'scheduled'
+                      ? `Havuz start'ta oluşur (tahmini ${formatCurrency('money', race.entryFee * race.joinedPlayers)})`
+                      : `Havuz ${formatCurrency('money', race.prizePool)}`}
+                    {race.prizeMultiplier !== null
+                      ? ` · Kazanana ${formatMultiplier(race.prizeMultiplier)}`
+                      : ''}
                   </span>
                   {race.myEntry !== null ? (
                     <span
                       style={{
                         ...smallStyle(),
                         color:
-                          race.myEntry.status === 'ready' ? 'var(--color-status-positive)' : 'var(--color-status-warning)',
+                          race.myEntry.status === 'ready'
+                            ? 'var(--color-status-positive)'
+                            : 'var(--color-status-warning)',
                       }}
                     >
                       {ENTRY_STATUS_LABELS[race.myEntry.status]}
@@ -412,25 +824,65 @@ export function LobbyPanel({ horses, onBalanceChanged }: LobbyPanelProps): React
                   ) : null}
                 </div>
                 <div style={{ display: 'flex', gap: 'var(--space-sm)', flexWrap: 'wrap' }}>
-                  {actions.canJoin ? (
-                    <button type="button" disabled={isBusy || effectiveHorseId === ''} onClick={() => join(race)} style={primaryButtonStyle(!isBusy)}>
+                  {actions.canJoin &&
+                  effectiveHorse !== null &&
+                  !horseFitsRaceClass(race.breedClass ?? null, effectiveHorse.breed) ? (
+                    <span style={smallStyle()}>Seçili atının ırkı bu yarışa uygun değil</span>
+                  ) : actions.canJoin &&
+                    effectiveHorse !== null &&
+                    !horseFitsLevelBracket(race.horseLevelBracket, effectiveHorse.level) ? (
+                    <span style={smallStyle()}>Seçili atının seviyesi bu yarışa uygun değil</span>
+                  ) : actions.canJoin ? (
+                    <button
+                      type="button"
+                      disabled={isBusy || effectiveHorseId === ''}
+                      onClick={() => join(race)}
+                      style={primaryButtonStyle(!isBusy)}
+                    >
                       Katıl
                     </button>
                   ) : null}
-                  {race.myEntry === null && !actions.canJoin ? <span style={smallStyle()}>Dolu</span> : null}
+                  {race.myEntry === null && !actions.canJoin ? (
+                    <span style={smallStyle()}>Dolu</span>
+                  ) : null}
                   {actions.canMarkReady ? (
-                    <button type="button" disabled={isBusy} onClick={() => setReady(race, 'ready')} style={primaryButtonStyle(!isBusy)}>
+                    <button
+                      type="button"
+                      disabled={isBusy}
+                      onClick={() => setReady(race, 'ready')}
+                      style={primaryButtonStyle(!isBusy)}
+                    >
                       Hazırım
                     </button>
                   ) : null}
                   {actions.canMarkNotReady ? (
-                    <button type="button" disabled={isBusy} onClick={() => setReady(race, 'not_ready')} style={secondaryButtonStyle()}>
+                    <button
+                      type="button"
+                      disabled={isBusy}
+                      onClick={() => setReady(race, 'not_ready')}
+                      style={secondaryButtonStyle()}
+                    >
                       Hazır değilim
                     </button>
                   ) : null}
                   {actions.canLeave ? (
-                    <button type="button" disabled={isBusy} onClick={() => leave(race)} style={secondaryButtonStyle()}>
+                    <button
+                      type="button"
+                      disabled={isBusy}
+                      onClick={() => leave(race)}
+                      style={secondaryButtonStyle()}
+                    >
                       Ayrıl (ücret iade)
+                    </button>
+                  ) : null}
+                  {canCancelOwnRace(race, playerId) ? (
+                    <button
+                      type="button"
+                      disabled={isBusy}
+                      onClick={() => cancelOwn(race)}
+                      style={secondaryButtonStyle()}
+                    >
+                      Yarışı iptal et
                     </button>
                   ) : null}
                 </div>

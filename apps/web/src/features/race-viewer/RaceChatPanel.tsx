@@ -57,6 +57,9 @@ export interface RaceChatPanelProps {
   onSend: (body: string) => void;
   /** `chat.error` — sohbet reddedildi (hız sınırı, abonelik yok, boş gövde). */
   errorMessage: string | null;
+  /** 02.10.2026 (Faz 9) — tribün emote listesi (config) ve gönderici. Verilmezse çubuk çizilmez. */
+  emotes?: ReadonlyArray<{ key: string; symbol: string; label: string }>;
+  onEmote?: (key: string) => void;
 }
 
 export function RaceChatPanel({
@@ -64,6 +67,8 @@ export function RaceChatPanel({
   spectatorCount,
   onSend,
   errorMessage,
+  emotes,
+  onEmote,
 }: RaceChatPanelProps): React.ReactElement {
   const [isOpen, setIsOpen] = useState(true);
   const [draft, setDraft] = useState('');
@@ -171,9 +176,16 @@ export function RaceChatPanel({
             ) : (
               messages.map((message) => (
                 <li key={message.messageId} style={{ fontSize: '12px', lineHeight: 1.4 }}>
-                  <span style={{ color: 'var(--color-accent-gold)', fontWeight: 600 }}>{message.username}</span>
-                  <span style={{ color: 'var(--color-text-muted)' }}> {formatClockTime(message.createdAt)} </span>
-                  <span style={{ color: 'var(--color-text-primary)', wordBreak: 'break-word' }}>{message.body}</span>
+                  <span style={{ color: 'var(--color-accent-gold)', fontWeight: 600 }}>
+                    {message.username}
+                  </span>
+                  <span style={{ color: 'var(--color-text-muted)' }}>
+                    {' '}
+                    {formatClockTime(message.createdAt)}{' '}
+                  </span>
+                  <span style={{ color: 'var(--color-text-primary)', wordBreak: 'break-word' }}>
+                    {message.body}
+                  </span>
                 </li>
               ))
             )}
@@ -192,9 +204,31 @@ export function RaceChatPanel({
             </p>
           ) : null}
 
+          {emotes && onEmote ? (
+            <div className="emote-bar" role="group" aria-label="Tepki gönder">
+              {emotes.map((emote) => (
+                <button
+                  key={emote.key}
+                  type="button"
+                  className="emote-button"
+                  title={emote.label}
+                  aria-label={emote.label}
+                  onClick={() => onEmote(emote.key)}
+                >
+                  {emote.symbol}
+                </button>
+              ))}
+            </div>
+          ) : null}
+
           <form
             onSubmit={handleSubmit}
-            style={{ display: 'flex', gap: 'var(--space-xs)', padding: 'var(--space-xs)', borderTop: '1px solid var(--color-border)' }}
+            style={{
+              display: 'flex',
+              gap: 'var(--space-xs)',
+              padding: 'var(--space-xs)',
+              borderTop: '1px solid var(--color-border)',
+            }}
           >
             <input
               type="text"

@@ -54,12 +54,13 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import type { NotificationListResult, NotificationView } from '@at-sevdalisi/shared-types';
+import type { NotificationListResult, NotificationView, RaceCancelledReason } from '@at-sevdalisi/shared-types';
 import { GlassPanel } from '../../components/ui/GlassPanel';
 import { connectNotificationSocket } from '../../features/notifications/notification-socket';
 import { API_BASE_URL, apiClient, getAuthToken } from '../../lib/api-client';
 import { CURRENCY_LABELS, formatCurrency } from '../../lib/currency';
 import { usePlayer } from '../../lib/player-context';
+import { tribuneGiftName } from '../../features/grandstand/tribune-gifts';
 
 export default function NotificationsPage(): React.ReactElement {
   const { player, isLoading: isPlayerLoading, error: playerError, createPlayer } = usePlayer();
@@ -476,8 +477,112 @@ function describe(notification: NotificationView): { title: string; detail: stri
         detail: `Kazanılan ödül: ${formatCurrency('money', notification.payload.amount)}`,
         href: '/replays',
       };
+    // 02.10.2026 — müzayede. Yön metne değil türe bağlı; tutar hep pozitif.
+    case 'auction_outbid':
+      return {
+        title: `${notification.payload.horseName} müzayedesinde teklifin geçildi`,
+        detail: `${formatCurrency('money', notification.payload.amount)} hesabına iade edildi. Yeniden teklif için en az ${formatCurrency('money', notification.payload.minimumNextBid)}.`,
+        href: '/market',
+      };
+    case 'auction_won':
+      return {
+        title: `${notification.payload.horseName} müzayedesini kazandın`,
+        detail: `${formatCurrency('money', notification.payload.amount)} karşılığında at ahırında.`,
+        href: '/stable',
+      };
+    case 'auction_sold':
+      return {
+        title: `${notification.payload.horseName} müzayedede satıldı`,
+        detail: `${formatCurrency('money', notification.payload.amount)} hesabına geçti.`,
+        href: '/wallet',
+      };
+    case 'auction_unsold':
+      return {
+        title: `${notification.payload.horseName} müzayedesi satışsız bitti`,
+        detail: 'At sende kaldı; yeniden satışa çıkarabilirsin.',
+        href: '/market',
+      };
+    case 'auction_refunded':
+      return {
+        title: `${notification.payload.horseName} satışı gerçekleşemedi`,
+        detail: `Teklifin (${formatCurrency('money', notification.payload.amount)}) hesabına iade edildi.`,
+        href: '/wallet',
+      };
+    // 08.10.2026 — tribünden atına hediye.
+    case 'tribune_gift_received':
+      return {
+        title: `${notification.payload.displayName}, ${notification.payload.horseName} için ${tribuneGiftName(notification.payload.giftKey)} gönderdi`,
+        detail: `${notification.payload.raceName} · ${formatCurrency('money', notification.payload.amount)} hesabına geçti.`,
+        href: '/wallet',
+      };
+    // 08.10.2026 — sabit fiyatlı ilanın süresi doldu (at satılmadı).
+    case 'listing_expired':
+      return {
+        title: `${notification.payload.horseName || 'Atının'} ilanının süresi doldu`,
+        detail: `${formatCurrency('money', notification.payload.price)} fiyatlı ilan satılmadan kapandı; at sende. Yeniden satışa çıkarabilirsin.`,
+        href: '/market',
+      };
+    // 09.10.2026 — kulüp daveti (kabul/ret kulüp ekranında).
+    case 'club_invite':
+      return {
+        title: `${notification.payload.inviterName} seni ${notification.payload.clubName} kulübüne davet etti`,
+        detail: 'Kulüp ekranından kabul edebilir ya da reddedebilirsin.',
+        href: '/club',
+      };
+    // 15.10.2026 (Aşama 3) — yarış katılımı iptal edildi (iade deftere yazıldı).
+    case 'race_cancelled':
+      return {
+        title: `${notification.payload.raceName} — ${RACE_CANCELLED_TITLES[notification.payload.reason]}`,
+        detail:
+          notification.payload.refundedAmount > 0
+            ? `Giriş ücretin (${formatCurrency('money', notification.payload.refundedAmount)}) hesabına iade edildi.`
+            : 'Ödenmiş bir giriş ücretin yoktu; hesabından para düşmedi.',
+        href: '/races',
+      };
+    // 15.10.2026 — aygırın başka bir oyuncunun kısrağıyla tay verdi.
+    case 'stud_service':
+      return {
+        title: `${notification.payload.stallionName} bir tay verdi`,
+        detail:
+          notification.payload.amount > 0
+            ? `Damızlık payın (${formatCurrency('money', notification.payload.amount)}) hesabına geçti.`
+            : 'Bu çiftleştirmeden damızlık payı doğmadı.',
+        href: '/wallet',
+      };
+    // 16.10.2026 — gönderdiğin çip transferi tamamlandı (sosyal brief §8).
+    case 'gift_sent':
+      return {
+        title: `${notification.payload.displayName} kişisine ${formatCurrency(notification.payload.currency, notification.payload.amount)} gönderildi`,
+        detail: `İşlem tamamlandı · kalan bakiyen ${formatCurrency(notification.payload.currency, notification.payload.balanceAfter)}.`,
+        href: '/wallet',
+      };
+    // 16.10.2026 — davet ödülü.
+    case 'referral_reward':
+      return {
+        title:
+          notification.payload.role === 'inviter'
+            ? `Davet ödülü: ${notification.payload.otherName} davetinle katıldı`
+            : `Hoş geldin ödülü: ${notification.payload.otherName} seni davet etti`,
+        detail: `${formatCurrency('money', notification.payload.amount)} hesabına geçti.`,
+        href: '/invite',
+      };
+    // 16.10.2026 — arkadaşından çip hediyesi (brief §6.4).
+    case 'friend_gift_received':
+      return {
+        title: `${notification.payload.senderName} sana ${formatCurrency('money', notification.payload.amount)} hediye gönderdi`,
+        detail: 'Arkadaşlar ekranında "Tüm hediyeleri topla" ile hesabına geçir.',
+        href: '/friends',
+      };
   }
 }
+
+/** `race_cancelled` sebebinin başlığı — sunucunun `reason` kümesiyle BİREBİR (Record, eksik anahtar tsc hatası). */
+const RACE_CANCELLED_TITLES: Record<RaceCancelledReason, string> = {
+  not_enough_players: 'yeterli oyuncu katılmadığı için yarış iptal edildi',
+  not_ready: 'başlangıçta hazır olmadığın için yarıştan çıkarıldın',
+  insufficient_funds: 'başlangıçta bakiyen giriş ücretine yetmediği için yarıştan çıkarıldın',
+  admin: 'yarış yönetim tarafından iptal edildi',
+};
 
 /** Link etiketi — `describe` ile AYNI `switch` yerine tür bazlı tek satırlık eşleme. */
 function hrefLabel(notification: NotificationView): string {
@@ -486,13 +591,31 @@ function hrefLabel(notification: NotificationView): string {
     case 'friend_accepted':
     case 'gift_received':
     case 'message_received':
+    case 'friend_gift_received':
       return 'arkadaşlar ekranı →';
     case 'race_invite':
     case 'race_starting':
+    case 'race_cancelled':
       return 'yarışlar ekranı →';
     case 'race_finished':
     case 'prize_won':
       return 'yarış geçmişi →';
+    case 'auction_outbid':
+    case 'auction_unsold':
+    case 'listing_expired':
+      return 'pazar →';
+    case 'auction_won':
+      return 'ahır →';
+    case 'auction_sold':
+    case 'auction_refunded':
+    case 'tribune_gift_received':
+    case 'stud_service':
+    case 'gift_sent':
+      return 'cüzdan →';
+    case 'referral_reward':
+      return 'davet ekranı →';
+    case 'club_invite':
+      return 'kulüp →';
   }
 }
 

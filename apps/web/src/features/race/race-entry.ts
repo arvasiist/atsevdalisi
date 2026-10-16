@@ -25,7 +25,7 @@
  * Hazır olma kontrolü de öyle: sunucu reddederse (`409`) ekrandaki ipucu ne
  * derse desin yarış BAŞLAMAZ.
  */
-import { loadEconomyConfig, loadRaceConfig, type RaceTierConfig } from '@at-sevdalisi/game-config';
+import { loadEconomyConfig, loadHorseGrowthConfig, loadRaceConfig, type RaceTierConfig } from '@at-sevdalisi/game-config';
 import type { HorseStatus } from '@at-sevdalisi/shared-types';
 
 const economyConfig = loadEconomyConfig();
@@ -70,7 +70,10 @@ export function findRaceTier(tierId: string | null): RaceTierConfig | null {
  * hatası olarak `apps/api` testlerinde yakalanır.
  */
 function getTierShares(tier: RaceTierConfig): readonly number[] {
-  return economyConfig.prizeDistributions.find((distribution) => distribution.id === tier.distributionId)?.shares ?? [];
+  return (
+    economyConfig.prizeDistributions.find((distribution) => distribution.id === tier.distributionId)
+      ?.shares ?? []
+  );
 }
 
 /**
@@ -114,11 +117,88 @@ export function formatRakePercent(rake: number): string {
   return `%${Math.round(rake * 100)}`;
 }
 
+/**
+ * 14.10.2026 — PRATİK YARIŞ SINIFI (`apps/api/src/domain/race/practice-class.ts`).
+ * Kademe = sınıf: botlar kademenin güç aralığındadır ve gücü kademe tavanına
+ * ULAŞMIŞ at o kademeye giremez. Burası sunucudaki
+ * `isHorseAllowedInPracticeClass`ın ÖN İZLEMESİDİR (düğmeyi kilitler);
+ * kural sunucudadır. Güç bilinmiyorsa (eski yanıt) kademe kapatılmaz.
+ */
+export function findPracticeClass(tierId: string) {
+  return economyConfig.practiceRaceClasses.find((entry) => entry.tierId === tierId) ?? null;
+}
+
+export function isPracticeTierOpen(tierId: string, racingPower: number | undefined): boolean {
+  const practiceClass = findPracticeClass(tierId);
+  if (practiceClass === null || practiceClass.maxHorsePower === null || racingPower === undefined) {
+    return true;
+  }
+  return racingPower < practiceClass.maxHorsePower;
+}
+
+/** Seçili kademe ata kapalıysa, atın girebildiği İLK (en ucuz) kademe. */
+export function pickOpenPracticeTierId(
+  currentTierId: string | null,
+  racingPower: number | undefined,
+): string | null {
+  if (currentTierId !== null && isPracticeTierOpen(currentTierId, racingPower)) {
+    return currentTierId;
+  }
+  return RACE_TIERS.find((tier) => isPracticeTierOpen(tier.id, racingPower))?.id ?? null;
+}
+
+export function describePracticeClass(tierId: string): string | null {
+  const practiceClass = findPracticeClass(tierId);
+  if (practiceClass === null) {
+    return null;
+  }
+  const [low, high] = practiceClass.botStatRange;
+  const limit =
+    practiceClass.maxHorsePower === null
+      ? 'güç sınırı yok'
+      : `güç ${practiceClass.maxHorsePower} altı atlar`;
+  return `Rakipler güç ${low}–${high} · ${limit}`;
+}
+
+export function formatRacingPower(racingPower: number): string {
+  return racingPower.toFixed(1);
+}
+
+/**
+ * 15.10.2026 — at yorgun/enerjisizse sunucunun hesapladığı `raceReadyAt`
+ * (zamanla toparlanma) okunur metne çevrilir: "yaklaşık 35 dk sonra",
+ * "yaklaşık 2 sa 10 dk sonra". Süre geçtiyse "birazdan" (bir sonraki
+ * toparlanma turunda). Hesap sunucudadır; burada yalnızca biçim var.
+ */
+const MS_PER_MINUTE = 60_000;
+const MINUTES_PER_HOUR = 60;
+
+export function formatRaceReadyIn(raceReadyAt: string, now: Date): string {
+  const minutes = Math.ceil((new Date(raceReadyAt).getTime() - now.getTime()) / MS_PER_MINUTE);
+  if (!(minutes > 0)) {
+    return 'birazdan';
+  }
+  if (minutes < MINUTES_PER_HOUR) {
+    return `yaklaşık ${minutes} dk sonra`;
+  }
+  const hours = Math.floor(minutes / MINUTES_PER_HOUR);
+  const rest = minutes % MINUTES_PER_HOUR;
+  return rest === 0 ? `yaklaşık ${hours} sa sonra` : `yaklaşık ${hours} sa ${rest} dk sonra`;
+}
+
 /** `apps/api/src/domain/race/readiness.ts`'teki `RaceNotReadyReason` ile AYNI değerler. */
-export type RaceEntryBlocker = 'HORSE_NOT_ACTIVE' | 'INSUFFICIENT_HEALTH' | 'HORSE_TOO_TIRED' | 'INSUFFICIENT_ENERGY';
+export type RaceEntryBlocker =
+  | 'HORSE_NOT_ACTIVE'
+  | 'HORSE_TOO_YOUNG'
+  | 'INSUFFICIENT_HEALTH'
+  | 'HORSE_TOO_TIRED'
+  | 'INSUFFICIENT_ENERGY';
+
+const MONTHS_PER_YEAR = 12;
 
 export const RACE_ENTRY_BLOCKER_LABELS: Record<RaceEntryBlocker, string> = {
   HORSE_NOT_ACTIVE: 'At yarışabilir durumda değil',
+  HORSE_TOO_YOUNG: `Yarış yaşı (${raceConfig.readiness.minAgeMonths / MONTHS_PER_YEAR} yaş) dolmadı`,
   INSUFFICIENT_HEALTH: `Sağlık ${raceConfig.readiness.minHealth} altında`,
   HORSE_TOO_TIRED: `Yorgunluk ${raceConfig.readiness.maxFatigue} üstünde`,
   INSUFFICIENT_ENERGY: `Enerji ${raceConfig.readiness.minEnergy} altında`,
@@ -137,10 +217,15 @@ export function getRaceEntryBlocker(horse: {
   health: number;
   fatigue: number;
   energy: number;
+  /** 15.10.2026 — B12: sunucunun hesapladığı oyun yaşı; yoksa yaş önizlenmez (sunucu yine keser). */
+  ageMonths?: number;
 }): RaceEntryBlocker | null {
-  const { minHealth, maxFatigue, minEnergy } = raceConfig.readiness;
+  const { minHealth, maxFatigue, minEnergy, minAgeMonths } = raceConfig.readiness;
   if (horse.status !== 'active') {
     return 'HORSE_NOT_ACTIVE';
+  }
+  if (horse.ageMonths !== undefined && horse.ageMonths < minAgeMonths) {
+    return 'HORSE_TOO_YOUNG';
   }
   if (horse.health < minHealth) {
     return 'INSUFFICIENT_HEALTH';
@@ -152,4 +237,15 @@ export function getRaceEntryBlocker(horse: {
     return 'INSUFFICIENT_ENERGY';
   }
   return null;
+}
+
+const horseGrowthConfig = loadHorseGrowthConfig();
+
+/**
+ * 15.10.2026 — B12: tay yarış yaşına kaç GERÇEK gün sonra gelir (oyun yaşı
+ * `gameMonthsPerRealDay` ile akar). Yaşını doldurmuş atta 0.
+ */
+export function daysUntilRaceAge(ageMonths: number): number {
+  const missing = raceConfig.readiness.minAgeMonths - ageMonths;
+  return missing <= 0 ? 0 : Math.ceil(missing / horseGrowthConfig.gameMonthsPerRealDay);
 }

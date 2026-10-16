@@ -57,7 +57,10 @@ export interface CameraDirectorInput {
  * (çok kısa mesafeli yarış) durumunda START önceliklidir, çünkü start
  * gerçekte daha erken gerçekleşen bir event'tir.
  */
-export function classifyRaceCameraEvent(input: CameraDirectorInput, config: CameraConfig): RaceCameraEvent {
+export function classifyRaceCameraEvent(
+  input: CameraDirectorInput,
+  config: CameraConfig,
+): RaceCameraEvent {
   if (input.isFinished) {
     return 'finish';
   }
@@ -86,6 +89,9 @@ const EVENT_TO_CAMERA_MODE: Record<RaceCameraEvent, CameraMode> = {
 };
 
 /** `classifyRaceCameraEvent` + event→mod eşlemesi — Camera Director'ın tek genel amaçlı girişi. */
-export function selectAutomaticCameraMode(input: CameraDirectorInput, config: CameraConfig): CameraMode {
+export function selectAutomaticCameraMode(
+  input: CameraDirectorInput,
+  config: CameraConfig,
+): CameraMode {
   return EVENT_TO_CAMERA_MODE[classifyRaceCameraEvent(input, config)];
 }

@@ -28,6 +28,23 @@ export interface PlayerCredentialsRepository {
    * başarılıysa oyuncu kimliği.
    */
   consumeResetToken(input: { tokenHash: string; now: Date; passwordHash: string }): Promise<string | null>;
+
+  /** E-POSTA DOĞRULAMA (migration 0058) — kayıtlı e-posta ve doğrulanma anı; misafirde `null`. */
+  findVerificationState(playerId: string): Promise<{ email: string; verifiedAt: Date | null } | null>;
+
+  /** Oyuncunun en son doğrulama bağlantısının oluşturulma anı; yoksa `null`. */
+  findLatestVerificationRequestAt(playerId: string): Promise<Date | null>;
+
+  /** Yeni doğrulama bağlantısı — yalnızca ÖZETİ ve hedef e-posta saklanır. */
+  createVerificationToken(input: { playerId: string; email: string; tokenHash: string; expiresAt: Date }): Promise<void>;
+
+  /**
+   * Bağlantıyı TEK transaction'da tüketir (`FOR UPDATE`): kullanılmamış,
+   * süresi dolmamış VE hesabın ŞU ANKİ e-postasıyla eşleşen bir satır
+   * varsa `email_verified_at`ı yazar ve oyuncunun bekleyen tüm
+   * bağlantılarını kullanılmış sayar. Geçersizse `null`.
+   */
+  consumeVerificationToken(input: { tokenHash: string; now: Date }): Promise<string | null>;
 }
 
 export const PLAYER_CREDENTIALS_REPOSITORY = Symbol('PLAYER_CREDENTIALS_REPOSITORY');

@@ -9,5 +9,15 @@
   "pendingInvitesLimit": 25,
   "notificationPreviewLength": 120,
   "blockListLimit": 200,
-  "reportReasonMaxLength": 500
+  "reportReasonMaxLength": 500,
+  "raceCompanionsLimit": 50,
+  "playerSearch": {
+    "minQueryLength": 3,
+    "limit": 20
+  },
+  "presence": {
+    "heartbeatSeconds": 60,
+    "onlineWindowSeconds": 150,
+    "touchMinIntervalSeconds": 30
+  }
 }

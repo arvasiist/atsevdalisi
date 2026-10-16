@@ -1,7 +1,13 @@
 import { Inject, Injectable } from '@nestjs/common';
-import type { SendGiftResult } from '@at-sevdalisi/shared-types';
+import type { GiftQuotaView, SendGiftResult } from '@at-sevdalisi/shared-types';
 import { GiftRequiresFriendshipError } from '../../domain/gift/errors';
-import { assertGiftConfigIsValid, assertNotSelfGift, resolveGiftCurrency } from '../../domain/gift/gift';
+import {
+  assertGiftConfigIsValid,
+  assertNotSelfGift,
+  effectiveGiftAllowance,
+  giftableBalance,
+  resolveGiftCurrency,
+} from '../../domain/gift/gift';
 import { parseGiftAmount } from '../../domain/gift/validation';
 import { PlayerNotFoundError } from '../../domain/player/errors';
 import { canonicalPair } from '../../domain/social/friendship';
@@ -10,6 +16,8 @@ import { AppConfigService } from '../../infrastructure/config/config.service';
 import { GIFT_REPOSITORY, type GiftRepository } from '../ports/gift.repository';
 import { PLAYER_REPOSITORY, type PlayerRepository } from '../ports/player.repository';
 import { SOCIAL_REPOSITORY, type SocialRepository } from '../ports/social.repository';
+
+const MS_PER_DAY = 86_400_000;
 
 /**
  * Hediye gönderme (proje sahibinin açık talebi, 27.09.2026 — üç parçanın
@@ -98,6 +106,8 @@ export class SendGiftUseCase {
       dailyWindowHours: giftConfig.dailyWindowHours,
       allowedCurrencies: giftConfig.allowedCurrencies,
       idempotencyKey,
+      amountLimits: giftConfig,
+      purchasedChipsGiftable: this.config.store.purchasedChipsGiftable,
     });
 
     return {
@@ -106,6 +116,38 @@ export class SendGiftUseCase {
       amount,
       recipient: execution.recipient,
       senderBalance: execution.senderBalance,
+    };
+  }
+
+  /**
+   * 16.10.2026 — `GET /players/:id/gifts/quota`: onay ekranının gösterdiği
+   * hak (hazır tutarlar, işlem başı tavan, bugün kalan, gönderilebilir bakiye).
+   * Kapıyla AYNI fonksiyonlar (`effectiveGiftAllowance`, `giftableBalance`);
+   * alıcının günlük tavanı alıcıya bağlı olduğundan burada değil, gönderimde denetlenir.
+   */
+  async quota(playerId: string, now: Date = new Date()): Promise<GiftQuotaView> {
+    const giftConfig = this.config.gift;
+    const facts = await this.giftRepository.findGiftQuota(playerId, giftConfig.dailyWindowHours);
+    if (facts === null) throw new PlayerNotFoundError(playerId);
+    const allowance = effectiveGiftAllowance(giftConfig, {
+      sentAmount: facts.sentAmount,
+      senderAccountAgeDays: (now.getTime() - facts.accountCreatedAt.getTime()) / MS_PER_DAY,
+    });
+    const purchasedNet = this.config.store.purchasedChipsGiftable ? 0 : facts.purchasedNet;
+    return {
+      currency: 'money',
+      minAmount: giftConfig.minAmount,
+      maxAmount: allowance.maxAmount,
+      presetAmounts: giftConfig.presetAmounts.filter((preset) => preset <= allowance.maxAmount),
+      dailyCountLimit: giftConfig.dailyLimit,
+      sentCountToday: facts.sentCount,
+      dailyAmountLimit: allowance.dailyAmountLimit,
+      sentAmountToday: facts.sentAmount,
+      remainingAmountToday: allowance.remainingToday,
+      newAccountLimited: allowance.newAccountLimited,
+      balance: facts.balance,
+      giftableBalance: giftableBalance(facts.balance, purchasedNet),
+      purchasedChipsLocked: Math.max(0, Math.min(facts.balance, purchasedNet)),
     };
   }
 }

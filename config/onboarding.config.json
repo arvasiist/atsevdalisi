@@ -1,0 +1,46 @@
+{
+  "steps": [
+    {
+      "key": "care",
+      "title": "Atına bakım yap",
+      "hint": "Ahırda \"Bakım\" simgesine dokun: tımar, dinlendirme ya da veteriner kontrolü atını yarışa hazırlar.",
+      "href": "/stable?panel=care"
+    },
+    {
+      "key": "train",
+      "title": "İlk antrenmanı yap",
+      "hint": "Antrenman statları potansiyele doğru büyütür; yorgunluğa dikkat et.",
+      "href": "/training"
+    },
+    {
+      "key": "jockey",
+      "title": "Bir jokey kirala",
+      "hint": "Jokeyin becerisi yarışta atına eşlik eder. Ahırın altındaki jokey panelinden seç.",
+      "href": "/stable#jockey"
+    },
+    {
+      "key": "race",
+      "title": "İlk yarışını koş",
+      "hint": "Pratik yarışta atına uygun sınıfı seç; botlar o sınıfın gücündedir.",
+      "href": "/races"
+    },
+    {
+      "key": "daily_reward",
+      "title": "Günlük ödülünü al",
+      "hint": "Her gün cüzdandan ücretsiz çip alabilirsin.",
+      "href": "/wallet"
+    },
+    {
+      "key": "quest_reward",
+      "title": "Bir görev ödülü al",
+      "hint": "Günlük ve haftalık görevler oynadıkça dolar; tamamlananın ödülünü al.",
+      "href": "/quests"
+    },
+    {
+      "key": "lobby_race",
+      "title": "Çok oyunculu bir yarışı bitir",
+      "hint": "Lobide bir yarışa katıl ve \"Hazırım\" de; ücretli yarış en az iki gerçek oyuncuyla koşar.",
+      "href": "/races"
+    }
+  ]
+}

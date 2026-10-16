@@ -1,11 +1,28 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Inject, Param, ParseUUIDPipe, Post, UseGuards } from '@nestjs/common';
-import type { ApiSuccess, HorseEquipment } from '@at-sevdalisi/shared-types';
-import { CreateHorseEquipmentUseCase } from '../../application/use-cases/create-horse-equipment.use-case';
+import {
+  Body,
+  Controller,
+  Get,
+  Headers,
+  HttpCode,
+  HttpStatus,
+  Inject,
+  Param,
+  ParseUUIDPipe,
+  Post,
+  UseGuards,
+  UseInterceptors,
+} from '@nestjs/common';
+import type { ApiSuccess, HorseEquipment, PurchaseHorseEquipmentResult } from '@at-sevdalisi/shared-types';
 import { EquipHorseEquipmentUseCase } from '../../application/use-cases/equip-horse-equipment.use-case';
 import { ListHorseEquipmentUseCase } from '../../application/use-cases/list-horse-equipment.use-case';
+import { PurchaseHorseEquipmentUseCase } from '../../application/use-cases/purchase-horse-equipment.use-case';
 import { UnequipHorseEquipmentUseCase } from '../../application/use-cases/unequip-horse-equipment.use-case';
 import { HorseOwnerGuardByParam } from '../auth/horse-owner.guard';
-import { CreateHorseEquipmentDto } from './dto/create-horse-equipment.dto';
+import { CurrentPlayer, type AuthenticatedPlayer } from '../auth/current-player.decorator';
+import { IdempotencyInterceptor } from '../idempotency/idempotency.interceptor';
+import { IdempotencyScope } from '../idempotency/idempotency-scope.decorator';
+import { RateLimit } from '../rate-limit/rate-limit.decorator';
+import { PurchaseHorseEquipmentDto } from './dto/purchase-horse-equipment.dto';
 
 /**
  * docs/API.md §4 Horses (Ahır) — Ekipman (brief §14/§17,
@@ -27,7 +44,7 @@ import { CreateHorseEquipmentDto } from './dto/create-horse-equipment.dto';
 @Controller('horses')
 export class EquipmentController {
   constructor(
-    @Inject(CreateHorseEquipmentUseCase) private readonly createHorseEquipmentUseCase: CreateHorseEquipmentUseCase,
+    @Inject(PurchaseHorseEquipmentUseCase) private readonly purchaseHorseEquipmentUseCase: PurchaseHorseEquipmentUseCase,
     @Inject(ListHorseEquipmentUseCase) private readonly listHorseEquipmentUseCase: ListHorseEquipmentUseCase,
     @Inject(EquipHorseEquipmentUseCase) private readonly equipHorseEquipmentUseCase: EquipHorseEquipmentUseCase,
     @Inject(UnequipHorseEquipmentUseCase) private readonly unequipHorseEquipmentUseCase: UnequipHorseEquipmentUseCase,
@@ -40,22 +57,27 @@ export class EquipmentController {
     return { success: true, data: items };
   }
 
-  // Yeni bir ekipman parçası, yeni bir KAYNAK yaratır (`PlayerController`nin
-  // `/players` KAYIT ile AYNI kategori) — bu yüzden `TrainingController.train`'in
-  // AKSİNE (günceller, 200 döner) NestJS'in POST için varsayılanı olan
-  // 201 Created BİLEREK KORUNUR.
+  // KATALOGDAN ALIM (08.10.2026) — yeni bir KAYNAK yaratır, 201 Created.
+  // PARA YOLU: `Idempotency-Key` ZORUNLU (yanıt ağda kaybolursa tekrar ikinci
+  // parçayı ALMASIN) + `@RateLimit`. Gövdede yalnızca `catalogKey`.
+  @RateLimit({ name: 'equipment-purchase', limit: 20, windowSeconds: 60, keyBy: 'player' })
+  @IdempotencyScope('player')
   @UseGuards(HorseOwnerGuardByParam)
   @Post(':id/equipment')
-  async create(
+  @UseInterceptors(IdempotencyInterceptor)
+  async purchase(
     @Param('id', ParseUUIDPipe) id: string,
-    @Body() dto: CreateHorseEquipmentDto,
-  ): Promise<ApiSuccess<HorseEquipment>> {
-    const item = await this.createHorseEquipmentUseCase.execute(id, {
-      equipmentType: dto.equipmentType,
-      name: dto.name,
-      quality: dto.quality,
-    });
-    return { success: true, data: item };
+    @Body() dto: PurchaseHorseEquipmentDto,
+    @Headers('Idempotency-Key') idempotencyKey: string | undefined,
+    @CurrentPlayer() player: AuthenticatedPlayer,
+  ): Promise<ApiSuccess<PurchaseHorseEquipmentResult>> {
+    const result = await this.purchaseHorseEquipmentUseCase.execute(
+      player.id,
+      id,
+      dto?.catalogKey,
+      idempotencyKey ?? null,
+    );
+    return { success: true, data: result };
   }
 
   // Kuşanma/çıkarma yeni bir KAYNAK yaratmaz (yalnızca var olan bir

@@ -1,5 +1,5 @@
 {
-  "version": "1.4.0",
+  "version": "1.5.0",
   "volumeChannels": {
     "master": 1,
     "music": 1,
@@ -11,7 +11,8 @@
   },
   "hoofbeat": {
     "baseVolume": 0.35,
-    "maxExtraVolume": 0.35
+    "maxExtraVolume": 0.35,
+    "referenceSpeedMps": 18
   },
   "horseBreathing": {
     "baseVolume": 0.15,
@@ -42,5 +43,8 @@
   "hoofSprint": {
     "speedRatioThreshold": 0.9,
     "layerVolume": 0.28
-  }
+  },
+  "crowdExcitementMinFactor": 0.45,
+  "stableAmbienceVolume": 0.35,
+  "overtakeCooldownMs": 2500
 }

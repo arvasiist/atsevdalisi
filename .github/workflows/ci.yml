@@ -115,3 +115,122 @@ jobs:
 
       - name: Build
         run: npm run build
+
+      # 02.10.2026 (Faz 7) — YÜK TESTİ (bütçe kapısı). Derlenmiş API'ye karşı
+      # (hız sınırı bu işte zaten kapalı: ölçülen sunucu, sınırlayıcı değil).
+      # Bütçe `config/ops.config.json` → `loadTest`; aşılırsa adım kırılır.
+      # CI makinesi yavaş olabilir diye kullanıcı sayısı yerel ölçümün altında.
+      - name: Load test (budget gate)
+        run: |
+          (cd apps/api && PORT=4100 node dist/main.js > /tmp/api-load.log 2>&1 &)
+          for i in $(seq 1 60); do curl -sf http://localhost:4100/api/v1/health > /dev/null && break; sleep 1; done
+          node tools/ops/load-test.mjs http://localhost:4100/api/v1 --users 15 --iterations 4 || (tail -50 /tmp/api-load.log; exit 1)
+
+      # 02.10.2026 (Faz 13-C) — YEDEK / GERİ YÜKLEME PROVASI. Testlerin
+      # bıraktığı GERÇEK veriyle: yedek → geçici boş veritabanına geri
+      # yükleme → parmak izi karşılaştırması (satır sayıları, migration
+      # listesi, defter özeti, bakiye toplamı). ubuntu-24.04 görüntüsü
+      # PostgreSQL 16 istemcisini taşır (sunucuyla aynı ana sürüm).
+      - name: Backup / restore drill
+        run: |
+          pg_dump --version
+          tools/ops/backup-drill.sh
+
+  # 02.10.2026 (Faz 13-A) — GÜVENLİK TARAMASI.
+  # (1) Bağımlılık kapısı: YÜKSEK/KRİTİK her danışman
+  #     `security/audit-allowlist.json`da gerekçeli + süresi dolmamış bir
+  #     kayıt ister; yeni açık ya da süresi dolan izin CI'ı kırar.
+  # (2) Gizli anahtar taraması: tüm git geçmişi gitleaks ile taranır;
+  #     incelenmiş yanlış pozitifler `.gitleaksignore`da. İkili sürüm
+  #     sabitlenir ve SHA-256 ile doğrulanır.
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+      - name: Dependency audit gate
+        run: node tools/security/audit-gate.mjs
+      - name: Install gitleaks (pinned + SHA-256)
+        env:
+          GITLEAKS_VERSION: 8.24.3
+          GITLEAKS_SHA256: 9991e0b2903da4c8f6122b5c3186448b927a5da4deef1fe45271c3793f4ee29c
+        run: |
+          curl -sSfL -o "$RUNNER_TEMP/gitleaks.tgz" "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          echo "${GITLEAKS_SHA256}  $RUNNER_TEMP/gitleaks.tgz" | sha256sum -c -
+          tar xzf "$RUNNER_TEMP/gitleaks.tgz" -C "$RUNNER_TEMP" gitleaks
+          "$RUNNER_TEMP/gitleaks" version
+      # Bulgular (değerler REDAKTE) annotation olarak da yazılır — log'a
+      # erişemeyen biri de neyin, nerede bulunduğunu görebilsin.
+      - name: Secret scan (gitleaks)
+        run: |
+          set +e
+          "$RUNNER_TEMP/gitleaks" git --no-banner --redact --exit-code 1 \
+            --report-format json --report-path "$RUNNER_TEMP/gitleaks.json" .
+          code=$?
+          set -e
+          if [ -s "$RUNNER_TEMP/gitleaks.json" ]; then
+            node -e '
+              const findings = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+              for (const f of findings) {
+                console.log(`::error file=${f.File},line=${f.StartLine}::gitleaks ${f.RuleID} (commit ${f.Commit.slice(0, 8)}, fingerprint ${f.Fingerprint})`);
+              }
+              console.log(`::notice::gitleaks bulgu sayısı: ${findings.length}`);
+            ' "$RUNNER_TEMP/gitleaks.json"
+          fi
+          echo "::notice::gitleaks çıkış kodu: $code"
+          exit $code
+
+  # 02.10.2026 (Faz 13-A) — imajlar her değişiklikte DERLENİR (gönderilmez).
+  # Duman testi: API imajı üretim modunda ortam değişkenleri olmadan
+  # AÇILMAYI REDDETMELİDİR (production-env.ts) — imaj hem çalışır hem de
+  # güvensiz yapılandırmayla canlıya çıkamaz.
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build API image
+        run: docker build -f apps/api/Dockerfile -t at-sevdalisi-api .
+      - name: Build migrate image
+        run: docker build -f apps/api/Dockerfile --target migrate -t at-sevdalisi-migrate .
+      - name: Build web image
+        run: docker build -f apps/web/Dockerfile --build-arg NEXT_PUBLIC_API_URL=https://api.example.invalid/api/v1 -t at-sevdalisi-web .
+      - name: API image refuses to start without production env
+        run: |
+          set +e
+          output=$(docker run --rm at-sevdalisi-api 2>&1)
+          code=$?
+          set -e
+          echo "$output"
+          # Log'a erişemeyen de görsün: son satırlar annotation olarak.
+          echo "$output" | tail -5 | while IFS= read -r line; do echo "::notice::smoke: ${line}"; done
+          test "$code" -ne 0
+          echo "$output" | grep -q "\[ortam\] HATA: JWT_SECRET"
+      # 02.10.2026 (Faz 13-C) — STAGING YIĞINI: postgres + redis + migrate +
+      # api + web ÜRETİM modunda, ardından uçtan uca duman testi.
+      - name: Staging stack up
+        run: |
+          {
+            echo "POSTGRES_USER=at_sevdalisi"
+            echo "POSTGRES_PASSWORD=$(openssl rand -hex 16)"
+            echo "POSTGRES_DB=at_sevdalisi"
+            echo "JWT_SECRET=$(openssl rand -base64 48 | tr -d '\n')"
+            echo "PUBLIC_WEB_URL=https://staging.example.invalid"
+            echo "PUBLIC_API_URL=http://localhost:4000/api/v1"
+          } > "$RUNNER_TEMP/staging.env"
+          docker compose -f docker-compose.staging.yml --env-file "$RUNNER_TEMP/staging.env" up -d --build --wait --wait-timeout 300
+      - name: Staging smoke test
+        run: node tools/ops/smoke.mjs http://localhost:4000/api/v1 http://localhost:3000
+      - name: Staging logs on failure
+        if: failure()
+        run: |
+          docker compose -f docker-compose.staging.yml --env-file "$RUNNER_TEMP/staging.env" ps -a || true
+          docker compose -f docker-compose.staging.yml --env-file "$RUNNER_TEMP/staging.env" logs --no-color --tail 15 2>&1 \
+            | tail -40 | while IFS= read -r line; do echo "::notice::staging: ${line}"; done
+

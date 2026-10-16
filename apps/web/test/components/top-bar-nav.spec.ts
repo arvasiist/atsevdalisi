@@ -1,7 +1,8 @@
-import { readdirSync, existsSync } from 'node:fs';
+import { readdirSync, existsSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { NAV_LINKS } from '../../src/components/layout/nav-links';
+import { MAX_MOBILE_TABS, NAV_LINKS, TOP_UP_HREF } from '../../src/components/layout/nav-links';
+import { HOME_FOR_PLAYERS } from '../../src/features/home/home-route';
 
 /**
  * `TopBar`'ın gezinti şeridi (28.09.2026) — KIRIK BAĞLANTI KİLİDİ.
@@ -96,13 +97,20 @@ describe('TopBar gezinti şeridi', () => {
     // Bu, testin asıl iddiasıdır: 404'e götüren bir bağlantı, hiç
     // olmayan bir bağlantıdan DAHA KÖTÜDÜR — kullanıcıya çalıştığı
     // izlenimini verir.
-    for (const [href] of NAV_LINKS) {
+    for (const { href } of NAV_LINKS) {
       expect(STATIC_ROUTES.has(href), `Sayfası olmayan gezinti bağlantısı: ${href}`).toBe(true);
     }
   });
 
+  it('bakiye yanındaki "+" düğmeleri gerçek sayfalara gider (çip ve elmas paketleri → mağaza)', () => {
+    expect(TOP_UP_HREF).toEqual({ money: '/store', gems: '/store' });
+    for (const href of Object.values(TOP_UP_HREF)) {
+      expect(STATIC_ROUTES.has(href), `Sayfası olmayan "+" bağlantısı: ${href}`).toBe(true);
+    }
+  });
+
   it('şeritte aynı yol İKİ KEZ yoktur (React `key` çakışması ve yanlış "aktif" işaretlemesi)', () => {
-    const hrefs = NAV_LINKS.map(([href]) => href);
+    const hrefs = NAV_LINKS.map(({ href }) => href);
     expect(new Set(hrefs).size).toBe(hrefs.length);
   });
 
@@ -112,13 +120,13 @@ describe('TopBar gezinti şeridi', () => {
     // yorumu). Liste BÜYÜR: her yeni ekran buraya bir satır ekler, yoksa
     // sayfa derlenir, testler geçer ve kullanıcı ona HİÇ ULAŞAMAZ.
     for (const href of ['/notifications', '/wallet']) {
-      expect(NAV_LINKS.map(([linkHref]) => linkHref)).toContain(href);
+      expect(NAV_LINKS.map(({ href: linkHref }) => linkHref)).toContain(href);
       expect(STATIC_ROUTES.has(href), `Şeritte olmayan sayfa: ${href}`).toBe(true);
     }
   });
 
   it('şeritte HİÇBİR bağlantı boş etiket taşımaz', () => {
-    for (const [href, label] of NAV_LINKS) {
+    for (const { href, label } of NAV_LINKS) {
       expect(label.trim().length, `Boş etiket: ${href}`).toBeGreaterThan(0);
     }
   });
@@ -137,6 +145,40 @@ describe('TopBar gezinti şeridi', () => {
    */
   it('yönetim paneli VARDIR ama gezinti şeridine KONMAZ (yönetici olmayana 403)', () => {
     expect(STATIC_ROUTES.has('/admin'), '/admin sayfası yok').toBe(true);
-    expect(NAV_LINKS.map(([href]) => href)).not.toContain('/admin');
+    expect(NAV_LINKS.map(({ href }) => href)).not.toContain('/admin');
+  });
+
+  it('telefonda alt sekme çubuğuna en fazla MAX_MOBILE_TABS bağlantı girer (beşinci yuva "Menü")', () => {
+    const tabs = NAV_LINKS.filter((link) => link.mobileTab === true);
+    expect(tabs.length).toBeGreaterThan(0);
+    expect(tabs.length).toBeLessThanOrEqual(MAX_MOBILE_TABS);
+  });
+
+  it('brief §3.2: üst menüde YALNIZCA Ana Sayfa, Ahır, Antrenman, Bakım (bu sırayla); telefonda aynı dört sekme', () => {
+    const primary = NAV_LINKS.filter((link) => link.placement === 'primary').map((link) => link.label);
+    expect(primary).toEqual(['Ana Sayfa', 'Ahır', 'Antrenman', 'Bakım']);
+    const tabs = NAV_LINKS.filter((link) => link.mobileTab === true).map((link) => link.label);
+    expect(tabs).toEqual(primary);
+    // Diğer bölümler kaybolmadı: "Daha fazla"/"Menü"de, Yarışlar başta.
+    const more = NAV_LINKS.filter((link) => link.placement === 'more').map((link) => link.href);
+    expect(more[0]).toBe('/races');
+    for (const href of ['/market', '/friends', '/leaderboard', '/grandstand', '/account', '/store', '/wallet']) {
+      expect(more).toContain(href);
+    }
+  });
+
+  it('Bakım bağlantısı ahırın bakım paneline yönlenir (ayrı sayfa değil)', () => {
+    const care = readFileSync(join(APP_DIR, 'care', 'page.tsx'), 'utf8');
+    expect(care).toMatch(/redirect\(stableActionHref\('care'\)\)/);
+    // Ahırdayken de çalışsın: panel sorgu dizesi DEĞİŞİNCE okunur (yalnızca ilk yüklemede değil).
+    const stable = readFileSync(join(APP_DIR, 'stable', 'page.tsx'), 'utf8');
+    expect(stable).toMatch(/useSearchParams\(\)/);
+  });
+
+  it('brief §3.1: hesabı olan oyuncunun ana sayfası ahırdır', () => {
+    expect(HOME_FOR_PLAYERS).toBe('/stable');
+    expect(STATIC_ROUTES.has(HOME_FOR_PLAYERS)).toBe(true);
+    const home = readFileSync(join(APP_DIR, '(dashboard)', 'page.tsx'), 'utf8');
+    expect(home).toMatch(/router\.replace\(HOME_FOR_PLAYERS\)/);
   });
 });

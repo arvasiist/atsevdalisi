@@ -9,7 +9,11 @@ import type {
 import { expireListingIfNeeded, purchaseListing } from '../../domain/market/market';
 import { HorseInActiveRaceError, HorseNotFoundError } from '../../domain/horse/errors';
 import { PlayerNotFoundError } from '../../domain/player/errors';
-import { ListingNotFoundError, ListingStaleOwnerError } from '../../domain/market/errors';
+import {
+  ListingIsAuctionError,
+  ListingNotFoundError,
+  ListingStaleOwnerError,
+} from '../../domain/market/errors';
 import { assertCanAddHorseToStable, getStableCapacity } from '../../domain/stable/stable';
 import { AppConfigService } from '../config/config.service';
 import { PG_POOL, withTransaction } from '../database/database.module';
@@ -106,6 +110,12 @@ export class PostgresMarketPurchaseRepository implements MarketPurchaseRepositor
       // kilitli olduğundan süpürme burada GÜVENLE ve AYNI transaction
       // içinde atomik olarak persist edilebilir — eski koddaki AYRI,
       // global sorguya bile gerek YOK.
+      // 02.10.2026 — müzayede "hemen al" ile satın alınamaz; süresi dolsa
+      // bile burada `expired` YAPILMAZ (teklif emaneti varsa onu kapanış iade
+      // eder ya da satıcıya aktarır).
+      if (fetchedListing.listingType === 'auction') {
+        throw new ListingIsAuctionError(fetchedListing.id);
+      }
       const listing = expireListingIfNeeded(fetchedListing);
       if (listing.status !== fetchedListing.status) {
         await client.query('UPDATE market_listings SET status = $2 WHERE id = $1', [listing.id, listing.status]);

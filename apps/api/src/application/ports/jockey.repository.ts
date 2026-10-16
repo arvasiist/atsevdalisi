@@ -1,4 +1,6 @@
 import type { Jockey } from '@at-sevdalisi/shared-types';
+import type { JockeyRideHistory } from '../../domain/jockey/condition';
+import type { JockeyCandidate } from '../../domain/jockey/market';
 
 /**
  * `JockeyRepository` — Application katmanının Infrastructure'a bağlandığı
@@ -28,6 +30,15 @@ export interface JockeyRepository {
    */
   findAvailable(): Promise<Jockey[]>;
 
+  /**
+   * 14.10.2026 — vitrin ARZI. Tek bir pazar kilidi (transaction düzeyinde
+   * advisory lock) altında kiralamaya açık jokeyleri yeniden okur, `build`
+   * eksik bantlar için adayları üretir ve hepsi aynı transaction'da yazılır.
+   * Kilit, eşzamanlı iki vitrin isteğinin aynı eksiği İKİ KEZ üretmesini
+   * engeller. Dönen sayı yazılan jokey sayısıdır.
+   */
+  refillMarket(build: (available: Jockey[]) => JockeyCandidate[]): Promise<number>;
+
   findById(jockeyId: string): Promise<Jockey | null>;
 
   /**
@@ -40,6 +51,13 @@ export interface JockeyRepository {
    * bir liste döndürmek, "hangisi koşacak" sorusunu cevapsız bırakırdı.
    */
   findByOwnerId(ownerId: string): Promise<Jockey | null>;
+
+  /**
+   * 08.10.2026 — jokeyin son binişleri (form) ve `now`dan geriye
+   * `windowHours` içindeki biniş sayısı (yorgunluk). Yalnızca BİTMİŞ yarış
+   * ve iptal edilmemiş katılım sayılır; `now` sonrası yarış sayılmaz.
+   */
+  findRideHistory(jockeyId: string, now: Date, sampleSize: number, windowHours: number): Promise<JockeyRideHistory>;
 
   /**
    * **PARA YOLU.** Jokeyi kiralar: `jockeys.salary` tutarını oyuncudan

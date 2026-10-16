@@ -1,6 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import {
   loadAdminConfig,
+  loadBreedsConfig,
+  loadHippodromesConfig,
+  loadEquipmentConfig,
+  loadAvatarConfig,
+  loadOnboardingConfig,
+  loadCosmeticsConfig,
   loadCareConfig,
   loadChatConfig,
   loadEconomyConfig,
@@ -9,6 +15,9 @@ import {
   loadGiftConfig,
   loadGrandstandConfig,
   loadHorseGrowthConfig,
+  loadHorseAppearanceConfig,
+  loadHorsePersonalityConfig,
+  loadInteractiveRaceConfig,
   loadJockeyConfig,
   loadOnlineConfig,
   loadAuthConfig,
@@ -17,9 +26,33 @@ import {
   loadRaceLobbyConfig,
   loadSocialConfig,
   loadStableConfig,
+  loadStaffConfig,
   loadTrainingConfig,
   loadWeatherConfig,
+  loadStoreConfig,
+  loadReferralConfig,
 } from '@at-sevdalisi/game-config';
+import { validateBreedsConfig } from '../../domain/horse/breeds';
+import { validateHippodromesConfig } from '../../domain/race/hippodrome';
+import { validateHorseLevelBrackets } from '../../domain/race/level-bracket';
+import { validateFriendGiftConfig } from '../../domain/social/friend-gift';
+import { validatePresenceConfig } from '../../domain/social/presence';
+import { validateReferralConfig } from '../../domain/social/referral';
+import { validateGiftAmountLimits } from '../../domain/gift/gift';
+import { validateGemPolicy } from '../../domain/economy/gem-policy';
+import { validateCosmeticsConfig } from '../../domain/cosmetics/cosmetics';
+import { validateTribuneGiftsConfig } from '../../domain/grandstand/tribune-gift';
+import { validateEquipmentConfig } from '../../domain/equipment/catalog';
+import { validateHorsePersonalityConfig } from '../../domain/horse/personality';
+import { validateJockeyConditionConfig } from '../../domain/jockey/condition';
+import { validateJockeyMarketConfig } from '../../domain/jockey/market';
+import { validatePracticeRaceClasses } from '../../domain/race/practice-class';
+import { validateRaceConditionConfig } from '../../domain/care/race-condition';
+import { validateHorseGrowthConfig } from '../../domain/horse/age-curve';
+import { assertBreedingConfigIsValid } from '../../domain/breeding/breeding';
+import { validateRaceTiers } from '../../domain/race/prize';
+import { validateFieldRulesConfig } from '../../domain/race/field-rule';
+import { validateOnboardingConfig } from '../../domain/onboarding/onboarding';
 
 /**
  * Ortam değişkenleri + oyun dengesi config'lerine tek noktadan erişim.
@@ -35,11 +68,8 @@ export class AppConfigService {
     redisUrl: process.env.REDIS_URL ?? '',
     jwtSecret: process.env.JWT_SECRET ?? '',
     idempotencyKeyTtlSeconds: Number(process.env.IDEMPOTENCY_KEY_TTL_SECONDS ?? 86400),
-    // AUDIT_REPORT.md Bulgu S1 hardening (bu oturum) — brief §41/§50
-    // Google/Apple Sign-In. Bizim KENDİ oturum JWT'imizin geçerlilik
-    // süresi (`TokenService.sign`, bkz. o dosyanın doc yorumu) —
-    // sağlayıcı ID token'larının kendi süreleriyle İLGİSİZDİR.
-    jwtExpiresInSeconds: Number(process.env.JWT_EXPIRES_IN_SECONDS ?? 60 * 60 * 24 * 30),
+    // 02.10.2026 — erişim token'ı ömrü artık `auth.session.accessTokenTtlSeconds`
+    // (config); eski `JWT_EXPIRES_IN_SECONDS` (30 gün, iptal edilemez) KALDIRILDI.
     // Google Cloud Console'da oluşturulan OAuth 2.0 Client ID (Web/iOS/
     // Android türlerinden en az biri) — `google-auth-library`'nin
     // `verifyIdToken` audience kontrolü için ZORUNLUDUR. Proje sahibi
@@ -137,4 +167,118 @@ export class AppConfigService {
   // 20 puan daha güçlü görünür ve bu hiçbir yerde hata üretmez). Bunu
   // sabitleyen test: `apps/api/test/domain/jockey/jockey-config.spec.ts`.
   readonly jockey = loadJockeyConfig();
+  /** 01.10.2026 — personel (brief §33) kiralama/sözleşme/etki. */
+  readonly staff = loadStaffConfig();
+  /** 01.10.2026 — atın görünüşü (don/işaret ağırlıkları + kalıtım). */
+  readonly horseAppearance = loadHorseAppearanceConfig();
+  /** 08.10.2026 — atın kişiliği (doğuş çeşitliliği, antrenman etkileri, etiket). */
+  readonly horsePersonality = loadHorsePersonalityConfig();
+  // 01.10.2026 — oyuncu kontrollü pratik yarışın canlı oturum ayarları.
+  readonly interactiveRace = loadInteractiveRaceConfig();
+  /** 07.10.2026 — at ırkları: ücretsiz başlangıç ırkı (en zayıf) + ırk mağazası. */
+  readonly breeds = loadBreedsConfig();
+  /** 08.10.2026 — hipodromlar (`tracks` satırları, migration 0072). */
+  readonly hippodromes = loadHippodromesConfig();
+  /** 09.10.2026 — avatar kataloğu (yarışta forma rengi + kozmetik doğrulaması). */
+  readonly avatar = loadAvatarConfig();
+  /** 15.10.2026 — S6: "Sıradaki adım" adımları. */
+  readonly onboarding = loadOnboardingConfig();
+  /** 16.10.2026 — mağaza (elmas + çip paketleri, satın alınan çipin hediye kuralı). */
+  readonly store = loadStoreConfig();
+  /** 16.10.2026 — arkadaş daveti + davet ödülü. */
+  readonly referral = loadReferralConfig();
+
+  constructor() {
+    // Irk kuralı (ücretsiz at en zayıf, güçlü ırk ucuz olamaz) açılışta
+    // denetlenir — bozuk config ile API AÇILMAZ.
+    validateBreedsConfig(this.breeds, this.progression.maxLevel);
+    const bracketProblems = validateHorseLevelBrackets(this.raceLobby.horseLevelBrackets, this.progression.maxLevel);
+    if (bracketProblems.length > 0) {
+      throw new Error(`At seviyesi aralıkları geçersiz (config/race-lobby.config.json): ${bracketProblems.join(' ')}`);
+    }
+    const friendGiftProblems = validateFriendGiftConfig(this.gift.friendGift);
+    if (friendGiftProblems.length > 0) {
+      throw new Error(`Dostluk hediyesi config'i geçersiz (config/gift.config.json): ${friendGiftProblems.join(' ')}`);
+    }
+    // 08.10.2026 — ekipman kataloğu (bozuksa API AÇILMAZ).
+    validateEquipmentConfig(loadEquipmentConfig(), this.progression.maxLevel);
+    const tribuneGiftProblems = validateTribuneGiftsConfig(this.grandstand.tribuneGifts);
+    if (tribuneGiftProblems.length > 0) {
+      throw new Error(`Tribün hediyesi config'i geçersiz (config/grandstand.config.json): ${tribuneGiftProblems.join(' ')}`);
+    }
+    // 09.10.2026 — masalar (kademeler) + ödül dağılımları: bozuk masa
+    // kuralıyla (ücret anı, kaybeden iadesi) API AÇILMAZ.
+    const tableProblems = validateRaceTiers(this.economy);
+    if (tableProblems.length > 0) {
+      throw new Error(`Masa/kademe config'i geçersiz (config/economy.config.json): ${tableProblems.join(' ')}`);
+    }
+    // 15.10.2026 — S6: ilk oturum yolu (bilinmeyen adım / dış bağlantı ile API AÇILMAZ).
+    const onboardingProblems = validateOnboardingConfig(this.onboarding);
+    if (onboardingProblems.length > 0) {
+      throw new Error(`Sıradaki adım config'i geçersiz (config/onboarding.config.json): ${onboardingProblems.join(' ')}`);
+    }
+    // 16.10.2026 — davet ödülü (koşulsuz ödül sahte hesapla toplanırdı).
+    const referralProblems = validateReferralConfig(this.referral);
+    if (referralProblems.length > 0) {
+      throw new Error(`Davet config'i geçersiz (config/referral.config.json): ${referralProblems.join(' ')}`);
+    }
+    // 16.10.2026 — çip transferi tutar tavanları + hazır tutarlar.
+    const giftLimitProblems = validateGiftAmountLimits(this.gift);
+    if (giftLimitProblems.length > 0) {
+      throw new Error(`Hediye config'i geçersiz (config/gift.config.json): ${giftLimitProblems.join(' ')}`);
+    }
+    // 16.10.2026 — çevrimiçi durumu + oyuncu arama (pencere nabızdan büyük olmalı).
+    const presenceProblems = validatePresenceConfig(this.social);
+    if (presenceProblems.length > 0) {
+      throw new Error(`Sosyal config'i geçersiz (config/social.config.json): ${presenceProblems.join(' ')}`);
+    }
+    // 15.10.2026 (Aşama 3) — yetersiz oyuncu kuralı (asgari gerçek oyuncu + bot izni).
+    const fieldRuleProblems = validateFieldRulesConfig(this.raceLobby, this.raceLobby.calendar.programs);
+    if (fieldRuleProblems.length > 0) {
+      throw new Error(`Saha kuralı config'i geçersiz (config/race-lobby.config.json): ${fieldRuleProblems.join(' ')}`);
+    }
+    const raceConditionProblems = validateRaceConditionConfig(this.care);
+    if (raceConditionProblems.length > 0) {
+      throw new Error(`Yarış bedeli / toparlanma config'i geçersiz (config/care.config.json): ${raceConditionProblems.join(' ')}`);
+    }
+    const practiceClassProblems = validatePracticeRaceClasses(this.economy);
+    if (practiceClassProblems.length > 0) {
+      throw new Error(`Pratik yarış sınıfları geçersiz (config/economy.config.json → practiceRaceClasses): ${practiceClassProblems.join(' ')}`);
+    }
+    const jockeyConditionProblems = validateJockeyConditionConfig(this.jockey.condition);
+    if (jockeyConditionProblems.length > 0) {
+      throw new Error(`Jokey durumu config'i geçersiz (config/jockey.config.json → condition): ${jockeyConditionProblems.join(' ')}`);
+    }
+    const jockeyMarketProblems = validateJockeyMarketConfig(this.jockey.market);
+    if (jockeyMarketProblems.length > 0) {
+      throw new Error(`Jokey pazarı config'i geçersiz (config/jockey.config.json → market): ${jockeyMarketProblems.join(' ')}`);
+    }
+    // 15.10.2026 — S5: oyun yaşı ölçeği + üreme kuralları açılışta denetlenir
+    // (eskiden üreme config'i yalnızca ilk çiftleştirme isteğinde patlıyordu).
+    const growthProblems = validateHorseGrowthConfig(this.horseGrowth);
+    if (growthProblems.length > 0) {
+      throw new Error(`Yaş config'i geçersiz (config/horse-growth.config.json): ${growthProblems.join(' ')}`);
+    }
+    assertBreedingConfigIsValid(this.genetics);
+    const personalityProblems = validateHorsePersonalityConfig(this.horsePersonality);
+    if (personalityProblems.length > 0) {
+      throw new Error(`Kişilik config'i geçersiz (config/horse-personality.config.json): ${personalityProblems.join(' ')}`);
+    }
+    // 09.10.2026 — elmas yalnızca görünüş/kolaylık: yarışı etkileyen yem
+    // elmasla satılmaz, elmas hediye edilmez (sahibinin onayı).
+    const gemProblems = validateGemPolicy(this.care, this.gift);
+    if (gemProblems.length > 0) {
+      throw new Error(`Elmas politikası ihlali (config/care.config.json, config/gift.config.json): ${gemProblems.join(' ')}`);
+    }
+    // 09.10.2026 — kozmetik mağaza: ürün avatar kataloğunda olmalı, her
+    // katalogda ücretsiz seçenek kalmalı (bozuksa API AÇILMAZ).
+    const cosmeticProblems = validateCosmeticsConfig(loadCosmeticsConfig(), this.avatar);
+    if (cosmeticProblems.length > 0) {
+      throw new Error(`Kozmetik mağaza config'i geçersiz (config/cosmetics.config.json): ${cosmeticProblems.join(' ')}`);
+    }
+    const hippodromeProblems = validateHippodromesConfig(this.hippodromes);
+    if (hippodromeProblems.length > 0) {
+      throw new Error(`Hipodrom config'i geçersiz (config/hippodromes.config.json): ${hippodromeProblems.join(' ')}`);
+    }
+  }
 }

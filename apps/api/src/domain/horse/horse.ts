@@ -15,7 +15,8 @@
  * üretir).
  */
 
-import type { Horse, HorseGender } from '@at-sevdalisi/shared-types';
+import type { BreedDefinitionConfig } from '@at-sevdalisi/game-config';
+import type { Horse, HorseAppearance, HorseGender } from '@at-sevdalisi/shared-types';
 import { validateHorseName } from './validation';
 import { generateBellCurveWeightKg, HORSE_WEIGHT_POPULATION_MEAN_KG } from './weight';
 
@@ -28,9 +29,9 @@ import { generateBellCurveWeightKg, HORSE_WEIGHT_POPULATION_MEAN_KG } from './we
  */
 export const STARTER_HORSE_AGE_MONTHS = 48;
 
-/** Başlangıç atının kalite/potansiyel puanları (brief §8.1/§8.2, 0-100 ölçeği) — kasıtlı olarak ortalamanın biraz altında/üstünde, "geliştirilebilir" bir başlangıç hissi vermek için. */
-export const STARTER_HORSE_QUALITY = 45;
-export const STARTER_HORSE_POTENTIAL = 55;
+// 07.10.2026 — başlangıç atının kalite/potansiyeli artık IRKTAN gelir
+// (`config/breeds.config.json` → `starterBreed`); eski sabitler (45/55)
+// başlangıç ırkının değerleri olarak oraya taşındı.
 
 /**
  * Başlangıç atının cinsiyet havuzu — **27.09.2026'da DEĞİŞTİ.**
@@ -66,8 +67,6 @@ export function pickStarterHorseGender(randomValue: number): HorseGender {
   );
   return STARTER_HORSE_GENDERS[index]!;
 }
-
-const STARTER_HORSE_BREED = 'Arap';
 
 /**
  * Küçük, sabit bir isim havuzu. Application katmanı `pickStarterHorseName`
@@ -121,6 +120,8 @@ export interface NewStarterHorseInput {
   id: string;
   ownerId: string;
   name: string;
+  /** 01.10.2026 — görünüş (bkz. `appearance.ts` `deriveAppearance`); zorunlu — atlar sessizce 'bay' doğmasın. */
+  appearance: HorseAppearance;
   now?: Date;
   /**
    * Gerçek, çeşitlilik gösteren bir vücut ağırlığı (kg) — bkz.
@@ -140,10 +141,19 @@ export interface NewStarterHorseInput {
    * olamaz" kilidini fark edilmeden geri getirirdi.
    */
   gender: HorseGender;
+  /**
+   * 07.10.2026 — atın ırkı (kalite/potansiyel buradan). Başlangıç atında
+   * `getStarterBreed(config)` — ücretsiz verilen en zayıf ırk.
+   */
+  breed: BreedDefinitionConfig;
+  /** Varsayılan `STARTER_HORSE_AGE_MONTHS`; ırk mağazası config'teki yaşı verir. */
+  ageMonths?: number;
 }
 
 /**
  * Yeni bir oyuncuya verilen başlangıç atının başlangıç durumunu oluşturur.
+ * 07.10.2026'dan beri ırk mağazasının atını da AYNI fabrika üretir (ırk ve
+ * yaş girdidir) — iki ayrı "yeni at" yolu ayrışmasın diye.
  * `database/migrations/0002_create_tracks_and_horses.up.sql`'deki DEFAULT
  * değerlerle BİREBİR aynı vital sinyal başlangıç değerleri kullanılır
  * (health:100, fitness:50, fatigue:0, energy:100, morale:80) — bkz.
@@ -154,19 +164,19 @@ export function createStarterHorse(input: NewStarterHorseInput): Horse {
 
   const now = input.now ?? new Date();
   const birthDate = new Date(now);
-  birthDate.setMonth(birthDate.getMonth() - STARTER_HORSE_AGE_MONTHS);
+  birthDate.setMonth(birthDate.getMonth() - (input.ageMonths ?? STARTER_HORSE_AGE_MONTHS));
 
   return {
     id: input.id,
     ownerId: input.ownerId,
     name: input.name.trim(),
     gender: input.gender,
-    breed: STARTER_HORSE_BREED,
+    breed: input.breed.key,
     birthDate: birthDate.toISOString(),
     level: 1,
     xp: 0,
-    quality: STARTER_HORSE_QUALITY,
-    potential: STARTER_HORSE_POTENTIAL,
+    quality: input.breed.quality,
+    potential: input.breed.potential,
     health: 100,
     fitness: 50,
     fatigue: 0,
@@ -176,6 +186,10 @@ export function createStarterHorse(input: NewStarterHorseInput): Horse {
     status: 'active',
     sireId: null,
     damId: null,
+    appearance: input.appearance,
+    // 15.10.2026 — yaş bu andan itibaren hızlı akar (takvim yaşı = `ageMonths`).
+    agingStartedAt: now.toISOString(),
+    retiredAt: null,
     createdAt: now.toISOString(),
     updatedAt: now.toISOString(),
   };

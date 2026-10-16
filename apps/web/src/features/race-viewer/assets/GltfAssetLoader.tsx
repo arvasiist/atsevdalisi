@@ -35,9 +35,12 @@
  */
 
 import { Component, Suspense, type ReactNode } from 'react';
+import { useThree } from '@react-three/fiber';
 import { useGLTF } from '@react-three/drei';
-import type { GLTF } from 'three-stdlib';
-import type { AssetRequirement } from './asset-manifest';
+import type { GLTF, GLTFLoader } from 'three-stdlib';
+import { resolveAnimationClips, type AnimationRole, type AssetRequirement } from './asset-manifest';
+import { DRACO_DECODER_PATH, assetUrl, useAssetAvailability } from './asset-pipeline';
+import { getKtx2Loader } from './ktx2-loader';
 
 interface GltfErrorBoundaryProps {
   fallback: ReactNode;
@@ -56,7 +59,7 @@ interface GltfErrorBoundaryState {
  * bir KARŞILIĞI YOKTUR, bu yüzden burada `useState`/hook TABANLI bir
  * alternatif YAZILMADI (böyle bir şey React'ın kendisinde MEVCUT DEĞİL).
  */
-class GltfErrorBoundary extends Component<GltfErrorBoundaryProps, GltfErrorBoundaryState> {
+export class GltfErrorBoundary extends Component<GltfErrorBoundaryProps, GltfErrorBoundaryState> {
   constructor(props: GltfErrorBoundaryProps) {
     super(props);
     this.state = { hasError: false };
@@ -68,7 +71,7 @@ class GltfErrorBoundary extends Component<GltfErrorBoundaryProps, GltfErrorBound
 
   override componentDidCatch(error: unknown): void {
     // eslint-disable-next-line no-console -- brief'in "sessizce çökme" kuralı: hata GÖRÜNÜR olmalı ama sahneyi DURDURMAMALI.
-    console.warn('[GltfAssetLoader] Asset yüklenemedi, placeholder\'a düşülüyor:', error);
+    console.warn("[GltfAssetLoader] Asset yüklenemedi, placeholder'a düşülüyor:", error);
   }
 
   override render(): ReactNode {
@@ -86,28 +89,61 @@ class GltfErrorBoundary extends Component<GltfErrorBoundaryProps, GltfErrorBound
  * oluşur — hook'u üst bileşende ÇAĞIRMAK, sarmalayıcıların onu
  * YAKALAYAMAMASINA yol açardı.
  */
-function GltfScene({ path, children }: { path: string; children: (gltf: GLTF) => ReactNode }): React.ReactElement {
-  const gltf = useGLTF(path) as unknown as GLTF;
-  return <>{children(gltf)}</>;
+function GltfScene({
+  asset,
+  path,
+  children,
+}: {
+  asset: AssetRequirement;
+  path: string;
+  children: GltfRenderProp;
+}): React.ReactElement {
+  const gl = useThree((state) => state.gl);
+  // 01.10.2026 — Draco çözücüsü YEREL yoldan (CDN değil), Meshopt paketten,
+  // KTX2 dokular renderer'a bağlı yerel transcoder ile (ktx2-loader.ts).
+  const gltf = useGLTF(path, DRACO_DECODER_PATH, true, (loader) => {
+    (loader as unknown as GLTFLoader).setKTX2Loader(getKtx2Loader(gl));
+  }) as unknown as GLTF;
+  const clips = resolveAnimationClips(
+    asset,
+    gltf.animations.map((clip) => clip.name),
+  );
+  return <>{children(gltf, clips)}</>;
 }
+
+/** Yüklenen sahne + manifest rollerine eşlenmiş klip adları (eşleşmeyen rol `null`). */
+export type GltfRenderProp = (
+  gltf: GLTF,
+  clips: Partial<Record<AnimationRole, string | null>>,
+) => ReactNode;
 
 export interface GltfAssetLoaderProps {
   /** `asset-manifest.ts`'teki `ASSET_MANIFEST` girişlerinden biri. */
   asset: AssetRequirement;
-  /** Dosya yüklenene KADAR (Suspense) VEYA yüklenemezse (ErrorBoundary) gösterilecek görsel — ÇAĞIRAN belirler, burada bir varsayılan İCAT EDİLMEZ. */
+  /** Dosya yoksa, yüklenirken ya da yüklenemezse gösterilecek görsel — ÇAĞIRAN belirler, varsayılan İCAT EDİLMEZ. */
   fallback: ReactNode;
-  /** Başarıyla yüklenen GLTF sahnesini alıp gerçek Three.js düğümlerine dönüştüren render-prop. */
-  children: (gltf: GLTF) => ReactNode;
+  /** Başarıyla yüklenen GLTF sahnesini (ve eşlenmiş klipleri) Three.js düğümlerine dönüştüren render-prop. */
+  children: GltfRenderProp;
 }
 
-export function GltfAssetLoader({ asset, fallback, children }: GltfAssetLoaderProps): React.ReactElement {
-  // `asset.expectedPath` `public/`'e GÖRELİ (bkz. `asset-manifest.ts` doc
-  // yorumu) — Next.js'te `public/` kökü URL kökü olduğundan başına `/` eklenir.
-  const publicPath = `/${asset.expectedPath}`;
+export function GltfAssetLoader({
+  asset,
+  fallback,
+  children,
+}: GltfAssetLoaderProps): React.ReactElement {
+  const publicPath = assetUrl(asset.expectedPath);
+  // 01.10.2026 — dosya YOKSA yükleme hiç denenmez (404 + konsol uyarısı
+  // yerine doğrudan yedek görünüm). Yoklama sürerken de yedek gösterilir.
+  const availability = useAssetAvailability(publicPath);
+  if (availability !== 'available') {
+    return <>{fallback}</>;
+  }
   return (
     <GltfErrorBoundary fallback={fallback}>
       <Suspense fallback={fallback}>
-        <GltfScene path={publicPath}>{children}</GltfScene>
+        <GltfScene asset={asset} path={publicPath}>
+          {children}
+        </GltfScene>
       </Suspense>
     </GltfErrorBoundary>
   );

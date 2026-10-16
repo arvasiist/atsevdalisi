@@ -92,7 +92,7 @@
 
 import type { RaceBalanceConfig, WeatherConfig } from '@at-sevdalisi/game-config';
 import type { RaceEntrantSnapshot, RacingStyle } from '@at-sevdalisi/shared-types';
-import { simulateRace } from '../../../src/domain/race/race-engine';
+import { simulateRace, type PlayerSegmentCommand } from '../../../src/domain/race/race-engine';
 import { computeBaseAbility } from '../../../src/domain/race/base-ability';
 import { computeWeightCompatibility } from '../../../src/domain/race/carried-weight';
 import { generateBotEntrants } from '../../../src/domain/race/bot-generator';
@@ -101,6 +101,14 @@ import { RACING_STYLES } from '../../../src/domain/race/validation';
 import raceConfigJson from '../../../../../config/race.config.json';
 import weatherConfigJson from '../../../../../config/weather.config.json';
 import raceLobbyConfigJson from '../../../../../config/race-lobby.config.json';
+import type { EconomyConfig, RaceTierConfig } from '@at-sevdalisi/game-config';
+import { getRacePrize } from '../../../src/domain/race/prize';
+import {
+  computeLobbySettlement,
+  isLoserRefundEligible,
+  loserRefundAmount,
+  paidPlacesOf,
+} from '../../../src/domain/race/table-rules';
 
 export const raceBalanceConfig = raceConfigJson as unknown as RaceBalanceConfig;
 export const raceBalanceWeatherConfig = weatherConfigJson as unknown as WeatherConfig;
@@ -221,7 +229,12 @@ export function buildAbilityLadderField(
       jockeySkillComposite: NEUTRAL_UNMODELED_TRAIT_SCORE,
       weightCompatibility,
       form: NEUTRAL_UNMODELED_TRAIT_SCORE,
-      tactic: { racingStyle: 'mid_pack', riskLevel: 'normal', startApproach: 'balanced', finalStretchPlan: 'normal' },
+      tactic: {
+        racingStyle: 'mid_pack',
+        riskLevel: 'normal',
+        startApproach: 'balanced',
+        finalStretchPlan: 'normal',
+      },
     } satisfies RaceEntrantSnapshot;
   });
 }
@@ -386,7 +399,9 @@ function runAbilityLadder(
   const winsByAbilityRank = new Array<number>(fieldSize).fill(0);
 
   for (let i = 0; i < trials; i += 1) {
-    const timeline = simulateRace(baseInput(entries, `${prefix}-${fieldSize}-${i}`, CANONICAL_DISTANCE_METERS));
+    const timeline = simulateRace(
+      baseInput(entries, `${prefix}-${fieldSize}-${i}`, CANONICAL_DISTANCE_METERS),
+    );
     const winnerId = timeline.finalResult[0]!.horseId;
     const rank = Number(winnerId.slice(winnerId.lastIndexOf('-') + 1));
     winsByAbilityRank[rank] = (winsByAbilityRank[rank] ?? 0) + 1;
@@ -397,7 +412,9 @@ function runAbilityLadder(
   const bottomHalfWins = winsByAbilityRank.slice(fieldSize - half).reduce((sum, v) => sum + v, 0);
   // `computeBaseAbility` ile merdiven sırasının AYNI olduğunu VARSAYMIYORUZ:
   // korelasyon, motorda GERÇEKTEN kullanılan taban puanla ölçülür.
-  const baseAbilities = entries.map((entry) => computeBaseAbility(entry, raceBalanceConfig.baseAbilityWeights));
+  const baseAbilities = entries.map((entry) =>
+    computeBaseAbility(entry, raceBalanceConfig.baseAbilityWeights),
+  );
 
   return {
     label: band.label,
@@ -484,7 +501,9 @@ export function measureFieldSize(fieldSize: number, trials: number): FieldSizeMe
     winsByStyle[style] = 0;
   }
   for (let i = 0; i < trials; i += 1) {
-    const timeline = simulateRace(baseInput(styleField, `balance-style-${fieldSize}-${i}`, CANONICAL_DISTANCE_METERS));
+    const timeline = simulateRace(
+      baseInput(styleField, `balance-style-${fieldSize}-${i}`, CANONICAL_DISTANCE_METERS),
+    );
     const winnerId = timeline.finalResult[0]!.horseId;
     const winner = styleField.find((entry) => entry.horseId === winnerId)!;
     winsByStyle[winner.tactic.racingStyle] = (winsByStyle[winner.tactic.racingStyle] ?? 0) + 1;
@@ -493,7 +512,8 @@ export function measureFieldSize(fieldSize: number, trials: number): FieldSizeMe
   const expectedShare: Record<string, number> = {};
   for (const style of RACING_STYLES) {
     observedShare[style] = winsByStyle[style]! / trials;
-    expectedShare[style] = styleField.filter((entry) => entry.tactic.racingStyle === style).length / fieldSize;
+    expectedShare[style] =
+      styleField.filter((entry) => entry.tactic.racingStyle === style).length / fieldSize;
   }
 
   // ---- Üretim bot sahaları (rastgele lobiler) ----
@@ -512,19 +532,28 @@ export function measureFieldSize(fieldSize: number, trials: number): FieldSizeMe
     const botWins = new Array<number>(fieldSize).fill(0);
     for (let i = 0; i < racesPerField; i += 1) {
       const timeline = simulateRace(
-        baseInput(botField, `balance-bot-${fieldSize}-${fieldIndex}-${i}`, CANONICAL_DISTANCE_METERS),
+        baseInput(
+          botField,
+          `balance-bot-${fieldSize}-${fieldIndex}-${i}`,
+          CANONICAL_DISTANCE_METERS,
+        ),
       );
-      const winnerIndex = botField.findIndex((entry) => entry.horseId === timeline.finalResult[0]!.horseId);
+      const winnerIndex = botField.findIndex(
+        (entry) => entry.horseId === timeline.finalResult[0]!.horseId,
+      );
       botWins[winnerIndex] = (botWins[winnerIndex] ?? 0) + 1;
       botWinnerSum += timeline.finalResult[0]!.finishTimeMs;
       botSpreadSum +=
-        timeline.finalResult[timeline.finalResult.length - 1]!.finishTimeMs - timeline.finalResult[0]!.finishTimeMs;
+        timeline.finalResult[timeline.finalResult.length - 1]!.finishTimeMs -
+        timeline.finalResult[0]!.finishTimeMs;
     }
     botRaces += racesPerField;
 
     // "Favori" = `computeBaseAbility` çıktısı en yüksek olan bot; bu, motorda
     // GERÇEKTEN kullanılan taban puandır, sahaya bakıp seçilmiş bir etiket değil.
-    const baseAbilities = botField.map((entry) => computeBaseAbility(entry, raceBalanceConfig.baseAbilityWeights));
+    const baseAbilities = botField.map((entry) =>
+      computeBaseAbility(entry, raceBalanceConfig.baseAbilityWeights),
+    );
     const favoriteIndex = baseAbilities.indexOf(Math.max(...baseAbilities));
     const favoriteRate = botWins[favoriteIndex]! / racesPerField;
 
@@ -570,7 +599,11 @@ export interface DistanceProbe {
   meanWinnerTimeMs: number;
 }
 
-export function probeDistance(fieldSize: number, distanceMeters: number, trials: number): DistanceProbe {
+export function probeDistance(
+  fieldSize: number,
+  distanceMeters: number,
+  trials: number,
+): DistanceProbe {
   const entries = buildStyleField(fieldSize);
   let sum = 0;
   for (let i = 0; i < trials; i += 1) {
@@ -580,4 +613,251 @@ export function probeDistance(fieldSize: number, distanceMeters: number, trials:
     sum += timeline.finalResult[0]!.finishTimeMs;
   }
   return { distanceMeters, meanWinnerTimeMs: sum / trials };
+}
+
+// ---------------------------------------------------------------------------
+// 01.10.2026 — OYUNCU KONTROLÜ (kırbaç/sakin) DENGESİ. Oyuncunun atı bot
+// sahasında 1. at olarak koşar; plan, segment başına komut üretir.
+// ---------------------------------------------------------------------------
+
+export type PlayerControlPlan = (
+  segmentIndex: number,
+  segmentCount: number,
+) => PlayerSegmentCommand | undefined;
+
+export const PLAYER_CONTROL_PLANS = {
+  none: () => undefined,
+  finalWhip5: (s: number, n: number) =>
+    s === n - 1 ? { whips: 5, laneShift: 0 as const, ease: false } : undefined,
+  easeFirstHalf: (s: number, n: number) =>
+    s < n / 2 ? { whips: 0, laneShift: 0 as const, ease: true } : undefined,
+  whipEverySegment: () => ({ whips: 1, laneShift: 0 as const, ease: false }),
+  earlyWhip3: (s: number) => (s < 3 ? { whips: 3, laneShift: 0 as const, ease: false } : undefined),
+  // 02.10.2026 — yön komutu: her bölümde içe (sol), dışa (sağ) ve zikzak.
+  laneLeftEvery: () => ({ whips: 0, laneShift: -1 as const, ease: false }),
+  laneRightEvery: () => ({ whips: 0, laneShift: 1 as const, ease: false }),
+  laneZigzag: (s: number) => ({
+    whips: 0,
+    laneShift: (s % 2 === 0 ? -1 : 1) as -1 | 1,
+    ease: false,
+  }),
+  // En iyi "akıllı" plan: ilk yarı sakin, son bölümde kırbaç.
+  easeThenFinalWhip: (s: number, n: number) =>
+    s === n - 1
+      ? { whips: 5, laneShift: 0 as const, ease: false }
+      : s < n / 2
+        ? { whips: 0, laneShift: 0 as const, ease: true }
+        : undefined,
+} satisfies Record<string, PlayerControlPlan>;
+
+/** Planın ortalama bitiş sırası (8 atlık bot sahası, deterministik tohumlar). */
+export function measurePlayerControlPlan(
+  plan: PlayerControlPlan,
+  trials: number,
+  distanceMeters: number = CANONICAL_DISTANCE_METERS,
+): number {
+  const segmentCount = Math.max(
+    1,
+    Math.round(distanceMeters / raceBalanceConfig.segmentLengthMeters),
+  );
+  let positionSum = 0;
+  for (let trial = 0; trial < trials; trial += 1) {
+    const seed = `player-control-${trial}`;
+    const entries = generateBotEntrants(8, seed);
+    const me = entries[0]!.horseId;
+    const commands = new Map<number, PlayerSegmentCommand>();
+    for (let s = 0; s < segmentCount; s += 1) {
+      const command = plan(s, segmentCount);
+      if (command) commands.set(s, command);
+    }
+    const timeline = simulateRace({
+      raceId: seed,
+      simulationSeed: seed,
+      distanceMeters,
+      surface: CANONICAL_SURFACE,
+      weather: CANONICAL_WEATHER,
+      temperatureC: CANONICAL_TEMPERATURE_C,
+      entries,
+      raceConfig: raceBalanceConfig,
+      weatherConfig: raceBalanceWeatherConfig,
+      playerCommands: new Map([[me, commands]]),
+    });
+    positionSum += timeline.finalResult.find((entry) => entry.horseId === me)!.finishPosition;
+  }
+  return positionSum / trials;
+}
+
+/**
+ * 02.10.2026 — ÇOK OYUNCULU KONTROL. Sahadaki ilk `plans.length` at oyuncudur
+ * ve her biri kendi planını uygular; dönen dizi her oyuncunun ortalama bitiş
+ * sırasıdır. Soru: kontrol avantajı birden çok sürücüde ADDİTİF mi kalır,
+ * yoksa sürücüler birbirini bozar mı (ör. kulvar komutlarının çakışması)?
+ */
+export function measureMultiPlayerControl(
+  plans: readonly PlayerControlPlan[],
+  trials: number,
+  distanceMeters: number = CANONICAL_DISTANCE_METERS,
+): number[] {
+  const segmentCount = Math.max(
+    1,
+    Math.round(distanceMeters / raceBalanceConfig.segmentLengthMeters),
+  );
+  const sums = plans.map(() => 0);
+  for (let trial = 0; trial < trials; trial += 1) {
+    const seed = `player-control-${trial}`;
+    const entries = generateBotEntrants(8, seed);
+    const playerCommands = new Map<string, Map<number, PlayerSegmentCommand>>();
+    plans.forEach((plan, index) => {
+      const commands = new Map<number, PlayerSegmentCommand>();
+      for (let s = 0; s < segmentCount; s += 1) {
+        const command = plan(s, segmentCount);
+        if (command) commands.set(s, command);
+      }
+      playerCommands.set(entries[index]!.horseId, commands);
+    });
+    const timeline = simulateRace({
+      raceId: seed,
+      simulationSeed: seed,
+      distanceMeters,
+      surface: CANONICAL_SURFACE,
+      weather: CANONICAL_WEATHER,
+      temperatureC: CANONICAL_TEMPERATURE_C,
+      entries,
+      raceConfig: raceBalanceConfig,
+      weatherConfig: raceBalanceWeatherConfig,
+      playerCommands,
+    });
+    plans.forEach((_, index) => {
+      const horseId = entries[index]!.horseId;
+      sums[index]! += timeline.finalResult.find((entry) => entry.horseId === horseId)!.finishPosition;
+    });
+  }
+  return sums.map((sum) => sum / trials);
+}
+
+
+/**
+ * 14.10.2026 — PRATİK YARIŞ BEKLENEN KAZANCI (`docs/OYUN_DONGUSU_DENETIMI.md`
+ * B1/S2). Oyuncunun atı (`player`) `fieldSize − 1` botla, üretimdeki pratik
+ * yarışın koşullarında (1600 m çim, güneşli, sıcaklık yok) koşar; ödül ve
+ * kaybeden iadesi üretimin AYNI fonksiyonlarıyla hesaplanır. `botStatRange`
+ * `null` → genel bot aralığı (eski davranış).
+ */
+export interface PracticeEvMeasurement {
+  races: number;
+  /** Yarış başına ortalama net kazanç (ödül + iade − giriş). */
+  meanNet: number;
+  winRate: number;
+  top3Rate: number;
+  meanPosition: number;
+}
+
+export function measurePracticeEv(input: {
+  player: RaceEntrantSnapshot;
+  botStatRange: readonly [number, number] | null;
+  tier: RaceTierConfig;
+  economy: EconomyConfig;
+  trials: number;
+  seedPrefix?: string;
+}): PracticeEvMeasurement {
+  const { player, botStatRange, tier, economy, trials } = input;
+  const paidPlaces = paidPlacesOf(economy, tier);
+  let net = 0;
+  let wins = 0;
+  let top3 = 0;
+  let positionSum = 0;
+  for (let trial = 0; trial < trials; trial += 1) {
+    const seed = `${input.seedPrefix ?? 'practice-ev'}-${trial}`;
+    const bots =
+      botStatRange === null
+        ? generateBotEntrants(tier.fieldSize - 1, seed)
+        : generateBotEntrants(tier.fieldSize - 1, seed, botStatRange);
+    const timeline = simulateRace({
+      raceId: seed,
+      simulationSeed: seed,
+      distanceMeters: CANONICAL_DISTANCE_METERS,
+      surface: CANONICAL_SURFACE,
+      weather: CANONICAL_WEATHER,
+      temperatureC: null,
+      entries: [player, ...bots],
+      raceConfig: raceBalanceConfig,
+      weatherConfig: raceBalanceWeatherConfig,
+    });
+    const position = timeline.finalResult.find((entry) => entry.horseId === player.horseId)!.finishPosition;
+    const prize = getRacePrize(economy, tier, position);
+    const refund = isLoserRefundEligible(position, paidPlaces, tier.loserRefund)
+      ? loserRefundAmount(tier.entryFee, tier.loserRefund)
+      : 0;
+    net += prize + refund - tier.entryFee;
+    if (position === 1) wins += 1;
+    if (position <= 3) top3 += 1;
+    positionSum += position;
+  }
+  return {
+    races: trials,
+    meanNet: net / trials,
+    winRate: wins / trials,
+    top3Rate: top3 / trials,
+    meanPosition: positionSum / trials,
+  };
+}
+
+/**
+ * 16.10.2026 — S4 (`docs/OYUN_DONGUSU_DENETIMI.md`): LOBİ (masalı) yarışın
+ * gerçek oyuncu başına beklenen neti. Lobi havuzu YALNIZCA gerçek oyuncuların
+ * ücretidir (botlar ödemez); 16.10.2026'dan beri bota pay DÜŞMEZ — kaybeden
+ * iadesi ve ödül payları üretimin `computeLobbySettlement`ıyla (gerçek
+ * oyuncular arasındaki sıra) hesaplanır. `aiFill: false` →
+ * saha yalnızca gerçek oyunculardır (botsuz yarış).
+ */
+export interface LobbyEvMeasurement {
+  races: number;
+  /** Gerçek oyuncu başına yarış başına ortalama net (ödül + iade − giriş). */
+  meanNetPerPlayer: number;
+  /** Havuzun gerçek oyunculara dönen ortalama payı (ödül + iade, 0..1). */
+  paidOutShare: number;
+}
+
+export function measureLobbyEv(input: {
+  players: readonly RaceEntrantSnapshot[];
+  table: RaceTierConfig;
+  economy: EconomyConfig;
+  aiFill: boolean;
+  botStatRange: readonly [number, number] | null;
+  trials: number;
+  seedPrefix?: string;
+}): LobbyEvMeasurement {
+  const { players, table, economy, aiFill, botStatRange, trials } = input;
+  const shares = economy.prizeDistributions.find((entry) => entry.id === table.distributionId)!.shares;
+  const pool = table.entryFee * players.length;
+  let net = 0;
+  let paidOut = 0;
+  for (let trial = 0; trial < trials; trial += 1) {
+    const seed = `${input.seedPrefix ?? 'lobby-ev'}-${trial}`;
+    const botCount = aiFill ? table.fieldSize - players.length : 0;
+    const bots =
+      botStatRange === null ? generateBotEntrants(botCount, seed) : generateBotEntrants(botCount, seed, botStatRange);
+    const timeline = simulateRace({
+      raceId: seed,
+      simulationSeed: seed,
+      distanceMeters: CANONICAL_DISTANCE_METERS,
+      surface: CANONICAL_SURFACE,
+      weather: CANONICAL_WEATHER,
+      temperatureC: null,
+      entries: [...players, ...bots],
+      raceConfig: raceBalanceConfig,
+      weatherConfig: raceBalanceWeatherConfig,
+    });
+    const positionOf = new Map(timeline.finalResult.map((entry) => [entry.horseId, entry.finishPosition]));
+    const entries = players.map((player) => ({
+      entryId: player.horseId,
+      finishPosition: positionOf.get(player.horseId)!,
+      paidFee: table.entryFee,
+    }));
+    const settlement = computeLobbySettlement(pool, shares, entries, table.loserRefund);
+    const paidToPlayers = settlement.payouts.reduce((sum, amount) => sum + amount, 0) + settlement.refundTotal;
+    paidOut += paidToPlayers / pool;
+    net += (paidToPlayers - pool) / players.length;
+  }
+  return { races: trials, meanNetPerPlayer: net / trials, paidOutShare: paidOut / trials };
 }

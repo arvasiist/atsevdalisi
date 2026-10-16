@@ -1,0 +1,26 @@
+{
+  "achievements": [
+    { "key": "first-race", "metric": "races_entered", "target": 1, "rewardMoney": 200 },
+    { "key": "races-25", "metric": "races_entered", "target": 25, "rewardMoney": 1000 },
+    { "key": "races-100", "metric": "races_entered", "target": 100, "rewardMoney": 4000 },
+    { "key": "first-win", "metric": "race_wins", "target": 1, "rewardMoney": 500 },
+    { "key": "wins-10", "metric": "race_wins", "target": 10, "rewardMoney": 2500 },
+    { "key": "wins-50", "metric": "race_wins", "target": 50, "rewardMoney": 10000 },
+    { "key": "podiums-10", "metric": "top3_finishes", "target": 10, "rewardMoney": 1500 },
+    { "key": "first-purchase", "metric": "horse_purchases", "target": 1, "rewardMoney": 300 },
+    { "key": "level-5", "metric": "player_level", "target": 5, "rewardMoney": 1000 },
+    { "key": "level-15", "metric": "player_level", "target": 15, "rewardMoney": 3000 },
+    { "key": "level-30", "metric": "player_level", "target": 30, "rewardMoney": 8000 },
+    { "key": "friends-5", "metric": "friend_count", "target": 5, "rewardMoney": 100 },
+    { "key": "friends-10", "metric": "friend_count", "target": 10, "rewardMoney": 100 },
+    { "key": "friends-15", "metric": "friend_count", "target": 15, "rewardMoney": 100 },
+    { "key": "friends-20", "metric": "friend_count", "target": 20, "rewardMoney": 100 },
+    { "key": "friends-25", "metric": "friend_count", "target": 25, "rewardMoney": 100 },
+    { "key": "friends-30", "metric": "friend_count", "target": 30, "rewardMoney": 100 },
+    { "key": "friends-35", "metric": "friend_count", "target": 35, "rewardMoney": 100 },
+    { "key": "friends-40", "metric": "friend_count", "target": 40, "rewardMoney": 100 },
+    { "key": "friends-45", "metric": "friend_count", "target": 45, "rewardMoney": 100 },
+    { "key": "friends-50", "metric": "friend_count", "target": 50, "rewardMoney": 100 }
+  ],
+  "profileLimit": 20
+}

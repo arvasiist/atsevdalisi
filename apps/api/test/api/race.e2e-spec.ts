@@ -9,8 +9,14 @@ import economyConfigJson from '../../../../config/economy.config.json';
 import { PG_POOL } from '../../src/infrastructure/database/database.module';
 import { AppConfigService } from '../../src/infrastructure/config/config.service';
 import { getDefaultRaceTier, getRacePrize } from '../../src/domain/race/prize';
+import { isLoserRefundEligible, loserRefundAmount } from '../../src/domain/race/table-rules';
+import { resolvePrizeDistribution } from '../../src/domain/race/prize-distribution';
 import { RACE_REPOSITORY, type RaceRepository } from '../../src/application/ports/race.repository';
 import { RACE_ENGINE_VERSION, RACE_RULESET_VERSION } from '../../src/domain/race/race-engine';
+import { applyRaceConditionCost, computeRaceConditionCost } from '../../src/domain/care/race-condition';
+import { checkRaceReadiness } from '../../src/domain/race/readiness';
+import { STARTER_HORSE_AGE_MONTHS } from '../../src/domain/horse/horse';
+import { PRACTICE_RACE_DISTANCE_METERS } from '../../src/domain/race/validation';
 import {
   bootstrapTestApp,
   registerTestPlayer,
@@ -179,7 +185,7 @@ describe('Race — Pratik Yarış (e2e)', () => {
       .send({})
       .expect(200);
 
-    const { entryFee, prizeWon, newBalance } = response.body.data;
+    const { entryFee, prizeWon, loserRefund, newBalance } = response.body.data;
     // Giriş ücreti artık kademeden gelir (sabit `baseEntryFee × çarpan`
     // yerine) — bkz. `domain/race/prize.ts`.
     expect(entryFee).toBe(defaultTier.entryFee);
@@ -190,7 +196,15 @@ describe('Race — Pratik Yarış (e2e)', () => {
       (entry: { horseId: string }) => entry.horseId === horseId,
     );
     expect(prizeWon).toBe(getRacePrize(economyConfig, defaultTier, playerFinish.finishPosition));
-    expect(newBalance.money).toBe(moneyBefore - entryFee + prizeWon);
+    // 09.10.2026 — masa kuralı: ödül alamayan ama iade bandında biten oyuncuya
+    // bedelin yüzdesi geri döner (`table-rules.ts`); bant dışında 0.
+    const shares = resolvePrizeDistribution(economyConfig, defaultTier.distributionId)?.shares ?? [];
+    expect(loserRefund).toBe(
+      isLoserRefundEligible(playerFinish.finishPosition, shares.length, defaultTier.loserRefund)
+        ? loserRefundAmount(entryFee, defaultTier.loserRefund)
+        : 0,
+    );
+    expect(newBalance.money).toBe(moneyBefore - entryFee + prizeWon + loserRefund);
 
     const afterRow = await pool.query('SELECT money FROM players WHERE id = $1', [playerId]);
     expect(Number(afterRow.rows[0].money)).toBe(newBalance.money);
@@ -559,6 +573,68 @@ describe('Race — Pratik Yarış (e2e)', () => {
   // TAM yarış simülasyonu + segment satırı yazma tetikliyor — 60s'e kadar
   // çıkan timeout'lar bunun için.
   describe('Eşzamanlılık (concurrency) — AUDIT_REPORT.md T1, Master Plan §42', () => {
+    /**
+     * 15.10.2026 — S3: AYNI ata N eşzamanlı pratik yarış. Eskiden hepsi
+     * koşuyordu (yarış atı yormuyordu); artık hazırlık kapısı para
+     * transaction'ında at kilitliyken denetlenir. Kanıtlanan: (1) her yanıt
+     * 200 ya da hazırlık 409'u, (2) koşan yarış sayısı dinlenmiş atın
+     * koşabileceği sayıya EŞİT (kilitsiz ön kontrol aşılamaz), (3) bakiye =
+     * başlangıç + koşanların neti (409'lar para bırakmaz), (4) atın vitali =
+     * başlangıç − koşan × bedel (oyuncu VE at satırında kayıp yazım yok).
+     */
+    async function expectConcurrentPracticeRacesStayConsistent(
+      n: number,
+      horseId: string,
+      playerId: string,
+      authHeader: string,
+    ): Promise<void> {
+      const responses = await sendConcurrentRequests(n, () =>
+        request(app.getHttpServer())
+          .post(`/api/v1/horses/${horseId}/practice-race`)
+          .set('Authorization', authHeader)
+          .set('Idempotency-Key', randomUUID())
+          .send({}),
+      );
+      const ok = responses.filter((response) => response.status === 200);
+      for (const response of responses.filter((r) => r.status !== 200)) {
+        expect(response.status).toBe(409);
+        expect(['HORSE_TOO_TIRED', 'INSUFFICIENT_ENERGY']).toContain(response.body.error.code);
+      }
+
+      const cost = computeRaceConditionCost(PRACTICE_RACE_DISTANCE_METERS, appConfig.care.raceCondition);
+      let vitals = { health: 100, fitness: 50, fatigue: 0, energy: 100, morale: 80 };
+      let allowed = 0;
+      while (checkRaceReadiness('active', vitals, appConfig.race.readiness, STARTER_HORSE_AGE_MONTHS).ready) {
+        vitals = { ...vitals, ...applyRaceConditionCost(vitals, cost) };
+        allowed += 1;
+      }
+      expect(ok.length).toBe(allowed);
+      expect(new Set(ok.map((response) => response.body.data.raceId as string)).size).toBe(allowed);
+
+      const netChange = ok.reduce(
+        (sum, response) =>
+          sum +
+          (response.body.data.prizeWon as number) +
+          (response.body.data.loserRefund as number) -
+          (response.body.data.entryFee as number),
+        0,
+      );
+      const finalRow = await pool.query('SELECT money FROM players WHERE id = $1', [playerId]);
+      expect(Number(finalRow.rows[0].money)).toBe(500000 + netChange);
+
+      const raceRows = await pool.query('SELECT COUNT(*)::int AS count FROM races WHERE id = ANY($1::uuid[])', [
+        ok.map((response) => response.body.data.raceId as string),
+      ]);
+      expect(raceRows.rows[0].count).toBe(allowed);
+
+      const horseRow = await pool.query<{ energy: string; fatigue: string }>(
+        'SELECT energy, fatigue FROM horses WHERE id = $1',
+        [horseId],
+      );
+      expect(Number(horseRow.rows[0]!.energy)).toBeCloseTo(vitals.energy, 1);
+      expect(Number(horseRow.rows[0]!.fatigue)).toBeCloseTo(vitals.fatigue, 1);
+    }
+
     /** N istek + status/hata kodu doğrulaması — AYNI anahtar senaryosunun üç `n` değeri arasında paylaşılan yardımcı. */
     // CI #107 kırmızı araştırması (bu oturum) — bkz. `test-helpers.ts`teki
     // `sendConcurrentRequestsBatched` doc yorumu: n=100'de TÜMÜNÜ TEK bir
@@ -640,82 +716,18 @@ describe('Race — Pratik Yarış (e2e)', () => {
       { timeout: 30000, retry: 2 },
     );
 
-    it('n=50 GERÇEKTEN eşzamanlı istek FARKLI Idempotency-Key’lerle gönderilirse 50 AYRI yarış GERÇEKTEN koşar, ama bakiye "lost update" OLMADAN tutarlı kalır', async () => {
+    it('n=50 GERÇEKTEN eşzamanlı istek: yorgunluk kapısı aşılamaz, bakiye ve atın vitali "lost update" OLMADAN tutarlı kalır', async () => {
       const { horseId, playerId, authHeader } = await registerTestPlayerWithStarterHorse(app, 'Yarışçı');
-      // Varsayılan 5000 para, 50 yarışlık varsayılan kademe giriş ücretine
-      // (50 × `defaultTier.entryFee`) yetmeyebilir — olası
-      // `INSUFFICIENT_FUNDS` dalgalanmasını (yalnızca kilit doğruluğunu
-      // test etmek isteyen bu senaryo için ALAKASIZ bir değişken) tamamen
-      // elemek için bol bir bakiyeyle başlanır.
+      // Bol bakiye: `INSUFFICIENT_FUNDS` bu senaryonun değişkeni değil.
       await pool.query('UPDATE players SET money = 500000 WHERE id = $1', [playerId]);
-
-      const idempotencyKeys = Array.from({ length: 50 }, () => randomUUID());
-      const responses = await sendConcurrentRequests(50, (index) =>
-        request(app.getHttpServer())
-          .post(`/api/v1/horses/${horseId}/practice-race`)
-          .set('Authorization', authHeader)
-          .set('Idempotency-Key', idempotencyKeys[index]!)
-          .send({}),
-      );
-
-      for (const response of responses) {
-        expect(response.status).toBe(200);
-      }
-
-      const raceIds = new Set(responses.map((response) => response.body.data.raceId as string));
-      // Dedupe YOK — FARKLI anahtarlarla GERÇEKTEN 50 ayrı yarış koşmuş olmalı.
-      expect(raceIds.size).toBe(50);
-
-      const netChange = responses.reduce(
-        (sum, response) => sum + (response.body.data.prizeWon as number) - (response.body.data.entryFee as number),
-        0,
-      );
-
-      const finalRow = await pool.query('SELECT money FROM players WHERE id = $1', [playerId]);
-      // `updateWithLock`'un satır kilidi sayesinde N eşzamanlı yazma
-      // sıraya girer — GERÇEKLEŞEN toplam net değişim (yanıtların
-      // entryFee/prizeWon toplamı), GERÇEK son bakiye farkına BİREBİR eşit
-      // olmalıdır (lost update = bu iki değerin BİRBİRİNDEN SAPMASI).
-      expect(Number(finalRow.rows[0].money)).toBe(500000 + netChange);
-
-      const raceRows = await pool.query('SELECT COUNT(*)::int AS count FROM races WHERE id = ANY($1::uuid[])', [
-        [...raceIds],
-      ]);
-      expect(raceRows.rows[0].count).toBe(50);
+      await expectConcurrentPracticeRacesStayConsistent(50, horseId, playerId, authHeader);
     }, { timeout: 45000, retry: 2 });
 
-    it('n=100 GERÇEKTEN eşzamanlı istek FARKLI Idempotency-Key’lerle gönderilirse 100 AYRI yarış GERÇEKTEN koşar, bakiye yine tutarlı kalır', async () => {
+    it('n=100 GERÇEKTEN eşzamanlı istek: yorgunluk kapısı yine aşılamaz, bakiye ve vital yine tutarlı kalır', async () => {
       const { horseId, playerId, authHeader } = await registerTestPlayerWithStarterHorse(app, 'Yarışçı');
+      // Bol bakiye: `INSUFFICIENT_FUNDS` bu senaryonun değişkeni değil.
       await pool.query('UPDATE players SET money = 500000 WHERE id = $1', [playerId]);
-
-      const idempotencyKeys = Array.from({ length: 100 }, () => randomUUID());
-      const responses = await sendConcurrentRequests(100, (index) =>
-        request(app.getHttpServer())
-          .post(`/api/v1/horses/${horseId}/practice-race`)
-          .set('Authorization', authHeader)
-          .set('Idempotency-Key', idempotencyKeys[index]!)
-          .send({}),
-      );
-
-      for (const response of responses) {
-        expect(response.status).toBe(200);
-      }
-
-      const raceIds = new Set(responses.map((response) => response.body.data.raceId as string));
-      expect(raceIds.size).toBe(100);
-
-      const netChange = responses.reduce(
-        (sum, response) => sum + (response.body.data.prizeWon as number) - (response.body.data.entryFee as number),
-        0,
-      );
-
-      const finalRow = await pool.query('SELECT money FROM players WHERE id = $1', [playerId]);
-      expect(Number(finalRow.rows[0].money)).toBe(500000 + netChange);
-
-      const raceRows = await pool.query('SELECT COUNT(*)::int AS count FROM races WHERE id = ANY($1::uuid[])', [
-        [...raceIds],
-      ]);
-      expect(raceRows.rows[0].count).toBe(100);
+      await expectConcurrentPracticeRacesStayConsistent(100, horseId, playerId, authHeader);
     }, { timeout: 60000, retry: 2 });
   });
 });

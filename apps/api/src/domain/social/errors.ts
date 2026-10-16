@@ -410,3 +410,49 @@ export class NotificationNotFoundError extends Error {
     this.name = 'NotificationNotFoundError';
   }
 }
+
+/**
+ * Arkadaşlık YALNIZCA birlikte yarışmış oyuncular arasında kurulur
+ * (08.10.2026, proje sahibinin kuralı: "sadece yarışmış kişiler arkadaş
+ * olabilsin"). 409 — GEÇİCİ bir durumdur: iki oyuncu aynı (bitmiş) yarışta
+ * koşunca istek serbest kalır. Hem istekte hem KABULDE uygulanır (kural
+ * öncesinden kalan bekleyen istek de arkadaşlığa dönüşemesin).
+ */
+export class FriendshipRequiresSharedRaceError extends Error {
+  constructor() {
+    super('Arkadaşlık için önce bu oyuncuyla aynı yarışta koşmuş olmalısın.');
+    this.name = 'FriendshipRequiresSharedRaceError';
+  }
+}
+
+/** 16.10.2026 — davet kodu yok ya da geçersiz (404). */
+export class ReferralCodeNotFoundError extends Error {
+  constructor() {
+    super('Davet kodu bulunamadı.');
+    this.name = 'ReferralCodeNotFoundError';
+  }
+}
+
+/** 16.10.2026 — kendi davet kodunu bağlamak (400). */
+export class ReferralSelfError extends Error {
+  constructor(message = 'Kendi davet kodunu kullanamazsın.') {
+    super(message);
+    this.name = 'ReferralSelfError';
+  }
+}
+
+/** 16.10.2026 — hesap zaten bir davete bağlı (409). */
+export class ReferralAlreadyAttachedError extends Error {
+  constructor() {
+    super('Hesabın zaten bir davet koduna bağlı.');
+    this.name = 'ReferralAlreadyAttachedError';
+  }
+}
+
+/** 16.10.2026 — davet kodu yalnızca yeni hesaplarda bağlanır (409). */
+export class ReferralAttachWindowClosedError extends Error {
+  constructor(public readonly windowHours: number) {
+    super(`Davet kodu yalnızca hesap açıldıktan sonraki ${windowHours} saat içinde girilebilir.`);
+    this.name = 'ReferralAttachWindowClosedError';
+  }
+}

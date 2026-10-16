@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { FACILITY_REPOSITORY } from '../../application/ports/facility.repository';
+import { FarmEffectsService } from '../../application/use-cases/farm-effects.service';
 import { GetFarmSummaryUseCase } from '../../application/use-cases/get-farm-summary.use-case';
 import { UpgradeFacilityUseCase } from '../../application/use-cases/upgrade-facility.use-case';
 import { PostgresFacilityRepository } from '../../infrastructure/farm/postgres-facility.repository';
@@ -31,6 +32,8 @@ import { FarmController } from './farm.controller';
     UpgradeFacilityUseCase,
     { provide: FACILITY_REPOSITORY, useClass: PostgresFacilityRepository },
     IdempotencyInterceptor,
+    FarmEffectsService,
   ],
+  exports: [FarmEffectsService],
 })
 export class FarmModule {}

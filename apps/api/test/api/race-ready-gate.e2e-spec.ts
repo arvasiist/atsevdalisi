@@ -5,7 +5,7 @@ import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { LockRaceUseCase } from '../../src/application/use-cases/lock-race.use-case';
 import { PG_POOL } from '../../src/infrastructure/database/database.module';
-import { bootstrapTestApp, registerTestPlayerWithStarterHorse, type RegisteredTestPlayer } from './test-helpers';
+import { allowSoloLobbyRace, bootstrapTestApp, registerTestPlayerWithStarterHorse, type RegisteredTestPlayer } from './test-helpers';
 
 /**
  * READY ŞARTI (30.09.2026) — proje sahibinin talebi: "HAZIR OLAN kişiler
@@ -57,6 +57,9 @@ describe('READY şartı (e2e) — hazır olmayan koşmaz, ücreti iade edilir', 
         spectatorCapacity: 500,
       })
       .expect(201);
+    // 15.10.2026 (Aşama 3) — bu dosyanın yarışları tek gerçek oyuncuyla da
+    // koşar (eski saha kuralı ön koşul; kuralın kendisi `race-field-rule.e2e-spec.ts`te).
+    await allowSoloLobbyRace(app, response.body.data.id as string);
     return response.body.data.id as string;
   }
 

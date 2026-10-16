@@ -59,3 +59,101 @@ export interface GiftView {
   amount: number;
   createdAt: string;
 }
+
+/**
+ * 08.10.2026 — DOSTLUK HEDİYESİ. 16.10.2026'dan beri (migration 0087)
+ * gönderen öder (`friend_gift_send`); alıcı toplayınca çip
+ * `friend_gift_collect` defter satırıyla girer.
+ */
+export interface FriendGiftPendingView {
+  giftId: string;
+  sender: { playerId: string; username: string; displayName: string };
+  amount: number;
+  createdAt: string;
+}
+
+export interface FriendGiftBoardView {
+  /** Bir hediyenin tutarı (config). */
+  amount: number;
+  dailyCollectLimit: number;
+  /** Bugün (oyun saat dilimi) toplanan hediye sayısı. */
+  collectedToday: number;
+  remainingCollectsToday: number;
+  /** Süresi geçmemiş, toplanmamış hediyeler (sayı + toplam tutar). */
+  pendingCount: number;
+  pendingAmount: number;
+  pending: FriendGiftPendingView[];
+  /** Hediye gönderilebilecek arkadaş sayısı (engel/silinmiş hesap hariç). */
+  friendCount: number;
+  /** Bugün hediye gönderilmiş arkadaş sayısı. */
+  sentToday: number;
+  /** 16.10.2026 — gönderen öder: bir hediyenin gönderene maliyeti (= `amount`). */
+  sendCost: number;
+  dailySendBudget: number;
+  /** Bugün hediyeye harcanan çip. */
+  spentToday: number;
+  remainingSendBudget: number;
+  /** Şimdi "Hepsine Gönder"e basılırsa hediye gidecek arkadaşlar (bütçe + bakiye sınırlı). */
+  nextRecipients: FriendGiftRecipientView[];
+  /** Bugün henüz hediye gönderilmemiş uygun arkadaş sayısı. */
+  unsentEligibleCount: number;
+  /** Önizlemenin neden herkesi kapsamadığı: bütçe ya da bakiye. */
+  limitedBy: 'none' | 'budget' | 'funds';
+}
+
+export interface FriendGiftRecipientView {
+  playerId: string;
+  username: string;
+  displayName: string;
+}
+
+export type FriendGiftRecipientStatus = 'sent' | 'already_sent' | 'budget_exhausted' | 'insufficient_funds';
+
+export interface FriendGiftRecipientResult extends FriendGiftRecipientView {
+  status: FriendGiftRecipientStatus;
+}
+
+export interface FriendGiftSendAllResult {
+  /** Bu istekte hediye gönderilen arkadaş sayısı. */
+  sent: number;
+  /** Bugün zaten hediye gönderilmiş olan arkadaş sayısı. */
+  alreadySentToday: number;
+  /** Bu istekte gönderenden düşen çip (`sent × amount`). */
+  cost: number;
+  /** Süresi dolmuş, toplanmamış ödenmiş hediyelerden gönderene dönen çip. */
+  refunded: number;
+  balanceAfter: number;
+  /** Kişi başı sonuç: kime gitti, kim neden atlandı. */
+  recipients: FriendGiftRecipientResult[];
+}
+
+export interface FriendGiftCollectResult {
+  collected: number;
+  amount: number;
+  balanceAfter: number;
+  remainingCollectsToday: number;
+  /** Günlük sınır yüzünden bekleyen (yarın toplanabilir) hediye sayısı. */
+  stillPending: number;
+}
+
+/**
+ * 16.10.2026 — `GET /players/:id/gifts/quota`: çip gönderme onay ekranı.
+ * Değerler sunucu kapısıyla AYNI fonksiyonlardan gelir; alıcının günlük
+ * tavanı gönderimde ayrıca denetlenir. `purchasedChipsLocked` = satın
+ * alınmış olduğu için gönderilemeyen kısım.
+ */
+export interface GiftQuotaView {
+  currency: 'money';
+  minAmount: number;
+  maxAmount: number;
+  presetAmounts: number[];
+  dailyCountLimit: number;
+  sentCountToday: number;
+  dailyAmountLimit: number;
+  sentAmountToday: number;
+  remainingAmountToday: number;
+  newAccountLimited: boolean;
+  balance: number;
+  giftableBalance: number;
+  purchasedChipsLocked: number;
+}

@@ -29,6 +29,7 @@ interface InvitableRaceDbRow {
   race_name: string;
   status: string;
   start_time: Date;
+  invitee_club_allowed: boolean;
 }
 
 /**
@@ -58,10 +59,14 @@ interface InvitableRaceDbRow {
 export class PostgresRaceInviteRepository implements RaceInviteRepository {
   constructor(@Inject(PG_POOL) private readonly pool: Pool) {}
 
-  async findRaceForInvite(raceId: string): Promise<InvitableRaceFacts | null> {
+  async findRaceForInvite(raceId: string, inviteeId: string): Promise<InvitableRaceFacts | null> {
     const result = await this.pool.query<InvitableRaceDbRow>(
-      'SELECT id AS race_id, name AS race_name, status, start_time FROM races WHERE id = $1',
-      [raceId],
+      `SELECT r.id AS race_id, r.name AS race_name, r.status, r.start_time,
+              (r.club_id IS NULL OR EXISTS (
+                 SELECT 1 FROM club_members m WHERE m.player_id = $2 AND m.club_id = r.club_id
+              )) AS invitee_club_allowed
+         FROM races r WHERE r.id = $1`,
+      [raceId, inviteeId],
     );
     const row = result.rows[0];
     if (!row) return null;
@@ -70,6 +75,7 @@ export class PostgresRaceInviteRepository implements RaceInviteRepository {
       raceName: row.race_name,
       status: row.status,
       startTime: row.start_time,
+      inviteeClubAllowed: row.invitee_club_allowed,
     };
   }
 

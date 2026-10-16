@@ -1,16 +1,20 @@
+import type { SchedulerLeaderService } from '../../src/infrastructure/scheduler/scheduler-leader';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { ScheduleTournamentsUseCase } from '../../src/application/use-cases/schedule-tournaments.use-case';
 import type { AppConfigService } from '../../src/infrastructure/config/config.service';
 import { TournamentScheduler } from '../../src/infrastructure/scheduler/tournament.scheduler';
 
 /** `online.tournament.schedule.enabled` GERÇEKTEN okunur (ölü config kuralı). */
+
+/** Tek örnek: lider kapısı her zaman açık (kapının kendisi `scheduler-leader.e2e-spec.ts`te). */
+const alwaysLeader = { runIfLeader: <T>(work: () => Promise<T>) => work() } as unknown as SchedulerLeaderService;
 function makeScheduler(enabled: boolean, nodeEnv: string): TournamentScheduler {
   const config = {
     env: { nodeEnv },
     online: { tournament: { schedule: { enabled, tickSeconds: 60, registrationHours: 6 } } },
   } as unknown as AppConfigService;
   const useCase = { execute: async () => ({ opened: [], cancelledEmpty: 0 }) } as unknown as ScheduleTournamentsUseCase;
-  return new TournamentScheduler(useCase, config);
+  return new TournamentScheduler(alwaysLeader, useCase, config);
 }
 
 describe('TournamentScheduler — config kararı', () => {

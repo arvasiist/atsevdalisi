@@ -2,11 +2,16 @@ import { describe, expect, it } from 'vitest';
 import { loadEconomyConfig, loadRaceConfig, type RaceTierConfig } from '@at-sevdalisi/game-config';
 import {
   DEFAULT_RACE_TIER_ID,
+  describePracticeClass,
   findRaceTier,
+  formatRaceReadyIn,
+  isPracticeTierOpen,
+  pickOpenPracticeTierId,
   formatMultiplier,
   formatRakePercent,
   getPayoutMultiplier,
   getRaceEntryBlocker,
+  daysUntilRaceAge,
   getTopPayoutMultipliers,
   RACE_ENTRY_BLOCKER_LABELS,
   RACE_RAKE,
@@ -200,8 +205,20 @@ describe('getRaceEntryBlocker — "hazır olan kişiler yarışabilsinler"', () 
     expect(getRaceEntryBlocker({ ...allBad, status: 'active', health: 100, fatigue: 0 })).toBe('INSUFFICIENT_ENERGY');
   });
 
+  it('15.10.2026 — B12: yarış yaşına gelmemiş tay kilitlenir; yaş bilinmiyorsa önizlenmez (sunucu keser)', () => {
+    const minAge = raceConfig.readiness.minAgeMonths;
+    expect(getRaceEntryBlocker({ ...healthy, ageMonths: minAge - 1 })).toBe('HORSE_TOO_YOUNG');
+    expect(getRaceEntryBlocker({ ...healthy, ageMonths: minAge })).toBeNull();
+    expect(getRaceEntryBlocker(healthy)).toBeNull();
+    // Sıra sunucuyla aynı: durum önce, yaş sonra, sağlık daha sonra.
+    expect(getRaceEntryBlocker({ ...healthy, status: 'injured', ageMonths: 0 })).toBe('HORSE_NOT_ACTIVE');
+    expect(getRaceEntryBlocker({ ...healthy, health: 0, ageMonths: 0 })).toBe('HORSE_TOO_YOUNG');
+    expect(daysUntilRaceAge(minAge)).toBe(0);
+    expect(daysUntilRaceAge(minAge - 3)).toBeGreaterThanOrEqual(1);
+  });
+
   it('her engelin Türkçe bir etiketi vardır (ekranda boş mesaj çıkmaz)', () => {
-    for (const blocker of ['HORSE_NOT_ACTIVE', 'INSUFFICIENT_HEALTH', 'HORSE_TOO_TIRED', 'INSUFFICIENT_ENERGY'] as const) {
+    for (const blocker of ['HORSE_NOT_ACTIVE', 'HORSE_TOO_YOUNG', 'INSUFFICIENT_HEALTH', 'HORSE_TOO_TIRED', 'INSUFFICIENT_ENERGY'] as const) {
       expect(RACE_ENTRY_BLOCKER_LABELS[blocker].length).toBeGreaterThan(0);
     }
   });
@@ -209,5 +226,49 @@ describe('getRaceEntryBlocker — "hazır olan kişiler yarışabilsinler"', () 
   it('yarış eşikleri antrenman eşiklerinden DAHA SIKIdır (yorgun at antrenmana girebilir, yarışa giremez)', () => {
     expect(raceConfig.readiness.minEnergy).toBeGreaterThan(15);
     expect(raceConfig.readiness.maxFatigue).toBeLessThan(90);
+  });
+});
+
+describe('pratik yarış sınıfı ön izlemesi (14.10.2026)', () => {
+  const classes = loadEconomyConfig().practiceRaceClasses;
+  const local = classes.find((entry) => entry.tierId === RACE_TIERS[0]!.id)!;
+  const open = classes.find((entry) => entry.maxHorsePower === null)!;
+
+  it('tavana ULAŞAN at kademeye giremez; güç bilinmiyorsa kademe kapatılmaz', () => {
+    expect(isPracticeTierOpen(local.tierId, local.maxHorsePower! - 0.1)).toBe(true);
+    expect(isPracticeTierOpen(local.tierId, local.maxHorsePower!)).toBe(false);
+    expect(isPracticeTierOpen(open.tierId, 100)).toBe(true);
+    expect(isPracticeTierOpen(local.tierId, undefined)).toBe(true);
+  });
+
+  it('kapalı kademe seçiliyse atın girebildiği ilk kademeye geçilir', () => {
+    expect(pickOpenPracticeTierId(local.tierId, 50)).toBe(local.tierId);
+    const strong = pickOpenPracticeTierId(local.tierId, local.maxHorsePower!);
+    expect(strong).not.toBe(local.tierId);
+    expect(isPracticeTierOpen(strong!, local.maxHorsePower!)).toBe(true);
+    expect(pickOpenPracticeTierId(local.tierId, 100)).toBe(open.tierId);
+  });
+
+  it('her kademe rakip gücünü ve tavanı yazar', () => {
+    const [low, high] = local.botStatRange;
+    expect(describePracticeClass(local.tierId)).toBe(`Rakipler güç ${low}–${high} · güç ${local.maxHorsePower} altı atlar`);
+    expect(describePracticeClass(open.tierId)).toContain('güç sınırı yok');
+  });
+});
+
+describe('hazır olma süresi metni (15.10.2026)', () => {
+  const now = new Date(Date.UTC(2026, 9, 15, 12, 0, 0));
+  const at = (minutes: number) => new Date(now.getTime() + minutes * 60_000).toISOString();
+
+  it('dakika ve saat biçimi, yukarı yuvarlanır', () => {
+    expect(formatRaceReadyIn(at(35), now)).toBe('yaklaşık 35 dk sonra');
+    expect(formatRaceReadyIn(at(34.2), now)).toBe('yaklaşık 35 dk sonra');
+    expect(formatRaceReadyIn(at(60), now)).toBe('yaklaşık 1 sa sonra');
+    expect(formatRaceReadyIn(at(130), now)).toBe('yaklaşık 2 sa 10 dk sonra');
+  });
+
+  it('süre geçtiyse "birazdan" (bir sonraki toparlanma turu)', () => {
+    expect(formatRaceReadyIn(at(0), now)).toBe('birazdan');
+    expect(formatRaceReadyIn(at(-5), now)).toBe('birazdan');
   });
 });

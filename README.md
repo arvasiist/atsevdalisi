@@ -14,16 +14,13 @@ nereden devam edeceğini anlaması için hazırlanmıştır.
 
 ## 1. Proje durumu
 
-| Faz | Açıklama | Durum |
-|---|---|---|
-| **FAZ 0** | Teknik keşif, mimari kararlar, repo iskeleti, dokümantasyon | 🟡 Devam ediyor |
-| FAZ 1 | Core (Player, Auth, Economy, Horse, Stable, Training, Care, Basic Race Engine) | ⏳ Planlandı |
-| FAZ 2 | Management (Market, Vet, Farrier, Nutrition, Jockey, Staff) | ⏳ Planlandı |
-| FAZ 3 | Genetics (Pedigree, Breeding, Inheritance, Mutation) | ⏳ Planlandı |
-| FAZ 4 | Farm (Tesis yükseltmeleri) | ⏳ Planlandı |
-| FAZ 5 | Advanced Race Engine (Pace, Overtaking, Blocking, Replay) | ⏳ Planlandı |
-| FAZ 6 | 3D/Web Sunum Katmanı (Three.js, kamera, VFX, ses) | ⏳ Planlandı |
-| FAZ 7 | Online (Matchmaking, PvP, Kulüpler, Turnuvalar, Anti-cheat) | ⏳ Planlandı |
+> **14.10.2026:** Buradaki eski faz tablosu ("FAZ 0 devam ediyor") projenin ilk
+> gününden beri güncellenmediği için kaldırıldı. Gerçek ve koda göre doğrulanmış durum
+> [`MASTER_STATUS.md`](MASTER_STATUS.md) ve [`PROJE_DURUMU.md`](PROJE_DURUMU.md)
+> §5'tedir. Kısaca: sunucu (oyuncu, at, ahır, antrenman, bakım, ekonomi,
+> pazar/müzayede, yetiştirme, yarış motoru, lobi/turnuva/takvim, kulüp, sezon,
+> sosyal, yönetim) ve web arayüzü çalışır durumdadır; 3D at/jokey/hipodrom
+> görüntüleri hâlâ prosedüreldir (gerçek model dosyası yok).
 
 Detaylı yol haritası için bkz. [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
@@ -34,9 +31,9 @@ Detaylı yol haritası için bkz. [`docs/ROADMAP.md`](docs/ROADMAP.md).
 ## 2. Teknoloji yığını
 
 ```text
-Frontend   : Next.js 14+ (React, TypeScript) — responsive, PWA-uyumlu, mobil-öncelikli
-3D/Görsel  : Three.js (react-three-fiber) — yarış sahnesi görselleştirme
-Backend    : NestJS (Node.js, TypeScript) — katmanlı mimari (Domain/Application/Infra/API)
+Frontend   : Next.js 16 + React 19 (TypeScript) — responsive, PWA-uyumlu, mobil-öncelikli
+3D/Görsel  : Three.js (react-three-fiber 9) — yarış sahnesi görselleştirme
+Backend    : NestJS 11 (Node.js, TypeScript) — katmanlı mimari (Domain/Application/Infra/API)
 Veritabanı : PostgreSQL — authoritative oyun verisi
 Cache      : Redis — session, leaderboard, aktif yarış lobisi
 Realtime   : WebSocket (Socket.IO / Nest Gateways) — canlı yarış ve online lobi
@@ -66,27 +63,35 @@ at-sevdalisi/
 
 ## 4. Kurulum (yerel geliştirme ortamı)
 
-> ⚠️ **Önemli:** Bu iskelet, bağımlılıkları **kurulu olmadan** teslim edilmiştir çünkü
-> bu depo geliştirme ortamının dış npm registry erişimi güvenlik politikasıyla
-> kısıtlanmıştır. Kendi makinenizde veya CI ortamınızda aşağıdaki adımları
-> çalıştırarak bağımlılıkları kurabilirsiniz.
+Gereken: Node.js 22, PostgreSQL (16+), Redis (6379).
+
+### Windows — tek komut
+
+Proje klasöründe `cmd` açıp:
+
+```bat
+tools\dev\yerel-baslat.cmd
+```
+
+Betik projeye özel bir PostgreSQL kümesi kurar (`%LOCALAPPDATA%\at-sevdalisi\pgdata`,
+port **5433**, kurulu PostgreSQL servisiyle çakışmaz), Redis'i kontrol eder,
+`npm install` + paket derleme + migration yapar, API (4000) ve web (3000)
+sunucularını ayrı pencerelerde açar ve tarayıcıyı getirir. Durdurmak için
+pencereleri kapatıp `tools\dev\yerel-durdur.cmd` (veriler silinmez).
+
+### Elle (her işletim sistemi)
+
+> ⚠️ API `.env` dosyasını **okumaz** (dotenv yok): değişkenler terminalde
+> verilmelidir. Tam liste `apps/api/.env.example`te.
 
 ```bash
-# 1) Bağımlılıkları kurun (Node.js 20+ gereklidir)
 npm install
-
-# 2) Ortam değişkenlerini ayarlayın
-cp apps/api/.env.example apps/api/.env
-cp apps/web/.env.example apps/web/.env.local
-
-# 3) PostgreSQL ve Redis'i ayağa kaldırın (Docker öneriliyor)
-docker compose up -d postgres redis
-
-# 4) Veritabanı migration'larını çalıştırın
+npm run build:packages          # shared-types + game-config (dist/ gitignore'lu)
+export DATABASE_URL=postgres://at_sevdalisi:at_sevdalisi@localhost:5432/at_sevdalisi
+export REDIS_URL=redis://localhost:6379
+export JWT_SECRET=yerel-gelistirme-anahtari
 npm run migrate
-
-# 5) Geliştirme sunucularını başlatın
-npm run dev:api    # http://localhost:4000
+npm run dev:api    # http://localhost:4000  (aynı değişkenlerle)
 npm run dev:web    # http://localhost:3000
 ```
 

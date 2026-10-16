@@ -16,6 +16,7 @@ import { computeWeightCompatibility } from './carried-weight';
 import { computeEquipmentPerformanceModifier } from '../equipment/performance';
 import { FINAL_STRETCH_PLANS, RACING_STYLES, RISK_LEVELS, START_APPROACHES } from './validation';
 import { InvalidRaceTacticError } from './errors';
+import { applyRacingAgeFactor } from '../horse/age-curve';
 
 /**
  * `RaceEntrantSnapshot`'ın henüz gerçek veriyle bağlanmamış alanları için
@@ -237,6 +238,10 @@ export function buildHorseEntrantSnapshot(
   horse: Horse,
   stats: HorseStats,
   tactic: RaceTacticInput,
+  // 15.10.2026 — B13: yaş evresinin yarış çarpanı (`racingAgeFactor`, zirve 1).
+  // ZORUNLU: yeni bir kadro yolu yaşı unutursa tsc durdurur. Hız/ivme/
+  // dayanıklılığa uygulanır ve snapshot'a öyle donar (gösterilen = motora giden).
+  racingAgeFactor: number,
   recentResults: readonly RecentRaceResultView[] = [],
   trackFit: TrackFitInput | null = null,
   // Ekipman (bu turda EKLENDİ) — AYNI "opsiyonel, verilmezse nötr" deseni
@@ -265,9 +270,9 @@ export function buildHorseEntrantSnapshot(
 
   return {
     horseId: horse.id,
-    speed: stats.speed,
-    stamina: stats.stamina,
-    acceleration: stats.acceleration,
+    speed: applyRacingAgeFactor(stats.speed, racingAgeFactor),
+    stamina: applyRacingAgeFactor(stats.stamina, racingAgeFactor),
+    acceleration: applyRacingAgeFactor(stats.acceleration, racingAgeFactor),
     fitness: horse.fitness,
     fatigue: horse.fatigue,
     health: horse.health,

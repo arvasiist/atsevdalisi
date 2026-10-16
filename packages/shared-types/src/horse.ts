@@ -7,6 +7,21 @@ export type HorseGender = 'mare' | 'stallion' | 'gelding';
 export type HorseStatus = 'active' | 'injured' | 'retired' | 'resting';
 
 /** brief §7 Horse */
+/** 01.10.2026 — don rengi (3D görünüşün kaynağı; migration 0051 CHECK ile aynı küme). */
+export const HORSE_COAT_COLORS = ['bay', 'dark_bay', 'chestnut', 'black', 'grey', 'palomino'] as const;
+export type HorseCoatColor = (typeof HORSE_COAT_COLORS)[number];
+export const HORSE_FACE_MARKINGS = ['none', 'star', 'stripe', 'blaze', 'snip'] as const;
+export type HorseFaceMarking = (typeof HORSE_FACE_MARKINGS)[number];
+export const HORSE_LEG_MARKINGS = ['none', 'socks', 'stockings'] as const;
+export type HorseLegMarking = (typeof HORSE_LEG_MARKINGS)[number];
+
+/** Atın görünüşü — veritabanında saklanır, at yaşadıkça DEĞİŞMEZ. */
+export interface HorseAppearance {
+  coatColor: HorseCoatColor;
+  faceMarking: HorseFaceMarking;
+  legMarking: HorseLegMarking;
+}
+
 export interface Horse {
   id: UUID;
   ownerId: UUID;
@@ -27,6 +42,16 @@ export interface Horse {
   status: HorseStatus;
   sireId: UUID | null;
   damId: UUID | null;
+  /** 01.10.2026 — 3D sahnedeki görünüşün kaynağı (migration 0051). */
+  appearance: HorseAppearance;
+  /**
+   * 15.10.2026 — hızlı yaşlanmanın başladığı an (migration 0084). Oyun yaşı
+   * `birthDate` + bu an + `gameMonthsPerRealDay` ile SUNUCUDA hesaplanır
+   * (`computeHorseAgeMonths`); istemciye bu alan değil `ageMonths` gider.
+   */
+  agingStartedAt: ISODateTimeString;
+  /** 15.10.2026 — emeklilik anı; emekli değilse `null`. Emeklilik geri alınmaz. */
+  retiredAt: ISODateTimeString | null;
   createdAt: ISODateTimeString;
   updatedAt: ISODateTimeString;
 }
@@ -59,11 +84,21 @@ export interface HorseStats {
   obedience: number;
 }
 
+/** Gizli kişilik özellikleri (brief §8.2) — ham değerleri istemciye GİTMEZ. */
+export type HiddenHorseTraitKey = 'temperament' | 'focus' | 'courage' | 'competitiveness' | 'stressResistance' | 'obedience';
+
 /** Oyuncuya gösterilen, gizli stat'ları çıkarılmış görünüm (docs/SECURITY.md §9). */
-export type VisibleHorseStats = Omit<
-  HorseStats,
-  'temperament' | 'focus' | 'courage' | 'competitiveness' | 'stressResistance' | 'obedience'
->;
+export type VisibleHorseStats = Omit<HorseStats, HiddenHorseTraitKey>;
+
+/**
+ * 08.10.2026 — atın kişilik ETİKETİ. Sunucu gizli sayılardan türetir
+ * (`domain/horse/personality.ts`); istemci yalnızca hangi özelliğin hangi
+ * uçta belirgin olduğunu görür, sayıyı DEĞİL. Boş liste = "Dengeli".
+ * Metin (`label`/`hint`) `config/horse-personality.config.json`dadır.
+ */
+export interface HorsePersonalityView {
+  traits: Array<{ trait: HiddenHorseTraitKey; pole: 'high' | 'low' }>;
+}
 
 /** brief §7 HorseSurfaceStats */
 export interface HorseSurfaceStats {
@@ -112,8 +147,33 @@ export interface HorseHealth {
  * AUDIT_AND_HARDENING Mutlak Kural 1) — sadece ham değerin SIZMASI
  * engellenir (bkz. `apps/api/src/api/dto/horse.mapper.ts`).
  */
-export type PublicHorse = Omit<Horse, 'potential'> & {
+export type PublicHorse = Omit<Horse, 'potential' | 'agingStartedAt'> & {
   potentialEstimate: { min: number; max: number };
+  /**
+   * 15.10.2026 — oyun yaşı (ay; 1 gerçek gün = `gameMonthsPerRealDay` ay).
+   * Sahibinin listesinde ve damızlık listesinde dolar; hesap sunucudadır.
+   */
+  ageMonths?: number;
+  /**
+   * 15.10.2026 — B13: yaş evresi (`foal`/`development`/`prime`/`mature`/`aging`)
+   * ve o evrenin yarış çarpanı (hız/ivme/dayanıklılık; zirve 1). Yalnızca
+   * sahibinin listesinde; çarpan kadro dondurulurken uygulanır.
+   */
+  lifeStage?: { name: string; racingFactor: number };
+  /** 08.10.2026 — YALNIZCA sahibinin at listesinde (`GET /horses?ownerId=`) dolar. */
+  personality?: HorsePersonalityView;
+  /**
+   * 14.10.2026 — pratik yarış sınıf gücü (hız + ivme + dayanıklılık ortalaması);
+   * YALNIZCA sahibinin at listesinde. Kademe tavanı (`practiceRaceClasses`) ile
+   * karşılaştırılır — kapı sunucudadır, bu alan yalnızca ekran içindir.
+   */
+  racingPower?: number;
+  /**
+   * 15.10.2026 — at yorgunluk/enerji yüzünden yarışa hazır değilse, zamanla
+   * toparlanarak ne zaman hazır olacağı (ISO). Yalnızca sahibinin listesinde;
+   * hazırsa ya da engel zamanla geçmiyorsa (sağlık, durum) alan yoktur.
+   */
+  raceReadyAt?: ISODateTimeString;
 };
 
 /** `HorseStats`'ın `horseId` DIŞINDAKİ alanları — tek bir stat'a atıfta bulunmak
@@ -149,14 +209,21 @@ export interface TrainingSession {
 /**
  * `POST /horses/{id}/train` yanıtı (docs/API.md §4). FAZ 1 wiring,
  * dördüncü dilim — bkz. `application/use-cases/train-horse.use-case.ts`
- * üstündeki KAPSAM notu (yalnızca birincil stat, energy/morale değişmez).
+ * üstündeki KAPSAM notu. 16.10.2026: antrenman enerji harcar ve kondisyonu
+ * geliştirir (`energyCost`, `fitnessGain`; config `training.types`).
  */
 export interface TrainHorseResult {
   horseId: UUID;
   statChanges: Partial<Record<HorseStatField, number>>;
   fatigueGain: number;
+  /** 16.10.2026 — düşülen enerji. */
+  energyCost: number;
+  /** 16.10.2026 — eklenen kondisyon. */
+  fitnessGain: number;
   injuryOccurred: boolean;
-  newStatus: Pick<Horse, 'fatigue' | 'energy' | 'morale'>;
+  newStatus: Pick<Horse, 'fatigue' | 'energy' | 'morale' | 'fitness'>;
+  /** 01.10.2026 — uygulanan antrenör çarpanı (1 = antrenörsüz). */
+  staffMultiplier: number;
 }
 
 /** brief §39 Ahır ekranı kartı için minimal görünüm. */
@@ -220,4 +287,16 @@ export interface HorseEquipment {
    */
   equipped: boolean;
   createdAt: ISODateTimeString;
+  /**
+   * 08.10.2026 (migration 0076) — katalog kalemi (`config/equipment.config.json`).
+   * `null` = katalogdan önce oyuncunun kendi tanımladığı eski parça.
+   */
+  catalogKey: string | null;
+}
+
+/** `POST /horses/:id/equipment` yanıtı (08.10.2026) — alınan parça + ödenen + yeni bakiye. */
+export interface PurchaseHorseEquipmentResult {
+  item: HorseEquipment;
+  price: number;
+  money: number;
 }

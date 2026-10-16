@@ -11,11 +11,21 @@
 export interface TokenPayload {
   /** Oyuncu id'si (JWT `sub` claim'i). */
   sub: string;
+  /**
+   * Oturum kimliği (02.10.2026, migration 0057). YOKSA token eski tiptir
+   * (bkz. `domain/auth/session.ts`). `verify` yalnızca UUID biçimini kabul eder.
+   */
+  sid?: string;
+  /** JWT `iat` (saniye) — yalnızca `verify` doldurur. */
+  iat?: number;
 }
 
 export interface TokenService {
-  /** Yeni bir oturum JWT'si imzalar (geçerlilik süresi: `AppConfigService.env.jwtExpiresInSeconds`). */
-  sign(payload: TokenPayload): string;
+  /**
+   * Erişim JWT'si imzalar. Süre çağırandan gelir (`auth.session.
+   * accessTokenTtlSeconds`); eski sabit 30 günlük süre KALDIRILDI.
+   */
+  sign(payload: { sub: string; sid?: string }, expiresInSeconds: number): string;
   /**
    * İmza + süre doğrular, geçerliyse payload'ı döner. Geçersiz/süresi
    * dolmuş/bozuk bir token için `domain/auth/errors.ts` `InvalidAuthTokenError`

@@ -1,9 +1,11 @@
 import { Inject, Injectable } from '@nestjs/common';
 import type { RaceEntrantSnapshot, RaceSurface, RaceTacticInput } from '@at-sevdalisi/shared-types';
 import { buildHorseEntrantSnapshot, FORM_SAMPLE_SIZE, type TrackFitInput } from '../../domain/race/entrant-snapshot';
-import { calculateJockeySkillComposite } from '../../domain/jockey/jockey';
+import { effectiveJockeySkill } from '../../domain/jockey/jockey';
+import { loadJockeyCondition } from './jockey-condition';
 import { DEFAULT_RACE_TACTIC } from '../../domain/race/validation';
 import { HorseNotFoundError } from '../../domain/horse/errors';
+import { horseAgeMonths, racingAgeFactor } from '../../domain/horse/age-curve';
 import { AppConfigService } from '../../infrastructure/config/config.service';
 import { HORSE_REPOSITORY, type HorseRepository } from '../ports/horse.repository';
 import { HORSE_STATS_REPOSITORY, type HorseStatsRepository } from '../ports/horse-stats.repository';
@@ -131,13 +133,31 @@ export class EntrantSnapshotBuilder {
     // buradaki, `jockeyId`i de `null` bırakarak "jokeyi yok" olgusunu
     // KAYDEDER; oradaki, parametreyi hiç vermeyen çağıranlar (botlar) için
     // güvenli varsayılandır.
-    const jockeySkillComposite = jockey === null ? null : calculateJockeySkillComposite(jockey, this.config.jockey);
+    // 02.10.2026 — jokey-at UYUMU beceriye işler (`effectiveJockeySkill`);
+    // dondurulan kadroya yazılır, motor değişmez.
+    const jockeySkillComposite =
+      jockey === null
+        ? null
+        : effectiveJockeySkill(
+            {
+              jockey,
+              horse: { temperament: stats.temperament, racingStyle: entrant.tacticalStyle },
+              previousPairAveragePerformance:
+                await this.raceRepository.findJockeyPairAveragePerformance(entrant.horseId, jockey.id),
+              // 08.10.2026 — jokeyin formu × yorgunluğu (dondurma anına göre).
+              conditionMultiplier: (await loadJockeyCondition(this.jockeyRepository, jockey.id, new Date(), this.config.jockey))
+                .multiplier,
+            },
+            this.config.jockey,
+          );
 
     return {
       snapshot: buildHorseEntrantSnapshot(
         horse,
         stats,
         tactic,
+        // 15.10.2026 — B13: dondurma anındaki yaş evresi (jokey formuyla aynı an).
+        racingAgeFactor(horseAgeMonths(horse, new Date(), this.config.horseGrowth), this.config.horseGrowth),
         recentResults,
         trackFit,
         equippedItems,

@@ -1,15 +1,67 @@
 {
   "diminishingExponent": 0.7,
   "types": {
-    "speed":     { "baseGain": 1.0, "baseFatigue": 8,  "baseInjuryRisk": 0.5 },
-    "sprint":    { "baseGain": 1.2, "baseFatigue": 10, "baseInjuryRisk": 0.8 },
-    "stamina":   { "baseGain": 1.0, "baseFatigue": 9,  "baseInjuryRisk": 0.4 },
-    "start":     { "baseGain": 0.8, "baseFatigue": 6,  "baseInjuryRisk": 0.3 },
-    "cornering": { "baseGain": 0.8, "baseFatigue": 6,  "baseInjuryRisk": 0.4 },
-    "tempo":     { "baseGain": 0.9, "baseFatigue": 7,  "baseInjuryRisk": 0.3 },
-    "rest":      { "baseGain": 0.0, "baseFatigue": -20, "baseInjuryRisk": 0.0 }
+    "speed": {
+      "baseGain": 1.0,
+      "baseFatigue": 8,
+      "baseInjuryRisk": 0.5,
+      "baseEnergyCost": 5,
+      "baseFitnessGain": 1.0
+    },
+    "sprint": {
+      "baseGain": 1.2,
+      "baseFatigue": 10,
+      "baseInjuryRisk": 0.8,
+      "baseEnergyCost": 6,
+      "baseFitnessGain": 1.2
+    },
+    "stamina": {
+      "baseGain": 1.0,
+      "baseFatigue": 9,
+      "baseInjuryRisk": 0.4,
+      "baseEnergyCost": 6,
+      "baseFitnessGain": 2.0
+    },
+    "start": {
+      "baseGain": 0.8,
+      "baseFatigue": 6,
+      "baseInjuryRisk": 0.3,
+      "baseEnergyCost": 4,
+      "baseFitnessGain": 0.5
+    },
+    "cornering": {
+      "baseGain": 0.8,
+      "baseFatigue": 6,
+      "baseInjuryRisk": 0.4,
+      "baseEnergyCost": 4,
+      "baseFitnessGain": 0.5
+    },
+    "tempo": {
+      "baseGain": 0.9,
+      "baseFatigue": 7,
+      "baseInjuryRisk": 0.3,
+      "baseEnergyCost": 5,
+      "baseFitnessGain": 1.5
+    },
+    "rest": {
+      "baseGain": 0.0,
+      "baseFatigue": -20,
+      "baseInjuryRisk": 0.0,
+      "baseEnergyCost": 0,
+      "baseFitnessGain": 0
+    }
   },
-  "intensityMultipliers": { "low": 0.6, "medium": 1.0, "high": 1.5 },
-  "durationMultiplier": { "unitMinutes": 15, "perUnit": 0.2 },
-  "readinessThresholds": { "minEnergyToTrain": 15, "maxFatigueToTrain": 90 }
+  "intensityMultipliers": {
+    "low": 0.6,
+    "medium": 1.0,
+    "high": 1.5
+  },
+  "durationMultiplier": {
+    "unitMinutes": 15,
+    "perUnit": 0.2
+  },
+  "readinessThresholds": {
+    "minEnergyToTrain": 15,
+    "maxFatigueToTrain": 90
+  }
 }

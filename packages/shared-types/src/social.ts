@@ -1,3 +1,5 @@
+import type { ProfileAchievementView } from './achievements';
+import type { AvatarAppearance } from './avatar';
 /**
  * Arkadaşlık + mesajlaşma görünümleri (proje sahibinin açık talebi,
  * 27.09.2026: "arkadaşlık + mesajlaşma").
@@ -42,11 +44,63 @@ export interface SocialPlayerView {
   level: number;
 }
 
+/**
+ * Birlikte yarıştığın bir oyuncu (08.10.2026) — `GET /players/:id/race-companions`.
+ * Arkadaşlık yalnızca bu listedeki oyuncularla kurulabilir (sunucu kuralı).
+ * `relation` arkadaşlık satırının bana göre durumudur; engel olan çiftler
+ * listede YER ALMAZ.
+ */
+export interface RaceCompanionView extends SocialPlayerView {
+  /** Birlikte koşulan BİTMİŞ yarış sayısı. */
+  sharedRaces: number;
+  /** Son birlikte koşulan yarışın başlangıcı (ISO). */
+  lastRacedAt: string;
+  relation: 'friend' | 'outgoing' | 'incoming' | 'none';
+}
+
+/**
+ * 16.10.2026 — çevrimiçi durumu. YALNIZCA arkadaşa gösterilir; `hidden` =
+ * oyuncu durumunu gizledi (son görülme de dönmez).
+ */
+export type PresenceState = 'online' | 'offline' | 'hidden';
+export interface PresenceView {
+  state: PresenceState;
+  lastSeenAt: string | null;
+}
+
 /** Kabul edilmiş bir arkadaşlık. */
 export interface FriendView extends SocialPlayerView {
   friendshipId: string;
   /** Arkadaşlığın KABUL edildiği an (`friendships.responded_at`). */
   friendsSince: string;
+  /** 16.10.2026 — liste çevrimiçi → çevrimdışı (son görülen önce) → gizli sıralıdır. */
+  presence: PresenceView;
+}
+
+/** 16.10.2026 — `GET /social/search?q=` satırı; `relation` arayana göredir. */
+export interface PlayerSearchResultView extends SocialPlayerView {
+  relation: 'self' | 'friend' | 'outgoing' | 'incoming' | 'none';
+}
+
+/**
+ * 16.10.2026 — `GET /players/:id/relationship/:otherId`: profil düğmeleri.
+ * `canSendFriendRequest` sunucunun kapısını önceden söyler (asıl karar yine
+ * isteğin kendisinde); `friendRequestBlockedReason` neden olmadığını.
+ */
+export interface PlayerRelationshipView {
+  playerId: string;
+  status: 'self' | 'friend' | 'outgoing' | 'incoming' | 'none' | 'blocked';
+  /** Bekleyen isteğin kimliği (gelen istekte kabul/ret için). */
+  requestId: string | null;
+  canSendFriendRequest: boolean;
+  friendRequestBlockedReason: 'needs_shared_race' | null;
+  /** Yalnızca arkadaşsa. */
+  presence: PresenceView | null;
+}
+
+/** 16.10.2026 — `GET/PUT /players/:id/privacy`. */
+export interface PlayerPrivacyView {
+  showOnlineStatus: boolean;
 }
 
 /**
@@ -168,13 +222,21 @@ export interface PlayerProfileView {
   /** Bu oyuncuya GÖNDERİLMİŞ hediye sayısı (`gift_sends.recipient_id`). */
   giftCount: number;
   /**
-   * brief §24 "Achievements" — HENÜZ YOKTUR ve bu bilinçli bir karardır:
-   * kalıcı bir başarım veri modeli + yeni migration gerektirir
-   * (`career-tier.ts`'in achievement notuyla AYNI karar). Alan ŞİMDİDEN
-   * vardır ki istemci "geldi mi gelmedi mi" diye tahmin yürütmesin; dizi
-   * DOLDUĞUNDA bu sözleşme değişmez.
+   * brief §24 "Achievements" (03.10.2026) — oyuncunun KAZANDIĞI (ödülü
+   * alınmış) başarımlar, en yeniden eskiye. Yalnızca anahtar/ölçüt/hedef ve
+   * tarih — bakiye türevi bir şey taşımaz (uç `@Public()`).
    */
-  achievements: null;
+  achievements: ProfileAchievementView[];
+  /**
+   * 07.10.2026 — avatar görünüşü (katalog kimlikleri; kaydı yoksa kimlikten
+   * türetilen varsayılan). Kişisel/gizli bir şey taşımaz — uç `@Public()`.
+   */
+  avatar: AvatarAppearance;
+  /**
+   * 08.10.2026 — profil fotoğrafının kimliği (`GET /avatar/photos/:photoId`);
+   * yoksa `null`. Oyuncunun KENDİ yüklediği, meta verisi silinmiş görüntüdür.
+   */
+  photoId: string | null;
 }
 
 /**
@@ -239,4 +301,69 @@ export interface PlayerProfileStats {
   winCount: number;
   /** Bunlardan ilk üçte bitirilenler (birinciler DAHİL, `finish_position <= 3`). */
   podiumCount: number;
+}
+
+/** 02.10.2026 (Faz 9) — kulüp sohbeti mesajı (yalnızca üyelere görünür). */
+export interface ClubChatMessageView {
+  id: string;
+  playerId: string;
+  username: string;
+  displayName: string;
+  body: string;
+  createdAt: string;
+}
+
+/** 02.10.2026 (Faz 9) — tribün emote yayını (anonim: kimin attığı taşınmaz). */
+export interface RaceEmoteEvent {
+  raceId: string;
+  key: string;
+}
+
+/**
+ * 16.10.2026 — arkadaş daveti + davet ödülü (sosyal brief §7). `GET /referrals`.
+ * Kod sunucuda üretilir; paylaşım bağlantısını istemci kendi adresinden kurar
+ * (`/?ref=KOD`). İlerleme SAYAÇ değil, mevcut tablolardan türetilir.
+ */
+export type ReferralStatus = 'pending' | 'ready' | 'rewarded' | 'capped';
+
+export interface ReferralRowView {
+  referralId: string;
+  invitee: SocialPlayerView;
+  joinedAt: string;
+  status: ReferralStatus;
+  emailVerified: boolean;
+  finishedRaces: number;
+  requiredRaces: number;
+  emailRequired: boolean;
+  rewardedAt: string | null;
+  inviterReward: number | null;
+}
+
+export interface ReferralOverviewView {
+  code: string;
+  rewards: { inviter: number; invitee: number };
+  conditions: { requireEmailVerified: boolean; minFinishedRaces: number };
+  maxRewardedPerInviter: number;
+  maxRewardedPerInviterPerDay: number;
+  rewardedCount: number;
+  rewardedToday: number;
+  claimableCount: number;
+  referrals: ReferralRowView[];
+  /** Beni davet eden (yoksa null) ve benim davetle gelme ödülüm. */
+  invitedBy: (SocialPlayerView & { rewarded: boolean }) | null;
+  /** Bu hesap hâlâ bir davet kodu bağlayabilir mi (pencere + bağlı değil). */
+  canAttach: boolean;
+  attachDeadline: string | null;
+}
+
+export interface AttachReferralResult {
+  inviter: SocialPlayerView;
+}
+
+export interface ClaimReferralRewardsResult {
+  claimed: number;
+  amount: number;
+  balanceAfter: number;
+  /** Koşulu sağlayan ama tavan yüzünden bugün ödenmeyenler. */
+  capped: number;
 }

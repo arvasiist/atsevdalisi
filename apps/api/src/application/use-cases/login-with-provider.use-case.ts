@@ -4,7 +4,7 @@ import type { Player } from '@at-sevdalisi/shared-types';
 import type { AuthProvider } from '../../domain/player/auth-provider';
 import { createPlayerAuthProviderLink } from '../../domain/player/auth-provider';
 import { createNewPlayer } from '../../domain/player/player';
-import { createStarterHorse, generateStarterHorseWeightKg, pickStarterHorseGender, pickStarterHorseName } from '../../domain/horse/horse';
+import { newStarterHorse } from '../horse/new-starter-horse';
 import { AppConfigService } from '../../infrastructure/config/config.service';
 import { HORSE_REPOSITORY, type HorseRepository } from '../ports/horse.repository';
 import { PLAYER_REPOSITORY, type PlayerRepository } from '../ports/player.repository';
@@ -98,19 +98,10 @@ export class LoginWithProviderUseCase {
     // bir başlangıç atıyla başlar" kuralıyla AYNI (bkz. o dosyanın yorumu) —
     // giriş yolu (token'sız demo kaydı VEYA gerçek Google/Apple girişi)
     // BAĞIMSIZ olarak bu davranış TUTARLI olmalıdır.
-    const starterHorse = createStarterHorse({
-      id: randomUUID(),
-      ownerId: player.id,
-      name: pickStarterHorseName(Math.random()),
-      // R4 — Carried Weight (bu turda EKLENDİ) — `RegisterPlayerUseCase`'in
-      // aynı diliminde eklenenle AYNI gerekçe (bkz. o dosyanın yorumu).
-      weightKg: generateStarterHorseWeightKg([Math.random(), Math.random(), Math.random()]),
-      // 27.09.2026 — `RegisterPlayerUseCase` ile AYNI değişiklik ve AYNI
-      // gerekçe (bkz. `STARTER_HORSE_GENDERS` doc yorumu): iki kayıt yolu
-      // başlangıç atı konusunda TUTARLI kalmalıdır.
-      gender: pickStarterHorseGender(Math.random()),
-    });
-    await this.horseRepository.save(starterHorse);
+    // 07.10.2026 — başlangıç atı ortak yardımcıdan: EN ZAYIF ırk (ücretsiz),
+    // statları ırktan; bkz. `new-starter-horse.ts`.
+    const starter = newStarterHorse(player.id, this.config);
+    await this.horseRepository.save(starter.horse, starter.initial);
 
     const link = createPlayerAuthProviderLink(player.id, identity);
     await this.playerAuthProviderRepository.save(link);

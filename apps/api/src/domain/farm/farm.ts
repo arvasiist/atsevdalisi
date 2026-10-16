@@ -12,7 +12,11 @@
 import { clamp } from '@at-sevdalisi/shared-types';
 import type { FarmConfig } from '@at-sevdalisi/game-config';
 import type { Facility, FacilityType } from '@at-sevdalisi/shared-types';
-import { MaxFacilityLevelReachedError, StaffCapacityExceededError } from './errors';
+import {
+  FacilityInactiveError,
+  MaxFacilityLevelReachedError,
+  StaffCapacityExceededError,
+} from './errors';
 import { FACILITY_TYPES } from './validation';
 
 /**
@@ -41,14 +45,22 @@ export interface FacilityUpgradeCost {
  * `getNextStableUpgradeCost` ile aynı desen. Tanımlı en yüksek seviyeye
  * zaten ulaşılmışsa `MaxFacilityLevelReachedError` fırlatır.
  */
-export function getNextFacilityUpgradeCost(type: FacilityType, currentLevel: number, config: FarmConfig): FacilityUpgradeCost {
+export function getNextFacilityUpgradeCost(
+  type: FacilityType,
+  currentLevel: number,
+  config: FarmConfig,
+): FacilityUpgradeCost {
   const facility = getFacilityDefinition(type, config);
   const nextLevel = currentLevel + 1;
   const levelDefinition = facility.levels[String(nextLevel)];
   if (!levelDefinition) {
     throw new MaxFacilityLevelReachedError(type, currentLevel);
   }
-  return { currency: levelDefinition.cost.currency, amount: levelDefinition.cost.amount, nextLevel };
+  return {
+    currency: levelDefinition.cost.currency,
+    amount: levelDefinition.cost.amount,
+    nextLevel,
+  };
 }
 
 /** Bir tesis tipi için config'te tanımlı en yüksek seviyeyi döner (0 = hiç tanım yok). */
@@ -69,7 +81,11 @@ export function getMaxDefinedFacilityLevel(type: FacilityType, config: FarmConfi
  * yorumu): bu fonksiyon HAM değeri döner, yorumlama aşağıdaki `get*Multiplier`/
  * `getMaxStaffCapacity` fonksiyonlarındadır.
  */
-export function getFacilityBonusValue(type: FacilityType, level: number, config: FarmConfig): number {
+export function getFacilityBonusValue(
+  type: FacilityType,
+  level: number,
+  config: FarmConfig,
+): number {
   if (level <= 0) {
     return 0;
   }
@@ -77,7 +93,8 @@ export function getFacilityBonusValue(type: FacilityType, level: number, config:
   const definedLevels = Object.keys(facility.levels)
     .map(Number)
     .sort((a, b) => a - b);
-  const applicableLevel = [...definedLevels].reverse().find((definedLevel) => definedLevel <= level) ?? 0;
+  const applicableLevel =
+    [...definedLevels].reverse().find((definedLevel) => definedLevel <= level) ?? 0;
   if (applicableLevel === 0) {
     return 0;
   }
@@ -97,7 +114,11 @@ export interface FacilityUpgradeOffer {
  * göstermesi gereken NORMAL bir durumdur — arayüzün bunu gösterebilmek için
  * `try/catch` yazması gerekmesin diye bu ayrım domain'de yapılır.
  */
-export function getNextFacilityUpgradeOffer(type: FacilityType, currentLevel: number, config: FarmConfig): FacilityUpgradeOffer | null {
+export function getNextFacilityUpgradeOffer(
+  type: FacilityType,
+  currentLevel: number,
+  config: FarmConfig,
+): FacilityUpgradeOffer | null {
   let upgradeCost: FacilityUpgradeCost;
   try {
     upgradeCost = getNextFacilityUpgradeCost(type, currentLevel, config);
@@ -107,7 +128,10 @@ export function getNextFacilityUpgradeOffer(type: FacilityType, currentLevel: nu
     }
     throw error;
   }
-  return { nextLevel: upgradeCost.nextLevel, cost: { currency: upgradeCost.currency, amount: upgradeCost.amount } };
+  return {
+    nextLevel: upgradeCost.nextLevel,
+    cost: { currency: upgradeCost.currency, amount: upgradeCost.amount },
+  };
 }
 
 /**
@@ -122,16 +146,36 @@ export interface FacilitySummary {
   maxLevel: number;
   bonusValue: number;
   nextUpgrade: FacilityUpgradeOffer | null;
+  isActive: boolean;
+}
+
+/** 01.10.2026 — tesisin etkisi oyunda bağlı mı (`inactiveFacilities` dışında mı). */
+export function isFacilityActive(type: FacilityType, config: FarmConfig): boolean {
+  return !config.inactiveFacilities.includes(type);
+}
+
+/** İnşa/yükseltme öncesi kapı — etkisiz tesis satılmaz. */
+export function assertFacilityActive(type: FacilityType, config: FarmConfig): void {
+  if (!isFacilityActive(type, config)) {
+    throw new FacilityInactiveError(type);
+  }
 }
 
 /** `summarizeFacilities`'in tek tesislik hâli — `facility.ts`'teki `getStableCapacity`/`summarizeStable` ayrımıyla AYNI desen. */
-export function summarizeFacility(type: FacilityType, level: number, config: FarmConfig): FacilitySummary {
+export function summarizeFacility(
+  type: FacilityType,
+  level: number,
+  config: FarmConfig,
+): FacilitySummary {
   return {
     type,
     level,
     maxLevel: getMaxDefinedFacilityLevel(type, config),
     bonusValue: getFacilityBonusValue(type, level, config),
-    nextUpgrade: getNextFacilityUpgradeOffer(type, level, config),
+    nextUpgrade: isFacilityActive(type, config)
+      ? getNextFacilityUpgradeOffer(type, level, config)
+      : null,
+    isActive: isFacilityActive(type, config),
   };
 }
 
@@ -146,7 +190,10 @@ export function summarizeFacility(type: FacilityType, level: number, config: Far
  * `apps/api/test/application/` altında use-case testi TUTMAZ (bkz.
  * `get-leaderboard.use-case.ts` doc yorumundaki AYNI gerekçe).
  */
-export function summarizeFacilities(levelsByType: ReadonlyMap<FacilityType, number>, config: FarmConfig): FacilitySummary[] {
+export function summarizeFacilities(
+  levelsByType: ReadonlyMap<FacilityType, number>,
+  config: FarmConfig,
+): FacilitySummary[] {
   return FACILITY_TYPES.map((type) => summarizeFacility(type, levelsByType.get(type) ?? 0, config));
 }
 
@@ -164,7 +211,11 @@ export interface BuildFacilityInput {
  * desen `domain/jockey`/`domain/market` satın alma akışlarında da
  * kullanılmıştır).
  */
-export function buildFacility(input: BuildFacilityInput, config: FarmConfig): { facility: Facility; cost: FacilityUpgradeCost } {
+export function buildFacility(
+  input: BuildFacilityInput,
+  config: FarmConfig,
+): { facility: Facility; cost: FacilityUpgradeCost } {
+  assertFacilityActive(input.type, config);
   const cost = getNextFacilityUpgradeCost(input.type, 0, config);
   const nowIso = (input.now ?? new Date()).toISOString();
 
@@ -182,7 +233,12 @@ export function buildFacility(input: BuildFacilityInput, config: FarmConfig): { 
 }
 
 /** Var olan (level ≥ 1) bir tesisi bir sonraki seviyeye yükseltir. */
-export function upgradeFacility(facility: Facility, config: FarmConfig, now: Date = new Date()): { facility: Facility; cost: FacilityUpgradeCost } {
+export function upgradeFacility(
+  facility: Facility,
+  config: FarmConfig,
+  now: Date = new Date(),
+): { facility: Facility; cost: FacilityUpgradeCost } {
+  assertFacilityActive(facility.type, config);
   const cost = getNextFacilityUpgradeCost(facility.type, facility.level, config);
   return {
     facility: { ...facility, level: cost.nextLevel, updatedAt: now.toISOString() },
@@ -258,7 +314,10 @@ export function getWarehouseFeedCostMultiplier(level: number, config: FarmConfig
  * vardır.
  */
 export function getMaxStaffCapacity(staffBuildingLevel: number, config: FarmConfig): number {
-  return config.baseStaffCapacityWithoutFacility + getFacilityBonusValue('staff_building', staffBuildingLevel, config);
+  return (
+    config.baseStaffCapacityWithoutFacility +
+    getFacilityBonusValue('staff_building', staffBuildingLevel, config)
+  );
 }
 
 export function canHireMoreStaff(currentStaffCount: number, capacity: number): boolean {
@@ -270,4 +329,68 @@ export function assertCanHireMoreStaff(currentStaffCount: number, capacity: numb
   if (!canHireMoreStaff(currentStaffCount, capacity)) {
     throw new StaffCapacityExceededError(capacity);
   }
+}
+
+/**
+ * 01.10.2026 — TESİS ETKİLERİ (oyuna BAĞLANDI). Önceden yukarıdaki
+ * çarpanların hiçbiri çağrılmıyordu: oyuncu tesise para ödüyor, karşılığında
+ * hiçbir şey almıyordu. Etkinin nereye uygulandığı:
+ *
+ * | Tesis | Uygulandığı yer |
+ * |---|---|
+ * | paddock | `rest` bakım eyleminin tüm deltaları (`applyCareAction` `effectMultiplier`) |
+ * | training_track × farrier_area | antrenman sakatlık olasılığı (`rollInjuryOccurred` öncesi) |
+ * | warehouse | yem satın alma toplamı (`BuyFeedUseCase`) + yem listesindeki fiyat |
+ * | breeding_center | tayın doğum sağlık riski (`breedHorses`) |
+ * | vet_center | YOK — bakım ücretsiz; `inactiveFacilities`te |
+ *
+ * Etkisiz (`inactiveFacilities`) bir tesis eskiden inşa edilmişse etki
+ * VERMEZ (1 = nötr) — sahibi bağlandığında kendiliğinden işler.
+ */
+export interface FarmEffects {
+  restEffectMultiplier: number;
+  trainingInjuryRiskMultiplier: number;
+  feedCostMultiplier: number;
+  birthHealthRiskMultiplier: number;
+}
+
+export const NEUTRAL_FARM_EFFECTS: FarmEffects = {
+  restEffectMultiplier: 1,
+  trainingInjuryRiskMultiplier: 1,
+  feedCostMultiplier: 1,
+  birthHealthRiskMultiplier: 1,
+};
+
+export function computeFarmEffects(
+  levelsByType: ReadonlyMap<FacilityType, number>,
+  config: FarmConfig,
+): FarmEffects {
+  const level = (type: FacilityType): number =>
+    isFacilityActive(type, config) ? (levelsByType.get(type) ?? 0) : 0;
+  return {
+    restEffectMultiplier: getPaddockRecoveryMultiplier(level('paddock'), config),
+    trainingInjuryRiskMultiplier:
+      getTrainingTrackInjuryRiskMultiplier(level('training_track'), config) *
+      getFarrierAreaInjuryRiskMultiplier(level('farrier_area'), config),
+    feedCostMultiplier: getWarehouseFeedCostMultiplier(level('warehouse'), config),
+    birthHealthRiskMultiplier: getBreedingCenterHealthRiskMultiplier(
+      level('breeding_center'),
+      config,
+    ),
+  };
+}
+
+/** Bakım eylemine tesis çarpanı: yalnızca `rest` padoktan güç alır. */
+export function careActionFarmMultiplier(actionType: string, effects: FarmEffects): number {
+  return actionType === 'rest' ? effects.restEffectMultiplier : 1;
+}
+
+/**
+ * İndirimli toplam fiyat: birim × adet × çarpan, YUKARI yuvarlanır (hiçbir
+ * zaman bedava kalem çıkmaz). Kayan nokta artığı (`2 × 10 × 0.9 =
+ * 18.000000000000004`) yuvarlamadan önce temizlenir — yoksa 19 olurdu.
+ */
+export function discountedTotal(unitAmount: number, count: number, multiplier: number): number {
+  const raw = Math.round(unitAmount * count * multiplier * 1e6) / 1e6;
+  return Math.ceil(raw);
 }

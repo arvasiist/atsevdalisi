@@ -1,6 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import type { LeaderboardRowView } from '@at-sevdalisi/shared-types';
-import { buildLeaderboard, sumRankingScores } from '../../domain/ranking/leaderboard';
+import { rankPlayerTotals, sumRankingScores } from '../../domain/ranking/leaderboard';
 import { AppConfigService } from '../../infrastructure/config/config.service';
 import { LEADERBOARD_REPOSITORY, type LeaderboardRepository } from '../ports/leaderboard.repository';
 
@@ -45,25 +45,17 @@ export class GetLeaderboardUseCase {
     // ATILMAZ. Aynı oyuncunun onlarca yarış kaydı olabilir; hepsi aynı
     // `players` satırından okunduğu için değer aynıdır.
     const usernames = new Map(records.map((record) => [record.playerId, record.username]));
-    const totalsByPlayer = new Map(totals.map((total) => [total.playerId, total]));
 
-    const ranked = buildLeaderboard(
-      totals.map((total) => ({
-        playerId: total.playerId,
-        scope: 'global' as const,
-        scopeKey: null,
-        score: total.score,
-        updatedAt: total.lastFinishedAt,
-      })),
-    );
-
-    return ranked.slice(0, LEADERBOARD_TOP_N).map((entry) => ({
-      rank: entry.rank,
-      playerId: entry.playerId,
-      username: usernames.get(entry.playerId)!,
-      displayName: displayNames.get(entry.playerId)!,
-      score: entry.score,
-      raceCount: totalsByPlayer.get(entry.playerId)!.raceCount,
-    }));
+    return rankPlayerTotals(totals)
+      .slice(0, LEADERBOARD_TOP_N)
+      .map((entry) => ({
+        rank: entry.rank,
+        playerId: entry.playerId,
+        username: usernames.get(entry.playerId)!,
+        displayName: displayNames.get(entry.playerId)!,
+        score: entry.score,
+        raceCount: entry.raceCount,
+        wins: entry.wins,
+      }));
   }
 }

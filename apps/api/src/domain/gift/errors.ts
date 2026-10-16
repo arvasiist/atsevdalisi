@@ -129,3 +129,37 @@ export class DailyGiftLimitReachedError extends Error {
     this.name = 'DailyGiftLimitReachedError';
   }
 }
+
+/**
+ * 16.10.2026 — sosyal brief §4 transfer limitleri. `kind` hangi tavanın
+ * aşıldığını söyler; `remaining` o tavandan kalan (0 olabilir). 409: istek
+ * geçerli, durum (bugün gönderilen/alınan toplam, hesap yaşı) izin vermiyor.
+ */
+export type GiftLimitKind =
+  | 'DAILY_AMOUNT'
+  | 'RECIPIENT_DAILY_AMOUNT'
+  | 'NEW_ACCOUNT_AMOUNT'
+  | 'NEW_ACCOUNT_DAILY_AMOUNT'
+  | 'PURCHASED_CHIPS_NOT_GIFTABLE';
+
+const GIFT_LIMIT_MESSAGES: Record<GiftLimitKind, (limit: number, remaining: number) => string> = {
+  DAILY_AMOUNT: (limit, remaining) => `Günlük çip gönderim tavanı ${limit}; bugün en fazla ${remaining} çip daha gönderebilirsin.`,
+  RECIPIENT_DAILY_AMOUNT: (limit, remaining) =>
+    `Alıcı bugün alabileceği çip tavanına (${limit}) yaklaştı; en fazla ${remaining} çip gönderebilirsin.`,
+  NEW_ACCOUNT_AMOUNT: (limit) => `Yeni hesaplar tek seferde en fazla ${limit} çip gönderebilir.`,
+  NEW_ACCOUNT_DAILY_AMOUNT: (limit, remaining) =>
+    `Yeni hesapların günlük gönderim tavanı ${limit}; bugün en fazla ${remaining} çip daha gönderebilirsin.`,
+  PURCHASED_CHIPS_NOT_GIFTABLE: (limit) =>
+    `Mağazadan satın alınan çipler hediye edilemez; gönderebileceğin en fazla ${limit} çip.`,
+};
+
+export class GiftLimitExceededError extends Error {
+  constructor(
+    public readonly kind: GiftLimitKind,
+    public readonly limit: number,
+    public readonly remaining: number,
+  ) {
+    super(GIFT_LIMIT_MESSAGES[kind](limit, remaining));
+    this.name = 'GiftLimitExceededError';
+  }
+}

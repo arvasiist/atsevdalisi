@@ -1,0 +1,62 @@
+{
+  "readiness": {
+    "checkTimeoutMs": 2000
+  },
+  "requestId": {
+    "maxLength": 128
+  },
+  "productionEnv": {
+    "minJwtSecretLength": 32,
+    "forbiddenJwtSecrets": [
+      "ci-test-only-jwt-secret-never-use-in-production"
+    ],
+    "minMetricsTokenLength": 24
+  },
+  "clientErrors": {
+    "maxMessageLength": 500,
+    "maxPathLength": 200,
+    "maxDigestLength": 64
+  },
+  "loadTest": {
+    "virtualUsers": 25,
+    "iterationsPerUser": 6,
+    "p95BudgetMs": 800,
+    "maxErrorRate": 0.01,
+    "requestTimeoutMs": 15000
+  },
+  "schedulerLeader": {
+    "enabled": true,
+    "lockKey": 9100000001,
+    "retrySeconds": 10,
+    "heartbeatSeconds": 15
+  },
+  "realtime": {
+    "redisAdapter": {
+      "enabled": true,
+      "requestsTimeoutMs": 3000,
+      "channelPrefix": "at-sevdalisi-io"
+    },
+    "notificationStream": {
+      "enabled": true,
+      "channel": "notification_created",
+      "reconnectSeconds": 5
+    }
+  },
+  "metrics": {
+    "durationBucketsSeconds": [
+      0.025,
+      0.05,
+      0.1,
+      0.25,
+      0.5,
+      1,
+      2.5,
+      5
+    ],
+    "gaugeQueryTimeoutMs": 1500
+  },
+  "alerts": {
+    "cooldownSeconds": 300,
+    "requestTimeoutMs": 3000
+  }
+}

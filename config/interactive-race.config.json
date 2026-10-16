@@ -1,0 +1,14 @@
+{
+  "version": "1.0.0",
+  "startCountdownSeconds": 4,
+  "timeScale": 2,
+  "revealLeadMs": 2500,
+  "commandSafetyMs": 600,
+  "finishGraceMs": 1500,
+  "liveRunCacheEntries": 64,
+  "scheduler": {
+    "enabled": true,
+    "tickSeconds": 10,
+    "batchSize": 20
+  }
+}

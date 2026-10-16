@@ -13,6 +13,15 @@ export interface LockDueRacesResult {
   locked: string[];
   /** Bakıldı ama kilitlenmeyenler (yarış yok / durum uygun değil / kadro değişti). */
   skipped: { raceId: string; reason: string }[];
+  /** Başlangıcı geçmiş, katılımsız olduğu için iptal edilen oyuncu yarışı sayısı. */
+  cancelledEmpty: number;
+}
+
+/** Kilitlenirken hata veren yarışın bekleme durumu (süreç belleğinde). */
+interface LockFailure {
+  count: number;
+  /** Bu andan (ms) önce yeniden denenmez. */
+  retryAtMs: number;
 }
 
 /**
@@ -48,6 +57,16 @@ export interface LockDueRacesResult {
 @Injectable()
 export class LockRaceUseCase {
   private readonly logger = new Logger(LockRaceUseCase.name);
+  /**
+   * 14.10.2026 — HATA veren yarışlar artan bekleme süresiyle aday listesinden
+   * çıkarılır (`lockScheduler.failureBackoffSeconds`). Eskiden aynı yarış
+   * her turda yeniden deneniyordu; aday sorgusu en eski `batchSize` yarışı
+   * aldığı için bu tür yarışlar birikince arkadaki sağlıklı yarışlar HİÇ
+   * kilitlenmezdi. Durum bellektedir: yalnızca lider örnek tur atar ve
+   * yeniden başlatma en kötü ihtimalle bir erken deneme demektir (zararsız —
+   * kilit idempotenttir, hata satır yazmaz).
+   */
+  private readonly failures = new Map<string, LockFailure>();
 
   constructor(
     @Inject(RACE_REPOSITORY) private readonly raceRepository: RaceRepository,
@@ -62,15 +81,32 @@ export class LockRaceUseCase {
    * saat gerçekten dışarıdan gelmelidir çünkü kilit kararı saate bağlıdır.
    */
   async execute(now: Date): Promise<LockDueRacesResult> {
+    // 14.10.2026 — katılımsız geçmiş oyuncu yarışları: kilit onları seçmez
+    // (aşağıdaki sorgu `EXISTS` ister), iptal edilmezlerse lobide ölü kalır
+    // ve açanın açık yarış hakkını işgal ederlerdi. Turnuva/takvim yarışları
+    // kendi zamanlayıcılarında aynı temizliği yapar.
+    const cancelledEmpty = await this.raceRepository.cancelEmptyDuePlayerRaces(
+      now,
+      this.config.raceLobby.lockScheduler.batchSize,
+    );
+
+    const nowMs = now.getTime();
+    this.pruneFailures(nowMs);
+    const excludeIds = [...this.failures].filter(([, failure]) => failure.retryAtMs > nowMs).map(([id]) => id);
+
     const dueIds = await this.raceRepository.findRacesDueForLock({
       now,
       limit: this.config.raceLobby.lockScheduler.batchSize,
+      excludeIds,
     });
 
-    const result: LockDueRacesResult = { locked: [], skipped: [] };
+    const result: LockDueRacesResult = { locked: [], skipped: [], cancelledEmpty };
     for (const raceId of dueIds) {
       try {
         const outcome = await this.lockOne(raceId, now);
+        // Hata VERMEYEN her sonuç (kilitlendi ya da beklenen bir atlama)
+        // bekleme durumunu temizler.
+        this.failures.delete(raceId);
         if (outcome === null) {
           result.locked.push(raceId);
         } else {
@@ -82,10 +118,34 @@ export class LockRaceUseCase {
         // çevrilir, `error.message` diye okunmaz.
         const message = error instanceof Error ? error.message : String(error);
         result.skipped.push({ raceId, reason: message });
-        this.logger.error(`Yarış ${raceId} kilitlenemedi: ${message}`);
+        const waitSeconds = this.recordFailure(raceId, nowMs);
+        this.logger.error(`Yarış ${raceId} kilitlenemedi (${waitSeconds} sn sonra yeniden denenecek): ${message}`);
       }
     }
     return result;
+  }
+
+  /** Hatayı kaydeder; bir sonraki denemeye kadar beklenecek saniyeyi döner. */
+  private recordFailure(raceId: string, nowMs: number): number {
+    const { initial, max } = this.config.raceLobby.lockScheduler.failureBackoffSeconds;
+    const count = (this.failures.get(raceId)?.count ?? 0) + 1;
+    const waitSeconds = Math.min(max, initial * 2 ** (count - 1));
+    this.failures.set(raceId, { count, retryAtMs: nowMs + waitSeconds * 1_000 });
+    return waitSeconds;
+  }
+
+  /**
+   * Bekleme süresi `max` kadar önce dolmuş ama aday listesine hiç dönmemiş
+   * yarışlar (bu arada iptal edilmiş/elle kilitlenmiş) unutulur — harita
+   * süresiz büyümesin.
+   */
+  private pruneFailures(nowMs: number): void {
+    const { max } = this.config.raceLobby.lockScheduler.failureBackoffSeconds;
+    for (const [raceId, failure] of this.failures) {
+      if (failure.retryAtMs + max * 1_000 < nowMs) {
+        this.failures.delete(raceId);
+      }
+    }
   }
 
   /**
@@ -119,7 +179,9 @@ export class LockRaceUseCase {
     const dropped = await this.raceRepository.dropUnreadyLobbyEntries({
       raceId,
       now,
-      minRemaining: tournament === null ? 1 : this.config.online.tournament.minParticipants,
+      // 15.10.2026 (Aşama 3) — lobi yarışında eşik yarışın kendi kuralıdır
+      // (`races.min_real_players`, depo okur); turnuva kendi eşiğini verir.
+      minRemaining: tournament === null ? undefined : this.config.online.tournament.minParticipants,
     });
     if (dropped.raceCancelled) {
       return 'NO_READY_PARTICIPANTS';
@@ -131,20 +193,36 @@ export class LockRaceUseCase {
     }
 
     const rejection = checkRaceLockable(
-      { status: context.status, startTime: context.startTime, joinedPlayers: context.joinedPlayers },
+      {
+        status: context.status,
+        startTime: context.startTime,
+        joinedPlayers: context.joinedPlayers,
+      },
       now,
     );
     if (rejection !== null) {
       return rejection;
     }
 
-    const entrantSnapshots: { entryId: string; snapshot: RaceEntrantSnapshot; jockeyId: string | null }[] = [];
+    const entrantSnapshots: {
+      entryId: string;
+      snapshot: RaceEntrantSnapshot;
+      jockeyId: string | null;
+    }[] = [];
     for (const entrant of context.entrants) {
       // PHASE 6.2 — builder jokeyi de çözer ve `jockeyId`yi AYNI sonuçta
       // döner: snapshot'a giren `jockeySkillComposite` ile `race_entries.
       // jockey_id`nin iki ayrı okumadan doğması imkânsız hâle gelir.
-      const built = await this.entrantSnapshotBuilder.build(entrant, context.surface, context.distanceMeters);
-      entrantSnapshots.push({ entryId: entrant.entryId, snapshot: built.snapshot, jockeyId: built.jockeyId });
+      const built = await this.entrantSnapshotBuilder.build(
+        entrant,
+        context.surface,
+        context.distanceMeters,
+      );
+      entrantSnapshots.push({
+        entryId: entrant.entryId,
+        snapshot: built.snapshot,
+        jockeyId: built.jockeyId,
+      });
     }
 
     const locked = await this.raceRepository.lockLobbyRace({
@@ -162,6 +240,7 @@ export class LockRaceUseCase {
       configVersion: this.config.race.version,
       weatherConfigVersion: this.config.weather.version,
       entrantSnapshots,
+      liveCountdownSeconds: this.config.interactiveRace.startCountdownSeconds,
     });
 
     // `false` = kilit altında durum uygun değildi (başka bir örnek önce

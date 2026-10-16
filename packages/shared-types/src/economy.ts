@@ -137,6 +137,66 @@ export const LEDGER_TRANSACTION_TYPES = [
    * BULMAZ; kiralama gerçeğinin tek kaynağı `jockeys.owner_id`dir.
    */
   'jockey_hire',
+  'staff_contract',
+  'season_reward',
+  'auction_bid_hold',
+  'auction_bid_refund',
+  'auction_sale_credit',
+  /** 02.10.2026 (Faz 11-B) — günlük/haftalık görev ödülü (tekil `quest_claims` satırına bağlı). */
+  'quest_reward',
+  'achievement_reward',
+  'gem_purchase',
+  'gem_purchase_refund',
+  /** 07.10.2026 — ırk mağazasından yeni at alımı (referansı alınan at). */
+  'breed_horse_purchase',
+  /** 08.10.2026 — katalogdan ekipman alımı (referansı alınan `horse_equipment` satırı). */
+  'equipment_purchase',
+  /** 09.10.2026 — elmasla kozmetik alımı (referansı ürün anahtarı; yalnızca görünüş). */
+  'cosmetic_purchase',
+  /** 02.10.2026 (Faz 11-B) — yönetimin açtığı süreli etkinliğin ödülü. */
+  'event_reward',
+  /**
+   * 02.10.2026 (Faz 10) — yönetimin gerekçeli bakiye düzeltmesi (destek,
+   * tazminat, hata telafisi). İşaretli; referansı aynı transaction'da yazılan
+   * `admin_audit_log` satırıdır (kim, neden).
+   */
+  'admin_adjustment',
+  /**
+   * 08.10.2026 — toplanan dostluk hediyeleri. 16.10.2026'dan beri parayı
+   * GÖNDEREN öder (`friend_gift_send`); eski satırlar oyunun hediyesiydi. Tek satır = bir toplama; referansı
+   * `friend_gifts.collect_id`dir (hangi hediyelerin toplandığı oradan okunur).
+   */
+  'friend_gift_collect',
+  /**
+   * 16.10.2026 — dostluk hediyesini GÖNDEREN öder (brief §6.3): tek satır = bir
+   * "hepsine gönder" (referans `friend_gifts.send_id`). Süresi dolup
+   * toplanmamış ödenmiş hediye gönderene `friend_gift_refund` ile döner.
+   */
+  'friend_gift_send',
+  'friend_gift_refund',
+  /**
+   * 08.10.2026 — tribün hediyesi: gönderenin ödediği fiyat (debit) ve atı
+   * koşturan oyuncuya geçen pay (credit). Fark oyun ekonomisinden çıkar
+   * (platform payı gibi hesap satırı YOK). Referans `tribune_gifts.id`.
+   */
+  'tribune_gift_debit',
+  'tribune_gift_credit',
+  // 09.10.2026 — masanın kaybeden iadesi (pratik + lobi).
+  'practice_race_loser_refund',
+  'lobby_race_loser_refund',
+  /**
+   * 16.10.2026 — davet ödülü (sosyal brief §7): davet edene `referral_reward`,
+   * davetle gelene `referral_welcome_reward`; referans `referrals.id`.
+   */
+  'referral_reward',
+  'referral_welcome_reward',
+  /**
+   * 16.10.2026 — mağazadan ÇİP paketi (sahibinin kararı; gerçek para yalnızca
+   * imzalı webhook'la). Satın alınan çip HEDİYE EDİLEMEZ (bkz. `giftableBalance`).
+   * Referans `payment_orders.id`.
+   */
+  'chip_purchase',
+  'chip_purchase_refund',
 ] as const;
 
 export type LedgerTransactionType = (typeof LEDGER_TRANSACTION_TYPES)[number];
@@ -152,6 +212,7 @@ export const CANONICAL_TRANSACTION_TYPES = [
   'BREEDING',
   'UPKEEP',
   'REWARD',
+  'ADJUSTMENT',
 ] as const;
 
 export type CanonicalTransactionType = (typeof CANONICAL_TRANSACTION_TYPES)[number];
@@ -206,6 +267,39 @@ export const CANONICAL_BY_LEDGER_TYPE: Record<LedgerTransactionType, CanonicalTr
   // kiralamak bir yarışa giriş değildir ve cüzdanda "giriş ücreti" başlığı
   // altında görünmesi oyuncuya yanlış bir tablo çizerdi.
   jockey_hire: 'UPKEEP',
+  staff_contract: 'UPKEEP',
+  season_reward: 'REWARD',
+  // 02.10.2026 — müzayede emaneti: teklif tutulur (MARKET), geçilince ya da
+  // satış gerçekleşmezse iade edilir (REFUND), satışta satıcıya geçer (MARKET).
+  auction_bid_hold: 'MARKET',
+  auction_bid_refund: 'REFUND',
+  auction_sale_credit: 'MARKET',
+  quest_reward: 'REWARD',
+  achievement_reward: 'REWARD',
+  // 07.10.2026 (Faz 12) — gerçek para ile alınan elmas ve iadesinde geri alınan elmas.
+  gem_purchase: 'DEPOSIT',
+  gem_purchase_refund: 'REFUND',
+  // 07.10.2026 — yetiştiriciden at alımı bir pazar harcamasıdır (satıcı oyuncu değil, para batar).
+  breed_horse_purchase: 'MARKET',
+  // 08.10.2026 — ekipman bir bakım/donanım gideridir (yem ile aynı aile).
+  equipment_purchase: 'UPKEEP',
+  // 09.10.2026 — mağazadan görünüş alımı (ırk mağazası gibi bir pazar harcaması).
+  cosmetic_purchase: 'MARKET',
+  event_reward: 'REWARD',
+  admin_adjustment: 'ADJUSTMENT',
+  // Oyuncudan oyuncuya TRANSFER değildir (gönderen ödemez) → GIFT değil REWARD.
+  friend_gift_collect: 'GIFT',
+  friend_gift_send: 'GIFT',
+  friend_gift_refund: 'REFUND',
+  tribune_gift_debit: 'GIFT',
+  tribune_gift_credit: 'GIFT',
+  // 09.10.2026 — masa kuralı: ödül alamayan sıraya ödenen bedelin bir kısmı geri.
+  practice_race_loser_refund: 'REFUND',
+  lobby_race_loser_refund: 'REFUND',
+  referral_reward: 'REWARD',
+  referral_welcome_reward: 'REWARD',
+  chip_purchase: 'DEPOSIT',
+  chip_purchase_refund: 'REFUND',
 };
 
 /**
@@ -248,6 +342,12 @@ export interface WalletView {
    * `hasMore` ise bu sayfanın SON satırının `id`si, değilse `null`.
    */
   nextCursor: string | null;
+  /**
+   * 02.10.2026 (Faz 13-A) — bu sunucuda para yatırma açık mı (config bayrağı
+   * VE ortam; üretimde sahte yatırma her zaman kapalı). Ekran formu buna
+   * göre gösterir — istemci config'inden tahmin ETMEZ.
+   */
+  depositAvailable: boolean;
 }
 
 /**

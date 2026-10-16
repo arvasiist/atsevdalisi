@@ -17,6 +17,7 @@ import type {
   BlockedPlayerView,
   DirectMessageView,
   FriendRequestView,
+  RaceCompanionView,
   RemoveBlockResult,
   RemoveFriendResult,
   ReportPlayerResult,
@@ -27,6 +28,7 @@ import { BlockPlayerUseCase } from '../../application/use-cases/block-player.use
 import { GetConversationUseCase } from '../../application/use-cases/get-conversation.use-case';
 import { GetInboxUseCase } from '../../application/use-cases/get-inbox.use-case';
 import { GetSocialOverviewUseCase } from '../../application/use-cases/get-social-overview.use-case';
+import { ListRaceCompanionsUseCase } from '../../application/use-cases/list-race-companions.use-case';
 import { ListBlockedPlayersUseCase } from '../../application/use-cases/list-blocked-players.use-case';
 import { RemoveFriendUseCase } from '../../application/use-cases/remove-friend.use-case';
 import { ReportPlayerUseCase } from '../../application/use-cases/report-player.use-case';
@@ -83,6 +85,7 @@ import { SendMessageDto } from './dto/send-message.dto';
 export class SocialController {
   constructor(
     @Inject(GetSocialOverviewUseCase) private readonly getSocialOverviewUseCase: GetSocialOverviewUseCase,
+    @Inject(ListRaceCompanionsUseCase) private readonly listRaceCompanionsUseCase: ListRaceCompanionsUseCase,
     @Inject(SendFriendRequestUseCase) private readonly sendFriendRequestUseCase: SendFriendRequestUseCase,
     @Inject(RespondFriendRequestUseCase) private readonly respondFriendRequestUseCase: RespondFriendRequestUseCase,
     @Inject(RemoveFriendUseCase) private readonly removeFriendUseCase: RemoveFriendUseCase,
@@ -108,6 +111,20 @@ export class SocialController {
     assertSelf(currentPlayer.id, id);
     const overview = await this.getSocialOverviewUseCase.execute(id);
     return { success: true, data: overview };
+  }
+
+  /**
+   * Birlikte yarıştığın oyuncular (08.10.2026). Arkadaşlık yalnızca bu
+   * oyuncularla kurulabilir — `/friends` ekranı "Arkadaş ekle" düğmelerini
+   * buradan çizer. Salt okuma; yalnızca kendin için (`assertSelf`).
+   */
+  @Get('players/:id/race-companions')
+  async getRaceCompanions(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentPlayer() currentPlayer: AuthenticatedPlayer,
+  ): Promise<ApiSuccess<RaceCompanionView[]>> {
+    assertSelf(currentPlayer.id, id);
+    return { success: true, data: await this.listRaceCompanionsUseCase.execute(id) };
   }
 
   /**

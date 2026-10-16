@@ -7,8 +7,19 @@ import {
   createStaffCandidate,
   hireStaff,
   isContractExpired,
+  assertHireableRole,
+  bestActiveStaffMultiplier,
+  calculateContractCost,
+  contractEndsAt,
+  isContractRenewable,
+  renewContract,
 } from '../../../src/domain/staff/staff';
-import { StaffAlreadyHiredError, StaffContractExpiredError } from '../../../src/domain/staff/errors';
+import {
+  StaffAlreadyHiredError,
+  StaffContractExpiredError,
+  StaffRenewalNotDueError,
+  StaffRoleNotHireableError,
+} from '../../../src/domain/staff/errors';
 import staffConfigJson from '../../../../../config/staff.config.json';
 import type { StaffConfig } from '@at-sevdalisi/game-config';
 
@@ -77,5 +88,57 @@ describe('calculateStaffBonusMultiplier', () => {
 describe('calculateMonthlySalaryDue', () => {
   it('personelin aylık maaşını döner', () => {
     expect(calculateMonthlySalaryDue({ salary: 750 })).toBe(750);
+  });
+});
+
+describe('sözleşme + etki (01.10.2026)', () => {
+  const DAY = 24 * 60 * 60 * 1000;
+  const now = new Date('2026-10-01T12:00:00Z');
+  const contractFrom = (start: Date) => ({ startedAt: start.toISOString(), durationMonths: config.contractMonths });
+
+  it('kiralanabilir roller config\'ten; diğerleri reddedilir', () => {
+    for (const role of config.hireableRoles) {
+      expect(() => assertHireableRole(role, config)).not.toThrow();
+    }
+    expect(() => assertHireableRole('scout', config)).toThrow(StaffRoleNotHireableError);
+  });
+
+  it('sözleşme bedeli = maaş × contractMonths; süresizin bitişi yok', () => {
+    expect(calculateContractCost({ salary: 900 }, config)).toBe(900 * config.contractMonths);
+    expect(contractEndsAt({ startedAt: now.toISOString(), durationMonths: null })).toBeNull();
+  });
+
+  it('yenileme penceresi: erken kapalı, bitime yakın açık, bitmiş açık', () => {
+    const fresh = contractFrom(now);
+    expect(isContractRenewable(fresh, config, now)).toBe(false);
+    expect(() => renewContract(fresh, config, now)).toThrow(StaffRenewalNotDueError);
+
+    const end = contractEndsAt(fresh) as Date;
+    const nearEnd = new Date(end.getTime() - (config.renewWindowDays - 1) * DAY);
+    expect(isContractRenewable(fresh, config, nearEnd)).toBe(true);
+    const extended = renewContract(fresh, config, nearEnd);
+    expect(extended.startedAt).toBe(fresh.startedAt);
+    expect(extended.durationMonths).toBe(config.contractMonths * 2);
+    // Uzatılmış sözleşme artık pencere dışında — ikinci ödeme imkânsız.
+    expect(isContractRenewable(extended, config, nearEnd)).toBe(false);
+
+    const later = new Date(end.getTime() + 10 * DAY);
+    const restarted = renewContract(fresh, config, later);
+    expect(restarted).toEqual({ startedAt: later.toISOString(), durationMonths: config.contractMonths });
+  });
+
+  it('aynı rolden en iyi ETKİN personel geçerlidir; bonuslar toplanmaz; süresi dolan sayılmaz', () => {
+    const active = contractFrom(now);
+    const expired = contractFrom(new Date(now.getTime() - 400 * DAY));
+    const staff = [
+      { role: 'trainer' as const, skill: 40, morale: 100, contract: active },
+      { role: 'trainer' as const, skill: 90, morale: 100, contract: active },
+      { role: 'trainer' as const, skill: 100, morale: 100, contract: expired },
+      { role: 'vet' as const, skill: 100, morale: 100, contract: active },
+    ];
+    expect(bestActiveStaffMultiplier(staff, 'trainer', config, now)).toBe(
+      calculateStaffBonusMultiplier({ role: 'trainer', skill: 90, morale: 100 }, config),
+    );
+    expect(bestActiveStaffMultiplier(staff, 'groom', config, now)).toBe(1);
   });
 });

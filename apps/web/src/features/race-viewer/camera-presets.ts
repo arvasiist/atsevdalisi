@@ -6,6 +6,8 @@
  * `camera.lookAt` değerlerine uygular; bkz. `RaceScene3D.tsx`).
  */
 
+import { loadCameraConfig } from '@at-sevdalisi/game-config';
+
 export type CameraMode = 'track' | 'jockey' | 'final_straight' | 'photo_finish';
 
 export interface Vector3Like {
@@ -17,6 +19,12 @@ export interface Vector3Like {
 export interface CameraPose {
   position: Vector3Like;
   lookAt: Vector3Like;
+  /**
+   * 08.10.2026 — takip gecikmesinin zaman sabiti (sn). Verilmezse
+   * `camera.config.json → defaultFollowSeconds`. Jokey kamerası çok kısa
+   * tutar: uzun gecikmede hızlı koşan at kadrajda ileri-geri "kayıyordu".
+   */
+  followSeconds?: number;
 }
 
 export interface CameraContext {
@@ -28,11 +36,25 @@ export interface CameraContext {
   trackCenter: Vector3Like;
   /** Bitiş çizgisinin konumu (Son Düzlük ve Fotofiniş kameraları için). */
   finishLinePosition: Vector3Like;
+  /**
+   * Liderin ve odak atın koşu yönü (radyan, 0 = +X) — 01.10.2026. Verilmezse
+   * 0 kabul edilir (eski davranış: kamera hep -X tarafından bakar).
+   */
+  leaderHeadingRadians?: number;
+  focusHeadingRadians?: number;
 }
 
-const TRACK_CAMERA_HEIGHT_METERS = 45;
-const JOCKEY_CAMERA_HEIGHT_METERS = 3;
-const JOCKEY_CAMERA_BACK_OFFSET_METERS = 8;
+/**
+ * Yayın kamerası (Pist Kamerası): iç saha tarafından, alçaktan, liderin
+ * biraz önünden geriye — grubun ortasına — bakar; tribün atların arkasında
+ * kalır (dış tarafta tribün olduğu için kamera oraya konamaz).
+ */
+const BROADCAST_CAMERA_HEIGHT_METERS = 5.5;
+/** 10.10.2026 — dışa açık: iç saha ışık kuleleri bu koridorun gerisine dikilir (`track-furniture-layout.ts`). */
+export const BROADCAST_CAMERA_SIDE_OFFSET_METERS = 24;
+const BROADCAST_CAMERA_AHEAD_OFFSET_METERS = 8;
+const BROADCAST_CAMERA_LOOK_BEHIND_METERS = 9;
+const JOCKEY_CAMERA = loadCameraConfig().jockeyCamera;
 const FINAL_STRAIGHT_CAMERA_HEIGHT_METERS = 6;
 const FINAL_STRAIGHT_CAMERA_BACK_OFFSET_METERS = 24;
 const FINAL_STRAIGHT_CAMERA_SIDE_OFFSET_METERS = 12;
@@ -47,21 +69,57 @@ const PHOTO_FINISH_CAMERA_SIDE_OFFSET_METERS = 4;
  */
 export function computeCameraPose(mode: CameraMode, context: CameraContext): CameraPose {
   switch (mode) {
-    case 'track':
-      return {
-        position: { x: context.trackCenter.x, y: TRACK_CAMERA_HEIGHT_METERS, z: context.trackCenter.z },
-        lookAt: context.trackCenter,
-      };
-
-    case 'jockey': {
-      const focus = context.focusHorsePosition;
+    case 'track': {
+      // 01.10.2026: eskiden pist merkezine 45 m yukarıdan dik bakıyordu ve
+      // ekranda yalnızca iç saha çimi görünüyordu. Artık TV yayını gibi
+      // lideri iç saha tarafından takip eder.
+      const leader = context.leaderPosition;
+      const heading = context.leaderHeadingRadians ?? 0;
+      const forwardX = Math.cos(heading);
+      const forwardZ = Math.sin(heading);
+      // Pistin İÇİNE doğru birim normal (heading 0 = +X → iç = +Z).
+      const inwardX = -Math.sin(heading);
+      const inwardZ = Math.cos(heading);
       return {
         position: {
-          x: focus.x - JOCKEY_CAMERA_BACK_OFFSET_METERS,
-          y: JOCKEY_CAMERA_HEIGHT_METERS,
-          z: focus.z,
+          x:
+            leader.x +
+            inwardX * BROADCAST_CAMERA_SIDE_OFFSET_METERS +
+            forwardX * BROADCAST_CAMERA_AHEAD_OFFSET_METERS,
+          y: BROADCAST_CAMERA_HEIGHT_METERS,
+          z:
+            leader.z +
+            inwardZ * BROADCAST_CAMERA_SIDE_OFFSET_METERS +
+            forwardZ * BROADCAST_CAMERA_AHEAD_OFFSET_METERS,
         },
-        lookAt: focus,
+        lookAt: {
+          x: leader.x - forwardX * BROADCAST_CAMERA_LOOK_BEHIND_METERS,
+          y: leader.y,
+          z: leader.z - forwardZ * BROADCAST_CAMERA_LOOK_BEHIND_METERS,
+        },
+      };
+    }
+
+    case 'jockey': {
+      // 08.10.2026 — yarış oyunlarındaki takip kamerası: atın arkasından ve
+      // üstünden, atın İLERİSİNE bakar (at kadrajın alt-ortasında, pist
+      // önde). Eskisi atın 8 m arkasından alçaktan ata bakıyordu.
+      const focus = context.focusHorsePosition;
+      const heading = context.focusHeadingRadians ?? 0;
+      const forwardX = Math.cos(heading);
+      const forwardZ = Math.sin(heading);
+      return {
+        position: {
+          x: focus.x - forwardX * JOCKEY_CAMERA.backMeters,
+          y: JOCKEY_CAMERA.heightMeters,
+          z: focus.z - forwardZ * JOCKEY_CAMERA.backMeters,
+        },
+        lookAt: {
+          x: focus.x + forwardX * JOCKEY_CAMERA.lookAheadMeters,
+          y: JOCKEY_CAMERA.lookHeightMeters,
+          z: focus.z + forwardZ * JOCKEY_CAMERA.lookAheadMeters,
+        },
+        followSeconds: JOCKEY_CAMERA.followSeconds,
       };
     }
 
@@ -100,4 +158,9 @@ export const CAMERA_MODE_LABELS: Record<CameraMode, string> = {
   photo_finish: 'Fotofiniş',
 };
 
-export const CAMERA_MODE_ORDER: CameraMode[] = ['track', 'jockey', 'final_straight', 'photo_finish'];
+export const CAMERA_MODE_ORDER: CameraMode[] = [
+  'track',
+  'jockey',
+  'final_straight',
+  'photo_finish',
+];

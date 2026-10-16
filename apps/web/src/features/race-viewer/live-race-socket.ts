@@ -41,8 +41,8 @@ import type {
   RaceChatMessageView,
   RaceRosterEntrant,
   RaceSegmentSnapshot,
-  SendRaceChatMessagePayload,
-} from '@at-sevdalisi/shared-types';
+  SendRaceChatMessagePayload, RaceEmoteEvent,
+  TribuneGiftEvent } from '@at-sevdalisi/shared-types';
 import { deriveSocketOrigin } from './live-race-url';
 
 /** `race.gateway.ts`'teki `RaceFinishedPayload` alanlarıyla BİREBİR aynı (bkz. o tipin `@at-sevdalisi/shared-types` tanımı). */
@@ -57,7 +57,8 @@ export interface LiveRaceFinishedEntrant {
 }
 
 export interface LiveRaceSocketHandlers {
-  onRoster: (entrants: RaceRosterEntrant[]) => void;
+  /** 08.10.2026 — `hippodrome`: yarışın hipodrom anahtarı (eski sunucuda yoksa `null`). */
+  onRoster: (entrants: RaceRosterEntrant[], hippodrome: string | null) => void;
   onTelemetry: (segments: RaceSegmentSnapshot[]) => void;
   onFinished: (entrants: LiveRaceFinishedEntrant[]) => void;
   /** `race.error` — yarış bulunamadı/yetkisiz (bkz. `race.gateway.ts` "bilgi sızdırmama" notu). */
@@ -93,6 +94,10 @@ export interface LiveRaceSocketHandlers {
   onChatHistory: (messages: RaceChatMessageView[]) => void;
   /** `chat.message.received` — odaya yayınlanan KAYITLI mesaj (sunucunun kırptığı gövdeyle). */
   onChatMessage: (message: RaceChatMessageView) => void;
+  /** 02.10.2026 (Faz 9) — tribün emote yayını (anonim). İsteğe bağlı. */
+  onEmote?: (event: RaceEmoteEvent) => void;
+  /** 08.10.2026 — tribün hediyesi yayını (gönderen adı + at). İsteğe bağlı. */
+  onTribuneGift?: (event: TribuneGiftEvent) => void;
   /**
    * `chat.error` — sohbet reddedildi. `onError`'DAN AYRI bir sınıftır:
    * sohbet reddedilse bile yarış yayını DEVAM EDER, ikisini tek olayda
@@ -100,6 +105,11 @@ export interface LiveRaceSocketHandlers {
    * `RaceChatErrorPayload` doc yorumu).
    */
   onChatError: (message: string) => void;
+  /**
+   * `race.waiting` / `race.cancelled` (01.10.2026) — yarış henüz bitmedi
+   * (oynatma kesinleşince başlar) ya da iptal edildi. Bitmiş yarışta gelmez.
+   */
+  onPhase?: (phase: 'waiting' | 'cancelled') => void;
 }
 
 /**
@@ -115,6 +125,11 @@ export interface LiveRaceSocketHandlers {
  * bir yerel ekleme YAPILMAZ, ekran sunucunun gerçekten yazdığı satırı
  * gösterir.
  */
+/** 02.10.2026 (Faz 9) — tribün emote'u gönderir; sunucu anahtarı, aboneliği ve soğumayı denetler. */
+export function sendRaceEmote(socket: Socket, raceId: string, key: string): void {
+  socket.emit('race.emote', { raceId, key });
+}
+
 export function sendRaceChatMessage(socket: Socket, raceId: string, body: string): void {
   const payload: SendRaceChatMessagePayload = { raceId, body };
   socket.emit('chat.message', payload);
@@ -171,9 +186,9 @@ export function connectRaceSocket(
     handlers.onDisconnected(reason);
   });
 
-  socket.on('race.roster', (payload: { raceId: string; entrants: RaceRosterEntrant[] }) => {
+  socket.on('race.roster', (payload: { raceId: string; hippodrome?: string; entrants: RaceRosterEntrant[] }) => {
     if (payload.raceId === raceId) {
-      handlers.onRoster(payload.entrants);
+      handlers.onRoster(payload.entrants, payload.hippodrome ?? null);
     }
   });
 
@@ -186,6 +201,18 @@ export function connectRaceSocket(
   socket.on('race.finished', (payload: { raceId: string; entrants: LiveRaceFinishedEntrant[] }) => {
     if (payload.raceId === raceId) {
       handlers.onFinished(payload.entrants);
+    }
+  });
+
+  socket.on('race.waiting', (payload: { raceId: string }) => {
+    if (payload.raceId === raceId) {
+      handlers.onPhase?.('waiting');
+    }
+  });
+
+  socket.on('race.cancelled', (payload: { raceId: string }) => {
+    if (payload.raceId === raceId) {
+      handlers.onPhase?.('cancelled');
     }
   });
 
@@ -214,6 +241,18 @@ export function connectRaceSocket(
   socket.on('chat.message.received', (payload: RaceChatMessageView) => {
     if (payload.raceId === raceId) {
       handlers.onChatMessage(payload);
+    }
+  });
+
+  socket.on('race.emote', (payload: RaceEmoteEvent) => {
+    if (payload?.raceId === raceId) {
+      handlers.onEmote?.(payload);
+    }
+  });
+
+  socket.on('race.tribuneGift', (payload: TribuneGiftEvent) => {
+    if (payload?.raceId === raceId) {
+      handlers.onTribuneGift?.(payload);
     }
   });
 

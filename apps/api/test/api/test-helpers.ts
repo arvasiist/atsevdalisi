@@ -1,3 +1,5 @@
+import { loadOpsConfig } from '@at-sevdalisi/game-config';
+import { RedisIoAdapter } from '../../src/infrastructure/realtime/redis-io.adapter';
 import { randomUUID } from 'node:crypto';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test, type TestingModuleBuilder } from '@nestjs/testing';
@@ -5,6 +7,9 @@ import { IoAdapter } from '@nestjs/platform-socket.io';
 import request from 'supertest';
 import { AppModule } from '../../src/app.module';
 import { HttpExceptionFilter } from '../../src/api/middleware/http-exception.filter';
+import type { Pool } from 'pg';
+import { PG_POOL } from '../../src/infrastructure/database/database.module';
+import { computeLobbySettlement } from '../../src/domain/race/table-rules';
 
 /**
  * AUDIT_REPORT.md Bulgu S1 (Critical) hardening (bu oturum) — brief §41/§50
@@ -22,6 +27,8 @@ export async function bootstrapTestApp(
   // 01.10.2026 — bir sağlayıcıyı sahtesiyle değiştirmek için (örn. Google'ın
   // belge doğrulayıcısı: testte gerçek Google belgesi üretilemez).
   configure: (builder: TestingModuleBuilder) => TestingModuleBuilder = (builder) => builder,
+  // 02.10.2026 — çok örnekli testler: Socket.IO Redis köprüsüyle kur (main.ts ile aynı sınıf).
+  options: { redisAdapter?: boolean } = {},
 ): Promise<INestApplication> {
   const moduleRef = await configure(
     Test.createTestingModule({
@@ -29,7 +36,8 @@ export async function bootstrapTestApp(
     }),
   ).compile();
 
-  const app = moduleRef.createNestApplication();
+  // `rawBody` main.ts ile AYNI (ödeme webhook imzası ham gövdeyle doğrulanır).
+  const app = moduleRef.createNestApplication({ rawBody: true });
   app.setGlobalPrefix('api/v1');
   app.useGlobalFilters(new HttpExceptionFilter());
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }));
@@ -37,7 +45,18 @@ export async function bootstrapTestApp(
   // kaydı burada da yapılır (bkz. o dosyanın doc yorumu) — yalnızca
   // `realtime.e2e-spec.ts` bunu GERÇEKTEN kullanır (`app.listen(0)` ile),
   // diğer e2e dosyaları için etkisizdir.
-  app.useWebSocketAdapter(new IoAdapter(app));
+  if (options.redisAdapter) {
+    const realtime = loadOpsConfig().realtime.redisAdapter;
+    const adapter = new RedisIoAdapter(app, {
+      redisUrl: process.env.REDIS_URL ?? 'redis://localhost:6379',
+      requestsTimeoutMs: realtime.requestsTimeoutMs,
+      channelPrefix: realtime.channelPrefix,
+    });
+    await adapter.connectToRedis();
+    app.useWebSocketAdapter(adapter);
+  } else {
+    app.useWebSocketAdapter(new IoAdapter(app));
+  }
   await app.init();
 
   // CI #106 kırmızı araştırması (bu oturum) — `race.e2e-spec.ts`'in n=100
@@ -250,4 +269,96 @@ export async function registerTestPlayerWithStarterHorse(
     .set('Authorization', player.authHeader)
     .expect(200);
   return { ...player, horseId: listResponse.body.data[0].id };
+}
+
+/**
+ * ARKADAŞLIK KURALI ÖN KOŞULU (08.10.2026). Arkadaşlık isteği ve kabulü
+ * yalnızca BİTMİŞ bir yarışta birlikte koşmuş oyuncular arasında geçer
+ * (`SendFriendRequestUseCase` yarış kapısı). Konusu yarış OLMAYAN testler
+ * (sosyal, hediye, davet, engel, bildirim) bu olguyu SQL fikstürüyle kurar:
+ * `finished` bir yarış + her oyuncu için kendi atıyla bir katılım
+ * (`player_id` = koşturan oyuncu). Para, ödül, XP, bildirim YAZMAZ.
+ *
+ * ⚠️ Yarış SAYAN bir iddia (profil `raceCount`, görev, sezon) aynı oyuncular
+ * üzerindeyse dönen yarış kimliğiyle fikstürü kurulumdan sonra SİL
+ * (`DELETE FROM races WHERE id = $1` — katılımlar CASCADE ile gider).
+ * Kuralın KENDİSİNİ sınayan test (`friendship-race-gate.e2e-spec.ts`)
+ * yarışı gerçek uçlarla koşar.
+ */
+export async function recordSharedFinishedRace(
+  app: INestApplication,
+  players: ReadonlyArray<{ playerId: string }>,
+): Promise<string> {
+  const pool = app.get<Pool>(PG_POOL);
+  const race = await pool.query<{ id: string }>(
+    `INSERT INTO races
+       (name, distance_m, surface, weather, start_time, max_players, race_type, entry_fee,
+        participant_limit, status, engine_version, ruleset_version, config_version, weather_config_version)
+     VALUES ('e2e ortak yarış', 1200, 'grass', 'sunny', now() - interval '1 hour', 8, 'free', 0,
+             12, 'finished', 'test-engine', 'test-ruleset', 'test-config', 'test-weather-config')
+     RETURNING id`,
+  );
+  const raceId = race.rows[0]!.id;
+  for (const [index, player] of players.entries()) {
+    const horse = await pool.query<{ id: string }>(
+      'SELECT id FROM horses WHERE owner_id = $1 ORDER BY created_at, id LIMIT 1',
+      [player.playerId],
+    );
+    await pool.query(
+      `INSERT INTO race_entries (race_id, horse_id, player_id, gate_position, finish_position)
+       VALUES ($1, $2, $3, $4, $4)`,
+      [raceId, horse.rows[0]!.id, player.playerId, index + 1],
+    );
+  }
+  return raceId;
+}
+
+/**
+ * 15.10.2026 (Aşama 3) — yarışı ESKİ saha kuralına çeker: tek gerçek oyuncu
+ * yeter (`races.min_real_players = 1`). Ücretli lobi yarışı artık en az
+ * `fieldRules.paidMinRealPlayers` gerçek oyuncuyla koşar; tek oyuncuyla
+ * kilit/kesinleşme/dondurma/kopma gibi BAŞKA bir kuralı sınayan testler bu ön
+ * koşulu AÇIKÇA kurar (kural test EDİLMEZ, ön koşul kurulur —
+ * `makeRaceStarted` ile aynı desen). Yetersiz oyuncu kuralının KENDİSİ
+ * `race-field-rule.e2e-spec.ts`te sınanır; orada bu yardımcı KULLANILMAZ.
+ */
+export async function allowSoloLobbyRace(app: INestApplication, raceId: string): Promise<void> {
+  await app.get<Pool>(PG_POOL).query('UPDATE races SET min_real_players = 1 WHERE id = $1', [raceId]);
+}
+
+/**
+ * 16.10.2026 — lobi kesinleşmesinin BEKLENEN ödülleri (mutlak sıraya göre;
+ * botun sırası 0). Bota pay düşmez: gerçek oyuncular kendi aralarındaki
+ * sırayla öder (`computeLobbySettlement`). Testler sabit sayı ya da eski
+ * mutlak sıra payı (`computePrizePayouts`) yazmaz — kural değişirse yalan olur.
+ */
+export function expectedLobbyPayouts(
+  prizePool: number,
+  shares: readonly number[],
+  places: ReadonlyArray<{ participantType: 'human' | 'ai'; finishPosition: number }>,
+): number[] {
+  return computeLobbySettlement(
+    prizePool,
+    shares,
+    places
+      .filter((place) => place.participantType === 'human')
+      .map((place) => ({ entryId: `p${place.finishPosition}`, finishPosition: place.finishPosition, paidFee: 0 })),
+    null,
+  ).payouts;
+}
+
+/**
+ * 16.10.2026 — çip transferinin "yeni hesap" tavanı (`gift.newAccount`) taze
+ * test hesaplarını da kapsar. Transferin KENDİSİNİ sınamayan testler gönderen
+ * hesabı `days` gün yaşlandırır (SQL fikstürü; para/defter yazmaz).
+ */
+export async function matureAccounts(
+  app: INestApplication,
+  players: ReadonlyArray<{ playerId: string }>,
+  days = 30,
+): Promise<void> {
+  await app.get<Pool>(PG_POOL).query(
+    "UPDATE players SET created_at = now() - make_interval(days => $2) WHERE id = ANY($1::uuid[])",
+    [players.map((player) => player.playerId), days],
+  );
 }

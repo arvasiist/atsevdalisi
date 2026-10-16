@@ -3,8 +3,10 @@ import {
   buildLeaderboard,
   filterLeaderboardByScope,
   findPlayerRank,
+  rankPlayerTotals,
   sumRankingScores,
   type PlayerRaceOutcome,
+  type PlayerRankingTotal,
 } from '../../../src/domain/ranking/leaderboard';
 import { calculateRankingScore } from '../../../src/domain/ranking/ranking-score';
 import type { LeaderboardEntry } from '@at-sevdalisi/shared-types';
@@ -138,5 +140,47 @@ describe('sumRankingScores', () => {
       const totals = sumRankingScores([outcome('a', performanceScore, finishPosition)], config);
       expect(totals[0].score).toBe(expected);
     }
+  });
+});
+
+describe('rankPlayerTotals — birincilik önce (08.10.2026)', () => {
+  const total = (playerId: string, wins: number, score: number): PlayerRankingTotal => ({
+    playerId,
+    wins,
+    score,
+    raceCount: 10,
+    lastFinishedAt: '2026-10-01T00:00:00.000Z',
+  });
+
+  it('birinciliği çok olan, puanı daha yüksek olanın önüne geçer', () => {
+    const ranked = rankPlayerTotals([total('cok-puan', 1, 900), total('cok-birincilik', 3, 200), total('orta', 2, 500)]);
+    expect(ranked.map((row) => [row.playerId, row.rank])).toEqual([
+      ['cok-birincilik', 1],
+      ['orta', 2],
+      ['cok-puan', 3],
+    ]);
+  });
+
+  it('birincilik eşitse puan ayırır; ikisi de eşitse aynı sıra paylaşılır', () => {
+    const ranked = rankPlayerTotals([total('a', 2, 300), total('b', 2, 400), total('c', 2, 300), total('d', 0, 999)]);
+    expect(ranked.map((row) => [row.playerId, row.rank])).toEqual([
+      ['b', 1],
+      ['a', 2],
+      ['c', 2],
+      ['d', 4],
+    ]);
+  });
+
+  it('sumRankingScores birincilikleri sayar', () => {
+    const config = onlineConfigJson as unknown as OnlineConfig;
+    const totals = sumRankingScores(
+      [
+        { playerId: 'x', performanceScore: 50, finishPosition: 1, finishedAt: '2026-10-01T00:00:00.000Z' },
+        { playerId: 'x', performanceScore: 50, finishPosition: 2, finishedAt: '2026-10-02T00:00:00.000Z' },
+        { playerId: 'x', performanceScore: 50, finishPosition: 1, finishedAt: '2026-10-03T00:00:00.000Z' },
+      ],
+      config,
+    );
+    expect(totals[0]).toMatchObject({ wins: 2, raceCount: 3 });
   });
 });

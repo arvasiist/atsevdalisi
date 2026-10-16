@@ -1,6 +1,8 @@
 import { Inject, Injectable } from '@nestjs/common';
 import type { Pool } from 'pg';
 import type { Jockey } from '@at-sevdalisi/shared-types';
+import type { JockeyRideHistory } from '../../domain/jockey/condition';
+import type { JockeyCandidate } from '../../domain/jockey/market';
 import {
   JockeyAlreadyHiredError,
   JockeyAlreadyOwnedError,
@@ -65,6 +67,11 @@ function rowToJockey(row: JockeyRow): Jockey {
 const JOCKEY_COLUMNS =
   'id, name, experience, start_skill, tactical_skill, sprint_skill, horse_control, risk_management, track_knowledge, salary, owner_id, created_at, updated_at';
 
+/** Jokey pazarı dolum kilidi — sabit anahtarlı `pg_advisory_xact_lock` (transaction bitince düşer). */
+const JOCKEY_MARKET_LOCK_KEY = 60_003;
+
+const AVAILABLE_SQL = `SELECT ${JOCKEY_COLUMNS} FROM jockeys WHERE owner_id IS NULL ORDER BY salary ASC, name ASC`;
+
 /**
  * `JockeyRepository`nin PostgreSQL implementasyonu (PHASE 6.2).
  *
@@ -88,9 +95,39 @@ export class PostgresJockeyRepository implements JockeyRepository {
     const result = await this.pool.query<JockeyRow>(
       // `salary` ARTAN: ucuz jokey önce görünür — liste bir "vitrin"dir ve
       // alfabetik sıralama oyuncuyu fiyat hakkında kör bırakırdı.
-      `SELECT ${JOCKEY_COLUMNS} FROM jockeys WHERE owner_id IS NULL ORDER BY salary ASC, name ASC`,
+      AVAILABLE_SQL,
     );
     return result.rows.map(rowToJockey);
+  }
+
+  async refillMarket(build: (available: Jockey[]) => JockeyCandidate[]): Promise<number> {
+    return withTransaction(this.pool, async (client) => {
+      await client.query('SELECT pg_advisory_xact_lock($1)', [JOCKEY_MARKET_LOCK_KEY]);
+      // Kilit ALINDIKTAN SONRA yeniden okunur: bekleyen ikinci istek, ilkinin
+      // yazdıklarını görür ve eksik kalmadıysa hiçbir şey üretmez.
+      const available = await client.query<JockeyRow>(AVAILABLE_SQL);
+      const candidates = build(available.rows.map(rowToJockey));
+      for (const jockey of candidates) {
+        await client.query(
+          `INSERT INTO jockeys (id, name, experience, start_skill, tactical_skill, sprint_skill,
+                                horse_control, risk_management, track_knowledge, salary, owner_id)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NULL)`,
+          [
+            jockey.id,
+            jockey.name,
+            jockey.experience,
+            jockey.startSkill,
+            jockey.tacticalSkill,
+            jockey.sprintSkill,
+            jockey.horseControl,
+            jockey.riskManagement,
+            jockey.trackKnowledge,
+            jockey.salary,
+          ],
+        );
+      }
+      return candidates.length;
+    });
   }
 
   async findById(jockeyId: string): Promise<Jockey | null> {
@@ -107,6 +144,47 @@ export class PostgresJockeyRepository implements JockeyRepository {
     );
     return result.rows[0] ? rowToJockey(result.rows[0]) : null;
   }
+  async findRideHistory(jockeyId: string, now: Date, sampleSize: number, windowHours: number): Promise<JockeyRideHistory> {
+    // Biniş = bitmiş yarışta iptal edilmemiş, sırası yazılmış katılım. Saha
+    // büyüklüğü AYNI kuralla sayılır (botlar dahil — pratik yarışta da sıra
+    // botlarla birlikte belirlenir). `status` NULL olabilir (pratik/PvP).
+    const placements = await this.pool.query<{ finish_position: number; field_size: string }>(
+      `SELECT e.finish_position,
+              (SELECT COUNT(*) FROM race_entries x
+                WHERE x.race_id = e.race_id
+                  AND x.finish_position IS NOT NULL
+                  AND x.status IS DISTINCT FROM 'cancelled') AS field_size
+         FROM race_entries e
+         JOIN races r ON r.id = e.race_id
+        WHERE e.jockey_id = $1::uuid
+          AND r.status = 'finished'
+          AND r.start_time <= $2
+          AND e.finish_position IS NOT NULL
+          AND e.status IS DISTINCT FROM 'cancelled'
+        ORDER BY r.start_time DESC, e.id
+        LIMIT $3`,
+      [jockeyId, now, sampleSize],
+    );
+    const window = await this.pool.query<{ rides: string }>(
+      `SELECT COUNT(*) AS rides
+         FROM race_entries e
+         JOIN races r ON r.id = e.race_id
+        WHERE e.jockey_id = $1::uuid
+          AND r.status = 'finished'
+          AND e.status IS DISTINCT FROM 'cancelled'
+          AND r.start_time <= $2
+          AND r.start_time > $2::timestamptz - ($3::double precision * interval '1 hour')`,
+      [jockeyId, now, windowHours],
+    );
+    return {
+      recentPlacements: placements.rows.map((row) => ({
+        finishPosition: Number(row.finish_position),
+        fieldSize: Number(row.field_size),
+      })),
+      ridesInWindow: Number(window.rows[0]?.rides ?? 0),
+    };
+  }
+
 
   async hire(input: HireJockeyInput): Promise<HireJockeyResult> {
     return withTransaction(this.pool, async (client) => {

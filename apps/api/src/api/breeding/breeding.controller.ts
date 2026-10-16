@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Get,
   Headers,
   Inject,
   Param,
@@ -10,8 +11,9 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { isUUID } from 'class-validator';
-import type { ApiSuccess, BreedingResultView } from '@at-sevdalisi/shared-types';
+import type { ApiSuccess, BreedingResultView, StudListingView } from '@at-sevdalisi/shared-types';
 import { BreedHorsesUseCase } from '../../application/use-cases/breed-horses.use-case';
+import { ListStudsUseCase } from '../../application/use-cases/list-studs.use-case';
 import { assertSelf } from '../auth/assert-self';
 import { CurrentPlayer, type AuthenticatedPlayer } from '../auth/current-player.decorator';
 import { IdempotencyInterceptor } from '../idempotency/idempotency.interceptor';
@@ -36,7 +38,20 @@ import { BreedHorsesDto } from './dto/breed-horses.dto';
  */
 @Controller()
 export class BreedingController {
-  constructor(@Inject(BreedHorsesUseCase) private readonly breedHorsesUseCase: BreedHorsesUseCase) {}
+  constructor(
+    @Inject(BreedHorsesUseCase) private readonly breedHorsesUseCase: BreedHorsesUseCase,
+    @Inject(ListStudsUseCase) private readonly listStudsUseCase: ListStudsUseCase,
+  ) {}
+
+  /**
+   * 15.10.2026 — S5 damızlık pazarı: başka oyuncuların emekli aygırları ve
+   * ücretleri. Kimlik doğrulaması ister (çağıranın kendi aygırları ve engelli
+   * oyuncular süzülür); salt okuma.
+   */
+  @Get('breeding/studs')
+  async listStuds(@CurrentPlayer() currentPlayer: AuthenticatedPlayer): Promise<ApiSuccess<StudListingView[]>> {
+    return { success: true, data: await this.listStudsUseCase.execute(currentPlayer.id) };
+  }
 
   /**
    * Çiftleştirir ve tayı ANINDA doğurur (bu projede gebelik süresi
@@ -55,7 +70,7 @@ export class BreedingController {
    *     oyuncuya GEÇİRİLEMEZ.
    *   - `@RateLimit`: "ne kadar SIK" — idempotency anahtarı her istekte
    *     YENİ olduğundan hızlı ardışık istekleri DURDURMAZ. Kısrak
-   *     cooldown'ı (`breedingCooldownDays`, 409 `NOT_ELIGIBLE_FOR_BREEDING`)
+   *     cooldown'ı (`breedingCooldownMonths`, 409 `NOT_ELIGIBLE_FOR_BREEDING`)
    *     üçüncü ve farklı bir zaman ölçeğidir.
    */
   @RateLimit({ name: 'breeding', limit: 10, windowSeconds: 60, keyBy: 'player' })

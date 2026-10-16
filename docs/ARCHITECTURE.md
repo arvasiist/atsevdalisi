@@ -157,7 +157,7 @@ dışa bağımlı değildir.
   `Component → Hook/ViewModel → API Client (services/) → NestJS API`.
   Hiçbir component doğrudan `fetch` ile veri tabanına ya da iş kuralına
   erişmez.
-- **PWA desteği**: `manifest.json` + service worker ile ana ekrana eklenebilir
+- **PWA desteği**: `app/manifest.ts` + logo yolundan üretilen ikonlar ile ana ekrana eklenebilir (02.10.2026; service worker YOK — çevrimdışı önbellek bilinçli olarak eklenmedi, sunucu otoritesi gereği oyun çevrimiçi çalışır)
   mobil deneyim sağlanır; ileri fazda React Native/Capacitor sarmalayıcı ile
   gerçek mağaza dağıtımı değerlendirilebilir (bu, brief'in "mobil uygulamaya
   uygun" talebini karşılar).

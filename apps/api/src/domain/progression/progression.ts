@@ -4,7 +4,7 @@
  * `unlocks` listesi yalnızca oyuncu ilerlemesi için anlamlıdır.
  */
 
-import type { ProgressionConfig, ProgressionUnlock } from '@at-sevdalisi/game-config';
+import type { ProgressionConfig, ProgressionUnlock, XpRewardTable } from '@at-sevdalisi/game-config';
 
 /** Bir sonraki seviyeye ulaşmak için gereken TOPLAM (kümülatif değil, o seviyeye özgü) XP. */
 export function getXpRequiredForLevel(level: number, config: ProgressionConfig): number {
@@ -70,4 +70,16 @@ export function getUnlocksInRange(
 /** Bir oyuncunun mevcut seviyesine kadar açılmış TÜM özellikleri döner. */
 export function getUnlockedFeatures(level: number, unlocks: ProgressionUnlock[]): string[] {
   return getUnlocksInRange(0, level, unlocks);
+}
+
+/**
+ * Bir yarışın kazandırdığı XP (01.10.2026): bitiren herkese `raceFinished`,
+ * ilk sıralara ek `placementBonus`. `finishPosition` `null` (bitirmedi/
+ * bilinmiyor) ise yalnızca katılım ödülü verilir. Tablo `xpRewards.player`
+ * ya da `xpRewards.horse` olabilir — oyuncu ve at AYRI tablolardan ödüllenir.
+ */
+export function computeRaceXp(finishPosition: number | null, table: XpRewardTable): number {
+  const bonus =
+    finishPosition !== null && finishPosition >= 1 ? (table.placementBonus[finishPosition - 1] ?? 0) : 0;
+  return table.raceFinished + bonus;
 }

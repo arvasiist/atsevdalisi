@@ -1,9 +1,10 @@
 import { randomUUID } from 'node:crypto';
 import { Inject, Injectable } from '@nestjs/common';
-import type { NotificationView, RaceInviteView } from '@at-sevdalisi/shared-types';
+import type { RaceInviteView } from '@at-sevdalisi/shared-types';
 import { PlayerNotFoundError } from '../../domain/player/errors';
 import { assertUnderSocialLimit, canonicalPair } from '../../domain/social/friendship';
 import { RaceNotFoundError } from '../../domain/race/errors';
+import { RaceClubOnlyError } from '../../domain/race/level-bracket';
 import {
   InviteRequiresFriendshipError,
   RaceInviteAlreadyExistsError,
@@ -14,7 +15,7 @@ import { assertNoBlock } from '../../domain/social/moderation';
 import { AppConfigService } from '../../infrastructure/config/config.service';
 import { NOTIFICATION_NOTIFIER, type NotificationNotifier } from '../ports/notification-notifier';
 import { PLAYER_REPOSITORY, type PlayerRepository } from '../ports/player.repository';
-import { RACE_INVITE_REPOSITORY, type RaceInviteRepository, type RaceInviteRow } from '../ports/race-invite.repository';
+import { RACE_INVITE_REPOSITORY, type RaceInviteRepository } from '../ports/race-invite.repository';
 import { SOCIAL_REPOSITORY, type SocialRepository } from '../ports/social.repository';
 import { toRaceInviteView } from './race-invite.mapper';
 
@@ -98,7 +99,7 @@ export class SendRaceInviteUseCase {
       throw new PlayerNotFoundError(inviteeId);
     }
 
-    const race = await this.inviteRepository.findRaceForInvite(raceId);
+    const race = await this.inviteRepository.findRaceForInvite(raceId, inviteeId);
     if (race === null) {
       throw new RaceNotFoundError(raceId);
     }
@@ -109,6 +110,11 @@ export class SendRaceInviteUseCase {
     const rejection = checkInviteable(race, new Date());
     if (rejection !== null) {
       throw new RaceNotInvitableError(rejection);
+    }
+    // 09.10.2026 — kulüp içi yarışa yalnızca o kulübün üyesi davet edilir
+    // (katılamayacağı yarışın bildirimi boşa düşmesin; katılım kapısıyla aynı kod).
+    if (!race.inviteeClubAllowed) {
+      throw new RaceClubOnlyError();
     }
 
     const { lowId, highId } = canonicalPair(inviterId, inviteeId);
@@ -158,33 +164,10 @@ export class SendRaceInviteUseCase {
 
     const view = toRaceInviteView(row);
     this.notifier.notifyRaceInvite(inviteeId, view);
-    this.notifier.notifyNotification(inviteeId, toRaceInviteNotification(row));
+    // 16.10.2026 — `notification.created` artık bütün bildirimler için
+    // veritabanı akışından gelir (migration 0088, `NotificationStreamListener`);
+    // burada ayrıca yayınlamak aynı bildirimi iki kez yollardı.
     return view;
   }
 }
 
-/**
- * Davet satırından, davet edilene düşen `race_invite` bildirimini üretir.
- *
- * **NEDEN AYRI BİR FONKSİYON (repository'nin döndürdüğü satırdan değil de
- * buradan):** bildirim satırının `notificationId`si ile davetin `inviteId`
- *si AYRI kimliklerdir (iki farklı tablo). Burada üretilen nesne yalnızca
- * SOKET yayını içindir — `readAt: null` ve `createdAt` davetle aynı andır.
- * Kalıcı bildirim satırının kimliği veritabanında üretilir ve istemci onu
- * `GET /players/:id/notifications` çağrısında görür.
- */
-function toRaceInviteNotification(row: RaceInviteRow): NotificationView {
-  return {
-    notificationId: row.id,
-    type: 'race_invite',
-    payload: {
-      inviteId: row.id,
-      raceId: row.raceId,
-      raceName: row.raceName,
-      inviterId: row.inviterId,
-      inviterDisplayName: row.inviterDisplayName,
-    },
-    readAt: null,
-    createdAt: row.createdAt.toISOString(),
-  };
-}

@@ -12,6 +12,7 @@ import {
   bootstrapTestApp,
   registerTestPlayerWithStarterHorse,
   type RegisteredTestPlayer,
+  allowSoloLobbyRace,
 } from './test-helpers';
 
 /**
@@ -128,6 +129,9 @@ describe('Bağlantı kopması / yeniden başlatma güvenliği (e2e) — brief §
         ...override,
       })
       .expect(201);
+    // 15.10.2026 (Aşama 3) — bu dosyanın yarışları tek gerçek oyuncuyla da
+    // koşar (eski saha kuralı ön koşul; kuralın kendisi `race-field-rule.e2e-spec.ts`te).
+    await allowSoloLobbyRace(app, response.body.data.id as string);
     return response.body.data.id as string;
   }
 
@@ -353,7 +357,7 @@ describe('Bağlantı kopması / yeniden başlatma güvenliği (e2e) — brief §
     const secondHorseId = randomUUID();
     await pool.query(
       `INSERT INTO horses (id, owner_id, name, gender, breed, birth_date, quality, potential)
-       VALUES ($1, $2, 'Kopma İkinci At', 'mare', 'Arap', CURRENT_DATE - INTERVAL '5 years', 70, 80)`,
+       VALUES ($1, $2, 'Kopma İkinci At', 'mare', 'hinis', CURRENT_DATE - INTERVAL '5 years', 70, 80)`,
       [secondHorseId, player.playerId],
     );
     await pool.query('INSERT INTO horse_stats (horse_id) VALUES ($1)', [secondHorseId]);

@@ -42,7 +42,12 @@ export function estimatePotentialRange(potential: number): { min: number; max: n
  * ihtiyaç duyabilir).
  */
 export function toPublicHorse(horse: Horse): PublicHorse {
-  const { potential, ...visibleFields } = horse;
+  const { potential, ...withoutPotential } = horse;
+  // `agingStartedAt` iç hesap çıpasıdır; istemci yaşı `ageMonths` olarak alır.
+  const visibleFields: Omit<Horse, 'potential' | 'agingStartedAt'> & { agingStartedAt?: string } = {
+    ...withoutPotential,
+  };
+  delete visibleFields.agingStartedAt;
   return {
     ...visibleFields,
     potentialEstimate: estimatePotentialRange(potential),

@@ -1,6 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import type { Pool } from 'pg';
-import type { HorseStatField, HorseStats } from '@at-sevdalisi/shared-types';
+import type { HiddenHorseTraitKey, HorseStatField, HorseStats } from '@at-sevdalisi/shared-types';
 import type { HorseStatsRepository } from '../../application/ports/horse-stats.repository';
 import { PG_POOL } from '../database/database.module';
 
@@ -109,6 +109,56 @@ export class PostgresHorseStatsRepository implements HorseStatsRepository {
       [horseId],
     );
     return result.rows[0] ? rowToHorseStats(result.rows[0]) : null;
+  }
+
+  async findPersonalityByHorseIds(
+    horseIds: readonly string[],
+  ): Promise<Map<string, Record<HiddenHorseTraitKey, number>>> {
+    const result = new Map<string, Record<HiddenHorseTraitKey, number>>();
+    if (horseIds.length === 0) return result;
+    const rows = await this.pool.query<{
+      horse_id: string;
+      temperament: string;
+      focus: string;
+      courage: string;
+      competitiveness: string;
+      stress_resistance: string;
+      obedience: string;
+    }>(
+      `SELECT horse_id, temperament, focus, courage, competitiveness, stress_resistance, obedience
+         FROM horse_stats WHERE horse_id = ANY($1::uuid[])`,
+      [horseIds],
+    );
+    for (const row of rows.rows) {
+      result.set(row.horse_id, {
+        temperament: Number(row.temperament),
+        focus: Number(row.focus),
+        courage: Number(row.courage),
+        competitiveness: Number(row.competitiveness),
+        stressResistance: Number(row.stress_resistance),
+        obedience: Number(row.obedience),
+      });
+    }
+    return result;
+  }
+
+  async findPowerStatsByHorseIds(
+    horseIds: readonly string[],
+  ): Promise<Map<string, Pick<HorseStats, 'speed' | 'acceleration' | 'stamina'>>> {
+    const result = new Map<string, Pick<HorseStats, 'speed' | 'acceleration' | 'stamina'>>();
+    if (horseIds.length === 0) return result;
+    const rows = await this.pool.query<{ horse_id: string; speed: string; acceleration: string; stamina: string }>(
+      'SELECT horse_id, speed, acceleration, stamina FROM horse_stats WHERE horse_id = ANY($1::uuid[])',
+      [horseIds],
+    );
+    for (const row of rows.rows) {
+      result.set(row.horse_id, {
+        speed: Number(row.speed),
+        acceleration: Number(row.acceleration),
+        stamina: Number(row.stamina),
+      });
+    }
+    return result;
   }
 
   async updateStatValue(horseId: string, statKey: HorseStatField, newValue: number): Promise<void> {

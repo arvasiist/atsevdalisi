@@ -10,7 +10,7 @@ import type {
   RaceSegmentSnapshot,
 } from '@at-sevdalisi/shared-types';
 import { buildHorseEntrantSnapshot, FORM_SAMPLE_SIZE, type TrackFitInput } from '../../domain/race/entrant-snapshot';
-import { calculateJockeySkillComposite } from '../../domain/jockey/jockey';
+import { effectiveJockeySkill } from '../../domain/jockey/jockey';
 import { assignGatePositions } from '../../domain/race/gate-assignment';
 import { findBestMatch } from '../../domain/online/matchmaking';
 import { createRaceRoomSeed, validateRaceRoomParticipants } from '../../domain/online/race-room';
@@ -20,6 +20,7 @@ import { HorseInjuredError, HorseNotFoundError } from '../../domain/horse/errors
 import type { VitalSigns } from '../../domain/horse/vital-signs';
 import { HorseNotReadyToRaceError } from '../../domain/race/errors';
 import { checkRaceReadiness } from '../../domain/race/readiness';
+import { horseAgeMonths, racingAgeFactor } from '../../domain/horse/age-curve';
 import { AlreadyInMatchmakingQueueError } from '../../domain/online/errors';
 import { PlayerNotFoundError } from '../../domain/player/errors';
 import { AppConfigService } from '../../infrastructure/config/config.service';
@@ -28,6 +29,7 @@ import { HORSE_STATS_REPOSITORY, type HorseStatsRepository } from '../ports/hors
 import { HORSE_SURFACE_STATS_REPOSITORY, type HorseSurfaceStatsRepository } from '../ports/horse-surface-stats.repository';
 import { HORSE_DISTANCE_STATS_REPOSITORY, type HorseDistanceStatsRepository } from '../ports/horse-distance-stats.repository';
 import { HORSE_EQUIPMENT_REPOSITORY, type HorseEquipmentRepository } from '../ports/horse-equipment.repository';
+import { loadJockeyCondition } from '../services/jockey-condition';
 import { JOCKEY_REPOSITORY, type JockeyRepository } from '../ports/jockey.repository';
 import { LOBBY_NOTIFIER, type LobbyNotifier } from '../ports/lobby-notifier';
 import { MATCHMAKING_TICKET_REPOSITORY, type MatchmakingTicketRepository } from '../ports/matchmaking-ticket.repository';
@@ -187,7 +189,12 @@ export class JoinMatchmakingQueueUseCase {
     // lobi yarışıyla AYNI tek karar noktası (`domain/race/readiness.ts`).
     // Önceden yalnızca sakatlık kontrol ediliyordu; enerjisi bitmiş at
     // kuyruğa girip eşleşme koşabiliyordu.
-    const readiness = checkRaceReadiness(horse.status, vitalsOf(horse), this.config.race.readiness);
+    const readiness = checkRaceReadiness(
+      horse.status,
+      vitalsOf(horse),
+      this.config.race.readiness,
+      horseAgeMonths(horse, new Date(), this.config.horseGrowth),
+    );
     if (!readiness.ready && readiness.reason !== null) {
       throw new HorseNotReadyToRaceError(readiness.reason);
     }
@@ -332,7 +339,12 @@ export class JoinMatchmakingQueueUseCase {
     return (
       horse !== null &&
       horse.ownerId === ticket.playerId &&
-      checkRaceReadiness(horse.status, vitalsOf(horse), this.config.race.readiness).ready
+      checkRaceReadiness(
+        horse.status,
+        vitalsOf(horse),
+        this.config.race.readiness,
+        horseAgeMonths(horse, new Date(), this.config.horseGrowth),
+      ).ready
     );
   }
 
@@ -437,17 +449,54 @@ export class JoinMatchmakingQueueUseCase {
     // JOKEY (PHASE 6.2, 29.09.2026) — kompozit HER İKİ taraf için ayrı
     // hesaplanır; `null` jokey → `null` kompozit → `buildHorseEntrantSnapshot`
     // nötr 50'ye indirger (bkz. o fonksiyonun 7. parametresi).
-    const myJockeySkillComposite = myJockey === null ? null : calculateJockeySkillComposite(myJockey, this.config.jockey);
+    // 02.10.2026 — uyum dahil (`effectiveJockeySkill`). Hızlı eşleşmede ortak
+    // geçmiş sorgulanmaz (nötr) — mizaç + stil + deneyim yine işler.
+    const myJockeySkillComposite =
+      myJockey === null
+        ? null
+        : effectiveJockeySkill(
+            {
+              jockey: myJockey,
+              horse: { temperament: stats.temperament, racingStyle: DEFAULT_RACE_TACTIC.racingStyle },
+              previousPairAveragePerformance: null,
+              // 08.10.2026 — jokeyin formu × yorgunluğu.
+              conditionMultiplier: (await loadJockeyCondition(this.jockeyRepository, myJockey.id, now, this.config.jockey))
+                .multiplier,
+            },
+            this.config.jockey,
+          );
     const opponentJockeySkillComposite =
-      opponentJockey === null ? null : calculateJockeySkillComposite(opponentJockey, this.config.jockey);
+      opponentJockey === null
+        ? null
+        : effectiveJockeySkill(
+            {
+              jockey: opponentJockey,
+              horse: { temperament: opponentStats.temperament, racingStyle: DEFAULT_RACE_TACTIC.racingStyle },
+              previousPairAveragePerformance: null,
+              conditionMultiplier: (
+                await loadJockeyCondition(this.jockeyRepository, opponentJockey.id, now, this.config.jockey)
+              ).multiplier,
+            },
+            this.config.jockey,
+          );
 
+    // 15.10.2026 — B13: iki atın yaş evresi aynı andan (`now`).
+    const growth = this.config.horseGrowth;
     const mySnapshot = buildHorseEntrantSnapshot(
-      horse, stats, DEFAULT_RACE_TACTIC, recentResults, myTrackFit, equippedItems, myJockeySkillComposite,
+      horse,
+      stats,
+      DEFAULT_RACE_TACTIC,
+      racingAgeFactor(horseAgeMonths(horse, now, growth), growth),
+      recentResults,
+      myTrackFit,
+      equippedItems,
+      myJockeySkillComposite,
     );
     const opponentSnapshot = buildHorseEntrantSnapshot(
       opponentHorse,
       opponentStats,
       DEFAULT_RACE_TACTIC,
+      racingAgeFactor(horseAgeMonths(opponentHorse, now, growth), growth),
       opponentRecentResults,
       opponentTrackFit,
       opponentEquippedItems,

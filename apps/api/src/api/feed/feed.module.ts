@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { FarmModule } from '../farm/farm.module';
 import { FEED_INVENTORY_REPOSITORY } from '../../application/ports/feed-inventory.repository';
 import { HORSE_HEALTH_REPOSITORY } from '../../application/ports/horse-health.repository';
 import { BuyFeedUseCase } from '../../application/use-cases/buy-feed.use-case';
@@ -29,7 +30,7 @@ import { FeedController } from './feed.controller';
  * eklenmesine GEREK YOKTUR).
  */
 @Module({
-  imports: [HorseModule],
+  imports: [HorseModule, FarmModule],
   controllers: [FeedController],
   providers: [
     GetFeedInventoryUseCase,

@@ -5,8 +5,12 @@ import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { PG_POOL } from '../../src/infrastructure/database/database.module';
 import { AppConfigService } from '../../src/infrastructure/config/config.service';
-import { calculateJockeySkillComposite } from '../../src/domain/jockey/jockey';
+import {
+  calculateJockeySkillComposite,
+  effectiveJockeySkill,
+} from '../../src/domain/jockey/jockey';
 import { NEUTRAL_UNMODELED_TRAIT_SCORE } from '../../src/domain/race/entrant-snapshot';
+import { DEFAULT_RACE_TACTIC } from '../../src/domain/race/validation';
 import { JockeyController } from '../../src/api/jockey/jockey.controller';
 import { RATE_LIMIT_KEY, type RateLimitOptions } from '../../src/api/rate-limit/rate-limit.decorator';
 import {
@@ -370,6 +374,11 @@ describe('Jokey (e2e) — brief §13, PHASE 6.2', () => {
       const skill = 90;
       const jockeyId = await createJockey({ salary: 0, skill });
       await hire(player, jockeyId, 201);
+      // Mizaç SABİTLENİR: rastgele bir mizaç tam 70 çıksaydı uyum 50 olur ve
+      // aşağıdaki "uyum işliyor" iddiası boşa düşerdi.
+      await pool.query('UPDATE horse_stats SET temperament = 10 WHERE horse_id = $1', [
+        player.horseId,
+      ]);
 
       await runPracticeRace(player, player.horseId);
 
@@ -377,18 +386,35 @@ describe('Jokey (e2e) — brief §13, PHASE 6.2', () => {
       expect(entry.jockey_id).toBe(jockeyId);
 
       const snapshot = JSON.parse(entry.snapshot) as { jockeySkillComposite: number };
-      const expected = calculateJockeySkillComposite(
+      const skills = {
+        startSkill: skill,
+        tacticalSkill: skill,
+        sprintSkill: skill,
+        horseControl: skill,
+        riskManagement: skill,
+        trackKnowledge: skill,
+        experience: 0,
+      };
+      // 02.10.2026 — motora giren değer jokey-at UYUMUNU da içerir
+      // (`effectiveJockeySkill`): atın gizli mizacı + taktik stili + jokey
+      // deneyimi + ortak geçmiş (ilk yarış → nötr). Girdiler burada bağımsız
+      // olarak okunur; ekranın gösterdiği salt puanla AYNI DEĞİLDİR.
+      const temperament = 10;
+      const expected = effectiveJockeySkill(
         {
-          startSkill: skill,
-          tacticalSkill: skill,
-          sprintSkill: skill,
-          horseControl: skill,
-          riskManagement: skill,
-          trackKnowledge: skill,
+          jockey: skills,
+          horse: { temperament, racingStyle: DEFAULT_RACE_TACTIC.racingStyle },
+          previousPairAveragePerformance: null,
         },
         config.jockey,
       );
       expect(snapshot.jockeySkillComposite).toBeCloseTo(expected, 6);
+      // Uyum gerçekten işliyor: salt beceri puanından farklı (mizaç 50 ve
+      // deneyim 0 iken uyum 50 olamaz).
+      expect(snapshot.jockeySkillComposite).not.toBeCloseTo(
+        calculateJockeySkillComposite(skills, config.jockey),
+        6,
+      );
       // Nötr 50 DEĞİL — yani bu alan "varsayılan" değil, GERÇEKTEN jokeyden
       // geliyor. Bu iddia olmadan yukarıdaki eşitlik, beceri 50 seçilseydi
       // hiçbir şey kanıtlamazdı.

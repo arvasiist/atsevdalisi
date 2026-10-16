@@ -65,7 +65,10 @@ export interface TrackPathPoint {
  * tek turdan uzun mesafeli yarışlar (örn. 2400m'lik yarış, 2000m'lik tur)
  * pist üzerinde doğal olarak ikinci bir tura devam eder.
  */
-export function getPointOnStadiumTrack(distanceMeters: number, geometry: StadiumTrackGeometry): TrackPathPoint {
+export function getPointOnStadiumTrack(
+  distanceMeters: number,
+  geometry: StadiumTrackGeometry,
+): TrackPathPoint {
   const { straightLengthMeters: straight, turnRadiusMeters: radius, lapLengthMeters } = geometry;
 
   if (lapLengthMeters <= 0) {
@@ -136,7 +139,11 @@ export function getHorseTrackPosition(
  * İCAT ETMEZ. `turnCount <= 0` (düz sprint pisti) için HER ZAMAN
  * `false` döner — viraj YOKTUR.
  */
-export function isOnTrackTurn(distanceMeters: number, turnCount: number, geometry: StadiumTrackGeometry): boolean {
+export function isOnTrackTurn(
+  distanceMeters: number,
+  turnCount: number,
+  geometry: StadiumTrackGeometry,
+): boolean {
   if (turnCount <= 0 || geometry.lapLengthMeters <= 0) {
     return false;
   }
@@ -212,7 +219,12 @@ export function getOutwardBoundaryPoint(
   };
 }
 
-function pointOnTurn(centerX: number, centerZ: number, radius: number, angleRadians: number): TrackPathPoint {
+function pointOnTurn(
+  centerX: number,
+  centerZ: number,
+  radius: number,
+  angleRadians: number,
+): TrackPathPoint {
   const x = centerX + radius * Math.cos(angleRadians);
   const z = centerZ + radius * Math.sin(angleRadians);
   const headingRadians = Math.atan2(Math.cos(angleRadians), -Math.sin(angleRadians));

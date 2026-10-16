@@ -33,7 +33,7 @@ import { PG_POOL } from '../database/database.module';
 export class PostgresWalletRepository implements WalletRepository {
   constructor(@Inject(PG_POOL) private readonly pool: Pool) {}
 
-  async findWallet(playerId: string, limit: number, before: string | null = null): Promise<WalletView | null> {
+  async findWallet(playerId: string, limit: number, before: string | null = null): Promise<Omit<WalletView, 'depositAvailable'> | null> {
     // Bakiye — `money`/`gems` BIGINT'tir, `node-postgres` bunları
     // varsayılan olarak STRING döner (hassasiyet kaybı endişesi); oyunun
     // değerleri güvenli tamsayı sınırını aşmadığı için `Number(...)`'a

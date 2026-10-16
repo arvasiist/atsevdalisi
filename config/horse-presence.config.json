@@ -1,0 +1,18 @@
+{
+  "thresholds": {
+    "lowHealth": 50,
+    "lowEnergy": 30,
+    "highFatigue": 70,
+    "lowMorale": 40,
+    "highEnergy": 75,
+    "highMorale": 70
+  },
+  "moods": {
+    "energetic": { "breathRate": 1.25, "headLift": 0.12, "tailSwishRate": 1.5, "weightShiftRate": 1.4, "earPerk": 1.0 },
+    "neutral":   { "breathRate": 1.0,  "headLift": 0.0,  "tailSwishRate": 1.0, "weightShiftRate": 1.0, "earPerk": 0.7 },
+    "calm":      { "breathRate": 0.85, "headLift": -0.08, "tailSwishRate": 0.6, "weightShiftRate": 0.6, "earPerk": 0.4 },
+    "tired":     { "breathRate": 1.45, "headLift": -0.22, "tailSwishRate": 0.4, "weightShiftRate": 0.35, "earPerk": 0.2 },
+    "unwell":    { "breathRate": 1.3,  "headLift": -0.28, "tailSwishRate": 0.25, "weightShiftRate": 0.25, "earPerk": 0.1 },
+    "injured":   { "breathRate": 1.2,  "headLift": -0.3, "tailSwishRate": 0.2, "weightShiftRate": 0.0, "earPerk": 0.1 }
+  }
+}

@@ -71,6 +71,8 @@ export interface LeaderboardRowView {
   displayName: string;
   score: number;
   raceCount: number;
+  /** 08.10.2026 — birincilik sayısı; sıralamanın İLK ölçütü (eşitlikte puan). */
+  wins: number;
 }
 
 /** brief §43 RankingScore bileşenleri (hesaplama: `domain/ranking/ranking-score.ts`). */
@@ -115,6 +117,50 @@ export interface ClubMembership {
   joinedAt: ISODateTimeString;
 }
 
+/** 01.10.2026 — `GET /clubs` satırı ve kulüp başlığı (kulüp sıralaması da budur). */
+export interface ClubSummaryView {
+  id: UUID;
+  name: string;
+  tag: string | null;
+  level: number;
+  points: number;
+  /** Sonraki seviye için gereken TOPLAM puan; en üst seviyede `null`. */
+  nextLevelPoints: number | null;
+  memberCount: number;
+  maxMembers: number;
+  leaderUsername: string;
+  leaderDisplayName: string;
+  createdAt: ISODateTimeString;
+}
+
+export interface ClubMemberView {
+  playerId: UUID;
+  username: string;
+  displayName: string;
+  playerLevel: number;
+  role: ClubRole;
+  contributionPoints: number;
+  joinedAt: ISODateTimeString;
+}
+
+/** `GET /clubs/:id` ve `GET /clubs/mine` — `myRole` çağıranın bu kulüpteki rolü (üye değilse `null`). */
+export interface ClubDetailView {
+  club: ClubSummaryView;
+  members: ClubMemberView[];
+  myRole: ClubRole | null;
+}
+
+/** 09.10.2026 — oyuncuya gelen, bekleyen ve süresi dolmamış kulüp daveti. */
+export interface ClubInviteView {
+  id: UUID;
+  clubId: UUID;
+  clubName: string;
+  clubTag: string | null;
+  inviterName: string;
+  createdAt: ISODateTimeString;
+  expiresAt: ISODateTimeString;
+}
+
 // ---------------------------------------------------------------------------
 // Sezon (brief §69 SEZON SİSTEMİ)
 // ---------------------------------------------------------------------------
@@ -135,6 +181,33 @@ export interface Season {
  * bu arayüzdeki alanları sıfırlar; `Player`/`Horse` gibi KALICI varlıklar bu
  * arayüzde YOKTUR (onlar hiç dokunulmadan kalır).
  */
+/** 01.10.2026 — `GET /seasons/current` (brief §69). */
+export interface SeasonInfoView {
+  id: UUID;
+  number: number;
+  name: string;
+  startsAt: ISODateTimeString;
+  endsAt: ISODateTimeString;
+  status: SeasonStatus;
+  /** Ödüller ödendiyse damga (yalnızca bitmiş sezonda dolar). */
+  rewardsPaidAt: ISODateTimeString | null;
+}
+
+export interface SeasonStandingRow extends LeaderboardRowView {
+  /** Sezon bitince bu sıranın alacağı ödül (çip); ödülsüz sırada 0. */
+  reward: number;
+}
+
+export interface SeasonView {
+  season: SeasonInfoView;
+  standings: SeasonStandingRow[];
+  /** Çağıranın sezon satırı; bu sezon hiç yarışmadıysa `null`. */
+  me: SeasonStandingRow | null;
+  rewardsByRank: number[];
+  /** Bir önceki (bitmiş) sezonun ilk üçü — yoksa `null`. */
+  previous: { season: SeasonInfoView; podium: SeasonStandingRow[] } | null;
+}
+
 export interface PlayerSeasonState {
   playerId: UUID;
   seasonId: UUID;
@@ -245,3 +318,26 @@ export interface PvpMatchResult {
  * not — "eşleşme yok" burada bir HATA değil, bu birliğin bir dalıdır).
  */
 export type JoinMatchmakingQueueResult = { matched: false; ticket: MatchmakingTicket } | { matched: true; match: PvpMatchResult };
+
+/** 02.10.2026 (Faz 11) — haftalık/aylık sıralama (sezonla aynı formül, pencere içinde türetilir). */
+export type LeaderboardPeriod = 'weekly' | 'monthly';
+
+export interface PeriodStandingRow {
+  rank: number;
+  playerId: UUID;
+  username: string;
+  displayName: string;
+  score: number;
+  raceCount: number;
+  /** 08.10.2026 — birincilik sayısı (ilk sıralama ölçütü). */
+  wins: number;
+}
+
+export interface PeriodLeaderboardView {
+  period: LeaderboardPeriod;
+  startsAt: ISODateTimeString;
+  endsAt: ISODateTimeString;
+  standings: PeriodStandingRow[];
+  /** Çağıranın satırı (listede olmasa da); hiç yarışmadıysa `null`. */
+  me: PeriodStandingRow | null;
+}

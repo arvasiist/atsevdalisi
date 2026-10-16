@@ -1,5 +1,9 @@
 # AT SEVDALISI — PROJE DURUMU
 
+> ⚠️ **TARİHLİ ANLIK GÖRÜNTÜ (29.09.2026).** Aşağıdaki "gerçek bu belgedir"
+> cümlesi o gün için doğruydu; bugünkü özet `MASTER_STATUS.md`
+> (09.10.2026'da koda göre yenilendi), tarihçe `PROJE_DURUMU.md` §13.
+
 **Tarih:** 29.09.2026
 **Bu belge nedir:** "Bugün neredeyiz" sorusunun **kısa** cevabı. Ayrıntılı
 özellik-özellik denetim `docs/FINAL_PROJECT_AUDIT.md`te; derin bağlam

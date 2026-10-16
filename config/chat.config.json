@@ -4,5 +4,46 @@
   "rateLimit": {
     "limit": 20,
     "windowSeconds": 60
+  },
+  "clubChat": {
+    "historyLimit": 50,
+    "pollSeconds": 5
+  },
+  "emotes": {
+    "cooldownMs": 1500,
+    "list": [
+      {
+        "key": "clap",
+        "symbol": "👏",
+        "label": "Alkış"
+      },
+      {
+        "key": "fire",
+        "symbol": "🔥",
+        "label": "Ateş"
+      },
+      {
+        "key": "horse",
+        "symbol": "🐎",
+        "label": "Dörtnala"
+      },
+      {
+        "key": "trophy",
+        "symbol": "🏆",
+        "label": "Şampiyon"
+      },
+      {
+        "key": "wow",
+        "symbol": "😮",
+        "label": "Vay"
+      },
+      {
+        "key": "heart",
+        "symbol": "❤️",
+        "label": "Sevgi"
+      }
+    ],
+    "displayMs": 2500,
+    "maxVisible": 12
   }
 }

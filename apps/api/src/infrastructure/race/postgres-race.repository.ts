@@ -1,9 +1,20 @@
+import { computeRaceXp } from '../../domain/progression/progression';
+import { awardXpInTransaction } from '../progression/award-xp';
+import { applyRaceConditionInTransaction, assertHorseRaceReadyLocked } from '../horse/race-condition';
+import { addClubPointsInTransaction } from '../club/postgres-club.repository';
+import { assertHasClubPermission } from '../../domain/club/club';
+import { NotClubMemberError } from '../../domain/club/errors';
+import { silkColorHex } from '../../domain/avatar/avatar';
 import { Inject, Injectable } from '@nestjs/common';
 import type { Pool, PoolClient } from 'pg';
 import type {
+  ClubRole,
   HorseStatus,
+  NotificationPayloadByType,
+  PracticeRaceResult,
   PvpMatch,
   Race,
+  RaceCancelledReason,
   RaceEntrantSnapshot,
   RaceEntry,
   RaceJockeyDecision,
@@ -25,8 +36,11 @@ import type {
 import type {
   CreateLobbyRaceInput,
   CreateLobbyRaceResult,
+  CreateCalendarRaceInput,
   CreateTournamentRaceInput,
   DropUnreadyLobbyEntriesResult,
+  InteractiveRaceRecord,
+  StartInteractiveRaceInput,
   JoinLobbyRaceInput,
   LeaveLobbyRaceInput,
   ListLobbyRacesInput,
@@ -47,11 +61,15 @@ import { applyPracticeRaceStakes } from '../../domain/race/prize';
 import { pickStartingStats } from '../../domain/race/entrant-snapshot';
 // PHASE 7.1 — config'ten gelen tribün değerlerinin çalışma zamanı doğrulaması
 // (`insertRaceRow`), `assertTicketPriceIsValid` doc yorumundaki gerekçe.
-import { assertSpectatorCapacityIsValid, assertTicketPriceIsValid } from '../../domain/grandstand/ticket';
+import {
+  assertSpectatorCapacityIsValid,
+  assertTicketPriceIsValid,
+} from '../../domain/grandstand/ticket';
 import {
   describeRacePrizeEconomics,
   resolvePrizeDistribution,
 } from '../../domain/race/prize-distribution';
+import { findRaceTable, lobbyPrizeShares, tableRakePercent } from '../../domain/race/table-rules';
 import { AppConfigService } from '../config/config.service';
 import {
   checkEntryReadyable,
@@ -90,8 +108,13 @@ import { applyEloUpdate } from '../../domain/online/elo';
 import { PlayerNotFoundError } from '../../domain/player/errors';
 import { PG_POOL, withTransaction } from '../database/database.module';
 import { isHorseInActiveRace } from '../horse/active-race-entry';
+import type { PlayerCommandLog } from '../../domain/race/interactive-race';
 import { PlayerLevelTooLowError } from '../../domain/tournament/errors';
 import { checkRaceReadiness } from '../../domain/race/readiness';
+import { computeHorseAgeMonths } from '../../domain/horse/age-curve';
+import { HorseBreedNotAllowedError, isBreedAllowedInRaceClass } from '../../domain/horse/breeds';
+import { pickHippodromeForRace, resolveHippodromeKey, trackIdForHippodrome } from '../../domain/race/hippodrome';
+import { findLevelBracket, HorseLevelNotAllowedError, isHorseLevelAllowed, RaceClubOnlyError } from '../../domain/race/level-bracket';
 
 /** Postgres `unique_violation` hata kodu (bkz. PostgreSQL "Error Codes" §22.6 sınıf 23). */
 const POSTGRES_UNIQUE_VIOLATION = '23505';
@@ -131,7 +154,9 @@ function isUniqueViolation(error: unknown, constraint: string): boolean {
  */
 function assertBotSnapshot(entry: RaceEntry): RaceEntrantSnapshot {
   if (entry.horseSnapshot === null) {
-    throw new Error(`Bot katılım satırının (${entry.id}) snapshot'ı yok — simülasyon girdisi eksik.`);
+    throw new Error(
+      `Bot katılım satırının (${entry.id}) snapshot'ı yok — simülasyon girdisi eksik.`,
+    );
   }
   return entry.horseSnapshot;
 }
@@ -205,6 +230,20 @@ interface LobbyRaceRow {
   spectator_capacity: number;
   created_by: string | null;
   created_at: Date;
+  player_control: boolean;
+  /** 08.10.2026 (migration 0070) — `null` = her ırka açık. */
+  breed_class: string | null;
+  /** 08.10.2026 (migration 0072) — `null` = varsayılan hipodrom. */
+  track_id: string | null;
+  /** 08.10.2026 (migration 0073) — `null` = her seviyeye açık. */
+  horse_level_bracket: string | null;
+  /** 09.10.2026 (migration 0079) — `null` = masasız. */
+  table_id: string | null;
+  /** 09.10.2026 (migration 0081) — `null` = herkese açık; dolu = kulüp içi yarış. */
+  club_id: string | null;
+  /** 15.10.2026 (migration 0085) — yetersiz oyuncu kuralı. */
+  min_real_players: number;
+  ai_fill: boolean;
 }
 
 /**
@@ -240,11 +279,26 @@ interface SettlementRaceRow {
    * kendi seed'ini üretir.
    */
   simulation_seed: string | null;
+  /** 01.10.2026 (migration 0054). Kilit sorgusu bu iki sütunu seçmez → opsiyonel. */
+  player_control?: boolean;
+  live_starts_at?: Date | null;
+  /** 08.10.2026 (migration 0070). Kilit sorgusu seçmez → opsiyonel. */
+  breed_class?: string | null;
+  /** 08.10.2026 (migration 0072). Kilit sorgusu seçmez → opsiyonel. */
+  track_id?: string | null;
+  /** 08.10.2026 (migration 0073). Kilit sorgusu seçmez → opsiyonel. */
+  horse_level_bracket?: string | null;
+  /** 09.10.2026 (migration 0079). Kilit sorgusu seçmez → opsiyonel. */
+  table_id?: string | null;
+  /** 15.10.2026 (migration 0085). Kilit sorgusu seçmez → opsiyonel. */
+  ai_fill?: boolean;
+  min_real_players?: number;
 }
 
 /** `findLobbySettlementContext`'in `race_entries` satır şekli. */
 interface SettlementEntryRow {
   id: string;
+  horse_name: string | null;
   player_id: string | null;
   horse_id: string | null;
   tactical_style: string | null;
@@ -252,6 +306,8 @@ interface SettlementEntryRow {
   gate_position: number | null;
   /** PHASE 6.2 — kilit anında yazılır (`lockLobbyRace`). */
   jockey_id: string | null;
+  /** 01.10.2026 (migration 0054) — oyuncunun segment komutları. */
+  player_commands: PlayerCommandLog;
   /**
    * PHASE 1 (migration 0042) — `startTime` anında dondurulmuş hâl.
    * `null` ise kilit hiç çalışmamıştır.
@@ -275,18 +331,33 @@ interface SettlementEntryRow {
  * demek olurdu. Bu metot yalnızca `races` satırını gördüğü için sayıyı
  * çağırandan alır.
  */
-function rowToLobbyRaceView(config: AppConfigService, row: LobbyRaceRow, joinedPlayers: number): RaceLobbyView {
+function rowToLobbyRaceView(
+  config: AppConfigService,
+  row: LobbyRaceRow,
+  joinedPlayers: number,
+): RaceLobbyView {
   // §42 PHASE 5 — ÖDÜL EKONOMİSİ (brief §3/§4). Havuz `races.prize_pool`
   // sütunudur (katılımda büyür, ayrılmada küçülür); çarpan ve kazanan
   // ödülü ONDAN türetilir. `null` çarpan = "bu yarışta gösterilecek çarpan
   // yok" (ücretsiz yarış ya da henüz katılım yok) — istemci bu durumda
   // çarpanı hiç göstermez, `0.00x` göstermez.
-  const shares = resolvePrizeDistribution(config.economy, config.raceLobby.prizeDistributionId)?.shares ?? [];
+  // 09.10.2026 — MASA: dağılım masanındır; masasız yarış genel dağılımı
+  // kullanır. Bedeli start anında kesilen masada havuz kilide kadar 0'dır —
+  // ekranda gösterilen ödül, katılanların ödeyeceği bedelden TAHMİN edilir.
+  const table = findRaceTable(config.economy, row.table_id ?? null);
+  const shares =
+    resolvePrizeDistribution(config.economy, table?.distributionId ?? config.raceLobby.prizeDistributionId)?.shares ?? [];
+  const projectedPool =
+    table?.feeTiming === 'on_start' && row.status === 'scheduled'
+      ? Number(row.entry_fee) * joinedPlayers
+      : Number(row.prize_pool);
+  // 16.10.2026 — bota pay düşmez: gösterilen birincilik ödülü, ŞU ANKİ gerçek
+  // oyuncu sayısıyla kesinleşmenin ödeyeceği paydır (`lobbyPrizeShares`).
   const economics = describeRacePrizeEconomics({
     entryFee: Number(row.entry_fee),
     participantCount: joinedPlayers,
-    pool: Number(row.prize_pool),
-    shares,
+    pool: projectedPool,
+    shares: lobbyPrizeShares(shares, joinedPlayers),
   });
 
   return {
@@ -309,6 +380,23 @@ function rowToLobbyRaceView(config: AppConfigService, row: LobbyRaceRow, joinedP
     createdAt: row.created_at.toISOString(),
     prizeMultiplier: economics.multiplier,
     topPrize: economics.topPrize,
+    playerControl: row.player_control,
+    breedClass: row.breed_class ?? null,
+    hippodrome: resolveHippodromeKey(config.hippodromes, row.track_id ?? null),
+    horseLevelBracket: row.horse_level_bracket ?? null,
+    table:
+      table === null
+        ? null
+        : {
+            id: table.id,
+            label: table.label,
+            feeTiming: table.feeTiming,
+            paidPlaces: shares.length,
+            rakePercent: tableRakePercent(shares),
+            loserRefund: { ...table.loserRefund },
+          },
+    clubId: row.club_id ?? null,
+    fieldRule: { minRealPlayers: row.min_real_players, aiFill: row.ai_fill },
   };
 }
 
@@ -332,6 +420,49 @@ function rowToLobbyRaceView(config: AppConfigService, row: LobbyRaceRow, joinedP
  * `pvp_matches` tablosuna da yazar (`database/migrations/
  * 0018_add_pvp_matchmaking.up.sql`).
  */
+interface InteractiveRaceRow {
+  id: string;
+  player_id: string;
+  horse_id: string;
+  tier_id: string;
+  simulation_seed: string;
+  tactic: InteractiveRaceRecord['tactic'];
+  entrants: InteractiveRaceRecord['entrants'];
+  jockey_id: string | null;
+  entry_fee: string;
+  distance_m: number;
+  surface: string;
+  weather: string;
+  commands: PlayerCommandLog;
+  starts_at: Date;
+  status: 'running' | 'finished';
+  finished_at: Date | null;
+  result: PracticeRaceResult | null;
+}
+
+function rowToInteractiveRace(row: InteractiveRaceRow): InteractiveRaceRecord {
+  return {
+    id: row.id,
+    playerId: row.player_id,
+    horseId: row.horse_id,
+    tierId: row.tier_id,
+    simulationSeed: row.simulation_seed,
+    tactic: row.tactic,
+    entrants: row.entrants,
+    jockeyId: row.jockey_id,
+    // `pg` BIGINT'i metin döner (CLAUDE.md).
+    entryFee: Number(row.entry_fee),
+    distanceMeters: row.distance_m,
+    surface: row.surface,
+    weather: row.weather,
+    commands: row.commands,
+    startsAt: row.starts_at,
+    status: row.status,
+    finishedAt: row.finished_at,
+    result: row.result,
+  };
+}
+
 @Injectable()
 export class PostgresRaceRepository implements RaceRepository {
   constructor(
@@ -345,7 +476,11 @@ export class PostgresRaceRepository implements RaceRepository {
     @Inject(AppConfigService) private readonly config: AppConfigService,
   ) {}
 
-  async savePracticeRace(race: Race, entry: RaceEntry, segments: RaceSegmentSnapshot[]): Promise<void> {
+  async savePracticeRace(
+    race: Race,
+    entry: RaceEntry,
+    segments: RaceSegmentSnapshot[],
+  ): Promise<void> {
     await withTransaction(this.pool, async (client) => {
       await this.insertRaceRow(client, race);
       await this.insertEntryWithSegments(client, entry, segments);
@@ -365,8 +500,24 @@ export class PostgresRaceRepository implements RaceRepository {
    * adım (özellikle SON adım — yarış kaydı) başarısız olursa `withTransaction`
    * TÜMÜNÜ (para dahil) ROLLBACK eder.
    */
-  async savePracticeRaceWithStakes(input: SavePracticeRaceWithStakesInput): Promise<SavePracticeRaceWithStakesResult> {
-    return withTransaction(this.pool, async (client) => {
+  async savePracticeRaceWithStakes(
+    input: SavePracticeRaceWithStakesInput,
+  ): Promise<SavePracticeRaceWithStakesResult> {
+    return withTransaction(this.pool, (client) =>
+      this.savePracticeRaceInTransaction(client, input),
+    );
+  }
+
+  /**
+   * 01.10.2026 — `savePracticeRaceWithStakes`in gövdesi, çağıranın
+   * transaction'ında. Oyuncu kontrollü yarışın kesinleşmesi de bunu kullanır
+   * (oturum satırı kilitliyken) — iki ayrı kayıt yolu ayrışamaz.
+   */
+  private async savePracticeRaceInTransaction(
+    client: PoolClient,
+    input: SavePracticeRaceWithStakesInput,
+  ): Promise<SavePracticeRaceWithStakesResult> {
+    {
       const playerResult = await client.query<{ money: string; gems: string }>(
         'SELECT money, gems FROM players WHERE id = $1 FOR UPDATE',
         [input.playerId],
@@ -375,16 +526,20 @@ export class PostgresRaceRepository implements RaceRepository {
       if (!playerRow) {
         throw new PlayerNotFoundError(input.playerId);
       }
+      // 15.10.2026 — S3: hazırlık kilit altında yeniden (kilit sırası oyuncu → at).
+      const ownHorseId = input.entries[0]?.horseId;
+      if (input.readinessGate && ownHorseId) {
+        await assertHorseRaceReadyLocked(client, ownHorseId, input.readinessGate, new Date(input.race.startTime));
+      }
 
       const balanceBefore = { money: Number(playerRow.money), gems: Number(playerRow.gems) };
-      const balanceAfter = applyPracticeRaceStakes(balanceBefore, input.entryFee, input.prizeWon);
+      const loserRefund = input.loserRefund ?? 0;
+      const balanceAfter = applyPracticeRaceStakes(balanceBefore, input.entryFee, input.prizeWon, loserRefund);
 
-      await client.query('UPDATE players SET money = $2, gems = $3, updated_at = $4 WHERE id = $1', [
-        input.playerId,
-        balanceAfter.money,
-        balanceAfter.gems,
-        new Date(),
-      ]);
+      await client.query(
+        'UPDATE players SET money = $2, gems = $3, updated_at = $4 WHERE id = $1',
+        [input.playerId, balanceAfter.money, balanceAfter.gems, new Date()],
+      );
 
       const ledgerEntries: EconomyLedgerEntryInput[] = [];
       if (input.entryFee > 0) {
@@ -409,6 +564,21 @@ export class PostgresRaceRepository implements RaceRepository {
           referenceType: 'race',
           referenceId: input.race.id,
           balanceBefore: balanceBefore.money - input.entryFee,
+          balanceAfter: balanceBefore.money - input.entryFee + input.prizeWon,
+          idempotencyKey: null,
+        });
+      }
+      // 09.10.2026 — masanın kaybeden iadesi (ödül alamayan sıra; ödülle
+      // aynı anda > 0 olmaz). Bakiye zinciri satır satır tutarlı kalır.
+      if (loserRefund > 0) {
+        ledgerEntries.push({
+          playerId: input.playerId,
+          type: 'practice_race_loser_refund',
+          amount: loserRefund,
+          currency: 'money',
+          referenceType: 'race',
+          referenceId: input.race.id,
+          balanceBefore: balanceBefore.money - input.entryFee + input.prizeWon,
           balanceAfter: balanceAfter.money,
           idempotencyKey: null,
         });
@@ -416,6 +586,37 @@ export class PostgresRaceRepository implements RaceRepository {
       await this.writeLedgerEntries(client, ledgerEntries);
 
       await this.insertRaceRow(client, input.race);
+
+      // 01.10.2026 — XP: oyuncu ve atı, para ile AYNI transaction'da (bkz.
+      // `awardXpInTransaction`). İlk giriş oyuncunun kendi atıdır (port sözleşmesi).
+      const ownEntry = input.entries[0];
+      const progression = this.config.progression;
+      await awardXpInTransaction(
+        client,
+        'players',
+        input.playerId,
+        computeRaceXp(ownEntry?.finishPosition ?? null, progression.xpRewards.player),
+        progression,
+      );
+      // Kulüp katkısı: oyuncunun yarış XP'si kulüp puanına da yazılır (aynı transaction).
+      await addClubPointsInTransaction(
+        client,
+        input.playerId,
+        computeRaceXp(ownEntry?.finishPosition ?? null, progression.xpRewards.player),
+        this.config.online,
+      );
+      if (ownEntry?.horseId) {
+        await awardXpInTransaction(
+          client,
+          'horses',
+          ownEntry.horseId,
+          computeRaceXp(ownEntry.finishPosition ?? null, progression.xpRewards.horse),
+          progression,
+        );
+        // 15.10.2026 — yarışın ata bedeli (S3): enerji yanar, yorgunluk artar; aynı transaction.
+        await applyRaceConditionInTransaction(client, [ownEntry.horseId], input.race.distanceMeters, this.config.care, new Date());
+      }
+
       // AUDIT_REPORT.md Bulgu R2 (Medium, bu oturum) — `input.entry`/
       // `input.segments` (tekil) yerine `input.entries` (oyuncu + TÜM bot
       // rakipler) — bkz. port doc yorumu, `savePvpMatch`'teki AYNI
@@ -426,11 +627,14 @@ export class PostgresRaceRepository implements RaceRepository {
       }
 
       return balanceAfter;
-    });
+    }
   }
 
   /** `savePracticeRaceWithStakes`'in yazdığı `economy_transactions` satırları — `PostgresPlayerRepository.writeLedgerEntries` ile AYNI desen (bu port `PlayerRepository`'yi kullanmadığından kendi kopyasını taşır). */
-  private async writeLedgerEntries(client: PoolClient, entries: EconomyLedgerEntryInput[]): Promise<void> {
+  private async writeLedgerEntries(
+    client: PoolClient,
+    entries: EconomyLedgerEntryInput[],
+  ): Promise<void> {
     for (const entry of entries) {
       await client.query(
         `INSERT INTO economy_transactions
@@ -471,11 +675,27 @@ export class PostgresRaceRepository implements RaceRepository {
         const entrySegments = segments.filter((segment) => segment.raceEntryId === entry.id);
         await this.insertEntryWithSegments(client, entry, entrySegments);
       }
+      // 15.10.2026 — yarışın ata bedeli (S3), sonuçla aynı transaction.
+      await applyRaceConditionInTransaction(
+        client,
+        entries.flatMap((entry) => (entry.horseId ? [entry.horseId] : [])),
+        race.distanceMeters,
+        this.config.care,
+        new Date(),
+      );
 
       await client.query(
         `INSERT INTO pvp_matches (id, race_id, player_a_id, player_b_id, winner_id, status, created_at)
          VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-        [match.id, race.id, playerAId, playerBId, match.winnerId, match.status, new Date(match.createdAt)],
+        [
+          match.id,
+          race.id,
+          playerAId,
+          playerBId,
+          match.winnerId,
+          match.status,
+          new Date(match.createdAt),
+        ],
       );
     });
   }
@@ -489,7 +709,9 @@ export class PostgresRaceRepository implements RaceRepository {
    * AYNI deadlock-önleme sırası (id'lerin SÖZLÜKSEL sırası, ARGÜMAN/`A`-`B`
    * sırasından BAĞIMSIZ).
    */
-  async savePvpMatchWithRatings(input: SavePvpMatchWithRatingsInput): Promise<SavePvpMatchWithRatingsResult> {
+  async savePvpMatchWithRatings(
+    input: SavePvpMatchWithRatingsInput,
+  ): Promise<SavePvpMatchWithRatingsResult> {
     return withTransaction(this.pool, async (client) => {
       const [playerAId, playerBId] = input.match.playerIds;
 
@@ -528,7 +750,12 @@ export class PostgresRaceRepository implements RaceRepository {
         throw new PlayerNotFoundError(playerBId);
       }
 
-      const eloResult = applyEloUpdate(ratingABefore, ratingBBefore, input.scoreA, input.onlineConfig);
+      const eloResult = applyEloUpdate(
+        ratingABefore,
+        ratingBBefore,
+        input.scoreA,
+        input.onlineConfig,
+      );
       const updatedAt = new Date();
       await client.query('UPDATE players SET rating = $2, updated_at = $3 WHERE id = $1', [
         playerAId,
@@ -546,6 +773,14 @@ export class PostgresRaceRepository implements RaceRepository {
         const entrySegments = input.segments.filter((segment) => segment.raceEntryId === entry.id);
         await this.insertEntryWithSegments(client, entry, entrySegments);
       }
+      // 15.10.2026 — yarışın ata bedeli (S3), sonuç ve reytingle aynı transaction.
+      await applyRaceConditionInTransaction(
+        client,
+        input.entries.flatMap((entry) => (entry.horseId ? [entry.horseId] : [])),
+        input.race.distanceMeters,
+        this.config.care,
+        updatedAt,
+      );
 
       await client.query(
         `INSERT INTO pvp_matches (id, race_id, player_a_id, player_b_id, winner_id, status, created_at)
@@ -575,14 +810,18 @@ export class PostgresRaceRepository implements RaceRepository {
    * findRecentResultsByOwnerId` doc yorumu. Salt okunur, hiçbir yazma
    * içermez (diğer metodların AKSİNE `withTransaction` GEREKMEZ).
    */
-  async findRecentResultsByOwnerId(ownerId: string, limit: number): Promise<RecentRaceResultView[]> {
+  async findRecentResultsByOwnerId(
+    ownerId: string,
+    limit: number,
+  ): Promise<RecentRaceResultView[]> {
     const result = await this.pool.query<RecentRaceRow>(
       `SELECT r.id AS race_id, r.name AS race_name, r.distance_m, r.surface, r.created_at,
               re.horse_id, h.name AS horse_name, re.final_time_ms, re.finish_position, re.performance_score
        FROM race_entries re
        JOIN races r ON r.id = re.race_id
        JOIN horses h ON h.id = re.horse_id
-       WHERE h.owner_id = $1 AND re.finish_position IS NOT NULL
+       -- 03.10.2026 (Faz 14): koşturan oyuncu (eski satır → at sahibi).
+       WHERE COALESCE(re.player_id, h.owner_id) = $1 AND re.finish_position IS NOT NULL
        ORDER BY r.created_at DESC
        LIMIT $2`,
       [ownerId, limit],
@@ -596,7 +835,10 @@ export class PostgresRaceRepository implements RaceRepository {
    * ile AYNI sorgu şekli, yalnızca `WHERE` koşulu `h.owner_id` yerine
    * `re.horse_id`. `RecentRaceRow`/`rowToRecentRaceResult`'ı PAYLAŞIR.
    */
-  async findRecentResultsByHorseId(horseId: string, limit: number): Promise<RecentRaceResultView[]> {
+  async findRecentResultsByHorseId(
+    horseId: string,
+    limit: number,
+  ): Promise<RecentRaceResultView[]> {
     const result = await this.pool.query<RecentRaceRow>(
       `SELECT r.id AS race_id, r.name AS race_name, r.distance_m, r.surface, r.created_at,
               re.horse_id, h.name AS horse_name, re.final_time_ms, re.finish_position, re.performance_score
@@ -622,13 +864,43 @@ export class PostgresRaceRepository implements RaceRepository {
    * sorgu segment-seviyesinde çalıştığından ayrım daha nettir. Salt okunur,
    * `withTransaction` GEREKMEZ.
    */
+  async findJockeyPairAveragePerformance(horseId: string, jockeyId: string): Promise<number | null> {
+    // `performance_score` NUMERIC → metin döner; `Number(...)` şart.
+    const result = await this.pool.query<{ average: string | null }>(
+      `SELECT AVG(performance_score) AS average
+       FROM race_entries
+       WHERE horse_id = $1::uuid AND jockey_id = $2::uuid AND performance_score IS NOT NULL`,
+      [horseId, jockeyId],
+    );
+    const average = result.rows[0]?.average;
+    return average == null ? null : Number(average);
+  }
+
+  async findRaceStatus(raceId: string): Promise<RaceStatus | null> {
+    const result = await this.pool.query<{ status: RaceStatus }>(
+      'SELECT status FROM races WHERE id = $1::uuid',
+      [raceId],
+    );
+    return result.rows[0]?.status ?? null;
+  }
+
   async findTimelineByRaceId(raceId: string): Promise<RaceTimelineView | null> {
     const raceResult = await this.pool.query<{
       distance_m: number;
       surface: string;
       weather: string;
       simulation_seed: string | null;
-    }>('SELECT distance_m, surface, weather, simulation_seed FROM races WHERE id = $1', [raceId]);
+      track_id: string | null;
+    }>(
+      // 01.10.2026 — tohum YALNIZCA bitmiş yarışta döner. Kilitli (`locking`)
+      // yarışın tohumu kilit anında doğar; kesinleşmeden önce görünseydi
+      // katılımcı sonucu (ve oyuncu kontrollü yarışta en iyi komutları)
+      // önceden hesaplayabilirdi.
+      `SELECT distance_m, surface, weather, track_id,
+              CASE WHEN status = 'finished' THEN simulation_seed ELSE NULL END AS simulation_seed
+       FROM races WHERE id = $1`,
+      [raceId],
+    );
     const raceRow = raceResult.rows[0];
     if (!raceRow) {
       return null;
@@ -650,11 +922,16 @@ export class PostgresRaceRepository implements RaceRepository {
       final_time_ms: number | null;
       finish_position: number | null;
       performance_score: string | null;
+      silk_option: string | null;
     }>(
+      // 09.10.2026 — forma rengi KOŞTURAN oyuncunun (`re.player_id`, atın
+      // şimdiki sahibi DEĞİL — CLAUDE.md (55)) kaydettiği avatardan.
       `SELECT re.id AS entry_id, re.horse_id, re.bot_label, h.name AS horse_name,
-              re.tactical_style, re.risk_level, re.gate_position, re.final_time_ms, re.finish_position, re.performance_score
+              re.tactical_style, re.risk_level, re.gate_position, re.final_time_ms, re.finish_position, re.performance_score,
+              pa.appearance->>'silksPrimary' AS silk_option
        FROM race_entries re
        LEFT JOIN horses h ON h.id = re.horse_id
+       LEFT JOIN player_avatars pa ON pa.player_id = re.player_id
        WHERE re.race_id = $1
        ORDER BY (re.finish_position IS NULL), re.finish_position, re.created_at`,
       [raceId],
@@ -724,6 +1001,7 @@ export class PostgresRaceRepository implements RaceRepository {
       tacticalStyle: row.tactical_style as RaceTimelineEntrantView['tacticalStyle'],
       riskLevel: row.risk_level as RaceTimelineEntrantView['riskLevel'],
       gatePosition: row.gate_position,
+      silkColor: silkColorHex(row.silk_option, this.config.avatar),
       finalTimeMs: row.final_time_ms,
       finishPosition: row.finish_position,
       performanceScore: row.performance_score === null ? null : Number(row.performance_score),
@@ -736,6 +1014,7 @@ export class PostgresRaceRepository implements RaceRepository {
       surface: raceRow.surface as RaceSurface,
       weather: raceRow.weather as RaceWeather,
       simulationSeed: raceRow.simulation_seed,
+      hippodrome: resolveHippodromeKey(this.config.hippodromes, raceRow.track_id),
       entrants,
     };
   }
@@ -752,7 +1031,7 @@ export class PostgresRaceRepository implements RaceRepository {
       `SELECT 1
        FROM race_entries re
        JOIN horses h ON h.id = re.horse_id
-       WHERE re.race_id = $1 AND h.owner_id = $2
+       WHERE re.race_id = $1 AND COALESCE(re.player_id, h.owner_id) = $2
        LIMIT 1`,
       [raceId, playerId],
     );
@@ -785,7 +1064,9 @@ export class PostgresRaceRepository implements RaceRepository {
    */
   async createLobbyRace(input: CreateLobbyRaceInput): Promise<CreateLobbyRaceResult> {
     return withTransaction(this.pool, async (client) => {
-      const owner = await client.query('SELECT id FROM players WHERE id = $1 FOR UPDATE', [input.createdBy]);
+      const owner = await client.query('SELECT id FROM players WHERE id = $1 FOR UPDATE', [
+        input.createdBy,
+      ]);
       if (owner.rows.length === 0) {
         throw new PlayerNotFoundError(input.createdBy);
       }
@@ -794,9 +1075,25 @@ export class PostgresRaceRepository implements RaceRepository {
       // koşuyor, `finished`/`cancelled` ise kapanmıştır — hiçbiri tavanı
       // işgal ETMEZ (oyuncu yarışı iptal ederek ya da yarışı koşturarak
       // hakkını geri kazanır; bu, tavanı bir çıkmaz sokak olmaktan çıkarır).
+      //
+      // 14.10.2026 — başlangıcı GEÇMİŞ ve aktif katılımı OLMAYAN yarış da
+      // sayılmaz: o yarış artık hiç koşmayacak (kilit onu seçmez) ve kilit
+      // zamanlayıcısının temizliğini (`cancelEmptyDuePlayerRaces`) beklerken
+      // oyuncuyu `RACE_LIMIT_REACHED`e kilitlememeli. Aktif katılımı olan
+      // geçmiş yarış SAYILIR: kilitlenip koşmak üzeredir.
       const open = await client.query<{ count: string }>(
-        "SELECT COUNT(*) AS count FROM races WHERE created_by = $1 AND status = 'scheduled'",
-        [input.createdBy],
+        `SELECT COUNT(*) AS count
+         FROM races r
+         WHERE r.created_by = $1
+           AND r.status = 'scheduled'
+           AND (
+             r.start_time > $2
+             OR EXISTS (
+               SELECT 1 FROM race_entries e
+               WHERE e.race_id = r.id AND e.player_id IS NOT NULL AND e.status IS DISTINCT FROM 'cancelled'
+             )
+           )`,
+        [input.createdBy, input.now],
       );
       // `COUNT(*)` HER ZAMAN tek satır döndürür (gruplama yok, satır
       // olmasa bile `0` gelir), bu yüzden `rows[0]` garantidir — `?.` ve
@@ -807,16 +1104,48 @@ export class PostgresRaceRepository implements RaceRepository {
         return { ok: false, reason: 'RACE_LIMIT_REACHED', openRaces };
       }
 
+      // KULÜP İÇİ YARIŞ (09.10.2026, migration 0081) — kulübü İSTEMCİ seçmez:
+      // açanın üyeliği okunur, lider/subay şartı burada (oyuncu satırı
+      // kilitliyken). Üyelik satırı da paylaşımlı kilitlenir: açanın aynı anda
+      // atılması yarışın "artık üyesi olmadığı" kulübe yazılmasına yol açmasın.
+      let clubId: string | null = null;
+      if (input.clubOnly) {
+        const membership = await client.query<{
+          club_id: string;
+          role: ClubRole;
+          contribution_points: string;
+          joined_at: Date;
+        }>('SELECT club_id, role, contribution_points, joined_at FROM club_members WHERE player_id = $1 FOR SHARE', [
+          input.createdBy,
+        ]);
+        const row = membership.rows[0];
+        if (row === undefined) {
+          throw new NotClubMemberError(input.createdBy, '-');
+        }
+        assertHasClubPermission(
+          {
+            playerId: input.createdBy,
+            clubId: row.club_id,
+            role: row.role,
+            contributionPoints: Number(row.contribution_points),
+            joinedAt: row.joined_at.toISOString(),
+          },
+          'officer',
+        );
+        clubId = row.club_id;
+      }
+
       const inserted = await client.query<LobbyRaceRow>(
         `INSERT INTO races (
            id, created_by, name, distance_m, surface, weather,
            participant_limit, max_players, entry_fee, prize_pool, race_type,
            tribune_fee, spectator_capacity, start_time, status, simulation_seed,
-           engine_version, ruleset_version, config_version, weather_config_version
+           engine_version, ruleset_version, config_version, weather_config_version, player_control, breed_class, track_id,
+           horse_level_bracket, table_id, club_id, min_real_players, ai_fill
          )
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, 'scheduled', $15, $16, $17, $18, $19)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, 'scheduled', $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27)
          RETURNING id, name, participant_limit, max_players, entry_fee, prize_pool, start_time, status,
-                   race_type, surface, weather, distance_m, tribune_fee, spectator_capacity, created_by, created_at`,
+                   race_type, surface, weather, distance_m, tribune_fee, spectator_capacity, created_by, created_at, player_control, breed_class, track_id, horse_level_bracket, table_id, club_id, min_real_players, ai_fill`,
         [
           input.id,
           input.createdBy,
@@ -837,6 +1166,14 @@ export class PostgresRaceRepository implements RaceRepository {
           input.rulesetVersion,
           input.configVersion,
           input.weatherConfigVersion,
+          input.playerControl,
+          input.breedClass,
+          trackIdForHippodrome(this.config.hippodromes, input.hippodrome),
+          input.horseLevelBracket,
+          input.tableId,
+          clubId,
+          input.fieldRule.minRealPlayers,
+          input.fieldRule.aiFill,
         ],
       );
 
@@ -888,7 +1225,7 @@ export class PostgresRaceRepository implements RaceRepository {
       //    yarışın eşzamanlı bir katılımla değişmesinden etkilenmez.
       const raceResult = await client.query<LobbyRaceRow>(
         `SELECT id, name, participant_limit, max_players, entry_fee, prize_pool, start_time, status,
-                race_type, surface, weather, distance_m, tribune_fee, spectator_capacity, created_by, created_at
+                race_type, surface, weather, distance_m, tribune_fee, spectator_capacity, created_by, created_at, player_control, breed_class, track_id, horse_level_bracket, table_id, club_id, min_real_players, ai_fill
          FROM races
          WHERE id = $1
          FOR UPDATE`,
@@ -969,8 +1306,13 @@ export class PostgresRaceRepository implements RaceRepository {
         fatigue: number;
         energy: number;
         morale: number;
+        breed: string;
+        level: number;
+        birth_date: Date;
+        aging_started_at: Date;
       }>(
-        'SELECT owner_id, status, health, fitness, fatigue, energy, morale FROM horses WHERE id = $1 FOR UPDATE',
+        `SELECT owner_id, status, health, fitness, fatigue, energy, morale, breed, level, birth_date, aging_started_at
+         FROM horses WHERE id = $1 FOR UPDATE`,
         [input.horseId],
       );
       const horse = horseResult.rows[0];
@@ -982,6 +1324,32 @@ export class PostgresRaceRepository implements RaceRepository {
       }
       if (horse.status === 'injured') {
         throw new HorseInjuredError(input.horseId);
+      }
+      // IRK SINIFI (08.10.2026, migration 0070) — "Yerli Irklar" gibi bir
+      // yarışa sınıf dışı at giremez. Para hareketinden ÖNCE; ırk değişmez
+      // ama kural yine de at satırı kilitliyken, tek yerde uygulanır.
+      if (!isBreedAllowedInRaceClass(this.config.breeds, raceRow.breed_class ?? null, horse.breed)) {
+        throw new HorseBreedNotAllowedError(horse.breed, raceRow.breed_class ?? '');
+      }
+      // AT SEVİYESİ ARALIĞI (08.10.2026, migration 0073) — aynı kilit altında,
+      // para hareketinden ÖNCE; bilinmeyen aralık kapalıdır.
+      const levelBracket = raceRow.horse_level_bracket ?? null;
+      if (!isHorseLevelAllowed(this.config.raceLobby.horseLevelBrackets, levelBracket, horse.level)) {
+        throw new HorseLevelNotAllowedError(
+          horse.level,
+          findLevelBracket(this.config.raceLobby.horseLevelBrackets, levelBracket)?.name ?? String(levelBracket),
+        );
+      }
+      // KULÜP İÇİ YARIŞ (09.10.2026, migration 0081) — aynı kilit altında,
+      // para hareketinden ÖNCE. Kulüp feshedilmişse üyesi yoktur → kapalı.
+      if (raceRow.club_id !== null) {
+        const member = await client.query(
+          'SELECT 1 FROM club_members WHERE player_id = $1 AND club_id = $2',
+          [input.playerId, raceRow.club_id],
+        );
+        if (member.rows.length === 0) {
+          throw new RaceClubOnlyError();
+        }
       }
       // HAZIRLIK KAPISI (30.09.2026, `FINAL_PROJECT_AUDIT.md` #8) —
       // `domain/race/readiness.ts` kendini "yarışa girebilir mi"nin TEK
@@ -999,6 +1367,12 @@ export class PostgresRaceRepository implements RaceRepository {
           morale: Number(horse.morale),
         },
         this.config.race.readiness,
+        // 15.10.2026 — B12: yarış yaşı kilit altında, paradan önce.
+        computeHorseAgeMonths(
+          { birthDate: horse.birth_date, agingStartedAt: horse.aging_started_at },
+          input.now,
+          this.config.horseGrowth,
+        ),
       );
       if (!readiness.ready && readiness.reason !== null) {
         throw new HorseNotReadyToRaceError(readiness.reason);
@@ -1048,6 +1422,10 @@ export class PostgresRaceRepository implements RaceRepository {
       //    defter satırını reddeder; bu yüzden ücretsiz yarışta `players`
       //    satırına HİÇ dokunulmaz (gereksiz kilit de alınmaz).
       const entryFee = Number(raceRow.entry_fee);
+      // 09.10.2026 — MASA KURALI: `on_start` masada bedel KATILIRKEN değil
+      // start anında (`dropUnreadyLobbyEntries`) kesilir. Burada yalnızca
+      // bakiyenin yettiği denetlenir (aynı `debit` kuralı, yazılmaz).
+      const chargeOnJoin = findRaceTable(this.config.economy, raceRow.table_id ?? null)?.feeTiming !== 'on_start';
       let balanceBefore = 0;
       let balanceAfter = 0;
       if (entryFee > 0) {
@@ -1062,9 +1440,14 @@ export class PostgresRaceRepository implements RaceRepository {
         balanceBefore = Number(balanceRow.money);
         // `debit` yetersiz bakiyede `InsufficientFundsError` fırlatır —
         // brief §2: "Oyuncu yeterli bakiyeye sahip değilse yarışa katılamaz."
-        const wallet = debit({ money: balanceBefore, gems: Number(balanceRow.gems) }, entryFee, 'money');
+        const wallet = debit(
+          { money: balanceBefore, gems: Number(balanceRow.gems) },
+          entryFee,
+          'money',
+        );
         balanceAfter = wallet.money;
-
+      }
+      if (entryFee > 0 && chargeOnJoin) {
         await client.query('UPDATE players SET money = $2, updated_at = $3 WHERE id = $1', [
           input.playerId,
           balanceAfter,
@@ -1075,11 +1458,10 @@ export class PostgresRaceRepository implements RaceRepository {
         // Havuzu katılım anında artırmak, yarış açılırken hesaplanan bir
         // "beklenen havuz"dan DAHA dürüsttür: oyuncu lobide gördüğü sayıyı
         // gerçekten kazanır.
-        await client.query('UPDATE races SET prize_pool = prize_pool + $2, updated_at = $3 WHERE id = $1', [
-          input.raceId,
-          entryFee,
-          input.now,
-        ]);
+        await client.query(
+          'UPDATE races SET prize_pool = prize_pool + $2, updated_at = $3 WHERE id = $1',
+          [input.raceId, entryFee, input.now],
+        );
       }
 
       // 8) Katılım satırı. `status = 'waiting'` (brief §6): oyuncu READY
@@ -1114,7 +1496,7 @@ export class PostgresRaceRepository implements RaceRepository {
       }
 
       // 9) Defter kaydı — bakiye güncellemesiyle AYNI transaction'da.
-      if (entryFee > 0) {
+      if (entryFee > 0 && chargeOnJoin) {
         await this.writeLedgerEntries(client, [
           {
             playerId: input.playerId,
@@ -1138,14 +1520,14 @@ export class PostgresRaceRepository implements RaceRepository {
       //     okunmuştu; istemciye BAYAT bir havuz dönmemelidir).
       const finalResult = await client.query<LobbyRaceRow>(
         `SELECT id, name, participant_limit, max_players, entry_fee, prize_pool, start_time, status,
-                race_type, surface, weather, distance_m, tribune_fee, spectator_capacity, created_by, created_at
+                race_type, surface, weather, distance_m, tribune_fee, spectator_capacity, created_by, created_at, player_control, breed_class, track_id, horse_level_bracket, table_id, club_id, min_real_players, ai_fill
          FROM races
          WHERE id = $1`,
         [input.raceId],
       );
       const finalRow = finalResult.rows[0];
       if (finalRow === undefined) {
-        throw new Error('Yarış satırı katılım transaction\'ı içinde okunamadı.');
+        throw new Error("Yarış satırı katılım transaction'ı içinde okunamadı.");
       }
 
       return rowToLobbyRaceView(this.config, finalRow, joinedPlayers + 1);
@@ -1195,24 +1577,62 @@ export class PostgresRaceRepository implements RaceRepository {
         my_horse_id: string | null;
         tournament_tier: TournamentInfo['tier'] | null;
         tournament_min_level: number | null;
+        calendar_program_id: string | null;
       }
     >(
       `SELECT r.id, r.name, r.participant_limit, r.max_players, r.entry_fee, r.prize_pool,
               r.start_time, r.status, r.race_type, r.surface, r.weather, r.distance_m,
-              r.tribune_fee, r.spectator_capacity, r.created_by, r.created_at,
+              r.tribune_fee, r.spectator_capacity, r.created_by, r.created_at, r.player_control, r.breed_class, r.track_id, r.horse_level_bracket, r.table_id, r.club_id, r.min_real_players, r.ai_fill,
               COUNT(e.player_id) FILTER (WHERE e.status IS DISTINCT FROM 'cancelled') AS joined_players,
               MAX(e.status) FILTER (WHERE e.player_id = $3) AS my_status,
               MAX(e.horse_id::text) FILTER (WHERE e.player_id = $3) AS my_horse_id,
               t.tier AS tournament_tier,
-              t.min_player_level AS tournament_min_level
+              t.min_player_level AS tournament_min_level,
+              c.program_id AS calendar_program_id
        FROM races r
        LEFT JOIN race_entries e ON e.race_id = r.id AND e.player_id IS NOT NULL
        LEFT JOIN tournaments t ON t.race_id = r.id
+       LEFT JOIN race_calendar_slots c ON c.race_id = r.id
        WHERE r.status = $1
-       GROUP BY r.id, t.tier, t.min_player_level
-       ORDER BY r.start_time ASC
+         -- 09.10.2026 — kulüp içi yarışı yalnızca o kulübün üyesi görür; açan
+         -- ve zaten katılmış olan (sonradan kulüpten çıksa da) görmeye devam
+         -- eder — katıldığı yarışı göremeyen "hazır" diyemezdi.
+         AND (
+           r.club_id IS NULL
+           OR r.created_by = $3
+           OR EXISTS (SELECT 1 FROM club_members m WHERE m.player_id = $3 AND m.club_id = r.club_id)
+           OR EXISTS (
+             SELECT 1 FROM race_entries x
+              WHERE x.race_id = r.id AND x.player_id = $3 AND x.status IS DISTINCT FROM 'cancelled'
+           )
+         )
+       GROUP BY r.id, t.tier, t.min_player_level, c.program_id
+       -- Liste SINIRLIDIR (varsayılan 20) ama takvim aynı anda bundan fazla
+       -- yarış açık tutar; salt başlangıç saatine göre kesmek oyuncunun
+       -- açtığı ya da KATILDIĞI geç yarışı listeden düşürüyordu (katıldığı
+       -- yarışı göremeyen oyuncu "hazır" diyemez → katılımı start'ta iptal).
+       -- Katmanlar (09.10.2026), her katmanda başlangıç saatine göre:
+       --   0 çağıranın yarışı (iptal edilmemiş katılımı var ya da o açtı)
+       --   1 öne çıkan takvim programı (02.10.2026, Faz 11 — derbi)
+       --   2 turnuva
+       --   3 kalan: başka oyuncuların yarışları + sıradan takvim yuvaları
+       --     KARIŞIK. Oyuncu yarışlarını takvimin önüne almak, çok oyuncu
+       --     yarış açtığında takvimi listeden tamamen silerdi.
+       ORDER BY CASE
+                  WHEN COALESCE(BOOL_OR(e.player_id = $3 AND e.status IS DISTINCT FROM 'cancelled'), false)
+                       OR r.created_by = $3 THEN 0
+                  WHEN c.program_id = ANY($4::text[]) THEN 1
+                  WHEN t.tier IS NOT NULL THEN 2
+                  ELSE 3
+                END,
+                r.start_time ASC
        LIMIT $2`,
-      [input.status, input.limit, input.viewerId],
+      [
+        input.status,
+        input.limit,
+        input.viewerId,
+        this.config.raceLobby.calendar.programs.filter((program) => program.featured === true).map((program) => program.id),
+      ],
     );
 
     return result.rows.map((row) => ({
@@ -1224,6 +1644,15 @@ export class PostgresRaceRepository implements RaceRepository {
       tournament:
         row.tournament_tier !== null && row.tournament_min_level !== null
           ? { tier: row.tournament_tier, minPlayerLevel: row.tournament_min_level }
+          : null,
+      calendar:
+        row.calendar_program_id !== null
+          ? {
+              programId: row.calendar_program_id,
+              featured:
+                this.config.raceLobby.calendar.programs.find((program) => program.id === row.calendar_program_id)
+                  ?.featured === true,
+            }
           : null,
     }));
   }
@@ -1248,7 +1677,7 @@ export class PostgresRaceRepository implements RaceRepository {
       //    bu transaction boyunca değişmez.
       const raceResult = await client.query<LobbyRaceRow>(
         `SELECT id, name, participant_limit, max_players, entry_fee, prize_pool, start_time, status,
-                race_type, surface, weather, distance_m, tribune_fee, spectator_capacity, created_by, created_at
+                race_type, surface, weather, distance_m, tribune_fee, spectator_capacity, created_by, created_at, player_control, breed_class, track_id, horse_level_bracket, table_id, club_id, min_real_players, ai_fill
          FROM races
          WHERE id = $1
          FOR UPDATE`,
@@ -1284,11 +1713,10 @@ export class PostgresRaceRepository implements RaceRepository {
       // 4) Yaz. Zaten aynı değerdeyse de yazılır — gereksiz bir UPDATE
       //    zararsızdır ve "okuyup karşılaştırma" dalı, `checkEntryReadyable`
       //    ile çakışan İKİNCİ bir kural kaynağı yaratırdı.
-      await client.query('UPDATE race_entries SET status = $3 WHERE race_id = $1 AND player_id = $2', [
-        input.raceId,
-        input.playerId,
-        input.status,
-      ]);
+      await client.query(
+        'UPDATE race_entries SET status = $3 WHERE race_id = $1 AND player_id = $2',
+        [input.raceId, input.playerId, input.status],
+      );
 
       // 5) Doluluk. Bu transaction `races` satırını değiştirmediği için
       //    (kilitli `raceRow`) YENİDEN OKUMAYA GEREK YOKTUR — `joinLobbyRace`
@@ -1304,6 +1732,34 @@ export class PostgresRaceRepository implements RaceRepository {
       const joinedPlayers = Number(joinedResult.rows[0]?.count ?? '0');
 
       return rowToLobbyRaceView(this.config, raceRow, joinedPlayers);
+    });
+  }
+
+  /** Port doc yorumu: `RaceRepository.cancelOwnLobbyRace`. */
+  async cancelOwnLobbyRace(
+    input: { raceId: string; now: Date },
+    check: (race: { createdBy: string | null; status: string; activeEntries: number }) => void,
+  ): Promise<boolean> {
+    return withTransaction(this.pool, async (client) => {
+      const raceResult = await client.query<{ created_by: string | null; status: string }>(
+        'SELECT created_by, status FROM races WHERE id = $1 FOR UPDATE',
+        [input.raceId],
+      );
+      const race = raceResult.rows[0];
+      if (race === undefined) {
+        return false;
+      }
+      const active = await client.query<{ count: string }>(
+        `SELECT COUNT(*) AS count FROM race_entries
+         WHERE race_id = $1 AND player_id IS NOT NULL AND status IS DISTINCT FROM 'cancelled'`,
+        [input.raceId],
+      );
+      check({ createdBy: race.created_by, status: race.status, activeEntries: Number(active.rows[0]?.count ?? '0') });
+      await client.query("UPDATE races SET status = 'cancelled', updated_at = $2 WHERE id = $1", [
+        input.raceId,
+        input.now,
+      ]);
+      return true;
     });
   }
 
@@ -1337,7 +1793,7 @@ export class PostgresRaceRepository implements RaceRepository {
       //    transaction boyunca değişmez (`setEntryReady` ile AYNI gerekçe).
       const raceResult = await client.query<LobbyRaceRow>(
         `SELECT id, name, participant_limit, max_players, entry_fee, prize_pool, start_time, status,
-                race_type, surface, weather, distance_m, tribune_fee, spectator_capacity, created_by, created_at
+                race_type, surface, weather, distance_m, tribune_fee, spectator_capacity, created_by, created_at, player_control, breed_class, track_id, horse_level_bracket, table_id, club_id, min_real_players, ai_fill
          FROM races
          WHERE id = $1
          FOR UPDATE`,
@@ -1404,7 +1860,11 @@ export class PostgresRaceRepository implements RaceRepository {
           throw new PlayerNotFoundError(input.playerId);
         }
         balanceBefore = Number(balanceRow.money);
-        const wallet = credit({ money: balanceBefore, gems: Number(balanceRow.gems) }, refund, 'money');
+        const wallet = credit(
+          { money: balanceBefore, gems: Number(balanceRow.gems) },
+          refund,
+          'money',
+        );
         balanceAfter = wallet.money;
 
         await client.query('UPDATE players SET money = $2, updated_at = $3 WHERE id = $1', [
@@ -1419,22 +1879,20 @@ export class PostgresRaceRepository implements RaceRepository {
         // Düşerse gerçek bir muhasebe bozulması vardır ve bu sessizce
         // yutulmamalıdır — 500 doğru cevaptır, `GREATEST(..., 0)` yanlış
         // olurdu (havuzu gerçek paradan bağımsız gösterirdi).
-        await client.query('UPDATE races SET prize_pool = prize_pool - $2, updated_at = $3 WHERE id = $1', [
-          input.raceId,
-          refund,
-          input.now,
-        ]);
+        await client.query(
+          'UPDATE races SET prize_pool = prize_pool - $2, updated_at = $3 WHERE id = $1',
+          [input.raceId, refund, input.now],
+        );
       }
 
       // 6) Katılımı İPTAL et. Satır SİLİNMEZ — `race_entries_race_player_uq`
       //    (migration 0037) `status`'tan bağımsız olarak `player_id` dolu her
       //    satırı kapsar, yani silmek yeniden katılmayı AÇARDI. Bu bilinçli
       //    olarak İSTENMEZ: bkz. `RaceEntryCancelledError` doc yorumu.
-      await client.query('UPDATE race_entries SET status = $3 WHERE race_id = $1 AND player_id = $2', [
-        input.raceId,
-        input.playerId,
-        'cancelled',
-      ]);
+      await client.query(
+        'UPDATE race_entries SET status = $3 WHERE race_id = $1 AND player_id = $2',
+        [input.raceId, input.playerId, 'cancelled'],
+      );
 
       // 7) Defter kaydı — bakiye güncellemesiyle AYNI transaction'da.
       if (refund > 0) {
@@ -1461,14 +1919,14 @@ export class PostgresRaceRepository implements RaceRepository {
       //    ile AYNI gerekçe).
       const finalResult = await client.query<LobbyRaceRow>(
         `SELECT id, name, participant_limit, max_players, entry_fee, prize_pool, start_time, status,
-                race_type, surface, weather, distance_m, tribune_fee, spectator_capacity, created_by, created_at
+                race_type, surface, weather, distance_m, tribune_fee, spectator_capacity, created_by, created_at, player_control, breed_class, track_id, horse_level_bracket, table_id, club_id, min_real_players, ai_fill
          FROM races
          WHERE id = $1`,
         [input.raceId],
       );
       const finalRow = finalResult.rows[0];
       if (finalRow === undefined) {
-        throw new Error('Yarış satırı ayrılma transaction\'ı içinde okunamadı.');
+        throw new Error("Yarış satırı ayrılma transaction'ı içinde okunamadı.");
       }
 
       // Doluluk İPTAL EDİLMİŞ satırları SAYMAZ: ayrılan oyuncunun koltuğu
@@ -1497,12 +1955,17 @@ export class PostgresRaceRepository implements RaceRepository {
     now: Date;
     minRemaining?: number;
   }): Promise<DropUnreadyLobbyEntriesResult> {
-    const minRemaining = input.minRemaining ?? 1;
     return withTransaction(this.pool, async (client) => {
-      const raceResult = await client.query<{ status: string; start_time: Date }>(
-        'SELECT status, start_time FROM races WHERE id = $1 FOR UPDATE',
-        [input.raceId],
-      );
+      const raceResult = await client.query<{
+        name: string;
+        status: string;
+        start_time: Date;
+        entry_fee: string;
+        table_id: string | null;
+        min_real_players: number;
+      }>('SELECT name, status, start_time, entry_fee, table_id, min_real_players FROM races WHERE id = $1 FOR UPDATE', [
+        input.raceId,
+      ]);
       const raceRow = raceResult.rows[0];
       if (
         raceRow === undefined ||
@@ -1511,6 +1974,16 @@ export class PostgresRaceRepository implements RaceRepository {
       ) {
         return { droppedPlayerIds: [], raceCancelled: false };
       }
+      // 15.10.2026 (Aşama 3) — eşik yarışın KENDİ kuralıdır (açılışta yazıldı,
+      // migration 0085); turnuva kendi eşiğini geçirir.
+      const minRemaining = input.minRemaining ?? raceRow.min_real_players;
+      const notify = (playerId: string, reason: RaceCancelledReason, refundedAmount: number) =>
+        this.insertRaceCancelledNotification(client, playerId, {
+          raceId: input.raceId,
+          raceName: raceRow.name,
+          reason,
+          refundedAmount,
+        });
 
       const unreadyResult = await client.query<{ player_id: string }>(
         `SELECT player_id
@@ -1522,8 +1995,21 @@ export class PostgresRaceRepository implements RaceRepository {
       );
       const droppedPlayerIds: string[] = [];
       for (const { player_id: playerId } of unreadyResult.rows) {
-        await this.refundAndCancelEntry(client, input.raceId, playerId, input.now);
+        const refunded = await this.refundAndCancelEntry(client, input.raceId, playerId, input.now);
+        await notify(playerId, 'not_ready', refunded);
         droppedPlayerIds.push(playerId);
+      }
+
+      // 09.10.2026 — MASA KURALI `on_start`: bedel ŞİMDİ, hazır kalanlardan
+      // kesilir (yarış kilitli, aynı transaction). Parası yetmeyen yarıştan
+      // düşer — borç yazılmaz, ödediği bir şey olmadığı için iade de yoktur.
+      const table = findRaceTable(this.config.economy, raceRow.table_id);
+      const entryFee = Number(raceRow.entry_fee);
+      if (table?.feeTiming === 'on_start' && entryFee > 0) {
+        for (const playerId of await this.chargeOnStartFees(client, input.raceId, entryFee, input.now)) {
+          await notify(playerId, 'insufficient_funds', 0);
+          droppedPlayerIds.push(playerId);
+        }
       }
 
       // Kalan (hazır) oyuncu sayısı. Hiç kimse kalmadıysa yarış koşulamaz;
@@ -1540,16 +2026,21 @@ export class PostgresRaceRepository implements RaceRepository {
         [input.raceId],
       );
       const remaining = remainingResult.rows.map((row) => row.player_id);
-      // Lobi (`minRemaining = 1`): YALNIZCA bu turda birileri düşürüldüyse
-      // iptal edilir — hiç katılımı olmamış bir yarışa dokunulmaz
-      // (`NO_PARTICIPANTS` davranışı değişmez). Turnuvada eşik her zaman
-      // uygulanır.
-      const belowMinimum = remaining.length < minRemaining && (droppedPlayerIds.length > 0 || minRemaining > 1);
+      // Hiç katılımı olmamış bir yarışa dokunulmaz (`NO_PARTICIPANTS`
+      // davranışı değişmez; boş yarışı `cancelEmptyDuePlayerRaces` kapatır).
+      // Turnuvada eşik her zaman uygulanır (eski davranış).
+      // 15.10.2026 (Aşama 3) — YETERSİZ OYUNCU: kalan gerçek oyuncu yarışın
+      // `min_real_players`ının altındaysa yarış KOŞMAZ; kalanlara ücret
+      // defterden okunan tutarla iade edilir ve bildirim gider.
+      const hadEntrants = droppedPlayerIds.length > 0 || remaining.length > 0;
+      const belowMinimum =
+        remaining.length < minRemaining && (hadEntrants || (input.minRemaining !== undefined && minRemaining > 1));
       if (!belowMinimum) {
         return { droppedPlayerIds, raceCancelled: false };
       }
       for (const playerId of remaining) {
-        await this.refundAndCancelEntry(client, input.raceId, playerId, input.now);
+        const refunded = await this.refundAndCancelEntry(client, input.raceId, playerId, input.now);
+        await notify(playerId, 'not_enough_players', refunded);
         droppedPlayerIds.push(playerId);
       }
       await client.query("UPDATE races SET status = 'cancelled', updated_at = $2 WHERE id = $1", [
@@ -1558,6 +2049,105 @@ export class PostgresRaceRepository implements RaceRepository {
       ]);
       return { droppedPlayerIds, raceCancelled: true };
     });
+  }
+
+  /** 09.10.2026 — kesinleşme öncesi (kilitsiz) okuma; kilit altında aynısı tekrar okunur. */
+  async findLobbyPaidFees(raceId: string): Promise<Map<string, number>> {
+    return this.paidLobbyFeesByEntry(this.pool, raceId);
+  }
+
+  /**
+   * Aktif katılım → defterdeki SON `lobby_race_entry_fee` satırının tutarı
+   * (ödenmemişse 0). İade yollarının "tutar defterden okunur" kuralı.
+   */
+  private async paidLobbyFeesByEntry(db: Pool | PoolClient, raceId: string): Promise<Map<string, number>> {
+    const result = await db.query<{ entry_id: string; paid: string | null }>(
+      `SELECT e.id AS entry_id,
+              (SELECT -t.amount FROM economy_transactions t
+                WHERE t.player_id = e.player_id
+                  AND t.type = 'lobby_race_entry_fee'
+                  AND t.reference_type = 'race'
+                  AND t.reference_id = $2
+                ORDER BY t.created_at DESC
+                LIMIT 1) AS paid
+         FROM race_entries e
+        WHERE e.race_id = $1 AND e.player_id IS NOT NULL AND e.status IS DISTINCT FROM 'cancelled'`,
+      [raceId, raceId],
+    );
+    return new Map(result.rows.map((row) => [row.entry_id, row.paid === null ? 0 : Math.max(0, Number(row.paid))]));
+  }
+
+  /**
+   * 09.10.2026 — `on_start` masada start anı ücreti. Henüz bedel ödememiş
+   * (defterde `lobby_race_entry_fee` satırı olmayan) aktif katılımlar için
+   * oyuncular id sırasıyla `FOR UPDATE` kilitlenir; bakiyesi yeten öder
+   * (bakiye + havuz + defter AYNI transaction), yetmeyenin katılımı
+   * `cancelled` olur. Düşenlerin kimliklerini döner. Tekrar koruması
+   * defterdir: ödemiş oyuncu bir daha seçilmez.
+   */
+  private async chargeOnStartFees(
+    client: PoolClient,
+    raceId: string,
+    entryFee: number,
+    now: Date,
+  ): Promise<string[]> {
+    const unpaid = await client.query<{ player_id: string }>(
+      `SELECT e.player_id
+         FROM race_entries e
+        WHERE e.race_id = $1
+          AND e.player_id IS NOT NULL
+          AND e.status IS DISTINCT FROM 'cancelled'
+          AND NOT EXISTS (
+            SELECT 1 FROM economy_transactions t
+             WHERE t.player_id = e.player_id
+               AND t.type = 'lobby_race_entry_fee'
+               AND t.reference_type = 'race'
+               AND t.reference_id = $2
+          )
+        ORDER BY e.player_id
+        FOR UPDATE OF e`,
+      [raceId, raceId],
+    );
+    if (unpaid.rows.length === 0) return [];
+    const balances = await client.query<{ id: string; money: string; gems: string }>(
+      'SELECT id, money, gems FROM players WHERE id = ANY($1::uuid[]) ORDER BY id FOR UPDATE',
+      [unpaid.rows.map((row) => row.player_id)],
+    );
+    const balanceById = new Map(balances.rows.map((row) => [row.id, row]));
+    const dropped: string[] = [];
+    for (const { player_id: playerId } of unpaid.rows) {
+      const row = balanceById.get(playerId);
+      const balanceBefore = row === undefined ? 0 : Number(row.money);
+      if (row === undefined || balanceBefore < entryFee) {
+        await client.query(
+          "UPDATE race_entries SET status = 'cancelled' WHERE race_id = $1 AND player_id = $2",
+          [raceId, playerId],
+        );
+        dropped.push(playerId);
+        continue;
+      }
+      const balanceAfter = debit({ money: balanceBefore, gems: Number(row.gems) }, entryFee, 'money').money;
+      await client.query('UPDATE players SET money = $2, updated_at = $3 WHERE id = $1', [playerId, balanceAfter, now]);
+      await client.query('UPDATE races SET prize_pool = prize_pool + $2, updated_at = $3 WHERE id = $1', [
+        raceId,
+        entryFee,
+        now,
+      ]);
+      await this.writeLedgerEntries(client, [
+        {
+          playerId,
+          type: 'lobby_race_entry_fee',
+          amount: -entryFee,
+          currency: 'money',
+          referenceType: 'race',
+          referenceId: raceId,
+          balanceBefore,
+          balanceAfter,
+          idempotencyKey: null,
+        },
+      ]);
+    }
+    return dropped;
   }
 
   /**
@@ -1569,7 +2159,12 @@ export class PostgresRaceRepository implements RaceRepository {
    * Otomatik bir iade olduğu için `idempotency_key` NULL'dır; tekrar koruması
    * durumun kendisidir (iptal edilen satır bir daha seçilmez).
    */
-  private async refundAndCancelEntry(client: PoolClient, raceId: string, playerId: string, now: Date): Promise<void> {
+  private async refundAndCancelEntry(
+    client: PoolClient,
+    raceId: string,
+    playerId: string,
+    now: Date,
+  ): Promise<number> {
     const paidResult = await client.query<{ amount: string }>(
       `SELECT amount
        FROM economy_transactions
@@ -1594,13 +2189,20 @@ export class PostgresRaceRepository implements RaceRepository {
         throw new PlayerNotFoundError(playerId);
       }
       const balanceBefore = Number(balanceRow.money);
-      const balanceAfter = credit({ money: balanceBefore, gems: Number(balanceRow.gems) }, refund, 'money').money;
-      await client.query('UPDATE players SET money = $2, updated_at = $3 WHERE id = $1', [playerId, balanceAfter, now]);
-      await client.query('UPDATE races SET prize_pool = prize_pool - $2, updated_at = $3 WHERE id = $1', [
-        raceId,
+      const balanceAfter = credit(
+        { money: balanceBefore, gems: Number(balanceRow.gems) },
         refund,
+        'money',
+      ).money;
+      await client.query('UPDATE players SET money = $2, updated_at = $3 WHERE id = $1', [
+        playerId,
+        balanceAfter,
         now,
       ]);
+      await client.query(
+        'UPDATE races SET prize_pool = prize_pool - $2, updated_at = $3 WHERE id = $1',
+        [raceId, refund, now],
+      );
       await this.writeLedgerEntries(client, [
         {
           playerId,
@@ -1616,17 +2218,34 @@ export class PostgresRaceRepository implements RaceRepository {
       ]);
     }
 
-    await client.query("UPDATE race_entries SET status = 'cancelled' WHERE race_id = $1 AND player_id = $2", [
-      raceId,
+    await client.query(
+      "UPDATE race_entries SET status = 'cancelled' WHERE race_id = $1 AND player_id = $2",
+      [raceId, playerId],
+    );
+    return refund;
+  }
+
+  /**
+   * 15.10.2026 (Aşama 3) — `race_cancelled` bildirimi. İptal/iade ile AYNI
+   * transaction'da yazılır (geri alınan bir iptalin haberi kalmasın).
+   */
+  private async insertRaceCancelledNotification(
+    client: PoolClient,
+    playerId: string,
+    payload: NotificationPayloadByType['race_cancelled'],
+  ): Promise<void> {
+    await client.query('INSERT INTO notifications (player_id, type, payload) VALUES ($1, $2, $3::jsonb)', [
       playerId,
+      'race_cancelled',
+      JSON.stringify(payload),
     ]);
   }
 
   async findTournamentInfo(raceId: string): Promise<TournamentInfo | null> {
-    const result = await this.pool.query<{ tier: TournamentInfo['tier']; min_player_level: number }>(
-      'SELECT tier, min_player_level FROM tournaments WHERE race_id = $1',
-      [raceId],
-    );
+    const result = await this.pool.query<{
+      tier: TournamentInfo['tier'];
+      min_player_level: number;
+    }>('SELECT tier, min_player_level FROM tournaments WHERE race_id = $1', [raceId]);
     const row = result.rows[0];
     return row === undefined ? null : { tier: row.tier, minPlayerLevel: row.min_player_level };
   }
@@ -1654,7 +2273,9 @@ export class PostgresRaceRepository implements RaceRepository {
       // sıraya sokar; ikincisi kilit altında "zaten açık" görür ve `null`
       // döner. `tournaments`ta durum sütunu olmadığı için bunu bir tekil
       // indeks ifade edemez (açıklık, bağlı yarışın durumundan türetilir).
-      await client.query("SELECT pg_advisory_xact_lock(hashtext('tournament-open:' || $1))", [input.tier]);
+      await client.query("SELECT pg_advisory_xact_lock(hashtext('tournament-open:' || $1))", [
+        input.tier,
+      ]);
       const open = await client.query(
         `SELECT 1 FROM tournaments t JOIN races r ON r.id = t.race_id
          WHERE t.tier = $1 AND r.status = 'scheduled' LIMIT 1`,
@@ -1668,9 +2289,10 @@ export class PostgresRaceRepository implements RaceRepository {
            id, created_by, name, distance_m, surface, weather,
            participant_limit, max_players, entry_fee, prize_pool, race_type,
            tribune_fee, spectator_capacity, start_time, status, simulation_seed,
-           engine_version, ruleset_version, config_version, weather_config_version
+           engine_version, ruleset_version, config_version, weather_config_version, player_control, track_id,
+           min_real_players, ai_fill
          )
-         VALUES ($1, NULL, $2, $3, $4, $5, $6, $6, $7, 0, $8, $9, $10, $11, 'scheduled', NULL, $12, $13, $14, $15)`,
+         VALUES ($1, NULL, $2, $3, $4, $5, $6, $6, $7, 0, $8, $9, $10, $11, 'scheduled', NULL, $12, $13, $14, $15, $16, $17, $18, $19)`,
         [
           input.raceId,
           input.name,
@@ -1687,13 +2309,16 @@ export class PostgresRaceRepository implements RaceRepository {
           input.rulesetVersion,
           input.configVersion,
           input.weatherConfigVersion,
+          input.playerControl,
+          pickHippodromeForRace(this.config.hippodromes, input.raceId).trackId,
+          input.fieldRule.minRealPlayers,
+          input.fieldRule.aiFill,
         ],
       );
-      await client.query('INSERT INTO tournaments (race_id, tier, min_player_level) VALUES ($1, $2, $3)', [
-        input.raceId,
-        input.tier,
-        input.minPlayerLevel,
-      ]);
+      await client.query(
+        'INSERT INTO tournaments (race_id, tier, min_player_level) VALUES ($1, $2, $3)',
+        [input.raceId, input.tier, input.minPlayerLevel],
+      );
       return input.raceId;
     });
   }
@@ -1721,11 +2346,412 @@ export class PostgresRaceRepository implements RaceRepository {
     return result.rowCount ?? 0;
   }
 
+  async findExistingCalendarSlots(programId: string, startTimes: Date[]): Promise<Date[]> {
+    if (startTimes.length === 0) {
+      return [];
+    }
+    const result = await this.pool.query<{ start_time: Date }>(
+      'SELECT start_time FROM race_calendar_slots WHERE program_id = $1 AND start_time = ANY($2::timestamptz[])',
+      [programId, startTimes],
+    );
+    return result.rows.map((row) => row.start_time);
+  }
+
+  /**
+   * Takvim yarışı = sunucu üretimi sıradan bir lobi yarışı + yuva satırı,
+   * TEK transaction (migration 0052). İki sunucu örneği aynı yuvayı açmaya
+   * kalkarsa yuva başına transaction-kilidi ikisini sıraya sokar; ikincisi
+   * kilit altında yuvayı dolu görür ve `null` döner (turnuvayla aynı desen).
+   * Kilit kaçırılsa bile yuvanın birincil anahtarı ikinci satırı reddeder.
+   */
+  async createCalendarRace(input: CreateCalendarRaceInput): Promise<string | null> {
+    return withTransaction(this.pool, async (client) => {
+      await client.query(
+        "SELECT pg_advisory_xact_lock(hashtext('race-calendar:' || $1 || ':' || $2))",
+        [input.programId, input.startTime.toISOString()],
+      );
+      const existing = await client.query(
+        'SELECT 1 FROM race_calendar_slots WHERE program_id = $1 AND start_time = $2',
+        [input.programId, input.startTime],
+      );
+      if (existing.rows.length > 0) {
+        return null;
+      }
+      await client.query(
+        `INSERT INTO races (
+           id, created_by, name, distance_m, surface, weather,
+           participant_limit, max_players, entry_fee, prize_pool, race_type,
+           tribune_fee, spectator_capacity, start_time, status, simulation_seed,
+           engine_version, ruleset_version, config_version, weather_config_version, player_control, breed_class, track_id,
+           horse_level_bracket, table_id, min_real_players, ai_fill
+         )
+         VALUES ($1, NULL, $2, $3, $4, $5, $6, $7, $8, 0, $9, $10, $11, $12, 'scheduled', NULL, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)`,
+        [
+          input.raceId,
+          input.name,
+          input.distanceMeters,
+          input.surface,
+          input.weather,
+          input.fieldSize,
+          input.maxPlayers,
+          input.entryFee,
+          input.raceType,
+          input.tribuneFee,
+          input.spectatorCapacity,
+          input.startTime,
+          input.engineVersion,
+          input.rulesetVersion,
+          input.configVersion,
+          input.weatherConfigVersion,
+          input.playerControl,
+          input.breedClass,
+          trackIdForHippodrome(this.config.hippodromes, input.hippodrome),
+          input.horseLevelBracket,
+          input.tableId,
+          input.fieldRule.minRealPlayers,
+          input.fieldRule.aiFill,
+        ],
+      );
+      await client.query(
+        'INSERT INTO race_calendar_slots (program_id, start_time, race_id) VALUES ($1, $2, $3)',
+        [input.programId, input.startTime, input.raceId],
+      );
+      return input.raceId;
+    });
+  }
+
+  /**
+   * Başlangıcı geçmiş, HİÇ katılımı olmayan takvim yarışlarını iptal eder
+   * (`cancelEmptyDueTournaments` ile aynı gerekçe: kilit zamanlayıcısı
+   * katılımsız yarışı seçmez, `scheduled`da sonsuza dek kalırdı ve lobi
+   * listesini geçmiş yarışlarla doldururdu). Para yoktur — defter satırı yazılmaz.
+   */
+  async cancelEmptyDueCalendarRaces(now: Date): Promise<number> {
+    const result = await this.pool.query(
+      `UPDATE races r
+       SET status = 'cancelled', updated_at = $1
+       FROM race_calendar_slots c
+       WHERE c.race_id = r.id
+         AND r.status = 'scheduled'
+         AND r.start_time <= $1
+         AND NOT EXISTS (
+           SELECT 1 FROM race_entries e
+           WHERE e.race_id = r.id AND e.player_id IS NOT NULL AND e.status IS DISTINCT FROM 'cancelled'
+         )`,
+      [now],
+    );
+    return result.rowCount ?? 0;
+  }
+
+  /**
+   * Port doc yorumu: `RaceRepository.cancelEmptyDuePlayerRaces`.
+   *
+   * Tek bir `UPDATE … WHERE NOT EXISTS` YAZILMAZ: Postgres kilit beklemesinden
+   * sonra satırı yeniden denetlerken alt sorguyu ESKİ anlık görüntüyle koşar
+   * ve başlangıçtan hemen önce commit edilen (ücreti ödenmiş) bir katılımı
+   * göremeyebilirdi — o yarış iptal edilir, para askıda kalırdı. Bu yüzden
+   * her aday katılımla AYNI sırayla işlenir: önce yarış satırı `FOR UPDATE`,
+   * SONRA (yeni bir ifadeyle, güncel görüntüyle) katılım denetimi.
+   */
+  async cancelEmptyDuePlayerRaces(now: Date, limit: number): Promise<number> {
+    const candidates = await this.pool.query<{ id: string }>(
+      `SELECT r.id
+       FROM races r
+       WHERE r.created_by IS NOT NULL
+         AND r.status = 'scheduled'
+         AND r.start_time <= $1
+         AND NOT EXISTS (
+           SELECT 1 FROM race_entries e
+           WHERE e.race_id = r.id AND e.player_id IS NOT NULL AND e.status IS DISTINCT FROM 'cancelled'
+         )
+       ORDER BY r.start_time ASC, r.id ASC
+       LIMIT $2`,
+      [now, limit],
+    );
+    let cancelled = 0;
+    for (const { id } of candidates.rows) {
+      const done = await withTransaction(this.pool, async (client) => {
+        const locked = await client.query<{ status: string; start_time: Date }>(
+          'SELECT status, start_time FROM races WHERE id = $1 FOR UPDATE',
+          [id],
+        );
+        const race = locked.rows[0];
+        if (race === undefined || race.status !== 'scheduled' || race.start_time > now) {
+          return false;
+        }
+        const active = await client.query(
+          `SELECT 1 FROM race_entries e
+           WHERE e.race_id = $1 AND e.player_id IS NOT NULL AND e.status IS DISTINCT FROM 'cancelled'
+           LIMIT 1`,
+          [id],
+        );
+        if (active.rows.length > 0) {
+          return false;
+        }
+        await client.query("UPDATE races SET status = 'cancelled', updated_at = $2 WHERE id = $1", [id, now]);
+        return true;
+      });
+      if (done) {
+        cancelled += 1;
+      }
+    }
+    return cancelled;
+  }
+
+  // ---------------------------------------------------------------------
+  // 01.10.2026 — OYUNCU KONTROLLÜ PRATİK YARIŞ (migration 0053)
+  // ---------------------------------------------------------------------
+
+  async startInteractiveRace(
+    input: StartInteractiveRaceInput,
+  ): Promise<
+    { ok: true; balance: { money: number; gems: number } } | { ok: false; runningRaceId: string }
+  > {
+    return withTransaction(this.pool, async (client) => {
+      const playerResult = await client.query<{ money: string; gems: string }>(
+        'SELECT money, gems FROM players WHERE id = $1 FOR UPDATE',
+        [input.playerId],
+      );
+      const playerRow = playerResult.rows[0];
+      if (!playerRow) {
+        throw new PlayerNotFoundError(input.playerId);
+      }
+      // Oyuncu satırı kilitli: aynı oyuncunun eşzamanlı iki başlatması burada sıraya girer.
+      const running = await client.query<{ id: string }>(
+        "SELECT id FROM interactive_races WHERE player_id = $1 AND status = 'running' LIMIT 1",
+        [input.playerId],
+      );
+      if (running.rows[0]) {
+        return { ok: false, runningRaceId: running.rows[0].id };
+      }
+      const before = { money: Number(playerRow.money), gems: Number(playerRow.gems) };
+      const after = input.entryFee > 0 ? debit(before, input.entryFee, 'money') : before;
+      await client.query('UPDATE players SET money = $2, updated_at = now() WHERE id = $1', [
+        input.playerId,
+        after.money,
+      ]);
+      if (input.entryFee > 0) {
+        await this.writeLedgerEntries(client, [
+          {
+            playerId: input.playerId,
+            type: 'practice_race_entry_fee',
+            amount: -input.entryFee,
+            currency: 'money',
+            referenceType: 'race',
+            referenceId: input.id,
+            balanceBefore: before.money,
+            balanceAfter: after.money,
+            idempotencyKey: null,
+          },
+        ]);
+      }
+      await client.query(
+        `INSERT INTO interactive_races (
+           id, player_id, horse_id, tier_id, simulation_seed, tactic, entrants, jockey_id,
+           entry_fee, distance_m, surface, weather, starts_at
+         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+        [
+          input.id,
+          input.playerId,
+          input.horseId,
+          input.tierId,
+          input.simulationSeed,
+          JSON.stringify(input.tactic),
+          JSON.stringify(input.entrants),
+          input.jockeyId,
+          input.entryFee,
+          input.distanceMeters,
+          input.surface,
+          input.weather,
+          input.startsAt,
+        ],
+      );
+      return { ok: true, balance: after };
+    });
+  }
+
+  async findInteractiveRace(raceId: string): Promise<InteractiveRaceRecord | null> {
+    const result = await this.pool.query<InteractiveRaceRow>(
+      'SELECT * FROM interactive_races WHERE id = $1',
+      [raceId],
+    );
+    return result.rows[0] ? rowToInteractiveRace(result.rows[0]) : null;
+  }
+
+  async findLiveLobbyRaceIdForPlayer(playerId: string): Promise<string | null> {
+    const result = await this.pool.query<{ id: string }>(
+      `SELECT r.id FROM races r
+       JOIN race_entries e ON e.race_id = r.id
+       WHERE e.player_id = $1 AND e.status IS DISTINCT FROM 'cancelled'
+         AND r.player_control AND r.status = 'locking'
+       ORDER BY r.live_starts_at DESC NULLS LAST
+       LIMIT 1`,
+      [playerId],
+    );
+    return result.rows[0]?.id ?? null;
+  }
+
+  async updateLobbyEntryCommands(
+    raceId: string,
+    playerId: string,
+    mutate: (current: PlayerCommandLog, raceStatus: string) => PlayerCommandLog,
+  ): Promise<PlayerCommandLog | null> {
+    return withTransaction(this.pool, async (client) => {
+      const race = await client.query<{ status: string }>(
+        'SELECT status FROM races WHERE id = $1 FOR SHARE',
+        [raceId],
+      );
+      if (!race.rows[0]) {
+        return null;
+      }
+      const entry = await client.query<{ id: string; player_commands: PlayerCommandLog }>(
+        `SELECT id, player_commands FROM race_entries
+         WHERE race_id = $1 AND player_id = $2 AND status IS DISTINCT FROM 'cancelled'
+         FOR UPDATE`,
+        [raceId, playerId],
+      );
+      const row = entry.rows[0];
+      if (!row) {
+        return null;
+      }
+      const next = mutate(row.player_commands ?? {}, race.rows[0].status);
+      await client.query('UPDATE race_entries SET player_commands = $2 WHERE id = $1', [
+        row.id,
+        JSON.stringify(next),
+      ]);
+      return next;
+    });
+  }
+
+  async findLobbyOutcome(
+    raceId: string,
+    playerId: string,
+  ): Promise<{ finishPosition: number; prizeWon: number; entryFee: number; loserRefund: number } | null> {
+    const result = await this.pool.query<{
+      finish_position: number | null;
+      prize: string;
+      fee: string;
+      refund: string;
+    }>(
+      `SELECT e.finish_position,
+              COALESCE((SELECT SUM(t.amount) FROM economy_transactions t
+                        WHERE t.player_id = $2 AND t.reference_id = $1::text AND t.type = 'lobby_race_prize'), 0) AS prize,
+              COALESCE((SELECT -SUM(t.amount) FROM economy_transactions t
+                        WHERE t.player_id = $2 AND t.reference_id = $1::text AND t.type = 'lobby_race_entry_fee'), 0) AS fee,
+              COALESCE((SELECT SUM(t.amount) FROM economy_transactions t
+                        WHERE t.player_id = $2 AND t.reference_id = $1::text AND t.type = 'lobby_race_loser_refund'), 0) AS refund
+       FROM race_entries e
+       WHERE e.race_id = $1::uuid AND e.player_id = $2 AND e.status IS DISTINCT FROM 'cancelled'`,
+      [raceId, playerId],
+    );
+    const row = result.rows[0];
+    if (!row || row.finish_position === null) {
+      return null;
+    }
+    return {
+      finishPosition: row.finish_position,
+      prizeWon: Number(row.prize),
+      entryFee: Number(row.fee),
+      loserRefund: Number(row.refund),
+    };
+  }
+
+  async findRunningInteractiveRaceId(playerId: string): Promise<string | null> {
+    const result = await this.pool.query<{ id: string }>(
+      "SELECT id FROM interactive_races WHERE player_id = $1 AND status = 'running' LIMIT 1",
+      [playerId],
+    );
+    return result.rows[0]?.id ?? null;
+  }
+
+  async findRunningInteractiveRaceIds(limit: number): Promise<string[]> {
+    const result = await this.pool.query<{ id: string }>(
+      "SELECT id FROM interactive_races WHERE status = 'running' ORDER BY starts_at ASC LIMIT $1",
+      [limit],
+    );
+    return result.rows.map((row) => row.id);
+  }
+
+  async updateInteractiveRaceCommands(
+    raceId: string,
+    mutate: (record: InteractiveRaceRecord) => PlayerCommandLog,
+  ): Promise<InteractiveRaceRecord | null> {
+    return withTransaction(this.pool, async (client) => {
+      const result = await client.query<InteractiveRaceRow>(
+        'SELECT * FROM interactive_races WHERE id = $1 FOR UPDATE',
+        [raceId],
+      );
+      if (!result.rows[0]) {
+        return null;
+      }
+      const record = rowToInteractiveRace(result.rows[0]);
+      const commands = mutate(record);
+      await client.query('UPDATE interactive_races SET commands = $2 WHERE id = $1', [
+        raceId,
+        JSON.stringify(commands),
+      ]);
+      return { ...record, commands };
+    });
+  }
+
+  async finishInteractiveRace(
+    raceId: string,
+    build: (record: InteractiveRaceRecord) => {
+      saveInput: SavePracticeRaceWithStakesInput;
+      result: (balance: { money: number; gems: number }) => PracticeRaceResult;
+    } | null,
+  ): Promise<
+    | { status: 'finished'; balance: { money: number; gems: number } }
+    | { status: 'not_due' }
+    | { status: 'already_finished' }
+    | null
+  > {
+    return withTransaction(this.pool, async (client) => {
+      const result = await client.query<InteractiveRaceRow>(
+        'SELECT * FROM interactive_races WHERE id = $1 FOR UPDATE',
+        [raceId],
+      );
+      if (!result.rows[0]) {
+        return null;
+      }
+      const record = rowToInteractiveRace(result.rows[0]);
+      if (record.status !== 'running') {
+        return { status: 'already_finished' as const };
+      }
+      const built = build(record);
+      if (built === null) {
+        return { status: 'not_due' as const };
+      }
+      const balance = await this.savePracticeRaceInTransaction(client, built.saveInput);
+      await client.query(
+        "UPDATE interactive_races SET status = 'finished', finished_at = now(), result = $2 WHERE id = $1",
+        [raceId, JSON.stringify(built.result(balance))],
+      );
+      return { status: 'finished' as const, balance };
+    });
+  }
+
+  async findSilkColors(playerIds: readonly string[]): Promise<Map<string, string>> {
+    const colors = new Map<string, string>();
+    if (playerIds.length === 0) return colors;
+    const result = await this.pool.query<{ player_id: string; silk_option: string | null }>(
+      `SELECT player_id, appearance->>'silksPrimary' AS silk_option
+       FROM player_avatars WHERE player_id = ANY($1::uuid[])`,
+      [[...playerIds]],
+    );
+    for (const row of result.rows) {
+      const hex = silkColorHex(row.silk_option, this.config.avatar);
+      if (hex !== null) colors.set(row.player_id, hex);
+    }
+    return colors;
+  }
+
   async findLobbySettlementContext(raceId: string): Promise<LobbySettlementContext | null> {
     const raceResult = await this.pool.query<SettlementRaceRow>(
       `SELECT id, name, participant_limit, max_players, entry_fee, prize_pool, start_time, status,
               surface, weather, distance_m, temperature_c, wind_kmh, humidity_pct, created_by, created_at,
-              simulation_seed
+              simulation_seed, player_control, live_starts_at, breed_class, track_id, horse_level_bracket, table_id,
+              ai_fill, min_real_players
        FROM races
        WHERE id = $1`,
       [raceId],
@@ -1740,10 +2766,12 @@ export class PostgresRaceRepository implements RaceRepository {
     // NULLABLE'dır (migration 0037): `status <> 'cancelled'` NULL'da
     // NULL döner ve satırı SESSİZCE elerdi.
     const entryResult = await this.pool.query<SettlementEntryRow>(
-      `SELECT id, player_id, horse_id, tactical_style, risk_level, gate_position, horse_snapshot, jockey_id
-       FROM race_entries
-       WHERE race_id = $1 AND player_id IS NOT NULL AND status IS DISTINCT FROM 'cancelled'
-       ORDER BY id`,
+      `SELECT e.id, e.player_id, e.horse_id, e.tactical_style, e.risk_level, e.gate_position,
+              e.horse_snapshot, e.jockey_id, e.player_commands, h.name AS horse_name
+       FROM race_entries e
+       LEFT JOIN horses h ON h.id = e.horse_id
+       WHERE e.race_id = $1 AND e.player_id IS NOT NULL AND e.status IS DISTINCT FROM 'cancelled'
+       ORDER BY e.id`,
       [raceId],
     );
 
@@ -1759,13 +2787,16 @@ export class PostgresRaceRepository implements RaceRepository {
       gatePosition: row.gate_position,
       // `null` → kilit çalışmadı. Dolu → `lockLobbyRace`in yazdığı JSONB;
       // tip gerekçesi `SettlementEntryRow.horse_snapshot` doc yorumunda.
-      horseSnapshot: row.horse_snapshot === null ? null : (row.horse_snapshot as RaceEntrantSnapshot),
+      horseSnapshot:
+        row.horse_snapshot === null ? null : (row.horse_snapshot as RaceEntrantSnapshot),
       // PHASE 6.2 — `lockLobbyRace` yazdıysa DOLUDUR ve dondurulmuş
       // snapshot'la AYNI andaki jokeydir. `null` ise kilit çalışmamıştır
       // VE oyuncunun jokeyi olmayabilir de; ikisini ayırt etmek gerekmez,
       // çünkü iki durumda da yapılacak şey aynıdır: `horseSnapshot === null`
       // ise kesinleşme jokeyi kendisi çözer.
       jockeyId: row.jockey_id,
+      playerCommands: row.player_commands ?? {},
+      horseName: row.horse_name ?? '',
     }));
 
     return {
@@ -1788,6 +2819,14 @@ export class PostgresRaceRepository implements RaceRepository {
       createdAt: raceRow.created_at,
       entrants,
       simulationSeed: raceRow.simulation_seed,
+      playerControl: raceRow.player_control ?? false,
+      liveStartsAt: raceRow.live_starts_at ?? null,
+      breedClass: raceRow.breed_class ?? null,
+      hippodrome: resolveHippodromeKey(this.config.hippodromes, raceRow.track_id ?? null),
+      horseLevelBracket: raceRow.horse_level_bracket ?? null,
+      tableId: raceRow.table_id ?? null,
+      aiFill: raceRow.ai_fill ?? true,
+      minRealPlayers: raceRow.min_real_players ?? 1,
     };
   }
 
@@ -1796,7 +2835,11 @@ export class PostgresRaceRepository implements RaceRepository {
    * Gerekçe ve güvenlik kanıtı: `RaceRepository.findRacesDueForLock` port
    * doc yorumu. Burada yalnızca SQL vardır.
    */
-  async findRacesDueForLock(input: { now: Date; limit: number }): Promise<string[]> {
+  async findRacesDueForLock(input: {
+    now: Date;
+    limit: number;
+    excludeIds?: readonly string[];
+  }): Promise<string[]> {
     // `EXISTS` KULLANILIR, `JOIN + GROUP BY` DEĞİL: yarışın kaç katılımcısı
     // olduğu SORULMAZ, yalnızca "en az bir tane var mı" sorulur. `EXISTS`
     // ilk satırı bulduğunda durur; `COUNT` ise tüm satırları okurdu —
@@ -1818,9 +2861,10 @@ export class PostgresRaceRepository implements RaceRepository {
              AND e.player_id IS NOT NULL
              AND e.status IS DISTINCT FROM 'cancelled'
          )
+         AND NOT (r.id = ANY($3::uuid[]))
        ORDER BY r.start_time ASC, r.id ASC
        LIMIT $2`,
-      [input.now, input.limit],
+      [input.now, input.limit, [...(input.excludeIds ?? [])]],
     );
     return result.rows.map((row) => row.id);
   }
@@ -1916,7 +2960,9 @@ export class PostgresRaceRepository implements RaceRepository {
       await client.query(
         `UPDATE races
          SET status = 'locking', simulation_seed = $2, engine_version = $3, ruleset_version = $4,
-             config_version = $5, weather_config_version = $6, updated_at = $7
+             config_version = $5, weather_config_version = $6, updated_at = $7,
+             -- 01.10.2026 — kontrollü yarışta canlı koşu kilitle başlar (geri sayım sonrası).
+             live_starts_at = CASE WHEN player_control THEN $7::timestamptz + make_interval(secs => $8) ELSE NULL END
          WHERE id = $1`,
         [
           input.raceId,
@@ -1926,6 +2972,7 @@ export class PostgresRaceRepository implements RaceRepository {
           input.configVersion,
           input.weatherConfigVersion,
           input.now,
+          input.liveCountdownSeconds,
         ],
       );
 
@@ -1941,11 +2988,10 @@ export class PostgresRaceRepository implements RaceRepository {
         // ayrışabilirdi (bkz. `LockLobbyRaceInput.entrantSnapshots` doc
         // yorumu). `COALESCE` DEĞİL düz atama: `null` da gerçek bir
         // bilgidir ("jokeyi yoktu") ve eski bir değeri korumak yanlış olurdu.
-        await client.query('UPDATE race_entries SET horse_snapshot = $2, jockey_id = $3 WHERE id = $1', [
-          item.entryId,
-          JSON.stringify(item.snapshot),
-          item.jockeyId,
-        ]);
+        await client.query(
+          'UPDATE race_entries SET horse_snapshot = $2, jockey_id = $3 WHERE id = $1',
+          [item.entryId, JSON.stringify(item.snapshot), item.jockeyId],
+        );
       }
 
       // 7) `race_starting` BİLDİRİMLERİ — durum geçişiyle AYNI transaction
@@ -1971,11 +3017,10 @@ export class PostgresRaceRepository implements RaceRepository {
         }),
       );
       for (const row of playerResult.rows) {
-        await client.query('INSERT INTO notifications (player_id, type, payload) VALUES ($1, $2, $3::jsonb)', [
-          row.player_id,
-          'race_starting',
-          startingPayload,
-        ]);
+        await client.query(
+          'INSERT INTO notifications (player_id, type, payload) VALUES ($1, $2, $3::jsonb)',
+          [row.player_id, 'race_starting', startingPayload],
+        );
       }
 
       // 8) `true` — kilitlendi. Bağlam DÖNMEZ: çağıran (use-case) onu zaten
@@ -2046,6 +3091,7 @@ export class PostgresRaceRepository implements RaceRepository {
       const entriesResult = await client.query<{
         id: string;
         player_id: string;
+        horse_id: string | null;
         display_name: string;
       }>(
         // `jockey_id` §42 PHASE 2'de bu sorguya EKLENMİŞTİ (o zaman sütun
@@ -2053,7 +3099,7 @@ export class PostgresRaceRepository implements RaceRepository {
         // jokeyi `input.realEntries[].jockeyId`den gelir. DB'den okumak,
         // adım 5 (okuma) ile adım 7 (yazım) arasında bayatlayan bir değer
         // taşırdı.
-        `SELECT e.id, e.player_id, p.display_name
+        `SELECT e.id, e.player_id, e.horse_id, p.display_name
          FROM race_entries e
          JOIN players p ON p.id = e.player_id
          WHERE e.race_id = $1 AND e.player_id IS NOT NULL AND e.status IS DISTINCT FROM 'cancelled'
@@ -2072,7 +3118,10 @@ export class PostgresRaceRepository implements RaceRepository {
       }
 
       const playerIdByEntryId = new Map(entriesResult.rows.map((row) => [row.id, row.player_id]));
-      const displayNameByEntryId = new Map(entriesResult.rows.map((row) => [row.id, row.display_name]));
+      const displayNameByEntryId = new Map(
+        entriesResult.rows.map((row) => [row.id, row.display_name]),
+      );
+      const horseIdByEntryId = new Map(entriesResult.rows.map((row) => [row.id, row.horse_id]));
 
       // 6) ÖDÜL ÖDEMELERİ — kazananlar ÖNCE sözlüksel id sırasında kilitlenir.
       //    Kilit TEK bir oyuncu değil N oyuncudur; iki eşzamanlı kesinleşme
@@ -2087,9 +3136,32 @@ export class PostgresRaceRepository implements RaceRepository {
         }
       }
 
-      const winnerPlayerIds = [...new Set(
-        [...winnerByEntryId.keys()].map((entryId) => playerIdByEntryId.get(entryId) as string),
-      )].sort();
+      // 09.10.2026 — MASA KURALI: kaybeden iadesi. Tutarlar use-case'te
+      // (saf `computeLobbySettlement`) hesaplandı; burada her birinin
+      // dayandığı ÖDENEN bedel KİLİT ALTINDA defterden yeniden okunur ve
+      // karşılaştırılır — ayrışırsa iade yanlış kişiye/tutara giderdi.
+      const refundByEntryId = new Map<string, number>();
+      const requestedRefunds = input.loserRefunds ?? [];
+      if (requestedRefunds.length > 0) {
+        const lockedPaid = await this.paidLobbyFeesByEntry(client, input.raceId);
+        for (const refund of requestedRefunds) {
+          if (!playerIdByEntryId.has(refund.entryId) || winnerByEntryId.has(refund.entryId)) {
+            throw new Error(`Kaybeden iadesi geçersiz katılıma yazıldı: ${refund.entryId}.`);
+          }
+          if ((lockedPaid.get(refund.entryId) ?? 0) !== refund.paidFee || refund.amount <= 0 || refund.amount > refund.paidFee) {
+            throw new Error(`Kaybeden iadesinin dayandığı bedel kilit altında değişti: ${refund.entryId}.`);
+          }
+          refundByEntryId.set(refund.entryId, refund.amount);
+        }
+      }
+
+      const winnerPlayerIds = [
+        ...new Set(
+          [...winnerByEntryId.keys(), ...refundByEntryId.keys()].map(
+            (entryId) => playerIdByEntryId.get(entryId) as string,
+          ),
+        ),
+      ].sort();
 
       const balanceByPlayerId = new Map<string, { money: number; gems: number }>();
       if (winnerPlayerIds.length > 0) {
@@ -2148,6 +3220,32 @@ export class PostgresRaceRepository implements RaceRepository {
 
           balanceByPlayerId.set(playerId, { money: balanceAfter, gems: current.gems });
         }
+
+        // 09.10.2026 — kaybeden iadeleri (masa kuralı), aynı kilitler altında.
+        for (const [entryId, amount] of refundByEntryId) {
+          const playerId = playerIdByEntryId.get(entryId) as string;
+          const current = balanceByPlayerId.get(playerId) as { money: number; gems: number };
+          const balanceAfter = credit(current, amount, 'money').money;
+          await client.query('UPDATE players SET money = $2, updated_at = $3 WHERE id = $1', [
+            playerId,
+            balanceAfter,
+            input.now,
+          ]);
+          await this.writeLedgerEntries(client, [
+            {
+              playerId,
+              type: 'lobby_race_loser_refund',
+              amount,
+              currency: 'money',
+              referenceType: 'race',
+              referenceId: input.raceId,
+              balanceBefore: current.money,
+              balanceAfter,
+              idempotencyKey: null,
+            },
+          ]);
+          balanceByPlayerId.set(playerId, { money: balanceAfter, gems: current.gems });
+        }
       }
 
       // 7) Gerçek katılım satırlarının SONUÇLARI. `status` BİLEREK
@@ -2181,6 +3279,37 @@ export class PostgresRaceRepository implements RaceRepository {
           entry.entryId,
           input.segments.filter((segment) => segment.raceEntryId === entry.entryId),
         );
+
+        // 01.10.2026 — XP: her gerçek katılımcı ve atı, ödemelerle AYNI
+        // transaction'da (pratik yarışla aynı tablo — `xpRewards`).
+        const progression = this.config.progression;
+        await awardXpInTransaction(
+          client,
+          'players',
+          playerIdByEntryId.get(entry.entryId) as string,
+          computeRaceXp(entry.finishPosition, progression.xpRewards.player),
+          progression,
+          input.now,
+        );
+        await addClubPointsInTransaction(
+          client,
+          playerIdByEntryId.get(entry.entryId) as string,
+          computeRaceXp(entry.finishPosition, progression.xpRewards.player),
+          this.config.online,
+        );
+        const horseId = horseIdByEntryId.get(entry.entryId);
+        if (horseId) {
+          await awardXpInTransaction(
+            client,
+            'horses',
+            horseId,
+            computeRaceXp(entry.finishPosition, progression.xpRewards.horse),
+            progression,
+            input.now,
+          );
+          // 15.10.2026 — yarışın ata bedeli (S3): ödemelerle aynı transaction.
+          await applyRaceConditionInTransaction(client, [horseId], raceRow.distance_m, this.config.care, input.now);
+        }
       }
 
       // 8) Bot koltukları — YENİ satırlar. `fieldSize - gerçekOyuncu` kadar
@@ -2223,27 +3352,39 @@ export class PostgresRaceRepository implements RaceRepository {
         const playerId = playerIdByEntryId.get(entry.entryId) as string;
         const payout = winnerByEntryId.get(entry.entryId) ?? 0;
 
-        await client.query('INSERT INTO notifications (player_id, type, payload) VALUES ($1, $2, $3::jsonb)', [
-          playerId,
-          'race_finished',
-          JSON.stringify(
-            buildRaceFinishedPayload({
-              raceId: input.raceId,
-              raceName: input.raceName,
-              finishPosition: entry.finishPosition,
-            }),
-          ),
-        ]);
+        await client.query(
+          'INSERT INTO notifications (player_id, type, payload) VALUES ($1, $2, $3::jsonb)',
+          [
+            playerId,
+            'race_finished',
+            JSON.stringify(
+              buildRaceFinishedPayload({
+                raceId: input.raceId,
+                raceName: input.raceName,
+                finishPosition: entry.finishPosition,
+              }),
+            ),
+          ],
+        );
 
         // `prize_won` YALNIZCA gerçekten ödeme yapılanlara. Sıfır tutarlı bir
         // "kazandınız" bildirimi, istemciye 0 Çip gösteren bir satır bırakırdı
         // (`buildPrizeWonPayload` doc yorumu).
         if (payout > 0) {
-          await client.query('INSERT INTO notifications (player_id, type, payload) VALUES ($1, $2, $3::jsonb)', [
-            playerId,
-            'prize_won',
-            JSON.stringify(buildPrizeWonPayload({ raceId: input.raceId, raceName: input.raceName, amount: payout })),
-          ]);
+          await client.query(
+            'INSERT INTO notifications (player_id, type, payload) VALUES ($1, $2, $3::jsonb)',
+            [
+              playerId,
+              'prize_won',
+              JSON.stringify(
+                buildPrizeWonPayload({
+                  raceId: input.raceId,
+                  raceName: input.raceName,
+                  amount: payout,
+                }),
+              ),
+            ],
+          );
         }
 
         places.push({
@@ -2263,6 +3404,7 @@ export class PostgresRaceRepository implements RaceRepository {
           startingStats: pickStartingStats(entry.horseSnapshot),
           finalTimeMs: entry.finalTimeMs,
           prizeAmount: payout,
+          loserRefundAmount: refundByEntryId.get(entry.entryId) ?? 0,
         });
       }
 
@@ -2283,6 +3425,7 @@ export class PostgresRaceRepository implements RaceRepository {
           startingStats: pickStartingStats(assertBotSnapshot(botEntry)),
           finalTimeMs: botEntry.finalTimeMs ?? null,
           prizeAmount: 0,
+          loserRefundAmount: 0,
         });
       }
       places.sort((a, b) => a.finishPosition - b.finishPosition);
@@ -2364,7 +3507,7 @@ export class PostgresRaceRepository implements RaceRepository {
       //      gelmelidir.
       // İkisi de `grandstand.config.json`'dan gelir.
       `INSERT INTO races (id, track_id, name, distance_m, surface, weather, temperature_c, wind_kmh, humidity_pct, participant_limit, max_players, race_type, entry_fee, prize_pool, tribune_fee, spectator_capacity, start_time, status, simulation_seed, engine_version, ruleset_version, config_version, weather_config_version, created_at, updated_at)
-       VALUES ($1, NULL, $2, $3, $4, $5, $6, NULL, NULL, $7, $7, CASE WHEN $8::bigint > 0 THEN 'paid' ELSE 'free' END, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $19)`,
+       VALUES ($1, $20, $2, $3, $4, $5, $6, NULL, NULL, $7, $7, CASE WHEN $8::bigint > 0 THEN 'paid' ELSE 'free' END, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $19)`,
       [
         race.id,
         race.name,
@@ -2385,6 +3528,8 @@ export class PostgresRaceRepository implements RaceRepository {
         race.configVersion,
         race.weatherConfigVersion,
         new Date(race.createdAt),
+        // 08.10.2026 — oyuncunun seçmediği yarışın hipodromu kimlikten determinist.
+        pickHippodromeForRace(this.config.hippodromes, race.id).trackId,
       ],
     );
   }
@@ -2400,7 +3545,11 @@ export class PostgresRaceRepository implements RaceRepository {
    * bot_chk`) ikisinin BİRDEN dolu/boş olmasını zaten engeller — burada
    * `entry.horseId`/`entry.botLabel`'in KENDİSİ olduğu gibi yazılır.
    */
-  private async insertEntryWithSegments(client: PoolClient, entry: RaceEntry, segments: RaceSegmentSnapshot[]): Promise<void> {
+  private async insertEntryWithSegments(
+    client: PoolClient,
+    entry: RaceEntry,
+    segments: RaceSegmentSnapshot[],
+  ): Promise<void> {
     await client.query(
       // AUDIT_REPORT.md Bulgu R3 (bu oturum) — bu INSERT'te DAHA ÖNCE
       // `gate_position` sütunu `jockey_id` ile AYNI satırda hardcoded
@@ -2415,8 +3564,14 @@ export class PostgresRaceRepository implements RaceRepository {
       // hardcoded `NULL` yazılıyordu ve `RaceEntry.jockeyId` alanı
       // (shared-types) ZATEN vardı — yani çağıranlar değeri geçiriyor,
       // repository onu SESSİZCE ATIYORDU. Artık gerçek bir parametre (`$5`).
-      `INSERT INTO race_entries (id, race_id, horse_id, bot_label, jockey_id, gate_position, tactical_style, risk_level, horse_snapshot, final_time_ms, finish_position, performance_score, created_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+      // 03.10.2026 (Faz 14, migration 0063) — `player_id` = atı KOŞTURAN
+      // oyuncu (koşu anındaki sahip, aynı transaction). Eskiden NULL kalıyordu
+      // ve sıralama/sezon/görev yarışı atın ŞİMDİKİ sahibine yazıyordu: at
+      // satılınca satıcının geçmişi (ve sezon ödülü) alıcıya geçiyordu. Bot
+      // satırında `horse_id` NULL → alt sorgu NULL döner.
+      `INSERT INTO race_entries (id, race_id, horse_id, bot_label, jockey_id, gate_position, tactical_style, risk_level, horse_snapshot, final_time_ms, finish_position, performance_score, created_at, player_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13,
+               (SELECT owner_id FROM horses WHERE id = $3))`,
       [
         entry.id,
         entry.raceId,

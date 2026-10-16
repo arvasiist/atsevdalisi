@@ -1,0 +1,4 @@
+{
+  "_comment": "02.10.2026 (Faz 13-A) — bilinen yüksek/kritik açıkların GEREKÇELİ ve SÜRELİ izin listesi. Listede olmayan yeni bir yüksek/kritik açık CI'ı kırar; süresi dolan kayıt da kırar (sessizce kalıcılaşmasın). Kayıt eklemek bir karardır: gerekçe ve son tarih ZORUNLU.",
+  "allow": []
+}

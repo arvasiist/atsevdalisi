@@ -48,6 +48,26 @@ export interface BreedingRepository {
    * ne tay doğar, ne soy kaydı yazılır, ne para hareket eder.
    */
   breed(input: ExecuteBreedingInput): Promise<BreedingResultView>;
+  /**
+   * 15.10.2026 — damızlık pazarının ham adayları: `viewerId` DIŞINDAKİ
+   * (silinmemiş, aralarında engel olmayan) oyuncuların emekli aygırları,
+   * pazarda ilanı olmayan, tay sınırı dolmamış; kaliteye göre azalan,
+   * en fazla `scanLimit`. Yaş süzmesi use-case'tedir (formül TS'te tek yerde).
+   */
+  listStudCandidates(input: { viewerId: string; foalLimit: number; scanLimit: number }): Promise<StudCandidate[]>;
+}
+
+export interface StudCandidate {
+  horseId: string;
+  name: string;
+  breed: string;
+  ownerId: string;
+  ownerUsername: string | null;
+  birthDate: Date;
+  agingStartedAt: Date;
+  quality: number;
+  potential: number;
+  foalCount: number;
 }
 
 /**
@@ -72,6 +92,8 @@ export interface ExecuteBreedingInput {
   foalGender: HorseGender;
   now: Date;
   idempotencyKey: string | null;
+  /** 01.10.2026 — kısrak sahibinin (çağıranın) üreme merkezi çarpanı; bkz. `BreedHorsesInput`. */
+  birthHealthRiskMultiplier: number;
 }
 
 /** NestJS DI için token (interface'ler runtime'da yok olduğundan bir Symbol gerekir). */

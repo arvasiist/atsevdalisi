@@ -37,11 +37,23 @@
  * DEĞİL, gerçekten kullanılmayan bir alanın zararsız varsayılanıdır.
  */
 
-import type { RaceFinishEntry, RaceSegmentSnapshot, RaceTimeline, RaceTimelineView } from '@at-sevdalisi/shared-types';
+import type {
+  RaceSurface,
+  RaceFinishEntry,
+  RaceSegmentSnapshot,
+  RaceTimeline,
+  RaceTimelineView,
+} from '@at-sevdalisi/shared-types';
 
 export interface ReplayTimelineData {
   timeline: RaceTimeline;
   horseNamesById: Record<string, string>;
+  /** 01.10.2026 (3D adım 8) — yarış zemini (pist rengi + toz). */
+  surface: RaceSurface;
+  /** 08.10.2026 — hipodrom anahtarı (eski sunucu yanıtında yoksa `null` → varsayılan). */
+  hippodrome: string | null;
+  /** 09.10.2026 — katılım → kayıtlı forma rengi (eski yanıtta alan yoksa `null`). */
+  silkColorsById: Record<string, string | null>;
 }
 
 /**
@@ -64,7 +76,11 @@ function hasCompleteFinishData(
   finishPosition: number;
   performanceScore: number;
 } {
-  return entrant.finalTimeMs !== null && entrant.finishPosition !== null && entrant.performanceScore !== null;
+  return (
+    entrant.finalTimeMs !== null &&
+    entrant.finishPosition !== null &&
+    entrant.performanceScore !== null
+  );
 }
 
 /**
@@ -87,8 +103,11 @@ export function adaptRaceTimelineViewToReplayData(view: RaceTimelineView): Repla
   }));
 
   const horseNamesById: Record<string, string> = {};
+  const silkColorsById: Record<string, string | null> = {};
   for (const entrant of completedEntrants) {
-    horseNamesById[entrant.entryId] = entrant.horseName ?? entrant.botLabel ?? 'Bilinmeyen katılımcı';
+    horseNamesById[entrant.entryId] =
+      entrant.horseName ?? entrant.botLabel ?? 'Bilinmeyen katılımcı';
+    silkColorsById[entrant.entryId] = entrant.silkColor ?? null;
   }
 
   return {
@@ -100,5 +119,8 @@ export function adaptRaceTimelineViewToReplayData(view: RaceTimelineView): Repla
       explanations: [],
     },
     horseNamesById,
+    surface: view.surface,
+    hippodrome: view.hippodrome ?? null,
+    silkColorsById,
   };
 }

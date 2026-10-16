@@ -80,7 +80,10 @@ const UNKNOWN_CORE_COUNT_FALLBACK = 4;
  * BİREBİR karşılığıdır.
  */
 export function classifyQualityTier(input: QualityTierClassificationInput): QualityTier {
-  const cores = input.hardwareConcurrencyCores > 0 ? input.hardwareConcurrencyCores : UNKNOWN_CORE_COUNT_FALLBACK;
+  const cores =
+    input.hardwareConcurrencyCores > 0
+      ? input.hardwareConcurrencyCores
+      : UNKNOWN_CORE_COUNT_FALLBACK;
 
   if (input.isMobileUserAgent) {
     if (cores <= MOBILE_LOW_MAX_CORES) {
@@ -103,7 +106,7 @@ export function classifyQualityTier(input: QualityTierClassificationInput): Qual
 
 export interface QualityTierRenderSettings {
   tier: QualityTier;
-  /** `<Environment preset="sunset">` (IBL/yansıma) açık mı — kapalıysa `RaceScene3D.tsx` Faz 1 ÖNCESİ düz `<ambientLight>`'a geri döner (bkz. o dosyanın doc yorumu). */
+  /** Yerel ortam haritası (`<Environment>` + `<Lightformer>`, dosya indirmez — `TrackScenery.tsx`) açık mı; kapalıysa yalnızca yarım küre + güneş ışığı. */
   environmentEnabled: boolean;
   /** `@react-three/postprocessing` `<Bloom>` açık mı. */
   bloomEnabled: boolean;
@@ -113,6 +116,8 @@ export interface QualityTierRenderSettings {
   shadowsEnabled: boolean;
   /** `directionalLight`'ın `shadow-mapSize` değeri (kare, piksel cinsinden kenar uzunluğu) — `shadowsEnabled=false` iken anlamsızdır. */
   shadowMapSize: number;
+  /** 01.10.2026 — drei `<SoftShadows>` (PCSS); pahalı, yalnızca 'ultra'. */
+  softShadowsEnabled: boolean;
   /** `<Canvas dpr={[1, pixelRatioCap]}>` üst sınırı — yüksek DPR'li (retina/mobil) ekranlarda GPU'yu gereksiz yere doldurmamak için. */
   pixelRatioCap: number;
 }
@@ -124,6 +129,7 @@ const QUALITY_TIER_RENDER_SETTINGS: Record<QualityTier, Omit<QualityTierRenderSe
     ssaoEnabled: false,
     shadowsEnabled: false,
     shadowMapSize: 512,
+    softShadowsEnabled: false,
     pixelRatioCap: 1,
   },
   medium: {
@@ -132,6 +138,7 @@ const QUALITY_TIER_RENDER_SETTINGS: Record<QualityTier, Omit<QualityTierRenderSe
     ssaoEnabled: false,
     shadowsEnabled: true,
     shadowMapSize: 1024,
+    softShadowsEnabled: false,
     pixelRatioCap: 1.5,
   },
   high: {
@@ -140,6 +147,7 @@ const QUALITY_TIER_RENDER_SETTINGS: Record<QualityTier, Omit<QualityTierRenderSe
     ssaoEnabled: false,
     shadowsEnabled: true,
     shadowMapSize: 2048,
+    softShadowsEnabled: false,
     pixelRatioCap: 2,
   },
   // Faz 1'de sabit kodlanmış ÖNCEKİ (kademe kavramı olmadan önceki) davranışın
@@ -152,6 +160,7 @@ const QUALITY_TIER_RENDER_SETTINGS: Record<QualityTier, Omit<QualityTierRenderSe
     ssaoEnabled: true,
     shadowsEnabled: true,
     shadowMapSize: 2048,
+    softShadowsEnabled: true,
     pixelRatioCap: 2,
   },
 };

@@ -37,39 +37,74 @@
       "label": "Mahalli Koşu",
       "fieldSize": 8,
       "entryFee": 100,
-      "distributionId": "top5"
+      "distributionId": "top5",
+      "feeTiming": "on_join",
+      "loserRefund": { "percent": 50, "maxPosition": 6 }
     },
     {
       "id": "regional",
       "label": "Bölgesel Koşu",
       "fieldSize": 10,
       "entryFee": 250,
-      "distributionId": "top6"
+      "distributionId": "top6",
+      "feeTiming": "on_join",
+      "loserRefund": { "percent": 25, "maxPosition": 8 }
     },
     {
       "id": "national",
       "label": "Ulusal Koşu",
       "fieldSize": 12,
       "entryFee": 500,
-      "distributionId": "top7"
+      "distributionId": "top7",
+      "feeTiming": "on_start",
+      "loserRefund": { "percent": 25, "maxPosition": 9 }
     },
     {
       "id": "elite",
       "label": "Elit Koşu",
       "fieldSize": 14,
       "entryFee": 1000,
-      "distributionId": "top8"
+      "distributionId": "top8",
+      "feeTiming": "on_start",
+      "loserRefund": { "percent": 0, "maxPosition": 0 }
     },
     {
       "id": "championship",
       "label": "Şampiyona Koşusu",
       "fieldSize": 16,
       "entryFee": 2000,
-      "distributionId": "top9"
+      "distributionId": "top9",
+      "feeTiming": "on_start",
+      "loserRefund": { "percent": 0, "maxPosition": 0 }
+    }
+  ],
+  "practiceRaceClasses": [
+    { "tierId": "local", "botStatRange": [41, 61], "maxHorsePower": 55 },
+    { "tierId": "regional", "botStatRange": [46, 66], "maxHorsePower": 60 },
+    { "tierId": "national", "botStatRange": [51, 71], "maxHorsePower": 65 },
+    { "tierId": "elite", "botStatRange": [56, 76], "maxHorsePower": 70 },
+    {
+      "tierId": "championship",
+      "botStatRange": [61, 81],
+      "maxHorsePower": null,
+      "handicap": { "powerOffsetBelow": 12, "powerOffsetAbove": 8 }
     }
   ],
   "newPlayerStartingBalance": {
     "money": 5000,
     "gems": 50
+  },
+  "auction": {
+    "minIncrementPercent": 5,
+    "minIncrementAmount": 10,
+    "settleScheduler": {
+      "enabled": true,
+      "tickSeconds": 15,
+      "batchSize": 20
+    }
+  },
+  "listingExpiry": {
+    "enabled": true,
+    "tickSeconds": 60
   }
 }

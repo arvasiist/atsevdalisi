@@ -13,7 +13,7 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { isUUID } from 'class-validator';
-import type { ApiSuccess, GiftView, SendGiftResult } from '@at-sevdalisi/shared-types';
+import type { GiftQuotaView, ApiSuccess, GiftView, SendGiftResult } from '@at-sevdalisi/shared-types';
 import { ListMyGiftsUseCase } from '../../application/use-cases/list-my-gifts.use-case';
 import { SendGiftUseCase } from '../../application/use-cases/send-gift.use-case';
 import { assertSelf } from '../auth/assert-self';
@@ -98,6 +98,16 @@ export class GiftController {
     // (`SocialController.respondToFriendRequest` ile AYNI desen).
     const result = await this.sendGiftUseCase.execute(id, dto.recipientId, dto.amount, dto.currency, idempotencyKey ?? null);
     return { success: true, data: result };
+  }
+
+  /** 16.10.2026 — çip gönderme onay ekranının hakkı (salt okuma). */
+  @Get('players/:id/gifts/quota')
+  async quota(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentPlayer() currentPlayer: AuthenticatedPlayer,
+  ): Promise<ApiSuccess<GiftQuotaView>> {
+    assertSelf(currentPlayer.id, id);
+    return { success: true, data: await this.sendGiftUseCase.quota(id) };
   }
 
   /**

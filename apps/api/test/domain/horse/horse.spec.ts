@@ -3,8 +3,6 @@ import {
   STARTER_HORSE_AGE_MONTHS,
   STARTER_HORSE_GENDERS,
   STARTER_HORSE_NAMES,
-  STARTER_HORSE_POTENTIAL,
-  STARTER_HORSE_QUALITY,
   STARTER_HORSE_WEIGHT_STD_DEV_KG,
   createStarterHorse,
   generateStarterHorseWeightKg,
@@ -15,7 +13,11 @@ import { HORSE_WEIGHT_MAX_KG, HORSE_WEIGHT_MIN_KG, HORSE_WEIGHT_POPULATION_MEAN_
 import { InvalidHorseNameError } from '../../../src/domain/horse/errors';
 import { validateHorseName } from '../../../src/domain/horse/validation';
 import { getLifeStage } from '../../../src/domain/horse/age-curve';
-import { loadHorseGrowthConfig } from '@at-sevdalisi/game-config';
+import { loadBreedsConfig, loadHorseGrowthConfig } from '@at-sevdalisi/game-config';
+import { getBreed, getStarterBreed } from '../../../src/domain/horse/breeds';
+
+// 07.10.2026 — kalite/potansiyel artık IRKTAN gelir; başlangıç atı en zayıf ırktır.
+const STARTER_BREED = getStarterBreed(loadBreedsConfig());
 
 /** Testlerde kullanılan, popülasyon ortalamasına ([0.5, 0.5, 0.5]) denk düşen sabit ağırlık örneği. */
 const NEUTRAL_WEIGHT_SAMPLE: [number, number, number] = [0.5, 0.5, 0.5];
@@ -25,7 +27,16 @@ describe('createStarterHorse', () => {
 
   it('brief §7/§9 alanlarını doğru başlangıç değerleriyle doldurur', () => {
     const weightKg = generateStarterHorseWeightKg(NEUTRAL_WEIGHT_SAMPLE);
-    const horse = createStarterHorse({ id: 'horse-1', ownerId: 'player-1', name: 'Yıldız', now, weightKg, gender: 'mare' });
+    const horse = createStarterHorse({
+      id: 'horse-1',
+      ownerId: 'player-1',
+      name: 'Yıldız',
+      now,
+      weightKg,
+      gender: 'mare',
+      breed: STARTER_BREED,
+      appearance: { coatColor: 'bay', faceMarking: 'none', legMarking: 'none' },
+    });
 
     expect(horse.id).toBe('horse-1');
     expect(horse.ownerId).toBe('player-1');
@@ -37,8 +48,9 @@ describe('createStarterHorse', () => {
     expect(horse.gender).toBe('mare');
     expect(horse.level).toBe(1);
     expect(horse.xp).toBe(0);
-    expect(horse.quality).toBe(STARTER_HORSE_QUALITY);
-    expect(horse.potential).toBe(STARTER_HORSE_POTENTIAL);
+    expect(horse.breed).toBe(STARTER_BREED.key);
+    expect(horse.quality).toBe(STARTER_BREED.quality);
+    expect(horse.potential).toBe(STARTER_BREED.potential);
     expect(horse.health).toBe(100);
     expect(horse.fitness).toBe(50);
     expect(horse.fatigue).toBe(0);
@@ -58,6 +70,8 @@ describe('createStarterHorse', () => {
       now,
       weightKg: generateStarterHorseWeightKg(NEUTRAL_WEIGHT_SAMPLE),
       gender: 'stallion',
+      breed: STARTER_BREED,
+      appearance: { coatColor: 'bay', faceMarking: 'none', legMarking: 'none' },
     });
     expect(horse.name).toBe('Rüzgar');
   });
@@ -71,6 +85,8 @@ describe('createStarterHorse', () => {
         now,
         weightKg: generateStarterHorseWeightKg(NEUTRAL_WEIGHT_SAMPLE),
         gender: 'gelding',
+        breed: STARTER_BREED,
+        appearance: { coatColor: 'bay', faceMarking: 'none', legMarking: 'none' },
       }),
     ).toThrow(InvalidHorseNameError);
   });
@@ -101,11 +117,33 @@ describe('createStarterHorse', () => {
       now,
       weightKg: generateStarterHorseWeightKg(NEUTRAL_WEIGHT_SAMPLE),
       gender: 'gelding',
+      breed: STARTER_BREED,
+      appearance: { coatColor: 'bay', faceMarking: 'none', legMarking: 'none' },
     });
     const config = loadHorseGrowthConfig();
     const stage = getLifeStage(STARTER_HORSE_AGE_MONTHS, config);
     expect(stage.name).toBe('prime');
     expect(new Date(horse.birthDate).getTime()).toBeLessThan(now.getTime());
+  });
+
+  it('ırk mağazası: ırkın kalite/potansiyeli ve config yaşı kullanılır', () => {
+    const breeds = loadBreedsConfig();
+    const breed = getBreed(breeds, 'thoroughbred');
+    const horse = createStarterHorse({
+      id: 'horse-2',
+      ownerId: 'player-1',
+      name: 'Şahin',
+      now,
+      weightKg: generateStarterHorseWeightKg(NEUTRAL_WEIGHT_SAMPLE),
+      gender: 'stallion',
+      breed,
+      ageMonths: breeds.shopHorseAgeMonths,
+      appearance: { coatColor: 'bay', faceMarking: 'none', legMarking: 'none' },
+    });
+    expect(horse.breed).toBe('thoroughbred');
+    expect(horse.quality).toBe(breed.quality);
+    expect(horse.potential).toBe(breed.potential);
+    expect(getLifeStage(breeds.shopHorseAgeMonths, loadHorseGrowthConfig()).name).toBe('prime');
   });
 });
 

@@ -1,15 +1,56 @@
 {
   "version": "1.0.0",
   "dustParticles": {
-    "riseSpeedMps": 0.6,
-    "maxHorizontalDriftMeters": 0.4,
-    "minLifetimeMs": 400,
-    "maxLifetimeMs": 900,
-    "spawnRatePerSecond": 12,
-    "maxActiveParticles": 40,
+    "riseSpeedMps": 0.35,
+    "maxHorizontalDriftMeters": 0.8,
+    "minLifetimeMs": 500,
+    "maxLifetimeMs": 1100,
+    "spawnRatePerSecond": 26,
+    "maxActiveParticles": 64,
     "color": "#c9b28a",
-    "size": 0.15,
-    "sizeScale": 300,
-    "baseOpacity": 0.6
+    "size": 0.45,
+    "baseOpacity": 0.45,
+    "emitterBehindMeters": 0.9,
+    "spawnSpreadMeters": 0.35,
+    "growth": 1.6
+  },
+  "dustBySurface": {
+    "dirt": {
+      "rateFactor": 1.0,
+      "color": "#c9b28a"
+    },
+    "synthetic": {
+      "rateFactor": 0.55,
+      "color": "#7a6a5c"
+    },
+    "grass": {
+      "rateFactor": 0.4,
+      "color": "#8c8458"
+    }
+  },
+  "dustSpeedReferenceMps": 16,
+  "dustCameraFalloff": {
+    "nearMeters": 18,
+    "farMeters": 140,
+    "minFactor": 0.2
+  },
+  "trackColorBySurface": {
+    "dirt": "#9a7550",
+    "synthetic": "#6e5646",
+    "grass": "#5c8c45"
+  },
+  "startGate": {
+    "openSeconds": 0.35,
+    "stallWidthMeters": 1.6,
+    "heightMeters": 2.6,
+    "depthMeters": 3.4
+  },
+  "ground": {
+    "grassTileMeters": 7,
+    "trackTileMeters": 5,
+    "mowingStripeMeters": 9,
+    "mowingContrast": 0.16,
+    "mowingFadeMeters": 520,
+    "trackEdgeBandMeters": 0.9
   }
 }

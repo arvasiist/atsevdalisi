@@ -12,8 +12,10 @@ import {
 } from '../../src/domain/race/prize-distribution';
 import {
   bootstrapTestApp,
+  expectedLobbyPayouts,
   registerTestPlayerWithStarterHorse,
   type RegisteredTestPlayer,
+  allowSoloLobbyRace,
 } from './test-helpers';
 
 /**
@@ -113,6 +115,9 @@ describe('Ödül dağıtımı (e2e) — POST /races/:id/settle', () => {
       .set('Authorization', creator.authHeader)
       .send(body)
       .expect(201);
+    // 15.10.2026 (Aşama 3) — bu dosyanın yarışları tek gerçek oyuncuyla da
+    // koşar (eski saha kuralı ön koşul; kuralın kendisi `race-field-rule.e2e-spec.ts`te).
+    await allowSoloLobbyRace(app, response.body.data.id as string);
     return response.body.data.id as string;
   }
 
@@ -234,9 +239,13 @@ describe('Ödül dağıtımı (e2e) — POST /races/:id/settle', () => {
     };
   }
 
-  /** Sıraya göre BEKLENEN ödül — tanım gereği `payouts[sıra - 1]`, sıra ödül bandının dışındaysa 0. */
-  function expectedPrizeFor(place: SettlementPlace, pool: number): number {
-    return computePrizePayouts(pool, SHARES)[place.finishPosition - 1] ?? 0;
+  /**
+   * Sıraya göre BEKLENEN ödül. 16.10.2026'dan beri bota pay düşmez: sıra
+   * GERÇEK OYUNCULAR arasındaki sıradır (`expectedLobbyPayouts`); botsuz
+   * sahada bu, mutlak sıranın payıyla AYNIDIR.
+   */
+  function expectedPrizeFor(place: SettlementPlace, pool: number, places: readonly SettlementPlace[]): number {
+    return expectedLobbyPayouts(pool, SHARES, places)[place.finishPosition - 1] ?? 0;
   }
 
   describe('mutlu yol — para gerçekten dağıtılır', () => {
@@ -286,7 +295,7 @@ describe('Ödül dağıtımı (e2e) — POST /races/:id/settle', () => {
       // HER sıra config'teki payın AYNISI — sıra simülasyonun sonucudur,
       // ama ödül TUTARI ona bağlı olarak TAM olarak hesaplanabilir.
       for (const place of body.data.places) {
-        expect(place.prizeAmount).toBe(expectedPrizeFor(place, prizePool));
+        expect(place.prizeAmount).toBe(expectedPrizeFor(place, prizePool, body.data.places));
       }
 
       // HAVUZUN TAMAMI (eksi `raceRake`) ödendi: `top5` paylarının toplamı
@@ -437,10 +446,19 @@ describe('Ödül dağıtımı (e2e) — POST /races/:id/settle', () => {
       );
       expect(Number(segmentOwners.rows[0]?.c)).toBe(12);
 
-      // Gerçek oyuncuların ödemesi YİNE sıraya göre config payının AYNISI.
+      // Gerçek oyuncular kendi aralarındaki sırayla öder; bota pay düşmez →
+      // havuzun komisyon dışı TAMAMI gerçek oyunculara gider.
       for (const place of body.data.places.filter((entry) => entry.participantType === 'human')) {
-        expect(place.prizeAmount).toBe(expectedPrizeFor(place, prizePool));
+        expect(place.prizeAmount).toBe(expectedPrizeFor(place, prizePool, body.data.places));
       }
+      const humans = body.data.places.filter((entry) => entry.participantType === 'human');
+      expect(humans.every((place) => place.prizeAmount > 0)).toBe(true);
+      const humanPaid = humans.reduce((sum, place) => sum + place.prizeAmount, 0);
+      const shareTotal = SHARES.reduce((sum, share) => sum + share, 0);
+      expect(Math.abs(humanPaid - prizePool * shareTotal)).toBeLessThanOrEqual(1);
+      // Önde bitiren gerçek oyuncu (botlar arada olsa bile) DAHA FAZLA alır.
+      const [ahead, behind] = [...humans].sort((x, y) => x.finishPosition - y.finishPosition);
+      expect(ahead!.prizeAmount).toBeGreaterThan(behind!.prizeAmount);
     });
 
     it('gerçek katılım satırları KOŞMUŞ durumdadır ve yarışın seedi açığa çıkar', async () => {
@@ -529,11 +547,9 @@ describe('Ödül dağıtımı (e2e) — POST /races/:id/settle', () => {
         [raceId],
       );
 
-      // ⚠️ BEKLENEN SATIR SAYISI `top5` PAY SAYISINDAN TÜRETİLEMEZ. Saha 12
-      // kişilik ve yalnızca 2'si gerçek oyuncudur; ilk beş sırayı BOTLAR
-      // süpürebilir ve o zaman defter satırı HİÇ olmaz (bot payı yanar —
-      // §13.14). Bu yüzden beklenen sayı, kesinleşme YANITINDAKİ "ödemesi
-      // olan gerçek sıra" sayısıdır; varsayım değil, gözlem.
+      // Saha 12 kişilik ve yalnızca 2'si gerçek oyuncudur; 16.10.2026'dan
+      // beri bota pay düşmediği için İKİSİ DE ödül alır (gerçek oyuncu
+      // sırası 1 ve 2). Beklenen sayı yine kesinleşme YANITINDAN okunur.
       const expectedRowCount = firstSettle.data.places.filter(
         (place) => place.playerId !== null && place.prizeAmount > 0,
       ).length;

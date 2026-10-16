@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto';
-import { Inject, Injectable } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable } from '@nestjs/common';
 import type { MarketListing } from '@at-sevdalisi/shared-types';
 import { createListingDraft } from '../../domain/market/market';
-import { HorseAlreadyListedError } from '../../domain/market/errors';
+import { AuctionRequiresEndTimeError, HorseAlreadyListedError } from '../../domain/market/errors';
 import { HorseInActiveRaceError, HorseNotFoundError } from '../../domain/horse/errors';
 import { HORSE_REPOSITORY, type HorseRepository } from '../ports/horse.repository';
 import { MARKET_LISTING_REPOSITORY, type MarketListingRepository } from '../ports/market-listing.repository';
@@ -12,6 +12,13 @@ export interface CreateMarketListingInput {
   price: number;
   /** FAZ 1 wiring, on üçüncü dilim (bu oturum) — verilmezse ilan süresizdir. */
   expiresInHours?: number;
+  /**
+   * 02.10.2026 — `'fixed_price'` (varsayılan) ya da `'auction'`. Gövdeden
+   * `unknown` gelir; geçerli değer kümesi burada BAĞIMSIZ doğrulanır (esbuild
+   * altında DTO dekoratörleri atlanır). Müzayedede `price` başlangıç fiyatıdır
+   * ve `expiresInHours` ZORUNLUDUR (bitişsiz müzayede kapanmaz).
+   */
+  listingType?: unknown;
 }
 
 /**
@@ -72,6 +79,14 @@ export class CreateMarketListingUseCase {
       throw new HorseInActiveRaceError(input.horseId);
     }
 
+    const listingType = input.listingType ?? 'fixed_price';
+    if (listingType !== 'fixed_price' && listingType !== 'auction') {
+      throw new BadRequestException("listingType 'fixed_price' ya da 'auction' olmalıdır.");
+    }
+    if (listingType === 'auction' && input.expiresInHours === undefined) {
+      throw new AuctionRequiresEndTimeError();
+    }
+
     const existingActiveListing = await this.marketListingRepository.findActiveByHorseId(input.horseId);
     if (existingActiveListing !== null) {
       throw new HorseAlreadyListedError(input.horseId);
@@ -82,7 +97,7 @@ export class CreateMarketListingUseCase {
       sellerId: horse.ownerId,
       horseId: input.horseId,
       price: input.price,
-      listingType: 'fixed_price',
+      listingType,
       expiresInHours: input.expiresInHours,
     });
 

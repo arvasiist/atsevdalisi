@@ -42,3 +42,31 @@ export interface Staff {
   createdAt: ISODateTimeString;
   updatedAt: ISODateTimeString;
 }
+
+/** 01.10.2026 — `GET /staff` satırı: personel + sözleşme durumu + etkisi. */
+export interface StaffView extends Staff {
+  /** Sözleşme bitişi (kiralanmamış adayda `null`). */
+  contractEndsAt: ISODateTimeString | null;
+  /** Sözleşme sürüyor mu — süresi dolmuş personel bonus VERMEZ. */
+  active: boolean;
+  /** Yenileme düğmesi açık mı (bitime `renewWindowDays` kala ya da bitmiş). */
+  renewable: boolean;
+  /** Etki çarpanı (örn. 1.12 = %12 güçlü). */
+  bonusMultiplier: number;
+  /** Bir sözleşme döneminin peşin bedeli (`salary × contractMonths`). */
+  contractCost: number;
+}
+
+export interface StaffOverview {
+  hired: StaffView[];
+  candidates: StaffView[];
+  /** `staff_building` seviyesinden türeyen kapasite. */
+  capacity: number;
+  contractMonths: number;
+}
+
+export interface StaffHireResult {
+  staff: StaffView;
+  paid: number;
+  balanceAfter: number;
+}

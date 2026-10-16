@@ -30,6 +30,8 @@ function createHorseFixture(overrides: Partial<Horse> = {}): Horse {
     status: 'active',
     sireId: null,
     damId: null,
+    agingStartedAt: '2020-01-01T00:00:00.000Z',
+    retiredAt: null,
     createdAt: '2020-01-01T00:00:00.000Z',
     updatedAt: '2020-01-01T00:00:00.000Z',
     ...overrides,
@@ -73,5 +75,11 @@ describe('toPublicHorse', () => {
     expect(publicHorse.name).toBe('Yıldız');
     expect(publicHorse.quality).toBe(71);
     expect(publicHorse.health).toBe(horse.health);
+  });
+
+  it('15.10.2026 — yaş çıpası (`agingStartedAt`) istemciye GİTMEZ; emeklilik anı gider', () => {
+    const publicHorse = toPublicHorse(createHorseFixture({ status: 'retired', retiredAt: '2026-10-15T00:00:00.000Z' }));
+    expect(publicHorse).not.toHaveProperty('agingStartedAt');
+    expect(publicHorse.retiredAt).toBe('2026-10-15T00:00:00.000Z');
   });
 });

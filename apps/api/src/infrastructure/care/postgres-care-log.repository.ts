@@ -25,9 +25,12 @@ export class PostgresCareLogRepository implements CareLogRepository {
 
   async recordPerformed(horseId: string, actionType: CareActionType, performedAt: Date): Promise<void> {
     await this.pool.query(
-      `INSERT INTO horse_care_log (horse_id, action_type, last_performed_at)
-       VALUES ($1, $2, $3)
-       ON CONFLICT (horse_id, action_type) DO UPDATE SET last_performed_at = EXCLUDED.last_performed_at`,
+      // 07.10.2026 (migration 0065) — `performed_by` = bakımı YAPAN oyuncu
+      // (işlem anındaki sahip); görev sayımı buna bakar.
+      `INSERT INTO horse_care_log (horse_id, action_type, last_performed_at, performed_by)
+       VALUES ($1, $2, $3, (SELECT owner_id FROM horses WHERE id = $1))
+       ON CONFLICT (horse_id, action_type) DO UPDATE
+         SET last_performed_at = EXCLUDED.last_performed_at, performed_by = EXCLUDED.performed_by`,
       [horseId, actionType, performedAt],
     );
   }

@@ -4,6 +4,7 @@ import { BlockPlayerUseCase } from '../../application/use-cases/block-player.use
 import { GetConversationUseCase } from '../../application/use-cases/get-conversation.use-case';
 import { GetInboxUseCase } from '../../application/use-cases/get-inbox.use-case';
 import { GetSocialOverviewUseCase } from '../../application/use-cases/get-social-overview.use-case';
+import { ListRaceCompanionsUseCase } from '../../application/use-cases/list-race-companions.use-case';
 import { ListBlockedPlayersUseCase } from '../../application/use-cases/list-blocked-players.use-case';
 import { RemoveFriendUseCase } from '../../application/use-cases/remove-friend.use-case';
 import { ReportPlayerUseCase } from '../../application/use-cases/report-player.use-case';
@@ -14,6 +15,8 @@ import { UnblockPlayerUseCase } from '../../application/use-cases/unblock-player
 import { PostgresSocialRepository } from '../../infrastructure/social/postgres-social.repository';
 import { PlayerModule } from '../player/player.module';
 import { SocialController } from './social.controller';
+import { PlayerDiscoveryController } from './player-discovery.controller';
+import { PlayerDiscoveryUseCase } from '../../application/use-cases/player-discovery.use-case';
 
 /**
  * Arkadaşlık + mesajlaşma modülü (proje sahibinin açık talebi, 27.09.2026).
@@ -45,9 +48,11 @@ import { SocialController } from './social.controller';
  */
 @Module({
   imports: [PlayerModule],
-  controllers: [SocialController],
+  controllers: [SocialController, PlayerDiscoveryController],
   providers: [
     GetSocialOverviewUseCase,
+    PlayerDiscoveryUseCase,
+    ListRaceCompanionsUseCase,
     SendFriendRequestUseCase,
     RespondFriendRequestUseCase,
     RemoveFriendUseCase,

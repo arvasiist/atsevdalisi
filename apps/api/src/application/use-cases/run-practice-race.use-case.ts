@@ -1,26 +1,80 @@
+import { computeRaceXp } from '../../domain/progression/progression';
 import { randomUUID } from 'node:crypto';
 import { Inject, Injectable } from '@nestjs/common';
-import type { PracticeRaceResult, Race, RaceEntry, RaceSegmentSnapshot, RaceTacticInput } from '@at-sevdalisi/shared-types';
+import type {
+  PracticeRaceResult,
+  Race,
+  RaceEntrantSnapshot,
+  RaceEntry,
+  RaceFinishEntry,
+  RaceSegmentSnapshot,
+  RaceTacticInput,
+  RaceTimeline,
+} from '@at-sevdalisi/shared-types';
 import type { RaceTierConfig } from '@at-sevdalisi/game-config';
 import { generateBotEntrants } from '../../domain/race/bot-generator';
-import { buildHorseEntrantSnapshot, FORM_SAMPLE_SIZE, type TrackFitInput } from '../../domain/race/entrant-snapshot';
+import {
+  buildHorseEntrantSnapshot,
+  FORM_SAMPLE_SIZE,
+  type TrackFitInput,
+} from '../../domain/race/entrant-snapshot';
 import { assignGatePositions } from '../../domain/race/gate-assignment';
-import { calculateJockeySkillComposite } from '../../domain/jockey/jockey';
-import { computeRacePool, getDefaultRaceTier, getRacePrize, getRaceTierById } from '../../domain/race/prize';
+import { effectiveJockeySkill } from '../../domain/jockey/jockey';
+import {
+  computeRacePool,
+  getDefaultRaceTier,
+  getRacePrize,
+  getRaceTierById,
+} from '../../domain/race/prize';
+import { isLoserRefundEligible, loserRefundAmount, paidPlacesOf } from '../../domain/race/table-rules';
 import { checkRaceReadiness } from '../../domain/race/readiness';
-import { RACE_ENGINE_VERSION, RACE_RULESET_VERSION, simulateRace } from '../../domain/race/race-engine';
+import { horseAgeMonths, racingAgeFactor } from '../../domain/horse/age-curve';
+import {
+  findPracticeRaceClass,
+  horseRacingPower,
+  practiceBotStatRange,
+  HorseTooStrongForTierError,
+  isHorseAllowedInPracticeClass,
+} from '../../domain/race/practice-class';
+import {
+  RACE_ENGINE_VERSION,
+  RACE_RULESET_VERSION,
+  simulateRace,
+  type PlayerSegmentCommand,
+} from '../../domain/race/race-engine';
 import { PRACTICE_RACE_DISTANCE_METERS } from '../../domain/race/validation';
 import { HorseNotReadyToRaceError, InvalidRaceTierError } from '../../domain/race/errors';
-import { HorseInjuredError, HorseListedInMarketError, HorseNotFoundError } from '../../domain/horse/errors';
+import {
+  HorseInjuredError,
+  HorseListedInMarketError,
+  HorseNotFoundError,
+} from '../../domain/horse/errors';
 import { AppConfigService } from '../../infrastructure/config/config.service';
 import { HORSE_REPOSITORY, type HorseRepository } from '../ports/horse.repository';
 import { HORSE_STATS_REPOSITORY, type HorseStatsRepository } from '../ports/horse-stats.repository';
-import { HORSE_SURFACE_STATS_REPOSITORY, type HorseSurfaceStatsRepository } from '../ports/horse-surface-stats.repository';
-import { HORSE_DISTANCE_STATS_REPOSITORY, type HorseDistanceStatsRepository } from '../ports/horse-distance-stats.repository';
-import { HORSE_EQUIPMENT_REPOSITORY, type HorseEquipmentRepository } from '../ports/horse-equipment.repository';
+import {
+  HORSE_SURFACE_STATS_REPOSITORY,
+  type HorseSurfaceStatsRepository,
+} from '../ports/horse-surface-stats.repository';
+import {
+  HORSE_DISTANCE_STATS_REPOSITORY,
+  type HorseDistanceStatsRepository,
+} from '../ports/horse-distance-stats.repository';
+import {
+  HORSE_EQUIPMENT_REPOSITORY,
+  type HorseEquipmentRepository,
+} from '../ports/horse-equipment.repository';
+import { loadJockeyCondition } from '../services/jockey-condition';
 import { JOCKEY_REPOSITORY, type JockeyRepository } from '../ports/jockey.repository';
-import { RACE_REPOSITORY, type RaceRepository } from '../ports/race.repository';
-import { MARKET_LISTING_REPOSITORY, type MarketListingRepository } from '../ports/market-listing.repository';
+import {
+  RACE_REPOSITORY,
+  type RaceRepository,
+  type SavePracticeRaceWithStakesInput,
+} from '../ports/race.repository';
+import {
+  MARKET_LISTING_REPOSITORY,
+  type MarketListingRepository,
+} from '../ports/market-listing.repository';
 
 export interface RunPracticeRaceInput {
   tactic: RaceTacticInput;
@@ -33,8 +87,28 @@ export interface RunPracticeRaceInput {
   tierId?: string | null;
 }
 
-const PRACTICE_RACE_SURFACE = 'grass' as const;
-const PRACTICE_RACE_WEATHER = 'sunny' as const;
+export const PRACTICE_RACE_SURFACE = 'grass' as const;
+export const PRACTICE_RACE_WEATHER = 'sunny' as const;
+
+/** 01.10.2026 — hazırlanmış (kapılardan geçmiş, donmuş) pratik yarış. */
+export interface PreparedPracticeRace {
+  raceId: string;
+  tier: RaceTierConfig;
+  horseId: string;
+  ownerId: string;
+  tactic: RaceTacticInput;
+  playerEntrant: RaceEntrantSnapshot;
+  botEntrants: RaceEntrantSnapshot[];
+  jockeyId: string | null;
+  /** Verilmezse `raceId` (anında koşan pratik yarışın eski davranışı). Canlı yarışta GİZLİ ayrı tohum. */
+  simulationSeed?: string;
+}
+
+export interface BuiltPracticeRace {
+  playerFinish: RaceFinishEntry;
+  prizePool: number;
+  saveInput: SavePracticeRaceWithStakesInput;
+}
 
 /**
  * `POST /horses/{id}/practice-race` (docs/API.md §4, brief §6 Race Engine).
@@ -54,11 +128,15 @@ export class RunPracticeRaceUseCase {
   constructor(
     @Inject(HORSE_REPOSITORY) private readonly horseRepository: HorseRepository,
     @Inject(HORSE_STATS_REPOSITORY) private readonly horseStatsRepository: HorseStatsRepository,
-    @Inject(HORSE_SURFACE_STATS_REPOSITORY) private readonly horseSurfaceStatsRepository: HorseSurfaceStatsRepository,
-    @Inject(HORSE_DISTANCE_STATS_REPOSITORY) private readonly horseDistanceStatsRepository: HorseDistanceStatsRepository,
+    @Inject(HORSE_SURFACE_STATS_REPOSITORY)
+    private readonly horseSurfaceStatsRepository: HorseSurfaceStatsRepository,
+    @Inject(HORSE_DISTANCE_STATS_REPOSITORY)
+    private readonly horseDistanceStatsRepository: HorseDistanceStatsRepository,
     @Inject(RACE_REPOSITORY) private readonly raceRepository: RaceRepository,
-    @Inject(MARKET_LISTING_REPOSITORY) private readonly marketListingRepository: MarketListingRepository,
-    @Inject(HORSE_EQUIPMENT_REPOSITORY) private readonly horseEquipmentRepository: HorseEquipmentRepository,
+    @Inject(MARKET_LISTING_REPOSITORY)
+    private readonly marketListingRepository: MarketListingRepository,
+    @Inject(HORSE_EQUIPMENT_REPOSITORY)
+    private readonly horseEquipmentRepository: HorseEquipmentRepository,
     // PHASE 6.2 (29.09.2026) — jokey ARTIK PRATİK YARIŞTA DA ETKİLİ.
     // Yalnızca ücretli lobi yarışına bağlamak, oyuncunun en sık
     // kullandığı yolda (tek başına pratik) jokeyin HİÇBİR etkisi
@@ -69,7 +147,17 @@ export class RunPracticeRaceUseCase {
     @Inject(AppConfigService) private readonly config: AppConfigService,
   ) {}
 
-  async execute(horseId: string, input: RunPracticeRaceInput): Promise<PracticeRaceResult> {
+  /**
+   * 01.10.2026 — pratik yarışın HAZIRLIĞI (tüm uygunluk kapıları + donmuş
+   * snapshot'lar + botlar). Anında koşan pratik yarış (`execute`) ve oyuncu
+   * kontrollü canlı yarış (`InteractiveRaceUseCase`) AYNI kapılardan geçsin
+   * diye ayrıldı; iki kopya ayrışamaz.
+   */
+  async prepare(
+    horseId: string,
+    input: RunPracticeRaceInput,
+    raceId: string = randomUUID(),
+  ): Promise<PreparedPracticeRace> {
     // KADEME ÇÖZÜMÜ ÖNCE (proje sahibinin açık talebi, 27.09.2026) —
     // gövdeden gelen `tierId` yalnızca config'e karşı doğrulanır, hiç DB
     // okumaz. En başta yapılmasının nedeni: geçersiz bir kademe isteği,
@@ -102,6 +190,9 @@ export class RunPracticeRaceUseCase {
     // sağlık, aşırı yorgunluk ve yetersiz enerji de engeldir. Bu kontrol
     // para hareketinden ÖNCE çalışır, yani hazır olmayan bir at için
     // HİÇBİR Çip hareket etmez.
+    // 15.10.2026 — oyun yaşı: hazırlık kapısı (B12) ve yaş evresinin yarış çarpanı (B13) aynı andan.
+    const ageMonths = horseAgeMonths(horse, new Date(), this.config.horseGrowth);
+    const ageFactor = racingAgeFactor(ageMonths, this.config.horseGrowth);
     const readiness = checkRaceReadiness(
       horse.status,
       // `train-horse.use-case.ts` ile AYNI açık kurulum: `Horse` yapısal
@@ -116,6 +207,8 @@ export class RunPracticeRaceUseCase {
         morale: horse.morale,
       },
       this.config.race.readiness,
+      // 15.10.2026 — B12: yarış yaşı (oyun yaşı, hızlı akar).
+      ageMonths,
     );
     if (!readiness.ready && readiness.reason !== null) {
       throw new HorseNotReadyToRaceError(readiness.reason);
@@ -131,12 +224,28 @@ export class RunPracticeRaceUseCase {
     if (stats === null) {
       throw new HorseNotFoundError(horseId);
     }
+    // 14.10.2026 — SINIF KAPISI (`domain/race/practice-class.ts`): kademe =
+    // sınıf; gücü tavana ulaşan at alt sınıfı sömüremez. Para hareketinden
+    // ÖNCE. Sınıfı olmayan kademe açılışta reddedilir (`validatePracticeRaceClasses`).
+    const practiceClass = findPracticeRaceClass(this.config.economy, tier.id);
+    if (practiceClass === null) {
+      throw new InvalidRaceTierError(tier.id);
+    }
+    // B13 — sınıf gücü YAŞA GÖRE etkin güçtür (yarışta koşacak statlar);
+    // gerileyen yaşlı at alt sınıfa inebilir, genç at sömüremez.
+    const effectivePower = horseRacingPower(stats) * ageFactor;
+    if (practiceClass.maxHorsePower !== null && !isHorseAllowedInPracticeClass(effectivePower, practiceClass)) {
+      throw new HorseTooStrongForTierError(tier.id, practiceClass.maxHorsePower);
+    }
 
     // AUDIT_REPORT.md Bulgu R3 (önceki oturum) — `form` alanı artık bu atın
     // KENDİ son `FORM_SAMPLE_SIZE` sonuçlanmış yarışından türetiliyor (bkz.
     // `deriveFormFromRecentResults` doc yorumu). Botların bu sorguya
     // ihtiyacı yok (`generateBotEntrants` her zaman nötr 50 kullanır).
-    const recentResults = await this.raceRepository.findRecentResultsByHorseId(horseId, FORM_SAMPLE_SIZE);
+    const recentResults = await this.raceRepository.findRecentResultsByHorseId(
+      horseId,
+      FORM_SAMPLE_SIZE,
+    );
 
     // R3 — Track Fit (bu turda EKLENDİ) — `PostgresHorseRepository.save()`
     // + migration 0026 backfill'i sayesinde HER atın bu iki satırı olması
@@ -158,19 +267,38 @@ export class RunPracticeRaceUseCase {
     const trackFit: TrackFitInput | null =
       surfaceStats === null || distanceStats === null
         ? null
-        : { surfaceStats, distanceStats, surface: PRACTICE_RACE_SURFACE, distanceMeters: PRACTICE_RACE_DISTANCE_METERS };
+        : {
+            surfaceStats,
+            distanceStats,
+            surface: PRACTICE_RACE_SURFACE,
+            distanceMeters: PRACTICE_RACE_DISTANCE_METERS,
+          };
 
-    const raceId = randomUUID();
     const playerEntrant = buildHorseEntrantSnapshot(
       horse,
       stats,
       input.tactic,
+      ageFactor,
       recentResults,
       trackFit,
       equippedItems,
       // PHASE 6.2 — oyuncunun kiralı jokeyi varsa puanı, yoksa `null`
       // (motor nötre çevirir). Botlarınki BİLEREK nötr kalır.
-      jockey === null ? null : calculateJockeySkillComposite(jockey, this.config.jockey),
+      // 02.10.2026 — uyum dahil (`effectiveJockeySkill`).
+      jockey === null
+        ? null
+        : effectiveJockeySkill(
+            {
+              jockey,
+              horse: { temperament: stats.temperament, racingStyle: input.tactic.racingStyle },
+              previousPairAveragePerformance:
+                await this.raceRepository.findJockeyPairAveragePerformance(horseId, jockey.id),
+              // 08.10.2026 — jokeyin formu × yorgunluğu.
+              conditionMultiplier: (await loadJockeyCondition(this.jockeyRepository, jockey.id, new Date(), this.config.jockey))
+                .multiplier,
+            },
+            this.config.jockey,
+          ),
     );
     // ALAN DOLDURMA (proje sahibinin açık talebi, 27.09.2026): bot sayısı
     // artık sabit değil, kademenin `fieldSize`'ından türer — oyuncunun
@@ -178,21 +306,75 @@ export class RunPracticeRaceUseCase {
     // (8/10/12/14/16 at → 7/9/11/13/15 bot). `generateBotEntrants` sayıyı
     // ZATEN parametre olarak alıyordu (eski sabit çağıran taraftaydı), yani
     // bu değişiklik motor/bot üretim mantığına DOKUNMAZ.
-    const botEntrants = generateBotEntrants(tier.fieldSize - 1, raceId);
-
-    const timeline = simulateRace({
+    // 14.10.2026 — botlar kademenin SINIF gücünde (eskiden her kademede 45–75).
+    // 16.10.2026 (S4) — tavansız sınıfta handikap: aralık atın etkin gücüyle yükselir.
+    const botEntrants = generateBotEntrants(
+      tier.fieldSize - 1,
       raceId,
-      simulationSeed: raceId,
+      practiceBotStatRange(practiceClass, effectivePower),
+    );
+
+    return {
+      raceId,
+      tier,
+      horseId,
+      ownerId: horse.ownerId,
+      tactic: input.tactic,
+      playerEntrant,
+      botEntrants,
+      jockeyId: jockey === null ? null : jockey.id,
+    };
+  }
+
+  async execute(horseId: string, input: RunPracticeRaceInput): Promise<PracticeRaceResult> {
+    const prepared = await this.prepare(horseId, input);
+    const timeline = this.simulate(prepared);
+
+    const built = this.buildPracticeRaceRecords(prepared, timeline, new Date());
+    // 15.10.2026 — S3: hazırlık para transaction'ında, at kilitliyken yeniden denetlenir.
+    const newBalance = await this.raceRepository.savePracticeRaceWithStakes({
+      ...built.saveInput,
+      readinessGate: { thresholds: this.config.race.readiness, growth: this.config.horseGrowth },
+    });
+    return this.toResult(prepared, timeline, built, newBalance);
+  }
+
+  /** Hazırlanmış yarışı koşar; `playerCommands` yalnızca oyuncu kontrollü yarışta verilir. */
+  simulate(
+    prepared: Pick<
+      PreparedPracticeRace,
+      'raceId' | 'playerEntrant' | 'botEntrants' | 'simulationSeed'
+    >,
+    playerCommands?: ReadonlyMap<string, ReadonlyMap<number, PlayerSegmentCommand>>,
+  ): RaceTimeline {
+    return simulateRace({
+      raceId: prepared.raceId,
+      simulationSeed: prepared.simulationSeed ?? prepared.raceId,
       distanceMeters: PRACTICE_RACE_DISTANCE_METERS,
       surface: PRACTICE_RACE_SURFACE,
       weather: PRACTICE_RACE_WEATHER,
       temperatureC: null,
-      entries: [playerEntrant, ...botEntrants],
+      entries: [prepared.playerEntrant, ...prepared.botEntrants],
       raceConfig: this.config.race,
       weatherConfig: this.config.weather,
+      playerCommands,
     });
+  }
 
-    const playerFinish = timeline.finalResult.find((finishEntry) => finishEntry.horseId === horseId);
+  /**
+   * 01.10.2026 — koşulmuş bir pratik yarışın kayıt satırları (yarış,
+   * katılımlar, segmentler) + para girdisi. `execute` ve canlı yarışın
+   * kesinleşmesi AYNI fonksiyonu kullanır.
+   */
+  buildPracticeRaceRecords(
+    prepared: PreparedPracticeRace,
+    timeline: RaceTimeline,
+    now: Date,
+  ): BuiltPracticeRace {
+    const { raceId, tier, horseId, botEntrants, playerEntrant, tactic, jockeyId } = prepared;
+    const playerFinish = timeline.finalResult.find(
+      (finishEntry) => finishEntry.horseId === horseId,
+    );
     if (playerFinish === undefined) {
       throw new HorseNotFoundError(horseId);
     }
@@ -211,6 +393,15 @@ export class RunPracticeRaceUseCase {
     const entryFee = tier.entryFee;
     const prizePool = computeRacePool(tier);
     const prizeWon = getRacePrize(this.config.economy, tier, playerFinish.finishPosition);
+    // 09.10.2026 — MASA KURALI: ödül alamayan ama iade bandında biten
+    // oyuncuya ödediği bedelin yüzdesi iade edilir (`table-rules.ts`).
+    const loserRefund = isLoserRefundEligible(
+      playerFinish.finishPosition,
+      paidPlacesOf(this.config.economy, tier),
+      tier.loserRefund,
+    )
+      ? loserRefundAmount(entryFee, tier.loserRefund)
+      : 0;
 
     // AUDIT_REPORT.md Bulgu R3 (bu oturum) — "Draw/post-position" artık
     // gerçek bir çekilişten türetiliyor (bkz. `gate-assignment.ts` doc
@@ -222,7 +413,6 @@ export class RunPracticeRaceUseCase {
       raceId,
     );
 
-    const now = new Date();
     const race: Race = {
       id: raceId,
       trackId: null,
@@ -266,10 +456,10 @@ export class RunPracticeRaceUseCase {
       // PHASE 6.2 — koşan jokey kaydedilir (snapshot'taki puanla AYNI
       // okumadan). Bot satırları (`botRaceEntries`) `null` kalır: onların
       // jokeyi yoktur ve sonuç ekranı bunu doğru göstermelidir.
-      jockeyId: jockey === null ? null : jockey.id,
+      jockeyId: jockeyId,
       gatePosition: gatePositionByLabel.get(horseId) ?? null,
-      tacticalStyle: input.tactic.racingStyle,
-      riskLevel: input.tactic.riskLevel,
+      tacticalStyle: tactic.racingStyle,
+      riskLevel: tactic.riskLevel,
       horseSnapshot: playerEntrant,
       finalTimeMs: playerFinish.finishTimeMs,
       finishPosition: playerFinish.finishPosition,
@@ -286,7 +476,9 @@ export class RunPracticeRaceUseCase {
     // YENİDEN eşlenir (`playerSegments`'teki AYNI `raceEntryId` yeniden
     // eşleme deseni).
     const botRaceEntries: RaceEntry[] = botEntrants.map((bot) => {
-      const botFinish = timeline.finalResult.find((finishEntry) => finishEntry.horseId === bot.horseId);
+      const botFinish = timeline.finalResult.find(
+        (finishEntry) => finishEntry.horseId === bot.horseId,
+      );
       return {
         id: randomUUID(),
         raceId,
@@ -320,15 +512,31 @@ export class RunPracticeRaceUseCase {
     // `playerRepository.updateWithLock` + `raceRepository.savePracticeRace`
     // İKİ AYRI transaction'dı — biri commit olup diğeri başarısız olursa
     // para hareket etmiş ama yarış kaydı yok kalabiliyordu).
-    const newBalance = await this.raceRepository.savePracticeRaceWithStakes({
-      race,
-      entries: allEntries,
-      segments: allSegments,
-      playerId: horse.ownerId,
-      entryFee,
-      prizeWon,
-    });
+    return {
+      playerFinish,
+      prizePool,
+      saveInput: {
+        race,
+        entries: allEntries,
+        segments: allSegments,
+        playerId: prepared.ownerId,
+        entryFee,
+        prizeWon,
+        loserRefund,
+      },
+    };
+  }
 
+  toResult(
+    prepared: PreparedPracticeRace,
+    timeline: RaceTimeline,
+    built: BuiltPracticeRace,
+    newBalance: { money: number; gems: number },
+  ): PracticeRaceResult {
+    const { tier, raceId, horseId } = prepared;
+    const { playerFinish, prizePool } = built;
+    const { entryFee, prizeWon } = built.saveInput;
+    const loserRefund = built.saveInput.loserRefund ?? 0;
     return {
       raceId,
       horseId,
@@ -343,7 +551,15 @@ export class RunPracticeRaceUseCase {
       entryFee,
       prizePool,
       prizeWon,
+      loserRefund,
       newBalance,
+      xpGained: {
+        player: computeRaceXp(
+          playerFinish.finishPosition,
+          this.config.progression.xpRewards.player,
+        ),
+        horse: computeRaceXp(playerFinish.finishPosition, this.config.progression.xpRewards.horse),
+      },
     };
   }
 }

@@ -41,7 +41,7 @@ export class PostgresLeaderboardRepository implements LeaderboardRepository {
   async findAllFinishedRaceRecords(): Promise<PlayerRaceRecord[]> {
     const result = await this.pool.query<FinishedRaceRow>(
       `SELECT
-         h.owner_id          AS owner_id,
+         p.id                AS owner_id,
          p.username          AS username,
          p.display_name      AS display_name,
          e.performance_score AS performance_score,
@@ -49,9 +49,12 @@ export class PostgresLeaderboardRepository implements LeaderboardRepository {
          e.created_at        AS created_at
        FROM race_entries e
        JOIN horses  h ON h.id = e.horse_id
-       JOIN players p ON p.id = h.owner_id
+       -- 03.10.2026 (Faz 14): koşturan oyuncu; eski satır at sahibine düşer.
+       JOIN players p ON p.id = COALESCE(e.player_id, h.owner_id)
        WHERE e.finish_position IS NOT NULL
          AND e.performance_score IS NOT NULL
+         -- 02.10.2026 (migration 0059): silinmiş hesap sıralamada görünmez.
+         AND p.deleted_at IS NULL
        ORDER BY e.created_at ASC`,
     );
 

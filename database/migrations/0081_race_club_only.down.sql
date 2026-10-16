@@ -1,0 +1,2 @@
+DROP INDEX IF EXISTS races_club_id_idx;
+ALTER TABLE races DROP COLUMN IF EXISTS club_id;

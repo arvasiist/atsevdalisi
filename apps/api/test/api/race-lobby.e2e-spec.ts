@@ -4,7 +4,13 @@ import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { PG_POOL } from '../../src/infrastructure/database/database.module';
 import { AppConfigService } from '../../src/infrastructure/config/config.service';
-import { bootstrapTestApp, registerTestPlayer, type RegisteredTestPlayer } from './test-helpers';
+import { randomUUID } from 'node:crypto';
+import {
+  bootstrapTestApp,
+  registerTestPlayer,
+  registerTestPlayerWithStarterHorse,
+  type RegisteredTestPlayer,
+} from './test-helpers';
 
 /**
  * YARIŞ LOBİSİ — `POST /races` (brief §1-§7, §9-§11, §42 PHASE 1).
@@ -361,6 +367,102 @@ describe('Yarış lobisi (e2e) — POST /races', () => {
 
       await createRace(player, validBody(), 201);
       expect(await countRacesOf(player.playerId)).toBe(limit + 1);
+    });
+
+    it('başlangıcı GEÇMİŞ, katılımsız yarış tavana SAYILMAZ (zamanlayıcıyı beklemeden)', async () => {
+      // 14.10.2026 — canlı API'de doğrulanan hata: kimsenin katılmadığı
+      // yarış başlangıç saati geçince ne kilitlenir ne iptal edilirdi ve
+      // tavanı kalıcı doldururdu; oyuncu bir daha yarış açamıyordu.
+      const player = await registerTestPlayer(app, 'Ölü Yarışlı');
+      const limit = config.raceLobby.maxOpenRacesPerPlayer;
+
+      const created: string[] = [];
+      for (let i = 0; i < limit; i += 1) {
+        const response = await createRace(player, validBody(), 201);
+        created.push(response.body.data.id as string);
+      }
+      await createRace(player, validBody(), 409);
+
+      // `startDelaySeconds.min` yüzünden başlangıç SQL ile geçmişe çekilir.
+      await pool.query("UPDATE races SET start_time = now() - interval '1 minute' WHERE id = $1", [created[0]]);
+
+      await createRace(player, validBody(), 201);
+      expect(await countRacesOf(player.playerId)).toBe(limit + 1);
+    });
+  });
+
+  describe('kendi yarışını iptal — POST /races/:id/cancel (14.10.2026)', () => {
+    async function cancel(player: RegisteredTestPlayer, raceId: string, expectedStatus: number) {
+      return request(app.getHttpServer())
+        .post(`${racesUrl}/${raceId}/cancel`)
+        .set('Authorization', player.authHeader)
+        .expect(expectedStatus);
+    }
+
+    async function statusOf(raceId: string): Promise<string> {
+      const result = await pool.query<{ status: string }>('SELECT status FROM races WHERE id = $1', [raceId]);
+      return result.rows[0]?.status ?? 'yok';
+    }
+
+    it('açan oyuncu katılımsız yarışını iptal eder; tavan hakkı geri gelir; ikinci iptal 409', async () => {
+      const player = await registerTestPlayer(app, 'Kendi İptali');
+      const limit = config.raceLobby.maxOpenRacesPerPlayer;
+      const created: string[] = [];
+      for (let i = 0; i < limit; i += 1) {
+        created.push((await createRace(player, validBody(), 201)).body.data.id as string);
+      }
+      await createRace(player, validBody(), 409);
+
+      const response = await cancel(player, created[0]!, 200);
+      expect(response.body.data).toEqual({ raceId: created[0], status: 'cancelled' });
+      expect(await statusOf(created[0]!)).toBe('cancelled');
+      // Para hareketi yok.
+      const ledger = await pool.query('SELECT 1 FROM economy_transactions WHERE reference_id = $1', [created[0]]);
+      expect(ledger.rows).toHaveLength(0);
+
+      await createRace(player, validBody(), 201);
+      const again = await cancel(player, created[0]!, 409);
+      expect(again.body.error.code).toBe('OWN_RACE_NOT_CANCELABLE');
+    });
+
+    it('başkasının yarışı 403 NOT_RACE_OWNER ve yarış DEĞİŞMEZ', async () => {
+      const owner = await registerTestPlayer(app, 'Yarış Sahibi');
+      const stranger = await registerTestPlayer(app, 'Yabancı');
+      const raceId = (await createRace(owner, validBody(), 201)).body.data.id as string;
+
+      const response = await cancel(stranger, raceId, 403);
+      expect(response.body.error.code).toBe('NOT_RACE_OWNER');
+      expect(await statusOf(raceId)).toBe('scheduled');
+    });
+
+    it('aktif katılım varken 409; katılan ayrılınca iptal edilebilir', async () => {
+      const owner = await registerTestPlayerWithStarterHorse(app, 'Katılımlı Sahip');
+      const raceId = (await createRace(owner, { ...validBody(), entryFee: 100, tribuneFee: 0 }, 201)).body.data
+        .id as string;
+      await request(app.getHttpServer())
+        .post(`${racesUrl}/${raceId}/join`)
+        .set('Authorization', owner.authHeader)
+        .set('Idempotency-Key', randomUUID())
+        .send({ horseId: owner.horseId })
+        .expect(200);
+
+      const blocked = await cancel(owner, raceId, 409);
+      expect(blocked.body.error.code).toBe('OWN_RACE_NOT_CANCELABLE');
+      expect(await statusOf(raceId)).toBe('scheduled');
+
+      await request(app.getHttpServer())
+        .post(`${racesUrl}/${raceId}/leave`)
+        .set('Authorization', owner.authHeader)
+        .set('Idempotency-Key', randomUUID())
+        .expect(200);
+      await cancel(owner, raceId, 200);
+      expect(await statusOf(raceId)).toBe('cancelled');
+    });
+
+    it('var olmayan yarış 404, bozuk kimlik 400', async () => {
+      const player = await registerTestPlayer(app, 'Hayalet İptal');
+      await cancel(player, randomUUID(), 404);
+      await cancel(player, 'kimlik-degil', 400);
     });
   });
 });

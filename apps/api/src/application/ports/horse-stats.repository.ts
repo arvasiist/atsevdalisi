@@ -1,4 +1,4 @@
-import type { HorseStatField, HorseStats } from '@at-sevdalisi/shared-types';
+import type { HiddenHorseTraitKey, HorseStatField, HorseStats } from '@at-sevdalisi/shared-types';
 
 /**
  * `HorseStatsRepository` — Application katmanının Infrastructure'a
@@ -17,6 +17,15 @@ export interface HorseStatsRepository {
    * taraf (`TrainHorseUseCase`) zaten güncel `HorseStats`'ı okumuş olur.
    */
   updateStatValue(horseId: string, statKey: HorseStatField, newValue: number): Promise<void>;
+  /**
+   * 08.10.2026 — birden çok atın gizli kişilik özellikleri (tek sorgu). Ham
+   * değerler YALNIZCA sunucuda etikete çevrilir; istemciye dönmez.
+   */
+  findPersonalityByHorseIds(horseIds: readonly string[]): Promise<Map<string, Record<HiddenHorseTraitKey, number>>>;
+  /** 14.10.2026 — sınıf gücünün üç statı (tek sorgu; `horseRacingPower` ile birleşir). */
+  findPowerStatsByHorseIds(
+    horseIds: readonly string[],
+  ): Promise<Map<string, Pick<HorseStats, 'speed' | 'acceleration' | 'stamina'>>>;
 }
 
 /** NestJS DI için token (interface'ler runtime'da yok olduğundan bir Symbol gerekir). */

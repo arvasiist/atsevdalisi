@@ -5,6 +5,7 @@ import type { Jockey, PlayerJockeyView } from '@at-sevdalisi/shared-types';
 import { GlassPanel } from '../../components/ui/GlassPanel';
 import { apiClient } from '../../lib/api-client';
 import { formatCurrency } from '../../lib/currency';
+import { describeJockeyFatigue, describeJockeyForm } from './jockey-condition';
 import { usePlayer } from '../../lib/player-context';
 
 /**
@@ -159,9 +160,15 @@ export function JockeyPanel({ playerId }: JockeyPanelProps): React.ReactElement 
                 Deneyim: {current.jockey.experience} · Kiralama bedeli:{' '}
                 {formatCurrency('money', current.jockey.salary)}
               </p>
+              {current.condition ? (
+                <div data-testid="jockey-condition">
+                  <p style={mutedStyle()}>Form: {describeJockeyForm(current.condition)}</p>
+                  <p style={mutedStyle()}>Yorgunluk: {describeJockeyFatigue(current.condition)}</p>
+                </div>
+              ) : null}
               <p style={mutedStyle()}>
-                Bu puan <strong>bir sonraki yarışta</strong> geçerlidir; koşmakta olan bir yarışın kadrosu
-                kilitlendiğinde donar.
+                Bu puan, form ve yorgunluk <strong>bir sonraki yarışta</strong> geçerlidir; koşmakta olan bir
+                yarışın kadrosu kilitlendiğinde donar.
               </p>
               <button
                 type="button"

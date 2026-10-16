@@ -13,7 +13,11 @@
  * noktaları arasında saf bir ara değerleme sağlar; sonucu asla değiştirmez.
  */
 
-import type { RaceJockeyDecision, RaceSegmentSnapshot, RaceTimeline } from '@at-sevdalisi/shared-types';
+import type {
+  RaceJockeyDecision,
+  RaceSegmentSnapshot,
+  RaceTimeline,
+} from '@at-sevdalisi/shared-types';
 
 export interface InterpolatedHorseState {
   positionMeters: number;
@@ -126,7 +130,8 @@ export function interpolateHorseStateAtTime(
 
   const firstSegment = horseSegments[0]!;
   if (timestampMs <= firstSegment.timestampMs) {
-    const fraction = firstSegment.timestampMs > 0 ? clampFraction(timestampMs / firstSegment.timestampMs) : 1;
+    const fraction =
+      firstSegment.timestampMs > 0 ? clampFraction(timestampMs / firstSegment.timestampMs) : 1;
     return {
       positionMeters: firstSegment.positionMeters * fraction,
       speedMps: firstSegment.speed,
@@ -145,11 +150,14 @@ export function interpolateHorseStateAtTime(
       const span = current.timestampMs - previous.timestampMs;
       const fraction = span > 0 ? clampFraction((timestampMs - previous.timestampMs) / span) : 1;
       return {
-        positionMeters: previous.positionMeters + (current.positionMeters - previous.positionMeters) * fraction,
+        positionMeters:
+          previous.positionMeters + (current.positionMeters - previous.positionMeters) * fraction,
         speedMps: previous.speed + (current.speed - previous.speed) * fraction,
         stamina: previous.stamina + (current.stamina - previous.stamina) * fraction,
         fatigue: previous.fatigue + (current.fatigue - previous.fatigue) * fraction,
-        fatigueLevel: fatigueLevelOf(previous) + (fatigueLevelOf(current) - fatigueLevelOf(previous)) * fraction,
+        fatigueLevel:
+          fatigueLevelOf(previous) +
+          (fatigueLevelOf(current) - fatigueLevelOf(previous)) * fraction,
         paceScore: interpolateOptional(previous.paceScore, current.paceScore, fraction),
         ...categoricalFieldsOf(previous),
       };
@@ -269,8 +277,14 @@ export function getLiveLeaderboard(
  * `interpolateHorseStateAtTime`'ın zaten hesapladığı `blocked` alanının
  * TÜM atlar üzerinde OR'lanmış hali).
  */
-export function isAnyHorseBlockedAtTime(segments: RaceSegmentSnapshot[], horseIds: string[], timestampMs: number): boolean {
-  return horseIds.some((horseId) => interpolateHorseStateAtTime(segments, horseId, timestampMs).blocked === true);
+export function isAnyHorseBlockedAtTime(
+  segments: RaceSegmentSnapshot[],
+  horseIds: string[],
+  timestampMs: number,
+): boolean {
+  return horseIds.some(
+    (horseId) => interpolateHorseStateAtTime(segments, horseId, timestampMs).blocked === true,
+  );
 }
 
 /**

@@ -3,8 +3,14 @@ import { loadRaceLobbyConfig } from '@at-sevdalisi/game-config';
 import type { RaceLobbyListItem } from '@at-sevdalisi/shared-types';
 import {
   buildCreateRaceBody,
+  canCancelOwnRace,
+  describeBreedClass,
+  describeCalendar,
+  describePlayerControl,
   describeTournament,
+  describeFieldRule,
   defaultLobbyRaceForm,
+  minRealPlayersFor,
   formatStartsIn,
   lobbyEntryActions,
   maxPlayersOptions,
@@ -41,6 +47,8 @@ function race(overrides: Partial<RaceLobbyListItem> = {}): RaceLobbyListItem {
     prizeMultiplier: null,
     myEntry: null,
     tournament: null,
+    calendar: null,
+    playerControl: false,
     ...overrides,
   } as RaceLobbyListItem;
 }
@@ -68,6 +76,13 @@ describe('buildCreateRaceBody', () => {
     expect(delayMs / 1000).toBeGreaterThanOrEqual(config.startDelaySeconds.min);
   });
 
+  it('kontrollü yarış seçimi gövdeye geçer (varsayılan kapalı)', () => {
+    const base = { ...defaultLobbyRaceForm(config), name: 'Kontrol Kupası' };
+    expect(base.playerControl).toBe(false);
+    const result = buildCreateRaceBody({ ...base, playerControl: true }, now, config);
+    expect(result.ok && result.body.playerControl).toBe(true);
+  });
+
   it('ücret 0 ise tip `free` olur (sunucunun `races_race_type_matches_fee` kısıtı)', () => {
     const form = { ...defaultLobbyRaceForm(config), name: 'Bedava Kupa', entryFee: 0 };
     const result = buildCreateRaceBody(form, now, config);
@@ -77,17 +92,31 @@ describe('buildCreateRaceBody', () => {
   it('kısa ad, geçersiz tavan, sınır dışı mesafe ve gecikme reddedilir', () => {
     const base = { ...defaultLobbyRaceForm(config), name: 'Geçerli Ad' };
     expect(buildCreateRaceBody({ ...base, name: 'ab' }, now, config).ok).toBe(false);
-    expect(buildCreateRaceBody({ ...base, maxPlayers: config.minPlayers - 1 }, now, config).ok).toBe(false);
-    expect(buildCreateRaceBody({ ...base, distanceMeters: config.distanceMeters.max + 1 }, now, config).ok).toBe(false);
+    expect(
+      buildCreateRaceBody({ ...base, maxPlayers: config.minPlayers - 1 }, now, config).ok,
+    ).toBe(false);
+    expect(
+      buildCreateRaceBody({ ...base, distanceMeters: config.distanceMeters.max + 1 }, now, config)
+        .ok,
+    ).toBe(false);
     const bounds = startDelayMinuteBounds(config);
-    expect(buildCreateRaceBody({ ...base, startDelayMinutes: bounds.min - 1 }, now, config).ok).toBe(false);
-    expect(buildCreateRaceBody({ ...base, startDelayMinutes: bounds.max + 1 }, now, config).ok).toBe(false);
+    expect(
+      buildCreateRaceBody({ ...base, startDelayMinutes: bounds.min - 1 }, now, config).ok,
+    ).toBe(false);
+    expect(
+      buildCreateRaceBody({ ...base, startDelayMinutes: bounds.max + 1 }, now, config).ok,
+    ).toBe(false);
   });
 });
 
 describe('lobbyEntryActions — düğmeler YALNIZCA `myEntry`den türer', () => {
   it('katılım yok: yalnızca Katıl; dolu yarışta o da kapalı', () => {
-    expect(lobbyEntryActions(race())).toEqual({ canJoin: true, canMarkReady: false, canMarkNotReady: false, canLeave: false });
+    expect(lobbyEntryActions(race())).toEqual({
+      canJoin: true,
+      canMarkReady: false,
+      canMarkNotReady: false,
+      canLeave: false,
+    });
     expect(lobbyEntryActions(race({ joinedPlayers: 8, maxPlayers: 8 })).canJoin).toBe(false);
   });
 
@@ -133,8 +162,88 @@ describe('formatStartsIn', () => {
 describe('describeTournament', () => {
   it('turnuva değilse null; turnuvaysa kademe + seviye şartı sunucu alanlarından', () => {
     expect(describeTournament(race())).toBeNull();
+    expect(describeCalendar(race())).toBeNull();
+    expect(describePlayerControl(race())).toBeNull();
+    expect(describePlayerControl(race({ playerControl: true }))).toContain('Kontrollü');
+    expect(describeCalendar(race({ calendar: { programId: 'dirt-sprint', featured: false } }))).toBe(
+      'Takvim yarışı · sunucu açtı',
+    );
     expect(describeTournament(race({ tournament: { tier: 'silver', minPlayerLevel: 15 } }))).toBe(
       'Gümüş Kupa · Seviye 15+ · Botsuz final, ödül ilk üçe',
     );
+  });
+});
+
+describe('özel yarış etiketi (Faz 11)', () => {
+  it('öne çıkan program adıyla gösterilir', () => {
+    expect(describeCalendar(race({ calendar: { programId: 'sunday-derby', featured: true } }))).toBe(
+      '⭐ Özel yarış · Pazar Derbisi',
+    );
+  });
+});
+
+describe('ırk sınıfı (08.10.2026)', () => {
+  it('rozet: açık yarışta null, sınıflı yarışta sınıf adı + ırk adları', () => {
+    expect(describeBreedClass(race())).toBeNull();
+    expect(describeBreedClass(race({ breedClass: null }))).toBeNull();
+    const text = describeBreedClass(race({ breedClass: 'native' }));
+    expect(text).toContain('Yerli Irklar');
+    expect(text).toContain('Hınıs');
+    expect(describeBreedClass(race({ breedClass: 'eski-sinif' }))).toContain('eski-sinif');
+  });
+
+  it('form: boş sınıf gönderilmez, seçilen sınıf gövdeye girer', () => {
+    const now = new Date();
+    const base = { ...defaultLobbyRaceForm(config), name: 'Yerli Koşu' };
+    const open = buildCreateRaceBody(base, now, config);
+    expect(open.ok && 'breedClass' in open.body).toBe(false);
+    const native = buildCreateRaceBody({ ...base, breedClass: 'native' }, now, config);
+    expect(native.ok && native.body.breedClass).toBe('native');
+  });
+});
+
+describe('canCancelOwnRace (14.10.2026)', () => {
+  it('yalnızca açan oyuncu, açık ve katılımsız yarışta', () => {
+    const own = race({ createdBy: 'ben', status: 'scheduled', joinedPlayers: 0 });
+    expect(canCancelOwnRace(own, 'ben')).toBe(true);
+    expect(canCancelOwnRace(own, 'baskasi')).toBe(false);
+    expect(canCancelOwnRace(own, null)).toBe(false);
+    expect(canCancelOwnRace(race({ createdBy: null, joinedPlayers: 0 }), 'ben')).toBe(false);
+  });
+
+  it('aktif katılım varken ya da yarış açık değilken düğme yok (sunucu kuralıyla aynı)', () => {
+    expect(canCancelOwnRace(race({ createdBy: 'ben', status: 'scheduled', joinedPlayers: 1 }), 'ben')).toBe(false);
+    expect(canCancelOwnRace(race({ createdBy: 'ben', status: 'locking', joinedPlayers: 0 }), 'ben')).toBe(false);
+  });
+});
+
+
+describe('yetersiz oyuncu kuralı (15.10.2026, Aşama 3)', () => {
+  const now = new Date('2026-10-15T12:00:00.000Z');
+  const rules = config.fieldRules;
+
+  it('asgari gerçek oyuncu sunucudaki varsayılanla aynı: ücretli / ücretsiz / botsuz', () => {
+    expect(minRealPlayersFor(100, true, config)).toBe(rules.paidMinRealPlayers);
+    expect(minRealPlayersFor(0, true, config)).toBe(rules.freeMinRealPlayers);
+    expect(minRealPlayersFor(0, false, config)).toBe(Math.max(rules.freeMinRealPlayers, rules.botlessMinRealPlayers));
+  });
+
+  it('botsuz seçimi gövdeye yalnızca `aiFill: false` olarak gider; varsayılan alan GÖNDERMEZ', () => {
+    const base = { ...defaultLobbyRaceForm(config), name: 'Botsuz Kupa' };
+    const plain = buildCreateRaceBody(base, now, config);
+    expect(plain.ok && 'aiFill' in plain.body).toBe(false);
+    const botless = buildCreateRaceBody({ ...base, aiFill: false }, now, config);
+    expect(botless.ok && botless.body.aiFill).toBe(false);
+  });
+
+  it('liste etiketi kuralı söyler; alan yoksa (eski sunucu) etiket yok', () => {
+    expect(describeFieldRule(race({ fieldRule: { minRealPlayers: 2, aiFill: true } }))).toBe(
+      '👥 En az 2 oyuncu · boş koltuklar botla dolar · yoksa iptal + iade',
+    );
+    expect(describeFieldRule(race({ fieldRule: { minRealPlayers: 2, aiFill: false } }))).toContain('botsuz');
+    expect(describeFieldRule(race({ fieldRule: { minRealPlayers: 1, aiFill: true } }))).toBe(
+      '👥 boş koltuklar botla dolar',
+    );
+    expect(describeFieldRule({ fieldRule: undefined as never })).toBeNull();
   });
 });

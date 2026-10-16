@@ -1,7 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import { INestApplication } from '@nestjs/common';
+import type { Pool } from 'pg';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { PG_POOL } from '../../src/infrastructure/database/database.module';
 import { bootstrapTestApp, registerTestPlayer, registerTestPlayerWithStarterHorse } from './test-helpers';
 
 /**
@@ -46,6 +48,9 @@ describe('Training (e2e)', () => {
     expect(response.body.data.fatigueGain).toBeGreaterThan(0);
     expect(typeof response.body.data.injuryOccurred).toBe('boolean');
     expect(response.body.data.newStatus.fatigue).toBeGreaterThan(0);
+    // 16.10.2026 (brief §9): antrenman enerji harcar ve kondisyonu geliştirir.
+    expect(response.body.data.energyCost).toBeGreaterThan(0);
+    expect(response.body.data.fitnessGain).toBeGreaterThan(0);
 
     // At artık antrenman öncesinden daha yorgun.
     const horseResponse = await request(app.getHttpServer())
@@ -53,6 +58,8 @@ describe('Training (e2e)', () => {
       .set('Authorization', authHeader)
       .expect(200);
     expect(horseResponse.body.data.fatigue).toBe(response.body.data.newStatus.fatigue);
+    expect(horseResponse.body.data.energy).toBe(response.body.data.newStatus.energy);
+    expect(horseResponse.body.data.fitness).toBe(response.body.data.newStatus.fitness);
   });
 
   it('/api/v1/horses/:id/train (POST) — "rest" türü stat değiştirmez, sadece fatigue düşürür', async () => {
@@ -176,6 +183,12 @@ describe('Training (e2e)', () => {
         .set('Authorization', authHeader)
         .send({ type: 'stamina', intensity: 'low' })
         .expect(200);
+      // İlk antrenman rastgele sakatlık üretebilir; sakat at ikinci antrenmanı
+      // 409 ile reddederdi (kararsız test — staff.e2e'de CI'da yaşandı).
+      // Bu testin konusu geçmiş sıralamasıdır, sakatlık değil.
+      await app
+        .get<Pool>(PG_POOL)
+        .query("UPDATE horses SET status = 'active' WHERE id = $1", [horseId]);
 
       const second = await request(app.getHttpServer())
         .post(`/api/v1/horses/${horseId}/train`)

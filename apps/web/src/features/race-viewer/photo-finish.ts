@@ -110,7 +110,11 @@ export function formatFinishGap(gapMs: number): string {
  * `durationMs <= 0` (henüz veri yok/geçersiz yarış) için her zaman 1
  * döner — bölme hatası veya anlamsız bir ağır çekim OLUŞMAZ.
  */
-export function getFinishSlowMotionFactor(currentTimeMs: number, durationMs: number, config: CameraConfig): number {
+export function getFinishSlowMotionFactor(
+  currentTimeMs: number,
+  durationMs: number,
+  config: CameraConfig,
+): number {
   if (durationMs <= 0) {
     return 1;
   }

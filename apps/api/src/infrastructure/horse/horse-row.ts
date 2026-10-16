@@ -1,5 +1,16 @@
 import type { Pool, PoolClient } from 'pg';
+import { loadHorsePersonalityConfig } from '@at-sevdalisi/game-config';
 import type { Horse } from '@at-sevdalisi/shared-types';
+import {
+  BREED_DISTANCE_COLUMNS,
+  BREED_DISTANCE_KEYS,
+  BREED_STAT_KEYS,
+  BREED_SURFACE_KEYS,
+  type BreedInitialStats,
+} from '../../domain/horse/breeds';
+import { PERSONALITY_TRAIT_COLUMNS, PERSONALITY_TRAIT_KEYS, deriveBirthPersonality } from '../../domain/horse/personality';
+
+const personalityConfig = loadHorsePersonalityConfig();
 
 /**
  * `horses` tablosunun satır şekli + okuma/yazma yardımcıları.
@@ -34,6 +45,11 @@ export interface HorseRow {
   status: string;
   sire_id: string | null;
   dam_id: string | null;
+  coat_color: string;
+  face_marking: string;
+  leg_marking: string;
+  aging_started_at: Date;
+  retired_at: Date | null;
   created_at: Date;
   updated_at: Date;
 }
@@ -59,6 +75,14 @@ export function rowToHorse(row: HorseRow): Horse {
     status: row.status as Horse['status'],
     sireId: row.sire_id,
     damId: row.dam_id,
+    // CHECK kısıtları (migration 0051) union tipleriyle aynı kümeyi tutar.
+    appearance: {
+      coatColor: row.coat_color as Horse['appearance']['coatColor'],
+      faceMarking: row.face_marking as Horse['appearance']['faceMarking'],
+      legMarking: row.leg_marking as Horse['appearance']['legMarking'],
+    },
+    agingStartedAt: row.aging_started_at.toISOString(),
+    retiredAt: row.retired_at ? row.retired_at.toISOString() : null,
     createdAt: row.created_at.toISOString(),
     updatedAt: row.updated_at.toISOString(),
   };
@@ -94,4 +118,97 @@ export async function writeHorseRow(executor: Pool | PoolClient, horse: Horse): 
       new Date(horse.updatedAt),
     ],
   );
+}
+
+/**
+ * 07.10.2026 — YENİ bir atı (ana satır + dört eşlik eden tablo) yazar. Başlangıç
+ * atı (`PostgresHorseRepository.save`) ve ırk mağazası AYNI fonksiyonu kullanır;
+ * iki ayrı INSERT metni bir gün ayrışırdı. Çağıran transaction açar.
+ *
+ * `initial` verilmezse statlar DB varsayılanlarında kalır (migration 0003).
+ * Verilirse yalnızca ırkın tanımladığı sütunlar yazılır; sütun adları kapalı
+ * kümeden (`BREED_*_KEYS`) gelir, kullanıcı girdisi DEĞİLDİR.
+ *
+ * 08.10.2026 — gizli kişilik özellikleri (`temperament` HARİÇ) at kimliğinden
+ * determinist doğar (`deriveBirthPersonality`); önceden her at 50'deydi.
+ * Tay bu yoldan geçmez — kişiliğini ebeveynlerinden alır (genetik).
+ */
+export async function insertNewHorse(client: PoolClient, horse: Horse, initial?: BreedInitialStats): Promise<void> {
+  await client.query(
+    `INSERT INTO horses (id, owner_id, name, gender, breed, birth_date, level, xp, quality, potential, health, fitness, fatigue, energy, morale, weight_kg, status, sire_id, dam_id, created_at, updated_at, coat_color, face_marking, leg_marking, aging_started_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25)`,
+    [
+      horse.id,
+      horse.ownerId,
+      horse.name,
+      horse.gender,
+      horse.breed,
+      horse.birthDate.slice(0, 10),
+      horse.level,
+      horse.xp,
+      horse.quality,
+      horse.potential,
+      horse.health,
+      horse.fitness,
+      horse.fatigue,
+      horse.energy,
+      horse.morale,
+      horse.weightKg,
+      horse.status,
+      horse.sireId,
+      horse.damId,
+      new Date(horse.createdAt),
+      new Date(horse.updatedAt),
+      horse.appearance.coatColor,
+      horse.appearance.faceMarking,
+      horse.appearance.legMarking,
+      new Date(horse.agingStartedAt),
+    ],
+  );
+  await insertWithValues(client, 'horse_stats', horse.id, [
+    ...columnValues(initial?.stats, BREED_STAT_KEYS, (key) => key),
+    ...columnValues(deriveBirthPersonality(horse.id, personalityConfig), PERSONALITY_TRAIT_KEYS, (key) => PERSONALITY_TRAIT_COLUMNS[key]),
+  ]);
+  await client.query('INSERT INTO horse_health (horse_id) VALUES ($1)', [horse.id]);
+  await insertNewHorseTrackStats(client, horse.id, initial);
+}
+
+/** Zemin + mesafe uyumu satırları — tay da (statları genetikten gelse bile) ırkından alır. */
+export async function insertNewHorseTrackStats(
+  client: PoolClient,
+  horseId: string,
+  initial?: BreedInitialStats,
+): Promise<void> {
+  await insertWithValues(client, 'horse_surface_stats', horseId, columnValues(initial?.surface, BREED_SURFACE_KEYS, (key) => key));
+  await insertWithValues(
+    client,
+    'horse_distance_stats',
+    horseId,
+    columnValues(initial?.distance, BREED_DISTANCE_KEYS, (key) => BREED_DISTANCE_COLUMNS[key]),
+  );
+}
+
+function columnValues<K extends string>(
+  values: Partial<Record<K, number>> | undefined,
+  keys: readonly K[],
+  column: (key: K) => string,
+): Array<[string, number]> {
+  if (!values) {
+    return [];
+  }
+  return keys.flatMap((key) => (values[key] === undefined ? [] : [[column(key), values[key] as number] as [string, number]]));
+}
+
+async function insertWithValues(
+  client: PoolClient,
+  table: 'horse_stats' | 'horse_surface_stats' | 'horse_distance_stats',
+  horseId: string,
+  entries: Array<[string, number]>,
+): Promise<void> {
+  const columns = ['horse_id', ...entries.map(([column]) => column)];
+  const placeholders = columns.map((_, index) => `$${index + 1}`);
+  await client.query(`INSERT INTO ${table} (${columns.join(', ')}) VALUES (${placeholders.join(', ')})`, [
+    horseId,
+    ...entries.map(([, value]) => value),
+  ]);
 }

@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
   advanceDustParticle,
+  dustSpawnOffset,
   getDustParticleOpacity,
+  getDustParticleScale,
   isDustParticleExpired,
   spawnDustParticle,
 } from '../../../src/features/race-viewer/audio-vfx/dust-particle-sim';
@@ -121,5 +123,31 @@ describe('getDustParticleOpacity', () => {
     const particle = spawnDustParticle(0, 0, 'h1:0', config);
     const wayExpired = advanceDustParticle(particle, particle.lifetimeMs * 3, 'h1:0', config);
     expect(getDustParticleOpacity(wayExpired)).toBeGreaterThanOrEqual(0);
+  });
+});
+
+describe('toz: arka ayaktan doğum + büyüme (08.10.2026)', () => {
+  it('doğum noktası atın ARKASINDADIR ve tohumla aynıdır', () => {
+    for (const heading of [0, Math.PI / 2, Math.PI, -0.7]) {
+      const offset = dustSpawnOffset('at-1:5', heading, config);
+      expect(dustSpawnOffset('at-1:5', heading, config)).toEqual(offset);
+      // İleri yönle iç çarpım negatif: arkada.
+      const along = offset.dx * Math.cos(heading) + offset.dz * Math.sin(heading);
+      expect(along).toBeLessThanOrEqual(-config.dustParticles.emitterBehindMeters + 1e-9);
+      expect(along).toBeGreaterThanOrEqual(
+        -(config.dustParticles.emitterBehindMeters + config.dustParticles.spawnSpreadMeters) - 1e-9,
+      );
+      // Yana saçılma sınır içinde.
+      const lateral = offset.dx * Math.sin(heading) - offset.dz * Math.cos(heading);
+      expect(Math.abs(lateral)).toBeLessThanOrEqual(config.dustParticles.spawnSpreadMeters + 1e-9);
+    }
+  });
+
+  it('bulutçuk doğumda 1, ömür sonunda 1 + growth ölçeğindedir', () => {
+    const particle = spawnDustParticle(0, 0, 'b', config);
+    expect(getDustParticleScale(particle, config)).toBe(1);
+    expect(getDustParticleScale({ ...particle, ageMs: particle.lifetimeMs }, config)).toBeCloseTo(
+      1 + config.dustParticles.growth,
+    );
   });
 });

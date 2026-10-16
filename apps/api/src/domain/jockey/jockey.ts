@@ -115,6 +115,45 @@ export function calculateJockeyHorseCompatibility(input: JockeyCompatibilityInpu
   );
 }
 
+/**
+ * ETKİN JOKEY BECERİSİ (02.10.2026) — uyum (`calculateJockeyHorseCompatibility`,
+ * 0-100, 50 nötr) beceri puanını `±compatibilityInfluence` oranında ölçekler:
+ * `beceri × (1 + etki × (uyum − 50) / 50)`, 0-100'e kırpılır.
+ *
+ * MOTORA DOKUNULMAZ: sonuç kadro dondurulurken `jockeySkillComposite`e yazılır.
+ * Eski dondurulmuş kadrolar aynen kalır (yeniden oynatma bozulmaz), komutsuz
+ * motor parmak izi değişmez. `compatibilityInfluence = 0` eski davranıştır.
+ *
+ * 08.10.2026 — `conditionMultiplier` (jokeyin formu × yorgunluğu,
+ * `domain/jockey/condition.ts`) aynı noktada çarpılır; verilmezse 1 (nötr).
+ */
+export function effectiveJockeySkill(
+  input: {
+    jockey: Pick<
+      Jockey,
+      | 'startSkill'
+      | 'tacticalSkill'
+      | 'sprintSkill'
+      | 'horseControl'
+      | 'riskManagement'
+      | 'trackKnowledge'
+      | 'experience'
+    >;
+    horse: JockeyCompatibilityHorseInput;
+    previousPairAveragePerformance: number | null;
+    conditionMultiplier?: number;
+  },
+  config: JockeyConfig,
+): number {
+  const composite = calculateJockeySkillComposite(input.jockey, config);
+  const compatibility = calculateJockeyHorseCompatibility(input, config);
+  return clamp(
+    composite * (1 + (config.compatibilityInfluence * (compatibility - 50)) / 50) * (input.conditionMultiplier ?? 1),
+    0,
+    100,
+  );
+}
+
 /** Jokey zaten bir oyuncuya aitse (`ownerId !== null`) kiralanamaz. */
 export function assertJockeyAvailableForHire(jockey: Pick<Jockey, 'id' | 'ownerId'>): void {
   if (jockey.ownerId !== null) {

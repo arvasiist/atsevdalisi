@@ -146,7 +146,7 @@ Aynı seed + aynı snapshot, farklı taktik → **farklı** sonuç; ve hiçbir s
 
 ---
 
-## G. Güvenlik, sosyal ve uçtan uca (26–30)
+## G. Güvenlik, sosyal ve uçtan uca (26–31)
 
 ### 26. Sosyal yazma rotaları hız sınırlı — kapsam testle kilitli
 `@RateLimit` **opt-in**'dir; işaretlenmeyen rota sınırsızdır. `SocialController` için **kapalı küme** iddiası vardır: yeni bir yazma rotası ekleyip `@RateLimit` koymazsan test **kırılır**. `RateLimitOptions.name` de sabitlenir (aynı `name` iki rota tek bütçeyi böler).
@@ -218,6 +218,42 @@ yarışların `race_entries.jockey_id`si o satıra işaret eder.
 **Kanıt:** `test/api/jockey.e2e-spec.ts` · `apps/web/test/lib/api-client.spec.ts` ·
 `apps/web/test/features/jockey/JockeyPanel.spec.tsx` — **PASS**
 
+### 31. Oyuncu yolculuğu bütün yüzeylerden geçer ve defter mutabakatı tutar (Faz 14)
+İki oyuncu tek akışta: kayıt → e-posta/şifre → şifreyle giriş → bronz turnuva
+finali (botsuz, ödül) → pratik yarış (XP) → antrenman + bakım → görev ödülü →
+arkadaşlık + mesaj + hediye + bildirim → kulüp (kur, katıl, sohbet, kulüp puanı)
+→ pazarda at satışı → sezon sıralaması → veri dışa aktarma → **bakiye =
+başlangıç + defter toplamı** (iki oyuncu, iki para birimi) → hesap silme.
+Mutabakat, defter satırı yazmayan HER para yolunu bütün özellikler için tek
+seferde yakalar.
+**Bulunan hata (düzeltildi, migration 0063):** pratik/PvP katılımı `player_id`
+yazmıyordu; sıralama, sezon (ödüllü), görev ve "son yarışlarım" yarışı atın
+ŞİMDİKİ sahibine yazıyordu → at satılınca satıcının geçmişi ve sezon puanı
+alıcıya geçiyordu.
+**Kanıt:** `test/api/player-journey.e2e-spec.ts` · `test/api/race-entry-ownership.e2e-spec.ts` — **PASS**
+
+## H. İlerleme ekonomisi (32–33)
+
+### 32. Ücretsiz at en zayıf ırktır; güçlü ırk yalnızca parayla ve seviyeyle alınır (07.10.2026)
+Yeni oyuncunun başlangıç atı `starterBreed`dan doğar ve o ırk her ırktan
+zayıftır; daha güçlü bir ırk daha ucuz olamaz — config bunu bozarsa API
+açılmaz. Irk mağazası bir para yoludur: seviye/ahır/bakiye kilit altında,
+reddedilen istek ne para düşer ne at yazar, aynı `Idempotency-Key` ikinci at
+üretmez, defter satırı alınan ata bağlıdır. Irk motoru etkilemez; yalnızca
+doğuş statlarını verir.
+**Kanıt:** `test/domain/horse/breeds.spec.ts` · `test/api/breeds.e2e-spec.ts` ·
+`test/api/breeding.e2e-spec.ts` (melez → Anglo-Arap) ·
+`apps/web/test/features/breeds/breed-catalog.spec.ts` — **PASS**
+
+### 33. Irka özel yarış: sınıf dışı at giremez, botlar sınıfın gücündedir (08.10.2026)
+Yarış bir ırk sınıfıyla açılabilir (Yerli Irklar / Safkan Arap / Safkan
+İngiliz). Sınıf dışı at 409 alır; reddedilen katılımda ne para düşer ne
+katılım yazılır. Sınıflı yarışın botları aynı seed ile yeniden üretilip
+yanıttaki sayılarla birebir karşılaştırılır (gizli bonus yok) ve sınıfın
+aralığında kalır; açık yarışların botları değişmez.
+**Kanıt:** `test/api/race-breed-class.e2e-spec.ts` · `test/domain/horse/breeds.spec.ts` ·
+`test/api/create-race-dto.spec.ts` · `apps/web/test/features/race-lobby/LobbyPanel.spec.tsx` — **PASS**
+
 ---
 
 ## Kapanış
@@ -230,8 +266,9 @@ yarışların `race_entries.jockey_id`si o satıra işaret eder.
 | D. Para zinciri | 13–18 | ✅ 6/6 |
 | E. İptal/kopma/iade | 19–22 | ✅ 4/4 |
 | F. Motor girdileri | 23–25 | ✅ 3/3 |
-| G. Güvenlik + uçtan uca | 26–30 | ✅ 5/5 |
-| **TOPLAM** | **30** | **✅ 30/30 PASS** |
+| G. Güvenlik + uçtan uca | 26–31 | ✅ 6/6 |
+| H. İlerleme ekonomisi | 32–33 | ✅ 2/2 |
+| **TOPLAM** | **33** | **✅ 33/33 PASS** |
 
 **Kabul edilmeyen madde yoktur.** Ancak üretime hazır **olmayan** özellikler
 **vardır** — onlar kabul kriteri değil, **eksik iş**tir ve

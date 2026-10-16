@@ -1,4 +1,18 @@
+import type { EquipmentCatalogItemConfig } from '@at-sevdalisi/game-config';
 import type { HorseEquipment } from '@at-sevdalisi/shared-types';
+
+/**
+ * Katalogdan alım girdisi (08.10.2026). Kalite/ad/fiyat KATALOG kaleminden
+ * gelir; istemci yalnızca anahtarı seçer (use-case çözer).
+ */
+export interface PurchaseHorseEquipmentInput {
+  playerId: string;
+  horseId: string;
+  catalogItem: EquipmentCatalogItemConfig;
+  equipmentId: string;
+  idempotencyKey: string | null;
+  now: Date;
+}
 
 /**
  * `HorseEquipmentRepository` — Application katmanının Infrastructure'a
@@ -15,7 +29,11 @@ import type { HorseEquipment } from '@at-sevdalisi/shared-types';
  * bkz. `PostgresHorseEquipmentRepository.equip` doc yorumu.
  */
 export interface HorseEquipmentRepository {
-  save(item: HorseEquipment): Promise<void>;
+  /**
+   * PARA YOLU: at (sahibiyle) + oyuncu `FOR UPDATE` → seviye kapısı + bakiye
+   * kilit altında → parça + `equipment_purchase` defter satırı TEK transaction.
+   */
+  purchase(input: PurchaseHorseEquipmentInput): Promise<{ item: HorseEquipment; money: number }>;
   findById(id: string): Promise<HorseEquipment | null>;
   findByHorseId(horseId: string): Promise<HorseEquipment[]>;
   /**

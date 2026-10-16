@@ -100,32 +100,30 @@ koleksiyon değildir.
 
 ## 2. Auth
 
+> Bu bölüm 02.10.2026'da gerçek uçlara göre yeniden yazıldı (eski taslak
+> `register`/`accessToken` adlarını kullanıyordu; öyle bir uç yoktu).
+
 ```http
-POST /api/v1/auth/register
-POST /api/v1/auth/login
-POST /api/v1/auth/refresh
-POST /api/v1/auth/logout
+POST   /api/v1/players                   # misafir kaydı (@Public) → AuthSession
+POST   /api/v1/auth/login                # Google (@Public) → AuthSession
+POST   /api/v1/auth/login/password       # e-posta + şifre (@Public) → AuthSession
+POST   /api/v1/auth/refresh              # @Public, { refreshToken } → SessionTokens
+POST   /api/v1/auth/session              # yalnızca eski (sid'siz) token'ı yükseltir; aksi 409
+POST   /api/v1/auth/logout               # bu cihaz — token ANINDA geçersiz
+POST   /api/v1/auth/logout-all           # tüm cihazlar + eski token'lar
+GET    /api/v1/auth/sessions             # AuthSessionInfo[] (yalnızca çağıranın)
+DELETE /api/v1/auth/sessions/{id}        # başkasınınki/olmayan → 404 SESSION_NOT_FOUND
+POST   /api/v1/auth/email/verification   # doğrulama bağlantısı iste → 202 { sent }
+POST   /api/v1/auth/email/verify         # @Public, { token } → { verified: true }
+GET    /api/v1/account/deletion          # { blockers: [{code,label}], requiresPassword }
+POST   /api/v1/account/delete            # { confirmUsername, password? } — geri alınamaz
 ```
 
-`POST /api/v1/auth/register` — örnek istek/yanıt:
-
-```json
-// İstek
-{ "username": "atsevdalisi", "email": "user@example.com", "password": "..." }
-
-// Yanıt (201)
-{
-  "success": true,
-  "data": {
-    "player": { "id": "...", "username": "atsevdalisi", "level": 1 },
-    "accessToken": "...",
-    "refreshToken": "..."
-  }
-}
-```
-
-> **Açık karar (bkz. ARCHITECTURE.md §10.1):** Sosyal giriş (Google/Apple) ve
-> misafir modu desteği proje sahibinin onayına sunulmuştur.
+`AuthSession` = `{ token, refreshToken, accessTokenExpiresAt, player }`.
+Erişim token'ı kısa ömürlüdür (`auth.session.accessTokenTtlSeconds`);
+refresh token HER yenilemede değişir ve eskisi tekrar sunulursa oturum
+kapanır (`INVALID_REFRESH_TOKEN`, 401). Sunucu yalnızca SHA-256 özetini
+saklar (migration 0057). Şifre sıfırlama tüm oturumları kapatır.
 
 ## 3. Player
 
@@ -238,17 +236,18 @@ sahibine görünür). İki sözleşme çelişmez, farklı okuma yollarıdır.
     "stats": { "raceCount": 1, "winCount": 1, "podiumCount": 1 },
     "friendCount": 1,
     "giftCount": 1,
-    "achievements": null
+    "achievements": [
+      { "key": "first-win", "metric": "race_wins", "target": 1, "claimedAt": "2026-10-03T19:40:00.000Z" }
+    ]
   }
 }
 ```
 
 `stats` YALNIZCA **kesinleşmiş** (`races.status = 'finished'`) yarışları
 sayar — lobide bekleyen bir yarış istatistiğe girmez. `podiumCount`
-birincileri de kapsar (`finish_position <= 3`). `achievements` brief
-§24'ün istediği ama henüz VAR OLMAYAN alandır (kalıcı bir başarım veri
-modeli + migration gerektirir); sabit `null` dönmesi "unutulmuş alan" ile
-"henüz gelmemiş alan"ı ayırır ve dizi dolduğunda bu sözleşme değişmez.
+birincileri de kapsar (`finish_position <= 3`). `achievements` (03.10.2026)
+ödülü alınmış başarımlardır (`GET /achievements`, `POST /achievements/:key/claim`);
+bakiye türevi bir şey taşımaz.
 `careerTier` de yanıtta YOKTUR çünkü sunucuda saklanmaz — `level`'in saf
 sunum türevi olarak istemcide türetilir
 (`apps/web/src/features/career/career-tier.ts`).
@@ -275,7 +274,7 @@ POST   /api/v1/horses/{id}/care        # tımar/su/temizlik/veteriner/nalbant/di
 POST   /api/v1/horses/{id}/feed        # besleme (brief §12, `feedType` alanı)
 GET    /api/v1/horses/{id}/training-history  # antrenman geçmişi (bu turda EKLENDİ, aşağıya bkz.)
 GET    /api/v1/horses/{id}/equipment                     # ekipman envanteri (bu turda EKLENDİ, aşağıya bkz.)
-POST   /api/v1/horses/{id}/equipment                     # yeni bir ekipman parçası oluştur
+POST   /api/v1/horses/{id}/equipment                     # katalogdan ekipman satın al (08.10.2026)
 POST   /api/v1/horses/{id}/equipment/{equipmentId}/equip    # kuşandır
 POST   /api/v1/horses/{id}/equipment/{equipmentId}/unequip  # çıkar
 ```
@@ -318,9 +317,12 @@ istemciden gelir. Yanıt zarfı `data` alanı doğrudan bir `Horse[]` dizisidir
 (sayfalama/filtre henüz yok).
 
 `POST /players` ile kayıt olan her yeni oyuncu, otomatik olarak bir
-**başlangıç atı** alır ("Arap" cinsi, sabit isim havuzundan seçilmiş bir
-isim, kalite/potansiyel sabit başlangıç değerleri, "prime" yaşam evresinde —
-bkz. `domain/horse/horse.ts` `createStarterHorse`). Bu, brief'te açıkça
+**başlangıç atı** alır (07.10.2026'dan beri `config/breeds.config.json` →
+`starterBreed` — EN ZAYIF ırk, bugün Hınıs; kalite/potansiyel ve statlar
+ırktan, sabit isim havuzundan seçilmiş bir isim, "prime" yaşam evresinde —
+bkz. `application/horse/new-starter-horse.ts`). Güçlü ırklar `POST
+/breeds/:breedKey/purchase` ile (gövde `{ name, gender }`, `Idempotency-Key`
+zorunlu, oyun parası, seviye şartı) alınır; `horses.breed` ırk ANAHTARIDIR. Bu, brief'te açıkça
 yazmayan ama at yetiştiriciliği oyununda gerekli bir tasarım kararıdır (at
 olmadan Antrenman/Bakım/Yarış ekranları gösterilemez).
 
@@ -334,6 +336,18 @@ için ulaşılamaz kalır. Artık `mare`/`stallion`/`gelding` arasından **düzg
 dağılımla rastgele** seçilir (`pickStarterHorseGender`, `gelding`
 havuzdan çıkarılmadı). Rastgelelik Application katmanında üretilir, domain
 saf kalır (`pickStarterHorseName` ile AYNI desen).
+
+**KİŞİLİK (08.10.2026).** `GET /api/v1/horses?ownerId=` satırları
+`personality: { traits: [{ trait, pole }] }` taşır (`trait` ∈ temperament,
+focus, courage, competitiveness, stressResistance, obedience; `pole` ∈ high,
+low; en fazla `labels.maxLabels`, boş liste = "Dengeli"). Sunucu gizli
+sayılardan türetir; ham değer DÖNMEZ. Herkese açık `GET /horses/{id}`
+kişilik taşımaz. Metinler `config/horse-personality.config.json`. Yeni at
+(başlangıç + ırk mağazası) odak/cesaret/rekabetçilik/stres dayanımı/itaati
+at kimliğinden determinist `50 ± birth.spread` alır (`temperament` 50).
+Antrenman: odak → kazanç, rekabetçilik → yoğun antrenmanda kazanç artı /
+hafifte eksi, stres dayanımı → yorgunluk artışı, itaat → sakatlık
+olasılığı (nötr = etkisiz; yanıt sözleşmesi değişmedi).
 
 `GET /api/v1/horses/{id}/training-history` (bu turda EKLENDİ —
 docs/AUDIT_REPORT.md "Antrenman geçmişi gösterimi" bulgusunun kapatılması):
@@ -379,31 +393,45 @@ yorumu). Beş sabit `equipmentType` desteklenir: `saddle`, `bridle`,
 `horseshoe`, `blinkers`, `leg_wraps`. Dört rota da `HorseOwnerGuardByParam`
 ile korunur (`train`/`training-history` ile AYNI yetkilendirme).
 
-`POST /api/v1/horses/{id}/equipment` — yeni bir parça oluşturur (HER ZAMAN
-`equipped: false` başlar — oluşturma ≠ kuşanma, iki AYRI adımdır), örnek
-istek:
+`POST /api/v1/horses/{id}/equipment` — **KATALOGDAN ALIM (08.10.2026,
+migration 0076)**. Gövdede YALNIZCA katalog anahtarı vardır; ad, tip, kalite,
+fiyat ve seviye şartı `config/equipment.config.json`ten okunur (eskiden
+kalite istemciden geliyordu ve ücret yoktu). PARA YOLU: `Idempotency-Key`
+ZORUNLU (yoksa 400), `@RateLimit`. Parça HER ZAMAN `equipped: false` başlar
+(alım ≠ kuşanma).
 
 ```json
-{ "equipmentType": "saddle", "name": "Deri Eyer", "quality": 80 }
+{ "catalogKey": "saddle-race" }
 ```
 
-`quality` 0-100 ölçeğindedir (`Horse.quality` ile AYNI). Örnek yanıt (201
-Created — yeni bir KAYNAK yaratır):
+Örnek yanıt (201 Created):
 
 ```json
 {
   "success": true,
   "data": {
-    "id": "...",
-    "horseId": "...",
-    "equipmentType": "saddle",
-    "name": "Deri Eyer",
-    "quality": 80,
-    "equipped": false,
-    "createdAt": "2026-09-26T18:00:00.000Z"
+    "item": {
+      "id": "...",
+      "horseId": "...",
+      "equipmentType": "saddle",
+      "name": "Yarış Eyeri",
+      "quality": 65,
+      "equipped": false,
+      "createdAt": "2026-10-08T18:00:00.000Z",
+      "catalogKey": "saddle-race"
+    },
+    "price": 600,
+    "money": 4400
   }
 }
 ```
+
+Hatalar: 400 `VALIDATION_ERROR` (bilinmeyen/eksik `catalogKey`; kalite/ad
+gönderilirse üretimde `forbidNonWhitelisted` 400) · 409
+`EQUIPMENT_LEVEL_LOCKED` (oyuncu seviyesi yetmiyor) · 409
+`INSUFFICIENT_FUNDS`. Defter: `equipment_purchase` (kanonik `UPKEEP`,
+referans parça kimliği). Katalogdan önceki eski parçalar `catalogKey: null`
+taşır ve kaliteleri olduğu gibi kalır (sahibinin kararı, 08.10.2026).
 
 `GET /api/v1/horses/{id}/equipment` — atın TÜM envanterini döner (`data`,
 doğrudan bir `HorseEquipment[]`, en yeniden en eskiye sıralı).
@@ -567,6 +595,7 @@ bir "start numarası" sağlar (`race_entries.gate_position` sütunu projenin
         "tacticalStyle": "closer",
         "riskLevel": "normal",
         "gatePosition": 4,
+        "silkColor": "#1e7a3c",
         "finalTimeMs": 94820,
         "finishPosition": 2,
         "performanceScore": 87.5,
@@ -583,6 +612,7 @@ bir "start numarası" sağlar (`race_entries.gate_position` sütunu projenin
         "tacticalStyle": "front_runner",
         "riskLevel": "normal",
         "gatePosition": 1,
+        "silkColor": null,
         "finalTimeMs": 93110,
         "finishPosition": 1,
         "performanceScore": 91.2,
@@ -702,7 +732,16 @@ DELETE /api/v1/players/{id}/friends/{friendId}                  # 200
 POST   /api/v1/players/{id}/messages                            # 201
 GET    /api/v1/players/{id}/messages/{otherPlayerId}
 GET    /api/v1/players/{id}/inbox
+GET    /api/v1/players/{id}/race-companions                     # 08.10.2026
 ```
+
+**ARKADAŞLIK YALNIZCA BİRLİKTE YARIŞANLAR ARASINDA (08.10.2026).** İstek ve
+KABUL, iki oyuncu BİTMİŞ bir yarışta birlikte koşmamışsa 409
+`FRIENDSHIP_REQUIRES_SHARED_RACE` döner (koşturan oyuncu `race_entries.
+player_id`; iptal edilen katılım sayılmaz). Ret her zaman serbesttir; mevcut
+arkadaşlıklar silinmez. `race-companions` birlikte koşulan oyuncuları (en
+son önce, engelliler hariç) `sharedRaces`, `lastRacedAt` ve `relation`
+(`friend`/`outgoing`/`incoming`/`none`) ile döner — bakiye taşımaz.
 
 **Yedi uç noktanın TAMAMI `assertSelf` ile korunur** — yoldaki `:id` her
 zaman İŞLEMİ YAPAN oyuncudur, hedef DEĞİLDİR (hedef gövdede ya da ikinci
@@ -877,6 +916,43 @@ pencerenin DIŞINDAKİ satırların sayılmaması, BAŞKA gönderenin satırlar�
 sayılmaması; `assertSelf` 403'ü; `GET .../gifts` yön ayrımı ve gizlilik) ·
 `domain/gift/gift.spec.ts` · `domain/gift/validation.spec.ts` ·
 `domain/gift/gift-config.spec.ts`.
+
+### Dostluk Hediyesi (08.10.2026, migration 0074)
+
+Gönderen HİÇBİR ŞEY ödemez; alıcı topladığında çip `friend_gift_collect`
+defter satırıyla girer (referans `friend_gifts.collect_id`). Tutar ve sınırlar
+`config/gift.config.json` → `friendGift`. Oyuncu kimliği token'dan; gövde YOK.
+
+| Uç | Açıklama |
+| --- | --- |
+| `GET /friend-gifts` | Pano: `amount`, `dailyCollectLimit`, `collectedToday`, `remainingCollectsToday`, `pendingCount`, `pendingAmount`, `pending[]` (gönderen adı), `friendCount`, `sentToday`; 16.10.2026 gönderen öder: `sendCost`, `dailySendBudget`, `spentToday`, `remainingSendBudget`, `nextRecipients[]` (basılırsa gidecekler), `unsentEligibleCount`, `limitedBy` (`none`/`budget`/`funds`) |
+| `POST /friend-gifts/send-all` | PARA YOLU (16.10.2026): gönderen `FOR UPDATE` → süresi dolmuş ödenmiş hediyelerin iadesi (`friend_gift_refund`) → günlük bütçe + bakiye kilit altında → hediyeler + tek `friend_gift_send` defter satırı. Uygun arkadaşlar kullanıcı adı sırasıyla (engel/silinmiş hesap hariç), aynı kişiye oyun gününde bir. Yanıt `{ sent, alreadySentToday, cost, refunded, balanceAfter, recipients[] }` (`status`: `sent`/`already_sent`/`budget_exhausted`/`insufficient_funds`). Her alıcıya aynı transaction'da `friend_gift_received` bildirimi (`{ giftId, senderId, senderUsername, senderName, amount }`, migration 0089). `@RateLimit` |
+| `POST /friend-gifts/collect` | Bekleyenleri toplar (en eskiden, günlük sınıra kadar; `expiryDays`tan eskisi toplanmaz). Yanıt `{ collected, amount, balanceAfter, remainingCollectsToday, stillPending }`. Tekrar çağrı sıfır toplar. `@RateLimit` |
+
+Arkadaş başarımı: `GET /achievements` ölçütü `friend_count` (anlık kabul
+edilmiş arkadaş sayısı) — `friends-5` … `friends-50`, her biri 100 çip.
+Günlük görev `daily-friend-gift-1` (ölçüt `friend_gifts_sent`).
+
+### Tribün Hediyesi (08.10.2026, migration 0075)
+
+İzleyici, yarışta koşan bir oyuncu atına katalogdan hediye gönderir. Yetki
+tribünle AYNI (`assertCanWatch`: katılımcı / ücretsiz tribün / bilet → yoksa
+403 `RACE_TICKET_REQUIRED`). Katalog `config/grandstand.config.json` →
+`tribuneGifts`.
+
+| Uç | Açıklama |
+| --- | --- |
+| `GET /races/{raceId}/tribune-gifts` | `open`, `items[]` (`key`, `name`, `emoji`, `price`, `ownerAmount`), `recipients[]` (oyuncu atları; çağıranın kendi atı hariç), `perHorse[]` (`giftKey` → adet), `recent[]`, `sentToday`, `dailyLimit` |
+| `POST /races/{raceId}/tribune-gifts` | Gövde `{ horseId, giftKey }` — başka alan YOK. `Idempotency-Key` ZORUNLU. 201 `{ tribuneGiftId, giftKey, price, ownerAmount, balanceAfter }`. `@RateLimit` |
+
+Hatalar: 400 `INVALID_TRIBUNE_GIFT` (katalogda yok) · 409
+`TRIBUNE_GIFT_NOT_ALLOWED` (kendi atı, bot, yarışta olmayan at, iptal/pencere
+dışı yarış) · 409 `TRIBUNE_GIFT_DAILY_LIMIT` · 409 `INSUFFICIENT_FUNDS` · 403
+`PLAYER_BLOCKED`. Defter: gönderen `tribune_gift_debit`, alıcı
+`tribune_gift_credit` (referans `tribune_gifts.id`); alıcıya
+`tribune_gift_received` bildirimi. Soket: yarış odasına `race.tribuneGift`
+(`raceId`, `tribuneGiftId`, `giftKey`, `horseId`, `horseName`,
+`senderDisplayName`, `createdAt`).
 
 ### Bildirimler + Yarış Daveti (brief §16, §28 — §42 PHASE 11 + PHASE 13)
 
@@ -1615,6 +1691,140 @@ döner ve **ne durum ne denetim kaydı değişir** (rollback kanıtı);
 CHECK'iyle **dosya okunarak** karşılaştırılması, geçiş çizgesinin kapalılığı
 ve terminal durumları, aynı-durum reddi, `assertAdmin`, config sabitlemesi).
 
+### Roller, yaptırımlar, duyurular (Faz 10 + 11-A, 02.10.2026, migration 0060)
+
+Yetki her istekte DB'den okunur (`is_admin`, `is_moderator`); izinler
+`domain/admin/staff.ts`. Yetkisiz çağıran 403 `ADMIN_REQUIRED` alır, var olmayan
+kimlikte bile (404'ten ÖNCE). Her yazma `admin_audit_log` satırıyla aynı
+transaction'dadır.
+
+| Uç | Kim | Not |
+|---|---|---|
+| `POST /admin/players/:id/sanctions` | moderatör (yalnızca `suspend`, ≤ `moderatorMaxSuspendHours`) / yönetici | gövde `{ kind: 'suspend'\|'ban', reason, durationHours? }`; kendine/personele 409 `SANCTION_TARGET_NOT_ALLOWED`; yasak oturumları kapatır |
+| `GET /admin/players/:id/sanctions` | moderatör / yönetici | geçmiş (`historyLimit`) |
+| `POST /admin/sanctions/:id/lift` | askı: moderatör / yönetici; yasak: yönetici | gövde `{ reason }` |
+| `PUT /admin/players/:id/role` | yönetici | gövde `{ role: 'player'\|'moderator'\|'admin' }`; kendine 400 `INVALID_ROLE_CHANGE` |
+| `POST /admin/announcements` | yönetici | `{ title, body, level, startsAt?, endsAt? }`; yayında `maxLive` aşılırsa 409 `ANNOUNCEMENT_LIMIT_REACHED` |
+| `GET /admin/announcements` | yönetici | arşiv dahil |
+| `POST /admin/announcements/:id/archive` | yönetici | |
+| `GET /announcements` | herkes (`@Public`) | yalnızca şu an yayında olanlar |
+
+Askıdaki/yasaklı hesap her istekte, soket bağlantısında, girişte ve token
+yenilemede **403 `ACCOUNT_SUSPENDED`** alır (401 değil — istemci oturumu
+silmez). `GET /admin/players` satırı `isModerator` ve `activeSanction` taşır;
+`PlayerSummary` `isModerator` taşır.
+
+### Haftalık / aylık sıralama (Faz 11, 02.10.2026)
+
+`GET /leaderboard/period/:period` — `weekly` | `monthly` (oturum ister; başka değer 400).
+Yanıt `{ period, startsAt, endsAt, standings[], me }`; satır `{ rank, playerId, username, displayName,
+score, raceCount }`. Sezonla aynı formül; pencere Türkiye saatiyle (hafta pazartesi, ay 1'i). Ödül yok.
+`GET /races` satırında `calendar: { programId, featured }` — öne çıkan program yarışları listenin başında.
+
+**Kozmetik mağaza (09.10.2026, migration 0082):**
+- `GET /cosmetics` — `{ gems, items: CosmeticItemView[] }` (ürün config'ten: anahtar, ad, avatar kataloğu +
+  seçenek, renk önizlemesi — parça ürününde (şapka/aksesuar) `color: null` —, `priceGems`, `owned`).
+  Ürünler: forma renkleri (`silkColors`), şapkalar (`hats`), aksesuarlar (`accessories`).
+- `POST /cosmetics/:key/purchase` — `Idempotency-Key` ZORUNLU; 200 `{ item, gems }`. Elmas düşer +
+  `player_cosmetics` + `cosmetic_purchase` defter satırı (elmas) tek transaction. 404 `COSMETIC_NOT_FOUND`,
+  409 `COSMETIC_ALREADY_OWNED`, 409 `INSUFFICIENT_FUNDS`.
+- `PUT /avatar` — mağazadan açılan seçenek (ör. kilitli forma rengi) sahibi değilse 409 `COSMETIC_NOT_OWNED`.
+  Varsayılan avatar kilitli seçenek SEÇMEZ.
+- Forma yarışta: tekrar (`GET /races/:id/timeline` → `entrants[].silkColor`), `race.roster`
+  (`entrants[].silkColor`) ve canlı görünümler (`GET /interactive-races/:id`, `GET /races/:id/live`,
+  `.../live/spectate` → `entrants[].silkColor`) atı koşturan oyuncunun KAYDETTİĞİ avatarın forma ana rengini
+  (hex) taşır; kayıt yok / bot / katalogdan kalkmış renk → `null` (istemci paleti). Salt görünüş.
+
+**Elmas politikası (09.10.2026):** elmas yalnızca görünüş/kolaylık. Yem çiple satılır; hediyede
+`currency: "gems"` 400 `GIFT_CURRENCY_NOT_ALLOWED` (`gift.allowedCurrencies` yalnızca `money`). Kural
+`validateGemPolicy` ile API açılışında denetlenir.
+
+**`GET /races` sırası (09.10.2026):** liste sınırlıdır (`limit`, varsayılan `lobbyListDefaultLimit`),
+katmanlar sırayla — (0) çağıranın yarışları (iptal edilmemiş katılımı var ya da o açtı), (1) öne çıkan
+takvim programı, (2) turnuva, (3) kalan (başka oyuncuların yarışları + takvim, karışık); her katmanda
+`startTime` artan. Takvim aynı anda sınırdan fazla yarış açık tuttuğu için çağıranın katıldığı geç yarış
+eskiden listeden düşebiliyordu.
+
+### Bakiye düzeltmesi + at araması (Faz 10, 02.10.2026)
+
+- `POST /admin/players/:playerId/balance-adjustments` — yalnızca yönetici; `Idempotency-Key` zorunlu.
+  Gövde `{ currency: 'money'|'gems', amount: (işaretli tam sayı, ≠0), reason }`. 201
+  `{ transactionId, auditId, currency, amount, balanceBefore, balanceAfter }`. Hatalar: 400
+  `INVALID_BALANCE_ADJUSTMENT`, 409 `ADJUSTMENT_TARGET_NOT_ALLOWED` (kendine/personele), 409
+  `INSUFFICIENT_FUNDS`, 404 (oyuncu yok). Defter türü `admin_adjustment` (kanonik `ADJUSTMENT`).
+- `GET /admin/horses?q=` — moderatör + yönetici; at kimliği, sahip kimliği, at adı (parça) ya da sahip
+  kullanıcı adı; en fazla `horseSearch.limit`.
+- `GET /admin/config` · `GET /admin/seasons` · `GET /admin/tournaments` — yalnızca yönetici, salt okuma.
+  Config girdisi `{ name, sha256, values }` (kanonik JSON özeti).
+
+### Kulüp içi yarış (09.10.2026, migration 0081)
+
+- `POST /races` gövdesinde `clubOnly: true` (boolean; değilse 400). Kulübü İSTEMCİ seçmez: sunucu
+  açanın üyeliğinden bulur. Kulübü yoksa 403 `NOT_CLUB_MEMBER`, sıradan üyeyse 403
+  `INSUFFICIENT_CLUB_PERMISSION` (lider/subay açar). Yanıt ve liste satırı `clubId` taşır (`null` = açık).
+- `POST /races/:id/join` — kulübün üyesi değilse 409 `RACE_CLUB_ONLY` (para/defter dokunulmadan).
+  Kulüp feshedilmişse kimse yeni katılamaz.
+- `GET /races` — kulüp içi yarışı yalnızca o kulübün üyeleri, açan ve zaten katılmış olan görür.
+- `POST /players/:id/race-invites` — kulüp içi yarışa kulüp dışından davet 409 `RACE_CLUB_ONLY`.
+
+### Kulüp daveti (09.10.2026, migration 0080)
+
+- `POST /clubs/:clubId/invites` `{ username }` — yalnızca subay/lider; 201 `{ invited: true }`.
+  Davetliye `club_invite` bildirimi (`{ inviteId, clubId, clubName, inviterId, inviterName }`) aynı
+  transaction'da. Hatalar: 400 (kullanıcı adı), 403 `INSUFFICIENT_CLUB_PERMISSION` / `NOT_CLUB_MEMBER`,
+  403 `PLAYER_BLOCKED` (iki yön), 404 `PLAYER_NOT_FOUND` (kendisi/olmayan), 409 `ALREADY_CLUB_MEMBER`,
+  409 `CLUB_INVITE_EXISTS`, 409 `CLUB_INVITE_LIMIT` (`online.club.invites.maxPendingPerClub`). 20/60 sn.
+- `GET /clubs/invites` — çağırana gelen, süresi dolmamış bekleyen davetler (`ClubInviteView[]`, en fazla
+  `online.club.invites.listLimit`).
+- `POST /clubs/invites/:inviteId/accept` — 200 `ClubDetailView` (üye olarak). Diğer bekleyen davetler
+  `cancelled`. Hatalar: 404 `CLUB_INVITE_NOT_FOUND` (başkasının/kapanmış), 409 `CLUB_INVITE_EXPIRED`,
+  409 `CLUB_FULL`, 409 `ALREADY_CLUB_MEMBER`.
+- `POST /clubs/invites/:inviteId/decline` — 200 `{ declined: true }`; 404 `CLUB_INVITE_NOT_FOUND`.
+
+### Kulüp sohbeti + tribün emote (Faz 9, 02.10.2026, migration 0062)
+
+- `GET /clubs/:clubId/messages` — son `chat.clubChat.historyLimit` mesaj, eskiden yeniye. Yalnızca üye
+  (değilse 403 `NOT_CLUB_MEMBER`, kulüp yoksa da 403).
+- `POST /clubs/:clubId/messages` `{ body }` — 201; gövde yarış sohbetiyle aynı kural (400
+  `INVALID_MESSAGE_BODY`); 20 istek/60 sn.
+- Soket `race.emote` `{ raceId, key }` (yalnızca abone olunan yarış, `chat.emotes.list` anahtarı, soket
+  başına `cooldownMs`) → odaya `race.emote` `{ raceId, key }` (anonim, kalıcı değil). Reddedilen emote
+  sessizce düşer.
+
+### Kişisel veri dışa aktarma (Faz 1, 02.10.2026)
+
+`GET /account/export` — yalnızca kendi verin (token'dan). 3 istek/saat, `Cache-Control: no-store`.
+Yanıt `{ exportedAt, playerId, sections }`; her bölüm `{ rows, truncated }` (bölüm başına en fazla
+`auth.dataExport.maxRowsPerSection`, en yeniler). Bölümler: `account`, `loginMethods`, `sessions`,
+`horses`, `transactions`, `raceEntries`, `messages`, `friendships`, `blocks`, `reportsFiled`, `gifts`,
+`notifications`, `club`, `sanctions`, `questClaims`. Parola/token özeti, diğer oyuncuların iç
+kimlikleri, hakkındaki şikâyetler ve yaptırımı veren yönetici GİRMEZ.
+
+### Şüpheli desenler (Faz 7, 02.10.2026)
+
+`GET /admin/anomalies` — moderatör + yönetici (yoksa 403 `ADMIN_REQUIRED`). Salt okuma; otomatik
+işlem yok. Yanıt `{ generatedAt, windowDays, newAccountDays, findings[] }`; her bulgu `rule`
+(`gift_funnel` | `repeat_trade_pair` | `new_account_outflow`), `subject`, `counterparts`
+(`playerId`, `username`, `accountAgeDays`), `count`, `totalMoney`, `totalGems`, `firstAt`, `lastAt`.
+Eşikler `config/anticheat.config.json`.
+
+### Görevler + etkinlikler (Faz 11-B, 02.10.2026, migration 0061)
+
+İlerleme sunucuda mevcut tablolardan türetilir; istemci yalnızca "hangi görev" der.
+
+| Uç | Kim | Not |
+|---|---|---|
+| `GET /quests` | oyuncu | `{ daily, weekly, events }` — her görevde `progress`, `target`, `rewardMoney`, `claimed` |
+| `POST /quests/:questKey/claim` | oyuncu | anahtar config listesinde aranır; 404 `QUEST_NOT_FOUND`, 409 `QUEST_NOT_COMPLETED` / `QUEST_ALREADY_CLAIMED`; başarıda `{ rewardMoney, balanceAfter }` + `quest_reward` defter satırı |
+| `POST /events/:eventId/claim` | oyuncu | aynı kurallar; arşivlenmiş/başlamamış/talep süresi geçmiş etkinlik 404; `event_reward` |
+| `POST /admin/events` | yönetici | `{ title, description?, metric, target, rewardMoney, startsAt?, endsAt }`; 400 `INVALID_LIVE_EVENT`, 409 `LIVE_EVENT_LIMIT_REACHED` |
+| `GET /admin/events` | yönetici | `claimCount` dahil |
+| `POST /admin/events/:eventId/archive` | yönetici | 404 `LIVE_EVENT_NOT_FOUND` |
+
+Ölçütler: `races_entered`, `race_wins`, `top3_finishes`, `trainings` (dinlenme hariç),
+`care_actions` (at+iş başına bir), `horse_purchases` (sabit fiyat + kazanılmış müzayede,
+`horsePurchaseMinPrice` ve üstü).
+
 ### Soy Ağacı (soy ağacı veri zinciri dilimi, 27.09.2026)
 
 ```http
@@ -1728,7 +1938,7 @@ bakiyesinden damızlık ücreti ödenemez ve tay başkasının ahırına doğama
 defter satırı YAZILMAZ (migration 0019 `CHECK (amount <> 0)`).
 
 **Tay ANINDA doğar.** Bu projede gebelik süresi modellenmez;
-`breedingCooldownDays` kısrağın BİR SONRAKİ çiftleştirmesine kadar geçen
+`breedingCooldownMonths` kısrağın BİR SONRAKİ çiftleştirmesine kadar geçen
 süredir. Tay `horses` + `horse_stats` + `horse_health` +
 `horse_surface_stats` + `horse_distance_stats` + `pedigrees` satırlarıyla
 birlikte, AYNI transaction'da doğar; `breeding_pairs` satırı da (ücret +
@@ -1913,7 +2123,8 @@ cooldown takibi için bir satır yazar/günceller (migration 0015).
 >
 > - `saman` — **BEDAVA**, stoklanmaz (`stocked: false`), at başına günde
 >   3 kez (`dailyLimit: 3`).
-> - `arpa` / `mama` / `havuc` / `vitamin` — **Elmasla** satın alınır
+> - `arpa` / `mama` / `havuc` / `vitamin` — **Çiple** satın alınır (09.10.2026'ya
+>   kadar elmasla; elmas politikası: yarışı etkileyen yem elmasla satılmaz)
 >   (`POST /players/{id}/feed-inventory/{type}/buy`; envanteri okumak için
 >   `GET /players/{id}/feed-inventory`, atın bugünkü hakkı/durumu için
 >   `GET /horses/{id}/feed-status`). Stoktan düşer; stok yoksa besleme
@@ -2246,6 +2457,15 @@ ile reddeder (süpürme, `purchaseListing`'in kendi süre kontrolünden ÖNCE
 status'ü zaten `expired`'a çevirmiş olur) — hata mesajı yine de "durum:
 expired" der, bilgi kaybı yoktur.
 
+**08.10.2026 — ZAMANLAYICI + BİLDİRİM (migration 0077).** Süre dolumu artık
+`MarketListingExpiryScheduler` ile de yazılır (`economy.listingExpiry`,
+`tickSeconds`; hiç okunmayan ilan da `expired` olur). Okuma anındaki süpürme
+ve zamanlayıcı AYNI tek atomik ifadeyi kullanır (`UPDATE … WHERE status =
+'active' … RETURNING`): eski "önce oku, sonra koşulsuz yaz" süpürmesi
+eşzamanlı satılan bir ilanı `expired`a GERİ yazabiliyordu. Satıcıya aynı
+ifadede `listing_expired` bildirimi düşer (`{ listingId, horseId, horseName,
+price }`, yalnızca bir kez). Müzayede bu yoldan süpürülmez.
+
 **KAPSAM (bu oturum, bilinçli):** `listingType` her zaman `fixed_price`'tır
 (`auction`'ın teklif verme/kazanma mantığı domain katmanında hiç yok,
 bkz. domain/market/README.md). Tarama ekranının ata özgü filtreleri (`?breed=&
@@ -2318,6 +2538,26 @@ kazandım/kaybettim" özetini de içerir):
 }
 ```
 
+### Masa kuralları (09.10.2026, migration 0079)
+
+`POST /races` gövdesi `tableId?` alır (`economy.raceTiers[].id`: `local`,
+`regional`, `national`, `elite`, `championship`). Verilirse yarış ücretli,
+`entryFee` ve `fieldSize` masanınki olmak zorundadır (aksi 400
+`INVALID_RACE_DEFINITION`). Lobi görünümü `table: { id, label, feeTiming,
+paidPlaces, rakePercent, loserRefund: { percent, maxPosition } } | null`
+taşır.
+- `feeTiming: "on_join"` — bedel katılırken düşer (ayrılınca defterden iade).
+- `feeTiming: "on_start"` — katılımda para düşmez (bakiye yetmiyorsa 409
+  `INSUFFICIENT_FUNDS`); start anında (kilit/kesinleşme) kesilir, o an
+  yetmeyenin katılımı `cancelled` olur. Bu masada `prizePool` start'a kadar
+  0'dır; `topPrize`/`prizeMultiplier` katılanların ödeyeceği bedelden
+  tahmin edilir.
+- Ödül: masanın dağılımı (`paidPlaces` sıra; komisyon = `rakePercent`).
+- Kaybeden iadesi: ödül alamayan ama `maxPosition`a kadar bitirene ödediği
+  bedelin `percent`i (aşağı yuvarlanır), havuzdan ÖNCE ayrılır; sonuçta
+  `places[].loserRefundAmount`, defterde `lobby_race_loser_refund`.
+Pratik yarış sonucu `loserRefund` taşır (`practice_race_loser_refund`).
+
 ### Ücretli Yarış Lobi — oluştur / listele / katıl / hazır (brief §1-§7, §42 PHASE 1 + 3)
 
 **Oyuncunun kendi açtığı yarış** — sunucunun ürettiği pratik yarıştan
@@ -2344,6 +2584,26 @@ Gövde: `name`, `fieldSize` (8/10/12/14/16), `maxPlayers`, `entryFee`,
 `raceType` (`free`|`paid`), `startTime` (ISO 8601), `surface`, `weather`,
 `distanceMeters`, `tribuneFee`, `spectatorCapacity`. Tümü
 `config/race-lobby.config.json`'daki seçeneklerden biri olmalıdır.
+İsteğe bağlı: `playerControl` (boolean) ve `breedClass` (08.10.2026 —
+`config/breeds.config.json` → `raceClasses` anahtarı: `native`/`arabian`/
+`thoroughbred`; verilmezse yarış her ırka açık). Sınıflı yarışa sınıf dışı
+atla `POST /races/{id}/join` → 409 `HORSE_BREED_NOT_ALLOWED`. Lobi satırı
+`breedClass` taşır.
+İsteğe bağlı `horseLevelBracket` (08.10.2026, migration 0073 —
+`config/race-lobby.config.json` → `horseLevelBrackets` anahtarı: `rookie`/
+`developing`/`master`/`champion`; verilmezse her seviyeye açık; bilinmeyen
+anahtar 400 `INVALID_RACE_DEFINITION`). Aralık dışı atla katılım → 409
+`HORSE_LEVEL_NOT_ALLOWED`. Lobi satırı `horseLevelBracket` taşır.
+İsteğe bağlı `hippodrome` (08.10.2026, migration 0072 —
+`config/hippodromes.config.json` anahtarı: `veliefendi`/`ankara`/`izmir`/
+`adana`/`bursa`; verilmezse varsayılan Veliefendi; bilinmeyen anahtar 400
+`INVALID_RACE_DEFINITION`). Yarış `races.track_id` ile `tracks` satırına
+bağlanır. Lobi satırı (`RaceLobbyView`), zaman çizelgesi
+(`GET /races/:id/timeline`), canlı/kontrollü görünüm (`InteractiveRaceView`)
+ve `race.roster` olayı `hippodrome` anahtarını taşır (hipodromu yazılmamış
+eski yarışta varsayılan). Pratik, eşleşme ve turnuva yarışının hipodromu
+yarış kimliğinden determinist seçilir; takvim programı kendi hipodromunu
+config'ten alır. Salt sahne — sonuca etkisi YOK.
 
 **`Idempotency-Key` YOKTUR ve bu bilinçlidir:** bu uç hiçbir bakiye/ödül/
 envanter değiştirmez (ücret yarışa KATILIRKEN alınır) — brief §54'ün zorunlu
@@ -2550,9 +2810,11 @@ açıktır ve sonucu önceden hesaplanabilir kılardı), simülasyon
 `finished` diye bir değer kabul etmez; sonuç `finish_position`/
 `final_time_ms`/`horse_snapshot` sütunlarında yaşar.
 
-**Bot payı YANAR (bilinçli):** botların `player_id`'si yoktur, bota düşen
-ödül kimseye ödenmez. Aksi hâlde bir oyuncu kendi yarışını açıp tek
-gerçek katılımcı olarak havuzun çoğunu geri alabilirdi.
+**Bota pay düşmez (16.10.2026, sahibinin kararı):** ödül sırası gerçek
+oyuncular arasındaki sıradır; bot `places` listesinde görünür, `prizeAmount`ı
+0'dır ve payı gerçek oyunculara orantılı dağılır (`computeLobbySettlement`).
+Dönen toplam ≤ havuz × Σpay — tek başına ya da çoklu hesapla havuzu geri
+almak komisyon kadar zarardır (ücretli lobi yine en az 2 gerçek oyuncu ister).
 
 **Bilinen açık pencere:** at snapshot'ı `startTime`'da değil, kesinleşme
 anında alınır — oyuncu aradaki sürede atını çalıştırabilir. Kapatmak
@@ -2754,6 +3016,79 @@ geçirmeli; `race.enter` gibi uç noktalarda client bir snapshot da
 gönderirse `assertSnapshotMatchesAuthoritative` ile server'ın kendi DB
 değerleriyle karşılaştırılıp uyuşmazlık reddedilmelidir.
 
+## 9.1 Profil fotoğrafı (08.10.2026, migration 0071)
+
+```http
+POST   /api/v1/avatar/photo                  # 201, multipart alan `photo` (JPEG/PNG/WebP)
+DELETE /api/v1/avatar/photo                  # 200 (yoksa 404 PROFILE_PHOTO_NOT_FOUND)
+GET    /api/v1/avatar/photos/{photoId}       # @Public — görüntünün kendisi
+DELETE /api/v1/admin/players/{id}/photo      # moderatör + yönetici, gövde { reason }
+```
+
+Yükleme baytlardan doğrulanır (biçim, tür uyumu, boyut, çözünürlük —
+`avatar.config.json` → `photo`); geçmezse 422 `PHOTO_REJECTED`. Hareketli
+görüntü reddedilir. Saklamadan önce meta veri SİLİNİR (JPEG EXIF/XMP/IPTC/
+yorum, PNG metin/`eXIf`/`tIME`, WebP `EXIF`/`XMP `); yalnızca JPEG yön bilgisi
+yeniden yazılır. Dosyanın sonuna eklenmiş baytlar atılır. Depo anahtarı
+sunucu üretir (`photos/<photoId>.<uzantı>`). `photoId` her yüklemede değişir;
+eski adres 404 döner ve eski dosya silinir. Sunum başlıkları: doğru
+`Content-Type`, `X-Content-Type-Options: nosniff`, `Content-Security-Policy:
+default-src 'none'; sandbox`, uzun önbellek. `GET /avatar` → `photo`, profil →
+`photoId`. Yönetim kaldırması `photos.moderate` izni ister ve
+`admin_audit_log`a (`player.photo_removed`) aynı transaction'da yazar. Hesap
+silme fotoğrafı (satır + dosya) siler; dışa aktarma `profilePhoto` bölümünü
+taşır (depo anahtarı hariç).
+
+## 9.2 Metrikler (08.10.2026)
+
+```http
+GET /api/v1/metrics      # Authorization: Bearer <METRICS_TOKEN>; text/plain (Prometheus 0.0.4)
+```
+
+`METRICS_TOKEN` tanımlı DEĞİLSE uç yoktur (404); token eksik/yanlışsa 401
+(karşılaştırma özetle, sabit sürede). Oturum kapısı dışındadır, token
+toplayıcının (Prometheus, Grafana Agent, OTel) kazıma ayarına yazılır.
+İçerik: `http_requests_total{method,route,status}`,
+`http_request_duration_seconds{method,route}` (kova sınırları
+`ops.metrics.durationBucketsSeconds`), `app_errors_total{source}`, süreç
+(çalışma süresi, RSS, heap), Postgres havuzu (`db_pool_connections{state}`)
+ve oyun göstergeleri (`game_players`, `game_open_races`,
+`game_active_listings`, `game_pending_payments`,
+`game_gauge_query_up` — sorgu `ops.metrics.gaugeQueryTimeoutMs`i aşarsa 0).
+`route` Express'in eşleştirdiği KALIPTIR (`/api/v1/races/:raceId`);
+eşleşmeyen istek `unmatched`. Kimlik, sorgu dizesi, oyuncu verisi etiket
+olmaz, bakiye dönmez.
+
+## 9.3 Jokey durumu (08.10.2026)
+
+`GET /api/v1/players/{id}/jockey` (yalnızca kendi kimliğin) yanıtı
+`{ jockey, composite, condition }` taşır. `condition`: `form`
+(`hot|good|average|poor|cold|unknown`), `formRides`, `formPercent`
+(beceriye etkisi, yüzde, işaretli), `ridesInWindow`, `fatigueWindowHours`,
+`freeRidesInWindow`, `fatiguePercent` (≥ 0), `multiplier` (form ×
+yorgunluk). Son binişlerden türetilir (bitmiş yarış, iptal edilmemiş
+katılım); bir sonraki yarışta jokey puanına çarpan olarak uygulanır ve kadro
+kilitlenirken donar. Ayarlar `config/jockey.config.json` → `condition`.
+
+## 9.4 Sosyal keşif, çip transferi limitleri, davet, çip paketleri (16.10.2026)
+
+| Yöntem | Yol | Açıklama |
+|---|---|---|
+| GET | `/api/v1/social/search?q=` | UUID tam eşleşme ya da kullanıcı adı ön eki (`social.playerSearch`); kendisi, engelli çift, silinmiş hesap dönmez. Satır: `playerId, username, displayName, level, presence` |
+| GET | `/api/v1/players/{id}/relationship/{otherId}` | yalnızca kendi `id`; `status`: `self \| friend \| outgoing \| incoming \| none \| blocked`, `requestId`, `canSendFriendRequest`, `friendRequestBlockedReason`, `presence` (yalnızca arkadaşsa) |
+| POST | `/api/v1/presence/heartbeat` | son görülmeyi sunucu saatiyle yazar (200) |
+| GET/PUT | `/api/v1/players/{id}/privacy` | `{ showOnlineStatus: boolean }` |
+| GET | `/api/v1/players/{id}/gifts/quota` | hazır tutarlar, günlük kalan (gönderim), yeni hesap işareti, gönderilebilir bakiye |
+| GET | `/api/v1/referrals` | kod, koşullar, ödüller, tavanlar, davet ettiklerin (durum), seni davet eden |
+| POST | `/api/v1/referrals/attach` | `{ code }` → davet edenle ilişkilendir (404/400/409) |
+| POST | `/api/v1/referrals/claim` | koşulu sağlanan davetlerin ödülü (iki tarafa, bir kez) |
+
+`POST /players/{id}/gifts` artık 409 `GIFT_LIMIT_EXCEEDED` (`details.kind`:
+`DAILY_AMOUNT`, `RECIPIENT_DAILY_AMOUNT`, `NEW_ACCOUNT_AMOUNT`,
+`NEW_ACCOUNT_DAILY_AMOUNT`, `PURCHASED_CHIPS_NOT_GIFTABLE`) verebilir.
+`GET /store` ürünü ve sipariş görünümü `chips` taşır (ürün ya elmas ya çip
+verir); `GET /admin/payments` satırı `clawbackShortfallChips` taşır.
+
 ## 10. WebSocket olayları
 
 Brief'te WebSocket "gerektiğinde" kullanılacağı belirtilmiş (§6).
@@ -2951,6 +3286,15 @@ dosyanın doc yorumu).
 | `INVALID_CREDENTIALS` | E-posta ya da şifre hatalı — `POST /auth/login/password` (401). Kayıtlı olmayan e-posta ile yanlış şifre BİLEREK aynı kod ve aynı mesajdır (enumerasyon yok) (30.09.2026) |
 | `EMAIL_ALREADY_REGISTERED` | Bu e-posta başka bir hesaba bağlı — `POST /auth/credentials` (409); karşılaştırma büyük/küçük harf duyarsız (30.09.2026) |
 | `INVALID_RESET_TOKEN` | Şifre sıfırlama bağlantısı geçersiz, süresi dolmuş ya da kullanılmış — `POST /auth/password-reset/confirm` (400). Üç durum BİLEREK tek koddur (30.09.2026, migration 0047) |
+| `INVALID_REFRESH_TOKEN` | Refresh token geçersiz, süresi dolmuş, kapatılmış ya da YENİDEN kullanılmış — `POST /auth/refresh` (401). Dört durum BİLEREK tek koddur; yeniden kullanım oturumu kapatır (02.10.2026, migration 0057) |
+| `INVALID_VERIFICATION_TOKEN` | E-posta doğrulama bağlantısı geçersiz, süresi dolmuş, kullanılmış ya da e-posta değişmiş — `POST /auth/email/verify` (400), tek kod (02.10.2026, migration 0058) |
+| `NO_ACCOUNT_EMAIL` | Misafir hesabın doğrulanacak e-postası yok — `POST /auth/email/verification` (409) |
+| `EMAIL_ALREADY_VERIFIED` | E-posta zaten doğrulanmış (409) |
+| `DELETION_CONFIRMATION_MISMATCH` | Hesap silme onayı (kullanıcı adı) eşleşmedi (400) |
+| `DELETION_PASSWORD_INVALID` | Hesap silmede şifre yanlış (403 — 401 değil; istemci 401'de oturumu siler) |
+| `ACCOUNT_DELETION_BLOCKED` | Parası emanette (müzayede, açık yarış, PvP) ya da üyeli kulüp lideri — önce bitir (409; mesaj nedenleri söyler) (02.10.2026, migration 0059) |
+| `SESSION_NOT_FOUND` | Oturum yok ya da çağırana ait değil — `DELETE /auth/sessions/:id` (404, varlık sızdırılmaz) |
+| `SESSION_UPGRADE_NOT_ALLOWED` | `POST /auth/session` yalnızca eski (`sid`siz) token'ı yükseltir (409) |
 | `CREDENTIALS_ALREADY_SET` | Bu hesap zaten e-posta + şifreyle kayıtlı — `POST /auth/credentials` (409) (30.09.2026) |
 | `PLAYER_LEVEL_TOO_LOW` | Turnuvanın seviye şartı karşılanmadı — `POST /races/:id/join` (409), para hareket etmez (30.09.2026, migration 0045) |
 | `HORSE_IN_ACTIVE_RACE` | At henüz koşulmamış (`scheduled`/`locking`) bir lobi yarışına kayıtlı: ikinci bir açık yarışa yazılamaz (`POST /races/:id/join`), pazara çıkarılamaz (`POST /market/listings`) ve satın alınamaz (`POST /market/listings/:id/buy`). Yarış bitince, iptal edilince ya da oyuncu ayrılınca kalkar (30.09.2026) |
@@ -3004,3 +3348,19 @@ dosyanın doc yorumu).
 | `RACE_ENTRY_NOT_LEAVABLE` | Ayrılma penceresi kapalı: yarış `scheduled` değil, başlangıç zamanı gelmiş (sınırda kapalı) ya da katılım zaten `cancelled` — `POST /races/:id/leave`. `RACE_ENTRY_NOT_READYABLE` ile AYNI sınırdadır; ayrılma geri alınamaz biçimde ücret iadesi doğurduğu için "önce uygun duruma getir" yolu YOKTUR (Ücretli yarış lobisi + iade, 28.09.2026) |
 | `RACE_ENTRY_CANCELLED` | Aynı yarışa yeniden katılma denemesi ama katılım daha önce İPTAL edilmiş — `POST /races/:id/join`. **`ALREADY_JOINED_RACE` DEĞİL:** oyuncu yarışta değildir, iptal etmiştir; ayrıl-katıl döngüsü READY bayrağını sıfırlayıp oyuncuya havuzu oynama imkânı verirdi. Boşalan koltuk BAŞKALARINA açıktır (Ücretli yarış lobisi + iade, 28.09.2026) |
 | `RACE_NOT_SETTLEABLE` | Ödül dağıtımı bu durumda yapılamaz: yarış `scheduled` değil (zaten koştu/iptal), başlangıç zamanı gelmemiş ya da hiç GERÇEK katılımcı yok — `POST /races/:id/settle`. **BU KOD AYNI ZAMANDA İDEMPOTENCY'NİN TA KENDİSİDİR:** uç `Idempotency-Key` kullanmaz, ikinci çağrı buraya çarpar ve ikinci bir ödeme yapısal olarak imkânsız olur (Ödül dağıtımı, 28.09.2026) |
+| `ACCOUNT_SUSPENDED` | 403 — hesap askıda ya da yasaklı; mesaj gerekçe + bitişi taşır (Faz 10, 02.10.2026) |
+| `INVALID_SANCTION` | 400 — yaptırım gövdesi geçersiz (tür, gerekçe uzunluğu, süre; moderatörün yasak/uzun askı denemesi 403 `ADMIN_REQUIRED`) |
+| `SANCTION_TARGET_NOT_ALLOWED` | 409 — kendine ya da personele yaptırım |
+| `SANCTION_NOT_FOUND` | 404 — yaptırım yok ya da zaten kalkmış |
+| `INVALID_ROLE_CHANGE` | 400 — bilinmeyen rol ya da kendi rolünü değiştirme |
+| `INVALID_ANNOUNCEMENT` | 400 — başlık/metin/düzey/tarih geçersiz |
+| `ANNOUNCEMENT_NOT_FOUND` | 404 |
+| `ANNOUNCEMENT_LIMIT_REACHED` | 409 — aynı pencerede yayında olan duyuru sınırı dolu |
+| `QUEST_NOT_FOUND` | 404 — görev/etkinlik yok ya da şu an ödülü alınamaz (Faz 11-B) |
+| `QUEST_NOT_COMPLETED` | 409 — hedefe ulaşılmadı |
+| `QUEST_ALREADY_CLAIMED` | 409 — bu dönemin ödülü alındı |
+| `INVALID_LIVE_EVENT` | 400 — etkinlik gövdesi geçersiz |
+| `LIVE_EVENT_NOT_FOUND` | 404 — etkinlik yok ya da zaten arşivde |
+| `LIVE_EVENT_LIMIT_REACHED` | 409 — aynı pencerede açık etkinlik sınırı dolu |
+| `INVALID_BALANCE_ADJUSTMENT` | 400 — düzeltme gövdesi geçersiz (Faz 10) |
+| `ADJUSTMENT_TARGET_NOT_ALLOWED` | 409 — kendine ya da yönetim ekibine düzeltme |

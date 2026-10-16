@@ -148,7 +148,9 @@ describe('Şifre sıfırlama (e2e)', () => {
     const { email } = await registeredAccount();
     await requestReset(email).expect(202);
     await requestReset(email).expect(202);
-    expect(outbox.outbox.filter((mail) => mail.to === email)).toHaveLength(1);
+    // Kayıt artık bir DOĞRULAMA e-postası da yollar (migration 0058) — sayım
+    // yalnızca sıfırlama e-postalarına daraltılır.
+    expect(outbox.outbox.filter((mail) => mail.to === email && /şifre sıfırlama/.test(mail.subject))).toHaveLength(1);
   });
 
   it('başarılı sıfırlama oyuncunun DİĞER bekleyen bağlantılarını geçersiz kılar', async () => {

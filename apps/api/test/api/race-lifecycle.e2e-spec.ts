@@ -9,6 +9,7 @@ import {
   bootstrapTestApp,
   registerTestPlayerWithStarterHorse,
   type RegisteredTestPlayer,
+  allowSoloLobbyRace,
 } from './test-helpers';
 
 /**
@@ -82,6 +83,9 @@ describe('Yarış yaşam döngüsü (e2e) — kilit ve dondurma', () => {
         ...override,
       })
       .expect(201);
+    // 15.10.2026 (Aşama 3) — bu dosyanın yarışları tek gerçek oyuncuyla da
+    // koşar (eski saha kuralı ön koşul; kuralın kendisi `race-field-rule.e2e-spec.ts`te).
+    await allowSoloLobbyRace(app, response.body.data.id as string);
     return response.body.data.id as string;
   }
 
@@ -137,6 +141,23 @@ describe('Yarış yaşam döngüsü (e2e) — kilit ve dondurma', () => {
       }
     }
     throw new Error(`Yarış ${MAX_TICKS} turda kilitlenmedi: ${raceId}`);
+  }
+
+  /**
+   * Katılımsız geçmiş yarış iptal edilene kadar tur atar (`lockUntilLocked`
+   * ile aynı gerekçe: temizlik de tur başına `batchSize` yarışla sınırlıdır
+   * ve ortak veritabanındaki eski artıklar kuyruğun başını doldurabilir).
+   */
+  async function tickUntilCancelled(raceId: string): Promise<number> {
+    const MAX_TICKS = 25;
+    let cancelledTotal = 0;
+    for (let tick = 0; tick < MAX_TICKS; tick += 1) {
+      cancelledTotal += (await lockRaceUseCase.execute(new Date())).cancelledEmpty;
+      if ((await raceRowOf(raceId)).status === 'cancelled') {
+        return cancelledTotal;
+      }
+    }
+    throw new Error(`Yarış ${MAX_TICKS} turda iptal edilmedi: ${raceId}`);
   }
 
   interface StoredSnapshot {
@@ -221,15 +242,48 @@ describe('Yarış yaşam döngüsü (e2e) — kilit ve dondurma', () => {
     expect(afterSecond.simulation_seed).toBe(afterFirst.simulation_seed);
   });
 
-  it('KATILIMCISIZ yarış kilitlenmez (görünmez `locking` çöplüğü doğmaz)', async () => {
+  it('KATILIMCISIZ yarış kilitlenmez, İPTAL edilir (lobide ölü `scheduled` kalmaz)', async () => {
+    // 14.10.2026 — bu test eskiden durumun `scheduled` KALDIĞINI iddia
+    // ediyordu; o davranış hataydı: yarış hiç koşmuyor ama açanın açık
+    // yarış hakkını kalıcı işgal ediyordu (3 yarıştan sonra sürekli
+    // `RACE_LIMIT_REACHED`). Kilitlenmemesi doğru, ama ölü kalmamalı.
     const creator = await registerTestPlayerWithStarterHorse(app, 'Yalnız Kurucu');
     const raceId = await createRace(creator);
     await makeRaceStarted(raceId);
 
-    const result = await lockRaceUseCase.execute(new Date());
+    const cancelled = await tickUntilCancelled(raceId);
 
-    expect(result.locked).not.toContain(raceId);
-    expect((await raceRowOf(raceId)).status).toBe('scheduled');
+    expect(cancelled).toBeGreaterThanOrEqual(1);
+    expect((await raceRowOf(raceId)).status).toBe('cancelled');
+    expect((await raceRowOf(raceId)).simulation_seed).toBeNull();
+    // Para yoktu, defter satırı da yazılmaz.
+    const ledger = await pool.query('SELECT 1 FROM economy_transactions WHERE reference_id = $1', [raceId]);
+    expect(ledger.rows).toHaveLength(0);
+  });
+
+  it('katılımı ayrılınca boşalan geçmiş yarış iptal edilir; aktif katılımlı yarışa DOKUNULMAZ', async () => {
+    const creator = await registerTestPlayerWithStarterHorse(app, 'Boşalan Kurucu');
+    const rival = await registerTestPlayerWithStarterHorse(app, 'Kalan Rakip');
+    const emptied = await createRace(creator);
+    const active = await createRace(creator);
+    await join(creator, emptied);
+    // Ayrılan katılım `cancelled` işaretlenir (satır silinmez) — sayılmamalı.
+    await request(app.getHttpServer())
+      .post(`${racesUrl}/${emptied}/leave`)
+      .set('Authorization', creator.authHeader)
+      .set('Idempotency-Key', randomUUID())
+      .expect(200);
+    await join(rival, active);
+    await makeRaceStarted(emptied);
+    await makeRaceStarted(active);
+
+    await tickUntilCancelled(emptied);
+
+    expect((await raceRowOf(emptied)).status).toBe('cancelled');
+    // Aktif katılımlı yarış koşmak üzeredir: iptal edilmez (kilitlenir ya da
+    // bir sonraki turda kilitlenecektir).
+    await lockUntilLocked(active);
+    expect((await raceRowOf(active)).status).toBe('locking');
   });
 
   it('katılımcılara `race_starting` bildirimi yazılır — üreticisi olmayan SON tür kapanır', async () => {

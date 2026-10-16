@@ -5,7 +5,9 @@ export class MaxFacilityLevelReachedError extends Error {
     public readonly facilityType: string,
     public readonly currentLevel: number,
   ) {
-    super(`"${facilityType}" tesisi zaten en yüksek seviyede (${currentLevel}) — daha fazla yükseltilemez.`);
+    super(
+      `"${facilityType}" tesisi zaten en yüksek seviyede (${currentLevel}) — daha fazla yükseltilemez.`,
+    );
     this.name = 'MaxFacilityLevelReachedError';
   }
 }
@@ -13,7 +15,9 @@ export class MaxFacilityLevelReachedError extends Error {
 /** `staff_building` seviyesinin izin verdiği personel kapasitesi dolduğunda fırlatılır. */
 export class StaffCapacityExceededError extends Error {
   constructor(public readonly capacity: number) {
-    super(`Personel kapasitesi (${capacity}) dolu — daha fazla personel kiralamak için Personel Binası'nı yükselt.`);
+    super(
+      `Personel kapasitesi (${capacity}) dolu — daha fazla personel kiralamak için Personel Binası'nı yükselt.`,
+    );
     this.name = 'StaffCapacityExceededError';
   }
 }
@@ -33,5 +37,13 @@ export class InvalidFacilityTypeError extends Error {
   constructor(public readonly value: unknown) {
     super(`Geçersiz tesis tipi: "${String(value)}".`);
     this.name = 'InvalidFacilityTypeError';
+  }
+}
+
+/** 01.10.2026 — etkisi bağlı olmayan tesis (`farm.config.json` → `inactiveFacilities`) inşa/yükseltilemez. */
+export class FacilityInactiveError extends Error {
+  constructor(public readonly facilityType: string) {
+    super(`"${facilityType}" tesisinin şu an oyunda bir etkisi yok; inşa edilemez.`);
+    this.name = 'FacilityInactiveError';
   }
 }
