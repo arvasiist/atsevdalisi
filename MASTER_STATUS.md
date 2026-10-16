@@ -34,7 +34,7 @@ Her satır kod + test ile kontrol edildi. "Durum" denetim anındaki durumdur;
 | 6.1 | Hemen Katıl | PARTIAL → TESTED | `pickQuickJoinRace`, `lobby-logic.spec.ts` | G4: atın enerji/yorgunluk/yaş durumu önceden denetlenmiyor (sunucu 409 veriyor), tek seçenek, ödül kuralı işlemden önce gösterilmiyor | P1 | G4 ✅ |
 | 6.2 | Yarış kartı | IMPLEMENTED → TESTED | `LobbyPanel` (mesafe, pist, sınıf, kapasite, ücret, masa kuralları, süre) | G5: masasız yarışta ödül dağılımı yazmıyor | P3 | G5 ✅ |
 | 6.3–6.4 | Uygunluk + yaşam döngüsü | TESTED | `DENETIM_ASAMA3_YARIS.md` (15 madde) | — | — | değişmedi |
-| 7 | Tribün hediyesi | TESTED | `tribune-gift.e2e-spec.ts` | G7: "yarıştan sonra at satılırsa hediye koşturana gider" kuralının testi yok | P3 | G7 ✅ |
+| 7 | Tribün hediyesi | TESTED (+ sahiplik değişimi, 16.10) | `tribune-gift.e2e-spec.ts` | G7: "yarıştan sonra at satılırsa hediye koşturana gider" kuralının testi yok | P3 | G7 ✅ |
 | 8–10 | At/ahır/bakım/antrenman, motor, genetik, kariyer | TESTED | `OYUN_DONGUSU_DENETIMI.md` (S1–S6, B12–B13), `RACE_BALANCE_REPORT.md` §11 | — | — | S4 handikap (16.10) |
 | 11 | Ekonomi bütünlüğü | TESTED | `player-journey.e2e-spec.ts` (bakiye = başlangıç + defter) | G2 yeni para yolu → yolculuk testine girer | P1 | G2 ile |
 | 12–14 | Sosyal, soket, güvenlik | TESTED | `phase16-hardening.spec.ts`, `multi-instance-realtime.e2e-spec.ts`, `production-env.ts` (`DISABLE_RATE_LIMIT` üretimde reddedilir) | — | — | değişmedi |

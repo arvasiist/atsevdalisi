@@ -229,6 +229,43 @@ describe('Tribün hediyesi (e2e)', () => {
     expect(await ledgerCount(owner.playerId)).toBe(0);
   }, 60_000);
 
+  it('brief §8.3: yarıştan sonra at satılsa da hediye atı KOŞTURAN oyuncuya gider (yeni sahibe değil)', async () => {
+    const { owner, viewer, raceId } = await raceWithSpectator('Satılan');
+    const buyer = await registerTestPlayerWithStarterHorse(app, 'Satılan Alıcı');
+    // Yarış bitti; at sonradan el değiştirdi (pazar satışının sonucu ile aynı satır).
+    await pool.query('UPDATE horses SET owner_id = $2 WHERE id = $1', [owner.horseId, buyer.playerId]);
+    await buyTicket(raceId, viewer.authHeader);
+    const board = (await http().get(giftUrl(raceId)).set('Authorization', viewer.authHeader).expect(200)).body.data;
+    expect(board.recipients).toEqual([expect.objectContaining({ horseId: owner.horseId, ownerDisplayName: 'Satılan Sahibi' })]);
+
+    const ownerBefore = await money(owner.playerId);
+    const buyerBefore = await money(buyer.playerId);
+    await http()
+      .post(giftUrl(raceId))
+      .set('Authorization', viewer.authHeader)
+      .set('Idempotency-Key', randomUUID())
+      .send({ horseId: owner.horseId, giftKey: carrot.key })
+      .expect(201);
+    expect(await money(owner.playerId)).toBe(ownerBefore + tribuneGiftOwnerShare(carrot.price, config.ownerSharePercent));
+    expect(await money(buyer.playerId)).toBe(buyerBefore);
+    expect(await ledgerCount(buyer.playerId)).toBe(0);
+    // Yeni sahip bu yarışta koşmadı: o ata hediye gönderebilir, alıcı yine koşturandır.
+    await buyTicket(raceId, buyer.authHeader);
+    await http()
+      .post(giftUrl(raceId))
+      .set('Authorization', buyer.authHeader)
+      .set('Idempotency-Key', randomUUID())
+      .send({ horseId: owner.horseId, giftKey: carrot.key })
+      .expect(201);
+    // Koşturan kendi atına hediye ATAMAZ (kendi kendine hediye yok).
+    await http()
+      .post(giftUrl(raceId))
+      .set('Authorization', owner.authHeader)
+      .set('Idempotency-Key', randomUUID())
+      .send({ horseId: owner.horseId, giftKey: carrot.key })
+      .expect(409);
+  });
+
   it('günlük sınır gönderenin kilidi altında sayılır', async () => {
     const { owner, viewer, raceId } = await raceWithSpectator('Sınır');
     await buyTicket(raceId, viewer.authHeader);
