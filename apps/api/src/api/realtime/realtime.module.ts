@@ -4,6 +4,10 @@ import { NOTIFICATION_NOTIFIER } from '../../application/ports/notification-noti
 import { TRIBUNE_GIFT_NOTIFIER } from '../../application/ports/tribune-gift-notifier';
 import { ChatModule } from '../chat/chat.module';
 import { RaceModule } from '../race/race.module';
+import {
+  LOCAL_NOTIFICATION_SINK,
+  NotificationStreamListener,
+} from '../../infrastructure/realtime/notification-stream';
 import { RaceGateway } from './race.gateway';
 
 /**
@@ -44,6 +48,8 @@ import { RaceGateway } from './race.gateway';
     { provide: NOTIFICATION_NOTIFIER, useExisting: RaceGateway },
     // 08.10.2026 — tribün hediyesi yayını (yarış odasına).
     { provide: TRIBUNE_GIFT_NOTIFIER, useExisting: RaceGateway },
+    { provide: LOCAL_NOTIFICATION_SINK, useExisting: RaceGateway },
+    NotificationStreamListener,
   ],
   exports: [LOBBY_NOTIFIER, NOTIFICATION_NOTIFIER, TRIBUNE_GIFT_NOTIFIER],
 })

@@ -1079,6 +1079,17 @@ tablolardan türetilir (`postgres-onboarding.repository.ts` → `STEP_SQL`
 h.owner_id)`). Ödül YOK (ekonomiye para basmaz). ⚠️ Yeni adım eklerken üç yer:
 `ONBOARDING_STEP_KEYS`, `STEP_SQL`, config.
 
+(95) **CANLI BİLDİRİM AKIŞI (16.10.2026, migration 0088)** — `notifications`a
+her INSERT, COMMIT'te `pg_notify(ops.realtime.notificationStream.channel)`
+(yük yalnızca `id` + `playerId`); `NotificationStreamListener` ayrılmış havuz
+bağlantısında LISTEN eder, satırı okur, `notification.created`ı
+`server.local` ile YEREL yayar (her örnek kendi NOTIFY'ını alır — köprüden
+yayınlamak N kopya üretirdi). ⚠️ Yeni bir bildirim üreticisi soket çağrısı
+YAZMAZ: satırı transaction'da yazmak yeter (geri alınan iş yayınlanmaz).
+`send-race-invite` eski `notifyNotification` çağrısını bıraktı (çift olurdu);
+`race.invite` kart olayı duruyor. Web: üst bar zili + telefonda Menü rozeti
+(`useUnreadNotifications`).
+
 **✅ ÜCRETLİ LOBİ YARIŞI ARTIK KOŞUYOR — ÖDÜL DAĞITIMI VAR (§13.14,
 28.09.2026).** `POST /races/:id/settle` yarışı koşar, ödülleri `top5`
 paylarıyla dağıtır ve `races.status = 'finished'` yazar. Uç bir

@@ -35,6 +35,11 @@
       "enabled": true,
       "requestsTimeoutMs": 3000,
       "channelPrefix": "at-sevdalisi-io"
+    },
+    "notificationStream": {
+      "enabled": true,
+      "channel": "notification_created",
+      "reconnectSeconds": 5
     }
   },
   "metrics": {

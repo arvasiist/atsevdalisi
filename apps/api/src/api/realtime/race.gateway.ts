@@ -584,6 +584,15 @@ export class RaceGateway
   }
 
   /**
+   * 16.10.2026 — canlı bildirim akışı (`NotificationStreamListener`): her örnek
+   * Postgres `NOTIFY`ı ayrı ayrı alır, bu yüzden YEREL yayar (`server.local`);
+   * köprüden yayınlasaydı her soket olayı örnek sayısı kadar alırdı.
+   */
+  notifyNotificationLocal(playerId: string, notification: NotificationView): void {
+    this.server.local.to(this.playerRoom(playerId)).emit('notification.created', notification);
+  }
+
+  /**
    * 08.10.2026 — tribün hediyesi yarış odasına (`race.tribuneGift`). Köprüden
    * geçer (`server.to`): oynatma karesi değil, bir kez gelen olay — her
    * örnekteki izleyici görmeli.

@@ -2382,7 +2382,16 @@ export interface OpsConfig {
    * örneğe yereldir (`server.local`). `requestsTimeoutMs`: örnekler arası
    * soket sayımı (`fetchSockets`) zaman aşımı.
    */
-  realtime: { redisAdapter: { enabled: boolean; requestsTimeoutMs: number; channelPrefix: string } };
+  realtime: {
+    redisAdapter: { enabled: boolean; requestsTimeoutMs: number; channelPrefix: string };
+    /**
+     * 16.10.2026 — canlı bildirim akışı: `notifications` satırı COMMIT olunca
+     * Postgres `NOTIFY` (migration 0088 tetikleyicisi) → her API örneği
+     * dinler ve kendi soketlerine (`server.local`) `notification.created`
+     * yayar. `reconnectSeconds`: dinleme bağlantısı koparsa yeniden deneme.
+     */
+    notificationStream: { enabled: boolean; channel: string; reconnectSeconds: number };
+  };
   loadTest: {
     virtualUsers: number;
     iterationsPerUser: number;

@@ -31,6 +31,8 @@ import { CURRENCY_LABELS } from '../../lib/currency';
 import { usePlayer } from '../../lib/player-context';
 import { HorseAvatar } from '../ui/HorseAvatar';
 import { HorseHeadIcon } from '../ui/HorseHeadIcon';
+import { formatUnreadBadge, notificationsAriaLabel } from '../../features/notifications/unread-badge';
+import { useUnreadNotifications } from '../../features/notifications/use-unread-notifications';
 import { NavIcon } from './nav-icons';
 import { MAX_MOBILE_TABS, NAV_LINKS, TOP_UP_HREF, type NavLink } from './nav-links';
 
@@ -44,6 +46,9 @@ export function TopBar(): React.ReactElement {
   const [isMoreOpen, setIsMoreOpen] = useState(false);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const moreRef = useRef<HTMLDivElement | null>(null);
+  // 16.10.2026 — zilde okunmamış sayısı (canlı akışla tazelenir).
+  const unread = useUnreadNotifications(player?.id ?? null, pathname);
+  const unreadBadge = formatUnreadBadge(unread);
 
   // Sayfa değişince açık menüler kapanır.
   useEffect(() => {
@@ -121,12 +126,17 @@ export function TopBar(): React.ReactElement {
             {notifications ? (
               <Link
                 href={notifications.href}
-                className="icon-button hide-mobile"
-                aria-label={notifications.label}
-                title={notifications.label}
+                className="icon-button hide-mobile notif-bell"
+                aria-label={notificationsAriaLabel(notifications.label, unread)}
+                title={notificationsAriaLabel(notifications.label, unread)}
                 aria-current={isActive(pathname, notifications.href) ? 'page' : undefined}
               >
                 <NavIcon name={notifications.icon} />
+                {unreadBadge !== null ? (
+                  <span className="notif-badge" data-testid="notif-badge" aria-hidden="true">
+                    {unreadBadge}
+                  </span>
+                ) : null}
               </Link>
             ) : null}
             {player ? (
@@ -166,7 +176,14 @@ export function TopBar(): React.ReactElement {
           aria-expanded={isSheetOpen}
           onClick={() => setIsSheetOpen(true)}
         >
-          <Menu size={22} aria-hidden="true" />
+          <span className="notif-bell">
+            <Menu size={22} aria-hidden="true" />
+            {unreadBadge !== null ? (
+              <span className="notif-badge" aria-label={notificationsAriaLabel('Bildirimler', unread)}>
+                {unreadBadge}
+              </span>
+            ) : null}
+          </span>
           <span>Menü</span>
         </button>
       </nav>

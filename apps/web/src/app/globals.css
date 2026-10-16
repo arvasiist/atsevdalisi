@@ -4203,3 +4203,27 @@ button.btn-action {
     min-height: 64px;
   }
 }
+
+/* 16.10.2026 — zildeki okunmamış rozeti (masaüstü zil + telefonda Menü). */
+.notif-bell {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+}
+
+.notif-badge {
+  position: absolute;
+  top: -4px;
+  right: -6px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 9px;
+  background: var(--color-status-critical);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+  pointer-events: none;
+}
