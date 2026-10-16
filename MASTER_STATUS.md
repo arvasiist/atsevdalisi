@@ -43,6 +43,7 @@ Her satır kod + test ile kontrol edildi. "Durum" denetim anındaki durumdur;
 | 9 | Antrenman | PARTIAL → TESTED | `training.spec.ts`, `training.e2e-spec.ts` | G11: antrenman enerji harcamıyor, kondisyonu (fitness) değiştirmiyordu — brief "yoğunluk, enerji, kondisyon, yorgunluk, sağlık birlikte" | P1 | G11 ✅ config'ten enerji maliyeti + kondisyon kazancı, ekranda gösterilir |
 | 2.2 | Ahır düzeni (gerçek tarayıcı) | TESTED | `tools/dev/layout-check.mjs` (Chromium; 1440×900, 820×1180, 844×390, 390×844 × 6 sayfa): yatay taşma 0, sayfa hatası 0, menü 4 bölüm, ahır işlemleri görünür; dikey telefonda "yan çevir" | G12: yatay telefonda "Sıradaki adım" kartı sahnenin ~%40'ını kaplıyor, PLACEHOLDER rozetine biniyordu | P2 | G12 ✅ kısa ekranda tek satırlık şerit |
 | 8.4 | Tribün paneli bakiye | IMPLEMENTED | `TribuneGiftPanel` | G13: panelde çip bakiyesi yazmıyordu | P3 | G13 ✅ |
+| 19 | Son kabul yolculuğu (gerçek arayüz) | TESTED | `tools/dev/acceptance-journey.mjs` (16.10.2026 koşusu: 8/8 adım geçti — ahır, Bakım paneli, bakım, antrenman kondisyon +0,60, Hemen Katıl, pratik yarış 5000→5080, seviye 2, sayfa hatası 0); API tarafı `player-journey.e2e-spec.ts` | — | — | kanıtlandı |
 | — | 3D | kapsam DIŞI (brief) | — | — | — | dokunulmadı |
 
 ## Repository
