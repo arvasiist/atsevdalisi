@@ -108,3 +108,24 @@ Bu depoda `.github/workflows/ci.yml` olarak FAZ 0 kapsamında iskelet
 halinde oluşturulmuştur; `npm install` bu ortamda çalıştırılamadığından
 CI'ın gerçek bir GitHub Actions runner'ında (npm registry erişimi açık)
 ilk kez çalıştırılması gerekir.
+
+## 9. Brief "Master Audit" (16.10.2026) — 13 regresyon maddesi → test dosyası
+
+| # | Madde | Kanıt (test dosyası) |
+|---|---|---|
+| 1 | Her 5 geçerli arkadaşa 100 çip, yalnızca bir kez | `apps/api/test/api/friend-gift.e2e-spec.ts` ("her 5 arkadaşa 100 çip"), `achievements.e2e-spec.ts` (ikinci talep 409) |
+| 2 | Kabul edilmemiş / engelli arkadaş sayılmaz | `friend-gift.e2e-spec.ts` ("engelli arkadaşı SAYMAZ", hedefin bir eksiğinde 409) |
+| 3 | Toplu hediyede bakiye + günlük bütçe | `friend-gift.e2e-spec.ts` ("bütçesi ve bakiye KİLİT ALTINDA"), `apps/api/test/domain/social/friend-gift.spec.ts` (plan) |
+| 4 | Toplamada aynı hediye iki kez alınamaz | `friend-gift.e2e-spec.ts` ("ikinci toplama sıfır", iade edilen hediye toplanamaz) |
+| 5 | Tribün hediyesi doğru sahibe | `tribune-gift.e2e-spec.ts` (alıcı = koşturan; at sonradan satılsa da) |
+| 6 | Hediyede çift tahsilat yok | `tribune-gift.e2e-spec.ts` (Idempotency-Key), `friend-gift.e2e-spec.ts` (eşzamanlı 5 basış → tek tahsilat) |
+| 7 | Seviyeye uygun yarışlar listelenir | `apps/web/test/features/race-lobby/quick-join.spec.ts`, `horse-level-bracket.e2e-spec.ts` |
+| 8 | Uygun olmayan at kaydolamaz | `horse-level-bracket.e2e-spec.ts`, `race-condition.e2e-spec.ts`, `race-age.e2e-spec.ts`, `race-horse-lock.e2e-spec.ts` |
+| 9 | Ödül ve iade bir kez | `race-field-rule.e2e-spec.ts` (5 eşzamanlı kesinleştirme), `race-auto-settle.e2e-spec.ts`, `admin.e2e-spec.ts` (iptal) |
+| 10 | Ahır ekranı masaüstü + mobil düzen | `apps/web/test/features/orientation/orientation-layout.spec.ts`, `stable-layout.spec.ts` |
+| 11 | Elmas/çip "+" ve yönlendirme | `apps/web/test/components/top-bar-nav.spec.ts` |
+| 12 | "Verilerimi indir" kaldırıldı | `apps/web/test/features/account/account-data-export-removed.spec.ts` |
+| 13 | Başkasının kaynağına erişim yok | `apps/api/test/security/phase16-hardening.spec.ts`, `wallet.e2e-spec.ts`, `horse.e2e-spec.ts`, `gift.e2e-spec.ts` (403/404) |
+
+Ek (bu brief'te yazıldı): canlı bildirim akışı `notification-stream.e2e-spec.ts`
+(COMMIT'te bir kez, ROLLBACK'te hiç), Şampiyona handikapı `practice-class.spec.ts`.

@@ -4601,3 +4601,24 @@ Karar: önce pratik yarış; kırbaç sınırsız, dayanıklılık bedelli.
 
 *Bu dosya bir kavrayış aracıdır, sözleşme değil. Proje ilerledikçe güncellenmelidir —
 özellikle §5 (gerçek durum), §10 (boşluklar) ve §13 (sıradaki iş).*
+
+### 13.110 Brief "Master Audit" (16.10.2026)
+
+Brief'in 17 aşaması koda karşı denetlendi (`MASTER_STATUS.md` → "Brief
+16.10.2026" tablosu). Çoğu madde önceki dilimlerde yapılmış ve testliydi;
+bulunan gerçek açıklar kapatıldı:
+
+- **S4 ekonomi:** tavansız Şampiyona pratik sınıfında güçlü at girişin
+  +%357'sini kazanıyordu → handikap (`practiceBotStatRange`), `RACE_BALANCE_REPORT.md` §11.
+- **Gezinme:** üst menü Ana Sayfa · Ahır · Antrenman · Bakım; ahır `?panel`i
+  değişince de okunur; ahırdan Yarışlar/Pazar kısayolu.
+- **Dostluk hediyesi:** gönderen öder (2 çip, günlük 20 çip bütçe), önizleme,
+  kişi başı sonuç, süresi dolanın iadesi (migration 0087); arkadaş eşikleri
+  arkadaş ekranında (alındı/al/kilitli); `friend_count` engelliyi saymaz.
+- **Hemen Katıl:** at hazır değilse sebep + süre, en uygun 3 seçenek, ücret ve
+  ödül kuralı katılmadan önce; masasız yarışta ödül dağılımı.
+- **Canlı bildirim:** her bildirim COMMIT'te soketten (migration 0088,
+  `NotificationStreamListener`); zil rozeti.
+- Kanıt testleri: tribün sahiplik değişimi, "Verilerimi indir" yokluğu, ana
+  sayfa = ahır yönlendirmesi. Regresyon eşlemesi `docs/TESTING.md` §9.
+

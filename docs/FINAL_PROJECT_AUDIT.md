@@ -1,7 +1,8 @@
 # AT SEVDALISI — FİNAL PROJE DENETİMİ
 
-> ⚠️ **TARİHLİ ANLIK GÖRÜNTÜ (29.09.2026).** Sonraki dilimler (01–09.10.2026)
-> burada yok; bugünkü özet `MASTER_STATUS.md`. `docs/FINAL_ACCEPTANCE.md`nin
+> ⚠️ **TARİHLİ ANLIK GÖRÜNTÜ (29.09.2026).** Sonraki dilimler (01–16.10.2026)
+> burada yok; bugünkü özet `MASTER_STATUS.md` (16.10.2026 "Master Audit" brief
+> eşlemesi dahil), regresyon eşlemesi `docs/TESTING.md` §9. `docs/FINAL_ACCEPTANCE.md`nin
 > kabul maddeleri test dosyalarına dayandığı için hâlâ geçerlidir.
 
 **Tarih:** 29.09.2026
