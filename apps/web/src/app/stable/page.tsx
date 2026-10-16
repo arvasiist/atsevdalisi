@@ -24,7 +24,8 @@
 
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import {
   Activity,
   Award,
@@ -121,12 +122,25 @@ export default function StablePage(): React.ReactElement {
    * `store` sayfasıyla aynı; `useSearchParams` Suspense sınırı isterdi).
    */
   const [activeAction, setActiveAction] = useState<StableActionKey | null>(null);
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    setActiveAction(parseStableActionParam(params.get('panel')));
-    const requestedHorse = params.get('horse');
-    if (requestedHorse) setStageHorseId(requestedHorse);
+  // 16.10.2026 — sorgu dizesi DEĞİŞİNCE de okunur: ahırdayken üst menüden
+  // "Bakım"a basmak (`/care` → `/stable?panel=care`) sayfayı yeniden kurmaz;
+  // eskiden yalnızca ilk yüklemede okunuyordu ve panel açılmıyordu.
+  const applyUrlParams = useCallback((panel: string | null, horse: string | null) => {
+    setActiveAction(parseStableActionParam(panel));
+    if (horse) setStageHorseId(horse);
   }, []);
+  // Panel kapanınca `?panel=` adresten silinir; yoksa aynı bağlantıya ikinci
+  // basış adresi değiştirmez ve paneli yeniden açmazdı.
+  const router = useRouter();
+  const selectStableAction = useCallback(
+    (key: StableActionKey | null) => {
+      setActiveAction(key);
+      if (key === null && new URLSearchParams(window.location.search).has('panel')) {
+        router.replace('/stable', { scroll: false });
+      }
+    },
+    [router],
+  );
   const openStableAction = useCallback(
     (horseId: string, action: StableActionKey) => {
       setActiveAction(action);
@@ -206,13 +220,16 @@ export default function StablePage(): React.ReactElement {
 
   return (
     <main>
+      <Suspense fallback={null}>
+        <StableUrlParams onChange={applyUrlParams} />
+      </Suspense>
       {stageHorse ? (
         <StableScene3D horse={stageHorse} fullscreen>
           {player ? <OnboardingPanel /> : null}
           <StableActionDock
             horse={stageHorse}
             active={activeAction}
-            onSelect={setActiveAction}
+            onSelect={selectStableAction}
             onHorseChanged={reloadHorses}
           />
           <div className="stable3d-switcher" data-testid="stable-switcher">
@@ -335,6 +352,17 @@ export default function StablePage(): React.ReactElement {
  * YOLU"). Düğmenin önden kapatılması yalnızca bir KOLAYLIKTIR — güvenlik
  * sınırı DEĞİLDİR; sunucu yetersiz bakiyeyi zaten 409 ile reddeder.
  */
+/** `?panel=` / `?horse=` izleyicisi (`useSearchParams` Suspense sınırı ister). */
+function StableUrlParams({ onChange }: { onChange: (panel: string | null, horse: string | null) => void }): null {
+  const params = useSearchParams();
+  const panel = params.get('panel');
+  const horse = params.get('horse');
+  useEffect(() => {
+    onChange(panel, horse);
+  }, [panel, horse, onChange]);
+  return null;
+}
+
 function StableUpgradeCard({
   ownerId,
   onUpgraded,

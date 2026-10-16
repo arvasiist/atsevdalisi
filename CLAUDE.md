@@ -649,7 +649,7 @@ yarışta üçüncü argüman YOK → botlar bit bit eskisi gibi. Takvim program
 `breedClass` alabilir (`native-breeds`).
 (63) **AHIR AYRI MEKÂN + BAKIM/EKİPMAN AHIRIN İÇİNDE (08.10.2026, §13.87)** —
 sahibinin isteği. `/care` ve `/equipment` menüden KALKTI; eski adresler
-`/stable?panel=care|equipment`e YÖNLENİR (sunucu `redirect`). Ahır sahnesinde
+`/stable?panel=care|equipment`e YÖNLENİR (sunucu `redirect`). 16.10.2026 (brief §3.2): üst menü YALNIZCA Ana Sayfa · Ahır · Antrenman · Bakım (`/care` → ahır paneli; telefonda aynı dört sekme), kalanı "Daha fazla"/"Menü"de, Yarışlar başta; ahır sahnesinde Yarışlar/Pazar kısayolu. Ahır `?panel=`i DEĞİŞİNCE de okur (`StableUrlParams`). Ahır sahnesinde
 "Bakım"/"Ekipman" simgeleri + sahnenin içinde panel (`features/stable-actions`,
 telefonda alttan çekmece); kartlardaki düğmeler aynı paneli açar. Uçlar ve
 kurallar DEĞİŞMEDİ. Ana sayfadaki iç saha ahırı kaldırıldı ("Ahır" çekimi →

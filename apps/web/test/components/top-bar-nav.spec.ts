@@ -1,7 +1,8 @@
-import { readdirSync, existsSync } from 'node:fs';
+import { readdirSync, existsSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { MAX_MOBILE_TABS, NAV_LINKS, TOP_UP_HREF } from '../../src/components/layout/nav-links';
+import { HOME_FOR_PLAYERS } from '../../src/features/home/home-route';
 
 /**
  * `TopBar`'ın gezinti şeridi (28.09.2026) — KIRIK BAĞLANTI KİLİDİ.
@@ -151,5 +152,33 @@ describe('TopBar gezinti şeridi', () => {
     const tabs = NAV_LINKS.filter((link) => link.mobileTab === true);
     expect(tabs.length).toBeGreaterThan(0);
     expect(tabs.length).toBeLessThanOrEqual(MAX_MOBILE_TABS);
+  });
+
+  it('brief §3.2: üst menüde YALNIZCA Ana Sayfa, Ahır, Antrenman, Bakım (bu sırayla); telefonda aynı dört sekme', () => {
+    const primary = NAV_LINKS.filter((link) => link.placement === 'primary').map((link) => link.label);
+    expect(primary).toEqual(['Ana Sayfa', 'Ahır', 'Antrenman', 'Bakım']);
+    const tabs = NAV_LINKS.filter((link) => link.mobileTab === true).map((link) => link.label);
+    expect(tabs).toEqual(primary);
+    // Diğer bölümler kaybolmadı: "Daha fazla"/"Menü"de, Yarışlar başta.
+    const more = NAV_LINKS.filter((link) => link.placement === 'more').map((link) => link.href);
+    expect(more[0]).toBe('/races');
+    for (const href of ['/market', '/friends', '/leaderboard', '/grandstand', '/account', '/store', '/wallet']) {
+      expect(more).toContain(href);
+    }
+  });
+
+  it('Bakım bağlantısı ahırın bakım paneline yönlenir (ayrı sayfa değil)', () => {
+    const care = readFileSync(join(APP_DIR, 'care', 'page.tsx'), 'utf8');
+    expect(care).toMatch(/redirect\(stableActionHref\('care'\)\)/);
+    // Ahırdayken de çalışsın: panel sorgu dizesi DEĞİŞİNCE okunur (yalnızca ilk yüklemede değil).
+    const stable = readFileSync(join(APP_DIR, 'stable', 'page.tsx'), 'utf8');
+    expect(stable).toMatch(/useSearchParams\(\)/);
+  });
+
+  it('brief §3.1: hesabı olan oyuncunun ana sayfası ahırdır', () => {
+    expect(HOME_FOR_PLAYERS).toBe('/stable');
+    expect(STATIC_ROUTES.has(HOME_FOR_PLAYERS)).toBe(true);
+    const home = readFileSync(join(APP_DIR, '(dashboard)', 'page.tsx'), 'utf8');
+    expect(home).toMatch(/router\.replace\(HOME_FOR_PLAYERS\)/);
   });
 });

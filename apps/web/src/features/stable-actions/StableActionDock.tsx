@@ -6,7 +6,8 @@
  * geçer. Geniş ekranda sahnenin sağında, telefonda alttan açılan çekmecedir.
  */
 
-import { HeartPulse, Wrench, X } from 'lucide-react';
+import Link from 'next/link';
+import { HeartPulse, ShoppingCart, Trophy, Wrench, X } from 'lucide-react';
 import type { PublicHorse } from '@at-sevdalisi/shared-types';
 import { CarePanel } from './CarePanel';
 import { EquipmentPanel } from './EquipmentPanel';
@@ -48,6 +49,16 @@ export function StableActionDock({
             <span>{action.label}</span>
           </button>
         ))}
+        {/* 16.10.2026 — brief §3.1: ahırdan yarışa ve pazara tek dokunuş
+            (üst menüde artık yalnızca dört ana bölüm var). */}
+        <Link href="/races" className="stable-dock-button" data-testid="stable-link-races" title="Yarışa katıl">
+          <Trophy size={20} aria-hidden="true" />
+          <span>Yarışlar</span>
+        </Link>
+        <Link href="/market" className="stable-dock-button" data-testid="stable-link-market" title="At al / sat">
+          <ShoppingCart size={20} aria-hidden="true" />
+          <span>Pazar</span>
+        </Link>
       </div>
       {activeAction ? (
         <aside className="stable-drawer" aria-label={`${activeAction.label} — ${horse.name}`}>

@@ -13,6 +13,7 @@ import {
   Dumbbell,
   Gem,
   Globe,
+  HeartPulse,
   House,
   Shield,
   Shirt,
@@ -31,6 +32,7 @@ import type { NavIconName } from './nav-links';
 const LUCIDE_ICONS: Record<Exclude<NavIconName, 'horse'>, typeof House> = {
   home: House,
   training: Dumbbell,
+  care: HeartPulse,
   races: Trophy,
   grandstand: Ticket,
   market: ShoppingCart,

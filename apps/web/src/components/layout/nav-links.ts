@@ -25,6 +25,7 @@ export type NavIconName =
   | 'home'
   | 'horse'
   | 'training'
+  | 'care'
   | 'races'
   | 'grandstand'
   | 'market'
@@ -60,15 +61,23 @@ export interface NavLink {
   mobileTab?: boolean;
 }
 
+/**
+ * 16.10.2026 — brief §3.2 (sahibinin kararı): üst menüde YALNIZCA dört ana
+ * bölüm — Ana Sayfa, Ahır, Antrenman, Bakım. Bakım ahırın içindedir; `/care`
+ * ahıra yönlenir ve paneli açar. Geri kalan her bölüm "Daha fazla"da (masaüstü)
+ * ve "Menü"de (telefon) — Yarışlar listenin başında; ahır sahnesinde ayrıca
+ * Yarışlar/Pazar kısayolları vardır (`StableActionDock`).
+ */
 export const NAV_LINKS: ReadonlyArray<NavLink> = [
   { href: '/', label: 'Ana Sayfa', icon: 'home', placement: 'primary', mobileTab: true },
   { href: '/stable', label: 'Ahır', icon: 'horse', placement: 'primary', mobileTab: true },
-  { href: '/training', label: 'Antrenman', icon: 'training', placement: 'primary' },
-  { href: '/races', label: 'Yarışlar', icon: 'races', placement: 'primary', mobileTab: true },
+  { href: '/training', label: 'Antrenman', icon: 'training', placement: 'primary', mobileTab: true },
+  { href: '/care', label: 'Bakım', icon: 'care', placement: 'primary', mobileTab: true },
+  { href: '/races', label: 'Yarışlar', icon: 'races', placement: 'more' },
+  { href: '/market', label: 'Pazar', icon: 'market', placement: 'more' },
   { href: '/grandstand', label: 'Tribün', icon: 'grandstand', placement: 'more' },
-  { href: '/market', label: 'Pazar', icon: 'market', placement: 'primary', mobileTab: true },
-  { href: '/leaderboard', label: 'Sıralama', icon: 'leaderboard', placement: 'primary' },
-  { href: '/friends', label: 'Sosyal', icon: 'friends', placement: 'primary' },
+  { href: '/leaderboard', label: 'Sıralama', icon: 'leaderboard', placement: 'more' },
+  { href: '/friends', label: 'Sosyal', icon: 'friends', placement: 'more' },
   { href: '/quests', label: 'Görevler', icon: 'quests', placement: 'more' },
   { href: '/club', label: 'Kulüp', icon: 'club', placement: 'more' },
   { href: '/staff', label: 'Personel', icon: 'staff', placement: 'more' },

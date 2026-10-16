@@ -1,6 +1,6 @@
 # AT SEVDALISI MASTER STATUS
 
-> Son güncelleme: 09.10.2026 · Dal: `claude/project-review-gaps-j1hb2l` (PR #2)
+> Son güncelleme: 16.10.2026 · Dal: `claude/project-review-gaps-j1hb2l` (PR #2)
 > Kaynak: KOD (migration, use-case, controller, ekran, test) — belgeler değil.
 > Ayrıntılı tarihçe `PROJE_DURUMU.md` §13'te (13.1–13.102); bu dosya brief'in
 > istediği özet sözleşmedir. Sınıflar: NOT_STARTED · PLANNED · PARTIAL ·
@@ -16,6 +16,29 @@
 > Kökteki `AUDIT_REPORT.md` (14.09.2026 güvenlik/kalite denetimi) ve
 > `docs/AUDIT_REPORT.md` (3D brief Phase 0 boşluk analizi) **tarihli
 > anlık görüntülerdir**; bugünkü durum için bu dosyaya bakılır.
+
+## Brief 16.10.2026 — "Master Audit" eşlemesi (koddan doğrulandı)
+
+Her satır kod + test ile kontrol edildi. "Durum" denetim anındaki durumdur;
+"Sonuç" bu brief kapsamında yapılan iştir.
+
+| Aşama | Konu | Durum (denetim) | Kanıt | Açık | Öncelik | Sonuç |
+|---|---|---|---|---|---|---|
+| 2.1 | Giriş → ahır | IMPLEMENTED | `HOME_FOR_PLAYERS` (`/`→`/stable`, `app/(dashboard)/page.tsx`) | G8: yönlendirmeyi kilitleyen test yok | P3 | G8 ✅ |
+| 2.2 | Ahır tam ekran + üst menü | PARTIAL | `.stable3d-full`, `orientation-layout.spec.ts` | G1: üst menüde Bakım yok (Ana Sayfa/Ahır/Antrenman/Yarışlar/Pazar/Sıralama/Sosyal); ahırdayken `/care` paneli açmıyor (`?panel` yalnızca ilk yüklemede okunuyor) | P2 | G1 ✅ |
+| 3 | Elmas/çip "+" | TESTED | `TOP_UP_HREF`, `top-bar-nav.spec.ts` | — | — | değişmedi |
+| 3 | Satın alma doğrulaması | TESTED (sağlayıcısız) | `payments.e2e-spec.ts` (imza, tekrar webhook, tutar uyuşmazlığı) | gerçek sağlayıcı yok → mağaza 503 (sahte başarı yok) | — | değişmedi |
+| 4 | "Verilerimi indir" kaldırıldı | IMPLEMENTED | `/account`ta çağrı yok | G6: kaldırıldığını kilitleyen test yok | P3 | G6 ✅ |
+| 5.1–5.2 | Arkadaş başarımı (5/10/…/50 → 100 çip) | TESTED | `friend_count` (kabul edilmiş, silinmiş/engelli sayılmaz), `achievements.e2e-spec.ts` | G3: arkadaş ekranı kazanılmış/alınmış eşikleri ve "Al" düğmesini göstermiyor | P2 | G3 ✅ |
+| 5.3–5.4 | Toplu çip hediyesi | PARTIAL | `friend-gift.e2e-spec.ts` | G2: gönderenden para düşmüyor (oyun 10 çip basıyor); brief: gönderen öder (2 çip), günlük gönderim bütçesi (20), alıcı önizlemesi, kişi başı sonuç | P2 | G2 ✅ |
+| 6.1 | Hemen Katıl | PARTIAL | `pickQuickJoinRace`, `lobby-logic.spec.ts` | G4: atın enerji/yorgunluk/yaş durumu önceden denetlenmiyor (sunucu 409 veriyor), tek seçenek, ödül kuralı işlemden önce gösterilmiyor | P1 | G4 ✅ |
+| 6.2 | Yarış kartı | IMPLEMENTED | `LobbyPanel` (mesafe, pist, sınıf, kapasite, ücret, masa kuralları, süre) | G5: masasız yarışta ödül dağılımı yazmıyor | P3 | G5 ✅ |
+| 6.3–6.4 | Uygunluk + yaşam döngüsü | TESTED | `DENETIM_ASAMA3_YARIS.md` (15 madde) | — | — | değişmedi |
+| 7 | Tribün hediyesi | TESTED | `tribune-gift.e2e-spec.ts` | G7: "yarıştan sonra at satılırsa hediye koşturana gider" kuralının testi yok | P3 | G7 ✅ |
+| 8–10 | At/ahır/bakım/antrenman, motor, genetik, kariyer | TESTED | `OYUN_DONGUSU_DENETIMI.md` (S1–S6, B12–B13), `RACE_BALANCE_REPORT.md` §11 | — | — | S4 handikap (16.10) |
+| 11 | Ekonomi bütünlüğü | TESTED | `player-journey.e2e-spec.ts` (bakiye = başlangıç + defter) | G2 yeni para yolu → yolculuk testine girer | P1 | G2 ile |
+| 12–14 | Sosyal, soket, güvenlik | TESTED | `phase16-hardening.spec.ts`, `multi-instance-realtime.e2e-spec.ts`, `production-env.ts` (`DISABLE_RATE_LIMIT` üretimde reddedilir) | — | — | değişmedi |
+| — | 3D | kapsam DIŞI (brief) | — | — | — | dokunulmadı |
 
 ## Repository
 

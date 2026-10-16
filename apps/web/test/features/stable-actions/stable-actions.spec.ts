@@ -11,10 +11,12 @@ import {
  * menüde ayrı sayfa olarak YOKLAR, eski adresler `/stable?panel=…`a yönlenir.
  */
 describe('ahır içi işlemler', () => {
-  it('bakım ve ekipman ahır işlemidir; menüde ayrı sayfa değildir', () => {
+  it('bakım ve ekipman ahır işlemidir; ayrı sayfa değildir', () => {
     expect(STABLE_ACTIONS.map((action) => action.key)).toEqual(['care', 'equipment']);
     const hrefs = NAV_LINKS.map((link) => link.href);
-    expect(hrefs).not.toContain('/care');
+    // 16.10.2026 (brief §3.2): "Bakım" üst menüde — ama `/care` ayrı sayfa
+    // DEĞİL, ahırın bakım paneline yönlenir (`top-bar-nav.spec.ts` kilitler).
+    expect(hrefs).toContain('/care');
     expect(hrefs).not.toContain('/equipment');
     expect(hrefs).toContain('/stable');
   });
