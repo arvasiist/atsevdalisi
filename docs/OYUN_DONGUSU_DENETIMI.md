@@ -52,7 +52,7 @@ belge. Yarış motoruna dokunulmaz (botların gücü motorun DIŞINDA üretilir)
 | **S1** ✅ | **Jokey pazarı arzı:** kiralamaya açık jokey sayısı hedefin altına düşünce sistem yeni jokey üretir (beceri aralığı + beceriye göre ücret config'te). | B4 | Boş veritabanında `GET /jockeys` dolu döner; kiralanınca yenisi gelir. |
 | **S2** ✅ | **Sınıfa uygun pratik yarış:** botlar atın gücüne göre bir sınıf bandından üretilir (bant tablosu config'te); güçlü at zayıf sınıfı sömüremez. | B1/B1a | Başlangıç atının pratik yarış beklenen kazancı ölçülür (harness); hedef: ortalama oyuncu için yaklaşık başa baş. |
 | **S3** ✅ | **Yarış yorgunluğu + zamanla toparlanma:** yarış enerji düşürür, yorgunluk ekler (mesafeye göre, config); zamanlayıcı (lider kilidiyle) her turda toparlar. Arayüz "ne zaman hazır" gösterir. | B2/B3 | Ardışık yarış hazırlık kapısına takılır; süre geçince açılır. |
-| S4 | Ekonomi yeniden ölçümü (kademelere göre EV), gerekirse config ayarı | B1 | Ölçüm tablosu |
+| **S4** ✅ | Ekonomi yeniden ölçümü (kademelere göre EV), gerekirse config ayarı — Şampiyona pratik sınıfına handikap (sınırsız kâr kapandı) | B1 | `RACE_BALANCE_REPORT.md` §11, `practice-class.spec.ts` |
 | **S5** ✅ | Emeklilik → damızlık evresi, ömür boyu yetiştirme sınırı, damızlık ücretinde kesinti; yaş ölçeği kararı | B7, B10, B11 | e2e (yaş ölçeği sahibinin kararı) |
 | **S6** ✅ | "Sıradaki adım" paneli (ilk oturum yolu) | B9 | Web testi + e2e |
 | S7 | Az oyuncuda "hayalet" rakipler (gerçek oyuncu atlarının dondurulmuş kayıtları) | B8 | Tasarım kararı gerekir |

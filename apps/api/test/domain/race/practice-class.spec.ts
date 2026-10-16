@@ -6,6 +6,7 @@ import {
   findPracticeRaceClass,
   horseRacingPower,
   isHorseAllowedInPracticeClass,
+  practiceBotStatRange,
   validatePracticeRaceClasses,
 } from '../../../src/domain/race/practice-class';
 import { DEFAULT_RACE_TACTIC } from '../../../src/domain/race/validation';
@@ -59,7 +60,7 @@ function evShare(tierId: string, snapshot: RaceEntrantSnapshot): number {
   const raceClass = findPracticeRaceClass(ECONOMY, tierId)!;
   const result = measurePracticeEv({
     player: snapshot,
-    botStatRange: raceClass.botStatRange,
+    botStatRange: practiceBotStatRange(raceClass, snapshot.speed),
     tier: tier(tierId),
     economy: ECONOMY,
     trials: TRIALS,
@@ -135,5 +136,38 @@ describe('pratik yarış sınıfları — ölçülen denge (motor değişmedi)',
       if (ceiling === null || next === undefined) return;
       expect(evShare(next.id, entrant(ceiling))).toBeGreaterThan(-0.6);
     });
+  });
+});
+
+describe('S4 — tavansız sınıfta handikap (16.10.2026)', () => {
+  const top = ECONOMY.practiceRaceClasses.find((entry) => entry.maxHorsePower === null)!;
+
+  it('bot aralığı atın gücüyle yükselir, sınıf aralığının altına inmez, 100ü aşmaz', () => {
+    expect(practiceBotStatRange(top, 50)).toEqual(top.botStatRange);
+    const [low, high] = practiceBotStatRange(top, 90);
+    expect(low).toBe(90 - top.handicap!.powerOffsetBelow);
+    expect(high).toBe(Math.min(100, 90 + top.handicap!.powerOffsetAbove));
+    expect(practiceBotStatRange(top, 100)[1]).toBe(100);
+    const capped = findPracticeRaceClass(ECONOMY, 'local')!;
+    expect(practiceBotStatRange(capped, 54)).toEqual(capped.botStatRange);
+  });
+
+  it('handikap yalnızca tavansız sınıfta ve pozitif ofsetle kabul edilir', () => {
+    const classes = ECONOMY.practiceRaceClasses;
+    const withHandicap = (index: number, handicap: { powerOffsetBelow: number; powerOffsetAbove: number }) =>
+      validatePracticeRaceClasses({
+        ...ECONOMY,
+        practiceRaceClasses: classes.map((entry, at) => (at === index ? { ...entry, handicap } : entry)),
+      });
+    expect(withHandicap(0, { powerOffsetBelow: 12, powerOffsetAbove: 8 })).not.toEqual([]);
+    expect(withHandicap(classes.indexOf(top), { powerOffsetBelow: 0, powerOffsetAbove: 8 })).not.toEqual([]);
+  });
+
+  it('ölçülen: güçlü at tavansız sınıfta evin parasını SINIRSIZ toplayamaz (eskiden güç 85te +%357)', () => {
+    for (const power of [80, 90]) {
+      const share = evShare(top.tierId, entrant(power));
+      expect(share).toBeLessThan(1);
+      expect(share).toBeGreaterThan(-0.6);
+    }
   });
 });

@@ -103,7 +103,12 @@ import weatherConfigJson from '../../../../../config/weather.config.json';
 import raceLobbyConfigJson from '../../../../../config/race-lobby.config.json';
 import type { EconomyConfig, RaceTierConfig } from '@at-sevdalisi/game-config';
 import { getRacePrize } from '../../../src/domain/race/prize';
-import { isLoserRefundEligible, loserRefundAmount, paidPlacesOf } from '../../../src/domain/race/table-rules';
+import {
+  computeTableSettlement,
+  isLoserRefundEligible,
+  loserRefundAmount,
+  paidPlacesOf,
+} from '../../../src/domain/race/table-rules';
 
 export const raceBalanceConfig = raceConfigJson as unknown as RaceBalanceConfig;
 export const raceBalanceWeatherConfig = weatherConfigJson as unknown as WeatherConfig;
@@ -795,4 +800,69 @@ export function measurePracticeEv(input: {
     top3Rate: top3 / trials,
     meanPosition: positionSum / trials,
   };
+}
+
+/**
+ * 16.10.2026 — S4 (`docs/OYUN_DONGUSU_DENETIMI.md`): LOBİ (masalı) yarışın
+ * gerçek oyuncu başına beklenen neti. Lobi havuzu YALNIZCA gerçek oyuncuların
+ * ücretidir (botlar ödemez, bota düşen ödül yanar); kaybeden iadesi ve ödül
+ * payları üretimin `computeTableSettlement`ıyla hesaplanır. `aiFill: false` →
+ * saha yalnızca gerçek oyunculardır (botsuz yarış).
+ */
+export interface LobbyEvMeasurement {
+  races: number;
+  /** Gerçek oyuncu başına yarış başına ortalama net (ödül + iade − giriş). */
+  meanNetPerPlayer: number;
+  /** Havuzun bota düşüp yanan ortalama payı (0..1). */
+  burnedShare: number;
+}
+
+export function measureLobbyEv(input: {
+  players: readonly RaceEntrantSnapshot[];
+  table: RaceTierConfig;
+  economy: EconomyConfig;
+  aiFill: boolean;
+  botStatRange: readonly [number, number] | null;
+  trials: number;
+  seedPrefix?: string;
+}): LobbyEvMeasurement {
+  const { players, table, economy, aiFill, botStatRange, trials } = input;
+  const shares = economy.prizeDistributions.find((entry) => entry.id === table.distributionId)!.shares;
+  const pool = table.entryFee * players.length;
+  let net = 0;
+  let burned = 0;
+  for (let trial = 0; trial < trials; trial += 1) {
+    const seed = `${input.seedPrefix ?? 'lobby-ev'}-${trial}`;
+    const botCount = aiFill ? table.fieldSize - players.length : 0;
+    const bots =
+      botStatRange === null ? generateBotEntrants(botCount, seed) : generateBotEntrants(botCount, seed, botStatRange);
+    const timeline = simulateRace({
+      raceId: seed,
+      simulationSeed: seed,
+      distanceMeters: CANONICAL_DISTANCE_METERS,
+      surface: CANONICAL_SURFACE,
+      weather: CANONICAL_WEATHER,
+      temperatureC: null,
+      entries: [...players, ...bots],
+      raceConfig: raceBalanceConfig,
+      weatherConfig: raceBalanceWeatherConfig,
+    });
+    const positionOf = new Map(timeline.finalResult.map((entry) => [entry.horseId, entry.finishPosition]));
+    const entries = players.map((player) => ({
+      entryId: player.horseId,
+      finishPosition: positionOf.get(player.horseId)!,
+      paidFee: table.entryFee,
+    }));
+    const settlement = computeTableSettlement(pool, shares, entries, table.loserRefund);
+    let paidToPlayers = 0;
+    for (const entry of entries) {
+      paidToPlayers +=
+        (settlement.payouts[entry.finishPosition - 1] ?? 0) + (settlement.loserRefunds.get(entry.entryId) ?? 0);
+    }
+    const totalPaid = settlement.payouts.reduce((sum, amount) => sum + amount, 0) + settlement.refundTotal;
+    const humanPrizes = paidToPlayers - settlement.refundTotal;
+    burned += (totalPaid - settlement.refundTotal - humanPrizes) / pool;
+    net += (paidToPlayers - pool) / players.length;
+  }
+  return { races: trials, meanNetPerPlayer: net / trials, burnedShare: burned / trials };
 }

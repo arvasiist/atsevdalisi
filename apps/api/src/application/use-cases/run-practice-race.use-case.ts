@@ -32,6 +32,7 @@ import { horseAgeMonths, racingAgeFactor } from '../../domain/horse/age-curve';
 import {
   findPracticeRaceClass,
   horseRacingPower,
+  practiceBotStatRange,
   HorseTooStrongForTierError,
   isHorseAllowedInPracticeClass,
 } from '../../domain/race/practice-class';
@@ -232,10 +233,8 @@ export class RunPracticeRaceUseCase {
     }
     // B13 — sınıf gücü YAŞA GÖRE etkin güçtür (yarışta koşacak statlar);
     // gerileyen yaşlı at alt sınıfa inebilir, genç at sömüremez.
-    if (
-      practiceClass.maxHorsePower !== null &&
-      !isHorseAllowedInPracticeClass(horseRacingPower(stats) * ageFactor, practiceClass)
-    ) {
+    const effectivePower = horseRacingPower(stats) * ageFactor;
+    if (practiceClass.maxHorsePower !== null && !isHorseAllowedInPracticeClass(effectivePower, practiceClass)) {
       throw new HorseTooStrongForTierError(tier.id, practiceClass.maxHorsePower);
     }
 
@@ -308,7 +307,12 @@ export class RunPracticeRaceUseCase {
     // ZATEN parametre olarak alıyordu (eski sabit çağıran taraftaydı), yani
     // bu değişiklik motor/bot üretim mantığına DOKUNMAZ.
     // 14.10.2026 — botlar kademenin SINIF gücünde (eskiden her kademede 45–75).
-    const botEntrants = generateBotEntrants(tier.fieldSize - 1, raceId, practiceClass.botStatRange);
+    // 16.10.2026 (S4) — tavansız sınıfta handikap: aralık atın etkin gücüyle yükselir.
+    const botEntrants = generateBotEntrants(
+      tier.fieldSize - 1,
+      raceId,
+      practiceBotStatRange(practiceClass, effectivePower),
+    );
 
     return {
       raceId,

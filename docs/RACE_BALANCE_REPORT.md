@@ -399,3 +399,32 @@ Motor DEĞİŞMEDİ (parmak izi aynı); eski dondurulmuş kadrolar aynen kalır.
 (35-75) etki ≈ ±4.5 puan ≈ ±0.2 sıra — kırbaç stratejisinin kazancından
 (≈0.3, §9.1) küçük: hissedilir, baskın değil. Botlar nötr kalır.
 
+
+## 11. Ekonomi yeniden ölçümü (S4) — 16.10.2026
+
+Araç: `apps/api/tools/economy-ev-report.ts` (ölçüm kodu harness: `measurePracticeEv`, `measureLobbyEv`; 400 deneme/hücre; at güç = hız = ivme = dayanıklılık, gerçek ağırlık uyumu, jokey 50). Değer = yarış başına net ÷ giriş ücreti.
+
+**Bulgu:** tavansız Şampiyona sınıfında güçlü at evin parasını sınırsız topluyordu (önce: güç 75 → +%99, 85 → +%357, 90 → +%375; 2.000 çip girişte yarış başına ~7.500 çip). **Düzeltme:** sınıfa handikap (`practiceRaceClasses[].handicap`: `powerOffsetBelow 12`, `powerOffsetAbove 8`) — bot aralığı atın etkin gücüyle yükselir, sınıfın aralığının altına inmez (`practiceBotStatRange`). Motor değişmedi. Kilit: `practice-class.spec.ts`.
+
+### Pratik yarış — net / giriş (kademe × at gücü)
+
+| Kademe (ücret, tavan) | 50 | 55 | 60 | 65 | 70 | 75 | 80 | 85 | 90 |
+|---|---|---|---|---|---|---|---|---|---|
+| local (100, 55) | -10% | — | — | — | — | — | — | — | — |
+| regional (250, 60) | -72% | -18% | — | — | — | — | — | — | — |
+| national (500, 65) | -96% | -80% | -18% | — | — | — | — | — | — |
+| elite (1000, 70) | -100% | -99% | -90% | -29% | — | — | — | — | — |
+| championship (2000, yok) | -100% | -100% | -99% | -89% | -40% | +27% | +33% | +25% | +9% |
+
+### Lobi (masalı) — eşit güçte (60) oyuncu başına net / giriş, bota yanan pay
+
+| Masa | Botlu: 2 / 3 / 4 / 6 / 8 | Botsuz: 2 / 3 / 4 / 6 / 8 |
+|---|---|---|
+| local (100) | -71% (yanan 62%) / -61% (yanan 52%) / -50% (yanan 41%) / -31% (yanan 21%) / -9% (yanan 0%) | -40% / -25% / -15% / -9% / -9% |
+| regional (250) | -79% (yanan 69%) / -70% (yanan 61%) / -62% (yanan 52%) / -47% (yanan 38%) / -28% (yanan 19%) | -42% / -28% / -18% / -10% / -9% |
+| national (500) | -82% (yanan 73%) / -77% (yanan 67%) / -69% (yanan 60%) / -56% (yanan 46%) / -43% (yanan 34%) | -45% / -31% / -21% / -12% / -10% |
+| elite (1000) | -89% (yanan 79%) / -83% (yanan 73%) / -78% (yanan 68%) / -67% (yanan 57%) / -55% (yanan 45%) | -47% / -33% / -23% / -13% / -10% |
+| championship (2000) | -91% (yanan 81%) / -85% (yanan 75%) / -81% (yanan 71%) / -74% (yanan 64%) / -62% (yanan 52%) | -50% / -37% / -27% / -16% / -11% |
+
+**Yorum:** Her tavanlı sınıfın tepesindeki at kârlıdır (tavan − ε: +%83…+%93), tavana ulaşınca üst sınıfa çıkar ve orada zararla başlar — merdiven bilinçli (S2). Lobide havuz yalnızca gerçek ücretlerdir: botlu sahada oyuncu sayısı azaldıkça bota yanan pay büyür (2 oyuncu yerelde %62). Bu yüzden ücretli lobi en az 2 gerçek oyuncu ister (Aşama 3); botsuz eşit sahada kayıp yalnızca komisyondur (−%9…−%11, 8 oyuncu). Az oyunculu botlu ücretli lobinin dengesi sahibinin kararıdır (bot payını yakmak, tek başına havuzu geri almayı engeller).
+

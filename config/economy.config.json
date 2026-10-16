@@ -83,7 +83,12 @@
     { "tierId": "regional", "botStatRange": [46, 66], "maxHorsePower": 60 },
     { "tierId": "national", "botStatRange": [51, 71], "maxHorsePower": 65 },
     { "tierId": "elite", "botStatRange": [56, 76], "maxHorsePower": 70 },
-    { "tierId": "championship", "botStatRange": [61, 81], "maxHorsePower": null }
+    {
+      "tierId": "championship",
+      "botStatRange": [61, 81],
+      "maxHorsePower": null,
+      "handicap": { "powerOffsetBelow": 12, "powerOffsetAbove": 8 }
+    }
   ],
   "newPlayerStartingBalance": {
     "money": 5000,

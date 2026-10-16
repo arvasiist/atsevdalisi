@@ -356,6 +356,13 @@ export interface PracticeRaceClassConfig {
   botStatRange: [number, number];
   /** Bu güce ULAŞAN at bu kademeye giremez; `null` = tavan yok (en üst sınıf). */
   maxHorsePower: number | null;
+  /**
+   * 16.10.2026 (S4) — HANDİKAP, yalnızca tavansız sınıf: bot aralığı atın
+   * gücüyle birlikte yükselir (`[güç − below, güç + above]`, sınıfın kendi
+   * aralığının altına inmez). Yoksa tavansız sınıfta güçlü at evin parasını
+   * sınırsız toplardı (ölçüldü: güç 75'te girişin +%99'u).
+   */
+  handicap?: { powerOffsetBelow: number; powerOffsetAbove: number } | null;
 }
 
 export interface EconomyConfig {

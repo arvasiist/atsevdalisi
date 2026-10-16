@@ -962,6 +962,10 @@ Değerler ölçüldü (`measurePracticeEv`). ⚠️ Gerçek atların ağırlık 
 (botlar 50) — denge ölçerken oyuncu atını 50 ile kurma, canlı oyunla tutmaz
 (yaşandı). ⚠️ Pratik yarışı GÜÇLÜ atla koşan yeni e2e varsayılan (en ucuz)
 kademeyi SEÇEMEZ — tavansız kademeyi ver.
+16.10.2026 (S4): tavansız sınıfta HANDİKAP (`handicap`, `practiceBotStatRange`) —
+botlar atın etkin gücüyle yükselir; eskiden güç 85 at girişin +%357'sini
+kazanıyordu (sınırsız para). Ölçüm `tools/economy-ev-report.ts`
+(`RACE_BALANCE_REPORT.md` §11).
 
 (89) **YARIŞ BEDELİ + ZAMANLA TOPARLANMA (15.10.2026, migration 0083, S3)** —
 eskiden yarış atın enerjisine/yorgunluğuna HİÇ dokunmuyordu (sınırsız ardışık

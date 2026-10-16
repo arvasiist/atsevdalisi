@@ -42,6 +42,23 @@ export function isHorseAllowedInPracticeClass(power: number, raceClass: Practice
 }
 
 /**
+ * 16.10.2026 (S4) — botların gerçek aralığı. Handikapsız sınıfta sınıfın
+ * aralığıdır; handikaplı (tavansız) sınıfta aralık atın gücüyle yükselir ama
+ * sınıfın aralığının ALTINA inmez ve 100'ü aşmaz. Pratik yarışın kullanım yeri
+ * ile ölçüm aracı bu fonksiyonu paylaşır (ölçülen = koşan).
+ */
+export function practiceBotStatRange(raceClass: PracticeRaceClassConfig, horsePower: number): [number, number] {
+  const [low, high] = raceClass.botStatRange;
+  const handicap = raceClass.handicap;
+  if (handicap === undefined || handicap === null) return [low, high];
+  const top = Math.min(MAX_BOT_STAT, Math.max(high, Math.round(horsePower + handicap.powerOffsetAbove)));
+  const bottom = Math.min(top - 1, Math.max(low, Math.round(horsePower - handicap.powerOffsetBelow)));
+  return [bottom, top];
+}
+
+const MAX_BOT_STAT = 100;
+
+/**
  * API açılışında koşar. Her kademenin TAM bir sınıfı vardır; sınıflar kademe
  * sırasıyla güçlenir (bot aralığı ve tavan artar) ve en az bir sınıf tavansızdır
  * — yoksa yeterince güçlü bir atın koşabileceği pratik yarış kalmazdı.
@@ -60,6 +77,13 @@ export function validatePracticeRaceClasses(economy: EconomyConfig): string[] {
     if (!(low >= 0 && high <= 100 && low < high)) problems.push(`${entry.tierId}: botStatRange 0 ≤ alt < üst ≤ 100 olmalı.`);
     if (entry.maxHorsePower !== null && !(entry.maxHorsePower > low && entry.maxHorsePower <= 100)) {
       problems.push(`${entry.tierId}: maxHorsePower bot aralığının tabanından büyük ve ≤ 100 olmalı.`);
+    }
+    const handicap = entry.handicap;
+    if (handicap !== undefined && handicap !== null) {
+      if (entry.maxHorsePower !== null) problems.push(`${entry.tierId}: handikap yalnızca tavansız sınıfta olabilir.`);
+      if (!(handicap.powerOffsetBelow > 0 && handicap.powerOffsetAbove >= 0)) {
+        problems.push(`${entry.tierId}: handikap powerOffsetBelow > 0 ve powerOffsetAbove ≥ 0 olmalı.`);
+      }
     }
   }
   const ordered = classes.flatMap(({ raceClass }) => (raceClass === null ? [] : [raceClass]));
