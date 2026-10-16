@@ -2254,16 +2254,38 @@ button[style*='background: var(--color-accent-gold)'] {
   opacity: 0.65;
 }
 
-/* Yatay telefon (kısa ekran): ipucu gizlenir, kart daralır. */
+/* Yatay telefon (kısa ekran): kart TEK SATIRLIK şeride iner — başlık + "Git"
+   (16.10.2026: tarayıcı ölçümünde kart sahnenin ~%40'ını kaplıyor ve
+   PLACEHOLDER rozetinin üstüne biniyordu). Tüm adımlar listesi masaüstünde. */
 @media (max-height: 500px) {
   .onboarding-overlay {
-    top: 44px;
-    padding: 8px 10px;
-    width: min(260px, calc(100% - 96px));
+    top: 54px;
+    padding: 5px 6px 5px 10px;
+    width: min(320px, calc(100% - 128px));
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 8px;
+    border-radius: 10px;
   }
 
-  .onboarding-overlay-hint {
+  .onboarding-overlay-head,
+  .onboarding-overlay-hint,
+  .onboarding-overlay-list,
+  .onboarding-overlay-actions .btn-outline {
     display: none;
+  }
+
+  .onboarding-overlay-title {
+    font-size: 13px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .onboarding-overlay-actions .btn-gold {
+    min-height: 32px;
+    padding: 4px 10px;
+    font-size: 12px;
   }
 }
 

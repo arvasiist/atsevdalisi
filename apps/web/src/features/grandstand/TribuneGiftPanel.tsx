@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { RaceTribuneGiftsView, TribuneGiftEvent, TribuneGiftFeedItem } from '@at-sevdalisi/shared-types';
 import { loadGrandstandConfig } from '@at-sevdalisi/game-config';
 import { apiClient } from '../../lib/api-client';
+import { formatCurrency } from '../../lib/currency';
 import { usePlayer } from '../../lib/player-context';
 import { TribuneGiftIcon } from './TribuneGiftIcon';
 import {
@@ -119,6 +120,10 @@ export function TribuneGiftPanel({
         <section className="tribune-gift-drawer" data-testid="tribune-gift-panel">
           <header className="tribune-gift-head">
             <strong>Tribünden Hediye</strong>
+            {/* 16.10.2026 — brief §8.4: maliyetin yanında bakiye de görünür. */}
+            <span className="tribune-gift-muted" data-testid="tribune-gift-balance">
+              Bakiyen: {formatCurrency('money', player.money)}
+            </span>
             <button type="button" className="tribune-gift-close" onClick={() => setOpen(false)} aria-label="Kapat">
               ✕
             </button>

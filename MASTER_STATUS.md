@@ -41,6 +41,8 @@ Her satır kod + test ile kontrol edildi. "Durum" denetim anındaki durumdur;
 | 12–14 | Sosyal, soket, güvenlik | TESTED | `phase16-hardening.spec.ts`, `multi-instance-realtime.e2e-spec.ts`, `production-env.ts` (`DISABLE_RATE_LIMIT` üretimde reddedilir) | — | — | değişmedi |
 | 11/16 | Veritabanı bağlantı havuzu | BROKEN → TESTED | `with-transaction-listeners.e2e-spec.ts` | G10 (denetimde bulundu): `withTransaction` her çağrıda havuz client'ına `error` dinleyicisi ekleyip bırakıyordu (bellek sızıntısı) | P1 | G10 ✅ |
 | 9 | Antrenman | PARTIAL → TESTED | `training.spec.ts`, `training.e2e-spec.ts` | G11: antrenman enerji harcamıyor, kondisyonu (fitness) değiştirmiyordu — brief "yoğunluk, enerji, kondisyon, yorgunluk, sağlık birlikte" | P1 | G11 ✅ config'ten enerji maliyeti + kondisyon kazancı, ekranda gösterilir |
+| 2.2 | Ahır düzeni (gerçek tarayıcı) | TESTED | `tools/dev/layout-check.mjs` (Chromium; 1440×900, 820×1180, 844×390, 390×844 × 6 sayfa): yatay taşma 0, sayfa hatası 0, menü 4 bölüm, ahır işlemleri görünür; dikey telefonda "yan çevir" | G12: yatay telefonda "Sıradaki adım" kartı sahnenin ~%40'ını kaplıyor, PLACEHOLDER rozetine biniyordu | P2 | G12 ✅ kısa ekranda tek satırlık şerit |
+| 8.4 | Tribün paneli bakiye | IMPLEMENTED | `TribuneGiftPanel` | G13: panelde çip bakiyesi yazmıyordu | P3 | G13 ✅ |
 | — | 3D | kapsam DIŞI (brief) | — | — | — | dokunulmadı |
 
 ## Repository

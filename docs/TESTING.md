@@ -122,7 +122,7 @@ ilk kez çalıştırılması gerekir.
 | 7 | Seviyeye uygun yarışlar listelenir | `apps/web/test/features/race-lobby/quick-join.spec.ts`, `horse-level-bracket.e2e-spec.ts` |
 | 8 | Uygun olmayan at kaydolamaz | `horse-level-bracket.e2e-spec.ts`, `race-condition.e2e-spec.ts`, `race-age.e2e-spec.ts`, `race-horse-lock.e2e-spec.ts` |
 | 9 | Ödül ve iade bir kez | `race-field-rule.e2e-spec.ts` (5 eşzamanlı kesinleştirme), `race-auto-settle.e2e-spec.ts`, `admin.e2e-spec.ts` (iptal) |
-| 10 | Ahır ekranı masaüstü + mobil düzen | `apps/web/test/features/orientation/orientation-layout.spec.ts`, `stable-layout.spec.ts` |
+| 10 | Ahır ekranı masaüstü + mobil düzen | `apps/web/test/features/orientation/orientation-layout.spec.ts`, `stable-layout.spec.ts` + gerçek tarayıcı ölçümü `tools/dev/layout-check.mjs` (4 ekran × 6 sayfa, yatay taşma 0 — 16.10.2026) |
 | 11 | Elmas/çip "+" ve yönlendirme | `apps/web/test/components/top-bar-nav.spec.ts` |
 | 12 | "Verilerimi indir" kaldırıldı | `apps/web/test/features/account/account-data-export-removed.spec.ts` |
 | 13 | Başkasının kaynağına erişim yok | `apps/api/test/security/phase16-hardening.spec.ts`, `wallet.e2e-spec.ts`, `horse.e2e-spec.ts`, `gift.e2e-spec.ts` (403/404) |
