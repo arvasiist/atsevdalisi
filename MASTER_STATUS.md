@@ -17,6 +17,20 @@
 > `docs/AUDIT_REPORT.md` (3D brief Phase 0 boşluk analizi) **tarihli
 > anlık görüntülerdir**; bugünkü durum için bu dosyaya bakılır.
 
+## Brief 16.10.2026 — Sosyal + çip ekonomisi (koddan doğrulandı)
+
+Ayrıntı ve 12 maddelik tamamlanma raporu: `docs/SOSYAL_CIP_DENETIMI.md`.
+
+| Konu | Durum | Kanıt |
+|---|---|---|
+| Oyuncu arama (ID / kullanıcı adı) + profilde Arkadaş Ekle | TESTED | `player-discovery.e2e-spec.ts`, `presence.spec.ts` |
+| Çevrimiçi / son görülme / gizlilik | TESTED | `player-discovery.e2e-spec.ts`, web `presence.spec.ts` |
+| Arkadaşlık: birlikte yarış VEYA davet çifti | TESTED | `friendship-race-gate.e2e-spec.ts`, `referral.e2e-spec.ts` |
+| Çip transferi: onay, limitler, iki taraf bildirim | TESTED | `chip-transfer.e2e-spec.ts`, `gift.e2e-spec.ts`, `gift-limits.spec.ts`, web `chip-transfer.spec.ts` |
+| Satın alınan çip hediye edilemez | TESTED | `chip-transfer.e2e-spec.ts`, `payments.e2e-spec.ts` |
+| Davet kodu + ödül | TESTED | `referral.e2e-spec.ts`, `referral.spec.ts` (api + web) |
+| Mağazada çip paketleri | IMPLEMENTED (sağlayıcı YOK) | `payments.e2e-spec.ts` (sahte imzalı sağlayıcıyla) |
+
 ## Brief 16.10.2026 — "Master Audit" eşlemesi (koddan doğrulandı)
 
 Her satır kod + test ile kontrol edildi. "Durum" denetim anındaki durumdur;
@@ -27,7 +41,7 @@ Her satır kod + test ile kontrol edildi. "Durum" denetim anındaki durumdur;
 |---|---|---|---|---|---|---|
 | 2.1 | Giriş → ahır | IMPLEMENTED | `HOME_FOR_PLAYERS` (`/`→`/stable`, `app/(dashboard)/page.tsx`) | G8: yönlendirmeyi kilitleyen test yok | P3 | G8 ✅ |
 | 2.2 | Ahır tam ekran + üst menü | PARTIAL | `.stable3d-full`, `orientation-layout.spec.ts` | G1: üst menüde Bakım yok (Ana Sayfa/Ahır/Antrenman/Yarışlar/Pazar/Sıralama/Sosyal); ahırdayken `/care` paneli açmıyor (`?panel` yalnızca ilk yüklemede okunuyor) | P2 | G1 ✅ |
-| 3 | Elmas/çip "+" | TESTED | `TOP_UP_HREF`, `top-bar-nav.spec.ts` | — | — | değişmedi |
+| 3 | Elmas/çip "+" | TESTED | `TOP_UP_HREF`, `top-bar-nav.spec.ts` | — | — | 16.10.2026: çip "+" de `/store` (çip paketleri) |
 | 3 | Satın alma doğrulaması | TESTED (sağlayıcısız) | `payments.e2e-spec.ts` (imza, tekrar webhook, tutar uyuşmazlığı) | gerçek sağlayıcı yok → mağaza 503 (sahte başarı yok) | — | değişmedi |
 | 4 | "Verilerimi indir" kaldırıldı | IMPLEMENTED | `/account`ta çağrı yok | G6: kaldırıldığını kilitleyen test yok | P3 | G6 ✅ |
 | 5.1–5.2 | Arkadaş başarımı (5/10/…/50 → 100 çip) | TESTED (+ engelli sayılmaz, 16.10) | `friend_count` (kabul edilmiş, silinmiş/engelli sayılmaz), `achievements.e2e-spec.ts` | G3: arkadaş ekranı kazanılmış/alınmış eşikleri ve "Al" düğmesini göstermiyor | P2 | G3 ✅ |

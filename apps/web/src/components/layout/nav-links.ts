@@ -98,11 +98,11 @@ export const NAV_LINKS: ReadonlyArray<NavLink> = [
 export const MAX_MOBILE_TABS = 4;
 
 /**
- * 08.10.2026 — bakiyenin yanındaki belirgin "+" (sahibinin isteği): çip →
- * cüzdan (yükleme), elmas → mağaza. Yalnızca yönlendirir; satın alma kararı
- * ve tutar her zaman o sayfada ve sunucuda.
+ * 08.10.2026 — bakiyenin yanındaki belirgin "+" (sahibinin isteği). 16.10.2026
+ * (sosyal brief §6): çip paketleri mağazada olduğu için ikisi de mağazaya gider.
+ * Yalnızca yönlendirir; satın alma kararı ve tutar her zaman o sayfada ve sunucuda.
  */
 export const TOP_UP_HREF: Record<'money' | 'gems', string> = {
-  money: '/wallet',
+  money: '/store',
   gems: '/store',
 };

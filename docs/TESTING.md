@@ -132,3 +132,13 @@ Ek (bu brief'te yazıldı): canlı bildirim akışı `notification-stream.e2e-sp
 arkadaş hediyesi bildirimi `friend-gift.e2e-spec.ts` (alıcıya bir kez, gönderene yok),
 lobi listesinin kendiliğinden yenilenmesi `apps/web/test/features/race-lobby/lobby-refresh.spec.ts`,
 bota pay düşmez `table-rules.spec.ts` + `race-settlement`/`economy-reconciliation`/`final` e2e.
+
+## 10. Sosyal + çip brief'i (16.10.2026) — §11 senaryoları → test
+
+Eşleme tablosu `docs/SOSYAL_CIP_DENETIMI.md` → "Brief §11 senaryosu → test".
+Yeni dosyalar: `player-discovery.e2e-spec.ts`, `chip-transfer.e2e-spec.ts`,
+`referral.e2e-spec.ts`, `test/domain/social/{presence,referral}.spec.ts`,
+`test/domain/gift/gift-limits.spec.ts`; `payments.e2e-spec.ts` çip paketi
+senaryosuyla genişledi. Web: `test/features/social/{presence,chip-transfer,referral}.spec.ts`.
+⚠️ Transfer e2e'si yazarken `matureAccounts` (yeni hesap tavanı).
+

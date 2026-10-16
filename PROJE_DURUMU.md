@@ -4652,3 +4652,16 @@ ekranı →". **G15:** `/races` lobi listesi yalnızca açılışta/elle okunuyo
 `features/race-lobby/lobby-refresh.ts` (`race-lobby.lobbyListRefreshSeconds`,
 sekme gizliyken durur, üst üste istek yok). Testler: `friend-gift.e2e-spec.ts`
 (+1), `notification-types.spec.ts` (0089), `lobby-refresh.spec.ts` (+3).
+
+### 13.113 Sosyal + çip brief'i (16.10.2026, migration 0090–0093)
+
+"101 Okey Plus benzeri arkadaşlık, çip ekonomisi ve hediye" brief'i yedi fazda
+uygulandı; denetim, uç listesi, migration'lar, §11 senaryo → test eşlemesi,
+güvenlik önlemleri ve gerçek servis bağımlılıkları
+`docs/SOSYAL_CIP_DENETIMI.md`'dedir. Özet: oyuncu arama + profilde ilişki
+düğmeleri + çevrimiçi/gizlilik (F2), limitli ve onay ekranlı çip transferi,
+gönderene bildirim, satın alınan çip hediye edilemez (F3), davet kodu + koşullu
+davet ödülü + davet istisnalı arkadaşlık kapısı (F4), mağazada çip paketleri,
+çip "+" → `/store` (F5). Gerçek ödeme sağlayıcısı YOK (mağaza kapalı yazar).
+CI: F4 commit'inde `AnnouncementStrip.spec.tsx` CI'da etki yarışıyla düştü
+(`0px`); test artık etkiyi bekler.

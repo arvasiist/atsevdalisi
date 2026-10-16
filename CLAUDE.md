@@ -880,6 +880,8 @@ enerji, jokey, at) elmasla fiyatlama; elmas hediye/transfer yazma; elmastan
 çipe dönüşüm yazma (çip ücretli yarış havuzuna girer). `validateGemPolicy`
 (`domain/economy/gem-policy.ts`) açılışta yem fiyatı + hediye birimini
 denetler — yeni bir elmaslı fiyat ekliyorsan oraya da kural yaz.
+16.10.2026: çip artık mağazada GERÇEK PARAYLA da satılır (sahibinin kararı,
+bkz. (97)); elmas → çip dönüşümü yine YOK, satın alınan çip hediye edilemez.
 (82) **KOZMETİK MAĞAZA (09.10.2026, migration 0082, §13.107)** — `GET
 /cosmetics`, `POST /cosmetics/:key/purchase` (`Idempotency-Key`); ürün =
 avatar kataloğunun bir seçeneği (`config/cosmetics.config.json`). ⚠️ Kilitli
@@ -1098,6 +1100,28 @@ kondisyona HİÇ dokunmuyordu (enerji eşiği antrenmanda anlamsızdı). Yanıt
 `energyCost`, `fitnessGain`, `newStatus.fitness` taşır. ⚠️ Aynı atla çok
 sayıda antrenman koşan YENİ e2e enerjiye takılabilir (`INSUFFICIENT_ENERGY`) —
 kurulumda enerjiyi SQL ile doldur. Kondisyon motora girer (motor DEĞİŞMEDİ).
+
+(97) **SOSYAL + ÇİP BRIEF'İ (16.10.2026, migration 0090–0093,
+`docs/SOSYAL_CIP_DENETIMI.md`)** — (a) Arama `GET /social/search` (UUID tam /
+kullanıcı adı ön eki; engelli çift + silinmiş gizli), ilişki `GET
+/players/:id/relationship/:otherId`, çevrimiçi `POST /presence/heartbeat` +
+`GET/PUT /players/:id/privacy` (gizleyen herkese çevrimdışı, son görülme
+DÖNMEZ). (b) Arkadaşlık kapısı `meetsFriendshipGate` = birlikte yarış VEYA
+davet çifti (sahibinin kararı) — yeni bir arkadaşlık yolu bunu kullanır. (c)
+Transfer limitleri `gift.config.json` (günlük tutar, alıcı günlük, yeni hesap)
+KİLİT ALTINDA → 409 `GIFT_LIMIT_EXCEEDED`; ⚠️ transfer e2e'si yazarken
+`matureAccounts(app, [a, b])` — yoksa yeni hesap tavanına takılır. `gift_sent`
+gönderene, aynı tx. (d) ⚠️ **SATIN ALINAN ÇİP HEDİYE EDİLEMEZ** (sahibinin
+kararı): tek kural `giftableBalance` + `store.purchasedChipsGiftable`;
+satın alınmış net defterden (`chip_purchase` + `chip_purchase_refund`) okunur
+— çip satan YENİ bir yol bu iki türü yazmazsa kural delinir. (e) Davet
+`/referrals` (+ `/invite` ekranı, `?ref=`): koşul/ödül/tavan
+`referral.config.json`, ödül iki tarafa TEK tx, koşullar kilit altında yeniden
+denetlenir, karşılıklı davet yasak; `referrals` silme + dışa aktarmada. (f)
+Mağazada çip paketleri: sipariş YA elmas YA çip (`payment_orders_one_reward`);
+çip `money`ye `chip_purchase`, iade `chip_purchase_refund` + açık
+`clawback_shortfall_chips`. Üst bardaki çip "+" artık `/store`. Gerçek ödeme
+sağlayıcısı hâlâ YOK.
 
 **✅ ÜCRETLİ LOBİ YARIŞI ARTIK KOŞUYOR — ÖDÜL DAĞITIMI VAR (§13.14,
 28.09.2026).** `POST /races/:id/settle` yarışı koşar, ödülleri `top5`

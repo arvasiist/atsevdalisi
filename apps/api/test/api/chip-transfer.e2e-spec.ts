@@ -140,6 +140,23 @@ describe('Çip transferi — limitler ve güvenlik (e2e)', () => {
     expect(await money(sender.playerId)).toBe(20_000 - amount);
   });
 
+  it('eşzamanlı transferler bakiyeyi yanlış hesaplayamaz: yetmeyen ikinci 409, karşılıklı transfer kilitlenmez, toplam korunur', async () => {
+    const [sender, recipient] = await pair('Eşzamanlı Bakiye');
+    await setMoney(sender.playerId, 500);
+    const results = await Promise.all([send(sender, recipient.playerId, 300), send(sender, recipient.playerId, 300)]);
+    expect(results.map((result) => result.status).sort()).toEqual([201, 409]);
+    expect(results.find((result) => result.status === 409)!.body.error.code).toBe('INSUFFICIENT_FUNDS');
+    expect(await money(sender.playerId)).toBe(200);
+
+    // A→B ve B→A aynı anda: kilit sırası id'ye göre olduğu için ikisi de biter.
+    await setMoney(sender.playerId, 1_000);
+    await setMoney(recipient.playerId, 1_000);
+    const crossed = await Promise.all([send(sender, recipient.playerId, 100), send(recipient, sender.playerId, 150)]);
+    expect(crossed.map((result) => result.status)).toEqual([201, 201]);
+    expect(await money(sender.playerId)).toBe(1_000 - 100 + 150);
+    expect(await money(recipient.playerId)).toBe(1_000 + 100 - 150);
+  });
+
   it('transfer sırasında veritabanı hatası: bakiyeler, defter ve bildirim geri alınır', async () => {
     const [sender, recipient] = await pair('Hata');
     const recipientBefore = await money(recipient.playerId);

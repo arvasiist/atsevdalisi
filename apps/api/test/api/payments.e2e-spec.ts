@@ -243,10 +243,14 @@ describe('Mağaza — sahte sağlayıcıyla (e2e)', () => {
     const moneyOf = async (playerId: string) =>
       Number((await pool.query('SELECT money FROM players WHERE id = $1', [playerId])).rows[0].money);
 
+    const moneyBefore = await moneyOf(player.playerId);
     const order = ((await checkout(player, chipProduct.sku).expect(201)).body.data as CheckoutView).order;
     expect(order).toMatchObject({ sku: chipProduct.sku, chips: chipProduct.chips, gems: 0 });
+    // Sipariş açmak ve imzasız "ödendi" bildirimi çip VERMEZ.
+    expect(await moneyOf(player.playerId)).toBe(moneyBefore);
     const session = await sessionOf(order.id);
-    const moneyBefore = await moneyOf(player.playerId);
+    await send({ type: 'payment_succeeded', sessionId: session, amountMinor: chipProduct.priceMinor, currency: store.currency }, 'f'.repeat(64)).expect(400);
+    expect(await moneyOf(player.playerId)).toBe(moneyBefore);
     const gemsBefore = await gems(player.playerId);
     const paid = (extra: Partial<PaymentWebhookEvent> = {}) =>
       succeeded(session, { amountMinor: chipProduct.priceMinor, ...extra });

@@ -3070,6 +3070,25 @@ yorgunluk). Son binişlerden türetilir (bitmiş yarış, iptal edilmemiş
 katılım); bir sonraki yarışta jokey puanına çarpan olarak uygulanır ve kadro
 kilitlenirken donar. Ayarlar `config/jockey.config.json` → `condition`.
 
+## 9.4 Sosyal keşif, çip transferi limitleri, davet, çip paketleri (16.10.2026)
+
+| Yöntem | Yol | Açıklama |
+|---|---|---|
+| GET | `/api/v1/social/search?q=` | UUID tam eşleşme ya da kullanıcı adı ön eki (`social.playerSearch`); kendisi, engelli çift, silinmiş hesap dönmez. Satır: `playerId, username, displayName, level, presence` |
+| GET | `/api/v1/players/{id}/relationship/{otherId}` | yalnızca kendi `id`; `status`: `self \| friend \| outgoing \| incoming \| none \| blocked`, `requestId`, `canSendFriendRequest`, `friendRequestBlockedReason`, `presence` (yalnızca arkadaşsa) |
+| POST | `/api/v1/presence/heartbeat` | son görülmeyi sunucu saatiyle yazar (200) |
+| GET/PUT | `/api/v1/players/{id}/privacy` | `{ showOnlineStatus: boolean }` |
+| GET | `/api/v1/players/{id}/gifts/quota` | hazır tutarlar, günlük kalan (gönderim), yeni hesap işareti, gönderilebilir bakiye |
+| GET | `/api/v1/referrals` | kod, koşullar, ödüller, tavanlar, davet ettiklerin (durum), seni davet eden |
+| POST | `/api/v1/referrals/attach` | `{ code }` → davet edenle ilişkilendir (404/400/409) |
+| POST | `/api/v1/referrals/claim` | koşulu sağlanan davetlerin ödülü (iki tarafa, bir kez) |
+
+`POST /players/{id}/gifts` artık 409 `GIFT_LIMIT_EXCEEDED` (`details.kind`:
+`DAILY_AMOUNT`, `RECIPIENT_DAILY_AMOUNT`, `NEW_ACCOUNT_AMOUNT`,
+`NEW_ACCOUNT_DAILY_AMOUNT`, `PURCHASED_CHIPS_NOT_GIFTABLE`) verebilir.
+`GET /store` ürünü ve sipariş görünümü `chips` taşır (ürün ya elmas ya çip
+verir); `GET /admin/payments` satırı `clawbackShortfallChips` taşır.
+
 ## 10. WebSocket olayları
 
 Brief'te WebSocket "gerektiğinde" kullanılacağı belirtilmiş (§6).

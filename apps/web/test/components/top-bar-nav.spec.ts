@@ -102,8 +102,8 @@ describe('TopBar gezinti şeridi', () => {
     }
   });
 
-  it('bakiye yanındaki "+" düğmeleri gerçek sayfalara gider (çip → cüzdan, elmas → mağaza)', () => {
-    expect(TOP_UP_HREF).toEqual({ money: '/wallet', gems: '/store' });
+  it('bakiye yanındaki "+" düğmeleri gerçek sayfalara gider (çip ve elmas paketleri → mağaza)', () => {
+    expect(TOP_UP_HREF).toEqual({ money: '/store', gems: '/store' });
     for (const href of Object.values(TOP_UP_HREF)) {
       expect(STATIC_ROUTES.has(href), `Sayfası olmayan "+" bağlantısı: ${href}`).toBe(true);
     }

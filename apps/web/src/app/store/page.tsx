@@ -131,7 +131,7 @@ function StoreContent(): React.ReactElement {
               </p>
             </GlassPanel>
           ) : null}
-          {(['gems', 'chips'] as const).map((kind) => {
+          {(['chips', 'gems'] as const).map((kind) => {
             const products = store.products.filter((product) => (kind === 'chips' ? product.chips > 0 : product.gems > 0));
             if (products.length === 0) return null;
             return (
