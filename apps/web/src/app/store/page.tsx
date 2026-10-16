@@ -9,6 +9,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import Link from 'next/link';
 import type { PaymentOrderView, StoreView } from '@at-sevdalisi/shared-types';
 import { GlassPanel } from '../../components/ui/GlassPanel';
 import { PAYMENT_STATUS_LABELS, describeStoreReward, formatPrice, isFinalPaymentStatus } from '../../features/store/store-labels';
@@ -124,6 +125,10 @@ function StoreContent(): React.ReactElement {
         <p className="session-meta">Yükleniyor…</p>
       ) : (
         <>
+          <p className="legal-consent">
+            Satın alma koşulları: <Link href="/yasal/kullanim-sartlari">Kullanım Şartları</Link> · kişisel veriler:{' '}
+            <Link href="/yasal/kvkk-aydinlatma">KVKK Aydınlatma Metni</Link>
+          </p>
           {!store.available ? (
             <GlassPanel>
               <p className="session-meta" data-testid="store-unavailable">

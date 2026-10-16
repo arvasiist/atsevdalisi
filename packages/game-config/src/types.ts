@@ -2815,3 +2815,29 @@ export interface ReferralConfig {
   maxRewardedPerInviterPerDay: number;
   historyLimit: number;
 }
+
+/**
+ * 16.10.2026 — yasal metinler (KVKK aydınlatma, gizlilik, kullanım şartları).
+ * Şirket bilgileri SAHİBİNDEN gelir; `null` alan sayfada "eklenecek" yazar ve
+ * `status: 'draft'` iken sayfa TASLAK uyarısı taşır (metin hukuki incelemeden
+ * geçmeden kesinleşmiş gibi gösterilmez). Bu dosya istemci paketine girer —
+ * yalnızca zaten herkese açık bilgiler yazılır.
+ */
+export interface LegalConfig {
+  status: 'draft' | 'final';
+  /** ISO tarih (YYYY-MM-DD). */
+  lastUpdated: string;
+  controller: {
+    name: string | null;
+    address: string | null;
+    contactEmail: string | null;
+    mersisNo: string | null;
+    kepAddress: string | null;
+  };
+  minimumAge: number | null;
+  hostingProvider: string | null;
+  /** Yedek kopyaların saklama süresi (ör. "30 gün"). */
+  backupRetention: string | null;
+  jurisdiction: string | null;
+}
+

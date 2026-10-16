@@ -1126,6 +1126,14 @@ Mağazada çip paketleri: sipariş YA elmas YA çip (`payment_orders_one_reward`
 `clawback_shortfall_chips`. Üst bardaki çip "+" artık `/store`. Gerçek ödeme
 sağlayıcısı hâlâ YOK.
 
+(98) **YASAL METİNLER (16.10.2026)** — `/yasal` (KVKK aydınlatma, gizlilik +
+çerez, kullanım şartları); metin `features/legal/legal-documents.ts`, şirket
+bilgileri `config/legal.config.json` (`null` → "[eklenecek]", `draft` → TASLAK
+uyarısı). Menü "Gizlilik ve Şartlar", hesap kaydı ve mağaza bağlar. ⚠️ Oyuncuya
+bağlı YENİ bir veri bölümü (`ACCOUNT_EXPORT_SECTIONS`) eklersen
+`DATA_CATEGORY_BY_EXPORT_SECTION` (Record — tsc durdurur) aydınlatmaya yazdırır.
+Metin hukuki incelemeden GEÇMEDİ; `status: 'final'`ı yalnızca sahibi yapar.
+
 **✅ ÜCRETLİ LOBİ YARIŞI ARTIK KOŞUYOR — ÖDÜL DAĞITIMI VAR (§13.14,
 28.09.2026).** `POST /races/:id/settle` yarışı koşar, ödülleri `top5`
 paylarıyla dağıtır ve `races.status = 'finished'` yazar. Uç bir

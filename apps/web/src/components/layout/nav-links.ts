@@ -91,6 +91,8 @@ export const NAV_LINKS: ReadonlyArray<NavLink> = [
   { href: '/wallet', label: 'Cüzdan', icon: 'wallet', placement: 'more' },
   { href: '/avatar', label: 'Avatarım', icon: 'avatar', placement: 'more' },
   { href: '/account', label: 'Hesap', icon: 'account', placement: 'more' },
+  // 16.10.2026 — KVKK aydınlatma, gizlilik ve kullanım şartları her yerden ulaşılabilir.
+  { href: '/yasal', label: 'Gizlilik ve Şartlar', icon: 'account', placement: 'more' },
   { href: '/notifications', label: 'Bildirimler', icon: 'notifications', placement: 'utility' },
 ];
 

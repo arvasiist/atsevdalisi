@@ -1,0 +1,15 @@
+{
+  "status": "draft",
+  "lastUpdated": "2026-10-16",
+  "controller": {
+    "name": null,
+    "address": null,
+    "contactEmail": null,
+    "mersisNo": null,
+    "kepAddress": null
+  },
+  "minimumAge": null,
+  "hostingProvider": null,
+  "backupRetention": null,
+  "jurisdiction": null
+}

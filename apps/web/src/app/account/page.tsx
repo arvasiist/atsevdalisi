@@ -27,6 +27,7 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
 import type { AccountProvider } from '@at-sevdalisi/shared-types';
 import { loadAuthConfig } from '@at-sevdalisi/game-config';
 import { GlassPanel } from '../../components/ui/GlassPanel';
@@ -328,6 +329,10 @@ export default function AccountPage(): React.ReactElement {
             </div>
           ) : null}
           {form(submitSave, 'Hesabımı kaydet', 'new-password')}
+          <p className="legal-consent" data-testid="legal-consent">
+            Kaydederek <Link href="/yasal/kullanim-sartlari">Kullanım Şartları</Link>&apos;nı kabul etmiş ve{' '}
+            <Link href="/yasal/kvkk-aydinlatma">KVKK Aydınlatma Metni</Link>&apos;ni okumuş olursun.
+          </p>
         </GlassPanel>
       ) : null}
 

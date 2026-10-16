@@ -30,6 +30,7 @@ Ayrıntı ve 12 maddelik tamamlanma raporu: `docs/SOSYAL_CIP_DENETIMI.md`.
 | Satın alınan çip hediye edilemez | TESTED | `chip-transfer.e2e-spec.ts`, `payments.e2e-spec.ts` |
 | Davet kodu + ödül | TESTED | `referral.e2e-spec.ts`, `referral.spec.ts` (api + web) |
 | Mağazada çip paketleri | IMPLEMENTED (sağlayıcı YOK) | `payments.e2e-spec.ts` (sahte imzalı sağlayıcıyla) |
+| Yasal metinler (KVKK, gizlilik, kullanım şartları) | PARTIAL — TASLAK: şirket bilgisi + hukuki inceleme sahibinde | `/yasal`, web `legal-documents.spec.ts` |
 
 ## Brief 16.10.2026 — "Master Audit" eşlemesi (koddan doğrulandı)
 
