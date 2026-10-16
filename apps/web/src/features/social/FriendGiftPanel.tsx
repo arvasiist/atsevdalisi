@@ -106,7 +106,13 @@ export function FriendGiftPanel({
   };
 
   if (!board) {
-    return error ? <p className="friend-gift-error">{error}</p> : null;
+    return error ? (
+      <p className="friend-gift-error">{error}</p>
+    ) : (
+      <p className="friend-gift-hint" data-testid="friend-gift-loading">
+        Dostluk hediyeleri yükleniyor…
+      </p>
+    );
   }
 
   const cost = nextSendCost(board);
