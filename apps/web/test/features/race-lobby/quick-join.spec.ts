@@ -1,13 +1,18 @@
 import { describe, expect, it } from 'vitest';
 import { loadRaceLobbyConfig } from '@at-sevdalisi/game-config';
 import type { RaceLobbyListItem } from '@at-sevdalisi/shared-types';
+import { getRaceEntryBlocker } from '../../../src/features/race/race-entry';
+import { loadEconomyConfig, loadRaceConfig } from '@at-sevdalisi/game-config';
 import {
   LEVEL_BRACKET_OPTIONS,
   buildCreateRaceBody,
   defaultLobbyRaceForm,
   describeLevelBracket,
   horseFitsLevelBracket,
+  QUICK_JOIN_CHOICES,
+  describePrizeSplit,
   pickQuickJoinRace,
+  pickQuickJoinRaces,
   raceFitForHorse,
   sortRacesForHorse,
 } from '../../../src/features/race-lobby/lobby-logic';
@@ -144,5 +149,36 @@ describe('Hemen Katıl seçimi', () => {
     );
     expect(picked).toBeNull();
     expect(pickQuickJoinRace([race()], null, 5000, NOW, MIN_LEAD)).toBeNull();
+  });
+});
+
+describe('16.10.2026 — brief §7.1/§7.2: seçenekli Hemen Katıl + ödül kuralı', () => {
+  it('birden çok uygun yarış varsa en fazla QUICK_JOIN_CHOICES seçenek, en uygunu başta (tek öneriyle aynı)', () => {
+    const races = Array.from({ length: 6 }, (_, index) => race({ id: `r${index}`, startTime: inMinutes(10 + index) }));
+    const choices = pickQuickJoinRaces(races, starter, 10_000, NOW, MIN_LEAD);
+    expect(choices).toHaveLength(QUICK_JOIN_CHOICES);
+    expect(choices.map((choice) => choice.id)).toEqual(['r0', 'r1', 'r2']);
+    expect(pickQuickJoinRace(races, starter, 10_000, NOW, MIN_LEAD)?.id).toBe(choices[0]!.id);
+    expect(pickQuickJoinRaces([race({ joinedPlayers: 8 })], starter, 10_000, NOW, MIN_LEAD)).toEqual([]);
+  });
+
+  it('atın kendisi yarışamıyorsa (yorgun/enerjisiz/tay) Hemen Katıl önce onu söyler — sunucunun sırası', () => {
+    const { maxFatigue, minEnergy, minAgeMonths } = loadRaceConfig().readiness;
+    const fit = { status: 'active' as const, health: 100, fatigue: 0, energy: 100, ageMonths: minAgeMonths };
+    expect(getRaceEntryBlocker(fit)).toBeNull();
+    expect(getRaceEntryBlocker({ ...fit, fatigue: maxFatigue + 1 })).toBe('HORSE_TOO_TIRED');
+    expect(getRaceEntryBlocker({ ...fit, energy: minEnergy - 1 })).toBe('INSUFFICIENT_ENERGY');
+    expect(getRaceEntryBlocker({ ...fit, ageMonths: minAgeMonths - 1, fatigue: maxFatigue + 1 })).toBe('HORSE_TOO_YOUNG');
+  });
+
+  it('masasız ücretli yarışta ödül dağılımı sunucunun config paylarından yazılır; masalı/ücretsiz/turnuvada yazılmaz', () => {
+    const lobby = loadRaceLobbyConfig();
+    const shares = loadEconomyConfig().prizeDistributions.find((item) => item.id === lobby.prizeDistributionId)!.shares;
+    const text = describePrizeSplit(race())!;
+    expect(text).toContain(`ilk ${shares.length} sıraya`);
+    expect(text).toContain('komisyon %10');
+    expect(describePrizeSplit(race({ entryFee: 0 }))).toBeNull();
+    expect(describePrizeSplit(race({ tournament: { tier: 'bronze', minPlayerLevel: 1 } }))).toBeNull();
+    expect(describePrizeSplit(race({ table: { id: 'local' } as never }))).toBeNull();
   });
 });

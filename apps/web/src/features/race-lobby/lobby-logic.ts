@@ -479,18 +479,19 @@ export function sortRacesForHorse<T extends Pick<RaceLobbyListItem, 'breedClass'
  * `minLeadMs` var (katıl + hazırım sığsın). Önce ata özel aralık, sonra en
  * yakın başlangıç, sonra düşük ücret. At zaten açık bir yarıştaysa `null`.
  */
-export function pickQuickJoinRace(
+export function pickQuickJoinRaces(
   races: readonly RaceLobbyListItem[],
   horse: LobbyHorse | null,
   money: number,
   now: Date,
   minLeadMs: number,
-): RaceLobbyListItem | null {
-  if (horse === null) return null;
+  limit: number = QUICK_JOIN_CHOICES,
+): RaceLobbyListItem[] {
+  if (horse === null) return [];
   const horseBusy = races.some(
     (race) => race.myEntry !== null && race.myEntry.horseId === horse.id && race.myEntry.status !== 'cancelled',
   );
-  if (horseBusy) return null;
+  if (horseBusy) return [];
   const candidates = races.filter(
     (race) =>
       lobbyEntryActions(race).canJoin &&
@@ -504,5 +505,43 @@ export function pickQuickJoinRace(
       new Date(a.startTime).getTime() - new Date(b.startTime).getTime() ||
       a.entryFee - b.entryFee,
   );
-  return candidates[0] ?? null;
+  return candidates.slice(0, limit);
+}
+
+/** "Hemen Katıl"ın tek önerisi: `pickQuickJoinRaces`ın ilki (aynı kural, aynı sıra). */
+export function pickQuickJoinRace(
+  races: readonly RaceLobbyListItem[],
+  horse: LobbyHorse | null,
+  money: number,
+  now: Date,
+  minLeadMs: number,
+): RaceLobbyListItem | null {
+  return pickQuickJoinRaces(races, horse, money, now, minLeadMs, 1)[0] ?? null;
+}
+
+/**
+ * 16.10.2026 — brief §7.1: birden çok uygun yarış varsa oyuncu SEÇER (en
+ * uygunu başta). Ekranda en çok bu kadar seçenek gösterilir.
+ */
+export const QUICK_JOIN_CHOICES = 3;
+
+/**
+ * 16.10.2026 — brief §7.2: masasız lobi yarışında ödül dağılımı da kartta
+ * görünsün. Sunucu `raceLobby.prizeDistributionId` paylarını kullanır
+ * (`settle-race.use-case.ts`); burada AYNI config okunur. Masalı yarış
+ * `describeTableRules`, turnuva `describeTournament` ile anlatılır → `null`.
+ */
+export function describePrizeSplit(race: Pick<RaceLobbyListItem, 'table' | 'tournament' | 'entryFee'>): string | null {
+  if (race.table || race.tournament !== null || race.entryFee === 0) return null;
+  const shares =
+    loadEconomyConfig().prizeDistributions.find((distribution) => distribution.id === lobbyConfig.prizeDistributionId)
+      ?.shares ?? [];
+  if (shares.length === 0) return null;
+  const percent = (value: number) => `%${(Math.round(value * 1000) / 10).toLocaleString('tr-TR')}`;
+  const top = shares
+    .slice(0, 3)
+    .map((share, index) => `${index + 1}. ${percent(share)}`)
+    .join(' · ');
+  const rake = 1 - shares.reduce((sum, share) => sum + share, 0);
+  return `Ödül ilk ${shares.length} sıraya (havuzdan ${top}${shares.length > 3 ? ' …' : ''}) · komisyon ${percent(rake)}`;
 }

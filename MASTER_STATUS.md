@@ -31,8 +31,8 @@ Her satır kod + test ile kontrol edildi. "Durum" denetim anındaki durumdur;
 | 4 | "Verilerimi indir" kaldırıldı | IMPLEMENTED | `/account`ta çağrı yok | G6: kaldırıldığını kilitleyen test yok | P3 | G6 ✅ |
 | 5.1–5.2 | Arkadaş başarımı (5/10/…/50 → 100 çip) | TESTED (+ engelli sayılmaz, 16.10) | `friend_count` (kabul edilmiş, silinmiş/engelli sayılmaz), `achievements.e2e-spec.ts` | G3: arkadaş ekranı kazanılmış/alınmış eşikleri ve "Al" düğmesini göstermiyor | P2 | G3 ✅ |
 | 5.3–5.4 | Toplu çip hediyesi | PARTIAL → TESTED | `friend-gift.e2e-spec.ts` (10), `friend-gift.spec.ts` (domain + web) | G2: gönderenden para düşmüyordu (oyun 10 çip basıyordu) | P2 | G2 ✅ migration 0087: gönderen öder 2 çip, günlük bütçe 20, alıcı önizlemesi, kişi başı sonuç, eşzamanlı basışta tek tahsilat, süresi dolanın iadesi |
-| 6.1 | Hemen Katıl | PARTIAL | `pickQuickJoinRace`, `lobby-logic.spec.ts` | G4: atın enerji/yorgunluk/yaş durumu önceden denetlenmiyor (sunucu 409 veriyor), tek seçenek, ödül kuralı işlemden önce gösterilmiyor | P1 | G4 ✅ |
-| 6.2 | Yarış kartı | IMPLEMENTED | `LobbyPanel` (mesafe, pist, sınıf, kapasite, ücret, masa kuralları, süre) | G5: masasız yarışta ödül dağılımı yazmıyor | P3 | G5 ✅ |
+| 6.1 | Hemen Katıl | PARTIAL → TESTED | `pickQuickJoinRace`, `lobby-logic.spec.ts` | G4: atın enerji/yorgunluk/yaş durumu önceden denetlenmiyor (sunucu 409 veriyor), tek seçenek, ödül kuralı işlemden önce gösterilmiyor | P1 | G4 ✅ |
+| 6.2 | Yarış kartı | IMPLEMENTED → TESTED | `LobbyPanel` (mesafe, pist, sınıf, kapasite, ücret, masa kuralları, süre) | G5: masasız yarışta ödül dağılımı yazmıyor | P3 | G5 ✅ |
 | 6.3–6.4 | Uygunluk + yaşam döngüsü | TESTED | `DENETIM_ASAMA3_YARIS.md` (15 madde) | — | — | değişmedi |
 | 7 | Tribün hediyesi | TESTED | `tribune-gift.e2e-spec.ts` | G7: "yarıştan sonra at satılırsa hediye koşturana gider" kuralının testi yok | P3 | G7 ✅ |
 | 8–10 | At/ahır/bakım/antrenman, motor, genetik, kariyer | TESTED | `OYUN_DONGUSU_DENETIMI.md` (S1–S6, B12–B13), `RACE_BALANCE_REPORT.md` §11 | — | — | S4 handikap (16.10) |

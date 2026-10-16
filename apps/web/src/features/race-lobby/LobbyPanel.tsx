@@ -33,7 +33,13 @@ import { GlassPanel } from '../../components/ui/GlassPanel';
 import { apiClient } from '../../lib/api-client';
 import { formatCurrency } from '../../lib/currency';
 import { formatRaceStart } from '../../lib/format-time';
-import { formatMultiplier } from '../race/race-entry';
+import {
+  RACE_ENTRY_BLOCKER_LABELS,
+  daysUntilRaceAge,
+  formatMultiplier,
+  formatRaceReadyIn,
+  getRaceEntryBlocker,
+} from '../race/race-entry';
 import { RACE_CLASSES, breedLabel, horseFitsRaceClass } from '../breeds/breed-catalog';
 import { HIPPODROME_OPTIONS } from '../race-viewer/hippodrome-theme';
 import { isClubOfficerOrLeader } from '../club/club-invite-logic';
@@ -56,7 +62,8 @@ import {
   LEVEL_BRACKET_OPTIONS,
   describeLevelBracket,
   horseFitsLevelBracket,
-  pickQuickJoinRace,
+  describePrizeSplit,
+  pickQuickJoinRaces,
   raceFitForHorse,
   sortRacesForHorse,
   canCancelOwnRace,
@@ -185,30 +192,36 @@ export function LobbyPanel({ horses, money, onBalanceChanged, playerId = null }:
 
   // 08.10.2026 — HEMEN KATIL: seçili at için en uygun yarışa tek tuşla katıl +
   // hazır ol. Seçim önerisidir; kurallar (ırk, seviye, ücret, dolu) sunucuda.
-  const quickJoinRace = useMemo(
+  // 16.10.2026 — brief §7.1: önce atın kendisi hazır mı (enerji/yorgunluk/
+  // sağlık/yaş — sunucunun `checkRaceReadiness` sırası), sonra uygun yarışlar
+  // arasından SEÇİM (en uygunu başta). Ücret ve ödül kuralı düğmenin yanında.
+  const quickJoinBlocker = effectiveHorse === null ? null : getRaceEntryBlocker(effectiveHorse);
+  const quickJoinRaces = useMemo(
     () =>
       races === null || effectiveHorse === null
-        ? null
-        : pickQuickJoinRace(races, effectiveHorse, money ?? Number.MAX_SAFE_INTEGER, new Date(), QUICK_JOIN_MIN_LEAD_MS),
+        ? []
+        : pickQuickJoinRaces(races, effectiveHorse, money ?? Number.MAX_SAFE_INTEGER, new Date(), QUICK_JOIN_MIN_LEAD_MS),
     [races, effectiveHorse, money],
   );
-  const quickJoin = useCallback(() => {
-    if (quickJoinRace === null || effectiveHorseId === '') return;
-    const race = quickJoinRace;
-    const keys = joinKeysRef.current;
-    const key = keys.get(race.id) ?? crypto.randomUUID();
-    keys.set(race.id, key);
-    void runAction(
-      race.id,
-      async () => {
-        await apiClient.joinLobbyRace(race.id, { horseId: effectiveHorseId }, key);
-        keys.delete(race.id);
-        await apiClient.setLobbyEntryReady(race.id, 'ready');
-      },
-      `⚡ "${race.name}" yarışına katıldın ve hazırsın — ${formatStartsIn(race.startTime, new Date())} başlıyor.`,
-      true,
-    );
-  }, [quickJoinRace, effectiveHorseId, runAction]);
+  const quickJoin = useCallback(
+    (race: RaceLobbyListItem) => {
+      if (effectiveHorseId === '') return;
+      const keys = joinKeysRef.current;
+      const key = keys.get(race.id) ?? crypto.randomUUID();
+      keys.set(race.id, key);
+      void runAction(
+        race.id,
+        async () => {
+          await apiClient.joinLobbyRace(race.id, { horseId: effectiveHorseId }, key);
+          keys.delete(race.id);
+          await apiClient.setLobbyEntryReady(race.id, 'ready');
+        },
+        `⚡ "${race.name}" yarışına katıldın ve hazırsın — ${formatStartsIn(race.startTime, new Date())} başlıyor.`,
+        true,
+      );
+    },
+    [effectiveHorseId, runAction],
+  );
 
   const leave = useCallback(
     (race: RaceLobbyListItem) => {
@@ -610,30 +623,57 @@ export function LobbyPanel({ horses, money, onBalanceChanged, playerId = null }:
 
       {effectiveHorse !== null && races !== null ? (
         <div className="quick-join" data-testid="quick-join">
-          <div style={{ display: 'grid', gap: '2px' }}>
+          <div style={{ display: 'grid', gap: '4px', width: '100%' }}>
             <strong className="quick-join-title">⚡ Hemen Katıl</strong>
-            {quickJoinRace !== null ? (
-              <span style={smallStyle()}>
-                {effectiveHorse.name} için en uygun yarış: <strong>{quickJoinRace.name}</strong> ·{' '}
-                {formatStartsIn(quickJoinRace.startTime, now)} · Giriş{' '}
-                {quickJoinRace.entryFee > 0 ? formatCurrency('money', quickJoinRace.entryFee) : 'ücretsiz'}
-                {describeLevelBracket(quickJoinRace) !== null ? ` · ${describeLevelBracket(quickJoinRace)}` : ''}
+            {quickJoinBlocker !== null ? (
+              <span data-testid="quick-join-blocked" style={{ ...smallStyle(), color: 'var(--color-status-warning)' }}>
+                {effectiveHorse.name} şu an yarışamaz: {RACE_ENTRY_BLOCKER_LABELS[quickJoinBlocker]}
+                {quickJoinBlocker === 'HORSE_TOO_YOUNG' && effectiveHorse.ageMonths !== undefined
+                  ? ` — yaklaşık ${daysUntilRaceAge(effectiveHorse.ageMonths)} gün sonra`
+                  : effectiveHorse.raceReadyAt
+                    ? ` — ${formatRaceReadyIn(effectiveHorse.raceReadyAt, now)} hazır`
+                    : ''}
+                . Ahırda bakım/dinlenme ile hızlanır.
+              </span>
+            ) : quickJoinRaces.length === 0 ? (
+              <span data-testid="quick-join-empty" style={smallStyle()}>
+                Şu an {effectiveHorse.name} için katılınabilir uygun yarış yok (at başka bir yarışta olabilir, ya da
+                bakiye/sınıf uymuyor) — yeni yarış açabilirsin.
               </span>
             ) : (
-              <span style={smallStyle()}>
-                Şu an {effectiveHorse.name} için katılınabilir uygun yarış yok (at başka bir yarışta olabilir) — yeni
-                yarış açabilirsin.
-              </span>
+              <ol className="quick-join-choices" data-testid="quick-join-choices">
+                {quickJoinRaces.map((race, index) => (
+                  <li key={race.id} data-testid={`quick-join-choice-${race.id}`}>
+                    <div style={{ display: 'grid', gap: '2px', minWidth: 0 }}>
+                      <strong>
+                        {index === 0 ? 'En uygun · ' : ''}
+                        {race.name}
+                      </strong>
+                      <span style={smallStyle()}>
+                        {formatStartsIn(race.startTime, now)} · {race.distanceMeters} m {SURFACE_LABELS[race.surface]} ·
+                        Oyuncu {race.joinedPlayers}/{race.maxPlayers} · Giriş{' '}
+                        {race.entryFee > 0 ? formatCurrency('money', race.entryFee) : 'ücretsiz'}
+                        {describeLevelBracket(race) !== null ? ` · ${describeLevelBracket(race)}` : ''}
+                      </span>
+                      <span style={smallStyle()}>
+                        {race.table
+                          ? describeTableRules(race.table).join(' · ')
+                          : (describeTournament(race) ?? describePrizeSplit(race) ?? 'Ücretsiz yarış')}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      className={index === 0 ? 'btn-gold' : 'btn-outline'}
+                      disabled={busyRaceId !== null}
+                      onClick={() => quickJoin(race)}
+                    >
+                      {race.entryFee > 0 ? `Katıl (${formatCurrency('money', race.entryFee)})` : 'Katıl'}
+                    </button>
+                  </li>
+                ))}
+              </ol>
             )}
           </div>
-          <button
-            type="button"
-            className="btn-gold"
-            disabled={quickJoinRace === null || busyRaceId !== null}
-            onClick={quickJoin}
-          >
-            ⚡ Hemen Katıl
-          </button>
         </div>
       ) : null}
 
@@ -746,6 +786,11 @@ export function LobbyPanel({ horses, money, onBalanceChanged, playerId = null }:
                     {race.distanceMeters} m · {formatRaceStart(race.startTime, now)} ·{' '}
                     {formatStartsIn(race.startTime, now)}
                   </span>
+                  {describePrizeSplit(race) !== null ? (
+                    <span data-testid={`race-prize-split-${race.id}`} style={smallStyle()}>
+                      {describePrizeSplit(race)}
+                    </span>
+                  ) : null}
                   {race.table ? (
                     <span data-testid="race-table" style={{ ...smallStyle(), color: 'var(--color-text-secondary)' }}>
                       <strong>{race.table.label} masası</strong> · {describeTableRules(race.table).join(' · ')}
