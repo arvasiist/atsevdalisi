@@ -47,7 +47,7 @@ describe('checkEnvironment — üretim ortamı', () => {
     ['ALERT_WEBHOOK_URL https değil', { ALERT_WEBHOOK_URL: 'http://hooks.example/alert' }],
     // 16.10.2026 — e-posta ve Google girişi: değer VARSA doğru biçimde olmalı.
     ['WEB_BASE_URL https değil', { WEB_BASE_URL: 'http://atsevdalisi.com.tr' }],
-    ['RESEND_API_KEY biçimi yanlış', { RESEND_API_KEY: 'sk_live_baskaservis' }],
+    ['RESEND_API_KEY biçimi yanlış', { RESEND_API_KEY: 'baska-baska-baska' }],
     ['anahtar var, MAIL_FROM yok', { MAIL_FROM: undefined }],
     ['MAIL_FROM .env.example yer tutucusu', { MAIL_FROM: 'At Sevdalısı <no-reply@alan-adiniz.com>' }],
     ['MAIL_FROM yerel alan adı', { MAIL_FROM: 'no-reply@atsevdalisi.local' }],
@@ -86,7 +86,7 @@ describe('checkEnvironment — üretim ortamı', () => {
     const secret = rules.forbiddenJwtSecrets[0]!;
     const result = checkEnvironment({ ...healthyProduction, JWT_SECRET: secret }, rules);
     expect(result.errors.join(' ')).not.toContain(secret);
-    const badKey = 'sk_live_gizliAnahtarDegeri';
+    const badKey = 'yanlis-yanlis-yanlis';
     const keyResult = checkEnvironment({ ...healthyProduction, RESEND_API_KEY: badKey }, rules);
     expect(keyResult.errors.join(' ')).not.toContain(badKey);
   });

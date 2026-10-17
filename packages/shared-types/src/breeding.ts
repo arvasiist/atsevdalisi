@@ -1,5 +1,5 @@
 import type { ISODateTimeString, UUID } from './common';
-import type { HorseGender, HorseRecordSummary } from './horse';
+import type { HorseRecordSummary } from './horse';
 
 /** brief §7 BreedingPair, §28 */
 export interface BreedingPrediction {
