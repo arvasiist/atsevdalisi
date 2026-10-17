@@ -35,6 +35,22 @@ export interface StableSummaryView {
    * `SELECT ... FOR UPDATE` + `economy_transactions` defter kaydıyla olur).
    */
   nextUpgrade: StableUpgradeOfferView | null;
+  /** 16.10.2026 — ahır geliştirme: seviyenin adı + konfor (toparlanma) bonusu, yüzde. */
+  stableName: string;
+  recoveryBonusPercent: number;
+  /** Bütün seviyeler (yol haritası); sayılar config'ten, sunucu aynısını uygular. */
+  levels: StableLevelView[];
+}
+
+export interface StableLevelView {
+  level: number;
+  name: string;
+  capacity: number;
+  recoveryBonusPercent: number;
+  /** Bu seviyeye yükseltmek için gereken oyuncu seviyesi (seviye 1 için `null`). */
+  requiredPlayerLevel: number | null;
+  /** Bu seviyeye yükseltmenin bedeli (seviye 1 için `null`). */
+  cost: CurrencyAmount | null;
 }
 
 /**
@@ -47,6 +63,10 @@ export interface StableUpgradeOfferView {
   cost: CurrencyAmount;
   /** `nextLevel`'a geçildiğinde ahırın yeni at kapasitesi. */
   nextCapacity: number;
+  /** 16.10.2026 — sonraki seviyenin adı, konfor bonusu ve oyuncu seviyesi şartı. */
+  nextName: string;
+  nextRecoveryBonusPercent: number;
+  requiredPlayerLevel: number;
 }
 
 /**

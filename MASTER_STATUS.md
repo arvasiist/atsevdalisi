@@ -219,6 +219,10 @@ kimlikten determinist; etkisi antrenmanda; sahibine yalnızca ETİKET gösterili
 
 Ahır seviyesi/kapasitesi, yükseltme (para yolu), tam ekran 3D ahır sahnesi
 (prosedürel yedek + PLACEHOLDER rozeti), bakım/ekipman sahnenin içinde.
+16.10.2026 — ahır geliştirme: 10 seviye (ad, kapasite, konfor = zamanla
+toparlanma hızı, oyuncu seviyesi şartı), sahnede "Ahırı Geliştir" paneli +
+seviye yol haritası (`stable-development.e2e-spec.ts`). 3D ahır seviyeyle
+görsel olarak DEĞİŞMEZ (yeni 3D işi yapılmadı).
 
 ## Training Status — TESTED
 

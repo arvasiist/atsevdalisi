@@ -7,7 +7,7 @@
  */
 
 import type { StableConfig } from '@at-sevdalisi/game-config';
-import { MaxStableLevelReachedError, StableCapacityExceededError } from './errors';
+import { MaxStableLevelReachedError, StableCapacityExceededError, StableUpgradeLevelLockedError } from './errors';
 
 /**
  * Ahır seviyesine karşılık gelen at kapasitesini döner. Tanımsız bir
@@ -91,6 +91,9 @@ export interface StableUpgradeOffer {
   nextLevel: number;
   cost: { currency: 'money' | 'gems'; amount: number };
   nextCapacity: number;
+  nextName: string;
+  nextRecoveryBonusPercent: number;
+  requiredPlayerLevel: number;
 }
 
 /**
@@ -139,6 +142,9 @@ export function getNextStableUpgradeOffer(currentLevel: number, config: StableCo
     nextLevel: upgradeCost.nextLevel,
     cost: { currency: upgradeCost.currency, amount: upgradeCost.amount },
     nextCapacity: getStableCapacity(upgradeCost.nextLevel, config),
+    nextName: getStableName(upgradeCost.nextLevel, config),
+    nextRecoveryBonusPercent: getStableRecoveryBonusPercent(upgradeCost.nextLevel, config),
+    requiredPlayerLevel: getRequiredPlayerLevelForStable(upgradeCost.nextLevel, config),
   };
 }
 
@@ -146,4 +152,124 @@ export function getNextStableUpgradeOffer(currentLevel: number, config: StableCo
 export function getMaxDefinedStableLevel(config: StableConfig): number {
   const levels = Object.keys(config.capacityByLevel).map(Number);
   return Math.max(...levels);
+}
+
+// ─── 16.10.2026 — AHIR GELİŞTİRME: ad, konfor bonusu, oyuncu seviyesi şartı ───
+
+/** `capacityByLevel` ile AYNI kural: tanımlı en yakın alt seviyenin değeri. */
+function applicableValue<T>(map: Record<string, T>, stableLevel: number, fallback: T): T {
+  const levels = Object.keys(map)
+    .map(Number)
+    .filter((level) => level <= stableLevel)
+    .sort((a, b) => b - a);
+  const key = levels[0];
+  return key === undefined ? fallback : map[String(key)]!;
+}
+
+export function getStableName(stableLevel: number, config: StableConfig): string {
+  return applicableValue(config.nameByLevel, stableLevel, `Seviye ${stableLevel}`);
+}
+
+/**
+ * Konfor bonusu: zamanla toparlanmanın (enerji + yorgunluk) çarpanı. Seviye 1
+ * = 1 (eski davranış). Zamanlayıcı, yarışın kayıt yolu ve ahır listesindeki
+ * tahmin bu fonksiyonun SQL karşılığını/kendisini kullanır.
+ */
+export function getStableRecoveryMultiplier(stableLevel: number, config: StableConfig): number {
+  return 1 + applicableValue(config.recoveryBonusByLevel, stableLevel, 0);
+}
+
+export function getStableRecoveryBonusPercent(stableLevel: number, config: StableConfig): number {
+  return Math.round(applicableValue(config.recoveryBonusByLevel, stableLevel, 0) * 100);
+}
+
+export function getRequiredPlayerLevelForStable(targetLevel: number, config: StableConfig): number {
+  return config.requiredPlayerLevelByLevel[String(targetLevel)] ?? 1;
+}
+
+/** Yükseltme kilit altında, paradan ÖNCE çağrılır. */
+export function assertCanUpgradeStable(playerLevel: number, targetLevel: number, config: StableConfig): void {
+  const required = getRequiredPlayerLevelForStable(targetLevel, config);
+  if (playerLevel < required) {
+    throw new StableUpgradeLevelLockedError(playerLevel, required);
+  }
+}
+
+/**
+ * SQL'e geçirilecek seviye → çarpan tablosu (artan seviye). Toparlanma
+ * ifadeleri oyuncunun `stable_level`ine en yakın alt seviyenin çarpanını seçer.
+ */
+export function stableRecoveryTable(config: StableConfig): { levels: number[]; multipliers: number[] } {
+  const levels = Object.keys(config.recoveryBonusByLevel)
+    .map(Number)
+    .sort((a, b) => a - b);
+  return { levels, multipliers: levels.map((level) => getStableRecoveryMultiplier(level, config)) };
+}
+
+export interface StableLevelRow {
+  level: number;
+  name: string;
+  capacity: number;
+  recoveryBonusPercent: number;
+  requiredPlayerLevel: number | null;
+  cost: { currency: 'money' | 'gems'; amount: number } | null;
+}
+
+/** Ahırın bütün seviyeleri (yol haritası) — ekran ve sunucu aynı config'ten. */
+export function listStableLevels(config: StableConfig): StableLevelRow[] {
+  const max = getMaxDefinedStableLevel(config);
+  const rows: StableLevelRow[] = [];
+  for (let level = 1; level <= max; level += 1) {
+    const cost = config.upgradeCostByLevel[String(level)];
+    rows.push({
+      level,
+      name: getStableName(level, config),
+      capacity: getStableCapacity(level, config),
+      recoveryBonusPercent: getStableRecoveryBonusPercent(level, config),
+      requiredPlayerLevel: level === 1 ? null : getRequiredPlayerLevelForStable(level, config),
+      cost: level === 1 || !cost ? null : { currency: cost.currency, amount: cost.amount },
+    });
+  }
+  return rows;
+}
+
+/**
+ * API açılışında koşar — bozuk ahır config'iyle API AÇILMAZ. Seviyeler 1..N
+ * boşluksuz; kapasite, bedel, konfor bonusu ve oyuncu seviyesi şartı
+ * azalmaz; bonus [0, 1); şart ≤ oyunun azami seviyesi; her seviyenin adı var.
+ */
+export function validateStableConfig(config: StableConfig, maxPlayerLevel: number): void {
+  const fail = (message: string): never => {
+    throw new Error(`Ahır config'i geçersiz (config/stable.config.json): ${message}`);
+  };
+  const max = getMaxDefinedStableLevel(config);
+  let previous: { capacity: number; cost: number; bonus: number; required: number } | null = null;
+  for (let level = 1; level <= max; level += 1) {
+    const key = String(level);
+    const capacity = config.capacityByLevel[key];
+    const bonus = config.recoveryBonusByLevel[key];
+    const name = config.nameByLevel[key];
+    if (!Number.isInteger(capacity) || capacity! <= 0) fail(`seviye ${level} kapasitesi eksik/geçersiz.`);
+    if (bonus === undefined || !(bonus >= 0 && bonus < 1)) fail(`seviye ${level} konfor bonusu [0, 1) dışında.`);
+    if (!name || name.trim().length === 0) fail(`seviye ${level} adı boş.`);
+    let cost = 0;
+    let required = 1;
+    if (level > 1) {
+      const entry = config.upgradeCostByLevel[key];
+      if (!entry || !Number.isInteger(entry.amount) || entry.amount <= 0) fail(`seviye ${level} bedeli eksik/geçersiz.`);
+      if (entry!.currency !== 'money') fail(`seviye ${level} bedeli çip olmalı (elmas politikası).`);
+      cost = entry!.amount;
+      required = config.requiredPlayerLevelByLevel[key] ?? 0;
+      if (!Number.isInteger(required) || required < 1 || required > maxPlayerLevel) {
+        fail(`seviye ${level} oyuncu seviyesi şartı 1-${maxPlayerLevel} dışında.`);
+      }
+    }
+    if (previous) {
+      if (capacity! < previous.capacity) fail(`seviye ${level} kapasitesi bir öncekinden az.`);
+      if (bonus! < previous.bonus) fail(`seviye ${level} konfor bonusu bir öncekinden az.`);
+      if (level > 2 && cost < previous.cost) fail(`seviye ${level} bedeli bir öncekinden ucuz.`);
+      if (level > 2 && required < previous.required) fail(`seviye ${level} oyuncu seviyesi şartı bir öncekinden düşük.`);
+    }
+    previous = { capacity: capacity!, cost, bonus: bonus!, required };
+  }
 }

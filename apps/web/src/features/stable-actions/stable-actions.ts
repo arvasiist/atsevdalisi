@@ -6,7 +6,7 @@
  * Eski `/care` ve `/equipment` adresleri kaybolmasın diye `/stable?panel=…`a
  * yönlenir; yer imi ya da eski bağlantı 404 vermez.
  */
-export type StableActionKey = 'care' | 'equipment';
+export type StableActionKey = 'care' | 'equipment' | 'upgrade';
 
 export interface StableAction {
   key: StableActionKey;
@@ -17,6 +17,8 @@ export interface StableAction {
 export const STABLE_ACTIONS: ReadonlyArray<StableAction> = [
   { key: 'care', label: 'Bakım', description: 'Tımar, su, veteriner, nalbant ve yem' },
   { key: 'equipment', label: 'Ekipman', description: 'Eyer, dizgin, nal, göz siperi, bandaj' },
+  // 16.10.2026 — ahır geliştirme: seviye, kapasite, konfor (ata değil ahıra ait).
+  { key: 'upgrade', label: 'Ahırı Geliştir', description: 'Ahır seviyesi, kapasite ve konfor' },
 ];
 
 /** Sorgu dizesindeki `panel` değerini doğrular; bilinmeyen değer `null`dur (panel açılmaz). */

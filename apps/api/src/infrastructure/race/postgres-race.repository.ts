@@ -614,7 +614,14 @@ export class PostgresRaceRepository implements RaceRepository {
           progression,
         );
         // 15.10.2026 — yarışın ata bedeli (S3): enerji yanar, yorgunluk artar; aynı transaction.
-        await applyRaceConditionInTransaction(client, [ownEntry.horseId], input.race.distanceMeters, this.config.care, new Date());
+        await applyRaceConditionInTransaction(
+          client,
+          [ownEntry.horseId],
+          input.race.distanceMeters,
+          this.config.care,
+          new Date(),
+          this.config.stable,
+        );
       }
 
       // AUDIT_REPORT.md Bulgu R2 (Medium, bu oturum) — `input.entry`/
@@ -682,6 +689,7 @@ export class PostgresRaceRepository implements RaceRepository {
         race.distanceMeters,
         this.config.care,
         new Date(),
+        this.config.stable,
       );
 
       await client.query(
@@ -780,6 +788,7 @@ export class PostgresRaceRepository implements RaceRepository {
         input.race.distanceMeters,
         this.config.care,
         updatedAt,
+        this.config.stable,
       );
 
       await client.query(
@@ -3308,7 +3317,14 @@ export class PostgresRaceRepository implements RaceRepository {
             input.now,
           );
           // 15.10.2026 — yarışın ata bedeli (S3): ödemelerle aynı transaction.
-          await applyRaceConditionInTransaction(client, [horseId], raceRow.distance_m, this.config.care, input.now);
+          await applyRaceConditionInTransaction(
+            client,
+            [horseId],
+            raceRow.distance_m,
+            this.config.care,
+            input.now,
+            this.config.stable,
+          );
         }
       }
 

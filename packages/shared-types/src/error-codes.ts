@@ -170,6 +170,8 @@ export const ErrorCode = {
   StaffRenewalNotDue: 'STAFF_RENEWAL_NOT_DUE',
   // Faz 2 — Ahır yükseltme (domain/stable)
   MaxStableLevelReached: 'MAX_STABLE_LEVEL_REACHED',
+  /** 16.10.2026 — ahırı sonraki seviyeye yükseltmek için oyuncu seviyesi yetmiyor (409). */
+  StableUpgradeLevelLocked: 'STABLE_UPGRADE_LEVEL_LOCKED',
   // AUDIT_REPORT.md Bulgu C1 (bu oturum) — `StableCapacityExceededError`
   // FAZ 1'den beri domain katmanında hazırdı ama hiçbir yerde
   // fırlatılmıyordu (kod HTTP durumuna hiç eşlenmemişti); bkz.

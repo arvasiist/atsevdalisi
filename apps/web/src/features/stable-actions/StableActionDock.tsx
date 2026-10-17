@@ -7,15 +7,17 @@
  */
 
 import Link from 'next/link';
-import { HeartPulse, ShoppingCart, Trophy, Wrench, X } from 'lucide-react';
+import { HeartPulse, ShoppingCart, Trophy, Warehouse, Wrench, X } from 'lucide-react';
 import type { PublicHorse } from '@at-sevdalisi/shared-types';
 import { CarePanel } from './CarePanel';
 import { EquipmentPanel } from './EquipmentPanel';
+import { StableUpgradePanel } from './StableUpgradePanel';
 import { STABLE_ACTIONS, type StableActionKey } from './stable-actions';
 
 const ICONS: Record<StableActionKey, React.ReactNode> = {
   care: <HeartPulse size={20} aria-hidden="true" />,
   equipment: <Wrench size={20} aria-hidden="true" />,
+  upgrade: <Warehouse size={20} aria-hidden="true" />,
 };
 
 export interface StableActionDockProps {
@@ -61,12 +63,15 @@ export function StableActionDock({
         </Link>
       </div>
       {activeAction ? (
-        <aside className="stable-drawer" aria-label={`${activeAction.label} — ${horse.name}`}>
+        <aside
+          className="stable-drawer"
+          aria-label={activeAction.key === 'upgrade' ? activeAction.label : `${activeAction.label} — ${horse.name}`}
+        >
           <header className="stable-drawer-header">
             <span className="stable-drawer-icon">{ICONS[activeAction.key]}</span>
             <div style={{ display: 'grid', minWidth: 0 }}>
               <strong>{activeAction.label}</strong>
-              <span className="stable-drawer-horse">{horse.name}</span>
+              <span className="stable-drawer-horse">{activeAction.key === 'upgrade' ? 'Ahırın' : horse.name}</span>
             </div>
             <button
               type="button"
@@ -79,8 +84,10 @@ export function StableActionDock({
           </header>
           {activeAction.key === 'care' ? (
             <CarePanel horse={horse} onHorseChanged={onHorseChanged} />
-          ) : (
+          ) : activeAction.key === 'equipment' ? (
             <EquipmentPanel horse={horse} />
+          ) : (
+            <StableUpgradePanel />
           )}
         </aside>
       ) : null}

@@ -3,6 +3,7 @@ import type { FeedType, Horse, HorsePersonalityView, HorseUpbringingView, HorseV
 import { describePersonality } from '../../domain/horse/personality';
 import { horseRacingPower } from '../../domain/race/practice-class';
 import { estimateRaceReadyAt } from '../../domain/care/race-condition';
+import { getStableRecoveryMultiplier } from '../../domain/stable/stable';
 import { getLifeStage, horseAgeMonths } from '../../domain/horse/age-curve';
 import { AppConfigService } from '../../infrastructure/config/config.service';
 import { HORSE_STATS_REPOSITORY, type HorseStatsRepository } from '../ports/horse-stats.repository';
@@ -56,13 +57,16 @@ export class ListHorsesByOwnerUseCase {
     const upbringingFeed = (Object.entries(this.config.care.feedTypes) as Array<[FeedType, (typeof this.config.care.feedTypes)[FeedType]]>).find(
       ([, effect]) => effect.upbringingStatGain !== undefined && effect.allowedLifeStages !== undefined,
     );
-    const [traits, visibleStats, upbringingCounts] = await Promise.all([
+    const [traits, visibleStats, upbringingCounts, stableLevel] = await Promise.all([
       this.horseStatsRepository.findPersonalityByHorseIds(ids),
       this.horseStatsRepository.findVisibleStatsByHorseIds(ids),
       upbringingFeed
         ? this.horseStatsRepository.findFeedCountsByHorseIds(ids, upbringingFeed[0])
         : Promise.resolve(new Map<string, number>()),
+      this.horseStatsRepository.findOwnerStableLevel(ownerId),
     ]);
+    // 16.10.2026 — ahır konfor çarpanı: tahmin zamanlayıcıyla AYNI hızla yapılır.
+    const recoveryMultiplier = getStableRecoveryMultiplier(stableLevel, this.config.stable);
     return horses.map((horse) => {
       const values = traits.get(horse.id);
       const power = visibleStats.get(horse.id);
@@ -81,6 +85,7 @@ export class ListHorsesByOwnerUseCase {
             this.config.care.passiveRecovery,
             now,
             ageMonths,
+            recoveryMultiplier,
           )?.toISOString() ?? null,
         ageMonths,
         lifeStage: { name: stage.name, racingFactor: stage.racingFactor },

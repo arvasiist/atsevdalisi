@@ -43,7 +43,6 @@ import type {
   HorsePedigreeView,
   PublicHorse,
   StableSummaryView,
-  StableUpgradeResult,
 } from '@at-sevdalisi/shared-types';
 import { GlassPanel } from '../../components/ui/GlassPanel';
 import { HorseHeadIcon } from '../../components/ui/HorseHeadIcon';
@@ -56,11 +55,13 @@ import { HorseCareerPanel } from '../../features/horse-profile/HorseCareerPanel'
 import { describeUpbringing, statRows } from '../../features/horse-profile/horse-profile';
 import { pickFeaturedHorse } from '../../features/home-scene/featured-horse';
 import { apiClient } from '../../lib/api-client';
-import { formatCurrency, hasEnoughFunds } from '../../lib/currency';
+import { formatCurrency } from '../../lib/currency';
 import { usePlayer } from '../../lib/player-context';
 import { breedLabel } from '../../features/breeds/breed-catalog';
 import { PersonalityChips } from '../../features/personality/PersonalityChips';
 import { StableActionDock } from '../../features/stable-actions/StableActionDock';
+import { describeComfort } from '../../features/stable-actions/stable-upgrade';
+import { StableUpgradePanel } from '../../features/stable-actions/StableUpgradePanel';
 import { PlayerOverview } from '../../features/home/PlayerOverview';
 import { OnboardingPanel } from '../../features/onboarding/OnboardingPanel';
 import { formatRaceReadyIn } from '../../features/race/race-entry';
@@ -285,7 +286,19 @@ export default function StablePage(): React.ReactElement {
 
         {error ? <p style={{ color: 'var(--color-status-critical)' }}>{error}</p> : null}
 
-        {player ? <StableUpgradeCard ownerId={player.id} onUpgraded={refresh} /> : null}
+        {player ? (
+          <StableUpgradeCard
+            ownerId={player.id}
+            onOpenUpgrade={
+              stageHorse
+                ? () => {
+                    selectStableAction('upgrade');
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                  }
+                : null
+            }
+          />
+        ) : null}
 
         {player && horses === null && !error ? (
           <p style={{ color: 'var(--color-text-muted)' }}>Ahır yükleniyor…</p>
@@ -379,90 +392,56 @@ function StableUrlParams({ onChange }: { onChange: (panel: string | null, horse:
 
 function StableUpgradeCard({
   ownerId,
-  onUpgraded,
+  onOpenUpgrade,
 }: {
   ownerId: string;
-  onUpgraded: () => Promise<void>;
+  /**
+   * 16.10.2026 — yükseltme "Ahırı Geliştir" panelindedir (tek bileşen). Ahır
+   * sahnesi varsa panel sahnede açılır; at yoksa sahne çizilmez → `null` ve
+   * panel bu kartın içinde açılır.
+   */
+  onOpenUpgrade: (() => void) | null;
 }): React.ReactElement {
-  const { player } = usePlayer();
   const [summary, setSummary] = useState<StableSummaryView | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [isUpgrading, setIsUpgrading] = useState(false);
-  const [result, setResult] = useState<StableUpgradeResult | null>(null);
-
-  const loadSummary = useCallback(async (): Promise<void> => {
-    setError(null);
-    try {
-      setSummary(await apiClient.getStableSummary(ownerId));
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Ahır özeti yüklenemedi');
-    }
-  }, [ownerId]);
+  const [inlineOpen, setInlineOpen] = useState(false);
 
   useEffect(() => {
-    void loadSummary();
-  }, [loadSummary]);
-
-  const handleUpgrade = useCallback(async (): Promise<void> => {
-    setIsUpgrading(true);
-    setError(null);
-    setResult(null);
-    try {
-      // Her YENİ deneme için TAZE bir anahtar üretilir — `market/page.tsx`
-      // ve `races/page.tsx` ile AYNI `crypto.randomUUID()` kalıbı. Aynı
-      // anahtarın bilerek tekrarlanması durumunda sunucu AYNI sonucu döner
-      // ve bakiyeden İKİNCİ kez düşmez (bkz. `api-client.ts` `upgradeStable`).
-      const upgradeResult = await apiClient.upgradeStable(ownerId, crypto.randomUUID());
-      setResult(upgradeResult);
-      await loadSummary();
-      // Bakiye üst çubukta (`TopBar`) da görünür; oyuncu bağlamı
-      // tazelenmezse harcama sayfa yenilenene kadar orada GÖRÜNMEZ kalırdı.
-      await onUpgraded();
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Yükseltme başarısız oldu');
-    } finally {
-      setIsUpgrading(false);
-    }
-  }, [ownerId, loadSummary, onUpgraded]);
+    let cancelled = false;
+    apiClient
+      .getStableSummary(ownerId)
+      .then((view) => {
+        if (!cancelled) setSummary(view);
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) setError(err instanceof Error ? err.message : 'Ahır özeti yüklenemedi');
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [ownerId]);
 
   if (summary === null) {
     return (
       <GlassPanel style={{ marginBottom: 'var(--space-lg)' }}>
-        <p style={{ color: 'var(--color-text-muted)', margin: 0 }}>
-          {error ?? 'Ahır durumu yükleniyor…'}
-        </p>
+        <p style={{ color: 'var(--color-text-muted)', margin: 0 }}>{error ?? 'Ahır durumu yükleniyor…'}</p>
       </GlassPanel>
     );
   }
 
-  const offer = summary.nextUpgrade;
-  const isEnabled =
-    offer !== null && player !== null && hasEnoughFunds(player, offer.cost) && !isUpgrading;
-
   return (
     <GlassPanel style={{ marginBottom: 'var(--space-lg)' }}>
-      <div
-        style={{
-          display: 'flex',
-          flexWrap: 'wrap',
-          gap: 'var(--space-lg)',
-          alignItems: 'flex-start',
-        }}
-      >
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-lg)', alignItems: 'flex-start' }}>
         <div style={{ display: 'grid', gap: '4px', minWidth: '160px' }}>
           <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>Ahır Seviyesi</span>
-          <span
-            style={{
-              fontSize: '28px',
-              fontWeight: 700,
-              color: 'var(--color-accent-gold)',
-              lineHeight: 1.1,
-            }}
-          >
+          <span style={{ fontSize: '28px', fontWeight: 700, color: 'var(--color-accent-gold)', lineHeight: 1.1 }}>
             {summary.stableLevel}
           </span>
           <span style={{ fontSize: '12px', color: 'var(--color-text-secondary)' }}>
-            Kapasite: {summary.horseCount} / {summary.capacity} at
+            {summary.stableName} · Kapasite: {summary.horseCount} / {summary.capacity} at
+          </span>
+          <span style={{ fontSize: '12px', color: 'var(--color-text-secondary)' }}>
+            {describeComfort(summary.recoveryBonusPercent)}
           </span>
         </div>
 
@@ -475,61 +454,26 @@ function StableUpgradeCard({
           ) : null}
         </div>
 
-        <div style={{ display: 'grid', gap: '8px', minWidth: '240px' }}>
-          {offer === null ? (
-            <span style={{ fontSize: '13px', color: 'var(--color-text-muted)' }}>
-              En yüksek ahır seviyesine ulaştın.
-            </span>
+        <div style={{ display: 'grid', gap: '8px', minWidth: '220px' }}>
+          {summary.nextUpgrade === null ? (
+            <span style={{ fontSize: '13px', color: 'var(--color-text-muted)' }}>En yüksek ahır seviyesine ulaştın.</span>
           ) : (
-            <>
-              <span style={{ fontSize: '13px', color: 'var(--color-text-primary)' }}>
-                Seviye {offer.nextLevel} · kapasite {offer.nextCapacity} ata çıkar
-              </span>
-              <span
-                style={{
-                  fontSize: '13px',
-                  fontWeight: 600,
-                  color: isEnabled ? 'var(--color-accent-gold)' : 'var(--color-status-critical)',
-                }}
-              >
-                Maliyet: {formatCurrency(offer.cost.currency, offer.cost.amount)}
-              </span>
-              <button
-                type="button"
-                onClick={() => void handleUpgrade()}
-                disabled={!isEnabled}
-                className="btn-gold"
-              >
-                {isUpgrading ? 'Yükseltiliyor…' : 'Ahırı Yükselt'}
-              </button>
-              {!isEnabled && !isUpgrading ? (
-                <span style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>
-                  Yeterli bakiyen yok — günlük ödülünü alarak veya yarış kazanarak para biriktir.
-                </span>
-              ) : null}
-            </>
+            <span style={{ fontSize: '13px', color: 'var(--color-text-primary)' }}>
+              Sonraki: {summary.nextUpgrade.nextName} · {summary.nextUpgrade.nextCapacity} at ·{' '}
+              {formatCurrency(summary.nextUpgrade.cost.currency, summary.nextUpgrade.cost.amount)}
+            </span>
           )}
+          <button
+            type="button"
+            onClick={onOpenUpgrade ?? (() => setInlineOpen((open) => !open))}
+            className="btn-gold"
+            data-testid="open-stable-upgrade"
+          >
+            Ahırı Geliştir
+          </button>
         </div>
       </div>
-
-      {result !== null ? (
-        <p
-          style={{
-            marginTop: 'var(--space-md)',
-            marginBottom: 0,
-            color: 'var(--color-status-positive)',
-            fontSize: '13px',
-          }}
-        >
-          Ahır seviye {result.newStableLevel} oldu · kapasite {result.newCapacity} · ödenen{' '}
-          {formatCurrency(result.cost.currency, result.cost.amount)} · kalan bakiye{' '}
-          {formatCurrency('money', result.newBalance.money)}
-        </p>
-      ) : null}
-
-      {error !== null ? (
-        <p style={{ color: 'var(--color-status-critical)', marginBottom: 0 }}>{error}</p>
-      ) : null}
+      {onOpenUpgrade === null && inlineOpen ? <StableUpgradePanel /> : null}
     </GlassPanel>
   );
 }

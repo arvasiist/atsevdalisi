@@ -166,6 +166,7 @@ import {
 import {
   MaxStableLevelReachedError,
   StableCapacityExceededError,
+  StableUpgradeLevelLockedError,
 } from '../../domain/stable/errors';
 import {
   FacilityInactiveError,
@@ -352,6 +353,8 @@ const DOMAIN_ERROR_MAP = new Map<ErrorClassConstructor, { status: number; code: 
     MaxStableLevelReachedError,
     { status: HttpStatus.CONFLICT, code: ErrorCode.MaxStableLevelReached },
   ],
+  // 16.10.2026 — ahır geliştirme: oyuncu seviyesi şartı (paradan önce kesilir).
+  [StableUpgradeLevelLockedError, { status: HttpStatus.CONFLICT, code: ErrorCode.StableUpgradeLevelLocked }],
   // "Yetersiz bakiye" de GEÇİCİDİR (oyuncu daha fazla para kazanınca
   // çözülür) — `HorseNotReadyForTrainingError`'ın INSUFFICIENT_ENERGY
   // dalıyla AYNI gerekçeyle 409 Conflict, 402/400 DEĞİL.

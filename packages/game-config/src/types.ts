@@ -706,6 +706,17 @@ export interface StableConfig {
    * `MaxStableLevelReachedError` fırlatır.
    */
   upgradeCostByLevel: Record<string, { currency: 'money' | 'gems'; amount: number }>;
+  /** 16.10.2026 — ahır geliştirme: seviyenin adı (her seviye için). */
+  nameByLevel: Record<string, string>;
+  /**
+   * Konfor bonusu: zamanla toparlanma hızına (enerji + yorgunluk) eklenen pay
+   * (0.1 = %10 daha hızlı). Sunucu zamanlayıcısı, yarışın kayıt yolundaki
+   * toparlanma ve ahır listesindeki "hazır olacağı zaman" tahmini AYNI değeri
+   * kullanır. Padok (`rest` bakımı) ile ayrıdır — o etkin bakımdır.
+   */
+  recoveryBonusByLevel: Record<string, number>;
+  /** Anahtar = ULAŞILACAK seviye; o seviyeye yükseltmek için gereken oyuncu seviyesi. */
+  requiredPlayerLevelByLevel: Record<string, number>;
 }
 
 export interface ProgressionUnlock {

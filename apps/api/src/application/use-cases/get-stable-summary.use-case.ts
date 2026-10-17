@@ -1,6 +1,13 @@
 import { Inject, Injectable } from '@nestjs/common';
 import type { StableSummaryView } from '@at-sevdalisi/shared-types';
-import { getNextStableUpgradeOffer, getStableCapacity, summarizeStable } from '../../domain/stable/stable';
+import {
+  getNextStableUpgradeOffer,
+  getStableCapacity,
+  getStableName,
+  getStableRecoveryBonusPercent,
+  listStableLevels,
+  summarizeStable,
+} from '../../domain/stable/stable';
 import { PlayerNotFoundError } from '../../domain/player/errors';
 import { AppConfigService } from '../../infrastructure/config/config.service';
 import { HORSE_REPOSITORY, type HorseRepository } from '../ports/horse.repository';
@@ -45,6 +52,9 @@ export class GetStableSummaryUseCase {
       stableLevel: player.stableLevel,
       ...summary,
       nextUpgrade: getNextStableUpgradeOffer(player.stableLevel, this.config.stable),
+      stableName: getStableName(player.stableLevel, this.config.stable),
+      recoveryBonusPercent: getStableRecoveryBonusPercent(player.stableLevel, this.config.stable),
+      levels: listStableLevels(this.config.stable),
     };
   }
 }

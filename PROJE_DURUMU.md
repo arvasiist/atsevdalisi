@@ -4708,3 +4708,12 @@ kozmetik kategori tipten türer ve çarpana girmez. Eski parçalar aşınmaz
 (satın alınmış değer korunur). Ağırlık ve 3D görünüm YOK (uydurulmadı / brief
 kural 7). Testler: `equipment-durability.e2e-spec.ts` (4), `catalog.spec.ts`,
 `performance.spec.ts`, web `equipment-catalog.spec.ts`.
+
+**Ahır geliştirme (16.10.2026, sahibinin isteği).** Ahır seviyesi önceden 5
+kademeydi ve yalnızca kapasite veriyordu; yükseltme düğmesi tam ekran sahnenin
+altında kalıyordu. Artık 10 seviye, her seviyenin adı, oyuncu seviyesi şartı ve
+konfor bonusu (zamanla toparlanma %0 → %25 hızlı) var; sahnede "Ahırı Geliştir"
+paneli seviye yol haritasını gösterir. Mevcut oyuncuların seviyesi/kapasitesi
+değişmedi (1–5 aynı), seviye 2+ olanlar konfor bonusunu kendiliğinden alır.
+Testler: `stable-development.e2e-spec.ts` (3), `stable.e2e-spec.ts` (10 seviyeye
+uyarlandı), domain `stable.spec.ts`, web `stable-upgrade.spec.ts` (3).

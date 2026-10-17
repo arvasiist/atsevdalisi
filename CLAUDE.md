@@ -1202,6 +1202,23 @@ ekipmanın aşındığını hesaba katmalı. Tip eklerken `horse_equipment_type_
 ADIYLA + `EQUIPMENT_TYPES` + web `equipment-catalog.ts` (`equipment-durability.
 e2e-spec.ts` en son migration'ı okur).
 
+(102) **AHIR GELİŞTİRME (16.10.2026, migration YOK)** — `players.stable_level`
+zaten vardı (yalnızca kapasite). Artık 10 seviye (`stable.config.json`; 1–5'in
+kapasite/bedeli DEĞİŞMEDİ): ad (`nameByLevel`), oyuncu seviyesi şartı
+(`requiredPlayerLevelByLevel` → 409 `STABLE_UPGRADE_LEVEL_LOCKED`, `FOR UPDATE`
+altında paradan önce), konfor bonusu (`recoveryBonusByLevel`, seviye 1 = 0 →
+eski hız). Konfor ÜÇ yerde aynı kuraldır: `recoverHorseVitals` (zamanlayıcı),
+`applyRaceConditionInTransaction` (bekleyen toparlanma; artık `stable`
+parametresi ZORUNLU) ve `estimateRaceReadyAt` (`recoveryMultiplier` ZORUNLU);
+SQL tarafı `stableRecoveryTable` + sahibin `stable_level`i. Padok (`rest`
+bakımı) ayrıdır — o etkin bakım. `validateStableConfig` açılışta (boşluksuz,
+azalmayan kapasite/bedel/bonus/şart, bedel çip). Web: ahır sahnesinde
+"Ahırı Geliştir" simgesi (`?panel=upgrade`, `StableUpgradePanel`), alttaki kart
+paneli açar (at yoksa kartın içinde). ⚠️ Yükseltme anahtarı hedef seviye için
+BAŞARIYA kadar saklanır (eskiden her basış yeni anahtar → çift seviye riski).
+⚠️ Ahırı test içinde yükselten e2e oyuncu SEVİYESİNİ de ayarlamalı
+(`stable.e2e-spec.ts`).
+
 **✅ ÜCRETLİ LOBİ YARIŞI ARTIK KOŞUYOR — ÖDÜL DAĞITIMI VAR (§13.14,
 28.09.2026).** `POST /races/:id/settle` yarışı koşar, ödülleri `top5`
 paylarıyla dağıtır ve `races.status = 'finished'` yazar. Uç bir

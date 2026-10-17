@@ -2029,6 +2029,17 @@ zaten `config/stable.config.json`'da tanımlı en yüksek seviyedeyse `409
 MAX_STABLE_LEVEL_REACHED`; oyuncu bulunamazsa `404 PLAYER_NOT_FOUND`; id
 UUID formatında değilse `400 VALIDATION_ERROR`.
 
+**16.10.2026 — ahır geliştirme.** 10 seviye (`config/stable.config.json`;
+1–5'in kapasite ve bedeli değişmedi). Her seviyenin adı (`nameByLevel`),
+konfor bonusu (`recoveryBonusByLevel` — zamanla toparlanma bu oranda hızlanır;
+zamanlayıcı, yarışın kayıt yolundaki toparlanma ve `raceReadyAt` tahmini aynı
+çarpanı kullanır) ve oyuncu seviyesi şartı (`requiredPlayerLevelByLevel`)
+vardır. Şart tutmazsa `409 STABLE_UPGRADE_LEVEL_LOCKED` (oyuncu kilitliyken,
+paradan önce; bakiye/seviye/defter değişmez). `GET /players/:id/stable-summary`
+artık `stableName`, `recoveryBonusPercent`, `levels[]` (her seviye: `level`,
+`name`, `capacity`, `recoveryBonusPercent`, `requiredPlayerLevel`, `cost`) ve
+`nextUpgrade.nextName`/`nextRecoveryBonusPercent`/`requiredPlayerLevel` taşır.
+
 Bu, projenin PARA/mülkiyet değiştiren İLK use-case'idir — bu yüzden
 docs/SECURITY.md §5'in satır kilitleme (`SELECT ... FOR UPDATE` + tek
 transaction) kuralı İLK KEZ burada gerçek anlamda uygulandı (bkz.

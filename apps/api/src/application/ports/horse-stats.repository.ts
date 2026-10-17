@@ -30,6 +30,8 @@ export interface HorseStatsRepository {
   findVisibleStatsByHorseIds(horseIds: readonly string[]): Promise<Map<string, HorseVisibleStats>>;
   /** 16.10.2026 — atların bir yem kalemiyle ömür boyu beslenme sayısı (tay yetiştirme ilerlemesi). */
   findFeedCountsByHorseIds(horseIds: readonly string[], itemType: string): Promise<Map<string, number>>;
+  /** 16.10.2026 — sahibin ahır seviyesi (konfor çarpanı; yoksa 1). */
+  findOwnerStableLevel(ownerId: string): Promise<number>;
 }
 
 /** NestJS DI için token (interface'ler runtime'da yok olduğundan bir Symbol gerekir). */

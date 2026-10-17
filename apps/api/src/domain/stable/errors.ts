@@ -16,3 +16,17 @@ export class MaxStableLevelReachedError extends Error {
     this.name = 'MaxStableLevelReachedError';
   }
 }
+
+/**
+ * 16.10.2026 — ahır geliştirme: sonraki seviye oyuncu seviyesi şartı ister
+ * (409, `EquipmentLevelLockedError` ile aynı sınıf). Para düşmeden kesilir.
+ */
+export class StableUpgradeLevelLockedError extends Error {
+  constructor(
+    public readonly playerLevel: number,
+    public readonly requiredLevel: number,
+  ) {
+    super(`Ahırı bu seviyeye yükseltmek için en az ${requiredLevel}. oyuncu seviyesi gerekir (şu an ${playerLevel}).`);
+    this.name = 'StableUpgradeLevelLockedError';
+  }
+}

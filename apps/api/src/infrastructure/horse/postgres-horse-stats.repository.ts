@@ -165,6 +165,11 @@ export class PostgresHorseStatsRepository implements HorseStatsRepository {
     return result;
   }
 
+  async findOwnerStableLevel(ownerId: string): Promise<number> {
+    const result = await this.pool.query<{ stable_level: number }>('SELECT stable_level FROM players WHERE id = $1', [ownerId]);
+    return result.rows[0]?.stable_level ?? 1;
+  }
+
   async findFeedCountsByHorseIds(horseIds: readonly string[], itemType: string): Promise<Map<string, number>> {
     const result = new Map<string, number>();
     if (horseIds.length === 0) return result;

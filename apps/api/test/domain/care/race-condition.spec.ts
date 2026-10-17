@@ -92,17 +92,17 @@ describe('zamanla toparlanma', () => {
 
 describe('ne zaman hazır olur', () => {
   it('hazır at, sağlık/durum engeli ve kapalı toparlanma için `null`', () => {
-    expect(estimateRaceReadyAt('active', FRESH, READINESS, RECOVERY, NOW, ADULT)).toBeNull();
-    expect(estimateRaceReadyAt('injured', { ...FRESH, fatigue: 90 }, READINESS, RECOVERY, NOW, ADULT)).toBeNull();
-    expect(estimateRaceReadyAt('active', { ...FRESH, health: 10, fatigue: 90 }, READINESS, RECOVERY, NOW, ADULT)).toBeNull();
-    expect(estimateRaceReadyAt('active', { ...FRESH, fatigue: 90 }, READINESS, { ...RECOVERY, enabled: false }, NOW, ADULT)).toBeNull();
+    expect(estimateRaceReadyAt('active', FRESH, READINESS, RECOVERY, NOW, ADULT, 1)).toBeNull();
+    expect(estimateRaceReadyAt('injured', { ...FRESH, fatigue: 90 }, READINESS, RECOVERY, NOW, ADULT, 1)).toBeNull();
+    expect(estimateRaceReadyAt('active', { ...FRESH, health: 10, fatigue: 90 }, READINESS, RECOVERY, NOW, ADULT, 1)).toBeNull();
+    expect(estimateRaceReadyAt('active', { ...FRESH, fatigue: 90 }, READINESS, { ...RECOVERY, enabled: false }, NOW, ADULT, 1)).toBeNull();
     // Yaş engeli toparlanmayla geçmez → tahmin yok (ekran yaşı ayrıca gösterir).
-    expect(estimateRaceReadyAt('active', { ...FRESH, fatigue: 90 }, READINESS, RECOVERY, NOW, 0)).toBeNull();
+    expect(estimateRaceReadyAt('active', { ...FRESH, fatigue: 90 }, READINESS, RECOVERY, NOW, 0, 1)).toBeNull();
   });
 
   it('yorgunluk ve enerjiden geç olanını alır, tur aralığına yukarı yuvarlar; o anda at gerçekten hazırdır', () => {
     const tired = { ...FRESH, fatigue: READINESS.maxFatigue + 5, energy: READINESS.minEnergy - 1 };
-    const readyAt = estimateRaceReadyAt('active', tired, READINESS, RECOVERY, NOW, ADULT)!;
+    const readyAt = estimateRaceReadyAt('active', tired, READINESS, RECOVERY, NOW, ADULT, 1)!;
     const waitSeconds = (readyAt.getTime() - NOW.getTime()) / 1000;
     expect(waitSeconds % RECOVERY.tickSeconds).toBe(0);
     expect(waitSeconds).toBeGreaterThanOrEqual((5 / RECOVERY.fatiguePerHour) * 3600);

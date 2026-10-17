@@ -45,6 +45,7 @@ import { validateGemPolicy } from '../../domain/economy/gem-policy';
 import { validateCosmeticsConfig } from '../../domain/cosmetics/cosmetics';
 import { validateTribuneGiftsConfig } from '../../domain/grandstand/tribune-gift';
 import { validateEquipmentConfig } from '../../domain/equipment/catalog';
+import { validateStableConfig } from '../../domain/stable/stable';
 import { validateHorsePersonalityConfig } from '../../domain/horse/personality';
 import { validateJockeyConditionConfig } from '../../domain/jockey/condition';
 import { validateJockeyMarketConfig } from '../../domain/jockey/market';
@@ -209,6 +210,8 @@ export class AppConfigService {
     if (upbringingProblems.length > 0) {
       throw new Error(`Bakım config'i geçersiz (config/care.config.json): ${upbringingProblems.join(' ')}`);
     }
+    // 16.10.2026 — ahır geliştirme (seviyeler boşluksuz, bedel/şart azalmaz).
+    validateStableConfig(this.stable, this.progression.maxLevel);
     // 08.10.2026 — ekipman kataloğu (bozuksa API AÇILMAZ).
     validateEquipmentConfig(loadEquipmentConfig(), this.progression.maxLevel);
     const tribuneGiftProblems = validateTribuneGiftsConfig(this.grandstand.tribuneGifts);
