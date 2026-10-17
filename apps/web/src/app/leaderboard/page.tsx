@@ -28,6 +28,7 @@ import { apiClient } from '../../lib/api-client';
 import { formatCurrency } from '../../lib/currency';
 import { formatTimeUntil } from '../../lib/format-time';
 import { usePlayer } from '../../lib/player-context';
+import { RaceWinnersPanel } from '../../features/leaderboard/RaceWinnersPanel';
 
 /** Podyum renkleri — 1./2./3. sıra görsel olarak ayrışsın diye. */
 const PODIUM_COLORS: Record<number, string> = {
@@ -41,7 +42,7 @@ export default function LeaderboardPage(): React.ReactElement {
   const [globalRows, setGlobalRows] = useState<LeaderboardRowView[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   /** 01.10.2026 — Genel / Sezon sekmesi. Sezon ucu oturum ister; oyuncu yoksa sekme gösterilmez. */
-  const [tab, setTab] = useState<'global' | 'season' | LeaderboardPeriod>('global');
+  const [tab, setTab] = useState<'global' | 'season' | LeaderboardPeriod | 'winners'>('global');
   const [season, setSeason] = useState<SeasonView | null>(null);
   // 02.10.2026 (Faz 11) — haftalık/aylık: sezonla aynı formül, dönem bitince kendiliğinden sıfırlanır.
   const [periods, setPeriods] = useState<Partial<Record<LeaderboardPeriod, PeriodLeaderboardView>>>({});
@@ -146,7 +147,9 @@ export default function LeaderboardPage(): React.ReactElement {
             ? 'Bu hafta (pazartesi 00:00, Türkiye saati) koşulan yarışların puanı. Her hafta yeniden başlar.'
             : tab === 'monthly'
               ? 'Bu ay koşulan yarışların puanı. Her ayın 1’inde yeniden başlar.'
-              : 'Bitirilmiş yarışlardan biriken küresel puan tablosu.'}
+              : tab === 'winners'
+                ? 'Gerçek oyuncuların birinci bitirdiği yarışlar, tamamlanma sırasına göre — puan sıralamasından ayrı.'
+                : 'Bitirilmiş yarışlardan biriken küresel puan tablosu.'}
       </p>
 
       {player ? (
@@ -186,19 +189,29 @@ export default function LeaderboardPage(): React.ReactElement {
               {period === 'weekly' ? 'Haftalık' : 'Aylık'}
             </button>
           ))}
+          <button
+            type="button"
+            role="tab"
+            className="tab"
+            aria-selected={tab === 'winners'}
+            onClick={() => setTab('winners')}
+          >
+            🏆 Son Kazananlar
+          </button>
         </div>
       ) : null}
 
       {tab === 'season' && season ? <SeasonHeader season={season} /> : null}
+      {tab === 'winners' ? <RaceWinnersPanel currentPlayerId={player?.id ?? null} /> : null}
 
       {error ? <p style={{ color: 'var(--color-status-critical)' }}>{error}</p> : null}
       {actionError ? <p style={{ color: 'var(--color-status-critical)' }}>{actionError}</p> : null}
 
-      {rows === null && !error ? (
+      {tab !== 'winners' && rows === null && !error ? (
         <p style={{ color: 'var(--color-text-muted)' }}>Sıralama yükleniyor…</p>
       ) : null}
 
-      {rows && rows.length === 0 ? (
+      {tab !== 'winners' && rows && rows.length === 0 ? (
         <GlassPanel style={{ textAlign: 'center', padding: 'var(--space-xl)' }}>
           <p style={{ color: 'var(--color-text-secondary)', marginTop: 0, marginBottom: 0 }}>
             {tab === 'season' || tab === 'weekly' || tab === 'monthly'
@@ -208,7 +221,7 @@ export default function LeaderboardPage(): React.ReactElement {
         </GlassPanel>
       ) : null}
 
-      {rows && rows.length > 0 ? (
+      {tab !== 'winners' && rows && rows.length > 0 ? (
         <GlassPanel style={{ padding: 0, overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
@@ -240,7 +253,7 @@ export default function LeaderboardPage(): React.ReactElement {
         </GlassPanel>
       ) : null}
 
-      {rows && rows.length > 0 ? (
+      {tab !== 'winners' && rows && rows.length > 0 ? (
         <p
           style={{
             color: 'var(--color-text-muted)',

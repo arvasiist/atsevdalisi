@@ -2,6 +2,7 @@ import type {
   AttachReferralResult,
   HippodromeCatalogView,
   CareerView,
+  RaceWinnersPageView,
   ClaimReferralRewardsResult,
   ReferralOverviewView,
   GiftQuotaView,
@@ -784,6 +785,9 @@ export const apiClient = {
    * olduğu gibi gösterir.
    */
   getLeaderboard: () => request<LeaderboardRowView[]>('/leaderboard'),
+  /** 16.10.2026 (brief §12) — kazananlar tablosu (`from`/`to` = `[from, to)`, `before` imleç). */
+  getRaceWinners: (query: Record<string, string>) =>
+    request<RaceWinnersPageView>(`/leaderboard/winners?${new URLSearchParams(query).toString()}`),
   /** 02.10.2026 (Faz 11) — haftalık/aylık sıralama (oturum ister). */
   getPeriodLeaderboard: (period: LeaderboardPeriod) =>
     request<PeriodLeaderboardView>(`/leaderboard/period/${period}`),

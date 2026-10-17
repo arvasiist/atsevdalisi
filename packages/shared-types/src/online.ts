@@ -75,6 +75,40 @@ export interface LeaderboardRowView {
   wins: number;
 }
 
+/**
+ * 16.10.2026 (brief §12) — KAZANANLAR TABLOSU satırı (`GET /leaderboard/winners`).
+ * Yalnızca GERÇEK oyuncunun birinci bitirdiği BİTMİŞ lobi/takvim/turnuva
+ * yarışları (bot kazandıysa yarış listelenmez; pratik/eşleşme dahil değil).
+ * `completedAt` = koşu başlangıcı (kontrollü yarışta canlı başlangıç) +
+ * kazananın derecesi; eşzamanlı bitişte yarış kimliği belirler. Genel/sezon
+ * sıralamasından AYRI bir listedir — puan değil, yarış kaydıdır.
+ */
+export interface RaceWinnerRowView {
+  raceId: UUID;
+  raceName: string;
+  completedAt: string;
+  /** Hipodrom anahtarı (`hippodromes.config.json`). */
+  hippodrome: string;
+  /** Masa etiketi / "Turnuva" / "Masasız". */
+  classLabel: string;
+  fieldSize: number;
+  playerId: UUID;
+  username: string;
+  displayName: string;
+  horseId: UUID | null;
+  horseName: string | null;
+  /** Kazananın derecesi (ms); eski satırda `null`. */
+  finalTimeMs: number | null;
+  /** Kazananın bu yarıştan aldığı ödül (defterdeki `lobby_race_prize` toplamı). */
+  prize: number;
+}
+
+export interface RaceWinnersPageView {
+  rows: RaceWinnerRowView[];
+  /** Sonraki sayfanın imleci (`?before=`); son sayfada `null`. */
+  nextCursor: string | null;
+}
+
 /** brief §43 RankingScore bileşenleri (hesaplama: `domain/ranking/ranking-score.ts`). */
 export interface RankingScoreInput {
   /** Bir yarıştaki ham performans puanı (bkz. `RaceFinishEntry.performanceScore`, docs/RACE_ENGINE.md §5). */

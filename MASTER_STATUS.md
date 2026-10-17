@@ -88,7 +88,7 @@ bölmeler).
 | 10 | Seyahat/nakliye | EVALUATED | bekleme YOK (pist kademeyle açılır, hemen katılınır); ayrı nakliye ücreti YOK (masa bedeli zaten pist seviyesiyle artıyor — ikinci ücret kaynağı açmamak için); toparlanma bedeli mesafeyle zaten ölçekli | karar belgelendi |
 | 11 | Hemen Katıl, uygun yarışlar, mesafe/pist/zemin/ücret/ödül | TESTED | `pickQuickJoinRace`, `LobbyPanel` hipodrom/zemin/mesafe | değişmedi |
 | 11 | Gerçek/AI ayrımı, 8–16 saha, kayıt→kesinleşme, kalıcı sonuç, çift ödül yok, determinizm, iptal/kopma/yeniden başlatma | TESTED | `race-field-rule.e2e`, `race-engine` SHA kilidi, `settle` durum geçişi, §13.27 testleri | değişmedi |
-| 12 | Kazananlar tablosu (kronolojik, sayfalı, tarih filtreli) | NOT_STARTED | genel/sezon/haftalık sıralama var; yarış kazananları listesi yok | F5-H3 |
+| 12 | Kazananlar tablosu (kronolojik, sayfalı, tarih filtreli) | TESTED | `GET /leaderboard/winners` + `/leaderboard` "Son Kazananlar": yalnızca gerçek oyuncunun kazandığı bitmiş lobi/takvim/turnuva yarışı, tamamlanma anı (başlangıç + derece, eşitlikte yarış kimliği), imleçli sayfa, `[from, to)`; ödül defterden — `race-winners.spec.ts`, `race-winners.e2e-spec.ts` (gerçek kesinleşmiş yarış dahil), web `race-winners.spec.ts` | F5-H3 ✅ |
 | 13 | Jokey işe alma/beceri/uyum/form | TESTED | `jockey.e2e`, uyum + form/yorgunluk | değişmedi |
 | 13 | Antrenör işe alma, maaş (peşin sözleşme), aşırı antrenman (yorgunluk/sakatlık) | TESTED | `staff.e2e`, antrenman enerji/yorgunluk | değişmedi |
 | 13 | Antrenör uzmanlıkları / geliştirme | PARTIAL | `staff.specialization` sütunu var, etkisi yok | değerlendirilecek |
@@ -104,7 +104,7 @@ bölmeler).
 | 19 | Günlük/aylık gelir-gider raporu ekranı | NOT_STARTED | cüzdanda yalnızca satır listesi | F6 |
 | 20–21 | Sunucu bakiyesi, atomik işlem, idempotency, denetim kaydı, negatif bakiye yok, oturum/yetki/hız sınırı, gizli anahtar | TESTED | para yolu kuralları, `phase16-hardening`, gitleaks | değişmedi |
 | 22 | Tablolar, indeksler, kısıtlar, zamanlayıcılar (lider kilidi), yeniden başlatma güvenliği | TESTED | migration 0001–0097, zamanlayıcı testleri | yeni tablolar fazlarla |
-| 23 | Hipodrom/takvim ekranı, kazananlar ekranı | PARTIAL | `/hippodromes` (ülke grupları, masa, takvim, açık yarış) VAR; kazananlar ekranı YOK | kazananlar F5-H3 |
+| 23 | Hipodrom/takvim ekranı, kazananlar ekranı | IMPLEMENTED | `/hippodromes`, `/career`, `/leaderboard` → Son Kazananlar; Chromium'da masaüstü + yatay telefon ekran görüntüsüyle konsol hatasız görüldü | F5 ✅ |
 | 24 | Birim/API/migration/eşzamanlılık/yeniden başlatma/ekonomi testleri, CI | TESTED | API 3040+, web 786+, GitHub Actions | her dilimde |
 
 ## Brief 16.10.2026 — Sosyal + çip ekonomisi (koddan doğrulandı)

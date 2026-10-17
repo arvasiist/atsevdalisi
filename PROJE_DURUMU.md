@@ -4759,3 +4759,13 @@ rozeti. Seyahat değerlendirildi: bekleme ve ayrı nakliye ücreti eklenmedi
 koşulunu kurdu (`race-table-rules`, `hippodrome` e2e). Testler:
 `career.spec.ts` (7), `career.e2e-spec.ts` (4), web `career-view.spec.ts` (2).
 
+**F5-H3 — kazananlar tablosu (migration YOK).** `GET /leaderboard/winners` +
+`/leaderboard` "Son Kazananlar" sekmesi: gerçek oyuncunun kazandığı bitmiş
+lobi/takvim/turnuva yarışları, tamamlanma sırasıyla (eşzamanlı bitişte yarış
+kimliği), imleçli "Daha fazla", başlangıç/bitiş günü filtresi; ödül defterden.
+Demo/sabit veri yok — boşsa boş durum yazar. Genel/sezon/haftalık sıralamadan
+ayrı. Testler: `race-winners.spec.ts` (4), `race-winners.e2e-spec.ts` (2;
+gerçek kesinleşmiş botsuz yarış + fikstürlerle sıra/sayfa/aralık/dışlama),
+web `race-winners.spec.ts` (2). Üç yeni ekran (hipodromlar, kariyer,
+kazananlar) Chromium'da masaüstü + yatay telefonda konsol hatasız görüldü.
+

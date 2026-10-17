@@ -1207,6 +1207,11 @@ export interface OnlineConfig {
    * `weekStartsOn`) — ikinci bir saat dilimi ayarı açılmadı.
    */
   leaderboardPeriods: { limit: number };
+  /**
+   * 16.10.2026 (brief §12) — kazananlar tablosu (`GET /leaderboard/winners`):
+   * sayfa boyu (varsayılan/üst sınır) ve tarih aralığının en uzun hâli (gün).
+   */
+  raceWinners: { defaultLimit: number; maxLimit: number; maxRangeDays: number };
 }
 
 /**

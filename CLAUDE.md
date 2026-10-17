@@ -1276,6 +1276,19 @@ playerId, puan)` ön koşulunu kurmalı (SQL fikstürü; yarış/galibiyet sayı
 girer — o sayıları sınayan oyuncuda kullanma). Seyahat: bekleme/nakliye ücreti
 YOK (bilinçli; belgeli). Ekran `/career`.
 
+(106) **KAZANANLAR TABLOSU (16.10.2026, migration YOK, brief §12)** — `GET
+/leaderboard/winners` (`@Public`, IP hız sınırı) + `/leaderboard` "Son
+Kazananlar". Kazanan = `finish_position = 1` GERÇEK oyuncu + LOBİ katılımı
+(`e.status` dolu, iptal değil); bot birinci/pratik/eşleşme listelenmez,
+`DISTINCT ON (r.id)`. Tamamlanma anı TÜRETİLİR: `COALESCE(live_starts_at,
+start_time) + final_time_ms` (races'te bitiş sütunu YOK); sıra (an, kimlik)
+azalan, sayfalama İMLEÇLE (`before` = `<ms>_<raceId>`), bozuk girdi 400. Ödül
+defterden. ⚠️ Kazananları sayan e2e kendi fikstürünü UZAK geçmişe yazmalı ve
+başta silmeli (`race-winners.e2e-spec.ts` 2001); ⚠️ uzak geçmişe `scheduled`
+yarış YAZMA — diğer dosyaların kilit zamanlayıcısı kuyruğunun başına oturur.
+⚠️ ÖLÇEK: sorgu bitmiş bütün lobi yarışlarını tarar — büyüyünce bitiş sütunu +
+indeks (ayrı migration).
+
 **✅ ÜCRETLİ LOBİ YARIŞI ARTIK KOŞUYOR — ÖDÜL DAĞITIMI VAR (§13.14,
 28.09.2026).** `POST /races/:id/settle` yarışı koşar, ödülleri `top5`
 paylarıyla dağıtır ve `races.status = 'finished'` yazar. Uç bir

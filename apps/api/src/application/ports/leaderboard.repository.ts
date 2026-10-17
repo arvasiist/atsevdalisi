@@ -18,6 +18,8 @@
  * (bkz. `database/migrations/0009_create_indexes.up.sql:23`). Bu port
  * değişmeden kalır: tablo geldiğinde yalnızca implementasyon değişir.
  */
+import type { RaceWinnersQuery } from '../../domain/ranking/race-winners';
+
 export const LEADERBOARD_REPOSITORY = Symbol('LEADERBOARD_REPOSITORY');
 
 /**
@@ -48,4 +50,28 @@ export interface LeaderboardRepository {
    * değerinin anlamsız olmasıdır (puanlama kuralı değil, VERİ BÜTÜNLÜĞÜ).
    */
   findAllFinishedRaceRecords(): Promise<PlayerRaceRecord[]>;
+
+  /**
+   * 16.10.2026 (brief §12) — kazananlar: gerçek oyuncunun birinci bitirdiği
+   * bitmiş lobi/takvim/turnuva yarışları, tamamlanma anına göre (yeni → eski,
+   * eşitlikte yarış kimliği azalan). `limit` satır döner.
+   */
+  findRaceWinners(query: RaceWinnersQuery): Promise<RaceWinnerRecord[]>;
+}
+
+export interface RaceWinnerRecord {
+  raceId: string;
+  raceName: string;
+  completedAt: Date;
+  trackId: string | null;
+  tableId: string | null;
+  isTournament: boolean;
+  fieldSize: number;
+  playerId: string;
+  username: string;
+  displayName: string;
+  horseId: string | null;
+  horseName: string | null;
+  finalTimeMs: number | null;
+  prize: number;
 }

@@ -2716,6 +2716,19 @@ breedClass, horseLevelBracket, nextStartTimes (ISO, en fazla 3)}` +
 `generatedAt`. Saatler takvim zamanlayıcısının aynı saf fonksiyonuyla
 (`computeCalendarSlotTimes`) sunucu saatiyle hesaplanır. Salt okuma.
 
+#### `GET /leaderboard/winners` (16.10.2026, brief §12)
+`@Public`, hız sınırı `race-winners` 60/dk (IP). Sorgu: `limit` (varsayılan/
+üst sınır `online.raceWinners`), `from`/`to` (YYYY-AA-GG, `[from, to)`, en
+fazla `maxRangeDays`), `before` (önceki sayfanın `nextCursor`u). Bozuk değer
+400 `VALIDATION_ERROR` (varsayılana düşmez). Yanıt `RaceWinnersPageView`:
+`rows[]` → `raceId, raceName, completedAt, hippodrome, classLabel, fieldSize,
+playerId, username, displayName, horseId, horseName, finalTimeMs, prize` +
+`nextCursor`. Yalnızca GERÇEK oyuncunun birinci bitirdiği bitmiş
+lobi/takvim/turnuva yarışları (bot birinci, pratik/eşleşme, iptal edilmiş yarış
+girmez; aynı yarış bir kez). Sıra: tamamlanma anı (koşu başlangıcı + kazananın
+derecesi) yeni → eski, eşitlikte yarış kimliği. `prize` defterdeki
+`lobby_race_prize` toplamı. Genel/sezon puan sıralamasından ayrıdır.
+
 #### `GET /career` (16.10.2026, brief §10)
 Oturum ister (yalnızca çağıranın kendi kariyeri), hız sınırı `career-view`
 60/dk, salt okuma. Yanıt `CareerView`: `points` (bitmiş yarışlardan türetilir —

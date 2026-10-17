@@ -4695,3 +4695,21 @@ button.btn-action {
   padding: 4px 6px;
   border-bottom: 1px solid var(--color-border-subtle, rgba(255, 255, 255, 0.08));
 }
+
+/* 16.10.2026 — Kazananlar tablosu (brief §12). */
+.winners-filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm, 8px);
+  align-items: flex-end;
+  margin-bottom: var(--space-sm, 8px);
+}
+.winners-filter label {
+  display: grid;
+  gap: 2px;
+  font-size: 0.85rem;
+  color: var(--color-text-secondary);
+}
+.career-table tr[data-me='true'] td {
+  color: var(--color-accent-gold);
+}

@@ -42,6 +42,7 @@ import { HorseOwnerGuardByParam } from '../auth/horse-owner.guard';
 import { GrandstandModule } from '../grandstand/grandstand.module';
 import { HorseModule } from '../horse/horse.module';
 import { LeaderboardController } from '../leaderboard/leaderboard.controller';
+import { GetRaceWinnersUseCase } from '../../application/use-cases/get-race-winners.use-case';
 import { MarketModule } from '../market/market.module';
 import { PlayerModule } from '../player/player.module';
 import { HorseMarketValueController } from './horse-market-value.controller';
@@ -144,6 +145,7 @@ import { RecentRacesController } from './recent-races.controller';
     // hesaplanır; kalıcı `leaderboards` tablosu bilinçli olarak FAZ 7'ye
     // bırakılmıştır (bkz. `get-leaderboard.use-case.ts` doc yorumu).
     GetLeaderboardUseCase,
+    GetRaceWinnersUseCase,
     { provide: RACE_REPOSITORY, useClass: PostgresRaceRepository },
     { provide: LEADERBOARD_REPOSITORY, useClass: PostgresLeaderboardRepository },
     // Ekipman (bu turda EKLENDİ) — `RunPracticeRaceUseCase`'in yeni bağımlılığı,
