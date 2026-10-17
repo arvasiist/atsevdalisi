@@ -289,6 +289,13 @@ export class AppConfigService {
       throw new Error(`Kozmetik mağaza config'i geçersiz (config/cosmetics.config.json): ${cosmeticProblems.join(' ')}`);
     }
     const hippodromeProblems = validateHippodromesConfig(this.hippodromes);
+    // 16.10.2026 — pistin ağırladığı masalar gerçek masa kimlikleri olmalı.
+    const tableIds = new Set(this.economy.raceTiers.map((tier) => tier.id));
+    for (const hippodrome of this.hippodromes.hippodromes) {
+      for (const table of hippodrome.tables) {
+        if (!tableIds.has(table)) hippodromeProblems.push(`${hippodrome.key}: bilinmeyen masa "${table}".`);
+      }
+    }
     if (hippodromeProblems.length > 0) {
       throw new Error(`Hipodrom config'i geçersiz (config/hippodromes.config.json): ${hippodromeProblems.join(' ')}`);
     }

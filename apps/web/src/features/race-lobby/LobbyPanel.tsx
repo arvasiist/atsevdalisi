@@ -55,6 +55,8 @@ import {
   WEATHER_LABELS,
   buildCreateRaceBody,
   defaultLobbyRaceForm,
+  hippodromeDistanceOptions,
+  hippodromeSurfaceOptions,
   formatStartsIn,
   lobbyEntryActions,
   maxPlayersOptions,
@@ -69,6 +71,7 @@ import {
   sortRacesForHorse,
   canCancelOwnRace,
   RACE_TABLES,
+  applyHippodrome,
   applyRaceTable,
   describeTableRules,
   tableRulesFromConfig,
@@ -441,15 +444,18 @@ export function LobbyPanel({ horses, money, onBalanceChanged, playerId = null }:
           </label>
           <label style={labelStyle()}>
             Mesafe (m)
-            <input
+            <select
               aria-label="Mesafe"
-              type="number"
-              min={LOBBY_CONFIG.distanceMeters.min}
-              max={LOBBY_CONFIG.distanceMeters.max}
               value={form.distanceMeters}
               onChange={(event) => updateForm({ distanceMeters: Number(event.target.value) })}
               style={inputStyle()}
-            />
+            >
+              {hippodromeDistanceOptions(form.hippodrome, LOBBY_CONFIG).map((distance) => (
+                <option key={distance} value={distance}>
+                  {distance} m
+                </option>
+              ))}
+            </select>
           </label>
           <label style={labelStyle()}>
             Zemin
@@ -459,7 +465,7 @@ export function LobbyPanel({ horses, money, onBalanceChanged, playerId = null }:
               onChange={(event) => updateForm({ surface: event.target.value as RaceSurface })}
               style={inputStyle()}
             >
-              {(LOBBY_CONFIG.allowedSurfaces as RaceSurface[]).map((surface) => (
+              {hippodromeSurfaceOptions(form.hippodrome, LOBBY_CONFIG).map((surface) => (
                 <option key={surface} value={surface}>
                   {SURFACE_LABELS[surface] ?? surface}
                 </option>
@@ -516,12 +522,14 @@ export function LobbyPanel({ horses, money, onBalanceChanged, playerId = null }:
             <select
               aria-label="Hipodrom"
               value={form.hippodrome}
-              onChange={(event) => updateForm({ hippodrome: event.target.value })}
+              onChange={(event) => setForm((current) => applyHippodrome(current, event.target.value, LOBBY_CONFIG))}
               style={inputStyle()}
             >
               {HIPPODROME_OPTIONS.map((hippodrome) => (
                 <option key={hippodrome.key} value={hippodrome.key}>
                   {hippodrome.shortName} · {hippodrome.city}
+                  {hippodrome.country === 'Türkiye' ? '' : `, ${hippodrome.country}`}
+                  {hippodrome.tables.includes(form.tableId ?? '') || !form.tableId ? '' : ' (masa değişir)'}
                 </option>
               ))}
             </select>

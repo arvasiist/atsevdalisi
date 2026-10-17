@@ -68,6 +68,45 @@ ayı (5,5 yaş) yaşlanması demek. Üreme penceresi 36–180 oyun ayı olduğu 
 kısrak ömründe en fazla ~2 tay verir (`lifetimeFoalLimit.mare = 5`e
 ulaşılamaz). İki değer de config'te; hangisinin değişeceği sahibinin kararı.
 
+## Brief 16.10.2026 (devam) — §9–§24 denetimi (koddan doğrulandı)
+
+§2–§8 yukarıdaki tabloda. Durum = denetim anı; "Sonuç" bu brief kapsamında
+yapılan iş. Sıra brief §25 fazlarıdır (FAZ 1–4 = K1–K6 + ahır geliştirme/
+bölmeler).
+
+| § | Konu | Durum | Kanıt / açık | Sonuç |
+|---|---|---|---|---|
+| 9 | Ülke/şehir düzeni, pist türü/zemin/mesafe/koşul | TESTED | ülke/şehir/zemin/mesafe/masa config'te; yarış açarken `hippodromeRaceProblems` (400) — `hippodromes.spec.ts`, `hippodrome.e2e-spec.ts` | F5-H1 ✅ |
+| 9 | Yerel/bölgesel/ulusal/uluslararası seviye, prestij, erişim | PARTIAL | seviye + prestij (1–5) + pistin masaları VAR (F5-H1); erişim (kariyer kademesi) YOK | erişim F5-H2 |
+| 9 | ABD / Fransa / Dubai pistleri | IMPLEMENTED | Kentucky, Paris, Dubai (migration 0098) — markalı tesis adı KULLANILMADI (hak doğrulanmadı) | F5-H1 ✅ |
+| 9 | Merkezi yapılandırmayla pist ekleme | IMPLEMENTED | `hippodromes.config.json` + migration satırı (`hippodromes.spec.ts`) | korunur |
+| 9 | Gerçek isim/görsel hakları | NOT_VERIFIED | hukuki konu; görseller prosedürel (gerçek fotoğraf YOK) | sahibine bildirilecek |
+| 9 | Pist takvimi, farklı mesafe/sınıf | TESTED | her programın pisti var (`race-calendar.spec.ts` pist kuralını dener); `GET /hippodromes` sıradaki saatleri zamanlayıcının fonksiyonuyla verir (`hippodrome-catalog.spec.ts`) | F5-H1 ✅ |
+| 9 | Zemin/mesafe motora bağlı, uygunluk ön kontrolü | TESTED | motor `surface`/`distanceCategory`, snapshot zemin/mesafe uyumu; hazırlık + ırk/seviye kapıları | değişmedi |
+| 9 | Giriş ücreti / ödül yapılandırılabilir | TESTED | masa kuralları (`table-rules.spec.ts`); pist hangi masaları ağırladığını config'te seçer (çarpan YOK — ikinci ücret kaynağı açmamak için) | F5-H1 ✅ |
+| 10 | Kariyer kademeleri, puanla ilerleme, giriş koşulları, kariyer ekranı + sıradaki hedef | NOT_STARTED | oyuncu XP/seviyesi var; yarış kariyeri kademesi yok (at kariyeri K2'de var) | F5-H2 |
+| 10 | Seyahat/nakliye | NOT_STARTED | — (beklemeye zorlamayacak biçimde değerlendirilecek) | F5-H2 |
+| 11 | Hemen Katıl, uygun yarışlar, mesafe/pist/zemin/ücret/ödül | TESTED | `pickQuickJoinRace`, `LobbyPanel` hipodrom/zemin/mesafe | değişmedi |
+| 11 | Gerçek/AI ayrımı, 8–16 saha, kayıt→kesinleşme, kalıcı sonuç, çift ödül yok, determinizm, iptal/kopma/yeniden başlatma | TESTED | `race-field-rule.e2e`, `race-engine` SHA kilidi, `settle` durum geçişi, §13.27 testleri | değişmedi |
+| 12 | Kazananlar tablosu (kronolojik, sayfalı, tarih filtreli) | NOT_STARTED | genel/sezon/haftalık sıralama var; yarış kazananları listesi yok | F5-H3 |
+| 13 | Jokey işe alma/beceri/uyum/form | TESTED | `jockey.e2e`, uyum + form/yorgunluk | değişmedi |
+| 13 | Antrenör işe alma, maaş (peşin sözleşme), aşırı antrenman (yorgunluk/sakatlık) | TESTED | `staff.e2e`, antrenman enerji/yorgunluk | değişmedi |
+| 13 | Antrenör uzmanlıkları / geliştirme | PARTIAL | `staff.specialization` sütunu var, etkisi yok | değerlendirilecek |
+| 14 | Sağlık/bakım/veteriner/sakatlık/gebelik kontrolü/yarış öncesi denetim, sunucu otoritesi | TESTED | bakım + hazırlık kapısı + gebelik veteriner kontrolü | değişmedi |
+| 14 | Beslenme/su ihtiyacı | PARTIAL | yem/su bakım işi var; "açlık/susuzluk" canlı durumu YOK (uydurulmadı) | değişmedi |
+| 15 | İlan, fiyat, müzayede, teklif geçmişi, sahiplik kontrolü, tek işlem devir, çift satış engeli | TESTED | `market.e2e`, `auction` e2e | değişmedi |
+| 16 | Arkadaş, 5'in katı arkadaş başarımı (100 çip, tek sefer), hediye/toplu alma, kulüp, sohbet | TESTED | `friend-gift`, başarım PK, kulüp e2e | değişmedi |
+| 17 | Tribün hediyesi (alıcı/yarış/at doğrulaması, spam sınırı, sonuca etkisiz) | TESTED | `tribune-gift.e2e` | değişmedi |
+| 17 | Brief'in hediye listesi (yonca, kurdele, havuç demeti, çelenk) + toplu alma | PARTIAL | katalog farklı (havuç, elma, nazar, Altın Nal, gül çelengi, kupa); ödeme anında, toplama yok | F7 |
+| 18 | Günlük/haftalık görev, başarım, sezon, tek sefer ödül, config | TESTED | `quests`, `achievements`, `season` e2e | değişmedi |
+| 18 | Çiftleştirme/tay yetiştirme görevleri | NOT_STARTED | görev ölçütlerinde yok | F7 |
+| 19 | Kapasite, geliştirme, yem/bakım/personel/yarış giderleri | TESTED | ahır geliştirme + defter | değişmedi |
+| 19 | Günlük/aylık gelir-gider raporu ekranı | NOT_STARTED | cüzdanda yalnızca satır listesi | F6 |
+| 20–21 | Sunucu bakiyesi, atomik işlem, idempotency, denetim kaydı, negatif bakiye yok, oturum/yetki/hız sınırı, gizli anahtar | TESTED | para yolu kuralları, `phase16-hardening`, gitleaks | değişmedi |
+| 22 | Tablolar, indeksler, kısıtlar, zamanlayıcılar (lider kilidi), yeniden başlatma güvenliği | TESTED | migration 0001–0097, zamanlayıcı testleri | yeni tablolar fazlarla |
+| 23 | Hipodrom/takvim ekranı, kazananlar ekranı | PARTIAL | `/hippodromes` (ülke grupları, masa, takvim, açık yarış) VAR; kazananlar ekranı YOK | kazananlar F5-H3 |
+| 24 | Birim/API/migration/eşzamanlılık/yeniden başlatma/ekonomi testleri, CI | TESTED | API 3040+, web 786+, GitHub Actions | her dilimde |
+
 ## Brief 16.10.2026 — Sosyal + çip ekonomisi (koddan doğrulandı)
 
 Ayrıntı ve 12 maddelik tamamlanma raporu: `docs/SOSYAL_CIP_DENETIMI.md`.

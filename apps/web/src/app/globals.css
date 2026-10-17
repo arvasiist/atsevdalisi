@@ -4619,3 +4619,57 @@ button.btn-action {
   font-size: 12px;
   margin-top: var(--space-sm);
 }
+
+/* 16.10.2026 — Hipodromlar ekranı (brief §9). */
+.hippodrome-country {
+  margin-bottom: var(--space-lg, 24px);
+}
+.hippodrome-country-title {
+  font-size: 1.15rem;
+  margin: 0 0 var(--space-sm, 8px);
+}
+.hippodrome-grid {
+  display: grid;
+  gap: var(--space-md, 16px);
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr));
+}
+.hippodrome-card {
+  display: grid;
+  gap: var(--space-sm, 8px);
+}
+.hippodrome-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--space-sm, 8px);
+}
+.hippodrome-prestige {
+  color: var(--color-accent-gold);
+  letter-spacing: 1px;
+  white-space: nowrap;
+}
+.hippodrome-facts {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 2px var(--space-sm, 8px);
+  margin: 0;
+  font-size: 0.9rem;
+}
+.hippodrome-facts dt {
+  color: var(--color-text-muted);
+}
+.hippodrome-facts dd {
+  margin: 0;
+}
+.hippodrome-subtitle {
+  margin: var(--space-xs, 4px) 0;
+  font-size: 0.95rem;
+}
+.hippodrome-programs {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-xs, 4px);
+  font-size: 0.9rem;
+}

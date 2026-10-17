@@ -2698,6 +2698,23 @@ ve `race.roster` olayı `hippodrome` anahtarını taşır (hipodromu yazılmamı
 eski yarışta varsayılan). Pratik, eşleşme ve turnuva yarışının hipodromu
 yarış kimliğinden determinist seçilir; takvim programı kendi hipodromunu
 config'ten alır. Salt sahne — sonuca etkisi YOK.
+16.10.2026 (brief §9, migration 0098): üç uluslararası pist (`kentucky`,
+`paris`, `dubai`). Hipodrom seçilen yarışta zemin ve mesafe pistin listesinden,
+`tableId` pistin ağırladığı masalardan olmalı — aksi 400
+`INVALID_RACE_DEFINITION` (takvim programları da aynı kuraldan geçer). Pratik/
+eşleşme yarışının pisti sabit `practicePool`dan seçilir (yeni pist eski tekrarı
+değiştirmez).
+
+#### `GET /hippodromes` (16.10.2026)
+Oturum ister, hız sınırı `hippodrome-catalog` 60/dk. Yanıt
+`HippodromeCatalogView`: `hippodromes[]` → `key, name, shortName, country,
+countryCode, city, level (local|regional|national|international), prestige
+(1–5), surfaces, distancesMeters, lapLengthMeters, tables[] {id, label,
+entryFee, fieldSize, winnerSharePercent}, programs[] {id, name, surface,
+distanceMeters, entryFee, fieldSize, intervalMinutes, featured, tableId,
+breedClass, horseLevelBracket, nextStartTimes (ISO, en fazla 3)}` +
+`generatedAt`. Saatler takvim zamanlayıcısının aynı saf fonksiyonuyla
+(`computeCalendarSlotTimes`) sunucu saatiyle hesaplanır. Salt okuma.
 
 **`Idempotency-Key` YOKTUR ve bu bilinçlidir:** bu uç hiçbir bakiye/ödül/
 envanter değiştirmez (ücret yarışa KATILIRKEN alınır) — brief §54'ün zorunlu

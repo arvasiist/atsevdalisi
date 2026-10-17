@@ -1239,6 +1239,24 @@ paneli (`?panel=layout`): taşı/yer değiştir, boşta "+ At al"/"Çiftleştir"
 kilitlide "Ahır Sv. N" → geliştirme paneli; bir sonraki seviyenin ötesindeki
 kilitli bölmeler tek satırda özetlenir. ‹ › bölme sırasıyla gezer.
 
+(104) **ULUSLARARASI HİPODROMLAR (16.10.2026, migration 0098, brief §9)** —
+`hippodromes.config.json`: ülke/şehir/`level`/`prestige`/`surfaces`/
+`distancesMeters`/`tables` (masa kimlikleri `economy.raceTiers`; açılışta çapraz
+denetlenir) + `practicePool`. Kentucky/Paris/Dubai eklendi — ⚠️ markalı tesis
+adı (Churchill Downs, ParisLongchamp, Meydan) ve gerçek görsel YAZMA: kullanım
+hakkı doğrulanmadı, sahibinin kararı bekleniyor. Pist kuralı TEK fonksiyon
+`hippodromeRaceProblems` (zemin, mesafe, masa) — yarış açma (400) ve takvim
+(program reddedilir + log) aynısını çağırır; hipodrom seçilmemiş yarış serbest.
+⚠️ Pratik/eşleşme pisti `practicePool`dan seçilir: havuza pist EKLEME/sırasını
+değiştirme — eski yarışların tekrarındaki mekân değişir (`hippodromes.spec.ts`
+havuzu kilitler). Yeni pist: config + yeni migration (`tracks` satırı) birlikte;
+spec 0072 + 0098'i okur, yeni migration'ı listeye ekle. `GET /hippodromes`
+(salt okuma) sıradaki saatleri `computeCalendarSlotTimes` ile verir. Web lobi
+formu zemin/mesafe/masayı pistin listesine çeker (`applyHippodrome`;
+masa seçilince masayı ağırlayan piste geçer) — ⚠️ yeni kuraldan önce varsayılan
+form 800 m idi ve Veliefendi'de 800 m koşulmaz: form varsayılanını değiştirirken
+`hippodrome-form.spec.ts`e güven. Ekran `/hippodromes`.
+
 **✅ ÜCRETLİ LOBİ YARIŞI ARTIK KOŞUYOR — ÖDÜL DAĞITIMI VAR (§13.14,
 28.09.2026).** `POST /races/:id/settle` yarışı koşar, ödülleri `top5`
 paylarıyla dağıtır ve `races.status = 'finished'` yazar. Uç bir

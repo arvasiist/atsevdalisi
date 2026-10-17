@@ -276,6 +276,58 @@
         "spectatorCapacity": 5000,
         "horseLevelBracket": "champion",
         "tableId": "national"
+      },
+      {
+        "id": "kentucky-classic",
+        "hippodrome": "kentucky",
+        "name": "Kentucky Kum Klasiği",
+        "intervalMinutes": 360,
+        "offsetMinutes": 75,
+        "fieldSize": 14,
+        "maxPlayers": 14,
+        "entryFee": 1000,
+        "distanceMeters": 2000,
+        "surface": "dirt",
+        "weather": "sunny",
+        "tribuneFee": 50,
+        "spectatorCapacity": 5000,
+        "tableId": "elite",
+        "horizonHours": 6
+      },
+      {
+        "id": "paris-grand-prix",
+        "hippodrome": "paris",
+        "name": "Paris Büyük Ödülü",
+        "intervalMinutes": 720,
+        "offsetMinutes": 195,
+        "fieldSize": 16,
+        "maxPlayers": 16,
+        "entryFee": 2000,
+        "distanceMeters": 2400,
+        "surface": "grass",
+        "weather": "sunny",
+        "tribuneFee": 50,
+        "spectatorCapacity": 5000,
+        "tableId": "championship",
+        "horizonHours": 12
+      },
+      {
+        "id": "dubai-world-cup",
+        "hippodrome": "dubai",
+        "name": "Dubai Dünya Kupası",
+        "intervalMinutes": 10080,
+        "offsetMinutes": 3900,
+        "fieldSize": 16,
+        "maxPlayers": 16,
+        "entryFee": 2000,
+        "distanceMeters": 2000,
+        "surface": "dirt",
+        "weather": "sunny",
+        "tribuneFee": 50,
+        "spectatorCapacity": 5000,
+        "featured": true,
+        "horizonHours": 48,
+        "tableId": "championship"
       }
     ]
   }

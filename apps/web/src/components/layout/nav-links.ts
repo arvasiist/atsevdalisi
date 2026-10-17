@@ -74,6 +74,8 @@ export const NAV_LINKS: ReadonlyArray<NavLink> = [
   { href: '/training', label: 'Antrenman', icon: 'training', placement: 'primary', mobileTab: true },
   { href: '/care', label: 'Bakım', icon: 'care', placement: 'primary', mobileTab: true },
   { href: '/races', label: 'Yarışlar', icon: 'races', placement: 'more' },
+  // 16.10.2026 — brief §9: ülke/şehir, pist özellikleri, masalar ve pist takvimi.
+  { href: '/hippodromes', label: 'Hipodromlar', icon: 'races', placement: 'more' },
   { href: '/market', label: 'Pazar', icon: 'market', placement: 'more' },
   // 16.10.2026 — brief §8: yem, tay yemi, takviye, ilaç (sarf malzemesi).
   { href: '/shop', label: 'Market', icon: 'market', placement: 'more' },

@@ -4726,3 +4726,22 @@ düğmeleri, "Bölmeler" panelinde taşı/yer değiştir. Tarayıcıda (Chromium
 yazılımsal GL) ekran görüntüsüyle doğrulandı. Testler: `stable-stalls.e2e-spec.ts`
 (5), domain `layout.spec.ts` (5), web `stall-map.spec.ts` (5) +
 `StableLayoutPanel.spec.tsx` (3).
+
+### 13.115 Brief §9–§26 — FAZ 5 (16.10.2026)
+
+Denetim tablosu `MASTER_STATUS.md` → "§9–§24 denetimi". FAZ 1–4 = K1–K6 +
+ahır geliştirme/bölmeler (13.114). FAZ 5 dilimleri:
+
+**F5-H1 — uluslararası hipodromlar (migration 0098).** Pist kaydına ülke/şehir,
+seviye (yerel→uluslararası), prestij, izinli zeminler/mesafeler ve ağırladığı
+masalar eklendi; ABD (Kentucky), Fransa (Paris), BAE (Dubai) pistleri ve
+üçünün takvim programları açıldı. Markalı tesis adları KULLANILMADI (kullanım
+hakkı doğrulanmadı; Türk pistlerinin adları da hukuki incelemede). Yarış
+açarken pist kuralı sunucuda (400); takvim programları aynı kuraldan geçer.
+Pratik/eşleşme pisti sabit havuzdan seçilir (eski tekrarlar değişmez). Lobi
+formunun varsayılanı (800 m) yeni kurala takılırdı — form artık pistin
+listesinden seçer. `GET /hippodromes` + `/hippodromes` ekranı (ülke grupları,
+masalar, takvim saatleri, açık yarışlar). Testler: `hippodromes.spec.ts` (11),
+`hippodrome-catalog.spec.ts` (3), `race-calendar.spec.ts` (7),
+`hippodrome.e2e-spec.ts` (5); web `hippodrome-form.spec.ts` (4),
+`hippodrome-catalog.spec.ts` (5).

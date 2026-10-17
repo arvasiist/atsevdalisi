@@ -2805,7 +2805,19 @@ export interface HippodromeConfig {
   name: string;
   /** Dar alanlar (seçim kutusu) için kısa ad. */
   shortName: string;
+  /** 16.10.2026 (brief §9) — ülke (görünen ad + ISO kodu) ve şehir. */
+  country: string;
+  countryCode: string;
   city: string;
+  /** Pist seviyesi: yerel → bölgesel → ulusal → uluslararası (kariyer erişimi buna bağlı). */
+  level: HippodromeLevel;
+  /** 1–5 prestij (yalnızca gösterim + sıralama). */
+  prestige: number;
+  /** Bu pistte koşulabilen zeminler ve mesafeler (yarış açılışı doğrular). */
+  surfaces: Array<'grass' | 'dirt' | 'synthetic'>;
+  distancesMeters: number[];
+  /** Bu pistin ağırladığı masalar (`economy.raceTiers` kimlikleri): giriş ücreti + ödül oradan. */
+  tables: string[];
   lapLengthMeters: number;
   turnRadiusMeters: number;
   theme: {
@@ -2822,9 +2834,17 @@ export interface HippodromeConfig {
   };
 }
 
+export type HippodromeLevel = 'local' | 'regional' | 'national' | 'international';
+
 export interface HippodromesConfig {
   /** Hipodromu olmayan (eski) yarışlar ve seçim yapılmayan lobi yarışı bunu kullanır. */
   defaultKey: string;
+  /**
+   * 16.10.2026 — pratik/eşleşme/turnuva yarışının kimlikten seçildiği havuz.
+   * Sabit tutulur: yeni pist eklemek eski yarışların tekrarındaki mekânı
+   * değiştirmesin diye (seçim `% havuz uzunluğu`).
+   */
+  practicePool: string[];
   hippodromes: HippodromeConfig[];
 }
 

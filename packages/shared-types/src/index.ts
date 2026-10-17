@@ -27,3 +27,4 @@ export * from './payments';
 export * from './breeds';
 export * from './cosmetics';
 export * from './onboarding';
+export * from './hippodrome';

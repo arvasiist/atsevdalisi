@@ -1,6 +1,6 @@
 import { loadBreedsConfig, loadEconomyConfig, loadHippodromesConfig, loadRaceLobbyConfig } from '@at-sevdalisi/game-config';
 import { describe, expect, it } from 'vitest';
-import { hippodromeKeys } from '../../../src/domain/race/hippodrome';
+import { hippodromeKeys, hippodromeRaceProblems } from '../../../src/domain/race/hippodrome';
 import { validateRaceCreation } from '../../../src/domain/race/lobby';
 import {
   calendarProgramToCreationInput,
@@ -74,6 +74,19 @@ describe('yarış takvimi — yuva hesabı (01.10.2026)', () => {
         );
         expect(problems, `${program.id} ${slot.toISOString()}`).toEqual([]);
       }
+      // 16.10.2026 (brief §9) — programın zemini/mesafesi/masası pistinkilerden olmalı.
+      expect(
+        hippodromeRaceProblems(
+          {
+            hippodrome: program.hippodrome ?? null,
+            surface: program.surface,
+            distanceMeters: program.distanceMeters,
+            tableId: program.tableId ?? null,
+          },
+          loadHippodromesConfig(),
+        ),
+        program.id,
+      ).toEqual([]);
     }
   });
 

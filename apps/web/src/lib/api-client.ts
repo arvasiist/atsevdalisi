@@ -1,5 +1,6 @@
 import type {
   AttachReferralResult,
+  HippodromeCatalogView,
   ClaimReferralRewardsResult,
   ReferralOverviewView,
   GiftQuotaView,
@@ -788,6 +789,8 @@ export const apiClient = {
 
   /** Güncel sezon (brief §69, 01.10.2026) — oturum ister (`me` satırı için). */
   getCurrentSeason: () => request<SeasonView>('/seasons/current'),
+  /** 16.10.2026 (brief §9) — pistler, masaları ve takvimleri (`GET /hippodromes`). */
+  getHippodromes: () => request<HippodromeCatalogView>('/hippodromes'),
 
   /**
    * brief §32 "Çiftlik" (bu turda EKLENDİ) — `/farm` ekranı.

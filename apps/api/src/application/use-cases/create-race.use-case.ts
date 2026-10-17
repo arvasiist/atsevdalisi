@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { Inject, Injectable } from '@nestjs/common';
 import type { RaceLobbyView } from '@at-sevdalisi/shared-types';
 import { validateRaceCreation, type RaceCreationInput } from '../../domain/race/lobby';
-import { hippodromeKeys } from '../../domain/race/hippodrome';
+import { hippodromeKeys, hippodromeRaceProblems } from '../../domain/race/hippodrome';
 import { defaultFieldRule } from '../../domain/race/field-rule';
 import { InvalidRaceDefinitionError, RaceLimitReachedError } from '../../domain/race/errors';
 import { RACE_ENGINE_VERSION, RACE_RULESET_VERSION } from '../../domain/race/race-engine';
@@ -72,6 +72,11 @@ export class CreateRaceUseCase {
     );
     if (value === null) {
       throw new InvalidRaceDefinitionError(problems);
+    }
+    // 16.10.2026 (brief §9) — seçilen pistin zemin/mesafe/masa kuralları.
+    const trackProblems = hippodromeRaceProblems(value, this.config.hippodromes);
+    if (trackProblems.length > 0) {
+      throw new InvalidRaceDefinitionError(trackProblems);
     }
 
     const result = await this.raceRepository.createLobbyRace({
