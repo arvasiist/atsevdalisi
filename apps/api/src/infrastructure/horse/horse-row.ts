@@ -1,5 +1,5 @@
 import type { Pool, PoolClient } from 'pg';
-import { loadHorsePersonalityConfig } from '@at-sevdalisi/game-config';
+import { loadGeneticsConfig, loadHorsePersonalityConfig } from '@at-sevdalisi/game-config';
 import type { Horse } from '@at-sevdalisi/shared-types';
 import {
   BREED_DISTANCE_COLUMNS,
@@ -9,8 +9,10 @@ import {
   type BreedInitialStats,
 } from '../../domain/horse/breeds';
 import { PERSONALITY_TRAIT_COLUMNS, PERSONALITY_TRAIT_KEYS, deriveBirthPersonality } from '../../domain/horse/personality';
+import { deriveFertility } from '../../domain/breeding/breeding-center';
 
 const personalityConfig = loadHorsePersonalityConfig();
+const geneticsConfig = loadGeneticsConfig();
 
 /**
  * `horses` tablosunun satır şekli + okuma/yazma yardımcıları.
@@ -135,8 +137,9 @@ export async function writeHorseRow(executor: Pool | PoolClient, horse: Horse): 
  */
 export async function insertNewHorse(client: PoolClient, horse: Horse, initial?: BreedInitialStats): Promise<void> {
   await client.query(
-    `INSERT INTO horses (id, owner_id, name, gender, breed, birth_date, level, xp, quality, potential, health, fitness, fatigue, energy, morale, weight_kg, status, sire_id, dam_id, created_at, updated_at, coat_color, face_marking, leg_marking, aging_started_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25)`,
+    // 16.10.2026 — doğurganlık (brief §5) kimlikten determinist (`deriveFertility`).
+    `INSERT INTO horses (id, owner_id, name, gender, breed, birth_date, level, xp, quality, potential, health, fitness, fatigue, energy, morale, weight_kg, status, sire_id, dam_id, created_at, updated_at, coat_color, face_marking, leg_marking, aging_started_at, fertility)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26)`,
     [
       horse.id,
       horse.ownerId,
@@ -163,6 +166,7 @@ export async function insertNewHorse(client: PoolClient, horse: Horse, initial?:
       horse.appearance.faceMarking,
       horse.appearance.legMarking,
       new Date(horse.agingStartedAt),
+      deriveFertility(horse.id, geneticsConfig),
     ],
   );
   await insertWithValues(client, 'horse_stats', horse.id, [

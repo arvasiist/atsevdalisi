@@ -28,6 +28,8 @@ import { assertCanAddHorseToStable, getStableCapacity } from '../../domain/stabl
 import { AppConfigService } from '../config/config.service';
 import { PG_POOL, withTransaction } from '../database/database.module';
 import { isHorseInActiveRace } from '../horse/active-race-entry';
+import { hasBreedingCommitment } from '../horse/breeding-commitment';
+import { countStableOccupancy } from '../stable/stable-occupancy';
 
 interface ListingRow {
   id: string;
@@ -190,7 +192,10 @@ export class PostgresMarketAuctionRepository implements MarketAuctionRepository 
         [listing.horseId],
       );
       const stillSellers = horse.rows[0]?.owner_id === listing.sellerId;
-      const inRace = stillSellers && (await isHorseInActiveRace(client, listing.horseId));
+      // 16.10.2026 — gebe / bekleyen teklifteki at da "yarışta" gibi satılamaz → emanet iade.
+      const inRace =
+        stillSellers &&
+        ((await isHorseInActiveRace(client, listing.horseId)) || (await hasBreedingCommitment(client, listing.horseId)));
       const buyerHasRoom =
         stillSellers && !inRace && (await this.hasStableRoom(client, leading.bidder_id));
 
@@ -336,12 +341,9 @@ export class PostgresMarketAuctionRepository implements MarketAuctionRepository 
     if (!player.rows[0]) {
       throw new PlayerNotFoundError(playerId);
     }
-    const count = await client.query<{ count: string }>(
-      'SELECT COUNT(*) FROM horses WHERE owner_id = $1',
-      [playerId],
-    );
+    // 16.10.2026 — doğumu beklenen gebelikler de yer tutar.
     assertCanAddHorseToStable(
-      Number(count.rows[0]?.count ?? '0'),
+      await countStableOccupancy(client, playerId),
       getStableCapacity(player.rows[0].stable_level, this.config.stable),
     );
   }

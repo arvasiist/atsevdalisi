@@ -4,6 +4,7 @@ import type { Horse } from '@at-sevdalisi/shared-types';
 import type { HorseRepository } from '../../application/ports/horse.repository';
 import { PG_POOL, withTransaction } from '../database/database.module';
 import { isHorseInActiveRace } from './active-race-entry';
+import { hasBreedingCommitment } from './breeding-commitment';
 import type { BreedInitialStats } from '../../domain/horse/breeds';
 import { insertNewHorse, rowToHorse, writeHorseRow, type HorseRow } from './horse-row';
 
@@ -75,6 +76,10 @@ export class PostgresHorseRepository implements HorseRepository {
   /** AUDIT_REPORT.md Bulgu C2 hardening (bu oturum) — bkz. `HorseRepository.updateWithLock` doc yorumu. */
   async isInActiveRace(horseId: string): Promise<boolean> {
     return isHorseInActiveRace(this.pool, horseId);
+  }
+
+  async hasBreedingCommitment(horseId: string): Promise<boolean> {
+    return hasBreedingCommitment(this.pool, horseId);
   }
 
   async updateWithLock<T>(id: string, mutate: (horse: Horse) => { horse: Horse; result: T }): Promise<T | null> {

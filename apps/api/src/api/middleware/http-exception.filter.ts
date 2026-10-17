@@ -78,8 +78,19 @@ import {
 } from '../../domain/horse/errors';
 import {
   BreedingHorseListedError,
+  BreedingOfferAlreadyPendingError,
+  BreedingOfferExpiredError,
+  BreedingOfferNotFoundError,
+  BreedingOfferNotPendingError,
+  BreedingOfferOwnStallionError,
+  BreedingRequiresAgreementError,
+  HorseBreedingCommitmentError,
   MareNotOwnedError,
   NotEligibleForBreedingError,
+  PregnancyCheckupTooSoonError,
+  PregnancyNotFoundError,
+  StudFeeOutOfBoundsError,
+  StudListingNotFoundError,
 } from '../../domain/breeding/errors';
 import {
   InvalidDisplayNameError,
@@ -880,6 +891,19 @@ const DOMAIN_ERROR_MAP = new Map<ErrorClassConstructor, { status: number; code: 
   // olan bir atın soy kaydını değiştirmek alıcıya sürpriz bir tay/soy
   // devreder.
   [BreedingHorseListedError, { status: HttpStatus.CONFLICT, code: ErrorCode.HorseListedInMarket }],
+  // 16.10.2026 — çiftleştirme merkezi + gebelik (brief §4–§5). Teklif ve gebelik
+  // yalnızca taraflarına görünür: taraf olmayana "yok" (404, IDOR kapısı).
+  [BreedingRequiresAgreementError, { status: HttpStatus.CONFLICT, code: ErrorCode.BreedingRequiresAgreement }],
+  [StudListingNotFoundError, { status: HttpStatus.NOT_FOUND, code: ErrorCode.StudListingNotFound }],
+  [StudFeeOutOfBoundsError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.InvalidStudFee }],
+  [BreedingOfferNotFoundError, { status: HttpStatus.NOT_FOUND, code: ErrorCode.BreedingOfferNotFound }],
+  [BreedingOfferNotPendingError, { status: HttpStatus.CONFLICT, code: ErrorCode.BreedingOfferNotPending }],
+  [BreedingOfferExpiredError, { status: HttpStatus.CONFLICT, code: ErrorCode.BreedingOfferExpired }],
+  [BreedingOfferAlreadyPendingError, { status: HttpStatus.CONFLICT, code: ErrorCode.BreedingOfferAlreadyPending }],
+  [BreedingOfferOwnStallionError, { status: HttpStatus.CONFLICT, code: ErrorCode.BreedingOfferOwnStallion }],
+  [PregnancyNotFoundError, { status: HttpStatus.NOT_FOUND, code: ErrorCode.PregnancyNotFound }],
+  [PregnancyCheckupTooSoonError, { status: HttpStatus.CONFLICT, code: ErrorCode.PregnancyCheckupTooSoon }],
+  [HorseBreedingCommitmentError, { status: HttpStatus.CONFLICT, code: ErrorCode.HorseBreedingCommitment }],
   // YARIŞA KATILMA (brief §2/§3/§6, §42 PHASE 1b) — beşi de
   // `POST /races/:id/join` yolundan gelir. Sınıflandırma, projedeki AYNI
   // kategorilerin tekrarıdır (hepsi `domain/race/errors.ts`'te uzun uzun

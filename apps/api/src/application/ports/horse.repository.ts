@@ -59,6 +59,8 @@ export interface HorseRepository {
    * transaction'ındaki (at satırı kilitliyken) AYNI kontroldür.
    */
   isInActiveRace(horseId: string): Promise<boolean>;
+  /** 16.10.2026 — gebe ya da bekleyen çiftleştirme teklifinde mi (pazar ön kontrolü). */
+  hasBreedingCommitment(horseId: string): Promise<boolean>;
 }
 
 /** NestJS DI için token (interface'ler runtime'da yok olduğundan bir Symbol gerekir). */

@@ -49,48 +49,134 @@ export interface HorsePedigreeView {
   recordsById: Record<string, HorseRecordSummary>;
 }
 
+/** Gebeliğin ekranda gösterilen bakım + risk durumu (genetik GİZLİ kalır). */
+export interface PregnancyCareView {
+  checkups: number;
+  expectedCheckups: number;
+  /** 0..1 — yapılan / beklenen veteriner kontrolü. */
+  careScore: number;
+  /** 0..1 — kısrağın beslendiği gün / geçen gün. */
+  nutritionScore: number;
+  lastCheckupAt: ISODateTimeString | null;
+  /** `null` = şimdi yapılabilir. */
+  nextCheckupAt: ISODateTimeString | null;
+  checkupCost: number;
+}
+
+export type PregnancyRiskLevel = 'low' | 'medium' | 'high';
+
 /**
- * `POST /players/{id}/breeding` yanıtı (çiftleştirme yazma yolu dilimi).
- *
- * **Tay ANINDA doğar** — bu projede gebelik süresi modellenmez (bkz.
- * `domain/breeding/breeding.ts`: `breedHorses` sonucu doğrudan bir tay
- * üretir). `breedingCooldownMonths` kısrağın BİR SONRAKİ çiftleştirmesine
- * kadar geçen süredir, gebelik süresi değildir.
- *
- * **`seed` BİLİNÇLİ OLARAK DÖNMEZ.** Tayın statları deterministiktir
- * (brief §18) ve seed `pairId`'ye EŞİTTİR; `pairId` zaten yanıttadır ve
- * `breeding_pairs.id` olarak SAKLANIR — yani sonuç, kayıttan bağımsız
- * olarak yeniden üretilebilir. Seed'i ayrıca dönmek ikinci bir doğruluk
- * kaynağı yaratırdı.
+ * 16.10.2026 — gebelik (brief §5). Tayın statları, cinsiyeti ve genetik tohumu
+ * DÖNMEZ (doğumda görünür); süre sunucu saatine göredir (istemci saati yok).
  */
-export interface BreedingResultView {
-  /** `breeding_pairs.id` — aynı zamanda tayın genetik seed'idir (bkz. üstteki not). */
-  pairId: UUID;
-  foalId: UUID;
-  foalName: string;
-  foalGender: HorseGender;
+export interface PregnancyView {
+  pregnancyId: UUID;
   mareId: UUID;
+  mareName: string;
   stallionId: UUID;
-  /** Damızlık ücreti. Aynı sahip kendi atlarını çiftleştirirse 0'dır (kendine ödeme yapılmaz). */
+  stallionName: string;
+  foalName: string;
+  /** Ödenen damızlık ücreti (kendi aygırında 0). */
   fee: number;
   inbreedingDetected: boolean;
-  /** Doğum sağlık riski, [0, 1] — tayın `horse_health.injury_risk` sütununa ×100 olarak yazılır. */
-  birthHealthRisk: number;
-  /**
-   * Ücret ÖDENDİYSE ödeyenin (kısrak sahibinin) çiftleştirme SONRASI
-   * bakiyesi; ücret 0 ise `null` (hiçbir para hareketi olmadı).
-   */
-  payerBalance: { money: number; gems: number } | null;
+  status: 'gestating' | 'born';
+  conceivedAt: ISODateTimeString;
+  expectedBirthAt: ISODateTimeString;
+  bornAt: ISODateTimeString | null;
+  /** Yalnızca doğduktan sonra dolu. */
+  foalId: UUID | null;
+  /** 0..1 — geçen süre / gebelik süresi. */
+  progress: number;
+  care: PregnancyCareView;
+  /** Şimdiki bakımla beklenen doğum riski düzeyi. */
+  riskLevel: PregnancyRiskLevel;
 }
 
 /**
- * 15.10.2026 — S5 damızlık pazarı (`GET /breeding/studs`): başka oyuncuların
- * EMEKLİ, üreme yaşında ve tay sınırı dolmamış aygırları. Ücret ödemeden ÖNCE
- * görünür (eskiden yalnızca ödedikten sonra yanıtta okunuyordu).
+ * `POST /players/{id}/breeding` (kendi kısrağı × KENDİ aygırı) ve teklif kabulü
+ * yanıtı. 16.10.2026'dan beri tay ANINDA doğmaz: döllenme olasılığı < 1'dir,
+ * tutarsa gebelik başlar ve doğumu zamanlayıcı yapar (brief §5).
+ */
+export interface BreedingAttemptView {
+  attemptId: UUID;
+  outcome: 'conceived' | 'not_conceived';
+  /** 0..1 — bu denemenin döllenme olasılığı (sunucu hesapladı). */
+  conceptionChance: number;
+  pregnancy: PregnancyView | null;
+  /** Tutmadıysa kısrağın yeniden denenebileceği an. */
+  mareRestEndsAt: ISODateTimeString | null;
+}
+
+export type BreedingOfferStatus = 'pending' | 'accepted' | 'rejected' | 'cancelled' | 'expired';
+
+/** Çiftleştirme teklifi — iki tarafın da geçmişinde görünür. */
+export interface BreedingOfferView {
+  offerId: UUID;
+  /** Çağırana göre: `outgoing` = kısrak sahibi, `incoming` = aygır sahibi. */
+  direction: 'incoming' | 'outgoing';
+  mare: { horseId: UUID; name: string; fertility: number };
+  stallion: { horseId: UUID; name: string };
+  mareOwner: { playerId: UUID; username: string | null };
+  stallionOwner: { playerId: UUID; username: string | null };
+  /** Emanete alınan ücret. */
+  fee: number;
+  foalName: string;
+  status: BreedingOfferStatus;
+  outcome: 'conceived' | 'not_conceived' | null;
+  refundedAmount: number;
+  pregnancyId: UUID | null;
+  createdAt: ISODateTimeString;
+  expiresAt: ISODateTimeString;
+  respondedAt: ISODateTimeString | null;
+}
+
+/** Sahibinin aygırı için ilan durumu + ücret sınırları (ilan formu). */
+export interface MyStudView {
+  stallionId: UUID;
+  name: string;
+  breed: string;
+  fertility: number;
+  ageMonths: number;
+  foalCount: number;
+  foalLimit: number;
+  /** Sunucunun izin verdiği ücret aralığı ve önerilen (formül) ücret. */
+  feeBounds: { suggested: number; min: number; max: number };
+  listing: { fee: number; status: 'active' | 'withdrawn' } | null;
+  /** İlan verilebilir mi; değilse neden (Türkçe). */
+  eligible: boolean;
+  ineligibleReason: string | null;
+  pendingOfferCount: number;
+}
+
+/** Merkezin kuralları — oyuncu işlemden ÖNCE görür (brief §4). */
+export interface BreedingCenterRules {
+  gestationDays: number;
+  offerExpiryHours: number;
+  failedConceptionRefundPercent: number;
+  ownerSharePercent: number;
+  checkupCost: number;
+  checkupIntervalHours: number;
+  failedAttemptCooldownHours: number;
+  minConceptionChance: number;
+  maxConceptionChance: number;
+}
+
+/** `GET /breeding/center` — çağıranın merkez özeti. */
+export interface BreedingCenterView {
+  rules: BreedingCenterRules;
+  myStuds: MyStudView[];
+  incomingOffers: BreedingOfferView[];
+  outgoingOffers: BreedingOfferView[];
+  pregnancies: PregnancyView[];
+}
+
+/**
+ * `GET /breeding/studs` — başka oyuncuların İLANDAKİ aygırları (16.10.2026'dan
+ * beri yalnızca sahibinin ilan verdiği; ücret = sahibinin belirlediği, sınırlı).
  *
- * ⚠️ `fee` aygırın kalite + potansiyelinden türetilir; yani emekli aygırın
- * potansiyeli ücretten çıkarılabilir. Bu bilinçlidir (Photo Finish: statlar
- * emeklilikte açılır) — yarışan atın potansiyeli yine gizlidir.
+ * ⚠️ Önerilen ücret aygırın kalite + potansiyelinden türer; emekli aygırın
+ * potansiyeli ücretten çıkarılabilir — bilinçli (Photo Finish: statlar
+ * emeklilikte açılır). Yarışan atın potansiyeli yine gizlidir.
  */
 export interface StudListingView {
   horseId: UUID;
@@ -100,10 +186,15 @@ export interface StudListingView {
   ownerUsername: string | null;
   /** Oyun yaşı (ay). */
   ageMonths: number;
+  level: number;
   quality: number;
-  /** Ödenecek damızlık ücretinin TAMAMI (sunucu hesaplar). */
+  fertility: number;
+  /** Sahibinin belirlediği damızlık ücreti (teklifte emanete alınır). */
   fee: number;
-  /** Ömür boyu verdiği tay sayısı ve sınırı. */
+  /** Ömür boyu verdiği (+ taşınan) tay sayısı ve sınırı. */
   foalCount: number;
   foalLimit: number;
+  sireName: string | null;
+  damName: string | null;
+  record: HorseRecordSummary;
 }

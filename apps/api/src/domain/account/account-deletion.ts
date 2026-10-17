@@ -15,6 +15,8 @@ export const ACCOUNT_DELETION_BLOCKERS = [
   'pvp_match_active',
   'club_leader_with_members',
   'payment_pending',
+  // 16.10.2026 — damızlık teklifinde emanette ücret (iki taraf için de).
+  'breeding_offer_pending',
 ] as const;
 
 export type AccountDeletionBlocker = (typeof ACCOUNT_DELETION_BLOCKERS)[number];
@@ -44,4 +46,5 @@ export const ACCOUNT_DELETION_BLOCKER_LABELS: Record<AccountDeletionBlocker, str
   pvp_match_active: 'süren bir eşleşmeli maçın var',
   club_leader_with_members: 'üyesi olan bir kulübün liderisin (önce liderliği devret)',
   payment_pending: 'tamamlanmamış bir ödemen var (sonuçlanmasını bekle)',
+  breeding_offer_pending: 'yanıt bekleyen bir damızlık teklifin var (iptal et ya da sonuçlanmasını bekle)',
 };

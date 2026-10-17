@@ -60,7 +60,11 @@ import type {
   AuthProvidersView,
   AuthSession,
   BlockedPlayerView,
-  BreedingResultView,
+  BreedingAttemptView,
+  BreedingCenterView,
+  BreedingOfferView,
+  MyStudView,
+  PregnancyView,
   BuyFeedResult,
   CareActionType,
   ClaimDailyRewardResult,
@@ -582,14 +586,61 @@ export const apiClient = {
     foalName: string,
     idempotencyKey: string,
   ) =>
-    request<BreedingResultView>(`/players/${playerId}/breeding`, {
+    request<BreedingAttemptView>(`/players/${playerId}/breeding`, {
       method: 'POST',
       headers: { 'Idempotency-Key': idempotencyKey },
       body: JSON.stringify({ mareId, stallionId, foalName }),
     }),
 
-  /** 15.10.2026 — S5 damızlık pazarı: başka oyuncuların emekli aygırları + ücretleri. */
-  listStuds: () => request<StudListingView[]>('/breeding/studs'),
+  /**
+   * İlandaki aygırlar (16.10.2026'dan beri yalnızca sahibinin ilan verdiği,
+   * sahibin ücretiyle). Süzgeçler sunucuda: ırk anahtarı + azami ücret.
+   */
+  listStuds: (filters: { breed?: string; maxFee?: number } = {}) => {
+    const query = new URLSearchParams();
+    if (filters.breed) query.set('breed', filters.breed);
+    if (filters.maxFee !== undefined) query.set('maxFee', String(filters.maxFee));
+    const suffix = query.size > 0 ? `?${query.toString()}` : '';
+    return request<StudListingView[]>(`/breeding/studs${suffix}`);
+  },
+
+  /** 16.10.2026 — çiftleştirme merkezi özeti: kurallar, aygırlarım, teklifler, gebelikler. */
+  getBreedingCenter: () => request<BreedingCenterView>('/breeding/center'),
+
+  /** Aygır ilanı (ücret sunucu sınırları içinde; sınır dışı 400). */
+  putStudListing: (stallionId: string, fee: number) =>
+    request<MyStudView>(`/breeding/studs/${stallionId}`, { method: 'PUT', body: JSON.stringify({ fee }) }),
+
+  /** İlanı geri çeker; bekleyen teklifler iptal + tam iade. */
+  withdrawStudListing: (stallionId: string) =>
+    request<{ cancelledOffers: number }>(`/breeding/studs/${stallionId}`, { method: 'DELETE' }),
+
+  /**
+   * PARA YOLU — ücret EMANETE alınır. `Idempotency-Key` ZORUNLU ve BAŞARIYA
+   * kadar korunur (tekrar = ikinci emanet).
+   */
+  createBreedingOffer: (mareId: string, stallionId: string, foalName: string, idempotencyKey: string) =>
+    request<BreedingOfferView>('/breeding/offers', {
+      method: 'POST',
+      headers: { 'Idempotency-Key': idempotencyKey },
+      body: JSON.stringify({ mareId, stallionId, foalName }),
+    }),
+
+  /** Yanıtlar: tekrar koruması `pending` geçişidir (ikinci istek 409). */
+  acceptBreedingOffer: (offerId: string) =>
+    request<BreedingOfferView>(`/breeding/offers/${offerId}/accept`, { method: 'POST', body: JSON.stringify({}) }),
+  rejectBreedingOffer: (offerId: string) =>
+    request<BreedingOfferView>(`/breeding/offers/${offerId}/reject`, { method: 'POST', body: JSON.stringify({}) }),
+  cancelBreedingOffer: (offerId: string) =>
+    request<BreedingOfferView>(`/breeding/offers/${offerId}/cancel`, { method: 'POST', body: JSON.stringify({}) }),
+
+  /** PARA YOLU — gebelik veteriner kontrolü; anahtar başarıya kadar korunur. */
+  pregnancyCheckup: (pregnancyId: string, idempotencyKey: string) =>
+    request<PregnancyView>(`/breeding/pregnancies/${pregnancyId}/checkups`, {
+      method: 'POST',
+      headers: { 'Idempotency-Key': idempotencyKey },
+      body: JSON.stringify({}),
+    }),
 
   /**
    * 15.10.2026 — S5: atı yarıştan emekli eder (GERİ ALINMAZ). Para hareketi

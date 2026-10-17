@@ -576,6 +576,63 @@ export interface GeneticsConfig {
    * emekli aygır (kaliteye göre) okunur, sonra süzülür.
    */
   studMarket: { listLimit: number; scanLimit: number };
+  /**
+   * 16.10.2026 — brief §5: doğurganlık (0–100). Yeni at kimliğinden
+   * determinist `base ± spread`; tay ebeveyn ortalaması ± `inheritanceMutation`.
+   */
+  fertility: { base: number; spread: number; inheritanceMutation: number };
+  /**
+   * Döllenme olasılığı = `baseChance` + doğurganlık (ortalama − 50)/50 ×
+   * `fertilityWeight` + (kısrak sağlığı − 100)/100 × `healthWeight` − kısrağın
+   * yaş evresi cezası; [`minChance`, `maxChance`] aralığına kırpılır (asla %100
+   * değil). Başarısız denemeden sonra kısrak `failedAttemptCooldownHours` dinlenir.
+   */
+  conception: {
+    baseChance: number;
+    fertilityWeight: number;
+    healthWeight: number;
+    minChance: number;
+    maxChance: number;
+    ageStagePenalty: Record<string, number>;
+    failedAttemptCooldownHours: number;
+  };
+  /**
+   * Gebelik süresi GERÇEK gündür: `realWorldDays × timeScale` (335 × 0,2 ≈ 67;
+   * sahibinin kuralı "gerçeğin yaklaşık beşte biri"). Oyun yaşı ölçeğinden
+   * (`horseGrowth.gameMonthsPerRealDay`) bağımsızdır.
+   */
+  gestation: { realWorldDays: number; timeScale: number };
+  /**
+   * Gebelik bakımı: veteriner kontrolü (`checkupCost`, en sık
+   * `checkupIntervalHours`) + kısrağın beslendiği gün oranı. Bakım puanı doğum
+   * riskini [`minRiskMultiplier`, `maxRiskMultiplier`] arasında ölçekler; tayın
+   * doğum sağlığı = 100 − risk × `healthPenaltyAtFullRisk`.
+   */
+  pregnancyCare: {
+    checkupCost: number;
+    checkupIntervalHours: number;
+    careWeight: number;
+    nutritionWeight: number;
+    minRiskMultiplier: number;
+    maxRiskMultiplier: number;
+    healthPenaltyAtFullRisk: number;
+    riskLevels: { medium: number; high: number };
+  };
+  /**
+   * Çiftleştirme merkezi: aygır sahibinin ilan ücreti formül ücretinin
+   * [`minFeeFactor`, `maxFeeFactor`] katı arasında olmalı (sınırsız ücret
+   * hesaplar arası değer aktarımı olurdu). Teklif ücreti emanete alınır;
+   * `offerExpiryHours` içinde yanıtlanmazsa iade edilir. Döllenme tutmazsa
+   * ücretin `failedConceptionRefundPercent`i iade edilir.
+   */
+  breedingCenter: {
+    offerExpiryHours: number;
+    minFeeFactor: number;
+    maxFeeFactor: number;
+    failedConceptionRefundPercent: number;
+    historyLimit: number;
+    scheduler: { enabled: boolean; tickSeconds: number; batchSize: number };
+  };
 }
 
 export interface WeatherCombinationEffect {

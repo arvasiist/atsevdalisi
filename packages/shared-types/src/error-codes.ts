@@ -693,6 +693,20 @@ export const ErrorCode = {
    * `PLAYER_BLOCKED` için de geçerlidir (PROJE_DURUMU §13.16).
    */
   JockeyNotOwned: 'JOCKEY_NOT_OWNED',
+  // 16.10.2026 — çiftleştirme merkezi + gebelik (brief §4–§5).
+  /** Başkasının aygırı yalnızca kabul edilmiş teklifle (409). */
+  BreedingRequiresAgreement: 'BREEDING_REQUIRES_AGREEMENT',
+  StudListingNotFound: 'STUD_LISTING_NOT_FOUND',
+  InvalidStudFee: 'INVALID_STUD_FEE',
+  BreedingOfferNotFound: 'BREEDING_OFFER_NOT_FOUND',
+  BreedingOfferNotPending: 'BREEDING_OFFER_NOT_PENDING',
+  BreedingOfferExpired: 'BREEDING_OFFER_EXPIRED',
+  BreedingOfferAlreadyPending: 'BREEDING_OFFER_ALREADY_PENDING',
+  BreedingOfferOwnStallion: 'BREEDING_OFFER_OWN_STALLION',
+  PregnancyNotFound: 'PREGNANCY_NOT_FOUND',
+  PregnancyCheckupTooSoon: 'PREGNANCY_CHECKUP_TOO_SOON',
+  /** Gebe kısrak / bekleyen teklifteki at satışa çıkamaz (409). */
+  HorseBreedingCommitment: 'HORSE_BREEDING_COMMITMENT',
 } as const;
 
 export type ErrorCodeValue = (typeof ErrorCode)[keyof typeof ErrorCode];

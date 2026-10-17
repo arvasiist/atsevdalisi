@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { validateBreedingCenterConfig } from '../../domain/breeding/breeding-center';
 import {
   loadAdminConfig,
   loadBreedsConfig,
@@ -200,6 +201,8 @@ export class AppConfigService {
     if (friendGiftProblems.length > 0) {
       throw new Error(`Dostluk hediyesi config'i geçersiz (config/gift.config.json): ${friendGiftProblems.join(' ')}`);
     }
+    // 16.10.2026 — çiftleştirme merkezi + gebelik (döllenme asla %100 değil, iade ≤ ücret).
+    validateBreedingCenterConfig(this.genetics);
     // 08.10.2026 — ekipman kataloğu (bozuksa API AÇILMAZ).
     validateEquipmentConfig(loadEquipmentConfig(), this.progression.maxLevel);
     const tribuneGiftProblems = validateTribuneGiftsConfig(this.grandstand.tribuneGifts);

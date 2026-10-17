@@ -16,7 +16,61 @@
   "maxBreedingAgeMonths": 180,
   "breedingCooldownMonths": 11,
   "studFeeMultiplier": 25,
-  "lifetimeFoalLimit": { "mare": 5, "stallion": 12 },
+  "lifetimeFoalLimit": {
+    "mare": 5,
+    "stallion": 12
+  },
   "studFeeOwnerSharePercent": 80,
-  "studMarket": { "listLimit": 50, "scanLimit": 500 }
+  "studMarket": {
+    "listLimit": 50,
+    "scanLimit": 500
+  },
+  "fertility": {
+    "base": 70,
+    "spread": 15,
+    "inheritanceMutation": 5
+  },
+  "conception": {
+    "baseChance": 0.7,
+    "fertilityWeight": 0.25,
+    "healthWeight": 0.3,
+    "minChance": 0.1,
+    "maxChance": 0.95,
+    "ageStagePenalty": {
+      "development": 0.05,
+      "prime": 0,
+      "mature": 0.05,
+      "aging": 0.2
+    },
+    "failedAttemptCooldownHours": 24
+  },
+  "gestation": {
+    "realWorldDays": 335,
+    "timeScale": 0.2
+  },
+  "pregnancyCare": {
+    "checkupCost": 120,
+    "checkupIntervalHours": 168,
+    "careWeight": 0.6,
+    "nutritionWeight": 0.4,
+    "minRiskMultiplier": 0.6,
+    "maxRiskMultiplier": 1.6,
+    "healthPenaltyAtFullRisk": 40,
+    "riskLevels": {
+      "medium": 0.1,
+      "high": 0.2
+    }
+  },
+  "breedingCenter": {
+    "offerExpiryHours": 48,
+    "minFeeFactor": 0.5,
+    "maxFeeFactor": 3,
+    "failedConceptionRefundPercent": 100,
+    "historyLimit": 30,
+    "scheduler": {
+      "enabled": true,
+      "tickSeconds": 60,
+      "batchSize": 50
+    }
+  }
 }

@@ -1,62 +1,28 @@
 'use client';
 
 /**
- * Yetiştirme (çiftleştirme) paneli — `POST /players/:id/breeding`.
+ * Ahırdaki yetiştirme paneli — KENDİ kısrağı × KENDİ aygırı
+ * (`POST /players/:id/breeding`, brief §5).
  *
- * NEDEN VAR: bu uç nokta, `BreedHorsesUseCase` + `IdempotencyInterceptor`
- * ile birlikte sunucuda ÇALIŞIYORDU (ve bir PARA YOLUDUR: aygır başkasının
- * ise damızlık ücreti `breeding_stud_fee_debit`/`_credit` çiftiyle, aynı
- * transaction'da, defter kaydıyla transfer edilir) — ama **hiçbir ekrandan
- * çağrılmıyordu**. Yani soy ağacı veri zincirinin YAZMA yarısı oyuncu için
- * ULAŞILAMAZ durumdaydı; okuma yarısı (`GET /horses/:id/pedigree` →
- * `PedigreeTree`) bağlıydı. Bkz. `docs/FINAL_PROJECT_AUDIT.md` §5 öncelik 3
- * / madde #16.
- *
- * **İSTEMCİ HİÇBİR TUTAR HESAPLAMAZ.** Damızlık ücreti aygırın kalite/
- * potansiyelinden ve `config/genetics.config.json`dan SUNUCUDA türetilir
- * (`calculateStudFee`). Burada ne bir formül ne bir "tahmini ücret" vardır:
- * ücret yalnızca yanıttaki `fee` alanından — yani GERÇEKLEŞMİŞ değerden —
- * okunur. Uygunluk (yaş, cinsiyet, kısrak cooldown'ı, pazarda aktif ilan,
- * akrabalık) da tamamen sunucudadır; ekran yalnızca kısrak + aygır + tay
- * adı toplar ve dönen Türkçe hatayı gösterir.
+ * 16.10.2026: başkasının aygırı yalnızca Çiftleştirme Merkezi'nde (`/breeding`)
+ * teklif + aygır sahibinin kabulüyle kullanılır; sunucu bu uçta başkasının
+ * aygırını 409 `BREEDING_REQUIRES_AGREEMENT` ile reddeder. Tay ANINDA doğmaz:
+ * döllenme olasılığı < 1'dir, tutarsa gebelik başlar (süre sunucu config'i),
+ * doğumu sunucu zamanlayıcısı yapar. İstemci olasılık/süre HESAPLAMAZ; yanıttaki
+ * değerleri gösterir.
  *
  * **`Idempotency-Key` BAŞARISIZLIKTA ATILMAZ** — `wallet/page.tsx` ile AYNI
- * desen (bkz. `api-client.ts` `breedHorses` doc yorumu). Sunucu tarafında
- * anahtar hata durumunda `pending` rezervasyonu SİLİNEREK bırakılır
- * (`idempotency.interceptor.ts` → `tap({ error })`), yani anahtarı korumak
- * ne bayat bir hatayı ne de ikinci bir tayı üretir: ilk istek gerçekten
- * başarılı olup yanıt ağda kaybolduysa, tekrar AYNI anahtarla gider ve
- * sunucu SAKLANAN yanıtı döner — ikinci bir tay doğmaz.
- *
- * **15.10.2026 — S5:** damızlık için iki ebeveyn de EMEKLİ olmalı (sahibinin
- * kararı); listeler yalnızca emekli kısrak/aygırları gösterir, kural yine
- * sunucudadır. Başka oyuncuların emekli aygırları damızlık pazarından
- * (`GET /breeding/studs`) ÜCRETİYLE gelir — ücret sunucunun hesapladığı
- * değerdir, istemci yine hiçbir tutar hesaplamaz; çiftleştirme anında sunucu
- * ücreti kilit altında yeniden hesaplar.
- *
- * **Aygır seçimi:** kendi aygırların listelenir; ayrıca başka bir oyuncunun
- * aygırı için kimlik (UUID) girilebilir. Bu, icat edilmiş bir "aygır pazarı"
- * uç noktası DEĞİLDİR — `GET /horses/:id` zaten `@Public()`tir ve pazar
- * ekranı da atları ham kimlikle gösterir. Girilen kimlik doğrulandığında
- * adı ve cinsiyeti o uçtan okunur; cinsiyet `stallion` değilse ekran bunu
- * SÖYLER (kararı yine sunucu verir).
+ * desen: ilk istek gerçekten işlenip yanıt ağda kaybolduysa aynı anahtarla
+ * tekrar gider ve sunucu SAKLANAN yanıtı döner (ikinci deneme olmaz). Başarıda
+ * ya da girdi değişince anahtar bırakılır.
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react';
-import type { BreedingResultView, HorseGender, PublicHorse, StudListingView } from '@at-sevdalisi/shared-types';
+import { useCallback, useRef, useState } from 'react';
+import Link from 'next/link';
+import type { BreedingAttemptView, PublicHorse } from '@at-sevdalisi/shared-types';
 import { GlassPanel } from '../../components/ui/GlassPanel';
 import { apiClient } from '../../lib/api-client';
-import { formatCurrency } from '../../lib/currency';
-
-/** "Başka bir oyuncunun aygırı" seçeneğinin `<select>` değeri — gerçek bir kimlikle çakışamaz. */
-const FOREIGN_STALLION_OPTION = '__other__';
-
-const GENDER_LABELS: Record<HorseGender, string> = {
-  mare: 'Kısrak',
-  stallion: 'Aygır',
-  gelding: 'İğdiş',
-};
+import { describeAttempt } from './breeding-center-labels';
 
 export interface BreedingPanelProps {
   ownerId: string;
@@ -71,36 +37,13 @@ export function BreedingPanel({ ownerId, horses, onBred }: BreedingPanelProps): 
   const ownStallions = horses.filter((horse) => horse.gender === 'stallion' && horse.status === 'retired');
   const racingMareCount = horses.filter((horse) => horse.gender === 'mare' && horse.status !== 'retired').length;
 
-  /** Damızlık pazarı — başka oyuncuların emekli aygırları (ücretleri sunucudan). */
-  const [studs, setStuds] = useState<StudListingView[]>([]);
-  const [studsError, setStudsError] = useState<string | null>(null);
-  useEffect(() => {
-    let cancelled = false;
-    apiClient
-      .listStuds()
-      .then((rows) => {
-        if (!cancelled) setStuds(rows);
-      })
-      .catch(() => {
-        if (!cancelled) setStudsError('Damızlık pazarı yüklenemedi.');
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
   const [mareId, setMareId] = useState('');
   const [stallionChoice, setStallionChoice] = useState('');
-  const [foreignStallionId, setForeignStallionId] = useState('');
   const [foalName, setFoalName] = useState('');
-
-  const [foreignStallion, setForeignStallion] = useState<PublicHorse | null>(null);
-  const [isForeignLoading, setIsForeignLoading] = useState(false);
-  const [foreignError, setForeignError] = useState<string | null>(null);
 
   const [isBusy, setIsBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<BreedingResultView | null>(null);
+  const [result, setResult] = useState<BreedingAttemptView | null>(null);
 
   /** Bkz. dosya başı doc yorumu — başarısızlıkta YAŞAR, başarıda/girdi değişince bırakılır. */
   const breedingKeyRef = useRef<string | null>(null);
@@ -119,31 +62,7 @@ export function BreedingPanel({ ownerId, horses, onBred }: BreedingPanelProps): 
     setResult(null);
   }, []);
 
-  /** Kısrak/aygır seçiminden çözülen GERÇEK aygır kimliği. */
-  const resolvedStallionId =
-    stallionChoice === FOREIGN_STALLION_OPTION ? foreignStallionId.trim() : stallionChoice;
-  const selectedStud = studs.find((stud) => stud.horseId === stallionChoice) ?? null;
-
-  const lookupForeignStallion = useCallback(async (): Promise<void> => {
-    const horseId = foreignStallionId.trim();
-    if (horseId === '') {
-      setForeignStallion(null);
-      setForeignError(null);
-      return;
-    }
-    setIsForeignLoading(true);
-    setForeignError(null);
-    try {
-      setForeignStallion(await apiClient.getHorseDetails(horseId));
-    } catch {
-      // Sessiz bir "bulunamadı" DEĞİL: kullanıcı kimliği yanlış girmiş
-      // olabilir ve bunu öğrenmesi gerekir — ama kararı yine sunucu verir.
-      setForeignStallion(null);
-      setForeignError('Bu kimlikle bir at bulunamadı.');
-    } finally {
-      setIsForeignLoading(false);
-    }
-  }, [foreignStallionId]);
+  const resolvedStallionId = stallionChoice;
 
   const breed = useCallback(async (): Promise<void> => {
     if (mareId === '' || resolvedStallionId === '' || foalName.trim() === '') {
@@ -183,7 +102,8 @@ export function BreedingPanel({ ownerId, horses, onBred }: BreedingPanelProps): 
         <h2 style={panelTitleStyle()}>Yetiştirme</h2>
         <p style={{ color: 'var(--color-text-secondary)', margin: 0, fontSize: '13px' }}>
           Çiftleştirme yapabilmek için ahırında en az bir <strong>emekli kısrak</strong> olmalı — tay, kısrağın
-          sahibinin ahırına doğar ve damızlık ücretini kısrağın sahibi öder.
+          sahibinin ahırına doğar. Başka oyuncuların aygırları için{' '}
+          <Link href="/breeding">Çiftleştirme Merkezi</Link>'ne bak.
         </p>
         {racingMareCount > 0 ? (
           <p style={mutedStyle()}>
@@ -201,9 +121,9 @@ export function BreedingPanel({ ownerId, horses, onBred }: BreedingPanelProps): 
     <GlassPanel style={{ marginBottom: 'var(--space-lg)' }}>
       <h2 style={panelTitleStyle()}>Yetiştirme</h2>
       <p style={{ color: 'var(--color-text-secondary)', marginTop: 0, marginBottom: 'var(--space-md)', fontSize: '13px' }}>
-        Emekli bir kısrağı emekli bir aygırla çiftleştir; tay <strong>anında</strong> doğar ve kısrağın sahibinin ahırına
-        katılır. Aygır başka bir oyuncunun ise damızlık ücretinin bir kısmı sahibine aktarılır. Her atın ömür boyu tay
-        sınırı vardır; kısrak doğumdan sonra bir süre dinlenir.
+        Kendi emekli kısrağını kendi emekli aygırınla çiftleştir (ücretsiz). Döllenme her zaman tutmaz; tutarsa
+        gebelik başlar ve tay süre dolunca ahırına doğar. Başka oyuncunun aygırı için{' '}
+        <Link href="/breeding">Çiftleştirme Merkezi</Link>'nden teklif gönder.
       </p>
 
       <div style={{ display: 'grid', gap: 'var(--space-md)', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
@@ -244,17 +164,6 @@ export function BreedingPanel({ ownerId, horses, onBred }: BreedingPanelProps): 
                 {horse.name} · Seviye {horse.level} (kendi aygırın)
               </option>
             ))}
-            {studs.length > 0 ? (
-              <optgroup label="Damızlık pazarı">
-                {studs.map((stud) => (
-                  <option key={stud.horseId} value={stud.horseId}>
-                    {stud.name} · {stud.ownerUsername ?? 'oyuncu'} · {formatCurrency('money', stud.fee)} · {stud.foalCount}/
-                    {stud.foalLimit} tay
-                  </option>
-                ))}
-              </optgroup>
-            ) : null}
-            <option value={FOREIGN_STALLION_OPTION}>Başka bir oyuncunun aygırı (kimlik gir)…</option>
           </select>
         </label>
 
@@ -274,76 +183,31 @@ export function BreedingPanel({ ownerId, horses, onBred }: BreedingPanelProps): 
         </label>
       </div>
 
-      {selectedStud !== null ? (
-        <p style={mutedStyle()}>
-          Ödeyeceğin damızlık ücreti: <strong>{formatCurrency('money', selectedStud.fee)}</strong> · Kalite{' '}
-          {selectedStud.quality} · {Math.floor(selectedStud.ageMonths / 12)} yaş
-        </p>
-      ) : null}
-      {studsError !== null ? <p style={mutedStyle()}>{studsError}</p> : null}
-
-      {stallionChoice === FOREIGN_STALLION_OPTION ? (
-        <div style={{ marginTop: 'var(--space-md)' }}>
-          <label style={fieldLabelStyle()}>
-            Aygır kimliği (UUID)
-            <input
-              aria-label="Aygır kimliği"
-              type="text"
-              value={foreignStallionId}
-              placeholder="örn. 3f9c1e5a-…"
-              onChange={(event) => {
-                setForeignStallionId(event.target.value);
-                setForeignStallion(null);
-                setForeignError(null);
-                onInputChanged();
-              }}
-              onBlur={() => void lookupForeignStallion()}
-              style={inputStyle()}
-            />
-          </label>
-          {isForeignLoading ? (
-            <p style={mutedStyle()}>Aygır aranıyor…</p>
-          ) : foreignError !== null ? (
-            <p style={{ ...mutedStyle(), color: 'var(--color-status-critical)' }}>{foreignError}</p>
-          ) : foreignStallion !== null ? (
-            <p style={mutedStyle()}>
-              {foreignStallion.name} · {GENDER_LABELS[foreignStallion.gender]}
-              {foreignStallion.gender !== 'stallion' ? (
-                <span style={{ color: 'var(--color-status-warning)' }}>
-                  {' '}
-                  — bu at aygır değil; sunucu çiftleştirmeyi reddedecektir.
-                </span>
-              ) : (
-                <span> — damızlık ücreti sahibine aktarılır.</span>
-              )}
-            </p>
-          ) : null}
-        </div>
-      ) : null}
-
       <button type="button" onClick={() => void breed()} disabled={!canSubmit} style={submitButtonStyle(canSubmit)}>
-        {isBusy ? 'Çiftleştiriliyor…' : 'Çiftleştir'}
+        {isBusy ? 'Deneniyor…' : 'Çiftleştir'}
       </button>
 
       {result !== null ? (
-        <div style={{ marginTop: 'var(--space-md)', borderTop: '1px solid var(--color-border)', paddingTop: 'var(--space-sm)' }}>
-          <p style={{ margin: 0, color: 'var(--color-status-positive)', fontSize: '13px', fontWeight: 600 }}>
-            {result.foalName} doğdu — {GENDER_LABELS[result.foalGender]}. Ahırına eklendi.
+        <div
+          data-testid="breeding-attempt-result"
+          style={{ marginTop: 'var(--space-md)', borderTop: '1px solid var(--color-border)', paddingTop: 'var(--space-sm)' }}
+        >
+          <p
+            style={{
+              margin: 0,
+              color: result.outcome === 'conceived' ? 'var(--color-status-positive)' : 'var(--color-status-warning)',
+              fontSize: '13px',
+              fontWeight: 600,
+            }}
+          >
+            {describeAttempt(result).title}
           </p>
-          <p style={{ ...mutedStyle(), marginTop: '4px' }}>
-            {result.fee > 0
-              ? `Damızlık ücreti: ${formatCurrency('money', result.fee)} (bir kısmı aygır sahibine aktarıldı)`
-              : 'Damızlık ücreti alınmadı (aygır senin).'}
-          </p>
-          {result.payerBalance !== null ? (
-            <p style={mutedStyle()}>Kalan bakiyen: {formatCurrency('money', result.payerBalance.money)}</p>
-          ) : null}
-          {result.inbreedingDetected ? (
+          <p style={{ ...mutedStyle(), marginTop: '4px' }}>{describeAttempt(result).detail}</p>
+          {result.pregnancy?.inbreedingDetected ? (
             <p style={{ ...mutedStyle(), color: 'var(--color-status-warning)' }}>
-              Akrabalık tespit edildi — tayın potansiyeli bu yüzden düşük olabilir.
+              Akrabalık tespit edildi — tayın potansiyeli ve sağlığı bundan etkilenebilir.
             </p>
           ) : null}
-          <p style={mutedStyle()}>Doğum sağlık riski: %{(result.birthHealthRisk * 100).toFixed(1)}</p>
         </div>
       ) : null}
 

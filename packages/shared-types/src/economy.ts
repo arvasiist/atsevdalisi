@@ -197,6 +197,16 @@ export const LEDGER_TRANSACTION_TYPES = [
    */
   'chip_purchase',
   'chip_purchase_refund',
+  /**
+   * 16.10.2026 — çiftleştirme merkezi (brief §4): teklif ücreti emanete
+   * alınır (`breeding_offer_hold`, −); ret/iptal/süre dolumu/tutmayan döllenme
+   * iadesi `breeding_offer_refund` (+). Döllenme tutarsa aygır sahibinin payı
+   * mevcut `breeding_stud_fee_credit` ile yazılır; kalan ekonomiden çıkar.
+   */
+  'breeding_offer_hold',
+  'breeding_offer_refund',
+  /** 16.10.2026 — gebelikte veteriner kontrolü (brief §5). */
+  'pregnancy_vet_check',
 ] as const;
 
 export type LedgerTransactionType = (typeof LEDGER_TRANSACTION_TYPES)[number];
@@ -300,6 +310,9 @@ export const CANONICAL_BY_LEDGER_TYPE: Record<LedgerTransactionType, CanonicalTr
   referral_welcome_reward: 'REWARD',
   chip_purchase: 'DEPOSIT',
   chip_purchase_refund: 'REFUND',
+  breeding_offer_hold: 'BREEDING',
+  breeding_offer_refund: 'REFUND',
+  pregnancy_vet_check: 'UPKEEP',
 };
 
 /**

@@ -107,7 +107,7 @@ describe('NOTIFICATION_TYPES — üç kopya birebir aynı olmalı', () => {
     }
   });
 
-  it('tribün hediyesi + ilan süre dolumu + kulüp daveti + yarış iptali + damızlık hizmeti + arkadaş çip hediyesi + transfer + davet ödülü — CHECK\'i yazan en son migration 0091', () => {
+  it('tribün hediyesi + ilan süre dolumu + kulüp daveti + yarış iptali + damızlık hizmeti + arkadaş çip hediyesi + transfer + davet ödülü + çiftleştirme merkezi — CHECK\'i yazan en son migration 0094', () => {
     expect(NOTIFICATION_TYPES).toContain('tribune_gift_received');
     expect(NOTIFICATION_TYPES).toContain('listing_expired');
     expect(NOTIFICATION_TYPES).toContain('club_invite');
@@ -116,7 +116,10 @@ describe('NOTIFICATION_TYPES — üç kopya birebir aynı olmalı', () => {
     expect(NOTIFICATION_TYPES).toContain('friend_gift_received');
     expect(NOTIFICATION_TYPES).toContain('gift_sent');
     expect(NOTIFICATION_TYPES).toContain('referral_reward');
-    expect(NOTIFICATION_MIGRATION).toBe('0091_transfer_and_referral_notifications.up.sql');
+    expect(NOTIFICATION_TYPES).toContain('breeding_offer_received');
+    expect(NOTIFICATION_TYPES).toContain('breeding_offer_answered');
+    expect(NOTIFICATION_TYPES).toContain('foal_born');
+    expect(NOTIFICATION_MIGRATION).toBe('0094_breeding_center.up.sql');
   });
 
   it('brief §28in SEKİZ türünü eksiksiz içerir', () => {

@@ -66,6 +66,7 @@ import { PostgresHorseCareerRepository } from '../../infrastructure/horse/postgr
     HORSE_SURFACE_STATS_REPOSITORY,
     HORSE_DISTANCE_STATS_REPOSITORY,
     PEDIGREE_REPOSITORY,
+    HORSE_CAREER_REPOSITORY,
   ],
 })
 export class HorseModule {}

@@ -18,6 +18,9 @@ import { assertCanAddHorseToStable, getStableCapacity } from '../../domain/stabl
 import { AppConfigService } from '../config/config.service';
 import { PG_POOL, withTransaction } from '../database/database.module';
 import { isHorseInActiveRace } from '../horse/active-race-entry';
+import { hasBreedingCommitment } from '../horse/breeding-commitment';
+import { countStableOccupancy } from '../stable/stable-occupancy';
+import { HorseBreedingCommitmentError } from '../../domain/breeding/errors';
 
 /** `market_listings` satır şekli — `PostgresMarketListingRepository`'nin KENDİ (küçük, dosyaya-özel) mapper'ıyla AYNI desen. */
 interface MarketListingRow {
@@ -169,6 +172,11 @@ export class PostgresMarketPurchaseRepository implements MarketPurchaseRepositor
       if (listing.status === 'active' && (await isHorseInActiveRace(client, listing.horseId))) {
         throw new HorseInActiveRaceError(listing.horseId);
       }
+      // 16.10.2026 — gebe kısrak / bekleyen teklifteki at satılamaz (emanet +
+      // ayrılmış ahır yeri satıcıda kalırdı). At satırı yukarıda KİLİTLİ.
+      if (listing.status === 'active' && (await hasBreedingCommitment(client, listing.horseId))) {
+        throw new HorseBreedingCommitmentError(listing.horseId);
+      }
 
       const buyerId = input.buyerId;
       const sellerId = listing.sellerId;
@@ -225,11 +233,8 @@ export class PostgresMarketPurchaseRepository implements MarketPurchaseRepositor
       // aynı alıcı için eşzamanlı iki satın alma bu kilit üzerinden
       // SERİLEŞİR; aşağıdaki sayım bu nedenle güvenle tutarlıdır (ekstra
       // bir "ahır" satırı kilitlemeye gerek yoktur).
-      const buyerHorseCountResult = await client.query<{ count: string }>(
-        'SELECT COUNT(*) FROM horses WHERE owner_id = $1',
-        [buyerId],
-      );
-      const buyerHorseCount = Number(buyerHorseCountResult.rows[0]?.count ?? '0');
+      // 16.10.2026 — doğumu beklenen gebelikler de yer tutar.
+      const buyerHorseCount = await countStableOccupancy(client, buyerId);
       const buyerCapacity = getStableCapacity(buyerBalance.stableLevel, this.config.stable);
       assertCanAddHorseToStable(buyerHorseCount, buyerCapacity);
 
