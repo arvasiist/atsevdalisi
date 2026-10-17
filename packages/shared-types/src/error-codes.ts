@@ -85,6 +85,8 @@ export const ErrorCode = {
   TribuneGiftNotAllowed: 'TRIBUNE_GIFT_NOT_ALLOWED',
   TribuneGiftDailyLimit: 'TRIBUNE_GIFT_DAILY_LIMIT',
   EquipmentLevelLocked: 'EQUIPMENT_LEVEL_LOCKED',
+  /** 16.10.2026 — dayanıklılığı biten ekipman yeniden kuşanılamaz (409). */
+  EquipmentWornOut: 'EQUIPMENT_WORN_OUT',
   /** 08.10.2026 — ırk sınıflı yarışa sınıf dışı at (409). */
   HorseBreedNotAllowed: 'HORSE_BREED_NOT_ALLOWED',
   AchievementNotFound: 'ACHIEVEMENT_NOT_FOUND',

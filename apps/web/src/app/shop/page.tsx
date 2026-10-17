@@ -10,8 +10,14 @@
  * ödenen tutar yanıttaki makbuzdur. `Idempotency-Key` aynı kalem + adet için
  * BAŞARIYA kadar korunur (cüzdan deseni): yanıt ağda kaybolursa yeniden basış
  * ikinci kez para düşmez. Ekipman (nal, eyer, aksesuar) ata takıldığı için
- * ahırdaki Ekipman panelinden alınır.
+ * ahırdaki Ekipman panelinden alınır; burada katalog olarak (nadirlik,
+ * dayanıklılık, zemin, seviye) listelenir.
  */
+
+const EQUIPMENT_GROUPS = [
+  { title: 'Ekipman — performans', types: PERFORMANCE_EQUIPMENT_TYPES },
+  { title: 'Aksesuar — kozmetik', types: COSMETIC_EQUIPMENT_TYPES },
+] as const;
 
 import Link from 'next/link';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -30,6 +36,13 @@ import {
   describeFeedPurchase,
   groupShopFeedItems,
 } from '../../features/shop/shop-catalog';
+import {
+  COSMETIC_EQUIPMENT_TYPES,
+  EQUIPMENT_TYPE_LABELS,
+  PERFORMANCE_EQUIPMENT_TYPES,
+  catalogItemsOfType,
+  describeCatalogItem,
+} from '../../features/stable-actions/equipment-catalog';
 import { stableActionHref } from '../../features/stable-actions/stable-actions';
 import { apiClient } from '../../lib/api-client';
 import { formatCurrency } from '../../lib/currency';
@@ -103,7 +116,8 @@ export default function ShopPage(): React.ReactElement {
       <p className="session-meta">
         Bakiye: <strong>{formatCurrency('money', player.money)}</strong> · Yem ve ilaçlar stoğa girer; atına ahırdaki{' '}
         <Link href={stableActionHref('care')}>Bakım</Link> panelinden verirsin. Nal, eyer ve aksesuarlar ata takıldığı için{' '}
-        <Link href={stableActionHref('equipment')}>Ekipman</Link> panelindedir.
+        <Link href={stableActionHref('equipment')}>Ekipman</Link> panelindedir. Her alım deftere yazılır; satın alma
+        geçmişin <Link href="/wallet">Cüzdan</Link>dadır.
       </p>
       {message ? (
         <p className="session-meta" data-testid="shop-message">
@@ -157,6 +171,29 @@ export default function ShopPage(): React.ReactElement {
           </GlassPanel>
         ))
       )}
+      {EQUIPMENT_GROUPS.map((group) => (
+        <GlassPanel key={group.title}>
+          <h2 style={{ marginTop: 0 }}>{group.title}</h2>
+          <p className="session-meta">
+            Ata takıldığı için ahırdaki <Link href={stableActionHref('equipment')}>Ekipman</Link> panelinden alınır.
+            Kuşanılı performans parçası her koşulan yarışta aşınır; ekipman bonusu küçük ve tavanlıdır — pahalı ekipman tek başına kazandırmaz.
+          </p>
+          <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: 'var(--space-sm)' }}>
+            {group.types.flatMap((type) =>
+              catalogItemsOfType(type).map((item) => (
+                <li key={item.key} data-testid={`shop-equipment-${item.key}`}>
+                  <strong>
+                    {EQUIPMENT_TYPE_LABELS[type]} · {item.name}
+                  </strong>{' '}
+                  <span className="session-meta">
+                    · {describeCatalogItem(item)} · {formatCurrency('money', item.priceMoney)} · Sv. {item.requiredLevel}
+                  </span>
+                </li>
+              )),
+            )}
+          </ul>
+        </GlassPanel>
+      ))}
     </main>
   );
 }

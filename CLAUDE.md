@@ -1178,6 +1178,30 @@ satılamaz (`hasBreedingCommitment`); bekleyen teklif hesap silmeyi engeller.
 ilanı açarsan sil — `market.e2e-spec.ts` genel ilan sayısını sayar (yaşandı).
 Yeni at yazan yol doğurganlığı `deriveFertility` ile yazar (`insertNewHorse`).
 
+(101) **MARKET + TAY YEMİ + EKİPMAN ÖMRÜ (16.10.2026, migration 0095–0096)** —
+`/shop` (menü "Market"): sarf malzemesi (`care.feedTypes`, 12 kalem; `category`
+yem/tay/takviye/ilaç + `qualityTier`) — yem satın alma ucunun İLK istemcisi.
+Tay yemi yalnızca `allowedLifeStages` (tay/gelişim) → 409
+`FEED_NOT_ALLOWED_FOR_AGE`; her besleme `care.upbringing.statRotation` sırasıyla
+bir yarış statına `upbringingStatGain` (ömür boyu `maxFeedsPerHorse`, tavan
+potansiyel), stat beslemeyle AYNI tx'te `FOR UPDATE` altında. Ağrı kesici
+`requiresVetWithinHours` → 409 `FEED_REQUIRES_VET_CHECK`. Yem eklerken iki CHECK
+(`player_feed_inventory_item_type_check`, `horse_feed_log_item_type_check`)
+ADIYLA yeniden yazılır + `FEED_TYPES` (domain) + `FeedType` (shared). Ekipman:
+katalog `rarity`, `durabilityRaces`, `surface`, `description` taşır; kategori
+TİPTEN türer (`COSMETIC_EQUIPMENT_TYPES`: yular, örtü/battaniye, isimlik,
+koleksiyon — kalite 0, aşınmaz, çarpandan elenir; config onu performansa
+sokamaz). Aşınma `applyRaceConditionInTransaction` içinde
+(`wearEquippedItemsInTransaction`): kuşanılı parçadan yarış başına 1, 0'da
+çıkarılır (kısıt `horse_equipment_worn_not_equipped`), yeniden kuşanma 409
+`EQUIPMENT_WORN_OUT`. Zemine özel nal yalnızca yarışın zemininde sayılır
+(`computeEquipmentPerformanceModifier(items, raceSurface)`; zemin bilinmezse
+sayılmaz). ⚠️ 0096 öncesi parçalar `NULL` = aşınmaz — onlara ömür biçen
+migration YAZMA (satın alınmış değer). ⚠️ Aynı atla çok yarış koşan e2e
+ekipmanın aşındığını hesaba katmalı. Tip eklerken `horse_equipment_type_valid`
+ADIYLA + `EQUIPMENT_TYPES` + web `equipment-catalog.ts` (`equipment-durability.
+e2e-spec.ts` en son migration'ı okur).
+
 **✅ ÜCRETLİ LOBİ YARIŞI ARTIK KOŞUYOR — ÖDÜL DAĞITIMI VAR (§13.14,
 28.09.2026).** `POST /races/:id/settle` yarışı koşar, ödülleri `top5`
 paylarıyla dağıtır ve `races.status = 'finished'` yazar. Uç bir

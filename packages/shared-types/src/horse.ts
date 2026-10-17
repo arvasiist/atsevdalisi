@@ -340,7 +340,14 @@ export interface HorseCardView {
  * riskiyle AYNI kategori) — tek somut sayısal girdi `quality`dir (diğer
  * kalite alanlarıyla, ör. `Horse.quality`, AYNI 0-100 ölçek).
  */
-export type EquipmentType = 'saddle' | 'bridle' | 'horseshoe' | 'blinkers' | 'leg_wraps';
+export type PerformanceEquipmentType = 'saddle' | 'bridle' | 'horseshoe' | 'blinkers' | 'leg_wraps';
+/**
+ * 16.10.2026 (brief §8, migration 0096) — kozmetik aksesuar: yular, örtü/
+ * battaniye, isimlik, koleksiyon. Yarışa HİÇBİR etkisi yoktur
+ * (`computeEquipmentPerformanceModifier` tipten eler) ve aşınmaz.
+ */
+export type CosmeticEquipmentType = 'halter' | 'blanket' | 'nameplate' | 'collectible';
+export type EquipmentType = PerformanceEquipmentType | CosmeticEquipmentType;
 
 export interface HorseEquipment {
   id: UUID;
@@ -366,6 +373,16 @@ export interface HorseEquipment {
    * `null` = katalogdan önce oyuncunun kendi tanımladığı eski parça.
    */
   catalogKey: string | null;
+  /**
+   * 16.10.2026 (migration 0096) — dayanıklılık: her koşulan yarışta kuşanılı
+   * parçadan 1 düşer; 0'a inen parça çıkarılır ve yeniden kuşanılamaz.
+   * `null` = aşınmaz (kozmetik ya da 0096'dan önce alınmış parça).
+   */
+  maxRaces: number | null;
+  racesRemaining: number | null;
+  /** Zemine özel nal: bonus yalnızca bu zeminde (`null` = her zeminde). */
+  surface: 'grass' | 'dirt' | 'synthetic' | null;
+  wornOutAt: ISODateTimeString | null;
 }
 
 /** `POST /horses/:id/equipment` yanıtı (08.10.2026) — alınan parça + ödenen + yeni bakiye. */

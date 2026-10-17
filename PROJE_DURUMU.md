@@ -4692,3 +4692,19 @@ zamanlayıcıyla doğar), `breeding-center.e2e-spec.ts` (12), domain
 `breeding-center.spec.ts` (11), web `BreedingCenter.spec.tsx` (5) +
 `BreedingPanel.spec.tsx` (9). Not: e2e'de SQL ile açılan pazar ilanı
 `market.e2e-spec.ts`in genel sayımını bozuyordu; fikstür artık silinir.
+
+**K5 — tay yemi + yem kategorileri (migration 0095).** Yem satın alma ucu
+vardı ama hiçbir ekran çağırmıyordu; `/shop` (Market) ilk istemci. 12 kalem,
+kategori + kalite kademesi; tay yemi yalnızca tay/gelişim çağında ve ömür boyu
+sınırlı kalıcı stat katkısı (tavan potansiyel); ağrı kesici veteriner şartlı.
+Ahır kartı tayın yetiştirme ilerlemesini ve kalan maliyetini gösterir. Testler:
+`feed-categories.e2e-spec.ts` (3), `feed-catalog.spec.ts` (6), web
+`shop-catalog.spec.ts` (4) + `horse-profile.spec.ts`.
+
+**K6 — ekipman ömrü, zemine özel nal, kozmetik aksesuar (migration 0096).**
+Kuşanılı parça yarış başına aşınır (yarışın kayıt transaction'ı), aşınan
+çıkarılır ve yeniden kuşanılamaz; zemine özel nal yalnızca kendi zemininde;
+kozmetik kategori tipten türer ve çarpana girmez. Eski parçalar aşınmaz
+(satın alınmış değer korunur). Ağırlık ve 3D görünüm YOK (uydurulmadı / brief
+kural 7). Testler: `equipment-durability.e2e-spec.ts` (4), `catalog.spec.ts`,
+`performance.spec.ts`, web `equipment-catalog.spec.ts`.

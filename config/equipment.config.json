@@ -1,124 +1,33 @@
 {
   "catalog": [
-    {
-      "key": "saddle-basic",
-      "equipmentType": "saddle",
-      "name": "Antrenman Eyeri",
-      "quality": 35,
-      "priceMoney": 150,
-      "requiredLevel": 1
-    },
-    {
-      "key": "saddle-race",
-      "equipmentType": "saddle",
-      "name": "Yarış Eyeri",
-      "quality": 65,
-      "priceMoney": 600,
-      "requiredLevel": 3
-    },
-    {
-      "key": "saddle-champion",
-      "equipmentType": "saddle",
-      "name": "Şampiyon Eyeri",
-      "quality": 95,
-      "priceMoney": 1800,
-      "requiredLevel": 6
-    },
-    {
-      "key": "bridle-basic",
-      "equipmentType": "bridle",
-      "name": "Basit Dizgin",
-      "quality": 35,
-      "priceMoney": 150,
-      "requiredLevel": 1
-    },
-    {
-      "key": "bridle-race",
-      "equipmentType": "bridle",
-      "name": "Yarış Dizgini",
-      "quality": 65,
-      "priceMoney": 600,
-      "requiredLevel": 3
-    },
-    {
-      "key": "bridle-champion",
-      "equipmentType": "bridle",
-      "name": "Şampiyon Dizgini",
-      "quality": 95,
-      "priceMoney": 1800,
-      "requiredLevel": 6
-    },
-    {
-      "key": "horseshoe-basic",
-      "equipmentType": "horseshoe",
-      "name": "Demir Nal",
-      "quality": 35,
-      "priceMoney": 150,
-      "requiredLevel": 1
-    },
-    {
-      "key": "horseshoe-race",
-      "equipmentType": "horseshoe",
-      "name": "Alüminyum Yarış Nalı",
-      "quality": 65,
-      "priceMoney": 600,
-      "requiredLevel": 3
-    },
-    {
-      "key": "horseshoe-champion",
-      "equipmentType": "horseshoe",
-      "name": "Titanyum Nal",
-      "quality": 95,
-      "priceMoney": 1800,
-      "requiredLevel": 6
-    },
-    {
-      "key": "blinkers-basic",
-      "equipmentType": "blinkers",
-      "name": "Kumaş Göz Siperi",
-      "quality": 35,
-      "priceMoney": 150,
-      "requiredLevel": 1
-    },
-    {
-      "key": "blinkers-race",
-      "equipmentType": "blinkers",
-      "name": "Yarış Göz Siperi",
-      "quality": 65,
-      "priceMoney": 600,
-      "requiredLevel": 3
-    },
-    {
-      "key": "blinkers-champion",
-      "equipmentType": "blinkers",
-      "name": "Şampiyon Göz Siperi",
-      "quality": 95,
-      "priceMoney": 1800,
-      "requiredLevel": 6
-    },
-    {
-      "key": "leg-wraps-basic",
-      "equipmentType": "leg_wraps",
-      "name": "Pamuk Bandaj",
-      "quality": 35,
-      "priceMoney": 150,
-      "requiredLevel": 1
-    },
-    {
-      "key": "leg-wraps-race",
-      "equipmentType": "leg_wraps",
-      "name": "Destek Bandajı",
-      "quality": 65,
-      "priceMoney": 600,
-      "requiredLevel": 3
-    },
-    {
-      "key": "leg-wraps-champion",
-      "equipmentType": "leg_wraps",
-      "name": "Şampiyon Bandajı",
-      "quality": 95,
-      "priceMoney": 1800,
-      "requiredLevel": 6
-    }
+    {"key": "saddle-basic", "equipmentType": "saddle", "name": "Antrenman Eyeri", "quality": 35, "priceMoney": 150, "requiredLevel": 1, "rarity": "common", "durabilityRaces": 40, "surface": null, "description": "Dayanıklı antrenman eyeri; bonusu düşük."},
+    {"key": "saddle-race", "equipmentType": "saddle", "name": "Yarış Eyeri", "quality": 65, "priceMoney": 600, "requiredLevel": 3, "rarity": "rare", "durabilityRaces": 25, "surface": null, "description": "Yarış eyeri; daha çok bonus, daha az dayanır."},
+    {"key": "saddle-champion", "equipmentType": "saddle", "name": "Şampiyon Eyeri", "quality": 95, "priceMoney": 1800, "requiredLevel": 6, "rarity": "epic", "durabilityRaces": 15, "surface": null, "description": "En etkili eyer; en kısa ömürlü."},
+    {"key": "bridle-basic", "equipmentType": "bridle", "name": "Basit Dizgin", "quality": 35, "priceMoney": 150, "requiredLevel": 1, "rarity": "common", "durabilityRaces": 40, "surface": null, "description": "Standart dizgin."},
+    {"key": "bridle-race", "equipmentType": "bridle", "name": "Yarış Dizgini", "quality": 65, "priceMoney": 600, "requiredLevel": 3, "rarity": "rare", "durabilityRaces": 25, "surface": null, "description": "Hassas yarış dizgini."},
+    {"key": "bridle-champion", "equipmentType": "bridle", "name": "Şampiyon Dizgini", "quality": 95, "priceMoney": 1800, "requiredLevel": 6, "rarity": "epic", "durabilityRaces": 15, "surface": null, "description": "Şampiyonluk dizgini."},
+    {"key": "horseshoe-basic", "equipmentType": "horseshoe", "name": "Demir Nal", "quality": 35, "priceMoney": 150, "requiredLevel": 1, "rarity": "common", "durabilityRaces": 40, "surface": null, "description": "Standart demir nal."},
+    {"key": "horseshoe-durable", "equipmentType": "horseshoe", "name": "Dayanıklı Çelik Nal", "quality": 45, "priceMoney": 300, "requiredLevel": 2, "rarity": "common", "durabilityRaces": 60, "surface": null, "description": "Az bonus, çok uzun ömür."},
+    {"key": "horseshoe-race", "equipmentType": "horseshoe", "name": "Alüminyum Yarış Nalı", "quality": 65, "priceMoney": 600, "requiredLevel": 3, "rarity": "rare", "durabilityRaces": 25, "surface": null, "description": "Alüminyum yarış nalı."},
+    {"key": "horseshoe-grass", "equipmentType": "horseshoe", "name": "Çim Nalı", "quality": 80, "priceMoney": 900, "requiredLevel": 4, "rarity": "rare", "durabilityRaces": 20, "surface": "grass", "description": "Yalnızca kendi zemininde etkili; başka zeminde bonus vermez."},
+    {"key": "horseshoe-dirt", "equipmentType": "horseshoe", "name": "Toprak Pist Nalı", "quality": 80, "priceMoney": 900, "requiredLevel": 4, "rarity": "rare", "durabilityRaces": 20, "surface": "dirt", "description": "Yalnızca kendi zemininde etkili; başka zeminde bonus vermez."},
+    {"key": "horseshoe-synthetic", "equipmentType": "horseshoe", "name": "Sentetik Pist Nalı", "quality": 80, "priceMoney": 900, "requiredLevel": 4, "rarity": "rare", "durabilityRaces": 20, "surface": "synthetic", "description": "Yalnızca kendi zemininde etkili; başka zeminde bonus vermez."},
+    {"key": "horseshoe-champion", "equipmentType": "horseshoe", "name": "Titanyum Nal", "quality": 95, "priceMoney": 1800, "requiredLevel": 6, "rarity": "epic", "durabilityRaces": 15, "surface": null, "description": "En etkili nal; çabuk aşınır."},
+    {"key": "blinkers-basic", "equipmentType": "blinkers", "name": "Kumaş Göz Siperi", "quality": 35, "priceMoney": 150, "requiredLevel": 1, "rarity": "common", "durabilityRaces": 40, "surface": null, "description": "Odağı toplar."},
+    {"key": "blinkers-race", "equipmentType": "blinkers", "name": "Yarış Göz Siperi", "quality": 65, "priceMoney": 600, "requiredLevel": 3, "rarity": "rare", "durabilityRaces": 25, "surface": null, "description": "Yarış göz siperi."},
+    {"key": "blinkers-champion", "equipmentType": "blinkers", "name": "Şampiyon Göz Siperi", "quality": 95, "priceMoney": 1800, "requiredLevel": 6, "rarity": "epic", "durabilityRaces": 15, "surface": null, "description": "Şampiyon göz siperi."},
+    {"key": "leg-wraps-basic", "equipmentType": "leg_wraps", "name": "Pamuk Bandaj", "quality": 35, "priceMoney": 150, "requiredLevel": 1, "rarity": "common", "durabilityRaces": 40, "surface": null, "description": "Bacakları korur."},
+    {"key": "leg-wraps-race", "equipmentType": "leg_wraps", "name": "Destek Bandajı", "quality": 65, "priceMoney": 600, "requiredLevel": 3, "rarity": "rare", "durabilityRaces": 25, "surface": null, "description": "Destekli bandaj."},
+    {"key": "leg-wraps-champion", "equipmentType": "leg_wraps", "name": "Şampiyon Bandajı", "quality": 95, "priceMoney": 1800, "requiredLevel": 6, "rarity": "epic", "durabilityRaces": 15, "surface": null, "description": "Şampiyon bandajı."},
+    {"key": "halter-leather", "equipmentType": "halter", "name": "Deri Yular", "quality": 0, "priceMoney": 200, "requiredLevel": 1, "rarity": "common", "durabilityRaces": null, "surface": null, "description": "Ahırda ve tören yürüyüşünde."},
+    {"key": "halter-embroidered", "equipmentType": "halter", "name": "İşlemeli Yular", "quality": 0, "priceMoney": 700, "requiredLevel": 3, "rarity": "rare", "durabilityRaces": null, "surface": null, "description": "El işi yular."},
+    {"key": "blanket-stable", "equipmentType": "blanket", "name": "Ahır Örtüsü", "quality": 0, "priceMoney": 250, "requiredLevel": 1, "rarity": "common", "durabilityRaces": null, "surface": null, "description": "Hafif örtü."},
+    {"key": "blanket-wool", "equipmentType": "blanket", "name": "Yün Battaniye", "quality": 0, "priceMoney": 600, "requiredLevel": 2, "rarity": "rare", "durabilityRaces": null, "surface": null, "description": "Kış battaniyesi."},
+    {"key": "blanket-champion", "equipmentType": "blanket", "name": "Şampiyon Battaniyesi", "quality": 0, "priceMoney": 1500, "requiredLevel": 5, "rarity": "epic", "durabilityRaces": null, "surface": null, "description": "Ahır renklerinde işlemeli battaniye."},
+    {"key": "nameplate-brass", "equipmentType": "nameplate", "name": "Pirinç İsimlik", "quality": 0, "priceMoney": 300, "requiredLevel": 1, "rarity": "common", "durabilityRaces": null, "surface": null, "description": "Bölme kapısına isimlik."},
+    {"key": "nameplate-gold", "equipmentType": "nameplate", "name": "Altın İsimlik", "quality": 0, "priceMoney": 1500, "requiredLevel": 5, "rarity": "epic", "durabilityRaces": null, "surface": null, "description": "Altın kaplama isimlik."},
+    {"key": "collectible-brush-set", "equipmentType": "collectible", "name": "Tımar Fırçası Seti", "quality": 0, "priceMoney": 400, "requiredLevel": 1, "rarity": "common", "durabilityRaces": null, "surface": null, "description": "Koleksiyon: fırça seti."},
+    {"key": "collectible-hippodrome-badge", "equipmentType": "collectible", "name": "Hipodrom Rozeti", "quality": 0, "priceMoney": 800, "requiredLevel": 3, "rarity": "rare", "durabilityRaces": null, "surface": null, "description": "Koleksiyon: beş hipodromun rozeti."},
+    {"key": "collectible-derby-trophy", "equipmentType": "collectible", "name": "Derbi Kupası Replikası", "quality": 0, "priceMoney": 3000, "requiredLevel": 8, "rarity": "legendary", "durabilityRaces": null, "surface": null, "description": "Koleksiyon: derbi kupasının replikası."}
   ]
 }

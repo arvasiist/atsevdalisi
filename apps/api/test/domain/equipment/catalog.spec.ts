@@ -7,7 +7,7 @@ import {
   validateEquipmentConfig,
 } from '../../../src/domain/equipment/catalog';
 import { InvalidEquipmentInputError } from '../../../src/domain/equipment/errors';
-import { EQUIPMENT_TYPES } from '../../../src/domain/equipment/validation';
+import { EQUIPMENT_TYPES, isCosmeticEquipmentType } from '../../../src/domain/equipment/validation';
 
 /**
  * EKİPMAN KATALOĞU (08.10.2026). Kalite ve fiyat config'tedir; istemci yalnızca
@@ -17,10 +17,23 @@ import { EQUIPMENT_TYPES } from '../../../src/domain/equipment/validation';
  */
 const config = loadEquipmentConfig();
 const maxLevel = loadProgressionConfig().maxLevel;
-const base = { key: 'a', equipmentType: 'saddle', name: 'Eyer', quality: 40, priceMoney: 100, requiredLevel: 1 };
+const base = {
+  key: 'a',
+  equipmentType: 'saddle',
+  name: 'Eyer',
+  quality: 40,
+  priceMoney: 100,
+  requiredLevel: 1,
+  rarity: 'common' as const,
+  durabilityRaces: 20 as number | null,
+  surface: null as 'grass' | 'dirt' | 'synthetic' | null,
+  description: 'Deneme',
+};
+/** Kozmetik tip için geçerli kalem (kalite 0, aşınmaz). */
+const cosmeticOf = (type: string, key: string) => ({ ...base, key, equipmentType: type, quality: 0, durabilityRaces: null });
 
 describe('ekipman kataloğu', () => {
-  it('gerçek katalog geçerli ve beş tipin hepsini kapsar', () => {
+  it('gerçek katalog geçerli ve bütün tipleri (performans + kozmetik) kapsar', () => {
     expect(() => validateEquipmentConfig(config, maxLevel)).not.toThrow();
     for (const type of EQUIPMENT_TYPES) {
       expect(config.catalog.some((item) => item.equipmentType === type)).toBe(true);
@@ -28,11 +41,9 @@ describe('ekipman kataloğu', () => {
   });
 
   it('bozuk katalog API açılışını durdurur', () => {
-    const others = EQUIPMENT_TYPES.filter((type) => type !== 'saddle').map((type, index) => ({
-      ...base,
-      key: `x-${index}`,
-      equipmentType: type,
-    }));
+    const others = EQUIPMENT_TYPES.filter((type) => type !== 'saddle').map((type, index) =>
+      isCosmeticEquipmentType(type) ? cosmeticOf(type, `x-${index}`) : { ...base, key: `x-${index}`, equipmentType: type },
+    );
     const valid = { catalog: [base, ...others] };
     expect(() => validateEquipmentConfig(valid, maxLevel)).not.toThrow();
     // Daha kaliteli ama daha ucuz.
@@ -53,6 +64,39 @@ describe('ekipman kataloğu', () => {
       validateEquipmentConfig({ catalog: [...valid.catalog, { ...base, key: 'f', requiredLevel: maxLevel + 1 }] }, maxLevel),
     ).toThrow(/seviye/);
     expect(() => validateEquipmentConfig({ catalog: [base] }, maxLevel)).toThrow(/kalem yok/);
+  });
+
+  it('16.10.2026 — kozmetik yarışı etkileyemez; dayanıklılık, zemin ve nadirlik kuralları', () => {
+    const others = EQUIPMENT_TYPES.filter((type) => type !== 'saddle').map((type, index) =>
+      isCosmeticEquipmentType(type) ? cosmeticOf(type, `x-${index}`) : { ...base, key: `x-${index}`, equipmentType: type },
+    );
+    const valid = [base, ...others];
+    const withItem = (item: Record<string, unknown>) => ({ catalog: [...valid, { ...base, key: 'z', ...item }] });
+    // Kozmetik kalite taşıyamaz, aşınamaz, zemini olamaz.
+    expect(() => validateEquipmentConfig(withItem({ equipmentType: 'blanket', quality: 10, durabilityRaces: null }), maxLevel)).toThrow(/kalitesi 0/);
+    expect(() => validateEquipmentConfig(withItem({ equipmentType: 'halter', quality: 0, durabilityRaces: 5 }), maxLevel)).toThrow(/aşınmaz/);
+    expect(() =>
+      validateEquipmentConfig(withItem({ equipmentType: 'nameplate', quality: 0, durabilityRaces: null, surface: 'grass' }), maxLevel),
+    ).toThrow(/zemini/);
+    // Performans kalemi ömürsüz olamaz; zemin yalnızca nalda ve bilinen değerde.
+    expect(() => validateEquipmentConfig(withItem({ durabilityRaces: null }), maxLevel)).toThrow(/dayanıklılı/);
+    expect(() => validateEquipmentConfig(withItem({ durabilityRaces: 0 }), maxLevel)).toThrow(/dayanıklılı/);
+    expect(() => validateEquipmentConfig(withItem({ surface: 'grass' }), maxLevel)).toThrow(/yalnızca nal/);
+    expect(() =>
+      validateEquipmentConfig(withItem({ equipmentType: 'horseshoe', surface: 'buz' }), maxLevel),
+    ).toThrow(/zemin/);
+    expect(() => validateEquipmentConfig(withItem({ rarity: 'mitik' }), maxLevel)).toThrow(/nadirli/);
+    expect(() => validateEquipmentConfig(withItem({ description: ' ' }), maxLevel)).toThrow(/açıklama/);
+    // Gerçek katalogda: her kozmetik 0 kalite, her performans kalemi ömürlü, zemin yalnızca nalda.
+    for (const item of config.catalog) {
+      if (isCosmeticEquipmentType(item.equipmentType)) {
+        expect(item.quality).toBe(0);
+        expect(item.durabilityRaces).toBeNull();
+      } else {
+        expect(item.durabilityRaces).toBeGreaterThan(0);
+      }
+      if (item.surface !== null) expect(item.equipmentType).toBe('horseshoe');
+    }
   });
 
   it('anahtar yalnızca katalogdan çözülür (kalite istemciden gelmez)', () => {

@@ -33,6 +33,9 @@ export async function applyRaceConditionInTransaction(
   now: Date,
 ): Promise<void> {
   const ids = [...new Set(horseIds)];
+  // 16.10.2026 (brief §8) — ekipman aşınması da yarışın bedelidir: aynı
+  // transaction, aynı dört kayıt yolu (pratik, lobi, iki PvP).
+  await wearEquippedItemsInTransaction(client, ids, now);
   const cost = computeRaceConditionCost(distanceMeters, care.raceCondition);
   if (ids.length === 0 || (cost.energy === 0 && cost.fatigue === 0)) {
     return;
@@ -47,6 +50,32 @@ export async function applyRaceConditionInTransaction(
             updated_at = $2::timestamptz
       WHERE id = ANY($1::uuid[])`,
     [ids, now, maxCreditSeconds, energyPerHour, fatiguePerHour, VITAL_MIN, VITAL_MAX, cost.energy, cost.fatigue],
+  );
+}
+
+/**
+ * EKİPMAN AŞINMASI — koşan atın KUŞANILI ve ömrü sayılan her parçasından 1
+ * yarış düşer; 0'a inen parça aynı ifadede çıkarılır ve `worn_out_at` alır
+ * (kısıt: aşınmış parça kuşanılı kalamaz). Tek atomik ifade: aynı yarış iki
+ * kez kaydedilemediği için (kayıt yolları durum geçişiyle korunur) çift
+ * aşınma olmaz. Kozmetik ve 0096 öncesi parçalar (`NULL`) aşınmaz.
+ */
+export async function wearEquippedItemsInTransaction(
+  client: Pick<PoolClient, 'query'>,
+  horseIds: readonly string[],
+  now: Date,
+): Promise<void> {
+  if (horseIds.length === 0) return;
+  await client.query(
+    `UPDATE horse_equipment
+        SET races_remaining = races_remaining - 1,
+            equipped = (races_remaining - 1) > 0,
+            worn_out_at = CASE WHEN races_remaining - 1 = 0 THEN $2::timestamptz ELSE worn_out_at END
+      WHERE horse_id = ANY($1::uuid[])
+        AND equipped = true
+        AND races_remaining IS NOT NULL
+        AND races_remaining > 0`,
+    [horseIds, now],
   );
 }
 

@@ -2351,6 +2351,26 @@ POST   /api/v1/players/{id}/breeding                 # KENDİ kısrağı × KEND
   (döllenme anında), `foal_born`.
 - Tayın genetiği, cinsiyeti ve tohumu hiçbir yanıtta dönmez.
 
+### Market: yem kategorileri, tay yemi, ilaç; ekipman ömrü + aksesuar (16.10.2026, brief §7–§8, migration 0095–0096)
+
+- `GET /players/:id/feed-inventory` ve `GET /horses/:id/feed-status` kalemleri
+  artık `category` (`feed`|`foal`|`supplement`|`medicine`), `qualityTier`,
+  `allowedLifeStages` ve `requiresVetWithinHours` taşır (hepsi config'ten).
+  Yeni kalemler: `yulaf`, `enerji_yemi`, `kondisyon_yemi`, `tay_yemi`,
+  `elektrolit`, `eklem_takviyesi`, `agri_kesici`.
+- `POST /horses/:id/feed`: tay yemi yaşa uymayan ata 409
+  `FEED_NOT_ALLOWED_FOR_AGE`; ağrı kesici son N saatte veteriner bakımı yoksa
+  409 `FEED_REQUIRES_VET_CHECK`. Tay yemi yanıtı `upbringingGain: { stat,
+  amount }` taşır (kalıcı stat katkısı, aynı transaction).
+- `GET /horses?ownerId=` satırı tay/gelişim çağındaki at için `upbringing:
+  { feedType, feedsUsed, feedsMax, gainPerFeed, unitPrice, remainingCost }`.
+- Ekipman satırı (`HorseEquipment`) artık `maxRaces`, `racesRemaining`,
+  `surface`, `wornOutAt` taşır; tipler kozmetik `halter`, `blanket`,
+  `nameplate`, `collectible` ile genişledi (yarışa etkisi YOK, aşınmaz).
+  Kuşanılı performans parçası her koşulan yarışta 1 aşınır; aşınmış parçayı
+  kuşanmak 409 `EQUIPMENT_WORN_OUT`. Zemine özel nal yalnızca o zeminde bonus
+  verir. Satın alma gövdesi değişmedi (yalnızca `catalogKey`).
+
 ## 5. Market (At Pazarı)
 
 **Uygulama durumu (FAZ 1 wiring, on birinci + on ikinci + on üçüncü

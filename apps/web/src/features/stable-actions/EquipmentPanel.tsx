@@ -11,8 +11,9 @@
  * kaydırıcıyla seçiliyordu ve ücretsizdi — her at bedavaya azami bonus alırdı.
  * PARA YOLU: `Idempotency-Key` kalem başına BAŞARIYA kadar saklanır.
  *
- * `EQUIPMENT_TYPES` `apps/api/src/domain/equipment/validation.ts` ile BİREBİR
- * aynı tutulmalıdır (apps/web apps/api'nin domain koduna import edemez).
+ * Tip grupları `equipment-catalog.ts`te (api `validation.ts` ile BİREBİR).
+ * 16.10.2026 — dayanıklılık (her yarışta kuşanılı parça aşınır, aşınan
+ * yeniden kuşanılamaz), zemine özel nal, kozmetik aksesuar (yarışa etkisi yok).
  * Kuşanılan parça `RaceEntrantSnapshot.equipmentModifier` üzerinden motoru
  * küçük ve sınırlı şekilde etkiler (`docs/API.md` "Ekipman").
  */
@@ -21,17 +22,22 @@ import { useEffect, useRef, useState } from 'react';
 import type { EquipmentType, HorseEquipment, PublicHorse } from '@at-sevdalisi/shared-types';
 import { apiClient } from '../../lib/api-client';
 import { usePlayer } from '../../lib/player-context';
-import { catalogItemsOfType, describeEquipmentPurchase, equipmentPurchaseBlock } from './equipment-catalog';
+import {
+  COSMETIC_EQUIPMENT_TYPES,
+  EQUIPMENT_TYPE_LABELS,
+  PERFORMANCE_EQUIPMENT_TYPES,
+  catalogItemsOfType,
+  describeCatalogItem,
+  describeDurability,
+  describeEquipmentPurchase,
+  equipmentPurchaseBlock,
+  isWornOut,
+} from './equipment-catalog';
 
-const EQUIPMENT_TYPES: readonly EquipmentType[] = ['saddle', 'bridle', 'horseshoe', 'blinkers', 'leg_wraps'];
-
-export const EQUIPMENT_TYPE_LABELS: Record<EquipmentType, string> = {
-  saddle: 'Eyer',
-  bridle: 'Dizgin',
-  horseshoe: 'Nal',
-  blinkers: 'Göz Siperi',
-  leg_wraps: 'Bacak Bandajı',
-};
+const TYPE_GROUPS: ReadonlyArray<{ label: string; types: readonly EquipmentType[] }> = [
+  { label: 'Ekipman al — performans', types: PERFORMANCE_EQUIPMENT_TYPES },
+  { label: 'Aksesuar — kozmetik (yarışa etkisi yok)', types: COSMETIC_EQUIPMENT_TYPES },
+];
 
 export interface EquipmentPanelProps {
   horse: Pick<PublicHorse, 'id' | 'name'>;
@@ -117,16 +123,18 @@ export function EquipmentPanel({ horse }: EquipmentPanelProps): React.ReactEleme
                   <span className="stable-equipment-name">
                     {EQUIPMENT_TYPE_LABELS[item.equipmentType]} · {item.name}
                   </span>
-                  <span className="stable-action-muted">Kalite: {item.quality}</span>
+                  <span className="stable-action-muted">
+                    Kalite: {item.quality} · {describeDurability(item)}
+                  </span>
                 </div>
                 <button
                   type="button"
-                  disabled={pendingActionId === item.id}
+                  disabled={pendingActionId === item.id || isWornOut(item)}
                   onClick={() => void handleToggleEquip(item)}
                   className="stable-chip"
                   aria-pressed={item.equipped}
                 >
-                  {pendingActionId === item.id ? '…' : item.equipped ? 'Kuşanılmış' : 'Kuşandır'}
+                  {pendingActionId === item.id ? '…' : isWornOut(item) ? 'Aşındı' : item.equipped ? 'Kuşanılmış' : 'Kuşandır'}
                 </button>
               </div>
             ))}
@@ -134,22 +142,24 @@ export function EquipmentPanel({ horse }: EquipmentPanelProps): React.ReactEleme
         ) : null}
       </div>
 
-      <div className="stable-action-group">
-        <span className="stable-action-label">Ekipman al — tip</span>
-        <div className="stable-action-chips">
-          {EQUIPMENT_TYPES.map((option) => (
-            <button
-              key={option}
-              type="button"
-              onClick={() => setEquipmentType(option)}
-              className="stable-chip"
-              aria-pressed={option === equipmentType}
-            >
-              {EQUIPMENT_TYPE_LABELS[option]}
-            </button>
-          ))}
+      {TYPE_GROUPS.map((group) => (
+        <div key={group.label} className="stable-action-group">
+          <span className="stable-action-label">{group.label}</span>
+          <div className="stable-action-chips">
+            {group.types.map((option) => (
+              <button
+                key={option}
+                type="button"
+                onClick={() => setEquipmentType(option)}
+                className="stable-chip"
+                aria-pressed={option === equipmentType}
+              >
+                {EQUIPMENT_TYPE_LABELS[option]}
+              </button>
+            ))}
+          </div>
         </div>
-      </div>
+      ))}
 
       <div className="stable-action-group" data-testid="equipment-catalog">
         {catalogItemsOfType(equipmentType).map((item) => {
@@ -159,9 +169,10 @@ export function EquipmentPanel({ horse }: EquipmentPanelProps): React.ReactEleme
               <div style={{ display: 'grid', gap: '2px' }}>
                 <span className="stable-equipment-name">{item.name}</span>
                 <span className="stable-action-muted">
-                  Kalite {item.quality} · {item.priceMoney} çip
+                  {describeCatalogItem(item)} · {item.priceMoney} çip
                   {block === 'level' ? ` · Sv. ${item.requiredLevel} gerekir` : ''}
                 </span>
+                <span className="stable-action-muted">{item.description}</span>
               </div>
               <button
                 type="button"

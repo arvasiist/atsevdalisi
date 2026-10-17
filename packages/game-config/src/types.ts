@@ -2828,13 +2828,25 @@ export interface HippodromesConfig {
  */
 export interface EquipmentCatalogItemConfig {
   key: string;
-  /** `saddle` | `bridle` | `horseshoe` | `blinkers` | `leg_wraps`. */
+  /**
+   * Performans: `saddle` | `bridle` | `horseshoe` | `blinkers` | `leg_wraps`.
+   * 16.10.2026 — kozmetik: `halter` | `blanket` | `nameplate` | `collectible`
+   * (kategori TİPTEN türetilir, config'ten değil — kozmetik bir kalem config
+   * değişikliğiyle performansa giremez).
+   */
   equipmentType: string;
   name: string;
-  /** 0-100 (motor etkisi `computeEquipmentPerformanceModifier`). */
+  /** 0-100 (motor etkisi `computeEquipmentPerformanceModifier`). Kozmetikte 0. */
   quality: number;
   priceMoney: number;
   requiredLevel: number;
+  /** 16.10.2026 — nadirlik (yalnızca gösterim; etkiyi kalite belirler). */
+  rarity: 'common' | 'rare' | 'epic' | 'legendary';
+  /** Kaç yarış dayanır; performans kaleminde zorunlu, kozmetikte `null` (aşınmaz). */
+  durabilityRaces: number | null;
+  /** Yalnızca nal: bonus YALNIZCA bu zeminde (`null` = her zeminde). */
+  surface: 'grass' | 'dirt' | 'synthetic' | null;
+  description: string;
 }
 
 export interface EquipmentCatalogConfig {

@@ -148,6 +148,7 @@ import {
   InvalidTrainingInputError,
 } from '../../domain/training/errors';
 import {
+  EquipmentWornOutError,
   HorseEquipmentNotFoundError,
   InvalidEquipmentInputError,
 } from '../../domain/equipment/errors';
@@ -568,6 +569,7 @@ const DOMAIN_ERROR_MAP = new Map<ErrorClassConstructor, { status: number; code: 
   [TribuneGiftNotAllowedError, { status: HttpStatus.CONFLICT, code: ErrorCode.TribuneGiftNotAllowed }],
   [TribuneGiftDailyLimitError, { status: HttpStatus.CONFLICT, code: ErrorCode.TribuneGiftDailyLimit }],
   [EquipmentLevelLockedError, { status: HttpStatus.CONFLICT, code: ErrorCode.EquipmentLevelLocked }],
+  [EquipmentWornOutError, { status: HttpStatus.CONFLICT, code: ErrorCode.EquipmentWornOut }],
   [AchievementNotCompletedError, { status: HttpStatus.CONFLICT, code: ErrorCode.AchievementNotCompleted }],
   [AchievementAlreadyClaimedError, { status: HttpStatus.CONFLICT, code: ErrorCode.AchievementAlreadyClaimed }],
   [InvalidLiveEventError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.InvalidLiveEvent }],

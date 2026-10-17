@@ -2,7 +2,10 @@ import type { EquipmentCatalogConfig, EquipmentCatalogItemConfig } from '@at-sev
 import type { EquipmentType } from '@at-sevdalisi/shared-types';
 import { InvalidEquipmentInputError } from './errors';
 import {
+  EQUIPMENT_RARITIES,
+  EQUIPMENT_SURFACES,
   EQUIPMENT_TYPES,
+  isCosmeticEquipmentType,
   MAX_EQUIPMENT_NAME_LENGTH,
   MAX_EQUIPMENT_QUALITY,
   MIN_EQUIPMENT_NAME_LENGTH,
@@ -81,6 +84,27 @@ export function validateEquipmentConfig(config: EquipmentCatalogConfig, maxPlaye
     if (!Number.isInteger(item.priceMoney) || item.priceMoney <= 0) fail(`"${item.key}" fiyatı pozitif tam sayı olmalı.`);
     if (!Number.isInteger(item.requiredLevel) || item.requiredLevel < 1 || item.requiredLevel > maxPlayerLevel) {
       fail(`"${item.key}" seviye şartı 1-${maxPlayerLevel} dışında.`);
+    }
+    // 16.10.2026 (brief §8) — nadirlik, dayanıklılık, zemin, kozmetik ayrımı.
+    if (!(EQUIPMENT_RARITIES as readonly string[]).includes(item.rarity)) {
+      fail(`"${item.key}" nadirliği bilinmiyor: ${item.rarity}.`);
+    }
+    if (!item.description || item.description.trim().length === 0) fail(`"${item.key}" açıklaması boş.`);
+    if (isCosmeticEquipmentType(item.equipmentType)) {
+      // Kozmetik yarışı ETKİLEMEZ: kalite 0, aşınmaz, zemini yok.
+      if (item.quality !== 0) fail(`"${item.key}" kozmetik; kalitesi 0 olmalı.`);
+      if (item.durabilityRaces !== null) fail(`"${item.key}" kozmetik; aşınmaz (durabilityRaces null).`);
+      if (item.surface !== null) fail(`"${item.key}" kozmetik; zemini olamaz.`);
+    } else {
+      if (!Number.isInteger(item.durabilityRaces) || (item.durabilityRaces ?? 0) <= 0) {
+        fail(`"${item.key}" dayanıklılığı pozitif tam sayı olmalı.`);
+      }
+      if (item.surface !== null) {
+        if (item.equipmentType !== 'horseshoe') fail(`"${item.key}" yalnızca nal zemine özel olabilir.`);
+        if (!(EQUIPMENT_SURFACES as readonly string[]).includes(item.surface)) {
+          fail(`"${item.key}" bilinmeyen zemin: ${item.surface}.`);
+        }
+      }
     }
   }
   for (const type of EQUIPMENT_TYPES) {
