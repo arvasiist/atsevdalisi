@@ -1289,6 +1289,19 @@ yarış YAZMA — diğer dosyaların kilit zamanlayıcısı kuyruğunun başına
 ⚠️ ÖLÇEK: sorgu bitmiş bütün lobi yarışlarını tarar — büyüyünce bitiş sütunu +
 indeks (ayrı migration).
 
+(107) **GELİR-GİDER RAPORU + ÇİFTLEŞTİRME GÖREVLERİ + İKİ TRİBÜN HEDİYESİ
+(17.10.2026, migration 0099–0100, brief §17–§19)** — `GET
+/players/:id/wallet/report?period=daily|monthly` (yalnızca kendi; `/wallet`
+"Gelir-Gider" paneli): çip defteri SQL'de (dönem, ince tür) toplanır, saf
+`domain/economy/economy-report.ts` kanonik aileye katlar (cüzdanla AYNI
+`CANONICAL_BY_LEDGER_TYPE`), boş dönem sıfır; dönem sınırı oyunun TEK saat
+dilimi (`quests.timezoneOffsetMinutes`), dönem sayısı `economy.economyReport`.
+Defterde olmayan tutar UYDURULMAZ. Görev/başarım ölçütleri `breedings`
+(`pregnancies.conceived_at`) ve `foals_born` (`born_at`, `status='born'`),
+sahibi `pregnancies.owner_id` (çiftleştiren) — başarısız deneme sayılmaz;
+`live_events_metric_valid` 0099'da. Tribün kataloğuna yonca 🍀 ve kurdele 🎀
+(`tribune_gifts_gift_key_valid` 0100'de; havuç adı "Havuç Demeti").
+
 **✅ ÜCRETLİ LOBİ YARIŞI ARTIK KOŞUYOR — ÖDÜL DAĞITIMI VAR (§13.14,
 28.09.2026).** `POST /races/:id/settle` yarışı koşar, ödülleri `top5`
 paylarıyla dağıtır ve `races.status = 'finished'` yazar. Uç bir

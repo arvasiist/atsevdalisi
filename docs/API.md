@@ -2729,6 +2729,17 @@ girmez; aynı yarış bir kez). Sıra: tamamlanma anı (koşu başlangıcı + ka
 derecesi) yeni → eski, eşitlikte yarış kimliği. `prize` defterdeki
 `lobby_race_prize` toplamı. Genel/sezon puan sıralamasından ayrıdır.
 
+#### `GET /players/:id/wallet/report` (17.10.2026, brief §19)
+Oturum ister, yalnızca KENDİ cüzdanı (başkası 403), hız sınırı `wallet-report`
+30/dk (oyuncu). Sorgu `period=daily|monthly` (yoksa `daily`; bilinmeyen değer
+400 `VALIDATION_ERROR`). Yanıt `EconomyReportView`: `period`, `buckets[]`
+(eskiden yeniye son `economy.economyReport.dailyBuckets` gün ya da
+`monthlyBuckets` ay; `key` `YYYY-AA-GG` / `YYYY-AA`, `income`, `expense`,
+`net`; boş dönem sıfır), `categories[]` (kanonik aile başına gelir/gider —
+cüzdan geçmişiyle AYNI `CANONICAL_BY_LEDGER_TYPE` eşlemesi), `totals`. Kaynak
+yalnızca çip defteri (`economy_transactions`, `currency = 'money'`); dönem
+sınırı oyunun tek saat dilimi (`quests.timezoneOffsetMinutes`). Salt okuma.
+
 #### `GET /career` (16.10.2026, brief §10)
 Oturum ister (yalnızca çağıranın kendi kariyeri), hız sınırı `career-view`
 60/dk, salt okuma. Yanıt `CareerView`: `points` (bitmiş yarışlardan türetilir —

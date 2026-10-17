@@ -3,6 +3,7 @@ import type {
   HippodromeCatalogView,
   CareerView,
   RaceWinnersPageView,
+  EconomyReportView,
   ClaimReferralRewardsResult,
   ReferralOverviewView,
   GiftQuotaView,
@@ -1495,6 +1496,9 @@ export const apiClient = {
    *
    * `assertSelf` ile korunur — yalnızca kişinin KENDİ cüzdanı okunabilir.
    */
+  /** 16.10.2026 (brief §19) — gelir-gider raporu (yalnızca kendi). */
+  getEconomyReport: (playerId: string, period: 'daily' | 'monthly') =>
+    request<EconomyReportView>(`/players/${playerId}/wallet/report?period=${period}`),
   getWallet: (playerId: string, limit?: number, before?: string) => {
     // `before` (30.09.2026) — önceki sayfanın `nextCursor`ı; yoksa ilk sayfa.
     const params = new URLSearchParams();

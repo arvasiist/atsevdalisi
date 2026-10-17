@@ -4769,3 +4769,26 @@ gerçek kesinleşmiş botsuz yarış + fikstürlerle sıra/sayfa/aralık/dışla
 web `race-winners.spec.ts` (2). Üç yeni ekran (hipodromlar, kariyer,
 kazananlar) Chromium'da masaüstü + yatay telefonda konsol hatasız görüldü.
 
+
+### 13.116 Brief §9–§26 — FAZ 6–7 (17.10.2026, migration 0099–0100)
+
+**F6 — gelir-gider raporu (§19).** `GET /players/:id/wallet/report?period=
+daily|monthly` + `/wallet` "Gelir-Gider" paneli (dönem çubukları, gelir/gider/
+net, kategori tablosu). Kaynak yalnızca çip defteri; ince türler cüzdan
+geçmişiyle AYNI kanonik aileye katlanır, boş dönem sıfırla doldurulur, dönem
+sınırı oyunun tek saat dilimidir (görevlerle aynı). Başkasının raporu 403, bozuk
+dönem 400. Testler: `economy-report.spec.ts` (3), `economy-report.e2e-spec.ts`
+(2; toplam = o günün defter satırları), web `economy-report.spec.ts`.
+
+**F7a — çiftleştirme ve tay görevleri (§18, migration 0099).** Ölçütler
+`breedings` (başarılı döllenme) ve `foals_born` (doğum), gebelik satırlarından
+türetilir — sayaç yok, başarısız deneme sayılmaz. Haftalık görev
+`weekly-breed-1`, başarımlar `first-foal` ve `foals-5`; yönetici etkinliği de bu
+ölçütleri seçebilir (`live_events_metric_valid`). Test:
+`breeding-quests.e2e-spec.ts` (tutmayan deneme 0, döllenme görevi, doğum
+başarımı, tekrar talep 409, defter satırları).
+
+**F7a — tribün hediyesi kataloğu (§17, migration 0100).** Brief'in listesindeki
+yonca ve kurdele eklendi, havucun adı "Havuç Demeti" oldu (anahtar aynı — eski
+satırlar bozulmaz). Toplu alma henüz YOK: at sahibinin payı gönderim anında
+ödeniyor (F7b'de değerlendirilecek).

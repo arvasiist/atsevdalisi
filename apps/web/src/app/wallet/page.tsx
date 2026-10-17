@@ -40,6 +40,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { loadEconomyConfig } from '@at-sevdalisi/game-config';
 import type { ClaimDailyRewardResult, WalletTransaction, WalletView } from '@at-sevdalisi/shared-types';
 import { GlassPanel } from '../../components/ui/GlassPanel';
+import { EconomyReportPanel } from '../../features/wallet/EconomyReportPanel';
 import { FEED_TYPE_LABELS } from '../../features/care/feed-labels';
 import { describeLedgerType } from '../../features/wallet/ledger-labels';
 import { apiClient } from '../../lib/api-client';
@@ -315,6 +316,8 @@ export default function WalletPage(): React.ReactElement {
               </ul>
             </GlassPanel>
           )}
+
+          <EconomyReportPanel playerId={player.id} />
 
           <GlassPanel style={{ padding: 'var(--space-lg)' }}>
             <h2 style={sectionTitleStyle}>İşlem Geçmişi</h2>

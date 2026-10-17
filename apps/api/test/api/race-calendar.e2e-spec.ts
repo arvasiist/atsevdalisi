@@ -1,5 +1,6 @@
 import { randomInt, randomUUID } from 'node:crypto';
 import type { INestApplication } from '@nestjs/common';
+import { loadCareerConfig } from '@at-sevdalisi/game-config';
 import type { Pool } from 'pg';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -8,7 +9,12 @@ import { computeCalendarSlotTimes } from '../../src/domain/race/race-calendar';
 import { AppConfigService } from '../../src/infrastructure/config/config.service';
 import { PG_POOL } from '../../src/infrastructure/database/database.module';
 import { RaceCalendarScheduler } from '../../src/infrastructure/scheduler/race-calendar.scheduler';
-import { bootstrapTestApp, registerTestPlayer, registerTestPlayerWithStarterHorse } from './test-helpers';
+import {
+  bootstrapTestApp,
+  grantCareerPoints,
+  registerTestPlayer,
+  registerTestPlayerWithStarterHorse,
+} from './test-helpers';
 
 const MS_PER_HOUR = 60 * 60 * 1000;
 
@@ -217,6 +223,10 @@ describe('Yarış takvimi (e2e)', () => {
     const entryFee = Number(paid.rows[0].entry_fee);
 
     const player = await registerTestPlayerWithStarterHorse(app, 'Takvim Koşucu');
+    // 16.10.2026 (brief §10) — rastgele günün en erken yuvası kariyer kademesi
+    // isteyen bir masada/pistte olabilir (yaşandı: 409 `CAREER_TIER_LOCKED`);
+    // bu test takvimi sınar, kariyer kapısını değil (o: `career.e2e-spec.ts`).
+    await grantCareerPoints(app, player.playerId, loadCareerConfig().tiers.at(-1)!.requiredPoints);
     const before = await pool.query<{ money: string }>('SELECT money FROM players WHERE id = $1', [
       player.playerId,
     ]);

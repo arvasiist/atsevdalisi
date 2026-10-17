@@ -394,3 +394,16 @@ export interface WalletDepositResult {
   providerId: string;
   providerReference: string;
 }
+
+/**
+ * 16.10.2026 (brief §19) — GELİR-GİDER RAPORU (`GET /players/:id/wallet/report`).
+ * Yalnızca çip; defter satırlarından dönem (oyunun saat dilimi) ve kanonik aile
+ * başına toplanır. `expense` pozitif sayıdır (harcanan).
+ */
+export interface EconomyReportView {
+  period: 'daily' | 'monthly';
+  buckets: Array<{ key: string; income: number; expense: number; net: number }>;
+  categories: Array<{ category: CanonicalTransactionType; income: number; expense: number }>;
+  totals: { income: number; expense: number; net: number };
+}
+

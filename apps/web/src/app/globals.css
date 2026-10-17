@@ -4713,3 +4713,37 @@ button.btn-action {
 .career-table tr[data-me='true'] td {
   color: var(--color-accent-gold);
 }
+
+/* 16.10.2026 — Gelir-gider raporu (brief §19). */
+.report-bars {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+  font-size: 0.82rem;
+}
+.report-bars li {
+  display: grid;
+  grid-template-columns: 64px 1fr auto;
+  gap: var(--space-sm, 8px);
+  align-items: center;
+}
+.report-bar-track {
+  display: flex;
+  height: 10px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 5px;
+  overflow: hidden;
+}
+.report-bar-income {
+  background: var(--color-status-positive);
+}
+.report-bar-expense {
+  background: var(--color-status-critical);
+}
+.report-bar-label,
+.report-bar-value {
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+}

@@ -72,6 +72,18 @@ const METRIC_SQL: Record<QuestMetric, string> = {
     SELECT COUNT(*)::bigint AS count
       FROM friend_gifts g
      WHERE g.sender_id = $1 AND g.created_at >= $2 AND g.created_at < $3 AND $4::bigint IS NOT NULL`,
+  // 16.10.2026 (brief §18) — çiftleştirme/tay görevleri. Sayaç yok: gebelik
+  // satırı döllenmede yazılır, doğumda `born_at` alır. Sahibi = çiftleştiren
+  // (kısrak sahibi); başarısız deneme sayılmaz (ücret + bekleme zaten bedel).
+  breedings: `
+    SELECT COUNT(*)::bigint AS count
+      FROM pregnancies g
+     WHERE g.owner_id = $1 AND g.conceived_at >= $2 AND g.conceived_at < $3 AND $4::bigint IS NOT NULL`,
+  foals_born: `
+    SELECT COUNT(*)::bigint AS count
+      FROM pregnancies g
+     WHERE g.owner_id = $1 AND g.status = 'born'
+       AND g.born_at >= $2 AND g.born_at < $3 AND $4::bigint IS NOT NULL`,
 };
 
 export async function countMetric(

@@ -97,11 +97,12 @@ bölmeler).
 | 15 | İlan, fiyat, müzayede, teklif geçmişi, sahiplik kontrolü, tek işlem devir, çift satış engeli | TESTED | `market.e2e`, `auction` e2e | değişmedi |
 | 16 | Arkadaş, 5'in katı arkadaş başarımı (100 çip, tek sefer), hediye/toplu alma, kulüp, sohbet | TESTED | `friend-gift`, başarım PK, kulüp e2e | değişmedi |
 | 17 | Tribün hediyesi (alıcı/yarış/at doğrulaması, spam sınırı, sonuca etkisiz) | TESTED | `tribune-gift.e2e` | değişmedi |
-| 17 | Brief'in hediye listesi (yonca, kurdele, havuç demeti, çelenk) + toplu alma | PARTIAL | katalog farklı (havuç, elma, nazar, Altın Nal, gül çelengi, kupa); ödeme anında, toplama yok | F7 |
+| 17 | Brief'in hediye listesi (yonca, kurdele, havuç demeti, çelenk) | TESTED | katalog: Havuç Demeti, yonca 🍀, elma, nazar, kurdele 🎀, Altın Nal, gül çelengi, kupa (migration 0100; `tribune-gift.spec.ts` kısıtı config'le kıyaslar) | F7 ✅ |
+| 17 | Gelen hediyeleri toplu alma | PARTIAL | pay şu an gönderim anında ödeniyor (toplama adımı yok) | F7b |
 | 18 | Günlük/haftalık görev, başarım, sezon, tek sefer ödül, config | TESTED | `quests`, `achievements`, `season` e2e | değişmedi |
-| 18 | Çiftleştirme/tay yetiştirme görevleri | NOT_STARTED | görev ölçütlerinde yok | F7 |
+| 18 | Çiftleştirme/tay yetiştirme görevleri | TESTED | ölçüt `breedings` (döllenme) + `foals_born` (doğum), gebelik satırından türetilir (sayaç yok); haftalık `weekly-breed-1`, başarım `first-foal`/`foals-5` (migration 0099; `breeding-quests.e2e-spec.ts`: başarısız deneme sayılmaz, doğum sonrası görev + başarım ödenir) | F7 ✅ |
 | 19 | Kapasite, geliştirme, yem/bakım/personel/yarış giderleri | TESTED | ahır geliştirme + defter | değişmedi |
-| 19 | Günlük/aylık gelir-gider raporu ekranı | NOT_STARTED | cüzdanda yalnızca satır listesi | F6 |
+| 19 | Günlük/aylık gelir-gider raporu ekranı | TESTED | `GET /players/:id/wallet/report` + `/wallet` "Gelir-Gider" (dönem çubukları + kategori tablosu); kaynak yalnızca çip defteri, kanonik aile cüzdanla aynı — `economy-report.spec.ts`, `economy-report.e2e-spec.ts` (başkası 403, bozuk dönem 400, toplam = defter), web `economy-report.spec.ts` | F6 ✅ |
 | 20–21 | Sunucu bakiyesi, atomik işlem, idempotency, denetim kaydı, negatif bakiye yok, oturum/yetki/hız sınırı, gizli anahtar | TESTED | para yolu kuralları, `phase16-hardening`, gitleaks | değişmedi |
 | 22 | Tablolar, indeksler, kısıtlar, zamanlayıcılar (lider kilidi), yeniden başlatma güvenliği | TESTED | migration 0001–0097, zamanlayıcı testleri | yeni tablolar fazlarla |
 | 23 | Hipodrom/takvim ekranı, kazananlar ekranı | IMPLEMENTED | `/hippodromes`, `/career`, `/leaderboard` → Son Kazananlar; Chromium'da masaüstü + yatay telefon ekran görüntüsüyle konsol hatasız görüldü | F5 ✅ |

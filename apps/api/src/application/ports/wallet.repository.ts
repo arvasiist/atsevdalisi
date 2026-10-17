@@ -1,3 +1,4 @@
+import type { EconomyReportPeriod, LedgerBucketRow } from '../../domain/economy/economy-report';
 import type { WalletView } from '@at-sevdalisi/shared-types';
 
 /**
@@ -39,6 +40,17 @@ export interface WalletRepository {
    * tahminine bırakılmaz (tam bölünen sonuçlarda bu tahmin yanlış çıkar).
    */
   findWallet(playerId: string, limit: number, before?: string | null): Promise<Omit<WalletView, 'depositAvailable'> | null>;
+
+  /**
+   * 16.10.2026 (brief §19) — çip defterinin `since`ten bu yana (dönem, ince tür)
+   * toplamları; dönem anahtarı oyunun saat diliminde (`offsetMinutes`).
+   */
+  findLedgerBuckets(
+    playerId: string,
+    since: Date,
+    period: EconomyReportPeriod,
+    offsetMinutes: number,
+  ): Promise<LedgerBucketRow[]>;
 }
 
 /** NestJS DI için token (interface'ler runtime'da yok olduğundan bir Symbol gerekir). */

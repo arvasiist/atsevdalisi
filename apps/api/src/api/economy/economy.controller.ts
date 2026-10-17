@@ -11,10 +11,17 @@ import {
   Query,
   UseInterceptors,
 } from '@nestjs/common';
-import type { ApiSuccess, ClaimDailyRewardResult, WalletDepositResult, WalletView } from '@at-sevdalisi/shared-types';
+import type {
+  ApiSuccess,
+  ClaimDailyRewardResult,
+  EconomyReportView,
+  WalletDepositResult,
+  WalletView,
+} from '@at-sevdalisi/shared-types';
 import { ClaimDailyRewardUseCase } from '../../application/use-cases/claim-daily-reward.use-case';
 import { DepositFundsUseCase } from '../../application/use-cases/deposit-funds.use-case';
 import { GetWalletUseCase } from '../../application/use-cases/get-wallet.use-case';
+import { GetEconomyReportUseCase } from '../../application/use-cases/get-economy-report.use-case';
 import { assertSelf } from '../auth/assert-self';
 import { CurrentPlayer, type AuthenticatedPlayer } from '../auth/current-player.decorator';
 import { IdempotencyInterceptor } from '../idempotency/idempotency.interceptor';
@@ -33,6 +40,7 @@ export class EconomyController {
     @Inject(ClaimDailyRewardUseCase) private readonly claimDailyRewardUseCase: ClaimDailyRewardUseCase,
     @Inject(GetWalletUseCase) private readonly getWalletUseCase: GetWalletUseCase,
     @Inject(DepositFundsUseCase) private readonly depositFundsUseCase: DepositFundsUseCase,
+    @Inject(GetEconomyReportUseCase) private readonly getEconomyReportUseCase: GetEconomyReportUseCase,
   ) {}
 
   /**
@@ -105,6 +113,22 @@ export class EconomyController {
     assertSelf(currentPlayer.id, id);
     const wallet = await this.getWalletUseCase.execute(id, limit, before);
     return { success: true, data: wallet };
+  }
+
+  /**
+   * 16.10.2026 (brief §19) — gelir-gider raporu (`?period=daily|monthly`).
+   * Yalnızca kendi raporu (`assertSelf`); salt okuma, oyuncu başına hız sınırı.
+   */
+  @RateLimit({ name: 'wallet-report', limit: 30, windowSeconds: 60, keyBy: 'player' })
+  @Get(':id/wallet/report')
+  @HttpCode(HttpStatus.OK)
+  async getEconomyReport(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Query('period') period: string | undefined,
+    @CurrentPlayer() currentPlayer: AuthenticatedPlayer,
+  ): Promise<ApiSuccess<EconomyReportView>> {
+    assertSelf(currentPlayer.id, id);
+    return { success: true, data: await this.getEconomyReportUseCase.execute(id, period) };
   }
 
   // Yeni bir KAYNAK yaratmaz — `TrainingController.train`/`CareController.care`/

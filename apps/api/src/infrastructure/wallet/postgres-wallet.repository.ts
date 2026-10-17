@@ -1,8 +1,9 @@
 import { Inject, Injectable } from '@nestjs/common';
 import type { Pool } from 'pg';
-import type { WalletTransaction, WalletView } from '@at-sevdalisi/shared-types';
+import type { LedgerTransactionType, WalletTransaction, WalletView } from '@at-sevdalisi/shared-types';
 import type { WalletRepository } from '../../application/ports/wallet.repository';
 import { canonicalTypeOf } from '../../domain/economy/wallet-history';
+import type { EconomyReportPeriod, LedgerBucketRow } from '../../domain/economy/economy-report';
 import { PG_POOL } from '../database/database.module';
 
 /**
@@ -83,6 +84,37 @@ export class PostgresWalletRepository implements WalletRepository {
       nextCursor: hasMore ? (page[page.length - 1]?.id ?? null) : null,
     };
   }
+
+  /**
+   * 16.10.2026 (brief §19) — gelir-gider raporu. Yalnızca çip (`currency =
+   * 'money'`). Dönem anahtarı: satır anı UTC'ye çevrilip oyunun saat dilimi
+   * kadar kaydırılır (oturum saat diliminden BAĞIMSIZ). Gelir = pozitif
+   * tutarlar, gider = negatif tutarların mutlak değeri.
+   */
+  async findLedgerBuckets(
+    playerId: string,
+    since: Date,
+    period: EconomyReportPeriod,
+    offsetMinutes: number,
+  ): Promise<LedgerBucketRow[]> {
+    const result = await this.pool.query<{ bucket: string; type: LedgerTransactionType; income: string; expense: string }>(
+      `SELECT to_char((t.created_at AT TIME ZONE 'UTC') + make_interval(mins => $3::int), $4) AS bucket,
+              t.type,
+              COALESCE(SUM(t.amount) FILTER (WHERE t.amount > 0), 0)::bigint AS income,
+              COALESCE(-SUM(t.amount) FILTER (WHERE t.amount < 0), 0)::bigint AS expense
+         FROM economy_transactions t
+        WHERE t.player_id = $1 AND t.currency = 'money' AND t.created_at >= $2
+        GROUP BY 1, 2`,
+      [playerId, since, offsetMinutes, period === 'monthly' ? 'YYYY-MM' : 'YYYY-MM-DD'],
+    );
+    return result.rows.map((row) => ({
+      bucket: row.bucket,
+      type: row.type,
+      income: Number(row.income),
+      expense: Number(row.expense),
+    }));
+  }
+
 }
 
 /** `economy_transactions` satırı (migration 0019; `reference_id` 0031'den beri TEXT). */

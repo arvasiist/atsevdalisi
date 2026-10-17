@@ -20,6 +20,7 @@ import {
 import { HorseLevelNotAllowedError, RaceClubOnlyError } from '../../domain/race/level-bracket';
 import { CareerTierLockedError } from '../../domain/career/errors';
 import { InvalidRaceWinnersQueryError } from '../../domain/ranking/race-winners';
+import { InvalidEconomyReportPeriodError } from '../../domain/economy/economy-report';
 import { HorseTooStrongForTierError } from '../../domain/race/practice-class';
 import { EquipmentLevelLockedError } from '../../domain/equipment/catalog';
 import {
@@ -1024,6 +1025,7 @@ const DOMAIN_ERROR_MAP = new Map<ErrorClassConstructor, { status: number; code: 
   // 30.09.2026 — bozuk sayfa imleci (varsayılana DÜŞÜLMEZ, bkz. sınıf doc yorumu).
   [InvalidWalletCursorError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.ValidationError }],
   [InvalidRaceWinnersQueryError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.ValidationError }],
+  [InvalidEconomyReportPeriodError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.ValidationError }],
 ]);
 
 /**

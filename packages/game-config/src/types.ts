@@ -462,6 +462,8 @@ export interface EconomyConfig {
    * SQL'e gittiği için tavan bir güvenlik sınırıdır, tercih değil.
    */
   walletHistoryDefaultLimit: number;
+  /** 16.10.2026 (brief §19) — gelir-gider raporunun dönem sayısı (gün / ay). */
+  economyReport: { dailyBuckets: number; monthlyBuckets: number };
   /** `?limit` bu değerin üzerindeyse kırpılır (sessizce — istek 400 ALMAZ). */
   walletHistoryMaxLimit: number;
   /**
