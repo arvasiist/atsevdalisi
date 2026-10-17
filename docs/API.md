@@ -2040,6 +2040,16 @@ artık `stableName`, `recoveryBonusPercent`, `levels[]` (her seviye: `level`,
 `name`, `capacity`, `recoveryBonusPercent`, `requiredPlayerLevel`, `cost`) ve
 `nextUpgrade.nextName`/`nextRecoveryBonusPercent`/`requiredPlayerLevel` taşır.
 
+**16.10.2026 — ahır bölmeleri (migration 0097).** `GET /horses?ownerId=`
+satırları `stallNumber` (1..kapasite), `stable-summary` `stalls[]`
+(`stallNumber`, `horseId`, `horseName`) ve `maxStalls` taşır.
+`POST /players/:id/stable/stalls` gövdesi `{ "horseId": "<uuid>", "stallNumber": 4 }`:
+atı bölmeye taşır, bölme doluysa iki at yer değiştirir; yanıt `{ capacity,
+stalls }`. Hatalar: kilitli bölme `409 STALL_LOCKED`, başkasının atı `404
+HORSE_NOT_FOUND`, başkasının ahırı `403`, bozuk `horseId`/`stallNumber` `400`.
+Para hareketi yoktur (`Idempotency-Key` gerekmez); at el değiştirince bölmesi
+boşalır.
+
 Bu, projenin PARA/mülkiyet değiştiren İLK use-case'idir — bu yüzden
 docs/SECURITY.md §5'in satır kilitleme (`SELECT ... FOR UPDATE` + tek
 transaction) kuralı İLK KEZ burada gerçek anlamda uygulandı (bkz.

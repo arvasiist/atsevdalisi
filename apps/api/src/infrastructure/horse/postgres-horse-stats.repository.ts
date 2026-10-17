@@ -165,6 +165,14 @@ export class PostgresHorseStatsRepository implements HorseStatsRepository {
     return result;
   }
 
+  async findStallRowsByOwner(ownerId: string): Promise<Array<{ id: string; stallNumber: number | null; createdAt: string }>> {
+    const result = await this.pool.query<{ id: string; stall_number: number | null; created_at: Date }>(
+      'SELECT id, stall_number, created_at FROM horses WHERE owner_id = $1',
+      [ownerId],
+    );
+    return result.rows.map((row) => ({ id: row.id, stallNumber: row.stall_number, createdAt: row.created_at.toISOString() }));
+  }
+
   async findOwnerStableLevel(ownerId: string): Promise<number> {
     const result = await this.pool.query<{ stable_level: number }>('SELECT stable_level FROM players WHERE id = $1', [ownerId]);
     return result.rows[0]?.stable_level ?? 1;

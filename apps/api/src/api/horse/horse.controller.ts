@@ -88,12 +88,13 @@ export class HorseController {
     // (sahibine) eklenir; `GET :id` herkese açıktır ve bunları taşımaz.
     return {
       success: true,
-      data: horses.map(({ horse, personality, racingPower, raceReadyAt, ageMonths, lifeStage, stats, upbringing }) => ({
+      data: horses.map(({ horse, personality, racingPower, raceReadyAt, ageMonths, lifeStage, stats, upbringing, stallNumber }) => ({
         ...toPublicHorse(horse),
         ageMonths,
         lifeStage,
         ...(stats ? { stats } : {}),
         ...(upbringing ? { upbringing } : {}),
+        stallNumber,
         ...(personality ? { personality } : {}),
         ...(racingPower !== null ? { racingPower } : {}),
         ...(raceReadyAt !== null ? { raceReadyAt } : {}),

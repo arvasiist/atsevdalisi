@@ -2332,6 +2332,105 @@ button[style*='background: var(--color-accent-gold)'] {
   z-index: 6;
   display: flex;
   gap: 8px;
+  /* 16.10.2026 — simge sayısı arttı: dar ekranda alt satıra kayar. */
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  max-width: calc(100% - 24px);
+}
+
+/* 16.10.2026 — ahır bölmeleri: sahnedeki bölme etiketi + paneldeki bölme ızgarası. */
+.stall-tag {
+  display: inline-block;
+  white-space: nowrap;
+  padding: 3px 8px;
+  border-radius: var(--radius-sm, 6px);
+  border: 1px solid var(--color-border-gold);
+  background: rgba(10, 8, 6, 0.78);
+  color: #f6efe0;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  text-decoration: none;
+  cursor: pointer;
+  user-select: none;
+}
+
+.stall-tag-empty {
+  border-style: dashed;
+  color: var(--color-accent-gold);
+}
+
+.stall-tag-locked {
+  opacity: 0.8;
+}
+
+/* Sahnenin kenarındaki yan bölme düğmeleri (dikey ortada). */
+.stable3d-neighbor {
+  position: absolute;
+  z-index: 5;
+  top: 50%;
+  transform: translateY(-50%);
+  max-width: min(34%, 220px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 12px;
+  padding: 6px 10px;
+}
+
+.stable3d-neighbor-left {
+  left: 12px;
+}
+
+.stable3d-neighbor-right {
+  right: 12px;
+}
+
+.stall-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
+  gap: 6px;
+}
+
+.stall-cell {
+  display: grid;
+  gap: 4px;
+  align-content: start;
+  min-height: 74px;
+  padding: 6px;
+  border-radius: var(--radius-sm, 6px);
+  border: 1px solid var(--color-border-gold);
+  background: rgba(255, 255, 255, 0.03);
+  font-size: 12px;
+}
+
+.stall-cell-empty {
+  border-style: dashed;
+}
+
+.stall-cell-locked {
+  opacity: 0.6;
+}
+
+.stall-cell[data-moving='true'] {
+  border-color: var(--color-accent-gold);
+  background: rgba(232, 184, 74, 0.18);
+}
+
+.stall-cell-number {
+  font-size: 10px;
+  color: var(--color-text-muted);
+}
+
+.stall-cell-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stall-cell-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
 }
 
 .stable-dock-button {
@@ -4355,6 +4454,15 @@ button.btn-action {
     top: 8px;
     right: 8px;
     flex-direction: column;
+    /* 16.10.2026 — simgeler alçak ekrana sığmazsa tek sütunda kaydırılır. */
+    flex-wrap: nowrap;
+    max-height: calc(100% - 16px);
+    overflow-y: auto;
+  }
+
+  /* Sağdaki yan bölme düğmesi dikey simge sütununun soluna. */
+  .stable3d-neighbor-right {
+    right: 84px;
   }
 
   .stable-dock-button {

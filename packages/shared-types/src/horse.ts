@@ -185,6 +185,12 @@ export type PublicHorse = Omit<Horse, 'potential' | 'agingStartedAt'> & {
    * maliyet (birim fiyat sunucu config'inden).
    */
   upbringing?: HorseUpbringingView;
+  /**
+   * 16.10.2026 (migration 0097) — atın sahibinin ahırındaki bölmesi
+   * (1..kapasite; yerleşim sunucuda `resolveStableLayout`). Yalnızca sahibin
+   * at listesinde döner.
+   */
+  stallNumber?: number;
 };
 
 export interface HorseUpbringingView {

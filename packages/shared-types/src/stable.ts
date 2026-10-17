@@ -40,6 +40,22 @@ export interface StableSummaryView {
   recoveryBonusPercent: number;
   /** Bütün seviyeler (yol haritası); sayılar config'ten, sunucu aynısını uygular. */
   levels: StableLevelView[];
+  /** 16.10.2026 (migration 0097) — dolu bölmeler (bölme numarasına göre). */
+  stalls: StallView[];
+  /** En yüksek ahır seviyesinin kapasitesi (kilitli bölmeler dahil toplam). */
+  maxStalls: number;
+}
+
+export interface StallView {
+  stallNumber: number;
+  horseId: string;
+  horseName: string;
+}
+
+/** `POST /players/:id/stable/stalls` yanıtı — taşımadan SONRAKİ yerleşim. */
+export interface StableLayoutView {
+  capacity: number;
+  stalls: StallView[];
 }
 
 export interface StableLevelView {

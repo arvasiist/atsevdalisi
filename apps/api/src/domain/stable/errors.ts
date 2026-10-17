@@ -30,3 +30,30 @@ export class StableUpgradeLevelLockedError extends Error {
     this.name = 'StableUpgradeLevelLockedError';
   }
 }
+
+/** 16.10.2026 — ahır bölmeleri: bölme numarası pozitif tam sayı olmalı (400). */
+export class InvalidStallNumberError extends Error {
+  constructor() {
+    super('Bölme numarası pozitif bir tam sayı olmalı.');
+    this.name = 'InvalidStallNumberError';
+  }
+}
+
+/** Kapasitenin ötesindeki bölme henüz açılmadı (409) — ahırı geliştirerek açılır. */
+export class StallLockedError extends Error {
+  constructor(
+    public readonly stallNumber: number,
+    public readonly capacity: number,
+  ) {
+    super(`${stallNumber}. bölme henüz kilitli (ahır kapasitesi ${capacity}). Ahırı geliştirerek açabilirsin.`);
+    this.name = 'StallLockedError';
+  }
+}
+
+/** Taşınmak istenen at oyuncunun ahırında değil (404 — başkasının atını yoklamak bilgi vermez). */
+export class HorseNotInStableError extends Error {
+  constructor(public readonly horseId: string) {
+    super('At ahırında bulunamadı.');
+    this.name = 'HorseNotInStableError';
+  }
+}

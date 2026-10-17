@@ -223,6 +223,10 @@ Ahır seviyesi/kapasitesi, yükseltme (para yolu), tam ekran 3D ahır sahnesi
 toparlanma hızı, oyuncu seviyesi şartı), sahnede "Ahırı Geliştir" paneli +
 seviye yol haritası (`stable-development.e2e-spec.ts`). 3D ahır seviyeyle
 görsel olarak DEĞİŞMEZ (yeni 3D işi yapılmadı).
+16.10.2026 — ahır bölmeleri (migration 0097): her atın kalıcı bölmesi; sahnede
+yan bölmelerde komşu atlar + "+ At al" / kilitli bölme düğmeleri; "Bölmeler"
+paneliyle taşı/yer değiştir (`stable-stalls.e2e-spec.ts`, tarayıcıda ekran
+görüntüsüyle doğrulandı: masaüstü + telefon yatay).
 
 ## Training Status — TESTED
 

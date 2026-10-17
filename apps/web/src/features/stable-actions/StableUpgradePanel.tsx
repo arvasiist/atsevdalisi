@@ -24,7 +24,12 @@ import {
 
 const STATE_MARK = { reached: '✓', current: '●', next: '→', locked: '🔒' } as const;
 
-export function StableUpgradePanel(): React.ReactElement {
+export function StableUpgradePanel({
+  onUpgraded,
+}: {
+  /** Yükseltmeden sonra sayfanın ahır özeti/at listesi tazelenir (yeni bölmeler sahnede açılır). */
+  onUpgraded?: () => Promise<void>;
+} = {}): React.ReactElement {
   const { player, refresh } = usePlayer();
   const [summary, setSummary] = useState<StableSummaryView | null>(null);
   const [busy, setBusy] = useState(false);
@@ -74,7 +79,7 @@ export function StableUpgradePanel(): React.ReactElement {
           result.cost.amount,
         )} ödendi.`,
       );
-      await Promise.all([load(), refresh()]);
+      await Promise.all([load(), refresh(), onUpgraded?.()]);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Yükseltme başarısız oldu.');
     } finally {

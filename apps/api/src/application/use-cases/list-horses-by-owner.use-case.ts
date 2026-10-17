@@ -3,7 +3,8 @@ import type { FeedType, Horse, HorsePersonalityView, HorseUpbringingView, HorseV
 import { describePersonality } from '../../domain/horse/personality';
 import { horseRacingPower } from '../../domain/race/practice-class';
 import { estimateRaceReadyAt } from '../../domain/care/race-condition';
-import { getStableRecoveryMultiplier } from '../../domain/stable/stable';
+import { getStableCapacity, getStableRecoveryMultiplier } from '../../domain/stable/stable';
+import { resolveStableLayout } from '../../domain/stable/layout';
 import { getLifeStage, horseAgeMonths } from '../../domain/horse/age-curve';
 import { AppConfigService } from '../../infrastructure/config/config.service';
 import { HORSE_STATS_REPOSITORY, type HorseStatsRepository } from '../ports/horse-stats.repository';
@@ -49,6 +50,8 @@ export class ListHorsesByOwnerUseCase {
       lifeStage: { name: string; racingFactor: number };
       stats: HorseVisibleStats | null;
       upbringing: HorseUpbringingView | null;
+      /** 16.10.2026 — ahırdaki bölmesi (1..kapasite). */
+      stallNumber: number;
     }>
   > {
     const horses = await this.horseRepository.findByOwnerId(ownerId);
@@ -57,14 +60,22 @@ export class ListHorsesByOwnerUseCase {
     const upbringingFeed = (Object.entries(this.config.care.feedTypes) as Array<[FeedType, (typeof this.config.care.feedTypes)[FeedType]]>).find(
       ([, effect]) => effect.upbringingStatGain !== undefined && effect.allowedLifeStages !== undefined,
     );
-    const [traits, visibleStats, upbringingCounts, stableLevel] = await Promise.all([
+    const [traits, visibleStats, upbringingCounts, stableLevel, stallRows] = await Promise.all([
       this.horseStatsRepository.findPersonalityByHorseIds(ids),
       this.horseStatsRepository.findVisibleStatsByHorseIds(ids),
       upbringingFeed
         ? this.horseStatsRepository.findFeedCountsByHorseIds(ids, upbringingFeed[0])
         : Promise.resolve(new Map<string, number>()),
       this.horseStatsRepository.findOwnerStableLevel(ownerId),
+      this.horseStatsRepository.findStallRowsByOwner(ownerId),
     ]);
+    // 16.10.2026 — bölmeler: ekran, özet ve taşıma ucu AYNI yerleşim kuralı.
+    const stallByHorse = new Map(
+      resolveStableLayout(stallRows, getStableCapacity(stableLevel, this.config.stable)).map((entry) => [
+        entry.horseId,
+        entry.stallNumber,
+      ]),
+    );
     // 16.10.2026 — ahır konfor çarpanı: tahmin zamanlayıcıyla AYNI hızla yapılır.
     const recoveryMultiplier = getStableRecoveryMultiplier(stableLevel, this.config.stable);
     return horses.map((horse) => {
@@ -90,6 +101,7 @@ export class ListHorsesByOwnerUseCase {
         ageMonths,
         lifeStage: { name: stage.name, racingFactor: stage.racingFactor },
         stats: power ?? null,
+        stallNumber: stallByHorse.get(horse.id) ?? 0,
         upbringing:
           upbringingFeed && upbringingFeed[1].allowedLifeStages!.includes(stage.name)
             ? this.upbringingView(upbringingFeed[0], upbringingFeed[1], upbringingCounts.get(horse.id) ?? 0)

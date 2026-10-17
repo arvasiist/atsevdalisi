@@ -126,6 +126,7 @@ import type {
   SocialOverviewView,
   StableSummaryView,
   StableUpgradeResult,
+  StableLayoutView,
   StartApproach,
   TrainHorseResult,
   TrainingIntensity,
@@ -737,6 +738,16 @@ export const apiClient = {
     request<StableUpgradeResult>(`/players/${playerId}/stable/upgrade`, {
       method: 'POST',
       headers: { 'Idempotency-Key': idempotencyKey },
+    }),
+
+  /**
+   * 16.10.2026 — ahır düzeni: atı bölmeye taşır (doluysa yer değiştirir).
+   * Para hareketi yok; kilitli bölme 409 `STALL_LOCKED`. Yanıt yeni yerleşim.
+   */
+  moveHorseToStall: (playerId: string, horseId: string, stallNumber: number) =>
+    request<StableLayoutView>(`/players/${playerId}/stable/stalls`, {
+      method: 'POST',
+      body: JSON.stringify({ horseId, stallNumber }),
     }),
 
   /**

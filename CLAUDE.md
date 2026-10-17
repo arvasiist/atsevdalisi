@@ -1219,6 +1219,26 @@ BAŞARIYA kadar saklanır (eskiden her basış yeni anahtar → çift seviye ris
 ⚠️ Ahırı test içinde yükselten e2e oyuncu SEVİYESİNİ de ayarlamalı
 (`stable.e2e-spec.ts`).
 
+(103) **AHIR BÖLMELERİ (16.10.2026, migration 0097)** — `horses.stall_number`
+(1..kapasite; NULL = sunucu en düşük boş bölmeye yerleştirir, kayıt sırasıyla).
+Yerleşimin TEK kuralı `domain/stable/layout.ts` → `resolveStableLayout` (liste
+`PublicHorse.stallNumber`, özet `stalls`/`maxStalls`, taşıma ucu aynısını
+kullanır). `POST /players/:id/stable/stalls` `{ horseId, stallNumber }`: oyuncu
+satırı `FOR UPDATE` → yerleşimi türet → taşı (dolu bölmede YER DEĞİŞTİR) →
+TAMAMINI yaz (önce NULL, sonra tek `UPDATE … unnest`; tekil indeks
+`horses_owner_stall_uq` ara adımda çakışmasın diye). Kilitli bölme 409
+`STALL_LOCKED`, başkasının atı 404, bozuk girdi 400; para YOK. ⚠️ At el
+değiştirince bölmesi tetikleyiciyle (`trg_horses_clear_stall_on_owner_change`)
+boşalır — yeni bir sahiplik yolu bunu ayrıca yazmak zorunda değil. ⚠️ Eski
+oyuncunun kapasiteden fazla atı silinmez, kapasitenin ötesindeki numaralara
+yerleşir. Web: ahır sahnesi yerleşimi TEK uzun koridor gibi gösterir (seçili at
+ortada, arka sıradaki ±2 bölmede komşu atlar — düşük kalitede çizilmez); yan
+bölme düğmeleri sahnenin kenarında (3D `Html` etiketi kadraj dışında kalıyor ve
+React 19'da "synchronously unmount" uyarısı veriyordu — GERİ EKLEME). "Bölmeler"
+paneli (`?panel=layout`): taşı/yer değiştir, boşta "+ At al"/"Çiftleştir",
+kilitlide "Ahır Sv. N" → geliştirme paneli; bir sonraki seviyenin ötesindeki
+kilitli bölmeler tek satırda özetlenir. ‹ › bölme sırasıyla gezer.
+
 **✅ ÜCRETLİ LOBİ YARIŞI ARTIK KOŞUYOR — ÖDÜL DAĞITIMI VAR (§13.14,
 28.09.2026).** `POST /races/:id/settle` yarışı koşar, ödülleri `top5`
 paylarıyla dağıtır ve `races.status = 'finished'` yazar. Uç bir

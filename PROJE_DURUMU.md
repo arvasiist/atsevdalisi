@@ -4717,3 +4717,12 @@ paneli seviye yol haritasını gösterir. Mevcut oyuncuların seviyesi/kapasites
 değişmedi (1–5 aynı), seviye 2+ olanlar konfor bonusunu kendiliğinden alır.
 Testler: `stable-development.e2e-spec.ts` (3), `stable.e2e-spec.ts` (10 seviyeye
 uyarlandı), domain `stable.spec.ts`, web `stable-upgrade.spec.ts` (3).
+
+**Ahır bölmeleri (16.10.2026, sahibinin isteği — migration 0097).** Ahır
+sahnesi 10 bölme çiziyordu ama yalnızca seçili at ortada duruyordu; atların
+bölme kavramı yoktu. Artık her atın kalıcı bölmesi var, seviye yükseldikçe yeni
+bölmeler açılır; sahnede yan bölmelerde komşu atlar ve "+ At al"/kilitli bölme
+düğmeleri, "Bölmeler" panelinde taşı/yer değiştir. Tarayıcıda (Chromium,
+yazılımsal GL) ekran görüntüsüyle doğrulandı. Testler: `stable-stalls.e2e-spec.ts`
+(5), domain `layout.spec.ts` (5), web `stall-map.spec.ts` (5) +
+`StableLayoutPanel.spec.tsx` (3).

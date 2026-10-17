@@ -32,6 +32,7 @@ import { HORSE_MOOD_LABELS, deriveHorseDemeanor } from '../horse-stage/horse-dem
 import { fitFovToAspect } from '../home-scene/showcase-camera';
 import { PlaceholderStall, STABLE_SUN_POSITION, type StableDetail } from './PlaceholderStall';
 import { STABLE_LAMPS, STABLE_ORBIT, orbitPosition } from './stable-layout';
+import { describeStall, type SceneNeighbor } from './stall-map';
 import { AudioToggle } from '../race-viewer/audio-vfx/AudioToggle';
 import { QualitySelect } from '../race-viewer/QualitySelect';
 import { useAudioMuted, useStableAmbience } from '../race-viewer/audio-vfx/use-race-audio';
@@ -45,6 +46,93 @@ export type StableSceneHorse = Pick<
   PublicHorse,
   'id' | 'name' | 'health' | 'energy' | 'fatigue' | 'morale' | 'status' | 'appearance'
 >;
+
+/**
+ * 16.10.2026 — ahır bölmeleri: arka sıradaki komşu bölmeler (dolu bölmede at,
+ * boşta "+ At al", kilitlide açıldığı ahır seviyesi). Komşu at salt görüntüdür;
+ * etikete basınca o at sahneye gelir.
+ */
+export interface StableSceneNeighbor extends SceneNeighbor {
+  horse?: StableSceneHorse;
+}
+
+/** Komşu bölmedeki at (salt görüntü; parmaklıkların arasından görünür). */
+function NeighborStall({ neighbor }: { neighbor: StableSceneNeighbor }): React.ReactElement | null {
+  const { state, horse } = neighbor;
+  const demeanor = useMemo(() => (horse ? deriveHorseDemeanor(horse, PRESENCE_CONFIG) : undefined), [horse]);
+  if (state.kind !== 'occupied' || !horse) return null;
+  return (
+    <group position={[neighbor.x, 0, 0]}>
+      <HorseAvatar3D
+        horseId={horse.id}
+        silkColor="#c9a227"
+        saddleNumber={neighbor.stallNumber}
+        gait="idle"
+        castShadow={false}
+        appearance={horse.appearance}
+        demeanor={demeanor}
+        showJockey={false}
+      />
+    </group>
+  );
+}
+
+/**
+ * Yan bölmelerin düğmeleri (sahnenin sağ/sol kenarında, her zaman görünür).
+ * 3D etiket kameranın dar yörüngesinde kadraj dışında kalıyordu.
+ */
+function NeighborChips({
+  neighbors,
+  onSelectHorse,
+  onLockedStall,
+}: {
+  neighbors: readonly StableSceneNeighbor[];
+  onSelectHorse?: (horseId: string) => void;
+  onLockedStall?: () => void;
+}): React.ReactElement | null {
+  const sides = [
+    { side: 'left' as const, neighbor: neighbors.find((item) => item.offset === -1) },
+    { side: 'right' as const, neighbor: neighbors.find((item) => item.offset === 1) },
+  ];
+  if (sides.every((entry) => !entry.neighbor)) return null;
+  return (
+    <>
+      {sides.map(({ side, neighbor }) => {
+        if (!neighbor) return null;
+        const text = `${neighbor.stallNumber}. bölme · ${describeStall(neighbor.state, neighbor.horse?.name)}`;
+        const className = `stall-tag stall-tag-${neighbor.state.kind} stable3d-neighbor stable3d-neighbor-${side}`;
+        const arrow = side === 'left' ? '‹ ' : '';
+        const tail = side === 'right' ? ' ›' : '';
+        if (neighbor.state.kind === 'occupied') {
+          const horseId = neighbor.state.horseId;
+          return (
+            <button key={side} type="button" className={className} data-testid={`stall-tag-${neighbor.stallNumber}`} onClick={() => onSelectHorse?.(horseId)}>
+              {arrow}
+              {text}
+              {tail}
+            </button>
+          );
+        }
+        if (neighbor.state.kind === 'empty') {
+          return (
+            <a key={side} className={className} href="/breeds" data-testid={`stall-tag-${neighbor.stallNumber}`}>
+              {arrow}
+              {text}
+              {tail}
+            </a>
+          );
+        }
+        return (
+          <button key={side} type="button" className={className} data-testid={`stall-tag-${neighbor.stallNumber}`} onClick={onLockedStall}>
+            {arrow}
+            {text}
+            {tail}
+          </button>
+        );
+      })}
+    </>
+  );
+}
 
 const STABLE_CAMERA = loadCameraConfig().stableScene;
 const INITIAL_CAMERA = orbitPosition(
@@ -118,11 +206,13 @@ function StableSceneContents({
   shadows,
   shadowMapSize,
   detail,
+  neighbors,
 }: {
   horse: StableSceneHorse;
   shadows: boolean;
   shadowMapSize: number;
   detail: StableDetail;
+  neighbors: readonly StableSceneNeighbor[];
 }): React.ReactElement {
   const demeanor = useMemo(() => deriveHorseDemeanor(horse, PRESENCE_CONFIG), [horse]);
   const lamps = detail === 'high' ? STABLE_LAMPS : STABLE_LAMPS.filter(([x]) => x === 0);
@@ -180,6 +270,10 @@ function StableSceneContents({
         demeanor={demeanor}
         showJockey={false}
       />
+      {/* Komşu bölmelerdeki atlar: düşük kalitede çizilmez (kenar düğmeleri yine görünür). */}
+      {detail === 'high'
+        ? neighbors.map((neighbor) => <NeighborStall key={neighbor.stallNumber} neighbor={neighbor} />)
+        : null}
       <SwayingOrbit />
     </>
   );
@@ -194,6 +288,13 @@ export interface StableScene3DProps {
    * artık oyuncunun ana sayfasıdır.
    */
   fullscreen?: boolean;
+  /** 16.10.2026 — ahır bölmeleri: arka sıradaki komşu bölmeler (yoksa boş bölmeler). */
+  neighbors?: readonly StableSceneNeighbor[];
+  onSelectHorse?: (horseId: string) => void;
+  /** Kilitli yan bölmeye basınca (ahırı geliştir paneli). */
+  onLockedStall?: () => void;
+  /** Ortadaki atın bölme numarası (başlıkta). */
+  stallNumber?: number;
 }
 
 /**
@@ -213,7 +314,15 @@ function FitStableFov(): null {
   return null;
 }
 
-export function StableScene3D({ horse, children, fullscreen = false }: StableScene3DProps): React.ReactElement {
+export function StableScene3D({
+  horse,
+  children,
+  fullscreen = false,
+  neighbors = [],
+  onSelectHorse,
+  onLockedStall,
+  stallNumber,
+}: StableScene3DProps): React.ReactElement {
   // 01.10.2026 (3D adım 10) — ortak kalite tercihi + otomatik düşürme.
   const quality = useQualityTier();
   const settings = quality.settings;
@@ -247,6 +356,7 @@ export function StableScene3D({ horse, children, fullscreen = false }: StableSce
             shadows={settings.shadowsEnabled}
             shadowMapSize={settings.shadowMapSize}
             detail={settings.tier === 'low' ? 'low' : 'high'}
+            neighbors={neighbors}
           />
         </Suspense>
       </Canvas>
@@ -255,8 +365,12 @@ export function StableScene3D({ horse, children, fullscreen = false }: StableSce
         <AudioToggle muted={audioMuted} onChange={setAudioMuted} />
         <QualitySelect />
       </div>
+      <NeighborChips neighbors={neighbors} onSelectHorse={onSelectHorse} onLockedStall={onLockedStall} />
       <div className="stable3d-caption">
-        <span className="stable3d-name">{horse.name}</span>
+        <span className="stable3d-name">
+          {stallNumber ? `${stallNumber}. bölme · ` : ''}
+          {horse.name}
+        </span>
         <span className="home3d-mood">{HORSE_MOOD_LABELS[mood]}</span>
       </div>
       {children}

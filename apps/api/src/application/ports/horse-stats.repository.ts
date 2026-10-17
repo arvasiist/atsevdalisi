@@ -32,6 +32,8 @@ export interface HorseStatsRepository {
   findFeedCountsByHorseIds(horseIds: readonly string[], itemType: string): Promise<Map<string, number>>;
   /** 16.10.2026 — sahibin ahır seviyesi (konfor çarpanı; yoksa 1). */
   findOwnerStableLevel(ownerId: string): Promise<number>;
+  /** 16.10.2026 (migration 0097) — sahibin atlarının kayıtlı bölmesi (yerleşim `resolveStableLayout`). */
+  findStallRowsByOwner(ownerId: string): Promise<Array<{ id: string; stallNumber: number | null; createdAt: string }>>;
 }
 
 /** NestJS DI için token (interface'ler runtime'da yok olduğundan bir Symbol gerekir). */

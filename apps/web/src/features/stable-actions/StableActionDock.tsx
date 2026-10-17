@@ -7,24 +7,36 @@
  */
 
 import Link from 'next/link';
-import { HeartPulse, ShoppingCart, Trophy, Warehouse, Wrench, X } from 'lucide-react';
-import type { PublicHorse } from '@at-sevdalisi/shared-types';
+import { HeartPulse, LayoutGrid, ShoppingCart, Trophy, Warehouse, Wrench, X } from 'lucide-react';
+import type { PublicHorse, StableSummaryView } from '@at-sevdalisi/shared-types';
 import { CarePanel } from './CarePanel';
 import { EquipmentPanel } from './EquipmentPanel';
 import { StableUpgradePanel } from './StableUpgradePanel';
+import { StableLayoutPanel } from './StableLayoutPanel';
 import { STABLE_ACTIONS, type StableActionKey } from './stable-actions';
 
 const ICONS: Record<StableActionKey, React.ReactNode> = {
   care: <HeartPulse size={20} aria-hidden="true" />,
   equipment: <Wrench size={20} aria-hidden="true" />,
+  layout: <LayoutGrid size={20} aria-hidden="true" />,
   upgrade: <Warehouse size={20} aria-hidden="true" />,
 };
+
+/** Ahıra ait (ata değil) paneller: başlıkta at adı yerine "Ahırın" yazar. */
+const STABLE_WIDE: ReadonlySet<StableActionKey> = new Set(['layout', 'upgrade']);
 
 export interface StableActionDockProps {
   horse: PublicHorse;
   active: StableActionKey | null;
   onSelect: (key: StableActionKey | null) => void;
   onHorseChanged: () => Promise<void>;
+  /** 16.10.2026 — "Bölmeler" paneli için ahır verisi (yüklenmediyse `null`, panel bekler). */
+  layout?: {
+    playerId: string;
+    horses: readonly PublicHorse[];
+    summary: StableSummaryView;
+    onShowHorse: (horseId: string) => void;
+  } | null;
 }
 
 export function StableActionDock({
@@ -32,6 +44,7 @@ export function StableActionDock({
   active,
   onSelect,
   onHorseChanged,
+  layout = null,
 }: StableActionDockProps): React.ReactElement {
   const activeAction = STABLE_ACTIONS.find((action) => action.key === active) ?? null;
   return (
@@ -65,13 +78,13 @@ export function StableActionDock({
       {activeAction ? (
         <aside
           className="stable-drawer"
-          aria-label={activeAction.key === 'upgrade' ? activeAction.label : `${activeAction.label} — ${horse.name}`}
+          aria-label={STABLE_WIDE.has(activeAction.key) ? activeAction.label : `${activeAction.label} — ${horse.name}`}
         >
           <header className="stable-drawer-header">
             <span className="stable-drawer-icon">{ICONS[activeAction.key]}</span>
             <div style={{ display: 'grid', minWidth: 0 }}>
               <strong>{activeAction.label}</strong>
-              <span className="stable-drawer-horse">{activeAction.key === 'upgrade' ? 'Ahırın' : horse.name}</span>
+              <span className="stable-drawer-horse">{STABLE_WIDE.has(activeAction.key) ? 'Ahırın' : horse.name}</span>
             </div>
             <button
               type="button"
@@ -86,8 +99,21 @@ export function StableActionDock({
             <CarePanel horse={horse} onHorseChanged={onHorseChanged} />
           ) : activeAction.key === 'equipment' ? (
             <EquipmentPanel horse={horse} />
+          ) : activeAction.key === 'layout' ? (
+            layout ? (
+              <StableLayoutPanel
+                playerId={layout.playerId}
+                horses={layout.horses}
+                summary={layout.summary}
+                onChanged={onHorseChanged}
+                onShowHorse={layout.onShowHorse}
+                onOpenUpgrade={() => onSelect('upgrade')}
+              />
+            ) : (
+              <p className="stable-action-muted">Ahır yükleniyor…</p>
+            )
           ) : (
-            <StableUpgradePanel />
+            <StableUpgradePanel onUpgraded={onHorseChanged} />
           )}
         </aside>
       ) : null}

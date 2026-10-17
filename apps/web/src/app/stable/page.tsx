@@ -62,6 +62,9 @@ import { PersonalityChips } from '../../features/personality/PersonalityChips';
 import { StableActionDock } from '../../features/stable-actions/StableActionDock';
 import { describeComfort } from '../../features/stable-actions/stable-upgrade';
 import { StableUpgradePanel } from '../../features/stable-actions/StableUpgradePanel';
+import { stallContextFrom } from '../../features/stable-actions/StableLayoutPanel';
+import { sceneNeighbors } from '../../features/stable-scene/stall-map';
+import type { StableSceneNeighbor } from '../../features/stable-scene/StableScene3D';
 import { PlayerOverview } from '../../features/home/PlayerOverview';
 import { OnboardingPanel } from '../../features/onboarding/OnboardingPanel';
 import { formatRaceReadyIn } from '../../features/race/race-entry';
@@ -106,6 +109,8 @@ export default function StablePage(): React.ReactElement {
   } = usePlayer();
   const [horses, setHorses] = useState<PublicHorse[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  /** 16.10.2026 — ahır özeti (kapasite, seviyeler, bölmeler): sahne, panel ve kart ortak kullanır. */
+  const [stableSummary, setStableSummary] = useState<StableSummaryView | null>(null);
   /** 3D ahırda gösterilen at; seçilmemişse öne çıkan at (ana sayfayla aynı kural). */
   const [stageHorseId, setStageHorseId] = useState<string | null>(null);
   const stageHorse = useMemo(
@@ -173,6 +178,14 @@ export default function StablePage(): React.ReactElement {
       .catch((err: unknown) => {
         if (!cancelled) setError(err instanceof Error ? err.message : 'Atlar yüklenemedi');
       });
+    void apiClient
+      .getStableSummary(playerId)
+      .then((data) => {
+        if (!cancelled) setStableSummary(data);
+      })
+      .catch(() => {
+        // Özet yoksa sahne komşu bölmesiz çizilir; kart kendi hatasını gösterir.
+      });
     return () => {
       cancelled = true;
     };
@@ -193,7 +206,12 @@ export default function StablePage(): React.ReactElement {
       return;
     }
     try {
-      setHorses(await apiClient.getHorsesByOwner(player.id));
+      const [nextHorses, nextSummary] = await Promise.all([
+        apiClient.getHorsesByOwner(player.id),
+        apiClient.getStableSummary(player.id),
+      ]);
+      setHorses(nextHorses);
+      setStableSummary(nextSummary);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Atlar yüklenemedi');
     }
@@ -214,13 +232,26 @@ export default function StablePage(): React.ReactElement {
 
   // 08.10.2026 — ahır ana sayfadır: sahne üst bar hariç ekranı kaplar,
   // atlar ve paneller kaydırınca altta. Sahnede at değiştirme + "Atlarım".
-  const stageIndex =
-    horses && stageHorse ? horses.findIndex((item) => item.id === stageHorse.id) : -1;
+  // 16.10.2026 — ‹ › koridorda yürür gibi BÖLME sırasıyla gezer.
+  const byStall = useMemo(
+    () => (horses ? [...horses].sort((a, b) => (a.stallNumber ?? 0) - (b.stallNumber ?? 0)) : []),
+    [horses],
+  );
+  const stageIndex = stageHorse ? byStall.findIndex((item) => item.id === stageHorse.id) : -1;
   const stepStage = (delta: number) => {
-    if (!horses || horses.length < 2 || stageIndex < 0) return;
-    const next = horses[(stageIndex + delta + horses.length) % horses.length];
+    if (byStall.length < 2 || stageIndex < 0) return;
+    const next = byStall[(stageIndex + delta + byStall.length) % byStall.length];
     if (next) setStageHorseId(next.id);
   };
+  // 16.10.2026 — sahnedeki komşu bölmeler (dolu: at, boş: "+ At al", kilitli: seviye).
+  const neighbors = useMemo((): StableSceneNeighbor[] => {
+    if (!horses || !stableSummary || !stageHorse?.stallNumber) return [];
+    const byId = new Map(horses.map((item) => [item.id, item]));
+    return sceneNeighbors(stageHorse.stallNumber, stallContextFrom(stableSummary, horses)).map((neighbor) => ({
+      ...neighbor,
+      horse: neighbor.state.kind === 'occupied' ? byId.get(neighbor.state.horseId) : undefined,
+    }));
+  }, [horses, stableSummary, stageHorse]);
 
   return (
     <main>
@@ -228,22 +259,34 @@ export default function StablePage(): React.ReactElement {
         <StableUrlParams onChange={applyUrlParams} />
       </Suspense>
       {stageHorse ? (
-        <StableScene3D horse={stageHorse} fullscreen>
+        <StableScene3D
+          horse={stageHorse}
+          fullscreen
+          neighbors={neighbors}
+          onSelectHorse={setStageHorseId}
+          onLockedStall={() => selectStableAction('upgrade')}
+          stallNumber={stageHorse.stallNumber}
+        >
           {player ? <OnboardingPanel /> : null}
           <StableActionDock
             horse={stageHorse}
             active={activeAction}
             onSelect={selectStableAction}
             onHorseChanged={reloadHorses}
+            layout={
+              player && horses && stableSummary
+                ? { playerId: player.id, horses, summary: stableSummary, onShowHorse: setStageHorseId }
+                : null
+            }
           />
           <div className="stable3d-switcher" data-testid="stable-switcher">
-            {horses && horses.length > 1 ? (
+            {byStall.length > 1 ? (
               <button type="button" onClick={() => stepStage(-1)} aria-label="Önceki at">
                 ‹
               </button>
             ) : null}
             <a href="#stable-horses">Atlarım{horses ? ` (${horses.length})` : ''} ↓</a>
-            {horses && horses.length > 1 ? (
+            {byStall.length > 1 ? (
               <button type="button" onClick={() => stepStage(1)} aria-label="Sonraki at">
                 ›
               </button>
@@ -288,7 +331,8 @@ export default function StablePage(): React.ReactElement {
 
         {player ? (
           <StableUpgradeCard
-            ownerId={player.id}
+            summary={stableSummary}
+            onUpgraded={reloadHorses}
             onOpenUpgrade={
               stageHorse
                 ? () => {
@@ -391,10 +435,12 @@ function StableUrlParams({ onChange }: { onChange: (panel: string | null, horse:
 }
 
 function StableUpgradeCard({
-  ownerId,
+  summary,
+  onUpgraded,
   onOpenUpgrade,
 }: {
-  ownerId: string;
+  summary: StableSummaryView | null;
+  onUpgraded: () => Promise<void>;
   /**
    * 16.10.2026 — yükseltme "Ahırı Geliştir" panelindedir (tek bileşen). Ahır
    * sahnesi varsa panel sahnede açılır; at yoksa sahne çizilmez → `null` ve
@@ -402,29 +448,12 @@ function StableUpgradeCard({
    */
   onOpenUpgrade: (() => void) | null;
 }): React.ReactElement {
-  const [summary, setSummary] = useState<StableSummaryView | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [inlineOpen, setInlineOpen] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-    apiClient
-      .getStableSummary(ownerId)
-      .then((view) => {
-        if (!cancelled) setSummary(view);
-      })
-      .catch((err: unknown) => {
-        if (!cancelled) setError(err instanceof Error ? err.message : 'Ahır özeti yüklenemedi');
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [ownerId]);
 
   if (summary === null) {
     return (
       <GlassPanel style={{ marginBottom: 'var(--space-lg)' }}>
-        <p style={{ color: 'var(--color-text-muted)', margin: 0 }}>{error ?? 'Ahır durumu yükleniyor…'}</p>
+        <p style={{ color: 'var(--color-text-muted)', margin: 0 }}>Ahır durumu yükleniyor…</p>
       </GlassPanel>
     );
   }
@@ -473,7 +502,7 @@ function StableUpgradeCard({
           </button>
         </div>
       </div>
-      {onOpenUpgrade === null && inlineOpen ? <StableUpgradePanel /> : null}
+      {onOpenUpgrade === null && inlineOpen ? <StableUpgradePanel onUpgraded={onUpgraded} /> : null}
     </GlassPanel>
   );
 }
