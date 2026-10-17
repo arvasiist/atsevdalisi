@@ -10,7 +10,9 @@ import type {
 import { getMaxStaffCapacity } from '../../domain/farm/farm';
 import {
   assertHireableRole,
+  bestActiveStaff,
   bestActiveStaffMultiplier,
+  sessionsToNextSkill,
   calculateContractCost,
   calculateStaffBonusMultiplier,
   contractEndsAt,
@@ -82,6 +84,25 @@ export class ManageStaffUseCase {
     return bestActiveStaffMultiplier(hired, role, this.config.staff, now);
   }
 
+  /**
+   * 17.10.2026 (brief §13) — antrenman tipine göre en iyi ETKİN antrenör ve
+   * çarpanı (uzmanlık dahil). Antrenörsüz → `{ multiplier: 1, trainer: null }`.
+   */
+  async trainerFor(
+    ownerId: string,
+    trainingType: string,
+    now: Date = new Date(),
+  ): Promise<{ multiplier: number; trainer: Staff | null }> {
+    const hired = await this.staff.findByOwnerId(ownerId);
+    const best = bestActiveStaff(hired, 'trainer', this.config.staff, now, trainingType);
+    return best === null ? { multiplier: 1, trainer: null } : { multiplier: best.multiplier, trainer: best.staff };
+  }
+
+  /** Antrenörün verdiği seans — deneyim/beceri gelişimi (bkz. `developTrainer`). */
+  async recordTrainerSession(staffId: string, ownerId: string, now: Date = new Date()) {
+    return this.staff.recordTrainerSession({ staffId, ownerId, now });
+  }
+
   private toView(staff: Staff, now: Date): StaffView {
     const owned = staff.ownerId !== null;
     const endsAt = owned ? contractEndsAt(staff.contract) : null;
@@ -92,6 +113,14 @@ export class ManageStaffUseCase {
       renewable: owned && isContractRenewable(staff.contract, this.config.staff, now),
       bonusMultiplier: calculateStaffBonusMultiplier(staff, this.config.staff),
       contractCost: calculateContractCost(staff, this.config.staff),
+      trainerFocus:
+        staff.role === 'trainer' && staff.specialization !== null
+          ? {
+              matched: calculateStaffBonusMultiplier(staff, this.config.staff, staff.specialization),
+              other: calculateStaffBonusMultiplier(staff, this.config.staff, OTHER_TRAINING_FOCUS),
+            }
+          : null,
+      sessionsToNextSkill: sessionsToNextSkill(staff, this.config.staff),
     };
   }
 
@@ -116,6 +145,9 @@ export class ManageStaffUseCase {
               role,
               name: market.names[randomInt(market.names.length)] ?? 'Aday',
               skill: randomInt(market.skillMin, market.skillMax + 1),
+              // 17.10.2026 (brief §13) — antrenör adayı bir uzmanlıkla ya da
+              // genel (uzmanlıksız, son yuva) gelir; diğer rollerde uzmanlık yok.
+              specialization: role === 'trainer' ? pickTrainerSpecialization(this.config.staff.trainer.specializations) : null,
               contractDurationMonths: this.config.staff.contractMonths,
               now,
             },
@@ -130,4 +162,13 @@ export class ManageStaffUseCase {
     await this.staff.insertCandidates(missing);
     return this.staff.findCandidates(hireableRoles);
   }
+}
+
+/** Uzmanlık dışı bir antrenmanı temsil eden odak (görünümdeki "diğer" çarpanı için). */
+const OTHER_TRAINING_FOCUS = '__other__';
+
+/** Uzmanlıklardan biri ya da genel (`null`) — eşit olasılıkla. */
+function pickTrainerSpecialization(specializations: readonly string[]): string | null {
+  const index = randomInt(specializations.length + 1);
+  return specializations[index] ?? null;
 }

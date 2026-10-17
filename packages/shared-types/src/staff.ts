@@ -55,6 +55,14 @@ export interface StaffView extends Staff {
   bonusMultiplier: number;
   /** Bir sözleşme döneminin peşin bedeli (`salary × contractMonths`). */
   contractCost: number;
+  /**
+   * 17.10.2026 (brief §13) — uzmanlığı olan antrenörde: uzmanlık antrenmanındaki
+   * ve diğer antrenmanlardaki çarpan. Genel antrenörde ve diğer rollerde `null`
+   * (`bonusMultiplier` her antrenmanda geçerlidir).
+   */
+  trainerFocus: { matched: number; other: number } | null;
+  /** 17.10.2026 — antrenörün bir sonraki beceri artışına kalan seans (tavanda/diğer rollerde `null`). */
+  sessionsToNextSkill: number | null;
 }
 
 export interface StaffOverview {

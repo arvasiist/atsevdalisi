@@ -1308,6 +1308,15 @@ gönderimde ÖDENMEZ — `tribune_gifts.collected_at` NULL ile kutuda bekler; `P
 TEK `tribune_gift_credit` (referans `tribune_gift_collect`); `/wallet` → "Hediye
 Kutusu". 0101 öncesi satırlar toplanmış sayıldı (payları gönderimde ödenmişti).
 ⚠️ `send` alıcıyı hâlâ `FOR UPDATE` kilitler — toplama ile aynı kilit, KALDIRMA.
+**ANTRENÖR UZMANLIĞI + GELİŞİMİ (migration YOK, `staff.specialization` 0012'den
+beri boştu):** `staff.trainer` config; uzmanlık = antrenman tipi, eşleşende bonus
+payı ×1,5, diğerinde ×0,75, `null` (eski antrenörler) ×1 BİREBİR eski davranış.
+`ManageStaffUseCase.trainerFor(owner, tip)` en iyi antrenörü TİPE göre seçer;
+seans sonrası `recordTrainerSession` TEK atomik UPDATE (deneyim +1, her 20 seansta
+beceri +1, tavan 95 — saf karşılığı `developTrainer`); dinlenme ve süresi dolmuş
+antrenör gelişmez. Maaş sabit. ⚠️ Antrenör çarpanını ölçen e2e adayın rastgele
+uzmanlığını SQL ile sabitlemeli (`staff.e2e-spec.ts`: genel için `specialization
+= NULL`).
 
 **✅ ÜCRETLİ LOBİ YARIŞI ARTIK KOŞUYOR — ÖDÜL DAĞITIMI VAR (§13.14,
 28.09.2026).** `POST /races/:id/settle` yarışı koşar, ödülleri `top5`

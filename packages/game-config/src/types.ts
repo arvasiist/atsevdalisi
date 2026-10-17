@@ -1088,6 +1088,21 @@ export interface StaffConfig {
   contractMonths: number;
   /** Yenileme yalnızca bitime bu kadar gün kala (ya da bitmişse) açılır — çift ödemeyi durum engeller. */
   renewWindowDays: number;
+  /**
+   * 17.10.2026 (brief §13 "Antrenör işe alma ve geliştirme · uzmanlıklar").
+   * Uzmanlık = bir antrenman tipi: eşleşen antrenmanda bonus payı
+   * `matchBonusFactor`, diğerlerinde `offSpecialtyBonusFactor` ile çarpılır;
+   * uzmanlığı olmayan (genel) antrenör ×1. Gelişim: etkin antrenörün verdiği
+   * her antrenman seansı deneyim yazar; her `experiencePerSkillPoint` seansta
+   * beceri +1 (`maxDevelopedSkill` tavanına kadar).
+   */
+  trainer: {
+    specializations: string[];
+    matchBonusFactor: number;
+    offSpecialtyBonusFactor: number;
+    experiencePerSkillPoint: number;
+    maxDevelopedSkill: number;
+  };
   /** Bakım eylemi → etkisini güçlendiren personel rolü. */
   careActionRoles: Record<string, string>;
   /** Aday havuzu: rol başına en az bu kadar boşta aday tutulur. */

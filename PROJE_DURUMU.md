@@ -4803,3 +4803,15 @@ Testler: `tribune-gift.e2e-spec.ts` 5 (kutu, toplama, tekrar sıfır, eşzamanl�
 iki toplama tek ödeme, satılan atta pay koşturanın kutusuna), web
 `tribune-gifts.spec.ts`; Chromium'da masaüstü + yatay telefon konsol hatasız
 (4.980 → 5.067 çip, tek kredi satırı 87).
+
+**F7c — antrenör uzmanlığı ve gelişimi (§13, migration YOK).** `staff.
+specialization` 0012'den beri vardı ama hiçbir şeyi değiştirmiyordu. Artık
+uzmanlık bir antrenman tipidir: eşleşen antrenmanda antrenörün bonus payı ×1,5,
+diğer antrenmanlarda ×0,75; uzmanlığı olmayan (mevcut bütün) antrenörler eskisi
+gibi ×1. Pazardaki yeni antrenör adayları bir uzmanlıkla ya da genel gelir. En
+iyi antrenör antrenman tipine göre seçilir. Gelişim: seansı veren antrenör
+deneyim kazanır, her 20 seansta beceri +1 (tavan 95; dinlenme ve sözleşmesi
+bitmiş antrenör gelişmez), tek atomik güncelleme. Maaş sözleşmede sabit kalır.
+Ekranlar: `/staff` kartında uzmanlık + iki çarpan + "N seans sonra beceri +1";
+antrenman sonucunda "uzmanlık alanı" ve "antrenör gelişti". Testler:
+`staff.spec.ts` 18 (+4), `staff.e2e-spec.ts` 9 (+2), web `training-labels.spec.ts` 3.

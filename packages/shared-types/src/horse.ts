@@ -304,6 +304,19 @@ export interface TrainHorseResult {
   newStatus: Pick<Horse, 'fatigue' | 'energy' | 'morale' | 'fitness'>;
   /** 01.10.2026 — uygulanan antrenör çarpanı (1 = antrenörsüz). */
   staffMultiplier: number;
+  /**
+   * 17.10.2026 (brief §13) — seansı veren antrenör (etkin antrenör yoksa `null`):
+   * uzmanlık eşleşti mi ve seans sonrası beceri/deneyim (dinlenmede gelişim yok).
+   */
+  trainer: {
+    staffId: UUID;
+    name: string;
+    specialization: string | null;
+    specializationMatched: boolean;
+    skill: number;
+    experience: number;
+    skillGained: boolean;
+  } | null;
 }
 
 /** brief §39 Ahır ekranı kartı için minimal görünüm. */

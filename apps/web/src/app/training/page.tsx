@@ -31,21 +31,12 @@ import { GlassPanel } from '../../components/ui/GlassPanel';
 import { HorseAvatar } from '../../components/ui/HorseAvatar';
 import { StatBar } from '../../components/ui/StatBar';
 import { apiClient } from '../../lib/api-client';
+import { TRAINING_TYPE_LABELS } from '../../features/training/training-labels';
 import { usePlayer } from '../../lib/player-context';
 
 const TRAINING_TYPES: readonly TrainingType[] = ['speed', 'sprint', 'stamina', 'start', 'cornering', 'tempo', 'rest'];
 const TRAINING_INTENSITIES: readonly TrainingIntensity[] = ['low', 'medium', 'high'];
 const DEFAULT_DURATION_MINUTES = 30;
-
-const TRAINING_TYPE_LABELS: Record<TrainingType, string> = {
-  speed: 'Hız',
-  sprint: 'Sprint',
-  stamina: 'Dayanıklılık',
-  start: 'Çıkış',
-  cornering: 'Viraj',
-  tempo: 'Tempo',
-  rest: 'Dinlenme',
-};
 
 const INTENSITY_LABELS: Record<TrainingIntensity, string> = {
   low: 'Düşük',
@@ -305,6 +296,12 @@ export default function TrainingPage(): React.ReactElement {
                 {result.staffMultiplier > 1 ? (
                   <span style={{ color: 'var(--color-accent-gold)' }}>
                     Antrenör etkisi: +%{Math.round((result.staffMultiplier - 1) * 100)}
+                    {result.trainer?.specializationMatched ? ' (uzmanlık alanı)' : ''}
+                  </span>
+                ) : null}
+                {result.trainer?.skillGained ? (
+                  <span data-testid="training-trainer-growth" style={{ color: 'var(--color-status-positive)' }}>
+                    {result.trainer.name} gelişti: beceri {Math.round(result.trainer.skill)}
                   </span>
                 ) : null}
               </div>

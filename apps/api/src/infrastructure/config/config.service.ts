@@ -48,6 +48,7 @@ import { validateCosmeticsConfig } from '../../domain/cosmetics/cosmetics';
 import { validateTribuneGiftsConfig } from '../../domain/grandstand/tribune-gift';
 import { validateEquipmentConfig } from '../../domain/equipment/catalog';
 import { validateStableConfig } from '../../domain/stable/stable';
+import { validateTrainerConfig } from '../../domain/staff/staff';
 import { validateHorsePersonalityConfig } from '../../domain/horse/personality';
 import { validateJockeyConditionConfig } from '../../domain/jockey/condition';
 import { validateJockeyMarketConfig } from '../../domain/jockey/market';
@@ -216,6 +217,11 @@ export class AppConfigService {
     }
     // 16.10.2026 — ahır geliştirme (seviyeler boşluksuz, bedel/şart azalmaz).
     validateStableConfig(this.stable, this.progression.maxLevel);
+    // 17.10.2026 — antrenör uzmanlıkları gerçek antrenman tipleri olmalı (brief §13).
+    const trainerProblems = validateTrainerConfig(this.staff, Object.keys(this.training.types));
+    if (trainerProblems.length > 0) {
+      throw new Error(`Antrenör config'i geçersiz (config/staff.config.json): ${trainerProblems.join(' ')}`);
+    }
     // 08.10.2026 — ekipman kataloğu (bozuksa API AÇILMAZ).
     validateEquipmentConfig(loadEquipmentConfig(), this.progression.maxLevel);
     const tribuneGiftProblems = validateTribuneGiftsConfig(this.grandstand.tribuneGifts);

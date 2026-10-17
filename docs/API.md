@@ -307,6 +307,20 @@ Olası hata: `HORSE_TOO_TIRED`, `HORSE_INJURED`, `INSUFFICIENT_ENERGY`
 hatası değil), veya `type`/`intensity`/`durationMinutes` formatı
 hatalıysa `400 VALIDATION_ERROR`.
 
+**Antrenör uzmanlığı + gelişimi (17.10.2026, brief §13).** Yanıt
+`staffMultiplier` (uygulanan çarpan) ve `trainer` taşır: `null` (etkin antrenör
+yok) ya da `{ staffId, name, specialization, specializationMatched, skill,
+experience, skillGained }`. En iyi antrenör antrenman TİPİNE göre seçilir:
+uzmanlığı (`config/staff.config.json` → `trainer.specializations`, dinlenme
+hariç antrenman tipleri) eşleşen antrenmanda bonus payı × `matchBonusFactor`
+(1,5), diğerlerinde × `offSpecialtyBonusFactor` (0,75); uzmanlığı olmayan
+(17.10.2026 öncesi bütün antrenörler) × 1 — eski davranış. Seansı veren
+antrenör deneyim kazanır (dinlenme hariç); her `experiencePerSkillPoint` (20)
+seansta beceri +1, en fazla `maxDevelopedSkill` (95). Maaş sözleşmede sabittir.
+`GET /staff` satırları `trainerFocus: { matched, other } | null` ve
+`sessionsToNextSkill: number | null` taşır; pazardaki antrenör adayları bir
+uzmanlıkla ya da genel (`specialization: null`) gelir.
+
 ### Uygulama durumu (FAZ 1 wiring, ikinci dilim, bu oturum)
 
 `GET /api/v1/horses` ve `GET /api/v1/horses/{id}` gerçek bir PostgreSQL'e

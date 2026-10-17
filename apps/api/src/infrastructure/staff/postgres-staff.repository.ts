@@ -111,6 +111,28 @@ export class PostgresStaffRepository implements StaffRepository {
     }
   }
 
+  async recordTrainerSession(input: {
+    staffId: string;
+    ownerId: string;
+    now: Date;
+  }): Promise<Pick<Staff, 'skill' | 'experience'> | null> {
+    // `developTrainer` kuralının SQL karşılığı: sağ taraftaki `experience`/`skill`
+    // ESKİ değerlerdir; tek ifade olduğu için eşzamanlı iki seans deneyimi
+    // ezmez (satır kilidi UPDATE'in kendisidir).
+    const { experiencePerSkillPoint, maxDevelopedSkill } = this.config.staff.trainer;
+    const result = await this.pool.query<{ skill: string; experience: number }>(
+      `UPDATE staff
+          SET experience = experience + 1,
+              skill = CASE WHEN (experience + 1) % $3 = 0 AND skill < $4 THEN LEAST(skill + 1, $4) ELSE skill END,
+              updated_at = $5
+        WHERE id = $1 AND owner_id = $2 AND role = 'trainer'
+        RETURNING skill, experience`,
+      [input.staffId, input.ownerId, experiencePerSkillPoint, maxDevelopedSkill, input.now],
+    );
+    const row = result.rows[0];
+    return row ? { skill: Number(row.skill), experience: row.experience } : null;
+  }
+
   async findStaffBuildingLevel(ownerId: string): Promise<number> {
     const result = await this.pool.query<{ level: number }>(
       "SELECT level FROM facilities WHERE owner_id = $1 AND type = 'staff_building'",

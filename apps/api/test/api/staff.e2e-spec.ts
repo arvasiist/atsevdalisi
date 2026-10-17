@@ -228,9 +228,11 @@ describe('Personel (e2e)', () => {
   it('antrenör antrenman kazancını çarpanıyla artırır; süresi dolunca etki biter', async () => {
     const player = await richPlayer('Personel Antrenör');
     const trainer = await hire(player, 'trainer');
-    await pool.query('UPDATE staff SET skill = 100 WHERE id = $1', [trainer.id]);
+    // 17.10.2026 — aday rastgele bir uzmanlıkla gelebilir; bu test GENEL
+    // antrenörün çarpanını ölçer (uzmanlık aşağıdaki testte).
+    await pool.query('UPDATE staff SET skill = 100, specialization = NULL WHERE id = $1', [trainer.id]);
     const expectedMultiplier = calculateStaffBonusMultiplier(
-      { ...trainer, skill: 100 },
+      { ...trainer, skill: 100, specialization: null },
       staffConfig,
     );
     expect(expectedMultiplier).toBeGreaterThan(1);
@@ -285,6 +287,80 @@ describe('Personel (e2e)', () => {
     const expired = await train();
     expect(expired.staffMultiplier).toBe(1);
     expect(expired.statChanges.speed).toBeCloseTo(expectedGain(1), 6);
+  });
+
+  it('17.10.2026 (brief §13) — uzman antrenör: eşleşen antrenmanda güçlü, diğerinde zayıf; seanslarla gelişir', async () => {
+    const player = await richPlayer('Personel Uzman');
+    const trainer = await hire(player, 'trainer');
+    const step = staffConfig.trainer.experiencePerSkillPoint;
+    // Bir sonraki seans eşiği geçsin: deneyim eşiğin bir eksiği.
+    await pool.query("UPDATE staff SET skill = 80, specialization = 'speed', experience = $2 WHERE id = $1", [
+      trainer.id,
+      step - 1,
+    ]);
+    const view = (await overview(player)).hired.find((row) => row.id === trainer.id)!;
+    const matched = calculateStaffBonusMultiplier({ role: 'trainer', skill: 80, morale: trainer.morale, specialization: 'speed' }, staffConfig, 'speed');
+    const other = calculateStaffBonusMultiplier({ role: 'trainer', skill: 80, morale: trainer.morale, specialization: 'speed' }, staffConfig, 'stamina');
+    expect(view.trainerFocus).toEqual({ matched, other });
+    expect(view.sessionsToNextSkill).toBe(1);
+    expect(matched).toBeGreaterThan(view.bonusMultiplier);
+    expect(other).toBeLessThan(view.bonusMultiplier);
+
+    const ready = () =>
+      pool.query("UPDATE horses SET health = 100, fatigue = 0, energy = 100, status = 'active' WHERE id = $1", [player.horseId]);
+    const train = async (type: string) => {
+      await ready();
+      return (
+        await http()
+          .post(`/api/v1/horses/${player.horseId}/train`)
+          .set('Authorization', player.authHeader)
+          .send({ type, intensity: 'low', durationMinutes: 30 })
+          .expect(200)
+      ).body.data;
+    };
+
+    const speed = await train('speed');
+    expect(speed.staffMultiplier).toBeCloseTo(matched, 10);
+    expect(speed.trainer).toMatchObject({
+      staffId: trainer.id,
+      specialization: 'speed',
+      specializationMatched: true,
+      experience: step,
+      skill: 81,
+      skillGained: true,
+    });
+    const stamina = await train('stamina');
+    expect(stamina.staffMultiplier).toBeCloseTo(
+      calculateStaffBonusMultiplier({ role: 'trainer', skill: 81, morale: trainer.morale, specialization: 'speed' }, staffConfig, 'stamina'),
+      10,
+    );
+    expect(stamina.trainer).toMatchObject({ specializationMatched: false, experience: step + 1, skill: 81, skillGained: false });
+    // Dinlenme antrenman değildir: deneyim yazmaz.
+    const rest = await train('rest');
+    expect(rest.trainer).toMatchObject({ experience: step + 1 });
+    const row = await pool.query<{ skill: string; experience: number }>('SELECT skill, experience FROM staff WHERE id = $1', [
+      trainer.id,
+    ]);
+    expect({ skill: Number(row.rows[0]!.skill), experience: row.rows[0]!.experience }).toEqual({ skill: 81, experience: step + 1 });
+
+    // Sözleşmesi bitmiş antrenör ne bonus verir ne gelişir.
+    await pool.query("UPDATE staff SET contract_started_at = now() - interval '400 days' WHERE id = $1", [trainer.id]);
+    const expired = await train('speed');
+    expect(expired.staffMultiplier).toBe(1);
+    expect(expired.trainer).toBeNull();
+    const after = await pool.query<{ experience: number }>('SELECT experience FROM staff WHERE id = $1', [trainer.id]);
+    expect(after.rows[0]!.experience).toBe(step + 1);
+  });
+
+  it('pazardaki antrenör adayları uzmanlığı config listesinden ya da genel (null) taşır', async () => {
+    const player = await richPlayer('Personel Aday Uzmanlık');
+    const trainers = (await overview(player)).candidates.filter((c) => c.role === 'trainer');
+    expect(trainers.length).toBeGreaterThan(0);
+    for (const candidate of trainers) {
+      if (candidate.specialization !== null) expect(staffConfig.trainer.specializations).toContain(candidate.specialization);
+    }
+    const others = (await overview(player)).candidates.filter((c) => c.role !== 'trainer');
+    for (const candidate of others) expect(candidate.trainerFocus).toBeNull();
   });
 
   it('seyis "groom" bakımının etkisini çarpanıyla artırır', async () => {

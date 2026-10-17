@@ -1,6 +1,6 @@
 # AT SEVDALISI MASTER STATUS
 
-> Son güncelleme: 16.10.2026 · Dal: `claude/project-review-gaps-j1hb2l` (PR #2)
+> Son güncelleme: 17.10.2026 · Dal: `claude/project-review-gaps-j1hb2l` (PR #3)
 > Kaynak: KOD (migration, use-case, controller, ekran, test) — belgeler değil.
 > Ayrıntılı tarihçe `PROJE_DURUMU.md` §13'te (13.1–13.102); bu dosya brief'in
 > istediği özet sözleşmedir. Sınıflar: NOT_STARTED · PLANNED · PARTIAL ·
@@ -91,7 +91,7 @@ bölmeler).
 | 12 | Kazananlar tablosu (kronolojik, sayfalı, tarih filtreli) | TESTED | `GET /leaderboard/winners` + `/leaderboard` "Son Kazananlar": yalnızca gerçek oyuncunun kazandığı bitmiş lobi/takvim/turnuva yarışı, tamamlanma anı (başlangıç + derece, eşitlikte yarış kimliği), imleçli sayfa, `[from, to)`; ödül defterden — `race-winners.spec.ts`, `race-winners.e2e-spec.ts` (gerçek kesinleşmiş yarış dahil), web `race-winners.spec.ts` | F5-H3 ✅ |
 | 13 | Jokey işe alma/beceri/uyum/form | TESTED | `jockey.e2e`, uyum + form/yorgunluk | değişmedi |
 | 13 | Antrenör işe alma, maaş (peşin sözleşme), aşırı antrenman (yorgunluk/sakatlık) | TESTED | `staff.e2e`, antrenman enerji/yorgunluk | değişmedi |
-| 13 | Antrenör uzmanlıkları / geliştirme | PARTIAL | `staff.specialization` sütunu var, etkisi yok | değerlendirilecek |
+| 13 | Antrenör uzmanlıkları / geliştirme | TESTED | uzmanlık = antrenman tipi (eşleşende bonus ×1,5, diğerinde ×0,75, eski/genel antrenör ×1); seans başına deneyim, 20 seansta beceri +1 (tavan 95); `/staff` uzmanlık + gelişim satırı, antrenman sonucu "uzmanlık alanı"/"gelişti" — `staff.spec.ts` (+4), `staff.e2e-spec.ts` (+2), web `training-labels.spec.ts` | F7c ✅ |
 | 14 | Sağlık/bakım/veteriner/sakatlık/gebelik kontrolü/yarış öncesi denetim, sunucu otoritesi | TESTED | bakım + hazırlık kapısı + gebelik veteriner kontrolü | değişmedi |
 | 14 | Beslenme/su ihtiyacı | PARTIAL | yem/su bakım işi var; "açlık/susuzluk" canlı durumu YOK (uydurulmadı) | değişmedi |
 | 15 | İlan, fiyat, müzayede, teklif geçmişi, sahiplik kontrolü, tek işlem devir, çift satış engeli | TESTED | `market.e2e`, `auction` e2e | değişmedi |

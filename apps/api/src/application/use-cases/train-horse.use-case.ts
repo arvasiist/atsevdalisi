@@ -96,7 +96,8 @@ export class TrainHorseUseCase {
     const currentStatValue: number = statKey === null ? 0 : stats[statKey];
     const now = new Date();
     // 01.10.2026 — antrenör etkisi (domain/staff). Süresi dolmuş antrenör 1 (nötr) döner.
-    const trainerFactor = await this.staff.multiplierFor(horse.ownerId, 'trainer', now);
+    // 17.10.2026 (brief §13) — uzmanlık antrenman tipine göre: en iyi antrenör tipe göre seçilir.
+    const { multiplier: trainerFactor, trainer } = await this.staff.trainerFor(horse.ownerId, input.type, now);
     // 01.10.2026 — antrenman pisti × nalbant alanı sakatlık olasılığını düşürür.
     const { trainingInjuryRiskMultiplier } = await this.farmEffects.effectsFor(horse.ownerId);
     // 08.10.2026 — atın kişiliği (gizli statlar): odak/rekabetçilik → kazanç,
@@ -210,6 +211,14 @@ export class TrainHorseUseCase {
       createdAt: now.toISOString(),
     });
 
+    // 17.10.2026 (brief §13 "geliştirme") — seansı veren antrenör deneyim
+    // kazanır (dinlenme antrenman değildir). Atomik tek UPDATE; antrenmanın
+    // kendisi gibi para yolu değildir.
+    const trainerDevelopment =
+      trainer !== null && input.type !== 'rest'
+        ? await this.staff.recordTrainerSession(trainer.id, horse.ownerId, now)
+        : null;
+
     // Oyuncu XP'si (01.10.2026). Antrenman bir para yolu değildir ve atın
     // yazımı yukarıda ayrı bir kilitte tamamlandı; oyuncu satırı kendi
     // kilidiyle güncellenir (eşzamanlı iki antrenman XP'yi ezmesin diye).
@@ -240,6 +249,18 @@ export class TrainHorseUseCase {
         fitness: newVitals.fitness,
       },
       staffMultiplier: trainerFactor,
+      trainer:
+        trainer === null
+          ? null
+          : {
+              staffId: trainer.id,
+              name: trainer.name,
+              specialization: trainer.specialization,
+              specializationMatched: trainer.specialization !== null && trainer.specialization === input.type,
+              skill: trainerDevelopment?.skill ?? trainer.skill,
+              experience: trainerDevelopment?.experience ?? trainer.experience,
+              skillGained: trainerDevelopment !== null && trainerDevelopment.skill > trainer.skill,
+            },
     };
   }
 }

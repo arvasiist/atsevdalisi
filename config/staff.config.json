@@ -28,6 +28,13 @@
   ],
   "contractMonths": 1,
   "renewWindowDays": 7,
+  "trainer": {
+    "specializations": ["speed", "sprint", "stamina", "start", "cornering", "tempo"],
+    "matchBonusFactor": 1.5,
+    "offSpecialtyBonusFactor": 0.75,
+    "experiencePerSkillPoint": 20,
+    "maxDevelopedSkill": 95
+  },
   "careActionRoles": {
     "groom": "groom",
     "vet": "vet",
