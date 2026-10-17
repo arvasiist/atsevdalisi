@@ -20,7 +20,12 @@
     { "key": "friends-35", "metric": "friend_count", "target": 35, "rewardMoney": 100 },
     { "key": "friends-40", "metric": "friend_count", "target": 40, "rewardMoney": 100 },
     { "key": "friends-45", "metric": "friend_count", "target": 45, "rewardMoney": 100 },
-    { "key": "friends-50", "metric": "friend_count", "target": 50, "rewardMoney": 100 }
+    { "key": "friends-50", "metric": "friend_count", "target": 50, "rewardMoney": 100 },
+    { "key": "career-regional", "metric": "career_points", "target": 40, "rewardMoney": 300 },
+    { "key": "career-national", "metric": "career_points", "target": 150, "rewardMoney": 800 },
+    { "key": "career-national-championship", "metric": "career_points", "target": 400, "rewardMoney": 1500 },
+    { "key": "career-international", "metric": "career_points", "target": 900, "rewardMoney": 3000 },
+    { "key": "career-grand-championship", "metric": "career_points", "target": 1800, "rewardMoney": 6000 }
   ],
   "profileLimit": 20
 }

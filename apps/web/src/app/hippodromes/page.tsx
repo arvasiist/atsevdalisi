@@ -36,11 +36,15 @@ function HippodromeCard({
   hippodrome,
   races,
   now,
+  reachedTiers,
 }: {
   hippodrome: HippodromeView;
   races: readonly RaceLobbyListItem[];
   now: Date;
+  /** Oyuncunun ulaştığı kariyer kademeleri (`null` = kariyer yüklenemedi; kilit gösterilmez). */
+  reachedTiers: ReadonlySet<string> | null;
 }): React.ReactElement {
+  const locked = (tier: { key: string }) => reachedTiers !== null && !reachedTiers.has(tier.key);
   const open = openRacesAt(races, hippodrome.key, now);
   return (
     <GlassPanel>
@@ -51,6 +55,11 @@ function HippodromeCard({
             <p className="session-meta" style={{ margin: 0 }}>
               {hippodrome.city} · {HIPPODROME_LEVEL_LABELS[hippodrome.level]} · {hippodrome.lapLengthMeters} m tur
             </p>
+            {locked(hippodrome.requiredCareerTier) ? (
+              <Link href="/career" className="session-meta" data-testid={`hippodrome-lock-${hippodrome.key}`}>
+                🔒 {hippodrome.requiredCareerTier.name} kariyer kademesi gerekir
+              </Link>
+            ) : null}
           </div>
           <span className="hippodrome-prestige" aria-label={`Prestij ${hippodrome.prestige}/5`}>
             {prestigeStars(hippodrome.prestige)}
@@ -66,7 +75,9 @@ function HippodromeCard({
             {hippodrome.tables
               .map(
                 (table) =>
-                  `${table.label} (${table.fieldSize} at, ${formatCurrency('money', table.entryFee)}, kazanan %${table.winnerSharePercent})`,
+                  `${table.label} (${table.fieldSize} at, ${formatCurrency('money', table.entryFee)}, kazanan %${table.winnerSharePercent})${
+                    locked(table.requiredCareerTier) ? ` 🔒 ${table.requiredCareerTier.name}` : ''
+                  }`,
               )
               .join(' · ')}
           </dd>
@@ -125,6 +136,7 @@ export default function HippodromesPage(): React.ReactElement {
   const { player, isLoading, createPlayer } = usePlayer();
   const [catalog, setCatalog] = useState<HippodromeCatalogView | null>(null);
   const [races, setRaces] = useState<RaceLobbyListItem[]>([]);
+  const [reachedTiers, setReachedTiers] = useState<ReadonlySet<string> | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [now, setNow] = useState(() => new Date());
 
@@ -135,6 +147,11 @@ export default function HippodromesPage(): React.ReactElement {
       setRaces(lobby);
       setNow(new Date());
       setError(null);
+      // Kilit rozeti salt bilgidir; kariyer yüklenemezse rozetsiz devam edilir.
+      apiClient
+        .getCareer()
+        .then((career) => setReachedTiers(new Set(career.tiers.filter((tier) => tier.reached).map((tier) => tier.key))))
+        .catch(() => setReachedTiers(null));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Hipodromlar yüklenemedi.');
     }
@@ -185,7 +202,13 @@ export default function HippodromesPage(): React.ReactElement {
             </h2>
             <div className="hippodrome-grid">
               {group.hippodromes.map((hippodrome) => (
-                <HippodromeCard key={hippodrome.key} hippodrome={hippodrome} races={races} now={now} />
+                <HippodromeCard
+                  key={hippodrome.key}
+                  hippodrome={hippodrome}
+                  races={races}
+                  now={now}
+                  reachedTiers={reachedTiers}
+                />
               ))}
             </div>
           </section>

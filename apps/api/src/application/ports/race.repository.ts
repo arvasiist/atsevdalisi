@@ -255,7 +255,8 @@ export interface RaceRepository {
    * olmalıdır — oyuncunun kararı zaten "hangi yarışa YETİŞEBİLİRİM"
    * sorusudur.
    */
-  listLobbyRaces(input: ListLobbyRacesInput): Promise<RaceLobbyListItem[]>;
+  /** 16.10.2026 — `careerRequirement` çağıranın kariyerinden use-case'te eklenir. */
+  listLobbyRaces(input: ListLobbyRacesInput): Promise<Array<Omit<RaceLobbyListItem, 'careerRequirement'>>>;
 
   /**
    * Oyuncunun KENDİ katılım satırının durumunu değiştirir (brief §6, §42

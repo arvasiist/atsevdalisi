@@ -17,6 +17,8 @@ export interface HippodromeTableView {
   fieldSize: number;
   /** Kazananın havuzdan aldığı pay (yüzde, dağılımın ilk payı). */
   winnerSharePercent: number;
+  /** 16.10.2026 (brief §10) — bu masayı açan kariyer kademesi. */
+  requiredCareerTier: { key: string; name: string };
 }
 
 export interface HippodromeProgramView {
@@ -48,6 +50,8 @@ export interface HippodromeView {
   surfaces: string[];
   distancesMeters: number[];
   lapLengthMeters: number;
+  /** 16.10.2026 (brief §10) — bu pist seviyesini açan kariyer kademesi. */
+  requiredCareerTier: { key: string; name: string };
   tables: HippodromeTableView[];
   programs: HippodromeProgramView[];
 }

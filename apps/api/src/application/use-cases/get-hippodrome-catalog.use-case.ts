@@ -18,6 +18,7 @@ export class GetHippodromeCatalogUseCase {
       this.config.economy.raceTiers,
       this.config.economy.prizeDistributions,
       this.config.raceLobby.calendar.programs,
+      this.config.career,
     );
   }
 }

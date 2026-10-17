@@ -8,6 +8,9 @@ import { InvalidRaceDefinitionError, RaceLimitReachedError } from '../../domain/
 import { RACE_ENGINE_VERSION, RACE_RULESET_VERSION } from '../../domain/race/race-engine';
 import { AppConfigService } from '../../infrastructure/config/config.service';
 import { RACE_REPOSITORY, type RaceRepository } from '../ports/race.repository';
+import { CAREER_REPOSITORY, type CareerRepository } from '../ports/career.repository';
+import { careerRequirementForRace } from '../../domain/career/career';
+import { CareerTierLockedError } from '../../domain/career/errors';
 
 /**
  * Oyuncunun kendi yarışını açması (brief §1-§7, §42 PHASE 1).
@@ -48,6 +51,7 @@ export class CreateRaceUseCase {
   constructor(
     @Inject(RACE_REPOSITORY) private readonly raceRepository: RaceRepository,
     @Inject(AppConfigService) private readonly config: AppConfigService,
+    @Inject(CAREER_REPOSITORY) private readonly career: CareerRepository,
   ) {}
 
   /**
@@ -77,6 +81,17 @@ export class CreateRaceUseCase {
     const trackProblems = hippodromeRaceProblems(value, this.config.hippodromes);
     if (trackProblems.length > 0) {
       throw new InvalidRaceDefinitionError(trackProblems);
+    }
+    // 16.10.2026 (brief §10) — açan oyuncunun kariyer kademesi masaya/piste
+    // yetmeli; yetmeyen yarışı açmak kendisinin giremeyeceği bir yarış olurdu.
+    const requirement = careerRequirementForRace(
+      { tableId: value.tableId ?? null, hippodromeKey: value.hippodrome ?? null },
+      await this.career.pointsOf(playerId),
+      this.config.career,
+      this.config.hippodromes,
+    );
+    if (requirement !== null) {
+      throw new CareerTierLockedError(requirement.key, requirement.name, requirement.pointsToRequired);
     }
 
     const result = await this.raceRepository.createLobbyRace({

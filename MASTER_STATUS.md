@@ -77,15 +77,15 @@ bölmeler).
 | § | Konu | Durum | Kanıt / açık | Sonuç |
 |---|---|---|---|---|
 | 9 | Ülke/şehir düzeni, pist türü/zemin/mesafe/koşul | TESTED | ülke/şehir/zemin/mesafe/masa config'te; yarış açarken `hippodromeRaceProblems` (400) — `hippodromes.spec.ts`, `hippodrome.e2e-spec.ts` | F5-H1 ✅ |
-| 9 | Yerel/bölgesel/ulusal/uluslararası seviye, prestij, erişim | PARTIAL | seviye + prestij (1–5) + pistin masaları VAR (F5-H1); erişim (kariyer kademesi) YOK | erişim F5-H2 |
+| 9 | Yerel/bölgesel/ulusal/uluslararası seviye, prestij, erişim | TESTED | seviye + prestij + pistin masaları (F5-H1); erişim = kariyer kademesi, katılım/açma 409 `CAREER_TIER_LOCKED` (`career.e2e-spec.ts`) | F5-H1 + H2 ✅ |
 | 9 | ABD / Fransa / Dubai pistleri | IMPLEMENTED | Kentucky, Paris, Dubai (migration 0098) — markalı tesis adı KULLANILMADI (hak doğrulanmadı) | F5-H1 ✅ |
 | 9 | Merkezi yapılandırmayla pist ekleme | IMPLEMENTED | `hippodromes.config.json` + migration satırı (`hippodromes.spec.ts`) | korunur |
 | 9 | Gerçek isim/görsel hakları | NOT_VERIFIED | hukuki konu; görseller prosedürel (gerçek fotoğraf YOK) | sahibine bildirilecek |
 | 9 | Pist takvimi, farklı mesafe/sınıf | TESTED | her programın pisti var (`race-calendar.spec.ts` pist kuralını dener); `GET /hippodromes` sıradaki saatleri zamanlayıcının fonksiyonuyla verir (`hippodrome-catalog.spec.ts`) | F5-H1 ✅ |
 | 9 | Zemin/mesafe motora bağlı, uygunluk ön kontrolü | TESTED | motor `surface`/`distanceCategory`, snapshot zemin/mesafe uyumu; hazırlık + ırk/seviye kapıları | değişmedi |
 | 9 | Giriş ücreti / ödül yapılandırılabilir | TESTED | masa kuralları (`table-rules.spec.ts`); pist hangi masaları ağırladığını config'te seçer (çarpan YOK — ikinci ücret kaynağı açmamak için) | F5-H1 ✅ |
-| 10 | Kariyer kademeleri, puanla ilerleme, giriş koşulları, kariyer ekranı + sıradaki hedef | NOT_STARTED | oyuncu XP/seviyesi var; yarış kariyeri kademesi yok (at kariyeri K2'de var) | F5-H2 |
-| 10 | Seyahat/nakliye | NOT_STARTED | — (beklemeye zorlamayacak biçimde değerlendirilecek) | F5-H2 |
+| 10 | Kariyer kademeleri, puanla ilerleme, giriş koşulları, kariyer ekranı + sıradaki hedef | TESTED | 6 kademe (Yerel → Büyük Şampiyona), puan bitmiş yarışlardan TÜRETİLİR, kademe masaları + yurt dışı pistlerini açar, kademe ödülü başarım (`career_points`); `GET /career` + `/career` (geçmiş, puan tablosu, sıradaki hedef) — `career.spec.ts`, `career.e2e-spec.ts`, web `career-view.spec.ts` | F5-H2 ✅ |
+| 10 | Seyahat/nakliye | EVALUATED | bekleme YOK (pist kademeyle açılır, hemen katılınır); ayrı nakliye ücreti YOK (masa bedeli zaten pist seviyesiyle artıyor — ikinci ücret kaynağı açmamak için); toparlanma bedeli mesafeyle zaten ölçekli | karar belgelendi |
 | 11 | Hemen Katıl, uygun yarışlar, mesafe/pist/zemin/ücret/ödül | TESTED | `pickQuickJoinRace`, `LobbyPanel` hipodrom/zemin/mesafe | değişmedi |
 | 11 | Gerçek/AI ayrımı, 8–16 saha, kayıt→kesinleşme, kalıcı sonuç, çift ödül yok, determinizm, iptal/kopma/yeniden başlatma | TESTED | `race-field-rule.e2e`, `race-engine` SHA kilidi, `settle` durum geçişi, §13.27 testleri | değişmedi |
 | 12 | Kazananlar tablosu (kronolojik, sayfalı, tarih filtreli) | NOT_STARTED | genel/sezon/haftalık sıralama var; yarış kazananları listesi yok | F5-H3 |

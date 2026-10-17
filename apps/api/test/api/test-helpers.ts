@@ -1,4 +1,4 @@
-import { loadOpsConfig } from '@at-sevdalisi/game-config';
+import { loadCareerConfig, loadEconomyConfig, loadOpsConfig } from '@at-sevdalisi/game-config';
 import { RedisIoAdapter } from '../../src/infrastructure/realtime/redis-io.adapter';
 import { randomUUID } from 'node:crypto';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
@@ -311,6 +311,42 @@ export async function recordSharedFinishedRace(
     );
   }
   return raceId;
+}
+
+/**
+ * 16.10.2026 (brief §10) — KARİYER ÖN KOŞULU: oyuncuya en az `points` kariyer
+ * puanı verecek kadar BİTMİŞ fikstür yarışı yazar (SQL; para/XP/defter YAZMAZ).
+ * Kariyer kapısının ARKASINDAKİ başka bir kuralı (masa kuralı, takvim) sınayan
+ * testler bu ön koşulu açıkça kurar; kapının KENDİSİ `career.e2e-spec.ts`te
+ * gerçek sonuçlarla sınanır. ⚠️ Fikstür yarışlar oyuncunun yarış/galibiyet
+ * sayısına da girer (görev/başarım/sıralama) — o sayıları sınayan oyuncuda KULLANMA.
+ */
+export async function grantCareerPoints(app: INestApplication, playerId: string, points: number): Promise<void> {
+  const career = loadCareerConfig();
+  const tables = loadEconomyConfig().raceTiers.map((tier) => tier.id);
+  const best = tables
+    .map((id) => ({ id, first: career.racePoints[id]?.[0] ?? 0 }))
+    .sort((a, b) => b.first - a.first)[0]!;
+  const count = Math.ceil(points / best.first);
+  const pool = app.get<Pool>(PG_POOL);
+  const horse = await pool.query<{ id: string }>(
+    'SELECT id FROM horses WHERE owner_id = $1 ORDER BY created_at, id LIMIT 1',
+    [playerId],
+  );
+  await pool.query(
+    `WITH new_races AS (
+       INSERT INTO races
+         (name, distance_m, surface, weather, start_time, max_players, race_type, entry_fee,
+          participant_limit, status, engine_version, ruleset_version, config_version, weather_config_version, table_id)
+       SELECT 'e2e kariyer fikstürü', 1200, 'grass', 'sunny', now() - interval '2 hours', 8, 'free', 0,
+              12, 'finished', 'test-engine', 'test-ruleset', 'test-config', 'test-weather-config', $2
+         FROM generate_series(1, $3::int)
+       RETURNING id
+     )
+     INSERT INTO race_entries (race_id, horse_id, player_id, gate_position, finish_position, status)
+     SELECT id, $4, $1, 1, 1, 'ready' FROM new_races`,
+    [playerId, best.id, count, horse.rows[0]!.id],
+  );
 }
 
 /**

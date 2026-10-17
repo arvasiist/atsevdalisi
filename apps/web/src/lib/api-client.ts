@@ -1,6 +1,7 @@
 import type {
   AttachReferralResult,
   HippodromeCatalogView,
+  CareerView,
   ClaimReferralRewardsResult,
   ReferralOverviewView,
   GiftQuotaView,
@@ -791,6 +792,8 @@ export const apiClient = {
   getCurrentSeason: () => request<SeasonView>('/seasons/current'),
   /** 16.10.2026 (brief §9) — pistler, masaları ve takvimleri (`GET /hippodromes`). */
   getHippodromes: () => request<HippodromeCatalogView>('/hippodromes'),
+  /** 16.10.2026 (brief §10) — çağıranın kariyeri (puan, kademe, sıradaki hedef, geçmiş). */
+  getCareer: () => request<CareerView>('/career'),
 
   /**
    * brief §32 "Çiftlik" (bu turda EKLENDİ) — `/farm` ekranı.

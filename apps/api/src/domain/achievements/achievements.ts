@@ -15,7 +15,13 @@ const ACHIEVEMENT_KEY_PATTERN = /^[a-z0-9-]{3,40}$/;
  * (seviye, arkadaş sayısı). Geri kalan her ölçüt görevlerin sayım motorunu
  * (`countMetric`) kullanır — ikinci sayım kodu yazılmaz.
  */
-export const SNAPSHOT_ACHIEVEMENT_METRICS: readonly AchievementMetric[] = ['player_level', 'friend_count'];
+export const SNAPSHOT_ACHIEVEMENT_METRICS: readonly AchievementMetric[] = [
+  'player_level',
+  'friend_count',
+  // 16.10.2026 (brief §10) — kariyer puanı: oyuncunun KOŞTURDUĞU yarışlardan
+  // (`infrastructure/career/career-points.ts`, kariyer ekranıyla aynı SQL).
+  'career_points',
+];
 
 export type ResolvedAchievement = AchievementDefinitionConfig & { metric: AchievementMetric };
 

@@ -21,6 +21,7 @@
  * sunucudan YENİDEN çekilir; istemci kendi tahminini göstermez.
  */
 
+import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type {
   PublicHorse,
@@ -47,6 +48,7 @@ import { isClubOfficerOrLeader } from '../club/club-invite-logic';
 import {
   ENTRY_STATUS_LABELS,
   describeBreedClass,
+  describeCareerLock,
   describeCalendar,
   describeHippodrome,
   describePlayerControl,
@@ -832,7 +834,11 @@ export function LobbyPanel({ horses, money, onBalanceChanged, playerId = null }:
                   ) : null}
                 </div>
                 <div style={{ display: 'flex', gap: 'var(--space-sm)', flexWrap: 'wrap' }}>
-                  {actions.canJoin &&
+                  {actions.canJoin && describeCareerLock(race) !== null ? (
+                    <Link href="/career" data-testid={`lobby-career-lock-${race.id}`} style={smallStyle()}>
+                      {describeCareerLock(race)}
+                    </Link>
+                  ) : actions.canJoin &&
                   effectiveHorse !== null &&
                   !horseFitsRaceClass(race.breedClass ?? null, effectiveHorse.breed) ? (
                     <span style={smallStyle()}>Seçili atının ırkı bu yarışa uygun değil</span>

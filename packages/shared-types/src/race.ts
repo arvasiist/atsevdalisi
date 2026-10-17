@@ -1,4 +1,5 @@
 import type { ISODateTimeString, UUID } from './common';
+import type { CareerRequirementView } from './career';
 import type { Player } from './player';
 
 /** brief §14.1 Yarış parametreleri */
@@ -659,6 +660,12 @@ export interface RaceLobbyListItem extends RaceLobbyView {
    */
   /** `featured` (02.10.2026, Faz 11): config programının öne çıkan (özel yarış) işareti. */
   calendar: { programId: string; featured: boolean } | null;
+  /**
+   * 16.10.2026 (brief §10) — çağıranın kariyer kademesi bu yarışın masasına/
+   * pistine yetmiyorsa gereken kademe; yetiyorsa `null`. Kural sunucuda
+   * (katılım 409 `CAREER_TIER_LOCKED`); bu alan yalnızca ekranın kilidi.
+   */
+  careerRequirement: CareerRequirementView | null;
 }
 
 /**

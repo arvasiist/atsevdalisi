@@ -1,4 +1,4 @@
-import { loadEconomyConfig, loadHippodromesConfig, loadRaceLobbyConfig } from '@at-sevdalisi/game-config';
+import { loadCareerConfig, loadEconomyConfig, loadHippodromesConfig, loadRaceLobbyConfig } from '@at-sevdalisi/game-config';
 import { describe, expect, it } from 'vitest';
 import { buildHippodromeCatalog, HIPPODROME_NEXT_SLOT_COUNT } from '../../../src/domain/race/hippodrome-catalog';
 import { computeCalendarSlotTimes } from '../../../src/domain/race/race-calendar';
@@ -13,7 +13,14 @@ describe('hipodrom kataloğu', () => {
   const economy = loadEconomyConfig();
   const programs = loadRaceLobbyConfig().calendar.programs;
   const now = new Date(Date.UTC(2026, 9, 16, 9, 41, 0));
-  const catalog = buildHippodromeCatalog(now, hippodromes, economy.raceTiers, economy.prizeDistributions, programs);
+  const catalog = buildHippodromeCatalog(
+    now,
+    hippodromes,
+    economy.raceTiers,
+    economy.prizeDistributions,
+    programs,
+    loadCareerConfig(),
+  );
 
   it('her pist bir kez; masalar economy kademeleriyle birebir', () => {
     expect(catalog.hippodromes.map((h) => h.key)).toEqual(hippodromes.hippodromes.map((h) => h.key));

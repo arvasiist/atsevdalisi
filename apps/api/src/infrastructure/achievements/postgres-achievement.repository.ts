@@ -9,6 +9,8 @@ import type {
 } from '../../application/ports/achievement.repository';
 import { PG_POOL, withTransaction } from '../database/database.module';
 import { countMetric } from '../quests/postgres-quest.repository';
+import { AppConfigService } from '../config/config.service';
+import { careerPointsOf } from '../career/career-points';
 
 /** Yaşam boyu pencere: oyunun başlangıcından yarına (bitiş hariç). */
 const LIFETIME_START = new Date(0);
@@ -25,7 +27,11 @@ async function measure(
   metric: AchievementMetric,
   minPrice: number,
   now: Date,
+  config: AppConfigService,
 ): Promise<number> {
+  if (metric === 'career_points') {
+    return careerPointsOf(db, playerId, config.career);
+  }
   if (metric === 'player_level') {
     const result = await db.query<{ level: number }>('SELECT level FROM players WHERE id = $1', [playerId]);
     return result.rows[0]?.level ?? 0;
@@ -59,12 +65,15 @@ async function measure(
 
 @Injectable()
 export class PostgresAchievementRepository implements AchievementRepository {
-  constructor(@Inject(PG_POOL) private readonly pool: Pool) {}
+  constructor(
+    @Inject(PG_POOL) private readonly pool: Pool,
+    @Inject(AppConfigService) private readonly config: AppConfigService,
+  ) {}
 
   async progress(playerId: string, metrics: AchievementMetric[], minPrice: number, now: Date): Promise<number[]> {
     // Aynı ölçüt birden çok başarımda geçer — her ölçüt bir kez sayılır.
     const unique = [...new Set(metrics)];
-    const values = await Promise.all(unique.map((metric) => measure(this.pool, playerId, metric, minPrice, now)));
+    const values = await Promise.all(unique.map((metric) => measure(this.pool, playerId, metric, minPrice, now, this.config)));
     const byMetric = new Map(unique.map((metric, index) => [metric, values[index] ?? 0]));
     return metrics.map((metric) => byMetric.get(metric) ?? 0);
   }
@@ -86,7 +95,14 @@ export class PostgresAchievementRepository implements AchievementRepository {
       );
       const player = balance.rows[0];
       if (!player) return { kind: 'not_found' };
-      const progress = await measure(client, input.playerId, input.metric, input.horsePurchaseMinPrice, input.now);
+      const progress = await measure(
+        client,
+        input.playerId,
+        input.metric,
+        input.horsePurchaseMinPrice,
+        input.now,
+        this.config,
+      );
       if (progress < input.target) return { kind: 'not_completed', progress };
       const inserted = await client.query<{ id: string }>(
         `INSERT INTO achievement_claims (player_id, achievement_key, reward_money, claimed_at)

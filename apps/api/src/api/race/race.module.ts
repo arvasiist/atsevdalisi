@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { CareerModule } from '../career/career.module';
 import { LEADERBOARD_REPOSITORY } from '../../application/ports/leaderboard.repository';
 import { RACE_REPOSITORY } from '../../application/ports/race.repository';
 import { HORSE_EQUIPMENT_REPOSITORY } from '../../application/ports/horse-equipment.repository';
@@ -56,7 +57,7 @@ import { RecentRacesController } from './recent-races.controller';
   // doc yorumu). `GrandstandModule` `RaceModule`'ü import ETMEZ → döngü YOK
   // (token'ı burada İKİNCİ kez kaydetmek yerine tek örneği paylaşmanın
   // gerekçesi `grandstand.module.ts` doc yorumunda).
-  imports: [DatabaseModule, HorseModule, PlayerModule, MarketModule, GrandstandModule],
+  imports: [DatabaseModule, HorseModule, PlayerModule, MarketModule, GrandstandModule, CareerModule],
   controllers: [
     RaceController,
     InteractiveRaceController,

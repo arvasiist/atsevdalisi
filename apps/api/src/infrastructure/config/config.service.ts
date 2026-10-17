@@ -8,6 +8,7 @@ import {
   loadEquipmentConfig,
   loadAvatarConfig,
   loadOnboardingConfig,
+  loadCareerConfig,
   loadCosmeticsConfig,
   loadCareConfig,
   loadChatConfig,
@@ -35,13 +36,14 @@ import {
   loadReferralConfig,
 } from '@at-sevdalisi/game-config';
 import { validateBreedsConfig } from '../../domain/horse/breeds';
-import { validateHippodromesConfig } from '../../domain/race/hippodrome';
+import { HIPPODROME_LEVELS, validateHippodromesConfig } from '../../domain/race/hippodrome';
 import { validateHorseLevelBrackets } from '../../domain/race/level-bracket';
 import { validateFriendGiftConfig } from '../../domain/social/friend-gift';
 import { validatePresenceConfig } from '../../domain/social/presence';
 import { validateReferralConfig } from '../../domain/social/referral';
 import { validateGiftAmountLimits } from '../../domain/gift/gift';
 import { validateGemPolicy } from '../../domain/economy/gem-policy';
+import { validateCareerConfig } from '../../domain/career/career';
 import { validateCosmeticsConfig } from '../../domain/cosmetics/cosmetics';
 import { validateTribuneGiftsConfig } from '../../domain/grandstand/tribune-gift';
 import { validateEquipmentConfig } from '../../domain/equipment/catalog';
@@ -190,6 +192,8 @@ export class AppConfigService {
   readonly store = loadStoreConfig();
   /** 16.10.2026 — arkadaş daveti + davet ödülü. */
   readonly referral = loadReferralConfig();
+  /** 16.10.2026 — brief §10: kariyer kademeleri + yarış puanları. */
+  readonly career = loadCareerConfig();
 
   constructor() {
     // Irk kuralı (ücretsiz at en zayıf, güçlü ırk ucuz olamaz) açılışta
@@ -243,6 +247,15 @@ export class AppConfigService {
     const presenceProblems = validatePresenceConfig(this.social);
     if (presenceProblems.length > 0) {
       throw new Error(`Sosyal config'i geçersiz (config/social.config.json): ${presenceProblems.join(' ')}`);
+    }
+    // 16.10.2026 (brief §10) — her masa ve pist seviyesi tam bir kademede açılır.
+    const careerProblems = validateCareerConfig(
+      this.career,
+      this.economy.raceTiers.map((tier) => tier.id),
+      HIPPODROME_LEVELS,
+    );
+    if (careerProblems.length > 0) {
+      throw new Error(`Kariyer config'i geçersiz (config/career.config.json): ${careerProblems.join(' ')}`);
     }
     // 15.10.2026 (Aşama 3) — yetersiz oyuncu kuralı (asgari gerçek oyuncu + bot izni).
     const fieldRuleProblems = validateFieldRulesConfig(this.raceLobby, this.raceLobby.calendar.programs);

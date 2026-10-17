@@ -30,6 +30,7 @@ import { OnboardingModule } from './api/onboarding/onboarding.module';
 import { TribuneGiftModule } from './api/tribune-gift/tribune-gift.module';
 import { BreedsModule } from './api/breeds/breeds.module';
 import { HippodromeModule } from './api/hippodrome/hippodrome.module';
+import { CareerModule } from './api/career/career.module';
 import { AvatarModule } from './api/avatar/avatar.module';
 import { PaymentsModule } from './api/payments/payments.module';
 import { SchedulerLeaderModule } from './infrastructure/scheduler/scheduler-leader';
@@ -158,6 +159,7 @@ import { RedisModule } from './infrastructure/redis/redis.module';
     TribuneGiftModule,
     BreedsModule,
     HippodromeModule,
+    CareerModule,
     AvatarModule,
     PaymentsModule,
     // 02.10.2026 — zamanlayıcı lider kilidi (çok örnekte tek koşucu).

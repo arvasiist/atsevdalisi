@@ -18,6 +18,7 @@
  */
 import type {
   OnboardingConfig,
+  CareerConfig,
   ReferralConfig,
   AuthConfig,
   OpsConfig,
@@ -107,6 +108,7 @@ import equipmentConfigJson from '../../../config/equipment.config.json';
 import horsePersonalityConfigJson from '../../../config/horse-personality.config.json';
 import onboardingConfigJson from '../../../config/onboarding.config.json';
 import referralConfigJson from '../../../config/referral.config.json';
+import careerConfigJson from '../../../config/career.config.json';
 
 export function loadRaceConfig(): RaceBalanceConfig {
   return raceConfigJson as unknown as RaceBalanceConfig;
@@ -386,3 +388,9 @@ export function loadOnboardingConfig(): OnboardingConfig {
 export function loadReferralConfig(): ReferralConfig {
   return referralConfigJson as unknown as ReferralConfig;
 }
+
+/** 16.10.2026 — brief §10: kariyer kademeleri ve yarış puanları. */
+export function loadCareerConfig(): CareerConfig {
+  return careerConfigJson as unknown as CareerConfig;
+}
+

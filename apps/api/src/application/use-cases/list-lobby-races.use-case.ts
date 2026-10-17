@@ -2,6 +2,8 @@ import { Inject, Injectable } from '@nestjs/common';
 import type { RaceLobbyListItem } from '@at-sevdalisi/shared-types';
 import { normalizeLobbyListLimit } from '../../domain/race/lobby';
 import { RACE_REPOSITORY, type RaceRepository } from '../ports/race.repository';
+import { CAREER_REPOSITORY, type CareerRepository } from '../ports/career.repository';
+import { careerRequirementForRace } from '../../domain/career/career';
 import { AppConfigService } from '../../infrastructure/config/config.service';
 
 /**
@@ -35,6 +37,7 @@ export class ListLobbyRacesUseCase {
     // "SİHİRLİ SAYI YOK". `AppConfigModule` `@Global()` olduğu için ek
     // modül importu gerekmez.
     @Inject(AppConfigService) private readonly config: AppConfigService,
+    @Inject(CAREER_REPOSITORY) private readonly career: CareerRepository,
   ) {}
 
   /**
@@ -46,6 +49,19 @@ export class ListLobbyRacesUseCase {
    */
   async execute(viewerId: string, rawLimit: unknown): Promise<RaceLobbyListItem[]> {
     const limit = normalizeLobbyListLimit(rawLimit, this.config.raceLobby);
-    return this.raceRepository.listLobbyRaces({ status: 'scheduled', limit, viewerId });
+    const [rows, points] = await Promise.all([
+      this.raceRepository.listLobbyRaces({ status: 'scheduled', limit, viewerId }),
+      this.career.pointsOf(viewerId),
+    ]);
+    // 16.10.2026 (brief §10) — çağıranın kariyer kilidi (kural katılımda sunucuda).
+    return rows.map((row) => ({
+      ...row,
+      careerRequirement: careerRequirementForRace(
+        { tableId: row.table?.id ?? null, hippodromeKey: row.hippodrome },
+        points,
+        this.config.career,
+        this.config.hippodromes,
+      ),
+    }));
   }
 }

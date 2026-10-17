@@ -28,3 +28,4 @@ export * from './breeds';
 export * from './cosmetics';
 export * from './onboarding';
 export * from './hippodrome';
+export * from './career';

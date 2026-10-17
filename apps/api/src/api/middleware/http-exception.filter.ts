@@ -18,6 +18,7 @@ import {
   ProfilePhotoNotFoundError,
 } from '../../domain/avatar/errors';
 import { HorseLevelNotAllowedError, RaceClubOnlyError } from '../../domain/race/level-bracket';
+import { CareerTierLockedError } from '../../domain/career/errors';
 import { HorseTooStrongForTierError } from '../../domain/race/practice-class';
 import { EquipmentLevelLockedError } from '../../domain/equipment/catalog';
 import {
@@ -575,6 +576,7 @@ const DOMAIN_ERROR_MAP = new Map<ErrorClassConstructor, { status: number; code: 
   [HorseLevelNotAllowedError, { status: HttpStatus.CONFLICT, code: ErrorCode.HorseLevelNotAllowed }],
   [HorseTooStrongForTierError, { status: HttpStatus.CONFLICT, code: ErrorCode.HorseTooStrongForTier }],
   [RaceClubOnlyError, { status: HttpStatus.CONFLICT, code: ErrorCode.RaceClubOnly }],
+  [CareerTierLockedError, { status: HttpStatus.CONFLICT, code: ErrorCode.CareerTierLocked }],
   [InvalidTribuneGiftError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.InvalidTribuneGift }],
   [TribuneGiftNotAllowedError, { status: HttpStatus.CONFLICT, code: ErrorCode.TribuneGiftNotAllowed }],
   [TribuneGiftDailyLimitError, { status: HttpStatus.CONFLICT, code: ErrorCode.TribuneGiftDailyLimit }],

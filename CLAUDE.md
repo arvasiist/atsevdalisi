@@ -1257,6 +1257,25 @@ masa seçilince masayı ağırlayan piste geçer) — ⚠️ yeni kuraldan önce
 form 800 m idi ve Veliefendi'de 800 m koşulmaz: form varsayılanını değiştirirken
 `hippodrome-form.spec.ts`e güven. Ekran `/hippodromes`.
 
+(105) **KARİYER KADEMELERİ (16.10.2026, migration YOK, brief §10)** —
+`config/career.config.json`: `racePoints` (sınıf → [1., 2., 3., diğer]) +
+`tiers` (Yerel 0 → Bölgesel → Ulusal → Ulusal Şampiyona → Uluslararası → Büyük
+Şampiyona; her masa ve her pist seviyesi TAM BİR kademede açılır —
+`validateCareerConfig` açılışta). Puan SAYAÇ DEĞİL: TEK SQL
+`infrastructure/career/career-points.ts` (oyuncunun KOŞTURDUĞU `e.player_id`,
+bitmiş yarış, iptal edilmemiş katılım; sınıf turnuva > masa > masasız lobi
+(`e.status` dolu) > pratik/eşleşme). Kapı TEK fonksiyon `careerRequirementForRace`
+— lobi listesi (`careerRequirement`), yarış açma ve `joinLobbyRace` (kulüp
+kapısından sonra, paradan ÖNCE) aynısını kullanır → 409 `CAREER_TIER_LOCKED`.
+İlk kademe mahalli masayı + Türkiye pistlerinin masasız/ücretsiz yarışlarını
+açar (tek başına oynayan kilitli kalmaz); pratik/eşleşme/turnuva GATE'SİZ.
+Kademe ödülü başarım (`career_points`, `SNAPSHOT_ACHIEVEMENT_METRICS`; eşikler
+kademe eşikleriyle EŞ — `career.spec.ts` kilitler). ⚠️ Kademe kapısının
+ARKASINDAKİ kuralı (masa, pist) sınayan YENİ e2e `grantCareerPoints(app,
+playerId, puan)` ön koşulunu kurmalı (SQL fikstürü; yarış/galibiyet sayısına da
+girer — o sayıları sınayan oyuncuda kullanma). Seyahat: bekleme/nakliye ücreti
+YOK (bilinçli; belgeli). Ekran `/career`.
+
 **✅ ÜCRETLİ LOBİ YARIŞI ARTIK KOŞUYOR — ÖDÜL DAĞITIMI VAR (§13.14,
 28.09.2026).** `POST /races/:id/settle` yarışı koşar, ödülleri `top5`
 paylarıyla dağıtır ve `races.status = 'finished'` yazar. Uç bir

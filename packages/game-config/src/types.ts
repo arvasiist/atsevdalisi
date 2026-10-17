@@ -2983,3 +2983,28 @@ export interface LegalConfig {
   jurisdiction: string | null;
 }
 
+/**
+ * 16.10.2026 — brief §10 "stadyumdan stadyuma kariyer": `config/career.config.json`.
+ * Puan SAYAÇ DEĞİLDİR — bitmiş yarış sonuçlarından türetilir. Kademe birikimli
+ * açar: masalar (`economy.raceTiers` kimlikleri) ve pist seviyeleri.
+ */
+export interface CareerTierConfig {
+  key: string;
+  name: string;
+  requiredPoints: number;
+  unlocksTables: string[];
+  unlocksHippodromeLevels: HippodromeLevel[];
+  description: string;
+}
+
+export interface CareerConfig {
+  /**
+   * Yarış sınıfı → [1., 2., 3., diğer bitiriş] puanı. Sınıf: masa kimliği,
+   * `open` (masasız lobi), `tournament`, `practice` (pratik/eşleşme).
+   */
+  racePoints: Record<string, [number, number, number, number]>;
+  tiers: CareerTierConfig[];
+  /** `GET /career` son yarış satırı sayısı. */
+  historyLimit: number;
+}
+

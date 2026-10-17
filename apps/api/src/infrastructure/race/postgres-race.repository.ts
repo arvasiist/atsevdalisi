@@ -113,6 +113,9 @@ import { PlayerLevelTooLowError } from '../../domain/tournament/errors';
 import { checkRaceReadiness } from '../../domain/race/readiness';
 import { computeHorseAgeMonths } from '../../domain/horse/age-curve';
 import { HorseBreedNotAllowedError, isBreedAllowedInRaceClass } from '../../domain/horse/breeds';
+import { careerRequirementForRace } from '../../domain/career/career';
+import { CareerTierLockedError } from '../../domain/career/errors';
+import { careerPointsOf } from '../career/career-points';
 import { pickHippodromeForRace, resolveHippodromeKey, trackIdForHippodrome } from '../../domain/race/hippodrome';
 import { findLevelBracket, HorseLevelNotAllowedError, isHorseLevelAllowed, RaceClubOnlyError } from '../../domain/race/level-bracket';
 
@@ -1360,6 +1363,21 @@ export class PostgresRaceRepository implements RaceRepository {
           throw new RaceClubOnlyError();
         }
       }
+      // KARİYER KADEMESİ (16.10.2026, brief §10) — masa/pist oyuncunun
+      // kademesine yetmeli. Para hareketinden ÖNCE. Puan yalnızca artar
+      // (bitmiş yarışlardan türetilir), kilitsiz okumak güvenlidir.
+      const careerRequirement = careerRequirementForRace(
+        {
+          tableId: raceRow.table_id ?? null,
+          hippodromeKey: resolveHippodromeKey(this.config.hippodromes, raceRow.track_id ?? null),
+        },
+        await careerPointsOf(client, input.playerId, this.config.career),
+        this.config.career,
+        this.config.hippodromes,
+      );
+      if (careerRequirement !== null) {
+        throw new CareerTierLockedError(careerRequirement.key, careerRequirement.name, careerRequirement.pointsToRequired);
+      }
       // HAZIRLIK KAPISI (30.09.2026, `FINAL_PROJECT_AUDIT.md` #8) —
       // `domain/race/readiness.ts` kendini "yarışa girebilir mi"nin TEK
       // karar noktası diye tanımlar ama bu yol onu çağırmıyordu: enerjisi
@@ -1574,7 +1592,7 @@ export class PostgresRaceRepository implements RaceRepository {
    * listeyi kilit altına almak, her lobi yenilemesini yarışa katılanların
    * arkasında sıraya sokardı. Görüntünün ANLIK olması yeterlidir.
    */
-  async listLobbyRaces(input: ListLobbyRacesInput): Promise<RaceLobbyListItem[]> {
+  async listLobbyRaces(input: ListLobbyRacesInput): Promise<Array<Omit<RaceLobbyListItem, 'careerRequirement'>>> {
     // `my_*` (30.09.2026) — çağıranın KENDİ katılımı, aynı JOIN'den
     // `FILTER` ile. `race_entries_race_player_uq` oyuncu başına en fazla bir
     // satır garanti eder; `MAX` yalnızca gruplamanın istediği toplama

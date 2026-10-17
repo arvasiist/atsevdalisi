@@ -77,6 +77,8 @@ export const ErrorCode = {
   HorseTooStrongForTier: 'HORSE_TOO_STRONG_FOR_TIER',
   /** 09.10.2026 — kulüp içi yarışa kulüp üyesi olmayan katılamaz (409). */
   RaceClubOnly: 'RACE_CLUB_ONLY',
+  /** 16.10.2026 (brief §10) — masa/pist kariyer kademesinin üstünde. */
+  CareerTierLocked: 'CAREER_TIER_LOCKED',
   /** 09.10.2026 — kozmetik mağaza: ürün yok (404), zaten sahip (409), sahip olunmayan seçenek (409). */
   CosmeticNotFound: 'COSMETIC_NOT_FOUND',
   CosmeticAlreadyOwned: 'COSMETIC_ALREADY_OWNED',

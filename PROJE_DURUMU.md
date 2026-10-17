@@ -4745,3 +4745,17 @@ masalar, takvim saatleri, açık yarışlar). Testler: `hippodromes.spec.ts` (11
 `hippodrome-catalog.spec.ts` (3), `race-calendar.spec.ts` (7),
 `hippodrome.e2e-spec.ts` (5); web `hippodrome-form.spec.ts` (4),
 `hippodrome-catalog.spec.ts` (5).
+
+**F5-H2 — stadyumdan stadyuma kariyer (migration YOK).** Altı kademe (Yerel →
+Bölgesel → Ulusal → Ulusal Şampiyona → Uluslararası → Büyük Şampiyona). Puan
+bitmiş yarış sonuçlarından türetilir (sayaç yok, mevcut veri korunur: eski
+yarışlar da puan verir); kademe masaları ve yurt dışı pistlerini açar, katılım
+ve yarış açma sunucuda 409. Kademe ödülleri başarım olarak (tek sefer, defter
+satırıyla). `GET /career` + `/career` ekranı (sıradaki hedef, kademe yol
+haritası, puan tablosu, kariyer geçmişi); lobide kilitli yarışta "🔒 Kademe"
+bağlantısı, "Hemen Katıl" kilitli yarışı önermez, hipodrom ekranında kilit
+rozeti. Seyahat değerlendirildi: bekleme ve ayrı nakliye ücreti eklenmedi
+(masa bedeli pist seviyesiyle zaten artıyor). Var olan iki test kariyer ön
+koşulunu kurdu (`race-table-rules`, `hippodrome` e2e). Testler:
+`career.spec.ts` (7), `career.e2e-spec.ts` (4), web `career-view.spec.ts` (2).
+

@@ -2,12 +2,12 @@ import { randomUUID } from 'node:crypto';
 import type { INestApplication } from '@nestjs/common';
 import type { Pool } from 'pg';
 import request from 'supertest';
-import { loadHippodromesConfig, loadRaceLobbyConfig } from '@at-sevdalisi/game-config';
+import { loadCareerConfig, loadHippodromesConfig, loadRaceLobbyConfig } from '@at-sevdalisi/game-config';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { findHippodrome, pickHippodromeForRace } from '../../src/domain/race/hippodrome';
 import { AppConfigService } from '../../src/infrastructure/config/config.service';
 import { PG_POOL } from '../../src/infrastructure/database/database.module';
-import { bootstrapTestApp, registerTestPlayerWithStarterHorse } from './test-helpers';
+import { bootstrapTestApp, grantCareerPoints, registerTestPlayerWithStarterHorse } from './test-helpers';
 
 /**
  * HİPODROMLAR (08.10.2026, migration 0072). Kanıtlananlar: lobi yarışı
@@ -145,6 +145,9 @@ describe('Hipodromlar (e2e)', () => {
       expect(rejected.body.error.code).toBe('INVALID_RACE_DEFINITION');
     }
     expect(await count()).toBe(0);
+    // 16.10.2026 (brief §10) — yurt dışı pisti kariyer kademesi ister (kapı career.e2e'de).
+    const international = loadCareerConfig().tiers.find((tier) => tier.unlocksHippodromeLevels.includes('international'))!;
+    await grantCareerPoints(app, player.playerId, international.requiredPoints);
     const ok = await http()
       .post('/api/v1/races')
       .set('Authorization', player.authHeader)

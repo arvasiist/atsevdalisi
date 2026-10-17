@@ -1,4 +1,5 @@
 import type {
+  CareerConfig,
   HippodromesConfig,
   PrizeDistributionConfig,
   RaceCalendarProgram,
@@ -6,6 +7,7 @@ import type {
 } from '@at-sevdalisi/game-config';
 import type { HippodromeCatalogView, HippodromeProgramView, HippodromeView } from '@at-sevdalisi/shared-types';
 import { computeCalendarSlotTimes } from './race-calendar';
+import { requiredCareerTierFor } from '../career/career';
 
 /** Programın gösterilen sıradaki yuva sayısı. */
 export const HIPPODROME_NEXT_SLOT_COUNT = 3;
@@ -24,7 +26,12 @@ export function buildHippodromeCatalog(
   raceTiers: readonly RaceTierConfig[],
   prizeDistributions: readonly PrizeDistributionConfig[],
   programs: readonly RaceCalendarProgram[],
+  career: CareerConfig,
 ): HippodromeCatalogView {
+  const tierRef = (race: Parameters<typeof requiredCareerTierFor>[0]) => {
+    const tier = requiredCareerTierFor(race, career);
+    return { key: tier.key, name: tier.name };
+  };
   const views: HippodromeView[] = hippodromes.hippodromes.map((hippodrome) => ({
     key: hippodrome.key,
     name: hippodrome.name,
@@ -37,6 +44,7 @@ export function buildHippodromeCatalog(
     surfaces: [...hippodrome.surfaces],
     distancesMeters: [...hippodrome.distancesMeters],
     lapLengthMeters: hippodrome.lapLengthMeters,
+    requiredCareerTier: tierRef({ tableId: null, hippodromeLevel: hippodrome.level }),
     tables: hippodrome.tables.flatMap((tableId) => {
       const tier = raceTiers.find((candidate) => candidate.id === tableId);
       if (!tier) return [];
@@ -48,6 +56,7 @@ export function buildHippodromeCatalog(
           entryFee: tier.entryFee,
           fieldSize: tier.fieldSize,
           winnerSharePercent: Math.round((shares[0] ?? 0) * 1000) / 10,
+          requiredCareerTier: tierRef({ tableId: tier.id, hippodromeLevel: hippodrome.level }),
         },
       ];
     }),

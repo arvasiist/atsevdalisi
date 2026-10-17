@@ -2716,6 +2716,20 @@ breedClass, horseLevelBracket, nextStartTimes (ISO, en fazla 3)}` +
 `generatedAt`. Saatler takvim zamanlayıcısının aynı saf fonksiyonuyla
 (`computeCalendarSlotTimes`) sunucu saatiyle hesaplanır. Salt okuma.
 
+#### `GET /career` (16.10.2026, brief §10)
+Oturum ister (yalnızca çağıranın kendi kariyeri), hız sınırı `career-view`
+60/dk, salt okuma. Yanıt `CareerView`: `points` (bitmiş yarışlardan türetilir —
+sınıf: turnuva > masa > masasız lobi > pratik/eşleşme; puan tablosu
+`config/career.config.json` → `racePoints`), `tier {key, name, index}`, `next
+{key, name, requiredPoints, pointsToNext} | null`, `tiers[]` (eşik, açılan
+masalar/pistler, `reached`), `racePoints[]`, `history[]` (son `historyLimit`
+yarış: pist, sınıf, derece, puan). Kademe masaları ve pist seviyelerini açar:
+masası/pisti kademenin üstündeki lobi yarışına katılım ve yarış AÇMA 409
+`CAREER_TIER_LOCKED` (para hareketinden önce). `GET /races` satırı
+`careerRequirement: {key, name, pointsToRequired} | null` taşır; `GET
+/hippodromes` pist ve masa başına `requiredCareerTier`. Kademe ödülleri başarım
+olarak alınır (`career_points` ölçütü, `POST /achievements/:key/claim`).
+
 **`Idempotency-Key` YOKTUR ve bu bilinçlidir:** bu uç hiçbir bakiye/ödül/
 envanter değiştirmez (ücret yarışa KATILIRKEN alınır) — brief §54'ün zorunlu
 kıldığı kapsama girmez. Buna karşılık `@RateLimit` (10/60 sn, oyuncu başına)
@@ -3394,6 +3408,7 @@ dosyanın doc yorumu).
 |---|---|
 | `HORSE_TOO_TIRED` | Atın enerjisi/yorgunluğu yarış veya antrenman için yetersiz |
 | `HORSE_INJURED` | At sakat, işlem yapılamaz |
+| `CAREER_TIER_LOCKED` | Yarışın masası/pisti oyuncunun kariyer kademesinin üstünde — `POST /races/:id/join` ve `POST /races` (409, para hareketinden önce) (16.10.2026) |
 | `INVALID_CREDENTIALS` | E-posta ya da şifre hatalı — `POST /auth/login/password` (401). Kayıtlı olmayan e-posta ile yanlış şifre BİLEREK aynı kod ve aynı mesajdır (enumerasyon yok) (30.09.2026) |
 | `EMAIL_ALREADY_REGISTERED` | Bu e-posta başka bir hesaba bağlı — `POST /auth/credentials` (409); karşılaştırma büyük/küçük harf duyarsız (30.09.2026) |
 | `INVALID_RESET_TOKEN` | Şifre sıfırlama bağlantısı geçersiz, süresi dolmuş ya da kullanılmış — `POST /auth/password-reset/confirm` (400). Üç durum BİLEREK tek koddur (30.09.2026, migration 0047) |

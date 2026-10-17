@@ -545,7 +545,7 @@ export function sortRacesForHorse<T extends Pick<RaceLobbyListItem, 'breedClass'
 /**
  * HEMEN KATIL — seçili at için katılınabilir en uygun yarış: katılımı yok,
  * dolu değil, ırk + seviye uygun, ücret bakiyeye yetiyor, başlamasına en az
- * `minLeadMs` var (katıl + hazırım sığsın). Önce ata özel aralık, sonra en
+ * `minLeadMs` var (katıl + hazırım sığsın), kariyer kademesi yetiyor. Önce ata özel aralık, sonra en
  * yakın başlangıç, sonra düşük ücret. At zaten açık bir yarıştaysa `null`.
  */
 export function pickQuickJoinRaces(
@@ -564,6 +564,8 @@ export function pickQuickJoinRaces(
   const candidates = races.filter(
     (race) =>
       lobbyEntryActions(race).canJoin &&
+      // 16.10.2026 (brief §10) — kariyer kademesi yetmeyen yarış önerilmez.
+      !race.careerRequirement &&
       raceFitForHorse(race, horse) < 2 &&
       race.entryFee <= money &&
       new Date(race.startTime).getTime() - now.getTime() >= minLeadMs,
@@ -614,3 +616,11 @@ export function describePrizeSplit(race: Pick<RaceLobbyListItem, 'table' | 'tour
   const rake = 1 - shares.reduce((sum, share) => sum + share, 0);
   return `Ödül gerçek oyuncular arasındaki ilk ${shares.length} sıraya (havuzdan ${top}${shares.length > 3 ? ' …' : ''}; bota pay düşmez, az oyuncuda paylar büyür) · komisyon ${percent(rake)}`;
 }
+
+/** 16.10.2026 (brief §10) — lobi satırındaki kariyer kilidi metni; kilit yoksa `null`. */
+export function describeCareerLock(race: Pick<RaceLobbyListItem, 'careerRequirement'>): string | null {
+  const requirement = race.careerRequirement;
+  if (!requirement) return null;
+  return `🔒 ${requirement.name} kademesi · ${requirement.pointsToRequired} kariyer puanı daha`;
+}
+
