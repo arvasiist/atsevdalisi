@@ -267,7 +267,7 @@ GET    /api/v1/horses                  # oyuncunun ahırındaki atlar
 GET    /api/v1/horses/{id}             # at detayı (brief §40)
 GET    /api/v1/horses/{id}/pedigree    # soy ağacı + ataların adları (bu dilimde EKLENDİ, aşağıya bkz.)
 GET    /api/v1/horses/{id}/career      # yarış geçmişi + kazanç + tay sayısı (16.10.2026, aşağıya bkz.)
-POST   /api/v1/players/{id}/breeding   # çiftleştirme + tay doğumu (27.09.2026 EKLENDİ, aşağıya bkz.)
+POST   /api/v1/players/{id}/breeding   # KENDİ çifti: döllenme denemesi → gebelik (16.10.2026, aşağıya bkz.)
 POST   /api/v1/horses/{id}/train       # antrenman (brief §10)
 POST   /api/v1/horses/{id}/care        # tımar/su/temizlik/veteriner/nalbant/dinlendirme
                                         # (brief §11 — tek uç nokta, `actionType` alanı,
@@ -2316,6 +2316,40 @@ Tasarım kararları (bkz. `application/use-cases/run-practice-race.use-case.ts`
   `breeding_pairs`ten. Kaybeden iadesi kazanç sayılmaz. Bilinmeyen at 404.
 - `GET /horses/{id}/pedigree` yanıtına `recordsById` eklendi: ağaçtaki her atın
   (kendisi dahil) aynı özeti.
+
+
+### Çiftleştirme merkezi + gebelik (16.10.2026, brief §4–§5, migration 0094)
+
+```http
+GET    /api/v1/breeding/center                       # kurallar, aygırlarım, gelen/giden teklifler, gebelikler
+GET    /api/v1/breeding/studs?breed=&maxFee=         # ilandaki aygırlar (sahibin ücreti, soy, kariyer özeti)
+PUT    /api/v1/breeding/studs/{stallionId}           # { fee } ilan ver/güncelle (sahip; ücret sınır dışı 400 INVALID_STUD_FEE)
+DELETE /api/v1/breeding/studs/{stallionId}           # ilanı geri çek; bekleyen teklifler iptal + tam iade
+POST   /api/v1/breeding/offers                       # { mareId, stallionId, foalName } + Idempotency-Key → ücret emanete
+POST   /api/v1/breeding/offers/{offerId}/accept      # aygır sahibi; döllenme denenir
+POST   /api/v1/breeding/offers/{offerId}/reject      # aygır sahibi; tam iade
+POST   /api/v1/breeding/offers/{offerId}/cancel      # kısrak sahibi; tam iade
+POST   /api/v1/breeding/pregnancies/{id}/checkups    # Idempotency-Key; ücretli veteriner kontrolü
+POST   /api/v1/players/{id}/breeding                 # KENDİ kısrağı × KENDİ aygırı (ücretsiz)
+```
+
+- Yanıt `POST /players/{id}/breeding` artık `BreedingAttemptView` (`outcome:
+  conceived|not_conceived`, `conceptionChance`, `pregnancy`, `mareRestEndsAt`).
+  Tay ANINDA doğmaz; doğumu sunucu zamanlayıcısı `expectedBirthAt`te yapar
+  (`foal_born` bildirimi). Başkasının aygırı → 409 `BREEDING_REQUIRES_AGREEMENT`.
+- Teklif ve gebelik yalnızca taraflarına görünür; taraf olmayana 404
+  (`BREEDING_OFFER_NOT_FOUND`, `PREGNANCY_NOT_FOUND`). Çift kabul 409
+  `BREEDING_OFFER_NOT_PENDING`; süresi geçmiş teklif 409 `BREEDING_OFFER_EXPIRED`;
+  kısrağın bekleyen teklifi varken ikinci teklif / kendi çifti 409
+  `BREEDING_OFFER_ALREADY_PENDING`; kendi aygırına teklif 409
+  `BREEDING_OFFER_OWN_STALLION`; kontrol aralığı dolmadan 409
+  `PREGNANCY_CHECKUP_TOO_SOON`; gebe kısrak / bekleyen teklifteki at pazara 409
+  `HORSE_BREEDING_COMMITMENT`.
+- Defter: `breeding_offer_hold` (−), `breeding_offer_refund` (+),
+  `breeding_stud_fee_credit` (+, aygır sahibinin payı), `pregnancy_vet_check` (−).
+  Bildirim: `breeding_offer_received`, `breeding_offer_answered`, `stud_service`
+  (döllenme anında), `foal_born`.
+- Tayın genetiği, cinsiyeti ve tohumu hiçbir yanıtta dönmez.
 
 ## 5. Market (At Pazarı)
 

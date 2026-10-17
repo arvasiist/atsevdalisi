@@ -38,16 +38,16 @@ kapsamında yapılan iştir. 3D işi kapsam dışı (brief kuralı 7). Brief met
 | 3 | Satış / transfer | IMPLEMENTED | pazar + müzayede; doğrudan at transferi bilinçli YOK (çoklu hesap değer aktarımı) | değişmedi |
 | 3 | At profili + geçmiş (yarışlar, dereceler, kazanç) | NOT_STARTED | atın yarış geçmişi/kazanç ucu yok (`findRecentResultsByHorseId` yalnızca iç kullanım) | ✅ K2 TESTED: `GET /horses/:id/career` (kazanç defterden), kartta "Kariyer ve Geçmiş" (`horse-career.e2e-spec.ts`, web `horse-profile.spec.ts`) |
 | 3 | Ekonomik değer tek skordan değil | IMPLEMENTED | `calculateMarketValue` (kalite, potansiyel, yaş, yarış geçmişi, sağlık; soy puanı `null`) | değişmedi |
-| 4 | Ayrı çiftleştirme merkezi | PARTIAL | `BreedingPanel` ahırın içinde; damızlık listesi `GET /breeding/studs` | K3 |
-| 4 | Aygır sahibi kendi ücretiyle ilan verir | NOT_STARTED | ücret formülden (`calculateStudFee`), ilan kavramı yok — emekli her aygır listede | K3 |
-| 4 | Kısrak sahibi teklif gönderir, aygır sahibi kabul/ret | NOT_STARTED | çiftleştirme tek tuş, aygır sahibinin onayı YOK | K3 |
-| 4 | Anlaşmasız çiftleştirme yapılamaz | BROKEN (brief kuralına göre) | `POST /players/:id/breeding` başkasının aygırıyla anında tay üretiyor | K3 |
-| 4 | Ücret/ödeme zamanı/iptal/iade, çift kabul/ödeme engeli, geçmiş | PARTIAL | ücret anında düşer (defter + bildirim var); iptal/iade/teklif geçmişi yok | K3 |
-| 5 | Doğurganlık özelliği | NOT_STARTED | `horses` doğurganlık sütunu yok | K4 |
-| 5 | Döllenme olasılığı < %100 | NOT_STARTED | her çiftleştirme tay verir | K4 |
-| 5 | Gebelik süresi (config, ≈ gerçeğin 1/5'i ≈ 67 gün), takvim, kalan süre | NOT_STARTED | tay ANINDA doğuyor | K4 |
-| 5 | Gebelikte bakım/beslenme/veteriner, risk takibi | NOT_STARTED | — | K4 |
-| 5 | Tek tay, yeniden başlatmaya dayanıklı, istemci saatinden bağımsız, çift doğum yok | PARTIAL | tek tay + tek transaction var; zamanlanmış doğum yok | K4 |
+| 4 | Ayrı çiftleştirme merkezi | PARTIAL | `BreedingPanel` ahırın içinde; damızlık listesi `GET /breeding/studs` | ✅ K3 TESTED: `/breeding` Çiftleştirme Merkezi (kurallar, takvim, teklifler, ilanlar, arama) — web `BreedingCenter.spec.tsx` |
+| 4 | Aygır sahibi kendi ücretiyle ilan verir | NOT_STARTED | ücret formülden (`calculateStudFee`), ilan kavramı yok — emekli her aygır listede | ✅ K3 TESTED: `stud_listings`, sahip ücreti formül × [0,5–3] (`breeding-center.e2e-spec.ts`) |
+| 4 | Kısrak sahibi teklif gönderir, aygır sahibi kabul/ret | NOT_STARTED | çiftleştirme tek tuş, aygır sahibinin onayı YOK | ✅ K3 TESTED: teklif → kabul/ret/iptal, ırk + azami ücret süzgeci |
+| 4 | Anlaşmasız çiftleştirme yapılamaz | BROKEN (brief kuralına göre) | `POST /players/:id/breeding` başkasının aygırıyla anında tay üretiyor | ✅ K3 TESTED: 409 `BREEDING_REQUIRES_AGREEMENT` (`breeding.e2e-spec.ts`) |
+| 4 | Ücret/ödeme zamanı/iptal/iade, çift kabul/ödeme engeli, geçmiş | PARTIAL | ücret anında düşer (defter + bildirim var); iptal/iade/teklif geçmişi yok | ✅ K3 TESTED: emanet + tam iade yolları, eşzamanlı çift kabulde tek kabul, defter mutabakatı, iki tarafın geçmişi, hesap silme engeli |
+| 5 | Doğurganlık özelliği | NOT_STARTED | `horses` doğurganlık sütunu yok | ✅ K4 TESTED: `horses.fertility` (eski atlar tek seferlik türetildi, yeni at `deriveFertility`, tay kalıtımla) |
+| 5 | Döllenme olasılığı < %100 | NOT_STARTED | her çiftleştirme tay verir | ✅ K4 TESTED: olasılık doğurganlık + sağlık + yaş, [%10, %95]; tutmayan deneme kısrağı dinlendirir |
+| 5 | Gebelik süresi (config, ≈ gerçeğin 1/5'i ≈ 67 gün), takvim, kalan süre | NOT_STARTED | tay ANINDA doğuyor | ✅ K4 TESTED: `gestation` 335 × 0,2 = 67 gün, takvim + kalan süre ekranda |
+| 5 | Gebelikte bakım/beslenme/veteriner, risk takibi | NOT_STARTED | — | ✅ K4 TESTED: ücretli veteriner kontrolü (haftalık) + beslenme günü → doğum riski × [0,6–1,6], risk düzeyi ekranda |
+| 5 | Tek tay, yeniden başlatmaya dayanıklı, istemci saatinden bağımsız, çift doğum yok | PARTIAL | tek tay + tek transaction var; zamanlanmış doğum yok | ✅ K4 TESTED: `BreedingScheduler` (lider kilidi), eşzamanlı iki tur tek tay, ikinci uygulama örneği doğurur |
 | 6 | Kalıcı ebeveyn bağı, görsel soy ağacı | TESTED | `pedigrees`, `GET /horses/:id/pedigree`, `PedigreeTree` | değişmedi |
 | 6 | Ataların yarış/yetiştirme başarıları | NOT_STARTED | soy ağacı yalnızca ad gösteriyor | ✅ K2 TESTED: `recordsById` — her atanın koşu/birincilik/kazanç/tay özeti ağaçta |
 | 6 | Dengeli kalıtım, test edilebilir rastgelelik, kardeşler farklı | TESTED | `genetics.config.json` (`inheritanceRange`, `mutationBounds`, potansiyel tavanı), tohum = çift kimliği, `genetics.spec.ts` | değişmedi |

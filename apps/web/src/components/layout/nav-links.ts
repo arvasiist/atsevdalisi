@@ -86,6 +86,8 @@ export const NAV_LINKS: ReadonlyArray<NavLink> = [
   { href: '/replays', label: 'Yarış Geçmişi', icon: 'replays', placement: 'more' },
   { href: '/farm', label: 'Çiftlik', icon: 'farm', placement: 'more' },
   { href: '/breeds', label: 'Yetiştirici', icon: 'horse', placement: 'more' },
+  // 16.10.2026 — çiftleştirme merkezi (aygır ilanı, teklif, gebelik takvimi; brief §4–§5).
+  { href: '/breeding', label: 'Çiftleştirme Merkezi', icon: 'horse', placement: 'more' },
   { href: '/online', label: 'Online', icon: 'online', placement: 'more' },
   { href: '/store', label: 'Mağaza', icon: 'store', placement: 'more' },
   { href: '/wallet', label: 'Cüzdan', icon: 'wallet', placement: 'more' },

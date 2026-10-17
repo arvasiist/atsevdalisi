@@ -4683,3 +4683,12 @@ kazanç (defterdeki ödül satırları; kaybeden iadesi sayılmaz), tay sayısı
 koşular (`stable.careerRecentRaceLimit`). Soy ağacı `recordsById` ile ataların
 başarılarını gösterir. Boş ahırda ırk mağazası + pazar düğmeleri. Testler:
 `horse-career.e2e-spec.ts` (3), web `horse-profile.spec.ts` (3).
+
+**K3 + K4 — çiftleştirme merkezi + gebelik (migration 0094).** Ayrıntılı kurallar
+CLAUDE.md (100) ve `docs/API.md` "Çiftleştirme merkezi + gebelik". Ekran
+`/breeding` (menü "Çiftleştirme Merkezi"); ahırdaki panel yalnızca kendi çiftini
+sunar. Testler: `breeding.e2e-spec.ts` (15, yeniden yazıldı — tay artık
+zamanlayıcıyla doğar), `breeding-center.e2e-spec.ts` (12), domain
+`breeding-center.spec.ts` (11), web `BreedingCenter.spec.tsx` (5) +
+`BreedingPanel.spec.tsx` (9). Not: e2e'de SQL ile açılan pazar ilanı
+`market.e2e-spec.ts`in genel sayımını bozuyordu; fikstür artık silinir.

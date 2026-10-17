@@ -1146,6 +1146,38 @@ log yalnızca ilk ':' öncesi; kullanıcıya `GOOGLE_TOKEN_REJECTED_MESSAGE`.
 Gerçek anahtarla deneme: elle tetiklenen `.github/workflows/integration-check.yml`
 (secrets) / `apps/api/tools/check-integrations.ts`; normal CI gerçek servise dokunmaz.
 
+(100) **ÇİFTLEŞTİRME MERKEZİ + GEBELİK (16.10.2026, migration 0094)** — tay ARTIK
+ANINDA DOĞMAZ. `POST /players/:id/breeding` yalnızca KENDİ kısrağı × KENDİ
+aygırı; başkasının aygırı → 409 `BREEDING_REQUIRES_AGREEMENT`. Başkasının aygırı:
+aygır sahibi `PUT /breeding/studs/:id` ile ilan verir (ücret
+`studFeeBounds` = formül × [`minFeeFactor`, `maxFeeFactor`]; sınırsız ücret
+hesaplar arası değer aktarırdı) → kısrak sahibi `POST /breeding/offers`
+(`Idempotency-Key`; ücret EMANETE `breeding_offer_hold`) → aygır sahibi
+accept/reject; kısrak sahibi cancel; ilan geri çekme + zamanlayıcı süre dolumu.
+Ret/iptal/geri çekme/süre = TAM iade (`breeding_offer_refund`). Kabulde döllenme
+zarı (`computeConceptionChance`, [minChance, maxChance], asla 1): tutarsa pay
+`breeding_stud_fee_credit`, kalan ekonomiden çıkar; tutmazsa
+`failedConceptionRefundPercent` iade + kısrak `failedAttemptCooldownHours`
+dinlenir (`breeding_attempts`). Döllenme çekirdeği TEK
+(`infrastructure/breeding/conception.ts` → `conceiveInTransaction`, iki yol da
+kullanır). ⚠️ Kilit sırası HER yolda: atlar (id) → ilan → teklif → oyuncular;
+kabul teklifi önce KİLİTSİZ okur, atları kilitler, sonra teklifi kilitler
+(aksi deadlock döngüsü). Tayın genetiği DÖLLENMEDE hesaplanır ve
+`pregnancies.genetics`te YALNIZCA sunucuda durur (istemciye dönmez); doğumu
+`BreedingScheduler` (lider kilidi, test'te `tickNow`) yapar, bakım (veteriner
+kontrolü `pregnancy_vet_check` + kısrağın beslendiği gün) riski ölçekler;
+`gestating → born` kilit altında = çift doğum yok; çift kaydı (`breeding_pairs`,
+id = gebelik) DOĞUMDA yazılır. Gebelik süresi gerçek gündür
+(`gestation.realWorldDays × timeScale` ≈ 67) — oyun yaşı ölçeğinden BAĞIMSIZ.
+⚠️ Ahır yeri döllenmede ayrılır: at alan HER yol `countStableOccupancy`
+(`infrastructure/stable/stable-occupancy.ts`) kullanır — yeni bir at ekleme yolu
+yazarsan sen de kullan. ⚠️ Gebe kısrak / bekleyen teklifteki at pazara çıkamaz,
+satılamaz (`hasBreedingCommitment`); bekleyen teklif hesap silmeyi engeller.
+⚠️ Çiftleştirme e2e'si zarı `BREEDING_RANDOM` ile sabitler
+(`breeding-test-kit.ts` → `ScriptedBreedingRandom`); e2e'de SQL ile pazar
+ilanı açarsan sil — `market.e2e-spec.ts` genel ilan sayısını sayar (yaşandı).
+Yeni at yazan yol doğurganlığı `deriveFertility` ile yazar (`insertNewHorse`).
+
 **✅ ÜCRETLİ LOBİ YARIŞI ARTIK KOŞUYOR — ÖDÜL DAĞITIMI VAR (§13.14,
 28.09.2026).** `POST /races/:id/settle` yarışı koşar, ödülleri `top5`
 paylarıyla dağıtır ve `races.status = 'finished'` yazar. Uç bir
