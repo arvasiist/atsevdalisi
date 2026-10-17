@@ -5,6 +5,12 @@
 > eşlemesi dahil), regresyon eşlemesi `docs/TESTING.md` §9. `docs/FINAL_ACCEPTANCE.md`nin
 > kabul maddeleri test dosyalarına dayandığı için hâlâ geçerlidir.
 
+## Ek — 16.10.2026 "Kapsamlı oyun geliştirme" brief'i
+
+Ahır, at profili, çiftleştirme merkezi, doğurganlık/gebelik, soy, tay büyütme ve
+market kategorileri (§2–§8) koda karşı denetlendi; sınıflandırma tablosu ve
+yapılan işler `MASTER_STATUS.md` → "Kapsamlı oyun geliştirme" bölümünde.
+
 ## Ek — 16.10.2026 "Master Audit" brief'i
 
 Brief'in 17 aşaması koda karşı yeniden denetlendi; bulunan 13 açık

@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { OAuth2Client } from 'google-auth-library';
 import jwt from 'jsonwebtoken';
 import jwksClient from 'jwks-rsa';
@@ -8,6 +8,8 @@ import { InvalidProviderTokenError } from '../../domain/auth/errors';
 import { AppConfigService } from '../config/config.service';
 
 const APPLE_ISSUER = 'https://appleid.apple.com';
+/** Kullanıcıya giden mesaj — saat farkı, yanlış istemci kimliği ve süresi geçmiş token aynı cevabı alır. */
+export const GOOGLE_TOKEN_REJECTED_MESSAGE = 'Google ile giriş doğrulanamadı. Sayfayı yenileyip tekrar dene.';
 const APPLE_JWKS_URI = 'https://appleid.apple.com/auth/keys';
 
 /**
@@ -29,6 +31,7 @@ const APPLE_JWKS_URI = 'https://appleid.apple.com/auth/keys';
  */
 @Injectable()
 export class GoogleAppleIdentityProvider implements IdentityProviderVerifier {
+  private readonly logger = new Logger(GoogleAppleIdentityProvider.name);
   private readonly googleClient: OAuth2Client;
   private readonly appleJwksClient: jwksClient.JwksClient;
 
@@ -60,9 +63,13 @@ export class GoogleAppleIdentityProvider implements IdentityProviderVerifier {
       if (error instanceof InvalidProviderTokenError) {
         throw error;
       }
-      throw new InvalidProviderTokenError(
-        `Google ID token doğrulanamadı: ${error instanceof Error ? error.message : String(error)}`,
-      );
+      // 16.10.2026 — kütüphanenin ayrıntısı (ör. "Wrong recipient", "Token used too
+      // late") yalnızca sunucu loguna; token loglanmaz. Kullanıcı Türkçe genel mesaj görür.
+      // ⚠️ Kütüphane bazı mesajlara token'ı / yükü ekler ("…segments in token: <jwt>",
+      // "Token used too late, …: {yük}") — yalnızca ilk ':' öncesindeki gerekçe loglanır.
+      const reason = error instanceof Error ? (error.message.split(':')[0] ?? '').slice(0, 120) : 'bilinmeyen';
+      this.logger.warn(`Google ID token reddedildi: ${reason}`);
+      throw new InvalidProviderTokenError(GOOGLE_TOKEN_REJECTED_MESSAGE);
     }
   }
 

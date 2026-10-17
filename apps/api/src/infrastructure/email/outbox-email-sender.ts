@@ -1,5 +1,6 @@
 import { Logger } from '@nestjs/common';
 import type { EmailSender, OutgoingEmail } from '../../application/ports/email-sender';
+import { EmailNotConfiguredError } from '../../domain/auth/errors';
 
 const OUTBOX_LIMIT = 100;
 
@@ -20,13 +21,18 @@ export class OutboxEmailSender implements EmailSender {
   constructor(private readonly nodeEnv: string) {}
 
   async send(email: OutgoingEmail): Promise<void> {
+    if (this.nodeEnv === 'production') {
+      this.logger.warn('RESEND_API_KEY tanımlı değil — e-posta GÖNDERİLMEDİ (içerik güvenlik gereği loglanmaz).');
+      // 16.10.2026 — üretimde "gönderildi" denmez ve içerik bellekte de TUTULMAZ:
+      // çağıran yol hatayı yakalar (kayıt/sıfırlama yutar ve loglar; elle
+      // "tekrar gönder" 503 görür).
+      throw new EmailNotConfiguredError();
+    }
     this.outbox.push(email);
     if (this.outbox.length > OUTBOX_LIMIT) {
       this.outbox.shift();
     }
-    if (this.nodeEnv === 'production') {
-      this.logger.warn('RESEND_API_KEY tanımlı değil — e-posta GÖNDERİLMEDİ (içerik güvenlik gereği loglanmaz).');
-    } else if (this.nodeEnv !== 'test') {
+    if (this.nodeEnv !== 'test') {
       this.logger.log(`[geliştirme] E-posta (gönderilmedi) → ${email.to}: ${email.subject}\n${email.text}`);
     }
   }

@@ -3,6 +3,7 @@ import { INestApplication } from '@nestjs/common';
 import type { Pool } from 'pg';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { loadStableConfig } from '@at-sevdalisi/game-config';
 import { PG_POOL } from '../../src/infrastructure/database/database.module';
 import {
   bootstrapTestApp,
@@ -30,6 +31,12 @@ import {
  * `req.params.id` bazlı — bkz. `idempotency.interceptor.ts` doc yorumu,
  * yalnızca `market/listings/:id/buy` `'player'` kapsamına geçti).
  */
+// 16.10.2026 — ahır geliştirme: seviye sayısı ve bedeller config'ten (10 seviye).
+const stableConfig = loadStableConfig();
+const MAX_STABLE_LEVEL = Math.max(...Object.keys(stableConfig.capacityByLevel).map(Number));
+const UPGRADES_TO_MAX = MAX_STABLE_LEVEL - 1;
+const TOTAL_UPGRADE_COST = Object.values(stableConfig.upgradeCostByLevel).reduce((sum, cost) => sum + cost.amount, 0);
+
 describe('Stable summary (e2e)', () => {
   let app: INestApplication;
   let pool: Pool;
@@ -157,11 +164,13 @@ describe('Stable summary (e2e)', () => {
 
     it('zaten en yüksek seviyedeyken 409 MAX_STABLE_LEVEL_REACHED döner', async () => {
       const { id: playerId, authHeader } = await registerPlayer();
-      // config/stable.config.json: en yüksek tanımlı seviye 5. Testin
-      // amacı yalnızca "zaten maksimumda" dalını doğrulamak olduğundan,
-      // beş kez gerçek yükseltme çağırmak yerine seviyeyi doğrudan
-      // ayarlamak (bkz. yukarıdaki DB notu) yeterlidir.
-      await pool.query('UPDATE players SET money = 1000000, stable_level = 5 WHERE id = $1', [playerId]);
+      // config/stable.config.json: en yüksek tanımlı seviye. Testin amacı
+      // yalnızca "zaten maksimumda" dalını doğrulamak olduğundan seviye
+      // doğrudan ayarlanır (bkz. yukarıdaki DB notu).
+      await pool.query('UPDATE players SET money = 1000000, level = 50, stable_level = $2 WHERE id = $1', [
+        playerId,
+        MAX_STABLE_LEVEL,
+      ]);
 
       const response = await request(app.getHttpServer())
         .post(`/api/v1/players/${playerId}/stable/upgrade`)
@@ -288,7 +297,8 @@ describe('Stable summary (e2e)', () => {
         // serileştirdiğinin doğrudan kanıtı olur (kilit olmasaydı, N
         // isteğin hepsi AYNI stale `player.money`/`stableLevel`'i okuyup
         // hepsi "yeterli bakiye" sanıp N kez 200 dönebilirdi).
-        await pool.query('UPDATE players SET money = 8000 WHERE id = $1', [playerId]);
+        // Oyuncu seviyesi şartı (16.10.2026) devre dışı kalsın: engel YALNIZCA bakiye olmalı.
+        await pool.query('UPDATE players SET money = 8000, level = 50 WHERE id = $1', [playerId]);
 
         // Her "slot" için anahtar ÖNCEDEN (tek seferde) üretilir — bkz.
         // `sendConcurrentRequests` doc yorumu: `factory` bir bağlantı
@@ -321,10 +331,11 @@ describe('Stable summary (e2e)', () => {
 
       it('n=50 GERÇEKTEN eşzamanlı yükseltme isteğinden (BOL bakiyeyle) TAM OLARAK 4 tanesi başarılı olur (seviye 1→5), toplam düşülen tutar GERÇEK maliyetler toplamına birebir eşittir', async () => {
         const { id: playerId, authHeader } = await registerPlayer();
-        // config/stable.config.json: seviye 2/3/4/5 maliyetleri toplamı.
-        const totalUpgradeCost = 8000 + 20000 + 45000 + 90000;
+        // config/stable.config.json: bütün yükseltme bedellerinin toplamı.
+        const totalUpgradeCost = TOTAL_UPGRADE_COST;
         const startingMoney = totalUpgradeCost + 1_000_000;
-        await pool.query('UPDATE players SET money = $2 WHERE id = $1', [playerId, startingMoney]);
+        // Oyuncu seviyesi şartı (16.10.2026) engel olmasın: azami seviye.
+        await pool.query('UPDATE players SET money = $2, level = 50 WHERE id = $1', [playerId, startingMoney]);
 
         const idempotencyKeys = Array.from({ length: 50 }, () => randomUUID());
         const responses = await sendConcurrentRequests(50, (index) =>
@@ -340,8 +351,8 @@ describe('Stable summary (e2e)', () => {
         // kalan 46 istek, kilit sayesinde GÜNCEL (stale OLMAYAN) seviyeyi
         // görüp `MAX_STABLE_LEVEL_REACHED` almalıdır (`INSUFFICIENT_FUNDS`
         // DEĞİL — bakiye bol, engel artık seviye tavanıdır).
-        expect(successes).toHaveLength(4);
-        expect(failures).toHaveLength(46);
+        expect(successes).toHaveLength(UPGRADES_TO_MAX);
+        expect(failures).toHaveLength(50 - UPGRADES_TO_MAX);
         for (const failure of failures) {
           expect(failure.status).toBe(409);
           expect(failure.body.error.code).toBe('MAX_STABLE_LEVEL_REACHED');
@@ -350,10 +361,10 @@ describe('Stable summary (e2e)', () => {
         const reachedLevels = successes
           .map((response) => response.body.data.newStableLevel as number)
           .sort((a, b) => a - b);
-        expect(reachedLevels).toEqual([2, 3, 4, 5]);
+        expect(reachedLevels).toEqual(Array.from({ length: UPGRADES_TO_MAX }, (_, index) => index + 2));
 
         const finalRow = await sendWithRetry(() => pool.query('SELECT money, stable_level FROM players WHERE id = $1', [playerId]));
-        expect(finalRow.rows[0].stable_level).toBe(5);
+        expect(finalRow.rows[0].stable_level).toBe(MAX_STABLE_LEVEL);
         // Kilit gerçekten çalışıyorsa toplam düşüş TAM OLARAK dört
         // maliyetin toplamıdır — ne "lost update" nedeniyle EKSİK (bir
         // yükseltmenin ücretinin hiç düşmemesi), ne de bir yarış koşulu
@@ -364,9 +375,10 @@ describe('Stable summary (e2e)', () => {
 
       it('n=100 GERÇEKTEN eşzamanlı yükseltme isteğinden (BOL bakiyeyle) yine TAM OLARAK 4 tanesi başarılı olur — yük artsa da tutarlılık BOZULMAZ', async () => {
         const { id: playerId, authHeader } = await registerPlayer();
-        const totalUpgradeCost = 8000 + 20000 + 45000 + 90000;
+        const totalUpgradeCost = TOTAL_UPGRADE_COST;
         const startingMoney = totalUpgradeCost + 1_000_000;
-        await pool.query('UPDATE players SET money = $2 WHERE id = $1', [playerId, startingMoney]);
+        // Oyuncu seviyesi şartı (16.10.2026) engel olmasın: azami seviye.
+        await pool.query('UPDATE players SET money = $2, level = 50 WHERE id = $1', [playerId, startingMoney]);
 
         // CI #108 kırmızı araştırması (bu oturum) — bu test, tıpkı
         // `race.e2e-spec.ts`'in n=100 "AYNI Idempotency-Key" testinin
@@ -391,8 +403,8 @@ describe('Stable summary (e2e)', () => {
 
         const successes = responses.filter((response) => response.status === 200);
         const failures = responses.filter((response) => response.status !== 200);
-        expect(successes).toHaveLength(4);
-        expect(failures).toHaveLength(96);
+        expect(successes).toHaveLength(UPGRADES_TO_MAX);
+        expect(failures).toHaveLength(100 - UPGRADES_TO_MAX);
         for (const failure of failures) {
           expect(failure.status).toBe(409);
           expect(failure.body.error.code).toBe('MAX_STABLE_LEVEL_REACHED');
@@ -401,10 +413,10 @@ describe('Stable summary (e2e)', () => {
         const reachedLevels = successes
           .map((response) => response.body.data.newStableLevel as number)
           .sort((a, b) => a - b);
-        expect(reachedLevels).toEqual([2, 3, 4, 5]);
+        expect(reachedLevels).toEqual(Array.from({ length: UPGRADES_TO_MAX }, (_, index) => index + 2));
 
         const finalRow = await sendWithRetry(() => pool.query('SELECT money, stable_level FROM players WHERE id = $1', [playerId]));
-        expect(finalRow.rows[0].stable_level).toBe(5);
+        expect(finalRow.rows[0].stable_level).toBe(MAX_STABLE_LEVEL);
         expect(Number(finalRow.rows[0].money)).toBe(startingMoney - totalUpgradeCost);
       }, { timeout: 60000, retry: 2 });
     });

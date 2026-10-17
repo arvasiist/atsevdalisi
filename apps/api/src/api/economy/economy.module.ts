@@ -10,6 +10,7 @@ import { MockPaymentProvider } from '../../infrastructure/payments/mock-payment-
 import { PostgresWalletRepository } from '../../infrastructure/wallet/postgres-wallet.repository';
 import { IdempotencyInterceptor } from '../idempotency/idempotency.interceptor';
 import { PlayerModule } from '../player/player.module';
+import { GetEconomyReportUseCase } from '../../application/use-cases/get-economy-report.use-case';
 import { EconomyController } from './economy.controller';
 
 /**
@@ -59,6 +60,8 @@ import { EconomyController } from './economy.controller';
     // OKUMA yolu. `PostgresWalletRepository` de durumsuzdur (yalnızca
     // `PG_POOL` tutar), yukarıdaki AYNI gerekçe.
     GetWalletUseCase,
+    // 16.10.2026 (brief §19) — gelir-gider raporu (aynı defter deposu).
+    GetEconomyReportUseCase,
     { provide: WALLET_REPOSITORY, useClass: PostgresWalletRepository },
     // brief §20 DEPOSIT / §21 / §41, §42 PHASE 4b — SANAL para yatırma.
     //

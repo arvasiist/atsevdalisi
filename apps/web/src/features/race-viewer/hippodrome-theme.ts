@@ -14,8 +14,16 @@ const CONFIG = loadHippodromesConfig();
 export const DEFAULT_HIPPODROME_KEY = CONFIG.defaultKey;
 
 /** Seçim listesi (lobi formu) — config sırası. */
-export const HIPPODROME_OPTIONS: ReadonlyArray<Pick<HippodromeConfig, 'key' | 'name' | 'shortName' | 'city'>> =
-  CONFIG.hippodromes.map(({ key, name, shortName, city }) => ({ key, name, shortName, city }));
+export const HIPPODROME_OPTIONS: ReadonlyArray<
+  Pick<HippodromeConfig, 'key' | 'name' | 'shortName' | 'city' | 'country' | 'tables'>
+> = CONFIG.hippodromes.map(({ key, name, shortName, city, country, tables }) => ({
+  key,
+  name,
+  shortName,
+  city,
+  country,
+  tables,
+}));
 
 export function resolveHippodrome(key?: string | null): HippodromeConfig {
   return (

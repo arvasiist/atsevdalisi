@@ -28,3 +28,14 @@ export class HorseEquipmentNotFoundError extends Error {
     this.name = 'HorseEquipmentNotFoundError';
   }
 }
+
+/**
+ * 16.10.2026 (migration 0096) — dayanıklılığı biten parça yeniden kuşanılamaz
+ * (409). Aşınma yarışın kayıt transaction'ında olur; yenisi katalogdan alınır.
+ */
+export class EquipmentWornOutError extends Error {
+  constructor(public readonly equipmentId: string) {
+    super('Bu parçanın dayanıklılığı bitti; yeniden kuşanılamaz. Yenisini katalogdan alabilirsin.');
+    this.name = 'EquipmentWornOutError';
+  }
+}

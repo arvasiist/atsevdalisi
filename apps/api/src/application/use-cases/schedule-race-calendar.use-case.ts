@@ -3,7 +3,7 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import { RACE_ENGINE_VERSION, RACE_RULESET_VERSION } from '../../domain/race/race-engine';
 import { validateRaceCreation } from '../../domain/race/lobby';
 import { calendarFieldRule } from '../../domain/race/field-rule';
-import { hippodromeKeys } from '../../domain/race/hippodrome';
+import { hippodromeKeys, hippodromeRaceProblems } from '../../domain/race/hippodrome';
 import {
   calendarProgramToCreationInput,
   computeCalendarSlotTimes,
@@ -69,9 +69,10 @@ export class ScheduleRaceCalendarUseCase {
           // 09.10.2026 — masalı program masanın bedeli ve at sayısıyla açılmak zorunda.
           this.config.economy.raceTiers,
         );
-        if (value === null) {
+        const trackProblems = value === null ? [] : hippodromeRaceProblems(value, this.config.hippodromes);
+        if (value === null || trackProblems.length > 0) {
           rejected += 1;
-          this.logger.error(`Takvim programı "${program.id}" geçersiz: ${problems.join(' ')}`);
+          this.logger.error(`Takvim programı "${program.id}" geçersiz: ${[...problems, ...trackProblems].join(' ')}`);
           continue;
         }
         const raceId = await this.raceRepository.createCalendarRace({

@@ -4,6 +4,7 @@ import request from 'supertest';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { ErrorCode } from '@at-sevdalisi/shared-types';
 import { EMAIL_SENDER } from '../../src/application/ports/email-sender';
+import { EmailDeliveryError } from '../../src/domain/auth/errors';
 import { PG_POOL } from '../../src/infrastructure/database/database.module';
 import { OutboxEmailSender } from '../../src/infrastructure/email/outbox-email-sender';
 import { bootstrapTestApp, registerTestPlayer, uniqueUsername, type RegisteredTestPlayer } from './test-helpers';
@@ -137,5 +138,50 @@ describe('E-posta doğrulama (e2e)', () => {
     expect(response.body.error.code).toBe(ErrorCode.NoAccountEmail);
     expect((await status(guest)).body.data.emailVerified).toBe(false);
     await request(server()).post('/api/v1/auth/email/verification').expect(401);
+  });
+});
+
+/**
+ * 16.10.2026 — e-posta sağlayıcısı hata verirse: kayıt BOZULMAZ (doğrulama
+ * e-postası yalnızca loglanır), elle "tekrar gönder" 503 EMAIL_DELIVERY_FAILED
+ * ve anlaşılır mesaj alır (500 değil, sahte "gönderildi" değil).
+ */
+describe('E-posta doğrulama — sağlayıcı hatası (e2e)', () => {
+  let app: INestApplication;
+  let pool: Pool;
+
+  beforeAll(async () => {
+    app = await bootstrapTestApp((builder) =>
+      builder.overrideProvider(EMAIL_SENDER).useValue({
+        send: async () => {
+          throw new EmailDeliveryError();
+        },
+      }),
+    );
+    pool = app.get<Pool>(PG_POOL);
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  it('kayıt geçer; elle tekrar gönderme 503 + Türkçe mesaj', async () => {
+    const player = await registerTestPlayer(app, 'Sağlayıcı Hatası');
+    const email = `${uniqueUsername('hata')}@ornek.com`;
+    await request(app.getHttpServer())
+      .post('/api/v1/auth/credentials')
+      .set('Authorization', player.authHeader)
+      .send({ email, password: 'sifre-12345' })
+      .expect(201);
+    await pool.query(
+      "UPDATE email_verification_tokens SET created_at = now() - interval '1 hour' WHERE player_id = $1",
+      [player.playerId],
+    );
+    const response = await request(app.getHttpServer())
+      .post('/api/v1/auth/email/verification')
+      .set('Authorization', player.authHeader)
+      .expect(503);
+    expect(response.body.error.code).toBe('EMAIL_DELIVERY_FAILED');
+    expect(response.body.error.message).toMatch(/gönderilemedi/);
   });
 });

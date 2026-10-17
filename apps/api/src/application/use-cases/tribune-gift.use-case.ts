@@ -1,5 +1,10 @@
 import { Inject, Injectable } from '@nestjs/common';
-import type { RaceTribuneGiftsView, SendTribuneGiftResult } from '@at-sevdalisi/shared-types';
+import type {
+  CollectTribuneGiftsResult,
+  RaceTribuneGiftsView,
+  SendTribuneGiftResult,
+  TribuneGiftInboxView,
+} from '@at-sevdalisi/shared-types';
 import { loadGrandstandConfig, loadQuestsConfig } from '@at-sevdalisi/game-config';
 import {
   InvalidTribuneGiftError,
@@ -7,6 +12,7 @@ import {
   resolveTribuneGift,
   tribuneGiftOwnerShare,
 } from '../../domain/grandstand/tribune-gift';
+import { PlayerNotFoundError } from '../../domain/player/errors';
 import { RaceNotFoundError } from '../../domain/race/errors';
 import { friendGiftDayStart } from '../../domain/social/friend-gift';
 import { TRIBUNE_GIFT_NOTIFIER, type TribuneGiftNotifier } from '../ports/tribune-gift-notifier';
@@ -62,6 +68,27 @@ export class TribuneGiftUseCase {
       sentToday: facts.sentToday,
       dailyLimit: config.dailyLimit,
     };
+  }
+
+  /** 17.10.2026 (brief §17) — çağıranın hediye kutusu (yalnızca kendisi). */
+  async inbox(playerId: string): Promise<TribuneGiftInboxView> {
+    const view = await this.repository.inbox(playerId, config.recentLimit);
+    if (view === null) throw new PlayerNotFoundError(playerId);
+    const order = new Map(config.items.map((item, index) => [item.key, index]));
+    return {
+      ...view,
+      pendingByGift: [...view.pendingByGift].sort(
+        (a, b) => (order.get(a.giftKey) ?? order.size) - (order.get(b.giftKey) ?? order.size),
+      ),
+    };
+  }
+
+  /**
+   * Bekleyen bütün payları toplar — tek defter satırı. Tekrar çağrı sıfır
+   * toplar (Idempotency-Key gerekmez: tekrarın ikinci kez ödeyeceği satır yok).
+   */
+  async collect(playerId: string, now: Date = new Date()): Promise<CollectTribuneGiftsResult> {
+    return this.repository.collect(playerId, now);
   }
 
   async send(

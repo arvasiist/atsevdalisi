@@ -15,6 +15,11 @@ export const ACHIEVEMENT_METRICS = [
   'player_level',
   /** 08.10.2026 — kabul edilmiş arkadaş sayısı (ANLIK değer, oyuncu satırı gibi). */
   'friend_count',
+  /** 16.10.2026 (brief §10) — yaşam boyu kariyer puanı (kademe ödülleri). */
+  'career_points',
+  /** 16.10.2026 (brief §18) — çiftleştirme / tay (görev ölçütleriyle aynı sayım). */
+  'breedings',
+  'foals_born',
 ] as const;
 
 export type AchievementMetric = (typeof ACHIEVEMENT_METRICS)[number];

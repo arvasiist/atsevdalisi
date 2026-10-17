@@ -1,6 +1,9 @@
 import { Inject, Injectable } from '@nestjs/common';
 import type { Pool } from 'pg';
+import { randomUUID } from 'node:crypto';
+import type { TribuneGiftInboxView } from '@at-sevdalisi/shared-types';
 import type {
+  CollectTribuneGiftsOutcome,
   RaceTribuneGiftFacts,
   SendTribuneGiftInput,
   SendTribuneGiftOutcome,
@@ -90,8 +93,8 @@ export class PostgresTribuneGiftRepository implements TribuneGiftRepository {
 
       const senderBefore = Number(sender.money);
       const senderAfter = debit({ money: senderBefore, gems: 0 }, input.price, 'money').money;
-      const recipientBefore = Number(recipient.money);
-      const recipientAfter = credit({ money: recipientBefore, gems: 0 }, input.ownerAmount, 'money').money;
+      // 17.10.2026 (0101) — sahibin payı burada ÖDENMEZ: satır `collected_at`
+      // NULL ile hediye kutusuna düşer, `collect` tek defter satırıyla öder.
 
       const inserted = await client.query<{ id: string; created_at: Date }>(
         `INSERT INTO tribune_gifts (race_id, horse_id, sender_id, recipient_id, gift_key, price, owner_amount, created_at)
@@ -106,11 +109,6 @@ export class PostgresTribuneGiftRepository implements TribuneGiftRepository {
         senderAfter,
         input.now,
       ]);
-      await client.query('UPDATE players SET money = $2, updated_at = $3 WHERE id = $1', [
-        recipientId,
-        recipientAfter,
-        input.now,
-      ]);
       await writeLedgerEntries(client, [
         {
           playerId: input.senderId,
@@ -122,17 +120,6 @@ export class PostgresTribuneGiftRepository implements TribuneGiftRepository {
           balanceBefore: senderBefore,
           balanceAfter: senderAfter,
           idempotencyKey: input.idempotencyKey,
-        },
-        {
-          playerId: recipientId,
-          type: 'tribune_gift_credit',
-          amount: input.ownerAmount,
-          currency: 'money',
-          referenceType: 'tribune_gifts',
-          referenceId: gift.id,
-          balanceBefore: recipientBefore,
-          balanceAfter: recipientAfter,
-          idempotencyKey: null,
         },
       ]);
 
@@ -150,6 +137,7 @@ export class PostgresTribuneGiftRepository implements TribuneGiftRepository {
           playerId: input.senderId,
           displayName: sender.display_name,
           amount: input.ownerAmount,
+          collectRequired: true,
         }),
       ]);
 
@@ -160,6 +148,104 @@ export class PostgresTribuneGiftRepository implements TribuneGiftRepository {
         senderBalanceAfter: senderAfter,
         createdAt: gift.created_at,
       };
+    });
+  }
+
+  async inbox(playerId: string, recentLimit: number): Promise<TribuneGiftInboxView | null> {
+    const player = await this.pool.query('SELECT 1 FROM players WHERE id = $1 AND deleted_at IS NULL', [playerId]);
+    if ((player.rowCount ?? 0) === 0) return null;
+    const [pending, received] = await Promise.all([
+      this.pool.query<{ gift_key: string; count: string; amount: string }>(
+        `SELECT gift_key, COUNT(*)::bigint AS count, SUM(owner_amount)::bigint AS amount
+           FROM tribune_gifts WHERE recipient_id = $1 AND collected_at IS NULL
+          GROUP BY gift_key`,
+        [playerId],
+      ),
+      this.pool.query<{
+        id: string;
+        gift_key: string;
+        race_id: string;
+        race_name: string;
+        horse_name: string;
+        display_name: string;
+        owner_amount: string;
+        created_at: Date;
+        collected_at: Date | null;
+      }>(
+        `SELECT g.id, g.gift_key, g.race_id, r.name AS race_name, h.name AS horse_name,
+                p.display_name, g.owner_amount, g.created_at, g.collected_at
+           FROM tribune_gifts g
+           JOIN races r ON r.id = g.race_id
+           JOIN horses h ON h.id = g.horse_id
+           JOIN players p ON p.id = g.sender_id
+          WHERE g.recipient_id = $1
+          ORDER BY g.created_at DESC, g.id DESC LIMIT $2`,
+        [playerId, recentLimit],
+      ),
+    ]);
+    // BIGINT metin döner (CLAUDE.md) — `Number(...)` şart.
+    const pendingByGift = pending.rows.map((row) => ({
+      giftKey: row.gift_key,
+      count: Number(row.count),
+      amount: Number(row.amount),
+    }));
+    return {
+      pendingCount: pendingByGift.reduce((sum, row) => sum + row.count, 0),
+      pendingAmount: pendingByGift.reduce((sum, row) => sum + row.amount, 0),
+      pendingByGift,
+      received: received.rows.map((row) => ({
+        tribuneGiftId: row.id,
+        giftKey: row.gift_key,
+        raceId: row.race_id,
+        raceName: row.race_name,
+        horseName: row.horse_name,
+        senderDisplayName: row.display_name,
+        amount: Number(row.owner_amount),
+        createdAt: row.created_at.toISOString(),
+        collectedAt: row.collected_at ? row.collected_at.toISOString() : null,
+      })),
+    };
+  }
+
+  async collect(playerId: string, now: Date): Promise<CollectTribuneGiftsOutcome> {
+    return withTransaction(this.pool, async (client) => {
+      // Oyuncu kilidi: eşzamanlı iki toplama aynı hediyeyi iki kez ödeyemez
+      // (ikincisi kilidi bekler, sonra bekleyen satır bulamaz); `send` da alıcıyı
+      // aynı kilitle tuttuğu için toplama sırasında yeni hediye yarışmaz.
+      const locked = await client.query<{ money: string; deleted_at: Date | null }>(
+        'SELECT money, deleted_at FROM players WHERE id = $1 FOR UPDATE',
+        [playerId],
+      );
+      const row = locked.rows[0];
+      if (!row || row.deleted_at !== null) throw new PlayerNotFoundError(playerId);
+      const before = Number(row.money);
+      const collectId = randomUUID();
+      const marked = await client.query<{ owner_amount: string }>(
+        `UPDATE tribune_gifts SET collected_at = $2, collect_id = $3
+          WHERE recipient_id = $1 AND collected_at IS NULL
+          RETURNING owner_amount`,
+        [playerId, now, collectId],
+      );
+      const amount = marked.rows.reduce((sum, gift) => sum + Number(gift.owner_amount), 0);
+      if (marked.rows.length === 0 || amount === 0) {
+        return { collected: 0, amount: 0, balanceAfter: before };
+      }
+      const after = credit({ money: before, gems: 0 }, amount, 'money').money;
+      await client.query('UPDATE players SET money = $2, updated_at = $3 WHERE id = $1', [playerId, after, now]);
+      await writeLedgerEntries(client, [
+        {
+          playerId,
+          type: 'tribune_gift_credit',
+          amount,
+          currency: 'money',
+          referenceType: 'tribune_gift_collect',
+          referenceId: collectId,
+          balanceBefore: before,
+          balanceAfter: after,
+          idempotencyKey: null,
+        },
+      ]);
+      return { collected: marked.rows.length, amount, balanceAfter: after };
     });
   }
 

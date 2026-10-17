@@ -1,7 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import type { Pool } from 'pg';
 import type { EquipmentType, HorseEquipment } from '@at-sevdalisi/shared-types';
-import { HorseEquipmentNotFoundError } from '../../domain/equipment/errors';
+import { EquipmentWornOutError, HorseEquipmentNotFoundError } from '../../domain/equipment/errors';
 import type {
   HorseEquipmentRepository,
   PurchaseHorseEquipmentInput,
@@ -22,9 +22,14 @@ interface HorseEquipmentRow {
   equipped: boolean;
   created_at: Date;
   catalog_key: string | null;
+  max_races: number | null;
+  races_remaining: number | null;
+  surface: HorseEquipment['surface'];
+  worn_out_at: Date | null;
 }
 
-const COLUMNS = 'id, horse_id, equipment_type, name, quality, equipped, created_at, catalog_key';
+const COLUMNS =
+  'id, horse_id, equipment_type, name, quality, equipped, created_at, catalog_key, max_races, races_remaining, surface, worn_out_at';
 
 function rowToEquipment(row: HorseEquipmentRow): HorseEquipment {
   return {
@@ -38,6 +43,10 @@ function rowToEquipment(row: HorseEquipmentRow): HorseEquipment {
     equipped: row.equipped,
     createdAt: row.created_at.toISOString(),
     catalogKey: row.catalog_key,
+    maxRaces: row.max_races,
+    racesRemaining: row.races_remaining,
+    surface: row.surface,
+    wornOutAt: row.worn_out_at ? row.worn_out_at.toISOString() : null,
   };
 }
 
@@ -80,8 +89,9 @@ export class PostgresHorseEquipmentRepository implements HorseEquipmentRepositor
       const after = debit(before, input.catalogItem.priceMoney, 'money');
 
       const inserted = await client.query<HorseEquipmentRow>(
-        `INSERT INTO horse_equipment (id, horse_id, equipment_type, name, quality, equipped, created_at, catalog_key)
-         VALUES ($1, $2, $3, $4, $5, false, $6, $7)
+        `INSERT INTO horse_equipment
+           (id, horse_id, equipment_type, name, quality, equipped, created_at, catalog_key, max_races, races_remaining, surface)
+         VALUES ($1, $2, $3, $4, $5, false, $6, $7, $8, $8, $9)
          RETURNING ${COLUMNS}`,
         [
           input.equipmentId,
@@ -91,6 +101,9 @@ export class PostgresHorseEquipmentRepository implements HorseEquipmentRepositor
           input.catalogItem.quality,
           input.now,
           input.catalogItem.key,
+          // 16.10.2026 — dayanıklılık + zemin katalogdan (istemci belirleyemez).
+          input.catalogItem.durabilityRaces,
+          input.catalogItem.surface,
         ],
       );
       await client.query('UPDATE players SET money = $2, updated_at = now() WHERE id = $1', [input.playerId, after.money]);
@@ -135,7 +148,8 @@ export class PostgresHorseEquipmentRepository implements HorseEquipmentRepositor
     const result = await this.pool.query<HorseEquipmentRow>(
       `SELECT ${COLUMNS}
        FROM horse_equipment
-       WHERE horse_id = $1 AND equipped = true`,
+       WHERE horse_id = $1 AND equipped = true
+         AND (races_remaining IS NULL OR races_remaining > 0)`,
       [horseId],
     );
     return result.rows.map(rowToEquipment);
@@ -162,6 +176,9 @@ export class PostgresHorseEquipmentRepository implements HorseEquipmentRepositor
       const targetRow = targetResult.rows[0];
       if (!targetRow) {
         throw new HorseEquipmentNotFoundError(equipmentId);
+      }
+      if (targetRow.races_remaining === 0) {
+        throw new EquipmentWornOutError(equipmentId);
       }
 
       await client.query(

@@ -512,7 +512,10 @@ function describe(notification: NotificationView): { title: string; detail: stri
     case 'tribune_gift_received':
       return {
         title: `${notification.payload.displayName}, ${notification.payload.horseName} için ${tribuneGiftName(notification.payload.giftKey)} gönderdi`,
-        detail: `${notification.payload.raceName} · ${formatCurrency('money', notification.payload.amount)} hesabına geçti.`,
+        // 17.10.2026 — pay hediye kutusunda bekler (eski bildirimlerde bayrak yok = gönderimde ödenmişti).
+        detail: notification.payload.collectRequired
+          ? `${notification.payload.raceName} · ${formatCurrency('money', notification.payload.amount)} hediye kutunda — Cüzdan'dan topla.`
+          : `${notification.payload.raceName} · ${formatCurrency('money', notification.payload.amount)} hesabına geçti.`,
         href: '/wallet',
       };
     // 08.10.2026 — sabit fiyatlı ilanın süresi doldu (at satılmadı).
@@ -542,7 +545,7 @@ function describe(notification: NotificationView): { title: string; detail: stri
     // 15.10.2026 — aygırın başka bir oyuncunun kısrağıyla tay verdi.
     case 'stud_service':
       return {
-        title: `${notification.payload.stallionName} bir tay verdi`,
+        title: `${notification.payload.stallionName} damızlık hizmeti verdi`,
         detail:
           notification.payload.amount > 0
             ? `Damızlık payın (${formatCurrency('money', notification.payload.amount)}) hesabına geçti.`
@@ -566,6 +569,28 @@ function describe(notification: NotificationView): { title: string; detail: stri
         detail: `${formatCurrency('money', notification.payload.amount)} hesabına geçti.`,
         href: '/invite',
       };
+    // 16.10.2026 — çiftleştirme merkezi (brief §4–§5).
+    case 'breeding_offer_received':
+      return {
+        title: `${notification.payload.fromName}, ${notification.payload.stallionName} için çiftleştirme teklifi gönderdi`,
+        detail: `Kısrak: ${notification.payload.mareName} · ücret ${formatCurrency('money', notification.payload.fee)} emanette. Kabul ya da ret çiftleştirme merkezinden.`,
+        href: '/breeding',
+      };
+    case 'breeding_offer_answered':
+      return {
+        title: `${notification.payload.stallionName} teklifin: ${BREEDING_ANSWER_TITLES[notification.payload.status]}`,
+        detail:
+          notification.payload.status === 'accepted' && notification.payload.outcome === 'conceived'
+            ? `${notification.payload.mareName} gebe; doğumu çiftleştirme merkezinden takip et.`
+            : `${formatCurrency('money', notification.payload.refundedAmount)} hesabına iade edildi.`,
+        href: '/breeding',
+      };
+    case 'foal_born':
+      return {
+        title: `${notification.payload.foalName} doğdu!`,
+        detail: `${notification.payload.mareName} sağlıkla doğurdu; tay ahırında.`,
+        href: '/stable',
+      };
     // 16.10.2026 — arkadaşından çip hediyesi (brief §6.4).
     case 'friend_gift_received':
       return {
@@ -575,6 +600,14 @@ function describe(notification: NotificationView): { title: string; detail: stri
       };
   }
 }
+
+/** Damızlık teklifinin yanıtı (sunucunun durum kümesiyle birebir). */
+const BREEDING_ANSWER_TITLES: Record<'accepted' | 'rejected' | 'cancelled' | 'expired', string> = {
+  accepted: 'kabul edildi',
+  rejected: 'reddedildi',
+  cancelled: 'iptal edildi',
+  expired: 'süresi doldu',
+};
 
 /** `race_cancelled` sebebinin başlığı — sunucunun `reason` kümesiyle BİREBİR (Record, eksik anahtar tsc hatası). */
 const RACE_CANCELLED_TITLES: Record<RaceCancelledReason, string> = {
@@ -616,6 +649,11 @@ function hrefLabel(notification: NotificationView): string {
       return 'davet ekranı →';
     case 'club_invite':
       return 'kulüp →';
+    case 'breeding_offer_received':
+    case 'breeding_offer_answered':
+      return 'çiftleştirme merkezi →';
+    case 'foal_born':
+      return 'ahır →';
   }
 }
 

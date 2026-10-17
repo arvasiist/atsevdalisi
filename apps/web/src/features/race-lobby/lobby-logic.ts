@@ -18,9 +18,9 @@ import type {
 } from '@at-sevdalisi/shared-types';
 import type { RaceLobbyConfig, RaceTierConfig } from '@at-sevdalisi/game-config';
 import type { CreateLobbyRaceBody } from '../../lib/api-client';
-import { loadEconomyConfig, loadRaceLobbyConfig } from '@at-sevdalisi/game-config';
+import { loadEconomyConfig, loadHippodromesConfig, loadRaceLobbyConfig } from '@at-sevdalisi/game-config';
 import { breedLabel, findRaceClass, horseFitsRaceClass } from '../breeds/breed-catalog';
-import { DEFAULT_HIPPODROME_KEY, hippodromeLabel } from '../race-viewer/hippodrome-theme';
+import { DEFAULT_HIPPODROME_KEY, hippodromeLabel, resolveHippodrome } from '../race-viewer/hippodrome-theme';
 
 const lobbyConfig = loadRaceLobbyConfig();
 
@@ -193,6 +193,11 @@ export function startDelayMinuteBounds(config: RaceLobbyConfig): { min: number; 
 /** Formun başlangıç değerleri — hepsi config listelerinin İLK elemanı; uydurma sabit yok. */
 export function defaultLobbyRaceForm(config: RaceLobbyConfig): LobbyRaceForm {
   const fieldSize = config.fieldSizes[0] ?? config.minPlayers;
+  // 16.10.2026 — zemin/mesafe varsayılan pistin listesinden (sunucu kuralı).
+  return applyHippodrome(baseLobbyRaceForm(config, fieldSize), DEFAULT_HIPPODROME_KEY, config);
+}
+
+function baseLobbyRaceForm(config: RaceLobbyConfig, fieldSize: number): LobbyRaceForm {
   return {
     name: '',
     fieldSize,
@@ -256,6 +261,10 @@ export function buildCreateRaceBody(
   if (table !== undefined && (form.fieldSize !== table.fieldSize || form.entryFee !== table.entryFee)) {
     return { ok: false, problem: `${table.label} masasında ${table.fieldSize} at ve ${table.entryFee} çip giriş bedeli zorunludur.` };
   }
+  const trackProblem = hippodromeFormProblem(form, config);
+  if (trackProblem !== null) {
+    return { ok: false, problem: trackProblem };
+  }
   const minReal = minRealPlayersFor(form.entryFee, form.aiFill !== false, config);
   if (minReal > form.maxPlayers) {
     return { ok: false, problem: `Bu yarış en az ${minReal} gerçek oyuncuyla koşar; oyuncu tavanını artır.` };
@@ -299,13 +308,72 @@ export function applyRaceTable(form: LobbyRaceForm, tableId: string, config: Rac
   const table = RACE_TABLES.find((candidate) => candidate.id === tableId);
   if (table === undefined) return { ...form, tableId: '' };
   const caps = maxPlayersOptions(table.fieldSize, config);
-  return {
+  const withTable: LobbyRaceForm = {
     ...form,
     tableId,
     fieldSize: table.fieldSize,
     entryFee: table.entryFee,
     maxPlayers: caps.includes(form.maxPlayers) ? form.maxPlayers : (caps.at(-1) ?? form.maxPlayers),
   };
+  // 16.10.2026 — seçili pist bu masayı ağırlamıyorsa masayı ağırlayan ilk piste geçilir.
+  if (resolveHippodrome(form.hippodrome).tables.includes(tableId)) return withTable;
+  const host = HIPPODROME_LIST.find((hippodrome) => hippodrome.tables.includes(tableId));
+  return host === undefined ? withTable : applyHippodrome(withTable, host.key, config);
+}
+
+/**
+ * 16.10.2026 (brief §9) — PİST KURALI: zemin ve mesafe pistin listesinden,
+ * masa (varsa) pistin ağırladıklarından. Sunucu aynı kuralı
+ * (`hippodromeRaceProblems`, aynı config) ayrıca uygular; bu yalnızca formu
+ * geçerli tutar. Pist değişince zemin/mesafe en yakın geçerli değere, masa
+ * pistin ilk masasına çekilir (serbest masa her pistte serbesttir).
+ */
+const HIPPODROME_LIST = loadHippodromesConfig().hippodromes;
+
+export function hippodromeSurfaceOptions(key: string, config: RaceLobbyConfig): RaceSurface[] {
+  return resolveHippodrome(key).surfaces.filter((surface) => config.allowedSurfaces.includes(surface)) as RaceSurface[];
+}
+
+export function hippodromeDistanceOptions(key: string, config: RaceLobbyConfig): number[] {
+  return resolveHippodrome(key).distancesMeters.filter(
+    (distance) => distance >= config.distanceMeters.min && distance <= config.distanceMeters.max,
+  );
+}
+
+export function applyHippodrome(form: LobbyRaceForm, key: string, config: RaceLobbyConfig): LobbyRaceForm {
+  const hippodrome = resolveHippodrome(key);
+  const surfaces = hippodromeSurfaceOptions(hippodrome.key, config);
+  const distances = hippodromeDistanceOptions(hippodrome.key, config);
+  const next: LobbyRaceForm = {
+    ...form,
+    hippodrome: hippodrome.key,
+    surface: surfaces.includes(form.surface) ? form.surface : (surfaces[0] ?? form.surface),
+    distanceMeters: distances.includes(form.distanceMeters)
+      ? form.distanceMeters
+      : distances.reduce(
+          (best, distance) =>
+            Math.abs(distance - form.distanceMeters) < Math.abs(best - form.distanceMeters) ? distance : best,
+          distances[0] ?? form.distanceMeters,
+        ),
+  };
+  if (!next.tableId || hippodrome.tables.includes(next.tableId)) return next;
+  const hosted = hippodrome.tables.find((id) => RACE_TABLES.some((table) => table.id === id));
+  return hosted === undefined ? { ...next, tableId: '' } : applyRaceTable(next, hosted, config);
+}
+
+/** Formun pist kuralına uymayan ilk alanı (Türkçe cümle) ya da `null`. */
+export function hippodromeFormProblem(form: LobbyRaceForm, config: RaceLobbyConfig): string | null {
+  const hippodrome = resolveHippodrome(form.hippodrome);
+  if (!hippodromeSurfaceOptions(hippodrome.key, config).includes(form.surface)) {
+    return `${hippodrome.shortName} pistinde bu zemin yok.`;
+  }
+  if (!hippodromeDistanceOptions(hippodrome.key, config).includes(form.distanceMeters)) {
+    return `${hippodrome.shortName} pistinde ${form.distanceMeters} m koşulmaz.`;
+  }
+  if (form.tableId && !hippodrome.tables.includes(form.tableId)) {
+    return `${hippodrome.shortName} bu masayı ağırlamaz.`;
+  }
+  return null;
 }
 
 /** Masanın oyuncuya gösterilen kural özeti (sunucunun `RaceTableView`i ya da config'ten). */
@@ -477,7 +545,7 @@ export function sortRacesForHorse<T extends Pick<RaceLobbyListItem, 'breedClass'
 /**
  * HEMEN KATIL — seçili at için katılınabilir en uygun yarış: katılımı yok,
  * dolu değil, ırk + seviye uygun, ücret bakiyeye yetiyor, başlamasına en az
- * `minLeadMs` var (katıl + hazırım sığsın). Önce ata özel aralık, sonra en
+ * `minLeadMs` var (katıl + hazırım sığsın), kariyer kademesi yetiyor. Önce ata özel aralık, sonra en
  * yakın başlangıç, sonra düşük ücret. At zaten açık bir yarıştaysa `null`.
  */
 export function pickQuickJoinRaces(
@@ -496,6 +564,8 @@ export function pickQuickJoinRaces(
   const candidates = races.filter(
     (race) =>
       lobbyEntryActions(race).canJoin &&
+      // 16.10.2026 (brief §10) — kariyer kademesi yetmeyen yarış önerilmez.
+      !race.careerRequirement &&
       raceFitForHorse(race, horse) < 2 &&
       race.entryFee <= money &&
       new Date(race.startTime).getTime() - now.getTime() >= minLeadMs,
@@ -546,3 +616,11 @@ export function describePrizeSplit(race: Pick<RaceLobbyListItem, 'table' | 'tour
   const rake = 1 - shares.reduce((sum, share) => sum + share, 0);
   return `Ödül gerçek oyuncular arasındaki ilk ${shares.length} sıraya (havuzdan ${top}${shares.length > 3 ? ' …' : ''}; bota pay düşmez, az oyuncuda paylar büyür) · komisyon ${percent(rake)}`;
 }
+
+/** 16.10.2026 (brief §10) — lobi satırındaki kariyer kilidi metni; kilit yoksa `null`. */
+export function describeCareerLock(race: Pick<RaceLobbyListItem, 'careerRequirement'>): string | null {
+  const requirement = race.careerRequirement;
+  if (!requirement) return null;
+  return `🔒 ${requirement.name} kademesi · ${requirement.pointsToRequired} kariyer puanı daha`;
+}
+

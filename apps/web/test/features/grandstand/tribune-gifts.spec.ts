@@ -5,6 +5,7 @@ import {
   bumpHorseCount,
   canSendTribuneGift,
   horseGiftSummary,
+  inboxSummary,
   mergeTribuneFeed,
   tribuneGiftBlockedReason,
   tribuneGiftName,
@@ -76,5 +77,22 @@ describe('tribün hediyesi paneli', () => {
       { key: 'horseshoe', count: 1 },
     ]);
     expect(horseGiftSummary(undefined, items)).toEqual([]);
+  });
+});
+
+describe('hediye kutusu özeti (17.10.2026)', () => {
+  it('boş kutu null; dolu kutu sunucunun sırasıyla simge × adet', () => {
+    expect(inboxSummary({ pendingCount: 0, pendingAmount: 0, pendingByGift: [], received: [] })).toBeNull();
+    expect(
+      inboxSummary({
+        pendingCount: 4,
+        pendingAmount: 40,
+        pendingByGift: [
+          { giftKey: 'carrot', count: 3, amount: 21 },
+          { giftKey: 'horseshoe', count: 1, amount: 35 },
+        ],
+        received: [],
+      }),
+    ).toBe('🥕 ×3 · Altın Nal ×1');
   });
 });

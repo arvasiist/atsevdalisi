@@ -58,6 +58,9 @@ export const NOTIFICATION_TYPES = [
   'friend_gift_received',
   'gift_sent',
   'referral_reward',
+  'breeding_offer_received',
+  'breeding_offer_answered',
+  'foal_born',
 ] as const;
 
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];

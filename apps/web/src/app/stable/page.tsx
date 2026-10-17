@@ -34,6 +34,7 @@ import {
   HeartPulse,
   Network,
   Smile,
+  Trophy,
   Warehouse,
   Wrench,
   Zap,
@@ -42,7 +43,6 @@ import type {
   HorsePedigreeView,
   PublicHorse,
   StableSummaryView,
-  StableUpgradeResult,
 } from '@at-sevdalisi/shared-types';
 import { GlassPanel } from '../../components/ui/GlassPanel';
 import { HorseHeadIcon } from '../../components/ui/HorseHeadIcon';
@@ -51,13 +51,21 @@ import { StatBar } from '../../components/ui/StatBar';
 import { BreedingPanel } from '../../features/breeding/BreedingPanel';
 import { JockeyPanel } from '../../features/jockey/JockeyPanel';
 import { PedigreeTree } from '../../features/pedigree/PedigreeTree';
+import { HorseCareerPanel } from '../../features/horse-profile/HorseCareerPanel';
+import { describeUpbringing, statRows } from '../../features/horse-profile/horse-profile';
+import { describeNeeds, needsTrainingPenalty } from '../../features/horse-profile/horse-needs';
 import { pickFeaturedHorse } from '../../features/home-scene/featured-horse';
 import { apiClient } from '../../lib/api-client';
-import { formatCurrency, hasEnoughFunds } from '../../lib/currency';
+import { formatCurrency } from '../../lib/currency';
 import { usePlayer } from '../../lib/player-context';
 import { breedLabel } from '../../features/breeds/breed-catalog';
 import { PersonalityChips } from '../../features/personality/PersonalityChips';
 import { StableActionDock } from '../../features/stable-actions/StableActionDock';
+import { describeComfort } from '../../features/stable-actions/stable-upgrade';
+import { StableUpgradePanel } from '../../features/stable-actions/StableUpgradePanel';
+import { stallContextFrom } from '../../features/stable-actions/StableLayoutPanel';
+import { sceneNeighbors } from '../../features/stable-scene/stall-map';
+import type { StableSceneNeighbor } from '../../features/stable-scene/StableScene3D';
 import { PlayerOverview } from '../../features/home/PlayerOverview';
 import { OnboardingPanel } from '../../features/onboarding/OnboardingPanel';
 import { formatRaceReadyIn } from '../../features/race/race-entry';
@@ -102,6 +110,8 @@ export default function StablePage(): React.ReactElement {
   } = usePlayer();
   const [horses, setHorses] = useState<PublicHorse[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  /** 16.10.2026 — ahır özeti (kapasite, seviyeler, bölmeler): sahne, panel ve kart ortak kullanır. */
+  const [stableSummary, setStableSummary] = useState<StableSummaryView | null>(null);
   /** 3D ahırda gösterilen at; seçilmemişse öne çıkan at (ana sayfayla aynı kural). */
   const [stageHorseId, setStageHorseId] = useState<string | null>(null);
   const stageHorse = useMemo(
@@ -169,6 +179,14 @@ export default function StablePage(): React.ReactElement {
       .catch((err: unknown) => {
         if (!cancelled) setError(err instanceof Error ? err.message : 'Atlar yüklenemedi');
       });
+    void apiClient
+      .getStableSummary(playerId)
+      .then((data) => {
+        if (!cancelled) setStableSummary(data);
+      })
+      .catch(() => {
+        // Özet yoksa sahne komşu bölmesiz çizilir; kart kendi hatasını gösterir.
+      });
     return () => {
       cancelled = true;
     };
@@ -189,7 +207,12 @@ export default function StablePage(): React.ReactElement {
       return;
     }
     try {
-      setHorses(await apiClient.getHorsesByOwner(player.id));
+      const [nextHorses, nextSummary] = await Promise.all([
+        apiClient.getHorsesByOwner(player.id),
+        apiClient.getStableSummary(player.id),
+      ]);
+      setHorses(nextHorses);
+      setStableSummary(nextSummary);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Atlar yüklenemedi');
     }
@@ -210,13 +233,26 @@ export default function StablePage(): React.ReactElement {
 
   // 08.10.2026 — ahır ana sayfadır: sahne üst bar hariç ekranı kaplar,
   // atlar ve paneller kaydırınca altta. Sahnede at değiştirme + "Atlarım".
-  const stageIndex =
-    horses && stageHorse ? horses.findIndex((item) => item.id === stageHorse.id) : -1;
+  // 16.10.2026 — ‹ › koridorda yürür gibi BÖLME sırasıyla gezer.
+  const byStall = useMemo(
+    () => (horses ? [...horses].sort((a, b) => (a.stallNumber ?? 0) - (b.stallNumber ?? 0)) : []),
+    [horses],
+  );
+  const stageIndex = stageHorse ? byStall.findIndex((item) => item.id === stageHorse.id) : -1;
   const stepStage = (delta: number) => {
-    if (!horses || horses.length < 2 || stageIndex < 0) return;
-    const next = horses[(stageIndex + delta + horses.length) % horses.length];
+    if (byStall.length < 2 || stageIndex < 0) return;
+    const next = byStall[(stageIndex + delta + byStall.length) % byStall.length];
     if (next) setStageHorseId(next.id);
   };
+  // 16.10.2026 — sahnedeki komşu bölmeler (dolu: at, boş: "+ At al", kilitli: seviye).
+  const neighbors = useMemo((): StableSceneNeighbor[] => {
+    if (!horses || !stableSummary || !stageHorse?.stallNumber) return [];
+    const byId = new Map(horses.map((item) => [item.id, item]));
+    return sceneNeighbors(stageHorse.stallNumber, stallContextFrom(stableSummary, horses)).map((neighbor) => ({
+      ...neighbor,
+      horse: neighbor.state.kind === 'occupied' ? byId.get(neighbor.state.horseId) : undefined,
+    }));
+  }, [horses, stableSummary, stageHorse]);
 
   return (
     <main>
@@ -224,22 +260,34 @@ export default function StablePage(): React.ReactElement {
         <StableUrlParams onChange={applyUrlParams} />
       </Suspense>
       {stageHorse ? (
-        <StableScene3D horse={stageHorse} fullscreen>
+        <StableScene3D
+          horse={stageHorse}
+          fullscreen
+          neighbors={neighbors}
+          onSelectHorse={setStageHorseId}
+          onLockedStall={() => selectStableAction('upgrade')}
+          stallNumber={stageHorse.stallNumber}
+        >
           {player ? <OnboardingPanel /> : null}
           <StableActionDock
             horse={stageHorse}
             active={activeAction}
             onSelect={selectStableAction}
             onHorseChanged={reloadHorses}
+            layout={
+              player && horses && stableSummary
+                ? { playerId: player.id, horses, summary: stableSummary, onShowHorse: setStageHorseId }
+                : null
+            }
           />
           <div className="stable3d-switcher" data-testid="stable-switcher">
-            {horses && horses.length > 1 ? (
+            {byStall.length > 1 ? (
               <button type="button" onClick={() => stepStage(-1)} aria-label="Önceki at">
                 ‹
               </button>
             ) : null}
             <a href="#stable-horses">Atlarım{horses ? ` (${horses.length})` : ''} ↓</a>
-            {horses && horses.length > 1 ? (
+            {byStall.length > 1 ? (
               <button type="button" onClick={() => stepStage(1)} aria-label="Sonraki at">
                 ›
               </button>
@@ -282,7 +330,20 @@ export default function StablePage(): React.ReactElement {
 
         {error ? <p style={{ color: 'var(--color-status-critical)' }}>{error}</p> : null}
 
-        {player ? <StableUpgradeCard ownerId={player.id} onUpgraded={refresh} /> : null}
+        {player ? (
+          <StableUpgradeCard
+            summary={stableSummary}
+            onUpgraded={reloadHorses}
+            onOpenUpgrade={
+              stageHorse
+                ? () => {
+                    selectStableAction('upgrade');
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                  }
+                : null
+            }
+          />
+        ) : null}
 
         {player && horses === null && !error ? (
           <p style={{ color: 'var(--color-text-muted)' }}>Ahır yükleniyor…</p>
@@ -291,8 +352,19 @@ export default function StablePage(): React.ReactElement {
         {horses && horses.length === 0 ? (
           <GlassPanel style={{ textAlign: 'center', padding: 'var(--space-xl)' }}>
             <p style={{ color: 'var(--color-text-secondary)', margin: 0 }}>
-              Ahırında kayıtlı at bulunamadı.
+              Ahırında kayıtlı at yok. Yarışmak için bir at edin:
             </p>
+            <div
+              data-testid="empty-stable-actions"
+              style={{ display: 'flex', gap: 'var(--space-sm)', justifyContent: 'center', marginTop: 'var(--space-md)', flexWrap: 'wrap' }}
+            >
+              <Link href="/breeds" className="btn-action btn-action-green">
+                Irk mağazası
+              </Link>
+              <Link href="/market" className="btn-action btn-action-blue">
+                At pazarı
+              </Link>
+            </div>
           </GlassPanel>
         ) : null}
 
@@ -364,91 +436,42 @@ function StableUrlParams({ onChange }: { onChange: (panel: string | null, horse:
 }
 
 function StableUpgradeCard({
-  ownerId,
+  summary,
   onUpgraded,
+  onOpenUpgrade,
 }: {
-  ownerId: string;
+  summary: StableSummaryView | null;
   onUpgraded: () => Promise<void>;
+  /**
+   * 16.10.2026 — yükseltme "Ahırı Geliştir" panelindedir (tek bileşen). Ahır
+   * sahnesi varsa panel sahnede açılır; at yoksa sahne çizilmez → `null` ve
+   * panel bu kartın içinde açılır.
+   */
+  onOpenUpgrade: (() => void) | null;
 }): React.ReactElement {
-  const { player } = usePlayer();
-  const [summary, setSummary] = useState<StableSummaryView | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [isUpgrading, setIsUpgrading] = useState(false);
-  const [result, setResult] = useState<StableUpgradeResult | null>(null);
-
-  const loadSummary = useCallback(async (): Promise<void> => {
-    setError(null);
-    try {
-      setSummary(await apiClient.getStableSummary(ownerId));
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Ahır özeti yüklenemedi');
-    }
-  }, [ownerId]);
-
-  useEffect(() => {
-    void loadSummary();
-  }, [loadSummary]);
-
-  const handleUpgrade = useCallback(async (): Promise<void> => {
-    setIsUpgrading(true);
-    setError(null);
-    setResult(null);
-    try {
-      // Her YENİ deneme için TAZE bir anahtar üretilir — `market/page.tsx`
-      // ve `races/page.tsx` ile AYNI `crypto.randomUUID()` kalıbı. Aynı
-      // anahtarın bilerek tekrarlanması durumunda sunucu AYNI sonucu döner
-      // ve bakiyeden İKİNCİ kez düşmez (bkz. `api-client.ts` `upgradeStable`).
-      const upgradeResult = await apiClient.upgradeStable(ownerId, crypto.randomUUID());
-      setResult(upgradeResult);
-      await loadSummary();
-      // Bakiye üst çubukta (`TopBar`) da görünür; oyuncu bağlamı
-      // tazelenmezse harcama sayfa yenilenene kadar orada GÖRÜNMEZ kalırdı.
-      await onUpgraded();
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Yükseltme başarısız oldu');
-    } finally {
-      setIsUpgrading(false);
-    }
-  }, [ownerId, loadSummary, onUpgraded]);
+  const [inlineOpen, setInlineOpen] = useState(false);
 
   if (summary === null) {
     return (
       <GlassPanel style={{ marginBottom: 'var(--space-lg)' }}>
-        <p style={{ color: 'var(--color-text-muted)', margin: 0 }}>
-          {error ?? 'Ahır durumu yükleniyor…'}
-        </p>
+        <p style={{ color: 'var(--color-text-muted)', margin: 0 }}>Ahır durumu yükleniyor…</p>
       </GlassPanel>
     );
   }
 
-  const offer = summary.nextUpgrade;
-  const isEnabled =
-    offer !== null && player !== null && hasEnoughFunds(player, offer.cost) && !isUpgrading;
-
   return (
     <GlassPanel style={{ marginBottom: 'var(--space-lg)' }}>
-      <div
-        style={{
-          display: 'flex',
-          flexWrap: 'wrap',
-          gap: 'var(--space-lg)',
-          alignItems: 'flex-start',
-        }}
-      >
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-lg)', alignItems: 'flex-start' }}>
         <div style={{ display: 'grid', gap: '4px', minWidth: '160px' }}>
           <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>Ahır Seviyesi</span>
-          <span
-            style={{
-              fontSize: '28px',
-              fontWeight: 700,
-              color: 'var(--color-accent-gold)',
-              lineHeight: 1.1,
-            }}
-          >
+          <span style={{ fontSize: '28px', fontWeight: 700, color: 'var(--color-accent-gold)', lineHeight: 1.1 }}>
             {summary.stableLevel}
           </span>
           <span style={{ fontSize: '12px', color: 'var(--color-text-secondary)' }}>
-            Kapasite: {summary.horseCount} / {summary.capacity} at
+            {summary.stableName} · Kapasite: {summary.horseCount} / {summary.capacity} at
+          </span>
+          <span style={{ fontSize: '12px', color: 'var(--color-text-secondary)' }}>
+            {describeComfort(summary.recoveryBonusPercent)}
           </span>
         </div>
 
@@ -461,61 +484,26 @@ function StableUpgradeCard({
           ) : null}
         </div>
 
-        <div style={{ display: 'grid', gap: '8px', minWidth: '240px' }}>
-          {offer === null ? (
-            <span style={{ fontSize: '13px', color: 'var(--color-text-muted)' }}>
-              En yüksek ahır seviyesine ulaştın.
-            </span>
+        <div style={{ display: 'grid', gap: '8px', minWidth: '220px' }}>
+          {summary.nextUpgrade === null ? (
+            <span style={{ fontSize: '13px', color: 'var(--color-text-muted)' }}>En yüksek ahır seviyesine ulaştın.</span>
           ) : (
-            <>
-              <span style={{ fontSize: '13px', color: 'var(--color-text-primary)' }}>
-                Seviye {offer.nextLevel} · kapasite {offer.nextCapacity} ata çıkar
-              </span>
-              <span
-                style={{
-                  fontSize: '13px',
-                  fontWeight: 600,
-                  color: isEnabled ? 'var(--color-accent-gold)' : 'var(--color-status-critical)',
-                }}
-              >
-                Maliyet: {formatCurrency(offer.cost.currency, offer.cost.amount)}
-              </span>
-              <button
-                type="button"
-                onClick={() => void handleUpgrade()}
-                disabled={!isEnabled}
-                className="btn-gold"
-              >
-                {isUpgrading ? 'Yükseltiliyor…' : 'Ahırı Yükselt'}
-              </button>
-              {!isEnabled && !isUpgrading ? (
-                <span style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>
-                  Yeterli bakiyen yok — günlük ödülünü alarak veya yarış kazanarak para biriktir.
-                </span>
-              ) : null}
-            </>
+            <span style={{ fontSize: '13px', color: 'var(--color-text-primary)' }}>
+              Sonraki: {summary.nextUpgrade.nextName} · {summary.nextUpgrade.nextCapacity} at ·{' '}
+              {formatCurrency(summary.nextUpgrade.cost.currency, summary.nextUpgrade.cost.amount)}
+            </span>
           )}
+          <button
+            type="button"
+            onClick={onOpenUpgrade ?? (() => setInlineOpen((open) => !open))}
+            className="btn-gold"
+            data-testid="open-stable-upgrade"
+          >
+            Ahırı Geliştir
+          </button>
         </div>
       </div>
-
-      {result !== null ? (
-        <p
-          style={{
-            marginTop: 'var(--space-md)',
-            marginBottom: 0,
-            color: 'var(--color-status-positive)',
-            fontSize: '13px',
-          }}
-        >
-          Ahır seviye {result.newStableLevel} oldu · kapasite {result.newCapacity} · ödenen{' '}
-          {formatCurrency(result.cost.currency, result.cost.amount)} · kalan bakiye{' '}
-          {formatCurrency('money', result.newBalance.money)}
-        </p>
-      ) : null}
-
-      {error !== null ? (
-        <p style={{ color: 'var(--color-status-critical)', marginBottom: 0 }}>{error}</p>
-      ) : null}
+      {onOpenUpgrade === null && inlineOpen ? <StableUpgradePanel onUpgraded={onUpgraded} /> : null}
     </GlassPanel>
   );
 }
@@ -582,6 +570,8 @@ function HorseCard({
   // tek farkla: bu KULLANICI ETKİLEŞİMİYLE tetiklenir (ahırdaki her at için
   // otomatik istek atmak gereksiz yük olurdu).
   const [pedigree, setPedigree] = useState<HorsePedigreeView | null>(null);
+  // 16.10.2026 — kariyer paneli (brief §3); açıldığında kendisi yükler.
+  const [isCareerOpen, setIsCareerOpen] = useState(false);
   const [isPedigreeOpen, setIsPedigreeOpen] = useState(false);
   const [pedigreeError, setPedigreeError] = useState<string | null>(null);
 
@@ -637,6 +627,60 @@ function HorseCard({
           />
           <StatBar icon={<Smile size={14} />} label="Moral" value={horse.morale} />
         </div>
+        {horse.stats ? (
+          <div
+            data-testid={`horse-stats-${horse.id}`}
+            className="horse-stat-grid"
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
+              gap: '6px',
+              marginTop: 'var(--space-sm)',
+            }}
+          >
+            {statRows(horse.stats).map((row) => (
+              <div
+                key={row.key}
+                style={{
+                  textAlign: 'center',
+                  padding: '4px 2px',
+                  borderRadius: '8px',
+                  border: '1px solid var(--color-border)',
+                }}
+              >
+                <div style={{ fontSize: '10px', color: 'var(--color-text-muted)' }}>{row.label}</div>
+                <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--color-text-primary)' }}>{row.value}</div>
+              </div>
+            ))}
+          </div>
+        ) : null}
+        {horse.upbringing ? (
+          <p
+            data-testid={`upbringing-${horse.id}`}
+            style={{ margin: 'var(--space-sm) 0 0', fontSize: '12px', color: 'var(--color-text-secondary)' }}
+          >
+            {describeUpbringing(horse.upbringing)} · <Link href="/shop">Market</Link>
+          </p>
+        ) : null}
+        {horse.needs ? (
+          <div className="horse-needs" data-testid={`needs-${horse.id}`}>
+            {describeNeeds(horse.needs, new Date()).map((line) => (
+              <button
+                key={line.key}
+                type="button"
+                className="horse-need"
+                data-level={line.level}
+                onClick={() => onOpenAction(horse.id, 'care')}
+                title="Bakım panelini aç"
+              >
+                <span aria-hidden="true">{line.icon}</span> {line.text}
+              </button>
+            ))}
+            {needsTrainingPenalty(horse.needs) ? (
+              <span className="horse-need-penalty">{needsTrainingPenalty(horse.needs)}</span>
+            ) : null}
+          </div>
+        ) : null}
         {horse.raceReadyAt ? (
           <p
             style={{
@@ -729,6 +773,22 @@ function HorseCard({
 
         <button
           type="button"
+          onClick={() => setIsCareerOpen((open) => !open)}
+          className="btn-outline"
+          style={{ width: '100%', marginTop: 'var(--space-md)' }}
+          aria-expanded={isCareerOpen}
+        >
+          <Trophy size={16} aria-hidden="true" />
+          {isCareerOpen ? 'Kariyeri Kapat' : 'Kariyer ve Geçmiş'}
+        </button>
+        {isCareerOpen ? (
+          <div style={{ marginTop: 'var(--space-sm)' }}>
+            <HorseCareerPanel horseId={horse.id} />
+          </div>
+        ) : null}
+
+        <button
+          type="button"
           onClick={() => void togglePedigree()}
           className="btn-outline"
           style={{ width: '100%', marginTop: 'var(--space-md)' }}
@@ -751,7 +811,11 @@ function HorseCard({
             // hiçbir zaman çiftleştirilmedi) — `PedigreeTree` bu durumda tüm
             // düğümleri "Bilinmiyor" olarak gösterir, hata DEĞİL.
             <div style={{ marginTop: 'var(--space-md)' }}>
-              <PedigreeTree pedigree={pedigree.pedigree} horseNamesById={pedigree.horseNamesById} />
+              <PedigreeTree
+                pedigree={pedigree.pedigree}
+                horseNamesById={pedigree.horseNamesById}
+                recordsById={pedigree.recordsById}
+              />
             </div>
           )
         ) : null}

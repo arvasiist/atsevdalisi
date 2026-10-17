@@ -266,7 +266,8 @@ Hız sınırı **IP başınadır** (dakikada 60) — `@Public()` olduğundan
 GET    /api/v1/horses                  # oyuncunun ahırındaki atlar
 GET    /api/v1/horses/{id}             # at detayı (brief §40)
 GET    /api/v1/horses/{id}/pedigree    # soy ağacı + ataların adları (bu dilimde EKLENDİ, aşağıya bkz.)
-POST   /api/v1/players/{id}/breeding   # çiftleştirme + tay doğumu (27.09.2026 EKLENDİ, aşağıya bkz.)
+GET    /api/v1/horses/{id}/career      # yarış geçmişi + kazanç + tay sayısı (16.10.2026, aşağıya bkz.)
+POST   /api/v1/players/{id}/breeding   # KENDİ çifti: döllenme denemesi → gebelik (16.10.2026, aşağıya bkz.)
 POST   /api/v1/horses/{id}/train       # antrenman (brief §10)
 POST   /api/v1/horses/{id}/care        # tımar/su/temizlik/veteriner/nalbant/dinlendirme
                                         # (brief §11 — tek uç nokta, `actionType` alanı,
@@ -305,6 +306,27 @@ Olası hata: `HORSE_TOO_TIRED`, `HORSE_INJURED`, `INSUFFICIENT_ENERGY`
 (üçü de `409 Conflict` — geçici bir durum engeli, kalıcı bir doğrulama
 hatası değil), veya `type`/`intensity`/`durationMinutes` formatı
 hatalıysa `400 VALIDATION_ERROR`.
+
+**Yem/su ihtiyacı (17.10.2026, brief §14, migration 0102).** Yanıt `needs:
+{ feed, water, trainingFactor }` taşır (`feed`/`water` = `{ level: ok|due|urgent,
+lastAt, dueAt }`); kazanç `trainingFactor` ile ölçeklenir (karşılanmış ihtiyaçta
+1). İhtiyaç son beslenme (yalnızca `care.needs.feedCategories` yemleri) ve son su
+bakımından türetilir; aralıklar `care.needs`. `GET /horses?ownerId=` satırları da
+`needs` taşır (yalnızca sahibine; `GET /horses/:id` taşımaz).
+
+**Antrenör uzmanlığı + gelişimi (17.10.2026, brief §13).** Yanıt
+`staffMultiplier` (uygulanan çarpan) ve `trainer` taşır: `null` (etkin antrenör
+yok) ya da `{ staffId, name, specialization, specializationMatched, skill,
+experience, skillGained }`. En iyi antrenör antrenman TİPİNE göre seçilir:
+uzmanlığı (`config/staff.config.json` → `trainer.specializations`, dinlenme
+hariç antrenman tipleri) eşleşen antrenmanda bonus payı × `matchBonusFactor`
+(1,5), diğerlerinde × `offSpecialtyBonusFactor` (0,75); uzmanlığı olmayan
+(17.10.2026 öncesi bütün antrenörler) × 1 — eski davranış. Seansı veren
+antrenör deneyim kazanır (dinlenme hariç); her `experiencePerSkillPoint` (20)
+seansta beceri +1, en fazla `maxDevelopedSkill` (95). Maaş sözleşmede sabittir.
+`GET /staff` satırları `trainerFocus: { matched, other } | null` ve
+`sessionsToNextSkill: number | null` taşır; pazardaki antrenör adayları bir
+uzmanlıkla ya da genel (`specialization: null`) gelir.
 
 ### Uygulama durumu (FAZ 1 wiring, ikinci dilim, bu oturum)
 
@@ -948,11 +970,20 @@ tribünle AYNI (`assertCanWatch`: katılımcı / ücretsiz tribün / bilet → y
 Hatalar: 400 `INVALID_TRIBUNE_GIFT` (katalogda yok) · 409
 `TRIBUNE_GIFT_NOT_ALLOWED` (kendi atı, bot, yarışta olmayan at, iptal/pencere
 dışı yarış) · 409 `TRIBUNE_GIFT_DAILY_LIMIT` · 409 `INSUFFICIENT_FUNDS` · 403
-`PLAYER_BLOCKED`. Defter: gönderen `tribune_gift_debit`, alıcı
-`tribune_gift_credit` (referans `tribune_gifts.id`); alıcıya
-`tribune_gift_received` bildirimi. Soket: yarış odasına `race.tribuneGift`
+`PLAYER_BLOCKED`. Defter: gönderen `tribune_gift_debit` (referans
+`tribune_gifts.id`); alıcıya `tribune_gift_received` bildirimi
+(`collectRequired: true`). Soket: yarış odasına `race.tribuneGift`
 (`raceId`, `tribuneGiftId`, `giftKey`, `horseId`, `horseName`,
 `senderDisplayName`, `createdAt`).
+
+**Hediye kutusu (17.10.2026, migration 0101, brief §17).** Sahibin payı artık
+gönderimde ÖDENMEZ; hediye kutusunda bekler (0101 öncesi hediyeler gönderimde
+ödenmişti ve toplanmış sayılır).
+
+| Uç | Açıklama |
+| --- | --- |
+| `GET /tribune-gifts/inbox` | Yalnızca çağıranın kutusu (oyuncu token'dan). `pendingCount`, `pendingAmount`, `pendingByGift[]` (`giftKey`, `count`, `amount`; katalog sırasıyla), `received[]` (son `recentLimit`: `tribuneGiftId`, `giftKey`, `raceId`, `raceName`, `horseName`, `senderDisplayName`, `amount`, `createdAt`, `collectedAt` — `null` = bekliyor). Hız sınırı `tribune-gift-inbox` 60/dk |
+| `POST /tribune-gifts/collect` | PARA YOLU: oyuncu `FOR UPDATE` → bekleyenler işaretlenir (`collected_at`, `collect_id`) → TEK `tribune_gift_credit` defter satırı (referans türü `tribune_gift_collect`, kimlik = toplama). 200 `{ collected, amount, balanceAfter }`; tekrar çağrı sıfır toplar (Idempotency-Key gerekmez). Eşzamanlı iki toplama aynı payı iki kez ödeyemez. Hız sınırı `tribune-gift-collect` 10/dk |
 
 ### Bildirimler + Yarış Daveti (brief §16, §28 — §42 PHASE 11 + PHASE 13)
 
@@ -2028,6 +2059,27 @@ zaten `config/stable.config.json`'da tanımlı en yüksek seviyedeyse `409
 MAX_STABLE_LEVEL_REACHED`; oyuncu bulunamazsa `404 PLAYER_NOT_FOUND`; id
 UUID formatında değilse `400 VALIDATION_ERROR`.
 
+**16.10.2026 — ahır geliştirme.** 10 seviye (`config/stable.config.json`;
+1–5'in kapasite ve bedeli değişmedi). Her seviyenin adı (`nameByLevel`),
+konfor bonusu (`recoveryBonusByLevel` — zamanla toparlanma bu oranda hızlanır;
+zamanlayıcı, yarışın kayıt yolundaki toparlanma ve `raceReadyAt` tahmini aynı
+çarpanı kullanır) ve oyuncu seviyesi şartı (`requiredPlayerLevelByLevel`)
+vardır. Şart tutmazsa `409 STABLE_UPGRADE_LEVEL_LOCKED` (oyuncu kilitliyken,
+paradan önce; bakiye/seviye/defter değişmez). `GET /players/:id/stable-summary`
+artık `stableName`, `recoveryBonusPercent`, `levels[]` (her seviye: `level`,
+`name`, `capacity`, `recoveryBonusPercent`, `requiredPlayerLevel`, `cost`) ve
+`nextUpgrade.nextName`/`nextRecoveryBonusPercent`/`requiredPlayerLevel` taşır.
+
+**16.10.2026 — ahır bölmeleri (migration 0097).** `GET /horses?ownerId=`
+satırları `stallNumber` (1..kapasite), `stable-summary` `stalls[]`
+(`stallNumber`, `horseId`, `horseName`) ve `maxStalls` taşır.
+`POST /players/:id/stable/stalls` gövdesi `{ "horseId": "<uuid>", "stallNumber": 4 }`:
+atı bölmeye taşır, bölme doluysa iki at yer değiştirir; yanıt `{ capacity,
+stalls }`. Hatalar: kilitli bölme `409 STALL_LOCKED`, başkasının atı `404
+HORSE_NOT_FOUND`, başkasının ahırı `403`, bozuk `horseId`/`stallNumber` `400`.
+Para hareketi yoktur (`Idempotency-Key` gerekmez); at el değiştirince bölmesi
+boşalır.
+
 Bu, projenin PARA/mülkiyet değiştiren İLK use-case'idir — bu yüzden
 docs/SECURITY.md §5'in satır kilitleme (`SELECT ... FOR UPDATE` + tek
 transaction) kuralı İLK KEZ burada gerçek anlamda uygulandı (bkz.
@@ -2297,6 +2349,78 @@ Tasarım kararları (bkz. `application/use-cases/run-practice-race.use-case.ts`
   Idempotency-Key koruması OLMADAN çalışıyor~~ — **onuncu dilimde
   KAPATILDI** (bkz. yukarıdaki "Ahır Yükseltme" bölümü ve
   docs/ROADMAP.md).
+
+
+### At profili + kariyer (16.10.2026, brief §3 + §6)
+
+- `GET /horses?ownerId=` satırları artık `stats` taşır (yalnızca sahibine):
+  `speed, acceleration, stamina, sprint, endurance, startSpeed, finishSpeed,
+  cornering` (0–100). Gizli kişilik sayıları ve potansiyel DÖNMEZ; `GET
+  /horses/{id}` (herkese açık) stat taşımaz.
+- `GET /horses/{id}/career` (`@Public`) → `HorseCareerView`: `starts`, `wins`,
+  `seconds`, `thirds`, `places` (ilk üç), `bestPosition`, `earnings`, `foals`,
+  `recentRaces[]` (`raceId, raceName, ranAt, distanceMeters, surface,
+  hippodromeKey, fieldSize, finishPosition, prize`; uzunluk
+  `stable.careerRecentRaceLimit`). Sayaç YOK: koşular `race_entries`ten
+  (bitmiş, iptal edilmemiş), kazanç defterdeki `practice_race_prize` +
+  `lobby_race_prize` satırlarından (koşturan oyuncu = `e.player_id`), tay sayısı
+  `breeding_pairs`ten. Kaybeden iadesi kazanç sayılmaz. Bilinmeyen at 404.
+- `GET /horses/{id}/pedigree` yanıtına `recordsById` eklendi: ağaçtaki her atın
+  (kendisi dahil) aynı özeti.
+
+
+### Çiftleştirme merkezi + gebelik (16.10.2026, brief §4–§5, migration 0094)
+
+```http
+GET    /api/v1/breeding/center                       # kurallar, aygırlarım, gelen/giden teklifler, gebelikler
+GET    /api/v1/breeding/studs?breed=&maxFee=         # ilandaki aygırlar (sahibin ücreti, soy, kariyer özeti)
+PUT    /api/v1/breeding/studs/{stallionId}           # { fee } ilan ver/güncelle (sahip; ücret sınır dışı 400 INVALID_STUD_FEE)
+DELETE /api/v1/breeding/studs/{stallionId}           # ilanı geri çek; bekleyen teklifler iptal + tam iade
+POST   /api/v1/breeding/offers                       # { mareId, stallionId, foalName } + Idempotency-Key → ücret emanete
+POST   /api/v1/breeding/offers/{offerId}/accept      # aygır sahibi; döllenme denenir
+POST   /api/v1/breeding/offers/{offerId}/reject      # aygır sahibi; tam iade
+POST   /api/v1/breeding/offers/{offerId}/cancel      # kısrak sahibi; tam iade
+POST   /api/v1/breeding/pregnancies/{id}/checkups    # Idempotency-Key; ücretli veteriner kontrolü
+POST   /api/v1/players/{id}/breeding                 # KENDİ kısrağı × KENDİ aygırı (ücretsiz)
+```
+
+- Yanıt `POST /players/{id}/breeding` artık `BreedingAttemptView` (`outcome:
+  conceived|not_conceived`, `conceptionChance`, `pregnancy`, `mareRestEndsAt`).
+  Tay ANINDA doğmaz; doğumu sunucu zamanlayıcısı `expectedBirthAt`te yapar
+  (`foal_born` bildirimi). Başkasının aygırı → 409 `BREEDING_REQUIRES_AGREEMENT`.
+- Teklif ve gebelik yalnızca taraflarına görünür; taraf olmayana 404
+  (`BREEDING_OFFER_NOT_FOUND`, `PREGNANCY_NOT_FOUND`). Çift kabul 409
+  `BREEDING_OFFER_NOT_PENDING`; süresi geçmiş teklif 409 `BREEDING_OFFER_EXPIRED`;
+  kısrağın bekleyen teklifi varken ikinci teklif / kendi çifti 409
+  `BREEDING_OFFER_ALREADY_PENDING`; kendi aygırına teklif 409
+  `BREEDING_OFFER_OWN_STALLION`; kontrol aralığı dolmadan 409
+  `PREGNANCY_CHECKUP_TOO_SOON`; gebe kısrak / bekleyen teklifteki at pazara 409
+  `HORSE_BREEDING_COMMITMENT`.
+- Defter: `breeding_offer_hold` (−), `breeding_offer_refund` (+),
+  `breeding_stud_fee_credit` (+, aygır sahibinin payı), `pregnancy_vet_check` (−).
+  Bildirim: `breeding_offer_received`, `breeding_offer_answered`, `stud_service`
+  (döllenme anında), `foal_born`.
+- Tayın genetiği, cinsiyeti ve tohumu hiçbir yanıtta dönmez.
+
+### Market: yem kategorileri, tay yemi, ilaç; ekipman ömrü + aksesuar (16.10.2026, brief §7–§8, migration 0095–0096)
+
+- `GET /players/:id/feed-inventory` ve `GET /horses/:id/feed-status` kalemleri
+  artık `category` (`feed`|`foal`|`supplement`|`medicine`), `qualityTier`,
+  `allowedLifeStages` ve `requiresVetWithinHours` taşır (hepsi config'ten).
+  Yeni kalemler: `yulaf`, `enerji_yemi`, `kondisyon_yemi`, `tay_yemi`,
+  `elektrolit`, `eklem_takviyesi`, `agri_kesici`.
+- `POST /horses/:id/feed`: tay yemi yaşa uymayan ata 409
+  `FEED_NOT_ALLOWED_FOR_AGE`; ağrı kesici son N saatte veteriner bakımı yoksa
+  409 `FEED_REQUIRES_VET_CHECK`. Tay yemi yanıtı `upbringingGain: { stat,
+  amount }` taşır (kalıcı stat katkısı, aynı transaction).
+- `GET /horses?ownerId=` satırı tay/gelişim çağındaki at için `upbringing:
+  { feedType, feedsUsed, feedsMax, gainPerFeed, unitPrice, remainingCost }`.
+- Ekipman satırı (`HorseEquipment`) artık `maxRaces`, `racesRemaining`,
+  `surface`, `wornOutAt` taşır; tipler kozmetik `halter`, `blanket`,
+  `nameplate`, `collectible` ile genişledi (yarışa etkisi YOK, aşınmaz).
+  Kuşanılı performans parçası her koşulan yarışta 1 aşınır; aşınmış parçayı
+  kuşanmak 409 `EQUIPMENT_WORN_OUT`. Zemine özel nal yalnızca o zeminde bonus
+  verir. Satın alma gövdesi değişmedi (yalnızca `catalogKey`).
 
 ## 5. Market (At Pazarı)
 
@@ -2604,6 +2728,61 @@ ve `race.roster` olayı `hippodrome` anahtarını taşır (hipodromu yazılmamı
 eski yarışta varsayılan). Pratik, eşleşme ve turnuva yarışının hipodromu
 yarış kimliğinden determinist seçilir; takvim programı kendi hipodromunu
 config'ten alır. Salt sahne — sonuca etkisi YOK.
+16.10.2026 (brief §9, migration 0098): üç uluslararası pist (`kentucky`,
+`paris`, `dubai`). Hipodrom seçilen yarışta zemin ve mesafe pistin listesinden,
+`tableId` pistin ağırladığı masalardan olmalı — aksi 400
+`INVALID_RACE_DEFINITION` (takvim programları da aynı kuraldan geçer). Pratik/
+eşleşme yarışının pisti sabit `practicePool`dan seçilir (yeni pist eski tekrarı
+değiştirmez).
+
+#### `GET /hippodromes` (16.10.2026)
+Oturum ister, hız sınırı `hippodrome-catalog` 60/dk. Yanıt
+`HippodromeCatalogView`: `hippodromes[]` → `key, name, shortName, country,
+countryCode, city, level (local|regional|national|international), prestige
+(1–5), surfaces, distancesMeters, lapLengthMeters, tables[] {id, label,
+entryFee, fieldSize, winnerSharePercent}, programs[] {id, name, surface,
+distanceMeters, entryFee, fieldSize, intervalMinutes, featured, tableId,
+breedClass, horseLevelBracket, nextStartTimes (ISO, en fazla 3)}` +
+`generatedAt`. Saatler takvim zamanlayıcısının aynı saf fonksiyonuyla
+(`computeCalendarSlotTimes`) sunucu saatiyle hesaplanır. Salt okuma.
+
+#### `GET /leaderboard/winners` (16.10.2026, brief §12)
+`@Public`, hız sınırı `race-winners` 60/dk (IP). Sorgu: `limit` (varsayılan/
+üst sınır `online.raceWinners`), `from`/`to` (YYYY-AA-GG, `[from, to)`, en
+fazla `maxRangeDays`), `before` (önceki sayfanın `nextCursor`u). Bozuk değer
+400 `VALIDATION_ERROR` (varsayılana düşmez). Yanıt `RaceWinnersPageView`:
+`rows[]` → `raceId, raceName, completedAt, hippodrome, classLabel, fieldSize,
+playerId, username, displayName, horseId, horseName, finalTimeMs, prize` +
+`nextCursor`. Yalnızca GERÇEK oyuncunun birinci bitirdiği bitmiş
+lobi/takvim/turnuva yarışları (bot birinci, pratik/eşleşme, iptal edilmiş yarış
+girmez; aynı yarış bir kez). Sıra: tamamlanma anı (koşu başlangıcı + kazananın
+derecesi) yeni → eski, eşitlikte yarış kimliği. `prize` defterdeki
+`lobby_race_prize` toplamı. Genel/sezon puan sıralamasından ayrıdır.
+
+#### `GET /players/:id/wallet/report` (17.10.2026, brief §19)
+Oturum ister, yalnızca KENDİ cüzdanı (başkası 403), hız sınırı `wallet-report`
+30/dk (oyuncu). Sorgu `period=daily|monthly` (yoksa `daily`; bilinmeyen değer
+400 `VALIDATION_ERROR`). Yanıt `EconomyReportView`: `period`, `buckets[]`
+(eskiden yeniye son `economy.economyReport.dailyBuckets` gün ya da
+`monthlyBuckets` ay; `key` `YYYY-AA-GG` / `YYYY-AA`, `income`, `expense`,
+`net`; boş dönem sıfır), `categories[]` (kanonik aile başına gelir/gider —
+cüzdan geçmişiyle AYNI `CANONICAL_BY_LEDGER_TYPE` eşlemesi), `totals`. Kaynak
+yalnızca çip defteri (`economy_transactions`, `currency = 'money'`); dönem
+sınırı oyunun tek saat dilimi (`quests.timezoneOffsetMinutes`). Salt okuma.
+
+#### `GET /career` (16.10.2026, brief §10)
+Oturum ister (yalnızca çağıranın kendi kariyeri), hız sınırı `career-view`
+60/dk, salt okuma. Yanıt `CareerView`: `points` (bitmiş yarışlardan türetilir —
+sınıf: turnuva > masa > masasız lobi > pratik/eşleşme; puan tablosu
+`config/career.config.json` → `racePoints`), `tier {key, name, index}`, `next
+{key, name, requiredPoints, pointsToNext} | null`, `tiers[]` (eşik, açılan
+masalar/pistler, `reached`), `racePoints[]`, `history[]` (son `historyLimit`
+yarış: pist, sınıf, derece, puan). Kademe masaları ve pist seviyelerini açar:
+masası/pisti kademenin üstündeki lobi yarışına katılım ve yarış AÇMA 409
+`CAREER_TIER_LOCKED` (para hareketinden önce). `GET /races` satırı
+`careerRequirement: {key, name, pointsToRequired} | null` taşır; `GET
+/hippodromes` pist ve masa başına `requiredCareerTier`. Kademe ödülleri başarım
+olarak alınır (`career_points` ölçütü, `POST /achievements/:key/claim`).
 
 **`Idempotency-Key` YOKTUR ve bu bilinçlidir:** bu uç hiçbir bakiye/ödül/
 envanter değiştirmez (ücret yarışa KATILIRKEN alınır) — brief §54'ün zorunlu
@@ -3283,6 +3462,7 @@ dosyanın doc yorumu).
 |---|---|
 | `HORSE_TOO_TIRED` | Atın enerjisi/yorgunluğu yarış veya antrenman için yetersiz |
 | `HORSE_INJURED` | At sakat, işlem yapılamaz |
+| `CAREER_TIER_LOCKED` | Yarışın masası/pisti oyuncunun kariyer kademesinin üstünde — `POST /races/:id/join` ve `POST /races` (409, para hareketinden önce) (16.10.2026) |
 | `INVALID_CREDENTIALS` | E-posta ya da şifre hatalı — `POST /auth/login/password` (401). Kayıtlı olmayan e-posta ile yanlış şifre BİLEREK aynı kod ve aynı mesajdır (enumerasyon yok) (30.09.2026) |
 | `EMAIL_ALREADY_REGISTERED` | Bu e-posta başka bir hesaba bağlı — `POST /auth/credentials` (409); karşılaştırma büyük/küçük harf duyarsız (30.09.2026) |
 | `INVALID_RESET_TOKEN` | Şifre sıfırlama bağlantısı geçersiz, süresi dolmuş ya da kullanılmış — `POST /auth/password-reset/confirm` (400). Üç durum BİLEREK tek koddur (30.09.2026, migration 0047) |

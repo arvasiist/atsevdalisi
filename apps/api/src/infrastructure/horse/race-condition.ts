@@ -1,5 +1,6 @@
 import type { PoolClient } from 'pg';
-import type { CareConfig, HorseGrowthConfig } from '@at-sevdalisi/game-config';
+import type { CareConfig, HorseGrowthConfig, StableConfig } from '@at-sevdalisi/game-config';
+import { stableRecoveryTable } from '../../domain/stable/stable';
 import { computeHorseAgeMonths } from '../../domain/horse/age-curve';
 import { computeRaceConditionCost, VITAL_MAX, VITAL_MIN } from '../../domain/care/race-condition';
 import { HorseNotFoundError } from '../../domain/horse/errors';
@@ -19,6 +20,19 @@ function creditedSecondsSql(nowParam: string, maxCreditParam: string): string {
 }
 
 /**
+ * 16.10.2026 — ahırın konfor çarpanı (sahibin `stable_level`ine en yakın alt
+ * seviyenin değeri; `getStableRecoveryMultiplier` ile AYNI kural). Sahibi
+ * olmayan/tanımsız seviye → 1. `levelsParam`/`multipliersParam` çağıranın
+ * parametre sırasıdır (`stableRecoveryTable`).
+ */
+function stableRecoveryMultiplierSql(levelsParam: string, multipliersParam: string): string {
+  return `COALESCE((SELECT m.mult FROM players p
+                      CROSS JOIN LATERAL unnest(${levelsParam}::int[], ${multipliersParam}::numeric[]) AS m(level, mult)
+                     WHERE p.id = horses.owner_id AND m.level <= p.stable_level
+                     ORDER BY m.level DESC LIMIT 1), 1)`;
+}
+
+/**
  * YARIŞIN ATA BEDELİ — sonucu yazan transaction'ın İÇİNDE çağrılır (yarış
  * geri alınırsa bedel de geri alınır). Önce bekleyen toparlanma hesaba
  * katılır, sonra bedel düşülür ve damga yenilenir: dolu atın eski damgası
@@ -31,22 +45,68 @@ export async function applyRaceConditionInTransaction(
   distanceMeters: number,
   care: CareConfig,
   now: Date,
+  // 16.10.2026 — bekleyen toparlanma da ahır konfor çarpanıyla sayılır
+  // (zamanlayıcıyla AYNI kural; yoksa yarış anında bonus kaybolurdu).
+  stable: StableConfig,
 ): Promise<void> {
   const ids = [...new Set(horseIds)];
+  // 16.10.2026 (brief §8) — ekipman aşınması da yarışın bedelidir: aynı
+  // transaction, aynı dört kayıt yolu (pratik, lobi, iki PvP).
+  await wearEquippedItemsInTransaction(client, ids, now);
   const cost = computeRaceConditionCost(distanceMeters, care.raceCondition);
   if (ids.length === 0 || (cost.energy === 0 && cost.fatigue === 0)) {
     return;
   }
   const { energyPerHour, fatiguePerHour, maxCreditSeconds, enabled } = care.passiveRecovery;
   const credited = enabled ? creditedSecondsSql('$2', '$3') : '0';
+  const multiplier = stableRecoveryMultiplierSql('$10', '$11');
+  const table = stableRecoveryTable(stable);
   await client.query(
     `UPDATE horses
-        SET energy = GREATEST($6::numeric, LEAST($7::numeric, energy + $4::numeric * ${credited} / ${SECONDS_PER_HOUR}) - $8::numeric),
-            fatigue = LEAST($7::numeric, GREATEST($6::numeric, fatigue - $5::numeric * ${credited} / ${SECONDS_PER_HOUR}) + $9::numeric),
+        SET energy = GREATEST($6::numeric, LEAST($7::numeric, energy + $4::numeric * ${multiplier} * ${credited} / ${SECONDS_PER_HOUR}) - $8::numeric),
+            fatigue = LEAST($7::numeric, GREATEST($6::numeric, fatigue - $5::numeric * ${multiplier} * ${credited} / ${SECONDS_PER_HOUR}) + $9::numeric),
             vitals_recovered_at = $2::timestamptz,
             updated_at = $2::timestamptz
       WHERE id = ANY($1::uuid[])`,
-    [ids, now, maxCreditSeconds, energyPerHour, fatiguePerHour, VITAL_MIN, VITAL_MAX, cost.energy, cost.fatigue],
+    [
+      ids,
+      now,
+      maxCreditSeconds,
+      energyPerHour,
+      fatiguePerHour,
+      VITAL_MIN,
+      VITAL_MAX,
+      cost.energy,
+      cost.fatigue,
+      table.levels,
+      table.multipliers,
+    ],
+  );
+}
+
+/**
+ * EKİPMAN AŞINMASI — koşan atın KUŞANILI ve ömrü sayılan her parçasından 1
+ * yarış düşer; 0'a inen parça aynı ifadede çıkarılır ve `worn_out_at` alır
+ * (kısıt: aşınmış parça kuşanılı kalamaz). Tek atomik ifade: aynı yarış iki
+ * kez kaydedilemediği için (kayıt yolları durum geçişiyle korunur) çift
+ * aşınma olmaz. Kozmetik ve 0096 öncesi parçalar (`NULL`) aşınmaz.
+ */
+export async function wearEquippedItemsInTransaction(
+  client: Pick<PoolClient, 'query'>,
+  horseIds: readonly string[],
+  now: Date,
+): Promise<void> {
+  if (horseIds.length === 0) return;
+  await client.query(
+    `UPDATE horse_equipment
+        SET races_remaining = races_remaining - 1,
+            equipped = (races_remaining - 1) > 0,
+            worn_out_at = CASE WHEN races_remaining - 1 = 0 THEN $2::timestamptz ELSE worn_out_at END
+      WHERE horse_id = ANY($1::uuid[])
+        AND equipped = true
+        AND races_remaining IS NOT NULL
+        AND races_remaining > 0`,
+    [horseIds, now],
   );
 }
 
@@ -60,18 +120,22 @@ export async function recoverHorseVitals(
   client: Pick<PoolClient, 'query'>,
   care: CareConfig,
   now: Date,
+  // 16.10.2026 — ahır geliştirme: sahibin ahır seviyesinin konfor çarpanı.
+  stable: StableConfig,
 ): Promise<number> {
   const { energyPerHour, fatiguePerHour, maxCreditSeconds } = care.passiveRecovery;
   const credited = creditedSecondsSql('$1', '$2');
+  const multiplier = stableRecoveryMultiplierSql('$7', '$8');
+  const table = stableRecoveryTable(stable);
   const result = await client.query(
     `UPDATE horses
-        SET energy = LEAST($5::numeric, energy + $3::numeric * ${credited} / ${SECONDS_PER_HOUR}),
-            fatigue = GREATEST($6::numeric, fatigue - $4::numeric * ${credited} / ${SECONDS_PER_HOUR}),
+        SET energy = LEAST($5::numeric, energy + $3::numeric * ${multiplier} * ${credited} / ${SECONDS_PER_HOUR}),
+            fatigue = GREATEST($6::numeric, fatigue - $4::numeric * ${multiplier} * ${credited} / ${SECONDS_PER_HOUR}),
             vitals_recovered_at = $1::timestamptz
       WHERE status <> 'retired'
         AND (energy < 100 OR fatigue > 0)
         AND vitals_recovered_at < $1::timestamptz`,
-    [now, maxCreditSeconds, energyPerHour, fatiguePerHour, VITAL_MAX, VITAL_MIN],
+    [now, maxCreditSeconds, energyPerHour, fatiguePerHour, VITAL_MAX, VITAL_MIN, table.levels, table.multipliers],
   );
   return result.rowCount ?? 0;
 }

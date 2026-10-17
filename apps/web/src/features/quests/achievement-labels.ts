@@ -10,6 +10,8 @@ const FIRST_TITLES: Partial<Record<AchievementMetric, string>> = {
   race_wins: 'İlk zafer',
   top3_finishes: 'İlk kürsü',
   horse_purchases: 'İlk at alımı',
+  foals_born: 'İlk tay',
+  breedings: 'İlk çiftleştirme',
 };
 
 const COUNT_TITLES: Record<AchievementMetric, (target: number) => string> = {
@@ -19,6 +21,9 @@ const COUNT_TITLES: Record<AchievementMetric, (target: number) => string> = {
   horse_purchases: (n) => `${n} at alımı`,
   player_level: (n) => `Seviye ${n}`,
   friend_count: (n) => `${n} arkadaş edin`,
+  career_points: (n) => `${n} kariyer puanı`,
+  breedings: (n) => `${n} çiftleştirme`,
+  foals_born: (n) => `${n} tay`,
 };
 
 export function achievementTitle(metric: AchievementMetric, target: number): string {

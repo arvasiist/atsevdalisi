@@ -1,10 +1,19 @@
 import { Inject, Injectable } from '@nestjs/common';
 import type { StableSummaryView } from '@at-sevdalisi/shared-types';
-import { getNextStableUpgradeOffer, getStableCapacity, summarizeStable } from '../../domain/stable/stable';
+import {
+  getMaxDefinedStableLevel,
+  getNextStableUpgradeOffer,
+  getStableCapacity,
+  getStableName,
+  getStableRecoveryBonusPercent,
+  listStableLevels,
+  summarizeStable,
+} from '../../domain/stable/stable';
 import { PlayerNotFoundError } from '../../domain/player/errors';
 import { AppConfigService } from '../../infrastructure/config/config.service';
 import { HORSE_REPOSITORY, type HorseRepository } from '../ports/horse.repository';
 import { PLAYER_REPOSITORY, type PlayerRepository } from '../ports/player.repository';
+import { STABLE_LAYOUT_REPOSITORY, type StableLayoutRepository } from '../ports/stable-layout.repository';
 
 /**
  * FAZ 1 wiring, üçüncü dilim — brief §38 "Ahır Özeti" (Ana Sayfa kartı),
@@ -20,6 +29,7 @@ export class GetStableSummaryUseCase {
     @Inject(PLAYER_REPOSITORY) private readonly playerRepository: PlayerRepository,
     @Inject(HORSE_REPOSITORY) private readonly horseRepository: HorseRepository,
     @Inject(AppConfigService) private readonly config: AppConfigService,
+    @Inject(STABLE_LAYOUT_REPOSITORY) private readonly layoutRepository: StableLayoutRepository,
   ) {}
 
   async execute(playerId: string): Promise<StableSummaryView> {
@@ -45,6 +55,11 @@ export class GetStableSummaryUseCase {
       stableLevel: player.stableLevel,
       ...summary,
       nextUpgrade: getNextStableUpgradeOffer(player.stableLevel, this.config.stable),
+      stableName: getStableName(player.stableLevel, this.config.stable),
+      recoveryBonusPercent: getStableRecoveryBonusPercent(player.stableLevel, this.config.stable),
+      levels: listStableLevels(this.config.stable),
+      stalls: (await this.layoutRepository.findStalls(playerId, this.config.stable)).stalls,
+      maxStalls: getStableCapacity(getMaxDefinedStableLevel(this.config.stable), this.config.stable),
     };
   }
 }

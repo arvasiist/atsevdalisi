@@ -1,6 +1,6 @@
 # AT SEVDALISI MASTER STATUS
 
-> Son güncelleme: 16.10.2026 · Dal: `claude/project-review-gaps-j1hb2l` (PR #2)
+> Son güncelleme: 17.10.2026 · Dal: `claude/project-review-gaps-j1hb2l` (PR #3)
 > Kaynak: KOD (migration, use-case, controller, ekran, test) — belgeler değil.
 > Ayrıntılı tarihçe `PROJE_DURUMU.md` §13'te (13.1–13.102); bu dosya brief'in
 > istediği özet sözleşmedir. Sınıflar: NOT_STARTED · PLANNED · PARTIAL ·
@@ -16,6 +16,98 @@
 > Kökteki `AUDIT_REPORT.md` (14.09.2026 güvenlik/kalite denetimi) ve
 > `docs/AUDIT_REPORT.md` (3D brief Phase 0 boşluk analizi) **tarihli
 > anlık görüntülerdir**; bugünkü durum için bu dosyaya bakılır.
+
+## Brief 16.10.2026 — Kapsamlı oyun geliştirme (§2–§8, koddan doğrulandı)
+
+"Durum" denetim anındaki durumdur (kod + test okunarak); "Sonuç" bu brief
+kapsamında yapılan iştir. 3D işi kapsam dışı (brief kuralı 7). Brief metni §9'un
+("Uluslararası hipodrom sistemi") ortasında kesik geldi; §9 ve sonrası bekliyor.
+
+| § | Konu | Durum (denetim) | Kanıt / açık | Sonuç |
+|---|---|---|---|---|
+| 2 | Giriş → kendi ahırı, ahır ana merkez, tam ekran | TESTED | `HOME_FOR_PLAYERS`, `.stable3d-full`, `orientation-layout.spec.ts` | değişmedi |
+| 2 | Üst menü yalnızca Ana Sayfa/Ahır/Antrenman/Bakım | TESTED | `nav-links.ts`, `top-bar-nav.spec.ts` | değişmedi |
+| 2 | Gerçek veri: at, kapasite, bakım, kondisyon, enerji, yaklaşan yarışlar | TESTED | `/stable` (vital çubukları, `Kapasite`), `PlayerOverview` "Yaklaşan Yarışlar" | değişmedi |
+| 2 | Boş ahır / ilk at alma akışı | PARTIAL | son at pazarda satılabiliyor → ahır boş kalabiliyor; boş ahırda yalnızca "at bulunamadı" yazıyor, at alma yolu yok | ✅ K2: boş ahırda Irk mağazası + At pazarı düğmeleri |
+| 2 | Onboarding | TESTED | `OnboardingPanel`, `onboarding.e2e-spec.ts` | değişmedi |
+| 2 | Çip/elmas "+" → satın alma | TESTED | `TOP_UP_HREF`, `top-bar-nav.spec.ts` (gerçek ödeme sağlayıcısı YOK) | değişmedi |
+| 2 | "Verilerimi indir" kaldırıldı | TESTED | `/account` | değişmedi |
+| 3 | Satın alma, sahiplik, ad/ırk/cinsiyet/yaş/seviye/soy | TESTED | ırk mağazası, pazar (sabit + müzayede), `PedigreeTree` | değişmedi |
+| 3 | Hız, dayanıklılık, sprint statları sahibine görünür | NOT_STARTED | `PublicHorse` stat taşımıyor; sahibi kendi atının statlarını hiçbir ekranda göremiyor (potansiyel gizli kalmalı) | ✅ K2 TESTED: sahibinin listesinde 8 görünür stat, kartta ızgara; gizli kişilik + potansiyel sızmaz (`horse-career.e2e-spec.ts`) |
+| 3 | Enerji/sağlık/moral/yorgunluk, XP/seviye, yaşlanma, emeklilik, dinlenme/hazırlık | TESTED | `race-condition`, `race-age`, `horse-retirement` e2e | değişmedi |
+| 3 | Satış / transfer | IMPLEMENTED | pazar + müzayede; doğrudan at transferi bilinçli YOK (çoklu hesap değer aktarımı) | değişmedi |
+| 3 | At profili + geçmiş (yarışlar, dereceler, kazanç) | NOT_STARTED | atın yarış geçmişi/kazanç ucu yok (`findRecentResultsByHorseId` yalnızca iç kullanım) | ✅ K2 TESTED: `GET /horses/:id/career` (kazanç defterden), kartta "Kariyer ve Geçmiş" (`horse-career.e2e-spec.ts`, web `horse-profile.spec.ts`) |
+| 3 | Ekonomik değer tek skordan değil | IMPLEMENTED | `calculateMarketValue` (kalite, potansiyel, yaş, yarış geçmişi, sağlık; soy puanı `null`) | değişmedi |
+| 4 | Ayrı çiftleştirme merkezi | PARTIAL | `BreedingPanel` ahırın içinde; damızlık listesi `GET /breeding/studs` | ✅ K3 TESTED: `/breeding` Çiftleştirme Merkezi (kurallar, takvim, teklifler, ilanlar, arama) — web `BreedingCenter.spec.tsx` |
+| 4 | Aygır sahibi kendi ücretiyle ilan verir | NOT_STARTED | ücret formülden (`calculateStudFee`), ilan kavramı yok — emekli her aygır listede | ✅ K3 TESTED: `stud_listings`, sahip ücreti formül × [0,5–3] (`breeding-center.e2e-spec.ts`) |
+| 4 | Kısrak sahibi teklif gönderir, aygır sahibi kabul/ret | NOT_STARTED | çiftleştirme tek tuş, aygır sahibinin onayı YOK | ✅ K3 TESTED: teklif → kabul/ret/iptal, ırk + azami ücret süzgeci |
+| 4 | Anlaşmasız çiftleştirme yapılamaz | BROKEN (brief kuralına göre) | `POST /players/:id/breeding` başkasının aygırıyla anında tay üretiyor | ✅ K3 TESTED: 409 `BREEDING_REQUIRES_AGREEMENT` (`breeding.e2e-spec.ts`) |
+| 4 | Ücret/ödeme zamanı/iptal/iade, çift kabul/ödeme engeli, geçmiş | PARTIAL | ücret anında düşer (defter + bildirim var); iptal/iade/teklif geçmişi yok | ✅ K3 TESTED: emanet + tam iade yolları, eşzamanlı çift kabulde tek kabul, defter mutabakatı, iki tarafın geçmişi, hesap silme engeli |
+| 5 | Doğurganlık özelliği | NOT_STARTED | `horses` doğurganlık sütunu yok | ✅ K4 TESTED: `horses.fertility` (eski atlar tek seferlik türetildi, yeni at `deriveFertility`, tay kalıtımla) |
+| 5 | Döllenme olasılığı < %100 | NOT_STARTED | her çiftleştirme tay verir | ✅ K4 TESTED: olasılık doğurganlık + sağlık + yaş, [%10, %95]; tutmayan deneme kısrağı dinlendirir |
+| 5 | Gebelik süresi (config, ≈ gerçeğin 1/5'i ≈ 67 gün), takvim, kalan süre | NOT_STARTED | tay ANINDA doğuyor | ✅ K4 TESTED: `gestation` 335 × 0,2 = 67 gün, takvim + kalan süre ekranda |
+| 5 | Gebelikte bakım/beslenme/veteriner, risk takibi | NOT_STARTED | — | ✅ K4 TESTED: ücretli veteriner kontrolü (haftalık) + beslenme günü → doğum riski × [0,6–1,6], risk düzeyi ekranda |
+| 5 | Tek tay, yeniden başlatmaya dayanıklı, istemci saatinden bağımsız, çift doğum yok | PARTIAL | tek tay + tek transaction var; zamanlanmış doğum yok | ✅ K4 TESTED: `BreedingScheduler` (lider kilidi), eşzamanlı iki tur tek tay, ikinci uygulama örneği doğurur |
+| 6 | Kalıcı ebeveyn bağı, görsel soy ağacı | TESTED | `pedigrees`, `GET /horses/:id/pedigree`, `PedigreeTree` | değişmedi |
+| 6 | Ataların yarış/yetiştirme başarıları | NOT_STARTED | soy ağacı yalnızca ad gösteriyor | ✅ K2 TESTED: `recordsById` — her atanın koşu/birincilik/kazanç/tay özeti ağaçta |
+| 6 | Dengeli kalıtım, test edilebilir rastgelelik, kardeşler farklı | TESTED | `genetics.config.json` (`inheritanceRange`, `mutationBounds`, potansiyel tavanı), tohum = çift kimliği, `genetics.spec.ts` | değişmedi |
+| 7 | Tay evreleri oyun zamanına bağlı, yetişkin yarışına yaş şartı | TESTED | `horse-growth.config.json` evreleri, `race.readiness.minAgeMonths`, `race-age.e2e-spec.ts` | değişmedi |
+| 7 | Tay yemi / bakım ürünleri, yetiştirmenin performansa dengeli etkisi, tay maliyeti | NOT_STARTED | tay yemi yok; tayın büyütülmesi statlara etki etmiyor | ✅ K5 TESTED: `tay_yemi` (yalnızca tay/gelişim), besleme başına bir yarış statına +0,5 kalıcı (sıra config, ömür boyu 16, tavan = potansiyel), ahır kartında ilerleme + kalan maliyet (`feed-categories.e2e-spec.ts`, `feed-catalog.spec.ts`) |
+| 8 | Nal: standart/hafif/dayanıklı/zemine özel, ömür + değişim | PARTIAL | 3 kalite nal var; ömür, aşınma, zemin farkı yok | ✅ K6 TESTED: demir/dayanıklı çelik/alüminyum/titanyum + çim/toprak/sentetik nalı; kuşanılı parça her yarışta 1 aşınır, 0'da çıkar, yeniden kuşanılamaz (409 `EQUIPMENT_WORN_OUT`); zemine özel nal yalnızca kendi zemininde bonus (migration 0096, `equipment-durability.e2e-spec.ts`) |
+| 8 | Eyer: yarış/antrenman, ağırlık/dayanıklılık, örtü/aksesuar | PARTIAL | 3 kalite eyer; antrenman eyeri antrenmana etki etmiyor | ✅ K6 TESTED (dayanıklılık): antrenman eyeri 40, yarış eyeri 25, şampiyon 15 yarış dayanır. ⚠️ Ağırlık modellenmedi (motor ekipman ağırlığını okumaz, uydurulmadı); eyer antrenmana etki etmez |
+| 8 | Aksesuar (yular, örtü, battaniye, bandaj, fırça, isimlik, koleksiyon) | PARTIAL | dizgin + göz siperi + bandaj var; kozmetik aksesuar yok | ✅ K6 TESTED: yular, örtü/battaniye, isimlik, koleksiyon (fırça seti, rozet, kupa replikası) — kozmetik, nadirlikli, aşınmaz, yarışa etkisi YOK. ⚠️ 3D'de çizilmez (yeni 3D işi yapılmadı) |
+| 8 | Yem: standart, yulaf, enerji, kondisyon, tay; kalite/fiyat, stok, plan | PARTIAL | saman/arpa/mama/havuç/vitamin stoklu; yulaf, kondisyon yemi, tay yemi, besleme planı yok | ✅ K5 TESTED: yulaf, enerji yemi, kondisyon yemi, tay yemi; kategori + kalite kademesi; `/shop` (Market) ilk kez yem satın alma ekranı (stok, fiyat, koşul). ⚠️ Ayrı "besleme planı" yok — günlük sınır + stok gösterilir |
+| 8 | İlaç/takviye, veteriner kontrolü, sağlık kuralı yarışa etki | PARTIAL | bakımda `vet` var; envanterden ilaç/takviye ve yarışa etkisi yok | ✅ K5 TESTED: elektrolit, eklem takviyesi, ağrı kesici (son 24 saatte veteriner şartı, 409 `FEED_REQUIRES_VET_CHECK`); sağlık mevcut hazırlık kapısıyla yarış girişine etki eder |
+| 8 | Teknik: tekil kimlik/fiyat/kategori, merkezi config, sunucu doğrulaması, atomik bakiye + envanter, çift alım yok, alım geçmişi | TESTED | `equipment.config.json` + `validateEquipmentConfig`, `Idempotency-Key`, `equipment_purchase`/`feed_purchase` defteri | değişmedi |
+| 8 | Kozmetik ile performans ayrı; pahalı ürün otomatik kazandırmaz | PARTIAL | performans tavanı ×1,05 (`performance.ts`); kozmetik ekipman kategorisi yok | ✅ K6 TESTED: kategori TİPTEN türer (config kozmetiği performansa sokamaz), kozmetik kalitesi 0 + çarpandan elenir, tavan ×1,05 testli (`performance.spec.ts`) |
+| 9 | Uluslararası hipodromlar (ülke/şehir) | PARTIAL | 5 Türk hipodromu (`hippodromes.config.json`, migration 0072) | ✅ F5-H1 (migration 0098) — bkz. §9–§24 tablosu |
+
+**Bilinen çelişki (sahibinin dikkatine):** gebelik ≈ 67 gerçek gün, mevcut
+"1 gerçek gün = 1 oyun ayı" kuralıyla birlikte kısrağın bir gebelikte ~67 oyun
+ayı (5,5 yaş) yaşlanması demek. Üreme penceresi 36–180 oyun ayı olduğu için bir
+kısrak ömründe en fazla ~2 tay verir (`lifetimeFoalLimit.mare = 5`e
+ulaşılamaz). İki değer de config'te; hangisinin değişeceği sahibinin kararı.
+
+## Brief 16.10.2026 (devam) — §9–§24 denetimi (koddan doğrulandı)
+
+§2–§8 yukarıdaki tabloda. Durum = denetim anı; "Sonuç" bu brief kapsamında
+yapılan iş. Sıra brief §25 fazlarıdır (FAZ 1–4 = K1–K6 + ahır geliştirme/
+bölmeler).
+
+| § | Konu | Durum | Kanıt / açık | Sonuç |
+|---|---|---|---|---|
+| 9 | Ülke/şehir düzeni, pist türü/zemin/mesafe/koşul | TESTED | ülke/şehir/zemin/mesafe/masa config'te; yarış açarken `hippodromeRaceProblems` (400) — `hippodromes.spec.ts`, `hippodrome.e2e-spec.ts` | F5-H1 ✅ |
+| 9 | Yerel/bölgesel/ulusal/uluslararası seviye, prestij, erişim | TESTED | seviye + prestij + pistin masaları (F5-H1); erişim = kariyer kademesi, katılım/açma 409 `CAREER_TIER_LOCKED` (`career.e2e-spec.ts`) | F5-H1 + H2 ✅ |
+| 9 | ABD / Fransa / Dubai pistleri | IMPLEMENTED | Kentucky, Paris, Dubai (migration 0098) — markalı tesis adı KULLANILMADI (hak doğrulanmadı) | F5-H1 ✅ |
+| 9 | Merkezi yapılandırmayla pist ekleme | IMPLEMENTED | `hippodromes.config.json` + migration satırı (`hippodromes.spec.ts`) | korunur |
+| 9 | Gerçek isim/görsel hakları | NOT_VERIFIED | hukuki konu; görseller prosedürel (gerçek fotoğraf YOK) | sahibine bildirilecek |
+| 9 | Pist takvimi, farklı mesafe/sınıf | TESTED | her programın pisti var (`race-calendar.spec.ts` pist kuralını dener); `GET /hippodromes` sıradaki saatleri zamanlayıcının fonksiyonuyla verir (`hippodrome-catalog.spec.ts`) | F5-H1 ✅ |
+| 9 | Zemin/mesafe motora bağlı, uygunluk ön kontrolü | TESTED | motor `surface`/`distanceCategory`, snapshot zemin/mesafe uyumu; hazırlık + ırk/seviye kapıları | değişmedi |
+| 9 | Giriş ücreti / ödül yapılandırılabilir | TESTED | masa kuralları (`table-rules.spec.ts`); pist hangi masaları ağırladığını config'te seçer (çarpan YOK — ikinci ücret kaynağı açmamak için) | F5-H1 ✅ |
+| 10 | Kariyer kademeleri, puanla ilerleme, giriş koşulları, kariyer ekranı + sıradaki hedef | TESTED | 6 kademe (Yerel → Büyük Şampiyona), puan bitmiş yarışlardan TÜRETİLİR, kademe masaları + yurt dışı pistlerini açar, kademe ödülü başarım (`career_points`); `GET /career` + `/career` (geçmiş, puan tablosu, sıradaki hedef) — `career.spec.ts`, `career.e2e-spec.ts`, web `career-view.spec.ts` | F5-H2 ✅ |
+| 10 | Seyahat/nakliye | EVALUATED | bekleme YOK (pist kademeyle açılır, hemen katılınır); ayrı nakliye ücreti YOK (masa bedeli zaten pist seviyesiyle artıyor — ikinci ücret kaynağı açmamak için); toparlanma bedeli mesafeyle zaten ölçekli | karar belgelendi |
+| 11 | Hemen Katıl, uygun yarışlar, mesafe/pist/zemin/ücret/ödül | TESTED | `pickQuickJoinRace`, `LobbyPanel` hipodrom/zemin/mesafe | değişmedi |
+| 11 | Gerçek/AI ayrımı, 8–16 saha, kayıt→kesinleşme, kalıcı sonuç, çift ödül yok, determinizm, iptal/kopma/yeniden başlatma | TESTED | `race-field-rule.e2e`, `race-engine` SHA kilidi, `settle` durum geçişi, §13.27 testleri | değişmedi |
+| 12 | Kazananlar tablosu (kronolojik, sayfalı, tarih filtreli) | TESTED | `GET /leaderboard/winners` + `/leaderboard` "Son Kazananlar": yalnızca gerçek oyuncunun kazandığı bitmiş lobi/takvim/turnuva yarışı, tamamlanma anı (başlangıç + derece, eşitlikte yarış kimliği), imleçli sayfa, `[from, to)`; ödül defterden — `race-winners.spec.ts`, `race-winners.e2e-spec.ts` (gerçek kesinleşmiş yarış dahil), web `race-winners.spec.ts` | F5-H3 ✅ |
+| 13 | Jokey işe alma/beceri/uyum/form | TESTED | `jockey.e2e`, uyum + form/yorgunluk | değişmedi |
+| 13 | Antrenör işe alma, maaş (peşin sözleşme), aşırı antrenman (yorgunluk/sakatlık) | TESTED | `staff.e2e`, antrenman enerji/yorgunluk | değişmedi |
+| 13 | Antrenör uzmanlıkları / geliştirme | TESTED | uzmanlık = antrenman tipi (eşleşende bonus ×1,5, diğerinde ×0,75, eski/genel antrenör ×1); seans başına deneyim, 20 seansta beceri +1 (tavan 95); `/staff` uzmanlık + gelişim satırı, antrenman sonucu "uzmanlık alanı"/"gelişti" — `staff.spec.ts` (+4), `staff.e2e-spec.ts` (+2), web `training-labels.spec.ts` | F7c ✅ |
+| 14 | Sağlık/bakım/veteriner/sakatlık/gebelik kontrolü/yarış öncesi denetim, sunucu otoritesi | TESTED | bakım + hazırlık kapısı + gebelik veteriner kontrolü | değişmedi |
+| 14 | Beslenme/su ihtiyacı | TESTED | son yem/sudan TÜRETİLİR (sayaç yok; migration 0102 çıpası, mevcut atlar tok başladı): yem 24 sa, su 12 sa → "zamanı geldi" → "acil"; antrenman kazancı en kötü ihtiyacın çarpanıyla (×0,9 / ×0,75; motor dışı); ahır kartı rozetleri + antrenman uyarısı — `needs.spec.ts`, `horse-needs.e2e-spec.ts`, web `horse-needs.spec.ts` + Chromium | §14 ✅ |
+| 15 | İlan, fiyat, müzayede, teklif geçmişi, sahiplik kontrolü, tek işlem devir, çift satış engeli | TESTED | `market.e2e`, `auction` e2e | değişmedi |
+| 16 | Arkadaş, 5'in katı arkadaş başarımı (100 çip, tek sefer), hediye/toplu alma, kulüp, sohbet | TESTED | `friend-gift`, başarım PK, kulüp e2e | değişmedi |
+| 17 | Tribün hediyesi (alıcı/yarış/at doğrulaması, spam sınırı, sonuca etkisiz) | TESTED | `tribune-gift.e2e` | değişmedi |
+| 17 | Brief'in hediye listesi (yonca, kurdele, havuç demeti, çelenk) | TESTED | katalog: Havuç Demeti, yonca 🍀, elma, nazar, kurdele 🎀, Altın Nal, gül çelengi, kupa (migration 0100; `tribune-gift.spec.ts` kısıtı config'le kıyaslar) | F7 ✅ |
+| 17 | Gelen hediyeleri toplu alma | TESTED | pay hediye kutusunda bekler, `POST /tribune-gifts/collect` tek defter satırıyla öder (migration 0101; eski satırlar toplanmış sayıldı); `/wallet` "Hediye Kutusu" — `tribune-gift.e2e-spec.ts` (kutu, toplama, tekrar sıfır, eşzamanlı iki toplama tek ödeme, satılan atta koşturana) + Chromium ekran görüntüsü | F7b ✅ |
+| 18 | Günlük/haftalık görev, başarım, sezon, tek sefer ödül, config | TESTED | `quests`, `achievements`, `season` e2e | değişmedi |
+| 18 | Çiftleştirme/tay yetiştirme görevleri | TESTED | ölçüt `breedings` (döllenme) + `foals_born` (doğum), gebelik satırından türetilir (sayaç yok); haftalık `weekly-breed-1`, başarım `first-foal`/`foals-5` (migration 0099; `breeding-quests.e2e-spec.ts`: başarısız deneme sayılmaz, doğum sonrası görev + başarım ödenir) | F7 ✅ |
+| 19 | Kapasite, geliştirme, yem/bakım/personel/yarış giderleri | TESTED | ahır geliştirme + defter | değişmedi |
+| 19 | Günlük/aylık gelir-gider raporu ekranı | TESTED | `GET /players/:id/wallet/report` + `/wallet` "Gelir-Gider" (dönem çubukları + kategori tablosu); kaynak yalnızca çip defteri, kanonik aile cüzdanla aynı — `economy-report.spec.ts`, `economy-report.e2e-spec.ts` (başkası 403, bozuk dönem 400, toplam = defter), web `economy-report.spec.ts` | F6 ✅ |
+| 20–21 | Sunucu bakiyesi, atomik işlem, idempotency, denetim kaydı, negatif bakiye yok, oturum/yetki/hız sınırı, gizli anahtar | TESTED | para yolu kuralları, `phase16-hardening`, gitleaks | değişmedi |
+| 22 | Tablolar, indeksler, kısıtlar, zamanlayıcılar (lider kilidi), yeniden başlatma güvenliği | TESTED | migration 0001–0097, zamanlayıcı testleri | yeni tablolar fazlarla |
+| 23 | Hipodrom/takvim ekranı, kazananlar ekranı | IMPLEMENTED | `/hippodromes`, `/career`, `/leaderboard` → Son Kazananlar; Chromium'da masaüstü + yatay telefon ekran görüntüsüyle konsol hatasız görüldü | F5 ✅ |
+| 24 | Birim/API/migration/eşzamanlılık/yeniden başlatma/ekonomi testleri, CI | TESTED | API 263 dosya / 3099 test (temiz şema, 17.10.2026), web 106 / 811, GitHub Actions | her dilimde |
+| 26 | Faz sonu raporu, açıklar gizlenmeden | IMPLEMENTED | `PROJE_DURUMU.md` 13.115–13.116 (F5–F8); açık: pist adı/görsel hakları, beslenme "açlık" durumu, gebelik süresi ölçeği — sahibinin kararı | F8 ✅ |
 
 ## Brief 16.10.2026 — Sosyal + çip ekonomisi (koddan doğrulandı)
 
@@ -168,6 +260,14 @@ kimlikten determinist; etkisi antrenmanda; sahibine yalnızca ETİKET gösterili
 
 Ahır seviyesi/kapasitesi, yükseltme (para yolu), tam ekran 3D ahır sahnesi
 (prosedürel yedek + PLACEHOLDER rozeti), bakım/ekipman sahnenin içinde.
+16.10.2026 — ahır geliştirme: 10 seviye (ad, kapasite, konfor = zamanla
+toparlanma hızı, oyuncu seviyesi şartı), sahnede "Ahırı Geliştir" paneli +
+seviye yol haritası (`stable-development.e2e-spec.ts`). 3D ahır seviyeyle
+görsel olarak DEĞİŞMEZ (yeni 3D işi yapılmadı).
+16.10.2026 — ahır bölmeleri (migration 0097): her atın kalıcı bölmesi; sahnede
+yan bölmelerde komşu atlar + "+ At al" / kilitli bölme düğmeleri; "Bölmeler"
+paneliyle taşı/yer değiştir (`stable-stalls.e2e-spec.ts`, tarayıcıda ekran
+görüntüsüyle doğrulandı: masaüstü + telefon yatay).
 
 ## Training Status — TESTED
 

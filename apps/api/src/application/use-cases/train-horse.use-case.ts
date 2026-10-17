@@ -19,6 +19,7 @@ import { computePersonalityTrainingEffects } from '../../domain/horse/personalit
 import { applyVitalDelta } from '../../domain/horse/vital-signs';
 import { applyXpGain } from '../../domain/progression/progression';
 import { ManageStaffUseCase } from './manage-staff.use-case';
+import { computeHorseNeeds, hungerFeedTypes, toHorseNeedsView } from '../../domain/care/needs';
 import { FarmEffectsService } from './farm-effects.service';
 import {
   applyTraining,
@@ -96,9 +97,18 @@ export class TrainHorseUseCase {
     const currentStatValue: number = statKey === null ? 0 : stats[statKey];
     const now = new Date();
     // 01.10.2026 — antrenör etkisi (domain/staff). Süresi dolmuş antrenör 1 (nötr) döner.
-    const trainerFactor = await this.staff.multiplierFor(horse.ownerId, 'trainer', now);
+    // 17.10.2026 (brief §13) — uzmanlık antrenman tipine göre: en iyi antrenör tipe göre seçilir.
+    const { multiplier: trainerFactor, trainer } = await this.staff.trainerFor(horse.ownerId, input.type, now);
     // 01.10.2026 — antrenman pisti × nalbant alanı sakatlık olasılığını düşürür.
     const { trainingInjuryRiskMultiplier } = await this.farmEffects.effectsFor(horse.ownerId);
+    // 17.10.2026 (brief §14) — yem/su ihtiyacı: aç/susuz at daha az gelişir
+    // (son beslenme/sudan türetilir; karşılanmışsa çarpan 1 = eski davranış).
+    const needTimes = (
+      await this.horseStatsRepository.findNeedTimestampsByHorseIds([horseId], hungerFeedTypes(this.config.care))
+    ).get(horseId);
+    const needs = needTimes
+      ? computeHorseNeeds(needTimes, now, this.config.care.needs)
+      : computeHorseNeeds({ lastFedAt: null, lastWateredAt: null, anchorAt: now }, now, this.config.care.needs);
     // 08.10.2026 — atın kişiliği (gizli statlar): odak/rekabetçilik → kazanç,
     // stres dayanımı → yorgunluk, itaat → sakatlık. Nötr (50) at = çarpanlar 1.
     const personality = computePersonalityTrainingEffects(stats, input.intensity, this.config.horsePersonality);
@@ -134,6 +144,7 @@ export class TrainHorseUseCase {
         ageMonths,
         trainerFactor,
         personalityFactor: personality.gainMultiplier,
+        needsFactor: needs.trainingFactor,
       });
       // Yorgunluk çarpanı yalnızca ARTIŞA uygulanır; dinlenmenin (negatif)
       // toparlaması kişilikle değişmez. Sütun NUMERIC(5,2): yanıt, DB'ye
@@ -210,6 +221,14 @@ export class TrainHorseUseCase {
       createdAt: now.toISOString(),
     });
 
+    // 17.10.2026 (brief §13 "geliştirme") — seansı veren antrenör deneyim
+    // kazanır (dinlenme antrenman değildir). Atomik tek UPDATE; antrenmanın
+    // kendisi gibi para yolu değildir.
+    const trainerDevelopment =
+      trainer !== null && input.type !== 'rest'
+        ? await this.staff.recordTrainerSession(trainer.id, horse.ownerId, now)
+        : null;
+
     // Oyuncu XP'si (01.10.2026). Antrenman bir para yolu değildir ve atın
     // yazımı yukarıda ayrı bir kilitte tamamlandı; oyuncu satırı kendi
     // kilidiyle güncellenir (eşzamanlı iki antrenman XP'yi ezmesin diye).
@@ -240,6 +259,19 @@ export class TrainHorseUseCase {
         fitness: newVitals.fitness,
       },
       staffMultiplier: trainerFactor,
+      needs: toHorseNeedsView(needs),
+      trainer:
+        trainer === null
+          ? null
+          : {
+              staffId: trainer.id,
+              name: trainer.name,
+              specialization: trainer.specialization,
+              specializationMatched: trainer.specialization !== null && trainer.specialization === input.type,
+              skill: trainerDevelopment?.skill ?? trainer.skill,
+              experience: trainerDevelopment?.experience ?? trainer.experience,
+              skillGained: trainerDevelopment !== null && trainerDevelopment.skill > trainer.skill,
+            },
     };
   }
 }

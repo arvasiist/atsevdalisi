@@ -107,12 +107,81 @@ export function assertContractActive(staff: Pick<Staff, 'id' | 'contract'>, now:
  * TEK bir genel [1, 1+maxBonus] çarpanı üretilir. Düşük moralde
  * (`moraleSalaryPenaltyThreshold` altı) bonus zayıflar.
  */
-export function calculateStaffBonusMultiplier(staff: Pick<Staff, 'role' | 'skill' | 'morale'>, config: StaffConfig): number {
+export function calculateStaffBonusMultiplier(
+  staff: Pick<Staff, 'role' | 'skill' | 'morale'> & { specialization?: string | null },
+  config: StaffConfig,
+  /** 17.10.2026 — antrenörde antrenman tipi (verilmezse uzmanlık uygulanmaz: genel görünüm). */
+  focus?: string | null,
+): number {
   const maxBonus = config.maxBonusMultiplierByRole[staff.role] ?? 0;
   const rawBonus = (staff.skill / 100) * maxBonus;
   const effectiveBonus =
     staff.morale < config.moraleSalaryPenaltyThreshold ? rawBonus * config.lowMoraleBonusPenaltyMultiplier : rawBonus;
-  return 1 + effectiveBonus;
+  const specialty = staff.role === 'trainer' ? trainerSpecialtyFactor(staff.specialization ?? null, focus, config) : 1;
+  return 1 + effectiveBonus * specialty;
+}
+
+/**
+ * 17.10.2026 (brief §13 "uzmanlıklar") — antrenörün bonus PAYINA uygulanan
+ * uzmanlık çarpanı. Uzmanlığı olmayan (genel; 17.10.2026 öncesi bütün
+ * antrenörler) ya da tipi bilinmeyen çağrı ×1 — eski davranış BİREBİR.
+ */
+export function trainerSpecialtyFactor(
+  specialization: string | null,
+  focus: string | null | undefined,
+  config: StaffConfig,
+): number {
+  if (specialization === null || focus === null || focus === undefined) return 1;
+  return specialization === focus ? config.trainer.matchBonusFactor : config.trainer.offSpecialtyBonusFactor;
+}
+
+/**
+ * 17.10.2026 (brief §13 "geliştirme") — antrenörün bir seanstan sonraki hâli:
+ * deneyim +1; her `experiencePerSkillPoint` seansta beceri +1, en fazla
+ * `maxDevelopedSkill` (tavanı zaten aşmış beceri düşmez). Saf; SQL'deki atomik
+ * güncelleme (`recordTrainerSession`) BU kuralın aynısıdır (`staff.spec.ts`).
+ */
+export function developTrainer(
+  staff: Pick<Staff, 'skill' | 'experience'>,
+  config: StaffConfig,
+): Pick<Staff, 'skill' | 'experience'> {
+  const experience = staff.experience + 1;
+  const levelUp = experience % config.trainer.experiencePerSkillPoint === 0 && staff.skill < config.trainer.maxDevelopedSkill;
+  return { experience, skill: levelUp ? Math.min(staff.skill + 1, config.trainer.maxDevelopedSkill) : staff.skill };
+}
+
+/** Antrenörün bir sonraki beceri artışına kalan seans; tavanda ya da diğer rollerde `null`. */
+export function sessionsToNextSkill(
+  staff: Pick<Staff, 'role' | 'skill' | 'experience'>,
+  config: StaffConfig,
+): number | null {
+  if (staff.role !== 'trainer' || staff.skill >= config.trainer.maxDevelopedSkill) return null;
+  const step = config.trainer.experiencePerSkillPoint;
+  return step - (staff.experience % step);
+}
+
+/** Açılış denetimi: uzmanlıklar gerçek antrenman tipleri (dinlenme hariç), çarpanlar tutarlı. */
+export function validateTrainerConfig(config: StaffConfig, trainingTypes: readonly string[]): string[] {
+  const problems: string[] = [];
+  const trainer = config.trainer;
+  const seen = new Set<string>();
+  for (const key of trainer.specializations) {
+    if (key === 'rest' || !trainingTypes.includes(key)) problems.push(`uzmanlık "${key}" bir antrenman tipi değil.`);
+    if (seen.has(key)) problems.push(`uzmanlık "${key}" tekrar ediyor.`);
+    seen.add(key);
+  }
+  if (trainer.specializations.length === 0) problems.push('uzmanlık listesi boş.');
+  if (!(trainer.matchBonusFactor >= 1)) problems.push('matchBonusFactor ≥ 1 olmalı.');
+  if (!(trainer.offSpecialtyBonusFactor > 0 && trainer.offSpecialtyBonusFactor <= 1)) {
+    problems.push('offSpecialtyBonusFactor (0, 1] aralığında olmalı.');
+  }
+  if (!Number.isInteger(trainer.experiencePerSkillPoint) || trainer.experiencePerSkillPoint < 1) {
+    problems.push('experiencePerSkillPoint pozitif tam sayı olmalı.');
+  }
+  if (!Number.isInteger(trainer.maxDevelopedSkill) || trainer.maxDevelopedSkill < 0 || trainer.maxDevelopedSkill > 100) {
+    problems.push('maxDevelopedSkill 0–100 arası tam sayı olmalı.');
+  }
+  return problems;
 }
 
 /** Bu ayki maaş borcu (brief §31 gider kalemi "Personel"). */
@@ -180,15 +249,32 @@ export function renewContract(contract: StaffContract, config: StaffConfig, now:
  * "Bonuslar kontrollü olmalıdır").
  */
 export function bestActiveStaffMultiplier(
-  staffList: ReadonlyArray<Pick<Staff, 'role' | 'skill' | 'morale' | 'contract'>>,
+  staffList: ReadonlyArray<Pick<Staff, 'role' | 'skill' | 'morale' | 'contract'> & { specialization?: string | null }>,
   role: StaffRole,
   config: StaffConfig,
   now: Date = new Date(),
+  focus?: string | null,
 ): number {
-  let best = 1;
+  return bestActiveStaff(staffList, role, config, now, focus)?.multiplier ?? 1;
+}
+
+/**
+ * 17.10.2026 — en iyi ETKİN personel ve çarpanı (antrenörde antrenman tipine
+ * göre: uzmanlık hangi antrenörün "en iyi" olduğunu değiştirebilir). Yoksa
+ * `null`. Eşitlikte listedeki ilk personel (deterministik).
+ */
+export function bestActiveStaff<T extends Pick<Staff, 'role' | 'skill' | 'morale' | 'contract'> & { specialization?: string | null }>(
+  staffList: ReadonlyArray<T>,
+  role: StaffRole,
+  config: StaffConfig,
+  now: Date = new Date(),
+  focus?: string | null,
+): { staff: T; multiplier: number } | null {
+  let best: { staff: T; multiplier: number } | null = null;
   for (const staff of staffList) {
     if (staff.role === role && !isContractExpired(staff.contract, now)) {
-      best = Math.max(best, calculateStaffBonusMultiplier(staff, config));
+      const multiplier = calculateStaffBonusMultiplier(staff, config, focus);
+      if (best === null || multiplier > best.multiplier) best = { staff, multiplier };
     }
   }
   return best;

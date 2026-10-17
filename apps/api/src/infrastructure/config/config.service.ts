@@ -1,4 +1,6 @@
 import { Injectable } from '@nestjs/common';
+import { validateBreedingCenterConfig } from '../../domain/breeding/breeding-center';
+import { validateUpbringingConfig } from '../../domain/care/care';
 import {
   loadAdminConfig,
   loadBreedsConfig,
@@ -6,6 +8,7 @@ import {
   loadEquipmentConfig,
   loadAvatarConfig,
   loadOnboardingConfig,
+  loadCareerConfig,
   loadCosmeticsConfig,
   loadCareConfig,
   loadChatConfig,
@@ -33,16 +36,20 @@ import {
   loadReferralConfig,
 } from '@at-sevdalisi/game-config';
 import { validateBreedsConfig } from '../../domain/horse/breeds';
-import { validateHippodromesConfig } from '../../domain/race/hippodrome';
+import { HIPPODROME_LEVELS, validateHippodromesConfig } from '../../domain/race/hippodrome';
 import { validateHorseLevelBrackets } from '../../domain/race/level-bracket';
 import { validateFriendGiftConfig } from '../../domain/social/friend-gift';
 import { validatePresenceConfig } from '../../domain/social/presence';
 import { validateReferralConfig } from '../../domain/social/referral';
 import { validateGiftAmountLimits } from '../../domain/gift/gift';
 import { validateGemPolicy } from '../../domain/economy/gem-policy';
+import { validateCareerConfig } from '../../domain/career/career';
 import { validateCosmeticsConfig } from '../../domain/cosmetics/cosmetics';
 import { validateTribuneGiftsConfig } from '../../domain/grandstand/tribune-gift';
 import { validateEquipmentConfig } from '../../domain/equipment/catalog';
+import { validateStableConfig } from '../../domain/stable/stable';
+import { validateTrainerConfig } from '../../domain/staff/staff';
+import { validateNeedsConfig } from '../../domain/care/needs';
 import { validateHorsePersonalityConfig } from '../../domain/horse/personality';
 import { validateJockeyConditionConfig } from '../../domain/jockey/condition';
 import { validateJockeyMarketConfig } from '../../domain/jockey/market';
@@ -187,6 +194,8 @@ export class AppConfigService {
   readonly store = loadStoreConfig();
   /** 16.10.2026 — arkadaş daveti + davet ödülü. */
   readonly referral = loadReferralConfig();
+  /** 16.10.2026 — brief §10: kariyer kademeleri + yarış puanları. */
+  readonly career = loadCareerConfig();
 
   constructor() {
     // Irk kuralı (ücretsiz at en zayıf, güçlü ırk ucuz olamaz) açılışta
@@ -199,6 +208,25 @@ export class AppConfigService {
     const friendGiftProblems = validateFriendGiftConfig(this.gift.friendGift);
     if (friendGiftProblems.length > 0) {
       throw new Error(`Dostluk hediyesi config'i geçersiz (config/gift.config.json): ${friendGiftProblems.join(' ')}`);
+    }
+    // 16.10.2026 — çiftleştirme merkezi + gebelik (döllenme asla %100 değil, iade ≤ ücret).
+    validateBreedingCenterConfig(this.genetics);
+    // 16.10.2026 — tay yetiştirme (yaşa sınırsız yetiştirme kazancı = bedava stat).
+    const upbringingProblems = validateUpbringingConfig(this.care);
+    if (upbringingProblems.length > 0) {
+      throw new Error(`Bakım config'i geçersiz (config/care.config.json): ${upbringingProblems.join(' ')}`);
+    }
+    // 16.10.2026 — ahır geliştirme (seviyeler boşluksuz, bedel/şart azalmaz).
+    validateStableConfig(this.stable, this.progression.maxLevel);
+    // 17.10.2026 — yem/su ihtiyacı (brief §14): karşılanmış ihtiyaç ceza vermez.
+    const needsProblems = validateNeedsConfig(this.care);
+    if (needsProblems.length > 0) {
+      throw new Error(`Bakım config'i geçersiz (config/care.config.json): ${needsProblems.join(' ')}`);
+    }
+    // 17.10.2026 — antrenör uzmanlıkları gerçek antrenman tipleri olmalı (brief §13).
+    const trainerProblems = validateTrainerConfig(this.staff, Object.keys(this.training.types));
+    if (trainerProblems.length > 0) {
+      throw new Error(`Antrenör config'i geçersiz (config/staff.config.json): ${trainerProblems.join(' ')}`);
     }
     // 08.10.2026 — ekipman kataloğu (bozuksa API AÇILMAZ).
     validateEquipmentConfig(loadEquipmentConfig(), this.progression.maxLevel);
@@ -231,6 +259,15 @@ export class AppConfigService {
     const presenceProblems = validatePresenceConfig(this.social);
     if (presenceProblems.length > 0) {
       throw new Error(`Sosyal config'i geçersiz (config/social.config.json): ${presenceProblems.join(' ')}`);
+    }
+    // 16.10.2026 (brief §10) — her masa ve pist seviyesi tam bir kademede açılır.
+    const careerProblems = validateCareerConfig(
+      this.career,
+      this.economy.raceTiers.map((tier) => tier.id),
+      HIPPODROME_LEVELS,
+    );
+    if (careerProblems.length > 0) {
+      throw new Error(`Kariyer config'i geçersiz (config/career.config.json): ${careerProblems.join(' ')}`);
     }
     // 15.10.2026 (Aşama 3) — yetersiz oyuncu kuralı (asgari gerçek oyuncu + bot izni).
     const fieldRuleProblems = validateFieldRulesConfig(this.raceLobby, this.raceLobby.calendar.programs);
@@ -277,6 +314,13 @@ export class AppConfigService {
       throw new Error(`Kozmetik mağaza config'i geçersiz (config/cosmetics.config.json): ${cosmeticProblems.join(' ')}`);
     }
     const hippodromeProblems = validateHippodromesConfig(this.hippodromes);
+    // 16.10.2026 — pistin ağırladığı masalar gerçek masa kimlikleri olmalı.
+    const tableIds = new Set(this.economy.raceTiers.map((tier) => tier.id));
+    for (const hippodrome of this.hippodromes.hippodromes) {
+      for (const table of hippodrome.tables) {
+        if (!tableIds.has(table)) hippodromeProblems.push(`${hippodrome.key}: bilinmeyen masa "${table}".`);
+      }
+    }
     if (hippodromeProblems.length > 0) {
       throw new Error(`Hipodrom config'i geçersiz (config/hippodromes.config.json): ${hippodromeProblems.join(' ')}`);
     }

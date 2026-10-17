@@ -60,6 +60,8 @@ export const DATA_CATEGORY_BY_EXPORT_SECTION: Record<AccountExportSectionName, s
   club: 'Sosyal ilişkiler',
   clubInvites: 'Sosyal ilişkiler',
   referrals: 'Sosyal ilişkiler',
+  breedingOffers: 'Oyun içi ekonomi ve satın almalar',
+  pregnancies: 'Oyun verileri',
   avatar: 'Görsel içerikler',
   profilePhoto: 'Görsel içerikler',
   avatarJobs: 'Görsel içerikler',

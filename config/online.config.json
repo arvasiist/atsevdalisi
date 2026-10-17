@@ -107,5 +107,10 @@
   },
   "leaderboardPeriods": {
     "limit": 100
+  },
+  "raceWinners": {
+    "defaultLimit": 20,
+    "maxLimit": 50,
+    "maxRangeDays": 366
   }
 }

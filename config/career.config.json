@@ -1,0 +1,63 @@
+{
+  "racePoints": {
+    "practice": [2, 1, 1, 0],
+    "open": [4, 2, 1, 1],
+    "tournament": [50, 30, 20, 5],
+    "local": [10, 6, 4, 2],
+    "regional": [16, 10, 6, 3],
+    "national": [25, 15, 10, 4],
+    "elite": [40, 25, 15, 6],
+    "championship": [60, 36, 24, 8]
+  },
+  "tiers": [
+    {
+      "key": "local",
+      "name": "Yerel",
+      "requiredPoints": 0,
+      "unlocksTables": ["local"],
+      "unlocksHippodromeLevels": ["local", "regional", "national"],
+      "description": "Mahalli koşular ve Türkiye pistlerinin masasız yarışları."
+    },
+    {
+      "key": "regional",
+      "name": "Bölgesel",
+      "requiredPoints": 40,
+      "unlocksTables": ["regional"],
+      "unlocksHippodromeLevels": [],
+      "description": "Bölgesel masalar açılır."
+    },
+    {
+      "key": "national",
+      "name": "Ulusal",
+      "requiredPoints": 150,
+      "unlocksTables": ["national"],
+      "unlocksHippodromeLevels": [],
+      "description": "Ulusal koşular ve büyük Türkiye yarışları."
+    },
+    {
+      "key": "national-championship",
+      "name": "Ulusal Şampiyona",
+      "requiredPoints": 400,
+      "unlocksTables": ["elite"],
+      "unlocksHippodromeLevels": [],
+      "description": "Elit masalar — ulusal şampiyona seviyesi."
+    },
+    {
+      "key": "international",
+      "name": "Uluslararası",
+      "requiredPoints": 900,
+      "unlocksTables": [],
+      "unlocksHippodromeLevels": ["international"],
+      "description": "Yurt dışı pistleri (ABD, Fransa, BAE) açılır."
+    },
+    {
+      "key": "grand-championship",
+      "name": "Büyük Şampiyona",
+      "requiredPoints": 1800,
+      "unlocksTables": ["championship"],
+      "unlocksHippodromeLevels": [],
+      "description": "Şampiyona masaları — büyük finaller."
+    }
+  ],
+  "historyLimit": 15
+}

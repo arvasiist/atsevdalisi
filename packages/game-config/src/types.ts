@@ -462,6 +462,8 @@ export interface EconomyConfig {
    * SQL'e gittiği için tavan bir güvenlik sınırıdır, tercih değil.
    */
   walletHistoryDefaultLimit: number;
+  /** 16.10.2026 (brief §19) — gelir-gider raporunun dönem sayısı (gün / ay). */
+  economyReport: { dailyBuckets: number; monthlyBuckets: number };
   /** `?limit` bu değerin üzerindeyse kırpılır (sessizce — istek 400 ALMAZ). */
   walletHistoryMaxLimit: number;
   /**
@@ -576,6 +578,63 @@ export interface GeneticsConfig {
    * emekli aygır (kaliteye göre) okunur, sonra süzülür.
    */
   studMarket: { listLimit: number; scanLimit: number };
+  /**
+   * 16.10.2026 — brief §5: doğurganlık (0–100). Yeni at kimliğinden
+   * determinist `base ± spread`; tay ebeveyn ortalaması ± `inheritanceMutation`.
+   */
+  fertility: { base: number; spread: number; inheritanceMutation: number };
+  /**
+   * Döllenme olasılığı = `baseChance` + doğurganlık (ortalama − 50)/50 ×
+   * `fertilityWeight` + (kısrak sağlığı − 100)/100 × `healthWeight` − kısrağın
+   * yaş evresi cezası; [`minChance`, `maxChance`] aralığına kırpılır (asla %100
+   * değil). Başarısız denemeden sonra kısrak `failedAttemptCooldownHours` dinlenir.
+   */
+  conception: {
+    baseChance: number;
+    fertilityWeight: number;
+    healthWeight: number;
+    minChance: number;
+    maxChance: number;
+    ageStagePenalty: Record<string, number>;
+    failedAttemptCooldownHours: number;
+  };
+  /**
+   * Gebelik süresi GERÇEK gündür: `realWorldDays × timeScale` (335 × 0,2 ≈ 67;
+   * sahibinin kuralı "gerçeğin yaklaşık beşte biri"). Oyun yaşı ölçeğinden
+   * (`horseGrowth.gameMonthsPerRealDay`) bağımsızdır.
+   */
+  gestation: { realWorldDays: number; timeScale: number };
+  /**
+   * Gebelik bakımı: veteriner kontrolü (`checkupCost`, en sık
+   * `checkupIntervalHours`) + kısrağın beslendiği gün oranı. Bakım puanı doğum
+   * riskini [`minRiskMultiplier`, `maxRiskMultiplier`] arasında ölçekler; tayın
+   * doğum sağlığı = 100 − risk × `healthPenaltyAtFullRisk`.
+   */
+  pregnancyCare: {
+    checkupCost: number;
+    checkupIntervalHours: number;
+    careWeight: number;
+    nutritionWeight: number;
+    minRiskMultiplier: number;
+    maxRiskMultiplier: number;
+    healthPenaltyAtFullRisk: number;
+    riskLevels: { medium: number; high: number };
+  };
+  /**
+   * Çiftleştirme merkezi: aygır sahibinin ilan ücreti formül ücretinin
+   * [`minFeeFactor`, `maxFeeFactor`] katı arasında olmalı (sınırsız ücret
+   * hesaplar arası değer aktarımı olurdu). Teklif ücreti emanete alınır;
+   * `offerExpiryHours` içinde yanıtlanmazsa iade edilir. Döllenme tutmazsa
+   * ücretin `failedConceptionRefundPercent`i iade edilir.
+   */
+  breedingCenter: {
+    offerExpiryHours: number;
+    minFeeFactor: number;
+    maxFeeFactor: number;
+    failedConceptionRefundPercent: number;
+    historyLimit: number;
+    scheduler: { enabled: boolean; tickSeconds: number; batchSize: number };
+  };
 }
 
 export interface WeatherCombinationEffect {
@@ -640,6 +699,8 @@ export interface StableConfig {
   capacityByLevel: Record<string, number>;
   /** Bu değerin altındaki health, "Ahır Özeti" ekranında uyarı olarak gösterilir (brief §38). */
   healthWarningThreshold: number;
+  /** 16.10.2026 — `GET /horses/:id/career` son koşu listesinin uzunluğu. */
+  careerRecentRaceLimit: number;
   /**
    * FAZ 2 — brief §32 "Upgrade örneği" listesinin devamı. Anahtar = ULAŞILACAK
    * seviye (örn. "2" → seviye 1'den 2'ye yükseltme maliyeti). En yüksek
@@ -647,6 +708,17 @@ export interface StableConfig {
    * `MaxStableLevelReachedError` fırlatır.
    */
   upgradeCostByLevel: Record<string, { currency: 'money' | 'gems'; amount: number }>;
+  /** 16.10.2026 — ahır geliştirme: seviyenin adı (her seviye için). */
+  nameByLevel: Record<string, string>;
+  /**
+   * Konfor bonusu: zamanla toparlanma hızına (enerji + yorgunluk) eklenen pay
+   * (0.1 = %10 daha hızlı). Sunucu zamanlayıcısı, yarışın kayıt yolundaki
+   * toparlanma ve ahır listesindeki "hazır olacağı zaman" tahmini AYNI değeri
+   * kullanır. Padok (`rest` bakımı) ile ayrıdır — o etkin bakımdır.
+   */
+  recoveryBonusByLevel: Record<string, number>;
+  /** Anahtar = ULAŞILACAK seviye; o seviyeye yükseltmek için gereken oyuncu seviyesi. */
+  requiredPlayerLevelByLevel: Record<string, number>;
 }
 
 export interface ProgressionUnlock {
@@ -757,13 +829,52 @@ export interface FeedTypeEffect {
    * sınırsızdır.
    */
   dailyLimit?: number;
+  /**
+   * 16.10.2026 — brief §8: market kategorisi (yem / takviye / ilaç / tay) ve
+   * kalite-fiyat kademesi. Salt sınıflandırma; etkiyi yukarıdaki deltalar verir.
+   */
+  category: FeedCategory;
+  qualityTier: 'basic' | 'standard' | 'premium';
+  /** Sakatlık riski / eklem durumu etkisi (ilaç, takviye). */
+  injuryRiskDelta?: number;
+  jointConditionDelta?: number;
+  /** Yalnızca bu yaş evrelerindeki ata verilebilir (tay yemi). Yoksa her yaşa. */
+  allowedLifeStages?: string[];
+  /**
+   * 16.10.2026 — brief §7: tay evresinde verildikçe yarış statına küçük, tavanlı
+   * kalıcı katkı (`upbringing.maxFeedsPerHorse` beslemeyle sınırlı; potansiyeli aşamaz).
+   */
+  upbringingStatGain?: number;
+  /** Kullanım koşulu: son N saatte veteriner bakımı şart (ilaç "reçetesi"). */
+  requiresVetWithinHours?: number;
 }
 
-export type FeedType = 'saman' | 'arpa' | 'mama' | 'havuc' | 'vitamin';
+export type FeedCategory = 'feed' | 'supplement' | 'medicine' | 'foal';
+
+export type FeedType =
+  | 'saman'
+  | 'arpa'
+  | 'mama'
+  | 'havuc'
+  | 'vitamin'
+  | 'yulaf'
+  | 'enerji_yemi'
+  | 'kondisyon_yemi'
+  | 'tay_yemi'
+  | 'elektrolit'
+  | 'eklem_takviyesi'
+  | 'agri_kesici';
+
+/** 16.10.2026 — tay büyütme (brief §7): yetiştirme statları sırayla döner. */
+export interface UpbringingConfig {
+  statRotation: Array<'speed' | 'stamina' | 'acceleration' | 'sprint'>;
+  maxFeedsPerHorse: number;
+}
 
 export interface CareConfig {
   actions: Record<CareActionType, CareActionEffect>;
   feedTypes: Record<FeedType, FeedTypeEffect>;
+  upbringing: UpbringingConfig;
   /** AUDIT_REPORT.md H1 — bkz. `InjuryRecoveryConfig` üstündeki not. */
   injuryRecovery: InjuryRecoveryConfig;
   /**
@@ -820,6 +931,18 @@ export interface CareConfig {
     maxCreditSeconds: number;
     energyPerHour: number;
     fatiguePerHour: number;
+  };
+  /**
+   * 17.10.2026 (brief §14) — yem/su ihtiyacı: son beslenme (`feedCategories`
+   * kategorisindeki yem) ve son su bakımından TÜRETİLİR. Aralık geçince
+   * "zamanı geldi" (`due`), iki katı geçince "acil" (`urgent`); antrenman
+   * kazancı en kötü ihtiyacın çarpanıyla ölçeklenir (`ok` = 1, eski davranış).
+   */
+  needs: {
+    feedCategories: string[];
+    feedIntervalHours: number;
+    waterIntervalHours: number;
+    trainingFactorByLevel: { ok: number; due: number; urgent: number };
   };
 }
 
@@ -977,6 +1100,21 @@ export interface StaffConfig {
   contractMonths: number;
   /** Yenileme yalnızca bitime bu kadar gün kala (ya da bitmişse) açılır — çift ödemeyi durum engeller. */
   renewWindowDays: number;
+  /**
+   * 17.10.2026 (brief §13 "Antrenör işe alma ve geliştirme · uzmanlıklar").
+   * Uzmanlık = bir antrenman tipi: eşleşen antrenmanda bonus payı
+   * `matchBonusFactor`, diğerlerinde `offSpecialtyBonusFactor` ile çarpılır;
+   * uzmanlığı olmayan (genel) antrenör ×1. Gelişim: etkin antrenörün verdiği
+   * her antrenman seansı deneyim yazar; her `experiencePerSkillPoint` seansta
+   * beceri +1 (`maxDevelopedSkill` tavanına kadar).
+   */
+  trainer: {
+    specializations: string[];
+    matchBonusFactor: number;
+    offSpecialtyBonusFactor: number;
+    experiencePerSkillPoint: number;
+    maxDevelopedSkill: number;
+  };
   /** Bakım eylemi → etkisini güçlendiren personel rolü. */
   careActionRoles: Record<string, string>;
   /** Aday havuzu: rol başına en az bu kadar boşta aday tutulur. */
@@ -1098,6 +1236,11 @@ export interface OnlineConfig {
    * `weekStartsOn`) — ikinci bir saat dilimi ayarı açılmadı.
    */
   leaderboardPeriods: { limit: number };
+  /**
+   * 16.10.2026 (brief §12) — kazananlar tablosu (`GET /leaderboard/winners`):
+   * sayfa boyu (varsayılan/üst sınır) ve tarih aralığının en uzun hâli (gün).
+   */
+  raceWinners: { defaultLimit: number; maxLimit: number; maxRangeDays: number };
 }
 
 /**
@@ -2201,7 +2344,8 @@ export interface RaceCalendarProgram {
  * `email.maxLength` `player_credentials.email` CHECK'iyle (254) eşleşmelidir.
  */
 export interface AuthConfig {
-  email: { maxLength: number };
+  /** `deliveryTimeoutMs`: e-posta sağlayıcısına (Resend) tek istek için bekleme sınırı (16.10.2026). */
+  email: { maxLength: number; deliveryTimeoutMs: number };
   password: { minLength: number; maxLength: number };
   /** Node `crypto.scrypt` parametreleri: `cost` (N, 2'nin kuvveti), `blockSize` (r), `parallelization` (p). */
   scrypt: {
@@ -2695,7 +2839,19 @@ export interface HippodromeConfig {
   name: string;
   /** Dar alanlar (seçim kutusu) için kısa ad. */
   shortName: string;
+  /** 16.10.2026 (brief §9) — ülke (görünen ad + ISO kodu) ve şehir. */
+  country: string;
+  countryCode: string;
   city: string;
+  /** Pist seviyesi: yerel → bölgesel → ulusal → uluslararası (kariyer erişimi buna bağlı). */
+  level: HippodromeLevel;
+  /** 1–5 prestij (yalnızca gösterim + sıralama). */
+  prestige: number;
+  /** Bu pistte koşulabilen zeminler ve mesafeler (yarış açılışı doğrular). */
+  surfaces: Array<'grass' | 'dirt' | 'synthetic'>;
+  distancesMeters: number[];
+  /** Bu pistin ağırladığı masalar (`economy.raceTiers` kimlikleri): giriş ücreti + ödül oradan. */
+  tables: string[];
   lapLengthMeters: number;
   turnRadiusMeters: number;
   theme: {
@@ -2712,9 +2868,17 @@ export interface HippodromeConfig {
   };
 }
 
+export type HippodromeLevel = 'local' | 'regional' | 'national' | 'international';
+
 export interface HippodromesConfig {
   /** Hipodromu olmayan (eski) yarışlar ve seçim yapılmayan lobi yarışı bunu kullanır. */
   defaultKey: string;
+  /**
+   * 16.10.2026 — pratik/eşleşme/turnuva yarışının kimlikten seçildiği havuz.
+   * Sabit tutulur: yeni pist eklemek eski yarışların tekrarındaki mekânı
+   * değiştirmesin diye (seçim `% havuz uzunluğu`).
+   */
+  practicePool: string[];
   hippodromes: HippodromeConfig[];
 }
 
@@ -2729,13 +2893,25 @@ export interface HippodromesConfig {
  */
 export interface EquipmentCatalogItemConfig {
   key: string;
-  /** `saddle` | `bridle` | `horseshoe` | `blinkers` | `leg_wraps`. */
+  /**
+   * Performans: `saddle` | `bridle` | `horseshoe` | `blinkers` | `leg_wraps`.
+   * 16.10.2026 — kozmetik: `halter` | `blanket` | `nameplate` | `collectible`
+   * (kategori TİPTEN türetilir, config'ten değil — kozmetik bir kalem config
+   * değişikliğiyle performansa giremez).
+   */
   equipmentType: string;
   name: string;
-  /** 0-100 (motor etkisi `computeEquipmentPerformanceModifier`). */
+  /** 0-100 (motor etkisi `computeEquipmentPerformanceModifier`). Kozmetikte 0. */
   quality: number;
   priceMoney: number;
   requiredLevel: number;
+  /** 16.10.2026 — nadirlik (yalnızca gösterim; etkiyi kalite belirler). */
+  rarity: 'common' | 'rare' | 'epic' | 'legendary';
+  /** Kaç yarış dayanır; performans kaleminde zorunlu, kozmetikte `null` (aşınmaz). */
+  durabilityRaces: number | null;
+  /** Yalnızca nal: bonus YALNIZCA bu zeminde (`null` = her zeminde). */
+  surface: 'grass' | 'dirt' | 'synthetic' | null;
+  description: string;
 }
 
 export interface EquipmentCatalogConfig {
@@ -2839,5 +3015,30 @@ export interface LegalConfig {
   /** Yedek kopyaların saklama süresi (ör. "30 gün"). */
   backupRetention: string | null;
   jurisdiction: string | null;
+}
+
+/**
+ * 16.10.2026 — brief §10 "stadyumdan stadyuma kariyer": `config/career.config.json`.
+ * Puan SAYAÇ DEĞİLDİR — bitmiş yarış sonuçlarından türetilir. Kademe birikimli
+ * açar: masalar (`economy.raceTiers` kimlikleri) ve pist seviyeleri.
+ */
+export interface CareerTierConfig {
+  key: string;
+  name: string;
+  requiredPoints: number;
+  unlocksTables: string[];
+  unlocksHippodromeLevels: HippodromeLevel[];
+  description: string;
+}
+
+export interface CareerConfig {
+  /**
+   * Yarış sınıfı → [1., 2., 3., diğer bitiriş] puanı. Sınıf: masa kimliği,
+   * `open` (masasız lobi), `tournament`, `practice` (pratik/eşleşme).
+   */
+  racePoints: Record<string, [number, number, number, number]>;
+  tiers: CareerTierConfig[];
+  /** `GET /career` son yarış satırı sayısı. */
+  historyLimit: number;
 }
 

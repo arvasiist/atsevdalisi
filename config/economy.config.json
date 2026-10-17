@@ -17,6 +17,7 @@
   "dailyRewardMoney": 500,
   "dailyRewardCooldownHours": 24,
   "walletHistoryDefaultLimit": 20,
+  "economyReport": { "dailyBuckets": 14, "monthlyBuckets": 6 },
   "walletHistoryMaxLimit": 100,
   "mockDeposit": {
     "enabled": true,

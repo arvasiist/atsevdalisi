@@ -291,7 +291,8 @@ export function buildHorseEntrantSnapshot(
     tactic,
     // Ekipman (bu turda EKLENDİ) — bkz. bu fonksiyonun ustundeki doc yorumu
     // ve `packages/shared-types/src/race.ts` `equipmentModifier` doc yorumu.
-    equipmentModifier: computeEquipmentPerformanceModifier(equippedItems),
+    // 16.10.2026: zemine özel nal yalnızca yarışın zemininde sayılır.
+    equipmentModifier: computeEquipmentPerformanceModifier(equippedItems, trackFit?.surface ?? null),
     // PHASE 6.3 — kişilik/mizaç. YENİ bir parametre GEREKMEZ: `stats`
     // (`HorseStats`) zaten bu fonksiyonun imzasındadır ve `temperament`
     // onun ZORUNLU bir alanıdır (migration 0003, `NOT NULL DEFAULT 50`) —

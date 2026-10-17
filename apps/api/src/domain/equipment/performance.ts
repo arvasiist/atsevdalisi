@@ -1,3 +1,5 @@
+import { isCosmeticEquipmentType } from './validation';
+
 /**
  * Ekipmanın Race Engine'e etkisi (bkz. `packages/shared-types/src/
  * horse.ts` `HorseEquipment` doc yorumu — Carried Weight'in "ekipman
@@ -49,10 +51,22 @@ export const NEUTRAL_EQUIPMENT_MODIFIER = 1;
  * yoktur — bkz. `HorseEquipment.equipped` doc yorumu).
  */
 export function computeEquipmentPerformanceModifier(
-  equippedItems: ReadonlyArray<{ quality: number; equipped: boolean }>,
+  equippedItems: ReadonlyArray<{
+    quality: number;
+    equipped: boolean;
+    equipmentType?: string;
+    surface?: string | null;
+  }>,
+  // 16.10.2026 (brief §8) — yarışın zemini. Zemine özel nal YALNIZCA kendi
+  // zemininde sayılır; zemin bilinmiyorsa (`null`) zemine özel parça sayılmaz.
+  // Zemini olmayan parça her zeminde sayılır → eski parçalarla sonuç bit bit aynı.
+  raceSurface: string | null = null,
 ): number {
   const totalBonus = equippedItems
     .filter((item) => item.equipped)
+    // Kozmetik aksesuar yarışı ETKİLEMEZ (kalitesi 0 olsa bile tipten elenir).
+    .filter((item) => item.equipmentType === undefined || !isCosmeticEquipmentType(item.equipmentType))
+    .filter((item) => !item.surface || item.surface === raceSurface)
     .reduce((sum, item) => sum + (item.quality / 100) * MAX_MODIFIER_PER_EQUIPPED_ITEM, 0);
 
   return Math.min(MAX_TOTAL_EQUIPMENT_MODIFIER, NEUTRAL_EQUIPMENT_MODIFIER + totalBonus);

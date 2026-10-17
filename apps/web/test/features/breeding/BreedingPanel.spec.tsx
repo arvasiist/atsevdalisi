@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import type { BreedingResultView, PublicHorse } from '@at-sevdalisi/shared-types';
+import type { BreedingAttemptView, PublicHorse } from '@at-sevdalisi/shared-types';
 import { BreedingPanel } from '../../../src/features/breeding/BreedingPanel';
 
 /**
@@ -33,17 +33,15 @@ import { BreedingPanel } from '../../../src/features/breeding/BreedingPanel';
  * sınanır (bu dosya onu TEKRARLAMAZ).
  */
 
-const { breedHorsesMock, getHorseDetailsMock, listStudsMock } = vi.hoisted(() => ({
+const { breedHorsesMock, getHorseDetailsMock } = vi.hoisted(() => ({
   breedHorsesMock: vi.fn(),
   getHorseDetailsMock: vi.fn(),
-  listStudsMock: vi.fn(),
 }));
 
 vi.mock('../../../src/lib/api-client', () => ({
   apiClient: {
     breedHorses: (...args: unknown[]) => breedHorsesMock(...args),
     getHorseDetails: (...args: unknown[]) => getHorseDetailsMock(...args),
-    listStuds: (...args: unknown[]) => listStudsMock(...args),
   },
 }));
 
@@ -54,8 +52,6 @@ beforeEach(() => {
   keyCounter = 0;
   breedHorsesMock.mockReset();
   getHorseDetailsMock.mockReset();
-  listStudsMock.mockReset();
-  listStudsMock.mockResolvedValue([]);
   vi.stubGlobal('crypto', { randomUUID: () => `key-${++keyCounter}` });
 });
 
@@ -92,18 +88,38 @@ function horse(overrides: Partial<PublicHorse> & Pick<PublicHorse, 'id' | 'gende
 const MARE = horse({ id: 'mare-1', gender: 'mare', name: 'İnci', status: 'retired' });
 const STALLION = horse({ id: 'stallion-1', gender: 'stallion', name: 'Şimşek', status: 'retired' });
 
-function breedingResult(overrides: Partial<BreedingResultView> = {}): BreedingResultView {
+function breedingResult(overrides: Partial<BreedingAttemptView> = {}): BreedingAttemptView {
   return {
-    pairId: 'pair-1',
-    foalId: 'foal-1',
-    foalName: 'Yıldız',
-    foalGender: 'mare',
-    mareId: 'mare-1',
-    stallionId: 'stallion-1',
-    fee: 0,
-    inbreedingDetected: false,
-    birthHealthRisk: 0.05,
-    payerBalance: null,
+    attemptId: 'attempt-1',
+    outcome: 'conceived',
+    conceptionChance: 0.72,
+    mareRestEndsAt: null,
+    pregnancy: {
+      pregnancyId: 'preg-1',
+      mareId: 'mare-1',
+      mareName: 'İnci',
+      stallionId: 'stallion-1',
+      stallionName: 'Şimşek',
+      foalName: 'Yıldız',
+      fee: 0,
+      inbreedingDetected: false,
+      status: 'gestating',
+      conceivedAt: '2026-10-16T00:00:00.000Z',
+      expectedBirthAt: '2026-12-22T00:00:00.000Z',
+      bornAt: null,
+      foalId: null,
+      progress: 0,
+      care: {
+        checkups: 0,
+        expectedCheckups: 1,
+        careScore: 0,
+        nutritionScore: 0,
+        lastCheckupAt: null,
+        nextCheckupAt: null,
+        checkupCost: 120,
+      },
+      riskLevel: 'medium',
+    },
     ...overrides,
   };
 }
@@ -188,26 +204,28 @@ describe('BreedingPanel — sunucu otoritesi ve gösterim', () => {
     expect(screen.getByText(/en az bir/)).toBeTruthy();
   });
 
-  it('damızlık ücretini YALNIZCA sunucudan gelen `fee` alanından gösterir', async () => {
-    // İstemci hiçbir tutar hesaplamaz: 0 dışında bir ücret yalnızca yanıttan gelebilir.
-    breedHorsesMock.mockResolvedValueOnce(breedingResult({ fee: 1250, payerBalance: { money: 8750, gems: 0 } }));
+  it('16.10.2026 — tutan döllenme: olasılık ve doğum tarihi YANITTAN (istemci hesaplamaz), tay anında doğmaz', async () => {
+    breedHorsesMock.mockResolvedValueOnce(breedingResult());
     renderPanel();
     fillForm();
     await submit();
 
-    // Ayraç bilerek esnek (`1[.,]250`): iddia edilen şey biçim değil, sayının
-    // YANITTAN geldiğidir (istemci 1250 diye bir sabit taşımıyor).
-    await screen.findByText(/Damızlık ücreti: 1[.,]250/);
-    expect(screen.getByText(/Kalan bakiyen: 8[.,]750/)).toBeTruthy();
+    await screen.findByText(/Döllenme tuttu/);
+    expect(screen.getByTestId('breeding-attempt-result').textContent).toMatch(/%72/);
+    expect(screen.getByTestId('breeding-attempt-result').textContent).toMatch(/2026/);
+    expect(screen.queryByText(/doğdu/)).toBeNull();
   });
 
-  it('ücret 0 ise "alınmadı" der — kendi atlarını çiftleştiren kendine ödeme yapmaz', async () => {
-    breedHorsesMock.mockResolvedValueOnce(breedingResult({ fee: 0 }));
+  it('16.10.2026 — tutmayan döllenme: dinlenme bilgisi gösterilir', async () => {
+    breedHorsesMock.mockResolvedValueOnce(
+      breedingResult({ outcome: 'not_conceived', pregnancy: null, conceptionChance: 0.4, mareRestEndsAt: '2026-10-17T10:00:00.000Z' }),
+    );
     renderPanel();
     fillForm();
     await submit();
 
-    await screen.findByText(/Damızlık ücreti alınmadı/);
+    await screen.findByText(/tutmadı/);
+    expect(screen.getByTestId('breeding-attempt-result').textContent).toMatch(/%40/);
   });
 
   it('başarılı çiftleştirmeden sonra ahır/bakiye tazelemesini tetikler', async () => {
@@ -226,32 +244,10 @@ describe('BreedingPanel — sunucu otoritesi ve gösterim', () => {
     expect(screen.getByText(/Emekli et/)).toBeTruthy();
   });
 
-  it('15.10.2026 — damızlık pazarı ücretiyle listelenir; seçilen aygırın kimliği gider', async () => {
-    listStudsMock.mockResolvedValue([
-      {
-        horseId: 'stud-9',
-        name: 'Karayel',
-        breed: 'arap',
-        ownerId: 'player-2',
-        ownerUsername: 'ahmet',
-        ageMonths: 72,
-        quality: 90,
-        fee: 2300,
-        foalCount: 1,
-        foalLimit: 12,
-      },
-    ]);
-    breedHorsesMock.mockResolvedValueOnce(breedingResult({ stallionId: 'stud-9', fee: 2300 }));
-    renderPanel([MARE]);
-    await screen.findByRole('option', { name: /Karayel/ });
-
-    fireEvent.change(screen.getByLabelText('Kısrak'), { target: { value: 'mare-1' } });
-    fireEvent.change(screen.getByLabelText('Aygır'), { target: { value: 'stud-9' } });
-    fireEvent.change(screen.getByLabelText('Tay adı'), { target: { value: 'Rüzgâr' } });
-    expect(screen.getByText(/Ödeyeceğin damızlık ücreti/)).toBeTruthy();
-    await submit();
-
-    await waitFor(() => expect(breedHorsesMock).toHaveBeenCalledTimes(1));
-    expect(breedHorsesMock.mock.calls[0]?.[2]).toBe('stud-9');
+  it('16.10.2026 — başkasının aygırı panelde YOK: yalnızca kendi emekli aygırların + Çiftleştirme Merkezi bağlantısı', () => {
+    renderPanel();
+    const options = Array.from((screen.getByLabelText('Aygır') as HTMLSelectElement).options).map((option) => option.value);
+    expect(options).toEqual(['', 'stallion-1']);
+    expect(screen.getByRole('link', { name: /Çiftleştirme Merkezi/ }).getAttribute('href')).toBe('/breeding');
   });
 });

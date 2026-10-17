@@ -201,6 +201,9 @@ export const ACCOUNT_EXPORT_SECTIONS = [
   'friendGifts',
   'tribuneGifts',
   'referrals',
+  // 16.10.2026 — çiftleştirme merkezi (brief §4–§5).
+  'breedingOffers',
+  'pregnancies',
 ] as const;
 
 export type AccountExportSectionName = (typeof ACCOUNT_EXPORT_SECTIONS)[number];

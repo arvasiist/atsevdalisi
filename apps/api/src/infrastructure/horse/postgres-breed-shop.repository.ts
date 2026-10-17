@@ -9,6 +9,7 @@ import { AppConfigService } from '../config/config.service';
 import { PG_POOL, withTransaction } from '../database/database.module';
 import { writeLedgerEntries } from '../player/player-row';
 import { insertNewHorse } from './horse-row';
+import { countStableOccupancy } from '../stable/stable-occupancy';
 
 interface BuyerRow {
   money: string;
@@ -39,10 +40,11 @@ export class PostgresBreedShopRepository implements BreedShopRepository {
       }
       assertCanBuyBreed(input.breed, row.level);
 
-      const count = await client.query<{ count: string }>('SELECT COUNT(*) FROM horses WHERE owner_id = $1', [
-        input.playerId,
-      ]);
-      assertCanAddHorseToStable(Number(count.rows[0]?.count ?? 0), getStableCapacity(row.stable_level, this.config.stable));
+      // 16.10.2026 — doğumu beklenen gebelikler de yer tutar.
+      assertCanAddHorseToStable(
+        await countStableOccupancy(client, input.playerId),
+        getStableCapacity(row.stable_level, this.config.stable),
+      );
 
       const before = { money: Number(row.money), gems: Number(row.gems) };
       const after = debit(before, input.breed.priceMoney, 'money');

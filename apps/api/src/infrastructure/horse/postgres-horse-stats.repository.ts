@@ -1,8 +1,9 @@
 import { Inject, Injectable } from '@nestjs/common';
 import type { Pool } from 'pg';
-import type { HiddenHorseTraitKey, HorseStatField, HorseStats } from '@at-sevdalisi/shared-types';
+import type { HiddenHorseTraitKey, HorseStatField, HorseStats, HorseVisibleStats } from '@at-sevdalisi/shared-types';
 import type { HorseStatsRepository } from '../../application/ports/horse-stats.repository';
 import { PG_POOL } from '../database/database.module';
+import type { HorseNeedTimestamps } from '../../domain/care/needs';
 
 /**
  * `horse_stats` tablosunun satır şekli (`database/migrations/
@@ -142,13 +143,12 @@ export class PostgresHorseStatsRepository implements HorseStatsRepository {
     return result;
   }
 
-  async findPowerStatsByHorseIds(
-    horseIds: readonly string[],
-  ): Promise<Map<string, Pick<HorseStats, 'speed' | 'acceleration' | 'stamina'>>> {
-    const result = new Map<string, Pick<HorseStats, 'speed' | 'acceleration' | 'stamina'>>();
+  async findVisibleStatsByHorseIds(horseIds: readonly string[]): Promise<Map<string, HorseVisibleStats>> {
+    const result = new Map<string, HorseVisibleStats>();
     if (horseIds.length === 0) return result;
-    const rows = await this.pool.query<{ horse_id: string; speed: string; acceleration: string; stamina: string }>(
-      'SELECT horse_id, speed, acceleration, stamina FROM horse_stats WHERE horse_id = ANY($1::uuid[])',
+    const rows = await this.pool.query<Record<string, string> & { horse_id: string }>(
+      `SELECT horse_id, speed, acceleration, stamina, sprint, endurance, start_speed, finish_speed, cornering
+       FROM horse_stats WHERE horse_id = ANY($1::uuid[])`,
       [horseIds],
     );
     for (const row of rows.rows) {
@@ -156,6 +156,67 @@ export class PostgresHorseStatsRepository implements HorseStatsRepository {
         speed: Number(row.speed),
         acceleration: Number(row.acceleration),
         stamina: Number(row.stamina),
+        sprint: Number(row.sprint),
+        endurance: Number(row.endurance),
+        startSpeed: Number(row.start_speed),
+        finishSpeed: Number(row.finish_speed),
+        cornering: Number(row.cornering),
+      });
+    }
+    return result;
+  }
+
+  async findStallRowsByOwner(ownerId: string): Promise<Array<{ id: string; stallNumber: number | null; createdAt: string }>> {
+    const result = await this.pool.query<{ id: string; stall_number: number | null; created_at: Date }>(
+      'SELECT id, stall_number, created_at FROM horses WHERE owner_id = $1',
+      [ownerId],
+    );
+    return result.rows.map((row) => ({ id: row.id, stallNumber: row.stall_number, createdAt: row.created_at.toISOString() }));
+  }
+
+  async findOwnerStableLevel(ownerId: string): Promise<number> {
+    const result = await this.pool.query<{ stable_level: number }>('SELECT stable_level FROM players WHERE id = $1', [ownerId]);
+    return result.rows[0]?.stable_level ?? 1;
+  }
+
+  async findFeedCountsByHorseIds(horseIds: readonly string[], itemType: string): Promise<Map<string, number>> {
+    const result = new Map<string, number>();
+    if (horseIds.length === 0) return result;
+    const rows = await this.pool.query<{ horse_id: string; count: number }>(
+      `SELECT horse_id, COUNT(*)::int AS count FROM horse_feed_log
+       WHERE horse_id = ANY($1::uuid[]) AND item_type = $2 GROUP BY horse_id`,
+      [horseIds, itemType],
+    );
+    for (const row of rows.rows) result.set(row.horse_id, row.count);
+    return result;
+  }
+
+  async findNeedTimestampsByHorseIds(
+    horseIds: readonly string[],
+    feedTypes: readonly string[],
+  ): Promise<Map<string, HorseNeedTimestamps>> {
+    const result = new Map<string, HorseNeedTimestamps>();
+    if (horseIds.length === 0) return result;
+    const rows = await this.pool.query<{
+      id: string;
+      needs_anchor_at: Date;
+      last_fed_at: Date | null;
+      last_watered_at: Date | null;
+    }>(
+      `SELECT h.id, h.needs_anchor_at,
+              (SELECT MAX(f.fed_at) FROM horse_feed_log f
+                WHERE f.horse_id = h.id AND f.item_type = ANY($2::text[])) AS last_fed_at,
+              (SELECT c.last_performed_at FROM horse_care_log c
+                WHERE c.horse_id = h.id AND c.action_type = 'water') AS last_watered_at
+         FROM horses h
+        WHERE h.id = ANY($1::uuid[])`,
+      [horseIds, feedTypes],
+    );
+    for (const row of rows.rows) {
+      result.set(row.id, {
+        anchorAt: row.needs_anchor_at,
+        lastFedAt: row.last_fed_at,
+        lastWateredAt: row.last_watered_at,
       });
     }
     return result;

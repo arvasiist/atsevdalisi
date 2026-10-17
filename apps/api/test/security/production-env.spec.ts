@@ -18,8 +18,9 @@ const healthyProduction: EnvCheckInput = {
   REDIS_URL: 'redis://cache:6379',
   CORS_ORIGIN: 'https://atsevdalisi.example',
   WEB_BASE_URL: 'https://atsevdalisi.example',
-  RESEND_API_KEY: 're_x',
-  GOOGLE_OAUTH_CLIENT_ID: 'id.apps.googleusercontent.com',
+  RESEND_API_KEY: 're_testOnlyNotARealKey',
+  MAIL_FROM: 'At Sevdalısı <no-reply@atsevdalisi.com.tr>',
+  GOOGLE_OAUTH_CLIENT_ID: '123456789012-abcdefghijklmnop0123456789abcdef.apps.googleusercontent.com',
   METRICS_TOKEN: 'm'.repeat(rules.minMetricsTokenLength),
   ALERT_WEBHOOK_URL: 'https://hooks.example/alert',
 };
@@ -44,6 +45,14 @@ describe('checkEnvironment — üretim ortamı', () => {
     // 08.10.2026 — gözlemlenebilirlik değerleri verilirse güvenli olmalı.
     ['METRICS_TOKEN kısa', { METRICS_TOKEN: 'kisa' }],
     ['ALERT_WEBHOOK_URL https değil', { ALERT_WEBHOOK_URL: 'http://hooks.example/alert' }],
+    // 16.10.2026 — e-posta ve Google girişi: değer VARSA doğru biçimde olmalı.
+    ['WEB_BASE_URL https değil', { WEB_BASE_URL: 'http://atsevdalisi.com.tr' }],
+    ['RESEND_API_KEY biçimi yanlış', { RESEND_API_KEY: 'baska-baska-baska' }],
+    ['anahtar var, MAIL_FROM yok', { MAIL_FROM: undefined }],
+    ['MAIL_FROM .env.example yer tutucusu', { MAIL_FROM: 'At Sevdalısı <no-reply@alan-adiniz.com>' }],
+    ['MAIL_FROM yerel alan adı', { MAIL_FROM: 'no-reply@atsevdalisi.local' }],
+    ['MAIL_FROM biçimsiz', { MAIL_FROM: 'At Sevdalısı' }],
+    ['GOOGLE_OAUTH_CLIENT_ID biçimi yanlış', { GOOGLE_OAUTH_CLIENT_ID: 'GOCSPX-gizli-istemci-sirri' }],
   ])('%s → açılış HATASI', (_label, patch) => {
     const result = checkEnvironment({ ...healthyProduction, ...patch }, rules);
     expect(result.errors).toHaveLength(1);
@@ -77,6 +86,14 @@ describe('checkEnvironment — üretim ortamı', () => {
     const secret = rules.forbiddenJwtSecrets[0]!;
     const result = checkEnvironment({ ...healthyProduction, JWT_SECRET: secret }, rules);
     expect(result.errors.join(' ')).not.toContain(secret);
+    const badKey = 'yanlis-yanlis-yanlis';
+    const keyResult = checkEnvironment({ ...healthyProduction, RESEND_API_KEY: badKey }, rules);
+    expect(keyResult.errors.join(' ')).not.toContain(badKey);
+  });
+
+  it('anahtar yokken MAIL_FROM denetlenmez (e-posta zaten gitmiyor, yalnızca uyarı)', () => {
+    const result = checkEnvironment({ ...healthyProduction, RESEND_API_KEY: '', MAIL_FROM: undefined }, rules);
+    expect(result.errors).toEqual([]);
   });
 });
 

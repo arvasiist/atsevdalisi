@@ -1,5 +1,9 @@
 import type {
   AttachReferralResult,
+  HippodromeCatalogView,
+  CareerView,
+  RaceWinnersPageView,
+  EconomyReportView,
   ClaimReferralRewardsResult,
   ReferralOverviewView,
   GiftQuotaView,
@@ -28,6 +32,8 @@ import type {
   FriendGiftSendAllResult,
   RaceTribuneGiftsView,
   SendTribuneGiftResult,
+  TribuneGiftInboxView,
+  CollectTribuneGiftsResult,
   AvatarAppearance,
   AvatarView,
   AvatarGenerationJobView,
@@ -60,7 +66,11 @@ import type {
   AuthProvidersView,
   AuthSession,
   BlockedPlayerView,
-  BreedingResultView,
+  BreedingAttemptView,
+  BreedingCenterView,
+  BreedingOfferView,
+  MyStudView,
+  PregnancyView,
   BuyFeedResult,
   CareActionType,
   ClaimDailyRewardResult,
@@ -81,6 +91,7 @@ import type {
   HorseMarketValueView,
   MarketListing,
   PlaceBidResult,
+  HorseCareerView,
   HorsePedigreeView,
   Jockey,
   JoinMatchmakingQueueResult,
@@ -121,6 +132,7 @@ import type {
   SocialOverviewView,
   StableSummaryView,
   StableUpgradeResult,
+  StableLayoutView,
   StartApproach,
   TrainHorseResult,
   TrainingIntensity,
@@ -533,6 +545,9 @@ export const apiClient = {
    */
   getHorsePedigree: (horseId: string) => request<HorsePedigreeView>(`/horses/${horseId}/pedigree`),
 
+  /** 16.10.2026 — atın yarış geçmişi + kazancı + tay sayısı (`@Public`, brief §3). */
+  getHorseCareer: (horseId: string) => request<HorseCareerView>(`/horses/${horseId}/career`),
+
   /**
    * Çiftleştirme — `POST /players/:id/breeding` (brief §18). Soy ağacı veri
    * zincirinin **YAZMA** yarısıdır (`getHorsePedigree` okuma yarısı).
@@ -578,14 +593,61 @@ export const apiClient = {
     foalName: string,
     idempotencyKey: string,
   ) =>
-    request<BreedingResultView>(`/players/${playerId}/breeding`, {
+    request<BreedingAttemptView>(`/players/${playerId}/breeding`, {
       method: 'POST',
       headers: { 'Idempotency-Key': idempotencyKey },
       body: JSON.stringify({ mareId, stallionId, foalName }),
     }),
 
-  /** 15.10.2026 — S5 damızlık pazarı: başka oyuncuların emekli aygırları + ücretleri. */
-  listStuds: () => request<StudListingView[]>('/breeding/studs'),
+  /**
+   * İlandaki aygırlar (16.10.2026'dan beri yalnızca sahibinin ilan verdiği,
+   * sahibin ücretiyle). Süzgeçler sunucuda: ırk anahtarı + azami ücret.
+   */
+  listStuds: (filters: { breed?: string; maxFee?: number } = {}) => {
+    const query = new URLSearchParams();
+    if (filters.breed) query.set('breed', filters.breed);
+    if (filters.maxFee !== undefined) query.set('maxFee', String(filters.maxFee));
+    const suffix = query.size > 0 ? `?${query.toString()}` : '';
+    return request<StudListingView[]>(`/breeding/studs${suffix}`);
+  },
+
+  /** 16.10.2026 — çiftleştirme merkezi özeti: kurallar, aygırlarım, teklifler, gebelikler. */
+  getBreedingCenter: () => request<BreedingCenterView>('/breeding/center'),
+
+  /** Aygır ilanı (ücret sunucu sınırları içinde; sınır dışı 400). */
+  putStudListing: (stallionId: string, fee: number) =>
+    request<MyStudView>(`/breeding/studs/${stallionId}`, { method: 'PUT', body: JSON.stringify({ fee }) }),
+
+  /** İlanı geri çeker; bekleyen teklifler iptal + tam iade. */
+  withdrawStudListing: (stallionId: string) =>
+    request<{ cancelledOffers: number }>(`/breeding/studs/${stallionId}`, { method: 'DELETE' }),
+
+  /**
+   * PARA YOLU — ücret EMANETE alınır. `Idempotency-Key` ZORUNLU ve BAŞARIYA
+   * kadar korunur (tekrar = ikinci emanet).
+   */
+  createBreedingOffer: (mareId: string, stallionId: string, foalName: string, idempotencyKey: string) =>
+    request<BreedingOfferView>('/breeding/offers', {
+      method: 'POST',
+      headers: { 'Idempotency-Key': idempotencyKey },
+      body: JSON.stringify({ mareId, stallionId, foalName }),
+    }),
+
+  /** Yanıtlar: tekrar koruması `pending` geçişidir (ikinci istek 409). */
+  acceptBreedingOffer: (offerId: string) =>
+    request<BreedingOfferView>(`/breeding/offers/${offerId}/accept`, { method: 'POST', body: JSON.stringify({}) }),
+  rejectBreedingOffer: (offerId: string) =>
+    request<BreedingOfferView>(`/breeding/offers/${offerId}/reject`, { method: 'POST', body: JSON.stringify({}) }),
+  cancelBreedingOffer: (offerId: string) =>
+    request<BreedingOfferView>(`/breeding/offers/${offerId}/cancel`, { method: 'POST', body: JSON.stringify({}) }),
+
+  /** PARA YOLU — gebelik veteriner kontrolü; anahtar başarıya kadar korunur. */
+  pregnancyCheckup: (pregnancyId: string, idempotencyKey: string) =>
+    request<PregnancyView>(`/breeding/pregnancies/${pregnancyId}/checkups`, {
+      method: 'POST',
+      headers: { 'Idempotency-Key': idempotencyKey },
+      body: JSON.stringify({}),
+    }),
 
   /**
    * 15.10.2026 — S5: atı yarıştan emekli eder (GERİ ALINMAZ). Para hareketi
@@ -685,6 +747,16 @@ export const apiClient = {
     }),
 
   /**
+   * 16.10.2026 — ahır düzeni: atı bölmeye taşır (doluysa yer değiştirir).
+   * Para hareketi yok; kilitli bölme 409 `STALL_LOCKED`. Yanıt yeni yerleşim.
+   */
+  moveHorseToStall: (playerId: string, horseId: string, stallNumber: number) =>
+    request<StableLayoutView>(`/players/${playerId}/stable/stalls`, {
+      method: 'POST',
+      body: JSON.stringify({ horseId, stallNumber }),
+    }),
+
+  /**
    * Faz 2 (görsel kalite planı) — Ana Sayfa "Son Yarış Sonuçları" paneli.
    * Yalnızca bu oyuncunun kendi pratik yarış geçmişini döner (bkz.
    * `RecentRaceResultView` doc yorumu, `packages/shared-types/src/race.ts`).
@@ -716,12 +788,19 @@ export const apiClient = {
    * olduğu gibi gösterir.
    */
   getLeaderboard: () => request<LeaderboardRowView[]>('/leaderboard'),
+  /** 16.10.2026 (brief §12) — kazananlar tablosu (`from`/`to` = `[from, to)`, `before` imleç). */
+  getRaceWinners: (query: Record<string, string>) =>
+    request<RaceWinnersPageView>(`/leaderboard/winners?${new URLSearchParams(query).toString()}`),
   /** 02.10.2026 (Faz 11) — haftalık/aylık sıralama (oturum ister). */
   getPeriodLeaderboard: (period: LeaderboardPeriod) =>
     request<PeriodLeaderboardView>(`/leaderboard/period/${period}`),
 
   /** Güncel sezon (brief §69, 01.10.2026) — oturum ister (`me` satırı için). */
   getCurrentSeason: () => request<SeasonView>('/seasons/current'),
+  /** 16.10.2026 (brief §9) — pistler, masaları ve takvimleri (`GET /hippodromes`). */
+  getHippodromes: () => request<HippodromeCatalogView>('/hippodromes'),
+  /** 16.10.2026 (brief §10) — çağıranın kariyeri (puan, kademe, sıradaki hedef, geçmiş). */
+  getCareer: () => request<CareerView>('/career'),
 
   /**
    * brief §32 "Çiftlik" (bu turda EKLENDİ) — `/farm` ekranı.
@@ -1419,6 +1498,9 @@ export const apiClient = {
    *
    * `assertSelf` ile korunur — yalnızca kişinin KENDİ cüzdanı okunabilir.
    */
+  /** 16.10.2026 (brief §19) — gelir-gider raporu (yalnızca kendi). */
+  getEconomyReport: (playerId: string, period: 'daily' | 'monthly') =>
+    request<EconomyReportView>(`/players/${playerId}/wallet/report?period=${period}`),
   getWallet: (playerId: string, limit?: number, before?: string) => {
     // `before` (30.09.2026) — önceki sayfanın `nextCursor`ı; yoksa ilk sayfa.
     const params = new URLSearchParams();
@@ -1609,6 +1691,12 @@ export const apiClient = {
       headers: { 'Idempotency-Key': idempotencyKey },
       body: JSON.stringify(body),
     }),
+  /**
+   * 17.10.2026 (brief §17) — hediye kutusu: tribünden gelen payların toplu
+   * alınması. Toplama tekrarı sıfır toplar (sunucu oyuncu kilidiyle işaretler).
+   */
+  getTribuneGiftInbox: () => request<TribuneGiftInboxView>('/tribune-gifts/inbox'),
+  collectTribuneGifts: () => request<CollectTribuneGiftsResult>('/tribune-gifts/collect', { method: 'POST' }),
   claimEvent: (eventId: string) =>
     request<QuestClaimResult>(`/events/${encodeURIComponent(eventId)}/claim`, { method: 'POST' }),
   listAdminEvents: () => request<AdminLiveEventView[]>('/admin/events'),

@@ -18,6 +18,9 @@ import {
   ProfilePhotoNotFoundError,
 } from '../../domain/avatar/errors';
 import { HorseLevelNotAllowedError, RaceClubOnlyError } from '../../domain/race/level-bracket';
+import { CareerTierLockedError } from '../../domain/career/errors';
+import { InvalidRaceWinnersQueryError } from '../../domain/ranking/race-winners';
+import { InvalidEconomyReportPeriodError } from '../../domain/economy/economy-report';
 import { HorseTooStrongForTierError } from '../../domain/race/practice-class';
 import { EquipmentLevelLockedError } from '../../domain/equipment/catalog';
 import {
@@ -78,8 +81,19 @@ import {
 } from '../../domain/horse/errors';
 import {
   BreedingHorseListedError,
+  BreedingOfferAlreadyPendingError,
+  BreedingOfferExpiredError,
+  BreedingOfferNotFoundError,
+  BreedingOfferNotPendingError,
+  BreedingOfferOwnStallionError,
+  BreedingRequiresAgreementError,
+  HorseBreedingCommitmentError,
   MareNotOwnedError,
   NotEligibleForBreedingError,
+  PregnancyCheckupTooSoonError,
+  PregnancyNotFoundError,
+  StudFeeOutOfBoundsError,
+  StudListingNotFoundError,
 } from '../../domain/breeding/errors';
 import {
   InvalidDisplayNameError,
@@ -95,6 +109,8 @@ import {
   InvalidCredentialsError,
   InvalidCredentialsInputError,
   InvalidProviderTokenError,
+  EmailDeliveryError,
+  EmailNotConfiguredError,
   ProviderAlreadyLinkedError,
   ProviderIdentityTakenError,
   InvalidResetTokenError,
@@ -135,13 +151,16 @@ import {
   InvalidTrainingInputError,
 } from '../../domain/training/errors';
 import {
+  EquipmentWornOutError,
   HorseEquipmentNotFoundError,
   InvalidEquipmentInputError,
 } from '../../domain/equipment/errors';
 import {
   CareActionOnCooldownError,
   DailyFeedLimitReachedError,
+  FeedNotAllowedForAgeError,
   FeedNotPurchasableError,
+  FeedRequiresVetCheckError,
   InsufficientFeedStockError,
   InvalidCareInputError,
   InvalidFeedPurchaseCountError,
@@ -150,6 +169,10 @@ import {
 import {
   MaxStableLevelReachedError,
   StableCapacityExceededError,
+  StableUpgradeLevelLockedError,
+  HorseNotInStableError,
+  InvalidStallNumberError,
+  StallLockedError,
 } from '../../domain/stable/errors';
 import {
   FacilityInactiveError,
@@ -336,6 +359,12 @@ const DOMAIN_ERROR_MAP = new Map<ErrorClassConstructor, { status: number; code: 
     MaxStableLevelReachedError,
     { status: HttpStatus.CONFLICT, code: ErrorCode.MaxStableLevelReached },
   ],
+  // 16.10.2026 — ahır geliştirme: oyuncu seviyesi şartı (paradan önce kesilir).
+  [StableUpgradeLevelLockedError, { status: HttpStatus.CONFLICT, code: ErrorCode.StableUpgradeLevelLocked }],
+  // 16.10.2026 — ahır bölmeleri.
+  [StallLockedError, { status: HttpStatus.CONFLICT, code: ErrorCode.StallLocked }],
+  [InvalidStallNumberError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.ValidationError }],
+  [HorseNotInStableError, { status: HttpStatus.NOT_FOUND, code: ErrorCode.HorseNotFound }],
   // "Yetersiz bakiye" de GEÇİCİDİR (oyuncu daha fazla para kazanınca
   // çözülür) — `HorseNotReadyForTrainingError`'ın INSUFFICIENT_ENERGY
   // dalıyla AYNI gerekçeyle 409 Conflict, 402/400 DEĞİL.
@@ -549,10 +578,12 @@ const DOMAIN_ERROR_MAP = new Map<ErrorClassConstructor, { status: number; code: 
   [HorseLevelNotAllowedError, { status: HttpStatus.CONFLICT, code: ErrorCode.HorseLevelNotAllowed }],
   [HorseTooStrongForTierError, { status: HttpStatus.CONFLICT, code: ErrorCode.HorseTooStrongForTier }],
   [RaceClubOnlyError, { status: HttpStatus.CONFLICT, code: ErrorCode.RaceClubOnly }],
+  [CareerTierLockedError, { status: HttpStatus.CONFLICT, code: ErrorCode.CareerTierLocked }],
   [InvalidTribuneGiftError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.InvalidTribuneGift }],
   [TribuneGiftNotAllowedError, { status: HttpStatus.CONFLICT, code: ErrorCode.TribuneGiftNotAllowed }],
   [TribuneGiftDailyLimitError, { status: HttpStatus.CONFLICT, code: ErrorCode.TribuneGiftDailyLimit }],
   [EquipmentLevelLockedError, { status: HttpStatus.CONFLICT, code: ErrorCode.EquipmentLevelLocked }],
+  [EquipmentWornOutError, { status: HttpStatus.CONFLICT, code: ErrorCode.EquipmentWornOut }],
   [AchievementNotCompletedError, { status: HttpStatus.CONFLICT, code: ErrorCode.AchievementNotCompleted }],
   [AchievementAlreadyClaimedError, { status: HttpStatus.CONFLICT, code: ErrorCode.AchievementAlreadyClaimed }],
   [InvalidLiveEventError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.InvalidLiveEvent }],
@@ -764,6 +795,9 @@ const DOMAIN_ERROR_MAP = new Map<ErrorClassConstructor, { status: number; code: 
     InvalidProviderTokenError,
     { status: HttpStatus.UNAUTHORIZED, code: ErrorCode.InvalidProviderToken },
   ],
+  // 16.10.2026 — e-posta sağlayıcısı: 503 + anlaşılır mesaj (500 yerine).
+  [EmailDeliveryError, { status: HttpStatus.SERVICE_UNAVAILABLE, code: ErrorCode.EmailDeliveryFailed }],
+  [EmailNotConfiguredError, { status: HttpStatus.SERVICE_UNAVAILABLE, code: ErrorCode.EmailNotConfigured }],
   // 01.10.2026 — Google hesabı bağlama (migration 0048).
   [
     ProviderIdentityTakenError,
@@ -875,6 +909,21 @@ const DOMAIN_ERROR_MAP = new Map<ErrorClassConstructor, { status: number; code: 
   // olan bir atın soy kaydını değiştirmek alıcıya sürpriz bir tay/soy
   // devreder.
   [BreedingHorseListedError, { status: HttpStatus.CONFLICT, code: ErrorCode.HorseListedInMarket }],
+  // 16.10.2026 — çiftleştirme merkezi + gebelik (brief §4–§5). Teklif ve gebelik
+  // yalnızca taraflarına görünür: taraf olmayana "yok" (404, IDOR kapısı).
+  [BreedingRequiresAgreementError, { status: HttpStatus.CONFLICT, code: ErrorCode.BreedingRequiresAgreement }],
+  [StudListingNotFoundError, { status: HttpStatus.NOT_FOUND, code: ErrorCode.StudListingNotFound }],
+  [StudFeeOutOfBoundsError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.InvalidStudFee }],
+  [BreedingOfferNotFoundError, { status: HttpStatus.NOT_FOUND, code: ErrorCode.BreedingOfferNotFound }],
+  [BreedingOfferNotPendingError, { status: HttpStatus.CONFLICT, code: ErrorCode.BreedingOfferNotPending }],
+  [BreedingOfferExpiredError, { status: HttpStatus.CONFLICT, code: ErrorCode.BreedingOfferExpired }],
+  [BreedingOfferAlreadyPendingError, { status: HttpStatus.CONFLICT, code: ErrorCode.BreedingOfferAlreadyPending }],
+  [BreedingOfferOwnStallionError, { status: HttpStatus.CONFLICT, code: ErrorCode.BreedingOfferOwnStallion }],
+  [PregnancyNotFoundError, { status: HttpStatus.NOT_FOUND, code: ErrorCode.PregnancyNotFound }],
+  [PregnancyCheckupTooSoonError, { status: HttpStatus.CONFLICT, code: ErrorCode.PregnancyCheckupTooSoon }],
+  [HorseBreedingCommitmentError, { status: HttpStatus.CONFLICT, code: ErrorCode.HorseBreedingCommitment }],
+  [FeedNotAllowedForAgeError, { status: HttpStatus.CONFLICT, code: ErrorCode.FeedNotAllowedForAge }],
+  [FeedRequiresVetCheckError, { status: HttpStatus.CONFLICT, code: ErrorCode.FeedRequiresVetCheck }],
   // YARIŞA KATILMA (brief §2/§3/§6, §42 PHASE 1b) — beşi de
   // `POST /races/:id/join` yolundan gelir. Sınıflandırma, projedeki AYNI
   // kategorilerin tekrarıdır (hepsi `domain/race/errors.ts`'te uzun uzun
@@ -975,6 +1024,8 @@ const DOMAIN_ERROR_MAP = new Map<ErrorClassConstructor, { status: number; code: 
   ],
   // 30.09.2026 — bozuk sayfa imleci (varsayılana DÜŞÜLMEZ, bkz. sınıf doc yorumu).
   [InvalidWalletCursorError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.ValidationError }],
+  [InvalidRaceWinnersQueryError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.ValidationError }],
+  [InvalidEconomyReportPeriodError, { status: HttpStatus.BAD_REQUEST, code: ErrorCode.ValidationError }],
 ]);
 
 /**

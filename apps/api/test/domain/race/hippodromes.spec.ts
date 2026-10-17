@@ -10,6 +10,7 @@ import {
   findHippodrome,
   hippodromeKeyForTrack,
   hippodromeKeys,
+  hippodromeRaceProblems,
   pickHippodromeForRace,
   resolveHippodromeKey,
   trackIdForHippodrome,
@@ -25,7 +26,9 @@ import { validateRaceCreation } from '../../../src/domain/race/lobby';
  * yarışın hipodromu kimlikten determinist.
  */
 const config = loadHippodromesConfig();
-const MIGRATION = join(__dirname, '../../../../../database/migrations/0072_add_hippodromes.up.sql');
+const MIGRATIONS = ['0072_add_hippodromes.up.sql', '0098_international_hippodromes.up.sql'].map((name) =>
+  join(__dirname, '../../../../../database/migrations', name),
+);
 
 function clone(): HippodromesConfig {
   return JSON.parse(JSON.stringify(config)) as HippodromesConfig;
@@ -41,8 +44,8 @@ describe('hipodromlar — config ↔ migration', () => {
     expect(config.hippodromes.length).toBeGreaterThanOrEqual(5);
   });
 
-  it("migration 0072 config'teki (kimlik, anahtar) çiftlerini BİREBİR yazar", () => {
-    const sql = readFileSync(MIGRATION, 'utf8');
+  it("migration 0072 + 0098 config'teki (kimlik, anahtar) çiftlerini BİREBİR yazar", () => {
+    const sql = MIGRATIONS.map((file) => readFileSync(file, 'utf8')).join('\n');
     const rows = [...sql.matchAll(/\('([0-9a-f-]{36})',\s*'([a-z0-9-]+)'/g)].map((match) => [
       match[1],
       match[2],
@@ -85,14 +88,16 @@ describe('hipodromlar — eşleme', () => {
     );
   });
 
-  it('seçilmeyen yarışın hipodromu kimlikten determinist ve bütün hipodromlara dağılır', () => {
+  it('seçilmeyen yarışın hipodromu kimlikten determinist ve SABİT havuza dağılır (yeni pist eski tekrarı değiştirmez)', () => {
     const ids = Array.from(
       { length: 400 },
       (_, i) => `6f1c2d3e-0000-4000-8000-${i.toString(16).padStart(12, '0')}`,
     );
     const first = ids.map((id) => pickHippodromeForRace(config, id).key);
     expect(ids.map((id) => pickHippodromeForRace(config, id).key)).toEqual(first);
-    expect(new Set(first)).toEqual(new Set(hippodromeKeys(config)));
+    expect(new Set(first)).toEqual(new Set(config.practicePool));
+    // Havuz 16.10.2026 öncesindeki beş pisttir: seçim eskisiyle bit bit aynı.
+    expect(config.practicePool).toEqual(['veliefendi', 'ankara', 'izmir', 'adana', 'bursa']);
   });
 });
 
@@ -135,3 +140,44 @@ describe('hipodromlar — yarış açma doğrulaması', () => {
     expect(validateRaceCreation({ ...input, hippodrome: 'ankara' }, lobby, now).value).toBeNull();
   });
 });
+
+// 16.10.2026 (brief §9) — ülke/şehir, seviye, prestij, pist kuralları.
+describe('uluslararası hipodromlar', () => {
+  it('Türkiye + ABD + Fransa + BAE; her pistin ülke/şehir/seviye/prestij/zemin/mesafe/masası var', () => {
+    expect(new Set(config.hippodromes.map((h) => h.countryCode))).toEqual(new Set(['TR', 'US', 'FR', 'AE']));
+    expect(config.hippodromes.filter((h) => h.level === 'international').map((h) => h.key).sort()).toEqual([
+      'dubai',
+      'kentucky',
+      'paris',
+    ]);
+    for (const h of config.hippodromes) {
+      expect(h.surfaces.length).toBeGreaterThan(0);
+      expect(h.distancesMeters.length).toBeGreaterThan(0);
+      expect(h.tables.length).toBeGreaterThan(0);
+    }
+  });
+
+  it('markalı tesis adları kullanılmaz (kullanım hakkı doğrulanmadı)', () => {
+    const names = config.hippodromes.map((h) => `${h.name} ${h.shortName}`).join(' ');
+    expect(names).not.toMatch(/Churchill|Longchamp|Meydan/i);
+  });
+
+  it('pist kuralı: zemin, mesafe ve masa pistin listesinde olmalı; pist seçilmemişse serbest', () => {
+    const base = { hippodrome: 'paris', surface: 'grass', distanceMeters: 2400, tableId: 'championship' };
+    expect(hippodromeRaceProblems(base, config)).toEqual([]);
+    expect(hippodromeRaceProblems({ ...base, surface: 'dirt' }, config)).toHaveLength(1);
+    expect(hippodromeRaceProblems({ ...base, distanceMeters: 1000 }, config)).toHaveLength(1);
+    expect(hippodromeRaceProblems({ ...base, tableId: 'local' }, config)).toHaveLength(1);
+    expect(hippodromeRaceProblems({ ...base, hippodrome: null, surface: 'dirt', distanceMeters: 999 }, config)).toEqual([]);
+  });
+
+  it('bozuk alanlar yakalanır', () => {
+    const broken = clone();
+    broken.hippodromes[0]!.prestige = 9;
+    broken.hippodromes[1]!.surfaces = [];
+    broken.hippodromes[2]!.countryCode = 'Türkiye';
+    broken.practicePool = ['ay-pisti'];
+    expect(validateHippodromesConfig(broken).length).toBeGreaterThanOrEqual(4);
+  });
+});
+

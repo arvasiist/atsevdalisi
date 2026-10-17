@@ -37,6 +37,11 @@ export interface TrainingContext {
    * yoğunluk, `domain/horse/personality.ts`). Varsayılan 1.0 (nötr).
    */
   personalityFactor?: number;
+  /**
+   * 17.10.2026 (brief §14) — yem/su ihtiyacı çarpanı (`domain/care/needs.ts`):
+   * karşılanmış ihtiyaçta 1.0; aç/susuz at daha az gelişir.
+   */
+  needsFactor?: number;
 }
 
 export interface TrainingOutcome {
@@ -114,6 +119,7 @@ export function calculateStatGain(
     | 'vitals'
     | 'trainerFactor'
     | 'personalityFactor'
+    | 'needsFactor'
   >,
 ): number {
   const typeConfig = getTypeConfig(config, ctx.trainingType);
@@ -133,6 +139,7 @@ export function calculateStatGain(
   const recoveryFactor = 1 - 0.5 * (ctx.vitals.fatigue / MAX_VITAL);
   const trainerFactor = ctx.trainerFactor ?? 1.0;
   const personalityFactor = ctx.personalityFactor ?? 1.0;
+  const needsFactor = ctx.needsFactor ?? 1.0;
 
   const gain =
     effectiveGain *
@@ -141,7 +148,8 @@ export function calculateStatGain(
     healthFactor *
     recoveryFactor *
     trainerFactor *
-    personalityFactor;
+    personalityFactor *
+    needsFactor;
 
   const cappedGain = Math.min(gain, ceiling - ctx.currentStatValue);
   return Math.max(0, cappedGain);

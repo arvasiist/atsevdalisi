@@ -1,0 +1,42 @@
+# E-posta (Resend) + Google girişi entegrasyon kontrolü (16.10.2026).
+#
+# YALNIZCA ELLE çalışır (Actions → "Entegrasyon kontrolü" → Run workflow).
+# Normal CI gerçek servislere HİÇ dokunmaz (testler sahte gönderici/doğrulayıcı
+# kullanır). Değerler repository secrets'tan gelir, depoya girmez ve GitHub
+# loglarda maskeler; betik de değerleri yazdırmaz (`apps/api/tools/check-integrations.ts`).
+#
+# Gerekli secrets (Settings → Secrets and variables → Actions):
+#   RESEND_API_KEY          — Resend → API Keys (yalnızca "Sending access" yeter)
+#   MAIL_FROM               — örn. "At Sevdalısı <no-reply@alanadiniz.com>" (alan adı Resend'de doğrulanmış)
+#   INTEGRATION_TEST_EMAIL  — test e-postasının gideceği kendi adresin
+#   GOOGLE_OAUTH_CLIENT_ID  — Google Cloud Console → Kimlik bilgileri → Web uygulaması istemci kimliği
+# Tanımlı olmayan bir secret "ATLANDI" olarak raporlanır (başarı sayılmaz).
+name: Entegrasyon kontrolü
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Bağımlılıklar
+        run: npm ci
+      - name: Paylaşılan paketler
+        run: npm run build:packages
+      - name: E-posta + Google ayarlarını dene
+        working-directory: apps/api
+        env:
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          MAIL_FROM: ${{ secrets.MAIL_FROM }}
+          INTEGRATION_TEST_EMAIL: ${{ secrets.INTEGRATION_TEST_EMAIL }}
+          GOOGLE_OAUTH_CLIENT_ID: ${{ secrets.GOOGLE_OAUTH_CLIENT_ID }}
+        run: npx tsx tools/check-integrations.ts

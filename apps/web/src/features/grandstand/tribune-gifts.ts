@@ -4,6 +4,7 @@
  */
 import type {
   RaceTribuneGiftsView,
+  TribuneGiftInboxView,
   TribuneGiftEvent,
   TribuneGiftFeedItem,
   TribuneGiftItemView,
@@ -77,4 +78,15 @@ export function bumpHorseCount(
   return perHorse.map((row) =>
     row.horseId === horseId ? { horseId, counts: { ...row.counts, [giftKey]: (row.counts[giftKey] ?? 0) + 1 } } : row,
   );
+}
+
+/**
+ * 17.10.2026 — hediye kutusu özeti ("🥕 ×3 · 🎀 ×1"); sayılar sunucudan.
+ * Kutu boşsa `null` (panel "toplanacak hediye yok" yazar).
+ */
+export function inboxSummary(view: TribuneGiftInboxView): string | null {
+  if (view.pendingCount === 0) return null;
+  return view.pendingByGift
+    .map((row) => `${tribuneGiftEmoji(row.giftKey) || tribuneGiftName(row.giftKey)} ×${row.count}`)
+    .join(' · ');
 }

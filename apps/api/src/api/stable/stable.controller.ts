@@ -1,7 +1,22 @@
-import { Controller, Get, HttpCode, HttpStatus, Inject, Param, ParseUUIDPipe, Post, UseInterceptors } from '@nestjs/common';
-import type { ApiSuccess, StableSummaryView, StableUpgradeResult } from '@at-sevdalisi/shared-types';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Inject,
+  Param,
+  ParseUUIDPipe,
+  Post,
+  UseInterceptors,
+} from '@nestjs/common';
+import { isUUID } from 'class-validator';
+import type { ApiSuccess, StableLayoutView, StableSummaryView, StableUpgradeResult } from '@at-sevdalisi/shared-types';
 import { GetStableSummaryUseCase } from '../../application/use-cases/get-stable-summary.use-case';
 import { UpgradeStableUseCase } from '../../application/use-cases/upgrade-stable.use-case';
+import { MoveHorseStallUseCase } from '../../application/use-cases/move-horse-stall.use-case';
+import { RateLimit } from '../rate-limit/rate-limit.decorator';
 import { assertSelf } from '../auth/assert-self';
 import { CurrentPlayer, type AuthenticatedPlayer } from '../auth/current-player.decorator';
 import { IdempotencyInterceptor } from '../idempotency/idempotency.interceptor';
@@ -21,6 +36,7 @@ export class StableController {
   constructor(
     @Inject(GetStableSummaryUseCase) private readonly getStableSummaryUseCase: GetStableSummaryUseCase,
     @Inject(UpgradeStableUseCase) private readonly upgradeStableUseCase: UpgradeStableUseCase,
+    @Inject(MoveHorseStallUseCase) private readonly moveHorseStallUseCase: MoveHorseStallUseCase,
   ) {}
 
   // AUDIT_REPORT.md Bulgu S4 hardening (bu oturum) — `assertSelf` (bkz. o
@@ -59,5 +75,26 @@ export class StableController {
     assertSelf(currentPlayer.id, id);
     const result = await this.upgradeStableUseCase.execute(id);
     return { success: true, data: result };
+  }
+
+  /**
+   * 16.10.2026 — AHIR DÜZENİ: atı bölmeye taşı (doluysa yer değiştir). Para
+   * hareketi yok → Idempotency-Key gerekmez (tekrar aynı yerleşimi yazar).
+   * `horseId` gövde alanıdır: DTO yetmez, `isUUID` kapısı burada (CLAUDE.md).
+   */
+  @Post(':id/stable/stalls')
+  @HttpCode(HttpStatus.OK)
+  @RateLimit({ name: 'stable-stall-move', limit: 60, windowSeconds: 60, keyBy: 'player' })
+  async moveHorseToStall(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentPlayer() currentPlayer: AuthenticatedPlayer,
+    @Body() body: { horseId?: unknown; stallNumber?: unknown },
+  ): Promise<ApiSuccess<StableLayoutView>> {
+    assertSelf(currentPlayer.id, id);
+    if (typeof body?.horseId !== 'string' || !isUUID(body.horseId)) {
+      throw new BadRequestException('horseId geçerli bir UUID olmalı.');
+    }
+    const layout = await this.moveHorseStallUseCase.execute(id, body.horseId, body?.stallNumber);
+    return { success: true, data: layout };
   }
 }

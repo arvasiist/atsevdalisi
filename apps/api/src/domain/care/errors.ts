@@ -111,3 +111,19 @@ export class InvalidFeedPurchaseCountError extends Error {
     this.name = 'InvalidFeedPurchaseCountError';
   }
 }
+
+/** 16.10.2026 — kalem bu yaş evresindeki ata verilemez (ör. tay yemi yetişkine). */
+export class FeedNotAllowedForAgeError extends Error {
+  constructor(public readonly feedType: string, public readonly lifeStage: string) {
+    super('Bu yem atın yaşına uygun değil (tay yemi yalnızca tay ve gelişim çağındaki atlara verilir).');
+    this.name = 'FeedNotAllowedForAgeError';
+  }
+}
+
+/** 16.10.2026 — ilaç için son N saatte veteriner bakımı ("reçete") şart. */
+export class FeedRequiresVetCheckError extends Error {
+  constructor(public readonly feedType: string, public readonly hours: number) {
+    super(`Bu ilaç için son ${hours} saat içinde veteriner kontrolü gerekir (Bakım → Veteriner).`);
+    this.name = 'FeedRequiresVetCheckError';
+  }
+}

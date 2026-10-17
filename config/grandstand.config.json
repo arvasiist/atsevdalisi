@@ -10,9 +10,11 @@
     "giftWindowHours": 48,
     "recentLimit": 20,
     "items": [
-      { "key": "carrot", "name": "Havuç", "emoji": "🥕", "price": 10 },
+      { "key": "carrot", "name": "Havuç Demeti", "emoji": "🥕", "price": 10 },
+      { "key": "clover", "name": "Dört Yapraklı Yonca", "emoji": "🍀", "price": 15 },
       { "key": "apple", "name": "Elma", "emoji": "🍎", "price": 20 },
       { "key": "evil-eye", "name": "Nazar Boncuğu", "emoji": "🧿", "price": 30 },
+      { "key": "ribbon", "name": "Kurdele", "emoji": "🎀", "price": 40 },
       { "key": "horseshoe", "name": "Altın Nal", "emoji": "", "price": 50 },
       { "key": "rose-garland", "name": "Gül Çelengi", "emoji": "🌹", "price": 100 },
       { "key": "trophy", "name": "Şampiyon Kupası", "emoji": "🏆", "price": 250 }

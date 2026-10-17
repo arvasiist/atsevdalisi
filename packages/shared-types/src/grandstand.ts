@@ -187,6 +187,35 @@ export interface SendTribuneGiftResult {
   balanceAfter: number;
 }
 
+/**
+ * 17.10.2026 (brief §17) — at sahibinin HEDİYE KUTUSU. Payı gönderimde değil
+ * toplayınca hesabına geçer (`POST /tribune-gifts/collect`, tek defter satırı).
+ */
+export interface TribuneGiftInboxView {
+  pendingCount: number;
+  pendingAmount: number;
+  /** Bekleyenler hediye türüne göre (katalog sırasıyla). */
+  pendingByGift: Array<{ giftKey: string; count: number; amount: number }>;
+  /** Son gelenler (toplanmış + bekleyen), yeni → eski. */
+  received: Array<{
+    tribuneGiftId: string;
+    giftKey: string;
+    raceId: string;
+    raceName: string;
+    horseName: string;
+    senderDisplayName: string;
+    amount: number;
+    createdAt: string;
+    collectedAt: string | null;
+  }>;
+}
+
+export interface CollectTribuneGiftsResult {
+  collected: number;
+  amount: number;
+  balanceAfter: number;
+}
+
 /** Soket `race.tribuneGift` — yarış odasındaki herkese. */
 export interface TribuneGiftEvent extends TribuneGiftFeedItem {
   raceId: string;

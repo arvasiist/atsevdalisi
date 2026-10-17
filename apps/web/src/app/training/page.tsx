@@ -25,27 +25,20 @@
  * çağrısı).
  */
 
+import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import type { PublicHorse, TrainHorseResult, TrainingIntensity, TrainingSession, TrainingType } from '@at-sevdalisi/shared-types';
 import { GlassPanel } from '../../components/ui/GlassPanel';
 import { HorseAvatar } from '../../components/ui/HorseAvatar';
 import { StatBar } from '../../components/ui/StatBar';
 import { apiClient } from '../../lib/api-client';
+import { TRAINING_TYPE_LABELS } from '../../features/training/training-labels';
+import { describeNeeds, needsTrainingPenalty } from '../../features/horse-profile/horse-needs';
 import { usePlayer } from '../../lib/player-context';
 
 const TRAINING_TYPES: readonly TrainingType[] = ['speed', 'sprint', 'stamina', 'start', 'cornering', 'tempo', 'rest'];
 const TRAINING_INTENSITIES: readonly TrainingIntensity[] = ['low', 'medium', 'high'];
 const DEFAULT_DURATION_MINUTES = 30;
-
-const TRAINING_TYPE_LABELS: Record<TrainingType, string> = {
-  speed: 'Hız',
-  sprint: 'Sprint',
-  stamina: 'Dayanıklılık',
-  start: 'Çıkış',
-  cornering: 'Viraj',
-  tempo: 'Tempo',
-  rest: 'Dinlenme',
-};
 
 const INTENSITY_LABELS: Record<TrainingIntensity, string> = {
   low: 'Düşük',
@@ -221,6 +214,16 @@ export default function TrainingPage(): React.ReactElement {
               </div>
             ) : null}
 
+            {selectedHorse?.needs && needsTrainingPenalty(selectedHorse.needs) ? (
+              <p data-testid="training-needs-warning" style={{ color: 'var(--color-status-warning)', fontSize: '13px' }}>
+                {describeNeeds(selectedHorse.needs, new Date())
+                  .filter((line) => line.level !== 'ok')
+                  .map((line) => `${line.icon} ${line.text}`)
+                  .join(' · ')}{' '}
+                — {needsTrainingPenalty(selectedHorse.needs)}. <Link href="/stable?panel=care">Bakım</Link>
+              </p>
+            ) : null}
+
             {selectedHorse && selectedHorse.status !== 'active' ? (
               <p style={{ color: 'var(--color-status-warning)', fontSize: '13px' }}>
                 {horseStatusLabel(selectedHorse.status)} durumundaki bir at antrenmana katılamaz.
@@ -305,6 +308,17 @@ export default function TrainingPage(): React.ReactElement {
                 {result.staffMultiplier > 1 ? (
                   <span style={{ color: 'var(--color-accent-gold)' }}>
                     Antrenör etkisi: +%{Math.round((result.staffMultiplier - 1) * 100)}
+                    {result.trainer?.specializationMatched ? ' (uzmanlık alanı)' : ''}
+                  </span>
+                ) : null}
+                {needsTrainingPenalty(result.needs) ? (
+                  <span data-testid="training-needs-penalty" style={{ color: 'var(--color-status-critical)' }}>
+                    {needsTrainingPenalty(result.needs)}
+                  </span>
+                ) : null}
+                {result.trainer?.skillGained ? (
+                  <span data-testid="training-trainer-growth" style={{ color: 'var(--color-status-positive)' }}>
+                    {result.trainer.name} gelişti: beceri {Math.round(result.trainer.skill)}
                   </span>
                 ) : null}
               </div>

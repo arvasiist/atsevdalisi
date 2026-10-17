@@ -14,6 +14,10 @@ export const QUEST_METRICS = [
   'horse_purchases',
   /** 08.10.2026 — gönderilen dostluk hediyesi (`friend_gifts`, gönderen). */
   'friend_gifts_sent',
+  /** 16.10.2026 (brief §18) — başarılı döllenme (`pregnancies.conceived_at`, kısrak sahibi). */
+  'breedings',
+  /** 16.10.2026 (brief §18) — doğan tay (`pregnancies.born_at`, kısrak sahibi). */
+  'foals_born',
 ] as const;
 
 export type QuestMetric = (typeof QUEST_METRICS)[number];

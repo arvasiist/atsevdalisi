@@ -36,10 +36,11 @@ docker build -f apps/web/Dockerfile --build-arg NEXT_PUBLIC_API_URL=https://api.
 | `DATABASE_URL` | zorunlu | |
 | `REDIS_URL` | zorunlu | |
 | `CORS_ORIGIN` | zorunlu, localhost olamaz | web adresi |
-| `WEB_BASE_URL` | zorunlu, localhost olamaz | e-posta bağlantıları |
+| `WEB_BASE_URL` | zorunlu, localhost olamaz, `https://` | e-posta bağlantıları |
 | `DISABLE_RATE_LIMIT` | `true` YASAK | yalnızca test |
-| `RESEND_API_KEY` | uyarı | yoksa e-posta gitmez |
-| `GOOGLE_OAUTH_CLIENT_ID` | uyarı | yoksa Google düğmesi gizli |
+| `RESEND_API_KEY` | uyarı; verilirse `re_` biçiminde | yoksa e-posta GİTMEZ (doğrulama/şifre sıfırlama; elle "tekrar gönder" 503 `EMAIL_NOT_CONFIGURED`). Yalnızca sunucuda — web paketine girmez. Kurulum: `docs/EPOSTA_GOOGLE_KURULUM.md` |
+| `MAIL_FROM` | `RESEND_API_KEY` varsa ZORUNLU | `Ad <adres@alan.adi>`; alan adı Resend'de doğrulanmış olmalı (`.local`/`.example`/`alan-adiniz.com` reddedilir) |
+| `GOOGLE_OAUTH_CLIENT_ID` | uyarı; verilirse `<sayı>-<kod>.apps.googleusercontent.com` | yoksa Google düğmesi gizli. İstemci KİMLİĞİDİR (herkese açık, `GET /auth/providers` web'e verir); istemci SIRRI (`GOCSPX-…`) gerekmez, hiçbir yere yazılmaz |
 | `AVATAR_PROVIDER` | isteğe bağlı | fotoğraftan AI avatar sağlayıcısının adı; boşsa özellik KAPALI (selfie kabul edilmez, manuel avatar çalışır). Bugün kodda tanımlı sağlayıcı YOK — bilinmeyen ad açılışta hata verir. Sağlayıcının API anahtarı da ortam değişkenidir, istemciye gitmez. |
 | `PAYMENT_PROVIDER` | isteğe bağlı | gerçek para ödeme sağlayıcısının adı; boşsa mağaza KAPALI. Bugün kodda tanımlı sağlayıcı YOK — bilinmeyen ad açılışta hata verir. Webhook adresi: `POST {API}/api/v1/payments/webhook/{PAYMENT_PROVIDER}` (sağlayıcı panelinde tanımlanır). Sağlayıcının gizli anahtarı ve webhook imza sırrı ortam değişkenidir; loglanmaz, istemciye gitmez. Açmadan önce yasal inceleme şart. |
 | `METRICS_TOKEN` | uyarı; verilirse ≥24 karakter | `GET /api/v1/metrics` (Prometheus) için Bearer token. Yoksa uç 404 — izleme verisi toplanmaz. `openssl rand -hex 32` |

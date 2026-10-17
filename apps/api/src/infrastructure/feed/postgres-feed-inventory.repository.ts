@@ -181,16 +181,43 @@ export class PostgresFeedInventoryRepository implements FeedInventoryRepository 
         return null;
       }
 
+      // 16.10.2026 — tay yetiştirme: ömür boyu sayım + büyüyebilen statlar.
+      const lifetime = await client.query<{ count: number }>(
+        'SELECT COUNT(*)::int AS count FROM horse_feed_log WHERE horse_id = $1 AND item_type = $2',
+        [horseId, feedType],
+      );
+      const statsRow = await client.query<{ speed: string; stamina: string; acceleration: string; sprint: string }>(
+        'SELECT speed, stamina, acceleration, sprint FROM horse_stats WHERE horse_id = $1 FOR UPDATE',
+        [horseId],
+      );
+      const statValues = statsRow.rows[0];
+
       // (4) Saf domain hesabı — kilitli/güncel değerlerle.
-      const { horse: updatedHorse, quantity: newQuantity, result } = mutate({
+      const { horse: updatedHorse, quantity: newQuantity, result, statUpdate } = mutate({
         player: rowToPlayer(playerRow),
         horse: rowToHorse(horseRow),
         quantity,
         usage,
+        lifetimeFeeds: lifetime.rows[0]?.count ?? 0,
+        upbringingStats: statValues
+          ? {
+              speed: Number(statValues.speed),
+              stamina: Number(statValues.stamina),
+              acceleration: Number(statValues.acceleration),
+              sprint: Number(statValues.sprint),
+            }
+          : {},
       });
 
       // (5) At, (6) stok, (7) kayıt — HEPSİ aynı transaction'da.
       await writeHorseRow(client, updatedHorse);
+      if (statUpdate) {
+        // Sütun adı kapalı kümeden (`statRotation` türü) — kullanıcı girdisi DEĞİL.
+        await client.query(`UPDATE horse_stats SET ${statUpdate.stat} = $2, updated_at = now() WHERE horse_id = $1`, [
+          horseId,
+          statUpdate.value,
+        ]);
+      }
       if (newQuantity !== null) {
         await this.writeQuantity(client, playerId, feedType, newQuantity);
       }

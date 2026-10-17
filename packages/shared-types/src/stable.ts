@@ -35,6 +35,38 @@ export interface StableSummaryView {
    * `SELECT ... FOR UPDATE` + `economy_transactions` defter kaydıyla olur).
    */
   nextUpgrade: StableUpgradeOfferView | null;
+  /** 16.10.2026 — ahır geliştirme: seviyenin adı + konfor (toparlanma) bonusu, yüzde. */
+  stableName: string;
+  recoveryBonusPercent: number;
+  /** Bütün seviyeler (yol haritası); sayılar config'ten, sunucu aynısını uygular. */
+  levels: StableLevelView[];
+  /** 16.10.2026 (migration 0097) — dolu bölmeler (bölme numarasına göre). */
+  stalls: StallView[];
+  /** En yüksek ahır seviyesinin kapasitesi (kilitli bölmeler dahil toplam). */
+  maxStalls: number;
+}
+
+export interface StallView {
+  stallNumber: number;
+  horseId: string;
+  horseName: string;
+}
+
+/** `POST /players/:id/stable/stalls` yanıtı — taşımadan SONRAKİ yerleşim. */
+export interface StableLayoutView {
+  capacity: number;
+  stalls: StallView[];
+}
+
+export interface StableLevelView {
+  level: number;
+  name: string;
+  capacity: number;
+  recoveryBonusPercent: number;
+  /** Bu seviyeye yükseltmek için gereken oyuncu seviyesi (seviye 1 için `null`). */
+  requiredPlayerLevel: number | null;
+  /** Bu seviyeye yükseltmenin bedeli (seviye 1 için `null`). */
+  cost: CurrencyAmount | null;
 }
 
 /**
@@ -47,6 +79,10 @@ export interface StableUpgradeOfferView {
   cost: CurrencyAmount;
   /** `nextLevel`'a geçildiğinde ahırın yeni at kapasitesi. */
   nextCapacity: number;
+  /** 16.10.2026 — sonraki seviyenin adı, konfor bonusu ve oyuncu seviyesi şartı. */
+  nextName: string;
+  nextRecoveryBonusPercent: number;
+  requiredPlayerLevel: number;
 }
 
 /**

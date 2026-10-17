@@ -15,6 +15,7 @@ import Link from 'next/link';
 import type { StaffOverview, StaffRole, StaffView } from '@at-sevdalisi/shared-types';
 import { GlassPanel } from '../../components/ui/GlassPanel';
 import { apiClient } from '../../lib/api-client';
+import { describeTrainer } from '../../features/training/training-labels';
 import { formatCurrency } from '../../lib/currency';
 import { usePlayer } from '../../lib/player-context';
 
@@ -67,6 +68,11 @@ function StaffCard({
           Beceri {Math.round(staff.skill)} · {info?.effect ?? 'Etki'}{' '}
           {bonusLabel(staff.bonusMultiplier)}
         </div>
+        {describeTrainer(staff) ? (
+          <div style={mutedText} data-testid="trainer-focus">
+            {describeTrainer(staff)}
+          </div>
+        ) : null}
       </div>
       {children}
     </li>

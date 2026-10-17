@@ -39,6 +39,10 @@ export const NOTIFICATION_TYPES = [
   'friend_gift_received',
   'gift_sent',
   'referral_reward',
+  // 16.10.2026 — çiftleştirme merkezi (brief §4–§5).
+  'breeding_offer_received',
+  'breeding_offer_answered',
+  'foal_born',
 ] as const;
 
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
@@ -99,6 +103,8 @@ export interface NotificationPayloadByType {
     playerId: string;
     displayName: string;
     amount: number;
+    /** 17.10.2026 — pay hediye kutusunda bekliyor (toplanınca hesaba geçer). Eski bildirimlerde yok = gönderimde ödenmişti. */
+    collectRequired?: boolean;
   };
   /** 08.10.2026 — sabit fiyatlı ilanın süresi doldu; at satılmadı, sende. */
   listing_expired: { listingId: string; horseId: string; horseName: string; price: number };
@@ -115,6 +121,7 @@ export interface NotificationPayloadByType {
    * 15.10.2026 — aygırın başka bir oyuncunun kısrağıyla tay verdi; `amount`
    * hesabına geçen damızlık payı (`studFeeOwnerSharePercent`, 0 olabilir).
    */
+  /** 16.10.2026'dan beri DÖLLENME anında gelir: `pairId` = gebelik, `foalId` = doğacak tayın ayrılmış kimliği. */
   stud_service: { pairId: string; stallionId: string; stallionName: string; foalId: string; amount: number };
   /**
    * 16.10.2026 — bir arkadaşın sana çip hediyesi gönderdi (brief §6.4); çip
@@ -135,6 +142,26 @@ export interface NotificationPayloadByType {
    * `invitee` (davetle gelen); `otherName` karşı tarafın görünen adı.
    */
   referral_reward: { referralId: string; role: 'inviter' | 'invitee'; otherName: string; amount: number };
+  /** Aygır sahibine: kısrak sahibi teklif gönderdi (ücret emanette). */
+  breeding_offer_received: {
+    offerId: string;
+    stallionId: string;
+    stallionName: string;
+    mareName: string;
+    fromName: string;
+    fee: number;
+  };
+  /** Kısrak sahibine: teklif kabul edildi / reddedildi / iptal oldu / süresi doldu. */
+  breeding_offer_answered: {
+    offerId: string;
+    stallionName: string;
+    mareName: string;
+    status: 'accepted' | 'rejected' | 'cancelled' | 'expired';
+    outcome: 'conceived' | 'not_conceived' | null;
+    refundedAmount: number;
+  };
+  /** Tay doğdu (gebeliğin sahibine). */
+  foal_born: { pregnancyId: string; foalId: string; foalName: string; mareName: string };
 }
 
 /**

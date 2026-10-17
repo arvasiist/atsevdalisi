@@ -13,7 +13,13 @@ import {
   contractEndsAt,
   isContractRenewable,
   renewContract,
+  bestActiveStaff,
+  developTrainer,
+  sessionsToNextSkill,
+  trainerSpecialtyFactor,
+  validateTrainerConfig,
 } from '../../../src/domain/staff/staff';
+import { loadTrainingConfig } from '@at-sevdalisi/game-config';
 import {
   StaffAlreadyHiredError,
   StaffContractExpiredError,
@@ -140,5 +146,68 @@ describe('sözleşme + etki (01.10.2026)', () => {
       calculateStaffBonusMultiplier({ role: 'trainer', skill: 90, morale: 100 }, config),
     );
     expect(bestActiveStaffMultiplier(staff, 'groom', config, now)).toBe(1);
+  });
+});
+
+describe('antrenör uzmanlığı + gelişimi (17.10.2026, brief §13)', () => {
+  const now = new Date('2026-10-17T12:00:00Z');
+  const active = { startedAt: now.toISOString(), durationMonths: 1 };
+  const t = config.trainer;
+
+  it('gerçek config geçerli: uzmanlıklar dinlenme hariç gerçek antrenman tipleri', () => {
+    const types = Object.keys(loadTrainingConfig().types);
+    expect(validateTrainerConfig(config, types)).toEqual([]);
+    expect(t.specializations).not.toContain('rest');
+    const broken = { ...config, trainer: { ...t, specializations: ['rest', 'yuzme', 'speed', 'speed'], matchBonusFactor: 0.9 } };
+    const problems = validateTrainerConfig(broken, types);
+    expect(problems.some((p) => p.includes('"rest"'))).toBe(true);
+    expect(problems.some((p) => p.includes('"yuzme"'))).toBe(true);
+    expect(problems.some((p) => p.includes('tekrar'))).toBe(true);
+    expect(problems.some((p) => p.includes('matchBonusFactor'))).toBe(true);
+  });
+
+  it('genel (uzmanlıksız) antrenör ve tipsiz çağrı ESKİ çarpanı verir; uzman eşleşende güçlü, diğerinde zayıf', () => {
+    const base = { role: 'trainer' as const, skill: 80, morale: 100 };
+    const legacy = calculateStaffBonusMultiplier(base, config);
+    expect(calculateStaffBonusMultiplier({ ...base, specialization: null }, config, 'speed')).toBe(legacy);
+    expect(calculateStaffBonusMultiplier({ ...base, specialization: 'speed' }, config)).toBe(legacy);
+    const bonus = legacy - 1;
+    expect(calculateStaffBonusMultiplier({ ...base, specialization: 'speed' }, config, 'speed')).toBeCloseTo(1 + bonus * t.matchBonusFactor, 12);
+    expect(calculateStaffBonusMultiplier({ ...base, specialization: 'speed' }, config, 'stamina')).toBeCloseTo(
+      1 + bonus * t.offSpecialtyBonusFactor,
+      12,
+    );
+    expect(trainerSpecialtyFactor('speed', undefined, config)).toBe(1);
+    // Uzmanlık yalnızca antrenörde: aynı alan veterinerde etkisiz.
+    expect(calculateStaffBonusMultiplier({ role: 'vet', skill: 80, morale: 100, specialization: 'speed' }, config, 'speed')).toBe(
+      calculateStaffBonusMultiplier({ role: 'vet', skill: 80, morale: 100 }, config),
+    );
+    // Tavan: uzman bile rol tavanının matchBonusFactor katını aşamaz.
+    expect(calculateStaffBonusMultiplier({ ...base, skill: 100, specialization: 'speed' }, config, 'speed')).toBeLessThanOrEqual(
+      1 + config.maxBonusMultiplierByRole.trainer! * t.matchBonusFactor + 1e-12,
+    );
+  });
+
+  it('en iyi antrenör antrenman TİPİNE göre seçilir (uzmanlık sırayı değiştirebilir)', () => {
+    const generalist = { id: 'g', role: 'trainer' as const, skill: 80, morale: 100, contract: active, specialization: null };
+    const sprinter = { id: 's', role: 'trainer' as const, skill: 70, morale: 100, contract: active, specialization: 'sprint' };
+    expect(bestActiveStaff([generalist, sprinter], 'trainer', config, now, 'sprint')?.staff.id).toBe('s');
+    expect(bestActiveStaff([generalist, sprinter], 'trainer', config, now, 'stamina')?.staff.id).toBe('g');
+    expect(bestActiveStaff([], 'trainer', config, now, 'speed')).toBeNull();
+  });
+
+  it('gelişim: her seans deneyim +1, eşikte beceri +1, tavanda durur', () => {
+    const step = t.experiencePerSkillPoint;
+    expect(developTrainer({ skill: 50, experience: 0 }, config)).toEqual({ skill: 50, experience: 1 });
+    expect(developTrainer({ skill: 50, experience: step - 1 }, config)).toEqual({ skill: 51, experience: step });
+    expect(developTrainer({ skill: t.maxDevelopedSkill, experience: step - 1 }, config)).toEqual({
+      skill: t.maxDevelopedSkill,
+      experience: step,
+    });
+    expect(developTrainer({ skill: 99, experience: step - 1 }, config).skill).toBe(99); // tavan üstü düşmez
+    expect(sessionsToNextSkill({ role: 'trainer', skill: 50, experience: 0 }, config)).toBe(step);
+    expect(sessionsToNextSkill({ role: 'trainer', skill: 50, experience: step - 1 }, config)).toBe(1);
+    expect(sessionsToNextSkill({ role: 'trainer', skill: t.maxDevelopedSkill, experience: 3 }, config)).toBeNull();
+    expect(sessionsToNextSkill({ role: 'vet', skill: 50, experience: 3 }, config)).toBeNull();
   });
 });

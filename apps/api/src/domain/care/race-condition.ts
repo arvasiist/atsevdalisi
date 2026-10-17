@@ -63,11 +63,13 @@ export function applyPassiveRecovery(
   vitals: RaceConditionVitals,
   elapsedSeconds: number,
   config: CareConfig['passiveRecovery'],
+  // 16.10.2026 — ahırın konfor çarpanı (`getStableRecoveryMultiplier`; 1 = eski davranış).
+  recoveryMultiplier = 1,
 ): RaceConditionVitals {
   const hours = creditedRecoverySeconds(elapsedSeconds, config) / SECONDS_PER_HOUR;
   return {
-    energy: clampVital(round2(vitals.energy + config.energyPerHour * hours)),
-    fatigue: clampVital(round2(vitals.fatigue - config.fatiguePerHour * hours)),
+    energy: clampVital(round2(vitals.energy + config.energyPerHour * recoveryMultiplier * hours)),
+    fatigue: clampVital(round2(vitals.fatigue - config.fatiguePerHour * recoveryMultiplier * hours)),
   };
 }
 
@@ -88,6 +90,8 @@ export function estimateRaceReadyAt(
   config: CareConfig['passiveRecovery'],
   now: Date,
   ageMonths: number,
+  // 16.10.2026 — sahibin ahır konfor çarpanı; ZORUNLU (zamanlayıcıyla aynı hız).
+  recoveryMultiplier: number,
 ): Date | null {
   // Yaş engeli (B12) bu tahminin konusu değil: `null` döner, ekran yaşı ayrıca gösterir.
   const readiness = checkRaceReadiness(status, vitals, thresholds, ageMonths);
@@ -95,7 +99,7 @@ export function estimateRaceReadyAt(
   if (readiness.reason !== 'HORSE_TOO_TIRED' && readiness.reason !== 'INSUFFICIENT_ENERGY') return null;
   let state: RaceConditionVitals = { energy: vitals.energy, fatigue: vitals.fatigue };
   for (let seconds = config.tickSeconds; seconds <= MAX_ESTIMATE_SECONDS; seconds += config.tickSeconds) {
-    state = applyPassiveRecovery(state, config.tickSeconds, config);
+    state = applyPassiveRecovery(state, config.tickSeconds, config, recoveryMultiplier);
     if (checkRaceReadiness(status, { ...vitals, ...state }, thresholds, ageMonths).ready) {
       return new Date(now.getTime() + seconds * MS_PER_SECOND);
     }

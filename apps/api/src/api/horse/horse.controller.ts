@@ -11,7 +11,8 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { isUUID } from 'class-validator';
-import type { ApiSuccess, HorsePedigreeView, PublicHorse } from '@at-sevdalisi/shared-types';
+import type { ApiSuccess, HorseCareerView, HorsePedigreeView, PublicHorse } from '@at-sevdalisi/shared-types';
+import { GetHorseCareerUseCase } from '../../application/use-cases/get-horse-career.use-case';
 import { GetHorsePedigreeUseCase } from '../../application/use-cases/get-horse-pedigree.use-case';
 import { GetHorseUseCase } from '../../application/use-cases/get-horse.use-case';
 import { ListHorsesByOwnerUseCase } from '../../application/use-cases/list-horses-by-owner.use-case';
@@ -62,6 +63,7 @@ export class HorseController {
     @Inject(ListHorsesByOwnerUseCase) private readonly listHorsesByOwnerUseCase: ListHorsesByOwnerUseCase,
     @Inject(GetHorsePedigreeUseCase) private readonly getHorsePedigreeUseCase: GetHorsePedigreeUseCase,
     @Inject(RetireHorseUseCase) private readonly retireHorseUseCase: RetireHorseUseCase,
+    @Inject(GetHorseCareerUseCase) private readonly getHorseCareerUseCase: GetHorseCareerUseCase,
   ) {}
 
   @Get()
@@ -86,10 +88,14 @@ export class HorseController {
     // (sahibine) eklenir; `GET :id` herkese açıktır ve bunları taşımaz.
     return {
       success: true,
-      data: horses.map(({ horse, personality, racingPower, raceReadyAt, ageMonths, lifeStage }) => ({
+      data: horses.map(({ horse, personality, racingPower, raceReadyAt, ageMonths, lifeStage, stats, upbringing, stallNumber, needs }) => ({
         ...toPublicHorse(horse),
         ageMonths,
         lifeStage,
+        ...(stats ? { stats } : {}),
+        ...(upbringing ? { upbringing } : {}),
+        stallNumber,
+        ...(needs ? { needs } : {}),
         ...(personality ? { personality } : {}),
         ...(racingPower !== null ? { racingPower } : {}),
         ...(raceReadyAt !== null ? { raceReadyAt } : {}),
@@ -134,6 +140,18 @@ export class HorseController {
    * Rota çakışması YOKTUR: `GET :id` ve `GET :id/pedigree` Express'te
    * farklı segment sayılarıdır, biri diğerini gölgelemez.
    */
+  /**
+   * 16.10.2026 — atın yarış geçmişi + kazancı + tay sayısı (brief §3).
+   * `@Public()`: sonuçlar tekrar/sıralama yüzeylerinde zaten açıktır; pazarda
+   * başka oyuncunun atının geçmişini görmek meşrudur. Bakiye ya da gizli stat
+   * YOKTUR.
+   */
+  @Public()
+  @Get(':id/career')
+  async getCareer(@Param('id', ParseUUIDPipe) id: string): Promise<ApiSuccess<HorseCareerView>> {
+    return { success: true, data: await this.getHorseCareerUseCase.execute(id) };
+  }
+
   @Public()
   @Get(':id/pedigree')
   async getPedigree(@Param('id', ParseUUIDPipe) id: string): Promise<ApiSuccess<HorsePedigreeView>> {

@@ -7,7 +7,14 @@ import { computePrizePayouts, resolvePrizeDistribution } from '../../src/domain/
 import { findRaceTable, loserRefundAmount } from '../../src/domain/race/table-rules';
 import { AppConfigService } from '../../src/infrastructure/config/config.service';
 import { PG_POOL } from '../../src/infrastructure/database/database.module';
-import { allowSoloLobbyRace, bootstrapTestApp, registerTestPlayerWithStarterHorse, type RegisteredTestPlayer } from './test-helpers';
+import { loadCareerConfig } from '@at-sevdalisi/game-config';
+import {
+  allowSoloLobbyRace,
+  bootstrapTestApp,
+  grantCareerPoints,
+  registerTestPlayerWithStarterHorse,
+  type RegisteredTestPlayer,
+} from './test-helpers';
 
 /**
  * MASA KURALLARI (09.10.2026, migration 0079). Kanıtlananlar:
@@ -154,6 +161,9 @@ describe('Masa kuralları (e2e)', () => {
     const broke = await registerTestPlayerWithStarterHorse(app, 'Masa B Batan');
     const poor = await registerTestPlayerWithStarterHorse(app, 'Masa B Fakir');
     await pool.query('UPDATE players SET money = $2 WHERE id = $1', [poor.playerId, table.entryFee - 1]);
+    // 16.10.2026 (brief §10) — Ulusal masa kariyer kademesi ister; kapının kendisi career.e2e'de.
+    const nationalTier = loadCareerConfig().tiers.find((tier) => tier.unlocksTables.includes('national'))!;
+    for (const player of [payer, broke, poor]) await grantCareerPoints(app, player.playerId, nationalTier.requiredPoints);
 
     const raceId = await createTableRace(payer, 'national', 8);
     const payerBefore = await moneyOf(payer.playerId);

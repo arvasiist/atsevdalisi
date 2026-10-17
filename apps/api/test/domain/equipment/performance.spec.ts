@@ -50,4 +50,36 @@ describe('computeEquipmentPerformanceModifier (Ekipman — bkz. dosya başı kal
     ];
     expect(computeEquipmentPerformanceModifier(items)).toBe(computeEquipmentPerformanceModifier(items));
   });
+
+  // 16.10.2026 (brief §8) — kozmetik + zemine özel nal.
+  it('kozmetik aksesuar kalitesi ne olursa olsun çarpana girmez', () => {
+    expect(computeEquipmentPerformanceModifier([{ quality: 100, equipped: true, equipmentType: 'blanket' }])).toBe(
+      NEUTRAL_EQUIPMENT_MODIFIER,
+    );
+  });
+
+  it('zemine özel nal yalnızca kendi zemininde sayılır; zemin bilinmiyorsa sayılmaz', () => {
+    const shoe = [{ quality: 80, equipped: true, equipmentType: 'horseshoe', surface: 'grass' }];
+    expect(computeEquipmentPerformanceModifier(shoe, 'grass')).toBeCloseTo(1.008, 10);
+    expect(computeEquipmentPerformanceModifier(shoe, 'dirt')).toBe(NEUTRAL_EQUIPMENT_MODIFIER);
+    expect(computeEquipmentPerformanceModifier(shoe)).toBe(NEUTRAL_EQUIPMENT_MODIFIER);
+  });
+
+  it('zemini olmayan parça her zeminde aynı (eski parçalarla sonuç değişmedi)', () => {
+    const items = [{ quality: 65, equipped: true, equipmentType: 'saddle', surface: null }];
+    const expected = computeEquipmentPerformanceModifier([{ quality: 65, equipped: true }]);
+    for (const surface of ['grass', 'dirt', 'synthetic', null]) {
+      expect(computeEquipmentPerformanceModifier(items, surface)).toBe(expected);
+    }
+  });
+
+  it('pahalı ekipman yarışı tek başına kazandırmaz: en iyi kalemlerin hepsi kuşanılsa da tavan 1.05', () => {
+    const best = ['saddle', 'bridle', 'horseshoe', 'blinkers', 'leg_wraps'].map((equipmentType) => ({
+      quality: 100,
+      equipped: true,
+      equipmentType,
+    }));
+    const withCosmetics = [...best, { quality: 100, equipped: true, equipmentType: 'collectible' }];
+    expect(computeEquipmentPerformanceModifier(withCosmetics, 'grass')).toBeLessThanOrEqual(1.05);
+  });
 });

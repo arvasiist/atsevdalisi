@@ -122,7 +122,9 @@ const SECTION_SQL: Record<AccountExportSectionName, string> = {
     SELECT CASE WHEN g.sender_id = $1 THEN 'sent' ELSE 'received' END AS direction,
            o.username AS "otherPlayer", h.name AS horse, g.gift_key AS "giftKey",
            CASE WHEN g.sender_id = $1 THEN g.price ELSE g.owner_amount END::float8 AS amount,
-           g.created_at AS "createdAt"
+           g.created_at AS "createdAt",
+           -- 17.10.2026 (0101) — alınan hediyede payın toplandığı an (NULL = kutuda).
+           CASE WHEN g.recipient_id = $1 THEN g.collected_at END AS "collectedAt"
       FROM tribune_gifts g
       JOIN horses h ON h.id = g.horse_id
       JOIN players o ON o.id = CASE WHEN g.sender_id = $1 THEN g.recipient_id ELSE g.sender_id END
@@ -152,6 +154,25 @@ const SECTION_SQL: Record<AccountExportSectionName, string> = {
     SELECT sku, gems::float8 AS gems, amount_minor::float8 AS "amountMinor", currency, status,
            failure_code AS "failureCode", created_at AS "createdAt", paid_at AS "paidAt", refunded_at AS "refundedAt"
       FROM payment_orders WHERE player_id = $1 ORDER BY created_at DESC LIMIT $2`,
+  // 16.10.2026 — damızlık teklifleri (iki yön; karşı taraf yalnızca kullanıcı adıyla).
+  breedingOffers: `
+    SELECT CASE WHEN o.mare_owner_id = $1 THEN 'sent' ELSE 'received' END AS direction,
+           other.username AS "otherPlayer", m.name AS mare, s.name AS stallion, o.foal_name AS "foalName",
+           o.fee::float8 AS fee, o.status, o.outcome, o.refunded_amount::float8 AS "refundedAmount",
+           o.created_at AS "createdAt", o.responded_at AS "respondedAt"
+      FROM breeding_offers o
+      JOIN horses m ON m.id = o.mare_id
+      JOIN horses s ON s.id = o.stallion_id
+      JOIN players other ON other.id = CASE WHEN o.mare_owner_id = $1 THEN o.stallion_owner_id ELSE o.mare_owner_id END
+     WHERE o.mare_owner_id = $1 OR o.stallion_owner_id = $1 ORDER BY o.created_at DESC LIMIT $2`,
+  // Tayın genetiği (iç hesap) dışa aktarılmaz; gebeliğin seyri aktarılır.
+  pregnancies: `
+    SELECT m.name AS mare, s.name AS stallion, p.foal_name AS "foalName", p.fee::float8 AS fee, p.status,
+           p.conceived_at AS "conceivedAt", p.expected_birth_at AS "expectedBirthAt", p.born_at AS "bornAt"
+      FROM pregnancies p
+      JOIN horses m ON m.id = p.mare_id
+      JOIN horses s ON s.id = p.stallion_id
+     WHERE p.owner_id = $1 ORDER BY p.conceived_at DESC LIMIT $2`,
 };
 
 @Injectable()

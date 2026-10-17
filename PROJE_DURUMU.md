@@ -4665,3 +4665,183 @@ davet ödülü + davet istisnalı arkadaşlık kapısı (F4), mağazada çip pak
 çip "+" → `/store` (F5). Gerçek ödeme sağlayıcısı YOK (mağaza kapalı yazar).
 CI: F4 commit'inde `AnnouncementStrip.spec.tsx` CI'da etki yarışıyla düştü
 (`0px`); test artık etkiyi bekler.
+
+### 13.114 Kapsamlı oyun geliştirme brief'i (16.10.2026)
+
+§1 denetimi koddan yapıldı; sınıflandırma tablosu `MASTER_STATUS.md` →
+"Kapsamlı oyun geliştirme" bölümündedir. Bulunan ana açıklar: sahibi kendi
+atının statlarını ve yarış geçmişini/kazancını göremiyor; çiftleştirme aygır
+sahibinin onayı olmadan anında tay üretiyor (teklif/anlaşma yok); doğurganlık,
+döllenme olasılığı ve gebelik süresi yok; tay yemi ve yetiştirme etkisi yok;
+ekipmanın ömrü/zemin farkı, kozmetik aksesuar ve envanterden ilaç/takviye yok.
+Dilimler K2–K6 olarak uygulanır (aşağıdaki alt bölümler).
+
+**K2 — at profili + kariyer.** `GET /horses?ownerId=` satırları görünür 8
+stat taşır (yalnızca sahibine; gizli kişilik sayıları/potansiyel yok).
+`GET /horses/:id/career` (`@Public`): koşu, derece, ilk üç, en iyi derece,
+kazanç (defterdeki ödül satırları; kaybeden iadesi sayılmaz), tay sayısı ve son
+koşular (`stable.careerRecentRaceLimit`). Soy ağacı `recordsById` ile ataların
+başarılarını gösterir. Boş ahırda ırk mağazası + pazar düğmeleri. Testler:
+`horse-career.e2e-spec.ts` (3), web `horse-profile.spec.ts` (3).
+
+**K3 + K4 — çiftleştirme merkezi + gebelik (migration 0094).** Ayrıntılı kurallar
+CLAUDE.md (100) ve `docs/API.md` "Çiftleştirme merkezi + gebelik". Ekran
+`/breeding` (menü "Çiftleştirme Merkezi"); ahırdaki panel yalnızca kendi çiftini
+sunar. Testler: `breeding.e2e-spec.ts` (15, yeniden yazıldı — tay artık
+zamanlayıcıyla doğar), `breeding-center.e2e-spec.ts` (12), domain
+`breeding-center.spec.ts` (11), web `BreedingCenter.spec.tsx` (5) +
+`BreedingPanel.spec.tsx` (9). Not: e2e'de SQL ile açılan pazar ilanı
+`market.e2e-spec.ts`in genel sayımını bozuyordu; fikstür artık silinir.
+
+**K5 — tay yemi + yem kategorileri (migration 0095).** Yem satın alma ucu
+vardı ama hiçbir ekran çağırmıyordu; `/shop` (Market) ilk istemci. 12 kalem,
+kategori + kalite kademesi; tay yemi yalnızca tay/gelişim çağında ve ömür boyu
+sınırlı kalıcı stat katkısı (tavan potansiyel); ağrı kesici veteriner şartlı.
+Ahır kartı tayın yetiştirme ilerlemesini ve kalan maliyetini gösterir. Testler:
+`feed-categories.e2e-spec.ts` (3), `feed-catalog.spec.ts` (6), web
+`shop-catalog.spec.ts` (4) + `horse-profile.spec.ts`.
+
+**K6 — ekipman ömrü, zemine özel nal, kozmetik aksesuar (migration 0096).**
+Kuşanılı parça yarış başına aşınır (yarışın kayıt transaction'ı), aşınan
+çıkarılır ve yeniden kuşanılamaz; zemine özel nal yalnızca kendi zemininde;
+kozmetik kategori tipten türer ve çarpana girmez. Eski parçalar aşınmaz
+(satın alınmış değer korunur). Ağırlık ve 3D görünüm YOK (uydurulmadı / brief
+kural 7). Testler: `equipment-durability.e2e-spec.ts` (4), `catalog.spec.ts`,
+`performance.spec.ts`, web `equipment-catalog.spec.ts`.
+
+**Ahır geliştirme (16.10.2026, sahibinin isteği).** Ahır seviyesi önceden 5
+kademeydi ve yalnızca kapasite veriyordu; yükseltme düğmesi tam ekran sahnenin
+altında kalıyordu. Artık 10 seviye, her seviyenin adı, oyuncu seviyesi şartı ve
+konfor bonusu (zamanla toparlanma %0 → %25 hızlı) var; sahnede "Ahırı Geliştir"
+paneli seviye yol haritasını gösterir. Mevcut oyuncuların seviyesi/kapasitesi
+değişmedi (1–5 aynı), seviye 2+ olanlar konfor bonusunu kendiliğinden alır.
+Testler: `stable-development.e2e-spec.ts` (3), `stable.e2e-spec.ts` (10 seviyeye
+uyarlandı), domain `stable.spec.ts`, web `stable-upgrade.spec.ts` (3).
+
+**Ahır bölmeleri (16.10.2026, sahibinin isteği — migration 0097).** Ahır
+sahnesi 10 bölme çiziyordu ama yalnızca seçili at ortada duruyordu; atların
+bölme kavramı yoktu. Artık her atın kalıcı bölmesi var, seviye yükseldikçe yeni
+bölmeler açılır; sahnede yan bölmelerde komşu atlar ve "+ At al"/kilitli bölme
+düğmeleri, "Bölmeler" panelinde taşı/yer değiştir. Tarayıcıda (Chromium,
+yazılımsal GL) ekran görüntüsüyle doğrulandı. Testler: `stable-stalls.e2e-spec.ts`
+(5), domain `layout.spec.ts` (5), web `stall-map.spec.ts` (5) +
+`StableLayoutPanel.spec.tsx` (3).
+
+### 13.115 Brief §9–§26 — FAZ 5 (16.10.2026)
+
+Denetim tablosu `MASTER_STATUS.md` → "§9–§24 denetimi". FAZ 1–4 = K1–K6 +
+ahır geliştirme/bölmeler (13.114). FAZ 5 dilimleri:
+
+**F5-H1 — uluslararası hipodromlar (migration 0098).** Pist kaydına ülke/şehir,
+seviye (yerel→uluslararası), prestij, izinli zeminler/mesafeler ve ağırladığı
+masalar eklendi; ABD (Kentucky), Fransa (Paris), BAE (Dubai) pistleri ve
+üçünün takvim programları açıldı. Markalı tesis adları KULLANILMADI (kullanım
+hakkı doğrulanmadı; Türk pistlerinin adları da hukuki incelemede). Yarış
+açarken pist kuralı sunucuda (400); takvim programları aynı kuraldan geçer.
+Pratik/eşleşme pisti sabit havuzdan seçilir (eski tekrarlar değişmez). Lobi
+formunun varsayılanı (800 m) yeni kurala takılırdı — form artık pistin
+listesinden seçer. `GET /hippodromes` + `/hippodromes` ekranı (ülke grupları,
+masalar, takvim saatleri, açık yarışlar). Testler: `hippodromes.spec.ts` (11),
+`hippodrome-catalog.spec.ts` (3), `race-calendar.spec.ts` (7),
+`hippodrome.e2e-spec.ts` (5); web `hippodrome-form.spec.ts` (4),
+`hippodrome-catalog.spec.ts` (5).
+
+**F5-H2 — stadyumdan stadyuma kariyer (migration YOK).** Altı kademe (Yerel →
+Bölgesel → Ulusal → Ulusal Şampiyona → Uluslararası → Büyük Şampiyona). Puan
+bitmiş yarış sonuçlarından türetilir (sayaç yok, mevcut veri korunur: eski
+yarışlar da puan verir); kademe masaları ve yurt dışı pistlerini açar, katılım
+ve yarış açma sunucuda 409. Kademe ödülleri başarım olarak (tek sefer, defter
+satırıyla). `GET /career` + `/career` ekranı (sıradaki hedef, kademe yol
+haritası, puan tablosu, kariyer geçmişi); lobide kilitli yarışta "🔒 Kademe"
+bağlantısı, "Hemen Katıl" kilitli yarışı önermez, hipodrom ekranında kilit
+rozeti. Seyahat değerlendirildi: bekleme ve ayrı nakliye ücreti eklenmedi
+(masa bedeli pist seviyesiyle zaten artıyor). Var olan iki test kariyer ön
+koşulunu kurdu (`race-table-rules`, `hippodrome` e2e). Testler:
+`career.spec.ts` (7), `career.e2e-spec.ts` (4), web `career-view.spec.ts` (2).
+
+**F5-H3 — kazananlar tablosu (migration YOK).** `GET /leaderboard/winners` +
+`/leaderboard` "Son Kazananlar" sekmesi: gerçek oyuncunun kazandığı bitmiş
+lobi/takvim/turnuva yarışları, tamamlanma sırasıyla (eşzamanlı bitişte yarış
+kimliği), imleçli "Daha fazla", başlangıç/bitiş günü filtresi; ödül defterden.
+Demo/sabit veri yok — boşsa boş durum yazar. Genel/sezon/haftalık sıralamadan
+ayrı. Testler: `race-winners.spec.ts` (4), `race-winners.e2e-spec.ts` (2;
+gerçek kesinleşmiş botsuz yarış + fikstürlerle sıra/sayfa/aralık/dışlama),
+web `race-winners.spec.ts` (2). Üç yeni ekran (hipodromlar, kariyer,
+kazananlar) Chromium'da masaüstü + yatay telefonda konsol hatasız görüldü.
+
+
+### 13.116 Brief §9–§26 — FAZ 6–7 (17.10.2026, migration 0099–0100)
+
+**F6 — gelir-gider raporu (§19).** `GET /players/:id/wallet/report?period=
+daily|monthly` + `/wallet` "Gelir-Gider" paneli (dönem çubukları, gelir/gider/
+net, kategori tablosu). Kaynak yalnızca çip defteri; ince türler cüzdan
+geçmişiyle AYNI kanonik aileye katlanır, boş dönem sıfırla doldurulur, dönem
+sınırı oyunun tek saat dilimidir (görevlerle aynı). Başkasının raporu 403, bozuk
+dönem 400. Testler: `economy-report.spec.ts` (3), `economy-report.e2e-spec.ts`
+(2; toplam = o günün defter satırları), web `economy-report.spec.ts`.
+
+**F7a — çiftleştirme ve tay görevleri (§18, migration 0099).** Ölçütler
+`breedings` (başarılı döllenme) ve `foals_born` (doğum), gebelik satırlarından
+türetilir — sayaç yok, başarısız deneme sayılmaz. Haftalık görev
+`weekly-breed-1`, başarımlar `first-foal` ve `foals-5`; yönetici etkinliği de bu
+ölçütleri seçebilir (`live_events_metric_valid`). Test:
+`breeding-quests.e2e-spec.ts` (tutmayan deneme 0, döllenme görevi, doğum
+başarımı, tekrar talep 409, defter satırları).
+
+**F7a — tribün hediyesi kataloğu (§17, migration 0100).** Brief'in listesindeki
+yonca ve kurdele eklendi, havucun adı "Havuç Demeti" oldu (anahtar aynı — eski
+satırlar bozulmaz).
+
+**F7b — tribün hediyelerini toplu alma (§17, migration 0101).** At sahibinin
+payı artık gönderimde ödenmez; hediye kutusunda bekler ve "Hepsini topla" tek
+işlemle (oyuncu kilidi + tek defter satırı) hesaba geçirir. 0101 öncesi
+hediyelerin payı gönderimde ödendiği için toplanmış sayıldı — ikinci ödeme yok.
+Bildirim "hediye kutunda — Cüzdan'dan topla" yazar (eski bildirimler "hesabına
+geçti" demeye devam eder). `/wallet` → "Hediye Kutusu" (bekleyen özet + son
+gelenler, alındı/bekliyor). Kişisel veri dışa aktarmasına `collectedAt` eklendi.
+Testler: `tribune-gift.e2e-spec.ts` 5 (kutu, toplama, tekrar sıfır, eşzamanlı
+iki toplama tek ödeme, satılan atta pay koşturanın kutusuna), web
+`tribune-gifts.spec.ts`; Chromium'da masaüstü + yatay telefon konsol hatasız
+(4.980 → 5.067 çip, tek kredi satırı 87).
+
+**F7c — antrenör uzmanlığı ve gelişimi (§13, migration YOK).** `staff.
+specialization` 0012'den beri vardı ama hiçbir şeyi değiştirmiyordu. Artık
+uzmanlık bir antrenman tipidir: eşleşen antrenmanda antrenörün bonus payı ×1,5,
+diğer antrenmanlarda ×0,75; uzmanlığı olmayan (mevcut bütün) antrenörler eskisi
+gibi ×1. Pazardaki yeni antrenör adayları bir uzmanlıkla ya da genel gelir. En
+iyi antrenör antrenman tipine göre seçilir. Gelişim: seansı veren antrenör
+deneyim kazanır, her 20 seansta beceri +1 (tavan 95; dinlenme ve sözleşmesi
+bitmiş antrenör gelişmez), tek atomik güncelleme. Maaş sözleşmede sabit kalır.
+Ekranlar: `/staff` kartında uzmanlık + iki çarpan + "N seans sonra beceri +1";
+antrenman sonucunda "uzmanlık alanı" ve "antrenör gelişti". Testler:
+`staff.spec.ts` 18 (+4), `staff.e2e-spec.ts` 9 (+2), web `training-labels.spec.ts` 3.
+
+**F8 — faz sonu doğrulaması (17.10.2026).** Temiz şemada tam API paketi 263
+dosya / 3099 test geçti; web 106 dosya / 811 test; kök typecheck temiz; lint 0
+hata. CI: df01655 ve 0ab6b71 yeşil (1f2d5a6'daki tek kırmızı — rastgele günün
+takvim yuvasının kariyer kademesi istemesi — df01655'te düzeltildi). Güvenlik:
+bu fazın yeni uçları (hipodrom kataloğu, kariyer, kazananlar, gelir-gider
+raporu, hediye kutusu) oturum ya da kendi-hesap kapılı ve hız sınırlı;
+kazananlar sorgusu silinmiş hesabı süzer; sabit gizli anahtar yok. Ekonomi:
+yeni haftalık çiftleştirme görevi (400) diğer haftalık görevlerle aynı düzeyde,
+kısrak bekleme süresi + ömür boyu tay sınırıyla sınırlı; hediye kutusu tutar
+değiştirmez, yalnızca ödeme anını taşır; antrenör uzmanlığı yalnızca antrenman
+kazancını (potansiyel tavanı altında) etkiler. Açık kalanlar: gerçek pist
+adı/görsel hakları (hukuki, sahibinin kararı), beslenme/su "açlık" canlı durumu
+(ceza mekaniği sahibinin kararı; uydurulmadı), gebelik süresi (≈67 gün) ile
+"1 gün = 1 oyun ayı" ölçeği arasındaki tercih.
+
+### 13.117 Brief §14 — yem ve su ihtiyacı (17.10.2026, migration 0102)
+
+Yem ve su eskiden yalnızca anlık vital etkisi veren işlerdi; zamanla doğan bir
+ihtiyaç yoktu (MASTER_STATUS'ta PARTIAL). Artık ihtiyaç son beslenme ve son su
+bakımından türetilir (sayaç yok): yem 24 saatte, su 12 saatte "zamanı geldi",
+iki katında "acil" olur. Takviye ve ilaç karın doyurmaz; ücretsiz saman doyurur.
+Ölçüm çıpası `horses.needs_anchor_at` — mevcut atlar migration anını aldı, yani
+yürürlüğe girdiğinde hiçbir at habersiz aç başlamadı. Oyun etkisi yalnızca
+antrenmanda: kazanç en kötü ihtiyacın çarpanıyla düşer (×0,9 / ×0,75), karşılanmış
+ihtiyaçta formül eskisiyle aynı; yarış motoru ve toparlanma değişmedi. Ahır
+kartında "Tok / Yem zamanı / Aç" ve "Su" rozetleri (bakım panelini açar) +
+antrenman cezası; antrenman ekranında uyarı. Testler: `needs.spec.ts` (6),
+`horse-needs.e2e-spec.ts` (2), web `horse-needs.spec.ts` (2); Chromium'da
+masaüstü + yatay telefon konsol hatasız.

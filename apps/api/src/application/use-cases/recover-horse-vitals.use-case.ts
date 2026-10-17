@@ -15,6 +15,6 @@ export class RecoverHorseVitalsUseCase {
   ) {}
 
   async execute(now: Date): Promise<{ recovered: number }> {
-    return { recovered: await this.repository.recoverDue(now, this.config.care) };
+    return { recovered: await this.repository.recoverDue(now, this.config.care, this.config.stable) };
   }
 }

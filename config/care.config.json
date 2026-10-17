@@ -45,33 +45,106 @@
       "vitalDelta": { "energy": 6 },
       "weightConditionDelta": 0,
       "stocked": false,
-      "dailyLimit": 3
+      "dailyLimit": 3,
+      "category": "feed",
+      "qualityTier": "basic"
     },
     "arpa": {
       "vitalDelta": { "energy": 18, "fitness": 2 },
       "weightConditionDelta": 1,
       "stocked": true,
-      "price": { "currency": "money", "amount": 40 }
+      "price": { "currency": "money", "amount": 40 },
+      "category": "feed",
+      "qualityTier": "standard"
     },
     "mama": {
       "vitalDelta": { "energy": 8, "fitness": 4 },
       "weightConditionDelta": 1,
       "stocked": true,
-      "price": { "currency": "money", "amount": 60 }
+      "price": { "currency": "money", "amount": 60 },
+      "category": "feed",
+      "qualityTier": "premium"
     },
     "havuc": {
       "vitalDelta": { "morale": 6, "health": 2 },
       "recoveryRateDelta": 2,
       "weightConditionDelta": 0,
       "stocked": true,
-      "price": { "currency": "money", "amount": 20 }
+      "price": { "currency": "money", "amount": 20 },
+      "category": "feed",
+      "qualityTier": "standard"
     },
     "vitamin": {
       "vitalDelta": { "health": 4 },
       "recoveryRateDelta": 3,
       "weightConditionDelta": 0,
       "stocked": true,
-      "price": { "currency": "money", "amount": 80 }
+      "price": { "currency": "money", "amount": 80 },
+      "category": "supplement",
+      "qualityTier": "standard"
+    },
+    "yulaf": {
+      "vitalDelta": { "energy": 12, "fitness": 1 },
+      "weightConditionDelta": 1,
+      "stocked": true,
+      "price": { "currency": "money", "amount": 30 },
+      "category": "feed",
+      "qualityTier": "standard"
+    },
+    "enerji_yemi": {
+      "vitalDelta": { "energy": 24 },
+      "weightConditionDelta": 1,
+      "stocked": true,
+      "price": { "currency": "money", "amount": 90 },
+      "dailyLimit": 2,
+      "category": "feed",
+      "qualityTier": "premium"
+    },
+    "kondisyon_yemi": {
+      "vitalDelta": { "fitness": 5, "energy": 4 },
+      "weightConditionDelta": 0,
+      "stocked": true,
+      "price": { "currency": "money", "amount": 110 },
+      "dailyLimit": 2,
+      "category": "feed",
+      "qualityTier": "premium"
+    },
+    "tay_yemi": {
+      "vitalDelta": { "health": 3, "energy": 8 },
+      "weightConditionDelta": 1,
+      "stocked": true,
+      "price": { "currency": "money", "amount": 70 },
+      "dailyLimit": 2,
+      "category": "foal",
+      "qualityTier": "standard",
+      "allowedLifeStages": ["foal", "development"],
+      "upbringingStatGain": 0.5
+    },
+    "elektrolit": {
+      "vitalDelta": { "fatigue": -10, "energy": 4 },
+      "stocked": true,
+      "price": { "currency": "money", "amount": 60 },
+      "dailyLimit": 2,
+      "category": "supplement",
+      "qualityTier": "standard"
+    },
+    "eklem_takviyesi": {
+      "jointConditionDelta": 4,
+      "stocked": true,
+      "price": { "currency": "money", "amount": 120 },
+      "dailyLimit": 1,
+      "category": "supplement",
+      "qualityTier": "premium"
+    },
+    "agri_kesici": {
+      "vitalDelta": { "health": 3 },
+      "injuryRiskDelta": -12,
+      "stocked": true,
+      "price": { "currency": "money", "amount": 150 },
+      "dailyLimit": 1,
+      "category": "medicine",
+      "qualityTier": "premium",
+      "requiresVetWithinHours": 24
     }
   },
   "feedWindowHours": 24,
@@ -84,11 +157,21 @@
     "energyPerKm": 15,
     "fatiguePerKm": 15
   },
+  "needs": {
+    "feedCategories": ["feed", "foal"],
+    "feedIntervalHours": 24,
+    "waterIntervalHours": 12,
+    "trainingFactorByLevel": { "ok": 1, "due": 0.9, "urgent": 0.75 }
+  },
   "passiveRecovery": {
     "enabled": true,
     "tickSeconds": 300,
     "maxCreditSeconds": 900,
     "energyPerHour": 10,
     "fatiguePerHour": 10
+  },
+  "upbringing": {
+    "statRotation": ["speed", "stamina", "acceleration", "sprint"],
+    "maxFeedsPerHorse": 16
   }
 }

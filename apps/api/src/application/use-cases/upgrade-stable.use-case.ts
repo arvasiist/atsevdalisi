@@ -1,6 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import type { Player, StableUpgradeResult } from '@at-sevdalisi/shared-types';
-import { getNextStableUpgradeCost, getStableCapacity } from '../../domain/stable/stable';
+import { assertCanUpgradeStable, getNextStableUpgradeCost, getStableCapacity } from '../../domain/stable/stable';
 import { debit } from '../../domain/economy/wallet';
 import { PlayerNotFoundError } from '../../domain/player/errors';
 import { AppConfigService } from '../../infrastructure/config/config.service';
@@ -46,6 +46,8 @@ export class UpgradeStableUseCase {
       // `InsufficientFundsError` fırlatır — ikisi de burada fırlatılırsa
       // transaction ROLLBACK olur (hiçbir şey yazılmaz).
       const cost = getNextStableUpgradeCost(player.stableLevel, this.config.stable);
+      // 16.10.2026 — oyuncu seviyesi şartı KİLİT ALTINDA, paradan ÖNCE.
+      assertCanUpgradeStable(player.level, cost.nextLevel, this.config.stable);
       const newBalance = debit({ money: player.money, gems: player.gems }, cost.amount, cost.currency);
 
       const updated: Player = {

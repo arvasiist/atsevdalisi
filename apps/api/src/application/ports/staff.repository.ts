@@ -23,6 +23,13 @@ export interface StaffRepository {
   renew(input: StaffMoneyInput): Promise<StaffMoneyResult>;
   /** Personeli bırakır — PARA HAREKET ETMEZ (peşin sözleşme iade edilmez). */
   release(input: { staffId: string; playerId: string; now: Date }): Promise<Staff>;
+  /**
+   * 17.10.2026 (brief §13 "geliştirme") — antrenörün bir antrenman seansını
+   * yazar: TEK atomik `UPDATE` (deneyim +1, eşikte beceri +1; kural
+   * `developTrainer` ile aynı). Personel artık bu oyuncunun değilse hiçbir şey
+   * yazmaz (`null`). Para hareketi yok.
+   */
+  recordTrainerSession(input: { staffId: string; ownerId: string; now: Date }): Promise<Pick<Staff, 'skill' | 'experience'> | null>;
 }
 
 export interface StaffMoneyInput {

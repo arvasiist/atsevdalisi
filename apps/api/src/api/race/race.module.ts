@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { CareerModule } from '../career/career.module';
 import { LEADERBOARD_REPOSITORY } from '../../application/ports/leaderboard.repository';
 import { RACE_REPOSITORY } from '../../application/ports/race.repository';
 import { HORSE_EQUIPMENT_REPOSITORY } from '../../application/ports/horse-equipment.repository';
@@ -41,6 +42,7 @@ import { HorseOwnerGuardByParam } from '../auth/horse-owner.guard';
 import { GrandstandModule } from '../grandstand/grandstand.module';
 import { HorseModule } from '../horse/horse.module';
 import { LeaderboardController } from '../leaderboard/leaderboard.controller';
+import { GetRaceWinnersUseCase } from '../../application/use-cases/get-race-winners.use-case';
 import { MarketModule } from '../market/market.module';
 import { PlayerModule } from '../player/player.module';
 import { HorseMarketValueController } from './horse-market-value.controller';
@@ -56,7 +58,7 @@ import { RecentRacesController } from './recent-races.controller';
   // doc yorumu). `GrandstandModule` `RaceModule`'ü import ETMEZ → döngü YOK
   // (token'ı burada İKİNCİ kez kaydetmek yerine tek örneği paylaşmanın
   // gerekçesi `grandstand.module.ts` doc yorumunda).
-  imports: [DatabaseModule, HorseModule, PlayerModule, MarketModule, GrandstandModule],
+  imports: [DatabaseModule, HorseModule, PlayerModule, MarketModule, GrandstandModule, CareerModule],
   controllers: [
     RaceController,
     InteractiveRaceController,
@@ -143,6 +145,7 @@ import { RecentRacesController } from './recent-races.controller';
     // hesaplanır; kalıcı `leaderboards` tablosu bilinçli olarak FAZ 7'ye
     // bırakılmıştır (bkz. `get-leaderboard.use-case.ts` doc yorumu).
     GetLeaderboardUseCase,
+    GetRaceWinnersUseCase,
     { provide: RACE_REPOSITORY, useClass: PostgresRaceRepository },
     { provide: LEADERBOARD_REPOSITORY, useClass: PostgresLeaderboardRepository },
     // Ekipman (bu turda EKLENDİ) — `RunPracticeRaceUseCase`'in yeni bağımlılığı,

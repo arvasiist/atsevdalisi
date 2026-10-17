@@ -5,6 +5,9 @@ import { PlayerModule } from '../player/player.module';
 import { GetStableSummaryUseCase } from '../../application/use-cases/get-stable-summary.use-case';
 import { UpgradeStableUseCase } from '../../application/use-cases/upgrade-stable.use-case';
 import { StableController } from './stable.controller';
+import { MoveHorseStallUseCase } from '../../application/use-cases/move-horse-stall.use-case';
+import { STABLE_LAYOUT_REPOSITORY } from '../../application/ports/stable-layout.repository';
+import { PostgresStableLayoutRepository } from '../../infrastructure/stable/postgres-stable-layout.repository';
 
 /**
  * FAZ 1 wiring, üçüncü dilim — brief §32/§38/§39 Ahır. Bu modülün kendi
@@ -28,6 +31,12 @@ import { StableController } from './stable.controller';
 @Module({
   imports: [PlayerModule, HorseModule],
   controllers: [StableController],
-  providers: [GetStableSummaryUseCase, UpgradeStableUseCase, IdempotencyInterceptor],
+  providers: [
+    GetStableSummaryUseCase,
+    UpgradeStableUseCase,
+    IdempotencyInterceptor,
+    MoveHorseStallUseCase,
+    { provide: STABLE_LAYOUT_REPOSITORY, useClass: PostgresStableLayoutRepository },
+  ],
 })
 export class StableModule {}

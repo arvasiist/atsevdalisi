@@ -760,10 +760,11 @@ migration'ı okur — hediye eklerken kısıtı ADIYLA düşür). Yetki
 `assertCanWatch` (tribünle AYNI kapı). ALICI = atı o yarışta KOŞTURAN oyuncu
 (`e.player_id`; bot/kendi atı/yarışta olmayan at 409 `TRIBUNE_GIFT_NOT_ALLOWED`).
 PARA YOLU: yarış `FOR SHARE` → iki oyuncu id sırasıyla `FOR UPDATE` → engel →
-günlük sınır KİLİT ALTINDA → `tribune_gift_debit` (fiyat) + `tribune_gift_credit`
+günlük sınır KİLİT ALTINDA → `tribune_gift_debit` (fiyat) + pay
 (`ownerSharePercent`, aşağı yuvarlanır; kalan ekonomiden ÇIKAR — yabancılar
 arası değer aktarımını pahalılaştırır) + `tribune_gift_received` bildirimi TEK
-transaction. `Idempotency-Key` ZORUNLU; web anahtarı (at, hediye) başına
+transaction. ⚠️ 17.10.2026'dan beri pay gönderimde ÖDENMEZ, hediye kutusuna
+düşer (bkz. (107), migration 0101). `Idempotency-Key` ZORUNLU; web anahtarı (at, hediye) başına
 BAŞARIYA kadar saklar. Yayın `race.tribuneGift` COMMIT'ten sonra, köprüden
 (`server.to` — oynatma karesi değil). Nal Unicode'da yok → istemci SVG çizer
 (`CLIENT_DRAWN_TRIBUNE_GIFTS`; dosya DEĞİL). Satırlar silinmez (mali kayıt);
@@ -1133,6 +1134,202 @@ uyarısı). Menü "Gizlilik ve Şartlar", hesap kaydı ve mağaza bağlar. ⚠�
 bağlı YENİ bir veri bölümü (`ACCOUNT_EXPORT_SECTIONS`) eklersen
 `DATA_CATEGORY_BY_EXPORT_SECTION` (Record — tsc durdurur) aydınlatmaya yazdırır.
 Metin hukuki incelemeden GEÇMEDİ; `status: 'final'`ı yalnızca sahibi yapar.
+
+(99) **E-POSTA + GOOGLE YAPILANDIRMASI (16.10.2026, `docs/EPOSTA_GOOGLE_KURULUM.md`)**
+— üretim kapısı (`production-env.ts`): `RESEND_API_KEY` verilirse `re_` biçimi +
+`MAIL_FROM` ZORUNLU (yer tutucu/ayrılmış alan adı reddedilir), `WEB_BASE_URL`
+`https://`, `GOOGLE_OAUTH_CLIENT_ID` verilirse `….apps.googleusercontent.com`.
+Resend `auth.email.deliveryTimeoutMs` ile sınırlı; hata → 503
+`EMAIL_DELIVERY_FAILED`, üretimde anahtar yoksa `OutboxEmailSender` FIRLATIR
+(503 `EMAIL_NOT_CONFIGURED`, içerik bellekte tutulmaz) — sahte "gönderildi" yok.
+⚠️ `google-auth-library` hata mesajına TOKEN'ı ekler ("…segments in token: <jwt>"):
+log yalnızca ilk ':' öncesi; kullanıcıya `GOOGLE_TOKEN_REJECTED_MESSAGE`.
+Gerçek anahtarla deneme: elle tetiklenen `.github/workflows/integration-check.yml`
+(secrets) / `apps/api/tools/check-integrations.ts`; normal CI gerçek servise dokunmaz.
+
+(100) **ÇİFTLEŞTİRME MERKEZİ + GEBELİK (16.10.2026, migration 0094)** — tay ARTIK
+ANINDA DOĞMAZ. `POST /players/:id/breeding` yalnızca KENDİ kısrağı × KENDİ
+aygırı; başkasının aygırı → 409 `BREEDING_REQUIRES_AGREEMENT`. Başkasının aygırı:
+aygır sahibi `PUT /breeding/studs/:id` ile ilan verir (ücret
+`studFeeBounds` = formül × [`minFeeFactor`, `maxFeeFactor`]; sınırsız ücret
+hesaplar arası değer aktarırdı) → kısrak sahibi `POST /breeding/offers`
+(`Idempotency-Key`; ücret EMANETE `breeding_offer_hold`) → aygır sahibi
+accept/reject; kısrak sahibi cancel; ilan geri çekme + zamanlayıcı süre dolumu.
+Ret/iptal/geri çekme/süre = TAM iade (`breeding_offer_refund`). Kabulde döllenme
+zarı (`computeConceptionChance`, [minChance, maxChance], asla 1): tutarsa pay
+`breeding_stud_fee_credit`, kalan ekonomiden çıkar; tutmazsa
+`failedConceptionRefundPercent` iade + kısrak `failedAttemptCooldownHours`
+dinlenir (`breeding_attempts`). Döllenme çekirdeği TEK
+(`infrastructure/breeding/conception.ts` → `conceiveInTransaction`, iki yol da
+kullanır). ⚠️ Kilit sırası HER yolda: atlar (id) → ilan → teklif → oyuncular;
+kabul teklifi önce KİLİTSİZ okur, atları kilitler, sonra teklifi kilitler
+(aksi deadlock döngüsü). Tayın genetiği DÖLLENMEDE hesaplanır ve
+`pregnancies.genetics`te YALNIZCA sunucuda durur (istemciye dönmez); doğumu
+`BreedingScheduler` (lider kilidi, test'te `tickNow`) yapar, bakım (veteriner
+kontrolü `pregnancy_vet_check` + kısrağın beslendiği gün) riski ölçekler;
+`gestating → born` kilit altında = çift doğum yok; çift kaydı (`breeding_pairs`,
+id = gebelik) DOĞUMDA yazılır. Gebelik süresi gerçek gündür
+(`gestation.realWorldDays × timeScale` ≈ 67) — oyun yaşı ölçeğinden BAĞIMSIZ.
+⚠️ Ahır yeri döllenmede ayrılır: at alan HER yol `countStableOccupancy`
+(`infrastructure/stable/stable-occupancy.ts`) kullanır — yeni bir at ekleme yolu
+yazarsan sen de kullan. ⚠️ Gebe kısrak / bekleyen teklifteki at pazara çıkamaz,
+satılamaz (`hasBreedingCommitment`); bekleyen teklif hesap silmeyi engeller.
+⚠️ Çiftleştirme e2e'si zarı `BREEDING_RANDOM` ile sabitler
+(`breeding-test-kit.ts` → `ScriptedBreedingRandom`); e2e'de SQL ile pazar
+ilanı açarsan sil — `market.e2e-spec.ts` genel ilan sayısını sayar (yaşandı).
+Yeni at yazan yol doğurganlığı `deriveFertility` ile yazar (`insertNewHorse`).
+
+(101) **MARKET + TAY YEMİ + EKİPMAN ÖMRÜ (16.10.2026, migration 0095–0096)** —
+`/shop` (menü "Market"): sarf malzemesi (`care.feedTypes`, 12 kalem; `category`
+yem/tay/takviye/ilaç + `qualityTier`) — yem satın alma ucunun İLK istemcisi.
+Tay yemi yalnızca `allowedLifeStages` (tay/gelişim) → 409
+`FEED_NOT_ALLOWED_FOR_AGE`; her besleme `care.upbringing.statRotation` sırasıyla
+bir yarış statına `upbringingStatGain` (ömür boyu `maxFeedsPerHorse`, tavan
+potansiyel), stat beslemeyle AYNI tx'te `FOR UPDATE` altında. Ağrı kesici
+`requiresVetWithinHours` → 409 `FEED_REQUIRES_VET_CHECK`. Yem eklerken iki CHECK
+(`player_feed_inventory_item_type_check`, `horse_feed_log_item_type_check`)
+ADIYLA yeniden yazılır + `FEED_TYPES` (domain) + `FeedType` (shared). Ekipman:
+katalog `rarity`, `durabilityRaces`, `surface`, `description` taşır; kategori
+TİPTEN türer (`COSMETIC_EQUIPMENT_TYPES`: yular, örtü/battaniye, isimlik,
+koleksiyon — kalite 0, aşınmaz, çarpandan elenir; config onu performansa
+sokamaz). Aşınma `applyRaceConditionInTransaction` içinde
+(`wearEquippedItemsInTransaction`): kuşanılı parçadan yarış başına 1, 0'da
+çıkarılır (kısıt `horse_equipment_worn_not_equipped`), yeniden kuşanma 409
+`EQUIPMENT_WORN_OUT`. Zemine özel nal yalnızca yarışın zemininde sayılır
+(`computeEquipmentPerformanceModifier(items, raceSurface)`; zemin bilinmezse
+sayılmaz). ⚠️ 0096 öncesi parçalar `NULL` = aşınmaz — onlara ömür biçen
+migration YAZMA (satın alınmış değer). ⚠️ Aynı atla çok yarış koşan e2e
+ekipmanın aşındığını hesaba katmalı. Tip eklerken `horse_equipment_type_valid`
+ADIYLA + `EQUIPMENT_TYPES` + web `equipment-catalog.ts` (`equipment-durability.
+e2e-spec.ts` en son migration'ı okur).
+
+(102) **AHIR GELİŞTİRME (16.10.2026, migration YOK)** — `players.stable_level`
+zaten vardı (yalnızca kapasite). Artık 10 seviye (`stable.config.json`; 1–5'in
+kapasite/bedeli DEĞİŞMEDİ): ad (`nameByLevel`), oyuncu seviyesi şartı
+(`requiredPlayerLevelByLevel` → 409 `STABLE_UPGRADE_LEVEL_LOCKED`, `FOR UPDATE`
+altında paradan önce), konfor bonusu (`recoveryBonusByLevel`, seviye 1 = 0 →
+eski hız). Konfor ÜÇ yerde aynı kuraldır: `recoverHorseVitals` (zamanlayıcı),
+`applyRaceConditionInTransaction` (bekleyen toparlanma; artık `stable`
+parametresi ZORUNLU) ve `estimateRaceReadyAt` (`recoveryMultiplier` ZORUNLU);
+SQL tarafı `stableRecoveryTable` + sahibin `stable_level`i. Padok (`rest`
+bakımı) ayrıdır — o etkin bakım. `validateStableConfig` açılışta (boşluksuz,
+azalmayan kapasite/bedel/bonus/şart, bedel çip). Web: ahır sahnesinde
+"Ahırı Geliştir" simgesi (`?panel=upgrade`, `StableUpgradePanel`), alttaki kart
+paneli açar (at yoksa kartın içinde). ⚠️ Yükseltme anahtarı hedef seviye için
+BAŞARIYA kadar saklanır (eskiden her basış yeni anahtar → çift seviye riski).
+⚠️ Ahırı test içinde yükselten e2e oyuncu SEVİYESİNİ de ayarlamalı
+(`stable.e2e-spec.ts`).
+
+(103) **AHIR BÖLMELERİ (16.10.2026, migration 0097)** — `horses.stall_number`
+(1..kapasite; NULL = sunucu en düşük boş bölmeye yerleştirir, kayıt sırasıyla).
+Yerleşimin TEK kuralı `domain/stable/layout.ts` → `resolveStableLayout` (liste
+`PublicHorse.stallNumber`, özet `stalls`/`maxStalls`, taşıma ucu aynısını
+kullanır). `POST /players/:id/stable/stalls` `{ horseId, stallNumber }`: oyuncu
+satırı `FOR UPDATE` → yerleşimi türet → taşı (dolu bölmede YER DEĞİŞTİR) →
+TAMAMINI yaz (önce NULL, sonra tek `UPDATE … unnest`; tekil indeks
+`horses_owner_stall_uq` ara adımda çakışmasın diye). Kilitli bölme 409
+`STALL_LOCKED`, başkasının atı 404, bozuk girdi 400; para YOK. ⚠️ At el
+değiştirince bölmesi tetikleyiciyle (`trg_horses_clear_stall_on_owner_change`)
+boşalır — yeni bir sahiplik yolu bunu ayrıca yazmak zorunda değil. ⚠️ Eski
+oyuncunun kapasiteden fazla atı silinmez, kapasitenin ötesindeki numaralara
+yerleşir. Web: ahır sahnesi yerleşimi TEK uzun koridor gibi gösterir (seçili at
+ortada, arka sıradaki ±2 bölmede komşu atlar — düşük kalitede çizilmez); yan
+bölme düğmeleri sahnenin kenarında (3D `Html` etiketi kadraj dışında kalıyor ve
+React 19'da "synchronously unmount" uyarısı veriyordu — GERİ EKLEME). "Bölmeler"
+paneli (`?panel=layout`): taşı/yer değiştir, boşta "+ At al"/"Çiftleştir",
+kilitlide "Ahır Sv. N" → geliştirme paneli; bir sonraki seviyenin ötesindeki
+kilitli bölmeler tek satırda özetlenir. ‹ › bölme sırasıyla gezer.
+
+(104) **ULUSLARARASI HİPODROMLAR (16.10.2026, migration 0098, brief §9)** —
+`hippodromes.config.json`: ülke/şehir/`level`/`prestige`/`surfaces`/
+`distancesMeters`/`tables` (masa kimlikleri `economy.raceTiers`; açılışta çapraz
+denetlenir) + `practicePool`. Kentucky/Paris/Dubai eklendi — ⚠️ markalı tesis
+adı (Churchill Downs, ParisLongchamp, Meydan) ve gerçek görsel YAZMA: kullanım
+hakkı doğrulanmadı, sahibinin kararı bekleniyor. Pist kuralı TEK fonksiyon
+`hippodromeRaceProblems` (zemin, mesafe, masa) — yarış açma (400) ve takvim
+(program reddedilir + log) aynısını çağırır; hipodrom seçilmemiş yarış serbest.
+⚠️ Pratik/eşleşme pisti `practicePool`dan seçilir: havuza pist EKLEME/sırasını
+değiştirme — eski yarışların tekrarındaki mekân değişir (`hippodromes.spec.ts`
+havuzu kilitler). Yeni pist: config + yeni migration (`tracks` satırı) birlikte;
+spec 0072 + 0098'i okur, yeni migration'ı listeye ekle. `GET /hippodromes`
+(salt okuma) sıradaki saatleri `computeCalendarSlotTimes` ile verir. Web lobi
+formu zemin/mesafe/masayı pistin listesine çeker (`applyHippodrome`;
+masa seçilince masayı ağırlayan piste geçer) — ⚠️ yeni kuraldan önce varsayılan
+form 800 m idi ve Veliefendi'de 800 m koşulmaz: form varsayılanını değiştirirken
+`hippodrome-form.spec.ts`e güven. Ekran `/hippodromes`.
+
+(105) **KARİYER KADEMELERİ (16.10.2026, migration YOK, brief §10)** —
+`config/career.config.json`: `racePoints` (sınıf → [1., 2., 3., diğer]) +
+`tiers` (Yerel 0 → Bölgesel → Ulusal → Ulusal Şampiyona → Uluslararası → Büyük
+Şampiyona; her masa ve her pist seviyesi TAM BİR kademede açılır —
+`validateCareerConfig` açılışta). Puan SAYAÇ DEĞİL: TEK SQL
+`infrastructure/career/career-points.ts` (oyuncunun KOŞTURDUĞU `e.player_id`,
+bitmiş yarış, iptal edilmemiş katılım; sınıf turnuva > masa > masasız lobi
+(`e.status` dolu) > pratik/eşleşme). Kapı TEK fonksiyon `careerRequirementForRace`
+— lobi listesi (`careerRequirement`), yarış açma ve `joinLobbyRace` (kulüp
+kapısından sonra, paradan ÖNCE) aynısını kullanır → 409 `CAREER_TIER_LOCKED`.
+İlk kademe mahalli masayı + Türkiye pistlerinin masasız/ücretsiz yarışlarını
+açar (tek başına oynayan kilitli kalmaz); pratik/eşleşme/turnuva GATE'SİZ.
+Kademe ödülü başarım (`career_points`, `SNAPSHOT_ACHIEVEMENT_METRICS`; eşikler
+kademe eşikleriyle EŞ — `career.spec.ts` kilitler). ⚠️ Kademe kapısının
+ARKASINDAKİ kuralı (masa, pist) sınayan YENİ e2e `grantCareerPoints(app,
+playerId, puan)` ön koşulunu kurmalı (SQL fikstürü; yarış/galibiyet sayısına da
+girer — o sayıları sınayan oyuncuda kullanma). Seyahat: bekleme/nakliye ücreti
+YOK (bilinçli; belgeli). Ekran `/career`.
+
+(106) **KAZANANLAR TABLOSU (16.10.2026, migration YOK, brief §12)** — `GET
+/leaderboard/winners` (`@Public`, IP hız sınırı) + `/leaderboard` "Son
+Kazananlar". Kazanan = `finish_position = 1` GERÇEK oyuncu + LOBİ katılımı
+(`e.status` dolu, iptal değil); bot birinci/pratik/eşleşme listelenmez,
+`DISTINCT ON (r.id)`. Tamamlanma anı TÜRETİLİR: `COALESCE(live_starts_at,
+start_time) + final_time_ms` (races'te bitiş sütunu YOK); sıra (an, kimlik)
+azalan, sayfalama İMLEÇLE (`before` = `<ms>_<raceId>`), bozuk girdi 400. Ödül
+defterden. ⚠️ Kazananları sayan e2e kendi fikstürünü UZAK geçmişe yazmalı ve
+başta silmeli (`race-winners.e2e-spec.ts` 2001); ⚠️ uzak geçmişe `scheduled`
+yarış YAZMA — diğer dosyaların kilit zamanlayıcısı kuyruğunun başına oturur.
+⚠️ ÖLÇEK: sorgu bitmiş bütün lobi yarışlarını tarar — büyüyünce bitiş sütunu +
+indeks (ayrı migration).
+
+(107) **GELİR-GİDER RAPORU + ÇİFTLEŞTİRME GÖREVLERİ + İKİ TRİBÜN HEDİYESİ
+(17.10.2026, migration 0099–0100, brief §17–§19)** — `GET
+/players/:id/wallet/report?period=daily|monthly` (yalnızca kendi; `/wallet`
+"Gelir-Gider" paneli): çip defteri SQL'de (dönem, ince tür) toplanır, saf
+`domain/economy/economy-report.ts` kanonik aileye katlar (cüzdanla AYNI
+`CANONICAL_BY_LEDGER_TYPE`), boş dönem sıfır; dönem sınırı oyunun TEK saat
+dilimi (`quests.timezoneOffsetMinutes`), dönem sayısı `economy.economyReport`.
+Defterde olmayan tutar UYDURULMAZ. Görev/başarım ölçütleri `breedings`
+(`pregnancies.conceived_at`) ve `foals_born` (`born_at`, `status='born'`),
+sahibi `pregnancies.owner_id` (çiftleştiren) — başarısız deneme sayılmaz;
+`live_events_metric_valid` 0099'da. Tribün kataloğuna yonca 🍀 ve kurdele 🎀
+(`tribune_gifts_gift_key_valid` 0100'de; havuç adı "Havuç Demeti").
+**HEDİYE KUTUSU (migration 0101):** tribün hediyesinde sahibin payı artık
+gönderimde ÖDENMEZ — `tribune_gifts.collected_at` NULL ile kutuda bekler; `POST
+/tribune-gifts/collect` oyuncu `FOR UPDATE` altında bekleyenleri işaretler +
+TEK `tribune_gift_credit` (referans `tribune_gift_collect`); `/wallet` → "Hediye
+Kutusu". 0101 öncesi satırlar toplanmış sayıldı (payları gönderimde ödenmişti).
+⚠️ `send` alıcıyı hâlâ `FOR UPDATE` kilitler — toplama ile aynı kilit, KALDIRMA.
+**ANTRENÖR UZMANLIĞI + GELİŞİMİ (migration YOK, `staff.specialization` 0012'den
+beri boştu):** `staff.trainer` config; uzmanlık = antrenman tipi, eşleşende bonus
+payı ×1,5, diğerinde ×0,75, `null` (eski antrenörler) ×1 BİREBİR eski davranış.
+`ManageStaffUseCase.trainerFor(owner, tip)` en iyi antrenörü TİPE göre seçer;
+seans sonrası `recordTrainerSession` TEK atomik UPDATE (deneyim +1, her 20 seansta
+beceri +1, tavan 95 — saf karşılığı `developTrainer`); dinlenme ve süresi dolmuş
+antrenör gelişmez. Maaş sabit. ⚠️ Antrenör çarpanını ölçen e2e adayın rastgele
+uzmanlığını SQL ile sabitlemeli (`staff.e2e-spec.ts`: genel için `specialization
+= NULL`).
+
+(108) **YEM VE SU İHTİYACI (17.10.2026, migration 0102, brief §14)** — SAYAÇ
+YOK: son beslenme (`horse_feed_log`, yalnızca `care.needs.feedCategories` —
+takviye/ilaç karın doyurmaz; ücretsiz saman sayılır) ve son su bakımından
+(`horse_care_log` 'water') TÜRETİLİR; ölçüm çıpası `horses.needs_anchor_at`
+(mevcut atlar migration anı → kimse habersiz aç başlamadı; yeni at oluşturulduğu
+an). Düzey `ok` → aralık (yem 24, su 12 sa) → `due` → iki katı → `urgent`
+(saf `domain/care/needs.ts`). Etki YALNIZCA antrenmanda: `needsFactor` = en kötü
+ihtiyacın çarpanı (`trainingFactorByLevel`, `ok` = 1 → eski formül bit bit).
+MOTOR/yarış/toparlanma DEĞİŞMEDİ. `GET /horses?ownerId=` satırı + antrenman
+yanıtı `needs` taşır (herkese açık at ucu TAŞIMAZ). ⚠️ Antrenman kazancını
+domain formülüyle kıyaslayan YENİ e2e'de at tok olmalı (yeni at zaten tok; SQL
+ile çıpayı geri çektiysen yem + su ver) — `horse-needs.e2e-spec.ts`.
 
 **✅ ÜCRETLİ LOBİ YARIŞI ARTIK KOŞUYOR — ÖDÜL DAĞITIMI VAR (§13.14,
 28.09.2026).** `POST /races/:id/settle` yarışı koşar, ödülleri `top5`

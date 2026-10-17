@@ -174,7 +174,107 @@ export type PublicHorse = Omit<Horse, 'potential' | 'agingStartedAt'> & {
    * hazırsa ya da engel zamanla geçmiyorsa (sağlık, durum) alan yoktur.
    */
   raceReadyAt?: ISODateTimeString;
+  /**
+   * 16.10.2026 — atın görünür yarış statları (0–100). YALNIZCA sahibinin
+   * listesinde; gizli kişilik sayıları ve potansiyel burada YOKTUR.
+   */
+  stats?: HorseVisibleStats;
+  /**
+   * 16.10.2026 — tay büyütme (brief §7): yalnızca tay/gelişim çağındaki atta,
+   * sahibinin listesinde. Yetiştirme yemiyle kullanılan/kalan hak + kalan
+   * maliyet (birim fiyat sunucu config'inden).
+   */
+  upbringing?: HorseUpbringingView;
+  /**
+   * 16.10.2026 (migration 0097) — atın sahibinin ahırındaki bölmesi
+   * (1..kapasite; yerleşim sunucuda `resolveStableLayout`). Yalnızca sahibin
+   * at listesinde döner.
+   */
+  stallNumber?: number;
+  /** 17.10.2026 (brief §14) — yem/su ihtiyacı; yalnızca sahibinin listesinde. */
+  needs?: HorseNeedsView;
 };
+
+/** 17.10.2026 (brief §14) — yem/su ihtiyacı düzeyi (sunucuda türetilir). */
+export type HorseNeedLevel = 'ok' | 'due' | 'urgent';
+
+export interface HorseNeedView {
+  level: HorseNeedLevel;
+  /** İhtiyacın en son karşılandığı an (hiç karşılanmadıysa ölçüm çıpası). */
+  lastAt: ISODateTimeString;
+  /** Bir sonraki beslenme/su zamanı. */
+  dueAt: ISODateTimeString;
+}
+
+export interface HorseNeedsView {
+  feed: HorseNeedView;
+  water: HorseNeedView;
+  /** Antrenman kazancı çarpanı (en kötü ihtiyaç; karşılanmışsa 1). */
+  trainingFactor: number;
+}
+
+export interface HorseUpbringingView {
+  feedType: string;
+  feedsUsed: number;
+  feedsMax: number;
+  /** Hak başına verilen stat puanı. */
+  gainPerFeed: number;
+  /** Bir adedin fiyatı (oyun parası). */
+  unitPrice: number;
+  /** Kalan hakların toplam maliyeti. */
+  remainingCost: number;
+}
+
+/** Sahibine gösterilen yarış statları (gizli kişilik alanları HARİÇ). */
+export const HORSE_VISIBLE_STAT_KEYS = [
+  'speed',
+  'acceleration',
+  'stamina',
+  'sprint',
+  'endurance',
+  'startSpeed',
+  'finishSpeed',
+  'cornering',
+] as const satisfies readonly (keyof HorseStats)[];
+export type HorseVisibleStatKey = (typeof HORSE_VISIBLE_STAT_KEYS)[number];
+export type HorseVisibleStats = Pick<HorseStats, HorseVisibleStatKey>;
+
+/** Yarış + yetiştirme özeti (kariyer ve soy ağacındaki atalar için). */
+export interface HorseRecordSummary {
+  starts: number;
+  wins: number;
+  /** İlk üç (birincilik dahil). */
+  places: number;
+  /** Atın koşusundan, koşturan oyuncuya ödenen ödül toplamı (iade HARİÇ). */
+  earnings: number;
+  /** Doğmuş tay sayısı (kısrak ya da aygır olarak). */
+  foals: number;
+}
+
+/** `GET /horses/:id/career` satırı — tek bir bitmiş koşu. */
+export interface HorseCareerRaceView {
+  raceId: UUID;
+  raceName: string;
+  ranAt: ISODateTimeString;
+  distanceMeters: number;
+  surface: 'grass' | 'dirt' | 'synthetic';
+  /** Hipodrom anahtarı; eski yarışta NULL (varsayılan hipodrom). */
+  hippodromeKey: string | null;
+  /** Bitiren at sayısı (botlar dahil). */
+  fieldSize: number;
+  finishPosition: number;
+  /** Bu koşudan kazanılan ödül (yoksa 0). */
+  prize: number;
+}
+
+/** `GET /horses/:id/career` — herkese açık yarış/yetiştirme geçmişi. */
+export interface HorseCareerView extends HorseRecordSummary {
+  horseId: UUID;
+  seconds: number;
+  thirds: number;
+  bestPosition: number | null;
+  recentRaces: HorseCareerRaceView[];
+}
 
 /** `HorseStats`'ın `horseId` DIŞINDAKİ alanları — tek bir stat'a atıfta bulunmak
  * için (örn. antrenmanın hangi stat'ı güncellediği) kullanılır. */
@@ -224,6 +324,21 @@ export interface TrainHorseResult {
   newStatus: Pick<Horse, 'fatigue' | 'energy' | 'morale' | 'fitness'>;
   /** 01.10.2026 — uygulanan antrenör çarpanı (1 = antrenörsüz). */
   staffMultiplier: number;
+  /** 17.10.2026 (brief §14) — antrenman anındaki yem/su ihtiyacı ve uygulanan çarpanı. */
+  needs: HorseNeedsView;
+  /**
+   * 17.10.2026 (brief §13) — seansı veren antrenör (etkin antrenör yoksa `null`):
+   * uzmanlık eşleşti mi ve seans sonrası beceri/deneyim (dinlenmede gelişim yok).
+   */
+  trainer: {
+    staffId: UUID;
+    name: string;
+    specialization: string | null;
+    specializationMatched: boolean;
+    skill: number;
+    experience: number;
+    skillGained: boolean;
+  } | null;
 }
 
 /** brief §39 Ahır ekranı kartı için minimal görünüm. */
@@ -266,7 +381,14 @@ export interface HorseCardView {
  * riskiyle AYNI kategori) — tek somut sayısal girdi `quality`dir (diğer
  * kalite alanlarıyla, ör. `Horse.quality`, AYNI 0-100 ölçek).
  */
-export type EquipmentType = 'saddle' | 'bridle' | 'horseshoe' | 'blinkers' | 'leg_wraps';
+export type PerformanceEquipmentType = 'saddle' | 'bridle' | 'horseshoe' | 'blinkers' | 'leg_wraps';
+/**
+ * 16.10.2026 (brief §8, migration 0096) — kozmetik aksesuar: yular, örtü/
+ * battaniye, isimlik, koleksiyon. Yarışa HİÇBİR etkisi yoktur
+ * (`computeEquipmentPerformanceModifier` tipten eler) ve aşınmaz.
+ */
+export type CosmeticEquipmentType = 'halter' | 'blanket' | 'nameplate' | 'collectible';
+export type EquipmentType = PerformanceEquipmentType | CosmeticEquipmentType;
 
 export interface HorseEquipment {
   id: UUID;
@@ -292,6 +414,16 @@ export interface HorseEquipment {
    * `null` = katalogdan önce oyuncunun kendi tanımladığı eski parça.
    */
   catalogKey: string | null;
+  /**
+   * 16.10.2026 (migration 0096) — dayanıklılık: her koşulan yarışta kuşanılı
+   * parçadan 1 düşer; 0'a inen parça çıkarılır ve yeniden kuşanılamaz.
+   * `null` = aşınmaz (kozmetik ya da 0096'dan önce alınmış parça).
+   */
+  maxRaces: number | null;
+  racesRemaining: number | null;
+  /** Zemine özel nal: bonus yalnızca bu zeminde (`null` = her zeminde). */
+  surface: 'grass' | 'dirt' | 'synthetic' | null;
+  wornOutAt: ISODateTimeString | null;
 }
 
 /** `POST /horses/:id/equipment` yanıtı (08.10.2026) — alınan parça + ödenen + yeni bakiye. */

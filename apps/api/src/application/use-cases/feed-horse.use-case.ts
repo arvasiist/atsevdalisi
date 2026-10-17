@@ -4,10 +4,15 @@ import { HorseNotFoundError } from '../../domain/horse/errors';
 import {
   applyFeed,
   assertFeedAllowance,
+  assertFeedAllowedForLifeStage,
   assertFeedStockAvailable,
+  assertVetPrescription,
+  computeUpbringingGain,
   getFeedDailyLimit,
   isFeedStocked,
 } from '../../domain/care/care';
+import { getLifeStage, horseAgeMonths } from '../../domain/horse/age-curve';
+import { CARE_LOG_REPOSITORY, type CareLogRepository } from '../ports/care-log.repository';
 import { parseFeedType } from '../../domain/care/validation';
 import { AppConfigService } from '../../infrastructure/config/config.service';
 import { FEED_INVENTORY_REPOSITORY, type FeedInventoryRepository } from '../ports/feed-inventory.repository';
@@ -42,6 +47,7 @@ export class FeedHorseUseCase {
     @Inject(HORSE_HEALTH_REPOSITORY) private readonly horseHealthRepository: HorseHealthRepository,
     @Inject(FEED_INVENTORY_REPOSITORY) private readonly feedRepository: FeedInventoryRepository,
     @Inject(AppConfigService) private readonly config: AppConfigService,
+    @Inject(CARE_LOG_REPOSITORY) private readonly careLogRepository: CareLogRepository,
   ) {}
 
   async execute(horseId: string, rawFeedType: unknown): Promise<FeedHorseResult> {
@@ -64,6 +70,17 @@ export class FeedHorseUseCase {
     }
 
     const now = new Date();
+    // 16.10.2026 — kullanım koşulları (brief §7–§8): tay yemi yalnızca tay/
+    // gelişim çağına; ilaç son N saatte veteriner bakımı ister. Yaş ve
+    // veteriner kaydı yalnızca ileri doğru değişir — kilit öncesi okumak güvenli.
+    assertFeedAllowedForLifeStage(
+      this.config.care,
+      feedType,
+      getLifeStage(horseAgeMonths(horse, now, this.config.horseGrowth), this.config.horseGrowth).name,
+    );
+    if (this.config.care.feedTypes[feedType].requiresVetWithinHours !== undefined) {
+      assertVetPrescription(this.config.care, feedType, await this.careLogRepository.findLastPerformedAt(horseId, 'vet'), now);
+    }
     const { feedWindowHours } = this.config.care;
     const windowStart = new Date(now.getTime() - feedWindowHours * 60 * 60 * 1000);
     const dailyLimit = getFeedDailyLimit(this.config.care, feedType) ?? undefined;
@@ -76,7 +93,7 @@ export class FeedHorseUseCase {
       horseId,
       feedType,
       windowStart,
-      ({ horse: lockedHorse, quantity, usage }) => {
+      ({ horse: lockedHorse, quantity, usage, lifetimeFeeds, upbringingStats }) => {
         assertFeedStockAvailable(this.config.care, feedType, quantity);
         const allowance = assertFeedAllowance(
           feedType,
@@ -110,6 +127,13 @@ export class FeedHorseUseCase {
         // Stoklanmayan kalemde (`saman`) envantere HİÇ dokunulmaz —
         // `null` repository'ye "yazma" der (bkz. `FeedMutationResult`).
         const stockAfter = stocked ? quantity - 1 : null;
+        const upbringing = computeUpbringingGain(
+          this.config.care,
+          feedType,
+          lifetimeFeeds,
+          upbringingStats,
+          lockedHorse.potential,
+        );
 
         const result: FeedHorseResult = {
           horseId,
@@ -124,9 +148,15 @@ export class FeedHorseUseCase {
           newHealth: feedResult.health,
           remainingToday: allowance.remainingToday,
           stockAfter,
+          ...(upbringing ? { upbringingGain: { stat: upbringing.stat, amount: upbringing.amount } } : {}),
         };
 
-        return { horse: updatedHorse, quantity: stockAfter, result };
+        return {
+          horse: updatedHorse,
+          quantity: stockAfter,
+          result,
+          statUpdate: upbringing ? { stat: upbringing.stat, value: upbringing.newValue } : null,
+        };
       },
     );
 

@@ -14,3 +14,8 @@ ff63682e32a086b809d99afbfc89e9f0596323e7:apps/api/test/api/auth-password.e2e-spe
 ec707bbe107d3edaab97f6bb091b9ca9ea9e254f:docs/API.md:generic-api-key:588
 f05e9f1a22376c553bbf0bc797d9ee4e5263ab86:docs/API.md:generic-api-key:50
 1f1ea10e16d790920b8440f2646561198f71d8c0:apps/api/test/api/player-journey.e2e-spec.ts:generic-api-key:63
+# 16.10.2026: production-env.spec.ts — "yanlış biçimli anahtar reddedilir" testinin
+# sahte girdileri (sk_live_ önekli UYDURMA metin, gerçek anahtar değil). Değerler
+# sonraki commit'te önek taşımayan metne çevrildi; bu iki satır geçmişteki commit için.
+657b0b9fade3179d2b30777e933988985a5e8b0c:apps/api/test/security/production-env.spec.ts:stripe-access-token:50
+657b0b9fade3179d2b30777e933988985a5e8b0c:apps/api/test/security/production-env.spec.ts:stripe-access-token:89

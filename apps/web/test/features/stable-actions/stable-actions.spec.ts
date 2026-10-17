@@ -12,7 +12,7 @@ import {
  */
 describe('ahır içi işlemler', () => {
   it('bakım ve ekipman ahır işlemidir; ayrı sayfa değildir', () => {
-    expect(STABLE_ACTIONS.map((action) => action.key)).toEqual(['care', 'equipment']);
+    expect(STABLE_ACTIONS.map((action) => action.key)).toEqual(['care', 'equipment', 'layout', 'upgrade']);
     const hrefs = NAV_LINKS.map((link) => link.href);
     // 16.10.2026 (brief §3.2): "Bakım" üst menüde — ama `/care` ayrı sayfa
     // DEĞİL, ahırın bakım paneline yönlenir (`top-bar-nav.spec.ts` kilitler).
@@ -24,6 +24,8 @@ describe('ahır içi işlemler', () => {
   it('sorgu dizesi doğrulanır; bilinmeyen değer panel açmaz', () => {
     expect(parseStableActionParam('care')).toBe('care');
     expect(parseStableActionParam('equipment')).toBe('equipment');
+    expect(parseStableActionParam('upgrade')).toBe('upgrade');
+    expect(parseStableActionParam('layout')).toBe('layout');
     expect(parseStableActionParam('admin')).toBeNull();
     expect(parseStableActionParam('')).toBeNull();
     expect(parseStableActionParam(null)).toBeNull();

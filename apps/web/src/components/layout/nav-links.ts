@@ -74,7 +74,13 @@ export const NAV_LINKS: ReadonlyArray<NavLink> = [
   { href: '/training', label: 'Antrenman', icon: 'training', placement: 'primary', mobileTab: true },
   { href: '/care', label: 'Bakım', icon: 'care', placement: 'primary', mobileTab: true },
   { href: '/races', label: 'Yarışlar', icon: 'races', placement: 'more' },
+  // 16.10.2026 — brief §9: ülke/şehir, pist özellikleri, masalar ve pist takvimi.
+  { href: '/hippodromes', label: 'Hipodromlar', icon: 'races', placement: 'more' },
+  // 16.10.2026 — brief §10: kariyer kademeleri, puan, sıradaki hedef.
+  { href: '/career', label: 'Kariyer', icon: 'leaderboard', placement: 'more' },
   { href: '/market', label: 'Pazar', icon: 'market', placement: 'more' },
+  // 16.10.2026 — brief §8: yem, tay yemi, takviye, ilaç (sarf malzemesi).
+  { href: '/shop', label: 'Market', icon: 'market', placement: 'more' },
   { href: '/grandstand', label: 'Tribün', icon: 'grandstand', placement: 'more' },
   { href: '/leaderboard', label: 'Sıralama', icon: 'leaderboard', placement: 'more' },
   { href: '/friends', label: 'Sosyal', icon: 'friends', placement: 'more' },
@@ -86,6 +92,8 @@ export const NAV_LINKS: ReadonlyArray<NavLink> = [
   { href: '/replays', label: 'Yarış Geçmişi', icon: 'replays', placement: 'more' },
   { href: '/farm', label: 'Çiftlik', icon: 'farm', placement: 'more' },
   { href: '/breeds', label: 'Yetiştirici', icon: 'horse', placement: 'more' },
+  // 16.10.2026 — çiftleştirme merkezi (aygır ilanı, teklif, gebelik takvimi; brief §4–§5).
+  { href: '/breeding', label: 'Çiftleştirme Merkezi', icon: 'horse', placement: 'more' },
   { href: '/online', label: 'Online', icon: 'online', placement: 'more' },
   { href: '/store', label: 'Mağaza', icon: 'store', placement: 'more' },
   { href: '/wallet', label: 'Cüzdan', icon: 'wallet', placement: 'more' },

@@ -132,7 +132,8 @@ describe('Tribün hediyesi (e2e)', () => {
       const share = tribuneGiftOwnerShare(carrot.price, config.ownerSharePercent);
       expect(sent.body.data).toMatchObject({ giftKey: carrot.key, price: carrot.price, ownerAmount: share });
       expect(await money(viewer.playerId)).toBe(viewerBefore - carrot.price);
-      expect(await money(owner.playerId)).toBe(ownerBefore + share);
+      // 17.10.2026 (0101) — sahibin payı gönderimde ÖDENMEZ, hediye kutusunda bekler.
+      expect(await money(owner.playerId)).toBe(ownerBefore);
 
       const event = await broadcast;
       expect(event).toMatchObject({
@@ -160,22 +161,63 @@ describe('Tribün hediyesi (e2e)', () => {
       ownerSocket.disconnect();
     }
 
-    const ledger = await pool.query(
-      `SELECT player_id, type, amount, reference_id FROM economy_transactions
-        WHERE type IN ('tribune_gift_debit', 'tribune_gift_credit') AND reference_type = 'tribune_gifts'
-          AND player_id IN ($1, $2) ORDER BY type`,
-      [viewer.playerId, owner.playerId],
-    );
-    expect(ledger.rows.map((row) => [row.player_id, row.type, Number(row.amount)])).toEqual([
-      [owner.playerId, 'tribune_gift_credit', tribuneGiftOwnerShare(carrot.price, config.ownerSharePercent)],
-      [viewer.playerId, 'tribune_gift_debit', -carrot.price],
-    ]);
+    const share = tribuneGiftOwnerShare(carrot.price, config.ownerSharePercent);
+    const ledgerRows = async () =>
+      (
+        await pool.query(
+          `SELECT player_id, type, amount, reference_type FROM economy_transactions
+            WHERE type IN ('tribune_gift_debit', 'tribune_gift_credit') AND player_id IN ($1, $2) ORDER BY type`,
+          [viewer.playerId, owner.playerId],
+        )
+      ).rows.map((row) => [row.player_id, row.type, Number(row.amount), row.reference_type]);
+    expect(await ledgerRows()).toEqual([[viewer.playerId, 'tribune_gift_debit', -carrot.price, 'tribune_gifts']]);
     const notification = await pool.query(
       "SELECT payload FROM notifications WHERE player_id = $1 AND type = 'tribune_gift_received'",
       [owner.playerId],
     );
     expect(notification.rows).toHaveLength(1);
-    expect(notification.rows[0].payload).toMatchObject({ raceId, giftKey: carrot.key, playerId: viewer.playerId });
+    expect(notification.rows[0].payload).toMatchObject({
+      raceId,
+      giftKey: carrot.key,
+      playerId: viewer.playerId,
+      amount: share,
+      collectRequired: true,
+    });
+
+    // Hediye kutusu: yalnızca kendi kutusu (oyuncu token'dan); bekleyen pay görünür.
+    const inbox = (await http().get('/api/v1/tribune-gifts/inbox').set('Authorization', owner.authHeader).expect(200)).body
+      .data;
+    expect(inbox).toMatchObject({ pendingCount: 1, pendingAmount: share });
+    expect(inbox.pendingByGift).toEqual([{ giftKey: carrot.key, count: 1, amount: share }]);
+    expect(inbox.received[0]).toMatchObject({
+      giftKey: carrot.key,
+      raceId,
+      horseName: expect.any(String),
+      senderDisplayName: 'Hediye İzleyici',
+      amount: share,
+      collectedAt: null,
+    });
+    const viewerInbox = (await http().get('/api/v1/tribune-gifts/inbox').set('Authorization', viewer.authHeader).expect(200))
+      .body.data;
+    expect(viewerInbox).toMatchObject({ pendingCount: 0, pendingAmount: 0, received: [] });
+
+    // Toplu alma: tek defter satırı (referans = toplama), bakiye pay kadar artar; tekrar sıfır.
+    const ownerBeforeCollect = await money(owner.playerId);
+    const collected = (await http().post('/api/v1/tribune-gifts/collect').set('Authorization', owner.authHeader).expect(200))
+      .body.data;
+    expect(collected).toEqual({ collected: 1, amount: share, balanceAfter: ownerBeforeCollect + share });
+    expect(await money(owner.playerId)).toBe(ownerBeforeCollect + share);
+    const again = (await http().post('/api/v1/tribune-gifts/collect').set('Authorization', owner.authHeader).expect(200))
+      .body.data;
+    expect(again).toEqual({ collected: 0, amount: 0, balanceAfter: ownerBeforeCollect + share });
+    expect(await ledgerRows()).toEqual([
+      [owner.playerId, 'tribune_gift_credit', share, 'tribune_gift_collect'],
+      [viewer.playerId, 'tribune_gift_debit', -carrot.price, 'tribune_gifts'],
+    ]);
+    const afterCollect = (await http().get('/api/v1/tribune-gifts/inbox').set('Authorization', owner.authHeader).expect(200))
+      .body.data;
+    expect(afterCollect).toMatchObject({ pendingCount: 0, pendingAmount: 0, pendingByGift: [] });
+    expect(afterCollect.received[0].collectedAt).not.toBeNull();
 
     const after = (await http().get(giftUrl(raceId)).set('Authorization', viewer.authHeader).expect(200)).body.data;
     expect(after.perHorse).toEqual([{ horseId: owner.horseId, counts: { [carrot.key]: 1 } }]);
@@ -246,7 +288,15 @@ describe('Tribün hediyesi (e2e)', () => {
       .set('Idempotency-Key', randomUUID())
       .send({ horseId: owner.horseId, giftKey: carrot.key })
       .expect(201);
+    // Pay koşturanın KUTUSUNA düşer (yeni sahibin değil); toplayınca hesabına geçer.
+    expect(await money(owner.playerId)).toBe(ownerBefore);
+    const ownerCollect = (await http().post('/api/v1/tribune-gifts/collect').set('Authorization', owner.authHeader).expect(200))
+      .body.data;
+    expect(ownerCollect.amount).toBe(tribuneGiftOwnerShare(carrot.price, config.ownerSharePercent));
     expect(await money(owner.playerId)).toBe(ownerBefore + tribuneGiftOwnerShare(carrot.price, config.ownerSharePercent));
+    const buyerCollect = (await http().post('/api/v1/tribune-gifts/collect').set('Authorization', buyer.authHeader).expect(200))
+      .body.data;
+    expect(buyerCollect.collected).toBe(0);
     expect(await money(buyer.playerId)).toBe(buyerBefore);
     expect(await ledgerCount(buyer.playerId)).toBe(0);
     // Yeni sahip bu yarışta koşmadı: o ata hediye gönderebilir, alıcı yine koşturandır.
@@ -286,5 +336,34 @@ describe('Tribün hediyesi (e2e)', () => {
       .expect(409);
     expect(limited.body.error.code).toBe('TRIBUNE_GIFT_DAILY_LIMIT');
     expect(await money(viewer.playerId)).toBe(before);
+  });
+
+  it('17.10.2026 — eşzamanlı iki toplama aynı payı iki kez ödemez (oyuncu kilidi)', async () => {
+    const { owner, viewer, raceId } = await raceWithSpectator('Toplama');
+    // Fikstür: kutuda bekleyen üç hediye (gönderen tarafı bu testin konusu değil).
+    for (const amount of [7, 11, 13]) {
+      await pool.query(
+        `INSERT INTO tribune_gifts (race_id, horse_id, sender_id, recipient_id, gift_key, price, owner_amount)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [raceId, owner.horseId, viewer.playerId, owner.playerId, carrot.key, 20, amount],
+      );
+    }
+    const before = await money(owner.playerId);
+    const results = await Promise.all(
+      [0, 1].map(() => http().post('/api/v1/tribune-gifts/collect').set('Authorization', owner.authHeader).expect(200)),
+    );
+    const amounts = results.map((response) => response.body.data.amount).sort((a, b) => a - b);
+    expect(amounts).toEqual([0, 31]);
+    expect(await money(owner.playerId)).toBe(before + 31);
+    const credits = await pool.query(
+      "SELECT amount FROM economy_transactions WHERE player_id = $1 AND type = 'tribune_gift_credit'",
+      [owner.playerId],
+    );
+    expect(credits.rows.map((row) => Number(row.amount))).toEqual([31]);
+    const pending = await pool.query(
+      'SELECT COUNT(*)::int AS count FROM tribune_gifts WHERE recipient_id = $1 AND collected_at IS NULL',
+      [owner.playerId],
+    );
+    expect(pending.rows[0].count).toBe(0);
   });
 });

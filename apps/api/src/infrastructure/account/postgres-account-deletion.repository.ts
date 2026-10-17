@@ -35,6 +35,10 @@ const BLOCKERS_SQL = `
     SELECT 1 FROM payment_orders WHERE player_id = $1 AND status IN ('created', 'pending')
        AND created_at > now() - interval '${loadStoreConfig().pendingOrderTtlMinutes} minutes')
   UNION ALL
+  SELECT 'breeding_offer_pending' WHERE EXISTS (
+    -- 16.10.2026: teklif ücreti emanette; iade/pay anonim hesaba düşerdi.
+    SELECT 1 FROM breeding_offers WHERE (mare_owner_id = $1 OR stallion_owner_id = $1) AND status = 'pending')
+  UNION ALL
   SELECT 'club_leader_with_members' WHERE EXISTS (
     SELECT 1 FROM club_members m
      WHERE m.player_id = $1 AND m.role = 'leader'

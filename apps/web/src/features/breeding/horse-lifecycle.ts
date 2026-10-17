@@ -27,7 +27,7 @@ export function canOfferRetirement(horse: PublicHorse, allHorses: readonly Publi
 }
 
 /** 15.10.2026 — B13: yaş evrelerinin Türkçe adı (sunucu `horse-growth.stages[].name`). */
-const LIFE_STAGE_LABELS: Record<string, string> = {
+export const LIFE_STAGE_LABELS: Record<string, string> = {
   foal: 'Tay',
   development: 'Gelişim',
   prime: 'Zirve',

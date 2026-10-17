@@ -77,6 +77,8 @@ export const ErrorCode = {
   HorseTooStrongForTier: 'HORSE_TOO_STRONG_FOR_TIER',
   /** 09.10.2026 — kulüp içi yarışa kulüp üyesi olmayan katılamaz (409). */
   RaceClubOnly: 'RACE_CLUB_ONLY',
+  /** 16.10.2026 (brief §10) — masa/pist kariyer kademesinin üstünde. */
+  CareerTierLocked: 'CAREER_TIER_LOCKED',
   /** 09.10.2026 — kozmetik mağaza: ürün yok (404), zaten sahip (409), sahip olunmayan seçenek (409). */
   CosmeticNotFound: 'COSMETIC_NOT_FOUND',
   CosmeticAlreadyOwned: 'COSMETIC_ALREADY_OWNED',
@@ -85,6 +87,8 @@ export const ErrorCode = {
   TribuneGiftNotAllowed: 'TRIBUNE_GIFT_NOT_ALLOWED',
   TribuneGiftDailyLimit: 'TRIBUNE_GIFT_DAILY_LIMIT',
   EquipmentLevelLocked: 'EQUIPMENT_LEVEL_LOCKED',
+  /** 16.10.2026 — dayanıklılığı biten ekipman yeniden kuşanılamaz (409). */
+  EquipmentWornOut: 'EQUIPMENT_WORN_OUT',
   /** 08.10.2026 — ırk sınıflı yarışa sınıf dışı at (409). */
   HorseBreedNotAllowed: 'HORSE_BREED_NOT_ALLOWED',
   AchievementNotFound: 'ACHIEVEMENT_NOT_FOUND',
@@ -116,6 +120,8 @@ export const ErrorCode = {
   // JWT'imiz) kasıtlı olarak AYRI bir koddur (bkz. `domain/auth/errors.ts`
   // `InvalidProviderTokenError`).
   InvalidProviderToken: 'INVALID_PROVIDER_TOKEN',
+  EmailDeliveryFailed: 'EMAIL_DELIVERY_FAILED',
+  EmailNotConfigured: 'EMAIL_NOT_CONFIGURED',
   // 01.10.2026 — Google hesabı bağlama (`POST /auth/link`, migration 0048).
   // Bu Google hesabı BAŞKA bir oyuncuya bağlı / bu oyuncunun zaten başka bir
   // Google hesabı var.
@@ -166,6 +172,10 @@ export const ErrorCode = {
   StaffRenewalNotDue: 'STAFF_RENEWAL_NOT_DUE',
   // Faz 2 — Ahır yükseltme (domain/stable)
   MaxStableLevelReached: 'MAX_STABLE_LEVEL_REACHED',
+  /** 16.10.2026 — ahırı sonraki seviyeye yükseltmek için oyuncu seviyesi yetmiyor (409). */
+  StableUpgradeLevelLocked: 'STABLE_UPGRADE_LEVEL_LOCKED',
+  /** 16.10.2026 — kapasitenin ötesindeki (kilitli) bölmeye at taşınamaz (409). */
+  StallLocked: 'STALL_LOCKED',
   // AUDIT_REPORT.md Bulgu C1 (bu oturum) — `StableCapacityExceededError`
   // FAZ 1'den beri domain katmanında hazırdı ama hiçbir yerde
   // fırlatılmıyordu (kod HTTP durumuna hiç eşlenmemişti); bkz.
@@ -691,6 +701,23 @@ export const ErrorCode = {
    * `PLAYER_BLOCKED` için de geçerlidir (PROJE_DURUMU §13.16).
    */
   JockeyNotOwned: 'JOCKEY_NOT_OWNED',
+  // 16.10.2026 — çiftleştirme merkezi + gebelik (brief §4–§5).
+  /** Başkasının aygırı yalnızca kabul edilmiş teklifle (409). */
+  BreedingRequiresAgreement: 'BREEDING_REQUIRES_AGREEMENT',
+  StudListingNotFound: 'STUD_LISTING_NOT_FOUND',
+  InvalidStudFee: 'INVALID_STUD_FEE',
+  BreedingOfferNotFound: 'BREEDING_OFFER_NOT_FOUND',
+  BreedingOfferNotPending: 'BREEDING_OFFER_NOT_PENDING',
+  BreedingOfferExpired: 'BREEDING_OFFER_EXPIRED',
+  BreedingOfferAlreadyPending: 'BREEDING_OFFER_ALREADY_PENDING',
+  BreedingOfferOwnStallion: 'BREEDING_OFFER_OWN_STALLION',
+  PregnancyNotFound: 'PREGNANCY_NOT_FOUND',
+  PregnancyCheckupTooSoon: 'PREGNANCY_CHECKUP_TOO_SOON',
+  /** Gebe kısrak / bekleyen teklifteki at satışa çıkamaz (409). */
+  HorseBreedingCommitment: 'HORSE_BREEDING_COMMITMENT',
+  // 16.10.2026 — yem/ilaç kullanım koşulları (brief §7–§8).
+  FeedNotAllowedForAge: 'FEED_NOT_ALLOWED_FOR_AGE',
+  FeedRequiresVetCheck: 'FEED_REQUIRES_VET_CHECK',
 } as const;
 
 export type ErrorCodeValue = (typeof ErrorCode)[keyof typeof ErrorCode];

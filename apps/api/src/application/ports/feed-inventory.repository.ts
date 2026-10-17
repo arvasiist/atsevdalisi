@@ -128,6 +128,10 @@ export interface FeedContext {
   /** Kalemin envanterdeki mevcut adedi; stoklanmayan kalemlerde `0`. */
   quantity: number;
   usage: FeedWindowUsage;
+  /** 16.10.2026 — bu atın bu kalemle ömür boyu beslenme sayısı (tay yetiştirme tavanı). */
+  lifetimeFeeds: number;
+  /** 16.10.2026 — atın yetiştirmeyle büyüyebilen statları (kilitli işlemde okunur). */
+  upbringingStats: Partial<Record<'speed' | 'stamina' | 'acceleration' | 'sprint', number>>;
 }
 
 /** `feedWithLock` `mutate` sonucu. */
@@ -140,6 +144,8 @@ export interface FeedMutationResult<T> {
    */
   quantity: number | null;
   result: T;
+  /** 16.10.2026 — tay yemi: aynı transaction'da yazılacak tek stat (yoksa `null`/yok). */
+  statUpdate?: { stat: 'speed' | 'stamina' | 'acceleration' | 'sprint'; value: number } | null;
 }
 
 /** NestJS DI için token (interface'ler runtime'da yok olduğundan bir Symbol gerekir). */

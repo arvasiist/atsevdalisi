@@ -2,12 +2,12 @@ import { randomUUID } from 'node:crypto';
 import type { INestApplication } from '@nestjs/common';
 import type { Pool } from 'pg';
 import request from 'supertest';
-import { loadRaceLobbyConfig } from '@at-sevdalisi/game-config';
+import { loadCareerConfig, loadHippodromesConfig, loadRaceLobbyConfig } from '@at-sevdalisi/game-config';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { findHippodrome, pickHippodromeForRace } from '../../src/domain/race/hippodrome';
 import { AppConfigService } from '../../src/infrastructure/config/config.service';
 import { PG_POOL } from '../../src/infrastructure/database/database.module';
-import { bootstrapTestApp, registerTestPlayerWithStarterHorse } from './test-helpers';
+import { bootstrapTestApp, grantCareerPoints, registerTestPlayerWithStarterHorse } from './test-helpers';
 
 /**
  * HİPODROMLAR (08.10.2026, migration 0072). Kanıtlananlar: lobi yarışı
@@ -15,6 +15,8 @@ import { bootstrapTestApp, registerTestPlayerWithStarterHorse } from './test-hel
  * anahtar); seçim yoksa varsayılan; bilinmeyen hipodrom 400 ve satır
  * YAZILMAZ; pratik yarış hipodromu yarış kimliğinden determinist alır ve
  * tekrar (zaman çizelgesi) aynı hipodromu gösterir.
+ * 16.10.2026 (brief §9): pistin zemin/mesafe/masa kuralı 400 ile uygulanır;
+ * `GET /hippodromes` kataloğu oturum ister ve config'teki bütün pistleri döner.
  */
 describe('Hipodromlar (e2e)', () => {
   let app: INestApplication;
@@ -125,5 +127,46 @@ describe('Hipodromlar (e2e)', () => {
       .set('Authorization', player.authHeader)
       .expect(200);
     expect(timeline.body.data.hippodrome).toBe(expected.key);
+  });
+
+  it('pistin kuralı: Paris yalnızca çim ve kendi mesafeleri — uymayan 400 ve satır yazılmaz', async () => {
+    const player = await registerTestPlayerWithStarterHorse(app, 'Paris Organizatörü');
+    const count = async () =>
+      Number(
+        (await pool.query<{ count: string }>('SELECT COUNT(*) AS count FROM races WHERE created_by = $1', [player.playerId]))
+          .rows[0]!.count,
+      );
+    for (const extra of [{ surface: 'dirt', distanceMeters: 2_000 }, { surface: 'grass', distanceMeters: 1_000 }]) {
+      const rejected = await http()
+        .post('/api/v1/races')
+        .set('Authorization', player.authHeader)
+        .send(raceBody({ hippodrome: 'paris', ...extra }))
+        .expect(400);
+      expect(rejected.body.error.code).toBe('INVALID_RACE_DEFINITION');
+    }
+    expect(await count()).toBe(0);
+    // 16.10.2026 (brief §10) — yurt dışı pisti kariyer kademesi ister (kapı career.e2e'de).
+    const international = loadCareerConfig().tiers.find((tier) => tier.unlocksHippodromeLevels.includes('international'))!;
+    await grantCareerPoints(app, player.playerId, international.requiredPoints);
+    const ok = await http()
+      .post('/api/v1/races')
+      .set('Authorization', player.authHeader)
+      .send(raceBody({ hippodrome: 'paris', surface: 'grass', distanceMeters: 2_000 }))
+      .expect(201);
+    expect(ok.body.data.hippodrome).toBe('paris');
+  });
+
+  it('GET /hippodromes: oturumsuz 401; oturumla bütün pistler ülke/seviye/masa/takvimle', async () => {
+    await http().get('/api/v1/hippodromes').expect(401);
+    const player = await registerTestPlayerWithStarterHorse(app, 'Pist Gezgini');
+    const response = await http().get('/api/v1/hippodromes').set('Authorization', player.authHeader).expect(200);
+    const data = response.body.data;
+    expect(data.hippodromes.map((h: { key: string }) => h.key)).toEqual(
+      loadHippodromesConfig().hippodromes.map((h) => h.key),
+    );
+    const paris = data.hippodromes.find((h: { key: string }) => h.key === 'paris');
+    expect(paris).toMatchObject({ countryCode: 'FR', level: 'international', surfaces: ['grass'] });
+    expect(paris.programs[0].nextStartTimes.length).toBeGreaterThan(0);
+    expect(typeof paris.tables[0].entryFee).toBe('number');
   });
 });

@@ -4,6 +4,7 @@ import type { MarketListing } from '@at-sevdalisi/shared-types';
 import { createListingDraft } from '../../domain/market/market';
 import { AuctionRequiresEndTimeError, HorseAlreadyListedError } from '../../domain/market/errors';
 import { HorseInActiveRaceError, HorseNotFoundError } from '../../domain/horse/errors';
+import { HorseBreedingCommitmentError } from '../../domain/breeding/errors';
 import { HORSE_REPOSITORY, type HorseRepository } from '../ports/horse.repository';
 import { MARKET_LISTING_REPOSITORY, type MarketListingRepository } from '../ports/market-listing.repository';
 
@@ -77,6 +78,11 @@ export class CreateMarketListingUseCase {
     // kontroldür; asıl garanti satın alma transaction'ındaki aynı kontroldür.
     if (await this.horseRepository.isInActiveRace(input.horseId)) {
       throw new HorseInActiveRaceError(input.horseId);
+    }
+    // 16.10.2026 — gebe kısrak / bekleyen teklifteki at satışa çıkamaz (ön
+    // kontrol; asıl garanti satın alma transaction'ındaki aynı kontrol).
+    if (await this.horseRepository.hasBreedingCommitment(input.horseId)) {
+      throw new HorseBreedingCommitmentError(input.horseId);
     }
 
     const listingType = input.listingType ?? 'fixed_price';
