@@ -4815,3 +4815,18 @@ bitmiş antrenör gelişmez), tek atomik güncelleme. Maaş sözleşmede sabit k
 Ekranlar: `/staff` kartında uzmanlık + iki çarpan + "N seans sonra beceri +1";
 antrenman sonucunda "uzmanlık alanı" ve "antrenör gelişti". Testler:
 `staff.spec.ts` 18 (+4), `staff.e2e-spec.ts` 9 (+2), web `training-labels.spec.ts` 3.
+
+**F8 — faz sonu doğrulaması (17.10.2026).** Temiz şemada tam API paketi 263
+dosya / 3099 test geçti; web 106 dosya / 811 test; kök typecheck temiz; lint 0
+hata. CI: df01655 ve 0ab6b71 yeşil (1f2d5a6'daki tek kırmızı — rastgele günün
+takvim yuvasının kariyer kademesi istemesi — df01655'te düzeltildi). Güvenlik:
+bu fazın yeni uçları (hipodrom kataloğu, kariyer, kazananlar, gelir-gider
+raporu, hediye kutusu) oturum ya da kendi-hesap kapılı ve hız sınırlı;
+kazananlar sorgusu silinmiş hesabı süzer; sabit gizli anahtar yok. Ekonomi:
+yeni haftalık çiftleştirme görevi (400) diğer haftalık görevlerle aynı düzeyde,
+kısrak bekleme süresi + ömür boyu tay sınırıyla sınırlı; hediye kutusu tutar
+değiştirmez, yalnızca ödeme anını taşır; antrenör uzmanlığı yalnızca antrenman
+kazancını (potansiyel tavanı altında) etkiler. Açık kalanlar: gerçek pist
+adı/görsel hakları (hukuki, sahibinin kararı), beslenme/su "açlık" canlı durumu
+(ceza mekaniği sahibinin kararı; uydurulmadı), gebelik süresi (≈67 gün) ile
+"1 gün = 1 oyun ayı" ölçeği arasındaki tercih.

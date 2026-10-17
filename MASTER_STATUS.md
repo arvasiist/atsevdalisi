@@ -106,7 +106,8 @@ bölmeler).
 | 20–21 | Sunucu bakiyesi, atomik işlem, idempotency, denetim kaydı, negatif bakiye yok, oturum/yetki/hız sınırı, gizli anahtar | TESTED | para yolu kuralları, `phase16-hardening`, gitleaks | değişmedi |
 | 22 | Tablolar, indeksler, kısıtlar, zamanlayıcılar (lider kilidi), yeniden başlatma güvenliği | TESTED | migration 0001–0097, zamanlayıcı testleri | yeni tablolar fazlarla |
 | 23 | Hipodrom/takvim ekranı, kazananlar ekranı | IMPLEMENTED | `/hippodromes`, `/career`, `/leaderboard` → Son Kazananlar; Chromium'da masaüstü + yatay telefon ekran görüntüsüyle konsol hatasız görüldü | F5 ✅ |
-| 24 | Birim/API/migration/eşzamanlılık/yeniden başlatma/ekonomi testleri, CI | TESTED | API 3040+, web 786+, GitHub Actions | her dilimde |
+| 24 | Birim/API/migration/eşzamanlılık/yeniden başlatma/ekonomi testleri, CI | TESTED | API 263 dosya / 3099 test (temiz şema, 17.10.2026), web 106 / 811, GitHub Actions | her dilimde |
+| 26 | Faz sonu raporu, açıklar gizlenmeden | IMPLEMENTED | `PROJE_DURUMU.md` 13.115–13.116 (F5–F8); açık: pist adı/görsel hakları, beslenme "açlık" durumu, gebelik süresi ölçeği — sahibinin kararı | F8 ✅ |
 
 ## Brief 16.10.2026 — Sosyal + çip ekonomisi (koddan doğrulandı)
 
