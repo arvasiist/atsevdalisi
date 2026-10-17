@@ -3,6 +3,7 @@ import type { Pool } from 'pg';
 import type { HiddenHorseTraitKey, HorseStatField, HorseStats, HorseVisibleStats } from '@at-sevdalisi/shared-types';
 import type { HorseStatsRepository } from '../../application/ports/horse-stats.repository';
 import { PG_POOL } from '../database/database.module';
+import type { HorseNeedTimestamps } from '../../domain/care/needs';
 
 /**
  * `horse_stats` tablosunun satır şekli (`database/migrations/
@@ -187,6 +188,37 @@ export class PostgresHorseStatsRepository implements HorseStatsRepository {
       [horseIds, itemType],
     );
     for (const row of rows.rows) result.set(row.horse_id, row.count);
+    return result;
+  }
+
+  async findNeedTimestampsByHorseIds(
+    horseIds: readonly string[],
+    feedTypes: readonly string[],
+  ): Promise<Map<string, HorseNeedTimestamps>> {
+    const result = new Map<string, HorseNeedTimestamps>();
+    if (horseIds.length === 0) return result;
+    const rows = await this.pool.query<{
+      id: string;
+      needs_anchor_at: Date;
+      last_fed_at: Date | null;
+      last_watered_at: Date | null;
+    }>(
+      `SELECT h.id, h.needs_anchor_at,
+              (SELECT MAX(f.fed_at) FROM horse_feed_log f
+                WHERE f.horse_id = h.id AND f.item_type = ANY($2::text[])) AS last_fed_at,
+              (SELECT c.last_performed_at FROM horse_care_log c
+                WHERE c.horse_id = h.id AND c.action_type = 'water') AS last_watered_at
+         FROM horses h
+        WHERE h.id = ANY($1::uuid[])`,
+      [horseIds, feedTypes],
+    );
+    for (const row of rows.rows) {
+      result.set(row.id, {
+        anchorAt: row.needs_anchor_at,
+        lastFedAt: row.last_fed_at,
+        lastWateredAt: row.last_watered_at,
+      });
+    }
     return result;
   }
 

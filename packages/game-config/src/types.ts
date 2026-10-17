@@ -932,6 +932,18 @@ export interface CareConfig {
     energyPerHour: number;
     fatiguePerHour: number;
   };
+  /**
+   * 17.10.2026 (brief §14) — yem/su ihtiyacı: son beslenme (`feedCategories`
+   * kategorisindeki yem) ve son su bakımından TÜRETİLİR. Aralık geçince
+   * "zamanı geldi" (`due`), iki katı geçince "acil" (`urgent`); antrenman
+   * kazancı en kötü ihtiyacın çarpanıyla ölçeklenir (`ok` = 1, eski davranış).
+   */
+  needs: {
+    feedCategories: string[];
+    feedIntervalHours: number;
+    waterIntervalHours: number;
+    trainingFactorByLevel: { ok: number; due: number; urgent: number };
+  };
 }
 
 /**

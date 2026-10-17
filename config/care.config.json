@@ -157,6 +157,12 @@
     "energyPerKm": 15,
     "fatiguePerKm": 15
   },
+  "needs": {
+    "feedCategories": ["feed", "foal"],
+    "feedIntervalHours": 24,
+    "waterIntervalHours": 12,
+    "trainingFactorByLevel": { "ok": 1, "due": 0.9, "urgent": 0.75 }
+  },
   "passiveRecovery": {
     "enabled": true,
     "tickSeconds": 300,

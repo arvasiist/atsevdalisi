@@ -60,7 +60,7 @@ kapsamında yapılan iştir. 3D işi kapsam dışı (brief kuralı 7). Brief met
 | 8 | İlaç/takviye, veteriner kontrolü, sağlık kuralı yarışa etki | PARTIAL | bakımda `vet` var; envanterden ilaç/takviye ve yarışa etkisi yok | ✅ K5 TESTED: elektrolit, eklem takviyesi, ağrı kesici (son 24 saatte veteriner şartı, 409 `FEED_REQUIRES_VET_CHECK`); sağlık mevcut hazırlık kapısıyla yarış girişine etki eder |
 | 8 | Teknik: tekil kimlik/fiyat/kategori, merkezi config, sunucu doğrulaması, atomik bakiye + envanter, çift alım yok, alım geçmişi | TESTED | `equipment.config.json` + `validateEquipmentConfig`, `Idempotency-Key`, `equipment_purchase`/`feed_purchase` defteri | değişmedi |
 | 8 | Kozmetik ile performans ayrı; pahalı ürün otomatik kazandırmaz | PARTIAL | performans tavanı ×1,05 (`performance.ts`); kozmetik ekipman kategorisi yok | ✅ K6 TESTED: kategori TİPTEN türer (config kozmetiği performansa sokamaz), kozmetik kalitesi 0 + çarpandan elenir, tavan ×1,05 testli (`performance.spec.ts`) |
-| 9 | Uluslararası hipodromlar (ülke/şehir) | PARTIAL | 5 Türk hipodromu (`hippodromes.config.json`, migration 0072) | brief metni kesik — bekliyor |
+| 9 | Uluslararası hipodromlar (ülke/şehir) | PARTIAL | 5 Türk hipodromu (`hippodromes.config.json`, migration 0072) | ✅ F5-H1 (migration 0098) — bkz. §9–§24 tablosu |
 
 **Bilinen çelişki (sahibinin dikkatine):** gebelik ≈ 67 gerçek gün, mevcut
 "1 gerçek gün = 1 oyun ayı" kuralıyla birlikte kısrağın bir gebelikte ~67 oyun
@@ -93,7 +93,7 @@ bölmeler).
 | 13 | Antrenör işe alma, maaş (peşin sözleşme), aşırı antrenman (yorgunluk/sakatlık) | TESTED | `staff.e2e`, antrenman enerji/yorgunluk | değişmedi |
 | 13 | Antrenör uzmanlıkları / geliştirme | TESTED | uzmanlık = antrenman tipi (eşleşende bonus ×1,5, diğerinde ×0,75, eski/genel antrenör ×1); seans başına deneyim, 20 seansta beceri +1 (tavan 95); `/staff` uzmanlık + gelişim satırı, antrenman sonucu "uzmanlık alanı"/"gelişti" — `staff.spec.ts` (+4), `staff.e2e-spec.ts` (+2), web `training-labels.spec.ts` | F7c ✅ |
 | 14 | Sağlık/bakım/veteriner/sakatlık/gebelik kontrolü/yarış öncesi denetim, sunucu otoritesi | TESTED | bakım + hazırlık kapısı + gebelik veteriner kontrolü | değişmedi |
-| 14 | Beslenme/su ihtiyacı | PARTIAL | yem/su bakım işi var; "açlık/susuzluk" canlı durumu YOK (uydurulmadı) | değişmedi |
+| 14 | Beslenme/su ihtiyacı | TESTED | son yem/sudan TÜRETİLİR (sayaç yok; migration 0102 çıpası, mevcut atlar tok başladı): yem 24 sa, su 12 sa → "zamanı geldi" → "acil"; antrenman kazancı en kötü ihtiyacın çarpanıyla (×0,9 / ×0,75; motor dışı); ahır kartı rozetleri + antrenman uyarısı — `needs.spec.ts`, `horse-needs.e2e-spec.ts`, web `horse-needs.spec.ts` + Chromium | §14 ✅ |
 | 15 | İlan, fiyat, müzayede, teklif geçmişi, sahiplik kontrolü, tek işlem devir, çift satış engeli | TESTED | `market.e2e`, `auction` e2e | değişmedi |
 | 16 | Arkadaş, 5'in katı arkadaş başarımı (100 çip, tek sefer), hediye/toplu alma, kulüp, sohbet | TESTED | `friend-gift`, başarım PK, kulüp e2e | değişmedi |
 | 17 | Tribün hediyesi (alıcı/yarış/at doğrulaması, spam sınırı, sonuca etkisiz) | TESTED | `tribune-gift.e2e` | değişmedi |

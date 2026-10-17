@@ -191,7 +191,27 @@ export type PublicHorse = Omit<Horse, 'potential' | 'agingStartedAt'> & {
    * at listesinde döner.
    */
   stallNumber?: number;
+  /** 17.10.2026 (brief §14) — yem/su ihtiyacı; yalnızca sahibinin listesinde. */
+  needs?: HorseNeedsView;
 };
+
+/** 17.10.2026 (brief §14) — yem/su ihtiyacı düzeyi (sunucuda türetilir). */
+export type HorseNeedLevel = 'ok' | 'due' | 'urgent';
+
+export interface HorseNeedView {
+  level: HorseNeedLevel;
+  /** İhtiyacın en son karşılandığı an (hiç karşılanmadıysa ölçüm çıpası). */
+  lastAt: ISODateTimeString;
+  /** Bir sonraki beslenme/su zamanı. */
+  dueAt: ISODateTimeString;
+}
+
+export interface HorseNeedsView {
+  feed: HorseNeedView;
+  water: HorseNeedView;
+  /** Antrenman kazancı çarpanı (en kötü ihtiyaç; karşılanmışsa 1). */
+  trainingFactor: number;
+}
 
 export interface HorseUpbringingView {
   feedType: string;
@@ -304,6 +324,8 @@ export interface TrainHorseResult {
   newStatus: Pick<Horse, 'fatigue' | 'energy' | 'morale' | 'fitness'>;
   /** 01.10.2026 — uygulanan antrenör çarpanı (1 = antrenörsüz). */
   staffMultiplier: number;
+  /** 17.10.2026 (brief §14) — antrenman anındaki yem/su ihtiyacı ve uygulanan çarpanı. */
+  needs: HorseNeedsView;
   /**
    * 17.10.2026 (brief §13) — seansı veren antrenör (etkin antrenör yoksa `null`):
    * uzmanlık eşleşti mi ve seans sonrası beceri/deneyim (dinlenmede gelişim yok).

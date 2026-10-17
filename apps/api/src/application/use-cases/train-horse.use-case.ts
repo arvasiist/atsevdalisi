@@ -19,6 +19,7 @@ import { computePersonalityTrainingEffects } from '../../domain/horse/personalit
 import { applyVitalDelta } from '../../domain/horse/vital-signs';
 import { applyXpGain } from '../../domain/progression/progression';
 import { ManageStaffUseCase } from './manage-staff.use-case';
+import { computeHorseNeeds, hungerFeedTypes, toHorseNeedsView } from '../../domain/care/needs';
 import { FarmEffectsService } from './farm-effects.service';
 import {
   applyTraining,
@@ -100,6 +101,14 @@ export class TrainHorseUseCase {
     const { multiplier: trainerFactor, trainer } = await this.staff.trainerFor(horse.ownerId, input.type, now);
     // 01.10.2026 — antrenman pisti × nalbant alanı sakatlık olasılığını düşürür.
     const { trainingInjuryRiskMultiplier } = await this.farmEffects.effectsFor(horse.ownerId);
+    // 17.10.2026 (brief §14) — yem/su ihtiyacı: aç/susuz at daha az gelişir
+    // (son beslenme/sudan türetilir; karşılanmışsa çarpan 1 = eski davranış).
+    const needTimes = (
+      await this.horseStatsRepository.findNeedTimestampsByHorseIds([horseId], hungerFeedTypes(this.config.care))
+    ).get(horseId);
+    const needs = needTimes
+      ? computeHorseNeeds(needTimes, now, this.config.care.needs)
+      : computeHorseNeeds({ lastFedAt: null, lastWateredAt: null, anchorAt: now }, now, this.config.care.needs);
     // 08.10.2026 — atın kişiliği (gizli statlar): odak/rekabetçilik → kazanç,
     // stres dayanımı → yorgunluk, itaat → sakatlık. Nötr (50) at = çarpanlar 1.
     const personality = computePersonalityTrainingEffects(stats, input.intensity, this.config.horsePersonality);
@@ -135,6 +144,7 @@ export class TrainHorseUseCase {
         ageMonths,
         trainerFactor,
         personalityFactor: personality.gainMultiplier,
+        needsFactor: needs.trainingFactor,
       });
       // Yorgunluk çarpanı yalnızca ARTIŞA uygulanır; dinlenmenin (negatif)
       // toparlaması kişilikle değişmez. Sütun NUMERIC(5,2): yanıt, DB'ye
@@ -249,6 +259,7 @@ export class TrainHorseUseCase {
         fitness: newVitals.fitness,
       },
       staffMultiplier: trainerFactor,
+      needs: toHorseNeedsView(needs),
       trainer:
         trainer === null
           ? null

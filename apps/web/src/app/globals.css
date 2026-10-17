@@ -4773,3 +4773,33 @@ button.btn-action {
 .tribune-inbox-amount[data-collected='true'] {
   color: var(--color-text-secondary);
 }
+
+/* 17.10.2026 — yem/su ihtiyacı (brief §14). */
+.horse-needs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: var(--space-sm, 8px);
+  font-size: 12px;
+}
+.horse-need {
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--color-text-secondary);
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.horse-need[data-level='due'] {
+  color: var(--color-status-warning);
+  border-color: var(--color-status-warning);
+}
+.horse-need[data-level='urgent'] {
+  color: var(--color-status-critical);
+  border-color: var(--color-status-critical);
+}
+.horse-need-penalty {
+  color: var(--color-status-critical);
+}

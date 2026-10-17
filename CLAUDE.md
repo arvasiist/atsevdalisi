@@ -1318,6 +1318,19 @@ antrenör gelişmez. Maaş sabit. ⚠️ Antrenör çarpanını ölçen e2e aday
 uzmanlığını SQL ile sabitlemeli (`staff.e2e-spec.ts`: genel için `specialization
 = NULL`).
 
+(108) **YEM VE SU İHTİYACI (17.10.2026, migration 0102, brief §14)** — SAYAÇ
+YOK: son beslenme (`horse_feed_log`, yalnızca `care.needs.feedCategories` —
+takviye/ilaç karın doyurmaz; ücretsiz saman sayılır) ve son su bakımından
+(`horse_care_log` 'water') TÜRETİLİR; ölçüm çıpası `horses.needs_anchor_at`
+(mevcut atlar migration anı → kimse habersiz aç başlamadı; yeni at oluşturulduğu
+an). Düzey `ok` → aralık (yem 24, su 12 sa) → `due` → iki katı → `urgent`
+(saf `domain/care/needs.ts`). Etki YALNIZCA antrenmanda: `needsFactor` = en kötü
+ihtiyacın çarpanı (`trainingFactorByLevel`, `ok` = 1 → eski formül bit bit).
+MOTOR/yarış/toparlanma DEĞİŞMEDİ. `GET /horses?ownerId=` satırı + antrenman
+yanıtı `needs` taşır (herkese açık at ucu TAŞIMAZ). ⚠️ Antrenman kazancını
+domain formülüyle kıyaslayan YENİ e2e'de at tok olmalı (yeni at zaten tok; SQL
+ile çıpayı geri çektiysen yem + su ver) — `horse-needs.e2e-spec.ts`.
+
 **✅ ÜCRETLİ LOBİ YARIŞI ARTIK KOŞUYOR — ÖDÜL DAĞITIMI VAR (§13.14,
 28.09.2026).** `POST /races/:id/settle` yarışı koşar, ödülleri `top5`
 paylarıyla dağıtır ve `races.status = 'finished'` yazar. Uç bir

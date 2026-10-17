@@ -53,6 +53,7 @@ import { JockeyPanel } from '../../features/jockey/JockeyPanel';
 import { PedigreeTree } from '../../features/pedigree/PedigreeTree';
 import { HorseCareerPanel } from '../../features/horse-profile/HorseCareerPanel';
 import { describeUpbringing, statRows } from '../../features/horse-profile/horse-profile';
+import { describeNeeds, needsTrainingPenalty } from '../../features/horse-profile/horse-needs';
 import { pickFeaturedHorse } from '../../features/home-scene/featured-horse';
 import { apiClient } from '../../lib/api-client';
 import { formatCurrency } from '../../lib/currency';
@@ -660,6 +661,25 @@ function HorseCard({
           >
             {describeUpbringing(horse.upbringing)} · <Link href="/shop">Market</Link>
           </p>
+        ) : null}
+        {horse.needs ? (
+          <div className="horse-needs" data-testid={`needs-${horse.id}`}>
+            {describeNeeds(horse.needs, new Date()).map((line) => (
+              <button
+                key={line.key}
+                type="button"
+                className="horse-need"
+                data-level={line.level}
+                onClick={() => onOpenAction(horse.id, 'care')}
+                title="Bakım panelini aç"
+              >
+                <span aria-hidden="true">{line.icon}</span> {line.text}
+              </button>
+            ))}
+            {needsTrainingPenalty(horse.needs) ? (
+              <span className="horse-need-penalty">{needsTrainingPenalty(horse.needs)}</span>
+            ) : null}
+          </div>
         ) : null}
         {horse.raceReadyAt ? (
           <p

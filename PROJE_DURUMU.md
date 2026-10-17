@@ -4830,3 +4830,18 @@ kazancını (potansiyel tavanı altında) etkiler. Açık kalanlar: gerçek pist
 adı/görsel hakları (hukuki, sahibinin kararı), beslenme/su "açlık" canlı durumu
 (ceza mekaniği sahibinin kararı; uydurulmadı), gebelik süresi (≈67 gün) ile
 "1 gün = 1 oyun ayı" ölçeği arasındaki tercih.
+
+### 13.117 Brief §14 — yem ve su ihtiyacı (17.10.2026, migration 0102)
+
+Yem ve su eskiden yalnızca anlık vital etkisi veren işlerdi; zamanla doğan bir
+ihtiyaç yoktu (MASTER_STATUS'ta PARTIAL). Artık ihtiyaç son beslenme ve son su
+bakımından türetilir (sayaç yok): yem 24 saatte, su 12 saatte "zamanı geldi",
+iki katında "acil" olur. Takviye ve ilaç karın doyurmaz; ücretsiz saman doyurur.
+Ölçüm çıpası `horses.needs_anchor_at` — mevcut atlar migration anını aldı, yani
+yürürlüğe girdiğinde hiçbir at habersiz aç başlamadı. Oyun etkisi yalnızca
+antrenmanda: kazanç en kötü ihtiyacın çarpanıyla düşer (×0,9 / ×0,75), karşılanmış
+ihtiyaçta formül eskisiyle aynı; yarış motoru ve toparlanma değişmedi. Ahır
+kartında "Tok / Yem zamanı / Aç" ve "Su" rozetleri (bakım panelini açar) +
+antrenman cezası; antrenman ekranında uyarı. Testler: `needs.spec.ts` (6),
+`horse-needs.e2e-spec.ts` (2), web `horse-needs.spec.ts` (2); Chromium'da
+masaüstü + yatay telefon konsol hatasız.

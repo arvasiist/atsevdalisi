@@ -307,6 +307,13 @@ Olası hata: `HORSE_TOO_TIRED`, `HORSE_INJURED`, `INSUFFICIENT_ENERGY`
 hatası değil), veya `type`/`intensity`/`durationMinutes` formatı
 hatalıysa `400 VALIDATION_ERROR`.
 
+**Yem/su ihtiyacı (17.10.2026, brief §14, migration 0102).** Yanıt `needs:
+{ feed, water, trainingFactor }` taşır (`feed`/`water` = `{ level: ok|due|urgent,
+lastAt, dueAt }`); kazanç `trainingFactor` ile ölçeklenir (karşılanmış ihtiyaçta
+1). İhtiyaç son beslenme (yalnızca `care.needs.feedCategories` yemleri) ve son su
+bakımından türetilir; aralıklar `care.needs`. `GET /horses?ownerId=` satırları da
+`needs` taşır (yalnızca sahibine; `GET /horses/:id` taşımaz).
+
 **Antrenör uzmanlığı + gelişimi (17.10.2026, brief §13).** Yanıt
 `staffMultiplier` (uygulanan çarpan) ve `trainer` taşır: `null` (etkin antrenör
 yok) ya da `{ staffId, name, specialization, specializationMatched, skill,
