@@ -28,6 +28,8 @@ export interface HorseStatsRepository {
    * (`horseRacingPower`, 14.10.2026) de bunun hız/ivme/dayanıklılığından.
    */
   findVisibleStatsByHorseIds(horseIds: readonly string[]): Promise<Map<string, HorseVisibleStats>>;
+  /** 16.10.2026 — atların bir yem kalemiyle ömür boyu beslenme sayısı (tay yetiştirme ilerlemesi). */
+  findFeedCountsByHorseIds(horseIds: readonly string[], itemType: string): Promise<Map<string, number>>;
 }
 
 /** NestJS DI için token (interface'ler runtime'da yok olduğundan bir Symbol gerekir). */

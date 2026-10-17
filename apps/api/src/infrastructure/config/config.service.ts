@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { validateBreedingCenterConfig } from '../../domain/breeding/breeding-center';
+import { validateUpbringingConfig } from '../../domain/care/care';
 import {
   loadAdminConfig,
   loadBreedsConfig,
@@ -203,6 +204,11 @@ export class AppConfigService {
     }
     // 16.10.2026 — çiftleştirme merkezi + gebelik (döllenme asla %100 değil, iade ≤ ücret).
     validateBreedingCenterConfig(this.genetics);
+    // 16.10.2026 — tay yetiştirme (yaşa sınırsız yetiştirme kazancı = bedava stat).
+    const upbringingProblems = validateUpbringingConfig(this.care);
+    if (upbringingProblems.length > 0) {
+      throw new Error(`Bakım config'i geçersiz (config/care.config.json): ${upbringingProblems.join(' ')}`);
+    }
     // 08.10.2026 — ekipman kataloğu (bozuksa API AÇILMAZ).
     validateEquipmentConfig(loadEquipmentConfig(), this.progression.maxLevel);
     const tribuneGiftProblems = validateTribuneGiftsConfig(this.grandstand.tribuneGifts);

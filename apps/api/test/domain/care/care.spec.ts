@@ -277,6 +277,11 @@ describe('buildFeedItemView', () => {
       quantity: 5,
       fedInWindow: null,
       discountPercent: 0,
+      // 16.10.2026 — kategori + kalite kademesi + kullanım koşulları.
+      category: 'feed',
+      qualityTier: 'standard',
+      allowedLifeStages: null,
+      requiresVetWithinHours: null,
     });
     // `saman` stoklanmaz → `quantity` 0 DEĞİL, null döner ("stok bitti"
     // diye okunmasın).
@@ -288,6 +293,10 @@ describe('buildFeedItemView', () => {
       quantity: null,
       fedInWindow: null,
       discountPercent: 0,
+      category: 'feed',
+      qualityTier: 'basic',
+      allowedLifeStages: null,
+      requiresVetWithinHours: null,
     });
   });
 

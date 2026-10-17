@@ -154,7 +154,9 @@ import {
 import {
   CareActionOnCooldownError,
   DailyFeedLimitReachedError,
+  FeedNotAllowedForAgeError,
   FeedNotPurchasableError,
+  FeedRequiresVetCheckError,
   InsufficientFeedStockError,
   InvalidCareInputError,
   InvalidFeedPurchaseCountError,
@@ -904,6 +906,8 @@ const DOMAIN_ERROR_MAP = new Map<ErrorClassConstructor, { status: number; code: 
   [PregnancyNotFoundError, { status: HttpStatus.NOT_FOUND, code: ErrorCode.PregnancyNotFound }],
   [PregnancyCheckupTooSoonError, { status: HttpStatus.CONFLICT, code: ErrorCode.PregnancyCheckupTooSoon }],
   [HorseBreedingCommitmentError, { status: HttpStatus.CONFLICT, code: ErrorCode.HorseBreedingCommitment }],
+  [FeedNotAllowedForAgeError, { status: HttpStatus.CONFLICT, code: ErrorCode.FeedNotAllowedForAge }],
+  [FeedRequiresVetCheckError, { status: HttpStatus.CONFLICT, code: ErrorCode.FeedRequiresVetCheck }],
   // YARIŞA KATILMA (brief §2/§3/§6, §42 PHASE 1b) — beşi de
   // `POST /races/:id/join` yolundan gelir. Sınıflandırma, projedeki AYNI
   // kategorilerin tekrarıdır (hepsi `domain/race/errors.ts`'te uzun uzun

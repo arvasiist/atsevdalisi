@@ -22,7 +22,22 @@ export type CareActionType = 'groom' | 'water' | 'clean' | 'vet' | 'farrier' | '
  * stoklanır — gerekçe `@at-sevdalisi/game-config` `FeedTypeEffect` doc
  * yorumunda.
  */
-export type FeedType = 'saman' | 'arpa' | 'mama' | 'havuc' | 'vitamin';
+export type FeedType =
+  | 'saman'
+  | 'arpa'
+  | 'mama'
+  | 'havuc'
+  | 'vitamin'
+  | 'yulaf'
+  | 'enerji_yemi'
+  | 'kondisyon_yemi'
+  | 'tay_yemi'
+  | 'elektrolit'
+  | 'eklem_takviyesi'
+  | 'agri_kesici';
+
+/** 16.10.2026 — market kategorisi (brief §8). */
+export type FeedCategory = 'feed' | 'supplement' | 'medicine' | 'foal';
 
 /**
  * `HorseHealth`'in bakım eylemlerinden etkilenen alt kümesi — bkz.
@@ -80,6 +95,8 @@ export interface FeedHorseResult {
    * `null` — o kalem için stok kavramı yoktur.
    */
   stockAfter: number | null;
+  /** 16.10.2026 — tay yemi verildiyse kalıcı yetiştirme katkısı (yoksa yok). */
+  upbringingGain?: { stat: 'speed' | 'stamina' | 'acceleration' | 'sprint'; amount: number };
 }
 
 /**
@@ -109,6 +126,11 @@ export interface FeedItemView {
    * yukarı yuvarlanır; ödenen tutar `BuyFeedResult.totalCost`tur.
    */
   discountPercent: number;
+  /** 16.10.2026 — kategori + kalite kademesi + kullanım koşulları (sunucu config'inden). */
+  category: FeedCategory;
+  qualityTier: 'basic' | 'standard' | 'premium';
+  allowedLifeStages: string[] | null;
+  requiresVetWithinHours: number | null;
 }
 
 /** `GET /players/{id}/feed-inventory` yanıtı — oyuncunun yem envanteri + kalem kataloğu. */

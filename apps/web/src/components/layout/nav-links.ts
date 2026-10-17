@@ -75,6 +75,8 @@ export const NAV_LINKS: ReadonlyArray<NavLink> = [
   { href: '/care', label: 'Bakım', icon: 'care', placement: 'primary', mobileTab: true },
   { href: '/races', label: 'Yarışlar', icon: 'races', placement: 'more' },
   { href: '/market', label: 'Pazar', icon: 'market', placement: 'more' },
+  // 16.10.2026 — brief §8: yem, tay yemi, takviye, ilaç (sarf malzemesi).
+  { href: '/shop', label: 'Market', icon: 'market', placement: 'more' },
   { href: '/grandstand', label: 'Tribün', icon: 'grandstand', placement: 'more' },
   { href: '/leaderboard', label: 'Sıralama', icon: 'leaderboard', placement: 'more' },
   { href: '/friends', label: 'Sosyal', icon: 'friends', placement: 'more' },

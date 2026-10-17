@@ -6,15 +6,17 @@
  * simgesinden açılır ve sahnedeki at için yapılır. Davranış değişmedi:
  * `POST /horses/:id/care`, `POST /horses/:id/feed`, `GET /horses/:id/feed-status`.
  *
- * `CareActionType`/`FeedType` listeleri `apps/api/src/domain/care/
- * validation.ts`'teki `CARE_ACTION_TYPES`/`FEED_TYPES` ile BİREBİR aynı
- * tutulmalıdır (apps/web, apps/api'nin domain koduna import edemez).
+ * `CareActionType` listesi `apps/api/src/domain/care/validation.ts`'teki
+ * `CARE_ACTION_TYPES` ile BİREBİR aynı tutulmalıdır (apps/web, apps/api'nin
+ * domain kodunu import edemez). Yem kalemleri (16.10.2026) sunucunun
+ * `feed-status` yanıtından kategoriyle gelir; yerel liste yoktur.
  *
  * Durum bazlı engelleme YOK: bakımın (özellikle `vet`) işi sakat bir atı
  * `active`'e döndürmektir; sunucu kendi kurallarını (bekleme süresi,
  * `InvalidCareInputError`) uygular ve 409 mesajı olduğu gibi gösterilir.
  */
 
+import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import type {
   CareActionType,
@@ -25,7 +27,7 @@ import type {
   PublicHorse,
 } from '@at-sevdalisi/shared-types';
 import { StatBar } from '../../components/ui/StatBar';
-import { FEED_TYPE_LABELS } from '../care/feed-labels';
+import { FEED_CATEGORY_LABELS, FEED_CATEGORY_ORDER, FEED_TYPE_DESCRIPTIONS, FEED_TYPE_LABELS } from '../care/feed-labels';
 import { apiClient } from '../../lib/api-client';
 
 const CARE_ACTION_TYPES: readonly CareActionType[] = [
@@ -36,8 +38,6 @@ const CARE_ACTION_TYPES: readonly CareActionType[] = [
   'farrier',
   'rest',
 ];
-/** `apps/api/src/domain/care/validation.ts` `FEED_TYPES` ile BİREBİR aynı sırada. */
-const FEED_TYPES: readonly FeedType[] = ['saman', 'arpa', 'mama', 'havuc', 'vitamin'];
 
 export const CARE_ACTION_LABELS: Record<CareActionType, string> = {
   groom: 'Tımar',
@@ -57,12 +57,11 @@ const CARE_ACTION_DESCRIPTIONS: Record<CareActionType, string> = {
   rest: 'Yorgunluğu düşürür, enerjiyi tazeler.',
 };
 
-const FEED_TYPE_DESCRIPTIONS: Record<FeedType, string> = {
-  saman: 'Bedava, enerji verir. At başına günde en fazla 3 kez.',
-  arpa: 'Enerjiyi en çok artıran kalem, kilo durumunu da destekler.',
-  mama: 'Arpa’dan az enerji ama daha çok kondisyon verir.',
-  havuc: 'Enerji vermez; moral ve toparlanma sağlar.',
-  vitamin: 'Sağlık ve toparlanma için takviye.',
+const UPBRINGING_STAT_LABELS: Record<NonNullable<FeedHorseResult['upbringingGain']>['stat'], string> = {
+  speed: 'Hız',
+  stamina: 'Dayanıklılık',
+  acceleration: 'İvme',
+  sprint: 'Sprint',
 };
 
 const HEALTH_FIELD_LABELS: Record<keyof PerformCareActionResult['newHealth'], string> = {
@@ -199,33 +198,46 @@ export function CarePanel({ horse, onHorseChanged }: CarePanelProps): React.Reac
         </div>
       </div>
 
-      <div className="stable-action-group">
-        <span className="stable-action-label">Besleme</span>
-        <div className="stable-action-chips">
-          {FEED_TYPES.map((option) => {
-            const item = feedStatus?.items.find((entry) => entry.type === option) ?? null;
-            // Stok 0 ya da günlük sınır dolmuşsa düğme kapanır — sunucu
-            // zaten 409 dönerdi, ama nedeni ÖNCEDEN göstermek daha dürüsttür.
-            const isOutOfStock = item !== null && item.stocked && (item.quantity ?? 0) <= 0;
-            const isLimitReached =
-              item !== null && item.dailyLimit !== null && (item.fedInWindow ?? 0) >= item.dailyLimit;
-            const isDisabled = isBusy || isOutOfStock || isLimitReached;
-            return (
-              <button
-                key={option}
-                type="button"
-                disabled={isDisabled}
-                title={FEED_TYPE_DESCRIPTIONS[option]}
-                onClick={() => void handleFeed(option)}
-                className="stable-chip"
-              >
-                {FEED_TYPE_LABELS[option]}
-                {item ? <span className="stable-chip-detail">{feedItemDetail(item)}</span> : null}
-              </button>
-            );
-          })}
-        </div>
-      </div>
+      {/* 16.10.2026 — yem / tay / takviye / ilaç kategorileri (brief §8). Liste ve
+          koşullar SUNUCUDAN (`feed-status`); stokta olmayan ücretli kalem
+          gösterilmez, Market'ten alınır. */}
+      {FEED_CATEGORY_ORDER.map((category) => {
+        const items = (feedStatus?.items ?? []).filter(
+          (entry) => entry.category === category && (!entry.stocked || (entry.quantity ?? 0) > 0 || entry.type === 'saman'),
+        );
+        if (items.length === 0) return null;
+        return (
+          <div key={category} className="stable-action-group">
+            <span className="stable-action-label">{FEED_CATEGORY_LABELS[category]}</span>
+            <div className="stable-action-chips">
+              {items.map((item) => {
+                const option = item.type;
+                // Stok 0 ya da günlük sınır dolmuşsa düğme kapanır — sunucu
+                // zaten 409 dönerdi, ama nedeni ÖNCEDEN göstermek daha dürüsttür.
+                const isOutOfStock = item.stocked && (item.quantity ?? 0) <= 0;
+                const isLimitReached = item.dailyLimit !== null && (item.fedInWindow ?? 0) >= item.dailyLimit;
+                const isDisabled = isBusy || isOutOfStock || isLimitReached;
+                return (
+                  <button
+                    key={option}
+                    type="button"
+                    disabled={isDisabled}
+                    title={FEED_TYPE_DESCRIPTIONS[option]}
+                    onClick={() => void handleFeed(option)}
+                    className="stable-chip"
+                  >
+                    {FEED_TYPE_LABELS[option]}
+                    <span className="stable-chip-detail">{feedItemDetail(item)}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
+      <p className="stable-action-muted">
+        Yem, takviye ve ilaç <Link href="/shop">Market</Link>&apos;ten alınır; stoktakiler burada görünür.
+      </p>
 
       {isBusy ? <p className="stable-action-muted">İşleniyor…</p> : null}
 
@@ -267,6 +279,11 @@ export function CarePanel({ horse, onHorseChanged }: CarePanelProps): React.Reac
           {feedResult.remainingToday !== null ? (
             <span>
               Bugün kalan {FEED_TYPE_LABELS[feedResult.feedType]} hakkı: {feedResult.remainingToday}
+            </span>
+          ) : null}
+          {feedResult.upbringingGain ? (
+            <span data-testid="upbringing-gain">
+              Yetiştirme: {UPBRINGING_STAT_LABELS[feedResult.upbringingGain.stat]} +{feedResult.upbringingGain.amount}
             </span>
           ) : null}
           {feedResult.stockAfter !== null ? (

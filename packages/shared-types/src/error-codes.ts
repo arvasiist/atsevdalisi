@@ -707,6 +707,9 @@ export const ErrorCode = {
   PregnancyCheckupTooSoon: 'PREGNANCY_CHECKUP_TOO_SOON',
   /** Gebe kısrak / bekleyen teklifteki at satışa çıkamaz (409). */
   HorseBreedingCommitment: 'HORSE_BREEDING_COMMITMENT',
+  // 16.10.2026 — yem/ilaç kullanım koşulları (brief §7–§8).
+  FeedNotAllowedForAge: 'FEED_NOT_ALLOWED_FOR_AGE',
+  FeedRequiresVetCheck: 'FEED_REQUIRES_VET_CHECK',
 } as const;
 
 export type ErrorCodeValue = (typeof ErrorCode)[keyof typeof ErrorCode];

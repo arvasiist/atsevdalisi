@@ -165,6 +165,18 @@ export class PostgresHorseStatsRepository implements HorseStatsRepository {
     return result;
   }
 
+  async findFeedCountsByHorseIds(horseIds: readonly string[], itemType: string): Promise<Map<string, number>> {
+    const result = new Map<string, number>();
+    if (horseIds.length === 0) return result;
+    const rows = await this.pool.query<{ horse_id: string; count: number }>(
+      `SELECT horse_id, COUNT(*)::int AS count FROM horse_feed_log
+       WHERE horse_id = ANY($1::uuid[]) AND item_type = $2 GROUP BY horse_id`,
+      [horseIds, itemType],
+    );
+    for (const row of rows.rows) result.set(row.horse_id, row.count);
+    return result;
+  }
+
   async updateStatValue(horseId: string, statKey: HorseStatField, newValue: number): Promise<void> {
     const column = STAT_COLUMN_MAP[statKey];
     await this.pool.query(`UPDATE horse_stats SET ${column} = $2, updated_at = now() WHERE horse_id = $1`, [

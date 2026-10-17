@@ -53,7 +53,7 @@ import { BreedingPanel } from '../../features/breeding/BreedingPanel';
 import { JockeyPanel } from '../../features/jockey/JockeyPanel';
 import { PedigreeTree } from '../../features/pedigree/PedigreeTree';
 import { HorseCareerPanel } from '../../features/horse-profile/HorseCareerPanel';
-import { statRows } from '../../features/horse-profile/horse-profile';
+import { describeUpbringing, statRows } from '../../features/horse-profile/horse-profile';
 import { pickFeaturedHorse } from '../../features/home-scene/featured-horse';
 import { apiClient } from '../../lib/api-client';
 import { formatCurrency, hasEnoughFunds } from '../../lib/currency';
@@ -679,6 +679,14 @@ function HorseCard({
               </div>
             ))}
           </div>
+        ) : null}
+        {horse.upbringing ? (
+          <p
+            data-testid={`upbringing-${horse.id}`}
+            style={{ margin: 'var(--space-sm) 0 0', fontSize: '12px', color: 'var(--color-text-secondary)' }}
+          >
+            {describeUpbringing(horse.upbringing)} · <Link href="/shop">Market</Link>
+          </p>
         ) : null}
         {horse.raceReadyAt ? (
           <p

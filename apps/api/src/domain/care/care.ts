@@ -24,6 +24,8 @@ import { applyVitalDelta, type VitalSigns } from '../horse/vital-signs';
 import {
   CareActionOnCooldownError,
   DailyFeedLimitReachedError,
+  FeedNotAllowedForAgeError,
+  FeedRequiresVetCheckError,
   InsufficientFeedStockError,
   InvalidCareInputError,
 } from './errors';
@@ -271,7 +273,74 @@ export function buildFeedItemView(
     quantity: stocked ? quantity : null,
     fedInWindow,
     discountPercent: Math.round((1 - feedCostMultiplier) * 100),
+    category: getFeedTypeEffect(config, type).category,
+    qualityTier: getFeedTypeEffect(config, type).qualityTier,
+    allowedLifeStages: getFeedTypeEffect(config, type).allowedLifeStages ?? null,
+    requiresVetWithinHours: getFeedTypeEffect(config, type).requiresVetWithinHours ?? null,
   };
+}
+
+// ---------------------------------------------------------------------------
+// 16.10.2026 — kullanım koşulları + tay yetiştirme (brief §7–§8)
+// ---------------------------------------------------------------------------
+
+/** Kalem bu yaş evresine verilebilir mi (`allowedLifeStages` yoksa her yaşa). */
+export function assertFeedAllowedForLifeStage(config: CareConfig, feedType: FeedType, lifeStage: string): void {
+  const allowed = getFeedTypeEffect(config, feedType).allowedLifeStages;
+  if (allowed && !allowed.includes(lifeStage)) {
+    throw new FeedNotAllowedForAgeError(feedType, lifeStage);
+  }
+}
+
+/** İlaç "reçetesi": son `requiresVetWithinHours` saatte veteriner bakımı şart. */
+export function assertVetPrescription(config: CareConfig, feedType: FeedType, lastVetAt: Date | null, now: Date): void {
+  const hours = getFeedTypeEffect(config, feedType).requiresVetWithinHours;
+  if (hours === undefined) return;
+  if (lastVetAt === null || now.getTime() - lastVetAt.getTime() > hours * 3_600_000) {
+    throw new FeedRequiresVetCheckError(feedType, hours);
+  }
+}
+
+export type UpbringingStat = CareConfig['upbringing']['statRotation'][number];
+
+/**
+ * Tay yemi verildikçe sıradaki stata (`statRotation`, dönerek) küçük kalıcı
+ * katkı. Ömür boyu en fazla `maxFeedsPerHorse` besleme sayılır ve stat atın
+ * potansiyelini AŞAMAZ (antrenmanla aynı tavan) — yetiştirme dengeli kalır.
+ * Kalemin `upbringingStatGain`i yoksa `null`.
+ */
+export function computeUpbringingGain(
+  config: CareConfig,
+  feedType: FeedType,
+  priorFeeds: number,
+  stats: Partial<Record<UpbringingStat, number>>,
+  potential: number,
+): { stat: UpbringingStat; newValue: number; amount: number } | null {
+  const gain = getFeedTypeEffect(config, feedType).upbringingStatGain;
+  const rotation = config.upbringing.statRotation;
+  if (gain === undefined || rotation.length === 0 || priorFeeds >= config.upbringing.maxFeedsPerHorse) {
+    return null;
+  }
+  const stat = rotation[priorFeeds % rotation.length]!;
+  const current = stats[stat];
+  if (current === undefined) return null;
+  const cap = Math.min(MAX_VALUE, potential);
+  const newValue = Math.round(Math.min(cap, current + gain) * 100) / 100;
+  const amount = Math.round((newValue - current) * 100) / 100;
+  return amount > 0 ? { stat, newValue, amount } : null;
+}
+
+/** Açılış doğrulaması: yetiştirme kazancı yalnızca yaşa sınırlı kalemde olabilir. */
+export function validateUpbringingConfig(config: CareConfig): string[] {
+  const problems: string[] = [];
+  if (!(config.upbringing.maxFeedsPerHorse > 0)) problems.push('upbringing.maxFeedsPerHorse > 0 olmalı.');
+  if (config.upbringing.statRotation.length === 0) problems.push('upbringing.statRotation boş olamaz.');
+  for (const [type, effect] of Object.entries(config.feedTypes)) {
+    if (effect.upbringingStatGain !== undefined && !effect.allowedLifeStages) {
+      problems.push(`"${type}" yetiştirme kazancı veriyor ama yaş evresi sınırı yok (yetişkine bedava stat olurdu).`);
+    }
+  }
+  return problems;
 }
 
 /**
@@ -369,13 +438,14 @@ export function applyFeed(
   return {
     vitals: applyVitalDelta(vitals, effect.vitalDelta ?? {}),
     health: {
-      injuryRisk: health.injuryRisk,
+      // 16.10.2026 — ilaç/takviye sakatlık riskini ve eklem durumunu da etkiler.
+      injuryRisk: clamp(health.injuryRisk + (effect.injuryRiskDelta ?? 0), MIN_VALUE, MAX_VALUE),
       recoveryRate: clamp(
         health.recoveryRate + (effect.recoveryRateDelta ?? 0),
         MIN_VALUE,
         MAX_VALUE,
       ),
-      jointCondition: health.jointCondition,
+      jointCondition: clamp(health.jointCondition + (effect.jointConditionDelta ?? 0), MIN_VALUE, MAX_VALUE),
       weightCondition: clamp(
         health.weightCondition + (effect.weightConditionDelta ?? 0),
         MIN_VALUE,

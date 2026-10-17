@@ -179,7 +179,25 @@ export type PublicHorse = Omit<Horse, 'potential' | 'agingStartedAt'> & {
    * listesinde; gizli kişilik sayıları ve potansiyel burada YOKTUR.
    */
   stats?: HorseVisibleStats;
+  /**
+   * 16.10.2026 — tay büyütme (brief §7): yalnızca tay/gelişim çağındaki atta,
+   * sahibinin listesinde. Yetiştirme yemiyle kullanılan/kalan hak + kalan
+   * maliyet (birim fiyat sunucu config'inden).
+   */
+  upbringing?: HorseUpbringingView;
 };
+
+export interface HorseUpbringingView {
+  feedType: string;
+  feedsUsed: number;
+  feedsMax: number;
+  /** Hak başına verilen stat puanı. */
+  gainPerFeed: number;
+  /** Bir adedin fiyatı (oyun parası). */
+  unitPrice: number;
+  /** Kalan hakların toplam maliyeti. */
+  remainingCost: number;
+}
 
 /** Sahibine gösterilen yarış statları (gizli kişilik alanları HARİÇ). */
 export const HORSE_VISIBLE_STAT_KEYS = [

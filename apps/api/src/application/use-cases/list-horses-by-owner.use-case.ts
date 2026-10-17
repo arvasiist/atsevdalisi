@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import type { Horse, HorsePersonalityView, HorseVisibleStats } from '@at-sevdalisi/shared-types';
+import type { FeedType, Horse, HorsePersonalityView, HorseUpbringingView, HorseVisibleStats } from '@at-sevdalisi/shared-types';
 import { describePersonality } from '../../domain/horse/personality';
 import { horseRacingPower } from '../../domain/race/practice-class';
 import { estimateRaceReadyAt } from '../../domain/care/race-condition';
@@ -47,13 +47,21 @@ export class ListHorsesByOwnerUseCase {
       /** 15.10.2026 — B13: yaş evresi + yarış çarpanı (kadroya donan değerle aynı kural). */
       lifeStage: { name: string; racingFactor: number };
       stats: HorseVisibleStats | null;
+      upbringing: HorseUpbringingView | null;
     }>
   > {
     const horses = await this.horseRepository.findByOwnerId(ownerId);
     const ids = horses.map((horse) => horse.id);
-    const [traits, visibleStats] = await Promise.all([
+    // 16.10.2026 — tay büyütme: yetiştirme kazancı veren (yaşa sınırlı) kalem.
+    const upbringingFeed = (Object.entries(this.config.care.feedTypes) as Array<[FeedType, (typeof this.config.care.feedTypes)[FeedType]]>).find(
+      ([, effect]) => effect.upbringingStatGain !== undefined && effect.allowedLifeStages !== undefined,
+    );
+    const [traits, visibleStats, upbringingCounts] = await Promise.all([
       this.horseStatsRepository.findPersonalityByHorseIds(ids),
       this.horseStatsRepository.findVisibleStatsByHorseIds(ids),
+      upbringingFeed
+        ? this.horseStatsRepository.findFeedCountsByHorseIds(ids, upbringingFeed[0])
+        : Promise.resolve(new Map<string, number>()),
     ]);
     return horses.map((horse) => {
       const values = traits.get(horse.id);
@@ -77,7 +85,28 @@ export class ListHorsesByOwnerUseCase {
         ageMonths,
         lifeStage: { name: stage.name, racingFactor: stage.racingFactor },
         stats: power ?? null,
+        upbringing:
+          upbringingFeed && upbringingFeed[1].allowedLifeStages!.includes(stage.name)
+            ? this.upbringingView(upbringingFeed[0], upbringingFeed[1], upbringingCounts.get(horse.id) ?? 0)
+            : null,
       };
     });
+  }
+
+  private upbringingView(
+    feedType: FeedType,
+    effect: (typeof this.config.care.feedTypes)[FeedType],
+    feedsUsed: number,
+  ): HorseUpbringingView {
+    const feedsMax = this.config.care.upbringing.maxFeedsPerHorse;
+    const unitPrice = effect.price?.amount ?? 0;
+    return {
+      feedType,
+      feedsUsed: Math.min(feedsUsed, feedsMax),
+      feedsMax,
+      gainPerFeed: effect.upbringingStatGain ?? 0,
+      unitPrice,
+      remainingCost: Math.max(0, feedsMax - feedsUsed) * unitPrice,
+    };
   }
 }

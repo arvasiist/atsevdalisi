@@ -3,6 +3,7 @@ import { HORSE_VISIBLE_STAT_KEYS } from '@at-sevdalisi/shared-types';
 import {
   HORSE_STAT_LABELS,
   describeRecord,
+  describeUpbringing,
   formatPlacing,
   statRows,
   winRatePercent,
@@ -40,5 +41,11 @@ describe('at profili biçimlendirme (brief §3)', () => {
     expect(formatPlacing({ finishPosition: 3, fieldSize: 8 })).toBe('3/8');
     expect(winRatePercent({ starts: 0, wins: 0 })).toBeNull();
     expect(winRatePercent({ starts: 3, wins: 1 })).toBe(33);
+  });
+
+  it('tay büyütme: kalan hak + maliyet sunucunun sayılarıyla; bitince tamamlandı', () => {
+    const view = { feedType: 'tay_yemi', feedsUsed: 3, feedsMax: 16, gainPerFeed: 0.5, unitPrice: 70, remainingCost: 910 };
+    expect(describeUpbringing(view)).toBe('Tay yemi 3/16 · her beslemede +0.5 stat · kalan 13 beslemenin maliyeti 910 çip');
+    expect(describeUpbringing({ ...view, feedsUsed: 16, remainingCost: 0 })).toBe('Tay yetiştirmesi tamamlandı (16/16).');
   });
 });

@@ -816,13 +816,52 @@ export interface FeedTypeEffect {
    * sınırsızdır.
    */
   dailyLimit?: number;
+  /**
+   * 16.10.2026 — brief §8: market kategorisi (yem / takviye / ilaç / tay) ve
+   * kalite-fiyat kademesi. Salt sınıflandırma; etkiyi yukarıdaki deltalar verir.
+   */
+  category: FeedCategory;
+  qualityTier: 'basic' | 'standard' | 'premium';
+  /** Sakatlık riski / eklem durumu etkisi (ilaç, takviye). */
+  injuryRiskDelta?: number;
+  jointConditionDelta?: number;
+  /** Yalnızca bu yaş evrelerindeki ata verilebilir (tay yemi). Yoksa her yaşa. */
+  allowedLifeStages?: string[];
+  /**
+   * 16.10.2026 — brief §7: tay evresinde verildikçe yarış statına küçük, tavanlı
+   * kalıcı katkı (`upbringing.maxFeedsPerHorse` beslemeyle sınırlı; potansiyeli aşamaz).
+   */
+  upbringingStatGain?: number;
+  /** Kullanım koşulu: son N saatte veteriner bakımı şart (ilaç "reçetesi"). */
+  requiresVetWithinHours?: number;
 }
 
-export type FeedType = 'saman' | 'arpa' | 'mama' | 'havuc' | 'vitamin';
+export type FeedCategory = 'feed' | 'supplement' | 'medicine' | 'foal';
+
+export type FeedType =
+  | 'saman'
+  | 'arpa'
+  | 'mama'
+  | 'havuc'
+  | 'vitamin'
+  | 'yulaf'
+  | 'enerji_yemi'
+  | 'kondisyon_yemi'
+  | 'tay_yemi'
+  | 'elektrolit'
+  | 'eklem_takviyesi'
+  | 'agri_kesici';
+
+/** 16.10.2026 — tay büyütme (brief §7): yetiştirme statları sırayla döner. */
+export interface UpbringingConfig {
+  statRotation: Array<'speed' | 'stamina' | 'acceleration' | 'sprint'>;
+  maxFeedsPerHorse: number;
+}
 
 export interface CareConfig {
   actions: Record<CareActionType, CareActionEffect>;
   feedTypes: Record<FeedType, FeedTypeEffect>;
+  upbringing: UpbringingConfig;
   /** AUDIT_REPORT.md H1 — bkz. `InjuryRecoveryConfig` üstündeki not. */
   injuryRecovery: InjuryRecoveryConfig;
   /**

@@ -15,7 +15,20 @@ export const CARE_ACTION_TYPES: readonly CareActionType[] = ['groom', 'water', '
  * artan fiyata göre. `feed-inventory` uç noktası kalemleri bu sırayla döner
  * (DB sırasına GÜVENİLMEZ, bkz. `postgres-feed-inventory.repository.ts`).
  */
-export const FEED_TYPES: readonly FeedType[] = ['saman', 'arpa', 'mama', 'havuc', 'vitamin'];
+export const FEED_TYPES: readonly FeedType[] = [
+  'saman',
+  'yulaf',
+  'arpa',
+  'mama',
+  'havuc',
+  'enerji_yemi',
+  'kondisyon_yemi',
+  'tay_yemi',
+  'vitamin',
+  'elektrolit',
+  'eklem_takviyesi',
+  'agri_kesici',
+];
 
 /**
  * Kullanıcıdan gelen serbest bir değeri `FeedType`'a daraltır.

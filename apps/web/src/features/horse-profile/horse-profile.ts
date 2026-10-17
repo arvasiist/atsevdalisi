@@ -2,6 +2,7 @@ import {
   HORSE_VISIBLE_STAT_KEYS,
   type HorseCareerRaceView,
   type HorseRecordSummary,
+  type HorseUpbringingView,
   type HorseVisibleStatKey,
   type HorseVisibleStats,
 } from '@at-sevdalisi/shared-types';
@@ -58,4 +59,16 @@ export function formatPlacing(race: Pick<HorseCareerRaceView, 'finishPosition' |
 /** Kazanma oranı (yüzde, tam sayı); koşusu yoksa `null`. */
 export function winRatePercent(record: Pick<HorseRecordSummary, 'starts' | 'wins'>): number | null {
   return record.starts > 0 ? Math.round((record.wins / record.starts) * 100) : null;
+}
+
+/** 16.10.2026 — tay büyütme ilerlemesi (brief §7); sayılar sunucudan. */
+export function describeUpbringing(view: HorseUpbringingView): string {
+  const remaining = Math.max(0, view.feedsMax - view.feedsUsed);
+  if (remaining === 0) {
+    return `Tay yetiştirmesi tamamlandı (${view.feedsMax}/${view.feedsMax}).`;
+  }
+  return `Tay yemi ${view.feedsUsed}/${view.feedsMax} · her beslemede +${view.gainPerFeed} stat · kalan ${remaining} beslemenin maliyeti ${formatCurrency(
+    'money',
+    view.remainingCost,
+  )}`;
 }
