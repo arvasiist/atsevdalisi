@@ -4,6 +4,8 @@ import {
   Controller,
   Get,
   Headers,
+  HttpCode,
+  HttpStatus,
   Inject,
   Param,
   ParseUUIDPipe,
@@ -11,7 +13,13 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { isUUID } from 'class-validator';
-import type { ApiSuccess, RaceTribuneGiftsView, SendTribuneGiftResult } from '@at-sevdalisi/shared-types';
+import type {
+  ApiSuccess,
+  CollectTribuneGiftsResult,
+  RaceTribuneGiftsView,
+  SendTribuneGiftResult,
+  TribuneGiftInboxView,
+} from '@at-sevdalisi/shared-types';
 import { TribuneGiftUseCase } from '../../application/use-cases/tribune-gift.use-case';
 import { CurrentPlayer, type AuthenticatedPlayer } from '../auth/current-player.decorator';
 import { IdempotencyInterceptor } from '../idempotency/idempotency.interceptor';
@@ -52,5 +60,28 @@ export class TribuneGiftController {
     }
     const result = await this.tribuneGifts.send(raceId, player.id, dto.horseId, dto.giftKey, idempotencyKey ?? null);
     return { success: true, data: result };
+  }
+}
+
+/**
+ * 17.10.2026 (brief §17) — at sahibinin HEDİYE KUTUSU. Oyuncu token'dan gelir
+ * (başkasının kutusu sorulamaz). Toplama PARA YOLU: oyuncu `FOR UPDATE` + tek
+ * defter satırı; tekrar çağrı sıfır toplar.
+ */
+@Controller('tribune-gifts')
+export class TribuneGiftInboxController {
+  constructor(@Inject(TribuneGiftUseCase) private readonly tribuneGifts: TribuneGiftUseCase) {}
+
+  @RateLimit({ name: 'tribune-gift-inbox', limit: 60, windowSeconds: 60, keyBy: 'player' })
+  @Get('inbox')
+  async inbox(@CurrentPlayer() player: AuthenticatedPlayer): Promise<ApiSuccess<TribuneGiftInboxView>> {
+    return { success: true, data: await this.tribuneGifts.inbox(player.id) };
+  }
+
+  @RateLimit({ name: 'tribune-gift-collect', limit: 10, windowSeconds: 60, keyBy: 'player' })
+  @Post('collect')
+  @HttpCode(HttpStatus.OK)
+  async collect(@CurrentPlayer() player: AuthenticatedPlayer): Promise<ApiSuccess<CollectTribuneGiftsResult>> {
+    return { success: true, data: await this.tribuneGifts.collect(player.id) };
   }
 }

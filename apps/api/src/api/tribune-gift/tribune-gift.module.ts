@@ -5,7 +5,7 @@ import { PostgresTribuneGiftRepository } from '../../infrastructure/grandstand/p
 import { IdempotencyInterceptor } from '../idempotency/idempotency.interceptor';
 import { RaceModule } from '../race/race.module';
 import { RealtimeModule } from '../realtime/realtime.module';
-import { TribuneGiftController } from './tribune-gift.controller';
+import { TribuneGiftController, TribuneGiftInboxController } from './tribune-gift.controller';
 
 /**
  * TRİBÜN HEDİYESİ (08.10.2026). `RaceModule` → izleme yetki kapısı
@@ -15,7 +15,7 @@ import { TribuneGiftController } from './tribune-gift.controller';
  */
 @Module({
   imports: [RaceModule, RealtimeModule],
-  controllers: [TribuneGiftController],
+  controllers: [TribuneGiftController, TribuneGiftInboxController],
   providers: [
     TribuneGiftUseCase,
     IdempotencyInterceptor,

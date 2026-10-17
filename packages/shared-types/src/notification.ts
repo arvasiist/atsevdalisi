@@ -103,6 +103,8 @@ export interface NotificationPayloadByType {
     playerId: string;
     displayName: string;
     amount: number;
+    /** 17.10.2026 — pay hediye kutusunda bekliyor (toplanınca hesaba geçer). Eski bildirimlerde yok = gönderimde ödenmişti. */
+    collectRequired?: boolean;
   };
   /** 08.10.2026 — sabit fiyatlı ilanın süresi doldu; at satılmadı, sende. */
   listing_expired: { listingId: string; horseId: string; horseName: string; price: number };

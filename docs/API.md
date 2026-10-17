@@ -949,11 +949,20 @@ tribünle AYNI (`assertCanWatch`: katılımcı / ücretsiz tribün / bilet → y
 Hatalar: 400 `INVALID_TRIBUNE_GIFT` (katalogda yok) · 409
 `TRIBUNE_GIFT_NOT_ALLOWED` (kendi atı, bot, yarışta olmayan at, iptal/pencere
 dışı yarış) · 409 `TRIBUNE_GIFT_DAILY_LIMIT` · 409 `INSUFFICIENT_FUNDS` · 403
-`PLAYER_BLOCKED`. Defter: gönderen `tribune_gift_debit`, alıcı
-`tribune_gift_credit` (referans `tribune_gifts.id`); alıcıya
-`tribune_gift_received` bildirimi. Soket: yarış odasına `race.tribuneGift`
+`PLAYER_BLOCKED`. Defter: gönderen `tribune_gift_debit` (referans
+`tribune_gifts.id`); alıcıya `tribune_gift_received` bildirimi
+(`collectRequired: true`). Soket: yarış odasına `race.tribuneGift`
 (`raceId`, `tribuneGiftId`, `giftKey`, `horseId`, `horseName`,
 `senderDisplayName`, `createdAt`).
+
+**Hediye kutusu (17.10.2026, migration 0101, brief §17).** Sahibin payı artık
+gönderimde ÖDENMEZ; hediye kutusunda bekler (0101 öncesi hediyeler gönderimde
+ödenmişti ve toplanmış sayılır).
+
+| Uç | Açıklama |
+| --- | --- |
+| `GET /tribune-gifts/inbox` | Yalnızca çağıranın kutusu (oyuncu token'dan). `pendingCount`, `pendingAmount`, `pendingByGift[]` (`giftKey`, `count`, `amount`; katalog sırasıyla), `received[]` (son `recentLimit`: `tribuneGiftId`, `giftKey`, `raceId`, `raceName`, `horseName`, `senderDisplayName`, `amount`, `createdAt`, `collectedAt` — `null` = bekliyor). Hız sınırı `tribune-gift-inbox` 60/dk |
+| `POST /tribune-gifts/collect` | PARA YOLU: oyuncu `FOR UPDATE` → bekleyenler işaretlenir (`collected_at`, `collect_id`) → TEK `tribune_gift_credit` defter satırı (referans türü `tribune_gift_collect`, kimlik = toplama). 200 `{ collected, amount, balanceAfter }`; tekrar çağrı sıfır toplar (Idempotency-Key gerekmez). Eşzamanlı iki toplama aynı payı iki kez ödeyemez. Hız sınırı `tribune-gift-collect` 10/dk |
 
 ### Bildirimler + Yarış Daveti (brief §16, §28 — §42 PHASE 11 + PHASE 13)
 

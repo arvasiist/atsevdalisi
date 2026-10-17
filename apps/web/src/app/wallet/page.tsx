@@ -40,6 +40,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { loadEconomyConfig } from '@at-sevdalisi/game-config';
 import type { ClaimDailyRewardResult, WalletTransaction, WalletView } from '@at-sevdalisi/shared-types';
 import { GlassPanel } from '../../components/ui/GlassPanel';
+import { TribuneGiftInbox } from '../../features/grandstand/TribuneGiftInbox';
 import { EconomyReportPanel } from '../../features/wallet/EconomyReportPanel';
 import { FEED_TYPE_LABELS } from '../../features/care/feed-labels';
 import { describeLedgerType } from '../../features/wallet/ledger-labels';
@@ -56,7 +57,7 @@ const HISTORY_LIMIT = economyConfig.walletHistoryDefaultLimit;
 const DEPOSIT = economyConfig.mockDeposit;
 
 export default function WalletPage(): React.ReactElement {
-  const { player, isLoading: isPlayerLoading, error: playerError, createPlayer } = usePlayer();
+  const { player, isLoading: isPlayerLoading, error: playerError, createPlayer, refresh } = usePlayer();
 
   const [wallet, setWallet] = useState<WalletView | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -316,6 +317,14 @@ export default function WalletPage(): React.ReactElement {
               </ul>
             </GlassPanel>
           )}
+
+          <TribuneGiftInbox
+            onCollected={async () => {
+              // Toplama bakiyeyi değiştirir: cüzdan + üst bar yeniden okunur.
+              await refresh();
+              setWallet(await loadWallet(player.id));
+            }}
+          />
 
           <EconomyReportPanel playerId={player.id} />
 

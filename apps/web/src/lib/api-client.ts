@@ -32,6 +32,8 @@ import type {
   FriendGiftSendAllResult,
   RaceTribuneGiftsView,
   SendTribuneGiftResult,
+  TribuneGiftInboxView,
+  CollectTribuneGiftsResult,
   AvatarAppearance,
   AvatarView,
   AvatarGenerationJobView,
@@ -1689,6 +1691,12 @@ export const apiClient = {
       headers: { 'Idempotency-Key': idempotencyKey },
       body: JSON.stringify(body),
     }),
+  /**
+   * 17.10.2026 (brief §17) — hediye kutusu: tribünden gelen payların toplu
+   * alınması. Toplama tekrarı sıfır toplar (sunucu oyuncu kilidiyle işaretler).
+   */
+  getTribuneGiftInbox: () => request<TribuneGiftInboxView>('/tribune-gifts/inbox'),
+  collectTribuneGifts: () => request<CollectTribuneGiftsResult>('/tribune-gifts/collect', { method: 'POST' }),
   claimEvent: (eventId: string) =>
     request<QuestClaimResult>(`/events/${encodeURIComponent(eventId)}/claim`, { method: 'POST' }),
   listAdminEvents: () => request<AdminLiveEventView[]>('/admin/events'),

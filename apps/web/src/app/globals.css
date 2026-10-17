@@ -4747,3 +4747,29 @@ button.btn-action {
   color: var(--color-text-secondary);
   white-space: nowrap;
 }
+
+/* 17.10.2026 — Hediye kutusu (brief §17). */
+.tribune-inbox-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+  font-size: 0.85rem;
+}
+.tribune-inbox-list li {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: var(--space-sm, 8px);
+  align-items: center;
+  padding: 6px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+.tribune-inbox-amount {
+  text-align: right;
+  white-space: nowrap;
+  color: var(--color-status-positive);
+}
+.tribune-inbox-amount[data-collected='true'] {
+  color: var(--color-text-secondary);
+}

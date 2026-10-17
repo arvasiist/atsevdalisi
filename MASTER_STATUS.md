@@ -98,7 +98,7 @@ bölmeler).
 | 16 | Arkadaş, 5'in katı arkadaş başarımı (100 çip, tek sefer), hediye/toplu alma, kulüp, sohbet | TESTED | `friend-gift`, başarım PK, kulüp e2e | değişmedi |
 | 17 | Tribün hediyesi (alıcı/yarış/at doğrulaması, spam sınırı, sonuca etkisiz) | TESTED | `tribune-gift.e2e` | değişmedi |
 | 17 | Brief'in hediye listesi (yonca, kurdele, havuç demeti, çelenk) | TESTED | katalog: Havuç Demeti, yonca 🍀, elma, nazar, kurdele 🎀, Altın Nal, gül çelengi, kupa (migration 0100; `tribune-gift.spec.ts` kısıtı config'le kıyaslar) | F7 ✅ |
-| 17 | Gelen hediyeleri toplu alma | PARTIAL | pay şu an gönderim anında ödeniyor (toplama adımı yok) | F7b |
+| 17 | Gelen hediyeleri toplu alma | TESTED | pay hediye kutusunda bekler, `POST /tribune-gifts/collect` tek defter satırıyla öder (migration 0101; eski satırlar toplanmış sayıldı); `/wallet` "Hediye Kutusu" — `tribune-gift.e2e-spec.ts` (kutu, toplama, tekrar sıfır, eşzamanlı iki toplama tek ödeme, satılan atta koşturana) + Chromium ekran görüntüsü | F7b ✅ |
 | 18 | Günlük/haftalık görev, başarım, sezon, tek sefer ödül, config | TESTED | `quests`, `achievements`, `season` e2e | değişmedi |
 | 18 | Çiftleştirme/tay yetiştirme görevleri | TESTED | ölçüt `breedings` (döllenme) + `foals_born` (doğum), gebelik satırından türetilir (sayaç yok); haftalık `weekly-breed-1`, başarım `first-foal`/`foals-5` (migration 0099; `breeding-quests.e2e-spec.ts`: başarısız deneme sayılmaz, doğum sonrası görev + başarım ödenir) | F7 ✅ |
 | 19 | Kapasite, geliştirme, yem/bakım/personel/yarış giderleri | TESTED | ahır geliştirme + defter | değişmedi |

@@ -760,10 +760,11 @@ migration'ı okur — hediye eklerken kısıtı ADIYLA düşür). Yetki
 `assertCanWatch` (tribünle AYNI kapı). ALICI = atı o yarışta KOŞTURAN oyuncu
 (`e.player_id`; bot/kendi atı/yarışta olmayan at 409 `TRIBUNE_GIFT_NOT_ALLOWED`).
 PARA YOLU: yarış `FOR SHARE` → iki oyuncu id sırasıyla `FOR UPDATE` → engel →
-günlük sınır KİLİT ALTINDA → `tribune_gift_debit` (fiyat) + `tribune_gift_credit`
+günlük sınır KİLİT ALTINDA → `tribune_gift_debit` (fiyat) + pay
 (`ownerSharePercent`, aşağı yuvarlanır; kalan ekonomiden ÇIKAR — yabancılar
 arası değer aktarımını pahalılaştırır) + `tribune_gift_received` bildirimi TEK
-transaction. `Idempotency-Key` ZORUNLU; web anahtarı (at, hediye) başına
+transaction. ⚠️ 17.10.2026'dan beri pay gönderimde ÖDENMEZ, hediye kutusuna
+düşer (bkz. (107), migration 0101). `Idempotency-Key` ZORUNLU; web anahtarı (at, hediye) başına
 BAŞARIYA kadar saklar. Yayın `race.tribuneGift` COMMIT'ten sonra, köprüden
 (`server.to` — oynatma karesi değil). Nal Unicode'da yok → istemci SVG çizer
 (`CLIENT_DRAWN_TRIBUNE_GIFTS`; dosya DEĞİL). Satırlar silinmez (mali kayıt);
@@ -1301,6 +1302,12 @@ Defterde olmayan tutar UYDURULMAZ. Görev/başarım ölçütleri `breedings`
 sahibi `pregnancies.owner_id` (çiftleştiren) — başarısız deneme sayılmaz;
 `live_events_metric_valid` 0099'da. Tribün kataloğuna yonca 🍀 ve kurdele 🎀
 (`tribune_gifts_gift_key_valid` 0100'de; havuç adı "Havuç Demeti").
+**HEDİYE KUTUSU (migration 0101):** tribün hediyesinde sahibin payı artık
+gönderimde ÖDENMEZ — `tribune_gifts.collected_at` NULL ile kutuda bekler; `POST
+/tribune-gifts/collect` oyuncu `FOR UPDATE` altında bekleyenleri işaretler +
+TEK `tribune_gift_credit` (referans `tribune_gift_collect`); `/wallet` → "Hediye
+Kutusu". 0101 öncesi satırlar toplanmış sayıldı (payları gönderimde ödenmişti).
+⚠️ `send` alıcıyı hâlâ `FOR UPDATE` kilitler — toplama ile aynı kilit, KALDIRMA.
 
 **✅ ÜCRETLİ LOBİ YARIŞI ARTIK KOŞUYOR — ÖDÜL DAĞITIMI VAR (§13.14,
 28.09.2026).** `POST /races/:id/settle` yarışı koşar, ödülleri `top5`

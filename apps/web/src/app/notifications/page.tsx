@@ -512,7 +512,10 @@ function describe(notification: NotificationView): { title: string; detail: stri
     case 'tribune_gift_received':
       return {
         title: `${notification.payload.displayName}, ${notification.payload.horseName} için ${tribuneGiftName(notification.payload.giftKey)} gönderdi`,
-        detail: `${notification.payload.raceName} · ${formatCurrency('money', notification.payload.amount)} hesabına geçti.`,
+        // 17.10.2026 — pay hediye kutusunda bekler (eski bildirimlerde bayrak yok = gönderimde ödenmişti).
+        detail: notification.payload.collectRequired
+          ? `${notification.payload.raceName} · ${formatCurrency('money', notification.payload.amount)} hediye kutunda — Cüzdan'dan topla.`
+          : `${notification.payload.raceName} · ${formatCurrency('money', notification.payload.amount)} hesabına geçti.`,
         href: '/wallet',
       };
     // 08.10.2026 — sabit fiyatlı ilanın süresi doldu (at satılmadı).

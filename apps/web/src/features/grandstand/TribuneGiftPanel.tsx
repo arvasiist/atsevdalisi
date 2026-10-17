@@ -85,7 +85,7 @@ export function TribuneGiftPanel({
       const result = await apiClient.sendTribuneGift(raceId, { horseId, giftKey }, key);
       pendingKeys.current.delete(slot);
       const horseName = view?.recipients.find((recipient) => recipient.horseId === horseId)?.horseName ?? 'at';
-      setNotice(`${tribuneGiftName(giftKey)} ${horseName} için gönderildi — sahibine +${result.ownerAmount} çip.`);
+      setNotice(`${tribuneGiftName(giftKey)} ${horseName} için gönderildi — sahibinin hediye kutusuna +${result.ownerAmount} çip.`);
       await Promise.all([load(), refresh()]);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Hediye gönderilemedi');
@@ -133,7 +133,7 @@ export function TribuneGiftPanel({
           ) : (
             <>
               <p className="tribune-gift-muted">
-                At sahibine gönder; hediyenin bir kısmı sahibinin hesabına çip olarak geçer. Bugün {view.sentToday}/
+                At sahibine gönder; hediyenin bir kısmı sahibinin hediye kutusuna çip olarak düşer. Bugün {view.sentToday}/
                 {view.dailyLimit}.
               </p>
               {blocked ? <p className="tribune-gift-muted">{blocked}</p> : null}
@@ -180,7 +180,7 @@ export function TribuneGiftPanel({
                       busyKey !== null || !horseId || blocked !== null || !canSendTribuneGift(view, item, player.money)
                     }
                     onClick={() => void send(item.key)}
-                    title={`${item.name} — ${item.price} çip (sahibine +${item.ownerAmount})`}
+                    title={`${item.name} — ${item.price} çip (sahibinin kutusuna +${item.ownerAmount})`}
                   >
                     <TribuneGiftIcon giftKey={item.key} emoji={item.emoji} />
                     <span className="tribune-gift-item-name">{item.name}</span>

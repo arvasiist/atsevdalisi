@@ -4790,5 +4790,16 @@ başarımı, tekrar talep 409, defter satırları).
 
 **F7a — tribün hediyesi kataloğu (§17, migration 0100).** Brief'in listesindeki
 yonca ve kurdele eklendi, havucun adı "Havuç Demeti" oldu (anahtar aynı — eski
-satırlar bozulmaz). Toplu alma henüz YOK: at sahibinin payı gönderim anında
-ödeniyor (F7b'de değerlendirilecek).
+satırlar bozulmaz).
+
+**F7b — tribün hediyelerini toplu alma (§17, migration 0101).** At sahibinin
+payı artık gönderimde ödenmez; hediye kutusunda bekler ve "Hepsini topla" tek
+işlemle (oyuncu kilidi + tek defter satırı) hesaba geçirir. 0101 öncesi
+hediyelerin payı gönderimde ödendiği için toplanmış sayıldı — ikinci ödeme yok.
+Bildirim "hediye kutunda — Cüzdan'dan topla" yazar (eski bildirimler "hesabına
+geçti" demeye devam eder). `/wallet` → "Hediye Kutusu" (bekleyen özet + son
+gelenler, alındı/bekliyor). Kişisel veri dışa aktarmasına `collectedAt` eklendi.
+Testler: `tribune-gift.e2e-spec.ts` 5 (kutu, toplama, tekrar sıfır, eşzamanlı
+iki toplama tek ödeme, satılan atta pay koşturanın kutusuna), web
+`tribune-gifts.spec.ts`; Chromium'da masaüstü + yatay telefon konsol hatasız
+(4.980 → 5.067 çip, tek kredi satırı 87).

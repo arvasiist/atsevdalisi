@@ -1,4 +1,4 @@
-import type { TribuneGiftFeedItem } from '@at-sevdalisi/shared-types';
+import type { TribuneGiftFeedItem, TribuneGiftInboxView } from '@at-sevdalisi/shared-types';
 
 export const TRIBUNE_GIFT_REPOSITORY = Symbol('TRIBUNE_GIFT_REPOSITORY');
 
@@ -34,14 +34,25 @@ export interface RaceTribuneGiftFacts {
   sentToday: number;
 }
 
+export interface CollectTribuneGiftsOutcome {
+  collected: number;
+  amount: number;
+  balanceAfter: number;
+}
+
 /**
  * TRİBÜN HEDİYESİ (08.10.2026) — PARA YOLU. `send` TEK transaction'da:
  * yarış (FOR SHARE) → katılım (alıcı = koşturan oyuncu) → iki oyuncu id
- * sırasıyla FOR UPDATE → engel → günlük sınır (kilit altında) → debit +
- * credit + iki defter satırı + bildirim.
+ * sırasıyla FOR UPDATE → engel → günlük sınır (kilit altında) → debit + defter
+ * satırı + bildirim. 17.10.2026 (migration 0101): sahibin payı gönderimde
+ * ÖDENMEZ, hediye kutusunda bekler; `collect` oyuncu `FOR UPDATE` altında
+ * bekleyenleri işaretler ve TEK `tribune_gift_credit` satırı yazar.
  */
 export interface TribuneGiftRepository {
   send(input: SendTribuneGiftInput): Promise<SendTribuneGiftOutcome>;
+  /** `null` = oyuncu yok/silinmiş. */
+  inbox(playerId: string, recentLimit: number): Promise<TribuneGiftInboxView | null>;
+  collect(playerId: string, now: Date): Promise<CollectTribuneGiftsOutcome>;
   /** `null` = yarış yok. */
   findForRace(raceId: string, viewerId: string, dayStart: Date, recentLimit: number): Promise<RaceTribuneGiftFacts | null>;
 }
